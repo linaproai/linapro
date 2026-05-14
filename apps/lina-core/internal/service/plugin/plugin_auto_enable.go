@@ -11,6 +11,7 @@ import (
 	"lina-core/internal/model/entity"
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/plugin/internal/catalog"
+	plugindep "lina-core/internal/service/plugin/internal/dependency"
 	"lina-core/pkg/bizerr"
 )
 
@@ -53,6 +54,10 @@ func (s *serviceImpl) BootstrapAutoEnable(ctx context.Context) error {
 // matching source-plugin or dynamic-plugin startup bootstrap path. The entry
 // carries both the ID and the per-plugin mock-data opt-in flag.
 func (s *serviceImpl) bootstrapAutoEnablePlugin(ctx context.Context, entry configsvc.PluginAutoEnableEntry) error {
+	if err := s.bootstrapAutoInstallDependencies(ctx, entry); err != nil {
+		return err
+	}
+
 	manifest, err := s.catalogSvc.GetDesiredManifest(entry.ID)
 	if err != nil {
 		return bizerr.WrapCode(err, CodePluginAutoEnableDiscoveryFailed, bizerr.P("pluginId", entry.ID))
@@ -75,6 +80,40 @@ func (s *serviceImpl) bootstrapAutoEnablePlugin(ctx context.Context, entry confi
 	}
 }
 
+// bootstrapAutoInstallDependencies pre-installs automatic dependencies for one
+// configured startup target. The regular Install path repeats the safety check;
+// this pre-pass makes startup ordering explicit without enabling dependencies
+// unless they are also listed in plugin.autoEnable.
+func (s *serviceImpl) bootstrapAutoInstallDependencies(ctx context.Context, entry configsvc.PluginAutoEnableEntry) error {
+	plan, err := s.resolveInstallDependencies(ctx, entry.ID)
+	if err != nil {
+		return err
+	}
+	if hasDependencyBlockers(plan.Blockers) {
+		return s.buildDependencyBlockedError(entry.ID, plan.Blockers)
+	}
+	for _, item := range sortedAutoInstallPlan(plan.AutoInstallPlan) {
+		if item == nil || strings.TrimSpace(item.PluginID) == "" {
+			continue
+		}
+		if err = s.ensurePluginInstalledDuringStartup(ctx, item.PluginID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ensurePluginInstalledDuringStartup waits for a dependency plugin to reach
+// installed state. Only the primary node performs shared install side effects.
+func (s *serviceImpl) ensurePluginInstalledDuringStartup(ctx context.Context, pluginID string) error {
+	return s.ensurePluginStateDuringStartup(ctx, pluginID, isPluginStartupInstalled, func() error {
+		if _, err := s.Install(ctx, pluginID, InstallOptions{}); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
 // bootstrapAutoEnableSourcePlugin ensures one required source plugin reaches
 // the enabled state during startup. When withMockData is true and the plugin
 // is not yet installed, the install call also loads the plugin's mock-data
@@ -86,8 +125,8 @@ func (s *serviceImpl) bootstrapAutoEnableSourcePlugin(ctx context.Context, manif
 		return bizerr.NewCode(CodePluginAutoEnableSourceManifestRequired)
 	}
 
-	return s.ensurePluginEnabledDuringStartup(ctx, manifest.ID, func() error {
-		if err := s.Install(ctx, manifest.ID, InstallOptions{InstallMockData: withMockData}); err != nil {
+	return s.ensurePluginStateDuringStartup(ctx, manifest.ID, isPluginStartupEnabled, func() error {
+		if _, err := s.Install(ctx, manifest.ID, InstallOptions{InstallMockData: withMockData}); err != nil {
 			return bizerr.WrapCode(err, CodePluginSourceInstallFailed)
 		}
 		if err := s.Enable(ctx, manifest.ID); err != nil {
@@ -109,8 +148,8 @@ func (s *serviceImpl) bootstrapAutoEnableDynamicPlugin(ctx context.Context, mani
 		return bizerr.WrapCode(err, CodePluginAutoEnableFailed, bizerr.P("pluginId", manifest.ID))
 	}
 
-	return s.ensurePluginEnabledDuringStartup(ctx, manifest.ID, func() error {
-		if err := s.Install(ctx, manifest.ID, InstallOptions{InstallMockData: withMockData}); err != nil {
+	return s.ensurePluginStateDuringStartup(ctx, manifest.ID, isPluginStartupEnabled, func() error {
+		if _, err := s.Install(ctx, manifest.ID, InstallOptions{InstallMockData: withMockData}); err != nil {
 			return bizerr.WrapCode(err, CodePluginDynamicInstallFailed)
 		}
 		if err := s.Enable(ctx, manifest.ID); err != nil {
@@ -149,12 +188,13 @@ func (s *serviceImpl) ensureDynamicPluginAutoEnableAuthorization(ctx context.Con
 	return nil
 }
 
-// ensurePluginEnabledDuringStartup waits for one plugin to reach the enabled
-// state. The current node performs the shared lifecycle action once it becomes
-// primary; otherwise it keeps waiting for the shared registry state to converge.
-func (s *serviceImpl) ensurePluginEnabledDuringStartup(
+// ensurePluginStateDuringStartup waits for one plugin to reach a caller-defined
+// registry state. The current node performs the shared lifecycle action once it
+// becomes primary; otherwise it keeps waiting for shared registry state to converge.
+func (s *serviceImpl) ensurePluginStateDuringStartup(
 	ctx context.Context,
 	pluginID string,
+	stateSatisfied func(*entity.SysPlugin) bool,
 	executeShared func() error,
 ) error {
 	var (
@@ -170,7 +210,7 @@ func (s *serviceImpl) ensurePluginEnabledDuringStartup(
 		if err != nil {
 			return bizerr.WrapCode(err, CodePluginRegistryReadFailed, bizerr.P("pluginId", pluginID))
 		}
-		if isPluginStartupEnabled(registry) {
+		if stateSatisfied != nil && stateSatisfied(registry) {
 			return nil
 		}
 
@@ -195,6 +235,14 @@ func (s *serviceImpl) ensurePluginEnabledDuringStartup(
 		case <-ticker.C:
 		}
 	}
+}
+
+// isPluginStartupInstalled reports whether one registry row already reflects a stable installed state.
+func isPluginStartupInstalled(registry *entity.SysPlugin) bool {
+	if registry == nil {
+		return false
+	}
+	return registry.Installed == catalog.InstalledYes
 }
 
 // isPluginStartupEnabled reports whether one registry row already reflects the
@@ -226,4 +274,18 @@ func buildStartupAutoEnableTimeoutError(pluginID string, registry *entity.SysPlu
 		bizerr.P("desiredState", strings.TrimSpace(registry.DesiredState)),
 		bizerr.P("currentState", strings.TrimSpace(registry.CurrentState)),
 	)
+}
+
+// sortedAutoInstallPlan copies resolver plan items while preserving the
+// dependency-first order produced by the resolver. The resolver already walks
+// sibling dependencies by plugin ID, so re-sorting here would risk moving a
+// parent dependency before its own dependency.
+func sortedAutoInstallPlan(items []*plugindep.AutoInstallPlanItem) []*plugindep.AutoInstallPlanItem {
+	out := make([]*plugindep.AutoInstallPlanItem, 0, len(items))
+	for _, item := range items {
+		if item != nil {
+			out = append(out, item)
+		}
+	}
+	return out
 }

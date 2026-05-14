@@ -280,9 +280,6 @@
                           "nickname": {
                             "dc": "用户昵称"
                           },
-                          "password": {
-                            "dc": "密码"
-                          },
                           "phone": {
                             "dc": "手机号码"
                           },
@@ -325,9 +322,6 @@
               },
               "nickname": {
                 "dc": "用户昵称"
-              },
-              "password": {
-                "dc": "密码"
               },
               "phone": {
                 "dc": "手机号码"
@@ -387,9 +381,6 @@
                           },
                           "nickname": {
                             "dc": "用户昵称"
-                          },
-                          "password": {
-                            "dc": "密码"
                           },
                           "phone": {
                             "dc": "手机号码"
@@ -451,9 +442,6 @@
               },
               "nickname": {
                 "dc": "用户昵称"
-              },
-              "password": {
-                "dc": "密码"
               },
               "phone": {
                 "dc": "手机号码"
@@ -575,9 +563,6 @@
               },
               "nickname": {
                 "dc": "用户昵称"
-              },
-              "password": {
-                "dc": "密码"
               },
               "phone": {
                 "dc": "手机号码"

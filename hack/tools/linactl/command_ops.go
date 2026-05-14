@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 )
 
 // runInit initializes the configured database after explicit confirmation.
@@ -76,6 +75,16 @@ func runTest(ctx context.Context, a *app, input commandInput) error {
 	default:
 		return a.runCommand(ctx, commandOptions{Dir: filepath.Join(a.root, "hack", "tests")}, "pnpm", "test:module", "--", scope)
 	}
+}
+
+// runTestHost starts the host-owned Playwright E2E test suite.
+func runTestHost(ctx context.Context, a *app, _ commandInput) error {
+	return runTest(ctx, a, commandInput{Params: map[string]string{"scope": "host"}})
+}
+
+// runTestPlugins starts the official plugin Playwright E2E test suite.
+func runTestPlugins(ctx context.Context, a *app, _ commandInput) error {
+	return runTest(ctx, a, commandInput{Params: map[string]string{"scope": "plugins"}})
 }
 
 // runTestGo runs Go tests for each workspace module.
@@ -161,14 +170,12 @@ func validateRepositoryTooling(root string) error {
 	return nil
 }
 
-// runCheckRuntimeI18n invokes the runtime i18n hard-coded text scanner.
-func runCheckRuntimeI18n(ctx context.Context, a *app, _ commandInput) error {
-	return a.runCommand(ctx, commandOptions{Dir: filepath.Join(a.root, "hack", "tools", "runtime-i18n")}, "go", "run", ".", "scan")
-}
-
-// runCheckRuntimeI18nMessages invokes runtime i18n message coverage validation.
-func runCheckRuntimeI18nMessages(ctx context.Context, a *app, _ commandInput) error {
-	return a.runCommand(ctx, commandOptions{Dir: filepath.Join(a.root, "hack", "tools", "runtime-i18n")}, "go", "run", ".", "messages")
+// runI18nCheck invokes all runtime i18n governance checks.
+func runI18nCheck(ctx context.Context, a *app, _ commandInput) error {
+	toolDir := filepath.Join(a.root, "hack", "tools", "runtime-i18n")
+	scanErr := a.runCommand(ctx, commandOptions{Dir: toolDir}, "go", "run", ".", "scan")
+	messageErr := a.runCommand(ctx, commandOptions{Dir: toolDir}, "go", "run", ".", "messages")
+	return errors.Join(scanErr, messageErr)
 }
 
 // runCLIInstall downloads and installs the GoFrame CLI for this platform.
@@ -218,45 +225,6 @@ func runGF(args ...string) func(context.Context, *app, commandInput) error {
 		}
 		return a.runCommand(ctx, commandOptions{Dir: filepath.Join(a.root, "apps", "lina-core")}, "gf", args...)
 	}
-}
-
-// runDeploy applies a kustomize overlay through kubectl.
-func runDeploy(ctx context.Context, a *app, input commandInput) error {
-	envName := firstNonEmpty(input.Get("env"), input.Get("_ENV"))
-	if envName == "" {
-		return errors.New("deploy requires env=<overlay>")
-	}
-	tag := firstNonEmpty(input.Get("tag"), input.Get("TAG"), "develop")
-	namespace := input.GetDefault("namespace", "default")
-	deployName := input.GetDefault("deploy_name", "template-single")
-
-	tempDir := filepath.Join(a.root, "apps", "lina-core", "temp", "kustomize")
-	if err := os.MkdirAll(tempDir, 0o755); err != nil {
-		return fmt.Errorf("create kustomize temp directory: %w", err)
-	}
-	overlayDir := filepath.Join(a.root, "apps", "lina-core", "manifest", "deploy", "kustomize", "overlays", envName)
-	outputPath := filepath.Join(a.root, "apps", "lina-core", "temp", "kustomize.yaml")
-
-	var manifest bytes.Buffer
-	cmd := a.execCommand(ctx, "kustomize", "build")
-	cmd.Dir = overlayDir
-	cmd.Env = a.env
-	cmd.Stdout = &manifest
-	cmd.Stderr = a.stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("run kustomize build: %w", err)
-	}
-	if err := os.WriteFile(outputPath, manifest.Bytes(), 0o644); err != nil {
-		return fmt.Errorf("write kustomize output: %w", err)
-	}
-	if err := a.runCommand(ctx, commandOptions{Dir: a.root}, "kubectl", "apply", "-f", outputPath); err != nil {
-		return err
-	}
-	if deployName == "" {
-		return nil
-	}
-	patch := fmt.Sprintf(`{"spec":{"template":{"metadata":{"labels":{"date":"%d","tag":"%s"}}}}}`, time.Now().Unix(), tag)
-	return a.runCommand(ctx, commandOptions{Dir: a.root}, "kubectl", "patch", "-n", namespace, "deployment/"+deployName, "-p", patch)
 }
 
 // goWorkspaceModules lists module directories from the current Go workspace.

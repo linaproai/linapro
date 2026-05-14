@@ -121,11 +121,10 @@ Plugin-owned visible copy belongs in the plugin's own `manifest/i18n/<locale>/*.
 Use these commands while changing runtime messages:
 
 ```bash
-make check-runtime-i18n-messages
-make check-runtime-i18n
+make i18n.check
 ```
 
-`check-runtime-i18n-messages` validates JSON key coverage and duplicate runtime keys across host and plugin scopes. `check-runtime-i18n` scans source code for high-risk hard-coded user-visible copy; it is expected to report existing findings until the active runtime-message governance cleanup is complete.
+`i18n.check` scans source code for high-risk hard-coded user-visible copy and validates JSON key coverage plus duplicate runtime keys across host and plugin scopes; it is expected to report existing findings until the active runtime-message governance cleanup is complete.
 
 ## Validation Rules
 

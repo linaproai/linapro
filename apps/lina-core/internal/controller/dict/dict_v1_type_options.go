@@ -4,7 +4,6 @@ import (
 	"context"
 
 	v1 "lina-core/api/dict/v1"
-	"lina-core/internal/model/entity"
 )
 
 // TypeOptions returns dictionary type option list.
@@ -13,9 +12,9 @@ func (c *ControllerV1) TypeOptions(ctx context.Context, req *v1.TypeOptionsReq) 
 	if err != nil {
 		return nil, err
 	}
-	list := make([]*entity.SysDictType, 0, len(options))
+	list := make([]*v1.DictTypeOptionItem, 0, len(options))
 	for _, opt := range options {
-		list = append(list, &entity.SysDictType{
+		list = append(list, &v1.DictTypeOptionItem{
 			Id:   opt.Id,
 			Name: opt.Name,
 			Type: opt.Type,

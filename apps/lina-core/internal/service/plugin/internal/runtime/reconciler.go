@@ -294,6 +294,9 @@ func (s *serviceImpl) applyInstall(
 	manifest *catalog.Manifest,
 	desiredState string,
 ) error {
+	if err := s.validateCandidateDependencies(ctx, manifest); err != nil {
+		return err
+	}
 	release, err := s.catalogSvc.GetRelease(ctx, manifest.ID, manifest.Version)
 	if err != nil {
 		return err
@@ -443,6 +446,9 @@ func (s *serviceImpl) applyUpgrade(
 	manifest *catalog.Manifest,
 	desiredState string,
 ) error {
+	if err := s.validateCandidateDependencies(ctx, manifest); err != nil {
+		return err
+	}
 	activeManifest, err := s.loadActiveManifest(ctx, registry)
 	if err != nil {
 		return err
@@ -589,6 +595,9 @@ func (s *serviceImpl) applyRefresh(
 	manifest *catalog.Manifest,
 	desiredState string,
 ) error {
+	if err := s.validateCandidateDependencies(ctx, manifest); err != nil {
+		return err
+	}
 	release, err := s.catalogSvc.GetRegistryRelease(ctx, registry)
 	if err != nil {
 		return err
@@ -649,6 +658,16 @@ func (s *serviceImpl) applyRefresh(
 		return err
 	}
 	return s.notifyReconcilerChanged(ctx, "plugin_refreshed")
+}
+
+// validateCandidateDependencies delegates release dependency checks to the root
+// plugin facade. Runtime keeps this as an explicit seam to avoid importing the
+// facade package from the internal runtime package.
+func (s *serviceImpl) validateCandidateDependencies(ctx context.Context, manifest *catalog.Manifest) error {
+	if s.dependencyValidator == nil {
+		return nil
+	}
+	return s.dependencyValidator.ValidateDynamicPluginCandidate(ctx, manifest)
 }
 
 // applyUninstall removes live governance, runs uninstall cleanup according to

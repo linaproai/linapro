@@ -1,5 +1,7 @@
 import type {
   PluginAuthorizationPayload,
+  PluginDependencyCheckResult,
+  PluginInstallResult,
   PluginListParams,
   PluginDynamicState,
   PluginUploadDynamicResult,
@@ -44,7 +46,17 @@ export function pluginInstall(
   pluginId: string,
   payload?: PluginAuthorizationPayload,
 ) {
-  return requestClient.post(`/plugins/${pluginId}/install`, payload);
+  return requestClient.post<PluginInstallResult>(
+    `/plugins/${pluginId}/install`,
+    payload,
+  );
+}
+
+/** 检查插件依赖 */
+export function pluginDependencyCheck(pluginId: string) {
+  return requestClient.get<PluginDependencyCheckResult>(
+    `/plugins/${pluginId}/dependencies`,
+  );
 }
 
 /** 上传动态插件 */

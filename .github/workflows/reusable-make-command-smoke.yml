@@ -1,0 +1,174 @@
+# Reusable LinaPro root make command smoke workflow.
+# LinaPro 可复用根目录 make 指令冒烟工作流。
+name: Reusable Make Command Smoke
+
+on:
+  # Expose common root make command checks as a reusable workflow.
+  # 将常用根目录 make 指令检查暴露为可复用工作流。
+  workflow_call:
+
+# Root make command smoke checks only need read access to repository contents.
+# 根目录 make 指令冒烟检查只需要读取仓库内容。
+permissions:
+  contents: read
+
+# Keep command logs and database timestamps aligned with the project timezone.
+# 让命令日志和数据库时间戳与项目时区保持一致。
+env:
+  TZ: "Asia/Shanghai"
+
+jobs:
+  # Verifies frequently used root make targets that are not covered by plugin smoke.
+  # 验证插件冒烟之外的常用根目录 make 指令。
+  make-command-smoke:
+    name: Make command smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      # Provides the database used by make init and make mock smoke checks.
+      # 提供 make init 与 make mock 冒烟检查使用的数据库。
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: linapro
+          TZ: Asia/Shanghai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # Check out repository sources for root make target smoke checks.
+      # 拉取仓库源码，用于根目录 make 指令冒烟检查。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      # Install Go so root make targets can execute linactl and the backend.
+      # 安装 Go，使根目录 make 指令可以执行 linactl 与后端。
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      # Verify asset packing and database bootstrap commands through the public root make entrypoint.
+      # 通过公开根目录 make 入口验证资源打包、数据库初始化和 mock 数据命令。
+      - name: Verify Database Make Commands
+        run: |
+          cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
+          make pack.assets
+          make init confirm=init
+          make mock confirm=mock
+
+      # Verify dev/status/stop through an isolated repository fixture with lightweight services.
+      # 使用轻量服务 fixture 隔离验证 dev/status/stop 指令。
+      - name: Verify Dev Lifecycle Make Commands
+        run: |
+          set -euo pipefail
+
+          smoke_root="$RUNNER_TEMP/dev-command-root"
+          backend_port=18080
+          frontend_port=15666
+
+          mkdir -p "$smoke_root/hack/tools" "$smoke_root/apps/lina-core/manifest/config" "$smoke_root/apps/lina-core/manifest/sql" "$smoke_root/apps/lina-core/manifest/i18n/en-US" "$smoke_root/apps/lina-core/internal/packed/manifest" "$smoke_root/apps/lina-vben/node_modules/.bin" "$smoke_root/apps/lina-vben/apps/web-antd"
+          cp Makefile "$smoke_root/Makefile"
+          cp -R hack/makefiles "$smoke_root/hack/makefiles"
+          cp -R hack/tools/linactl "$smoke_root/hack/tools/linactl"
+          cat > "$smoke_root/go.work" <<'WORK'
+          go 1.25.0
+
+          use (
+            ./apps/lina-core
+            ./hack/tools/linactl
+          )
+          WORK
+          cat > "$smoke_root/apps/lina-core/go.mod" <<'MOD'
+          module smoke-core
+
+          go 1.25.0
+          MOD
+          cat > "$smoke_root/apps/lina-core/main.go" <<'GO'
+          package main
+
+          import (
+            "fmt"
+            "net/http"
+          )
+
+          func main() {
+            if err := http.ListenAndServe(":18080", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+              _, _ = fmt.Fprintln(w, "backend ok")
+            })); err != nil {
+              panic(err)
+            }
+          }
+          GO
+          cat > "$smoke_root/apps/lina-core/manifest/config/config.template.yaml" <<'YAML'
+          template: true
+          YAML
+          cat > "$smoke_root/apps/lina-core/manifest/config/metadata.yaml" <<'YAML'
+          framework:
+            version: v0.0.0
+          YAML
+          echo "select 1;" > "$smoke_root/apps/lina-core/manifest/sql/001.sql"
+          echo "{}" > "$smoke_root/apps/lina-core/manifest/i18n/en-US/framework.json"
+          cat > "$smoke_root/apps/lina-vben/node_modules/.bin/vite" <<'SH'
+          #!/usr/bin/env sh
+          exec python3 -m http.server 15666 --bind 127.0.0.1
+          SH
+          chmod +x "$smoke_root/apps/lina-vben/node_modules/.bin/vite"
+
+          make -C "$smoke_root" dev plugins=0 BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port"
+          make -C "$smoke_root" status BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port" | tee "$RUNNER_TEMP/dev-status.txt"
+          grep -q "Backend" "$RUNNER_TEMP/dev-status.txt"
+          grep -q "Frontend" "$RUNNER_TEMP/dev-status.txt"
+          make -C "$smoke_root" stop BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port"
+          test ! -f "$smoke_root/temp/pids/backend.pid"
+          test ! -f "$smoke_root/temp/pids/frontend.pid"
+
+      # Verify wasm through a real isolated dynamic plugin build and artifact assertion.
+      # 通过真实隔离动态插件构建和产物断言验证 wasm 指令。
+      - name: Verify Wasm Make Command
+        run: |
+          set -euo pipefail
+
+          smoke_root="$RUNNER_TEMP/wasm-command-root"
+
+          mkdir -p "$smoke_root/hack/tools" "$smoke_root/apps/lina-core/pkg" "$smoke_root/apps/lina-plugins/demo-dynamic"
+          cp Makefile "$smoke_root/Makefile"
+          cp -R hack/makefiles "$smoke_root/hack/makefiles"
+          cp -R hack/tools/linactl "$smoke_root/hack/tools/linactl"
+          cp -R hack/tools/build-wasm "$smoke_root/hack/tools/build-wasm"
+          cp apps/lina-core/go.mod "$smoke_root/apps/lina-core/go.mod"
+          cp apps/lina-core/go.sum "$smoke_root/apps/lina-core/go.sum"
+          cp -R apps/lina-core/pkg/pluginbridge "$smoke_root/apps/lina-core/pkg/pluginbridge"
+          cp -R apps/lina-core/pkg/plugindb "$smoke_root/apps/lina-core/pkg/plugindb"
+          cat > "$smoke_root/go.work" <<'WORK'
+          go 1.25.0
+
+          use (
+            ./apps/lina-core
+            ./hack/tools/linactl
+            ./hack/tools/build-wasm
+          )
+          WORK
+          cat > "$smoke_root/apps/lina-plugins/demo-dynamic/plugin.yaml" <<'YAML'
+          id: demo-dynamic
+          name: Demo Dynamic
+          version: v0.1.0
+          type: dynamic
+          scope_nature: tenant_aware
+          supports_multi_tenant: false
+          default_install_mode: global
+          YAML
+
+          make -C "$smoke_root" wasm p=demo-dynamic | tee "$RUNNER_TEMP/wasm-build.txt"
+          grep -q "Building dynamic wasm plugin: demo-dynamic" "$RUNNER_TEMP/wasm-build.txt"
+          grep -q "built runtime artifact:" "$RUNNER_TEMP/wasm-build.txt"
+          test -f "$smoke_root/temp/output/demo-dynamic.wasm"

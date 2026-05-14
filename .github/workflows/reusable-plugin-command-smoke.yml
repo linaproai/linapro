@@ -1,0 +1,120 @@
+# Reusable LinaPro plugin command smoke workflow.
+# LinaPro 可复用插件指令冒烟工作流。
+name: Reusable Plugin Command Smoke
+
+on:
+  # Expose root make plugins.* command checks as a reusable workflow.
+  # 将根目录 make plugins.* 指令检查暴露为可复用工作流。
+  workflow_call:
+
+# Plugin command smoke checks only need read access to repository contents.
+# 插件指令冒烟检查只需要读取仓库内容。
+permissions:
+  contents: read
+
+# Keep command logs aligned with the project timezone.
+# 让命令日志与项目时区保持一致。
+env:
+  TZ: "Asia/Shanghai"
+
+jobs:
+  # Verifies important root plugin-management make targets on Linux.
+  # 在 Linux 上验证重要的根目录插件管理 make 指令。
+  plugin-command-smoke:
+    name: Plugin command smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # Check out repository sources without initializing the official plugin submodule.
+      # 拉取仓库源码，但不初始化官方插件 submodule。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      # Install Go so root make targets can execute linactl through go run.
+      # 安装 Go，使根目录 make 指令可以通过 go run 执行 linactl。
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      # Verify plugin targets are visible and read-only status handles the submodule state.
+      # 验证插件目标可发现，并且只读 status 能处理 submodule 状态。
+      - name: Verify Root Plugin Target Discovery
+        run: |
+          make help | tee "$RUNNER_TEMP/make-help.txt"
+          grep -q "plugins.init" "$RUNNER_TEMP/make-help.txt"
+          grep -q "plugins.install" "$RUNNER_TEMP/make-help.txt"
+          grep -q "plugins.update" "$RUNNER_TEMP/make-help.txt"
+          grep -q "plugins.status" "$RUNNER_TEMP/make-help.txt"
+          make plugins.status
+
+      # Run install/update/status against an isolated local plugin source fixture.
+      # 使用隔离的本地插件源 fixture 验证 install/update/status 行为。
+      - name: Verify Isolated Plugin Management Commands
+        run: |
+          set -euo pipefail
+
+          source_dir="$RUNNER_TEMP/plugin-source"
+          smoke_root="$RUNNER_TEMP/plugin-command-root"
+
+          mkdir -p "$source_dir/demo-ci"
+          git -C "$source_dir" init -q --initial-branch=main
+          git -C "$source_dir" config user.email "ci@example.com"
+          git -C "$source_dir" config user.name "CI"
+          cat > "$source_dir/demo-ci/plugin.yaml" <<'YAML'
+          id: demo-ci
+          version: 0.1.0
+          YAML
+          echo "v1" > "$source_dir/demo-ci/README.md"
+          git -C "$source_dir" add .
+          git -C "$source_dir" commit -q -m "initial plugin"
+
+          mkdir -p "$smoke_root/hack/tools" "$smoke_root/apps/lina-core"
+          cp Makefile "$smoke_root/Makefile"
+          cp -R hack/makefiles "$smoke_root/hack/makefiles"
+          cp -R hack/tools/linactl "$smoke_root/hack/tools/linactl"
+          cat > "$smoke_root/go.work" <<'WORK'
+          go 1.25.0
+
+          use ./hack/tools/linactl
+          WORK
+          mkdir -p "$smoke_root/hack"
+          cat > "$smoke_root/hack/config.yaml" <<YAML
+          plugins:
+            sources:
+              local:
+                repo: "$source_dir"
+                root: "."
+                ref: "main"
+                items:
+                  - "demo-ci"
+          YAML
+
+          git -C "$smoke_root" init -q --initial-branch=main
+          git -C "$smoke_root" config user.email "ci@example.com"
+          git -C "$smoke_root" config user.name "CI"
+          git -C "$smoke_root" add .
+          git -C "$smoke_root" commit -q -m "fixture root"
+
+          make -C "$smoke_root" plugins.init
+          test -d "$smoke_root/apps/lina-plugins"
+
+          make -C "$smoke_root" plugins.install p=demo-ci
+          test -f "$smoke_root/apps/lina-plugins/demo-ci/plugin.yaml"
+          git -C "$smoke_root" add apps/lina-plugins
+          git -C "$smoke_root" commit -q -m "install plugin"
+
+          cat > "$source_dir/demo-ci/plugin.yaml" <<'YAML'
+          id: demo-ci
+          version: 0.2.0
+          YAML
+          git -C "$source_dir" add demo-ci/plugin.yaml
+          git -C "$source_dir" commit -q -m "update plugin"
+
+          make -C "$smoke_root" plugins.update p=demo-ci
+          grep -q "version: 0.2.0" "$smoke_root/apps/lina-plugins/demo-ci/plugin.yaml"
+          make -C "$smoke_root" plugins.status p=demo-ci | tee "$RUNNER_TEMP/plugins-status.txt"
+          grep -q "demo-ci" "$RUNNER_TEMP/plugins-status.txt"
+          grep -q "remote=current" "$RUNNER_TEMP/plugins-status.txt"

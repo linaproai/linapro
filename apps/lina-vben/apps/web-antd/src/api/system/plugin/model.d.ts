@@ -26,12 +26,86 @@ export interface SystemPlugin {
   updatedAt: string;
   authorizationRequired: number;
   authorizationStatus: 'confirmed' | 'not_required' | 'pending' | string;
+  dependencyCheck?: PluginDependencyCheckResult;
   hasMockData: number;
   installMode?: 'global' | 'tenant_scoped' | string;
   scopeNature?: 'platform_only' | 'tenant_aware' | string;
   requestedHostServices?: HostServicePermissionItem[];
   authorizedHostServices?: HostServicePermissionItem[];
   declaredRoutes?: PluginRouteReviewItem[];
+}
+
+export interface PluginDependencyCheckResult {
+  targetId: string;
+  framework?: PluginDependencyFrameworkCheck;
+  dependencies?: PluginDependencyItem[];
+  autoInstallPlan?: PluginDependencyAutoInstallItem[];
+  autoInstalled?: PluginDependencyAutoInstallItem[];
+  manualInstallRequired?: PluginDependencyItem[];
+  softUnsatisfied?: PluginDependencyItem[];
+  blockers?: PluginDependencyBlocker[];
+  cycle?: string[];
+  reverseDependents?: PluginDependencyReverseDependent[];
+  reverseBlockers?: PluginDependencyBlocker[];
+}
+
+export interface PluginDependencyFrameworkCheck {
+  requiredVersion: string;
+  currentVersion: string;
+  status: 'not_declared' | 'satisfied' | 'unsatisfied' | string;
+}
+
+export interface PluginDependencyItem {
+  ownerId: string;
+  dependencyId: string;
+  dependencyName?: string;
+  requiredVersion?: string;
+  currentVersion?: string;
+  required: boolean;
+  installMode: 'auto' | 'manual' | string;
+  installed: boolean;
+  discovered: boolean;
+  status:
+    | 'auto_install_planned'
+    | 'manual_install_required'
+    | 'missing'
+    | 'satisfied'
+    | 'soft_unsatisfied'
+    | 'version_unsatisfied'
+    | string;
+  chain?: string[];
+}
+
+export interface PluginDependencyAutoInstallItem {
+  pluginId: string;
+  name?: string;
+  version?: string;
+  requiredBy?: string;
+  chain?: string[];
+}
+
+export interface PluginDependencyBlocker {
+  code: string;
+  pluginId?: string;
+  dependencyId?: string;
+  requiredVersion?: string;
+  currentVersion?: string;
+  chain?: string[];
+  detail?: string;
+}
+
+export interface PluginDependencyReverseDependent {
+  pluginId: string;
+  name?: string;
+  version?: string;
+  requiredVersion?: string;
+}
+
+export interface PluginInstallResult {
+  id: string;
+  installed: number;
+  enabled: number;
+  dependencyCheck?: PluginDependencyCheckResult;
 }
 
 export interface PluginRouteReviewItem {

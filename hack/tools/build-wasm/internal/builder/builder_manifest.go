@@ -6,6 +6,7 @@ package builder
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -60,6 +61,9 @@ func validateRuntimeBuildManifest(manifest *pluginManifest, manifestPath string)
 	if err := validateSemanticVersion(manifest.Version); err != nil {
 		return fmt.Errorf("dynamic plugin version is invalid: %w", err)
 	}
+	if err := validateDependencySpec(manifest.ID, manifest.Dependencies); err != nil {
+		return fmt.Errorf("dynamic plugin dependencies invalid: %w", err)
+	}
 	manifest.Capabilities = pluginbridge.NormalizeCapabilities(manifest.Capabilities)
 	if len(manifest.Capabilities) > 0 {
 		return fmt.Errorf(
@@ -76,6 +80,95 @@ func validateRuntimeBuildManifest(manifest *pluginManifest, manifestPath string)
 	}
 	manifest.HostServices = hostServices
 	return nil
+}
+
+var buildDependencyVersionConstraintPattern = regexp.MustCompile(`^(>=|<=|>|<|=)?v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$`)
+
+func validateDependencySpec(pluginID string, spec *dependencySpec) error {
+	if spec == nil {
+		return nil
+	}
+	if spec.Framework != nil {
+		spec.Framework.Version = strings.TrimSpace(spec.Framework.Version)
+		if spec.Framework.Version != "" {
+			if err := validateSemanticVersionRange(spec.Framework.Version); err != nil {
+				return fmt.Errorf("framework version is invalid: %w", err)
+			}
+		}
+	}
+	seen := make(map[string]struct{}, len(spec.Plugins))
+	for index, dependency := range spec.Plugins {
+		if dependency == nil {
+			return fmt.Errorf("dependency %d cannot be nil", index+1)
+		}
+		dependency.ID = strings.TrimSpace(dependency.ID)
+		dependency.Version = strings.TrimSpace(dependency.Version)
+		dependency.Install = normalizeDependencyInstallModeForValidation(dependency.Install)
+		if dependency.Required == nil {
+			required := true
+			dependency.Required = &required
+		}
+		if dependency.ID == "" {
+			return fmt.Errorf("dependency %d is missing id", index+1)
+		}
+		if !pluginManifestIDPattern.MatchString(dependency.ID) {
+			return fmt.Errorf("dependency id must use kebab-case: %s", dependency.ID)
+		}
+		if dependency.ID == pluginID {
+			return fmt.Errorf("plugin cannot depend on itself: %s", pluginID)
+		}
+		if _, ok := seen[dependency.ID]; ok {
+			return fmt.Errorf("duplicate dependency: %s", dependency.ID)
+		}
+		seen[dependency.ID] = struct{}{}
+		if dependency.Version != "" {
+			if err := validateSemanticVersionRange(dependency.Version); err != nil {
+				return fmt.Errorf("dependency %s version is invalid: %w", dependency.ID, err)
+			}
+		}
+		if dependency.Install == "" {
+			return fmt.Errorf("dependency %s install only supports manual/auto", dependency.ID)
+		}
+	}
+	return nil
+}
+
+func validateSemanticVersionRange(value string) error {
+	tokens := strings.Fields(strings.TrimSpace(value))
+	if len(tokens) == 0 {
+		return fmt.Errorf("version range cannot be empty")
+	}
+	for _, token := range tokens {
+		if !buildDependencyVersionConstraintPattern.MatchString(token) {
+			return fmt.Errorf("version range token must use semver comparison format: %s", token)
+		}
+		if err := validateSemanticVersion(trimVersionConstraintOperator(token)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func normalizeDependencyInstallModeForValidation(value string) string {
+	trimmed := strings.TrimSpace(strings.ToLower(value))
+	switch trimmed {
+	case "", "manual":
+		return "manual"
+	case "auto":
+		return "auto"
+	default:
+		return trimmed
+	}
+}
+
+func trimVersionConstraintOperator(token string) string {
+	token = strings.TrimSpace(token)
+	for _, operator := range []string{">=", "<=", ">", "<", "="} {
+		if strings.HasPrefix(token, operator) {
+			return strings.TrimSpace(strings.TrimPrefix(token, operator))
+		}
+	}
+	return token
 }
 
 func loadYAMLFile(filePath string, target interface{}) error {

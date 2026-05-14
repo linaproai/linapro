@@ -495,10 +495,8 @@
       "detail": {
         "title": "File Details",
         "fileId": "File ID",
-        "engine": "Storage Engine",
         "storedName": "Stored Name",
-        "url": "File URL",
-        "hash": "File Hash"
+        "url": "File URL"
       },
       "messages": {
         "deleteSelectedConfirm": "Delete the selected {count} record(s)?",
@@ -902,6 +900,31 @@
         "title": "Plugin Details",
         "hostServicesTitle": "Host Service Scopes",
         "routeListTitle": "Declared Routes"
+      },
+      "dependency": {
+        "autoInstalled": "Automatically installed dependencies",
+        "autoInstalledToast": "Installed dependency plugin(s): {plugins}",
+        "autoInstallPlan": "The host will install these dependency plugins first.",
+        "blocker": {
+          "dependency_cycle": "Dependency cycle",
+          "dependency_manual_install_required": "Manual install required",
+          "dependency_missing": "Dependency missing",
+          "dependency_snapshot_unknown": "Dependency snapshot unavailable",
+          "dependency_version_unsatisfied": "Dependency version mismatch",
+          "framework_version_unsatisfied": "Framework version mismatch",
+          "reverse_dependency": "Downstream dependency",
+          "reverse_dependency_version": "Downstream version mismatch"
+        },
+        "checkFailed": "Failed to refresh plugin dependency check results",
+        "cycle": "A dependency cycle was detected.",
+        "installBlocked": "Resolve dependency blockers before installing this plugin.",
+        "loading": "Checking plugin dependencies...",
+        "manualRequired": "Install these dependency plugins manually first.",
+        "resolveBeforeInstall": "Resolve dependency blockers before installing this plugin.",
+        "resolveBeforeUninstall": "Uninstall dependent plugins before removing this plugin.",
+        "softUnsatisfied": "Optional dependencies are not satisfied. Installation can continue, but related features may be unavailable.",
+        "title": "Dependency Check",
+        "uninstallBlocked": "This plugin is required by installed plugins."
       },
       "hostServices": {
         "cron": {

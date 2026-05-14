@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // Config Get API
 
@@ -16,5 +12,5 @@ type GetReq struct {
 
 // GetRes is the config detail response.
 type GetRes struct {
-	*entity.SysConfig `dc:"Parameter setting information" eg:""`
+	ConfigItem
 }

@@ -236,7 +236,7 @@ func verifySQLitePluginLifecycle(
 ) {
 	t.Helper()
 
-	if err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("install SQLite plugin %s: %v", pluginID, err)
 	}
 	assertSQLitePluginRegistryState(t, ctx, service, pluginID, catalog.InstalledYes, catalog.StatusDisabled)
@@ -252,7 +252,7 @@ func verifySQLitePluginLifecycle(
 	}
 	assertSQLitePluginRegistryState(t, ctx, service, pluginID, catalog.InstalledYes, catalog.StatusDisabled)
 
-	if err := service.Uninstall(ctx, pluginID); err != nil {
+	if err := service.Uninstall(ctx, pluginID, UninstallOptions{PurgeStorageData: true}); err != nil {
 		t.Fatalf("uninstall SQLite plugin %s: %v", pluginID, err)
 	}
 	assertSQLitePluginRegistryState(t, ctx, service, pluginID, catalog.InstalledNo, catalog.StatusDisabled)

@@ -47,6 +47,158 @@ func TestValidatePluginManifestAcceptsMinimalSourcePlugin(t *testing.T) {
 	}
 }
 
+// TestValidatePluginManifestNormalizesDependencyDefaults verifies dependency
+// declarations are accepted and receive deterministic defaults.
+func TestValidatePluginManifestNormalizesDependencyDefaults(t *testing.T) {
+	svcs := testutil.NewServices()
+	pluginDir := testutil.CreateTestPluginDir(t, "plugin-dependency-valid")
+	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
+
+	manifest := &catalog.Manifest{
+		ID:      "plugin-dependency-valid",
+		Name:    "Plugin Dependency Valid",
+		Version: "0.1.0",
+		Type:    catalog.TypeSource.String(),
+		Dependencies: &catalog.DependencySpec{
+			Framework: &catalog.FrameworkDependencySpec{Version: " >=0.1.0 <1.0.0 "},
+			Plugins: []*catalog.PluginDependencySpec{
+				{
+					ID:      " multi-tenant ",
+					Version: " >=0.1.0 ",
+				},
+				{
+					ID:       "org-center",
+					Version:  ">=0.1.0",
+					Required: boolPtr(false),
+					Install:  " auto ",
+				},
+			},
+		},
+	}
+
+	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
+		t.Fatalf("expected dependency manifest to be valid, got error: %v", err)
+	}
+	if manifest.Dependencies.Framework.Version != ">=0.1.0 <1.0.0" {
+		t.Fatalf("expected framework range to be trimmed, got %q", manifest.Dependencies.Framework.Version)
+	}
+	firstDependency := manifest.Dependencies.Plugins[0]
+	if firstDependency.ID != "multi-tenant" {
+		t.Fatalf("expected dependency ID to be trimmed, got %q", firstDependency.ID)
+	}
+	if firstDependency.Required == nil || !*firstDependency.Required {
+		t.Fatalf("expected required default true, got %#v", firstDependency.Required)
+	}
+	if firstDependency.Install != catalog.DependencyInstallModeManual.String() {
+		t.Fatalf("expected install default manual, got %q", firstDependency.Install)
+	}
+	if manifest.Dependencies.Plugins[1].Install != catalog.DependencyInstallModeAuto.String() {
+		t.Fatalf("expected explicit auto install mode, got %q", manifest.Dependencies.Plugins[1].Install)
+	}
+}
+
+// TestValidatePluginManifestRejectsInvalidDependencies verifies dependency
+// structural errors are caught during manifest validation.
+func TestValidatePluginManifestRejectsInvalidDependencies(t *testing.T) {
+	tests := []struct {
+		name         string
+		dependencies *catalog.DependencySpec
+		want         string
+	}{
+		{
+			name: "empty dependency id",
+			dependencies: &catalog.DependencySpec{
+				Plugins: []*catalog.PluginDependencySpec{{ID: ""}},
+			},
+			want: "missing id",
+		},
+		{
+			name: "invalid dependency id",
+			dependencies: &catalog.DependencySpec{
+				Plugins: []*catalog.PluginDependencySpec{{ID: "Bad_ID"}},
+			},
+			want: "kebab-case",
+		},
+		{
+			name: "self dependency",
+			dependencies: &catalog.DependencySpec{
+				Plugins: []*catalog.PluginDependencySpec{{ID: "plugin-dependency-invalid"}},
+			},
+			want: "cannot depend on itself",
+		},
+		{
+			name: "duplicate dependency",
+			dependencies: &catalog.DependencySpec{
+				Plugins: []*catalog.PluginDependencySpec{
+					{ID: "multi-tenant"},
+					{ID: "multi-tenant"},
+				},
+			},
+			want: "duplicate",
+		},
+		{
+			name: "invalid dependency version range",
+			dependencies: &catalog.DependencySpec{
+				Plugins: []*catalog.PluginDependencySpec{{ID: "multi-tenant", Version: ">= v0.1.0"}},
+			},
+			want: "version",
+		},
+		{
+			name: "invalid install mode",
+			dependencies: &catalog.DependencySpec{
+				Plugins: []*catalog.PluginDependencySpec{{ID: "multi-tenant", Install: "sometimes"}},
+			},
+			want: "manual/auto",
+		},
+		{
+			name: "invalid framework version range",
+			dependencies: &catalog.DependencySpec{
+				Framework: &catalog.FrameworkDependencySpec{Version: "0.1"},
+			},
+			want: "framework",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svcs := testutil.NewServices()
+			pluginDir := testutil.CreateTestPluginDir(t, "plugin-dependency-invalid")
+			manifest := &catalog.Manifest{
+				ID:           "plugin-dependency-invalid",
+				Name:         "Plugin Dependency Invalid",
+				Version:      "0.1.0",
+				Type:         catalog.TypeSource.String(),
+				Dependencies: tt.dependencies,
+			}
+
+			err := svcs.Catalog.ValidateManifest(manifest, filepath.Join(pluginDir, "plugin.yaml"))
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("expected dependency validation error containing %q, got %v", tt.want, err)
+			}
+		})
+	}
+}
+
+// TestMatchesSemanticVersionRange verifies dependency version constraints use
+// deterministic semver comparison semantics.
+func TestMatchesSemanticVersionRange(t *testing.T) {
+	matches, err := catalog.MatchesSemanticVersionRange("v0.6.1", ">=0.6.0 <0.7.0")
+	if err != nil {
+		t.Fatalf("expected range match to parse, got %v", err)
+	}
+	if !matches {
+		t.Fatal("expected v0.6.1 to satisfy >=0.6.0 <0.7.0")
+	}
+
+	matches, err = catalog.MatchesSemanticVersionRange("v0.7.0", ">=0.6.0 <0.7.0")
+	if err != nil {
+		t.Fatalf("expected range mismatch to parse, got %v", err)
+	}
+	if matches {
+		t.Fatal("expected v0.7.0 not to satisfy >=0.6.0 <0.7.0")
+	}
+}
+
 // TestValidatePluginManifestRejectsMissingBackendEntryForSourcePlugin verifies
 // that source plugins must still provide backend/plugin.go.
 func TestValidatePluginManifestRejectsMissingBackendEntryForSourcePlugin(t *testing.T) {
@@ -1130,4 +1282,9 @@ func TestValidateManifestForcesGlobalWhenTenantGovernanceUnsupported(t *testing.
 	if manifest.SupportsTenantGovernance() {
 		t.Fatalf("expected explicit supports_multi_tenant=false to disable tenant governance")
 	}
+}
+
+// boolPtr returns a pointer to value for concise manifest fixtures.
+func boolPtr(value bool) *bool {
+	return &value
 }

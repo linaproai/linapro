@@ -142,6 +142,7 @@ func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Man
 		SupportsMultiTenant: artifact.Manifest.SupportsMultiTenant,
 		DefaultInstallMode:  strings.TrimSpace(artifact.Manifest.DefaultInstallMode),
 		Description:         strings.TrimSpace(artifact.Manifest.Description),
+		Dependencies:        CloneDependencySpec(artifact.Manifest.Dependencies),
 		Menus:               artifact.Manifest.Menus,
 		ManifestPath:        "",
 		RootDir:             filepath.Dir(artifactPath),

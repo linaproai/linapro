@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // TypeListReq defines the request for querying the dictionary type list.
 type TypeListReq struct {
@@ -17,6 +13,6 @@ type TypeListReq struct {
 
 // TypeListRes defines the response for querying the dictionary type list.
 type TypeListRes struct {
-	List  []*entity.SysDictType `json:"list" dc:"List of dictionary types" eg:"[]"`
-	Total int                   `json:"total" dc:"Total number of items" eg:"10"`
+	List  []*DictTypeItem `json:"list" dc:"List of dictionary types" eg:"[]"`
+	Total int             `json:"total" dc:"Total number of items" eg:"10"`
 }

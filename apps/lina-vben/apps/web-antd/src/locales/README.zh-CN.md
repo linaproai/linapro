@@ -25,8 +25,7 @@
 修改前端运行时文案后运行以下检查：
 
 ```bash
-make check-runtime-i18n
-make check-runtime-i18n-messages
+make i18n.check
 ```
 
-`check-runtime-i18n`会保持严格扫描；在当前运行时文案治理迭代完成前，该命令仍可能报告既有后端或插件待清理项。
+`i18n.check`会保持严格扫描；在当前运行时文案治理迭代完成前，该命令仍可能报告既有后端或插件待清理项。

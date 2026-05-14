@@ -23,4 +23,4 @@ This directory stores repository-level development tools that are implemented as
 
 - Keep each tool self-contained and avoid coupling tool internals back into runtime service packages.
 - Update repository entry points such as `go.work`, root `Makefile`, and related tests whenever a tool path changes.
-- Framework and source-plugin upgrades are now handled by the `lina-upgrade` skill under `.claude/skills/lina-upgrade/`, not by a standalone Go tool in this directory.
+- Keep tool lifecycle guidance in each tool's own README, and avoid documenting removed command paths from this directory.

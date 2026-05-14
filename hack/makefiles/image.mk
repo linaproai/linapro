@@ -55,7 +55,7 @@ image:
 
 # Prepare image build artifacts without invoking Docker build.
 # 仅准备镜像构建产物，不执行 Docker build。
-## image-build: Stage image build artifacts from make build output without running docker build
-.PHONY: image-build
-image-build:
-	@$(LINACTL) image-build $(IMAGE_BUILDER_ARGS)
+## image.build: Stage image build artifacts from make build output without running docker build
+.PHONY: image.build
+image.build:
+	@$(LINACTL) image.build $(IMAGE_BUILDER_ARGS)

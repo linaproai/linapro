@@ -7,8 +7,7 @@
 推荐使用仓库封装入口：
 
 ```bash
-make check-runtime-i18n
-make check-runtime-i18n-messages
+make i18n.check
 ```
 
 也可以直接调用工具：
@@ -25,6 +24,8 @@ go run ./hack/tools/runtime-i18n messages
 | --- | --- |
 | `scan` | 扫描`Go`、`Vue`、`TypeScript`文件中的高风险运行时可见硬编码文案。 |
 | `messages` | 校验宿主与插件运行时`i18n JSON`的`key`覆盖，并检查重复运行时`key`。 |
+
+`make i18n.check`会同时运行上述两个直接工具命令。
 
 `scan`命令会阻断未被 allowlist 接受的运行时源码命中项，同时输出生成文件和测试 fixture 的非阻断统计，便于审查记录区分源码违规和可接受的生成/测试数据。
 

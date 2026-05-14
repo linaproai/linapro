@@ -2,16 +2,9 @@
 # LinaPro 国际化检查指令
 # ===================
 
-# Scan runtime-visible code paths for hard-coded text.
-# 扫描运行时可见代码路径中的硬编码文案。
-## check-runtime-i18n: Scan runtime-visible hard-coded text
-.PHONY: check-runtime-i18n
-check-runtime-i18n:
-	@$(LINACTL) check-runtime-i18n
-
-# Validate runtime i18n message key coverage for host and plugin resources.
-# 校验宿主和插件运行时语言包的消息 key 覆盖情况。
-## check-runtime-i18n-messages: Validate host and plugin runtime i18n message key coverage
-.PHONY: check-runtime-i18n-messages
-check-runtime-i18n-messages:
-	@$(LINACTL) check-runtime-i18n-messages
+# Run runtime-visible hard-coded text scanning and message key coverage checks.
+# 运行运行时可见硬编码文案扫描和消息 key 覆盖校验。
+## i18n.check: Run runtime i18n governance checks
+.PHONY: i18n.check
+i18n.check:
+	@$(LINACTL) i18n.check

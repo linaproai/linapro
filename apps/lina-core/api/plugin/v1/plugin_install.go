@@ -13,7 +13,8 @@ type InstallReq struct {
 
 // InstallRes is the response for installing a plugin.
 type InstallRes struct {
-	Id        string `json:"id" dc:"Plugin unique identifier" eg:"plugin-demo-source"`
-	Installed int    `json:"installed" dc:"Installation status: 1=Installed 0=Not installed" eg:"1"`
-	Enabled   int    `json:"enabled" dc:"Enabled status: 1=enabled 0=disabled" eg:"0"`
+	Id              string                       `json:"id" dc:"Plugin unique identifier" eg:"plugin-demo-source"`
+	Installed       int                          `json:"installed" dc:"Installation status: 1=Installed 0=Not installed" eg:"1"`
+	Enabled         int                          `json:"enabled" dc:"Enabled status: 1=enabled 0=disabled" eg:"0"`
+	DependencyCheck *PluginDependencyCheckResult `json:"dependencyCheck,omitempty" dc:"Dependency plan and automatic install result produced during the install request" eg:"{}"`
 }

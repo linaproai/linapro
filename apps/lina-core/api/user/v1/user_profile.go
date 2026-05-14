@@ -2,11 +2,7 @@
 
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // GetProfileReq defines the request for querying the current user profile.
 type GetProfileReq struct {
@@ -15,5 +11,5 @@ type GetProfileReq struct {
 
 // GetProfileRes defines the response for querying the current user profile.
 type GetProfileRes struct {
-	*entity.SysUser `dc:"User information"`
+	UserItem
 }

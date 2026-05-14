@@ -18,5 +18,10 @@ func (c *ControllerV1) TypeList(ctx context.Context, req *v1.TypeListReq) (res *
 	if err != nil {
 		return nil, err
 	}
-	return &v1.TypeListRes{List: out.List, Total: out.Total}, nil
+	list := make([]*v1.DictTypeItem, 0, len(out.List))
+	for _, row := range out.List {
+		item := dictTypeItem(row)
+		list = append(list, &item)
+	}
+	return &v1.TypeListRes{List: list, Total: out.Total}, nil
 }

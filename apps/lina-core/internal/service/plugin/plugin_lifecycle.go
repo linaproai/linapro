@@ -14,10 +14,12 @@ import (
 	"lina-core/pkg/pluginhost"
 )
 
-// Install executes the install lifecycle and optionally persists one host-confirmed
-// host service authorization snapshot when the target is a dynamic plugin. The
-// options.InstallMockData flag is threaded through context so deeply nested
-// runtime/reconciler code can detect mock opt-in without mass signature changes.
+// Install executes the install lifecycle and returns the dependency plan/result
+// generated before target plugin side effects. It optionally persists one
+// host-confirmed host service authorization snapshot when the target is a dynamic
+// plugin. The options.InstallMockData flag is threaded through context so deeply
+// nested runtime/reconciler code can detect mock opt-in without mass signature
+// changes.
 //
 // On a rolled-back mock-data load the plugin is fully installed (registry, menus,
 // release state) — only the mock data was reverted. Install returns a stable
@@ -27,56 +29,62 @@ func (s *serviceImpl) Install(
 	ctx context.Context,
 	pluginID string,
 	options InstallOptions,
-) (err error) {
+) (result *DependencyCheckResult, err error) {
 	ctx = withInstallMockData(ctx, options.InstallMockData)
 	defer func() {
 		err = wrapMockDataLoadError(err)
 	}()
 
+	result, ctx, err = s.prepareInstallDependencies(ctx, pluginID, options)
+	if err != nil {
+		return result, err
+	}
+	options.dependencyResult = result
+
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
-		return err
+		return result, err
 	}
 	if err = applyInstallModeSelection(manifest, options.InstallMode); err != nil {
-		return err
+		return result, err
 	}
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
 		if err = s.installSourcePlugin(ctx, manifest); err != nil {
 			if !isMockDataLoadError(err) {
-				return err
+				return result, err
 			}
 			if snapshotErr := s.syncEnabledSnapshotFromRegistry(ctx, pluginID); snapshotErr != nil {
-				return snapshotErr
+				return result, snapshotErr
 			}
 			if markErr := s.markRuntimeCacheChanged(ctx, "source_plugin_installed"); markErr != nil {
-				return markErr
+				return result, markErr
 			}
-			return err
+			return result, err
 		}
 		if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
-			return err
+			return result, err
 		}
 		if err = s.markRuntimeCacheChanged(ctx, "source_plugin_installed"); err != nil {
-			return err
+			return result, err
 		}
-		return notifyPluginInstalled(ctx, pluginID)
+		return result, notifyPluginInstalled(ctx, pluginID)
 	}
 	if err = s.persistDynamicPluginAuthorization(ctx, manifest, options.Authorization); err != nil {
-		return err
+		return result, err
 	}
 	if err = s.lifecycleSvc.Install(ctx, pluginID); err != nil {
-		return err
+		return result, err
 	}
 	// Dynamic lifecycle reloads the manifest from the runtime artifact. Re-sync
 	// the operator-selected governance fields so installMode cannot be reset to
 	// the artifact default after the request has already been validated.
 	if _, err = s.catalogSvc.SyncManifest(ctx, manifest); err != nil {
-		return err
+		return result, err
 	}
 	if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
-		return err
+		return result, err
 	}
-	return notifyPluginInstalled(ctx, pluginID)
+	return result, notifyPluginInstalled(ctx, pluginID)
 }
 
 // applyInstallModeSelection validates the explicit install-mode request and
@@ -119,13 +127,8 @@ func applyInstallModeSelection(manifest *catalog.Manifest, installMode string) e
 	return nil
 }
 
-// Uninstall executes the uninstall lifecycle for an installed plugin.
-func (s *serviceImpl) Uninstall(ctx context.Context, pluginID string) error {
-	return s.UninstallWithOptions(ctx, pluginID, UninstallOptions{PurgeStorageData: true})
-}
-
-// UninstallWithOptions executes the uninstall lifecycle for an installed plugin using one explicit policy snapshot.
-func (s *serviceImpl) UninstallWithOptions(
+// Uninstall executes the uninstall lifecycle for an installed plugin using one explicit policy snapshot.
+func (s *serviceImpl) Uninstall(
 	ctx context.Context,
 	pluginID string,
 	options UninstallOptions,
@@ -133,6 +136,9 @@ func (s *serviceImpl) UninstallWithOptions(
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
 		return s.uninstallWithoutDesiredManifest(ctx, pluginID, options, err)
+	}
+	if err = s.ensureNoReverseDependencies(ctx, pluginID); err != nil {
+		return err
 	}
 	if err = s.ensureLifecycleGuardAllowed(ctx, pluginID, pluginhost.GuardHookCanUninstall, options.Force); err != nil {
 		return err
@@ -173,6 +179,9 @@ func (s *serviceImpl) uninstallWithoutDesiredManifest(
 	}
 	if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
 		return discoveryErr
+	}
+	if err = s.ensureNoReverseDependencies(ctx, pluginID); err != nil {
+		return err
 	}
 	if err = s.ensureLifecycleGuardAllowed(ctx, pluginID, pluginhost.GuardHookCanUninstall, options.Force); err != nil {
 		return err

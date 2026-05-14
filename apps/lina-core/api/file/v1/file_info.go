@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // InfoByIdsReq defines the request for querying file info by IDs.
 type InfoByIdsReq struct {
@@ -14,5 +10,5 @@ type InfoByIdsReq struct {
 
 // InfoByIdsRes defines the response for file info queries.
 type InfoByIdsRes struct {
-	List []*entity.SysFile `json:"list" dc:"File information list" eg:"[]"`
+	List []*FileItem `json:"list" dc:"File information list" eg:"[]"`
 }

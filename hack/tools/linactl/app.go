@@ -34,11 +34,18 @@ func (a *app) run(ctx context.Context, args []string) error {
 	a.root = repoRoot
 
 	if len(args) == 0 {
-		return a.printHelp()
+		return a.printHelp(false)
 	}
 
 	name := normalizeCommandName(args[0])
 	if name == "help" {
+		input, err := parseCommandInput(args[1:])
+		if err != nil {
+			return err
+		}
+		if input.HasBool("all") {
+			return a.printHelp(true)
+		}
 		if len(args) > 1 {
 			name = normalizeCommandName(args[1])
 			if spec, ok := commandRegistry()[name]; ok {
@@ -47,10 +54,10 @@ func (a *app) run(ctx context.Context, args []string) error {
 			}
 			return fmt.Errorf("unknown command %q", args[1])
 		}
-		return a.printHelp()
+		return a.printHelp(false)
 	}
 	if name == "-h" || name == "--help" {
-		return a.printHelp()
+		return a.printHelp(false)
 	}
 
 	spec, ok := commandRegistry()[name]

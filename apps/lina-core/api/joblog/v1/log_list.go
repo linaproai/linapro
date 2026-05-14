@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // ListReq defines the request for querying scheduled job logs.
 type ListReq struct {
@@ -23,7 +19,7 @@ type ListReq struct {
 
 // ListItem represents one scheduled job log row in the list response.
 type ListItem struct {
-	*entity.SysJobLog
+	JobLogItem
 	JobName string `json:"jobName" dc:"Task name" eg:"Task log cleaning"`
 }
 

@@ -103,6 +103,14 @@ type CacheChangeNotifier interface {
 	MarkRuntimeCacheChanged(ctx context.Context, reason string) error
 }
 
+// DependencyValidator validates candidate dynamic plugin releases before the
+// reconciler switches effective release state or runs lifecycle side effects.
+type DependencyValidator interface {
+	// ValidateDynamicPluginCandidate verifies candidate dependencies and
+	// reverse-dependency version safety for one dynamic lifecycle action.
+	ValidateDynamicPluginCandidate(ctx context.Context, manifest *catalog.Manifest) error
+}
+
 // ArtifactService defines runtime WASM artifact parsing and validation operations.
 type ArtifactService interface {
 	// ParseRuntimeWasmArtifact reads one WASM artifact file and extracts all embedded custom sections.
@@ -274,6 +282,8 @@ type DependencyWiringService interface {
 	SetPermissionMenuFilter(f PermissionMenuFilter)
 	// SetRuntimeCacheChangeNotifier wires cluster cache revision publication.
 	SetRuntimeCacheChangeNotifier(n CacheChangeNotifier)
+	// SetDependencyValidator wires release dependency validation.
+	SetDependencyValidator(v DependencyValidator)
 }
 
 // DynamicPackageService defines runtime WASM package upload and storage operations.
@@ -332,6 +342,9 @@ type serviceImpl struct {
 	menuFilter PermissionMenuFilter
 	// cacheChangeNotifier publishes runtime cache changes after successful convergence.
 	cacheChangeNotifier CacheChangeNotifier
+	// dependencyValidator checks candidate release dependency constraints before
+	// dynamic lifecycle side effects.
+	dependencyValidator DependencyValidator
 	// reconcilerRevisionObserved records the reconciler revision consumed by this runtime service.
 	reconcilerRevisionObserved *pluginruntimecache.ObservedRevision
 	// reconcilerRevisionCtrl coordinates cluster-wide dynamic-plugin reconciler wake-up.
@@ -419,6 +432,11 @@ func (s *serviceImpl) SetPermissionMenuFilter(f PermissionMenuFilter) {
 // SetRuntimeCacheChangeNotifier wires cluster cache revision publication.
 func (s *serviceImpl) SetRuntimeCacheChangeNotifier(n CacheChangeNotifier) {
 	s.cacheChangeNotifier = n
+}
+
+// SetDependencyValidator wires release dependency validation.
+func (s *serviceImpl) SetDependencyValidator(v DependencyValidator) {
+	s.dependencyValidator = v
 }
 
 // isClusterModeEnabled is a nil-safe wrapper around the topology provider.

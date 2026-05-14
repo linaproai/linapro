@@ -11,6 +11,7 @@ import (
 )
 
 type IPluginV1 interface {
+	DependencyCheck(ctx context.Context, req *v1.DependencyCheckReq) (res *v1.DependencyCheckRes, err error)
 	Disable(ctx context.Context, req *v1.DisableReq) (res *v1.DisableRes, err error)
 	DynamicList(ctx context.Context, req *v1.DynamicListReq) (res *v1.DynamicListRes, err error)
 	UploadDynamicPackage(ctx context.Context, req *v1.UploadDynamicPackageReq) (res *v1.UploadDynamicPackageRes, err error)

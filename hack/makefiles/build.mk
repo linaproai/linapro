@@ -29,6 +29,14 @@ ifneq ($(origin plugins), undefined)
 BUILD_CONFIG_ARGS += plugins=$(plugins)
 endif
 
+WASM_ARGS := p="$(p)" out="$(abspath $(OUTPUT_DIR))" verbose=$(verbose)
+ifneq ($(origin dry_run), undefined)
+WASM_ARGS += dry_run=$(dry_run)
+endif
+ifneq ($(origin dry-run), undefined)
+WASM_ARGS += dry-run=$(dry-run)
+endif
+
 # Build frontend assets, packed manifests, dynamic plugins, and the host binary.
 # 构建前端资源、嵌入 manifest、动态插件和宿主后端二进制。
 ## build: Build host frontend, manifest assets, and host binaries; auto-enables official plugins when apps/lina-plugins contains manifests, or use plugins=0 for host-only
@@ -36,9 +44,16 @@ endif
 build:
 	@$(LINACTL) build $(BUILD_CONFIG_ARGS) verbose=$(verbose)
 
+# Prepare host manifest assets for Go embedding.
+# 准备宿主 manifest 资源，用于 Go 嵌入。
+## pack.assets: Prepare host manifest assets for embedding
+.PHONY: pack.assets
+pack.assets:
+	@$(LINACTL) pack.assets
+
 # Build runtime Wasm plugin artifacts into the shared output directory.
 # 将 runtime Wasm 插件产物构建到共享输出目录。
 ## wasm: Build runtime wasm plugins from the official plugin submodule, or use p=<plugin-id> for one plugin; outputs to temp/output, use verbose=1 or v=1 for detailed logs
 .PHONY: wasm
 wasm:
-	@$(LINACTL) wasm p="$(p)" out="$(abspath $(OUTPUT_DIR))" verbose=$(verbose)
+	@$(LINACTL) wasm $(WASM_ARGS)

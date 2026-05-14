@@ -310,6 +310,9 @@
                           },
                           "installed": {
                             "dc": "安装状态：1=已安装 0=未安装"
+                          },
+                          "dependencyCheck": {
+                            "dc": "本次安装请求生成的依赖检查结果、自动安装计划和自动安装结果"
                           }
                         }
                       }
@@ -332,6 +335,9 @@
               },
               "installed": {
                 "dc": "安装状态：1=已安装 0=未安装"
+              },
+              "dependencyCheck": {
+                "dc": "本次安装请求生成的依赖检查结果、自动安装计划和自动安装结果"
               }
             }
           },
@@ -478,6 +484,9 @@
               },
               "installMode": {
                 "dc": "插件安装模式：global=全局 tenant_scoped=租户级"
+              },
+              "dependencyCheck": {
+                "dc": "服务端依赖检查结果，用于管理工作台展示安装计划、阻断原因和卸载反向依赖提示"
               }
             }
           },
@@ -788,6 +797,252 @@
               },
               "autoEnableForNewTenants": {
                 "dc": "新创建租户是否自动获得该租户级插件；仅在插件已安装且已启用时生效"
+              }
+            }
+          },
+          "DependencyCheckReq": {
+            "fields": {
+              "id": {
+                "dc": "插件唯一标识"
+              }
+            },
+            "meta": {
+              "dc": "返回服务端权威插件依赖检查结果，包括框架版本兼容性、依赖插件状态、自动安装计划、手动处理项、软依赖提示、阻断原因、循环依赖链和卸载反向依赖。该接口只读，不触发插件状态、发布快照或缓存失效变更",
+              "summary": "检查插件依赖",
+              "tags": "插件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "autoInstallPlan": {
+                            "dc": "安装目标插件前将自动安装的依赖插件列表"
+                          },
+                          "autoInstalled": {
+                            "dc": "当前安装请求中已经自动安装成功的依赖插件列表；只读检查接口通常为空"
+                          },
+                          "blockers": {
+                            "dc": "阻断安装或升级副作用的安装方向硬依赖失败列表"
+                          },
+                          "cycle": {
+                            "dc": "检测到的依赖循环链"
+                          },
+                          "dependencies": {
+                            "dc": "直接和传递插件依赖检查结果"
+                          },
+                          "framework": {
+                            "dc": "框架版本兼容性检查结果"
+                          },
+                          "manualInstallRequired": {
+                            "dc": "需要管理员先手动安装的硬依赖列表"
+                          },
+                          "reverseDependents": {
+                            "dc": "当前已安装且依赖目标插件的下游插件列表"
+                          },
+                          "reverseBlockers": {
+                            "dc": "卸载保护或下游版本约束产生的反向依赖阻断项"
+                          },
+                          "softUnsatisfied": {
+                            "dc": "当前缺失或不兼容但不阻断生命周期的软依赖列表"
+                          },
+                          "targetId": {
+                            "dc": "被检查的目标插件 ID"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "返回服务端权威插件依赖检查结果，包括框架版本兼容性、依赖插件状态、自动安装计划、手动处理项、软依赖提示、阻断原因、循环依赖链和卸载反向依赖。该接口只读，不触发插件状态、发布快照或缓存失效变更"
+            }
+          },
+          "DependencyCheckRes": {
+            "fields": {
+              "autoInstallPlan": {
+                "dc": "安装目标插件前将自动安装的依赖插件列表"
+              },
+              "autoInstalled": {
+                "dc": "当前安装请求中已经自动安装成功的依赖插件列表；只读检查接口通常为空"
+              },
+              "blockers": {
+                "dc": "阻断安装或升级副作用的安装方向硬依赖失败列表"
+              },
+              "cycle": {
+                "dc": "检测到的依赖循环链"
+              },
+              "dependencies": {
+                "dc": "直接和传递插件依赖检查结果"
+              },
+              "framework": {
+                "dc": "框架版本兼容性检查结果"
+              },
+              "manualInstallRequired": {
+                "dc": "需要管理员先手动安装的硬依赖列表"
+              },
+              "reverseDependents": {
+                "dc": "当前已安装且依赖目标插件的下游插件列表"
+              },
+              "reverseBlockers": {
+                "dc": "卸载保护或下游版本约束产生的反向依赖阻断项"
+              },
+              "softUnsatisfied": {
+                "dc": "当前缺失或不兼容但不阻断生命周期的软依赖列表"
+              },
+              "targetId": {
+                "dc": "被检查的目标插件 ID"
+              }
+            }
+          },
+          "PluginDependencyCheckResult": {
+            "fields": {
+              "autoInstallPlan": {
+                "dc": "安装目标插件前将自动安装的依赖插件列表"
+              },
+              "autoInstalled": {
+                "dc": "当前安装请求中已经自动安装成功的依赖插件列表"
+              },
+              "blockers": {
+                "dc": "阻断安装或升级副作用的安装方向硬依赖失败列表"
+              },
+              "cycle": {
+                "dc": "检测到的依赖循环链"
+              },
+              "dependencies": {
+                "dc": "直接和传递插件依赖检查结果"
+              },
+              "framework": {
+                "dc": "框架版本兼容性检查结果"
+              },
+              "manualInstallRequired": {
+                "dc": "需要管理员先手动安装的硬依赖列表"
+              },
+              "reverseDependents": {
+                "dc": "当前已安装且依赖目标插件的下游插件列表"
+              },
+              "reverseBlockers": {
+                "dc": "卸载保护或下游版本约束产生的反向依赖阻断项"
+              },
+              "softUnsatisfied": {
+                "dc": "当前缺失或不兼容但不阻断生命周期的软依赖列表"
+              },
+              "targetId": {
+                "dc": "被检查的目标插件 ID"
+              }
+            }
+          },
+          "PluginDependencyFrameworkCheck": {
+            "fields": {
+              "currentVersion": {
+                "dc": "当前 LinaPro 框架版本"
+              },
+              "requiredVersion": {
+                "dc": "插件声明的框架语义化版本范围"
+              },
+              "status": {
+                "dc": "兼容性状态：not_declared=未声明 satisfied=满足 unsatisfied=不满足"
+              }
+            }
+          },
+          "PluginDependencyItem": {
+            "fields": {
+              "chain": {
+                "dc": "到达该依赖边的依赖链"
+              },
+              "currentVersion": {
+                "dc": "已发现或已安装依赖插件的当前版本"
+              },
+              "dependencyId": {
+                "dc": "被依赖插件 ID"
+              },
+              "dependencyName": {
+                "dc": "被依赖插件显示名称"
+              },
+              "discovered": {
+                "dc": "依赖插件是否已在当前插件目录或动态产物目录中发现"
+              },
+              "installMode": {
+                "dc": "依赖安装策略：manual=管理员手动安装 auto=宿主可自动安装"
+              },
+              "installed": {
+                "dc": "依赖插件是否已经安装"
+              },
+              "ownerId": {
+                "dc": "声明该依赖的插件 ID"
+              },
+              "required": {
+                "dc": "该依赖不满足时是否阻断生命周期"
+              },
+              "requiredVersion": {
+                "dc": "声明的依赖插件语义化版本范围"
+              },
+              "status": {
+                "dc": "服务端依赖解析状态，如 satisfied、auto_install_planned、manual_install_required、missing、version_unsatisfied、soft_unsatisfied"
+              }
+            }
+          },
+          "PluginDependencyAutoInstallItem": {
+            "fields": {
+              "chain": {
+                "dc": "到达该自动安装项的依赖链"
+              },
+              "name": {
+                "dc": "依赖插件显示名称"
+              },
+              "pluginId": {
+                "dc": "将被自动安装或已经自动安装的依赖插件 ID"
+              },
+              "requiredBy": {
+                "dc": "直接声明该依赖的上游插件 ID"
+              },
+              "version": {
+                "dc": "将安装的依赖插件版本"
+              }
+            }
+          },
+          "PluginDependencyBlocker": {
+            "fields": {
+              "chain": {
+                "dc": "触发阻断的依赖链"
+              },
+              "code": {
+                "dc": "阻断类型，如 framework_version_unsatisfied、dependency_missing、dependency_version_unsatisfied、dependency_manual_install_required、dependency_cycle、reverse_dependency"
+              },
+              "currentVersion": {
+                "dc": "当前观测到的版本；不存在时为空"
+              },
+              "dependencyId": {
+                "dc": "关联的依赖插件 ID；框架版本阻断或快照未知时可为空"
+              },
+              "detail": {
+                "dc": "服务端提供的简短诊断信息"
+              },
+              "pluginId": {
+                "dc": "生命周期被阻断或声明依赖的插件 ID"
+              },
+              "requiredVersion": {
+                "dc": "声明要求的版本范围"
+              }
+            }
+          },
+          "PluginDependencyReverseDependent": {
+            "fields": {
+              "name": {
+                "dc": "下游插件显示名称"
+              },
+              "pluginId": {
+                "dc": "依赖当前目标插件的下游插件 ID"
+              },
+              "requiredVersion": {
+                "dc": "下游插件声明的目标插件版本范围"
+              },
+              "version": {
+                "dc": "下游插件当前版本"
               }
             }
           }

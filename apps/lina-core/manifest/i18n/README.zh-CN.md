@@ -121,11 +121,10 @@
 修改运行时文案时使用以下命令：
 
 ```bash
-make check-runtime-i18n-messages
-make check-runtime-i18n
+make i18n.check
 ```
 
-`check-runtime-i18n-messages`用于校验宿主和插件范围内的 JSON key 覆盖和重复运行时 key。`check-runtime-i18n`用于扫描源码中的高风险硬编码用户可见文案；在当前运行时文案治理迭代完成前，该命令预期仍会报告既有待清理项。
+`i18n.check`用于扫描源码中的高风险硬编码用户可见文案，并校验宿主和插件范围内的 JSON key 覆盖和重复运行时 key；在当前运行时文案治理迭代完成前，该命令预期仍会报告既有待清理项。
 
 ## 校验规则
 

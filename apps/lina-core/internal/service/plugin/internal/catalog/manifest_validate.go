@@ -72,6 +72,9 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 	if err := ValidateManifestMenus(manifest); err != nil {
 		return gerror.Wrapf(err, "plugin menu metadata is invalid: %s", fileLabel)
 	}
+	if err := ValidateDependencySpec(manifest.ID, manifest.Dependencies); err != nil {
+		return gerror.Wrapf(err, "plugin dependency metadata is invalid: %s", fileLabel)
+	}
 	if NormalizeType(manifest.Type) == TypeSource {
 		if manifest.SourcePlugin != nil && strings.TrimSpace(manifest.SourcePlugin.ID()) != "" && manifest.ID != manifest.SourcePlugin.ID() {
 			return gerror.Newf("source plugin embedded manifest ID does not match registered plugin ID: %s != %s", manifest.ID, manifest.SourcePlugin.ID())
@@ -142,6 +145,9 @@ func (s *serviceImpl) ValidateUploadedRuntimeManifest(manifest *Manifest) error 
 		return gerror.New("dynamic plugin name cannot be empty")
 	}
 	if err := ValidateManifestSemanticVersion(manifest.Version); err != nil {
+		return err
+	}
+	if err := ValidateDependencySpec(manifest.ID, manifest.Dependencies); err != nil {
 		return err
 	}
 	return ValidateManifestMenus(manifest)

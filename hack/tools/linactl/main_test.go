@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -41,6 +42,187 @@ func TestParseCommandInputSupportsMakeStyleParams(t *testing.T) {
 	}
 	if len(input.Args) != 1 || input.Args[0] != "extra" {
 		t.Fatalf("unexpected positional args: %#v", input.Args)
+	}
+}
+
+// TestCommandRegistryUsesDottedTestCommands guards the public test command names.
+func TestCommandRegistryUsesDottedTestCommands(t *testing.T) {
+	registry := commandRegistry()
+	for _, name := range []string{"test.go", "test.host", "test.plugins", "test.scripts"} {
+		if _, ok := registry[name]; !ok {
+			t.Fatalf("expected command %q to be registered", name)
+		}
+	}
+	for _, name := range []string{"test-go", "test-host", "test-plugins", "test-scripts"} {
+		if _, ok := registry[name]; ok {
+			t.Fatalf("legacy command %q should not be registered", name)
+		}
+	}
+}
+
+// TestCommandRegistryUsesDottedImageBuildCommand guards the public image
+// staging command name.
+func TestCommandRegistryUsesDottedImageBuildCommand(t *testing.T) {
+	registry := commandRegistry()
+	if _, ok := registry["image.build"]; !ok {
+		t.Fatalf("expected command %q to be registered", "image.build")
+	}
+	if _, ok := registry["image-build"]; ok {
+		t.Fatalf("legacy command %q should not be registered", "image-build")
+	}
+}
+
+// TestCommandRegistryUsesDottedPackAssetsCommand guards the public manifest
+// asset packing command name.
+func TestCommandRegistryUsesDottedPackAssetsCommand(t *testing.T) {
+	registry := commandRegistry()
+	if _, ok := registry["pack.assets"]; !ok {
+		t.Fatalf("expected command %q to be registered", "pack.assets")
+	}
+	if _, ok := registry["prepare-packed-assets"]; ok {
+		t.Fatalf("legacy command %q should not be registered", "prepare-packed-assets")
+	}
+	if normalized := normalizeCommandName("prepare-packed-assets"); normalized != "prepare-packed-assets" {
+		t.Fatalf("legacy command name should not be normalized to a public alias, got %q", normalized)
+	}
+}
+
+// TestCommandRegistryIncludesReleaseTagCheck verifies the public release
+// governance command name.
+func TestCommandRegistryIncludesReleaseTagCheck(t *testing.T) {
+	registry := commandRegistry()
+	if _, ok := registry["release.tag.check"]; !ok {
+		t.Fatalf("expected command %q to be registered", "release.tag.check")
+	}
+}
+
+// TestPrintHelpHidesInternalCommands verifies root make help lists only
+// repository-level commands by default.
+func TestPrintHelpHidesInternalCommands(t *testing.T) {
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+
+	if err := application.printHelp(false); err != nil {
+		t.Fatalf("printHelp returned error: %v", err)
+	}
+	output := stdout.String()
+	for _, command := range []string{"cli", "cli.install", "ctrl", "dao"} {
+		if strings.Contains(output, "\n  "+command+" ") {
+			t.Fatalf("root help should hide internal command %q:\n%s", command, output)
+		}
+	}
+	if !strings.Contains(output, "\n  build ") {
+		t.Fatalf("root help should still list build command:\n%s", output)
+	}
+}
+
+// TestPrintHelpAllIncludesInternalCommands verifies operators can still inspect
+// the full linactl command list explicitly.
+func TestPrintHelpAllIncludesInternalCommands(t *testing.T) {
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+
+	if err := application.printHelp(true); err != nil {
+		t.Fatalf("printHelp returned error: %v", err)
+	}
+	output := stdout.String()
+	for _, command := range []string{"cli", "cli.install", "ctrl", "dao"} {
+		if !strings.Contains(output, "\n  "+command+" ") {
+			t.Fatalf("full help should include internal command %q:\n%s", command, output)
+		}
+	}
+}
+
+// TestRunReleaseTagCheckAcceptsMatchingMetadataVersion verifies the happy path.
+func TestRunReleaseTagCheckAcceptsMatchingMetadataVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "framework:\n  version: \"v1.2.3\"\n")
+
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+
+	err := runReleaseTagCheck(context.Background(), application, commandInput{Params: map[string]string{"tag": "v1.2.3"}})
+	if err != nil {
+		t.Fatalf("runReleaseTagCheck returned error: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "Release tag v1.2.3 matches framework.version") {
+		t.Fatalf("unexpected output: %s", stdout.String())
+	}
+}
+
+// TestRunReleaseTagCheckUsesGitHubRefNameFallback verifies tag workflow input.
+func TestRunReleaseTagCheckUsesGitHubRefNameFallback(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "framework:\n  version: v1.2.3-rc.1\n")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.env = setEnvValue(os.Environ(), "GITHUB_REF_NAME", "v1.2.3-rc.1")
+
+	err := runReleaseTagCheck(context.Background(), application, commandInput{})
+	if err != nil {
+		t.Fatalf("runReleaseTagCheck should use GITHUB_REF_NAME fallback: %v", err)
+	}
+}
+
+// TestRunReleaseTagCheckPrintsValidatedFrameworkVersion verifies automation output.
+func TestRunReleaseTagCheckPrintsValidatedFrameworkVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "framework:\n  version: v1.2.3\n")
+
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+
+	err := runReleaseTagCheck(context.Background(), application, commandInput{Params: map[string]string{"print_version": "1"}})
+	if err != nil {
+		t.Fatalf("runReleaseTagCheck returned error: %v", err)
+	}
+	if strings.TrimSpace(stdout.String()) != "v1.2.3" {
+		t.Fatalf("expected printed version, got: %q", stdout.String())
+	}
+}
+
+// TestRunReleaseTagCheckRejectsMismatchedTag verifies equality enforcement.
+func TestRunReleaseTagCheckRejectsMismatchedTag(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "framework:\n  version: v1.2.3\n")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+
+	err := runReleaseTagCheck(context.Background(), application, commandInput{Params: map[string]string{"tag": "v1.2.4"}})
+	if err == nil || !strings.Contains(err.Error(), `release tag "v1.2.4" must equal metadata framework.version "v1.2.3"`) {
+		t.Fatalf("expected mismatch error, got: %v", err)
+	}
+}
+
+// TestRunReleaseTagCheckRejectsInvalidFrameworkVersion verifies format enforcement.
+func TestRunReleaseTagCheckRejectsInvalidFrameworkVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "framework:\n  version: v1.2\n")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+
+	err := runReleaseTagCheck(context.Background(), application, commandInput{Params: map[string]string{"tag": "v1.2"}})
+	if err == nil || !strings.Contains(err.Error(), "must match vMAJOR.MINOR.PATCH") {
+		t.Fatalf("expected invalid version error, got: %v", err)
+	}
+}
+
+// TestRunReleaseTagCheckRejectsMissingFrameworkVersion verifies metadata presence.
+func TestRunReleaseTagCheckRejectsMissingFrameworkVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "framework:\n  name: LinaPro\n")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+
+	err := runReleaseTagCheck(context.Background(), application, commandInput{Params: map[string]string{"tag": "v1.2.3"}})
+	if err == nil || !strings.Contains(err.Error(), "metadata framework.version is empty") {
+		t.Fatalf("expected missing version error, got: %v", err)
 	}
 }
 
@@ -239,6 +421,53 @@ func TestPrintStatusTableIncludesDevelopmentServiceDetails(t *testing.T) {
 	}
 }
 
+// TestRunI18nCheckRunsBothChecksWhenScanFails verifies merged checks still
+// report message coverage results when the scanner fails.
+func TestRunI18nCheckRunsBothChecksWhenScanFails(t *testing.T) {
+	root := t.TempDir()
+	toolDir := filepath.Join(root, "hack", "tools", "runtime-i18n")
+	if err := os.MkdirAll(toolDir, 0o755); err != nil {
+		t.Fatalf("mkdir runtime i18n tool dir: %v", err)
+	}
+
+	var calls []string
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		calls = append(calls, strings.Join(append([]string{name}, args...), " "))
+		if len(args) == 3 && args[0] == "run" && args[1] == "." && args[2] == "scan" {
+			return exec.Command(os.Args[0], "-test.run=TestHelperCommandFailure", "--")
+		}
+		return exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+	}
+
+	err := runI18nCheck(context.Background(), application, commandInput{})
+	if err == nil {
+		t.Fatalf("expected i18n check to fail when scan fails")
+	}
+	expected := []string{
+		"go run . scan",
+		"go run . messages",
+	}
+	if strings.Join(calls, "\n") != strings.Join(expected, "\n") {
+		t.Fatalf("unexpected i18n check calls:\n%s", strings.Join(calls, "\n"))
+	}
+}
+
+// TestCommandRegistryUsesSingleI18nCheckEntry verifies the public command list
+// exposes only the merged i18n check entry.
+func TestCommandRegistryUsesSingleI18nCheckEntry(t *testing.T) {
+	registry := commandRegistry()
+	if _, ok := registry["i18n.check"]; !ok {
+		t.Fatalf("expected i18n.check command to be registered")
+	}
+	for _, removed := range []string{"check-runtime-i18n", "check-runtime-i18n-messages"} {
+		if _, ok := registry[removed]; ok {
+			t.Fatalf("expected old i18n command %s to be removed", removed)
+		}
+	}
+}
+
 func TestWaitHTTPAcceptsRedirectWithoutFollowingLoop(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "./", http.StatusMovedPermanently)
@@ -296,11 +525,14 @@ func TestRunDevStartsServicesAsAsyncProcessesAndPrintsFinalStatus(t *testing.T) 
 		t.Fatalf("runDev appears to have waited for service processes to exit: %s", elapsed)
 	}
 	for _, path := range []string{
-		filepath.Join(root, "apps", "lina-core", "internal", "packed", "public", "index.html"),
-		filepath.Join(root, "apps", "lina-core", "internal", "packed", "public", ".gitkeep"),
+		filepath.Join(root, "apps", "lina-core", "internal", "packed", "manifest", "config", "config.template.yaml"),
+		filepath.Join(root, "apps", "lina-core", "internal", "packed", "manifest", "config", "metadata.yaml"),
+		filepath.Join(root, "apps", "lina-core", "internal", "packed", "manifest", "sql", "001.sql"),
+		filepath.Join(root, "apps", "lina-core", "internal", "packed", "manifest", "i18n", "en-US", "framework.json"),
+		filepath.Join(root, "apps", "lina-core", "internal", "packed", "manifest", ".gitkeep"),
 	} {
 		if !fileExists(path) {
-			t.Fatalf("expected runDev to prepare frontend embed asset %s", path)
+			t.Fatalf("expected runDev to prepare packed manifest asset %s", path)
 		}
 	}
 	for _, path := range []string{
@@ -494,6 +726,81 @@ func TestOfficialPluginGoWorkUsesDiscoversPluginModules(t *testing.T) {
 	}
 }
 
+// TestDiscoverGoModuleDirsSkipsGeneratedAndDependencyDirs verifies tidy scans
+// maintained source modules without entering generated or dependency trees.
+func TestDiscoverGoModuleDirsSkipsGeneratedAndDependencyDirs(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-plugins", "plugin-a", "go.mod"), "module plugin-a\n")
+	writeFile(t, filepath.Join(root, "hack", "tools", "linactl", "go.mod"), "module linactl\n")
+	writeFile(t, filepath.Join(root, "temp", "clone", "go.mod"), "module temp-clone\n")
+	writeFile(t, filepath.Join(root, ".tmp", "spike", "go.mod"), "module spike\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-vben", "node_modules", "dep", "go.mod"), "module dep\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-vben", "dist", "go.mod"), "module dist\n")
+
+	modules, err := discoverGoModuleDirs(root)
+	if err != nil {
+		t.Fatalf("discoverGoModuleDirs returned error: %v", err)
+	}
+
+	var rel []string
+	for _, module := range modules {
+		rel = append(rel, relativePath(root, module))
+	}
+	got := strings.Join(rel, ",")
+	expected := "apps/lina-core,apps/lina-plugins/plugin-a,hack/tools/linactl"
+	if got != expected {
+		t.Fatalf("unexpected module directories: got %s expected %s", got, expected)
+	}
+}
+
+// TestRunTidyExecutesGoModTidyForEachModule verifies tidy runs in each module
+// directory so the adjacent go.sum file is the dependency checksum target.
+func TestRunTidyExecutesGoModTidyForEachModule(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(root, "hack", "tools", "linactl", "go.mod"), "module linactl\n")
+
+	capturePath := filepath.Join(root, "tidy-dirs.txt")
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.env = append(os.Environ(), "LINACTL_TEST_CAPTURE_DIRS="+capturePath)
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		if name != "go" || strings.Join(args, " ") != "mod tidy" {
+			t.Fatalf("unexpected tidy command: %s %s", name, strings.Join(args, " "))
+		}
+		return exec.Command(os.Args[0], "-test.run=TestHelperRecordWorkingDirectory", "--")
+	}
+
+	if err := runTidy(context.Background(), application, commandInput{}); err != nil {
+		t.Fatalf("runTidy returned error: %v", err)
+	}
+
+	content, err := os.ReadFile(capturePath)
+	if err != nil {
+		t.Fatalf("read captured tidy dirs: %v", err)
+	}
+	realRoot := root
+	if evaluatedRoot, evalErr := filepath.EvalSymlinks(root); evalErr == nil {
+		realRoot = evaluatedRoot
+	}
+	var dirs []string
+	for _, line := range strings.Split(strings.TrimSpace(string(content)), "\n") {
+		if line != "" {
+			realLine := line
+			if evaluatedLine, evalErr := filepath.EvalSymlinks(line); evalErr == nil {
+				realLine = evaluatedLine
+			}
+			dirs = append(dirs, relativePath(realRoot, realLine))
+		}
+	}
+	got := strings.Join(dirs, ",")
+	expected := "apps/lina-core,hack/tools/linactl"
+	if got != expected {
+		t.Fatalf("unexpected tidy directories: got %s expected %s", got, expected)
+	}
+}
+
 func TestPrepareOfficialPluginWorkspaceWritesTemporaryWorkspace(t *testing.T) {
 	root := t.TempDir()
 	content := `go 1.25.0
@@ -594,6 +901,49 @@ func TestHelperCreateFrontendDist(t *testing.T) {
 	}
 	root := os.Args[len(os.Args)-1]
 	writeFile(t, filepath.Join(root, "apps", "lina-vben", "apps", "web-antd", "dist", "index.html"), "<div>dist</div>\n")
+}
+
+// TestHelperCommandSuccess exits successfully when invoked as a child command.
+func TestHelperCommandSuccess(t *testing.T) {
+	if len(os.Args) < 2 || os.Args[len(os.Args)-1] != "--" {
+		return
+	}
+}
+
+// TestHelperCommandFailure exits with failure when invoked as a child command.
+func TestHelperCommandFailure(t *testing.T) {
+	if len(os.Args) < 2 || os.Args[len(os.Args)-1] != "--" {
+		return
+	}
+	os.Exit(1)
+}
+
+// TestHelperRecordWorkingDirectory records the child process working directory
+// for command execution tests.
+func TestHelperRecordWorkingDirectory(t *testing.T) {
+	if len(os.Args) < 2 || os.Args[len(os.Args)-1] != "--" {
+		return
+	}
+	capturePath := os.Getenv("LINACTL_TEST_CAPTURE_DIRS")
+	if capturePath == "" {
+		t.Fatalf("LINACTL_TEST_CAPTURE_DIRS is empty")
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
+	}
+	file, err := os.OpenFile(capturePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatalf("open capture file: %v", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			t.Fatalf("close capture file: %v", closeErr)
+		}
+	}()
+	if _, err = fmt.Fprintln(file, wd); err != nil {
+		t.Fatalf("write capture file: %v", err)
+	}
 }
 
 type ioDiscard struct{}

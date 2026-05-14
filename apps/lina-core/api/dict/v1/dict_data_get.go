@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // DataGetReq defines the request for querying dictionary data detail.
 type DataGetReq struct {
@@ -14,5 +10,5 @@ type DataGetReq struct {
 
 // DataGetRes defines the response for querying dictionary data detail.
 type DataGetRes struct {
-	*entity.SysDictData `dc:"Dictionary data information" eg:""`
+	DictDataItem
 }

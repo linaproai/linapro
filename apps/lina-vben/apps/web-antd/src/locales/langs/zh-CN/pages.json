@@ -495,10 +495,8 @@
       "detail": {
         "title": "文件详情",
         "fileId": "文件ID",
-        "engine": "存储引擎",
         "storedName": "存储文件名",
-        "url": "文件URL",
-        "hash": "文件哈希"
+        "url": "文件URL"
       },
       "messages": {
         "deleteSelectedConfirm": "确认删除选中的{count}条记录吗？",
@@ -902,6 +900,31 @@
         "title": "插件详情",
         "hostServicesTitle": "宿主服务范围",
         "routeListTitle": "声明的路由"
+      },
+      "dependency": {
+        "autoInstalled": "已自动安装的依赖插件",
+        "autoInstalledToast": "已安装依赖插件：{plugins}",
+        "autoInstallPlan": "宿主将先安装以下依赖插件。",
+        "blocker": {
+          "dependency_cycle": "依赖存在循环",
+          "dependency_manual_install_required": "需要手动安装",
+          "dependency_missing": "依赖插件缺失",
+          "dependency_snapshot_unknown": "依赖快照不可用",
+          "dependency_version_unsatisfied": "依赖版本不满足",
+          "framework_version_unsatisfied": "框架版本不满足",
+          "reverse_dependency": "存在下游依赖",
+          "reverse_dependency_version": "下游版本约束不满足"
+        },
+        "checkFailed": "刷新插件依赖检查结果失败",
+        "cycle": "检测到插件依赖循环。",
+        "installBlocked": "请先处理依赖阻断项，再安装该插件。",
+        "loading": "正在检查插件依赖...",
+        "manualRequired": "请先手动安装以下依赖插件。",
+        "resolveBeforeInstall": "请先处理依赖阻断项，再安装该插件。",
+        "resolveBeforeUninstall": "请先卸载依赖该插件的下游插件。",
+        "softUnsatisfied": "可选依赖当前不满足；安装可继续，但相关增强能力可能不可用。",
+        "title": "依赖检查",
+        "uninstallBlocked": "该插件仍被已安装插件依赖。"
       },
       "hostServices": {
         "cron": {

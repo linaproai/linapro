@@ -162,7 +162,7 @@ func TestInstallPersistsExplicitDynamicInstallMode(t *testing.T) {
 		}
 	})
 
-	if err := service.Install(ctx, pluginID, InstallOptions{
+	if _, err := service.Install(ctx, pluginID, InstallOptions{
 		InstallMode: catalog.InstallModeGlobal.String(),
 	}); err != nil {
 		t.Fatalf("install dynamic plugin with explicit global mode: %v", err)
@@ -225,7 +225,7 @@ func TestUninstallDynamicUsesArchivedReleaseWhenStagingArtifactMissing(t *testin
 		nil,
 	)
 
-	if err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
 	}
 	release, err := service.getPluginRelease(ctx, pluginID, version)
@@ -243,7 +243,7 @@ func TestUninstallDynamicUsesArchivedReleaseWhenStagingArtifactMissing(t *testin
 		t.Fatalf("failed to remove staging artifact: %v", err)
 	}
 
-	if err = service.Uninstall(ctx, pluginID); err != nil {
+	if err = service.Uninstall(ctx, pluginID, UninstallOptions{PurgeStorageData: true}); err != nil {
 		t.Fatalf("expected dynamic plugin uninstall to use archived release, got error: %v", err)
 	}
 
@@ -313,7 +313,7 @@ func TestUninstallForceClearsDynamicOrphanWhenArtifactsMissing(t *testing.T) {
 		nil,
 	)
 
-	if err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
 	}
 	release, err := service.getPluginRelease(ctx, pluginID, version)
@@ -341,14 +341,14 @@ func TestUninstallForceClearsDynamicOrphanWhenArtifactsMissing(t *testing.T) {
 		t.Fatalf("expected installed dynamic plugin to materialize governance resource refs")
 	}
 
-	err = service.UninstallWithOptions(ctx, pluginID, UninstallOptions{PurgeStorageData: true})
+	err = service.Uninstall(ctx, pluginID, UninstallOptions{PurgeStorageData: true})
 	if !bizerr.Is(err, CodePluginDynamicArtifactMissingForUninstall) {
 		t.Fatalf("expected missing-artifact uninstall bizerr, got %v", err)
 	}
 
 	enabled := true
 	configsvc.SetPluginAllowForceUninstallOverride(&enabled)
-	if err = service.UninstallWithOptions(ctx, pluginID, UninstallOptions{
+	if err = service.Uninstall(ctx, pluginID, UninstallOptions{
 		PurgeStorageData: true,
 		Force:            true,
 	}); err != nil {
@@ -705,7 +705,7 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 		},
 	}
 
-	if err := service.Install(ctx, pluginID, InstallOptions{Authorization: authorization}); err != nil {
+	if _, err := service.Install(ctx, pluginID, InstallOptions{Authorization: authorization}); err != nil {
 		t.Fatalf("expected install with authorization to succeed, got error: %v", err)
 	}
 	if err := service.UpdateStatus(ctx, pluginID, catalog.StatusEnabled, authorization); err != nil {
@@ -832,7 +832,7 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 		t.Fatalf("expected discovered source plugin release to stay uninstalled, got %s", release.Status)
 	}
 
-	if err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
 
@@ -892,7 +892,7 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 		t.Fatalf("expected source plugin install to materialize governance resource refs")
 	}
 
-	if err = service.Uninstall(ctx, pluginID); err != nil {
+	if err = service.Uninstall(ctx, pluginID, UninstallOptions{PurgeStorageData: true}); err != nil {
 		t.Fatalf("expected source plugin uninstall to succeed, got error: %v", err)
 	}
 

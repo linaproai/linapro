@@ -1,0 +1,65 @@
+# Reusable LinaPro OpenSpec completion gate workflow.
+# LinaPro 可复用 OpenSpec 完成状态门禁工作流。
+name: Reusable OpenSpec Changes Complete
+
+on:
+  # Expose active OpenSpec completion checks as a reusable workflow.
+  # 将活跃 OpenSpec 完成状态检查暴露为可复用工作流。
+  workflow_call:
+
+# OpenSpec completion checks only need read access to repository contents.
+# OpenSpec 完成状态检查只需要读取仓库内容。
+permissions:
+  contents: read
+
+# Keep OpenSpec logs aligned with the project timezone.
+# 让 OpenSpec 日志与项目时区保持一致。
+env:
+  TZ: "Asia/Shanghai"
+
+jobs:
+  # Fails the branch when any active OpenSpec change is not complete.
+  # 当任一活跃 OpenSpec 变更未完成时让分支检查失败。
+  openspec-changes-complete:
+    name: OpenSpec changes complete
+    runs-on: ubuntu-latest
+
+    steps:
+      # Fetch the repository so OpenSpec can inspect the local change tree.
+      # 拉取仓库内容，供 OpenSpec 检查本地变更目录。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      # Install the Node runtime used to invoke the pinned OpenSpec CLI.
+      # 安装用于调用固定版本 OpenSpec CLI 的 Node 运行时。
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: "apps/lina-vben/.node-version"
+
+      # Block merges until all active OpenSpec tasks report a complete status.
+      # 阻止仍存在未完成 OpenSpec 任务的变更进入合并链路。
+      - name: Verify active OpenSpec changes are complete
+        run: |
+          npx -y @fission-ai/openspec@1.3.1 list --json > /tmp/openspec-changes.json
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const data = JSON.parse(fs.readFileSync('/tmp/openspec-changes.json', 'utf8'));
+          const changes = Array.isArray(data.changes) ? data.changes : [];
+          const incomplete = changes.filter((change) => change.status !== 'complete');
+
+          if (incomplete.length === 0) {
+            console.log(`All ${changes.length} active OpenSpec change(s) are complete.`);
+            process.exit(0);
+          }
+
+          console.error('Incomplete OpenSpec change(s) found:');
+          for (const change of incomplete) {
+            const completed = Number.isInteger(change.completedTasks) ? change.completedTasks : 'unknown';
+            const total = Number.isInteger(change.totalTasks) ? change.totalTasks : 'unknown';
+            console.error(`- ${change.name}: status=${change.status}, tasks=${completed}/${total}`);
+          }
+          console.error('Complete these OpenSpec changes before merging.');
+          process.exit(1);
+          NODE

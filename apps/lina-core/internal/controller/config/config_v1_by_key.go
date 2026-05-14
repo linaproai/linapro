@@ -12,5 +12,5 @@ func (c *ControllerV1) ByKey(ctx context.Context, req *v1.ByKeyReq) (res *v1.ByK
 	if err != nil {
 		return nil, err
 	}
-	return &v1.ByKeyRes{SysConfig: cfg}, nil
+	return &v1.ByKeyRes{ConfigItem: configItem(cfg)}, nil
 }

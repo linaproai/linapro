@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // TypeOptionsReq defines the request for querying dictionary type options.
 type TypeOptionsReq struct {
@@ -13,5 +9,5 @@ type TypeOptionsReq struct {
 
 // TypeOptionsRes defines the response for querying dictionary type options.
 type TypeOptionsRes struct {
-	List []*entity.SysDictType `json:"list" dc:"Dictionary type options list" eg:"[]"`
+	List []*DictTypeOptionItem `json:"list" dc:"Dictionary type options list" eg:"[]"`
 }

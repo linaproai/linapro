@@ -115,10 +115,10 @@ The current backend only supports `redis`. The scalar `cluster.coordination` set
 Source plugins now follow an explicit development-time upgrade flow instead of
 silently switching versions during startup.
 
-- Host startup scans source plugins first, but if an installed source plugin still has a higher discovered `plugin.yaml` version than the effective `sys_plugin.version`, startup fails fast until the upgrade command has been completed.
-- Use the `lina-upgrade` AI skill through your AI tooling to upgrade one plugin, for example: `upgrade source plugin plugin-demo-source`.
-- Use `upgrade all source plugins` through the same skill to process every installed source plugin with a newer discovered version.
-- Dynamic plugins keep their existing runtime-managed `upload + install/reconcile` upgrade model and are not handled by the development-time skill.
+- Host startup scans source plugins first, but if an installed source plugin still has a higher discovered `plugin.yaml` version than the effective `sys_plugin.version`, startup fails fast until the version drift has been resolved.
+- Use the supported plugin workspace update flow to refresh source-plugin code before startup.
+- Process every installed source plugin with a newer discovered version before starting the host.
+- Dynamic plugins keep their existing runtime-managed `upload + install/reconcile` upgrade model.
 
 ## Related Entry Points
 

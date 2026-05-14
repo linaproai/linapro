@@ -55,6 +55,7 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 			UpdatedAt:               item.UpdatedAt,
 			AuthorizationRequired:   boolToInt(item.AuthorizationRequired),
 			AuthorizationStatus:     string(item.AuthorizationStatus),
+			DependencyCheck:         buildPluginDependencyCheckResult(item.DependencyCheck),
 			RequestedHostServices: buildHostServicePermissionItems(
 				item.RequestedHostServices,
 				tableComments,

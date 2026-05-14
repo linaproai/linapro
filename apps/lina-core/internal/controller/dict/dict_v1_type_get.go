@@ -12,5 +12,5 @@ func (c *ControllerV1) TypeGet(ctx context.Context, req *v1.TypeGetReq) (res *v1
 	if err != nil {
 		return nil, err
 	}
-	return &v1.TypeGetRes{SysDictType: dictType}, nil
+	return &v1.TypeGetRes{DictTypeItem: dictTypeItem(dictType)}, nil
 }

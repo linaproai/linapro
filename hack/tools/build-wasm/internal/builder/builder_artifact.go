@@ -34,6 +34,7 @@ func buildRuntimeArtifactContent(
 		SupportsMultiTenant: manifest.SupportsMultiTenant,
 		DefaultInstallMode:  manifest.DefaultInstallMode,
 		Description:         manifest.Description,
+		Dependencies:        cloneBuildDependencySpec(manifest.Dependencies),
 		Menus:               manifest.Menus,
 	})
 	if err != nil {
@@ -142,6 +143,37 @@ func buildRuntimeArtifactContent(
 		content = appendWasmCustomSection(content, pluginDynamicWasmSectionBackendHostServices, payload)
 	}
 	return content, nil
+}
+
+func cloneBuildDependencySpec(spec *dependencySpec) *dependencySpec {
+	if spec == nil {
+		return nil
+	}
+	clone := &dependencySpec{}
+	if spec.Framework != nil {
+		clone.Framework = &frameworkDependencySpec{Version: strings.TrimSpace(spec.Framework.Version)}
+	}
+	if len(spec.Plugins) > 0 {
+		clone.Plugins = make([]*pluginDependencySpec, 0, len(spec.Plugins))
+		for _, dependency := range spec.Plugins {
+			if dependency == nil {
+				clone.Plugins = append(clone.Plugins, nil)
+				continue
+			}
+			var required *bool
+			if dependency.Required != nil {
+				value := *dependency.Required
+				required = &value
+			}
+			clone.Plugins = append(clone.Plugins, &pluginDependencySpec{
+				ID:       strings.TrimSpace(dependency.ID),
+				Version:  strings.TrimSpace(dependency.Version),
+				Required: required,
+				Install:  strings.TrimSpace(dependency.Install),
+			})
+		}
+	}
+	return clone
 }
 
 func appendWasmCustomSection(content []byte, name string, payload []byte) []byte {

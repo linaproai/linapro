@@ -192,13 +192,13 @@ func TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot(t *testing.T) {
 		}
 	})
 
-	if err := service.Install(ctx, pluginID, InstallOptions{Authorization: authorization}); err != nil {
+	if _, err := service.Install(ctx, pluginID, InstallOptions{Authorization: authorization}); err != nil {
 		t.Fatalf("expected initial dynamic plugin install to succeed, got error: %v", err)
 	}
 	if err := service.UpdateStatus(ctx, pluginID, catalog.StatusEnabled, authorization); err != nil {
 		t.Fatalf("expected initial dynamic plugin enable to succeed, got error: %v", err)
 	}
-	if err := service.Uninstall(ctx, pluginID); err != nil {
+	if err := service.Uninstall(ctx, pluginID, UninstallOptions{PurgeStorageData: true}); err != nil {
 		t.Fatalf("expected dynamic plugin uninstall to succeed, got error: %v", err)
 	}
 

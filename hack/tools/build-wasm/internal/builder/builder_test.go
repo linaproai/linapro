@@ -17,7 +17,7 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: plugin-dynamic-builder\nname: Dynamic Builder\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\ndescription: standalone builder test\nhostServices:\n  - service: runtime\n    methods:\n      - log.write\n      - state.get\n      - state.set\n",
+		"id: plugin-dynamic-builder\nname: Dynamic Builder\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\ndescription: standalone builder test\ndependencies:\n  framework:\n    version: \">=0.1.0 <1.0.0\"\n  plugins:\n    - id: multi-tenant\n      version: \">=0.1.0\"\n      install: auto\nhostServices:\n  - service: runtime\n    methods:\n      - log.write\n      - state.get\n      - state.set\n",
 	)
 	mustWriteFile(
 		t,
@@ -108,6 +108,21 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	}
 	if manifest.DefaultInstallMode != pluginInstallModeTenantScoped {
 		t.Fatalf("expected embedded default install mode tenant_scoped, got %s", manifest.DefaultInstallMode)
+	}
+	if manifest.Dependencies == nil || manifest.Dependencies.Framework == nil {
+		t.Fatalf("expected embedded dependencies, got %#v", manifest.Dependencies)
+	}
+	if manifest.Dependencies.Framework.Version != ">=0.1.0 <1.0.0" {
+		t.Fatalf("unexpected framework dependency: %#v", manifest.Dependencies.Framework)
+	}
+	if len(manifest.Dependencies.Plugins) != 1 {
+		t.Fatalf("expected one embedded plugin dependency, got %#v", manifest.Dependencies.Plugins)
+	}
+	if manifest.Dependencies.Plugins[0].ID != "multi-tenant" || manifest.Dependencies.Plugins[0].Install != "auto" {
+		t.Fatalf("unexpected embedded plugin dependency: %#v", manifest.Dependencies.Plugins[0])
+	}
+	if manifest.Dependencies.Plugins[0].Required == nil || !*manifest.Dependencies.Plugins[0].Required {
+		t.Fatalf("expected dependency required default true, got %#v", manifest.Dependencies.Plugins[0].Required)
 	}
 
 	metadata := &dynamicArtifactMetadata{}

@@ -6,9 +6,6 @@ export interface FileInfo {
   scene: string;
   size: number;
   url: string;
-  path: string;
-  engine: string;
-  hash: string;
   createdBy: number;
   createdByName?: string;
   createdAt: string;

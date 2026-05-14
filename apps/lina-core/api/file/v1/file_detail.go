@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // DetailReq defines the request for querying file detail.
 type DetailReq struct {
@@ -14,7 +10,7 @@ type DetailReq struct {
 
 // DetailRes File detail response
 type DetailRes struct {
-	*entity.SysFile
+	FileItem
 	CreatedByName string `json:"createdByName" dc:"Uploader username" eg:"admin"`
 	SceneLabel    string `json:"sceneLabel" dc:"Usage scene name" eg:"User avatar"`
 }
