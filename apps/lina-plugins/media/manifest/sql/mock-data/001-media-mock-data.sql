@@ -22,7 +22,14 @@ stream:
   timeout: 10s
 snapshot:
   enabled: true
-  interval: 30s',
+  interval: 30s
+watermark:
+  enabled: true
+  text: LinaPro 水印测试
+  fontSize: 42
+  color: "#ffffff"
+  align: bottomRight
+  opacity: 0.75',
     1,
     1,
     admin."id",
@@ -62,7 +69,14 @@ stream:
   timeout: 5s
 transcode:
   enabled: true
-  profile: mobile-preview',
+  profile: mobile-preview
+watermark:
+  enabled: true
+  text: 门店预览
+  fontSize: 32
+  color: "#ffffff"
+  align: bottomRight
+  opacity: 0.65',
     2,
     1,
     admin."id",
@@ -98,7 +112,11 @@ stream:
   timeout: 15s
 watermark:
   enabled: true
-  text: 园区安防',
+  text: 园区安防
+  fontSize: 40
+  color: "#ffffff"
+  align: bottomRight
+  opacity: 0.7',
     2,
     1,
     admin."id",

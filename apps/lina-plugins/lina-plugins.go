@@ -11,4 +11,5 @@ import (
 	_ "lina-plugin-monitor-server/backend"
 	_ "lina-plugin-multi-tenant/backend"
 	_ "lina-plugin-org-center/backend"
+	_ "lina-plugin-water/backend"
 )

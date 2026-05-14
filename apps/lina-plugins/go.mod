@@ -13,6 +13,7 @@ require (
 	lina-plugin-monitor-server v0.0.0
 	lina-plugin-multi-tenant v0.0.0
 	lina-plugin-org-center v0.0.0
+	lina-plugin-water v0.0.0
 )
 
 require (
@@ -64,6 +65,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.38.0 // indirect
 	go.opentelemetry.io/otel/trace v1.38.0 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
+	golang.org/x/image v0.25.0 // indirect
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
@@ -97,3 +99,5 @@ replace lina-plugin-monitor-server => ./monitor-server
 replace lina-plugin-multi-tenant => ./multi-tenant
 
 replace lina-plugin-org-center => ./org-center
+
+replace lina-plugin-water => ./water
