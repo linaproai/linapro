@@ -7,7 +7,6 @@ import (
 	"io"
 
 	"lina-core/internal/model/entity"
-	i18nsvc "lina-core/internal/service/i18n"
 )
 
 // Service defines the complete dict service contract.
@@ -92,9 +91,8 @@ type serviceImpl struct {
 	i18nSvc dictI18nTranslator
 }
 
-// New creates and returns a new Service instance.
-func New() Service {
-	i18nSvc := i18nsvc.New()
+// New creates a dict service from explicit runtime-owned dependencies.
+func New(i18nSvc dictI18nTranslator) Service {
 	return &serviceImpl{
 		i18nSvc: i18nSvc,
 	}

@@ -13,6 +13,8 @@ import (
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	hostconfig "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
 )
@@ -30,7 +32,7 @@ func TestListLocalizesConfigMetadata(t *testing.T) {
 		"控制登录页顶部主标题文案。",
 	)
 
-	out, err := New().List(ctx, ListInput{
+	out, err := New(nil, i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))).List(ctx, ListInput{
 		PageNum:  1,
 		PageSize: 10,
 		Key:      hostconfig.PublicFrontendSettingKeyAuthPageTitle,
@@ -67,7 +69,7 @@ func TestListKeepsCustomConfigValueRaw(t *testing.T) {
 		"控制登录页顶部主标题文案。",
 	)
 
-	out, err := New().List(ctx, ListInput{
+	out, err := New(nil, i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))).List(ctx, ListInput{
 		PageNum:  1,
 		PageSize: 10,
 		Key:      hostconfig.PublicFrontendSettingKeyAuthPageTitle,
@@ -96,7 +98,7 @@ func TestGetByIdKeepsRawConfigMetadata(t *testing.T) {
 		"控制登录页顶部主标题文案。",
 	)
 
-	item, err := New().GetById(ctx, int(record.Id))
+	item, err := New(nil, i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))).GetById(ctx, int(record.Id))
 	if err != nil {
 		t.Fatalf("get raw config detail: %v", err)
 	}
@@ -116,7 +118,7 @@ func TestGetByIdKeepsRawConfigMetadata(t *testing.T) {
 func TestGenerateImportTemplateLocalizesHeaders(t *testing.T) {
 	ctx := newEnglishBizCtx()
 
-	data, err := New().GenerateImportTemplate(ctx)
+	data, err := New(nil, i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))).GenerateImportTemplate(ctx)
 	if err != nil {
 		t.Fatalf("generate localized import template: %v", err)
 	}
@@ -168,7 +170,7 @@ func TestExportLocalizesHeadersButKeepsRawRows(t *testing.T) {
 		"控制登录页顶部主标题文案。",
 	)
 
-	data, err := New().Export(ctx, ExportInput{Ids: []int{int(record.Id)}})
+	data, err := New(nil, i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))).Export(ctx, ExportInput{Ids: []int{int(record.Id)}})
 	if err != nil {
 		t.Fatalf("export localized config headers: %v", err)
 	}

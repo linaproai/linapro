@@ -12,6 +12,8 @@ import (
 	"testing/fstest"
 
 	"lina-core/internal/model"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/pkg/pluginhost"
 )
@@ -57,7 +59,7 @@ func resetRuntimeBundleCache() {
 func runtimeLocaleDescriptorsForTest(t *testing.T) []LocaleDescriptor {
 	t.Helper()
 
-	svc, ok := New().(*serviceImpl)
+	svc, ok := New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil)).(*serviceImpl)
 	if !ok {
 		t.Fatal("expected i18n.New to return *serviceImpl")
 	}
@@ -133,7 +135,7 @@ func TestNormalizeAcceptLanguage(t *testing.T) {
 func TestResolveLocaleFallsBackToDefault(t *testing.T) {
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))
 	if actual := svc.ResolveLocale(context.Background(), "fr-FR"); actual != DefaultLocale {
 		t.Fatalf("expected unsupported locale to fall back to %q, got %q", DefaultLocale, actual)
 	}
@@ -181,7 +183,7 @@ func TestParseLocaleJSONSupportsNestedAndFlatKeys(t *testing.T) {
 func TestBuildRuntimeMessagesIncludesHostAndSourcePlugin(t *testing.T) {
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))
 	messages := svc.BuildRuntimeMessages(context.Background(), EnglishLocale)
 
 	if actual, ok := lookupMessageString(messages, "menu.dashboard.title"); !ok || actual != "Dashboard" {
@@ -203,7 +205,7 @@ func TestBuildRuntimeMessagesIncludesHostAndSourcePlugin(t *testing.T) {
 func TestListRuntimeLocalesUsesRequestedDisplayLocale(t *testing.T) {
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))
 	expectedLocales := runtimeLocaleDescriptorsForTest(t)
 	locales := svc.ListRuntimeLocales(context.Background(), EnglishLocale)
 	if len(locales) != len(expectedLocales) {
@@ -360,7 +362,7 @@ func TestGetDefaultRuntimeLocaleUsesConfiguredDefault(t *testing.T) {
 func TestRegisterSourcePluginInvalidatesRuntimeBundleCache(t *testing.T) {
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))
 	messages := svc.BuildRuntimeMessages(context.Background(), EnglishLocale)
 	if _, ok := lookupMessageString(messages, "plugin."+testCacheInvalidatePluginID+".name"); ok {
 		t.Fatalf("expected plugin %q translation to be absent before registration", testCacheInvalidatePluginID)
@@ -389,7 +391,7 @@ func TestRegisterSourcePluginInvalidatesRuntimeBundleCache(t *testing.T) {
 func TestTranslateUsesContextLocaleAndFallback(t *testing.T) {
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
 
 	if actual := svc.Translate(ctx, "framework.description", "fallback"); actual == "fallback" {
@@ -416,7 +418,7 @@ func TestCheckMissingMessagesSkipsSourceTextBackedKeys(t *testing.T) {
 	})
 
 	for _, locale := range nonDefaultRuntimeLocaleCodesForTest(t) {
-		items := New().CheckMissingMessages(context.Background(), locale, "job.")
+		items := New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil)).CheckMissingMessages(context.Background(), locale, "job.")
 		namespaces := RegisteredSourceTextNamespaces()
 		for _, item := range items {
 			for prefix := range namespaces {
@@ -442,7 +444,7 @@ func TestShippedNonDefaultRuntimeCatalogsHaveNoMissingMessages(t *testing.T) {
 	})
 
 	for _, locale := range nonDefaultRuntimeLocaleCodesForTest(t) {
-		items := New().CheckMissingMessages(context.Background(), locale, "")
+		items := New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil)).CheckMissingMessages(context.Background(), locale, "")
 		items = filterExternalDynamicPluginMissingMessagesForTest(items)
 		if len(items) == 0 {
 			continue
@@ -483,7 +485,7 @@ func filterExternalDynamicPluginMissingMessagesForTest(items []MissingMessageIte
 func TestLocalizeErrorSupportsFormattedBusinessKeys(t *testing.T) {
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
 
 	actual := svc.LocalizeError(ctx, gerror.Newf("error.upload.fileTooLarge", 20))
@@ -497,7 +499,7 @@ func TestLocalizeErrorSupportsFormattedBusinessKeys(t *testing.T) {
 func TestLocalizeErrorSupportsValidationKeys(t *testing.T) {
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
 
 	err := gvalid.New().

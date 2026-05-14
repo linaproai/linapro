@@ -18,6 +18,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
 	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
@@ -66,7 +67,7 @@ func TestSendWritesCurrentTenantToMessageAndDelivery(t *testing.T) {
 	recipientID := insertNotifyTenantTestUser(t, ctx, "notify-send-recipient", tenantID, 1)
 	t.Cleanup(func() { cleanupNotifyTenantTestUsers(t, ctx, []int{recipientID}) })
 
-	out, err := New().Send(tenantCtx, SendInput{
+	out, err := New(tenantcapsvc.New(nil, nil)).Send(tenantCtx, SendInput{
 		ChannelKey:       ChannelKeyInbox,
 		SourceType:       SourceTypeSystem,
 		SourceID:         uniqueNotifyTenantTestName("send-source"),
@@ -119,7 +120,7 @@ func TestSendNoticePublicationUsesActiveMembershipBoundary(t *testing.T) {
 	insertNotifyTenantTestMembership(t, ctx, inactiveMemberID, tenantID, 0)
 	insertNotifyTenantTestMembership(t, ctx, otherTenantMemberID, otherTenantID, notifyTenantMembershipStatusActive)
 
-	out, err := New(notifyTenantEnablementReader{}).SendNoticePublication(tenantCtx, NoticePublishInput{
+	out, err := New(tenantcapsvc.New(notifyTenantEnablementReader{}, nil)).SendNoticePublication(tenantCtx, NoticePublishInput{
 		NoticeID:     int64(time.Now().UnixNano()),
 		Title:        "Tenant notice",
 		Content:      "Tenant notice content",
@@ -164,7 +165,7 @@ func TestSendNoticePublicationPlatformUsesPlatformUserBoundary(t *testing.T) {
 	})
 	insertNotifyTenantTestMembership(t, ctx, tenantUserID, tenantID, notifyTenantMembershipStatusActive)
 
-	out, err := New(notifyTenantEnablementReader{}).SendNoticePublication(platformCtx, NoticePublishInput{
+	out, err := New(tenantcapsvc.New(notifyTenantEnablementReader{}, nil)).SendNoticePublication(platformCtx, NoticePublishInput{
 		NoticeID:     int64(time.Now().UnixNano()),
 		Title:        "Platform notice",
 		Content:      "Platform notice content",

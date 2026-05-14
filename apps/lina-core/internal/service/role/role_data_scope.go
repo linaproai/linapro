@@ -23,11 +23,10 @@ func (s *serviceImpl) ensureRoleUsersVisible(ctx context.Context, userIDs []int)
 
 // currentScopeSvc returns the shared data-scope service for role user operations.
 func (s *serviceImpl) currentScopeSvc() datascope.Service {
-	return datascope.New(datascope.Dependencies{
-		BizCtxSvc: s.bizCtxSvc,
-		RoleSvc:   s,
-		OrgCapSvc: s.orgCapSvc,
-	})
+	if s != nil && s.scopeSvc != nil {
+		return s.scopeSvc
+	}
+	return nil
 }
 
 // qualifiedSysUserIDColumn returns the fully qualified user ID column.

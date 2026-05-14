@@ -10,10 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/gtime"
-	"gopkg.in/yaml.v3"
 	"io"
 	"net"
 	"net/http"
@@ -24,6 +20,11 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/os/gtime"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -51,6 +52,10 @@ func TestClusterTwoHostProcessesSharePostgreSQL(t *testing.T) {
 	if baseLink == "" {
 		t.Skip("set LINA_TEST_PGSQL_LINK to run PostgreSQL multi-process cluster test")
 	}
+	redisAddress := strings.TrimSpace(os.Getenv("LINA_TEST_REDIS_ADDR"))
+	if redisAddress == "" {
+		t.Skip("set LINA_TEST_REDIS_ADDR to run Redis-backed multi-process cluster test")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), multiProcessTestTimeout)
 	defer cancel()
@@ -64,8 +69,8 @@ func TestClusterTwoHostProcessesSharePostgreSQL(t *testing.T) {
 		dropClusterTestDatabase(t, targetLink)
 	})
 
-	configDirA := writeClusterProcessConfig(t, targetLink, freeTCPPort(t), "cluster-node-a")
-	configDirB := writeClusterProcessConfig(t, targetLink, freeTCPPort(t), "cluster-node-b")
+	configDirA := writeClusterProcessConfig(t, targetLink, redisAddress, freeTCPPort(t), "cluster-node-a")
+	configDirB := writeClusterProcessConfig(t, targetLink, redisAddress, freeTCPPort(t), "cluster-node-b")
 	if err := runHostCommand(ctx, configDirA, "init", "--confirm=init", "--sql-source=local"); err != nil {
 		t.Fatalf("initialize multi-process database failed: %v", err)
 	}
@@ -170,7 +175,7 @@ func (p *clusterProcess) stop(t *testing.T) {
 }
 
 // writeClusterProcessConfig writes a per-process config directory.
-func writeClusterProcessConfig(t *testing.T, link string, port int, uploadSuffix string) string {
+func writeClusterProcessConfig(t *testing.T, link string, redisAddress string, port int, uploadSuffix string) string {
 	t.Helper()
 
 	repoRoot := repositoryRoot(t)
@@ -191,9 +196,12 @@ func writeClusterProcessConfig(t *testing.T, link string, port int, uploadSuffix
 	section(config, "logger")["path"] = ""
 	clusterCfg := section(config, "cluster")
 	clusterCfg["enabled"] = true
+	clusterCfg["coordination"] = "redis"
 	electionCfg := section(clusterCfg, "election")
 	electionCfg["lease"] = multiProcessElectionLease
 	electionCfg["renewInterval"] = multiProcessElectionRenew
+	redisCfg := section(clusterCfg, "redis")
+	redisCfg["address"] = redisAddress
 	section(config, "upload")["path"] = filepath.Join(t.TempDir(), "upload-"+uploadSuffix)
 	pluginCfg := section(config, "plugin")
 	dynamicCfg := section(pluginCfg, "dynamic")

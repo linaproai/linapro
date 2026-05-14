@@ -98,7 +98,7 @@ func TestClearLogsSupportsDeleteAllAndSelectedIDs(t *testing.T) {
 		svc   = newTestService(t)
 		jobID = insertLogCleanupTestJob(t, ctx)
 	)
-	svc.bizCtxSvc = jobmgmtStaticBizCtx{ctx: &model.Context{UserId: 1}}
+	setJobMgmtTestBizCtx(svc, jobmgmtStaticBizCtx{ctx: &model.Context{UserId: 1}})
 	t.Cleanup(func() { cleanupJobHard(t, ctx, jobID) })
 
 	const rollbackMessage = "rollback execution-log cleanup test transaction"

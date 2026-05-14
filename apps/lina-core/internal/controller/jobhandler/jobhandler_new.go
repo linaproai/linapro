@@ -15,9 +15,9 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns the v1 scheduled job handler controller.
-func NewV1(registry jobhandlersvc.Registry) jobhandler.IJobhandlerV1 {
+func NewV1(registry jobhandlersvc.Registry, i18nSvc i18nsvc.Translator) jobhandler.IJobhandlerV1 {
 	return &ControllerV1{
 		registry: registry,
-		i18nSvc:  i18nsvc.New(),
+		i18nSvc:  i18nSvc,
 	}
 }

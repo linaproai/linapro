@@ -15,8 +15,14 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	hostconfig "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/kvcache"
+	"lina-core/internal/service/orgcap"
+	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/internal/service/session"
 )
 
 // TestLoginRejectsBlacklistedIP verifies managed login IP blacklist settings
@@ -27,16 +33,29 @@ func TestLoginRejectsBlacklistedIP(t *testing.T) {
 	username := fmt.Sprintf("blacklist-test-%s", t.Name())
 	ctx := newRequestContext(t, "127.0.0.1:18080")
 
-	_, err := New(nil).Login(ctx, LoginInput{
+	_, err := newRuntimeParamAuthTestService().Login(ctx, LoginInput{
 		Username: username,
 		Password: "ignored",
 	})
 	if err == nil {
 		t.Fatal("expected blacklisted login attempt to fail")
 	}
-	if localized := i18nsvc.New().LocalizeError(context.Background(), err); localized != "登录IP已被禁止" {
+	if localized := i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil)).LocalizeError(context.Background(), err); localized != "登录IP已被禁止" {
 		t.Fatalf("expected blacklisted login error %q, got %q", "登录IP已被禁止", localized)
 	}
+}
+
+// newRuntimeParamAuthTestService constructs auth with explicit test
+// dependencies while still reading runtime params from the real config service.
+func newRuntimeParamAuthTestService() Service {
+	configSvc := hostconfig.New()
+	bizCtxSvc := bizctx.New()
+	cacheCoordSvc := cachecoord.Default(nil)
+	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cacheCoordSvc)
+	sessionStore := session.NewDBStore()
+	pluginSvc := pluginsvc.New(nil, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, sessionStore)
+	cacheSvc := kvcache.New()
+	return New(configSvc, pluginSvc, orgcap.New(pluginSvc), roleTestService{}, disabledTenantAuthTestService{}, sessionStore, cacheSvc)
 }
 
 // newRequestContext builds one request-backed context carrying the supplied

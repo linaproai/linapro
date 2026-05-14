@@ -1,3 +1,4 @@
+// Package main provides the build-wasm CLI for packaging LinaPro dynamic plugin wasm artifacts.
 package main
 
 import (
@@ -6,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"build-wasm/builder"
+	"build-wasm/internal/builder"
 )
 
 func main() {

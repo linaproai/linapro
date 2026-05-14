@@ -1,0 +1,155 @@
+# Host-only artifact smoke test composite action.
+# Boots the compiled backend binary in single-node mode and validates health, login, and plugin endpoints.
+# 宿主模式构建产物冒烟测试复合操作。
+# 以单节点模式启动编译后的后端二进制文件，校验健康检查、登录和插件列表等核心接口。
+name: Host-only Artifact Smoke
+description: Start a host-only backend artifact in Linux GitHub Actions jobs and verify core endpoints.
+
+# Path overrides let callers reuse this action for different build profiles.
+# 路径覆盖参数允许调用方为不同构建配置复用本操作。
+inputs:
+  binary-path:
+    description: Path to the built LinaPro backend artifact.
+    required: false
+    default: temp/host-only-output/lina
+  log-path:
+    description: Path for the backend smoke log.
+    required: false
+    default: temp/host-only-smoke/lina-core.log
+
+runs:
+  using: composite
+  steps:
+    # Start the binary, poll the health endpoint, then verify login and plugin list responses.
+    # 启动二进制文件，轮询健康检查接口，然后验证登录和插件列表响应。
+    - name: Run Host-only Artifact Smoke
+      shell: bash
+      env:
+        BINARY_PATH: ${{ inputs.binary-path }}
+        LOG_PATH: ${{ inputs.log-path }}
+      run: |
+        # Resolve relative paths against the workspace root.
+        # 将相对路径解析为基于工作区根目录的绝对路径。
+        case "${BINARY_PATH}" in
+          /*) binary_abs="${BINARY_PATH}" ;;
+          *) binary_abs="${GITHUB_WORKSPACE}/${BINARY_PATH}" ;;
+        esac
+        case "${LOG_PATH}" in
+          /*) log_abs="${LOG_PATH}" ;;
+          *) log_abs="${GITHUB_WORKSPACE}/${LOG_PATH}" ;;
+        esac
+
+        # Ensure the log directory exists and register a cleanup trap for the backend process.
+        # 确保日志目录存在，并注册清理钩子以在脚本退出时终止后端进程。
+        mkdir -p "$(dirname "${log_abs}")"
+        backend_pid=""
+        cleanup() {
+          if [ -n "${backend_pid}" ] && kill -0 "${backend_pid}" 2>/dev/null; then
+            kill "${backend_pid}" 2>/dev/null || true
+            wait "${backend_pid}" 2>/dev/null || true
+          fi
+        }
+        trap cleanup EXIT INT TERM
+
+        # Launch the backend binary from the lina-core app directory, redirecting output to the log file.
+        # 从 lina-core 应用目录启动后端二进制文件，将输出重定向到日志文件。
+        pushd apps/lina-core >/dev/null
+        "${binary_abs}" > "${log_abs}" 2>&1 &
+        backend_pid="$!"
+        popd >/dev/null
+
+        # Poll the health endpoint for up to 90 seconds, expecting single-node host-only mode.
+        # 轮询健康检查接口最多 90 秒，期望返回单节点宿主模式。
+        response=""
+        for _ in $(seq 1 90); do
+          if ! kill -0 "${backend_pid}" 2>/dev/null; then
+            echo "Host-only backend exited before health check passed" >&2
+            echo "Check log: ${LOG_PATH}" >&2
+            exit 1
+          fi
+          response="$(curl -fsS "http://127.0.0.1:8080/api/v1/health" 2>/dev/null || true)"
+          if [ -n "${response}" ] && HEALTH_RESPONSE="${response}" python3 - <<'PY'
+        import json
+        import os
+        import sys
+
+        payload = json.loads(os.environ["HEALTH_RESPONSE"])
+        data = payload.get("data", payload)
+        if payload.get("code", 0) == 0 and data.get("status") == "ok" and data.get("mode") == "single":
+            sys.exit(0)
+        sys.exit(1)
+        PY
+          then
+            break
+          fi
+          sleep 1
+        done
+
+        # Fail fast if the health endpoint never responded.
+        # 如果健康检查接口始终未响应则立即失败。
+        if [ -z "${response}" ]; then
+          echo "Host-only backend did not return a health response" >&2
+          echo "Check log: ${LOG_PATH}" >&2
+          exit 1
+        fi
+
+        # Validate the final health response payload in detail.
+        # 详细校验最终的健康检查响应载荷。
+        HEALTH_RESPONSE="${response}" python3 - <<'PY'
+        import json
+        import os
+
+        payload = json.loads(os.environ["HEALTH_RESPONSE"])
+        data = payload.get("data", payload)
+        if payload.get("code", 0) != 0:
+            raise SystemExit(f"health business code is not zero: {payload!r}")
+        if data.get("status") != "ok":
+            raise SystemExit(f"expected health status ok, got: {payload!r}")
+        if data.get("mode") != "single":
+            raise SystemExit(f"expected single-node host-only mode, got: {payload!r}")
+        PY
+
+        # Authenticate with the default admin account and extract the access token.
+        # 使用默认管理员账号登录并提取访问令牌。
+        login_response="$(
+          curl -fsS \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"admin123"}' \
+            "http://127.0.0.1:8080/api/v1/auth/login"
+        )"
+        token="$(LOGIN_RESPONSE="${login_response}" python3 - <<'PY'
+        import json
+        import os
+
+        payload = json.loads(os.environ["LOGIN_RESPONSE"])
+        data = payload.get("data", payload)
+        if payload.get("code", 0) != 0:
+            raise SystemExit(f"login business code is not zero: {payload!r}")
+        token = data.get("accessToken")
+        if not token:
+            raise SystemExit(f"login response did not contain accessToken: {payload!r}")
+        print(token)
+        PY
+        )"
+
+        # Verify that no source plugins are loaded in host-only mode.
+        # 验证宿主模式下未加载任何源码插件。
+        plugins_response="$(
+          curl -fsS \
+            -H "Authorization: Bearer ${token}" \
+            "http://127.0.0.1:8080/api/v1/plugins?type=source"
+        )"
+        PLUGINS_RESPONSE="${plugins_response}" python3 - <<'PY'
+        import json
+        import os
+
+        payload = json.loads(os.environ["PLUGINS_RESPONSE"])
+        data = payload.get("data", payload)
+        if payload.get("code", 0) != 0:
+            raise SystemExit(f"plugin list business code is not zero: {payload!r}")
+        plugin_items = data.get("list") or []
+        if plugin_items:
+            raise SystemExit(f"expected no source plugins in host-only artifact, got: {plugin_items!r}")
+        if data.get("total", 0) != 0:
+            raise SystemExit(f"expected source plugin total=0 in host-only artifact, got: {payload!r}")
+        PY

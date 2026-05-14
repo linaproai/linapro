@@ -1,0 +1,28 @@
+# Detect whether the monthly OpenSpec archive task produced workspace changes.
+# Outputs a boolean flag consumed by downstream steps to decide whether to open a PR.
+# 检测月度 OpenSpec 归档任务是否产生了工作区变更。
+# 输出布尔标志供下游步骤判断是否需要创建 Pull Request。
+name: Monthly OpenSpec Detect Changes
+description: Detect whether monthly auto archive produced OpenSpec changes.
+
+outputs:
+  changed:
+    description: Whether the current workspace has OpenSpec changes.
+    value: ${{ steps.archive-diff.outputs.changed }}
+
+runs:
+  using: composite
+  steps:
+    # Compare the openspec directory against HEAD; any diff means changes were produced.
+    # 将 openspec 目录与 HEAD 进行比较，存在差异即表示产生了变更。
+    - name: Detect Archive Changes
+      id: archive-diff
+      shell: bash
+      run: |
+        if git diff --quiet -- openspec; then
+          echo "changed=false" >> "${GITHUB_OUTPUT}"
+          echo "Auto archive produced no OpenSpec changes."
+        else
+          echo "changed=true" >> "${GITHUB_OUTPUT}"
+          echo "Auto archive produced OpenSpec changes."
+        fi

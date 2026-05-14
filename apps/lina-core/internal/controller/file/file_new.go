@@ -7,8 +7,6 @@ package file
 import (
 	"lina-core/api/file"
 	filesvc "lina-core/internal/service/file"
-	"lina-core/internal/service/orgcap"
-	pluginsvc "lina-core/internal/service/plugin"
 )
 
 // ControllerV1 is the file controller.
@@ -17,9 +15,8 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new file controller instance.
-func NewV1() file.IFileV1 {
-	pluginSvc := pluginsvc.New(nil)
+func NewV1(fileSvc filesvc.Service) file.IFileV1 {
 	return &ControllerV1{
-		fileSvc: filesvc.New(orgcap.New(pluginSvc)),
+		fileSvc: fileSvc,
 	}
 }

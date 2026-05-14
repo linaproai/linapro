@@ -29,8 +29,6 @@ import (
 	"lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
 	dictsvc "lina-core/internal/service/dict"
-	"lina-core/internal/service/orgcap"
-	"lina-core/internal/service/role"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/closeutil"
 	"lina-core/pkg/gdbutil"
@@ -80,37 +78,18 @@ type serviceImpl struct {
 	storage   Storage         // Storage backend
 	bizCtxSvc bizctx.Service  // Business context service
 	dictSvc   dictsvc.Service // Dictionary service for scene labels
-	orgCapSvc orgcap.Service  // Optional organization capability service
 	scopeSvc  datascope.Service
 }
 
-// New creates and returns a new Service instance with local storage.
-func New(orgCapSvcs ...orgcap.Service) Service {
-	var (
-		ctx         = context.Background()
-		configSvc   = config.New()
-		storagePath = configSvc.GetUploadPath(ctx)
-	)
-	var orgCapSvc orgcap.Service
-	if len(orgCapSvcs) > 0 {
-		orgCapSvc = orgCapSvcs[0]
-	}
-	if orgCapSvc == nil {
-		orgCapSvc = orgcap.New(nil)
-	}
-	svc := &serviceImpl{
+// New creates and returns a new file service from explicit runtime-owned dependencies.
+func New(configSvc config.Service, storage Storage, bizCtxSvc bizctx.Service, dictSvc dictsvc.Service, scopeSvc datascope.Service) Service {
+	return &serviceImpl{
 		configSvc: configSvc,
-		storage:   NewLocalStorage(storagePath),
-		bizCtxSvc: bizctx.New(),
-		dictSvc:   dictsvc.New(),
-		orgCapSvc: orgCapSvc,
+		storage:   storage,
+		bizCtxSvc: bizCtxSvc,
+		dictSvc:   dictSvc,
+		scopeSvc:  scopeSvc,
 	}
-	svc.scopeSvc = datascope.New(datascope.Dependencies{
-		BizCtxSvc: svc.bizCtxSvc,
-		RoleSvc:   role.New(nil),
-		OrgCapSvc: svc.orgCapSvc,
-	})
-	return svc
 }
 
 // UploadInput defines input for file upload.

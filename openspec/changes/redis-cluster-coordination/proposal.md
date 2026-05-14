@@ -34,7 +34,7 @@ LinaPro 现有分布式能力主要依赖 PostgreSQL 表模拟锁、缓存修订
 - `distributed-locker`: 集群模式下分布式锁与 leader election 使用 coordination lock；PostgreSQL locker 仅保留单机/测试/兜底边界。
 - `leader-election`: primary 选举租约、续约、释放、失联恢复与 fencing token 语义改为 Redis 原子锁模型。
 - `distributed-cache-coordination`: 集群模式下缓存 revision 与跨节点失效事件使用 Redis revision + event；继续保留 tenant scope、显式 scope、幂等和最大陈旧窗口要求。
-- `plugin-cache-service`: 集群模式下 host/plugin KV cache 使用 Redis backend；TTL、`incr`、删除、过期和缓存 miss 语义调整为 Redis 优先。
+- `plugin-cache-service`: 集群模式下 host/plugin KV cache 使用 coordination KV backend；当前 coordination backend 为 Redis 时，TTL、`incr`、删除、过期和缓存 miss 由 Redis coordination KV 能力承载。
 - `user-auth`: JWT revoke、`pre_token`、租户切换旧 token 撤销、登出和认证短期状态改为 coordination KV，并明确 Redis 故障时的 fail-closed 策略。
 - `online-user`: 在线用户列表、强退、会话过期、数据权限过滤与会话热路径需要适配 Redis hot state + PostgreSQL 投影模型。
 - `role-management`: 权限拓扑 revision、token access snapshot 失效和跨节点同步使用 coordination revision/event。

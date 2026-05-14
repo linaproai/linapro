@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
@@ -67,7 +66,7 @@ var _ Executor = (*serviceImpl)(nil)
 // New creates and returns one guarded shell executor.
 func New(configSvc shellGate) Executor {
 	if configSvc == nil {
-		configSvc = configsvc.New()
+		panic("shell executor requires a non-nil config service")
 	}
 
 	workDir, err := os.Getwd()

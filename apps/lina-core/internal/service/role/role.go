@@ -13,7 +13,6 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
-	i18nsvc "lina-core/internal/service/i18n"
 	orgcapsvc "lina-core/internal/service/orgcap"
 	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
@@ -150,6 +149,8 @@ type RoleAccessSnapshotService interface {
 	GetUserAccessContext(ctx context.Context, userId int) (*UserAccessContext, error)
 	// GetUserDataScopeSnapshot returns the user's effective role data-scope from the cached access snapshot.
 	GetUserDataScopeSnapshot(ctx context.Context, userId int) (*datascope.AccessSnapshot, error)
+	// SetDataScopeService wires the shared data-scope service used by role user operations.
+	SetDataScopeService(scopeSvc datascope.Service)
 }
 
 // Service defines the full role service contract by composing feature-scoped contracts.
@@ -178,38 +179,35 @@ type serviceImpl struct {
 	scopeSvc           datascope.Service
 }
 
-// New creates and returns a new role Service.
-// Pass a non-nil permissionFilter when role permission calculation must respect
-// plugin-owned permission menu visibility; pass nil to use the default no-op filter.
-func New(permissionFilter PermissionMenuFilter) Service {
-	var (
-		bizCtxSvc = bizctx.New()
-		configSvc = config.New()
-		i18nSvc   = i18nsvc.New()
-	)
+// New creates and returns a new role service from explicit runtime-owned dependencies.
+func New(permissionFilter PermissionMenuFilter, bizCtxSvc bizctx.Service, configSvc config.Service, i18nSvc roleI18nTranslator, orgCapabilityState OrganizationCapabilityState, orgCapSvc orgcapsvc.Service, tenantSvc tenantcapsvc.Service) Service {
 	if permissionFilter == nil {
 		permissionFilter = noopPermissionMenuFilter{}
 	}
-	orgCapSvc := orgCapServiceFromPermissionFilter(permissionFilter)
-
+	if orgCapabilityState == nil {
+		orgCapabilityState = organizationCapabilityStateFromPermissionFilter(permissionFilter)
+	}
 	svc := &serviceImpl{
 		bizCtxSvc:          bizCtxSvc,
 		configSvc:          configSvc,
 		i18nSvc:            i18nSvc,
 		permissionFilter:   permissionFilter,
-		orgCapabilityState: organizationCapabilityStateFromPermissionFilter(permissionFilter),
+		orgCapabilityState: orgCapabilityState,
 		orgCapSvc:          orgCapSvc,
-		tenantSvc:          tenantCapServiceFromPermissionFilter(permissionFilter),
+		tenantSvc:          tenantSvc,
 		accessRevisionCtrl: newCacheCoordAccessRevisionController(
 			configSvc.IsClusterEnabled(context.Background()),
 		),
 	}
-	svc.scopeSvc = datascope.New(datascope.Dependencies{
-		BizCtxSvc: svc.bizCtxSvc,
-		RoleSvc:   svc,
-		OrgCapSvc: svc.orgCapSvc,
-	})
 	return svc
+}
+
+// SetDataScopeService wires the shared data-scope service used by role user operations.
+func (s *serviceImpl) SetDataScopeService(scopeSvc datascope.Service) {
+	if s == nil {
+		return
+	}
+	s.scopeSvc = scopeSvc
 }
 
 // roleI18nTranslator defines the narrow translation capability role needs.
@@ -237,24 +235,6 @@ func organizationCapabilityStateFromPermissionFilter(permissionFilter Permission
 		return pluginBackedOrganizationCapabilityState{pluginState: pluginState}
 	}
 	return nil
-}
-
-// orgCapServiceFromPermissionFilter constructs organization data-scope support
-// from the same plugin enablement reader used by permission-menu filtering.
-func orgCapServiceFromPermissionFilter(permissionFilter PermissionMenuFilter) orgcapsvc.Service {
-	if pluginState, ok := permissionFilter.(pluginEnablementState); ok {
-		return orgcapsvc.New(pluginState)
-	}
-	return orgcapsvc.New(nil)
-}
-
-// tenantCapServiceFromPermissionFilter constructs multi-tenant membership
-// support from the same plugin enablement reader used by permission filtering.
-func tenantCapServiceFromPermissionFilter(permissionFilter PermissionMenuFilter) tenantcapsvc.Service {
-	if pluginState, ok := permissionFilter.(pluginEnablementState); ok {
-		return tenantcapsvc.New(pluginState)
-	}
-	return tenantcapsvc.New(nil)
 }
 
 // pluginBackedOrganizationCapabilityState derives organization capability from

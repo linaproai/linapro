@@ -89,6 +89,27 @@ database:
 
 `SQLite` mode is single-node only, automatically forces `cluster.enabled=false`, and is not supported for production deployments.
 
+## Cluster Coordination
+
+Single-node deployments keep the lightweight local mode: they do not require `Redis`, do not connect to `Redis`, and continue to use PostgreSQL plus process-local cache coordination where appropriate.
+
+Clustered deployments must configure the Redis coordination backend explicitly:
+
+```yaml
+cluster:
+  enabled: true
+  coordination: redis
+  redis:
+    address: "127.0.0.1:6379"
+    db: 0
+    password: ""
+    connectTimeout: 3s
+    readTimeout: 2s
+    writeTimeout: 2s
+```
+
+The current backend only supports `redis`. The scalar `cluster.coordination` setting is intentionally stable so future backends can be added without exposing per-store coordination switches. Redis integration tests are opt-in; set `LINA_TEST_REDIS_ADDR`, for example `LINA_TEST_REDIS_ADDR=127.0.0.1:6379`, before running the Redis-specific Go test cases.
+
 ## Source Plugin Upgrade
 
 Source plugins now follow an explicit development-time upgrade flow instead of

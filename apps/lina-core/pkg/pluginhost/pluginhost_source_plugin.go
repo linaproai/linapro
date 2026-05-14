@@ -43,12 +43,15 @@ type HookPayload interface {
 	Value(key string) interface{}
 	// Values returns a copy of all published payload fields.
 	Values() map[string]interface{}
+	// HostServices returns the host-published service directory for hook handlers.
+	HostServices() HostServices
 }
 
 // hookPayload is the host-owned implementation of the published HookPayload view.
 type hookPayload struct {
-	point  ExtensionPoint
-	values map[string]interface{}
+	point        ExtensionPoint
+	values       map[string]interface{}
+	hostServices HostServices
 }
 
 // HookHandler defines one callback-style hook handler.
@@ -228,9 +231,16 @@ func (p *sourcePlugin) GetEmbeddedFiles() fs.FS {
 
 // NewHookPayload creates one published hook payload wrapper for plugins.
 func NewHookPayload(point ExtensionPoint, values map[string]interface{}) HookPayload {
+	return NewHookPayloadWithServices(point, values, nil)
+}
+
+// NewHookPayloadWithServices creates one published hook payload wrapper with
+// host-published services available to source plugins.
+func NewHookPayloadWithServices(point ExtensionPoint, values map[string]interface{}, hostServices HostServices) HookPayload {
 	return &hookPayload{
-		point:  point,
-		values: cloneValueMap(values),
+		point:        point,
+		values:       cloneValueMap(values),
+		hostServices: hostServices,
 	}
 }
 
@@ -477,6 +487,14 @@ func (p *hookPayload) Values() map[string]interface{} {
 		return map[string]interface{}{}
 	}
 	return cloneValueMap(p.values)
+}
+
+// HostServices returns the host-published service directory for hook handlers.
+func (p *hookPayload) HostServices() HostServices {
+	if p == nil {
+		return nil
+	}
+	return p.hostServices
 }
 
 // PluginID returns the source-plugin identifier being uninstalled.

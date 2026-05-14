@@ -16,10 +16,10 @@ type ControllerV1 struct {
 	i18nSvc    i18nsvc.Translator // i18nSvc localizes project and component descriptions.
 }
 
-// NewV1 creates and returns a new system info controller instance.
-func NewV1() sysinfo.ISysinfoV1 {
+// NewV1 creates a sysinfo controller from explicit runtime-owned dependencies.
+func NewV1(sysInfoSvc sysinfosvc.Service, i18nSvc i18nsvc.Translator) sysinfo.ISysinfoV1 {
 	return &ControllerV1{
-		sysInfoSvc: sysinfosvc.New(),
-		i18nSvc:    i18nsvc.New(),
+		sysInfoSvc: sysInfoSvc,
+		i18nSvc:    i18nSvc,
 	}
 }

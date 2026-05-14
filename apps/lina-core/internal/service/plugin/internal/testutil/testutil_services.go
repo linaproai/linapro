@@ -4,9 +4,12 @@ package testutil
 
 import (
 	"context"
+	"time"
 
 	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/integration"
@@ -54,11 +57,13 @@ func NewServices() *Services {
 	var (
 		configProvider = configsvc.New()
 		bizCtxProvider = bizctx.New()
+		cacheCoordSvc  = cachecoord.Default(cachecoord.NewStaticTopology(false))
+		i18nService    = i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
 		catalogSvc     = catalog.New(configProvider)
 		lifecycleSvc   = lifecycle.New(catalogSvc)
 		frontendSvc    = frontend.New(catalogSvc)
 		openapiSvc     = openapi.New(catalogSvc)
-		runtimeSvc     = runtime.New(catalogSvc, lifecycleSvc, frontendSvc, openapiSvc)
+		runtimeSvc     = runtime.New(catalogSvc, lifecycleSvc, frontendSvc, openapiSvc, i18nService)
 		integrationSvc = integration.New(catalogSvc)
 		topology       = singleNodeTopology{}
 	)
@@ -106,6 +111,11 @@ type jwtConfigAdapter struct {
 // GetJwtSecret returns the configured JWT signing secret for test wiring.
 func (a *jwtConfigAdapter) GetJwtSecret(ctx context.Context) string {
 	return a.svc.GetJwtSecret(ctx)
+}
+
+// GetSessionTimeout returns the runtime-effective session timeout for test wiring.
+func (a *jwtConfigAdapter) GetSessionTimeout(ctx context.Context) (time.Duration, error) {
+	return a.svc.GetSessionTimeout(ctx)
 }
 
 // uploadSizeAdapter exposes upload-size config through the runtime test seam.

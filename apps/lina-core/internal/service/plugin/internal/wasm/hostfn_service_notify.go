@@ -12,7 +12,17 @@ import (
 )
 
 // notifyHostService is the shared governed notification backend used by wasm host calls.
-var notifyHostService = notifysvc.New()
+// It must be configured via ConfigureNotifyHostService before use.
+var notifyHostService notifysvc.Service
+
+// ConfigureNotifyHostService replaces the governed notification backend used
+// by wasm host calls. The service must be non-nil.
+func ConfigureNotifyHostService(service notifysvc.Service) {
+	if service == nil {
+		panic("wasm notify host service requires a non-nil notify service")
+	}
+	notifyHostService = service
+}
 
 // dispatchNotifyHostService routes notify host service methods to the governed notification backend.
 func dispatchNotifyHostService(

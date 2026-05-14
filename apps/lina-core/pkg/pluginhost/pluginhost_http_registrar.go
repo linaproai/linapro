@@ -28,12 +28,15 @@ type HTTPRegistrar interface {
 	Routes() RouteRegistrar
 	// GlobalMiddlewares returns the guarded global middleware registrar for request-level extensions.
 	GlobalMiddlewares() GlobalMiddlewareRegistrar
+	// HostServices returns the host-published service directory for source-plugin construction.
+	HostServices() HostServices
 }
 
 // httpRegistrar is the host-owned HTTPRegistrar implementation for one source-plugin registration session.
 type httpRegistrar struct {
 	routes            RouteRegistrar
 	globalMiddlewares GlobalMiddlewareRegistrar
+	hostServices      HostServices
 }
 
 // globalMiddlewareRegistrar is the host-owned implementation of the published
@@ -51,6 +54,7 @@ func NewHTTPRegistrar(
 	pluginID string,
 	enabledChecker PluginEnabledChecker,
 	middlewares RouteMiddlewares,
+	hostServices HostServices,
 ) HTTPRegistrar {
 	return &httpRegistrar{
 		routes: NewRouteRegistrar(
@@ -64,6 +68,7 @@ func NewHTTPRegistrar(
 			pluginID,
 			enabledChecker,
 		),
+		hostServices: hostServices,
 	}
 }
 
@@ -94,6 +99,14 @@ func (r *httpRegistrar) GlobalMiddlewares() GlobalMiddlewareRegistrar {
 		return nil
 	}
 	return r.globalMiddlewares
+}
+
+// HostServices returns the host-published service directory for source-plugin construction.
+func (r *httpRegistrar) HostServices() HostServices {
+	if r == nil {
+		return nil
+	}
+	return r.hostServices
 }
 
 // Bind registers one guarded global middleware on the supplied GoFrame route pattern.

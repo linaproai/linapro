@@ -8,7 +8,7 @@ import (
 
 // Delete deletes the specified config item.
 func (c *ControllerV1) Delete(ctx context.Context, req *v1.DeleteReq) (res *v1.DeleteRes, err error) {
-	err = c.svc.Delete(ctx, req.Id)
+	err = c.sysConfigSvc.Delete(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}

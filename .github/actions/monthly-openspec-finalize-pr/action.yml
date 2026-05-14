@@ -1,0 +1,138 @@
+# Validate, scope-guard, and create or update the monthly OpenSpec archive pull request.
+# Runs openspec validate, ensures only openspec/ files changed, then commits and pushes a PR.
+# 校验、作用域守护并创建或更新月度 OpenSpec 归档 Pull Request。
+# 运行 openspec validate，确保仅有 openspec/ 文件变更，然后提交并推送 Pull Request。
+name: Monthly OpenSpec Finalize Pull Request
+description: Validate generated OpenSpec changes, guard their scope, and create or update the archive pull request.
+
+# changed: skip all work when the archive step produced no diff.
+# openspec-version: pinned CLI version for reproducible validation.
+# base-branch / pr-branch / pr-title: PR targeting and commit metadata.
+# changed: 当归档步骤未产生差异时跳过所有后续工作。
+# openspec-version: 固定 CLI 版本以保证校验结果可重现。
+# base-branch / pr-branch / pr-title: PR 目标分支和提交元数据。
+inputs:
+  changed:
+    description: Whether the monthly archive task produced OpenSpec changes.
+    required: true
+  openspec-version:
+    description: OpenSpec CLI version to run.
+    required: true
+  base-branch:
+    description: Pull request base branch.
+    required: true
+  pr-branch:
+    description: Pull request head branch.
+    required: false
+    default: automation/monthly-openspec-archive
+  pr-title:
+    description: Pull request title and commit message.
+    required: false
+    default: "chore(openspec): archive completed changes"
+
+runs:
+  using: composite
+  steps:
+    # Run the OpenSpec validator against all change manifests.
+    # 对所有变更清单运行 OpenSpec 校验器。
+    - name: Validate OpenSpec
+      if: ${{ inputs.changed == 'true' }}
+      shell: bash
+      env:
+        OPENSPEC_VERSION: ${{ inputs.openspec-version }}
+      run: |
+        npx -y "@fission-ai/openspec@${OPENSPEC_VERSION}" validate --all
+
+    # Collect all modified and untracked files, then reject anything outside openspec/.
+    # 收集所有修改和未跟踪的文件，然后拒绝 openspec/ 之外的任何变更。
+    - name: Guard Generated Changes
+      shell: bash
+      run: |
+        {
+          git diff --name-only
+          git ls-files --others --exclude-standard
+        } | sort -u > "${RUNNER_TEMP}/changed-files.txt"
+
+        node <<'NODE'
+        const fs = require('node:fs');
+
+        const files = fs.readFileSync(`${process.env.RUNNER_TEMP}/changed-files.txt`, 'utf8')
+          .split(/\r?\n/)
+          .filter(Boolean);
+        const allowed = [
+          /^openspec\//,
+        ];
+        const unexpected = files.filter((file) => !allowed.some((pattern) => pattern.test(file)));
+
+        if (unexpected.length > 0) {
+          console.error('Unexpected generated file changes:');
+          for (const file of unexpected) {
+            console.error(`- ${file}`);
+          }
+          process.exit(1);
+        }
+
+        console.log('Generated file changes are within the allowed OpenSpec scope.');
+        NODE
+
+    # Commit the archived changes and create or update the PR via GitHub CLI.
+    # 提交归档变更并通过 GitHub CLI 创建或更新 Pull Request。
+    - name: Create or Update Archive Pull Request
+      if: ${{ inputs.changed == 'true' }}
+      shell: bash
+      env:
+        BASE_BRANCH: ${{ inputs.base-branch }}
+        GH_TOKEN: ${{ github.token }}
+        PR_BRANCH: ${{ inputs.pr-branch }}
+        PR_TITLE: ${{ inputs.pr-title }}
+      run: |
+        set -euo pipefail
+
+        # Configure the bot identity for automated commits.
+        # 为自动化提交配置机器人身份。
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        git switch -c "${PR_BRANCH}"
+        git add openspec
+
+        # Exit early if there is nothing new to commit.
+        # 如果没有新的变更需要提交则提前退出。
+        if git diff --cached --quiet; then
+          echo "No staged archive changes to include in the pull request."
+          exit 0
+        fi
+
+        git commit -m "${PR_TITLE}"
+
+        # Push with force-with-lease when the remote branch already exists, otherwise push normally.
+        # 远程分支已存在时使用 force-with-lease 推送，否则正常推送。
+        remote_sha="$(git ls-remote --heads origin "${PR_BRANCH}" | awk '{print $1}')"
+        if [ -n "${remote_sha}" ]; then
+          git push --force-with-lease="refs/heads/${PR_BRANCH}:${remote_sha}" origin "HEAD:${PR_BRANCH}"
+        else
+          git push origin "HEAD:${PR_BRANCH}"
+        fi
+
+        # Prepare the PR body describing the automated archive contents.
+        # 准备描述自动归档内容的 PR 正文。
+        pr_body="${RUNNER_TEMP}/monthly-openspec-archive-pr.md"
+        cat > "${pr_body}" <<'EOF'
+        This PR was created by the monthly OpenSpec archive workflow.
+
+        It contains only `openspec/**` archive and archive consolidation updates.
+
+        Validation:
+        - `openspec validate --all`
+        - generated change scope guard for `openspec/**`
+        EOF
+
+        # Check for an existing open PR; update it if found, otherwise create a new one.
+        # 检查是否已存在打开的 PR，如存在则更新，否则创建新的。
+        pr_number="$(gh pr list --head "${PR_BRANCH}" --state open --json number --jq '.[0].number // ""')"
+        if [ -n "${pr_number}" ]; then
+          gh pr edit "${pr_number}" --title "${PR_TITLE}" --body-file "${pr_body}" --base "${BASE_BRANCH}"
+          echo "Updated archive PR #${pr_number}."
+        else
+          gh pr create --base "${BASE_BRANCH}" --head "${PR_BRANCH}" --title "${PR_TITLE}" --body-file "${pr_body}"
+        fi

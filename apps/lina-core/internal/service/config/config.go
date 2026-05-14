@@ -27,6 +27,8 @@ type Service interface {
 type ClusterConfigReader interface {
 	// GetCluster reads cluster config from configuration file.
 	GetCluster(ctx context.Context) *ClusterConfig
+	// GetClusterRedis reads the Redis coordination config from configuration file.
+	GetClusterRedis(ctx context.Context) *ClusterRedisConfig
 	// IsClusterEnabled reports whether multi-node cluster mode is enabled.
 	IsClusterEnabled(ctx context.Context) bool
 	// OverrideClusterEnabledForDialect locks cluster.enabled in memory when the

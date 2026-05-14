@@ -34,8 +34,8 @@ func TestBatchUpdateReplacesStatusAndRoles(t *testing.T) {
 	}
 
 	disabledStatus := int(StatusDisabled)
-	svc := New(nil).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: mustQueryBuiltinAdminUserID(t, ctx), TenantId: 0, DataScope: 1}}
+	svc := newUserTestService().(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: mustQueryBuiltinAdminUserID(t, ctx), TenantId: 0, DataScope: 1}})
 	if err := svc.BatchUpdate(ctx, BatchUpdateInput{
 		Ids:          userIDs,
 		UpdateStatus: true,
@@ -70,8 +70,8 @@ func TestBatchUpdateRejectsCurrentUserAtomically(t *testing.T) {
 	})
 
 	disabledStatus := int(StatusDisabled)
-	svc := New(nil).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID, TenantId: 0, DataScope: 1}}
+	svc := newUserTestService().(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID, TenantId: 0, DataScope: 1}})
 	err := svc.BatchUpdate(ctx, BatchUpdateInput{
 		Ids:          []int{otherUserID, currentUserID},
 		UpdateStatus: true,
@@ -115,8 +115,8 @@ func TestBatchUpdateReplacesTenantMemberships(t *testing.T) {
 		insertUserTenantMembershipTestMembership(t, ctx, userID, tenantAID, userTenantMembershipTestActive)
 	}
 
-	svc := New(nil, userTenantMembershipEnablementReader{}).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 1}}
+	svc := newUserTestService(userTenantMembershipEnablementReader{}).(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 1}})
 	if err := svc.BatchUpdate(ctx, BatchUpdateInput{
 		Ids:          userIDs,
 		UpdateTenant: true,
@@ -150,8 +150,8 @@ func TestBatchUpdateRejectsRoleTenantCombinedPatch(t *testing.T) {
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
 	})
 
-	svc := New(nil).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: mustQueryBuiltinAdminUserID(t, ctx), TenantId: 0, DataScope: 1}}
+	svc := newUserTestService().(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: mustQueryBuiltinAdminUserID(t, ctx), TenantId: 0, DataScope: 1}})
 	err := svc.BatchUpdate(ctx, BatchUpdateInput{
 		Ids:          []int{userID},
 		UpdateRoles:  true,

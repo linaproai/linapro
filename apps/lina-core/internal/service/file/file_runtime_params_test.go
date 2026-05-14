@@ -12,7 +12,10 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/bizctx"
 	hostconfig "lina-core/internal/service/config"
+	"lina-core/internal/service/datascope"
+	"lina-core/internal/service/orgcap"
 	"lina-core/pkg/bizerr"
 )
 
@@ -21,7 +24,9 @@ import (
 func TestUploadRejectsFileExceedingRuntimeMaxSize(t *testing.T) {
 	withRuntimeParamValue(t, hostconfig.RuntimeParamKeyUploadMaxSize, "1")
 
-	svc := New()
+	bizCtxSvc := bizctx.New()
+	orgCapSvc := orgcap.New(nil)
+	svc := New(hostconfig.New(), nil, bizCtxSvc, nil, datascope.New(bizCtxSvc, nil, orgCapSvc))
 	_, err := svc.Upload(context.Background(), &UploadInput{
 		File: &ghttp.UploadFile{
 			FileHeader: &multipart.FileHeader{

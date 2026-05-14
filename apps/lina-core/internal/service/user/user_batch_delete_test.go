@@ -29,9 +29,9 @@ func TestDeleteRollsBackWhenOrgCleanupFails(t *testing.T) {
 	})
 
 	expectedErr := errors.New("cleanup failed")
-	svc := New(nil).(*serviceImpl)
-	svc.orgCapSvc = userDeleteFailingOrgCap{cleanupErr: expectedErr}
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: mustQueryBuiltinAdminUserID(t, ctx)}}
+	svc := newUserTestService().(*serviceImpl)
+	setUserTestOrgCap(svc, userDeleteFailingOrgCap{cleanupErr: expectedErr})
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: mustQueryBuiltinAdminUserID(t, ctx)}})
 
 	err := svc.Delete(ctx, userID)
 	if !errors.Is(err, expectedErr) {
@@ -55,8 +55,8 @@ func TestBatchDeleteRejectsCurrentUserAtomically(t *testing.T) {
 	})
 	insertUserDeleteTestUserRole(t, ctx, currentUserID, roleID)
 
-	svc := New(nil).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
+	svc := newUserTestService().(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}})
 
 	err := svc.BatchDelete(ctx, []int{otherUserID, currentUserID})
 	if err == nil {
@@ -94,8 +94,8 @@ func TestBatchDeleteRemovesUsersAndAssociations(t *testing.T) {
 		}
 	}
 
-	svc := New(nil).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: mustQueryBuiltinAdminUserID(t, ctx)}}
+	svc := newUserTestService().(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: mustQueryBuiltinAdminUserID(t, ctx)}})
 	if err := svc.BatchDelete(ctx, userIDs); err != nil {
 		t.Fatalf("batch delete users: %v", err)
 	}
@@ -119,8 +119,8 @@ func TestBatchDeleteRejectsBuiltinAdminAtomically(t *testing.T) {
 		cleanupUserDeleteTestRows(t, ctx, []int{otherUserID})
 	})
 
-	svc := New(nil).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: adminUserID}}
+	svc := newUserTestService().(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: adminUserID}})
 	err := svc.BatchDelete(ctx, []int{otherUserID, adminUserID})
 	if err == nil {
 		t.Fatal("expected builtin admin batch delete to be rejected")
@@ -137,7 +137,7 @@ func TestBatchDeleteRejectsBuiltinAdminAtomically(t *testing.T) {
 // TestBatchDeleteRejectsEmptyList verifies empty batch deletes return a stable
 // bizerr code before touching the database.
 func TestBatchDeleteRejectsEmptyList(t *testing.T) {
-	err := New(nil).BatchDelete(context.Background(), nil)
+	err := newUserTestService().BatchDelete(context.Background(), nil)
 	if err == nil {
 		t.Fatal("expected empty batch delete to be rejected")
 	}
@@ -278,7 +278,6 @@ func (s userDeleteStaticBizCtx) SetTenant(context.Context, int) {}
 
 // SetImpersonation is unused by delete tests.
 func (s userDeleteStaticBizCtx) SetImpersonation(context.Context, int, int, bool, bool) {}
-
 
 // SetUserAccess is unused by delete tests.
 func (s userDeleteStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}

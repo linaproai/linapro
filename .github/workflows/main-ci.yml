@@ -1,12 +1,18 @@
 # LinaPro backend main CI workflow.
 # Runs on every push and pull request branch.
+# LinaPro 后端主 CI 工作流。
+# 在每次分支 push 和手动触发时运行。
 name: Main CI
 
 on:
+  # Validate every pushed branch, not only protected branches.
+  # 校验所有被推送的分支，不只覆盖受保护分支。
   push:
     branches:
     - '**'
 
+  # Allow maintainers to rerun the main CI manually, optionally with debug support.
+  # 允许维护者手动重跑主 CI，并可按需开启调试。
   workflow_dispatch:
     inputs:
       debug:
@@ -16,45 +22,200 @@ on:
         default: false
 
 # Cancel in-progress runs for the same branch/PR to save CI minutes.
+# 取消同一分支/PR 上仍在运行的旧任务，节省 CI 时间。
 concurrency:
   group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
   cancel-in-progress: true
 
+# Keep logs and date-sensitive tests aligned with the project timezone.
+# 让日志和依赖日期的测试与项目时区保持一致。
 env:
   TZ: "Asia/Shanghai"
 
 jobs:
-  windows-command-smoke:
-    name: Windows command smoke
-    uses: ./.github/workflows/reusable-windows-command-smoke.yml
-
-  backend-unit-tests:
-    name: Go unit tests
-    uses: ./.github/workflows/reusable-backend-unit-tests.yml
-
-  frontend-unit-tests:
-    name: Frontend unit tests
-    uses: ./.github/workflows/reusable-frontend-unit-tests.yml
-
-  # SQLite Backend Smoke Tests
-  sqlite-smoke:
+  # Fails the branch when any active OpenSpec change is not complete.
+  # 当任一活跃 OpenSpec 变更未完成时让分支检查失败。
+  openspec-changes-complete:
+    name: OpenSpec changes complete
     runs-on: ubuntu-latest
 
     steps:
+      # Fetch the repository so OpenSpec can inspect the local change tree.
+      # 拉取仓库内容，供 OpenSpec 检查本地变更目录。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      # Install the Node runtime used to invoke the pinned OpenSpec CLI.
+      # 安装用于调用固定版本 OpenSpec CLI 的 Node 运行时。
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: "apps/lina-vben/.node-version"
+
+      # Block merges until all active OpenSpec tasks report a complete status.
+      # 阻止仍存在未完成 OpenSpec 任务的变更进入合并链路。
+      - name: Verify active OpenSpec changes are complete
+        run: |
+          npx -y @fission-ai/openspec@1.3.1 list --json > /tmp/openspec-changes.json
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const data = JSON.parse(fs.readFileSync('/tmp/openspec-changes.json', 'utf8'));
+          const changes = Array.isArray(data.changes) ? data.changes : [];
+          const incomplete = changes.filter((change) => change.status !== 'complete');
+
+          if (incomplete.length === 0) {
+            console.log(`All ${changes.length} active OpenSpec change(s) are complete.`);
+            process.exit(0);
+          }
+
+          console.error('Incomplete OpenSpec change(s) found:');
+          for (const change of incomplete) {
+            const completed = Number.isInteger(change.completedTasks) ? change.completedTasks : 'unknown';
+            const total = Number.isInteger(change.totalTasks) ? change.totalTasks : 'unknown';
+            console.error(`- ${change.name}: status=${change.status}, tasks=${completed}/${total}`);
+          }
+          console.error('Complete these OpenSpec changes before merging.');
+          process.exit(1);
+          NODE
+
+  # Reuses the Windows smoke workflow to verify cross-platform command entry points.
+  # 复用 Windows 冒烟工作流，验证跨平台命令入口。
+  windows-command-smoke:
+    name: Windows command smoke
+    uses: ./.github/workflows/reusable-windows-command-smoke.yml
+    with:
+      plugins: "0"
+
+  # Runs host-only Go unit tests against a PostgreSQL-backed reusable workflow.
+  # 通过可复用工作流运行宿主模式 Go 单元测试，并使用 PostgreSQL。
+  backend-unit-tests:
+    name: Go unit tests
+    uses: ./.github/workflows/reusable-backend-unit-tests.yml
+    with:
+      plugins: "0"
+
+  # Exercises Redis-backed integration paths that are intentionally separate from regular unit tests.
+  # 单独验证依赖 Redis 的集成路径，避免混入常规单元测试作业。
+  redis-integration-tests:
+    name: Redis integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Keep Redis coverage in a dedicated job. The reusable backend-unit-tests
+    # workflow owns its own service containers, so caller workflows cannot add
+    # Redis to that job without changing the reusable workflow contract.
+    # 将 Redis 覆盖保留在独立 job 中。可复用后端单测 workflow 拥有自己的
+    # service 容器，调用方无法在不改变契约的情况下给它追加 Redis。
+    services:
+      # Session Redis tests still write the PostgreSQL online-session projection,
+      # so this job needs the same initialized schema as the regular Go tests.
+      # Session Redis 测试仍会写入 PostgreSQL 在线会话投影，因此需要与常规
+      # Go 测试一致的初始化 schema。
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: linapro
+          TZ: Asia/Shanghai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      # LINA_TEST_REDIS_ADDR below turns on otherwise-skipped real Redis
+      # integration tests for lock, KV, revision, event, and session hot state.
+      # 下方 LINA_TEST_REDIS_ADDR 会打开默认跳过的真实 Redis 集成测试，
+      # 覆盖锁、KV、修订号、事件和会话热状态。
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # Set the runner timezone before database and log-producing commands run.
+      # 在数据库和日志相关命令运行前设置 runner 时区。
       - name: Setup Timezone
         run: |
           sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
           echo Asia/Shanghai | sudo tee /etc/timezone
 
+      # Check out source code for schema initialization and package tests.
+      # 拉取源码，用于初始化 schema 和执行包测试。
       - name: Checkout Repository
         uses: actions/checkout@v5
 
+      # Install the Go toolchain used by the Redis integration packages.
+      # 安装 Redis 集成测试包所需的 Go 工具链。
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version: "1.25"
           cache: false
 
+      # Rebuild the test database schema from the repository SQL resources.
+      # 使用仓库 SQL 资源重新初始化测试数据库 schema。
+      - name: Initialize Database Schema
+        run: |
+          cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
+          make init confirm=init
+
+      # Run only Redis integration tests with explicit PostgreSQL and Redis fixtures.
+      # 使用显式 PostgreSQL 与 Redis fixture 只运行 Redis 集成测试。
+      - name: Run Redis Integration Tests
+        working-directory: apps/lina-core
+        env:
+          # These explicit test fixtures keep local/default runtime config from
+          # deciding which databases an integration test may connect to.
+          LINA_TEST_PGSQL_LINK: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+          LINA_TEST_REDIS_ADDR: "127.0.0.1:6379"
+        run: |
+          go test ./internal/service/coordination ./internal/service/cachecoord ./internal/service/kvcache ./internal/service/session -run Redis -count=1
+
+  # Reuses the frontend unit-test workflow for the default management workspace.
+  # 复用前端单测工作流，验证默认管理工作台。
+  frontend-unit-tests:
+    name: Frontend unit tests
+    uses: ./.github/workflows/reusable-frontend-unit-tests.yml
+
+  # SQLite Backend Smoke Tests
+  # Verifies the backend can initialize and run against the SQLite configuration.
+  # SQLite 后端冒烟测试。
+  # 验证后端在 SQLite 配置下可以初始化并运行。
+  sqlite-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Keep SQLite smoke logs and date handling in the project timezone.
+      # 保持 SQLite 冒烟日志和日期处理使用项目时区。
+      - name: Setup Timezone
+        run: |
+          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+          echo Asia/Shanghai | sudo tee /etc/timezone
+
+      # Check out scripts, SQL resources, and backend source code.
+      # 拉取脚本、SQL 资源和后端源码。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      # Install Go for the SQLite backend smoke script.
+      # 为 SQLite 后端冒烟脚本安装 Go。
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      # Run the SQLite-specific backend initialization and smoke verification.
+      # 运行 SQLite 专属的后端初始化和冒烟验证。
       - name: Run SQLite Backend Smoke
         run: |
           ./hack/tests/scripts/run-sqlite-smoke.sh

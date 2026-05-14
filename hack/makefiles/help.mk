@@ -7,4 +7,4 @@
 ## help: Show help
 .PHONY: help
 help:
-	@go run ./hack/tools/linactl help
+	@$(LINACTL) help

@@ -129,6 +129,11 @@ cluster:
   # Whether to enable multi-node cluster mode; false means single-node mode by default
   # 是否开启集群多节点模式；默认 false 表示单节点模式
   enabled: false
+  # Coordination backend for cluster mode. Required when cluster.enabled=true.
+  # Current version supports only "redis". Single-node mode does not require Redis.
+  # 集群模式协调后端。cluster.enabled=true 时必填。当前仅支持 "redis"。
+  # 单节点模式不需要 Redis。
+  coordination: redis
   election:
     # Election lock lease duration
     # 选举锁租约时长
@@ -136,6 +141,25 @@ cluster:
     # Lease renewal interval, recommended to be one third of the lease duration
     # 租约续约间隔，建议为租约时长的三分之一
     renewInterval: 10s
+  redis:
+    # Redis endpoint used by cluster coordination
+    # 集群协调使用的 Redis 地址
+    address: "127.0.0.1:6379"
+    # Redis logical database
+    # Redis 逻辑数据库
+    db: 0
+    # Redis password; leave empty when Redis does not require authentication
+    # Redis 密码；Redis 未启用认证时留空
+    password: ""
+    # Redis connection timeout as a duration string
+    # Redis 连接超时时间（duration 字符串）
+    connectTimeout: 3s
+    # Redis read timeout as a duration string
+    # Redis 读取超时时间（duration 字符串）
+    readTimeout: 2s
+    # Redis write timeout as a duration string
+    # Redis 写入超时时间（duration 字符串）
+    writeTimeout: 2s
 
 # Upload configuration
 # 上传配置

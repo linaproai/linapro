@@ -330,6 +330,246 @@ func TestRunDevStartsServicesAsAsyncProcessesAndPrintsFinalStatus(t *testing.T) 
 	}
 }
 
+func TestRunDevPassesRepositoryWasmOutputWhenPluginsEnabled(t *testing.T) {
+	root := t.TempDir()
+	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
+	writeFile(t, filepath.Join(root, "go.work"), "go 1.25.0\n\nuse ./apps/lina-core\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "config.template.yaml"), "template: true\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "metadata: true\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "sql", "001.sql"), "select 1;\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "i18n", "en-US", "framework.json"), "{}\n")
+	writeFile(t, filepath.Join(pluginRoot, "go.mod"), "module lina-plugins\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-demo-dynamic", "go.mod"), "module plugin-demo-dynamic\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-demo-dynamic", "plugin.yaml"), "type: dynamic\n")
+	if err := os.MkdirAll(filepath.Join(root, "hack", "tools", "build-wasm"), 0o755); err != nil {
+		t.Fatalf("mkdir build-wasm workdir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "apps", "lina-vben", "apps", "web-antd"), 0o755); err != nil {
+		t.Fatalf("mkdir frontend workdir: %v", err)
+	}
+
+	var wasmOutputDir string
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		if name == "go" && len(args) >= 3 && args[0] == "run" && args[1] == "." {
+			for index := 0; index < len(args)-1; index++ {
+				if args[index] == "--output-dir" {
+					wasmOutputDir = args[index+1]
+				}
+			}
+			return exec.Command("true")
+		}
+		if name == "go" && len(args) >= 1 && args[0] == "build" {
+			return exec.Command("true")
+		}
+		return exec.Command(os.Args[0], "-test.run=TestHelperLongRunningProcess", "--")
+	}
+	application.waitHTTP = func(_ string, _ string, pidPath string, _ string, _ time.Duration) error {
+		if readPID(pidPath) == 0 {
+			return os.ErrNotExist
+		}
+		return nil
+	}
+
+	if err := runDev(context.Background(), application, commandInput{Params: map[string]string{"plugins": "1"}}); err != nil {
+		t.Fatalf("runDev returned error: %v", err)
+	}
+	for _, path := range []string{
+		filepath.Join(root, "temp", "pids", "backend.pid"),
+		filepath.Join(root, "temp", "pids", "frontend.pid"),
+	} {
+		pid := readPID(path)
+		if pid > 0 {
+			if process, err := os.FindProcess(pid); err == nil {
+				if killErr := process.Kill(); killErr != nil {
+					t.Logf("kill service process %d: %v", pid, killErr)
+				}
+			}
+		}
+	}
+	expected := filepath.Join(root, "temp", "output")
+	if !samePath(t, wasmOutputDir, expected) {
+		t.Fatalf("expected dev wasm output %s, got %s", expected, wasmOutputDir)
+	}
+}
+
+func TestOfficialPluginBuildEnvSeparatesHostOnlyAndPluginFullModes(t *testing.T) {
+	root := t.TempDir()
+	input := []string{
+		"GOWORK=/tmp/stale.work",
+		"GOFLAGS=-mod=mod -tags=official_plugins,netgo -count=1",
+		"LINAPRO_SOURCE_PLUGINS=1",
+	}
+
+	hostOnly := officialPluginBuildEnv(root, input, false, "")
+	if got := envValue(hostOnly, "GOWORK"); got != "" {
+		t.Fatalf("expected host-only GOWORK to be unset, got %q", got)
+	}
+	if got := envValue(hostOnly, "LINAPRO_SOURCE_PLUGINS"); got != "0" {
+		t.Fatalf("expected host-only plugin frontend discovery to be disabled, got %q", got)
+	}
+	if got := envValue(hostOnly, "GOFLAGS"); strings.Contains(got, officialPluginsBuildTag) {
+		t.Fatalf("expected host-only GOFLAGS to remove official plugin tag, got %q", got)
+	}
+
+	pluginWorkspace := filepath.Join(root, "temp", "go.work.plugins")
+	pluginFull := officialPluginBuildEnv(root, hostOnly, true, pluginWorkspace)
+	if got := envValue(pluginFull, "GOWORK"); got != pluginWorkspace {
+		t.Fatalf("expected plugin-full GOWORK to use temporary plugin workspace, got %q", got)
+	}
+	if got := envValue(pluginFull, "LINAPRO_SOURCE_PLUGINS"); got != "1" {
+		t.Fatalf("expected plugin-full frontend discovery to be enabled, got %q", got)
+	}
+	if got := envValue(pluginFull, "GOFLAGS"); !strings.Contains(got, "-tags=netgo,"+officialPluginsBuildTag) {
+		t.Fatalf("expected plugin-full GOFLAGS to merge official plugin tag with existing tags, got %q", got)
+	}
+}
+
+func TestResolveOfficialPluginBuildModeAutoDetectsWorkspace(t *testing.T) {
+	root := t.TempDir()
+	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "plugin.yaml"), "id: plugin-a\n")
+
+	enabled, workspace, err := resolveOfficialPluginBuildMode(root, commandInput{Params: map[string]string{}})
+	if err != nil {
+		t.Fatalf("resolveOfficialPluginBuildMode returned error: %v", err)
+	}
+	if !enabled {
+		t.Fatalf("expected plugin mode to be auto-enabled when manifests exist")
+	}
+	if workspace.State != pluginWorkspaceStateReady {
+		t.Fatalf("expected ready plugin workspace, got %s", workspace.State)
+	}
+
+	disabled, _, err := resolveOfficialPluginBuildMode(root, commandInput{Params: map[string]string{"plugins": "0"}})
+	if err != nil {
+		t.Fatalf("explicit host-only mode returned error: %v", err)
+	}
+	if disabled {
+		t.Fatalf("expected explicit plugins=0 to disable plugin mode")
+	}
+
+	auto, _, err := resolveOfficialPluginBuildMode(root, commandInput{Params: map[string]string{"plugins": "auto"}})
+	if err != nil {
+		t.Fatalf("explicit plugins=auto returned error: %v", err)
+	}
+	if !auto {
+		t.Fatalf("expected plugins=auto to use workspace detection")
+	}
+}
+
+func TestOfficialPluginGoWorkUsesDiscoversPluginModules(t *testing.T) {
+	root := t.TempDir()
+	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
+	writeFile(t, filepath.Join(pluginRoot, "go.mod"), "module lina-plugins\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-b", "go.mod"), "module plugin-b\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-b", "plugin.yaml"), "id: plugin-b\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "go.mod"), "module plugin-a\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "plugin.yaml"), "id: plugin-a\n")
+
+	workspace, err := inspectOfficialPluginWorkspace(root)
+	if err != nil {
+		t.Fatalf("inspectOfficialPluginWorkspace returned error: %v", err)
+	}
+	uses, err := officialPluginGoWorkUses(root, workspace)
+	if err != nil {
+		t.Fatalf("officialPluginGoWorkUses returned error: %v", err)
+	}
+	got := strings.Join(uses, ",")
+	expected := "./apps/lina-plugins,./apps/lina-plugins/plugin-a,./apps/lina-plugins/plugin-b"
+	if got != expected {
+		t.Fatalf("unexpected plugin go.work uses: got %s expected %s", got, expected)
+	}
+}
+
+func TestPrepareOfficialPluginWorkspaceWritesTemporaryWorkspace(t *testing.T) {
+	root := t.TempDir()
+	content := `go 1.25.0
+
+use (
+	./apps/lina-core
+	./hack/tools/build-wasm
+)
+`
+	writeFile(t, filepath.Join(root, "go.work"), content)
+	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
+	writeFile(t, filepath.Join(pluginRoot, "go.mod"), "module lina-plugins\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-b", "go.mod"), "module plugin-b\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-b", "plugin.yaml"), "id: plugin-b\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "go.mod"), "module plugin-a\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "plugin.yaml"), "id: plugin-a\n")
+
+	workspace, err := inspectOfficialPluginWorkspace(root)
+	if err != nil {
+		t.Fatalf("inspectOfficialPluginWorkspace returned error: %v", err)
+	}
+	workspacePath, err := prepareOfficialPluginWorkspace(root, true, workspace)
+	if err != nil {
+		t.Fatalf("prepareOfficialPluginWorkspace returned error: %v", err)
+	}
+	if workspacePath != filepath.Join(root, "temp", "go.work.plugins") {
+		t.Fatalf("unexpected temporary workspace path: %s", workspacePath)
+	}
+	rootContent, err := os.ReadFile(filepath.Join(root, "go.work"))
+	if err != nil {
+		t.Fatalf("read root go.work: %v", err)
+	}
+	if string(rootContent) != content {
+		t.Fatalf("root go.work changed unexpectedly:\n%s", string(rootContent))
+	}
+	pluginContent, err := os.ReadFile(workspacePath)
+	if err != nil {
+		t.Fatalf("read temporary plugin go.work: %v", err)
+	}
+	expected := `go 1.25.0
+
+use (
+	../apps/lina-core
+	../hack/tools/build-wasm
+	../apps/lina-plugins
+	../apps/lina-plugins/plugin-a
+	../apps/lina-plugins/plugin-b
+)
+`
+	if string(pluginContent) != expected {
+		t.Fatalf("unexpected temporary plugin go.work:\n%s", string(pluginContent))
+	}
+}
+
+func TestValidateRepositoryToolingAllowsEmptyLegacyScriptDirectory(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "make.cmd"), "@echo off\r\npushd \"%~dp0hack\\tools\\linactl\" || exit /b 1\r\ngo run . %*\r\n")
+	if err := os.MkdirAll(filepath.Join(root, "hack", "scripts"), 0o755); err != nil {
+		t.Fatalf("mkdir hack/scripts: %v", err)
+	}
+
+	if err := validateRepositoryTooling(root); err != nil {
+		t.Fatalf("validateRepositoryTooling returned error: %v", err)
+	}
+}
+
+func TestValidateRepositoryToolingRejectsLegacyScripts(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "make.cmd"), "@echo off\r\ngo run . %*\r\n")
+	writeFile(t, filepath.Join(root, "hack", "scripts", "legacy.sh"), "#!/usr/bin/env bash\n")
+
+	err := validateRepositoryTooling(root)
+	if err == nil || !strings.Contains(err.Error(), "hack/scripts contains legacy script") {
+		t.Fatalf("expected legacy script validation error, got %v", err)
+	}
+}
+
+func TestValidateRepositoryToolingRejectsStaleMakeCmdWorkspaceOverride(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "make.cmd"), "@echo off\r\nset GOWORK=off\r\ngo run . %*\r\n")
+
+	err := validateRepositoryTooling(root)
+	if err == nil || !strings.Contains(err.Error(), "must not force GOWORK=off") {
+		t.Fatalf("expected stale GOWORK validation error, got %v", err)
+	}
+}
+
 func TestHelperLongRunningProcess(t *testing.T) {
 	if len(os.Args) < 2 || os.Args[len(os.Args)-1] != "--" {
 		return

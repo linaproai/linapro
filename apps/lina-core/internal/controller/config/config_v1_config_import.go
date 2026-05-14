@@ -30,7 +30,7 @@ func (c *ControllerV1) ConfigImport(ctx context.Context, req *v1.ConfigImportReq
 	}
 	defer closeutil.Close(ctx, f, &err, "close config import file failed")
 
-	result, err := c.svc.Import(ctx, f, updateSupport)
+	result, err := c.sysConfigSvc.Import(ctx, f, updateSupport)
 	if err != nil {
 		return nil, err
 	}

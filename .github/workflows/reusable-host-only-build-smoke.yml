@@ -1,0 +1,133 @@
+# Reusable LinaPro host-only build smoke workflow.
+# LinaPro 可复用宿主模式构建冒烟工作流。
+name: Reusable Host-only Build Smoke
+
+on:
+  # Expose host-only artifact build and smoke verification as a reusable workflow.
+  # 将宿主模式产物构建和冒烟验证暴露为可复用工作流。
+  workflow_call:
+    inputs:
+      # Gives each caller a distinct smoke-log artifact name.
+      # 为每个调用方提供独立的冒烟日志 artifact 名称。
+      artifact-name:
+        description: Uploaded artifact name for the host-only smoke log.
+        required: true
+        type: string
+      # Controls how long the smoke log is retained by the caller.
+      # 控制调用方保留冒烟日志的天数。
+      retention-days:
+        description: Artifact retention in days.
+        required: false
+        type: number
+        default: 14
+
+# Build smoke checks only need read access to repository contents.
+# 构建冒烟检查只需要读取仓库内容。
+permissions:
+  contents: read
+
+# Keep build logs and database timestamps aligned with the project timezone.
+# 让构建日志和数据库时间戳与项目时区保持一致。
+env:
+  TZ: "Asia/Shanghai"
+
+jobs:
+  # Builds a host-only backend artifact and verifies it can serve core endpoints.
+  # 构建宿主模式后端产物，并验证其可以提供核心接口。
+  host-only-build-smoke:
+    name: Host-only build smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    services:
+      # Provides the PostgreSQL database used to initialize the artifact runtime schema.
+      # 提供初始化产物运行时 schema 所需的 PostgreSQL 数据库。
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: linapro
+          TZ: Asia/Shanghai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # Configure the runner timezone before database initialization and artifact startup.
+      # 在数据库初始化和产物启动前配置 runner 时区。
+      - name: Setup Timezone
+        run: |
+          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+          echo Asia/Shanghai | sudo tee /etc/timezone
+
+      # Check out source code and build resources.
+      # 拉取源码和构建资源。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      # Install Go for backend build tooling.
+      # 为后端构建工具安装 Go。
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      # Install the pinned pnpm version without installing packages yet.
+      # 安装固定版本 pnpm，但暂不安装项目依赖。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: "10.30.3"
+          run_install: false
+
+      # Install the frontend Node version and configure pnpm dependency caching.
+      # 安装前端 Node 版本并配置 pnpm 依赖缓存。
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: "apps/lina-vben/.node-version"
+          cache: "pnpm"
+          cache-dependency-path: "apps/lina-vben/pnpm-lock.yaml"
+
+      # Install frontend dependencies needed to build packed assets.
+      # 安装构建打包资源所需的前端依赖。
+      - name: Install Frontend Dependencies
+        working-directory: apps/lina-vben
+        run: pnpm install --frozen-lockfile
+
+      # Rebuild the database and load mock data for runtime smoke checks.
+      # 重建数据库并加载 mock 数据，供运行时冒烟检查使用。
+      - name: Initialize Database
+        run: |
+          cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
+          make init confirm=init rebuild=true
+          make mock confirm=mock
+
+      # Build a Linux amd64 host-only backend artifact into the temp output directory.
+      # 将 Linux amd64 宿主模式后端产物构建到临时输出目录。
+      - name: Build Host-only Artifact
+        run: |
+          make build plugins=0 platforms=linux/amd64 output_dir=temp/host-only-output
+
+      # Start the built artifact and verify health, login, and empty source-plugin behavior.
+      # 启动构建产物，并验证健康检查、登录和空源码插件行为。
+      - name: Run Host-only Artifact Smoke
+        uses: ./.github/actions/host-only-artifact-smoke
+
+      # Upload the backend artifact runtime log even when smoke checks fail.
+      # 即使冒烟检查失败，也上传后端产物运行日志。
+      - name: Upload Host-only Smoke Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: |
+            temp/host-only-smoke/lina-core.log
+          if-no-files-found: ignore
+          retention-days: ${{ inputs.retention-days }}

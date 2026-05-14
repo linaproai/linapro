@@ -6,13 +6,16 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/gogf/gf/v2"
 	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/config"
+	"lina-core/internal/service/coordination"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
 )
@@ -34,20 +37,27 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	startTime     time.Time          // startTime stores the host service boot time.
-	configSvc     config.Service     // configSvc loads embedded metadata and runtime config values.
-	cacheCoordSvc cachecoord.Service // cacheCoordSvc exposes process-wide cache coordination diagnostics.
+	startTime       time.Time            // startTime stores the host service boot time.
+	configSvc       config.Service       // configSvc loads embedded metadata and runtime config values.
+	clusterSvc      cluster.Service      // clusterSvc exposes cluster topology diagnostics.
+	coordinationSvc coordination.Service // coordinationSvc exposes distributed coordination health.
+	cacheCoordSvc   cachecoord.Service   // cacheCoordSvc exposes process-wide cache coordination diagnostics.
 }
 
-// New creates and returns a new Service instance.
-func New() Service {
-	configSvc := config.New()
+// New creates and returns a new sysinfo service from explicit runtime-owned dependencies.
+func New(configSvc config.Service, clusterSvc cluster.Service, coordinationSvc coordination.Service, cacheCoordSvc cachecoord.Service) Service {
+	if configSvc == nil {
+		panic("sysinfo service requires a non-nil config service")
+	}
+	if cacheCoordSvc == nil {
+		panic("sysinfo service requires a non-nil cache coordination service")
+	}
 	return &serviceImpl{
-		startTime: time.Now(),
-		configSvc: configSvc,
-		cacheCoordSvc: cachecoord.Default(
-			cachecoord.NewStaticTopology(configSvc.IsClusterEnabled(context.Background())),
-		),
+		startTime:       time.Now(),
+		configSvc:       configSvc,
+		clusterSvc:      clusterSvc,
+		coordinationSvc: coordinationSvc,
+		cacheCoordSvc:   cacheCoordSvc,
 	}
 }
 
@@ -64,6 +74,7 @@ type SystemInfo struct {
 	RunDurationSeconds int64                   // RunDurationSeconds is the total uptime in seconds.
 	BackendComponents  []ComponentInfo         // BackendComponents lists backend technology cards.
 	FrontendComponents []ComponentInfo         // FrontendComponents lists frontend technology cards.
+	Coordination       CoordinationInfo        // Coordination reports cluster coordination health.
 	CacheCoordination  []CacheCoordinationInfo // CacheCoordination lists critical cache coordination diagnostics.
 }
 
@@ -87,17 +98,32 @@ type ComponentInfo struct {
 
 // CacheCoordinationInfo holds one cache coordination diagnostic row.
 type CacheCoordinationInfo struct {
-	Domain           string        // Domain is the cache coordination domain identifier.
-	Scope            string        // Scope is the explicit invalidation scope inside the domain.
-	AuthoritySource  string        // AuthoritySource is the canonical data source for rebuilds.
-	ConsistencyModel string        // ConsistencyModel is the declared freshness model.
-	MaxStale         time.Duration // MaxStale is the configured stale window.
-	FailureStrategy  string        // FailureStrategy is the caller-visible degradation behavior.
-	LocalRevision    int64         // LocalRevision is the latest revision consumed by this process.
-	SharedRevision   int64         // SharedRevision is the latest shared coordination revision observed.
-	LastSyncedAt     time.Time     // LastSyncedAt is the latest successful local synchronization time.
-	RecentError      string        // RecentError is the most recent coordination failure.
-	StaleSeconds     int64         // StaleSeconds is the elapsed time since LastSyncedAt.
+	Domain           string                   // Domain is the cache coordination domain identifier.
+	Scope            string                   // Scope is the explicit invalidation scope inside the domain.
+	AuthoritySource  string                   // AuthoritySource is the canonical data source for rebuilds.
+	ConsistencyModel string                   // ConsistencyModel is the declared freshness model.
+	MaxStale         time.Duration            // MaxStale is the configured stale window.
+	FailureStrategy  string                   // FailureStrategy is the caller-visible degradation behavior.
+	Backend          coordination.BackendName // Backend is the active coordination backend.
+	Healthy          bool                     // Healthy reports coordination backend health.
+	LocalRevision    int64                    // LocalRevision is the latest revision consumed by this process.
+	SharedRevision   int64                    // SharedRevision is the latest shared coordination revision observed.
+	LastSyncedAt     time.Time                // LastSyncedAt is the latest successful local synchronization time.
+	EventSubscriber  bool                     // EventSubscriber reports whether event consumption is active.
+	LastEventAt      time.Time                // LastEventAt records the latest consumed coordination event.
+	RecentError      string                   // RecentError is the most recent coordination failure.
+	StaleSeconds     int64                    // StaleSeconds is the elapsed time since LastSyncedAt.
+}
+
+// CoordinationInfo holds cluster coordination health diagnostics.
+type CoordinationInfo struct {
+	ClusterEnabled bool                     // ClusterEnabled reports whether clustered deployment mode is active.
+	Backend        coordination.BackendName // Backend is the active distributed coordination backend.
+	RedisHealthy   bool                     // RedisHealthy reports Redis health when Redis is the backend.
+	NodeID         string                   // NodeID is the current host node identifier.
+	Primary        bool                     // Primary reports whether this node owns primary work.
+	LastSuccessAt  time.Time                // LastSuccessAt records the latest successful health check.
+	LastError      string                   // LastError stores a sanitized recent coordination error.
 }
 
 // GetInfo returns system runtime information.
@@ -133,9 +159,37 @@ func (s *serviceImpl) GetInfo(ctx context.Context) (*SystemInfo, error) {
 
 	info.BackendComponents = s.loadComponents(metadata, componentSectionBackend, dbVersion)
 	info.FrontendComponents = s.loadComponents(metadata, componentSectionFrontend, "")
+	info.Coordination = s.loadCoordination(ctx)
 	info.CacheCoordination = s.loadCacheCoordination(ctx)
 
 	return info, nil
+}
+
+// loadCoordination returns process-level cluster coordination diagnostics
+// without exposing passwords, Redis addresses, or token-bearing keys.
+func (s *serviceImpl) loadCoordination(ctx context.Context) CoordinationInfo {
+	info := CoordinationInfo{}
+	if s.clusterSvc != nil {
+		info.ClusterEnabled = s.clusterSvc.IsEnabled()
+		info.NodeID = s.clusterSvc.NodeID()
+		info.Primary = s.clusterSvc.IsPrimary()
+	} else if s.configSvc != nil {
+		info.ClusterEnabled = s.configSvc.IsClusterEnabled(ctx)
+		info.Primary = !info.ClusterEnabled
+	}
+	if info.NodeID == "" {
+		info.NodeID = "local-node"
+	}
+	if s.coordinationSvc == nil || s.coordinationSvc.Health() == nil {
+		return info
+	}
+
+	snapshot := s.coordinationSvc.Health().Snapshot(ctx)
+	info.Backend = snapshot.Backend
+	info.RedisHealthy = snapshot.Backend == coordination.BackendRedis && snapshot.Healthy
+	info.LastSuccessAt = snapshot.LastSuccessAt
+	info.LastError = sanitizeCoordinationError(snapshot.LastError)
+	return info
 }
 
 // loadCacheCoordination returns best-effort cache coordination diagnostics.
@@ -158,14 +212,41 @@ func (s *serviceImpl) loadCacheCoordination(ctx context.Context) []CacheCoordina
 			ConsistencyModel: string(item.ConsistencyModel),
 			MaxStale:         item.MaxStale,
 			FailureStrategy:  string(item.FailureStrategy),
+			Backend:          item.Backend,
+			Healthy:          item.CoordinationHealthy,
 			LocalRevision:    item.LocalRevision,
 			SharedRevision:   item.SharedRevision,
 			LastSyncedAt:     item.LastSyncedAt,
-			RecentError:      item.RecentError,
+			EventSubscriber:  item.EventSubscriberRunning,
+			LastEventAt:      item.LastEventReceivedAt,
+			RecentError:      sanitizeCoordinationError(item.RecentError),
 			StaleSeconds:     item.StaleSeconds,
 		})
 	}
 	return diagnostics
+}
+
+// sanitizeCoordinationError removes connection strings, key material, and
+// credentials from health diagnostics while preserving an actionable category.
+func sanitizeCoordinationError(message string) string {
+	trimmed := strings.TrimSpace(message)
+	if trimmed == "" {
+		return ""
+	}
+	lower := strings.ToLower(trimmed)
+	switch {
+	case strings.Contains(lower, "redis://"),
+		strings.Contains(lower, "password"),
+		strings.Contains(lower, "token"),
+		strings.Contains(lower, "linapro:"):
+		return "coordination backend error"
+	case strings.Contains(lower, "dial tcp"),
+		strings.Contains(lower, "connection refused"),
+		strings.Contains(lower, "connection reset"):
+		return "redis coordination connection failed"
+	default:
+		return trimmed
+	}
 }
 
 // formatRunDurationFallback formats uptime with an English developer fallback.

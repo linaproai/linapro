@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/net/ghttp"
+	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
@@ -66,10 +66,7 @@ func TestCurrentResolvesWidestScope(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			svc := New(Dependencies{
-				BizCtxSvc: dataScopeStaticBizCtx{ctx: tc.bizCtx},
-				RoleSvc:   tc.roleReader,
-			})
+			svc := New(dataScopeStaticBizCtx{ctx: tc.bizCtx}, tc.roleReader, dataScopeDisabledOrgCap{})
 			actual, err := svc.Current(ctx)
 			if tc.wantErr != nil {
 				if !bizerr.Is(err, tc.wantErr) {
@@ -93,12 +90,9 @@ func TestCurrentResolvesWidestScope(t *testing.T) {
 // TestCurrentRejectsUnsupportedScope verifies invalid enabled role data-scope
 // values fail with a structured error.
 func TestCurrentRejectsUnsupportedScope(t *testing.T) {
-	svc := New(Dependencies{
-		BizCtxSvc: dataScopeStaticBizCtx{ctx: &model.Context{UserId: 5}},
-		RoleSvc: &dataScopeRoleReader{
-			err: bizerr.NewCode(CodeDataScopeUnsupported, bizerr.P("scope", 99)),
-		},
-	})
+	svc := New(dataScopeStaticBizCtx{ctx: &model.Context{UserId: 5}}, &dataScopeRoleReader{
+		err: bizerr.NewCode(CodeDataScopeUnsupported, bizerr.P("scope", 99)),
+	}, dataScopeDisabledOrgCap{})
 
 	_, err := svc.Current(context.Background())
 	if !bizerr.Is(err, CodeDataScopeUnsupported) {
@@ -113,15 +107,11 @@ func TestApplyUserScopeUsesOrgCapabilityForDepartment(t *testing.T) {
 	ctx := context.Background()
 	queryModel := dao.SysUser.Ctx(ctx)
 	orgCapSvc := &dataScopeTrackingOrgCap{enabled: true}
-	svc := New(Dependencies{
-		BizCtxSvc: dataScopeStaticBizCtx{ctx: &model.Context{UserId: 11}},
-		RoleSvc: &dataScopeRoleReader{
-			snapshots: map[int]*AccessSnapshot{
-				11: {UserID: 11, Scope: ScopeDept},
-			},
+	svc := New(dataScopeStaticBizCtx{ctx: &model.Context{UserId: 11}}, &dataScopeRoleReader{
+		snapshots: map[int]*AccessSnapshot{
+			11: {UserID: 11, Scope: ScopeDept},
 		},
-		OrgCapSvc: orgCapSvc,
-	})
+	}, orgCapSvc)
 
 	if _, _, err := svc.ApplyUserScope(ctx, queryModel, "sys_user.id"); err != nil {
 		t.Fatalf("apply department data scope: %v", err)
@@ -141,15 +131,11 @@ func TestApplyUserScopeFallsBackToSelfWhenOrgDisabled(t *testing.T) {
 	t.Cleanup(func() { cleanupDataScopeUsers(t, ctx, []int{currentUserID, otherUserID}) })
 	queryModel := dao.SysUser.Ctx(ctx).WhereIn(dao.SysUser.Columns().Id, []int{currentUserID, otherUserID})
 	orgCapSvc := &dataScopeTrackingOrgCap{enabled: false}
-	svc := New(Dependencies{
-		BizCtxSvc: dataScopeStaticBizCtx{ctx: &model.Context{UserId: currentUserID}},
-		RoleSvc: &dataScopeRoleReader{
-			snapshots: map[int]*AccessSnapshot{
-				currentUserID: {UserID: currentUserID, Scope: ScopeDept},
-			},
+	svc := New(dataScopeStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}, &dataScopeRoleReader{
+		snapshots: map[int]*AccessSnapshot{
+			currentUserID: {UserID: currentUserID, Scope: ScopeDept},
 		},
-		OrgCapSvc: orgCapSvc,
-	})
+	}, orgCapSvc)
 
 	scopedModel, empty, err := svc.ApplyUserScope(ctx, queryModel, "sys_user.id")
 	if err != nil {
@@ -176,15 +162,11 @@ func TestApplyUserScopeWithBypassComposesDeptExists(t *testing.T) {
 	ctx := context.Background()
 	queryModel := dao.SysJob.Ctx(ctx)
 	orgCapSvc := &dataScopeTrackingOrgCap{enabled: true}
-	svc := New(Dependencies{
-		BizCtxSvc: dataScopeStaticBizCtx{ctx: &model.Context{UserId: 13}},
-		RoleSvc: &dataScopeRoleReader{
-			snapshots: map[int]*AccessSnapshot{
-				13: {UserID: 13, Scope: ScopeDept},
-			},
+	svc := New(dataScopeStaticBizCtx{ctx: &model.Context{UserId: 13}}, &dataScopeRoleReader{
+		snapshots: map[int]*AccessSnapshot{
+			13: {UserID: 13, Scope: ScopeDept},
 		},
-		OrgCapSvc: orgCapSvc,
-	})
+	}, orgCapSvc)
 
 	if _, _, err := svc.ApplyUserScopeWithBypass(ctx, queryModel, "sys_job.created_by", "sys_job.is_builtin", 1); err != nil {
 		t.Fatalf("apply bypass department scope: %v", err)
@@ -217,7 +199,6 @@ func (s dataScopeStaticBizCtx) SetTenant(context.Context, int) {}
 // SetImpersonation is unused by data-scope tests.
 func (s dataScopeStaticBizCtx) SetImpersonation(context.Context, int, int, bool, bool) {}
 
-
 // SetUserAccess is unused by data-scope tests.
 func (s dataScopeStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}
 
@@ -238,6 +219,78 @@ func (r *dataScopeRoleReader) GetUserDataScopeSnapshot(_ context.Context, userID
 		return snapshot, nil
 	}
 	return &AccessSnapshot{UserID: userID, Scope: ScopeNone}, nil
+}
+
+// dataScopeDisabledOrgCap provides the explicit organization dependency for
+// tests that do not exercise department-aware data-scope behavior.
+type dataScopeDisabledOrgCap struct{}
+
+// Enabled reports organization capability as unavailable.
+func (dataScopeDisabledOrgCap) Enabled(context.Context) bool { return false }
+
+// ListUserDeptAssignments returns no department projections.
+func (dataScopeDisabledOrgCap) ListUserDeptAssignments(context.Context, []int) (map[int]*orgcap.UserDeptAssignment, error) {
+	return map[int]*orgcap.UserDeptAssignment{}, nil
+}
+
+// GetUserIDsByDept returns no users.
+func (dataScopeDisabledOrgCap) GetUserIDsByDept(context.Context, int) ([]int, error) {
+	return []int{}, nil
+}
+
+// GetAllAssignedUserIDs returns no assigned users.
+func (dataScopeDisabledOrgCap) GetAllAssignedUserIDs(context.Context) ([]int, error) {
+	return []int{}, nil
+}
+
+// GetUserDeptInfo returns no department projection.
+func (dataScopeDisabledOrgCap) GetUserDeptInfo(context.Context, int) (int, string, error) {
+	return 0, "", nil
+}
+
+// GetUserDeptName returns no department name.
+func (dataScopeDisabledOrgCap) GetUserDeptName(context.Context, int) (string, error) {
+	return "", nil
+}
+
+// GetUserDeptIDs returns no department IDs.
+func (dataScopeDisabledOrgCap) GetUserDeptIDs(context.Context, int) ([]int, error) {
+	return []int{}, nil
+}
+
+// ApplyUserDeptScope reports an empty department scope.
+func (dataScopeDisabledOrgCap) ApplyUserDeptScope(_ context.Context, model *gdb.Model, _ string, _ int) (*gdb.Model, bool, error) {
+	return model, true, nil
+}
+
+// BuildUserDeptScopeExists reports an empty department scope.
+func (dataScopeDisabledOrgCap) BuildUserDeptScopeExists(context.Context, string, int) (*gdb.Model, bool, error) {
+	return nil, true, nil
+}
+
+// GetUserPostIDs returns no post IDs.
+func (dataScopeDisabledOrgCap) GetUserPostIDs(context.Context, int) ([]int, error) {
+	return []int{}, nil
+}
+
+// ReplaceUserAssignments accepts assignment replacement.
+func (dataScopeDisabledOrgCap) ReplaceUserAssignments(context.Context, int, *int, []int) error {
+	return nil
+}
+
+// CleanupUserAssignments accepts assignment cleanup.
+func (dataScopeDisabledOrgCap) CleanupUserAssignments(context.Context, int) error {
+	return nil
+}
+
+// UserDeptTree returns no department tree.
+func (dataScopeDisabledOrgCap) UserDeptTree(context.Context) ([]*orgcap.DeptTreeNode, error) {
+	return []*orgcap.DeptTreeNode{}, nil
+}
+
+// ListPostOptions returns no post options.
+func (dataScopeDisabledOrgCap) ListPostOptions(context.Context, *int) ([]*orgcap.PostOption, error) {
+	return []*orgcap.PostOption{}, nil
 }
 
 // insertDataScopeUser inserts one temporary user for data-scope integration tests.

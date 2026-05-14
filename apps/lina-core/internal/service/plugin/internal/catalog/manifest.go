@@ -1,15 +1,13 @@
-// This file scans plugin directories and validates convention-based manifest,
-// SQL, page, and slot resources discovered from the plugin workspace.
+// This file scans registered source plugins and runtime artifacts while keeping
+// directory-convention helpers for manifest-owned resources.
 
 package catalog
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync/atomic"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gfile"
@@ -17,12 +15,7 @@ import (
 
 	"lina-core/pkg/pluginbridge"
 	"lina-core/pkg/pluginfs"
-	"lina-core/pkg/pluginhost"
 )
-
-// pluginRootDirOverride stores an optional process-wide source plugin root used
-// by tests to isolate manifest discovery from the shared workspace.
-var pluginRootDirOverride atomic.Value
 
 // ScanManifests merges source-plugin discovery and runtime-wasm discovery
 // into one normalized manifest list used by lifecycle and governance services.
@@ -63,66 +56,9 @@ func (s *serviceImpl) ScanManifests() ([]*Manifest, error) {
 	return manifests, nil
 }
 
-// scanSourceManifests scans source plugins from apps/lina-plugins. Runtime
-// sample directories are skipped because their clear-text plugin.yaml files
-// are only build inputs, not runtime discovery sources.
+// scanSourceManifests scans source plugins registered into the host binary.
 func (s *serviceImpl) scanSourceManifests() ([]*Manifest, error) {
-	pluginRootDir, err := s.resolvePluginRootDir()
-	if err != nil {
-		return s.ScanEmbeddedSourceManifests()
-	}
-
-	manifestFiles, err := gfile.ScanDirFile(pluginRootDir, "plugin.yaml", true)
-	if err != nil {
-		return nil, err
-	}
-	sort.Strings(manifestFiles)
-	if len(manifestFiles) == 0 {
-		return s.ScanEmbeddedSourceManifests()
-	}
-
-	manifests := make([]*Manifest, 0, len(manifestFiles))
-	for _, manifestFile := range manifestFiles {
-		content, readErr := os.ReadFile(manifestFile)
-		if readErr != nil {
-			if os.IsNotExist(readErr) {
-				continue
-			}
-			return nil, gerror.Wrapf(readErr, "read plugin manifest failed: %s", manifestFile)
-		}
-		if len(content) == 0 {
-			return nil, gerror.Newf("plugin manifest is empty: %s", manifestFile)
-		}
-
-		manifest := &Manifest{}
-		if err = yaml.Unmarshal(content, manifest); err != nil {
-			return nil, gerror.Wrapf(err, "parse plugin manifest failed: %s", manifestFile)
-		}
-		if NormalizeType(manifest.Type) == TypeDynamic {
-			continue
-		}
-		if sourcePlugin, ok := pluginhost.GetSourcePlugin(strings.TrimSpace(manifest.ID)); ok {
-			manifest.SourcePlugin = sourcePlugin
-		}
-		if err = s.ValidateManifest(manifest, manifestFile); err != nil {
-			return nil, err
-		}
-		manifest.ManifestPath = manifestFile
-		manifest.RootDir = filepath.Dir(manifestFile)
-		// Load backend declarations after the manifest passes structural validation so
-		// source-plugin resource scanning always starts from a trusted plugin root.
-		if s.backendLoader != nil {
-			if err = s.backendLoader.LoadPluginBackendConfig(manifest); err != nil {
-				return nil, err
-			}
-		}
-
-		manifests = append(manifests, manifest)
-	}
-	if len(manifests) == 0 {
-		return s.ScanEmbeddedSourceManifests()
-	}
-	return manifests, nil
+	return s.ScanEmbeddedSourceManifests()
 }
 
 // scanRuntimeManifests scans the configured runtime wasm storage directory.
@@ -237,66 +173,6 @@ func (s *serviceImpl) LoadManifestFromYAML(filePath string, manifest *Manifest) 
 		return gerror.Newf("plugin manifest file is empty: %s", filePath)
 	}
 	return yaml.Unmarshal(content, manifest)
-}
-
-// resolvePluginRootDir resolves the plugin root directory from the current working directory.
-func (s *serviceImpl) resolvePluginRootDir() (string, error) {
-	if override := getPluginRootDirOverride(); override != "" {
-		if gfile.Exists(override) && gfile.IsDir(override) {
-			return override, nil
-		}
-		return "", gerror.Newf("plugin root override is not a directory: %s", override)
-	}
-
-	workingDir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-
-	repoRoot, err := FindRepoRoot(workingDir)
-	if err == nil {
-		pluginRootDir := filepath.Join(repoRoot, "apps", "lina-plugins")
-		if gfile.Exists(pluginRootDir) && gfile.IsDir(pluginRootDir) {
-			return pluginRootDir, nil
-		}
-	}
-
-	candidateDirs := []string{
-		filepath.Join(workingDir, "apps", "lina-plugins"),
-		filepath.Join(workingDir, "..", "lina-plugins"),
-		filepath.Join(workingDir, "..", "..", "lina-plugins"),
-	}
-
-	for _, dir := range candidateDirs {
-		cleanPath := filepath.Clean(dir)
-		if gfile.Exists(cleanPath) && gfile.IsDir(cleanPath) {
-			return cleanPath, nil
-		}
-	}
-
-	return "", gerror.Newf("plugin directory was not found, candidate paths: %s", strings.Join(candidateDirs, ", "))
-}
-
-// SetPluginRootDirOverride overrides source-plugin discovery for tests.
-func SetPluginRootDirOverride(path string) {
-	pluginRootDirOverride.Store(strings.TrimSpace(path))
-}
-
-// getPluginRootDirOverride returns the cleaned source-plugin root override.
-func getPluginRootDirOverride() string {
-	value := pluginRootDirOverride.Load()
-	if value == nil {
-		return ""
-	}
-	path, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return ""
-	}
-	return filepath.Clean(path)
 }
 
 // resolveRuntimeStorageDir resolves the configured runtime WASM storage

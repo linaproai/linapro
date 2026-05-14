@@ -4,7 +4,9 @@ package plugin
 
 import (
 	"context"
+
 	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
@@ -15,6 +17,8 @@ import (
 	"lina-core/internal/service/plugin/internal/runtime"
 	sourceupgradeinternal "lina-core/internal/service/plugin/internal/sourceupgrade"
 	"lina-core/internal/service/pluginruntimecache"
+	"lina-core/internal/service/session"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
 
 	"lina-core/internal/model/entity"
 
@@ -182,6 +186,8 @@ type SourceIntegrationService interface {
 	ListSourceRouteBindings() []pluginhost.SourceRouteBinding
 	// RegisterCrons registers callback-contributed cron jobs for source plugins.
 	RegisterCrons(ctx context.Context) error
+	// SetHostServices wires the host-published service directory used by source plugins.
+	SetHostServices(services pluginhost.HostServices)
 	// ListManagedCronJobs returns plugin-owned cron definitions for projection into sys_job.
 	ListManagedCronJobs(ctx context.Context) ([]ManagedCronJob, error)
 	// ListManagedCronJobsByPlugin returns cron definitions owned by one plugin.
@@ -267,6 +273,9 @@ type SourceUpgradeGovernanceService interface {
 	// ValidateStartupConsistency fails fast when persisted plugin and tenant
 	// governance state is incoherent before routes are served.
 	ValidateStartupConsistency(ctx context.Context) error
+	// SetTenantCapability wires the runtime-owned tenant capability used by
+	// startup consistency checks that span plugin and tenant governance.
+	SetTenantCapability(service tenantcapsvc.Service)
 }
 
 // RegistryQueryService defines manifest synchronization and plugin list query operations.
@@ -276,6 +285,9 @@ type RegistryQueryService interface {
 	WithStartupDataSnapshot(ctx context.Context) (context.Context, error)
 	// SyncSourcePlugins scans source plugin manifests and synchronizes default status.
 	SyncSourcePlugins(ctx context.Context) error
+	// SyncSourcePluginsStrict synchronizes source plugins discovered by the
+	// running host.
+	SyncSourcePluginsStrict(ctx context.Context) (*ListOutput, error)
 	// SyncAndList scans plugin manifests, synchronizes plugin registry rows, and
 	// returns the combined list of source and dynamic plugin items.
 	SyncAndList(ctx context.Context) (*ListOutput, error)
@@ -357,30 +369,53 @@ type serviceImpl struct {
 	openapiSvc openapi.Service
 	// runtimeCacheRevisionCtrl coordinates process-local runtime caches in cluster deployments.
 	runtimeCacheRevisionCtrl *pluginruntimecache.Controller
+	// tenantSvc validates tenant-governance startup state through the runtime-owned tenant capability.
+	tenantSvc tenantcapsvc.Service
 }
 
 // New creates and returns a new plugin Service.
 // Pass a non-nil topology for cluster-aware deployments; pass nil to use the
 // default single-node topology implementation.
-func New(topology Topology) Service {
+func New(
+	topology Topology,
+	configProvider configsvc.Service,
+	bizCtxProvider bizctx.Service,
+	cacheCoordSvc cachecoord.Service,
+	i18nSvc i18nsvc.Service,
+	sessionStore session.Store,
+) Service {
+	if configProvider == nil {
+		panic("plugin service requires a non-nil config service")
+	}
+	if bizCtxProvider == nil {
+		panic("plugin service requires a non-nil bizctx service")
+	}
+	if cacheCoordSvc == nil {
+		panic("plugin service requires a non-nil cachecoord service")
+	}
+	if i18nSvc == nil {
+		panic("plugin service requires a non-nil i18n service")
+	}
+	if sessionStore == nil {
+		panic("plugin service requires a non-nil session store")
+	}
+
 	var topo Topology = singleNodeTopology{}
 	if topology != nil {
 		topo = topology
 	}
 
 	var (
-		configProvider   = configsvc.New()
-		bizCtxProvider   = bizctx.New()
 		catalogSvc       = catalog.New(configProvider)
 		lifecycleSvc     = lifecycle.New(catalogSvc)
 		frontendSvc      = frontend.New(catalogSvc)
 		openapiSvc       = openapi.New(catalogSvc)
-		runtimeSvc       = runtime.New(catalogSvc, lifecycleSvc, frontendSvc, openapiSvc)
+		runtimeSvc       = runtime.New(catalogSvc, lifecycleSvc, frontendSvc, openapiSvc, i18nSvc)
 		integrationSvc   = integration.New(catalogSvc)
-		sourceUpgradeSvc = sourceupgradeinternal.New(catalogSvc, lifecycleSvc, runtimeSvc, integrationSvc)
-		i18nSvc          = i18nsvc.New()
+		sourceUpgradeSvc = sourceupgradeinternal.New(catalogSvc, lifecycleSvc, runtimeSvc, integrationSvc, i18nSvc)
 		cacheRevisionCtl = newRuntimeCacheRevisionController(
 			topo,
+			cacheCoordSvc,
 			integrationSvc,
 			frontendSvc,
 			i18nSvc,
@@ -412,6 +447,7 @@ func New(topology Topology) Service {
 	runtimeSvc.SetJwtConfigProvider(&jwtConfigAdapter{configProvider})
 	runtimeSvc.SetUploadSizeProvider(&uploadSizeAdapter{configProvider})
 	runtimeSvc.SetUserContextSetter(&userCtxAdapter{bizCtxProvider})
+	runtimeSvc.SetSessionStore(sessionStore)
 
 	service := &serviceImpl{
 		configSvc:                configProvider,

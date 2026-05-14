@@ -33,20 +33,27 @@ import (
 // protected, and dynamic plugin dispatch routes.
 func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRuntime) {
 	var (
-		authCtrl       = auth.NewV1()
+		authCtrl       = auth.NewV1(runtime.authSvc, runtime.bizCtxSvc)
+		configCtrl     = configctrl.NewV1(runtime.sysConfigSvc)
+		dictCtrl       = dict.NewV1(runtime.dictSvc)
+		fileCtrl       = filectrl.NewV1(runtime.fileSvc)
 		healthCtrl     = healthctrl.NewV1(runtime.configSvc, runtime.clusterSvc)
-		i18nCtrl       = i18nctrl.NewV1()
-		pluginCtrl     = pluginctrl.NewV1(runtime.clusterSvc)
-		publicCfgCtrl  = publicconfigctrl.NewV1()
+		i18nCtrl       = i18nctrl.NewV1(runtime.i18nSvc)
+		pluginCtrl     = pluginctrl.NewV1(runtime.pluginSvc, runtime.bizCtxSvc, runtime.configSvc, runtime.i18nSvc, runtime.roleSvc)
+		publicCfgCtrl  = publicconfigctrl.NewV1(runtime.configSvc, runtime.i18nSvc)
+		menuCtrl       = menu.NewV1(runtime.menuSvc, runtime.roleSvc, runtime.bizCtxSvc)
+		roleCtrl       = role.NewV1(runtime.roleSvc)
+		userCtrl       = user.NewV1(runtime.userSvc, runtime.roleSvc, runtime.menuSvc, runtime.orgCapSvc, runtime.i18nSvc)
+		userMsgCtrl    = usermsg.NewV1(runtime.userMsgSvc)
 		jobCtrl        = jobctrl.NewV1(runtime.jobMgmtSvc)
 		jobGroupCtrl   = jobgroupctrl.NewV1(runtime.jobMgmtSvc)
-		jobLogCtrl     = joblogctrl.NewV1(runtime.jobMgmtSvc)
-		jobHandlerCtrl = jobhandlerctrl.NewV1(runtime.jobRegistry)
+		jobLogCtrl     = joblogctrl.NewV1(runtime.bizCtxSvc, runtime.jobMgmtSvc, runtime.roleSvc)
+		jobHandlerCtrl = jobhandlerctrl.NewV1(runtime.jobRegistry, runtime.i18nSvc)
 		middlewareSvc  = runtime.middlewareSvc
+		sysInfoCtrl    = sysinfo.NewV1(runtime.sysInfoSvc, runtime.i18nSvc)
 	)
 
 	server.Group("/api/v1", func(group *ghttp.RouterGroup) {
-		fileCtrl := filectrl.NewV1()
 		group.Middleware(
 			ghttp.MiddlewareNeverDoneCtx,
 			middlewareSvc.Response,
@@ -73,12 +80,12 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 			i18nCtrl.ExportMessages,
 			i18nCtrl.MissingMessages,
 			i18nCtrl.DiagnoseMessages,
-			user.NewV1(),
-			dict.NewV1(),
-			menu.NewV1(),
-			role.NewV1(),
-			usermsg.NewV1(),
-			sysinfo.NewV1(),
+			userCtrl,
+			dictCtrl,
+			menuCtrl,
+			roleCtrl,
+			userMsgCtrl,
+			sysInfoCtrl,
 			fileCtrl.Delete,
 			fileCtrl.Detail,
 			fileCtrl.Download,
@@ -87,7 +94,7 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 			fileCtrl.FileSuffixes,
 			fileCtrl.Upload,
 			fileCtrl.UsageScenes,
-			configctrl.NewV1(),
+			configCtrl,
 			jobCtrl,
 			jobGroupCtrl,
 			jobLogCtrl,

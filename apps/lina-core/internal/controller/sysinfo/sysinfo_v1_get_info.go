@@ -42,6 +42,15 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 		StartTime:          info.StartTime,
 		RunDuration:        c.formatRunDuration(ctx, info.RunDurationSeconds),
 		RunDurationSeconds: info.RunDurationSeconds,
+		Coordination: v1.CoordinationInfo{
+			ClusterEnabled: info.Coordination.ClusterEnabled,
+			Backend:        string(info.Coordination.Backend),
+			RedisHealthy:   info.Coordination.RedisHealthy,
+			NodeId:         info.Coordination.NodeID,
+			Primary:        info.Coordination.Primary,
+			LastSuccessAt:  formatOptionalTime(info.Coordination.LastSuccessAt),
+			LastError:      info.Coordination.LastError,
+		},
 	}
 
 	// Map backend components
@@ -80,9 +89,13 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 			ConsistencyModel: item.ConsistencyModel,
 			MaxStaleSeconds:  int64(item.MaxStale / time.Second),
 			FailureStrategy:  item.FailureStrategy,
+			Backend:          string(item.Backend),
+			Healthy:          item.Healthy,
 			LocalRevision:    item.LocalRevision,
 			SharedRevision:   item.SharedRevision,
 			LastSyncedAt:     formatOptionalTime(item.LastSyncedAt),
+			EventSubscriber:  item.EventSubscriber,
+			LastEventAt:      formatOptionalTime(item.LastEventAt),
 			RecentError:      item.RecentError,
 			StaleSeconds:     item.StaleSeconds,
 		})

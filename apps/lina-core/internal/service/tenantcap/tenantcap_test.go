@@ -14,6 +14,7 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/internal/model"
+	"lina-core/internal/service/bizctx"
 	_ "lina-core/pkg/dbdriver"
 	pkgtenantcap "lina-core/pkg/tenantcap"
 )
@@ -60,7 +61,7 @@ func TestDefaultServiceNoopsWithoutProvider(t *testing.T) {
 	pkgtenantcap.RegisterProvider(nil)
 	t.Cleanup(func() { pkgtenantcap.RegisterProvider(nil) })
 
-	service := New(tenantcapTestEnablement{enabled: false})
+	service := New(tenantcapTestEnablement{enabled: false}, nil)
 	ctx := context.Background()
 
 	if service.Enabled(ctx) {
@@ -76,7 +77,7 @@ func TestDefaultServiceNoopsWithoutProvider(t *testing.T) {
 
 // TestPlatformBypassRequiresPlatformContext verifies impersonation does not bypass tenant filters.
 func TestPlatformBypassRequiresPlatformContext(t *testing.T) {
-	service := New(tenantcapTestEnablement{enabled: true})
+	service := New(tenantcapTestEnablement{enabled: true}, bizctx.New())
 
 	platformCtx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{
 		TenantId:  0,
@@ -104,7 +105,7 @@ func TestApplyInjectsTenantPredicateWhenEnabled(t *testing.T) {
 	pkgtenantcap.RegisterProvider(provider)
 	t.Cleanup(func() { pkgtenantcap.RegisterProvider(nil) })
 
-	service := New(tenantcapTestEnablement{enabled: true})
+	service := New(tenantcapTestEnablement{enabled: true}, bizctx.New())
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{TenantId: 12})
 
 	applied, err := service.Apply(ctx, g.DB().Model("sys_user"), "tenant_id")
@@ -130,7 +131,7 @@ func TestApplySkipsTenantPredicateForPlatformBypass(t *testing.T) {
 	pkgtenantcap.RegisterProvider(provider)
 	t.Cleanup(func() { pkgtenantcap.RegisterProvider(nil) })
 
-	service := New(tenantcapTestEnablement{enabled: true})
+	service := New(tenantcapTestEnablement{enabled: true}, bizctx.New())
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{
 		TenantId:  int(pkgtenantcap.PLATFORM),
 		DataScope: 1,
@@ -161,7 +162,7 @@ func TestResolveTenantDelegatesToProviderWhenEnabled(t *testing.T) {
 	pkgtenantcap.RegisterProvider(provider)
 	t.Cleanup(func() { pkgtenantcap.RegisterProvider(nil) })
 
-	service := New(tenantcapTestEnablement{enabled: true})
+	service := New(tenantcapTestEnablement{enabled: true}, bizctx.New())
 	result, err := service.ResolveTenant(context.Background(), &ghttp.Request{})
 	if err != nil {
 		t.Fatalf("resolve tenant failed: %v", err)
@@ -176,7 +177,7 @@ func TestResolveTenantDelegatesToProviderWhenEnabled(t *testing.T) {
 
 // TestReadWithPlatformFallbackUsesTenantRowsFirst verifies tenant rows suppress platform fallback.
 func TestReadWithPlatformFallbackUsesTenantRowsFirst(t *testing.T) {
-	service := New(tenantcapTestEnablement{enabled: true})
+	service := New(tenantcapTestEnablement{enabled: true}, bizctx.New())
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{TenantId: 7})
 
 	var seen []TenantID
@@ -200,7 +201,7 @@ func TestReadWithPlatformFallbackUsesTenantRowsFirst(t *testing.T) {
 
 // TestReadWithPlatformFallbackUsesPlatformWhenTenantEmpty verifies empty tenant rows fall back to platform.
 func TestReadWithPlatformFallbackUsesPlatformWhenTenantEmpty(t *testing.T) {
-	service := New(tenantcapTestEnablement{enabled: true})
+	service := New(tenantcapTestEnablement{enabled: true}, bizctx.New())
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{TenantId: 8})
 
 	var seen []TenantID

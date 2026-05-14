@@ -10,7 +10,6 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
-	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/lifecycle"
@@ -69,13 +68,14 @@ func New(
 	lifecycleSvc lifecycle.Service,
 	runtimeSvc runtime.Service,
 	integrationSvc integration.Service,
+	i18nSvc sourceUpgradeI18nService,
 ) Service {
 	return &serviceImpl{
 		catalogSvc:     catalogSvc,
 		lifecycleSvc:   lifecycleSvc,
 		runtimeSvc:     runtimeSvc,
 		integrationSvc: integrationSvc,
-		i18nSvc:        i18nsvc.New(),
+		i18nSvc:        i18nSvc,
 	}
 }
 

@@ -6,20 +6,52 @@ import (
 	"context"
 	"encoding/base64"
 	"sync"
+	"testing"
 
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
+	configsvc "lina-core/internal/service/config"
+	"lina-core/internal/service/coordination"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/session"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/pluginbridge"
 )
 
 // newTestService constructs the root plugin facade with default single-node topology.
 func newTestService() *serviceImpl {
-	return New(nil).(*serviceImpl)
+	return newTestServiceWithTopology(nil)
 }
 
 // newTestServiceWithTopology constructs the root plugin facade with one explicit topology.
 func newTestServiceWithTopology(topology Topology) *serviceImpl {
-	return New(topology).(*serviceImpl)
+	var (
+		configProvider = configsvc.New()
+		bizCtxProvider = bizctx.New()
+		cacheCoordSvc  = cachecoord.Default(cachecoord.NewStaticTopology(false))
+	)
+	if topology != nil && topology.IsEnabled() {
+		cachecoord.DefaultWithCoordination(topology, coordination.NewMemory(nil))
+		cacheCoordSvc = cachecoord.Default(topology)
+	}
+	i18nSvc := i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
+	service := New(topology, configProvider, bizCtxProvider, cacheCoordSvc, i18nSvc, session.NewDBStore()).(*serviceImpl)
+	service.SetTenantCapability(tenantcapsvc.New(service, bizCtxProvider))
+	return service
+}
+
+// TestNewRequiresExplicitRuntimeDependencies verifies the root plugin service
+// does not silently create critical runtime dependencies when callers omit them.
+func TestNewRequiresExplicitRuntimeDependencies(t *testing.T) {
+	defer func() {
+		if recovered := recover(); recovered == nil {
+			t.Fatal("expected plugin service construction to fail without explicit dependencies")
+		}
+	}()
+
+	New(nil, nil, nil, nil, nil, nil)
 }
 
 // getPluginRegistry loads one plugin registry row for assertions in root-package tests.

@@ -76,6 +76,12 @@ var (
 		"Lock ticket plugin identity does not match",
 		gcode.CodeInvalidParameter,
 	)
+	// CodeHostLockTicketTenantMismatch reports that a ticket belongs to a different tenant.
+	CodeHostLockTicketTenantMismatch = bizerr.MustDefine(
+		"HOST_LOCK_TICKET_TENANT_MISMATCH",
+		"Lock ticket tenant identity does not match",
+		gcode.CodeInvalidParameter,
+	)
 	// CodeHostLockTicketResourceMismatch reports that a ticket belongs to a different logical lock resource.
 	CodeHostLockTicketResourceMismatch = bizerr.MustDefine(
 		"HOST_LOCK_TICKET_RESOURCE_MISMATCH",

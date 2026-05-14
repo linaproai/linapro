@@ -1,6 +1,0 @@
-{
-  "name": "@lina/source-plugins",
-  "private": true,
-  "type": "module",
-  "description": "Workspace metadata for LinaPro source plugin packages."
-}

@@ -11,6 +11,9 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/internal/model"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
+	hostconfig "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
 )
 
@@ -85,7 +88,7 @@ func TestRequestBodyLimitFriendlyError(t *testing.T) {
 		t.Fatal("expected multipart size overflow to map to friendly error")
 	}
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: i18nsvc.DefaultLocale})
-	if localized := i18nsvc.New().LocalizeError(ctx, err); localized != "文件大小不能超过20MB" {
+	if localized := i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil)).LocalizeError(ctx, err); localized != "文件大小不能超过20MB" {
 		t.Fatalf("expected friendly size error %q, got %q", "文件大小不能超过20MB", localized)
 	}
 }

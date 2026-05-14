@@ -10,7 +10,7 @@ import (
 
 // ConfigImportTemplate downloads the config import template.
 func (c *ControllerV1) ConfigImportTemplate(ctx context.Context, req *v1.ConfigImportTemplateReq) (res *v1.ConfigImportTemplateRes, err error) {
-	data, err := c.svc.GenerateImportTemplate(ctx)
+	data, err := c.sysConfigSvc.GenerateImportTemplate(ctx)
 	if err != nil {
 		return nil, err
 	}

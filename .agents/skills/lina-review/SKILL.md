@@ -105,6 +105,18 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 
 对每个后端服务，组件主文件可命名为 `<component>.go`；该组件目录中的每个非主 `Go` 源文件必须使用 `<component>_*.go` 前缀，测试文件也必须遵循相同的前缀规范。
 
+**显式依赖注入与共享实例**
+
+对每个新增或修改的后端 `Controller`、`Middleware`、`Service`、插件宿主服务适配器、源码插件后端组件和 `WASM host service`，还需执行**运行期依赖显式注入审查**：
+1. 运行期依赖必须通过构造函数参数逐项显式传入。标记在业务构造函数、请求处理路径、插件回调路径、定时任务执行路径或 host service 调用路径中临时调用关键服务 `New()` 创建独立服务图的实现。
+2. 标记通过 `Dependencies`、`Deps`、`Options` 等聚合结构体把多个接口对象或服务对象字段整体传给依赖方的实现；接口型依赖必须拆成独立构造函数参数，以便依赖新增、删除或替换时由编译错误暴露所有未同步调用点。仅包含字符串、布尔、`time.Duration`、容量阈值等纯值配置的专用配置结构体可以接受，但不得混入接口型运行期依赖。
+3. 关键服务包括认证、会话、角色/权限、数据权限、租户、组织能力、插件治理、运行时配置、i18n、通知、缓存协调、KV cache、分布式锁、插件运行时缓存、源码插件宿主服务适配器和动态插件 host service 依赖。
+4. 启动期已有编排（如 `cmd_http_runtime.go`、`cmd_http_routes.go`）、插件 registrar 和测试构造可以作为显式构造边界；不得通过通用 DI 容器、全局 service locator、聚合依赖结构体或新增兜底组装层规避依赖签名可见性。
+5. 对持有缓存、派生状态、失效观察状态、订阅状态、`session/token` 状态、插件 enabled snapshot、运行时配置快照、权限快照或跨实例协调依赖的组件，确认它们复用启动期传入的同一服务实例或同一共享后端。
+6. 对源码插件注册回调，确认插件控制器和服务通过 registrar 或等价上下文获取宿主发布的 `pkg/pluginservice/*` 适配器，生产路径不得自行构造孤立宿主服务适配器。
+7. 对 `WASM host service`，确认 cache、lock、notify、storage、config、runtime 等 handler 使用启动期显式注入的共享服务或共享后端，包级默认实例仅用于测试恢复或明确的启动前兜底。
+8. 确实无状态、无缓存、无订阅、无 `session/token`、无插件状态且无跨实例协调影响的局部构造可以接受，但审查结论必须说明理由，并确认依赖治理扫描允许列表记录该豁免。
+
 **单元测试自包含性**
 
 对每个新增或修改的单元测试方法，还需执行**测试顺序独立性审查**：
@@ -229,6 +241,18 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 5. 验证缓存更新与成功的权威数据源写入耦合，而非在事务仍可能回滚前发出。遗漏的失效事件、进程重启和过期的分布式条目必须有恢复路径（如 TTL、版本检查、重建/穿透读取、对账或显式重载）。
 6. 测试或审查证据应在适当的风险级别覆盖变更的缓存行为，特别是单机与集群模式分支、多实例失效、有界陈旧性、重试/重建行为，以及缓存后端不可用时的面向调用方行为。
 
+#### 开发工具与脚本跨平台审查
+
+**触发条件**：任何修改 `Makefile`、`make.cmd`、`hack/makefiles/`、`hack/scripts/`、`hack/tests/scripts/`、`hack/tools/`、`.github/workflows/` 中开发/构建/测试入口，或新增/修改 `.sh`、`.ps1`、`.cmd`、`.mjs`、工具型 `Go` 代码的变更
+
+对每个开发工具或脚本变更，还需执行**跨平台执行审查**：
+1. 默认开发、构建、测试、代码生成、资源打包、服务启停、CI 辅助和仓库治理入口必须能在 `Windows`、`Linux`、`macOS` 上运行。标记依赖单一平台默认命令或语义的实现，例如 `bash`、`sh`、`sed`、`awk`、`grep`、`perl`、`lsof`、`pgrep`、`xargs`、`kill`、`rm`、`cp`、`mv`、`mkdir -p`、POSIX 路径分隔符、Unix 信号或 PowerShell 专属语法。
+2. 长期维护的仓库工具应优先实现为 `Go` 工具，并通过 `go run ./hack/tools/<tool>`、`linactl` 或薄包装入口调用。审查是否把文件复制、目录遍历、配置改写、进程启停、端口探测、HTTP smoke、压缩/解压、模板渲染和静态扫描等逻辑留在 Shell 管道中；能合理迁移到 Go 标准库或已有 Go 组件的，应报告为问题。
+3. `Makefile` 与 `make.cmd` 只能作为兼容包装层，不得承载复杂业务逻辑；二者应委托 `linactl` 或其他跨平台工具。标记在包装层新增不可移植命令、平台专属环境写法或与 Go workspace/plugin workspace 规则冲突的隐式覆盖。
+4. `hack/scripts/` 不应继续承载长期维护脚本。新增或保留 `.sh`、`.ps1` 等平台脚本时，审查结论必须说明无法使用 Go 工具链的原因、受支持平台、等价跨平台入口和验证方式；没有说明的平台脚本应标记为严重问题。
+5. 工具变更必须提供匹配验证证据，例如 `cd hack/tools/linactl && go test ./... -count=1`、`go run ./hack/tools/linactl test-scripts`、目标 Go 工具单元测试、跨平台 smoke 或静态扫描。仅使用 `bash -n`、本机 Shell 试跑或单平台 workflow 不能证明跨平台合规。
+6. 如果变更无开发工具或脚本影响，审查结论应明确说明该判断。
+
 ### 6. SQL 规范审查
 
 **触发条件**：`apps/lina-core/manifest/sql/`、`apps/lina-core/manifest/sql/mock-data/`、`apps/lina-plugins/**/manifest/sql/` 下新增或修改的文件，或相关交付文档中嵌入的 `SQL` 片段
@@ -291,6 +315,9 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 
 ### 分布式缓存一致性审查
 ✓ 已审查分布式缓存一致性 / ⚠ 发现 N 个缓存一致性问题
+
+### 开发工具与脚本跨平台审查
+✓ 开发工具和脚本跨平台合规 / ⚠ 发现 N 个跨平台问题
 
 ### SQL 审查
 ✓ 无 SQL 变更 / ✓ SQL 变更合规 / ⚠ 发现 N 个 SQL 问题

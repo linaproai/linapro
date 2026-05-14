@@ -4,11 +4,13 @@ package locker
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/coordination"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
 
@@ -26,6 +28,10 @@ type Service interface {
 	Unlock(ctx context.Context, lockID int64, holder string) error
 	// Renew extends one distributed lock identified by lock ID and holder.
 	Renew(ctx context.Context, lockID int64, holder string, lease time.Duration) error
+	// UnlockByName releases one distributed lock identified by lock name and holder.
+	UnlockByName(ctx context.Context, name string, holder string) error
+	// RenewByName extends one distributed lock identified by lock name and holder.
+	RenewByName(ctx context.Context, name string, holder string, lease time.Duration) error
 }
 
 // Interface compliance assertion for the default locker service implementation.
@@ -34,13 +40,45 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct{}
 
+// processCoordinationLockStore stores the deployment-selected coordination
+// lock backend used by service instances created before HTTP startup finishes.
+var processCoordinationLockStore = struct {
+	sync.RWMutex
+	store coordination.LockStore
+}{}
+
 // New creates and returns a new locker Service instance.
 func New() Service {
 	return &serviceImpl{}
 }
 
+// ConfigureCoordination switches all locker service instances to a
+// coordination-backed implementation. Passing nil restores the SQL table
+// implementation used by single-node deployments and tests.
+func ConfigureCoordination(coordinationSvc coordination.Service) {
+	processCoordinationLockStore.Lock()
+	if coordinationSvc == nil {
+		processCoordinationLockStore.store = nil
+	} else {
+		processCoordinationLockStore.store = coordinationSvc.Lock()
+	}
+	processCoordinationLockStore.Unlock()
+}
+
+// currentCoordinationLockStore returns the active coordination lock backend.
+func currentCoordinationLockStore() coordination.LockStore {
+	processCoordinationLockStore.RLock()
+	store := processCoordinationLockStore.store
+	processCoordinationLockStore.RUnlock()
+	return store
+}
+
 // Lock acquires a distributed lock when it is absent or expired.
 func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lease time.Duration) (*Instance, bool, error) {
+	if lockStore := currentCoordinationLockStore(); lockStore != nil {
+		return lockWithCoordination(ctx, lockStore, name, holder, reason, lease)
+	}
+
 	var locker *entity.SysLocker
 	err := dao.SysLocker.Ctx(ctx).Where(do.SysLocker{
 		Name: name,
@@ -145,6 +183,9 @@ func (s *serviceImpl) LockFunc(ctx context.Context, name, holder, reason string,
 
 // Unlock releases one distributed lock identified by lock ID and holder.
 func (s *serviceImpl) Unlock(ctx context.Context, lockID int64, holder string) error {
+	if currentCoordinationLockStore() != nil {
+		return ErrLockNotHeld
+	}
 	return (&Instance{
 		id:     lockID,
 		holder: holder,
@@ -153,9 +194,59 @@ func (s *serviceImpl) Unlock(ctx context.Context, lockID int64, holder string) e
 
 // Renew extends one distributed lock identified by lock ID and holder.
 func (s *serviceImpl) Renew(ctx context.Context, lockID int64, holder string, lease time.Duration) error {
+	if currentCoordinationLockStore() != nil {
+		return ErrLockNotHeld
+	}
 	return (&Instance{
 		id:     lockID,
 		holder: holder,
 		lease:  lease,
 	}).Renew(ctx)
+}
+
+// UnlockByName releases one distributed lock identified by lock name and holder.
+func (s *serviceImpl) UnlockByName(ctx context.Context, name string, holder string) error {
+	if lockStore := currentCoordinationLockStore(); lockStore != nil {
+		return unlockCoordinationByName(ctx, lockStore, name, holder)
+	}
+	_, err := dao.SysLocker.Ctx(ctx).Data(do.SysLocker{
+		ExpireTime: gtime.Now().Add(-1 * time.Second),
+	}).Where(do.SysLocker{
+		Name:   name,
+		Holder: holder,
+	}).Update()
+	return err
+}
+
+// RenewByName extends one distributed lock identified by lock name and holder.
+func (s *serviceImpl) RenewByName(ctx context.Context, name string, holder string, lease time.Duration) error {
+	if lockStore := currentCoordinationLockStore(); lockStore != nil {
+		return renewCoordinationByName(ctx, lockStore, name, holder, lease)
+	}
+
+	now := gtime.Now()
+	expireTime := now.Add(lease)
+	var locker struct {
+		Id int64
+	}
+	err := dao.SysLocker.Ctx(ctx).
+		Where(do.SysLocker{
+			Name:   name,
+			Holder: holder,
+		}).
+		WhereGT("expire_time", now).
+		Scan(&locker)
+	if err != nil {
+		return err
+	}
+	if locker.Id == 0 {
+		return ErrLockNotHeld
+	}
+
+	_, err = dao.SysLocker.Ctx(ctx).Data(do.SysLocker{
+		ExpireTime: expireTime,
+	}).Where(do.SysLocker{
+		Id: locker.Id,
+	}).Update()
+	return err
 }

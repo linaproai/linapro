@@ -19,6 +19,8 @@ import (
 	"testing"
 	"testing/fstest"
 	"unicode"
+
+	"lina-core/pkg/testsupport"
 )
 
 var openAPIMetadataTagPattern = regexp.MustCompile(`([A-Za-z0-9_-]+):"((?:\\.|[^"\\])*)"`)
@@ -96,9 +98,13 @@ func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
 		"core.api.auth.v1.LoginReq.meta.tags",
 		"core.api.auth.v1.LoginReq.fields.username.dc",
 		"core.api.user.v1.ListReq.fields.pageNum.dc",
-		"plugins.monitor_loginlog.api.loginlog.v1.ListReq.meta.tags",
-		"plugins.plugin_demo_dynamic.paths.get.backend_summary.meta.summary",
 	)
+	if testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
+		requiredKeys = append(requiredKeys,
+			"plugins.monitor_loginlog.api.loginlog.v1.ListReq.meta.tags",
+			"plugins.plugin_demo_dynamic.paths.get.backend_summary.meta.summary",
+		)
+	}
 
 	for _, locale := range discoverOpenAPINonEnglishLocales(t, repoRoot) {
 		locale := locale
@@ -206,11 +212,14 @@ func TestOpenAPIBundlesAreSeparatedFromRuntimeI18n(t *testing.T) {
 	}
 
 	var mixed []string
-	for _, root := range []string{
+	scanRoots := []string{
 		filepath.Join(repoRoot, "apps/lina-core/manifest/i18n"),
 		filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n"),
-		filepath.Join(repoRoot, "apps/lina-plugins"),
-	} {
+	}
+	if testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
+		scanRoots = append(scanRoots, filepath.Join(repoRoot, "apps/lina-plugins"))
+	}
+	for _, root := range scanRoots {
 		if err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
@@ -412,8 +421,10 @@ func collectOpenAPISourceMetadataStrings(t *testing.T) []openAPIMetadataValue {
 	repoRoot := locateRepositoryRoot(t)
 	scanRoots := []string{
 		filepath.Join(repoRoot, "apps/lina-core/api"),
-		filepath.Join(repoRoot, "apps/lina-plugins"),
 		filepath.Join(repoRoot, "apps/lina-core/manifest/config"),
+	}
+	if testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
+		scanRoots = append(scanRoots, filepath.Join(repoRoot, "apps/lina-plugins"))
 	}
 	packedConfigRoot := filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/config")
 	if _, err := os.Stat(packedConfigRoot); err == nil {
@@ -432,7 +443,9 @@ func collectOpenAPITranslatableStructuredKeys(t *testing.T) []string {
 	keySet := make(map[string]struct{})
 	scanRoots := []string{
 		filepath.Join(repoRoot, "apps/lina-core/api"),
-		filepath.Join(repoRoot, "apps/lina-plugins"),
+	}
+	if testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
+		scanRoots = append(scanRoots, filepath.Join(repoRoot, "apps/lina-plugins"))
 	}
 	for _, root := range scanRoots {
 		if err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
@@ -579,7 +592,9 @@ func collectGeneratedEntityDescriptionStrings(t *testing.T) []openAPIMetadataVal
 	repoRoot := locateRepositoryRoot(t)
 	scanRoots := []string{
 		filepath.Join(repoRoot, "apps/lina-core/internal/model/entity"),
-		filepath.Join(repoRoot, "apps/lina-plugins"),
+	}
+	if testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
+		scanRoots = append(scanRoots, filepath.Join(repoRoot, "apps/lina-plugins"))
 	}
 	return collectOpenAPIMetadataValues(t, scanRoots, shouldScanGeneratedEntityMetadataFile)
 }
@@ -847,6 +862,9 @@ func readOpenAPIPluginJSONBundles(t *testing.T, repoRoot string, locale string) 
 
 	result := make(map[string]map[string]string)
 	pluginsRoot := filepath.Join(repoRoot, "apps/lina-plugins")
+	if !testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
+		return result
+	}
 	entries, err := os.ReadDir(pluginsRoot)
 	if err != nil {
 		t.Fatalf("read plugin root %s failed: %v", pluginsRoot, err)

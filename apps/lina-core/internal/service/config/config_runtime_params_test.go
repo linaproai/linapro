@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/errors/gerror"
+	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -30,6 +30,24 @@ func TestNewCacheCoordRuntimeParamRevisionControllerSelectsByClusterMode(t *test
 	}
 	if controller.cacheCoordSvc == nil {
 		t.Fatal("expected clustered runtime-param revision controller to use cachecoord")
+	}
+}
+
+// TestOverrideClusterEnabledForDialectReselectsRuntimeParamRevisionController
+// verifies SQLite startup can force a config service constructed from
+// cluster.enabled=true back to local runtime-parameter revision handling.
+func TestOverrideClusterEnabledForDialectReselectsRuntimeParamRevisionController(t *testing.T) {
+	svc := &serviceImpl{}
+	svc.runtimeParamRevisionCtrl = newCacheCoordRuntimeParamRevisionController(true)
+
+	if _, ok := svc.runtimeParamRevisionCtrl.(*clusterRuntimeParamRevisionController); !ok {
+		t.Fatal("expected test setup to start with clustered runtime-param revision controller")
+	}
+
+	svc.OverrideClusterEnabledForDialect(false)
+
+	if _, ok := svc.runtimeParamRevisionCtrl.(*localRuntimeParamRevisionController); !ok {
+		t.Fatalf("expected dialect override to select local runtime-param revision controller, got %T", svc.runtimeParamRevisionCtrl)
 	}
 }
 

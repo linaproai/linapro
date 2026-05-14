@@ -15,6 +15,8 @@ import (
 	"github.com/gogf/gf/v2/util/guid"
 
 	"lina-core/internal/model"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/pkg/pluginhost"
@@ -145,7 +147,7 @@ func TestBuildProjectsHostAndEnabledPluginRoutes(t *testing.T) {
 		},
 	}
 
-	service := New(&testConfigProvider{}, pluginProvider)
+	service := New(&testConfigProvider{}, bizctx.New(), i18nsvc.New(bizctx.New(), configsvc.New(), cachecoord.Default(nil)), pluginProvider)
 	document, err := service.Build(context.Background(), server)
 	if err != nil {
 		t.Fatalf("expected hosted apidoc build to succeed, got %v", err)
@@ -208,7 +210,7 @@ func TestBuildLocalizesOpenAPIForRequestLocale(t *testing.T) {
 		gctx.StrKey("BizCtx"),
 		&model.Context{Locale: i18nsvc.EnglishLocale},
 	)
-	service := New(&testConfigProvider{}, pluginProvider)
+	service := New(&testConfigProvider{}, bizctx.New(), i18nsvc.New(bizctx.New(), configsvc.New(), cachecoord.Default(nil)), pluginProvider)
 	document, err := service.Build(ctx, server)
 	if err != nil {
 		t.Fatalf("expected hosted apidoc build to succeed, got %v", err)
@@ -301,7 +303,7 @@ func registerOpenAPITestCatalog(locale string, entries map[string]string) func()
 // TestLocalizeSchemaTranslatesAlreadySeenDirectMetadata verifies recursive
 // cycle guards do not skip direct schema display text for shared schema nodes.
 func TestLocalizeSchemaTranslatesAlreadySeenDirectMetadata(t *testing.T) {
-	service := New(&testConfigProvider{}, &testPluginRouteProvider{}).(*serviceImpl)
+	service := New(&testConfigProvider{}, bizctx.New(), i18nsvc.New(bizctx.New(), configsvc.New(), cachecoord.Default(nil)), &testPluginRouteProvider{}).(*serviceImpl)
 	localizer := &openAPILocalizer{
 		catalog: map[string]string{
 			"test.schema.title":   "Parameter ID",
@@ -339,7 +341,7 @@ func TestLocalizeSchemaTranslatesAlreadySeenDirectMetadata(t *testing.T) {
 // keeps generated entity and framework metadata exactly as its source provides
 // it when the empty en-US apidoc bundle has no translation entry.
 func TestEnglishLocalizerPreservesGeneratedSchemaMetadata(t *testing.T) {
-	service := New(&testConfigProvider{}, &testPluginRouteProvider{}).(*serviceImpl)
+	service := New(&testConfigProvider{}, bizctx.New(), i18nsvc.New(bizctx.New(), configsvc.New(), cachecoord.Default(nil)), &testPluginRouteProvider{}).(*serviceImpl)
 	localizer := &openAPILocalizer{
 		locale:  i18nsvc.EnglishLocale,
 		catalog: map[string]string{},

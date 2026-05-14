@@ -89,6 +89,27 @@ database:
 
 `SQLite`模式仅支持单节点，会自动强制`cluster.enabled=false`，不支持生产部署。
 
+## 集群协调
+
+单机部署保持轻量本地模式：不需要`Redis`，不会连接`Redis`，并在适用场景继续使用`PostgreSQL`和进程内缓存协调。
+
+集群部署必须显式配置`Redis`协调后端：
+
+```yaml
+cluster:
+  enabled: true
+  coordination: redis
+  redis:
+    address: "127.0.0.1:6379"
+    db: 0
+    password: ""
+    connectTimeout: 3s
+    readTimeout: 2s
+    writeTimeout: 2s
+```
+
+当前后端仅支持`redis`。`cluster.coordination`使用稳定的标量配置，便于后续扩展其他协调后端，而不暴露按存储类型拆分的协调开关。`Redis`集成测试默认不启用；运行依赖真实`Redis`的`Go`测试前，请设置`LINA_TEST_REDIS_ADDR`，例如`LINA_TEST_REDIS_ADDR=127.0.0.1:6379`。
+
 ## 源码插件升级
 
 源码插件现在采用显式的开发阶段升级流程，不再允许在宿主启动期间静默切换版本。

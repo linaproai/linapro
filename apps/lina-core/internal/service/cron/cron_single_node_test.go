@@ -7,9 +7,15 @@ import (
 	"context"
 	"testing"
 
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/cluster"
 	hostconfig "lina-core/internal/service/config"
+	"lina-core/internal/service/datascope"
+	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/orgcap"
 	rolesvc "lina-core/internal/service/role"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
 )
 
 // TestSingleNodeModeSkipsDistributedSyncCrons verifies single-node mode keeps
@@ -19,7 +25,7 @@ func TestSingleNodeModeSkipsDistributedSyncCrons(t *testing.T) {
 
 	svc := &serviceImpl{
 		configSvc:  hostconfig.New(),
-		roleSvc:    rolesvc.New(nil),
+		roleSvc:    newCronRoleTestService(),
 		clusterSvc: cluster.New(&hostconfig.ClusterConfig{Enabled: false}),
 	}
 	svc.runtimeParamSyncJob = newRuntimeParamSnapshotSyncJob(false, svc.configSvc)
@@ -45,7 +51,7 @@ func TestClusterModeRegistersDistributedSyncCrons(t *testing.T) {
 
 	svc := &serviceImpl{
 		configSvc:  hostconfig.New(),
-		roleSvc:    rolesvc.New(nil),
+		roleSvc:    newCronRoleTestService(),
 		clusterSvc: cluster.New(&hostconfig.ClusterConfig{Enabled: true}),
 	}
 	svc.runtimeParamSyncJob = newRuntimeParamSnapshotSyncJob(true, svc.configSvc)
@@ -72,4 +78,17 @@ func TestClusterModeRegistersDistributedSyncCrons(t *testing.T) {
 	if !hasAccessSync {
 		t.Fatal("expected access topology sync watcher to be projected in cluster mode")
 	}
+}
+
+// newCronRoleTestService builds the explicit role dependency used by cron
+// startup projection tests.
+func newCronRoleTestService() rolesvc.Service {
+	bizCtxSvc := bizctx.New()
+	configSvc := hostconfig.New()
+	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
+	orgCapSvc := orgcap.New(nil)
+	tenantSvc := tenantcapsvc.New(nil, bizCtxSvc)
+	roleSvc := rolesvc.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
+	roleSvc.SetDataScopeService(datascope.New(bizCtxSvc, roleSvc, orgCapSvc))
+	return roleSvc
 }

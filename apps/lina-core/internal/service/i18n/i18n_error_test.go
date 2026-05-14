@@ -13,8 +13,12 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/internal/model"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/config"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/testsupport"
 )
 
 // TestLocalizeErrorSupportsStructuredRuntimeMessages verifies structured
@@ -36,7 +40,7 @@ func TestLocalizeErrorSupportsStructuredRuntimeMessages(t *testing.T) {
 		EnglishLocale: fmt.Sprintf(`{"test":{"structured":{"%s":"User {username} does not exist"}}}`, pluginID),
 	})
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	testCases := []struct {
 		locale   string
 		expected string
@@ -62,7 +66,7 @@ func TestLocalizeErrorSupportsStructuredRuntimeMessages(t *testing.T) {
 func TestLocalizeErrorUsesStructuredFallback(t *testing.T) {
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
 	code := bizerr.MustDefineWithKey(
 		"TEST_STRUCTURED_MISSING_KEY",
@@ -101,7 +105,7 @@ func TestLocalizeErrorUsesRuntimeBundleCache(t *testing.T) {
 	pluginhost.RegisterSourcePlugin(plugin)
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
 	err := bizerr.NewCode(code, bizerr.P("value", "message"))
 	if actual := svc.LocalizeError(ctx, err); actual != "Cached message" {
@@ -116,7 +120,7 @@ func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
 	resetRuntimeBundleCache()
 	t.Cleanup(resetRuntimeBundleCache)
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	testCases := []struct {
 		name     string
 		key      string
@@ -236,7 +240,7 @@ func TestLocalizeErrorUsesHostUserTenantMembershipErrorResources(t *testing.T) {
 	resetRuntimeBundleCache()
 	t.Cleanup(resetRuntimeBundleCache)
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	testCases := []struct {
 		name     string
 		key      string
@@ -318,6 +322,9 @@ func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {
 	t.Cleanup(resetRuntimeBundleCache)
 
 	repoRoot := findRepoRootForI18NTest(t)
+	if !testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
+		t.Skip("official plugin workspace is not initialized")
+	}
 	pluginDirs := []string{
 		"content-notice",
 		"org-center",
@@ -330,7 +337,7 @@ func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {
 		registerSourcePluginDirectoryI18N(t, repoRoot, pluginDir)
 	}
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	testCases := []struct {
 		name     string
 		key      string
@@ -439,9 +446,7 @@ func findRepoRootForI18NTest(t *testing.T) string {
 	current := workingDir
 	for {
 		if _, statErr := os.Stat(filepath.Join(current, "apps", "lina-core", "go.mod")); statErr == nil {
-			if _, pluginErr := os.Stat(filepath.Join(current, "apps", "lina-plugins")); pluginErr == nil {
-				return current
-			}
+			return current
 		}
 		parent := filepath.Dir(current)
 		if parent == current {
