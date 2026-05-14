@@ -31,13 +31,13 @@ type ListStrategiesOutput struct {
 
 // StrategyOutput defines one media strategy response.
 type StrategyOutput struct {
-	Id        int64  // Id is the strategy primary key.
-	Name      string // Name is the strategy name.
-	Strategy  string // Strategy is the YAML strategy body.
-	Global    int    // Global marks whether the strategy is global.
-	Enable    int    // Enable marks whether the strategy is enabled.
-	CreatorId int64  // CreatorId is the creator user ID.
-	UpdaterId int64  // UpdaterId is the last updater user ID.
+	Id         int64  // Id is the strategy primary key.
+	Name       string // Name is the strategy name.
+	Strategy   string // Strategy is the YAML strategy body.
+	Global     int    // Global marks whether the strategy is global.
+	Enable     int    // Enable marks whether the strategy is enabled.
+	CreatorId  int64  // CreatorId is the creator user ID.
+	UpdaterId  int64  // UpdaterId is the last updater user ID.
 	CreateTime string // CreateTime is the formatted creation time.
 	UpdateTime string // UpdateTime is the formatted update time.
 }
@@ -358,13 +358,13 @@ func buildStrategyOutput(item *strategyEntity) *StrategyOutput {
 		return &StrategyOutput{}
 	}
 	return &StrategyOutput{
-		Id:        item.Id,
-		Name:      item.Name,
-		Strategy:  item.Strategy,
-		Global:    item.Global,
-		Enable:    item.Enable,
-		CreatorId: item.CreatorId,
-		UpdaterId: item.UpdaterId,
+		Id:         item.Id,
+		Name:       item.Name,
+		Strategy:   item.Strategy,
+		Global:     item.Global,
+		Enable:     item.Enable,
+		CreatorId:  item.CreatorId,
+		UpdaterId:  item.UpdaterId,
 		CreateTime: formatTime(item.CreateTime),
 		UpdateTime: formatTime(item.UpdateTime),
 	}

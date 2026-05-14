@@ -63,6 +63,36 @@ type Service interface {
 	UpdateTenantWhite(ctx context.Context, tenantID string, ip string, in TenantWhiteMutationInput) (*TenantWhiteMutationOutput, error)
 	// DeleteTenantWhite deletes one tenant whitelist entry.
 	DeleteTenantWhite(ctx context.Context, tenantID string, ip string) (*TenantWhiteMutationOutput, error)
+	// ListNodes returns paged media nodes.
+	ListNodes(ctx context.Context, in ListNodesInput) (*ListNodesOutput, error)
+	// GetNode returns one media node by node number.
+	GetNode(ctx context.Context, nodeNum int) (*NodeOutput, error)
+	// CreateNode creates one media node.
+	CreateNode(ctx context.Context, in NodeMutationInput) (*NodeMutationOutput, error)
+	// UpdateNode updates one media node by old node number.
+	UpdateNode(ctx context.Context, oldNodeNum int, in NodeMutationInput) (*NodeMutationOutput, error)
+	// DeleteNode deletes one unreferenced media node.
+	DeleteNode(ctx context.Context, nodeNum int) (*NodeMutationOutput, error)
+	// ListDeviceNodes returns paged device-node mappings.
+	ListDeviceNodes(ctx context.Context, in ListDeviceNodesInput) (*ListDeviceNodesOutput, error)
+	// GetDeviceNode returns one device-node mapping by device ID.
+	GetDeviceNode(ctx context.Context, deviceID string) (*DeviceNodeOutput, error)
+	// CreateDeviceNode creates one device-node mapping.
+	CreateDeviceNode(ctx context.Context, in DeviceNodeMutationInput) (*DeviceNodeMutationOutput, error)
+	// UpdateDeviceNode updates one device-node mapping by old device ID.
+	UpdateDeviceNode(ctx context.Context, oldDeviceID string, in DeviceNodeMutationInput) (*DeviceNodeMutationOutput, error)
+	// DeleteDeviceNode deletes one device-node mapping.
+	DeleteDeviceNode(ctx context.Context, deviceID string) (*DeviceNodeMutationOutput, error)
+	// ListTenantStreamConfigs returns paged tenant stream configs.
+	ListTenantStreamConfigs(ctx context.Context, in ListTenantStreamConfigsInput) (*ListTenantStreamConfigsOutput, error)
+	// GetTenantStreamConfig returns one tenant stream config by tenant ID.
+	GetTenantStreamConfig(ctx context.Context, tenantID string) (*TenantStreamConfigOutput, error)
+	// CreateTenantStreamConfig creates one tenant stream config.
+	CreateTenantStreamConfig(ctx context.Context, in TenantStreamConfigMutationInput) (*TenantStreamConfigMutationOutput, error)
+	// UpdateTenantStreamConfig updates one tenant stream config by old tenant ID.
+	UpdateTenantStreamConfig(ctx context.Context, oldTenantID string, in TenantStreamConfigMutationInput) (*TenantStreamConfigMutationOutput, error)
+	// DeleteTenantStreamConfig deletes one tenant stream config.
+	DeleteTenantStreamConfig(ctx context.Context, tenantID string) (*TenantStreamConfigMutationOutput, error)
 }
 
 // Interface compliance assertion for the default media service implementation.

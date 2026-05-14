@@ -19,6 +19,6 @@ func (c *ControllerV1) GetAlias(ctx context.Context, req *v1.GetAliasReq) (res *
 		Alias:      out.Alias,
 		AutoRemove: out.AutoRemove,
 		StreamPath: out.StreamPath,
-		CreateTime:  out.CreateTime,
+		CreateTime: out.CreateTime,
 	}, nil
 }

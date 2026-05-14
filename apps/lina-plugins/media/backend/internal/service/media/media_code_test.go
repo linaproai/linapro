@@ -46,6 +46,24 @@ func TestMediaBusinessErrorMetadata(t *testing.T) {
 			runtimeCode: "MEDIA_TENANT_WHITE_IP_INVALID",
 			messageKey:  "error.media.tenant.white.ip.invalid",
 		},
+		{
+			name:        "media node referenced",
+			code:        CodeMediaNodeReferenced,
+			runtimeCode: "MEDIA_NODE_REFERENCED",
+			messageKey:  "error.media.node.referenced",
+		},
+		{
+			name:        "device node duplicate",
+			code:        CodeMediaDeviceNodeDuplicate,
+			runtimeCode: "MEDIA_DEVICE_NODE_DUPLICATE",
+			messageKey:  "error.media.device.node.duplicate",
+		},
+		{
+			name:        "tenant stream duplicate",
+			code:        CodeMediaTenantStreamDuplicate,
+			runtimeCode: "MEDIA_TENANT_STREAM_DUPLICATE",
+			messageKey:  "error.media.tenant.stream.duplicate",
+		},
 	}
 
 	for _, testCase := range testCases {

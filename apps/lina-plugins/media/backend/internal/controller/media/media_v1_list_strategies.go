@@ -24,13 +24,13 @@ func (c *ControllerV1) ListStrategies(ctx context.Context, req *v1.ListStrategie
 	items := make([]*v1.StrategyListItem, 0, len(out.List))
 	for _, item := range out.List {
 		items = append(items, &v1.StrategyListItem{
-			Id:        item.Id,
-			Name:      item.Name,
-			Strategy:  item.Strategy,
-			Global:    item.Global,
-			Enable:    item.Enable,
-			CreatorId: item.CreatorId,
-			UpdaterId: item.UpdaterId,
+			Id:         item.Id,
+			Name:       item.Name,
+			Strategy:   item.Strategy,
+			Global:     item.Global,
+			Enable:     item.Enable,
+			CreatorId:  item.CreatorId,
+			UpdaterId:  item.UpdaterId,
 			CreateTime: item.CreateTime,
 			UpdateTime: item.UpdateTime,
 		})

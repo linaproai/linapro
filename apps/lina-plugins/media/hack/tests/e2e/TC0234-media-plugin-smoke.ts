@@ -64,6 +64,29 @@ type TenantWhiteDetail = {
   enable: number;
 };
 
+type NodeDetail = {
+  id: number;
+  nodeNum: number;
+  name: string;
+  qnUrl: string;
+  basicUrl: string;
+  dnUrl: string;
+};
+
+type DeviceNodeDetail = {
+  deviceId: string;
+  nodeNum: number;
+  nodeName: string;
+};
+
+type TenantStreamConfigDetail = {
+  tenantId: string;
+  maxConcurrent: number;
+  nodeNum: number;
+  nodeName: string;
+  enable: number;
+};
+
 async function expectPageHeightStable(page: any, pageName: string) {
   const samples = await page.evaluate(async () => {
     const values: number[] = [];
@@ -105,7 +128,11 @@ async function expectApiResponseSuccess(response: any) {
 }
 
 function visibleModalRoot(page: any) {
-  return page.locator("body");
+  return page.locator('[role="dialog"]:visible').last();
+}
+
+function modalHeading(page: any, title: string) {
+  return page.getByRole("heading", { exact: true, name: title });
 }
 
 async function confirmModal(modal: any) {
@@ -117,7 +144,7 @@ async function confirmModal(modal: any) {
 
 async function confirmPopconfirm(page: any) {
   await page
-    .locator(".ant-popover")
+    .locator(".ant-popover:visible")
     .getByRole("button", { name: /确\s*(定|认)|OK/i })
     .last()
     .click();
@@ -150,6 +177,10 @@ function rowKeyTenantDevice(tenantId: string, deviceId: string) {
 
 function rowKeyTenantWhite(tenantId: string, ip: string) {
   return `${tenantId}:${ip}`;
+}
+
+function nodeSelectLabel(name: string, nodeNum: number) {
+  return `${name} #${nodeNum}`;
 }
 
 async function createStrategy(
@@ -301,6 +332,25 @@ async function deleteTenantWhite(
   );
 }
 
+async function deleteNode(api: AdminApiContext, nodeNum: number) {
+  await expectSuccess(await api.delete(`media/nodes/${nodeNum}`));
+}
+
+async function deleteDeviceNode(api: AdminApiContext, deviceId: string) {
+  await expectSuccess(
+    await api.delete(`media/device-nodes/${pathSegment(deviceId)}`),
+  );
+}
+
+async function deleteTenantStreamConfig(
+  api: AdminApiContext,
+  tenantId: string,
+) {
+  await expectSuccess(
+    await api.delete(`media/tenant-stream-configs/${pathSegment(tenantId)}`),
+  );
+}
+
 test.describe("TC-234 media plugin owned E2E discovery", () => {
   test.beforeEach(async ({ adminPage }) => {
     await ensureSourcePluginEnabled(adminPage, "media");
@@ -386,6 +436,47 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
     await waitForRouteReady(adminPage);
     await expect(adminPage.getByText("流别名").first()).toBeVisible();
     await expectPageHeightStable(adminPage, "流别名页签");
+
+    const nodeResponse = adminPage.waitForResponse(
+      (res) =>
+        res.url().includes("/api/v1/media/nodes") &&
+        res.request().method() === "GET" &&
+        res.status() === 200,
+      { timeout: 15000 },
+    );
+    await adminPage.getByRole("tab", { exact: true, name: "节点管理" }).click();
+    await nodeResponse;
+    await waitForRouteReady(adminPage);
+    await expect(adminPage.getByText("节点管理").first()).toBeVisible();
+    await expectPageHeightStable(adminPage, "节点管理页签");
+
+    const deviceNodeResponse = adminPage.waitForResponse(
+      (res) =>
+        res.url().includes("/api/v1/media/device-nodes") &&
+        res.request().method() === "GET" &&
+        res.status() === 200,
+      { timeout: 15000 },
+    );
+    await adminPage.getByRole("tab", { exact: true, name: "设备节点" }).click();
+    await deviceNodeResponse;
+    await waitForRouteReady(adminPage);
+    await expect(adminPage.getByText("设备节点").first()).toBeVisible();
+    await expectPageHeightStable(adminPage, "设备节点页签");
+
+    const tenantStreamResponse = adminPage.waitForResponse(
+      (res) =>
+        res.url().includes("/api/v1/media/tenant-stream-configs") &&
+        res.request().method() === "GET" &&
+        res.status() === 200,
+      { timeout: 15000 },
+    );
+    await adminPage
+      .getByRole("tab", { exact: true, name: "租户流配置" })
+      .click();
+    await tenantStreamResponse;
+    await waitForRouteReady(adminPage);
+    await expect(adminPage.getByText("租户流配置").first()).toBeVisible();
+    await expectPageHeightStable(adminPage, "租户流配置页签");
 
     const tenantWhiteResponse = adminPage.waitForResponse(
       (res) =>
@@ -543,6 +634,14 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
     const updatedWhiteTenantId = `${tenantId}-white-updated`;
     const ipv6WhiteTenantId = `tenant-ipv6-${suffix}`;
     const ipv6WhiteIp = `2001:db8::${Number(suffix.slice(-4)).toString(16)}`;
+    const nodeNum = (Number(suffix.slice(-4)) % 100) + 20;
+    const updatedNodeNum = nodeNum + 100;
+    const nodeName = `E2E接口节点-${suffix}`;
+    const updatedNodeName = `E2E接口节点更新-${suffix}`;
+    const deviceNodeId = `3402000000140${suffix.slice(-7).padStart(7, "0")}`;
+    const updatedDeviceNodeId = `3402000000141${suffix.slice(-7).padStart(7, "0")}`;
+    const tenantStreamId = `tenant-stream-api-${suffix}`;
+    const updatedTenantStreamId = `${tenantStreamId}-updated`;
 
     let strategyId = 0;
     let replacementStrategyId = 0;
@@ -550,8 +649,175 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
     let tenantWhiteTenantId = "";
     let tenantWhiteIp = "";
     let ipv6TenantWhiteCreated = false;
+    let currentNodeNum = 0;
+    let currentDeviceNodeId = "";
+    let currentTenantStreamId = "";
 
     try {
+      await expectSuccess(
+        await api.post("media/nodes", {
+          data: {
+            nodeNum,
+            name: nodeName,
+            qnUrl: `https://qn-api-${suffix}.example.com`,
+            basicUrl: `https://basic-api-${suffix}.example.com`,
+            dnUrl: `https://dn-api-${suffix}.example.com`,
+          },
+        }),
+      );
+      currentNodeNum = nodeNum;
+      await expect(
+        expectSuccess<NodeDetail>(await api.get(`media/nodes/${nodeNum}`)),
+      ).resolves.toMatchObject({
+        nodeNum,
+        name: nodeName,
+      });
+
+      const listedNodes = await expectSuccess<ListResult<NodeDetail>>(
+        await api.get(
+          `media/nodes?pageNum=1&pageSize=20&keyword=${encodeURIComponent(nodeName)}`,
+        ),
+      );
+      expect(listedNodes.list).toEqual([
+        expect.objectContaining({ nodeNum, name: nodeName }),
+      ]);
+
+      await expectSuccess(
+        await api.put(`media/nodes/${nodeNum}`, {
+          data: {
+            nodeNum: updatedNodeNum,
+            name: updatedNodeName,
+            qnUrl: `https://qn-api-updated-${suffix}.example.com`,
+            basicUrl: `https://basic-api-updated-${suffix}.example.com`,
+            dnUrl: `https://dn-api-updated-${suffix}.example.com`,
+          },
+        }),
+      );
+      currentNodeNum = updatedNodeNum;
+      await expect(
+        expectSuccess<NodeDetail>(
+          await api.get(`media/nodes/${updatedNodeNum}`),
+        ),
+      ).resolves.toMatchObject({
+        nodeNum: updatedNodeNum,
+        name: updatedNodeName,
+      });
+
+      await expectBusinessError(
+        await api.post("media/device-nodes", {
+          data: {
+            deviceId: `${deviceNodeId}-missing`,
+            nodeNum,
+          },
+        }),
+      );
+
+      await expectSuccess(
+        await api.post("media/device-nodes", {
+          data: {
+            deviceId: deviceNodeId,
+            nodeNum: updatedNodeNum,
+          },
+        }),
+      );
+      currentDeviceNodeId = deviceNodeId;
+      await expect(
+        expectSuccess<DeviceNodeDetail>(
+          await api.get(`media/device-nodes/${pathSegment(deviceNodeId)}`),
+        ),
+      ).resolves.toMatchObject({
+        deviceId: deviceNodeId,
+        nodeNum: updatedNodeNum,
+        nodeName: updatedNodeName,
+      });
+
+      await expectSuccess(
+        await api.put(`media/device-nodes/${pathSegment(deviceNodeId)}`, {
+          data: {
+            deviceId: updatedDeviceNodeId,
+            nodeNum: updatedNodeNum,
+          },
+        }),
+      );
+      currentDeviceNodeId = updatedDeviceNodeId;
+      const listedDeviceNodes = await expectSuccess<
+        ListResult<DeviceNodeDetail>
+      >(
+        await api.get(
+          `media/device-nodes?pageNum=1&pageSize=20&keyword=${encodeURIComponent(updatedDeviceNodeId)}`,
+        ),
+      );
+      expect(listedDeviceNodes.list).toEqual([
+        expect.objectContaining({
+          deviceId: updatedDeviceNodeId,
+          nodeNum: updatedNodeNum,
+          nodeName: updatedNodeName,
+        }),
+      ]);
+
+      await expectSuccess(
+        await api.post("media/tenant-stream-configs", {
+          data: {
+            tenantId: tenantStreamId,
+            maxConcurrent: 40,
+            nodeNum: updatedNodeNum,
+            enable: 1,
+          },
+        }),
+      );
+      currentTenantStreamId = tenantStreamId;
+      await expect(
+        expectSuccess<TenantStreamConfigDetail>(
+          await api.get(
+            `media/tenant-stream-configs/${pathSegment(tenantStreamId)}`,
+          ),
+        ),
+      ).resolves.toMatchObject({
+        tenantId: tenantStreamId,
+        maxConcurrent: 40,
+        nodeNum: updatedNodeNum,
+        enable: 1,
+      });
+
+      await expectSuccess(
+        await api.put(
+          `media/tenant-stream-configs/${pathSegment(tenantStreamId)}`,
+          {
+            data: {
+              tenantId: updatedTenantStreamId,
+              maxConcurrent: 80,
+              nodeNum: updatedNodeNum,
+              enable: 0,
+            },
+          },
+        ),
+      );
+      currentTenantStreamId = updatedTenantStreamId;
+      const listedTenantStreams = await expectSuccess<
+        ListResult<TenantStreamConfigDetail>
+      >(
+        await api.get(
+          `media/tenant-stream-configs?pageNum=1&pageSize=20&keyword=${encodeURIComponent(updatedTenantStreamId)}`,
+        ),
+      );
+      expect(listedTenantStreams.list).toEqual([
+        expect.objectContaining({
+          tenantId: updatedTenantStreamId,
+          maxConcurrent: 80,
+          nodeNum: updatedNodeNum,
+          enable: 0,
+        }),
+      ]);
+
+      await expectBusinessError(await api.delete(`media/nodes/${updatedNodeNum}`));
+      await deleteDeviceNode(api, updatedDeviceNodeId);
+      currentDeviceNodeId = "";
+      await deleteTenantStreamConfig(api, updatedTenantStreamId);
+      currentTenantStreamId = "";
+      await deleteNode(api, updatedNodeNum);
+      currentNodeNum = 0;
+      await expectBusinessError(await api.get(`media/nodes/${updatedNodeNum}`));
+
       strategyId = await createStrategy(api, strategyName, strategyBody);
       const strategyDetail = await expectSuccess<StrategyDetail>(
         await api.get(`media/strategies/${strategyId}`),
@@ -895,6 +1161,21 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
           )
           .catch(() => undefined);
       }
+      if (currentTenantStreamId) {
+        await api
+          .delete(
+            `media/tenant-stream-configs/${pathSegment(currentTenantStreamId)}`,
+          )
+          .catch(() => undefined);
+      }
+      if (currentDeviceNodeId) {
+        await api
+          .delete(`media/device-nodes/${pathSegment(currentDeviceNodeId)}`)
+          .catch(() => undefined);
+      }
+      if (currentNodeNum > 0) {
+        await api.delete(`media/nodes/${currentNodeNum}`).catch(() => undefined);
+      }
       if (aliasId > 0) {
         await api
           .delete(`media/stream-aliases/${aliasId}`)
@@ -981,6 +1262,18 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       suffix,
       8,
     )}.${ipv4OctetFromSuffix(suffix, 9)}`;
+    const nodeNum = (Number(suffix.slice(-4)) % 60) + 30;
+    const updatedNodeNum = nodeNum + 80;
+    const createdAfterEditNodeNum = updatedNodeNum + 80;
+    const nodeName = `E2E界面节点-${suffix}`;
+    const updatedNodeName = `E2E界面节点更新-${suffix}`;
+    const createdAfterEditNodeName = `E2E界面新增节点-${suffix}`;
+    const deviceNodeId = `000-e2e-device-node-${suffix}`;
+    const updatedDeviceNodeId = `000-e2e-device-node-updated-${suffix}`;
+    const createdAfterEditDeviceNodeId = `000-e2e-device-node-new-${suffix}`;
+    const tenantStreamId = `000-e2e-stream-tenant-${suffix}`;
+    const updatedTenantStreamId = `000-e2e-stream-updated-${suffix}`;
+    const createdAfterEditTenantStreamId = `000-e2e-stream-new-${suffix}`;
 
     let strategyId = 0;
     let createdAfterEditStrategyId = 0;
@@ -991,6 +1284,12 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
     let tenantWhiteCurrentTenantId = "";
     let tenantWhiteCurrentIp = "";
     let createdAfterEditTenantWhiteCreated = false;
+    let currentNodeNum = 0;
+    let createdAfterEditNodeCreated = false;
+    let currentDeviceNodeId = "";
+    let createdAfterEditDeviceNodeCreated = false;
+    let currentTenantStreamId = "";
+    let createdAfterEditTenantStreamCreated = false;
 
     try {
       strategyId = await createStrategy(api, strategyName, strategyBody);
@@ -1033,6 +1332,38 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       );
       tenantWhiteCurrentTenantId = createdTenantWhite.tenantId;
       tenantWhiteCurrentIp = createdTenantWhite.ip;
+      await expectSuccess(
+        await api.post("media/nodes", {
+          data: {
+            nodeNum,
+            name: nodeName,
+            qnUrl: `https://qn-ui-${suffix}.example.com`,
+            basicUrl: `https://basic-ui-${suffix}.example.com`,
+            dnUrl: `https://dn-ui-${suffix}.example.com`,
+          },
+        }),
+      );
+      currentNodeNum = nodeNum;
+      await expectSuccess(
+        await api.post("media/device-nodes", {
+          data: {
+            deviceId: deviceNodeId,
+            nodeNum,
+          },
+        }),
+      );
+      currentDeviceNodeId = deviceNodeId;
+      await expectSuccess(
+        await api.post("media/tenant-stream-configs", {
+          data: {
+            tenantId: tenantStreamId,
+            maxConcurrent: 90,
+            nodeNum,
+            enable: 1,
+          },
+        }),
+      );
+      currentTenantStreamId = tenantStreamId;
 
       const strategyListResponse = adminPage.waitForResponse(
         (res) =>
@@ -1086,7 +1417,7 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       await confirmModal(strategyModal);
       await expectApiResponseSuccess(await strategyUpdateResponse);
       await expect(
-        adminPage.getByText("编辑媒体策略", { exact: true }),
+        modalHeading(adminPage, "编辑媒体策略"),
       ).toBeHidden({ timeout: 15000 });
       await expect(
         expectSuccess<StrategyDetail>(
@@ -1124,7 +1455,7 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       createdAfterEditStrategyId = createdStrategyPayload.id;
       expect(createdAfterEditStrategyId).toBeGreaterThan(0);
       await expect(
-        adminPage.getByText("新增媒体策略", { exact: true }),
+        modalHeading(adminPage, "新增媒体策略"),
       ).toBeHidden({ timeout: 15000 });
       await expect(
         expectSuccess<StrategyDetail>(
@@ -1220,7 +1551,7 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       await confirmModal(deviceModal);
       await expectApiResponseSuccess(await deviceUpdateResponse);
       await expect(
-        adminPage.getByText("编辑设备策略绑定", { exact: true }),
+        modalHeading(adminPage, "编辑设备策略绑定"),
       ).toBeHidden({ timeout: 15000 });
 
       const deviceAddOptionsResponse = adminPage.waitForResponse(
@@ -1260,7 +1591,7 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
         deviceId: createdAfterEditDeviceId,
       });
       await expect(
-        adminPage.getByText("新增设备策略绑定", { exact: true }),
+        modalHeading(adminPage, "新增设备策略绑定"),
       ).toBeHidden({ timeout: 15000 });
 
       const tenantBindingListResponse = adminPage.waitForResponse(
@@ -1313,7 +1644,7 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       await confirmModal(tenantModal);
       await expectApiResponseSuccess(await tenantUpdateResponse);
       await expect(
-        adminPage.getByText("编辑租户策略绑定", { exact: true }),
+        modalHeading(adminPage, "编辑租户策略绑定"),
       ).toBeHidden({ timeout: 15000 });
 
       const tenantAddOptionsResponse = adminPage.waitForResponse(
@@ -1353,7 +1684,7 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
         tenantId: createdAfterEditTenantId,
       });
       await expect(
-        adminPage.getByText("新增租户策略绑定", { exact: true }),
+        modalHeading(adminPage, "新增租户策略绑定"),
       ).toBeHidden({ timeout: 15000 });
 
       const tenantDeviceBindingListResponse = adminPage.waitForResponse(
@@ -1419,7 +1750,7 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       await confirmModal(tenantDeviceModal);
       await expectApiResponseSuccess(await tenantDeviceUpdateResponse);
       await expect(
-        adminPage.getByText("编辑租户设备策略绑定", { exact: true }),
+        modalHeading(adminPage, "编辑租户设备策略绑定"),
       ).toBeHidden({ timeout: 15000 });
 
       const tenantDeviceAddOptionsResponse = adminPage.waitForResponse(
@@ -1471,7 +1802,7 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
         tenantId: createdAfterEditTenantDeviceTenantId,
       });
       await expect(
-        adminPage.getByText("新增租户设备策略绑定", { exact: true }),
+        modalHeading(adminPage, "新增租户设备策略绑定"),
       ).toBeHidden({ timeout: 15000 });
 
       const resolveResponse = adminPage.waitForResponse(
@@ -1541,7 +1872,7 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       await confirmModal(aliasModal);
       await expectApiResponseSuccess(await aliasUpdateResponse);
       await expect(
-        adminPage.getByText("编辑流别名", { exact: true }),
+        modalHeading(adminPage, "编辑流别名"),
       ).toBeHidden({ timeout: 15000 });
       await expect(
         expectSuccess<AliasDetail>(
@@ -1577,7 +1908,7 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       createdAfterEditAliasId = createdAliasPayload.id;
       expect(createdAfterEditAliasId).toBeGreaterThan(0);
       await expect(
-        adminPage.getByText("新增流别名", { exact: true }),
+        modalHeading(adminPage, "新增流别名"),
       ).toBeHidden({ timeout: 15000 });
       await expect(
         expectSuccess<AliasDetail>(
@@ -1587,6 +1918,317 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
         alias: createdAfterEditAlias,
         streamPath: `live/${createdAfterEditAlias}`,
       });
+
+      const nodeListResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().includes("/api/v1/media/nodes") &&
+          res.request().method() === "GET",
+        { timeout: 15000 },
+      );
+      await adminPage.getByRole("tab", { exact: true, name: "节点管理" }).click();
+      await expectApiResponseSuccess(await nodeListResponse);
+      const nodeRow = tableRowByText(adminPage, nodeName);
+      await expect(nodeRow).toBeVisible();
+      const nodeDetailResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().includes(`/api/v1/media/nodes/${nodeNum}`) &&
+          res.request().method() === "GET",
+        { timeout: 15000 },
+      );
+      await adminPage.getByTestId(`media-node-edit-${nodeNum}`).click();
+      await expectApiResponseSuccess(await nodeDetailResponse);
+      const nodeModal = visibleModalRoot(adminPage);
+      await expect(nodeModal.getByText("编辑节点")).toBeVisible();
+      await expect(
+        nodeModal.getByTestId("media-node-num"),
+      ).toHaveValue(String(nodeNum));
+      await expect(nodeModal.getByTestId("media-node-name")).toHaveValue(
+        nodeName,
+      );
+      await expect(nodeModal.getByTestId("media-node-qn-url")).toHaveValue(
+        `https://qn-ui-${suffix}.example.com`,
+      );
+      await expect(nodeModal.getByTestId("media-node-basic-url")).toHaveValue(
+        `https://basic-ui-${suffix}.example.com`,
+      );
+      await expect(nodeModal.getByTestId("media-node-dn-url")).toHaveValue(
+        `https://dn-ui-${suffix}.example.com`,
+      );
+      await nodeModal
+        .getByTestId("media-node-num")
+        .fill(String(updatedNodeNum));
+      await nodeModal.getByTestId("media-node-name").fill(updatedNodeName);
+      await nodeModal
+        .getByTestId("media-node-qn-url")
+        .fill(`https://qn-ui-updated-${suffix}.example.com`);
+      await nodeModal
+        .getByTestId("media-node-basic-url")
+        .fill(`https://basic-ui-updated-${suffix}.example.com`);
+      await nodeModal
+        .getByTestId("media-node-dn-url")
+        .fill(`https://dn-ui-updated-${suffix}.example.com`);
+      const nodeUpdateResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().includes(`/api/v1/media/nodes/${nodeNum}`) &&
+          res.request().method() === "PUT",
+        { timeout: 15000 },
+      );
+      await confirmModal(nodeModal);
+      await expectApiResponseSuccess(await nodeUpdateResponse);
+      currentNodeNum = updatedNodeNum;
+      await expect(
+        modalHeading(adminPage, "编辑节点"),
+      ).toBeHidden({ timeout: 15000 });
+      await expect(
+        expectSuccess<NodeDetail>(
+          await api.get(`media/nodes/${updatedNodeNum}`),
+        ),
+      ).resolves.toMatchObject({
+        nodeNum: updatedNodeNum,
+        name: updatedNodeName,
+      });
+
+      await adminPage.getByTestId("media-node-add").click();
+      await expect(nodeModal.getByText("新增节点")).toBeVisible();
+      await expect(nodeModal.getByTestId("media-node-name")).toHaveValue("");
+      await nodeModal
+        .getByTestId("media-node-num")
+        .fill(String(createdAfterEditNodeNum));
+      await nodeModal
+        .getByTestId("media-node-name")
+        .fill(createdAfterEditNodeName);
+      await nodeModal
+        .getByTestId("media-node-qn-url")
+        .fill(`https://qn-ui-new-${suffix}.example.com`);
+      await nodeModal
+        .getByTestId("media-node-basic-url")
+        .fill(`https://basic-ui-new-${suffix}.example.com`);
+      await nodeModal
+        .getByTestId("media-node-dn-url")
+        .fill(`https://dn-ui-new-${suffix}.example.com`);
+      const nodeCreateResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().endsWith("/api/v1/media/nodes") &&
+          res.request().method() === "POST",
+        { timeout: 15000 },
+      );
+      await confirmModal(nodeModal);
+      await expect(
+        await expectApiResponseSuccess(await nodeCreateResponse),
+      ).toMatchObject({
+        nodeNum: createdAfterEditNodeNum,
+      });
+      createdAfterEditNodeCreated = true;
+      await expect(
+        modalHeading(adminPage, "新增节点"),
+      ).toBeHidden({ timeout: 15000 });
+
+      const deviceNodeListResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().includes("/api/v1/media/device-nodes") &&
+          res.request().method() === "GET",
+        { timeout: 15000 },
+      );
+      await adminPage.getByRole("tab", { exact: true, name: "设备节点" }).click();
+      await expectApiResponseSuccess(await deviceNodeListResponse);
+      const deviceNodeRow = tableRowByText(adminPage, deviceNodeId);
+      await expect(deviceNodeRow).toBeVisible();
+      const deviceNodeDetailResponse = adminPage.waitForResponse(
+        (res) =>
+          res
+            .url()
+            .includes(`/api/v1/media/device-nodes/${pathSegment(deviceNodeId)}`) &&
+          res.request().method() === "GET",
+        { timeout: 15000 },
+      );
+      const deviceNodeOptionsResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().includes("/api/v1/media/nodes") &&
+          res.request().method() === "GET",
+        { timeout: 15000 },
+      );
+      await adminPage
+        .getByTestId(`media-device-node-edit-${deviceNodeId}`)
+        .click();
+      await expectApiResponseSuccess(await deviceNodeOptionsResponse);
+      await expectApiResponseSuccess(await deviceNodeDetailResponse);
+      const deviceNodeModal = visibleModalRoot(adminPage);
+      await expect(deviceNodeModal.getByText("编辑设备节点")).toBeVisible();
+      await expect(
+        deviceNodeModal.getByTestId("media-device-node-device-id"),
+      ).toHaveValue(deviceNodeId);
+      await expect(
+        deviceNodeModal
+          .getByTestId("media-device-node-node")
+          .locator(".ant-select-selection-item"),
+      ).toContainText(nodeSelectLabel(updatedNodeName, updatedNodeNum));
+      await deviceNodeModal
+        .getByTestId("media-device-node-device-id")
+        .fill(updatedDeviceNodeId);
+      const deviceNodeUpdateResponse = adminPage.waitForResponse(
+        (res) =>
+          res
+            .url()
+            .includes(`/api/v1/media/device-nodes/${pathSegment(deviceNodeId)}`) &&
+          res.request().method() === "PUT",
+        { timeout: 15000 },
+      );
+      await confirmModal(deviceNodeModal);
+      await expectApiResponseSuccess(await deviceNodeUpdateResponse);
+      currentDeviceNodeId = updatedDeviceNodeId;
+      await expect(
+        modalHeading(adminPage, "编辑设备节点"),
+      ).toBeHidden({ timeout: 15000 });
+
+      const deviceNodeAddOptionsResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().includes("/api/v1/media/nodes") &&
+          res.request().method() === "GET",
+        { timeout: 15000 },
+      );
+      await adminPage.getByTestId("media-device-node-add").click();
+      await expectApiResponseSuccess(await deviceNodeAddOptionsResponse);
+      await expect(deviceNodeModal.getByText("新增设备节点")).toBeVisible();
+      await expect(
+        deviceNodeModal.getByTestId("media-device-node-device-id"),
+      ).toHaveValue("");
+      await deviceNodeModal
+        .getByTestId("media-device-node-device-id")
+        .fill(createdAfterEditDeviceNodeId);
+      const deviceNodeCreateResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().endsWith("/api/v1/media/device-nodes") &&
+          res.request().method() === "POST",
+        { timeout: 15000 },
+      );
+      await confirmModal(deviceNodeModal);
+      await expect(
+        await expectApiResponseSuccess(await deviceNodeCreateResponse),
+      ).toMatchObject({
+        deviceId: createdAfterEditDeviceNodeId,
+      });
+      createdAfterEditDeviceNodeCreated = true;
+      await expect(
+        modalHeading(adminPage, "新增设备节点"),
+      ).toBeHidden({ timeout: 15000 });
+
+      const tenantStreamListResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().includes("/api/v1/media/tenant-stream-configs") &&
+          res.request().method() === "GET",
+        { timeout: 15000 },
+      );
+      await adminPage
+        .getByRole("tab", { exact: true, name: "租户流配置" })
+        .click();
+      await expectApiResponseSuccess(await tenantStreamListResponse);
+      const tenantStreamRow = tableRowByText(adminPage, tenantStreamId);
+      await expect(tenantStreamRow).toBeVisible();
+      const tenantStreamDetailResponse = adminPage.waitForResponse(
+        (res) =>
+          res
+            .url()
+            .includes(
+              `/api/v1/media/tenant-stream-configs/${pathSegment(
+                tenantStreamId,
+              )}`,
+            ) && res.request().method() === "GET",
+        { timeout: 15000 },
+      );
+      const tenantStreamOptionsResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().includes("/api/v1/media/nodes") &&
+          res.request().method() === "GET",
+        { timeout: 15000 },
+      );
+      await adminPage
+        .getByTestId(`media-tenant-stream-edit-${tenantStreamId}`)
+        .click();
+      await expectApiResponseSuccess(await tenantStreamOptionsResponse);
+      await expectApiResponseSuccess(await tenantStreamDetailResponse);
+      const tenantStreamModal = visibleModalRoot(adminPage);
+      await expect(
+        tenantStreamModal.getByText("编辑租户流配置"),
+      ).toBeVisible();
+      await expect(
+        tenantStreamModal.getByTestId("media-tenant-stream-tenant-id"),
+      ).toHaveValue(tenantStreamId);
+      await expect(
+        tenantStreamModal.getByTestId("media-tenant-stream-max-concurrent"),
+      ).toHaveValue("90");
+      await expect(
+        tenantStreamModal
+          .getByTestId("media-tenant-stream-node")
+          .locator(".ant-select-selection-item"),
+      ).toContainText(nodeSelectLabel(updatedNodeName, updatedNodeNum));
+      await expectCheckedRadioLabel(
+        tenantStreamModal.getByTestId("media-tenant-stream-enable"),
+        "开启",
+      );
+      await tenantStreamModal
+        .getByTestId("media-tenant-stream-tenant-id")
+        .fill(updatedTenantStreamId);
+      await tenantStreamModal
+        .getByTestId("media-tenant-stream-max-concurrent")
+        .fill("120");
+      await tenantStreamModal
+        .getByTestId("media-tenant-stream-enable")
+        .getByText("关闭")
+        .click();
+      const tenantStreamUpdateResponse = adminPage.waitForResponse(
+        (res) =>
+          res
+            .url()
+            .includes(
+              `/api/v1/media/tenant-stream-configs/${pathSegment(
+                tenantStreamId,
+              )}`,
+            ) && res.request().method() === "PUT",
+        { timeout: 15000 },
+      );
+      await confirmModal(tenantStreamModal);
+      await expectApiResponseSuccess(await tenantStreamUpdateResponse);
+      currentTenantStreamId = updatedTenantStreamId;
+      await expect(
+        modalHeading(adminPage, "编辑租户流配置"),
+      ).toBeHidden({ timeout: 15000 });
+
+      const tenantStreamAddOptionsResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().includes("/api/v1/media/nodes") &&
+          res.request().method() === "GET",
+        { timeout: 15000 },
+      );
+      await adminPage.getByTestId("media-tenant-stream-add").click();
+      await expectApiResponseSuccess(await tenantStreamAddOptionsResponse);
+      await expect(
+        tenantStreamModal.getByText("新增租户流配置"),
+      ).toBeVisible();
+      await expect(
+        tenantStreamModal.getByTestId("media-tenant-stream-tenant-id"),
+      ).toHaveValue("");
+      await tenantStreamModal
+        .getByTestId("media-tenant-stream-tenant-id")
+        .fill(createdAfterEditTenantStreamId);
+      await tenantStreamModal
+        .getByTestId("media-tenant-stream-max-concurrent")
+        .fill("30");
+      const tenantStreamCreateResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().endsWith("/api/v1/media/tenant-stream-configs") &&
+          res.request().method() === "POST",
+        { timeout: 15000 },
+      );
+      await confirmModal(tenantStreamModal);
+      await expect(
+        await expectApiResponseSuccess(await tenantStreamCreateResponse),
+      ).toMatchObject({
+        tenantId: createdAfterEditTenantStreamId,
+      });
+      createdAfterEditTenantStreamCreated = true;
+      await expect(
+        modalHeading(adminPage, "新增租户流配置"),
+      ).toBeHidden({ timeout: 15000 });
 
       const tenantWhiteListResponse = adminPage.waitForResponse(
         (res) =>
@@ -1664,7 +2306,7 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       tenantWhiteCurrentTenantId = updatedTenantWhiteTenantId;
       tenantWhiteCurrentIp = updatedTenantWhiteIp;
       await expect(
-        adminPage.getByText("编辑租户白名单", { exact: true }),
+        modalHeading(adminPage, "编辑租户白名单"),
       ).toBeHidden({ timeout: 15000 });
       await expect(
         expectSuccess<TenantWhiteDetail>(
@@ -1723,7 +2365,7 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       });
       createdAfterEditTenantWhiteCreated = true;
       await expect(
-        adminPage.getByText("新增租户白名单", { exact: true }),
+        modalHeading(adminPage, "新增租户白名单"),
       ).toBeHidden({ timeout: 15000 });
 
       await adminPage.getByRole("tab", { exact: true, name: "设备绑定" }).click();
@@ -1838,6 +2480,110 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       await expectApiResponseSuccess(await tenantWhiteCreatedDeleteResponse);
       createdAfterEditTenantWhiteCreated = false;
 
+      await adminPage
+        .getByRole("tab", { exact: true, name: "租户流配置" })
+        .click();
+      const tenantStreamCreatedDeleteResponse = adminPage.waitForResponse(
+        (res) =>
+          res
+            .url()
+            .includes(
+              `/api/v1/media/tenant-stream-configs/${pathSegment(
+                createdAfterEditTenantStreamId,
+              )}`,
+            ) && res.request().method() === "DELETE",
+        { timeout: 15000 },
+      );
+      await adminPage
+        .getByTestId(`media-tenant-stream-delete-${createdAfterEditTenantStreamId}`)
+        .click();
+      await confirmPopconfirm(adminPage);
+      await expectApiResponseSuccess(await tenantStreamCreatedDeleteResponse);
+      createdAfterEditTenantStreamCreated = false;
+
+      const tenantStreamDeleteResponse = adminPage.waitForResponse(
+        (res) =>
+          res
+            .url()
+            .includes(
+              `/api/v1/media/tenant-stream-configs/${pathSegment(
+                updatedTenantStreamId,
+              )}`,
+            ) && res.request().method() === "DELETE",
+        { timeout: 15000 },
+      );
+      await adminPage
+        .getByTestId(`media-tenant-stream-delete-${updatedTenantStreamId}`)
+        .click();
+      await confirmPopconfirm(adminPage);
+      await expectApiResponseSuccess(await tenantStreamDeleteResponse);
+      currentTenantStreamId = "";
+
+      await adminPage.getByRole("tab", { exact: true, name: "设备节点" }).click();
+      const deviceNodeCreatedDeleteResponse = adminPage.waitForResponse(
+        (res) =>
+          res
+            .url()
+            .includes(
+              `/api/v1/media/device-nodes/${pathSegment(
+                createdAfterEditDeviceNodeId,
+              )}`,
+            ) && res.request().method() === "DELETE",
+        { timeout: 15000 },
+      );
+      await adminPage
+        .getByTestId(`media-device-node-delete-${createdAfterEditDeviceNodeId}`)
+        .click();
+      await confirmPopconfirm(adminPage);
+      await expectApiResponseSuccess(await deviceNodeCreatedDeleteResponse);
+      createdAfterEditDeviceNodeCreated = false;
+
+      const deviceNodeDeleteResponse = adminPage.waitForResponse(
+        (res) =>
+          res
+            .url()
+            .includes(
+              `/api/v1/media/device-nodes/${pathSegment(updatedDeviceNodeId)}`,
+            ) && res.request().method() === "DELETE",
+        { timeout: 15000 },
+      );
+      await adminPage
+        .getByTestId(`media-device-node-delete-${updatedDeviceNodeId}`)
+        .click();
+      await confirmPopconfirm(adminPage);
+      await expectApiResponseSuccess(await deviceNodeDeleteResponse);
+      currentDeviceNodeId = "";
+
+      await adminPage.getByRole("tab", { exact: true, name: "节点管理" }).click();
+      const nodeCreatedDeleteResponse = adminPage.waitForResponse(
+        (res) =>
+          res
+            .url()
+            .includes(`/api/v1/media/nodes/${createdAfterEditNodeNum}`) &&
+          res.request().method() === "DELETE",
+        { timeout: 15000 },
+      );
+      await adminPage
+        .getByTestId(`media-node-delete-${createdAfterEditNodeNum}`)
+        .click();
+      await confirmPopconfirm(adminPage);
+      await expectApiResponseSuccess(await nodeCreatedDeleteResponse);
+      createdAfterEditNodeCreated = false;
+
+      const nodeDeleteResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().includes(`/api/v1/media/nodes/${updatedNodeNum}`) &&
+          res.request().method() === "DELETE",
+        { timeout: 15000 },
+      );
+      await adminPage.getByTestId(`media-node-delete-${updatedNodeNum}`).click();
+      await confirmPopconfirm(adminPage);
+      await expectApiResponseSuccess(await nodeDeleteResponse);
+      currentNodeNum = 0;
+
+      await adminPage
+        .getByRole("tab", { exact: true, name: "租户白名单" })
+        .click();
       const tenantWhiteDeleteResponse = adminPage.waitForResponse(
         (res) =>
           res
@@ -1925,6 +2671,42 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
             )}/${pathSegment(tenantWhiteCurrentIp)}`,
           )
           .catch(() => undefined);
+      }
+      if (createdAfterEditTenantStreamCreated) {
+        await api
+          .delete(
+            `media/tenant-stream-configs/${pathSegment(
+              createdAfterEditTenantStreamId,
+            )}`,
+          )
+          .catch(() => undefined);
+      }
+      if (currentTenantStreamId) {
+        await api
+          .delete(
+            `media/tenant-stream-configs/${pathSegment(currentTenantStreamId)}`,
+          )
+          .catch(() => undefined);
+      }
+      if (createdAfterEditDeviceNodeCreated) {
+        await api
+          .delete(
+            `media/device-nodes/${pathSegment(createdAfterEditDeviceNodeId)}`,
+          )
+          .catch(() => undefined);
+      }
+      if (currentDeviceNodeId) {
+        await api
+          .delete(`media/device-nodes/${pathSegment(currentDeviceNodeId)}`)
+          .catch(() => undefined);
+      }
+      if (createdAfterEditNodeCreated) {
+        await api
+          .delete(`media/nodes/${createdAfterEditNodeNum}`)
+          .catch(() => undefined);
+      }
+      if (currentNodeNum > 0) {
+        await api.delete(`media/nodes/${currentNodeNum}`).catch(() => undefined);
       }
       if (createdAfterEditAliasId > 0) {
         await api

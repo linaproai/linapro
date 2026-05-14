@@ -130,3 +130,90 @@ COMMENT ON COLUMN hg_tenant_white."update_time" IS '修改时间';
 
 CREATE INDEX IF NOT EXISTS idx_hg_tenant_white_enable ON hg_tenant_white ("enable");
 CREATE INDEX IF NOT EXISTS idx_hg_tenant_white_ip ON hg_tenant_white ("ip");
+
+CREATE TABLE IF NOT EXISTS hg_node (
+    "id"          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "node_num"    SMALLINT NOT NULL,
+    "name"        VARCHAR(32) NOT NULL,
+    "qn_url"      VARCHAR(255) NOT NULL,
+    "basic_url"   VARCHAR(255) NOT NULL,
+    "dn_url"      VARCHAR(255) NOT NULL,
+    "creator_id"  INTEGER,
+    "create_time" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updater_id"  INTEGER,
+    "update_time" TIMESTAMP,
+    CONSTRAINT uk_hg_node_node_num UNIQUE ("node_num"),
+    CONSTRAINT ck_hg_node_node_num CHECK ("node_num" BETWEEN 0 AND 255)
+);
+
+COMMENT ON TABLE hg_node IS '节点表';
+COMMENT ON COLUMN hg_node."id" IS 'ID（自增，无符号）';
+COMMENT ON COLUMN hg_node."node_num" IS '节点编号';
+COMMENT ON COLUMN hg_node."name" IS '节点名称';
+COMMENT ON COLUMN hg_node."qn_url" IS '节点网关地址';
+COMMENT ON COLUMN hg_node."basic_url" IS '基础平台网关地址';
+COMMENT ON COLUMN hg_node."dn_url" IS '属地网关地址';
+COMMENT ON COLUMN hg_node."creator_id" IS '创建人ID';
+COMMENT ON COLUMN hg_node."create_time" IS '创建时间';
+COMMENT ON COLUMN hg_node."updater_id" IS '修改人ID';
+COMMENT ON COLUMN hg_node."update_time" IS '修改时间';
+
+CREATE TABLE IF NOT EXISTS hg_tenant_stream_config (
+    "tenant_id"      VARCHAR(64) NOT NULL PRIMARY KEY,
+    "max_concurrent" INTEGER NOT NULL,
+    "node_num"       SMALLINT NOT NULL,
+    "enable"         SMALLINT NOT NULL,
+    "creator_id"     INTEGER,
+    "create_time"    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updater_id"     INTEGER,
+    "update_time"    TIMESTAMP,
+    CONSTRAINT ck_hg_tenant_stream_config_max_concurrent CHECK ("max_concurrent" >= 0),
+    CONSTRAINT ck_hg_tenant_stream_config_node_num CHECK ("node_num" BETWEEN 0 AND 255),
+    CONSTRAINT ck_hg_tenant_stream_config_enable CHECK ("enable" IN (0, 1)),
+    CONSTRAINT fk_hg_tenant_stream_config_node FOREIGN KEY ("node_num") REFERENCES hg_node ("node_num") ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+COMMENT ON TABLE hg_tenant_stream_config IS '租户流配置表';
+COMMENT ON COLUMN hg_tenant_stream_config."tenant_id" IS '租户ID';
+COMMENT ON COLUMN hg_tenant_stream_config."max_concurrent" IS '最大并发数';
+COMMENT ON COLUMN hg_tenant_stream_config."node_num" IS '节点编号';
+COMMENT ON COLUMN hg_tenant_stream_config."enable" IS '1开启，0关闭';
+COMMENT ON COLUMN hg_tenant_stream_config."creator_id" IS '创建人ID';
+COMMENT ON COLUMN hg_tenant_stream_config."create_time" IS '创建时间';
+COMMENT ON COLUMN hg_tenant_stream_config."updater_id" IS '修改人ID';
+COMMENT ON COLUMN hg_tenant_stream_config."update_time" IS '修改时间';
+
+CREATE INDEX IF NOT EXISTS idx_hg_tenant_stream_config_node_num ON hg_tenant_stream_config ("node_num");
+CREATE INDEX IF NOT EXISTS idx_hg_tenant_stream_config_enable ON hg_tenant_stream_config ("enable");
+
+CREATE TABLE IF NOT EXISTS hg_device_node (
+    "device_id" VARCHAR(64) NOT NULL,
+    "node_num"  SMALLINT NOT NULL,
+    CONSTRAINT uk_hg_device_node_device UNIQUE ("device_id"),
+    CONSTRAINT ck_hg_device_node_node_num CHECK ("node_num" BETWEEN 0 AND 255),
+    CONSTRAINT fk_hg_device_node_node FOREIGN KEY ("node_num") REFERENCES hg_node ("node_num") ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+COMMENT ON TABLE hg_device_node IS '设备节点表';
+COMMENT ON COLUMN hg_device_node."device_id" IS '设备国标ID（对应device_code）';
+COMMENT ON COLUMN hg_device_node."node_num" IS '节点编号';
+
+CREATE INDEX IF NOT EXISTS idx_hg_device_node_node_num ON hg_device_node ("node_num");
+
+-- Keep repeated installation deterministic if an earlier local run created the
+-- foreign keys before the ON UPDATE CASCADE rule was finalized.
+ALTER TABLE hg_tenant_stream_config DROP CONSTRAINT IF EXISTS fk_hg_tenant_stream_config_node;
+ALTER TABLE hg_tenant_stream_config
+    ADD CONSTRAINT fk_hg_tenant_stream_config_node
+    FOREIGN KEY ("node_num") REFERENCES hg_node ("node_num")
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE hg_device_node DROP CONSTRAINT IF EXISTS fk_hg_device_node_node;
+ALTER TABLE hg_device_node DROP CONSTRAINT IF EXISTS hg_device_node_pkey;
+ALTER TABLE hg_device_node DROP CONSTRAINT IF EXISTS uk_hg_device_node_device;
+ALTER TABLE hg_device_node
+    ADD CONSTRAINT uk_hg_device_node_device UNIQUE ("device_id");
+ALTER TABLE hg_device_node
+    ADD CONSTRAINT fk_hg_device_node_node
+    FOREIGN KEY ("node_num") REFERENCES hg_node ("node_num")
+    ON UPDATE CASCADE ON DELETE RESTRICT;

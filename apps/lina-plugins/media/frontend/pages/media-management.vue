@@ -10,9 +10,12 @@ import type {
   MediaAlias,
   MediaBindingKind,
   MediaDeviceBinding,
+  MediaDeviceNode,
+  MediaNode,
   MediaStrategy,
   MediaTenantBinding,
   MediaTenantDeviceBinding,
+  MediaTenantStreamConfig,
   MediaTenantWhite,
 } from "./media-client";
 
@@ -41,20 +44,29 @@ import { useVbenVxeGrid } from "#/adapter/vxe-table";
 
 import AliasModal from "./components/alias-modal.vue";
 import BindingModal from "./components/binding-modal.vue";
+import DeviceNodeModal from "./components/device-node-modal.vue";
+import NodeModal from "./components/node-modal.vue";
 import StrategyModal from "./components/strategy-modal.vue";
 import TenantWhiteModal from "./components/tenant-white-modal.vue";
+import TenantStreamConfigModal from "./components/tenant-stream-config-modal.vue";
 import {
   deleteMediaAlias,
   deleteMediaDeviceBinding,
+  deleteMediaDeviceNode,
+  deleteMediaNode,
   deleteMediaStrategy,
   deleteMediaTenantBinding,
   deleteMediaTenantDeviceBinding,
+  deleteMediaTenantStreamConfig,
   deleteMediaTenantWhite,
   listMediaAliases,
   listMediaDeviceBindings,
+  listMediaDeviceNodes,
+  listMediaNodes,
   listMediaStrategies,
   listMediaTenantBindings,
   listMediaTenantDeviceBindings,
+  listMediaTenantStreamConfigs,
   listMediaTenantWhites,
   resolveMediaStrategy,
   setGlobalMediaStrategy,
@@ -110,6 +122,21 @@ const mediaTabs = [
     icon: "lucide:route",
   },
   {
+    key: "nodes",
+    label: "节点管理",
+    icon: "lucide:server",
+  },
+  {
+    key: "deviceNodes",
+    label: "设备节点",
+    icon: "lucide:network",
+  },
+  {
+    key: "tenantStreamConfigs",
+    label: "租户流配置",
+    icon: "lucide:gauge",
+  },
+  {
     key: "tenantWhites",
     label: "租户白名单",
     icon: "lucide:shield-check",
@@ -137,6 +164,15 @@ const [AliasModalRef, aliasModalApi] = useVbenModal({
 });
 const [TenantWhiteModalRef, tenantWhiteModalApi] = useVbenModal({
   connectedComponent: TenantWhiteModal,
+});
+const [NodeModalRef, nodeModalApi] = useVbenModal({
+  connectedComponent: NodeModal,
+});
+const [DeviceNodeModalRef, deviceNodeModalApi] = useVbenModal({
+  connectedComponent: DeviceNodeModal,
+});
+const [TenantStreamConfigModalRef, tenantStreamConfigModalApi] = useVbenModal({
+  connectedComponent: TenantStreamConfigModal,
 });
 
 const [StrategyGrid, strategyGridApi] = useVbenVxeGrid({
@@ -585,6 +621,250 @@ const [TenantWhiteGrid, tenantWhiteGridApi] = useVbenVxeGrid({
   },
 });
 
+const [NodeGrid, nodeGridApi] = useVbenVxeGrid({
+  formOptions: {
+    schema: [
+      {
+        component: "Input",
+        fieldName: "keyword",
+        label: "关键字",
+      },
+    ],
+    commonConfig: {
+      componentProps: {
+        allowClear: true,
+      },
+      labelWidth: 72,
+    },
+    wrapperClass: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
+  },
+  gridOptions: {
+    columns: [
+      {
+        field: "nodeNum",
+        title: "节点编号",
+        width: 100,
+      },
+      {
+        field: "name",
+        minWidth: 150,
+        title: "节点名称",
+      },
+      {
+        field: "qnUrl",
+        minWidth: 220,
+        showOverflow: "tooltip",
+        title: "节点网关地址",
+      },
+      {
+        field: "basicUrl",
+        minWidth: 220,
+        showOverflow: "tooltip",
+        title: "基础平台网关地址",
+      },
+      {
+        field: "dnUrl",
+        minWidth: 220,
+        showOverflow: "tooltip",
+        title: "属地网关地址",
+      },
+      {
+        field: "updateTime",
+        minWidth: 170,
+        title: "更新时间",
+      },
+      {
+        field: "action",
+        fixed: "right",
+        slots: { default: "nodeAction" },
+        title: "操作",
+        width: 170,
+      },
+    ],
+    height: "100%",
+    keepSource: true,
+    pagerConfig: {},
+    proxyConfig: {
+      ajax: {
+        query: async (
+          { page }: { page: { currentPage: number; pageSize: number } },
+          formValues: Record<string, any> = {},
+        ) => {
+          return await listMediaNodes({
+            pageNum: page.currentPage,
+            pageSize: page.pageSize,
+            ...formValues,
+          });
+        },
+      },
+    },
+    rowConfig: {
+      keyField: "nodeNum",
+    },
+    id: "media-node-grid",
+  },
+});
+
+const [DeviceNodeGrid, deviceNodeGridApi] = useVbenVxeGrid({
+  formOptions: {
+    schema: [
+      {
+        component: "Input",
+        fieldName: "keyword",
+        label: "关键字",
+      },
+    ],
+    commonConfig: {
+      componentProps: {
+        allowClear: true,
+      },
+      labelWidth: 72,
+    },
+    wrapperClass: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
+  },
+  gridOptions: {
+    columns: [
+      {
+        field: "deviceId",
+        minWidth: 220,
+        title: "设备国标 ID",
+      },
+      {
+        field: "nodeNum",
+        title: "节点编号",
+        width: 100,
+      },
+      {
+        field: "nodeName",
+        minWidth: 150,
+        title: "节点名称",
+      },
+      {
+        field: "action",
+        fixed: "right",
+        slots: { default: "deviceNodeAction" },
+        title: "操作",
+        width: 170,
+      },
+    ],
+    height: "100%",
+    keepSource: true,
+    pagerConfig: {},
+    proxyConfig: {
+      ajax: {
+        query: async (
+          { page }: { page: { currentPage: number; pageSize: number } },
+          formValues: Record<string, any> = {},
+        ) => {
+          return await listMediaDeviceNodes({
+            pageNum: page.currentPage,
+            pageSize: page.pageSize,
+            ...formValues,
+          });
+        },
+      },
+    },
+    rowConfig: {
+      keyField: "deviceId",
+    },
+    id: "media-device-node-grid",
+  },
+});
+
+const [TenantStreamConfigGrid, tenantStreamConfigGridApi] = useVbenVxeGrid({
+  formOptions: {
+    schema: [
+      {
+        component: "Input",
+        fieldName: "keyword",
+        label: "关键字",
+      },
+      {
+        component: "Select",
+        componentProps: {
+          allowClear: true,
+          options: [
+            { label: "开启", value: 1 },
+            { label: "关闭", value: 0 },
+          ],
+        },
+        fieldName: "enable",
+        label: "启用状态",
+      },
+    ],
+    commonConfig: {
+      componentProps: {
+        allowClear: true,
+      },
+      labelWidth: 72,
+    },
+    wrapperClass: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
+  },
+  gridOptions: {
+    columns: [
+      {
+        field: "tenantId",
+        minWidth: 170,
+        title: "租户 ID",
+      },
+      {
+        field: "maxConcurrent",
+        minWidth: 120,
+        title: "最大并发数",
+      },
+      {
+        field: "nodeNum",
+        title: "节点编号",
+        width: 100,
+      },
+      {
+        field: "nodeName",
+        minWidth: 150,
+        title: "节点名称",
+      },
+      {
+        field: "enable",
+        slots: { default: "tenantStreamEnable" },
+        title: "启用状态",
+        width: 110,
+      },
+      {
+        field: "updateTime",
+        minWidth: 170,
+        title: "更新时间",
+      },
+      {
+        field: "action",
+        fixed: "right",
+        slots: { default: "tenantStreamAction" },
+        title: "操作",
+        width: 170,
+      },
+    ],
+    height: "100%",
+    keepSource: true,
+    pagerConfig: {},
+    proxyConfig: {
+      ajax: {
+        query: async (
+          { page }: { page: { currentPage: number; pageSize: number } },
+          formValues: Record<string, any> = {},
+        ) => {
+          return await listMediaTenantStreamConfigs({
+            pageNum: page.currentPage,
+            pageSize: page.pageSize,
+            ...formValues,
+          });
+        },
+      },
+    },
+    rowConfig: {
+      keyField: "tenantId",
+    },
+    id: "media-tenant-stream-config-grid",
+  },
+});
+
 function canAdd() {
   return hasAccessByCodes([accessCodes.add]);
 }
@@ -607,6 +887,10 @@ function activeGridApi() {
   if (activeTab.value === "tenantDeviceBindings")
     return tenantDeviceBindingGridApi;
   if (activeTab.value === "aliases") return aliasGridApi;
+  if (activeTab.value === "nodes") return nodeGridApi;
+  if (activeTab.value === "deviceNodes") return deviceNodeGridApi;
+  if (activeTab.value === "tenantStreamConfigs")
+    return tenantStreamConfigGridApi;
   if (activeTab.value === "tenantWhites") return tenantWhiteGridApi;
   if (activeTab.value === "strategies") return strategyGridApi;
   return null;
@@ -741,6 +1025,54 @@ async function handleDeleteTenantWhite(row: MediaTenantWhite) {
   await tenantWhiteGridApi.query();
 }
 
+function handleAddNode() {
+  nodeModalApi.setData({ nodeNum: undefined });
+  nodeModalApi.open();
+}
+
+function handleEditNode(row: MediaNode) {
+  nodeModalApi.setData({ nodeNum: row.nodeNum });
+  nodeModalApi.open();
+}
+
+async function handleDeleteNode(row: MediaNode) {
+  await deleteMediaNode(row.nodeNum);
+  message.success("节点已删除");
+  await nodeGridApi.query();
+}
+
+function handleAddDeviceNode() {
+  deviceNodeModalApi.setData({ deviceId: undefined });
+  deviceNodeModalApi.open();
+}
+
+function handleEditDeviceNode(row: MediaDeviceNode) {
+  deviceNodeModalApi.setData({ deviceId: row.deviceId });
+  deviceNodeModalApi.open();
+}
+
+async function handleDeleteDeviceNode(row: MediaDeviceNode) {
+  await deleteMediaDeviceNode(row.deviceId);
+  message.success("设备节点已删除");
+  await deviceNodeGridApi.query();
+}
+
+function handleAddTenantStreamConfig() {
+  tenantStreamConfigModalApi.setData({ tenantId: undefined });
+  tenantStreamConfigModalApi.open();
+}
+
+function handleEditTenantStreamConfig(row: MediaTenantStreamConfig) {
+  tenantStreamConfigModalApi.setData({ tenantId: row.tenantId });
+  tenantStreamConfigModalApi.open();
+}
+
+async function handleDeleteTenantStreamConfig(row: MediaTenantStreamConfig) {
+  await deleteMediaTenantStreamConfig(row.tenantId);
+  message.success("租户流配置已删除");
+  await tenantStreamConfigGridApi.query();
+}
+
 function reloadStrategies() {
   strategyGridApi.query();
 }
@@ -761,6 +1093,18 @@ function reloadAliases() {
 
 function reloadTenantWhites() {
   tenantWhiteGridApi.query();
+}
+
+function reloadNodes() {
+  nodeGridApi.query();
+}
+
+function reloadDeviceNodes() {
+  deviceNodeGridApi.query();
+}
+
+function reloadTenantStreamConfigs() {
+  tenantStreamConfigGridApi.query();
 }
 </script>
 
@@ -1146,11 +1490,179 @@ function reloadTenantWhites() {
         </div>
       </TabPane>
 
-      <TabPane key="tenantWhites">
+      <TabPane key="nodes">
         <template #tab>
           <span class="media-tab-label">
             <IconifyIcon :icon="mediaTabs[6].icon" />
             <span>{{ mediaTabs[6].label }}</span>
+          </span>
+        </template>
+        <div class="media-tab-pane">
+          <NodeGrid
+            class="min-h-0 flex-1 overflow-hidden"
+            table-title="节点管理"
+          >
+            <template #toolbar-tools>
+              <a-button
+                v-if="canAdd()"
+                data-testid="media-node-add"
+                type="primary"
+                @click="handleAddNode"
+              >
+                <template #icon>
+                  <IconifyIcon icon="lucide:plus" />
+                </template>
+                新增节点
+              </a-button>
+            </template>
+
+            <template #nodeAction="{ row }">
+              <Space>
+                <ghost-button
+                  v-if="canEdit()"
+                  :data-testid="`media-node-edit-${row.nodeNum}`"
+                  @click.stop="handleEditNode(row)"
+                >
+                  编辑
+                </ghost-button>
+                <Popconfirm
+                  v-if="canRemove()"
+                  title="确认删除该节点？已被设备节点或租户流配置引用的节点不能删除。"
+                  @confirm="handleDeleteNode(row)"
+                >
+                  <ghost-button
+                    danger
+                    :data-testid="`media-node-delete-${row.nodeNum}`"
+                    @click.stop=""
+                  >
+                    删除
+                  </ghost-button>
+                </Popconfirm>
+              </Space>
+            </template>
+          </NodeGrid>
+        </div>
+      </TabPane>
+
+      <TabPane key="deviceNodes">
+        <template #tab>
+          <span class="media-tab-label">
+            <IconifyIcon :icon="mediaTabs[7].icon" />
+            <span>{{ mediaTabs[7].label }}</span>
+          </span>
+        </template>
+        <div class="media-tab-pane">
+          <DeviceNodeGrid
+            class="min-h-0 flex-1 overflow-hidden"
+            table-title="设备节点"
+          >
+            <template #toolbar-tools>
+              <a-button
+                v-if="canAdd()"
+                data-testid="media-device-node-add"
+                type="primary"
+                @click="handleAddDeviceNode"
+              >
+                <template #icon>
+                  <IconifyIcon icon="lucide:plus" />
+                </template>
+                新增设备节点
+              </a-button>
+            </template>
+
+            <template #deviceNodeAction="{ row }">
+              <Space>
+                <ghost-button
+                  v-if="canEdit()"
+                  :data-testid="`media-device-node-edit-${row.deviceId}`"
+                  @click.stop="handleEditDeviceNode(row)"
+                >
+                  编辑
+                </ghost-button>
+                <Popconfirm
+                  v-if="canRemove()"
+                  title="确认删除该设备节点？"
+                  @confirm="handleDeleteDeviceNode(row)"
+                >
+                  <ghost-button
+                    danger
+                    :data-testid="`media-device-node-delete-${row.deviceId}`"
+                    @click.stop=""
+                  >
+                    删除
+                  </ghost-button>
+                </Popconfirm>
+              </Space>
+            </template>
+          </DeviceNodeGrid>
+        </div>
+      </TabPane>
+
+      <TabPane key="tenantStreamConfigs">
+        <template #tab>
+          <span class="media-tab-label">
+            <IconifyIcon :icon="mediaTabs[8].icon" />
+            <span>{{ mediaTabs[8].label }}</span>
+          </span>
+        </template>
+        <div class="media-tab-pane">
+          <TenantStreamConfigGrid
+            class="min-h-0 flex-1 overflow-hidden"
+            table-title="租户流配置"
+          >
+            <template #toolbar-tools>
+              <a-button
+                v-if="canAdd()"
+                data-testid="media-tenant-stream-add"
+                type="primary"
+                @click="handleAddTenantStreamConfig"
+              >
+                <template #icon>
+                  <IconifyIcon icon="lucide:plus" />
+                </template>
+                新增流配置
+              </a-button>
+            </template>
+
+            <template #tenantStreamEnable="{ row }">
+              <Tag :color="row.enable === 1 ? 'green' : 'default'">
+                {{ row.enable === 1 ? "开启" : "关闭" }}
+              </Tag>
+            </template>
+
+            <template #tenantStreamAction="{ row }">
+              <Space>
+                <ghost-button
+                  v-if="canEdit()"
+                  :data-testid="`media-tenant-stream-edit-${row.tenantId}`"
+                  @click.stop="handleEditTenantStreamConfig(row)"
+                >
+                  编辑
+                </ghost-button>
+                <Popconfirm
+                  v-if="canRemove()"
+                  title="确认删除该租户流配置？"
+                  @confirm="handleDeleteTenantStreamConfig(row)"
+                >
+                  <ghost-button
+                    danger
+                    :data-testid="`media-tenant-stream-delete-${row.tenantId}`"
+                    @click.stop=""
+                  >
+                    删除
+                  </ghost-button>
+                </Popconfirm>
+              </Space>
+            </template>
+          </TenantStreamConfigGrid>
+        </div>
+      </TabPane>
+
+      <TabPane key="tenantWhites">
+        <template #tab>
+          <span class="media-tab-label">
+            <IconifyIcon :icon="mediaTabs[9].icon" />
+            <span>{{ mediaTabs[9].label }}</span>
           </span>
         </template>
         <div class="media-tab-pane">
@@ -1210,6 +1722,9 @@ function reloadTenantWhites() {
     <StrategyModalRef @reload="reloadStrategies" />
     <BindingModalRef @reload="reloadBindings" />
     <AliasModalRef @reload="reloadAliases" />
+    <NodeModalRef @reload="reloadNodes" />
+    <DeviceNodeModalRef @reload="reloadDeviceNodes" />
+    <TenantStreamConfigModalRef @reload="reloadTenantStreamConfigs" />
     <TenantWhiteModalRef @reload="reloadTenantWhites" />
   </Page>
 </template>

@@ -1,6 +1,6 @@
 # media
 
-`media` is a LinaPro source plugin for media strategy, strategy binding, stream alias, and tenant whitelist management.
+`media` is a LinaPro source plugin for media strategy, strategy binding, stream alias, node config, device-node, tenant stream config, and tenant whitelist management.
 
 This module is intentionally Chinese-only for user-facing copy. It does not ship runtime i18n JSON or apidoc i18n JSON.
 
@@ -10,6 +10,7 @@ This module is intentionally Chinese-only for user-facing copy. It does not ship
 - Device, tenant, and tenant-device strategy bindings
 - Effective strategy preview with priority resolution
 - Stream alias CRUD
+- Node, device-node, and tenant stream config CRUD
 - Tenant whitelist CRUD
 
 ## Development

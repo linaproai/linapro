@@ -31,7 +31,7 @@ type AliasOutput struct {
 	Alias      string // Alias is the stream alias.
 	AutoRemove int    // AutoRemove marks whether the alias should be automatically removed.
 	StreamPath string // StreamPath is the real stream path.
-	CreateTime  string // CreateTime is the formatted creation time.
+	CreateTime string // CreateTime is the formatted creation time.
 }
 
 // AliasMutationInput defines stream alias create/update input.
@@ -203,6 +203,6 @@ func buildAliasOutput(item *aliasEntity) *AliasOutput {
 		Alias:      item.Alias,
 		AutoRemove: item.AutoRemove,
 		StreamPath: item.StreamPath,
-		CreateTime:  formatTime(item.CreateTime),
+		CreateTime: formatTime(item.CreateTime),
 	}
 }

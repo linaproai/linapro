@@ -26,7 +26,7 @@ func (c *ControllerV1) ListAliases(ctx context.Context, req *v1.ListAliasesReq) 
 			Alias:      item.Alias,
 			AutoRemove: item.AutoRemove,
 			StreamPath: item.StreamPath,
-			CreateTime:  item.CreateTime,
+			CreateTime: item.CreateTime,
 		})
 	}
 	return &v1.ListAliasesRes{List: items, Total: out.Total}, nil

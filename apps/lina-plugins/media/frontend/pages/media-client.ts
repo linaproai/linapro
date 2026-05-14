@@ -117,6 +117,76 @@ export interface MediaTenantWhiteInput {
   enable: number;
 }
 
+export interface MediaNode {
+  id: number;
+  nodeNum: number;
+  name: string;
+  qnUrl: string;
+  basicUrl: string;
+  dnUrl: string;
+  creatorId: number;
+  createTime: string;
+  updaterId: number;
+  updateTime: string;
+}
+
+export interface MediaNodeListParams {
+  pageNum?: number;
+  pageSize?: number;
+  keyword?: string;
+}
+
+export interface MediaNodeInput {
+  nodeNum: number;
+  name: string;
+  qnUrl: string;
+  basicUrl: string;
+  dnUrl: string;
+}
+
+export interface MediaDeviceNode {
+  deviceId: string;
+  nodeNum: number;
+  nodeName: string;
+}
+
+export interface MediaDeviceNodeListParams {
+  pageNum?: number;
+  pageSize?: number;
+  keyword?: string;
+}
+
+export interface MediaDeviceNodeInput {
+  deviceId: string;
+  nodeNum: number;
+}
+
+export interface MediaTenantStreamConfig {
+  tenantId: string;
+  maxConcurrent: number;
+  nodeNum: number;
+  nodeName: string;
+  enable: number;
+  creatorId: number;
+  createTime: string;
+  updaterId: number;
+  updateTime: string;
+}
+
+export interface MediaTenantStreamConfigListParams {
+  pageNum?: number;
+  pageSize?: number;
+  keyword?: string;
+  enable?: number;
+}
+
+export interface MediaTenantStreamConfigInput {
+  tenantId: string;
+  maxConcurrent: number;
+  nodeNum: number;
+  enable: number;
+}
+
 export async function listMediaStrategies(params?: MediaStrategyListParams) {
   const res = await requestClient.get<{
     list: MediaStrategy[];
@@ -313,5 +383,112 @@ export function deleteMediaTenantWhite(tenantId: string, ip: string) {
     `/media/tenant-whites/${encodePathSegment(
       tenantId,
     )}/${encodePathSegment(ip)}`,
+  );
+}
+
+export async function listMediaNodes(params?: MediaNodeListParams) {
+  const res = await requestClient.get<{ list: MediaNode[]; total: number }>(
+    "/media/nodes",
+    { params },
+  );
+  return { items: res.list, total: res.total };
+}
+
+export function getMediaNode(nodeNum: number) {
+  return requestClient.get<MediaNode>(`/media/nodes/${nodeNum}`);
+}
+
+export function createMediaNode(data: MediaNodeInput) {
+  return requestClient.post<{ nodeNum: number }>("/media/nodes", data);
+}
+
+export function updateMediaNode(oldNodeNum: number, data: MediaNodeInput) {
+  return requestClient.put<{ nodeNum: number }>(
+    `/media/nodes/${oldNodeNum}`,
+    data,
+  );
+}
+
+export function deleteMediaNode(nodeNum: number) {
+  return requestClient.delete(`/media/nodes/${nodeNum}`);
+}
+
+export async function listMediaDeviceNodes(
+  params?: MediaDeviceNodeListParams,
+) {
+  const res = await requestClient.get<{
+    list: MediaDeviceNode[];
+    total: number;
+  }>("/media/device-nodes", { params });
+  return { items: res.list, total: res.total };
+}
+
+export function getMediaDeviceNode(deviceId: string) {
+  return requestClient.get<MediaDeviceNode>(
+    `/media/device-nodes/${encodePathSegment(deviceId)}`,
+  );
+}
+
+export function createMediaDeviceNode(data: MediaDeviceNodeInput) {
+  return requestClient.post<{ deviceId: string }>(
+    "/media/device-nodes",
+    data,
+  );
+}
+
+export function updateMediaDeviceNode(
+  oldDeviceId: string,
+  data: MediaDeviceNodeInput,
+) {
+  return requestClient.put<{ deviceId: string }>(
+    `/media/device-nodes/${encodePathSegment(oldDeviceId)}`,
+    data,
+  );
+}
+
+export function deleteMediaDeviceNode(deviceId: string) {
+  return requestClient.delete(
+    `/media/device-nodes/${encodePathSegment(deviceId)}`,
+  );
+}
+
+export async function listMediaTenantStreamConfigs(
+  params?: MediaTenantStreamConfigListParams,
+) {
+  const res = await requestClient.get<{
+    list: MediaTenantStreamConfig[];
+    total: number;
+  }>("/media/tenant-stream-configs", { params });
+  return { items: res.list, total: res.total };
+}
+
+export function getMediaTenantStreamConfig(tenantId: string) {
+  return requestClient.get<MediaTenantStreamConfig>(
+    `/media/tenant-stream-configs/${encodePathSegment(tenantId)}`,
+  );
+}
+
+export function createMediaTenantStreamConfig(
+  data: MediaTenantStreamConfigInput,
+) {
+  return requestClient.post<{ tenantId: string }>(
+    "/media/tenant-stream-configs",
+    data,
+  );
+}
+
+export function updateMediaTenantStreamConfig(
+  oldTenantId: string,
+  data: MediaTenantStreamConfigInput,
+) {
+  return requestClient.put<{ tenantId: string }>(
+    `/media/tenant-stream-configs/${encodePathSegment(oldTenantId)}`,
+    data,
+  );
+}
+
+export function deleteMediaTenantStreamConfig(tenantId: string) {
+  return requestClient.delete(
+    `/media/tenant-stream-configs/${encodePathSegment(tenantId)}`,
   );
 }

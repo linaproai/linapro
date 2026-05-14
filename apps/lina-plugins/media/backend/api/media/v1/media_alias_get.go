@@ -16,5 +16,5 @@ type GetAliasRes struct {
 	Alias      string `json:"alias" dc:"流别名" eg:"camera-01"`
 	AutoRemove int    `json:"autoRemove" dc:"是否自动移除：1是，0否" eg:"0"`
 	StreamPath string `json:"streamPath" dc:"真实流路径" eg:"live/camera-01"`
-	CreateTime  string `json:"createTime" dc:"创建时间" eg:"2026-05-13 10:00:00"`
+	CreateTime string `json:"createTime" dc:"创建时间" eg:"2026-05-13 10:00:00"`
 }

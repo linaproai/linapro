@@ -35,6 +35,17 @@ const (
 	WhiteEnabled WhiteEnableValue = 1
 )
 
+// TenantStreamEnableValue is the numeric on/off enum used by tenant stream config records.
+type TenantStreamEnableValue int
+
+// Tenant stream config enable values.
+const (
+	// TenantStreamDisabled means the tenant stream config is disabled.
+	TenantStreamDisabled TenantStreamEnableValue = 0
+	// TenantStreamEnabled means the tenant stream config is enabled.
+	TenantStreamEnabled TenantStreamEnableValue = 1
+)
+
 // StrategySource is the string enum returned by effective strategy resolution.
 type StrategySource string
 

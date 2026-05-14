@@ -93,4 +93,76 @@ var (
 	CodeMediaTenantWhiteUpdateFailed = bizerr.MustDefine("MEDIA_TENANT_WHITE_UPDATE_FAILED", "更新租户白名单失败", gcode.CodeInternalError)
 	// CodeMediaTenantWhiteDeleteFailed reports that tenant whitelist deletion failed.
 	CodeMediaTenantWhiteDeleteFailed = bizerr.MustDefine("MEDIA_TENANT_WHITE_DELETE_FAILED", "删除租户白名单失败", gcode.CodeInternalError)
+	// CodeMediaNodeNumInvalid reports that a media node number is invalid.
+	CodeMediaNodeNumInvalid = bizerr.MustDefine("MEDIA_NODE_NUM_INVALID", "节点编号必须在0到255之间", gcode.CodeInvalidParameter)
+	// CodeMediaNodeNameRequired reports that media node name is missing.
+	CodeMediaNodeNameRequired = bizerr.MustDefine("MEDIA_NODE_NAME_REQUIRED", "节点名称不能为空", gcode.CodeInvalidParameter)
+	// CodeMediaNodeNameTooLong reports that media node name is too long.
+	CodeMediaNodeNameTooLong = bizerr.MustDefine("MEDIA_NODE_NAME_TOO_LONG", "节点名称长度不能超过32个字符", gcode.CodeInvalidParameter)
+	// CodeMediaNodeURLRequired reports that media node gateway URL is missing.
+	CodeMediaNodeURLRequired = bizerr.MustDefine("MEDIA_NODE_URL_REQUIRED", "节点网关地址不能为空", gcode.CodeInvalidParameter)
+	// CodeMediaNodeURLTooLong reports that media node gateway URL is too long.
+	CodeMediaNodeURLTooLong = bizerr.MustDefine("MEDIA_NODE_URL_TOO_LONG", "节点网关地址长度不能超过255个字符", gcode.CodeInvalidParameter)
+	// CodeMediaNodeNotFound reports that a media node does not exist.
+	CodeMediaNodeNotFound = bizerr.MustDefine("MEDIA_NODE_NOT_FOUND", "媒体节点不存在", gcode.CodeNotFound)
+	// CodeMediaNodeDuplicate reports that a media node number already exists.
+	CodeMediaNodeDuplicate = bizerr.MustDefine("MEDIA_NODE_DUPLICATE", "媒体节点编号已存在", gcode.CodeInvalidParameter)
+	// CodeMediaNodeReferenced reports that a media node is referenced by config rows.
+	CodeMediaNodeReferenced = bizerr.MustDefine("MEDIA_NODE_REFERENCED", "该媒体节点仍被设备节点或租户流配置引用，不能删除", gcode.CodeInvalidOperation)
+	// CodeMediaNodeCountQueryFailed reports that media node count query failed.
+	CodeMediaNodeCountQueryFailed = bizerr.MustDefine("MEDIA_NODE_COUNT_QUERY_FAILED", "查询媒体节点总数失败", gcode.CodeInternalError)
+	// CodeMediaNodeListQueryFailed reports that media node list query failed.
+	CodeMediaNodeListQueryFailed = bizerr.MustDefine("MEDIA_NODE_LIST_QUERY_FAILED", "查询媒体节点列表失败", gcode.CodeInternalError)
+	// CodeMediaNodeDetailQueryFailed reports that media node detail query failed.
+	CodeMediaNodeDetailQueryFailed = bizerr.MustDefine("MEDIA_NODE_DETAIL_QUERY_FAILED", "查询媒体节点详情失败", gcode.CodeInternalError)
+	// CodeMediaNodeCreateFailed reports that media node creation failed.
+	CodeMediaNodeCreateFailed = bizerr.MustDefine("MEDIA_NODE_CREATE_FAILED", "创建媒体节点失败", gcode.CodeInternalError)
+	// CodeMediaNodeUpdateFailed reports that media node update failed.
+	CodeMediaNodeUpdateFailed = bizerr.MustDefine("MEDIA_NODE_UPDATE_FAILED", "更新媒体节点失败", gcode.CodeInternalError)
+	// CodeMediaNodeDeleteFailed reports that media node deletion failed.
+	CodeMediaNodeDeleteFailed = bizerr.MustDefine("MEDIA_NODE_DELETE_FAILED", "删除媒体节点失败", gcode.CodeInternalError)
+	// CodeMediaDeviceNodeDeviceRequired reports that device-node device ID is missing.
+	CodeMediaDeviceNodeDeviceRequired = bizerr.MustDefine("MEDIA_DEVICE_NODE_DEVICE_REQUIRED", "设备国标ID不能为空", gcode.CodeInvalidParameter)
+	// CodeMediaDeviceNodeDeviceTooLong reports that device-node device ID is too long.
+	CodeMediaDeviceNodeDeviceTooLong = bizerr.MustDefine("MEDIA_DEVICE_NODE_DEVICE_TOO_LONG", "设备国标ID长度不能超过64个字符", gcode.CodeInvalidParameter)
+	// CodeMediaDeviceNodeNotFound reports that a device-node mapping does not exist.
+	CodeMediaDeviceNodeNotFound = bizerr.MustDefine("MEDIA_DEVICE_NODE_NOT_FOUND", "设备节点不存在", gcode.CodeNotFound)
+	// CodeMediaDeviceNodeDuplicate reports that a device-node mapping already exists.
+	CodeMediaDeviceNodeDuplicate = bizerr.MustDefine("MEDIA_DEVICE_NODE_DUPLICATE", "设备节点已存在", gcode.CodeInvalidParameter)
+	// CodeMediaDeviceNodeCountQueryFailed reports that device-node count query failed.
+	CodeMediaDeviceNodeCountQueryFailed = bizerr.MustDefine("MEDIA_DEVICE_NODE_COUNT_QUERY_FAILED", "查询设备节点总数失败", gcode.CodeInternalError)
+	// CodeMediaDeviceNodeListQueryFailed reports that device-node list query failed.
+	CodeMediaDeviceNodeListQueryFailed = bizerr.MustDefine("MEDIA_DEVICE_NODE_LIST_QUERY_FAILED", "查询设备节点列表失败", gcode.CodeInternalError)
+	// CodeMediaDeviceNodeDetailQueryFailed reports that device-node detail query failed.
+	CodeMediaDeviceNodeDetailQueryFailed = bizerr.MustDefine("MEDIA_DEVICE_NODE_DETAIL_QUERY_FAILED", "查询设备节点详情失败", gcode.CodeInternalError)
+	// CodeMediaDeviceNodeCreateFailed reports that device-node creation failed.
+	CodeMediaDeviceNodeCreateFailed = bizerr.MustDefine("MEDIA_DEVICE_NODE_CREATE_FAILED", "创建设备节点失败", gcode.CodeInternalError)
+	// CodeMediaDeviceNodeUpdateFailed reports that device-node update failed.
+	CodeMediaDeviceNodeUpdateFailed = bizerr.MustDefine("MEDIA_DEVICE_NODE_UPDATE_FAILED", "更新设备节点失败", gcode.CodeInternalError)
+	// CodeMediaDeviceNodeDeleteFailed reports that device-node deletion failed.
+	CodeMediaDeviceNodeDeleteFailed = bizerr.MustDefine("MEDIA_DEVICE_NODE_DELETE_FAILED", "删除设备节点失败", gcode.CodeInternalError)
+	// CodeMediaTenantStreamTenantRequired reports that tenant stream config tenant ID is missing.
+	CodeMediaTenantStreamTenantRequired = bizerr.MustDefine("MEDIA_TENANT_STREAM_TENANT_REQUIRED", "租户ID不能为空", gcode.CodeInvalidParameter)
+	// CodeMediaTenantStreamTenantTooLong reports that tenant stream config tenant ID is too long.
+	CodeMediaTenantStreamTenantTooLong = bizerr.MustDefine("MEDIA_TENANT_STREAM_TENANT_TOO_LONG", "租户ID长度不能超过64个字符", gcode.CodeInvalidParameter)
+	// CodeMediaTenantStreamMaxConcurrentInvalid reports that tenant stream max concurrency is invalid.
+	CodeMediaTenantStreamMaxConcurrentInvalid = bizerr.MustDefine("MEDIA_TENANT_STREAM_MAX_CONCURRENT_INVALID", "最大并发数不能小于0", gcode.CodeInvalidParameter)
+	// CodeMediaTenantStreamEnableInvalid reports that tenant stream enable value is invalid.
+	CodeMediaTenantStreamEnableInvalid = bizerr.MustDefine("MEDIA_TENANT_STREAM_ENABLE_INVALID", "租户流配置启用状态只能是0或1", gcode.CodeInvalidParameter)
+	// CodeMediaTenantStreamNotFound reports that a tenant stream config does not exist.
+	CodeMediaTenantStreamNotFound = bizerr.MustDefine("MEDIA_TENANT_STREAM_NOT_FOUND", "租户流配置不存在", gcode.CodeNotFound)
+	// CodeMediaTenantStreamDuplicate reports that a tenant stream config already exists.
+	CodeMediaTenantStreamDuplicate = bizerr.MustDefine("MEDIA_TENANT_STREAM_DUPLICATE", "租户流配置已存在", gcode.CodeInvalidParameter)
+	// CodeMediaTenantStreamCountQueryFailed reports that tenant stream config count query failed.
+	CodeMediaTenantStreamCountQueryFailed = bizerr.MustDefine("MEDIA_TENANT_STREAM_COUNT_QUERY_FAILED", "查询租户流配置总数失败", gcode.CodeInternalError)
+	// CodeMediaTenantStreamListQueryFailed reports that tenant stream config list query failed.
+	CodeMediaTenantStreamListQueryFailed = bizerr.MustDefine("MEDIA_TENANT_STREAM_LIST_QUERY_FAILED", "查询租户流配置列表失败", gcode.CodeInternalError)
+	// CodeMediaTenantStreamDetailQueryFailed reports that tenant stream config detail query failed.
+	CodeMediaTenantStreamDetailQueryFailed = bizerr.MustDefine("MEDIA_TENANT_STREAM_DETAIL_QUERY_FAILED", "查询租户流配置详情失败", gcode.CodeInternalError)
+	// CodeMediaTenantStreamCreateFailed reports that tenant stream config creation failed.
+	CodeMediaTenantStreamCreateFailed = bizerr.MustDefine("MEDIA_TENANT_STREAM_CREATE_FAILED", "创建租户流配置失败", gcode.CodeInternalError)
+	// CodeMediaTenantStreamUpdateFailed reports that tenant stream config update failed.
+	CodeMediaTenantStreamUpdateFailed = bizerr.MustDefine("MEDIA_TENANT_STREAM_UPDATE_FAILED", "更新租户流配置失败", gcode.CodeInternalError)
+	// CodeMediaTenantStreamDeleteFailed reports that tenant stream config deletion failed.
+	CodeMediaTenantStreamDeleteFailed = bizerr.MustDefine("MEDIA_TENANT_STREAM_DELETE_FAILED", "删除租户流配置失败", gcode.CodeInternalError)
 )

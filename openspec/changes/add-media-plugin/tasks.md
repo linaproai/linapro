@@ -61,9 +61,31 @@
 - [x] **FB-13**: 增加 `hg_tenant_white` 租户白名单表及相关业务逻辑
 - [x] **FB-14**: 租户白名单 IP 必须在后端校验为有效 IPv4 或 IPv6 地址
 - [x] **FB-15**: 优化媒体管理页面顶部 Tab 视觉效果
+- [x] **FB-16**: 增加 `hg_tenant_stream_config`、`hg_device_node`、`hg_node` 表及相关业务逻辑
+- [x] **FB-17**: `hg_device_node.device_id` 应按原表结构使用唯一约束而不是主键
 
 ## Feedback 验证记录
 
+- [x] FB-17 将 `hg_device_node.device_id` 从 PostgreSQL 主键改为普通非空字段，并新增 `uk_hg_device_node_device` 唯一约束，对齐 `media_v2.md` 中 `UNIQUE KEY uk_device(device_id)`。
+- [x] FB-17 插件安装 SQL 的重复执行修正段会移除旧本地库中的 `hg_device_node_pkey`，再重建 `uk_hg_device_node_device` 和节点外键，保证重放后结构一致。
+- [x] `psql` 约束断言通过：`hg_device_node` 当前 `primary_count=0`、`unique_count=1`，约束为 `uk_hg_device_node_device|UNIQUE (device_id)` 与 `fk_hg_device_node_node|ON UPDATE CASCADE ON DELETE RESTRICT`。
+- [x] `psql` 连续执行 `apps/lina-plugins/media/manifest/sql/001-media-schema.sql` 两次通过。
+- [x] FB-16 新增 `hg_node`、`hg_device_node`、`hg_tenant_stream_config` PostgreSQL 表，字段名保持截图中的 `tenant_id/device_id/node_num/create_time/update_time` 等原始命名，MySQL `tinyint(1)` 转为 `smallint`，`datetime` 转为 PostgreSQL `timestamp`。
+- [x] FB-16 新增节点、设备节点、租户流配置三组独立 REST 资源：`/media/nodes`、`/media/device-nodes`、`/media/tenant-stream-configs`，支持分页查询、新增、详情、修改、删除；设备节点和租户流配置均校验引用节点存在。
+- [x] FB-16 新增“节点管理”“设备节点”“租户流配置”独立页签和编辑弹窗，覆盖新增、编辑回显、自然键修改、节点选择、启用状态和删除；页面顶部 Tab 保持优化后的紧凑分段样式。
+- [x] FB-16 新增案例数据：`华东媒体节点`、`华北媒体节点`，设备 `34020000001320000001/34020000001320000002`，租户流配置 `tenant-retail-east/tenant-park-security`；`psql` 连续执行 `manifest/sql/mock-data/001-media-mock-data.sql` 两次通过，第二次全部 `INSERT 0 0`，不重复写入。
+- [x] `psql` 结构断言通过：`hg_node` 字段为 `id:integer:NO`、`node_num:smallint:NO`、`name:varchar(32):NO`、`qn_url/basic_url/dn_url:varchar(255):NO`、`creator_id:integer:YES`、`create_time:timestamp without time zone:NO`、`updater_id:integer:YES`、`update_time:timestamp without time zone:YES`。
+- [x] `psql` 结构断言通过：`hg_device_node` 字段为 `device_id:varchar(64):NO`、`node_num:smallint:NO`；`hg_tenant_stream_config` 字段为 `tenant_id:varchar(64):NO`、`max_concurrent:integer:NO`、`node_num:smallint:NO`、`enable:smallint:NO`、`creator_id:integer:YES`、`create_time:timestamp without time zone:NO`、`updater_id:integer:YES`、`update_time:timestamp without time zone:YES`。
+- [x] `psql` 外键断言通过：`fk_hg_device_node_node` 与 `fk_hg_tenant_stream_config_node` 均为 `ON UPDATE CASCADE ON DELETE RESTRICT`；插件安装 SQL 重复执行时会重建外键，避免旧本地约束保留 `NO ACTION`。
+- [x] `go test ./...` 于 `apps/lina-plugins/media` 通过。
+- [x] `pnpm -C apps/lina-vben -F @lina/web-antd typecheck` 通过。
+- [x] `pnpm exec tsc -p tsconfig.json --noEmit --pretty false` 于 `hack/tests` 通过。
+- [x] `./node_modules/.bin/playwright test apps/lina-plugins/media/hack/tests/e2e/TC0234-media-plugin-smoke.ts` 通过，5 条用例全部通过，覆盖三组新增接口的 REST 语义、页面页签加载、编辑回显、节点编号级联、被引用节点删除保护和完整清理流程。
+- [x] `pnpm -C hack/tests test:validate` 通过。
+- [x] `openspec validate add-media-plugin --strict` 通过。
+- [x] `git diff --check` 通过。
+- [x] i18n 影响评估：本模块按用户要求中文-only，FB-16 未新增运行时 i18n、manifest i18n 或 apidoc i18n 资源。
+- [x] 缓存影响评估：FB-16 未新增缓存，节点、设备节点和租户流配置列表与详情均直接读取 PostgreSQL，不涉及跨实例缓存一致性问题。
 - [x] FB-15 将媒体管理顶部 Tab 优化为紧凑分段导航样式，增加图标、当前态背景和横向滚动容器，保留原有中文 tab 名称和切换行为。
 - [x] FB-15 修复 E2E 白名单 IP 数据生成逻辑，避免后端严格 IPv4 校验下生成带前导零的非法地址。
 - [x] 视觉探针通过：媒体管理页面渲染 7 个 `.media-tab-label` 与 7 个图标，tab 工具条高度 48px，页面高度采样稳定为 `900,900,900,900,900`，截图已保存至 `temp/media-tabs-optimized.png`。
@@ -216,3 +238,6 @@
 - [x] 审查确认媒体配置仍为平台共享，不引入宿主租户隔离和数据权限过滤；权威边界由 `media:management:*` 菜单权限控制。
 - [x] 审查确认本轮未新增缓存，策略解析和页面列表均直接读取 PostgreSQL；不存在跨实例缓存一致性影响。
 - [x] 审查确认本模块按用户要求中文-only，未新增运行时 i18n、manifest i18n 或 apidoc i18n 资源。
+- [x] FB-16 审查确认节点、设备节点、租户流配置为三组独立 REST 资源，页面按钮、前端 client、Controller、Service 与 SQL 表结构一一对应，未混入策略绑定接口。
+- [x] FB-16 审查确认新增表仍为平台共享配置，不引入 `host_tenant_id`；节点删除前由服务层检查设备节点和租户流配置引用，数据库外键使用 `ON UPDATE CASCADE ON DELETE RESTRICT` 兜底。
+- [x] FB-16 审查确认新增案例数据使用稳定业务键和 `NOT EXISTS` 判断保持幂等，未显式写入自增 `id`。

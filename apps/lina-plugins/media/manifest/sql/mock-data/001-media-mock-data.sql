@@ -212,6 +212,164 @@ WHERE NOT EXISTS (
     WHERE existing."alias" = 'temporary-event-room'
 );
 
+INSERT INTO hg_node (
+    "node_num",
+    "name",
+    "qn_url",
+    "basic_url",
+    "dn_url",
+    "creator_id",
+    "create_time",
+    "updater_id",
+    "update_time"
+)
+SELECT
+    1,
+    '华东媒体节点',
+    'https://qn-east.example.com',
+    'https://basic-east.example.com',
+    'https://dn-east.example.com',
+    admin."id",
+    '2026-05-13 10:12:00',
+    admin."id",
+    '2026-05-13 10:12:00'
+FROM sys_user admin
+WHERE admin."username" = 'admin'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM hg_node existing
+      WHERE existing."node_num" = 1
+  );
+
+INSERT INTO hg_node (
+    "node_num",
+    "name",
+    "qn_url",
+    "basic_url",
+    "dn_url",
+    "creator_id",
+    "create_time",
+    "updater_id",
+    "update_time"
+)
+SELECT
+    2,
+    '华北媒体节点',
+    'https://qn-north.example.com',
+    'https://basic-north.example.com',
+    'https://dn-north.example.com',
+    admin."id",
+    '2026-05-13 10:14:00',
+    admin."id",
+    '2026-05-13 10:14:00'
+FROM sys_user admin
+WHERE admin."username" = 'admin'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM hg_node existing
+      WHERE existing."node_num" = 2
+  );
+
+INSERT INTO hg_device_node (
+    "device_id",
+    "node_num"
+)
+SELECT
+    '34020000001320000001',
+    1
+WHERE EXISTS (
+    SELECT 1
+    FROM hg_node node
+    WHERE node."node_num" = 1
+)
+  AND NOT EXISTS (
+      SELECT 1
+      FROM hg_device_node existing
+      WHERE existing."device_id" = '34020000001320000001'
+  );
+
+INSERT INTO hg_device_node (
+    "device_id",
+    "node_num"
+)
+SELECT
+    '34020000001320000002',
+    2
+WHERE EXISTS (
+    SELECT 1
+    FROM hg_node node
+    WHERE node."node_num" = 2
+)
+  AND NOT EXISTS (
+      SELECT 1
+      FROM hg_device_node existing
+      WHERE existing."device_id" = '34020000001320000002'
+  );
+
+INSERT INTO hg_tenant_stream_config (
+    "tenant_id",
+    "max_concurrent",
+    "node_num",
+    "enable",
+    "creator_id",
+    "create_time",
+    "updater_id",
+    "update_time"
+)
+SELECT
+    'tenant-retail-east',
+    80,
+    1,
+    1,
+    admin."id",
+    '2026-05-13 10:16:00',
+    admin."id",
+    '2026-05-13 10:16:00'
+FROM sys_user admin
+WHERE admin."username" = 'admin'
+  AND EXISTS (
+      SELECT 1
+      FROM hg_node node
+      WHERE node."node_num" = 1
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM hg_tenant_stream_config existing
+      WHERE existing."tenant_id" = 'tenant-retail-east'
+  );
+
+INSERT INTO hg_tenant_stream_config (
+    "tenant_id",
+    "max_concurrent",
+    "node_num",
+    "enable",
+    "creator_id",
+    "create_time",
+    "updater_id",
+    "update_time"
+)
+SELECT
+    'tenant-park-security',
+    160,
+    2,
+    1,
+    admin."id",
+    '2026-05-13 10:18:00',
+    admin."id",
+    '2026-05-13 10:18:00'
+FROM sys_user admin
+WHERE admin."username" = 'admin'
+  AND EXISTS (
+      SELECT 1
+      FROM hg_node node
+      WHERE node."node_num" = 2
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM hg_tenant_stream_config existing
+      WHERE existing."tenant_id" = 'tenant-park-security'
+  );
+
 INSERT INTO hg_tenant_white (
     "tenant_id",
     "ip",

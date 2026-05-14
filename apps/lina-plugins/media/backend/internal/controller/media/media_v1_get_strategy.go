@@ -15,13 +15,13 @@ func (c *ControllerV1) GetStrategy(ctx context.Context, req *v1.GetStrategyReq) 
 		return nil, err
 	}
 	return &v1.GetStrategyRes{
-		Id:        out.Id,
-		Name:      out.Name,
-		Strategy:  out.Strategy,
-		Global:    out.Global,
-		Enable:    out.Enable,
-		CreatorId: out.CreatorId,
-		UpdaterId: out.UpdaterId,
+		Id:         out.Id,
+		Name:       out.Name,
+		Strategy:   out.Strategy,
+		Global:     out.Global,
+		Enable:     out.Enable,
+		CreatorId:  out.CreatorId,
+		UpdaterId:  out.UpdaterId,
 		CreateTime: out.CreateTime,
 		UpdateTime: out.UpdateTime,
 	}, nil
