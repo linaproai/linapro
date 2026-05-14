@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/coordination"
 )
 
 // fakePluginRuntimeCacheCoordService provides deterministic cachecoord behavior
@@ -311,13 +312,13 @@ func TestControllerMarkChangedCarriesTenantScope(t *testing.T) {
 func TestControllerConsumesCrossInstancePluginRuntimeRevision(t *testing.T) {
 	ctx := context.Background()
 	scope := cachecoord.Scope("unit-test-plugin-runtime-dual")
-	cleanupPluginRuntimeRevision(t, ctx, scope)
+	coordSvc := coordination.NewMemory(nil)
 
 	publisher := NewControllerForScopeWithCoordinator(
 		scope,
 		RuntimeCacheChangeReason,
 		true,
-		cachecoord.New(cachecoord.NewStaticTopology(true)),
+		cachecoord.NewWithCoordination(cachecoord.NewStaticTopology(true), coordSvc),
 		NewObservedRevision(),
 		nil,
 	)
@@ -326,7 +327,7 @@ func TestControllerConsumesCrossInstancePluginRuntimeRevision(t *testing.T) {
 		scope,
 		RuntimeCacheChangeReason,
 		true,
-		cachecoord.New(cachecoord.NewStaticTopology(true)),
+		cachecoord.NewWithCoordination(cachecoord.NewStaticTopology(true), coordSvc),
 		NewObservedRevision(),
 		func(_ context.Context) error {
 			atomic.AddInt32(&refreshCalls, 1)

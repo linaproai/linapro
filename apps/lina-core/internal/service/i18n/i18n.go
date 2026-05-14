@@ -174,16 +174,15 @@ type serviceImpl struct {
 	runtimeCacheRevisionCtl *pluginruntimecache.Controller
 }
 
-// New creates and returns a new i18n service instance.
-func New() Service {
-	configSvc := config.New()
+// New creates an i18n service from explicit runtime-owned dependencies.
+func New(bizCtxSvc bizctx.Service, configSvc config.Service, cacheCoordSvc cachecoord.Service) Service {
 	service := &serviceImpl{
-		bizCtxSvc: bizctx.New(),
+		bizCtxSvc: bizCtxSvc,
 		configSvc: configSvc,
 	}
 	service.runtimeCacheRevisionCtl = pluginruntimecache.NewControllerWithCoordinator(
 		configSvc.IsClusterEnabled(context.Background()),
-		cachecoord.Default(cachecoord.NewStaticTopology(configSvc.IsClusterEnabled(context.Background()))),
+		cacheCoordSvc,
 		runtimeI18nCacheObservedRevision,
 		func(ctx context.Context) error {
 			service.InvalidateRuntimeBundleCache(InvalidateScope{

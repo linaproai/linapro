@@ -46,6 +46,9 @@ func TestListManagedCronJobsSkipsDynamicDiscoveryForSourcePlugins(t *testing.T) 
 	executor := &recordingDynamicCronExecutor{}
 	services.Integration.SetDynamicCronExecutor(executor)
 
+	pluginID := "plugin-source-cron-dynamic-skip"
+	testutil.CreateTestPluginDir(t, pluginID)
+
 	manifests, err := services.Catalog.ScanManifests()
 	if err != nil {
 		t.Fatalf("expected manifest scan to succeed, got error: %v", err)

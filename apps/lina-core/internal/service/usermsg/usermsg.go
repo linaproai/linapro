@@ -6,7 +6,6 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/service/bizctx"
-	i18nsvc "lina-core/internal/service/i18n"
 	notifysvc "lina-core/internal/service/notify"
 	"lina-core/pkg/bizerr"
 )
@@ -66,12 +65,12 @@ type usermsgI18nTranslator interface {
 	Translate(ctx context.Context, key string, fallback string) string
 }
 
-// New creates and returns a new Service instance.
-func New() Service {
+// New creates a usermsg service from explicit runtime-owned dependencies.
+func New(bizCtxSvc bizctx.Service, notifySvc notifysvc.Service, i18nSvc usermsgI18nTranslator) Service {
 	return &serviceImpl{
-		bizCtxSvc: bizctx.New(),
-		notifySvc: notifysvc.New(),
-		i18nSvc:   i18nsvc.New(),
+		bizCtxSvc: bizCtxSvc,
+		notifySvc: notifySvc,
+		i18nSvc:   i18nSvc,
 	}
 }
 

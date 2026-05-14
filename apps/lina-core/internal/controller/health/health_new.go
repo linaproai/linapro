@@ -16,9 +16,6 @@ type ControllerV1 struct {
 
 // NewV1 creates a host health controller instance.
 func NewV1(configSvc config.Service, clusterSvc cluster.Service) health.IHealthV1 {
-	if configSvc == nil {
-		configSvc = config.New()
-	}
 	return &ControllerV1{
 		clusterSvc: clusterSvc,
 		configSvc:  configSvc,

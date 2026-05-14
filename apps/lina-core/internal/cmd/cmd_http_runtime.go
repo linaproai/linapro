@@ -11,31 +11,72 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/service/apidoc"
+	"lina-core/internal/service/auth"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/config"
+	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/cron"
+	"lina-core/internal/service/datascope"
+	"lina-core/internal/service/dict"
+	"lina-core/internal/service/file"
+	"lina-core/internal/service/hostlock"
+	i18nsvc "lina-core/internal/service/i18n"
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
+	"lina-core/internal/service/kvcache"
+	"lina-core/internal/service/locker"
+	"lina-core/internal/service/menu"
 	"lina-core/internal/service/middleware"
+	"lina-core/internal/service/notify"
 	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/internal/service/pluginhostservices"
+	"lina-core/internal/service/role"
+	"lina-core/internal/service/session"
 	"lina-core/internal/service/startupstats"
+	"lina-core/internal/service/sysconfig"
+	sysinfosvc "lina-core/internal/service/sysinfo"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
+	"lina-core/internal/service/user"
+	"lina-core/internal/service/usermsg"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
+	"lina-core/pkg/pluginhost"
 )
 
 // httpRuntime groups long-lived services that must be shared across HTTP
 // startup phases without re-constructing them in each route binding helper.
 type httpRuntime struct {
-	configSvc     config.Service                 // configSvc reads static and runtime host settings shared by startup helpers.
-	clusterSvc    cluster.Service                // clusterSvc owns primary-election lifecycle for clustered deployments.
-	pluginSvc     pluginsvc.Service              // pluginSvc owns plugin lifecycle, runtime assets, routes, and hooks.
-	apiDocSvc     apidoc.Service                 // apiDocSvc builds the host-managed OpenAPI document.
-	jobRegistry   jobhandlersvc.Registry         // jobRegistry stores host and plugin scheduled-job handlers.
-	jobMgmtSvc    jobmgmtsvc.Service             // jobMgmtSvc backs scheduled-job management controllers and cron projection.
-	middlewareSvc middleware.Service             // middlewareSvc publishes host middleware chains for static and plugin routes.
-	cronSvc       cron.Service                   // cronSvc starts host-level and persistent scheduled jobs.
-	serverCfg     *config.ServerExtensionsConfig // serverCfg contains host extension route settings such as API docs.
+	configSvc       config.Service       // configSvc reads static and runtime host settings shared by startup helpers.
+	coordinationSvc coordination.Service // coordinationSvc owns Redis-backed distributed coordination resources.
+	clusterSvc      cluster.Service      // clusterSvc owns primary-election lifecycle for clustered deployments.
+	pluginSvc       pluginsvc.Service    // pluginSvc owns plugin lifecycle, runtime assets, routes, and hooks.
+	authSvc         auth.Service         // authSvc owns JWT, session, and token-state flows.
+	authTokenIssuer auth.TenantTokenIssuer
+	bizCtxSvc       bizctx.Service          // bizCtxSvc owns request-scoped business context mutation.
+	i18nSvc         i18nsvc.Service         // i18nSvc owns runtime language bundles and localization.
+	orgCapSvc       orgcap.Service          // orgCapSvc exposes optional organization capability.
+	roleSvc         role.Service            // roleSvc owns permission and access snapshot state.
+	sessionStore    session.Store           // sessionStore owns online-session persistence and hot state.
+	tenantSvc       tenantcapsvc.Service    // tenantSvc exposes optional multi-tenant capability.
+	kvCacheSvc      kvcache.Service         // kvCacheSvc owns runtime-selected KV backend.
+	hostServices    pluginhost.HostServices // hostServices publishes runtime-owned adapters to source plugins.
+	dictSvc         dict.Service            // dictSvc owns dictionary lookup and maintenance.
+	fileSvc         file.Service            // fileSvc owns file metadata and storage operations.
+	menuSvc         menu.Service            // menuSvc owns menu tree and permission menu lookup.
+	notifySvc       notify.Service          // notifySvc owns unified notification delivery.
+	sysConfigSvc    sysconfig.Service       // sysConfigSvc owns mutable runtime configuration records.
+	sysInfoSvc      sysinfosvc.Service      // sysInfoSvc owns runtime diagnostics projection.
+	userSvc         user.Service            // userSvc owns host user management operations.
+	userMsgSvc      usermsg.Service         // userMsgSvc owns current-user inbox operations.
+	apiDocSvc       apidoc.Service          // apiDocSvc builds the host-managed OpenAPI document.
+	jobRegistry     jobhandlersvc.Registry
+	jobMgmtSvc      jobmgmtsvc.Service
+	middlewareSvc   middleware.Service
+	cronSvc         cron.Service
+	serverCfg       *config.ServerExtensionsConfig // serverCfg contains host extension route settings such as API docs.
 }
 
 // pluginStartupConsistencyValidator is the narrow startup contract required to
@@ -112,45 +153,167 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		return nil, err
 	}
 
+	clusterCfg := configSvc.GetCluster(ctx)
+	coordinationSvc, err := newHTTPCoordinationService(ctx, clusterCfg, configSvc)
+	if err != nil {
+		return nil, err
+	}
+	clusterSvc := cluster.NewWithCoordination(clusterCfg, coordinationSvc)
+	if clusterCfg != nil && clusterCfg.Enabled {
+		cachecoord.DefaultWithCoordination(clusterSvc, coordinationSvc)
+		configureDistributedKVCache(coordinationSvc)
+		locker.ConfigureCoordination(coordinationSvc)
+		session.ConfigureCoordination(coordinationSvc)
+	} else {
+		configureLocalKVCache()
+		locker.ConfigureCoordination(nil)
+		session.ConfigureCoordination(nil)
+	}
+
 	var (
-		clusterSvc    = cluster.New(configSvc.GetCluster(ctx))
-		pluginSvc     = pluginsvc.New(clusterSvc)
-		apiDocSvc     = apidoc.New(configSvc, pluginSvc)
+		bizCtxSvc     = bizctx.New()
+		sessionStore  = session.NewDBStore()
+		cacheCoordSvc = cachecoord.Default(clusterSvc)
+		i18nSvc       = i18nsvc.New(bizCtxSvc, configSvc, cacheCoordSvc)
+		pluginSvc     = pluginsvc.New(clusterSvc, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, sessionStore)
+		orgCapSvc     = orgcap.New(pluginSvc)
+		tenantSvc     = tenantcapsvc.New(pluginSvc, bizCtxSvc)
+		kvCacheSvc    = kvcache.New()
+		roleSvc       = role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
+		scopeSvc      = datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
+		dictSvc       = dict.New(i18nSvc)
+		menuSvc       = menu.New(pluginSvc, i18nSvc, roleSvc)
+		notifySvc     = notify.New(tenantSvc)
+		authSvc       = auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
+		fileSvc       = file.New(configSvc, file.NewLocalStorage(configSvc.GetUploadPath(ctx)), bizCtxSvc, dictSvc, scopeSvc)
+		sysConfigSvc  = sysconfig.New(configSvc, i18nSvc)
+		sysInfoSvc    = sysinfosvc.New(configSvc, clusterSvc, coordinationSvc, cacheCoordSvc)
+		userSvc       = user.New(authSvc, bizCtxSvc, i18nSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc)
+		userMsgSvc    = usermsg.New(bizCtxSvc, notifySvc, i18nSvc)
+		apiDocSvc     = apidoc.New(configSvc, bizCtxSvc, i18nSvc, pluginSvc)
+		authTokenSvc  = authSvc.(auth.TenantTokenIssuer)
 		jobRegistry   = jobhandlersvc.New()
 		jobScheduler  = jobmgmtsvc.NewScheduler(clusterSvc, jobRegistry, configSvc)
-		jobMgmtSvc    = jobmgmtsvc.New(configSvc, jobRegistry, jobScheduler, orgcap.New(pluginSvc))
-		middlewareSvc = middleware.New()
+		jobMgmtSvc    = jobmgmtsvc.New(bizCtxSvc, configSvc, i18nSvc, jobRegistry, jobScheduler, scopeSvc)
+		middlewareSvc = middleware.New(authSvc, bizCtxSvc, configSvc, i18nSvc, pluginSvc, roleSvc, tenantSvc)
+		hostServices  = pluginhostservices.New(
+			apiDocSvc,
+			authSvc,
+			authTokenSvc,
+			bizCtxSvc,
+			scopeSvc,
+			i18nSvc,
+			pluginSvc,
+			sessionStore,
+			tenantSvc,
+			notifySvc,
+		)
+	)
+	roleSvc.SetDataScopeService(scopeSvc)
+	pluginSvc.SetHostServices(hostServices)
+	pluginSvc.SetTenantCapability(tenantSvc)
+	pluginsvc.ConfigureWasmHostServices(
+		kvCacheSvc,
+		hostlock.New(locker.New()),
+		notifySvc,
+		configSvc,
+		hostServices.Config(),
 	)
 
 	// Host-owned handler definitions are registered before cron startup so the
 	// persistent scheduler can project and validate code-owned jobs immediately.
 	if err := jobhandlersvc.RegisterHostHandlers(jobRegistry, jobMgmtSvc); err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, err
 	}
 
 	sessionCfg, err := configSvc.GetSession(ctx)
 	if err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, err
 	}
 
 	return &httpRuntime{
-		configSvc:     configSvc,
-		clusterSvc:    clusterSvc,
-		pluginSvc:     pluginSvc,
-		apiDocSvc:     apiDocSvc,
-		jobRegistry:   jobRegistry,
-		jobMgmtSvc:    jobMgmtSvc,
-		middlewareSvc: middlewareSvc,
-		cronSvc: cron.New(
-			sessionCfg,
-			middlewareSvc.SessionStore(),
-			clusterSvc,
-			jobRegistry,
-			jobMgmtSvc,
-			jobScheduler,
-		),
-		serverCfg: configSvc.GetServerExtensions(ctx),
+		configSvc:       configSvc,
+		coordinationSvc: coordinationSvc,
+		clusterSvc:      clusterSvc,
+		pluginSvc:       pluginSvc,
+		authSvc:         authSvc,
+		authTokenIssuer: authTokenSvc,
+		bizCtxSvc:       bizCtxSvc,
+		i18nSvc:         i18nSvc,
+		orgCapSvc:       orgCapSvc,
+		roleSvc:         roleSvc,
+		sessionStore:    sessionStore,
+		tenantSvc:       tenantSvc,
+		kvCacheSvc:      kvCacheSvc,
+		hostServices:    hostServices,
+		dictSvc:         dictSvc,
+		fileSvc:         fileSvc,
+		menuSvc:         menuSvc,
+		notifySvc:       notifySvc,
+		sysConfigSvc:    sysConfigSvc,
+		sysInfoSvc:      sysInfoSvc,
+		userSvc:         userSvc,
+		userMsgSvc:      userMsgSvc,
+		apiDocSvc:       apiDocSvc,
+		jobRegistry:     jobRegistry,
+		jobMgmtSvc:      jobMgmtSvc,
+		middlewareSvc:   middlewareSvc,
+		cronSvc:         cron.New(configSvc, roleSvc, kvCacheSvc, pluginSvc, sessionCfg, sessionStore, clusterSvc, jobRegistry, jobMgmtSvc, jobScheduler),
+		serverCfg:       configSvc.GetServerExtensions(ctx),
 	}, nil
+}
+
+// configureDistributedKVCache switches process-default short-lived KV cache
+// state to the shared coordination KV backend.
+func configureDistributedKVCache(coordinationSvc coordination.Service) {
+	kvcache.SetDefaultProvider(kvcache.NewCoordinationKVProvider(coordinationSvc))
+}
+
+// configureLocalKVCache restores the SQL table backend used by single-node
+// deployments and tests.
+func configureLocalKVCache() {
+	kvcache.SetDefaultProvider(kvcache.NewSQLTableProvider())
+}
+
+// newHTTPCoordinationService creates the distributed coordination provider for
+// cluster mode and intentionally returns nil in single-node deployments.
+func newHTTPCoordinationService(
+	ctx context.Context,
+	clusterCfg *config.ClusterConfig,
+	configSvc config.Service,
+) (coordination.Service, error) {
+	if clusterCfg == nil || !clusterCfg.Enabled {
+		return nil, nil
+	}
+	if clusterCfg.Coordination != config.ClusterCoordinationRedis {
+		return nil, gerror.Newf("cluster.coordination=%s is unsupported; only redis is supported", clusterCfg.Coordination)
+	}
+	redisCfg := configSvc.GetClusterRedis(ctx)
+	if redisCfg == nil {
+		return nil, gerror.New("cluster.redis is required when cluster.coordination=redis")
+	}
+	return coordination.NewRedis(ctx, coordination.RedisOptions{
+		Address:        redisCfg.Address,
+		DB:             redisCfg.DB,
+		Password:       redisCfg.Password,
+		ConnectTimeout: redisCfg.ConnectTimeout,
+		ReadTimeout:    redisCfg.ReadTimeout,
+		WriteTimeout:   redisCfg.WriteTimeout,
+		KeyBuilder:     coordination.DefaultKeyBuilder(),
+	})
+}
+
+// closeHTTPCoordinationAfterInitError best-effort closes Redis coordination
+// resources when later HTTP runtime construction fails.
+func closeHTTPCoordinationAfterInitError(ctx context.Context, coordinationSvc coordination.Service) {
+	if coordinationSvc == nil {
+		return
+	}
+	if closeErr := coordinationSvc.Close(ctx); closeErr != nil {
+		logger.Warningf(ctx, "close coordination after runtime init failure: %v", closeErr)
+	}
 }
 
 // startHTTPRuntime starts cluster, plugin, and cron services in the order
@@ -264,6 +427,15 @@ func shutdownHTTPRuntime(ctx context.Context, runtime *httpRuntime, configSvc co
 		if err := shutdownStep(shutdownCtx, "cluster service", func(stepCtx context.Context) error {
 			runtime.clusterSvc.Stop(stepCtx)
 			return nil
+		}); err != nil {
+			logger.Warningf(shutdownBaseCtx, "runtime shutdown failed: %v", err)
+			return err
+		}
+	}
+
+	if runtime != nil && runtime.coordinationSvc != nil {
+		if err := shutdownStep(shutdownCtx, "coordination service", func(stepCtx context.Context) error {
+			return runtime.coordinationSvc.Close(stepCtx)
 		}); err != nil {
 			logger.Warningf(shutdownBaseCtx, "runtime shutdown failed: %v", err)
 			return err

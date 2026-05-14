@@ -7,6 +7,10 @@ import (
 	"context"
 	"fmt"
 	"testing"
+
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/config"
 )
 
 // TestCheckMissingMessagesDoesNotSkipUnregisteredSourceTextNamespace verifies
@@ -27,7 +31,7 @@ func TestCheckMissingMessagesDoesNotSkipUnregisteredSourceTextNamespace(t *testi
 	})
 
 	for _, locale := range nonDefaultRuntimeLocaleCodesForTest(t) {
-		items := New().CheckMissingMessages(ctx, locale, "test.source.unregistered.")
+		items := New(bizctx.New(), config.New(), cachecoord.Default(nil)).CheckMissingMessages(ctx, locale, "test.source.unregistered.")
 		if _, ok := findMissingMessage(items, key); !ok {
 			t.Fatalf("expected unregistered source-text key %q to remain missing for %s", key, locale)
 		}
@@ -55,7 +59,7 @@ func TestCheckMissingMessagesSkipsRegisteredSourceTextNamespace(t *testing.T) {
 	})
 
 	for _, locale := range nonDefaultRuntimeLocaleCodesForTest(t) {
-		items := New().CheckMissingMessages(ctx, locale, prefix)
+		items := New(bizctx.New(), config.New(), cachecoord.Default(nil)).CheckMissingMessages(ctx, locale, prefix)
 		if _, ok := findMissingMessage(items, key); ok {
 			t.Fatalf("expected registered source-text key %q to be skipped for %s", key, locale)
 		}

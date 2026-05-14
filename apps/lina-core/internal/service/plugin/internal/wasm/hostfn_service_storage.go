@@ -31,8 +31,24 @@ const (
 	maxStorageListLimit           = 1000
 )
 
+// storageConfigReader defines the narrow config capability needed by governed
+// storage host service dispatch.
+type storageConfigReader interface {
+	// GetPluginDynamicStoragePath returns the runtime-resolved dynamic plugin storage directory.
+	GetPluginDynamicStoragePath(ctx context.Context) string
+}
+
 // storageConfigSvc provides the runtime storage root configuration.
-var storageConfigSvc = config.New()
+var storageConfigSvc storageConfigReader = config.New()
+
+// ConfigureStorageHostService replaces the storage configuration reader used
+// by wasm host calls. The service must be non-nil.
+func ConfigureStorageHostService(service storageConfigReader) {
+	if service == nil {
+		panic("wasm storage host service requires a non-nil config reader")
+	}
+	storageConfigSvc = service
+}
 
 // storageResourceConfig stores the resolved storage root and visibility for one plugin.
 type storageResourceConfig struct {

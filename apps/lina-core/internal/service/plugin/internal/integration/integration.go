@@ -184,6 +184,8 @@ type DependencyWiringService interface {
 	// SetDynamicCronExecutor wires the runtime executor used by declared
 	// dynamic-plugin cron jobs.
 	SetDynamicCronExecutor(executor DynamicCronExecutor)
+	// SetHostServices wires the host-published service directory used by source plugins.
+	SetHostServices(services pluginhost.HostServices)
 }
 
 // PluginStateService defines plugin enablement lookup operations.
@@ -255,6 +257,8 @@ type serviceImpl struct {
 
 	dynamicCronExecutor DynamicCronExecutor
 
+	hostServices pluginhost.HostServices
+
 	sharedState *sharedState
 }
 
@@ -280,6 +284,11 @@ func (s *serviceImpl) SetTopologyProvider(t TopologyProvider) {
 // dynamic-plugin cron jobs.
 func (s *serviceImpl) SetDynamicCronExecutor(executor DynamicCronExecutor) {
 	s.dynamicCronExecutor = executor
+}
+
+// SetHostServices wires the host-published service directory used by source plugins.
+func (s *serviceImpl) SetHostServices(services pluginhost.HostServices) {
+	s.hostServices = services
 }
 
 // IsEnabled reports whether the plugin with the given ID is currently installed and enabled.

@@ -96,14 +96,12 @@ func (s *serviceImpl) currentUserDataScope(ctx context.Context) (userDataScope, 
 	return currentScope.Scope, currentScope.UserID, nil
 }
 
-// currentScopeSvc returns the shared data-scope service, lazily constructing it
-// for tests that instantiate serviceImpl directly.
+// currentScopeSvc returns the injected shared data-scope service.
 func (s *serviceImpl) currentScopeSvc() datascope.Service {
-	return datascope.New(datascope.Dependencies{
-		BizCtxSvc: s.bizCtxSvc,
-		RoleSvc:   s.roleSvc,
-		OrgCapSvc: s.orgCapSvc,
-	})
+	if s != nil && s.scopeSvc != nil {
+		return s.scopeSvc
+	}
+	return nil
 }
 
 // mapDataScopeError preserves user-management legacy business error codes at

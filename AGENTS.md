@@ -35,7 +35,7 @@ apps/                → MonoRepo项目目录
   lina-vben/         → 默认管理工作台（Vben5 前端 pnpm monorepo）
     apps/web-antd/   → 默认管理工作台应用（Ant Design Vue）
     packages/        → 共享库（@core, effects, stores, utils 等）
-  lina-plugins/      → 插件样例与插件开发参考入口
+  lina-plugins/      → 官方源码插件仓库 submodule 挂载入口
     <plugin-id>/     → 源码插件目录（统一结构）
       backend/       → 插件后端入口与实现
         api/         → 插件 API DTO 与路由接口定义
@@ -72,12 +72,13 @@ openspec/            → OpenSpec相关文档
 
 ```bash
 make dev                         # 启动前后端（前端:5666, 后端:8080）
+make dev plugins=0               # 强制宿主模式启动（不加载官方源码插件）
 make stop                        # 停止所有服务
 make status                      # 查看服务状态
 make test                        # 运行完整E2E测试
 make init                        # 初始化数据库（DDL + Seed 数据）
 make mock                        # 加载 Mock 演示数据（需先执行 init）
-make image tag=v0.6.0            # 构建生产 Docker 镜像，可追加 registry=ghcr.io/linaproai push=1 推送
+make image tag=v0.6.0            # 构建生产 Docker 镜像；检测到 apps/lina-plugins 插件清单时自动启用插件模式，可追加 registry=ghcr.io/linaproai push=1 推送
 # 升级框架/源码插件：通过 AI 工具调用 .claude/skills/lina-upgrade/ 技能，例如 "upgrade LinaPro framework to v0.6.0"
 make up                          # 默认用 claude 生成 commit message 并推送
 make up tool=codex               # 使用 codex 生成 commit message 并推送
@@ -118,6 +119,16 @@ pnpm report            # 查看 HTML 报告
 
 测试文件命名规范：`TC{NNNN}*.ts`（如 `TC0001-login.ts`）。宿主测试放在 `hack/tests/e2e/` 对应模块目录下；源码插件自有测试放在 `apps/lina-plugins/<plugin-id>/hack/tests/e2e/`，插件专属 POM/helper 放在同插件的 `hack/tests/pages/`、`hack/tests/support/`。
 
+## 官方插件工作区
+
+- 官方源码插件仓库独立维护在 `https://github.com/linaproai/official-plugins.git`
+- 主仓库通过 `apps/lina-plugins` submodule 挂载官方插件仓库
+- host-only 命令可在未初始化 submodule 时运行
+- `make dev`、`make build`、`make image` 和 `make image-build` 在未显式传入 `plugins` 时会自动检测 `apps/lina-plugins/*/plugin.yaml`；存在插件清单则启用插件完整模式，否则为宿主模式。需要强制宿主模式时传入 `plugins=0`
+- 插件完整模式会基于宿主专用的根目录 `go.work` 自动生成或刷新已忽略的 `temp/go.work.plugins`，并通过 `GOWORK` 解析源码插件 Go 模块；根目录 `go.work` 始终保持 host-only
+- 插件专属测试和插件 E2E 需要先执行 `git submodule update --init --recursive`
+- 本地 submodule 管理 remote 使用 `git@github.com:linaproai/official-plugins.git`
+
 # 文档编写规范
 
 `README.md`等技术文档编写需遵循规范`.agents/instructions/markdown-format.instructions.md`。
@@ -139,7 +150,7 @@ pnpm report            # 查看 HTML 报告
 **关键规则**：
 - 只有在`openspec`工具安装时才启用`openspec`执行流程，包括`/opsx:explore`、`/opsx:propose`、`/opsx:apply`和`/opsx:archive`等斜杠指令，以及相关的技能调用和文档生成；如果未安装`openspec`工具，则不启用这些功能，用户需要手动维护变更文档和执行流程。
 - **活跃`OpenSpec`变更的判定以是否归档为准**：凡是仍位于`openspec/changes/`根目录下、且**未移动到**`openspec/changes/archive/`中的变更目录，都属于活跃变更；**即便该变更已经完成了全部任务、`openspec list --json`中显示为`status: complete`，只要尚未执行归档，仍然必须视为活跃变更**。
-- 当用户报告问题缺陷/改进建议时（无论中文或英文），如果当前项目存在活跃的`OpenSpec`变更，那么必须调用`lina-feedback`技能。**在用户未明确要求新建变更的前提下，无论反馈内容是否与当前活跃迭代的主要功能相关，都必须追加到当前活跃迭代中**，便于统一管理和归档。
+- 当用户报告问题缺陷/改进建议时（无论中文或英文），如果当前项目存在活跃的`OpenSpec`变更，那么必须调用`lina-feedback`技能。
 - 审查技能`/lina-review`自动在以下节点触发：`/opsx:apply`任务完成后、`/opsx:feedback`任务完成后、`/opsx:archive`归档前。
 - 在执行任务时，如果存在适合通过`subagent`并行推进且能够明确提升执行效率的场景，必须优先评估并采用`subagent`协作方式执行，以降低上下文窗口溢出的风险；仅在任务强依赖串行上下文、拆分成本过高或引入明显协作风险时，才可不使用`subagent`。
 - **i18n持续治理要求**：所有功能改动都必须评估对`i18n`的影响面，包括新增功能、修改现有功能、删除功能、调整菜单/路由/按钮/表单/表格/提示文案、接口文档、插件清单与初始化资源等场景；在方案设计、任务拆分、代码实现、测试和审查中必须明确判断相关`i18n JSON`翻译内容是否需要新增、修改或删除，并同步维护前端运行时语言包、宿主/插件运行时`manifest/i18n`资源以及`apidoc i18n JSON`等对应资源，避免硬编码文案、遗漏翻译键或保留无效/过期翻译内容；若本次功能改动确认不影响`i18n`资源，也必须在任务执行或审查结论中明确记录该判断。新增内置语言必须通过新增对应`manifest/i18n/<locale>/*.json`、`manifest/i18n/<locale>/apidoc/**/*.json`资源以及默认配置文件中的`i18n.locales`元数据完成，禁止为了注册语言而修改后端`Go`枚举、宿主`SQL seed`或前端`TypeScript`语言清单；`i18n.enabled=false`时前端必须隐藏语言切换并按`i18n.default`展示。运行时翻译包缓存失效必须传入显式`scope`，按语言、扇区、插件或业务内容范围精细失效，禁止在普通业务路径中无理由清空所有语言和所有扇区。
@@ -209,14 +220,24 @@ pnpm report            # 查看 HTML 报告
 
 # 代码开发规范
 
+## 开发工具与脚本规范
+
+- **开发工具和脚本必须跨平台执行**：所有新增或修改的开发、构建、测试、代码生成、资源打包、服务启停、CI 辅助和仓库治理入口，都必须能在 `Windows`、`Linux`、`macOS` 上执行，禁止依赖单一平台默认存在的命令或语义，例如 `bash`、`sh`、`sed`、`awk`、`grep`、`perl`、`lsof`、`pgrep`、`xargs`、`kill`、`rm`、`cp`、`mv`、`mkdir -p`、POSIX 路径分隔符、Unix 信号或 PowerShell 专属语法。确实只能在特定平台运行的操作必须写明平台边界、提供等价跨平台入口或在 CI/文档中显式标注为平台专属运维步骤，不能作为默认开发和测试入口。
+- **优先使用 Go 工具链实现仓库工具**：长期维护的开发工具和脚本应优先实现为 `Go` 工具，放在 `hack/tools/<tool>/` 并通过 `go run ./hack/tools/<tool>`、`linactl` 或薄包装入口调用。文件复制、目录遍历、配置改写、进程启停、端口探测、HTTP smoke、压缩/解压、模板渲染和静态扫描等逻辑应使用 Go 标准库或项目已有 Go 组件实现，避免用 Shell 管道拼接系统命令。根 `Makefile` 和 `make.cmd` 只允许作为兼容包装层，业务逻辑必须收敛到跨平台工具中。
+- **脚本目录治理**：`hack/scripts/` 不再作为长期维护开发工具目录；已有能力应迁移到 `hack/tools/linactl` 或独立 Go 工具。测试辅助入口若必须保留在 `hack/tests/scripts/`，应优先使用 `node` 或 `Go` 编写；新增或修改 `.sh`、`.ps1` 等平台脚本必须在变更记录和审查结论中说明无法使用 Go 工具链的原因、受支持平台、等价入口和验证方式。
+- **跨平台验证要求**：涉及开发工具或脚本的变更必须运行对应 Go 工具测试或跨平台 smoke（例如 `cd hack/tools/linactl && go test ./... -count=1`、`go run ./hack/tools/linactl test-scripts`），并通过静态扫描确认默认开发路径没有新增平台专属命令依赖。若本次变更确认不影响开发工具或脚本，也应在任务记录或审查结论中明确说明。
+
 ## 后端代码规范
 
 ### Go代码开发规范
-- 必须使用`goframe-v2`技能；该技能不随仓库源码附带，需先通过`lina-doctor`安装到用户全局技能目录，等价安装命令为`npx skills add github.com/gogf/skills -g`
+- 必须使用`goframe-v2`技能开发后端代码
 - 不能修改通过脚手架工具维护的代码文件，例如`api`层的接口方法定义文件、`dao`/`do`/`entity`层的代码文件等
 - 所有的源码必须要有注释介绍，例如包注释、文件注释、方法注释（无论公开方法还是私有方法）、常量注释、变量注释、关键逻辑注释等。
 - `DAO/DO/Entity`源码文件由`gf gen dao`自动生成，不要手动创建或修改
 - `Controller`源码文件由`gf gen ctrl`自动生成骨架，在生成的文件中填写业务逻辑
+- **后端运行期依赖必须显式注入**：宿主与源码插件的`Controller`、`Middleware`、`Service`、插件宿主服务适配器和`WASM host service`必须通过构造函数参数逐项显式接收运行期依赖，禁止在业务构造函数、请求处理路径、插件回调路径或`host service`调用路径中临时调用关键服务的`New()`创建独立服务图。禁止通过 `Dependencies`、`Deps`、`Options` 等聚合结构体把多个接口对象或服务对象字段整体传递给依赖方；接口型依赖必须在构造函数签名中拆分为独立参数，让依赖新增、删除或替换可以在编译阶段暴露所有未同步调用点。纯值配置（如字符串、布尔、`time.Duration`、容量阈值等）可以使用专门配置结构体，但不得混入接口型运行期依赖。关键服务包括但不限于认证、会话、角色/权限、数据权限、租户、组织能力、插件治理、运行时配置、i18n、通知、缓存协调、KV cache、分布式锁、插件运行时缓存和源码插件宿主服务适配器。启动期已有编排（如`cmd_http_runtime.go`、`cmd_http_routes.go`）、插件`registrar`和测试构造可以作为显式构造边界，但不得通过通用`DI`容器、全局`service locator`、聚合依赖结构体或新增兜底组装层规避依赖签名可见性。
+- **缓存敏感服务必须共享实例或共享后端**：凡是持有缓存、派生状态、失效观察状态、订阅状态、`session/token`状态、插件`enabled snapshot`、运行时配置快照、权限快照或跨实例协调依赖的组件，必须复用启动期传入的同一服务实例或同一共享后端。`cluster.enabled=false`时可以使用本地/SQL单机分支；`cluster.enabled=true`时必须使用宿主统一的`cluster.Service`、`coordination.Service`、共享修订号、事件广播、分布式 KV 或分布式锁等机制，禁止在中间件、插件管理、源码插件、动态插件`host service`或普通业务路径中退化为仅当前节点可见的默认实例。
+- **关键服务隐式构造必须纳入治理扫描**：生产后端代码新增或修改关键服务构造时，必须运行依赖治理扫描或等价静态验证，确认没有在非启动边界、非测试文件、非明确无状态豁免位置新增隐式`New()`调用。确实无状态、无缓存、无订阅、无`session/token`、无插件状态且无跨实例协调影响的局部构造，必须在代码审查或 OpenSpec 任务记录中说明理由，并维护在扫描允许列表中。
 - **后端代码中的时间长度统一使用`time.Duration`**：凡是表达超时、间隔、租约、保留期、有效期、退避时长等“时间长度”语义的变量、结构体字段、函数参数和返回值，统一使用`time.Duration`类型定义，禁止使用裸 `int` / `int64` 再隐含小时、分钟、秒语义
 - **配置文件中的时间长度统一使用带单位的字符串**：凡是配置项表达时间长度时，必须使用`"10s"`、`"5m"`、`"1h"`这类带单位的字符串格式，并在配置读取层统一解析为`time.Duration`，禁止使用`timeoutHour`、`intervalSeconds`这类把单位硬编码到字段名中的整数配置写法
 - **禁止在后端实现源码中硬编码具有枚举语义的字符串值**：凡是状态、类型、阶段、动作、执行模式、排序方向、过滤操作符等枚举语义值，必须使用 Go 命名类型与常量统一管理，禁止在业务分支、比较、赋值和持久化逻辑中直接写字符串字面量

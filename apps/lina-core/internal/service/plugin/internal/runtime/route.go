@@ -10,11 +10,11 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gctx"
-	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/golang-jwt/jwt/v5"
 
 	"lina-core/internal/dao"
@@ -573,30 +573,20 @@ func (s *serviceImpl) parseDynamicRouteToken(ctx context.Context, tokenString st
 // tenant/token session and tolerates second-level TIMESTAMP precision when no
 // row is reported as updated.
 func (s *serviceImpl) touchDynamicRouteSession(ctx context.Context, tenantID int, tokenID string) (bool, error) {
-	result, err := dao.SysOnlineSession.Ctx(ctx).
-		Where(do.SysOnlineSession{TenantId: tenantID, TokenId: tokenID}).
-		Data(do.SysOnlineSession{LastActiveTime: gtime.Now()}).Update()
-	if err != nil {
-		return false, err
+	if s == nil || s.sessionStore == nil {
+		return false, nil
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return false, err
+	timeout := 24 * time.Hour
+	if s.jwtConfig != nil {
+		configTimeout, err := s.jwtConfig.GetSessionTimeout(ctx)
+		if err != nil {
+			return false, err
+		}
+		if configTimeout > 0 {
+			timeout = configTimeout
+		}
 	}
-	if affected > 0 {
-		return true, nil
-	}
-
-	// TIMESTAMP precision can still produce a zero affected-row update when a
-	// dynamic route is hit without changing last_active_time, even though the
-	// session still exists and remains valid.
-	count, err := dao.SysOnlineSession.Ctx(ctx).
-		Where(do.SysOnlineSession{TenantId: tenantID, TokenId: tokenID}).
-		Count()
-	if err != nil {
-		return false, err
-	}
-	return count > 0, nil
+	return s.sessionStore.TouchOrValidate(ctx, tenantID, tokenID, timeout)
 }
 
 // getDynamicRouteAccessContext loads permissions and role names for one user ID

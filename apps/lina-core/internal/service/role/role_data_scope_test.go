@@ -32,8 +32,8 @@ func TestRoleUsersApplyDataScope(t *testing.T) {
 	insertRoleScopeUserRole(t, ctx, currentUserID, managedRoleID)
 	insertRoleScopeUserRole(t, ctx, hiddenUserID, managedRoleID)
 
-	svc := New(nil).(*serviceImpl)
-	svc.bizCtxSvc = roleScopeStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
+	svc := newDefaultRoleTestService()
+	setRoleTestBizCtx(svc, roleScopeStaticBizCtx{ctx: &model.Context{UserId: currentUserID}})
 
 	out, err := svc.GetUsers(ctx, GetUsersInput{RoleId: managedRoleID, Page: 1, Size: 20})
 	if err != nil {
@@ -56,7 +56,7 @@ func TestRoleUsersApplyDataScope(t *testing.T) {
 // enabled.
 func TestRoleRejectsDepartmentScopeWhenOrgCapabilityDisabled(t *testing.T) {
 	ctx := context.Background()
-	svc := New(nil).(*serviceImpl)
+	svc := newDefaultRoleTestService()
 
 	if err := svc.ensureRoleDataScopeAllowed(ctx, roleDataScopeDept); !bizerr.Is(err, CodeRoleDataScopeDeptUnavailable) {
 		t.Fatalf("expected department data-scope unavailable error, got %v", err)
@@ -71,7 +71,7 @@ func TestRoleRejectsDepartmentScopeWhenOrgCapabilityDisabled(t *testing.T) {
 // explicitly available.
 func TestRoleAllowsDepartmentScopeWhenOrgCapabilityEnabled(t *testing.T) {
 	ctx := context.Background()
-	svc := New(roleScopeEnabledOrgState{}).(*serviceImpl)
+	svc := newRoleTestService(roleScopeEnabledOrgState{}, roleScopeEnabledOrgState{})
 
 	if err := svc.ensureRoleDataScopeAllowed(ctx, roleDataScopeDept); err != nil {
 		t.Fatalf("expected enabled organization capability to allow department scope, got %v", err)
@@ -112,7 +112,6 @@ func (s roleScopeStaticBizCtx) SetTenant(context.Context, int) {}
 
 // SetImpersonation is unused by role data-scope tests.
 func (s roleScopeStaticBizCtx) SetImpersonation(context.Context, int, int, bool, bool) {}
-
 
 // SetUserAccess is unused by role data-scope tests.
 func (s roleScopeStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}

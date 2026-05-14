@@ -13,6 +13,15 @@ import (
 	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
+// SetTenantCapability wires the runtime-owned tenant capability used by startup
+// consistency checks that span plugin and tenant governance.
+func (s *serviceImpl) SetTenantCapability(service tenantcapsvc.Service) {
+	if s == nil {
+		return
+	}
+	s.tenantSvc = service
+}
+
 // ValidateStartupConsistency verifies persisted startup state that must be
 // coherent before HTTP routes and plugin callbacks become reachable.
 func (s *serviceImpl) ValidateStartupConsistency(ctx context.Context) error {
@@ -30,7 +39,7 @@ func (s *serviceImpl) ValidateStartupConsistency(ctx context.Context) error {
 		return err
 	}
 	details = append(details, providerDetails...)
-	membershipDetails, err := tenantcapsvc.New(s).ValidateUserMembershipStartupConsistency(ctx)
+	membershipDetails, err := s.validateTenantMembershipStartupConsistency(ctx)
 	if err != nil {
 		return err
 	}
@@ -80,4 +89,16 @@ func (s *serviceImpl) validateTenantProviderStartupConsistency(ctx context.Conte
 		return nil, nil
 	}
 	return []string{"multi-tenant plugin is enabled but tenantcap provider is not registered"}, nil
+}
+
+// validateTenantMembershipStartupConsistency delegates tenant membership
+// checks to the startup-owned tenant capability instance.
+func (s *serviceImpl) validateTenantMembershipStartupConsistency(ctx context.Context) ([]string, error) {
+	if s == nil || s.tenantSvc == nil {
+		return nil, bizerr.NewCode(
+			CodePluginStartupConsistencyFailed,
+			bizerr.P("details", "plugin startup consistency requires injected tenant capability service"),
+		)
+	}
+	return s.tenantSvc.ValidateUserMembershipStartupConsistency(ctx)
 }

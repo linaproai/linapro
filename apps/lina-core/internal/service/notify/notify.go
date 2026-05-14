@@ -132,11 +132,7 @@ type InboxListItem struct {
 	CreatedAt *gtime.Time
 }
 
-// New creates and returns a new notify service instance.
-func New(tenantEnablementReaders ...tenantcapsvc.PluginEnablementReader) Service {
-	var tenantEnablementReader tenantcapsvc.PluginEnablementReader
-	if len(tenantEnablementReaders) > 0 {
-		tenantEnablementReader = tenantEnablementReaders[0]
-	}
-	return &serviceImpl{tenantSvc: tenantcapsvc.New(tenantEnablementReader)}
+// New creates a notify service from explicit runtime-owned dependencies.
+func New(tenantSvc tenantcapsvc.Service) Service {
+	return &serviceImpl{tenantSvc: tenantSvc}
 }

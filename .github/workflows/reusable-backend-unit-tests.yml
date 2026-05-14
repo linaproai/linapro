@@ -1,22 +1,48 @@
 # Reusable LinaPro Go unit test workflow.
+# LinaPro 可复用 Go 单元测试工作流。
 name: Reusable Backend Unit Tests
 
 on:
+  # Expose this file as a reusable workflow for CI, nightly, and release callers.
+  # 将本文件暴露为可复用工作流，供 CI、nightly 和 release 调用。
   workflow_call:
+    inputs:
+      # Controls whether official plugin submodules are checked out for plugin-full runs.
+      # 控制是否为插件完整模式检出官方插件 submodule。
+      submodules:
+        description: Checkout submodule strategy for actions/checkout.
+        required: false
+        type: string
+        default: "false"
+      # Passes the host-only or plugin-full mode into linactl test-go.
+      # 将宿主或插件完整模式传给 linactl test-go。
+      plugins:
+        description: Official plugin build mode for linactl test-go.
+        required: false
+        type: string
+        default: "0"
 
+# Unit-test jobs only need to read repository contents.
+# 单元测试 job 只需要读取仓库内容。
 permissions:
   contents: read
 
+# Keep logs and time-sensitive fixtures aligned with the project timezone.
+# 让日志和时间敏感 fixture 与项目时区保持一致。
 env:
   TZ: "Asia/Shanghai"
 
 jobs:
+  # Builds the test database, packed assets, and runs the Go test suite.
+  # 构建测试数据库、打包资源，并运行 Go 测试套件。
   backend-unit-tests:
     name: Go unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
     services:
+      # Provides the PostgreSQL schema used by integration-style Go unit tests.
+      # 提供集成型 Go 单元测试所需的 PostgreSQL schema。
       postgres:
         image: postgres:14-alpine
         env:
@@ -33,29 +59,43 @@ jobs:
           --health-retries 5
 
     steps:
+      # Configure the runner timezone before database initialization.
+      # 在数据库初始化前配置 runner 时区。
       - name: Setup Timezone
         run: |
           sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
           echo Asia/Shanghai | sudo tee /etc/timezone
 
+      # Check out repository sources, optionally including plugin submodules.
+      # 拉取仓库源码，并可按调用方要求包含插件 submodule。
       - name: Checkout Repository
         uses: actions/checkout@v5
+        with:
+          submodules: ${{ inputs.submodules }}
 
+      # Install the Go toolchain used by backend tests and linactl.
+      # 安装后端测试和 linactl 使用的 Go 工具链。
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version: "1.25"
           cache: false
 
+      # Initialize the PostgreSQL schema from LinaPro SQL resources.
+      # 使用 LinaPro SQL 资源初始化 PostgreSQL schema。
       - name: Initialize Database Schema
         run: |
           cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
           make init confirm=init
 
+      # Generate embedded frontend/plugin assets required by backend package tests.
+      # 生成后端包测试所需的前端和插件嵌入资源。
       - name: Prepare Packed Assets
         run: |
           make -C apps/lina-core prepare-packed-assets
 
+      # Run Go tests through linactl so host-only and plugin-full modes share one entry point.
+      # 通过 linactl 运行 Go 测试，让宿主和插件完整模式共用同一入口。
       - name: Run Go Unit Tests
         env:
           # This link is intentionally provided as an explicit integration-test
@@ -63,20 +103,9 @@ jobs:
           # Runtime config drives make init and application startup; PostgreSQL-backed
           # unit tests use this env var as an opt-in guard so local go test runs do not
           # accidentally connect to or mutate a developer/runtime database.
+          # 这里显式提供集成测试数据库连接，而不是读取运行时 config.yaml。
+          # 运行时配置用于 make init 和应用启动；依赖 PostgreSQL 的单测用该
+          # 环境变量作为显式开关，避免本地 go test 误连或改写开发/运行库。
           LINA_TEST_PGSQL_LINK: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
         run: |
-          module_file="$(mktemp)"
-          go list -m -f '{{.Dir}}' > "${module_file}"
-
-          if [ ! -s "${module_file}" ]; then
-            echo "No Go workspace modules discovered"
-            exit 1
-          fi
-
-          while IFS= read -r module_dir; do
-            if [ -z "${module_dir}" ]; then
-              continue
-            fi
-            echo "==> go test -race ${module_dir}"
-            (cd "${module_dir}" && go test -race -v ./...)
-          done < "${module_file}"
+          go run ./hack/tools/linactl test-go plugins="${{ inputs.plugins }}" race=true verbose=true

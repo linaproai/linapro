@@ -5,12 +5,13 @@
 ## 使用方式
 
 ```bash
-go run ./hack/tools/linactl help
-go run ./hack/tools/linactl status
-go run ./hack/tools/linactl prepare-packed-assets
-go run ./hack/tools/linactl wasm p=plugin-demo-dynamic
-go run ./hack/tools/linactl init confirm=init
-go run ./hack/tools/linactl build platforms=linux/amd64,linux/arm64
+cd hack/tools/linactl
+go run . help
+go run . status
+go run . prepare-packed-assets
+go run . wasm p=plugin-demo-dynamic
+go run . init confirm=init
+go run . build platforms=linux/amd64,linux/arm64
 ```
 
 ## Windows 入口
@@ -39,14 +40,17 @@ make.cmd init confirm=init
 | `confirm` | `confirm=init` | 确认高风险初始化命令。 |
 | `rebuild` | `rebuild=true` | 在`init`时重建配置中的数据库。 |
 | `platforms` | `platforms=linux/amd64,linux/arm64` | 指定构建目标平台。 |
+| `plugins` | `plugins=0` | 覆盖构建、开发、镜像和 Go 测试命令的自动插件完整模式探测。 |
 | `p` | `p=plugin-demo-dynamic` | 构建指定动态插件。 |
 | `verbose` | `verbose=1` | 构建任务展示子命令输出。 |
+
+未传入`plugins`时，构建和开发命令会在`apps/lina-plugins`存在插件清单时启用插件完整模式。插件完整模式会基于宿主专用的根目录`go.work`生成或刷新已忽略的`temp/go.work.plugins`，并通过`GOWORK`解析源码插件`Go`模块。
 
 ## 验证
 
 ```bash
-go test ./hack/tools/linactl
-go run ./hack/tools/linactl help
-go run ./hack/tools/linactl wasm dry-run=true
+cd hack/tools/linactl
+go test ./...
+go run . help
+go run . wasm dry-run=true
 ```
-

@@ -16,6 +16,7 @@ import (
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/notify"
+	"lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
 )
 
@@ -36,7 +37,7 @@ func TestUserMessagesRemainSelfIsolatedForAllDataScope(t *testing.T) {
 	otherDeliveryID := insertUserMsgScopeDelivery(t, ctx, otherUserID, "other-message")
 	t.Cleanup(func() { cleanupUserMsgScopeDeliveries(t, ctx, []int64{currentDeliveryID, otherDeliveryID}) })
 
-	svc := New().(*serviceImpl)
+	svc := New(nil, notify.New(tenantcap.New(nil, nil)), nil).(*serviceImpl)
 	svc.bizCtxSvc = userMsgScopeStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
 
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20})

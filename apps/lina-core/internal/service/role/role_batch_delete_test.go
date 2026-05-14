@@ -17,7 +17,7 @@ import (
 // clears role-menu and user-role associations in one service call.
 func TestBatchDeleteRemovesRolesAndAssociations(t *testing.T) {
 	ctx := context.Background()
-	svc := New(nil)
+	svc := newDefaultRoleTestService()
 	roleID := insertTestRole(t, ctx, "batch-delete-role")
 	userID := insertRoleTestUser(t, ctx, "batch-delete-user")
 	menuID := insertRoleTestMenu(t, ctx, "batch-delete-menu")
@@ -57,7 +57,7 @@ func TestBatchDeleteRemovesRolesAndAssociations(t *testing.T) {
 // the built-in admin role is rejected before any custom role is deleted.
 func TestBatchDeleteRejectsBuiltinAdminRoleAtomically(t *testing.T) {
 	ctx := context.Background()
-	svc := New(nil)
+	svc := newDefaultRoleTestService()
 	roleID := insertTestRole(t, ctx, "batch-delete-admin-guard")
 	_, adminRoleID := mustQueryAdminUserAndRoleID(t, ctx)
 	t.Cleanup(func() {
@@ -80,7 +80,7 @@ func TestBatchDeleteRejectsBuiltinAdminRoleAtomically(t *testing.T) {
 // TestBatchDeleteRejectsEmptyList verifies empty role batches return a stable
 // bizerr code before touching the database.
 func TestBatchDeleteRejectsEmptyList(t *testing.T) {
-	err := New(nil).BatchDelete(context.Background(), nil)
+	err := newDefaultRoleTestService().BatchDelete(context.Background(), nil)
 	if err == nil {
 		t.Fatal("expected empty batch delete to be rejected")
 	}
@@ -96,12 +96,12 @@ func insertTestRole(t *testing.T, ctx context.Context, label string) int {
 
 	suffix := time.Now().UnixNano()
 	id, err := dao.SysRole.Ctx(ctx).Data(do.SysRole{
-		Name:           fmt.Sprintf("%s-%d", label, suffix),
-		Key:            fmt.Sprintf("%s-%d", label, suffix),
-		Sort:           99,
-		DataScope:      roleDataScopeAll,
-		Status:         1,
-		TenantId:       0,
+		Name:      fmt.Sprintf("%s-%d", label, suffix),
+		Key:       fmt.Sprintf("%s-%d", label, suffix),
+		Sort:      99,
+		DataScope: roleDataScopeAll,
+		Status:    1,
+		TenantId:  0,
 	}).InsertAndGetId()
 	if err != nil {
 		t.Fatalf("insert test role: %v", err)

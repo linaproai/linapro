@@ -9,7 +9,6 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/service/datascope"
-	"lina-core/internal/service/role"
 	"lina-core/pkg/bizerr"
 )
 
@@ -40,11 +39,10 @@ func (s *serviceImpl) ensureFilesVisible(ctx context.Context, ids []int64) error
 
 // currentScopeSvc returns the shared data-scope service for file operations.
 func (s *serviceImpl) currentScopeSvc() datascope.Service {
-	return datascope.New(datascope.Dependencies{
-		BizCtxSvc: s.bizCtxSvc,
-		RoleSvc:   role.New(nil),
-		OrgCapSvc: s.orgCapSvc,
-	})
+	if s != nil && s.scopeSvc != nil {
+		return s.scopeSvc
+	}
+	return nil
 }
 
 // mapFileDataScopeError maps shared data-scope errors to file service errors.

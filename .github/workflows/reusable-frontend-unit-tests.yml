@@ -1,36 +1,63 @@
 # Reusable LinaPro frontend unit test workflow.
+# LinaPro 可复用前端单元测试工作流。
 name: Reusable Frontend Unit Tests
 
 on:
+  # Expose frontend unit tests as a reusable workflow for CI, nightly, and release callers.
+  # 将前端单元测试暴露为可复用工作流，供 CI、nightly 和 release 调用。
   workflow_call:
+    inputs:
+      # Controls whether official plugin submodules are checked out for plugin-full runs.
+      # 控制是否为插件完整模式检出官方插件 submodule。
+      submodules:
+        description: Checkout submodule strategy for actions/checkout.
+        required: false
+        type: string
+        default: "false"
 
+# Frontend unit tests only need read access to repository contents.
+# 前端单元测试只需要读取仓库内容。
 permissions:
   contents: read
 
+# Keep timestamps and any locale-sensitive test behavior aligned with the project timezone.
+# 让时间戳和可能受地区影响的测试行为与项目时区保持一致。
 env:
   TZ: "Asia/Shanghai"
 
 jobs:
+  # Installs frontend dependencies and runs the Vben workspace unit-test suite.
+  # 安装前端依赖并运行 Vben 工作区单元测试套件。
   frontend-unit-tests:
     name: Frontend unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
+      # Configure the runner timezone before dependency installation and tests.
+      # 在安装依赖和运行测试前配置 runner 时区。
       - name: Setup Timezone
         run: |
           sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
           echo Asia/Shanghai | sudo tee /etc/timezone
 
+      # Check out repository sources, optionally including plugin submodules.
+      # 拉取仓库源码，并可按调用方要求包含插件 submodule。
       - name: Checkout Repository
         uses: actions/checkout@v5
+        with:
+          submodules: ${{ inputs.submodules }}
 
+      # Install the pinned pnpm version without installing packages yet.
+      # 安装固定版本 pnpm，但暂不安装项目依赖。
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
           version: "10.30.3"
           run_install: false
 
+      # Install the Node version declared by the frontend workspace and enable pnpm cache.
+      # 安装前端工作区声明的 Node 版本，并启用 pnpm 缓存。
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
@@ -38,10 +65,14 @@ jobs:
           cache: "pnpm"
           cache-dependency-path: "apps/lina-vben/pnpm-lock.yaml"
 
+      # Install frontend dependencies from the committed lockfile.
+      # 根据已提交的 lockfile 安装前端依赖。
       - name: Install Frontend Dependencies
         working-directory: apps/lina-vben
         run: pnpm install --frozen-lockfile
 
+      # Run the frontend unit-test command for the Lina Vben workspace.
+      # 运行 Lina Vben 工作区的前端单元测试命令。
       - name: Run Frontend Unit Tests
         working-directory: apps/lina-vben
         run: pnpm test:unit

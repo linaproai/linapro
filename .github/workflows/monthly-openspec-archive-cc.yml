@@ -1,0 +1,222 @@
+# LinaPro reusable monthly OpenSpec archive workflow for Claude Code.
+# LinaPro 面向 Claude Code 的可复用 OpenSpec 归档工作流。
+name: Monthly OpenSpec Archive Claude Code
+
+on:
+  # Allow the router workflow to call the Claude Code archive implementation.
+  # 允许路由工作流调用 Claude Code 归档实现。
+  workflow_call:
+    inputs:
+      # Keeps the archive job pinned to the same OpenSpec CLI version as the detector.
+      # 让归档 job 使用与检测 job 一致的 OpenSpec CLI 版本。
+      openspec_version:
+        description: OpenSpec CLI version to run.
+        required: false
+        type: string
+        default: "1.3.1"
+      # Allows GitHub Variables to provide the Claude Code model name.
+      # 允许通过 GitHub Variables 提供 Claude Code 模型名称。
+      anthropic_custom_model:
+        description: Claude Code model name from GitHub Variables.
+        required: false
+        type: string
+        default: ""
+    secrets:
+      # Provides Claude Code authentication.
+      # 为 Claude Code 提供认证凭据。
+      ANTHROPIC_AUTH_TOKEN:
+        required: true
+      # Provides the Anthropic-compatible API base URL.
+      # 提供 Anthropic 兼容 API base URL。
+      ANTHROPIC_BASE_URL:
+        required: true
+      # Allows secrets to provide the Claude Code model name when variables are not used.
+      # 当未使用变量时，允许通过 secrets 提供 Claude Code 模型名称。
+      ANTHROPIC_CUSTOM_MODEL:
+        required: false
+
+# The archive job edits repository contents and opens pull requests.
+# 归档 job 会编辑仓库内容并创建 PR。
+permissions:
+  contents: write
+  pull-requests: write
+
+# Shared runtime settings for OpenSpec commands and Claude Code container execution.
+# OpenSpec 命令和 Claude Code 容器执行使用的共享运行时设置。
+env:
+  TZ: "Asia/Shanghai"
+  OPENSPEC_VERSION: ${{ inputs.openspec_version }}
+  ANTHROPIC_CUSTOM_MODEL_INPUT: ${{ inputs.anthropic_custom_model }}
+
+jobs:
+  # Runs auto-archive, optional archive consolidation, and PR finalization through Claude Code.
+  # 通过 Claude Code 运行自动归档、可选归档聚合和 PR 收尾。
+  archive:
+    name: Archive and consolidate with Claude Code
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      # Check out the default branch with full history so archive branches can be created.
+      # 拉取默认分支完整历史，以便创建归档分支。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      # Install shared Node/OpenSpec/GitHub CLI prerequisites used by both archive phases.
+      # 安装两个归档阶段共用的 Node、OpenSpec 和 GitHub CLI 前置依赖。
+      - name: Prepare Shared Runtime
+        uses: ./.github/actions/monthly-openspec-setup
+
+      # Create an isolated Claude Code home, settings file, OpenSpec shim, task runner, and log directory.
+      # 创建隔离的 Claude Code home、设置文件、OpenSpec 包装入口、任务运行器和日志目录。
+      - name: Prepare Claude Code Runtime
+        env:
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+          ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_CUSTOM_MODEL_SECRET: ${{ secrets.ANTHROPIC_CUSTOM_MODEL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${ANTHROPIC_AUTH_TOKEN}" ]; then
+            echo "ANTHROPIC_AUTH_TOKEN secret is not configured." >&2
+            exit 1
+          fi
+          if [ -z "${ANTHROPIC_BASE_URL}" ]; then
+            echo "ANTHROPIC_BASE_URL secret is not configured." >&2
+            exit 1
+          fi
+
+          anthropic_custom_model="${ANTHROPIC_CUSTOM_MODEL_INPUT:-${ANTHROPIC_CUSTOM_MODEL_SECRET:-}}"
+          if [ -z "${anthropic_custom_model}" ]; then
+            echo "ANTHROPIC_CUSTOM_MODEL variable or secret is not configured." >&2
+            exit 1
+          fi
+
+          cc_home="${RUNNER_TEMP}/cc-home"
+          cc_bin="${RUNNER_TEMP}/cc-bin"
+          cc_logs="${RUNNER_TEMP}/cc-logs"
+          mkdir -p "${cc_home}" "${cc_bin}" "${cc_logs}"
+
+          CC_HOME="${cc_home}" \
+          ANTHROPIC_CUSTOM_MODEL_EFFECTIVE="${anthropic_custom_model}" \
+          python3 <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          cc_home = Path(os.environ["CC_HOME"])
+          template_path = Path(".github/cc/settings.template.json")
+          replacements = {
+              "${ANTHROPIC_AUTH_TOKEN}": os.environ["ANTHROPIC_AUTH_TOKEN"],
+              "${ANTHROPIC_BASE_URL}": os.environ["ANTHROPIC_BASE_URL"],
+              "${ANTHROPIC_CUSTOM_MODEL}": os.environ["ANTHROPIC_CUSTOM_MODEL_EFFECTIVE"],
+          }
+
+          def replace_placeholders(value):
+              if isinstance(value, dict):
+                  return {key: replace_placeholders(item) for key, item in value.items()}
+              if isinstance(value, list):
+                  return [replace_placeholders(item) for item in value]
+              if isinstance(value, str):
+                  return replacements.get(value, value)
+              return value
+
+          settings = replace_placeholders(json.loads(template_path.read_text(encoding="utf-8")))
+          (cc_home / "settings.json").write_text(
+              json.dumps(settings, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          chmod 600 "${cc_home}/settings.json"
+
+          cat > "${cc_bin}/openspec" <<'SH'
+          #!/usr/bin/env sh
+          exec npx -y "@fission-ai/openspec@${OPENSPEC_VERSION:-1.3.1}" "$@"
+          SH
+          chmod +x "${cc_bin}/openspec"
+
+          cat > "${cc_bin}/run-cc-task" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          task_name="${1:?missing Claude Code task name}"
+          case "${task_name}" in
+            auto-archive|archive-consolidate)
+              ;;
+            *)
+              echo "Unsupported Claude Code task: ${task_name}" >&2
+              exit 1
+              ;;
+          esac
+
+          prompt_file="$(mktemp "${RUNNER_TEMP:-/tmp}/cc-prompt.XXXXXX")"
+          trap 'rm -f "${prompt_file}"' EXIT
+          cat > "${prompt_file}"
+
+          mkdir -p "${CC_HOME}/npm-cache" "${CC_LOGS}"
+
+          docker run --rm -i \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp/cc-home \
+            -e NPM_CONFIG_CACHE=/tmp/cc-home/npm-cache \
+            -e OPENSPEC_VERSION="${OPENSPEC_VERSION}" \
+            -e PATH="/tmp/cc-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+            -v "${PWD}:/workspace" \
+            -v "${CC_HOME}:/tmp/cc-home" \
+            -v "${CC_BIN}:/tmp/cc-bin:ro" \
+            -v "${CC_LOGS}:/tmp/cc-logs" \
+            -w /workspace \
+            loads/cc:latest \
+            sh -lc 'claude -p --settings /tmp/cc-home/settings.json --permission-mode bypassPermissions --dangerously-skip-permissions --output-format text > "$1"' \
+            sh "/tmp/cc-logs/${task_name}.md" < "${prompt_file}"
+          SH
+          chmod +x "${cc_bin}/run-cc-task"
+
+          {
+            echo "CC_HOME=${cc_home}"
+            echo "CC_BIN=${cc_bin}"
+            echo "CC_LOGS=${cc_logs}"
+          } >> "${GITHUB_ENV}"
+
+      # Run the lina-auto-archive prompt inside the Claude Code container.
+      # 在 Claude Code 容器内运行 lina-auto-archive 提示词。
+      - name: Run Lina Auto Archive
+        run: |
+          "${CC_BIN}/run-cc-task" auto-archive < .github/prompts/monthly-openspec-auto-archive.zh-CN.md
+
+      # Detect whether auto-archive changed repository files.
+      # 检测自动归档是否修改了仓库文件。
+      - name: Detect Archive Changes
+        id: archive-diff
+        uses: ./.github/actions/monthly-openspec-detect-changes
+
+      # Consolidate archive records only when the auto-archive phase produced changes.
+      # 仅在自动归档阶段产生变更时聚合归档记录。
+      - name: Run Lina Archive Consolidate
+        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
+        run: |
+          "${CC_BIN}/run-cc-task" archive-consolidate < .github/prompts/monthly-openspec-archive-consolidate.zh-CN.md
+
+      # Validate, commit, push, and open/update the archive pull request.
+      # 校验、提交、推送，并创建或更新归档 PR。
+      - name: Finalize Archive Pull Request
+        uses: ./.github/actions/monthly-openspec-finalize-pr
+        with:
+          changed: ${{ steps.archive-diff.outputs.changed }}
+          openspec-version: ${{ env.OPENSPEC_VERSION }}
+          base-branch: ${{ github.event.repository.default_branch }}
+
+      # Upload Claude Code task logs for review and failure diagnosis.
+      # 上传 Claude Code 任务日志，便于审查和失败诊断。
+      - name: Upload Claude Code Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monthly-openspec-cc-logs
+          path: ${{ runner.temp }}/cc-logs/
+          if-no-files-found: ignore
+          retention-days: 14

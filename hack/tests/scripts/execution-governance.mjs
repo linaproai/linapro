@@ -10,6 +10,7 @@ export const e2eDir = path.resolve(testsDir, 'e2e');
 export const pluginsDir = path.resolve(repoRoot, 'apps/lina-plugins');
 export const manifestPath = path.resolve(testsDir, 'config/execution-manifest.json');
 export const pluginTestEntry = 'plugins';
+export const pluginWorkspaceInitCommand = 'git submodule update --init --recursive';
 
 export const isolationCategories = [
   {
@@ -127,6 +128,33 @@ export function exists(value) {
   } catch {
     return false;
   }
+}
+
+export function pluginWorkspaceState() {
+  if (!exists(pluginsDir)) {
+    return { manifestCount: 0, state: 'missing' };
+  }
+  const manifests = readdirSync(pluginsDir)
+    .map((name) => path.join(pluginsDir, name, 'plugin.yaml'))
+    .filter(exists);
+  if (manifests.length === 0) {
+    return { manifestCount: 0, state: 'empty' };
+  }
+  return { manifestCount: manifests.length, state: 'ready' };
+}
+
+export function requirePluginWorkspace() {
+  const workspace = pluginWorkspaceState();
+  if (workspace.state === 'ready') {
+    return;
+  }
+  throw new Error(
+    `Official plugin workspace is ${workspace.state} at apps/lina-plugins. Initialize it with \`${pluginWorkspaceInitCommand}\`.`,
+  );
+}
+
+export function isPluginWorkspaceReady() {
+  return pluginWorkspaceState().state === 'ready';
 }
 
 export function walk(directory) {

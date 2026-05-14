@@ -5,12 +5,13 @@
 ## Usage
 
 ```bash
-go run ./hack/tools/linactl help
-go run ./hack/tools/linactl status
-go run ./hack/tools/linactl prepare-packed-assets
-go run ./hack/tools/linactl wasm p=plugin-demo-dynamic
-go run ./hack/tools/linactl init confirm=init
-go run ./hack/tools/linactl build platforms=linux/amd64,linux/arm64
+cd hack/tools/linactl
+go run . help
+go run . status
+go run . prepare-packed-assets
+go run . wasm p=plugin-demo-dynamic
+go run . init confirm=init
+go run . build platforms=linux/amd64,linux/arm64
 ```
 
 ## Windows Entry
@@ -39,14 +40,17 @@ In PowerShell, run it with an explicit current-directory prefix:
 | `confirm` | `confirm=init` | Confirms destructive bootstrap commands. |
 | `rebuild` | `rebuild=true` | Rebuilds the configured database during `init`. |
 | `platforms` | `platforms=linux/amd64,linux/arm64` | Selects build target platforms. |
+| `plugins` | `plugins=0` | Overrides automatic plugin-full detection for build, dev, image, and Go test commands. |
 | `p` | `p=plugin-demo-dynamic` | Builds a specific dynamic plugin. |
 | `verbose` | `verbose=1` | Shows child command output for build tasks. |
+
+When `plugins` is omitted, build and dev commands enable plugin-full mode if `apps/lina-plugins` contains plugin manifests. Plugin-full mode generates or refreshes ignored `temp/go.work.plugins` from the host-only root `go.work`, then resolves source-plugin Go modules through `GOWORK`.
 
 ## Verification
 
 ```bash
-go test ./hack/tools/linactl
-go run ./hack/tools/linactl help
-go run ./hack/tools/linactl wasm dry-run=true
+cd hack/tools/linactl
+go test ./...
+go run . help
+go run . wasm dry-run=true
 ```
-

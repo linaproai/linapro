@@ -11,7 +11,21 @@ import (
 	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
 	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 	configsvc "lina-core/pkg/pluginservice/config"
+	"lina-core/pkg/pluginservice/contract"
 )
+
+// configHostService is the shared read-only configuration adapter used by wasm
+// host calls.
+var configHostService = configsvc.New()
+
+// ConfigureConfigHostService replaces the read-only configuration adapter used
+// by wasm host calls. The service must be non-nil.
+func ConfigureConfigHostService(service contract.ConfigService) {
+	if service == nil {
+		panic("wasm config host service requires a non-nil config adapter")
+	}
+	configHostService = service
+}
 
 // dispatchConfigHostService routes config host service methods to the generic
 // read-only plugin configuration service.
@@ -26,20 +40,19 @@ func dispatchConfigHostService(
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
-	reader := configsvc.New()
 	switch method {
 	case bridgehostservice.HostServiceMethodConfigGet:
-		return handleConfigGet(ctx, reader, request.Key)
+		return handleConfigGet(ctx, configHostService, request.Key)
 	case bridgehostservice.HostServiceMethodConfigExists:
-		return handleConfigExists(ctx, reader, request.Key)
+		return handleConfigExists(ctx, configHostService, request.Key)
 	case bridgehostservice.HostServiceMethodConfigString:
-		return handleConfigString(ctx, reader, request.Key)
+		return handleConfigString(ctx, configHostService, request.Key)
 	case bridgehostservice.HostServiceMethodConfigBool:
-		return handleConfigBool(ctx, reader, request.Key)
+		return handleConfigBool(ctx, configHostService, request.Key)
 	case bridgehostservice.HostServiceMethodConfigInt:
-		return handleConfigInt(ctx, reader, request.Key)
+		return handleConfigInt(ctx, configHostService, request.Key)
 	case bridgehostservice.HostServiceMethodConfigDuration:
-		return handleConfigDuration(ctx, reader, request.Key)
+		return handleConfigDuration(ctx, configHostService, request.Key)
 	default:
 		return bridgehostcall.NewHostCallErrorResponse(
 			bridgehostcall.HostCallStatusNotFound,
@@ -49,7 +62,7 @@ func dispatchConfigHostService(
 }
 
 // handleConfigGet reads one raw configuration value and returns its JSON representation.
-func handleConfigGet(ctx context.Context, reader configsvc.Service, key string) *bridgehostcall.HostCallResponseEnvelope {
+func handleConfigGet(ctx context.Context, reader contract.ConfigService, key string) *bridgehostcall.HostCallResponseEnvelope {
 	found, err := reader.Exists(ctx, key)
 	if err != nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
@@ -70,7 +83,7 @@ func handleConfigGet(ctx context.Context, reader configsvc.Service, key string) 
 }
 
 // handleConfigExists reports whether one configuration key exists.
-func handleConfigExists(ctx context.Context, reader configsvc.Service, key string) *bridgehostcall.HostCallResponseEnvelope {
+func handleConfigExists(ctx context.Context, reader contract.ConfigService, key string) *bridgehostcall.HostCallResponseEnvelope {
 	found, err := reader.Exists(ctx, key)
 	if err != nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
@@ -79,7 +92,7 @@ func handleConfigExists(ctx context.Context, reader configsvc.Service, key strin
 }
 
 // handleConfigString reads one configuration value as a string.
-func handleConfigString(ctx context.Context, reader configsvc.Service, key string) *bridgehostcall.HostCallResponseEnvelope {
+func handleConfigString(ctx context.Context, reader contract.ConfigService, key string) *bridgehostcall.HostCallResponseEnvelope {
 	found, err := reader.Exists(ctx, key)
 	if err != nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
@@ -95,7 +108,7 @@ func handleConfigString(ctx context.Context, reader configsvc.Service, key strin
 }
 
 // handleConfigBool reads one configuration value as a bool string.
-func handleConfigBool(ctx context.Context, reader configsvc.Service, key string) *bridgehostcall.HostCallResponseEnvelope {
+func handleConfigBool(ctx context.Context, reader contract.ConfigService, key string) *bridgehostcall.HostCallResponseEnvelope {
 	found, err := reader.Exists(ctx, key)
 	if err != nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
@@ -111,7 +124,7 @@ func handleConfigBool(ctx context.Context, reader configsvc.Service, key string)
 }
 
 // handleConfigInt reads one configuration value as an int string.
-func handleConfigInt(ctx context.Context, reader configsvc.Service, key string) *bridgehostcall.HostCallResponseEnvelope {
+func handleConfigInt(ctx context.Context, reader contract.ConfigService, key string) *bridgehostcall.HostCallResponseEnvelope {
 	found, err := reader.Exists(ctx, key)
 	if err != nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
@@ -127,7 +140,7 @@ func handleConfigInt(ctx context.Context, reader configsvc.Service, key string) 
 }
 
 // handleConfigDuration reads one configuration value as a duration string.
-func handleConfigDuration(ctx context.Context, reader configsvc.Service, key string) *bridgehostcall.HostCallResponseEnvelope {
+func handleConfigDuration(ctx context.Context, reader contract.ConfigService, key string) *bridgehostcall.HostCallResponseEnvelope {
 	found, err := reader.Exists(ctx, key)
 	if err != nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())

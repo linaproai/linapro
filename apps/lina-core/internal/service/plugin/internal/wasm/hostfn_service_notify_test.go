@@ -10,9 +10,57 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
+	notifysvc "lina-core/internal/service/notify"
+	"lina-core/internal/service/tenantcap"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/pluginbridge"
 )
+
+// trackingNotifyService records notify sends while returning deterministic
+// output for shared-instance wiring tests.
+type trackingNotifyService struct {
+	sendCalls int
+	lastInput notifysvc.SendInput
+}
+
+// InboxUnreadCount is unused by host-service notify tests.
+func (s *trackingNotifyService) InboxUnreadCount(context.Context, int64) (int, error) {
+	return 0, nil
+}
+
+// InboxList is unused by host-service notify tests.
+func (s *trackingNotifyService) InboxList(context.Context, notifysvc.InboxListInput) (*notifysvc.InboxListOutput, error) {
+	return &notifysvc.InboxListOutput{}, nil
+}
+
+// InboxMarkRead is unused by host-service notify tests.
+func (s *trackingNotifyService) InboxMarkRead(context.Context, int64, int64) error { return nil }
+
+// InboxMarkAllRead is unused by host-service notify tests.
+func (s *trackingNotifyService) InboxMarkAllRead(context.Context, int64) error { return nil }
+
+// InboxDelete is unused by host-service notify tests.
+func (s *trackingNotifyService) InboxDelete(context.Context, int64, int64) error { return nil }
+
+// InboxClear is unused by host-service notify tests.
+func (s *trackingNotifyService) InboxClear(context.Context, int64) error { return nil }
+
+// DeleteBySource is unused by host-service notify tests.
+func (s *trackingNotifyService) DeleteBySource(context.Context, notifysvc.SourceType, []string) error {
+	return nil
+}
+
+// Send records one host-service notify send request.
+func (s *trackingNotifyService) Send(_ context.Context, in notifysvc.SendInput) (*notifysvc.SendOutput, error) {
+	s.sendCalls++
+	s.lastInput = in
+	return &notifysvc.SendOutput{MessageID: 9001, DeliveryCount: len(in.RecipientUserIDs)}, nil
+}
+
+// SendNoticePublication is unused by host-service notify tests.
+func (s *trackingNotifyService) SendNoticePublication(context.Context, notifysvc.NoticePublishInput) (*notifysvc.SendOutput, error) {
+	return &notifysvc.SendOutput{}, nil
+}
 
 // createPluginNotifyTablesSQL provisions the notify tables required by the host
 // service integration tests when they are absent in the test database.
@@ -73,6 +121,9 @@ CREATE INDEX IF NOT EXISTS idx_sys_notify_delivery_channel_status ON sys_notify_
 // TestHandleHostServiceInvokeNotifySendDefaultsToCurrentUser verifies notify
 // sends default to the caller when no explicit recipients are provided.
 func TestHandleHostServiceInvokeNotifySendDefaultsToCurrentUser(t *testing.T) {
+	ConfigureNotifyHostService(notifysvc.New(tenantcap.New(nil, nil)))
+	t.Cleanup(func() { notifyHostService = nil })
+
 	ctx := context.Background()
 	ensurePluginNotifyTables(t, ctx)
 
@@ -162,6 +213,46 @@ func TestHandleHostServiceInvokeNotifyRejectsUnauthorizedChannel(t *testing.T) {
 	)
 	if response.Status != pluginbridge.HostCallStatusCapabilityDenied {
 		t.Fatalf("expected capability denied for unauthorized notify channel, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+}
+
+// TestHandleHostServiceInvokeNotifyUsesConfiguredSharedService verifies notify
+// host service dispatch reuses the explicitly configured shared instance.
+func TestHandleHostServiceInvokeNotifyUsesConfiguredSharedService(t *testing.T) {
+	notifySvc := &trackingNotifyService{}
+	ConfigureNotifyHostService(notifySvc)
+	t.Cleanup(func() {
+		notifyHostService = nil
+	})
+
+	hcc := newNotifyHostCallContext("test-plugin-notify-shared", "inbox", 42)
+	response := invokeNotifyHostService(
+		t,
+		hcc,
+		"inbox",
+		pluginbridge.MarshalHostServiceNotifySendRequest(&pluginbridge.HostServiceNotifySendRequest{
+			Title:        "done",
+			Content:      "finished",
+			SourceType:   "plugin",
+			SourceID:     "job-2",
+			CategoryCode: "other",
+		}),
+	)
+	if response.Status != pluginbridge.HostCallStatusSuccess {
+		t.Fatalf("send through shared notify: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	payload, err := pluginbridge.UnmarshalHostServiceNotifySendResponse(response.Payload)
+	if err != nil {
+		t.Fatalf("decode shared notify response: %v", err)
+	}
+	if payload.MessageID != 9001 || payload.DeliveryCount != 1 {
+		t.Fatalf("expected shared notify output, got %#v", payload)
+	}
+	if notifySvc.sendCalls != 1 {
+		t.Fatalf("expected shared notify service to receive one send, got %d", notifySvc.sendCalls)
+	}
+	if notifySvc.lastInput.PluginID != hcc.pluginID || len(notifySvc.lastInput.RecipientUserIDs) != 1 || notifySvc.lastInput.RecipientUserIDs[0] != 42 {
+		t.Fatalf("expected plugin and default recipient to be forwarded, got %#v", notifySvc.lastInput)
 	}
 }
 

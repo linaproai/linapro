@@ -2,19 +2,6 @@ go 1.25.0
 
 use (
 	./apps/lina-core
-	./apps/lina-plugins
-	./apps/lina-plugins/content-notice
-	./apps/lina-plugins/demo-control
-	./apps/lina-plugins/media
-	./apps/lina-plugins/monitor-loginlog
-	./apps/lina-plugins/monitor-online
-	./apps/lina-plugins/monitor-operlog
-	./apps/lina-plugins/monitor-server
-	./apps/lina-plugins/multi-tenant
-	./apps/lina-plugins/org-center
-	./apps/lina-plugins/plugin-demo-dynamic
-	./apps/lina-plugins/plugin-demo-source
-	./apps/lina-plugins/water
 	./hack/tools/build-wasm
 	./hack/tools/image-builder
 	./hack/tools/linactl

@@ -52,7 +52,7 @@ func TestNewHTTPRegistrarExposeRoutesAndGlobalMiddlewares(t *testing.T) {
 		func(r *ghttp.Request) {},
 		func(r *ghttp.Request) {},
 	)
-	registrar := NewHTTPRegistrar(server, rootGroup, "plugin-demo", nil, middlewares)
+	registrar := NewHTTPRegistrar(server, rootGroup, "plugin-demo", nil, middlewares, nil)
 	if registrar == nil {
 		t.Fatal("expected HTTP registrar to be initialized")
 	}

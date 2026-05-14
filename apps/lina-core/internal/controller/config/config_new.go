@@ -11,12 +11,12 @@ import (
 
 // ControllerV1 implements the config API controller.
 type ControllerV1 struct {
-	svc sysconfig.Service
+	sysConfigSvc sysconfig.Service // sysConfigSvc manages system configuration CRUD.
 }
 
 // NewV1 creates and returns a new config controller.
-func NewV1() config.IConfigV1 {
+func NewV1(sysConfigSvc sysconfig.Service) config.IConfigV1 {
 	return &ControllerV1{
-		svc: sysconfig.New(),
+		sysConfigSvc: sysConfigSvc,
 	}
 }

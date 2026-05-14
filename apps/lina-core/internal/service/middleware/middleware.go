@@ -83,17 +83,16 @@ type middlewareI18nService interface {
 	i18nsvc.Translator
 }
 
-// New creates and returns a new Service instance.
-func New() Service {
-	pluginSvc := pluginsvc.New(nil)
+// New creates a middleware service from explicit runtime-owned dependencies.
+func New(authSvc auth.Service, bizCtxSvc bizctx.Service, configSvc config.Service, i18nSvc middlewareI18nService, pluginSvc pluginsvc.Service, roleSvc role.Service, tenantSvc tenantcapsvc.Service) Service {
 	return &serviceImpl{
-		authSvc:   auth.New(nil),
-		bizCtxSvc: bizctx.New(),
-		configSvc: config.New(),
-		i18nSvc:   i18nsvc.New(),
+		authSvc:   authSvc,
+		bizCtxSvc: bizCtxSvc,
+		configSvc: configSvc,
+		i18nSvc:   i18nSvc,
 		pluginSvc: pluginSvc,
-		roleSvc:   role.New(pluginSvc),
-		tenantSvc: tenantcapsvc.New(pluginSvc),
+		roleSvc:   roleSvc,
+		tenantSvc: tenantSvc,
 	}
 }
 
@@ -172,6 +171,9 @@ func (s *serviceImpl) Auth(r *ghttp.Request) {
 	)
 	if err != nil || !exists {
 		s.roleSvc.InvalidateTokenAccessContext(r.Context(), claims.TokenId)
+		if err != nil {
+			r.SetError(err)
+		}
 		r.Response.WriteStatus(http.StatusUnauthorized)
 		return
 	}

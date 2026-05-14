@@ -15,8 +15,8 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new user message controller instance.
-func NewV1() usermsg.IUsermsgV1 {
+func NewV1(userMsgSvc usermsgsvc.Service) usermsg.IUsermsgV1 {
 	return &ControllerV1{
-		usermsgSvc: usermsgsvc.New(),
+		usermsgSvc: userMsgSvc,
 	}
 }

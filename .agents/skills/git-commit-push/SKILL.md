@@ -26,10 +26,66 @@ description: Review current Git workspace changes, generate a commit message fro
    - `git diff --stat`
    - `git diff --cached --stat`
    - `git diff -- . ':(exclude)package-lock.json'` 或按需使用更精确的路径过滤以提高可读性
-3. 根据实际变更文件和差异内容生成提交主题，而非仅依赖用户描述。
-4. 使用 `git add -A` 暂存当前分支上的所有修改。
-5. 使用生成的信息执行一次提交。
-6. 使用 `git push origin <当前分支>` 推送当前分支到 `origin`。
+3. **检测子模块变更**：检查 `.gitmodules` 中声明的子模块（如 `apps/lina-plugins`）是否已初始化且存在未提交变更。若存在，先在子模块内执行提交与推送（详见「子模块处理」章节）。
+4. 根据实际变更文件和差异内容生成提交主题，而非仅依赖用户描述。
+5. 使用 `git add -A` 暂存当前分支上的所有修改（此时子模块指针已更新）。
+6. 使用生成的信息执行一次提交。
+7. 使用 `git push origin <当前分支>` 推送当前分支到 `origin`。
+
+## 子模块处理
+
+当仓库包含 Git 子模块时，必须在主仓库提交**之前**先处理子模块内的变更，确保主仓库记录的是子模块最新的提交指针。
+
+### 检测逻辑
+
+1. 读取 `.gitmodules` 获取所有声明的子模块路径。
+2. 对每个子模块路径，检查目录是否存在且已初始化（`git -C <submodule-path> rev-parse --git-dir` 能成功执行）。
+3. 对已初始化的子模块，检查其工作区是否有变更：
+   - `git -C <submodule-path> status --short`
+   - `git -C <submodule-path> diff --stat`
+   - `git -C <submodule-path> diff --cached --stat`
+4. 若子模块工作区干净（无变更、无未跟踪文件），跳过该子模块。
+
+### 子模块提交与推送流程
+
+对存在变更的子模块，按以下顺序操作：
+
+```bash
+# 1. 进入子模块目录，检测当前分支
+sub_branch=$(git -C <submodule-path> branch --show-current)
+
+# 2. 查看子模块变更内容
+git -C <submodule-path> status --short --branch
+git -C <submodule-path> diff --stat
+git -C <submodule-path> diff --cached --stat
+
+# 3. 根据子模块内的变更生成独立的提交信息（遵循相同的提交信息规范）
+#    作用域应使用子模块的组件名，如 feat(plugin): add xxx
+
+# 4. 暂存并提交子模块变更
+git -C <submodule-path> add -A
+git -C <submodule-path> commit -m "<generated-subject-for-submodule>"
+
+# 5. 推送子模块到其 origin
+git -C <submodule-path> push origin "$sub_branch"
+```
+
+子模块提交完成后，再回到主仓库执行正常的提交流程。此时 `git add -A` 会将子模块的新提交指针一并暂存。
+
+### 子模块提交信息规范
+
+子模块的提交信息遵循与主仓库相同的 `<类型>[可选作用域]: <描述>` 规范，但作用域应反映子模块内部的组件结构而非主仓库的作用域。例如：
+
+- 主仓库作用域示例：`feat(core): add plugin sync`
+- 子模块作用域示例：`feat(plugin): add new source plugin`
+
+### 执行约束
+
+- **子模块先于主仓库**：子模块的提交和推送必须在主仓库 `git add -A` 之前完成，否则主仓库无法记录子模块的最新指针。
+- **独立提交信息**：子模块使用独立生成的提交信息，不与主仓库共享同一条提交信息。
+- **独立分支检测**：子模块可能处于与主仓库不同的分支上，以子模块实际检测到的分支为准。
+- **推送失败处理**：若子模块推送失败，报告具体错误并停止，不继续执行主仓库的提交。用户需先解决子模块的推送问题。
+- **子模块无变更则跳过**：若子模块工作区干净，直接跳过，不产生额外操作。
 
 ## 提交信息规范
 
@@ -111,11 +167,32 @@ Refs: #123
 
 ## 建议的命令流程
 
+### 步骤 1：检查主仓库状态
+
 ```bash
 git status --short --branch
 git diff --stat
 git diff --cached --stat
 branch_name=$(git branch --show-current)
+```
+
+### 步骤 2：处理子模块（若有变更）
+
+```bash
+# 检测子模块是否已初始化且有变更
+git -C apps/lina-plugins status --short
+
+# 若有变更，进入子模块执行提交与推送
+sub_branch=$(git -C apps/lina-plugins branch --show-current)
+git -C apps/lina-plugins diff --stat
+git -C apps/lina-plugins add -A
+git -C apps/lina-plugins commit -m "<submodule-commit-subject>"
+git -C apps/lina-plugins push origin "$sub_branch"
+```
+
+### 步骤 3：提交并推送主仓库
+
+```bash
 git add -A
 git commit -m "<generated-subject>"
 git push origin "$branch_name"
@@ -131,6 +208,7 @@ git push origin "$branch_name"
 - 提供最终使用的提交主题
 - 说明已暂存所有当前变更
 - 报告推送目标为 `origin/<分支名>`
+- **若处理了子模块变更，单独报告子模块的提交分支、提交主题和推送目标**
 - 如果提交或推送未执行，说明具体原因
 
 ## 示例

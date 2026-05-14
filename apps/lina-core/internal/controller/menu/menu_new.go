@@ -8,7 +8,6 @@ import (
 	menuapi "lina-core/api/menu"
 	"lina-core/internal/service/bizctx"
 	menusvc "lina-core/internal/service/menu"
-	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 )
 
@@ -20,11 +19,10 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new menu controller instance.
-func NewV1() menuapi.IMenuV1 {
-	pluginSvc := pluginsvc.New(nil)
+func NewV1(menuSvc menusvc.Service, roleSvc role.Service, bizCtxSvc bizctx.Service) menuapi.IMenuV1 {
 	return &ControllerV1{
-		menuSvc:   menusvc.New(pluginSvc),
-		roleSvc:   role.New(pluginSvc),
-		bizCtxSvc: bizctx.New(),
+		menuSvc:   menuSvc,
+		roleSvc:   roleSvc,
+		bizCtxSvc: bizCtxSvc,
 	}
 }

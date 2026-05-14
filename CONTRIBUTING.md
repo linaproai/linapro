@@ -34,10 +34,13 @@ Thank you for your interest in contributing to `LinaPro`! This guide explains ho
 git clone https://github.com/<your-username>/linapro.git
 cd linapro
 
-# 2. Initialize the database (DDL + seed data)
+# 2. Initialize the official plugins workspace when you need plugin-full mode
+git submodule update --init --recursive
+
+# 3. Initialize the database (DDL + seed data)
 make init
 
-# 3. Start the full stack (frontend: 5666, backend: 8080)
+# 4. Start the full stack (frontend: 5666, backend: 8080)
 make dev
 ```
 
@@ -160,6 +163,15 @@ Plugins live under `apps/lina-plugins/<plugin-id>/` and must include:
 
 Plugin business logic belongs in `backend/internal/service/`. Only provider/adapter implementations of host extension seams go in `backend/provider/`.
 
+### Official Plugin Workspace
+
+- The official source plugins are mounted at `apps/lina-plugins` from `https://github.com/linaproai/official-plugins.git`.
+- Host-only validation works without initializing the submodule.
+- Build and dev commands auto-enable plugin-full mode when plugin manifests exist under `apps/lina-plugins`; use `plugins=0` to force host-only mode.
+- Plugin-full mode generates or refreshes ignored `temp/go.work.plugins` from the host-only root `go.work`, then resolves source-plugin modules through `GOWORK`.
+- Use plugin-specific validation only after `git submodule update --init --recursive`.
+- The local submodule remote is configured for SSH management in the checked-out workspace.
+
 ---
 
 ## Commit Guidelines
@@ -281,4 +293,3 @@ If a change does not affect i18n resources, state this explicitly in your PR des
 | Live Demo | http://demo.linapro.ai/ |
 
 Please search existing issues before opening a new one. For security vulnerabilities, do not open a public issue — contact the maintainers directly.
-

@@ -66,6 +66,15 @@ func cloneClusterConfig(cfg *ClusterConfig) *ClusterConfig {
 	return &cloned
 }
 
+// cloneClusterRedisConfig returns a detached copy of Redis coordination config.
+func cloneClusterRedisConfig(cfg *ClusterRedisConfig) *ClusterRedisConfig {
+	if cfg == nil {
+		return nil
+	}
+	cloned := *cfg
+	return &cloned
+}
+
 // cloneI18nConfig returns a detached copy so callers cannot mutate the shared
 // cached i18n config instance in process memory.
 func cloneI18nConfig(cfg *I18nConfig) *I18nConfig {

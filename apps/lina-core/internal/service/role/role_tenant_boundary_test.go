@@ -29,7 +29,7 @@ const (
 // persists the current tenant on both role and role-menu rows.
 func TestCreateWritesTenantOwnershipAndRoleMenuTenant(t *testing.T) {
 	ctx := datascope.WithTenantForTest(context.Background(), 62001)
-	svc := New(nil)
+	svc := newDefaultRoleTestService()
 	menuID := insertRoleTenantBoundaryMenu(t, ctx, "tenant-create", "system:tenant:create", 62001)
 	t.Cleanup(func() {
 		cleanupRoleTestRows(t, ctx, nil, nil, []int{menuID})
@@ -63,8 +63,8 @@ func TestCreateWritesTenantOwnershipAndRoleMenuTenant(t *testing.T) {
 // the role tenant boundary.
 func TestAssignUsersWritesCurrentTenantRelation(t *testing.T) {
 	ctx := datascope.WithTenantForTest(context.Background(), 62011)
-	svc := New(nil).(*serviceImpl)
-	svc.tenantSvc = tenantcapsvc.New(roleTenantBoundaryEnablementReader{})
+	svc := newDefaultRoleTestService()
+	svc.tenantSvc = tenantcapsvc.New(roleTenantBoundaryEnablementReader{}, nil)
 	roleID := insertRoleTenantBoundaryRole(t, ctx, "tenant-assign", 62011)
 	operatorRoleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-assign-operator", 62011, roleDataScopeTenant)
 	userID := insertRoleTenantBoundaryUser(t, ctx, "tenant-assign-user", 62011)
@@ -77,7 +77,7 @@ func TestAssignUsersWritesCurrentTenantRelation(t *testing.T) {
 	})
 	insertRoleTenantBoundaryUserRole(t, ctx, userID, operatorRoleID, 62011)
 	insertRoleTenantBoundaryMembership(t, ctx, userID, 62011, 1)
-	svc.bizCtxSvc = roleScopeStaticBizCtx{ctx: &model.Context{UserId: userID, TenantId: 62011}}
+	setRoleTestBizCtx(svc, roleScopeStaticBizCtx{ctx: &model.Context{UserId: userID, TenantId: 62011}})
 
 	if err := svc.AssignUsers(ctx, roleID, []int{userID}); err != nil {
 		t.Fatalf("assign tenant role user: %v", err)
@@ -91,7 +91,7 @@ func TestAssignUsersWritesCurrentTenantRelation(t *testing.T) {
 // cross-tenant all-data scope.
 func TestTenantRoleRejectsAllDataScope(t *testing.T) {
 	ctx := datascope.WithTenantForTest(context.Background(), 62021)
-	svc := New(nil)
+	svc := newDefaultRoleTestService()
 
 	_, err := svc.Create(ctx, CreateInput{
 		Name:      uniqueRoleTenantBoundaryName("tenant-all-data-deny"),
@@ -109,14 +109,14 @@ func TestTenantRoleRejectsAllDataScope(t *testing.T) {
 // roles cannot be assigned to tenant-primary users.
 func TestPlatformContextRoleRejectsTenantPrimaryUser(t *testing.T) {
 	ctx := datascope.WithTenantForTest(context.Background(), datascope.PlatformTenantID)
-	svc := New(nil).(*serviceImpl)
+	svc := newDefaultRoleTestService()
 	adminUserID, _ := mustQueryAdminUserAndRoleID(t, ctx)
 	roleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "platform-role", 0, roleDataScopeAll)
 	userID := insertRoleTenantBoundaryUser(t, ctx, "tenant-primary-user", 62022)
 	t.Cleanup(func() {
 		cleanupRoleTestRows(t, ctx, []int{roleID}, []int{userID}, nil)
 	})
-	svc.bizCtxSvc = roleScopeStaticBizCtx{ctx: &model.Context{UserId: adminUserID, TenantId: datascope.PlatformTenantID}}
+	setRoleTestBizCtx(svc, roleScopeStaticBizCtx{ctx: &model.Context{UserId: adminUserID, TenantId: datascope.PlatformTenantID}})
 
 	err := svc.AssignUsers(ctx, roleID, []int{userID})
 	if !bizerr.Is(err, CodePlatformRoleAssignmentForbidden) {
@@ -128,7 +128,7 @@ func TestPlatformContextRoleRejectsTenantPrimaryUser(t *testing.T) {
 // assigned to platform users, which would make platform authority tenant-local.
 func TestTenantRoleRejectsPlatformPrimaryUser(t *testing.T) {
 	ctx := datascope.WithTenantForTest(context.Background(), 62023)
-	svc := New(nil).(*serviceImpl)
+	svc := newDefaultRoleTestService()
 	roleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-role-platform-user-deny", 62023, roleDataScopeTenant)
 	operatorRoleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-role-platform-user-operator", 62023, roleDataScopeTenant)
 	operatorUserID := insertRoleTenantBoundaryUser(t, ctx, "tenant-role-platform-user-operator", 62023)
@@ -137,7 +137,7 @@ func TestTenantRoleRejectsPlatformPrimaryUser(t *testing.T) {
 		cleanupRoleTestRows(t, ctx, []int{roleID, operatorRoleID}, []int{operatorUserID, platformUserID}, nil)
 	})
 	insertRoleTenantBoundaryUserRole(t, ctx, operatorUserID, operatorRoleID, 62023)
-	svc.bizCtxSvc = roleScopeStaticBizCtx{ctx: &model.Context{UserId: operatorUserID, TenantId: 62023}}
+	setRoleTestBizCtx(svc, roleScopeStaticBizCtx{ctx: &model.Context{UserId: operatorUserID, TenantId: 62023}})
 
 	err := svc.AssignUsers(ctx, roleID, []int{platformUserID})
 	if !bizerr.Is(err, CodeTenantRoleAssignmentForbidden) {
@@ -152,8 +152,8 @@ func TestTenantRoleRejectsPlatformPrimaryUser(t *testing.T) {
 // assignment checks the multi-tenant membership table when it is installed.
 func TestTenantRoleRequiresActiveMembershipWhenTableExists(t *testing.T) {
 	ctx := datascope.WithTenantForTest(context.Background(), 62024)
-	svc := New(nil).(*serviceImpl)
-	svc.tenantSvc = tenantcapsvc.New(roleTenantBoundaryEnablementReader{})
+	svc := newDefaultRoleTestService()
+	svc.tenantSvc = tenantcapsvc.New(roleTenantBoundaryEnablementReader{}, nil)
 	ensureRoleTenantBoundaryMembershipTable(t, ctx)
 	roleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-role-membership-deny", 62024, roleDataScopeTenant)
 	operatorRoleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-role-membership-operator", 62024, roleDataScopeTenant)
@@ -167,7 +167,7 @@ func TestTenantRoleRequiresActiveMembershipWhenTableExists(t *testing.T) {
 	insertRoleTenantBoundaryMembership(t, ctx, operatorUserID, 62024, 1)
 	pkgtenantcap.RegisterProvider(roleTenantBoundaryProvider{})
 	t.Cleanup(func() { pkgtenantcap.RegisterProvider(nil) })
-	svc.bizCtxSvc = roleScopeStaticBizCtx{ctx: &model.Context{UserId: operatorUserID, TenantId: 62024}}
+	setRoleTestBizCtx(svc, roleScopeStaticBizCtx{ctx: &model.Context{UserId: operatorUserID, TenantId: 62024}})
 
 	err := svc.AssignUsers(ctx, roleID, []int{targetUserID})
 	if !bizerr.Is(err, CodeTenantRoleAssignmentForbidden) {
@@ -190,7 +190,7 @@ func TestTenantRoleRequiresActiveMembershipWhenTableExists(t *testing.T) {
 // does not reuse role-menu rows from another tenant for the same role ID.
 func TestTenantRoleAccessFiltersRoleMenuByTenant(t *testing.T) {
 	ctx := datascope.WithTenantForTest(context.Background(), 62031)
-	svc := New(nil).(*serviceImpl)
+	svc := newDefaultRoleTestService()
 	roleID := insertRoleTenantBoundaryRole(t, ctx, "tenant-access", 62031)
 	userID := insertRoleTenantBoundaryUser(t, ctx, "tenant-access-user", 62031)
 	tenantMenuID := insertRoleTenantBoundaryMenu(t, ctx, "tenant-access-menu", "system:tenant:visible", 62031)
@@ -218,7 +218,7 @@ func TestTenantRoleAccessFiltersRoleMenuByTenant(t *testing.T) {
 // target-tenant data context while permission grants come from platform roles.
 func TestImpersonationAccessUsesPlatformRoles(t *testing.T) {
 	ctx := datascope.WithTenantForTest(context.Background(), 62041)
-	svc := New(nil).(*serviceImpl)
+	svc := newDefaultRoleTestService()
 	roleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "impersonation-platform-role", datascope.PlatformTenantID, roleDataScopeAll)
 	userID := insertRoleTenantBoundaryUser(t, ctx, "impersonation-platform-user", datascope.PlatformTenantID)
 	menuID := insertRoleTenantBoundaryMenu(t, ctx, "impersonation-platform-menu", "system:tenant:impersonate:test", datascope.PlatformTenantID)
@@ -227,12 +227,12 @@ func TestImpersonationAccessUsesPlatformRoles(t *testing.T) {
 	})
 	insertRoleTenantBoundaryRoleMenu(t, ctx, roleID, menuID, datascope.PlatformTenantID)
 	insertRoleTenantBoundaryUserRole(t, ctx, userID, roleID, datascope.PlatformTenantID)
-	svc.bizCtxSvc = roleScopeStaticBizCtx{ctx: &model.Context{
+	setRoleTestBizCtx(svc, roleScopeStaticBizCtx{ctx: &model.Context{
 		UserId:         userID,
 		TenantId:       62041,
 		ActingAsTenant: true,
 		ActingUserId:   userID,
-	}}
+	}})
 
 	access, err := svc.GetUserAccessContext(ctx, userID)
 	if err != nil {

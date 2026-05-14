@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"lina-core/pkg/testsupport"
 )
 
 // TestSQLiteTranslateDDLExecutesPostgreSQLFixture verifies the public SQLite
@@ -83,6 +85,13 @@ INSERT INTO sys_user (username, nickname, "type") VALUES ('Admin', 'Duplicate ca
 // once the parallel SQL rewrite has fully converted them to PostgreSQL source.
 func TestSQLiteTranslateDDLProjectSQLAssetsSmoke(t *testing.T) {
 	ctx := context.Background()
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatalf("resolve repository root failed: %v", err)
+	}
+	if !testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
+		t.Skip("official plugin workspace is not initialized")
+	}
 	installAssets := collectProjectSQLAssets(t, sqlAssetGroupInstall)
 	mockAssets := collectProjectSQLAssets(t, sqlAssetGroupMock)
 	uninstallAssets := collectProjectSQLAssets(t, sqlAssetGroupUninstall)
@@ -117,6 +126,13 @@ func TestPostgreSQLProjectSQLAssetsSmoke(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatalf("resolve repository root failed: %v", err)
+	}
+	if !testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
+		t.Skip("official plugin workspace is not initialized")
+	}
 
 	installAssets := collectProjectSQLAssets(t, sqlAssetGroupInstall)
 	mockAssets := collectProjectSQLAssets(t, sqlAssetGroupMock)

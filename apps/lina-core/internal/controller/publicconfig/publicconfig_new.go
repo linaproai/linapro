@@ -15,9 +15,9 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new public frontend-config controller.
-func NewV1() publicconfig.IPublicconfigV1 {
+func NewV1(configSvc hostconfig.Service, i18nSvc i18nsvc.Translator) publicconfig.IPublicconfigV1 {
 	return &ControllerV1{
-		configSvc: hostconfig.New(),
-		i18nSvc:   i18nsvc.New(),
+		configSvc: configSvc,
+		i18nSvc:   i18nSvc,
 	}
 }

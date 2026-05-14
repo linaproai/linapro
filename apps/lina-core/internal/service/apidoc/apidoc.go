@@ -62,12 +62,12 @@ type apidocI18nService interface {
 	i18nsvc.Translator
 }
 
-// New creates and returns a new apidoc Service.
-func New(configSvc ConfigProvider, pluginSvc PluginRouteProvider) Service {
+// New creates and returns a new apidoc service from explicit runtime-owned dependencies.
+func New(configSvc ConfigProvider, bizCtxSvc bizctxsvc.Service, i18nSvc apidocI18nService, pluginSvc PluginRouteProvider) Service {
 	return &serviceImpl{
 		configSvc: configSvc,
-		bizCtxSvc: bizctxsvc.New(),
-		i18nSvc:   i18nsvc.New(),
+		bizCtxSvc: bizCtxSvc,
+		i18nSvc:   i18nSvc,
 		pluginSvc: pluginSvc,
 	}
 }

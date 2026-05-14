@@ -9,6 +9,7 @@ import {
   exists,
   highRiskRules,
   isolationAllowlist,
+  isPluginWorkspaceReady,
   isHostTcFile,
   isPluginTcFile,
   knownIsolationCategorySet,
@@ -30,6 +31,7 @@ import {
 
 const manifest = loadManifest();
 const errors = [];
+const pluginWorkspaceReady = isPluginWorkspaceReady();
 const highRiskRuleByCategory = new Map(
   highRiskRules.map((rule) => [rule.category, rule]),
 );
@@ -136,6 +138,18 @@ function entryExistsOrResolves(entry) {
   return exists(path.resolve(testsDir, entry));
 }
 
+function isPluginEntry(entry) {
+  return (
+    entry === pluginTestEntry ||
+    entry.startsWith('plugins/') ||
+    entry.startsWith('apps/lina-plugins/')
+  );
+}
+
+function isPluginScope(scope, entries) {
+  return scope === pluginTestEntry || entries.some((entry) => isPluginEntry(entry));
+}
+
 for (const directory of legacyPluginE2EDirs) {
   const relativePath = pluginTestRelativePath(directory);
   addError(
@@ -176,6 +190,9 @@ for (const [tcId, files] of tcRegistry.entries()) {
 }
 
 for (const [scope, entries] of Object.entries(manifest.moduleScopes)) {
+  if (!pluginWorkspaceReady && isPluginScope(scope, entries)) {
+    continue;
+  }
   const files = entries.flatMap((entry) => listTcFiles(entry));
   if (files.length === 0 && scope !== pluginTestEntry) {
     addError(`Module scope has no matching test files: ${scope}`);

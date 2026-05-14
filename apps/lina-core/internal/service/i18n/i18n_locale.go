@@ -121,13 +121,25 @@ func hostRuntimeLocaleDirectoryHasJSON(ctx context.Context, locale string) bool 
 // loadRuntimeI18nConfig loads runtime locale metadata from the shared config service.
 func (s *serviceImpl) loadRuntimeI18nConfig(ctx context.Context) *hostconfig.I18nConfig {
 	if s == nil || s.configSvc == nil {
-		return hostconfig.New().GetI18n(ctx)
+		return fallbackRuntimeI18nConfig()
 	}
 	cfg := s.configSvc.GetI18n(ctx)
 	if cfg == nil {
-		return hostconfig.New().GetI18n(ctx)
+		return fallbackRuntimeI18nConfig()
 	}
 	return cfg
+}
+
+// fallbackRuntimeI18nConfig returns the minimal process-safe default used only
+// when a test constructs serviceImpl without the required config dependency.
+func fallbackRuntimeI18nConfig() *hostconfig.I18nConfig {
+	return &hostconfig.I18nConfig{
+		Default: DefaultLocale,
+		Enabled: false,
+		Locales: []hostconfig.I18nLocaleConfig{
+			{Locale: DefaultLocale},
+		},
+	}
 }
 
 // buildRuntimeLocalesFromConfig builds locale descriptors from config metadata

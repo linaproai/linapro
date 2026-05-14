@@ -9,7 +9,7 @@
 ## init: Initialize the database with DDL and seed data only
 .PHONY: init
 init:
-	@go run ./hack/tools/linactl init confirm=$(confirm) $(if $(rebuild),rebuild=$(rebuild),)
+	@$(LINACTL) init confirm=$(confirm) $(if $(rebuild),rebuild=$(rebuild),)
 
 # Load optional mock data for local demos and development verification.
 # Mock loading uses the same database.default.link dialect and requires init first.
@@ -18,4 +18,4 @@ init:
 ## mock: Load mock demo data after init
 .PHONY: mock
 mock:
-	@go run ./hack/tools/linactl mock confirm=$(confirm)
+	@$(LINACTL) mock confirm=$(confirm)

@@ -7,10 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	_ "lina-core/pkg/dbdriver"
-
-	"lina-core/internal/dao"
-	"lina-core/internal/model/do"
+	"lina-core/internal/service/coordination"
 )
 
 const (
@@ -187,12 +184,35 @@ func TestDefaultReturnsSharedCoordinatorWithUpdatedTopology(t *testing.T) {
 	}
 }
 
+// TestDefaultAllowsRealSingleNodeTopologyToReplaceStaticClusterPlaceholder
+// verifies SQLite startup can downgrade an early static cluster placeholder to
+// the real single-node runtime topology.
+func TestDefaultAllowsRealSingleNodeTopologyToReplaceStaticClusterPlaceholder(t *testing.T) {
+	withResetDefaultCoordinator(t)
+
+	first := Default(NewStaticTopology(true))
+	impl, ok := first.(*serviceImpl)
+	if !ok {
+		t.Fatalf("expected default coordinator implementation, got %T", first)
+	}
+	if !impl.clusterEnabled() {
+		t.Fatal("expected static cluster placeholder to enable clustered cache coordination")
+	}
+
+	second := Default(defaultCoordinatorTestTopology{enabled: false})
+	if first != second {
+		t.Fatal("expected real single-node topology to reuse default coordinator")
+	}
+	if impl.clusterEnabled() {
+		t.Fatal("expected real single-node topology to replace static cluster placeholder")
+	}
+}
+
 // TestClusterMarkChangedPersistsAtomicRevision verifies concurrent clustered
 // publishers increment the same persistent row without losing revisions.
 func TestClusterMarkChangedPersistsAtomicRevision(t *testing.T) {
 	ctx := context.Background()
-	service := New(NewStaticTopology(true))
-	cleanupCacheRevision(t, ctx, testRuntimeConfigDomain, Scope("unit-test-atomic"))
+	service := NewWithCoordination(NewStaticTopology(true), coordination.NewMemory(nil))
 
 	const workers = 12
 	revisions := make(chan int64, workers)
@@ -246,10 +266,9 @@ func TestClusterMarkChangedPersistsAtomicRevision(t *testing.T) {
 // new valid domain without changing cachecoord code or configuring metadata.
 func TestClusterMarkChangedAcceptsUnconfiguredDomain(t *testing.T) {
 	ctx := context.Background()
-	service := New(NewStaticTopology(true))
+	service := NewWithCoordination(NewStaticTopology(true), coordination.NewMemory(nil))
 	domain := Domain("plugin:unit-test:custom")
 	scope := Scope("unit-test-free-domain")
-	cleanupCacheRevision(t, ctx, domain, scope)
 
 	revision, err := service.MarkChanged(ctx, domain, scope, ChangeReason("free_domain"))
 	if err != nil {
@@ -283,9 +302,8 @@ func TestClusterMarkChangedAcceptsUnconfiguredDomain(t *testing.T) {
 // infrastructure failure.
 func TestClusterCurrentRevisionHandlesMissingSharedRow(t *testing.T) {
 	ctx := context.Background()
-	service := New(NewStaticTopology(true))
+	service := NewWithCoordination(NewStaticTopology(true), coordination.NewMemory(nil))
 	scope := Scope("unit-test-missing-shared-row")
-	cleanupCacheRevision(t, ctx, testRuntimeConfigDomain, scope)
 
 	revision, err := service.CurrentRevision(ctx, testRuntimeConfigDomain, scope)
 	if err != nil {
@@ -300,9 +318,9 @@ func TestClusterCurrentRevisionHandlesMissingSharedRow(t *testing.T) {
 // the observed revision advances.
 func TestEnsureFreshRefreshesOncePerRevision(t *testing.T) {
 	ctx := context.Background()
-	publisher := New(NewStaticTopology(true))
-	consumer := New(NewStaticTopology(true))
-	cleanupCacheRevision(t, ctx, testPluginRuntimeDomain, Scope("unit-test-refresh"))
+	coordSvc := coordination.NewMemory(nil)
+	publisher := NewWithCoordination(NewStaticTopology(true), coordSvc)
+	consumer := NewWithCoordination(NewStaticTopology(true), coordSvc)
 
 	if _, err := publisher.MarkChanged(ctx, testPluginRuntimeDomain, Scope("unit-test-refresh"), ChangeReason("first")); err != nil {
 		t.Fatalf("publish first revision failed: %v", err)
@@ -342,9 +360,9 @@ func TestEnsureFreshRefreshesOncePerRevision(t *testing.T) {
 func TestSnapshotIncludesProcessStatusFromOtherInstances(t *testing.T) {
 	ctx := context.Background()
 	scope := Scope("unit-test-process-snapshot")
-	publisher := New(NewStaticTopology(true))
-	diagnosticReader := New(NewStaticTopology(true))
-	cleanupCacheRevision(t, ctx, testRuntimeConfigDomain, scope)
+	coordSvc := coordination.NewMemory(nil)
+	publisher := NewWithCoordination(NewStaticTopology(true), coordSvc)
+	diagnosticReader := NewWithCoordination(NewStaticTopology(true), coordSvc)
 
 	revision, err := publisher.MarkChanged(ctx, testRuntimeConfigDomain, scope, ChangeReason("diagnostic_snapshot"))
 	if err != nil {
@@ -367,18 +385,62 @@ func TestSnapshotIncludesProcessStatusFromOtherInstances(t *testing.T) {
 	t.Fatalf("expected snapshot item for scope %q, got %#v", scope, items)
 }
 
-// cleanupCacheRevision removes one test revision row before and after a test.
-func cleanupCacheRevision(t *testing.T, ctx context.Context, domain Domain, scope Scope) {
+// withResetDefaultCoordinator clears the process-default coordinator around a
+// test that needs deterministic topology replacement behavior.
+func withResetDefaultCoordinator(t *testing.T) {
 	t.Helper()
 
-	cleanup := func() {
-		if _, err := dao.SysCacheRevision.Ctx(ctx).Where(do.SysCacheRevision{
-			Domain: domain,
-			Scope:  scope,
-		}).Delete(); err != nil {
-			t.Fatalf("cleanup cache revision failed: %v", err)
-		}
+	processDefaultService.Lock()
+	previous := processDefaultService.service
+	processDefaultService.service = nil
+	processDefaultService.Unlock()
+
+	t.Cleanup(func() {
+		processDefaultService.Lock()
+		processDefaultService.service = previous
+		processDefaultService.Unlock()
+	})
+}
+
+// TestSnapshotIncludesCoordinationHealth verifies clustered cache diagnostics
+// expose the active coordination backend and event subscription status.
+func TestSnapshotIncludesCoordinationHealth(t *testing.T) {
+	ctx := context.Background()
+	scope := Scope("unit-test-coordination-health")
+	coordSvc := coordination.NewMemory(nil)
+	service := NewWithCoordination(NewStaticTopology(true), coordSvc)
+
+	subscription, err := coordSvc.Events().Subscribe(ctx, func(context.Context, coordination.Event) error {
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("subscribe coordination events: %v", err)
 	}
-	cleanup()
-	t.Cleanup(cleanup)
+	t.Cleanup(func() {
+		if err := subscription.Close(ctx); err != nil {
+			t.Fatalf("close coordination subscription: %v", err)
+		}
+	})
+
+	if _, err := service.MarkChanged(ctx, testRuntimeConfigDomain, scope, ChangeReason("diagnostic_health")); err != nil {
+		t.Fatalf("publish revision failed: %v", err)
+	}
+
+	items, err := service.Snapshot(ctx)
+	if err != nil {
+		t.Fatalf("snapshot failed: %v", err)
+	}
+	for _, item := range items {
+		if item.Domain != testRuntimeConfigDomain || item.Scope != scope {
+			continue
+		}
+		if item.Backend != coordination.BackendMemory {
+			t.Fatalf("expected memory backend in snapshot, got %#v", item)
+		}
+		if !item.CoordinationHealthy || !item.EventSubscriberRunning {
+			t.Fatalf("expected healthy event subscriber diagnostics, got %#v", item)
+		}
+		return
+	}
+	t.Fatalf("expected snapshot item for scope %q, got %#v", scope, items)
 }

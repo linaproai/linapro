@@ -1,0 +1,3 @@
+[submodule "apps/lina-plugins"]
+	path = apps/lina-plugins
+	url = https://github.com/linaproai/official-plugins.git

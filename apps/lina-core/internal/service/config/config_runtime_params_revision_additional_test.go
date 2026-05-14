@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/coordination"
 	"lina-core/pkg/bizerr"
 )
 
@@ -237,15 +238,15 @@ func TestClusterRuntimeParamRevisionControllerPropagatesCacheCoordErrors(t *test
 // another clustered writer through the persistent coordination row.
 func TestClusterRuntimeParamRevisionControllerConsumesCrossInstanceRevision(t *testing.T) {
 	ctx := context.Background()
-	cleanupRuntimeConfigRevision(t, ctx)
 	clearLocalRuntimeParamRevision()
 	t.Cleanup(clearLocalRuntimeParamRevision)
+	coordSvc := coordination.NewMemory(nil)
 
 	publisher := &clusterRuntimeParamRevisionController{
-		cacheCoordSvc: cachecoord.New(cachecoord.NewStaticTopology(true)),
+		cacheCoordSvc: cachecoord.NewWithCoordination(cachecoord.NewStaticTopology(true), coordSvc),
 	}
 	consumer := &clusterRuntimeParamRevisionController{
-		cacheCoordSvc: cachecoord.New(cachecoord.NewStaticTopology(true)),
+		cacheCoordSvc: cachecoord.NewWithCoordination(cachecoord.NewStaticTopology(true), coordSvc),
 	}
 
 	revision, err := publisher.MarkChanged(ctx)

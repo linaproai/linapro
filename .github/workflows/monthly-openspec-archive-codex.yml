@@ -1,0 +1,194 @@
+# LinaPro reusable monthly OpenSpec archive workflow for Codex.
+# LinaPro 面向 Codex 的可复用 OpenSpec 归档工作流。
+name: Monthly OpenSpec Archive Codex
+
+on:
+  # Allow the router workflow to call the Codex archive implementation.
+  # 允许路由工作流调用 Codex 归档实现。
+  workflow_call:
+    inputs:
+      # Keeps the archive job pinned to the same OpenSpec CLI version as the detector.
+      # 让归档 job 使用与检测 job 一致的 OpenSpec CLI 版本。
+      openspec_version:
+        description: OpenSpec CLI version to run.
+        required: false
+        type: string
+        default: "1.3.1"
+    secrets:
+      # Provides Codex with the OpenAI API key.
+      # 为 Codex 提供 OpenAI API key。
+      OPENAI_API_KEY:
+        required: true
+      # Provides Codex with the OpenAI-compatible API base URL.
+      # 为 Codex 提供 OpenAI 兼容 API base URL。
+      OPENAI_BASE_URL:
+        required: true
+
+# The archive job edits repository contents and opens pull requests.
+# 归档 job 会编辑仓库内容并创建 PR。
+permissions:
+  contents: write
+  pull-requests: write
+
+# Shared runtime settings for OpenSpec commands and Codex container execution.
+# OpenSpec 命令和 Codex 容器执行使用的共享运行时设置。
+env:
+  TZ: "Asia/Shanghai"
+  OPENSPEC_VERSION: ${{ inputs.openspec_version }}
+
+jobs:
+  # Runs auto-archive, optional archive consolidation, and PR finalization through Codex.
+  # 通过 Codex 运行自动归档、可选归档聚合和 PR 收尾。
+  archive:
+    name: Archive and consolidate with Codex
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      # Check out the default branch with full history so archive branches can be created.
+      # 拉取默认分支完整历史，以便创建归档分支。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      # Install shared Node/OpenSpec/GitHub CLI prerequisites used by both archive phases.
+      # 安装两个归档阶段共用的 Node、OpenSpec 和 GitHub CLI 前置依赖。
+      - name: Prepare Shared Runtime
+        uses: ./.github/actions/monthly-openspec-setup
+
+      # Create an isolated Codex home, auth file, OpenSpec shim, and log directory.
+      # 创建隔离的 Codex home、认证文件、OpenSpec 包装入口和日志目录。
+      - name: Prepare Codex Runtime
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${OPENAI_API_KEY}" ]; then
+            echo "OPENAI_API_KEY secret is not configured." >&2
+            exit 1
+          fi
+          if [ -z "${OPENAI_BASE_URL}" ]; then
+            echo "OPENAI_BASE_URL secret is not configured." >&2
+            exit 1
+          fi
+
+          codex_home="${RUNNER_TEMP}/codex-home"
+          codex_bin="${RUNNER_TEMP}/codex-bin"
+          codex_logs="${RUNNER_TEMP}/codex-logs"
+          mkdir -p "${codex_home}" "${codex_bin}" "${codex_logs}"
+          cp .github/codex/config.template.toml "${codex_home}/config.toml"
+
+          CODEX_HOME="${codex_home}" python3 <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          codex_home = Path(os.environ["CODEX_HOME"])
+          api_key = os.environ["OPENAI_API_KEY"]
+          base_url = os.environ["OPENAI_BASE_URL"]
+          config_path = codex_home / "config.toml"
+          config_text = config_path.read_text(encoding="utf-8")
+          config_path.write_text(
+              config_text.replace('"${OPENAI_BASE_URL}"', json.dumps(base_url)),
+              encoding="utf-8",
+          )
+          (codex_home / "auth.json").write_text(
+              json.dumps({"OPENAI_API_KEY": api_key}, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          chmod 600 "${codex_home}/auth.json"
+
+          cat > "${codex_bin}/openspec" <<'SH'
+          #!/usr/bin/env sh
+          exec npx -y "@fission-ai/openspec@${OPENSPEC_VERSION:-1.3.1}" "$@"
+          SH
+          chmod +x "${codex_bin}/openspec"
+
+          {
+            echo "CODEX_HOME=${codex_home}"
+            echo "CODEX_BIN=${codex_bin}"
+            echo "CODEX_LOGS=${codex_logs}"
+          } >> "${GITHUB_ENV}"
+
+      # Run the lina-auto-archive prompt inside the Codex container.
+      # 在 Codex 容器内运行 lina-auto-archive 提示词。
+      - name: Run Lina Auto Archive
+        run: |
+          mkdir -p "${CODEX_HOME}/npm-cache"
+
+          docker run --rm -i \
+            --user "$(id -u):$(id -g)" \
+            -e CODEX_HOME=/tmp/codex-home \
+            -e HOME=/tmp/codex-home \
+            -e NPM_CONFIG_CACHE=/tmp/codex-home/npm-cache \
+            -e OPENSPEC_VERSION="${OPENSPEC_VERSION}" \
+            -e PATH="/tmp/codex-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+            -v "${PWD}:/workspace" \
+            -v "${CODEX_HOME}:/tmp/codex-home" \
+            -v "${CODEX_BIN}:/tmp/codex-bin:ro" \
+            -v "${CODEX_LOGS}:/tmp/codex-logs" \
+            -w /workspace \
+            loads/codex:latest \
+            codex exec \
+              --cd /workspace \
+              --sandbox danger-full-access \
+              --ask-for-approval never \
+              --output-last-message /tmp/codex-logs/auto-archive.md \
+              - < .github/prompts/monthly-openspec-auto-archive.zh-CN.md
+
+      # Detect whether auto-archive changed repository files.
+      # 检测自动归档是否修改了仓库文件。
+      - name: Detect Archive Changes
+        id: archive-diff
+        uses: ./.github/actions/monthly-openspec-detect-changes
+
+      # Consolidate archive records only when the auto-archive phase produced changes.
+      # 仅在自动归档阶段产生变更时聚合归档记录。
+      - name: Run Lina Archive Consolidate
+        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
+        run: |
+          docker run --rm -i \
+            --user "$(id -u):$(id -g)" \
+            -e CODEX_HOME=/tmp/codex-home \
+            -e HOME=/tmp/codex-home \
+            -e NPM_CONFIG_CACHE=/tmp/codex-home/npm-cache \
+            -e OPENSPEC_VERSION="${OPENSPEC_VERSION}" \
+            -e PATH="/tmp/codex-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+            -v "${PWD}:/workspace" \
+            -v "${CODEX_HOME}:/tmp/codex-home" \
+            -v "${CODEX_BIN}:/tmp/codex-bin:ro" \
+            -v "${CODEX_LOGS}:/tmp/codex-logs" \
+            -w /workspace \
+            loads/codex:latest \
+            codex exec \
+              --cd /workspace \
+              --sandbox danger-full-access \
+              --ask-for-approval never \
+              --output-last-message /tmp/codex-logs/archive-consolidate.md \
+              - < .github/prompts/monthly-openspec-archive-consolidate.zh-CN.md
+
+      # Validate, commit, push, and open/update the archive pull request.
+      # 校验、提交、推送，并创建或更新归档 PR。
+      - name: Finalize Archive Pull Request
+        uses: ./.github/actions/monthly-openspec-finalize-pr
+        with:
+          changed: ${{ steps.archive-diff.outputs.changed }}
+          openspec-version: ${{ env.OPENSPEC_VERSION }}
+          base-branch: ${{ github.event.repository.default_branch }}
+
+      # Upload Codex task logs for review and failure diagnosis.
+      # 上传 Codex 任务日志，便于审查和失败诊断。
+      - name: Upload Codex Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monthly-openspec-codex-logs
+          path: ${{ runner.temp }}/codex-logs/
+          if-no-files-found: ignore
+          retention-days: 14

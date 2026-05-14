@@ -11,7 +11,6 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/jobmeta"
-	"lina-core/internal/service/role"
 	"lina-core/pkg/bizerr"
 )
 
@@ -106,11 +105,10 @@ func (s *serviceImpl) ensureLogsVisible(ctx context.Context, ids []int64) error 
 
 // currentScopeSvc returns the shared data-scope service for job operations.
 func (s *serviceImpl) currentScopeSvc() datascope.Service {
-	return datascope.New(datascope.Dependencies{
-		BizCtxSvc: s.bizCtxSvc,
-		RoleSvc:   role.New(nil),
-		OrgCapSvc: s.orgCapSvc,
-	})
+	if s != nil && s.scopeSvc != nil {
+		return s.scopeSvc
+	}
+	return nil
 }
 
 // mapJobDataScopeError maps shared data-scope errors to scheduled-job errors.

@@ -7,12 +7,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"lina-core/pkg/testsupport"
 )
 
 // TestSourcePluginProtectedRoutesIncludeTenancy verifies source plugin APIs use
 // the same Auth -> Tenancy -> Permission chain as host protected static APIs.
 func TestSourcePluginProtectedRoutesIncludeTenancy(t *testing.T) {
 	repoRoot := filepath.Clean(filepath.Join("..", "..", "..", ".."))
+	if !testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
+		t.Skip("official plugin workspace is not initialized")
+	}
 	pluginFiles, err := filepath.Glob(filepath.Join(repoRoot, "apps", "lina-plugins", "*", "backend", "plugin.go"))
 	if err != nil {
 		t.Fatalf("scan source plugin route files failed: %v", err)

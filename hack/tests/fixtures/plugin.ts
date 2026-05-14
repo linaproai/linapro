@@ -17,6 +17,7 @@ type PluginListItem = {
   enabled?: number;
   id: string;
   installed?: number;
+  type?: string;
   version?: string;
 };
 

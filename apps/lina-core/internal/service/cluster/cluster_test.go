@@ -5,11 +5,11 @@ package cluster
 
 import (
 	"context"
-	"github.com/gogf/gf/v2/frame/g"
 	"testing"
 	"time"
 
 	"lina-core/internal/service/config"
+	"lina-core/internal/service/coordination"
 )
 
 // TestServiceDisabledTreatsCurrentNodeAsPrimary verifies single-node mode keeps
@@ -33,19 +33,17 @@ func TestServiceDisabledTreatsCurrentNodeAsPrimary(t *testing.T) {
 // election and promotes the current node when no competitor exists.
 func TestServiceEnabledStartsPrimaryElection(t *testing.T) {
 	ctx := context.Background()
-	cleanupElectionLock(t)
 
-	service := New(&config.ClusterConfig{
+	service := NewWithCoordination(&config.ClusterConfig{
 		Enabled: true,
 		Election: config.ElectionConfig{
 			Lease:         30 * time.Second,
 			RenewInterval: 1 * time.Second,
 		},
-	})
+	}, coordination.NewMemory(nil))
 
 	t.Cleanup(func() {
 		service.Stop(ctx)
-		cleanupElectionLock(t)
 	})
 
 	service.Start(ctx)
@@ -55,16 +53,6 @@ func TestServiceEnabledStartsPrimaryElection(t *testing.T) {
 	}
 	if !waitForPrimaryState(service, true, electionStateWait) {
 		t.Fatal("expected clustered service to become primary when no competitor exists")
-	}
-}
-
-// cleanupElectionLock removes the leader-election row used by cluster service
-// integration tests.
-func cleanupElectionLock(t *testing.T) {
-	t.Helper()
-
-	if _, err := g.DB().Model("sys_locker").Where("name", "leader-election").Delete(); err != nil {
-		t.Fatalf("failed to cleanup leader-election lock: %v", err)
 	}
 }
 

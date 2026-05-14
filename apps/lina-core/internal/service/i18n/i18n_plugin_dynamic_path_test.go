@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
 )
 
@@ -54,7 +56,7 @@ func TestResolveDynamicPluginPackagePathAnchorsRelativeStoragePathAtRepoRoot(t *
 
 	configsvc.SetPluginDynamicStoragePathOverride("temp/output")
 
-	svc := New().(*serviceImpl)
+	svc := New(bizctx.New(), configsvc.New(), cachecoord.Default(nil)).(*serviceImpl)
 
 	resolvedPath, err := svc.resolveDynamicPluginPackagePath(context.Background(), filepath.ToSlash(packagePath))
 	if err != nil {

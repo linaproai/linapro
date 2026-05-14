@@ -13,6 +13,9 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/internal/model"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/config"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -57,7 +60,7 @@ func TestRuntimeTranslationsDoNotImplicitlyUseDefaultLocale(t *testing.T) {
 	key := "test.strict." + pluginID + ".title"
 
 	ctx := context.Background()
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	messages := svc.BuildRuntimeMessages(ctx, EnglishLocale)
 	if value, ok := lookupMessageString(messages, key); ok {
 		t.Fatalf("expected en-US runtime messages to omit default-locale-only key, got %q", value)
@@ -90,7 +93,7 @@ func TestCheckMissingMessagesReturnsLocaleGaps(t *testing.T) {
 	})
 	key := "test.missing." + pluginID
 
-	items := New().CheckMissingMessages(context.Background(), EnglishLocale, "test.missing.")
+	items := New(bizctx.New(), config.New(), cachecoord.Default(nil)).CheckMissingMessages(context.Background(), EnglishLocale, "test.missing.")
 	missingItem, ok := findMissingMessage(items, key)
 	if !ok {
 		t.Fatalf("expected missing translation key %q", key)
@@ -118,7 +121,7 @@ func TestDiagnoseMessagesReportsPluginSource(t *testing.T) {
 	})
 	key := "test.diagnose." + pluginID
 
-	items := New().DiagnoseMessages(context.Background(), EnglishLocale, "test.diagnose.")
+	items := New(bizctx.New(), config.New(), cachecoord.Default(nil)).DiagnoseMessages(context.Background(), EnglishLocale, "test.diagnose.")
 	diagnosticItem, ok := findDiagnosticMessage(items, key)
 	if !ok {
 		t.Fatalf("expected diagnostic translation key %q", key)

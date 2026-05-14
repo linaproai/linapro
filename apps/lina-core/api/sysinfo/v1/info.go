@@ -10,7 +10,7 @@ import (
 
 // GetInfoReq requests the current runtime system information payload.
 type GetInfoReq struct {
-	g.Meta `path:"/system/info" method:"get" tags:"System Information" summary:"Get system runtime information" dc:"Obtain system runtime information, including Go version, GoFrame version, operating system, database version, startup time, running time, frontend and backend component lists, and cache coordination diagnostics" permission:"about:system:list"`
+	g.Meta `path:"/system/info" method:"get" tags:"System Information" summary:"Get system runtime information" dc:"Obtain system runtime information, including Go version, GoFrame version, operating system, database version, startup time, running time, frontend and backend component lists, cluster coordination diagnostics, and cache coordination diagnostics" permission:"about:system:list"`
 }
 
 // ComponentInfo Component information
@@ -39,11 +39,27 @@ type CacheCoordinationInfo struct {
 	ConsistencyModel string `json:"consistencyModel" dc:"Consistency model used by the cache domain" eg:"shared-revision"`
 	MaxStaleSeconds  int64  `json:"maxStaleSeconds" dc:"Maximum acceptable stale window in seconds" eg:"10"`
 	FailureStrategy  string `json:"failureStrategy" dc:"Caller-visible degradation strategy when freshness cannot be confirmed" eg:"return-visible-error"`
+	Backend          string `json:"backend" dc:"Coordination backend used by this cache domain, empty in single-node mode" eg:"redis"`
+	Healthy          bool   `json:"healthy" dc:"Whether the coordination backend was healthy when this snapshot was collected" eg:"true"`
 	LocalRevision    int64  `json:"localRevision" dc:"Latest revision consumed by this host process" eg:"5"`
 	SharedRevision   int64  `json:"sharedRevision" dc:"Latest shared revision observed from the coordination store" eg:"5"`
 	LastSyncedAt     string `json:"lastSyncedAt" dc:"Latest successful local synchronization time, empty when not yet synchronized" eg:"2025-01-01 08:00:00"`
+	EventSubscriber  bool   `json:"eventSubscriber" dc:"Whether the coordination event subscriber is currently running" eg:"true"`
+	LastEventAt      string `json:"lastEventAt" dc:"Latest consumed coordination event time, empty when no event has been received" eg:"2025-01-01 08:00:01"`
 	RecentError      string `json:"recentError" dc:"Most recent coordination failure message, empty when healthy" eg:""`
 	StaleSeconds     int64  `json:"staleSeconds" dc:"Seconds elapsed since the latest successful local synchronization" eg:"1"`
+}
+
+// CoordinationInfo describes cluster coordination health without exposing
+// sensitive connection details.
+type CoordinationInfo struct {
+	ClusterEnabled bool   `json:"clusterEnabled" dc:"Whether clustered deployment mode is enabled" eg:"true"`
+	Backend        string `json:"backend" dc:"Active coordination backend, empty when single-node mode has no distributed backend" eg:"redis"`
+	RedisHealthy   bool   `json:"redisHealthy" dc:"Whether the Redis coordination backend is currently healthy" eg:"true"`
+	NodeId         string `json:"nodeId" dc:"Stable identifier of the current host node" eg:"node-a"`
+	Primary        bool   `json:"primary" dc:"Whether the current node owns primary-node responsibilities" eg:"true"`
+	LastSuccessAt  string `json:"lastSuccessAt" dc:"Latest successful coordination health-check time, empty when unavailable" eg:"2025-01-01 08:00:00"`
+	LastError      string `json:"lastError" dc:"Sanitized latest coordination health error, empty when healthy" eg:""`
 }
 
 // GetInfoRes System runtime info response
@@ -59,5 +75,6 @@ type GetInfoRes struct {
 	RunDurationSeconds int64                   `json:"runDurationSeconds" dc:"System running time represented as total seconds for client-side structured formatting" eg:"12345"`
 	BackendComponents  []ComponentInfo         `json:"backendComponents" dc:"Backend component list" eg:"[]"`
 	FrontendComponents []ComponentInfo         `json:"frontendComponents" dc:"Front-end component list" eg:"[]"`
+	Coordination       CoordinationInfo        `json:"coordination" dc:"Cluster coordination diagnostics" eg:"{}"`
 	CacheCoordination  []CacheCoordinationInfo `json:"cacheCoordination" dc:"Cache coordination diagnostics for critical runtime cache domains" eg:"[]"`
 }

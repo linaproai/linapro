@@ -14,6 +14,8 @@ import (
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	hostconfig "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
 )
@@ -50,7 +52,7 @@ func TestFrontendProjectsLocalizedSeedCopy(t *testing.T) {
 
 	controller := &ControllerV1{
 		configSvc: hostconfig.New(),
-		i18nSvc:   i18nsvc.New(),
+		i18nSvc:   i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil)),
 	}
 
 	res, err := controller.Frontend(ctx, &v1.FrontendReq{})
@@ -84,7 +86,7 @@ func TestFrontendKeepsCustomizedCopy(t *testing.T) {
 
 	controller := &ControllerV1{
 		configSvc: hostconfig.New(),
-		i18nSvc:   i18nsvc.New(),
+		i18nSvc:   i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil)),
 	}
 
 	res, err := controller.Frontend(ctx, &v1.FrontendReq{})

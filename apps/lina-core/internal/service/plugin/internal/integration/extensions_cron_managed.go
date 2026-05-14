@@ -24,8 +24,9 @@ const (
 // managedCronCollector captures plugin-owned cron registrations instead of
 // registering them directly into gcron.
 type managedCronCollector struct {
-	pluginID string
-	items    []ManagedCronJob
+	pluginID     string
+	hostServices pluginhost.HostServices
+	items        []ManagedCronJob
 }
 
 // Ensure managedCronCollector satisfies the published registrar contract.
@@ -100,6 +101,14 @@ func (c *managedCronCollector) IsPrimaryNode() bool {
 	return true
 }
 
+// HostServices returns the host-published service directory for source-plugin construction.
+func (c *managedCronCollector) HostServices() pluginhost.HostServices {
+	if c == nil {
+		return nil
+	}
+	return c.hostServices
+}
+
 // collectManagedCronJobs gathers plugin-owned cron definitions from matching
 // source and dynamic plugins without registering them into gcron.
 func (s *serviceImpl) collectManagedCronJobs(
@@ -151,8 +160,9 @@ func (s *serviceImpl) collectSourceManagedCronJobs(
 	}
 
 	collector := &managedCronCollector{
-		pluginID: manifest.ID,
-		items:    make([]ManagedCronJob, 0),
+		pluginID:     manifest.ID,
+		hostServices: s.hostServices,
+		items:        make([]ManagedCronJob, 0),
 	}
 	for _, registration := range sourcePlugin.GetCronRegistrars() {
 		if registration == nil || registration.Handler == nil {

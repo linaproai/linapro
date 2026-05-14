@@ -1,0 +1,132 @@
+# Reusable LinaPro Redis cluster smoke workflow.
+# LinaPro 可复用 Redis 集群冒烟工作流。
+name: Reusable Redis Cluster Smoke
+
+on:
+  # Expose Redis-backed cluster startup smoke as a reusable workflow.
+  # 将 Redis 支撑的集群启动冒烟暴露为可复用工作流。
+  workflow_call:
+    inputs:
+      # Controls whether official plugin submodules are checked out.
+      # 控制是否检出官方插件 submodule。
+      submodules:
+        description: Checkout submodule strategy for actions/checkout.
+        required: false
+        type: string
+        default: "false"
+      # Gives each caller a distinct Redis smoke artifact name.
+      # 为每个调用方提供独立的 Redis 冒烟 artifact 名称。
+      artifact-name:
+        description: Uploaded artifact name for the Redis cluster smoke log.
+        required: true
+        type: string
+      # Controls how long Redis smoke logs are retained.
+      # 控制 Redis 冒烟日志保留天数。
+      retention-days:
+        description: Artifact retention in days.
+        required: false
+        type: number
+        default: 14
+
+# Redis smoke jobs only need read access to repository contents.
+# Redis 冒烟 job 只需要读取仓库内容。
+permissions:
+  contents: read
+
+# Keep cluster smoke logs and database timestamps aligned with the project timezone.
+# 让集群冒烟日志和数据库时间戳与项目时区保持一致。
+env:
+  TZ: "Asia/Shanghai"
+
+jobs:
+  # Starts the backend in cluster mode and verifies Redis coordination dependencies.
+  # 以集群模式启动后端，并验证 Redis 协调依赖。
+  redis-cluster-smoke:
+    name: Redis cluster smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    # Full E2E keeps the default single-node deployment shape. This narrower
+    # smoke starts the backend with cluster.enabled=true so Redis coordination is
+    # exercised without making every browser test depend on leader state.
+    # 完整 E2E 保持默认单节点部署形态。这个更窄的冒烟会以
+    # cluster.enabled=true 启动后端，从而覆盖 Redis 协调，同时避免
+    # 每个浏览器测试都依赖 leader 状态。
+    services:
+      # The smoke rebuilds the schema and then starts a real backend process.
+      # 冒烟会重建 schema，然后启动真实后端进程。
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: linapro
+          TZ: Asia/Shanghai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      # The backend refuses to start in cluster mode unless Redis is reachable at
+      # startup, so the service health check catches broken Redis containers early.
+      # 后端在集群模式启动时要求 Redis 可达，因此 service 健康检查可以
+      # 提前发现损坏的 Redis 容器。
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # Configure the runner timezone before cluster startup.
+      # 在集群启动前配置 runner 时区。
+      - name: Setup Timezone
+        run: |
+          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+          echo Asia/Shanghai | sudo tee /etc/timezone
+
+      # Check out repository sources, optionally including plugin submodules.
+      # 拉取仓库源码，并可按调用方要求包含插件 submodule。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          submodules: ${{ inputs.submodules }}
+
+      # Install Go for backend startup and smoke tooling.
+      # 安装后端启动和冒烟工具所需的 Go。
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      # Run the Redis cluster smoke script against explicit PostgreSQL and Redis fixtures.
+      # 使用显式 PostgreSQL 和 Redis fixture 运行 Redis 集群冒烟脚本。
+      - name: Run Redis Cluster Smoke
+        env:
+          # The smoke script requires an explicit DB link because it runs
+          # `make init rebuild=true`; do not let it fall back to a developer DB.
+          # 冒烟脚本会运行 `make init rebuild=true`，因此必须显式传入数据库连接；
+          # 不允许回退到开发者本地数据库。
+          LINAPRO_REDIS_CLUSTER_SMOKE_DB_LINK: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+          LINAPRO_REDIS_CLUSTER_SMOKE_REDIS_ADDR: "127.0.0.1:6379"
+        run: |
+          ./hack/tests/scripts/run-redis-cluster-smoke.sh
+
+      # Upload the backend cluster-mode log even when the smoke script fails.
+      # 即使冒烟脚本失败，也上传后端集群模式日志。
+      - name: Upload Redis Cluster Smoke Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: |
+            temp/redis-cluster-smoke/lina-core.log
+          if-no-files-found: ignore
+          retention-days: ${{ inputs.retention-days }}

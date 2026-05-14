@@ -6,7 +6,10 @@ package pluginhost
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/gogf/gf/v2/errors/gerror"
 )
 
 // TestExtensionPointExecutionModes verifies hook and registrar points publish
@@ -106,6 +109,24 @@ func TestRegisterRoutesRejectsAsyncMode(t *testing.T) {
 	)
 }
 
+// TestRegisterSourcePluginForTestReturnsGoFrameError verifies test fixture
+// registration errors preserve GoFrame stack information.
+func TestRegisterSourcePluginForTestReturnsGoFrameError(t *testing.T) {
+	t.Parallel()
+
+	cleanup, err := RegisterSourcePluginForTest(nil)
+	if cleanup != nil {
+		t.Fatalf("expected cleanup to be nil for invalid source plugin")
+	}
+	if err == nil {
+		t.Fatalf("expected invalid source plugin to return an error")
+	}
+	stack := gerror.Stack(err)
+	if !strings.Contains(stack, "RegisterSourcePluginForTest") {
+		t.Fatalf("expected GoFrame stack to include registration helper, got %q", stack)
+	}
+}
+
 // TestCronRegistrarReportsPrimaryNode verifies cron registrars expose the
 // current primary-node status from the host callback.
 func TestCronRegistrarReportsPrimaryNode(t *testing.T) {
@@ -113,6 +134,7 @@ func TestCronRegistrarReportsPrimaryNode(t *testing.T) {
 		"test-plugin",
 		nil,
 		func() bool { return false },
+		nil,
 	)
 	if registrar.IsPrimaryNode() {
 		t.Fatalf("expected current node to be non-primary")
@@ -122,6 +144,7 @@ func TestCronRegistrarReportsPrimaryNode(t *testing.T) {
 		"test-plugin",
 		nil,
 		func() bool { return true },
+		nil,
 	)
 	if !registrar.IsPrimaryNode() {
 		t.Fatalf("expected current node to be primary")

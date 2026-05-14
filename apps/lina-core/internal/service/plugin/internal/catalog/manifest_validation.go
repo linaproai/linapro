@@ -1,16 +1,14 @@
-// This file provides repository-root, manifest-id, and semantic-version
-// validation helpers used while scanning plugin manifests.
+// This file provides manifest-id and semantic-version validation helpers used
+// while scanning plugin manifests.
 
 package catalog
 
 import (
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/gfile"
 )
 
 // Shared manifest validation regexes used during plugin catalog scanning.
@@ -25,29 +23,6 @@ type semanticVersion struct {
 	Major int
 	Minor int
 	Patch int
-}
-
-// FindRepoRoot walks upward from the provided directory to locate the repository root.
-func FindRepoRoot(startDir string) (string, error) {
-	current, err := filepath.Abs(startDir)
-	if err != nil {
-		return "", err
-	}
-	current = filepath.Clean(current)
-	for depth := 0; depth < 8; depth++ {
-		if gfile.Exists(filepath.Join(current, "apps", "lina-core", "go.mod")) &&
-			gfile.Exists(filepath.Join(current, "apps", "lina-vben", "package.json")) {
-			return current, nil
-		}
-
-		parent := filepath.Dir(current)
-		if parent == current {
-			break
-		}
-		current = parent
-	}
-
-	return "", gerror.Newf("repository root was not found, start path: %s", startDir)
 }
 
 // ValidateManifestSemanticVersion validates semantic version strings used by plugin.yaml.

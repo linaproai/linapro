@@ -12,7 +12,7 @@
 
 # 项目介绍
 
-`LinaPro`是一款**面向可持续交付的`AI`原生全栈框架**，将规范驱动的`AI`研发工作流、全生命周期`AI`技能体系、完整插件运行时与前后端一体化全栈设计融为一体，并内置权限管理、系统配置、任务调度等企业级基础能力，为团队构建起一套完整的`AI`原生交付底座。
+`LinaPro`是一款**面向可持续交付的`AI`原生全栈框架**，将对`OpenSpec`友好的`AI`研发工作流、全生命周期`AI`技能体系、完整插件运行时与前后端一体化全栈设计融为一体，并内置权限管理、系统配置、任务调度等企业级基础能力，为团队构建起一套完整的`AI`原生交付底座。
 
 团队无需从零搭建基础设施，从第一天起就能以`AI`作为主力驱动业务开发和持续交付。
 
@@ -42,7 +42,7 @@
 
 ```mermaid
 graph TB
-    subgraph Workflow["AI 研发工作流  openspec/"]
+    subgraph Workflow["可选 AI 研发工作流  openspec/"]
         direction LR
         Explore["🔍 探索"] --> Propose["📋 提案"] --> Implement["⚙️ 实现"] --> Review["🔎 审查"] --> Archive["📦 归档"]
     end
@@ -84,11 +84,11 @@ graph TB
 
 ## AI 原生研发工作流
 
-`LinaPro`内置`OpenSpec`规范驱动工作流，覆盖从需求到交付的完整闭环：
+`LinaPro`内置对`OpenSpec`的良好支持。`OpenSpec`是可选但推荐的规范驱动工作流，可覆盖从需求到交付的完整闭环：
 
-- 探索 → 提案 → 实现 → 审查 → 归档，每次迭代经历完整的五阶段闭环
-- 每次变更均锚定在增量规范文件与强制`E2E`测试上，防止架构漂移和测试空洞
-- `AI`始终基于已验证的基础向前推进，而不是凭空生成代码
+- 项目不安装`OpenSpec`也可以运行；采用后可按探索 → 提案 → 实现 → 审查 → 归档的五阶段闭环推进
+- 变更可以锚定在增量规范文件与匹配的自动化测试上，防止架构漂移和测试空洞，同时不让`OpenSpec`成为运行时依赖
+- `AI`可以基于已验证的基础向前推进，而不是凭空生成代码
 - 开发者扮演方向引导者与关键决策者，需求分析、设计、实现与测试由`AI`在规范约束下完成
 
 ## 丰富的 AI 技能体系
@@ -123,6 +123,16 @@ graph TB
 - 插件运行在独立隔离的沙箱，数据库与文件访问均通过命名空间隔离，插件间互不干扰
 - 每个插件可独立声明`API`路由、业务逻辑、数据库表结构、前端页面与菜单，自包含零侵入
 
+## 官方插件工作区
+
+官方源码插件放在独立仓库中，并通过 `apps/lina-plugins` 作为 `submodule` 挂载到宿主，远端地址为 `https://github.com/linaproai/official-plugins.git`。
+
+- 克隆主仓库后执行 `git submodule update --init --recursive` 初始化
+- `host-only` 命令在未初始化 `submodule` 时也可以运行
+- `make dev`、`make build`、`make image` 和 `make image-build` 会在 `apps/lina-plugins` 存在插件清单时自动启用插件完整模式；如需强制宿主模式，可传入 `plugins=0`
+- 插件完整模式会基于宿主专用的根目录 `go.work` 自动生成或刷新已忽略的 `temp/go.work.plugins`，并通过 `GOWORK` 使用该临时 `workspace`
+- 插件专属测试和插件 `E2E` 需要先初始化 `submodule`
+
 ## 企业级安全认证
 
 - `JWT`认证配合声明式`RBAC`权限体系，权限通过`API`定义层的标签声明，天然可见可审计
@@ -150,6 +160,8 @@ graph TB
 - 支持单机或分布式集群两种部署模式，水平扩展无需改造业务代码
 - 底层内置支持分布式锁与键值缓存机制，核心组件支持集群自动感知
 - 定时任务调度子系统具备分布式感知能力，集群环境下自动避免重复执行
+- 单机模式不需要`Redis`；当`cluster.enabled=true`时，宿主启动前必须配置`cluster.coordination: redis`和可连通的`cluster.redis`端点。当前协调后端仅支持`Redis`，配置形态为后续扩展其他后端预留。
+- 可选`Redis`集成测试默认不启用。如需运行依赖真实`Redis`的测试，请设置`LINA_TEST_REDIS_ADDR`，例如`LINA_TEST_REDIS_ADDR=127.0.0.1:6379`。
 
 ## 多租户基础能力
 
@@ -209,9 +221,10 @@ corepack enable
 cd apps/lina-vben
 pnpm install
 cd ../..
-go run ./hack/tools/linactl init confirm=init
-go run ./hack/tools/linactl mock confirm=mock
-go run ./hack/tools/linactl dev
+cd hack/tools/linactl
+go run . init confirm=init
+go run . mock confirm=mock
+go run . dev
 ```
 
 `Linux`和`macOS`用户可以继续使用兼容`Makefile`入口：

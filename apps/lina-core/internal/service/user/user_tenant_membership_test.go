@@ -65,8 +65,8 @@ func TestUserListUsesMembershipVisibility(t *testing.T) {
 	pkgtenantcap.RegisterProvider(&userTenantMembershipTestProvider{})
 	t.Cleanup(func() { pkgtenantcap.RegisterProvider(nil) })
 
-	svc := New(nil, userTenantMembershipEnablementReader{}).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID, TenantId: 61001}}
+	svc := newUserTestService(userTenantMembershipEnablementReader{}).(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID, TenantId: 61001}})
 
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20})
 	if err != nil {
@@ -92,7 +92,7 @@ func TestUserCreateWritesTenantAndMembership(t *testing.T) {
 	pkgtenantcap.RegisterProvider(&userTenantMembershipTestProvider{})
 	t.Cleanup(func() { pkgtenantcap.RegisterProvider(nil) })
 
-	svc := New(nil, userTenantMembershipEnablementReader{}).(*serviceImpl)
+	svc := newUserTestService(userTenantMembershipEnablementReader{}).(*serviceImpl)
 	username := fmt.Sprintf("membership-create-%d", time.Now().UnixNano())
 
 	userID, err := svc.Create(ctx, CreateInput{
@@ -132,8 +132,8 @@ func TestPlatformUserCreateWritesSelectedTenantMemberships(t *testing.T) {
 	})
 	pkgtenantcap.RegisterProvider(&userTenantMembershipTestProvider{})
 
-	svc := New(nil, userTenantMembershipEnablementReader{}).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 1}}
+	svc := newUserTestService(userTenantMembershipEnablementReader{}).(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 1}})
 	userID, err := svc.Create(ctx, CreateInput{
 		Username:  username,
 		Password:  "admin123",
@@ -181,8 +181,8 @@ func TestPlatformUserUpdateReplacesTenantMemberships(t *testing.T) {
 	insertUserTenantMembershipTestMembership(t, ctx, userID, tenantAID, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, ctx, userID, tenantBID, userTenantMembershipTestActive)
 
-	svc := New(nil, userTenantMembershipEnablementReader{}).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 1}}
+	svc := newUserTestService(userTenantMembershipEnablementReader{}).(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 1}})
 	if err := svc.Update(ctx, UpdateInput{Id: userID, TenantIds: []int{tenantBID}}); err != nil {
 		t.Fatalf("update platform user memberships: %v", err)
 	}
@@ -227,8 +227,8 @@ func TestTenantBoundOperatorCreateAllowsOwnedTenantAssignments(t *testing.T) {
 	insertUserTenantMembershipTestMembership(t, ctx, operatorID, tenantAID, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, ctx, operatorID, tenantBID, userTenantMembershipTestActive)
 
-	svc := New(nil, userTenantMembershipEnablementReader{}).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}}
+	svc := newUserTestService(userTenantMembershipEnablementReader{}).(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}})
 	userID, err := svc.Create(ctx, CreateInput{
 		Username:  username,
 		Password:  "admin123",
@@ -269,8 +269,8 @@ func TestTenantBoundOperatorCreateRejectsForeignTenantAssignments(t *testing.T) 
 	pkgtenantcap.RegisterProvider(&userTenantMembershipTestProvider{})
 	insertUserTenantMembershipTestMembership(t, ctx, operatorID, tenantAID, userTenantMembershipTestActive)
 
-	svc := New(nil, userTenantMembershipEnablementReader{}).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}}
+	svc := newUserTestService(userTenantMembershipEnablementReader{}).(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}})
 	_, err := svc.Create(ctx, CreateInput{
 		Username:  username,
 		Password:  "admin123",
@@ -305,8 +305,8 @@ func TestTenantBoundOperatorCreateRejectsEmptyTenantAssignments(t *testing.T) {
 	pkgtenantcap.RegisterProvider(&userTenantMembershipTestProvider{})
 	insertUserTenantMembershipTestMembership(t, ctx, operatorID, tenantAID, userTenantMembershipTestActive)
 
-	svc := New(nil, userTenantMembershipEnablementReader{}).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}}
+	svc := newUserTestService(userTenantMembershipEnablementReader{}).(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}})
 	_, err := svc.Create(ctx, CreateInput{
 		Username: username,
 		Password: "admin123",
@@ -342,8 +342,8 @@ func TestTenantBoundOperatorUpdateRejectsForeignTenantAssignments(t *testing.T) 
 	insertUserTenantMembershipTestMembership(t, ctx, operatorID, tenantAID, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, ctx, userID, tenantAID, userTenantMembershipTestActive)
 
-	svc := New(nil, userTenantMembershipEnablementReader{}).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}}
+	svc := newUserTestService(userTenantMembershipEnablementReader{}).(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}})
 	err := svc.Update(ctx, UpdateInput{Id: userID, TenantIds: []int{tenantBID}})
 	if err == nil {
 		t.Fatal("expected foreign tenant update to fail")
@@ -448,8 +448,8 @@ func TestUserListTenantFilterUsesMembershipForPlatformContext(t *testing.T) {
 	insertUserTenantMembershipTestMembership(t, ctx, userAID, tenantAID, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, ctx, userBID, tenantBID, userTenantMembershipTestActive)
 
-	svc := New(nil, userTenantMembershipEnablementReader{}).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: userAID, TenantId: 0, DataScope: 1}}
+	svc := newUserTestService(userTenantMembershipEnablementReader{}).(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: userAID, TenantId: 0, DataScope: 1}})
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20, TenantId: &tenantAID})
 	if err != nil {
 		t.Fatalf("list users by tenant filter: %v", err)
@@ -486,8 +486,8 @@ func TestTenantBoundOperatorListRejectsForeignTenantFilter(t *testing.T) {
 	insertUserTenantMembershipTestMembership(t, ctx, operatorID, tenantAID, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, ctx, targetID, tenantBID, userTenantMembershipTestActive)
 
-	svc := New(nil, userTenantMembershipEnablementReader{}).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}}
+	svc := newUserTestService(userTenantMembershipEnablementReader{}).(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}})
 	_, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20, TenantId: &tenantBID})
 	if err == nil {
 		t.Fatal("expected foreign tenant list filter to fail")
@@ -517,8 +517,8 @@ func TestTenantBoundAllScopeOperatorListRejectsForeignTenantFilter(t *testing.T)
 	insertUserDeleteTestUserRole(t, ctx, operatorID, roleID)
 	insertUserTenantMembershipTestMembership(t, ctx, operatorID, tenantAID, userTenantMembershipTestActive)
 
-	svc := New(nil, userTenantMembershipEnablementReader{}).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 1}}
+	svc := newUserTestService(userTenantMembershipEnablementReader{}).(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 1}})
 	_, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20, TenantId: &tenantBID})
 	if err == nil {
 		t.Fatal("expected foreign tenant list filter to fail for tenant-bound all-scope operator")
@@ -551,8 +551,8 @@ func TestUserListTenantContextIgnoresCrossTenantFilter(t *testing.T) {
 	insertUserTenantMembershipTestMembership(t, baseCtx, userBID, tenantBID, userTenantMembershipTestActive)
 
 	ctx := datascope.WithTenantForTest(baseCtx, tenantAID)
-	svc := New(nil, userTenantMembershipEnablementReader{}).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: userAID, TenantId: tenantAID}}
+	svc := newUserTestService(userTenantMembershipEnablementReader{}).(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: userAID, TenantId: tenantAID}})
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20, TenantId: &tenantBID})
 	if err != nil {
 		t.Fatalf("list users by tenant context with cross-tenant filter: %v", err)

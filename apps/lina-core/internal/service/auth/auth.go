@@ -17,7 +17,8 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
-	"lina-core/internal/service/config"
+	"lina-core/internal/service/datascope"
+	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
@@ -68,7 +69,7 @@ type Service interface {
 	// HashPassword hashes password using bcrypt.
 	HashPassword(password string) (string, error)
 	// Logout records logout login log and removes session.
-	Logout(ctx context.Context, username string, tenantId int, tokenId string)
+	Logout(ctx context.Context, username string, tenantId int, tokenId string) error
 	// RevokeSession removes one online session by token ID and its cached access context.
 	RevokeSession(ctx context.Context, tokenId string) error
 }
@@ -89,11 +90,6 @@ var _ Service = (*serviceImpl)(nil)
 
 // Ensure serviceImpl implements TenantTokenIssuer.
 var _ TenantTokenIssuer = (*serviceImpl)(nil)
-
-var (
-	defaultPreTokens = newPreTokenStore()
-	defaultRevoked   = newRevokeList()
-)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
@@ -121,34 +117,17 @@ type authRoleService interface {
 	InvalidateTokenAccessContext(ctx context.Context, tokenID string)
 }
 
-// New creates and returns a new Service instance.
-// Pass a non-nil orgCapSvc to reuse a caller-owned organization capability
-// service; pass nil to create the default orgcap service bound to the default
-// plugin service instance.
-func New(orgCapSvc orgcap.Service) Service {
-	return newService(orgCapSvc)
-}
-
-// NewTenantTokenIssuer creates the narrowed tenant token issuer.
-func NewTenantTokenIssuer(orgCapSvc orgcap.Service) TenantTokenIssuer {
-	return newService(orgCapSvc)
-}
-
-// newService creates the concrete auth service implementation.
-func newService(orgCapSvc orgcap.Service) *serviceImpl {
-	pluginSvc := pluginsvc.New(nil)
-	if orgCapSvc == nil {
-		orgCapSvc = orgcap.New(pluginSvc)
-	}
+// New creates the concrete auth service from explicit runtime-owned dependencies.
+func New(configSvc authConfigService, pluginSvc pluginsvc.Service, orgCapSvc orgcap.Service, roleSvc authRoleService, tenantSvc tenantcapsvc.Service, sessionStore session.Store, kvCacheSvc kvcache.Service) Service {
 	return &serviceImpl{
-		configSvc:    config.New(),
+		configSvc:    configSvc,
 		orgCapSvc:    orgCapSvc,
 		pluginSvc:    pluginSvc,
-		roleSvc:      role.New(pluginSvc),
-		tenantSvc:    tenantcapsvc.New(pluginSvc),
-		sessionStore: session.NewDBStore(),
-		preTokens:    defaultPreTokens,
-		revoked:      defaultRevoked,
+		roleSvc:      roleSvc,
+		tenantSvc:    tenantSvc,
+		sessionStore: sessionStore,
+		preTokens:    newKVPreTokenStore(kvCacheSvc),
+		revoked:      newLayeredRevokeStore(newMemoryRevokeStore(), newKVRevokeStore(kvCacheSvc)),
 	}
 }
 
@@ -378,12 +357,11 @@ func (s *serviceImpl) ReissueTenantToken(ctx context.Context, in TenantTokenReis
 	if err := s.validateSwitchTenant(ctx, in.CurrentClaims.UserId, in.TenantID); err != nil {
 		return nil, err
 	}
+	expiresAt := time.Time{}
 	if in.CurrentClaims.ExpiresAt != nil {
-		if err := s.revoked.Add(ctx, in.CurrentClaims.TokenId, in.CurrentClaims.ExpiresAt.Time); err != nil {
-			return nil, bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
-		}
+		expiresAt = in.CurrentClaims.ExpiresAt.Time
 	}
-	if err := s.RevokeSession(ctx, in.CurrentClaims.TokenId); err != nil {
+	if err := s.revokeSession(ctx, in.CurrentClaims.TokenId, expiresAt); err != nil {
 		return nil, err
 	}
 	user := &entity.SysUser{Id: in.CurrentClaims.UserId, Username: in.CurrentClaims.Username, Status: in.CurrentClaims.Status}
@@ -498,7 +476,7 @@ func (s *serviceImpl) Refresh(ctx context.Context, in RefreshInput) (*RefreshOut
 		return nil, err
 	}
 	if s.roleSvc != nil {
-		if _, err = s.roleSvc.PrimeTokenAccessContext(ctx, claims.TokenId, user.Id); err != nil {
+		if _, err = s.roleSvc.PrimeTokenAccessContext(datascope.WithTenantScope(ctx, claims.TenantId), claims.TokenId, user.Id); err != nil {
 			return nil, err
 		}
 	}
@@ -540,7 +518,7 @@ func (s *serviceImpl) HashPassword(password string) (string, error) {
 }
 
 // Logout records logout login log and removes session.
-func (s *serviceImpl) Logout(ctx context.Context, username string, tenantId int, tokenId string) {
+func (s *serviceImpl) Logout(ctx context.Context, username string, tenantId int, tokenId string) error {
 	var ip, browser, osName string
 	if r := g.RequestFromCtx(ctx); r != nil {
 		ip = r.GetClientIp()
@@ -553,6 +531,7 @@ func (s *serviceImpl) Logout(ctx context.Context, username string, tenantId int,
 	if tokenId != "" {
 		if err := s.RevokeSession(ctx, tokenId); err != nil {
 			logger.Warningf(ctx, "revoke session during logout failed tokenId=%s tenantId=%d err=%v", tokenId, tenantId, err)
+			return err
 		}
 	}
 	if s.pluginSvc != nil {
@@ -569,17 +548,60 @@ func (s *serviceImpl) Logout(ctx context.Context, username string, tenantId int,
 			logger.Warningf(ctx, "plugin logout succeeded hook failed: %v", err)
 		}
 	}
+	return nil
 }
 
 // RevokeSession removes one online session by token ID and its cached access context.
 func (s *serviceImpl) RevokeSession(ctx context.Context, tokenId string) error {
+	return s.revokeSession(ctx, tokenId, time.Time{})
+}
+
+// revokeSession marks a token ID as revoked and removes the online-session
+// projection. A zero expiration falls back to the longest host-issued token TTL
+// because force-logout callers only know the token ID, not the signed JWT.
+func (s *serviceImpl) revokeSession(ctx context.Context, tokenId string, expiresAt time.Time) error {
 	if tokenId == "" {
 		return nil
 	}
 	if s.roleSvc != nil {
 		s.roleSvc.InvalidateTokenAccessContext(ctx, tokenId)
 	}
+	if err := s.revokeTokenID(ctx, tokenId, expiresAt); err != nil {
+		return err
+	}
+	if s.sessionStore == nil {
+		return nil
+	}
 	return s.sessionStore.Delete(ctx, tokenId)
+}
+
+// revokeTokenID writes the shared JWT revoke marker used by all cluster nodes
+// before local session state is considered invalidated.
+func (s *serviceImpl) revokeTokenID(ctx context.Context, tokenID string, expiresAt time.Time) error {
+	if tokenID == "" || s == nil || s.revoked == nil {
+		return nil
+	}
+	if expiresAt.IsZero() {
+		var err error
+		expiresAt, err = s.fallbackRevocationExpiresAt(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	if err := s.revoked.Add(ctx, tokenID, expiresAt); err != nil {
+		return bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
+	}
+	return nil
+}
+
+// fallbackRevocationExpiresAt returns a conservative revoke expiration for
+// token-ID-only invalidation paths such as logout and monitor force-logout.
+func (s *serviceImpl) fallbackRevocationExpiresAt(ctx context.Context) (time.Time, error) {
+	ttl, err := s.tokenTTL(ctx, tokenKindRefresh)
+	if err != nil {
+		return time.Time{}, bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
+	}
+	return time.Now().Add(ttl), nil
 }
 
 // generateToken generates JWT token for given user, returns token string and tokenId.
@@ -729,6 +751,7 @@ func (s *serviceImpl) validateSwitchTenant(ctx context.Context, userID int, tena
 
 // createSession persists a tenant-bound online-session row.
 func (s *serviceImpl) createSession(ctx context.Context, user *entity.SysUser, tenantID int, tokenID string) error {
+	tenantScopedCtx := datascope.WithTenantScope(ctx, tenantID)
 	var ip, browser, osName string
 	if r := g.RequestFromCtx(ctx); r != nil {
 		ip = r.GetClientIp()
@@ -737,7 +760,14 @@ func (s *serviceImpl) createSession(ctx context.Context, user *entity.SysUser, t
 		browser = browserName + " " + browserVersion
 		osName = ua.OS()
 	}
-	deptName := s.getUserDeptName(ctx, user.Id)
+	deptName := s.getUserDeptName(tenantScopedCtx, user.Id)
+	if ttlSetter, ok := s.sessionStore.(interface{ SetDefaultTTL(time.Duration) }); ok {
+		timeout, err := s.configSvc.GetSessionTimeout(ctx)
+		if err != nil {
+			return err
+		}
+		ttlSetter.SetDefaultTTL(timeout)
+	}
 	if err := s.sessionStore.Set(ctx, &session.Session{
 		TokenId:   tokenID,
 		TenantId:  tenantID,
@@ -754,6 +784,6 @@ func (s *serviceImpl) createSession(ctx context.Context, user *entity.SysUser, t
 	if s.roleSvc == nil {
 		return nil
 	}
-	_, err := s.roleSvc.PrimeTokenAccessContext(ctx, tokenID, user.Id)
+	_, err := s.roleSvc.PrimeTokenAccessContext(tenantScopedCtx, tokenID, user.Id)
 	return err
 }

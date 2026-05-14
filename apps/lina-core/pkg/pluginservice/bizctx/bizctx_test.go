@@ -6,104 +6,14 @@ import (
 	"context"
 	"testing"
 
-	"lina-core/internal/model"
-	internalbizctx "lina-core/internal/service/bizctx"
+	"lina-core/pkg/pluginservice/contract"
 )
-
-// TestServiceAdapterReturnsCurrentSnapshotFromHostContext verifies source
-// plugins can observe host-authenticated tenant and impersonation metadata.
-func TestServiceAdapterReturnsCurrentSnapshotFromHostContext(t *testing.T) {
-	service := New()
-	ctx := context.WithValue(context.Background(), internalbizctx.ContextKey, &model.Context{
-		UserId:          1,
-		Username:        "admin",
-		TenantId:        22,
-		ActingUserId:    1,
-		ActingAsTenant:  true,
-		IsImpersonation: true,
-	})
-
-	current := service.Current(ctx)
-	if current.UserID != 1 || current.Username != "admin" {
-		t.Fatalf("expected authenticated user metadata")
-	}
-	if current.TenantID != 22 || current.ActingUserID != 1 {
-		t.Fatalf("expected tenant and acting user metadata")
-	}
-	if !current.ActingAsTenant || !current.IsImpersonation || current.PlatformBypass {
-		t.Fatalf("expected impersonation metadata")
-	}
-}
-
-// TestServiceAdapterReturnsCurrentSnapshotFromPlatformContext verifies platform
-// context is exposed as a bypass snapshot.
-func TestServiceAdapterReturnsCurrentSnapshotFromPlatformContext(t *testing.T) {
-	service := New()
-	ctx := context.WithValue(context.Background(), internalbizctx.ContextKey, &model.Context{
-		UserId:          7,
-		Username:        "operator",
-		TenantId:        0,
-		ActingUserId:    9,
-		ActingAsTenant:  false,
-		IsImpersonation: true,
-	})
-
-	current := service.Current(ctx)
-	if current.UserID != 7 || current.Username != "operator" {
-		t.Fatalf("expected authenticated user metadata")
-	}
-	if current.TenantID != 0 || current.ActingUserID != 9 {
-		t.Fatalf("expected tenant and acting user metadata")
-	}
-	if current.ActingAsTenant || !current.IsImpersonation || !current.PlatformBypass {
-		t.Fatalf("expected platform impersonation metadata")
-	}
-}
-
-// TestServiceAdapterReadsHostContextWithoutInternalService verifies explicit
-// service test doubles still read the host context model directly.
-func TestServiceAdapterReadsHostContextWithoutInternalService(t *testing.T) {
-	service := &serviceAdapter{}
-	ctx := context.WithValue(context.Background(), internalbizctx.ContextKey, &model.Context{
-		UserId:   8,
-		Username: "fallback",
-		TenantId: 3,
-	})
-
-	current := service.Current(ctx)
-	if current.UserID != 8 || current.Username != "fallback" || current.TenantID != 3 {
-		t.Fatalf("expected host context fallback")
-	}
-	if current.PlatformBypass {
-		t.Fatalf("expected tenant context not to bypass platform filters")
-	}
-}
-
-// TestServiceAdapterIgnoresUnexpectedContextValue verifies context reads reject
-// plugin-local structs with host-like fields.
-func TestServiceAdapterIgnoresUnexpectedContextValue(t *testing.T) {
-	service := &serviceAdapter{}
-	ctx := context.WithValue(context.Background(), internalbizctx.ContextKey, struct {
-		UserId   int
-		Username string
-		TenantId int
-	}{
-		UserId:   8,
-		Username: "unexpected",
-		TenantId: 3,
-	})
-
-	current := service.Current(ctx)
-	if current != (CurrentContext{}) {
-		t.Fatalf("expected zero context for unexpected context value, got %+v", current)
-	}
-}
 
 // TestWithCurrentContextProvidesPluginVisibleSnapshot verifies source-plugin
 // tests and adapters can inject context without importing host internal types.
 func TestWithCurrentContextProvidesPluginVisibleSnapshot(t *testing.T) {
-	service := &serviceAdapter{}
-	ctx := WithCurrentContext(context.Background(), CurrentContext{
+	service := New(nil)
+	ctx := contract.WithCurrentContext(context.Background(), contract.CurrentContext{
 		UserID:          3,
 		TenantID:        12,
 		ActingUserID:    7,
@@ -118,4 +28,23 @@ func TestWithCurrentContextProvidesPluginVisibleSnapshot(t *testing.T) {
 	if !current.ActingAsTenant || !current.IsImpersonation || current.PlatformBypass {
 		t.Fatalf("expected tenant impersonation snapshot, got %+v", current)
 	}
+}
+
+// TestNewUsesProvider verifies plugin tests can inject a custom context provider.
+func TestNewUsesProvider(t *testing.T) {
+	service := New(staticContextProvider{current: contract.CurrentContext{UserID: 9, TenantID: 4}})
+	current := service.Current(context.Background())
+	if current.UserID != 9 || current.TenantID != 4 {
+		t.Fatalf("expected provider context, got %+v", current)
+	}
+}
+
+// staticContextProvider provides one fixed context snapshot for tests.
+type staticContextProvider struct {
+	current contract.CurrentContext
+}
+
+// Current returns the fixed test context snapshot.
+func (p staticContextProvider) Current(context.Context) contract.CurrentContext {
+	return p.current
 }

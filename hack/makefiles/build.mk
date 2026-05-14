@@ -25,17 +25,20 @@ endif
 ifneq ($(origin config), undefined)
 BUILD_CONFIG_ARGS += --config=$(config)
 endif
+ifneq ($(origin plugins), undefined)
+BUILD_CONFIG_ARGS += plugins=$(plugins)
+endif
 
 # Build frontend assets, packed manifests, dynamic plugins, and the host binary.
 # 构建前端资源、嵌入 manifest、动态插件和宿主后端二进制。
-## build: Build frontend assets, host manifest assets, runtime wasm plugins, and host binaries using hack/config.yaml or config=<path>; supports platforms=linux/amd64,linux/arm64
+## build: Build host frontend, manifest assets, and host binaries; auto-enables official plugins when apps/lina-plugins contains manifests, or use plugins=0 for host-only
 .PHONY: build
 build:
-	@go run ./hack/tools/linactl build $(BUILD_CONFIG_ARGS) verbose=$(verbose)
+	@$(LINACTL) build $(BUILD_CONFIG_ARGS) verbose=$(verbose)
 
 # Build runtime Wasm plugin artifacts into the shared output directory.
 # 将 runtime Wasm 插件产物构建到共享输出目录。
-## wasm: Build all runtime wasm plugins under apps/lina-plugins, or use p=<plugin-id> for one plugin; outputs to temp/output, use verbose=1 or v=1 for detailed logs
+## wasm: Build runtime wasm plugins from the official plugin submodule, or use p=<plugin-id> for one plugin; outputs to temp/output, use verbose=1 or v=1 for detailed logs
 .PHONY: wasm
 wasm:
-	@go run ./hack/tools/linactl wasm p="$(p)" out="$(OUTPUT_DIR)" verbose=$(verbose)
+	@$(LINACTL) wasm p="$(p)" out="$(abspath $(OUTPUT_DIR))" verbose=$(verbose)

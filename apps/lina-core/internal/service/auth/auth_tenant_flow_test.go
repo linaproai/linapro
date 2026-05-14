@@ -63,6 +63,32 @@ func TestSelectTenantConsumesPreTokenOnce(t *testing.T) {
 	}
 }
 
+// TestIssueTenantTokenPrimesAccessContextWithSelectedTenant verifies tenant
+// selection primes role access with the selected tenant instead of the caller
+// context tenant.
+func TestIssueTenantTokenPrimesAccessContextWithSelectedTenant(t *testing.T) {
+	ctx := datascope.WithTenantScope(context.Background(), 99)
+	svc := newTenantAuthTestService()
+	roleSvc := &trackingRoleTestService{}
+	svc.roleSvc = roleSvc
+
+	preToken, err := svc.preTokens.Create(ctx, preTokenRecord{
+		UserID:   101,
+		Username: "tenant-user",
+		Status:   1,
+	})
+	if err != nil {
+		t.Fatalf("create pre-token: %v", err)
+	}
+	if _, err = svc.IssueTenantToken(ctx, TenantTokenIssueInput{PreToken: preToken, TenantID: 11}); err != nil {
+		t.Fatalf("select tenant: %v", err)
+	}
+
+	if len(roleSvc.tenantIDs) != 1 || roleSvc.tenantIDs[0] != 11 {
+		t.Fatalf("expected role cache prime for tenant 11, got %v", roleSvc.tenantIDs)
+	}
+}
+
 // TestPreTokenTTLIsShortAndEnforced verifies pre-login tokens use the expected
 // short lifetime and expired records cannot be exchanged for a formal JWT.
 func TestPreTokenTTLIsShortAndEnforced(t *testing.T) {
@@ -252,7 +278,9 @@ func TestLoginSelectTenantSwitchTenantLogoutFlow(t *testing.T) {
 		t.Fatalf("expected switched tenant session, active=%v err=%v", active, err)
 	}
 
-	svc.Logout(ctx, username, switchedClaims.TenantId, switchedClaims.TokenId)
+	if err = svc.Logout(ctx, username, switchedClaims.TenantId, switchedClaims.TokenId); err != nil {
+		t.Fatalf("logout switched tenant token: %v", err)
+	}
 	if active, err := svc.sessionStore.TouchOrValidate(ctx, 22, switchedClaims.TokenId, time.Hour); err != nil || active {
 		t.Fatalf("expected switched tenant session removed after logout, active=%v err=%v", active, err)
 	}
@@ -313,6 +341,33 @@ func TestRefreshTokenIssuesFreshAccessToken(t *testing.T) {
 	}
 	if claims.TokenId != tokenID || claims.TokenType != tokenKindAccess || claims.UserId != userID || claims.TenantId != 11 {
 		t.Fatalf("unexpected refreshed claims: %#v", claims)
+	}
+}
+
+// TestRefreshPrimesAccessContextWithRefreshTokenTenant verifies refresh
+// token renewal primes role access using the tenant encoded in the JWT.
+func TestRefreshPrimesAccessContextWithRefreshTokenTenant(t *testing.T) {
+	ctx := datascope.WithTenantScope(context.Background(), 99)
+	svc := newTenantAuthTestService()
+	roleSvc := &trackingRoleTestService{}
+	svc.roleSvc = roleSvc
+	username := fmt.Sprintf("refresh-scope-%d", time.Now().UnixNano())
+	userID := insertAuthTestUser(t, context.Background(), username, "admin123")
+	user := &entity.SysUser{Id: userID, Username: username, Status: 1}
+
+	_, refreshToken, tokenID, err := svc.generateTokenPair(ctx, user, 22)
+	if err != nil {
+		t.Fatalf("generate token pair: %v", err)
+	}
+	if err = svc.sessionStore.Set(ctx, &session.Session{TokenId: tokenID, TenantId: 22, UserId: userID, Username: username}); err != nil {
+		t.Fatalf("set refresh session: %v", err)
+	}
+
+	if _, err = svc.Refresh(ctx, RefreshInput{RefreshToken: refreshToken}); err != nil {
+		t.Fatalf("refresh token: %v", err)
+	}
+	if len(roleSvc.tenantIDs) != 1 || roleSvc.tenantIDs[0] != 22 {
+		t.Fatalf("expected role cache prime for tenant 22, got %v", roleSvc.tenantIDs)
 	}
 }
 
@@ -504,17 +559,134 @@ func TestRevokeSharedStoreInvalidatesAcrossInstances(t *testing.T) {
 	}
 }
 
+// TestParseTokenRevokeReadFailureFailClosed verifies a valid JWT is rejected
+// when the shared token-state store cannot confirm whether it has been revoked.
+func TestParseTokenRevokeReadFailureFailClosed(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	token, _, err := svc.generateToken(ctx, user, 11)
+	if err != nil {
+		t.Fatalf("generate token: %v", err)
+	}
+
+	svc.revoked = &failingRevokeStore{revokedErr: errors.New("simulated redis revoke read failure")}
+	if _, err = svc.ParseToken(ctx, token); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
+		t.Fatalf("expected revoke read failure to fail closed, got %v", err)
+	}
+}
+
 // TestLogoutRevokesCurrentToken verifies logout removes the supplied token from
-// the session store contract.
+// the session store contract and writes shared JWT revocation state.
 func TestLogoutRevokesCurrentToken(t *testing.T) {
 	ctx := context.Background()
 	store := newMemorySessionStore()
+	sharedCache := newSharedMemoryKVCache()
 	svc := newTenantAuthTestService()
 	svc.sessionStore = store
+	svc.revoked = newKVRevokeStore(sharedCache)
+	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	token, tokenID, err := svc.generateToken(ctx, user, 22)
+	if err != nil {
+		t.Fatalf("generate logout token: %v", err)
+	}
+	if err = store.Set(ctx, &session.Session{TokenId: tokenID, TenantId: 22, UserId: 101, Username: "tenant-user"}); err != nil {
+		t.Fatalf("set logout session: %v", err)
+	}
 
-	svc.Logout(ctx, "tenant-user", 22, "token-22")
-	if store.deletedTokenID != "token-22" {
+	if err = svc.Logout(ctx, "tenant-user", 22, tokenID); err != nil {
+		t.Fatalf("logout: %v", err)
+	}
+	if store.deletedTokenID != tokenID {
 		t.Fatalf("expected token revoke, got token=%q", store.deletedTokenID)
+	}
+	if _, ok, err := sharedCache.Get(ctx, kvcache.OwnerTypeModule, revokeCacheKey(tokenID)); err != nil || !ok {
+		t.Fatalf("expected logout shared revoke state, ok=%v err=%v", ok, err)
+	}
+	if _, err = svc.ParseToken(ctx, token); !bizerr.Is(err, CodeAuthTokenInvalid) {
+		t.Fatalf("expected logged-out token to be rejected, got %v", err)
+	}
+}
+
+// TestRevokeSessionWritesSharedRevoke verifies force-logout style token-ID
+// revocation publishes shared revoke state before removing the session row.
+func TestRevokeSessionWritesSharedRevoke(t *testing.T) {
+	ctx := context.Background()
+	store := newMemorySessionStore()
+	sharedCache := newSharedMemoryKVCache()
+	svc := newTenantAuthTestService()
+	svc.sessionStore = store
+	svc.revoked = newKVRevokeStore(sharedCache)
+
+	if err := store.Set(ctx, &session.Session{TokenId: "force-token", TenantId: 22, UserId: 101, Username: "tenant-user"}); err != nil {
+		t.Fatalf("set force logout session: %v", err)
+	}
+	if err := svc.RevokeSession(ctx, "force-token"); err != nil {
+		t.Fatalf("revoke session: %v", err)
+	}
+	if store.deletedTokenID != "force-token" {
+		t.Fatalf("expected force logout token delete, got token=%q", store.deletedTokenID)
+	}
+	if _, ok, err := sharedCache.Get(ctx, kvcache.OwnerTypeModule, revokeCacheKey("force-token")); err != nil || !ok {
+		t.Fatalf("expected force logout shared revoke state, ok=%v err=%v", ok, err)
+	}
+}
+
+// TestLogoutRevokeWriteFailureReturnsStructuredError verifies logout does not
+// hide shared token-state write failures.
+func TestLogoutRevokeWriteFailureReturnsStructuredError(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	store := newMemorySessionStore()
+	svc.sessionStore = store
+	svc.revoked = &failingRevokeStore{addErr: errors.New("simulated logout revoke write failure")}
+
+	if err := svc.Logout(ctx, "tenant-user", 22, "logout-failure-token"); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
+		t.Fatalf("expected logout revoke write failure to be structured, got %v", err)
+	}
+	if store.deletedTokenID != "" {
+		t.Fatalf("expected logout revoke failure to preserve session projection, deleted token=%q", store.deletedTokenID)
+	}
+}
+
+// TestRevokeSessionWriteFailureReturnsStructuredError verifies force-logout
+// style revocation reports shared token-state write failures.
+func TestRevokeSessionWriteFailureReturnsStructuredError(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	store := newMemorySessionStore()
+	svc.sessionStore = store
+	svc.revoked = &failingRevokeStore{addErr: errors.New("simulated force logout revoke write failure")}
+
+	if err := svc.RevokeSession(ctx, "force-failure-token"); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
+		t.Fatalf("expected force logout revoke write failure to be structured, got %v", err)
+	}
+	if store.deletedTokenID != "" {
+		t.Fatalf("expected force logout revoke failure to preserve session projection, deleted token=%q", store.deletedTokenID)
+	}
+}
+
+// TestSwitchTenantRevokeWriteFailureReturnsStructuredError verifies old-token
+// revocation write failures abort tenant switching with a stable auth error.
+func TestSwitchTenantRevokeWriteFailureReturnsStructuredError(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	oldToken, oldTokenID, err := svc.generateToken(ctx, user, 11)
+	if err != nil {
+		t.Fatalf("generate old token: %v", err)
+	}
+	oldClaims, err := svc.ParseToken(ctx, oldToken)
+	if err != nil {
+		t.Fatalf("parse old token: %v", err)
+	}
+	if err = svc.sessionStore.Set(ctx, &session.Session{TokenId: oldTokenID, TenantId: 11, UserId: 101, Username: "tenant-user"}); err != nil {
+		t.Fatalf("set old session: %v", err)
+	}
+
+	svc.revoked = &failingRevokeStore{addErr: errors.New("simulated redis revoke write failure")}
+	if _, err = svc.ReissueTenantToken(ctx, TenantTokenReissueInput{CurrentClaims: oldClaims, TenantID: 22}); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
+		t.Fatalf("expected switch tenant revoke write failure to be structured, got %v", err)
 	}
 }
 
@@ -591,8 +763,123 @@ func (roleTestService) PrimeTokenAccessContext(context.Context, string, int) (*r
 // InvalidateTokenAccessContext records no state in auth unit tests.
 func (roleTestService) InvalidateTokenAccessContext(context.Context, string) {}
 
+// trackingRoleTestService records the tenant scope used to prime token access
+// snapshots.
+type trackingRoleTestService struct {
+	tenantIDs []int
+}
+
+// PrimeTokenAccessContext records the current tenant and returns an empty
+// access snapshot.
+func (s *trackingRoleTestService) PrimeTokenAccessContext(ctx context.Context, _ string, _ int) (*role.UserAccessContext, error) {
+	s.tenantIDs = append(s.tenantIDs, datascope.CurrentTenantID(ctx))
+	return &role.UserAccessContext{}, nil
+}
+
+// InvalidateTokenAccessContext records no state for tenant-scope assertions.
+func (s *trackingRoleTestService) InvalidateTokenAccessContext(context.Context, string) {}
+
 // enabledTenantAuthTestService enables tenant provider validation for auth tests.
 type enabledTenantAuthTestService struct{}
+
+// disabledTenantAuthTestService keeps multi-tenancy disabled for tests that
+// only need the auth service to satisfy its explicit dependency contract.
+type disabledTenantAuthTestService struct{}
+
+// Enabled reports multi-tenancy as disabled.
+func (disabledTenantAuthTestService) Enabled(context.Context) bool {
+	return false
+}
+
+// Current returns platform tenant for disabled tenancy tests.
+func (disabledTenantAuthTestService) Current(context.Context) tenantcapsvc.TenantID {
+	return pkgtenantcap.PLATFORM
+}
+
+// Apply returns the input model unchanged when tenancy is disabled.
+func (disabledTenantAuthTestService) Apply(_ context.Context, model *gdb.Model, _ string) (*gdb.Model, error) {
+	return model, nil
+}
+
+// PlatformBypass reports platform bypass for disabled tenancy tests.
+func (disabledTenantAuthTestService) PlatformBypass(context.Context) bool {
+	return true
+}
+
+// EnsureTenantVisible accepts all tenants when tenancy is disabled.
+func (disabledTenantAuthTestService) EnsureTenantVisible(context.Context, tenantcapsvc.TenantID) error {
+	return nil
+}
+
+// ResolveTenant returns platform tenant for disabled tenancy tests.
+func (disabledTenantAuthTestService) ResolveTenant(context.Context, *ghttp.Request) (*pkgtenantcap.ResolverResult, error) {
+	return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
+}
+
+// ListUserTenants returns no tenant options when tenancy is disabled.
+func (disabledTenantAuthTestService) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
+	return []pkgtenantcap.TenantInfo{}, nil
+}
+
+// ReadWithPlatformFallback returns no rows in disabled tenancy tests.
+func (disabledTenantAuthTestService) ReadWithPlatformFallback(context.Context, tenantcapsvc.FallbackScanner[any]) ([]any, error) {
+	return nil, nil
+}
+
+// ApplyUserTenantScope returns the model unchanged when tenancy is disabled.
+func (disabledTenantAuthTestService) ApplyUserTenantScope(
+	_ context.Context,
+	model *gdb.Model,
+	_ string,
+) (*gdb.Model, bool, error) {
+	return model, false, nil
+}
+
+// ApplyUserTenantFilter returns the model unchanged when tenancy is disabled.
+func (disabledTenantAuthTestService) ApplyUserTenantFilter(
+	_ context.Context,
+	model *gdb.Model,
+	_ string,
+	_ tenantcapsvc.TenantID,
+) (*gdb.Model, bool, error) {
+	return model, false, nil
+}
+
+// ListUserTenantProjections returns no projections when tenancy is disabled.
+func (disabledTenantAuthTestService) ListUserTenantProjections(
+	context.Context,
+	[]int,
+) (map[int]*pkgtenantcap.UserTenantProjection, error) {
+	return map[int]*pkgtenantcap.UserTenantProjection{}, nil
+}
+
+// ResolveUserTenantAssignment returns an empty assignment plan when tenancy is disabled.
+func (disabledTenantAuthTestService) ResolveUserTenantAssignment(
+	context.Context,
+	[]tenantcapsvc.TenantID,
+	pkgtenantcap.UserTenantAssignmentMode,
+) (*pkgtenantcap.UserTenantAssignmentPlan, error) {
+	return &pkgtenantcap.UserTenantAssignmentPlan{}, nil
+}
+
+// ReplaceUserTenantAssignments is a no-op when tenancy is disabled.
+func (disabledTenantAuthTestService) ReplaceUserTenantAssignments(
+	context.Context,
+	int,
+	*pkgtenantcap.UserTenantAssignmentPlan,
+) error {
+	return nil
+}
+
+// EnsureUsersInTenant accepts all users when tenancy is disabled.
+func (disabledTenantAuthTestService) EnsureUsersInTenant(context.Context, []int, tenantcapsvc.TenantID) error {
+	return nil
+}
+
+// ValidateUserMembershipStartupConsistency returns no details when tenancy is disabled.
+func (disabledTenantAuthTestService) ValidateUserMembershipStartupConsistency(context.Context) ([]string, error) {
+	return nil, nil
+}
 
 // Enabled reports multi-tenancy as enabled.
 func (enabledTenantAuthTestService) Enabled(context.Context) bool {
@@ -777,6 +1064,22 @@ type sharedMemoryKVCache struct {
 	mu      sync.Mutex
 	items   map[string]*kvcache.Item
 	expires map[string]time.Time
+}
+
+// failingRevokeStore simulates Redis token-state failures in auth tests.
+type failingRevokeStore struct {
+	addErr     error
+	revokedErr error
+}
+
+// Add returns the configured write error.
+func (s *failingRevokeStore) Add(context.Context, string, time.Time) error {
+	return s.addErr
+}
+
+// Revoked returns the configured read error.
+func (s *failingRevokeStore) Revoked(context.Context, string) (bool, error) {
+	return false, s.revokedErr
 }
 
 // newSharedMemoryKVCache creates an empty shared kvcache test double.

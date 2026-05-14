@@ -149,7 +149,7 @@ config ──┐
 **替代方案**:
 
 - 各模块直接引入 Redis: 实现快，但后续难治理，违反核心宿主边界和可替换设计。
-- 只给 `kvcache` 做 Redis backend: 无法覆盖锁、revision、event 和 token 状态，不能解决整体分布式协调问题。
+- 只给 `kvcache` 做直接 Redis backend: 无法覆盖锁、revision、event 和 token 状态，不能解决整体分布式协调问题，也会绕过统一 coordination 边界。
 
 ### 3. Redis key namespace 使用稳定、可诊断、可删除的层级
 
@@ -289,33 +289,33 @@ lock handle 必须包含:
 - Redlock 多节点算法: 对当前单 Redis 配置过度复杂；首版不做。
 - PostgreSQL `sys_locker`: 保留兜底，但集群模式下不再作为主实现。
 
-### 6. `kvcache` 集群模式使用 Redis backend，单机模式继续 SQL table backend
+### 6. `kvcache` 集群模式使用 coordination KV backend，单机模式继续 SQL table backend
 
 **选择**:
 
 `kvcache.New()` 根据运行模式选择 backend:
 
 - `cluster.enabled=false`: SQL table backend 或现有默认 backend。
-- `cluster.enabled=true`: Redis backend，由 coordination KV 能力驱动。
+- `cluster.enabled=true`: coordination KV backend，由 coordination provider 的 KV 能力驱动；当前 coordination provider 为 Redis 时，实际存储落在 Redis。
 
-Redis backend 语义:
+coordination KV backend 语义:
 
-- `Get`: Redis `GET`，不存在或过期返回 miss。
-- `Set`: Redis `SET`，ttl > 0 使用 PX/EX，ttl = 0 可持久到 Redis 但仍属于 lossy cache。
-- `Delete`: Redis `DEL`，幂等。
-- `Incr`: Redis `INCRBY`，ttl > 0 时按约定设置或刷新 TTL。
-- `Expire`: Redis `PEXPIRE` 或 `PERSIST`。
+- `Get`: coordination KV `Get`，不存在或过期返回 miss。
+- `Set`: coordination KV `Set`，ttl > 0 使用后端原生 TTL，ttl = 0 可持久到协调后端但仍属于 lossy cache。
+- `Delete`: coordination KV `Delete`，幂等。
+- `Incr`: coordination KV `IncrBy`，ttl > 0 时按约定设置或刷新 TTL。
+- `Expire`: coordination KV `Expire`。
 - `CleanupExpired`: no-op，`RequiresExpiredCleanup=false`。
 
 **TTL 规则**:
 
 - `ttl < 0`: 返回业务参数错误。
-- `ttl = 0`: 不设置 Redis TTL，但仍不得作为权威业务状态。
-- `ttl > 0`: 使用 Redis 原生过期。
+- `ttl = 0`: 不设置后端 TTL，但仍不得作为权威业务状态。
+- `ttl > 0`: 使用 coordination KV 后端原生过期；当前 Redis provider 使用 Redis TTL。
 
 **值编码**:
 
-需要保留当前 `Item` 语义，包括 string/int 和 optional expireAt。Redis backend 可选择:
+需要保留当前 `Item` 语义，包括 string/int 和 optional expireAt。coordination KV backend 可选择:
 
 - value 中存 JSON envelope，包含 kind/value/int/expireAt。
 - int 值直接用 Redis integer string，metadata 由 key 类型推导。
@@ -324,7 +324,7 @@ Redis backend 语义:
 
 **理由**:
 
-- Redis 原生适合 TTL、热点读写和原子计数。
+- coordination KV 抽象隔离了 Redis/etcd 等后端差异，当前 Redis 实现适合 TTL、热点读写和原子计数。
 - 继续保留 `kvcache` facade，插件 host service 无需知道 backend。
 - 单机模式不引入 Redis 依赖。
 
@@ -478,7 +478,7 @@ auth:pre-token-consumed:{preTokenId} -> "1", ttl = short replay window
 **选择**:
 
 - Master-only job 继续以 `cluster.Service.IsPrimary()` 判定，只是 primary 来源改为 Redis lock。
-- KV cache expired cleanup 在 Redis backend 下不再注册或执行。
+- KV cache expired cleanup 在 coordination KV backend 下不再注册或执行。
 - Access topology sync、runtime param sync 等集群 watcher 仍可保留，用于 revision 兜底；但事件驱动成功时不应依赖 10s 轮询才能收敛。
 - Session cleanup:
   - Redis hot state 自动 TTL。
@@ -557,13 +557,13 @@ Redis coordination 不改变数据权限的权威边界:
 - `cluster`: 集群启用 Redis 配置校验、primary 切换、续约失败 demote。
 - `locker`: Redis lock 语义、owner token 防误删。
 - `cachecoord`: 双实例 revision/event 收敛、Pub/Sub 丢消息后 revision 兜底。
-- `kvcache`: Redis backend string/int/TTL/incr/type conflict。
+- `kvcache`: coordination KV backend string/int/TTL/incr/type conflict。
 - `auth`: revoke/pre-token/select-tenant/switch-tenant fail-closed。
 - `session`: Redis hot state validate、PG 投影、强退、过期清理。
 - `role`: 权限拓扑变更跨节点失效。
 - `config`: runtime param 变更跨节点刷新。
 - `pluginruntimecache`: 动态插件 runtime、frontend、i18n、wasm 缓存失效。
-- `cron`: Redis backend 下不注册 KV expired cleanup，primary job 仍只在 primary 执行。
+- `cron`: coordination KV backend 下不注册 KV expired cleanup，primary job 仍只在 primary 执行。
 - `sysinfo/health`: coordination 诊断字段。
 
 **E2E 触发条件**:
@@ -641,7 +641,7 @@ cluster:
    - 建议首版不暴露，使用内置默认和未来可扩展字段，避免配置膨胀。
 3. 在线用户列表是否需要在查询时实时批量校验 Redis session key?
    - 建议首版以 PostgreSQL 投影为主，cleanup job 保证最终清理；批量 Redis 校验作为可选优化。
-4. `kvcache` Redis backend 的 int/string value 是否使用 JSON envelope 或分类型 key?
+4. `kvcache` coordination KV backend 的 int/string value 是否使用 JSON envelope 或分类型 key?
    - 建议实现阶段通过复杂度和性能评估确定；无论选择哪种，都必须保持现有 `Item` 合同和类型冲突测试。
 5. Redis 不可用时普通插件 cache 读是否统一返回 miss 还是返回可见错误?
    - 建议按 host service 契约返回错误更诚实；只允许内部非关键读在明确标注时降级 miss。

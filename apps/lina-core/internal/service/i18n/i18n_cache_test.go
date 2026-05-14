@@ -5,6 +5,10 @@ package i18n
 
 import (
 	"testing"
+
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/config"
 )
 
 // seedLocaleCache directly populates one locale entry's sector maps so tests
@@ -47,7 +51,7 @@ func TestInvalidateRuntimeBundleCacheHostSectorIsLocaleScoped(t *testing.T) {
 	enVersionBefore := enCache.version
 	zhVersionBefore := zhCache.version
 
-	svc := New().(*serviceImpl)
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil)).(*serviceImpl)
 	svc.InvalidateRuntimeBundleCache(InvalidateScope{
 		Locales: []string{enLocale},
 		Sectors: []Sector{SectorHost},
@@ -97,7 +101,7 @@ func TestInvalidateRuntimeBundleCacheDynamicPluginIsPluginScoped(t *testing.T) {
 
 	versionBefore := enCache.version
 
-	svc := New().(*serviceImpl)
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil)).(*serviceImpl)
 	svc.InvalidateRuntimeBundleCache(InvalidateScope{
 		Sectors:         []Sector{SectorDynamicPlugin},
 		DynamicPluginID: targetPluginID,
@@ -139,7 +143,7 @@ func TestBundleRevisionReportsCachedFingerprint(t *testing.T) {
 		}
 	})
 
-	svc := New().(*serviceImpl)
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil)).(*serviceImpl)
 	revision := svc.BundleRevision(EnglishLocale)
 	if revision.Version != cache.version {
 		t.Fatalf("expected revision version %d, got %d", cache.version, revision.Version)
@@ -189,7 +193,7 @@ func TestBundleVersionIncrementsOnInvalidate(t *testing.T) {
 		lc.host = map[string]string{"menu.dashboard.title": "Dashboard"}
 	})
 
-	svc := New().(*serviceImpl)
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil)).(*serviceImpl)
 	versionBefore := svc.BundleVersion(EnglishLocale)
 	if versionBefore != cache.version {
 		t.Fatalf("expected BundleVersion to report cache version, got service=%d cache=%d", versionBefore, cache.version)
@@ -222,7 +226,7 @@ func TestBundleVersionIncrementsOnLocaleWideInvalidate(t *testing.T) {
 		}
 	})
 
-	svc := New().(*serviceImpl)
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil)).(*serviceImpl)
 	versionBefore := svc.BundleVersion(EnglishLocale)
 
 	svc.InvalidateRuntimeBundleCache(InvalidateScope{
@@ -255,7 +259,7 @@ func TestBundleVersionIncrementsOnFullInvalidate(t *testing.T) {
 		lc.host = map[string]string{"menu.dashboard.title": "工作台"}
 	})
 
-	svc := New().(*serviceImpl)
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil)).(*serviceImpl)
 	enVersionBefore := svc.BundleVersion(EnglishLocale)
 	zhVersionBefore := svc.BundleVersion(DefaultLocale)
 
