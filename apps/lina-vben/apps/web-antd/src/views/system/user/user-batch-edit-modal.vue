@@ -180,34 +180,37 @@ const [Modal, modalApi] = useVbenModal({
     }
 
     modalApi.setState({ loading: true });
-    const data = modalApi.getData<{
-      rows?: any[];
-      tenantEnabled?: boolean;
-    }>();
-    selectedRows.value = data?.rows ?? [];
-    tenantEnabled.value = data?.tenantEnabled ?? false;
+    try {
+      const data = modalApi.getData<{
+        rows?: any[];
+        tenantEnabled?: boolean;
+      }>();
+      selectedRows.value = data?.rows ?? [];
+      tenantEnabled.value = data?.tenantEnabled ?? false;
 
-    formApi.setState({ schema: buildSchema() });
-    await formApi.resetForm();
-    await formApi.setValues({
-      roleIds: [],
-      status: 1,
-      tenantIds: tenantStore.isPlatform
-        ? []
-        : tenantStore.currentTenant
-          ? [tenantStore.currentTenant.id]
-          : [],
-      updateRoles: false,
-      updateStatus: false,
-      updateTenant: false,
-    });
+      formApi.setState({ schema: buildSchema() });
+      await formApi.resetForm();
+      await formApi.setValues({
+        roleIds: [],
+        status: 1,
+        tenantIds: tenantStore.isPlatform
+          ? []
+          : tenantStore.currentTenant
+            ? [tenantStore.currentTenant.id]
+            : [],
+        updateRoles: false,
+        updateStatus: false,
+        updateTenant: false,
+      });
 
-    await Promise.all([
-      setupStatusOptions(),
-      setupRoleOptions(),
-      setupTenantOptions(),
-    ]);
-    modalApi.setState({ loading: false });
+      await Promise.all([
+        setupStatusOptions(),
+        setupRoleOptions(),
+        setupTenantOptions(),
+      ]);
+    } finally {
+      modalApi.setState({ loading: false });
+    }
   },
   async onConfirm() {
     const values = await formApi.getValues();
