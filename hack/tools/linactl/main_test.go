@@ -794,6 +794,44 @@ func TestGoWorkspaceModulesIncludesGoListOutputInErrors(t *testing.T) {
 	}
 }
 
+// TestRunTestGoSerializesPackageExecution verifies CI uses one package process
+// at a time while retaining the requested race and verbose flags.
+func TestRunTestGoSerializesPackageExecution(t *testing.T) {
+	root := t.TempDir()
+	coreDir := filepath.Join(root, "apps", "lina-core")
+	aggregateDir := officialPluginAggregateModuleDir(root)
+	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(aggregateDir, "go.mod"), "module lina-plugins\n")
+
+	var commands []string
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		command := name + " " + strings.Join(args, " ")
+		commands = append(commands, command)
+		switch command {
+		case "go list -m -f {{.Dir}}":
+			return exec.Command(os.Args[0], "-test.run=TestHelperPrintWorkspaceModules", "--", coreDir, aggregateDir)
+		case "go test -p=1 -race -v ./...":
+			return exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		default:
+			t.Fatalf("unexpected go command: %s", command)
+			return exec.Command(os.Args[0], "-test.run=TestHelperCommandFailure", "--")
+		}
+	}
+
+	input := commandInput{Params: map[string]string{"plugins": "0", "race": "true", "verbose": "true"}}
+	if err := runTestGo(context.Background(), application, input); err != nil {
+		t.Fatalf("runTestGo returned error: %v", err)
+	}
+
+	got := strings.Join(commands, "\n")
+	expected := "go list -m -f {{.Dir}}\ngo test -p=1 -race -v ./..."
+	if got != expected {
+		t.Fatalf("unexpected command sequence:\ngot:\n%s\nexpected:\n%s", got, expected)
+	}
+}
+
 // TestDiscoverGoModuleDirsSkipsGeneratedAndDependencyDirs verifies tidy scans
 // maintained source modules without entering generated or dependency trees.
 func TestDiscoverGoModuleDirsSkipsGeneratedAndDependencyDirs(t *testing.T) {
