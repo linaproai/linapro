@@ -184,6 +184,13 @@ tieta:
   # 是否启用本地 mock 铁塔身份和设备权限响应
   mock: false
 
+# Water plugin runtime configuration
+# 水印插件运行配置
+water:
+  # Number of asynchronous watermark task consumers. Values below 1 fall back to 1, and values above 32 are capped at 32.
+  # 异步水印任务消费者并发数。小于 1 时回退为 1，大于 32 时按 32 封顶。
+  consumerCount: 1
+
 # Plugin configuration
 # 插件配置
 plugin:

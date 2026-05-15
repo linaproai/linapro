@@ -67,9 +67,70 @@
 - [x] **FB-19**: media 策略解析需要支持通过铁塔 token 鉴权并校验租户设备权限
 - [x] **FB-20**: CMS 公开前端缺少原站点静态资源导致 CSS、图片和脚本无法加载
 - [x] **FB-21**: CMS 公开前端修复静态资源后不应替换原有 UI 风格
+- [x] **FB-22**: water 插件水印核心逻辑必须迁移 HotGo `internal/library/watermark`，其中 C 代码保持原样
+- [x] **FB-23**: water 插件迁移 HotGo watermark 后 `make build` 的 linux/arm64 非 CGO 构建失败
+- [x] **FB-24**: water 插件中文水印渲染成方框乱码
+- [x] **FB-25**: 为 water 插件增加类似 HotGo `cmd/stress` 的并发压测工具
+- [x] **FB-26**: water 服务端消费者并发配置已读取但未交付到配置文件和文档
 
 ## Feedback 验证记录
 
+- [x] FB-26 根因确认为 water 服务端已通过 `water.consumerCount` 读取异步水印消费者并发数，但宿主配置模板和 water 插件说明文档未显式交付该配置。
+- [x] FB-26 在 `apps/lina-core/manifest/config/config.template.yaml` 新增 `water.consumerCount: 1`，并注明小于 1 回退为 1、大于 32 按 32 封顶；本地忽略文件 `apps/lina-core/manifest/config/config.yaml` 已同步更新，便于当前开发环境直接生效。
+- [x] FB-26 在 water 插件 `README.md` 与 `README.zh-CN.md` 补充运行配置说明，明确水印规则在 `media_strategy.strategy`，服务端异步消费者并发在宿主配置 `water.consumerCount`。
+- [x] FB-26 为 water 插件新增 `.gitignore` 忽略压测工具生成的 `logs/` 目录，避免本地运行 `hack/stress` 后污染子模块工作区状态。
+- [x] `rg -n "^water:|consumerCount|Water plugin runtime" apps/lina-core/manifest/config/config.yaml apps/lina-core/manifest/config/config.template.yaml apps/lina-plugins/water/README.md apps/lina-plugins/water/README.zh-CN.md` 能命中新配置和说明。
+- [x] `GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go test -count=1 ./...` 于 `apps/lina-plugins/water` 通过。
+- [x] `openspec validate add-media-plugin --strict` 通过。
+- [x] `git diff --check` 于仓库根目录通过；`git -C apps/lina-plugins diff --cached --check` 会报告 HotGo 原样迁移的 `watermark.c` 与 `watermark.h` 存在 trailing whitespace，为满足 C 代码原样迁移要求未格式化这些文件。
+- [x] i18n 影响评估：FB-26 只补充后端配置模板和中英文 README，不新增运行时 i18n、manifest i18n 或 apidoc i18n 资源。
+- [x] 缓存影响评估：FB-26 不新增缓存；`water.consumerCount` 仅影响当前进程内异步消费者数量，分布式部署时各实例按本地配置启动自身消费者。
+- [x] FB-25 新增 `apps/lina-plugins/water/hack/stress` 独立并发压测工具，支持 `-url`、`-base-url`、`-token`、`-data`、`-image`、`-mode preview|submit`、`-concurrency`、`-requests`、`-timeout`、`-error-log` 等参数，输出总请求数、成功率、RPS、最小/最大/平均响应时间。
+- [x] FB-25 将并发执行和统计逻辑收敛到 `hack/stress/internal/stress`，新增单元测试覆盖参数校验、JSON 校验、并发聚合、Bearer 头传递、失败响应日志和异步提交 URL 路径转义。
+- [x] FB-25 新增 `hack/stress/README.md` 与 `README.zh-CN.md`，记录同步预览和异步提交两类压测命令；该工具位于插件 `hack/` 目录，不注册生产路由，不改变 water 插件运行时 API。
+- [x] `GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go test -count=1 ./hack/stress/internal/stress ./hack/stress` 于 `apps/lina-plugins/water` 通过。
+- [x] `GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go test -count=1 ./...` 于 `apps/lina-plugins/water` 通过。
+- [x] `GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go build -o /tmp/water-stress ./hack/stress && /tmp/water-stress -h` 于 `apps/lina-plugins/water` 通过，帮助信息完整输出。
+- [x] `CGO_ENABLED=0 GOOS=linux GOARCH=arm64 GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go test -c -o /tmp/water_stress_linux_arm64.test ./hack/stress/internal/stress` 于 `apps/lina-plugins/water` 通过。
+- [x] 使用本地运行中的 `http://127.0.0.1:8080` 和 `admin/admin123` 登录获取 JWT 后，执行 `go run ./hack/stress -mode preview ... -concurrency 2 -requests 4` 通过，4/4 成功，成功率 100%，错误日志 `/tmp/water_stress_error.log` 为空。
+- [x] 使用同一 JWT 执行 `go run ./hack/stress -mode submit ... -concurrency 2 -requests 4` 通过，4/4 成功，成功率 100%，错误日志 `/tmp/water_stress_submit_error.log` 为空。
+- [x] `make build` 于仓库根目录通过，输出 `Build complete: temp/output/lina`。
+- [x] `openspec validate add-media-plugin --strict` 通过。
+- [x] `git diff --check` 于仓库根目录和 `apps/lina-plugins` 子模块均通过。
+- [x] i18n 影响评估：FB-25 只新增 hack 压测工具和中英文 README，不新增运行时 i18n、manifest i18n 或 apidoc i18n 资源。
+- [x] 缓存影响评估：FB-25 不新增业务缓存；压测工具仅作为外部 HTTP 客户端发送请求，不改变服务端缓存一致性边界。
+- [x] FB-24 根因确认为 FFmpeg `drawtext` 在策略未配置 `font` 时使用默认字体，默认字体不保证包含中文 glyph，中文字符会被渲染为方框；请求、YAML 和 Go 字符串本身未发生编码损坏。
+- [x] FB-24 沿用 HotGo `resource/fonts/STHeiti Medium.ttc` 作为默认中文字体，迁移到 `apps/lina-plugins/water/backend/internal/library/watermark/fonts/STHeiti Medium.ttc`，并通过 `shasum -a 256` 验证与 HotGo 原字体文件完全一致。
+- [x] FB-24 在 LinaPro CGO 适配层新增默认字体落盘逻辑：仅当水印文本非空且策略未显式配置 `font` 时，将嵌入字体写入 `/tmp/media/fonts/STHeiti-Medium.ttc` 并传给 HotGo 原 `makeFilterDescr`；策略显式配置的字体路径仍保持最高优先级。
+- [x] FB-24 未修改 HotGo 原样迁移的 `watermark.c`、`watermark.h`、`watermark.go`、`types.go`、`cfg.go` 和静态库；默认字体逻辑只位于 LinaPro 新增适配文件中。
+- [x] `GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go test -count=1 ./backend/internal/library/watermark ./backend/internal/service/water` 于 `apps/lina-plugins/water` 通过。
+- [x] `CGO_ENABLED=0 GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go test -count=1 ./backend/internal/library/watermark` 于 `apps/lina-plugins/water` 通过。
+- [x] `CGO_ENABLED=0 GOOS=linux GOARCH=arm64 GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go test -c -o /tmp/watermark_linux_arm64.test ./backend/internal/library/watermark` 于 `apps/lina-plugins/water` 通过。
+- [x] `make build` 于仓库根目录通过，输出 `Build complete: temp/output/lina`。
+- [x] `openspec validate add-media-plugin --strict` 通过。
+- [x] `git diff --check` 于仓库根目录和 `apps/lina-plugins` 子模块均通过。
+- [x] i18n 影响评估：FB-24 仅修复后端水印字体渲染，不新增运行时 i18n、manifest i18n 或 apidoc i18n 资源。
+- [x] 缓存影响评估：FB-24 不新增业务缓存；默认字体仅按本机进程落盘为 FFmpeg 输入文件，不参与跨实例缓存一致性。
+- [x] FB-23 根因确认为 `make build` 通过 `linactl` 以 `CGO_ENABLED=0 GOOS=linux GOARCH=arm64` 构建后端，Go 会排除 `import "C"` 的文件，导致 LinaPro 适配层的 `DrawWatermarkJpeg` 符号不存在。
+- [x] FB-23 为 LinaPro 新增的 `watermark_lina.go` 适配文件补充 `//go:build cgo`，并新增 `watermark_lina_stub.go` 非 CGO 同名 fallback；非 CGO 产物可正常编译，运行时会返回明确的 CGO/FFmpeg 不可用错误并由 water 服务层包装成水印处理失败。
+- [x] FB-23 未修改 HotGo 原样迁移文件；`watermark.c`、`watermark.h`、`watermark.go`、`types.go`、`cfg.go` 和静态库仍保持原迁移内容。
+- [x] `GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go test ./backend/internal/library/watermark ./backend/internal/service/water` 于 `apps/lina-plugins/water` 通过。
+- [x] `CGO_ENABLED=0 GOOS=linux GOARCH=arm64 GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go test -c -o /tmp/watermark_linux_arm64.test ./backend/internal/library/watermark` 于 `apps/lina-plugins/water` 通过。
+- [x] `CGO_ENABLED=0 GOOS=linux GOARCH=arm64 GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go test -c -o /tmp/water_service_linux_arm64.test ./backend/internal/service/water` 于 `apps/lina-plugins/water` 通过。
+- [x] `make build` 于仓库根目录通过，输出 `Build complete: temp/output/lina`。
+- [x] `openspec validate add-media-plugin --strict` 通过。
+- [x] `git diff --check` 通过。
+- [x] i18n 影响评估：FB-23 仅补充 water 插件后端 CGO/非 CGO 构建边界，不新增运行时 i18n、manifest i18n 或 apidoc i18n 资源。
+- [x] 缓存影响评估：FB-23 不新增缓存，水印策略读取与图片处理链路不改变缓存一致性边界。
+- [x] FB-22 将 HotGo `/Users/wanna/mine/github/hotgo/server/internal/library/watermark` 迁移到 `apps/lina-plugins/water/backend/internal/library/watermark`，包含 `watermark.c`、`watermark.h`、`watermark.go`、`types.go`、`cfg.go`、`libamd64_watermark.a`、`libarm64_watermark.a` 和测试夹具。
+- [x] FB-22 通过 `shasum -a 256` 验证迁移后的 `watermark.c`、`watermark.h`、`watermark.go`、`types.go`、`cfg.go` 与 HotGo 原文件完全一致；C 代码未做任何修改。
+- [x] FB-22 删除 water 插件原先自写的纯 Go 绘制实现，`processSnapshot` 改为调用迁移库的 FFmpeg/C 处理链；LinaPro 仅新增 `watermark_lina.go` 作为输入解码适配层，不修改 HotGo 原库文件。
+- [x] FB-22 保留 `/cmd/watermark/core/strategy.go` 的配置语义：策略 YAML 继续支持根级和 `watermark:` 嵌套字段，`base64` 图片水印按 MD5 写入 `/tmp/media/pic/md5` 后交给 FFmpeg `movie` filter 读取。
+- [x] `GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go test ./backend/internal/library/watermark` 于 `apps/lina-plugins/water` 通过，直接验证迁移后的 HotGo watermark cgo/FFmpeg 库可被 water 插件调用。
+- [x] `GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go test ./...` 于 `apps/lina-plugins/water` 通过。
+- [x] `GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go test lina-plugins` 于 `apps/lina-plugins` 通过。
+- [x] i18n 影响评估：FB-22 仅替换 water 插件后端水印处理实现，不新增运行时 i18n、manifest i18n 或 apidoc i18n 资源。
+- [x] 缓存影响评估：FB-22 不新增缓存；策略仍直接读取 `media_*` 表，Base64 水印图片仅作为 FFmpeg 输入文件落盘，不参与业务缓存一致性。
 - [x] FB-20 根因确认为 CMS 公开模板引用原站点资源 `/cms-site/assets/css/yx.css`、`yx-page.css`、`jquery-1.12.4.min.js`、`yx.js`，同时 mock 数据引用 `/static/logo.svg` 与 `/static/wechat.jpg`，但插件包未交付这些嵌入资源，导致浏览器请求静态资源 404，页面退化为无样式 HTML。
 - [x] FB-20/FB-21 修复方式改为恢复原 CMS 公开站点资源文件：新增 `cms/public/assets/css/yx.css`、`yx-page.css`、`js/jquery-1.12.4.min.js`、`js/yx.js`、`static/logo.svg`、`static/wechat.jpg`，保持模板继续引用原站点资源路径，不再用 `cms-site.css` 替换原 UI。
 - [x] FB-21 移除前次临时兼容方案中的样式替换、jQuery shim、内置 SVG 兜底等逻辑，避免把资源缺失问题伪装成另一套公开页视觉。
