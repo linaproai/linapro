@@ -21,6 +21,24 @@ type PluginListItem = {
   version?: string;
 };
 
+async function ensurePluginEnabledState(
+  adminApi: APIRequestContext,
+  pluginId: string,
+) {
+  let plugin = await findPlugin(adminApi, pluginId);
+  if (!plugin) {
+    throw new Error(`未找到插件: ${pluginId}`);
+  }
+  if (plugin.installed !== 1) {
+    await installPlugin(adminApi, pluginId);
+    plugin = await findPlugin(adminApi, pluginId);
+  }
+  if (plugin?.enabled !== 1) {
+    await updatePluginStatus(adminApi, pluginId, true);
+  }
+  loadSourcePluginMockData(pluginId);
+}
+
 function unwrapApiData(payload: any) {
   if (payload && typeof payload === 'object' && 'data' in payload) {
     return payload.data;
@@ -162,23 +180,37 @@ export async function ensureSourcePluginEnabled(page: Page, pluginId: string) {
   const adminApi = await createAdminApiContext();
   try {
     await syncPlugins(adminApi);
-    let plugin = await findPlugin(adminApi, pluginId);
-    if (!plugin) {
-      throw new Error(`未找到插件: ${pluginId}`);
-    }
-    if (plugin.installed !== 1) {
-      await installPlugin(adminApi, pluginId);
-      plugin = await findPlugin(adminApi, pluginId);
-    }
-    if (plugin?.enabled !== 1) {
-      await updatePluginStatus(adminApi, pluginId, true);
-    }
-    loadSourcePluginMockData(pluginId);
+    await ensurePluginEnabledState(adminApi, pluginId);
   } finally {
     await adminApi.dispose();
   }
 
   await refreshPluginProjection(page);
+}
+
+export async function ensureSourcePluginsEnabled(
+  page: Page,
+  pluginIds: readonly string[],
+) {
+  const adminApi = await createAdminApiContext();
+  try {
+    await syncPlugins(adminApi);
+    for (const pluginId of pluginIds) {
+      await ensurePluginEnabledState(adminApi, pluginId);
+    }
+  } finally {
+    await adminApi.dispose();
+  }
+
+  await refreshPluginProjection(page);
+}
+
+export async function ensureSourcePluginEnabledViaAPI(
+  adminApi: APIRequestContext,
+  pluginId: string,
+) {
+  await syncPlugins(adminApi);
+  await ensurePluginEnabledState(adminApi, pluginId);
 }
 
 export async function ensureSourcePluginDisabled(page: Page, pluginId: string) {

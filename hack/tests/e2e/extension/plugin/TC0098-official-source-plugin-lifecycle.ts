@@ -8,6 +8,7 @@ import { test, expect } from '../../../fixtures/auth';
 import {
   createAdminApiContext,
   ensureSourcePluginEnabled,
+  ensureSourcePluginEnabledViaAPI,
   ensureSourcePluginUninstalled,
   findPlugin,
   installPlugin,
@@ -236,6 +237,7 @@ test.describe('TC-98 官方源码插件生命周期', () => {
     test(`TC0098${suffix}: ${item.id} 支持安装、启用、停用、卸载与菜单挂载切换`, async ({
       adminPage,
     }) => {
+      test.setTimeout(180_000);
       const adminApi = await createAdminApiContext();
 
       try {
@@ -276,9 +278,14 @@ test.describe('TC-98 官方源码插件生命周期', () => {
         await expectMountedTitles(adminApi, item.mountedTitles, false);
         await expectPluginRouteMissing(adminPage, item.route);
       } finally {
-        await adminApi.dispose();
-        await adminPage.goto('/dashboard/analysis');
-        await ensureSourcePluginEnabled(adminPage, item.id);
+        try {
+          await ensureSourcePluginEnabledViaAPI(adminApi, item.id);
+        } finally {
+          await adminApi.dispose();
+        }
+        if (!adminPage.isClosed()) {
+          await ensureSourcePluginEnabled(adminPage, item.id);
+        }
       }
     });
   }

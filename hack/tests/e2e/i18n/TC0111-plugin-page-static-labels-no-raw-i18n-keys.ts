@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/auth';
-import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
+import { ensureSourcePluginsEnabled } from '../../fixtures/plugin';
 import { waitForTableReady } from '../../support/ui';
 
 const untranslatedKeyPattern = /\b(?:plugin|pages)\.[A-Za-z0-9_.:-]+\b/g;
@@ -44,9 +44,8 @@ test.describe('TC0111 源插件静态文案不再泄漏原始 i18n key', () => {
     adminPage,
     mainLayout,
   }) => {
-    for (const pluginID of sourcePluginIDs) {
-      await ensureSourcePluginEnabled(adminPage, pluginID);
-    }
+    test.setTimeout(180_000);
+    await ensureSourcePluginsEnabled(adminPage, sourcePluginIDs);
     await mainLayout.switchLanguage('English');
 
     for (const pluginAuditCase of pluginAuditCases) {

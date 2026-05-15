@@ -80,6 +80,7 @@
 - [x] **FB-13**: 调查 `TC0206b` 租户级插件安装模式 serial 失败，单会话隔离复跑确认并非稳定产品回归，关闭
 - [x] **FB-14**: 调查 `TC0066l` 源码插件焦点恢复 serial 失败，单会话隔离复跑确认并非稳定产品回归，关闭
 - [x] **FB-15**: 调查 `TC0068b` 运行时 wasm hook 失败隔离 serial 失败，单会话隔离复跑确认并非稳定产品回归，关闭
+- [ ] **FB-16**: 修复 plugin-full GitHub Actions `E2E tests (plugin-full)` 中 `TC0222`、`TC0098` 与 `TC0111` 在 CI 容器下稳定撞到默认 60 秒 Playwright 超时，导致 nightly plugin-full E2E 门禁失败
 
 ## Feedback Verification Notes
 
