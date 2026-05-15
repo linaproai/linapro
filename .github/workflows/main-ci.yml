@@ -33,56 +33,26 @@ env:
   TZ: "Asia/Shanghai"
 
 jobs:
-  # Fails the branch when any active OpenSpec change is not complete.
-  # 当任一活跃 OpenSpec 变更未完成时让分支检查失败。
-  openspec-changes-complete:
-    name: OpenSpec changes complete
-    uses: ./.github/workflows/reusable-openspec-changes-complete.yml
-
-  # Reuses the Windows smoke workflow to verify cross-platform command entry points.
-  # 复用 Windows 冒烟工作流，验证跨平台命令入口。
-  windows-command-smoke:
-    name: Windows command smoke (host-only)
-    uses: ./.github/workflows/reusable-windows-command-smoke.yml
+  # Reuses the shared verification suite and keeps browser E2E disabled for push CI.
+  # 复用共享验证套件，并在 push CI 中保持浏览器 E2E 关闭。
+  verification-suite:
+    name: Test verification suite
+    uses: ./.github/workflows/reusable-test-verification-suite.yml
     with:
-      plugins: "0"
-
-  # Verifies important root plugin-management make targets on Linux.
-  # 在 Linux 上验证重要的根目录插件管理 make 指令。
-  plugin-command-smoke:
-    name: Plugin command smoke
-    uses: ./.github/workflows/reusable-plugin-command-smoke.yml
-
-  # Verifies frequently used root make targets that are not covered by plugin smoke.
-  # 验证插件冒烟之外的常用根目录 make 指令。
-  make-command-smoke:
-    name: Make command smoke
-    uses: ./.github/workflows/reusable-make-command-smoke.yml
-
-  # Runs host-only Go unit tests against a PostgreSQL-backed reusable workflow.
-  # 通过可复用工作流运行宿主模式 Go 单元测试，并使用 PostgreSQL。
-  backend-unit-tests:
-    name: Go unit tests (host-only)
-    uses: ./.github/workflows/reusable-backend-unit-tests.yml
-    with:
-      plugins: "0"
-
-  # Exercises Redis-backed integration paths that are intentionally separate from regular unit tests.
-  # 单独验证依赖 Redis 的集成路径，避免混入常规单元测试作业。
-  redis-integration-tests:
-    name: Redis integration tests
-    uses: ./.github/workflows/reusable-redis-integration-tests.yml
-
-  # Reuses the frontend unit-test workflow for the default management workspace.
-  # 复用前端单测工作流，验证默认管理工作台。
-  frontend-unit-tests:
-    name: Frontend unit tests
-    uses: ./.github/workflows/reusable-frontend-unit-tests.yml
-
-  # SQLite Backend Smoke Tests
-  # Verifies the backend can initialize and run against the SQLite configuration.
-  # SQLite 后端冒烟测试。
-  # 验证后端在 SQLite 配置下可以初始化并运行。
-  sqlite-smoke:
-    name: SQLite smoke
-    uses: ./.github/workflows/reusable-sqlite-smoke.yml
+      include-openspec-completion: true
+      include-windows-command-smoke: true
+      include-backend-unit-tests: true
+      include-frontend-unit-tests: true
+      include-plugin-windows-command-smoke: true
+      include-plugin-backend-unit-tests: true
+      include-plugin-frontend-unit-tests: true
+      include-plugin-command-smoke: true
+      include-make-command-smoke: true
+      include-redis-integration: true
+      include-sqlite-smoke: true
+      include-host-only-build-smoke: true
+      include-host-only-e2e-tests: false
+      include-plugin-full-e2e-tests: false
+      include-redis-cluster-smoke: true
+      artifact-prefix: main
+      retention-days: 7

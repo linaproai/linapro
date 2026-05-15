@@ -26,94 +26,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Verifies host-only command entry points on Windows without loading official plugins.
-  # 在 Windows 上验证宿主模式命令入口，不加载官方插件。
-  windows-command-smoke:
-    name: Windows command smoke (host-only)
-    uses: ./.github/workflows/reusable-windows-command-smoke.yml
+  # Reuses the shared verification suite with browser E2E enabled for nightly health checks.
+  # 复用共享验证套件，并为 nightly 健康检查启用浏览器 E2E。
+  verification-suite:
+    name: Test verification suite
+    uses: ./.github/workflows/reusable-test-verification-suite.yml
     with:
-      plugins: "0"
-
-  # Runs Go tests in host-only mode to catch core backend regressions.
-  # 以宿主模式运行 Go 测试，捕获核心后端回归。
-  backend-unit-tests:
-    name: Go unit tests (host-only)
-    uses: ./.github/workflows/reusable-backend-unit-tests.yml
-    with:
-      plugins: "0"
-
-  # Runs frontend unit tests for the default workspace without plugin submodules.
-  # 在不初始化插件 submodule 的情况下运行默认工作台前端单测。
-  frontend-unit-tests:
-    name: Frontend unit tests (host-only)
-    uses: ./.github/workflows/reusable-frontend-unit-tests.yml
-
-  # Verifies Windows command entry points when official plugin sources are present.
-  # 在官方插件源码存在时验证 Windows 命令入口。
-  plugin-windows-command-smoke:
-    name: Windows command smoke (plugin-full)
-    uses: ./.github/workflows/reusable-windows-command-smoke.yml
-    with:
-      submodules: recursive
-      plugins: "1"
-
-  # Runs Go tests with recursive submodules and plugin-full mode enabled.
-  # 递归初始化 submodule 并以插件完整模式运行 Go 测试。
-  plugin-backend-unit-tests:
-    name: Go unit tests (plugin-full)
-    uses: ./.github/workflows/reusable-backend-unit-tests.yml
-    with:
-      submodules: recursive
-      plugins: "1"
-
-  # Runs frontend unit tests with official plugin workspace files available.
-  # 在官方插件工作区文件可用时运行前端单测。
-  plugin-frontend-unit-tests:
-    name: Frontend unit tests (plugin-full)
-    uses: ./.github/workflows/reusable-frontend-unit-tests.yml
-    with:
-      submodules: recursive
-
-  # Builds a host-only backend artifact and verifies its health/login/plugin-list behavior.
-  # 构建宿主模式后端产物，并验证健康检查、登录和插件列表行为。
-  host-only-build-smoke:
-    name: Host-only build smoke
-    uses: ./.github/workflows/reusable-host-only-build-smoke.yml
-    with:
-      artifact-name: nightly-host-only-build-smoke-log
-      retention-days: 14
-
-  # Runs browser E2E against the host-only development stack.
-  # 面向宿主模式开发栈运行浏览器 E2E。
-  host-only-e2e-tests:
-    name: E2E tests (host-only)
-    uses: ./.github/workflows/reusable-e2e-tests.yml
-    with:
-      start-command: make dev plugins=0
-      test-command: pnpm test:host
-      artifact-name: nightly-host-only-e2e-report
-      retention-days: 14
-
-  # Runs browser E2E with official plugin tests required and plugin-full services enabled.
-  # 以插件完整服务运行浏览器 E2E，并要求官方插件测试存在。
-  plugin-full-e2e-tests:
-    name: E2E tests (plugin-full)
-    uses: ./.github/workflows/reusable-e2e-tests.yml
-    with:
-      submodules: recursive
-      require-plugin-e2e: true
-      start-command: make dev plugins=1
-      test-command: pnpm test
-      artifact-name: nightly-plugin-full-e2e-report
-      retention-days: 14
-
-  # Starts the backend in Redis-backed cluster mode and checks the coordination path.
-  # 以 Redis 支撑的集群模式启动后端，并检查协调链路。
-  redis-cluster-smoke:
-    name: Redis cluster smoke
-    uses: ./.github/workflows/reusable-redis-cluster-smoke.yml
-    with:
-      artifact-name: nightly-redis-cluster-smoke-log
+      include-openspec-completion: false
+      include-windows-command-smoke: true
+      include-backend-unit-tests: true
+      include-frontend-unit-tests: true
+      include-plugin-windows-command-smoke: true
+      include-plugin-backend-unit-tests: true
+      include-plugin-frontend-unit-tests: true
+      include-plugin-command-smoke: true
+      include-make-command-smoke: true
+      include-redis-integration: true
+      include-sqlite-smoke: true
+      include-host-only-build-smoke: true
+      include-host-only-e2e-tests: true
+      include-plugin-full-e2e-tests: true
+      include-redis-cluster-smoke: true
+      artifact-prefix: nightly
       retention-days: 14
 
   # Publishes the nightly image only after every host-only, plugin-full, E2E, and Redis gate passes.
@@ -121,16 +55,7 @@ jobs:
   nightly-image:
     name: Build and publish nightly image
     needs:
-      - windows-command-smoke
-      - backend-unit-tests
-      - frontend-unit-tests
-      - plugin-windows-command-smoke
-      - plugin-backend-unit-tests
-      - plugin-frontend-unit-tests
-      - host-only-build-smoke
-      - host-only-e2e-tests
-      - plugin-full-e2e-tests
-      - redis-cluster-smoke
+      - verification-suite
     # Image publication needs package write access, while other jobs stay read-only.
     # 镜像发布需要包写权限，其他 job 保持只读权限。
     permissions:
