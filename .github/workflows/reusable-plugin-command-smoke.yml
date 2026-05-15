@@ -117,4 +117,4 @@ jobs:
           grep -q "version: 0.2.0" "$smoke_root/apps/lina-plugins/demo-ci/plugin.yaml"
           make -C "$smoke_root" plugins.status p=demo-ci | tee "$RUNNER_TEMP/plugins-status.txt"
           grep -q "demo-ci" "$RUNNER_TEMP/plugins-status.txt"
-          grep -q "remote=current" "$RUNNER_TEMP/plugins-status.txt"
+          grep -Eq '\| demo-ci[[:space:]]+\| local[[:space:]]+\| 0\.2\.0[[:space:]]+\| true[[:space:]]+\| (true|false)[[:space:]]+\| current[[:space:]]+\|' "$RUNNER_TEMP/plugins-status.txt"

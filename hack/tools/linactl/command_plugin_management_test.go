@@ -299,6 +299,19 @@ func TestPluginsInstallUpdateAndStatusUseConfiguredSources(t *testing.T) {
 			t.Fatalf("expected status output to contain %q, got:\n%s", expected, output)
 		}
 	}
+
+	var filteredStatusOut bytes.Buffer
+	application.stdout = &filteredStatusOut
+	if err = runPluginsStatus(context.Background(), application, commandInput{Params: map[string]string{"p": "multi-tenant"}}); err != nil {
+		t.Fatalf("filtered runPluginsStatus returned error: %v", err)
+	}
+	filteredOutput := filteredStatusOut.String()
+	if !strings.Contains(filteredOutput, "| multi-tenant") || !strings.Contains(filteredOutput, "| current") {
+		t.Fatalf("expected filtered status table to include current plugin row, got:\n%s", filteredOutput)
+	}
+	if strings.Contains(filteredOutput, "remote=current") {
+		t.Fatalf("filtered status output must use table columns, got legacy key-value output:\n%s", filteredOutput)
+	}
 }
 
 // TestPluginsInstallExpandsWildcardItems verifies items ["*"] installs every
