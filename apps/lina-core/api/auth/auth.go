@@ -7,11 +7,11 @@ package auth
 import (
 	"context"
 
-	"lina-core/api/auth/v1"
+	v1 "lina-core/api/auth/v1"
 )
 
 type IAuthV1 interface {
 	Login(ctx context.Context, req *v1.LoginReq) (res *v1.LoginRes, err error)
 	Logout(ctx context.Context, req *v1.LogoutReq) (res *v1.LogoutRes, err error)
-	Refresh(ctx context.Context, req *v1.RefreshReq) (res *v1.RefreshRes, err error)
+	RefreshToken(ctx context.Context, req *v1.RefreshTokenReq) (res *v1.RefreshTokenRes, err error)
 }

@@ -66,7 +66,7 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 			group,
 			healthCtrl.Get,
 			authCtrl.Login,
-			authCtrl.Refresh,
+			authCtrl.RefreshToken,
 			i18nCtrl.RuntimeLocales,
 			i18nCtrl.RuntimeMessages,
 			pluginCtrl.DynamicList,
