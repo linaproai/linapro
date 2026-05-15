@@ -49,7 +49,7 @@ function ensureRuntimePluginArtifact() {
     return;
   }
   execFileSync('make', ['wasm', `p=${pluginID}`, 'out=../../temp/output'], {
-    cwd: path.join(repoRoot, 'apps', 'lina-plugins'),
+    cwd: repoRoot,
     stdio: 'inherit',
   });
 }

@@ -40,144 +40,42 @@ jobs:
         run: |
           make release.tag.check
 
-  # Verifies host-only Windows command entry points before any release image can be published.
-  # 在发布镜像前验证宿主模式 Windows 命令入口。
-  windows-command-smoke:
-    name: Windows command smoke (host-only)
+  # Reuses the shared verification suite with the same concise non-E2E coverage as Main CI.
+  # 复用共享验证套件，并使用与 Main CI 一致的不含 E2E 的简要验证范围。
+  verification-suite:
+    name: Test verification suite
     if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
     needs:
       - release-tag-version-check
-    uses: ./.github/workflows/reusable-windows-command-smoke.yml
+    uses: ./.github/workflows/reusable-test-verification-suite.yml
     with:
-      plugins: "0"
-
-  # Runs host-only Go tests as part of the release gate.
-  # 将宿主模式 Go 测试纳入发布门禁。
-  backend-unit-tests:
-    name: Go unit tests (host-only)
-    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
-    needs:
-      - release-tag-version-check
-    uses: ./.github/workflows/reusable-backend-unit-tests.yml
-    with:
-      plugins: "0"
-
-  # Runs host-only frontend unit tests before release publication.
-  # 在发布前运行宿主模式前端单元测试。
-  frontend-unit-tests:
-    name: Frontend unit tests (host-only)
-    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
-    needs:
-      - release-tag-version-check
-    uses: ./.github/workflows/reusable-frontend-unit-tests.yml
-
-  # Verifies Windows command entry points with official plugin submodules checked out.
-  # 在官方插件 submodule 已检出的情况下验证 Windows 命令入口。
-  plugin-windows-command-smoke:
-    name: Windows command smoke (plugin-full)
-    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
-    needs:
-      - release-tag-version-check
-    uses: ./.github/workflows/reusable-windows-command-smoke.yml
-    with:
-      submodules: recursive
-      plugins: "1"
-
-  # Runs Go tests in plugin-full mode to validate the release against official plugin sources.
-  # 以插件完整模式运行 Go 测试，验证发布版本与官方插件源码兼容。
-  plugin-backend-unit-tests:
-    name: Go unit tests (plugin-full)
-    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
-    needs:
-      - release-tag-version-check
-    uses: ./.github/workflows/reusable-backend-unit-tests.yml
-    with:
-      submodules: recursive
-      plugins: "1"
-
-  # Runs frontend unit tests with plugin workspace files available.
-  # 在插件工作区文件可用时运行前端单元测试。
-  plugin-frontend-unit-tests:
-    name: Frontend unit tests (plugin-full)
-    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
-    needs:
-      - release-tag-version-check
-    uses: ./.github/workflows/reusable-frontend-unit-tests.yml
-    with:
-      submodules: recursive
-
-  # Builds and runs a host-only artifact to prove the release can start without plugins.
-  # 构建并运行宿主模式产物，证明发布版本在无插件时可启动。
-  host-only-build-smoke:
-    name: Host-only build smoke
-    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
-    needs:
-      - release-tag-version-check
-    uses: ./.github/workflows/reusable-host-only-build-smoke.yml
-    with:
-      artifact-name: release-host-only-build-smoke-log
+      include-openspec-completion: true
+      include-windows-command-smoke: true
+      include-backend-unit-tests: true
+      include-frontend-unit-tests: true
+      include-plugin-windows-command-smoke: true
+      include-plugin-backend-unit-tests: true
+      include-plugin-frontend-unit-tests: true
+      include-plugin-command-smoke: true
+      include-make-command-smoke: true
+      include-redis-integration: true
+      include-sqlite-smoke: true
+      include-host-only-build-smoke: true
+      include-host-only-e2e-tests: false
+      include-plugin-full-e2e-tests: false
+      include-redis-cluster-smoke: true
+      e2e-parallel-workers: 1
+      artifact-prefix: release
       retention-days: 30
 
-  # Runs host-only browser E2E so release tags cover the minimal deployment shape.
-  # 运行宿主模式浏览器 E2E，确保发布标签覆盖最小部署形态。
-  host-only-e2e-tests:
-    name: E2E tests (host-only)
-    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
-    needs:
-      - release-tag-version-check
-    uses: ./.github/workflows/reusable-e2e-tests.yml
-    with:
-      start-command: make dev plugins=0
-      test-command: pnpm test:host
-      artifact-name: release-host-only-e2e-report
-      retention-days: 30
-
-  # Runs plugin-full browser E2E and requires official plugin test files to exist.
-  # 运行插件完整浏览器 E2E，并要求官方插件测试文件存在。
-  plugin-full-e2e-tests:
-    name: E2E tests (plugin-full)
-    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
-    needs:
-      - release-tag-version-check
-    uses: ./.github/workflows/reusable-e2e-tests.yml
-    with:
-      submodules: recursive
-      require-plugin-e2e: true
-      start-command: make dev plugins=1
-      test-command: pnpm test
-      artifact-name: release-plugin-full-e2e-report
-      retention-days: 30
-
-  # Verifies Redis-backed cluster startup and coordination before publishing the release image.
-  # 在发布镜像前验证 Redis 支撑的集群启动与协调能力。
-  redis-cluster-smoke:
-    name: Redis cluster smoke
-    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
-    needs:
-      - release-tag-version-check
-    uses: ./.github/workflows/reusable-redis-cluster-smoke.yml
-    with:
-      submodules: recursive
-      artifact-name: release-redis-cluster-smoke-log
-      retention-days: 30
-
-  # Publishes immutable release and latest image tags only after every release gate passes.
-  # 仅在所有发布门禁通过后发布不可变 release 标签和 latest 镜像标签。
+  # Publishes immutable release and latest image tags only after tag and concise verification gates pass.
+  # 仅在标签校验和简要验证门禁通过后发布不可变 release 标签和 latest 镜像标签。
   release-image:
     name: Build and publish release image
     if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
     needs:
       - release-tag-version-check
-      - windows-command-smoke
-      - backend-unit-tests
-      - frontend-unit-tests
-      - plugin-windows-command-smoke
-      - plugin-backend-unit-tests
-      - plugin-frontend-unit-tests
-      - host-only-build-smoke
-      - host-only-e2e-tests
-      - plugin-full-e2e-tests
-      - redis-cluster-smoke
+      - verification-suite
     # Release publishing needs GHCR package write access after validation succeeds.
     # 发布镜像需要在验证成功后获取 GHCR 包写权限。
     permissions:

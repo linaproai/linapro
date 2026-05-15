@@ -202,9 +202,11 @@ const [Modal, modalApi] = useVbenModal({
       updateTenant: false,
     });
 
-    await setupStatusOptions();
-    await setupRoleOptions();
-    await setupTenantOptions();
+    await Promise.all([
+      setupStatusOptions(),
+      setupRoleOptions(),
+      setupTenantOptions(),
+    ]);
     modalApi.setState({ loading: false });
   },
   async onConfirm() {

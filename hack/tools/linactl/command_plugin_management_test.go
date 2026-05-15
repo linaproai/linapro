@@ -238,6 +238,17 @@ func TestPluginsInstallUpdateAndStatusUseConfiguredSources(t *testing.T) {
 	if !fileExists(filepath.Join(root, "apps", "lina-plugins", "multi-tenant", "plugin.yaml")) {
 		t.Fatalf("plugin was not installed")
 	}
+	for _, expected := range []string{
+		"Preparing plugin installation for 1 configured item(s)...",
+		"Installing 1 plugin(s)...",
+		"Downloading plugin source official",
+		"[1/1] installing plugin multi-tenant from official...",
+		"Installed plugin multi-tenant",
+	} {
+		if !strings.Contains(installOut.String(), expected) {
+			t.Fatalf("expected install output to contain %q, got:\n%s", expected, installOut.String())
+		}
+	}
 	if fileExists(filepath.Join(root, "apps", "lina-plugins", "multi-tenant", ".git")) || !fileExists(pluginLockPath(root)) {
 		t.Fatalf("plugin metadata or lock state is incorrect")
 	}
@@ -268,10 +279,38 @@ func TestPluginsInstallUpdateAndStatusUseConfiguredSources(t *testing.T) {
 		t.Fatalf("runPluginsStatus returned error: %v", err)
 	}
 	output := statusOut.String()
-	for _, expected := range []string{"Plugin workspace:", "multi-tenant", "version=0.2.0", "remote=current"} {
+	for _, expected := range []string{
+		"Plugin workspace:",
+		"Querying configured plugin sources...",
+		"Rendering status for 1 configured plugin(s)...",
+		"| Plugin",
+		"| Source",
+		"| Version",
+		"| Installed",
+		"| Dirty",
+		"| Remote",
+		"| multi-tenant",
+		"| official",
+		"| 0.2.0",
+		"| true",
+		"| current",
+	} {
 		if !strings.Contains(output, expected) {
 			t.Fatalf("expected status output to contain %q, got:\n%s", expected, output)
 		}
+	}
+
+	var filteredStatusOut bytes.Buffer
+	application.stdout = &filteredStatusOut
+	if err = runPluginsStatus(context.Background(), application, commandInput{Params: map[string]string{"p": "multi-tenant"}}); err != nil {
+		t.Fatalf("filtered runPluginsStatus returned error: %v", err)
+	}
+	filteredOutput := filteredStatusOut.String()
+	if !strings.Contains(filteredOutput, "| multi-tenant") || !strings.Contains(filteredOutput, "| current") {
+		t.Fatalf("expected filtered status table to include current plugin row, got:\n%s", filteredOutput)
+	}
+	if strings.Contains(filteredOutput, "remote=current") {
+		t.Fatalf("filtered status output must use table columns, got legacy key-value output:\n%s", filteredOutput)
 	}
 }
 

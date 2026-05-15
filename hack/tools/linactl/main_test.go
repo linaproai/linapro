@@ -726,6 +726,88 @@ func TestOfficialPluginGoWorkUsesDiscoversPluginModules(t *testing.T) {
 	}
 }
 
+// TestOfficialPluginBackendImportsDiscoversSourcePlugins verifies the generated
+// aggregate module imports only source plugin backend registrations.
+func TestOfficialPluginBackendImportsDiscoversSourcePlugins(t *testing.T) {
+	root := t.TempDir()
+	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
+	writeFile(t, filepath.Join(pluginRoot, "source-b", "go.mod"), "module source-b\n")
+	writeFile(t, filepath.Join(pluginRoot, "source-b", "plugin.yaml"), "id: source-b\ntype: source\n")
+	writeFile(t, filepath.Join(pluginRoot, "source-b", "backend", "plugin.go"), "package backend\n")
+	writeFile(t, filepath.Join(pluginRoot, "dynamic-a", "go.mod"), "module dynamic-a\n")
+	writeFile(t, filepath.Join(pluginRoot, "dynamic-a", "plugin.yaml"), "id: dynamic-a\ntype: dynamic\n")
+	writeFile(t, filepath.Join(pluginRoot, "dynamic-a", "backend", "plugin.go"), "package backend\n")
+	writeFile(t, filepath.Join(pluginRoot, "source-a", "go.mod"), "module source-a\n")
+	writeFile(t, filepath.Join(pluginRoot, "source-a", "plugin.yaml"), "id: source-a\ntype: source\n")
+	writeFile(t, filepath.Join(pluginRoot, "source-a", "backend", "plugin.go"), "package backend\n")
+
+	workspace, err := inspectOfficialPluginWorkspace(root)
+	if err != nil {
+		t.Fatalf("inspectOfficialPluginWorkspace returned error: %v", err)
+	}
+	imports, err := officialPluginBackendImports(workspace)
+	if err != nil {
+		t.Fatalf("officialPluginBackendImports returned error: %v", err)
+	}
+
+	var got []string
+	for _, item := range imports {
+		got = append(got, item.Import)
+	}
+	expected := "source-a/backend,source-b/backend"
+	if strings.Join(got, ",") != expected {
+		t.Fatalf("unexpected source plugin imports: got %s expected %s", strings.Join(got, ","), expected)
+	}
+}
+
+// TestGoWorkspaceModulesSkipsGeneratedOfficialPluginAggregate verifies test.go
+// does not run package tests from the generated bridge module itself.
+func TestGoWorkspaceModulesSkipsGeneratedOfficialPluginAggregate(t *testing.T) {
+	root := t.TempDir()
+	coreDir := filepath.Join(root, "apps", "lina-core")
+	aggregateDir := officialPluginAggregateModuleDir(root)
+	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(aggregateDir, "go.mod"), "module lina-plugins\n")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		if name != "go" || strings.Join(args, " ") != "list -m -f {{.Dir}}" {
+			t.Fatalf("unexpected module list command: %s %s", name, strings.Join(args, " "))
+		}
+		return exec.Command(os.Args[0], "-test.run=TestHelperPrintWorkspaceModules", "--", coreDir, aggregateDir)
+	}
+
+	modules, err := goWorkspaceModules(context.Background(), application)
+	if err != nil {
+		t.Fatalf("goWorkspaceModules returned error: %v", err)
+	}
+	if len(modules) != 1 || !samePath(t, modules[0], coreDir) {
+		t.Fatalf("unexpected workspace modules: %#v", modules)
+	}
+}
+
+// TestGoWorkspaceModulesIncludesGoListOutputInErrors verifies CI failures keep
+// the Go command's actionable workspace diagnostic instead of only exit status.
+func TestGoWorkspaceModulesIncludesGoListOutputInErrors(t *testing.T) {
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = t.TempDir()
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		if name != "go" || strings.Join(args, " ") != "list -m -f {{.Dir}}" {
+			t.Fatalf("unexpected module list command: %s %s", name, strings.Join(args, " "))
+		}
+		return exec.Command(os.Args[0], "-test.run=TestHelperPrintAndFail", "--")
+	}
+
+	_, err := goWorkspaceModules(context.Background(), application)
+	if err == nil {
+		t.Fatalf("expected goWorkspaceModules to return an error")
+	}
+	if !strings.Contains(err.Error(), "workspace diagnostic from go list") {
+		t.Fatalf("expected go list output in error, got %v", err)
+	}
+}
+
 // TestDiscoverGoModuleDirsSkipsGeneratedAndDependencyDirs verifies tidy scans
 // maintained source modules without entering generated or dependency trees.
 func TestDiscoverGoModuleDirsSkipsGeneratedAndDependencyDirs(t *testing.T) {
@@ -853,6 +935,59 @@ use (
 	if string(pluginContent) != expected {
 		t.Fatalf("unexpected temporary plugin go.work:\n%s", string(pluginContent))
 	}
+	if dirExists(filepath.Join(root, "temp", "official-plugins")) {
+		t.Fatalf("expected existing official plugin root module to be reused without generated fallback")
+	}
+}
+
+func TestPrepareOfficialPluginWorkspaceGeneratesFallbackAggregateModule(t *testing.T) {
+	root := t.TempDir()
+	content := `go 1.25.0
+
+use (
+	./apps/lina-core
+	./hack/tools/build-wasm
+)
+`
+	writeFile(t, filepath.Join(root, "go.work"), content)
+	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-b", "go.mod"), "module plugin-b\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-b", "plugin.yaml"), "id: plugin-b\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "go.mod"), "module plugin-a\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "plugin.yaml"), "id: plugin-a\n")
+
+	workspace, err := inspectOfficialPluginWorkspace(root)
+	if err != nil {
+		t.Fatalf("inspectOfficialPluginWorkspace returned error: %v", err)
+	}
+	workspacePath, err := prepareOfficialPluginWorkspace(root, true, workspace)
+	if err != nil {
+		t.Fatalf("prepareOfficialPluginWorkspace returned error: %v", err)
+	}
+	pluginContent, err := os.ReadFile(workspacePath)
+	if err != nil {
+		t.Fatalf("read temporary plugin go.work: %v", err)
+	}
+	expected := `go 1.25.0
+
+use (
+	../apps/lina-core
+	../hack/tools/build-wasm
+	./official-plugins
+	../apps/lina-plugins/plugin-a
+	../apps/lina-plugins/plugin-b
+)
+`
+	if string(pluginContent) != expected {
+		t.Fatalf("unexpected fallback temporary plugin go.work:\n%s", string(pluginContent))
+	}
+	aggregateGoMod, err := os.ReadFile(filepath.Join(root, "temp", "official-plugins", "go.mod"))
+	if err != nil {
+		t.Fatalf("read aggregate go.mod: %v", err)
+	}
+	if string(aggregateGoMod) != "module lina-plugins\n\ngo 1.25.0\n" {
+		t.Fatalf("unexpected aggregate go.mod:\n%s", string(aggregateGoMod))
+	}
 }
 
 func TestValidateRepositoryToolingAllowsEmptyLegacyScriptDirectory(t *testing.T) {
@@ -918,6 +1053,16 @@ func TestHelperCommandFailure(t *testing.T) {
 	os.Exit(1)
 }
 
+// TestHelperPrintAndFail prints a deterministic diagnostic and exits with
+// failure for command-output error tests.
+func TestHelperPrintAndFail(t *testing.T) {
+	if len(os.Args) < 2 || os.Args[len(os.Args)-1] != "--" {
+		return
+	}
+	fmt.Fprintln(os.Stderr, "workspace diagnostic from go list")
+	os.Exit(1)
+}
+
 // TestHelperRecordWorkingDirectory records the child process working directory
 // for command execution tests.
 func TestHelperRecordWorkingDirectory(t *testing.T) {
@@ -944,6 +1089,20 @@ func TestHelperRecordWorkingDirectory(t *testing.T) {
 	if _, err = fmt.Fprintln(file, wd); err != nil {
 		t.Fatalf("write capture file: %v", err)
 	}
+}
+
+// TestHelperPrintWorkspaceModules prints supplied module directories for
+// goWorkspaceModules command-output tests.
+func TestHelperPrintWorkspaceModules(t *testing.T) {
+	if len(os.Args) < 3 || os.Args[len(os.Args)-3] != "--" {
+		return
+	}
+	for _, moduleDir := range os.Args[len(os.Args)-2:] {
+		if _, err := fmt.Fprintln(os.Stdout, moduleDir); err != nil {
+			os.Exit(1)
+		}
+	}
+	os.Exit(0)
 }
 
 type ioDiscard struct{}

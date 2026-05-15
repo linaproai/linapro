@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/pluginbridge"
 )
@@ -67,8 +68,12 @@ func TestListManagedCronJobsSkipsDynamicDiscoveryForSourcePlugins(t *testing.T) 
 		t.Fatal("expected at least one source plugin manifest in test repository")
 	}
 
-	if _, err = services.Integration.ListManagedCronJobs(context.Background()); err != nil {
+	items, err := services.Integration.ListManagedCronJobs(context.Background())
+	if err != nil {
 		t.Fatalf("expected managed cron listing to succeed, got error: %v", err)
+	}
+	if !managedCronListContainsPlugin(items, pluginID) {
+		t.Fatalf("expected managed cron list to include source plugin %s", pluginID)
 	}
 
 	for _, pluginID := range executor.discoverPluginIDs {
@@ -76,4 +81,15 @@ func TestListManagedCronJobsSkipsDynamicDiscoveryForSourcePlugins(t *testing.T) 
 			t.Fatalf("expected source plugin %s to skip dynamic cron discovery", pluginID)
 		}
 	}
+}
+
+// managedCronListContainsPlugin reports whether a managed cron list includes
+// at least one definition owned by pluginID.
+func managedCronListContainsPlugin(items []integration.ManagedCronJob, pluginID string) bool {
+	for _, item := range items {
+		if item.PluginID == pluginID {
+			return true
+		}
+	}
+	return false
 }

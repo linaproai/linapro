@@ -25,6 +25,10 @@ const (
 	officialPluginInitCommand = "git submodule update --init --recursive"
 	// officialPluginWorkspaceFile is the ignored temporary Go workspace for plugin-full builds.
 	officialPluginWorkspaceFile = "go.work.plugins"
+	// officialPluginAggregateModuleName is the import path used by the host plugin registry bridge.
+	officialPluginAggregateModuleName = "lina-plugins"
+	// officialPluginAggregateDir is the ignored generated module that imports source-plugin backends.
+	officialPluginAggregateDir = "official-plugins"
 )
 
 // errHelpRequested marks help output as a successful early return.

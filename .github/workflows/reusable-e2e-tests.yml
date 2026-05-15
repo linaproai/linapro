@@ -46,6 +46,13 @@ on:
         required: false
         type: number
         default: 14
+      # Controls the worker count for the manifest-declared parallel pool.
+      # 控制清单声明的并行池 worker 数量。
+      parallel-workers:
+        description: Number of Playwright workers used for the E2E parallel pool.
+        required: false
+        type: number
+        default: 1
 
 # Browser E2E jobs only need read access to repository contents.
 # 浏览器 E2E job 只需要读取仓库内容。
@@ -151,13 +158,13 @@ jobs:
       # 为共享 E2E 工作区安装 Playwright 测试运行依赖。
       - name: Install E2E Dependencies
         working-directory: hack/tests
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # Install Chromium and required OS packages for Playwright.
       # 安装 Playwright 使用的 Chromium 和所需系统包。
       - name: Install Playwright Browsers
         working-directory: hack/tests
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       # Rebuild the database and seed mock data for browser workflows.
       # 重建数据库并为浏览器工作流加载 mock 数据。
@@ -180,7 +187,7 @@ jobs:
           E2E_BASE_URL: "http://127.0.0.1:5666"
           E2E_API_BASE_URL: "http://127.0.0.1:8080/api/v1/"
           E2E_PUBLIC_BASE_URL: "http://127.0.0.1:8080"
-          E2E_PARALLEL_WORKERS: "4"
+          E2E_PARALLEL_WORKERS: ${{ inputs.parallel-workers }}
         run: ${{ inputs.test-command }}
 
       # Stop LinaPro services even when the E2E suite fails.

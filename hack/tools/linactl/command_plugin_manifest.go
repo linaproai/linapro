@@ -4,11 +4,8 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 // validateDynamicPlugin verifies that a plugin exists and is dynamic.
@@ -29,13 +26,9 @@ func validateDynamicPlugin(pluginRoot string, plugin string) error {
 
 // isDynamicPlugin reports whether a plugin manifest declares dynamic type.
 func isDynamicPlugin(manifestPath string) (bool, error) {
-	content, err := os.ReadFile(manifestPath)
+	manifest, err := readPluginManifest(manifestPath)
 	if err != nil {
-		return false, fmt.Errorf("read plugin manifest %s: %w", manifestPath, err)
-	}
-	var manifest pluginManifest
-	if err = yaml.Unmarshal(content, &manifest); err != nil {
-		return false, fmt.Errorf("parse plugin manifest %s: %w", manifestPath, err)
+		return false, err
 	}
 	return strings.EqualFold(strings.TrimSpace(manifest.Type), "dynamic"), nil
 }

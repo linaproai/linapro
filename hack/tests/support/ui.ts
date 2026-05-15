@@ -1,22 +1,21 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
 const busySelector = [
-  '.ant-spin-spinning',
-  '.ant-skeleton',
-  '.vxe-loading',
-  '.vxe-grid.is--loading',
-  '.vxe-table.is--loading',
-  '[aria-busy="true"]',
+  '.ant-spin-spinning:visible',
+  '.ant-skeleton:visible',
+  '.vxe-loading:visible',
+  '.vxe-grid.is--loading:visible',
+  '.vxe-table.is--loading:visible',
+  '.bg-overlay-content:not(.invisible):visible',
+  '.dark\\:bg-overlay:not(.invisible):visible',
+  '[aria-busy="true"]:visible',
 ].join(', ');
 
 export async function waitForBusyIndicatorsToClear(
   scope: Locator | Page,
   timeout = 10000,
 ) {
-  await scope.locator(busySelector).first().waitFor({
-    state: 'hidden',
-    timeout,
-  }).catch(() => {});
+  await expect(scope.locator(busySelector)).toHaveCount(0, { timeout });
 }
 
 export async function waitForRouteReady(page: Page, timeout = 10000) {

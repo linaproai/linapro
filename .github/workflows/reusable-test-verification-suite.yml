@@ -1,0 +1,260 @@
+# Reusable LinaPro test verification suite.
+# LinaPro 可复用测试验证套件。
+name: Reusable Test Verification Suite
+
+on:
+  # Expose the shared test matrix for main CI, nightly, and future release callers.
+  # 将共享测试矩阵暴露给主 CI、nightly 和后续 release 调用方。
+  workflow_call:
+    inputs:
+      # Enables the active OpenSpec completion gate for push CI.
+      # 为 push CI 启用活跃 OpenSpec 完成状态门禁。
+      include-openspec-completion:
+        description: Whether to require all active OpenSpec changes to be complete.
+        required: true
+        type: boolean
+      # Enables the host-only Windows command smoke job.
+      # 启用宿主模式 Windows 命令冒烟 job。
+      include-windows-command-smoke:
+        description: Whether to run host-only Windows command smoke.
+        required: true
+        type: boolean
+      # Enables the host-only Go unit-test job.
+      # 启用宿主模式 Go 单元测试 job。
+      include-backend-unit-tests:
+        description: Whether to run host-only Go unit tests.
+        required: true
+        type: boolean
+      # Enables the host-only frontend unit-test job.
+      # 启用宿主模式前端单元测试 job。
+      include-frontend-unit-tests:
+        description: Whether to run host-only frontend unit tests.
+        required: true
+        type: boolean
+      # Enables the plugin-full Windows command smoke job.
+      # 启用插件完整模式 Windows 命令冒烟 job。
+      include-plugin-windows-command-smoke:
+        description: Whether to run plugin-full Windows command smoke.
+        required: true
+        type: boolean
+      # Enables the plugin-full Go unit-test job.
+      # 启用插件完整模式 Go 单元测试 job。
+      include-plugin-backend-unit-tests:
+        description: Whether to run plugin-full Go unit tests.
+        required: true
+        type: boolean
+      # Enables the plugin-full frontend unit-test job.
+      # 启用插件完整模式前端单元测试 job。
+      include-plugin-frontend-unit-tests:
+        description: Whether to run plugin-full frontend unit tests.
+        required: true
+        type: boolean
+      # Enables the Linux plugin command smoke job.
+      # 启用 Linux 插件命令冒烟 job。
+      include-plugin-command-smoke:
+        description: Whether to run plugin command smoke.
+        required: true
+        type: boolean
+      # Enables the Linux make command smoke job.
+      # 启用 Linux make 命令冒烟 job。
+      include-make-command-smoke:
+        description: Whether to run make command smoke.
+        required: true
+        type: boolean
+      # Enables Redis package-level integration tests.
+      # 启用 Redis 包级集成测试。
+      include-redis-integration:
+        description: Whether to run Redis integration tests.
+        required: true
+        type: boolean
+      # Enables SQLite backend smoke checks.
+      # 启用 SQLite 后端冒烟检查。
+      include-sqlite-smoke:
+        description: Whether to run SQLite smoke tests.
+        required: true
+        type: boolean
+      # Enables the host-only build smoke job.
+      # 启用宿主模式构建冒烟 job。
+      include-host-only-build-smoke:
+        description: Whether to run host-only build smoke.
+        required: true
+        type: boolean
+      # Enables the host-only browser E2E job.
+      # 启用宿主模式浏览器 E2E job。
+      include-host-only-e2e-tests:
+        description: Whether to run host-only E2E tests.
+        required: true
+        type: boolean
+      # Enables the plugin-full browser E2E job.
+      # 启用插件完整模式浏览器 E2E job。
+      include-plugin-full-e2e-tests:
+        description: Whether to run plugin-full E2E tests.
+        required: true
+        type: boolean
+      # Enables the Redis cluster smoke job.
+      # 启用 Redis cluster 冒烟 job。
+      include-redis-cluster-smoke:
+        description: Whether to run Redis cluster smoke.
+        required: true
+        type: boolean
+      # Controls browser E2E parallel pool workers for nightly and release callers.
+      # 控制 nightly 和 release 调用方的浏览器 E2E 并行池 worker 数量。
+      e2e-parallel-workers:
+        description: Number of Playwright workers used for E2E parallel pools.
+        required: true
+        type: number
+      # Prefixes uploaded artifact names so callers do not overwrite each other.
+      # 为上传 artifact 名称添加前缀，避免不同调用方互相覆盖。
+      artifact-prefix:
+        description: Prefix for uploaded test artifacts.
+        required: true
+        type: string
+      # Controls artifact retention for smoke logs and E2E reports.
+      # 控制冒烟日志和 E2E 报告的 artifact 保留天数。
+      retention-days:
+        description: Artifact retention in days.
+        required: true
+        type: number
+
+# Verification jobs only need repository read access.
+# 验证 job 只需要读取仓库内容。
+permissions:
+  contents: read
+
+jobs:
+  # Fails branches when any active OpenSpec change still has incomplete tasks.
+  # 当任一活跃 OpenSpec 变更仍有未完成任务时让分支失败。
+  openspec-changes-complete:
+    name: OpenSpec changes complete
+    if: ${{ inputs.include-openspec-completion }}
+    uses: ./.github/workflows/reusable-openspec-changes-complete.yml
+
+  # Verifies host-only command entry points on Windows.
+  # 在 Windows 上验证宿主模式命令入口。
+  windows-command-smoke:
+    name: Windows command smoke (host-only)
+    if: ${{ inputs.include-windows-command-smoke }}
+    uses: ./.github/workflows/reusable-windows-command-smoke.yml
+    with:
+      plugins: "0"
+
+  # Runs host-only Go tests against PostgreSQL.
+  # 使用 PostgreSQL 运行宿主模式 Go 测试。
+  backend-unit-tests:
+    name: Go unit tests (host-only)
+    if: ${{ inputs.include-backend-unit-tests }}
+    uses: ./.github/workflows/reusable-backend-unit-tests.yml
+    with:
+      plugins: "0"
+
+  # Runs frontend unit tests for the default management workspace.
+  # 运行默认管理工作台前端单测。
+  frontend-unit-tests:
+    name: Frontend unit tests (host-only)
+    if: ${{ inputs.include-frontend-unit-tests }}
+    uses: ./.github/workflows/reusable-frontend-unit-tests.yml
+
+  # Verifies Windows command entry points when official plugin sources are present.
+  # 在官方插件源码存在时验证 Windows 命令入口。
+  plugin-windows-command-smoke:
+    name: Windows command smoke (plugin-full)
+    if: ${{ inputs.include-plugin-windows-command-smoke }}
+    uses: ./.github/workflows/reusable-windows-command-smoke.yml
+    with:
+      submodules: recursive
+      plugins: "1"
+
+  # Runs Go tests with official plugin sources available.
+  # 在官方插件源码可用时运行 Go 测试。
+  plugin-backend-unit-tests:
+    name: Go unit tests (plugin-full)
+    if: ${{ inputs.include-plugin-backend-unit-tests }}
+    uses: ./.github/workflows/reusable-backend-unit-tests.yml
+    with:
+      submodules: recursive
+      plugins: "1"
+
+  # Runs frontend unit tests with plugin workspace files available.
+  # 在插件工作区文件可用时运行前端单测。
+  plugin-frontend-unit-tests:
+    name: Frontend unit tests (plugin-full)
+    if: ${{ inputs.include-plugin-frontend-unit-tests }}
+    uses: ./.github/workflows/reusable-frontend-unit-tests.yml
+    with:
+      submodules: recursive
+
+  # Verifies important root plugin-management make targets on Linux.
+  # 在 Linux 上验证重要的根目录插件管理 make 指令。
+  plugin-command-smoke:
+    name: Plugin command smoke
+    if: ${{ inputs.include-plugin-command-smoke }}
+    uses: ./.github/workflows/reusable-plugin-command-smoke.yml
+
+  # Verifies frequently used root make targets that are not covered by plugin smoke.
+  # 验证插件冒烟之外的常用根目录 make 指令。
+  make-command-smoke:
+    name: Make command smoke
+    if: ${{ inputs.include-make-command-smoke }}
+    uses: ./.github/workflows/reusable-make-command-smoke.yml
+
+  # Exercises Redis-backed integration paths that are separate from regular unit tests.
+  # 单独验证依赖 Redis 的集成路径，避免混入常规单元测试作业。
+  redis-integration-tests:
+    name: Redis integration tests
+    if: ${{ inputs.include-redis-integration }}
+    uses: ./.github/workflows/reusable-redis-integration-tests.yml
+
+  # Verifies the backend can initialize and run against the SQLite configuration.
+  # 验证后端在 SQLite 配置下可以初始化并运行。
+  sqlite-smoke:
+    name: SQLite smoke
+    if: ${{ inputs.include-sqlite-smoke }}
+    uses: ./.github/workflows/reusable-sqlite-smoke.yml
+
+  # Builds a host-only backend artifact and verifies health/login/plugin-list behavior.
+  # 构建宿主模式后端产物，并验证健康检查、登录和插件列表行为。
+  host-only-build-smoke:
+    name: Host-only build smoke
+    if: ${{ inputs.include-host-only-build-smoke }}
+    uses: ./.github/workflows/reusable-host-only-build-smoke.yml
+    with:
+      artifact-name: ${{ inputs.artifact-prefix }}-host-only-build-smoke-log
+      retention-days: ${{ inputs.retention-days }}
+
+  # Runs host-only browser E2E when the caller enables E2E verification.
+  # 当调用方启用 E2E 验证时运行宿主模式浏览器 E2E。
+  host-only-e2e-tests:
+    name: E2E tests (host-only)
+    if: ${{ inputs.include-host-only-e2e-tests }}
+    uses: ./.github/workflows/reusable-e2e-tests.yml
+    with:
+      start-command: make dev plugins=0
+      test-command: pnpm test:host
+      artifact-name: ${{ inputs.artifact-prefix }}-host-only-e2e-report
+      retention-days: ${{ inputs.retention-days }}
+      parallel-workers: ${{ inputs.e2e-parallel-workers }}
+
+  # Runs plugin-full browser E2E when the caller enables E2E verification.
+  # 当调用方启用 E2E 验证时运行插件完整模式浏览器 E2E。
+  plugin-full-e2e-tests:
+    name: E2E tests (plugin-full)
+    if: ${{ inputs.include-plugin-full-e2e-tests }}
+    uses: ./.github/workflows/reusable-e2e-tests.yml
+    with:
+      submodules: recursive
+      require-plugin-e2e: true
+      start-command: make dev plugins=1
+      test-command: pnpm test
+      artifact-name: ${{ inputs.artifact-prefix }}-plugin-full-e2e-report
+      retention-days: ${{ inputs.retention-days }}
+      parallel-workers: ${{ inputs.e2e-parallel-workers }}
+
+  # Starts the backend in Redis-backed cluster mode and checks the coordination path.
+  # 以 Redis 支撑的集群模式启动后端，并检查协调链路。
+  redis-cluster-smoke:
+    name: Redis cluster smoke
+    if: ${{ inputs.include-redis-cluster-smoke }}
+    uses: ./.github/workflows/reusable-redis-cluster-smoke.yml
+    with:
+      artifact-name: ${{ inputs.artifact-prefix }}-redis-cluster-smoke-log
+      retention-days: ${{ inputs.retention-days }}

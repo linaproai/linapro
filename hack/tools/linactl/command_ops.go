@@ -232,17 +232,30 @@ func goWorkspaceModules(ctx context.Context, a *app) ([]string, error) {
 	cmd := a.execCommand(ctx, "go", "list", "-m", "-f", "{{.Dir}}")
 	cmd.Dir = a.root
 	cmd.Env = a.env
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
+		message := strings.TrimSpace(string(output))
+		if message != "" {
+			return nil, fmt.Errorf("list Go workspace modules: %w: %s", err, message)
+		}
 		return nil, fmt.Errorf("list Go workspace modules: %w", err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	var modules []string
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if line != "" {
+		if line != "" && !isGeneratedOfficialPluginAggregateModule(a.root, line) {
 			modules = append(modules, line)
 		}
 	}
 	return modules, nil
+}
+
+// isGeneratedOfficialPluginAggregateModule reports whether a module directory
+// is the ignored aggregate bridge used only to satisfy host blank imports.
+func isGeneratedOfficialPluginAggregateModule(root string, moduleDir string) bool {
+	if strings.TrimSpace(moduleDir) == "" {
+		return false
+	}
+	return filepath.Clean(moduleDir) == filepath.Clean(officialPluginAggregateModuleDir(root))
 }
