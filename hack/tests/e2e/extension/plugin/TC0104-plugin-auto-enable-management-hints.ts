@@ -22,7 +22,12 @@ function unwrapApiData(payload: any) {
 
 async function mockAutoEnableManagedPlugin(page: Page, targetPluginID: string) {
   await page.route("**/api/v1/plugins**", async (route) => {
+    const requestURL = new URL(route.request().url());
     if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    if (requestURL.pathname !== "/api/v1/plugins") {
       await route.continue();
       return;
     }

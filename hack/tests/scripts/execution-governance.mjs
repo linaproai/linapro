@@ -11,6 +11,30 @@ export const pluginsDir = path.resolve(repoRoot, 'apps/lina-plugins');
 export const manifestPath = path.resolve(testsDir, 'config/execution-manifest.json');
 export const pluginTestEntry = 'plugins';
 export const pluginWorkspaceInitCommand = 'git submodule update --init --recursive';
+export const hostOnlyExcludedEntries = [
+  'e2e/about/TC0044-api-docs-page.ts',
+  'e2e/extension/plugin',
+  'e2e/i18n/TC0107-runtime-i18n-switch.ts',
+  'e2e/i18n/TC0108-english-runtime-page-audit.ts',
+  'e2e/i18n/TC0110-editable-master-data-raw-in-english.ts',
+  'e2e/i18n/TC0111-plugin-page-static-labels-no-raw-i18n-keys.ts',
+  'e2e/i18n/TC0112-english-layout-regression.ts',
+  'e2e/i18n/TC0116-english-built-in-governance-data-localization.ts',
+  'e2e/i18n/TC0135-backend-error-localization.ts',
+  'e2e/i18n/TC0136-backend-export-localization.ts',
+  'e2e/i18n/TC0137-backend-hardcoded-chinese-regression.ts',
+  'e2e/i18n/TC0141-org-dict-config-english-layout.ts',
+  'e2e/scheduler/job/TC0082-job-handler-crud.ts',
+  'e2e/iam/menu/TC0140-menu-dynamic-permission-tree.ts',
+  'e2e/iam/user/TC0005-user-crud.ts',
+  'e2e/iam/user/TC0062-user-role.ts',
+  'e2e/scheduler/job/TC0090-job-plugin-cascade.ts',
+  'e2e/scheduler/job/TC0158-builtin-job-execution-boundary.ts',
+  'e2e/settings/dict/TC0047-dict-global-effect.ts',
+  'e2e/settings/dict/TC0057-dict-data-export.ts',
+  'e2e/settings/dict/TC0169-dict-option-permission-boundary.ts',
+  'e2e/settings/user/TC0170-user-data-permission.ts',
+];
 
 export const isolationCategories = [
   {
@@ -312,6 +336,15 @@ export function resolveEntries(entries) {
   return unique((entries ?? []).flatMap((entry) => listTcFiles(entry)));
 }
 
+export function resolveHostOnlyEntries(entries) {
+  const excluded = new Set(resolveEntries(hostOnlyExcludedEntries));
+  return unique(
+    (entries ?? [])
+      .flatMap((entry) => listTcFiles(entry))
+      .filter((file) => !excluded.has(file)),
+  );
+}
+
 export function serialFileSet(manifest = loadManifest()) {
   return new Set(resolveEntries(manifest.serial ?? []));
 }
@@ -340,6 +373,14 @@ export function serialCategoryMap(manifest = loadManifest()) {
 
 export function splitBySerial(entries, manifest = loadManifest()) {
   const files = resolveEntries(entries);
+  const serial = serialFileSet(manifest);
+  const serialFiles = files.filter((file) => serial.has(file));
+  const parallelFiles = files.filter((file) => !serial.has(file));
+  return { files, parallelFiles, serialFiles };
+}
+
+export function splitHostOnlyBySerial(entries, manifest = loadManifest()) {
+  const files = resolveHostOnlyEntries(entries);
   const serial = serialFileSet(manifest);
   const serialFiles = files.filter((file) => serial.has(file));
   const parallelFiles = files.filter((file) => !serial.has(file));

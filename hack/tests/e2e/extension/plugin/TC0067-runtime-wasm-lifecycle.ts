@@ -653,7 +653,7 @@ function ensureBundledRuntimePluginArtifact() {
     "make",
     ["wasm", `p=${bundledRuntimePluginID}`, "out=../../temp/output"],
     {
-      cwd: path.join(repoRoot(), "apps", "lina-plugins"),
+      cwd: repoRoot(),
       stdio: "inherit",
     },
   );

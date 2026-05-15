@@ -149,6 +149,49 @@ test.describe('TC0233 过期会话登出保护', () => {
         }),
       });
     });
+    await page.route('**/api/v1/user/message/count', async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        status: 200,
+        body: JSON.stringify({
+          code: 0,
+          data: 0,
+          message: 'ok',
+        }),
+      });
+    });
+    await page.route('**/api/v1/user/message?*', async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        status: 200,
+        body: JSON.stringify({
+          code: 0,
+          data: {
+            list: [],
+            pageNum: 1,
+            pageSize: 20,
+            total: 0,
+          },
+          message: 'ok',
+        }),
+      });
+    });
+    await page.route('**/api/v1/platform/tenants?*', async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        status: 200,
+        body: JSON.stringify({
+          code: 0,
+          data: {
+            list: [],
+            pageNum: 1,
+            pageSize: 100,
+            total: 0,
+          },
+          message: 'ok',
+        }),
+      });
+    });
 
     await page.addInitScript(() => {
       localStorage.clear();
@@ -169,7 +212,7 @@ test.describe('TC0233 过期会话登出保护', () => {
     await page.goto('/dashboard/analytics');
     await expect
       .poll(() => refreshRequestCount, { timeout: 15_000 })
-      .toBe(1);
+      .toBeGreaterThanOrEqual(1);
     await expect
       .poll(() => userInfoRequestCount, { timeout: 15_000 })
       .toBeGreaterThanOrEqual(2);

@@ -7,7 +7,9 @@ import {
   playwrightFileArg,
   pluginTestEntry,
   requirePluginWorkspace,
+  resolveHostOnlyEntries,
   resolveEntries,
+  splitHostOnlyBySerial,
   splitBySerial,
   summarizeIsolationCategories,
   testsDir,
@@ -69,6 +71,26 @@ function runMode(entries, label) {
   return runPlaywright(serialFiles, 1, `${label}:serial`);
 }
 
+function runHostMode(entries, label) {
+  const { files, parallelFiles, serialFiles } = splitHostOnlyBySerial(entries, manifest);
+  const categorySummary = summarizeIsolationCategories(serialFiles, manifest);
+  console.log(
+    [
+      `[${label}] selected=${files.length}`,
+      `parallel=${parallelFiles.length}`,
+      `serial=${serialFiles.length}`,
+      `parallelWorkers=${Math.max(parallelWorkers, 1)}`,
+      `serialIsolation=${formatCategorySummary(categorySummary)}`,
+    ].join(' '),
+  );
+
+  const parallelStatus = runPlaywright(parallelFiles, Math.max(parallelWorkers, 1), `${label}:parallel`);
+  if (parallelStatus !== 0) {
+    return parallelStatus;
+  }
+  return runPlaywright(serialFiles, 1, `${label}:serial`);
+}
+
 function resolveModuleEntries(scope) {
   const configuredEntries = manifest.moduleScopes[scope];
   if (configuredEntries) {
@@ -92,7 +114,7 @@ if (mode === 'full') {
   }
   exitCode = runMode(['e2e', 'plugins'], 'full');
 } else if (mode === 'host') {
-  exitCode = runMode(['e2e'], 'host');
+  exitCode = runHostMode(['e2e'], 'host');
 } else if (mode === 'smoke') {
   exitCode = runMode(manifest.smoke ?? [], 'smoke');
 } else if (mode === 'module') {

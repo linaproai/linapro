@@ -37,7 +37,7 @@ let originalEnabled = 0;
 
 function ensureRuntimePluginArtifact() {
   execFileSync("make", ["wasm", `p=${pluginID}`, "out=../../temp/output"], {
-    cwd: path.join(repoRoot, "apps", "lina-plugins"),
+    cwd: repoRoot,
     stdio: "inherit",
   });
   rmSync(legacyRuntimeArtifactPath, { force: true });

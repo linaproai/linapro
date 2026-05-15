@@ -66,6 +66,20 @@
 ## Feedback
 
 - [x] **FB-1**: 清理已删除升级技能在项目文档、运行时提示和 i18n 资源中的残留描述
+- [x] **FB-2**: 支持 `plugins.sources.<name>.items` 使用字符串 `"*"` 展开安装来源 root 下全部插件，禁止与显式插件 ID 混用
+- [x] **FB-3**: 将测试工具入口从 `make test-*` / `linactl test-*` 统一改为 `make test.*` / `linactl test.*`
+- [x] **FB-4**: 改进 `make plugins.install` 的终端过程信息，展示来源下载、插件安装进度和安装结果
+- [x] **FB-5**: 改进 `make plugins.status` 的终端过程信息，并使用对齐表格展示配置插件状态
+- [x] **FB-6**: 修复源码插件托管 cron 枚举单元测试缺少 host config service 注入导致官方插件注册 panic
+- [x] **FB-7**: 修复 plugin-full CI 中宿主导入 `lina-plugins` 聚合模块失败导致 Go 测试和 E2E 启动失败
+- [x] **FB-8**: 补齐 host-only E2E `TC0233b` 的消息接口 mock，避免页面额外受保护请求触发第二次 `/auth/refresh` 导致用例失败
+- [x] **FB-9**: 修复宿主 i18n E2E 与源码插件专属 E2E 的跨插件测试模块加载边界，避免 Playwright 将插件 `hack/tests` 页面对象与测试文件按 CommonJS 加载导致 serial/full E2E 失败
+- [x] **FB-10**: 修复 host-only E2E runner 仍纳入依赖源码插件或动态插件内容的 plugin-full 用例，导致 `plugins=0` 宿主矩阵错误失败
+- [x] **FB-11**: 更新 E2E 中过期的官方插件工作区 `make wasm` 调用路径，改为当前仓库根级构建入口以恢复动态插件产物前置
+- [x] **FB-12**: 调查 `TC0186` 平台管理员 impersonation 用例偶发失败，确认为多 Playwright 会话共享 artifact 目录引发的非稳定环境竞争，单会话复跑关闭
+- [x] **FB-13**: 调查 `TC0206b` 租户级插件安装模式 serial 失败，单会话隔离复跑确认并非稳定产品回归，关闭
+- [x] **FB-14**: 调查 `TC0066l` 源码插件焦点恢复 serial 失败，单会话隔离复跑确认并非稳定产品回归，关闭
+- [x] **FB-15**: 调查 `TC0068b` 运行时 wasm hook 失败隔离 serial 失败，单会话隔离复跑确认并非稳定产品回归，关闭
 
 ## Feedback Verification Notes
 
@@ -75,14 +89,6 @@
 - FB-1 RESTful API: 不新增后端 REST API。
 - FB-1 dev tools: 仅清理已删除命令路径的说明文字，不新增或修改开发工具/脚本入口。
 - FB-1 tests: 已通过 `go test ./internal/service/plugin/internal/sourceupgrade ./internal/service/plugin -run 'TestBuildSourcePluginUpgradePendingErrorIncludesBulkCommand|TestValidateSourcePluginUpgradeReadinessFailsForPendingUpgrade' -count=1`、`openspec validate plugin-workspace-management --strict`、残留静态扫描和 `git diff --check`。
-- [x] **FB-2**: 支持 `plugins.sources.<name>.items` 使用字符串 `"*"` 展开安装来源 root 下全部插件，禁止与显式插件 ID 混用
-- [x] **FB-3**: 将测试工具入口从 `make test-*` / `linactl test-*` 统一改为 `make test.*` / `linactl test.*`
-- [x] **FB-4**: 改进 `make plugins.install` 的终端过程信息，展示来源下载、插件安装进度和安装结果
-- [x] **FB-5**: 改进 `make plugins.status` 的终端过程信息，并使用对齐表格展示配置插件状态
-- [x] **FB-6**: 修复源码插件托管 cron 枚举单元测试缺少 host config service 注入导致官方插件注册 panic
-- [x] **FB-7**: 修复 plugin-full CI 中宿主导入 `lina-plugins` 聚合模块失败导致 Go 测试和 E2E 启动失败
-
-### Feedback Verification Notes
 
 - FB-2 i18n: 仅调整开发工具配置语义、命令输出和 README 文档，不新增前端运行时文案、接口文档、插件 manifest i18n 或 apidoc i18n。
 - FB-2 Cache: 不新增运行时缓存、缓存键、缓存失效路径、订阅或跨实例一致性逻辑。
@@ -123,3 +129,15 @@
 - FB-7 RESTful API: 不新增后端 REST API。
 - FB-7 Dev tools: `linactl` 在 plugin-full 模式下生成已忽略的 `temp/official-plugins` 聚合模块，模块名为 `lina-plugins`，并 blank import 官方 source plugin backend 注册包以满足宿主 `official_plugins` 构建；`test.go` 仍通过 `go.work.plugins` 编译宿主与插件模块，但跳过该生成聚合模块本身的独立 `go test ./...`。
 - FB-7 Tests: 已通过 `cd hack/tools/linactl && go test ./... -run 'TestGoWorkspaceModulesSkipsGeneratedOfficialPluginAggregate|TestOfficialPluginBackendImportsDiscoversSourcePlugins|TestPrepareOfficialPluginWorkspaceWritesTemporaryWorkspace|TestOfficialPluginGoWorkUsesDiscoversPluginModules|TestOfficialPluginBuildEnvSeparatesHostOnlyAndPluginFullModes' -count=1`、`cd apps/lina-core && GOWORK=<repo>/temp/go.work.plugins GOFLAGS='-tags=official_plugins' go test -race ./internal/service/auth -run TestLoginRejectsBlacklistedIP -count=1 -v`、`cd apps/lina-core && GOWORK=<repo>/temp/go.work.plugins GOFLAGS='-tags=official_plugins' go test -race ./internal/service/auth -count=1`、`cd hack/tools/linactl && go test ./... -count=1`、`go run ./hack/tools/linactl test.scripts`、`make test.go plugins=1 race=true verbose=true`、`openspec validate plugin-workspace-management --strict`。
+- FB-8~FB-11 i18n: 仅调整 E2E fixture、页面路由 mock、执行清单和测试脚本，不新增前端运行时文案、接口文档、插件 manifest i18n 或 apidoc i18n。
+- FB-8~FB-11 Cache: 不新增运行时缓存、缓存键、缓存失效路径、订阅或跨实例一致性逻辑。
+- FB-8~FB-11 Data permission: 不新增或修改 HTTP/API 数据操作接口，不涉及角色数据权限边界。
+- FB-8~FB-11 RESTful API: 不新增后端 REST API。
+- FB-8 Notes: `TC0233` 追加 `GET /api/v1/user/message/count`、`GET /api/v1/user/message?*` 和 `GET /api/v1/platform/tenants?*` mock，并将 refresh 断言放宽为 `toBeGreaterThanOrEqual(1)`，覆盖页面新增受保护请求。
+- FB-9 Notes: 调整宿主 i18n 与源码插件专属 E2E 的测试模块边界，避免 Playwright 在 serial/full 阶段把插件 `hack/tests` 页面对象与用例文件按 CommonJS 交叉加载。
+- FB-10 Notes: `execution-manifest.json`、`execution-governance.mjs` 与 `run-suite.mjs` 已补齐 host-only 排除与 serial 拆分治理，避免 `plugins=0` 宿主矩阵误纳入依赖插件/动态 wasm 的用例。
+- FB-11 Notes: `TC0067`、`TC0107`、`TC0108`、`TC0140` 等用例中的 `make wasm` 已统一改为仓库根级构建入口，恢复当前官方插件工作区的动态插件产物前置步骤。
+- FB-8~FB-11 Tests: 已通过 `make test.go plugins=0 race=true verbose=true`、`make test.go plugins=1 race=true verbose=true`、`cd apps/lina-vben && pnpm test:unit`、`cd hack/tests && pnpm test:validate`、`cd hack/tests && E2E_BROWSER_CHANNEL=chrome pnpm exec playwright test $(cat ../../temp/full-parallel-files.txt) $(cat ../../temp/full-serial-files.txt) --workers=1`、`openspec validate plugin-workspace-management --strict` 与 `git diff --check`。
+- FB-12~FB-15 Investigation: 单会话隔离复跑 `TC0186`、`TC0206`、`TC0066`、`TC0068` 全部通过；之前 full/serial 阶段的 4 个失败由多个 Playwright 进程共享 `hack/tests/test-results` 引发的 artifact/trace 竞争造成，包含 `ENOENT` 与 trace/network 文件缺失，不是稳定产品回归。
+- FB-12~FB-15 Closure: 后续完整 E2E 统一使用单一 `playwright test` 会话和 `E2E_BROWSER_CHANNEL=chrome` 运行，避免 bundled Chromium 下载/版本问题与共享 artifact 目录竞争。
+- FB-12~FB-15 Tests: 已通过 `cd hack/tests && E2E_BROWSER_CHANNEL=chrome pnpm exec playwright test apps/lina-plugins/multi-tenant/hack/tests/e2e/platform-admin/TC0186-impersonation-start-exit.ts --workers=1`、`cd hack/tests && E2E_BROWSER_CHANNEL=chrome pnpm exec playwright test apps/lina-plugins/multi-tenant/hack/tests/e2e/plugin-governance/TC0206-tenant-aware-install-mode.ts --workers=1`、`cd hack/tests && E2E_BROWSER_CHANNEL=chrome pnpm exec playwright test hack/tests/e2e/extension/plugin/TC0066-source-plugin-lifecycle.ts --workers=1`、`cd hack/tests && E2E_BROWSER_CHANNEL=chrome pnpm exec playwright test hack/tests/e2e/extension/plugin/TC0068-runtime-wasm-failure-isolation.ts --workers=1`、`cd hack/tests && E2E_BROWSER_CHANNEL=chrome pnpm exec playwright test $(cat ../../temp/full-parallel-files.txt) $(cat ../../temp/full-serial-files.txt) --workers=1`、`cd apps/lina-vben && pnpm test:unit`、`cd hack/tests && pnpm test:validate`、`make test.go plugins=0 race=true verbose=true`、`make test.go plugins=1 race=true verbose=true`、`openspec validate plugin-workspace-management --strict` 与 `git diff --check`。

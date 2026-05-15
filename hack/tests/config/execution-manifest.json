@@ -93,8 +93,11 @@
     "e2e/i18n/TC0136-backend-export-localization.ts",
     "e2e/i18n/TC0137-backend-hardcoded-chinese-regression.ts",
     "e2e/i18n/TC0141-org-dict-config-english-layout.ts",
+    "e2e/scheduler/job/TC0082-job-handler-crud.ts",
     "e2e/scheduler/job",
     "e2e/settings/config",
+    "e2e/settings/dict/TC0047-dict-global-effect.ts",
+    "e2e/settings/dict/TC0057-dict-data-export.ts",
     "e2e/settings/dict",
     "e2e/settings/user/TC0170-user-data-permission.ts"
   ],
@@ -195,8 +198,8 @@
     },
     {
       "entry": "e2e/i18n/TC0116-english-built-in-governance-data-localization.ts",
-      "categories": ["dictionaryData", "sharedDatabaseSeed"],
-      "reason": "Built-in governance localization checks read shared dictionary, scheduler, audit log, and login log seed data while creating fresh audit records."
+      "categories": ["dictionaryData", "sharedDatabaseSeed", "pluginLifecycle"],
+      "reason": "Built-in governance localization checks read shared dictionary, scheduler, and source-plugin-provided audit/login log data while creating fresh audit records."
     },
     {
       "entry": "e2e/i18n/TC0124-runtime-i18n-etag.ts",
@@ -224,6 +227,11 @@
       "reason": "Organization, dictionary, and config English layout regression enables the org-center source plugin and reads shared seed records across localized pages."
     },
     {
+      "entry": "e2e/scheduler/job/TC0082-job-handler-crud.ts",
+      "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "Built-in handler readonly checks assert source-plugin-managed cron projections such as server-monitor collection in addition to host built-ins."
+    },
+    {
       "entry": "e2e/scheduler/job",
       "categories": ["pluginLifecycle", "sharedDatabaseSeed", "systemConfig"],
       "reason": "Scheduler job tests mutate job data, shell execution config, plugin cascades, and generated log state."
@@ -232,6 +240,16 @@
       "entry": "e2e/settings/config",
       "categories": ["systemConfig"],
       "reason": "System config tests mutate global runtime and frontend configuration values."
+    },
+    {
+      "entry": "e2e/settings/dict/TC0047-dict-global-effect.ts",
+      "categories": ["dictionaryData", "pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "Dictionary global-effect checks navigate to plugin-owned department pages from org-center after mutating shared dictionary labels."
+    },
+    {
+      "entry": "e2e/settings/dict/TC0057-dict-data-export.ts",
+      "categories": ["dictionaryData", "pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "Dictionary data panel toolbar checks select operation-log dictionary types seeded by the monitor-operlog source plugin."
     },
     {
       "entry": "e2e/settings/dict",
