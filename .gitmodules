@@ -1,3 +1,4 @@
 [submodule "apps/lina-plugins"]
 	path = apps/lina-plugins
-	url = https://github.com/linaproai/official-plugins.git
+	url = https://github.com/wangle201210/official-plugins.git
+	branch = feat/media

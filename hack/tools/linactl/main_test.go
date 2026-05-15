@@ -501,6 +501,9 @@ func TestRunDevStartsServicesAsAsyncProcessesAndPrintsFinalStatus(t *testing.T) 
 		if name == "go" && len(args) >= 1 && args[0] == "build" {
 			return exec.Command("true")
 		}
+		if name == "pnpm" {
+			return exec.Command(os.Args[0], "-test.run=TestHelperCreateFrontendDist", "--", root)
+		}
 		return exec.Command(os.Args[0], "-test.run=TestHelperLongRunningProcess", "--")
 	}
 	application.waitHTTP = func(_ string, _ string, pidPath string, _ string, _ time.Duration) error {
@@ -520,6 +523,17 @@ func TestRunDevStartsServicesAsAsyncProcessesAndPrintsFinalStatus(t *testing.T) 
 	}
 	if elapsed := time.Since(start); elapsed > time.Second {
 		t.Fatalf("runDev appears to have waited for service processes to exit: %s", elapsed)
+	}
+	for _, path := range []string{
+		filepath.Join(root, "apps", "lina-core", "internal", "packed", "manifest", "config", "config.template.yaml"),
+		filepath.Join(root, "apps", "lina-core", "internal", "packed", "manifest", "config", "metadata.yaml"),
+		filepath.Join(root, "apps", "lina-core", "internal", "packed", "manifest", "sql", "001.sql"),
+		filepath.Join(root, "apps", "lina-core", "internal", "packed", "manifest", "i18n", "en-US", "framework.json"),
+		filepath.Join(root, "apps", "lina-core", "internal", "packed", "manifest", ".gitkeep"),
+	} {
+		if !fileExists(path) {
+			t.Fatalf("expected runDev to prepare packed manifest asset %s", path)
+		}
 	}
 	for _, path := range []string{
 		filepath.Join(root, "temp", "pids", "backend.pid"),
@@ -1014,6 +1028,14 @@ func TestHelperLongRunningProcess(t *testing.T) {
 		return
 	}
 	time.Sleep(5 * time.Second)
+}
+
+func TestHelperCreateFrontendDist(t *testing.T) {
+	if len(os.Args) < 3 || os.Args[len(os.Args)-2] != "--" {
+		return
+	}
+	root := os.Args[len(os.Args)-1]
+	writeFile(t, filepath.Join(root, "apps", "lina-vben", "apps", "web-antd", "dist", "index.html"), "<div>dist</div>\n")
 }
 
 // TestHelperCommandSuccess exits successfully when invoked as a child command.
