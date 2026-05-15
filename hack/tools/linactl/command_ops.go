@@ -232,8 +232,12 @@ func goWorkspaceModules(ctx context.Context, a *app) ([]string, error) {
 	cmd := a.execCommand(ctx, "go", "list", "-m", "-f", "{{.Dir}}")
 	cmd.Dir = a.root
 	cmd.Env = a.env
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
+		message := strings.TrimSpace(string(output))
+		if message != "" {
+			return nil, fmt.Errorf("list Go workspace modules: %w: %s", err, message)
+		}
 		return nil, fmt.Errorf("list Go workspace modules: %w", err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")

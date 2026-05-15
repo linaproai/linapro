@@ -151,13 +151,13 @@ jobs:
       # 为共享 E2E 工作区安装 Playwright 测试运行依赖。
       - name: Install E2E Dependencies
         working-directory: hack/tests
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # Install Chromium and required OS packages for Playwright.
       # 安装 Playwright 使用的 Chromium 和所需系统包。
       - name: Install Playwright Browsers
         working-directory: hack/tests
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       # Rebuild the database and seed mock data for browser workflows.
       # 重建数据库并为浏览器工作流加载 mock 数据。

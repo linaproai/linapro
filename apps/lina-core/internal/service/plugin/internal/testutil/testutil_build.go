@@ -205,12 +205,26 @@ func ensureBuildWasmPluginWorkspace(repoRoot string, pluginDir string) error {
 	for _, use := range parseBuildWasmGoWorkUses(string(rootContent)) {
 		addUse(use)
 	}
+	if aggregateUse, aggregateErr := ensureBuildWasmAggregateModule(repoRoot, officialRoot); aggregateErr != nil {
+		return aggregateErr
+	} else if aggregateUse != "" {
+		normalized := normalizeBuildWasmGoWorkUse(aggregateUse)
+		if normalized != "" {
+			if _, ok := seen[normalized]; !ok {
+				seen[normalized] = struct{}{}
+				uses = append(uses, normalized)
+			}
+		}
+	}
 	pluginUses, err := buildWasmPluginGoWorkUses(repoRoot, officialRoot)
 	if err != nil {
 		return err
 	}
 	for _, use := range pluginUses {
 		normalized := normalizeBuildWasmGoWorkUse(use)
+		if normalized == "" || normalized == "apps/lina-plugins" {
+			continue
+		}
 		if _, ok := seen[normalized]; ok {
 			continue
 		}
@@ -229,6 +243,49 @@ func ensureBuildWasmPluginWorkspace(repoRoot string, pluginDir string) error {
 		return fmt.Errorf("write temporary plugin workspace: %w", err)
 	}
 	return nil
+}
+
+// ensureBuildWasmAggregateModule resolves the module that satisfies the
+// host's official source-plugin import bridge for plugin test builds.
+func ensureBuildWasmAggregateModule(repoRoot string, officialRoot string) (string, error) {
+	if moduleName, err := readBuildWasmGoModuleName(filepath.Join(officialRoot, "go.mod")); err == nil && moduleName == "lina-plugins" {
+		if err = os.RemoveAll(filepath.Join(repoRoot, "temp", "official-plugins")); err != nil {
+			return "", fmt.Errorf("clean stale test aggregate module: %w", err)
+		}
+		return filepath.ToSlash(filepath.Join("apps", "lina-plugins")), nil
+	} else if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+
+	moduleDir := filepath.Join(repoRoot, "temp", "official-plugins")
+	if err := os.RemoveAll(moduleDir); err != nil {
+		return "", fmt.Errorf("clean test aggregate module: %w", err)
+	}
+	if err := os.MkdirAll(moduleDir, 0o755); err != nil {
+		return "", fmt.Errorf("create test aggregate module: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte("module lina-plugins\n\ngo 1.25.0\n"), 0o644); err != nil {
+		return "", fmt.Errorf("write test aggregate go.mod: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(moduleDir, "plugins.go"), []byte("package linaplugins\n"), 0o644); err != nil {
+		return "", fmt.Errorf("write test aggregate package: %w", err)
+	}
+	return filepath.ToSlash(filepath.Join("temp", "official-plugins")), nil
+}
+
+// readBuildWasmGoModuleName reads the module directive from a go.mod file.
+func readBuildWasmGoModuleName(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(string(content), "\n") {
+		fields := strings.Fields(stripBuildWasmGoWorkComment(line))
+		if len(fields) >= 2 && fields[0] == "module" {
+			return fields[1], nil
+		}
+	}
+	return "", fmt.Errorf("%s is missing a module directive", path)
 }
 
 // buildWasmPluginGoWorkUses discovers Go modules under the official plugin workspace.
