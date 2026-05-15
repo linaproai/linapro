@@ -97,6 +97,12 @@ on:
         description: Whether to run Redis cluster smoke.
         required: true
         type: boolean
+      # Controls browser E2E parallel pool workers for nightly and release callers.
+      # 控制 nightly 和 release 调用方的浏览器 E2E 并行池 worker 数量。
+      e2e-parallel-workers:
+        description: Number of Playwright workers used for E2E parallel pools.
+        required: true
+        type: number
       # Prefixes uploaded artifact names so callers do not overwrite each other.
       # 为上传 artifact 名称添加前缀，避免不同调用方互相覆盖。
       artifact-prefix:
@@ -226,6 +232,7 @@ jobs:
       test-command: pnpm test:host
       artifact-name: ${{ inputs.artifact-prefix }}-host-only-e2e-report
       retention-days: ${{ inputs.retention-days }}
+      parallel-workers: ${{ inputs.e2e-parallel-workers }}
 
   # Runs plugin-full browser E2E when the caller enables E2E verification.
   # 当调用方启用 E2E 验证时运行插件完整模式浏览器 E2E。
@@ -240,6 +247,7 @@ jobs:
       test-command: pnpm test
       artifact-name: ${{ inputs.artifact-prefix }}-plugin-full-e2e-report
       retention-days: ${{ inputs.retention-days }}
+      parallel-workers: ${{ inputs.e2e-parallel-workers }}
 
   # Starts the backend in Redis-backed cluster mode and checks the coordination path.
   # 以 Redis 支撑的集群模式启动后端，并检查协调链路。

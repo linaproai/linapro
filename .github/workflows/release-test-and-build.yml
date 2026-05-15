@@ -131,6 +131,7 @@ jobs:
       test-command: pnpm test:host
       artifact-name: release-host-only-e2e-report
       retention-days: 30
+      parallel-workers: 1
 
   # Runs plugin-full browser E2E and requires official plugin test files to exist.
   # 运行插件完整浏览器 E2E，并要求官方插件测试文件存在。
@@ -147,6 +148,7 @@ jobs:
       test-command: pnpm test
       artifact-name: release-plugin-full-e2e-report
       retention-days: 30
+      parallel-workers: 1
 
   # Verifies Redis-backed cluster startup and coordination before publishing the release image.
   # 在发布镜像前验证 Redis 支撑的集群启动与协调能力。

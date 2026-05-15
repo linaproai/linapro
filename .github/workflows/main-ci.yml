@@ -54,5 +54,6 @@ jobs:
       include-host-only-e2e-tests: false
       include-plugin-full-e2e-tests: false
       include-redis-cluster-smoke: true
+      e2e-parallel-workers: 1
       artifact-prefix: main
       retention-days: 7

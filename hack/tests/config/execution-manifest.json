@@ -80,8 +80,17 @@
     "e2e/extension/plugin",
     "plugins",
     "e2e/iam/menu",
-    "e2e/iam/user/TC0005-user-crud.ts",
-    "e2e/iam/user/TC0062-user-role.ts",
+    "e2e/iam/role",
+    "e2e/iam/user",
+    "e2e/dashboard/TC0077-workspace-navigation.ts",
+    "e2e/i18n/TC0109-user-editable-data-no-i18n-projection.ts",
+    "e2e/i18n/TC0113-config-metadata-localization.ts",
+    "e2e/i18n/TC0114-menu-governance-localized-titles.ts",
+    "e2e/i18n/TC0115-role-admin-display-localization.ts",
+    "e2e/i18n/TC0130-runtime-i18n-disabled-switch.ts",
+    "e2e/i18n/TC0139-role-user-english-seed-display.ts",
+    "e2e/i18n/TC0152-language-switch-no-user-info-reload.ts",
+    "e2e/i18n/TC0177-tab-title-language-switch.ts",
     "e2e/i18n/TC0107-runtime-i18n-switch.ts",
     "e2e/i18n/TC0108-english-runtime-page-audit.ts",
     "e2e/i18n/TC0110-editable-master-data-raw-in-english.ts",
@@ -96,10 +105,11 @@
     "e2e/scheduler/job/TC0082-job-handler-crud.ts",
     "e2e/scheduler/job",
     "e2e/settings/config",
+    "e2e/settings/file",
     "e2e/settings/dict/TC0047-dict-global-effect.ts",
     "e2e/settings/dict/TC0057-dict-data-export.ts",
     "e2e/settings/dict",
-    "e2e/settings/user/TC0170-user-data-permission.ts"
+    "e2e/settings/user"
   ],
   "serialIsolation": [
     {
@@ -152,19 +162,59 @@
       "reason": "Menu tests create and update shared menu and permission matrix data, authorization tests sync plugin menus before assigning permissions, and dynamic plugin menu regressions may build runtime artifacts."
     },
     {
-      "entry": "e2e/iam/user/TC0005-user-crud.ts",
-      "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
-      "reason": "User CRUD enables the org-center source plugin before validating department and post fields backed by plugin mock data."
+      "entry": "e2e/iam/role",
+      "categories": ["dictionaryData", "permissionMatrix", "pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "Role tests create, edit, authorize, delete, and inspect shared role records, role-menu permission assignments, role-user relationships, and dictionary-backed data-scope options; CI E2E runs must not overlap these files with other admin-table flows."
     },
     {
-      "entry": "e2e/iam/user/TC0062-user-role.ts",
-      "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
-      "reason": "User-role association checks enable the org-center source plugin and read shared organization mock data."
+      "entry": "e2e/iam/user",
+      "categories": ["authSession", "permissionMatrix", "pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "User management tests create, import, export, reset passwords, assign roles, and read plugin-provided organization seed data while sharing the admin account and user table state."
     },
     {
-      "entry": "e2e/settings/user/TC0170-user-data-permission.ts",
-      "categories": ["pluginLifecycle", "permissionMatrix", "sharedDatabaseSeed"],
-      "reason": "User data-scope regression enables the org-center source plugin, creates temporary department data, and assigns menu permissions to temporary roles."
+      "entry": "e2e/dashboard/TC0077-workspace-navigation.ts",
+      "categories": ["permissionMatrix", "sharedDatabaseSeed"],
+      "reason": "Workspace quick navigation traverses shared host module routes and waits for table-backed pages that depend on the global menu, permission, and seed state."
+    },
+    {
+      "entry": "e2e/i18n/TC0109-user-editable-data-no-i18n-projection.ts",
+      "categories": ["authSession", "runtimeI18nCache", "sharedDatabaseSeed"],
+      "reason": "The user-editable data i18n regression mutates the shared admin profile and validates localized projections against shared seed data."
+    },
+    {
+      "entry": "e2e/i18n/TC0113-config-metadata-localization.ts",
+      "categories": ["runtimeI18nCache", "systemConfig"],
+      "reason": "Config metadata localization depends on shared runtime i18n bundles and system configuration metadata rendered in the admin table."
+    },
+    {
+      "entry": "e2e/i18n/TC0114-menu-governance-localized-titles.ts",
+      "categories": ["permissionMatrix", "pluginLifecycle", "runtimeI18nCache"],
+      "reason": "Menu title localization reads shared menu, permission, and plugin-governance entries through runtime i18n projections."
+    },
+    {
+      "entry": "e2e/i18n/TC0115-role-admin-display-localization.ts",
+      "categories": ["permissionMatrix", "runtimeI18nCache", "sharedDatabaseSeed"],
+      "reason": "Built-in role localization reads shared role seed data and must not overlap with role mutation or authorization flows."
+    },
+    {
+      "entry": "e2e/i18n/TC0130-runtime-i18n-disabled-switch.ts",
+      "categories": ["runtimeI18nCache", "systemConfig"],
+      "reason": "Runtime i18n disabled checks depend on global i18n configuration and runtime bundle visibility."
+    },
+    {
+      "entry": "e2e/i18n/TC0139-role-user-english-seed-display.ts",
+      "categories": ["permissionMatrix", "runtimeI18nCache", "sharedDatabaseSeed"],
+      "reason": "Role and user English seed display checks read shared role and user table projections under runtime i18n."
+    },
+    {
+      "entry": "e2e/i18n/TC0152-language-switch-no-user-info-reload.ts",
+      "categories": ["authSession", "runtimeI18nCache"],
+      "reason": "Language switching uses the authenticated admin shell and runtime i18n bundle updates, so it should not overlap with other admin-shell locale regressions."
+    },
+    {
+      "entry": "e2e/i18n/TC0177-tab-title-language-switch.ts",
+      "categories": ["runtimeI18nCache"],
+      "reason": "Opened tab title relocalization depends on shared runtime i18n bundles and admin-shell locale state."
     },
     {
       "entry": "e2e/i18n/TC0107-runtime-i18n-switch.ts",
@@ -242,6 +292,11 @@
       "reason": "System config tests mutate global runtime and frontend configuration values."
     },
     {
+      "entry": "e2e/settings/file",
+      "categories": ["filesystemArtifact", "permissionMatrix", "sharedDatabaseSeed"],
+      "reason": "File management tests exercise shared upload artifacts, file rows, route authorization, and file data-permission boundaries."
+    },
+    {
       "entry": "e2e/settings/dict/TC0047-dict-global-effect.ts",
       "categories": ["dictionaryData", "pluginLifecycle", "sharedDatabaseSeed"],
       "reason": "Dictionary global-effect checks navigate to plugin-owned department pages from org-center after mutating shared dictionary labels."
@@ -255,6 +310,11 @@
       "entry": "e2e/settings/dict",
       "categories": ["dictionaryData", "pluginLifecycle"],
       "reason": "Dictionary tests create, import, edit, export, and delete shared dictionary types and data; dictionary option permission regressions also prepare source plugin menus before assigning business-only permissions."
+    },
+    {
+      "entry": "e2e/settings/user",
+      "categories": ["permissionMatrix", "pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "Settings-owned user tests validate user labels, batch edits, and data-permission behavior against shared user, role, and organization seed data."
     }
   ],
   "parallelIsolationAllowlist": []

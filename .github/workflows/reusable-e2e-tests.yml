@@ -46,6 +46,13 @@ on:
         required: false
         type: number
         default: 14
+      # Controls the worker count for the manifest-declared parallel pool.
+      # 控制清单声明的并行池 worker 数量。
+      parallel-workers:
+        description: Number of Playwright workers used for the E2E parallel pool.
+        required: false
+        type: number
+        default: 1
 
 # Browser E2E jobs only need read access to repository contents.
 # 浏览器 E2E job 只需要读取仓库内容。
@@ -180,7 +187,7 @@ jobs:
           E2E_BASE_URL: "http://127.0.0.1:5666"
           E2E_API_BASE_URL: "http://127.0.0.1:8080/api/v1/"
           E2E_PUBLIC_BASE_URL: "http://127.0.0.1:8080"
-          E2E_PARALLEL_WORKERS: "4"
+          E2E_PARALLEL_WORKERS: ${{ inputs.parallel-workers }}
         run: ${{ inputs.test-command }}
 
       # Stop LinaPro services even when the E2E suite fails.
