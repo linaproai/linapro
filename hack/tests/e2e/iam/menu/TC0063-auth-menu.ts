@@ -5,6 +5,7 @@ import { test, expect } from "../../../fixtures/auth";
 import { MainLayout } from "../../../pages/MainLayout";
 import { config } from "../../../fixtures/config";
 import { waitForRouteReady } from "../../../support/ui";
+import { getMenuIdsByPermsWithAncestors } from "../../../support/api/job";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://localhost:8080/api/v1/";
@@ -23,10 +24,6 @@ type RouteNode = {
     title?: string;
   };
 };
-
-function flattenMenus(list: MenuNode[]): MenuNode[] {
-  return list.flatMap((item) => [item, ...flattenMenus(item.children ?? [])]);
-}
 
 function findMenuNodeByName(
   list: MenuNode[],
@@ -118,20 +115,6 @@ async function createAdminApiContext(): Promise<APIRequestContext> {
   });
 }
 
-async function getMenuIdsByNames(api: APIRequestContext, menuNames: string[]) {
-  const response = await api.get("menu");
-  expect(response.ok()).toBeTruthy();
-
-  const result = await response.json();
-  const flatMenus = flattenMenus(result.data?.list ?? []);
-
-  return menuNames.map((menuName) => {
-    const menu = flatMenus.find((item) => item.name === menuName);
-    expect(menu, `missing menu: ${menuName}`).toBeTruthy();
-    return menu!.id;
-  });
-}
-
 async function getCurrentUserRouteTree(
   api: APIRequestContext,
 ): Promise<RouteNode[]> {
@@ -173,11 +156,15 @@ test.describe("TC0063 登录后菜单显示", () => {
     adminApi = api;
     const syncResponse = await api.post('plugins/sync');
     expect(syncResponse.ok()).toBeTruthy();
-    roleMenuIds = await getMenuIdsByNames(api, ["权限管理", "用户管理"]);
-    expandedRoleMenuIds = await getMenuIdsByNames(api, [
-      "权限管理",
-      "用户管理",
-      "角色管理",
+    roleMenuIds = await getMenuIdsByPermsWithAncestors(api, [
+      "system:user:list",
+      "system:user:query",
+    ]);
+    expandedRoleMenuIds = await getMenuIdsByPermsWithAncestors(api, [
+      "system:user:list",
+      "system:user:query",
+      "system:role:list",
+      "system:role:query",
     ]);
 
     const createRoleResponse = await api.post("role", {
