@@ -198,29 +198,38 @@ export class DictPage {
     await this.clickTypeSearch();
 
     const deletedRow = await this.resolveTypeRow(typeName);
+    const deleteButton = deletedRow
+      .getByRole("button", { name: /删\s*除|Delete/i })
+      .first();
 
-    // Click delete button (ghost-button in action column)
-    await this.typePanel
-      .locator(".ant-btn-sm")
-      .filter({ hasText: /删\s*除/ })
-      .first()
-      .click();
-
-    const deletePromise = this.page.waitForResponse(
-      (response) =>
-        response.url().includes("/dict/type/") &&
-        response.request().method() === "DELETE",
-      { timeout: 15000 },
-    );
+    if (await deleteButton.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await deleteButton.click();
+    } else {
+      // VXE fixed action columns can render outside the primary row tree.
+      await this.typePanel
+        .locator(".ant-btn-sm")
+        .filter({ hasText: /删\s*除|Delete/i })
+        .first()
+        .click();
+    }
 
     // Confirm the visible modal directly instead of relying on a global DOM query.
     const modal = await waitForConfirmOverlay(this.page);
-    await modal
+    const confirmButton = modal
       .getByRole("button", { name: /确\s*定|确\s*认|OK/i })
-      .last()
-      .click({ force: true });
+      .last();
+    await confirmButton.waitFor({ state: "visible", timeout: 10000 });
 
-    const response = await deletePromise;
+    const [response] = await Promise.all([
+      this.page.waitForResponse(
+        (candidate) =>
+          /\/dict\/type\/[^/?#]+\/?$/.test(
+            new URL(candidate.url()).pathname,
+          ) && candidate.request().method() === "DELETE",
+        { timeout: 30000 },
+      ),
+      confirmButton.click(),
+    ]);
     await waitForRouteReady(this.page);
     await modal.waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
     await deletedRow

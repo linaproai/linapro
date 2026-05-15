@@ -367,6 +367,7 @@ export class UserPage {
       .filter({ hasText: /批量编辑用户|Batch Edit Users/i })
       .last();
     await waitForDialogReady(dialog);
+    await waitForBusyIndicatorsToClear(dialog, 20000);
     return dialog;
   }
 
@@ -417,11 +418,21 @@ export class UserPage {
   async batchUpdateSelectedStatus(statusLabel: string) {
     const dialog = await this.openSelectedUserBatchEdit();
     await this.expectBatchEditSwitchesCompact(dialog);
-    await dialog
-      .getByRole("switch", { name: /更新状态|Update Status/i })
-      .click();
+    const statusSwitch = dialog.getByRole("switch", {
+      name: /更新状态|Update Status/i,
+    });
+    await statusSwitch.waitFor({ state: "visible", timeout: 10000 });
+    await waitForBusyIndicatorsToClear(dialog, 20000);
+    await statusSwitch.click();
     await dialog.getByText(statusLabel, { exact: true }).click();
+    const updatePromise = this.page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith("/user") &&
+        response.request().method() === "PUT",
+      { timeout: 30000 },
+    );
     await dialog.getByRole("button", { name: /确\s*认|OK/i }).click();
+    await updatePromise;
     await dialog.waitFor({ state: "hidden", timeout: 15000 });
     await waitForBusyIndicatorsToClear(this.page);
   }
