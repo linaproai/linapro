@@ -65,9 +65,21 @@
 - [x] **FB-17**: `media_device_node.device_id` 应按原表结构使用唯一约束而不是主键
 - [x] **FB-18**: 后续新增的 `hg_*` 媒体表统一改为 `media_*` 命名
 - [x] **FB-19**: media 策略解析需要支持通过铁塔 token 鉴权并校验租户设备权限
+- [x] **FB-20**: CMS 公开前端缺少原站点静态资源导致 CSS、图片和脚本无法加载
+- [x] **FB-21**: CMS 公开前端修复静态资源后不应替换原有 UI 风格
 
 ## Feedback 验证记录
 
+- [x] FB-20 根因确认为 CMS 公开模板引用原站点资源 `/cms-site/assets/css/yx.css`、`yx-page.css`、`jquery-1.12.4.min.js`、`yx.js`，同时 mock 数据引用 `/static/logo.svg` 与 `/static/wechat.jpg`，但插件包未交付这些嵌入资源，导致浏览器请求静态资源 404，页面退化为无样式 HTML。
+- [x] FB-20/FB-21 修复方式改为恢复原 CMS 公开站点资源文件：新增 `cms/public/assets/css/yx.css`、`yx-page.css`、`js/jquery-1.12.4.min.js`、`js/yx.js`、`static/logo.svg`、`static/wechat.jpg`，保持模板继续引用原站点资源路径，不再用 `cms-site.css` 替换原 UI。
+- [x] FB-21 移除前次临时兼容方案中的样式替换、jQuery shim、内置 SVG 兜底等逻辑，避免把资源缺失问题伪装成另一套公开页视觉。
+- [x] FB-20/FB-21 补充 `cms_public_frontend_test.go` 单元测试，覆盖公开模板必须引用原站点资源路径，以及原站点 CSS、JS、Logo、微信公众号图片均存在于插件嵌入资源中。
+- [x] `GOWORK=/Users/wanna/mine/github/wangle201210/linapro/temp/go.work.plugins go test lina-plugin-cms/... lina-plugins` 通过。
+- [x] `git diff --check` 于 `apps/lina-plugins` 通过。
+- [x] `make stop && make dev` 通过，后端与前端服务重新加载 CMS 静态资源修复版本。
+- [x] `curl` 验证通过：`/cms-site/` 输出原站点 `/cms-site/assets/css/yx.css`、`jquery-1.12.4.min.js`、`yx.js` 资源引用，不输出替代用的 `/cms-site/assets/cms-site.css`；`/cms-site/assets/css/yx.css`、`/cms-site/assets/css/yx-page.css`、`/cms-site/assets/js/jquery-1.12.4.min.js`、`/cms-site/assets/js/yx.js`、`/cms-site/assets/static/logo.svg`、`/cms-site/assets/static/wechat.jpg` 均返回 `200`。
+- [x] i18n 影响评估：FB-20/FB-21 仅恢复 CMS 公开前端静态资源，不新增运行时 i18n、manifest i18n 或 apidoc i18n 资源。
+- [x] 缓存影响评估：FB-20/FB-21 仅补充嵌入静态资源，不新增业务缓存或跨实例缓存一致性问题。
 - [x] FB-19 新增 `POST /api/v1/media/strategy-authorizations` 公开鉴权资源接口，接口不走宿主 JWT 中间件，使用铁塔 token 换取用户租户身份，并校验租户设备权限后再按 media 本地策略优先级解析生效策略。
 - [x] FB-19 将 HotGo `tieta/token.go` 和 `tieta/device.go` 的必要鉴权逻辑迁移为 media 插件内 `tietaClient`：支持 `tieta.baseUrl`、`tieta.timeout`、`tieta.mock`，从请求体 token 或 `Authorization` 头读取 token，并调用铁塔用户信息与租户设备权限接口；未迁移 `gateway.go/strategy.go`，因为 LinaPro media 策略权威源已是本地 `media_*` 表；未迁移 `snapshot.go`，因为截图属于 water/水印处理边界。
 - [x] FB-19 新增后端单元测试覆盖：token 租户与请求租户一致时命中租户设备策略、请求租户与 token 租户不一致时返回结构化鉴权错误、铁塔设备权限拒绝时返回 `hasAccess=false` 且不泄露策略内容。
