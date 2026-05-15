@@ -15,6 +15,9 @@ import (
 	"lina-core/pkg/pluginhost"
 )
 
+// methodScopeAll expands into every HTTP method supported by the GoFrame server.
+const methodScopeAll = "ALL"
+
 // Build builds one host-managed OpenAPI document from the current route table
 // and current plugin enablement state.
 func (s *serviceImpl) Build(ctx context.Context, server *ghttp.Server) (*goai.OpenApiV3, error) {
@@ -226,7 +229,7 @@ func normalizeOpenAPIPath(path string) string {
 // method set used by GoFrame OpenAPI generation.
 func expandOpenAPIMethods(method string) []string {
 	normalized := strings.ToUpper(strings.TrimSpace(method))
-	if normalized == "" || normalized == "ALL" {
+	if normalized == "" || normalized == methodScopeAll {
 		methods := ghttp.SupportedMethods()
 		items := make([]string, 0, len(methods))
 		for _, item := range methods {

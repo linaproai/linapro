@@ -24,6 +24,10 @@ import (
 const (
 	componentSectionBackend  = "backend"
 	componentSectionFrontend = "frontend"
+
+	// versionResolveAuto reports that the component version should be resolved
+	// dynamically at runtime instead of using a static build-time value.
+	versionResolveAuto = "auto"
 )
 
 // Service defines the sysinfo service contract.
@@ -291,7 +295,7 @@ func (s *serviceImpl) loadComponents(metadata *config.MetadataConfig, sectionKey
 			Url:         item.Url,
 			Description: item.Description,
 		}
-		if component.Version == "auto" {
+		if component.Version == versionResolveAuto {
 			switch component.Name {
 			case "GoFrame":
 				component.Version = gf.VERSION

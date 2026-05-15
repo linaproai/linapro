@@ -442,13 +442,19 @@ func (s *serviceImpl) getProtectedConfigBoolOrDefault(ctx context.Context, key s
 	return parsed, nil
 }
 
+// Strict boolean configuration value literals.
+const (
+	boolStrTrue  = "true"
+	boolStrFalse = "false"
+)
+
 // parseStrictBoolValue parses one protected boolean setting accepting only
 // explicit true or false literals.
 func parseStrictBoolValue(key string, value string) (bool, error) {
 	switch normalizeProtectedConfigValue(value) {
-	case "true":
+	case boolStrTrue:
 		return true, nil
-	case "false":
+	case boolStrFalse:
 		return false, nil
 	default:
 		return false, bizerr.NewCode(CodeConfigParamBoolInvalid, bizerr.P("key", key))
