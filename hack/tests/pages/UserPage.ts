@@ -18,6 +18,9 @@ export class UserPage {
   /** Drawer submit can settle slowly in full-suite parallel runs. */
   private static readonly DRAWER_HIDDEN_TIMEOUT = 20000;
 
+  /** User drawer and batch-edit modal can initialize slowly in act containers. */
+  private static readonly DIALOG_READY_TIMEOUT = 20000;
+
   /** The Vben drawer (Sheet/Dialog) container */
   private get drawer() {
     return this.page
@@ -54,7 +57,7 @@ export class UserPage {
 
   /** Wait until the user drawer has finished async schema/data initialization. */
   private async waitForDrawerReady(expectedUsername: string) {
-    await waitForDialogReady(this.drawer);
+    await waitForDialogReady(this.drawer, UserPage.DIALOG_READY_TIMEOUT);
 
     const usernameInput = this.drawerAccountInput;
     await usernameInput.waitFor({ state: "visible", timeout: 10000 });
@@ -366,7 +369,7 @@ export class UserPage {
       .locator('[role="dialog"]')
       .filter({ hasText: /批量编辑用户|Batch Edit Users/i })
       .last();
-    await waitForDialogReady(dialog);
+    await waitForDialogReady(dialog, UserPage.DIALOG_READY_TIMEOUT);
     await waitForBusyIndicatorsToClear(dialog, 20000);
     return dialog;
   }
@@ -440,7 +443,10 @@ export class UserPage {
   /** Click export button */
   async clickExport() {
     await this.page.getByRole("button", { name: /导\s*出/ }).click();
-    await waitForDialogReady(this.page.locator('[role="dialog"]'));
+    await waitForDialogReady(
+      this.page.locator('[role="dialog"]'),
+      UserPage.DIALOG_READY_TIMEOUT,
+    );
   }
 
   /** Click confirm button in the export confirm modal */
@@ -518,7 +524,10 @@ export class UserPage {
       .getByRole("button", { name: /导\s*入/ })
       .first()
       .click();
-    await waitForDialogReady(this.page.locator('[role="dialog"]'));
+    await waitForDialogReady(
+      this.page.locator('[role="dialog"]'),
+      UserPage.DIALOG_READY_TIMEOUT,
+    );
   }
 
   /** Get the total count from the pager */

@@ -159,6 +159,8 @@ async function setupDeptSelect() {
       fieldName: 'deptId',
     },
   ]);
+
+  return deptTree;
 }
 
 const [Drawer, drawerApi] = useVbenDrawer({
@@ -199,15 +201,19 @@ const [Drawer, drawerApi] = useVbenDrawer({
       ),
     });
 
+    const setupTasks: Promise<unknown>[] = [
+      setupRoleOptions(),
+      setupTenantOptions(),
+      dictStore.getDictOptionsAsync('sys_normal_disable'),
+    ];
     if (orgEnabled.value) {
-      await setupDeptSelect();
+      setupTasks.push(setupDeptSelect());
     }
 
-    await setupRoleOptions();
-    await setupTenantOptions();
-
-    const statusOptions =
-      await dictStore.getDictOptionsAsync('sys_normal_disable');
+    const setupResults = await Promise.all(setupTasks);
+    const statusOptions = setupResults[2] as Awaited<
+      ReturnType<typeof dictStore.getDictOptionsAsync>
+    >;
     formApi.updateSchema([
       {
         fieldName: 'status',

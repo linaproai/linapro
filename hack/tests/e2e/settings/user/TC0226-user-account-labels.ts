@@ -32,6 +32,7 @@ test.describe("TC-226 用户管理账号字段展示", () => {
         .locator('[role="dialog"]')
         .filter({ has: adminPage.getByPlaceholder("请输入账号") })
         .last(),
+      20000,
     );
 
     await expect(drawer.getByText(/账号/).first()).toBeVisible();

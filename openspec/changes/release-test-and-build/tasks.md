@@ -64,6 +64,7 @@
 - [x] **FB-19**: GitHub Actions `E2E tests (host-only)` 在 `TC0012d` 字典类型删除和 `TC-228a` 用户批量编辑中仍存在重试状态丢失、删除响应监听不稳和全局加载遮罩拦截点击的问题，导致 nightly host-only E2E 失败
 - [x] **FB-20**: `.github/workflows/release-test-and-build.yml` 仍手工展开测试 job，未像 nightly 一样复用共享测试验证套件，且 release 应采用 Main CI 的简要测试范围，不运行完整 E2E
 - [ ] **FB-21**: host-only E2E `TC0063-auth-menu` 仍通过中文菜单名硬编码创建受限角色，未显式包含 `system:user:query` 等页面实际依赖的按钮权限，导致普通用户访问 `/system/user` 时连续收到 `403` 并卡住 loading，从而让 `TC0063b` 与 `TC0063d` 失败
+- [ ] **FB-22**: host-only E2E 在 `act` 容器内执行时，用户新增抽屉和批量编辑弹窗初始化串行请求过多，导致 `TC0226-user-account-labels` 与 `TC0228-user-batch-edit` 在 `waitForDialogReady` 的 10 秒 busy 等待内长期保持 loading 遮罩，从而让 `E2E tests (host-only)` 继续失败
 
 ## Feedback Verification
 
