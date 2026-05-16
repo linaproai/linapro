@@ -154,23 +154,7 @@ func sourceManifestSnapshotView(snapshot *catalog.ManifestSnapshot) pluginhost.M
 	if snapshot == nil {
 		return nil
 	}
-	return pluginhost.NewManifestSnapshotFromValues(pluginhost.ManifestSnapshotValues{
-		ID:                    snapshot.ID,
-		Name:                  snapshot.Name,
-		Version:               snapshot.Version,
-		Type:                  snapshot.Type,
-		ScopeNature:           snapshot.ScopeNature,
-		SupportsMultiTenant:   snapshot.SupportsMultiTenant,
-		DefaultInstallMode:    snapshot.DefaultInstallMode,
-		Description:           snapshot.Description,
-		InstallSQLCount:       snapshot.InstallSQLCount,
-		UninstallSQLCount:     snapshot.UninstallSQLCount,
-		MockSQLCount:          snapshot.MockSQLCount,
-		MenuCount:             snapshot.MenuCount,
-		BackendHookCount:      snapshot.BackendHookCount,
-		ResourceSpecCount:     snapshot.ResourceSpecCount,
-		HostServiceAuthNeeded: snapshot.HostServiceAuthRequired,
-	})
+	return pluginhost.NewManifestSnapshot(catalog.PublishedManifestSnapshot(snapshot))
 }
 
 // summarizeSourceUpgradeVetoReasons builds one deterministic veto summary for

@@ -473,6 +473,125 @@ func TestExecuteRuntimeUpgradeBeforeLifecycleBlocksBeforeRunningState(t *testing
 	}
 }
 
+// TestExecuteRuntimeUpgradeLifecycleCallbackBlocksBeforeUpgradeSQL verifies
+// dynamic Upgrade execution callbacks run before target upgrade SQL.
+func TestExecuteRuntimeUpgradeLifecycleCallbackBlocksBeforeUpgradeSQL(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-dynamic-upgrade-lifecycle-fail-closed"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.2.0"
+	)
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
+		t,
+		pluginID,
+		"Dynamic Upgrade Lifecycle Fail Closed Plugin",
+		oldVersion,
+		nil,
+		nil,
+	)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected initial artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected initial manifest sync to succeed, got error: %v", err)
+	}
+	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected initial dynamic plugin install to succeed, got error: %v", err)
+	}
+	oldRegistry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected old registry lookup to succeed, got error: %v", err)
+	}
+	if oldRegistry == nil {
+		t.Fatal("expected old registry row")
+	}
+
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:      pluginID,
+			Name:    "Dynamic Upgrade Lifecycle Fail Closed Plugin",
+			Version: newVersion,
+			Type:    catalog.TypeDynamic.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind:   pluginbridge.RuntimeKindWasm,
+			ABIVersion:    pluginbridge.SupportedABIVersion,
+			SQLAssetCount: 1,
+			LifecycleContracts: []*pluginbridge.LifecycleContract{
+				{
+					Operation:    pluginbridge.LifecycleOperationUpgrade,
+					RequestType:  "DynamicUpgradeReq",
+					InternalPath: "/__lifecycle/upgrade",
+					TimeoutMs:    1000,
+				},
+			},
+		},
+		nil,
+		[]*catalog.ArtifactSQLAsset{
+			{
+				Key:     "001-plugin-dynamic-upgrade-lifecycle-fail-closed.sql",
+				Content: "CREATE TABLE IF NOT EXISTS plugin_dynamic_upgrade_lifecycle_fail_closed(id INTEGER);",
+			},
+		},
+		nil,
+		nil,
+		nil,
+		&pluginbridge.BridgeSpec{
+			ABIVersion:     pluginbridge.ABIVersionV1,
+			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+			RouteExecution: true,
+			RequestCodec:   pluginbridge.CodecProtobuf,
+			ResponseCodec:  pluginbridge.CodecProtobuf,
+		},
+	)
+	newManifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected target artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, newManifest); err != nil {
+		t.Fatalf("expected target manifest sync to succeed, got error: %v", err)
+	}
+
+	_, err = service.ExecuteRuntimeUpgrade(ctx, pluginID, RuntimeUpgradeOptions{Confirmed: true})
+	if !bizerr.Is(err, CodePluginRuntimeUpgradeExecutionFailed) {
+		t.Fatalf("expected dynamic Upgrade lifecycle execution failure, got %v", err)
+	}
+	registryAfterFailure, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup after failed upgrade to succeed, got error: %v", err)
+	}
+	if registryAfterFailure == nil ||
+		registryAfterFailure.Version != oldVersion ||
+		registryAfterFailure.ReleaseId != oldRegistry.ReleaseId {
+		t.Fatalf("expected effective release to stay %s/%d, got %#v", oldVersion, oldRegistry.ReleaseId, registryAfterFailure)
+	}
+
+	migrationCount, err := dao.SysPluginMigration.Ctx(ctx).
+		Where(do.SysPluginMigration{
+			PluginId: pluginID,
+			Phase:    catalog.MigrationDirectionUpgrade.String(),
+			Status:   catalog.MigrationExecutionStatusSucceeded.String(),
+		}).
+		Count()
+	if err != nil {
+		t.Fatalf("expected upgrade migration count query to succeed, got error: %v", err)
+	}
+	if migrationCount != 0 {
+		t.Fatalf("expected Upgrade lifecycle failure to block upgrade SQL, got successful migration count=%d", migrationCount)
+	}
+}
+
 // TestRuntimeUpgradeLockSerializesSamePlugin verifies the explicit upgrade
 // entrypoint serializes side effects for the same plugin inside the current process.
 func TestRuntimeUpgradeLockSerializesSamePlugin(t *testing.T) {

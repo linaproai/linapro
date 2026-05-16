@@ -146,6 +146,9 @@ func (s *testHostServices) I18n() contract.I18nService { return nil }
 // Notify returns no notification service for plugin integration tests.
 func (s *testHostServices) Notify() contract.NotifyService { return nil }
 
+// PluginLifecycle returns no lifecycle service for plugin integration tests.
+func (s *testHostServices) PluginLifecycle() contract.PluginLifecycleService { return nil }
+
 // PluginState returns no plugin-state service for plugin integration tests.
 func (s *testHostServices) PluginState() contract.PluginStateService { return nil }
 

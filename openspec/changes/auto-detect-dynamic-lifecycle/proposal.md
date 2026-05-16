@@ -10,6 +10,7 @@
 - 自动生成生命周期契约并写入既有 `lina.plugin.backend.lifecycle` WASM custom section，宿主运行时继续只按 artifact 中的 `LifecycleHandlers` 调用，不进行盲目运行时试探。
 - `backend/lifecycle/*.yaml` 从必需声明降级为可选 override，仅用于覆盖默认 `requestType`、`internalPath`、`timeoutMs` 等构建期推导值。
 - 官方 `plugin-demo-dynamic` 移除重复生命周期 YAML 声明，依赖自动发现生成 14 个生命周期契约。
+- 动态生命周期 `LifecycleRequest.fromManifest` / `toManifest` 与源码插件升级回调统一使用 `pluginbridge` typed manifest snapshot contract，移除手写 map 字段名和旧 map 构造入口。
 - 补充构建工具、pluginbridge guest 侧反射元数据、动态 artifact 解析和 demo 插件打包测试。
 - 不改变动态插件生命周期运行时调用语义、错误码、缓存失效策略、hostServices 授权边界或 REST API。
 
@@ -26,5 +27,6 @@
 ## Impact
 
 - 影响 `hack/tools/build-wasm` 动态插件构建工具、`apps/lina-core/pkg/pluginbridge/guest` controller 反射能力、动态插件 artifact lifecycle contract 生成和相关测试。
+- 影响 `apps/lina-core/pkg/pluginbridge/contract` 的 lifecycle request manifest snapshot ABI；本次反馈按非兼容治理要求收敛为 typed contract。
 - 影响官方动态示例插件 `apps/lina-plugins/plugin-demo-dynamic` 的 lifecycle 声明方式和 README。
 - 不涉及前端 UI、REST API、数据库迁移、i18n 运行时语言包、apidoc 资源或缓存/集群策略变更。

@@ -34,6 +34,8 @@ const (
 	LifecycleHookAfterInstall LifecycleHook = "AfterInstall"
 	// LifecycleHookBeforeUpgrade protects plugin runtime upgrade.
 	LifecycleHookBeforeUpgrade LifecycleHook = "BeforeUpgrade"
+	// LifecycleHookUpgrade performs plugin-owned runtime upgrade work.
+	LifecycleHookUpgrade LifecycleHook = "Upgrade"
 	// LifecycleHookAfterUpgrade observes successful plugin runtime upgrade.
 	LifecycleHookAfterUpgrade LifecycleHook = "AfterUpgrade"
 	// LifecycleHookBeforeDisable protects global plugin disable.
@@ -42,6 +44,8 @@ const (
 	LifecycleHookAfterDisable LifecycleHook = "AfterDisable"
 	// LifecycleHookBeforeUninstall protects plugin uninstall.
 	LifecycleHookBeforeUninstall LifecycleHook = "BeforeUninstall"
+	// LifecycleHookUninstall performs plugin-owned uninstall cleanup work.
+	LifecycleHookUninstall LifecycleHook = "Uninstall"
 	// LifecycleHookAfterUninstall observes successful plugin uninstall.
 	LifecycleHookAfterUninstall LifecycleHook = "AfterUninstall"
 	// LifecycleHookBeforeTenantDisable protects tenant-scoped plugin disable.
@@ -82,6 +86,12 @@ type AfterUpgrader interface {
 	AfterUpgrade(ctx context.Context, input SourcePluginUpgradeInput) error
 }
 
+// Upgrader optionally performs plugin-owned upgrade work.
+type Upgrader interface {
+	// Upgrade performs plugin-owned upgrade work before host upgrade SQL runs.
+	Upgrade(ctx context.Context, input SourcePluginUpgradeInput) error
+}
+
 // BeforeDisabler optionally vetoes global plugin disable.
 type BeforeDisabler interface {
 	// BeforeDisable returns whether disable may continue and an i18n reason when vetoed.
@@ -104,6 +114,12 @@ type BeforeUninstaller interface {
 type AfterUninstaller interface {
 	// AfterUninstall performs best-effort follow-up after uninstall succeeds.
 	AfterUninstall(ctx context.Context, input SourcePluginLifecycleInput) error
+}
+
+// Uninstaller optionally performs plugin-owned uninstall cleanup work.
+type Uninstaller interface {
+	// Uninstall performs plugin-owned cleanup before host uninstall SQL runs.
+	Uninstall(ctx context.Context, input SourcePluginUninstallInput) error
 }
 
 // BeforeTenantDisabler optionally vetoes tenant-scoped plugin disable.
@@ -196,6 +212,7 @@ func ListSourcePluginLifecycleParticipantsForPlugin(pluginID string) []Lifecycle
 type LifecycleRequest struct {
 	Hook             LifecycleHook // Hook selects which callback interface to invoke.
 	PluginInput      SourcePluginLifecycleInput
+	UninstallInput   SourcePluginUninstallInput
 	UpgradeInput     SourcePluginUpgradeInput
 	TenantInput      SourcePluginTenantLifecycleInput
 	InstallModeInput SourcePluginInstallModeChangeInput
@@ -281,6 +298,9 @@ func participantSupportsLifecycleHook(callback any, hook LifecycleHook) bool {
 	case LifecycleHookBeforeUpgrade:
 		_, ok := callback.(BeforeUpgrader)
 		return ok
+	case LifecycleHookUpgrade:
+		_, ok := callback.(Upgrader)
+		return ok
 	case LifecycleHookAfterUpgrade:
 		_, ok := callback.(AfterUpgrader)
 		return ok
@@ -292,6 +312,9 @@ func participantSupportsLifecycleHook(callback any, hook LifecycleHook) bool {
 		return ok
 	case LifecycleHookBeforeUninstall:
 		_, ok := callback.(BeforeUninstaller)
+		return ok
+	case LifecycleHookUninstall:
+		_, ok := callback.(Uninstaller)
 		return ok
 	case LifecycleHookAfterUninstall:
 		_, ok := callback.(AfterUninstaller)
@@ -374,6 +397,8 @@ func callLifecycleCallback(ctx context.Context, req LifecycleRequest, callback a
 		return true, "", callback.(AfterInstaller).AfterInstall(ctx, req.PluginInput)
 	case LifecycleHookBeforeUpgrade:
 		return callback.(BeforeUpgrader).BeforeUpgrade(ctx, req.UpgradeInput)
+	case LifecycleHookUpgrade:
+		return true, "", callback.(Upgrader).Upgrade(ctx, req.UpgradeInput)
 	case LifecycleHookAfterUpgrade:
 		return true, "", callback.(AfterUpgrader).AfterUpgrade(ctx, req.UpgradeInput)
 	case LifecycleHookBeforeDisable:
@@ -382,6 +407,8 @@ func callLifecycleCallback(ctx context.Context, req LifecycleRequest, callback a
 		return true, "", callback.(AfterDisabler).AfterDisable(ctx, req.PluginInput)
 	case LifecycleHookBeforeUninstall:
 		return callback.(BeforeUninstaller).BeforeUninstall(ctx, req.PluginInput)
+	case LifecycleHookUninstall:
+		return true, "", callback.(Uninstaller).Uninstall(ctx, req.UninstallInput)
 	case LifecycleHookAfterUninstall:
 		return true, "", callback.(AfterUninstaller).AfterUninstall(ctx, req.PluginInput)
 	case LifecycleHookBeforeTenantDisable:

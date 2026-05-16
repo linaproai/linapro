@@ -732,6 +732,11 @@
           "vetoed": "Plugin lifecycle operation {operation} for {pluginId} was blocked by lifecycle preconditions: {reasons}"
         }
       },
+      "uninstall": {
+        "execution": {
+          "failed": "Plugin {pluginId} uninstall failed"
+        }
+      },
       "registry": {
         "read": {
           "failed": "Failed to read plugin {pluginId} registry"

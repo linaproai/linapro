@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+
+	bridgecontract "lina-core/pkg/pluginbridge/contract"
 )
 
 // TestExtensionPointExecutionModes verifies hook and registrar points publish
@@ -242,7 +244,7 @@ func TestRegisterUpgradeHandlersPublishesManifestSnapshots(t *testing.T) {
 		if input.FromManifest().Version() != "v0.1.0" || input.ToManifest().Version() != "v0.2.0" {
 			t.Fatalf("expected manifest snapshot versions to be published")
 		}
-		if input.ToManifest().Values()["menuCount"] != 2 {
+		if input.ToManifest().Values().MenuCount != 2 {
 			t.Fatalf("expected manifest values copy to include menuCount")
 		}
 		return nil
@@ -258,13 +260,13 @@ func TestRegisterUpgradeHandlersPublishesManifestSnapshots(t *testing.T) {
 		"test-plugin-upgrade",
 		"v0.1.0",
 		"v0.2.0",
-		NewManifestSnapshotFromValues(ManifestSnapshotValues{
+		NewManifestSnapshot(&bridgecontract.ManifestSnapshotV1{
 			ID:      "test-plugin-upgrade",
 			Name:    "Test Plugin Upgrade",
 			Version: "v0.1.0",
 			Type:    "source",
 		}),
-		NewManifestSnapshotFromValues(ManifestSnapshotValues{
+		NewManifestSnapshot(&bridgecontract.ManifestSnapshotV1{
 			ID:        "test-plugin-upgrade",
 			Name:      "Test Plugin Upgrade",
 			Version:   "v0.2.0",
@@ -280,20 +282,35 @@ func TestRegisterUpgradeHandlersPublishesManifestSnapshots(t *testing.T) {
 	}
 }
 
-// TestNewManifestSnapshotKeepsMapConstructorCompatible verifies existing
-// pluginhost callers can still create snapshots from published value maps.
-func TestNewManifestSnapshotKeepsMapConstructorCompatible(t *testing.T) {
-	snapshot := NewManifestSnapshot(map[string]interface{}{
-		"id":      "test-plugin-map-snapshot",
-		"name":    "Test Plugin Map Snapshot",
-		"version": "v1.0.0",
-		"type":    "source",
-	})
-	if snapshot.ID() != "test-plugin-map-snapshot" ||
-		snapshot.Name() != "Test Plugin Map Snapshot" ||
+// TestNewManifestSnapshotUsesBridgeContract verifies source-plugin snapshots
+// use the shared typed bridge lifecycle contract.
+func TestNewManifestSnapshotUsesBridgeContract(t *testing.T) {
+	input := &bridgecontract.ManifestSnapshotV1{
+		ID:          "test-plugin-typed-snapshot",
+		Name:        "Test Plugin Typed Snapshot",
+		Version:     "v1.0.0",
+		Type:        "source",
+		Description: "typed contract",
+	}
+	snapshot := NewManifestSnapshot(input)
+	input.Description = "mutated"
+	values := snapshot.Values()
+	values.Description = "mutated again"
+
+	if snapshot.ID() != "test-plugin-typed-snapshot" ||
+		snapshot.Name() != "Test Plugin Typed Snapshot" ||
 		snapshot.Version() != "v1.0.0" ||
-		snapshot.Type() != "source" {
-		t.Fatalf("expected map constructor to preserve typed getters, got %#v", snapshot)
+		snapshot.Type() != "source" ||
+		snapshot.Values().Description != "typed contract" {
+		t.Fatalf("expected typed bridge contract to be copied, got %#v", snapshot.Values())
+	}
+}
+
+// TestNewManifestSnapshotReturnsNilForMissingContract verifies absent snapshots
+// stay absent instead of creating empty wrappers.
+func TestNewManifestSnapshotReturnsNilForMissingContract(t *testing.T) {
+	if snapshot := NewManifestSnapshot(nil); snapshot != nil {
+		t.Fatalf("expected nil manifest snapshot, got %#v", snapshot)
 	}
 }
 
@@ -331,6 +348,45 @@ func TestSourcePluginLifecycleCallbackAdapterRunsBeforeUpgrade(t *testing.T) {
 	}
 	if len(result.Decisions) != 1 || result.Decisions[0].Reason != "plugin.test.beforeUpgrade.blocked" {
 		t.Fatalf("expected veto reason to be preserved, got %#v", result.Decisions)
+	}
+}
+
+// TestSourcePluginLifecycleCallbackAdapterRunsUpgrade verifies custom upgrade
+// callbacks are exposed through the shared lifecycle runner.
+func TestSourcePluginLifecycleCallbackAdapterRunsUpgrade(t *testing.T) {
+	plugin := NewSourcePlugin("test-plugin-upgrade")
+	called := false
+	if err := plugin.Lifecycle().RegisterUpgradeHandler(func(ctx context.Context, input SourcePluginUpgradeInput) error {
+		called = true
+		if input.PluginID() != "test-plugin-upgrade" {
+			t.Fatalf("expected plugin id to be published, got %s", input.PluginID())
+		}
+		if input.FromVersion() != "v0.1.0" || input.ToVersion() != "v0.2.0" {
+			t.Fatalf("expected upgrade versions v0.1.0 -> v0.2.0, got %s -> %s", input.FromVersion(), input.ToVersion())
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("expected upgrade handler registration to succeed, got %v", err)
+	}
+
+	result := RunLifecycleCallbacks(context.Background(), LifecycleRequest{
+		Hook: LifecycleHookUpgrade,
+		UpgradeInput: NewSourcePluginUpgradeInput(
+			"test-plugin-upgrade",
+			"v0.1.0",
+			"v0.2.0",
+			nil,
+			nil,
+		),
+		Participants: []LifecycleParticipant{
+			{
+				PluginID: "test-plugin-upgrade",
+				Callback: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
+			},
+		},
+	})
+	if !result.OK || len(result.Decisions) != 1 || !called {
+		t.Fatalf("expected upgrade callback to run successfully, result=%#v called=%v", result, called)
 	}
 }
 

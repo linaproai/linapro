@@ -79,3 +79,20 @@
 - **AND** 示例插件未维护 `backend/lifecycle/*.yaml`
 - **THEN** 构建产物包含 `BeforeInstall`、`AfterInstall`、`BeforeUpgrade`、`AfterUpgrade`、`BeforeDisable`、`AfterDisable`、`BeforeUninstall`、`AfterUninstall`、`BeforeTenantDisable`、`AfterTenantDisable`、`BeforeTenantDelete`、`AfterTenantDelete`、`BeforeInstallModeChange` 和 `AfterInstallModeChange` 生命周期契约
 - **AND** 宿主运行时解析 artifact 后可以按既有生命周期流程调用这些处理器
+
+### Requirement: 生命周期 manifest snapshot 必须使用共享 typed bridge contract
+
+系统 SHALL 使用 `pluginbridge/contract` 中的 typed manifest snapshot DTO 作为动态插件生命周期请求和源码插件升级回调的唯一 manifest snapshot 发布契约。动态插件 `LifecycleRequest.fromManifest` 与 `LifecycleRequest.toManifest` MUST 使用 typed DTO，不得通过手写 `map[string]interface{}` 字段名构造。源码插件侧 manifest snapshot wrapper MUST 复用同一个 DTO，避免 source plugin 与 dynamic plugin 维护两套字段名。
+
+#### Scenario: 动态生命周期请求发布 typed manifest snapshot
+
+- **WHEN** 宿主为动态插件 `BeforeUpgrade`、`Upgrade` 或 `AfterUpgrade` 构建 lifecycle request
+- **THEN** `fromManifest` 和 `toManifest` 使用共享 typed manifest snapshot DTO 序列化
+- **AND** manifest snapshot 字段由 DTO 的 JSON 标签定义
+- **AND** 构建请求的运行时代码不得手写 manifest snapshot map key
+
+#### Scenario: 源码插件和动态插件复用同一 manifest snapshot 契约
+
+- **WHEN** 宿主为源码插件升级回调构建 `ManifestSnapshot`
+- **THEN** 源码插件 wrapper 复用与动态插件生命周期请求相同的 typed manifest snapshot DTO
+- **AND** 新增、删除或重命名 manifest snapshot 发布字段时必须通过编译期字段引用暴露所有未同步调用点

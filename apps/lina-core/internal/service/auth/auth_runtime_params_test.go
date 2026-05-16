@@ -121,6 +121,11 @@ func (s *runtimeParamAuthTestHostServices) I18n() plugincontract.I18nService {
 // Notify returns no notification service for auth runtime-parameter tests.
 func (s *runtimeParamAuthTestHostServices) Notify() plugincontract.NotifyService { return nil }
 
+// PluginLifecycle returns no plugin lifecycle service for auth runtime-parameter tests.
+func (s *runtimeParamAuthTestHostServices) PluginLifecycle() plugincontract.PluginLifecycleService {
+	return nil
+}
+
 // PluginState returns no plugin-state service for auth runtime-parameter tests.
 func (s *runtimeParamAuthTestHostServices) PluginState() plugincontract.PluginStateService {
 	return nil

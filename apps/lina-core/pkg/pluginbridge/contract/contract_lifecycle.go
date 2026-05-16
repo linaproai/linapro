@@ -20,6 +20,8 @@ const (
 	LifecycleOperationAfterInstall LifecycleOperation = "AfterInstall"
 	// LifecycleOperationBeforeUpgrade protects plugin runtime upgrade.
 	LifecycleOperationBeforeUpgrade LifecycleOperation = "BeforeUpgrade"
+	// LifecycleOperationUpgrade performs plugin-owned runtime upgrade work.
+	LifecycleOperationUpgrade LifecycleOperation = "Upgrade"
 	// LifecycleOperationAfterUpgrade observes successful plugin runtime upgrade.
 	LifecycleOperationAfterUpgrade LifecycleOperation = "AfterUpgrade"
 	// LifecycleOperationBeforeDisable protects global plugin disable.
@@ -28,6 +30,8 @@ const (
 	LifecycleOperationAfterDisable LifecycleOperation = "AfterDisable"
 	// LifecycleOperationBeforeUninstall protects plugin uninstall.
 	LifecycleOperationBeforeUninstall LifecycleOperation = "BeforeUninstall"
+	// LifecycleOperationUninstall performs plugin-owned uninstall cleanup work.
+	LifecycleOperationUninstall LifecycleOperation = "Uninstall"
 	// LifecycleOperationAfterUninstall observes successful plugin uninstall.
 	LifecycleOperationAfterUninstall LifecycleOperation = "AfterUninstall"
 	// LifecycleOperationBeforeTenantDisable protects tenant-scoped plugin disable.
@@ -56,6 +60,41 @@ type LifecycleContract struct {
 	TimeoutMs int `json:"timeoutMs,omitempty" yaml:"timeoutMs,omitempty"`
 }
 
+// ManifestSnapshotV1 is the typed manifest snapshot published to plugin
+// lifecycle callbacks.
+type ManifestSnapshotV1 struct {
+	// ID is the plugin identifier recorded in the manifest snapshot.
+	ID string `json:"id"`
+	// Name is the plugin display name recorded in the manifest snapshot.
+	Name string `json:"name"`
+	// Version is the plugin version recorded in the manifest snapshot.
+	Version string `json:"version"`
+	// Type is the plugin type recorded in the manifest snapshot.
+	Type string `json:"type"`
+	// ScopeNature is the plugin tenant-scope nature recorded in the manifest snapshot.
+	ScopeNature string `json:"scopeNature"`
+	// SupportsMultiTenant reports whether the plugin declares multi-tenant support.
+	SupportsMultiTenant bool `json:"supportsMultiTenant"`
+	// DefaultInstallMode is the plugin default installation mode.
+	DefaultInstallMode string `json:"defaultInstallMode"`
+	// Description is the plugin description recorded in the manifest snapshot.
+	Description string `json:"description"`
+	// InstallSQLCount is the number of install SQL assets recorded in the snapshot.
+	InstallSQLCount int `json:"installSqlCount"`
+	// UninstallSQLCount is the number of uninstall SQL assets recorded in the snapshot.
+	UninstallSQLCount int `json:"uninstallSqlCount"`
+	// MockSQLCount is the number of mock SQL assets recorded in the snapshot.
+	MockSQLCount int `json:"mockSqlCount"`
+	// MenuCount is the number of menu definitions recorded in the snapshot.
+	MenuCount int `json:"menuCount"`
+	// BackendHookCount is the number of backend hook registrations recorded in the snapshot.
+	BackendHookCount int `json:"backendHookCount"`
+	// ResourceSpecCount is the number of resource specs recorded in the snapshot.
+	ResourceSpecCount int `json:"resourceSpecCount"`
+	// HostServiceAuthRequired reports whether host-service authorization is required.
+	HostServiceAuthRequired bool `json:"hostServiceAuthRequired"`
+}
+
 // LifecycleRequest is the JSON body sent to dynamic lifecycle handlers.
 type LifecycleRequest struct {
 	// PluginID is the lifecycle operation target plugin.
@@ -72,6 +111,12 @@ type LifecycleRequest struct {
 	FromMode string `json:"fromMode,omitempty"`
 	// ToMode is the target install mode for install-mode changes.
 	ToMode string `json:"toMode,omitempty"`
+	// PurgeStorageData reports whether uninstall should clear plugin storage/data.
+	PurgeStorageData bool `json:"purgeStorageData,omitempty"`
+	// FromManifest is the effective manifest snapshot before upgrade when applicable.
+	FromManifest *ManifestSnapshotV1 `json:"fromManifest,omitempty"`
+	// ToManifest is the target manifest snapshot for upgrade when applicable.
+	ToManifest *ManifestSnapshotV1 `json:"toManifest,omitempty"`
 }
 
 // LifecycleDecision is the JSON response body returned by dynamic lifecycle handlers.
@@ -91,6 +136,8 @@ func NormalizeLifecycleOperation(value string) LifecycleOperation {
 		return LifecycleOperationAfterInstall
 	case LifecycleOperationBeforeUpgrade.String():
 		return LifecycleOperationBeforeUpgrade
+	case LifecycleOperationUpgrade.String():
+		return LifecycleOperationUpgrade
 	case LifecycleOperationAfterUpgrade.String():
 		return LifecycleOperationAfterUpgrade
 	case LifecycleOperationBeforeDisable.String():
@@ -99,6 +146,8 @@ func NormalizeLifecycleOperation(value string) LifecycleOperation {
 		return LifecycleOperationAfterDisable
 	case LifecycleOperationBeforeUninstall.String():
 		return LifecycleOperationBeforeUninstall
+	case LifecycleOperationUninstall.String():
+		return LifecycleOperationUninstall
 	case LifecycleOperationAfterUninstall.String():
 		return LifecycleOperationAfterUninstall
 	case LifecycleOperationBeforeTenantDisable.String():

@@ -397,6 +397,8 @@ func lifecycleOperationOrder(operation pluginbridge.LifecycleOperation) int {
 		return 20
 	case pluginbridge.LifecycleOperationBeforeUpgrade:
 		return 30
+	case pluginbridge.LifecycleOperationUpgrade:
+		return 35
 	case pluginbridge.LifecycleOperationAfterUpgrade:
 		return 40
 	case pluginbridge.LifecycleOperationBeforeDisable:
@@ -405,6 +407,8 @@ func lifecycleOperationOrder(operation pluginbridge.LifecycleOperation) int {
 		return 60
 	case pluginbridge.LifecycleOperationBeforeUninstall:
 		return 70
+	case pluginbridge.LifecycleOperationUninstall:
+		return 75
 	case pluginbridge.LifecycleOperationAfterUninstall:
 		return 80
 	case pluginbridge.LifecycleOperationBeforeTenantDisable:

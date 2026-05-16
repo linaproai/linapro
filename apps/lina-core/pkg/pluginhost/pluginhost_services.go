@@ -23,6 +23,8 @@ type HostServices interface {
 	Notify() contract.NotifyService
 	// PluginState returns the host plugin enablement adapter.
 	PluginState() contract.PluginStateService
+	// PluginLifecycle returns the host plugin lifecycle orchestration adapter.
+	PluginLifecycle() contract.PluginLifecycleService
 	// Route returns the host dynamic-route metadata adapter.
 	Route() contract.RouteService
 	// Session returns the host online-session adapter.

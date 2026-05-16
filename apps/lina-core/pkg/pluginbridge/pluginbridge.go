@@ -28,6 +28,7 @@ type (
 	LifecycleDecision        = contract.LifecycleDecision
 	LifecycleOperation       = contract.LifecycleOperation
 	LifecycleRequest         = contract.LifecycleRequest
+	ManifestSnapshotV1       = contract.ManifestSnapshotV1
 	RouteContract            = contract.RouteContract
 	RouteMatchSnapshotV1     = contract.RouteMatchSnapshotV1
 	RuntimeArtifactMetadata  = artifact.RuntimeArtifactMetadata
@@ -131,10 +132,12 @@ const (
 	LifecycleOperationBeforeInstall           = contract.LifecycleOperationBeforeInstall
 	LifecycleOperationAfterInstall            = contract.LifecycleOperationAfterInstall
 	LifecycleOperationBeforeUpgrade           = contract.LifecycleOperationBeforeUpgrade
+	LifecycleOperationUpgrade                 = contract.LifecycleOperationUpgrade
 	LifecycleOperationAfterUpgrade            = contract.LifecycleOperationAfterUpgrade
 	LifecycleOperationBeforeDisable           = contract.LifecycleOperationBeforeDisable
 	LifecycleOperationAfterDisable            = contract.LifecycleOperationAfterDisable
 	LifecycleOperationBeforeUninstall         = contract.LifecycleOperationBeforeUninstall
+	LifecycleOperationUninstall               = contract.LifecycleOperationUninstall
 	LifecycleOperationAfterUninstall          = contract.LifecycleOperationAfterUninstall
 	LifecycleOperationBeforeTenantDisable     = contract.LifecycleOperationBeforeTenantDisable
 	LifecycleOperationAfterTenantDisable      = contract.LifecycleOperationAfterTenantDisable

@@ -17,7 +17,7 @@
 **Non-Goals:**
 
 - 不改变生命周期操作名称、执行顺序、前置阻断和后置通知语义。
-- 不改变动态插件 bridge ABI、WASM custom section 名称、hostServices 授权模型或运行时错误码。
+- 不改变 WASM custom section 名称、hostServices 授权模型或运行时错误码。
 - 不新增 REST API、数据库表、前端交互或用户可见文案。
 - 不让宿主在运行时通过探测调用来发现插件方法。
 
@@ -58,12 +58,19 @@ TimeoutMs    = 0，表示使用宿主默认生命周期超时
 
 `plugin-demo-dynamic` 应删除 14 个 `backend/lifecycle/*.yaml` 文件，保留 controller 中的生命周期方法。构建测试需要确认官方 demo 打包后仍包含 14 个 lifecycle contracts，并且 operation、requestType、internalPath 与当前行为兼容。
 
+### 决策 6：生命周期请求中的 manifest snapshot 使用共享 typed bridge contract
+
+动态插件生命周期请求和源码插件升级回调必须复用同一个 manifest snapshot 发布契约。`pluginbridge/contract` 提供 `ManifestSnapshotV1` 作为唯一字段定义；`LifecycleRequest.fromManifest` 和 `LifecycleRequest.toManifest` 使用该 typed DTO，而不是 `map[string]interface{}`。源码插件侧 `pluginhost.ManifestSnapshot` 也包装同一个 DTO，避免 source plugin 与 dynamic plugin 分别维护字段名。
+
+本次反馈不保留旧 map 构造入口，也不保留旧 `hostServiceAuthNeeded` 字段别名；发布字段统一为 `hostServiceAuthRequired`，与持久化 manifest snapshot 和宿主升级预览 DTO 的命名保持一致。
+
 ## Risks / Trade-offs
 
 - [风险] 构建工具无法直接加载某些用户插件的 controller 实例。缓解：先覆盖当前官方动态插件结构，要求动态插件 backend 提供可被构建工具导入或执行元数据导出的入口；无法自动发现时构建失败并提示保留 YAML override 或补齐入口。
 - [风险] 自动发现规则与 guest dispatcher 注册规则漂移。缓解：把元数据推导放在 `pluginbridge/guest`，构建工具只调用公共入口，并用单元测试同时覆盖 dispatcher 和 metadata。
 - [风险] 删除 YAML 后特殊超时配置丢失。缓解：默认使用宿主生命周期超时；需要自定义超时时继续保留对应 operation 的 YAML override。
 - [风险] 运行时不可见的构建期错误影响开发者理解。缓解：构建失败信息必须包含插件 ID、operation、方法名和冲突字段。
+- [风险] 动态插件直接解码旧 `fromManifest` / `toManifest` map 字段名会受破坏性契约收敛影响。缓解：这是本反馈明确要求的非兼容清理；官方 demo 和 bridge contract 测试改为解码 typed `ManifestSnapshotV1`。
 
 ## Migration Plan
 

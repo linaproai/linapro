@@ -227,6 +227,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		scopeSvc,
 		i18nSvc,
 		pluginSvc,
+		pluginSvc,
 		sessionStore,
 		tenantSvc,
 		notifySvc,

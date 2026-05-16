@@ -52,6 +52,9 @@ func (s *serviceImpl) applyUpgrade(
 	if err != nil {
 		return s.rollbackReleaseFailure(ctx, registry, release.Id, err)
 	}
+	if err = s.executeDynamicUpgradeLifecycleCallback(ctx, registry, activeManifest, manifest, release); err != nil {
+		return s.rollbackInstallOrUpgrade(ctx, registry, activeManifest, manifest, release.Id, err)
+	}
 	if err = s.lifecycleSvc.ExecuteManifestSQLFiles(ctx, manifest, catalog.MigrationDirectionUpgrade); err != nil {
 		return s.rollbackInstallOrUpgrade(ctx, registry, activeManifest, manifest, release.Id, err)
 	}
@@ -109,6 +112,121 @@ func (s *serviceImpl) applyUpgrade(
 			Status:   &enabled,
 		}),
 	)
+}
+
+// executeDynamicUpgradeLifecycleCallback invokes the plugin-owned dynamic
+// upgrade execution phase when the target artifact declares it.
+func (s *serviceImpl) executeDynamicUpgradeLifecycleCallback(
+	ctx context.Context,
+	registry *entity.SysPlugin,
+	activeManifest *catalog.Manifest,
+	targetManifest *catalog.Manifest,
+	targetRelease *entity.SysPluginRelease,
+) error {
+	if targetManifest == nil {
+		return nil
+	}
+	input, err := s.buildDynamicUpgradeLifecycleInput(ctx, registry, activeManifest, targetManifest, targetRelease)
+	if err != nil {
+		return err
+	}
+	decision, err := s.RunDynamicLifecycleCallback(ctx, targetManifest, input)
+	if err != nil {
+		return err
+	}
+	if decision != nil && !decision.OK {
+		return gerror.New(strings.TrimSpace(decision.Reason))
+	}
+	return nil
+}
+
+// buildDynamicUpgradeLifecycleInput creates the source-equivalent dynamic
+// lifecycle payload for the target artifact's Upgrade handler.
+func (s *serviceImpl) buildDynamicUpgradeLifecycleInput(
+	ctx context.Context,
+	registry *entity.SysPlugin,
+	activeManifest *catalog.Manifest,
+	targetManifest *catalog.Manifest,
+	targetRelease *entity.SysPluginRelease,
+) (DynamicLifecycleInput, error) {
+	input := DynamicLifecycleInput{
+		PluginID:  targetManifest.ID,
+		Operation: pluginhost.LifecycleHookUpgrade,
+	}
+	if registry != nil {
+		input.FromVersion = strings.TrimSpace(registry.Version)
+	}
+	input.ToVersion = strings.TrimSpace(targetManifest.Version)
+
+	fromSnapshot, err := s.dynamicLifecycleSnapshotFromRegistry(ctx, registry, activeManifest)
+	if err != nil {
+		return input, err
+	}
+	toSnapshot, err := s.dynamicLifecycleSnapshotFromReleaseOrManifest(targetRelease, targetManifest)
+	if err != nil {
+		return input, err
+	}
+	input.FromManifest = fromSnapshot
+	input.ToManifest = toSnapshot
+	return input, nil
+}
+
+// dynamicLifecycleSnapshotFromRegistry returns the effective release snapshot
+// before an upgrade, falling back to the active manifest when needed.
+func (s *serviceImpl) dynamicLifecycleSnapshotFromRegistry(
+	ctx context.Context,
+	registry *entity.SysPlugin,
+	activeManifest *catalog.Manifest,
+) (*catalog.ManifestSnapshot, error) {
+	release, err := s.catalogSvc.GetRegistryRelease(ctx, registry)
+	if err != nil {
+		return nil, err
+	}
+	if release != nil {
+		snapshot, parseErr := s.catalogSvc.ParseManifestSnapshot(release.ManifestSnapshot)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		if snapshot != nil {
+			return snapshot, nil
+		}
+	}
+	if activeManifest == nil {
+		return nil, nil
+	}
+	return s.dynamicLifecycleSnapshotFromManifest(activeManifest)
+}
+
+// dynamicLifecycleSnapshotFromReleaseOrManifest returns the target release
+// snapshot, falling back to the provided target manifest when the persisted
+// snapshot is unavailable.
+func (s *serviceImpl) dynamicLifecycleSnapshotFromReleaseOrManifest(
+	release *entity.SysPluginRelease,
+	manifest *catalog.Manifest,
+) (*catalog.ManifestSnapshot, error) {
+	if release != nil {
+		snapshot, err := s.catalogSvc.ParseManifestSnapshot(release.ManifestSnapshot)
+		if err != nil {
+			return nil, err
+		}
+		if snapshot != nil {
+			return snapshot, nil
+		}
+	}
+	return s.dynamicLifecycleSnapshotFromManifest(manifest)
+}
+
+// dynamicLifecycleSnapshotFromManifest builds a review snapshot from one
+// in-memory manifest.
+func (s *serviceImpl) dynamicLifecycleSnapshotFromManifest(manifest *catalog.Manifest) (*catalog.ManifestSnapshot, error) {
+	if manifest == nil {
+		return nil, nil
+	}
+	content, err := s.catalogSvc.BuildManifestSnapshot(manifest)
+	if err != nil {
+		return nil, err
+	}
+	return s.catalogSvc.ParseManifestSnapshot(content)
 }
 
 // applyStateToggle flips enable/disable status for the current active release

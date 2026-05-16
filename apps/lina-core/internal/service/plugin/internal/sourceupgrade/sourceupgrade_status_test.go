@@ -133,17 +133,17 @@ func TestSourceManifestSnapshotViewPublishesTypedSnapshot(t *testing.T) {
 	}
 
 	values := view.Values()
-	if values["scopeNature"] != "tenant_aware" ||
-		values["supportsMultiTenant"] != true ||
-		values["defaultInstallMode"] != "tenant_scoped" ||
-		values["description"] != "Snapshot projection test" ||
-		values["installSqlCount"] != 3 ||
-		values["uninstallSqlCount"] != 2 ||
-		values["mockSqlCount"] != 1 ||
-		values["menuCount"] != 4 ||
-		values["backendHookCount"] != 5 ||
-		values["resourceSpecCount"] != 6 ||
-		values["hostServiceAuthNeeded"] != true {
+	if values.ScopeNature != "tenant_aware" ||
+		values.SupportsMultiTenant != true ||
+		values.DefaultInstallMode != "tenant_scoped" ||
+		values.Description != "Snapshot projection test" ||
+		values.InstallSQLCount != 3 ||
+		values.UninstallSQLCount != 2 ||
+		values.MockSQLCount != 1 ||
+		values.MenuCount != 4 ||
+		values.BackendHookCount != 5 ||
+		values.ResourceSpecCount != 6 ||
+		values.HostServiceAuthRequired != true {
 		t.Fatalf("expected all published snapshot values, got %#v", values)
 	}
 }

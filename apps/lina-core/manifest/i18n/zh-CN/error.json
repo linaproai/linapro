@@ -732,6 +732,11 @@
           "vetoed": "插件 {pluginId} 的生命周期操作 {operation} 被生命周期前置条件阻断：{reasons}"
         }
       },
+      "uninstall": {
+        "execution": {
+          "failed": "插件 {pluginId} 卸载失败"
+        }
+      },
       "registry": {
         "read": {
           "failed": "读取插件 {pluginId} 注册表失败"

@@ -45,42 +45,46 @@ Teams skip the infrastructure bootstrapping phase and put AI to work on real bus
 
 ```mermaid
 graph TB
-    subgraph Workflow["Optional AI R&D Workflow  openspec/"]
+    subgraph Workflow["AI Development Workflow  openspec/"]
         direction LR
         Explore["🔍 Explore"] --> Propose["📋 Propose"] --> Implement["⚙️ Implement"] --> Review["🔎 Review"] --> Archive["📦 Archive"]
     end
 
-    subgraph Frontend["Default Management Workspace  lina-vben"]
+    subgraph Frontend["Management Workspace  lina-vben"]
         UI["Vue 3 + Vben5 + Ant Design"]
     end
 
     subgraph Host["Core Host Service  lina-core"]
         direction TB
-        API["API Layer\n(g.Meta route definitions + DTOs)"]
+        API["API Layer\n(g.Meta route definitions + DTO)"]
         Ctrl["Controller Layer\n(HTTP request handling)"]
-        Svc["Service Layer\n(core business logic)"]
-        Plugin["Plugin Runtime\n(lifecycle orchestration · sandbox isolation)"]
-        Gov["Governance\n(JWT · RBAC · Logging · Sessions)"]
+        Svc["Service Layer\n(Core business logic)"]
+        Plugin["Plugin Runtime\n(Lifecycle orchestration · Sandbox isolation)"]
+        Tenant["Native Multi-Tenant\n(bizctx · tenant_id)"]
+        Gov["Governance\n(JWT · RBAC · Logs · Sessions)"]
         API --> Ctrl --> Svc
         Svc --> Plugin
+        Svc --> Tenant
         Svc --> Gov
     end
 
-    subgraph Plugins["Plugin Layer  lina-plugins"]
+    subgraph Plugins["Plugin System  apps/lina-plugins"]
         direction LR
-        Source["Source Plugins\ncompiled and shipped with host"]
-        Dynamic["WASM Dynamic Plugins\nhot-loaded at runtime"]
+        Source["Source Plugins\nCompiled with host"]
+        Dynamic["WASM Dynamic Plugins\nHot-loaded at runtime"]
     end
 
     DB[("Data Store\nPostgreSQL")]
+    Redis[("Cluster Coordination\nRedis")]
 
-    Workflow -.->|spec-driven| Frontend
-    Workflow -.->|spec-driven| Host
+    Workflow -.->|Spec-driven| Frontend
+    Workflow -.->|Spec-driven| Host
     UI -->|HTTP| API
-    Plugin -->|loads| Source
-    Plugin -->|sandbox execution| Dynamic
+    Plugin -->|Compiled load| Source
+    Plugin -->|Sandbox execution| Dynamic
     Svc --> DB
     Gov --> DB
+    Svc -.->|cluster.enabled=true| Redis
 ```
 
 # Core Features

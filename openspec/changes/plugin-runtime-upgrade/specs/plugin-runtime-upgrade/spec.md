@@ -112,7 +112,7 @@
 
 ### Requirement: 运行时升级必须执行插件自定义升级回调
 
-系统 SHALL 为源码插件提供可选升级回调接口。宿主触发插件升级时传入升级前 manifest 快照和目标 manifest 快照，使插件可以执行自定义数据迁移、状态清理和兼容性处理。
+系统 SHALL 为源码插件和动态插件提供可选升级执行阶段回调接口。宿主触发插件升级时传入升级前 manifest 快照和目标 manifest 快照，使插件可以执行自定义数据迁移、状态清理和兼容性处理。动态插件的升级执行阶段操作名称 MUST 为 `Upgrade`，并且 MUST 与 `BeforeUpgrade`、`AfterUpgrade` 一起组成完整升级生命周期；缺失 `Upgrade` 回调时宿主 SHALL 跳过自定义升级步骤并继续执行标准升级 SQL 和治理资源同步。
 
 #### Scenario: 目标版本插件实现升级回调
 - **WHEN** 插件 `plugin-demo` 从 `v0.1.0` 升级到 `v0.2.0`
@@ -127,15 +127,41 @@
 - **THEN** 宿主跳过插件自定义升级步骤
 - **AND** 宿主继续执行标准升级 SQL 和治理资源同步
 
+#### Scenario: 动态插件实现升级执行阶段回调
+- **WHEN** 动态插件 `plugin-demo` 从 `v0.1.0` 升级到 `v0.2.0`
+- **AND** 目标 artifact 声明了 `Upgrade` 生命周期处理器
+- **THEN** 宿主在 `BeforeUpgrade` 允许后调用 `Upgrade`
+- **AND** 回调请求包含 `v0.1.0` 的 manifest 快照
+- **AND** 回调请求包含 `v0.2.0` 的 manifest 快照
+- **AND** 宿主仅在 `Upgrade` 成功后继续执行 upgrade SQL、治理同步和 release 切换
+
 #### Scenario: 升级回调失败
 - **WHEN** 插件升级回调返回错误
 - **THEN** 宿主停止后续升级步骤
 - **AND** 插件运行时状态变为 `upgrade_failed`
 - **AND** 系统记录失败阶段和错误详情
 
+### Requirement: 动态插件卸载必须支持自定义清理回调
+
+系统 SHALL 为动态插件提供与源码插件 `RegisterUninstallHandler` 对等的卸载执行阶段回调。动态插件卸载执行阶段操作名称 MUST 为 `Uninstall`，宿主 SHALL 仅在管理员选择清理插件存储和数据时执行该回调。`Uninstall` SHALL 在 `BeforeUninstall` 允许后、uninstall SQL 和授权 storage 清理前执行；回调失败时宿主 SHALL 停止卸载并保持插件仍处于已安装状态。
+
+#### Scenario: 动态插件实现卸载清理回调
+- **WHEN** 管理员卸载动态插件 `plugin-demo`
+- **AND** 请求选择清理插件存储和数据
+- **AND** active release 声明了 `Uninstall` 生命周期处理器
+- **THEN** 宿主在 `BeforeUninstall` 允许后调用 `Uninstall`
+- **AND** 回调请求包含 `purgeStorageData=true`
+- **AND** 宿主仅在 `Uninstall` 成功后继续执行 uninstall SQL 和授权 storage 清理
+
+#### Scenario: 动态插件卸载时保留数据
+- **WHEN** 管理员卸载动态插件 `plugin-demo`
+- **AND** 请求选择保留插件存储和数据
+- **THEN** 宿主不得调用动态插件 `Uninstall` 执行阶段回调
+- **AND** 宿主仍可在卸载成功后调用 `AfterUninstall` 通知
+
 ### Requirement: 生命周期前置回调必须替代旧 Guard/Can* 契约
 
-系统 SHALL 提供统一生命周期回调模型，使源码插件和动态插件均可在安装、升级、禁用、卸载、租户禁用、租户删除和安装模式切换等操作执行前返回允许或阻断决定。相同生命周期能力在源码插件和动态插件中 MUST 使用同一组 `Before*` 操作名称，例如 `BeforeInstall`、`BeforeUpgrade`、`BeforeDisable`、`BeforeUninstall`、`BeforeTenantDisable`、`BeforeTenantDelete` 和 `BeforeInstallModeChange`；不得为同一能力额外引入 `Can*`、guard、pre-* 等并行命名。系统 MUST 删除旧 Lifecycle Guard 与 `Can*` 插件契约，不得同时保留旧 Guard 注册、执行或兼容适配入口。
+系统 SHALL 提供统一生命周期回调模型，使源码插件和动态插件均可在安装、升级、禁用、卸载、租户禁用、租户删除和安装模式切换等操作执行前返回允许或阻断决定。相同生命周期能力在源码插件和动态插件中 MUST 使用同一组 `Before*` 操作名称，例如 `BeforeInstall`、`BeforeUpgrade`、`BeforeDisable`、`BeforeUninstall`、`BeforeTenantDisable`、`BeforeTenantDelete` 和 `BeforeInstallModeChange`；升级和卸载执行阶段 MUST 使用 `Upgrade` 和 `Uninstall` 操作名称；不得为同一能力额外引入 `Can*`、guard、pre-* 等并行命名。系统 MUST 删除旧 Lifecycle Guard 与 `Can*` 插件契约，不得同时保留旧 Guard 注册、执行或兼容适配入口。
 
 #### Scenario: 插件阻断升级
 - **WHEN** 插件注册了 `BeforeUpgrade` 前置回调
@@ -173,6 +199,18 @@
 - **WHEN** 动态插件监听 `plugin.installed`、`plugin.enabled`、`plugin.disabled`、`plugin.uninstalled` 或 `plugin.upgraded` 事件
 - **THEN** 这些事件 Hook 仅用于生命周期完成后的事件通知或后续动作
 - **AND** 系统不得把这些事件 Hook 当作 `Before*` 前置阻断机制使用
+
+#### Scenario: 租户禁用触发生命周期回调
+- **WHEN** 租户管理员禁用租户级插件 `plugin-demo`
+- **THEN** 宿主在写入租户插件启用状态前调用源码插件和动态插件的 `BeforeTenantDisable`
+- **AND** 任一插件返回阻断决定时系统拒绝租户禁用并保持原租户插件状态
+- **AND** 禁用成功后系统调用 `AfterTenantDisable` 作为 best-effort 通知
+
+#### Scenario: 租户删除触发生命周期回调
+- **WHEN** 平台管理员删除租户
+- **THEN** 系统在删除租户前通过统一宿主插件生命周期服务调用源码插件和动态插件的 `BeforeTenantDelete`
+- **AND** 任一插件返回阻断决定时系统拒绝删除租户
+- **AND** 删除成功后系统调用 `AfterTenantDelete` 作为 best-effort 通知
 
 ### Requirement: 插件升级必须保证缓存和集群一致性
 

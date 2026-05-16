@@ -52,6 +52,14 @@ func (a *sourcePluginLifecycleCallbackAdapter) AfterUpgrade(ctx context.Context,
 	return a.plugin.GetAfterUpgradeHandler()(ctx, input)
 }
 
+// Upgrade invokes the source-plugin custom upgrade callback when present.
+func (a *sourcePluginLifecycleCallbackAdapter) Upgrade(ctx context.Context, input SourcePluginUpgradeInput) error {
+	if a == nil || a.plugin == nil || a.plugin.GetUpgradeHandler() == nil {
+		return nil
+	}
+	return a.plugin.GetUpgradeHandler()(ctx, input)
+}
+
 // BeforeDisable invokes the source-plugin pre-disable callback when present.
 func (a *sourcePluginLifecycleCallbackAdapter) BeforeDisable(ctx context.Context, input SourcePluginLifecycleInput) (bool, string, error) {
 	if a == nil || a.plugin == nil || a.plugin.GetBeforeDisableHandler() == nil {
@@ -82,6 +90,14 @@ func (a *sourcePluginLifecycleCallbackAdapter) AfterUninstall(ctx context.Contex
 		return nil
 	}
 	return a.plugin.GetAfterUninstallHandler()(ctx, input)
+}
+
+// Uninstall invokes the source-plugin uninstall cleanup callback when present.
+func (a *sourcePluginLifecycleCallbackAdapter) Uninstall(ctx context.Context, input SourcePluginUninstallInput) error {
+	if a == nil || a.plugin == nil || a.plugin.GetUninstallHandler() == nil {
+		return nil
+	}
+	return a.plugin.GetUninstallHandler()(ctx, input)
 }
 
 // BeforeTenantDisable invokes the source-plugin tenant-disable callback when present.

@@ -25,7 +25,7 @@ import (
 type DynamicLifecycleInput struct {
 	// PluginID is the lifecycle operation target plugin.
 	PluginID string
-	// Operation is the source-compatible Before* or After* lifecycle operation name.
+	// Operation is the source-compatible lifecycle operation name.
 	Operation pluginhost.LifecycleHook
 	// FromVersion is the effective version before upgrade when applicable.
 	FromVersion string
@@ -37,6 +37,12 @@ type DynamicLifecycleInput struct {
 	FromMode string
 	// ToMode is the target install mode for install-mode changes.
 	ToMode string
+	// PurgeStorageData reports whether uninstall should clear plugin storage/data.
+	PurgeStorageData bool
+	// FromManifest is the effective manifest snapshot before upgrade when applicable.
+	FromManifest *catalog.ManifestSnapshot
+	// ToManifest is the target manifest snapshot for upgrade when applicable.
+	ToManifest *catalog.ManifestSnapshot
 }
 
 // DynamicLifecycleDecision records one dynamic lifecycle handler result.
@@ -172,13 +178,16 @@ func buildDynamicLifecycleRequest(
 		pluginID = strings.TrimSpace(manifest.ID)
 	}
 	body, err := json.Marshal(bridgecontract.LifecycleRequest{
-		PluginID:    pluginID,
-		Operation:   input.Operation.String(),
-		FromVersion: strings.TrimSpace(input.FromVersion),
-		ToVersion:   strings.TrimSpace(input.ToVersion),
-		TenantID:    input.TenantID,
-		FromMode:    strings.TrimSpace(input.FromMode),
-		ToMode:      strings.TrimSpace(input.ToMode),
+		PluginID:         pluginID,
+		Operation:        input.Operation.String(),
+		FromVersion:      strings.TrimSpace(input.FromVersion),
+		ToVersion:        strings.TrimSpace(input.ToVersion),
+		TenantID:         input.TenantID,
+		FromMode:         strings.TrimSpace(input.FromMode),
+		ToMode:           strings.TrimSpace(input.ToMode),
+		PurgeStorageData: input.PurgeStorageData,
+		FromManifest:     catalog.PublishedManifestSnapshot(input.FromManifest),
+		ToManifest:       catalog.PublishedManifestSnapshot(input.ToManifest),
 	})
 	if err != nil {
 		return nil, err

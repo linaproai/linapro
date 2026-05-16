@@ -76,6 +76,13 @@ var (
 		"Plugin {pluginId} runtime upgrade from {fromVersion} to {toVersion} failed",
 		gcode.CodeInternalError,
 	)
+	// CodePluginUninstallExecutionFailed reports a failed uninstall after the
+	// request passed dependency and lifecycle precondition checks.
+	CodePluginUninstallExecutionFailed = bizerr.MustDefine(
+		"PLUGIN_UNINSTALL_EXECUTION_FAILED",
+		"Plugin {pluginId} uninstall failed",
+		gcode.CodeInternalError,
+	)
 	// CodePluginRuntimeUpgradeSnapshotMissing reports missing effective or target manifest snapshot data.
 	CodePluginRuntimeUpgradeSnapshotMissing = bizerr.MustDefine(
 		"PLUGIN_RUNTIME_UPGRADE_SNAPSHOT_MISSING",

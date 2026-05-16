@@ -42,7 +42,7 @@
 
 ```mermaid
 graph TB
-    subgraph Workflow["可选 AI 研发工作流  openspec/"]
+    subgraph Workflow["AI 研发工作流  openspec/"]
         direction LR
         Explore["🔍 探索"] --> Propose["📋 提案"] --> Implement["⚙️ 实现"] --> Review["🔎 审查"] --> Archive["📦 归档"]
     end
@@ -57,27 +57,31 @@ graph TB
         Ctrl["控制器层\n(HTTP 请求处理)"]
         Svc["业务服务层\n(核心业务逻辑)"]
         Plugin["插件运行时\n(生命周期编排 · 沙箱隔离)"]
+        Tenant["原生多租户\n(bizctx · tenant_id)"]
         Gov["治理服务\n(JWT · RBAC · 日志 · 会话)"]
         API --> Ctrl --> Svc
         Svc --> Plugin
+        Svc --> Tenant
         Svc --> Gov
     end
 
-    subgraph Plugins["插件层  lina-plugins"]
+    subgraph Plugins["插件系统  apps/lina-plugins"]
         direction LR
         Source["源码插件\n随宿主编译交付"]
         Dynamic["WASM 动态插件\n运行时热加载"]
     end
 
     DB[("数据存储\nPostgreSQL")]
+    Redis[("集群协调\nRedis")]
 
     Workflow -.->|规范驱动| Frontend
     Workflow -.->|规范驱动| Host
     UI -->|HTTP| API
-    Plugin -->|加载| Source
+    Plugin -->|编译加载| Source
     Plugin -->|沙箱执行| Dynamic
     Svc --> DB
     Gov --> DB
+    Svc -.->|cluster.enabled=true| Redis
 ```
 
 # 核心功能

@@ -499,6 +499,77 @@ func TestDynamicLifecycleBeforeUninstallUsesActiveReleaseWhenStagingMissing(t *t
 	}
 }
 
+// TestDynamicLifecycleUninstallRunsOnlyWhenPurgeRequested verifies dynamic
+// Uninstall cleanup callbacks are skipped for keep-data uninstall and fail
+// closed before state changes when data purge is requested.
+func TestDynamicLifecycleUninstallRunsOnlyWhenPurgeRequested(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		blockingID = "plugin-dynamic-uninstall-cleanup-fail-closed"
+		skipID     = "plugin-dynamic-uninstall-cleanup-skipped"
+		version    = "v0.4.8"
+	)
+
+	for _, pluginID := range []string{blockingID, skipID} {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	}
+	t.Cleanup(func() {
+		for _, pluginID := range []string{blockingID, skipID} {
+			testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		}
+	})
+
+	blockingArtifactPath := createDynamicLifecyclePreconditionArtifact(
+		t,
+		blockingID,
+		"Dynamic Uninstall Cleanup Fail Closed Plugin",
+		version,
+		pluginbridge.LifecycleOperationUninstall,
+	)
+	if _, err := service.Install(ctx, blockingID, InstallOptions{}); err != nil {
+		t.Fatalf("expected blocking dynamic plugin install to succeed, got error: %v", err)
+	}
+	err := service.Uninstall(ctx, blockingID, UninstallOptions{PurgeStorageData: true})
+	if !bizerr.Is(err, CodePluginUninstallExecutionFailed) {
+		t.Fatalf("expected purge uninstall lifecycle callback to return uninstall execution bizerr, got %v", err)
+	}
+	blockingRegistry, err := service.getPluginRegistry(ctx, blockingID)
+	if err != nil {
+		t.Fatalf("expected blocking plugin registry lookup to succeed, got error: %v", err)
+	}
+	if blockingRegistry == nil || blockingRegistry.Installed != catalog.InstalledYes {
+		t.Fatalf("expected failed cleanup lifecycle to keep plugin installed, got %#v", blockingRegistry)
+	}
+	if cleanupErr := os.Remove(blockingArtifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+		t.Fatalf("failed to remove blocking artifact %s: %v", blockingArtifactPath, cleanupErr)
+	}
+
+	skipArtifactPath := createDynamicLifecyclePreconditionArtifact(
+		t,
+		skipID,
+		"Dynamic Uninstall Cleanup Skipped Plugin",
+		version,
+		pluginbridge.LifecycleOperationUninstall,
+	)
+	if _, err = service.Install(ctx, skipID, InstallOptions{}); err != nil {
+		t.Fatalf("expected skip dynamic plugin install to succeed, got error: %v", err)
+	}
+	if err = service.Uninstall(ctx, skipID, UninstallOptions{PurgeStorageData: false}); err != nil {
+		t.Fatalf("expected keep-data uninstall to skip dynamic Uninstall lifecycle, got error: %v", err)
+	}
+	skipRegistry, err := service.getPluginRegistry(ctx, skipID)
+	if err != nil {
+		t.Fatalf("expected skip plugin registry lookup to succeed, got error: %v", err)
+	}
+	if skipRegistry == nil || skipRegistry.Installed != catalog.InstalledNo {
+		t.Fatalf("expected keep-data uninstall to complete, got %#v", skipRegistry)
+	}
+	if cleanupErr := os.Remove(skipArtifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+		t.Fatalf("failed to remove skip artifact %s: %v", skipArtifactPath, cleanupErr)
+	}
+}
+
 // TestUninstallForceClearsDynamicOrphanWhenArtifactsMissing verifies force
 // uninstall can clear host governance when both staging and release artifacts
 // are unavailable.
@@ -680,6 +751,110 @@ func TestTenantDeleteLifecyclePreconditionAllowsWhenNoParticipant(t *testing.T) 
 
 	if err := service.EnsureTenantDeleteAllowed(context.Background(), 8002); err != nil {
 		t.Fatalf("expected tenant delete precondition to allow without participants, got %v", err)
+	}
+}
+
+// TestTenantPluginDisableRunsSourceLifecyclePrecondition verifies tenant-scoped
+// plugin disable is routed to the target source plugin before state mutation.
+func TestTenantPluginDisableRunsSourceLifecyclePrecondition(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-source-tenant-disable-precondition"
+	)
+	plugin := pluginhost.NewSourcePlugin(pluginID)
+	if err := plugin.Lifecycle().RegisterBeforeTenantDisableHandler(func(
+		ctx context.Context,
+		input pluginhost.SourcePluginTenantLifecycleInput,
+	) (bool, string, error) {
+		if input.TenantID() != 8101 {
+			t.Fatalf("expected tenant id to be published, got %d", input.TenantID())
+		}
+		return false, "plugin.test.tenant_disable_blocked", nil
+	}); err != nil {
+		t.Fatalf("register tenant disable lifecycle handler failed: %v", err)
+	}
+	cleanup, err := pluginhost.RegisterSourcePluginForTest(plugin)
+	if err != nil {
+		t.Fatalf("register tenant disable lifecycle callback failed: %v", err)
+	}
+	t.Cleanup(cleanup)
+
+	err = service.EnsureTenantPluginDisableAllowed(ctx, pluginID, 8101)
+	if !bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) {
+		t.Fatalf("expected tenant plugin disable lifecycle precondition bizerr, got %v", err)
+	}
+}
+
+// TestDynamicLifecycleBeforeTenantDisableFailsClosed verifies tenant-scoped
+// plugin disable also runs dynamic plugin lifecycle preconditions.
+func TestDynamicLifecycleBeforeTenantDisableFailsClosed(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dynamic-before-tenant-disable"
+	)
+
+	artifactPath := createDynamicLifecyclePreconditionArtifact(
+		t,
+		pluginID,
+		"Dynamic Before Tenant Disable Plugin",
+		"v0.4.9",
+		pluginbridge.LifecycleOperationBeforeTenantDisable,
+	)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+			t.Fatalf("failed to remove artifact %s: %v", artifactPath, cleanupErr)
+		}
+	})
+
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
+	}
+	if err := service.Enable(ctx, pluginID); err != nil {
+		t.Fatalf("expected dynamic plugin enable to succeed, got error: %v", err)
+	}
+	err := service.EnsureTenantPluginDisableAllowed(ctx, pluginID, 8102)
+	if !bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) {
+		t.Fatalf("expected dynamic tenant disable lifecycle precondition bizerr, got %v", err)
+	}
+}
+
+// TestDynamicLifecycleBeforeTenantDeleteFailsClosed verifies tenant deletion
+// runs dynamic plugin lifecycle preconditions for installed enabled plugins.
+func TestDynamicLifecycleBeforeTenantDeleteFailsClosed(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dynamic-before-tenant-delete"
+	)
+
+	artifactPath := createDynamicLifecyclePreconditionArtifact(
+		t,
+		pluginID,
+		"Dynamic Before Tenant Delete Plugin",
+		"v0.4.10",
+		pluginbridge.LifecycleOperationBeforeTenantDelete,
+	)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+			t.Fatalf("failed to remove artifact %s: %v", artifactPath, cleanupErr)
+		}
+	})
+
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
+	}
+	if err := service.Enable(ctx, pluginID); err != nil {
+		t.Fatalf("expected dynamic plugin enable to succeed, got error: %v", err)
+	}
+	err := service.EnsureTenantDeleteAllowed(ctx, 8103)
+	if !bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) {
+		t.Fatalf("expected dynamic tenant delete lifecycle precondition bizerr, got %v", err)
 	}
 }
 

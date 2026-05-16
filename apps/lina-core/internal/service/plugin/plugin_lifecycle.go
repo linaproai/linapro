@@ -219,7 +219,7 @@ func (s *serviceImpl) Uninstall(
 	}
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
 		if err = s.uninstallSourcePlugin(ctx, manifest, options); err != nil {
-			return err
+			return wrapUninstallExecutionError(err, pluginID)
 		}
 		if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
 			return err
@@ -242,7 +242,7 @@ func (s *serviceImpl) Uninstall(
 	}
 	activeManifest := s.loadActiveDynamicLifecycleManifestBestEffort(ctx, pluginID)
 	if err = s.uninstallDynamicPlugin(ctx, pluginID, options); err != nil {
-		return err
+		return wrapUninstallExecutionError(err, pluginID)
 	}
 	if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
 		return err
@@ -281,7 +281,7 @@ func (s *serviceImpl) uninstallWithoutDesiredManifest(
 	}
 	activeManifest := s.loadActiveDynamicLifecycleManifestBestEffort(ctx, pluginID)
 	if err = s.uninstallDynamicPlugin(ctx, pluginID, options); err != nil {
-		return err
+		return wrapUninstallExecutionError(err, pluginID)
 	}
 	if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
 		return err
@@ -337,6 +337,22 @@ func (s *serviceImpl) uninstallDynamicPlugin(
 		)
 	}
 	return s.forceUninstallMissingDynamicArtifact(ctx, registry)
+}
+
+// wrapUninstallExecutionError preserves stable business errors and wraps
+// low-level uninstall side-effect failures before they reach API callers.
+func wrapUninstallExecutionError(err error, pluginID string) error {
+	if err == nil {
+		return nil
+	}
+	if _, ok := bizerr.As(err); ok {
+		return err
+	}
+	return bizerr.WrapCode(
+		err,
+		CodePluginUninstallExecutionFailed,
+		bizerr.P("pluginId", strings.TrimSpace(pluginID)),
+	)
 }
 
 // dynamicFullUninstallRecoverable reports whether the installed dynamic plugin
@@ -530,6 +546,50 @@ func (s *serviceImpl) IsEnabled(ctx context.Context, pluginID string) bool {
 	return s.integrationSvc.IsEnabled(ctx, pluginID)
 }
 
+// EnsureTenantPluginDisableAllowed runs source and dynamic lifecycle
+// preconditions before one tenant loses access to a tenant-scoped plugin.
+func (s *serviceImpl) EnsureTenantPluginDisableAllowed(ctx context.Context, pluginID string, tenantID int) error {
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" || tenantID <= 0 {
+		return nil
+	}
+	if err := s.ensureSourceTenantPluginLifecyclePreconditionAllowed(
+		ctx,
+		normalizedPluginID,
+		tenantID,
+		pluginhost.LifecycleHookBeforeTenantDisable,
+	); err != nil {
+		return err
+	}
+	return s.ensureDynamicTenantPluginLifecyclePreconditionAllowed(
+		ctx,
+		normalizedPluginID,
+		tenantID,
+		pluginhost.LifecycleHookBeforeTenantDisable,
+	)
+}
+
+// NotifyTenantPluginDisabled runs best-effort source and dynamic lifecycle
+// callbacks after one tenant loses access to a tenant-scoped plugin.
+func (s *serviceImpl) NotifyTenantPluginDisabled(ctx context.Context, pluginID string, tenantID int) {
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" || tenantID <= 0 {
+		return
+	}
+	s.executeSourceTenantPluginLifecycleNotification(
+		ctx,
+		normalizedPluginID,
+		tenantID,
+		pluginhost.LifecycleHookAfterTenantDisable,
+	)
+	s.executeDynamicTenantPluginLifecycleNotification(
+		ctx,
+		normalizedPluginID,
+		tenantID,
+		pluginhost.LifecycleHookAfterTenantDisable,
+	)
+}
+
 // EnsureTenantDeleteAllowed runs plugin lifecycle preconditions before tenant
 // deletion continues in the tenant capability provider.
 func (s *serviceImpl) EnsureTenantDeleteAllowed(ctx context.Context, tenantID int) error {
@@ -537,6 +597,40 @@ func (s *serviceImpl) EnsureTenantDeleteAllowed(ctx context.Context, tenantID in
 		return err
 	}
 	return s.ensureDynamicTenantLifecyclePreconditionAllowed(ctx, tenantID, pluginhost.LifecycleHookBeforeTenantDelete)
+}
+
+// NotifyTenantDeleted runs best-effort source and dynamic lifecycle callbacks
+// after a tenant has been deleted.
+func (s *serviceImpl) NotifyTenantDeleted(ctx context.Context, tenantID int) {
+	if tenantID <= 0 {
+		return
+	}
+	s.executeTenantLifecycleNotification(ctx, tenantID, pluginhost.LifecycleHookAfterTenantDelete)
+	s.executeDynamicTenantLifecycleNotification(ctx, tenantID, pluginhost.LifecycleHookAfterTenantDelete)
+}
+
+// ensureSourceTenantPluginLifecyclePreconditionAllowed runs source-plugin
+// lifecycle preconditions for one plugin and tenant pair.
+func (s *serviceImpl) ensureSourceTenantPluginLifecyclePreconditionAllowed(
+	ctx context.Context,
+	pluginID string,
+	tenantID int,
+	hook pluginhost.LifecycleHook,
+) error {
+	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
+		Hook:         hook,
+		TenantInput:  pluginhost.NewSourcePluginTenantLifecycleInput(hook.String(), tenantID),
+		Participants: pluginhost.ListSourcePluginLifecycleParticipantsForPlugin(pluginID),
+	})
+	if result.OK {
+		return nil
+	}
+	return bizerr.NewCode(
+		CodePluginLifecyclePreconditionVetoed,
+		bizerr.P("operation", hook.String()),
+		bizerr.P("pluginId", pluginID),
+		bizerr.P("reasons", summarizeLifecycleVetoReasons(result.Decisions)),
+	)
 }
 
 // ensureTenantLifecyclePreconditionAllowed runs tenant-scoped lifecycle
@@ -614,6 +708,184 @@ func (s *serviceImpl) ensureDynamicTenantLifecyclePreconditionAllowed(
 		return nil
 	}
 	return s.dynamicLifecycleError(ctx, hook, "tenant", decisions, false)
+}
+
+// ensureDynamicTenantPluginLifecyclePreconditionAllowed runs dynamic-plugin
+// tenant-scoped lifecycle preconditions for one plugin and tenant pair.
+func (s *serviceImpl) ensureDynamicTenantPluginLifecyclePreconditionAllowed(
+	ctx context.Context,
+	pluginID string,
+	tenantID int,
+	hook pluginhost.LifecycleHook,
+) error {
+	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+	if err != nil {
+		return err
+	}
+	if registry == nil ||
+		catalog.NormalizeType(registry.Type) != catalog.TypeDynamic ||
+		registry.Installed != catalog.InstalledYes ||
+		registry.Status != catalog.StatusEnabled {
+		return nil
+	}
+	activeManifest, err := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
+	if err != nil {
+		return s.dynamicLifecycleError(
+			ctx,
+			hook,
+			registry.PluginId,
+			[]runtime.DynamicLifecycleDecision{
+				dynamicLifecycleFailureDecision(registry.PluginId, hook, err),
+			},
+			false,
+		)
+	}
+	if activeManifest == nil {
+		return nil
+	}
+	decision, err := s.runtimeSvc.RunDynamicLifecyclePrecondition(ctx, activeManifest, runtime.DynamicLifecycleInput{
+		PluginID:  activeManifest.ID,
+		Operation: hook,
+		TenantID:  tenantID,
+	})
+	if decision == nil {
+		return nil
+	}
+	decisions := []runtime.DynamicLifecycleDecision{*decision}
+	if err != nil {
+		return s.dynamicLifecycleError(ctx, hook, activeManifest.ID, decisions, false)
+	}
+	if decision.OK {
+		return nil
+	}
+	return s.dynamicLifecycleError(ctx, hook, activeManifest.ID, decisions, false)
+}
+
+// executeTenantLifecycleNotification runs source-plugin tenant lifecycle
+// notifications after tenant-wide lifecycle side effects have succeeded.
+func (s *serviceImpl) executeTenantLifecycleNotification(
+	ctx context.Context,
+	tenantID int,
+	hook pluginhost.LifecycleHook,
+) {
+	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
+		Hook:         hook,
+		TenantInput:  pluginhost.NewSourcePluginTenantLifecycleInput(hook.String(), tenantID),
+		Participants: pluginhost.ListSourcePluginLifecycleParticipants(),
+	})
+	if result.OK {
+		return
+	}
+	logger.Warningf(
+		ctx,
+		"source plugin tenant after lifecycle callback failed operation=%s tenantID=%d reasons=%s",
+		hook,
+		tenantID,
+		summarizeLifecycleVetoReasons(result.Decisions),
+	)
+}
+
+// executeSourceTenantPluginLifecycleNotification runs one source-plugin tenant
+// lifecycle notification after tenant-plugin state changed.
+func (s *serviceImpl) executeSourceTenantPluginLifecycleNotification(
+	ctx context.Context,
+	pluginID string,
+	tenantID int,
+	hook pluginhost.LifecycleHook,
+) {
+	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
+		Hook:         hook,
+		TenantInput:  pluginhost.NewSourcePluginTenantLifecycleInput(hook.String(), tenantID),
+		Participants: pluginhost.ListSourcePluginLifecycleParticipantsForPlugin(pluginID),
+	})
+	if result.OK {
+		return
+	}
+	logger.Warningf(
+		ctx,
+		"source plugin tenant after lifecycle callback failed operation=%s plugin=%s tenantID=%d reasons=%s",
+		hook,
+		pluginID,
+		tenantID,
+		summarizeLifecycleVetoReasons(result.Decisions),
+	)
+}
+
+// executeDynamicTenantLifecycleNotification runs best-effort dynamic-plugin
+// tenant lifecycle callbacks after tenant-wide side effects have succeeded.
+func (s *serviceImpl) executeDynamicTenantLifecycleNotification(
+	ctx context.Context,
+	tenantID int,
+	hook pluginhost.LifecycleHook,
+) {
+	registries, err := s.catalogSvc.ListAllRegistries(ctx)
+	if err != nil {
+		logger.Warningf(ctx, "list dynamic tenant lifecycle registries failed operation=%s tenantID=%d err=%v", hook, tenantID, err)
+		return
+	}
+	for _, registry := range registries {
+		if registry == nil ||
+			catalog.NormalizeType(registry.Type) != catalog.TypeDynamic ||
+			registry.Installed != catalog.InstalledYes ||
+			registry.Status != catalog.StatusEnabled {
+			continue
+		}
+		activeManifest, activeErr := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
+		if activeErr != nil {
+			logger.Warningf(
+				ctx,
+				"load dynamic tenant lifecycle manifest failed operation=%s plugin=%s tenantID=%d err=%v",
+				hook,
+				registry.PluginId,
+				tenantID,
+				activeErr,
+			)
+			continue
+		}
+		s.executeDynamicPluginLifecycleNotification(ctx, activeManifest, runtime.DynamicLifecycleInput{
+			PluginID:  registry.PluginId,
+			Operation: hook,
+			TenantID:  tenantID,
+		})
+	}
+}
+
+// executeDynamicTenantPluginLifecycleNotification runs one dynamic-plugin
+// tenant lifecycle notification after tenant-plugin state changed.
+func (s *serviceImpl) executeDynamicTenantPluginLifecycleNotification(
+	ctx context.Context,
+	pluginID string,
+	tenantID int,
+	hook pluginhost.LifecycleHook,
+) {
+	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+	if err != nil {
+		logger.Warningf(ctx, "load dynamic tenant plugin lifecycle registry failed operation=%s plugin=%s tenantID=%d err=%v", hook, pluginID, tenantID, err)
+		return
+	}
+	if registry == nil ||
+		catalog.NormalizeType(registry.Type) != catalog.TypeDynamic ||
+		registry.Installed != catalog.InstalledYes ||
+		registry.Status != catalog.StatusEnabled {
+		return
+	}
+	activeManifest, err := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
+	if err != nil {
+		logger.Warningf(
+			ctx,
+			"load dynamic tenant plugin lifecycle manifest failed operation=%s plugin=%s tenantID=%d err=%v",
+			hook,
+			pluginID,
+			tenantID,
+			err,
+		)
+		return
+	}
+	s.executeDynamicPluginLifecycleNotification(ctx, activeManifest, runtime.DynamicLifecycleInput{
+		PluginID:  pluginID,
+		Operation: hook,
+		TenantID:  tenantID,
+	})
 }
 
 // ensureDynamicPluginActiveLifecyclePreconditionAllowed runs a dynamic plugin

@@ -62,6 +62,9 @@ func (s *serviceImpl) applyUninstall(ctx context.Context, registry *entity.SysPl
 		return err
 	}
 	if purgeStorageData {
+		if err = s.executeDynamicUninstallLifecycleCallback(ctx, manifest, purgeStorageData); err != nil {
+			return s.rollbackReleaseFailure(ctx, registry, 0, err)
+		}
 		if err = s.lifecycleSvc.ExecuteManifestSQLFiles(ctx, manifest, catalog.MigrationDirectionUninstall); err != nil {
 			return s.rollbackReleaseFailure(ctx, registry, 0, err)
 		}
@@ -274,4 +277,28 @@ func (s *serviceImpl) UninstallWithOptions(ctx context.Context, pluginID string,
 		return err
 	}
 	return s.reconcileDynamicPluginRequest(ctx, pluginID, catalog.HostStateUninstalled)
+}
+
+// executeDynamicUninstallLifecycleCallback invokes the plugin-owned dynamic
+// uninstall execution phase when cleanup has been requested and declared.
+func (s *serviceImpl) executeDynamicUninstallLifecycleCallback(
+	ctx context.Context,
+	manifest *catalog.Manifest,
+	purgeStorageData bool,
+) error {
+	if manifest == nil || !purgeStorageData {
+		return nil
+	}
+	decision, err := s.RunDynamicLifecycleCallback(ctx, manifest, DynamicLifecycleInput{
+		PluginID:          manifest.ID,
+		Operation:         pluginhost.LifecycleHookUninstall,
+		PurgeStorageData: purgeStorageData,
+	})
+	if err != nil {
+		return err
+	}
+	if decision != nil && !decision.OK {
+		return gerror.New(strings.TrimSpace(decision.Reason))
+	}
+	return nil
 }

@@ -298,6 +298,31 @@ type ManifestSnapshot struct {
 	UninstallPurgeStorageData *bool                           `yaml:"uninstallPurgeStorageData,omitempty"`
 }
 
+// PublishedManifestSnapshot converts a persisted manifest snapshot into the
+// shared lifecycle callback contract.
+func PublishedManifestSnapshot(snapshot *ManifestSnapshot) *pluginbridge.ManifestSnapshotV1 {
+	if snapshot == nil {
+		return nil
+	}
+	return &pluginbridge.ManifestSnapshotV1{
+		ID:                      snapshot.ID,
+		Name:                    snapshot.Name,
+		Version:                 snapshot.Version,
+		Type:                    snapshot.Type,
+		ScopeNature:             snapshot.ScopeNature,
+		SupportsMultiTenant:     snapshot.SupportsMultiTenant,
+		DefaultInstallMode:      snapshot.DefaultInstallMode,
+		Description:             snapshot.Description,
+		InstallSQLCount:         snapshot.InstallSQLCount,
+		UninstallSQLCount:       snapshot.UninstallSQLCount,
+		MockSQLCount:            snapshot.MockSQLCount,
+		MenuCount:               snapshot.MenuCount,
+		BackendHookCount:        snapshot.BackendHookCount,
+		ResourceSpecCount:       snapshot.ResourceSpecCount,
+		HostServiceAuthRequired: snapshot.HostServiceAuthRequired,
+	}
+}
+
 // ResourceRefDescriptor represents one governance resource index entry derived
 // from the current plugin release.
 type ResourceRefDescriptor struct {

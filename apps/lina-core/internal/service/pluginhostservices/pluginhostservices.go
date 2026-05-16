@@ -18,6 +18,7 @@ import (
 	"lina-core/pkg/pluginhost"
 	pluginserviceconfig "lina-core/pkg/pluginservice/config"
 	"lina-core/pkg/pluginservice/contract"
+	pluginservicepluginlifecycle "lina-core/pkg/pluginservice/pluginlifecycle"
 	pluginservicepluginstate "lina-core/pkg/pluginservice/pluginstate"
 	pluginservicetenantfilter "lina-core/pkg/pluginservice/tenantfilter"
 )
@@ -29,6 +30,12 @@ type PluginStateReader interface {
 	IsEnabled(ctx context.Context, pluginID string) bool
 }
 
+// PluginLifecycleRunner defines the host lifecycle operations published to
+// source-plugin services.
+type PluginLifecycleRunner interface {
+	contract.PluginLifecycleRunner
+}
+
 // directory implements the pluginhost.HostServices directory.
 type directory struct {
 	apiDoc       contract.APIDocService       // apiDoc exposes localized API-documentation route text.
@@ -37,6 +44,7 @@ type directory struct {
 	config       contract.ConfigService       // config exposes read-only host configuration.
 	i18n         contract.I18nService         // i18n exposes runtime translation lookups.
 	notify       contract.NotifyService       // notify exposes host notification delivery.
+	pluginLife   contract.PluginLifecycleService
 	pluginState  contract.PluginStateService  // pluginState exposes plugin enablement lookups.
 	route        contract.RouteService        // route exposes dynamic route metadata lookups.
 	session      contract.SessionService      // session exposes online-session operations.
@@ -55,6 +63,7 @@ func New(
 	scopeSvc datascope.Service,
 	i18nSvc i18nsvc.Service,
 	pluginStateReader PluginStateReader,
+	pluginLifecycleRunner PluginLifecycleRunner,
 	sessionStore session.Store,
 	tenantSvc tenantcapsvc.Service,
 	notifySvc notify.Service,
@@ -71,6 +80,7 @@ func New(
 		config:       pluginserviceconfig.New(),
 		i18n:         newI18nAdapter(i18nSvc),
 		notify:       newNotifyAdapter(notifySvc),
+		pluginLife:   pluginservicepluginlifecycle.New(pluginLifecycleRunner),
 		pluginState:  pluginservicepluginstate.New(pluginStateReader),
 		route:        newRouteAdapter(),
 		session:      newSessionAdapter(authSvc, scopeSvc, sessionStore, tenantSvc),
@@ -124,6 +134,14 @@ func (s *directory) Notify() contract.NotifyService {
 		return nil
 	}
 	return s.notify
+}
+
+// PluginLifecycle returns the host plugin lifecycle orchestration adapter.
+func (s *directory) PluginLifecycle() contract.PluginLifecycleService {
+	if s == nil {
+		return nil
+	}
+	return s.pluginLife
 }
 
 // PluginState returns the host plugin enablement adapter.
