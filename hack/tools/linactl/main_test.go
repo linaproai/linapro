@@ -493,6 +493,7 @@ func TestRunDevStartsServicesAsAsyncProcessesAndPrintsFinalStatus(t *testing.T) 
 	if err := os.MkdirAll(filepath.Join(root, "apps", "lina-vben", "apps", "web-antd"), 0o755); err != nil {
 		t.Fatalf("mkdir frontend workdir: %v", err)
 	}
+	writeFrontendDependencySentinel(t, root)
 
 	var stdout bytes.Buffer
 	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
@@ -576,6 +577,7 @@ func TestRunDevPassesRepositoryWasmOutputWhenPluginsEnabled(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "apps", "lina-vben", "apps", "web-antd"), 0o755); err != nil {
 		t.Fatalf("mkdir frontend workdir: %v", err)
 	}
+	writeFrontendDependencySentinel(t, root)
 
 	var wasmOutputDir string
 	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
@@ -1135,6 +1137,13 @@ func writeFile(t *testing.T, path string, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
+}
+
+// writeFrontendDependencySentinel creates the Vite binary expected by
+// ensureFrontendDeps so runDev unit tests do not require pnpm on PATH.
+func writeFrontendDependencySentinel(t *testing.T, root string) {
+	t.Helper()
+	writeFile(t, viteCommand(root), "")
 }
 
 func samePath(t *testing.T, left string, right string) bool {
