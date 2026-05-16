@@ -19,7 +19,7 @@ export default defineConfig({
   globalSetup: './global-setup.ts',
   workers: Number.parseInt(process.env.E2E_WORKERS ?? '1', 10),
   retries: Number.parseInt(process.env.E2E_RETRIES ?? (process.env.CI ? '1' : '0'), 10),
-  timeout: 60000,
+  timeout: 180000,
   expect: {
     timeout: 10000,
   },

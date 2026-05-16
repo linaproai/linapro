@@ -20,7 +20,6 @@ test.describe('TC0062 用户角色关联', () => {
   }
 
   async function searchUser(userPage: UserPage, username: string) {
-    await userPage.goto();
     await userPage.searchByUsername(username);
   }
 
@@ -131,20 +130,24 @@ test.describe('TC0062 用户角色关联', () => {
 
   test('TC0062d: 删除用户时清理角色关联', async ({ adminPage }) => {
     const userPage = new UserPage(adminPage);
-    await userPage.goto();
 
     // Create a new user for testing cleanup
     const cleanupUsername = `e2e_cleanup_${Date.now()}`;
-    await userPage.createUser(cleanupUsername, testPassword, 'E2E清理测试');
+    try {
+      await userPage.goto();
+      await userPage.createUser(cleanupUsername, testPassword, 'E2E清理测试');
 
-    // Delete the user
-    await searchUser(userPage, cleanupUsername);
-    expect(await userPage.hasUser(cleanupUsername)).toBeTruthy();
-    await userPage.deleteUser(cleanupUsername);
+      // Delete the user
+      await searchUser(userPage, cleanupUsername);
+      expect(await userPage.hasUser(cleanupUsername)).toBeTruthy();
+      await userPage.deleteUser(cleanupUsername);
 
-    // Verify user is deleted
-    await searchUser(userPage, cleanupUsername);
-    const hasUser = await userPage.hasUser(cleanupUsername);
-    expect(hasUser).toBeFalsy();
+      // Verify user is deleted
+      await searchUser(userPage, cleanupUsername);
+      const hasUser = await userPage.hasUser(cleanupUsername);
+      expect(hasUser).toBeFalsy();
+    } finally {
+      await deleteUserIfExists(cleanupUsername);
+    }
   });
 });
