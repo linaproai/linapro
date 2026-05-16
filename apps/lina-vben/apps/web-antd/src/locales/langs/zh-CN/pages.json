@@ -1001,6 +1001,15 @@
         "selectFile": "请先选择 .wasm 插件包",
         "success": "插件包上传成功",
         "title": "上传动态插件"
+      },
+      "content-notice": {
+        "preview": {
+          "title": "消息详情"
+        },
+        "fields": {
+          "type": "类型",
+          "createdBy": "创建人"
+        }
       }
     },
     "message": {
