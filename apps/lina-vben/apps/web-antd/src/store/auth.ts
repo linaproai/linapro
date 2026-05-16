@@ -24,15 +24,30 @@ type UserMenuNode = {
   path?: string;
 };
 
+function normalizeMenuPath(path: string) {
+  return path.replace(/^\/+/u, '').replace(/\/+$/u, '');
+}
+
+function isMultiTenantMenuNode(item: UserMenuNode): boolean {
+  const path = normalizeMenuPath(item.path || '');
+  const name = item.name || '';
+
+  // The host platform group is always present; only concrete tenant pages
+  // should enable tenant-aware frontend behavior.
+  return (
+    path === 'platform/tenants' ||
+    path.startsWith('platform/tenants/') ||
+    path === 'tenant' ||
+    path.startsWith('tenant/') ||
+    name.startsWith('PlatformTenant') ||
+    name.startsWith('Tenant')
+  );
+}
+
 function hasMultiTenantMenu(items: UserMenuNode[] = []): boolean {
   return items.some((item) => {
-    const path = item.path || '';
-    const name = item.name || '';
     return (
-      path.startsWith('/platform') ||
-      path.startsWith('/tenant') ||
-      name.startsWith('Platform') ||
-      name.startsWith('Tenant') ||
+      isMultiTenantMenuNode(item) ||
       hasMultiTenantMenu(item.children)
     );
   });
@@ -202,13 +217,11 @@ export const useAuthStore = defineStore('auth', () => {
       accessStore.setAccessCodes(userInfo.permissions);
     }
     tenantStore.setTenantContext({
-      enabled:
-        tenantStore.enabled ||
-        resolveTenantEnabled(
-          tenantStore.tenants,
-          userInfo,
-          tenantStore.currentTenant,
-        ),
+      enabled: resolveTenantEnabled(
+        tenantStore.tenants,
+        userInfo,
+        tenantStore.currentTenant,
+      ),
     });
 
     return userInfo;

@@ -171,7 +171,11 @@ func runTestGo(ctx context.Context, a *app, input commandInput) error {
 		return errors.New("no Go workspace modules discovered")
 	}
 	for _, moduleDir := range modules {
-		args := []string{"test"}
+		// Backend packages share the CI PostgreSQL schema and plugin runtime
+		// artifacts, so package-level parallelism can expose transient fixture
+		// rows from another package process. Keep packages serial while still
+		// allowing each package to run with its normal test behavior.
+		args := []string{"test", "-p=1"}
 		if race {
 			args = append(args, "-race")
 		}

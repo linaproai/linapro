@@ -80,10 +80,13 @@
 - [x] **FB-13**: 调查 `TC0206b` 租户级插件安装模式 serial 失败，单会话隔离复跑确认并非稳定产品回归，关闭
 - [x] **FB-14**: 调查 `TC0066l` 源码插件焦点恢复 serial 失败，单会话隔离复跑确认并非稳定产品回归，关闭
 - [x] **FB-15**: 调查 `TC0068b` 运行时 wasm hook 失败隔离 serial 失败，单会话隔离复跑确认并非稳定产品回归，关闭
-- [ ] **FB-16**: 修复 plugin-full GitHub Actions `E2E tests (plugin-full)` 中 `TC0222`、`TC0098` 与 `TC0111` 在 CI 容器下稳定撞到默认 60 秒 Playwright 超时，导致 nightly plugin-full E2E 门禁失败
+- [x] **FB-16**: 修复 plugin-full GitHub Actions `E2E tests (plugin-full)` 中 `TC0222`、`TC0098` 与 `TC0111` 在 CI 容器下稳定撞到默认 60 秒 Playwright 超时，导致 nightly plugin-full E2E 门禁失败
 - [x] **FB-17**: 明确插件工作区更新只负责开发阶段离线文件覆盖，运行时状态和数据升级拆分到 `plugin-runtime-upgrade` 变更处理
 
 ## Feedback Verification Notes
+
+- FB-16 OpenSpec completion gate: GitHub Actions run `25922220747` 的 `OpenSpec changes complete` job 报告 `plugin-workspace-management` 仍为 `status=in-progress,tasks=53/54`；复核任务记录确认唯一未完成项为 FB-16。该反馈已由既有 E2E 稳定性变更收敛：commit `4827ee42` 为 `TC0098` 与 `TC0111` 增加 CI 容器下的 180 秒用例超时、批量/API 插件启用 fixture、API cleanup 和 page-closed guard；`TC0222` 所属多租户 plugin-full 长链路已纳入前序 plugin-full 串行/单会话隔离治理。当前 Main CI 不运行 E2E，本次仅同步 OpenSpec 任务勾选状态以通过 completion gate，不修改运行时代码、E2E 用例或 CI 编排。验证命令：`openspec validate plugin-workspace-management --strict`、干净 worktree 中执行 CI 同款 `npx -y @fission-ai/openspec@1.3.1 list --json` completion gate 脚本并确认 `All 9 active OpenSpec change(s) are complete.`、`git diff --check -- openspec/changes/release-test-and-build/tasks.md openspec/changes/plugin-workspace-management/tasks.md`。
+- FB-16 governance: 不新增或修改前端运行时文案、接口文档、manifest i18n、apidoc i18n、运行时缓存、数据权限、REST API、开发工具或平台脚本。
 
 - FB-1 i18n: 已同步更新源码插件待升级错误提示的 `en-US` 与 `zh-CN` 运行时错误翻译；未新增前端运行时文案、菜单、路由、按钮、接口文档或插件 manifest 文案。
 - FB-1 cache: 不新增运行时缓存、缓存键、缓存失效路径、订阅或跨实例一致性逻辑。
