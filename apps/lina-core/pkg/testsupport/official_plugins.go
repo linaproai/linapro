@@ -1,4 +1,7 @@
-// Package testsupport provides test-only helpers shared by LinaCore test suites.
+// official_plugins.go locates the source-plugin workspace used by integration
+// and package tests. The helpers only inspect filesystem shape and avoid
+// loading plugin manifests so tests can cheaply skip unavailable workspaces.
+
 package testsupport
 
 import (

@@ -1,4 +1,6 @@
-// This file classifies PostgreSQL driver errors for shared dialect callers.
+// error.go classifies PostgreSQL driver errors for shared dialect callers. It
+// centralizes SQLSTATE handling so retry and constraint decisions remain stable
+// across host services and plugin database helpers.
 
 package postgres
 
@@ -21,6 +23,8 @@ const (
 // sqlStateError is the narrow SQLSTATE shape exposed by PostgreSQL drivers.
 type sqlStateError interface {
 	error
+	// SQLState returns the PostgreSQL SQLSTATE code used to classify retryable
+	// write conflicts and constraint failures.
 	SQLState() string
 }
 

@@ -1,5 +1,8 @@
 // menu_metadata.go declares host-owned menu mount metadata used to validate
-// plugin menu parent relationships and stable top-level catalog bindings.
+// plugin menu parent relationships and stable top-level catalog bindings. The
+// constants here are stable contract keys consumed by plugin registration and
+// must remain independent of localized display names.
+
 package menu
 
 import "lina-core/pkg/orgcap"

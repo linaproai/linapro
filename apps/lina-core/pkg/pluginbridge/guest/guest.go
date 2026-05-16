@@ -2,12 +2,6 @@
 // host-service clients used by Lina dynamic plugin modules.
 package guest
 
-import (
-	"unsafe"
-
-	"github.com/gogf/gf/v2/errors/gerror"
-)
-
 // guestRequestBuffer, guestResponseBuffer, and guestHostCallResponseBuffer are
 // package-level globals reused across bridge invocations. They are safe ONLY
 // within a single-threaded Wasm guest module. The host MUST NOT invoke the same
@@ -32,21 +26,33 @@ type GuestHandler func(*BridgeRequestEnvelopeV1) (*BridgeResponseEnvelopeV1, err
 // GuestRuntime exposes the guest-side request buffer and execution contract
 // published to dynamic plugin entrypoints.
 type GuestRuntime interface {
-	// HandleEncodedRequest decodes one host request, executes the guest handler, and returns encoded response bytes.
+	// HandleEncodedRequest decodes one host request, executes the guest handler,
+	// and returns encoded response bytes. Decode errors become bad-request bridge
+	// responses; handler errors become internal-error bridge responses.
 	HandleEncodedRequest(content []byte) ([]byte, error)
-	// Alloc reserves guest memory for the next incoming request.
+	// Alloc reserves guest memory for the next incoming request and returns the
+	// guest pointer exposed to the host. The buffer is process-local to the Wasm
+	// instance and is not safe for concurrent host calls into the same instance.
 	Alloc(size uint32) uint32
 	// RequestBuffer returns the mutable request buffer currently exposed to the host.
+	// Callers must treat the slice as the current invocation buffer only.
 	RequestBuffer() []byte
-	// Execute handles the currently written request buffer and exposes the encoded response buffer.
+	// Execute handles the currently written request buffer and exposes the encoded
+	// response buffer. It returns pointer and length values for the host, or an
+	// error when length exceeds the allocated request buffer.
 	Execute(length uint32) (uint32, uint32, error)
-	// ResponseBuffer returns the current encoded response buffer.
+	// ResponseBuffer returns the current encoded response buffer produced by the
+	// most recent Execute or ExposeResponseBuffer call.
 	ResponseBuffer() []byte
-	// ExposeResponseBuffer publishes one encoded response payload through the shared guest response buffer.
+	// ExposeResponseBuffer publishes one encoded response payload through the
+	// shared guest response buffer and returns its pointer-length pair.
 	ExposeResponseBuffer(content []byte) (uint32, uint32, error)
 	// HostCallAlloc reserves guest memory for an incoming host call response.
+	// It uses a separate buffer from Alloc so re-entrant host-service calls do not
+	// overwrite the active request payload.
 	HostCallAlloc(size uint32) uint32
-	// HostCallResponseBuffer returns the current host call response buffer.
+	// HostCallResponseBuffer returns the current host call response buffer written
+	// by the host-service bridge.
 	HostCallResponseBuffer() []byte
 }
 
@@ -58,89 +64,4 @@ type guestRuntime struct {
 // NewGuestRuntime creates one guest runtime wrapper around a business handler.
 func NewGuestRuntime(handler GuestHandler) GuestRuntime {
 	return &guestRuntime{handler: handler}
-}
-
-// HandleEncodedRequest decodes one host request, executes the guest handler, and returns encoded response bytes.
-func (r *guestRuntime) HandleEncodedRequest(content []byte) ([]byte, error) {
-	if r == nil || r.handler == nil {
-		return EncodeResponseEnvelope(NewInternalErrorResponse("Dynamic guest runtime is not initialized"))
-	}
-
-	request, err := DecodeRequestEnvelope(content)
-	if err != nil {
-		return EncodeResponseEnvelope(NewBadRequestResponse(err.Error()))
-	}
-	response, err := r.handler(request)
-	if err != nil {
-		return EncodeResponseEnvelope(NewInternalErrorResponse(err.Error()))
-	}
-	if response == nil {
-		response = NewInternalErrorResponse("Dynamic guest runtime returned nil response")
-	}
-	return EncodeResponseEnvelope(response)
-}
-
-// Alloc reserves guest memory for the next incoming request.
-func (*guestRuntime) Alloc(size uint32) uint32 {
-	if cap(guestRequestBuffer) < int(size) {
-		guestRequestBuffer = make([]byte, size)
-	} else {
-		guestRequestBuffer = guestRequestBuffer[:size]
-	}
-	if len(guestRequestBuffer) == 0 {
-		return 0
-	}
-	return uint32(uintptr(unsafe.Pointer(&guestRequestBuffer[0])))
-}
-
-// RequestBuffer returns the mutable request buffer currently exposed to the host.
-func (*guestRuntime) RequestBuffer() []byte {
-	return guestRequestBuffer
-}
-
-// Execute handles the currently written request buffer and exposes the encoded response buffer.
-func (r *guestRuntime) Execute(length uint32) (uint32, uint32, error) {
-	if int(length) > len(guestRequestBuffer) {
-		return 0, 0, gerror.New("guest request length exceeds allocated buffer")
-	}
-	response, err := r.HandleEncodedRequest(guestRequestBuffer[:length])
-	if err != nil {
-		return 0, 0, err
-	}
-	return r.ExposeResponseBuffer(response)
-}
-
-// ResponseBuffer returns the current encoded response buffer.
-func (*guestRuntime) ResponseBuffer() []byte {
-	return guestResponseBuffer
-}
-
-// ExposeResponseBuffer publishes one encoded response payload through the
-// shared guest response buffer and returns the stable pointer-length pair.
-func (*guestRuntime) ExposeResponseBuffer(content []byte) (uint32, uint32, error) {
-	guestResponseBuffer = append(guestResponseBuffer[:0], content...)
-	if len(guestResponseBuffer) == 0 {
-		return 0, 0, nil
-	}
-	return uint32(uintptr(unsafe.Pointer(&guestResponseBuffer[0]))), uint32(len(guestResponseBuffer)), nil
-}
-
-// HostCallAlloc reserves guest memory for an incoming host call response.
-// This uses a separate buffer from Alloc to avoid overwriting the in-flight
-// request data during re-entrant host function calls.
-func (*guestRuntime) HostCallAlloc(size uint32) uint32 {
-	if cap(guestHostCallResponseBuffer) < int(size) {
-		guestHostCallResponseBuffer = make([]byte, size)
-	} else {
-		guestHostCallResponseBuffer = guestHostCallResponseBuffer[:size]
-	}
-	if len(guestHostCallResponseBuffer) == 0 {
-		return 0
-	}
-	return uint32(uintptr(unsafe.Pointer(&guestHostCallResponseBuffer[0])))
-}
-
-// HostCallResponseBuffer returns the current host call response buffer.
-func (*guestRuntime) HostCallResponseBuffer() []byte {
-	return guestHostCallResponseBuffer
 }

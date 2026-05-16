@@ -16,7 +16,6 @@ import (
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/openapi"
-	"lina-core/internal/service/plugin/internal/wasm"
 	"lina-core/internal/service/pluginruntimecache"
 	"lina-core/internal/service/session"
 	bridgecontract "lina-core/pkg/pluginbridge/contract"
@@ -114,13 +113,17 @@ type DependencyValidator interface {
 // ArtifactService defines runtime WASM artifact parsing and validation operations.
 type ArtifactService interface {
 	// ParseRuntimeWasmArtifact reads one WASM artifact file and extracts all embedded custom sections.
-	// It implements the catalog.ArtifactParser interface.
+	// It implements catalog.ArtifactParser and returns validation/parse errors
+	// without mutating registry, cache, i18n, data-scope, or bridge state.
 	ParseRuntimeWasmArtifact(filePath string) (*catalog.ArtifactSpec, error)
 	// ParseRuntimeWasmArtifactContent parses one WASM artifact from an in-memory byte slice.
-	// It implements the catalog.ArtifactParser interface.
+	// It implements catalog.ArtifactParser and returns validation/parse errors
+	// without mutating registry, cache, i18n, data-scope, or bridge state.
 	ParseRuntimeWasmArtifactContent(filePath string, content []byte) (*catalog.ArtifactSpec, error)
 	// ValidateRuntimeArtifact loads and validates the WASM artifact for a dynamic plugin source directory.
-	// It implements the catalog.ArtifactParser interface.
+	// It implements catalog.ArtifactParser and must reject artifacts whose
+	// manifest, bridge metadata, routes, i18n source text, or frontend assets do
+	// not match the source manifest.
 	ValidateRuntimeArtifact(manifest *catalog.Manifest, rootDir string) error
 }
 
@@ -410,159 +413,4 @@ func New(
 		reconcilerRevisionObserved: pluginruntimecache.NewObservedRevision(),
 		i18nSvc:                    i18nSvc,
 	}
-}
-
-// SetTopology wires the cluster topology provider.
-func (s *serviceImpl) SetTopology(t TopologyProvider) {
-	s.topology = t
-	s.configureReconcilerRevisionController()
-}
-
-// SetMenuManager wires the menu synchronization provider.
-func (s *serviceImpl) SetMenuManager(m MenuManager) {
-	s.menuMgr = m
-}
-
-// SetHookDispatcher wires the lifecycle hook dispatcher.
-func (s *serviceImpl) SetHookDispatcher(d HookDispatcher) {
-	s.hookDispatcher = d
-}
-
-// SetJwtConfigProvider wires the JWT configuration provider for route token validation.
-func (s *serviceImpl) SetJwtConfigProvider(p JwtConfigProvider) {
-	s.jwtConfig = p
-}
-
-// SetUploadSizeProvider wires the upload-size provider for dynamic package uploads.
-func (s *serviceImpl) SetUploadSizeProvider(p UploadSizeProvider) {
-	s.uploadSize = p
-}
-
-// SetUserContextSetter wires the user-context injection provider.
-func (s *serviceImpl) SetUserContextSetter(p UserContextSetter) {
-	s.userCtx = p
-}
-
-// SetSessionStore wires the online-session store used for dynamic route requests.
-func (s *serviceImpl) SetSessionStore(store session.Store) {
-	if store != nil {
-		s.sessionStore = store
-	}
-}
-
-// SetPermissionMenuFilter wires the plugin-level permission menu filter.
-func (s *serviceImpl) SetPermissionMenuFilter(f PermissionMenuFilter) {
-	s.menuFilter = f
-}
-
-// SetRuntimeCacheChangeNotifier wires cluster cache revision publication.
-func (s *serviceImpl) SetRuntimeCacheChangeNotifier(n CacheChangeNotifier) {
-	s.cacheChangeNotifier = n
-}
-
-// SetDependencyValidator wires release dependency validation.
-func (s *serviceImpl) SetDependencyValidator(v DependencyValidator) {
-	s.dependencyValidator = v
-}
-
-// isClusterModeEnabled is a nil-safe wrapper around the topology provider.
-func (s *serviceImpl) isClusterModeEnabled() bool {
-	if s.topology == nil {
-		return false
-	}
-	return s.topology.IsClusterModeEnabled()
-}
-
-// isPrimaryNode is a nil-safe wrapper around the topology provider.
-func (s *serviceImpl) isPrimaryNode() bool {
-	if s.topology == nil {
-		return false
-	}
-	return s.topology.IsPrimaryNode()
-}
-
-// currentNodeID is a nil-safe wrapper around the topology provider.
-func (s *serviceImpl) currentNodeID() string {
-	if s.topology == nil {
-		return ""
-	}
-	return s.topology.CurrentNodeID()
-}
-
-// dispatchHookEvent is a nil-safe wrapper for hook event dispatch.
-func (s *serviceImpl) dispatchHookEvent(
-	ctx context.Context,
-	event pluginhost.ExtensionPoint,
-	values map[string]interface{},
-) error {
-	if s.hookDispatcher == nil {
-		return nil
-	}
-	return s.hookDispatcher.DispatchPluginHookEvent(ctx, event, values)
-}
-
-// syncPluginMenusAndPermissions is a nil-safe wrapper for menu synchronization.
-func (s *serviceImpl) syncPluginMenusAndPermissions(ctx context.Context, manifest *catalog.Manifest) error {
-	if s.menuMgr == nil {
-		return nil
-	}
-	return s.menuMgr.SyncPluginMenusAndPermissions(ctx, manifest)
-}
-
-// syncPluginMenus is a nil-safe wrapper for partial menu synchronization (rollback path).
-func (s *serviceImpl) syncPluginMenus(ctx context.Context, manifest *catalog.Manifest) error {
-	if s.menuMgr == nil {
-		return nil
-	}
-	return s.menuMgr.SyncPluginMenus(ctx, manifest)
-}
-
-// deletePluginMenusByManifest is a nil-safe wrapper for menu deletion.
-func (s *serviceImpl) deletePluginMenusByManifest(ctx context.Context, manifest *catalog.Manifest) error {
-	if s.menuMgr == nil {
-		return nil
-	}
-	return s.menuMgr.DeletePluginMenusByManifest(ctx, manifest)
-}
-
-// ensureFrontendBundle delegates to frontendSvc to guarantee an in-memory bundle exists.
-func (s *serviceImpl) ensureFrontendBundle(ctx context.Context, manifest *catalog.Manifest) error {
-	if s.frontendSvc == nil {
-		return nil
-	}
-	return s.frontendSvc.EnsureBundle(ctx, manifest)
-}
-
-// validateFrontendMenuBindings delegates frontend menu binding validation.
-func (s *serviceImpl) validateFrontendMenuBindings(ctx context.Context, manifest *catalog.Manifest) error {
-	if s.frontendSvc == nil {
-		return nil
-	}
-	return s.frontendSvc.ValidateRuntimeFrontendMenuBindings(ctx, manifest)
-}
-
-// invalidateRuntimeCaches removes cached runtime frontend assets and runtime i18n
-// bundles after one plugin lifecycle change. Only the dynamic-plugin sector for
-// the affected plugin is invalidated; host and source-plugin sectors stay hot
-// for unrelated locales and plugins.
-func (s *serviceImpl) invalidateRuntimeCaches(ctx context.Context, pluginID string, reason string) {
-	wasm.InvalidateAllCache(ctx)
-	if s.frontendSvc != nil {
-		s.frontendSvc.InvalidateBundle(ctx, pluginID, reason)
-	}
-	if s.i18nSvc != nil {
-		s.i18nSvc.InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
-			Sectors:         []i18nsvc.Sector{i18nsvc.SectorDynamicPlugin},
-			DynamicPluginID: pluginID,
-		})
-	}
-}
-
-// notifyRuntimeCacheChanged publishes a successful dynamic runtime mutation to
-// other cluster nodes through the root plugin facade.
-func (s *serviceImpl) notifyRuntimeCacheChanged(ctx context.Context, reason string) error {
-	if s.cacheChangeNotifier == nil {
-		return nil
-	}
-	return s.cacheChangeNotifier.MarkRuntimeCacheChanged(ctx, reason)
 }

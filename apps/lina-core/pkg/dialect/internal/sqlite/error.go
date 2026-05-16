@@ -1,4 +1,6 @@
-// This file classifies SQLite driver errors for shared dialect callers.
+// error.go classifies SQLite driver errors for shared dialect callers. It keeps
+// driver-specific result-code handling behind narrow interfaces so the public
+// dialect package can identify retryable and constraint failures consistently.
 
 package sqlite
 
@@ -19,6 +21,8 @@ const (
 // SQLite driver implementation.
 type codeError interface {
 	error
+	// Code returns the SQLite primary or extended result code used to classify
+	// retryable write conflicts and unique-constraint failures.
 	Code() int
 }
 

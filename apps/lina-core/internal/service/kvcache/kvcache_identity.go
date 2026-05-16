@@ -31,6 +31,11 @@ type cacheIdentity struct {
 	cacheKey  string
 }
 
+// String returns the canonical owner type value.
+func (value OwnerType) String() string {
+	return string(value)
+}
+
 // resolveIdentity parses and validates one public cache key under the provided
 // owner type.
 func resolveIdentity(ownerType OwnerType, cacheKey string) (*cacheIdentity, error) {

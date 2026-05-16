@@ -10,7 +10,6 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/service/bizctx"
-	"lina-core/pkg/bizerr"
 	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
@@ -26,37 +25,53 @@ type PluginEnablementReader interface {
 	IsEnabled(ctx context.Context, pluginID string) bool
 }
 
-// Service defines the optional tenant capability consumed by host core services.
+// Service defines the optional tenant capability consumed by host core services
+// without hard-linking them to a concrete multi-tenant plugin implementation.
 type Service interface {
-	// Enabled reports whether multi-tenancy is currently installed and enabled.
+	// Enabled reports whether multi-tenancy is installed, enabled, and backed by
+	// a registered provider. Disabled mode must behave as platform-only.
 	Enabled(ctx context.Context) bool
-	// Current returns the current request tenant from bizctx, defaulting to platform.
+	// Current returns the current request tenant from bizctx, defaulting to the
+	// platform tenant when request context is unavailable.
 	Current(ctx context.Context) TenantID
-	// Apply injects tenant filtering into a model when multi-tenancy is enabled.
+	// Apply injects tenant filtering into a model when multi-tenancy is enabled
+	// and the current platform context is not allowed to bypass filtering.
 	Apply(ctx context.Context, model *gdb.Model, tenantColumn string) (*gdb.Model, error)
-	// PlatformBypass reports whether the current request may bypass tenant filtering.
+	// PlatformBypass reports whether the current request may bypass tenant
+	// filtering because it is a non-impersonated platform request with all-data
+	// scope.
 	PlatformBypass(ctx context.Context) bool
-	// EnsureTenantVisible validates that the current user can access tenantID.
+	// EnsureTenantVisible validates that the current user can access tenantID;
+	// disabled tenancy treats every tenant check as visible for host fallback.
 	EnsureTenantVisible(ctx context.Context, tenantID TenantID) error
-	// ResolveTenant delegates HTTP tenant resolution to the provider when enabled.
+	// ResolveTenant delegates HTTP tenant resolution to the provider when
+	// enabled; disabled or missing providers resolve to platform.
 	ResolveTenant(ctx context.Context, r *ghttp.Request) (*pkgtenantcap.ResolverResult, error)
-	// ReadWithPlatformFallback reads tenant overrides with platform fallback semantics.
+	// ReadWithPlatformFallback reads tenant overrides with platform fallback
+	// semantics through a caller-supplied scanner and does not cache results.
 	ReadWithPlatformFallback(ctx context.Context, scanner FallbackScanner[any]) ([]any, error)
-	// ApplyUserTenantScope constrains user rows by active current-tenant membership.
+	// ApplyUserTenantScope constrains user rows by active current-tenant
+	// membership and returns empty when no visible memberships remain.
 	ApplyUserTenantScope(ctx context.Context, model *gdb.Model, userIDColumn string) (*gdb.Model, bool, error)
-	// ListUserTenants returns the active tenants visible to one user.
+	// ListUserTenants returns active tenant memberships visible to one user.
 	ListUserTenants(ctx context.Context, userID int) ([]pkgtenantcap.TenantInfo, error)
-	// ApplyUserTenantFilter constrains platform user-list rows to a requested tenant.
+	// ApplyUserTenantFilter constrains platform user-list rows to a requested
+	// tenant and validates provider-owned membership rules.
 	ApplyUserTenantFilter(ctx context.Context, model *gdb.Model, userIDColumn string, tenantID TenantID) (*gdb.Model, bool, error)
-	// ListUserTenantProjections returns tenant ownership labels for visible users.
+	// ListUserTenantProjections returns tenant ownership labels for visible
+	// users; missing providers return an empty map.
 	ListUserTenantProjections(ctx context.Context, userIDs []int) (map[int]*pkgtenantcap.UserTenantProjection, error)
-	// ResolveUserTenantAssignment validates requested memberships and returns a host write plan.
+	// ResolveUserTenantAssignment validates requested memberships and returns a
+	// host write plan for create/update operations.
 	ResolveUserTenantAssignment(ctx context.Context, requested []TenantID, mode pkgtenantcap.UserTenantAssignmentMode) (*pkgtenantcap.UserTenantAssignmentPlan, error)
-	// ReplaceUserTenantAssignments rewrites one user's active tenant ownership rows.
+	// ReplaceUserTenantAssignments rewrites one user's active tenant ownership
+	// rows only when the provider produced a replacement plan.
 	ReplaceUserTenantAssignments(ctx context.Context, userID int, plan *pkgtenantcap.UserTenantAssignmentPlan) error
-	// EnsureUsersInTenant verifies every user has active membership in the tenant.
+	// EnsureUsersInTenant verifies every user has active membership in the
+	// tenant before tenant-local relationship writes.
 	EnsureUsersInTenant(ctx context.Context, userIDs []int, tenantID TenantID) error
-	// ValidateUserMembershipStartupConsistency returns startup consistency failures.
+	// ValidateUserMembershipStartupConsistency returns startup consistency
+	// failures detected by the provider without mutating host state.
 	ValidateUserMembershipStartupConsistency(ctx context.Context) ([]string, error)
 }
 
@@ -80,210 +95,6 @@ func New(enablementReader PluginEnablementReader, bizCtxSvc bizctx.Service) Serv
 	}
 }
 
-// Enabled reports whether multi-tenancy is currently installed and enabled.
-func (s *serviceImpl) Enabled(ctx context.Context) bool {
-	if s == nil || s.enablementReader == nil {
-		return false
-	}
-	if !s.enablementReader.IsEnabled(ctx, pkgtenantcap.ProviderPluginID) {
-		return false
-	}
-	return pkgtenantcap.HasProvider()
-}
-
-// Current returns the current request tenant from bizctx, defaulting to platform.
-func (s *serviceImpl) Current(ctx context.Context) TenantID {
-	if s == nil || s.bizCtxSvc == nil {
-		return pkgtenantcap.PLATFORM
-	}
-	businessCtx := s.bizCtxSvc.Get(ctx)
-	if businessCtx == nil {
-		return pkgtenantcap.PLATFORM
-	}
-	return TenantID(businessCtx.TenantId)
-}
-
-// Apply injects tenant filtering into a model when multi-tenancy is enabled.
-func (s *serviceImpl) Apply(ctx context.Context, model *gdb.Model, tenantColumn string) (*gdb.Model, error) {
-	if model == nil || !s.Enabled(ctx) || s.PlatformBypass(ctx) {
-		return model, nil
-	}
-	return model.Where(tenantColumn, int(s.Current(ctx))), nil
-}
-
-// PlatformBypass reports whether the current request may bypass tenant filtering.
-func (s *serviceImpl) PlatformBypass(ctx context.Context) bool {
-	if s == nil || s.bizCtxSvc == nil {
-		return false
-	}
-	businessCtx := s.bizCtxSvc.Get(ctx)
-	if businessCtx == nil {
-		return false
-	}
-	return businessCtx.TenantId == int(pkgtenantcap.PLATFORM) &&
-		businessCtx.DataScope == 1 &&
-		!businessCtx.DataScopeUnsupported &&
-		!businessCtx.ActingAsTenant &&
-		!businessCtx.IsImpersonation
-}
-
-// EnsureTenantVisible validates that the current user can access tenantID.
-func (s *serviceImpl) EnsureTenantVisible(ctx context.Context, tenantID TenantID) error {
-	if !s.Enabled(ctx) {
-		return nil
-	}
-	if s.PlatformBypass(ctx) {
-		return nil
-	}
-	if s.Current(ctx) != tenantID {
-		return bizerr.NewCode(pkgtenantcap.CodeTenantForbidden, bizerr.P("tenantId", int(tenantID)))
-	}
-	provider := pkgtenantcap.CurrentProvider()
-	if provider == nil {
-		return nil
-	}
-	businessCtx := s.bizCtxSvc.Get(ctx)
-	if businessCtx == nil || businessCtx.UserId <= 0 {
-		return bizerr.NewCode(pkgtenantcap.CodeTenantForbidden, bizerr.P("tenantId", int(tenantID)))
-	}
-	return provider.ValidateUserInTenant(ctx, businessCtx.UserId, tenantID)
-}
-
-// ResolveTenant delegates HTTP tenant resolution to the provider when enabled.
-func (s *serviceImpl) ResolveTenant(ctx context.Context, r *ghttp.Request) (*pkgtenantcap.ResolverResult, error) {
-	if !s.Enabled(ctx) {
-		return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
-	}
-	if r == nil {
-		return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
-	}
-	provider := pkgtenantcap.CurrentProvider()
-	if provider == nil {
-		return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
-	}
-	return provider.ResolveTenant(ctx, r)
-}
-
-// userMembershipProvider returns the optional user membership capability facet.
-func (s *serviceImpl) userMembershipProvider(ctx context.Context) pkgtenantcap.UserMembershipProvider {
-	if !s.Enabled(ctx) {
-		return nil
-	}
-	provider := pkgtenantcap.CurrentProvider()
-	if provider == nil {
-		return nil
-	}
-	membershipProvider, ok := provider.(pkgtenantcap.UserMembershipProvider)
-	if !ok {
-		return nil
-	}
-	return membershipProvider
-}
-
-// ApplyUserTenantScope constrains user rows by active current-tenant membership.
-func (s *serviceImpl) ApplyUserTenantScope(
-	ctx context.Context,
-	model *gdb.Model,
-	userIDColumn string,
-) (*gdb.Model, bool, error) {
-	provider := s.userMembershipProvider(ctx)
-	if provider == nil {
-		return model, false, nil
-	}
-	return provider.ApplyUserTenantScope(ctx, model, userIDColumn)
-}
-
-// ListUserTenants returns the active tenants visible to one user.
-func (s *serviceImpl) ListUserTenants(ctx context.Context, userID int) ([]pkgtenantcap.TenantInfo, error) {
-	provider := s.userMembershipProvider(ctx)
-	if provider == nil || userID <= 0 {
-		return []pkgtenantcap.TenantInfo{}, nil
-	}
-	return provider.ListUserTenants(ctx, userID)
-}
-
-// ApplyUserTenantFilter constrains platform user-list rows to a requested tenant.
-func (s *serviceImpl) ApplyUserTenantFilter(
-	ctx context.Context,
-	model *gdb.Model,
-	userIDColumn string,
-	tenantID TenantID,
-) (*gdb.Model, bool, error) {
-	provider := s.userMembershipProvider(ctx)
-	if provider == nil {
-		return model, false, nil
-	}
-	return provider.ApplyUserTenantFilter(ctx, model, userIDColumn, tenantID)
-}
-
-// ListUserTenantProjections returns tenant ownership labels for visible users.
-func (s *serviceImpl) ListUserTenantProjections(
-	ctx context.Context,
-	userIDs []int,
-) (map[int]*pkgtenantcap.UserTenantProjection, error) {
-	result := make(map[int]*pkgtenantcap.UserTenantProjection)
-	if len(userIDs) == 0 {
-		return result, nil
-	}
-	provider := s.userMembershipProvider(ctx)
-	if provider == nil {
-		return result, nil
-	}
-	return provider.ListUserTenantProjections(ctx, userIDs)
-}
-
-// ResolveUserTenantAssignment validates requested memberships and returns a host write plan.
-func (s *serviceImpl) ResolveUserTenantAssignment(
-	ctx context.Context,
-	requested []TenantID,
-	mode pkgtenantcap.UserTenantAssignmentMode,
-) (*pkgtenantcap.UserTenantAssignmentPlan, error) {
-	provider := s.userMembershipProvider(ctx)
-	if provider == nil {
-		return &pkgtenantcap.UserTenantAssignmentPlan{PrimaryTenant: s.Current(ctx)}, nil
-	}
-	return provider.ResolveUserTenantAssignment(ctx, requested, mode)
-}
-
-// ReplaceUserTenantAssignments rewrites one user's active tenant ownership rows.
-func (s *serviceImpl) ReplaceUserTenantAssignments(
-	ctx context.Context,
-	userID int,
-	plan *pkgtenantcap.UserTenantAssignmentPlan,
-) error {
-	provider := s.userMembershipProvider(ctx)
-	if provider == nil || plan == nil || !plan.ShouldReplace {
-		return nil
-	}
-	return provider.ReplaceUserTenantAssignments(ctx, userID, plan)
-}
-
-// EnsureUsersInTenant verifies every user has active membership in the tenant.
-func (s *serviceImpl) EnsureUsersInTenant(ctx context.Context, userIDs []int, tenantID TenantID) error {
-	if len(userIDs) == 0 {
-		return nil
-	}
-	provider := s.userMembershipProvider(ctx)
-	if provider == nil {
-		return nil
-	}
-	return provider.EnsureUsersInTenant(ctx, userIDs, tenantID)
-}
-
-// ValidateUserMembershipStartupConsistency returns startup consistency failures.
-func (s *serviceImpl) ValidateUserMembershipStartupConsistency(ctx context.Context) ([]string, error) {
-	provider := s.userMembershipProvider(ctx)
-	if provider == nil {
-		return nil, nil
-	}
-	return provider.ValidateStartupConsistency(ctx)
-}
-
 // noopPluginEnablementReader reports all plugins as disabled when tenantcap is
 // constructed without an explicit enablement reader.
 type noopPluginEnablementReader struct{}
-
-// IsEnabled always returns false.
-func (noopPluginEnablementReader) IsEnabled(_ context.Context, _ string) bool {
-	return false
-}

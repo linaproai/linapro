@@ -4,36 +4,45 @@ package menu
 
 import (
 	"context"
-	"strings"
 
-	"github.com/gogf/gf/v2/database/gdb"
-
-	"lina-core/internal/dao"
-	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/role"
-	"lina-core/pkg/bizerr"
 )
 
 // Service defines the menu service contract.
 type Service interface {
-	// List queries menu list with filters.
+	// List queries a flat menu list with optional name, status, visibility, and
+	// localization filters. Results pass through the configured plugin menu
+	// filter, and localized searches compare both source and translated names.
 	List(ctx context.Context, in ListInput) (*ListOutput, error)
-	// BuildTree builds tree structure from flat menu list.
+	// BuildTree builds a tree structure from a caller-provided flat menu list.
+	// It has no database side effects and preserves the caller's menu visibility
+	// and localization choices.
 	BuildTree(list []*entity.SysMenu) []*MenuItem
-	// GetById retrieves menu by ID.
+	// GetById retrieves one menu by ID. Missing records return a menu not-found
+	// business error.
 	GetById(ctx context.Context, id int) (*entity.SysMenu, error)
-	// GetParentName retrieves parent menu name.
+	// GetParentName retrieves and localizes the parent menu name. Root parents
+	// return the localized root label; lookup failures degrade to an empty name
+	// for display compatibility.
 	GetParentName(ctx context.Context, parentId int) string
-	// Create creates a new menu.
+	// Create creates a new menu after parent/name and icon uniqueness checks.
+	// GoFrame fills timestamps, and successful changes notify the role service
+	// so permission/access-topology caches can refresh.
 	Create(ctx context.Context, in CreateInput) (int, error)
-	// Update updates menu information.
+	// Update updates menu information after existence, uniqueness, and
+	// descendant-move checks. Successful changes notify the role service so
+	// permission/access-topology caches can refresh.
 	Update(ctx context.Context, in UpdateInput) error
-	// Delete deletes a menu.
+	// Delete deletes a menu and, when requested, descendants and role-menu
+	// associations in one transaction. Successful changes notify the role
+	// service so permission/access-topology caches can refresh.
 	Delete(ctx context.Context, in DeleteInput) error
-	// GetTreeSelect returns menu tree for selection (includes all menu types: D/M/B).
+	// GetTreeSelect returns a localized menu tree for selection, including
+	// directory, menu, and button types. Database errors are returned unchanged.
 	GetTreeSelect(ctx context.Context) ([]*MenuTreeNode, error)
-	// GetRoleMenuTree returns menu tree with checked keys for a role.
+	// GetRoleMenuTree returns a localized menu tree plus menu IDs currently
+	// assigned to the role. Role-menu association query errors are propagated.
 	GetRoleMenuTree(ctx context.Context, roleId int) (*RoleMenuTreeOutput, error)
 }
 
@@ -74,50 +83,6 @@ type ListOutput struct {
 	List []*entity.SysMenu // Menu list (flat)
 }
 
-// List queries menu list with filters.
-func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, error) {
-	var (
-		cols             = dao.SysMenu.Columns()
-		m                = dao.SysMenu.Ctx(ctx)
-		nameKeyword      = strings.TrimSpace(in.Name)
-		normalizedSearch = strings.ToLower(nameKeyword)
-	)
-
-	// Apply filters
-	if nameKeyword != "" && !in.Localized {
-		m = m.WhereLike(cols.Name, "%"+nameKeyword+"%")
-	}
-	if in.Status != nil {
-		m = m.Where(cols.Status, *in.Status)
-	}
-	if in.Visible != nil {
-		m = m.Where(cols.Visible, *in.Visible)
-	}
-
-	// Query all, ordered by sort ASC
-	var list []*entity.SysMenu
-	err := m.OrderAsc(cols.ParentId).OrderAsc(cols.Sort).OrderAsc(cols.Id).Scan(&list)
-	if err != nil {
-		return nil, err
-	}
-	list = s.menuFilter.FilterMenus(ctx, list)
-	if in.Localized {
-		localizedList := make([]*entity.SysMenu, 0, len(list))
-		for _, menu := range list {
-			rawName := strings.ToLower(menu.Name)
-			s.localizeMenuEntity(ctx, menu)
-			if nameKeyword == "" || strings.Contains(rawName, normalizedSearch) || strings.Contains(strings.ToLower(menu.Name), normalizedSearch) {
-				localizedList = append(localizedList, menu)
-			}
-		}
-		list = localizedList
-	}
-
-	return &ListOutput{
-		List: list,
-	}, nil
-}
-
 // MenuItem represents a menu node in the tree structure.
 type MenuItem struct {
 	Id         int         `json:"id"`
@@ -141,84 +106,6 @@ type MenuItem struct {
 	Children   []*MenuItem `json:"children"`
 }
 
-// BuildTree builds tree structure from flat menu list.
-func (s *serviceImpl) BuildTree(list []*entity.SysMenu) []*MenuItem {
-	// Build map for quick lookup
-	nodeMap := make(map[int]*MenuItem)
-	for _, m := range list {
-		createdAt := ""
-		if m.CreatedAt != nil {
-			createdAt = m.CreatedAt.String()
-		}
-		updatedAt := ""
-		if m.UpdatedAt != nil {
-			updatedAt = m.UpdatedAt.String()
-		}
-		nodeMap[m.Id] = &MenuItem{
-			Id:         m.Id,
-			ParentId:   m.ParentId,
-			Name:       m.Name,
-			MenuKey:    m.MenuKey,
-			Path:       m.Path,
-			Component:  m.Component,
-			Perms:      m.Perms,
-			Icon:       m.Icon,
-			Type:       m.Type,
-			Sort:       m.Sort,
-			Visible:    m.Visible,
-			Status:     m.Status,
-			IsFrame:    m.IsFrame,
-			IsCache:    m.IsCache,
-			QueryParam: m.QueryParam,
-			Remark:     m.Remark,
-			CreatedAt:  createdAt,
-			UpdatedAt:  updatedAt,
-			Children:   make([]*MenuItem, 0),
-		}
-	}
-
-	// Build tree
-	var roots []*MenuItem
-	for _, m := range list {
-		node := nodeMap[m.Id]
-		if parent, ok := nodeMap[m.ParentId]; ok {
-			parent.Children = append(parent.Children, node)
-		} else {
-			roots = append(roots, node)
-		}
-	}
-
-	return roots
-}
-
-// GetById retrieves menu by ID.
-func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysMenu, error) {
-	var menu *entity.SysMenu
-	err := dao.SysMenu.Ctx(ctx).
-		Where(do.SysMenu{Id: id}).
-		Scan(&menu)
-	if err != nil {
-		return nil, err
-	}
-	if menu == nil {
-		return nil, bizerr.NewCode(CodeMenuNotFound)
-	}
-	return menu, nil
-}
-
-// GetParentName retrieves parent menu name.
-func (s *serviceImpl) GetParentName(ctx context.Context, parentId int) string {
-	if parentId == 0 {
-		return s.i18nSvc.Translate(ctx, "menu.root.title", "Main Category")
-	}
-	parent, err := s.GetById(ctx, parentId)
-	if err != nil {
-		return ""
-	}
-	s.localizeMenuEntity(ctx, parent)
-	return parent.Name
-}
-
 // CreateInput defines input for Create function.
 type CreateInput struct {
 	ParentId   int
@@ -235,41 +122,6 @@ type CreateInput struct {
 	IsCache    int
 	QueryParam string
 	Remark     string
-}
-
-// Create creates a new menu.
-func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
-	// Check name uniqueness under same parent
-	if err := s.checkNameUnique(ctx, in.Name, in.ParentId, 0); err != nil {
-		return 0, err
-	}
-	if err := s.checkIconUnique(ctx, in.Type, in.Icon, 0); err != nil {
-		return 0, err
-	}
-
-	// Insert menu (GoFrame auto-fills created_at and updated_at)
-	id, err := dao.SysMenu.Ctx(ctx).Data(do.SysMenu{
-		ParentId:   in.ParentId,
-		Name:       in.Name,
-		Path:       in.Path,
-		Component:  in.Component,
-		Perms:      in.Perms,
-		Icon:       normalizeMenuIcon(in.Icon),
-		Type:       in.Type,
-		Sort:       in.Sort,
-		Visible:    in.Visible,
-		Status:     in.Status,
-		IsFrame:    in.IsFrame,
-		IsCache:    in.IsCache,
-		QueryParam: in.QueryParam,
-		Remark:     in.Remark,
-	}).InsertAndGetId()
-	if err != nil {
-		return 0, err
-	}
-	s.roleSvc.NotifyAccessTopologyChanged(ctx)
-
-	return int(id), nil
 }
 
 // UpdateInput defines input for Update function.
@@ -291,162 +143,10 @@ type UpdateInput struct {
 	Remark     *string
 }
 
-// Update updates menu information.
-func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
-	// Check menu exists
-	menu, err := s.GetById(ctx, in.Id)
-	if err != nil {
-		return err
-	}
-
-	// Check name uniqueness under same parent (excluding self)
-	parentId := menu.ParentId
-	if in.ParentId != nil {
-		parentId = *in.ParentId
-	}
-	if err := s.checkNameUnique(ctx, in.Name, parentId, in.Id); err != nil {
-		return err
-	}
-
-	// Check not moving to self or descendant
-	if in.ParentId != nil {
-		if *in.ParentId == in.Id {
-			return bizerr.NewCode(CodeMenuMoveToSelfDenied)
-		}
-		// Check if new parent is a descendant
-		if s.isDescendant(ctx, in.Id, *in.ParentId) {
-			return bizerr.NewCode(CodeMenuMoveToDescendantDenied)
-		}
-	}
-
-	menuType := menu.Type
-	if in.Type != nil {
-		menuType = *in.Type
-	}
-	menuIcon := menu.Icon
-	if in.Icon != nil {
-		menuIcon = *in.Icon
-	}
-	if err := s.checkIconUnique(ctx, menuType, menuIcon, in.Id); err != nil {
-		return err
-	}
-
-	data := do.SysMenu{}
-	if in.ParentId != nil {
-		data.ParentId = *in.ParentId
-	}
-	if in.Name != "" {
-		data.Name = in.Name
-	}
-	if in.Path != nil {
-		data.Path = *in.Path
-	}
-	if in.Component != nil {
-		data.Component = *in.Component
-	}
-	if in.Perms != nil {
-		data.Perms = *in.Perms
-	}
-	if in.Icon != nil {
-		data.Icon = normalizeMenuIcon(*in.Icon)
-	}
-	if in.Type != nil {
-		data.Type = *in.Type
-	}
-	if in.Sort != nil {
-		data.Sort = *in.Sort
-	}
-	if in.Visible != nil {
-		data.Visible = *in.Visible
-	}
-	if in.Status != nil {
-		data.Status = *in.Status
-	}
-	if in.IsFrame != nil {
-		data.IsFrame = *in.IsFrame
-	}
-	if in.IsCache != nil {
-		data.IsCache = *in.IsCache
-	}
-	if in.QueryParam != nil {
-		data.QueryParam = *in.QueryParam
-	}
-	if in.Remark != nil {
-		data.Remark = *in.Remark
-	}
-
-	_, err = dao.SysMenu.Ctx(ctx).Where(do.SysMenu{Id: in.Id}).Data(data).Update()
-	if err != nil {
-		return err
-	}
-	s.roleSvc.NotifyAccessTopologyChanged(ctx)
-	return nil
-}
-
 // DeleteInput defines input for Delete function.
 type DeleteInput struct {
 	Id            int
 	CascadeDelete bool
-}
-
-// Delete deletes a menu.
-func (s *serviceImpl) Delete(ctx context.Context, in DeleteInput) error {
-	// Check menu exists
-	_, err := s.GetById(ctx, in.Id)
-	if err != nil {
-		return err
-	}
-
-	// Check children
-	cols := dao.SysMenu.Columns()
-	childCount, err := dao.SysMenu.Ctx(ctx).
-		Where(cols.ParentId, in.Id).
-		Count()
-	if err != nil {
-		return err
-	}
-
-	if childCount > 0 && !in.CascadeDelete {
-		return bizerr.NewCode(CodeMenuHasChildrenDeleteDenied)
-	}
-
-	// Use transaction for cascade delete
-	err = dao.SysMenu.Ctx(ctx).Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
-		// Collect menu IDs to delete
-		menuIds := []int{in.Id}
-		if in.CascadeDelete && childCount > 0 {
-			// Get all descendant menu IDs
-			descendants, err := s.getDescendantIds(ctx, in.Id)
-			if err != nil {
-				return err
-			}
-			menuIds = append(menuIds, descendants...)
-		}
-
-		// Delete menus
-		_, err = dao.SysMenu.Ctx(ctx).
-			WhereIn(cols.Id, menuIds).
-			Delete()
-		if err != nil {
-			return err
-		}
-
-		// Delete role-menu associations
-		rmCols := dao.SysRoleMenu.Columns()
-		_, err = dao.SysRoleMenu.Ctx(ctx).
-			WhereIn(rmCols.MenuId, menuIds).
-			Delete()
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	s.roleSvc.NotifyAccessTopologyChanged(ctx)
-	return nil
 }
 
 // MenuTreeNode represents a node in the tree select.
@@ -459,136 +159,8 @@ type MenuTreeNode struct {
 	Children []*MenuTreeNode `json:"children"`
 }
 
-// GetTreeSelect returns menu tree for selection (includes all menu types: D/M/B).
-func (s *serviceImpl) GetTreeSelect(ctx context.Context) ([]*MenuTreeNode, error) {
-	cols := dao.SysMenu.Columns()
-
-	// Query all menus (including button type for permission selection)
-	var list []*entity.SysMenu
-	err := dao.SysMenu.Ctx(ctx).
-		OrderAsc(cols.ParentId).OrderAsc(cols.Sort).OrderAsc(cols.Id).
-		Scan(&list)
-	if err != nil {
-		return nil, err
-	}
-	s.localizeMenuEntities(ctx, list)
-
-	return s.buildPermissionTreeNodes(ctx, list), nil
-}
-
 // RoleMenuTreeOutput defines output for role menu tree.
 type RoleMenuTreeOutput struct {
 	Menus       []*MenuTreeNode `json:"menus"`
 	CheckedKeys []int           `json:"checkedKeys"`
-}
-
-// GetRoleMenuTree returns menu tree with checked keys for a role.
-func (s *serviceImpl) GetRoleMenuTree(ctx context.Context, roleId int) (*RoleMenuTreeOutput, error) {
-	// Get menu tree
-	menus, err := s.GetTreeSelect(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get checked menu IDs for the role
-	rmCols := dao.SysRoleMenu.Columns()
-	var roleMenus []*entity.SysRoleMenu
-	err = dao.SysRoleMenu.Ctx(ctx).
-		Where(rmCols.RoleId, roleId).
-		Scan(&roleMenus)
-	if err != nil {
-		return nil, err
-	}
-
-	checkedKeys := make([]int, 0, len(roleMenus))
-	for _, rm := range roleMenus {
-		checkedKeys = append(checkedKeys, rm.MenuId)
-	}
-
-	return &RoleMenuTreeOutput{
-		Menus:       menus,
-		CheckedKeys: checkedKeys,
-	}, nil
-}
-
-// checkNameUnique checks if the menu name is unique under the same parent.
-func (s *serviceImpl) checkNameUnique(ctx context.Context, name string, parentId int, excludeId int) error {
-	cols := dao.SysMenu.Columns()
-	m := dao.SysMenu.Ctx(ctx).
-		Where(cols.Name, name).
-		Where(cols.ParentId, parentId)
-	if excludeId > 0 {
-		m = m.WhereNot(cols.Id, excludeId)
-	}
-	count, err := m.Count()
-	if err != nil {
-		return err
-	}
-	if count > 0 {
-		return bizerr.NewCode(CodeMenuNameExists)
-	}
-	return nil
-}
-
-// isDescendant checks if targetId is a descendant of parentId.
-func (s *serviceImpl) isDescendant(ctx context.Context, parentId int, targetId int) bool {
-	if parentId == targetId {
-		return false
-	}
-	cols := dao.SysMenu.Columns()
-
-	var menus []*entity.SysMenu
-	err := dao.SysMenu.Ctx(ctx).
-		Fields(cols.Id, cols.ParentId).
-		Scan(&menus)
-	if err != nil {
-		return false
-	}
-
-	childrenByParent := make(map[int][]int, len(menus))
-	for _, menu := range menus {
-		childrenByParent[menu.ParentId] = append(childrenByParent[menu.ParentId], menu.Id)
-	}
-
-	queue := append([]int(nil), childrenByParent[parentId]...)
-	visited := make(map[int]struct{}, len(menus))
-	for len(queue) > 0 {
-		currentId := queue[0]
-		queue = queue[1:]
-		if _, ok := visited[currentId]; ok {
-			continue
-		}
-		visited[currentId] = struct{}{}
-		if currentId == targetId {
-			return true
-		}
-		queue = append(queue, childrenByParent[currentId]...)
-	}
-	return false
-}
-
-// getDescendantIds returns all descendant menu IDs.
-func (s *serviceImpl) getDescendantIds(ctx context.Context, menuId int) ([]int, error) {
-	cols := dao.SysMenu.Columns()
-
-	var result []int
-	parentIds := []int{menuId}
-
-	for len(parentIds) > 0 {
-		var children []*entity.SysMenu
-		err := dao.SysMenu.Ctx(ctx).
-			WhereIn(cols.ParentId, parentIds).
-			Scan(&children)
-		if err != nil {
-			return nil, err
-		}
-
-		parentIds = make([]int, 0)
-		for _, child := range children {
-			result = append(result, child.Id)
-			parentIds = append(parentIds, child.Id)
-		}
-	}
-
-	return result, nil
 }

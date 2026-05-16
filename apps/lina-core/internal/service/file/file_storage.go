@@ -1,3 +1,7 @@
+// file_storage.go defines the storage backend contract used by file upload,
+// download, deletion, and URL generation paths. Implementations are expected
+// to preserve caller context for cancellation and storage-specific failures.
+
 package file
 
 import (

@@ -10,8 +10,6 @@ import (
 	"github.com/gogf/gf/v2/errors/gcode"
 
 	"lina-core/pkg/bizerr"
-	internalpostgres "lina-core/pkg/dialect/internal/postgres"
-	internalsqlite "lina-core/pkg/dialect/internal/sqlite"
 )
 
 // Supported database link prefixes.
@@ -44,24 +42,36 @@ var (
 // Dialect abstracts database-engine behavior that cannot be delegated to
 // GoFrame's query builder.
 type Dialect interface {
-	// Name returns the stable dialect name used in logs and diagnostics.
+	// Name returns the stable dialect name used in logs, diagnostics, cache keys,
+	// and startup decisions. The value must not depend on the active connection.
 	Name() string
 	// TranslateDDL converts one PostgreSQL-source SQL asset into SQL executable by
 	// this dialect. sourceName is a file path or embedded asset identifier used
-	// for error diagnostics.
+	// only for error diagnostics; ddl is not modified in-place. Implementations
+	// return an error when the asset uses SQL outside the supported migration
+	// subset, and callers must treat the output as database-specific init SQL.
 	TranslateDDL(ctx context.Context, sourceName string, ddl string) (string, error)
 	// PrepareDatabase prepares the configured database before init SQL assets run.
+	// link is the raw database.default.link value and rebuild controls destructive
+	// local reset behavior for initialization flows. Implementations return errors
+	// for unreachable servers, invalid filesystem paths, or unsupported rebuild
+	// requests; they do not alter routes, permissions, i18n resources, or caches.
 	PrepareDatabase(ctx context.Context, link string, rebuild bool) error
 	// SupportsCluster reports whether this database can back multi-node
-	// coordination state.
+	// coordination state. Callers use this to decide whether cluster-mode cache
+	// coordination can be enabled for the active database.
 	SupportsCluster() bool
-	// DatabaseVersion returns a display-ready database engine and version label.
+	// DatabaseVersion returns a display-ready database engine and version label
+	// for the provided GoFrame database handle. It returns an error when the
+	// version query cannot be executed.
 	DatabaseVersion(ctx context.Context, db gdb.DB) (string, error)
 	// QueryTableMetadata returns metadata for the named tables that exist in
-	// the requested schema. Missing table names are skipped.
+	// the requested schema. Missing table names are skipped and database errors
+	// are returned to the caller without fallback data.
 	QueryTableMetadata(ctx context.Context, db gdb.DB, schema string, tableNames []string) ([]TableMeta, error)
 	// OnStartup applies dialect-specific runtime bootstrap behavior before
-	// cluster services start.
+	// cluster services start. Implementations may use runtime to adjust in-memory
+	// cluster compatibility flags, and return errors for startup blockers.
 	OnStartup(ctx context.Context, runtime RuntimeConfig) error
 }
 
@@ -76,30 +86,14 @@ type TableMeta struct {
 // dialect hooks. Host config.Service adapts to this interface internally.
 type RuntimeConfig interface {
 	// OverrideClusterEnabledForDialect locks cluster.enabled in memory for the
-	// current process when a dialect cannot support cluster mode.
+	// current process when a dialect cannot support cluster mode. The call is a
+	// startup-only compatibility adjustment and must not mutate persisted config.
 	OverrideClusterEnabledForDialect(value bool)
 }
 
 // From resolves one database dialect from the database.default.link prefix.
 func From(link string) (Dialect, error) {
-	normalized := strings.TrimSpace(link)
-	if normalized == "" {
-		return nil, bizerr.NewCode(CodeDialectLinkRequired)
-	}
-	switch {
-	case strings.HasPrefix(normalized, pgsqlPrefix):
-		return postgresDialect{}, nil
-	case strings.HasPrefix(normalized, sqlitePrefix):
-		return sqliteDialect{link: normalized}, nil
-	case strings.HasPrefix(normalized, "mysql:"):
-		return nil, bizerr.NewCode(CodeDialectMySQLUnsupported)
-	default:
-		prefix := normalized
-		if index := strings.Index(prefix, ":"); index >= 0 {
-			prefix = prefix[:index+1]
-		}
-		return nil, bizerr.NewCode(CodeDialectUnsupported, bizerr.P("prefix", prefix))
-	}
+	return fromLink(link)
 }
 
 // FromDatabase resolves one database dialect from the active GoFrame database
@@ -119,109 +113,5 @@ func FromDatabase(db gdb.DB) (Dialect, error) {
 // DatabaseVersion returns a display-ready database engine and version label for
 // the active GoFrame database.
 func DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
-	dbDialect, err := FromDatabase(db)
-	if err != nil {
-		return "", err
-	}
-	return dbDialect.DatabaseVersion(ctx, db)
-}
-
-// postgresDialect is the public package wrapper for the internal PostgreSQL dialect.
-type postgresDialect struct{}
-
-// Name returns the stable PostgreSQL dialect name.
-func (postgresDialect) Name() string {
-	return internalpostgres.Name
-}
-
-// TranslateDDL leaves PostgreSQL-source SQL unchanged.
-func (postgresDialect) TranslateDDL(ctx context.Context, sourceName string, ddl string) (string, error) {
-	return internalpostgres.TranslateDDL(ctx, sourceName, ddl)
-}
-
-// PrepareDatabase creates the configured PostgreSQL database before init SQL runs.
-func (postgresDialect) PrepareDatabase(ctx context.Context, link string, rebuild bool) error {
-	return internalpostgres.PrepareDatabase(ctx, link, rebuild)
-}
-
-// SupportsCluster reports whether PostgreSQL can back cluster coordination tables.
-func (postgresDialect) SupportsCluster() bool {
-	return internalpostgres.SupportsCluster()
-}
-
-// DatabaseVersion returns the PostgreSQL server version label.
-func (postgresDialect) DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
-	return internalpostgres.DatabaseVersion(ctx, db)
-}
-
-// QueryTableMetadata returns existing PostgreSQL table names and comments.
-func (postgresDialect) QueryTableMetadata(ctx context.Context, db gdb.DB, schema string, tableNames []string) ([]TableMeta, error) {
-	metas, err := internalpostgres.QueryTableMetadata(ctx, db, schema, tableNames)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]TableMeta, 0, len(metas))
-	for _, meta := range metas {
-		result = append(result, TableMeta{
-			TableName:    meta.TableName,
-			TableComment: meta.TableComment,
-		})
-	}
-	return result, nil
-}
-
-// OnStartup has no PostgreSQL-specific startup side effects.
-func (postgresDialect) OnStartup(ctx context.Context, runtime RuntimeConfig) error {
-	return internalpostgres.OnStartup(ctx, runtime)
-}
-
-// sqliteDialect is the public package wrapper for the internal SQLite dialect.
-type sqliteDialect struct {
-	link string // link stores the source database link for startup diagnostics.
-}
-
-// Name returns the stable SQLite dialect name.
-func (sqliteDialect) Name() string {
-	return internalsqlite.Name
-}
-
-// TranslateDDL converts the project's PostgreSQL-source SQL subset to SQLite SQL.
-func (sqliteDialect) TranslateDDL(ctx context.Context, sourceName string, ddl string) (string, error) {
-	return internalsqlite.TranslateDDL(ctx, sourceName, ddl)
-}
-
-// PrepareDatabase prepares the SQLite database file before init SQL runs.
-func (sqliteDialect) PrepareDatabase(ctx context.Context, link string, rebuild bool) error {
-	return internalsqlite.PrepareDatabase(ctx, link, rebuild)
-}
-
-// SupportsCluster reports whether SQLite can back cluster coordination tables.
-func (sqliteDialect) SupportsCluster() bool {
-	return internalsqlite.SupportsCluster()
-}
-
-// DatabaseVersion returns the SQLite library version label.
-func (sqliteDialect) DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
-	return internalsqlite.DatabaseVersion(ctx, db)
-}
-
-// QueryTableMetadata returns SQLite table names with empty comments.
-func (sqliteDialect) QueryTableMetadata(ctx context.Context, db gdb.DB, schema string, tableNames []string) ([]TableMeta, error) {
-	metas, err := internalsqlite.QueryTableMetadata(ctx, db, schema, tableNames)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]TableMeta, 0, len(metas))
-	for _, meta := range metas {
-		result = append(result, TableMeta{
-			TableName:    meta.TableName,
-			TableComment: meta.TableComment,
-		})
-	}
-	return result, nil
-}
-
-// OnStartup applies SQLite-specific startup behavior before cluster services start.
-func (d sqliteDialect) OnStartup(ctx context.Context, runtime RuntimeConfig) error {
-	return internalsqlite.OnStartup(ctx, d.link, runtime)
+	return databaseVersion(ctx, db)
 }

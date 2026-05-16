@@ -1,3 +1,5 @@
+// Package usermsg exposes current-user inbox message read and mutation
+// contracts backed by the unified notification service.
 package usermsg
 
 import (
@@ -7,7 +9,6 @@ import (
 
 	"lina-core/internal/service/bizctx"
 	notifysvc "lina-core/internal/service/notify"
-	"lina-core/pkg/bizerr"
 )
 
 // Stable i18n key convention used to localize inbox category labels and tag
@@ -34,18 +35,28 @@ const (
 // Service defines the usermsg service contract.
 type Service interface {
 	// Get returns one current-user message detail for preview consumption.
+	// The lookup is constrained to the authenticated user in context and
+	// delegates ownership checks to the notification inbox service.
 	Get(ctx context.Context, id int64) (*MessageDetail, error)
-	// UnreadCount returns unread message count for current user.
+	// UnreadCount returns unread message count for the authenticated user.
+	// Missing authentication returns a usermsg business error; notification
+	// backend errors are propagated.
 	UnreadCount(ctx context.Context) (int, error)
-	// List queries message list for current user with pagination.
+	// List queries messages for the authenticated user with pagination. Category
+	// labels and colors are resolved through runtime i18n resources with stable
+	// fallbacks; notification backend errors are propagated.
 	List(ctx context.Context, in ListInput) (*ListOutput, error)
-	// MarkRead marks a single message as read.
+	// MarkRead marks a single message as read for the authenticated user only.
+	// Ownership and visibility are enforced by the notification inbox service.
 	MarkRead(ctx context.Context, id int64) error
-	// MarkReadAll marks all messages as read for current user.
+	// MarkReadAll marks all messages as read for the authenticated user only.
+	// The operation is idempotent for already-read messages.
 	MarkReadAll(ctx context.Context) error
-	// Delete deletes a single message for current user.
+	// Delete deletes a single message for the authenticated user only. Ownership
+	// and visibility are enforced before mutation by the notification service.
 	Delete(ctx context.Context, id int64) error
-	// Clear deletes all messages for current user.
+	// Clear deletes all messages for the authenticated user only. Missing
+	// authentication returns a usermsg business error.
 	Clear(ctx context.Context) error
 }
 
@@ -72,79 +83,6 @@ func New(bizCtxSvc bizctx.Service, notifySvc notifysvc.Service, i18nSvc usermsgI
 		notifySvc: notifySvc,
 		i18nSvc:   i18nSvc,
 	}
-}
-
-// resolveCategoryCode normalizes an inbox message category code, falling back
-// to the canonical "other" bucket when the sender did not declare one.
-func resolveCategoryCode(categoryCode string) string {
-	if categoryCode == "" {
-		return usermsgCategoryFallbackCode
-	}
-	return categoryCode
-}
-
-// localizeCategoryLabel resolves the localized category display label for the
-// given category code. Translation is looked up at
-// `notify.category.{code}.label`. If the requested code has no translation
-// resource, it falls back to the canonical "other" bucket and finally to a
-// safety literal so the inbox never renders an empty category cell.
-func (s *serviceImpl) localizeCategoryLabel(ctx context.Context, categoryCode string) string {
-	if s == nil || s.i18nSvc == nil {
-		return usermsgCategoryDefaultLabel
-	}
-	code := resolveCategoryCode(categoryCode)
-	key := usermsgCategoryI18nNamespace + code + usermsgCategoryLabelI18nSuffix
-	if label := s.i18nSvc.Translate(ctx, key, ""); label != "" {
-		return label
-	}
-	if code != usermsgCategoryFallbackCode {
-		fallbackKey := usermsgCategoryI18nNamespace + usermsgCategoryFallbackCode + usermsgCategoryLabelI18nSuffix
-		if label := s.i18nSvc.Translate(ctx, fallbackKey, ""); label != "" {
-			return label
-		}
-	}
-	return usermsgCategoryDefaultLabel
-}
-
-// localizeCategoryColor resolves the localized category tag color for the
-// given category code. Color is treated as a localizable display attribute so
-// senders can override their preferred palette per locale if needed; the
-// resolution path mirrors localizeCategoryLabel and falls back to a generic
-// neutral color.
-func (s *serviceImpl) localizeCategoryColor(ctx context.Context, categoryCode string) string {
-	if s == nil || s.i18nSvc == nil {
-		return usermsgCategoryDefaultColor
-	}
-	code := resolveCategoryCode(categoryCode)
-	key := usermsgCategoryI18nNamespace + code + usermsgCategoryColorI18nSuffix
-	if color := s.i18nSvc.Translate(ctx, key, ""); color != "" {
-		return color
-	}
-	if code != usermsgCategoryFallbackCode {
-		fallbackKey := usermsgCategoryI18nNamespace + usermsgCategoryFallbackCode + usermsgCategoryColorI18nSuffix
-		if color := s.i18nSvc.Translate(ctx, fallbackKey, ""); color != "" {
-			return color
-		}
-	}
-	return usermsgCategoryDefaultColor
-}
-
-// getCurrentUserId extracts current user ID from context.
-func (s *serviceImpl) getCurrentUserId(ctx context.Context) (int64, error) {
-	bizCtx := s.bizCtxSvc.Get(ctx)
-	if bizCtx == nil || bizCtx.UserId == 0 {
-		return 0, bizerr.NewCode(CodeUserMsgNotAuthenticated)
-	}
-	return int64(bizCtx.UserId), nil
-}
-
-// UnreadCount returns unread message count for current user.
-func (s *serviceImpl) UnreadCount(ctx context.Context) (int, error) {
-	userId, err := s.getCurrentUserId(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return s.notifySvc.InboxUnreadCount(ctx, userId)
 }
 
 // ListInput defines input for List function.
@@ -187,80 +125,4 @@ type MessageDetail struct {
 	Content       string      // Renderable message body content
 	CreatedByName string      // Sender display name
 	CreatedAt     *gtime.Time // Message creation time
-}
-
-// List queries message list for current user with pagination.
-func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, error) {
-	userId, err := s.getCurrentUserId(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	out, err := s.notifySvc.InboxList(ctx, notifysvc.InboxListInput{
-		UserID:   userId,
-		PageNum:  in.PageNum,
-		PageSize: in.PageSize,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	items := make([]*MessageItem, 0, len(out.List))
-	for _, item := range out.List {
-		if item == nil {
-			continue
-		}
-		categoryCode := resolveCategoryCode(item.CategoryCode)
-		items = append(items, &MessageItem{
-			Id:           item.Id,
-			UserId:       item.UserID,
-			Title:        item.Title,
-			CategoryCode: categoryCode,
-			TypeLabel:    s.localizeCategoryLabel(ctx, categoryCode),
-			TypeColor:    s.localizeCategoryColor(ctx, categoryCode),
-			SourceType:   item.SourceType,
-			SourceId:     item.SourceID,
-			IsRead:       item.IsRead,
-			ReadAt:       item.ReadAt,
-			CreatedAt:    item.CreatedAt,
-		})
-	}
-
-	return &ListOutput{List: items, Total: out.Total}, nil
-}
-
-// MarkRead marks a single message as read.
-func (s *serviceImpl) MarkRead(ctx context.Context, id int64) error {
-	userId, err := s.getCurrentUserId(ctx)
-	if err != nil {
-		return err
-	}
-	return s.notifySvc.InboxMarkRead(ctx, userId, id)
-}
-
-// MarkReadAll marks all messages as read for current user.
-func (s *serviceImpl) MarkReadAll(ctx context.Context) error {
-	userId, err := s.getCurrentUserId(ctx)
-	if err != nil {
-		return err
-	}
-	return s.notifySvc.InboxMarkAllRead(ctx, userId)
-}
-
-// Delete deletes a single message for current user.
-func (s *serviceImpl) Delete(ctx context.Context, id int64) error {
-	userId, err := s.getCurrentUserId(ctx)
-	if err != nil {
-		return err
-	}
-	return s.notifySvc.InboxDelete(ctx, userId, id)
-}
-
-// Clear deletes all messages for current user.
-func (s *serviceImpl) Clear(ctx context.Context) error {
-	userId, err := s.getCurrentUserId(ctx)
-	if err != nil {
-		return err
-	}
-	return s.notifySvc.InboxClear(ctx, userId)
 }

@@ -7,10 +7,8 @@ import (
 
 	"github.com/gogf/gf/v2/database/gdb"
 
-	"lina-core/internal/dao"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/orgcap"
-	"lina-core/pkg/bizerr"
 )
 
 // Scope represents the effective data range stored on enabled roles.
@@ -50,18 +48,27 @@ type Context struct {
 	IsSuperAdmin bool  // IsSuperAdmin reports whether the user bypasses data scope.
 }
 
-// Service defines shared data-scope operations used by host modules.
+// Service defines shared role data-scope operations used by host modules before
+// reading, mutating, or aggregating governed user-owned rows.
 type Service interface {
-	// Current resolves the current request user's effective data-scope snapshot.
+	// Current resolves the current request user's effective data-scope snapshot
+	// from bizctx and the role access provider. Missing authentication returns a
+	// bizerr not-authenticated code; missing role state resolves to ScopeNone.
 	Current(ctx context.Context) (*Context, error)
-	// ApplyUserScope constrains a model by a user-owner column.
+	// ApplyUserScope constrains a model by a user-owner column and returns empty
+	// when the caller should short-circuit to no rows. Department scope delegates
+	// to orgcap when available and otherwise falls back to self scope.
 	ApplyUserScope(ctx context.Context, model *gdb.Model, userIDColumn string) (*gdb.Model, bool, error)
 	// ApplyUserScopeWithBypass constrains a model by a user-owner column while
-	// preserving rows that match an explicit bypass condition.
+	// preserving rows that match an explicit bypass condition, such as system
+	// owned jobs. The bypass branch is composed at database-query time so rows
+	// outside data scope are not fetched and filtered in memory.
 	ApplyUserScopeWithBypass(ctx context.Context, model *gdb.Model, userIDColumn string, bypassColumn string, bypassValue any) (*gdb.Model, bool, error)
-	// EnsureUsersVisible verifies all target user IDs are visible.
+	// EnsureUsersVisible verifies all target user IDs are visible under the
+	// current role data scope before write or relationship operations proceed.
 	EnsureUsersVisible(ctx context.Context, userIDs []int) error
-	// EnsureRowsVisible verifies all rows matched by model remain visible after scope injection.
+	// EnsureRowsVisible verifies the caller-provided row set remains visible
+	// after scope injection; mismatches return a data-scope denied bizerr.
 	EnsureRowsVisible(ctx context.Context, model *gdb.Model, userIDColumn string, expectedCount int) error
 }
 
@@ -79,162 +86,4 @@ func New(bizCtxSvc bizctx.Service, roleSvc AccessProvider, orgCapSvc orgcap.Serv
 		roleSvc:   roleSvc,
 		orgCapSvc: orgCapSvc,
 	}
-}
-
-// Current resolves the current request user's widest enabled role data-scope.
-func (s *serviceImpl) Current(ctx context.Context) (*Context, error) {
-	if s == nil || s.bizCtxSvc == nil {
-		return nil, bizerr.NewCode(CodeDataScopeNotAuthenticated)
-	}
-	bizCtx := s.bizCtxSvc.Get(ctx)
-	if bizCtx == nil || bizCtx.UserId <= 0 {
-		return nil, bizerr.NewCode(CodeDataScopeNotAuthenticated)
-	}
-
-	if s.roleSvc == nil {
-		return &Context{UserID: bizCtx.UserId, Scope: ScopeNone}, nil
-	}
-
-	snapshot, err := s.roleSvc.GetUserDataScopeSnapshot(ctx, bizCtx.UserId)
-	if err != nil {
-		return nil, err
-	}
-	if snapshot == nil || snapshot.UserID != bizCtx.UserId {
-		return &Context{UserID: bizCtx.UserId, Scope: ScopeNone}, nil
-	}
-	return &Context{
-		UserID:       snapshot.UserID,
-		Scope:        snapshot.Scope,
-		IsSuperAdmin: snapshot.IsSuperAdmin,
-	}, nil
-}
-
-// ApplyUserScope constrains a model by a user-owner column.
-func (s *serviceImpl) ApplyUserScope(ctx context.Context, model *gdb.Model, userIDColumn string) (*gdb.Model, bool, error) {
-	scopeCtx, err := s.Current(ctx)
-	if err != nil {
-		return nil, false, err
-	}
-	return s.applyResolvedScope(ctx, scopeCtx, model, userIDColumn)
-}
-
-// ApplyUserScopeWithBypass constrains a model by user scope while preserving
-// rows matching a bypass condition, such as built-in scheduled jobs.
-func (s *serviceImpl) ApplyUserScopeWithBypass(
-	ctx context.Context,
-	model *gdb.Model,
-	userIDColumn string,
-	bypassColumn string,
-	bypassValue any,
-) (*gdb.Model, bool, error) {
-	scopeCtx, err := s.Current(ctx)
-	if err != nil {
-		return nil, false, err
-	}
-	if scopeCtx.Scope == ScopeAll || scopeCtx.Scope == ScopeTenant {
-		return model, false, nil
-	}
-
-	builder := model.Builder().Where(bypassColumn, bypassValue)
-	switch scopeCtx.Scope {
-	case ScopeDept:
-		if s.orgCapabilityEnabled(ctx) {
-			subQuery, empty, buildErr := s.orgCapSvc.BuildUserDeptScopeExists(ctx, userIDColumn, scopeCtx.UserID)
-			if buildErr != nil {
-				return nil, false, buildErr
-			}
-			if !empty {
-				builder = builder.WhereOrf("EXISTS ?", subQuery)
-			}
-			return model.Where(builder), false, nil
-		}
-		builder = builder.WhereOr(userIDColumn, scopeCtx.UserID)
-		return model.Where(builder), false, nil
-	case ScopeSelf:
-		builder = builder.WhereOr(userIDColumn, scopeCtx.UserID)
-		return model.Where(builder), false, nil
-	default:
-		return model.Where(builder), false, nil
-	}
-}
-
-// EnsureUsersVisible verifies all target user IDs are visible.
-func (s *serviceImpl) EnsureUsersVisible(ctx context.Context, userIDs []int) error {
-	normalizedIDs := normalizeUserIDs(userIDs)
-	if len(normalizedIDs) == 0 {
-		return nil
-	}
-	model := dao.SysUser.Ctx(ctx).WhereIn(dao.SysUser.Columns().Id, normalizedIDs)
-	return s.EnsureRowsVisible(ctx, model, qualifiedColumn(dao.SysUser.Table(), dao.SysUser.Columns().Id), len(normalizedIDs))
-}
-
-// EnsureRowsVisible verifies all rows matched by model remain visible after
-// scope injection.
-func (s *serviceImpl) EnsureRowsVisible(ctx context.Context, model *gdb.Model, userIDColumn string, expectedCount int) error {
-	if expectedCount <= 0 {
-		return nil
-	}
-	scopedModel, empty, err := s.ApplyUserScope(ctx, model, userIDColumn)
-	if err != nil {
-		return err
-	}
-	if empty {
-		return bizerr.NewCode(CodeDataScopeDenied)
-	}
-	count, err := scopedModel.Count()
-	if err != nil {
-		return err
-	}
-	if count != expectedCount {
-		return bizerr.NewCode(CodeDataScopeDenied)
-	}
-	return nil
-}
-
-// applyResolvedScope applies one already-resolved scope snapshot to a model.
-func (s *serviceImpl) applyResolvedScope(ctx context.Context, scopeCtx *Context, model *gdb.Model, userIDColumn string) (*gdb.Model, bool, error) {
-	if scopeCtx == nil {
-		return nil, false, bizerr.NewCode(CodeDataScopeNotAuthenticated)
-	}
-	switch scopeCtx.Scope {
-	case ScopeAll, ScopeTenant:
-		return model, false, nil
-	case ScopeDept:
-		if s.orgCapabilityEnabled(ctx) {
-			return s.orgCapSvc.ApplyUserDeptScope(ctx, model, userIDColumn, scopeCtx.UserID)
-		}
-		return model.Where(userIDColumn, scopeCtx.UserID), false, nil
-	case ScopeSelf:
-		return model.Where(userIDColumn, scopeCtx.UserID), false, nil
-	default:
-		return model, true, nil
-	}
-}
-
-// orgCapabilityEnabled reports whether organization capability can participate
-// in department-scope filtering.
-func (s *serviceImpl) orgCapabilityEnabled(ctx context.Context) bool {
-	return s != nil && s.orgCapSvc != nil && s.orgCapSvc.Enabled(ctx)
-}
-
-// normalizeUserIDs removes duplicate target IDs for deterministic visibility checks.
-func normalizeUserIDs(userIDs []int) []int {
-	normalizedIDs := make([]int, 0, len(userIDs))
-	seen := make(map[int]struct{}, len(userIDs))
-	for _, userID := range userIDs {
-		if userID <= 0 {
-			continue
-		}
-		if _, ok := seen[userID]; ok {
-			continue
-		}
-		seen[userID] = struct{}{}
-		normalizedIDs = append(normalizedIDs, userID)
-	}
-	return normalizedIDs
-}
-
-// qualifiedColumn returns one fully qualified table column name.
-func qualifiedColumn(table string, column string) string {
-	return table + "." + column
 }

@@ -184,11 +184,6 @@ func New(options ...Option) Service {
 	return &serviceImpl{backend: backend}
 }
 
-// String returns the canonical owner type value.
-func (value OwnerType) String() string {
-	return string(value)
-}
-
 // TTLFromSeconds converts the plugin host-service wire TTL into the duration
 // used by the backend-agnostic kvcache service contract.
 func TTLFromSeconds(seconds int64) time.Duration {

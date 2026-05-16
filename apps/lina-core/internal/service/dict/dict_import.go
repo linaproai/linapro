@@ -1,3 +1,7 @@
+// dict_import.go implements combined dictionary type and data import from
+// Excel workbooks. The file validates dictionary identifiers, tracks per-row
+// failures, and keeps database writes compatible with existing dict semantics.
+
 package dict
 
 import (

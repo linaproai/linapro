@@ -12,6 +12,8 @@ import (
 
 // Closer describes one resource that can be closed.
 type Closer interface {
+	// Close releases the underlying resource and returns any cleanup failure so
+	// callers can fold it into their existing error return path.
 	Close() error
 }
 

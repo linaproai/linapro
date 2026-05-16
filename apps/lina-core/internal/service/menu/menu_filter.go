@@ -1,6 +1,8 @@
 // menu_filter.go declares the narrow menu-filter capability that allows menu
 // callers to inject plugin-aware visibility filtering without coupling the menu
-// component to the full plugin service facade.
+// component to the full plugin service facade. The default implementation is
+// deliberately pass-through so callers can opt in without changing menu reads.
+
 package menu
 
 import (

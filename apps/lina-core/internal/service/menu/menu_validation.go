@@ -1,5 +1,8 @@
 // menu_validation.go validates menu write-time invariants that affect sidebar
-// navigation rendering and recognition.
+// navigation rendering and recognition. It keeps icon normalization and
+// uniqueness checks close to persistence validation without changing query
+// visibility rules.
+
 package menu
 
 import (

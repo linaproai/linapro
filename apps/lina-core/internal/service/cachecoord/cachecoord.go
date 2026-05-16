@@ -67,11 +67,15 @@ type Refresher func(ctx context.Context, revision int64) error
 
 // Topology exposes the cluster switch and node metadata needed by cachecoord.
 type Topology interface {
-	// IsEnabled reports whether clustered deployment mode is enabled.
+	// IsEnabled reports whether clustered deployment mode is enabled and
+	// therefore whether shared revisions or backend events should be used.
 	IsEnabled() bool
 	// IsPrimary reports whether this node owns primary-only background work.
+	// Cache refresh calls remain valid on non-primary nodes and use revisions
+	// to converge local process state.
 	IsPrimary() bool
-	// NodeID returns the stable identifier of the current host node.
+	// NodeID returns the stable identifier of the current host node for
+	// diagnostics and event attribution.
 	NodeID() string
 }
 
@@ -114,16 +118,32 @@ type InvalidationScope struct {
 // Service defines the cache coordination contract.
 type Service interface {
 	// ConfigureDomain configures or replaces one cache domain consistency contract.
+	// The spec declares the authority source, stale window, and degradation
+	// policy used by Snapshot and review tooling; it does not invalidate cached
+	// data by itself. Invalid domain identifiers return a business error.
 	ConfigureDomain(spec DomainSpec) error
 	// MarkChanged publishes one explicit cache domain/scope revision change.
+	// In standalone mode the revision is process-local; in clustered mode it is
+	// written through the coordination backend so other instances can refresh.
+	// Invalid domains/scopes or backend failures are returned to the caller.
 	MarkChanged(ctx context.Context, domain Domain, scope Scope, reason ChangeReason) (int64, error)
 	// MarkTenantChanged publishes one tenant-scoped cache domain/scope revision change.
+	// The tenant scope is folded into the revision key so tenant-local
+	// invalidations stay explicit; cascade flags are preserved in the keying
+	// contract and backend failures are returned.
 	MarkTenantChanged(ctx context.Context, domain Domain, scope Scope, tenantScope InvalidationScope, reason ChangeReason) (int64, error)
 	// EnsureFresh refreshes local state if the shared or local revision advanced.
+	// The refresher runs after a newer revision is observed and must rebuild the
+	// caller's cache idempotently. Refresh or coordination errors are returned;
+	// successful calls record local freshness for Snapshot diagnostics.
 	EnsureFresh(ctx context.Context, domain Domain, scope Scope, refresher Refresher) (int64, error)
 	// CurrentRevision returns the latest visible revision for one domain/scope.
+	// Clustered mode reads the shared revision when available; standalone mode
+	// returns the local process revision. Backend errors are propagated.
 	CurrentRevision(ctx context.Context, domain Domain, scope Scope) (int64, error)
 	// Snapshot returns observable status for configured cache domains and touched scopes.
+	// The result is diagnostic-only and includes declared consistency metadata,
+	// local freshness, shared revision, backend health, and recent errors.
 	Snapshot(ctx context.Context) ([]SnapshotItem, error)
 }
 
@@ -222,31 +242,6 @@ func newServiceImpl(topology Topology) *serviceImpl {
 		status:   make(map[revisionKey]*coordinationStatus),
 	}
 	return service
-}
-
-// setTopology replaces the coordinator topology without resetting cache-domain
-// observations or diagnostic state.
-func (s *serviceImpl) setTopology(topology Topology) {
-	if s == nil {
-		return
-	}
-	if topology == nil {
-		topology = NewStaticTopology(false)
-	}
-	s.topologyMu.Lock()
-	s.topology = topology
-	s.topologyMu.Unlock()
-}
-
-// setCoordination replaces the distributed coordination backend used in
-// clustered mode without resetting local cache observations.
-func (s *serviceImpl) setCoordination(coordinationSvc coordination.Service) {
-	if s == nil {
-		return
-	}
-	s.coordMu.Lock()
-	s.coord = coordinationSvc
-	s.coordMu.Unlock()
 }
 
 // shouldReplaceDefaultTopology keeps the real cluster topology once it has

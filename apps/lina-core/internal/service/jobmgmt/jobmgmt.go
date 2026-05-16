@@ -4,19 +4,10 @@ package jobmgmt
 
 import (
 	"context"
-	"encoding/json"
-	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
-	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/text/gstr"
-	"github.com/gogf/gf/v2/util/gconv"
 
-	"lina-core/internal/dao"
-	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cluster"
@@ -26,64 +17,83 @@ import (
 	"lina-core/internal/service/jobmeta"
 	internalscheduler "lina-core/internal/service/jobmgmt/internal/scheduler"
 	internalshellexec "lina-core/internal/service/jobmgmt/internal/shellexec"
-	"lina-core/pkg/bizerr"
-	"lina-core/pkg/gdbutil"
 	"lina-core/pkg/logger"
 )
 
 // GroupService defines the scheduled-job group management contract.
 type GroupService interface {
-	// ListGroups returns scheduled-job groups with pagination and job counts.
+	// ListGroups returns scheduled-job groups with pagination, optional filters,
+	// validated ordering, and job counts. Database errors are returned unchanged.
 	ListGroups(ctx context.Context, in ListGroupsInput) (*ListGroupsOutput, error)
-	// CreateGroup persists one new scheduled-job group.
+	// CreateGroup persists one new scheduled-job group after validation.
+	// Duplicate codes or invalid data return jobmgmt business errors.
 	CreateGroup(ctx context.Context, in SaveGroupInput) (int64, error)
-	// UpdateGroup updates one existing scheduled-job group.
+	// UpdateGroup updates one existing scheduled-job group after existence and
+	// uniqueness checks. Built-in/default group constraints are enforced.
 	UpdateGroup(ctx context.Context, in UpdateGroupInput) error
-	// DeleteGroups removes one or more groups and migrates their jobs to the default group.
+	// DeleteGroups removes one or more groups and migrates their jobs to the
+	// default group in the same mutation flow.
 	DeleteGroups(ctx context.Context, ids string) error
 }
 
 // JobService defines the scheduled-job task management contract.
 type JobService interface {
 	// WithStartupDataSnapshot returns a child context carrying scheduled-job
-	// startup snapshots shared by one host startup orchestration.
+	// startup snapshots shared by one host startup orchestration. Snapshot
+	// construction errors are returned and no global state is mutated.
 	WithStartupDataSnapshot(ctx context.Context) (context.Context, error)
-	// ListJobs returns scheduled jobs with pagination and group metadata.
+	// ListJobs returns scheduled jobs with pagination, filters, group metadata,
+	// localized display metadata where applicable, and data-scope enforcement.
 	ListJobs(ctx context.Context, in ListJobsInput) (*ListJobsOutput, error)
-	// GetJob returns one scheduled-job detail snapshot.
+	// GetJob returns one scheduled-job detail snapshot after data-scope
+	// visibility checks. Missing jobs return jobmeta business errors.
 	GetJob(ctx context.Context, id int64) (*JobDetailOutput, error)
-	// CreateJob persists one new scheduled job and refreshes the scheduler when needed.
+	// CreateJob persists one new scheduled job after group, handler/shell, cron,
+	// timeout, workdir, and data-scope validation. Enabled jobs refresh the
+	// scheduler after persistence.
 	CreateJob(ctx context.Context, in SaveJobInput) (int64, error)
-	// UpdateJob updates one scheduled job and refreshes the scheduler when needed.
+	// UpdateJob updates one scheduled job after validation and refreshes or
+	// removes the scheduler registration according to the new state.
 	UpdateJob(ctx context.Context, in UpdateJobInput) error
-	// DeleteJobs removes one or more non-built-in scheduled jobs.
+	// DeleteJobs removes one or more non-built-in scheduled jobs after
+	// visibility checks and unregisters them from the scheduler.
 	DeleteJobs(ctx context.Context, ids string) error
-	// UpdateJobStatus toggles one job between enabled and disabled states.
+	// UpdateJobStatus toggles one job between enabled and disabled states,
+	// applying scheduler registration changes and visibility checks.
 	UpdateJobStatus(ctx context.Context, id int64, status jobmeta.JobStatus) error
-	// ResetJob resets executed_count and stop_reason for one scheduled job.
+	// ResetJob resets executed_count and stop_reason for one scheduled job after
+	// visibility checks. It does not alter scheduler registration.
 	ResetJob(ctx context.Context, id int64) error
-	// TriggerJob starts one manual execution and returns the created log ID.
+	// TriggerJob starts one manual execution and returns the created log ID after
+	// runtime prerequisites and handler/shell constraints are validated.
 	TriggerJob(ctx context.Context, id int64) (int64, error)
-	// PreviewCron returns the next five fire times for one cron expression.
+	// PreviewCron returns the next five fire times for one cron expression and
+	// timezone without mutating persistent jobs.
 	PreviewCron(ctx context.Context, expr string, timezone string) ([]time.Time, error)
-	// SyncBuiltinJobs upserts code-owned scheduled jobs into sys_job.
+	// SyncBuiltinJobs upserts code-owned scheduled jobs into sys_job using
+	// source definitions as authority.
 	SyncBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) ([]*entity.SysJob, error)
 	// ReconcileBuiltinJobs refreshes the full code-owned job projection and
-	// prunes removed built-ins from sys_job.
+	// prunes removed built-ins from sys_job while keeping scheduler state aligned.
 	ReconcileBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) ([]*entity.SysJob, error)
 }
 
 // LogService defines the scheduled-job execution log management contract.
 type LogService interface {
-	// ListLogs returns scheduled-job execution logs with pagination and job metadata.
+	// ListLogs returns scheduled-job execution logs with pagination, filters,
+	// job metadata, validated ordering, and data-scope enforcement.
 	ListLogs(ctx context.Context, in ListLogsInput) (*ListLogsOutput, error)
-	// GetLog returns one execution-log detail snapshot.
+	// GetLog returns one execution-log detail snapshot after data-scope
+	// visibility checks. Missing logs return jobmeta business errors.
 	GetLog(ctx context.Context, id int64) (*LogDetailOutput, error)
-	// ClearLogs deletes matching execution logs by selected IDs, job, or all rows.
+	// ClearLogs deletes matching execution logs by selected IDs, job, or all
+	// rows within the caller's data scope.
 	ClearLogs(ctx context.Context, jobID *int64, ids string) error
-	// CancelLog cancels one currently running execution instance.
+	// CancelLog cancels one currently running execution instance after
+	// visibility checks. Non-running or unknown logs return business errors.
 	CancelLog(ctx context.Context, id int64) error
-	// CleanupDueLogs removes logs that exceed the effective retention policies.
+	// CleanupDueLogs removes logs that exceed effective retention policies and
+	// returns the number of rows removed.
 	CleanupDueLogs(ctx context.Context) (int64, error)
 }
 
@@ -97,16 +107,19 @@ type Service interface {
 // Scheduler defines the persistent scheduled-job runner contract exported to
 // host wiring code while the concrete implementation stays internal.
 type Scheduler interface {
-	// LoadAndRegister registers all currently enabled persistent jobs at startup.
+	// LoadAndRegister registers all currently enabled persistent jobs at startup
+	// and returns database or registration errors.
 	LoadAndRegister(ctx context.Context) error
-	// Refresh removes and re-registers one job according to its latest persisted state.
+	// Refresh removes and re-registers one job according to its latest persisted
+	// state. Disabled jobs are unregistered without affecting unrelated jobs.
 	Refresh(ctx context.Context, jobID int64) error
 	// RegisterJobSnapshot removes and registers one provided job snapshot without
-	// reloading it from sys_job.
+	// reloading it from sys_job. The snapshot must already represent a validated job.
 	RegisterJobSnapshot(ctx context.Context, job *entity.SysJob) error
-	// Remove unregisters one persistent job from gcron.
+	// Remove unregisters one persistent job from gcron. The call is idempotent.
 	Remove(jobID int64)
-	// Trigger starts one manual execution and returns the created log ID.
+	// Trigger starts one manual execution and returns the created log ID after
+	// scheduler runtime validation.
 	Trigger(ctx context.Context, jobID int64) (int64, error)
 	// CancelLog cancels one currently running job-log instance.
 	CancelLog(ctx context.Context, logID int64) error
@@ -348,121 +361,4 @@ type ListLogsOutput struct {
 type LogDetailOutput struct {
 	*entity.SysJobLog
 	JobName string // JobName stores the owning job name.
-}
-
-// currentUserID returns the current operator ID or zero when unavailable.
-func (s *serviceImpl) currentUserID(ctx context.Context) int64 {
-	if s == nil {
-		return 0
-	}
-	businessCtx := s.bizCtxSvc.Get(ctx)
-	if businessCtx == nil || businessCtx.UserId <= 0 {
-		return 0
-	}
-	return int64(businessCtx.UserId)
-}
-
-// parseInt64IDs parses one comma-separated identifier list.
-func parseInt64IDs(ids string) []int64 {
-	parts := gstr.SplitAndTrim(ids, ",")
-	result := make([]int64, 0, len(parts))
-	for _, part := range parts {
-		currentID := gconv.Int64(strings.TrimSpace(part))
-		if currentID == 0 {
-			continue
-		}
-		result = append(result, currentID)
-	}
-	return result
-}
-
-// applySingleOrder applies one validated order field and direction to the model.
-func applySingleOrder(
-	model *gdb.Model,
-	orderBy string,
-	orderDirection string,
-	allowed map[orderField]string,
-	defaultField string,
-	defaultDirection gdbutil.OrderDirection,
-) *gdb.Model {
-	if model == nil {
-		return nil
-	}
-	field := allowed[orderField(strings.TrimSpace(orderBy))]
-	if field == "" {
-		field = defaultField
-	}
-	direction := gdbutil.NormalizeOrderDirectionOrDefault(orderDirection, defaultDirection)
-	return gdbutil.ApplyModelOrder(model, field, direction)
-}
-
-// defaultGroup returns the current default scheduled-job group.
-func (s *serviceImpl) defaultGroup(ctx context.Context) (*entity.SysJobGroup, error) {
-	var group *entity.SysJobGroup
-	err := dao.SysJobGroup.Ctx(ctx).
-		Where(do.SysJobGroup{IsDefault: 1}).
-		Scan(&group)
-	if err != nil {
-		return nil, err
-	}
-	if group == nil {
-		return nil, bizerr.NewCode(CodeJobGroupDefaultNotFound)
-	}
-	return group, nil
-}
-
-// groupByID returns one job group by ID.
-func (s *serviceImpl) groupByID(ctx context.Context, id int64) (*entity.SysJobGroup, error) {
-	var group *entity.SysJobGroup
-	err := dao.SysJobGroup.Ctx(ctx).
-		Where(do.SysJobGroup{Id: id}).
-		Scan(&group)
-	return group, err
-}
-
-// validateWorkDir validates one optional shell working directory.
-func validateWorkDir(workDir string) error {
-	trimmed := strings.TrimSpace(workDir)
-	if trimmed == "" {
-		return nil
-	}
-
-	cleaned := filepath.Clean(trimmed)
-	if cleaned == string(filepath.Separator) {
-		return bizerr.NewCode(jobmeta.CodeJobShellWorkdirRootDenied)
-	}
-	info, err := os.Stat(cleaned)
-	if err != nil {
-		return bizerr.WrapCode(err, jobmeta.CodeJobShellWorkdirValidateFailed)
-	}
-	if !info.IsDir() {
-		return bizerr.NewCode(jobmeta.CodeJobShellWorkdirNotDirectory)
-	}
-	return nil
-}
-
-// validateExecutableJob validates the runtime prerequisites for one persisted job definition.
-func (s *serviceImpl) validateExecutableJob(ctx context.Context, job *entity.SysJob) error {
-	if job == nil {
-		return bizerr.NewCode(jobmeta.CodeJobNotFound)
-	}
-	switch jobmeta.NormalizeTaskType(job.TaskType) {
-	case jobmeta.TaskTypeHandler:
-		def, ok := s.registry.Lookup(job.HandlerRef)
-		if !ok {
-			return bizerr.NewCode(jobhandler.CodeJobHandlerNotFound)
-		}
-		return jobhandler.ValidateParams(def.ParamsSchema, json.RawMessage(job.Params))
-
-	case jobmeta.TaskTypeShell:
-		enabled, err := s.configSvc.IsCronShellEnabled(ctx)
-		if err != nil {
-			return err
-		}
-		if !enabled {
-			return bizerr.NewCode(jobmeta.CodeJobShellDisabled)
-		}
-		return validateWorkDir(job.WorkDir)
-	}
-	return bizerr.NewCode(jobmeta.CodeJobTaskTypeUnsupported)
 }
