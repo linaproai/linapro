@@ -73,6 +73,7 @@ CREATE INDEX IF NOT EXISTS idx_sys_locker_expire_time ON sys_locker (expire_time
 func TestHandleHostServiceInvokeLockLifecycle(t *testing.T) {
 	ctx := context.Background()
 	ensurePluginLockerTable(t, ctx)
+	configureDefaultLockHostService(t)
 
 	pluginID := "test-plugin-lock"
 	lockName := "orders-sync"
@@ -171,6 +172,7 @@ func TestHandleHostServiceInvokeLockLifecycle(t *testing.T) {
 func TestHandleHostServiceInvokeLockRejectsTicketMismatch(t *testing.T) {
 	ctx := context.Background()
 	ensurePluginLockerTable(t, ctx)
+	configureDefaultLockHostService(t)
 
 	pluginID := "test-plugin-lock-mismatch"
 	lockName := "orders-sync"
@@ -230,7 +232,9 @@ func TestHandleHostServiceInvokeLockRejectsUnauthorizedResource(t *testing.T) {
 func TestHandleHostServiceInvokeLockUsesConfiguredSharedService(t *testing.T) {
 	lockSvc := &trackingLockService{}
 	previousLockSvc := lockHostService
-	ConfigureLockHostService(lockSvc)
+	if err := ConfigureLockHostService(lockSvc); err != nil {
+		t.Fatalf("configure lock host service failed: %v", err)
+	}
 	t.Cleanup(func() {
 		lockHostService = previousLockSvc
 	})
@@ -267,7 +271,13 @@ func TestHandleHostServiceInvokeLockUsesCoordinationAndTenantIsolation(t *testin
 	coordSvc := coordination.NewMemory(nil)
 	locker.ConfigureCoordination(coordSvc)
 	previousLockSvc := lockHostService
-	ConfigureLockHostService(hostlock.New(locker.New()))
+	lockSvc, err := hostlock.New(locker.New())
+	if err != nil {
+		t.Fatalf("create host lock service failed: %v", err)
+	}
+	if err = ConfigureLockHostService(lockSvc); err != nil {
+		t.Fatalf("configure host lock service failed: %v", err)
+	}
 	t.Cleanup(func() {
 		locker.ConfigureCoordination(nil)
 		lockHostService = previousLockSvc
@@ -322,10 +332,27 @@ func TestHandleHostServiceInvokeLockUsesCoordinationAndTenantIsolation(t *testin
 }
 
 // TestConfigureLockHostServiceRejectsNil verifies missing runtime lock
-// injection fails fast instead of silently constructing an isolated backend.
+// injection returns an error instead of silently constructing an isolated backend.
 func TestConfigureLockHostServiceRejectsNil(t *testing.T) {
-	assertPanic(t, "wasm lock host service requires a non-nil lock service", func() {
-		ConfigureLockHostService(nil)
+	if err := ConfigureLockHostService(nil); err == nil {
+		t.Fatal("expected nil lock host service to return an error")
+	}
+}
+
+// configureDefaultLockHostService wires tests to the same locker-backed host
+// lock service shape used by startup and restores the previous package state.
+func configureDefaultLockHostService(t *testing.T) {
+	t.Helper()
+	previousLockSvc := lockHostService
+	lockSvc, err := hostlock.New(locker.New())
+	if err != nil {
+		t.Fatalf("create host lock service failed: %v", err)
+	}
+	if err = ConfigureLockHostService(lockSvc); err != nil {
+		t.Fatalf("configure host lock service failed: %v", err)
+	}
+	t.Cleanup(func() {
+		lockHostService = previousLockSvc
 	})
 }
 

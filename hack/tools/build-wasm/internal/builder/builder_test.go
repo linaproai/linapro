@@ -51,6 +51,11 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	)
 	mustWriteFile(
 		t,
+		filepath.Join(pluginDir, "backend", "lifecycle", "001-before-install.yaml"),
+		"operation: BeforeInstall\nrequestType: BeforeInstallReq\ninternalPath: /__lifecycle/before-install\ntimeoutMs: 3000\n",
+	)
+	mustWriteFile(
+		t,
 		filepath.Join(pluginDir, "backend", "resources", "001-records.yaml"),
 		"key: records\ntype: table-list\ntable: plugin_runtime_records\nfields:\n  - name: id\n    column: id\n  - name: status\n    column: status\nfilters:\n  - param: status\n    column: status\n    operator: eq\norderBy:\n  column: id\n  direction: asc\noperations:\n  - query\n  - get\n  - update\nkeyField: id\nwritableFields:\n  - status\naccess: both\ndataScope:\n  userColumn: owner_user_id\n",
 	)
@@ -63,6 +68,11 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 		t,
 		filepath.Join(pluginDir, "backend", "api", "dynamic", "v1", "review_summary.go"),
 		"package v1\n\nimport \"github.com/gogf/gf/v2/frame/g\"\n\ntype ReviewSummaryReq struct {\n\tg.Meta `path:\"/review-summary\" method:\"get\" tags:\"动态插件示例\" summary:\"查询摘要\" dc:\"返回一个动态插件摘要\" access:\"login\" permission:\"plugin-dynamic-builder:review:view\" operLog:\"other\"`\n}\n",
+	)
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "controller.go"),
+		"package backend\n\nimport \"lina-core/pkg/pluginbridge\"\n\ntype Controller struct{}\n\nfunc (c *Controller) BeforeInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n",
 	)
 	mustWriteFile(
 		t,
@@ -165,6 +175,17 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 		t.Fatalf("unexpected embedded hook specs: %#v", hooks)
 	}
 
+	var lifecycle []*lifecycleSpec
+	if err = json.Unmarshal(sections[pluginDynamicWasmSectionBackendLifecycle], &lifecycle); err != nil {
+		t.Fatalf("expected lifecycle section json to unmarshal, got error: %v", err)
+	}
+	if len(lifecycle) != 1 ||
+		lifecycle[0].Operation != pluginbridge.LifecycleOperationBeforeInstall ||
+		lifecycle[0].RequestType != "BeforeInstallReq" ||
+		lifecycle[0].InternalPath != "/__lifecycle/before-install" {
+		t.Fatalf("unexpected embedded lifecycle specs: %#v", lifecycle)
+	}
+
 	var resources []*resourceSpec
 	if err = json.Unmarshal(sections[pluginDynamicWasmSectionBackendRes], &resources); err != nil {
 		t.Fatalf("expected resource section json to unmarshal, got error: %v", err)
@@ -226,6 +247,146 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	}
 	if !strings.Contains(runtimeStrings, "_initialize") {
 		t.Fatalf("expected runtime guest wasm to expose _initialize, got output: %s", runtimeStrings)
+	}
+}
+
+func TestCollectLifecycleSpecsAutoDiscoversBackendHandlers(t *testing.T) {
+	pluginDir := t.TempDir()
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "controller.go"),
+		"package backend\n\nimport \"lina-core/pkg/pluginbridge\"\n\ntype Controller struct{}\n\nfunc (c *Controller) BeforeInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n\nfunc (c *Controller) AfterInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n",
+	)
+
+	items, err := collectLifecycleSpecs(pluginDir, "plugin-dynamic-lifecycle")
+	if err != nil {
+		t.Fatalf("expected lifecycle auto discovery to succeed, got error: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 lifecycle specs, got %#v", items)
+	}
+	if items[0].Operation != pluginbridge.LifecycleOperationBeforeInstall ||
+		items[0].RequestType != "BeforeInstallReq" ||
+		items[0].InternalPath != "/__lifecycle/before-install" {
+		t.Fatalf("unexpected before-install lifecycle spec: %#v", items[0])
+	}
+	if items[1].Operation != pluginbridge.LifecycleOperationAfterInstall ||
+		items[1].RequestType != "AfterInstallReq" ||
+		items[1].InternalPath != "/__lifecycle/after-install" {
+		t.Fatalf("unexpected after-install lifecycle spec: %#v", items[1])
+	}
+}
+
+func TestCollectLifecycleSpecsAppliesOverride(t *testing.T) {
+	pluginDir := t.TempDir()
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "controller.go"),
+		"package backend\n\nimport \"lina-core/pkg/pluginbridge\"\n\ntype Controller struct{}\n\nfunc (c *Controller) BeforeInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n",
+	)
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "lifecycle", "001-before-install.yaml"),
+		"operation: BeforeInstall\nrequestType: CustomBeforeInstallReq\ninternalPath: /before-install\ntimeoutMs: 3000\n",
+	)
+
+	items, err := collectLifecycleSpecs(pluginDir, "plugin-dynamic-lifecycle")
+	if err != nil {
+		t.Fatalf("expected lifecycle override merge to succeed, got error: %v", err)
+	}
+	if len(items) != 1 ||
+		items[0].RequestType != "CustomBeforeInstallReq" ||
+		items[0].InternalPath != "/before-install" ||
+		items[0].TimeoutMs != 3000 {
+		t.Fatalf("unexpected lifecycle override result: %#v", items)
+	}
+}
+
+func TestCollectLifecycleSpecsRejectsOverrideWithoutHandler(t *testing.T) {
+	pluginDir := t.TempDir()
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "lifecycle", "001-before-install.yaml"),
+		"operation: BeforeInstall\nrequestType: BeforeInstallReq\ninternalPath: /__lifecycle/before-install\n",
+	)
+
+	_, err := collectLifecycleSpecs(pluginDir, "plugin-dynamic-lifecycle")
+	if err == nil || !strings.Contains(err.Error(), "has no matching handler") {
+		t.Fatalf("expected missing handler override error, got %v", err)
+	}
+}
+
+func TestCollectLifecycleSpecsRejectsDuplicateOverride(t *testing.T) {
+	pluginDir := t.TempDir()
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "controller.go"),
+		"package backend\n\nimport \"lina-core/pkg/pluginbridge\"\n\ntype Controller struct{}\n\nfunc (c *Controller) BeforeInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n",
+	)
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "lifecycle", "001-before-install.yaml"),
+		"operation: BeforeInstall\nrequestType: BeforeInstallReq\ninternalPath: /__lifecycle/before-install\n",
+	)
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "lifecycle", "002-before-install.yaml"),
+		"operation: BeforeInstall\nrequestType: BeforeInstallReq\ninternalPath: /__lifecycle/before-install\n",
+	)
+
+	_, err := collectLifecycleSpecs(pluginDir, "plugin-dynamic-lifecycle")
+	if err == nil || !strings.Contains(err.Error(), "operation is duplicated") {
+		t.Fatalf("expected duplicate override error, got %v", err)
+	}
+}
+
+func TestCollectLifecycleSpecsRejectsLegacyCanLifecycleName(t *testing.T) {
+	pluginDir := t.TempDir()
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "controller.go"),
+		"package backend\n\nimport \"lina-core/pkg/pluginbridge\"\n\ntype Controller struct{}\n\nfunc (c *Controller) CanInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n",
+	)
+
+	_, err := collectLifecycleSpecs(pluginDir, "plugin-dynamic-lifecycle")
+	if err == nil || !strings.Contains(err.Error(), "legacy lifecycle handler CanInstall is not supported") {
+		t.Fatalf("expected legacy lifecycle handler error, got %v", err)
+	}
+}
+
+func TestCollectLifecycleSpecsRejectsUnreachableOverride(t *testing.T) {
+	pluginDir := t.TempDir()
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "controller.go"),
+		"package backend\n\nimport \"lina-core/pkg/pluginbridge\"\n\ntype Controller struct{}\n\nfunc (c *Controller) BeforeInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n",
+	)
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "lifecycle", "001-before-install.yaml"),
+		"operation: BeforeInstall\nrequestType: CustomBeforeInstallReq\ninternalPath: /custom/before-install\n",
+	)
+
+	_, err := collectLifecycleSpecs(pluginDir, "plugin-dynamic-lifecycle")
+	if err == nil || !strings.Contains(err.Error(), "not reachable by guest dispatcher") {
+		t.Fatalf("expected unreachable override error, got %v", err)
+	}
+}
+
+func TestCollectLifecycleSpecsIgnoresServiceMethods(t *testing.T) {
+	pluginDir := t.TempDir()
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "internal", "service", "dynamic", "dynamic_lifecycle.go"),
+		"package dynamic\n\nimport \"lina-core/pkg/pluginbridge\"\n\ntype Service struct{}\n\nfunc (s *Service) BeforeInstall(_ *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {\n\treturn pluginbridge.WriteJSON(200, &pluginbridge.LifecycleDecision{OK: true})\n}\n",
+	)
+
+	items, err := collectLifecycleSpecs(pluginDir, "plugin-dynamic-lifecycle")
+	if err != nil {
+		t.Fatalf("expected service method scan to be ignored without error, got %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("expected service lifecycle-like method to be ignored, got %#v", items)
 	}
 }
 

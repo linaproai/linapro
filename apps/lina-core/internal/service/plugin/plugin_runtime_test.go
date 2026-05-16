@@ -17,9 +17,10 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
-// TestDynamicPluginUpgradeKeepsPreviousReleaseFrontendAssets verifies that
-// upgrade keeps archived frontend bundles available for drain and rollback.
-func TestDynamicPluginUpgradeKeepsPreviousReleaseFrontendAssets(t *testing.T) {
+// TestDynamicPluginRuntimeUpgradeKeepsPreviousReleaseFrontendAssets verifies
+// explicit runtime upgrade keeps archived frontend bundles available for drain
+// and rollback.
+func TestDynamicPluginRuntimeUpgradeKeepsPreviousReleaseFrontendAssets(t *testing.T) {
 	service := newTestService()
 	ctx := context.Background()
 
@@ -67,9 +68,16 @@ func TestDynamicPluginUpgradeKeepsPreviousReleaseFrontendAssets(t *testing.T) {
 		nil,
 		nil,
 	)
+	targetManifest, err := service.loadRuntimePluginManifestFromArtifact(filepath.Join(testutil.TestDynamicStorageDir(), pluginID+".wasm"))
+	if err != nil {
+		t.Fatalf("expected target dynamic artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, targetManifest); err != nil {
+		t.Fatalf("expected target manifest sync to succeed, got error: %v", err)
+	}
 
-	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
-		t.Fatalf("expected upgrade install to succeed, got error: %v", err)
+	if _, err = service.ExecuteRuntimeUpgrade(ctx, pluginID, RuntimeUpgradeOptions{Confirmed: true}); err != nil {
+		t.Fatalf("expected explicit runtime upgrade to succeed, got error: %v", err)
 	}
 
 	registryAfterUpgrade, err := service.getPluginRegistry(ctx, pluginID)
@@ -121,9 +129,10 @@ func TestDynamicPluginUpgradeKeepsPreviousReleaseFrontendAssets(t *testing.T) {
 	}
 }
 
-// TestDynamicPluginUpgradeFailureRollsBackStableRelease verifies that a failed
-// upgrade restores the previous active release and its governance projection.
-func TestDynamicPluginUpgradeFailureRollsBackStableRelease(t *testing.T) {
+// TestDynamicPluginRuntimeUpgradeFailureRollsBackStableRelease verifies that a
+// failed explicit runtime upgrade restores the previous active release and its
+// governance projection.
+func TestDynamicPluginRuntimeUpgradeFailureRollsBackStableRelease(t *testing.T) {
 	service := newTestService()
 	ctx := context.Background()
 
@@ -208,9 +217,16 @@ func TestDynamicPluginUpgradeFailureRollsBackStableRelease(t *testing.T) {
 			ResponseCodec:  pluginbridge.CodecProtobuf,
 		},
 	)
+	targetManifest, err := service.loadRuntimePluginManifestFromArtifact(filepath.Join(testutil.TestDynamicStorageDir(), pluginID+".wasm"))
+	if err != nil {
+		t.Fatalf("expected failed target dynamic artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, targetManifest); err != nil {
+		t.Fatalf("expected failed target manifest sync to succeed, got error: %v", err)
+	}
 
-	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err == nil {
-		t.Fatal("expected failed upgrade install to return an error")
+	if _, err = service.ExecuteRuntimeUpgrade(ctx, pluginID, RuntimeUpgradeOptions{Confirmed: true}); err == nil {
+		t.Fatal("expected failed explicit runtime upgrade to return an error")
 	}
 
 	registryAfterFailure, err := service.getPluginRegistry(ctx, pluginID)

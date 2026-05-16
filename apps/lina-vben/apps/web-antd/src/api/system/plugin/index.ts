@@ -5,6 +5,8 @@ import type {
   PluginListParams,
   PluginDynamicState,
   PluginUploadDynamicResult,
+  PluginUpgradePreview,
+  PluginUpgradeResult,
   SystemPlugin,
 } from './model';
 
@@ -52,10 +54,39 @@ export function pluginInstall(
   );
 }
 
+/** 获取插件运行时升级预览 */
+export function pluginUpgradePreview(pluginId: string) {
+  return requestClient.get<PluginUpgradePreview>(
+    `/plugins/${pluginId}/upgrade/preview`,
+  );
+}
+
+/** 执行插件运行时升级 */
+export function pluginUpgrade(
+  pluginId: string,
+  payload?: PluginAuthorizationPayload,
+) {
+  return requestClient.post<PluginUpgradeResult>(
+    `/plugins/${pluginId}/upgrade`,
+    {
+      ...(payload ?? {}),
+      confirmed: true,
+    },
+  );
+}
+
 /** 检查插件依赖 */
 export function pluginDependencyCheck(pluginId: string) {
   return requestClient.get<PluginDependencyCheckResult>(
     `/plugins/${pluginId}/dependencies`,
+  );
+}
+
+/** 静默检查插件依赖，由调用方自行决定错误提示 */
+export function pluginDependencyCheckSilently(pluginId: string) {
+  return requestClient.get<PluginDependencyCheckResult>(
+    `/plugins/${pluginId}/dependencies`,
+    { silentErrorMessage: true },
   );
 }
 

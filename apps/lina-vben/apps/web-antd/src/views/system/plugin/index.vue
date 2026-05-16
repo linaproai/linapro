@@ -23,7 +23,8 @@ import PluginDetailModal from './plugin-detail-modal.vue';
 import PluginDynamicUploadModal from './plugin-dynamic-upload-modal.vue';
 import PluginHostServiceAuthModal from './plugin-host-service-auth-modal.vue';
 import PluginUninstallModal from './plugin-uninstall-modal.vue';
-import LifecycleGuardDialog from '#/views/platform/plugins/lifecycle-guard-dialog.vue';
+import PluginUpgradeModal from './plugin-upgrade-modal.vue';
+import LifecyclePreconditionDialog from '#/views/platform/plugins/lifecycle-precondition-dialog.vue';
 
 const [DetailModal, detailModalApi] = useVbenModal({
   connectedComponent: PluginDetailModal,
@@ -41,8 +42,12 @@ const [UninstallModal, uninstallModalApi] = useVbenModal({
   connectedComponent: PluginUninstallModal,
 });
 
-const [LifecycleGuardModal, lifecycleGuardModalApi] = useVbenModal({
-  connectedComponent: LifecycleGuardDialog,
+const [UpgradeModal, upgradeModalApi] = useVbenModal({
+  connectedComponent: PluginUpgradeModal,
+});
+
+const [LifecyclePreconditionModal, lifecyclePreconditionModalApi] = useVbenModal({
+  connectedComponent: LifecyclePreconditionDialog,
 });
 
 const typeColorMap: Record<string, string> = {
@@ -149,8 +154,15 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
       {
         field: 'version',
+        slots: { default: 'version' },
         title: $t('pages.system.plugin.fields.version'),
-        width: 120,
+        width: 180,
+      },
+      {
+        field: 'runtimeState',
+        slots: { default: 'runtimeState' },
+        title: $t('pages.system.plugin.fields.runtimeState'),
+        width: 150,
       },
       {
         className: 'plugin-description-column',
@@ -253,6 +265,79 @@ function hasPluginMockData(row: SystemPlugin) {
 
 function supportsPluginMultiTenant(row: SystemPlugin) {
   return row.supportsMultiTenant === true;
+}
+
+function formatPluginVersion(row: SystemPlugin) {
+  if (row.effectiveVersion || row.discoveredVersion) {
+    const effective = row.effectiveVersion || row.version || '-';
+    const discovered = row.discoveredVersion || row.version || '-';
+    return effective === discovered ? effective : `${effective} -> ${discovered}`;
+  }
+  return row.version || '-';
+}
+
+function isRuntimeUpgradeAvailable(row: SystemPlugin) {
+  return (
+    row.installed === 1 &&
+    row.upgradeAvailable === true &&
+    (row.runtimeState === 'pending_upgrade' || row.runtimeState === 'upgrade_failed')
+  );
+}
+
+function isRuntimeAbnormal(row: SystemPlugin) {
+  return row.runtimeState === 'abnormal';
+}
+
+function formatRuntimeState(state?: string) {
+  const key = `pages.system.plugin.runtimeState.${state || 'normal'}`;
+  const label = $t(key);
+  return label === key ? state || '-' : label;
+}
+
+function getRuntimeStateColor(state?: string) {
+  switch (state) {
+    case 'pending_upgrade': {
+      return 'gold';
+    }
+    case 'upgrade_failed':
+    case 'abnormal': {
+      return 'red';
+    }
+    case 'upgrade_running': {
+      return 'blue';
+    }
+    default: {
+      return 'green';
+    }
+  }
+}
+
+function buildRuntimeStateTooltip(row: SystemPlugin) {
+  if (row.runtimeState === 'pending_upgrade') {
+    return $t('pages.system.plugin.runtimeStateHint.pendingUpgrade', {
+      discoveredVersion: row.discoveredVersion || '-',
+      effectiveVersion: row.effectiveVersion || '-',
+    });
+  }
+  if (row.runtimeState === 'upgrade_failed') {
+    return row.lastUpgradeFailure?.detail
+      ? $t('pages.system.plugin.runtimeStateHint.upgradeFailedWithDetail', {
+          detail: row.lastUpgradeFailure.detail,
+        })
+      : $t('pages.system.plugin.runtimeStateHint.upgradeFailed');
+  }
+  if (row.runtimeState === 'abnormal') {
+    return $t('pages.system.plugin.runtimeStateHint.abnormal', {
+      reason: formatAbnormalReason(row.abnormalReason),
+    });
+  }
+  return $t('pages.system.plugin.runtimeStateHint.normal');
+}
+
+function formatAbnormalReason(reason?: string) {
+  const key = `pages.system.plugin.abnormalReason.${reason || 'unknown'}`;
+  const label = $t(key);
+  return label === key ? reason || '-' : label;
 }
 
 function isTenantProvisioningPolicySupported(row: SystemPlugin) {
@@ -406,6 +491,15 @@ function handleOpenUninstall(row: SystemPlugin) {
   uninstallModalApi.open();
 }
 
+function handleOpenUpgrade(row: SystemPlugin) {
+  if (!canInstallPlugin()) {
+    message.warning($t('pages.system.plugin.messages.noUpgradePermission'));
+    return;
+  }
+  upgradeModalApi.setData({ row });
+  upgradeModalApi.open();
+}
+
 async function handleSync() {
   if (!canSyncPlugins()) {
     message.warning($t('pages.system.plugin.messages.noInstallPermission'));
@@ -441,31 +535,36 @@ async function handleUninstallReload() {
   await gridApi.query();
 }
 
-function handleLifecycleGuard(payload: {
+async function handleUpgradeReload() {
+  await notifyPluginRegistryChanged();
+  await gridApi.query();
+}
+
+function handleLifecyclePrecondition(payload: {
   force: () => Promise<void>;
   pluginId: string;
   reasons: string[];
 }) {
-  lifecycleGuardModalApi.setData(payload);
-  lifecycleGuardModalApi.open();
+  lifecyclePreconditionModalApi.setData(payload);
+  lifecyclePreconditionModalApi.open();
 }
 
-async function handleLifecycleGuardForce(payload: { pluginId: string }) {
-  const data = lifecycleGuardModalApi.getData<{
+async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
+  const data = lifecyclePreconditionModalApi.getData<{
     force?: () => Promise<void>;
     pluginId?: string;
   }>();
   if (!data.force || data.pluginId !== payload.pluginId) {
     return;
   }
-  lifecycleGuardModalApi.lock(true);
+  lifecyclePreconditionModalApi.lock(true);
   try {
     await data.force();
-    lifecycleGuardModalApi.close();
+    lifecyclePreconditionModalApi.close();
   } catch {
     // The force callback already surfaces the backend error locally.
   } finally {
-    lifecycleGuardModalApi.lock(false);
+    lifecyclePreconditionModalApi.lock(false);
   }
 }
 </script>
@@ -585,6 +684,12 @@ async function handleLifecycleGuardForce(payload: { pluginId: string }) {
         </Tag>
       </template>
 
+      <template #version="{ row }">
+        <span :data-testid="`plugin-version-${row.id}`">
+          {{ formatPluginVersion(row) }}
+        </span>
+      </template>
+
       <template #name="{ row }">
         <div
           class="inline-flex min-w-max max-w-full items-center gap-1.5 whitespace-nowrap"
@@ -616,6 +721,17 @@ async function handleLifecycleGuardForce(payload: { pluginId: string }) {
           {{ row.description || '-' }}
         </div>
         <span v-else aria-hidden="true" class="sr-only"></span>
+      </template>
+
+      <template #runtimeState="{ row }">
+        <Tooltip :title="buildRuntimeStateTooltip(row)">
+          <Tag
+            :color="getRuntimeStateColor(row.runtimeState)"
+            :data-testid="`plugin-runtime-state-${row.id}`"
+          >
+            {{ formatRuntimeState(row.runtimeState) }}
+          </Tag>
+        </Tooltip>
       </template>
 
       <template #enabled="{ row }">
@@ -694,7 +810,29 @@ async function handleLifecycleGuardForce(payload: { pluginId: string }) {
             {{ $t('pages.common.detail') }}
           </ghost-button>
           <ghost-button
-            v-if="row.installed !== 1 && canInstallPlugin()"
+            v-if="isRuntimeUpgradeAvailable(row) && canInstallPlugin()"
+            :data-testid="`plugin-upgrade-button-${row.id}`"
+            @click.stop="handleOpenUpgrade(row)"
+          >
+            {{
+              row.runtimeState === 'upgrade_failed'
+                ? $t('pages.system.plugin.actions.retryUpgrade')
+                : $t('pages.system.plugin.actions.upgrade')
+            }}
+          </ghost-button>
+          <Tooltip
+            v-else-if="isRuntimeAbnormal(row)"
+            :title="$t('pages.system.plugin.messages.abnormalManualRepair')"
+          >
+            <Tag
+              color="red"
+              :data-testid="`plugin-abnormal-repair-${row.id}`"
+            >
+              {{ $t('pages.system.plugin.actions.manualRepair') }}
+            </Tag>
+          </Tooltip>
+          <ghost-button
+            v-else-if="row.installed !== 1 && canInstallPlugin()"
             @click.stop="handleInstall(row)"
           >
             {{ $t('pages.system.plugin.actions.install') }}
@@ -724,10 +862,11 @@ async function handleLifecycleGuardForce(payload: { pluginId: string }) {
     <DetailModal />
     <DynamicUploadModal @reload="handleDynamicUploadReload" />
     <HostServiceAuthModal @reload="handleHostServiceAuthReload" />
+    <UpgradeModal @reload="handleUpgradeReload" />
     <UninstallModal
-      @lifecycle-guard="handleLifecycleGuard"
+      @lifecycle-precondition="handleLifecyclePrecondition"
       @reload="handleUninstallReload"
     />
-    <LifecycleGuardModal @force="handleLifecycleGuardForce" />
+    <LifecyclePreconditionModal @force="handleLifecyclePreconditionForce" />
   </Page>
 </template>

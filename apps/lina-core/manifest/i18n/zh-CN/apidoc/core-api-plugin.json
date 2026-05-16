@@ -48,6 +48,75 @@
               }
             }
           },
+          "DetailReq": {
+            "fields": {
+              "id": {
+                "dc": "插件唯一标识"
+              }
+            },
+            "meta": {
+              "dc": "根据插件 ID 查询单个插件管理详情，包含生命周期状态、运行时升级状态、生效版本、发现版本、授权信息、依赖检查、声明路由和最近升级失败诊断。",
+              "summary": "获取插件详情",
+              "tags": "插件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "runtimeState": {
+                            "dc": "插件运行时升级状态：normal、pending_upgrade、abnormal、upgrade_running 或 upgrade_failed"
+                          },
+                          "effectiveVersion": {
+                            "dc": "宿主当前使用的数据库生效插件版本"
+                          },
+                          "discoveredVersion": {
+                            "dc": "当前从源码 plugin.yaml 或动态插件产物元数据中发现的插件版本"
+                          },
+                          "upgradeAvailable": {
+                            "dc": "插件是否存在可由运行时管理流程升级的更高发现版本"
+                          },
+                          "abnormalReason": {
+                            "dc": "运行时状态为 abnormal 时的稳定诊断原因"
+                          },
+                          "lastUpgradeFailure": {
+                            "dc": "最近一次可观测的运行时升级失败详情"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根据插件 ID 查询单个插件管理详情，包含生命周期状态、运行时升级状态、生效版本、发现版本、授权信息、依赖检查、声明路由和最近升级失败诊断。"
+            }
+          },
+          "DetailRes": {
+            "fields": {
+              "runtimeState": {
+                "dc": "插件运行时升级状态：normal、pending_upgrade、abnormal、upgrade_running 或 upgrade_failed"
+              },
+              "effectiveVersion": {
+                "dc": "宿主当前使用的数据库生效插件版本"
+              },
+              "discoveredVersion": {
+                "dc": "当前从源码 plugin.yaml 或动态插件产物元数据中发现的插件版本"
+              },
+              "upgradeAvailable": {
+                "dc": "插件是否存在可由运行时管理流程升级的更高发现版本"
+              },
+              "abnormalReason": {
+                "dc": "运行时状态为 abnormal 时的稳定诊断原因"
+              },
+              "lastUpgradeFailure": {
+                "dc": "最近一次可观测的运行时升级失败详情"
+              }
+            }
+          },
           "DynamicListReq": {
             "meta": {
               "dc": "返回前端公共界面层渲染插件 Slot 所需的最小运行状态集合，供登录页和布局界面在匿名或登录态下判断插件内容是否应显示",
@@ -422,6 +491,9 @@
           },
           "PluginItem": {
             "fields": {
+              "abnormalReason": {
+                "dc": "运行时状态为 abnormal 时的稳定诊断原因"
+              },
               "authorizationRequired": {
                 "dc": "是否存在需要安装/启用时确认的 hostServices 资源申请：1=是 0=否"
               },
@@ -440,6 +512,12 @@
               "description": {
                 "dc": "插件描述"
               },
+              "discoveredVersion": {
+                "dc": "当前从源码 plugin.yaml 或动态插件产物元数据中发现的插件版本"
+              },
+              "effectiveVersion": {
+                "dc": "宿主当前使用的数据库生效插件版本"
+              },
               "enabled": {
                 "dc": "启用状态：1=启用 0=禁用"
               },
@@ -455,6 +533,9 @@
               "installedAt": {
                 "dc": "插件安装时间，未安装时返回空字符串"
               },
+              "lastUpgradeFailure": {
+                "dc": "最近一次可观测的运行时升级失败详情"
+              },
               "name": {
                 "dc": "插件名称"
               },
@@ -464,11 +545,17 @@
               "statusKey": {
                 "dc": "插件状态在系统插件注册表中的定位键名，前端注册表监听会使用该键判断是否需要刷新插件状态"
               },
+              "runtimeState": {
+                "dc": "插件运行时升级状态：normal、pending_upgrade、abnormal、upgrade_running 或 upgrade_failed"
+              },
               "type": {
                 "dc": "插件一级类型：source=源码插件 dynamic=动态插件"
               },
               "updatedAt": {
                 "dc": "插件注册表最后更新时间"
+              },
+              "upgradeAvailable": {
+                "dc": "插件是否存在可由运行时管理流程升级的更高发现版本"
               },
               "version": {
                 "dc": "插件当前清单版本号"
@@ -487,6 +574,25 @@
               },
               "dependencyCheck": {
                 "dc": "服务端依赖检查结果，用于管理工作台展示安装计划、阻断原因和卸载反向依赖提示"
+              }
+            }
+          },
+          "PluginUpgradeFailureItem": {
+            "fields": {
+              "errorCode": {
+                "dc": "稳定的机器可读失败码"
+              },
+              "messageKey": {
+                "dc": "运行时 i18n 失败消息键"
+              },
+              "phase": {
+                "dc": "观测到失败的升级阶段"
+              },
+              "releaseId": {
+                "dc": "失败的目标发布 ID"
+              },
+              "releaseVersion": {
+                "dc": "失败的目标发布版本"
               }
             }
           },
@@ -664,7 +770,7 @@
               }
             },
             "meta": {
-              "dc": "上传一个 dynamic wasm 动态插件包到 plugin.dynamic.storagePath。宿主会校验 wasm 文件头、自定义节、嵌入清单、ABI 版本和可选嵌入 SQL 资源，然后将产物规范化写入 <storagePath>/<plugin-id>.wasm；若当前已安装动态插件上传了更高版本，宿主会将其作为待切换 release 暂存，后续仍需通过 install 或 reconcile 流程完成正式升级",
+              "dc": "上传一个 dynamic wasm 动态插件包到 plugin.dynamic.storagePath。宿主会校验 wasm 文件头、自定义节、嵌入清单、ABI 版本和可选嵌入 SQL 资源，然后将产物规范化写入 <storagePath>/<plugin-id>.wasm；若当前已安装动态插件上传了更高版本，宿主保持当前生效 release 不变，并将目标版本暴露为待运行时升级",
               "summary": "上传动态插件包",
               "tags": "插件管理"
             },
@@ -707,7 +813,7 @@
               }
             },
             "schema": {
-              "dc": "上传一个 dynamic wasm 动态插件包到 plugin.dynamic.storagePath。宿主会校验 wasm 文件头、自定义节、嵌入清单、ABI 版本和可选嵌入 SQL 资源，然后将产物规范化写入 <storagePath>/<plugin-id>.wasm；若当前已安装动态插件上传了更高版本，宿主会将其作为待切换 release 暂存，后续仍需通过 install 或 reconcile 流程完成正式升级"
+              "dc": "上传一个 dynamic wasm 动态插件包到 plugin.dynamic.storagePath。宿主会校验 wasm 文件头、自定义节、嵌入清单、ABI 版本和可选嵌入 SQL 资源，然后将产物规范化写入 <storagePath>/<plugin-id>.wasm；若当前已安装动态插件上传了更高版本，宿主保持当前生效 release 不变，并将目标版本暴露为待运行时升级"
             }
           },
           "UploadDynamicPackageRes": {
@@ -1043,6 +1149,337 @@
               },
               "version": {
                 "dc": "下游插件当前版本"
+              }
+            }
+          },
+          "UpgradeReq": {
+            "fields": {
+              "id": {
+                "dc": "插件唯一标识"
+              },
+              "confirmed": {
+                "dc": "管理员显式确认标记。必须为 true 后才允许执行升级副作用。"
+              },
+              "authorization": {
+                "dc": "当目标动态插件版本变更了资源型 hostServices 时，由宿主确认的目标发布授权结果；不传则保留目标发布当前授权快照。"
+              }
+            },
+            "meta": {
+              "dc": "对待升级或升级失败插件执行已确认的运行时升级。宿主会重新读取数据库生效清单和文件发现的目标清单，校验插件仍处于 pending_upgrade 或 upgrade_failed 状态，然后执行运行时升级流程。该接口存在副作用：可能执行升级 SQL、同步治理资源、切换生效 release、失效插件运行时缓存并发布生命周期事件。",
+              "summary": "执行插件运行时升级",
+              "tags": "插件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "pluginId": {
+                            "dc": "插件唯一标识"
+                          },
+                          "runtimeState": {
+                            "dc": "请求完成后的插件运行时升级状态"
+                          },
+                          "effectiveVersion": {
+                            "dc": "请求完成后的数据库生效插件版本"
+                          },
+                          "discoveredVersion": {
+                            "dc": "请求完成后当前发现的插件版本"
+                          },
+                          "fromVersion": {
+                            "dc": "升级前服务端重读到的数据库生效版本"
+                          },
+                          "toVersion": {
+                            "dc": "管理员请求升级到的目标版本"
+                          },
+                          "executed": {
+                            "dc": "本次请求是否执行了升级副作用"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "对待升级或升级失败插件执行已确认的运行时升级。宿主会重新读取数据库生效清单和文件发现的目标清单，校验插件仍处于 pending_upgrade 或 upgrade_failed 状态，然后执行运行时升级流程。该接口存在副作用：可能执行升级 SQL、同步治理资源、切换生效 release、失效插件运行时缓存并发布生命周期事件。"
+            }
+          },
+          "UpgradeRes": {
+            "fields": {
+              "pluginId": {
+                "dc": "插件唯一标识"
+              },
+              "runtimeState": {
+                "dc": "请求完成后的插件运行时升级状态"
+              },
+              "effectiveVersion": {
+                "dc": "请求完成后的数据库生效插件版本"
+              },
+              "discoveredVersion": {
+                "dc": "请求完成后当前发现的插件版本"
+              },
+              "fromVersion": {
+                "dc": "升级前服务端重读到的数据库生效版本"
+              },
+              "toVersion": {
+                "dc": "管理员请求升级到的目标版本"
+              },
+              "executed": {
+                "dc": "本次请求是否执行了升级副作用"
+              }
+            }
+          },
+          "UpgradePreviewReq": {
+            "fields": {
+              "id": {
+                "dc": "插件唯一标识"
+              }
+            },
+            "meta": {
+              "dc": "返回待升级或升级失败插件的只读运行时升级预览，包括生效版本和目标版本的清单快照、依赖检查、SQL 摘要、hostServices 变化和风险提示。该接口不会执行 SQL、切换 release、更新状态或调用插件回调。",
+              "summary": "预览插件运行时升级",
+              "tags": "插件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "pluginId": {
+                            "dc": "插件唯一标识"
+                          },
+                          "runtimeState": {
+                            "dc": "当前插件运行时升级状态；预览场景应为 pending_upgrade 或 upgrade_failed"
+                          },
+                          "effectiveVersion": {
+                            "dc": "升级前数据库生效插件版本"
+                          },
+                          "discoveredVersion": {
+                            "dc": "从源码 plugin.yaml 或动态插件产物元数据中发现的目标版本"
+                          },
+                          "fromManifest": {
+                            "dc": "升级前当前生效的 manifest 快照"
+                          },
+                          "toManifest": {
+                            "dc": "升级目标 manifest 快照"
+                          },
+                          "dependencyCheck": {
+                            "dc": "针对目标升级版本的服务端依赖检查结果"
+                          },
+                          "sqlSummary": {
+                            "dc": "目标 manifest 的 SQL 资源数量摘要；预览不会执行这些 SQL"
+                          },
+                          "hostServicesDiff": {
+                            "dc": "生效版本和目标版本之间的 hostServices 变化摘要"
+                          },
+                          "riskHints": {
+                            "dc": "面向管理员展示的稳定风险提示 i18n 键列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "返回待升级或升级失败插件的只读运行时升级预览，包括生效版本和目标版本的清单快照、依赖检查、SQL 摘要、hostServices 变化和风险提示。该接口不会执行 SQL、切换 release、更新状态或调用插件回调。"
+            }
+          },
+          "UpgradePreviewRes": {
+            "fields": {
+              "pluginId": {
+                "dc": "插件唯一标识"
+              },
+              "runtimeState": {
+                "dc": "当前插件运行时升级状态；预览场景应为 pending_upgrade 或 upgrade_failed"
+              },
+              "effectiveVersion": {
+                "dc": "升级前数据库生效插件版本"
+              },
+              "discoveredVersion": {
+                "dc": "从源码 plugin.yaml 或动态插件产物元数据中发现的目标版本"
+              },
+              "fromManifest": {
+                "dc": "升级前当前生效的 manifest 快照"
+              },
+              "toManifest": {
+                "dc": "升级目标 manifest 快照"
+              },
+              "dependencyCheck": {
+                "dc": "针对目标升级版本的服务端依赖检查结果"
+              },
+              "sqlSummary": {
+                "dc": "目标 manifest 的 SQL 资源数量摘要；预览不会执行这些 SQL"
+              },
+              "hostServicesDiff": {
+                "dc": "生效版本和目标版本之间的 hostServices 变化摘要"
+              },
+              "riskHints": {
+                "dc": "面向管理员展示的稳定风险提示 i18n 键列表"
+              }
+            }
+          },
+          "PluginManifestSnapshotItem": {
+            "fields": {
+              "id": {
+                "dc": "插件唯一标识"
+              },
+              "name": {
+                "dc": "插件显示名称"
+              },
+              "version": {
+                "dc": "manifest 版本"
+              },
+              "type": {
+                "dc": "插件类型：source=源码插件 dynamic=动态插件"
+              },
+              "scopeNature": {
+                "dc": "插件作用域性质：platform_only=仅平台 tenant_aware=租户感知"
+              },
+              "supportsMultiTenant": {
+                "dc": "manifest 是否支持租户级插件治理"
+              },
+              "defaultInstallMode": {
+                "dc": "默认插件安装模式：global=全局 tenant_scoped=租户级"
+              },
+              "description": {
+                "dc": "插件描述"
+              },
+              "runtimeKind": {
+                "dc": "动态插件运行时类型"
+              },
+              "runtimeAbiVersion": {
+                "dc": "动态插件运行时 ABI 版本"
+              },
+              "manifestDeclared": {
+                "dc": "该快照是否来自 plugin.yaml 或嵌入产物元数据"
+              },
+              "installSqlCount": {
+                "dc": "manifest 中可见的安装/升级 SQL 资源数量"
+              },
+              "uninstallSqlCount": {
+                "dc": "manifest 中可见的卸载 SQL 资源数量"
+              },
+              "mockSqlCount": {
+                "dc": "manifest 中可见的 Mock 数据 SQL 资源数量；运行时升级不会加载 Mock 数据"
+              },
+              "frontendPageCount": {
+                "dc": "源码插件前端页面入口数量"
+              },
+              "frontendSlotCount": {
+                "dc": "源码插件前端插槽入口数量"
+              },
+              "menuCount": {
+                "dc": "manifest 菜单声明数量"
+              },
+              "backendHookCount": {
+                "dc": "后端 Hook 声明数量"
+              },
+              "resourceSpecCount": {
+                "dc": "后端资源声明数量"
+              },
+              "routeCount": {
+                "dc": "动态路由声明数量"
+              },
+              "routeExecutionEnabled": {
+                "dc": "动态插件 bridge 是否启用路由执行"
+              },
+              "routeRequestCodec": {
+                "dc": "动态路由请求编码"
+              },
+              "routeResponseCodec": {
+                "dc": "动态路由响应编码"
+              },
+              "runtimeFrontendAssetCount": {
+                "dc": "动态插件产物中嵌入的前端资源数量"
+              },
+              "runtimeSqlAssetCount": {
+                "dc": "动态插件产物中嵌入的 SQL 资源数量"
+              },
+              "hostServiceAuthRequired": {
+                "dc": "manifest 是否申请了需要宿主确认的资源型 hostServices"
+              },
+              "hostServiceAuthConfirmed": {
+                "dc": "快照中是否已有宿主确认的 hostServices 授权"
+              },
+              "requestedHostServices": {
+                "dc": "该 manifest 快照声明申请的 hostServices 清单"
+              },
+              "authorizedHostServices": {
+                "dc": "该 manifest 快照中保存的宿主已确认 hostServices 授权清单"
+              }
+            }
+          },
+          "PluginUpgradeSQLSummary": {
+            "fields": {
+              "installSqlCount": {
+                "dc": "目标 manifest 中安装/升级 SQL 资源数量"
+              },
+              "uninstallSqlCount": {
+                "dc": "目标 manifest 中卸载 SQL 资源数量"
+              },
+              "mockSqlCount": {
+                "dc": "目标 manifest 中 Mock 数据 SQL 资源数量；运行时升级不会加载 Mock 数据"
+              },
+              "runtimeSqlAssetCount": {
+                "dc": "动态插件产物中嵌入的 SQL 资源数量"
+              }
+            }
+          },
+          "PluginUpgradeHostServicesDiff": {
+            "fields": {
+              "added": {
+                "dc": "目标 manifest 新增的 hostServices"
+              },
+              "removed": {
+                "dc": "目标 manifest 移除的 hostServices"
+              },
+              "changed": {
+                "dc": "methods 或治理目标发生变化的 hostServices"
+              },
+              "authorizationRequired": {
+                "dc": "目标 manifest 是否需要 hostServices 授权确认"
+              },
+              "authorizationChanged": {
+                "dc": "生效版本与目标版本的 hostServices 申请范围是否发生变化"
+              }
+            }
+          },
+          "PluginUpgradeHostServiceChange": {
+            "fields": {
+              "service": {
+                "dc": "宿主服务标识"
+              },
+              "fromMethods": {
+                "dc": "升级前生效的 method 集合"
+              },
+              "toMethods": {
+                "dc": "升级后目标 method 集合"
+              },
+              "fromResourceCount": {
+                "dc": "升级前生效的治理资源引用数量"
+              },
+              "toResourceCount": {
+                "dc": "升级后目标治理资源引用数量"
+              },
+              "fromTables": {
+                "dc": "升级前生效的数据表集合"
+              },
+              "toTables": {
+                "dc": "升级后目标数据表集合"
+              },
+              "fromPaths": {
+                "dc": "升级前生效的存储路径集合"
+              },
+              "toPaths": {
+                "dc": "升级后目标存储路径集合"
               }
             }
           }

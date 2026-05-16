@@ -2,7 +2,10 @@ import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { authenticateResponseInterceptor } from './preset-interceptors';
+import {
+  authenticateResponseInterceptor,
+  errorMessageResponseInterceptor,
+} from './preset-interceptors';
 import { RequestClient } from './request-client';
 
 describe('requestClient', () => {
@@ -69,6 +72,31 @@ describe('requestClient', () => {
       expect(error.isAxiosError).toBe(true);
       expect(error.code).toBe('ECONNABORTED');
     }
+  });
+
+  it('should skip global error messages for silent requests', async () => {
+    const client = new RequestClient();
+    const localMock = new MockAdapter(client.instance);
+    const makeErrorMessage = vi.fn();
+    client.addResponseInterceptor(
+      errorMessageResponseInterceptor(makeErrorMessage),
+    );
+
+    localMock.onGet('/test/default-error').networkErrorOnce();
+    await expect(client.get('/test/default-error')).rejects.toMatchObject({
+      message: 'Network Error',
+    });
+    expect(makeErrorMessage).toHaveBeenCalledTimes(1);
+
+    localMock.onGet('/test/silent-error').networkErrorOnce();
+    await expect(
+      client.get('/test/silent-error', { silentErrorMessage: true }),
+    ).rejects.toMatchObject({
+      message: 'Network Error',
+    });
+    expect(makeErrorMessage).toHaveBeenCalledTimes(1);
+
+    localMock.reset();
   });
 
   it('should successfully upload a file', async () => {

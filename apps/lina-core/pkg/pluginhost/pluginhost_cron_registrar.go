@@ -7,6 +7,7 @@ import (
 	"context"
 	"lina-core/pkg/logger"
 
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gcron"
 )
 
@@ -73,14 +74,14 @@ func (r *cronRegistrar) AddWithMetadata(
 	handler CronJobHandler,
 ) error {
 	if handler == nil {
-		panic("pluginhost: cron handler is nil")
+		return gerror.New("pluginhost: cron handler is nil")
 	}
 
 	_, err := gcron.Add(ctx, pattern, func(jobCtx context.Context) {
 		if r.enabledChecker != nil && !r.enabledChecker(jobCtx, r.pluginID) {
 			return
 		}
-		// Guard every cron callback at runtime so disabling a plugin immediately stops
+		// Protect every cron callback at runtime so disabling a plugin immediately stops
 		// future executions without requiring host restart or plugin re-registration.
 		if runErr := handler(jobCtx); runErr != nil {
 			logger.Warningf(jobCtx, "plugin cron failed plugin=%s name=%s err=%v", r.pluginID, name, runErr)

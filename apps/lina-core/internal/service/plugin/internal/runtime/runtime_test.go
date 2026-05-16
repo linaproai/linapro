@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/testutil"
+	"lina-core/pkg/pluginbridge"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -158,5 +159,61 @@ func TestLoadRuntimePluginManifestFromArtifactHydratesBackendContracts(t *testin
 	}
 	if manifest.BackendResources["records"].KeyField != "id" || len(manifest.BackendResources["records"].Operations) != 2 {
 		t.Fatalf("expected runtime manifest to expose resource governance fields, got %#v", manifest.BackendResources["records"])
+	}
+}
+
+// TestBundledDynamicSampleDeclaresBeforeAndAfterLifecycleCallbacks verifies
+// the official dynamic sample registers the full source-compatible lifecycle
+// callback set in its runtime artifact.
+func TestBundledDynamicSampleDeclaresBeforeAndAfterLifecycleCallbacks(t *testing.T) {
+	services := testutil.NewServices()
+	repoRoot, err := testutil.FindRepoRoot(".")
+	if err != nil {
+		t.Fatalf("expected repo root to resolve, got error: %v", err)
+	}
+	pluginDir := filepath.Join(repoRoot, "apps", "lina-plugins", "plugin-demo-dynamic")
+	if _, statErr := os.Stat(filepath.Join(pluginDir, "plugin.yaml")); statErr != nil {
+		if os.IsNotExist(statErr) {
+			t.Skip("official plugin workspace is not initialized")
+		}
+		t.Fatalf("expected plugin-demo-dynamic plugin.yaml to stat, got error: %v", statErr)
+	}
+
+	buildOut := testutil.BuildRuntimeArtifactWithHackTool(t, pluginDir)
+	artifact, err := services.Runtime.ParseRuntimeWasmArtifactContent(buildOut.ArtifactPath, buildOut.Content)
+	if err != nil {
+		t.Fatalf("expected bundled dynamic sample artifact to parse, got error: %v", err)
+	}
+
+	expected := map[pluginbridge.LifecycleOperation]struct{}{
+		pluginbridge.LifecycleOperationBeforeInstall:           {},
+		pluginbridge.LifecycleOperationAfterInstall:            {},
+		pluginbridge.LifecycleOperationBeforeUpgrade:           {},
+		pluginbridge.LifecycleOperationAfterUpgrade:            {},
+		pluginbridge.LifecycleOperationBeforeDisable:           {},
+		pluginbridge.LifecycleOperationAfterDisable:            {},
+		pluginbridge.LifecycleOperationBeforeUninstall:         {},
+		pluginbridge.LifecycleOperationAfterUninstall:          {},
+		pluginbridge.LifecycleOperationBeforeTenantDisable:     {},
+		pluginbridge.LifecycleOperationAfterTenantDisable:      {},
+		pluginbridge.LifecycleOperationBeforeTenantDelete:      {},
+		pluginbridge.LifecycleOperationAfterTenantDelete:       {},
+		pluginbridge.LifecycleOperationBeforeInstallModeChange: {},
+		pluginbridge.LifecycleOperationAfterInstallModeChange:  {},
+	}
+	if len(artifact.LifecycleContracts) != len(expected) {
+		t.Fatalf("expected %d lifecycle contracts, got %d", len(expected), len(artifact.LifecycleContracts))
+	}
+	for _, contract := range artifact.LifecycleContracts {
+		if contract == nil {
+			t.Fatalf("expected lifecycle contract not to be nil")
+		}
+		if _, ok := expected[contract.Operation]; !ok {
+			t.Fatalf("unexpected lifecycle operation %s", contract.Operation)
+		}
+		delete(expected, contract.Operation)
+	}
+	if len(expected) != 0 {
+		t.Fatalf("expected all lifecycle operations to be declared, missing=%#v", expected)
 	}
 }

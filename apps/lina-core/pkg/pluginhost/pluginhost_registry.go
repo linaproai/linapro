@@ -16,28 +16,29 @@ var (
 	sourcePluginListeners  []func()
 )
 
-// RegisterSourcePlugin registers one compile-time source plugin into the host registry.
-func RegisterSourcePlugin(plugin SourcePlugin) {
+// RegisterSourcePlugin registers one source plugin into the host registry.
+func RegisterSourcePlugin(plugin SourcePlugin) error {
 	if plugin == nil {
-		panic(gerror.New("pluginhost: source plugin is nil"))
+		return gerror.New("pluginhost: source plugin is nil")
 	}
 	definition, ok := plugin.(SourcePluginDefinition)
 	if !ok {
-		panic(gerror.New("pluginhost: source plugin does not implement SourcePluginDefinition"))
+		return gerror.New("pluginhost: source plugin does not implement SourcePluginDefinition")
 	}
 	if definition.ID() == "" {
-		panic(gerror.New("pluginhost: source plugin id is empty"))
+		return gerror.New("pluginhost: source plugin id is empty")
 	}
 
 	sourcePluginRegistryMu.Lock()
 	if _, exists := sourcePluginRegistry[definition.ID()]; exists {
 		sourcePluginRegistryMu.Unlock()
-		panic(gerror.Newf("pluginhost: duplicate source plugin registration: %s", definition.ID()))
+		return gerror.Newf("pluginhost: duplicate source plugin registration: %s", definition.ID())
 	}
 	sourcePluginRegistry[definition.ID()] = definition
 	listeners := append([]func(){}, sourcePluginListeners...)
 	sourcePluginRegistryMu.Unlock()
 	notifySourcePluginListeners(listeners)
+	return nil
 }
 
 // RegisterSourcePluginForTest registers or replaces one source plugin for

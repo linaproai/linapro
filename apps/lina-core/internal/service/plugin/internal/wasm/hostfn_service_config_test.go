@@ -210,7 +210,9 @@ custom:
 func TestHandleHostServiceInvokeConfigUsesConfiguredSharedService(t *testing.T) {
 	configSvc := &trackingConfigService{}
 	previousConfigSvc := configHostService
-	ConfigureConfigHostService(configSvc)
+	if err := ConfigureConfigHostService(configSvc); err != nil {
+		t.Fatalf("configure config host service failed: %v", err)
+	}
 	t.Cleanup(func() {
 		configHostService = previousConfigSvc
 	})
@@ -231,11 +233,11 @@ func TestHandleHostServiceInvokeConfigUsesConfiguredSharedService(t *testing.T) 
 }
 
 // TestConfigureConfigHostServiceRejectsNil verifies missing runtime config
-// adapter injection fails fast instead of silently constructing an isolated adapter.
+// adapter injection returns an error instead of silently constructing an isolated adapter.
 func TestConfigureConfigHostServiceRejectsNil(t *testing.T) {
-	assertPanic(t, "wasm config host service requires a non-nil config adapter", func() {
-		ConfigureConfigHostService(nil)
-	})
+	if err := ConfigureConfigHostService(nil); err == nil {
+		t.Fatal("expected nil config host service to return an error")
+	}
 }
 
 // configHostCallContext builds an authorized config host service context.

@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"lina-core/internal/dao"
@@ -179,6 +180,144 @@ func TestInstallPersistsExplicitDynamicInstallMode(t *testing.T) {
 	}
 }
 
+// TestBuildLifecycleAuthorizedHostServicesDropsUnconfirmedResources verifies
+// lifecycle handlers do not receive resource-scoped host services unless the
+// operation carries an explicit host authorization decision.
+func TestBuildLifecycleAuthorizedHostServicesDropsUnconfirmedResources(t *testing.T) {
+	hostServices := []*pluginbridge.HostServiceSpec{
+		{
+			Service: pluginbridge.HostServiceRuntime,
+			Methods: []string{
+				pluginbridge.HostServiceMethodRuntimeLogWrite,
+			},
+		},
+		{
+			Service: pluginbridge.HostServiceStorage,
+			Methods: []string{
+				pluginbridge.HostServiceMethodStorageGet,
+			},
+			Paths: []string{"private-files/"},
+		},
+	}
+
+	withoutAuthorization, err := buildLifecycleAuthorizedHostServices(hostServices, nil)
+	if err != nil {
+		t.Fatalf("expected lifecycle host services to normalize, got error: %v", err)
+	}
+	if len(withoutAuthorization) != 1 || withoutAuthorization[0].Service != pluginbridge.HostServiceRuntime {
+		t.Fatalf("expected only capability host service without authorization, got %#v", withoutAuthorization)
+	}
+
+	withAuthorization, err := buildLifecycleAuthorizedHostServices(
+		hostServices,
+		&HostServiceAuthorizationInput{
+			Services: []*HostServiceAuthorizationDecision{
+				{
+					Service: pluginbridge.HostServiceStorage,
+					Paths:   []string{"private-files/"},
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("expected lifecycle host service authorization to normalize, got error: %v", err)
+	}
+	if len(withAuthorization) != 2 {
+		t.Fatalf("expected runtime and authorized storage host services, got %#v", withAuthorization)
+	}
+}
+
+// TestApplyTargetReleaseAuthorizedHostServicesFiltersMissingRelease verifies
+// upgrade lifecycle execution does not expose resource-scoped host services
+// when no target release authorization snapshot exists yet.
+func TestApplyTargetReleaseAuthorizedHostServicesFiltersMissingRelease(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dynamic-lifecycle-missing-release-auth"
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest := &catalog.Manifest{
+		ID:      pluginID,
+		Version: "v0.9.1",
+		HostServices: []*pluginbridge.HostServiceSpec{
+			{
+				Service: pluginbridge.HostServiceRuntime,
+				Methods: []string{
+					pluginbridge.HostServiceMethodRuntimeLogWrite,
+				},
+			},
+			{
+				Service: pluginbridge.HostServiceStorage,
+				Methods: []string{
+					pluginbridge.HostServiceMethodStorageGet,
+				},
+				Paths: []string{"private-files/"},
+			},
+		},
+	}
+
+	filtered, err := service.applyTargetReleaseAuthorizedHostServices(ctx, manifest, nil)
+	if err != nil {
+		t.Fatalf("expected missing release authorization to filter cleanly, got error: %v", err)
+	}
+	if filtered == nil {
+		t.Fatal("expected filtered manifest")
+	}
+	if len(filtered.HostServices) != 1 || filtered.HostServices[0].Service != pluginbridge.HostServiceRuntime {
+		t.Fatalf("expected missing release to keep only capability host services, got %#v", filtered.HostServices)
+	}
+	if _, ok := filtered.HostCapabilities[pluginbridge.CapabilityStorage]; ok {
+		t.Fatalf("expected missing release to remove storage capability, got %#v", filtered.HostCapabilities)
+	}
+}
+
+// TestDynamicLifecycleBeforeInstallFailsClosedBeforeInstall verifies dynamic
+// BeforeInstall blocks the install path before registry state changes.
+func TestDynamicLifecycleBeforeInstallFailsClosedBeforeInstall(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dynamic-before-install-fail-closed"
+	)
+
+	artifactPath := createDynamicLifecyclePreconditionArtifact(
+		t,
+		pluginID,
+		"Dynamic Before Install Fail Closed Plugin",
+		"v0.4.5",
+		pluginbridge.LifecycleOperationBeforeInstall,
+	)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+			t.Fatalf("failed to remove artifact %s: %v", artifactPath, cleanupErr)
+		}
+	})
+
+	_, err := service.Install(ctx, pluginID, InstallOptions{})
+	if !bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) {
+		t.Fatalf("expected dynamic BeforeInstall precondition bizerr, got %v", err)
+	}
+
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup after vetoed install to succeed, got error: %v", err)
+	}
+	if registry == nil {
+		return
+	}
+	if registry.Installed != catalog.InstalledNo || registry.Status != catalog.StatusDisabled {
+		t.Fatalf("expected vetoed dynamic install to keep plugin uninstalled, got installed=%d status=%d", registry.Installed, registry.Status)
+	}
+}
+
 // TestUninstallDynamicUsesArchivedReleaseWhenStagingArtifactMissing verifies
 // uninstall relies on the active release archive instead of the mutable staging
 // artifact after a dynamic plugin has been installed.
@@ -263,6 +402,100 @@ func TestUninstallDynamicUsesArchivedReleaseWhenStagingArtifactMissing(t *testin
 	}
 	if menu != nil {
 		t.Fatalf("expected dynamic plugin menu to be removed after uninstall")
+	}
+}
+
+// TestDynamicLifecycleBeforeDisableFailsClosedBeforeStatusChange verifies
+// dynamic BeforeDisable runs from the active release and blocks status changes.
+func TestDynamicLifecycleBeforeDisableFailsClosedBeforeStatusChange(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dynamic-before-disable-fail-closed"
+	)
+
+	artifactPath := createDynamicLifecyclePreconditionArtifact(
+		t,
+		pluginID,
+		"Dynamic Before Disable Fail Closed Plugin",
+		"v0.4.6",
+		pluginbridge.LifecycleOperationBeforeDisable,
+	)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+			t.Fatalf("failed to remove artifact %s: %v", artifactPath, cleanupErr)
+		}
+	})
+
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
+	}
+	if err := service.Enable(ctx, pluginID); err != nil {
+		t.Fatalf("expected dynamic plugin enable to succeed, got error: %v", err)
+	}
+
+	err := service.Disable(ctx, pluginID)
+	if !bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) {
+		t.Fatalf("expected dynamic BeforeDisable precondition bizerr, got %v", err)
+	}
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup after vetoed disable to succeed, got error: %v", err)
+	}
+	if registry == nil || registry.Status != catalog.StatusEnabled {
+		t.Fatalf("expected vetoed dynamic disable to keep plugin enabled, got %#v", registry)
+	}
+}
+
+// TestDynamicLifecycleBeforeUninstallUsesActiveReleaseWhenStagingMissing
+// verifies archived dynamic lifecycle handlers still guard uninstall after the
+// mutable staging artifact has been removed.
+func TestDynamicLifecycleBeforeUninstallUsesActiveReleaseWhenStagingMissing(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dynamic-before-uninstall-active"
+		version  = "v0.4.7"
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	releaseRoot := filepath.Join(testutil.TestDynamicStorageDir(), "releases", pluginID)
+	if err := os.RemoveAll(releaseRoot); err != nil {
+		t.Fatalf("failed to clear release archive root: %v", err)
+	}
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		if err := os.RemoveAll(releaseRoot); err != nil {
+			t.Fatalf("failed to cleanup release archive root: %v", err)
+		}
+	})
+
+	artifactPath := createDynamicLifecyclePreconditionArtifact(
+		t,
+		pluginID,
+		"Dynamic Before Uninstall Active Release Plugin",
+		version,
+		pluginbridge.LifecycleOperationBeforeUninstall,
+	)
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
+	}
+	if err := os.Remove(artifactPath); err != nil {
+		t.Fatalf("failed to remove staging artifact: %v", err)
+	}
+
+	err := service.Uninstall(ctx, pluginID, UninstallOptions{PurgeStorageData: true})
+	if !bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) {
+		t.Fatalf("expected active-release BeforeUninstall precondition bizerr, got %v", err)
+	}
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup after vetoed uninstall to succeed, got error: %v", err)
+	}
+	if registry == nil || registry.Installed != catalog.InstalledYes {
+		t.Fatalf("expected vetoed dynamic uninstall to keep plugin installed, got %#v", registry)
 	}
 }
 
@@ -409,143 +642,452 @@ func resolveTestDynamicPackagePath(t *testing.T, packagePath string) string {
 	return filepath.Join(testutil.TestDynamicStorageDir(), filepath.FromSlash(packagePath))
 }
 
-// TestDisableRunsLifecycleGuards verifies disable requests fail closed when a
-// lifecycle guard vetoes the operation.
-func TestDisableRunsLifecycleGuards(t *testing.T) {
-	var (
-		service  = newTestService()
-		ctx      = context.Background()
-		pluginID = "plugin-disable-guarded"
-	)
-	pluginhost.RegisterLifecycleGuard(pluginID, lifecycleGuardDisableVeto{})
-	t.Cleanup(func() {
-		pluginhost.UnregisterLifecycleGuard(pluginID)
-	})
-
-	err := service.ensureLifecycleGuardAllowed(ctx, pluginID, pluginhost.GuardHookCanDisable, false)
-	if !bizerr.Is(err, CodePluginLifecycleGuardVetoed) {
-		t.Fatalf("expected lifecycle guard bizerr, got %v", err)
-	}
-}
-
-// TestDisableIgnoresNonTargetLifecycleGuards verifies one plugin-owned guard
-// cannot veto lifecycle actions for unrelated plugins.
-func TestDisableIgnoresNonTargetLifecycleGuards(t *testing.T) {
-	var (
-		service        = newTestService()
-		ctx            = context.Background()
-		targetPluginID = "plugin-disable-target"
-		guardPluginID  = "plugin-disable-other-guard"
-	)
-	pluginhost.RegisterLifecycleGuard(guardPluginID, lifecycleGuardDisableVeto{})
-	t.Cleanup(func() {
-		pluginhost.UnregisterLifecycleGuard(guardPluginID)
-	})
-
-	err := service.ensureLifecycleGuardAllowed(ctx, targetPluginID, pluginhost.GuardHookCanDisable, false)
-	if err != nil {
-		t.Fatalf("expected unrelated lifecycle guard to be ignored, got %v", err)
-	}
-}
-
-// TestTenantDeleteRunsLifecycleGuards verifies tenant deletion fails closed
-// when any plugin-owned lifecycle guard vetoes the tenant delete hook.
-func TestTenantDeleteRunsLifecycleGuards(t *testing.T) {
+// TestTenantDeleteRunsLifecyclePreconditions verifies tenant deletion fails
+// closed when any plugin-owned lifecycle precondition vetoes tenant deletion.
+func TestTenantDeleteRunsLifecyclePreconditions(t *testing.T) {
 	var (
 		service = newTestService()
 		ctx     = context.Background()
-		guardID = "plugin-tenant-delete-guard"
 	)
-	pluginhost.RegisterLifecycleGuard(guardID, lifecycleGuardTenantDeleteVeto{})
-	t.Cleanup(func() {
-		pluginhost.UnregisterLifecycleGuard(guardID)
-	})
+	plugin := pluginhost.NewSourcePlugin("plugin-tenant-delete-precondition")
+	if err := plugin.Lifecycle().RegisterBeforeTenantDeleteHandler(func(
+		ctx context.Context,
+		input pluginhost.SourcePluginTenantLifecycleInput,
+	) (bool, string, error) {
+		if input.TenantID() != 8001 {
+			t.Fatalf("expected tenant id to be published, got %d", input.TenantID())
+		}
+		return false, "plugin.test.tenant_delete_blocked", nil
+	}); err != nil {
+		t.Fatalf("register tenant delete lifecycle handler failed: %v", err)
+	}
+	cleanup, err := pluginhost.RegisterSourcePluginForTest(plugin)
+	if err != nil {
+		t.Fatalf("register tenant delete lifecycle callback failed: %v", err)
+	}
+	t.Cleanup(cleanup)
 
-	err := service.EnsureTenantDeleteAllowed(ctx, 8001)
-	if !bizerr.Is(err, CodePluginLifecycleGuardVetoed) {
-		t.Fatalf("expected tenant delete lifecycle guard bizerr, got %v", err)
+	err = service.EnsureTenantDeleteAllowed(ctx, 8001)
+	if !bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) {
+		t.Fatalf("expected tenant delete lifecycle precondition bizerr, got %v", err)
 	}
 }
 
-// TestTenantDeleteLifecycleGuardAllowsWhenNoParticipant verifies tenant
-// deletion guard checks are a no-op when no plugin participates.
-func TestTenantDeleteLifecycleGuardAllowsWhenNoParticipant(t *testing.T) {
+// TestTenantDeleteLifecyclePreconditionAllowsWhenNoParticipant verifies tenant
+// deletion precondition checks are a no-op when no plugin participates.
+func TestTenantDeleteLifecyclePreconditionAllowsWhenNoParticipant(t *testing.T) {
 	service := newTestService()
 
 	if err := service.EnsureTenantDeleteAllowed(context.Background(), 8002); err != nil {
-		t.Fatalf("expected tenant delete guard to allow without participants, got %v", err)
+		t.Fatalf("expected tenant delete precondition to allow without participants, got %v", err)
 	}
 }
 
 // TestUninstallForceRequiresConfig verifies force uninstall is gated by
-// plugin.allowForceUninstall before bypassing guard vetoes.
+// plugin.allowForceUninstall before bypassing precondition vetoes.
 func TestUninstallForceRequiresConfig(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-force-guarded"
+		pluginID = "plugin-force-precondition"
 	)
-	pluginhost.RegisterLifecycleGuard(pluginID, lifecycleGuardUninstallVeto{})
-	t.Cleanup(func() {
-		pluginhost.UnregisterLifecycleGuard(pluginID)
-		configsvc.SetPluginAllowForceUninstallOverride(nil)
-	})
+	registerUninstallLifecycleVetoForTest(t, pluginID)
+	t.Cleanup(func() { configsvc.SetPluginAllowForceUninstallOverride(nil) })
 
 	disabled := false
 	configsvc.SetPluginAllowForceUninstallOverride(&disabled)
-	err := service.ensureLifecycleGuardAllowed(ctx, pluginID, pluginhost.GuardHookCanUninstall, true)
+	err := service.ensureLifecyclePreconditionAllowed(ctx, pluginID, pluginhost.LifecycleHookBeforeUninstall, true)
 	if !bizerr.Is(err, CodePluginForceUninstallDisabled) {
 		t.Fatalf("expected force-disabled bizerr, got %v", err)
 	}
 }
 
-// TestUninstallForceBypassesLifecycleGuardWhenConfigured verifies force
-// uninstall can bypass guard vetoes when the host config explicitly allows it.
-func TestUninstallForceBypassesLifecycleGuardWhenConfigured(t *testing.T) {
+// TestUninstallForceBypassesLifecyclePreconditionWhenConfigured verifies force
+// uninstall can bypass precondition vetoes when the host config explicitly allows it.
+func TestUninstallForceBypassesLifecyclePreconditionWhenConfigured(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-force-missing-after-guard"
+		pluginID = "plugin-force-missing-after-precondition"
 	)
-	pluginhost.RegisterLifecycleGuard(pluginID, lifecycleGuardUninstallVeto{})
-	t.Cleanup(func() {
-		pluginhost.UnregisterLifecycleGuard(pluginID)
-		configsvc.SetPluginAllowForceUninstallOverride(nil)
-	})
+	registerUninstallLifecycleVetoForTest(t, pluginID)
+	t.Cleanup(func() { configsvc.SetPluginAllowForceUninstallOverride(nil) })
 
 	enabled := true
 	configsvc.SetPluginAllowForceUninstallOverride(&enabled)
-	err := service.ensureLifecycleGuardAllowed(ctx, pluginID, pluginhost.GuardHookCanUninstall, true)
-	if bizerr.Is(err, CodePluginLifecycleGuardVetoed) || bizerr.Is(err, CodePluginForceUninstallDisabled) {
-		t.Fatalf("expected force to bypass guard errors, got %v", err)
+	err := service.ensureLifecyclePreconditionAllowed(ctx, pluginID, pluginhost.LifecycleHookBeforeUninstall, true)
+	if bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) || bizerr.Is(err, CodePluginForceUninstallDisabled) {
+		t.Fatalf("expected force to bypass lifecycle errors, got %v", err)
 	}
 	if err != nil {
 		t.Fatalf("expected force bypass to continue, got %v", err)
 	}
 }
 
-// lifecycleGuardDisableVeto is a test guard that blocks disable.
-type lifecycleGuardDisableVeto struct{}
+// TestSourceLifecycleBeforeInstallBlocksInstall verifies source-plugin facade
+// BeforeInstall callbacks run before install SQL or registry state changes.
+func TestSourceLifecycleBeforeInstallBlocksInstall(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-source-before-install-veto"
+		operations []string
+	)
 
-// CanDisable returns a deterministic test veto reason.
-func (lifecycleGuardDisableVeto) CanDisable(ctx context.Context) (bool, string, error) {
-	return false, "plugin.test.disable_blocked", nil
+	testutil.CreateTestPluginDir(t, pluginID)
+	registerSourceLifecycleCallbacksForTest(
+		t,
+		pluginID,
+		&operations,
+		sourceLifecycleCallbackOptions{vetoOperation: pluginhost.LifecycleHookBeforeInstall.String()},
+	)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
+	}
+	_, err := service.Install(ctx, pluginID, InstallOptions{})
+	if !bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) {
+		t.Fatalf("expected BeforeInstall veto bizerr, got %v", err)
+	}
+	if len(operations) != 1 || operations[0] != pluginhost.LifecycleHookBeforeInstall.String()+":"+pluginID {
+		t.Fatalf("expected BeforeInstall operation to be published once, got %#v", operations)
+	}
+
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected source plugin registry lookup to succeed, got error: %v", err)
+	}
+	if registry == nil {
+		t.Fatalf("expected source plugin registry row after discovery")
+	}
+	if registry.Installed != catalog.InstalledNo {
+		t.Fatalf("expected vetoed install to keep plugin uninstalled, got installed=%d", registry.Installed)
+	}
 }
 
-// lifecycleGuardUninstallVeto is a test guard that blocks uninstall.
-type lifecycleGuardUninstallVeto struct{}
+// TestSourceLifecycleBeforeDisableBlocksDisable verifies source-plugin facade
+// BeforeDisable callbacks run before the source registry status changes.
+func TestSourceLifecycleBeforeDisableBlocksDisable(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-source-before-disable-veto"
+		operations []string
+	)
 
-// CanUninstall returns a deterministic test veto reason.
-func (lifecycleGuardUninstallVeto) CanUninstall(ctx context.Context) (bool, string, error) {
-	return false, "plugin.test.uninstall_blocked", nil
+	testutil.CreateTestPluginDir(t, pluginID)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
+	}
+	if err := service.Enable(ctx, pluginID); err != nil {
+		t.Fatalf("expected source plugin enable to succeed, got error: %v", err)
+	}
+	registerSourceLifecycleCallbacksForTest(
+		t,
+		pluginID,
+		&operations,
+		sourceLifecycleCallbackOptions{vetoOperation: pluginhost.LifecycleHookBeforeDisable.String()},
+	)
+
+	err := service.Disable(ctx, pluginID)
+	if !bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) {
+		t.Fatalf("expected BeforeDisable veto bizerr, got %v", err)
+	}
+	if len(operations) != 1 || operations[0] != pluginhost.LifecycleHookBeforeDisable.String()+":"+pluginID {
+		t.Fatalf("expected BeforeDisable operation to be published once, got %#v", operations)
+	}
+
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected source plugin registry lookup to succeed, got error: %v", err)
+	}
+	if registry == nil || registry.Status != catalog.StatusEnabled {
+		t.Fatalf("expected vetoed disable to keep plugin enabled, got %#v", registry)
+	}
 }
 
-// lifecycleGuardTenantDeleteVeto is a test guard that blocks tenant deletion.
-type lifecycleGuardTenantDeleteVeto struct{}
+// TestSourceLifecycleBeforeUninstallBlocksUninstall verifies source-plugin
+// facade BeforeUninstall callbacks run before uninstall cleanup side effects.
+func TestSourceLifecycleBeforeUninstallBlocksUninstall(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-source-before-uninstall-veto"
+		operations []string
+	)
 
-// CanTenantDelete returns a deterministic tenant-delete veto reason.
-func (lifecycleGuardTenantDeleteVeto) CanTenantDelete(ctx context.Context, tenantID int) (bool, string, error) {
-	return false, "plugin.test.tenant_delete_blocked", nil
+	testutil.CreateTestPluginDir(t, pluginID)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
+	}
+	registerSourceLifecycleCallbacksForTest(
+		t,
+		pluginID,
+		&operations,
+		sourceLifecycleCallbackOptions{vetoOperation: pluginhost.LifecycleHookBeforeUninstall.String()},
+	)
+
+	err := service.Uninstall(ctx, pluginID, UninstallOptions{PurgeStorageData: true})
+	if !bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) {
+		t.Fatalf("expected BeforeUninstall veto bizerr, got %v", err)
+	}
+	if len(operations) != 1 || operations[0] != pluginhost.LifecycleHookBeforeUninstall.String()+":"+pluginID {
+		t.Fatalf("expected BeforeUninstall operation to be published once, got %#v", operations)
+	}
+
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected source plugin registry lookup to succeed, got error: %v", err)
+	}
+	if registry == nil || registry.Installed != catalog.InstalledYes {
+		t.Fatalf("expected vetoed uninstall to keep plugin installed, got %#v", registry)
+	}
+}
+
+// TestSourceLifecycleBeforeUninstallForceBypassesWhenConfigured verifies the
+// existing force-uninstall policy also applies to unified BeforeUninstall.
+func TestSourceLifecycleBeforeUninstallForceBypassesWhenConfigured(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-source-before-uninstall-force"
+		operations []string
+	)
+
+	testutil.CreateTestPluginDir(t, pluginID)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		configsvc.SetPluginAllowForceUninstallOverride(nil)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
+	}
+	registerSourceLifecycleCallbacksForTest(
+		t,
+		pluginID,
+		&operations,
+		sourceLifecycleCallbackOptions{vetoOperation: pluginhost.LifecycleHookBeforeUninstall.String()},
+	)
+	enabled := true
+	configsvc.SetPluginAllowForceUninstallOverride(&enabled)
+
+	if err := service.Uninstall(ctx, pluginID, UninstallOptions{PurgeStorageData: true, Force: true}); err != nil {
+		t.Fatalf("expected force uninstall to bypass BeforeUninstall veto, got error: %v", err)
+	}
+	if len(operations) != 1 || operations[0] != pluginhost.LifecycleHookBeforeUninstall.String()+":"+pluginID {
+		t.Fatalf("expected BeforeUninstall operation to be published once, got %#v", operations)
+	}
+}
+
+// sourceLifecycleCallbackOptions configures a source-plugin lifecycle test facade.
+type sourceLifecycleCallbackOptions struct {
+	vetoOperation string
+}
+
+// TestSourceLifecycleAfterInstallRunsAfterInstall verifies source-plugin
+// AfterInstall callbacks run only after the install transition succeeds.
+func TestSourceLifecycleAfterInstallRunsAfterInstall(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-source-after-install"
+		operations []string
+	)
+
+	testutil.CreateTestPluginDir(t, pluginID)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
+	}
+	registerSourceLifecycleCallbacksForTest(
+		t,
+		pluginID,
+		&operations,
+		sourceLifecycleCallbackOptions{},
+	)
+
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
+	}
+	expected := []string{
+		pluginhost.LifecycleHookBeforeInstall.String() + ":" + pluginID,
+		pluginhost.LifecycleHookAfterInstall.String() + ":" + pluginID,
+	}
+	if !sourceLifecycleTestStringSlicesEqual(operations, expected) {
+		t.Fatalf("expected lifecycle operations %#v, got %#v", expected, operations)
+	}
+}
+
+// registerUninstallLifecycleVetoForTest registers a source-plugin before
+// uninstall callback that always vetoes.
+func registerUninstallLifecycleVetoForTest(t *testing.T, pluginID string) {
+	t.Helper()
+
+	plugin := pluginhost.NewSourcePlugin(pluginID)
+	if err := plugin.Lifecycle().RegisterBeforeUninstallHandler(func(
+		ctx context.Context,
+		input pluginhost.SourcePluginLifecycleInput,
+	) (bool, string, error) {
+		return false, "plugin.test.uninstall_blocked", nil
+	}); err != nil {
+		t.Fatalf("register uninstall lifecycle handler failed: %v", err)
+	}
+	cleanup, err := pluginhost.RegisterSourcePluginForTest(plugin)
+	if err != nil {
+		t.Fatalf("register lifecycle callback failed: %v", err)
+	}
+	t.Cleanup(cleanup)
+}
+
+// registerSourceLifecycleCallbacksForTest replaces the source-plugin fixture
+// lifecycle callbacks while preserving its embedded filesystem declaration.
+func registerSourceLifecycleCallbacksForTest(
+	t *testing.T,
+	pluginID string,
+	operations *[]string,
+	options sourceLifecycleCallbackOptions,
+) {
+	t.Helper()
+
+	previous, ok := pluginhost.GetSourcePlugin(pluginID)
+	if !ok || previous == nil {
+		t.Fatalf("expected source plugin fixture %s to be registered", pluginID)
+	}
+	plugin := pluginhost.NewSourcePlugin(pluginID)
+	plugin.Assets().UseEmbeddedFiles(previous.GetEmbeddedFiles())
+	handler := func(ctx context.Context, input pluginhost.SourcePluginLifecycleInput) (bool, string, error) {
+		if input == nil {
+			t.Fatalf("expected lifecycle input to be published")
+		}
+		operation := strings.TrimSpace(input.Operation())
+		*operations = append(*operations, operation+":"+input.PluginID())
+		if input.PluginID() != pluginID {
+			t.Fatalf("expected plugin id %s, got %s", pluginID, input.PluginID())
+		}
+		if options.vetoOperation == operation {
+			return false, "plugin." + pluginID + "." + operation + ".veto", nil
+		}
+		return true, "", nil
+	}
+	if err := plugin.Lifecycle().RegisterBeforeInstallHandler(handler); err != nil {
+		t.Fatalf("failed to register before-install lifecycle handler: %v", err)
+	}
+	if err := plugin.Lifecycle().RegisterAfterInstallHandler(func(ctx context.Context, input pluginhost.SourcePluginLifecycleInput) error {
+		if input == nil {
+			t.Fatalf("expected lifecycle input to be published")
+		}
+		operation := strings.TrimSpace(input.Operation())
+		*operations = append(*operations, operation+":"+input.PluginID())
+		if input.PluginID() != pluginID {
+			t.Fatalf("expected plugin id %s, got %s", pluginID, input.PluginID())
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("failed to register after-install lifecycle handler: %v", err)
+	}
+	if err := plugin.Lifecycle().RegisterBeforeDisableHandler(handler); err != nil {
+		t.Fatalf("failed to register before-disable lifecycle handler: %v", err)
+	}
+	if err := plugin.Lifecycle().RegisterBeforeUninstallHandler(handler); err != nil {
+		t.Fatalf("failed to register before-uninstall lifecycle handler: %v", err)
+	}
+	cleanup, err := pluginhost.RegisterSourcePluginForTest(plugin)
+	if err != nil {
+		t.Fatalf("failed to replace source plugin fixture %s: %v", pluginID, err)
+	}
+	t.Cleanup(cleanup)
+}
+
+// sourceLifecycleTestStringSlicesEqual reports whether two ordered string slices are equal.
+func sourceLifecycleTestStringSlicesEqual(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+// createDynamicLifecyclePreconditionArtifact writes a dynamic artifact with one
+// lifecycle contract and intentionally missing guest bridge exports so host
+// execution fails closed before lifecycle side effects.
+func createDynamicLifecyclePreconditionArtifact(
+	t *testing.T,
+	pluginID string,
+	pluginName string,
+	version string,
+	operation pluginbridge.LifecycleOperation,
+) string {
+	t.Helper()
+
+	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), pluginID+".wasm")
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:      pluginID,
+			Name:    pluginName,
+			Version: version,
+			Type:    catalog.TypeDynamic.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind: pluginbridge.RuntimeKindWasm,
+			ABIVersion:  pluginbridge.SupportedABIVersion,
+			LifecycleContracts: []*pluginbridge.LifecycleContract{
+				{
+					Operation:    operation,
+					RequestType:  "DynamicLifecycleReq",
+					InternalPath: "/__lifecycle/" + strings.ToLower(strings.TrimPrefix(operation.String(), "Before")),
+					TimeoutMs:    1000,
+				},
+			},
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		&pluginbridge.BridgeSpec{
+			ABIVersion:     pluginbridge.ABIVersionV1,
+			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+			RouteExecution: true,
+			RequestCodec:   pluginbridge.CodecProtobuf,
+			ResponseCodec:  pluginbridge.CodecProtobuf,
+		},
+	)
+	return artifactPath
 }
 
 // TestSyncAndListReportsPendingHostServiceAuthorization verifies that list

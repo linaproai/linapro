@@ -96,6 +96,7 @@ make dev                         # 启动前后端（前端: 5666，后端: 8080
 make dev plugins=0               # 强制宿主模式启动（不加载官方源码插件）
 make stop                        # 停止所有服务
 make status                      # 查看服务状态
+make dev.setup                  # 安装前端依赖及Playwright浏览器（仅首次）
 make test                        # 运行完整E2E测试
 make init                        # 初始化数据库（DDL + Seed数据）
 make mock                        # 加载Mock演示数据（需先执行init）
@@ -130,6 +131,12 @@ pnpm run build                 # 构建
 ```
 
 ## E2E 测试
+
+首次运行前需安装前端依赖和 Playwright 浏览器：
+
+```bash
+make dev.setup
+```
 
 ```bash
 cd hack/tests
@@ -354,6 +361,12 @@ make release.tag.check tag=v0.2.0
 ## E2E 测试（`Playwright`）
 
 所有用户可观察行为变化都必须由`E2E`测试覆盖。
+
+首次运行前安装前端依赖和 Playwright 浏览器：
+
+```bash
+make dev.setup
+```
 
 ```bash
 cd hack/tests

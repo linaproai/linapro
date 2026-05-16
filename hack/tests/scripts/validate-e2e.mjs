@@ -17,6 +17,7 @@ import {
   listPluginE2EFiles,
   listTcFiles,
   loadManifest,
+  playwrightFileArg,
   pluginTestEntry,
   pluginTestRelativePath,
   repoRoot,
@@ -180,6 +181,13 @@ for (const file of allFiles) {
 
   if (!allowedFiles.has(file)) {
     addError(`File is not under an allowed module scope: ${file}`);
+  }
+
+  const playwrightArg = playwrightFileArg(file);
+  if (!path.isAbsolute(playwrightArg)) {
+    addError(`Playwright file argument must be absolute for ${file}: ${playwrightArg}`);
+  } else if (!exists(playwrightArg)) {
+    addError(`Playwright file argument does not exist for ${file}: ${playwrightArg}`);
   }
 }
 

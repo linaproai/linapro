@@ -58,6 +58,9 @@ func runMock(ctx context.Context, a *app, input commandInput) error {
 
 // runTest starts the requested Playwright E2E test suite scope.
 func runTest(ctx context.Context, a *app, input commandInput) error {
+	if err := ensurePlaywrightBrowsers(ctx, a); err != nil {
+		return err
+	}
 	scope := strings.TrimSpace(input.GetDefault("scope", "full"))
 	switch {
 	case scope == "host":
@@ -75,6 +78,62 @@ func runTest(ctx context.Context, a *app, input commandInput) error {
 	default:
 		return a.runCommand(ctx, commandOptions{Dir: filepath.Join(a.root, "hack", "tests")}, "pnpm", "test:module", "--", scope)
 	}
+}
+
+// runDevSetup installs frontend dependencies, Playwright browsers, and OS dependencies.
+func runDevSetup(ctx context.Context, a *app, _ commandInput) error {
+	if err := ensureFrontendDeps(ctx, a); err != nil {
+		return err
+	}
+	fmt.Fprintln(a.stdout, "Installing Playwright Chromium browser and OS dependencies...")
+	return a.runCommand(ctx, commandOptions{Dir: filepath.Join(a.root, "hack", "tests")}, "pnpm", "exec", "playwright", "install", "--with-deps", "chromium")
+}
+
+// ensurePlaywrightBrowsers checks that Playwright's Chromium browser is installed.
+// If the browser cache directory is missing, it prints a clear error with the fix command.
+func ensurePlaywrightBrowsers(ctx context.Context, a *app) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("resolve home directory: %w", err)
+	}
+
+	var cacheDir string
+	switch runtime.GOOS {
+	case "linux":
+		cacheDir = filepath.Join(home, ".cache", "ms-playwright")
+	case "darwin":
+		cacheDir = filepath.Join(home, "Library", "Caches", "ms-playwright")
+	default:
+		// Windows and others: Playwright uses a self-contained bundle; skip detection.
+		return nil
+	}
+
+	entries, err := os.ReadDir(cacheDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("Playwright browsers not installed. Run: make dev.setup")
+		}
+		return fmt.Errorf("check Playwright browser cache: %w", err)
+	}
+
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "chromium") {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("Playwright Chromium browser not found in %s. Run: make dev.setup", cacheDir)
+}
+
+// ensureFrontendDeps checks that the frontend node_modules are installed.
+// If the vite binary is missing, it runs pnpm install automatically.
+func ensureFrontendDeps(ctx context.Context, a *app) error {
+	vite := viteCommand(a.root)
+	if _, err := os.Stat(vite); err == nil {
+		return nil
+	}
+	fmt.Fprintln(a.stdout, "Frontend dependencies not installed; running pnpm install...")
+	return a.runCommand(ctx, commandOptions{Dir: filepath.Join(a.root, "apps", "lina-vben")}, "pnpm", "install")
 }
 
 // runTestHost starts the host-owned Playwright E2E test suite.

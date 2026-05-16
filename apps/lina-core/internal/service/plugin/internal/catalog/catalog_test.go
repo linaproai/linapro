@@ -850,7 +850,9 @@ func TestScanEmbeddedSourcePluginManifestsUsesPluginEmbeddedFiles(t *testing.T) 
 			Data: []byte("SELECT 2;\n"),
 		},
 	})
-	pluginhost.RegisterSourcePlugin(sourcePlugin)
+	if err := pluginhost.RegisterSourcePlugin(sourcePlugin); err != nil {
+		t.Fatalf("failed to register source plugin fixture: %v", err)
+	}
 
 	manifests, err := svcs.Catalog.ScanEmbeddedSourceManifests()
 	if err != nil {
@@ -986,6 +988,86 @@ func TestGetRegistryReleaseFallsBackWhenReleasePointerIsDangling(t *testing.T) {
 	}
 	if release.Id != int(insertID) {
 		t.Fatalf("expected fallback release id %d, got %d", insertID, release.Id)
+	}
+}
+
+// TestRuntimeUpgradeStateReportsExplicitRunningMarker verifies management
+// projections expose upgrade_running while an explicit runtime upgrade is in progress.
+func TestRuntimeUpgradeStateReportsExplicitRunningMarker(t *testing.T) {
+	var (
+		ctx        = context.Background()
+		svcs       = testutil.NewServices()
+		pluginID   = "plugin-runtime-upgrade-running-marker"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.2.0"
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	oldManifest := &catalog.Manifest{
+		ID:                 pluginID,
+		Name:               "Runtime Upgrade Running Marker",
+		Version:            oldVersion,
+		Type:               catalog.TypeDynamic.String(),
+		ScopeNature:        catalog.ScopeNatureTenantAware.String(),
+		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
+	}
+	registry, err := svcs.Catalog.SyncManifest(ctx, oldManifest)
+	if err != nil {
+		t.Fatalf("expected old manifest sync to succeed, got error: %v", err)
+	}
+	oldRelease, err := svcs.Catalog.GetRelease(ctx, pluginID, oldVersion)
+	if err != nil {
+		t.Fatalf("expected old release lookup to succeed, got error: %v", err)
+	}
+	if oldRelease == nil {
+		t.Fatal("expected old release row")
+	}
+	if err = svcs.Catalog.SetPluginInstalled(ctx, pluginID, catalog.InstalledYes); err != nil {
+		t.Fatalf("expected installed state update to succeed, got error: %v", err)
+	}
+	registry, err = svcs.Catalog.GetRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup after install marker to succeed, got error: %v", err)
+	}
+	registry, err = svcs.Catalog.SyncRegistryReleaseReference(ctx, registry, oldManifest)
+	if err != nil {
+		t.Fatalf("expected registry release reference sync to succeed, got error: %v", err)
+	}
+	if err = svcs.Catalog.UpdateReleaseState(ctx, oldRelease.Id, catalog.ReleaseStatusInstalled, ""); err != nil {
+		t.Fatalf("expected old release state update to succeed, got error: %v", err)
+	}
+
+	newManifest := &catalog.Manifest{
+		ID:                 pluginID,
+		Name:               "Runtime Upgrade Running Marker",
+		Version:            newVersion,
+		Type:               catalog.TypeDynamic.String(),
+		ScopeNature:        catalog.ScopeNatureTenantAware.String(),
+		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
+	}
+	if _, err = svcs.Catalog.SyncManifest(ctx, newManifest); err != nil {
+		t.Fatalf("expected new manifest sync to succeed, got error: %v", err)
+	}
+	if err = svcs.Catalog.SetRegistryRuntimeState(ctx, pluginID, do.SysPlugin{
+		CurrentState: catalog.RuntimeUpgradeStateUpgradeRunning.String(),
+	}); err != nil {
+		t.Fatalf("expected running marker update to succeed, got error: %v", err)
+	}
+
+	registry, err = svcs.Catalog.GetRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup to succeed, got error: %v", err)
+	}
+	projection, err := svcs.Catalog.BuildRuntimeUpgradeState(ctx, registry, newManifest)
+	if err != nil {
+		t.Fatalf("expected runtime state projection to succeed, got error: %v", err)
+	}
+	if projection.State != catalog.RuntimeUpgradeStateUpgradeRunning {
+		t.Fatalf("expected upgrade_running projection, got %#v", projection)
 	}
 }
 

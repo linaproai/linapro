@@ -22,7 +22,7 @@ import {
 } from 'ant-design-vue';
 
 import {
-  pluginDependencyCheck,
+  pluginDependencyCheckSilently,
   pluginEnable,
   pluginInstall,
 } from '#/api/system/plugin';
@@ -342,7 +342,9 @@ async function refreshDependencyCheck() {
   dependencyLoading.value = true;
   updateConfirmDisabled();
   try {
-    dependencyCheck.value = await pluginDependencyCheck(currentPlugin.value.id);
+    dependencyCheck.value = await pluginDependencyCheckSilently(
+      currentPlugin.value.id,
+    );
   } catch {
     message.warning($t('pages.system.plugin.dependency.checkFailed'));
   } finally {

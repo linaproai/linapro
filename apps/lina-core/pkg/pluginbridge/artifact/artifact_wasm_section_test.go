@@ -22,6 +22,7 @@ func TestListCustomSectionsReturnsPayloads(t *testing.T) {
 	content := []byte(testWasmMagic + testWasmVersion1)
 	content = appendTestPluginBridgeWasmCustomSection(content, WasmSectionManifest, []byte(`{"pluginId":"demo"}`))
 	content = appendTestPluginBridgeWasmCustomSection(content, WasmSectionI18NAssets, []byte(`[{"locale":"en-US"}]`))
+	content = appendTestPluginBridgeWasmCustomSection(content, WasmSectionBackendLifecycle, []byte(`[{"operation":"BeforeInstall"}]`))
 
 	sections, err := ListCustomSections(content)
 	if err != nil {
@@ -37,6 +38,9 @@ func TestListCustomSectionsReturnsPayloads(t *testing.T) {
 	}
 	if !ok || !bytes.Equal(payload, []byte(`[{"locale":"en-US"}]`)) {
 		t.Fatalf("unexpected named section payload: exists=%v payload=%s", ok, string(payload))
+	}
+	if actual := string(sections[WasmSectionBackendLifecycle]); actual != `[{"operation":"BeforeInstall"}]` {
+		t.Fatalf("unexpected lifecycle section payload: %s", actual)
 	}
 }
 

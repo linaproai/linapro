@@ -7,6 +7,13 @@ ifneq ($(origin plugins), undefined)
 DEV_ARGS += plugins=$(plugins)
 endif
 
+# Install all prerequisites for development and E2E tests (frontend deps + Playwright browsers).
+# 安装开发与 E2E 测试的所有前置依赖（前端依赖 + Playwright 浏览器）。
+## dev.setup: Install frontend dependencies and Playwright browsers
+.PHONY: dev.setup
+dev.setup:
+	@$(LINACTL) dev.setup
+
 # Restart both backend and frontend development servers.
 # 重启后端和前端开发服务器。
 ## dev: Restart backend and frontend development servers

@@ -11,6 +11,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/startupstats"
+	"lina-core/pkg/bizerr"
 )
 
 // WithStartupDataSnapshot returns a child context carrying catalog and
@@ -104,6 +105,24 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		filtered = append(filtered, item)
 	}
 	return &ListOutput{List: filtered, Total: len(filtered)}, nil
+}
+
+// Get returns one read-only plugin detail projection by exact plugin ID.
+func (s *serviceImpl) Get(ctx context.Context, pluginID string) (*PluginItem, error) {
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" {
+		return nil, bizerr.NewCode(CodePluginNotFound, bizerr.P("pluginId", normalizedPluginID))
+	}
+	out, err := s.ReadOnlyList(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range out.List {
+		if item != nil && item.Id == normalizedPluginID {
+			return item, nil
+		}
+	}
+	return nil, bizerr.NewCode(CodePluginNotFound, bizerr.P("pluginId", normalizedPluginID))
 }
 
 // ReadOnlyList scans plugin manifests and projects current registry state

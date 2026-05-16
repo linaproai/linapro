@@ -164,8 +164,14 @@ function isPluginEnabled(
 ) {
   const pluginState = pluginStateMap.get(pluginId);
   return (
-    isEnabled(pluginState?.installed) && isEnabled(pluginState?.enabled)
+    isEnabled(pluginState?.installed) &&
+    isEnabled(pluginState?.enabled) &&
+    runtimeStateAllowsPluginEntry(pluginState?.runtimeState)
   );
+}
+
+function runtimeStateAllowsPluginEntry(runtimeState?: string) {
+  return !runtimeState || runtimeState === 'normal';
 }
 
 function getRegisteredCapabilityModules() {
@@ -185,7 +191,7 @@ function buildPluginStateSignature(items: PluginDynamicState[]) {
   return items
     .map(
       (item) =>
-        `${item.id}:${item.installed}:${item.enabled}:${item.version}:${item.generation}:${item.statusKey}`,
+        `${item.id}:${item.installed}:${item.enabled}:${item.version}:${item.generation}:${item.statusKey}:${item.runtimeState ?? ''}`,
     )
     .sort()
     .join('|');

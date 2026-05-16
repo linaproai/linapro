@@ -237,10 +237,14 @@ export function pluginTestRelativePath(absolutePath) {
   return toPosix(path.relative(repoRoot, absolutePath));
 }
 
-// playwrightFileArg keeps the canonical path shape used by the repo-root
-// Playwright config while leaving room for future path normalization.
+// playwrightFileArg resolves a governed test path to an absolute file argument.
+// Absolute paths avoid Playwright version differences around whether CLI
+// filters are interpreted from the current working directory or testDir.
 export function playwrightFileArg(relativePath) {
-  return relativePath;
+  if (relativePath.startsWith('apps/lina-plugins/')) {
+    return path.resolve(repoRoot, relativePath);
+  }
+  return path.resolve(testsDir, relativePath);
 }
 
 // listPluginE2EFiles lists every file under source-plugin-owned E2E

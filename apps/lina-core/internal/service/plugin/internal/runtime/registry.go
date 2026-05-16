@@ -31,6 +31,18 @@ type PluginItem struct {
 	Name string
 	// Version is the currently active version string.
 	Version string
+	// RuntimeState reports whether the effective and discovered plugin metadata are aligned.
+	RuntimeState RuntimeUpgradeState
+	// EffectiveVersion is the database-effective plugin version.
+	EffectiveVersion string
+	// DiscoveredVersion is the plugin version currently discovered from files.
+	DiscoveredVersion string
+	// UpgradeAvailable reports whether the plugin can be upgraded by runtime management.
+	UpgradeAvailable bool
+	// AbnormalReason stores a stable diagnostic reason when RuntimeState is abnormal.
+	AbnormalReason RuntimeUpgradeAbnormalReason
+	// LastUpgradeFailure stores the latest observable runtime-upgrade failure details.
+	LastUpgradeFailure *RuntimeUpgradeFailure
 	// Type is the normalized plugin type (source or dynamic).
 	Type string
 	// Description is the short plugin description.
@@ -212,6 +224,15 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 	}
 	name, description = s.localizePluginMetadata(ctx, id, pluginType, name, description)
 
+	upgradeProjection := catalog.RuntimeUpgradeProjection{State: catalog.RuntimeUpgradeStateNormal}
+	if ctx != nil {
+		upgradeProjection, err = s.catalogSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
+		if err != nil {
+			logger.Warningf(ctx, "build plugin runtime upgrade state failed plugin=%s err=%v", id, err)
+			upgradeProjection = catalog.RuntimeUpgradeProjection{State: catalog.RuntimeUpgradeStateNormal}
+		}
+	}
+
 	hasMockData := false
 	if manifest != nil {
 		hasMockData = s.catalogSvc.HasMockSQLData(manifest)
@@ -223,6 +244,12 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 		Id:                      id,
 		Name:                    name,
 		Version:                 version,
+		RuntimeState:            upgradeProjection.State,
+		EffectiveVersion:        upgradeProjection.EffectiveVersion,
+		DiscoveredVersion:       upgradeProjection.DiscoveredVersion,
+		UpgradeAvailable:        upgradeProjection.UpgradeAvailable,
+		AbnormalReason:          upgradeProjection.AbnormalReason,
+		LastUpgradeFailure:      upgradeProjection.LastFailure,
 		Type:                    pluginType,
 		Description:             description,
 		Installed:               installed,

@@ -122,8 +122,9 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 4. 启动期已有编排（如 `cmd_http_runtime.go`、`cmd_http_routes.go`）、插件 registrar 和测试构造可以作为显式构造边界；不得通过通用 DI 容器、全局 service locator、聚合依赖结构体或新增兜底组装层规避依赖签名可见性。
 5. 对持有缓存、派生状态、失效观察状态、订阅状态、`session/token` 状态、插件 enabled snapshot、运行时配置快照、权限快照或跨实例协调依赖的组件，确认它们复用启动期传入的同一服务实例或同一共享后端。
 6. 对源码插件注册回调，确认插件控制器和服务通过 registrar 或等价上下文获取宿主发布的 `pkg/pluginservice/*` 适配器，生产路径不得自行构造孤立宿主服务适配器。
-7. 对 `WASM host service`，确认 cache、lock、notify、storage、config、runtime 等 handler 使用启动期显式注入的共享服务或共享后端，包级默认实例仅用于测试恢复或明确的启动前兜底。
-8. 确实无状态、无缓存、无订阅、无 `session/token`、无插件状态且无跨实例协调影响的局部构造可以接受，但审查结论必须说明理由，并确认依赖治理扫描允许列表记录该豁免。
+7. 对 `WASM host service`，确认 cache、lock、notify、storage、config、runtime 等 handler 使用启动期显式注入的共享服务或共享后端；生产包级默认实例不得自行构造关键服务图，未配置时应返回可观察错误。
+8. 对 `New`、`NewXxx`、`ConfigureXxx`、源码插件注册/registrar API、回调注册 API、路由/Cron/中间件注册 API、启动装配辅助函数等运行时初始化与注册入口，确认依赖缺失、配置来源缺失、后端创建失败、注册参数非法或校验失败通过显式 `error` 返回给调用方；标记 API 内部直接 `panic` 处理可预期错误的实现。是否中止进程必须由调用栈最上层决定；仅名称明确的 `Must*` 辅助函数、静态打包配置、源码插件包级 `init` 等顶层静态注册入口在显式处理错误后的失败退出、进程入口最终兜底和 `recover` 后重抛未知 panic 可作为例外，且必须在 panic 治理扫描 allowlist 中记录原因。
+9. 确实无状态、无缓存、无订阅、无 `session/token`、无插件状态且无跨实例协调影响的局部构造可以接受，但审查结论必须说明理由，并确认依赖治理扫描允许列表记录该豁免。
 
 **单元测试自包含性**
 

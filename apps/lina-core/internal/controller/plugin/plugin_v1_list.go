@@ -1,3 +1,5 @@
+// This file implements plugin list projection for the management API.
+
 package plugin
 
 import (
@@ -32,49 +34,72 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 
 	items := make([]*v1.PluginItem, 0, len(out.List))
 	for _, item := range out.List {
-		managedCronJobs := localizeManagedCronJobs(
+		items = append(items, c.buildPluginItemResponse(
 			ctx,
-			managedCronJobsByPlugin[item.Id],
-			c.i18nSvc,
-		)
-		items = append(items, &v1.PluginItem{
-			Id:                      item.Id,
-			Name:                    item.Name,
-			Version:                 item.Version,
-			Type:                    item.Type,
-			Description:             item.Description,
-			Installed:               item.Installed,
-			InstalledAt:             item.InstalledAt,
-			Enabled:                 item.Enabled,
-			AutoEnableManaged:       boolToInt(autoEnableManagedSet[strings.TrimSpace(item.Id)]),
-			AutoEnableForNewTenants: item.AutoEnableForNewTenants,
-			SupportsMultiTenant:     item.SupportsMultiTenant,
-			ScopeNature:             item.ScopeNature,
-			InstallMode:             item.InstallMode,
-			StatusKey:               item.StatusKey,
-			UpdatedAt:               item.UpdatedAt,
-			AuthorizationRequired:   boolToInt(item.AuthorizationRequired),
-			AuthorizationStatus:     string(item.AuthorizationStatus),
-			DependencyCheck:         buildPluginDependencyCheckResult(item.DependencyCheck),
-			RequestedHostServices: buildHostServicePermissionItems(
-				item.RequestedHostServices,
-				tableComments,
-				managedCronJobs,
-			),
-			AuthorizedHostServices: buildHostServicePermissionItems(
-				item.AuthorizedHostServices,
-				tableComments,
-				managedCronJobs,
-			),
-			DeclaredRoutes: buildPluginRouteReviewItems(
-				item.Id,
-				item.DeclaredRoutes,
-			),
-			HasMockData: boolToInt(item.HasMockData),
-		})
+			item,
+			tableComments,
+			managedCronJobsByPlugin[strings.TrimSpace(item.Id)],
+			autoEnableManagedSet[strings.TrimSpace(item.Id)],
+		))
 	}
 
 	return &v1.ListRes{List: items, Total: out.Total}, nil
+}
+
+// buildPluginItemResponse maps the service plugin projection into the public
+// management DTO used by both list and detail endpoints.
+func (c *ControllerV1) buildPluginItemResponse(
+	ctx context.Context,
+	item *pluginsvc.PluginItem,
+	tableComments map[string]string,
+	managedCronJobs []pluginsvc.ManagedCronJob,
+	autoEnableManaged bool,
+) *v1.PluginItem {
+	if item == nil {
+		return nil
+	}
+	localizedCronJobs := localizeManagedCronJobs(ctx, managedCronJobs, c.i18nSvc)
+	return &v1.PluginItem{
+		Id:                      item.Id,
+		Name:                    item.Name,
+		Version:                 item.Version,
+		RuntimeState:            item.RuntimeState.String(),
+		EffectiveVersion:        item.EffectiveVersion,
+		DiscoveredVersion:       item.DiscoveredVersion,
+		UpgradeAvailable:        item.UpgradeAvailable,
+		AbnormalReason:          item.AbnormalReason.String(),
+		LastUpgradeFailure:      buildPluginUpgradeFailureItem(item.LastUpgradeFailure),
+		Type:                    item.Type,
+		Description:             item.Description,
+		Installed:               item.Installed,
+		InstalledAt:             item.InstalledAt,
+		Enabled:                 item.Enabled,
+		AutoEnableManaged:       boolToInt(autoEnableManaged),
+		AutoEnableForNewTenants: item.AutoEnableForNewTenants,
+		SupportsMultiTenant:     item.SupportsMultiTenant,
+		ScopeNature:             item.ScopeNature,
+		InstallMode:             item.InstallMode,
+		StatusKey:               item.StatusKey,
+		UpdatedAt:               item.UpdatedAt,
+		AuthorizationRequired:   boolToInt(item.AuthorizationRequired),
+		AuthorizationStatus:     string(item.AuthorizationStatus),
+		DependencyCheck:         buildPluginDependencyCheckResult(item.DependencyCheck),
+		RequestedHostServices: buildHostServicePermissionItems(
+			item.RequestedHostServices,
+			tableComments,
+			localizedCronJobs,
+		),
+		AuthorizedHostServices: buildHostServicePermissionItems(
+			item.AuthorizedHostServices,
+			tableComments,
+			localizedCronJobs,
+		),
+		DeclaredRoutes: buildPluginRouteReviewItems(
+			item.Id,
+			item.DeclaredRoutes,
+		),
+		HasMockData: boolToInt(item.HasMockData),
+	}
 }
 
 // buildAutoEnableManagedSet converts the normalized plugin.autoEnable list into
@@ -179,4 +204,22 @@ func boolToInt(value bool) int {
 		return 1
 	}
 	return 0
+}
+
+// buildPluginUpgradeFailureItem maps the service runtime-upgrade failure
+// projection into the public plugin list DTO.
+func buildPluginUpgradeFailureItem(
+	failure *pluginsvc.RuntimeUpgradeFailure,
+) *v1.PluginUpgradeFailureItem {
+	if failure == nil {
+		return nil
+	}
+	return &v1.PluginUpgradeFailureItem{
+		Phase:          failure.Phase.String(),
+		ErrorCode:      failure.ErrorCode,
+		MessageKey:     failure.MessageKey,
+		ReleaseId:      failure.ReleaseID,
+		ReleaseVersion: failure.ReleaseVersion,
+		Detail:         failure.Detail,
+	}
 }

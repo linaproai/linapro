@@ -10,6 +10,7 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
+	"lina-core/pkg/pluginbridge"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -275,6 +276,22 @@ func ValidateResourceSpec(pluginID string, spec *ResourceSpec, filePath string) 
 		}
 	}
 	return nil
+}
+
+// CloneLifecycleContracts returns a deep copy of the given lifecycle contracts.
+func CloneLifecycleContracts(items []*pluginbridge.LifecycleContract) []*pluginbridge.LifecycleContract {
+	if len(items) == 0 {
+		return []*pluginbridge.LifecycleContract{}
+	}
+	cloned := make([]*pluginbridge.LifecycleContract, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		next := *item
+		cloned = append(cloned, &next)
+	}
+	return cloned
 }
 
 // validatePluginIdentifier validates that a table or column name contains only safe characters.

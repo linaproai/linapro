@@ -42,7 +42,9 @@ func registerTestSourcePluginI18N(t *testing.T, pluginID string, localeFiles map
 
 	plugin := pluginhost.NewSourcePlugin(pluginID)
 	plugin.Assets().UseEmbeddedFiles(fileSystem)
-	pluginhost.RegisterSourcePlugin(plugin)
+	if err := pluginhost.RegisterSourcePlugin(plugin); err != nil {
+		t.Fatalf("failed to register source plugin fixture: %v", err)
+	}
 	resetRuntimeBundleCache()
 }
 

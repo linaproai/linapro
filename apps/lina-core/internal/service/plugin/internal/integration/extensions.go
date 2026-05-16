@@ -460,7 +460,8 @@ func (s *serviceImpl) shouldDispatchHookToPlugin(
 	case pluginhost.ExtensionPointPluginInstalled,
 		pluginhost.ExtensionPointPluginEnabled,
 		pluginhost.ExtensionPointPluginDisabled,
-		pluginhost.ExtensionPointPluginUninstalled:
+		pluginhost.ExtensionPointPluginUninstalled,
+		pluginhost.ExtensionPointPluginUpgraded:
 		return pluginID == targetPluginID
 	default:
 		if runtime != nil {

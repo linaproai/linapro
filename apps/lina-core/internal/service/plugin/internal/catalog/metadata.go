@@ -28,6 +28,18 @@ type NodeState string
 // HostState defines the desired/current host lifecycle state enum.
 type HostState string
 
+// RuntimeUpgradeState identifies whether discovered plugin files match the
+// currently effective host registry state.
+type RuntimeUpgradeState string
+
+// RuntimeUpgradeAbnormalReason identifies why a plugin cannot be treated as
+// normally upgradeable.
+type RuntimeUpgradeAbnormalReason string
+
+// RuntimeUpgradeFailurePhase identifies the upgrade phase associated with the
+// latest observable failure.
+type RuntimeUpgradeFailurePhase string
+
 // LifecycleState defines the lifecycle summary enum exposed by plugin governance.
 type LifecycleState string
 
@@ -130,6 +142,26 @@ const (
 	HostStateInstalled   HostState = "installed"
 	HostStateUninstalled HostState = "uninstalled"
 
+	// RuntimeUpgradeState values.
+	RuntimeUpgradeStateNormal         RuntimeUpgradeState = "normal"
+	RuntimeUpgradeStatePendingUpgrade RuntimeUpgradeState = "pending_upgrade"
+	RuntimeUpgradeStateAbnormal       RuntimeUpgradeState = "abnormal"
+	RuntimeUpgradeStateUpgradeRunning RuntimeUpgradeState = "upgrade_running"
+	RuntimeUpgradeStateUpgradeFailed  RuntimeUpgradeState = "upgrade_failed"
+
+	// RuntimeUpgradeAbnormalReason values.
+	RuntimeUpgradeAbnormalReasonDiscoveredVersionLowerThanEffective RuntimeUpgradeAbnormalReason = "discovered_version_lower_than_effective"
+	RuntimeUpgradeAbnormalReasonVersionCompareFailed                RuntimeUpgradeAbnormalReason = "version_compare_failed"
+
+	// RuntimeUpgradeFailurePhase values.
+	RuntimeUpgradeFailurePhaseRelease           RuntimeUpgradeFailurePhase = "release"
+	RuntimeUpgradeFailurePhaseBeforeUpgrade     RuntimeUpgradeFailurePhase = "before_upgrade"
+	RuntimeUpgradeFailurePhaseUpgradeCallback   RuntimeUpgradeFailurePhase = "upgrade_callback"
+	RuntimeUpgradeFailurePhaseSQL               RuntimeUpgradeFailurePhase = "sql"
+	RuntimeUpgradeFailurePhaseGovernance        RuntimeUpgradeFailurePhase = "governance"
+	RuntimeUpgradeFailurePhaseReleaseSwitch     RuntimeUpgradeFailurePhase = "release_switch"
+	RuntimeUpgradeFailurePhaseCacheInvalidation RuntimeUpgradeFailurePhase = "cache_invalidation"
+
 	// LifecycleState values.
 	LifecycleStateSourceEnabled      LifecycleState = "source_enabled"
 	LifecycleStateSourceDisabled     LifecycleState = "source_disabled"
@@ -194,6 +226,15 @@ func (value NodeState) String() string { return string(value) }
 // String returns the canonical host-state value.
 func (value HostState) String() string { return string(value) }
 
+// String returns the canonical runtime-upgrade state value.
+func (value RuntimeUpgradeState) String() string { return string(value) }
+
+// String returns the canonical runtime-upgrade abnormal reason value.
+func (value RuntimeUpgradeAbnormalReason) String() string { return string(value) }
+
+// String returns the canonical runtime-upgrade failure phase value.
+func (value RuntimeUpgradeFailurePhase) String() string { return string(value) }
+
 // String returns the canonical lifecycle-state value.
 func (value LifecycleState) String() string { return string(value) }
 
@@ -242,6 +283,7 @@ type ManifestSnapshot struct {
 	FrontendSlotCount         int                             `yaml:"frontendSlotCount,omitempty"`
 	MenuCount                 int                             `yaml:"menuCount,omitempty"`
 	BackendHookCount          int                             `yaml:"backendHookCount,omitempty"`
+	LifecycleHandlerCount     int                             `yaml:"lifecycleHandlerCount,omitempty"`
 	ResourceSpecCount         int                             `yaml:"resourceSpecCount,omitempty"`
 	RouteCount                int                             `yaml:"routeCount,omitempty"`
 	RouteExecutionEnabled     bool                            `yaml:"routeExecutionEnabled,omitempty"`

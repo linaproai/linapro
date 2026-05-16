@@ -5,6 +5,8 @@ package pluginhostservices
 import (
 	"context"
 
+	"github.com/gogf/gf/v2/errors/gerror"
+
 	"lina-core/internal/service/apidoc"
 	"lina-core/internal/service/auth"
 	"lina-core/internal/service/bizctx"
@@ -56,8 +58,12 @@ func New(
 	sessionStore session.Store,
 	tenantSvc tenantcapsvc.Service,
 	notifySvc notify.Service,
-) pluginhost.HostServices {
+) (pluginhost.HostServices, error) {
 	bizCtxAdapter := newBizCtxAdapter(bizCtxSvc)
+	tenantFilterSvc, err := pluginservicetenantfilter.New(bizCtxAdapter, tenantSvc)
+	if err != nil {
+		return nil, gerror.Wrap(err, "create plugin tenant filter service failed")
+	}
 	return &directory{
 		apiDoc:       newAPIDocAdapter(apiDocSvc),
 		auth:         newAuthAdapter(authTokenIssuer),
@@ -68,8 +74,8 @@ func New(
 		pluginState:  pluginservicepluginstate.New(pluginStateReader),
 		route:        newRouteAdapter(),
 		session:      newSessionAdapter(authSvc, scopeSvc, sessionStore, tenantSvc),
-		tenantFilter: pluginservicetenantfilter.New(bizCtxAdapter, tenantSvc),
-	}
+		tenantFilter: tenantFilterSvc,
+	}, nil
 }
 
 // APIDoc returns the host API-documentation localization adapter.

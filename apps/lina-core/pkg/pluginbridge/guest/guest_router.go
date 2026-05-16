@@ -28,6 +28,32 @@ type GuestControllerRouteDispatcher interface {
 	HandleRequest(request *BridgeRequestEnvelopeV1) (*BridgeResponseEnvelopeV1, error)
 }
 
+// GuestControllerHandlerKind identifies the bridge signature shape used by one
+// reflected guest controller handler.
+type GuestControllerHandlerKind string
+
+const (
+	// GuestControllerHandlerKindEnvelope identifies handlers that receive the
+	// full bridge request envelope and return a bridge response envelope.
+	GuestControllerHandlerKindEnvelope GuestControllerHandlerKind = "envelope"
+	// GuestControllerHandlerKindTyped identifies handlers that receive
+	// context.Context plus a typed request DTO and return a typed response DTO.
+	GuestControllerHandlerKindTyped GuestControllerHandlerKind = "typed"
+)
+
+// GuestControllerHandlerMetadata describes one controller method accepted by
+// the reflected guest dispatcher.
+type GuestControllerHandlerMetadata struct {
+	// MethodName is the exported Go method name on the guest controller.
+	MethodName string
+	// RequestType is the dispatcher request type used for primary lookup.
+	RequestType string
+	// InternalPath is the dispatcher fallback path derived from the method name.
+	InternalPath string
+	// Kind records which supported handler signature matched the method.
+	Kind GuestControllerHandlerKind
+}
+
 // guestControllerRouteDispatcher dispatches guest bridge requests to
 // controller methods registered by reflection.
 type guestControllerRouteDispatcher struct {
@@ -58,6 +84,18 @@ func MustNewGuestControllerRouteDispatcher(controller any) GuestControllerRouteD
 	return dispatcher
 }
 
+// DiscoverGuestControllerHandlers returns the reflected metadata for all
+// controller methods that the guest dispatcher would register.
+func DiscoverGuestControllerHandlers(controller any) ([]GuestControllerHandlerMetadata, error) {
+	metadata, err := collectGuestControllerHandlerMetadata(controller)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]GuestControllerHandlerMetadata, len(metadata))
+	copy(items, metadata)
+	return items, nil
+}
+
 // RegisterController registers all exported controller methods whose
 // signature matches either `func(*BridgeRequestEnvelopeV1) (*BridgeResponseEnvelopeV1, error)`
 // or `func(context.Context, *Req) (*Res, error)`. Typed handlers are exposed
@@ -67,14 +105,11 @@ func (d *guestControllerRouteDispatcher) RegisterController(controller any) erro
 	if d == nil {
 		return gerror.New("guest controller route dispatcher is nil")
 	}
-
+	metadata, err := collectGuestControllerHandlerMetadata(controller)
+	if err != nil {
+		return err
+	}
 	controllerValue := reflect.ValueOf(controller)
-	if !controllerValue.IsValid() {
-		return gerror.New("guest route controller cannot be nil")
-	}
-	if controllerValue.Kind() == reflect.Pointer && controllerValue.IsNil() {
-		return gerror.New("guest route controller cannot be nil")
-	}
 	if d.handlersByRequestType == nil {
 		d.handlersByRequestType = make(map[string]GuestHandler)
 	}
@@ -83,35 +118,27 @@ func (d *guestControllerRouteDispatcher) RegisterController(controller any) erro
 	}
 
 	controllerType := controllerValue.Type()
-	registeredCount := 0
+	methodsByName := make(map[string]reflect.Method, controllerType.NumMethod())
 	for index := 0; index < controllerType.NumMethod(); index++ {
-		method := controllerType.Method(index)
-		handler, requestType, internalPath, ok, err := buildGuestControllerHandler(
-			controllerValue,
-			method,
-		)
+		methodsByName[controllerType.Method(index).Name] = controllerType.Method(index)
+	}
+	for _, item := range metadata {
+		method, ok := methodsByName[item.MethodName]
+		if !ok {
+			return gerror.Newf("guest route controller method metadata has no method: %s", item.MethodName)
+		}
+		handler, err := buildGuestControllerHandler(controllerValue, method, item)
 		if err != nil {
 			return err
 		}
-		if !ok {
-			continue
+		if _, exists := d.handlersByRequestType[item.RequestType]; exists {
+			return gerror.Newf("guest route request type already registered: %s", item.RequestType)
 		}
-		if _, exists := d.handlersByRequestType[requestType]; exists {
-			return gerror.Newf("guest route request type already registered: %s", requestType)
+		if _, exists := d.handlersByPath[item.InternalPath]; exists {
+			return gerror.Newf("guest route internal path already registered: %s", item.InternalPath)
 		}
-		if _, exists := d.handlersByPath[internalPath]; exists {
-			return gerror.Newf("guest route internal path already registered: %s", internalPath)
-		}
-		d.handlersByRequestType[requestType] = handler
-		d.handlersByPath[internalPath] = handler
-		registeredCount++
-	}
-
-	if registeredCount == 0 {
-		return gerror.Newf(
-			"guest route controller %T does not expose any bridge handler methods",
-			controller,
-		)
+		d.handlersByRequestType[item.RequestType] = handler
+		d.handlersByPath[item.InternalPath] = handler
 	}
 	return nil
 }
@@ -179,23 +206,96 @@ func isGuestTypedControllerHandlerMethod(methodType reflect.Type) bool {
 		methodType.Out(1) == errorInterfaceType
 }
 
+// BuildGuestControllerInternalPath converts a controller method name to the
+// kebab-case internal path used as the dispatcher fallback key.
+func BuildGuestControllerInternalPath(methodName string) string {
+	return buildGuestControllerInternalPath(methodName)
+}
+
+// collectGuestControllerHandlerMetadata discovers all methods accepted by the
+// reflected guest dispatcher and validates lookup-key uniqueness.
+func collectGuestControllerHandlerMetadata(controller any) ([]GuestControllerHandlerMetadata, error) {
+	controllerValue := reflect.ValueOf(controller)
+	if !controllerValue.IsValid() {
+		return nil, gerror.New("guest route controller cannot be nil")
+	}
+	if controllerValue.Kind() == reflect.Pointer && controllerValue.IsNil() {
+		return nil, gerror.New("guest route controller cannot be nil")
+	}
+
+	controllerType := controllerValue.Type()
+	items := make([]GuestControllerHandlerMetadata, 0, controllerType.NumMethod())
+	seenRequestTypes := make(map[string]struct{}, controllerType.NumMethod())
+	seenInternalPaths := make(map[string]struct{}, controllerType.NumMethod())
+	for index := 0; index < controllerType.NumMethod(); index++ {
+		method := controllerType.Method(index)
+		item, ok, err := buildGuestControllerHandlerMetadata(method)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		if _, exists := seenRequestTypes[item.RequestType]; exists {
+			return nil, gerror.Newf("guest route request type already registered: %s", item.RequestType)
+		}
+		seenRequestTypes[item.RequestType] = struct{}{}
+		if _, exists := seenInternalPaths[item.InternalPath]; exists {
+			return nil, gerror.Newf("guest route internal path already registered: %s", item.InternalPath)
+		}
+		seenInternalPaths[item.InternalPath] = struct{}{}
+		items = append(items, item)
+	}
+	if len(items) == 0 {
+		return nil, gerror.Newf(
+			"guest route controller %T does not expose any bridge handler methods",
+			controller,
+		)
+	}
+	return items, nil
+}
+
+// buildGuestControllerHandlerMetadata creates dispatcher metadata for one
+// reflected method when it matches a supported guest bridge signature.
+func buildGuestControllerHandlerMetadata(method reflect.Method) (GuestControllerHandlerMetadata, bool, error) {
+	switch {
+	case isGuestEnvelopeControllerHandlerMethod(method.Type):
+		return GuestControllerHandlerMetadata{
+			MethodName:   method.Name,
+			RequestType:  method.Name + "Req",
+			InternalPath: buildGuestControllerInternalPath(method.Name),
+			Kind:         GuestControllerHandlerKindEnvelope,
+		}, true, nil
+	case isGuestTypedControllerHandlerMethod(method.Type):
+		requestType := strings.TrimSpace(method.Type.In(2).Elem().Name())
+		if requestType == "" {
+			return GuestControllerHandlerMetadata{}, false, gerror.Newf("typed guest controller request DTO name is empty: %s", method.Name)
+		}
+		return GuestControllerHandlerMetadata{
+			MethodName:   method.Name,
+			RequestType:  requestType,
+			InternalPath: buildGuestControllerInternalPath(method.Name),
+			Kind:         GuestControllerHandlerKindTyped,
+		}, true, nil
+	default:
+		return GuestControllerHandlerMetadata{}, false, nil
+	}
+}
+
 // buildGuestControllerHandler creates one dispatch handler for either the
 // legacy envelope signature or the typed guest controller signature.
 func buildGuestControllerHandler(
 	controllerValue reflect.Value,
 	method reflect.Method,
-) (GuestHandler, string, string, bool, error) {
-	switch {
-	case isGuestEnvelopeControllerHandlerMethod(method.Type):
-		return buildGuestEnvelopeControllerHandler(controllerValue, method), method.Name + "Req", buildGuestControllerInternalPath(method.Name), true, nil
-	case isGuestTypedControllerHandlerMethod(method.Type):
-		requestType := strings.TrimSpace(method.Type.In(2).Elem().Name())
-		if requestType == "" {
-			return nil, "", "", false, gerror.Newf("typed guest controller request DTO name is empty: %s", method.Name)
-		}
-		return buildGuestTypedControllerHandler(controllerValue, method), requestType, buildGuestControllerInternalPath(method.Name), true, nil
+	metadata GuestControllerHandlerMetadata,
+) (GuestHandler, error) {
+	switch metadata.Kind {
+	case GuestControllerHandlerKindEnvelope:
+		return buildGuestEnvelopeControllerHandler(controllerValue, method), nil
+	case GuestControllerHandlerKindTyped:
+		return buildGuestTypedControllerHandler(controllerValue, method), nil
 	default:
-		return nil, "", "", false, nil
+		return nil, gerror.Newf("guest route handler kind is unsupported: %s", metadata.Kind)
 	}
 }
 

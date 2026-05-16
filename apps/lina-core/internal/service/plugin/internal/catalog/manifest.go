@@ -146,6 +146,7 @@ func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Man
 		Menus:               artifact.Manifest.Menus,
 		ManifestPath:        "",
 		RootDir:             filepath.Dir(artifactPath),
+		LifecycleHandlers:   CloneLifecycleContracts(artifact.LifecycleContracts),
 		Routes:              artifact.RouteContracts,
 		BridgeSpec:          artifact.BridgeSpec,
 		HostCapabilities:    pluginbridge.CapabilityMapFromHostServices(artifact.HostServices),

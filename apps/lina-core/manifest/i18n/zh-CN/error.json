@@ -724,11 +724,45 @@
         }
       },
       "not": {
+        "found": "插件不存在：{pluginId}",
         "installed": "插件未安装"
+      },
+      "lifecycle": {
+        "precondition": {
+          "vetoed": "插件 {pluginId} 的生命周期操作 {operation} 被生命周期前置条件阻断：{reasons}"
+        }
       },
       "registry": {
         "read": {
           "failed": "读取插件 {pluginId} 注册表失败"
+        }
+      },
+      "runtime": {
+        "upgrade": {
+          "required": "插件 {pluginId} 需要先完成运行时升级，才能执行业务路由",
+          "preview": {
+            "unavailable": "插件 {pluginId} 只有在 runtimeState=pending_upgrade 或 upgrade_failed 时才能查看运行时升级预览；当前 runtimeState={runtimeState}"
+          },
+          "snapshot": {
+            "missing": "插件 {pluginId}@{version} 的运行时升级清单快照缺失",
+            "invalid": "插件 {pluginId}@{version} 的运行时升级清单快照无效"
+          },
+          "confirmation": {
+            "required": "插件 {pluginId} 运行时升级需要显式确认"
+          },
+          "unavailable": "插件 {pluginId} 只有在 runtimeState=pending_upgrade 或 upgrade_failed 时才能执行运行时升级；当前 runtimeState={runtimeState}",
+          "already": {
+            "running": "插件 {pluginId} 的运行时升级已在其他节点执行中"
+          },
+          "lock": {
+            "unavailable": "cluster.enabled=true 时，插件 {pluginId} 运行时升级需要集群锁后端"
+          },
+          "type": {
+            "unsupported": "插件 {pluginId} 的类型 {pluginType} 不支持运行时升级执行"
+          },
+          "execution": {
+            "failed": "插件 {pluginId} 从 {fromVersion} 升级到 {toVersion} 的运行时升级失败"
+          }
         }
       },
       "release": {
@@ -780,8 +814,6 @@
           "manifest": {
             "required": "源码插件清单不能为空"
           },
-          "pending": "检测到已安装源码插件存在待完成升级，宿主启动前必须先处理下列源码插件版本。\n{items}",
-          "pendingWithBulk": "检测到已安装源码插件存在待完成升级，宿主启动前必须先处理下列源码插件版本。\n{items}\n如需统一排查全部待升级源码插件：{bulkCommand}",
           "plugin": {
             "id": {
               "required": "源码插件 ID 不能为空"
@@ -807,6 +839,9 @@
               },
               "required": "源码插件目标发布记录不能为空"
             }
+          },
+          "lifecycle": {
+            "vetoed": "源码插件 {pluginId} 的生命周期操作 {operation} 被阻断：{reasons}"
           }
         }
       },

@@ -170,59 +170,93 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		session.ConfigureCoordination(nil)
 	}
 
+	// ========================================================================
+	// Dependence injections.
+	// ========================================================================
+
 	var (
 		bizCtxSvc     = bizctx.New()
 		sessionStore  = session.NewDBStore()
 		cacheCoordSvc = cachecoord.Default(clusterSvc)
 		i18nSvc       = i18nsvc.New(bizCtxSvc, configSvc, cacheCoordSvc)
-		pluginSvc     = pluginsvc.New(clusterSvc, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, sessionStore)
-		orgCapSvc     = orgcap.New(pluginSvc)
-		tenantSvc     = tenantcapsvc.New(pluginSvc, bizCtxSvc)
-		kvCacheSvc    = kvcache.New()
-		roleSvc       = role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
-		scopeSvc      = datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
-		dictSvc       = dict.New(i18nSvc)
-		menuSvc       = menu.New(pluginSvc, i18nSvc, roleSvc)
-		notifySvc     = notify.New(tenantSvc)
-		authSvc       = auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
-		fileSvc       = file.New(configSvc, file.NewLocalStorage(configSvc.GetUploadPath(ctx)), bizCtxSvc, dictSvc, scopeSvc)
-		sysConfigSvc  = sysconfig.New(configSvc, i18nSvc)
-		sysInfoSvc    = sysinfosvc.New(configSvc, clusterSvc, coordinationSvc, cacheCoordSvc)
-		userSvc       = user.New(authSvc, bizCtxSvc, i18nSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc)
-		userMsgSvc    = usermsg.New(bizCtxSvc, notifySvc, i18nSvc)
-		apiDocSvc     = apidoc.New(configSvc, bizCtxSvc, i18nSvc, pluginSvc)
-		authTokenSvc  = authSvc.(auth.TenantTokenIssuer)
-		jobRegistry   = jobhandlersvc.New()
-		jobScheduler  = jobmgmtsvc.NewScheduler(clusterSvc, jobRegistry, configSvc)
+		lockStore     = runtimeUpgradeLockStore(coordinationSvc)
+	)
+	pluginSvc, err := pluginsvc.New(clusterSvc, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, sessionStore, lockStore)
+	if err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
+		return nil, err
+	}
+	var (
+		orgCapSvc    = orgcap.New(pluginSvc)
+		tenantSvc    = tenantcapsvc.New(pluginSvc, bizCtxSvc)
+		kvCacheSvc   = kvcache.New()
+		roleSvc      = role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
+		scopeSvc     = datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
+		dictSvc      = dict.New(i18nSvc)
+		menuSvc      = menu.New(pluginSvc, i18nSvc, roleSvc)
+		notifySvc    = notify.New(tenantSvc)
+		authSvc      = auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
+		fileStorage  = file.NewLocalStorage(configSvc.GetUploadPath(ctx))
+		fileSvc      = file.New(configSvc, fileStorage, bizCtxSvc, dictSvc, scopeSvc)
+		sysConfigSvc = sysconfig.New(configSvc, i18nSvc)
+		userSvc      = user.New(authSvc, bizCtxSvc, i18nSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc)
+		userMsgSvc   = usermsg.New(bizCtxSvc, notifySvc, i18nSvc)
+		apiDocSvc    = apidoc.New(configSvc, bizCtxSvc, i18nSvc, pluginSvc)
+		authTokenSvc = authSvc.(auth.TenantTokenIssuer)
+		jobRegistry  = jobhandlersvc.New()
+	)
+	sysInfoSvc, err := sysinfosvc.New(configSvc, clusterSvc, coordinationSvc, cacheCoordSvc)
+	if err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
+		return nil, err
+	}
+	jobScheduler, err := jobmgmtsvc.NewScheduler(clusterSvc, jobRegistry, configSvc)
+	if err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
+		return nil, err
+	}
+	var (
 		jobMgmtSvc    = jobmgmtsvc.New(bizCtxSvc, configSvc, i18nSvc, jobRegistry, jobScheduler, scopeSvc)
 		middlewareSvc = middleware.New(authSvc, bizCtxSvc, configSvc, i18nSvc, pluginSvc, roleSvc, tenantSvc)
-		hostServices  = pluginhostservices.New(
-			apiDocSvc,
-			authSvc,
-			authTokenSvc,
-			bizCtxSvc,
-			scopeSvc,
-			i18nSvc,
-			pluginSvc,
-			sessionStore,
-			tenantSvc,
-			notifySvc,
-		)
 	)
+	hostServices, err := pluginhostservices.New(
+		apiDocSvc,
+		authSvc,
+		authTokenSvc,
+		bizCtxSvc,
+		scopeSvc,
+		i18nSvc,
+		pluginSvc,
+		sessionStore,
+		tenantSvc,
+		notifySvc,
+	)
+	if err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
+		return nil, err
+	}
 	roleSvc.SetDataScopeService(scopeSvc)
 	pluginSvc.SetHostServices(hostServices)
 	pluginSvc.SetTenantCapability(tenantSvc)
-	pluginsvc.ConfigureWasmHostServices(
+	hostLockSvc, err := hostlock.New(locker.New())
+	if err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
+		return nil, err
+	}
+	if err = pluginsvc.ConfigureWasmHostServices(
 		kvCacheSvc,
-		hostlock.New(locker.New()),
+		hostLockSvc,
 		notifySvc,
 		configSvc,
 		hostServices.Config(),
-	)
+	); err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
+		return nil, err
+	}
 
 	// Host-owned handler definitions are registered before cron startup so the
 	// persistent scheduler can project and validate code-owned jobs immediately.
-	if err := jobhandlersvc.RegisterHostHandlers(jobRegistry, jobMgmtSvc); err != nil {
+	if err = jobhandlersvc.RegisterHostHandlers(jobRegistry, jobMgmtSvc); err != nil {
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, err
 	}
@@ -232,7 +266,11 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, err
 	}
-
+	var cronSvc = cron.New(
+		configSvc, roleSvc, kvCacheSvc,
+		pluginSvc, sessionCfg, sessionStore,
+		clusterSvc, jobRegistry, jobMgmtSvc, jobScheduler,
+	)
 	return &httpRuntime{
 		configSvc:       configSvc,
 		coordinationSvc: coordinationSvc,
@@ -260,7 +298,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		jobRegistry:     jobRegistry,
 		jobMgmtSvc:      jobMgmtSvc,
 		middlewareSvc:   middlewareSvc,
-		cronSvc:         cron.New(configSvc, roleSvc, kvCacheSvc, pluginSvc, sessionCfg, sessionStore, clusterSvc, jobRegistry, jobMgmtSvc, jobScheduler),
+		cronSvc:         cronSvc,
 		serverCfg:       configSvc.GetServerExtensions(ctx),
 	}, nil
 }
@@ -305,6 +343,15 @@ func newHTTPCoordinationService(
 	})
 }
 
+// runtimeUpgradeLockStore extracts the cluster coordination lock store used by
+// plugin runtime upgrades. Single-node deployments pass nil explicitly.
+func runtimeUpgradeLockStore(coordinationSvc coordination.Service) coordination.LockStore {
+	if coordinationSvc == nil {
+		return nil
+	}
+	return coordinationSvc.Lock()
+}
+
 // closeHTTPCoordinationAfterInitError best-effort closes Redis coordination
 // resources when later HTTP runtime construction fails.
 func closeHTTPCoordinationAfterInitError(ctx context.Context, coordinationSvc coordination.Service) {
@@ -321,8 +368,8 @@ func closeHTTPCoordinationAfterInitError(ctx context.Context, coordinationSvc co
 func startHTTPRuntime(ctx context.Context, runtime *httpRuntime) error {
 	runtime.clusterSvc.Start(ctx)
 
-	// Auto-enable and source-upgrade validation run before plugin routes and
-	// cron jobs are registered so stale plugin state fails the process early.
+	// Auto-enable and source-upgrade drift scanning run before plugin routes and
+	// cron jobs are registered so plugin management can surface runtime state.
 	if err := startupstats.Observe(ctx, startupstats.PhasePluginBootstrapAutoEnable, func() error {
 		return runtime.pluginSvc.BootstrapAutoEnable(ctx)
 	}); err != nil {

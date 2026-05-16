@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-core/internal/service/cachecoord"
@@ -45,12 +46,17 @@ type serviceImpl struct {
 }
 
 // New creates and returns a new sysinfo service from explicit runtime-owned dependencies.
-func New(configSvc config.Service, clusterSvc cluster.Service, coordinationSvc coordination.Service, cacheCoordSvc cachecoord.Service) Service {
+func New(
+	configSvc config.Service,
+	clusterSvc cluster.Service,
+	coordinationSvc coordination.Service,
+	cacheCoordSvc cachecoord.Service,
+) (Service, error) {
 	if configSvc == nil {
-		panic("sysinfo service requires a non-nil config service")
+		return nil, gerror.New("sysinfo service requires a non-nil config service")
 	}
 	if cacheCoordSvc == nil {
-		panic("sysinfo service requires a non-nil cache coordination service")
+		return nil, gerror.New("sysinfo service requires a non-nil cache coordination service")
 	}
 	return &serviceImpl{
 		startTime:       time.Now(),
@@ -58,7 +64,7 @@ func New(configSvc config.Service, clusterSvc cluster.Service, coordinationSvc c
 		clusterSvc:      clusterSvc,
 		coordinationSvc: coordinationSvc,
 		cacheCoordSvc:   cacheCoordSvc,
-	}
+	}, nil
 }
 
 // SystemInfo holds the system runtime information.

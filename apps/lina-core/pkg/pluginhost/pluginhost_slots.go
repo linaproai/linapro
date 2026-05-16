@@ -44,14 +44,16 @@ const (
 	ExtensionPointAuthLoginFailed ExtensionPoint = "auth.login.failed"
 	// ExtensionPointAuthLogoutSucceeded is fired after user logout succeeds.
 	ExtensionPointAuthLogoutSucceeded ExtensionPoint = "auth.logout.succeeded"
-	// ExtensionPointPluginInstalled is fired after a dynamic plugin is installed.
+	// ExtensionPointPluginInstalled is fired after a plugin is installed.
 	ExtensionPointPluginInstalled ExtensionPoint = "plugin.installed"
 	// ExtensionPointPluginEnabled is fired after a plugin is enabled.
 	ExtensionPointPluginEnabled ExtensionPoint = "plugin.enabled"
 	// ExtensionPointPluginDisabled is fired after a plugin is disabled.
 	ExtensionPointPluginDisabled ExtensionPoint = "plugin.disabled"
-	// ExtensionPointPluginUninstalled is fired after a dynamic plugin is uninstalled.
+	// ExtensionPointPluginUninstalled is fired after a plugin is uninstalled.
 	ExtensionPointPluginUninstalled ExtensionPoint = "plugin.uninstalled"
+	// ExtensionPointPluginUpgraded is fired after a plugin runtime upgrade completes.
+	ExtensionPointPluginUpgraded ExtensionPoint = "plugin.upgraded"
 	// ExtensionPointSystemStarted is fired after host HTTP server startup.
 	ExtensionPointSystemStarted ExtensionPoint = "system.started"
 	// ExtensionPointHTTPRouteRegister registers plugin-owned HTTP routes at host startup.
@@ -87,6 +89,7 @@ var publishedExtensionPoints = map[ExtensionPoint]ExtensionPointDefinition{
 	ExtensionPointPluginEnabled:       {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointPluginDisabled:      {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointPluginUninstalled:   {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
+	ExtensionPointPluginUpgraded:      {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointSystemStarted:       {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointHTTPRouteRegister:   {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointCronRegister:        {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
@@ -122,6 +125,10 @@ var supportedExtensionPointModes = map[ExtensionPoint]map[CallbackExecutionMode]
 		CallbackExecutionModeAsync:    {},
 	},
 	ExtensionPointPluginUninstalled: {
+		CallbackExecutionModeBlocking: {},
+		CallbackExecutionModeAsync:    {},
+	},
+	ExtensionPointPluginUpgraded: {
 		CallbackExecutionModeBlocking: {},
 		CallbackExecutionModeAsync:    {},
 	},

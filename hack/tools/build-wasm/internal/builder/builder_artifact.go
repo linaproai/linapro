@@ -20,6 +20,7 @@ func buildRuntimeArtifactContent(
 	uninstallSQLAssets []*sqlAsset,
 	mockSQLAssets []*sqlAsset,
 	hookSpecs []*hookSpec,
+	lifecycleSpecs []*lifecycleSpec,
 	resourceSpecs []*resourceSpec,
 	routeContracts []*pluginbridge.RouteContract,
 	bridgeSpec *pluginbridge.BridgeSpec,
@@ -113,6 +114,13 @@ func buildRuntimeArtifactContent(
 			return nil, err
 		}
 		content = appendWasmCustomSection(content, pluginDynamicWasmSectionBackendHooks, payload)
+	}
+	if len(lifecycleSpecs) > 0 {
+		payload, err := json.Marshal(lifecycleSpecs)
+		if err != nil {
+			return nil, err
+		}
+		content = appendWasmCustomSection(content, pluginDynamicWasmSectionBackendLifecycle, payload)
 	}
 	if len(resourceSpecs) > 0 {
 		payload, err := json.Marshal(resourceSpecs)

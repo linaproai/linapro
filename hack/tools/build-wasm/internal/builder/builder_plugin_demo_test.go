@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"lina-core/pkg/pluginbridge"
 )
 
 // TestPluginDemoDynamicRuntimeArtifactEmbedsReviewedAssets verifies that the
@@ -86,6 +88,12 @@ func TestPluginDemoDynamicRuntimeArtifactEmbedsReviewedAssets(t *testing.T) {
 		t.Fatalf("expected mock sql section json to unmarshal, got error: %v", err)
 	}
 	assertSQLAssetsMatchSource(t, expectedMockSQLAssets, mockSQLAssets)
+
+	var lifecycleContracts []*lifecycleSpec
+	if err = json.Unmarshal(sections[pluginDynamicWasmSectionBackendLifecycle], &lifecycleContracts); err != nil {
+		t.Fatalf("expected lifecycle section json to unmarshal, got error: %v", err)
+	}
+	assertPluginDemoDynamicLifecycleContracts(t, lifecycleContracts)
 }
 
 // requireOfficialPluginDemoDynamic skips plugin-full fixture checks when the
@@ -384,6 +392,48 @@ func assertSQLAssetsMatchSource(t *testing.T, expected []*sqlAsset, actual []*sq
 		}
 		if strings.TrimSpace(actual[index].Content) != strings.TrimSpace(expected[index].Content) {
 			t.Fatalf("unexpected SQL content for asset %s", expected[index].Key)
+		}
+	}
+}
+
+// assertPluginDemoDynamicLifecycleContracts verifies the official dynamic demo
+// relies on controller auto-discovery while preserving the reviewed lifecycle surface.
+func assertPluginDemoDynamicLifecycleContracts(t *testing.T, actual []*lifecycleSpec) {
+	t.Helper()
+
+	expected := []pluginbridge.LifecycleOperation{
+		pluginbridge.LifecycleOperationBeforeInstall,
+		pluginbridge.LifecycleOperationAfterInstall,
+		pluginbridge.LifecycleOperationBeforeUpgrade,
+		pluginbridge.LifecycleOperationAfterUpgrade,
+		pluginbridge.LifecycleOperationBeforeDisable,
+		pluginbridge.LifecycleOperationAfterDisable,
+		pluginbridge.LifecycleOperationBeforeUninstall,
+		pluginbridge.LifecycleOperationAfterUninstall,
+		pluginbridge.LifecycleOperationBeforeTenantDisable,
+		pluginbridge.LifecycleOperationAfterTenantDisable,
+		pluginbridge.LifecycleOperationBeforeTenantDelete,
+		pluginbridge.LifecycleOperationAfterTenantDelete,
+		pluginbridge.LifecycleOperationBeforeInstallModeChange,
+		pluginbridge.LifecycleOperationAfterInstallModeChange,
+	}
+	if len(actual) != len(expected) {
+		t.Fatalf("expected %d lifecycle contracts, got %#v", len(expected), actual)
+	}
+
+	byOperation := make(map[pluginbridge.LifecycleOperation]*lifecycleSpec, len(actual))
+	for _, contract := range actual {
+		byOperation[contract.Operation] = contract
+	}
+	for _, operation := range expected {
+		contract, ok := byOperation[operation]
+		if !ok {
+			t.Fatalf("expected lifecycle operation %s, got %#v", operation, actual)
+		}
+		expectedRequestType := operation.String() + "Req"
+		expectedInternalPath := "/__lifecycle" + pluginbridge.BuildGuestControllerInternalPath(operation.String())
+		if contract.RequestType != expectedRequestType || contract.InternalPath != expectedInternalPath {
+			t.Fatalf("unexpected lifecycle contract for %s: %#v", operation, contract)
 		}
 	}
 }

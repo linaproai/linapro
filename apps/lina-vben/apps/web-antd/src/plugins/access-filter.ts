@@ -16,11 +16,19 @@ function normalizePath(path?: string) {
 function buildDisabledPluginSet(items: PluginDynamicState[]) {
   const disabledPluginIds = new Set<string>();
   for (const item of items) {
-    if (item.installed !== 1 || item.enabled !== 1) {
+    if (
+      item.installed !== 1 ||
+      item.enabled !== 1 ||
+      !runtimeStateAllowsPluginEntry(item.runtimeState)
+    ) {
       disabledPluginIds.add(item.id);
     }
   }
   return disabledPluginIds;
+}
+
+function runtimeStateAllowsPluginEntry(runtimeState?: string) {
+  return !runtimeState || runtimeState === 'normal';
 }
 
 function buildExactRoutePluginMap() {

@@ -30,6 +30,8 @@ type PluginDynamicStateItem struct {
 	Generation int64
 	// StatusKey is the host config key used by the public shell.
 	StatusKey string
+	// RuntimeState reports whether plugin business entries may run.
+	RuntimeState RuntimeUpgradeState
 }
 
 // ListRuntimeStates returns public plugin runtime states for shell slot rendering.
@@ -49,8 +51,14 @@ func (s *serviceImpl) ListRuntimeStates(ctx context.Context) (*RuntimeStateListO
 			continue
 		}
 
+		manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
+		if err != nil {
+			manifest = nil
+		}
+
 		installed := registry.Installed
 		enabled := registry.Status
+		runtimeState := RuntimeUpgradeStateNormal
 		if catalog.NormalizeType(registry.Type) == catalog.TypeDynamic {
 			exists, _, err := s.hasArtifactStorageFile(ctx, pluginID)
 			if err != nil {
@@ -61,6 +69,9 @@ func (s *serviceImpl) ListRuntimeStates(ctx context.Context) (*RuntimeStateListO
 				enabled = catalog.StatusDisabled
 			}
 		}
+		if projection, err := s.catalogSvc.BuildRuntimeUpgradeState(ctx, registry, manifest); err == nil {
+			runtimeState = projection.State
+		}
 
 		generation := registry.Generation
 		if generation <= 0 {
@@ -68,12 +79,13 @@ func (s *serviceImpl) ListRuntimeStates(ctx context.Context) (*RuntimeStateListO
 		}
 
 		items = append(items, &PluginDynamicStateItem{
-			Id:         pluginID,
-			Installed:  installed,
-			Enabled:    enabled,
-			Version:    registry.Version,
-			Generation: generation,
-			StatusKey:  s.catalogSvc.BuildPluginStatusKey(pluginID),
+			Id:           pluginID,
+			Installed:    installed,
+			Enabled:      enabled,
+			Version:      registry.Version,
+			Generation:   generation,
+			StatusKey:    s.catalogSvc.BuildPluginStatusKey(pluginID),
+			RuntimeState: runtimeState,
 		})
 	}
 	return &RuntimeStateListOutput{List: items}, nil

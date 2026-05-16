@@ -21,6 +21,16 @@ func (s *serviceImpl) syncEnabledSnapshotFromRegistry(ctx context.Context, plugi
 		s.integrationSvc.DeletePluginEnabledState(pluginID)
 		return nil
 	}
-	s.integrationSvc.SetPluginEnabledState(pluginID, registry.Status == catalog.StatusEnabled)
+	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
+	if err != nil {
+		return err
+	}
+	runtimeState, err := s.catalogSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
+	if err != nil {
+		return err
+	}
+	enabled := registry.Status == catalog.StatusEnabled &&
+		catalog.RuntimeStateAllowsBusinessEntry(runtimeState.State)
+	s.integrationSvc.SetPluginEnabledState(pluginID, enabled)
 	return nil
 }

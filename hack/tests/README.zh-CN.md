@@ -2,6 +2,16 @@
 
 该目录承载 LinaPro 默认管理工作台与宿主-插件集成场景的 Playwright `E2E` 测试套件。
 
+## 前置依赖
+
+首次运行 E2E 测试前，需安装前端依赖和 Playwright 浏览器：
+
+```bash
+make dev.setup
+```
+
+该命令会为前端工作区执行 `pnpm install`（如缺失），并下载 Chromium 浏览器及所需系统库（Linux 下为 `libnss3`、`libatk-bridge2.0-0` 等）。macOS 和 Windows 仅下载浏览器。只需执行一次（升级依赖后重新执行即可）。
+
 ## 目录结构
 
 ```text

@@ -121,8 +121,7 @@ CREATE INDEX IF NOT EXISTS idx_sys_notify_delivery_channel_status ON sys_notify_
 // TestHandleHostServiceInvokeNotifySendDefaultsToCurrentUser verifies notify
 // sends default to the caller when no explicit recipients are provided.
 func TestHandleHostServiceInvokeNotifySendDefaultsToCurrentUser(t *testing.T) {
-	ConfigureNotifyHostService(notifysvc.New(tenantcap.New(nil, nil)))
-	t.Cleanup(func() { notifyHostService = nil })
+	configureDefaultNotifyHostService(t)
 
 	ctx := context.Background()
 	ensurePluginNotifyTables(t, ctx)
@@ -181,6 +180,7 @@ func TestHandleHostServiceInvokeNotifySendDefaultsToCurrentUser(t *testing.T) {
 func TestHandleHostServiceInvokeNotifyRejectsInvalidPayloadJSON(t *testing.T) {
 	ctx := context.Background()
 	ensurePluginNotifyTables(t, ctx)
+	configureDefaultNotifyHostService(t)
 
 	hcc := newNotifyHostCallContext("test-plugin-notify-invalid", "inbox", 1)
 	response := invokeNotifyHostService(
@@ -220,7 +220,9 @@ func TestHandleHostServiceInvokeNotifyRejectsUnauthorizedChannel(t *testing.T) {
 // host service dispatch reuses the explicitly configured shared instance.
 func TestHandleHostServiceInvokeNotifyUsesConfiguredSharedService(t *testing.T) {
 	notifySvc := &trackingNotifyService{}
-	ConfigureNotifyHostService(notifySvc)
+	if err := ConfigureNotifyHostService(notifySvc); err != nil {
+		t.Fatalf("configure notify host service failed: %v", err)
+	}
 	t.Cleanup(func() {
 		notifyHostService = nil
 	})
@@ -254,6 +256,19 @@ func TestHandleHostServiceInvokeNotifyUsesConfiguredSharedService(t *testing.T) 
 	if notifySvc.lastInput.PluginID != hcc.pluginID || len(notifySvc.lastInput.RecipientUserIDs) != 1 || notifySvc.lastInput.RecipientUserIDs[0] != 42 {
 		t.Fatalf("expected plugin and default recipient to be forwarded, got %#v", notifySvc.lastInput)
 	}
+}
+
+// configureDefaultNotifyHostService wires tests to the same notify-backed host
+// service shape used by startup and restores the previous package state.
+func configureDefaultNotifyHostService(t *testing.T) {
+	t.Helper()
+	previousNotifySvc := notifyHostService
+	if err := ConfigureNotifyHostService(notifysvc.New(tenantcap.New(nil, nil))); err != nil {
+		t.Fatalf("configure notify host service failed: %v", err)
+	}
+	t.Cleanup(func() {
+		notifyHostService = previousNotifySvc
+	})
 }
 
 // ensurePluginNotifyTables creates the notify schema and seeds the inbox

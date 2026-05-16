@@ -22,14 +22,14 @@ type serviceImpl struct {
 func New(
 	bizCtxSvc contract.BizCtxService,
 	bypassEvaluator contract.PlatformBypassEvaluator,
-) contract.TenantFilterService {
+) (contract.TenantFilterService, error) {
 	if bizCtxSvc == nil {
-		panic(gerror.New("tenantfilter requires host bizctx service"))
+		return nil, gerror.New("tenantfilter requires host bizctx service")
 	}
 	return &serviceImpl{
 		bizCtxSvc:       bizCtxSvc,
 		bypassEvaluator: bypassEvaluator,
-	}
+	}, nil
 }
 
 // Current returns the current tenant ID from the host business context.

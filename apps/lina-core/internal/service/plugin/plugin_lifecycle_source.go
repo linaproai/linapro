@@ -46,6 +46,9 @@ func (s *serviceImpl) installSourcePlugin(ctx context.Context, manifest *catalog
 		)
 	}
 
+	if err = s.executeSourcePluginBeforeLifecycle(ctx, manifest, pluginhost.LifecycleHookBeforeInstall, false); err != nil {
+		return err
+	}
 	if err = s.lifecycleSvc.ExecuteManifestSQLFiles(ctx, manifest, catalog.MigrationDirectionInstall); err != nil {
 		return err
 	}
@@ -145,6 +148,9 @@ func (s *serviceImpl) uninstallSourcePlugin(
 		}
 	}
 
+	if err = s.executeSourcePluginBeforeLifecycle(ctx, manifest, pluginhost.LifecycleHookBeforeUninstall, options.Force); err != nil {
+		return err
+	}
 	if options.PurgeStorageData {
 		if err = s.executeSourcePluginUninstallHandler(ctx, manifest, options); err != nil {
 			return err
@@ -191,6 +197,90 @@ func (s *serviceImpl) uninstallSourcePlugin(
 			Name:     manifest.Name,
 			Version:  manifest.Version,
 		}),
+	)
+}
+
+// executeSourcePluginBeforeLifecycle invokes lifecycle facade precondition
+// callbacks registered by one source plugin before host side effects run.
+func (s *serviceImpl) executeSourcePluginBeforeLifecycle(
+	ctx context.Context,
+	manifest *catalog.Manifest,
+	hook pluginhost.LifecycleHook,
+	force bool,
+) error {
+	if manifest == nil || manifest.SourcePlugin == nil {
+		return nil
+	}
+	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
+		Hook: hook,
+		PluginInput: pluginhost.NewSourcePluginLifecycleInput(
+			manifest.ID,
+			hook.String(),
+		),
+		Participants: []pluginhost.LifecycleParticipant{
+			{
+				PluginID: manifest.ID,
+				Callback: pluginhost.NewSourcePluginLifecycleCallbackAdapter(manifest.SourcePlugin),
+			},
+		},
+	})
+	if result.OK {
+		return nil
+	}
+	reasons := summarizeLifecycleVetoReasons(result.Decisions)
+	if force && hook == pluginhost.LifecycleHookBeforeUninstall {
+		if err := s.ensureForceUninstallEnabled(ctx); err != nil {
+			return err
+		}
+		logger.Warningf(
+			ctx,
+			"source plugin lifecycle callback force bypass operation=%s plugin=%s reasons=%s",
+			hook,
+			manifest.ID,
+			reasons,
+		)
+		return nil
+	}
+	return bizerr.NewCode(
+		CodePluginLifecyclePreconditionVetoed,
+		bizerr.P("operation", hook.String()),
+		bizerr.P("pluginId", manifest.ID),
+		bizerr.P("reasons", reasons),
+	)
+}
+
+// executeSourcePluginAfterLifecycle invokes non-blocking lifecycle callbacks
+// registered by one source plugin after host side effects have succeeded.
+func (s *serviceImpl) executeSourcePluginAfterLifecycle(
+	ctx context.Context,
+	manifest *catalog.Manifest,
+	hook pluginhost.LifecycleHook,
+) {
+	if manifest == nil || manifest.SourcePlugin == nil {
+		return
+	}
+	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
+		Hook: hook,
+		PluginInput: pluginhost.NewSourcePluginLifecycleInput(
+			manifest.ID,
+			hook.String(),
+		),
+		Participants: []pluginhost.LifecycleParticipant{
+			{
+				PluginID: manifest.ID,
+				Callback: pluginhost.NewSourcePluginLifecycleCallbackAdapter(manifest.SourcePlugin),
+			},
+		},
+	})
+	if result.OK {
+		return
+	}
+	logger.Warningf(
+		ctx,
+		"source plugin after lifecycle callback failed operation=%s plugin=%s reasons=%s",
+		hook,
+		manifest.ID,
+		summarizeLifecycleVetoReasons(result.Decisions),
 	)
 }
 

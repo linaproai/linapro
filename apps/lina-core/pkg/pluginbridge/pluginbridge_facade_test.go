@@ -89,6 +89,7 @@ func TestFacadeWasmSectionMatchesArtifact(t *testing.T) {
 	content := []byte("\x00asm\x01\x00\x00\x00")
 	content = appendFacadeTestWasmCustomSection(content, WasmSectionManifest, []byte(`{"id":"demo"}`))
 	content = appendFacadeTestWasmCustomSection(content, WasmSectionI18NAssets, []byte(`{"zh-CN":{}}`))
+	content = appendFacadeTestWasmCustomSection(content, WasmSectionBackendLifecycle, []byte(`[]`))
 
 	facadeSections, err := ListCustomSections(content)
 	if err != nil {

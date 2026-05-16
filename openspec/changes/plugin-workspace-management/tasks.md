@@ -81,6 +81,7 @@
 - [x] **FB-14**: 调查 `TC0066l` 源码插件焦点恢复 serial 失败，单会话隔离复跑确认并非稳定产品回归，关闭
 - [x] **FB-15**: 调查 `TC0068b` 运行时 wasm hook 失败隔离 serial 失败，单会话隔离复跑确认并非稳定产品回归，关闭
 - [ ] **FB-16**: 修复 plugin-full GitHub Actions `E2E tests (plugin-full)` 中 `TC0222`、`TC0098` 与 `TC0111` 在 CI 容器下稳定撞到默认 60 秒 Playwright 超时，导致 nightly plugin-full E2E 门禁失败
+- [x] **FB-17**: 明确插件工作区更新只负责开发阶段离线文件覆盖，运行时状态和数据升级拆分到 `plugin-runtime-upgrade` 变更处理
 
 ## Feedback Verification Notes
 
@@ -142,3 +143,9 @@
 - FB-12~FB-15 Investigation: 单会话隔离复跑 `TC0186`、`TC0206`、`TC0066`、`TC0068` 全部通过；之前 full/serial 阶段的 4 个失败由多个 Playwright 进程共享 `hack/tests/test-results` 引发的 artifact/trace 竞争造成，包含 `ENOENT` 与 trace/network 文件缺失，不是稳定产品回归。
 - FB-12~FB-15 Closure: 后续完整 E2E 统一使用单一 `playwright test` 会话和 `E2E_BROWSER_CHANNEL=chrome` 运行，避免 bundled Chromium 下载/版本问题与共享 artifact 目录竞争。
 - FB-12~FB-15 Tests: 已通过 `cd hack/tests && E2E_BROWSER_CHANNEL=chrome pnpm exec playwright test apps/lina-plugins/multi-tenant/hack/tests/e2e/platform-admin/TC0186-impersonation-start-exit.ts --workers=1`、`cd hack/tests && E2E_BROWSER_CHANNEL=chrome pnpm exec playwright test apps/lina-plugins/multi-tenant/hack/tests/e2e/plugin-governance/TC0206-tenant-aware-install-mode.ts --workers=1`、`cd hack/tests && E2E_BROWSER_CHANNEL=chrome pnpm exec playwright test hack/tests/e2e/extension/plugin/TC0066-source-plugin-lifecycle.ts --workers=1`、`cd hack/tests && E2E_BROWSER_CHANNEL=chrome pnpm exec playwright test hack/tests/e2e/extension/plugin/TC0068-runtime-wasm-failure-isolation.ts --workers=1`、`cd hack/tests && E2E_BROWSER_CHANNEL=chrome pnpm exec playwright test $(cat ../../temp/full-parallel-files.txt) $(cat ../../temp/full-serial-files.txt) --workers=1`、`cd apps/lina-vben && pnpm test:unit`、`cd hack/tests && pnpm test:validate`、`make test.go plugins=0 race=true verbose=true`、`make test.go plugins=1 race=true verbose=true`、`openspec validate plugin-workspace-management --strict` 与 `git diff --check`。
+- FB-17 i18n: 仅补充 OpenSpec 规范边界，不新增前端运行时文案、接口文档、插件 manifest i18n 或 apidoc i18n；运行时升级相关文案由 `plugin-runtime-upgrade` 变更负责。
+- FB-17 Cache: `plugin-workspace-management` 仍不新增运行时缓存、缓存键或跨实例失效；运行时升级缓存一致性由 `plugin-runtime-upgrade` 变更负责。
+- FB-17 Data permission: 不新增或修改 HTTP/API 数据操作接口，不涉及角色数据权限边界。
+- FB-17 RESTful API: 不新增后端 REST API；运行时升级 API 在 `plugin-runtime-upgrade` 中设计。
+- FB-17 Dev tools: 明确 `plugins.install` / `plugins.update` 只覆盖插件文件和锁定状态，不连接运行时数据库、不执行升级 SQL、不调用插件升级回调。
+- FB-17 Tests: 使用 OpenSpec 治理验证覆盖，运行 `openspec validate plugin-workspace-management --strict` 和 `openspec validate plugin-runtime-upgrade --strict`。

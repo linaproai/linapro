@@ -5,22 +5,24 @@ package wasm
 import (
 	"context"
 
+	"github.com/gogf/gf/v2/errors/gerror"
+
 	"lina-core/internal/service/hostlock"
-	"lina-core/internal/service/locker"
 	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
 	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // lockHostService is the shared governed lock backend used by wasm host calls.
-var lockHostService = hostlock.New(locker.New())
+var lockHostService hostlock.Service
 
 // ConfigureLockHostService replaces the governed lock backend used by wasm
 // host calls. The service must be non-nil.
-func ConfigureLockHostService(service hostlock.Service) {
+func ConfigureLockHostService(service hostlock.Service) error {
 	if service == nil {
-		panic("wasm lock host service requires a non-nil lock service")
+		return gerror.New("wasm lock host service requires a non-nil lock service")
 	}
 	lockHostService = service
+	return nil
 }
 
 // dispatchLockHostService routes lock host service methods to the governed lock backend.
@@ -36,6 +38,9 @@ func dispatchLockHostService(
 	}
 	if resourceRef == "" {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusCapabilityDenied, "lock host service requires one authorized logical lock name")
+	}
+	if lockHostService == nil {
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "lock host service is not configured")
 	}
 	tenantID := int32(0)
 	if hcc.identity != nil {

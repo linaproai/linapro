@@ -1,3 +1,5 @@
+// This file defines plugin list management API DTOs.
+
 package v1
 
 import "github.com/gogf/gf/v2/frame/g"
@@ -23,6 +25,12 @@ type PluginItem struct {
 	Id                      string                       `json:"id" dc:"Plugin unique identifier" eg:"plugin-demo-source"`
 	Name                    string                       `json:"name" dc:"Plugin name" eg:"Source Plugin Demo"`
 	Version                 string                       `json:"version" dc:"Plugin current manifest version number" eg:"v0.1.0"`
+	RuntimeState            string                       `json:"runtimeState" dc:"Plugin runtime upgrade state: normal, pending_upgrade, abnormal, upgrade_running, or upgrade_failed" eg:"pending_upgrade"`
+	EffectiveVersion        string                       `json:"effectiveVersion" dc:"Database-effective plugin version currently used by the host" eg:"v0.1.0"`
+	DiscoveredVersion       string                       `json:"discoveredVersion" dc:"Plugin version currently discovered from source plugin.yaml or dynamic artifact metadata" eg:"v0.2.0"`
+	UpgradeAvailable        bool                         `json:"upgradeAvailable" dc:"Whether the plugin has a newer discovered version that can be upgraded by runtime management" eg:"true"`
+	AbnormalReason          string                       `json:"abnormalReason,omitempty" dc:"Stable diagnostic reason when runtimeState is abnormal" eg:"discovered_version_lower_than_effective"`
+	LastUpgradeFailure      *PluginUpgradeFailureItem    `json:"lastUpgradeFailure,omitempty" dc:"Latest observable runtime upgrade failure details" eg:"{}"`
 	Type                    string                       `json:"type" dc:"Plugin first-level type: source=source plugin dynamic=dynamic plugin" eg:"source"`
 	Description             string                       `json:"description" dc:"Plugin description" eg:"Source plugin that provides left-side menu pages and public/protected routing examples"`
 	Installed               int                          `json:"installed" dc:"Installation status: 1=installed 0=not installed; the source plugin can still be in the uninstalled state by default after being discovered by the host" eg:"1"`
@@ -42,6 +50,16 @@ type PluginItem struct {
 	RequestedHostServices   []*HostServicePermissionItem `json:"requestedHostServices,omitempty" dc:"The hostServices application list declared by the current version of the plugin" eg:"[]"`
 	AuthorizedHostServices  []*HostServicePermissionItem `json:"authorizedHostServices,omitempty" dc:"HostServices authorization snapshot after final confirmation of the current release by the host" eg:"[]"`
 	DeclaredRoutes          []*PluginRouteReviewItem     `json:"declaredRoutes,omitempty" dc:"The dynamic route review list declared by the current release, only returned by dynamic plugins; used to display the real public routes that the plugin will expose before installation or activation." eg:"[]"`
+}
+
+// PluginUpgradeFailureItem describes the latest observable runtime upgrade failure.
+type PluginUpgradeFailureItem struct {
+	Phase          string `json:"phase" dc:"Upgrade phase where the failure was observed" eg:"release"`
+	ErrorCode      string `json:"errorCode" dc:"Stable machine-readable failure code" eg:"plugin_upgrade_release_failed"`
+	MessageKey     string `json:"messageKey" dc:"Runtime i18n key for the failure message" eg:"plugin.runtimeUpgrade.failure.releaseFailed"`
+	ReleaseId      int    `json:"releaseId" dc:"Failed target release ID" eg:"12"`
+	ReleaseVersion string `json:"releaseVersion" dc:"Failed target release version" eg:"v0.2.0"`
+	Detail         string `json:"detail,omitempty" dc:"Latest persisted failure detail for operator diagnosis" eg:"execute plugin SQL statement 1 failed"`
 }
 
 // PluginDependencyCheckResult describes one server-side plugin dependency decision.

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogf/gf/v2/errors/gerror"
+
 	"lina-core/internal/service/jobmeta"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
@@ -64,9 +66,9 @@ type serviceImpl struct {
 var _ Executor = (*serviceImpl)(nil)
 
 // New creates and returns one guarded shell executor.
-func New(configSvc shellGate) Executor {
+func New(configSvc shellGate) (Executor, error) {
 	if configSvc == nil {
-		panic("shell executor requires a non-nil config service")
+		return nil, gerror.New("shell executor requires a non-nil config service")
 	}
 
 	workDir, err := os.Getwd()
@@ -78,7 +80,7 @@ func New(configSvc shellGate) Executor {
 		goos:              strings.TrimSpace(os.Getenv("GOOS")),
 		defaultWorkDir:    workDir,
 		cancelGracePeriod: 5 * time.Second,
-	}
+	}, nil
 }
 
 // Execute runs one shell command with timeout, environment merging, and output capture.

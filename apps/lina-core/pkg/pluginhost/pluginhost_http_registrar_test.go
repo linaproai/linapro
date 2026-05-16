@@ -78,10 +78,12 @@ func TestGlobalMiddlewareRegistrarBypassesDisabledPlugin(t *testing.T) {
 	registrar := NewGlobalMiddlewareRegistrar(server, "plugin-demo", func(_ context.Context, pluginID string) bool {
 		return false
 	})
-	registrar.Bind("/api/v1/*", func(request *ghttp.Request) {
+	if err := registrar.Bind("/api/v1/*", func(request *ghttp.Request) {
 		called = true
 		request.Middleware.Next()
-	})
+	}); err != nil {
+		t.Fatalf("expected middleware registration to succeed, got %v", err)
+	}
 
 	server.Start()
 	defer server.Shutdown()
@@ -114,10 +116,12 @@ func TestGlobalMiddlewareRegistrarCapturesHandlerResponse(t *testing.T) {
 	registrar := NewGlobalMiddlewareRegistrar(server, "plugin-demo", func(_ context.Context, pluginID string) bool {
 		return true
 	})
-	registrar.Bind("/api/v1/*", func(request *ghttp.Request) {
+	if err := registrar.Bind("/api/v1/*", func(request *ghttp.Request) {
 		request.Middleware.Next()
 		captured = request.Response.BufferString()
-	})
+	}); err != nil {
+		t.Fatalf("expected middleware registration to succeed, got %v", err)
+	}
 
 	server.Start()
 	defer server.Shutdown()
@@ -158,10 +162,12 @@ func TestGlobalMiddlewareRegistrarObservesDownstreamExitAll(t *testing.T) {
 	registrar := NewGlobalMiddlewareRegistrar(server, "plugin-demo", func(_ context.Context, pluginID string) bool {
 		return true
 	})
-	registrar.Bind("/api/v1/*", func(request *ghttp.Request) {
+	if err := registrar.Bind("/api/v1/*", func(request *ghttp.Request) {
 		request.Middleware.Next()
 		captured = request.Response.BufferString()
-	})
+	}); err != nil {
+		t.Fatalf("expected middleware registration to succeed, got %v", err)
+	}
 
 	server.Start()
 	defer server.Shutdown()

@@ -73,17 +73,11 @@ var (
 		"Source plugin target release cannot be empty",
 		gcode.CodeInvalidParameter,
 	)
-	// CodePluginSourceUpgradePending reports startup detected pending source-plugin upgrades.
-	CodePluginSourceUpgradePending = bizerr.MustDefine(
-		"PLUGIN_SOURCE_UPGRADE_PENDING",
-		"Installed source plugins have pending upgrades. Resolve the listed source-plugin versions before host startup.\n{items}",
-		gcode.CodeInvalidParameter,
-	)
-	// CodePluginSourceUpgradePendingWithBulk reports pending upgrades and includes the bulk command hint.
-	CodePluginSourceUpgradePendingWithBulk = bizerr.MustDefineWithKey(
-		"PLUGIN_SOURCE_UPGRADE_PENDING_WITH_BULK",
-		"error.plugin.source.upgrade.pendingWithBulk",
-		"Installed source plugins have pending upgrades. Resolve the listed source-plugin versions before host startup.\n{items}\nReview all pending source-plugin upgrades together: {bulkCommand}",
-		gcode.CodeInvalidParameter,
+	// CodePluginSourceUpgradeLifecycleVetoed reports that a unified lifecycle
+	// before-upgrade callback blocked source-plugin runtime upgrade.
+	CodePluginSourceUpgradeLifecycleVetoed = bizerr.MustDefine(
+		"PLUGIN_SOURCE_UPGRADE_LIFECYCLE_VETOED",
+		"Source plugin lifecycle operation {operation} for {pluginId} was blocked: {reasons}",
+		gcode.CodeInvalidOperation,
 	)
 )

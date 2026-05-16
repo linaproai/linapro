@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
+	"github.com/gogf/gf/v2/errors/gerror"
 
 	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
 	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
@@ -20,11 +21,12 @@ var configHostService = configsvc.New()
 
 // ConfigureConfigHostService replaces the read-only configuration adapter used
 // by wasm host calls. The service must be non-nil.
-func ConfigureConfigHostService(service contract.ConfigService) {
+func ConfigureConfigHostService(service contract.ConfigService) error {
 	if service == nil {
-		panic("wasm config host service requires a non-nil config adapter")
+		return gerror.New("wasm config host service requires a non-nil config adapter")
 	}
 	configHostService = service
+	return nil
 }
 
 // dispatchConfigHostService routes config host service methods to the generic
@@ -38,6 +40,9 @@ func dispatchConfigHostService(
 	request, err := bridgehostservice.UnmarshalHostServiceConfigKeyRequest(payload)
 	if err != nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
+	}
+	if configHostService == nil {
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "config host service is not configured")
 	}
 
 	switch method {

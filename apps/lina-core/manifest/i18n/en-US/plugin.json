@@ -1,5 +1,28 @@
 {
   "plugin": {
+    "runtimeUpgrade": {
+      "abnormalReason": {
+        "discoveredVersionLowerThanEffective": "The discovered plugin file version is lower than the effective database version.",
+        "versionCompareFailed": "The plugin versions cannot be compared as semantic versions."
+      },
+      "failure": {
+        "releaseFailed": "The target plugin release failed before it became effective.",
+        "migrationFailed": "The target plugin upgrade failed during a recorded migration or lifecycle phase."
+      },
+      "state": {
+        "abnormal": "Abnormal",
+        "normal": "Normal",
+        "pendingUpgrade": "Pending upgrade",
+        "upgradeFailed": "Upgrade failed",
+        "upgradeRunning": "Upgrade running"
+      },
+      "risk": {
+        "upgradeSqlRequiresReview": "The target version includes SQL migration assets. Review them before confirming the upgrade.",
+        "mockSqlExcluded": "Mock data SQL is excluded from runtime upgrades and will not be loaded automatically.",
+        "hostServiceAuthorizationChanged": "The target version changes requested hostServices and may require authorization review.",
+        "dependencyBlockers": "Dependency checks found blockers that must be resolved before upgrade."
+      }
+    },
     "sourceUpgrade": {
       "alreadyLatest": "The current source plugin is already up to date. No upgrade is required.",
       "notInstalledSkipped": "Source plugin is not installed. Upgrade skipped.",

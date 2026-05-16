@@ -67,8 +67,8 @@ type PluginAutoEnableEntry struct {
 type PluginConfig struct {
 	Dynamic PluginDynamicConfig `json:"dynamic"` // Dynamic contains dynamic plugin storage settings.
 	Runtime PluginDynamicConfig `json:"runtime"` // Runtime keeps legacy config compatibility for older runtime keys.
-	// AllowForceUninstall lets platform administrators bypass lifecycle guard
-	// vetoes after an explicit confirmation path.
+	// AllowForceUninstall lets platform administrators bypass lifecycle
+	// precondition vetoes after an explicit confirmation path.
 	AllowForceUninstall bool `json:"allowForceUninstall"`
 	// AutoEnable lists plugin entries the host must auto-install and enable
 	// during startup. Populated manually from g.Cfg() rather than via the

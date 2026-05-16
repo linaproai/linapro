@@ -14,6 +14,12 @@ export interface SystemPlugin {
   id: string;
   name: string;
   version: string;
+  runtimeState: PluginRuntimeState;
+  effectiveVersion: string;
+  discoveredVersion: string;
+  upgradeAvailable: boolean;
+  abnormalReason?: PluginRuntimeAbnormalReason;
+  lastUpgradeFailure?: PluginUpgradeFailure;
   type: PluginType;
   description: string;
   installed: number;
@@ -33,6 +39,28 @@ export interface SystemPlugin {
   requestedHostServices?: HostServicePermissionItem[];
   authorizedHostServices?: HostServicePermissionItem[];
   declaredRoutes?: PluginRouteReviewItem[];
+}
+
+export type PluginRuntimeState =
+  | 'abnormal'
+  | 'normal'
+  | 'pending_upgrade'
+  | 'upgrade_failed'
+  | 'upgrade_running'
+  | string;
+
+export type PluginRuntimeAbnormalReason =
+  | 'discovered_version_lower_than_effective'
+  | 'version_compare_failed'
+  | string;
+
+export interface PluginUpgradeFailure {
+  phase: string;
+  errorCode: string;
+  messageKey: string;
+  releaseId: number;
+  releaseVersion: string;
+  detail?: string;
 }
 
 export interface PluginDependencyCheckResult {
@@ -167,6 +195,88 @@ export interface PluginAuthorizationPayload {
   force?: boolean;
 }
 
+export interface PluginUpgradePreview {
+  pluginId: string;
+  runtimeState: PluginRuntimeState;
+  effectiveVersion: string;
+  discoveredVersion: string;
+  fromManifest?: PluginManifestSnapshot;
+  toManifest?: PluginManifestSnapshot;
+  dependencyCheck?: PluginDependencyCheckResult;
+  sqlSummary: PluginUpgradeSQLSummary;
+  hostServicesDiff: PluginUpgradeHostServicesDiff;
+  riskHints: string[];
+}
+
+export interface PluginManifestSnapshot {
+  id: string;
+  name: string;
+  version: string;
+  type: PluginType;
+  scopeNature?: 'platform_only' | 'tenant_aware' | string;
+  supportsMultiTenant: boolean;
+  defaultInstallMode?: 'global' | 'tenant_scoped' | string;
+  description?: string;
+  runtimeKind?: string;
+  runtimeAbiVersion?: string;
+  manifestDeclared: boolean;
+  installSqlCount: number;
+  uninstallSqlCount: number;
+  mockSqlCount: number;
+  frontendPageCount: number;
+  frontendSlotCount: number;
+  menuCount: number;
+  backendHookCount: number;
+  resourceSpecCount: number;
+  routeCount: number;
+  routeExecutionEnabled: boolean;
+  routeRequestCodec?: string;
+  routeResponseCodec?: string;
+  runtimeFrontendAssetCount: number;
+  runtimeSqlAssetCount: number;
+  hostServiceAuthRequired: boolean;
+  hostServiceAuthConfirmed: boolean;
+  requestedHostServices?: HostServicePermissionItem[];
+  authorizedHostServices?: HostServicePermissionItem[];
+}
+
+export interface PluginUpgradeSQLSummary {
+  installSqlCount: number;
+  uninstallSqlCount: number;
+  mockSqlCount: number;
+  runtimeSqlAssetCount: number;
+}
+
+export interface PluginUpgradeHostServicesDiff {
+  added: PluginUpgradeHostServiceChange[];
+  removed: PluginUpgradeHostServiceChange[];
+  changed: PluginUpgradeHostServiceChange[];
+  authorizationRequired: boolean;
+  authorizationChanged: boolean;
+}
+
+export interface PluginUpgradeHostServiceChange {
+  service: string;
+  fromMethods?: string[];
+  toMethods?: string[];
+  fromResourceCount: number;
+  toResourceCount: number;
+  fromTables?: string[];
+  toTables?: string[];
+  fromPaths?: string[];
+  toPaths?: string[];
+}
+
+export interface PluginUpgradeResult {
+  pluginId: string;
+  runtimeState: PluginRuntimeState;
+  effectiveVersion: string;
+  discoveredVersion: string;
+  fromVersion: string;
+  toVersion: string;
+  executed: boolean;
+}
+
 export interface PluginDynamicState {
   id: string;
   installed: number;
@@ -174,6 +284,7 @@ export interface PluginDynamicState {
   version: string;
   generation: number;
   statusKey: string;
+  runtimeState?: PluginRuntimeState;
 }
 
 export interface PluginUploadDynamicResult {

@@ -1,5 +1,5 @@
-// Package contract defines the stable source-plugin upgrade governance
-// contracts shared by host services and development tooling.
+// Package contract defines the stable source-plugin runtime upgrade governance
+// contracts shared by host services and callers.
 package contract
 
 import "context"
@@ -57,12 +57,12 @@ type SourcePluginUpgradeResult struct {
 	MessageParams map[string]any
 }
 
-// Service defines source-plugin upgrade operations published to development tools.
+// Service defines source-plugin upgrade operations published to runtime callers.
 type Service interface {
 	// ListSourcePluginStatuses returns the current effective/discovered source-plugin version pairs.
 	ListSourcePluginStatuses(ctx context.Context) ([]*SourcePluginStatus, error)
 	// UpgradeSourcePlugin applies one explicit source-plugin upgrade.
 	UpgradeSourcePlugin(ctx context.Context, pluginID string) (*SourcePluginUpgradeResult, error)
-	// ValidateSourcePluginUpgradeReadiness fails fast when startup would hit pending source-plugin upgrades.
+	// ValidateSourcePluginUpgradeReadiness scans source-plugin version drift without failing on pending upgrades.
 	ValidateSourcePluginUpgradeReadiness(ctx context.Context) error
 }

@@ -4,10 +4,16 @@ package plugin
 
 import (
 	"context"
+	"sync"
+
+	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/net/goai"
 
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
+	"lina-core/internal/service/coordination"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/frontend"
@@ -22,9 +28,6 @@ import (
 
 	"lina-core/internal/model/entity"
 
-	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/net/goai"
-
 	"lina-core/pkg/pluginhost"
 	sourceupgradecontract "lina-core/pkg/sourceupgrade/contract"
 )
@@ -38,6 +41,18 @@ type (
 
 	// RuntimeStateListOutput defines output for public runtime state queries.
 	RuntimeStateListOutput = runtime.RuntimeStateListOutput
+
+	// RuntimeUpgradeFailure defines latest runtime-upgrade failure details.
+	RuntimeUpgradeFailure = runtime.RuntimeUpgradeFailure
+
+	// RuntimeUpgradeManifestSnapshot aliases the review-friendly manifest snapshot model.
+	RuntimeUpgradeManifestSnapshot = catalog.ManifestSnapshot
+
+	// RuntimeUpgradeState aliases the plugin runtime-upgrade state enum.
+	RuntimeUpgradeState = runtime.RuntimeUpgradeState
+
+	// RuntimeUpgradeAbnormalReason aliases the plugin runtime-upgrade abnormal reason enum.
+	RuntimeUpgradeAbnormalReason = runtime.RuntimeUpgradeAbnormalReason
 
 	// ResourceListInput defines input for querying a plugin-owned backend resource.
 	ResourceListInput = integration.ResourceListInput
@@ -77,12 +92,39 @@ type (
 		dependencyResult *DependencyCheckResult
 	}
 
+	// RuntimeUpgradeOptions captures explicit management confirmations for a
+	// runtime plugin upgrade request.
+	RuntimeUpgradeOptions struct {
+		// Confirmed must be true before the host performs upgrade side effects.
+		Confirmed bool
+		// Authorization optionally carries the hostServices authorization snapshot
+		// confirmed for the target dynamic release before it becomes effective.
+		Authorization *HostServiceAuthorizationInput
+	}
+
 	// HostServiceAuthorizationDecision narrows one authorized service snapshot.
 	HostServiceAuthorizationDecision = catalog.HostServiceAuthorizationDecision
 
 	// ManagedCronJob describes one plugin-owned scheduled-job definition that
 	// the host can project into the unified scheduled-job management table.
 	ManagedCronJob = integration.ManagedCronJob
+)
+
+const (
+	// RuntimeUpgradeStateNormal means the effective and discovered metadata are aligned.
+	RuntimeUpgradeStateNormal = runtime.RuntimeUpgradeStateNormal
+	// RuntimeUpgradeStatePendingUpgrade means discovered plugin files are newer than the effective version.
+	RuntimeUpgradeStatePendingUpgrade = runtime.RuntimeUpgradeStatePendingUpgrade
+	// RuntimeUpgradeStateAbnormal means discovered plugin files are older or cannot be safely compared.
+	RuntimeUpgradeStateAbnormal = runtime.RuntimeUpgradeStateAbnormal
+	// RuntimeUpgradeStateUpgradeRunning means a runtime upgrade transition is currently reconciling.
+	RuntimeUpgradeStateUpgradeRunning = runtime.RuntimeUpgradeStateUpgradeRunning
+	// RuntimeUpgradeStateUpgradeFailed means the latest target release failed before becoming effective.
+	RuntimeUpgradeStateUpgradeFailed = runtime.RuntimeUpgradeStateUpgradeFailed
+	// RuntimeUpgradeAbnormalReasonDiscoveredVersionLowerThanEffective means the file version is lower than the DB version.
+	RuntimeUpgradeAbnormalReasonDiscoveredVersionLowerThanEffective = runtime.RuntimeUpgradeAbnormalReasonDiscoveredVersionLowerThanEffective
+	// RuntimeUpgradeAbnormalReasonVersionCompareFailed means at least one version string is not semver-compatible.
+	RuntimeUpgradeAbnormalReasonVersionCompareFailed = runtime.RuntimeUpgradeAbnormalReasonVersionCompareFailed
 )
 
 // PluginItem is the display-ready projection of one plugin entry.
@@ -92,12 +134,103 @@ type PluginItem struct {
 	DependencyCheck *DependencyCheckResult
 }
 
+// RuntimeUpgradePreview describes the side-effect-free plan shown before a
+// runtime plugin upgrade is confirmed.
+type RuntimeUpgradePreview struct {
+	// PluginID is the target plugin identifier.
+	PluginID string
+	// RuntimeState is the current runtime-upgrade state re-read by the host.
+	RuntimeState RuntimeUpgradeState
+	// EffectiveVersion is the database-effective version before upgrade.
+	EffectiveVersion string
+	// DiscoveredVersion is the file-discovered target version.
+	DiscoveredVersion string
+	// FromManifest is the current effective manifest snapshot.
+	FromManifest *RuntimeUpgradeManifestSnapshot
+	// ToManifest is the target manifest snapshot discovered from files.
+	ToManifest *RuntimeUpgradeManifestSnapshot
+	// DependencyCheck contains install and reverse-dependency precheck results.
+	DependencyCheck *DependencyCheckResult
+	// SQLSummary summarizes target manifest SQL assets without executing them.
+	SQLSummary RuntimeUpgradeSQLSummary
+	// HostServicesDiff summarizes requested host service changes.
+	HostServicesDiff RuntimeUpgradeHostServicesDiff
+	// RiskHints lists stable operator-facing risk hint keys.
+	RiskHints []string
+}
+
+// RuntimeUpgradeSQLSummary summarizes manifest SQL assets visible to preview.
+type RuntimeUpgradeSQLSummary struct {
+	// InstallSQLCount is the number of target install/upgrade SQL assets.
+	InstallSQLCount int
+	// UninstallSQLCount is the number of target uninstall SQL assets.
+	UninstallSQLCount int
+	// MockSQLCount is the number of target mock SQL assets excluded from upgrade.
+	MockSQLCount int
+	// RuntimeSQLAssetCount is the dynamic artifact SQL section count when present.
+	RuntimeSQLAssetCount int
+}
+
+// RuntimeUpgradeHostServicesDiff summarizes service-level hostServices drift.
+type RuntimeUpgradeHostServicesDiff struct {
+	// Added contains services declared by the target manifest but not by the effective snapshot.
+	Added []*RuntimeUpgradeHostServiceChange
+	// Removed contains services no longer requested by the target manifest.
+	Removed []*RuntimeUpgradeHostServiceChange
+	// Changed contains services whose methods or governed targets changed.
+	Changed []*RuntimeUpgradeHostServiceChange
+	// AuthorizationRequired reports whether the target manifest needs host confirmation.
+	AuthorizationRequired bool
+	// AuthorizationChanged reports whether requested host service scope changed.
+	AuthorizationChanged bool
+}
+
+// RuntimeUpgradeHostServiceChange summarizes one service-level hostServices change.
+type RuntimeUpgradeHostServiceChange struct {
+	// Service is the logical host service identifier.
+	Service string
+	// FromMethods is the effective method set before upgrade.
+	FromMethods []string
+	// ToMethods is the target method set after upgrade.
+	ToMethods []string
+	// FromResourceCount is the number of governed targets before upgrade.
+	FromResourceCount int
+	// ToResourceCount is the number of governed targets after upgrade.
+	ToResourceCount int
+	// FromTables is the effective data-table set before upgrade.
+	FromTables []string
+	// ToTables is the target data-table set after upgrade.
+	ToTables []string
+	// FromPaths is the effective storage path set before upgrade.
+	FromPaths []string
+	// ToPaths is the target storage path set after upgrade.
+	ToPaths []string
+}
+
+// RuntimeUpgradeResult describes one completed explicit runtime upgrade action.
+type RuntimeUpgradeResult struct {
+	// PluginID is the upgraded plugin identifier.
+	PluginID string
+	// RuntimeState is the post-upgrade runtime state.
+	RuntimeState RuntimeUpgradeState
+	// EffectiveVersion is the database-effective version after the request.
+	EffectiveVersion string
+	// DiscoveredVersion is the currently discovered version after the request.
+	DiscoveredVersion string
+	// FromVersion is the effective version observed before upgrade side effects.
+	FromVersion string
+	// ToVersion is the target discovered version requested by the operator.
+	ToVersion string
+	// Executed reports whether the service performed upgrade side effects.
+	Executed bool
+}
+
 // UninstallOptions defines one plugin uninstall policy snapshot.
 type UninstallOptions struct {
 	// PurgeStorageData reports whether uninstall should also clear plugin-owned
 	// table data and stored files.
 	PurgeStorageData bool
-	// Force reports whether an authorized caller requested guard-veto bypass.
+	// Force reports whether an authorized caller requested precondition veto bypass.
 	Force bool
 }
 
@@ -259,15 +392,15 @@ type LifecycleManagementService interface {
 	IsInstalled(ctx context.Context, pluginID string) bool
 	// IsEnabled returns whether a plugin is enabled.
 	IsEnabled(ctx context.Context, pluginID string) bool
-	// EnsureTenantDeleteAllowed runs plugin lifecycle guards before tenant deletion.
+	// EnsureTenantDeleteAllowed runs plugin lifecycle preconditions before tenant deletion.
 	EnsureTenantDeleteAllowed(ctx context.Context, tenantID int) error
 	// ListEnabledPluginIDs returns the IDs of plugins that are currently
 	// installed and enabled.
 	ListEnabledPluginIDs(ctx context.Context) ([]string, error)
 }
 
-// SourceUpgradeGovernanceService defines source-plugin upgrade discovery,
-// execution, and startup validation operations.
+// SourceUpgradeGovernanceService defines source-plugin upgrade discovery and
+// explicit effective-version switching operations.
 type SourceUpgradeGovernanceService interface {
 	// ListSourceUpgradeStatuses scans source manifests and returns one
 	// effective-versus-discovered upgrade-status item per source plugin.
@@ -275,8 +408,8 @@ type SourceUpgradeGovernanceService interface {
 	// UpgradeSourcePlugin applies one explicit source-plugin upgrade from the
 	// current effective version to the newer discovered source version.
 	UpgradeSourcePlugin(ctx context.Context, pluginID string) (*sourceupgradecontract.SourcePluginUpgradeResult, error)
-	// ValidateSourcePluginUpgradeReadiness fails fast when any installed source
-	// plugin still has a newer discovered source version waiting to be upgraded.
+	// ValidateSourcePluginUpgradeReadiness scans source-plugin version drift
+	// without failing on pending upgrades; list/runtime state exposes the result.
 	ValidateSourcePluginUpgradeReadiness(ctx context.Context) error
 	// ValidateStartupConsistency fails fast when persisted plugin and tenant
 	// governance state is incoherent before routes are served.
@@ -301,6 +434,16 @@ type RegistryQueryService interface {
 	SyncAndList(ctx context.Context) (*ListOutput, error)
 	// List returns the read-only plugin list with optional in-memory filtering applied.
 	List(ctx context.Context, in ListInput) (*ListOutput, error)
+	// Get returns one read-only plugin detail projection by exact plugin ID.
+	Get(ctx context.Context, pluginID string) (*PluginItem, error)
+	// PreviewRuntimeUpgrade returns a side-effect-free upgrade preview for one pending plugin.
+	PreviewRuntimeUpgrade(ctx context.Context, pluginID string) (*RuntimeUpgradePreview, error)
+	// ExecuteRuntimeUpgrade runs one explicit runtime upgrade after confirmation.
+	ExecuteRuntimeUpgrade(
+		ctx context.Context,
+		pluginID string,
+		options RuntimeUpgradeOptions,
+	) (*RuntimeUpgradeResult, error)
 }
 
 // OpenAPIProjectionService defines plugin route projection into the host OpenAPI document.
@@ -375,10 +518,18 @@ type serviceImpl struct {
 	frontendSvc frontend.Service
 	// openapiSvc projects dynamic routes into the host OpenAPI document.
 	openapiSvc openapi.Service
+	// i18nSvc invalidates runtime translation bundles after plugin lifecycle mutations.
+	i18nSvc runtimeBundleInvalidator
 	// runtimeCacheRevisionCtrl coordinates process-local runtime caches in cluster deployments.
 	runtimeCacheRevisionCtrl *pluginruntimecache.Controller
+	// runtimeUpgradeLockStore coordinates explicit runtime upgrades across cluster nodes.
+	runtimeUpgradeLockStore coordination.LockStore
 	// tenantSvc validates tenant-governance startup state through the runtime-owned tenant capability.
 	tenantSvc tenantcapsvc.Service
+	// runtimeUpgradeLocksMu protects process-local runtime-upgrade locks.
+	runtimeUpgradeLocksMu sync.Mutex
+	// runtimeUpgradeLocks serializes explicit runtime upgrades per plugin in the current process.
+	runtimeUpgradeLocks map[string]*sync.Mutex
 }
 
 // New creates and returns a new plugin Service.
@@ -391,21 +542,22 @@ func New(
 	cacheCoordSvc cachecoord.Service,
 	i18nSvc i18nsvc.Service,
 	sessionStore session.Store,
-) Service {
+	runtimeUpgradeLockStore coordination.LockStore,
+) (Service, error) {
 	if configProvider == nil {
-		panic("plugin service requires a non-nil config service")
+		return nil, gerror.New("plugin service requires a non-nil config service")
 	}
 	if bizCtxProvider == nil {
-		panic("plugin service requires a non-nil bizctx service")
+		return nil, gerror.New("plugin service requires a non-nil bizctx service")
 	}
 	if cacheCoordSvc == nil {
-		panic("plugin service requires a non-nil cachecoord service")
+		return nil, gerror.New("plugin service requires a non-nil cachecoord service")
 	}
 	if i18nSvc == nil {
-		panic("plugin service requires a non-nil i18n service")
+		return nil, gerror.New("plugin service requires a non-nil i18n service")
 	}
 	if sessionStore == nil {
-		panic("plugin service requires a non-nil session store")
+		return nil, gerror.New("plugin service requires a non-nil session store")
 	}
 
 	var topo Topology = singleNodeTopology{}
@@ -465,10 +617,13 @@ func New(
 		integrationSvc:           integrationSvc,
 		frontendSvc:              frontendSvc,
 		openapiSvc:               openapiSvc,
+		i18nSvc:                  i18nSvc,
 		runtimeCacheRevisionCtrl: cacheRevisionCtl,
+		runtimeUpgradeLockStore:  runtimeUpgradeLockStore,
+		runtimeUpgradeLocks:      make(map[string]*sync.Mutex),
 	}
 	runtimeSvc.SetRuntimeCacheChangeNotifier(service)
 	runtimeSvc.SetDependencyValidator(service)
 	service.sourceUpgradeSvc = sourceupgradeinternal.New(catalogSvc, lifecycleSvc, runtimeSvc, integrationSvc, i18nSvc, service)
-	return service
+	return service, nil
 }

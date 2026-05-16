@@ -507,7 +507,10 @@ func newRuntimeMessagesTestMiddleware() middlewaresvc.Service {
 	bizCtxSvc := bizctx.New()
 	i18nSvc := newTestI18nService()
 	cacheCoordSvc := cachecoord.Default(nil)
-	pluginSvc := pluginsvc.New(nil, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, session.NewDBStore())
+	pluginSvc, err := pluginsvc.New(nil, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, session.NewDBStore(), nil)
+	if err != nil {
+		panic(err)
+	}
 	orgCapSvc := orgcap.New(pluginSvc)
 	tenantSvc := tenantcapsvc.New(pluginSvc, nil)
 	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)

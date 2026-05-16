@@ -77,6 +77,9 @@ func TestListRuntimeStatesProjectsMissingRuntimeArtifactWithoutMutatingRegistry(
 	if runtimeState.Installed != catalog.InstalledNo || runtimeState.Enabled != catalog.StatusDisabled {
 		t.Fatalf("expected public runtime state projection to return uninstalled+disabled, got installed=%d enabled=%d", runtimeState.Installed, runtimeState.Enabled)
 	}
+	if runtimeState.RuntimeState != catalog.RuntimeUpgradeStateNormal {
+		t.Fatalf("expected missing artifact projection to keep runtime state normal, got %s", runtimeState.RuntimeState)
+	}
 
 	registryAfter, err := services.Catalog.GetRegistry(ctx, pluginID)
 	if err != nil {

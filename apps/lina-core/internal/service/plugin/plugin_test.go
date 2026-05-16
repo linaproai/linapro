@@ -33,25 +33,34 @@ func newTestServiceWithTopology(topology Topology) *serviceImpl {
 		cacheCoordSvc  = cachecoord.Default(cachecoord.NewStaticTopology(false))
 	)
 	if topology != nil && topology.IsEnabled() {
-		cachecoord.DefaultWithCoordination(topology, coordination.NewMemory(nil))
+		coordSvc := coordination.NewMemory(nil)
+		cachecoord.DefaultWithCoordination(topology, coordSvc)
 		cacheCoordSvc = cachecoord.Default(topology)
+		i18nSvc := i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
+		service, err := New(topology, configProvider, bizCtxProvider, cacheCoordSvc, i18nSvc, session.NewDBStore(), coordSvc.Lock())
+		if err != nil {
+			panic(err)
+		}
+		serviceImpl := service.(*serviceImpl)
+		serviceImpl.SetTenantCapability(tenantcapsvc.New(serviceImpl, bizCtxProvider))
+		return serviceImpl
 	}
 	i18nSvc := i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
-	service := New(topology, configProvider, bizCtxProvider, cacheCoordSvc, i18nSvc, session.NewDBStore()).(*serviceImpl)
-	service.SetTenantCapability(tenantcapsvc.New(service, bizCtxProvider))
-	return service
+	service, err := New(topology, configProvider, bizCtxProvider, cacheCoordSvc, i18nSvc, session.NewDBStore(), nil)
+	if err != nil {
+		panic(err)
+	}
+	serviceImpl := service.(*serviceImpl)
+	serviceImpl.SetTenantCapability(tenantcapsvc.New(serviceImpl, bizCtxProvider))
+	return serviceImpl
 }
 
 // TestNewRequiresExplicitRuntimeDependencies verifies the root plugin service
-// does not silently create critical runtime dependencies when callers omit them.
+// returns a construction error when callers omit critical runtime dependencies.
 func TestNewRequiresExplicitRuntimeDependencies(t *testing.T) {
-	defer func() {
-		if recovered := recover(); recovered == nil {
-			t.Fatal("expected plugin service construction to fail without explicit dependencies")
-		}
-	}()
-
-	New(nil, nil, nil, nil, nil, nil)
+	if _, err := New(nil, nil, nil, nil, nil, nil, nil); err == nil {
+		t.Fatal("expected plugin service construction to return an error without explicit dependencies")
+	}
 }
 
 // getPluginRegistry loads one plugin registry row for assertions in root-package tests.

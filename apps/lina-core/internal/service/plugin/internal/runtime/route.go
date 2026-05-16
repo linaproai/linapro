@@ -23,6 +23,7 @@ import (
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/authtoken"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
 	bridgecodec "lina-core/pkg/pluginbridge/codec"
 	bridgecontract "lina-core/pkg/pluginbridge/contract"
@@ -298,10 +299,12 @@ func (s *serviceImpl) matchDynamicRoute(ctx context.Context, request *ghttp.Requ
 // matchDynamicRoutePath compares one declared route template against the
 // actual internal path and returns extracted path params when it matches.
 func matchDynamicRoutePath(routePath string, actualPath string) (map[string]string, bool) {
-	normalizedRoute := normalizeDynamicRoutePath(routePath)
-	normalizedActual := normalizeDynamicRoutePath(actualPath)
-	routeSegments := strings.Split(strings.TrimPrefix(normalizedRoute, "/"), "/")
-	actualSegments := strings.Split(strings.TrimPrefix(normalizedActual, "/"), "/")
+	var (
+		normalizedRoute  = normalizeDynamicRoutePath(routePath)
+		normalizedActual = normalizeDynamicRoutePath(actualPath)
+		routeSegments    = strings.Split(strings.TrimPrefix(normalizedRoute, "/"), "/")
+		actualSegments   = strings.Split(strings.TrimPrefix(normalizedActual, "/"), "/")
+	)
 	if normalizedRoute == "/" {
 		routeSegments = []string{}
 	}
@@ -373,6 +376,21 @@ func (s *serviceImpl) prepareDynamicRouteRuntime(
 	}
 	if registry == nil || registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
 		return nil, bridgecodec.NewNotFoundResponse("Dynamic plugin is not enabled"), nil
+	}
+	runtimeState, err := s.catalogSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !catalog.RuntimeStateAllowsBusinessEntry(runtimeState.State) {
+		message := bizerr.Format(
+			CodePluginRuntimeUpgradeRequired.Fallback(),
+			map[string]any{"pluginId": match.PluginID},
+		)
+		return nil, bridgecodec.NewFailureResponse(
+			http.StatusConflict,
+			CodePluginRuntimeUpgradeRequired.RuntimeCode(),
+			message,
+		), nil
 	}
 	if s.menuFilter != nil && !s.menuFilter.IsEnabled(ctx, match.PluginID) {
 		return nil, bridgecodec.NewNotFoundResponse("Dynamic plugin is not enabled"), nil

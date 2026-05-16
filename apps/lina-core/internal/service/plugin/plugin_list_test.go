@@ -14,9 +14,11 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
+	"lina-core/internal/model/entity"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/testutil"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/pluginbridge"
 )
 
@@ -99,6 +101,9 @@ func TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState(t *testing.T
 	}
 	if runtimeState.Installed != catalog.InstalledNo || runtimeState.Enabled != catalog.StatusDisabled {
 		t.Fatalf("expected public runtime state to reconcile to uninstalled+disabled, got installed=%d enabled=%d", runtimeState.Installed, runtimeState.Enabled)
+	}
+	if runtimeState.RuntimeState != RuntimeUpgradeStateNormal {
+		t.Fatalf("expected missing dynamic plugin public runtime state to stay normal, got %s", runtimeState.RuntimeState)
 	}
 
 	registry, err := service.getPluginRegistry(ctx, pluginID)
@@ -206,6 +211,488 @@ func TestListProjectsMissingRuntimeRegistryWithoutWriting(t *testing.T) {
 			registryAfter.Generation,
 			registryAfter.ReleaseId,
 		)
+	}
+}
+
+// TestGetReturnsStableNotFoundBizerr verifies exact detail lookup reports a
+// stable business error when no discovered or registered plugin matches.
+func TestGetReturnsStableNotFoundBizerr(t *testing.T) {
+	service := newTestService()
+	_, err := service.Get(context.Background(), "plugin-detail-missing")
+	if !bizerr.Is(err, CodePluginNotFound) {
+		t.Fatalf("expected plugin not-found bizerr, got %v", err)
+	}
+}
+
+// TestListMarksInstalledDynamicPluginWithHigherArtifactPendingUpgrade verifies
+// dynamic artifact replacement is exposed as a pending runtime upgrade without
+// switching the effective registry version.
+func TestListMarksInstalledDynamicPluginWithHigherArtifactPendingUpgrade(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-dynamic-runtime-upgrade-pending"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.2.0"
+	)
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
+		t,
+		pluginID,
+		"Dynamic Runtime Upgrade Pending Plugin",
+		oldVersion,
+		nil,
+		nil,
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected dynamic artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected dynamic manifest sync to succeed, got error: %v", err)
+	}
+	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
+	}
+
+	oldRelease, err := service.getPluginRelease(ctx, pluginID, oldVersion)
+	if err != nil {
+		t.Fatalf("expected old dynamic release lookup to succeed, got error: %v", err)
+	}
+	if oldRelease == nil {
+		t.Fatal("expected old dynamic release row")
+	}
+
+	testutil.CreateTestRuntimeStorageArtifact(
+		t,
+		pluginID,
+		"Dynamic Runtime Upgrade Pending Plugin",
+		newVersion,
+		nil,
+		nil,
+	)
+	newManifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected new dynamic artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, newManifest); err != nil {
+		t.Fatalf("expected new dynamic manifest sync to succeed, got error: %v", err)
+	}
+
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected dynamic registry lookup to succeed, got error: %v", err)
+	}
+	if registry == nil {
+		t.Fatal("expected dynamic registry row")
+	}
+	if registry.Version != oldVersion {
+		t.Fatalf("expected effective version %s to stay pinned, got %s", oldVersion, registry.Version)
+	}
+	if registry.ReleaseId != oldRelease.Id {
+		t.Fatalf("expected effective release_id %d to stay pinned, got %d", oldRelease.Id, registry.ReleaseId)
+	}
+
+	out, err := service.List(ctx, ListInput{})
+	if err != nil {
+		t.Fatalf("expected plugin list to succeed, got error: %v", err)
+	}
+	item := findPluginItem(out, pluginID)
+	if item == nil {
+		t.Fatal("expected dynamic plugin list item")
+	}
+	if item.RuntimeState != RuntimeUpgradeStatePendingUpgrade {
+		t.Fatalf("expected runtime state %s, got %#v", RuntimeUpgradeStatePendingUpgrade, item)
+	}
+	if item.EffectiveVersion != oldVersion || item.DiscoveredVersion != newVersion {
+		t.Fatalf("expected effective/discovered versions %s/%s, got %#v", oldVersion, newVersion, item)
+	}
+	if !item.UpgradeAvailable {
+		t.Fatalf("expected dynamic plugin to report upgradeAvailable, got %#v", item)
+	}
+
+	detail, err := service.Get(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected plugin detail to succeed, got error: %v", err)
+	}
+	if detail.RuntimeState != RuntimeUpgradeStatePendingUpgrade {
+		t.Fatalf("expected detail runtime state %s, got %#v", RuntimeUpgradeStatePendingUpgrade, detail)
+	}
+	if detail.EffectiveVersion != oldVersion || detail.DiscoveredVersion != newVersion {
+		t.Fatalf("expected detail effective/discovered versions %s/%s, got %#v", oldVersion, newVersion, detail)
+	}
+	if !detail.UpgradeAvailable {
+		t.Fatalf("expected detail to report upgradeAvailable, got %#v", detail)
+	}
+}
+
+// TestPreviewRuntimeUpgradeReturnsPendingDynamicPlan verifies that preview is
+// read-only and exposes manifest snapshots, dependency checks, SQL summary,
+// hostServices drift, and stable risk hints for a pending dynamic upgrade.
+func TestPreviewRuntimeUpgradeReturnsPendingDynamicPlan(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-dynamic-runtime-upgrade-preview"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.2.0"
+	)
+
+	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), pluginID+".wasm")
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+			t.Fatalf("failed to remove runtime upgrade preview artifact %s: %v", artifactPath, cleanupErr)
+		}
+	})
+
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:      pluginID,
+			Name:    "Dynamic Runtime Upgrade Preview Plugin",
+			Version: oldVersion,
+			Type:    catalog.TypeDynamic.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind: pluginbridge.RuntimeKindWasm,
+			ABIVersion:  pluginbridge.SupportedABIVersion,
+			HostServices: []*pluginbridge.HostServiceSpec{
+				{
+					Service: pluginbridge.HostServiceStorage,
+					Methods: []string{pluginbridge.HostServiceMethodStorageGet},
+					Paths:   []string{"reports/"},
+				},
+			},
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected initial dynamic plugin install to succeed, got error: %v", err)
+	}
+
+	oldRelease, err := service.getPluginRelease(ctx, pluginID, oldVersion)
+	if err != nil {
+		t.Fatalf("expected old release lookup to succeed, got error: %v", err)
+	}
+	if oldRelease == nil {
+		t.Fatal("expected old release row")
+	}
+
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:      pluginID,
+			Name:    "Dynamic Runtime Upgrade Preview Plugin",
+			Version: newVersion,
+			Type:    catalog.TypeDynamic.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind: pluginbridge.RuntimeKindWasm,
+			ABIVersion:  pluginbridge.SupportedABIVersion,
+			HostServices: []*pluginbridge.HostServiceSpec{
+				{
+					Service: pluginbridge.HostServiceStorage,
+					Methods: []string{
+						pluginbridge.HostServiceMethodStorageGet,
+						pluginbridge.HostServiceMethodStoragePut,
+					},
+					Paths: []string{"reports/", "exports/"},
+				},
+			},
+		},
+		nil,
+		[]*catalog.ArtifactSQLAsset{
+			{
+				Key:     "001-upgrade-preview.sql",
+				Content: "CREATE TABLE IF NOT EXISTS plugin_dynamic_runtime_upgrade_preview(id INTEGER);",
+			},
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	newManifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected target dynamic artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, newManifest); err != nil {
+		t.Fatalf("expected target manifest sync to succeed, got error: %v", err)
+	}
+
+	preview, err := service.PreviewRuntimeUpgrade(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected runtime upgrade preview to succeed, got error: %v", err)
+	}
+	if preview.PluginID != pluginID || preview.RuntimeState != RuntimeUpgradeStatePendingUpgrade {
+		t.Fatalf("expected pending preview for %s, got %#v", pluginID, preview)
+	}
+	if preview.EffectiveVersion != oldVersion || preview.DiscoveredVersion != newVersion {
+		t.Fatalf("expected versions %s/%s, got %#v", oldVersion, newVersion, preview)
+	}
+	if preview.FromManifest == nil || preview.FromManifest.Version != oldVersion {
+		t.Fatalf("expected from manifest version %s, got %#v", oldVersion, preview.FromManifest)
+	}
+	if preview.ToManifest == nil || preview.ToManifest.Version != newVersion {
+		t.Fatalf("expected to manifest version %s, got %#v", newVersion, preview.ToManifest)
+	}
+	if preview.SQLSummary.InstallSQLCount != 1 || preview.SQLSummary.RuntimeSQLAssetCount != 1 {
+		t.Fatalf("expected target SQL summary to include one SQL asset, got %#v", preview.SQLSummary)
+	}
+	if !preview.HostServicesDiff.AuthorizationRequired || !preview.HostServicesDiff.AuthorizationChanged {
+		t.Fatalf("expected host service authorization to be required and changed, got %#v", preview.HostServicesDiff)
+	}
+	if len(preview.HostServicesDiff.Changed) != 1 {
+		t.Fatalf("expected one changed host service, got %#v", preview.HostServicesDiff)
+	}
+	change := preview.HostServicesDiff.Changed[0]
+	if change.Service != pluginbridge.HostServiceStorage {
+		t.Fatalf("expected storage host service change, got %#v", change)
+	}
+	if len(change.FromPaths) != 1 || change.FromPaths[0] != "reports/" {
+		t.Fatalf("expected from paths to contain reports/, got %#v", change.FromPaths)
+	}
+	if len(change.ToPaths) != 2 || change.ToPaths[0] != "exports/" || change.ToPaths[1] != "reports/" {
+		t.Fatalf("expected target paths to contain exports/ and reports/, got %#v", change.ToPaths)
+	}
+	if preview.DependencyCheck == nil || preview.DependencyCheck.TargetID != pluginID {
+		t.Fatalf("expected dependency check for target plugin, got %#v", preview.DependencyCheck)
+	}
+	if !containsString(preview.RiskHints, RuntimeUpgradeRiskHintUpgradeSQLRequiresReview) {
+		t.Fatalf("expected SQL review risk hint, got %#v", preview.RiskHints)
+	}
+	if !containsString(preview.RiskHints, RuntimeUpgradeRiskHintHostServiceAuthorizationChanged) {
+		t.Fatalf("expected host service authorization risk hint, got %#v", preview.RiskHints)
+	}
+
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup after preview to succeed, got error: %v", err)
+	}
+	if registry == nil || registry.Version != oldVersion || registry.ReleaseId != oldRelease.Id {
+		t.Fatalf("expected preview not to switch effective release, got %#v", registry)
+	}
+}
+
+// TestPreviewRuntimeUpgradeRejectsNormalPlugin verifies preview does not turn a
+// non-pending plugin into an upgrade action.
+func TestPreviewRuntimeUpgradeRejectsNormalPlugin(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dynamic-runtime-upgrade-preview-normal"
+		version  = "v0.1.0"
+	)
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
+		t,
+		pluginID,
+		"Dynamic Runtime Upgrade Preview Normal Plugin",
+		version,
+		nil,
+		nil,
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected dynamic artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected dynamic manifest sync to succeed, got error: %v", err)
+	}
+	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
+	}
+
+	_, err = service.PreviewRuntimeUpgrade(ctx, pluginID)
+	if !bizerr.Is(err, CodePluginRuntimeUpgradePreviewUnavailable) {
+		t.Fatalf("expected preview unavailable bizerr, got %v", err)
+	}
+}
+
+// TestListMarksInstalledDynamicPluginWithFailedTargetReleaseUpgradeFailed verifies
+// failed target releases stay visible as retryable runtime-upgrade failures.
+func TestListMarksInstalledDynamicPluginWithFailedTargetReleaseUpgradeFailed(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-dynamic-runtime-upgrade-failed"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.2.0"
+	)
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
+		t,
+		pluginID,
+		"Dynamic Runtime Upgrade Failed Plugin",
+		oldVersion,
+		nil,
+		nil,
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected dynamic artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected dynamic manifest sync to succeed, got error: %v", err)
+	}
+	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
+	}
+
+	testutil.CreateTestRuntimeStorageArtifact(
+		t,
+		pluginID,
+		"Dynamic Runtime Upgrade Failed Plugin",
+		newVersion,
+		nil,
+		nil,
+	)
+	newManifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected new dynamic artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, newManifest); err != nil {
+		t.Fatalf("expected new dynamic manifest sync to succeed, got error: %v", err)
+	}
+
+	targetRelease, err := service.getPluginRelease(ctx, pluginID, newVersion)
+	if err != nil {
+		t.Fatalf("expected target release lookup to succeed, got error: %v", err)
+	}
+	if targetRelease == nil {
+		t.Fatal("expected target release row")
+	}
+	if err = service.catalogSvc.UpdateReleaseState(
+		ctx,
+		targetRelease.Id,
+		catalog.ReleaseStatusFailed,
+		"",
+	); err != nil {
+		t.Fatalf("expected target release failure state update to succeed, got error: %v", err)
+	}
+
+	out, err := service.SyncAndList(ctx)
+	if err != nil {
+		t.Fatalf("expected sync-and-list to preserve failed target release, got error: %v", err)
+	}
+	item := findPluginItem(out, pluginID)
+	if item == nil {
+		t.Fatal("expected dynamic plugin list item")
+	}
+	if item.RuntimeState != RuntimeUpgradeStateUpgradeFailed {
+		t.Fatalf("expected runtime state %s, got %#v", RuntimeUpgradeStateUpgradeFailed, item)
+	}
+	if item.LastUpgradeFailure == nil {
+		t.Fatalf("expected last upgrade failure details, got %#v", item)
+	}
+	if item.LastUpgradeFailure.ReleaseID != targetRelease.Id ||
+		item.LastUpgradeFailure.ReleaseVersion != newVersion {
+		t.Fatalf("expected failed release %d/%s, got %#v", targetRelease.Id, newVersion, item.LastUpgradeFailure)
+	}
+
+	failedRelease, err := service.getPluginRelease(ctx, pluginID, newVersion)
+	if err != nil {
+		t.Fatalf("expected failed release lookup to succeed, got error: %v", err)
+	}
+	if failedRelease == nil || failedRelease.Status != catalog.ReleaseStatusFailed.String() {
+		t.Fatalf("expected target release to remain failed after sync, got %#v", failedRelease)
+	}
+}
+
+// TestFilterMenusHidesPendingUpgradePluginMenus verifies plugin-owned menus are
+// hidden while a plugin waits for runtime upgrade.
+func TestFilterMenusHidesPendingUpgradePluginMenus(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-dynamic-menu-pending-upgrade"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.2.0"
+	)
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
+		t,
+		pluginID,
+		"Dynamic Menu Pending Upgrade Plugin",
+		oldVersion,
+		nil,
+		nil,
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected dynamic artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected dynamic manifest sync to succeed, got error: %v", err)
+	}
+	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
+	}
+
+	testutil.CreateTestRuntimeStorageArtifact(
+		t,
+		pluginID,
+		"Dynamic Menu Pending Upgrade Plugin",
+		newVersion,
+		nil,
+		nil,
+	)
+	newManifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected new dynamic artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, newManifest); err != nil {
+		t.Fatalf("expected new dynamic manifest sync to succeed, got error: %v", err)
+	}
+	if err = service.integrationSvc.RefreshEnabledSnapshot(ctx); err != nil {
+		t.Fatalf("expected enabled snapshot refresh to succeed, got error: %v", err)
+	}
+
+	filtered := service.FilterMenus(ctx, []*entity.SysMenu{
+		{
+			Id:      1,
+			MenuKey: "plugin:" + pluginID + ":entry",
+			Name:    "runtime menu",
+			Type:    catalog.MenuTypePage.String(),
+			Status:  1,
+			Visible: 1,
+		},
+	})
+	if len(filtered) != 0 {
+		t.Fatalf("expected pending-upgrade plugin menu to be hidden, got %d entries", len(filtered))
 	}
 }
 
@@ -407,6 +894,16 @@ func findPluginItem(out *ListOutput, pluginID string) *PluginItem {
 		}
 	}
 	return nil
+}
+
+// containsString reports whether values contains target.
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 // appendRuntimeI18NSectionForPluginListTest appends one runtime i18n custom

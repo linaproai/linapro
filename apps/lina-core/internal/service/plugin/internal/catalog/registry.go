@@ -356,6 +356,20 @@ func (s *serviceImpl) SetPluginInstalled(ctx context.Context, pluginID string, i
 	return err
 }
 
+// SetRegistryRuntimeState updates runtime state fields without changing the
+// stable desired lifecycle state such as installed or enabled.
+func (s *serviceImpl) SetRegistryRuntimeState(ctx context.Context, pluginID string, data do.SysPlugin) error {
+	_, err := dao.SysPlugin.Ctx(ctx).
+		Where(do.SysPlugin{PluginId: pluginID}).
+		Data(data).
+		Update()
+	if err != nil {
+		return err
+	}
+	_, err = s.RefreshStartupRegistry(ctx, pluginID)
+	return err
+}
+
 // SetAutoEnableForNewTenants updates the platform-owned tenant provisioning policy.
 func (s *serviceImpl) SetAutoEnableForNewTenants(ctx context.Context, pluginID string, enabled bool) error {
 	data := do.SysPlugin{

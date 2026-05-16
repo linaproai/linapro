@@ -261,6 +261,48 @@ func TestUploadedFileAccessRouteIsPublic(t *testing.T) {
 	}
 }
 
+// TestPluginManagementRuntimeRoutesAreBound verifies plugin runtime-management
+// endpoints added by the upgrade workflow are reachable through the protected API tree.
+func TestPluginManagementRuntimeRoutesAreBound(t *testing.T) {
+	ctx := context.Background()
+	server := ghttp.GetServer("cmd-http-plugin-runtime-routes-" + guid.S())
+	server.SetPort(0)
+	server.SetDumpRouterMap(false)
+
+	runtime := newRouteBindingTestRuntime(ctx)
+	bindHostAPIRoutes(ctx, server, runtime)
+
+	if err := server.Start(); err != nil {
+		t.Fatalf("start plugin route test server: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := server.Shutdown(); err != nil {
+			t.Fatalf("shutdown plugin route test server: %v", err)
+		}
+	})
+
+	routes := []struct {
+		method string
+		route  string
+	}{
+		{method: "GET", route: "/api/v1/plugins/{id}"},
+		{method: "GET", route: "/api/v1/plugins/{id}/dependencies"},
+		{method: "GET", route: "/api/v1/plugins/{id}/upgrade/preview"},
+		{method: "POST", route: "/api/v1/plugins/{id}/upgrade"},
+	}
+	for _, route := range routes {
+		t.Run(route.method+" "+route.route, func(t *testing.T) {
+			item := mustFindRoute(t, server, route.method, route.route)
+			if !strings.Contains(item.Middleware, "Service.Auth") {
+				t.Fatalf("expected plugin runtime route to remain authenticated, middleware=%s", item.Middleware)
+			}
+			if !strings.Contains(item.Middleware, "Service.Permission") {
+				t.Fatalf("expected plugin runtime route to keep permission middleware, middleware=%s", item.Middleware)
+			}
+		})
+	}
+}
+
 // newRouteBindingTestRuntime creates the shared service graph required by
 // route-binding tests without starting cluster, plugin, or cron lifecycles.
 func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
@@ -270,7 +312,10 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 	sessionStore := session.NewDBStore()
 	cacheCoordSvc := cachecoord.Default(clusterSvc)
 	i18nService := i18nsvc.New(bizCtxSvc, configSvc, cacheCoordSvc)
-	pluginSvc := pluginsvc.New(clusterSvc, configSvc, bizCtxSvc, cacheCoordSvc, i18nService, sessionStore)
+	pluginSvc, err := pluginsvc.New(clusterSvc, configSvc, bizCtxSvc, cacheCoordSvc, i18nService, sessionStore, nil)
+	if err != nil {
+		panic(err)
+	}
 	orgCapSvc := orgcap.New(pluginSvc)
 	tenantSvc := tenantcapsvc.New(pluginSvc, bizCtxSvc)
 	pluginSvc.SetTenantCapability(tenantSvc)
@@ -284,7 +329,10 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
 	fileSvc := filesvc.New(configSvc, filesvc.NewLocalStorage(configSvc.GetUploadPath(ctx)), bizCtxSvc, dictSvc, scopeSvc)
 	sysConfigSvc := sysconfig.New(configSvc, i18nService)
-	sysInfoSvc := sysinfosvc.New(configSvc, clusterSvc, nil, cacheCoordSvc)
+	sysInfoSvc, err := sysinfosvc.New(configSvc, clusterSvc, nil, cacheCoordSvc)
+	if err != nil {
+		panic(err)
+	}
 	userSvc := user.New(authSvc, bizCtxSvc, i18nService, orgCapSvc, roleSvc, scopeSvc, tenantSvc)
 	userMsgSvc := usermsg.New(bizCtxSvc, notifySvc, i18nService)
 	jobRegistry := jobhandlersvc.New()

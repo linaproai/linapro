@@ -39,7 +39,7 @@ const (
 const (
 	// PhasePluginBootstrapAutoEnable measures startup plugin auto-enable work.
 	PhasePluginBootstrapAutoEnable Phase = "plugin_bootstrap_auto_enable"
-	// PhasePluginSourceUpgradeReadiness measures source-plugin upgrade readiness checks.
+	// PhasePluginSourceUpgradeReadiness measures source-plugin upgrade drift scanning.
 	PhasePluginSourceUpgradeReadiness Phase = "plugin_source_upgrade_readiness"
 	// PhasePluginStartupConsistency measures persisted plugin startup consistency checks.
 	PhasePluginStartupConsistency Phase = "plugin_startup_consistency"

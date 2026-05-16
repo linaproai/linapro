@@ -196,6 +196,17 @@ func (s *serviceImpl) collectDynamicManagedCronJobs(
 	if s.dynamicCronExecutor == nil {
 		return nil, gerror.Newf("dynamic plugin cron executor is not injected: %s", manifest.ID)
 	}
+	registry, err := s.catalogSvc.GetRegistry(ctx, manifest.ID)
+	if err != nil {
+		return nil, err
+	}
+	enabled, err := s.registryBusinessEntryEnabledForTenant(ctx, registry, manifest)
+	if err != nil {
+		return nil, err
+	}
+	if !enabled {
+		return nil, nil
+	}
 
 	contracts, err := s.dynamicCronExecutor.DiscoverCronContracts(ctx, manifest)
 	if err != nil {

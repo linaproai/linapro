@@ -17,13 +17,16 @@ import {
   message,
 } from 'ant-design-vue';
 
-import { pluginDependencyCheck, pluginUninstall } from '#/api/system/plugin';
+import {
+  pluginDependencyCheckSilently,
+  pluginUninstall,
+} from '#/api/system/plugin';
 import { $t } from '#/locales';
 
 import PluginDependencySummary from './plugin-dependency-summary.vue';
 
 const emit = defineEmits<{
-  lifecycleGuard: [
+  lifecyclePrecondition: [
     payload: {
       force: () => Promise<void>;
       pluginId: string;
@@ -126,7 +129,7 @@ async function submitUninstallByState(
     } catch (error) {
       if (
         !force &&
-        handleLifecycleGuardVeto(error, pluginId, purgeStorageDataValue)
+        handleLifecyclePreconditionVeto(error, pluginId, purgeStorageDataValue)
       ) {
         return;
       }
@@ -140,16 +143,16 @@ async function submitUninstallByState(
   }
 }
 
-function handleLifecycleGuardVeto(
+function handleLifecyclePreconditionVeto(
   error: unknown,
   pluginId: string,
   purgeStorageDataValue: boolean | undefined,
 ) {
-  const reasons = extractLifecycleGuardReasons(error);
+  const reasons = extractLifecyclePreconditionReasons(error);
   if (!reasons) {
     return false;
   }
-  emit('lifecycleGuard', {
+  emit('lifecyclePrecondition', {
     force: () => forceUninstallByState(pluginId, purgeStorageDataValue),
     pluginId,
     reasons,
@@ -165,7 +168,9 @@ async function refreshDependencyCheck() {
   dependencyLoading.value = true;
   updateConfirmDisabled();
   try {
-    dependencyCheck.value = await pluginDependencyCheck(currentPlugin.value.id);
+    dependencyCheck.value = await pluginDependencyCheckSilently(
+      currentPlugin.value.id,
+    );
   } catch {
     message.warning($t('pages.system.plugin.dependency.checkFailed'));
   } finally {
@@ -178,12 +183,12 @@ function updateConfirmDisabled() {
   modalApi.setState({ confirmDisabled: reverseDependencyBlocked.value });
 }
 
-function extractLifecycleGuardReasons(error: unknown): null | string[] {
+function extractLifecyclePreconditionReasons(error: unknown): null | string[] {
   const envelope = extractRuntimeErrorEnvelope(error);
-  if (envelope?.errorCode !== 'PLUGIN_LIFECYCLE_GUARD_VETOED') {
+  if (envelope?.errorCode !== 'PLUGIN_LIFECYCLE_PRECONDITION_VETOED') {
     return null;
   }
-  return normalizeLifecycleGuardReasons(envelope.messageParams?.reasons);
+  return normalizeLifecyclePreconditionReasons(envelope.messageParams?.reasons);
 }
 
 function extractRuntimeErrorEnvelope(error: unknown): null | {
@@ -224,10 +229,10 @@ function resolveRuntimeErrorMessage(error: unknown) {
   return $t('ui.fallback.http.internalServerError');
 }
 
-function normalizeLifecycleGuardReasons(value: unknown): string[] {
+function normalizeLifecyclePreconditionReasons(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value
-      .map((item) => normalizeLifecycleGuardReason(String(item)))
+      .map((item) => normalizeLifecyclePreconditionReason(String(item)))
       .filter((item) => item.length > 0);
   }
   if (typeof value !== 'string') {
@@ -235,11 +240,11 @@ function normalizeLifecycleGuardReasons(value: unknown): string[] {
   }
   return value
     .split(';')
-    .map((item) => normalizeLifecycleGuardReason(item))
+    .map((item) => normalizeLifecyclePreconditionReason(item))
     .filter((item) => item.length > 0);
 }
 
-function normalizeLifecycleGuardReason(value: string) {
+function normalizeLifecyclePreconditionReason(value: string) {
   const trimmed = value.trim();
   const separatorIndex = trimmed.indexOf(':');
   if (separatorIndex < 0) {

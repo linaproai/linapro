@@ -50,3 +50,4 @@ test-results/
 *.test
 *.out
 apps/lina-plugins/*/temp/
+/apps/lina-plugins/.linapro-plugins.lock.yaml

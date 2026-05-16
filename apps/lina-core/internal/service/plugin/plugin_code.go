@@ -22,6 +22,72 @@ var (
 		"Plugin is not installed",
 		gcode.CodeInvalidParameter,
 	)
+	// CodePluginNotFound reports that a plugin management query could not find the target plugin.
+	CodePluginNotFound = bizerr.MustDefine(
+		"PLUGIN_NOT_FOUND",
+		"Plugin does not exist: {pluginId}",
+		gcode.CodeNotFound,
+	)
+	// CodePluginRuntimeUpgradePreviewUnavailable reports that no upgrade preview can be produced.
+	CodePluginRuntimeUpgradePreviewUnavailable = bizerr.MustDefine(
+		"PLUGIN_RUNTIME_UPGRADE_PREVIEW_UNAVAILABLE",
+		"Plugin {pluginId} runtime upgrade preview is available only when runtimeState is pending_upgrade or upgrade_failed; current runtimeState={runtimeState}",
+		gcode.CodeInvalidOperation,
+	)
+	// CodePluginRuntimeUpgradeConfirmationRequired reports that an upgrade
+	// request omitted the explicit operator confirmation.
+	CodePluginRuntimeUpgradeConfirmationRequired = bizerr.MustDefine(
+		"PLUGIN_RUNTIME_UPGRADE_CONFIRMATION_REQUIRED",
+		"Plugin {pluginId} runtime upgrade requires explicit confirmation",
+		gcode.CodeInvalidParameter,
+	)
+	// CodePluginRuntimeUpgradeUnavailable reports that execution is allowed only
+	// for plugins still marked as pending upgrade after server-side state re-read.
+	CodePluginRuntimeUpgradeUnavailable = bizerr.MustDefine(
+		"PLUGIN_RUNTIME_UPGRADE_UNAVAILABLE",
+		"Plugin {pluginId} runtime upgrade is available only when runtimeState is pending_upgrade or upgrade_failed; current runtimeState={runtimeState}",
+		gcode.CodeInvalidOperation,
+	)
+	// CodePluginRuntimeUpgradeLockUnavailable reports that clustered runtime
+	// upgrade cannot safely acquire a deployment-wide lock backend.
+	CodePluginRuntimeUpgradeLockUnavailable = bizerr.MustDefine(
+		"PLUGIN_RUNTIME_UPGRADE_LOCK_UNAVAILABLE",
+		"Plugin {pluginId} runtime upgrade requires a cluster lock backend when cluster.enabled=true",
+		gcode.CodeInternalError,
+	)
+	// CodePluginRuntimeUpgradeAlreadyRunning reports that another node already
+	// owns the runtime-upgrade lock for the target plugin.
+	CodePluginRuntimeUpgradeAlreadyRunning = bizerr.MustDefine(
+		"PLUGIN_RUNTIME_UPGRADE_ALREADY_RUNNING",
+		"Plugin {pluginId} runtime upgrade is already running on another node",
+		gcode.CodeInvalidOperation,
+	)
+	// CodePluginRuntimeUpgradeTypeUnsupported reports that the target plugin type
+	// cannot run through the runtime upgrade executor.
+	CodePluginRuntimeUpgradeTypeUnsupported = bizerr.MustDefine(
+		"PLUGIN_RUNTIME_UPGRADE_TYPE_UNSUPPORTED",
+		"Plugin {pluginId} with type {pluginType} does not support runtime upgrade execution",
+		gcode.CodeInvalidParameter,
+	)
+	// CodePluginRuntimeUpgradeExecutionFailed reports a failed explicit upgrade
+	// after the request passed confirmation and state validation.
+	CodePluginRuntimeUpgradeExecutionFailed = bizerr.MustDefine(
+		"PLUGIN_RUNTIME_UPGRADE_EXECUTION_FAILED",
+		"Plugin {pluginId} runtime upgrade from {fromVersion} to {toVersion} failed",
+		gcode.CodeInternalError,
+	)
+	// CodePluginRuntimeUpgradeSnapshotMissing reports missing effective or target manifest snapshot data.
+	CodePluginRuntimeUpgradeSnapshotMissing = bizerr.MustDefine(
+		"PLUGIN_RUNTIME_UPGRADE_SNAPSHOT_MISSING",
+		"Plugin {pluginId}@{version} runtime upgrade manifest snapshot is missing",
+		gcode.CodeInternalError,
+	)
+	// CodePluginRuntimeUpgradeSnapshotInvalid reports invalid upgrade preview snapshot metadata.
+	CodePluginRuntimeUpgradeSnapshotInvalid = bizerr.MustDefine(
+		"PLUGIN_RUNTIME_UPGRADE_SNAPSHOT_INVALID",
+		"Plugin {pluginId}@{version} runtime upgrade manifest snapshot is invalid",
+		gcode.CodeInternalError,
+	)
 	// CodePluginInstallModeInvalid reports that an install request used an unsupported install mode.
 	CodePluginInstallModeInvalid = bizerr.MustDefine(
 		"PLUGIN_INSTALL_MODE_INVALID",
@@ -200,10 +266,11 @@ var (
 		"Plugin {pluginId} installed successfully, but mock data file {failedFile} failed to load and was rolled back: {cause}",
 		gcode.CodeInternalError,
 	)
-	// CodePluginLifecycleGuardVetoed reports that one or more lifecycle guards blocked an operation.
-	CodePluginLifecycleGuardVetoed = bizerr.MustDefine(
-		"PLUGIN_LIFECYCLE_GUARD_VETOED",
-		"Plugin lifecycle operation {operation} for {pluginId} was blocked by lifecycle guards: {reasons}",
+	// CodePluginLifecyclePreconditionVetoed reports that one or more lifecycle
+	// precondition callbacks blocked an operation.
+	CodePluginLifecyclePreconditionVetoed = bizerr.MustDefine(
+		"PLUGIN_LIFECYCLE_PRECONDITION_VETOED",
+		"Plugin lifecycle operation {operation} for {pluginId} was blocked by lifecycle preconditions: {reasons}",
 		gcode.CodeInvalidOperation,
 	)
 	// CodePluginDependencyBlocked reports that plugin dependency checks rejected a lifecycle action.

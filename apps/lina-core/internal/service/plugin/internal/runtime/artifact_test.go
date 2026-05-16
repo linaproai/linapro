@@ -79,7 +79,7 @@ func TestScanPluginManifestsDropsRuntimePluginAfterArtifactRemoval(t *testing.T)
 }
 
 // TestEnsureRuntimeArtifactAvailableRejectsMissingGeneratedWasm verifies that
-// lifecycle guards fail with actionable guidance when the wasm artifact is missing.
+// lifecycle preconditions fail with actionable guidance when the wasm artifact is missing.
 func TestEnsureRuntimeArtifactAvailableRejectsMissingGeneratedWasm(t *testing.T) {
 	services := testutil.NewServices()
 
@@ -112,13 +112,13 @@ func TestEnsureRuntimeArtifactAvailableRejectsMissingGeneratedWasm(t *testing.T)
 
 	err := services.Runtime.EnsureRuntimeArtifactAvailable(manifest, "install")
 	if err == nil {
-		t.Fatalf("expected lifecycle guard to reject missing dynamic artifact")
+		t.Fatalf("expected lifecycle precondition to reject missing dynamic artifact")
 	}
 	if expected := "make wasm p=" + pluginID; !strings.Contains(err.Error(), expected) {
-		t.Fatalf("expected lifecycle guard error to mention %q, got: %v", expected, err)
+		t.Fatalf("expected lifecycle precondition error to mention %q, got: %v", expected, err)
 	}
 	if expected := filepath.ToSlash(runtime.BuildArtifactRelativePath(pluginID)); !strings.Contains(err.Error(), expected) {
-		t.Fatalf("expected lifecycle guard error to mention missing wasm path %q, got: %v", expected, err)
+		t.Fatalf("expected lifecycle precondition error to mention missing wasm path %q, got: %v", expected, err)
 	}
 }
 
@@ -194,6 +194,64 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 	}
 	if len(manifest.HostServices) != 1 || manifest.HostServices[0].Service != pluginbridge.HostServiceRuntime {
 		t.Fatalf("expected runtime host service snapshot to be restored, got %#v", manifest.HostServices)
+	}
+}
+
+// TestParseRuntimeArtifactLoadsLifecycleContracts verifies dynamic Before*
+// lifecycle declarations are restored from the dedicated artifact section.
+func TestParseRuntimeArtifactLoadsLifecycleContracts(t *testing.T) {
+	services := testutil.NewServices()
+	pluginDir := testutil.CreateTestRuntimePluginDir(
+		t,
+		"plugin-dynamic-lifecycle-contracts",
+		"Runtime Lifecycle Plugin",
+		"v0.3.8",
+		nil,
+		nil,
+	)
+
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-lifecycle-contracts"))
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:      "plugin-dynamic-lifecycle-contracts",
+			Name:    "Runtime Lifecycle Plugin",
+			Version: "v0.3.8",
+			Type:    catalog.TypeDynamic.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind: pluginbridge.RuntimeKindWasm,
+			ABIVersion:  pluginbridge.SupportedABIVersion,
+			LifecycleContracts: []*pluginbridge.LifecycleContract{
+				{
+					Operation:    pluginbridge.LifecycleOperationBeforeInstall,
+					RequestType:  "DynamicBeforeInstallReq",
+					InternalPath: "__lifecycle/before-install/",
+					TimeoutMs:    1500,
+				},
+			},
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+	if err != nil {
+		t.Fatalf("expected runtime artifact load to succeed, got error: %v", err)
+	}
+	if len(manifest.LifecycleHandlers) != 1 {
+		t.Fatalf("expected one lifecycle handler, got %#v", manifest.LifecycleHandlers)
+	}
+	handler := manifest.LifecycleHandlers[0]
+	if handler.Operation != pluginbridge.LifecycleOperationBeforeInstall ||
+		handler.RequestType != "DynamicBeforeInstallReq" ||
+		handler.InternalPath != "/__lifecycle/before-install" {
+		t.Fatalf("unexpected lifecycle handler: %#v", handler)
 	}
 }
 

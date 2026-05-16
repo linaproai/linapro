@@ -28,4 +28,10 @@ var (
 		"Dynamic plugin artifact validation failed and cannot {action}",
 		gcode.CodeInvalidParameter,
 	)
+	// CodePluginRuntimeUpgradeRequired reports that business routes are blocked until runtime upgrade completes.
+	CodePluginRuntimeUpgradeRequired = bizerr.MustDefine(
+		"PLUGIN_RUNTIME_UPGRADE_REQUIRED",
+		"Plugin {pluginId} requires runtime upgrade before business routes can execute",
+		gcode.CodeInvalidOperation,
+	)
 )

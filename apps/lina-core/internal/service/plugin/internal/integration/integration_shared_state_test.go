@@ -66,17 +66,9 @@ func TestStoreLoadedEnabledSnapshotBackfillsSharedState(t *testing.T) {
 	}
 	svc := &serviceImpl{sharedState: shared}
 
-	svc.storeLoadedEnabledSnapshot([]*entity.SysPlugin{
-		{
-			PluginId:  "plugin-enabled",
-			Installed: catalog.InstalledYes,
-			Status:    catalog.StatusEnabled,
-		},
-		{
-			PluginId:  "plugin-disabled",
-			Installed: catalog.InstalledYes,
-			Status:    catalog.StatusDisabled,
-		},
+	svc.storeLoadedEnabledSnapshot(map[string]bool{
+		"plugin-enabled":  true,
+		"plugin-disabled": false,
 	})
 
 	enabledByID := map[string]bool{

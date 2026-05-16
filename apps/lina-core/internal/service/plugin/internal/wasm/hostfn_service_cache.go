@@ -5,6 +5,8 @@ package wasm
 import (
 	"context"
 
+	"github.com/gogf/gf/v2/errors/gerror"
+
 	"lina-core/internal/service/kvcache"
 	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
 	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
@@ -16,11 +18,12 @@ var cacheHostService = kvcache.New()
 
 // ConfigureCacheHostService replaces the governed cache backend used by wasm
 // host calls. The service must be non-nil.
-func ConfigureCacheHostService(service kvcache.Service) {
+func ConfigureCacheHostService(service kvcache.Service) error {
 	if service == nil {
-		panic("wasm cache host service requires a non-nil cache service")
+		return gerror.New("wasm cache host service requires a non-nil cache service")
 	}
 	cacheHostService = service
+	return nil
 }
 
 // dispatchCacheHostService routes cache host service methods to the governed cache backend.
@@ -36,6 +39,9 @@ func dispatchCacheHostService(
 	}
 	if namespace == "" {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusCapabilityDenied, "cache host service requires one authorized namespace")
+	}
+	if cacheHostService == nil {
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "cache host service is not configured")
 	}
 	cacheKey := func(logicalKey string) string {
 		return buildPluginCacheKey(hcc, namespace, logicalKey)

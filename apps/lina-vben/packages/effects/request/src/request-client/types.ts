@@ -7,6 +7,11 @@ import type {
 
 type ExtendOptions<T = any> = {
   /**
+   * Whether the global response error-message interceptor should skip this
+   * request. Use this when the caller owns a more precise local error message.
+   */
+  silentErrorMessage?: boolean;
+  /**
    * 参数序列化方式。预置的有
    * - brackets: ids[]=1&ids[]=2&ids[]=3
    * - comma: ids=1,2,3

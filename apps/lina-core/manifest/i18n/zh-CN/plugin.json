@@ -1,5 +1,28 @@
 {
   "plugin": {
+    "runtimeUpgrade": {
+      "abnormalReason": {
+        "discoveredVersionLowerThanEffective": "插件文件发现版本低于数据库生效版本。",
+        "versionCompareFailed": "插件版本无法按语义化版本进行比较。"
+      },
+      "failure": {
+        "releaseFailed": "目标插件发布在生效前失败。",
+        "migrationFailed": "目标插件升级在已记录的迁移或生命周期阶段失败。"
+      },
+      "state": {
+        "abnormal": "异常",
+        "normal": "正常",
+        "pendingUpgrade": "待升级",
+        "upgradeFailed": "升级失败",
+        "upgradeRunning": "升级中"
+      },
+      "risk": {
+        "upgradeSqlRequiresReview": "目标版本包含 SQL 迁移资源，确认升级前需要先完成审核。",
+        "mockSqlExcluded": "Mock 数据 SQL 不会参与运行时升级，也不会自动加载。",
+        "hostServiceAuthorizationChanged": "目标版本变更了 hostServices 申请范围，可能需要重新进行授权审核。",
+        "dependencyBlockers": "依赖检查发现阻断项，升级前必须先处理。"
+      }
+    },
     "sourceUpgrade": {
       "alreadyLatest": "当前源码插件已是最新版本，无需升级。",
       "notInstalledSkipped": "源码插件未安装，跳过升级。",

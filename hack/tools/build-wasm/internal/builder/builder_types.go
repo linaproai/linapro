@@ -29,6 +29,7 @@ const (
 	pluginDynamicWasmSectionUninstallSQL        = pluginbridge.WasmSectionUninstallSQL
 	pluginDynamicWasmSectionMockSQL             = pluginbridge.WasmSectionMockSQL
 	pluginDynamicWasmSectionBackendHooks        = pluginbridge.WasmSectionBackendHooks
+	pluginDynamicWasmSectionBackendLifecycle    = pluginbridge.WasmSectionBackendLifecycle
 	pluginDynamicWasmSectionBackendRes          = pluginbridge.WasmSectionBackendResources
 	pluginDynamicWasmSectionBackendCrons        = pluginbridge.WasmSectionBackendCrons
 	pluginDynamicWasmSectionBackendRoutes       = pluginbridge.WasmSectionBackendRoutes
@@ -193,6 +194,8 @@ type hookSpec struct {
 	SleepMs      int                   `json:"sleepMs,omitempty" yaml:"sleepMs,omitempty"`
 	ErrorMessage string                `json:"errorMessage,omitempty" yaml:"errorMessage,omitempty"`
 }
+
+type lifecycleSpec = pluginbridge.LifecycleContract
 
 type resourceSpec struct {
 	Key            string                 `json:"key" yaml:"key"`

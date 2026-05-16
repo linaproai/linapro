@@ -96,6 +96,7 @@ make dev                         # Start frontend and backend (frontend: 5666, b
 make dev plugins=0               # Force host-only mode without official source plugins
 make stop                        # Stop all services
 make status                      # Check service status
+make dev.setup                  # Install frontend deps + Playwright browsers (first time only)
 make test                        # Run the full E2E suite
 make init                        # Initialize the database (DDL + seed data)
 make mock                        # Load mock demo data; run init first
@@ -130,6 +131,12 @@ pnpm run build                 # Build
 ```
 
 ## E2E Tests
+
+Install frontend dependencies and Playwright browsers before the first run:
+
+```bash
+make dev.setup
+```
 
 ```bash
 cd hack/tests
@@ -354,6 +361,12 @@ Ruleset bypass is granted to actors, not to token strings. Add the `GitHub App` 
 ## E2E Tests (`Playwright`)
 
 All user-observable behavior changes must be covered by `E2E` tests.
+
+Install frontend dependencies and Playwright browsers before the first run:
+
+```bash
+make dev.setup
+```
 
 ```bash
 cd hack/tests

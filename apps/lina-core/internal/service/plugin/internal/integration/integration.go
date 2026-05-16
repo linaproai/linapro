@@ -190,15 +190,15 @@ type DependencyWiringService interface {
 
 // PluginStateService defines plugin enablement lookup operations.
 type PluginStateService interface {
-	// IsEnabled reports whether the plugin with the given ID is currently installed and enabled.
+	// IsEnabled reports whether the plugin with the given ID can expose business entries.
 	IsEnabled(ctx context.Context, pluginID string) bool
 	// SetTenantPluginEnabledState persists one tenant-scoped plugin enablement row.
 	SetTenantPluginEnabledState(ctx context.Context, pluginID string, tenantID int, enabled bool) error
-	// RefreshEnabledSnapshot rebuilds the in-memory enablement snapshot used by runtime guards.
+	// RefreshEnabledSnapshot rebuilds the in-memory business-entry snapshot used by runtime guards.
 	RefreshEnabledSnapshot(ctx context.Context) error
-	// SetPluginEnabledState updates one plugin entry in the in-memory enablement snapshot.
+	// SetPluginEnabledState updates one plugin entry in the in-memory business-entry snapshot.
 	SetPluginEnabledState(pluginID string, enabled bool)
-	// DeletePluginEnabledState removes one plugin entry from the in-memory enablement snapshot.
+	// DeletePluginEnabledState removes one plugin entry from the in-memory business-entry snapshot.
 	DeletePluginEnabledState(pluginID string)
 }
 
@@ -291,13 +291,14 @@ func (s *serviceImpl) SetHostServices(services pluginhost.HostServices) {
 	s.hostServices = services
 }
 
-// IsEnabled reports whether the plugin with the given ID is currently installed and enabled.
+// IsEnabled reports whether the plugin with the given ID can expose business entries.
 func (s *serviceImpl) IsEnabled(ctx context.Context, pluginID string) bool {
 	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
 	if err != nil || registry == nil {
 		return false
 	}
-	enabled, err := s.registryEnabledForTenant(ctx, registry)
+	manifest, _ := s.catalogSvc.GetDesiredManifest(pluginID)
+	enabled, err := s.registryBusinessEntryEnabledForTenant(ctx, registry, manifest)
 	return err == nil && enabled
 }
 
@@ -353,6 +354,24 @@ func (s *serviceImpl) registryEnabledForTenant(ctx context.Context, registry *en
 	return s.tenantPluginEnabled(ctx, registry.PluginId, tenantID)
 }
 
+// registryBusinessEntryEnabledForTenant resolves plugin enablement and runtime
+// upgrade state before allowing plugin-owned routes, menus, cron jobs, or hooks.
+func (s *serviceImpl) registryBusinessEntryEnabledForTenant(
+	ctx context.Context,
+	registry *entity.SysPlugin,
+	manifest *catalog.Manifest,
+) (bool, error) {
+	enabled, err := s.registryEnabledForTenant(ctx, registry)
+	if err != nil || !enabled {
+		return enabled, err
+	}
+	state, err := s.catalogSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
+	if err != nil {
+		return false, err
+	}
+	return catalog.RuntimeStateAllowsBusinessEntry(state.State), nil
+}
+
 // tenantPluginEnabled reads one tenant-scoped plugin enablement row.
 func (s *serviceImpl) tenantPluginEnabled(ctx context.Context, pluginID string, tenantID int) (bool, error) {
 	value, err := dao.SysPluginState.Ctx(ctx).
@@ -380,7 +399,7 @@ func pluginTenantEnablementStateValue(enabled bool) string {
 	return pluginTenantDisabledValue
 }
 
-// RefreshEnabledSnapshot rebuilds the in-memory enablement snapshot used by runtime guards.
+// RefreshEnabledSnapshot rebuilds the in-memory business-entry snapshot used by runtime guards.
 func (s *serviceImpl) RefreshEnabledSnapshot(ctx context.Context) error {
 	manifests, err := s.catalogSvc.ScanManifests()
 	if err != nil {
@@ -397,7 +416,7 @@ func (s *serviceImpl) RefreshEnabledSnapshot(ctx context.Context) error {
 	return nil
 }
 
-// SetPluginEnabledState updates one plugin entry in the in-memory enablement snapshot.
+// SetPluginEnabledState updates one plugin entry in the in-memory business-entry snapshot.
 func (s *serviceImpl) SetPluginEnabledState(pluginID string, enabled bool) {
 	normalizedPluginID := strings.TrimSpace(pluginID)
 	if normalizedPluginID == "" {
@@ -409,7 +428,7 @@ func (s *serviceImpl) SetPluginEnabledState(pluginID string, enabled bool) {
 	s.sharedState.enabledSnapshotLoaded = true
 }
 
-// DeletePluginEnabledState removes one plugin entry from the in-memory enablement snapshot.
+// DeletePluginEnabledState removes one plugin entry from the in-memory business-entry snapshot.
 func (s *serviceImpl) DeletePluginEnabledState(pluginID string) {
 	normalizedPluginID := strings.TrimSpace(pluginID)
 	if normalizedPluginID == "" {
@@ -433,8 +452,8 @@ func (s *serviceImpl) ListSourceRouteBindings() []pluginhost.SourceRouteBinding 
 	return items
 }
 
-// buildFilterRuntime builds a filter runtime by scanning all manifests and loading
-// the current enablement status for each discovered plugin.
+// buildFilterRuntime builds a filter runtime by scanning all manifests and
+// loading whether each discovered plugin can expose business entries.
 func (s *serviceImpl) buildFilterRuntime(ctx context.Context) (*filterRuntime, error) {
 	manifests, err := s.catalogSvc.ScanManifests()
 	if err != nil {
@@ -458,8 +477,7 @@ func (s *serviceImpl) buildFilterRuntimeFromManifests(
 	}, nil
 }
 
-// buildEnabledPluginMap queries the registry table for the installed/enabled state
-// of each plugin in the manifest list.
+// buildEnabledPluginMap queries whether each plugin can expose business entries.
 func (s *serviceImpl) buildEnabledPluginMap(
 	ctx context.Context,
 	manifests []*catalog.Manifest,
@@ -467,9 +485,9 @@ func (s *serviceImpl) buildEnabledPluginMap(
 	return s.buildEnabledPluginMapFromCatalog(ctx, manifests, true)
 }
 
-// buildEnabledPluginMapFromCatalog queries or reuses registry state for the
-// supplied manifests. Refresh callers can disable snapshot reuse to rebuild the
-// process-wide view after lifecycle changes.
+// buildEnabledPluginMapFromCatalog queries or reuses business-entry state for
+// the supplied manifests. Refresh callers can disable snapshot reuse to rebuild
+// the process-wide view after lifecycle changes.
 func (s *serviceImpl) buildEnabledPluginMapFromCatalog(
 	ctx context.Context,
 	manifests []*catalog.Manifest,
@@ -506,7 +524,7 @@ func (s *serviceImpl) buildEnabledPluginMapFromCatalog(
 	if err != nil {
 		return nil, err
 	}
-	s.storeLoadedEnabledSnapshot(registries)
+	manifestByID := manifestByPluginID(manifests)
 
 	for _, registry := range registries {
 		if registry == nil {
@@ -516,32 +534,28 @@ func (s *serviceImpl) buildEnabledPluginMapFromCatalog(
 		if _, ok := enabledByID[pluginID]; !ok {
 			continue
 		}
-		enabled, err := s.registryEnabledForTenant(ctx, registry)
+		enabled, err := s.registryBusinessEntryEnabledForTenant(ctx, registry, manifestByID[pluginID])
 		if err != nil {
 			return nil, err
 		}
 		enabledByID[pluginID] = enabled
 	}
+	s.storeLoadedEnabledSnapshot(enabledByID)
 	return enabledByID, nil
 }
 
-// storeLoadedEnabledSnapshot refreshes the process-local enablement snapshot
+// storeLoadedEnabledSnapshot refreshes the process-local business-entry snapshot
 // from one registry read so later filters in the same process can reuse it.
-func (s *serviceImpl) storeLoadedEnabledSnapshot(registries []*entity.SysPlugin) {
+func (s *serviceImpl) storeLoadedEnabledSnapshot(enabledByID map[string]bool) {
 	if s == nil || s.sharedState == nil {
 		return
 	}
-	snapshot := make(map[string]bool, len(registries))
-	for _, registry := range registries {
-		if registry == nil {
-			continue
+	snapshot := make(map[string]bool, len(enabledByID))
+	for pluginID, enabled := range enabledByID {
+		normalizedPluginID := strings.TrimSpace(pluginID)
+		if normalizedPluginID != "" {
+			snapshot[normalizedPluginID] = enabled
 		}
-		pluginID := strings.TrimSpace(registry.PluginId)
-		if pluginID == "" {
-			continue
-		}
-		snapshot[pluginID] = registry.Installed == catalog.InstalledYes &&
-			registry.Status == catalog.StatusEnabled
 	}
 	s.sharedState.enabledSnapshotMu.Lock()
 	defer s.sharedState.enabledSnapshotMu.Unlock()
@@ -549,7 +563,7 @@ func (s *serviceImpl) storeLoadedEnabledSnapshot(registries []*entity.SysPlugin)
 	s.sharedState.enabledSnapshotLoaded = true
 }
 
-// applyLoadedEnabledSnapshot copies the process-local enablement snapshot into
+// applyLoadedEnabledSnapshot copies the process-local business-entry snapshot into
 // the requested plugin map when a lifecycle path has already warmed it.
 func (s *serviceImpl) applyLoadedEnabledSnapshot(enabledByID map[string]bool) bool {
 	if s == nil || s.sharedState == nil || len(enabledByID) == 0 {
@@ -564,6 +578,18 @@ func (s *serviceImpl) applyLoadedEnabledSnapshot(enabledByID map[string]bool) bo
 		enabledByID[pluginID] = s.sharedState.enabledSnapshot[pluginID]
 	}
 	return true
+}
+
+// manifestByPluginID indexes discovered manifests by plugin ID.
+func manifestByPluginID(manifests []*catalog.Manifest) map[string]*catalog.Manifest {
+	result := make(map[string]*catalog.Manifest, len(manifests))
+	for _, manifest := range manifests {
+		if manifest == nil || strings.TrimSpace(manifest.ID) == "" {
+			continue
+		}
+		result[strings.TrimSpace(manifest.ID)] = manifest
+	}
+	return result
 }
 
 // buildBackgroundEnabledChecker returns a PluginEnabledChecker for use in source plugin

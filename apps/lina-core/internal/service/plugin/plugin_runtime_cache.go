@@ -7,6 +7,7 @@ import (
 
 	"lina-core/internal/service/cachecoord"
 	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/wasm"
 	"lina-core/internal/service/pluginruntimecache"
 	"lina-core/pkg/logger"
@@ -112,4 +113,41 @@ func (s *serviceImpl) markRuntimeCacheChanged(ctx context.Context, reason string
 		logger.Debugf(ctx, "plugin runtime cache revision bumped reason=%s revision=%d", reason, revision)
 	}
 	return nil
+}
+
+// invalidateRuntimeUpgradeCaches clears this node's plugin-scoped derived
+// runtime caches after an explicit upgrade succeeds or fails. Cluster peers
+// receive the same mutation through the shared plugin-runtime revision.
+func (s *serviceImpl) invalidateRuntimeUpgradeCaches(ctx context.Context, pluginID string, pluginType string, reason string) {
+	if s == nil {
+		return
+	}
+	if s.frontendSvc != nil {
+		s.frontendSvc.InvalidateBundle(ctx, pluginID, reason)
+	}
+	if catalog.NormalizeType(pluginType) == catalog.TypeDynamic {
+		wasm.InvalidateAllCache(ctx)
+	}
+	if s.i18nSvc == nil {
+		return
+	}
+	switch catalog.NormalizeType(pluginType) {
+	case catalog.TypeSource:
+		s.i18nSvc.InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
+			Sectors:        []i18nsvc.Sector{i18nsvc.SectorSourcePlugin},
+			SourcePluginID: pluginID,
+		})
+	case catalog.TypeDynamic:
+		s.i18nSvc.InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
+			Sectors:         []i18nsvc.Sector{i18nsvc.SectorDynamicPlugin},
+			DynamicPluginID: pluginID,
+		})
+	default:
+		s.i18nSvc.InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
+			Sectors: []i18nsvc.Sector{
+				i18nsvc.SectorSourcePlugin,
+				i18nsvc.SectorDynamicPlugin,
+			},
+		})
+	}
 }

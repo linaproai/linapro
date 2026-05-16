@@ -5,7 +5,6 @@ package sourceupgrade
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	sourceupgradecontract "lina-core/pkg/sourceupgrade/contract"
@@ -44,16 +43,11 @@ func (f *fakeSourceUpgradeGovernanceService) ValidateSourcePluginUpgradeReadines
 }
 
 // TestNewRequiresPluginService verifies source-upgrade facade construction
-// fails fast instead of creating an isolated host service graph.
+// returns an error instead of creating an isolated host service graph.
 func TestNewRequiresPluginService(t *testing.T) {
-	defer func() {
-		recovered := recover()
-		if recovered == nil {
-			t.Fatal("expected New to panic when plugin upgrade service is nil")
-		}
-	}()
-
-	New(nil)
+	if _, err := New(nil); err == nil {
+		t.Fatal("expected New to return an error when plugin upgrade service is nil")
+	}
 }
 
 // TestServiceImplDelegatesListSourcePluginStatuses verifies the published
@@ -65,7 +59,10 @@ func TestServiceImplDelegatesListSourcePluginStatuses(t *testing.T) {
 		DiscoveredVersion: "v0.5.0",
 	}}
 	fakeService := &fakeSourceUpgradeGovernanceService{listOutput: expected}
-	service := New(fakeService)
+	service, err := New(fakeService)
+	if err != nil {
+		t.Fatalf("expected source-upgrade facade construction to succeed, got error: %v", err)
+	}
 
 	items, err := service.ListSourcePluginStatuses(context.Background())
 	if err != nil {
@@ -89,7 +86,10 @@ func TestServiceImplDelegatesUpgradeSourcePlugin(t *testing.T) {
 		Executed:    true,
 	}
 	fakeService := &fakeSourceUpgradeGovernanceService{upgradeOutput: expected}
-	service := New(fakeService)
+	service, err := New(fakeService)
+	if err != nil {
+		t.Fatalf("expected source-upgrade facade construction to succeed, got error: %v", err)
+	}
 
 	result, err := service.UpgradeSourcePlugin(context.Background(), "plugin-demo-source")
 	if err != nil {
@@ -107,17 +107,19 @@ func TestServiceImplDelegatesUpgradeSourcePlugin(t *testing.T) {
 }
 
 // TestServiceImplDelegatesValidateSourcePluginUpgradeReadiness verifies the
-// published facade preserves readiness validation failures.
+// published facade delegates the non-blocking drift scan.
 func TestServiceImplDelegatesValidateSourcePluginUpgradeReadiness(t *testing.T) {
-	expectedErr := errors.New("pending upgrade")
-	fakeService := &fakeSourceUpgradeGovernanceService{readinessErr: expectedErr}
-	service := New(fakeService)
+	fakeService := &fakeSourceUpgradeGovernanceService{}
+	service, err := New(fakeService)
+	if err != nil {
+		t.Fatalf("expected source-upgrade facade construction to succeed, got error: %v", err)
+	}
 
-	err := service.ValidateSourcePluginUpgradeReadiness(context.Background())
+	err = service.ValidateSourcePluginUpgradeReadiness(context.Background())
 	if !fakeService.validateCalled {
 		t.Fatal("expected host service readiness validation to be called")
 	}
-	if !errors.Is(err, expectedErr) {
-		t.Fatalf("expected published facade to return delegated readiness error, got %v", err)
+	if err != nil {
+		t.Fatalf("expected published facade scan to succeed, got error: %v", err)
 	}
 }

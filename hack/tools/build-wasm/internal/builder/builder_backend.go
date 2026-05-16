@@ -50,6 +50,380 @@ func collectHookSpecs(pluginDir string, pluginID string) ([]*hookSpec, error) {
 	return items, nil
 }
 
+func collectLifecycleSpecs(pluginDir string, pluginID string) ([]*lifecycleSpec, error) {
+	discovered, err := discoverLifecycleSpecs(pluginDir, pluginID)
+	if err != nil {
+		return nil, err
+	}
+	overrides, err := collectLifecycleOverrides(pluginDir, pluginID)
+	if err != nil {
+		return nil, err
+	}
+	items, err := mergeLifecycleSpecs(pluginID, discovered, overrides)
+	if err != nil {
+		return nil, err
+	}
+	if err = pluginbridge.ValidateLifecycleContracts(pluginID, items); err != nil {
+		return nil, fmt.Errorf("plugin lifecycle declaration is invalid: %w", err)
+	}
+	return items, nil
+}
+
+func collectLifecycleOverrides(pluginDir string, pluginID string) ([]*lifecycleSpec, error) {
+	lifecycleDir := filepath.Join(pluginDir, "backend", "lifecycle")
+	entries, err := os.ReadDir(lifecycleDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []*lifecycleSpec{}, nil
+		}
+		return nil, err
+	}
+
+	fileNames := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
+			continue
+		}
+		fileNames = append(fileNames, entry.Name())
+	}
+	sortStrings(fileNames)
+
+	items := make([]*lifecycleSpec, 0, len(fileNames))
+	for _, name := range fileNames {
+		filePath := filepath.Join(lifecycleDir, name)
+		spec := &lifecycleSpec{}
+		if err = loadYAMLFile(filePath, spec); err != nil {
+			return nil, err
+		}
+		pluginbridge.NormalizeLifecycleContract(spec)
+		if spec.Operation == "" {
+			return nil, fmt.Errorf("plugin lifecycle override operation is unsupported for plugin %s: %s", pluginID, filePath)
+		}
+		if spec.TimeoutMs < 0 {
+			return nil, fmt.Errorf("plugin lifecycle override timeoutMs cannot be negative for plugin %s operation %s: %s", pluginID, spec.Operation, filePath)
+		}
+		items = append(items, spec)
+	}
+	return items, nil
+}
+
+func discoverLifecycleSpecs(pluginDir string, pluginID string) ([]*lifecycleSpec, error) {
+	backendDir := filepath.Join(pluginDir, "backend")
+	info, err := os.Stat(backendDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []*lifecycleSpec{}, nil
+		}
+		return nil, err
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("runtime backend path is not a directory: %s", backendDir)
+	}
+
+	items := make([]*lifecycleSpec, 0)
+	seen := make(map[pluginbridge.LifecycleOperation]string)
+	err = filepath.WalkDir(backendDir, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			if shouldSkipRuntimeBackendDir(entry.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		if !isLifecycleControllerSourceFile(backendDir, path) {
+			return nil
+		}
+
+		fileSet := token.NewFileSet()
+		fileNode, parseErr := parser.ParseFile(fileSet, path, nil, parser.ParseComments)
+		if parseErr != nil {
+			return fmt.Errorf("failed to parse backend file %s: %w", path, parseErr)
+		}
+		for _, decl := range fileNode.Decls {
+			funcDecl, ok := decl.(*ast.FuncDecl)
+			if !ok || funcDecl == nil || funcDecl.Recv == nil || funcDecl.Name == nil {
+				continue
+			}
+			spec, matched, metadataErr := extractLifecycleSpecFromFunc(pluginID, funcDecl)
+			if metadataErr != nil {
+				return fmt.Errorf("failed to inspect lifecycle handler in %s: %w", path, metadataErr)
+			}
+			if !matched {
+				continue
+			}
+			if previousPath, exists := seen[spec.Operation]; exists {
+				return fmt.Errorf("plugin lifecycle handler operation is duplicated for plugin %s: %s in %s and %s", pluginID, spec.Operation, previousPath, path)
+			}
+			seen[spec.Operation] = path
+			items = append(items, spec)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sortLifecycleSpecs(items)
+	return items, nil
+}
+
+func isLifecycleControllerSourceFile(backendDir string, filePath string) bool {
+	relativePath, err := filepath.Rel(backendDir, filePath)
+	if err != nil {
+		return false
+	}
+	normalizedPath := filepath.ToSlash(filepath.Clean(relativePath))
+	if strings.HasPrefix(normalizedPath, "internal/controller/") {
+		return true
+	}
+	if strings.Contains(normalizedPath, "/") {
+		return false
+	}
+	return strings.HasPrefix(filepath.Base(normalizedPath), "controller")
+}
+
+func shouldSkipRuntimeBackendDir(name string) bool {
+	trimmed := strings.TrimSpace(name)
+	return trimmed == "" || strings.HasPrefix(trimmed, ".") || strings.HasPrefix(trimmed, "_")
+}
+
+func extractLifecycleSpecFromFunc(pluginID string, decl *ast.FuncDecl) (*lifecycleSpec, bool, error) {
+	methodName := strings.TrimSpace(decl.Name.Name)
+	if methodName == "" {
+		return nil, false, nil
+	}
+	if isLegacyLifecycleMethodName(methodName) && isBridgeHandlerFuncDecl(decl) {
+		return nil, false, fmt.Errorf("legacy lifecycle handler %s is not supported for plugin %s; use source-compatible Before* or After* operation names", methodName, pluginID)
+	}
+	if !pluginbridge.IsSupportedLifecycleOperation(methodName) {
+		return nil, false, nil
+	}
+
+	requestType, ok, err := inferGuestHandlerRequestType(decl)
+	if err != nil {
+		return nil, false, err
+	}
+	if !ok {
+		return nil, false, nil
+	}
+	spec := &lifecycleSpec{
+		Operation:    pluginbridge.LifecycleOperation(methodName),
+		RequestType:  requestType,
+		InternalPath: buildLifecycleInternalPath(methodName),
+	}
+	pluginbridge.NormalizeLifecycleContract(spec)
+	return spec, true, nil
+}
+
+func isLegacyLifecycleMethodName(methodName string) bool {
+	switch strings.TrimSpace(methodName) {
+	case "CanInstall",
+		"CanUpgrade",
+		"CanDisable",
+		"CanUninstall",
+		"CanTenantDisable",
+		"CanTenantDelete",
+		"CanInstallModeChange",
+		"LifecycleGuard":
+		return true
+	default:
+		return strings.HasSuffix(methodName, "LifecycleGuard")
+	}
+}
+
+func isBridgeHandlerFuncDecl(decl *ast.FuncDecl) bool {
+	_, ok, err := inferGuestHandlerRequestType(decl)
+	return err == nil && ok
+}
+
+func inferGuestHandlerRequestType(decl *ast.FuncDecl) (string, bool, error) {
+	params := flattenFieldTypes(decl.Type.Params)
+	results := flattenFieldTypes(decl.Type.Results)
+	if len(results) != 2 || !isErrorType(results[1]) {
+		return "", false, nil
+	}
+
+	if len(params) == 1 &&
+		isPointerToTypeName(params[0], "BridgeRequestEnvelopeV1") &&
+		isPointerToTypeName(results[0], "BridgeResponseEnvelopeV1") {
+		return decl.Name.Name + "Req", true, nil
+	}
+
+	if len(params) == 2 && isContextType(params[0]) && isPointerToNamedType(params[1]) && isPointerToNamedType(results[0]) {
+		requestType := pointerTypeName(params[1])
+		if requestType == "" {
+			return "", false, fmt.Errorf("typed lifecycle handler request DTO name is empty: %s", decl.Name.Name)
+		}
+		return requestType, true, nil
+	}
+	return "", false, nil
+}
+
+func flattenFieldTypes(fields *ast.FieldList) []ast.Expr {
+	if fields == nil {
+		return nil
+	}
+	items := make([]ast.Expr, 0, len(fields.List))
+	for _, field := range fields.List {
+		if field == nil || field.Type == nil {
+			continue
+		}
+		nameCount := len(field.Names)
+		if nameCount == 0 {
+			items = append(items, field.Type)
+			continue
+		}
+		for index := 0; index < nameCount; index++ {
+			items = append(items, field.Type)
+		}
+	}
+	return items
+}
+
+func isPointerToTypeName(expr ast.Expr, name string) bool {
+	return pointerTypeName(expr) == name
+}
+
+func isPointerToNamedType(expr ast.Expr) bool {
+	return pointerTypeName(expr) != ""
+}
+
+func pointerTypeName(expr ast.Expr) string {
+	starExpr, ok := expr.(*ast.StarExpr)
+	if !ok || starExpr.X == nil {
+		return ""
+	}
+	return astTypeName(starExpr.X)
+}
+
+func astTypeName(expr ast.Expr) string {
+	switch typed := expr.(type) {
+	case *ast.Ident:
+		return strings.TrimSpace(typed.Name)
+	case *ast.SelectorExpr:
+		if typed.Sel == nil {
+			return ""
+		}
+		return strings.TrimSpace(typed.Sel.Name)
+	default:
+		return ""
+	}
+}
+
+func isContextType(expr ast.Expr) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	return ok && selector.Sel != nil && selector.Sel.Name == "Context"
+}
+
+func isErrorType(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == "error"
+}
+
+func buildLifecycleInternalPath(operation string) string {
+	return "/__lifecycle" + pluginbridge.BuildGuestControllerInternalPath(operation)
+}
+
+func mergeLifecycleSpecs(
+	pluginID string,
+	discovered []*lifecycleSpec,
+	overrides []*lifecycleSpec,
+) ([]*lifecycleSpec, error) {
+	byOperation := make(map[pluginbridge.LifecycleOperation]*lifecycleSpec, len(discovered))
+	for _, item := range discovered {
+		if item == nil {
+			continue
+		}
+		pluginbridge.NormalizeLifecycleContract(item)
+		byOperation[item.Operation] = item
+	}
+	seenOverrides := make(map[pluginbridge.LifecycleOperation]struct{}, len(overrides))
+	for _, override := range overrides {
+		if override == nil {
+			return nil, fmt.Errorf("plugin lifecycle override cannot be nil for plugin %s", pluginID)
+		}
+		if _, exists := seenOverrides[override.Operation]; exists {
+			return nil, fmt.Errorf("plugin lifecycle override operation is duplicated for plugin %s: %s", pluginID, override.Operation)
+		}
+		seenOverrides[override.Operation] = struct{}{}
+		base, exists := byOperation[override.Operation]
+		if !exists {
+			return nil, fmt.Errorf("plugin lifecycle override has no matching handler for plugin %s operation %s", pluginID, override.Operation)
+		}
+		discoveredRequestType := strings.TrimSpace(base.RequestType)
+		dispatcherInternalPath := pluginbridge.BuildGuestControllerInternalPath(base.Operation.String())
+		if strings.TrimSpace(override.RequestType) != "" {
+			base.RequestType = strings.TrimSpace(override.RequestType)
+		}
+		if strings.TrimSpace(override.InternalPath) != "" {
+			base.InternalPath = strings.TrimSpace(override.InternalPath)
+		}
+		if override.TimeoutMs > 0 {
+			base.TimeoutMs = override.TimeoutMs
+		}
+		pluginbridge.NormalizeLifecycleContract(base)
+		if base.RequestType != discoveredRequestType && base.InternalPath != dispatcherInternalPath {
+			return nil, fmt.Errorf(
+				"plugin lifecycle override is not reachable by guest dispatcher for plugin %s operation %s",
+				pluginID,
+				override.Operation,
+			)
+		}
+	}
+
+	items := make([]*lifecycleSpec, 0, len(byOperation))
+	for _, item := range byOperation {
+		items = append(items, item)
+	}
+	sortLifecycleSpecs(items)
+	return items, nil
+}
+
+func sortLifecycleSpecs(items []*lifecycleSpec) {
+	sort.Slice(items, func(left int, right int) bool {
+		return lifecycleOperationOrder(items[left].Operation) < lifecycleOperationOrder(items[right].Operation)
+	})
+}
+
+func lifecycleOperationOrder(operation pluginbridge.LifecycleOperation) int {
+	switch operation {
+	case pluginbridge.LifecycleOperationBeforeInstall:
+		return 10
+	case pluginbridge.LifecycleOperationAfterInstall:
+		return 20
+	case pluginbridge.LifecycleOperationBeforeUpgrade:
+		return 30
+	case pluginbridge.LifecycleOperationAfterUpgrade:
+		return 40
+	case pluginbridge.LifecycleOperationBeforeDisable:
+		return 50
+	case pluginbridge.LifecycleOperationAfterDisable:
+		return 60
+	case pluginbridge.LifecycleOperationBeforeUninstall:
+		return 70
+	case pluginbridge.LifecycleOperationAfterUninstall:
+		return 80
+	case pluginbridge.LifecycleOperationBeforeTenantDisable:
+		return 90
+	case pluginbridge.LifecycleOperationAfterTenantDisable:
+		return 100
+	case pluginbridge.LifecycleOperationBeforeTenantDelete:
+		return 110
+	case pluginbridge.LifecycleOperationAfterTenantDelete:
+		return 120
+	case pluginbridge.LifecycleOperationBeforeInstallModeChange:
+		return 130
+	case pluginbridge.LifecycleOperationAfterInstallModeChange:
+		return 140
+	default:
+		return 1000
+	}
+}
+
 func collectResourceSpecs(pluginDir string, pluginID string) ([]*resourceSpec, error) {
 	resourceDir := filepath.Join(pluginDir, "backend", "resources")
 	entries, err := os.ReadDir(resourceDir)

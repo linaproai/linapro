@@ -242,6 +242,30 @@ type RuntimeReconcilerService interface {
 	ReconcileRuntimePlugins(ctx context.Context) error
 }
 
+// RuntimeUpgradeService defines explicit dynamic-plugin runtime upgrade operations.
+type RuntimeUpgradeService interface {
+	// UpgradeDynamicPluginRequest runs the version-switching upgrade path for one
+	// installed dynamic plugin. Discovery and background reconciliation must not
+	// call this method implicitly.
+	UpgradeDynamicPluginRequest(ctx context.Context, pluginID string) error
+}
+
+// DynamicLifecyclePreconditionService defines dynamic lifecycle callback execution.
+type DynamicLifecyclePreconditionService interface {
+	// RunDynamicLifecycleCallback executes one dynamic lifecycle handler when declared.
+	RunDynamicLifecycleCallback(
+		ctx context.Context,
+		manifest *catalog.Manifest,
+		input DynamicLifecycleInput,
+	) (*DynamicLifecycleDecision, error)
+	// RunDynamicLifecyclePrecondition executes one dynamic Before* handler when declared.
+	RunDynamicLifecyclePrecondition(
+		ctx context.Context,
+		manifest *catalog.Manifest,
+		input DynamicLifecycleInput,
+	) (*DynamicLifecycleDecision, error)
+}
+
 // RuntimeLifecycleService defines dynamic plugin uninstall and emergency cleanup operations.
 type RuntimeLifecycleService interface {
 	// Uninstall executes uninstall lifecycle for an installed dynamic plugin.
@@ -305,6 +329,8 @@ type Service interface {
 	RuntimeRegistryService
 	RuntimeProjectionService
 	RuntimeReconcilerService
+	RuntimeUpgradeService
+	DynamicLifecyclePreconditionService
 	RuntimeLifecycleService
 	ActiveManifestService
 	DependencyWiringService

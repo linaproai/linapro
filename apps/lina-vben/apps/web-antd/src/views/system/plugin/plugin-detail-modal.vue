@@ -175,6 +175,42 @@ function formatInstallMode(installMode?: string) {
 function getInstallModeColor(installMode?: string) {
   return installMode === 'tenant_scoped' ? 'green' : 'blue';
 }
+
+function formatRuntimeState(state?: string) {
+  const key = `pages.system.plugin.runtimeState.${state || 'normal'}`;
+  const label = $t(key);
+  return label === key ? state || '-' : label;
+}
+
+function getRuntimeStateColor(state?: string) {
+  switch (state) {
+    case 'pending_upgrade': {
+      return 'gold';
+    }
+    case 'upgrade_failed':
+    case 'abnormal': {
+      return 'red';
+    }
+    case 'upgrade_running': {
+      return 'blue';
+    }
+    default: {
+      return 'green';
+    }
+  }
+}
+
+function formatAbnormalReason(reason?: string) {
+  const key = `pages.system.plugin.abnormalReason.${reason || 'unknown'}`;
+  const label = $t(key);
+  return label === key ? reason || '-' : label;
+}
+
+function formatFailurePhase(phase?: string) {
+  const key = `pages.system.plugin.failurePhase.${phase || 'unknown'}`;
+  const label = $t(key);
+  return label === key ? phase || '-' : label;
+}
 </script>
 
 <template>
@@ -202,6 +238,20 @@ function getInstallModeColor(installMode?: string) {
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.plugin.fields.version')">
           {{ currentPlugin.version || '-' }}
+        </DescriptionsItem>
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.runtimeState')">
+          <Tag
+            :color="getRuntimeStateColor(currentPlugin.runtimeState)"
+            data-testid="plugin-detail-runtime-state"
+          >
+            {{ formatRuntimeState(currentPlugin.runtimeState) }}
+          </Tag>
+        </DescriptionsItem>
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.effectiveVersion')">
+          {{ currentPlugin.effectiveVersion || '-' }}
+        </DescriptionsItem>
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.discoveredVersion')">
+          {{ currentPlugin.discoveredVersion || '-' }}
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.plugin.fields.installed')">
           <Tag :color="getInstalledStatusColor(currentPlugin.installed)">
@@ -293,6 +343,31 @@ function getInstallModeColor(installMode?: string) {
         show-icon
         type="warning"
         :message="$t('pages.system.plugin.messages.autoEnableDetailAlert')"
+      />
+
+      <Alert
+        v-if="currentPlugin.runtimeState === 'abnormal'"
+        data-testid="plugin-detail-abnormal-alert"
+        show-icon
+        type="error"
+        :message="$t('pages.system.plugin.messages.abnormalManualRepair')"
+        :description="formatAbnormalReason(currentPlugin.abnormalReason)"
+      />
+
+      <Alert
+        v-if="currentPlugin.runtimeState === 'upgrade_failed' && currentPlugin.lastUpgradeFailure"
+        data-testid="plugin-detail-upgrade-failure-alert"
+        show-icon
+        type="error"
+        :message="$t('pages.system.plugin.messages.upgradeFailed')"
+        :description="
+          [
+            formatFailurePhase(currentPlugin.lastUpgradeFailure.phase),
+            currentPlugin.lastUpgradeFailure.detail,
+          ]
+            .filter(Boolean)
+            .join('：')
+        "
       />
 
       <template v-if="showHostServiceSection">

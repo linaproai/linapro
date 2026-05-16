@@ -16,7 +16,7 @@ const confirmText = ref('');
 const canForce = computed(() => confirmText.value.trim() === pluginId.value);
 const reasonDisplayKeys: Record<string, string> = {
   'plugin.multi-tenant.uninstall_blocked.tenants_exist':
-    'pages.multiTenant.plugin.lifecycleGuard.reasons.multiTenantUninstallBlocked',
+    'pages.multiTenant.plugin.lifecyclePrecondition.reasons.multiTenantUninstallBlocked',
 };
 const localizedReasons = computed(() =>
   reasons.value.map((reason) => {
@@ -30,7 +30,7 @@ const localizedReasons = computed(() =>
   }),
 );
 const blockedReasonText = computed(() =>
-  $t('pages.multiTenant.plugin.lifecycleGuard.blockedReason'),
+  $t('pages.multiTenant.plugin.lifecyclePrecondition.blockedReason'),
 );
 
 const [Modal, modalApi] = useVbenModal({
@@ -47,7 +47,7 @@ const [Modal, modalApi] = useVbenModal({
     pluginId.value = data?.pluginId?.trim() ?? '';
     reasons.value = data?.reasons?.length
       ? data.reasons
-      : [$t('pages.multiTenant.plugin.lifecycleGuard.defaultReason')];
+      : [$t('pages.multiTenant.plugin.lifecyclePrecondition.defaultReason')];
     confirmText.value = '';
     modalApi.setState({ confirmDisabled: true });
   },
@@ -59,18 +59,18 @@ watch(canForce, (allowed) => {
 </script>
 
 <template>
-  <Modal :title="$t('pages.multiTenant.plugin.lifecycleGuard.title')">
+  <Modal :title="$t('pages.multiTenant.plugin.lifecyclePrecondition.title')">
     <div
       class="flex flex-col gap-[10px]"
-      data-testid="lifecycle-guard-dialog"
+      data-testid="lifecycle-precondition-dialog"
     >
       <Alert
-        data-testid="lifecycle-guard-reason-alert"
+        data-testid="lifecycle-precondition-reason-alert"
         show-icon
         type="warning"
       >
         <template #description>
-          <div data-testid="lifecycle-guard-reason">
+          <div data-testid="lifecycle-precondition-reason">
             <div>{{ blockedReasonText }}</div>
             <div>{{ localizedReasons.join('；') }}</div>
           </div>
@@ -78,7 +78,7 @@ watch(canForce, (allowed) => {
       </Alert>
 
       <Alert
-        data-testid="lifecycle-guard-force-alert"
+        data-testid="lifecycle-precondition-force-alert"
         show-icon
         type="error"
       >
@@ -86,14 +86,14 @@ watch(canForce, (allowed) => {
           <div class="space-y-3">
             <div>
               {{
-                $t('pages.multiTenant.plugin.lifecycleGuard.forceConfirm', {
+                $t('pages.multiTenant.plugin.lifecyclePrecondition.forceConfirm', {
                   pluginId,
                 })
               }}
             </div>
             <div>
               {{
-                $t('pages.multiTenant.plugin.lifecycleGuard.forceInputHint', {
+                $t('pages.multiTenant.plugin.lifecyclePrecondition.forceInputHint', {
                   pluginId,
                 })
               }}
@@ -101,7 +101,7 @@ watch(canForce, (allowed) => {
             <Input
               v-model:value="confirmText"
               :placeholder="pluginId"
-              data-testid="lifecycle-guard-force-plugin-id"
+              data-testid="lifecycle-precondition-force-plugin-id"
             />
           </div>
         </template>

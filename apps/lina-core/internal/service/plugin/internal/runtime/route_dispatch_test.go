@@ -170,6 +170,107 @@ func TestDispatchDynamicRouteReturnsNotFoundWhenTenantPluginDisabled(t *testing.
 	}
 }
 
+// TestDispatchDynamicRouteReturnsUpgradeRequiredWhenPendingUpgrade verifies
+// dynamic business routes are blocked while a newer artifact awaits runtime upgrade.
+func TestDispatchDynamicRouteReturnsUpgradeRequiredWhenPendingUpgrade(t *testing.T) {
+	var (
+		services   = testutil.NewServices()
+		ctx        = context.Background()
+		pluginID   = "plugin-dynamic-route-pending-upgrade"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.2.0"
+	)
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
+		t,
+		pluginID,
+		"Dynamic Route Pending Upgrade Plugin",
+		oldVersion,
+		nil,
+		nil,
+		nil,
+		[]*pluginbridge.RouteContract{
+			{
+				Path:   "/summary",
+				Method: http.MethodGet,
+				Access: pluginbridge.AccessPublic,
+			},
+		},
+		&pluginbridge.BridgeSpec{
+			ABIVersion:     pluginbridge.SupportedABIVersion,
+			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+			RouteExecution: true,
+			RequestCodec:   pluginbridge.CodecProtobuf,
+			ResponseCodec:  pluginbridge.CodecProtobuf,
+		},
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+	if err != nil {
+		t.Fatalf("expected dynamic route manifest to load, got error: %v", err)
+	}
+	manifest.ScopeNature = catalog.ScopeNaturePlatformOnly.String()
+	manifest.DefaultInstallMode = catalog.InstallModeGlobal.String()
+	if _, err = services.Catalog.SyncManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected dynamic route manifest sync to succeed, got error: %v", err)
+	}
+	if err = services.Catalog.SetPluginInstalled(ctx, pluginID, catalog.InstalledYes); err != nil {
+		t.Fatalf("expected dynamic route plugin install state to be set, got error: %v", err)
+	}
+	if err = services.Catalog.SetPluginStatus(ctx, pluginID, catalog.StatusEnabled); err != nil {
+		t.Fatalf("expected dynamic route plugin enable state to be set, got error: %v", err)
+	}
+
+	testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
+		t,
+		pluginID,
+		"Dynamic Route Pending Upgrade Plugin",
+		newVersion,
+		nil,
+		nil,
+		nil,
+		[]*pluginbridge.RouteContract{
+			{
+				Path:   "/summary",
+				Method: http.MethodGet,
+				Access: pluginbridge.AccessPublic,
+			},
+		},
+		&pluginbridge.BridgeSpec{
+			ABIVersion:     pluginbridge.SupportedABIVersion,
+			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+			RouteExecution: true,
+			RequestCodec:   pluginbridge.CodecProtobuf,
+			ResponseCodec:  pluginbridge.CodecProtobuf,
+		},
+	)
+	newManifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+	if err != nil {
+		t.Fatalf("expected new dynamic route manifest to load, got error: %v", err)
+	}
+	if _, err = services.Catalog.SyncManifest(ctx, newManifest); err != nil {
+		t.Fatalf("expected new dynamic route manifest sync to succeed, got error: %v", err)
+	}
+
+	request := &ghttp.Request{}
+	request.Request = httptest.NewRequest(http.MethodGet, runtime.RoutePublicPrefix+"/"+pluginID+"/summary", nil)
+	response, err := services.Runtime.DispatchDynamicRoute(ctx, &runtime.DynamicRouteDispatchInput{Request: request})
+	if err != nil {
+		t.Fatalf("expected pending-upgrade dynamic route to return bridge failure response, got error: %v", err)
+	}
+	if response == nil || response.StatusCode != http.StatusConflict {
+		t.Fatalf("expected pending-upgrade dynamic route to return 409, got %#v", response)
+	}
+	if response.Failure == nil || response.Failure.Code != runtime.CodePluginRuntimeUpgradeRequired.RuntimeCode() {
+		t.Fatalf("expected stable upgrade-required failure code, got %#v", response)
+	}
+}
+
 // TestExecuteDynamicWasmBridgeReturnsGuestResponse verifies that a bundled
 // runtime plugin route executes and returns the guest response unchanged.
 func TestExecuteDynamicWasmBridgeReturnsGuestResponse(t *testing.T) {

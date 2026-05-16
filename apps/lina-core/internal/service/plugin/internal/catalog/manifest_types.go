@@ -72,6 +72,8 @@ type Manifest struct {
 	RootDir string
 	// Hooks holds plugin-declared hook handler specifications.
 	Hooks []*HookSpec
+	// LifecycleHandlers holds plugin-declared lifecycle precondition handlers.
+	LifecycleHandlers []*pluginbridge.LifecycleContract
 	// BackendResources holds plugin-declared backend resource specifications keyed by resource ID.
 	BackendResources map[string]*ResourceSpec
 	// Routes holds plugin-declared bridge route contracts.
@@ -253,6 +255,8 @@ type ArtifactSpec struct {
 	MockSQLAssets []*ArtifactSQLAsset
 	// HookSpecs holds the embedded hook handler declarations.
 	HookSpecs []*HookSpec
+	// LifecycleContracts holds the embedded lifecycle precondition declarations.
+	LifecycleContracts []*pluginbridge.LifecycleContract
 	// ResourceSpecs holds the embedded resource declarations.
 	ResourceSpecs []*ResourceSpec
 	// RouteContracts holds the embedded bridge route contracts.

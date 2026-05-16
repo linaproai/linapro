@@ -271,7 +271,9 @@ func TestHandleHostServiceInvokeCacheRejectsUnauthorizedNamespace(t *testing.T) 
 func TestHandleHostServiceInvokeCacheUsesConfiguredSharedService(t *testing.T) {
 	cacheSvc := &trackingCacheService{}
 	previousCacheSvc := cacheHostService
-	ConfigureCacheHostService(cacheSvc)
+	if err := ConfigureCacheHostService(cacheSvc); err != nil {
+		t.Fatalf("configure cache host service failed: %v", err)
+	}
 	t.Cleanup(func() {
 		cacheHostService = previousCacheSvc
 	})
@@ -314,7 +316,9 @@ func TestHandleHostServiceInvokeCacheUsesConfiguredSharedService(t *testing.T) {
 func TestHandleHostServiceInvokeCacheUsesCoordinationKVAndTenantIsolation(t *testing.T) {
 	cacheSvc := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
 	previousCacheSvc := cacheHostService
-	ConfigureCacheHostService(cacheSvc)
+	if err := ConfigureCacheHostService(cacheSvc); err != nil {
+		t.Fatalf("configure cache host service failed: %v", err)
+	}
 	t.Cleanup(func() {
 		cacheHostService = previousCacheSvc
 	})
@@ -336,11 +340,11 @@ func TestHandleHostServiceInvokeCacheUsesCoordinationKVAndTenantIsolation(t *tes
 }
 
 // TestConfigureCacheHostServiceRejectsNil verifies missing runtime cache
-// injection fails fast instead of silently constructing an isolated backend.
+// injection returns an error instead of silently constructing an isolated backend.
 func TestConfigureCacheHostServiceRejectsNil(t *testing.T) {
-	assertPanic(t, "wasm cache host service requires a non-nil cache service", func() {
-		ConfigureCacheHostService(nil)
-	})
+	if err := ConfigureCacheHostService(nil); err == nil {
+		t.Fatal("expected nil cache host service to return an error")
+	}
 }
 
 // ensurePluginKVCacheTable creates the plugin cache table needed by cache host call tests.

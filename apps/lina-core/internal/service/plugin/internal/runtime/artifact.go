@@ -52,7 +52,8 @@ type artifactMissingError struct {
 	relativePath string
 }
 
-// Error returns the actionable missing-artifact message used by lifecycle guards.
+// Error returns the actionable missing-artifact message used by lifecycle
+// preconditions.
 func (e *artifactMissingError) Error() string {
 	return fmt.Sprintf("Dynamic plugin directory is missing %s: %s", e.relativePath, e.rootDir)
 }
@@ -170,6 +171,10 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 		return nil, err
 	}
 	hookSpecs, err := parseRuntimeArtifactHookSpecs(filePath, embeddedManifest.ID, sections)
+	if err != nil {
+		return nil, err
+	}
+	lifecycleContracts, err := parseRuntimeArtifactLifecycleContracts(filePath, embeddedManifest.ID, sections)
 	if err != nil {
 		return nil, err
 	}
@@ -293,6 +298,7 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 		UninstallSQLAssets:   uninstallSQLAssets,
 		MockSQLAssets:        mockSQLAssets,
 		HookSpecs:            hookSpecs,
+		LifecycleContracts:   lifecycleContracts,
 		ResourceSpecs:        resourceSpecs,
 		RouteContracts:       routeContracts,
 		BridgeSpec:           bridgeSpec,
@@ -537,6 +543,27 @@ func parseRuntimeArtifactHookSpecs(
 		}
 	}
 	return catalog.CloneHookSpecs(items), nil
+}
+
+// parseRuntimeArtifactLifecycleContracts restores and validates embedded lifecycle contracts.
+func parseRuntimeArtifactLifecycleContracts(
+	filePath string,
+	pluginID string,
+	sections map[string][]byte,
+) ([]*bridgecontract.LifecycleContract, error) {
+	content, ok := sections[bridgeartifact.WasmSectionBackendLifecycle]
+	if !ok {
+		return []*bridgecontract.LifecycleContract{}, nil
+	}
+
+	items := make([]*bridgecontract.LifecycleContract, 0)
+	if err := json.Unmarshal(content, &items); err != nil {
+		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin backend lifecycle contracts: %s", filePath)
+	}
+	if err := bridgecontract.ValidateLifecycleContracts(pluginID, items); err != nil {
+		return nil, gerror.Wrapf(err, "Failed to validate dynamic plugin backend lifecycle contracts: %s", filePath)
+	}
+	return items, nil
 }
 
 // parseRuntimeArtifactResourceSpecs restores and validates embedded resource specs.

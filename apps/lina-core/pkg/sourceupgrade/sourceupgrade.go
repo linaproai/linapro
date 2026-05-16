@@ -1,9 +1,11 @@
-// Package sourceupgrade exposes stable source-plugin upgrade contracts and a
-// host-facing facade for development tooling and startup-adjacent callers.
+// Package sourceupgrade exposes stable source-plugin runtime upgrade contracts
+// and a host-facing facade.
 package sourceupgrade
 
 import (
 	"context"
+
+	"github.com/gogf/gf/v2/errors/gerror"
 
 	sourceupgradecontract "lina-core/pkg/sourceupgrade/contract"
 )
@@ -41,25 +43,25 @@ type UpgradeGovernanceService interface {
 	ListSourceUpgradeStatuses(ctx context.Context) ([]*sourceupgradecontract.SourcePluginStatus, error)
 	// UpgradeSourcePlugin applies one explicit source-plugin upgrade.
 	UpgradeSourcePlugin(ctx context.Context, pluginID string) (*sourceupgradecontract.SourcePluginUpgradeResult, error)
-	// ValidateSourcePluginUpgradeReadiness fails when source-plugin upgrades are pending.
+	// ValidateSourcePluginUpgradeReadiness scans source-plugin version drift without failing on pending upgrades.
 	ValidateSourcePluginUpgradeReadiness(ctx context.Context) error
 }
 
 // serviceImpl delegates to the host plugin service while exposing only the
-// stable source-upgrade contract needed by development tooling.
+// stable source-upgrade contract needed by callers.
 type serviceImpl struct {
 	// pluginSvc is the host source-plugin upgrade governance facade.
 	pluginSvc UpgradeGovernanceService
 }
 
 // New creates and returns a new source-plugin upgrade helper service.
-func New(pluginSvc UpgradeGovernanceService) Service {
+func New(pluginSvc UpgradeGovernanceService) (Service, error) {
 	if pluginSvc == nil {
-		panic("sourceupgrade service requires a non-nil plugin upgrade service")
+		return nil, gerror.New("sourceupgrade service requires a non-nil plugin upgrade service")
 	}
 	return &serviceImpl{
 		pluginSvc: pluginSvc,
-	}
+	}, nil
 }
 
 // ListSourcePluginStatuses returns the current effective/discovered source-plugin version pairs.
@@ -72,7 +74,7 @@ func (s *serviceImpl) UpgradeSourcePlugin(ctx context.Context, pluginID string) 
 	return s.pluginSvc.UpgradeSourcePlugin(ctx, pluginID)
 }
 
-// ValidateSourcePluginUpgradeReadiness fails fast when startup would hit pending source-plugin upgrades.
+// ValidateSourcePluginUpgradeReadiness scans source-plugin version drift without failing on pending upgrades.
 func (s *serviceImpl) ValidateSourcePluginUpgradeReadiness(ctx context.Context) error {
 	return s.pluginSvc.ValidateSourcePluginUpgradeReadiness(ctx)
 }

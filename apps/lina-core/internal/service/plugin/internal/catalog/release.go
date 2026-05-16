@@ -159,6 +159,9 @@ func (s *serviceImpl) syncReleaseMetadata(ctx context.Context, manifest *Manifes
 		releaseID = existing.Id
 	}
 	releaseStatus := s.buildReleaseStatusForManifest(manifest, registry, releaseID)
+	if shouldPreserveFailedReleaseStatus(existing, manifest, registry, releaseID) {
+		releaseStatus = ReleaseStatusFailed
+	}
 	data := do.SysPluginRelease{
 		PluginId:         manifest.ID,
 		ReleaseVersion:   manifest.Version,
@@ -227,6 +230,27 @@ func (s *serviceImpl) syncReleaseMetadata(ctx context.Context, manifest *Manifes
 	}
 	_, err = s.refreshStartupRelease(ctx, manifest.ID, manifest.Version)
 	return err
+}
+
+// shouldPreserveFailedReleaseStatus keeps failed staged releases diagnosable
+// across later manifest scans until an explicit upgrade retry or repair changes
+// the target release state.
+func shouldPreserveFailedReleaseStatus(
+	existing *entity.SysPluginRelease,
+	manifest *Manifest,
+	registry *entity.SysPlugin,
+	releaseID int,
+) bool {
+	if existing == nil || strings.TrimSpace(existing.Status) != ReleaseStatusFailed.String() {
+		return false
+	}
+	if manifest == nil || registry == nil {
+		return true
+	}
+	if registry.ReleaseId > 0 {
+		return releaseID != registry.ReleaseId
+	}
+	return strings.TrimSpace(registry.Version) != strings.TrimSpace(manifest.Version)
 }
 
 // pluginReleaseMetadataMatches reports whether a release row already matches
@@ -327,6 +351,7 @@ func (s *serviceImpl) buildManifestSnapshotModel(manifest *Manifest) (*ManifestS
 		FrontendSlotCount:         s.buildFrontendSlotCount(manifest),
 		MenuCount:                 len(manifest.Menus),
 		BackendHookCount:          len(manifest.Hooks),
+		LifecycleHandlerCount:     len(manifest.LifecycleHandlers),
 		ResourceSpecCount:         len(manifest.BackendResources),
 		RouteCount:                len(manifest.Routes),
 		RouteExecutionEnabled:     buildDynamicRouteExecutionEnabled(manifest),

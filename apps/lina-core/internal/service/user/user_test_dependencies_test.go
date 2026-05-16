@@ -29,7 +29,10 @@ func newUserTestService(tenantEnablementReaders ...tenantcapsvc.PluginEnablement
 	cacheCoordSvc := cachecoord.Default(clusterSvc)
 	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cacheCoordSvc)
 	sessionStore := session.NewDBStore()
-	pluginSvc := pluginsvc.New(clusterSvc, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, sessionStore)
+	pluginSvc, err := pluginsvc.New(clusterSvc, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, sessionStore, nil)
+	if err != nil {
+		panic(err)
+	}
 	orgCapSvc := orgcap.New(pluginSvc)
 	tenantSvc := tenantcapsvc.New(nil, nil)
 	if len(tenantEnablementReaders) > 0 {

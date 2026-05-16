@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gconv"
 
@@ -161,12 +162,16 @@ func NewScheduler(
 	clusterSvc cluster.Service,
 	registry jobhandler.Registry,
 	configSvc configsvc.Service,
-) Scheduler {
+) (Scheduler, error) {
+	executor, err := internalshellexec.New(configSvc)
+	if err != nil {
+		return nil, gerror.Wrap(err, "create shell executor failed")
+	}
 	return internalscheduler.New(
 		clusterSvc,
 		registry,
-		internalshellexec.New(configSvc),
-	)
+		executor,
+	), nil
 }
 
 // New creates and returns one scheduled-job management service.

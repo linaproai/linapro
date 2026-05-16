@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/guid"
 
@@ -67,13 +68,13 @@ type AcquireOutput struct {
 }
 
 // New creates and returns a new plugin-facing host lock service instance.
-func New(lockerSvc locker.Service) Service {
+func New(lockerSvc locker.Service) (Service, error) {
 	if lockerSvc == nil {
-		panic("hostlock service requires a non-nil locker service")
+		return nil, gerror.New("hostlock service requires a non-nil locker service")
 	}
 	return &serviceImpl{
 		lockerSvc: lockerSvc,
-	}
+	}, nil
 }
 
 // Acquire attempts to acquire one plugin-scoped distributed lock.

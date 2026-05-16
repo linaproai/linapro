@@ -24,6 +24,10 @@ type (
 	ExecutionSource          = contract.ExecutionSource
 	HTTPRequestSnapshotV1    = contract.HTTPRequestSnapshotV1
 	IdentitySnapshotV1       = contract.IdentitySnapshotV1
+	LifecycleContract        = contract.LifecycleContract
+	LifecycleDecision        = contract.LifecycleDecision
+	LifecycleOperation       = contract.LifecycleOperation
+	LifecycleRequest         = contract.LifecycleRequest
 	RouteContract            = contract.RouteContract
 	RouteMatchSnapshotV1     = contract.RouteMatchSnapshotV1
 	RuntimeArtifactMetadata  = artifact.RuntimeArtifactMetadata
@@ -81,6 +85,8 @@ type (
 	HostServiceStorageStatResponse      = hostservice.HostServiceStorageStatResponse
 	HostServiceValueResponse            = hostservice.HostServiceValueResponse
 	GuestControllerRouteDispatcher      = guest.GuestControllerRouteDispatcher
+	GuestControllerHandlerKind          = guest.GuestControllerHandlerKind
+	GuestControllerHandlerMetadata      = guest.GuestControllerHandlerMetadata
 	GuestHandler                        = guest.GuestHandler
 	GuestRuntime                        = guest.GuestRuntime
 	ErrorCase                           = guest.ErrorCase
@@ -121,6 +127,24 @@ const (
 	ExecutionSourceCron          = contract.ExecutionSourceCron
 	ExecutionSourceCronDiscovery = contract.ExecutionSourceCronDiscovery
 	ExecutionSourceLifecycle     = contract.ExecutionSourceLifecycle
+
+	LifecycleOperationBeforeInstall           = contract.LifecycleOperationBeforeInstall
+	LifecycleOperationAfterInstall            = contract.LifecycleOperationAfterInstall
+	LifecycleOperationBeforeUpgrade           = contract.LifecycleOperationBeforeUpgrade
+	LifecycleOperationAfterUpgrade            = contract.LifecycleOperationAfterUpgrade
+	LifecycleOperationBeforeDisable           = contract.LifecycleOperationBeforeDisable
+	LifecycleOperationAfterDisable            = contract.LifecycleOperationAfterDisable
+	LifecycleOperationBeforeUninstall         = contract.LifecycleOperationBeforeUninstall
+	LifecycleOperationAfterUninstall          = contract.LifecycleOperationAfterUninstall
+	LifecycleOperationBeforeTenantDisable     = contract.LifecycleOperationBeforeTenantDisable
+	LifecycleOperationAfterTenantDisable      = contract.LifecycleOperationAfterTenantDisable
+	LifecycleOperationBeforeTenantDelete      = contract.LifecycleOperationBeforeTenantDelete
+	LifecycleOperationAfterTenantDelete       = contract.LifecycleOperationAfterTenantDelete
+	LifecycleOperationBeforeInstallModeChange = contract.LifecycleOperationBeforeInstallModeChange
+	LifecycleOperationAfterInstallModeChange  = contract.LifecycleOperationAfterInstallModeChange
+
+	GuestControllerHandlerKindEnvelope = guest.GuestControllerHandlerKindEnvelope
+	GuestControllerHandlerKindTyped    = guest.GuestControllerHandlerKindTyped
 )
 
 // WASM artifact constants are kept on the root package for compatibility.
@@ -135,6 +159,7 @@ const (
 	WasmSectionUninstallSQL        = artifact.WasmSectionUninstallSQL
 	WasmSectionMockSQL             = artifact.WasmSectionMockSQL
 	WasmSectionBackendHooks        = artifact.WasmSectionBackendHooks
+	WasmSectionBackendLifecycle    = artifact.WasmSectionBackendLifecycle
 	WasmSectionBackendResources    = artifact.WasmSectionBackendResources
 	WasmSectionBackendCrons        = artifact.WasmSectionBackendCrons
 	WasmSectionBackendRoutes       = artifact.WasmSectionBackendRoutes
@@ -233,31 +258,34 @@ const (
 
 // Bridge and artifact functions forward to focused subcomponents.
 var (
-	ValidateRouteContracts     = contract.ValidateRouteContracts
-	NormalizeBridgeSpec        = contract.NormalizeBridgeSpec
-	ValidateBridgeSpec         = contract.ValidateBridgeSpec
-	NormalizeCronScope         = contract.NormalizeCronScope
-	NormalizeCronConcurrency   = contract.NormalizeCronConcurrency
-	NormalizeCronContract      = contract.NormalizeCronContract
-	BuildPluginCronHandlerRef  = contract.BuildPluginCronHandlerRef
-	BuildDeclaredCronRoutePath = contract.BuildDeclaredCronRoutePath
-	ValidateCronContracts      = contract.ValidateCronContracts
-	NormalizeExecutionSource   = contract.NormalizeExecutionSource
-	ReadCustomSection          = artifact.ReadCustomSection
-	ListCustomSections         = artifact.ListCustomSections
-	EncodeRequestEnvelope      = codec.EncodeRequestEnvelope
-	DecodeRequestEnvelope      = codec.DecodeRequestEnvelope
-	EncodeResponseEnvelope     = codec.EncodeResponseEnvelope
-	DecodeResponseEnvelope     = codec.DecodeResponseEnvelope
-	EncodeBodyBase64           = codec.EncodeBodyBase64
-	NewSuccessResponse         = codec.NewSuccessResponse
-	NewJSONResponse            = codec.NewJSONResponse
-	NewFailureResponse         = codec.NewFailureResponse
-	NewUnauthorizedResponse    = codec.NewUnauthorizedResponse
-	NewForbiddenResponse       = codec.NewForbiddenResponse
-	NewBadRequestResponse      = codec.NewBadRequestResponse
-	NewNotFoundResponse        = codec.NewNotFoundResponse
-	NewInternalErrorResponse   = codec.NewInternalErrorResponse
+	ValidateRouteContracts        = contract.ValidateRouteContracts
+	NormalizeBridgeSpec           = contract.NormalizeBridgeSpec
+	ValidateBridgeSpec            = contract.ValidateBridgeSpec
+	NormalizeLifecycleContract    = contract.NormalizeLifecycleContract
+	ValidateLifecycleContracts    = contract.ValidateLifecycleContracts
+	IsSupportedLifecycleOperation = contract.IsSupportedLifecycleOperation
+	NormalizeCronScope            = contract.NormalizeCronScope
+	NormalizeCronConcurrency      = contract.NormalizeCronConcurrency
+	NormalizeCronContract         = contract.NormalizeCronContract
+	BuildPluginCronHandlerRef     = contract.BuildPluginCronHandlerRef
+	BuildDeclaredCronRoutePath    = contract.BuildDeclaredCronRoutePath
+	ValidateCronContracts         = contract.ValidateCronContracts
+	NormalizeExecutionSource      = contract.NormalizeExecutionSource
+	ReadCustomSection             = artifact.ReadCustomSection
+	ListCustomSections            = artifact.ListCustomSections
+	EncodeRequestEnvelope         = codec.EncodeRequestEnvelope
+	DecodeRequestEnvelope         = codec.DecodeRequestEnvelope
+	EncodeResponseEnvelope        = codec.EncodeResponseEnvelope
+	DecodeResponseEnvelope        = codec.DecodeResponseEnvelope
+	EncodeBodyBase64              = codec.EncodeBodyBase64
+	NewSuccessResponse            = codec.NewSuccessResponse
+	NewJSONResponse               = codec.NewJSONResponse
+	NewFailureResponse            = codec.NewFailureResponse
+	NewUnauthorizedResponse       = codec.NewUnauthorizedResponse
+	NewForbiddenResponse          = codec.NewForbiddenResponse
+	NewBadRequestResponse         = codec.NewBadRequestResponse
+	NewNotFoundResponse           = codec.NewNotFoundResponse
+	NewInternalErrorResponse      = codec.NewInternalErrorResponse
 )
 
 // Host call functions forward to the hostcall subcomponent.
@@ -380,6 +408,8 @@ var (
 	NewGuestRuntime                       = guest.NewGuestRuntime
 	NewGuestControllerRouteDispatcher     = guest.NewGuestControllerRouteDispatcher
 	MustNewGuestControllerRouteDispatcher = guest.MustNewGuestControllerRouteDispatcher
+	DiscoverGuestControllerHandlers       = guest.DiscoverGuestControllerHandlers
+	BuildGuestControllerInternalPath      = guest.BuildGuestControllerInternalPath
 	IsGuestBindJSONError                  = guest.IsGuestBindJSONError
 	ClassifyBindJSONError                 = guest.ClassifyBindJSONError
 	WriteJSON                             = guest.WriteJSON

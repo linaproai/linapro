@@ -68,13 +68,36 @@
 - **THEN** 适配器实例由宿主运行期构造并通过 registrar 传递
 - **AND** 插件生产路径不得调用无参 adapter 构造函数创建孤立宿主服务图
 
+### Requirement: 初始化与注册 API 必须返回错误给调用方决策
+系统 SHALL 要求宿主和源码插件的运行时初始化、源码插件注册、registrar、回调注册、路由注册、Cron 注册和中间件注册 API 在依赖缺失、注册参数非法、配置来源缺失、后端创建失败或校验失败时返回 `error`。这些 API MUST NOT 在内部直接 `panic` 处理可预期错误；是否中止进程、忽略或降级必须由调用栈最上层入口显式决定。
+
+#### Scenario: 源码插件注册 API 返回错误
+- **WHEN** 源码插件声明无效 extension point、无效执行模式、nil callback 或重复注册
+- **THEN** `pluginhost` 注册 API 返回 `error`
+- **AND** API 内部不得直接 `panic`
+
+#### Scenario: 顶层静态注册入口选择失败退出
+- **WHEN** 源码插件包级 `init` 调用注册 API 收到错误
+- **THEN** 该顶层静态注册入口可以显式 `panic`
+- **AND** panic 治理扫描 allowlist 必须记录这是顶层入口收到错误后的失败退出
+
+#### Scenario: 运行期回调缺少宿主依赖
+- **WHEN** HTTP、Cron、Hook 或中间件注册回调在执行期发现宿主发布依赖缺失
+- **THEN** 回调返回 `error`
+- **AND** 宿主调用方决定阻断启动、记录失败或执行其他降级策略
+
 ### Requirement: 依赖注入规则必须纳入项目规范和 lina-review 审查
-系统 SHALL 将显式依赖注入、隐式构造禁止和缓存敏感共享实例要求写入项目规范与 `lina-review` 审查标准。审查 MUST 覆盖宿主、源码插件、插件 host service、WASM host service 和测试验证。
+系统 SHALL 将显式依赖注入、隐式构造禁止、初始化/注册错误返回和缓存敏感共享实例要求写入项目规范与 `lina-review` 审查标准。审查 MUST 覆盖宿主、源码插件、插件 host service、WASM host service 和测试验证。
 
 #### Scenario: 审查后端实现变更
 - **WHEN** `lina-review` 审查任何后端 Go 变更
 - **THEN** 审查检查新增或修改的组件是否通过显式依赖注入管理运行期依赖
 - **AND** 审查标记生产路径中的关键服务隐式构造
+
+#### Scenario: 审查初始化和注册错误处理
+- **WHEN** `lina-review` 审查运行时初始化、源码插件注册、registrar、回调注册或启动装配变更
+- **THEN** 审查确认可预期失败通过 `error` 返回给调用方
+- **AND** 审查标记 API 内部直接 `panic` 处理可预期错误的实现
 
 #### Scenario: 审查聚合接口依赖结构体
 - **WHEN** `lina-review` 审查构造函数或依赖注入设计

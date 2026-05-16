@@ -51,7 +51,7 @@ func CreateTestPluginDir(t *testing.T, pluginID string) string {
 
 	sourcePlugin := pluginhost.NewSourcePlugin(pluginID)
 	sourcePlugin.Assets().UseEmbeddedFiles(os.DirFS(pluginDir))
-	sourcePlugin.Cron().RegisterCron(
+	if err := sourcePlugin.Cron().RegisterCron(
 		pluginhost.ExtensionPointCronRegister,
 		pluginhost.CallbackExecutionModeBlocking,
 		func(ctx context.Context, registrar pluginhost.CronRegistrar) error {
@@ -73,7 +73,9 @@ func CreateTestPluginDir(t *testing.T, pluginID string) string {
 				},
 			)
 		},
-	)
+	); err != nil {
+		t.Fatalf("failed to register source plugin fixture cron %s: %v", pluginID, err)
+	}
 	cleanup, err := pluginhost.RegisterSourcePluginForTest(sourcePlugin)
 	if err != nil {
 		t.Fatalf("failed to register source plugin fixture %s: %v", pluginID, err)

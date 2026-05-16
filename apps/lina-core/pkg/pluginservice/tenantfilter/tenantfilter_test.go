@@ -97,7 +97,11 @@ func TestApplyColumnUsesCurrentTenant(t *testing.T) {
 
 // newTenantFilterForTest creates an explicitly injected tenant filter service.
 func newTenantFilterForTest(bypassEvaluator contract.PlatformBypassEvaluator) contract.TenantFilterService {
-	return New(pluginbizctx.New(nil), bypassEvaluator)
+	service, err := New(pluginbizctx.New(nil), bypassEvaluator)
+	if err != nil {
+		panic(err)
+	}
+	return service
 }
 
 // buildTenantFilterSQL renders one model query into SQL for predicate assertions.

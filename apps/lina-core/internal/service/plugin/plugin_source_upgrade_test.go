@@ -1,18 +1,22 @@
 // This file verifies source-plugin upgrade governance, including effective
-// version pinning, startup fail-fast validation, and explicit upgrade flow.
+// version pinning, non-blocking runtime drift projection, and explicit upgrade flow.
 
 package plugin
 
 import (
 	"context"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/plugin/internal/catalog"
+	sourceupgradeinternal "lina-core/internal/service/plugin/internal/sourceupgrade"
 	"lina-core/internal/service/plugin/internal/testutil"
+	"lina-core/pkg/bizerr"
+	"lina-core/pkg/pluginhost"
 )
 
 // TestSourcePluginDiscoveryKeepsEffectiveVersionAfterHigherSourceVersion verifies
@@ -122,10 +126,10 @@ func TestSourcePluginDiscoveryKeepsEffectiveVersionAfterHigherSourceVersion(t *t
 	}
 }
 
-// TestValidateSourcePluginUpgradeReadinessFailsForPendingUpgrade verifies startup
-// validation blocks host boot when an installed source plugin still has a newer
-// discovered version waiting for explicit upgrade.
-func TestValidateSourcePluginUpgradeReadinessFailsForPendingUpgrade(t *testing.T) {
+// TestValidateSourcePluginUpgradeReadinessAllowsPendingUpgrade verifies startup
+// drift scanning does not block boot when an installed source plugin has a newer
+// discovered version waiting for explicit runtime upgrade.
+func TestValidateSourcePluginUpgradeReadinessAllowsPendingUpgrade(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
@@ -158,15 +162,79 @@ func TestValidateSourcePluginUpgradeReadinessFailsForPendingUpgrade(t *testing.T
 	}
 
 	err := service.ValidateSourcePluginUpgradeReadiness(ctx)
-	if err == nil {
-		t.Fatal("expected startup validation to fail for pending source plugin upgrade")
+	if err != nil {
+		t.Fatalf("expected source upgrade readiness scan not to fail for pending runtime upgrade, got error: %v", err)
 	}
-	message := err.Error()
-	if !strings.Contains(message, pluginID) ||
-		!strings.Contains(message, oldVersion) ||
-		!strings.Contains(message, newVersion) ||
-		!strings.Contains(message, "action=resolve the source-plugin version before startup") {
-		t.Fatalf("expected startup validation error to include plugin, versions, and action hint, got %q", message)
+
+	out, err := service.List(ctx, ListInput{})
+	if err != nil {
+		t.Fatalf("expected plugin list to succeed after pending source drift, got error: %v", err)
+	}
+	item := findPluginItem(out, pluginID)
+	if item == nil {
+		t.Fatal("expected source plugin list item after pending drift")
+	}
+	if item.RuntimeState != RuntimeUpgradeStatePendingUpgrade {
+		t.Fatalf("expected runtime state %s, got %#v", RuntimeUpgradeStatePendingUpgrade, item)
+	}
+	if item.EffectiveVersion != oldVersion || item.DiscoveredVersion != newVersion {
+		t.Fatalf("expected effective/discovered versions %s/%s, got %#v", oldVersion, newVersion, item)
+	}
+	if !item.UpgradeAvailable {
+		t.Fatalf("expected pending source plugin to report upgradeAvailable, got %#v", item)
+	}
+}
+
+// TestSourcePluginListMarksLowerDiscoveredVersionAbnormal verifies a file
+// version lower than the effective registry version is exposed for manual repair.
+func TestSourcePluginListMarksLowerDiscoveredVersionAbnormal(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-source-upgrade-abnormal"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.5.0"
+	)
+
+	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
+	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Abnormal Plugin", newVersion, "plugin:plugin-source-upgrade-abnormal:new-entry")
+
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
+	}
+
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Abnormal Plugin", oldVersion, "plugin:plugin-source-upgrade-abnormal:old-entry")
+	if err := service.SyncSourcePlugins(ctx); err != nil {
+		t.Fatalf("expected source plugin rescan to succeed, got error: %v", err)
+	}
+
+	out, err := service.List(ctx, ListInput{})
+	if err != nil {
+		t.Fatalf("expected plugin list to succeed after lower source version drift, got error: %v", err)
+	}
+	item := findPluginItem(out, pluginID)
+	if item == nil {
+		t.Fatal("expected source plugin list item after lower source drift")
+	}
+	if item.RuntimeState != RuntimeUpgradeStateAbnormal {
+		t.Fatalf("expected runtime state %s, got %#v", RuntimeUpgradeStateAbnormal, item)
+	}
+	if item.AbnormalReason != RuntimeUpgradeAbnormalReasonDiscoveredVersionLowerThanEffective {
+		t.Fatalf("expected abnormal reason %s, got %#v", RuntimeUpgradeAbnormalReasonDiscoveredVersionLowerThanEffective, item)
+	}
+	if item.EffectiveVersion != newVersion || item.DiscoveredVersion != oldVersion {
+		t.Fatalf("expected effective/discovered versions %s/%s, got %#v", newVersion, oldVersion, item)
 	}
 }
 
@@ -305,6 +373,174 @@ func TestUpgradeSourcePluginAppliesPreparedRelease(t *testing.T) {
 	}
 }
 
+// TestUpgradeSourcePluginInvokesLifecycleCallbacks verifies explicit source
+// upgrade passes before/upgrade/after callbacks the effective and target
+// manifest snapshots.
+func TestUpgradeSourcePluginInvokesLifecycleCallbacks(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-source-upgrade-callback"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.5.0"
+		events     []string
+	)
+
+	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
+	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Callback Plugin", oldVersion, "plugin:plugin-source-upgrade-callback:old-entry")
+	registerSourceUpgradeCallbacksForTest(t, pluginID, &events, false, false)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
+	}
+
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Callback Plugin", newVersion, "plugin:plugin-source-upgrade-callback:new-entry")
+	registerSourceUpgradeCallbacksForTest(t, pluginID, &events, false, false)
+	if err := service.SyncSourcePlugins(ctx); err != nil {
+		t.Fatalf("expected source plugin rescan to succeed, got error: %v", err)
+	}
+
+	result, err := service.UpgradeSourcePlugin(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected source plugin upgrade to succeed, got error: %v", err)
+	}
+	if result == nil || !result.Executed {
+		t.Fatalf("expected source upgrade to execute, got %#v", result)
+	}
+	expectedEvents := []string{"before:v0.1.0->v0.5.0", "upgrade:v0.1.0->v0.5.0", "after:v0.1.0->v0.5.0"}
+	if !sourceUpgradeTestStringSlicesEqual(events, expectedEvents) {
+		t.Fatalf("expected lifecycle events %#v, got %#v", expectedEvents, events)
+	}
+}
+
+// TestUpgradeSourcePluginBeforeCallbackVetoes verifies unified lifecycle
+// before-upgrade callbacks can block the upgrade before host side effects.
+func TestUpgradeSourcePluginBeforeCallbackVetoes(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-source-upgrade-before-veto"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.5.0"
+		events     []string
+	)
+
+	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
+	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Before Veto Plugin", oldVersion, "plugin:plugin-source-upgrade-before-veto:old-entry")
+	registerSourceUpgradeCallbacksForTest(t, pluginID, &events, false, false)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
+	}
+
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Before Veto Plugin", newVersion, "plugin:plugin-source-upgrade-before-veto:new-entry")
+	registerSourceUpgradeCallbacksForTest(t, pluginID, &events, true, false)
+	if err := service.SyncSourcePlugins(ctx); err != nil {
+		t.Fatalf("expected source plugin rescan to succeed, got error: %v", err)
+	}
+
+	_, err := service.UpgradeSourcePlugin(ctx, pluginID)
+	if !bizerr.Is(err, sourceupgradeCodeLifecycleVetoed()) {
+		t.Fatalf("expected lifecycle veto bizerr, got %v", err)
+	}
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup after veto to succeed, got error: %v", err)
+	}
+	if registry == nil || registry.Version != oldVersion {
+		t.Fatalf("expected effective version to stay %s after veto, got %#v", oldVersion, registry)
+	}
+	item := findPluginItemFromService(t, service, ctx, pluginID)
+	if item.RuntimeState != RuntimeUpgradeStateUpgradeFailed || item.LastUpgradeFailure == nil {
+		t.Fatalf("expected veto to be diagnosable as upgrade_failed, got %#v", item)
+	}
+	if item.LastUpgradeFailure.Phase != catalog.RuntimeUpgradeFailurePhaseBeforeUpgrade {
+		t.Fatalf("expected before_upgrade failure phase, got %#v", item.LastUpgradeFailure)
+	}
+}
+
+// TestUpgradeSourcePluginCallbackFailureIsRetryable verifies custom upgrade
+// callback failures keep the effective release stable and allow a later retry.
+func TestUpgradeSourcePluginCallbackFailureIsRetryable(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-source-upgrade-callback-retry"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.5.0"
+		events     []string
+	)
+
+	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
+	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Callback Retry Plugin", oldVersion, "plugin:plugin-source-upgrade-callback-retry:old-entry")
+	registerSourceUpgradeCallbacksForTest(t, pluginID, &events, false, false)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
+	}
+
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Callback Retry Plugin", newVersion, "plugin:plugin-source-upgrade-callback-retry:new-entry")
+	registerSourceUpgradeCallbacksForTest(t, pluginID, &events, false, true)
+	if err := service.SyncSourcePlugins(ctx); err != nil {
+		t.Fatalf("expected source plugin rescan to succeed, got error: %v", err)
+	}
+
+	_, err := service.ExecuteRuntimeUpgrade(ctx, pluginID, RuntimeUpgradeOptions{Confirmed: true})
+	if !bizerr.Is(err, CodePluginRuntimeUpgradeExecutionFailed) {
+		t.Fatalf("expected runtime upgrade execution failure, got %v", err)
+	}
+	item := findPluginItemFromService(t, service, ctx, pluginID)
+	if item.RuntimeState != RuntimeUpgradeStateUpgradeFailed || item.LastUpgradeFailure == nil {
+		t.Fatalf("expected callback failure to be upgrade_failed, got %#v", item)
+	}
+	if item.LastUpgradeFailure.Phase != catalog.RuntimeUpgradeFailurePhaseUpgradeCallback {
+		t.Fatalf("expected upgrade_callback failure phase, got %#v", item.LastUpgradeFailure)
+	}
+
+	registerSourceUpgradeCallbacksForTest(t, pluginID, &events, false, false)
+	result, err := service.ExecuteRuntimeUpgrade(ctx, pluginID, RuntimeUpgradeOptions{Confirmed: true})
+	if err != nil {
+		t.Fatalf("expected retry after callback fix to succeed, got error: %v", err)
+	}
+	if result == nil || !result.Executed || result.RuntimeState != RuntimeUpgradeStateNormal {
+		t.Fatalf("expected retry to execute and return normal state, got %#v", result)
+	}
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup after retry to succeed, got error: %v", err)
+	}
+	if registry == nil || registry.Version != newVersion {
+		t.Fatalf("expected effective version %s after retry, got %#v", newVersion, registry)
+	}
+}
+
 // TestListSourceUpgradeStatusesSkipsDynamicPlugins verifies development-time
 // source-plugin upgrade discovery does not include runtime-managed dynamic plugins.
 func TestListSourceUpgradeStatusesSkipsDynamicPlugins(t *testing.T) {
@@ -368,6 +604,79 @@ func writeTestSourcePluginManifest(
 			"    type: M\n"+
 			"    sort: -1\n",
 	)
+}
+
+// registerSourceUpgradeCallbacksForTest replaces the source-plugin fixture
+// callbacks while preserving its embedded filesystem declaration.
+func registerSourceUpgradeCallbacksForTest(
+	t *testing.T,
+	pluginID string,
+	events *[]string,
+	vetoBefore bool,
+	failUpgrade bool,
+) {
+	t.Helper()
+
+	previous, ok := pluginhost.GetSourcePlugin(pluginID)
+	if !ok || previous == nil {
+		t.Fatalf("expected source plugin fixture %s to be registered", pluginID)
+	}
+	plugin := pluginhost.NewSourcePlugin(pluginID)
+	plugin.Assets().UseEmbeddedFiles(previous.GetEmbeddedFiles())
+	if err := plugin.Lifecycle().RegisterBeforeUpgradeHandler(func(ctx context.Context, input pluginhost.SourcePluginUpgradeInput) (bool, string, error) {
+		*events = append(*events, "before:"+input.FromVersion()+"->"+input.ToVersion())
+		if input.FromManifest() == nil || input.ToManifest() == nil {
+			t.Fatalf("expected upgrade manifest snapshots to be published")
+		}
+		if input.FromManifest().Version() != input.FromVersion() || input.ToManifest().Version() != input.ToVersion() {
+			t.Fatalf("expected snapshot versions to match callback versions")
+		}
+		if vetoBefore {
+			return false, "plugin." + pluginID + ".beforeUpgrade.veto", nil
+		}
+		return true, "", nil
+	}); err != nil {
+		t.Fatalf("failed to register before-upgrade callback: %v", err)
+	}
+	if err := plugin.Lifecycle().RegisterUpgradeHandler(func(ctx context.Context, input pluginhost.SourcePluginUpgradeInput) error {
+		*events = append(*events, "upgrade:"+input.FromVersion()+"->"+input.ToVersion())
+		if failUpgrade {
+			return gerror.New("custom upgrade callback failed")
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("failed to register upgrade callback: %v", err)
+	}
+	if err := plugin.Lifecycle().RegisterAfterUpgradeHandler(func(ctx context.Context, input pluginhost.SourcePluginUpgradeInput) error {
+		*events = append(*events, "after:"+input.FromVersion()+"->"+input.ToVersion())
+		return nil
+	}); err != nil {
+		t.Fatalf("failed to register after-upgrade callback: %v", err)
+	}
+	cleanup, err := pluginhost.RegisterSourcePluginForTest(plugin)
+	if err != nil {
+		t.Fatalf("failed to replace source plugin fixture %s: %v", pluginID, err)
+	}
+	t.Cleanup(cleanup)
+}
+
+// sourceupgradeCodeLifecycleVetoed returns the internal source-upgrade code
+// used by tests without exporting it from the root plugin service package.
+func sourceupgradeCodeLifecycleVetoed() *bizerr.Code {
+	return sourceupgradeinternal.CodePluginSourceUpgradeLifecycleVetoed
+}
+
+// sourceUpgradeTestStringSlicesEqual reports whether two ordered string slices are equal.
+func sourceUpgradeTestStringSlicesEqual(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 // findSourceUpgradeStatusByID returns one source-plugin upgrade status by plugin ID.

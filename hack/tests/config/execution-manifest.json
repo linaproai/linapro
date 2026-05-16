@@ -60,7 +60,7 @@
     "multi-tenant:tenant-switching": ["plugins/multi-tenant/tenant-switching"],
     "multi-tenant:platform-admin": ["plugins/multi-tenant/platform-admin"],
     "multi-tenant:plugin-governance": ["plugins/multi-tenant/plugin-governance"],
-    "multi-tenant:lifecycle-guard": ["plugins/multi-tenant/lifecycle-guard"],
+    "multi-tenant:lifecycle-precondition": ["plugins/multi-tenant/lifecycle-precondition"],
     "multi-tenant:cluster": ["plugins/multi-tenant/cluster"]
   },
   "smoke": [

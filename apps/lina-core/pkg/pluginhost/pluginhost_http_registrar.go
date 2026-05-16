@@ -7,6 +7,7 @@ package pluginhost
 import (
 	"strings"
 
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
 )
 
@@ -19,7 +20,7 @@ type MiddlewareHandler = ghttp.HandlerFunc
 // GlobalMiddlewareRegistrar exposes host-governed global middleware registration for one plugin.
 type GlobalMiddlewareRegistrar interface {
 	// Bind registers one guarded global middleware on the supplied GoFrame route pattern.
-	Bind(scope MiddlewareScope, handler MiddlewareHandler)
+	Bind(scope MiddlewareScope, handler MiddlewareHandler) error
 }
 
 // HTTPRegistrar exposes the complete HTTP registration surface published to one source plugin.
@@ -110,12 +111,12 @@ func (r *httpRegistrar) HostServices() HostServices {
 }
 
 // Bind registers one guarded global middleware on the supplied GoFrame route pattern.
-func (r *globalMiddlewareRegistrar) Bind(scope MiddlewareScope, handler MiddlewareHandler) {
+func (r *globalMiddlewareRegistrar) Bind(scope MiddlewareScope, handler MiddlewareHandler) error {
 	if r == nil || r.server == nil {
-		return
+		return nil
 	}
 	if handler == nil {
-		panic("pluginhost: global middleware handler is nil")
+		return gerror.New("pluginhost: global middleware handler is nil")
 	}
 
 	normalizedScope := normalizeMiddlewareScope(scope)
@@ -126,6 +127,7 @@ func (r *globalMiddlewareRegistrar) Bind(scope MiddlewareScope, handler Middlewa
 		}
 		handler(req)
 	})
+	return nil
 }
 
 // normalizeMiddlewareScope canonicalizes one raw GoFrame middleware pattern while

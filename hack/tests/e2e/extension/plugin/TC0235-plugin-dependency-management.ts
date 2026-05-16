@@ -7,6 +7,8 @@ const autoPlanPluginID = 'plugin-dependency-auto-plan-e2e';
 const blockedPluginID = 'plugin-dependency-blocked-e2e';
 const basePluginID = 'plugin-dependency-base-e2e';
 const consumerPluginID = 'plugin-dependency-consumer-e2e';
+const installNetworkFailurePluginID = 'plugin-dependency-install-network-failure-e2e';
+const uninstallNetworkFailurePluginID = 'plugin-dependency-uninstall-network-failure-e2e';
 
 type PluginRow = Record<string, unknown>;
 type DependencyCheck = Record<string, unknown>;
@@ -159,7 +161,9 @@ async function mockPluginDependencyApis(
   page: Page,
   rows: PluginRow[],
   checks: Record<string, DependencyCheck>,
+  failingDependencyPluginIds: string[] = [],
 ) {
+  const failingPluginIdSet = new Set(failingDependencyPluginIds);
   await page.route('**/api/v1/plugins**', async (route: Route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -168,6 +172,10 @@ async function mockPluginDependencyApis(
 
     if (request.method() === 'GET' && dependencyMatch) {
       const pluginId = decodeURIComponent(dependencyMatch[1] ?? '');
+      if (failingPluginIdSet.has(pluginId)) {
+        await route.abort('failed');
+        return;
+      }
       await route.fulfill({
         json: apiEnvelope(checks[pluginId] ?? emptyDependencyCheck(pluginId)),
       });
@@ -290,5 +298,65 @@ test.describe('TC-235 插件依赖管理展示', () => {
       'Consumer Plugin >=0.1.0',
     );
     await expect(pluginPage.uninstallConfirmButton()).toBeDisabled();
+  });
+
+  test('TC-235d: 安装弹窗依赖检查网络失败时只显示本地刷新失败提示', async ({
+    adminPage,
+  }) => {
+    await mockPluginDependencyApis(
+      adminPage,
+      [
+        pluginRow({
+          description: 'Used by E2E to verify dependency failure toast handling.',
+          id: installNetworkFailurePluginID,
+          installed: 0,
+          name: 'Dependency Install Network Failure Plugin',
+        }),
+      ],
+      {},
+      [installNetworkFailurePluginID],
+    );
+
+    const pluginPage = new PluginPage(adminPage);
+    await pluginPage.gotoManage();
+    await pluginPage.searchByPluginId(installNetworkFailurePluginID);
+    await pluginPage.openInstallAuthorization(installNetworkFailurePluginID);
+
+    await expect(
+      pluginPage.messageNotice('刷新插件依赖检查结果失败'),
+    ).toBeVisible();
+    await expect(
+      pluginPage.messageNotice('网络异常，请检查您的网络连接后重试。'),
+    ).toHaveCount(0);
+  });
+
+  test('TC-235e: 卸载弹窗依赖检查网络失败时只显示本地刷新失败提示', async ({
+    adminPage,
+  }) => {
+    await mockPluginDependencyApis(
+      adminPage,
+      [
+        pluginRow({
+          description: 'Used by E2E to verify dependency failure toast handling.',
+          id: uninstallNetworkFailurePluginID,
+          installed: 1,
+          name: 'Dependency Uninstall Network Failure Plugin',
+        }),
+      ],
+      {},
+      [uninstallNetworkFailurePluginID],
+    );
+
+    const pluginPage = new PluginPage(adminPage);
+    await pluginPage.gotoManage();
+    await pluginPage.searchByPluginId(uninstallNetworkFailurePluginID);
+    await pluginPage.openUninstallDialog(uninstallNetworkFailurePluginID);
+
+    await expect(
+      pluginPage.messageNotice('刷新插件依赖检查结果失败'),
+    ).toBeVisible();
+    await expect(
+      pluginPage.messageNotice('网络异常，请检查您的网络连接后重试。'),
+    ).toHaveCount(0);
   });
 });

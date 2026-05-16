@@ -27,11 +27,12 @@ const (
 
 // InvalidateScope describes which slice of the runtime cache should be cleared.
 // An empty Locales slice means "every locale"; an empty Sectors slice means
-// "every sector". DynamicPluginID further narrows SectorDynamicPlugin to one
-// owning plugin, leaving other plugins' dynamic entries intact.
+// "every sector". SourcePluginID and DynamicPluginID further narrow plugin
+// sectors to one owning plugin, leaving sibling plugin entries intact.
 type InvalidateScope struct {
 	Locales         []string
 	Sectors         []Sector
+	SourcePluginID  string
 	DynamicPluginID string
 }
 
@@ -45,9 +46,10 @@ type localeCache struct {
 	plugins map[string]map[string]string // sourcePluginID  -> messages
 	dynamic map[string]map[string]string // dynamicPluginID -> messages
 
-	// dynamicDirty marks dynamic-plugin entries that must be reloaded on the
-	// next merge. A plugin can be enabled after the dynamic sector was already
-	// loaded without it, so deleting the old entry alone is not enough.
+	// sourceDirty and dynamicDirty mark plugin entries that must be reloaded on
+	// the next merge. A plugin can be added or upgraded after the sector was
+	// already loaded without it, so deleting the old entry alone is not enough.
+	sourceDirty  map[string]struct{}
 	dynamicDirty map[string]struct{}
 
 	// sources records the effective origin of every key seen during merge so
@@ -216,7 +218,16 @@ func (lc *localeCache) invalidateSectors(scope InvalidateScope) {
 		case SectorHost:
 			lc.host = nil
 		case SectorSourcePlugin:
-			lc.plugins = nil
+			if scope.SourcePluginID == "" {
+				lc.plugins = nil
+				lc.sourceDirty = nil
+			} else if lc.plugins != nil {
+				delete(lc.plugins, scope.SourcePluginID)
+				if lc.sourceDirty == nil {
+					lc.sourceDirty = make(map[string]struct{}, 1)
+				}
+				lc.sourceDirty[scope.SourcePluginID] = struct{}{}
+			}
 		case SectorDynamicPlugin:
 			if scope.DynamicPluginID == "" {
 				lc.dynamic = nil

@@ -51,6 +51,13 @@ type ClassifiedReq struct{}
 // ClassifiedRes is the placeholder typed response for classified error tests.
 type ClassifiedRes struct{}
 
+// duplicateEnvelopeController exercises duplicate request type detection.
+type duplicateEnvelopeController struct{}
+
+// beforeInstallRequestTypeConflictController exercises mixed signature
+// duplicate request type detection.
+type beforeInstallRequestTypeConflictController struct{}
+
 // BackendSummary returns a deterministic JSON payload for successful dispatch
 // assertions.
 func (c *guestRouteTestController) BackendSummary(
@@ -117,6 +124,32 @@ func (c *guestTypedRouteTestController) Classified(
 ) (*ClassifiedRes, error) {
 	return nil, NewResponseError(NewForbiddenResponse("nope"))
 }
+
+// Dup returns a response for duplicate request type tests.
+func (c *duplicateEnvelopeController) Dup(
+	_ *BridgeRequestEnvelopeV1,
+) (*BridgeResponseEnvelopeV1, error) {
+	return NewJSONResponse(200, []byte(`{}`)), nil
+}
+
+// BeforeInstall exercises envelope lifecycle metadata discovery.
+func (c *beforeInstallRequestTypeConflictController) BeforeInstall(
+	_ *BridgeRequestEnvelopeV1,
+) (*BridgeResponseEnvelopeV1, error) {
+	return NewJSONResponse(200, []byte(`{}`)), nil
+}
+
+// BeforeInstallTyped intentionally uses a DTO that collides with the envelope
+// request type derived from BeforeInstall.
+func (c *beforeInstallRequestTypeConflictController) BeforeInstallTyped(
+	_ context.Context,
+	_ *BeforeInstallReq,
+) (*DownloadRes, error) {
+	return &DownloadRes{}, nil
+}
+
+// BeforeInstallReq is a DTO name used to exercise request type collision.
+type BeforeInstallReq struct{}
 
 // TestGuestControllerRouteDispatcherDispatchesByRequestType verifies reflected
 // request-type dispatch finds the matching controller method.
@@ -341,5 +374,88 @@ func TestGuestControllerRouteDispatcherSupportsTypedResponseErrors(t *testing.T)
 	}
 	if response == nil || response.StatusCode != 403 {
 		t.Fatalf("expected 403 response for typed response error, got %#v", response)
+	}
+}
+
+// TestGuestControllerRouteDispatcherRejectsDuplicateRegistration verifies
+// repeated controller registration cannot overwrite existing lookup keys.
+func TestGuestControllerRouteDispatcherRejectsDuplicateRegistration(t *testing.T) {
+	dispatcher, err := NewGuestControllerRouteDispatcher(&guestRouteTestController{})
+	if err != nil {
+		t.Fatalf("expected dispatcher creation to succeed, got error: %v", err)
+	}
+	err = dispatcher.RegisterController(&guestRouteTestController{})
+	if err == nil || err.Error() != "guest route request type already registered: BackendSummaryReq" {
+		t.Fatalf("expected duplicate registration error, got %v", err)
+	}
+}
+
+// TestDiscoverGuestControllerHandlersReturnsDispatcherMetadata verifies the
+// public metadata entry matches dispatcher request type and path rules.
+func TestDiscoverGuestControllerHandlersReturnsDispatcherMetadata(t *testing.T) {
+	items, err := DiscoverGuestControllerHandlers(&guestRouteTestController{})
+	if err != nil {
+		t.Fatalf("expected metadata discovery to succeed, got error: %v", err)
+	}
+
+	byMethod := make(map[string]GuestControllerHandlerMetadata, len(items))
+	for _, item := range items {
+		byMethod[item.MethodName] = item
+	}
+	summary, ok := byMethod["BackendSummary"]
+	if !ok {
+		t.Fatalf("expected BackendSummary metadata, got %#v", items)
+	}
+	if summary.RequestType != "BackendSummaryReq" ||
+		summary.InternalPath != "/backend-summary" ||
+		summary.Kind != GuestControllerHandlerKindEnvelope {
+		t.Fatalf("unexpected BackendSummary metadata: %#v", summary)
+	}
+	if _, ok = byMethod["IgnoredMethod"]; ok {
+		t.Fatalf("expected ignored method to be absent, got %#v", items)
+	}
+}
+
+// TestDiscoverGuestControllerHandlersReturnsTypedMetadata verifies typed
+// handler metadata uses the request DTO name and method-derived fallback path.
+func TestDiscoverGuestControllerHandlersReturnsTypedMetadata(t *testing.T) {
+	items, err := DiscoverGuestControllerHandlers(&guestTypedRouteTestController{})
+	if err != nil {
+		t.Fatalf("expected typed metadata discovery to succeed, got error: %v", err)
+	}
+
+	byMethod := make(map[string]GuestControllerHandlerMetadata, len(items))
+	for _, item := range items {
+		byMethod[item.MethodName] = item
+	}
+	update, ok := byMethod["UpdateDemo"]
+	if !ok {
+		t.Fatalf("expected UpdateDemo metadata, got %#v", items)
+	}
+	if update.RequestType != "UpdateDemoReq" ||
+		update.InternalPath != "/update-demo" ||
+		update.Kind != GuestControllerHandlerKindTyped {
+		t.Fatalf("unexpected UpdateDemo metadata: %#v", update)
+	}
+}
+
+// TestDiscoverGuestControllerHandlersRejectsDuplicateRequestType verifies
+// metadata discovery fails before dispatcher registration when lookup keys
+// collide.
+func TestDiscoverGuestControllerHandlersRejectsDuplicateRequestType(t *testing.T) {
+	_, err := DiscoverGuestControllerHandlers(&beforeInstallRequestTypeConflictController{})
+	if err == nil || err.Error() != "guest route request type already registered: BeforeInstallReq" {
+		t.Fatalf("expected duplicate request type error, got %v", err)
+	}
+}
+
+// TestBuildGuestControllerInternalPath verifies the exported path helper stays
+// aligned with dispatcher fallback key generation.
+func TestBuildGuestControllerInternalPath(t *testing.T) {
+	if actual := BuildGuestControllerInternalPath("BeforeInstallModeChange"); actual != "/before-install-mode-change" {
+		t.Fatalf("expected kebab-case path, got %s", actual)
+	}
+	if actual := BuildGuestControllerInternalPath(""); actual != "/" {
+		t.Fatalf("expected root path for empty method, got %s", actual)
 	}
 }

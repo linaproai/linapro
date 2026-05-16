@@ -93,6 +93,9 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 	if err != nil {
 		return err
 	}
+	if err = ensureFrontendDeps(ctx, a); err != nil {
+		return err
+	}
 	pluginsEnabled, env, err := prepareOfficialPluginBuildEnv(ctx, a, input)
 	if err != nil {
 		return err

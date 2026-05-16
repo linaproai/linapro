@@ -29,6 +29,8 @@ const (
 	WasmSectionMockSQL = "lina.plugin.mock.sql"
 	// WasmSectionBackendHooks stores backend hook contracts.
 	WasmSectionBackendHooks = "lina.plugin.backend.hooks"
+	// WasmSectionBackendLifecycle stores backend lifecycle precondition contracts.
+	WasmSectionBackendLifecycle = "lina.plugin.backend.lifecycle"
 	// WasmSectionBackendResources stores backend resource contracts.
 	WasmSectionBackendResources = "lina.plugin.backend.resources"
 	// WasmSectionBackendCrons stores deprecated legacy backend scheduled-job

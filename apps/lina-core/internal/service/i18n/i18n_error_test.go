@@ -102,7 +102,9 @@ func TestLocalizeErrorUsesRuntimeBundleCache(t *testing.T) {
 			pluginID,
 		))},
 	})
-	pluginhost.RegisterSourcePlugin(plugin)
+	if err := pluginhost.RegisterSourcePlugin(plugin); err != nil {
+		t.Fatalf("failed to register source plugin fixture: %v", err)
+	}
 	resetRuntimeBundleCache()
 
 	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
@@ -468,6 +470,8 @@ func registerSourcePluginDirectoryI18N(t *testing.T, repoRoot string, pluginDir 
 	pluginID := nextTestSourcePluginID() + "-" + pluginDir
 	plugin := pluginhost.NewSourcePlugin(pluginID)
 	plugin.Assets().UseEmbeddedFiles(os.DirFS(pluginPath))
-	pluginhost.RegisterSourcePlugin(plugin)
+	if err := pluginhost.RegisterSourcePlugin(plugin); err != nil {
+		t.Fatalf("failed to register source plugin fixture: %v", err)
+	}
 	resetRuntimeBundleCache()
 }

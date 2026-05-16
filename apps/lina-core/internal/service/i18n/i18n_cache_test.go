@@ -130,6 +130,54 @@ func TestInvalidateRuntimeBundleCacheDynamicPluginIsPluginScoped(t *testing.T) {
 	}
 }
 
+// TestInvalidateRuntimeBundleCacheSourcePluginIsPluginScoped verifies that a
+// source-plugin runtime upgrade drops only the upgraded plugin's source bundle.
+func TestInvalidateRuntimeBundleCacheSourcePluginIsPluginScoped(t *testing.T) {
+	resetRuntimeBundleCache()
+	t.Cleanup(resetRuntimeBundleCache)
+
+	const targetPluginID = "source-plugin-target"
+	const otherPluginID = "source-plugin-other"
+
+	enCache := seedLocaleCache(EnglishLocale, func(lc *localeCache) {
+		lc.host = map[string]string{"menu.dashboard.title": "Dashboard"}
+		lc.plugins = map[string]map[string]string{
+			targetPluginID: {"plugin." + targetPluginID + ".name": "Target Source Plugin"},
+			otherPluginID:  {"plugin." + otherPluginID + ".name": "Other Source Plugin"},
+		}
+	})
+
+	versionBefore := enCache.version
+
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil)).(*serviceImpl)
+	svc.InvalidateRuntimeBundleCache(InvalidateScope{
+		Sectors:        []Sector{SectorSourcePlugin},
+		SourcePluginID: targetPluginID,
+	})
+
+	if _, ok := enCache.plugins[targetPluginID]; ok {
+		t.Fatalf("expected source entry for %q to be removed", targetPluginID)
+	}
+	if _, ok := enCache.plugins[otherPluginID]; !ok {
+		t.Fatalf("expected source entry for %q to remain populated", otherPluginID)
+	}
+	if _, ok := enCache.sourceDirty[targetPluginID]; !ok {
+		t.Fatalf("expected source entry for %q to be marked dirty", targetPluginID)
+	}
+	if enCache.host == nil {
+		t.Fatal("expected host sector to remain populated")
+	}
+	if enCache.snapshotMerged() != nil {
+		t.Fatal("expected merged catalog to be invalidated when any source plugin entry changes")
+	}
+	if enCache.fingerprint != "" {
+		t.Fatal("expected fingerprint to be cleared when any source plugin entry changes")
+	}
+	if enCache.version <= versionBefore {
+		t.Fatalf("expected per-locale version to increment, before=%d after=%d", versionBefore, enCache.version)
+	}
+}
+
 // TestBundleRevisionReportsCachedFingerprint verifies that the service exposes
 // the cache-owned content digest without recomputing from a nested response map.
 func TestBundleRevisionReportsCachedFingerprint(t *testing.T) {

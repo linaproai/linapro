@@ -1,10 +1,12 @@
+// This file defines dynamic-plugin package upload API DTOs.
+
 package v1
 
 import "github.com/gogf/gf/v2/frame/g"
 
 // UploadDynamicPackageReq is the request for uploading a dynamic wasm package.
 type UploadDynamicPackageReq struct {
-	g.Meta           `path:"/plugins/dynamic/package" method:"post" mime:"multipart/form-data" tags:"Plugin Management" summary:"Upload dynamic plugin package" permission:"plugin:install" dc:"Upload a dynamic wasm dynamic plugin package to plugin.dynamic.storagePath. The host will verify the wasm file header, custom section, embedded manifest, ABI version and optional embedded SQL resources, and then write the product into <storagePath>/<plugin-id>.wasm in a standardized manner; if a dynamic plugin is currently installed and a higher version is uploaded, the host will temporarily store it as a release to be switched, and the formal upgrade still needs to be completed through the install or reconcile process."`
+	g.Meta           `path:"/plugins/dynamic/package" method:"post" mime:"multipart/form-data" tags:"Plugin Management" summary:"Upload dynamic plugin package" permission:"plugin:install" dc:"Upload a dynamic wasm dynamic plugin package to plugin.dynamic.storagePath. The host will verify the wasm file header, custom section, embedded manifest, ABI version and optional embedded SQL resources, and then write the product into <storagePath>/<plugin-id>.wasm in a standardized manner; if a dynamic plugin is currently installed and a higher version is uploaded, the host keeps the current effective release unchanged and exposes the target version as a pending runtime upgrade."`
 	OverwriteSupport int `json:"overwriteSupport" dc:"Whether to allow overwriting of dynamic plugin files with the same ID that have not been installed yet: 1=allowed 0=not allowed, default 0" eg:"0"`
 }
 

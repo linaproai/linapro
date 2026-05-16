@@ -22,12 +22,12 @@ func (f fakeShellGate) IsCronShellEnabled(_ context.Context) (bool, error) {
 	return f.enabled, f.err
 }
 
-// TestNewRejectsNilConfigService verifies shell executor construction fails
-// fast when runtime-owned config dependencies are missing.
+// TestNewRejectsNilConfigService verifies shell executor construction returns
+// an error when runtime-owned config dependencies are missing.
 func TestNewRejectsNilConfigService(t *testing.T) {
-	assertPanic(t, "shell executor requires a non-nil config service", func() {
-		New(nil)
-	})
+	if _, err := New(nil); err == nil {
+		t.Fatal("expected nil config service to return an error")
+	}
 }
 
 // TestExecuteTruncatesOutput verifies stdout capture is bounded and marked as truncated.

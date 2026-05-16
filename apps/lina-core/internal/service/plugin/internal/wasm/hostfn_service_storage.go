@@ -43,11 +43,12 @@ var storageConfigSvc storageConfigReader = config.New()
 
 // ConfigureStorageHostService replaces the storage configuration reader used
 // by wasm host calls. The service must be non-nil.
-func ConfigureStorageHostService(service storageConfigReader) {
+func ConfigureStorageHostService(service storageConfigReader) error {
 	if service == nil {
-		panic("wasm storage host service requires a non-nil config reader")
+		return gerror.New("wasm storage host service requires a non-nil config reader")
 	}
 	storageConfigSvc = service
+	return nil
 }
 
 // storageResourceConfig stores the resolved storage root and visibility for one plugin.
@@ -70,6 +71,9 @@ func dispatchStorageHostService(
 			bridgehostcall.HostCallStatusCapabilityDenied,
 			"storage host service requires one authorized target path",
 		)
+	}
+	if storageConfigSvc == nil {
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "storage host service is not configured")
 	}
 
 	resourceConfig, err := buildStorageResourceConfig(ctx, hcc)

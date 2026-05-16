@@ -400,6 +400,17 @@ func (s *serviceImpl) rebuildMergedCatalog(ctx context.Context, lc *localeCache,
 	}
 	if lc.plugins == nil {
 		lc.plugins = loadSourcePluginLocaleBundles(ctx, locale)
+		lc.sourceDirty = nil
+	} else if len(lc.sourceDirty) > 0 {
+		for pluginID := range lc.sourceDirty {
+			bundle := loadSourcePluginLocaleBundle(ctx, locale, pluginID)
+			if len(bundle) == 0 {
+				delete(lc.plugins, pluginID)
+				continue
+			}
+			lc.plugins[pluginID] = bundle
+		}
+		lc.sourceDirty = nil
 	}
 	if lc.dynamic == nil {
 		lc.dynamic = s.loadDynamicPluginLocaleBundles(ctx, locale)
@@ -486,6 +497,29 @@ func loadSourcePluginLocaleBundles(ctx context.Context, locale string) map[strin
 		LayoutMode:    i18nresource.LayoutModeLocaleDirectory,
 		ValueMode:     i18nresource.ValueModeStringifyScalars,
 	}.LoadSourcePluginBundles(ctx, locale)
+}
+
+// loadSourcePluginLocaleBundle loads one source-plugin translation bundle from
+// the registered embedded plugin filesystem.
+func loadSourcePluginLocaleBundle(ctx context.Context, locale string, pluginID string) map[string]string {
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" {
+		return map[string]string{}
+	}
+	sourcePlugin, ok := pluginhost.GetSourcePlugin(normalizedPluginID)
+	if !ok || sourcePlugin == nil {
+		return map[string]string{}
+	}
+	bundles := i18nresource.ResourceLoader{
+		SourcePlugins: func() []i18nresource.SourcePlugin {
+			return []i18nresource.SourcePlugin{sourcePlugin}
+		},
+		Subdir:      pluginI18nDir,
+		PluginScope: i18nresource.PluginScopeOpen,
+		LayoutMode:  i18nresource.LayoutModeLocaleDirectory,
+		ValueMode:   i18nresource.ValueModeStringifyScalars,
+	}.LoadSourcePluginBundles(ctx, locale)
+	return bundles[normalizedPluginID]
 }
 
 // listRuntimeI18nSourcePlugins adapts pluginhost definitions to the shared

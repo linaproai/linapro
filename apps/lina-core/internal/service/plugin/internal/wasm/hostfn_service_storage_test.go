@@ -251,7 +251,9 @@ func TestHandleHostServiceInvokeStorageRejectsTargetMismatch(t *testing.T) {
 func TestHandleHostServiceInvokeStorageUsesConfiguredSharedConfig(t *testing.T) {
 	configSvc := &trackingStorageConfig{rootPath: t.TempDir()}
 	previousConfigSvc := storageConfigSvc
-	ConfigureStorageHostService(configSvc)
+	if err := ConfigureStorageHostService(configSvc); err != nil {
+		t.Fatalf("configure storage host service failed: %v", err)
+	}
 	t.Cleanup(func() {
 		storageConfigSvc = previousConfigSvc
 	})
@@ -291,11 +293,11 @@ func TestHandleHostServiceInvokeStorageUsesConfiguredSharedConfig(t *testing.T) 
 }
 
 // TestConfigureStorageHostServiceRejectsNil verifies missing runtime config
-// reader injection fails fast instead of silently constructing an isolated config service.
+// reader injection returns an error instead of silently constructing an isolated config service.
 func TestConfigureStorageHostServiceRejectsNil(t *testing.T) {
-	assertPanic(t, "wasm storage host service requires a non-nil config reader", func() {
-		ConfigureStorageHostService(nil)
-	})
+	if err := ConfigureStorageHostService(nil); err == nil {
+		t.Fatal("expected nil storage host service to return an error")
+	}
 }
 
 // TestMatchAuthorizedStoragePath verifies logical prefix and exact-file path

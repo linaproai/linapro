@@ -45,7 +45,9 @@ func init() {
   }
 }`)},
 	})
-	pluginhost.RegisterSourcePlugin(plugin)
+	if err := pluginhost.RegisterSourcePlugin(plugin); err != nil {
+		panic(err)
+	}
 }
 
 // resetRuntimeBundleCache clears the in-memory runtime bundle cache between tests.
@@ -378,7 +380,9 @@ func TestRegisterSourcePluginInvalidatesRuntimeBundleCache(t *testing.T) {
   }
 }`)},
 	})
-	pluginhost.RegisterSourcePlugin(plugin)
+	if err := pluginhost.RegisterSourcePlugin(plugin); err != nil {
+		t.Fatalf("failed to register source plugin fixture: %v", err)
+	}
 
 	messages = svc.BuildRuntimeMessages(context.Background(), EnglishLocale)
 	if actual, ok := lookupMessageString(messages, "plugin."+testCacheInvalidatePluginID+".name"); !ok || actual != "Cache Invalidation Plugin" {

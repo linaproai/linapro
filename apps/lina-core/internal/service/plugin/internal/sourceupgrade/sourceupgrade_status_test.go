@@ -1,10 +1,8 @@
-// This file verifies the pure source-plugin upgrade status helpers and
-// operator-facing pending-upgrade error rendering.
+// This file verifies the pure source-plugin upgrade status helpers.
 
 package sourceupgrade
 
 import (
-	"strings"
 	"testing"
 
 	"lina-core/internal/model/entity"
@@ -104,34 +102,48 @@ func TestBuildSourceUpgradeStatusMarksDowngrade(t *testing.T) {
 	}
 }
 
-// TestBuildSourcePluginUpgradePendingErrorIncludesBulkCommand verifies the
-// startup guard message includes per-plugin commands and the bulk command hint.
-func TestBuildSourcePluginUpgradePendingErrorIncludesBulkCommand(t *testing.T) {
-	err := buildSourcePluginUpgradePendingError([]*SourceUpgradeStatus{
-		{
-			PluginID:          "plugin-alpha",
-			EffectiveVersion:  "v0.1.0",
-			DiscoveredVersion: "v0.5.0",
-		},
-		{
-			PluginID:          "plugin-beta",
-			EffectiveVersion:  "v0.2.0",
-			DiscoveredVersion: "v0.6.0",
-		},
+// TestSourceManifestSnapshotViewPublishesTypedSnapshot verifies catalog
+// snapshots are projected through the pluginhost typed manifest contract.
+func TestSourceManifestSnapshotViewPublishesTypedSnapshot(t *testing.T) {
+	view := sourceManifestSnapshotView(&catalog.ManifestSnapshot{
+		ID:                      "plugin-source-upgrade-snapshot",
+		Name:                    "Source Upgrade Snapshot Plugin",
+		Version:                 "v1.2.3",
+		Type:                    "source",
+		ScopeNature:             "tenant_aware",
+		SupportsMultiTenant:     true,
+		DefaultInstallMode:      "tenant_scoped",
+		Description:             "Snapshot projection test",
+		InstallSQLCount:         3,
+		UninstallSQLCount:       2,
+		MockSQLCount:            1,
+		MenuCount:               4,
+		BackendHookCount:        5,
+		ResourceSpecCount:       6,
+		HostServiceAuthRequired: true,
 	})
-	if err == nil {
-		t.Fatal("expected pending upgrade error")
+	if view == nil {
+		t.Fatal("expected projected manifest snapshot")
+	}
+	if view.ID() != "plugin-source-upgrade-snapshot" ||
+		view.Name() != "Source Upgrade Snapshot Plugin" ||
+		view.Version() != "v1.2.3" ||
+		view.Type() != "source" {
+		t.Fatalf("expected typed getters to expose core fields, got %#v", view)
 	}
 
-	message := err.Error()
-	expectedFragments := []string{
-		"plugin=plugin-alpha current=v0.1.0 discovered=v0.5.0 action=resolve the source-plugin version before startup",
-		"plugin=plugin-beta current=v0.2.0 discovered=v0.6.0 action=resolve the source-plugin version before startup",
-		"check all pending source-plugin upgrades",
-	}
-	for _, fragment := range expectedFragments {
-		if !strings.Contains(message, fragment) {
-			t.Fatalf("expected pending upgrade error to include %q, got %q", fragment, message)
-		}
+	values := view.Values()
+	if values["scopeNature"] != "tenant_aware" ||
+		values["supportsMultiTenant"] != true ||
+		values["defaultInstallMode"] != "tenant_scoped" ||
+		values["description"] != "Snapshot projection test" ||
+		values["installSqlCount"] != 3 ||
+		values["uninstallSqlCount"] != 2 ||
+		values["mockSqlCount"] != 1 ||
+		values["menuCount"] != 4 ||
+		values["backendHookCount"] != 5 ||
+		values["resourceSpecCount"] != 6 ||
+		values["hostServiceAuthNeeded"] != true {
+		t.Fatalf("expected all published snapshot values, got %#v", values)
 	}
 }

@@ -19,12 +19,13 @@ func (c *ControllerV1) DynamicList(ctx context.Context, req *v1.DynamicListReq) 
 	items := make([]*v1.PluginDynamicItem, 0, len(out.List))
 	for _, item := range out.List {
 		items = append(items, &v1.PluginDynamicItem{
-			Id:         item.Id,
-			Installed:  item.Installed,
-			Enabled:    item.Enabled,
-			Version:    item.Version,
-			Generation: item.Generation,
-			StatusKey:  item.StatusKey,
+			Id:           item.Id,
+			Installed:    item.Installed,
+			Enabled:      item.Enabled,
+			Version:      item.Version,
+			Generation:   item.Generation,
+			StatusKey:    item.StatusKey,
+			RuntimeState: item.RuntimeState.String(),
 		})
 	}
 	return &v1.DynamicListRes{List: items}, nil

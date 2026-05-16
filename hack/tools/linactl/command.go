@@ -31,6 +31,7 @@ func commandRegistry() map[string]commandSpec {
 		{Name: "init", Description: "Initialize the database with DDL and seed data.", Usage: "linactl init confirm=init [rebuild=true]", Run: runInit},
 		{Name: "mock", Description: "Load optional mock demo data.", Usage: "linactl mock confirm=mock", Run: runMock},
 		{Name: "test", Description: "Run the Playwright E2E test suite.", Usage: "linactl test [scope=full|host|plugins|plugin:<id>]", Run: runTest},
+		{Name: "dev.setup", Description: "Install frontend dependencies and Playwright browsers.", Usage: "linactl dev.setup", Run: runDevSetup},
 		{Name: "test.go", Description: "Run Go unit tests for workspace modules.", Usage: "linactl test.go [plugins=auto|0|1] [race=true] [verbose=true]", Run: runTestGo},
 		{Name: "test.host", Description: "Run host-owned Playwright E2E tests without official plugins.", Usage: "linactl test.host", Run: runTestHost},
 		{Name: "test.plugins", Description: "Run official plugin Playwright E2E tests.", Usage: "linactl test.plugins", Run: runTestPlugins},

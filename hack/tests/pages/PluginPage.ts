@@ -7,6 +7,7 @@ const pluginTableTitlePattern = /插件列表|Plugin List/iu;
 const pluginInstallActionPattern = /安\s*装|Install/iu;
 const pluginUninstallActionPattern = /卸\s*载|Uninstall/iu;
 const pluginDetailActionPattern = /详\s*情|Detail(?:s)?/iu;
+const pluginUpgradeActionPattern = /升\s*级|重试升级|Upgrade|Retry Upgrade/iu;
 const confirmActionPattern = /确\s*认|确\s*定|confirm|ok/iu;
 const cancelActionPattern = /取\s*消|cancel/iu;
 
@@ -368,6 +369,52 @@ export class PluginPage {
       .first();
   }
 
+  pluginRuntimeState(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-runtime-state-${pluginId}`).first();
+  }
+
+  pluginVersionValue(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-version-${pluginId}`).first();
+  }
+
+  pluginManualRepairTag(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-abnormal-repair-${pluginId}`).first();
+  }
+
+  pluginUpgradeModal(): Locator {
+    return this.page.getByTestId("plugin-upgrade-modal").last();
+  }
+
+  pluginUpgradeDialog(): Locator {
+    return this.page
+      .getByRole("dialog", { name: /升级插件|Upgrade Plugin/iu })
+      .last();
+  }
+
+  pluginUpgradeConfirmButton(): Locator {
+    return this.pluginUpgradeDialog()
+      .getByRole("button", {
+        name: /确认升级|Confirm Upgrade|确\s*认|confirm/iu,
+      })
+      .last();
+  }
+
+  pluginUpgradeFromManifest(): Locator {
+    return this.page.getByTestId("plugin-upgrade-from-manifest").last();
+  }
+
+  pluginUpgradeToManifest(): Locator {
+    return this.page.getByTestId("plugin-upgrade-to-manifest").last();
+  }
+
+  pluginUpgradeSqlSummary(): Locator {
+    return this.page.getByTestId("plugin-upgrade-sql-summary").last();
+  }
+
+  pluginUpgradeRiskSectionTitle(): Locator {
+    return this.page.getByTestId("plugin-upgrade-risk-section-title").last();
+  }
+
   uninstallDialog(): Locator {
     return this.page
       .getByRole("dialog", { name: /卸载插件|Uninstall Plugin/iu })
@@ -460,29 +507,29 @@ export class PluginPage {
     return this.page.getByTestId("plugin-uninstall-purge-warning").last();
   }
 
-  lifecycleGuardDialog(): Locator {
-    return this.page.getByTestId("lifecycle-guard-dialog").last();
+  lifecyclePreconditionDialog(): Locator {
+    return this.page.getByTestId("lifecycle-precondition-dialog").last();
   }
 
-  lifecycleGuardReasonAlert(): Locator {
-    return this.page.getByTestId("lifecycle-guard-reason-alert").last();
+  lifecyclePreconditionReasonAlert(): Locator {
+    return this.page.getByTestId("lifecycle-precondition-reason-alert").last();
   }
 
-  lifecycleGuardForceAlert(): Locator {
-    return this.page.getByTestId("lifecycle-guard-force-alert").last();
+  lifecyclePreconditionForceAlert(): Locator {
+    return this.page.getByTestId("lifecycle-precondition-force-alert").last();
   }
 
-  lifecycleGuardForcePluginIdInput(): Locator {
-    return this.page.getByTestId("lifecycle-guard-force-plugin-id").last();
+  lifecyclePreconditionForcePluginIdInput(): Locator {
+    return this.page.getByTestId("lifecycle-precondition-force-plugin-id").last();
   }
 
-  lifecycleGuardReasonText(): Locator {
-    return this.page.getByTestId("lifecycle-guard-reason");
+  lifecyclePreconditionReasonText(): Locator {
+    return this.page.getByTestId("lifecycle-precondition-reason");
   }
 
-  lifecycleGuardConfirmButton(): Locator {
+  lifecyclePreconditionConfirmButton(): Locator {
     return this.page
-      .getByRole("dialog", { name: /生命周期保护|Lifecycle Guard/iu })
+      .getByRole("dialog", { name: /生命周期前置条件|Lifecycle Precondition/iu })
       .last()
       .getByRole("button", { name: confirmActionPattern })
       .last();
@@ -866,6 +913,22 @@ export class PluginPage {
     await expect(detailButton).toBeVisible();
     await detailButton.click();
     await expect(this.pluginDetailDialog()).toBeVisible();
+  }
+
+  async openRuntimeUpgradeDialog(pluginId: string) {
+    const upgradeButton = await this.pluginActionButton(
+      pluginId,
+      pluginUpgradeActionPattern,
+    );
+    await expect(upgradeButton).toBeVisible();
+    await upgradeButton.click();
+    await expect(this.pluginUpgradeModal()).toBeVisible();
+  }
+
+  async confirmRuntimeUpgrade() {
+    await expect(this.pluginUpgradeConfirmButton()).toBeEnabled();
+    await this.pluginUpgradeConfirmButton().click();
+    await expect(this.pluginUpgradeModal()).toHaveCount(0);
   }
 
   async uninstallPluginWithOptions(

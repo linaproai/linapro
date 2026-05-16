@@ -724,11 +724,45 @@
         }
       },
       "not": {
+        "found": "Plugin does not exist: {pluginId}",
         "installed": "Plugin is not installed"
+      },
+      "lifecycle": {
+        "precondition": {
+          "vetoed": "Plugin lifecycle operation {operation} for {pluginId} was blocked by lifecycle preconditions: {reasons}"
+        }
       },
       "registry": {
         "read": {
           "failed": "Failed to read plugin {pluginId} registry"
+        }
+      },
+      "runtime": {
+        "upgrade": {
+          "required": "Plugin {pluginId} requires runtime upgrade before business routes can execute",
+          "preview": {
+            "unavailable": "Plugin {pluginId} runtime upgrade preview is available only when runtimeState is pending_upgrade or upgrade_failed; current runtimeState={runtimeState}"
+          },
+          "snapshot": {
+            "missing": "Plugin {pluginId}@{version} runtime upgrade manifest snapshot is missing",
+            "invalid": "Plugin {pluginId}@{version} runtime upgrade manifest snapshot is invalid"
+          },
+          "confirmation": {
+            "required": "Plugin {pluginId} runtime upgrade requires explicit confirmation"
+          },
+          "unavailable": "Plugin {pluginId} runtime upgrade is available only when runtimeState is pending_upgrade or upgrade_failed; current runtimeState={runtimeState}",
+          "already": {
+            "running": "Plugin {pluginId} runtime upgrade is already running on another node"
+          },
+          "lock": {
+            "unavailable": "Plugin {pluginId} runtime upgrade requires a cluster lock backend when cluster.enabled=true"
+          },
+          "type": {
+            "unsupported": "Plugin {pluginId} with type {pluginType} does not support runtime upgrade execution"
+          },
+          "execution": {
+            "failed": "Plugin {pluginId} runtime upgrade from {fromVersion} to {toVersion} failed"
+          }
         }
       },
       "release": {
@@ -780,8 +814,6 @@
           "manifest": {
             "required": "Source plugin manifest cannot be empty"
           },
-          "pending": "Installed source plugins have pending upgrades. Resolve the listed source-plugin versions before host startup.\n{items}",
-          "pendingWithBulk": "Installed source plugins have pending upgrades. Resolve the listed source-plugin versions before host startup.\n{items}\nReview all pending source-plugin upgrades together: {bulkCommand}",
           "plugin": {
             "id": {
               "required": "Source plugin ID cannot be empty"
@@ -807,6 +839,9 @@
               },
               "required": "Source plugin target release cannot be empty"
             }
+          },
+          "lifecycle": {
+            "vetoed": "Source plugin lifecycle operation {operation} for {pluginId} was blocked: {reasons}"
           }
         }
       },

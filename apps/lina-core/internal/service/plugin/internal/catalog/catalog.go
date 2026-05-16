@@ -5,6 +5,7 @@ package catalog
 import (
 	"context"
 
+	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/pkg/pluginhost"
 )
@@ -78,6 +79,22 @@ type ResourceRefSyncer interface {
 type ReleaseStateSyncer interface {
 	// SyncPluginReleaseRuntimeState updates the active release row to reflect registry state.
 	SyncPluginReleaseRuntimeState(ctx context.Context, registry *entity.SysPlugin) error
+}
+
+// RuntimeUpgradeStateResolver covers read-only runtime-upgrade state projection.
+type RuntimeUpgradeStateResolver interface {
+	// BuildRuntimeUpgradeState computes one plugin runtime-upgrade projection.
+	BuildRuntimeUpgradeState(
+		ctx context.Context,
+		registry *entity.SysPlugin,
+		manifest *Manifest,
+	) (RuntimeUpgradeProjection, error)
+	// BuildRuntimeUpgradeFailureWithLatestMigration returns the latest failed
+	// upgrade phase for a target release.
+	BuildRuntimeUpgradeFailureWithLatestMigration(
+		ctx context.Context,
+		release *entity.SysPluginRelease,
+	) (*RuntimeUpgradeFailure, error)
 }
 
 // HookDispatcher dispatches plugin lifecycle events to registered hook handlers.
@@ -206,6 +223,9 @@ type Registry interface {
 	SetPluginStatus(ctx context.Context, pluginID string, enabled int) error
 	// SetPluginInstalled updates the installed flag and derived lifecycle states for one plugin registry row.
 	SetPluginInstalled(ctx context.Context, pluginID string, installed int) error
+	// SetRegistryRuntimeState updates runtime state fields without changing stable desired state.
+	// It is reserved for explicit runtime-upgrade progress markers.
+	SetRegistryRuntimeState(ctx context.Context, pluginID string, data do.SysPlugin) error
 	// SetAutoEnableForNewTenants updates the platform-owned tenant provisioning policy.
 	SetAutoEnableForNewTenants(ctx context.Context, pluginID string, enabled bool) error
 	// BuildPluginStatusKey returns the display key for a plugin's status record.
@@ -302,6 +322,7 @@ type Service interface {
 	FrontendAssetCatalog
 	Registry
 	ReleaseStore
+	RuntimeUpgradeStateResolver
 	Governance
 }
 

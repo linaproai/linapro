@@ -848,7 +848,10 @@
         "supportsMultiTenant": "Multi-Tenant",
         "tenantProvisioning": "New Tenants",
         "scopeNature": "Scope Nature",
-        "installMode": "Install Mode"
+        "installMode": "Install Mode",
+        "runtimeState": "Runtime State",
+        "effectiveVersion": "Effective Version",
+        "discoveredVersion": "Discovered Version"
       },
       "type": {
         "source": "Source Plugin",
@@ -863,6 +866,9 @@
         "uploadPlugin": "Upload Plugin",
         "install": "Install",
         "installAndEnable": "Install and Enable",
+        "upgrade": "Upgrade",
+        "retryUpgrade": "Retry Upgrade",
+        "manualRepair": "Manual Repair",
         "uninstall": "Uninstall",
         "continueAction": "Continue {actionLabel}",
         "installMockDataLabel": "Install mock data?",
@@ -895,6 +901,35 @@
       "scopeNature": {
         "platformOnly": "Platform Only",
         "tenantAware": "Tenant Aware"
+      },
+      "runtimeState": {
+        "normal": "Normal",
+        "pending_upgrade": "Pending Upgrade",
+        "abnormal": "Abnormal",
+        "upgrade_running": "Upgrade Running",
+        "upgrade_failed": "Upgrade Failed"
+      },
+      "runtimeStateHint": {
+        "normal": "File metadata matches the database-effective state.",
+        "pendingUpgrade": "Effective version {effectiveVersion} is lower than discovered version {discoveredVersion}; an administrator must confirm runtime upgrade.",
+        "upgradeFailed": "The latest runtime upgrade failed. Fix the cause before retrying.",
+        "upgradeFailedWithDetail": "The latest runtime upgrade failed: {detail}",
+        "abnormal": "The plugin needs manual repair: {reason}"
+      },
+      "abnormalReason": {
+        "discovered_version_lower_than_effective": "File version is lower than the database-effective version",
+        "version_compare_failed": "Version comparison failed",
+        "unknown": "Unknown abnormal state"
+      },
+      "failurePhase": {
+        "before_upgrade": "Before-upgrade callback",
+        "upgrade_callback": "Custom upgrade callback",
+        "sql": "Upgrade SQL",
+        "governance": "Governance synchronization",
+        "release_switch": "Effective release switch",
+        "cache_invalidation": "Cache invalidation",
+        "release": "Release state",
+        "unknown": "Unknown phase"
       },
       "detail": {
         "title": "Plugin Details",
@@ -970,9 +1005,13 @@
         "installedAndEnabled": "Plugin installed and enabled",
         "mockDataRolledBack": "Plugin {pluginId} installed successfully, but mock data {failedFile} failed to load and was rolled back: {cause}. You can keep the plugin in its installed-without-mock state or uninstall and reinstall after fixing the mock SQL.",
         "noInstallPermission": "The current account does not have permission to install or synchronize plugins",
+        "noUpgradePermission": "The current account does not have permission to upgrade plugins",
         "noPolicyPermission": "The current account does not have permission to configure plugin policies",
         "noStatusPermission": "The current account does not have permission to change plugin status",
         "noUninstallPermission": "The current account does not have permission to uninstall plugins",
+        "abnormalManualRepair": "Plugin files and database-effective state are inconsistent. Repair the plugin files or database state manually before continuing.",
+        "upgradeFailed": "The latest plugin upgrade failed",
+        "upgraded": "Plugin upgraded",
         "tenantProvisioningEffective": "When this tenant-scoped plugin is installed and enabled, newly created tenants will receive it automatically.",
         "tenantProvisioningUnsupported": "Only multi-tenant plugins installed in tenant-scoped mode support this policy.",
         "tenantProvisioningUpdated": "New-tenant plugin policy updated",
@@ -992,6 +1031,31 @@
         "purgeStorage": "Also clear plugin-owned storage data",
         "purgeStorageWarning": "When checked, the host runs uninstall SQL and physically deletes plugin-owned table data, authorized storage files, and governance resource references. This cannot be restored after confirmation.",
         "sourceWarning": "Uninstalling a source plugin removes its synchronized governance records and can optionally clear plugin-owned data and storage files."
+      },
+      "upgrade": {
+        "title": "Upgrade Plugin",
+        "titleWithName": "Upgrade Plugin: {name}",
+        "confirm": "Confirm Upgrade",
+        "banner": "Upgrade can run plugin callbacks, upgrade SQL, governance synchronization, and effective release switching. Review version differences and risk hints before confirming.",
+        "retryBanner": "The previous upgrade failed. Fix the cause and make sure callbacks and SQL are safely retryable before confirming.",
+        "versionSection": "Versions and Manifest",
+        "fromManifest": "Before Upgrade",
+        "toManifest": "After Upgrade",
+        "sqlSection": "SQL Summary",
+        "installSqlCount": "Install/upgrade SQL: {count}",
+        "runtimeSqlCount": "Dynamic SQL: {count}",
+        "uninstallSqlCount": "Uninstall SQL: {count}",
+        "mockSqlExcluded": "Mock data excluded: {count}",
+        "hostServiceSection": "Host Service Changes",
+        "hostServiceChange": {
+          "added": "Added",
+          "changed": "Changed",
+          "removed": "Removed"
+        },
+        "resourceCount": "Resources {count}",
+        "riskSection": "Risk Hints",
+        "noRiskHints": "No additional risk hints",
+        "resolveBeforeUpgrade": "Resolve dependency blockers before upgrading this plugin."
       },
       "upload": {
         "acknowledge": "Got It",
@@ -1229,16 +1293,16 @@
         "global": "One platform-level enabled state is shared by every tenant.",
         "tenant_scoped": "Tenant administrators enable or disable the plugin in their own tenant."
       },
-      "lifecycleGuard": {
-        "title": "Lifecycle Guard",
+      "lifecyclePrecondition": {
+        "title": "Lifecycle Precondition",
         "summary": "The plugin returned reasons blocking this operation.",
-        "summaryHelp": "Resolve the guard reasons first; use force uninstall only after confirming the risk.",
+        "summaryHelp": "Resolve the precondition reasons first; use force uninstall only after confirming the risk.",
         "reasonTitle": "Blocking Reasons",
         "reasonCount": "{count} item(s)",
         "forceTitle": "Force Uninstall Confirmation",
         "defaultReason": "Related data still exists, so the operation cannot continue.",
         "blockedReason": "The current plugin blocked this operation. Reason:",
-        "forceConfirm": "Force uninstall bypasses these guards and can remove plugin data. Confirm that you understand the risk.",
+        "forceConfirm": "Force uninstall bypasses these preconditions and can remove plugin data. Confirm that you understand the risk.",
         "forceInputHint": "Type plugin ID \"{pluginId}\" to enable force uninstall.",
         "forceSubmitted": "Force channel request submitted",
         "reasons": {

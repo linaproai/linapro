@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/gogf/gf/v2/errors/gerror"
+
 	notifysvc "lina-core/internal/service/notify"
 	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
 	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
@@ -17,11 +19,12 @@ var notifyHostService notifysvc.Service
 
 // ConfigureNotifyHostService replaces the governed notification backend used
 // by wasm host calls. The service must be non-nil.
-func ConfigureNotifyHostService(service notifysvc.Service) {
+func ConfigureNotifyHostService(service notifysvc.Service) error {
 	if service == nil {
-		panic("wasm notify host service requires a non-nil notify service")
+		return gerror.New("wasm notify host service requires a non-nil notify service")
 	}
 	notifyHostService = service
+	return nil
 }
 
 // dispatchNotifyHostService routes notify host service methods to the governed notification backend.
@@ -37,6 +40,9 @@ func dispatchNotifyHostService(
 	}
 	if channelKey == "" {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusCapabilityDenied, "notify host service requires one authorized channel key")
+	}
+	if notifyHostService == nil {
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "notify host service is not configured")
 	}
 
 	switch method {
