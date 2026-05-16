@@ -1001,6 +1001,15 @@
         "selectFile": "Please select a .wasm plugin package first",
         "success": "Plugin package uploaded successfully",
         "title": "Upload Dynamic Plugin"
+      },
+      "content-notice": {
+        "preview": {
+          "title": "Message Details"
+        },
+        "fields": {
+          "type": "Type",
+          "createdBy": "Created By"
+        }
       }
     },
     "message": {
