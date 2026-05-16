@@ -92,7 +92,7 @@ test.describe("TC-223 角色数据权限字典下拉框", () => {
     adminPage,
   }) => {
     await mockPluginRuntimeStates(adminPage, []);
-    await persistTenantState(adminPage, true);
+    await mockUserInfoWithTenantMenu(adminPage);
     await adminPage.reload({ waitUntil: "domcontentloaded" });
 
     const roleName = "普通用户";
@@ -117,6 +117,40 @@ test.describe("TC-223 角色数据权限字典下拉框", () => {
     );
   });
 });
+
+async function mockUserInfoWithTenantMenu(page: Page) {
+  await page.unroute("**/api/v1/user/info").catch(() => {});
+  await page.route("**/api/v1/user/info", async (route) => {
+    const response = await route.fetch();
+    const payload = (await response.json()) as Record<string, unknown>;
+    const data = (payload.data ?? {}) as Record<string, unknown>;
+    const menus = Array.isArray(data.menus) ? data.menus : [];
+
+    await route.fulfill({
+      body: JSON.stringify({
+        ...payload,
+        data: {
+          ...data,
+          menus: appendTenantMenu(menus),
+        },
+      }),
+      contentType: "application/json",
+      response,
+    });
+  });
+}
+
+function appendTenantMenu(menus: unknown[]) {
+  return [
+    ...menus,
+    {
+      children: [],
+      id: 990223,
+      name: "PlatformTenantManagement",
+      path: "/platform/tenants",
+    },
+  ];
+}
 
 async function mockMultiTenantPluginState(page: Page, enabled: boolean) {
   await mockPluginRuntimeStates(page, [
@@ -154,19 +188,4 @@ async function mockPluginRuntimeStates(
     registryGlobal.__linaPluginStatePromise = null;
     registryGlobal.__linaPluginStateSignature = null;
   });
-}
-
-async function persistTenantState(page: Page, enabled: boolean) {
-  const tenantState = {
-    currentTenant: null,
-    enabled,
-    impersonation: { active: false },
-    tenants: [],
-  };
-  await page.addInitScript((state) => {
-    localStorage.setItem("linapro:tenant-state", JSON.stringify(state));
-  }, tenantState);
-  await page.evaluate((state) => {
-    localStorage.setItem("linapro:tenant-state", JSON.stringify(state));
-  }, tenantState);
 }
