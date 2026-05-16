@@ -1,5 +1,8 @@
 import { test, expect } from '../../../fixtures/auth';
-import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
+import {
+  createAdminApiContext,
+  ensureSourcePluginEnabled,
+} from '../../../fixtures/plugin';
 import { UserPage } from '../../../pages/UserPage';
 
 test.describe('TC0005 用户管理 CRUD', () => {
@@ -12,29 +15,40 @@ test.describe('TC0005 用户管理 CRUD', () => {
   }
 
   async function searchUser(userPage: UserPage, username: string) {
-    await userPage.goto();
     await userPage.searchByUsername(username);
   }
 
   async function expectUserVisible(userPage: UserPage, username: string) {
-    await expect
-      .poll(
-        async () => {
-          await searchUser(userPage, username);
-          return userPage.hasUser(username);
-        },
-        {
-          message: `expected user ${username} to appear in list`,
-          timeout: 20_000,
-        },
-      )
-      .toBeTruthy();
+    await searchUser(userPage, username);
+    await expect(userPage.getUserRow(username)).toBeVisible({ timeout: 20_000 });
   }
 
-  async function deleteUserIfExists(userPage: UserPage, username: string) {
-    await searchUser(userPage, username);
-    if (await userPage.hasUser(username)) {
-      await userPage.deleteUser(username);
+  function unwrapApiData(payload: any) {
+    if (payload && typeof payload === 'object' && 'data' in payload) {
+      return payload.data;
+    }
+    return payload;
+  }
+
+  async function deleteUserIfExists(username: string) {
+    const adminApi = await createAdminApiContext();
+    try {
+      const listResponse = await adminApi.get(
+        `user?pageNum=1&pageSize=20&username=${encodeURIComponent(username)}`,
+      );
+      expect(listResponse.ok(), `查询测试用户失败: ${username}`).toBeTruthy();
+      const payload = unwrapApiData(await listResponse.json());
+      const user = (payload?.list ?? []).find(
+        (item: { id?: number; username?: string }) => item.username === username,
+      );
+      if (!user?.id) {
+        return;
+      }
+
+      const deleteResponse = await adminApi.delete(`user?ids=${user.id}`);
+      expect(deleteResponse.ok(), `清理测试用户失败: ${username}`).toBeTruthy();
+    } finally {
+      await adminApi.dispose();
     }
   }
 
@@ -46,7 +60,7 @@ test.describe('TC0005 用户管理 CRUD', () => {
       await userPage.createUser(testUsername, 'test123456', 'E2E测试用户');
       await expectUserVisible(userPage, testUsername);
     } finally {
-      await deleteUserIfExists(userPage, testUsername);
+      await deleteUserIfExists(testUsername);
     }
   });
 
@@ -58,7 +72,7 @@ test.describe('TC0005 用户管理 CRUD', () => {
       await userPage.createUser(testUsername, 'test123456', 'E2E测试用户');
       await expectUserVisible(userPage, testUsername);
     } finally {
-      await deleteUserIfExists(userPage, testUsername);
+      await deleteUserIfExists(testUsername);
     }
   });
 
@@ -76,19 +90,23 @@ test.describe('TC0005 用户管理 CRUD', () => {
         adminPage.locator('.vxe-body--row', { hasText: testUsername }).first(),
       ).toContainText('修改后的E2E用户');
     } finally {
-      await deleteUserIfExists(userPage, testUsername);
+      await deleteUserIfExists(testUsername);
     }
   });
 
   test('TC0005d: 删除用户', async ({ adminPage }) => {
     const testUsername = createTestUsername('delete');
     const userPage = new UserPage(adminPage);
-    await userPage.goto();
-    await userPage.createUser(testUsername, 'test123456', 'E2E测试用户');
-    await expectUserVisible(userPage, testUsername);
-    await userPage.deleteUser(testUsername);
+    try {
+      await userPage.goto();
+      await userPage.createUser(testUsername, 'test123456', 'E2E测试用户');
+      await expectUserVisible(userPage, testUsername);
+      await userPage.deleteUser(testUsername);
 
-    await searchUser(userPage, testUsername);
-    expect(await userPage.hasUser(testUsername)).toBeFalsy();
+      await searchUser(userPage, testUsername);
+      expect(await userPage.hasUser(testUsername)).toBeFalsy();
+    } finally {
+      await deleteUserIfExists(testUsername);
+    }
   });
 });
