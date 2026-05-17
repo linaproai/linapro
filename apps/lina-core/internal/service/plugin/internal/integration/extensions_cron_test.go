@@ -225,6 +225,12 @@ func TestListCronDeclarationsDiscoversDisabledDynamicPlugin(t *testing.T) {
 
 	ctx := context.Background()
 	const pluginID = "plugin-dynamic-cron-review"
+	const sourcePluginID = "plugin-source-cron-uninstalled-review"
+	testutil.CreateTestPluginDir(t, sourcePluginID)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, sourcePluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, sourcePluginID)
+	})
 	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
 		t,
 		pluginID,
@@ -270,8 +276,11 @@ func TestListCronDeclarationsDiscoversDisabledDynamicPlugin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected installed declaration cron list to succeed, got error: %v", err)
 	}
-	if len(installedItems) != 0 {
-		t.Fatalf("expected uninstalled dynamic plugin to expose no scheduled-job declarations, got %#v", installedItems)
+	if managedCronListContainsPlugin(installedItems, pluginID) {
+		t.Fatalf("expected uninstalled dynamic plugin %s to expose no scheduled-job declarations, got %#v", pluginID, installedItems)
+	}
+	if managedCronListContainsPlugin(installedItems, sourcePluginID) {
+		t.Fatalf("expected uninstalled source plugin %s to expose no scheduled-job declarations, got %#v", sourcePluginID, installedItems)
 	}
 
 	declaredItems, err := services.Integration.ListCronDeclarationsByPlugin(ctx, pluginID)

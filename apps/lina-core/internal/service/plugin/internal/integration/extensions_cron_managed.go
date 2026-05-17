@@ -132,8 +132,8 @@ func (s *serviceImpl) collectDeclaredCronJobs(
 // collectManagedCronJobsWithOptions gathers plugin-owned cron definitions from
 // matching source and dynamic plugins. When includeDisabledDynamic is true,
 // dynamic discovery uses the current manifest before enablement; when
-// installedOnly is true, uninstalled dynamic plugins are skipped so management
-// previews do not leak into scheduled-job projections.
+// installedOnly is true, uninstalled plugins are skipped so management previews
+// do not leak into scheduled-job projections.
 func (s *serviceImpl) collectManagedCronJobsWithOptions(
 	ctx context.Context,
 	pluginID string,
@@ -151,6 +151,14 @@ func (s *serviceImpl) collectManagedCronJobsWithOptions(
 			continue
 		}
 		if trimmedPluginID != "" && manifest.ID != trimmedPluginID {
+			continue
+		}
+		registry, err := s.catalogSvc.GetRegistry(ctx, manifest.ID)
+		if err != nil {
+			return nil, err
+		}
+		if options.installedOnly &&
+			(registry == nil || registry.Installed != catalog.InstalledYes) {
 			continue
 		}
 
@@ -231,10 +239,6 @@ func (s *serviceImpl) collectDynamicManagedCronJobs(
 	registry, err := s.catalogSvc.GetRegistry(ctx, manifest.ID)
 	if err != nil {
 		return nil, err
-	}
-	if options.installedOnly &&
-		(registry == nil || registry.Installed != catalog.InstalledYes) {
-		return nil, nil
 	}
 	if !options.includeDisabledDynamic {
 		enabled, err := s.registryBusinessEntryEnabledForTenant(ctx, registry, manifest)
