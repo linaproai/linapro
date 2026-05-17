@@ -60,7 +60,7 @@ func TestParseCatalogSupportsNestedFlatAndScalarModes(t *testing.T) {
 }
 
 // TestLoadHostBundleDefaultsToLocaleDirectory verifies the loader's default
-// filesystem layout follows the current locale-directory convention.
+// target directory follows the current locale root convention.
 func TestLoadHostBundleDefaultsToLocaleDirectory(t *testing.T) {
 	t.Parallel()
 
@@ -112,9 +112,8 @@ func TestLoadHostBundleMergesLocaleDirectoryOnly(t *testing.T) {
   "core.api.auth.v1.LoginReq.meta.summary": "用户登录"
 }`)},
 		},
-		Subdir:     "manifest/i18n",
-		LayoutMode: LayoutModeLocaleDirectory,
-		ValueMode:  ValueModeStringifyScalars,
+		Subdir:    "manifest/i18n",
+		ValueMode: ValueModeStringifyScalars,
 	}
 
 	expected := map[string]string{
@@ -126,9 +125,9 @@ func TestLoadHostBundleMergesLocaleDirectoryOnly(t *testing.T) {
 	}
 }
 
-// TestLoadHostBundleMergesLocaleSubdirectoryRecursive verifies apidoc resources
+// TestLoadHostBundleMergesRecursiveLocaleSubdirectory verifies apidoc resources
 // can live under the locale directory without being mixed into runtime bundles.
-func TestLoadHostBundleMergesLocaleSubdirectoryRecursive(t *testing.T) {
+func TestLoadHostBundleMergesRecursiveLocaleSubdirectory(t *testing.T) {
 	t.Parallel()
 
 	loader := ResourceLoader{
@@ -149,7 +148,7 @@ func TestLoadHostBundleMergesLocaleSubdirectoryRecursive(t *testing.T) {
 		},
 		Subdir:       "manifest/i18n",
 		LocaleSubdir: "apidoc",
-		LayoutMode:   LayoutModeLocaleSubdirectoryRecursive,
+		Recursive:    true,
 		ValueMode:    ValueModeStringOnly,
 	}
 
@@ -162,9 +161,9 @@ func TestLoadHostBundleMergesLocaleSubdirectoryRecursive(t *testing.T) {
 	}
 }
 
-// TestLoadHostBundleRequiresLocaleSubdirForRecursiveMode verifies a
-// misconfigured recursive subdirectory loader does not read the whole locale.
-func TestLoadHostBundleRequiresLocaleSubdirForRecursiveMode(t *testing.T) {
+// TestLoadHostBundleRecursiveRootIncludesNestedResources verifies recursive
+// root-directory scans are explicit and include nested locale resources.
+func TestLoadHostBundleRecursiveRootIncludesNestedResources(t *testing.T) {
 	t.Parallel()
 
 	loader := ResourceLoader{
@@ -176,13 +175,17 @@ func TestLoadHostBundleRequiresLocaleSubdirForRecursiveMode(t *testing.T) {
   "core.common.pageNum.dc": "页码"
 }`)},
 		},
-		Subdir:     "manifest/i18n",
-		LayoutMode: LayoutModeLocaleSubdirectoryRecursive,
-		ValueMode:  ValueModeStringOnly,
+		Subdir:    "manifest/i18n",
+		Recursive: true,
+		ValueMode: ValueModeStringOnly,
 	}
 
-	if actual := loader.LoadHostBundle(context.Background(), "zh-CN"); len(actual) != 0 {
-		t.Fatalf("expected empty bundle for missing locale subdir, got %v", actual)
+	expected := map[string]string{
+		"menu.dashboard.title":   "工作台",
+		"core.common.pageNum.dc": "页码",
+	}
+	if actual := loader.LoadHostBundle(context.Background(), "zh-CN"); !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("unexpected recursive root bundle: expected=%v actual=%v", expected, actual)
 	}
 }
 
@@ -202,9 +205,8 @@ func TestLoadSourcePluginBundlesLoadsEachPlugin(t *testing.T) {
 				}},
 			}
 		},
-		Subdir:     "manifest/i18n",
-		LayoutMode: LayoutModeLocaleDirectory,
-		ValueMode:  ValueModeStringifyScalars,
+		Subdir:    "manifest/i18n",
+		ValueMode: ValueModeStringifyScalars,
 	}
 
 	actual := loader.LoadSourcePluginBundles(context.Background(), "en-US")
@@ -251,7 +253,7 @@ func TestRestrictedPluginScopeDropsForeignKeys(t *testing.T) {
 		Subdir:       "manifest/i18n",
 		LocaleSubdir: "apidoc",
 		PluginScope:  PluginScopeRestrictedToPluginNamespace,
-		LayoutMode:   LayoutModeLocaleSubdirectoryRecursive,
+		Recursive:    true,
 		ValueMode:    ValueModeStringOnly,
 		KeyFilter: func(key string) bool {
 			return key != "plugins.plugin_demo_dynamic.internal.model.entity.User.name"

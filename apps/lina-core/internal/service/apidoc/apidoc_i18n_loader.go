@@ -143,8 +143,8 @@ func parseOpenAPIMessageCatalogJSON(content []byte) (map[string]string, error) {
 
 // openAPIResourceLoader applies the common apidoc resource-loader defaults.
 func openAPIResourceLoader(loader i18nresource.ResourceLoader) i18nresource.ResourceLoader {
-	loader.LayoutMode = i18nresource.LayoutModeLocaleSubdirectoryRecursive
 	loader.LocaleSubdir = openAPILocaleSubdir
+	loader.Recursive = true
 	loader.ValueMode = i18nresource.ValueModeStringOnly
 	loader.KeyFilter = func(key string) bool {
 		return !isGeneratedEntityOpenAPIKey(key)

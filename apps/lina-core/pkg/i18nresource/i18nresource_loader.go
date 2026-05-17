@@ -74,26 +74,17 @@ func (l ResourceLoader) LoadDynamicPluginBundles(ctx context.Context, locale str
 	return bundles
 }
 
-// loadFilesystemBundle loads one locale bundle from a filesystem using the loader layout.
+// loadFilesystemBundle loads one locale bundle from the configured locale directory.
 func (l ResourceLoader) loadFilesystemBundle(ctx context.Context, filesystem fs.FS, locale string) map[string]string {
 	if filesystem == nil {
 		return map[string]string{}
 	}
 	trimmedLocale := strings.TrimSpace(locale)
-
-	switch l.layoutMode() {
-	case LayoutModeLocaleDirectory:
-		return l.loadFilesystemBundleDirectory(ctx, filesystem, path.Join(l.subdir(), trimmedLocale), false)
-	case LayoutModeLocaleSubdirectoryRecursive:
-		localeSubdir := l.localeSubdir()
-		if localeSubdir == "" {
-			logger.Warningf(ctx, "skip i18n recursive subdirectory load with empty locale subdir locale=%s", trimmedLocale)
-			return map[string]string{}
-		}
-		return l.loadFilesystemBundleDirectory(ctx, filesystem, path.Join(l.subdir(), trimmedLocale, localeSubdir), true)
-	default:
-		return l.loadFilesystemBundleDirectory(ctx, filesystem, path.Join(l.subdir(), trimmedLocale), false)
+	dir := path.Join(l.subdir(), trimmedLocale)
+	if localeSubdir := l.localeSubdir(); localeSubdir != "" {
+		dir = path.Join(dir, localeSubdir)
 	}
+	return l.loadFilesystemBundleDirectory(ctx, filesystem, dir, l.Recursive)
 }
 
 // loadFilesystemBundleDirectory loads JSON files from one directory in

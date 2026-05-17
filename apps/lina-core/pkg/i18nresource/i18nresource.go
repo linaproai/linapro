@@ -4,18 +4,6 @@ package i18nresource
 
 import "io/fs"
 
-// LayoutMode controls which locale resource layout is loaded from one filesystem.
-type LayoutMode string
-
-const (
-	// LayoutModeLocaleDirectory loads every JSON file directly under
-	// `<subdir>/<locale>/`, ignoring nested directories such as apidoc.
-	LayoutModeLocaleDirectory LayoutMode = "locale-directory"
-	// LayoutModeLocaleSubdirectoryRecursive loads every JSON file under
-	// `<subdir>/<locale>/<localeSubdir>/` recursively.
-	LayoutModeLocaleSubdirectoryRecursive LayoutMode = "locale-subdirectory-recursive"
-)
-
 // PluginScope controls whether plugin resource keys are namespace restricted.
 type PluginScope string
 
@@ -69,9 +57,9 @@ type ResourceLoader struct {
 	HostFS        fs.FS                 // HostFS stores host-owned embedded resources.
 	SourcePlugins func() []SourcePlugin // SourcePlugins returns registered source plugins.
 	Subdir        string                // Subdir is the slash-separated locale resource directory.
-	LocaleSubdir  string                // LocaleSubdir names the child directory used by recursive subdirectory mode.
+	LocaleSubdir  string                // LocaleSubdir optionally narrows loading to a child directory under the locale.
+	Recursive     bool                  // Recursive scans JSON files below the target directory recursively.
 	PluginScope   PluginScope           // PluginScope restricts plugin-owned keys when needed.
-	LayoutMode    LayoutMode            // LayoutMode selects the supported filesystem layout.
 	ValueMode     ValueMode             // ValueMode selects JSON scalar conversion behavior.
 	KeyFilter     KeyFilter             // KeyFilter optionally removes disallowed flat keys.
 }

@@ -70,7 +70,7 @@
 
 ### 需求：翻译资源加载器必须在宿主和插件、UI 和 apidoc 之间共享
 
-宿主系统 SHALL 在 `pkg/i18nresource` 包中提供统一的 `ResourceLoader` 组件，接受 `Subdir`、`LocaleSubdir`、`PluginScope`、`LayoutMode` 等配置参数，集中实现"宿主嵌入资源 -> 源码插件资源 -> 动态插件资源"的发现和加载逻辑。运行时 UI 翻译资源加载和 API 文档翻译资源加载必须通过不同的 `ResourceLoader` 实例完成，不得各自维护重复实现，也不得导致 API 文档模块反向依赖运行时 `internal/service/i18n` 仅为复用加载器。源码插件 apidoc 命名空间隔离必须通过 `ResourceLoader` 配置实现，而非额外重复代码。
+宿主系统 SHALL 在 `pkg/i18nresource` 包中提供统一的 `ResourceLoader` 组件，接受 `Subdir`、`LocaleSubdir`、`Recursive`、`PluginScope` 等配置参数，集中实现"宿主嵌入资源 -> 源码插件资源 -> 动态插件资源"的发现和加载逻辑。运行时 UI 翻译资源加载和 API 文档翻译资源加载必须通过不同的 `ResourceLoader` 实例完成，不得各自维护重复实现，也不得导致 API 文档模块反向依赖运行时 `internal/service/i18n` 仅为复用加载器。源码插件 apidoc 命名空间隔离必须通过 `ResourceLoader` 配置实现，而非额外重复代码。
 
 #### 场景：运行时语言包和 apidoc 共享同一资源加载器实现
 - **当** 系统加载运行时 UI 翻译资源或 apidoc 翻译资源时

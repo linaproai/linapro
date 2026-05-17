@@ -277,14 +277,14 @@ func collectFrontendAssets(pluginDir string, embeddedResources *embeddedStaticRe
 }
 
 func collectI18NAssets(pluginDir string, embeddedResources *embeddedStaticResourceSet) ([]*i18nAsset, error) {
-	return collectLocaleDirectoryJSONAssets(pluginDir, embeddedResources, "manifest/i18n", "", false)
+	return collectLocaleJSONAssets(pluginDir, embeddedResources, "manifest/i18n", "", false)
 }
 
 func collectAPIDocI18NAssets(pluginDir string, embeddedResources *embeddedStaticResourceSet) ([]*i18nAsset, error) {
-	return collectLocaleDirectoryJSONAssets(pluginDir, embeddedResources, "manifest/i18n", "apidoc", true)
+	return collectLocaleJSONAssets(pluginDir, embeddedResources, "manifest/i18n", "apidoc", true)
 }
 
-func collectLocaleDirectoryJSONAssets(
+func collectLocaleJSONAssets(
 	pluginDir string,
 	embeddedResources *embeddedStaticResourceSet,
 	relativeDir string,

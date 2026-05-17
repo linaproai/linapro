@@ -14,14 +14,6 @@ func (l ResourceLoader) localeSubdir() string {
 	return strings.Trim(strings.TrimSpace(l.LocaleSubdir), "/")
 }
 
-// layoutMode returns the configured layout mode with a locale-directory default.
-func (l ResourceLoader) layoutMode() LayoutMode {
-	if l.LayoutMode == "" {
-		return LayoutModeLocaleDirectory
-	}
-	return l.LayoutMode
-}
-
 // pluginScope returns the configured plugin scope with an open default.
 func (l ResourceLoader) pluginScope() PluginScope {
 	if l.PluginScope == "" {
