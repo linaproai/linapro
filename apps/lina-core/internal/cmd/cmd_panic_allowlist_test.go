@@ -163,7 +163,7 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "runtime-config cachecoord domain registration is a static consistency contract and failures make protected config freshness undefined",
 		},
 		{
-			Path:     "apps/lina-core/internal/service/pluginruntimecache/pluginruntimecache.go",
+			Path:     "apps/lina-core/internal/service/pluginruntimecache/pluginruntimecache_controller.go",
 			Function: "configureRuntimeCacheDomain",
 			Count:    1,
 			Category: panicCategoryStaticConfig,
@@ -191,7 +191,7 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "Must constructor documents fail-fast behavior and has a non-Must alternative",
 		},
 		{
-			Path:     "apps/lina-core/pkg/pluginbridge/hostservice/hostservice.go",
+			Path:     "apps/lina-core/pkg/pluginbridge/hostservice/hostservice_validation.go",
 			Function: "MustNormalizeHostServiceSpecs",
 			Count:    1,
 			Category: panicCategoryMustConstructor,

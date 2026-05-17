@@ -123,10 +123,31 @@ type SourceRegistrationService interface {
 	) error
 	// RegisterCrons registers callback-contributed cron jobs for source plugins.
 	RegisterCrons(ctx context.Context) error
-	// ListManagedCronJobs returns plugin-owned cron definitions for scheduled-job projection.
-	ListManagedCronJobs(ctx context.Context) ([]ManagedCronJob, error)
-	// ListManagedCronJobsByPlugin returns cron definitions owned by one plugin.
-	ListManagedCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error)
+	// ListExecutableCronJobs returns plugin-owned cron definitions whose
+	// handlers are safe to publish for execution. Dynamic plugins must be in
+	// an enabled business-entry state; disabled, pending-upgrade, abnormal, and
+	// failed-upgrade dynamic plugins are excluded. Use this only for runtime
+	// handler publication, not for authorization previews or task-table
+	// projection.
+	ListExecutableCronJobs(ctx context.Context) ([]ManagedCronJob, error)
+	// ListExecutableCronJobsByPlugin returns executable cron definitions for
+	// one plugin. It applies the same enablement and runtime-state rules as
+	// ListExecutableCronJobs while narrowing discovery to pluginID, so callers
+	// can register handlers during a plugin enable lifecycle without exposing
+	// declarations that are not currently executable.
+	ListExecutableCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error)
+	// ListCronDeclarationsByPlugin returns declared cron metadata for one
+	// plugin without requiring the plugin business entry to be enabled. This is
+	// intended for management review and host-service authorization previews,
+	// including not-yet-installed dynamic plugins. Callers must not publish the
+	// returned handlers directly because the plugin may not be executable.
+	ListCronDeclarationsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error)
+	// ListInstalledCronDeclarations returns declared cron metadata for
+	// installed plugins without requiring their business entries to be enabled.
+	// Scheduled-job projection uses this to create or update task-table rows
+	// for installed plugins while avoiding preview-only declarations from
+	// uninstalled plugins.
+	ListInstalledCronDeclarations(ctx context.Context) ([]ManagedCronJob, error)
 }
 
 // HookDispatchService defines plugin hook dispatch operations.

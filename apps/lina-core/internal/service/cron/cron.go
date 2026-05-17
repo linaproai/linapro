@@ -46,6 +46,14 @@ type builtinJobSyncer interface {
 	ReconcileBuiltinJobs(ctx context.Context, jobs []jobmgmtsvc.BuiltinJobDef) ([]*entity.SysJob, error)
 }
 
+// pluginCronCatalog exposes installed plugin cron declarations needed for
+// scheduled-job projection without coupling cron to the full plugin facade.
+type pluginCronCatalog interface {
+	// ListInstalledCronDeclarations returns installed plugin-owned cron
+	// declarations, including disabled plugins whose handlers are not executable.
+	ListInstalledCronDeclarations(ctx context.Context) ([]pluginsvc.ManagedCronJob, error)
+}
+
 // startupJob abstracts warm-up and watcher registration logic selected during
 // service construction for single-node or clustered deployments.
 type startupJob interface {
@@ -65,7 +73,7 @@ type serviceImpl struct {
 	sessionStore          session.Store          // Session store
 	clusterSvc            cluster.Service        // Cluster topology service
 	registry              jobhandlersvc.Registry // registry stores managed host and plugin handlers.
-	pluginSvc             pluginsvc.Service      // Plugin service
+	pluginSvc             pluginCronCatalog      // pluginSvc exposes installed plugin cron declarations.
 	builtinSyncer         builtinJobSyncer       // builtinSyncer persists code-owned job definitions.
 	persistentScheduler   jobmgmtsvc.Scheduler   // persistentScheduler loads and registers persisted jobs.
 	runtimeParamSyncJob   startupJob             // Runtime-parameter sync startup job

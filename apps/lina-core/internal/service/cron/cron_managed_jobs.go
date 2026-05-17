@@ -239,7 +239,7 @@ func (s *serviceImpl) buildPluginBuiltinJobs(ctx context.Context) ([]jobmgmtsvc.
 		return nil, nil
 	}
 
-	items, err := s.pluginSvc.ListManagedCronJobs(ctx)
+	items, err := s.pluginSvc.ListInstalledCronDeclarations(ctx)
 	if err != nil {
 		return nil, err
 	}

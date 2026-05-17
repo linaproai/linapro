@@ -115,6 +115,30 @@ func (s *serviceImpl) collectManagedCronJobs(
 	ctx context.Context,
 	pluginID string,
 ) ([]ManagedCronJob, error) {
+	return s.collectManagedCronJobsWithOptions(ctx, pluginID, collectManagedCronOptions{})
+}
+
+// collectDeclaredCronJobs gathers plugin-owned cron declarations for management
+// review without checking runtime business-entry enablement.
+func (s *serviceImpl) collectDeclaredCronJobs(
+	ctx context.Context,
+	pluginID string,
+) ([]ManagedCronJob, error) {
+	return s.collectManagedCronJobsWithOptions(ctx, pluginID, collectManagedCronOptions{
+		includeDisabledDynamic: true,
+	})
+}
+
+// collectManagedCronJobsWithOptions gathers plugin-owned cron definitions from
+// matching source and dynamic plugins. When includeDisabledDynamic is true,
+// dynamic discovery uses the current manifest before enablement; when
+// installedOnly is true, uninstalled dynamic plugins are skipped so management
+// previews do not leak into scheduled-job projections.
+func (s *serviceImpl) collectManagedCronJobsWithOptions(
+	ctx context.Context,
+	pluginID string,
+	options collectManagedCronOptions,
+) ([]ManagedCronJob, error) {
 	manifests, err := s.catalogSvc.ScanManifests()
 	if err != nil {
 		return nil, err
@@ -136,13 +160,20 @@ func (s *serviceImpl) collectManagedCronJobs(
 		}
 		result = append(result, sourceItems...)
 
-		dynamicItems, err := s.collectDynamicManagedCronJobs(ctx, manifest)
+		dynamicItems, err := s.collectDynamicManagedCronJobs(ctx, manifest, options)
 		if err != nil {
 			return nil, err
 		}
 		result = append(result, dynamicItems...)
 	}
 	return result, nil
+}
+
+// collectManagedCronOptions controls the declaration and executable discovery
+// modes used by management previews, job projections, and handler publication.
+type collectManagedCronOptions struct {
+	includeDisabledDynamic bool
+	installedOnly          bool
 }
 
 // collectSourceManagedCronJobs gathers source-plugin managed cron registrations
@@ -180,6 +211,7 @@ func (s *serviceImpl) collectSourceManagedCronJobs(
 func (s *serviceImpl) collectDynamicManagedCronJobs(
 	ctx context.Context,
 	manifest *catalog.Manifest,
+	options collectManagedCronOptions,
 ) ([]ManagedCronJob, error) {
 	if manifest == nil {
 		return nil, nil
@@ -200,12 +232,18 @@ func (s *serviceImpl) collectDynamicManagedCronJobs(
 	if err != nil {
 		return nil, err
 	}
-	enabled, err := s.registryBusinessEntryEnabledForTenant(ctx, registry, manifest)
-	if err != nil {
-		return nil, err
-	}
-	if !enabled {
+	if options.installedOnly &&
+		(registry == nil || registry.Installed != catalog.InstalledYes) {
 		return nil, nil
+	}
+	if !options.includeDisabledDynamic {
+		enabled, err := s.registryBusinessEntryEnabledForTenant(ctx, registry, manifest)
+		if err != nil {
+			return nil, err
+		}
+		if !enabled {
+			return nil, nil
+		}
 	}
 
 	contracts, err := s.dynamicCronExecutor.DiscoverCronContracts(ctx, manifest)
@@ -259,13 +297,36 @@ func manifestDeclaresCronHostService(manifest *catalog.Manifest) bool {
 	return false
 }
 
-// ListManagedCronJobs returns all plugin-owned cron definitions for
-// projection into the unified scheduled-job table.
-func (s *serviceImpl) ListManagedCronJobs(ctx context.Context) ([]ManagedCronJob, error) {
+// ListExecutableCronJobs returns all plugin-owned cron definitions that can be
+// bound to executable handlers. Dynamic plugins are included only when their
+// business entry is enabled and their runtime state allows business execution;
+// this prevents pending-upgrade or disabled plugins from publishing handlers.
+func (s *serviceImpl) ListExecutableCronJobs(ctx context.Context) ([]ManagedCronJob, error) {
 	return s.collectManagedCronJobs(ctx, "")
 }
 
-// ListManagedCronJobsByPlugin returns cron definitions owned by one plugin.
-func (s *serviceImpl) ListManagedCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error) {
+// ListExecutableCronJobsByPlugin returns executable cron definitions owned by
+// one plugin. It is the narrow handler-publication path used by plugin
+// lifecycle observers, so it intentionally excludes declaration-only cron
+// metadata from not-yet-enabled dynamic plugins.
+func (s *serviceImpl) ListExecutableCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error) {
 	return s.collectManagedCronJobs(ctx, pluginID)
+}
+
+// ListCronDeclarationsByPlugin returns cron declarations owned by one plugin for
+// management review, including dynamic plugins that are not yet installed or
+// enabled. The returned definitions are declaration snapshots for authorization
+// and review flows; callers must not publish them as executable handlers.
+func (s *serviceImpl) ListCronDeclarationsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error) {
+	return s.collectDeclaredCronJobs(ctx, pluginID)
+}
+
+// ListInstalledCronDeclarations returns cron declarations from installed plugins
+// so scheduled-job management can display disabled plugin jobs as paused while
+// avoiding uninstalled authorization-preview-only plugins.
+func (s *serviceImpl) ListInstalledCronDeclarations(ctx context.Context) ([]ManagedCronJob, error) {
+	return s.collectManagedCronJobsWithOptions(ctx, "", collectManagedCronOptions{
+		includeDisabledDynamic: true,
+		installedOnly:          true,
+	})
 }

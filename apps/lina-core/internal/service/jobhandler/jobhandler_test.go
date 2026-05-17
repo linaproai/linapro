@@ -150,9 +150,9 @@ func (c testPluginStatusChecker) ListEnabledPluginIDs(ctx context.Context) ([]st
 	return items, nil
 }
 
-// ListManagedCronJobsByPlugin returns no synthetic cron jobs for registry tests
+// ListExecutableCronJobsByPlugin returns no synthetic cron jobs for registry tests
 // unless one test overrides the fixture explicitly.
-func (c testPluginStatusChecker) ListManagedCronJobsByPlugin(
+func (c testPluginStatusChecker) ListExecutableCronJobsByPlugin(
 	ctx context.Context,
 	pluginID string,
 ) ([]pluginsvc.ManagedCronJob, error) {

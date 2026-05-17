@@ -132,11 +132,11 @@ func (c *ControllerV1) buildManagedCronJobMap(
 			!pluginUsesCronHostService(item.AuthorizedHostServices) {
 			continue
 		}
-		managedCronJobs, err := c.pluginSvc.ListManagedCronJobsByPlugin(ctx, item.Id)
+		managedCronJobs, err := c.pluginSvc.ListCronDeclarationsByPlugin(ctx, item.Id)
 		if err != nil {
 			logger.Warningf(
 				ctx,
-				"load plugin managed cron jobs failed plugin=%s err=%v",
+				"load plugin declared cron jobs failed plugin=%s err=%v",
 				item.Id,
 				err,
 			)

@@ -34,20 +34,55 @@ func (s *serviceImpl) SetHostServices(services pluginhost.HostServices) {
 	s.integrationSvc.SetHostServices(services)
 }
 
-// ListManagedCronJobs returns plugin-owned cron definitions for scheduled-job projection.
-func (s *serviceImpl) ListManagedCronJobs(ctx context.Context) ([]ManagedCronJob, error) {
+// ListExecutableCronJobs returns plugin-owned cron definitions whose handlers
+// are safe to publish for execution. Dynamic plugins must be installed, enabled
+// for the current business-entry context, and free of runtime-upgrade blocking
+// states; declarations from disabled or preview-only dynamic plugins are
+// intentionally excluded. Use this method for executable handler publication,
+// not for authorization previews or scheduled-job table projection.
+func (s *serviceImpl) ListExecutableCronJobs(ctx context.Context) ([]ManagedCronJob, error) {
 	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
 		return nil, err
 	}
-	return s.integrationSvc.ListManagedCronJobs(ctx)
+	return s.integrationSvc.ListExecutableCronJobs(ctx)
 }
 
-// ListManagedCronJobsByPlugin returns plugin-owned cron definitions for one plugin.
-func (s *serviceImpl) ListManagedCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error) {
+// ListExecutableCronJobsByPlugin returns executable plugin-owned cron
+// definitions for one plugin. The method applies the same runtime cache
+// freshness, install, enablement, and runtime-state checks as
+// ListExecutableCronJobs while narrowing discovery to pluginID. Job-handler
+// lifecycle synchronization uses this path when an enabled plugin publishes its
+// concrete handler references.
+func (s *serviceImpl) ListExecutableCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error) {
 	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
 		return nil, err
 	}
-	return s.integrationSvc.ListManagedCronJobsByPlugin(ctx, pluginID)
+	return s.integrationSvc.ListExecutableCronJobsByPlugin(ctx, pluginID)
+}
+
+// ListCronDeclarationsByPlugin returns plugin-owned cron declaration metadata
+// for management review without requiring the plugin business entry to be
+// enabled. This path is used by plugin list and authorization-preview screens,
+// including before a dynamic plugin is installed. Returned items describe what
+// the plugin declares; callers must not treat them as proof that handlers can be
+// executed.
+func (s *serviceImpl) ListCronDeclarationsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error) {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return nil, err
+	}
+	return s.integrationSvc.ListCronDeclarationsByPlugin(ctx, pluginID)
+}
+
+// ListInstalledCronDeclarations returns declared cron metadata for installed
+// plugins without requiring their business entries to be enabled. Scheduled-job
+// projection uses this path so installed-but-disabled plugins can keep visible
+// task rows, while uninstalled authorization-preview declarations stay out of
+// the persistent task table.
+func (s *serviceImpl) ListInstalledCronDeclarations(ctx context.Context) ([]ManagedCronJob, error) {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return nil, err
+	}
+	return s.integrationSvc.ListInstalledCronDeclarations(ctx)
 }
 
 // DispatchHookEvent dispatches one named hook event to all enabled plugins.

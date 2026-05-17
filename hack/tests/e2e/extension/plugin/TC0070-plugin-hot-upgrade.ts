@@ -312,8 +312,21 @@ async function installPlugin(adminApi: APIRequestContext) {
   assertOk(response, "安装动态插件失败");
 }
 
-async function installPluginExpectFailure(adminApi: APIRequestContext) {
-  return await adminApi.post(`plugins/${pluginID}/install`);
+async function upgradePlugin(adminApi: APIRequestContext) {
+  const response = await adminApi.post(`plugins/${pluginID}/upgrade`, {
+    data: {
+      confirmed: true,
+    },
+  });
+  assertOk(response, "升级动态插件失败");
+}
+
+async function upgradePluginExpectFailure(adminApi: APIRequestContext) {
+  return await adminApi.post(`plugins/${pluginID}/upgrade`, {
+    data: {
+      confirmed: true,
+    },
+  });
 }
 
 async function setPluginEnabled(
@@ -495,11 +508,17 @@ test.describe("TC-70 动态插件热升级与回滚", () => {
 
     const upgradeArtifactPath = writeRuntimeArtifact(versionTwo, markerTwo);
     await uploadDynamicPlugin(adminApi!, upgradeArtifactPath);
-    await installPlugin(adminApi!);
+    await waitForPluginRegistryState({
+      installed: 1,
+      enabled: 1,
+      version: versionOne,
+    });
+    await upgradePlugin(adminApi!);
 
     await waitForPluginRegistryState({
       installed: 1,
       enabled: 1,
+      version: versionTwo,
     });
 
     // The archived release must keep the old asset reachable even after the
@@ -534,10 +553,16 @@ test.describe("TC-70 动态插件热升级与回滚", () => {
 
     const upgradeArtifactPath = writeRuntimeArtifact(versionTwo, markerTwo);
     await uploadDynamicPlugin(adminApi!, upgradeArtifactPath);
-    await installPlugin(adminApi!);
     await waitForPluginRegistryState({
       installed: 1,
       enabled: 1,
+      version: versionOne,
+    });
+    await upgradePlugin(adminApi!);
+    await waitForPluginRegistryState({
+      installed: 1,
+      enabled: 1,
+      version: versionTwo,
     });
 
     await triggerPluginRegistryFocusCheck(adminPage);
@@ -565,10 +590,16 @@ test.describe("TC-70 动态插件热升级与回滚", () => {
     await pluginPage.gotoWorkspace();
     const upgradeArtifactPath = writeRuntimeArtifact(versionTwo, markerTwo);
     await uploadDynamicPlugin(adminApi!, upgradeArtifactPath);
-    await installPlugin(adminApi!);
     await waitForPluginRegistryState({
       installed: 1,
       enabled: 1,
+      version: versionOne,
+    });
+    await upgradePlugin(adminApi!);
+    await waitForPluginRegistryState({
+      installed: 1,
+      enabled: 1,
+      version: versionTwo,
     });
 
     await triggerPluginRegistryFocusCheck(adminPage);
@@ -595,15 +626,21 @@ test.describe("TC-70 动态插件热升级与回滚", () => {
       true,
     );
     await uploadDynamicPlugin(adminApi!, failedArtifactPath);
-    const failedInstallResponse = await installPluginExpectFailure(adminApi!);
+    await waitForPluginRegistryState({
+      installed: 1,
+      enabled: 1,
+      version: versionTwo,
+    });
+    const failedUpgradeResponse = await upgradePluginExpectFailure(adminApi!);
     await assertApiFailure(
-      failedInstallResponse,
+      failedUpgradeResponse,
       "升级失败时应返回错误响应",
     );
 
     await waitForPluginRegistryState({
       installed: 1,
       enabled: 1,
+      version: versionTwo,
     });
 
     await expectHostedAsset(adminPage, versionTwo, 200, markerTwo);

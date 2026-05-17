@@ -22,8 +22,9 @@ type PluginLifecycleBridge interface {
 	// ListEnabledPluginIDs returns all currently enabled plugin identifiers so
 	// startup sync can restore synthetic handlers after host restart.
 	ListEnabledPluginIDs(ctx context.Context) ([]string, error)
-	// ListManagedCronJobsByPlugin returns plugin-owned cron definitions for one plugin.
-	ListManagedCronJobsByPlugin(ctx context.Context, pluginID string) ([]pluginsvc.ManagedCronJob, error)
+	// ListExecutableCronJobsByPlugin returns plugin-owned cron definitions that
+	// can be published as handlers for one enabled plugin.
+	ListExecutableCronJobsByPlugin(ctx context.Context, pluginID string) ([]pluginsvc.ManagedCronJob, error)
 }
 
 // pluginLifecycleObserver maps plugin lifecycle callbacks to registry mutations.
@@ -119,7 +120,7 @@ func (o *pluginLifecycleObserver) registerPluginHandlers(ctx context.Context, pl
 		return nil
 	}
 
-	managedJobs, err := o.bridge.ListManagedCronJobsByPlugin(ctx, pluginID)
+	managedJobs, err := o.bridge.ListExecutableCronJobsByPlugin(ctx, pluginID)
 	if err != nil {
 		for _, registeredRef := range registeredRefs {
 			o.registry.Unregister(registeredRef)

@@ -12,6 +12,7 @@ import (
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
+	pluginsvc "lina-core/internal/service/plugin"
 )
 
 // managedJobSyncerStub captures built-in reconciliation inputs and returns
@@ -77,6 +78,26 @@ func (s *managedJobSchedulerStub) Trigger(ctx context.Context, jobID int64) (int
 // CancelLog is unused by declaration registration tests.
 func (s *managedJobSchedulerStub) CancelLog(ctx context.Context, logID int64) error { return nil }
 
+// managedPluginCronStub records which plugin cron surface the cron service
+// consumes while building code-owned scheduled-job projections.
+type managedPluginCronStub struct {
+	listExecutableCalled        bool
+	listInstalledDeclaredCalled bool
+	installedDeclarations       []pluginsvc.ManagedCronJob
+}
+
+// ListExecutableCronJobs records unexpected executable-list usage.
+func (s *managedPluginCronStub) ListExecutableCronJobs(ctx context.Context) ([]pluginsvc.ManagedCronJob, error) {
+	s.listExecutableCalled = true
+	return nil, nil
+}
+
+// ListInstalledCronDeclarations returns installed plugin declaration snapshots.
+func (s *managedPluginCronStub) ListInstalledCronDeclarations(ctx context.Context) ([]pluginsvc.ManagedCronJob, error) {
+	s.listInstalledDeclaredCalled = true
+	return s.installedDeclarations, nil
+}
+
 // TestSyncBuiltinScheduledJobsRegistersDeclarationSnapshots verifies cron
 // registers built-ins from the reconciliation return value rather than a later
 // persistent scheduler scan of sys_job.
@@ -111,5 +132,47 @@ func TestSyncBuiltinScheduledJobsRegistersDeclarationSnapshots(t *testing.T) {
 		if snapshot.HandlerRef != declaration.HandlerRef {
 			t.Fatalf("expected snapshot handler_ref=%s, got %s", declaration.HandlerRef, snapshot.HandlerRef)
 		}
+	}
+}
+
+// TestBuildPluginBuiltinJobsUsesInstalledDeclarations verifies disabled but
+// installed plugin cron declarations remain visible to scheduled-job management.
+func TestBuildPluginBuiltinJobsUsesInstalledDeclarations(t *testing.T) {
+	ctx := context.Background()
+	pluginSvc := &managedPluginCronStub{
+		installedDeclarations: []pluginsvc.ManagedCronJob{
+			{
+				PluginID:       "plugin-cron-installed",
+				Name:           "heartbeat",
+				DisplayName:    "Plugin Heartbeat",
+				Description:    "Installed plugin heartbeat.",
+				Pattern:        "# */10 * * * *",
+				Timezone:       "Asia/Shanghai",
+				Scope:          jobmeta.JobScopeAllNode,
+				Concurrency:    jobmeta.JobConcurrencySingleton,
+				MaxConcurrency: 1,
+			},
+		},
+	}
+	svc := &serviceImpl{
+		configSvc: hostconfig.New(),
+		pluginSvc: pluginSvc,
+	}
+
+	jobs, err := svc.buildPluginBuiltinJobs(ctx)
+	if err != nil {
+		t.Fatalf("expected plugin builtin projection to succeed, got error: %v", err)
+	}
+	if pluginSvc.listExecutableCalled {
+		t.Fatal("expected plugin builtin projection not to use executable cron list")
+	}
+	if !pluginSvc.listInstalledDeclaredCalled {
+		t.Fatal("expected plugin builtin projection to use installed declaration cron list")
+	}
+	if len(jobs) != 1 {
+		t.Fatalf("expected one plugin builtin job, got %#v", jobs)
+	}
+	if jobs[0].HandlerRef != "plugin:plugin-cron-installed/cron:heartbeat" {
+		t.Fatalf("unexpected plugin handler ref: %s", jobs[0].HandlerRef)
 	}
 }
