@@ -80,7 +80,7 @@ type httpRuntime struct {
 }
 
 // pluginStartupConsistencyValidator is the narrow startup contract required to
-// fail fast before HTTP route publication.
+// fail fast before the HTTP server starts serving requests.
 type pluginStartupConsistencyValidator interface {
 	// ValidateStartupConsistency verifies persisted plugin and tenant governance state.
 	ValidateStartupConsistency(ctx context.Context) error
@@ -364,9 +364,18 @@ func closeHTTPCoordinationAfterInitError(ctx context.Context, coordinationSvc co
 	}
 }
 
-// startHTTPRuntime starts cluster, plugin, and cron services in the order
-// required for source-plugin handlers and dynamic runtime state to be ready.
+// startHTTPRuntime starts the complete runtime in the default order used by
+// tests and non-HTTP callers that do not need to insert source route binding.
 func startHTTPRuntime(ctx context.Context, runtime *httpRuntime) error {
+	if err := startHTTPRuntimeBeforeSourceRoutes(ctx, runtime); err != nil {
+		return err
+	}
+	return finishHTTPRuntimeAfterSourceRoutes(ctx, runtime)
+}
+
+// startHTTPRuntimeBeforeSourceRoutes starts cluster coordination and plugin
+// bootstrap work that must finish before source plugins publish HTTP routes.
+func startHTTPRuntimeBeforeSourceRoutes(ctx context.Context, runtime *httpRuntime) error {
 	runtime.clusterSvc.Start(ctx)
 
 	// Auto-enable and source-upgrade drift scanning run before plugin routes and
@@ -381,6 +390,12 @@ func startHTTPRuntime(ctx context.Context, runtime *httpRuntime) error {
 	}); err != nil {
 		return err
 	}
+	return nil
+}
+
+// finishHTTPRuntimeAfterSourceRoutes validates startup consistency and starts
+// runtime work that depends on source-plugin provider and route registration.
+func finishHTTPRuntimeAfterSourceRoutes(ctx context.Context, runtime *httpRuntime) error {
 	if err := validateHTTPStartupPluginConsistency(ctx, runtime.pluginSvc); err != nil {
 		return err
 	}
@@ -406,8 +421,8 @@ func startHTTPRuntime(ctx context.Context, runtime *httpRuntime) error {
 	return nil
 }
 
-// validateHTTPStartupPluginConsistency fails fast before route publication when
-// persisted plugin or tenant-governance state is incoherent.
+// validateHTTPStartupPluginConsistency fails fast before the HTTP server starts
+// when persisted plugin or tenant-governance state is incoherent.
 func validateHTTPStartupPluginConsistency(ctx context.Context, pluginSvc pluginStartupConsistencyValidator) error {
 	if pluginSvc == nil {
 		return nil

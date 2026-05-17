@@ -9,6 +9,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-core/internal/service/config"
+	"lina-core/pkg/logger"
 )
 
 // HttpInput defines CLI input for the HTTP startup command.
@@ -36,12 +37,18 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 	if err != nil {
 		return nil, err
 	}
-	if err = startHTTPRuntime(startupCtx, runtime); err != nil {
+	if err = startHTTPRuntimeBeforeSourceRoutes(startupCtx, runtime); err != nil {
 		return nil, err
 	}
 
 	bindHostAPIRoutes(startupCtx, s, runtime)
-	bindSourcePluginHTTPRoutes(startupCtx, ctx, s, runtime)
+	if err = registerSourcePluginHTTPRoutes(startupCtx, s, runtime); err != nil {
+		logger.Panicf(startupCtx, "register plugin routes failed: %v", err)
+	}
+	if err = finishHTTPRuntimeAfterSourceRoutes(startupCtx, runtime); err != nil {
+		return nil, err
+	}
+	completeSourcePluginHTTPRoutes(startupCtx, ctx, runtime)
 	if err = bindFrontendAssetRoutes(startupCtx, s, runtime.pluginSvc); err != nil {
 		return nil, err
 	}

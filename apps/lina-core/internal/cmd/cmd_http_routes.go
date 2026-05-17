@@ -156,14 +156,15 @@ func bindDynamicPluginAPIRoutes(parent *ghttp.RouterGroup, pluginSvc pluginsvc.S
 	})
 }
 
-// bindSourcePluginHTTPRoutes lets source plugins contribute host routes and
-// starts dynamic-runtime background work that depends on route publication.
-func bindSourcePluginHTTPRoutes(
+// registerSourcePluginHTTPRoutes lets source plugins contribute host routes
+// before startup consistency checks run. Some source plugins register host
+// capability providers from this callback, so validation and cron startup must
+// wait until this phase has completed.
+func registerSourcePluginHTTPRoutes(
 	ctx context.Context,
-	backgroundCtx context.Context,
 	server *ghttp.Server,
 	runtime *httpRuntime,
-) {
+) error {
 	var pluginGroup *ghttp.RouterGroup
 	server.Group("/", func(group *ghttp.RouterGroup) {
 		pluginGroup = group
@@ -174,8 +175,18 @@ func bindSourcePluginHTTPRoutes(
 		pluginGroup,
 		runtime.middlewareSvc.PublishedRouteMiddlewares(),
 	); err != nil {
-		logger.Panicf(ctx, "register plugin routes failed: %v", err)
+		return err
 	}
+	return nil
+}
+
+// completeSourcePluginHTTPRoutes warms dynamic frontend assets and starts
+// dynamic-runtime background work after startup consistency has passed.
+func completeSourcePluginHTTPRoutes(
+	ctx context.Context,
+	backgroundCtx context.Context,
+	runtime *httpRuntime,
+) {
 	if err := runtime.pluginSvc.PrewarmRuntimeFrontendBundles(ctx); err != nil {
 		logger.Warningf(ctx, "prewarm runtime frontend bundles failed: %v", err)
 	}
