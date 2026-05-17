@@ -1,0 +1,37 @@
+# Manual LinaPro nightly Docker image publishing workflow without test gates.
+# LinaPro 手动 nightly Docker 镜像发布工作流，不包含测试门禁。
+name: Nightly Image Build (Manual Trigger)
+
+on:
+  # Allow maintainers to rebuild and republish nightly images without waiting for the test suite.
+  # 允许维护者在不等待测试套件的情况下重新构建并发布 nightly 镜像。
+  workflow_dispatch:
+
+# The caller workflow is read-only by default; package write access is scoped to the image job.
+# 调用方工作流默认只读；包写权限只在镜像 job 中授予。
+permissions:
+  contents: read
+
+# Keep manual nightly image runs serialized because they publish the same floating tag.
+# 串行化手动 nightly 镜像发布，避免多个手动运行同时更新同一个浮动标签。
+concurrency:
+  group: "${{ github.workflow }} @ nightly"
+  cancel-in-progress: false
+
+jobs:
+  # Publishes the nightly image directly, without depending on test verification jobs.
+  # 直接发布 nightly 镜像，不依赖测试验证 job。
+  manual-nightly-image:
+    name: Build and publish nightly image
+    # Image publication needs package write access, while the workflow stays read-only by default.
+    # 镜像发布需要包写权限，workflow 默认权限保持只读。
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/reusable-image-publish.yml
+    with:
+      image-name: linapro
+      platforms: linux/amd64,linux/arm64
+      tag-mode: nightly
+      floating-tag: nightly
+      plugins: "1"
