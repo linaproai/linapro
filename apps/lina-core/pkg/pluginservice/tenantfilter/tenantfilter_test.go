@@ -15,33 +15,33 @@ import (
 	"lina-core/pkg/pluginservice/contract"
 )
 
-// TestCurrentReadsTenantIDFromBizContext verifies tenant ID resolution from bizctx.
-func TestCurrentReadsTenantIDFromBizContext(t *testing.T) {
+// TestContextReadsTenantIDFromBizContext verifies tenant ID resolution from bizctx.
+func TestContextReadsTenantIDFromBizContext(t *testing.T) {
 	service := newTenantFilterForTest(nil)
 	ctx := contract.WithCurrentContext(context.Background(), contract.CurrentContext{TenantID: 42})
-	if got := service.Current(ctx); got != 42 {
+	if got := service.Context(ctx).TenantID; got != 42 {
 		t.Fatalf("expected tenant 42, got %d", got)
 	}
 }
 
-// TestCurrentDefaultsToPlatform verifies missing bizctx remains the platform tenant.
-func TestCurrentDefaultsToPlatform(t *testing.T) {
+// TestContextDefaultsToPlatform verifies missing bizctx remains the platform tenant.
+func TestContextDefaultsToPlatform(t *testing.T) {
 	service := newTenantFilterForTest(nil)
-	if got := service.Current(context.Background()); got != 0 {
+	if got := service.Context(context.Background()).TenantID; got != 0 {
 		t.Fatalf("expected platform tenant, got %d", got)
 	}
 }
 
-// TestCurrentContextLeavesOnBehalfEmptyForRegularTenant verifies regular tenant
+// TestContextLeavesOnBehalfEmptyForRegularTenant verifies regular tenant
 // requests do not persist impersonation-only audit fields.
-func TestCurrentContextLeavesOnBehalfEmptyForRegularTenant(t *testing.T) {
+func TestContextLeavesOnBehalfEmptyForRegularTenant(t *testing.T) {
 	service := newTenantFilterForTest(nil)
 	ctx := contract.WithCurrentContext(context.Background(), contract.CurrentContext{
 		UserID:   88,
 		TenantID: 7,
 	})
 
-	current := service.CurrentContext(ctx)
+	current := service.Context(ctx)
 	if current.TenantID != 7 || current.OnBehalfOfTenantID != 0 {
 		t.Fatalf("expected regular tenant context, got %#v", current)
 	}
@@ -50,9 +50,9 @@ func TestCurrentContextLeavesOnBehalfEmptyForRegularTenant(t *testing.T) {
 	}
 }
 
-// TestCurrentContextReadsImpersonationFields verifies platform impersonation
+// TestContextReadsImpersonationFields verifies platform impersonation
 // records the target tenant as the on-behalf-of tenant.
-func TestCurrentContextReadsImpersonationFields(t *testing.T) {
+func TestContextReadsImpersonationFields(t *testing.T) {
 	service := newTenantFilterForTest(nil)
 	ctx := contract.WithCurrentContext(context.Background(), contract.CurrentContext{
 		UserID:          88,
@@ -62,7 +62,7 @@ func TestCurrentContextReadsImpersonationFields(t *testing.T) {
 		IsImpersonation: true,
 	})
 
-	current := service.CurrentContext(ctx)
+	current := service.Context(ctx)
 	if current.TenantID != 7 || current.OnBehalfOfTenantID != 7 {
 		t.Fatalf("expected tenant fields from context, got %#v", current)
 	}
@@ -71,27 +71,39 @@ func TestCurrentContextReadsImpersonationFields(t *testing.T) {
 	}
 }
 
-// TestApplyColumnUsesHostPlatformBypass verifies platform bypass policy can
+// TestApplyUsesHostPlatformBypass verifies platform bypass policy can
 // keep plugin-owned table queries unrestricted for platform operators.
-func TestApplyColumnUsesHostPlatformBypass(t *testing.T) {
+func TestApplyUsesHostPlatformBypass(t *testing.T) {
 	service := newTenantFilterForTest(testPlatformBypassEvaluator{bypass: true})
 	ctx := contract.WithCurrentContext(context.Background(), contract.CurrentContext{TenantID: 7})
 
-	sql := buildTenantFilterSQL(t, ctx, service.Apply(ctx, g.DB().Model("plugin_record")))
+	sql := buildTenantFilterSQL(t, ctx, service.Apply(ctx, g.DB().Model("plugin_record"), ""))
 	if strings.Contains(sql, contract.TenantFilterColumn) {
 		t.Fatalf("expected platform bypass to skip tenant predicate, got SQL %q", sql)
 	}
 }
 
-// TestApplyColumnUsesCurrentTenant verifies regular tenant requests constrain
+// TestApplyUsesCurrentTenant verifies regular tenant requests constrain
 // plugin-owned table queries by the current tenant discriminator.
-func TestApplyColumnUsesCurrentTenant(t *testing.T) {
+func TestApplyUsesCurrentTenant(t *testing.T) {
 	service := newTenantFilterForTest(testPlatformBypassEvaluator{bypass: false})
 	ctx := contract.WithCurrentContext(context.Background(), contract.CurrentContext{TenantID: 7})
 
-	sql := buildTenantFilterSQL(t, ctx, service.Apply(ctx, g.DB().Model("plugin_record")))
+	sql := buildTenantFilterSQL(t, ctx, service.Apply(ctx, g.DB().Model("plugin_record"), ""))
 	if !strings.Contains(sql, contract.TenantFilterColumn) || !strings.Contains(sql, "=7") {
 		t.Fatalf("expected tenant predicate in SQL, got %q", sql)
+	}
+}
+
+// TestApplyUsesQualifiedTenantColumn verifies joined queries can qualify the
+// conventional tenant discriminator without exposing a custom column name.
+func TestApplyUsesQualifiedTenantColumn(t *testing.T) {
+	service := newTenantFilterForTest(testPlatformBypassEvaluator{bypass: false})
+	ctx := contract.WithCurrentContext(context.Background(), contract.CurrentContext{TenantID: 7})
+
+	sql := buildTenantFilterSQL(t, ctx, service.Apply(ctx, g.DB().Model("plugin_record"), "plugin_record"))
+	if !strings.Contains(sql, "plugin_record") || !strings.Contains(sql, contract.TenantFilterColumn) {
+		t.Fatalf("expected qualified tenant predicate in SQL, got %q", sql)
 	}
 }
 

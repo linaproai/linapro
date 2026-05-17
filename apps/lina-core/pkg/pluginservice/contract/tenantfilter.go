@@ -13,14 +13,14 @@ const TenantFilterColumn = "tenant_id"
 
 // TenantFilterService defines tenant filtering operations published to source plugins.
 type TenantFilterService interface {
-	// Current returns the current tenant ID from the host business context.
-	Current(ctx context.Context) int
-	// CurrentContext returns tenant and impersonation metadata from host business context.
-	CurrentContext(ctx context.Context) TenantFilterContext
-	// Apply adds tenant filtering to one model using the conventional tenant column.
-	Apply(ctx context.Context, model *gdb.Model) *gdb.Model
-	// ApplyColumn adds tenant filtering with an explicit column for joined queries.
-	ApplyColumn(ctx context.Context, model *gdb.Model, column string) *gdb.Model
+	// Context returns the plugin-visible tenant, actor, impersonation, and
+	// platform-bypass metadata resolved from the host business context.
+	Context(ctx context.Context) TenantFilterContext
+	// Apply adds the conventional tenant_id predicate to one model unless the
+	// current context permits platform bypass. Qualifier may contain only the
+	// table name or alias used by joined queries; an empty qualifier applies the
+	// unqualified tenant_id column, and a nil model is returned unchanged.
+	Apply(ctx context.Context, model *gdb.Model, qualifier string) *gdb.Model
 }
 
 // PlatformBypassEvaluator defines the optional host policy used to decide
