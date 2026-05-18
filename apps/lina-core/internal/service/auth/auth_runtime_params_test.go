@@ -18,6 +18,7 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cachecoord"
 	hostconfig "lina-core/internal/service/config"
+	"lina-core/internal/service/coordination"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/orgcap"
@@ -101,6 +102,9 @@ func (s *runtimeParamAuthTestHostServices) Auth() plugincontract.AuthService { r
 
 // BizCtx returns no bizctx service for auth runtime-parameter tests.
 func (s *runtimeParamAuthTestHostServices) BizCtx() plugincontract.BizCtxService { return nil }
+
+// Cache returns no cache service for auth runtime-parameter tests.
+func (s *runtimeParamAuthTestHostServices) Cache() coordination.Service { return nil }
 
 // Config returns the test host configuration service.
 func (s *runtimeParamAuthTestHostServices) Config() plugincontract.ConfigService {

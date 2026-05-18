@@ -10,6 +10,7 @@ import (
 	"lina-core/internal/service/apidoc"
 	"lina-core/internal/service/auth"
 	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/notify"
@@ -46,6 +47,7 @@ type directory struct {
 	apiDoc       contract.APIDocService // apiDoc exposes localized API-documentation route text.
 	auth         contract.AuthService   // auth exposes tenant token operations.
 	bizCtx       contract.BizCtxService // bizCtx exposes read-only request business context.
+	cache        coordination.Service   // cache exposes the host coordination service.
 	config       contract.ConfigService // config exposes read-only host configuration.
 	i18n         contract.I18nService   // i18n exposes runtime translation lookups.
 	notify       contract.NotifyService // notify exposes host notification delivery.
@@ -65,6 +67,7 @@ func New(
 	authSvc auth.Service,
 	authTokenIssuer auth.TenantTokenIssuer,
 	bizCtxSvc bizctx.Service,
+	cacheSvc coordination.Service,
 	scopeSvc datascope.Service,
 	i18nSvc i18nsvc.Service,
 	pluginStateReader PluginStateReader,
@@ -82,6 +85,7 @@ func New(
 		apiDoc:       newAPIDocAdapter(apiDocSvc),
 		auth:         newAuthAdapter(authTokenIssuer),
 		bizCtx:       bizCtxAdapter,
+		cache:        cacheSvc,
 		config:       pluginserviceconfig.New(),
 		i18n:         newI18nAdapter(i18nSvc),
 		notify:       newNotifyAdapter(notifySvc),

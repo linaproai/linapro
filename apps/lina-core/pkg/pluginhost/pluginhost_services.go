@@ -4,6 +4,7 @@
 package pluginhost
 
 import (
+	"lina-core/internal/service/coordination"
 	"lina-core/pkg/pluginservice/contract"
 )
 
@@ -15,6 +16,9 @@ type HostServices interface {
 	Auth() contract.AuthService
 	// BizCtx returns the host business-context adapter.
 	BizCtx() contract.BizCtxService
+	// Cache returns the host coordination service. Source plugins that need
+	// short-lived cache values should use Cache().KV().
+	Cache() coordination.Service
 	// Config returns the host static configuration adapter.
 	Config() contract.ConfigService
 	// I18n returns the host runtime translation adapter.

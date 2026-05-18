@@ -9,6 +9,7 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
+	"lina-core/internal/service/coordination"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/frontend"
@@ -131,6 +132,9 @@ func (s *testHostServices) Auth() contract.AuthService { return nil }
 
 // BizCtx returns no bizctx service for plugin integration tests.
 func (s *testHostServices) BizCtx() contract.BizCtxService { return nil }
+
+// Cache returns no cache service for plugin integration tests.
+func (s *testHostServices) Cache() coordination.Service { return nil }
 
 // Config returns the test host configuration service.
 func (s *testHostServices) Config() contract.ConfigService {

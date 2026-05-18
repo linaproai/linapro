@@ -203,6 +203,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		menuSvc      = menu.New(pluginSvc, i18nSvc, roleSvc)
 		notifySvc    = notify.New(tenantSvc)
 		authSvc      = auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
+		cacheSvc     = newCacheService(coordinationSvc)
 		fileStorage  = file.NewLocalStorage(configSvc.GetUploadPath(ctx))
 		fileSvc      = file.New(configSvc, fileStorage, bizCtxSvc, dictSvc, scopeSvc)
 		sysConfigSvc = sysconfig.New(configSvc, i18nSvc)
@@ -231,6 +232,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		authSvc,
 		authTokenSvc,
 		bizCtxSvc,
+		cacheSvc,
 		scopeSvc,
 		i18nSvc,
 		pluginSvc,
@@ -321,6 +323,16 @@ func configureDistributedKVCache(coordinationSvc coordination.Service) {
 // deployments and tests.
 func configureLocalKVCache() {
 	kvcache.SetDefaultProvider(kvcache.NewSQLTableProvider())
+}
+
+// newCacheService creates the coordination service exposed as host cache.
+// Cluster mode reuses Redis-backed coordination; single-node mode uses the
+// coordination memory backend without forcing Redis availability.
+func newCacheService(coordinationSvc coordination.Service) coordination.Service {
+	if coordinationSvc != nil {
+		return coordinationSvc
+	}
+	return coordination.NewMemory(coordination.DefaultKeyBuilder())
 }
 
 // newHTTPCoordinationService creates the distributed coordination provider for

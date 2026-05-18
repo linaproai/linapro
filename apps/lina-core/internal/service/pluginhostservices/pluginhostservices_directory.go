@@ -2,7 +2,10 @@
 
 package pluginhostservices
 
-import "lina-core/pkg/pluginservice/contract"
+import (
+	"lina-core/internal/service/coordination"
+	"lina-core/pkg/pluginservice/contract"
+)
 
 // APIDoc returns the host API-documentation localization adapter.
 func (s *directory) APIDoc() contract.APIDocService {
@@ -26,6 +29,14 @@ func (s *directory) BizCtx() contract.BizCtxService {
 		return nil
 	}
 	return s.bizCtx
+}
+
+// Cache returns the host coordination service.
+func (s *directory) Cache() coordination.Service {
+	if s == nil {
+		return nil
+	}
+	return s.cache
 }
 
 // Config returns the host static configuration adapter.
