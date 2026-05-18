@@ -1,0 +1,27 @@
+# Validate all OpenSpec artifacts for monthly archive workflows.
+# Used immediately after AI stages so failures stop before later archive or PR steps.
+# 校验月度归档工作流中的全部 OpenSpec 产物。
+# 在 AI 阶段后立即使用，确保失败不会继续进入后续归档或 PR 步骤。
+name: Monthly OpenSpec Validate
+description: Validate all OpenSpec changes and specs with the pinned CLI version.
+
+# openspec-version: pinned CLI version for reproducible validation.
+# openspec-version: 固定 CLI 版本以保证校验结果可重现。
+inputs:
+  openspec-version:
+    description: OpenSpec CLI version to run.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Run the OpenSpec validator against all changes and specs.
+    # 对所有变更和规范运行 OpenSpec 校验器。
+    - name: Validate OpenSpec
+      shell: bash
+      env:
+        OPENSPEC_VERSION: ${{ inputs.openspec-version }}
+      run: |
+        set -euo pipefail
+
+        npx -y "@fission-ai/openspec@${OPENSPEC_VERSION}" validate --all

@@ -1,0 +1,22 @@
+# Development-only configuration used by local build/codegen tools. Runtime
+# binaries must not read this file.
+
+# Shared local database connection reused by development-only tools.
+shared:
+  localDatabaseLink: &localDatabaseLink "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+
+# Database config consumed by development-only SQL bootstrap/upgrade flows.
+database:
+  default:
+    link: *localDatabaseLink
+    debug: true
+
+# CLI tool, only in development environment.
+# https://goframe.org/docs/cli
+gfcli:
+  gen:
+    dao:
+      - link: *localDatabaseLink
+        tables: "sys_*"
+        descriptionTag: true
+        noModelComment: true

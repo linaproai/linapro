@@ -1,0 +1,156 @@
+{
+  "version": 2,
+  "description": "Reviewed baseline for production critical service and controller constructor calls after explicit dependency injection migration. Entries are limited to startup/registration boundaries, component-internal composition, test helpers, or documented stateless/demo boundaries; counts must not increase.",
+  "entries": [
+    {
+      "path": "apps/lina-core/internal/cmd/cmd_http_routes.go",
+      "maxCalls": 17,
+      "reason": "HTTP startup, route, and hosted-doc binding boundary; allowed to construct and publish shared runtime instances explicitly."
+    },
+    {
+      "path": "apps/lina-core/internal/cmd/cmd_http_runtime.go",
+      "maxCalls": 26,
+      "reason": "HTTP startup, route, and hosted-doc binding boundary; allowed to construct and publish shared runtime instances explicitly."
+    },
+    {
+      "path": "apps/lina-core/internal/cmd/cmd_http.go",
+      "maxCalls": 1,
+      "reason": "HTTP startup, route, and hosted-doc binding boundary; allowed to construct and publish shared runtime instances explicitly."
+    },
+    {
+      "path": "apps/lina-core/internal/service/config/config_runtime_params_revision.go",
+      "maxCalls": 1,
+      "reason": "runtime config revision controller uses the process-wide cachecoord default selected by startup topology."
+    },
+    {
+      "path": "apps/lina-core/internal/service/coordination/coordination.go",
+      "maxCalls": 3,
+      "reason": "coordination service internal backend/value constructors; they implement the shared coordination abstraction itself."
+    },
+    {
+      "path": "apps/lina-core/internal/service/coordination/internal/redis/redis.go",
+      "maxCalls": 2,
+      "reason": "coordination service internal backend/value constructors; they implement the shared coordination abstraction itself."
+    },
+    {
+      "path": "apps/lina-core/internal/service/i18n/i18n.go",
+      "maxCalls": 2,
+      "reason": "i18n service constructs component-owned runtime-cache revision primitives from injected cachecoord."
+    },
+    {
+      "path": "apps/lina-core/internal/service/jobmgmt/jobmgmt.go",
+      "maxCalls": 2,
+      "reason": "job management component-internal scheduler and shell executor construction from explicit jobmgmt dependencies."
+    },
+    {
+      "path": "apps/lina-core/internal/service/kvcache/kvcache_backend.go",
+      "maxCalls": 1,
+      "reason": "kvcache internal backend/provider constructor; does not construct a higher-level runtime service graph."
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/internal/integration/extensions.go",
+      "maxCalls": 5,
+      "reason": "plugin internal component composition or descriptor construction; does not create host-level service graph outside the plugin facade."
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/internal/runtime/runtime_reconciler_revision.go",
+      "maxCalls": 2,
+      "reason": "plugin internal component composition or descriptor construction; does not create host-level service graph outside the plugin facade."
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/internal/runtime/runtime.go",
+      "maxCalls": 1,
+      "reason": "plugin internal component composition or descriptor construction; does not create host-level service graph outside the plugin facade."
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/internal/testutil/testutil_services.go",
+      "maxCalls": 10,
+      "reason": "plugin package test helper constructing an isolated test service graph; production paths do not import this helper."
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/plugin_lifecycle_source.go",
+      "maxCalls": 1,
+      "reason": "source-plugin lifecycle payload value constructor; no runtime service graph is created."
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/plugin_runtime_cache.go",
+      "maxCalls": 2,
+      "reason": "plugin runtime cache revision controller and observed revision are component-owned cache coordination primitives."
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/plugin.go",
+      "maxCalls": 7,
+      "reason": "plugin facade composition boundary; constructs private sub-services once from explicit runtime dependencies passed to plugin.New."
+    },
+    {
+      "path": "apps/lina-core/internal/service/pluginhostservices/pluginhostservices.go",
+      "maxCalls": 3,
+      "reason": "source-plugin host service publication boundary; adapters are constructed once from runtime-owned dependencies."
+    },
+    {
+      "path": "apps/lina-core/internal/service/role/role_access_revision.go",
+      "maxCalls": 1,
+      "reason": "role access revision controller uses the process-wide cachecoord default selected by startup topology."
+    },
+    {
+      "path": "apps/lina-plugins/content-notice/backend/plugin.go",
+      "maxCalls": 2,
+      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
+    },
+    {
+      "path": "apps/lina-plugins/demo-control/backend/plugin.go",
+      "maxCalls": 1,
+      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
+    },
+    {
+      "path": "apps/lina-plugins/monitor-loginlog/backend/plugin.go",
+      "maxCalls": 3,
+      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
+    },
+    {
+      "path": "apps/lina-plugins/monitor-online/backend/plugin.go",
+      "maxCalls": 2,
+      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
+    },
+    {
+      "path": "apps/lina-plugins/monitor-operlog/backend/plugin.go",
+      "maxCalls": 3,
+      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
+    },
+    {
+      "path": "apps/lina-plugins/monitor-server/backend/plugin.go",
+      "maxCalls": 2,
+      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
+    },
+    {
+      "path": "apps/lina-plugins/multi-tenant/backend/plugin.go",
+      "maxCalls": 11,
+      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
+    },
+    {
+      "path": "apps/lina-plugins/org-center/backend/plugin.go",
+      "maxCalls": 4,
+      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
+    },
+    {
+      "path": "apps/lina-plugins/org-center/backend/provider/orgcapadapter/orgcapadapter.go",
+      "maxCalls": 1,
+      "reason": "source-plugin provider boundary; constructs plugin-owned DAO service from host-published tenant filter."
+    },
+    {
+      "path": "apps/lina-plugins/plugin-demo-dynamic/backend/internal/controller/dynamic/dynamic.go",
+      "maxCalls": 1,
+      "reason": "dynamic plugin demo guest-side construction boundary; no host service adapter or host runtime service is created."
+    },
+    {
+      "path": "apps/lina-plugins/plugin-demo-dynamic/backend/plugin.go",
+      "maxCalls": 1,
+      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
+    },
+    {
+      "path": "apps/lina-plugins/plugin-demo-source/backend/plugin.go",
+      "maxCalls": 2,
+      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
+    }
+  ]
+}

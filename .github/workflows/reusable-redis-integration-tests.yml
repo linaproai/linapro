@@ -1,0 +1,104 @@
+# Reusable LinaPro Redis integration test workflow.
+# LinaPro 可复用 Redis 集成测试工作流。
+name: Reusable Redis Integration Tests
+
+on:
+  # Expose Redis-backed integration checks as a reusable workflow.
+  # 将 Redis 支撑的集成检查暴露为可复用工作流。
+  workflow_call:
+
+# Redis integration tests only need read access to repository contents.
+# Redis 集成测试只需要读取仓库内容。
+permissions:
+  contents: read
+
+# Keep Redis test logs and database timestamps aligned with the project timezone.
+# 让 Redis 测试日志和数据库时间戳与项目时区保持一致。
+env:
+  TZ: "Asia/Shanghai"
+
+jobs:
+  # Exercises Redis-backed integration paths that are intentionally separate from regular unit tests.
+  # 单独验证依赖 Redis 的集成路径，避免混入常规单元测试作业。
+  redis-integration-tests:
+    name: Redis integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Keep Redis coverage in a dedicated job. The reusable backend-unit-tests
+    # workflow owns its own service containers, so caller workflows cannot add
+    # Redis to that job without changing the reusable workflow contract.
+    # 将 Redis 覆盖保留在独立 job 中。可复用后端单测 workflow 拥有自己的
+    # service 容器，调用方无法在不改变契约的情况下给它追加 Redis。
+    services:
+      # Session Redis tests still write the PostgreSQL online-session projection,
+      # so this job needs the same initialized schema as the regular Go tests.
+      # Session Redis 测试仍会写入 PostgreSQL 在线会话投影，因此需要与常规
+      # Go 测试一致的初始化 schema。
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: linapro
+          TZ: Asia/Shanghai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      # LINA_TEST_REDIS_ADDR below turns on otherwise-skipped real Redis
+      # integration tests for lock, KV, revision, event, and session hot state.
+      # 下方 LINA_TEST_REDIS_ADDR 会打开默认跳过的真实 Redis 集成测试，
+      # 覆盖锁、KV、修订号、事件和会话热状态。
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # Set the runner timezone before database and log-producing commands run.
+      # 在数据库和日志相关命令运行前设置 runner 时区。
+      - name: Setup Timezone
+        run: |
+          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+          echo Asia/Shanghai | sudo tee /etc/timezone
+
+      # Check out source code for schema initialization and package tests.
+      # 拉取源码，用于初始化 schema 和执行包测试。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      # Install the Go toolchain used by the Redis integration packages.
+      # 安装 Redis 集成测试包所需的 Go 工具链。
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      # Rebuild the test database schema from the repository SQL resources.
+      # 使用仓库 SQL 资源重新初始化测试数据库 schema。
+      - name: Initialize Database Schema
+        run: |
+          cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
+          make init confirm=init
+
+      # Run only Redis integration tests with explicit PostgreSQL and Redis fixtures.
+      # 使用显式 PostgreSQL 与 Redis fixture 只运行 Redis 集成测试。
+      - name: Run Redis Integration Tests
+        working-directory: apps/lina-core
+        env:
+          # These explicit test fixtures keep local/default runtime config from
+          # deciding which databases an integration test may connect to.
+          LINA_TEST_PGSQL_LINK: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+          LINA_TEST_REDIS_ADDR: "127.0.0.1:6379"
+        run: |
+          go test ./internal/service/coordination ./internal/service/cachecoord ./internal/service/kvcache ./internal/service/session -run Redis -count=1

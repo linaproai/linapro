@@ -1,0 +1,14 @@
+{
+  "notify": {
+    "category": {
+      "other": {
+        "color": "default",
+        "label": "Notification"
+      },
+      "system": {
+        "color": "default",
+        "label": "System Message"
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+.git
+.DS_Store
+
+**/node_modules
+**/.turbo
+**/dist
+**/playwright-report
+**/test-results
+
+temp/*
+!temp/image/
+!temp/image/lina
+
+apps/lina-core/temp
+apps/lina-core/internal/packed/public
+apps/lina-vben/apps/web-antd/dist

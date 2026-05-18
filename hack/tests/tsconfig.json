@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "baseUrl": ".",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@pages/*": ["./pages/*"],
+      "@fixtures/*": ["./fixtures/*"],
+      "@host-tests/*": ["./*"],
+      "xlsx": ["./node_modules/xlsx"]
+    }
+  },
+  "include": [
+    "e2e/**/*.ts",
+    "fixtures/**/*.ts",
+    "pages/**/*.ts",
+    "support/**/*.ts",
+    "../../apps/lina-plugins/*/hack/tests/e2e/**/*.ts",
+    "../../apps/lina-plugins/*/hack/tests/pages/**/*.ts",
+    "../../apps/lina-plugins/*/hack/tests/support/**/*.ts",
+    "global-setup.ts",
+    "playwright.config.ts"
+  ]
+}

@@ -1,0 +1,321 @@
+{
+  "legacyDirectoryMap": {
+    "e2e/system": [
+      "e2e/iam",
+      "e2e/settings",
+      "plugins/org-center",
+      "plugins/content-notice",
+      "e2e/scheduler"
+    ],
+    "e2e/monitor": [
+      "plugins/monitor-operlog",
+      "plugins/monitor-loginlog",
+      "plugins/monitor-online",
+      "plugins/monitor-server"
+    ],
+    "e2e/plugin": ["e2e/extension/plugin"],
+    "e2e/debug": ["debug"],
+    "e2e/system/job/helpers.ts": ["support/api/job.ts"]
+  },
+  "moduleScopes": {
+    "auth": ["e2e/auth"],
+    "dashboard": ["e2e/dashboard"],
+    "dialect": ["e2e/dialect"],
+    "about": ["e2e/about"],
+    "iam": ["e2e/iam"],
+    "iam:user": ["e2e/iam/user"],
+    "iam:role": ["e2e/iam/role"],
+    "iam:menu": ["e2e/iam/menu"],
+    "settings": ["e2e/settings"],
+    "settings:dict": ["e2e/settings/dict"],
+    "settings:config": ["e2e/settings/config"],
+    "settings:file": ["e2e/settings/file"],
+    "org": ["plugins/org-center"],
+    "org:dept": ["plugins/org-center/dept"],
+    "org:post": ["plugins/org-center/post"],
+    "org:user-org": ["plugins/org-center/user-org"],
+    "content": ["plugins/content-notice"],
+    "content:notice": ["plugins/content-notice/notice"],
+    "content:message": ["plugins/content-notice/message"],
+    "i18n": ["e2e/i18n"],
+    "monitor": [
+      "plugins/monitor-operlog",
+      "plugins/monitor-loginlog",
+      "plugins/monitor-online",
+      "plugins/monitor-server"
+    ],
+    "monitor:operlog": ["plugins/monitor-operlog"],
+    "monitor:loginlog": ["plugins/monitor-loginlog"],
+    "monitor:online": ["plugins/monitor-online"],
+    "monitor:server": ["plugins/monitor-server"],
+    "scheduler": ["e2e/scheduler"],
+    "scheduler:job": ["e2e/scheduler/job"],
+    "extension": ["e2e/extension"],
+    "extension:plugin": ["e2e/extension/plugin"],
+    "plugins": ["plugins"],
+    "multi-tenant": ["plugins/multi-tenant"],
+    "multi-tenant:tenant-lifecycle": ["plugins/multi-tenant/tenant-lifecycle"],
+    "multi-tenant:tenant-isolation": ["plugins/multi-tenant/tenant-isolation"],
+    "multi-tenant:tenant-resolution": ["plugins/multi-tenant/tenant-resolution"],
+    "multi-tenant:tenant-switching": ["plugins/multi-tenant/tenant-switching"],
+    "multi-tenant:platform-admin": ["plugins/multi-tenant/platform-admin"],
+    "multi-tenant:plugin-governance": ["plugins/multi-tenant/plugin-governance"],
+    "multi-tenant:lifecycle-precondition": ["plugins/multi-tenant/lifecycle-precondition"],
+    "multi-tenant:cluster": ["plugins/multi-tenant/cluster"]
+  },
+  "smoke": [
+    "e2e/auth/TC0001-login-success.ts",
+    "e2e/dashboard/TC0077-workspace-navigation.ts",
+    "e2e/iam/user/TC0005-user-crud.ts",
+    "e2e/settings/config/TC0100-config-crud.ts",
+    "e2e/settings/file/TC0048-file-management.ts",
+    "e2e/scheduler/job/TC0097-job-navigation-and-help-copy.ts",
+    "e2e/extension/plugin/TC0099-host-plugin-boundary-regression.ts"
+  ],
+  "serial": [
+    "e2e/about/TC0044-api-docs-page.ts",
+    "e2e/auth/TC0003-logout.ts",
+    "e2e/auth/TC0102-login-page-presentation.ts",
+    "e2e/dialect/TC0165-sqlite-mode-business-zero-impact.ts",
+    "e2e/extension/plugin",
+    "plugins",
+    "e2e/iam/menu",
+    "e2e/iam/role",
+    "e2e/iam/user",
+    "e2e/dashboard/TC0077-workspace-navigation.ts",
+    "e2e/i18n/TC0109-user-editable-data-no-i18n-projection.ts",
+    "e2e/i18n/TC0113-config-metadata-localization.ts",
+    "e2e/i18n/TC0114-menu-governance-localized-titles.ts",
+    "e2e/i18n/TC0115-role-admin-display-localization.ts",
+    "e2e/i18n/TC0130-runtime-i18n-disabled-switch.ts",
+    "e2e/i18n/TC0139-role-user-english-seed-display.ts",
+    "e2e/i18n/TC0152-language-switch-no-user-info-reload.ts",
+    "e2e/i18n/TC0177-tab-title-language-switch.ts",
+    "e2e/i18n/TC0107-runtime-i18n-switch.ts",
+    "e2e/i18n/TC0108-english-runtime-page-audit.ts",
+    "e2e/i18n/TC0110-editable-master-data-raw-in-english.ts",
+    "e2e/i18n/TC0111-plugin-page-static-labels-no-raw-i18n-keys.ts",
+    "e2e/i18n/TC0112-english-layout-regression.ts",
+    "e2e/i18n/TC0116-english-built-in-governance-data-localization.ts",
+    "e2e/i18n/TC0124-runtime-i18n-etag.ts",
+    "e2e/i18n/TC0135-backend-error-localization.ts",
+    "e2e/i18n/TC0136-backend-export-localization.ts",
+    "e2e/i18n/TC0137-backend-hardcoded-chinese-regression.ts",
+    "e2e/i18n/TC0141-org-dict-config-english-layout.ts",
+    "e2e/scheduler/job/TC0082-job-handler-crud.ts",
+    "e2e/scheduler/job",
+    "e2e/settings/config",
+    "e2e/settings/file",
+    "e2e/settings/dict/TC0047-dict-global-effect.ts",
+    "e2e/settings/dict/TC0057-dict-data-export.ts",
+    "e2e/settings/dict",
+    "e2e/settings/user"
+  ],
+  "serialIsolation": [
+    {
+      "entry": "e2e/about/TC0044-api-docs-page.ts",
+      "categories": ["pluginLifecycle", "runtimeI18nCache"],
+      "reason": "API documentation page checks source plugin documentation sync and localized runtime resources."
+    },
+    {
+      "entry": "e2e/auth/TC0003-logout.ts",
+      "categories": ["authSession"],
+      "reason": "Logout verifies shared authenticated browser state and must not overlap with authenticated flows in the same worker state."
+    },
+    {
+      "entry": "e2e/auth/TC0102-login-page-presentation.ts",
+      "categories": ["systemConfig"],
+      "reason": "The login presentation assertions mutate the global login panel layout config."
+    },
+    {
+      "entry": "plugins",
+      "categories": [
+        "pluginLifecycle",
+        "sharedDatabaseSeed",
+        "permissionMatrix",
+        "runtimeI18nCache",
+        "filesystemArtifact",
+        "systemConfig"
+      ],
+      "reason": "Source-plugin-owned E2E tests may install, enable, sync, seed, and exercise their owning plugins while validating runtime i18n cache, hosted assets, permissions, tenant flows, or plugin-managed configuration."
+    },
+    {
+      "entry": "e2e/dialect/TC0165-sqlite-mode-business-zero-impact.ts",
+      "categories": ["pluginLifecycle"],
+      "reason": "SQLite business zero-impact validation installs, enables, disables, and uninstalls a source plugin against the shared runtime."
+    },
+    {
+      "entry": "e2e/extension/plugin",
+      "categories": [
+        "pluginLifecycle",
+        "permissionMatrix",
+        "sharedDatabaseSeed",
+        "filesystemArtifact",
+        "systemConfig",
+        "runtimeI18nCache"
+      ],
+      "reason": "Plugin tests install, enable, disable, uninstall, upload, sync, and authorize plugins while touching plugin artifacts and generated menus."
+    },
+    {
+      "entry": "e2e/iam/menu",
+      "categories": ["permissionMatrix", "pluginLifecycle", "filesystemArtifact"],
+      "reason": "Menu tests create and update shared menu and permission matrix data, authorization tests sync plugin menus before assigning permissions, and dynamic plugin menu regressions may build runtime artifacts."
+    },
+    {
+      "entry": "e2e/iam/role",
+      "categories": ["dictionaryData", "permissionMatrix", "pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "Role tests create, edit, authorize, delete, and inspect shared role records, role-menu permission assignments, role-user relationships, and dictionary-backed data-scope options; CI E2E runs must not overlap these files with other admin-table flows."
+    },
+    {
+      "entry": "e2e/iam/user",
+      "categories": ["authSession", "permissionMatrix", "pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "User management tests create, import, export, reset passwords, assign roles, and read plugin-provided organization seed data while sharing the admin account and user table state."
+    },
+    {
+      "entry": "e2e/dashboard/TC0077-workspace-navigation.ts",
+      "categories": ["permissionMatrix", "sharedDatabaseSeed"],
+      "reason": "Workspace quick navigation traverses shared host module routes and waits for table-backed pages that depend on the global menu, permission, and seed state."
+    },
+    {
+      "entry": "e2e/i18n/TC0109-user-editable-data-no-i18n-projection.ts",
+      "categories": ["authSession", "runtimeI18nCache", "sharedDatabaseSeed"],
+      "reason": "The user-editable data i18n regression mutates the shared admin profile and validates localized projections against shared seed data."
+    },
+    {
+      "entry": "e2e/i18n/TC0113-config-metadata-localization.ts",
+      "categories": ["runtimeI18nCache", "systemConfig"],
+      "reason": "Config metadata localization depends on shared runtime i18n bundles and system configuration metadata rendered in the admin table."
+    },
+    {
+      "entry": "e2e/i18n/TC0114-menu-governance-localized-titles.ts",
+      "categories": ["permissionMatrix", "pluginLifecycle", "runtimeI18nCache"],
+      "reason": "Menu title localization reads shared menu, permission, and plugin-governance entries through runtime i18n projections."
+    },
+    {
+      "entry": "e2e/i18n/TC0115-role-admin-display-localization.ts",
+      "categories": ["permissionMatrix", "runtimeI18nCache", "sharedDatabaseSeed"],
+      "reason": "Built-in role localization reads shared role seed data and must not overlap with role mutation or authorization flows."
+    },
+    {
+      "entry": "e2e/i18n/TC0130-runtime-i18n-disabled-switch.ts",
+      "categories": ["runtimeI18nCache", "systemConfig"],
+      "reason": "Runtime i18n disabled checks depend on global i18n configuration and runtime bundle visibility."
+    },
+    {
+      "entry": "e2e/i18n/TC0139-role-user-english-seed-display.ts",
+      "categories": ["permissionMatrix", "runtimeI18nCache", "sharedDatabaseSeed"],
+      "reason": "Role and user English seed display checks read shared role and user table projections under runtime i18n."
+    },
+    {
+      "entry": "e2e/i18n/TC0152-language-switch-no-user-info-reload.ts",
+      "categories": ["authSession", "runtimeI18nCache"],
+      "reason": "Language switching uses the authenticated admin shell and runtime i18n bundle updates, so it should not overlap with other admin-shell locale regressions."
+    },
+    {
+      "entry": "e2e/i18n/TC0177-tab-title-language-switch.ts",
+      "categories": ["runtimeI18nCache"],
+      "reason": "Opened tab title relocalization depends on shared runtime i18n bundles and admin-shell locale state."
+    },
+    {
+      "entry": "e2e/i18n/TC0107-runtime-i18n-switch.ts",
+      "categories": ["pluginLifecycle", "runtimeI18nCache", "filesystemArtifact"],
+      "reason": "Runtime i18n switching verifies dynamic plugin language bundles and cache refresh behavior."
+    },
+    {
+      "entry": "e2e/i18n/TC0108-english-runtime-page-audit.ts",
+      "categories": [
+        "pluginLifecycle",
+        "runtimeI18nCache",
+        "sharedDatabaseSeed",
+        "filesystemArtifact"
+      ],
+      "reason": "English runtime page audit enables source and dynamic plugins and validates translated runtime pages."
+    },
+    {
+      "entry": "e2e/i18n/TC0110-editable-master-data-raw-in-english.ts",
+      "categories": ["pluginLifecycle", "runtimeI18nCache", "sharedDatabaseSeed"],
+      "reason": "Editable master data localization checks enable source plugins and read their shared mock data under the English runtime locale."
+    },
+    {
+      "entry": "e2e/i18n/TC0111-plugin-page-static-labels-no-raw-i18n-keys.ts",
+      "categories": ["pluginLifecycle", "runtimeI18nCache", "sharedDatabaseSeed"],
+      "reason": "Plugin static-label localization checks enable multiple source plugins and load their mock data before auditing English pages."
+    },
+    {
+      "entry": "e2e/i18n/TC0112-english-layout-regression.ts",
+      "categories": ["pluginLifecycle", "runtimeI18nCache"],
+      "reason": "English layout checks enable the plugin-demo-source plugin and depend on runtime i18n resources."
+    },
+    {
+      "entry": "e2e/i18n/TC0116-english-built-in-governance-data-localization.ts",
+      "categories": ["dictionaryData", "sharedDatabaseSeed", "pluginLifecycle"],
+      "reason": "Built-in governance localization checks read shared dictionary, scheduler, and source-plugin-provided audit/login log data while creating fresh audit records."
+    },
+    {
+      "entry": "e2e/i18n/TC0124-runtime-i18n-etag.ts",
+      "categories": ["runtimeI18nCache"],
+      "reason": "Runtime i18n ETag checks depend on shared translation bundle versions and cache revalidation semantics."
+    },
+    {
+      "entry": "e2e/i18n/TC0135-backend-error-localization.ts",
+      "categories": ["pluginLifecycle", "runtimeI18nCache"],
+      "reason": "Backend error localization checks require source plugins to be installed and enabled before asserting localized errors."
+    },
+    {
+      "entry": "e2e/i18n/TC0136-backend-export-localization.ts",
+      "categories": ["pluginLifecycle", "runtimeI18nCache", "sharedDatabaseSeed"],
+      "reason": "Backend export localization checks enable multiple source plugins and validate localized export labels."
+    },
+    {
+      "entry": "e2e/i18n/TC0137-backend-hardcoded-chinese-regression.ts",
+      "categories": ["pluginLifecycle", "runtimeI18nCache"],
+      "reason": "Backend hardcoded Chinese regression checks enable source plugins before probing localized backend surfaces."
+    },
+    {
+      "entry": "e2e/i18n/TC0141-org-dict-config-english-layout.ts",
+      "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "Organization, dictionary, and config English layout regression enables the org-center source plugin and reads shared seed records across localized pages."
+    },
+    {
+      "entry": "e2e/scheduler/job/TC0082-job-handler-crud.ts",
+      "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "Built-in handler readonly checks assert source-plugin-managed cron projections such as server-monitor collection in addition to host built-ins."
+    },
+    {
+      "entry": "e2e/scheduler/job",
+      "categories": ["pluginLifecycle", "sharedDatabaseSeed", "systemConfig"],
+      "reason": "Scheduler job tests mutate job data, shell execution config, plugin cascades, and generated log state."
+    },
+    {
+      "entry": "e2e/settings/config",
+      "categories": ["systemConfig"],
+      "reason": "System config tests mutate global runtime and frontend configuration values."
+    },
+    {
+      "entry": "e2e/settings/file",
+      "categories": ["filesystemArtifact", "permissionMatrix", "sharedDatabaseSeed"],
+      "reason": "File management tests exercise shared upload artifacts, file rows, route authorization, and file data-permission boundaries."
+    },
+    {
+      "entry": "e2e/settings/dict/TC0047-dict-global-effect.ts",
+      "categories": ["dictionaryData", "pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "Dictionary global-effect checks navigate to plugin-owned department pages from org-center after mutating shared dictionary labels."
+    },
+    {
+      "entry": "e2e/settings/dict/TC0057-dict-data-export.ts",
+      "categories": ["dictionaryData", "pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "Dictionary data panel toolbar checks select operation-log dictionary types seeded by the monitor-operlog source plugin."
+    },
+    {
+      "entry": "e2e/settings/dict",
+      "categories": ["dictionaryData", "pluginLifecycle"],
+      "reason": "Dictionary tests create, import, edit, export, and delete shared dictionary types and data; dictionary option permission regressions also prepare source plugin menus before assigning business-only permissions."
+    },
+    {
+      "entry": "e2e/settings/user",
+      "categories": ["permissionMatrix", "pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "Settings-owned user tests validate user labels, batch edits, and data-permission behavior against shared user, role, and organization seed data."
+    }
+  ],
+  "parallelIsolationAllowlist": []
+}

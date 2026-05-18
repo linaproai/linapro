@@ -1,0 +1,77 @@
+# LinaPro nightly demo launcher.
+# Run with: docker compose -f hack/deploy/docker-compose.yaml up
+# This compose file is for disposable demos: app and PostgreSQL runtime data
+# are stored in tmpfs and are lost after the containers are removed. Runtime
+# config is maintained in hack/deploy/config.yaml and mounted read-only.
+name: linapro-demo
+
+services:
+  postgres:
+    # Override LINAPRO_POSTGRES_IMAGE to test another PostgreSQL-compatible tag.
+    image: ${LINAPRO_POSTGRES_IMAGE:-postgres:14-alpine}
+    container_name: linapro-demo-postgres
+    environment:
+      POSTGRES_DB: linapro
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      TZ: Asia/Shanghai
+    tmpfs:
+      # Keep database files in memory for a disposable demo.
+      - /var/lib/postgresql/data:size=512m,mode=0700
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres -d linapro
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  linapro:
+    # Override LINAPRO_IMAGE to test a custom published image.
+    image: ${LINAPRO_IMAGE:-ghcr.io/linaproai/linapro:nightly}
+    container_name: linapro-demo
+    environment:
+      # LinaPro reads config.yaml from the mounted read-only deploy config.
+      GF_GCFG_PATH: /run/linapro
+      TZ: Asia/Shanghai
+    entrypoint:
+      - /bin/sh
+      - -ec
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      # Override LINAPRO_HTTP_PORT when 8080 is already in use on the host.
+      - "${LINAPRO_HTTP_PORT:-8080}:8080"
+    tmpfs:
+      # Keep demo data in memory. Do not add bind mounts or persistent volumes
+      # here unless this file is intentionally changed from demo mode.
+      - /app/data:size=512m,mode=1777
+      - /run/linapro:size=1m,mode=0755
+    configs:
+      # Mount only the config file from the host; demo data remains in tmpfs.
+      - source: linapro_demo_config
+        target: /run/linapro/config.yaml
+        mode: 0444
+    command:
+      - |
+        mkdir -p /run/linapro /app/data/upload /app/data/wasm
+        # Rebuild schema and seed mock data on every start for a repeatable demo.
+        ./lina init --confirm=init --rebuild=true
+        ./lina mock --confirm=mock
+        exec ./lina
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O- http://127.0.0.1:8080/api/v1/health | grep -q '"status":"ok"'
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+configs:
+  linapro_demo_config:
+    file: ./config.yaml

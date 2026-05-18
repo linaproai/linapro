@@ -1,0 +1,84 @@
+<script setup lang="ts">
+import type { RadioChangeEvent } from 'ant-design-vue';
+
+import { computed } from 'vue';
+
+import { Input, RadioGroup, Select } from 'ant-design-vue';
+
+import { tagSelectOptions } from '#/components/dict';
+import { $t } from '#/locales';
+
+/**
+ * 需要禁止透传
+ * 不禁止会有奇怪的bug 会绑定到selectType上
+ */
+defineOptions({ inheritAttrs: false });
+
+defineEmits<{ deselect: [] }>();
+
+const options = [
+  {
+    label: $t('pages.system.dict.data.tagStyle.options.default'),
+    value: 'default',
+  },
+  {
+    label: $t('pages.system.dict.data.tagStyle.options.custom'),
+    value: 'custom',
+  },
+] as const;
+
+const computedOptions = computed(
+  () => options as unknown as { label: string; value: string }[],
+);
+
+type SelectType = (typeof options)[number]['value'];
+
+const selectType = defineModel<SelectType>('selectType', {
+  default: 'default',
+});
+
+/**
+ * color必须为hex颜色或者undefined
+ */
+const color = defineModel<string | undefined>('value', {
+  default: undefined,
+});
+
+function handleSelectTypeChange(e: RadioChangeEvent) {
+  // 必须给默认hex颜色 不能为空字符串
+  color.value = e.target.value === 'custom' ? '#1677ff' : undefined;
+}
+
+function handleColorChange(e: Event) {
+  color.value = (e.target as HTMLInputElement).value;
+}
+</script>
+
+<template>
+  <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-[6px]">
+    <RadioGroup
+      v-model:value="selectType"
+      :options="computedOptions"
+      button-style="solid"
+      class="shrink-0"
+      option-type="button"
+      @change="handleSelectTypeChange"
+    />
+    <Select
+      v-if="selectType === 'default'"
+      v-model:value="color"
+      :allow-clear="true"
+      :options="tagSelectOptions()"
+      class="min-w-[180px] flex-1"
+      :placeholder="$t('pages.system.dict.data.tagStyle.placeholders.select')"
+      @deselect="$emit('deselect')"
+    />
+    <Input
+      v-if="selectType === 'custom'"
+      :value="color"
+      class="min-w-[180px] flex-1"
+      :placeholder="$t('pages.system.dict.data.tagStyle.placeholders.custom')"
+      @change="handleColorChange"
+    />
+  </div>
+</template>

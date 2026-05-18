@@ -1,0 +1,364 @@
+// This file coordinates startup-time plugin bootstrap so plugin.autoEnable can
+// install and enable required plugins before later host wiring runs.
+
+package plugin
+
+import (
+	"context"
+	"strings"
+	"time"
+
+	"lina-core/internal/model/entity"
+	configsvc "lina-core/internal/service/config"
+	"lina-core/internal/service/plugin/internal/catalog"
+	plugindep "lina-core/internal/service/plugin/internal/dependency"
+	"lina-core/pkg/bizerr"
+)
+
+// startupAutoEnableWaitTimeout bounds how long host startup waits for one
+// required plugin to reach the enabled state before failing fast.
+const startupAutoEnableWaitTimeout = 15 * time.Second
+
+// startupAutoEnablePollInterval is the registry polling cadence used while the
+// current node waits to become primary or waits for another primary to converge
+// one required plugin.
+const startupAutoEnablePollInterval = 100 * time.Millisecond
+
+// BootstrapAutoEnable synchronizes manifests and ensures every plugin listed
+// in plugin.autoEnable is installed and enabled before later host wiring runs.
+// Per-entry mock-data opt-in flags from config flow into the InstallOptions
+// passed down to Install.
+func (s *serviceImpl) BootstrapAutoEnable(ctx context.Context) error {
+	if err := s.SyncSourcePlugins(ctx); err != nil {
+		return err
+	}
+
+	entries := s.configSvc.GetPluginAutoEnableEntries(ctx)
+	if len(entries) == 0 {
+		return nil
+	}
+
+	for _, entry := range entries {
+		if err := s.bootstrapAutoEnablePlugin(ctx, entry); err != nil {
+			return err
+		}
+	}
+
+	if err := s.integrationSvc.RefreshEnabledSnapshot(ctx); err != nil {
+		return bizerr.WrapCode(err, CodePluginEnabledSnapshotRefreshFailed)
+	}
+	return nil
+}
+
+// ReconcileAutoEnabledTenantPlugins applies plugin.autoEnable to tenant-scoped
+// plugin governance after source plugins have registered tenant-capability
+// providers. Startup auto-enable first installs and enables plugins at the host
+// registry level; this later pass converts tenant-scoped entries into the
+// platform's new-tenant default policy and asks the multi-tenant provider to
+// provision existing tenants.
+func (s *serviceImpl) ReconcileAutoEnabledTenantPlugins(ctx context.Context) error {
+	if s == nil || s.configSvc == nil {
+		return nil
+	}
+	entries := s.configSvc.GetPluginAutoEnableEntries(ctx)
+	if len(entries) == 0 {
+		return nil
+	}
+
+	requiresProvisioning := false
+	for _, entry := range entries {
+		eligible, err := s.reconcileAutoEnabledTenantPluginPolicy(ctx, entry)
+		if err != nil {
+			return err
+		}
+		requiresProvisioning = requiresProvisioning || eligible
+	}
+	if !requiresProvisioning {
+		return nil
+	}
+	if tenantProvisioner, ok := s.tenantSvc.(interface {
+		ProvisionAutoEnabledTenantPlugins(context.Context) error
+	}); ok && tenantProvisioner != nil {
+		if err := tenantProvisioner.ProvisionAutoEnabledTenantPlugins(ctx); err != nil {
+			return bizerr.WrapCode(err, CodePluginAutoEnableTenantProvisioningFailed, bizerr.P("pluginId", "all"))
+		}
+	}
+	if err := s.integrationSvc.RefreshEnabledSnapshot(ctx); err != nil {
+		return bizerr.WrapCode(err, CodePluginEnabledSnapshotRefreshFailed)
+	}
+	return nil
+}
+
+// reconcileAutoEnabledTenantPluginPolicy reports whether one auto-enabled
+// plugin is eligible for tenant provisioning and enables its new-tenant policy
+// when needed. Existing tenant rows are provisioned by the tenant-capability
+// provider after this pass so tenant-owned disabled rows are not overwritten by
+// host registry updates.
+func (s *serviceImpl) reconcileAutoEnabledTenantPluginPolicy(
+	ctx context.Context,
+	entry configsvc.PluginAutoEnableEntry,
+) (bool, error) {
+	pluginID := strings.TrimSpace(entry.ID)
+	if pluginID == "" {
+		return false, nil
+	}
+	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+	if err != nil {
+		return false, bizerr.WrapCode(err, CodePluginRegistryReadFailed, bizerr.P("pluginId", pluginID))
+	}
+	if registry == nil ||
+		registry.Installed != catalog.InstalledYes ||
+		registry.Status != catalog.StatusEnabled ||
+		catalog.NormalizeInstallMode(registry.InstallMode) != catalog.InstallModeTenantScoped {
+		return false, nil
+	}
+	if !s.registrySupportsTenantGovernance(ctx, registry) {
+		return false, nil
+	}
+	if !registry.AutoEnableForNewTenants {
+		if err = s.catalogSvc.SetAutoEnableForNewTenants(ctx, pluginID, true); err != nil {
+			return false, bizerr.WrapCode(err, CodePluginAutoEnableTenantProvisioningFailed, bizerr.P("pluginId", pluginID))
+		}
+	}
+	return true, nil
+}
+
+// bootstrapAutoEnablePlugin routes one configured plugin entry into the
+// matching source-plugin or dynamic-plugin startup bootstrap path. The entry
+// carries both the ID and the per-plugin mock-data opt-in flag.
+func (s *serviceImpl) bootstrapAutoEnablePlugin(ctx context.Context, entry configsvc.PluginAutoEnableEntry) error {
+	if err := s.bootstrapAutoInstallDependencies(ctx, entry); err != nil {
+		return err
+	}
+
+	manifest, err := s.catalogSvc.GetDesiredManifest(entry.ID)
+	if err != nil {
+		return bizerr.WrapCode(err, CodePluginAutoEnableDiscoveryFailed, bizerr.P("pluginId", entry.ID))
+	}
+	if manifest == nil {
+		return bizerr.NewCode(CodePluginAutoEnableManifestNotFound, bizerr.P("pluginId", entry.ID))
+	}
+
+	switch catalog.NormalizeType(manifest.Type) {
+	case catalog.TypeSource:
+		return s.bootstrapAutoEnableSourcePlugin(ctx, manifest, entry.WithMockData)
+	case catalog.TypeDynamic:
+		return s.bootstrapAutoEnableDynamicPlugin(ctx, manifest, entry.WithMockData)
+	default:
+		return bizerr.NewCode(
+			CodePluginAutoEnableTypeUnsupported,
+			bizerr.P("pluginId", entry.ID),
+			bizerr.P("pluginType", manifest.Type),
+		)
+	}
+}
+
+// bootstrapAutoInstallDependencies pre-installs automatic dependencies for one
+// configured startup target. The regular Install path repeats the safety check;
+// this pre-pass makes startup ordering explicit without enabling dependencies
+// unless they are also listed in plugin.autoEnable.
+func (s *serviceImpl) bootstrapAutoInstallDependencies(ctx context.Context, entry configsvc.PluginAutoEnableEntry) error {
+	plan, err := s.resolveInstallDependencies(ctx, entry.ID)
+	if err != nil {
+		return err
+	}
+	if hasDependencyBlockers(plan.Blockers) {
+		return s.buildDependencyBlockedError(entry.ID, plan.Blockers)
+	}
+	for _, item := range sortedAutoInstallPlan(plan.AutoInstallPlan) {
+		if item == nil || strings.TrimSpace(item.PluginID) == "" {
+			continue
+		}
+		if err = s.ensurePluginInstalledDuringStartup(ctx, item.PluginID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ensurePluginInstalledDuringStartup waits for a dependency plugin to reach
+// installed state. Only the primary node performs shared install side effects.
+func (s *serviceImpl) ensurePluginInstalledDuringStartup(ctx context.Context, pluginID string) error {
+	return s.ensurePluginStateDuringStartup(ctx, pluginID, isPluginStartupInstalled, func() error {
+		if _, err := s.Install(ctx, pluginID, InstallOptions{}); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// bootstrapAutoEnableSourcePlugin ensures one required source plugin reaches
+// the enabled state during startup. When withMockData is true and the plugin
+// is not yet installed, the install call also loads the plugin's mock-data
+// SQL inside one transaction. Already-installed plugins do not re-run the
+// mock-data load even if withMockData=true, since mock data is install-time
+// only.
+func (s *serviceImpl) bootstrapAutoEnableSourcePlugin(ctx context.Context, manifest *catalog.Manifest, withMockData bool) error {
+	if manifest == nil {
+		return bizerr.NewCode(CodePluginAutoEnableSourceManifestRequired)
+	}
+
+	return s.ensurePluginStateDuringStartup(ctx, manifest.ID, isPluginStartupEnabled, func() error {
+		if _, err := s.Install(ctx, manifest.ID, InstallOptions{InstallMockData: withMockData}); err != nil {
+			return bizerr.WrapCode(err, CodePluginSourceInstallFailed)
+		}
+		if err := s.Enable(ctx, manifest.ID); err != nil {
+			return bizerr.WrapCode(err, CodePluginSourceEnableFailed)
+		}
+		return nil
+	})
+}
+
+// bootstrapAutoEnableDynamicPlugin ensures one required dynamic plugin can
+// reuse its confirmed authorization snapshot and then reaches the enabled state
+// during startup. The mock-data opt-in flag flows through InstallOptions just
+// like the source-plugin path.
+func (s *serviceImpl) bootstrapAutoEnableDynamicPlugin(ctx context.Context, manifest *catalog.Manifest, withMockData bool) error {
+	if manifest == nil {
+		return bizerr.NewCode(CodePluginAutoEnableDynamicManifestRequired)
+	}
+	if err := s.ensureDynamicPluginAutoEnableAuthorization(ctx, manifest); err != nil {
+		return bizerr.WrapCode(err, CodePluginAutoEnableFailed, bizerr.P("pluginId", manifest.ID))
+	}
+
+	return s.ensurePluginStateDuringStartup(ctx, manifest.ID, isPluginStartupEnabled, func() error {
+		if _, err := s.Install(ctx, manifest.ID, InstallOptions{InstallMockData: withMockData}); err != nil {
+			return bizerr.WrapCode(err, CodePluginDynamicInstallFailed)
+		}
+		if err := s.Enable(ctx, manifest.ID); err != nil {
+			return bizerr.WrapCode(err, CodePluginDynamicEnableFailed)
+		}
+		return nil
+	})
+}
+
+// ensureDynamicPluginAutoEnableAuthorization verifies that startup auto-enable
+// can reuse one already confirmed host-service authorization snapshot instead
+// of requesting authorization details from the host main config file.
+func (s *serviceImpl) ensureDynamicPluginAutoEnableAuthorization(ctx context.Context, manifest *catalog.Manifest) error {
+	if manifest == nil {
+		return bizerr.NewCode(CodePluginDynamicManifestRequired)
+	}
+	if !catalog.HasResourceScopedHostServices(manifest.HostServices) {
+		return nil
+	}
+
+	release, err := s.catalogSvc.GetRelease(ctx, manifest.ID, manifest.Version)
+	if err != nil {
+		return err
+	}
+	if release == nil {
+		return bizerr.NewCode(CodePluginDynamicAutoEnableReleaseMissing, bizerr.P("pluginId", manifest.ID))
+	}
+
+	snapshot, err := s.catalogSvc.ParseManifestSnapshot(release.ManifestSnapshot)
+	if err != nil {
+		return err
+	}
+	if snapshot == nil || !snapshot.HostServiceAuthConfirmed {
+		return bizerr.NewCode(CodePluginDynamicAutoEnableAuthSnapshotMissing, bizerr.P("pluginId", manifest.ID))
+	}
+	return nil
+}
+
+// ensurePluginStateDuringStartup waits for one plugin to reach a caller-defined
+// registry state. The current node performs the shared lifecycle action once it
+// becomes primary; otherwise it keeps waiting for shared registry state to converge.
+func (s *serviceImpl) ensurePluginStateDuringStartup(
+	ctx context.Context,
+	pluginID string,
+	stateSatisfied func(*entity.SysPlugin) bool,
+	executeShared func() error,
+) error {
+	var (
+		deadline = time.Now().Add(startupAutoEnableWaitTimeout)
+		ticker   = time.NewTicker(startupAutoEnablePollInterval)
+	)
+	defer ticker.Stop()
+
+	sharedExecuted := false
+
+	for {
+		registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+		if err != nil {
+			return bizerr.WrapCode(err, CodePluginRegistryReadFailed, bizerr.P("pluginId", pluginID))
+		}
+		if stateSatisfied != nil && stateSatisfied(registry) {
+			return nil
+		}
+
+		if !sharedExecuted && (!s.topology.IsEnabled() || s.topology.IsPrimary()) {
+			sharedExecuted = true
+			if executeShared == nil {
+				return bizerr.NewCode(CodePluginAutoEnableSharedExecutorMissing, bizerr.P("pluginId", pluginID))
+			}
+			if err := executeShared(); err != nil {
+				return bizerr.WrapCode(err, CodePluginAutoEnableFailed, bizerr.P("pluginId", pluginID))
+			}
+			continue
+		}
+
+		if time.Now().After(deadline) {
+			return buildStartupAutoEnableTimeoutError(pluginID, registry)
+		}
+
+		select {
+		case <-ctx.Done():
+			return bizerr.WrapCode(ctx.Err(), CodePluginAutoEnableWaitCanceled, bizerr.P("pluginId", pluginID))
+		case <-ticker.C:
+		}
+	}
+}
+
+// isPluginStartupInstalled reports whether one registry row already reflects a stable installed state.
+func isPluginStartupInstalled(registry *entity.SysPlugin) bool {
+	if registry == nil {
+		return false
+	}
+	return registry.Installed == catalog.InstalledYes
+}
+
+// isPluginStartupEnabled reports whether one registry row already reflects the
+// stable installed-and-enabled state expected by plugin.autoEnable.
+func isPluginStartupEnabled(registry *entity.SysPlugin) bool {
+	if registry == nil {
+		return false
+	}
+	if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
+		return false
+	}
+	if catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
+		return true
+	}
+	return strings.TrimSpace(registry.CurrentState) == catalog.HostStateEnabled.String()
+}
+
+// buildStartupAutoEnableTimeoutError formats one fail-fast timeout error with
+// the last observed registry state so operators can identify the stuck phase.
+func buildStartupAutoEnableTimeoutError(pluginID string, registry *entity.SysPlugin) error {
+	if registry == nil {
+		return bizerr.NewCode(CodePluginAutoEnableTimeoutRegistryMissing, bizerr.P("pluginId", pluginID))
+	}
+	return bizerr.NewCode(
+		CodePluginAutoEnableTimeoutState,
+		bizerr.P("pluginId", pluginID),
+		bizerr.P("installed", registry.Installed),
+		bizerr.P("status", registry.Status),
+		bizerr.P("desiredState", strings.TrimSpace(registry.DesiredState)),
+		bizerr.P("currentState", strings.TrimSpace(registry.CurrentState)),
+	)
+}
+
+// sortedAutoInstallPlan copies resolver plan items while preserving the
+// dependency-first order produced by the resolver. The resolver already walks
+// sibling dependencies by plugin ID, so re-sorting here would risk moving a
+// parent dependency before its own dependency.
+func sortedAutoInstallPlan(items []*plugindep.AutoInstallPlanItem) []*plugindep.AutoInstallPlanItem {
+	out := make([]*plugindep.AutoInstallPlanItem, 0, len(items))
+	for _, item := range items {
+		if item != nil {
+			out = append(out, item)
+		}
+	}
+	return out
+}

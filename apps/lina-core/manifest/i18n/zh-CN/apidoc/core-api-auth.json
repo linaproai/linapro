@@ -1,0 +1,115 @@
+{
+  "core": {
+    "api": {
+      "auth": {
+        "v1": {
+          "LoginReq": {
+            "fields": {
+              "password": {
+                "dc": "密码"
+              },
+              "username": {
+                "dc": "用户名"
+              }
+            },
+            "meta": {
+              "dc": "通过用户名和密码进行身份认证，认证成功后返回JWT令牌用于后续接口鉴权",
+              "summary": "用户登录",
+              "tags": "身份认证"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "accessToken": {
+                            "dc": "JWT令牌"
+                          },
+                          "refreshToken": {
+                            "dc": "JWT刷新令牌"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "通过用户名和密码进行身份认证，认证成功后返回JWT令牌用于后续接口鉴权"
+            }
+          },
+          "LoginRes": {
+            "fields": {
+              "accessToken": {
+                "dc": "JWT令牌；需要选择租户时为空"
+              },
+              "refreshToken": {
+                "dc": "JWT刷新令牌；需要选择租户时为空"
+              },
+              "preToken": {
+                "dc": "需要选择租户时返回的短期预登录令牌"
+              },
+              "tenants": {
+                "dc": "需要选择租户时返回的候选租户列表"
+              }
+            }
+          },
+          "LoginTenantEntity": {
+            "fields": {
+              "id": {
+                "dc": "租户ID"
+              },
+              "code": {
+                "dc": "租户编码"
+              },
+              "name": {
+                "dc": "租户显示名称"
+              },
+              "status": {
+                "dc": "租户状态"
+              }
+            }
+          },
+          "LogoutReq": {
+            "meta": {
+              "dc": "退出当前登录状态，清除服务端JWT令牌缓存",
+              "summary": "用户登出",
+              "tags": "身份认证"
+            },
+            "schema": {
+              "dc": "退出当前登录状态，清除服务端JWT令牌缓存"
+            }
+          },
+          "RefreshReq": {
+            "fields": {
+              "refreshToken": {
+                "dc": "JWT刷新令牌"
+              }
+            },
+            "meta": {
+              "dc": "使用有效刷新令牌换取新的访问令牌，避免用户在访问令牌过期后被立即强制重新登录。",
+              "summary": "刷新访问令牌",
+              "tags": "身份认证"
+            },
+            "schema": {
+              "dc": "使用有效刷新令牌换取新的访问令牌，避免用户在访问令牌过期后被立即强制重新登录。"
+            }
+          },
+          "RefreshRes": {
+            "fields": {
+              "accessToken": {
+                "dc": "新的JWT访问令牌"
+              },
+              "refreshToken": {
+                "dc": "当前会话继续使用的JWT刷新令牌"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

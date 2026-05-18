@@ -1,0 +1,93 @@
+{
+  "auth": {
+    "login": "Login",
+    "register": "Register",
+    "codeLogin": "Code Login",
+    "qrcodeLogin": "Qr Code Login",
+    "forgetPassword": "Forget Password",
+    "profile": "Profile"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "analytics": "Analytics",
+    "workspace": "Workspace"
+  },
+  "about": {
+    "project": {
+      "description": "An AI-native full-stack framework for sustainable delivery, built with GoFrame, Vue 3, and Vben 5. It provides the core host service, default management workspace, plugin extension capabilities, and AI-native development workflow.",
+      "name": "Current Application",
+      "title": "About",
+      "viewLink": "View",
+      "sections": {
+        "basic": "Basic Information",
+        "dependencies": "Production Dependencies",
+        "devDependencies": "Development Dependencies"
+      },
+      "items": {
+        "author": "Author",
+        "buildTime": "Last Build Time",
+        "documentation": "Documentation",
+        "homepage": "Homepage",
+        "license": "License",
+        "preview": "Preview",
+        "version": "Version"
+      }
+    },
+    "systemInfo": {
+      "loading": "Loading...",
+      "viewLink": "View",
+      "sections": {
+        "framework": "About LinaPro",
+        "backend": "Backend Components",
+        "frontend": "Frontend Components"
+      },
+      "items": {
+        "frameworkName": "Framework Name",
+        "homepage": "Homepage",
+        "repositoryUrl": "Repository",
+        "version": "Version",
+        "license": "License",
+        "description": "Description"
+      }
+    }
+  },
+  "plugin": {
+    "dynamicPage": {
+      "mountFailedTitle": "Dynamic plugin mount failed",
+      "notFoundTitle": "Plugin page not found",
+      "notFoundSubtitle": "The current route does not match a registered source-plugin page or a valid dynamic embedded entry.",
+      "refreshNoticeTitle": "Plugin updated",
+      "refreshNoticeDescription": "A newer plugin generation is ready for this page. Refresh now to switch to the latest version.",
+      "refreshNoticeAction": "Refresh current page"
+    }
+  },
+  "routes": {
+    "about": {
+      "developerCenter": "Dev Tools",
+      "apiDocs": "API Docs",
+      "systemInfo": "Version Info"
+    },
+    "system": {
+      "accessManagement": "Access",
+      "userManagement": "Users",
+      "roleManagement": "Roles",
+      "menuManagement": "Menus",
+      "roleUserManagement": "Role Members",
+      "systemSettings": "Settings",
+      "dictManagement": "Dictionaries",
+      "configManagement": "Parameters",
+      "fileManagement": "Files",
+      "messageList": "Messages",
+      "scheduler": "Scheduler",
+      "jobManagement": "Jobs",
+      "jobGroupManagement": "Groups",
+      "jobLogManagement": "Run Logs",
+      "extensionCenter": "Extensions",
+      "pluginManagement": "Plugins"
+    },
+    "platform": {
+      "title": "Platform",
+      "tenants": "Tenants"
+    }
+  }
+}

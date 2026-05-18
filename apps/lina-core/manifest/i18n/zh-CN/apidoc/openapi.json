@@ -1,0 +1,20 @@
+{
+  "core": {
+    "openapi": {
+      "info": {
+        "description": "LinaPro 核心宿主服务接口文档，覆盖通用模块能力、系统治理能力与默认管理工作台适配接口。",
+        "title": "LinaPro 框架 API"
+      },
+      "securitySchemes": {
+        "BearerAuth": {
+          "dc": "JWT Bearer Token 认证"
+        }
+      },
+      "servers": {
+        "0": {
+          "dc": "核心宿主端点"
+        }
+      }
+    }
+  }
+}

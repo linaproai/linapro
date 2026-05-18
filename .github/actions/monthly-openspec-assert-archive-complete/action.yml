@@ -1,0 +1,55 @@
+# Verify that the monthly auto-archive phase archived every completed active change.
+# Fails before downstream stages when an AI tool reports success but leaves archive candidates behind.
+# 校验月度自动归档阶段已归档所有完成的活跃变更。
+# 当 AI 工具报告成功但仍遗留归档候选时，在下游阶段前失败。
+name: Monthly OpenSpec Assert Archive Complete
+description: Fail if completed active OpenSpec changes remain after monthly auto archive.
+
+# openspec-version: pinned CLI version for reproducible status detection.
+# openspec-version: 固定 CLI 版本以保证状态检测结果可重现。
+inputs:
+  openspec-version:
+    description: OpenSpec CLI version to run.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Query active changes again after auto-archive and fail if any completed candidate remains.
+    # 自动归档后重新查询活跃变更，如仍有完成候选则失败。
+    - name: Assert No Completed Active Changes Remain
+      shell: bash
+      env:
+        OPENSPEC_VERSION: ${{ inputs.openspec-version }}
+      run: |
+        set -euo pipefail
+
+        npx -y "@fission-ai/openspec@${OPENSPEC_VERSION}" list --json > "${RUNNER_TEMP}/openspec-remaining-changes.json"
+
+        node <<'NODE'
+        const fs = require('node:fs');
+
+        const data = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/openspec-remaining-changes.json`, 'utf8'));
+        const changes = Array.isArray(data.changes) ? data.changes : [];
+        const completedStatuses = new Set(['complete', 'completed', 'done']);
+        const remaining = changes.filter((change) => completedStatuses.has(String(change.status || '').toLowerCase()));
+
+        if (remaining.length === 0) {
+          console.log('Auto archive completed: no completed active OpenSpec changes remain.');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, 'Auto archive completed: no completed active OpenSpec changes remain.\n');
+          process.exit(0);
+        }
+
+        const lines = [
+          'Auto archive phase left completed active OpenSpec changes unarchived:',
+          ...remaining.map((change) => {
+            const completed = Number.isInteger(change.completedTasks) ? change.completedTasks : 'unknown';
+            const total = Number.isInteger(change.totalTasks) ? change.totalTasks : 'unknown';
+            return `- ${change.name}: status=${change.status}, tasks=${completed}/${total}`;
+          }),
+        ];
+
+        console.error(lines.join('\n'));
+        fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
+        process.exit(1);
+        NODE

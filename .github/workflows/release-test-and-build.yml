@@ -1,0 +1,91 @@
+# LinaPro release health test and multi-platform Docker image publishing workflow.
+# LinaPro 发布健康测试与多平台 Docker 镜像发布工作流。
+name: Release Test and Build
+
+on:
+  # Run release verification only for newly created Git tags.
+  # 仅针对新创建的 Git 标签运行发布验证。
+  push:
+    tags:
+      - "**"
+
+# The caller workflow is read-only by default; package write access is scoped to the image job.
+# 调用方工作流默认只读；包写权限只在镜像 job 中授予。
+permissions:
+  contents: read
+
+# Serialize release runs per tag so a release tag cannot publish competing image outputs.
+# 按标签串行发布任务，避免同一发布标签产生相互竞争的镜像输出。
+concurrency:
+  group: "${{ github.workflow }} @ ${{ github.ref_name }}"
+  cancel-in-progress: false
+
+jobs:
+  # Verifies the Git tag name before any release validation or image publication starts.
+  # 在任何发布验证或镜像发布开始前校验 Git 标签名称。
+  release-tag-version-check:
+    name: Release tag version check
+    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Check out repository metadata so the release make target can read framework.version.
+      # 拉取仓库元数据，供 release make 指令读取 framework.version。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      # Ensure the pushed tag exactly matches apps/lina-core manifest metadata.
+      # 确保推送的标签与 apps/lina-core manifest 元数据完全一致。
+      - name: Verify Release Tag Matches Framework Version
+        run: |
+          make release.tag.check
+
+  # Reuses the shared verification suite with the same concise non-E2E coverage as Main CI.
+  # 复用共享验证套件，并使用与 Main CI 一致的不含 E2E 的简要验证范围。
+  verification-suite:
+    name: Test verification suite
+    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    needs:
+      - release-tag-version-check
+    uses: ./.github/workflows/reusable-test-verification-suite.yml
+    with:
+      include-openspec-completion: true
+      include-windows-command-smoke: true
+      include-backend-unit-tests: true
+      include-frontend-unit-tests: true
+      include-plugin-windows-command-smoke: true
+      include-plugin-backend-unit-tests: true
+      include-plugin-frontend-unit-tests: true
+      include-plugin-command-smoke: true
+      include-make-command-smoke: true
+      include-redis-integration: true
+      include-sqlite-smoke: true
+      include-host-only-build-smoke: true
+      include-host-only-e2e-tests: false
+      include-plugin-full-e2e-tests: false
+      include-redis-cluster-smoke: true
+      e2e-parallel-workers: 1
+      artifact-prefix: release
+      retention-days: 30
+
+  # Publishes immutable release and latest image tags only after tag and concise verification gates pass.
+  # 仅在标签校验和简要验证门禁通过后发布不可变 release 标签和 latest 镜像标签。
+  release-image:
+    name: Build and publish release image
+    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    needs:
+      - release-tag-version-check
+      - verification-suite
+    # Release publishing needs GHCR package write access after validation succeeds.
+    # 发布镜像需要在验证成功后获取 GHCR 包写权限。
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/reusable-image-publish.yml
+    with:
+      image-name: linapro
+      platforms: linux/amd64,linux/arm64
+      tag-mode: release
+      floating-tag: latest
+      inspect-floating-tag: true
+      plugins: "1"

@@ -1,0 +1,229 @@
+{
+  "menu": {
+    "about:api:list": {
+      "title": "接口文档"
+    },
+    "root": {
+      "title": "主类目"
+    },
+    "about:system:list": {
+      "title": "版本信息"
+    },
+    "content": {
+      "title": "内容管理"
+    },
+    "dashboard": {
+      "title": "工作台"
+    },
+    "dashboard:analytics:list": {
+      "title": "分析页"
+    },
+    "dashboard:workspace:list": {
+      "title": "工作台"
+    },
+    "developer": {
+      "title": "开发中心"
+    },
+    "extension": {
+      "title": "扩展中心"
+    },
+    "extension:plugin:disable": {
+      "title": "插件禁用"
+    },
+    "extension:plugin:enable": {
+      "title": "插件启用"
+    },
+    "extension:plugin:edit": {
+      "title": "插件配置"
+    },
+    "extension:plugin:install": {
+      "title": "插件安装"
+    },
+    "extension:plugin:list": {
+      "title": "插件管理"
+    },
+    "extension:plugin:query": {
+      "title": "插件查询"
+    },
+    "extension:plugin:uninstall": {
+      "title": "插件卸载"
+    },
+    "iam": {
+      "title": "权限管理"
+    },
+    "monitor": {
+      "title": "系统监控"
+    },
+    "org": {
+      "title": "组织管理"
+    },
+    "platform": {
+      "title": "平台管理"
+    },
+    "scheduler": {
+      "title": "任务调度"
+    },
+    "setting": {
+      "title": "系统设置"
+    },
+    "system:config:add": {
+      "title": "参数新增"
+    },
+    "system:config:edit": {
+      "title": "参数修改"
+    },
+    "system:config:export": {
+      "title": "参数导出"
+    },
+    "system:config:list": {
+      "title": "参数设置"
+    },
+    "system:config:query": {
+      "title": "参数查询"
+    },
+    "system:config:remove": {
+      "title": "参数删除"
+    },
+    "system:dict:add": {
+      "title": "字典新增"
+    },
+    "system:dict:edit": {
+      "title": "字典修改"
+    },
+    "system:dict:export": {
+      "title": "字典导出"
+    },
+    "system:dict:list": {
+      "title": "字典管理"
+    },
+    "system:dict:query": {
+      "title": "字典查询"
+    },
+    "system:dict:remove": {
+      "title": "字典删除"
+    },
+    "system:file:download": {
+      "title": "文件下载"
+    },
+    "system:file:list": {
+      "title": "文件管理"
+    },
+    "system:file:query": {
+      "title": "文件查询"
+    },
+    "system:file:remove": {
+      "title": "文件删除"
+    },
+    "system:file:upload": {
+      "title": "文件上传"
+    },
+    "system:job:add": {
+      "title": "任务新增"
+    },
+    "system:job:edit": {
+      "title": "任务修改"
+    },
+    "system:job:list": {
+      "title": "任务管理"
+    },
+    "system:job:remove": {
+      "title": "任务删除"
+    },
+    "system:job:reset": {
+      "title": "重置计数"
+    },
+    "system:job:shell": {
+      "title": "Shell 任务权限"
+    },
+    "system:job:status": {
+      "title": "任务启停"
+    },
+    "system:job:trigger": {
+      "title": "立即执行"
+    },
+    "system:jobgroup:add": {
+      "title": "分组新增"
+    },
+    "system:jobgroup:edit": {
+      "title": "分组修改"
+    },
+    "system:jobgroup:list": {
+      "title": "分组管理"
+    },
+    "system:jobgroup:remove": {
+      "title": "分组删除"
+    },
+    "system:joblog:cancel": {
+      "title": "日志终止"
+    },
+    "system:joblog:list": {
+      "title": "执行日志"
+    },
+    "system:joblog:remove": {
+      "title": "日志清空"
+    },
+    "system:menu:list": {
+      "title": "菜单管理"
+    },
+    "system:menu:add": {
+      "title": "菜单新增"
+    },
+    "system:menu:edit": {
+      "title": "菜单修改"
+    },
+    "system:menu:query": {
+      "title": "菜单查询"
+    },
+    "system:menu:remove": {
+      "title": "菜单删除"
+    },
+    "system:role:add": {
+      "title": "角色新增"
+    },
+    "system:role:auth": {
+      "title": "角色授权"
+    },
+    "system:role:edit": {
+      "title": "角色修改"
+    },
+    "system:role:list": {
+      "title": "角色管理"
+    },
+    "system:role:query": {
+      "title": "角色查询"
+    },
+    "system:role:remove": {
+      "title": "角色删除"
+    },
+    "system:user:add": {
+      "title": "用户新增"
+    },
+    "system:user:edit": {
+      "title": "用户修改"
+    },
+    "system:user:export": {
+      "title": "用户导出"
+    },
+    "system:user:import": {
+      "title": "用户导入"
+    },
+    "system:user:list": {
+      "title": "用户管理"
+    },
+    "system:user:query": {
+      "title": "用户查询"
+    },
+    "system:user:remove": {
+      "title": "用户删除"
+    },
+    "system:user:resetPwd": {
+      "title": "重置密码"
+    },
+    "dynamic-permissions": {
+      "title": "动态权限",
+      "route-permissions": {
+        "title": "运行时路由权限"
+      }
+    }
+  }
+}

@@ -1,0 +1,228 @@
+{
+  "core": {
+    "api": {
+      "sysinfo": {
+        "v1": {
+          "ComponentInfo": {
+            "fields": {
+              "description": {
+                "dc": "组件描述"
+              },
+              "name": {
+                "dc": "组件名称"
+              },
+              "url": {
+                "dc": "组件主页URL"
+              },
+              "version": {
+                "dc": "组件版本"
+              }
+            }
+          },
+          "FrameworkInfo": {
+            "fields": {
+              "description": {
+                "dc": "框架介绍"
+              },
+              "homepage": {
+                "dc": "项目官网"
+              },
+              "license": {
+                "dc": "开源协议"
+              },
+              "name": {
+                "dc": "框架名称"
+              },
+              "repositoryUrl": {
+                "dc": "仓库地址"
+              },
+              "version": {
+                "dc": "框架版本号"
+              }
+            }
+          },
+          "CacheCoordinationInfo": {
+            "fields": {
+              "authoritySource": {
+                "dc": "用于重建该缓存域的权威数据源"
+              },
+              "backend": {
+                "dc": "该缓存域使用的协调后端，单节点模式下为空"
+              },
+              "consistencyModel": {
+                "dc": "缓存域使用的一致性模型"
+              },
+              "domain": {
+                "dc": "缓存协调域标识"
+              },
+              "eventSubscriber": {
+                "dc": "协调事件订阅器当前是否运行"
+              },
+              "failureStrategy": {
+                "dc": "无法确认 freshness 时对调用方可见的降级策略"
+              },
+              "healthy": {
+                "dc": "采集该快照时协调后端是否健康"
+              },
+              "lastEventAt": {
+                "dc": "最近一次消费协调事件的时间，尚未收到事件时为空"
+              },
+              "lastSyncedAt": {
+                "dc": "最近一次本地同步成功时间，尚未同步时为空"
+              },
+              "localRevision": {
+                "dc": "当前宿主进程已消费的最新修订号"
+              },
+              "maxStaleSeconds": {
+                "dc": "最大可接受陈旧窗口，单位为秒"
+              },
+              "recentError": {
+                "dc": "最近一次缓存协调失败信息，健康时为空"
+              },
+              "scope": {
+                "dc": "缓存域内的显式失效作用域"
+              },
+              "sharedRevision": {
+                "dc": "从协调存储观测到的最新共享修订号"
+              },
+              "staleSeconds": {
+                "dc": "距离最近一次本地同步成功已过去的秒数"
+              }
+            }
+          },
+          "CoordinationInfo": {
+            "fields": {
+              "backend": {
+                "dc": "当前协调后端，单节点模式无分布式后端时为空"
+              },
+              "clusterEnabled": {
+                "dc": "是否启用集群部署模式"
+              },
+              "lastError": {
+                "dc": "脱敏后的最近一次协调健康错误，健康时为空"
+              },
+              "lastSuccessAt": {
+                "dc": "最近一次协调健康检查成功时间，不可用时为空"
+              },
+              "nodeId": {
+                "dc": "当前宿主节点的稳定标识"
+              },
+              "primary": {
+                "dc": "当前节点是否承担主节点职责"
+              },
+              "redisHealthy": {
+                "dc": "Redis 协调后端当前是否健康"
+              }
+            }
+          },
+          "GetInfoReq": {
+            "meta": {
+              "dc": "获取系统运行时信息，包括Go版本、GoFrame版本、操作系统、数据库版本、启动时间、运行时长、前后端组件列表、集群协调诊断信息以及缓存协调诊断信息",
+              "summary": "获取系统运行信息",
+              "tags": "系统信息"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "arch": {
+                            "dc": "系统架构"
+                          },
+                          "backendComponents": {
+                            "dc": "后端组件列表"
+                          },
+                          "cacheCoordination": {
+                            "dc": "关键运行时缓存域的缓存协调诊断信息"
+                          },
+                          "coordination": {
+                            "dc": "集群协调诊断信息"
+                          },
+                          "dbVersion": {
+                            "dc": "数据库版本"
+                          },
+                          "framework": {
+                            "dc": "框架信息"
+                          },
+                          "frontendComponents": {
+                            "dc": "前端组件列表"
+                          },
+                          "gfVersion": {
+                            "dc": "GoFrame版本"
+                          },
+                          "goVersion": {
+                            "dc": "Go版本"
+                          },
+                          "os": {
+                            "dc": "操作系统"
+                          },
+                          "runDuration": {
+                            "dc": "系统运行时长"
+                          },
+                          "runDurationSeconds": {
+                            "dc": "以总秒数表示的系统运行时长，用于客户端结构化格式化"
+                          },
+                          "startTime": {
+                            "dc": "系统启动时间"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "获取系统运行时信息，包括Go版本、GoFrame版本、操作系统、数据库版本、启动时间、运行时长、前后端组件列表、集群协调诊断信息以及缓存协调诊断信息"
+            }
+          },
+          "GetInfoRes": {
+            "fields": {
+              "arch": {
+                "dc": "系统架构"
+              },
+              "backendComponents": {
+                "dc": "后端组件列表"
+              },
+              "cacheCoordination": {
+                "dc": "关键运行时缓存域的缓存协调诊断信息"
+              },
+              "coordination": {
+                "dc": "集群协调诊断信息"
+              },
+              "dbVersion": {
+                "dc": "数据库版本"
+              },
+              "framework": {
+                "dc": "框架信息"
+              },
+              "frontendComponents": {
+                "dc": "前端组件列表"
+              },
+              "gfVersion": {
+                "dc": "GoFrame版本"
+              },
+              "goVersion": {
+                "dc": "Go版本"
+              },
+              "os": {
+                "dc": "操作系统"
+              },
+              "runDuration": {
+                "dc": "系统运行时长"
+              },
+              "runDurationSeconds": {
+                "dc": "以总秒数表示的系统运行时长，用于客户端结构化格式化"
+              },
+              "startTime": {
+                "dc": "系统启动时间"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

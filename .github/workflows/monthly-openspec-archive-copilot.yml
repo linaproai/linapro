@@ -1,0 +1,240 @@
+# LinaPro reusable monthly OpenSpec archive workflow for GitHub Copilot CLI.
+# LinaPro 面向 GitHub Copilot CLI 的可复用 OpenSpec 归档工作流。
+name: Monthly OpenSpec Archive GitHub Copilot CLI
+
+on:
+  # Allow the router workflow to call the GitHub Copilot CLI archive implementation.
+  # 允许路由工作流调用 GitHub Copilot CLI 归档实现。
+  workflow_call:
+    inputs:
+      # Keeps the archive job pinned to the same OpenSpec CLI version as the detector.
+      # 让归档 job 使用与检测 job 一致的 OpenSpec CLI 版本。
+      openspec_version:
+        description: OpenSpec CLI version to run.
+        required: false
+        type: string
+        default: "1.3.1"
+      # Allows GitHub Variables to provide the GitHub Copilot CLI model name.
+      # 允许通过 GitHub Variables 提供 GitHub Copilot CLI 模型名称。
+      copilot_model:
+        description: GitHub Copilot CLI model name from GitHub Variables.
+        required: false
+        type: string
+        default: "auto"
+      # Allows GitHub Variables to provide the GitHub Copilot CLI reasoning effort.
+      # 允许通过 GitHub Variables 提供 GitHub Copilot CLI 推理等级。
+      copilot_reasoning_effort:
+        description: GitHub Copilot CLI reasoning effort from GitHub Variables.
+        required: false
+        type: string
+        default: ""
+    secrets:
+      # Provides GitHub Copilot CLI authentication.
+      # 为 GitHub Copilot CLI 提供认证凭据。
+      COPILOT_GITHUB_TOKEN:
+        required: true
+
+# The archive job edits repository contents and opens pull requests.
+# 归档 job 会编辑仓库内容并创建 PR。
+permissions:
+  contents: write
+  pull-requests: write
+
+# Shared runtime settings for OpenSpec commands and GitHub Copilot CLI execution.
+# OpenSpec 命令和 GitHub Copilot CLI 执行使用的共享运行时设置。
+env:
+  TZ: "Asia/Shanghai"
+  OPENSPEC_VERSION: ${{ inputs.openspec_version }}
+  COPILOT_MODEL_INPUT: ${{ inputs.copilot_model }}
+  COPILOT_REASONING_EFFORT_INPUT: ${{ inputs.copilot_reasoning_effort }}
+
+jobs:
+  # Runs auto-archive, optional archive consolidation, and PR finalization through GitHub Copilot CLI.
+  # 通过 GitHub Copilot CLI 运行自动归档、可选归档聚合和 PR 收尾。
+  archive:
+    name: Archive and consolidate with GitHub Copilot CLI
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      # Check out the default branch with full history so archive branches can be created.
+      # 拉取默认分支完整历史，以便创建归档分支。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      # Install shared Node/OpenSpec/GitHub CLI prerequisites used by both archive phases.
+      # 安装两个归档阶段共用的 Node、OpenSpec 和 GitHub CLI 前置依赖。
+      - name: Prepare Shared Runtime
+        uses: ./.github/actions/monthly-openspec-setup
+
+      # Install and configure GitHub Copilot CLI for unattended prompt execution.
+      # 安装并配置 GitHub Copilot CLI，用于无人值守提示词执行。
+      - name: Prepare GitHub Copilot CLI Runtime
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${COPILOT_GITHUB_TOKEN}" ]; then
+            echo "COPILOT_GITHUB_TOKEN secret is not configured." >&2
+            exit 1
+          fi
+          if [ -z "${COPILOT_MODEL_INPUT}" ]; then
+            echo "COPILOT_MODEL variable is not configured." >&2
+            exit 1
+          fi
+          copilot_reasoning_effort="$(printf '%s' "${COPILOT_REASONING_EFFORT_INPUT}" | tr '[:upper:]' '[:lower:]')"
+          case "${copilot_reasoning_effort}" in
+            ""|low|medium|high|xhigh)
+              ;;
+            *)
+              echo "Unsupported COPILOT_REASONING_EFFORT: ${COPILOT_REASONING_EFFORT_INPUT}. Use 'low', 'medium', 'high', or 'xhigh'." >&2
+              exit 1
+              ;;
+          esac
+
+          copilot_logs="${RUNNER_TEMP}/copilot-logs"
+          copilot_home="${RUNNER_TEMP}/copilot-home"
+          copilot_bin="${RUNNER_TEMP}/copilot-bin"
+          mkdir -p "${copilot_logs}"
+          mkdir -p "${copilot_home}"
+          mkdir -p "${copilot_bin}"
+
+          npm install --global "@github/copilot"
+
+          cat > "${copilot_bin}/openspec" <<'SH'
+          #!/usr/bin/env sh
+          exec npx -y "@fission-ai/openspec@${OPENSPEC_VERSION:-1.3.1}" "$@"
+          SH
+          chmod +x "${copilot_bin}/openspec"
+
+          {
+            echo "COPILOT_LOGS=${copilot_logs}"
+            echo "COPILOT_HOME=${copilot_home}"
+            echo "COPILOT_BIN=${copilot_bin}"
+            echo "COPILOT_SELECTED_MODEL=${COPILOT_MODEL_INPUT}"
+            echo "COPILOT_SELECTED_REASONING_EFFORT=${copilot_reasoning_effort}"
+          } >> "${GITHUB_ENV}"
+          echo "${copilot_bin}" >> "${GITHUB_PATH}"
+
+      # Run the lina-auto-archive prompt through GitHub Copilot CLI.
+      # 通过 GitHub Copilot CLI 运行 lina-auto-archive 提示词。
+      - name: Run Lina Auto Archive
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          prompt="$(cat .github/prompts/monthly-openspec-auto-archive.zh-CN.md)"
+          mapfile -t copilot_model_args < <(
+            node -e 'const value = process.env.COPILOT_SELECTED_MODEL || ""; if (value && value !== "auto") console.log("--model=" + value);'
+          )
+          mapfile -t copilot_reasoning_args < <(
+            node -e 'const value = process.env.COPILOT_SELECTED_REASONING_EFFORT || ""; if (value) console.log("--reasoning-effort=" + value);'
+          )
+          copilot \
+            "${copilot_model_args[@]}" \
+            "${copilot_reasoning_args[@]}" \
+            --silent \
+            --log-dir="${COPILOT_LOGS}" \
+            --no-ask-user \
+            --secret-env-vars COPILOT_GITHUB_TOKEN \
+            --allow-tool 'shell(pwd)' \
+            --allow-tool 'shell(test:*)' \
+            --allow-tool 'shell(find:*)' \
+            --allow-tool 'shell(ls:*)' \
+            --allow-tool 'shell(rg:*)' \
+            --allow-tool 'shell(cat:*)' \
+            --allow-tool 'shell(sed:*)' \
+            --allow-tool 'shell(openspec:*)' \
+            --allow-tool 'shell(npx:*)' \
+            --allow-tool 'shell(git:*)' \
+            --allow-tool write \
+            -p "${prompt}" 2>&1 | tee "${COPILOT_LOGS}/auto-archive.console.log"
+
+      # Fail fast when the auto-archive phase reports success but leaves completed changes active.
+      # 当自动归档阶段报告成功但仍遗留已完成活跃变更时快速失败。
+      - name: Assert Auto Archive Completed
+        uses: ./.github/actions/monthly-openspec-assert-archive-complete
+        with:
+          openspec-version: ${{ env.OPENSPEC_VERSION }}
+
+      # Validate immediately after auto-archive so invalid archive results do not enter consolidation.
+      # 自动归档后立即校验，避免无效归档结果继续进入聚合阶段。
+      - name: Validate OpenSpec After Auto Archive
+        uses: ./.github/actions/monthly-openspec-validate
+        with:
+          openspec-version: ${{ env.OPENSPEC_VERSION }}
+
+      # Detect whether auto-archive changed repository files.
+      # 检测自动归档是否修改了仓库文件。
+      - name: Detect Archive Changes
+        id: archive-diff
+        uses: ./.github/actions/monthly-openspec-detect-changes
+
+      # Consolidate archive records only when the auto-archive phase produced changes.
+      # 仅在自动归档阶段产生变更时聚合归档记录。
+      - name: Run Lina Archive Consolidate
+        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          prompt="$(cat .github/prompts/monthly-openspec-archive-consolidate.zh-CN.md)"
+          mapfile -t copilot_model_args < <(
+            node -e 'const value = process.env.COPILOT_SELECTED_MODEL || ""; if (value && value !== "auto") console.log("--model=" + value);'
+          )
+          mapfile -t copilot_reasoning_args < <(
+            node -e 'const value = process.env.COPILOT_SELECTED_REASONING_EFFORT || ""; if (value) console.log("--reasoning-effort=" + value);'
+          )
+          copilot \
+            "${copilot_model_args[@]}" \
+            "${copilot_reasoning_args[@]}" \
+            --silent \
+            --log-dir="${COPILOT_LOGS}" \
+            --no-ask-user \
+            --secret-env-vars COPILOT_GITHUB_TOKEN \
+            --allow-tool 'shell(pwd)' \
+            --allow-tool 'shell(test:*)' \
+            --allow-tool 'shell(find:*)' \
+            --allow-tool 'shell(ls:*)' \
+            --allow-tool 'shell(rg:*)' \
+            --allow-tool 'shell(cat:*)' \
+            --allow-tool 'shell(sed:*)' \
+            --allow-tool 'shell(openspec:*)' \
+            --allow-tool 'shell(npx:*)' \
+            --allow-tool 'shell(git:*)' \
+            --allow-tool write \
+            -p "${prompt}" 2>&1 | tee "${COPILOT_LOGS}/archive-consolidate.console.log"
+
+      # Validate immediately after consolidation so invalid aggregate output stops before PR finalization.
+      # 聚合后立即校验，避免无效聚合结果继续进入 PR 收尾。
+      - name: Validate OpenSpec After Archive Consolidate
+        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
+        uses: ./.github/actions/monthly-openspec-validate
+        with:
+          openspec-version: ${{ env.OPENSPEC_VERSION }}
+
+      # Validate, commit, push, and open/update the archive pull request.
+      # 校验、提交、推送，并创建或更新归档 PR。
+      - name: Finalize Archive Pull Request
+        uses: ./.github/actions/monthly-openspec-finalize-pr
+        with:
+          changed: ${{ steps.archive-diff.outputs.changed }}
+          openspec-version: ${{ env.OPENSPEC_VERSION }}
+          base-branch: ${{ github.event.repository.default_branch }}
+
+      # Upload GitHub Copilot CLI task logs for review and failure diagnosis.
+      # 上传 GitHub Copilot CLI 任务日志，便于审查和失败诊断。
+      - name: Upload GitHub Copilot CLI Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monthly-openspec-copilot-logs
+          path: ${{ runner.temp }}/copilot-logs/
+          if-no-files-found: ignore
+          retention-days: 14

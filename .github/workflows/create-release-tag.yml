@@ -1,0 +1,116 @@
+# Controlled LinaPro release tag creation workflow.
+# 该工作流为人工触发，在版本发布时由维护者执行，完成从 `apps/lina-core/manifest/config/metadata.yaml` 
+# 中读取版本号、校验版本号格式、检查标签是否已存在、创建 Git 标签并推送到远程仓库的过程。
+# 使用 GitHub App installation token 进行仓库写入，以绕过标签规则集限制，确保发布标签的语义清晰和一致。
+name: Create Release Tag (Manual Trigger)
+
+on:
+  # Allow maintainers to create a release tag after metadata validation.
+  # 允许维护者在元数据校验后创建发布标签。
+  workflow_dispatch:
+
+# Repository writes are performed with the GitHub App installation token.
+# 仓库写入使用 GitHub App installation token 完成。
+permissions:
+  contents: read
+
+# Serialize release tag creation so two maintainers cannot race the same version.
+# 串行化发布标签创建，避免两个维护者并发创建同一版本。
+concurrency:
+  group: "${{ github.workflow }}"
+  cancel-in-progress: false
+
+jobs:
+  # Reads framework.version, validates it, and creates the matching Git tag.
+  # 读取 framework.version，完成校验，并创建匹配的 Git 标签。
+  create-release-tag:
+    name: Create release tag from framework.version
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Create an installation token whose GitHub App actor can bypass the tag ruleset.
+      # 生成 GitHub App installation token，其 GitHub App actor 可绕过 tag ruleset。
+      - name: Create GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      # Check out the target branch with the release GitHub App token.
+      # 使用发布 GitHub App token 拉取目标分支。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
+
+      # Read and validate framework.version through the shared cross-platform tool.
+      # 通过共享跨平台工具读取并校验 framework.version。
+      - name: Prepare Release Tag
+        id: release
+        run: |
+          version="$(make release.tag.check print-version=1)"
+          make release.tag.check tag="${version}"
+          {
+            echo "tag=${version}"
+            echo "sha=${GITHUB_SHA}"
+          } >> "${GITHUB_OUTPUT}"
+
+      # Fail rather than moving an existing release tag.
+      # 如果发布标签已存在则失败，禁止移动既有标签。
+      - name: Verify Tag Does Not Exist
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set +e
+          git ls-remote --exit-code --tags "https://x-access-token:${APP_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1
+          status=$?
+          set -e
+          if [ "${status}" -eq 0 ]; then
+            echo "Release tag ${RELEASE_TAG} already exists. Refusing to move or overwrite it." >&2
+            exit 1
+          fi
+          if [ "${status}" -ne 2 ]; then
+            echo "Failed to verify whether release tag ${RELEASE_TAG} exists." >&2
+            exit "${status}"
+          fi
+
+      # Create the annotated tag locally on the checked-out commit.
+      # 在当前检出的提交上创建附注标签。
+      - name: Create Local Tag
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          app_user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${app_user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+          git tag -a "${RELEASE_TAG}" -m "Release ${RELEASE_TAG}"
+
+      # Push the tag with the GitHub App installation token.
+      # 使用 GitHub App installation token 推送标签。
+      - name: Push Release Tag
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          git push \
+            "https://x-access-token:${APP_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "refs/tags/${RELEASE_TAG}"
+
+      # Document that ruleset bypass is attached to the token actor, not the token string.
+      # 说明 ruleset bypass 绑定的是 token 对应 actor，而不是 token 字符串。
+      - name: Report Release Tag
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          echo "Created release tag ${RELEASE_TAG} at ${GITHUB_SHA}."
+          echo "Created by GitHub App actor ${APP_SLUG}."
+          echo "Ruleset bypass is actor-based: add this GitHub App to the release tag ruleset bypass list."
+          echo "This workflow uses a GitHub App installation token generated from RELEASE_APP_CLIENT_ID and RELEASE_APP_PRIVATE_KEY."

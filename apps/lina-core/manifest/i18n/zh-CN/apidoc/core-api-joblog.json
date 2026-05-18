@@ -1,0 +1,261 @@
+{
+  "core": {
+    "api": {
+      "joblog": {
+        "v1": {
+          "CancelReq": {
+            "fields": {
+              "id": {
+                "dc": "日志ID"
+              }
+            },
+            "meta": {
+              "dc": "终止指定运行中的任务实例；Shell 实例还需通过 system:job:shell 的附加权限校验",
+              "summary": "终止运行实例",
+              "tags": "任务调度/执行日志"
+            },
+            "schema": {
+              "dc": "终止指定运行中的任务实例；Shell 实例还需通过 system:job:shell 的附加权限校验"
+            }
+          },
+          "ClearReq": {
+            "fields": {
+              "jobId": {
+                "dc": "待清空日志的任务ID；与 logIds 二选一，不传则可清空全部任务日志"
+              },
+              "logIds": {
+                "dc": "待批量删除的日志ID列表，使用逗号分隔；传入后优先按指定日志删除"
+              }
+            },
+            "meta": {
+              "dc": "支持按日志ID批量删除、按任务ID清空日志，或在不传 jobId 和 logIds 时清空全部执行日志",
+              "summary": "清理执行日志",
+              "tags": "任务调度/执行日志"
+            },
+            "schema": {
+              "dc": "支持按日志ID批量删除、按任务ID清空日志，或在不传 jobId 和 logIds 时清空全部执行日志"
+            }
+          },
+          "DetailReq": {
+            "fields": {
+              "id": {
+                "dc": "日志ID"
+              }
+            },
+            "meta": {
+              "dc": "根据日志ID查询任务执行日志详情，返回任务快照、执行结果和错误摘要",
+              "summary": "获取日志详情",
+              "tags": "任务调度/执行日志"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "durationMs": {
+                            "dc": "执行耗时（毫秒）"
+                          },
+                          "endAt": {
+                            "dc": "结束时间"
+                          },
+                          "errMsg": {
+                            "dc": "错误摘要"
+                          },
+                          "id": {
+                            "dc": "日志ID"
+                          },
+                          "jobId": {
+                            "dc": "所属任务ID"
+                          },
+                          "jobName": {
+                            "dc": "任务名称"
+                          },
+                          "jobSnapshot": {
+                            "dc": "执行时任务快照JSON"
+                          },
+                          "nodeId": {
+                            "dc": "执行节点标识"
+                          },
+                          "paramsSnapshot": {
+                            "dc": "执行时参数快照JSON"
+                          },
+                          "resultJson": {
+                            "dc": "执行结果JSON"
+                          },
+                          "startAt": {
+                            "dc": "开始时间"
+                          },
+                          "status": {
+                            "dc": "执行状态"
+                          },
+                          "trigger": {
+                            "dc": "触发方式（cron/manual）"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根据日志ID查询任务执行日志详情，返回任务快照、执行结果和错误摘要"
+            }
+          },
+          "DetailRes": {
+            "fields": {
+              "durationMs": {
+                "dc": "执行耗时（毫秒）"
+              },
+              "endAt": {
+                "dc": "结束时间"
+              },
+              "errMsg": {
+                "dc": "错误摘要"
+              },
+              "id": {
+                "dc": "日志ID"
+              },
+              "jobId": {
+                "dc": "所属任务ID"
+              },
+              "jobName": {
+                "dc": "任务名称"
+              },
+              "jobSnapshot": {
+                "dc": "执行时任务快照JSON"
+              },
+              "nodeId": {
+                "dc": "执行节点标识"
+              },
+              "paramsSnapshot": {
+                "dc": "执行时参数快照JSON"
+              },
+              "resultJson": {
+                "dc": "执行结果JSON"
+              },
+              "startAt": {
+                "dc": "开始时间"
+              },
+              "status": {
+                "dc": "执行状态"
+              },
+              "trigger": {
+                "dc": "触发方式（cron/manual）"
+              }
+            },
+            "schema": {
+              "dc": "执行日志详情"
+            }
+          },
+          "ListItem": {
+            "fields": {
+              "durationMs": {
+                "dc": "执行耗时（毫秒）"
+              },
+              "endAt": {
+                "dc": "结束时间"
+              },
+              "errMsg": {
+                "dc": "错误摘要"
+              },
+              "id": {
+                "dc": "日志ID"
+              },
+              "jobId": {
+                "dc": "所属任务ID"
+              },
+              "jobName": {
+                "dc": "任务名称"
+              },
+              "jobSnapshot": {
+                "dc": "执行时任务快照JSON"
+              },
+              "nodeId": {
+                "dc": "执行节点标识"
+              },
+              "paramsSnapshot": {
+                "dc": "执行时参数快照JSON"
+              },
+              "resultJson": {
+                "dc": "执行结果JSON"
+              },
+              "startAt": {
+                "dc": "开始时间"
+              },
+              "status": {
+                "dc": "执行状态"
+              },
+              "trigger": {
+                "dc": "触发方式（cron/manual）"
+              }
+            }
+          },
+          "ListReq": {
+            "fields": {
+              "beginTime": {
+                "dc": "按开始时间下界筛选"
+              },
+              "endTime": {
+                "dc": "按开始时间上界筛选"
+              },
+              "jobId": {
+                "dc": "按任务ID筛选，不传则查询全部"
+              },
+              "nodeId": {
+                "dc": "按执行节点标识筛选"
+              },
+              "orderBy": {
+                "dc": "排序字段：id,start_at,end_at,duration_ms,status,created_at"
+              },
+              "orderDirection": {
+                "dc": "排序方向：asc=升序 desc=降序",
+                "default": "desc"
+              },
+              "status": {
+                "dc": "按日志状态筛选，不传则查询全部"
+              },
+              "trigger": {
+                "dc": "按触发方式筛选：cron=定时触发 manual=手动触发，不传则查询全部"
+              }
+            },
+            "meta": {
+              "dc": "分页查询任务执行日志，支持按任务、状态、触发方式、节点与时间范围筛选",
+              "summary": "获取执行日志列表",
+              "tags": "任务调度/执行日志"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "执行日志列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "分页查询任务执行日志，支持按任务、状态、触发方式、节点与时间范围筛选"
+            }
+          },
+          "ListRes": {
+            "fields": {
+              "list": {
+                "dc": "执行日志列表"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

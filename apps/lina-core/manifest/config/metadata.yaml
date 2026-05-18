@@ -1,0 +1,100 @@
+# API documentation and version information page metadata.
+# API 文档与版本信息页面元数据。
+# When `version` is `auto`, the actual version is populated at runtime.
+# 当 `version` 为 `auto` 时，实际版本会在运行时填充。
+
+# Framework metadata
+# 框架元数据
+framework:
+  # Framework name
+  # 框架名称
+  name: "LinaPro"
+  # Framework version
+  # 框架版本
+  # IMPORTANT: do not edit this field manually.
+  # Framework metadata and release processes use this value as the version baseline.
+  # 重要:请勿手工修改此字段。框架元数据和发布流程会以此值作为版本基线。
+  version: "v0.2.0"
+  # Framework introduction
+  # 框架简介
+  description: "An AI-native full-stack framework engineered for sustainable delivery."
+  # Project official website
+  # 项目官方网站
+  homepage: "https://linapro.ai"
+  # Repository URL
+  # 仓库地址
+  repositoryUrl: "https://github.com/linaproai/linapro"
+  # Open source license
+  # 开源许可证
+  license: "Apache 2.0"
+
+# OpenAPI document metadata
+# OpenAPI 文档元数据
+openapi:
+  # Document title
+  # 文档标题
+  title: "LinaPro Framework API"
+  # Document description
+  # 文档说明
+  description: "LinaPro Service API Documentation."
+  # Document version
+  # 文档版本
+  version: "v0.1.0"
+  # Backend service access URL
+  # 后端服务访问地址
+  serverUrl: ""
+  # Service URL description
+  # 服务地址说明
+  serverDescription: "CoreHostEndpoint"
+
+# Backend component metadata
+# 后端组件元数据
+backend:
+  - name: "GoFrame"
+    version: "auto"
+    url: "https://goframe.org"
+    description: "Go language development framework"
+  - name: "PostgreSQL"
+    version: "auto"
+    url: "https://www.postgresql.org"
+    description: "relational database"
+  - name: "JWT"
+    version: "v5.3.1"
+    url: "https://jwt.io"
+    description: "Authentication"
+  - name: "Excelize"
+    version: "v2.10.1"
+    url: "https://github.com/qax-os/excelize"
+    description: "Excel file processing library"
+
+# Frontend component metadata
+# 前端组件元数据
+frontend:
+  - name: "Vue"
+    version: "3.x"
+    url: "https://vuejs.org"
+    description: "Progressive JavaScript framework"
+  - name: "Vben 5"
+    version: "5.x"
+    url: "https://www.vben.pro"
+    description: "Default management workbench frontend framework"
+  - name: "Ant Design Vue"
+    version: "4.x"
+    url: "https://antdv.com"
+    description: "UI component library"
+  - name: "TypeScript"
+    version: "5.x"
+    url: "https://www.typescriptlang.org"
+    description: "Type-safe JavaScript"
+  - name: "Vite"
+    version: "6.x"
+    url: "https://vite.dev"
+    description: "Front-end build tools"
+  - name: "Pinia"
+    version: "3.x"
+    url: "https://pinia.vuejs.org"
+    description: "State management"
+  - name: "TailwindCSS"
+    version: "4.x"
+    url: "https://tailwindcss.com"
+    description: "Utility-first CSS framework"

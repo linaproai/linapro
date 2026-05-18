@@ -1,0 +1,344 @@
+// This file implements dictionary-type query, option, import, and export
+// helpers.
+
+package dict
+
+import (
+	"bytes"
+	"context"
+	"sort"
+
+	"github.com/xuri/excelize/v2"
+
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
+	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
+	"lina-core/pkg/bizerr"
+)
+
+// ListInput defines filters and pagination for dictionary-type queries.
+type ListInput struct {
+	PageNum  int
+	PageSize int
+	Name     string
+	Type     string
+}
+
+// ListOutput defines the paged dictionary-type query result.
+type ListOutput struct {
+	List  []*entity.SysDictType
+	Total int
+}
+
+// List queries dictionary types with pagination and filters.
+func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, error) {
+	var (
+		cols = dao.SysDictType.Columns()
+		m    = dao.SysDictType.Ctx(ctx)
+	)
+	m = applyDictFallbackScope(ctx, m)
+
+	if in.Name != "" {
+		m = m.WhereLike(cols.Name, "%"+in.Name+"%")
+	}
+	if in.Type != "" {
+		m = m.WhereLike(cols.Type, "%"+in.Type+"%")
+	}
+
+	var rows []*entity.SysDictType
+	err := m.OrderDesc(cols.Id).Scan(&rows)
+	if err != nil {
+		return nil, err
+	}
+	list := visibleDictTypes(ctx, rows)
+	sort.SliceStable(list, func(i int, j int) bool {
+		return list[i].Id > list[j].Id
+	})
+	total := len(list)
+	list = paginateDictTypes(list, in.PageNum, in.PageSize)
+	s.localizeDictTypeEntities(ctx, list)
+
+	return &ListOutput{
+		List:  list,
+		Total: total,
+	}, nil
+}
+
+// CreateInput defines the fields required to create one dictionary type.
+type CreateInput struct {
+	Name   string
+	Type   string
+	Status int
+	Remark string
+}
+
+// Create creates a new dictionary type.
+func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
+	if err := assertDictTenantOverrideAllowed(ctx, in.Type); err != nil {
+		return 0, err
+	}
+	model := dao.SysDictType.Ctx(ctx).Where(do.SysDictType{Type: in.Type})
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	count, err := model.Count()
+	if err != nil {
+		return 0, err
+	}
+	if count > 0 {
+		return 0, bizerr.NewCode(CodeDictTypeExists)
+	}
+
+	data := currentTenantDictDO(ctx)
+	data.Name = in.Name
+	data.Type = in.Type
+	data.Status = in.Status
+	data.Remark = in.Remark
+
+	id, err := dao.SysDictType.Ctx(ctx).Data(data).InsertAndGetId()
+	if err != nil {
+		return 0, err
+	}
+
+	return int(id), nil
+}
+
+// GetById retrieves dict type by ID.
+func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysDictType, error) {
+	var dictType *entity.SysDictType
+	model := dao.SysDictType.Ctx(ctx).Where(do.SysDictType{Id: id})
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&dictType)
+	if err != nil {
+		return nil, err
+	}
+	if dictType == nil {
+		return nil, bizerr.NewCode(CodeDictTypeNotFound)
+	}
+	return dictType, nil
+}
+
+// UpdateInput defines input for Update function.
+type UpdateInput struct {
+	Id     int     // Dictionary type ID
+	Name   *string // Dictionary name
+	Type   *string // Dictionary type
+	Status *int    // Status: 1=Normal 0=Disabled
+	Remark *string // Remark
+}
+
+// Update updates dict type information.
+func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
+	// Check dict type exists
+	existing, err := s.GetById(ctx, in.Id)
+	if err != nil {
+		return err
+	}
+
+	cols := dao.SysDictType.Columns()
+	finalType := existing.Type
+	if in.Type != nil {
+		finalType = *in.Type
+	}
+	if err := assertDictTenantOverrideAllowed(ctx, finalType); err != nil {
+		return err
+	}
+
+	data := do.SysDictType{}
+	if in.Name != nil {
+		data.Name = *in.Name
+	}
+	if in.Type != nil {
+		// Check type uniqueness when updating the type field
+		if *in.Type != "" {
+			model := dao.SysDictType.Ctx(ctx).
+				Where(cols.Type, *in.Type).
+				WhereNot(cols.Id, in.Id)
+			model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+			count, err := model.Count()
+			if err != nil {
+				return err
+			}
+			if count > 0 {
+				return bizerr.NewCode(CodeDictTypeExists)
+			}
+		}
+		data.Type = *in.Type
+	}
+	if in.Status != nil {
+		data.Status = *in.Status
+	}
+	if in.Remark != nil {
+		data.Remark = *in.Remark
+	}
+
+	_, err = dao.SysDictType.Ctx(ctx).Where(do.SysDictType{Id: in.Id}).Data(data).Update()
+	return err
+}
+
+// Delete hard-deletes a dict type and its associated dict data.
+func (s *serviceImpl) Delete(ctx context.Context, id int) error {
+	// Check dict type exists
+	dictType, err := s.GetById(ctx, id)
+	if err != nil {
+		return err
+	}
+	if dictType.IsBuiltin == 1 {
+		return bizerr.NewCode(CodeDictTypeBuiltinDeleteDenied)
+	}
+
+	count, err := dao.SysDictData.Ctx(ctx).
+		Where(do.SysDictData{DictType: dictType.Type, IsBuiltin: 1}).
+		Count()
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return bizerr.NewCode(CodeDictDataBuiltinDeleteDenied)
+	}
+
+	// Hard delete associated dict data first
+	_, err = dao.SysDictData.Ctx(ctx).
+		Where(do.SysDictData{DictType: dictType.Type}).
+		Delete()
+	if err != nil {
+		return err
+	}
+
+	// Hard delete dict type
+	_, err = dao.SysDictType.Ctx(ctx).
+		Where(do.SysDictType{Id: id}).
+		Delete()
+	return err
+}
+
+// ExportInput defines input for Export function.
+type ExportInput struct {
+	Name string // Dictionary name, supports fuzzy search
+	Type string // Dictionary type, supports fuzzy search
+	Ids  []int  // Specific IDs to export; if empty, export all matching records
+}
+
+// Export generates an Excel file with dict type data (max 10000 rows).
+func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, err error) {
+	cols := dao.SysDictType.Columns()
+	m := dao.SysDictType.Ctx(ctx)
+	m = applyDictFallbackScope(ctx, m)
+
+	if len(in.Ids) > 0 {
+		m = m.WhereIn(cols.Id, in.Ids)
+	} else {
+		if in.Name != "" {
+			m = m.WhereLike(cols.Name, "%"+in.Name+"%")
+		}
+		if in.Type != "" {
+			m = m.WhereLike(cols.Type, "%"+in.Type+"%")
+		}
+	}
+
+	// Limit export to prevent memory issues
+	m = m.Limit(10000)
+
+	var rows []*entity.SysDictType
+	err = m.OrderAsc(cols.Id).Scan(&rows)
+	if err != nil {
+		return nil, err
+	}
+	list := visibleDictTypes(ctx, rows)
+	s.localizeDictTypeEntities(ctx, list)
+
+	// Create Excel file
+	f := excelize.NewFile()
+	defer closeExcelFile(ctx, f, &err)
+	sheet := "Sheet1"
+
+	headers := s.runtimeTexts(ctx, []runtimeTextItem{
+		{Key: "artifact.dict.type.header.name", Fallback: "Dictionary Name"},
+		{Key: "artifact.dict.type.header.type", Fallback: "Dictionary Type"},
+		{Key: "artifact.dict.type.header.status", Fallback: "Status"},
+		{Key: "artifact.dict.type.header.remark", Fallback: "Remark"},
+		{Key: "artifact.dict.type.header.createdAt", Fallback: "Created At"},
+	})
+	for i, h := range headers {
+		if err = setCellValue(f, sheet, i+1, 1, h); err != nil {
+			return nil, err
+		}
+	}
+
+	for i, dt := range list {
+		row := i + 2
+		if err = setCellValue(f, sheet, 1, row, dt.Name); err != nil {
+			return nil, err
+		}
+		if err = setCellValue(f, sheet, 2, row, dt.Type); err != nil {
+			return nil, err
+		}
+		statusText := s.dictStatusText(ctx, dt.Status)
+		if err = setCellValue(f, sheet, 3, row, statusText); err != nil {
+			return nil, err
+		}
+		if err = setCellValue(f, sheet, 4, row, dt.Remark); err != nil {
+			return nil, err
+		}
+		if dt.CreatedAt != nil {
+			if err = setCellValue(f, sheet, 5, row, dt.CreatedAt.String()); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := f.Write(&buf); err != nil {
+		return nil, err
+	}
+	data = buf.Bytes()
+	return data, nil
+}
+
+// paginateDictTypes returns one page from an already materialized effective
+// dictionary-type view.
+func paginateDictTypes(rows []*entity.SysDictType, pageNum int, pageSize int) []*entity.SysDictType {
+	if pageNum <= 0 || pageSize <= 0 {
+		return rows
+	}
+	start := (pageNum - 1) * pageSize
+	if start >= len(rows) {
+		return []*entity.SysDictType{}
+	}
+	end := start + pageSize
+	if end > len(rows) {
+		end = len(rows)
+	}
+	return rows[start:end]
+}
+
+// OptionItem defines a single option item.
+type OptionItem struct {
+	Id   int    `json:"id"`   // Dictionary type ID
+	Name string `json:"name"` // Dictionary name
+	Type string `json:"type"` // Dictionary type
+}
+
+// Options returns all non-deleted dict types with status=1.
+func (s *serviceImpl) Options(ctx context.Context) ([]*OptionItem, error) {
+	cols := dao.SysDictType.Columns()
+	var list []*entity.SysDictType
+	model := dao.SysDictType.Ctx(ctx).
+		Where(do.SysDictType{Status: 1}).
+		OrderAsc(cols.Id)
+	model = applyDictFallbackScope(ctx, model)
+	err := model.Scan(&list)
+	if err != nil {
+		return nil, err
+	}
+	list = visibleDictTypes(ctx, list)
+
+	options := make([]*OptionItem, 0, len(list))
+	for _, dt := range list {
+		options = append(options, &OptionItem{
+			Id:   dt.Id,
+			Name: dt.Name,
+			Type: dt.Type,
+		})
+	}
+	return options, nil
+}

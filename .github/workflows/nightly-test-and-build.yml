@@ -1,0 +1,71 @@
+# LinaPro nightly health test and multi-platform Docker image publishing workflow.
+# GitHub cron uses UTC. 16:00 UTC is 00:00 Asia/Shanghai.
+# LinaPro 夜间健康测试与多平台 Docker 镜像发布工作流。
+# GitHub cron 使用 UTC，16:00 UTC 对应北京时间 00:00。
+name: Nightly Test and Build
+
+on:
+  # Run the full nightly verification and image publishing chain every day.
+  # 每天运行完整夜间验证与镜像发布链路。
+  schedule:
+    - cron: "0 16 * * *"
+
+  # Allow maintainers to run the nightly chain manually for release diagnostics.
+  # 允许维护者为发布诊断手动运行夜间链路。
+  workflow_dispatch:
+
+# The top-level workflow only needs repository read access; the image job narrows in write access locally.
+# 顶层工作流只需要读取仓库；镜像 job 会在自身范围内声明写包权限。
+permissions:
+  contents: read
+
+# Keep nightly runs serialized so image tags and artifacts are not produced by overlapping runs.
+# 保持夜间任务串行，避免重叠运行同时产出镜像标签和 artifact。
+concurrency:
+  group: "${{ github.workflow }} @ nightly"
+  cancel-in-progress: false
+
+jobs:
+  # Reuses the shared verification suite with browser E2E enabled for nightly health checks.
+  # 复用共享验证套件，并为 nightly 健康检查启用浏览器 E2E。
+  verification-suite:
+    name: Test verification suite
+    uses: ./.github/workflows/reusable-test-verification-suite.yml
+    with:
+      include-openspec-completion: false
+      include-windows-command-smoke: true
+      include-backend-unit-tests: true
+      include-frontend-unit-tests: true
+      include-plugin-windows-command-smoke: true
+      include-plugin-backend-unit-tests: true
+      include-plugin-frontend-unit-tests: true
+      include-plugin-command-smoke: true
+      include-make-command-smoke: true
+      include-redis-integration: true
+      include-sqlite-smoke: true
+      include-host-only-build-smoke: true
+      include-host-only-e2e-tests: true
+      include-plugin-full-e2e-tests: true
+      include-redis-cluster-smoke: true
+      e2e-parallel-workers: 1
+      artifact-prefix: nightly
+      retention-days: 14
+
+  # Publishes the nightly image only after every host-only, plugin-full, E2E, and Redis gate passes.
+  # 仅在所有宿主、插件完整、E2E 和 Redis 门禁通过后发布 nightly 镜像。
+  nightly-image:
+    name: Build and publish nightly image
+    needs:
+      - verification-suite
+    # Image publication needs package write access, while other jobs stay read-only.
+    # 镜像发布需要包写权限，其他 job 保持只读权限。
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/reusable-image-publish.yml
+    with:
+      image-name: linapro
+      platforms: linux/amd64,linux/arm64
+      tag-mode: nightly
+      floating-tag: nightly
+      plugins: "1"

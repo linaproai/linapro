@@ -1,0 +1,52 @@
+# Reusable LinaPro SQLite smoke workflow.
+# LinaPro 可复用 SQLite 冒烟工作流。
+name: Reusable SQLite Smoke
+
+on:
+  # Expose SQLite backend smoke checks as a reusable workflow.
+  # 将 SQLite 后端冒烟检查暴露为可复用工作流。
+  workflow_call:
+
+# SQLite smoke checks only need read access to repository contents.
+# SQLite 冒烟检查只需要读取仓库内容。
+permissions:
+  contents: read
+
+# Keep SQLite smoke logs aligned with the project timezone.
+# 让 SQLite 冒烟日志与项目时区保持一致。
+env:
+  TZ: "Asia/Shanghai"
+
+jobs:
+  # Verifies the backend can initialize and run against the SQLite configuration.
+  # 验证后端在 SQLite 配置下可以初始化并运行。
+  sqlite-smoke:
+    name: SQLite smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      # Keep SQLite smoke logs and date handling in the project timezone.
+      # 保持 SQLite 冒烟日志和日期处理使用项目时区。
+      - name: Setup Timezone
+        run: |
+          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+          echo Asia/Shanghai | sudo tee /etc/timezone
+
+      # Check out scripts, SQL resources, and backend source code.
+      # 拉取脚本、SQL 资源和后端源码。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      # Install Go for the SQLite backend smoke script.
+      # 为 SQLite 后端冒烟脚本安装 Go。
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      # Run the SQLite-specific backend initialization and smoke verification.
+      # 运行 SQLite 专属的后端初始化和冒烟验证。
+      - name: Run SQLite Backend Smoke
+        run: |
+          ./hack/tests/scripts/run-sqlite-smoke.sh

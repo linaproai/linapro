@@ -1,0 +1,59 @@
+# LinaPro backend main CI workflow.
+# Runs on every push and pull request branch.
+# LinaPro 后端主 CI 工作流。
+# 在每次分支 push 和手动触发时运行。
+name: Main CI
+
+on:
+  # Validate every pushed branch, not only protected branches.
+  # 校验所有被推送的分支，不只覆盖受保护分支。
+  push:
+    branches:
+    - '**'
+
+  # Allow maintainers to rerun the main CI manually, optionally with debug support.
+  # 允许维护者手动重跑主 CI，并可按需开启调试。
+  workflow_dispatch:
+    inputs:
+      debug:
+        type: boolean
+        description: 'Enable tmate Debug'
+        required: false
+        default: false
+
+# Cancel in-progress runs for the same branch/PR to save CI minutes.
+# 取消同一分支/PR 上仍在运行的旧任务，节省 CI 时间。
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true
+
+# Keep logs and date-sensitive tests aligned with the project timezone.
+# 让日志和依赖日期的测试与项目时区保持一致。
+env:
+  TZ: "Asia/Shanghai"
+
+jobs:
+  # Reuses the shared verification suite and keeps browser E2E disabled for push CI.
+  # 复用共享验证套件，并在 push CI 中保持浏览器 E2E 关闭。
+  verification-suite:
+    name: Test verification suite
+    uses: ./.github/workflows/reusable-test-verification-suite.yml
+    with:
+      include-openspec-completion: true
+      include-windows-command-smoke: true
+      include-backend-unit-tests: true
+      include-frontend-unit-tests: true
+      include-plugin-windows-command-smoke: true
+      include-plugin-backend-unit-tests: true
+      include-plugin-frontend-unit-tests: true
+      include-plugin-command-smoke: true
+      include-make-command-smoke: true
+      include-redis-integration: true
+      include-sqlite-smoke: true
+      include-host-only-build-smoke: true
+      include-host-only-e2e-tests: false
+      include-plugin-full-e2e-tests: false
+      include-redis-cluster-smoke: true
+      e2e-parallel-workers: 1
+      artifact-prefix: main
+      retention-days: 7

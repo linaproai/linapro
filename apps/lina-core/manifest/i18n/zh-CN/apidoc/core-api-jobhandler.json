@@ -1,0 +1,140 @@
+{
+  "core": {
+    "api": {
+      "jobhandler": {
+        "v1": {
+          "DetailReq": {
+            "fields": {
+              "ref": {
+                "dc": "处理器唯一引用"
+              }
+            },
+            "meta": {
+              "dc": "根据处理器引用查询详情，返回描述信息和参数 Schema；包含斜杠的 ref 需进行 URL 编码",
+              "summary": "获取处理器详情",
+              "tags": "任务调度/插件处理器"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "description": {
+                            "dc": "处理器描述"
+                          },
+                          "displayName": {
+                            "dc": "处理器展示名称"
+                          },
+                          "paramsSchema": {
+                            "dc": "处理器参数 JSON Schema 文本"
+                          },
+                          "pluginId": {
+                            "dc": "来源插件ID；宿主处理器为空字符串"
+                          },
+                          "ref": {
+                            "dc": "处理器唯一引用"
+                          },
+                          "source": {
+                            "dc": "处理器来源：host=宿主 plugin=插件"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根据处理器引用查询详情，返回描述信息和参数 Schema；包含斜杠的 ref 需进行 URL 编码"
+            }
+          },
+          "DetailRes": {
+            "fields": {
+              "description": {
+                "dc": "处理器描述"
+              },
+              "displayName": {
+                "dc": "处理器展示名称"
+              },
+              "paramsSchema": {
+                "dc": "处理器参数 JSON Schema 文本"
+              },
+              "pluginId": {
+                "dc": "来源插件ID；宿主处理器为空字符串"
+              },
+              "ref": {
+                "dc": "处理器唯一引用"
+              },
+              "source": {
+                "dc": "处理器来源：host=宿主 plugin=插件"
+              }
+            }
+          },
+          "ListItem": {
+            "fields": {
+              "description": {
+                "dc": "处理器描述"
+              },
+              "displayName": {
+                "dc": "处理器展示名称"
+              },
+              "pluginId": {
+                "dc": "来源插件ID；宿主处理器为空字符串"
+              },
+              "ref": {
+                "dc": "处理器唯一引用"
+              },
+              "source": {
+                "dc": "处理器来源：host=宿主 plugin=插件"
+              }
+            }
+          },
+          "ListReq": {
+            "fields": {
+              "keyword": {
+                "dc": "按处理器引用或展示名称关键字筛选"
+              },
+              "source": {
+                "dc": "按处理器来源筛选：host=宿主 plugin=插件，不传则查询全部"
+              }
+            },
+            "meta": {
+              "dc": "查询当前宿主与插件已注册的任务处理器定义，供任务表单下拉选择",
+              "summary": "获取处理器列表",
+              "tags": "任务调度/插件处理器"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "处理器列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "查询当前宿主与插件已注册的任务处理器定义，供任务表单下拉选择"
+            }
+          },
+          "ListRes": {
+            "fields": {
+              "list": {
+                "dc": "处理器列表"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

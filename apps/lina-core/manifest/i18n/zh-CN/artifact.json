@@ -1,0 +1,91 @@
+{
+  "artifact": {
+    "config": {
+      "import": {
+        "failure": {
+          "requiredColumns": "参数名称、参数键名、参数键值为必填项",
+          "requiredValues": "参数名称、参数键名、参数键值不能为空"
+        }
+      }
+    },
+    "dict": {
+      "data": {
+        "header": {
+          "createdAt": "创建时间",
+          "cssClass": "CSS类",
+          "dictType": "所属类型",
+          "label": "字典标签",
+          "remark": "备注",
+          "sort": "排序",
+          "status": "状态",
+          "tagStyle": "Tag样式",
+          "value": "字典值"
+        }
+      },
+      "import": {
+        "failure": {
+          "dataLabelRequired": "字典标签不能为空",
+          "dataValueExists": "字典值已存在",
+          "dataValueRequired": "字典键值不能为空",
+          "incompleteData": "数据不完整",
+          "insertFailed": "插入失败: {error}",
+          "queryFailed": "查询失败: {error}",
+          "sortInvalid": "排序值必须是有效的整数",
+          "typeExists": "字典类型已存在",
+          "typeFormatInvalid": "字典类型格式错误：必须以小写字母开头，仅包含小写字母、数字和下划线",
+          "typeNameRequired": "字典名称不能为空",
+          "typeNotFound": "字典类型不存在",
+          "updateFailed": "更新失败: {error}"
+        }
+      },
+      "importTemplate": {
+        "example": {
+          "femaleRemark": "女性",
+          "maleRemark": "男性"
+        }
+      },
+      "sheet": {
+        "data": "字典数据",
+        "type": "字典类型"
+      },
+      "type": {
+        "header": {
+          "createdAt": "创建时间",
+          "name": "字典名称",
+          "remark": "备注",
+          "status": "状态",
+          "type": "字典类型"
+        }
+      }
+    },
+    "user": {
+      "header": {
+        "createdAt": "创建时间",
+        "email": "邮箱",
+        "nickname": "昵称",
+        "password": "密码",
+        "phone": "手机号码",
+        "remark": "备注",
+        "sex": "性别",
+        "status": "状态",
+        "username": "用户名"
+      },
+      "import": {
+        "failure": {
+          "insertFailed": "插入失败: {error}",
+          "passwordHashFailed": "密码加密失败",
+          "queryFailed": "数据库查询错误: {error}",
+          "usernameExists": "用户名 {username} 已存在",
+          "usernamePasswordNotEmpty": "用户名和密码不能为空",
+          "usernamePasswordRequired": "用户名和密码为必填项"
+        }
+      },
+      "importTemplate": {
+        "example": {
+          "nickname": "张三",
+          "remark": "示例用户"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "core": {
+    "common": {
+      "fields": {
+        "createdAt": {
+          "dc": "创建时间"
+        },
+        "deletedAt": {
+          "dc": "删除时间"
+        },
+        "pageNum": {
+          "dc": "页码"
+        },
+        "pageSize": {
+          "dc": "每页条数"
+        },
+        "total": {
+          "dc": "总条数"
+        },
+        "updatedAt": {
+          "dc": "更新时间"
+        }
+      },
+      "responses": {
+        "fields": {
+          "code": {
+            "dc": "错误码"
+          },
+          "data": {
+            "dc": "按接口定义返回的结果数据"
+          },
+          "message": {
+            "dc": "错误消息"
+          }
+        }
+      },
+      "schemas": {
+        "response": {
+          "dc": "按接口定义返回的结果数据"
+        }
+      }
+    }
+  }
+}

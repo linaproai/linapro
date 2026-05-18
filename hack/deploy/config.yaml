@@ -1,0 +1,99 @@
+# LinaPro memory-only demo runtime configuration.
+# This file is mounted read-only by docker-compose.yaml. Runtime data still
+# lives under /app/data, which is a tmpfs inside the container.
+
+# HTTP server configuration.
+server:
+  address: ":8080"
+  dumpRouterMap: false
+  extensions:
+    apiDocPath: "/api.json"
+
+# Console-focused logging for disposable demo containers.
+logger:
+  path: ""
+  file: "{Y-m-d}.log"
+  level: "all"
+  stdout: true
+  extensions:
+    structured: false
+    traceIDEnabled: false
+
+# PostgreSQL database provided by docker-compose.yaml.
+database:
+  default:
+    link: "pgsql:postgres:postgres@tcp(postgres:5432)/linapro?sslmode=disable"
+    debug: false
+
+# Demo-only JWT settings. Replace this secret outside disposable demos.
+jwt:
+  secret: "lina-jwt-secret-key-change-in-production"
+  expire: 24h
+
+# Short-lived session configuration for the demo container.
+session:
+  timeout: 24h
+  cleanupInterval: 5m
+
+# Service monitoring configuration.
+monitor:
+  interval: 1m
+
+# Health probe configuration.
+health:
+  timeout: 5s
+
+# Graceful shutdown configuration.
+shutdown:
+  timeout: 30s
+
+# Scheduler configuration.
+scheduler:
+  defaultTimezone: "UTC"
+
+# Demo language metadata.
+i18n:
+  default: zh-CN
+  enabled: true
+  locales:
+    - locale: en-US
+      nativeName: English
+    - locale: zh-CN
+      nativeName: 简体中文
+
+# This demo runs one LinaPro container. Keep cluster mode disabled even though
+# PostgreSQL is used as the database.
+cluster:
+  enabled: false
+  election:
+    lease: 30s
+    renewInterval: 10s
+
+# Uploaded files are stored in /app/data tmpfs and disappear with the container.
+upload:
+  path: "/app/data/upload"
+  maxSize: 20
+
+# Enable the source-plugin demo surface and public-demo protection.
+plugin:
+  allowForceUninstall: true
+  dynamic:
+    storagePath: "/app/data/wasm"
+  autoEnable:
+    - id: "multi-tenant"
+      withMockData: true
+    - id: "org-center"
+      withMockData: true
+    - id: "content-notice"
+      withMockData: true
+    - id: "monitor-loginlog"
+      withMockData: true
+    - id: "monitor-online"
+      withMockData: true
+    - id: "monitor-operlog"
+      withMockData: true
+    - id: "monitor-server"
+      withMockData: true
+    # demo-control protects risky actions in public demo environments.
+    - id: "demo-control"
+      withMockData: false
