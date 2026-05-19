@@ -89,7 +89,7 @@ func TestSyncBuiltinJobsReusesBuiltinRowByGroupAndName(t *testing.T) {
 	jobID := syncBuiltinHandlerJob(t, ctx, svc, def)
 	defer cleanupJobHard(t, ctx, jobID)
 
-	def.HandlerRef = "plugin:monitor-server/cron:" + def.Name
+	def.HandlerRef = "plugin:linapro-monitor-server/cron:" + def.Name
 	if _, err := svc.SyncBuiltinJobs(ctx, []BuiltinJobDef{def}); err != nil {
 		t.Fatalf("expected builtin job rename sync to succeed, got error: %v", err)
 	}

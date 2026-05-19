@@ -14,19 +14,6 @@ import (
 	"lina-core/pkg/logger"
 )
 
-// Health response statuses.
-const (
-	healthStatusOK          = "ok"
-	healthStatusUnavailable = "unavailable"
-)
-
-// Health response deployment modes.
-const (
-	healthModeSingle = "single"
-	healthModeMaster = "master"
-	healthModeSlave  = "slave"
-)
-
 // defaultHealthProbeTimeout is used only when the config service is absent.
 const defaultHealthProbeTimeout = 5 * time.Second
 
@@ -48,24 +35,24 @@ func (c *ControllerV1) Get(ctx context.Context, req *v1.GetReq) (res *v1.GetRes,
 			request.Response.WriteStatus(http.StatusServiceUnavailable)
 		}
 		return &v1.GetRes{
-			Status: healthStatusUnavailable,
+			Status: v1.StatusUnavailable,
 			Reason: "database probe failed",
 		}, nil
 	}
 
 	return &v1.GetRes{
-		Status: healthStatusOK,
+		Status: v1.StatusOK,
 		Mode:   c.resolveMode(),
 	}, nil
 }
 
 // resolveMode maps cluster state into the public health response mode.
-func (c *ControllerV1) resolveMode() string {
+func (c *ControllerV1) resolveMode() v1.Mode {
 	if c == nil || c.clusterSvc == nil || !c.clusterSvc.IsEnabled() {
-		return healthModeSingle
+		return v1.ModeSingle
 	}
 	if c.clusterSvc.IsPrimary() {
-		return healthModeMaster
+		return v1.ModeMaster
 	}
-	return healthModeSlave
+	return v1.ModeSlave
 }

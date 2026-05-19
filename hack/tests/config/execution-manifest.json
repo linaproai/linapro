@@ -3,15 +3,15 @@
     "e2e/system": [
       "e2e/iam",
       "e2e/settings",
-      "plugins/org-center",
-      "plugins/content-notice",
+      "plugins/linapro-org-core",
+      "plugins/linapro-content-notice",
       "e2e/scheduler"
     ],
     "e2e/monitor": [
-      "plugins/monitor-operlog",
-      "plugins/monitor-loginlog",
-      "plugins/monitor-online",
-      "plugins/monitor-server"
+      "plugins/linapro-monitor-operlog",
+      "plugins/linapro-monitor-loginlog",
+      "plugins/linapro-monitor-online",
+      "plugins/linapro-monitor-server"
     ],
     "e2e/plugin": ["e2e/extension/plugin"],
     "e2e/debug": ["debug"],
@@ -30,38 +30,38 @@
     "settings:dict": ["e2e/settings/dict"],
     "settings:config": ["e2e/settings/config"],
     "settings:file": ["e2e/settings/file"],
-    "org": ["plugins/org-center"],
-    "org:dept": ["plugins/org-center/dept"],
-    "org:post": ["plugins/org-center/post"],
-    "org:user-org": ["plugins/org-center/user-org"],
-    "content": ["plugins/content-notice"],
-    "content:notice": ["plugins/content-notice/notice"],
-    "content:message": ["plugins/content-notice/message"],
+    "org": ["plugins/linapro-org-core"],
+    "org:dept": ["plugins/linapro-org-core/dept"],
+    "org:post": ["plugins/linapro-org-core/post"],
+    "org:user-org": ["plugins/linapro-org-core/user-org"],
+    "content": ["plugins/linapro-content-notice"],
+    "content:notice": ["plugins/linapro-content-notice/notice"],
+    "content:message": ["plugins/linapro-content-notice/message"],
     "i18n": ["e2e/i18n"],
     "monitor": [
-      "plugins/monitor-operlog",
-      "plugins/monitor-loginlog",
-      "plugins/monitor-online",
-      "plugins/monitor-server"
+      "plugins/linapro-monitor-operlog",
+      "plugins/linapro-monitor-loginlog",
+      "plugins/linapro-monitor-online",
+      "plugins/linapro-monitor-server"
     ],
-    "monitor:operlog": ["plugins/monitor-operlog"],
-    "monitor:loginlog": ["plugins/monitor-loginlog"],
-    "monitor:online": ["plugins/monitor-online"],
-    "monitor:server": ["plugins/monitor-server"],
+    "monitor:operlog": ["plugins/linapro-monitor-operlog"],
+    "monitor:loginlog": ["plugins/linapro-monitor-loginlog"],
+    "monitor:online": ["plugins/linapro-monitor-online"],
+    "monitor:server": ["plugins/linapro-monitor-server"],
     "scheduler": ["e2e/scheduler"],
     "scheduler:job": ["e2e/scheduler/job"],
     "extension": ["e2e/extension"],
     "extension:plugin": ["e2e/extension/plugin"],
     "plugins": ["plugins"],
-    "multi-tenant": ["plugins/multi-tenant"],
-    "multi-tenant:tenant-lifecycle": ["plugins/multi-tenant/tenant-lifecycle"],
-    "multi-tenant:tenant-isolation": ["plugins/multi-tenant/tenant-isolation"],
-    "multi-tenant:tenant-resolution": ["plugins/multi-tenant/tenant-resolution"],
-    "multi-tenant:tenant-switching": ["plugins/multi-tenant/tenant-switching"],
-    "multi-tenant:platform-admin": ["plugins/multi-tenant/platform-admin"],
-    "multi-tenant:plugin-governance": ["plugins/multi-tenant/plugin-governance"],
-    "multi-tenant:lifecycle-precondition": ["plugins/multi-tenant/lifecycle-precondition"],
-    "multi-tenant:cluster": ["plugins/multi-tenant/cluster"]
+    "linapro-tenant-core": ["plugins/linapro-tenant-core"],
+    "linapro-tenant-core:tenant-lifecycle": ["plugins/linapro-tenant-core/tenant-lifecycle"],
+    "linapro-tenant-core:tenant-isolation": ["plugins/linapro-tenant-core/tenant-isolation"],
+    "linapro-tenant-core:tenant-resolution": ["plugins/linapro-tenant-core/tenant-resolution"],
+    "linapro-tenant-core:tenant-switching": ["plugins/linapro-tenant-core/tenant-switching"],
+    "linapro-tenant-core:platform-admin": ["plugins/linapro-tenant-core/platform-admin"],
+    "linapro-tenant-core:plugin-governance": ["plugins/linapro-tenant-core/plugin-governance"],
+    "linapro-tenant-core:lifecycle-precondition": ["plugins/linapro-tenant-core/lifecycle-precondition"],
+    "linapro-tenant-core:cluster": ["plugins/linapro-tenant-core/cluster"]
   },
   "smoke": [
     "e2e/auth/TC0001-login-success.ts",
@@ -244,7 +244,7 @@
     {
       "entry": "e2e/i18n/TC0112-english-layout-regression.ts",
       "categories": ["pluginLifecycle", "runtimeI18nCache"],
-      "reason": "English layout checks enable the plugin-demo-source plugin and depend on runtime i18n resources."
+      "reason": "English layout checks enable the linapro-demo-source plugin and depend on runtime i18n resources."
     },
     {
       "entry": "e2e/i18n/TC0116-english-built-in-governance-data-localization.ts",
@@ -274,7 +274,7 @@
     {
       "entry": "e2e/i18n/TC0141-org-dict-config-english-layout.ts",
       "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
-      "reason": "Organization, dictionary, and config English layout regression enables the org-center source plugin and reads shared seed records across localized pages."
+      "reason": "Organization, dictionary, and config English layout regression enables the linapro-org-core source plugin and reads shared seed records across localized pages."
     },
     {
       "entry": "e2e/scheduler/job/TC0082-job-handler-crud.ts",
@@ -299,12 +299,12 @@
     {
       "entry": "e2e/settings/dict/TC0047-dict-global-effect.ts",
       "categories": ["dictionaryData", "pluginLifecycle", "sharedDatabaseSeed"],
-      "reason": "Dictionary global-effect checks navigate to plugin-owned department pages from org-center after mutating shared dictionary labels."
+      "reason": "Dictionary global-effect checks navigate to plugin-owned department pages from linapro-org-core after mutating shared dictionary labels."
     },
     {
       "entry": "e2e/settings/dict/TC0057-dict-data-export.ts",
       "categories": ["dictionaryData", "pluginLifecycle", "sharedDatabaseSeed"],
-      "reason": "Dictionary data panel toolbar checks select operation-log dictionary types seeded by the monitor-operlog source plugin."
+      "reason": "Dictionary data panel toolbar checks select operation-log dictionary types seeded by the linapro-monitor-operlog source plugin."
     },
     {
       "entry": "e2e/settings/dict",

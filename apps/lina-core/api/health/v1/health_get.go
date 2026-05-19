@@ -13,7 +13,7 @@ type GetReq struct {
 
 // GetRes describes the host health probe result.
 type GetRes struct {
-	Status string `json:"status" dc:"Health status: ok=host can serve traffic, unavailable=health probe failed" eg:"ok"`
-	Mode   string `json:"mode,omitempty" dc:"Deployment mode: single=standalone host, master=cluster primary node, slave=cluster secondary node" eg:"single"`
+	Status Status `json:"status" dc:"Health status: ok=host can serve traffic, unavailable=health probe failed" eg:"ok"`
+	Mode   Mode   `json:"mode,omitempty" dc:"Deployment mode: single=standalone host, master=cluster primary node, slave=cluster secondary node" eg:"single"`
 	Reason string `json:"reason,omitempty" dc:"Sanitized failure reason, omitted when the status is ok" eg:"database probe failed"`
 }

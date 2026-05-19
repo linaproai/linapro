@@ -127,11 +127,11 @@ func TestGetPluginAutoEnableNormalizesListAndAppliesOverrides(t *testing.T) {
 	setTestConfigContent(t, `
 plugin:
   autoEnable:
-    - id: " demo-control "
-    - id: "demo-control"
-    - id: " plugin-demo-source "
-    - id: "plugin-demo-source"
-    - id: "plugin-demo-dynamic"
+    - id: " linapro-ops-demo-guard "
+    - id: "linapro-ops-demo-guard"
+    - id: " linapro-demo-source "
+    - id: "linapro-demo-source"
+    - id: "linapro-demo-dynamic"
 `)
 	SetPluginAutoEnableOverride(nil)
 	t.Cleanup(func() {
@@ -143,7 +143,7 @@ plugin:
 	if len(cfg.AutoEnable) != 3 {
 		t.Fatalf("expected three normalized plugin IDs, got %#v", cfg.AutoEnable)
 	}
-	if cfg.AutoEnable[0].ID != "demo-control" || cfg.AutoEnable[1].ID != "plugin-demo-source" || cfg.AutoEnable[2].ID != "plugin-demo-dynamic" {
+	if cfg.AutoEnable[0].ID != "linapro-ops-demo-guard" || cfg.AutoEnable[1].ID != "linapro-demo-source" || cfg.AutoEnable[2].ID != "linapro-demo-dynamic" {
 		t.Fatalf("expected normalized auto-enable IDs, got %#v", cfg.AutoEnable)
 	}
 	for index, entry := range cfg.AutoEnable {
@@ -154,7 +154,7 @@ plugin:
 
 	cfg.AutoEnable[0] = PluginAutoEnableEntry{ID: "mutated"}
 	refreshed := svc.GetPlugin(context.Background())
-	if refreshed.AutoEnable[0].ID != "demo-control" {
+	if refreshed.AutoEnable[0].ID != "linapro-ops-demo-guard" {
 		t.Fatalf("expected cached auto-enable IDs to stay immutable, got %#v", refreshed.AutoEnable)
 	}
 
@@ -185,10 +185,10 @@ func TestGetPluginAutoEnableEntriesParsesObjectForm(t *testing.T) {
 	setTestConfigContent(t, `
 plugin:
   autoEnable:
-    - id: "demo-control"
-    - id: "plugin-demo-source"
+    - id: "linapro-ops-demo-guard"
+    - id: "linapro-demo-source"
       withMockData: true
-    - id: "plugin-demo-dynamic"
+    - id: "linapro-demo-dynamic"
 `)
 	SetPluginAutoEnableOverride(nil)
 	t.Cleanup(func() {
@@ -201,9 +201,9 @@ plugin:
 		t.Fatalf("expected three normalized entries, got %#v", entries)
 	}
 	expected := []PluginAutoEnableEntry{
-		{ID: "demo-control", WithMockData: false},
-		{ID: "plugin-demo-source", WithMockData: true},
-		{ID: "plugin-demo-dynamic", WithMockData: false},
+		{ID: "linapro-ops-demo-guard", WithMockData: false},
+		{ID: "linapro-demo-source", WithMockData: true},
+		{ID: "linapro-demo-dynamic", WithMockData: false},
 	}
 	for index, want := range expected {
 		got := entries[index]
@@ -215,7 +215,7 @@ plugin:
 	// IDs-only accessor should drop the WithMockData flag for callers that
 	// only care about the ID list (e.g., the management UI's autoEnable badge).
 	ids := svc.GetPluginAutoEnable(context.Background())
-	if len(ids) != 3 || ids[1] != "plugin-demo-source" {
+	if len(ids) != 3 || ids[1] != "linapro-demo-source" {
 		t.Fatalf("expected IDs accessor to retain order, got %#v", ids)
 	}
 }
@@ -272,7 +272,7 @@ plugin:
 			name: "non-array shape",
 			yaml: `
 plugin:
-  autoEnable: "demo-control"
+  autoEnable: "linapro-ops-demo-guard"
 `,
 			wantSub: "must be an array",
 		},
@@ -281,7 +281,7 @@ plugin:
 			yaml: `
 plugin:
   autoEnable:
-    - "demo-control"
+    - "linapro-ops-demo-guard"
 `,
 			wantSub: "must be a {id, withMockData} object",
 		},
@@ -329,7 +329,7 @@ func TestGetPluginRejectsBlankAutoEnableEntry(t *testing.T) {
 	setTestConfigContent(t, `
 plugin:
   autoEnable:
-    - "plugin-demo-source"
+    - "linapro-demo-source"
     - "   "
 `)
 
@@ -351,7 +351,7 @@ plugin:
 func TestGetPluginRejectsInvalidAutoEnableType(t *testing.T) {
 	setTestConfigContent(t, `
 plugin:
-  autoEnable: "plugin-demo-source"
+  autoEnable: "linapro-demo-source"
 `)
 
 	defer func() {

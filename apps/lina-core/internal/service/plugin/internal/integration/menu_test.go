@@ -29,8 +29,8 @@ func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 	adminRoleID := mustQueryAdminRoleID(t, ctx)
 
 	const (
-		pluginID = "plugin-source-menu-sync"
-		menuKey  = "plugin:plugin-source-menu-sync:sidebar-entry"
+		pluginID = "plugin-dev-source-menu-sync"
+		menuKey  = "plugin:plugin-dev-source-menu-sync:sidebar-entry"
 	)
 
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
@@ -48,9 +48,9 @@ func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 			"menus:\n"+
 			"  - key: "+menuKey+"\n"+
 			"    name: Source Menu Sync Plugin\n"+
-			"    path: plugin-source-menu-sync\n"+
+			"    path: plugin-dev-source-menu-sync\n"+
 			"    component: system/plugin/dynamic-page\n"+
-			"    perms: plugin-source-menu-sync:view\n"+
+			"    perms: plugin-dev-source-menu-sync:view\n"+
 			"    icon: ant-design:appstore-outlined\n"+
 			"    type: M\n"+
 			"    sort: -1\n",
@@ -65,9 +65,9 @@ func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 			{
 				Key:       menuKey,
 				Name:      "Source Menu Sync Plugin",
-				Path:      "plugin-source-menu-sync",
+				Path:      "plugin-dev-source-menu-sync",
 				Component: "system/plugin/dynamic-page",
-				Perms:     "plugin-source-menu-sync:view",
+				Perms:     "plugin-dev-source-menu-sync:view",
 				Icon:      "ant-design:appstore-outlined",
 				Type:      catalog.MenuTypePage.String(),
 				Sort:      -1,
@@ -110,7 +110,7 @@ func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 	if menu == nil {
 		t.Fatalf("expected source plugin menu %s to be created after explicit sync", menuKey)
 	}
-	if menu.Path != "plugin-source-menu-sync" {
+	if menu.Path != "plugin-dev-source-menu-sync" {
 		t.Fatalf("expected source plugin menu path to be synced, got %s", menu.Path)
 	}
 
@@ -157,8 +157,8 @@ func TestDynamicPluginInstallAndUninstallManageMenusFromManifest(t *testing.T) {
 	adminRoleID := mustQueryAdminRoleID(t, ctx)
 
 	const (
-		pluginID = "plugin-dynamic-menu-metadata"
-		menuKey  = "plugin:plugin-dynamic-menu-metadata:main-entry"
+		pluginID = "plugin-dev-dynamic-menu-metadata"
+		menuKey  = "plugin:plugin-dev-dynamic-menu-metadata:main-entry"
 	)
 
 	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithMenus(
@@ -170,8 +170,8 @@ func TestDynamicPluginInstallAndUninstallManageMenusFromManifest(t *testing.T) {
 			{
 				Key:       menuKey,
 				Name:      "Runtime Menu Metadata Plugin",
-				Path:      "/plugin-assets/plugin-dynamic-menu-metadata/v0.3.0/index.html",
-				Perms:     "plugin-dynamic-menu-metadata:view",
+				Path:      "/plugin-assets/plugin-dev-dynamic-menu-metadata/v0.3.0/index.html",
+				Perms:     "plugin-dev-dynamic-menu-metadata:view",
 				Icon:      "ant-design:deployment-unit-outlined",
 				Type:      catalog.MenuTypePage.String(),
 				Sort:      -1,
@@ -333,7 +333,7 @@ func TestDynamicPluginRoutePermissionsMaterializeHiddenMenus(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
 
-	const pluginID = "plugin-dynamic-route-permission"
+	const pluginID = "plugin-dev-dynamic-route-permission"
 
 	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithMenus(
 		t,
@@ -350,7 +350,7 @@ func TestDynamicPluginRoutePermissionsMaterializeHiddenMenus(t *testing.T) {
 		pluginID,
 		"Runtime Route Permission Plugin",
 		"v0.3.0",
-		"plugin-dynamic-route-permission:review:view",
+		"plugin-dev-dynamic-route-permission:review:view",
 	)
 
 	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
@@ -374,7 +374,7 @@ func TestDynamicPluginRoutePermissionsMaterializeHiddenMenus(t *testing.T) {
 
 	menuKey := integration.BuildDynamicRoutePermissionMenuKey(
 		pluginID,
-		"plugin-dynamic-route-permission:review:view",
+		"plugin-dev-dynamic-route-permission:review:view",
 	)
 	menu, err := testutil.QueryMenuByKey(ctx, menuKey)
 	if err != nil {
@@ -410,9 +410,9 @@ func TestDynamicPluginRoutePermissionMenusAttachToPluginMenu(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		pluginID   = "plugin-dynamic-route-permission-parent"
-		menuKey    = "plugin:plugin-dynamic-route-permission-parent:main-entry"
-		permission = "plugin-dynamic-route-permission-parent:review:view"
+		pluginID   = "plugin-dev-dynamic-route-permission-parent"
+		menuKey    = "plugin:plugin-dev-dynamic-route-permission-parent:main-entry"
+		permission = "plugin-dev-dynamic-route-permission-parent:review:view"
 		version    = "v0.3.0"
 	)
 
@@ -420,8 +420,8 @@ func TestDynamicPluginRoutePermissionMenusAttachToPluginMenu(t *testing.T) {
 		{
 			Key:       menuKey,
 			Name:      "Runtime Route Permission Parent Plugin",
-			Path:      "/plugin-assets/plugin-dynamic-route-permission-parent/v0.3.0/index.html",
-			Perms:     "plugin-dynamic-route-permission-parent:view",
+			Path:      "/plugin-assets/plugin-dev-dynamic-route-permission-parent/v0.3.0/index.html",
+			Perms:     "plugin-dev-dynamic-route-permission-parent:view",
 			Icon:      "ant-design:deployment-unit-outlined",
 			Type:      catalog.MenuTypePage.String(),
 			Sort:      -1,
@@ -494,9 +494,9 @@ func TestDynamicPluginRoutePermissionMenusDeleteStaleEntriesOnRefresh(t *testing
 	ctx := context.Background()
 
 	const (
-		pluginID      = "plugin-dynamic-route-permission-refresh"
-		permissionOne = "plugin-dynamic-route-permission-refresh:review/view:read"
-		permissionTwo = "plugin-dynamic-route-permission-refresh:review-view:read"
+		pluginID      = "plugin-dev-route-refresh"
+		permissionOne = "plugin-dev-route-refresh:review/view:read"
+		permissionTwo = "plugin-dev-route-refresh:review-view:read"
 		version       = "v0.3.0"
 	)
 
@@ -586,9 +586,9 @@ func TestDynamicPluginRoutePermissionRefreshIgnoresUnrelatedBrokenRegistry(t *te
 	ctx := context.Background()
 
 	const (
-		targetPluginID = "plugin-route-refresh-ok"
-		brokenPluginID = "plugin-route-refresh-bad"
-		permissionKey  = "plugin-route-refresh-ok:review:view"
+		targetPluginID = "plugin-dev-route-refresh-ok"
+		brokenPluginID = "plugin-dev-route-refresh-bad"
+		permissionKey  = "plugin-dev-route-refresh-ok:review:view"
 		version        = "v0.3.0"
 	)
 
@@ -662,10 +662,10 @@ func TestDynamicPluginRoutePermissionRefreshIgnoresUnrelatedBrokenRegistry(t *te
 // TestDynamicRoutePermissionMenuKeyAvoidsCollisions verifies the synthetic menu
 // key builder preserves distinct permission identifiers.
 func TestDynamicRoutePermissionMenuKeyAvoidsCollisions(t *testing.T) {
-	const pluginID = "plugin-dynamic-route-key-collision"
+	const pluginID = "plugin-dev-dynamic-route-key-collision"
 
-	keyOne := integration.BuildDynamicRoutePermissionMenuKey(pluginID, "plugin-dynamic-route-key-collision:report/a:view")
-	keyTwo := integration.BuildDynamicRoutePermissionMenuKey(pluginID, "plugin-dynamic-route-key-collision:report-a:view")
+	keyOne := integration.BuildDynamicRoutePermissionMenuKey(pluginID, "plugin-dev-dynamic-route-key-collision:report/a:view")
+	keyTwo := integration.BuildDynamicRoutePermissionMenuKey(pluginID, "plugin-dev-dynamic-route-key-collision:report-a:view")
 	if keyOne == keyTwo {
 		t.Fatalf("expected distinct permission menu keys, got identical key %s", keyOne)
 	}
@@ -677,7 +677,7 @@ func TestFilterMenusHidesRuntimeMenusWhenArtifactIsMissing(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
 
-	const pluginID = "plugin-dynamic-menu-hidden"
+	const pluginID = "plugin-dev-dynamic-menu-hidden"
 
 	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithMenus(
 		t,
@@ -889,33 +889,35 @@ func TestSyncPluginMenusResolvesStableHostParent(t *testing.T) {
 	}
 }
 
-// TestSyncMultiTenantPluginMenusResolveAllowedHostParents verifies the
-// multi-tenant plugin mounts only under the platform host catalog.
-func TestSyncMultiTenantPluginMenusResolveAllowedHostParents(t *testing.T) {
+// TestSyncPluginMenusResolvesChosenExternalParent verifies plugin manifests may
+// choose an existing external menu as their top-level mount point.
+func TestSyncPluginMenusResolvesChosenExternalParent(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
 
 	const (
-		platformMenuKey = "plugin:multi-tenant:platform:tenants"
+		parentKey = "custom-plugin-parent"
+		pluginID  = "linapro-tenant-core"
+		menuKey   = "plugin:linapro-tenant-core:platform:tenants"
 	)
 
-	testutil.CleanupPluginMenuRowsHard(t, ctx, menusvc.MultiTenant)
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
-		testutil.CleanupPluginMenuRowsHard(t, ctx, menusvc.MultiTenant)
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
 	})
 
-	platformParent := ensureTestStableHostMenu(t, ctx, menusvc.Platform)
+	parent := ensureTestExternalMenu(t, ctx, parentKey)
 
 	manifest := &catalog.Manifest{
-		ID:      menusvc.MultiTenant,
+		ID:      pluginID,
 		Name:    "Multi Tenant",
 		Version: "0.1.0",
 		Type:    catalog.TypeSource.String(),
 		Menus: []*catalog.MenuSpec{
 			{
-				Key:       platformMenuKey,
+				Key:       menuKey,
 				Name:      "Tenant Management",
-				ParentKey: menusvc.Platform,
+				ParentKey: parentKey,
 				Path:      "platform/tenant",
 				Component: "system/plugin/dynamic-page",
 				Type:      catalog.MenuTypePage.String(),
@@ -924,24 +926,38 @@ func TestSyncMultiTenantPluginMenusResolveAllowedHostParents(t *testing.T) {
 	}
 
 	if err := services.Integration.SyncPluginMenusAndPermissions(ctx, manifest); err != nil {
-		t.Fatalf("expected multi-tenant plugin menu sync to succeed, got error: %v", err)
+		t.Fatalf("expected plugin menu sync under chosen external parent to succeed, got error: %v", err)
 	}
 
-	platformMenu, err := testutil.QueryMenuByKey(ctx, platformMenuKey)
+	menu, err := testutil.QueryMenuByKey(ctx, menuKey)
 	if err != nil {
-		t.Fatalf("expected platform plugin menu query to succeed, got error: %v", err)
+		t.Fatalf("expected plugin menu query to succeed, got error: %v", err)
 	}
-	if platformMenu == nil {
-		t.Fatalf("expected plugin menu %s to be created", platformMenuKey)
+	if menu == nil {
+		t.Fatalf("expected plugin menu %s to be created", menuKey)
 	}
-	if platformMenu.ParentId != platformParent.Id {
-		t.Fatalf("expected platform plugin menu parent_id=%d, got %d", platformParent.Id, platformMenu.ParentId)
+	if menu.ParentId != parent.Id {
+		t.Fatalf("expected plugin menu parent_id=%d, got %d", parent.Id, menu.ParentId)
 	}
 }
 
 // ensureTestStableHostMenu ensures a stable host menu exists for integration
 // tests running against databases initialized before the current iteration.
 func ensureTestStableHostMenu(t *testing.T, ctx context.Context, menuKey string) *entity.SysMenu {
+	t.Helper()
+	return ensureTestMenu(t, ctx, menuKey, "integration test stable host menu")
+}
+
+// ensureTestExternalMenu creates a non-stable parent menu used to verify plugin
+// manifests can choose existing external menu records as mount points.
+func ensureTestExternalMenu(t *testing.T, ctx context.Context, menuKey string) *entity.SysMenu {
+	t.Helper()
+	return ensureTestMenu(t, ctx, menuKey, "integration test external plugin parent")
+}
+
+// ensureTestMenu creates a directory menu for integration tests when a fixture
+// database does not already contain the requested parent key.
+func ensureTestMenu(t *testing.T, ctx context.Context, menuKey string, remark string) *entity.SysMenu {
 	t.Helper()
 
 	existing, err := testutil.QueryMenuByKey(ctx, menuKey)
@@ -964,7 +980,7 @@ func ensureTestStableHostMenu(t *testing.T, ctx context.Context, menuKey string)
 		IsFrame:    0,
 		IsCache:    0,
 		QueryParam: "",
-		Remark:     "integration test stable host menu",
+		Remark:     remark,
 	}).InsertAndGetId()
 	if err != nil {
 		t.Fatalf("expected host parent insert to succeed, got error: %v", err)
@@ -980,7 +996,7 @@ func ensureTestStableHostMenu(t *testing.T, ctx context.Context, menuKey string)
 		t.Fatalf("expected host parent query after insert to succeed, got error: %v", err)
 	}
 	if created == nil {
-		t.Fatalf("expected host stable parent menu %s to exist", menuKey)
+		t.Fatalf("expected parent menu %s to exist", menuKey)
 	}
 	return created
 }

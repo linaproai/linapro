@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"linactl/internal/toolutil"
 )
 
 // runTidy executes go mod tidy in each maintained Go module directory.
@@ -21,7 +23,7 @@ func runTidy(ctx context.Context, a *app, _ commandInput) error {
 		return fmt.Errorf("no go.mod files discovered under %s", a.root)
 	}
 	for _, moduleDir := range modules {
-		fmt.Fprintf(a.stdout, "==> go mod tidy (%s)\n", relativePath(a.root, moduleDir))
+		fmt.Fprintf(a.stdout, "==> go mod tidy (%s)\n", toolutil.RelativePath(a.root, moduleDir))
 		if err = a.runCommand(ctx, commandOptions{Dir: moduleDir}, "go", "mod", "tidy"); err != nil {
 			return err
 		}
@@ -60,7 +62,7 @@ func shouldSkipTidyDir(root string, path string) bool {
 	if path == root {
 		return false
 	}
-	rel := relativePath(root, path)
+	rel := toolutil.RelativePath(root, path)
 	if rel == "." {
 		return false
 	}

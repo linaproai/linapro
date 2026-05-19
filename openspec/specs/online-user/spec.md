@@ -3,28 +3,27 @@
 ## Purpose
 
 定义在线会话存储抽象、登录状态跟踪、列表查询和强制下线能力，确保系统能够稳定管理当前在线用户及其会话生命周期。
-
 ## Requirements
 ### Requirement:会话存储抽象层
-系统 SHALL 将在线会话存储、会话有效性验证和会话活跃时间维护视为宿主认证会话核心；`monitor-online` 仅消费宿主提供的会话投影和管理能力。
+系统 SHALL 将在线会话存储、会话有效性验证和会话活跃时间维护视为宿主认证会话核心；`linapro-monitor-online` 仅消费宿主提供的会话投影和管理能力。
 
 #### Scenario:在线用户插件未安装
-- **当** `monitor-online` 未安装或未启用时
+- **当** `linapro-monitor-online` 未安装或未启用时
 - **则** 宿主仍在 `sys_online_session` 中创建、删除、验证和清理会话记录
 - **且** 登录、退出、受保护接口认证和超时判定继续正常工作
 
 #### Scenario:在线用户插件已启用
-- **当** `monitor-online` 已安装并启用时
+- **当** `linapro-monitor-online` 已安装并启用时
 - **则** 插件通过宿主提供的会话投影查询在线用户并执行强制下线管理
 - **且** 插件不持有 JWT 验证、`last_active_time` 维护或清理任务的事实源
 
 ### Requirement:在线用户列表查询
 
-系统 SHALL 在 `monitor-online` 已安装并启用时为管理员提供查询当前在线用户的能力，支持按用户名和 IP 地址筛选。在线用户列表 SHALL 接入宿主数据权限治理：全部数据范围可查询所有在线会话；本部门数据范围仅查询当前用户所在部门范围内用户的在线会话；仅本人数据范围仅查询当前用户自己的在线会话。
+系统 SHALL 在 `linapro-monitor-online` 已安装并启用时为管理员提供查询当前在线用户的能力，支持按用户名和 IP 地址筛选。在线用户列表 SHALL 接入宿主数据权限治理：全部数据范围可查询所有在线会话；本部门数据范围仅查询当前用户所在部门范围内用户的在线会话；仅本人数据范围仅查询当前用户自己的在线会话。
 
 #### Scenario:查询在线用户列表
 
-- **当** `monitor-online` 已安装并启用且管理员请求在线用户列表时
+- **当** `linapro-monitor-online` 已安装并启用且管理员请求在线用户列表时
 - **则** 插件返回宿主会话投影中的在线会话记录列表
 - **且** 每条记录仍包含 token_id、用户名、部门名称、IP、登录地点、浏览器、操作系统、登录时间等治理字段
 
@@ -42,11 +41,11 @@
 
 ### Requirement:强制下线
 
-系统 SHALL 在 `monitor-online` 已安装并启用时支持管理员强制下线指定在线用户。下线用户的后续请求必须返回 401。强制下线 SHALL 接入宿主数据权限治理，调用方只能强制下线其数据权限范围内的在线会话。
+系统 SHALL 在 `linapro-monitor-online` 已安装并启用时支持管理员强制下线指定在线用户。下线用户的后续请求必须返回 401。强制下线 SHALL 接入宿主数据权限治理，调用方只能强制下线其数据权限范围内的在线会话。
 
 #### Scenario:插件执行强制下线
 
-- **当** 管理员使用 `monitor-online` 强制指定 `tokenId` 下线时
+- **当** 管理员使用 `linapro-monitor-online` 强制指定 `tokenId` 下线时
 - **则** 宿主会话内核使该会话记录失效
 - **且** 后续携带该 Token 的请求被宿主认证中间件拒绝
 
@@ -112,15 +111,15 @@
 - **则** 系统必须使用该时长值作为清理任务执行间隔，未设置时默认 5 分钟
 
 ### Requirement:系统监控菜单
-系统 SHALL 在 `monitor-online` 已安装并启用时，将 `在线用户` 菜单作为插件菜单挂载到宿主 `系统监控` 目录，而非要求它与 `服务监控` 一起作为固定内置子菜单出现。
+系统 SHALL 在 `linapro-monitor-online` 已安装并启用时，将 `在线用户` 菜单作为插件菜单挂载到宿主 `系统监控` 目录，而非要求它与 `服务监控` 一起作为固定内置子菜单出现。
 
 #### Scenario:菜单展示
-- **当** `monitor-online` 已安装、已启用且当前用户有权访问其菜单时
+- **当** `linapro-monitor-online` 已安装、已启用且当前用户有权访问其菜单时
 - **则** `系统监控` 下显示 `在线用户` 子菜单
 - **且** 此规则不要求 `服务监控` 也存在
 
 #### Scenario:插件缺失或禁用
-- **当** `monitor-online` 未安装、未启用或当前用户无权访问其菜单时
+- **当** `linapro-monitor-online` 未安装、未启用或当前用户无权访问其菜单时
 - **则** 宿主隐藏 `在线用户` 菜单入口
 - **且** 宿主认证会话内核继续独立运行
 
@@ -152,3 +151,35 @@
 
 - **当** 服务执行 `WHERE last_active_time < ?` 形式的清理查询时
 - **则** 数据库必须选择 `idx_last_active_time` 以避免全表扫描
+
+### Requirement: 在线用户列表必须使用 PostgreSQL 投影并可结合 Redis hot state
+系统 SHALL 继续以 `sys_online_session` 作为在线用户管理查询投影。集群模式下请求热状态存储在 Redis，但在线用户列表的数据权限过滤、分页、搜索和治理字段 MUST 通过 PostgreSQL 投影完成。
+
+#### Scenario: 集群模式查询在线用户列表
+- **WHEN** 管理员在集群模式下查询在线用户列表
+- **THEN** 系统从 `sys_online_session` 投影查询可见会话
+- **AND** 查询继续接入 tenantcap 和 datascope
+- **AND** 返回 token_id、用户名、部门、IP、浏览器、操作系统、登录时间和最后活跃时间
+
+#### Scenario: Redis hot state 与投影短暂不一致
+- **WHEN** Redis session 已过期但 PostgreSQL 投影尚未清理
+- **THEN** 清理任务最终删除投影
+- **AND** 认证链以 Redis hot state 为请求有效性权威
+
+### Requirement: 在线用户强退必须撤销 Redis hot state
+系统 SHALL 在强制下线时删除 Redis session hot key 并写入 Redis revoke 状态。仅删除 PostgreSQL 投影不得视为完成强退。
+
+#### Scenario: 强退后所有节点拒绝 token
+- **WHEN** 管理员强制下线 token T
+- **THEN** 系统删除 Redis session hot key
+- **AND** 系统写入 Redis revoke key
+- **AND** 任意节点收到 token T 的后续请求时拒绝
+
+### Requirement: 在线用户清理必须区分 hot state 和投影
+系统 SHALL 使用 Redis TTL 管理 session hot state 过期，并保留 PostgreSQL 投影清理任务。投影清理任务 MUST 幂等。
+
+#### Scenario: 投影清理删除过期会话
+- **WHEN** PostgreSQL 投影中存在 `last_active_time` 超过会话超时阈值的记录
+- **THEN** 清理任务删除该投影
+- **AND** 重复执行清理任务不会产生错误
+

@@ -15,7 +15,7 @@ import (
 
 // ProviderPluginID is the official source-plugin identifier that provides the
 // multi-tenancy capability.
-const ProviderPluginID = "multi-tenant"
+const ProviderPluginID = "linapro-tenant-core"
 
 // TenantID identifies one tenant in the pooled tenancy model.
 type TenantID int

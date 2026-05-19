@@ -2,26 +2,26 @@
 
 ## Purpose
 
-定义 `monitor-operlog` 源码插件承担的操作日志自动记录、查询、删除和导出行为，确保系统的关键写操作和指定读操作具有可追溯和可审计的操作痕迹。
+定义 `linapro-monitor-operlog` 源码插件承担的操作日志自动记录、查询、删除和导出行为，确保系统的关键写操作和指定读操作具有可追溯和可审计的操作痕迹。
 
 ## Requirements
 ### Requirement:操作日志自动记录
-系统 SHALL 通过 `monitor-operlog` 源码插件使用宿主统一 HTTP 注册入口声明的全局审计中间件，为所有写操作（POST/PUT/DELETE）和标记了 `operLog` 标签的查询操作自动发出统一审计事件。宿主仅提供托管的全局中间件注册接缝和统一事件分发，不保留固定的操作日志业务中间件。当 `monitor-operlog` 已安装并启用时，插件中间件参与请求链路并将日志持久化到 `plugin_monitor_operlog` 表；当插件不可用时，宿主核心请求链路必须绕过采集逻辑并继续正常执行。
+系统 SHALL 通过 `linapro-monitor-operlog` 源码插件使用宿主统一 HTTP 注册入口声明的全局审计中间件，为所有写操作（POST/PUT/DELETE）和标记了 `operLog` 标签的查询操作自动发出统一审计事件。宿主仅提供托管的全局中间件注册接缝和统一事件分发，不保留固定的操作日志业务中间件。当 `linapro-monitor-operlog` 已安装并启用时，插件中间件参与请求链路并将日志持久化到 `plugin_linapro_monitor_operlog` 表；当插件不可用时，宿主核心请求链路必须绕过采集逻辑并继续正常执行。
 
 #### Scenario:操作日志插件已启用
-- **当** 用户发起已审计的请求且 `monitor-operlog` 已安装并启用时
-- **则** `monitor-operlog` 通过宿主的全局 HTTP 中间件注册器包装匹配的请求
+- **当** 用户发起已审计的请求且 `linapro-monitor-operlog` 已安装并启用时
+- **则** `linapro-monitor-operlog` 通过宿主的全局 HTTP 中间件注册器包装匹配的请求
 - **且** 宿主发出统一审计事件
-- **且** `monitor-operlog` 写入对应的操作日志记录
+- **且** `linapro-monitor-operlog` 写入对应的操作日志记录
 
 #### Scenario:操作日志插件缺失或禁用
-- **当** 用户发起已审计的请求但 `monitor-operlog` 未安装、未启用或初始化失败时
+- **当** 用户发起已审计的请求但 `linapro-monitor-operlog` 未安装、未启用或初始化失败时
 - **则** 宿主绕过插件自注册的审计中间件逻辑
 - **且** 宿主仍正常完成原始业务请求
 - **且** 宿主不因缺少特定操作日志实现而返回错误
 
 #### Scenario:下游中间件提前结束请求
-- **当** `monitor-operlog` 的全局审计中间件已包装请求，而后续中间件或处理器在写入响应后提前结束当前请求时
+- **当** `linapro-monitor-operlog` 的全局审计中间件已包装请求，而后续中间件或处理器在写入响应后提前结束当前请求时
 - **则** 审计中间件仍可在 `Next` 返回后读取当前响应快照并发出匹配的审计事件
 - **且** 提前结束请求不会导致操作日志被遗漏
 
@@ -101,7 +101,7 @@
 - **则** 返回包含所有操作日志的 xlsx 文件
 
 ### Requirement:操作日志前端页面
-系统 SHALL 通过 `monitor-operlog` 源码插件在前端系统监控菜单下提供操作日志管理页面。
+系统 SHALL 通过 `linapro-monitor-operlog` 源码插件在前端系统监控菜单下提供操作日志管理页面。
 
 #### Scenario:操作日志列表页
 - **当** 管理员访问操作日志页面时
@@ -125,7 +125,7 @@
 
 #### Scenario:审计事件入库时写入语义化类型
 - **当** 宿主发出操作日志审计事件时
-- **则** `monitor-operlog` 使用强类型常量写入 `oper_type`
+- **则** `linapro-monitor-operlog` 使用强类型常量写入 `oper_type`
 - **且** `oper_type` 的持久化值为 `create`、`update`、`delete`、`export`、`import`、`other` 之一
 
 #### Scenario:操作日志接口返回语义化类型
@@ -135,14 +135,14 @@
 
 ### Requirement:操作日志管理接口由源码插件交付
 
-系统 SHALL 将操作日志查询、详情、导出、清理和页面能力作为 `monitor-operlog` 源码插件交付。
+系统 SHALL 将操作日志查询、详情、导出、清理和页面能力作为 `linapro-monitor-operlog` 源码插件交付。
 
 #### Scenario:插件启用时暴露管理入口
-- **当** `monitor-operlog` 已安装并启用时
+- **当** `linapro-monitor-operlog` 已安装并启用时
 - **则** 宿主暴露操作日志查询、详情、导出、清理接口和前端页面
 - **且** 插件菜单挂载到宿主 `系统监控` 目录，顶层 `parent_key` 为 `monitor`
 
 #### Scenario:插件缺失时隐藏管理入口
-- **当** `monitor-operlog` 未安装或未启用时
+- **当** `linapro-monitor-operlog` 未安装或未启用时
 - **则** 宿主不显示操作日志菜单和页面入口
 - **且** 普通业务请求链路继续正常运行

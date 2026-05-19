@@ -18,7 +18,7 @@ import {
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
 
-const pluginID = "plugin-management-permission-e2e";
+const pluginID = "plugin-dev-management-permission-e2e";
 const pluginVersion = "v0.1.0";
 const testRoleName = "插件管理查询角色";
 const testRoleKey = "plugin_management_query_role";
@@ -302,7 +302,7 @@ async function getAdminDeptID(adminApi: APIRequestContext) {
     response,
     "查询管理员详情失败",
   );
-  // When the org-center source plugin is disabled, the host now degrades
+  // When the linapro-org-core source plugin is disabled, the host now degrades
   // dept capability lookups to zero values instead of forcing a hard failure.
   // The query-only user in this suite only needs a valid role, so dept binding
   // should remain optional.

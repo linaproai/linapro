@@ -45,10 +45,10 @@ The `e2e/` tree is organized by stable capability boundaries instead of the lega
 
 Source-plugin-owned business coverage lives in each plugin directory instead of the host `e2e/` tree:
 
-- `plugins/content-notice` maps to `apps/lina-plugins/content-notice/hack/tests/e2e/`
-- `plugins/content-notice/message` maps to the content-notice-owned message center coverage
-- `plugins/multi-tenant` maps to `apps/lina-plugins/multi-tenant/hack/tests/e2e/`
-- `plugins/org-center` maps to `apps/lina-plugins/org-center/hack/tests/e2e/`
+- `plugins/linapro-content-notice` maps to `apps/lina-plugins/linapro-content-notice/hack/tests/e2e/`
+- `plugins/linapro-content-notice/message` maps to the linapro-content-notice-owned message center coverage
+- `plugins/linapro-tenant-core` maps to `apps/lina-plugins/linapro-tenant-core/hack/tests/e2e/`
+- `plugins/linapro-org-core` maps to `apps/lina-plugins/linapro-org-core/hack/tests/e2e/`
 - `plugins/monitor-*` maps to the matching monitor plugin `hack/tests/e2e/`
 
 ## Naming Rules
@@ -114,7 +114,7 @@ pnpm test:module -- plugin:cms
 ```
 
 ```bash
-pnpm test:module -- plugin:multi-tenant
+pnpm test:module -- plugin:linapro-tenant-core
 ```
 
 ## Isolation Categories

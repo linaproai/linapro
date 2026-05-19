@@ -31,7 +31,7 @@ func TestResolveDynamicPluginPackagePathAnchorsRelativeStoragePathAtRepoRoot(t *
 	}
 
 	storageRoot := filepath.Join(repoRoot, "temp", "output")
-	packagePath := filepath.Join("releases", "plugin-demo-dynamic", "v0.1.0", "plugin-demo-dynamic.wasm")
+	packagePath := filepath.Join("releases", "linapro-demo-dynamic", "v0.1.0", "linapro-demo-dynamic.wasm")
 	expectedPath := filepath.Join(storageRoot, packagePath)
 	if err = os.MkdirAll(filepath.Dir(expectedPath), 0o755); err != nil {
 		t.Fatalf("create runtime storage dir: %v", err)

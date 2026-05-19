@@ -73,7 +73,7 @@ type ManifestSnapshotV1 struct {
 	Type string `json:"type"`
 	// ScopeNature is the plugin tenant-scope nature recorded in the manifest snapshot.
 	ScopeNature string `json:"scopeNature"`
-	// SupportsMultiTenant reports whether the plugin declares multi-tenant support.
+	// SupportsMultiTenant reports whether the plugin declares linapro-tenant-core support.
 	SupportsMultiTenant bool `json:"supportsMultiTenant"`
 	// DefaultInstallMode is the plugin default installation mode.
 	DefaultInstallMode string `json:"defaultInstallMode"`

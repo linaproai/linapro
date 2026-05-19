@@ -41,7 +41,7 @@ func (f fakeJobmgmtI18nTranslator) TranslateDynamicPluginSourceText(
 // plugin-owned built-in jobs can be localized from dynamic plugin artifacts
 // before the plugin has contributed to the enabled runtime bundle.
 func TestTranslateHandlerSourceTextUsesDynamicPluginArtifactFallback(t *testing.T) {
-	handlerRef := "plugin:plugin-demo-dynamic/cron:heartbeat"
+	handlerRef := "plugin:linapro-demo-dynamic/cron:heartbeat"
 	nameKey := jobmeta.HandlerI18nKey(handlerRef, jobNameI18nField)
 	descriptionKey := jobmeta.HandlerI18nKey(handlerRef, jobDescriptionI18nField)
 

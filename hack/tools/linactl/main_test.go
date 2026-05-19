@@ -6,8 +6,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,7 +21,19 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"linactl/internal/devservice"
+	"linactl/internal/fileutil"
+	"linactl/internal/plugins"
+	"linactl/internal/repository"
+	"linactl/internal/runtimei18n"
+	"linactl/internal/toolutil"
 )
+
+func init() {
+	sql.Register("linactl_envcheck_test", envCheckSQLDriver{version: "14.13"})
+	sql.Register("linactl_envcheck_error_test", envCheckSQLDriver{queryErr: errors.New("database unavailable")})
+}
 
 func TestParseCommandInputSupportsMakeStyleParams(t *testing.T) {
 	input, err := parseCommandInput([]string{"confirm=init", "rebuild=true", "--platforms=linux/amd64,linux/arm64", "-h", "extra"})
@@ -97,6 +113,20 @@ func TestCommandRegistryIncludesReleaseTagCheck(t *testing.T) {
 	}
 }
 
+// TestCommandRegistryUsesEnvironmentCommands verifies environment setup moved
+// out of the dev command namespace.
+func TestCommandRegistryUsesEnvironmentCommands(t *testing.T) {
+	registry := commandRegistry()
+	for _, name := range []string{"env.check", "env.setup"} {
+		if _, ok := registry[name]; !ok {
+			t.Fatalf("expected command %q to be registered", name)
+		}
+	}
+	if _, ok := registry["dev.setup"]; ok {
+		t.Fatalf("legacy command %q should not be registered", "dev.setup")
+	}
+}
+
 // TestPrintHelpHidesInternalCommands verifies root make help lists only
 // repository-level commands by default.
 func TestPrintHelpHidesInternalCommands(t *testing.T) {
@@ -114,6 +144,14 @@ func TestPrintHelpHidesInternalCommands(t *testing.T) {
 	}
 	if !strings.Contains(output, "\n  build ") {
 		t.Fatalf("root help should still list build command:\n%s", output)
+	}
+	for _, command := range []string{"env.check", "env.setup"} {
+		if !strings.Contains(output, "\n  "+command+" ") {
+			t.Fatalf("root help should include environment command %q:\n%s", command, output)
+		}
+	}
+	if strings.Contains(output, "\n  dev.setup ") {
+		t.Fatalf("root help should not include legacy dev.setup command:\n%s", output)
 	}
 }
 
@@ -159,7 +197,7 @@ func TestRunReleaseTagCheckUsesGitHubRefNameFallback(t *testing.T) {
 
 	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
 	application.root = root
-	application.env = setEnvValue(os.Environ(), "GITHUB_REF_NAME", "v1.2.3-rc.1")
+	application.env = toolutil.SetEnvValue(os.Environ(), "GITHUB_REF_NAME", "v1.2.3-rc.1")
 
 	err := runReleaseTagCheck(context.Background(), application, commandInput{})
 	if err != nil {
@@ -227,6 +265,218 @@ func TestRunReleaseTagCheckRejectsMissingFrameworkVersion(t *testing.T) {
 	}
 }
 
+// TestRunEnvCheckPrintsToolStatusTable verifies env.check reports every
+// prerequisite in one stable table without depending on host-installed tools.
+func TestRunEnvCheckPrintsToolStatusTable(t *testing.T) {
+	root := t.TempDir()
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	tools := []envTool{
+		{Name: "Go", Required: ">= 1.25.0", MinVersion: "1.25.0", SuccessRemark: "Go ok"},
+		{Name: "Node.js", Required: ">= 20.19.0", MinVersion: "20.19.0", MissingRemark: "Install Node.js"},
+		{Name: "pnpm", Required: ">= 10.0.0", MinVersion: "10.0.0"},
+	}
+	results := map[string]envProbeResult{
+		"Go":      {Output: "go version go1.25.1 darwin/arm64"},
+		"Node.js": {Missing: true},
+		"pnpm":    {Output: "9.12.0"},
+	}
+	rows := collectEnvCheckRows(context.Background(), application, tools, func(_ context.Context, _ *app, tool envTool) envProbeResult {
+		return results[tool.Name]
+	})
+
+	var stdout bytes.Buffer
+	if err := printEnvCheckTable(&stdout, rows); err != nil {
+		t.Fatalf("printEnvCheckTable returned error: %v", err)
+	}
+	output := stdout.String()
+	for _, expected := range []string{
+		"+",
+		"| Name",
+		"| Remark",
+		"Name",
+		"Current Version",
+		"Required Version",
+		"Satisfied",
+		"Go",
+		"1.25.1",
+		">= 1.25.0",
+		"Yes",
+		"Node.js",
+		"not found",
+		"Install Node.js",
+		"pnpm",
+		"9.12.0",
+		"upgrade required",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("expected env.check table to contain %q:\n%s", expected, output)
+		}
+	}
+}
+
+// TestProbePostgreSQLServerVersionUsesCoreConfig verifies PostgreSQL checks
+// query the configured server version through Go's database driver.
+func TestProbePostgreSQLServerVersionUsesCoreConfig(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "config.yaml"), `
+database:
+  default:
+    link: "pgsql:postgres:secret@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+`)
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		t.Fatalf("PostgreSQL probe must not execute external client %q %q", name, args)
+		return exec.Command(os.Args[0], "-test.run=TestHelperCommandFailure", "--")
+	}
+
+	connection, err := loadEnvPostgreSQLConnection(root)
+	if err != nil {
+		t.Fatalf("loadEnvPostgreSQLConnection returned error: %v", err)
+	}
+	if got := connection.dsn(); got != "postgres://postgres:secret@127.0.0.1:5432/linapro?sslmode=disable" {
+		t.Fatalf("unexpected PostgreSQL DSN: %q", got)
+	}
+
+	output, err := queryPostgreSQLServerVersionWithDriver(context.Background(), "linactl_envcheck_test", connection)
+	if err != nil {
+		t.Fatalf("queryPostgreSQLServerVersionWithDriver returned error: %v", err)
+	}
+	if output != "14.13" {
+		t.Fatalf("expected server version output, got %q", output)
+	}
+}
+
+// TestProbePostgreSQLServerVersionFailureIncludesRemark verifies connection or
+// query failures are reported in the PostgreSQL row remark.
+func TestProbePostgreSQLServerVersionFailureIncludesRemark(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "config.yaml"), `
+database:
+  default:
+    link: "pgsql:postgres:secret@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+`)
+	connection, err := loadEnvPostgreSQLConnection(root)
+	if err != nil {
+		t.Fatalf("loadEnvPostgreSQLConnection returned error: %v", err)
+	}
+	_, err = queryPostgreSQLServerVersionWithDriver(context.Background(), "linactl_envcheck_error_test", connection)
+	if err == nil {
+		t.Fatalf("expected failing test driver to return an error")
+	}
+	result := envProbeResult{
+		Err:    err,
+		Remark: "could not query PostgreSQL server version using apps/lina-core/manifest/config/config.yaml database.default.link: " + shortEnvOutput(err.Error()),
+	}
+	row := evaluateEnvTool(envTool{Name: "PostgreSQL", Required: ">= 14.0.0", MinVersion: "14.0.0"}, result)
+	if row.Current != "unavailable" {
+		t.Fatalf("expected unavailable current version, got %q", row.Current)
+	}
+	if !strings.Contains(row.Remark, "query PostgreSQL server version") {
+		t.Fatalf("expected PostgreSQL query failure remark, got %q", row.Remark)
+	}
+}
+
+// TestEvaluatePostgreSQLConfigFailureIncludesRemark verifies PostgreSQL probe
+// failures explain why the server version could not be detected.
+func TestEvaluatePostgreSQLConfigFailureIncludesRemark(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "config.yaml"), `
+database:
+  default:
+    link: "sqlite::@file(./temp/sqlite/linapro.db)"
+`)
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+
+	tool := envTool{
+		Name:       "PostgreSQL",
+		ProbeKind:  envProbeKindPostgreSQLServer,
+		Required:   ">= 14.0.0",
+		MinVersion: "14.0.0",
+	}
+	row := evaluateEnvTool(tool, probeEnvTool(context.Background(), application, tool))
+	if row.Current != "unavailable" {
+		t.Fatalf("expected unavailable current version, got %q", row.Current)
+	}
+	for _, expected := range []string{
+		"could not load PostgreSQL database link",
+		"configured database type",
+		"not PostgreSQL",
+	} {
+		if !strings.Contains(row.Remark, expected) {
+			t.Fatalf("expected PostgreSQL failure remark to contain %q:\n%s", expected, row.Remark)
+		}
+	}
+}
+
+// TestRunEnvSetupInstallsFrontendAndPlaywright verifies env.setup keeps the
+// former setup command's dependency installation behavior.
+func TestRunEnvSetupInstallsFrontendAndPlaywright(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "apps", "lina-vben"), 0o755); err != nil {
+		t.Fatalf("mkdir frontend workspace: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "hack", "tests"), 0o755); err != nil {
+		t.Fatalf("mkdir test workspace: %v", err)
+	}
+	capturePath := filepath.Join(root, "env-setup-dirs.txt")
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.env = append(os.Environ(), "LINACTL_TEST_CAPTURE_DIRS="+capturePath)
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	var commands []string
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		commands = append(commands, name+" "+strings.Join(args, " "))
+		return exec.Command(os.Args[0], "-test.run=TestHelperRecordWorkingDirectory", "--")
+	}
+
+	if err := runEnvSetup(context.Background(), application, commandInput{}); err != nil {
+		t.Fatalf("runEnvSetup returned error: %v", err)
+	}
+
+	got := strings.Join(commands, "\n")
+	expected := "pnpm install\npnpm exec playwright install --with-deps chromium"
+	if got != expected {
+		t.Fatalf("unexpected env.setup commands:\ngot:\n%s\nexpected:\n%s", got, expected)
+	}
+	content, err := os.ReadFile(capturePath)
+	if err != nil {
+		t.Fatalf("read captured setup dirs: %v", err)
+	}
+	if !strings.Contains(string(content), filepath.Join(root, "apps", "lina-vben")) {
+		t.Fatalf("env.setup should install frontend deps in apps/lina-vben:\n%s", string(content))
+	}
+	if !strings.Contains(string(content), filepath.Join(root, "hack", "tests")) {
+		t.Fatalf("env.setup should install Playwright in hack/tests:\n%s", string(content))
+	}
+}
+
+// TestRunCommandReportsMissingToolBeforeExecution verifies command execution
+// keeps actionable PATH diagnostics without invoking the child process.
+func TestRunCommandReportsMissingToolBeforeExecution(t *testing.T) {
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.lookPath = func(name string) (string, error) {
+		return "", fmt.Errorf("%s not found", name)
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		t.Fatalf("missing tool should not execute child command: %s %s", name, strings.Join(args, " "))
+		return exec.Command(os.Args[0], "-test.run=TestHelperCommandFailure", "--")
+	}
+
+	err := application.runCommand(context.Background(), commandOptions{}, "pnpm", "install")
+	if err == nil {
+		t.Fatalf("expected missing tool error")
+	}
+	expected := `required tool "pnpm" is not available in PATH while running pnpm install`
+	if !strings.Contains(err.Error(), expected) {
+		t.Fatalf("expected missing tool diagnostic %q, got %v", expected, err)
+	}
+}
+
 func TestDynamicPluginsScansYAMLManifests(t *testing.T) {
 	root := t.TempDir()
 	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
@@ -264,19 +514,19 @@ func TestPreparePackedAssetsCopiesExpectedFiles(t *testing.T) {
 	}
 
 	target := filepath.Join(root, "apps", "lina-core", "internal", "packed", "manifest")
-	if !fileExists(filepath.Join(target, "config", "config.template.yaml")) {
+	if !fileutil.FileExists(filepath.Join(target, "config", "config.template.yaml")) {
 		t.Fatalf("missing config.template.yaml")
 	}
-	if fileExists(filepath.Join(target, "config", "config.yaml")) {
+	if fileutil.FileExists(filepath.Join(target, "config", "config.yaml")) {
 		t.Fatalf("config.yaml should not be embedded")
 	}
-	if !fileExists(filepath.Join(target, "sql", "001.sql")) {
+	if !fileutil.FileExists(filepath.Join(target, "sql", "001.sql")) {
 		t.Fatalf("missing sql file")
 	}
-	if !fileExists(filepath.Join(target, "i18n", "en", "messages.json")) {
+	if !fileutil.FileExists(filepath.Join(target, "i18n", "en", "messages.json")) {
 		t.Fatalf("missing i18n file")
 	}
-	if !fileExists(filepath.Join(target, ".gitkeep")) {
+	if !fileutil.FileExists(filepath.Join(target, ".gitkeep")) {
 		t.Fatalf("missing .gitkeep")
 	}
 }
@@ -285,8 +535,7 @@ func TestRunWasmResolvesExplicitRelativeOutputFromCurrentDirectory(t *testing.T)
 	root := t.TempDir()
 	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
 	writeFile(t, filepath.Join(root, "go.work"), "go 1.25.0\n")
-	writeFile(t, filepath.Join(root, "hack", "tools", "build-wasm", "go.mod"), "module build-wasm\n")
-	writeFile(t, filepath.Join(pluginRoot, "plugin-demo-dynamic", "plugin.yaml"), "type: dynamic\n")
+	writeDynamicPluginManifest(t, filepath.Join(pluginRoot, "linapro-demo-dynamic"), "linapro-demo-dynamic")
 
 	workDir := filepath.Join(pluginRoot)
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
@@ -305,32 +554,22 @@ func TestRunWasmResolvesExplicitRelativeOutputFromCurrentDirectory(t *testing.T)
 		t.Fatalf("chdir work dir: %v", err)
 	}
 
-	var capturedArgs []string
 	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
 	application.root = root
-	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
-		capturedArgs = append([]string{name}, args...)
-		return exec.Command("true")
-	}
 
 	if err = runWasm(context.Background(), application, commandInput{
 		Params: map[string]string{
 			"out": "../../temp/output",
-			"p":   "plugin-demo-dynamic",
+			"p":   "linapro-demo-dynamic",
 		},
 	}); err != nil {
 		t.Fatalf("runWasm returned error: %v", err)
 	}
 
-	var outputDir string
-	for i := 0; i < len(capturedArgs)-1; i++ {
-		if capturedArgs[i] == "--output-dir" {
-			outputDir = capturedArgs[i+1]
-		}
-	}
 	expected := filepath.Clean(filepath.Join(workDir, "../../temp/output"))
-	if !samePath(t, outputDir, expected) {
-		t.Fatalf("expected output dir %s, got %s from args %q", expected, outputDir, strings.Join(capturedArgs, " "))
+	artifactPath := filepath.Join(expected, "linapro-demo-dynamic.wasm")
+	if !fileutil.FileExists(artifactPath) {
+		t.Fatalf("expected wasm artifact at %s", artifactPath)
 	}
 }
 
@@ -338,38 +577,27 @@ func TestRunWasmUsesRepositoryTempOutputByDefault(t *testing.T) {
 	root := t.TempDir()
 	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
 	writeFile(t, filepath.Join(root, "go.work"), "go 1.25.0\n")
-	writeFile(t, filepath.Join(root, "hack", "tools", "build-wasm", "go.mod"), "module build-wasm\n")
-	writeFile(t, filepath.Join(pluginRoot, "plugin-demo-dynamic", "plugin.yaml"), "type: dynamic\n")
+	writeDynamicPluginManifest(t, filepath.Join(pluginRoot, "linapro-demo-dynamic"), "linapro-demo-dynamic")
 
-	var capturedArgs []string
 	var stdout bytes.Buffer
 	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
 	application.root = root
-	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
-		capturedArgs = append([]string{name}, args...)
-		return exec.Command("true")
-	}
 
 	if err := runWasm(context.Background(), application, commandInput{
-		Params: map[string]string{"p": "plugin-demo-dynamic"},
+		Params: map[string]string{"p": "linapro-demo-dynamic"},
 	}); err != nil {
 		t.Fatalf("runWasm returned error: %v", err)
 	}
 
-	var outputDir string
-	for i := 0; i < len(capturedArgs)-1; i++ {
-		if capturedArgs[i] == "--output-dir" {
-			outputDir = capturedArgs[i+1]
-		}
-	}
 	expected := filepath.Join(root, "temp", "output")
-	if !samePath(t, outputDir, expected) {
-		t.Fatalf("expected output dir %s, got %s from args %q", expected, outputDir, strings.Join(capturedArgs, " "))
+	artifactPath := filepath.Join(expected, "linapro-demo-dynamic.wasm")
+	if !fileutil.FileExists(artifactPath) {
+		t.Fatalf("expected wasm artifact at %s", artifactPath)
 	}
 }
 
 func TestExecutableNameAddsWindowsExtensionOnlyOnWindows(t *testing.T) {
-	name := executableName("lina")
+	name := toolutil.ExecutableName("lina")
 	if runtime.GOOS == "windows" {
 		if name != "lina.exe" {
 			t.Fatalf("expected windows executable name, got %s", name)
@@ -383,7 +611,7 @@ func TestExecutableNameAddsWindowsExtensionOnlyOnWindows(t *testing.T) {
 
 func TestPrintStatusTableIncludesDevelopmentServiceDetails(t *testing.T) {
 	var stdout bytes.Buffer
-	err := printStatusTable(&stdout, []serviceStatusRow{
+	err := devservice.PrintStatusTable(&stdout, []devservice.StatusRow{
 		{
 			Service: "Backend",
 			Status:  "running",
@@ -402,7 +630,7 @@ func TestPrintStatusTableIncludesDevelopmentServiceDetails(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("printStatusTable returned error: %v", err)
+		t.Fatalf("devservice.PrintStatusTable returned error: %v", err)
 	}
 
 	output := stdout.String()
@@ -426,32 +654,65 @@ func TestPrintStatusTableIncludesDevelopmentServiceDetails(t *testing.T) {
 // report message coverage results when the scanner fails.
 func TestRunI18nCheckRunsBothChecksWhenScanFails(t *testing.T) {
 	root := t.TempDir()
-	toolDir := filepath.Join(root, "hack", "tools", "runtime-i18n")
-	if err := os.MkdirAll(toolDir, 0o755); err != nil {
-		t.Fatalf("mkdir runtime i18n tool dir: %v", err)
-	}
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-vben", "package.json"), "{}\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "internal", "service", "demo", "demo.go"), "package demo\n\nfunc f() error { return errors.New(\"中文错误\") }\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "i18n", "zh-CN", "framework.json"), "{\"framework\":{\"name\":\"LinaPro\"}}\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "i18n", "en-US", "framework.json"), "{\"framework\":{\"name\":\"LinaPro\"}}\n")
 
-	var calls []string
+	var stdout bytes.Buffer
 	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
 	application.root = root
-	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
-		calls = append(calls, strings.Join(append([]string{name}, args...), " "))
-		if len(args) == 3 && args[0] == "run" && args[1] == "." && args[2] == "scan" {
-			return exec.Command(os.Args[0], "-test.run=TestHelperCommandFailure", "--")
-		}
-		return exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
-	}
+	application.stdout = &stdout
 
 	err := runI18nCheck(context.Background(), application, commandInput{})
 	if err == nil {
 		t.Fatalf("expected i18n check to fail when scan fails")
 	}
-	expected := []string{
-		"go run . scan",
-		"go run . messages",
+	output := stdout.String()
+	for _, expected := range []string{
+		"Runtime i18n scan found",
+		"Runtime i18n message coverage passed",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("expected i18n check output to contain %q, got:\n%s", expected, output)
+		}
 	}
-	if strings.Join(calls, "\n") != strings.Join(expected, "\n") {
-		t.Fatalf("unexpected i18n check calls:\n%s", strings.Join(calls, "\n"))
+}
+
+// TestRunI18nCheckUsesConsolidatedAllowlist verifies i18n.check reads the
+// allowlist from the linactl internal runtime i18n component.
+func TestRunI18nCheckUsesConsolidatedAllowlist(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-vben", "package.json"), "{}\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "internal", "service", "demo", "demo.go"), "package demo\n\nfunc f() error { return errors.New(\"中文错误\") }\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "i18n", "zh-CN", "framework.json"), "{\"framework\":{\"name\":\"LinaPro\"}}\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "i18n", "en-US", "framework.json"), "{\"framework\":{\"name\":\"LinaPro\"}}\n")
+	writeFile(t, filepath.Join(root, "hack", "tools", "linactl", "internal", "runtimei18n", "allowlist.json"), "{\"entries\":[{\"path\":\"apps/lina-core/internal/service/demo/demo.go\",\"rule\":\"go-caller-error-han\",\"category\":\"UserMessage\",\"reason\":\"test allowlist\",\"scope\":\"unit test\"}]}\n")
+
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+
+	if err := runI18nCheck(context.Background(), application, commandInput{}); err != nil {
+		t.Fatalf("expected allowlisted i18n check to pass, got error: %v\n%s", err, stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "allowlist hits: 1") {
+		t.Fatalf("expected consolidated allowlist to be used, got:\n%s", stdout.String())
+	}
+}
+
+// TestRuntimeI18nSubcommandRejectsMissingRepoRoot verifies the internal
+// component validates direct invocations from command wrappers.
+func TestRuntimeI18nSubcommandRejectsMissingRepoRoot(t *testing.T) {
+	var stdout bytes.Buffer
+	exitCode, err := runtimei18n.Run("", []string{"messages"}, &stdout)
+	if err == nil {
+		t.Fatal("expected missing repository root to fail")
+	}
+	if exitCode != 1 {
+		t.Fatalf("expected exit code 1, got %d", exitCode)
 	}
 }
 
@@ -479,8 +740,8 @@ func TestWaitHTTPAcceptsRedirectWithoutFollowingLoop(t *testing.T) {
 	if err := os.WriteFile(pidFile, []byte("12345"), 0o644); err != nil {
 		t.Fatalf("write pid file: %v", err)
 	}
-	if err := waitHTTP("Backend", server.URL+"/", pidFile, "service.log", time.Second); err != nil {
-		t.Fatalf("waitHTTP should accept redirect readiness responses: %v", err)
+	if err := devservice.WaitHTTP("Backend", server.URL+"/", pidFile, "service.log", time.Second); err != nil {
+		t.Fatalf("devservice.WaitHTTP should accept redirect readiness responses: %v", err)
 	}
 }
 
@@ -506,7 +767,7 @@ func TestRunDevStartsServicesAsAsyncProcessesAndPrintsFinalStatus(t *testing.T) 
 		return exec.Command(os.Args[0], "-test.run=TestHelperLongRunningProcess", "--")
 	}
 	application.waitHTTP = func(_ string, _ string, pidPath string, _ string, _ time.Duration) error {
-		if readPID(pidPath) == 0 {
+		if devservice.ReadPID(pidPath) == 0 {
 			return os.ErrNotExist
 		}
 		return nil
@@ -527,7 +788,7 @@ func TestRunDevStartsServicesAsAsyncProcessesAndPrintsFinalStatus(t *testing.T) 
 		filepath.Join(root, "temp", "pids", "backend.pid"),
 		filepath.Join(root, "temp", "pids", "frontend.pid"),
 	} {
-		pid := readPID(path)
+		pid := devservice.ReadPID(path)
 		if pid == 0 {
 			t.Fatalf("expected pid file %s to contain a service process id", path)
 		}
@@ -570,35 +831,23 @@ func TestRunDevPassesRepositoryWasmOutputWhenPluginsEnabled(t *testing.T) {
 	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "sql", "001.sql"), "select 1;\n")
 	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "i18n", "en-US", "framework.json"), "{}\n")
 	writeFile(t, filepath.Join(pluginRoot, "go.mod"), "module lina-plugins\n")
-	writeFile(t, filepath.Join(pluginRoot, "plugin-demo-dynamic", "go.mod"), "module plugin-demo-dynamic\n")
-	writeFile(t, filepath.Join(pluginRoot, "plugin-demo-dynamic", "plugin.yaml"), "type: dynamic\n")
-	if err := os.MkdirAll(filepath.Join(root, "hack", "tools", "build-wasm"), 0o755); err != nil {
-		t.Fatalf("mkdir build-wasm workdir: %v", err)
-	}
+	writeFile(t, filepath.Join(pluginRoot, "linapro-demo-dynamic", "go.mod"), "module linapro-demo-dynamic\n")
+	writeDynamicPluginManifest(t, filepath.Join(pluginRoot, "linapro-demo-dynamic"), "linapro-demo-dynamic")
 	if err := os.MkdirAll(filepath.Join(root, "apps", "lina-vben", "apps", "web-antd"), 0o755); err != nil {
 		t.Fatalf("mkdir frontend workdir: %v", err)
 	}
 	writeFrontendDependencySentinel(t, root)
 
-	var wasmOutputDir string
 	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
 	application.root = root
 	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
-		if name == "go" && len(args) >= 3 && args[0] == "run" && args[1] == "." {
-			for index := 0; index < len(args)-1; index++ {
-				if args[index] == "--output-dir" {
-					wasmOutputDir = args[index+1]
-				}
-			}
-			return exec.Command("true")
-		}
 		if name == "go" && len(args) >= 1 && args[0] == "build" {
 			return exec.Command("true")
 		}
 		return exec.Command(os.Args[0], "-test.run=TestHelperLongRunningProcess", "--")
 	}
 	application.waitHTTP = func(_ string, _ string, pidPath string, _ string, _ time.Duration) error {
-		if readPID(pidPath) == 0 {
+		if devservice.ReadPID(pidPath) == 0 {
 			return os.ErrNotExist
 		}
 		return nil
@@ -611,7 +860,7 @@ func TestRunDevPassesRepositoryWasmOutputWhenPluginsEnabled(t *testing.T) {
 		filepath.Join(root, "temp", "pids", "backend.pid"),
 		filepath.Join(root, "temp", "pids", "frontend.pid"),
 	} {
-		pid := readPID(path)
+		pid := devservice.ReadPID(path)
 		if pid > 0 {
 			if process, err := os.FindProcess(pid); err == nil {
 				if killErr := process.Kill(); killErr != nil {
@@ -621,8 +870,8 @@ func TestRunDevPassesRepositoryWasmOutputWhenPluginsEnabled(t *testing.T) {
 		}
 	}
 	expected := filepath.Join(root, "temp", "output")
-	if !samePath(t, wasmOutputDir, expected) {
-		t.Fatalf("expected dev wasm output %s, got %s", expected, wasmOutputDir)
+	if !fileutil.FileExists(filepath.Join(expected, "linapro-demo-dynamic.wasm")) {
+		t.Fatalf("expected dev wasm artifact under %s", expected)
 	}
 }
 
@@ -634,26 +883,26 @@ func TestOfficialPluginBuildEnvSeparatesHostOnlyAndPluginFullModes(t *testing.T)
 		"LINAPRO_SOURCE_PLUGINS=1",
 	}
 
-	hostOnly := officialPluginBuildEnv(root, input, false, "")
-	if got := envValue(hostOnly, "GOWORK"); got != "" {
+	hostOnly := plugins.BuildEnv(root, input, false, "")
+	if got := toolutil.EnvValue(hostOnly, "GOWORK"); got != "" {
 		t.Fatalf("expected host-only GOWORK to be unset, got %q", got)
 	}
-	if got := envValue(hostOnly, "LINAPRO_SOURCE_PLUGINS"); got != "0" {
+	if got := toolutil.EnvValue(hostOnly, "LINAPRO_SOURCE_PLUGINS"); got != "0" {
 		t.Fatalf("expected host-only plugin frontend discovery to be disabled, got %q", got)
 	}
-	if got := envValue(hostOnly, "GOFLAGS"); strings.Contains(got, officialPluginsBuildTag) {
+	if got := toolutil.EnvValue(hostOnly, "GOFLAGS"); strings.Contains(got, plugins.OfficialBuildTag) {
 		t.Fatalf("expected host-only GOFLAGS to remove official plugin tag, got %q", got)
 	}
 
 	pluginWorkspace := filepath.Join(root, "temp", "go.work.plugins")
-	pluginFull := officialPluginBuildEnv(root, hostOnly, true, pluginWorkspace)
-	if got := envValue(pluginFull, "GOWORK"); got != pluginWorkspace {
+	pluginFull := plugins.BuildEnv(root, hostOnly, true, pluginWorkspace)
+	if got := toolutil.EnvValue(pluginFull, "GOWORK"); got != pluginWorkspace {
 		t.Fatalf("expected plugin-full GOWORK to use temporary plugin workspace, got %q", got)
 	}
-	if got := envValue(pluginFull, "LINAPRO_SOURCE_PLUGINS"); got != "1" {
+	if got := toolutil.EnvValue(pluginFull, "LINAPRO_SOURCE_PLUGINS"); got != "1" {
 		t.Fatalf("expected plugin-full frontend discovery to be enabled, got %q", got)
 	}
-	if got := envValue(pluginFull, "GOFLAGS"); !strings.Contains(got, "-tags=netgo,"+officialPluginsBuildTag) {
+	if got := toolutil.EnvValue(pluginFull, "GOFLAGS"); !strings.Contains(got, "-tags=netgo,"+plugins.OfficialBuildTag) {
 		t.Fatalf("expected plugin-full GOFLAGS to merge official plugin tag with existing tags, got %q", got)
 	}
 }
@@ -663,18 +912,18 @@ func TestResolveOfficialPluginBuildModeAutoDetectsWorkspace(t *testing.T) {
 	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
 	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "plugin.yaml"), "id: plugin-a\n")
 
-	enabled, workspace, err := resolveOfficialPluginBuildMode(root, commandInput{Params: map[string]string{}})
+	enabled, workspace, err := plugins.ResolveBuildMode(root, commandInput{Params: map[string]string{}})
 	if err != nil {
-		t.Fatalf("resolveOfficialPluginBuildMode returned error: %v", err)
+		t.Fatalf("plugins.ResolveBuildMode returned error: %v", err)
 	}
 	if !enabled {
 		t.Fatalf("expected plugin mode to be auto-enabled when manifests exist")
 	}
-	if workspace.State != pluginWorkspaceStateReady {
+	if workspace.State != plugins.WorkspaceStateReady {
 		t.Fatalf("expected ready plugin workspace, got %s", workspace.State)
 	}
 
-	disabled, _, err := resolveOfficialPluginBuildMode(root, commandInput{Params: map[string]string{"plugins": "0"}})
+	disabled, _, err := plugins.ResolveBuildMode(root, commandInput{Params: map[string]string{"plugins": "0"}})
 	if err != nil {
 		t.Fatalf("explicit host-only mode returned error: %v", err)
 	}
@@ -682,7 +931,7 @@ func TestResolveOfficialPluginBuildModeAutoDetectsWorkspace(t *testing.T) {
 		t.Fatalf("expected explicit plugins=0 to disable plugin mode")
 	}
 
-	auto, _, err := resolveOfficialPluginBuildMode(root, commandInput{Params: map[string]string{"plugins": "auto"}})
+	auto, _, err := plugins.ResolveBuildMode(root, commandInput{Params: map[string]string{"plugins": "auto"}})
 	if err != nil {
 		t.Fatalf("explicit plugins=auto returned error: %v", err)
 	}
@@ -700,13 +949,13 @@ func TestOfficialPluginGoWorkUsesDiscoversPluginModules(t *testing.T) {
 	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "go.mod"), "module plugin-a\n")
 	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "plugin.yaml"), "id: plugin-a\n")
 
-	workspace, err := inspectOfficialPluginWorkspace(root)
+	workspace, err := plugins.InspectOfficialWorkspace(root)
 	if err != nil {
-		t.Fatalf("inspectOfficialPluginWorkspace returned error: %v", err)
+		t.Fatalf("plugins.InspectOfficialWorkspace returned error: %v", err)
 	}
-	uses, err := officialPluginGoWorkUses(root, workspace)
+	uses, err := plugins.GoWorkUses(root, workspace)
 	if err != nil {
-		t.Fatalf("officialPluginGoWorkUses returned error: %v", err)
+		t.Fatalf("plugins.GoWorkUses returned error: %v", err)
 	}
 	got := strings.Join(uses, ",")
 	expected := "./apps/lina-plugins,./apps/lina-plugins/plugin-a,./apps/lina-plugins/plugin-b"
@@ -730,13 +979,13 @@ func TestOfficialPluginBackendImportsDiscoversSourcePlugins(t *testing.T) {
 	writeFile(t, filepath.Join(pluginRoot, "source-a", "plugin.yaml"), "id: source-a\ntype: source\n")
 	writeFile(t, filepath.Join(pluginRoot, "source-a", "backend", "plugin.go"), "package backend\n")
 
-	workspace, err := inspectOfficialPluginWorkspace(root)
+	workspace, err := plugins.InspectOfficialWorkspace(root)
 	if err != nil {
-		t.Fatalf("inspectOfficialPluginWorkspace returned error: %v", err)
+		t.Fatalf("plugins.InspectOfficialWorkspace returned error: %v", err)
 	}
-	imports, err := officialPluginBackendImports(workspace)
+	imports, err := plugins.BackendImports(workspace)
 	if err != nil {
-		t.Fatalf("officialPluginBackendImports returned error: %v", err)
+		t.Fatalf("plugins.BackendImports returned error: %v", err)
 	}
 
 	var got []string
@@ -754,7 +1003,7 @@ func TestOfficialPluginBackendImportsDiscoversSourcePlugins(t *testing.T) {
 func TestGoWorkspaceModulesSkipsGeneratedOfficialPluginAggregate(t *testing.T) {
 	root := t.TempDir()
 	coreDir := filepath.Join(root, "apps", "lina-core")
-	aggregateDir := officialPluginAggregateModuleDir(root)
+	aggregateDir := plugins.AggregateModuleDir(root)
 	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
 	writeFile(t, filepath.Join(aggregateDir, "go.mod"), "module lina-plugins\n")
 
@@ -802,7 +1051,7 @@ func TestGoWorkspaceModulesIncludesGoListOutputInErrors(t *testing.T) {
 func TestRunTestGoSerializesPackageExecution(t *testing.T) {
 	root := t.TempDir()
 	coreDir := filepath.Join(root, "apps", "lina-core")
-	aggregateDir := officialPluginAggregateModuleDir(root)
+	aggregateDir := plugins.AggregateModuleDir(root)
 	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
 	writeFile(t, filepath.Join(aggregateDir, "go.mod"), "module lina-plugins\n")
 
@@ -854,7 +1103,7 @@ func TestDiscoverGoModuleDirsSkipsGeneratedAndDependencyDirs(t *testing.T) {
 
 	var rel []string
 	for _, module := range modules {
-		rel = append(rel, relativePath(root, module))
+		rel = append(rel, toolutil.RelativePath(root, module))
 	}
 	got := strings.Join(rel, ",")
 	expected := "apps/lina-core,apps/lina-plugins/plugin-a,hack/tools/linactl"
@@ -900,7 +1149,7 @@ func TestRunTidyExecutesGoModTidyForEachModule(t *testing.T) {
 			if evaluatedLine, evalErr := filepath.EvalSymlinks(line); evalErr == nil {
 				realLine = evaluatedLine
 			}
-			dirs = append(dirs, relativePath(realRoot, realLine))
+			dirs = append(dirs, toolutil.RelativePath(realRoot, realLine))
 		}
 	}
 	got := strings.Join(dirs, ",")
@@ -916,7 +1165,7 @@ func TestPrepareOfficialPluginWorkspaceWritesTemporaryWorkspace(t *testing.T) {
 
 use (
 	./apps/lina-core
-	./hack/tools/build-wasm
+	./hack/tools/linactl
 )
 `
 	writeFile(t, filepath.Join(root, "go.work"), content)
@@ -927,13 +1176,13 @@ use (
 	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "go.mod"), "module plugin-a\n")
 	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "plugin.yaml"), "id: plugin-a\n")
 
-	workspace, err := inspectOfficialPluginWorkspace(root)
+	workspace, err := plugins.InspectOfficialWorkspace(root)
 	if err != nil {
-		t.Fatalf("inspectOfficialPluginWorkspace returned error: %v", err)
+		t.Fatalf("plugins.InspectOfficialWorkspace returned error: %v", err)
 	}
-	workspacePath, err := prepareOfficialPluginWorkspace(root, true, workspace)
+	workspacePath, err := plugins.PrepareOfficialWorkspace(root, true, workspace)
 	if err != nil {
-		t.Fatalf("prepareOfficialPluginWorkspace returned error: %v", err)
+		t.Fatalf("plugins.PrepareOfficialWorkspace returned error: %v", err)
 	}
 	if workspacePath != filepath.Join(root, "temp", "go.work.plugins") {
 		t.Fatalf("unexpected temporary workspace path: %s", workspacePath)
@@ -953,7 +1202,7 @@ use (
 
 use (
 	../apps/lina-core
-	../hack/tools/build-wasm
+	../hack/tools/linactl
 	../apps/lina-plugins
 	../apps/lina-plugins/plugin-a
 	../apps/lina-plugins/plugin-b
@@ -962,7 +1211,7 @@ use (
 	if string(pluginContent) != expected {
 		t.Fatalf("unexpected temporary plugin go.work:\n%s", string(pluginContent))
 	}
-	if dirExists(filepath.Join(root, "temp", "official-plugins")) {
+	if fileutil.DirExists(filepath.Join(root, "temp", "official-plugins")) {
 		t.Fatalf("expected existing official plugin root module to be reused without generated fallback")
 	}
 }
@@ -973,7 +1222,7 @@ func TestPrepareOfficialPluginWorkspaceGeneratesFallbackAggregateModule(t *testi
 
 use (
 	./apps/lina-core
-	./hack/tools/build-wasm
+	./hack/tools/linactl
 )
 `
 	writeFile(t, filepath.Join(root, "go.work"), content)
@@ -983,13 +1232,13 @@ use (
 	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "go.mod"), "module plugin-a\n")
 	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "plugin.yaml"), "id: plugin-a\n")
 
-	workspace, err := inspectOfficialPluginWorkspace(root)
+	workspace, err := plugins.InspectOfficialWorkspace(root)
 	if err != nil {
-		t.Fatalf("inspectOfficialPluginWorkspace returned error: %v", err)
+		t.Fatalf("plugins.InspectOfficialWorkspace returned error: %v", err)
 	}
-	workspacePath, err := prepareOfficialPluginWorkspace(root, true, workspace)
+	workspacePath, err := plugins.PrepareOfficialWorkspace(root, true, workspace)
 	if err != nil {
-		t.Fatalf("prepareOfficialPluginWorkspace returned error: %v", err)
+		t.Fatalf("plugins.PrepareOfficialWorkspace returned error: %v", err)
 	}
 	pluginContent, err := os.ReadFile(workspacePath)
 	if err != nil {
@@ -999,7 +1248,7 @@ use (
 
 use (
 	../apps/lina-core
-	../hack/tools/build-wasm
+	../hack/tools/linactl
 	./official-plugins
 	../apps/lina-plugins/plugin-a
 	../apps/lina-plugins/plugin-b
@@ -1024,8 +1273,8 @@ func TestValidateRepositoryToolingAllowsEmptyLegacyScriptDirectory(t *testing.T)
 		t.Fatalf("mkdir hack/scripts: %v", err)
 	}
 
-	if err := validateRepositoryTooling(root); err != nil {
-		t.Fatalf("validateRepositoryTooling returned error: %v", err)
+	if err := repository.ValidateTooling(root, commandNames()); err != nil {
+		t.Fatalf("repository.ValidateTooling returned error: %v", err)
 	}
 }
 
@@ -1034,7 +1283,7 @@ func TestValidateRepositoryToolingRejectsLegacyScripts(t *testing.T) {
 	writeFile(t, filepath.Join(root, "make.cmd"), "@echo off\r\ngo run . %*\r\n")
 	writeFile(t, filepath.Join(root, "hack", "scripts", "legacy.sh"), "#!/usr/bin/env bash\n")
 
-	err := validateRepositoryTooling(root)
+	err := repository.ValidateTooling(root, commandNames())
 	if err == nil || !strings.Contains(err.Error(), "hack/scripts contains legacy script") {
 		t.Fatalf("expected legacy script validation error, got %v", err)
 	}
@@ -1044,15 +1293,80 @@ func TestValidateRepositoryToolingRejectsStaleMakeCmdWorkspaceOverride(t *testin
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "make.cmd"), "@echo off\r\nset GOWORK=off\r\ngo run . %*\r\n")
 
-	err := validateRepositoryTooling(root)
+	err := repository.ValidateTooling(root, commandNames())
 	if err == nil || !strings.Contains(err.Error(), "must not force GOWORK=off") {
 		t.Fatalf("expected stale GOWORK validation error, got %v", err)
 	}
 }
 
+func TestValidateLinactlCommandFilesAcceptsRepositoryCommands(t *testing.T) {
+	root, err := fileutil.DiscoverRepoRoot()
+	if err != nil {
+		t.Fatalf("discover repo root: %v", err)
+	}
+	if err = repository.ValidateLinactlCommandFiles(root, commandNames()); err != nil {
+		t.Fatalf("repository.ValidateLinactlCommandFiles returned error: %v", err)
+	}
+}
+
+// TestPluginCommandSmokeFixtureIncludesLinactlLocalReplaceDeps verifies the
+// isolated plugin command smoke keeps the local lina-core replacement module
+// available when it copies linactl into a temporary repository.
+func TestPluginCommandSmokeFixtureIncludesLinactlLocalReplaceDeps(t *testing.T) {
+	root, err := fileutil.DiscoverRepoRoot()
+	if err != nil {
+		t.Fatalf("discover repo root: %v", err)
+	}
+	content, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "reusable-plugin-command-smoke.yml"))
+	if err != nil {
+		t.Fatalf("read plugin command smoke workflow: %v", err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`cp apps/lina-core/go.mod "$smoke_root/apps/lina-core/go.mod"`,
+		`cp apps/lina-core/go.sum "$smoke_root/apps/lina-core/go.sum"`,
+		`cp -R apps/lina-core/pkg/pluginbridge "$smoke_root/apps/lina-core/pkg/pluginbridge"`,
+		`cp -R apps/lina-core/pkg/plugindb "$smoke_root/apps/lina-core/pkg/plugindb"`,
+		`./apps/lina-core`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("plugin command smoke workflow missing %q", expected)
+		}
+	}
+}
+
+// TestMakeCommandSmokeDevFixtureIncludesLinactlLocalReplaceDeps verifies the
+// isolated dev command smoke keeps linactl's local lina-core replacement module
+// available even when the fixture backend is intentionally lightweight.
+func TestMakeCommandSmokeDevFixtureIncludesLinactlLocalReplaceDeps(t *testing.T) {
+	root, err := fileutil.DiscoverRepoRoot()
+	if err != nil {
+		t.Fatalf("discover repo root: %v", err)
+	}
+	content, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "reusable-make-command-smoke.yml"))
+	if err != nil {
+		t.Fatalf("read make command smoke workflow: %v", err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`cp apps/lina-core/go.mod "$smoke_root/apps/lina-core/go.mod"`,
+		`cp apps/lina-core/go.sum "$smoke_root/apps/lina-core/go.sum"`,
+		`cp -R apps/lina-core/pkg/pluginbridge "$smoke_root/apps/lina-core/pkg/pluginbridge"`,
+		`cp -R apps/lina-core/pkg/plugindb "$smoke_root/apps/lina-core/pkg/plugindb"`,
+		`./apps/lina-core`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("make command smoke workflow missing %q", expected)
+		}
+	}
+	if strings.Contains(text, "module smoke-core") {
+		t.Fatalf("make command smoke workflow must preserve the lina-core module path for linactl local replace")
+	}
+}
+
 // TestFrontendTurboAllowsSourcePluginBuildEnv guards plugin-full frontend page discovery.
 func TestFrontendTurboAllowsSourcePluginBuildEnv(t *testing.T) {
-	root, err := discoverRepoRoot()
+	root, err := fileutil.DiscoverRepoRoot()
 	if err != nil {
 		t.Fatalf("discover repo root: %v", err)
 	}
@@ -1068,14 +1382,14 @@ func TestFrontendTurboAllowsSourcePluginBuildEnv(t *testing.T) {
 		t.Fatalf("parse frontend turbo config: %v", err)
 	}
 
-	if !containsString(cfg.GlobalEnv, sourcePluginsEnvKey) {
-		t.Fatalf("frontend turbo globalEnv must include %s for plugin-full page discovery, got %#v", sourcePluginsEnvKey, cfg.GlobalEnv)
+	if !containsString(cfg.GlobalEnv, plugins.SourcePluginsEnvKey) {
+		t.Fatalf("frontend turbo globalEnv must include %s for plugin-full page discovery, got %#v", plugins.SourcePluginsEnvKey, cfg.GlobalEnv)
 	}
 }
 
 // TestFrontendTailwindScansSourcePluginPages guards plugin-full frontend page styling.
 func TestFrontendTailwindScansSourcePluginPages(t *testing.T) {
-	root, err := discoverRepoRoot()
+	root, err := fileutil.DiscoverRepoRoot()
 	if err != nil {
 		t.Fatalf("discover repo root: %v", err)
 	}
@@ -1191,11 +1505,81 @@ func writeFile(t *testing.T, path string, content string) {
 	}
 }
 
+func writeDynamicPluginManifest(t *testing.T, pluginDir string, pluginID string) {
+	t.Helper()
+	writeFile(t, filepath.Join(pluginDir, "plugin.yaml"), fmt.Sprintf(`id: %s
+name: %s
+version: v0.1.0
+type: dynamic
+scope_nature: tenant_aware
+supports_multi_tenant: false
+default_install_mode: global
+`, pluginID, pluginID))
+}
+
+type envCheckSQLDriver struct {
+	version  string
+	queryErr error
+}
+
+func (driver envCheckSQLDriver) Open(_ string) (driver.Conn, error) {
+	return envCheckSQLConn{version: driver.version, queryErr: driver.queryErr}, nil
+}
+
+type envCheckSQLConn struct {
+	version  string
+	queryErr error
+}
+
+func (conn envCheckSQLConn) Prepare(_ string) (driver.Stmt, error) {
+	return nil, errors.New("prepare is not implemented by env check test driver")
+}
+
+func (conn envCheckSQLConn) Close() error {
+	return nil
+}
+
+func (conn envCheckSQLConn) Begin() (driver.Tx, error) {
+	return nil, errors.New("transactions are not implemented by env check test driver")
+}
+
+func (conn envCheckSQLConn) QueryContext(_ context.Context, query string, _ []driver.NamedValue) (driver.Rows, error) {
+	if conn.queryErr != nil {
+		return nil, conn.queryErr
+	}
+	if query != "SHOW server_version" {
+		return nil, fmt.Errorf("unexpected query %q", query)
+	}
+	return &envCheckSQLRows{version: conn.version}, nil
+}
+
+type envCheckSQLRows struct {
+	version string
+	read    bool
+}
+
+func (rows *envCheckSQLRows) Columns() []string {
+	return []string{"server_version"}
+}
+
+func (rows *envCheckSQLRows) Close() error {
+	return nil
+}
+
+func (rows *envCheckSQLRows) Next(dest []driver.Value) error {
+	if rows.read {
+		return io.EOF
+	}
+	rows.read = true
+	dest[0] = rows.version
+	return nil
+}
+
 // writeFrontendDependencySentinel creates the Vite binary expected by
 // ensureFrontendDeps so runDev unit tests do not require pnpm on PATH.
 func writeFrontendDependencySentinel(t *testing.T, root string) {
 	t.Helper()
-	writeFile(t, viteCommand(root), "")
+	writeFile(t, toolutil.ViteCommand(root), "")
 }
 
 func samePath(t *testing.T, left string, right string) bool {

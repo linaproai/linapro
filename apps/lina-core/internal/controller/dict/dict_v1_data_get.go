@@ -4,6 +4,7 @@ import (
 	"context"
 
 	v1 "lina-core/api/dict/v1"
+	dictsvc "lina-core/internal/service/dict"
 )
 
 // DataGet returns dictionary data details by ID.
@@ -12,5 +13,5 @@ func (c *ControllerV1) DataGet(ctx context.Context, req *v1.DataGetReq) (res *v1
 	if err != nil {
 		return nil, err
 	}
-	return &v1.DataGetRes{DictDataItem: dictDataItem(dictData)}, nil
+	return &v1.DataGetRes{DictDataItem: dictDataItem(dictsvc.ProjectDictData(ctx, dictData, false))}, nil
 }

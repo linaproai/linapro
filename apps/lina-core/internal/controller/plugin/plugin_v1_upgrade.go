@@ -32,7 +32,7 @@ func buildUpgradeResponse(result *pluginsvc.RuntimeUpgradeResult) *v1.UpgradeRes
 	}
 	return &v1.UpgradeRes{
 		PluginId:          result.PluginID,
-		RuntimeState:      result.RuntimeState.String(),
+		RuntimeState:      v1.RuntimeState(result.RuntimeState.String()),
 		EffectiveVersion:  result.EffectiveVersion,
 		DiscoveredVersion: result.DiscoveredVersion,
 		FromVersion:       result.FromVersion,

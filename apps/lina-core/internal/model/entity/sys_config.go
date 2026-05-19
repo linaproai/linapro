@@ -5,19 +5,19 @@
 package entity
 
 import (
-	"github.com/gogf/gf/v2/os/gtime"
+	"time"
 )
 
 // SysConfig is the golang structure for table sys_config.
 type SysConfig struct {
-	Id        int64       `json:"id"        orm:"id"         description:"Config parameter ID"`
-	TenantId  int         `json:"tenantId"  orm:"tenant_id"  description:"Owning tenant ID, 0 means PLATFORM default"`
-	Name      string      `json:"name"      orm:"name"       description:"Config parameter name"`
-	Key       string      `json:"key"       orm:"key"        description:"Config parameter key"`
-	Value     string      `json:"value"     orm:"value"      description:"Config parameter value"`
-	IsBuiltin int         `json:"isBuiltin" orm:"is_builtin" description:"Built-in record flag: 1=yes, 0=no"`
-	Remark    string      `json:"remark"    orm:"remark"     description:"Remark"`
-	CreatedAt *gtime.Time `json:"createdAt" orm:"created_at" description:"Creation time"`
-	UpdatedAt *gtime.Time `json:"updatedAt" orm:"updated_at" description:"Modification time"`
-	DeletedAt *gtime.Time `json:"deletedAt" orm:"deleted_at" description:"Deletion time"`
+	Id        int64      `json:"id"        orm:"id"         description:"Config parameter ID"`
+	TenantId  int        `json:"tenantId"  orm:"tenant_id"  description:"Owning tenant ID, 0 means PLATFORM default"`
+	Name      string     `json:"name"      orm:"name"       description:"Config parameter name"`
+	Key       string     `json:"key"       orm:"key"        description:"Config parameter key"`
+	Value     string     `json:"value"     orm:"value"      description:"Config parameter value"`
+	IsBuiltin int        `json:"isBuiltin" orm:"is_builtin" description:"Built-in record flag: 1=yes, 0=no"`
+	Remark    string     `json:"remark"    orm:"remark"     description:"Remark"`
+	CreatedAt *time.Time `json:"createdAt" orm:"created_at" description:"Creation time"`
+	UpdatedAt *time.Time `json:"updatedAt" orm:"updated_at" description:"Modification time"`
+	DeletedAt *time.Time `json:"deletedAt" orm:"deleted_at" description:"Deletion time"`
 }

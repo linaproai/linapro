@@ -8,8 +8,8 @@ export interface Role {
   dataScope: number;
   status: number;
   remark: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: number | null;
+  updatedAt: number | null;
   menuIds?: number[];
 }
 
@@ -34,7 +34,7 @@ export interface RoleUser {
   email: string;
   phone: string;
   status: number;
-  createdAt: string;
+  createdAt: number | null;
 }
 
 export interface RoleUsersParams {

@@ -26,7 +26,7 @@ func TestEnsureBundleReaderReadsEmbeddedAssetsWithoutExtraction(t *testing.T) {
 
 	pluginDir := testutil.CreateTestRuntimePluginDirWithFrontendAssets(
 		t,
-		"plugin-dynamic-bundle",
+		"plugin-dev-dynamic-bundle",
 		"Runtime Bundle Plugin",
 		"v0.4.0",
 		[]*catalog.ArtifactFrontendAsset{
@@ -46,7 +46,7 @@ func TestEnsureBundleReaderReadsEmbeddedAssetsWithoutExtraction(t *testing.T) {
 	)
 
 	manifest := &catalog.Manifest{
-		ID:           "plugin-dynamic-bundle",
+		ID:           "plugin-dev-dynamic-bundle",
 		Name:         "Runtime Bundle Plugin",
 		Version:      "v0.4.0",
 		Type:         catalog.TypeDynamic.String(),

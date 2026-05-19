@@ -1,11 +1,16 @@
+// This file maps system-configuration list projections into public API DTOs,
+// including shared flag and tenant-override contract types.
+
 package config
 
 import (
 	"context"
 
 	v1 "lina-core/api/config/v1"
-	"lina-core/internal/model/entity"
 	"lina-core/internal/service/sysconfig"
+	"lina-core/pkg/apitime"
+	"lina-core/pkg/statusflag"
+	"lina-core/pkg/tenantoverride"
 )
 
 // List queries config items with pagination and filters.
@@ -29,19 +34,24 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 	return &v1.ListRes{List: list, Total: out.Total}, nil
 }
 
-// configItem maps a config entity to the API-safe response DTO.
-func configItem(cfg *entity.SysConfig) v1.ConfigItem {
-	if cfg == nil {
+// configItem maps a config projection to the API-safe response DTO.
+func configItem(item *sysconfig.ConfigProjection) v1.ConfigItem {
+	if item == nil || item.SysConfig == nil {
 		return v1.ConfigItem{}
 	}
 	return v1.ConfigItem{
-		Id:        cfg.Id,
-		Name:      cfg.Name,
-		Key:       cfg.Key,
-		Value:     cfg.Value,
-		IsBuiltin: cfg.IsBuiltin,
-		Remark:    cfg.Remark,
-		CreatedAt: cfg.CreatedAt,
-		UpdatedAt: cfg.UpdatedAt,
+		Id:             item.Id,
+		Name:           item.Name,
+		Key:            item.Key,
+		Value:          item.Value,
+		IsBuiltin:      statusflag.YesNo(item.IsBuiltin),
+		Remark:         item.Remark,
+		SourceTenantId: item.SourceTenantId,
+		IsFallback:     item.IsFallback,
+		CanEdit:        item.CanEdit,
+		CanOverride:    item.CanOverride,
+		OverrideMode:   tenantoverride.Mode(item.OverrideMode),
+		CreatedAt:      apitime.Milli(item.CreatedAt),
+		UpdatedAt:      apitime.Milli(item.UpdatedAt),
 	}
 }

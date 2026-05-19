@@ -8,6 +8,7 @@ import (
 
 	"lina-core/api/menu/v1"
 	menusvc "lina-core/internal/service/menu"
+	"lina-core/pkg/menutype"
 )
 
 // List queries menus with filters and returns tree nodes.
@@ -15,8 +16,8 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 	// Query flat list
 	out, err := c.menuSvc.List(ctx, menusvc.ListInput{
 		Name:      req.Name,
-		Status:    req.Status,
-		Visible:   req.Visible,
+		Status:    enabledPtrToInt(req.Status),
+		Visible:   visibilityPtrToInt(req.Visible),
 		Localized: true,
 	})
 	if err != nil {
@@ -45,12 +46,12 @@ func convertMenuItem(node *menusvc.MenuItem) *v1.MenuItem {
 		Component:  node.Component,
 		Perms:      node.Perms,
 		Icon:       node.Icon,
-		Type:       node.Type,
+		Type:       menutype.Code(node.Type),
 		Sort:       node.Sort,
-		Visible:    node.Visible,
-		Status:     node.Status,
-		IsFrame:    node.IsFrame,
-		IsCache:    node.IsCache,
+		Visible:    statusflagVisibility(node.Visible),
+		Status:     statusflagEnabled(node.Status),
+		IsFrame:    statusflagYesNo(node.IsFrame),
+		IsCache:    statusflagYesNo(node.IsCache),
 		QueryParam: node.QueryParam,
 		Remark:     node.Remark,
 		CreatedAt:  node.CreatedAt,

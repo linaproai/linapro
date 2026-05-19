@@ -1,41 +1,34 @@
 ## ADDED Requirements
 
-### Requirement: Permission topology cache must reliably invalidate across nodes
+### Requirement: 权限拓扑 revision 必须使用 Redis coordination
+系统 SHALL 在集群模式下通过 Redis revision/event 协调权限拓扑变更。角色、菜单、用户角色、角色菜单、插件权限治理等影响权限快照的写路径 MUST 发布 `permission-access` revision。
 
-After role, menu, user-role, plugin permission menu, or permission resource relationships change, the system SHALL reliably invalidate token permission snapshots on all nodes through the unified cache coordination mechanism.
+#### Scenario: 修改角色菜单后跨节点失效
+- **WHEN** 管理员修改角色菜单关联
+- **THEN** 系统发布 `permission-access` Redis revision
+- **AND** 系统发布 cache invalidation event
+- **AND** 其他节点清理本地 token access snapshot
 
-#### Scenario: Role menu permission changes
+#### Scenario: 修改用户角色后跨节点失效
+- **WHEN** 管理员修改用户角色绑定
+- **THEN** 系统发布 `permission-access` Redis revision
+- **AND** 目标用户在任意节点的后续权限校验使用新权限拓扑
 
-- **WHEN** an administrator updates role menu or button permissions
-- **THEN** the system commits role permission relationship changes
-- **AND** reliably publishes a permission topology cache revision
-- **AND** all nodes discard old token permission snapshots within the staleness window allowed by the permission cache domain
+### Requirement: 权限 freshness 不可确认时必须 fail-closed
+系统 SHALL 在集群模式下对权限拓扑 revision 做 freshness 检查。当 Redis revision 不可读取且本地权限缓存超过最大陈旧窗口时，权限校验 MUST fail-closed。
 
-#### Scenario: Menu permission identifier changes
+#### Scenario: Redis 权限 revision 不可读
+- **WHEN** 受保护 API 执行权限校验
+- **AND** Redis `permission-access` revision 读取失败
+- **AND** 本地权限 revision 已超过最大陈旧窗口
+- **THEN** 系统拒绝请求
+- **AND** 不得使用可能陈旧的权限快照放行
 
-- **WHEN** an administrator creates, updates, deletes, or disables menu permissions
-- **THEN** the system publishes a permission topology cache revision
-- **AND** later protected API permission checks MUST NOT keep using old menu permission topology indefinitely
+### Requirement: 权限缓存 key 必须包含租户维度
+系统 SHALL 在 token access snapshot、用户索引和权限 revision 中显式携带租户维度，避免跨租户权限缓存复用。
 
-#### Scenario: Plugin permission topology changes
+#### Scenario: 同一用户不同租户权限隔离
+- **WHEN** 用户 U 同时在租户 A 和租户 B 有会话
+- **THEN** 租户 A token 的权限快照不得被租户 B token 复用
+- **AND** 修改租户 A 权限不得失效租户 B 的无关权限快照
 
-- **WHEN** plugin install, enable, disable, uninstall, or synchronization changes plugin menus or button permissions
-- **THEN** the system publishes a permission topology cache revision
-- **AND** affected permissions participate in authorization decisions on all nodes according to the latest plugin state
-
-### Requirement: Permission topology invalidation publish failure must not silently succeed
-
-Critical permission topology write paths MUST return structured errors or roll back business changes when they cannot publish a permission cache revision. This prevents cluster nodes from continuing to use old authorization snapshots.
-
-#### Scenario: Permission revision publishing fails
-
-- **WHEN** a role, menu, or user-role write path needs to publish a permission topology revision but publishing fails
-- **THEN** the system returns a structured business error
-- **AND** callers MUST NOT receive a success response claiming the permission change is fully effective
-- **AND** the system records the failure reason for retry or repair
-
-#### Scenario: Protected API sees stale permission cache
-
-- **WHEN** a protected API validates permissions, cannot confirm local permission snapshot freshness, and exceeds the failure window
-- **THEN** the system rejects the request according to fail-closed policy
-- **AND** the system MUST NOT continue allowing uncertain permissions because of an old local permission snapshot

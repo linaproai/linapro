@@ -17,7 +17,7 @@ import {
   uninstallPlugin,
 } from '../../../support/api/job';
 
-const pluginID = 'plugin-demo-dynamic';
+const pluginID = 'linapro-demo-dynamic';
 const repoRoot = path.resolve(process.cwd(), '../..');
 const runtimeArtifactPath = path.join(
   repoRoot,
@@ -201,7 +201,7 @@ test.describe('TC-140 Dynamic plugin permission menu tree regression', () => {
     await expect(recordCreateRow).toBeVisible();
     await expect(
       adminPage.locator('.vxe-body--row:visible', {
-        hasText: /Dynamic Route Permission:plugin-demo-dynamic/u,
+        hasText: /Dynamic Route Permission:linapro-demo-dynamic/u,
       }),
     ).toHaveCount(0);
   });

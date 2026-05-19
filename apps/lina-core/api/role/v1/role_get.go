@@ -21,6 +21,6 @@ type RoleGetRes struct {
 	Status    int    `json:"status" dc:"Status (0=disabled 1=normal)" eg:"1"`
 	Remark    string `json:"remark" dc:"Remarks" eg:"System administrator role"`
 	MenuIds   []int  `json:"menuIds" dc:"List of associated menu IDs" eg:"[1,2,3]"`
-	CreatedAt string `json:"createdAt" dc:"creation time" eg:"2024-01-01 00:00:00"`
-	UpdatedAt string `json:"updatedAt" dc:"Update time" eg:"2024-01-01 00:00:00"`
+	CreatedAt *int64 `json:"createdAt" dc:"Creation time as Unix timestamp in milliseconds" eg:"1704067200000"`
+	UpdatedAt *int64 `json:"updatedAt" dc:"Update time as Unix timestamp in milliseconds" eg:"1704067200000"`
 }

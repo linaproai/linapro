@@ -9,7 +9,9 @@ import (
 
 	v1 "lina-core/api/user/v1"
 	"lina-core/internal/service/menu"
+	"lina-core/pkg/apitime"
 	"lina-core/pkg/menutype"
+	"lina-core/pkg/statusflag"
 )
 
 // pluginHostedAssetPathPrefix marks runtime-mounted plugin asset menu entries
@@ -97,8 +99,8 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 						IsCache:    m.IsCache,
 						QueryParam: m.QueryParam,
 						Remark:     m.Remark,
-						CreatedAt:  m.CreatedAt.String(),
-						UpdatedAt:  m.UpdatedAt.String(),
+						CreatedAt:  apitime.Milli(m.CreatedAt),
+						UpdatedAt:  apitime.Milli(m.UpdatedAt),
 						Children:   make([]*menu.MenuItem, 0),
 					})
 				}
@@ -226,12 +228,12 @@ func convertToMenuTree(items []*menu.MenuItem) []*v1.MenuTree {
 			Component: item.Component,
 			Perms:     item.Perms,
 			Icon:      item.Icon,
-			Type:      item.Type,
+			Type:      menutype.Code(item.Type),
 			Sort:      item.Sort,
-			Visible:   item.Visible,
-			Status:    item.Status,
-			IsFrame:   item.IsFrame,
-			IsCache:   item.IsCache,
+			Visible:   statusflag.Visibility(item.Visible),
+			Status:    statusflag.Enabled(item.Status),
+			IsFrame:   statusflag.YesNo(item.IsFrame),
+			IsCache:   statusflag.YesNo(item.IsCache),
 			Children:  convertToMenuTree(item.Children),
 		}
 		result = append(result, node)

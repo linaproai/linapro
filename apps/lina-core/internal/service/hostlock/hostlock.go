@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/service/locker"
 	pkgtenantcap "lina-core/pkg/tenantcap"
@@ -32,7 +31,7 @@ type Service interface {
 	// Renew extends one held lock using the issued lock ticket. Plugin, tenant,
 	// and resource parameters must match the ticket claims; mismatches or stale
 	// tickets return business or lock ownership errors.
-	Renew(ctx context.Context, pluginID string, tenantID int64, resourceRef string, ticket string) (*gtime.Time, error)
+	Renew(ctx context.Context, pluginID string, tenantID int64, resourceRef string, ticket string) (*time.Time, error)
 	// Release releases one held lock using the issued lock ticket. Plugin,
 	// tenant, and resource parameters must match the ticket claims; backend
 	// release errors are returned to the caller.
@@ -68,7 +67,7 @@ type AcquireOutput struct {
 	// Ticket is the opaque lock ticket used for renew and release.
 	Ticket string
 	// ExpireAt is the next expiration time of the held lock.
-	ExpireAt *gtime.Time
+	ExpireAt *time.Time
 }
 
 // New creates and returns a new plugin-facing host lock service instance.

@@ -63,7 +63,7 @@ func TestSQLitePluginLifecycleSQLChild(t *testing.T) {
 	services := testutil.NewServices()
 
 	const (
-		pluginID  = "plugin-sqlite-lifecycle"
+		pluginID  = "plugin-dev-sqlite-lifecycle"
 		tableName = "plugin_sqlite_lifecycle_log"
 	)
 	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
@@ -73,20 +73,20 @@ func TestSQLitePluginLifecycleSQLChild(t *testing.T) {
 		"v0.1.0",
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key: "001-plugin-sqlite-lifecycle-create.sql",
+				Key: "001-plugin-dev-sqlite-lifecycle-create.sql",
 				Content: fmt.Sprintf(
 					"CREATE TABLE IF NOT EXISTS %s (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker VARCHAR(32) NOT NULL);",
 					tableName,
 				),
 			},
 			{
-				Key:     "002-plugin-sqlite-lifecycle-install.sql",
+				Key:     "002-plugin-dev-sqlite-lifecycle-install.sql",
 				Content: fmt.Sprintf("INSERT INTO %s (marker) VALUES ('install');", tableName),
 			},
 		},
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-sqlite-lifecycle-uninstall.sql",
+				Key:     "001-plugin-dev-sqlite-lifecycle-uninstall.sql",
 				Content: fmt.Sprintf("DROP TABLE IF EXISTS %s;", tableName),
 			},
 		},
@@ -97,7 +97,7 @@ func TestSQLitePluginLifecycleSQLChild(t *testing.T) {
 	}
 	manifest.RuntimeArtifact.MockSQLAssets = []*catalog.ArtifactSQLAsset{
 		{
-			Key:     "001-plugin-sqlite-lifecycle-mock.sql",
+			Key:     "001-plugin-dev-sqlite-lifecycle-mock.sql",
 			Content: fmt.Sprintf("INSERT INTO %s (marker) VALUES ('mock');", tableName),
 		},
 	}

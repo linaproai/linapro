@@ -27,12 +27,8 @@ import {
   userStatusChange,
 } from '#/api/system/user';
 import { $t } from '#/locales';
-import { pluginCapabilityKeys } from '#/plugins/plugin-capabilities';
-import {
-  getPluginCapabilityStateMap,
-  getPluginStateMap,
-  onPluginRegistryChanged,
-} from '#/plugins/slot-registry';
+import { resolveManagementCapabilityState } from '#/plugins/management-capabilities';
+import { onPluginRegistryChanged } from '#/plugins/slot-registry';
 import { useDictStore } from '#/store/dict';
 import { useTenantStore } from '#/store/tenant';
 import { downloadBlob } from '#/utils/download';
@@ -97,10 +93,6 @@ function parseRouteTenantId() {
 
 function isSelf(row: any) {
   return row.id === Number(userStore.userInfo?.userId);
-}
-
-function isPluginRuntimeEnabled(value: unknown) {
-  return value === 1 || value === '1' || value === true;
 }
 
 async function loadTenantOptions(force = false) {
@@ -275,17 +267,9 @@ const [Grid, gridApi] = useVbenVxeGrid({
 });
 
 async function syncManagementCapabilities(force = false) {
-  const capabilityMap = await getPluginCapabilityStateMap(force);
-  const pluginStateMap = await getPluginStateMap();
-  const multiTenantState = pluginStateMap.get('multi-tenant');
-  const nextOrgEnabled =
-    capabilityMap.get(pluginCapabilityKeys.organizationManagement)?.enabled ===
-    true;
-  const nextTenantEnabled = multiTenantState
-    ? isPluginRuntimeEnabled(multiTenantState.installed) &&
-      isPluginRuntimeEnabled(multiTenantState.enabled)
-    : capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled ===
-        true || tenantStore.enabled;
+  const capabilities = await resolveManagementCapabilityState(force);
+  const nextOrgEnabled = capabilities.organizationEnabled;
+  const nextTenantEnabled = capabilities.tenantEnabled;
   const capabilityChanged =
     orgEnabled.value !== nextOrgEnabled ||
     tenantEnabled.value !== nextTenantEnabled;

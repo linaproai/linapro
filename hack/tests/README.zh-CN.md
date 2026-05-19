@@ -45,10 +45,10 @@ apps/lina-plugins/<plugin-id>/
 
 源码插件自有业务覆盖不再放在宿主 `e2e/` 树下，而是保留在对应插件目录：
 
-- `plugins/content-notice` 映射到 `apps/lina-plugins/content-notice/hack/tests/e2e/`
-- `plugins/content-notice/message` 映射到 content-notice 插件自有消息中心覆盖
-- `plugins/multi-tenant` 映射到 `apps/lina-plugins/multi-tenant/hack/tests/e2e/`
-- `plugins/org-center` 映射到 `apps/lina-plugins/org-center/hack/tests/e2e/`
+- `plugins/linapro-content-notice` 映射到 `apps/lina-plugins/linapro-content-notice/hack/tests/e2e/`
+- `plugins/linapro-content-notice/message` 映射到 linapro-content-notice 插件自有消息中心覆盖
+- `plugins/linapro-tenant-core` 映射到 `apps/lina-plugins/linapro-tenant-core/hack/tests/e2e/`
+- `plugins/linapro-org-core` 映射到 `apps/lina-plugins/linapro-org-core/hack/tests/e2e/`
 - `plugins/monitor-*` 映射到对应监控插件的 `hack/tests/e2e/`
 
 ## 命名规则
@@ -110,7 +110,7 @@ pnpm test:module -- plugin:cms
 ```
 
 ```bash
-pnpm test:module -- plugin:multi-tenant
+pnpm test:module -- plugin:linapro-tenant-core
 ```
 
 ## 隔离类别

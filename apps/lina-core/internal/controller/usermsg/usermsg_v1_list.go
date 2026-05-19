@@ -1,3 +1,6 @@
+// This file maps current-user message list rows into public DTOs and applies
+// shared read-state flag contracts.
+
 package usermsg
 
 import (
@@ -5,6 +8,8 @@ import (
 
 	v1 "lina-core/api/usermsg/v1"
 	usermsgsvc "lina-core/internal/service/usermsg"
+	"lina-core/pkg/apitime"
+	"lina-core/pkg/statusflag"
 )
 
 // List queries user message list
@@ -29,11 +34,11 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 			CategoryCode: item.CategoryCode,
 			TypeLabel:    item.TypeLabel,
 			TypeColor:    item.TypeColor,
-			SourceType:   item.SourceType,
+			SourceType:   v1.SourceType(item.SourceType),
 			SourceId:     item.SourceId,
-			IsRead:       item.IsRead,
-			ReadAt:       item.ReadAt,
-			CreatedAt:    item.CreatedAt,
+			IsRead:       statusflag.ReadState(item.IsRead),
+			ReadAt:       apitime.Milli(item.ReadAt),
+			CreatedAt:    apitime.Milli(item.CreatedAt),
 		})
 	}
 	return &v1.ListRes{List: items, Total: out.Total}, nil

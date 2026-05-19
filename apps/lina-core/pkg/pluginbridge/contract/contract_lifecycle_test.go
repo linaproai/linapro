@@ -46,7 +46,7 @@ func TestValidateLifecycleContractsAcceptsSourceNamedHooks(t *testing.T) {
 		},
 	}
 
-	if err := ValidateLifecycleContracts("plugin-dynamic-lifecycle", items); err != nil {
+	if err := ValidateLifecycleContracts("plugin-dev-dynamic-lifecycle", items); err != nil {
 		t.Fatalf("expected lifecycle contracts to validate, got %v", err)
 	}
 	if items[0].InternalPath != "/__lifecycle/before-install" {
@@ -59,7 +59,7 @@ func TestValidateLifecycleContractsAcceptsSourceNamedHooks(t *testing.T) {
 func TestValidateLifecycleContractsRejectsParallelNaming(t *testing.T) {
 	t.Parallel()
 
-	err := ValidateLifecycleContracts("plugin-dynamic-lifecycle", []*LifecycleContract{
+	err := ValidateLifecycleContracts("plugin-dev-dynamic-lifecycle", []*LifecycleContract{
 		{
 			Operation:    LifecycleOperation("CanInstall"),
 			RequestType:  "DynamicCanInstallReq",
@@ -77,16 +77,16 @@ func TestLifecycleRequestUsesTypedManifestSnapshot(t *testing.T) {
 	t.Parallel()
 
 	content, err := json.Marshal(&LifecycleRequest{
-		PluginID:  "plugin-dynamic-lifecycle",
+		PluginID:  "plugin-dev-dynamic-lifecycle",
 		Operation: LifecycleOperationBeforeUpgrade.String(),
 		FromManifest: &ManifestSnapshotV1{
-			ID:                      "plugin-dynamic-lifecycle",
+			ID:                      "plugin-dev-dynamic-lifecycle",
 			Version:                 "v0.1.0",
 			Type:                    "dynamic",
 			HostServiceAuthRequired: false,
 		},
 		ToManifest: &ManifestSnapshotV1{
-			ID:                      "plugin-dynamic-lifecycle",
+			ID:                      "plugin-dev-dynamic-lifecycle",
 			Version:                 "v0.2.0",
 			Type:                    "dynamic",
 			ScopeNature:             "tenant_aware",

@@ -6,8 +6,6 @@ import (
 	"context"
 	"testing"
 	"time"
-
-	"github.com/gogf/gf/v2/os/gtime"
 )
 
 // fakeBackend captures delegated service calls without touching the database.
@@ -65,7 +63,7 @@ func (f *fakeBackend) Expire(
 	ownerType OwnerType,
 	cacheKey string,
 	ttl time.Duration,
-) (bool, *gtime.Time, error) {
+) (bool, *time.Time, error) {
 	return false, nil, nil
 }
 

@@ -269,7 +269,7 @@ func TestGuestControllerRouteDispatcherBindsTypedRequest(t *testing.T) {
 	}
 
 	response, err := dispatcher.HandleRequest(&BridgeRequestEnvelopeV1{
-		PluginID:  "plugin-demo-dynamic",
+		PluginID:  "linapro-demo-dynamic",
 		RequestID: "req-typed",
 		Route: &RouteMatchSnapshotV1{
 			Method:      "PUT",
@@ -294,7 +294,7 @@ func TestGuestControllerRouteDispatcherBindsTypedRequest(t *testing.T) {
 	if got := response.Headers["X-Guest-Typed"]; len(got) != 1 || got[0] != "ok" {
 		t.Fatalf("expected custom typed response header, got %#v", response.Headers)
 	}
-	if string(response.Body) != `{"id":"demo-1","pageNum":7,"skipNetwork":true,"title":"updated title","pluginId":"plugin-demo-dynamic","requestId":"req-typed"}` {
+	if string(response.Body) != `{"id":"demo-1","pageNum":7,"skipNetwork":true,"title":"updated title","pluginId":"linapro-demo-dynamic","requestId":"req-typed"}` {
 		t.Fatalf("unexpected typed response payload: %q", string(response.Body))
 	}
 }

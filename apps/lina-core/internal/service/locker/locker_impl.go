@@ -7,8 +7,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
-
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
@@ -31,7 +29,7 @@ func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lea
 		return nil, false, err
 	}
 
-	now := gtime.Now()
+	now := time.Now()
 	expireTime := now.Add(lease)
 
 	// Lock doesn't exist, try to create it
@@ -40,7 +38,7 @@ func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lea
 			Name:       name,
 			Reason:     reason,
 			Holder:     holder,
-			ExpireTime: expireTime,
+			ExpireTime: &expireTime,
 		}).Insert()
 		if err != nil {
 			if dialect.IsUniqueConstraintViolation(err) {
@@ -63,7 +61,7 @@ func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lea
 	// client-side timestamp interpretation.
 	if locker.Holder == holder {
 		_, err := dao.SysLocker.Ctx(ctx).Data(do.SysLocker{
-			ExpireTime: expireTime,
+			ExpireTime: &expireTime,
 		}).Where(do.SysLocker{
 			Id: locker.Id,
 		}).Update()
@@ -80,7 +78,7 @@ func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lea
 		affected, err := dao.SysLocker.Ctx(ctx).Data(do.SysLocker{
 			Reason:     reason,
 			Holder:     holder,
-			ExpireTime: expireTime,
+			ExpireTime: &expireTime,
 		}).Where(do.SysLocker{
 			Id: locker.Id,
 		}).Wheref("(%s IS NULL OR %s < ?)", cols.ExpireTime, cols.ExpireTime, now).UpdateAndGetAffected()
@@ -97,11 +95,17 @@ func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lea
 
 // isExpiredLock reports whether one lock row is available for takeover before
 // any holder data is reused.
-func isExpiredLock(expireTime *gtime.Time, now *gtime.Time) bool {
+func isExpiredLock(expireTime *time.Time, now time.Time) bool {
 	if expireTime == nil {
 		return true
 	}
-	return now.After(expireTime)
+	return now.After(*expireTime)
+}
+
+// timePtr returns a pointer to value for generated DO time fields that preserve
+// database NULL semantics with *time.Time.
+func timePtr(value time.Time) *time.Time {
+	return &value
 }
 
 // LockFunc acquires a lock and executes the given function.
@@ -154,7 +158,7 @@ func (s *serviceImpl) UnlockByName(ctx context.Context, name string, holder stri
 		return unlockCoordinationByName(ctx, lockStore, name, holder)
 	}
 	_, err := dao.SysLocker.Ctx(ctx).Data(do.SysLocker{
-		ExpireTime: gtime.Now().Add(-1 * time.Second),
+		ExpireTime: timePtr(time.Now().Add(-1 * time.Second)),
 	}).Where(do.SysLocker{
 		Name:   name,
 		Holder: holder,
@@ -168,7 +172,7 @@ func (s *serviceImpl) RenewByName(ctx context.Context, name string, holder strin
 		return renewCoordinationByName(ctx, lockStore, name, holder, lease)
 	}
 
-	now := gtime.Now()
+	now := time.Now()
 	expireTime := now.Add(lease)
 	var locker struct {
 		Id int64
@@ -188,7 +192,7 @@ func (s *serviceImpl) RenewByName(ctx context.Context, name string, holder strin
 	}
 
 	_, err = dao.SysLocker.Ctx(ctx).Data(do.SysLocker{
-		ExpireTime: expireTime,
+		ExpireTime: &expireTime,
 	}).Where(do.SysLocker{
 		Id: locker.Id,
 	}).Update()

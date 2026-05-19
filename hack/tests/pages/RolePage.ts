@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 import {
   waitForBusyIndicatorsToClear,
@@ -192,20 +192,15 @@ export class RolePage {
 
   /** Edit a role: find the row, click edit, update fields in drawer */
   async editRole(roleName: string, newName: string) {
-    // Find the row and click the edit button
-    const row = this.page.locator(".vxe-body--row", { hasText: roleName });
-    await row
-      .getByRole("button", { name: /编\s*辑/ })
-      .first()
-      .click();
+    const drawer = await this.openEditDrawer(roleName);
 
-    const drawer = await waitForDialogReady(this.drawer);
-    await this.dismissTourOverlayIfPresent();
-
-    // Clear and fill the new name
-    const nameInput = drawer.locator('input[placeholder="请输入角色名称"]');
+    // Wait until the async detail request has populated the form; otherwise
+    // Vben's later setValues call can overwrite a fast fill in E2E runs.
+    const nameInput = drawer.getByPlaceholder(/请输入角色名称|Role Name/i);
+    await expect(nameInput).toHaveValue(roleName, { timeout: 10000 });
     await nameInput.clear();
     await nameInput.fill(newName);
+    await expect(nameInput).toHaveValue(newName);
 
     // Click confirm button - scroll into view first since dialog may be taller than viewport
     const confirmBtn = drawer.getByRole("button", { name: /确\s*认/ });
@@ -418,14 +413,11 @@ export class RolePage {
 
   /** Assign menus to existing role */
   async assignMenusToRole(roleName: string, menuNames: string[]) {
-    const row = this.page.locator(".vxe-body--row", { hasText: roleName });
-    await row
-      .getByRole("button", { name: /编\s*辑/ })
-      .first()
-      .click();
-
-    const drawer = await waitForDialogReady(this.drawer);
-    await this.dismissTourOverlayIfPresent();
+    const drawer = await this.openEditDrawer(roleName);
+    await expect(drawer.getByPlaceholder(/请输入角色名称|Role Name/i)).toHaveValue(
+      roleName,
+      { timeout: 10000 },
+    );
 
     // Wait for menu tree
     await drawer

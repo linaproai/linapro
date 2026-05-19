@@ -20,14 +20,14 @@ func TestFacadeRequestEnvelopeMatchesCodec(t *testing.T) {
 	t.Parallel()
 
 	request := &BridgeRequestEnvelopeV1{
-		PluginID: "plugin-demo-dynamic",
+		PluginID: "linapro-demo-dynamic",
 		Route: &RouteMatchSnapshotV1{
 			Method:       http.MethodPost,
-			PublicPath:   "/api/v1/extensions/plugin-demo-dynamic/items/42",
+			PublicPath:   "/api/v1/extensions/linapro-demo-dynamic/items/42",
 			InternalPath: "/items/:id",
 			RoutePath:    "/items/{id}",
 			Access:       AccessLogin,
-			Permission:   "plugin-demo-dynamic:item:update",
+			Permission:   "linapro-demo-dynamic:item:update",
 			RequestType:  "UpdateItemReq",
 			PathParams: map[string]string{
 				"id": "42",
@@ -38,8 +38,8 @@ func TestFacadeRequestEnvelopeMatchesCodec(t *testing.T) {
 		},
 		Request: &HTTPRequestSnapshotV1{
 			Method:      http.MethodPost,
-			PublicPath:  "/api/v1/extensions/plugin-demo-dynamic/items/42",
-			RawPath:     "/api/v1/extensions/plugin-demo-dynamic/items/42",
+			PublicPath:  "/api/v1/extensions/linapro-demo-dynamic/items/42",
+			RawPath:     "/api/v1/extensions/linapro-demo-dynamic/items/42",
 			RawQuery:    "verbose=true",
 			Host:        "localhost:8080",
 			ContentType: "application/json",
@@ -51,7 +51,7 @@ func TestFacadeRequestEnvelopeMatchesCodec(t *testing.T) {
 		Identity: &IdentitySnapshotV1{
 			UserID:      1,
 			Username:    "admin",
-			Permissions: []string{"plugin-demo-dynamic:item:update"},
+			Permissions: []string{"linapro-demo-dynamic:item:update"},
 		},
 		RequestID: "req-facade",
 	}

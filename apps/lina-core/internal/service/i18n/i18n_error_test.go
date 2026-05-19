@@ -328,12 +328,12 @@ func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {
 		t.Skip("official plugin workspace is not initialized")
 	}
 	pluginDirs := []string{
-		"content-notice",
-		"org-center",
-		"monitor-loginlog",
-		"monitor-operlog",
-		"plugin-demo-source",
-		"plugin-demo-dynamic",
+		"linapro-content-notice",
+		"linapro-org-core",
+		"linapro-monitor-loginlog",
+		"linapro-monitor-operlog",
+		"linapro-demo-source",
+		"linapro-demo-dynamic",
 	}
 	for _, pluginDir := range pluginDirs {
 		registerSourcePluginDirectoryI18N(t, repoRoot, pluginDir)

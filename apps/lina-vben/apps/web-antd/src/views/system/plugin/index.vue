@@ -18,6 +18,7 @@ import {
 } from '#/api/system/plugin';
 import { $t } from '#/locales';
 import { notifyPluginRegistryChanged } from '#/plugins/slot-registry';
+import { formatTimestamp } from '#/utils/time';
 
 import PluginDetailModal from './plugin-detail-modal.vue';
 import PluginDynamicUploadModal from './plugin-dynamic-upload-modal.vue';
@@ -204,11 +205,21 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
       {
         field: 'installedAt',
+        formatter: ({
+          cellValue,
+        }: {
+          cellValue?: null | number | string;
+        }) => formatTimestamp(cellValue),
         title: $t('pages.system.plugin.fields.installedAt'),
         width: 180,
       },
       {
         field: 'updatedAt',
+        formatter: ({
+          cellValue,
+        }: {
+          cellValue?: null | number | string;
+        }) => formatTimestamp(cellValue),
         title: $t('pages.common.updatedAt'),
         width: 180,
       },

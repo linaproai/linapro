@@ -68,3 +68,25 @@ The system SHALL prioritize key governance fields in the plugin management page.
 #### Scenario: Dynamic plugin type display
 - **WHEN** plugin type is `dynamic`
 - **THEN** the management page shows "Dynamic Plugin"
+
+### Requirement: Frontend Plugin Page Discovery Must Support Empty Source Plugin Workspace
+
+The host frontend SHALL complete build and runtime when the source plugin workspace does not exist or is empty. Plugin page auto-discovery must treat missing or empty plugin frontend directories as an empty page set, not a build error.
+
+#### Scenario: Frontend build when plugin workspace does not exist
+- **WHEN** host frontend build scans source plugin pages
+- **AND** `apps/lina-plugins` does not exist
+- **THEN** the plugin page module set is empty
+- **AND** the frontend build continues executing
+
+#### Scenario: Frontend build when plugin workspace is empty
+- **WHEN** host frontend build scans source plugin pages
+- **AND** `apps/lina-plugins` is an empty directory
+- **THEN** the plugin page module set is empty
+- **AND** frontend route registration does not create source plugin page entries
+
+#### Scenario: After submodule initialization plugin pages participate in build
+- **WHEN** `apps/lina-plugins` submodule initialization is complete
+- **AND** source plugins provide `frontend/pages/` pages
+- **THEN** host frontend build discovers these pages
+- **AND** plugin pages continue participating in host routing and permission filtering

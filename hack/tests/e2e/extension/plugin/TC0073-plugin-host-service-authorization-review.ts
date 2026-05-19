@@ -14,7 +14,7 @@ import { execPgSQLStatements, pgEscapeLiteral } from "../../../support/postgres"
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
 
-const pluginID = "plugin-dynamic-host-auth-ui";
+const pluginID = "plugin-dev-dynamic-host-auth-ui";
 const pluginVersion = "v0.1.0";
 const pluginName = "Host Service Authorization Review Plugin";
 const pluginDescription =

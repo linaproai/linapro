@@ -13,7 +13,7 @@ func TestGuestRuntimeRoundTrip(t *testing.T) {
 	})
 
 	requestContent, err := EncodeRequestEnvelope(&BridgeRequestEnvelopeV1{
-		PluginID: "plugin-demo-dynamic",
+		PluginID: "linapro-demo-dynamic",
 	})
 	if err != nil {
 		t.Fatalf("expected request encode to succeed, got error: %v", err)

@@ -13,7 +13,7 @@ import (
 
 // ProviderPluginID is the official source-plugin identifier that provides the
 // organization capability.
-const ProviderPluginID = "org-center"
+const ProviderPluginID = "linapro-org-core"
 
 // UserDeptAssignment describes one optional department projection for a user.
 type UserDeptAssignment struct {

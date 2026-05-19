@@ -16,6 +16,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
 )
 
@@ -61,13 +62,15 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 	}
 	defer closeExcelFile(ctx, f, &err)
 
-	// Get existing dict types for validation (GoFrame auto-adds deleted_at IS NULL)
+	// Get current-tenant dict types for duplicate/update decisions, while
+	// separately tracking tenant-visible types for data-row validation.
 	typeCols := dao.SysDictType.Columns()
 	existingTypes := make(map[string]bool)
 	var existingTypeList []*struct {
 		Type string
 	}
 	err = dao.SysDictType.Ctx(ctx).
+		Where(do.SysDictType{TenantId: datascope.CurrentTenantID(ctx)}).
 		Fields(typeCols.Type).
 		Scan(&existingTypeList)
 	if err != nil {
@@ -75,6 +78,19 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 	}
 	for _, t := range existingTypeList {
 		existingTypes[t.Type] = true
+	}
+	readableTypes := make(map[string]bool)
+	var readableTypeList []*struct {
+		Type string
+	}
+	err = applyDictFallbackScope(ctx, dao.SysDictType.Ctx(ctx)).
+		Fields(typeCols.Type).
+		Scan(&readableTypeList)
+	if err != nil {
+		return nil, err
+	}
+	for _, t := range readableTypeList {
+		readableTypes[t.Type] = true
 	}
 
 	// Import sheet 1 for dictionary types.
@@ -135,18 +151,28 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 		if len(row) > 3 {
 			remark = row[3]
 		}
+		if err := assertDictTenantOverrideAllowed(ctx, typeStr); err != nil {
+			result.TypeFail++
+			result.FailList = append(result.FailList, ImportFailItem{
+				Sheet:  typeSheet,
+				Row:    i + 1,
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.updateFailed", "Update failed: {error}", bizerr.P("error", err)),
+			})
+			continue
+		}
 
 		// Check if type already exists
 		if existingTypes[typeStr] {
 			if updateSupport {
 				// Update existing record (GoFrame auto-fills updated_at)
-				_, err := dao.SysDictType.Ctx(ctx).
-					Where(do.SysDictType{Type: typeStr}).
+				updateModel := dao.SysDictType.Ctx(ctx).
+					Where(do.SysDictType{TenantId: datascope.CurrentTenantID(ctx), Type: typeStr}).
 					Data(do.SysDictType{
 						Name:   name,
 						Status: status,
 						Remark: remark,
-					}).Update()
+					})
+				_, err := updateModel.Update()
 				if err != nil {
 					result.TypeFail++
 					result.FailList = append(result.FailList, ImportFailItem{
@@ -170,12 +196,12 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 		}
 
 		// Insert dict type (GoFrame auto-fills created_at and updated_at)
-		_, err := dao.SysDictType.Ctx(ctx).Data(do.SysDictType{
-			Name:   name,
-			Type:   typeStr,
-			Status: status,
-			Remark: remark,
-		}).InsertAndGetId()
+		data := currentTenantDictDO(ctx)
+		data.Name = name
+		data.Type = typeStr
+		data.Status = status
+		data.Remark = remark
+		_, err := dao.SysDictType.Ctx(ctx).Data(data).InsertAndGetId()
 		if err != nil {
 			result.TypeFail++
 			result.FailList = append(result.FailList, ImportFailItem{
@@ -187,6 +213,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 		}
 
 		existingTypes[typeStr] = true
+		readableTypes[typeStr] = true
 		importedTypes[typeStr] = true
 		result.TypeSuccess++
 	}
@@ -270,9 +297,18 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 		if len(row) > 7 {
 			remark = row[7]
 		}
+		if err := assertDictTenantOverrideAllowed(ctx, dictType); err != nil {
+			result.DataFail++
+			result.FailList = append(result.FailList, ImportFailItem{
+				Sheet:  dataSheet,
+				Row:    i + 1,
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.updateFailed", "Update failed: {error}", bizerr.P("error", err)),
+			})
+			continue
+		}
 
 		// Check if dict_type exists
-		if !existingTypes[dictType] {
+		if !readableTypes[dictType] && !importedTypes[dictType] {
 			result.DataFail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Sheet:  dataSheet,
@@ -284,9 +320,9 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 
 		// Check if dict_data already exists (dict_type + value unique)
 		var existingData *entity.SysDictData
-		err = dao.SysDictData.Ctx(ctx).
-			Where(do.SysDictData{DictType: dictType, Value: value}).
-			Scan(&existingData)
+		existingDataModel := dao.SysDictData.Ctx(ctx).
+			Where(do.SysDictData{TenantId: datascope.CurrentTenantID(ctx), DictType: dictType, Value: value})
+		err = existingDataModel.Scan(&existingData)
 		if err != nil {
 			result.DataFail++
 			result.FailList = append(result.FailList, ImportFailItem{
@@ -332,16 +368,16 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 		}
 
 		// Insert dict data (GoFrame auto-fills created_at and updated_at)
-		_, err = dao.SysDictData.Ctx(ctx).Data(do.SysDictData{
-			DictType: dictType,
-			Label:    label,
-			Value:    value,
-			Sort:     sort,
-			TagStyle: tagStyle,
-			CssClass: cssClass,
-			Status:   status,
-			Remark:   remark,
-		}).InsertAndGetId()
+		data := currentTenantDictDataDO(ctx)
+		data.DictType = dictType
+		data.Label = label
+		data.Value = value
+		data.Sort = sort
+		data.TagStyle = tagStyle
+		data.CssClass = cssClass
+		data.Status = status
+		data.Remark = remark
+		_, err = dao.SysDictData.Ctx(ctx).Data(data).InsertAndGetId()
 		if err != nil {
 			result.DataFail++
 			result.FailList = append(result.FailList, ImportFailItem{
@@ -505,6 +541,7 @@ func (s *serviceImpl) TypeImport(ctx context.Context, file io.Reader, updateSupp
 	existingTypes := make(map[string]bool)
 	var existingTypeList []*entity.SysDictType
 	err = dao.SysDictType.Ctx(ctx).
+		Where(do.SysDictType{TenantId: datascope.CurrentTenantID(ctx)}).
 		Scan(&existingTypeList)
 	if err != nil {
 		return nil, err
@@ -563,18 +600,27 @@ func (s *serviceImpl) TypeImport(ctx context.Context, file io.Reader, updateSupp
 		if len(row) > 3 {
 			remark = row[3]
 		}
+		if err := assertDictTenantOverrideAllowed(ctx, typeStr); err != nil {
+			result.Fail++
+			result.FailList = append(result.FailList, ImportFailItemRecord{
+				Row:    i + 1,
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.updateFailed", "Update failed: {error}", bizerr.P("error", err)),
+			})
+			continue
+		}
 
 		// Check if type already exists
 		if existingTypes[typeStr] {
 			if updateSupport {
 				// Update existing record (GoFrame auto-fills updated_at)
-				_, err := dao.SysDictType.Ctx(ctx).
-					Where(do.SysDictType{Type: typeStr}).
+				updateModel := dao.SysDictType.Ctx(ctx).
+					Where(do.SysDictType{TenantId: datascope.CurrentTenantID(ctx), Type: typeStr}).
 					Data(do.SysDictType{
 						Name:   name,
 						Status: status,
 						Remark: remark,
-					}).Update()
+					})
+				_, err := updateModel.Update()
 				if err != nil {
 					result.Fail++
 					result.FailList = append(result.FailList, ImportFailItemRecord{
@@ -595,12 +641,12 @@ func (s *serviceImpl) TypeImport(ctx context.Context, file io.Reader, updateSupp
 		}
 
 		// Insert new record (GoFrame auto-fills created_at and updated_at)
-		_, err := dao.SysDictType.Ctx(ctx).Data(do.SysDictType{
-			Name:   name,
-			Type:   typeStr,
-			Status: status,
-			Remark: remark,
-		}).InsertAndGetId()
+		data := currentTenantDictDO(ctx)
+		data.Name = name
+		data.Type = typeStr
+		data.Status = status
+		data.Remark = remark
+		_, err := dao.SysDictType.Ctx(ctx).Data(data).InsertAndGetId()
 		if err != nil {
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItemRecord{
@@ -632,7 +678,7 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 	// Get existing dict types (dict types use hard delete, no deleted_at filter needed)
 	existingTypes := make(map[string]bool)
 	var existingTypeList []*entity.SysDictType
-	err = dao.SysDictType.Ctx(ctx).
+	err = applyDictFallbackScope(ctx, dao.SysDictType.Ctx(ctx)).
 		Scan(&existingTypeList)
 	if err != nil {
 		return nil, err
@@ -713,6 +759,14 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 		if len(row) > 7 {
 			remark = row[7]
 		}
+		if err := assertDictTenantOverrideAllowed(ctx, dictType); err != nil {
+			result.Fail++
+			result.FailList = append(result.FailList, ImportFailItemRecord{
+				Row:    i + 1,
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.updateFailed", "Update failed: {error}", bizerr.P("error", err)),
+			})
+			continue
+		}
 
 		// Check if dict_type exists
 		if !existingTypes[dictType] {
@@ -726,9 +780,9 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 
 		// Check if dict_data already exists
 		var existingData *entity.SysDictData
-		err = dao.SysDictData.Ctx(ctx).
-			Where(do.SysDictData{DictType: dictType, Value: value}).
-			Scan(&existingData)
+		existingDataModel := dao.SysDictData.Ctx(ctx).
+			Where(do.SysDictData{TenantId: datascope.CurrentTenantID(ctx), DictType: dictType, Value: value})
+		err = existingDataModel.Scan(&existingData)
 		if err != nil {
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItemRecord{
@@ -771,16 +825,16 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 		}
 
 		// Insert new record (GoFrame auto-fills created_at and updated_at)
-		_, err = dao.SysDictData.Ctx(ctx).Data(do.SysDictData{
-			DictType: dictType,
-			Label:    label,
-			Value:    value,
-			Sort:     sort,
-			TagStyle: tagStyle,
-			CssClass: cssClass,
-			Status:   status,
-			Remark:   remark,
-		}).InsertAndGetId()
+		data := currentTenantDictDataDO(ctx)
+		data.DictType = dictType
+		data.Label = label
+		data.Value = value
+		data.Sort = sort
+		data.TagStyle = tagStyle
+		data.CssClass = cssClass
+		data.Status = status
+		data.Remark = remark
+		_, err = dao.SysDictData.Ctx(ctx).Data(data).InsertAndGetId()
 		if err != nil {
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItemRecord{

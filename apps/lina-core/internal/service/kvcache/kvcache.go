@@ -5,8 +5,6 @@ package kvcache
 import (
 	"context"
 	"time"
-
-	"github.com/gogf/gf/v2/os/gtime"
 )
 
 // OwnerType identifies the business scope that owns one cache entry.
@@ -124,7 +122,7 @@ type Service interface {
 	// - ttl: new lifetime; 0 clears the expiration and makes the entry persistent.
 	// Returns:
 	// - bool: whether an existing cache entry was found and updated.
-	// - *gtime.Time: the normalized absolute expiration time; nil means the entry will not expire.
+	// - *time.Time: the normalized absolute expiration time; nil means the entry will not expire.
 	// - error: returned when the scoped cache key is invalid, ttl is negative,
 	// expired-entry cleanup fails, or the database update fails.
 	Expire(
@@ -132,7 +130,7 @@ type Service interface {
 		ownerType OwnerType,
 		cacheKey string,
 		ttl time.Duration,
-	) (bool, *gtime.Time, error)
+	) (bool, *time.Time, error)
 	// CleanupExpired removes one bounded batch of cache entries whose expiration
 	// time is earlier than the current time.
 	// Parameters:
@@ -163,7 +161,7 @@ type Item struct {
 	// IntValue is the integer payload of the cache entry.
 	IntValue int64
 	// ExpireAt is the optional expiration time.
-	ExpireAt *gtime.Time
+	ExpireAt *time.Time
 }
 
 // New creates and returns a new distributed KV cache service instance.

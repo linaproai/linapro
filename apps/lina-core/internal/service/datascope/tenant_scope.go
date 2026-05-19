@@ -1,5 +1,5 @@
 // This file provides the host-service tenant scoping adapter used while the
-// formal tenantcap service is registered by the multi-tenant capability.
+// formal tenantcap service is registered by the linapro-tenant-core capability.
 
 package datascope
 

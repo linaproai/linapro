@@ -6,8 +6,8 @@ export interface PlatformTenant {
   name: string;
   status: TenantStatus;
   remark?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt?: number | null;
+  updatedAt?: number | null;
 }
 
 export interface PlatformTenantListParams {

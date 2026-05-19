@@ -198,7 +198,7 @@ func toTenantIDs(tenantIDs []int) []pkgtenantcap.TenantID {
 	return result
 }
 
-// multiTenantEnabled reports whether the optional multi-tenant plugin is active.
+// multiTenantEnabled reports whether the optional linapro-tenant-core plugin is active.
 func (s *serviceImpl) multiTenantEnabled(ctx context.Context) bool {
 	return s != nil && s.tenantSvc != nil && s.tenantSvc.Enabled(ctx)
 }

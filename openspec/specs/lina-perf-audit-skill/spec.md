@@ -149,7 +149,7 @@
 - **则** 检查端点 trace 中首个重要标记为 `INSERT`、`UPDATE`、`DELETE`、`REPLACE`、`TRUNCATE`、`ALTER`、`DROP` 或 `CREATE` 的写 SQL
 - **且** 意外写操作报告为 HIGH，反模式签名为 `read-write-side-effect`
 - **且** Stage 0 设置、登录、压力固件写入和自主固件创建/删除调用不计入被审计读端点的写操作
-- **且** 如果 trace 包含读 SQL 且每条写语句仅触及 `sys_online_session` 或 `plugin_monitor_operlog`，写操作记录为预期的运行 PASS 注释，不创建发现、摘要违规或问题卡片
+- **且** 如果 trace 包含读 SQL 且每条写语句仅触及 `sys_online_session` 或 `plugin_linapro_monitor_operlog`，写操作记录为预期的运行 PASS 注释，不创建发现、摘要违规或问题卡片
 - **且** 如果 trace 写入其他业务、插件状态、运行时状态或存储表，发现保持可报告
 
 #### Scenario:发现可追溯

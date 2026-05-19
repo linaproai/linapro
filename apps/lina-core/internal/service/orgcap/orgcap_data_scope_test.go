@@ -13,7 +13,7 @@ import (
 )
 
 // TestServiceRequiresPluginEnabledAndProvider verifies department data-scope
-// support is available only when org-center is enabled and a provider exists.
+// support is available only when linapro-org-core is enabled and a provider exists.
 func TestServiceRequiresPluginEnabledAndProvider(t *testing.T) {
 	ctx := context.Background()
 	pkgorgcap.RegisterProvider(nil)
@@ -62,7 +62,7 @@ type orgcapEnablementReader struct {
 	enabled bool
 }
 
-// IsEnabled reports the configured enablement for org-center only.
+// IsEnabled reports the configured enablement for linapro-org-core only.
 func (r orgcapEnablementReader) IsEnabled(_ context.Context, pluginID string) bool {
 	return r.enabled && pluginID == pkgorgcap.ProviderPluginID
 }

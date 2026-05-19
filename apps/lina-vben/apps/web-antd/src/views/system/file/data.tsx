@@ -2,6 +2,7 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeGridProps } from '#/adapter/vxe-table';
 
 import { $t } from '#/locales';
+import { formatTimestamp } from '#/utils/time';
 
 export const querySchema: VbenFormSchema[] = [
   {
@@ -70,6 +71,7 @@ export const columns: VxeGridProps['columns'] = [
     title: $t('pages.system.file.fields.uploadedAt'),
     field: 'createdAt',
     sortable: true,
+    formatter: ({ cellValue }) => formatTimestamp(cellValue),
     width: 180,
   },
   {

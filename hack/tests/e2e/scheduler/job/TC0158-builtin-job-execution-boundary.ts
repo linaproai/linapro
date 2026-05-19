@@ -17,7 +17,7 @@ import {
 } from '../../../support/api/job';
 
 test.describe('TC-158 Built-in job execution boundary', () => {
-  const pluginID = 'plugin-demo-source';
+  const pluginID = 'linapro-demo-source';
   const pluginJobName = '源码插件回显巡检';
   const pluginHandlerRef = `plugin:${pluginID}/cron:source-plugin-echo-inspection`;
 

@@ -11,7 +11,7 @@ import {
 } from "../../../fixtures/plugin";
 import { PluginPage } from "../../../pages/PluginPage";
 
-const pluginID = "plugin-demo-source";
+const pluginID = "linapro-demo-source";
 
 function unwrapApiData(payload: any) {
   if (payload && typeof payload === "object" && "data" in payload) {

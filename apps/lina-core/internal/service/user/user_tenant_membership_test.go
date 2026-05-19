@@ -11,7 +11,6 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
@@ -23,19 +22,19 @@ import (
 
 const (
 	// userTenantMembershipTestMembershipTable is the plugin-owned membership table used by tests.
-	userTenantMembershipTestMembershipTable = "plugin_multi_tenant_user_membership"
+	userTenantMembershipTestMembershipTable = "plugin_linapro_tenant_core_user_membership"
 	// userTenantMembershipTestTenantTable is the plugin-owned tenant table used by tests.
-	userTenantMembershipTestTenantTable = "plugin_multi_tenant_tenant"
+	userTenantMembershipTestTenantTable = "plugin_linapro_tenant_core_tenant"
 	// userTenantMembershipTestActive marks an active membership row.
 	userTenantMembershipTestActive = 1
 )
 
 // userTenantMembershipTestInsertData is a typed insert payload for membership rows.
 type userTenantMembershipTestInsertData struct {
-	UserID   int64       `orm:"user_id"`
-	TenantID int64       `orm:"tenant_id"`
-	Status   int         `orm:"status"`
-	JoinedAt *gtime.Time `orm:"joined_at"`
+	UserID   int64      `orm:"user_id"`
+	TenantID int64      `orm:"tenant_id"`
+	Status   int        `orm:"status"`
+	JoinedAt *time.Time `orm:"joined_at"`
 }
 
 // userTenantMembershipTestRow is a compact membership join projection.
@@ -568,12 +567,12 @@ func TestUserListTenantContextIgnoresCrossTenantFilter(t *testing.T) {
 }
 
 // ensureUserTenantMembershipTestTables creates the plugin-owned tables used by
-// the host user service tests when the multi-tenant plugin is not installed.
+// the host user service tests when the linapro-tenant-core plugin is not installed.
 func ensureUserTenantMembershipTestTables(t *testing.T, ctx context.Context) {
 	t.Helper()
 
 	statements := []string{
-		`CREATE TABLE IF NOT EXISTS plugin_multi_tenant_tenant (
+		`CREATE TABLE IF NOT EXISTS plugin_linapro_tenant_core_tenant (
 			id BIGSERIAL PRIMARY KEY,
 			code VARCHAR(64) NOT NULL UNIQUE,
 			name VARCHAR(128) NOT NULL,
@@ -581,7 +580,7 @@ func ensureUserTenantMembershipTestTables(t *testing.T, ctx context.Context) {
 			plan VARCHAR(64),
 			deleted_at TIMESTAMP NULL
 		)`,
-		`CREATE TABLE IF NOT EXISTS plugin_multi_tenant_user_membership (
+		`CREATE TABLE IF NOT EXISTS plugin_linapro_tenant_core_user_membership (
 				id BIGSERIAL PRIMARY KEY,
 				user_id BIGINT NOT NULL,
 				tenant_id BIGINT NOT NULL,
@@ -599,10 +598,10 @@ func ensureUserTenantMembershipTestTables(t *testing.T, ctx context.Context) {
 	}
 }
 
-// userTenantMembershipEnablementReader marks the multi-tenant plugin enabled in tests.
+// userTenantMembershipEnablementReader marks the linapro-tenant-core plugin enabled in tests.
 type userTenantMembershipEnablementReader struct{}
 
-// IsEnabled reports multi-tenant as enabled.
+// IsEnabled reports linapro-tenant-core as enabled.
 func (userTenantMembershipEnablementReader) IsEnabled(_ context.Context, pluginID string) bool {
 	return pluginID == pkgtenantcap.ProviderPluginID
 }
@@ -758,11 +757,12 @@ func (*userTenantMembershipTestProvider) ReplaceUserTenantAssignments(
 		return err
 	}
 	for _, tenantID := range normalized {
+		joinedAt := time.Now()
 		if _, err := g.DB().Model(userTenantMembershipTestMembershipTable).Safe().Ctx(ctx).Data(userTenantMembershipTestInsertData{
 			UserID:   int64(userID),
 			TenantID: int64(tenantID),
 			Status:   userTenantMembershipTestActive,
-			JoinedAt: gtime.Now(),
+			JoinedAt: &joinedAt,
 		}).Insert(); err != nil {
 			return err
 		}
@@ -883,11 +883,12 @@ func insertUserTenantMembershipTestUserRole(t *testing.T, ctx context.Context, u
 func insertUserTenantMembershipTestMembership(t *testing.T, ctx context.Context, userID int, tenantID int, status int) {
 	t.Helper()
 
+	joinedAt := time.Now()
 	if _, err := g.DB().Model(userTenantMembershipTestMembershipTable).Safe().Ctx(ctx).Data(userTenantMembershipTestInsertData{
 		UserID:   int64(userID),
 		TenantID: int64(tenantID),
 		Status:   status,
-		JoinedAt: gtime.Now(),
+		JoinedAt: &joinedAt,
 	}).Insert(); err != nil {
 		t.Fatalf("insert tenant membership test row: %v", err)
 	}

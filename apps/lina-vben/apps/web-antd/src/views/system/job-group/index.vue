@@ -18,6 +18,7 @@ import {
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { jobGroupDelete, jobGroupList } from '#/api/system/jobGroup';
+import { formatTimestamp } from '#/utils/time';
 
 import JobGroupModal from './modal.vue';
 
@@ -106,6 +107,11 @@ const [Grid, gridApi] = useVbenVxeGrid({
       {
         field: 'updatedAt',
         title: $t('pages.common.updatedAt'),
+        formatter: ({
+          cellValue,
+        }: {
+          cellValue?: null | number | string;
+        }) => formatTimestamp(cellValue),
         minWidth: 180,
       },
       {

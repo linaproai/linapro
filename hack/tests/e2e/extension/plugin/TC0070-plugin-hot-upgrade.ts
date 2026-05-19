@@ -19,9 +19,9 @@ const apiBaseURL =
 const publicBaseURL =
   process.env.E2E_PUBLIC_BASE_URL ?? apiBaseURL.replace(/\/api\/v1\/?$/, "");
 
-const pluginID = "plugin-dynamic-hot-upgrade";
+const pluginID = "plugin-dev-dynamic-hot-upgrade";
 const pluginName = "Dynamic Hot Upgrade Plugin";
-const pluginMenuKey = "plugin:plugin-dynamic-hot-upgrade:iframe-entry";
+const pluginMenuKey = "plugin:plugin-dev-dynamic-hot-upgrade:iframe-entry";
 const pluginMenuName = "动态插件热升级示例";
 const versionOne = "v0.1.0";
 const versionTwo = "v0.2.0";
@@ -167,7 +167,7 @@ function buildManifestMenu(version: string) {
       key: pluginMenuKey,
       name: pluginMenuName,
       path: hostedAssetPath(version),
-      perms: "plugin-dynamic-hot-upgrade:view",
+      perms: "plugin-dev-dynamic-hot-upgrade:view",
       icon: "ant-design:history-outlined",
       type: "M",
       sort: -4,

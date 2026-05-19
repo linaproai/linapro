@@ -32,10 +32,9 @@ import {
   rememberPluginPageGeneration,
   resolvePluginPageId,
 } from '#/plugins/plugin-page-refresh';
-import { pluginCapabilityKeys } from '#/plugins/plugin-capabilities';
+import { resolveTenantManagementEnabled } from '#/plugins/management-capabilities';
 import { pluginSlotKeys } from '#/plugins/plugin-slots';
 import {
-  getPluginCapabilityStateMap,
   getPluginStateMap,
   notifyPluginRegistryChangedIfNeeded,
   onPluginRegistryChanged,
@@ -43,6 +42,7 @@ import {
 import { refreshAccessibleState } from '#/router/access-refresh';
 import { useAuthStore, useTenantStore } from '#/store';
 import { useMessageStore } from '#/store/message';
+import { formatTimestamp } from '#/utils/time';
 import LoginForm from '#/views/_core/authentication/login.vue';
 import NoticePreviewModal from '#/views/system/message/notice-preview-modal.vue';
 
@@ -68,7 +68,7 @@ const notifications = computed<NotificationItem[]>(() =>
   messageStore.messages.map((msg) => ({
     id: msg.id,
     avatar: '',
-    date: msg.createdAt,
+    date: formatTimestamp(msg.createdAt),
     isRead: msg.isRead === 1,
     message: msg.title,
     title: msg.typeLabel,
@@ -78,10 +78,6 @@ const notifications = computed<NotificationItem[]>(() =>
 );
 
 const showDot = computed(() => messageStore.unreadCount > 0);
-
-function isPluginRuntimeEnabled(value: unknown) {
-  return value === 1 || value === '1' || value === true;
-}
 
 // Start polling on mount
 onMounted(() => {
@@ -157,15 +153,7 @@ async function refreshPluginAwareAccess(options?: {
 }
 
 async function syncTenantManagementCapability(force = false) {
-  const capabilityMap = await getPluginCapabilityStateMap(force);
-  const pluginStateMap = await getPluginStateMap();
-  const multiTenantState = pluginStateMap.get('multi-tenant');
-  const tenantManagementEnabled =
-    multiTenantState
-      ? isPluginRuntimeEnabled(multiTenantState.installed) &&
-        isPluginRuntimeEnabled(multiTenantState.enabled)
-      : capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled ===
-          true || tenantStore.enabled;
+  const tenantManagementEnabled = await resolveTenantManagementEnabled(force);
   if (!tenantManagementEnabled && tenantStore.enabled) {
     tenantStore.$reset();
     return;

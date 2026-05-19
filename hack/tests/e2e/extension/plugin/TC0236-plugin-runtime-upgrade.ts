@@ -3,8 +3,8 @@ import type { Page, Route } from '@playwright/test';
 import { test, expect } from '../../../fixtures/auth';
 import { PluginPage } from '../../../pages/PluginPage';
 
-const upgradePluginID = 'plugin-runtime-upgrade-e2e';
-const abnormalPluginID = 'plugin-runtime-abnormal-e2e';
+const upgradePluginID = 'plugin-dev-runtime-upgrade-e2e';
+const abnormalPluginID = 'plugin-dev-runtime-abnormal-e2e';
 
 type PluginRow = Record<string, unknown>;
 

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/golang-jwt/jwt/v5"
 	_ "lina-core/pkg/dbdriver"
 
@@ -32,7 +31,7 @@ func TestTouchDynamicRouteSessionKeepsExistingSessionWhenTimestampDoesNotChange(
 		ctx      = context.Background()
 		service  = &serviceImpl{sessionStore: session.NewDBStore()}
 		tenantID = 17
-		tokenID  = fmt.Sprintf("plugin-dynamic-route-session-%d", time.Now().UnixNano())
+		tokenID  = fmt.Sprintf("plugin-dev-dynamic-route-session-%d", time.Now().UnixNano())
 	)
 
 	if _, err := dao.SysOnlineSession.Ctx(ctx).
@@ -102,10 +101,10 @@ func TestDynamicRouteIdentitySnapshotFiltersRolesByTokenTenant(t *testing.T) {
 		tenantAID    = 61001
 		tenantBID    = 61002
 		actingUserID = 9001
-		tokenID      = fmt.Sprintf("plugin-dynamic-route-tenant-token-%d", time.Now().UnixNano())
-		tenantAPerm  = fmt.Sprintf("plugin-dynamic-route:tenant-a:%d", time.Now().UnixNano())
-		tenantBPerm  = fmt.Sprintf("plugin-dynamic-route:tenant-b:%d", time.Now().UnixNano())
-		platformPerm = fmt.Sprintf("plugin-dynamic-route:platform:%d", time.Now().UnixNano())
+		tokenID      = fmt.Sprintf("plugin-dev-dynamic-route-tenant-token-%d", time.Now().UnixNano())
+		tenantAPerm  = fmt.Sprintf("plugin-dev-dynamic-route:tenant-a:%d", time.Now().UnixNano())
+		tenantBPerm  = fmt.Sprintf("plugin-dev-dynamic-route:tenant-b:%d", time.Now().UnixNano())
+		platformPerm = fmt.Sprintf("plugin-dev-dynamic-route:platform:%d", time.Now().UnixNano())
 	)
 	var (
 		userID  int
@@ -218,14 +217,15 @@ func TestParseDynamicRouteTokenRejectsRefreshToken(t *testing.T) {
 }
 
 // waitForFreshSecond aligns the test clock with a new second to avoid flaky TIMESTAMP updates.
-func waitForFreshSecond(t *testing.T) *gtime.Time {
+func waitForFreshSecond(t *testing.T) *time.Time {
 	t.Helper()
 
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		now := time.Now()
 		if now.Nanosecond() < int((100 * time.Millisecond).Nanoseconds()) {
-			return gtime.NewFromTime(now.Truncate(time.Second))
+			truncated := now.Truncate(time.Second)
+			return &truncated
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -361,7 +361,7 @@ func insertDynamicRouteAccessTestSession(
 ) {
 	t.Helper()
 
-	now := gtime.Now()
+	now := time.Now()
 	if err := session.NewDBStore().Set(ctx, &session.Session{
 		TokenId:        tokenID,
 		TenantId:       tenantID,
@@ -371,8 +371,8 @@ func insertDynamicRouteAccessTestSession(
 		Ip:             "127.0.0.1",
 		Browser:        "go-test",
 		Os:             "darwin",
-		LoginTime:      now,
-		LastActiveTime: now,
+		LoginTime:      &now,
+		LastActiveTime: &now,
 	}); err != nil {
 		t.Fatalf("insert dynamic route access test session: %v", err)
 	}
@@ -438,7 +438,7 @@ func signDynamicRouteImpersonationTestToken(
 // bearer token.
 func buildDynamicRouteAccessTestRequest(tokenString string) *ghttp.Request {
 	request := &ghttp.Request{}
-	request.Request = httptest.NewRequest(http.MethodGet, RoutePublicPrefix+"/plugin-dynamic-route/access", nil)
+	request.Request = httptest.NewRequest(http.MethodGet, RoutePublicPrefix+"/plugin-dev-dynamic-route/access", nil)
 	request.Header.Set("Authorization", "Bearer "+tokenString)
 	return request
 }

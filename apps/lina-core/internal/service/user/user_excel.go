@@ -7,6 +7,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/xuri/excelize/v2"
 
 	"lina-core/internal/dao"
@@ -201,8 +202,20 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 			continue
 		}
 
+		tenantPlan, err := s.resolveCreateTenantMemberships(ctx, nil)
+		if err != nil {
+			result.Fail++
+			result.FailList = append(result.FailList, ImportFailItem{
+				Row:    rowNum,
+				Reason: s.runtimeText(ctx, "artifact.user.import.failure.queryFailed", "Database query failed: {error}", bizerr.P("error", err)),
+			})
+			continue
+		}
+		primaryTenantID := int(tenantPlan.PrimaryTenant)
+
 		// Insert user (GoFrame auto-fills created_at and updated_at)
 		data := do.SysUser{
+			TenantId: primaryTenantID,
 			Username: username,
 			Password: hash,
 			Status:   int(StatusNormal),
@@ -241,7 +254,16 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 			data.Remark = row[7]
 		}
 
-		_, err = dao.SysUser.Ctx(ctx).Data(data).Insert()
+		err = dao.SysUser.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
+			insertedID, insertErr := dao.SysUser.Ctx(ctx).Data(data).InsertAndGetId()
+			if insertErr != nil {
+				return insertErr
+			}
+			if tenantPlan.ShouldReplace {
+				return s.tenantSvc.ReplaceUserTenantAssignments(ctx, int(insertedID), tenantPlan)
+			}
+			return nil
+		})
 		if err != nil {
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{

@@ -31,10 +31,10 @@ func TestValidateRouteContractsRejectsInvalidPublicPermission(t *testing.T) {
 			Path:       "/review-summary",
 			Method:     http.MethodGet,
 			Access:     AccessPublic,
-			Permission: "plugin-demo-dynamic:review:view",
+			Permission: "linapro-demo-dynamic:review:view",
 		},
 	}
-	if err := ValidateRouteContracts("plugin-demo-dynamic", routes); err == nil {
+	if err := ValidateRouteContracts("linapro-demo-dynamic", routes); err == nil {
 		t.Fatal("expected public route with permission to be rejected")
 	}
 }
@@ -43,14 +43,14 @@ func TestValidateRouteContractsRejectsInvalidPublicPermission(t *testing.T) {
 // preserves nested route, request, and identity snapshots.
 func TestEncodeDecodeRequestEnvelopeRoundTrip(t *testing.T) {
 	input := &BridgeRequestEnvelopeV1{
-		PluginID: "plugin-demo-dynamic",
+		PluginID: "linapro-demo-dynamic",
 		Route: &RouteMatchSnapshotV1{
 			Method:       http.MethodGet,
-			PublicPath:   "/api/v1/extensions/plugin-demo-dynamic/review-summary",
+			PublicPath:   "/api/v1/extensions/linapro-demo-dynamic/review-summary",
 			InternalPath: "/review-summary",
 			RoutePath:    "/review-summary",
 			Access:       AccessLogin,
-			Permission:   "plugin-demo-dynamic:review:view",
+			Permission:   "linapro-demo-dynamic:review:view",
 			RequestType:  "ReviewSummaryReq",
 			PathParams: map[string]string{
 				"id": "42",
@@ -61,9 +61,9 @@ func TestEncodeDecodeRequestEnvelopeRoundTrip(t *testing.T) {
 		},
 		Request: &HTTPRequestSnapshotV1{
 			Method:       http.MethodGet,
-			PublicPath:   "/api/v1/extensions/plugin-demo-dynamic/review-summary",
+			PublicPath:   "/api/v1/extensions/linapro-demo-dynamic/review-summary",
 			InternalPath: "/review-summary",
-			RawPath:      "/api/v1/extensions/plugin-demo-dynamic/review-summary",
+			RawPath:      "/api/v1/extensions/linapro-demo-dynamic/review-summary",
 			RawQuery:     "q=hello",
 			Host:         "localhost:8080",
 			Scheme:       "http",
@@ -85,7 +85,7 @@ func TestEncodeDecodeRequestEnvelopeRoundTrip(t *testing.T) {
 			ActingUserId:    7,
 			ActingAsTenant:  true,
 			IsImpersonation: true,
-			Permissions:     []string{"plugin-demo-dynamic:review:view"},
+			Permissions:     []string{"linapro-demo-dynamic:review:view"},
 			RoleNames:       []string{"超级管理员"},
 			DataScope:       1,
 			IsSuperAdmin:    true,

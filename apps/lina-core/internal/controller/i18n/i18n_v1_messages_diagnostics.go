@@ -21,7 +21,7 @@ func (c *ControllerV1) DiagnoseMessages(ctx context.Context, req *v1.DiagnoseMes
 			RequestedLocale: item.RequestedLocale,
 			EffectiveLocale: item.EffectiveLocale,
 			FromFallback:    item.FromFallback,
-			SourceType:      item.Source.Type,
+			SourceType:      v1.MessageSourceType(item.Source.Type),
 			SourceKey:       item.Source.ScopeKey,
 		})
 	}

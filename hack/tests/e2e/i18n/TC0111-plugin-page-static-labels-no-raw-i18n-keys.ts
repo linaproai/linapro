@@ -32,11 +32,11 @@ const pluginAuditCases = [
 ] as const;
 
 const sourcePluginIDs = [
-  'org-center',
-  'content-notice',
-  'monitor-loginlog',
-  'monitor-online',
-  'monitor-operlog',
+  'linapro-org-core',
+  'linapro-content-notice',
+  'linapro-monitor-loginlog',
+  'linapro-monitor-online',
+  'linapro-monitor-operlog',
 ] as const;
 
 test.describe('TC0111 源插件静态文案不再泄漏原始 i18n key', () => {
@@ -85,10 +85,10 @@ test.describe('TC0111 源插件静态文案不再泄漏原始 i18n key', () => {
     expect(messages?.config?.sys?.auth?.pageTitle?.name).toBe(
       'Login - Page Title',
     );
-    expect(messages?.plugin?.['org-center']?.dept?.fields?.name).toBe(
+    expect(messages?.plugin?.['linapro-org-core']?.dept?.fields?.name).toBe(
       'Dept Name',
     );
-    expect(messages?.plugin?.['monitor-operlog']?.fields?.moduleName).toBe(
+    expect(messages?.plugin?.['linapro-monitor-operlog']?.fields?.moduleName).toBe(
       'Module Name',
     );
   });

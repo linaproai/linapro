@@ -16,7 +16,7 @@ import {
 } from "../../../support/api/job";
 
 const limitedPassword = "test123456";
-const pluginIDs = ["org-center", "content-notice"];
+const pluginIDs = ["linapro-org-core", "linapro-content-notice"];
 const businessPermissions = [
   "system:dept:list",
   "system:dept:query",

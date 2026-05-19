@@ -27,6 +27,7 @@ import {
 } from '#/api/system/message';
 import { $t } from '#/locales';
 import { useMessageStore } from '#/store/message';
+import { formatTimestamp } from '#/utils/time';
 
 import NoticePreviewModal from './notice-preview-modal.vue';
 
@@ -143,7 +144,7 @@ onMounted(() => {
                 </Space>
               </template>
               <template #description>
-                {{ item.createdAt }}
+                {{ formatTimestamp(item.createdAt) }}
               </template>
             </ListItemMeta>
             <template #actions>

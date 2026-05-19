@@ -1,53 +1,68 @@
 ## Why
 
-LinaPro's developer tooling and operations layer previously lacked coherent governance across four areas: framework and source-plugin upgrades, development-time database configuration, cross-platform onboarding, and API performance auditing.
+LinaPro's developer tooling and operations infrastructure lacked coherence across several dimensions: cross-platform compatibility, tool consolidation, environment management, automated governance, release quality gates, and version integrity.
 
-**Upgrade governance** was incomplete. Framework upgrades had a working `make upgrade` path, but source plugins -- compiled into the host -- had no formal upgrade entry point. The source scan could overwrite the effective registry version with a higher version discovered in `plugin.yaml`, blurring the line between what was currently deployed and what merely existed in source. Dynamic plugins already had runtime upgrade foundations, but source-plugin upgrades needed explicit development-time parity with framework upgrades.
+**Cross-platform compatibility** was absent. The repository's development commands relied on GNU Make, POSIX Shell, and Linux/macOS-specific tools (`lsof`, `awk`, `sed`, `nohup`, `kill`). Windows users could not execute common development tasks without installing GNU Make, Git Bash, or MSYS2. There was no unified, low-barrier entry point for Windows, macOS, and Linux developers.
 
-**Development database configuration** was duplicated. `apps/lina-core/hack/config.yaml` declared the same database connection settings twice -- once for `database.default.link` and again for `gfcli.gen.dao[].link` -- and local `init`/`mock` SQL execution depended on `multiStatements=true` in the MySQL DSN, tying command behavior to a driver-specific capability.
+**Build tool fragmentation** accumulated over time. `hack/tools/image-builder`, `hack/tools/build-wasm`, and `hack/tools/runtime-i18n` existed as independent Go modules despite primarily being invoked through `linactl`. This created duplicate `go.work` entries, redundant CI fixtures, and scattered documentation paths.
 
-**Cross-platform onboarding** was fragmented. First-time users had to manually locate the repository, decide on a download method, choose an extraction directory, and separately verify whether their machine had the required dependencies. There was no unified, low-barrier entry point for getting the source code up and running.
+**Developer environment management** was conflated with service startup. The `make dev.setup` entry mixed dependency installation with the `dev` command's service-startup semantics, and there was no lightweight cross-platform health check to verify tool requirements before development.
 
-**API performance auditing** was ad hoc. During fast SDD-driven iteration, common API performance risks -- N+1 queries, DAO calls inside loops, missing-index full scans, unbounded list responses, blocking work inside loops, repeated configuration reads, cache misses, and GET/query endpoints that execute write SQL -- were mostly found by manual developer review. The runtime already exposed enough evidence to make this review repeatable through GoFrame's `Trace-ID` response header and `database.debug=true` SQL logging, but there was no reusable workflow to automate the audit.
+**OpenSpec archive governance** depended entirely on manual triggering. Completed changes lingered in the active directory, increasing noise in the active change list and causing feedback flows to misidentify completed work as pending.
+
+**Release quality gates** were inconsistent. The release workflow did not reuse the shared test verification suite used by nightly and main CI, and there was no version governance to ensure release tags matched framework metadata.
+
+**Upgrade governance** was incomplete. Framework upgrades worked, but source plugins lacked a formal upgrade entry point, and the source scan could overwrite effective versions with discovered versions.
+
+**Database configuration** was duplicated, cross-platform onboarding was fragmented, and API performance auditing was ad hoc.
 
 ## What Changes
 
-- Extend `make upgrade` with upgrade scopes (`scope=framework` or `scope=source-plugin`) so one development-time entry point covers both framework and source-plugin upgrades.
-- Separate the current effective source-plugin version from higher versions discovered in source; persist discovered versions as prepared releases instead of overwriting the effective version.
-- Add a host startup fail-fast check that blocks startup when an installed source plugin has a higher discovered version that has not yet been upgraded.
-- Implement explicit source-plugin upgrade flows with `phase=upgrade` migration bookkeeping, governance resource synchronization, and release/registry switching.
-- Converge duplicated database connection settings in `hack/config.yaml` through YAML anchors and remove `multiStatements=true` from the development DSN.
-- Rework local SQL execution to split files into individual statements and execute them sequentially, preserving ordered execution and fail-fast behavior without driver-level multi-statement support.
-- Add cross-platform installation scripts (`install.sh` for macOS/Linux, `install.ps1` for Windows) under `hack/scripts/install/` that download source archives, deploy to a target directory with safe directory policies, and output environment health checks.
-- Register the built-in log cleanup cron task through source code startup projection rather than SQL seed data.
-- Add the `lina-perf-audit` agent skill that orchestrates environment preparation, built-in plugin installation and enablement, endpoint sharding, sub-agent execution, trace-ID-based SQL lookup, source review, report aggregation, and read-request write-side-effect detection.
+- Provide a cross-platform Go CLI (`hack/tools/linactl`) as the primary development command entry point, with a Windows `make.cmd` thin wrapper for `cmd.exe` and PowerShell compatibility.
+- Consolidate `hack/tools/image-builder`, `hack/tools/build-wasm`, and `hack/tools/runtime-i18n` into `linactl/internal/` subcomponents, removing independent tool modules.
+- Add `env.check` for lightweight tool-level environment health checks and `env.setup` for frontend dependency and Playwright browser installation, replacing the old `dev.setup` entry.
+- Automate monthly OpenSpec archive governance through GitHub Actions, supporting configurable AI Coding tools (Codex, Claude Code, GitHub Copilot CLI) with PR-based write-back.
+- Restructure release workflow to reuse the shared test verification suite with Main CI's brief test scope, add release tag version governance with `linactl release.tag.check`, and provide a controlled release tag creation workflow.
+- Provide a manual nightly image build workflow that bypasses test gates, plus a memory-only Docker Compose demo launcher.
+- Extend `make upgrade` with upgrade scopes for both framework and source-plugin upgrades, with effective-version separation and startup fail-fast checks.
+- Converge duplicated database connection settings through YAML anchors and rework local SQL execution to remove `multiStatements` dependency.
+- Add cross-platform installation scripts under `hack/scripts/install/` for new developer onboarding.
+- Register the built-in log cleanup cron task through source code startup projection.
+- Add the `lina-perf-audit` agent skill for automated backend API performance auditing.
 
 ## Capabilities
 
 ### Modified Capabilities
-- `source-upgrade-governance`: Expand framework source upgrade governance into a unified development-time entry point covering both framework and source-plugin upgrades.
+- `upgrade-governance`: Expand framework source upgrade governance into a unified development-time entry point covering both framework and source-plugin upgrades.
+- `plugin-upgrade-governance`: Define source-plugin version discovery, effective-version separation, explicit development-time upgrades, and startup fail-fast checks.
 - `database-bootstrap-commands`: Update SQL asset-source selection by execution phase and rework local SQL execution to remove `multiStatements` dependency.
 - `cron-job-management`: Project the built-in cleanup task into `sys_job` during startup rather than through delivery SQL seed data.
+- `runtime-upgrade-governance`: Keep runtime business upgrade only as a directional constraint for future work.
+- `project-setup`: Adjust development environment commands, add environment check and initialization entries, and remove the old `dev.setup` entry.
+- `release-image-build`: Restructure release workflow to reuse shared test verification suite, add version governance, provide manual nightly entry, and add controlled release tag creation.
+- `e2e-suite-organization`: Complete E2E covers host and official plugin tests in nightly; release uses brief test scope without E2E.
+- `spec-governance`: Supplement OpenSpec archive governance with controlled monthly automation.
 
 ### New Capabilities
-- `plugin-upgrade-governance`: Define source-plugin version discovery, effective-version separation, explicit development-time upgrades, and startup fail-fast checks.
+- `cross-platform-dev-commands`: Define the project's cross-platform development command entry, Windows `make.cmd` compatibility, make-style parameter compatibility, external tool invocation boundaries, testing and documentation requirements.
+- `linactl-build-tool-consolidation`: Define `linactl` as the unified carrier for image building, dynamic plugin Wasm packaging, and runtime i18n governance scanning.
 - `framework-bootstrap-installer`: Provide cross-platform source code download, target directory deployment, safe extraction, environment health check, and post-installation guidance.
-- `runtime-upgrade-governance`: Keep runtime business upgrade only as a directional constraint for future work.
-- `lina-perf-audit-skill`: Define the public contract for LinaPro's backend API performance and read-request side-effect audit skill, including manual triggering, sub-agent orchestration, destructive endpoint handling, trace-ID correlation, report artifacts, persistent issue cards, severity classification, and automation restrictions.
+- `lina-perf-audit-skill`: Define the public contract for LinaPro's backend API performance and read-request side-effect audit skill.
+- `monthly-openspec-archive`: Define monthly OpenSpec automatic archiving, consolidation, validation, PR write-back, AI Coding tool selection, and credential injection.
+- `release-version-governance`: Define release tag version consistency enforcement, cross-platform validation tooling, and controlled release tag creation workflow.
 
 ## Impact
 
-- The repository-root `make upgrade` entry point and `hack/upgrade-source` tool now cover both framework and source-plugin upgrades.
-- Plugin registry and release synchronization logic no longer overwrites the current effective version during source scanning.
+- The repository-root development commands are unified through `hack/tools/linactl`, with `make`, `make.cmd`, and direct `linactl` invocation as interchangeable entry points.
+- `hack/tools/image-builder`, `hack/tools/build-wasm`, and `hack/tools/runtime-i18n` are removed as independent modules; their implementations live under `linactl/internal/`.
+- New `env.check` and `env.setup` commands replace `dev.setup` for environment management.
+- Monthly OpenSpec archive automation runs on a configurable schedule with PR-based write-back, supporting Codex, Claude Code, and GitHub Copilot CLI.
+- Release workflow reuses the shared test verification suite, enforces tag-version consistency, and creates GitHub Releases after successful publishing.
+- Manual nightly image build bypasses test gates for maintenance re-publishing.
+- Docker Compose demo launcher provides a memory-only experience environment.
+- Plugin registry and release synchronization no longer overwrites the current effective version during source scanning.
 - Host startup gains a preflight source-plugin upgrade check that blocks startup when upgrades are pending.
-- Source-plugin upgrades reuse `sys_plugin_release`, `sys_plugin_migration`, and governance resource-reference tables rather than a separate upgrade ledger.
-- `apps/lina-core/hack/config.yaml` uses YAML anchors for a single shared database connection definition, and local SQL execution no longer depends on `multiStatements=true`.
-- New `hack/scripts/install/` directory provides cross-platform installation scripts with archive download, safe directory policies, and environment health checks.
-- Repository root `README.md` and `README.zh-CN.md` include quick install instructions for macOS/Linux and Windows.
-- The built-in log cleanup cron task is registered through startup projection, removing its SQL seed dependency.
-- Runtime business upgrades remain out of implementation scope for this iteration.
-- Adds `.agents/skills/lina-perf-audit/SKILL.md`, reference templates, and bundled scripts for Claude Code, Codex, and other AI coding tools that can read project skills.
-- Runtime impact of the audit skill only exists when the user manually runs it. A run resets the local database, reloads mock data, installs and enables built-in plugins, adds stress fixtures, restarts services, writes temporary run artifacts, and updates persistent `perf-issues/` cards.
-- The audit skill does not change production API behavior, add middleware, modify default configuration values, or write audit stress data into delivery SQL assets.
-- i18n impact for the audit skill: no runtime i18n resources, frontend language packs, apidoc translation resources, menus, buttons, or DTO documentation are added or changed. Skill documentation and audit reports are developer-facing assets outside the runtime localization system.
-- Cache impact for the audit skill: the skill itself does not introduce production caches. Feedback work completed during this iteration also recorded cache consistency impact and verification in `tasks.md`.
+- `apps/lina-core/hack/config.yaml` uses YAML anchors for database connection deduplication.
+- New `hack/scripts/install/` provides cross-platform installation scripts.
+- The built-in log cleanup cron task is registered through startup projection.
+- Adds `.agents/skills/lina-perf-audit/` with automated backend API performance auditing.

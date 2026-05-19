@@ -10,6 +10,7 @@ import (
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/statusflag"
 )
 
 // List scans plugins and returns current synchronized status list.
@@ -17,9 +18,9 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 	out, err := c.pluginSvc.List(ctx, pluginsvc.ListInput{
 		ID:        req.Id,
 		Name:      req.Name,
-		Type:      req.Type,
-		Status:    req.Status,
-		Installed: req.Installed,
+		Type:      string(req.Type),
+		Status:    enabledPtrToInt(req.Status),
+		Installed: installationPtrToInt(req.Installed),
 	})
 	if err != nil {
 		return nil, err
@@ -63,26 +64,26 @@ func (c *ControllerV1) buildPluginItemResponse(
 		Id:                      item.Id,
 		Name:                    item.Name,
 		Version:                 item.Version,
-		RuntimeState:            item.RuntimeState.String(),
+		RuntimeState:            v1.RuntimeState(item.RuntimeState.String()),
 		EffectiveVersion:        item.EffectiveVersion,
 		DiscoveredVersion:       item.DiscoveredVersion,
 		UpgradeAvailable:        item.UpgradeAvailable,
-		AbnormalReason:          item.AbnormalReason.String(),
+		AbnormalReason:          v1.RuntimeAbnormalReason(item.AbnormalReason.String()),
 		LastUpgradeFailure:      buildPluginUpgradeFailureItem(item.LastUpgradeFailure),
-		Type:                    item.Type,
+		Type:                    v1.PluginType(item.Type),
 		Description:             item.Description,
-		Installed:               item.Installed,
+		Installed:               statusflag.Installation(item.Installed),
 		InstalledAt:             item.InstalledAt,
-		Enabled:                 item.Enabled,
-		AutoEnableManaged:       boolToInt(autoEnableManaged),
+		Enabled:                 statusflag.Enabled(item.Enabled),
+		AutoEnableManaged:       boolToYesNo(autoEnableManaged),
 		AutoEnableForNewTenants: item.AutoEnableForNewTenants,
 		SupportsMultiTenant:     item.SupportsMultiTenant,
-		ScopeNature:             item.ScopeNature,
-		InstallMode:             item.InstallMode,
+		ScopeNature:             v1.ScopeNature(item.ScopeNature),
+		InstallMode:             v1.InstallMode(item.InstallMode),
 		StatusKey:               item.StatusKey,
 		UpdatedAt:               item.UpdatedAt,
-		AuthorizationRequired:   boolToInt(item.AuthorizationRequired),
-		AuthorizationStatus:     string(item.AuthorizationStatus),
+		AuthorizationRequired:   boolToYesNo(item.AuthorizationRequired),
+		AuthorizationStatus:     v1.AuthorizationStatus(item.AuthorizationStatus),
 		DependencyCheck:         buildPluginDependencyCheckResult(item.DependencyCheck),
 		RequestedHostServices: buildHostServicePermissionItems(
 			item.RequestedHostServices,
@@ -98,7 +99,7 @@ func (c *ControllerV1) buildPluginItemResponse(
 			item.Id,
 			item.DeclaredRoutes,
 		),
-		HasMockData: boolToInt(item.HasMockData),
+		HasMockData: boolToYesNo(item.HasMockData),
 	}
 }
 
@@ -197,15 +198,6 @@ func pluginUsesCronHostService(specs []*pluginbridge.HostServiceSpec) bool {
 	return false
 }
 
-// boolToInt converts a boolean flag into the legacy integer representation used
-// by list DTO fields.
-func boolToInt(value bool) int {
-	if value {
-		return 1
-	}
-	return 0
-}
-
 // buildPluginUpgradeFailureItem maps the service runtime-upgrade failure
 // projection into the public plugin list DTO.
 func buildPluginUpgradeFailureItem(
@@ -215,7 +207,7 @@ func buildPluginUpgradeFailureItem(
 		return nil
 	}
 	return &v1.PluginUpgradeFailureItem{
-		Phase:          failure.Phase.String(),
+		Phase:          v1.RuntimeFailurePhase(failure.Phase.String()),
 		ErrorCode:      failure.ErrorCode,
 		MessageKey:     failure.MessageKey,
 		ReleaseId:      failure.ReleaseID,

@@ -1,7 +1,7 @@
 # LinaPro backend main CI workflow.
-# Runs on every push and pull request branch.
+# Runs on every push, pull request, and manual dispatch branch.
 # LinaPro 后端主 CI 工作流。
-# 在每次分支 push 和手动触发时运行。
+# 在每次分支 push、pull request 和手动触发时运行。
 name: Main CI
 
 on:

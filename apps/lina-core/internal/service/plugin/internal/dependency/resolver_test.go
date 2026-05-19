@@ -212,9 +212,10 @@ func TestCheckReverseBlocksCandidateVersionBreakage(t *testing.T) {
 	}
 }
 
-// TestCheckReverseConservativelyBlocksUnknownSnapshot verifies missing
-// installed dependency snapshots block destructive lifecycle operations.
-func TestCheckReverseConservativelyBlocksUnknownSnapshot(t *testing.T) {
+// TestCheckReverseBlocksUnknownSnapshotWithoutDiscoveredManifest verifies
+// destructive lifecycle operations fail closed when neither a release snapshot
+// nor a discovered manifest can identify downstream dependencies.
+func TestCheckReverseBlocksUnknownSnapshotWithoutDiscoveredManifest(t *testing.T) {
 	resolver := plugindep.New()
 
 	result := resolver.CheckReverse(plugindep.ReverseCheckInput{
@@ -233,6 +234,59 @@ func TestCheckReverseConservativelyBlocksUnknownSnapshot(t *testing.T) {
 
 	if len(result.Blockers) != 1 || result.Blockers[0].Code != plugindep.BlockerDependencySnapshotUnknown {
 		t.Fatalf("expected unknown snapshot blocker, got %#v", result.Blockers)
+	}
+}
+
+// TestCheckReverseIgnoresUnknownSnapshotForUnrelatedDiscoveredPlugin verifies
+// one stale installed plugin does not block unrelated target lifecycle when the
+// current discovered manifest shows it does not depend on the target.
+func TestCheckReverseIgnoresUnknownSnapshotForUnrelatedDiscoveredPlugin(t *testing.T) {
+	resolver := plugindep.New()
+
+	result := resolver.CheckReverse(plugindep.ReverseCheckInput{
+		TargetID: "base",
+		Plugins: []*plugindep.PluginSnapshot{
+			pluginSnapshot("base", "v0.1.0", true, nil),
+			{
+				ID:                        "unrelated",
+				Name:                      "unrelated",
+				Version:                   "v0.1.0",
+				Installed:                 true,
+				Manifest:                  &catalog.Manifest{ID: "unrelated"},
+				DependencySnapshotUnknown: true,
+			},
+		},
+	})
+
+	if len(result.Blockers) != 0 {
+		t.Fatalf("expected unrelated unknown snapshot to be non-blocking, got %#v", result.Blockers)
+	}
+}
+
+// TestCheckReverseBlocksUnknownSnapshotWithDiscoveredTargetDependency verifies
+// current discovered manifests still protect the target when the effective
+// release snapshot is unavailable but a hard dependency on the target is known.
+func TestCheckReverseBlocksUnknownSnapshotWithDiscoveredTargetDependency(t *testing.T) {
+	resolver := plugindep.New()
+
+	result := resolver.CheckReverse(plugindep.ReverseCheckInput{
+		TargetID: "base",
+		Plugins: []*plugindep.PluginSnapshot{
+			pluginSnapshot("base", "v0.1.0", true, nil),
+			{
+				ID:                        "consumer",
+				Name:                      "consumer",
+				Version:                   "v0.1.0",
+				Installed:                 true,
+				Manifest:                  &catalog.Manifest{ID: "consumer"},
+				Dependencies:              dependenciesWithPlugins(pluginDependency("base", ">=0.1.0", true, catalog.DependencyInstallModeManual.String())),
+				DependencySnapshotUnknown: true,
+			},
+		},
+	})
+
+	if len(result.Blockers) != 1 || result.Blockers[0].Code != plugindep.BlockerDependencySnapshotUnknown {
+		t.Fatalf("expected discovered hard dependency with unknown snapshot to block, got %#v", result.Blockers)
 	}
 }
 

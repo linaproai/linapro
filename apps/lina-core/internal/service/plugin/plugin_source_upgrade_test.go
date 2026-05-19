@@ -25,11 +25,11 @@ func TestSourcePluginDiscoveryKeepsEffectiveVersionAfterHigherSourceVersion(t *t
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-source-upgrade-drift"
+		pluginID   = "plugin-dev-source-upgrade-drift"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.5.0"
-		oldMenuKey = "plugin:plugin-source-upgrade-drift:old-entry"
-		newMenuKey = "plugin:plugin-source-upgrade-drift:new-entry"
+		oldMenuKey = "plugin:plugin-dev-source-upgrade-drift:old-entry"
+		newMenuKey = "plugin:plugin-dev-source-upgrade-drift:new-entry"
 	)
 
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
@@ -133,14 +133,14 @@ func TestValidateSourcePluginUpgradeReadinessAllowsPendingUpgrade(t *testing.T) 
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-source-upgrade-startup-guard"
+		pluginID   = "plugin-dev-source-upgrade-startup-guard"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.5.0"
 	)
 
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
 	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
-	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Startup Guard Plugin", oldVersion, "plugin:plugin-source-upgrade-startup-guard:old-entry")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Startup Guard Plugin", oldVersion, "plugin:plugin-dev-source-upgrade-startup-guard:old-entry")
 
 	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
@@ -156,7 +156,7 @@ func TestValidateSourcePluginUpgradeReadinessAllowsPendingUpgrade(t *testing.T) 
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
 
-	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Startup Guard Plugin", newVersion, "plugin:plugin-source-upgrade-startup-guard:new-entry")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Startup Guard Plugin", newVersion, "plugin:plugin-dev-source-upgrade-startup-guard:new-entry")
 	if err := service.SyncSourcePlugins(ctx); err != nil {
 		t.Fatalf("expected source plugin rescan to succeed, got error: %v", err)
 	}
@@ -191,14 +191,14 @@ func TestSourcePluginListMarksLowerDiscoveredVersionAbnormal(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-source-upgrade-abnormal"
+		pluginID   = "plugin-dev-source-upgrade-abnormal"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.5.0"
 	)
 
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
 	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
-	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Abnormal Plugin", newVersion, "plugin:plugin-source-upgrade-abnormal:new-entry")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Abnormal Plugin", newVersion, "plugin:plugin-dev-source-upgrade-abnormal:new-entry")
 
 	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
@@ -214,7 +214,7 @@ func TestSourcePluginListMarksLowerDiscoveredVersionAbnormal(t *testing.T) {
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
 
-	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Abnormal Plugin", oldVersion, "plugin:plugin-source-upgrade-abnormal:old-entry")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Abnormal Plugin", oldVersion, "plugin:plugin-dev-source-upgrade-abnormal:old-entry")
 	if err := service.SyncSourcePlugins(ctx); err != nil {
 		t.Fatalf("expected source plugin rescan to succeed, got error: %v", err)
 	}
@@ -245,11 +245,11 @@ func TestUpgradeSourcePluginAppliesPreparedRelease(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-source-upgrade-apply"
+		pluginID   = "plugin-dev-source-upgrade-apply"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.5.0"
-		oldMenuKey = "plugin:plugin-source-upgrade-apply:old-entry"
-		newMenuKey = "plugin:plugin-source-upgrade-apply:new-entry"
+		oldMenuKey = "plugin:plugin-dev-source-upgrade-apply:old-entry"
+		newMenuKey = "plugin:plugin-dev-source-upgrade-apply:new-entry"
 	)
 
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
@@ -380,7 +380,7 @@ func TestUpgradeSourcePluginInvokesLifecycleCallbacks(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-source-upgrade-callback"
+		pluginID   = "plugin-dev-source-upgrade-callback"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.5.0"
 		events     []string
@@ -388,7 +388,7 @@ func TestUpgradeSourcePluginInvokesLifecycleCallbacks(t *testing.T) {
 
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
 	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
-	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Callback Plugin", oldVersion, "plugin:plugin-source-upgrade-callback:old-entry")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Callback Plugin", oldVersion, "plugin:plugin-dev-source-upgrade-callback:old-entry")
 	registerSourceUpgradeCallbacksForTest(t, pluginID, &events, false, false)
 
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
@@ -403,7 +403,7 @@ func TestUpgradeSourcePluginInvokesLifecycleCallbacks(t *testing.T) {
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
 
-	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Callback Plugin", newVersion, "plugin:plugin-source-upgrade-callback:new-entry")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Callback Plugin", newVersion, "plugin:plugin-dev-source-upgrade-callback:new-entry")
 	registerSourceUpgradeCallbacksForTest(t, pluginID, &events, false, false)
 	if err := service.SyncSourcePlugins(ctx); err != nil {
 		t.Fatalf("expected source plugin rescan to succeed, got error: %v", err)
@@ -428,7 +428,7 @@ func TestUpgradeSourcePluginBeforeCallbackVetoes(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-source-upgrade-before-veto"
+		pluginID   = "plugin-dev-source-upgrade-before-veto"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.5.0"
 		events     []string
@@ -436,7 +436,7 @@ func TestUpgradeSourcePluginBeforeCallbackVetoes(t *testing.T) {
 
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
 	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
-	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Before Veto Plugin", oldVersion, "plugin:plugin-source-upgrade-before-veto:old-entry")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Before Veto Plugin", oldVersion, "plugin:plugin-dev-source-upgrade-before-veto:old-entry")
 	registerSourceUpgradeCallbacksForTest(t, pluginID, &events, false, false)
 
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
@@ -451,7 +451,7 @@ func TestUpgradeSourcePluginBeforeCallbackVetoes(t *testing.T) {
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
 
-	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Before Veto Plugin", newVersion, "plugin:plugin-source-upgrade-before-veto:new-entry")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Before Veto Plugin", newVersion, "plugin:plugin-dev-source-upgrade-before-veto:new-entry")
 	registerSourceUpgradeCallbacksForTest(t, pluginID, &events, true, false)
 	if err := service.SyncSourcePlugins(ctx); err != nil {
 		t.Fatalf("expected source plugin rescan to succeed, got error: %v", err)
@@ -483,7 +483,7 @@ func TestUpgradeSourcePluginCallbackFailureIsRetryable(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-source-upgrade-callback-retry"
+		pluginID   = "plugin-dev-source-upgrade-callback-retry"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.5.0"
 		events     []string
@@ -491,7 +491,7 @@ func TestUpgradeSourcePluginCallbackFailureIsRetryable(t *testing.T) {
 
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
 	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
-	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Callback Retry Plugin", oldVersion, "plugin:plugin-source-upgrade-callback-retry:old-entry")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Callback Retry Plugin", oldVersion, "plugin:plugin-dev-source-upgrade-callback-retry:old-entry")
 	registerSourceUpgradeCallbacksForTest(t, pluginID, &events, false, false)
 
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
@@ -506,7 +506,7 @@ func TestUpgradeSourcePluginCallbackFailureIsRetryable(t *testing.T) {
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
 
-	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Callback Retry Plugin", newVersion, "plugin:plugin-source-upgrade-callback-retry:new-entry")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Callback Retry Plugin", newVersion, "plugin:plugin-dev-source-upgrade-callback-retry:new-entry")
 	registerSourceUpgradeCallbacksForTest(t, pluginID, &events, false, true)
 	if err := service.SyncSourcePlugins(ctx); err != nil {
 		t.Fatalf("expected source plugin rescan to succeed, got error: %v", err)
@@ -547,7 +547,7 @@ func TestListSourceUpgradeStatusesSkipsDynamicPlugins(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-upgrade-boundary"
+		pluginID = "plugin-dev-dynamic-upgrade-boundary"
 	)
 
 	testutil.CreateTestRuntimeStorageArtifact(

@@ -30,5 +30,5 @@ type RoleUserItem struct {
 	Email     string `json:"email" dc:"Email" eg:"admin@example.com"`
 	Phone     string `json:"phone" dc:"Mobile phone number" eg:"13800138000"`
 	Status    int    `json:"status" dc:"Status (0=disabled 1=normal)" eg:"1"`
-	CreatedAt string `json:"createdAt" dc:"creation time" eg:"2024-01-01 00:00:00"`
+	CreatedAt *int64 `json:"createdAt" dc:"Creation time as Unix timestamp in milliseconds" eg:"1704067200000"`
 }

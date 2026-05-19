@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
-
 	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/datascope"
 	tenantcapsvc "lina-core/internal/service/tenantcap"
@@ -25,16 +23,16 @@ const (
 
 // Session represents an online user session.
 type Session struct {
-	TokenId        string      // Unique token identifier
-	TenantId       int         // Tenant ID, where 0 means platform
-	UserId         int         // User ID
-	Username       string      // Username
-	DeptName       string      // Department name
-	Ip             string      // Login IP address
-	Browser        string      // Browser information
-	Os             string      // Operating system
-	LoginTime      *gtime.Time // Login time
-	LastActiveTime *gtime.Time // Last active time
+	TokenId        string     // Unique token identifier
+	TenantId       int        // Tenant ID, where 0 means platform
+	UserId         int        // User ID
+	Username       string     // Username
+	DeptName       string     // Department name
+	Ip             string     // Login IP address
+	Browser        string     // Browser information
+	Os             string     // Operating system
+	LoginTime      *time.Time // Login time
+	LastActiveTime *time.Time // Last active time
 }
 
 // ListFilter defines filter options for listing sessions.

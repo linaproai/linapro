@@ -19,7 +19,8 @@ type Service interface {
 
 // TypeService defines dictionary type management operations.
 type TypeService interface {
-	// List queries dictionary types with pagination and filters.
+	// List queries dictionary types with pagination, filters, and fallback
+	// action metadata.
 	List(ctx context.Context, in ListInput) (*ListOutput, error)
 	// Create creates a new dictionary type.
 	Create(ctx context.Context, in CreateInput) (int, error)
@@ -35,7 +36,8 @@ type TypeService interface {
 
 // DataService defines dictionary data management operations.
 type DataService interface {
-	// DataList queries dictionary data entries with pagination and filters.
+	// DataList queries dictionary data entries with pagination, filters, and
+	// fallback action metadata.
 	DataList(ctx context.Context, in DataListInput) (*DataListOutput, error)
 	// DataCreate creates a new dictionary data entry.
 	DataCreate(ctx context.Context, in DataCreateInput) (int, error)
@@ -45,8 +47,9 @@ type DataService interface {
 	DataUpdate(ctx context.Context, in DataUpdateInput) error
 	// DataDelete deletes a dictionary data entry by ID.
 	DataDelete(ctx context.Context, id int) error
-	// DataByType lists enabled dictionary data entries for one dictionary type.
-	DataByType(ctx context.Context, dictType string) ([]*entity.SysDictData, error)
+	// DataByType lists enabled dictionary data entries for one dictionary type
+	// with fallback action metadata.
+	DataByType(ctx context.Context, dictType string) ([]*DictDataProjection, error)
 }
 
 // ImportExportService defines dictionary workbook import and export operations.

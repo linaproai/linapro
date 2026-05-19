@@ -17,9 +17,9 @@ type DeptTreeNode = {
   label: string;
 };
 
-const sourcePluginIDs = ["org-center", "plugin-demo-source"] as const;
+const sourcePluginIDs = ["linapro-org-core", "linapro-demo-source"] as const;
 const chineseSystemCopyPattern =
-  /未分配部门|服务运行时长|小时|分钟|秒|这是一条来自 plugin-demo-source 接口的简要介绍/;
+  /未分配部门|服务运行时长|小时|分钟|秒|这是一条来自 linapro-demo-source 接口的简要介绍/;
 
 async function ensureSourcePluginsEnabled(
   api: APIRequestContext,
@@ -77,11 +77,11 @@ test.describe("TC-137 Backend hardcoded Chinese regression", () => {
     expect(systemInfo.runDuration).not.toMatch(/小时|分钟|秒/);
 
     const summary = await expectSuccess<{ message: string }>(
-      await adminApi.get("plugins/plugin-demo-source/summary", {
+      await adminApi.get("plugins/linapro-demo-source/summary", {
         headers: { "Accept-Language": "en-US" },
       }),
     );
-    expect(summary.message).toContain("plugin-demo-source API");
+    expect(summary.message).toContain("linapro-demo-source API");
     expect(summary.message).not.toMatch(chineseSystemCopyPattern);
   });
 
@@ -90,7 +90,7 @@ test.describe("TC-137 Backend hardcoded Chinese regression", () => {
     mainLayout,
   }) => {
     await mainLayout.switchLanguage("English");
-    await adminPage.goto("/plugin-demo-source-sidebar-entry?lang=en-US", {
+    await adminPage.goto("/linapro-demo-source-sidebar-entry?lang=en-US", {
       waitUntil: "domcontentloaded",
     });
     await waitForRouteReady(adminPage, 15_000);

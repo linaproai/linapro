@@ -200,7 +200,7 @@ func (s *serviceImpl) collectSourceManagedCronJobs(
 
 	collector := &managedCronCollector{
 		pluginID:     manifest.ID,
-		hostServices: s.hostServices,
+		hostServices: pluginhost.HostServicesForPlugin(s.hostServices, manifest.ID),
 		items:        make([]ManagedCronJob, 0),
 	}
 	for _, registration := range sourcePlugin.GetCronRegistrars() {

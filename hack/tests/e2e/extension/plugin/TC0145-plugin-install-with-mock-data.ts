@@ -14,9 +14,9 @@ import {
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
-const targetPluginID = "content-notice";
-const noticeTableName = "plugin_content_notice";
-// Mock data file 001-content-notice-mock-data.sql ships these notice titles.
+const targetPluginID = "linapro-content-notice";
+const noticeTableName = "plugin_linapro_content_notice";
+// Mock data file 001-linapro-content-notice-mock-data.sql ships these notice titles.
 // The first one is asserted on screen to prove the mock load committed; the
 // table-empty assertion in TC0146 checks the absence of all three together.
 const mockNoticeTitle = "系统升级通知";
@@ -146,7 +146,7 @@ test.describe("TC-145 Install plugin with mock data opt-in", () => {
 
     const item = await fetchPlugin(adminApi, targetPluginID);
     expect(item, "插件应可被发现").toBeTruthy();
-    expect(item?.hasMockData, "content-notice 应携带 mock-data 标识").toBe(1);
+    expect(item?.hasMockData, "linapro-content-notice 应携带 mock-data 标识").toBe(1);
     await expect(pluginPage.tableColumn("示例数据")).toBeVisible();
     await expect(pluginPage.pluginColumnHelpIcon("mockData")).toBeVisible();
     await pluginPage.expectColumnHelpTooltip(
@@ -157,8 +157,8 @@ test.describe("TC-145 Install plugin with mock data opt-in", () => {
       "是",
     );
 
-    await pluginPage.searchByPluginId("demo-control");
-    await expect(pluginPage.pluginMockDataValue("demo-control")).toContainText(
+    await pluginPage.searchByPluginId("linapro-ops-demo-guard");
+    await expect(pluginPage.pluginMockDataValue("linapro-ops-demo-guard")).toContainText(
       "否",
     );
     await pluginPage.searchByPluginId(targetPluginID);

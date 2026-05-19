@@ -111,8 +111,15 @@ function parseCriticalImports(source) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function explicitConstructorCall(line, name, method) {
+function explicitConstructorCall(line, name, method, importPath) {
   if (method.includes('WithDependencies') || method.startsWith('NewWith')) {
+    return true;
+  }
+  const allowedPackageConstructors = new Set([
+    'lina-core/internal/service/plugin/internal/dependency#New',
+    'lina-core/pkg/pluginservice/config#New',
+  ]);
+  if (allowedPackageConstructors.has(`${importPath}#${method}`)) {
     return true;
   }
   const allowedExactConstructors = new Set([
@@ -121,13 +128,26 @@ function explicitConstructorCall(line, name, method) {
     'NewDBStore',
     'NewGlobalMiddlewareRegistrar',
     'NewHTTPRegistrar',
+    'NewHookPayload',
+    'NewHookPayloadWithServices',
     'NewLocalStorage',
+    'NewManifestSnapshot',
+    'NewMenuDescriptor',
+    'NewOwnerToken',
+    'NewPermissionDescriptor',
     'NewRedis',
     'NewRouteMiddlewares',
     'NewRouteRegistrar',
     'NewScheduler',
     'NewSQLTableProvider',
     'NewSourcePlugin',
+    'NewSourcePluginInstallModeChangeInput',
+    'NewSourcePluginLifecycleCallbackAdapter',
+    'NewSourcePluginLifecycleInput',
+    'NewSourcePluginLifecycleInputWithUninstallPolicy',
+    'NewSourcePluginTenantLifecycleInput',
+    'NewSourcePluginUninstallInput',
+    'NewSourcePluginUpgradeInput',
   ]);
   if (allowedExactConstructors.has(method)) {
     return true;
@@ -162,7 +182,7 @@ function countCriticalConstructors(filePath, relativePath) {
         continue;
       }
       const method = match.groups?.method || '';
-      if (explicitConstructorCall(line, name, method)) {
+      if (explicitConstructorCall(line, name, method, importPath)) {
         continue;
       }
       if (wasmDefaultHostServiceFallback(relativePath, line)) {

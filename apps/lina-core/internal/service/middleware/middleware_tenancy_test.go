@@ -34,7 +34,7 @@ type tenancyTestTenantService struct {
 	resolveCalls  int
 }
 
-// Enabled returns the configured multi-tenant enablement state.
+// Enabled returns the configured linapro-tenant-core enablement state.
 func (s *tenancyTestTenantService) Enabled(context.Context) bool {
 	return s.enabled
 }
@@ -72,11 +72,6 @@ func (s *tenancyTestTenantService) ResolveTenant(context.Context, *ghttp.Request
 // ListUserTenants is unused by middleware tests and returns no tenants.
 func (s *tenancyTestTenantService) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
 	return []pkgtenantcap.TenantInfo{}, nil
-}
-
-// ReadWithPlatformFallback is unused by middleware tests and returns nil rows.
-func (s *tenancyTestTenantService) ReadWithPlatformFallback(context.Context, tenantcapsvc.FallbackScanner[any]) ([]any, error) {
-	return nil, nil
 }
 
 // ApplyUserTenantScope is unused by middleware tests.

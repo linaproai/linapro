@@ -64,8 +64,8 @@
 
 #### Scenario:插件业务错误资源归属插件
 
-- **当** `org-center` 插件新增 `plugin.org-center.error.deptNotFound` 错误键时
-- **则** 该键必须写入 `apps/lina-plugins/org-center/manifest/i18n/<locale>/*.json`
+- **当** `linapro-org-core` 插件新增 `plugin.linapro-org-core.error.deptNotFound` 错误键时
+- **则** 该键必须写入 `apps/lina-plugins/linapro-org-core/manifest/i18n/<locale>/*.json`
 - **且** 插件运行时错误键不得集中到 `lina-core` 运行时语言包
 
 ### Requirement:业务错误语义必须由模块命名空间治理
@@ -97,7 +97,7 @@
 
 #### Scenario:源码插件内部模块也按命名空间划分
 
-- **当** `org-center` 插件新增部门模块和岗位模块错误时
+- **当** `linapro-org-core` 插件新增部门模块和岗位模块错误时
 - **则** 部门模块错误必须使用 `ORG_CENTER_DEPT_*` 或等效模块前缀
 - **且** 岗位模块错误必须使用 `ORG_CENTER_POST_*` 或等效模块前缀
 - **且** 插件错误定义不得写入宿主 `lina-core` 错误定义文件

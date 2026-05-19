@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
@@ -170,15 +169,15 @@ func insertJobScopeJob(t *testing.T, ctx context.Context, ownerID int, suffix st
 // insertJobScopeLog inserts one temporary execution log.
 func insertJobScopeLog(t *testing.T, ctx context.Context, jobID int64, name string) int64 {
 	t.Helper()
-	now := gtime.NewFromTime(time.Now())
+	now := time.Now()
 	insertID, err := dao.SysJobLog.Ctx(ctx).Data(do.SysJobLog{
 		JobId:          jobID,
 		JobSnapshot:    `{"name":"` + name + `"}`,
 		NodeId:         "test",
 		Trigger:        string(jobmeta.TriggerTypeManual),
 		ParamsSnapshot: `{}`,
-		StartAt:        now,
-		EndAt:          now,
+		StartAt:        &now,
+		EndAt:          &now,
 		DurationMs:     1,
 		Status:         string(jobmeta.LogStatusSuccess),
 		ResultJson:     `{}`,

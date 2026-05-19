@@ -9,6 +9,7 @@ import { $t } from '@vben/locales';
 import { Descriptions, DescriptionsItem, Spin, Tag } from 'ant-design-vue';
 
 import { fileDetail } from '#/api/system/file';
+import { formatTimestamp } from '#/utils/time';
 
 const loading = ref(false);
 const detail = ref<FileDetail | null>(null);
@@ -66,7 +67,7 @@ function formatFileSize(bytes: number): string {
             {{ detail.createdByName || '-' }}
           </DescriptionsItem>
           <DescriptionsItem :label="$t('pages.system.file.fields.uploadedAt')">
-            {{ detail.createdAt }}
+            {{ formatTimestamp(detail.createdAt) }}
           </DescriptionsItem>
         </Descriptions>
       </template>

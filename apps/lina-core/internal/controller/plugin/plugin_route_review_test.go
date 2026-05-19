@@ -15,13 +15,13 @@ import (
 // review-friendly access metadata.
 func TestBuildPluginRouteReviewItemsBuildsPublicRouteMetadata(t *testing.T) {
 	items := buildPluginRouteReviewItems(
-		"plugin-route-review",
+		"plugin-dev-route-review",
 		[]*pluginbridge.RouteContract{
 			{
 				Method:      http.MethodGet,
 				Path:        "/review-summary",
 				Access:      pluginbridge.AccessLogin,
-				Permission:  "plugin-route-review:review:query",
+				Permission:  "plugin-dev-route-review:review:query",
 				Summary:     "查询评审摘要",
 				Description: "返回插件当前评审摘要。",
 			},
@@ -42,13 +42,13 @@ func TestBuildPluginRouteReviewItemsBuildsPublicRouteMetadata(t *testing.T) {
 	if items[0].Method != http.MethodGet {
 		t.Fatalf("expected first route method GET, got %s", items[0].Method)
 	}
-	if items[0].PublicPath != "/api/v1/extensions/plugin-route-review/review-summary" {
+	if items[0].PublicPath != "/api/v1/extensions/plugin-dev-route-review/review-summary" {
 		t.Fatalf("unexpected first route public path: %s", items[0].PublicPath)
 	}
 	if items[0].Access != pluginbridge.AccessLogin {
 		t.Fatalf("expected first route access login, got %s", items[0].Access)
 	}
-	if items[0].Permission != "plugin-route-review:review:query" {
+	if items[0].Permission != "plugin-dev-route-review:review:query" {
 		t.Fatalf("unexpected first route permission: %s", items[0].Permission)
 	}
 	if items[0].Summary != "查询评审摘要" {
@@ -61,7 +61,7 @@ func TestBuildPluginRouteReviewItemsBuildsPublicRouteMetadata(t *testing.T) {
 	if items[1].Method != http.MethodPost {
 		t.Fatalf("expected second route method POST, got %s", items[1].Method)
 	}
-	if items[1].PublicPath != "/api/v1/extensions/plugin-route-review/public-ping" {
+	if items[1].PublicPath != "/api/v1/extensions/plugin-dev-route-review/public-ping" {
 		t.Fatalf("unexpected second route public path: %s", items[1].PublicPath)
 	}
 	if items[1].Access != pluginbridge.AccessPublic {

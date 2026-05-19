@@ -87,7 +87,7 @@
                             "dc": "可直接用于预览渲染的消息内容"
                           },
                           "createdAt": {
-                            "dc": "消息创建时间"
+                            "dc": "消息创建时间，Unix 毫秒时间戳"
                           },
                           "createdByName": {
                             "dc": "发送者用户名"
@@ -130,7 +130,7 @@
                 "dc": "可直接用于预览渲染的消息内容"
               },
               "createdAt": {
-                "dc": "消息创建时间"
+                "dc": "消息创建时间，Unix 毫秒时间戳"
               },
               "createdByName": {
                 "dc": "发送者用户名"
@@ -195,7 +195,7 @@
                 "dc": "发送方声明的不透明消息类目编码（如 notice、announcement、system、alert）。宿主与插件在 i18n 键 notify.category.{code}.label 与 notify.category.{code}.color 注册翻译，使收件箱保持类目无关"
               },
               "createdAt": {
-                "dc": "消息创建时间"
+                "dc": "消息创建时间，Unix 毫秒时间戳"
               },
               "id": {
                 "dc": "消息ID"
@@ -204,7 +204,7 @@
                 "dc": "是否已读：0=未读 1=已读"
               },
               "readAt": {
-                "dc": "已读时间，未读时为空"
+                "dc": "已读时间，Unix 毫秒时间戳，未读时为空"
               },
               "sourceId": {
                 "dc": "来源ID，当前通知公告预览使用该字段"

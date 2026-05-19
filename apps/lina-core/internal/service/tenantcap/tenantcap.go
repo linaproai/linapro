@@ -1,6 +1,6 @@
 // Package tenantcap implements the host-side multi-tenancy capability seam.
 // The host owns only no-op defaults and delegates tenant policy to the
-// registered multi-tenant plugin provider when it is enabled.
+// registered linapro-tenant-core plugin provider when it is enabled.
 package tenantcap
 
 import (
@@ -26,7 +26,7 @@ type PluginEnablementReader interface {
 }
 
 // Service defines the optional tenant capability consumed by host core services
-// without hard-linking them to a concrete multi-tenant plugin implementation.
+// without hard-linking them to a concrete linapro-tenant-core plugin implementation.
 type Service interface {
 	// Enabled reports whether multi-tenancy is installed, enabled, and backed by
 	// a registered provider. Disabled mode must behave as platform-only.
@@ -47,9 +47,6 @@ type Service interface {
 	// ResolveTenant delegates HTTP tenant resolution to the provider when
 	// enabled; disabled or missing providers resolve to platform.
 	ResolveTenant(ctx context.Context, r *ghttp.Request) (*pkgtenantcap.ResolverResult, error)
-	// ReadWithPlatformFallback reads tenant overrides with platform fallback
-	// semantics through a caller-supplied scanner and does not cache results.
-	ReadWithPlatformFallback(ctx context.Context, scanner FallbackScanner[any]) ([]any, error)
 	// ApplyUserTenantScope constrains user rows by active current-tenant
 	// membership and returns empty when no visible memberships remain.
 	ApplyUserTenantScope(ctx context.Context, model *gdb.Model, userIDColumn string) (*gdb.Model, bool, error)

@@ -16,8 +16,8 @@ import {
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
-const goodPluginID = "plugin-dynamic-hook-good";
-const badPluginID = "plugin-dynamic-hook-bad";
+const goodPluginID = "plugin-dev-dynamic-hook-good";
+const badPluginID = "plugin-dev-dynamic-hook-bad";
 const goodPluginVersion = "v0.2.0";
 const badPluginVersion = "v0.2.0";
 const goodPluginLogTable = "plugin_runtime_hook_good_log";
@@ -397,7 +397,7 @@ function buildGoodRuntimeArtifact() {
     description: "Runtime plugin that records successful login hooks.",
     installSQLAssets: [
       {
-        key: "001-plugin-dynamic-hook-good.sql",
+        key: "001-plugin-dev-dynamic-hook-good.sql",
         content: [
           `CREATE TABLE IF NOT EXISTS ${pgIdentifier(goodPluginLogTable)} (`,
           "  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,",
@@ -410,7 +410,7 @@ function buildGoodRuntimeArtifact() {
     ],
     uninstallSQLAssets: [
       {
-        key: "001-plugin-dynamic-hook-good.sql",
+        key: "001-plugin-dev-dynamic-hook-good.sql",
         content: `DROP TABLE IF EXISTS ${pgIdentifier(goodPluginLogTable)};`,
       },
     ],

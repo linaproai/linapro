@@ -203,7 +203,7 @@ test.describe("TC0112 英文布局回归", () => {
     expect(sidebarBox).not.toBeNull();
     expect(sidebarBox!.width).toBeGreaterThanOrEqual(236);
 
-    await ensureSourcePluginEnabled(adminPage, "plugin-demo-source");
+    await ensureSourcePluginEnabled(adminPage, "linapro-demo-source");
     await mainLayout.switchLanguage("English");
 
     const dynamicDemoMenu = mainLayout.sidebarMenuItem("Dynamic Plugin Demo");

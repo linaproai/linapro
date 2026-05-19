@@ -19,7 +19,7 @@ import (
 	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
-// tenantcapTestEnablement reports the multi-tenant plugin as enabled or disabled.
+// tenantcapTestEnablement reports the linapro-tenant-core plugin as enabled or disabled.
 type tenantcapTestEnablement struct {
 	enabled bool
 }
@@ -177,7 +177,7 @@ func TestResolveTenantDelegatesToProviderWhenEnabled(t *testing.T) {
 
 // TestReadWithPlatformFallbackUsesTenantRowsFirst verifies tenant rows suppress platform fallback.
 func TestReadWithPlatformFallbackUsesTenantRowsFirst(t *testing.T) {
-	service := New(tenantcapTestEnablement{enabled: true}, bizctx.New())
+	service := New(tenantcapTestEnablement{enabled: true}, bizctx.New()).(*serviceImpl)
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{TenantId: 7})
 
 	var seen []TenantID
@@ -201,7 +201,7 @@ func TestReadWithPlatformFallbackUsesTenantRowsFirst(t *testing.T) {
 
 // TestReadWithPlatformFallbackUsesPlatformWhenTenantEmpty verifies empty tenant rows fall back to platform.
 func TestReadWithPlatformFallbackUsesPlatformWhenTenantEmpty(t *testing.T) {
-	service := New(tenantcapTestEnablement{enabled: true}, bizctx.New())
+	service := New(tenantcapTestEnablement{enabled: true}, bizctx.New()).(*serviceImpl)
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{TenantId: 8})
 
 	var seen []TenantID

@@ -6,8 +6,8 @@ package catalog
 import (
 	"context"
 	"strings"
+	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
@@ -125,7 +125,7 @@ existingRegistry:
 			data.DesiredState = DeriveHostState(existing.Installed, existing.Status)
 			data.CurrentState = DeriveHostState(existing.Installed, existing.Status)
 			if existing.InstalledAt == nil {
-				data.InstalledAt = gtime.Now()
+				data.InstalledAt = timePtr(time.Now())
 			}
 		} else {
 			data.Version = manifest.Version
@@ -239,14 +239,14 @@ func pluginRegistryFieldMatches(existing any, desired any) bool {
 }
 
 // pluginRegistryTimeFieldMatches treats nil time DO fields as omitted updates.
-func pluginRegistryTimeFieldMatches(existing *gtime.Time, desired *gtime.Time) bool {
+func pluginRegistryTimeFieldMatches(existing *time.Time, desired *time.Time) bool {
 	if desired == nil {
 		return true
 	}
 	if existing == nil {
 		return false
 	}
-	return existing.String() == desired.String()
+	return existing.Equal(*desired)
 }
 
 // SetPluginStatus updates the enabled flag on a plugin registry row and fires the
@@ -267,9 +267,9 @@ func (s *serviceImpl) SetPluginStatus(ctx context.Context, pluginID string, enab
 		CurrentState: stableState,
 	}
 	if enabled == StatusEnabled {
-		data.EnabledAt = gtime.Now()
+		data.EnabledAt = timePtr(time.Now())
 	} else {
-		data.DisabledAt = gtime.Now()
+		data.DisabledAt = timePtr(time.Now())
 	}
 
 	_, err = dao.SysPlugin.Ctx(ctx).
@@ -344,7 +344,7 @@ func (s *serviceImpl) SetPluginInstalled(ctx context.Context, pluginID string, i
 		CurrentState: stableState,
 	}
 	if installed == InstalledYes {
-		data.InstalledAt = gtime.Now()
+		data.InstalledAt = timePtr(time.Now())
 	}
 	_, err = dao.SysPlugin.Ctx(ctx).
 		Where(do.SysPlugin{PluginId: pluginID}).
@@ -354,6 +354,12 @@ func (s *serviceImpl) SetPluginInstalled(ctx context.Context, pluginID string, i
 		updateStartupRegistry(ctx, pluginID, data)
 	}
 	return err
+}
+
+// timePtr returns a pointer to value for generated DO time fields that preserve
+// database NULL semantics with *time.Time.
+func timePtr(value time.Time) *time.Time {
+	return &value
 }
 
 // SetRegistryRuntimeState updates runtime state fields without changing the

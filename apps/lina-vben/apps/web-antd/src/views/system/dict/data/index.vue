@@ -33,7 +33,7 @@ const [BasicTable, tableApi] = useVbenVxeGrid({
   },
   gridOptions: {
     checkboxConfig: {
-      checkMethod: ({ row }: { row: DictData }) => !isBuiltInRecord(row),
+      checkMethod: ({ row }: { row: DictData }) => canDeleteRecord(row),
       highlight: true,
       reserve: true,
     },
@@ -89,6 +89,9 @@ function handleAdd() {
 }
 
 function handleEdit(row: DictData) {
+  if (!canEditRecord(row)) {
+    return;
+  }
   drawerApi.setData({ dictType: dictType.value, id: row.id });
   drawerApi.open();
 }
@@ -97,8 +100,16 @@ function isBuiltInRecord(row: DictData) {
   return row.isBuiltin === 1;
 }
 
+function canEditRecord(row: DictData) {
+  return row.canEdit !== false;
+}
+
+function canDeleteRecord(row: DictData) {
+  return canEditRecord(row) && !isBuiltInRecord(row);
+}
+
 async function handleDelete(row: DictData) {
-  if (isBuiltInRecord(row)) {
+  if (!canDeleteRecord(row)) {
     return;
   }
   await dictDataDelete(row.id);
@@ -109,7 +120,7 @@ async function handleDelete(row: DictData) {
 
 function handleMultiDelete() {
   const rows = (tableApi.grid.getCheckboxRecords() as DictData[]).filter(
-    (row) => !isBuiltInRecord(row),
+    (row) => canDeleteRecord(row),
   );
   const ids = rows.map((row) => row.id);
   if (ids.length === 0) {
@@ -181,11 +192,11 @@ watch(
       </template>
       <template #action="{ row }">
         <Space>
-          <ghost-button @click.stop="handleEdit(row)">{{
+          <ghost-button v-if="canEditRecord(row)" @click.stop="handleEdit(row)">{{
             $t('pages.common.edit')
           }}</ghost-button>
           <Tooltip
-            v-if="isBuiltInRecord(row)"
+            v-if="canEditRecord(row) && isBuiltInRecord(row)"
             :title="$t('pages.common.builtinDeleteDisabled')"
           >
             <span
@@ -199,7 +210,7 @@ watch(
             </span>
           </Tooltip>
           <Popconfirm
-            v-else
+            v-else-if="canDeleteRecord(row)"
             placement="left"
             :title="$t('pages.common.deleteConfirm')"
             @confirm="handleDelete(row)"

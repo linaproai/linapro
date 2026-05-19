@@ -1248,6 +1248,8 @@
     "login": {
       "selectTenant": "Select Tenant",
       "selectTenantSubtitle": "Select the tenant you want to enter for this session. The workspace and permissions will load from that tenant.",
+      "enteringTenant": "Entering Tenant",
+      "enteringTenantSubtitle": "Loading this tenant's workspace and permissions.",
       "enterTenant": "Enter Tenant"
     },
     "impersonation": {

@@ -18,13 +18,13 @@ import {
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
 
-const pluginID = "plugin-dynamic-governance";
+const pluginID = "plugin-dev-dynamic-governance";
 const pluginName = "Runtime Governance Plugin";
 const pluginVersion = "v0.2.0";
-const pluginMenuKey = "plugin:plugin-dynamic-governance:main-entry";
-const pluginButtonMenuKey = "plugin:plugin-dynamic-governance:records:list";
+const pluginMenuKey = "plugin:plugin-dev-dynamic-governance:main-entry";
+const pluginButtonMenuKey = "plugin:plugin-dev-dynamic-governance:records:list";
 const pluginMenuName = "运行时治理示例";
-const pluginPermission = "plugin-dynamic-governance:records:list";
+const pluginPermission = "plugin-dev-dynamic-governance:records:list";
 const pluginRecordTable = "plugin_runtime_governance_record";
 const testRoleName = "运行时治理角色";
 const testRoleKey = "runtime_governance_role";
@@ -274,8 +274,8 @@ function cleanupGovernanceRows() {
     `DROP TABLE IF EXISTS ${pgIdentifier(pluginRecordTable)};`,
     `DELETE FROM sys_role_menu WHERE role_id IN (SELECT id FROM sys_role WHERE "key"='${escapedRoleKey}');`,
     `DELETE FROM sys_user_role WHERE role_id IN (SELECT id FROM sys_role WHERE "key"='${escapedRoleKey}');`,
-    `DELETE FROM plugin_org_center_user_dept WHERE user_id IN (SELECT user_ids.id FROM (SELECT id FROM sys_user WHERE username='${escapedUsername}') AS user_ids);`,
-    `DELETE FROM plugin_org_center_user_post WHERE user_id IN (SELECT user_ids.id FROM (SELECT id FROM sys_user WHERE username='${escapedUsername}') AS user_ids);`,
+    `DELETE FROM plugin_linapro_org_core_user_dept WHERE user_id IN (SELECT user_ids.id FROM (SELECT id FROM sys_user WHERE username='${escapedUsername}') AS user_ids);`,
+    `DELETE FROM plugin_linapro_org_core_user_post WHERE user_id IN (SELECT user_ids.id FROM (SELECT id FROM sys_user WHERE username='${escapedUsername}') AS user_ids);`,
     `DELETE FROM sys_user_role WHERE user_id IN (SELECT user_ids.id FROM (SELECT id FROM sys_user WHERE username='${escapedUsername}') AS user_ids);`,
     `DELETE FROM sys_user WHERE username='${escapedUsername}';`,
     `DELETE FROM sys_role WHERE "key"='${escapedRoleKey}';`,
@@ -321,28 +321,28 @@ async function ensureOrgCenterReady(adminApi: APIRequestContext) {
   const syncResponse = await adminApi.post("plugins/sync");
   assertOk(syncResponse, "同步源码插件失败");
 
-  const pluginResponse = await adminApi.get("plugins?id=org-center");
-  assertOk(pluginResponse, "查询 org-center 插件状态失败");
+  const pluginResponse = await adminApi.get("plugins?id=linapro-org-core");
+  assertOk(pluginResponse, "查询 linapro-org-core 插件状态失败");
   const pluginPayload = unwrapApiData(await pluginResponse.json());
   let orgCenter = (pluginPayload?.list ?? []).find(
-    (item: PluginListItem) => item.id === "org-center",
+    (item: PluginListItem) => item.id === "linapro-org-core",
   ) as PluginListItem | undefined;
-  expect(orgCenter, "测试需要 org-center 源码插件可用").toBeTruthy();
+  expect(orgCenter, "测试需要 linapro-org-core 源码插件可用").toBeTruthy();
 
   if (orgCenter?.installed !== 1) {
-    const installResponse = await adminApi.post("plugins/org-center/install");
-    assertOk(installResponse, "安装 org-center 失败");
+    const installResponse = await adminApi.post("plugins/linapro-org-core/install");
+    assertOk(installResponse, "安装 linapro-org-core 失败");
   }
 
-  const refreshedResponse = await adminApi.get("plugins?id=org-center");
-  assertOk(refreshedResponse, "刷新 org-center 插件状态失败");
+  const refreshedResponse = await adminApi.get("plugins?id=linapro-org-core");
+  assertOk(refreshedResponse, "刷新 linapro-org-core 插件状态失败");
   const refreshedPayload = unwrapApiData(await refreshedResponse.json());
   orgCenter = (refreshedPayload?.list ?? []).find(
-    (item: PluginListItem) => item.id === "org-center",
+    (item: PluginListItem) => item.id === "linapro-org-core",
   ) as PluginListItem | undefined;
   if (orgCenter?.enabled !== 1) {
-    const enableResponse = await adminApi.put("plugins/org-center/enable");
-    assertOk(enableResponse, "启用 org-center 失败");
+    const enableResponse = await adminApi.put("plugins/linapro-org-core/enable");
+    assertOk(enableResponse, "启用 linapro-org-core 失败");
   }
 
   execPgSQLFile(
@@ -350,11 +350,11 @@ async function ensureOrgCenterReady(adminApi: APIRequestContext) {
       repoRoot(),
       "apps",
       "lina-plugins",
-      "org-center",
+      "linapro-org-core",
       "manifest",
       "sql",
       "mock-data",
-      "001-org-center-mock-data.sql",
+      "001-linapro-org-core-mock-data.sql",
     ),
   );
 }
@@ -511,7 +511,7 @@ function buildRuntimeGovernanceArtifact() {
     ],
     installSQLAssets: [
       {
-        key: "001-plugin-dynamic-governance.sql",
+        key: "001-plugin-dev-dynamic-governance.sql",
         content: [
           `CREATE TABLE IF NOT EXISTS ${pgIdentifier(pluginRecordTable)} (`,
           "  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,",
@@ -524,7 +524,7 @@ function buildRuntimeGovernanceArtifact() {
     ],
     uninstallSQLAssets: [
       {
-        key: "001-plugin-dynamic-governance.sql",
+        key: "001-plugin-dev-dynamic-governance.sql",
         content: [
           `DROP TABLE IF EXISTS ${pgIdentifier(pluginRecordTable)};`,
         ].join("\n"),

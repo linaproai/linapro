@@ -5,19 +5,19 @@
 package entity
 
 import (
-	"github.com/gogf/gf/v2/os/gtime"
+	"time"
 )
 
 // SysOnlineSession is the golang structure for table sys_online_session.
 type SysOnlineSession struct {
-	TenantId       int         `json:"tenantId"       orm:"tenant_id"        description:"Owning tenant ID, 0 means PLATFORM"`
-	TokenId        string      `json:"tokenId"        orm:"token_id"         description:"Session token ID (UUID)"`
-	UserId         int         `json:"userId"         orm:"user_id"          description:"User ID"`
-	Username       string      `json:"username"       orm:"username"         description:"Login account"`
-	DeptName       string      `json:"deptName"       orm:"dept_name"        description:"Department name"`
-	Ip             string      `json:"ip"             orm:"ip"               description:"Login IP"`
-	Browser        string      `json:"browser"        orm:"browser"          description:"Browser"`
-	Os             string      `json:"os"             orm:"os"               description:"Operating system"`
-	LoginTime      *gtime.Time `json:"loginTime"      orm:"login_time"       description:"Login time"`
-	LastActiveTime *gtime.Time `json:"lastActiveTime" orm:"last_active_time" description:"Last active time"`
+	TenantId       int        `json:"tenantId"       orm:"tenant_id"        description:"Owning tenant ID, 0 means PLATFORM"`
+	TokenId        string     `json:"tokenId"        orm:"token_id"         description:"Session token ID (UUID)"`
+	UserId         int        `json:"userId"         orm:"user_id"          description:"User ID"`
+	Username       string     `json:"username"       orm:"username"         description:"Login account"`
+	DeptName       string     `json:"deptName"       orm:"dept_name"        description:"Department name"`
+	Ip             string     `json:"ip"             orm:"ip"               description:"Login IP"`
+	Browser        string     `json:"browser"        orm:"browser"          description:"Browser"`
+	Os             string     `json:"os"             orm:"os"               description:"Operating system"`
+	LoginTime      *time.Time `json:"loginTime"      orm:"login_time"       description:"Login time"`
+	LastActiveTime *time.Time `json:"lastActiveTime" orm:"last_active_time" description:"Last active time"`
 }

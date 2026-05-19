@@ -122,7 +122,7 @@ export class LoginPage {
 
   get pluginLoginSlot() {
     return this.page.getByText(
-      "plugin-demo-source 已向登录页公开区注册扩展内容，用于验证 `auth.login.after` 插槽。",
+      "linapro-demo-source 已向登录页公开区注册扩展内容，用于验证 `auth.login.after` 插槽。",
     );
   }
 

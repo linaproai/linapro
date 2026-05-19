@@ -50,15 +50,15 @@ func TestResolveRouteTextUsesApidocCatalog(t *testing.T) {
 // operation key bases that can be matched against persisted audit records.
 func TestFindRouteTitleOperationKeys(t *testing.T) {
 	restoreCatalog := registerOpenAPITestCatalog("zh-CN", map[string]string{
-		"core.api.user.v1.ListReq.meta.tags":                              "用户管理",
-		"plugins.plugin_demo_dynamic.paths.get.backend_summary.meta.tags": "动态插件示例",
+		"core.api.user.v1.ListReq.meta.tags":                               "用户管理",
+		"plugins.linapro_demo_dynamic.paths.get.backend_summary.meta.tags": "动态插件示例",
 	})
 	defer restoreCatalog()
 
 	service := New(&testConfigProvider{}, bizctx.New(), i18nsvc.New(bizctx.New(), configsvc.New(), cachecoord.Default(nil)), &testPluginRouteProvider{}).(*serviceImpl)
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: "zh-CN"})
 	keys := service.FindRouteTitleOperationKeys(ctx, "动态")
-	expectedKey := "plugins.plugin_demo_dynamic.paths.get.backend_summary"
+	expectedKey := "plugins.linapro_demo_dynamic.paths.get.backend_summary"
 	for _, key := range keys {
 		if key == expectedKey {
 			return
@@ -70,8 +70,8 @@ func TestFindRouteTitleOperationKeys(t *testing.T) {
 // TestBuildRouteOperationKeyFromPathNormalizesMethod verifies persisted route
 // methods can be uppercase while apidoc path keys remain lowercase.
 func TestBuildRouteOperationKeyFromPathNormalizesMethod(t *testing.T) {
-	key := BuildRouteOperationKeyFromPath("/api/v1/extensions/plugin-demo-dynamic/backend-summary", "GET")
-	if key != "plugins.plugin_demo_dynamic.paths.get.backend_summary" {
+	key := BuildRouteOperationKeyFromPath("/api/v1/extensions/linapro-demo-dynamic/backend-summary", "GET")
+	if key != "plugins.linapro_demo_dynamic.paths.get.backend_summary" {
 		t.Fatalf("expected lower-case dynamic path key, got %s", key)
 	}
 }

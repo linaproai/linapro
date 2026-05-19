@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -36,15 +35,19 @@ func (s *trackingLockService) Acquire(_ context.Context, in hostlock.AcquireInpu
 	return &hostlock.AcquireOutput{
 		Acquired: true,
 		Ticket:   "shared-lock-ticket",
-		ExpireAt: gtime.Now().Add(5 * time.Second),
+		ExpireAt: timePtr(time.Now().Add(5 * time.Second)),
 	}, nil
 }
 
 // Renew records one lock renewal request.
-func (s *trackingLockService) Renew(context.Context, string, int64, string, string) (*gtime.Time, error) {
+func (s *trackingLockService) Renew(context.Context, string, int64, string, string) (*time.Time, error) {
 	s.renewCalls++
-	expireAt := gtime.Now().Add(5 * time.Second)
-	return expireAt, nil
+	return timePtr(time.Now().Add(5 * time.Second)), nil
+}
+
+// timePtr returns a pointer to value for hostlock test responses.
+func timePtr(value time.Time) *time.Time {
+	return &value
 }
 
 // Release records one lock release request.

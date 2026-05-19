@@ -14,7 +14,7 @@ import {
 const xlsxRead = (XLSX as any).read || (XLSX as any).default?.read;
 const xlsxUtils = (XLSX as any).utils || (XLSX as any).default?.utils;
 
-const sourcePluginIDs = ["monitor-loginlog", "monitor-operlog"] as const;
+const sourcePluginIDs = ["linapro-monitor-loginlog", "linapro-monitor-operlog"] as const;
 
 async function ensureSourcePluginsEnabled(
   api: APIRequestContext,

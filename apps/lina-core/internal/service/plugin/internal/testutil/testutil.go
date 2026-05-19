@@ -20,12 +20,12 @@ var testSourcePluginRootDir string
 // developer or repository fixture paths.
 func init() {
 	var err error
-	testDynamicStorageDir, err = os.MkdirTemp("", "lina-plugin-dynamic-storage-*")
+	testDynamicStorageDir, err = os.MkdirTemp("", "lina-plugin-dev-dynamic-storage-*")
 	if err != nil {
 		panic(fmt.Sprintf("failed to create isolated dynamic storage dir: %v", err))
 	}
 	configsvc.SetPluginDynamicStoragePathOverride(testDynamicStorageDir)
-	testSourcePluginRootDir, err = os.MkdirTemp("", "lina-plugin-source-root-*")
+	testSourcePluginRootDir, err = os.MkdirTemp("", "lina-plugin-dev-source-root-*")
 	if err != nil {
 		panic(fmt.Sprintf("failed to create isolated source plugin root: %v", err))
 	}

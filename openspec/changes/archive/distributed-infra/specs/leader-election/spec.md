@@ -1,62 +1,48 @@
 ## ADDED Requirements
 
-### Requirement: Leader Election on Startup
+### Requirement: 集群模式领导选举必须使用 Redis 锁
+系统 SHALL 在 `cluster.enabled=true` 且 `cluster.coordination=redis` 时使用 Redis lock store 参与领导选举。领导锁 MUST 使用固定 lock name、节点 owner token 和 TTL 租约。
 
-The system SHALL automatically participate in leader election on service start, attempting to become the leader node.
+#### Scenario: 首个节点成为 primary
+- **WHEN** 集群模式下第一个节点启动
+- **AND** Redis 中不存在领导锁
+- **THEN** 节点获取领导锁
+- **AND** `IsPrimary` 返回 true
 
-#### Scenario: First startup becomes leader
+#### Scenario: 第二个节点成为 follower
+- **WHEN** 集群模式下已有节点持有领导锁
+- **AND** 第二个节点启动
+- **THEN** 第二个节点无法获取领导锁
+- **AND** `IsPrimary` 返回 false
 
-- **WHEN** the service starts and no other leader exists
-- **THEN** the system successfully acquires the leader lock, and the current node becomes the leader
+### Requirement: 领导锁续约失败必须立即降级
+系统 SHALL 在 primary 节点续约领导锁失败时立即降级为 follower。降级后 MUST 停止执行主节点专属后台任务。
 
-#### Scenario: Leader already exists on startup
+#### Scenario: Redis 续约失败
+- **WHEN** primary 节点续约领导锁时 Redis 返回错误
+- **THEN** 当前节点将本地 primary 状态置为 false
+- **AND** 后续 Master-Only 任务触发时被跳过
+- **AND** 系统记录带 ctx 的 warning 日志
 
-- **WHEN** the service starts while another node already holds the leader lock and it has not expired
-- **THEN** the current node becomes a follower and periodically attempts to acquire leadership
+#### Scenario: owner token 不匹配
+- **WHEN** primary 节点续约时发现领导锁 owner token 不匹配
+- **THEN** 当前节点降级为 follower
+- **AND** 不再认为自己持有领导权
 
-#### Scenario: Failover after leader failure
+### Requirement: follower 必须按配置重试竞选
+系统 SHALL 让 follower 按配置的续约/重试间隔尝试获取领导锁。原 primary 失效后，其他节点 MUST 能在租约过期后的下一轮重试中接管。
 
-- **WHEN** the original leader's lock expires
-- **THEN** a follower successfully acquires the leader lock on its next attempt, becoming the new leader
+#### Scenario: primary 崩溃后接管
+- **WHEN** 当前 primary 节点崩溃且不再续约
+- **AND** 领导锁 TTL 到期
+- **THEN** follower 在下一轮重试中可获取领导锁
+- **AND** 新节点成为 primary
 
-### Requirement: Automatic Lease Renewal
+### Requirement: 单机模式不得启动 Redis 领导选举
+系统 SHALL 在 `cluster.enabled=false` 时跳过 Redis 领导选举。当前节点 MUST 直接按 primary 语义运行。
 
-The system SHALL provide automatic lease renewal for the leader node, ensuring continuous leadership.
+#### Scenario: 单机模式 IsPrimary
+- **WHEN** `cluster.enabled=false`
+- **THEN** 不创建 Redis leader lock
+- **AND** `IsPrimary` 返回 true
 
-#### Scenario: Periodic renewal succeeds
-
-- **WHEN** the leader periodically executes lease renewal
-- **THEN** the leader lock's expiration time is updated, and the leader continues holding leadership
-
-#### Scenario: Renewal failure causes demotion
-
-- **WHEN** the leader's renewal fails (e.g., database failure)
-- **THEN** the current node demotes to a follower and stops executing Master-Only Jobs
-
-### Requirement: Leader State Query
-
-The system SHALL provide leader state query functionality to determine whether the current node is the leader.
-
-#### Scenario: Query leader state
-
-- **WHEN** the IsLeader method is called
-- **THEN** the system returns a boolean indicating whether the current node is the leader
-
-### Requirement: Task Classification Execution
-
-The system SHALL determine whether to execute a task on the current node based on the task type.
-
-#### Scenario: Master-Only task executes on leader
-
-- **WHEN** a Master-Only scheduled task triggers and the current node is the leader
-- **THEN** the task executes normally
-
-#### Scenario: Master-Only task skips on follower
-
-- **WHEN** a Master-Only scheduled task triggers and the current node is a follower
-- **THEN** the task is skipped without producing any side effects
-
-#### Scenario: All-Node task executes on all nodes
-
-- **WHEN** an All-Node scheduled task triggers
-- **THEN** the task executes normally on all nodes regardless of leader/follower status

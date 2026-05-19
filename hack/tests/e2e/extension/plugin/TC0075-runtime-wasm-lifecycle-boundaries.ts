@@ -19,8 +19,8 @@ const apiBaseURL =
 const publicBaseURL =
   process.env.E2E_PUBLIC_BASE_URL ?? apiBaseURL.replace(/\/api\/v1\/?$/, "");
 
-const primaryPluginID = "plugin-lifecycle-boundary-e2e";
-const badABIPluginID = "plugin-lifecycle-bad-abi-e2e";
+const primaryPluginID = "plugin-dev-lifecycle-boundary-e2e";
+const badABIPluginID = "plugin-dev-lifecycle-bad-abi-e2e";
 const baseVersion = "v1.0.0";
 const higherVersion = "v1.1.0";
 const lowerVersion = "v0.9.0";

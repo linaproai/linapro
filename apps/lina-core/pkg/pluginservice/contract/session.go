@@ -4,8 +4,7 @@ package contract
 
 import (
 	"context"
-
-	"github.com/gogf/gf/v2/os/gtime"
+	"time"
 )
 
 // Session is the stable online-session projection published to source plugins.
@@ -27,9 +26,9 @@ type Session struct {
 	// Os is the login operating system fingerprint.
 	Os string
 	// LoginTime is the first login time of this session.
-	LoginTime *gtime.Time
+	LoginTime *time.Time
 	// LastActiveTime is the most recent activity time tracked by the host.
-	LastActiveTime *gtime.Time
+	LastActiveTime *time.Time
 }
 
 // ListFilter is the stable session-list filter contract published to plugins.

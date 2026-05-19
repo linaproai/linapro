@@ -39,9 +39,9 @@ func TestWrapMockDataLoadErrorPassesThroughNonMockErrors(t *testing.T) {
 func TestWrapMockDataLoadErrorWrapsTypedError(t *testing.T) {
 	cause := errors.New("Duplicate entry 'admin' for key sys_user.idx_username")
 	loadErr := &lifecycle.MockDataLoadError{
-		PluginID:        "content-notice",
-		FailedFile:      "002-content-notice-mock-data.sql",
-		RolledBackFiles: []string{"001-content-notice-mock-data.sql", "002-content-notice-mock-data.sql"},
+		PluginID:        "linapro-content-notice",
+		FailedFile:      "002-linapro-content-notice-mock-data.sql",
+		RolledBackFiles: []string{"001-linapro-content-notice-mock-data.sql", "002-linapro-content-notice-mock-data.sql"},
 		Cause:           cause,
 	}
 

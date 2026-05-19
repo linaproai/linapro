@@ -6,9 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
@@ -82,7 +82,7 @@ func (s *serviceImpl) sendInbox(
 	}
 
 	var (
-		now           = gtime.Now()
+		now           = time.Now()
 		tenantID      = datascope.CurrentTenantID(ctx)
 		sourceType    = normalizeSourceType(in.SourceType)
 		categoryCode  = normalizeCategoryCode(in.CategoryCode)
@@ -116,7 +116,7 @@ func (s *serviceImpl) sendInbox(
 				UserId:         userID,
 				DeliveryStatus: DeliveryStatusSucceeded,
 				IsRead:         0,
-				SentAt:         now,
+				SentAt:         &now,
 				TenantId:       tenantID,
 			}).Insert(); err != nil {
 				return bizerr.WrapCode(err, CodeNotifyDeliveryCreateFailed)

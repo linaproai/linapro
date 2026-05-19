@@ -3,7 +3,6 @@
 ## Purpose
 
 菜单管理功能负责系统菜单的创建、编辑、删除、树形展示和权限关联管理，确保前端路由、菜单权限和宿主菜单配置保持一致。
-
 ## Requirements
 ### Requirement:菜单列表查询
 
@@ -228,17 +227,17 @@
 系统 SHALL 要求插件菜单落入语义对应的宿主目录，而非统一归入插件管理目录。
 
 #### Scenario:组织插件挂载菜单
-- **当** `org-center` 将其菜单同步到宿主时
+- **当** `linapro-org-core` 将其菜单同步到宿主时
 - **则** 其菜单挂载到 `组织管理`
 - **且** 不挂载到 `扩展中心`
 
 #### Scenario:内容插件挂载菜单
-- **当** `content-notice` 将其菜单同步到宿主时
+- **当** `linapro-content-notice` 将其菜单同步到宿主时
 - **则** 其菜单挂载到 `内容管理`
 - **且** 不挂载到 `扩展中心`
 
 #### Scenario:监控插件挂载菜单
-- **当** `monitor-online`、`monitor-server`、`monitor-operlog` 或 `monitor-loginlog` 将菜单同步到宿主时
+- **当** `linapro-monitor-online`、`linapro-monitor-server`、`linapro-monitor-operlog` 或 `linapro-monitor-loginlog` 将菜单同步到宿主时
 - **则** 这些菜单挂载到 `系统监控`
 - **且** `扩展中心/插件管理` 仍负责安装和启停管理
 
@@ -247,7 +246,7 @@
 系统 SHALL 在某级目录下没有可见子菜单时自动隐藏该目录，避免默认后台出现空壳导航。
 
 #### Scenario:内容管理无可见菜单
-- **当** `content-notice` 未安装、未启用或当前用户无权访问其菜单时
+- **当** `linapro-content-notice` 未安装、未启用或当前用户无权访问其菜单时
 - **则** `内容管理` 不出现在左侧导航中
 
 #### Scenario:部分系统监控插件缺失
@@ -301,14 +300,14 @@
 从动态插件路由声明生成的按钮权限菜单 SHALL 挂载在所属动态插件页面菜单或插件根菜单下。不得在菜单管理中显示为与业务入口断开的浮动按钮集合。
 
 #### Scenario:动态插件路由按钮是插件菜单的子节点
-- **当** `plugin-demo-dynamic` 已启用且动态路由权限已同步时
+- **当** `linapro-demo-dynamic` 已启用且动态路由权限已同步时
 - **则** 对应的按钮权限作为该插件页面菜单或插件根菜单的子节点出现
-- **且** 菜单管理不显示大量以 `Dynamic Route Permission:plugin-demo-dynamic:` 为前缀的顶层或错误挂载的按钮
+- **且** 菜单管理不显示大量以 `Dynamic Route Permission:linapro-demo-dynamic:` 为前缀的顶层或错误挂载的按钮
 
 #### Scenario:动态插件路由按钮显示可读的英文名称
-- **当** 管理员在 `en-US` 下的菜单管理中查看 `plugin-demo-dynamic` 子按钮时
+- **当** 管理员在 `en-US` 下的菜单管理中查看 `linapro-demo-dynamic` 子按钮时
 - **则** 动态路由按钮名称显示可读的英文资源和动作名称
-- **且** 不显示原始的 `Dynamic Route Permission:plugin-demo-dynamic:*` 占位文本
+- **且** 不显示原始的 `Dynamic Route Permission:linapro-demo-dynamic:*` 占位文本
 
 #### Scenario:动态插件按钮保持可分配
 - **当** 管理员在角色授权树中查看动态插件权限时
@@ -347,3 +346,47 @@
 
 - **当** `make init` 完成数据库初始化时
 - **则** `SHOW INDEX FROM sys_role_menu` 必须包含列 `menu_id` 上的 `idx_menu_id`
+
+### Requirement: 全局菜单治理写操作必须要求平台上下文
+
+系统 SHALL 将 `sys_menu` 视为全局权限拓扑和菜单治理资源。菜单创建、更新、删除、状态变更、可见性变更以及其他会修改 `sys_menu` 或 `sys_role_menu` 全局拓扑的菜单治理写操作 MUST 要求平台上下文和对应权限字符串。租户上下文不得直接写入全局菜单模型。
+
+#### Scenario: 租户上下文创建菜单被拒绝
+
+- **WHEN** 租户用户具备历史或异常 `system:menu:add` 权限
+- **AND** 调用菜单创建接口
+- **THEN** 系统 MUST 返回结构化权限错误
+- **AND** 不向 `sys_menu` 写入任何记录
+- **AND** 不发布声称菜单拓扑已变更的成功响应
+
+#### Scenario: 租户上下文更新或删除菜单被拒绝
+
+- **WHEN** 租户用户调用菜单更新、删除、启用、禁用或显隐切换接口
+- **THEN** 系统 MUST 拒绝操作
+- **AND** 不修改 `sys_menu`
+- **AND** 不删除或新增 `sys_role_menu` 关联
+
+#### Scenario: 平台上下文写菜单后失效权限拓扑缓存
+
+- **WHEN** 平台管理员在平台上下文成功创建、更新或删除菜单
+- **THEN** 系统提交菜单治理变更
+- **AND** 可靠发布访问拓扑缓存修订号
+- **AND** 集群内其他节点在权限缓存域允许陈旧窗口内丢弃旧权限拓扑
+
+### Requirement: 角色菜单树必须按授权上下文过滤
+
+角色授权使用的菜单树 SHALL 按当前操作者上下文过滤为可分配集合。该过滤只影响授权展示和提交校验，不改变 `sys_menu` 的全局存储结构。
+
+#### Scenario: 租户授权树不返回平台目录
+
+- **WHEN** 租户管理员请求角色菜单树
+- **THEN** 响应不包含平台管理目录
+- **AND** 不包含平台租户管理、平台插件治理或全局菜单治理写权限节点
+- **AND** 已有租户角色中异常绑定的 platform-only checked key 不得返回为可勾选授权项
+
+#### Scenario: 平台授权树保留平台目录
+
+- **WHEN** 平台管理员在平台上下文请求角色菜单树
+- **THEN** 响应可包含平台管理目录和平台治理权限
+- **AND** 仍按插件启用状态、菜单状态和既有授权展示层级规则组织树结构
+

@@ -109,7 +109,7 @@ async function assertConfigLocalized(
 test.describe('TC-141 Organization, dictionary, and config English layout regression', () => {
   test.beforeEach(async ({ adminPage, mainLayout }) => {
     await adminPage.setViewportSize({ width: 1440, height: 920 });
-    await ensureSourcePluginEnabled(adminPage, 'org-center');
+    await ensureSourcePluginEnabled(adminPage, 'linapro-org-core');
     await mainLayout.switchLanguage('English');
   });
 

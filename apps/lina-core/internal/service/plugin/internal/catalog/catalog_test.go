@@ -21,6 +21,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/pluginbridge"
 	"lina-core/pkg/pluginhost"
 )
@@ -29,11 +30,11 @@ import (
 // minimal required source-plugin structure passes validation.
 func TestValidatePluginManifestAcceptsMinimalSourcePlugin(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-manifest-valid")
+	pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-manifest-valid")
 
 	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
 	manifest := &catalog.Manifest{
-		ID:          "plugin-manifest-valid",
+		ID:          "acme-demo-manifest-valid",
 		Name:        "Manifest Validation Plugin",
 		Version:     "0.1.0",
 		Type:        catalog.TypeSource.String(),
@@ -47,15 +48,87 @@ func TestValidatePluginManifestAcceptsMinimalSourcePlugin(t *testing.T) {
 	}
 }
 
+// TestParsePluginIDReturnsSuggestedIdentityParts verifies plugin IDs can expose
+// suggested author, domain, and capability parts without making that structure
+// a runtime acceptance requirement.
+func TestParsePluginIDReturnsSuggestedIdentityParts(t *testing.T) {
+	parts, err := catalog.ParsePluginID("linapro-content-notice")
+	if err != nil {
+		t.Fatalf("expected structured plugin ID to parse, got %v", err)
+	}
+	if parts.Author != "linapro" || parts.Domain != "content" || parts.Capability != "notice" {
+		t.Fatalf("unexpected plugin ID parts: %#v", parts)
+	}
+
+	parts, err = catalog.ParsePluginID("linapro-ops-demo-guard")
+	if err != nil {
+		t.Fatalf("expected multi-word capability to parse, got %v", err)
+	}
+	if parts.Author != "linapro" || parts.Domain != "ops" || parts.Capability != "demo-guard" {
+		t.Fatalf("unexpected multi-word capability parts: %#v", parts)
+	}
+
+	parts, err = catalog.ParsePluginID("demo-control")
+	if err != nil {
+		t.Fatalf("expected non-three-segment plugin ID to parse, got %v", err)
+	}
+	if parts.Author != "demo" || parts.Domain != "control" || parts.Capability != "" {
+		t.Fatalf("unexpected non-three-segment parts: %#v", parts)
+	}
+}
+
+// TestValidatePluginIDEnforcesOnlyRuntimeSafetyBoundary verifies runtime
+// validation rejects unsafe identifiers without hard-coding plugin taxonomy.
+func TestValidatePluginIDEnforcesOnlyRuntimeSafetyBoundary(t *testing.T) {
+	for _, pluginID := range []string{
+		"demo-control",
+		"acme-random-report",
+		"acme-org-core",
+		"plugin-demo-source",
+	} {
+		if err := catalog.ValidatePluginID(pluginID); err != nil {
+			t.Fatalf("expected runtime-safe plugin ID %s to validate, got %v", pluginID, err)
+		}
+	}
+
+	tests := []struct {
+		name     string
+		pluginID string
+		want     string
+	}{
+		{name: "uppercase", pluginID: "Acme-linapro-org-core", want: "kebab-case"},
+		{name: "overlong", pluginID: "acme-demo-" + strings.Repeat("x", catalog.MaxPluginIDLength), want: "length"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := catalog.ValidatePluginID(tt.pluginID)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("expected plugin ID error containing %q, got %v", tt.want, err)
+			}
+			if !bizerr.Is(err, catalog.CodePluginIDInvalid) {
+				t.Fatalf("expected stable plugin ID bizerr, got %v", err)
+			}
+			messageErr, ok := bizerr.As(err)
+			if !ok {
+				t.Fatalf("expected structured plugin ID bizerr, got %v", err)
+			}
+			if messageErr.MessageKey() != "error.plugin.id.invalid" {
+				t.Fatalf("expected plugin ID message key, got %s", messageErr.MessageKey())
+			}
+		})
+	}
+}
+
 // TestValidatePluginManifestNormalizesDependencyDefaults verifies dependency
 // declarations are accepted and receive deterministic defaults.
 func TestValidatePluginManifestNormalizesDependencyDefaults(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-dependency-valid")
+	pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-dependency-valid")
 	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
 
 	manifest := &catalog.Manifest{
-		ID:      "plugin-dependency-valid",
+		ID:      "acme-demo-dependency-valid",
 		Name:    "Plugin Dependency Valid",
 		Version: "0.1.0",
 		Type:    catalog.TypeSource.String(),
@@ -63,11 +136,11 @@ func TestValidatePluginManifestNormalizesDependencyDefaults(t *testing.T) {
 			Framework: &catalog.FrameworkDependencySpec{Version: " >=0.1.0 <1.0.0 "},
 			Plugins: []*catalog.PluginDependencySpec{
 				{
-					ID:      " multi-tenant ",
+					ID:      " linapro-tenant-core ",
 					Version: " >=0.1.0 ",
 				},
 				{
-					ID:       "org-center",
+					ID:       "linapro-org-core",
 					Version:  ">=0.1.0",
 					Required: boolPtr(false),
 					Install:  " auto ",
@@ -83,7 +156,7 @@ func TestValidatePluginManifestNormalizesDependencyDefaults(t *testing.T) {
 		t.Fatalf("expected framework range to be trimmed, got %q", manifest.Dependencies.Framework.Version)
 	}
 	firstDependency := manifest.Dependencies.Plugins[0]
-	if firstDependency.ID != "multi-tenant" {
+	if firstDependency.ID != "linapro-tenant-core" {
 		t.Fatalf("expected dependency ID to be trimmed, got %q", firstDependency.ID)
 	}
 	if firstDependency.Required == nil || !*firstDependency.Required {
@@ -122,7 +195,7 @@ func TestValidatePluginManifestRejectsInvalidDependencies(t *testing.T) {
 		{
 			name: "self dependency",
 			dependencies: &catalog.DependencySpec{
-				Plugins: []*catalog.PluginDependencySpec{{ID: "plugin-dependency-invalid"}},
+				Plugins: []*catalog.PluginDependencySpec{{ID: "acme-demo-dependency-invalid"}},
 			},
 			want: "cannot depend on itself",
 		},
@@ -130,23 +203,30 @@ func TestValidatePluginManifestRejectsInvalidDependencies(t *testing.T) {
 			name: "duplicate dependency",
 			dependencies: &catalog.DependencySpec{
 				Plugins: []*catalog.PluginDependencySpec{
-					{ID: "multi-tenant"},
-					{ID: "multi-tenant"},
+					{ID: "linapro-tenant-core"},
+					{ID: "linapro-tenant-core"},
 				},
 			},
 			want: "duplicate",
 		},
 		{
+			name: "legacy shaped dependency id is allowed",
+			dependencies: &catalog.DependencySpec{
+				Plugins: []*catalog.PluginDependencySpec{{ID: "plugin-demo-source"}},
+			},
+			want: "",
+		},
+		{
 			name: "invalid dependency version range",
 			dependencies: &catalog.DependencySpec{
-				Plugins: []*catalog.PluginDependencySpec{{ID: "multi-tenant", Version: ">= v0.1.0"}},
+				Plugins: []*catalog.PluginDependencySpec{{ID: "linapro-tenant-core", Version: ">= v0.1.0"}},
 			},
 			want: "version",
 		},
 		{
 			name: "invalid install mode",
 			dependencies: &catalog.DependencySpec{
-				Plugins: []*catalog.PluginDependencySpec{{ID: "multi-tenant", Install: "sometimes"}},
+				Plugins: []*catalog.PluginDependencySpec{{ID: "linapro-tenant-core", Install: "sometimes"}},
 			},
 			want: "manual/auto",
 		},
@@ -162,9 +242,9 @@ func TestValidatePluginManifestRejectsInvalidDependencies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svcs := testutil.NewServices()
-			pluginDir := testutil.CreateTestPluginDir(t, "plugin-dependency-invalid")
+			pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-dependency-invalid")
 			manifest := &catalog.Manifest{
-				ID:           "plugin-dependency-invalid",
+				ID:           "acme-demo-dependency-invalid",
 				Name:         "Plugin Dependency Invalid",
 				Version:      "0.1.0",
 				Type:         catalog.TypeSource.String(),
@@ -172,6 +252,12 @@ func TestValidatePluginManifestRejectsInvalidDependencies(t *testing.T) {
 			}
 
 			err := svcs.Catalog.ValidateManifest(manifest, filepath.Join(pluginDir, "plugin.yaml"))
+			if tt.want == "" {
+				if err != nil {
+					t.Fatalf("expected dependency validation to pass, got %v", err)
+				}
+				return
+			}
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("expected dependency validation error containing %q, got %v", tt.want, err)
 			}
@@ -203,14 +289,14 @@ func TestMatchesSemanticVersionRange(t *testing.T) {
 // that source plugins must still provide backend/plugin.go.
 func TestValidatePluginManifestRejectsMissingBackendEntryForSourcePlugin(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-missing-backend")
+	pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-missing-backend")
 	if err := os.Remove(filepath.Join(pluginDir, "backend", "plugin.go")); err != nil {
 		t.Fatalf("failed to remove backend entry: %v", err)
 	}
 
 	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
 	manifest := &catalog.Manifest{
-		ID:      "plugin-missing-backend",
+		ID:      "acme-demo-missing-backend",
 		Name:    "Missing Backend Plugin",
 		Version: "0.1.0",
 		Type:    catalog.TypeSource.String(),
@@ -227,10 +313,10 @@ func TestValidatePluginManifestRejectsMissingBackendEntryForSourcePlugin(t *test
 func TestScanPluginManifestsReportsInvalidEmbeddedSourceManifest(t *testing.T) {
 	svcs := testutil.NewServices()
 
-	const pluginID = "plugin-invalid-embedded"
+	const pluginID = "acme-demo-invalid-embedded"
 	sourcePlugin := pluginhost.NewSourcePlugin(pluginID)
 	sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
-		"plugin.yaml": &fstest.MapFile{Data: []byte("id: plugin-invalid-embedded\nname: Invalid Plugin\nversion: invalid\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\n")},
+		"plugin.yaml": &fstest.MapFile{Data: []byte("id: acme-demo-invalid-embedded\nname: Invalid Plugin\nversion: invalid\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\n")},
 	})
 	cleanup, err := pluginhost.RegisterSourcePluginForTest(sourcePlugin)
 	if err != nil {
@@ -249,28 +335,28 @@ func TestScanPluginManifestsReportsInvalidEmbeddedSourceManifest(t *testing.T) {
 // working directory.
 func TestValidateManifestUsesManifestRootDir(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-manifest-rootdir")
+	pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-manifest-rootdir")
 	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
 
 	manifest := &catalog.Manifest{
-		ID:      "plugin-manifest-rootdir",
+		ID:      "acme-demo-manifest-rootdir",
 		Name:    "Manifest RootDir Plugin",
 		Version: "0.1.0",
 		Type:    catalog.TypeSource.String(),
 	}
-	if err := os.Remove(filepath.Join(pluginDir, "manifest", "sql", "001-plugin-manifest-rootdir.sql")); err != nil {
+	if err := os.Remove(filepath.Join(pluginDir, "manifest", "sql", "001-acme-demo-manifest-rootdir.sql")); err != nil {
 		t.Fatalf("failed to remove plugin install sql: %v", err)
 	}
-	if err := os.Remove(filepath.Join(pluginDir, "manifest", "sql", "uninstall", "001-plugin-manifest-rootdir.sql")); err != nil {
+	if err := os.Remove(filepath.Join(pluginDir, "manifest", "sql", "uninstall", "001-acme-demo-manifest-rootdir.sql")); err != nil {
 		t.Fatalf("failed to remove plugin uninstall sql: %v", err)
 	}
 	if err := os.MkdirAll(filepath.Join(pluginDir, "manifest", "sql"), 0o755); err != nil {
 		t.Fatalf("failed to recreate sql dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(pluginDir, "manifest", "sql", "001-plugin-manifest-rootdir.sql"), []byte("SELECT 1;\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(pluginDir, "manifest", "sql", "001-acme-demo-manifest-rootdir.sql"), []byte("SELECT 1;\n"), 0o644); err != nil {
 		t.Fatalf("failed to write plugin install sql: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(pluginDir, "manifest", "sql", "uninstall", "001-plugin-manifest-rootdir.sql"), []byte("SELECT 1;\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(pluginDir, "manifest", "sql", "uninstall", "001-acme-demo-manifest-rootdir.sql"), []byte("SELECT 1;\n"), 0o644); err != nil {
 		t.Fatalf("failed to write plugin uninstall sql: %v", err)
 	}
 
@@ -286,20 +372,20 @@ func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedWasmMetadata(t *t
 	supportsMultiTenant := true
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
-		"plugin-dynamic-valid",
+		"acme-demo-dynamic-valid",
 		"Runtime Validation Plugin",
 		"v0.2.0",
 		[]*catalog.ArtifactSQLAsset{
-			{Key: "001-plugin-dynamic-valid.sql", Content: "SELECT 1;"},
+			{Key: "001-acme-demo-dynamic-valid.sql", Content: "SELECT 1;"},
 		},
 		[]*catalog.ArtifactSQLAsset{
-			{Key: "001-plugin-dynamic-valid.sql", Content: "SELECT 2;"},
+			{Key: "001-acme-demo-dynamic-valid.sql", Content: "SELECT 2;"},
 		},
 	)
 
 	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
 	manifest := &catalog.Manifest{
-		ID:                  "plugin-dynamic-valid",
+		ID:                  "acme-demo-dynamic-valid",
 		Name:                "Runtime Validation Plugin",
 		Version:             "v0.2.0",
 		Type:                catalog.TypeDynamic.String(),
@@ -335,7 +421,7 @@ func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedFrontendAssets(t 
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDirWithFrontendAssets(
 		t,
-		"plugin-dynamic-frontend",
+		"acme-demo-dynamic-frontend",
 		"Runtime Frontend Plugin",
 		"v0.2.1",
 		[]*catalog.ArtifactFrontendAsset{
@@ -356,7 +442,7 @@ func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedFrontendAssets(t 
 
 	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
 	manifest := &catalog.Manifest{
-		ID:      "plugin-dynamic-frontend",
+		ID:      "acme-demo-dynamic-frontend",
 		Name:    "Runtime Frontend Plugin",
 		Version: "v0.2.1",
 		Type:    catalog.TypeDynamic.String(),
@@ -382,20 +468,20 @@ func TestValidatePluginManifestRejectsMismatchedRuntimeWasmManifest(t *testing.T
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
-		"plugin-dynamic-mismatch",
+		"acme-demo-dynamic-mismatch",
 		"Runtime Mismatch Plugin",
 		"v0.3.0",
 		[]*catalog.ArtifactSQLAsset{
-			{Key: "001-plugin-dynamic-mismatch.sql", Content: "SELECT 1;"},
+			{Key: "001-acme-demo-dynamic-mismatch.sql", Content: "SELECT 1;"},
 		},
 		nil,
 	)
 
 	testutil.WriteRuntimeWasmArtifact(
 		t,
-		filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-mismatch")),
+		filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("acme-demo-dynamic-mismatch")),
 		&catalog.ArtifactManifest{
-			ID:      "plugin-dynamic-other",
+			ID:      "acme-demo-dynamic-other",
 			Name:    "Runtime Mismatch Plugin",
 			Version: "v0.3.0",
 			Type:    catalog.TypeDynamic.String(),
@@ -407,7 +493,7 @@ func TestValidatePluginManifestRejectsMismatchedRuntimeWasmManifest(t *testing.T
 		},
 		nil,
 		[]*catalog.ArtifactSQLAsset{
-			{Key: "001-plugin-dynamic-mismatch.sql", Content: "SELECT 1;"},
+			{Key: "001-acme-demo-dynamic-mismatch.sql", Content: "SELECT 1;"},
 		},
 		nil,
 		nil,
@@ -417,7 +503,7 @@ func TestValidatePluginManifestRejectsMismatchedRuntimeWasmManifest(t *testing.T
 
 	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
 	manifest := &catalog.Manifest{
-		ID:      "plugin-dynamic-mismatch",
+		ID:      "acme-demo-dynamic-mismatch",
 		Name:    "Runtime Mismatch Plugin",
 		Version: "v0.3.0",
 		Type:    catalog.TypeDynamic.String(),
@@ -433,7 +519,7 @@ func TestValidatePluginManifestRejectsMismatchedRuntimeWasmManifest(t *testing.T
 // fails fast when a registered source plugin and runtime artifact share an ID.
 func TestScanPluginManifestsRejectsDuplicatePluginIDs(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginID := "plugin-duplicate-id"
+	pluginID := "acme-demo-duplicate-id"
 
 	testutil.CreateTestPluginDir(t, pluginID)
 	testutil.CreateTestRuntimeStorageArtifact(t, pluginID, "Duplicate Runtime Plugin", "v0.1.0", nil, nil)
@@ -451,8 +537,8 @@ func TestScanPluginManifestsRejectsDuplicateRuntimeArtifactPluginIDs(t *testing.
 
 	testutil.CreateTestRuntimeStorageArtifactWithFilename(
 		t,
-		"plugin-dynamic-duplicate-a.wasm",
-		"plugin-dynamic-duplicate",
+		"acme-demo-dynamic-duplicate-a.wasm",
+		"acme-demo-dynamic-duplicate",
 		"Runtime Duplicate Plugin",
 		"v0.1.0",
 		nil,
@@ -460,8 +546,8 @@ func TestScanPluginManifestsRejectsDuplicateRuntimeArtifactPluginIDs(t *testing.
 	)
 	testutil.CreateTestRuntimeStorageArtifactWithFilename(
 		t,
-		"plugin-dynamic-duplicate-b.wasm",
-		"plugin-dynamic-duplicate",
+		"acme-demo-dynamic-duplicate-b.wasm",
+		"acme-demo-dynamic-duplicate",
 		"Runtime Duplicate Plugin",
 		"v0.1.0",
 		nil,
@@ -480,7 +566,7 @@ func TestStoreUploadedRuntimePackageWritesCanonicalWasmIntoRuntimeStorage(t *tes
 	svcs := testutil.NewServices()
 	ctx := context.Background()
 
-	pluginID := "plugin-dynamic-upload-storage"
+	pluginID := "acme-demo-dynamic-upload-storage"
 	content := testutil.BuildTestRuntimeWasmContent(
 		t,
 		&catalog.ArtifactManifest{
@@ -538,15 +624,15 @@ func TestStoreUploadedRuntimePackageWritesCanonicalWasmIntoRuntimeStorage(t *tes
 // uninstall SQL discovery follows the source-plugin directory convention.
 func TestDiscoverPluginSQLPathsUsesDirectoryConvention(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-sql-convention")
+	pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-sql-convention")
 
 	installPaths := svcs.Catalog.DiscoverSQLPaths(pluginDir, false)
-	if len(installPaths) != 1 || installPaths[0] != "manifest/sql/001-plugin-sql-convention.sql" {
+	if len(installPaths) != 1 || installPaths[0] != "manifest/sql/001-acme-demo-sql-convention.sql" {
 		t.Fatalf("unexpected install sql paths: %#v", installPaths)
 	}
 
 	uninstallPaths := svcs.Catalog.DiscoverSQLPaths(pluginDir, true)
-	if len(uninstallPaths) != 1 || uninstallPaths[0] != "manifest/sql/uninstall/001-plugin-sql-convention.sql" {
+	if len(uninstallPaths) != 1 || uninstallPaths[0] != "manifest/sql/uninstall/001-acme-demo-sql-convention.sql" {
 		t.Fatalf("unexpected uninstall sql paths: %#v", uninstallPaths)
 	}
 }
@@ -555,7 +641,7 @@ func TestDiscoverPluginSQLPathsUsesDirectoryConvention(t *testing.T) {
 // discovery follows the source-plugin frontend directory convention.
 func TestDiscoverPluginVuePathsUseDirectoryConvention(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-vue-convention")
+	pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-vue-convention")
 
 	slotDir := filepath.Join(pluginDir, "frontend", "slots", "dashboard.workspace.after")
 	if err := os.MkdirAll(slotDir, 0o755); err != nil {
@@ -578,7 +664,7 @@ func TestDiscoverPluginVuePathsUseDirectoryConvention(t *testing.T) {
 // source-plugin snapshots include discovered page, slot, and SQL counts.
 func TestBuildPluginManifestSnapshotIncludesDirectoryDiscoveredAssets(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-snapshot")
+	pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-snapshot")
 
 	slotDir := filepath.Join(pluginDir, "frontend", "slots", "dashboard.workspace.after")
 	if err := os.MkdirAll(slotDir, 0o755); err != nil {
@@ -587,14 +673,14 @@ func TestBuildPluginManifestSnapshotIncludesDirectoryDiscoveredAssets(t *testing
 	testutil.WriteTestFile(t, filepath.Join(slotDir, "workspace-card.vue"), "<template><div /></template>\n")
 
 	snapshot, err := svcs.Catalog.BuildManifestSnapshot(&catalog.Manifest{
-		ID:          "plugin-snapshot",
+		ID:          "acme-demo-snapshot",
 		Name:        "Snapshot Plugin",
 		Version:     "0.1.0",
 		Type:        catalog.TypeSource.String(),
 		Description: "Snapshot test plugin",
 		Menus: []*catalog.MenuSpec{
 			{
-				Key:  "plugin:plugin-snapshot:sidebar-entry",
+				Key:  "plugin:acme-demo-snapshot:sidebar-entry",
 				Name: "Snapshot Plugin",
 				Type: catalog.MenuTypePage.String(),
 			},
@@ -624,17 +710,17 @@ func TestBuildPluginManifestSnapshotIncludesRuntimeArtifactMetadata(t *testing.T
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
-		"plugin-dynamic-snapshot",
+		"acme-demo-dynamic-snapshot",
 		"Runtime Snapshot Plugin",
 		"v0.4.0",
 		[]*catalog.ArtifactSQLAsset{
-			{Key: "001-plugin-dynamic-snapshot.sql", Content: "SELECT 1;"},
+			{Key: "001-acme-demo-dynamic-snapshot.sql", Content: "SELECT 1;"},
 		},
 		nil,
 	)
 
 	manifest := &catalog.Manifest{
-		ID:           "plugin-dynamic-snapshot",
+		ID:           "acme-demo-dynamic-snapshot",
 		Name:         "Runtime Snapshot Plugin",
 		Version:      "v0.4.0",
 		Type:         catalog.TypeDynamic.String(),
@@ -667,7 +753,7 @@ func TestBuildPluginManifestSnapshotIncludesRuntimeArtifactMetadata(t *testing.T
 // that governance descriptors store abstract identities instead of file paths.
 func TestBuildPluginResourceRefDescriptorsDoNotPersistConcreteFilePaths(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-resource-summary")
+	pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-resource-summary")
 
 	slotDir := filepath.Join(pluginDir, "frontend", "slots", "dashboard.workspace.after")
 	if err := os.MkdirAll(slotDir, 0o755); err != nil {
@@ -676,13 +762,13 @@ func TestBuildPluginResourceRefDescriptorsDoNotPersistConcreteFilePaths(t *testi
 	testutil.WriteTestFile(t, filepath.Join(slotDir, "workspace-card.vue"), "<template><div /></template>\n")
 
 	descriptors := svcs.Integration.BuildResourceRefDescriptors(&catalog.Manifest{
-		ID:      "plugin-resource-summary",
+		ID:      "acme-demo-resource-summary",
 		Name:    "Resource Summary Plugin",
 		Version: "0.1.0",
 		Type:    catalog.TypeSource.String(),
 		Menus: []*catalog.MenuSpec{
 			{
-				Key:  "plugin:plugin-resource-summary:sidebar-entry",
+				Key:  "plugin:acme-demo-resource-summary:sidebar-entry",
 				Name: "Resource Summary Plugin",
 				Type: catalog.MenuTypePage.String(),
 			},
@@ -720,19 +806,19 @@ func TestBuildPluginResourceRefDescriptorsSummarizeRuntimeArtifact(t *testing.T)
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
-		"plugin-dynamic-resource-summary",
+		"acme-demo-dynamic-resource-summary",
 		"Runtime Resource Summary Plugin",
 		"v0.5.0",
 		[]*catalog.ArtifactSQLAsset{
-			{Key: "001-plugin-dynamic-resource-summary.sql", Content: "SELECT 1;"},
+			{Key: "001-acme-demo-dynamic-resource-summary.sql", Content: "SELECT 1;"},
 		},
 		[]*catalog.ArtifactSQLAsset{
-			{Key: "001-plugin-dynamic-resource-summary.sql", Content: "SELECT 2;"},
+			{Key: "001-acme-demo-dynamic-resource-summary.sql", Content: "SELECT 2;"},
 		},
 	)
 
 	manifest := &catalog.Manifest{
-		ID:           "plugin-dynamic-resource-summary",
+		ID:           "acme-demo-dynamic-resource-summary",
 		Name:         "Runtime Resource Summary Plugin",
 		Version:      "v0.5.0",
 		Type:         catalog.TypeDynamic.String(),
@@ -767,20 +853,20 @@ func TestResolvePluginSQLAssetsPrefersEmbeddedRuntimeSQL(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
-		"plugin-dynamic-sql-assets",
+		"acme-demo-dynamic-sql-assets",
 		"Runtime SQL Assets Plugin",
 		"v0.6.0",
 		[]*catalog.ArtifactSQLAsset{
-			{Key: "001-plugin-dynamic-sql-assets.sql", Content: "SELECT 1;"},
-			{Key: "002-plugin-dynamic-sql-assets.sql", Content: "SELECT 2;"},
+			{Key: "001-acme-demo-dynamic-sql-assets.sql", Content: "SELECT 1;"},
+			{Key: "002-acme-demo-dynamic-sql-assets.sql", Content: "SELECT 2;"},
 		},
 		[]*catalog.ArtifactSQLAsset{
-			{Key: "001-plugin-dynamic-sql-assets.sql", Content: "SELECT 3;"},
+			{Key: "001-acme-demo-dynamic-sql-assets.sql", Content: "SELECT 3;"},
 		},
 	)
 
 	manifest := &catalog.Manifest{
-		ID:           "plugin-dynamic-sql-assets",
+		ID:           "acme-demo-dynamic-sql-assets",
 		Name:         "Runtime SQL Assets Plugin",
 		Version:      "v0.6.0",
 		Type:         catalog.TypeDynamic.String(),
@@ -795,7 +881,7 @@ func TestResolvePluginSQLAssetsPrefersEmbeddedRuntimeSQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected install sql assets, got error: %v", err)
 	}
-	if len(installAssets) != 2 || installAssets[0].Key != "001-plugin-dynamic-sql-assets.sql" {
+	if len(installAssets) != 2 || installAssets[0].Key != "001-acme-demo-dynamic-sql-assets.sql" {
 		t.Fatalf("unexpected install assets: %#v", installAssets)
 	}
 
@@ -812,10 +898,10 @@ func TestResolvePluginSQLAssetsPrefersEmbeddedRuntimeSQL(t *testing.T) {
 // source plugins resolve SQL assets from their directory structure.
 func TestResolvePluginSQLAssetsFallsBackToDirectoryConvention(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-directory-sql-assets")
+	pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-directory-sql-assets")
 
 	manifest := &catalog.Manifest{
-		ID:           "plugin-directory-sql-assets",
+		ID:           "acme-demo-directory-sql-assets",
 		Name:         "Directory SQL Assets Plugin",
 		Version:      "0.1.0",
 		Type:         catalog.TypeSource.String(),
@@ -827,7 +913,7 @@ func TestResolvePluginSQLAssetsFallsBackToDirectoryConvention(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected directory install sql assets, got error: %v", err)
 	}
-	if len(installAssets) != 1 || installAssets[0].Key != "001-plugin-directory-sql-assets.sql" {
+	if len(installAssets) != 1 || installAssets[0].Key != "001-acme-demo-directory-sql-assets.sql" {
 		t.Fatalf("unexpected directory install assets: %#v", installAssets)
 	}
 }
@@ -837,16 +923,16 @@ func TestResolvePluginSQLAssetsFallsBackToDirectoryConvention(t *testing.T) {
 func TestScanEmbeddedSourcePluginManifestsUsesPluginEmbeddedFiles(t *testing.T) {
 	svcs := testutil.NewServices()
 
-	const pluginID = "plugin-embedded-manifest"
+	const pluginID = "acme-demo-embedded-manifest"
 	sourcePlugin := pluginhost.NewSourcePlugin(pluginID)
 	sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
-		"plugin.yaml":                                &fstest.MapFile{Data: []byte("id: plugin-embedded-manifest\nname: Embedded Manifest Plugin\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n")},
+		"plugin.yaml":                                &fstest.MapFile{Data: []byte("id: acme-demo-embedded-manifest\nname: Embedded Manifest Plugin\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n")},
 		"frontend/pages/main-entry.vue":              &fstest.MapFile{Data: []byte("<template><div /></template>\n")},
 		"frontend/slots/layout.header.after/tip.vue": &fstest.MapFile{Data: []byte("<template><div /></template>\n")},
-		"manifest/sql/001-plugin-embedded-manifest.sql": &fstest.MapFile{
+		"manifest/sql/001-acme-demo-embedded-manifest.sql": &fstest.MapFile{
 			Data: []byte("SELECT 1;\n"),
 		},
-		"manifest/sql/uninstall/001-plugin-embedded-manifest.sql": &fstest.MapFile{
+		"manifest/sql/uninstall/001-acme-demo-embedded-manifest.sql": &fstest.MapFile{
 			Data: []byte("SELECT 2;\n"),
 		},
 	})
@@ -869,7 +955,7 @@ func TestScanEmbeddedSourcePluginManifestsUsesPluginEmbeddedFiles(t *testing.T) 
 	if target == nil {
 		t.Fatalf("expected embedded source plugin %s to be discovered", pluginID)
 	}
-	if target.ManifestPath != "embedded/source-plugins/plugin-embedded-manifest/plugin.yaml" {
+	if target.ManifestPath != "embedded/source-plugins/acme-demo-embedded-manifest/plugin.yaml" {
 		t.Fatalf("unexpected embedded manifest path: %s", target.ManifestPath)
 	}
 	if len(svcs.Catalog.ListFrontendPagePaths(target)) != 1 {
@@ -886,18 +972,18 @@ func TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles(t *testing.T) {
 	svcs := testutil.NewServices()
 
 	manifest := &catalog.Manifest{
-		ID:      "plugin-embedded-sql-assets",
+		ID:      "acme-demo-embedded-sql-assets",
 		Name:    "Embedded SQL Assets Plugin",
 		Version: "0.1.0",
 		Type:    catalog.TypeSource.String(),
 		SourcePlugin: func() pluginhost.SourcePluginDefinition {
-			sourcePlugin := pluginhost.NewSourcePlugin("plugin-embedded-sql-assets")
+			sourcePlugin := pluginhost.NewSourcePlugin("acme-demo-embedded-sql-assets")
 			sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
-				"plugin.yaml": &fstest.MapFile{Data: []byte("id: plugin-embedded-sql-assets\nname: Embedded SQL Assets Plugin\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n")},
-				"manifest/sql/001-plugin-embedded-sql-assets.sql": &fstest.MapFile{
+				"plugin.yaml": &fstest.MapFile{Data: []byte("id: acme-demo-embedded-sql-assets\nname: Embedded SQL Assets Plugin\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n")},
+				"manifest/sql/001-acme-demo-embedded-sql-assets.sql": &fstest.MapFile{
 					Data: []byte("SELECT 1;\n"),
 				},
-				"manifest/sql/uninstall/001-plugin-embedded-sql-assets.sql": &fstest.MapFile{
+				"manifest/sql/uninstall/001-acme-demo-embedded-sql-assets.sql": &fstest.MapFile{
 					Data: []byte("SELECT 2;\n"),
 				},
 			})
@@ -933,7 +1019,7 @@ func TestGetRegistryReleaseFallsBackWhenReleasePointerIsDangling(t *testing.T) {
 	var (
 		ctx      = context.Background()
 		svcs     = testutil.NewServices()
-		pluginID = "plugin-dangling-release-pointer"
+		pluginID = "acme-demo-dangling-release-pointer"
 		version  = "9.9.9"
 	)
 
@@ -955,7 +1041,7 @@ func TestGetRegistryReleaseFallsBackWhenReleasePointerIsDangling(t *testing.T) {
 		ReleaseId:    987654321,
 		ScopeNature:  catalog.ScopeNatureTenantAware.String(),
 		InstallMode:  catalog.InstallModeTenantScoped.String(),
-		ManifestPath: "runtime/plugin-dangling-release-pointer/plugin.yaml",
+		ManifestPath: "runtime/acme-demo-dangling-release-pointer/plugin.yaml",
 		Checksum:     "dangling-release-pointer",
 		Remark:       "Dangling release pointer test plugin",
 	}).InsertAndGetId(); err != nil {
@@ -967,8 +1053,8 @@ func TestGetRegistryReleaseFallsBackWhenReleasePointerIsDangling(t *testing.T) {
 		Type:           catalog.TypeDynamic.String(),
 		RuntimeKind:    pluginbridge.RuntimeKindWasm,
 		Status:         catalog.ReleaseStatusActive.String(),
-		ManifestPath:   "runtime/plugin-dangling-release-pointer/plugin.yaml",
-		PackagePath:    "runtime/plugin-dangling-release-pointer.wasm",
+		ManifestPath:   "runtime/acme-demo-dangling-release-pointer/plugin.yaml",
+		PackagePath:    "runtime/acme-demo-dangling-release-pointer.wasm",
 		Checksum:       "dangling-release-pointer",
 	}).InsertAndGetId()
 	if err != nil {
@@ -997,7 +1083,7 @@ func TestRuntimeUpgradeStateReportsExplicitRunningMarker(t *testing.T) {
 	var (
 		ctx        = context.Background()
 		svcs       = testutil.NewServices()
-		pluginID   = "plugin-runtime-upgrade-running-marker"
+		pluginID   = "acme-demo-runtime-upgrade-running-marker"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.2.0"
 	)
@@ -1184,9 +1270,9 @@ func TestDerivePluginNodeState(t *testing.T) {
 	}
 }
 
-// TestValidateManifestMenusRejectsNonStableHostParent verifies plugin top-level
-// menus can mount only under published host catalog keys.
-func TestValidateManifestMenusRejectsNonStableHostParent(t *testing.T) {
+// TestValidateManifestMenusAcceptsExternalParentKey verifies manifest
+// structure validation does not impose host-owned menu placement policy.
+func TestValidateManifestMenusAcceptsExternalParentKey(t *testing.T) {
 	manifest := &catalog.Manifest{
 		ID: "custom-parent-validation",
 		Menus: []*catalog.MenuSpec{
@@ -1200,52 +1286,49 @@ func TestValidateManifestMenusRejectsNonStableHostParent(t *testing.T) {
 		},
 	}
 
-	err := catalog.ValidateManifestMenus(manifest)
-	if err == nil || !strings.Contains(err.Error(), "can only mount to a stable host catalog") {
-		t.Fatalf("expected stable host parent validation error, got: %v", err)
+	if err := catalog.ValidateManifestMenus(manifest); err != nil {
+		t.Fatalf("expected plugin manifest with external parent key to be valid, got: %v", err)
 	}
 }
 
-// TestValidateManifestMenusRejectsOfficialPluginWrongStableParent verifies
-// first-party source plugins are pinned to fixed host catalogs.
-func TestValidateManifestMenusRejectsOfficialPluginWrongStableParent(t *testing.T) {
+// TestValidateManifestMenusAcceptsCrossPluginParentKey verifies plugins may
+// declare an external plugin menu as parent and let runtime sync resolve it.
+func TestValidateManifestMenusAcceptsCrossPluginParentKey(t *testing.T) {
 	manifest := &catalog.Manifest{
-		ID: menusvc.OrgCenter,
+		ID: "linapro-org-core",
 		Menus: []*catalog.MenuSpec{
 			{
-				Key:       "plugin:org-center:catalog",
+				Key:       "plugin:linapro-org-core:catalog",
 				Name:      "组织管理",
-				ParentKey: menusvc.Monitor,
-				Path:      "org-center-catalog",
+				ParentKey: "plugin:linapro-content-notice:notice",
+				Path:      "linapro-org-core-catalog",
 				Type:      catalog.MenuTypeDirectory.String(),
 			},
 		},
 	}
 
-	err := catalog.ValidateManifestMenus(manifest)
-	if err == nil || !strings.Contains(err.Error(), "expected org") {
-		t.Fatalf("expected official plugin parent validation error, got: %v", err)
+	if err := catalog.ValidateManifestMenus(manifest); err != nil {
+		t.Fatalf("expected plugin manifest with cross-plugin parent key to be valid, got: %v", err)
 	}
 }
 
-// TestValidateManifestMenusAcceptsOfficialPluginStableParent verifies one
-// first-party plugin may mount under its published stable host catalog and keep
-// children inside its own tree.
-func TestValidateManifestMenusAcceptsOfficialPluginStableParent(t *testing.T) {
+// TestValidateManifestMenusAcceptsInternalPluginParent verifies plugin menus
+// can keep children inside their own manifest-declared tree.
+func TestValidateManifestMenusAcceptsInternalPluginParent(t *testing.T) {
 	manifest := &catalog.Manifest{
-		ID: menusvc.OrgCenter,
+		ID: "linapro-org-core",
 		Menus: []*catalog.MenuSpec{
 			{
-				Key:       "plugin:org-center:catalog",
+				Key:       "plugin:linapro-org-core:catalog",
 				Name:      "组织管理",
 				ParentKey: menusvc.Org,
-				Path:      "org-center-catalog",
+				Path:      "linapro-org-core-catalog",
 				Type:      catalog.MenuTypeDirectory.String(),
 			},
 			{
-				Key:       "plugin:org-center:dept",
+				Key:       "plugin:linapro-org-core:dept",
 				Name:      "部门管理",
-				ParentKey: "plugin:org-center:catalog",
+				ParentKey: "plugin:linapro-org-core:catalog",
 				Path:      "/system/dept",
 				Component: "system/plugin/dynamic-page",
 				Type:      catalog.MenuTypePage.String(),
@@ -1254,18 +1337,18 @@ func TestValidateManifestMenusAcceptsOfficialPluginStableParent(t *testing.T) {
 	}
 
 	if err := catalog.ValidateManifestMenus(manifest); err != nil {
-		t.Fatalf("expected official plugin manifest menus to be valid, got: %v", err)
+		t.Fatalf("expected plugin manifest menus with internal parent to be valid, got: %v", err)
 	}
 }
 
-// TestValidateManifestMenusRejectsMultiTenantTenantCatalog verifies the
-// multi-tenant source plugin no longer declares a dedicated tenant workbench.
-func TestValidateManifestMenusRejectsMultiTenantTenantCatalog(t *testing.T) {
+// TestValidateManifestMenusAcceptsCustomTenantParent verifies a custom parent
+// key is accepted during manifest validation and resolved during menu sync.
+func TestValidateManifestMenusAcceptsCustomTenantParent(t *testing.T) {
 	manifest := &catalog.Manifest{
-		ID: menusvc.MultiTenant,
+		ID: "linapro-tenant-core",
 		Menus: []*catalog.MenuSpec{
 			{
-				Key:       "plugin:multi-tenant:tenant:members",
+				Key:       "plugin:linapro-tenant-core:tenant:members",
 				Name:      "成员管理",
 				ParentKey: "tenant",
 				Path:      "/tenant/members",
@@ -1274,9 +1357,8 @@ func TestValidateManifestMenusRejectsMultiTenantTenantCatalog(t *testing.T) {
 		},
 	}
 
-	err := catalog.ValidateManifestMenus(manifest)
-	if err == nil || !strings.Contains(err.Error(), "can only mount to a stable host catalog") {
-		t.Fatalf("expected tenant workbench parent validation error, got: %v", err)
+	if err := catalog.ValidateManifestMenus(manifest); err != nil {
+		t.Fatalf("expected plugin manifest with custom parent key to be valid, got: %v", err)
 	}
 }
 
@@ -1284,12 +1366,12 @@ func TestValidateManifestMenusRejectsMultiTenantTenantCatalog(t *testing.T) {
 // manifest fields have deterministic normalization and platform-only constraints.
 func TestValidateManifestNormalizesTenantGovernance(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-tenant-governance")
+	pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-tenant-governance")
 	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
 	supportsMultiTenant := false
 
 	manifest := &catalog.Manifest{
-		ID:                  "plugin-tenant-governance",
+		ID:                  "acme-demo-tenant-governance",
 		Name:                "Tenant Governance Plugin",
 		Version:             "0.1.0",
 		Type:                catalog.TypeSource.String(),
@@ -1316,16 +1398,16 @@ func TestValidateManifestNormalizesTenantGovernance(t *testing.T) {
 // manifests must explicitly declare whether tenant governance is supported.
 func TestValidateManifestRequiresMultiTenantSupportDeclaration(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-tenant-governance-missing-support")
+	pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-tenant-governance-missing-support")
 	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
 	testutil.WriteTestFile(
 		t,
 		manifestFile,
-		"id: plugin-tenant-governance-missing-support\nname: Tenant Governance Missing Support Plugin\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\ndefault_install_mode: tenant_scoped\n",
+		"id: acme-demo-tenant-governance-missing-support\nname: Tenant Governance Missing Support Plugin\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\ndefault_install_mode: tenant_scoped\n",
 	)
 
 	manifest := &catalog.Manifest{
-		ID:      "plugin-tenant-governance-missing-support",
+		ID:      "acme-demo-tenant-governance-missing-support",
 		Name:    "Tenant Governance Missing Support Plugin",
 		Version: "0.1.0",
 		Type:    catalog.TypeSource.String(),
@@ -1341,12 +1423,12 @@ func TestValidateManifestRequiresMultiTenantSupportDeclaration(t *testing.T) {
 // tenant-aware plugins can explicitly opt out of tenant-level governance.
 func TestValidateManifestForcesGlobalWhenTenantGovernanceUnsupported(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-tenant-governance-unsupported")
+	pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-tenant-governance-unsupported")
 	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
 	supportsMultiTenant := false
 
 	manifest := &catalog.Manifest{
-		ID:                  "plugin-tenant-governance-unsupported",
+		ID:                  "acme-demo-tenant-governance-unsupported",
 		Name:                "Tenant Governance Unsupported Plugin",
 		Version:             "0.1.0",
 		Type:                catalog.TypeSource.String(),

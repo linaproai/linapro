@@ -218,13 +218,13 @@ func setJobMgmtTestBizCtx(svc *serviceImpl, bizCtxSvc bizctx.Service) {
 	svc.scopeSvc = scopeSvc
 }
 
-// defaultGroupID resolves the current default job group ID for tests.
+// defaultGroupID resolves the current tenant's default job group ID for tests.
 func defaultGroupID(t *testing.T, ctx context.Context) int64 {
 	t.Helper()
 
 	var group *entity.SysJobGroup
 	if err := dao.SysJobGroup.Ctx(ctx).
-		Where(do.SysJobGroup{IsDefault: 1}).
+		Where(do.SysJobGroup{TenantId: datascope.CurrentTenantID(ctx), IsDefault: 1}).
 		Scan(&group); err != nil {
 		t.Fatalf("expected default job group query to succeed, got error: %v", err)
 	}

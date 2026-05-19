@@ -7,13 +7,13 @@ import "github.com/gogf/gf/v2/frame/g"
 // UpgradePreviewReq is the request for previewing one plugin runtime upgrade.
 type UpgradePreviewReq struct {
 	g.Meta `path:"/plugins/{id}/upgrade/preview" method:"get" tags:"Plugin Management" summary:"Preview plugin runtime upgrade" permission:"plugin:query" dc:"Return a side-effect-free runtime upgrade preview for a pending-upgrade or failed-upgrade plugin, including effective and target manifest snapshots, dependency checks, SQL summary, hostServices changes, and risk hints. This endpoint does not execute SQL, switch releases, update state, or invoke plugin callbacks."`
-	Id     string `json:"id" v:"required|length:1,64" dc:"Plugin unique identifier" eg:"plugin-demo-source"`
+	Id     string `json:"id" v:"required|length:1,64" dc:"Plugin unique identifier" eg:"linapro-demo-source"`
 }
 
 // UpgradePreviewRes is the response for previewing one plugin runtime upgrade.
 type UpgradePreviewRes struct {
-	PluginId          string                        `json:"pluginId" dc:"Plugin unique identifier" eg:"plugin-demo-source"`
-	RuntimeState      string                        `json:"runtimeState" dc:"Current plugin runtime upgrade state, expected to be pending_upgrade or upgrade_failed for preview" eg:"pending_upgrade"`
+	PluginId          string                        `json:"pluginId" dc:"Plugin unique identifier" eg:"linapro-demo-source"`
+	RuntimeState      RuntimeState                  `json:"runtimeState" dc:"Current plugin runtime upgrade state, expected to be pending_upgrade or upgrade_failed for preview" eg:"pending_upgrade"`
 	EffectiveVersion  string                        `json:"effectiveVersion" dc:"Database-effective plugin version before upgrade" eg:"v0.1.0"`
 	DiscoveredVersion string                        `json:"discoveredVersion" dc:"Target plugin version discovered from source plugin.yaml or dynamic artifact metadata" eg:"v0.2.0"`
 	FromManifest      *PluginManifestSnapshotItem   `json:"fromManifest" dc:"Current effective manifest snapshot before upgrade" eg:"{}"`
@@ -26,13 +26,13 @@ type UpgradePreviewRes struct {
 
 // PluginManifestSnapshotItem stores review-friendly manifest metadata for upgrade preview.
 type PluginManifestSnapshotItem struct {
-	Id                        string                       `json:"id" dc:"Plugin unique identifier" eg:"plugin-demo-source"`
+	Id                        string                       `json:"id" dc:"Plugin unique identifier" eg:"linapro-demo-source"`
 	Name                      string                       `json:"name" dc:"Plugin display name" eg:"Source Plugin Demo"`
 	Version                   string                       `json:"version" dc:"Manifest version" eg:"v0.2.0"`
-	Type                      string                       `json:"type" dc:"Plugin type: source or dynamic" eg:"source"`
-	ScopeNature               string                       `json:"scopeNature,omitempty" dc:"Plugin scope nature: platform_only or tenant_aware" eg:"tenant_aware"`
+	Type                      PluginType                   `json:"type" dc:"Plugin type: source or dynamic" eg:"source"`
+	ScopeNature               ScopeNature                  `json:"scopeNature,omitempty" dc:"Plugin scope nature: platform_only or tenant_aware" eg:"tenant_aware"`
 	SupportsMultiTenant       bool                         `json:"supportsMultiTenant" dc:"Whether the manifest supports tenant-level plugin governance" eg:"true"`
-	DefaultInstallMode        string                       `json:"defaultInstallMode,omitempty" dc:"Default plugin install mode: global or tenant_scoped" eg:"tenant_scoped"`
+	DefaultInstallMode        InstallMode                  `json:"defaultInstallMode,omitempty" dc:"Default plugin install mode: global or tenant_scoped" eg:"tenant_scoped"`
 	Description               string                       `json:"description,omitempty" dc:"Plugin description" eg:"Source plugin that provides examples"`
 	RuntimeKind               string                       `json:"runtimeKind,omitempty" dc:"Dynamic runtime kind when present" eg:"wasm"`
 	RuntimeAbiVersion         string                       `json:"runtimeAbiVersion,omitempty" dc:"Dynamic runtime ABI version when present" eg:"v1"`

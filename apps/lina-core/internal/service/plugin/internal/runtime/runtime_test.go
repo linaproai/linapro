@@ -22,7 +22,7 @@ func TestBuildRuntimeWasmArtifactEmbedsBackendContracts(t *testing.T) {
 	testutil.WriteTestFile(
 		t,
 		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: plugin-dynamic-contract\nname: Dynamic Contract\nversion: v0.2.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n",
+		"id: plugin-dev-dynamic-contract\nname: Dynamic Contract\nversion: v0.2.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n",
 	)
 	testutil.WriteTestFile(
 		t,
@@ -101,7 +101,7 @@ func TestLoadRuntimePluginManifestFromArtifactHydratesBackendContracts(t *testin
 	testutil.WriteTestFile(
 		t,
 		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: plugin-dynamic-active-contract\nname: Active Contract\nversion: v0.2.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n",
+		"id: plugin-dev-dynamic-active-contract\nname: Active Contract\nversion: v0.2.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n",
 	)
 	testutil.WriteTestFile(
 		t,
@@ -171,12 +171,12 @@ func TestBundledDynamicSampleDeclaresBeforeAndAfterLifecycleCallbacks(t *testing
 	if err != nil {
 		t.Fatalf("expected repo root to resolve, got error: %v", err)
 	}
-	pluginDir := filepath.Join(repoRoot, "apps", "lina-plugins", "plugin-demo-dynamic")
+	pluginDir := filepath.Join(repoRoot, "apps", "lina-plugins", "linapro-demo-dynamic")
 	if _, statErr := os.Stat(filepath.Join(pluginDir, "plugin.yaml")); statErr != nil {
 		if os.IsNotExist(statErr) {
 			t.Skip("official plugin workspace is not initialized")
 		}
-		t.Fatalf("expected plugin-demo-dynamic plugin.yaml to stat, got error: %v", statErr)
+		t.Fatalf("expected linapro-demo-dynamic plugin.yaml to stat, got error: %v", statErr)
 	}
 
 	buildOut := testutil.BuildRuntimeArtifactWithHackTool(t, pluginDir)

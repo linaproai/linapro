@@ -403,6 +403,7 @@ func (s *serviceImpl) normalizeJobRecord(
 	}
 
 	record := do.SysJob{
+		TenantId:             datascope.CurrentTenantID(ctx),
 		GroupId:              in.GroupID,
 		Name:                 name,
 		Description:          strings.TrimSpace(in.Description),

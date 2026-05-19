@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/pluginbridge"
@@ -800,15 +800,17 @@ func encodeJSONValue(value interface{}) ([]byte, error) {
 	return json.Marshal(value)
 }
 
-// normalizeResourceValue converts GoFrame time values into JSON-safe strings.
+// normalizeResourceValue converts time values into JSON-safe strings.
 func normalizeResourceValue(value interface{}) interface{} {
 	switch typedValue := value.(type) {
-	case *gtime.Time:
+	case *time.Time:
 		if typedValue == nil {
 			return ""
 		}
-		return typedValue.String()
-	case gtime.Time:
+		return typedValue.Format(time.RFC3339Nano)
+	case time.Time:
+		return typedValue.Format(time.RFC3339Nano)
+	case interface{ String() string }:
 		return typedValue.String()
 	default:
 		return value

@@ -34,10 +34,25 @@
                             "dc": "备注"
                           },
                           "updatedAt": {
-                            "dc": "修改时间"
+                            "dc": "修改时间，Unix 毫秒时间戳"
                           },
                           "value": {
                             "dc": "参数键值"
+                          },
+                          "sourceTenantId": {
+                            "dc": "返回行的真实来源租户ID，0 表示平台默认值"
+                          },
+                          "isFallback": {
+                            "dc": "当前租户视角下该行是否继承自平台默认值"
+                          },
+                          "canEdit": {
+                            "dc": "当前上下文是否可以直接编辑该返回行"
+                          },
+                          "canOverride": {
+                            "dc": "当前租户是否可以为该 fallback 行创建租户覆盖"
+                          },
+                          "overrideMode": {
+                            "dc": "覆盖动作模式，例如 none 或 createTenantOverride"
                           }
                         }
                       }
@@ -65,10 +80,25 @@
                 "dc": "备注"
               },
               "updatedAt": {
-                "dc": "修改时间"
+                "dc": "修改时间，Unix 毫秒时间戳"
               },
               "value": {
                 "dc": "参数键值"
+              },
+              "sourceTenantId": {
+                "dc": "返回行的真实来源租户ID，0 表示平台默认值"
+              },
+              "isFallback": {
+                "dc": "当前租户视角下该行是否继承自平台默认值"
+              },
+              "canEdit": {
+                "dc": "当前上下文是否可以直接编辑该返回行"
+              },
+              "canOverride": {
+                "dc": "当前租户是否可以为该 fallback 行创建租户覆盖"
+              },
+              "overrideMode": {
+                "dc": "覆盖动作模式，例如 none 或 createTenantOverride"
               }
             },
             "schema": {
@@ -262,10 +292,25 @@
                             "dc": "备注"
                           },
                           "updatedAt": {
-                            "dc": "修改时间"
+                            "dc": "修改时间，Unix 毫秒时间戳"
                           },
                           "value": {
                             "dc": "参数键值"
+                          },
+                          "sourceTenantId": {
+                            "dc": "返回行的真实来源租户ID，0 表示平台默认值"
+                          },
+                          "isFallback": {
+                            "dc": "当前租户视角下该行是否继承自平台默认值"
+                          },
+                          "canEdit": {
+                            "dc": "当前上下文是否可以直接编辑该返回行"
+                          },
+                          "canOverride": {
+                            "dc": "当前租户是否可以为该 fallback 行创建租户覆盖"
+                          },
+                          "overrideMode": {
+                            "dc": "覆盖动作模式，例如 none 或 createTenantOverride"
                           }
                         }
                       }
@@ -293,10 +338,25 @@
                 "dc": "备注"
               },
               "updatedAt": {
-                "dc": "修改时间"
+                "dc": "修改时间，Unix 毫秒时间戳"
               },
               "value": {
                 "dc": "参数键值"
+              },
+              "sourceTenantId": {
+                "dc": "返回行的真实来源租户ID，0 表示平台默认值"
+              },
+              "isFallback": {
+                "dc": "当前租户视角下该行是否继承自平台默认值"
+              },
+              "canEdit": {
+                "dc": "当前上下文是否可以直接编辑该返回行"
+              },
+              "canOverride": {
+                "dc": "当前租户是否可以为该 fallback 行创建租户覆盖"
+              },
+              "overrideMode": {
+                "dc": "覆盖动作模式，例如 none 或 createTenantOverride"
               }
             },
             "schema": {
@@ -399,6 +459,25 @@
             },
             "schema": {
               "dc": "更新指定参数设置的信息，修改参数键名时需确保不与其他参数冲突"
+            }
+          },
+          "ConfigItem": {
+            "fields": {
+              "sourceTenantId": {
+                "dc": "返回行的真实来源租户ID，0 表示平台默认值"
+              },
+              "isFallback": {
+                "dc": "当前租户视角下该行是否继承自平台默认值"
+              },
+              "canEdit": {
+                "dc": "当前上下文是否可以直接编辑该返回行"
+              },
+              "canOverride": {
+                "dc": "当前租户是否可以为该 fallback 行创建租户覆盖"
+              },
+              "overrideMode": {
+                "dc": "覆盖动作模式，例如 none 或 createTenantOverride"
+              }
             }
           }
         }

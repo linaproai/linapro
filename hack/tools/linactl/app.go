@@ -11,6 +11,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"linactl/internal/devservice"
+	"linactl/internal/fileutil"
+	"linactl/internal/plugins"
+	"linactl/internal/toolrun"
 )
 
 // newApp creates a command application with default process dependencies.
@@ -21,13 +26,14 @@ func newApp(stdout io.Writer, stderr io.Writer, stdin io.Reader) *app {
 		stdin:       stdin,
 		env:         os.Environ(),
 		execCommand: exec.CommandContext,
-		waitHTTP:    waitHTTP,
+		lookPath:    exec.LookPath,
+		waitHTTP:    devservice.WaitHTTP,
 	}
 }
 
 // run parses the command and dispatches to the command handler.
 func (a *app) run(ctx context.Context, args []string) error {
-	repoRoot, err := discoverRepoRoot()
+	repoRoot, err := fileutil.DiscoverRepoRoot()
 	if err != nil {
 		return err
 	}
@@ -76,22 +82,11 @@ func (a *app) run(ctx context.Context, args []string) error {
 	return spec.Run(ctx, a, input)
 }
 
-type commandOptions struct {
-	// Dir sets the child process working directory.
-	Dir string
-	// Env overrides the child process environment.
-	Env []string
-	// Quiet buffers child output unless the command fails.
-	Quiet bool
-	// Stdout overrides stdout forwarding.
-	Stdout io.Writer
-	// Stderr overrides stderr forwarding.
-	Stderr io.Writer
-}
+type commandOptions = toolrun.Options
 
 // runCommand executes a child command with consistent error messages.
 func (a *app) runCommand(ctx context.Context, options commandOptions, name string, args ...string) error {
-	if _, err := exec.LookPath(name); err != nil && !filepath.IsAbs(name) {
+	if _, err := a.lookPath(name); err != nil && !filepath.IsAbs(name) {
 		return fmt.Errorf("required tool %q is not available in PATH while running %s: %w", name, strings.Join(append([]string{name}, args...), " "), err)
 	}
 
@@ -132,4 +127,39 @@ func (a *app) runCommand(ctx context.Context, options commandOptions, name strin
 		return fmt.Errorf("run %s: %w", strings.Join(append([]string{name}, args...), " "), err)
 	}
 	return nil
+}
+
+// runCommandOutput executes a child command and returns stdout.
+func (a *app) runCommandOutput(ctx context.Context, options commandOptions, name string, args ...string) (string, error) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	options.Quiet = false
+	options.Stdout = &stdout
+	options.Stderr = &stderr
+	err := a.runCommand(ctx, options, name, args...)
+	if err != nil {
+		if stderr.Len() > 0 {
+			return "", fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
+		}
+		return "", err
+	}
+	return stdout.String(), nil
+}
+
+// pluginRuntime adapts the current app dependencies for plugin subcomponents.
+func pluginRuntime(a *app) plugins.Runtime {
+	return plugins.Runtime{
+		Root:             a.root,
+		Env:              a.env,
+		Stdout:           a.stdout,
+		Stderr:           a.stderr,
+		RunCommand:       a.runCommand,
+		RunCommandOutput: a.runCommandOutput,
+	}
+}
+
+// prepareOfficialPluginBuildEnv resolves official plugin build mode using the
+// plugins subcomponent while preserving the command-level app dependency shape.
+func prepareOfficialPluginBuildEnv(ctx context.Context, a *app, input commandInput) (bool, []string, error) {
+	return plugins.PrepareBuildEnv(ctx, pluginRuntime(a), input)
 }

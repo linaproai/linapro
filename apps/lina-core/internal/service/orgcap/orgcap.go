@@ -1,7 +1,7 @@
 // Package orgcap implements the optional host-side organization capability seam
 // used by user-management and auth flows. The host keeps only the stable
 // interface and delegates real organization behavior to one registered plugin
-// provider when the org-center plugin is enabled.
+// provider when the linapro-org-core plugin is enabled.
 package orgcap
 
 import (
@@ -24,14 +24,14 @@ type DeptTreeNode = pkgorgcap.DeptTreeNode
 type PostOption = pkgorgcap.PostOption
 
 // PluginEnablementReader defines the narrow plugin state capability required by
-// orgcap to detect whether the org-center plugin is currently enabled.
+// orgcap to detect whether the linapro-org-core plugin is currently enabled.
 type PluginEnablementReader interface {
 	// IsEnabled returns whether the given plugin ID is currently enabled.
 	IsEnabled(ctx context.Context, pluginID string) bool
 }
 
 // Service defines the optional organization capability consumed by host core
-// services without hard-linking user, auth, or data-scope code to org-center.
+// services without hard-linking user, auth, or data-scope code to linapro-org-core.
 type Service interface {
 	// Enabled reports whether organization capability is installed, enabled, and
 	// backed by a registered provider. Disabled mode must return empty fallback

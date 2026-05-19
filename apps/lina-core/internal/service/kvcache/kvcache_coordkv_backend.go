@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
-
 	"lina-core/internal/service/coordination"
 	"lina-core/pkg/bizerr"
 )
@@ -197,7 +195,7 @@ func (b *coordKVBackend) Expire(
 	ownerType OwnerType,
 	cacheKey string,
 	ttl time.Duration,
-) (bool, *gtime.Time, error) {
+) (bool, *time.Time, error) {
 	_, backendKey, err := b.resolveBackendKey(ownerType, cacheKey)
 	if err != nil {
 		return false, nil, err
@@ -283,9 +281,10 @@ func coordKVPayloadToItem(key string, payload *coordKVValue, ttl time.Duration) 
 }
 
 // expireAtFromTTL converts a relative TTL into the public cache item shape.
-func expireAtFromTTL(ttl time.Duration) *gtime.Time {
+func expireAtFromTTL(ttl time.Duration) *time.Time {
 	if ttl <= 0 {
 		return nil
 	}
-	return gtime.Now().Add(ttl)
+	expireAt := time.Now().Add(ttl)
+	return &expireAt
 }

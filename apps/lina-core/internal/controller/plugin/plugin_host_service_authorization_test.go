@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	jobv1 "lina-core/api/job/v1"
 	"lina-core/internal/service/jobmeta"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/pluginbridge"
@@ -119,10 +120,10 @@ func TestBuildHostServicePermissionItemsIncludesCronItems(t *testing.T) {
 	if cronItem.CronItems[0].Pattern != "# */10 * * * *" {
 		t.Fatalf("expected cron pattern preserved, got %s", cronItem.CronItems[0].Pattern)
 	}
-	if cronItem.CronItems[0].Scope != string(jobmeta.JobScopeAllNode) {
+	if cronItem.CronItems[0].Scope != jobv1.Scope(jobmeta.JobScopeAllNode) {
 		t.Fatalf("expected cron scope all_node, got %s", cronItem.CronItems[0].Scope)
 	}
-	if cronItem.CronItems[0].Concurrency != string(jobmeta.JobConcurrencySingleton) {
+	if cronItem.CronItems[0].Concurrency != jobv1.Concurrency(jobmeta.JobConcurrencySingleton) {
 		t.Fatalf("expected cron concurrency singleton, got %s", cronItem.CronItems[0].Concurrency)
 	}
 
@@ -144,7 +145,7 @@ func TestBuildHostServicePermissionItemsIncludesCronItems(t *testing.T) {
 // TestLocalizeManagedCronJobsUsesDynamicPluginArtifactKeys verifies install
 // review can use artifact-local translations before a dynamic plugin is enabled.
 func TestLocalizeManagedCronJobsUsesDynamicPluginArtifactKeys(t *testing.T) {
-	handlerRef, err := pluginbridge.BuildPluginCronHandlerRef("plugin-demo-dynamic", "heartbeat")
+	handlerRef, err := pluginbridge.BuildPluginCronHandlerRef("linapro-demo-dynamic", "heartbeat")
 	if err != nil {
 		t.Fatalf("build handler ref failed: %v", err)
 	}
@@ -155,7 +156,7 @@ func TestLocalizeManagedCronJobsUsesDynamicPluginArtifactKeys(t *testing.T) {
 		context.Background(),
 		[]pluginsvc.ManagedCronJob{
 			{
-				PluginID:    "plugin-demo-dynamic",
+				PluginID:    "linapro-demo-dynamic",
 				Name:        "heartbeat",
 				DisplayName: "Dynamic Plugin Heartbeat",
 				Description: "Runs the dynamic plugin built-in job.",
@@ -207,7 +208,7 @@ func TestBuildHostServicePermissionCronItemsSortsByDisplayName(t *testing.T) {
 // TestLocalizeManagedCronJobsUsesSourceTextKeys verifies authorization review
 // cron items use the same runtime i18n keys as scheduled-job management.
 func TestLocalizeManagedCronJobsUsesSourceTextKeys(t *testing.T) {
-	handlerRef, err := pluginbridge.BuildPluginCronHandlerRef("plugin-demo-dynamic", "heartbeat")
+	handlerRef, err := pluginbridge.BuildPluginCronHandlerRef("linapro-demo-dynamic", "heartbeat")
 	if err != nil {
 		t.Fatalf("build handler ref failed: %v", err)
 	}
@@ -216,7 +217,7 @@ func TestLocalizeManagedCronJobsUsesSourceTextKeys(t *testing.T) {
 
 	sourceJobs := []pluginsvc.ManagedCronJob{
 		{
-			PluginID:    "plugin-demo-dynamic",
+			PluginID:    "linapro-demo-dynamic",
 			Name:        "heartbeat",
 			DisplayName: "Dynamic Plugin Heartbeat",
 			Description: "Runs the dynamic plugin built-in job.",

@@ -26,26 +26,26 @@ import {
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
-const demoControlPluginID = "demo-control";
-const pluginID = "plugin-demo-source";
+const demoControlPluginID = "linapro-ops-demo-guard";
+const pluginID = "linapro-demo-source";
 const pluginMenuName = "源码插件示例";
 const pluginSummaryMessage =
-  "这是一条来自 plugin-demo-source 接口的简要介绍，用于验证源码插件菜单页可读取插件后端数据。";
+  "这是一条来自 linapro-demo-source 接口的简要介绍，用于验证源码插件菜单页可读取插件后端数据。";
 const pluginRecordSeedTitle = "源码插件 SQL 示例记录";
-const pluginRecordTableName = "plugin_demo_source_record";
+const pluginRecordTableName = "plugin_linapro_demo_source_record";
 const repoRoot = path.resolve(process.cwd(), "../..");
 const pluginDemoSourceStorageRoots = [
-  path.resolve(repoRoot, "temp/upload/plugin-demo-source"),
-  path.resolve(repoRoot, "apps/lina-core/temp/upload/plugin-demo-source"),
+  path.resolve(repoRoot, "temp/upload/linapro-demo-source"),
+  path.resolve(repoRoot, "apps/lina-core/temp/upload/linapro-demo-source"),
 ];
 const pluginDemoSourceFixturePath = path.resolve(
   repoRoot,
-  "temp/TC0066-plugin-demo-source-note.txt",
+  "temp/TC0066-linapro-demo-source-note.txt",
 );
 const pluginDemoSourceFixtureContent = "TC0066 plugin demo source attachment";
 const pluginDemoSourceDownloadPath = path.resolve(
   repoRoot,
-  "temp/TC0066-plugin-demo-source-download.txt",
+  "temp/TC0066-linapro-demo-source-download.txt",
 );
 
 type PluginListItem = {
@@ -342,7 +342,7 @@ test.describe("TC-66 源码插件生命周期", () => {
     resetPluginRegistryRow(demoControlPluginID);
     // `GET /plugins` re-syncs source manifests and refreshes the host-side
     // enabled snapshot. This lets the suite clear a previously enabled
-    // demo-control guard before the write-heavy lifecycle scenarios begin.
+    // linapro-ops-demo-guard guard before the write-heavy lifecycle scenarios begin.
     await listPlugins(adminApi!);
     resetPluginRegistryRow(pluginID);
     await syncPlugins(adminApi!);

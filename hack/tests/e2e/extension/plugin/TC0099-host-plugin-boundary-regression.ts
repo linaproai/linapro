@@ -96,14 +96,14 @@ async function createIsolatedPage(browser: Browser): Promise<{
 }
 
 test.describe('TC-99 宿主与监控插件边界回归', () => {
-  test('TC0099a: monitor-online 缺失时登录、鉴权与会话过期校验仍由宿主内核保障', async ({
+  test('TC0099a: linapro-monitor-online 缺失时登录、鉴权与会话过期校验仍由宿主内核保障', async ({
     adminPage,
     browser,
   }) => {
     let isolatedContext: BrowserContext | null = null;
 
     try {
-      await ensureSourcePluginUninstalled(adminPage, 'monitor-online');
+      await ensureSourcePluginUninstalled(adminPage, 'linapro-monitor-online');
 
       const isolated = await createIsolatedPage(browser);
       isolatedContext = isolated.context;
@@ -116,7 +116,7 @@ test.describe('TC-99 宿主与监控插件边界回归', () => {
       const session = await createAdminSessionContext();
       try {
         const userInfoResponse = await session.api.get('user/info');
-        assertOk(userInfoResponse, 'monitor-online 缺失时 user/info 鉴权失败');
+        assertOk(userInfoResponse, 'linapro-monitor-online 缺失时 user/info 鉴权失败');
 
         expireOnlineSession(session.tokenId);
         await expect
@@ -140,7 +140,7 @@ test.describe('TC-99 宿主与监控插件边界回归', () => {
       }
 
       await adminPage.goto('/dashboard/analysis');
-      await ensureSourcePluginEnabled(adminPage, 'monitor-online');
+      await ensureSourcePluginEnabled(adminPage, 'linapro-monitor-online');
     }
   });
 
@@ -151,8 +151,8 @@ test.describe('TC-99 宿主与监控插件边界回归', () => {
     let isolatedContext: BrowserContext | null = null;
 
     try {
-      await ensureSourcePluginUninstalled(adminPage, 'monitor-loginlog');
-      await ensureSourcePluginDisabled(adminPage, 'monitor-operlog');
+      await ensureSourcePluginUninstalled(adminPage, 'linapro-monitor-loginlog');
+      await ensureSourcePluginDisabled(adminPage, 'linapro-monitor-operlog');
 
       const isolated = await createIsolatedPage(browser);
       isolatedContext = isolated.context;
@@ -179,8 +179,8 @@ test.describe('TC-99 宿主与监控插件边界回归', () => {
       }
 
       await adminPage.goto('/dashboard/analysis');
-      await ensureSourcePluginEnabled(adminPage, 'monitor-loginlog');
-      await ensureSourcePluginEnabled(adminPage, 'monitor-operlog');
+      await ensureSourcePluginEnabled(adminPage, 'linapro-monitor-loginlog');
+      await ensureSourcePluginEnabled(adminPage, 'linapro-monitor-operlog');
     }
   });
 });

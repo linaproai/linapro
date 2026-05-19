@@ -5,6 +5,7 @@ import (
 
 	"lina-core/api/menu/v1"
 	menusvc "lina-core/internal/service/menu"
+	"lina-core/pkg/menutype"
 )
 
 // TreeSelect returns the selectable menu tree.
@@ -30,7 +31,7 @@ func convertMenuTreeNode(node *menusvc.MenuTreeNode) *v1.MenuTreeNode {
 		Id:       node.Id,
 		ParentId: node.ParentId,
 		Label:    node.Label,
-		Type:     node.Type,
+		Type:     menutype.Code(node.Type),
 		Icon:     node.Icon,
 		Children: make([]*v1.MenuTreeNode, 0),
 	}
