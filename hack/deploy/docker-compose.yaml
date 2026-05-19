@@ -43,8 +43,8 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      # Override LINAPRO_HTTP_PORT when 8080 is already in use on the host.
-      - "${LINAPRO_HTTP_PORT:-8080}:8080"
+      # Override LINAPRO_HTTP_PORT when 9120 is already in use on the host.
+      - "${LINAPRO_HTTP_PORT:-9120}:9120"
     tmpfs:
       # Keep demo data in memory. Do not add bind mounts or persistent volumes
       # here unless this file is intentionally changed from demo mode.
@@ -65,7 +65,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - wget -q -O- http://127.0.0.1:8080/api/v1/health | grep -q '"status":"ok"'
+        - wget -q -O- http://127.0.0.1:9120/api/v1/health | grep -q '"status":"ok"'
       interval: 10s
       timeout: 3s
       retries: 12

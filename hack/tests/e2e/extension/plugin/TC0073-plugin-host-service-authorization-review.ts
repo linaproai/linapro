@@ -12,7 +12,7 @@ import { RolePage } from "../../../pages/RolePage";
 import { execPgSQLStatements, pgEscapeLiteral } from "../../../support/postgres";
 
 const apiBaseURL =
-  process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
+  process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:9120/api/v1/";
 
 const pluginID = "plugin-dev-dynamic-host-auth-ui";
 const pluginVersion = "v0.1.0";

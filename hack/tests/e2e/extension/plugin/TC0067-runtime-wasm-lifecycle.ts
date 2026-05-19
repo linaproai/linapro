@@ -28,7 +28,7 @@ import {
 import { waitForUploadReady } from "../../../support/ui";
 
 const apiBaseURL =
-  process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
+  process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:9120/api/v1/";
 const publicBaseURL =
   process.env.E2E_PUBLIC_BASE_URL ?? apiBaseURL.replace(/\/api\/v1\/?$/, "");
 const pluginID = "plugin-dev-dynamic-e2e";

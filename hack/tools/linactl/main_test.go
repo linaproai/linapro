@@ -615,7 +615,7 @@ func TestPrintStatusTableIncludesDevelopmentServiceDetails(t *testing.T) {
 		{
 			Service: "Backend",
 			Status:  "running",
-			URL:     "http://127.0.0.1:8080/",
+			URL:     "http://127.0.0.1:9120/",
 			PID:     "12345",
 			PIDFile: "temp/pids/backend.pid",
 			LogFile: "temp/lina-core.log",

@@ -8,7 +8,7 @@ import { waitForRouteReady } from "../../../support/ui";
 import { getMenuIdsByPermsWithAncestors } from "../../../support/api/job";
 
 const apiBaseURL =
-  process.env.E2E_API_BASE_URL ?? "http://localhost:8080/api/v1/";
+  process.env.E2E_API_BASE_URL ?? "http://localhost:9120/api/v1/";
 
 type MenuNode = {
   id: number;

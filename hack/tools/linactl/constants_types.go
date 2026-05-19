@@ -12,7 +12,7 @@ import (
 
 const (
 	// defaultBackendPort is the standard backend development port.
-	defaultBackendPort = 8080
+	defaultBackendPort = 9120
 	// defaultFrontendPort is the standard frontend development port.
 	defaultFrontendPort = 5666
 	// defaultWaitTimeout bounds development service readiness checks.

@@ -13,7 +13,7 @@ import {
 } from "../../../support/postgres";
 
 const apiBaseURL =
-  process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
+  process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:9120/api/v1/";
 const targetPluginID = "linapro-content-notice";
 const noticeTableName = "plugin_linapro_content_notice";
 // Mock data file 001-linapro-content-notice-mock-data.sql ships these notice titles.

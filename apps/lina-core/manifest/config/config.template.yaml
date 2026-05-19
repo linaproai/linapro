@@ -5,7 +5,7 @@
 server:
   # Server listen address
   # 服务监听地址
-  address: ":8080"
+  address: ":9120"
   # Whether to dump the route table at startup
   # 是否在启动时输出路由表
   dumpRouterMap: false

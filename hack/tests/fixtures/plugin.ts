@@ -10,7 +10,7 @@ import { execPgSQLFile } from '../support/postgres';
 import { waitForRouteReady } from '../support/ui';
 
 const apiBaseURL =
-  process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:8080/api/v1/';
+  process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:9120/api/v1/';
 const repoRoot = path.resolve(process.cwd(), '../..');
 
 type PluginListItem = {

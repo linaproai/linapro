@@ -15,9 +15,9 @@ import (
 func commandRegistry() map[string]commandSpec {
 	specs := []commandSpec{
 		{Name: "help", Description: "Show available cross-platform commands.", Usage: "linactl help [command|--all]", Run: runHelp},
-		{Name: "dev", Description: "Restart backend and frontend development services.", Usage: "linactl dev [backend_port=8080] [frontend_port=5666] [plugins=auto|0|1] [skip_wasm=true]", Run: runDev},
-		{Name: "stop", Description: "Stop backend and frontend development services started by linactl.", Usage: "linactl stop [backend_port=8080] [frontend_port=5666]", Run: runStop},
-		{Name: "status", Description: "Show backend and frontend service status.", Usage: "linactl status [backend_port=8080] [frontend_port=5666]", Run: runStatus},
+		{Name: "dev", Description: "Restart backend and frontend development services.", Usage: "linactl dev [backend_port=9120] [frontend_port=5666] [plugins=auto|0|1] [skip_wasm=true]", Run: runDev},
+		{Name: "stop", Description: "Stop backend and frontend development services started by linactl.", Usage: "linactl stop [backend_port=9120] [frontend_port=5666]", Run: runStop},
+		{Name: "status", Description: "Show backend and frontend service status.", Usage: "linactl status [backend_port=9120] [frontend_port=5666]", Run: runStatus},
 		{Name: "pack.assets", Description: "Prepare host manifest assets for embedding.", Usage: "linactl pack.assets", Run: runPreparePackedAssets},
 		{Name: "wasm", Description: "Build dynamic Wasm plugin artifacts.", Usage: "linactl wasm [p=<plugin-id>|plugin_dir=<path>] [out=temp/output] [dry_run=true]", Run: runWasm},
 		{Name: "plugins.init", Description: "Convert apps/lina-plugins from a submodule to a normal plugin directory.", Usage: "linactl plugins.init", Run: runPluginsInit},

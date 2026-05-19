@@ -18,5 +18,5 @@ COPY apps/lina-core/manifest/config/config.template.yaml $WORKDIR/config.yaml
 #                                   START
 ###############################################################################
 WORKDIR $WORKDIR
-EXPOSE 8080
+EXPOSE 9120
 ENTRYPOINT ["./lina"]

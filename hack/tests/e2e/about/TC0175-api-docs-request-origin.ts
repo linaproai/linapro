@@ -15,9 +15,9 @@ test.describe('TC-175 API docs request origin', () => {
     expect(proxiedResponse.ok()).toBeTruthy();
     const proxiedDocument = (await proxiedResponse.json()) as OpenApiDocument;
 
-    expect(proxiedDocument.servers?.[0]?.url).toBe('http://localhost:8080');
+    expect(proxiedDocument.servers?.[0]?.url).toBe('http://localhost:9120');
 
-    const directResponse = await request.get('http://127.0.0.1:8080/api.json?lang=zh-CN', {
+    const directResponse = await request.get('http://127.0.0.1:9120/api.json?lang=zh-CN', {
       headers: {
         Host: '127.0.0.1:18088',
       },

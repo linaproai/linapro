@@ -470,18 +470,18 @@ export default defineConfig(async () => {
         proxy: {
           '/api': {
             changeOrigin: true,
-            // Forward /api/* to backend at localhost:8080/api/*
-            target: 'http://localhost:8080',
+            // Forward /api/* to backend at localhost:9120/api/*
+            target: 'http://localhost:9120',
             ws: true,
           },
           '/plugin-assets': {
             changeOrigin: true,
             // Runtime plugin static assets are hosted by the backend even in
             // dev mode, so the frontend dev server must proxy these requests.
-            target: 'http://localhost:8080',
+            target: 'http://localhost:9120',
           },
           '/stoplight/apidocs.html': {
-            target: 'http://localhost:8080',
+            target: 'http://localhost:9120',
             bypass(_req, res) {
               // Serve the static HTML file directly, bypassing Vite's SPA fallback
               if (!cachedApidocsHtml) {
