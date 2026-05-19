@@ -16,7 +16,7 @@ import (
 // responses are preserved as lifecycle decisions instead of bridge errors.
 func TestApplyDynamicLifecycleResponseRecordsVeto(t *testing.T) {
 	decision := &DynamicLifecycleDecision{
-		PluginID:  "plugin-dynamic-veto",
+		PluginID:  "plugin-dev-dynamic-veto",
 		Operation: pluginhost.LifecycleHookBeforeInstall,
 		OK:        true,
 	}
@@ -38,8 +38,8 @@ func TestApplyDynamicLifecycleResponseRecordsVeto(t *testing.T) {
 func TestBuildDynamicLifecycleRequestPublishesTypedManifestSnapshot(t *testing.T) {
 	request, err := buildDynamicLifecycleRequest(
 		&catalog.Manifest{
-			ID:              "plugin-dynamic-upgrade",
-			RuntimeArtifact: &catalog.ArtifactSpec{Path: "/tmp/plugin-dynamic-upgrade.wasm"},
+			ID:              "plugin-dev-dynamic-upgrade",
+			RuntimeArtifact: &catalog.ArtifactSpec{Path: "/tmp/plugin-dev-dynamic-upgrade.wasm"},
 			BridgeSpec:      &bridgecontract.BridgeSpec{RouteExecution: true},
 		},
 		&bridgecontract.LifecycleContract{
@@ -48,10 +48,10 @@ func TestBuildDynamicLifecycleRequestPublishesTypedManifestSnapshot(t *testing.T
 			InternalPath: "/__lifecycle/before-upgrade",
 		},
 		DynamicLifecycleInput{
-			PluginID:  "plugin-dynamic-upgrade",
+			PluginID:  "plugin-dev-dynamic-upgrade",
 			Operation: pluginhost.LifecycleHookBeforeUpgrade,
 			FromManifest: &catalog.ManifestSnapshot{
-				ID:                      "plugin-dynamic-upgrade",
+				ID:                      "plugin-dev-dynamic-upgrade",
 				Name:                    "Dynamic Upgrade",
 				Version:                 "v0.1.0",
 				Type:                    "dynamic",
@@ -68,7 +68,7 @@ func TestBuildDynamicLifecycleRequestPublishesTypedManifestSnapshot(t *testing.T
 				HostServiceAuthRequired: false,
 			},
 			ToManifest: &catalog.ManifestSnapshot{
-				ID:                      "plugin-dynamic-upgrade",
+				ID:                      "plugin-dev-dynamic-upgrade",
 				Name:                    "Dynamic Upgrade",
 				Version:                 "v0.2.0",
 				Type:                    "dynamic",
@@ -113,8 +113,8 @@ func TestBuildDynamicLifecycleRequestPublishesTypedManifestSnapshot(t *testing.T
 func TestBuildDynamicLifecycleRequestPublishesUninstallPolicy(t *testing.T) {
 	request, err := buildDynamicLifecycleRequest(
 		&catalog.Manifest{
-			ID:              "plugin-dynamic-uninstall",
-			RuntimeArtifact: &catalog.ArtifactSpec{Path: "/tmp/plugin-dynamic-uninstall.wasm"},
+			ID:              "plugin-dev-dynamic-uninstall",
+			RuntimeArtifact: &catalog.ArtifactSpec{Path: "/tmp/plugin-dev-dynamic-uninstall.wasm"},
 			BridgeSpec:      &bridgecontract.BridgeSpec{RouteExecution: true},
 		},
 		&bridgecontract.LifecycleContract{
@@ -123,7 +123,7 @@ func TestBuildDynamicLifecycleRequestPublishesUninstallPolicy(t *testing.T) {
 			InternalPath: "/__lifecycle/before-uninstall",
 		},
 		DynamicLifecycleInput{
-			PluginID:         "plugin-dynamic-uninstall",
+			PluginID:         "plugin-dev-dynamic-uninstall",
 			Operation:        pluginhost.LifecycleHookBeforeUninstall,
 			PurgeStorageData: true,
 		},
@@ -136,7 +136,7 @@ func TestBuildDynamicLifecycleRequestPublishesUninstallPolicy(t *testing.T) {
 		t.Fatalf("expected lifecycle request body to decode, got %v", err)
 	}
 
-	if payload.PluginID != "plugin-dynamic-uninstall" ||
+	if payload.PluginID != "plugin-dev-dynamic-uninstall" ||
 		payload.Operation != pluginhost.LifecycleHookBeforeUninstall.String() ||
 		!payload.PurgeStorageData {
 		t.Fatalf("unexpected before-uninstall payload: %#v", payload)
@@ -147,7 +147,7 @@ func TestBuildDynamicLifecycleRequestPublishesUninstallPolicy(t *testing.T) {
 // project into the shared bridge lifecycle snapshot contract.
 func TestPublishedManifestSnapshotUsesBridgeContract(t *testing.T) {
 	snapshot := catalog.PublishedManifestSnapshot(&catalog.ManifestSnapshot{
-		ID:                      "plugin-dynamic-upgrade",
+		ID:                      "plugin-dev-dynamic-upgrade",
 		Name:                    "Dynamic Upgrade",
 		Version:                 "v0.2.0",
 		Type:                    "dynamic",
@@ -164,7 +164,7 @@ func TestPublishedManifestSnapshotUsesBridgeContract(t *testing.T) {
 		HostServiceAuthRequired: true,
 	})
 
-	if snapshot.ID != "plugin-dynamic-upgrade" ||
+	if snapshot.ID != "plugin-dev-dynamic-upgrade" ||
 		snapshot.Version != "v0.2.0" ||
 		snapshot.SupportsMultiTenant != true ||
 		snapshot.ResourceSpecCount != 6 ||

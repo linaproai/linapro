@@ -66,7 +66,7 @@ func TestStoreLoadedEnabledSnapshotBackfillsSharedState(t *testing.T) {
 	}
 	svc := &serviceImpl{sharedState: shared}
 
-	svc.storeLoadedEnabledSnapshot(map[string]bool{
+	svc.storeLoadedEnabledSnapshot(context.Background(), map[string]bool{
 		"plugin-enabled":  true,
 		"plugin-disabled": false,
 	})
@@ -90,6 +90,31 @@ func TestStoreLoadedEnabledSnapshotBackfillsSharedState(t *testing.T) {
 	}
 }
 
+// TestTenantSnapshotDoesNotOverwritePlatformSnapshot verifies tenant-scoped
+// visibility checks cannot poison the shared platform menu-filter snapshot.
+func TestTenantSnapshotDoesNotOverwritePlatformSnapshot(t *testing.T) {
+	shared := &sharedState{
+		sourceRouteBindings: make(map[string][]pluginhost.SourceRouteBinding),
+		enabledSnapshot:     make(map[string]bool),
+	}
+	svc := &serviceImpl{sharedState: shared}
+
+	svc.storeLoadedEnabledSnapshot(context.Background(), map[string]bool{
+		"linapro-monitor-loginlog": true,
+	})
+	svc.storeLoadedEnabledSnapshot(datascope.WithTenantForTest(context.Background(), 42), map[string]bool{
+		"linapro-monitor-loginlog": false,
+	})
+
+	enabledByID := map[string]bool{"linapro-monitor-loginlog": false}
+	if !svc.applyLoadedEnabledSnapshot(enabledByID) {
+		t.Fatal("expected platform snapshot to remain available")
+	}
+	if !enabledByID["linapro-monitor-loginlog"] {
+		t.Fatal("expected tenant snapshot not to hide platform admin monitor menu")
+	}
+}
+
 // TestPlatformOnlyGlobalPluginRemainsEnabledInTenantContext verifies
 // platform-only governs tenant plugin-list visibility, not runtime
 // availability for global plugin APIs and permission menus.
@@ -98,7 +123,7 @@ func TestPlatformOnlyGlobalPluginRemainsEnabledInTenantContext(t *testing.T) {
 	ctx := datascope.WithTenantForTest(context.Background(), 42)
 
 	enabled, err := svc.registryEnabledForTenant(ctx, &entity.SysPlugin{
-		PluginId:    "multi-tenant",
+		PluginId:    "linapro-tenant-core",
 		Installed:   catalog.InstalledYes,
 		Status:      catalog.StatusEnabled,
 		ScopeNature: catalog.ScopeNaturePlatformOnly.String(),

@@ -6,11 +6,11 @@
 ## Requirements
 ### Requirement: 宿主通知域与通知公告内容管理解耦
 
-系统 SHALL 将宿主通知域设计为独立于 `content-notice` 插件中 `plugin_content_notice` 公告内容模型的统一通知发送与投递模型；通知公告内容管理继续由该插件负责，消息中心与插件 `notify` 能力统一基于新的通知域表实现，不再继续使用 `sys_user_message`。
+系统 SHALL 将宿主通知域设计为独立于 `linapro-content-notice` 插件中 `plugin_linapro_content_notice` 公告内容模型的统一通知发送与投递模型；通知公告内容管理继续由该插件负责，消息中心与插件 `notify` 能力统一基于新的通知域表实现，不再继续使用 `sys_user_message`。
 
 #### Scenario: 发布通知公告时走统一通知域
 
-- **WHEN** `content-notice` 将一条 `plugin_content_notice` 从草稿发布为生效状态
+- **WHEN** `linapro-content-notice` 将一条 `plugin_linapro_content_notice` 从草稿发布为生效状态
 - **THEN** 宿主通过统一的 `notify` 服务创建消息主记录与 inbox 投递记录
 - **AND** 宿主不得继续直接写入 `sys_user_message`
 

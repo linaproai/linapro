@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gogf/gf/v2/os/gfile"
-	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -49,8 +49,8 @@ type PluginItem struct {
 	Description string
 	// Installed reports whether the plugin has been installed.
 	Installed int
-	// InstalledAt is the ISO timestamp of first installation.
-	InstalledAt string
+	// InstalledAt is the first installation time as a Unix timestamp in milliseconds.
+	InstalledAt *int64
 	// Enabled reports whether the plugin is currently enabled.
 	Enabled int
 	// AutoEnableForNewTenants reports the platform-owned new-tenant provisioning policy.
@@ -63,8 +63,8 @@ type PluginItem struct {
 	InstallMode string
 	// StatusKey is the host config key used by the public shell.
 	StatusKey string
-	// UpdatedAt is the ISO timestamp of the last registry update.
-	UpdatedAt string
+	// UpdatedAt is the last registry update time as a Unix timestamp in milliseconds.
+	UpdatedAt *int64
 	// AuthorizationRequired reports whether any resource-scoped host services need confirmation.
 	AuthorizationRequired bool
 	// AuthorizationStatus identifies whether host-service authorization is pending or already confirmed.
@@ -112,8 +112,8 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 		description             string
 		installed               int
 		enabled                 int
-		installedAt             string
-		updatedAt               string
+		installedAt             *int64
+		updatedAt               *int64
 		scopeNature             string
 		installMode             string
 		autoEnableForNewTenants bool
@@ -152,10 +152,12 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 		installMode = registry.InstallMode
 		autoEnableForNewTenants = registry.AutoEnableForNewTenants
 		if registry.InstalledAt != nil {
-			installedAt = registry.InstalledAt.String()
+			millis := registry.InstalledAt.UnixMilli()
+			installedAt = &millis
 		}
 		if registry.UpdatedAt != nil {
-			updatedAt = registry.UpdatedAt.String()
+			millis := registry.UpdatedAt.UnixMilli()
+			updatedAt = &millis
 		}
 		if ctx != nil {
 			release, err = s.catalogSvc.GetRegistryRelease(ctx, registry)
@@ -330,7 +332,7 @@ func (s *serviceImpl) reconcileRegistryArtifactState(ctx context.Context, regist
 		CurrentState: catalog.HostStateUninstalled.String(),
 		ReleaseId:    0,
 		Generation:   catalog.NextGeneration(registry),
-		DisabledAt:   gtime.Now(),
+		DisabledAt:   timePtr(time.Now()),
 	}
 	if _, err = dao.SysPlugin.Ctx(ctx).
 		Where(do.SysPlugin{PluginId: registry.PluginId}).
@@ -368,6 +370,12 @@ func (s *serviceImpl) reconcileRegistryArtifactState(ctx context.Context, regist
 		return nil, err
 	}
 	return updated, nil
+}
+
+// timePtr returns a pointer to value for generated DO time fields that preserve
+// database NULL semantics with *time.Time.
+func timePtr(value time.Time) *time.Time {
+	return &value
 }
 
 // projectRegistryArtifactState returns a read-only projection of a dynamic

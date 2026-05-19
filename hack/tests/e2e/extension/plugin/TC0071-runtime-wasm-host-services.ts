@@ -17,9 +17,9 @@ import {
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
 
-const successPluginID = "plugin-host-services-e2e";
-const deniedPluginID = "plugin-host-services-denied-e2e";
-const rawSQLPluginID = "plugin-host-services-raw-sql-e2e";
+const successPluginID = "plugin-dev-host-services-e2e";
+const deniedPluginID = "plugin-dev-host-services-denied-e2e";
+const rawSQLPluginID = "plugin-dev-host-services-raw-sql-e2e";
 
 type PluginListItem = {
   id: string;
@@ -43,8 +43,8 @@ function buildOutputDir() {
   return path.join(tempRoot(), "artifacts");
 }
 
-function builderDir() {
-  return path.join(repoRoot(), "hack", "tools", "build-wasm");
+function linactlDir() {
+  return path.join(repoRoot(), "hack", "tools", "linactl");
 }
 
 function runtimeStorageDir() {
@@ -333,7 +333,7 @@ func HandleRequest(
 
 function buildSuccessPluginSource(upstreamBaseURL: string) {
   const pluginDir = sourcePluginDir(successPluginID);
-  const moduleName = "lina-plugin-host-services-e2e";
+  const moduleName = "lina-plugin-dev-host-services-e2e";
   rmSync(pluginDir, { force: true, recursive: true });
 
   writeTestFile(
@@ -632,7 +632,7 @@ func (c *Controller) HostServices(request *pluginbridge.BridgeRequestEnvelopeV1)
 
 function buildDeniedPluginSource() {
   const pluginDir = sourcePluginDir(deniedPluginID);
-  const moduleName = "lina-plugin-host-services-denied-e2e";
+  const moduleName = "lina-plugin-dev-host-services-denied-e2e";
   rmSync(pluginDir, { force: true, recursive: true });
 
   writeTestFile(
@@ -745,7 +745,7 @@ function buildDynamicPluginArtifact(pluginDir: string, pluginID: string) {
       "",
       "use (",
       `\t${path.join(repoRoot(), "apps", "lina-core")}`,
-      `\t${builderDir()}`,
+      `\t${linactlDir()}`,
       `\t${pluginDir}`,
       ")",
       "",
@@ -765,13 +765,12 @@ function buildDynamicPluginArtifact(pluginDir: string, pluginID: string) {
       [
         "run",
         ".",
-        "--plugin-dir",
-        pluginDir,
-        "--output-dir",
-        buildOutputDir(),
+        "wasm",
+        `plugin_dir=${pluginDir}`,
+        `out=${buildOutputDir()}`,
       ],
       {
-        cwd: builderDir(),
+        cwd: linactlDir(),
         env: {
           ...process.env,
           GOWORK: goWorkPath,

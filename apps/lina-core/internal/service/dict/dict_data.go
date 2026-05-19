@@ -27,7 +27,7 @@ type DataListInput struct {
 
 // DataListOutput defines output for DataList function.
 type DataListOutput struct {
-	List  []*entity.SysDictData
+	List  []*DictDataProjection
 	Total int
 }
 
@@ -62,9 +62,13 @@ func (s *serviceImpl) DataList(ctx context.Context, in DataListInput) (*DataList
 	total := len(list)
 	list = paginateDictData(list, in.PageNum, in.PageSize)
 	s.localizeDictDataEntities(ctx, list)
+	items, err := projectDictData(ctx, list)
+	if err != nil {
+		return nil, err
+	}
 
 	return &DataListOutput{
-		List:  list,
+		List:  items,
 		Total: total,
 	}, nil
 }
@@ -293,7 +297,7 @@ func (s *serviceImpl) DataExport(ctx context.Context, in DataExportInput) (data 
 }
 
 // DataByType returns all non-deleted dict data for a given dict type with status=1, ordered by sort ASC.
-func (s *serviceImpl) DataByType(ctx context.Context, dictType string) ([]*entity.SysDictData, error) {
+func (s *serviceImpl) DataByType(ctx context.Context, dictType string) ([]*DictDataProjection, error) {
 	cols := dao.SysDictData.Columns()
 	var list []*entity.SysDictData
 	model := dao.SysDictData.Ctx(ctx).
@@ -306,7 +310,7 @@ func (s *serviceImpl) DataByType(ctx context.Context, dictType string) ([]*entit
 	}
 	list = visibleDictData(ctx, list)
 	s.localizeDictDataEntities(ctx, list)
-	return list, nil
+	return projectDictData(ctx, list)
 }
 
 // paginateDictData returns one page from an already materialized effective

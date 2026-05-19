@@ -5,19 +5,20 @@
 package do
 
 import (
+	"time"
+
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gtime"
 )
 
 // SysCacheRevision is the golang structure of table sys_cache_revision for DAO operations like Where/Data.
 type SysCacheRevision struct {
 	g.Meta    `orm:"table:sys_cache_revision, do:true"`
-	Id        any         // Primary key ID
-	TenantId  any         // Owning tenant ID, 0 means PLATFORM
-	Domain    any         // Cache domain, such as runtime-config, permission-access, or plugin-runtime
-	Scope     any         // Explicit invalidation scope, such as global, plugin:<id>, locale:<locale>, or user:<id>
-	Revision  any         // Monotonic cache revision for this domain and scope
-	Reason    any         // Latest change reason used for diagnostics
-	CreatedAt *gtime.Time // Creation time
-	UpdatedAt *gtime.Time // Update time
+	Id        any        // Primary key ID
+	TenantId  any        // Owning tenant ID, 0 means PLATFORM
+	Domain    any        // Cache domain, such as runtime-config, permission-access, or plugin-runtime
+	Scope     any        // Explicit invalidation scope, such as global, plugin:<id>, locale:<locale>, or user:<id>
+	Revision  any        // Monotonic cache revision for this domain and scope
+	Reason    any        // Latest change reason used for diagnostics
+	CreatedAt *time.Time // Creation time
+	UpdatedAt *time.Time // Update time
 }

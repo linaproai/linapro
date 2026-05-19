@@ -6,10 +6,13 @@ package pluginhostservices
 import (
 	"context"
 	"testing"
+	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
+	"github.com/gogf/gf/v2/os/gctx"
 
+	"lina-core/internal/model"
 	internalauth "lina-core/internal/service/auth"
+	internalbizctx "lina-core/internal/service/bizctx"
 	internalsession "lina-core/internal/service/session"
 	plugincontract "lina-core/pkg/pluginservice/contract"
 )
@@ -69,7 +72,7 @@ func TestToInternalSessionFilter(t *testing.T) {
 
 // TestFromInternalSession verifies host-internal session projections are copied into plugin DTOs.
 func TestFromInternalSession(t *testing.T) {
-	loginTime := gtime.Now()
+	loginTime := time.Now()
 	sessionItem := &internalsession.Session{
 		TokenId:        "token-1",
 		UserId:         100,
@@ -78,8 +81,8 @@ func TestFromInternalSession(t *testing.T) {
 		Ip:             "127.0.0.1",
 		Browser:        "Chrome",
 		Os:             "macOS",
-		LoginTime:      loginTime,
-		LastActiveTime: loginTime,
+		LoginTime:      &loginTime,
+		LastActiveTime: &loginTime,
 	}
 
 	result := fromInternalSession(sessionItem)
@@ -109,7 +112,7 @@ func TestFromInternalSessionListResult(t *testing.T) {
 		t.Fatalf("unexpected empty result: %#v", empty)
 	}
 
-	loginTime := gtime.Now()
+	loginTime := time.Now()
 	result := fromInternalSessionListResult(&internalsession.ListResult{
 		Items: []*internalsession.Session{
 			{
@@ -120,8 +123,8 @@ func TestFromInternalSessionListResult(t *testing.T) {
 				Ip:             "10.0.0.1",
 				Browser:        "Firefox",
 				Os:             "Linux",
-				LoginTime:      loginTime,
-				LastActiveTime: loginTime,
+				LoginTime:      &loginTime,
+				LastActiveTime: &loginTime,
 			},
 		},
 		Total: 1,
@@ -131,6 +134,34 @@ func TestFromInternalSessionListResult(t *testing.T) {
 	}
 	if result.Items[0] == nil || result.Items[0].TokenId != "token-2" {
 		t.Fatalf("unexpected converted item: %#v", result.Items[0])
+	}
+}
+
+// TestBizCtxAdapterPlatformBypassRequiresAllDataPlatformContext verifies
+// source plugins receive the same strict platform-bypass semantics used by host
+// tenantcap instead of a tenant-id-only shortcut.
+func TestBizCtxAdapterPlatformBypassRequiresAllDataPlatformContext(t *testing.T) {
+	adapter := newBizCtxAdapter(internalbizctx.New())
+	testCases := []struct {
+		name     string
+		ctx      *model.Context
+		expected bool
+	}{
+		{name: "platform all data", ctx: &model.Context{TenantId: 0, DataScope: 1}, expected: true},
+		{name: "platform tenant scope", ctx: &model.Context{TenantId: 0, DataScope: 2}, expected: false},
+		{name: "impersonation", ctx: &model.Context{TenantId: 0, DataScope: 1, ActingAsTenant: true, IsImpersonation: true}, expected: false},
+		{name: "tenant context", ctx: &model.Context{TenantId: 1001, DataScope: 1}, expected: false},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), testCase.ctx)
+			current := adapter.Current(ctx)
+			if current.PlatformBypass != testCase.expected {
+				t.Fatalf("expected PlatformBypass=%t, got %#v", testCase.expected, current)
+			}
+		})
 	}
 }
 

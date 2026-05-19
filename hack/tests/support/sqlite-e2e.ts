@@ -8,7 +8,7 @@ import path from "node:path";
 const sqliteModeEnv = "LINAPRO_E2E_SQLITE_MODE";
 const sqliteBackendLogEnv = "LINAPRO_E2E_SQLITE_BACKEND_LOG";
 
-export const sqliteSourcePluginId = "plugin-demo-source";
+export const sqliteSourcePluginId = "linapro-demo-source";
 
 export function requireSQLiteE2E() {
   test.skip(

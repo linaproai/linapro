@@ -1,5 +1,83 @@
+import type { APIRequestContext } from "@playwright/test";
+
 import { test, expect } from "../../../fixtures/auth";
 import { RolePage } from "../../../pages/RolePage";
+import { createAdminApiContext, expectSuccess } from "../../../support/api/job";
+
+type RoleIdentity = {
+  code: string;
+  name: string;
+};
+
+type RoleListItem = {
+  id: number;
+  key: string;
+  name: string;
+};
+
+type RoleListResult = {
+  list: RoleListItem[];
+  total: number;
+};
+
+function buildRoleIdentity(scope: string): RoleIdentity {
+  const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  return {
+    code: `rk_${scope}_${suffix}`,
+    name: `r_${scope}_${suffix}`,
+  };
+}
+
+function buildRepeatedIdsQuery(ids: number[]) {
+  const params = new URLSearchParams();
+  for (const id of ids) {
+    params.append("ids", String(id));
+  }
+  return params.toString();
+}
+
+async function listRolesByName(api: APIRequestContext, name: string) {
+  return expectSuccess<RoleListResult>(
+    await api.get(`role?page=1&size=100&name=${encodeURIComponent(name)}`),
+  );
+}
+
+async function createRoleFixture(
+  api: APIRequestContext,
+  role: RoleIdentity,
+) {
+  return expectSuccess<{ id: number }>(
+    await api.post("role", {
+      data: {
+        dataScope: 1,
+        key: role.code,
+        name: role.name,
+        remark: "E2E测试角色",
+        sort: 999,
+        status: 1,
+      },
+    }),
+  );
+}
+
+async function cleanupRolesByName(
+  api: APIRequestContext,
+  ...names: string[]
+) {
+  const ids: number[] = [];
+  for (const name of names) {
+    const result = await listRolesByName(api, name);
+    ids.push(
+      ...result.list
+        .filter((item) => item.name === name)
+        .map((item) => item.id),
+    );
+  }
+  if (ids.length === 0) {
+    return;
+  }
+  await expectSuccess(await api.delete(`role?${buildRepeatedIdsQuery(ids)}`));
+}
 
 async function expectPageHeightStable(page: any, pageName: string) {
   const samples = await page.evaluate(async () => {
@@ -33,8 +111,15 @@ async function expectPageHeightStable(page: any, pageName: string) {
  * - 角色菜单分配
  */
 test.describe("TC0061 角色管理 CRUD", () => {
-  const testRoleName = `e2e_role_${Date.now()}`;
-  const testRoleCode = `e2e_role_code_${Date.now()}`;
+  let adminApi: APIRequestContext;
+
+  test.beforeAll(async () => {
+    adminApi = await createAdminApiContext();
+  });
+
+  test.afterAll(async () => {
+    await adminApi.dispose();
+  });
 
   test("TC0061a: 角色列表页面正常加载", async ({ adminPage }) => {
     const rolePage = new RolePage(adminPage);
@@ -70,141 +155,134 @@ test.describe("TC0061 角色管理 CRUD", () => {
   });
 
   test("TC0061c: 创建新角色", async ({ adminPage }) => {
+    const role = buildRoleIdentity("create");
     const rolePage = new RolePage(adminPage);
-    await rolePage.goto();
+    try {
+      await rolePage.goto();
 
-    await rolePage.createRole({
-      name: testRoleName,
-      code: testRoleCode,
-      sort: 999,
-      remark: "E2E测试角色",
-    });
+      await rolePage.createRole({
+        code: role.code,
+        name: role.name,
+        remark: "E2E测试角色",
+        sort: 999,
+      });
 
-    // 等待抽屉关闭表示提交完成
-    await rolePage.waitForDrawerHidden(15000);
+      // 等待抽屉关闭表示提交完成
+      await rolePage.waitForDrawerHidden(15000);
 
-    // 验证角色已创建
-    await rolePage.searchRole(testRoleName);
-    const hasRole = await rolePage.hasRole(testRoleName);
-    expect(hasRole).toBeTruthy();
+      // 验证角色已创建
+      await rolePage.searchRole(role.name);
+      const hasRole = await rolePage.hasRole(role.name);
+      expect(hasRole).toBeTruthy();
+    } finally {
+      await cleanupRolesByName(adminApi, role.name);
+    }
   });
 
   test("TC0061d: 编辑角色", async ({ adminPage }) => {
+    const role = buildRoleIdentity("edit");
+    const newName = `${role.name}_edited`;
+    await createRoleFixture(adminApi, role);
+
     const rolePage = new RolePage(adminPage);
-    await rolePage.goto();
+    try {
+      await rolePage.goto();
+      await rolePage.searchRole(role.name);
+      await expect(
+        adminPage.locator(".vxe-body--row", { hasText: role.name }).first(),
+      ).toBeVisible();
 
-    // 先确保测试角色存在
-    await rolePage.searchRole(testRoleName);
-    let hasRole = await rolePage.hasRole(testRoleName);
-    if (!hasRole) {
-      await rolePage.resetSearch();
-      await rolePage.createRole({
-        name: testRoleName,
-        code: testRoleCode,
-        sort: 999,
-      });
+      // 编辑角色
+      await rolePage.editRole(role.name, newName);
+
+      // 等待抽屉关闭
+      await rolePage.waitForDrawerHidden();
+
+      // 验证编辑成功
+      await rolePage.goto();
+      await rolePage.searchRole(newName);
+      const hasRole = await rolePage.hasRole(newName);
+      expect(hasRole).toBeTruthy();
+    } finally {
+      await cleanupRolesByName(adminApi, role.name, newName);
     }
-
-    // 编辑角色
-    const newName = `${testRoleName}_edited`;
-    await rolePage.editRole(testRoleName, newName);
-
-    // 等待抽屉关闭
-    await rolePage.waitForDrawerHidden();
-
-    // 验证编辑成功
-    await rolePage.goto();
-    await rolePage.searchRole(newName);
-    hasRole = await rolePage.hasRole(newName);
-    expect(hasRole).toBeTruthy();
-
-    // 更新测试变量以便后续测试使用
-    (test as any).testRoleName = newName;
   });
 
   test("TC0061e: 角色状态切换", async ({ adminPage }) => {
+    const role = buildRoleIdentity("status");
+    await createRoleFixture(adminApi, role);
+
     const rolePage = new RolePage(adminPage);
-    await rolePage.goto();
+    try {
+      await rolePage.goto();
+      await rolePage.searchRole(role.name);
+      await expect(
+        adminPage.locator(".vxe-body--row", { hasText: role.name }).first(),
+      ).toBeVisible();
 
-    // 使用编辑后的角色名
-    const currentRoleName = (test as any).testRoleName || testRoleName;
+      // 获取当前状态
+      const switchEl = adminPage.locator(".vxe-body--row .ant-switch").first();
+      const initialState = await switchEl.getAttribute("aria-checked");
 
-    await rolePage.searchRole(currentRoleName);
-    const hasRole = await rolePage.hasRole(currentRoleName);
-    if (!hasRole) {
-      // 角色不存在，跳过测试
-      test.skip();
-      return;
+      // 切换状态
+      await rolePage.toggleStatus(role.name);
+
+      // 验证状态已改变
+      const newState = await switchEl.getAttribute("aria-checked");
+      expect(newState).not.toBe(initialState);
+
+      // 恢复原状态
+      await rolePage.toggleStatus(role.name);
+    } finally {
+      await cleanupRolesByName(adminApi, role.name);
     }
-
-    // 获取当前状态
-    const switchEl = adminPage.locator(".vxe-body--row .ant-switch").first();
-    const initialState = await switchEl.getAttribute("aria-checked");
-
-    // 切换状态
-    await rolePage.toggleStatus(currentRoleName);
-
-    // 验证状态已改变
-    const newState = await switchEl.getAttribute("aria-checked");
-    expect(newState).not.toBe(initialState);
-
-    // 恢复原状态
-    await rolePage.toggleStatus(currentRoleName);
   });
 
   test("TC0061f: 角色菜单分配", async ({ adminPage }) => {
+    const role = buildRoleIdentity("menus");
+    await createRoleFixture(adminApi, role);
+
     const rolePage = new RolePage(adminPage);
-    await rolePage.goto();
+    try {
+      await rolePage.goto();
+      await rolePage.searchRole(role.name);
+      await expect(
+        adminPage.locator(".vxe-body--row", { hasText: role.name }).first(),
+      ).toBeVisible();
 
-    const currentRoleName = (test as any).testRoleName || testRoleName;
+      // 编辑角色并分配菜单
+      await rolePage.assignMenusToRole(role.name, ["权限管理"]);
 
-    await rolePage.searchRole(currentRoleName);
-    let hasRole = await rolePage.hasRole(currentRoleName);
-    if (!hasRole) {
-      await rolePage.resetSearch();
-      await rolePage.searchRole(currentRoleName);
-      hasRole = await rolePage.hasRole(currentRoleName);
-      if (!hasRole) {
-        test.skip();
-        return;
-      }
+      // 等待抽屉关闭
+      await rolePage.waitForDrawerHidden();
+    } finally {
+      await cleanupRolesByName(adminApi, role.name);
     }
-
-    // 编辑角色并分配菜单
-    await rolePage.assignMenusToRole(currentRoleName, ["权限管理"]);
-
-    // 等待抽屉关闭
-    await rolePage.waitForDrawerHidden();
   });
 
   test("TC0061g: 删除角色", async ({ adminPage }) => {
+    const role = buildRoleIdentity("delete");
+    await createRoleFixture(adminApi, role);
+
     const rolePage = new RolePage(adminPage);
-    await rolePage.goto();
+    try {
+      await rolePage.goto();
+      await rolePage.searchRole(role.name);
+      await expect(
+        adminPage.locator(".vxe-body--row", { hasText: role.name }).first(),
+      ).toBeVisible();
 
-    const currentRoleName = (test as any).testRoleName || testRoleName;
+      // 删除角色
+      await rolePage.deleteRole(role.name);
 
-    // 先搜索确保角色存在
-    await rolePage.searchRole(currentRoleName);
-    let hasRole = await rolePage.hasRole(currentRoleName);
-    if (!hasRole) {
-      await rolePage.resetSearch();
-      await rolePage.searchRole(currentRoleName);
-      hasRole = await rolePage.hasRole(currentRoleName);
-      if (!hasRole) {
-        // 角色不存在，跳过
-        test.skip();
-        return;
-      }
+      // 验证角色已删除
+      await rolePage.goto();
+      await rolePage.searchRole(role.name);
+      const hasRole = await rolePage.hasRole(role.name);
+      expect(hasRole).toBeFalsy();
+    } finally {
+      await cleanupRolesByName(adminApi, role.name);
     }
-
-    // 删除角色
-    await rolePage.deleteRole(currentRoleName);
-
-    // 验证角色已删除
-    await rolePage.goto();
-    await rolePage.searchRole(currentRoleName);
-    hasRole = await rolePage.hasRole(currentRoleName);
-    expect(hasRole).toBeFalsy();
   });
 
   test("TC0061h: 角色搜索功能", async ({ adminPage }) => {

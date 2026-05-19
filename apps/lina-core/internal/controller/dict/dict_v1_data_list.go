@@ -1,11 +1,16 @@
+// This file maps dictionary data and type list projections into public API DTOs,
+// including shared status and tenant-override contract fields.
+
 package dict
 
 import (
 	"context"
 
 	v1 "lina-core/api/dict/v1"
-	"lina-core/internal/model/entity"
 	dictsvc "lina-core/internal/service/dict"
+	"lina-core/pkg/apitime"
+	"lina-core/pkg/statusflag"
+	"lina-core/pkg/tenantoverride"
 )
 
 // DataList returns dictionary data list.
@@ -27,40 +32,51 @@ func (c *ControllerV1) DataList(ctx context.Context, req *v1.DataListReq) (res *
 	return &v1.DataListRes{List: list, Total: out.Total}, nil
 }
 
-// dictDataItem maps a dictionary data entity to the API-safe response DTO.
-func dictDataItem(row *entity.SysDictData) v1.DictDataItem {
-	if row == nil {
+// dictDataItem maps a dictionary data projection to the API-safe response DTO.
+func dictDataItem(row *dictsvc.DictDataProjection) v1.DictDataItem {
+	if row == nil || row.SysDictData == nil {
 		return v1.DictDataItem{}
 	}
 	return v1.DictDataItem{
-		Id:        row.Id,
-		DictType:  row.DictType,
-		Label:     row.Label,
-		Value:     row.Value,
-		Sort:      row.Sort,
-		TagStyle:  row.TagStyle,
-		CssClass:  row.CssClass,
-		Status:    row.Status,
-		IsBuiltin: row.IsBuiltin,
-		Remark:    row.Remark,
-		CreatedAt: row.CreatedAt,
-		UpdatedAt: row.UpdatedAt,
+		Id:             row.Id,
+		DictType:       row.DictType,
+		Label:          row.Label,
+		Value:          row.Value,
+		Sort:           row.Sort,
+		TagStyle:       row.TagStyle,
+		CssClass:       row.CssClass,
+		Status:         statusflag.Enabled(row.Status),
+		IsBuiltin:      statusflag.YesNo(row.IsBuiltin),
+		Remark:         row.Remark,
+		SourceTenantId: row.SourceTenantId,
+		IsFallback:     row.IsFallback,
+		CanEdit:        row.CanEdit,
+		CanOverride:    row.CanOverride,
+		OverrideMode:   tenantoverride.Mode(row.OverrideMode),
+		CreatedAt:      apitime.Milli(row.CreatedAt),
+		UpdatedAt:      apitime.Milli(row.UpdatedAt),
 	}
 }
 
-// dictTypeItem maps a dictionary type entity to the API-safe response DTO.
-func dictTypeItem(row *entity.SysDictType) v1.DictTypeItem {
-	if row == nil {
+// dictTypeItem maps a dictionary type projection to the API-safe response DTO.
+func dictTypeItem(row *dictsvc.DictTypeProjection) v1.DictTypeItem {
+	if row == nil || row.SysDictType == nil {
 		return v1.DictTypeItem{}
 	}
 	return v1.DictTypeItem{
-		Id:        row.Id,
-		Name:      row.Name,
-		Type:      row.Type,
-		Status:    row.Status,
-		IsBuiltin: row.IsBuiltin,
-		Remark:    row.Remark,
-		CreatedAt: row.CreatedAt,
-		UpdatedAt: row.UpdatedAt,
+		Id:                  row.Id,
+		Name:                row.Name,
+		Type:                row.Type,
+		Status:              statusflag.Enabled(row.Status),
+		IsBuiltin:           statusflag.YesNo(row.IsBuiltin),
+		AllowTenantOverride: row.AllowTenantOverride,
+		Remark:              row.Remark,
+		SourceTenantId:      row.SourceTenantId,
+		IsFallback:          row.IsFallback,
+		CanEdit:             row.CanEdit,
+		CanOverride:         row.CanOverride,
+		OverrideMode:        tenantoverride.Mode(row.OverrideMode),
+		CreatedAt:           apitime.Milli(row.CreatedAt),
+		UpdatedAt:           apitime.Milli(row.UpdatedAt),
 	}
 }

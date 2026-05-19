@@ -44,7 +44,7 @@ func (s *serviceImpl) RegisterHTTPRoutes(
 			manifest.ID,
 			checker,
 			middlewares,
-			s.hostServices,
+			pluginhost.HostServicesForPlugin(s.hostServices, manifest.ID),
 		)
 		for _, handler := range sourcePlugin.GetRouteRegistrars() {
 			if handler == nil || handler.Handler == nil {
@@ -79,7 +79,7 @@ func (s *serviceImpl) RegisterCrons(ctx context.Context) error {
 			manifest.ID,
 			checker,
 			s.buildPrimaryNodeChecker(),
-			s.hostServices,
+			pluginhost.HostServicesForPlugin(s.hostServices, manifest.ID),
 		)
 		for _, handler := range sourcePlugin.GetCronRegistrars() {
 			if handler == nil || handler.Handler == nil {
@@ -626,7 +626,8 @@ func (s *serviceImpl) executeSourcePluginHookHandler(
 
 	execute := func(executeCtx context.Context, values map[string]interface{}, async bool) {
 		startedAt := gtime.Now()
-		if err := item.Handler(executeCtx, pluginhost.NewHookPayloadWithServices(item.Point, values, s.hostServices)); err != nil {
+		hostServices := pluginhost.HostServicesForPlugin(s.hostServices, pluginID)
+		if err := item.Handler(executeCtx, pluginhost.NewHookPayloadWithServices(item.Point, values, hostServices)); err != nil {
 			if async {
 				logger.Warningf(executeCtx, "plugin async callback hook failed plugin=%s event=%s cost=%s err=%v", pluginID, item.Point, gtime.Now().Sub(startedAt), err)
 				return

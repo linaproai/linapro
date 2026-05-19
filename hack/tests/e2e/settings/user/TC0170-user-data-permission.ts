@@ -39,7 +39,7 @@ type RoleUserItem = {
 };
 
 const password = "test123456";
-const pluginID = "org-center";
+const pluginID = "linapro-org-core";
 
 async function ensurePluginEnabled(api: APIRequestContext, id: string) {
   await syncPlugins(api);

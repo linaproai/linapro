@@ -3,9 +3,7 @@
 ## Purpose
 
 定义配置管理行为，包括本地化导入/导出元数据、内置参数展示和系统拥有记录的删除保护。
-
 ## Requirements
-
 ### Requirement:配置导出和导入表头必须通过翻译键按当前语言解析
 
 系统 SHALL 在配置 Excel 导出和导入流程中通过 `config.field.<name>` 翻译键按当前请求语言解析列头（`name`、`key`、`value`、`remark`、`createdAt`、`updatedAt`）。后端 Go 源码不得维护字面的英文/中文表头映射。新增语言只需在 `apps/lina-core/manifest/i18n/<locale>/*.json` 下添加对应的 `config.field.*` 资源。
@@ -93,3 +91,81 @@
 - **当** 节点无法读取共享修订号且其本地运行时参数快照超过故障窗口时
 - **则** 系统返回可见错误或按该参数域声明的策略降级
 - **且** 系统不得无限期静默使用旧参数快照
+
+### Requirement: 运行时配置 revision 必须使用 Redis coordination
+系统 SHALL 在集群模式下通过 Redis revision/event 协调受保护运行时参数变更。`sys_config` 仍为权威数据源，Redis 仅承载 revision 和失效事件。
+
+#### Scenario: 修改 JWT 过期配置
+- **WHEN** 管理员修改 `sys.jwt.expire`
+- **THEN** 系统提交 `sys_config` 权威数据
+- **AND** 发布 `runtime-config` Redis revision
+- **AND** 其他节点刷新运行时参数快照
+
+#### Scenario: 修改会话超时配置
+- **WHEN** 管理员修改 `sys.session.timeout`
+- **THEN** 系统发布 `runtime-config` Redis revision
+- **AND** 新请求使用更新后的会话超时策略
+
+### Requirement: 运行时配置 freshness 不可确认时必须返回可见错误
+系统 SHALL 在读取受保护运行时参数前确认本地快照 freshness。当 Redis revision 不可读取且本地快照超过最大陈旧窗口时，系统 MUST 返回结构化错误，不得静默使用陈旧配置。
+
+#### Scenario: Redis runtime-config revision 不可读
+- **WHEN** 请求路径需要读取受保护运行时参数
+- **AND** Redis revision 不可读
+- **AND** 本地运行时参数快照超过最大陈旧窗口
+- **THEN** 系统返回结构化配置 freshness 错误
+- **AND** 记录可观测日志
+
+### Requirement: 单机运行时配置保持本地 revision
+系统 SHALL 在单机模式下使用进程内 revision 管理运行时参数快照失效，不得要求 Redis。
+
+#### Scenario: 单机修改运行时配置
+- **WHEN** `cluster.enabled=false`
+- **AND** 管理员修改受保护运行时参数
+- **THEN** 系统更新进程内 revision
+- **AND** 当前进程清理本地运行时参数快照
+
+### Requirement: 租户参数 fallback 行必须返回来源和动作元数据
+
+租户上下文查询参数设置列表时，系统 SHALL 对平台默认 fallback 行返回来源和动作元数据，使调用方能区分“当前租户覆盖值”和“继承平台默认值”。元数据至少包含 `sourceTenantId`、`isFallback`、`canEdit`、`canOverride` 和 `overrideMode`。租户上下文不得把平台 fallback 行伪装成可直接编辑的本租户记录。
+
+#### Scenario: 租户看到平台 fallback 参数
+
+- **WHEN** 租户 A 未覆盖某个内置参数
+- **AND** 参数列表通过平台默认值 fallback 返回该参数
+- **THEN** 响应行包含 `sourceTenantId = 0`
+- **AND** `isFallback = true`
+- **AND** `canEdit = false`
+- **AND** 删除和直接编辑操作不得在前端展示为可执行动作
+
+#### Scenario: 租户看到本租户覆盖参数
+
+- **WHEN** 租户 A 已覆盖某个参数
+- **THEN** 响应行包含 `sourceTenantId = A`
+- **AND** `isFallback = false`
+- **AND** `canEdit` 根据当前用户权限和内置保护规则计算
+
+#### Scenario: 平台上下文查看平台默认参数
+
+- **WHEN** 平台管理员在平台上下文查询参数列表
+- **THEN** 平台默认参数行不标记为租户 fallback
+- **AND** `canEdit` 按平台参数管理权限和内置保护规则计算
+
+### Requirement: 参数 fallback 动作必须避免必失败详情请求
+
+前端 SHALL 使用参数行的动作元数据决定操作按钮。对 `isFallback = true` 且 `canEdit = false` 的行，前端不得显示会调用当前租户详情编辑接口且必然返回 not found 的编辑入口。若 `canOverride = true`，前端 MAY 显示创建租户覆盖入口，但该入口 MUST 调用明确的覆盖创建流程。
+
+#### Scenario: fallback 参数行不显示直接编辑
+
+- **WHEN** 租户用户在参数列表看到平台 fallback 行
+- **AND** 该行 `canEdit = false`
+- **THEN** 前端不显示直接编辑按钮
+- **AND** 用户不会触发返回“参数设置不存在”的详情请求
+
+#### Scenario: fallback 参数行允许创建覆盖
+
+- **WHEN** 租户用户看到 `canOverride = true` 且 `overrideMode = createTenantOverride` 的 fallback 参数行
+- **THEN** 前端显示的覆盖入口必须表达为创建租户覆盖
+- **AND** 保存后创建或更新当前租户的参数覆盖记录
+- **AND** 缓存失效范围限定为当前租户和该参数键
+

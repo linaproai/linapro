@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"lina-core/api/plugin/v1"
+	"lina-core/pkg/statusflag"
 )
 
 // DynamicList returns public dynamic-plugin states for shell slot rendering.
@@ -20,12 +21,12 @@ func (c *ControllerV1) DynamicList(ctx context.Context, req *v1.DynamicListReq) 
 	for _, item := range out.List {
 		items = append(items, &v1.PluginDynamicItem{
 			Id:           item.Id,
-			Installed:    item.Installed,
-			Enabled:      item.Enabled,
+			Installed:    statusflag.Installation(item.Installed),
+			Enabled:      statusflag.Enabled(item.Enabled),
 			Version:      item.Version,
 			Generation:   item.Generation,
 			StatusKey:    item.StatusKey,
-			RuntimeState: item.RuntimeState.String(),
+			RuntimeState: v1.RuntimeState(item.RuntimeState.String()),
 		})
 	}
 	return &v1.DynamicListRes{List: items}, nil

@@ -42,7 +42,7 @@
 当源码插件后端添加或更改用户可见错误、导出文本、页面摘要、演示提示或业务投影文本时，对应的运行时 i18n 资源 SHALL 存放在该插件自己的 `manifest/i18n/<locale>/*.json` 文件中。
 
 #### Scenario:插件业务错误由插件资源本地化
-- **当** `org-center`、`content-notice`、`monitor-loginlog`、`monitor-operlog`、`plugin-demo-source`、`plugin-demo-dynamic` 或其他源码插件添加业务错误时
+- **当** `linapro-org-core`、`linapro-content-notice`、`linapro-monitor-loginlog`、`linapro-monitor-operlog`、`linapro-demo-source`、`linapro-demo-dynamic` 或其他源码插件添加业务错误时
 - **则** 错误定义使用稳定的插件命名空间代码和消息键
 - **且** 在该插件目录中维护 `zh-CN`、`en-US` 和 `zh-TW` 翻译资源
 - **且** lina-core 运行时语言包不得集中拥有插件业务错误翻译

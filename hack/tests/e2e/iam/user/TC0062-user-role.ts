@@ -7,7 +7,7 @@ import { UserPage } from '../../../pages/UserPage';
 
 test.describe('TC0062 用户角色关联', () => {
   test.beforeEach(async ({ adminPage }) => {
-    await ensureSourcePluginEnabled(adminPage, 'org-center');
+    await ensureSourcePluginEnabled(adminPage, 'linapro-org-core');
   });
 
   const testPassword = 'test123456';

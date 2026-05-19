@@ -102,6 +102,9 @@ func (s *runtimeParamAuthTestHostServices) Auth() plugincontract.AuthService { r
 // BizCtx returns no bizctx service for auth runtime-parameter tests.
 func (s *runtimeParamAuthTestHostServices) BizCtx() plugincontract.BizCtxService { return nil }
 
+// Cache returns no cache service for auth runtime-parameter tests.
+func (s *runtimeParamAuthTestHostServices) Cache() plugincontract.CacheService { return nil }
+
 // Config returns the test host configuration service.
 func (s *runtimeParamAuthTestHostServices) Config() plugincontract.ConfigService {
 	if s == nil {

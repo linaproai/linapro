@@ -53,7 +53,7 @@
     }
   },
   "plugin": {
-    "org-center": {
+    "linapro-org-core": {
       "name": "组织中心"
     }
   }
@@ -70,8 +70,8 @@
 | 字典选项标签   | `dict.<dict_type>.<value>.label`                              | `dict.sys_normal_disable.1.label`         |
 | 配置元数据     | `config.<config_key>.name`                                    | `config.sys.account.captchaEnabled.name`  |
 | 公共前端文案   | `publicFrontend.<group>.<field>`                              | `publicFrontend.login.title`              |
-| 插件名称       | `plugin.<plugin_id>.name`                                     | `plugin.org-center.name`                  |
-| 插件描述       | `plugin.<plugin_id>.description`                              | `plugin.org-center.description`           |
+| 插件名称       | `plugin.<plugin_id>.name`                                     | `plugin.linapro-org-core.name`                  |
+| 插件描述       | `plugin.<plugin_id>.description`                              | `plugin.linapro-org-core.description`           |
 | 语言显示名     | `locale.<locale>.name`                                        | `locale.en-US.name`                       |
 | 语言原生名     | `locale.<locale>.nativeName`                                  | `locale.en-US.nativeName`                 |
 | 校验或错误消息 | `validation.<module>.<field>.<rule>`或`error.<module>.<code>` | `validation.auth.login.username.required` |
@@ -169,7 +169,7 @@ make i18n.check
     }
   },
   "plugin": {
-    "org-center": {
+    "linapro-org-core": {
       "name": "组织中心",
       "description": "部门、岗位与层级治理"
     }

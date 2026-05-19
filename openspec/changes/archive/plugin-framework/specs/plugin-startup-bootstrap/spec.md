@@ -62,3 +62,51 @@ The system SHALL maintain consistency between plugin lifecycle writes and the sh
 - **AND** `plugin.autoEnable` contains a source plugin that is installed but not enabled
 - **THEN** the enable phase must reuse the installed state from the current startup snapshot
 - **AND** the enable must synchronize the current startup snapshot's enabled-state projection after completion
+
+### Requirement: Startup Auto-Enable Must Resolve and Install Auto Dependencies
+
+`BootstrapAutoEnable(ctx)` SHALL execute dependency checks for plugins listed in `plugin.autoEnable`. For dependencies that are discovered, version-satisfied, not yet installed, and declared as `required: true` with `install: auto`, the startup auto-enable must complete dependency installation in deterministic topological order before installing the target plugin.
+
+#### Scenario: Install dependencies before auto-enabling target plugin
+- **WHEN** `plugin.autoEnable` contains plugin `x`
+- **AND** `x` declares auto-install hard dependency `a`
+- **AND** `a` is not yet installed
+- **THEN** startup bootstrap first installs `a`
+- **AND** startup bootstrap then installs and enables `x`
+
+#### Scenario: Startup dependency version not satisfied blocks startup
+- **WHEN** `plugin.autoEnable` contains plugin `x`
+- **AND** `x`'s hard dependency version is not satisfied
+- **THEN** host startup fails
+- **AND** the error contains the target plugin, dependency plugin, and version requirement
+
+### Requirement: Startup Auto-Enable Must Not Implicitly Enable Dependency Plugins
+
+The startup auto-enable flow SHALL only enable plugins explicitly listed in `plugin.autoEnable`. Plugins installed via dependency relationships must not be automatically enabled because they were installed as dependencies, unless the dependency plugin itself also appears in `plugin.autoEnable`.
+
+#### Scenario: Dependency plugin not in auto-enable list
+- **WHEN** plugin `a` is installed as an auto dependency of plugin `x`
+- **AND** `a` is not in `plugin.autoEnable`
+- **THEN** startup bootstrap only ensures `a` is installed
+- **AND** startup bootstrap must not enable `a`
+
+#### Scenario: Dependency plugin also in auto-enable list
+- **WHEN** plugin `a` is installed as an auto dependency of plugin `x`
+- **AND** `a` is also in `plugin.autoEnable`
+- **THEN** startup bootstrap ensures `a` is enabled after dependency installation completes
+
+### Requirement: Cluster Mode Startup Dependency Installation Must Respect Primary Node Side-Effect Boundary
+
+In cluster mode, dependency installation triggered by startup auto-enable SHALL respect existing plugin lifecycle primary node boundaries. Shared installation, menu writes, release switches, and state advancement can only be executed by the primary node; follower nodes must wait for shared state and refresh local projections.
+
+#### Scenario: Primary node installs auto dependencies
+- **WHEN** in cluster mode the primary node executes `BootstrapAutoEnable`
+- **AND** the auto-enable target plugin requires installing dependency plugins
+- **THEN** the primary node executes dependency plugin installation side effects
+- **AND** the primary node publishes runtime revision or equivalent events for affected plugins
+
+#### Scenario: Follower node waits for dependency installation result
+- **WHEN** in cluster mode a follower node executes `BootstrapAutoEnable`
+- **AND** the auto-enable target plugin's dependency has not completed installation in shared state
+- **THEN** the follower node waits for primary node convergence or wait window timeout
+- **AND** the follower node must not duplicate dependency installation SQL or shared state writes

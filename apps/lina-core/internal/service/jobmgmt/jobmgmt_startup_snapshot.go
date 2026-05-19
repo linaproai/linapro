@@ -5,6 +5,7 @@ package jobmgmt
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/gogf/gf/v2/util/gconv"
@@ -21,7 +22,7 @@ type startupDataSnapshotContextKey struct{}
 // startupDataSnapshot contains full-table snapshots for job groups and
 // built-in scheduled jobs used during startup reconciliation.
 type startupDataSnapshot struct {
-	groupsByCode             map[string]*entity.SysJobGroup
+	groupsByTenantCode       map[string]*entity.SysJobGroup
 	builtinJobsByID          map[int64]*entity.SysJob
 	builtinJobsByHandlerRef  map[string]*entity.SysJob
 	builtinJobsByGroupName   map[string]*entity.SysJob
@@ -67,7 +68,7 @@ func (s *serviceImpl) buildStartupDataSnapshot(ctx context.Context) (*startupDat
 	}
 
 	snapshot := &startupDataSnapshot{
-		groupsByCode:             make(map[string]*entity.SysJobGroup, len(groups)),
+		groupsByTenantCode:       make(map[string]*entity.SysJobGroup, len(groups)),
 		builtinJobsByID:          make(map[int64]*entity.SysJob, len(jobs)),
 		builtinJobsByHandlerRef:  make(map[string]*entity.SysJob, len(jobs)),
 		builtinJobsByGroupName:   make(map[string]*entity.SysJob, len(jobs)),
@@ -77,7 +78,7 @@ func (s *serviceImpl) buildStartupDataSnapshot(ctx context.Context) (*startupDat
 		if group == nil || strings.TrimSpace(group.Code) == "" {
 			continue
 		}
-		snapshot.groupsByCode[strings.TrimSpace(group.Code)] = group
+		snapshot.groupsByTenantCode[groupTenantCodeKey(group.TenantId, group.Code)] = group
 	}
 	for _, job := range jobs {
 		snapshot.storeBuiltinJob(job)
@@ -98,12 +99,12 @@ func startupDataSnapshotFromContext(ctx context.Context) *startupDataSnapshot {
 	return snapshot
 }
 
-// groupByCode returns one scheduled-job group from the startup snapshot.
-func (s *startupDataSnapshot) groupByCode(code string) *entity.SysJobGroup {
+// groupByTenantAndCode returns one scheduled-job group from the startup snapshot.
+func (s *startupDataSnapshot) groupByTenantAndCode(tenantID int, code string) *entity.SysJobGroup {
 	if s == nil {
 		return nil
 	}
-	return s.groupsByCode[strings.TrimSpace(code)]
+	return s.groupsByTenantCode[groupTenantCodeKey(tenantID, code)]
 }
 
 // builtinJobByHandlerRef returns one built-in job by handler reference.
@@ -173,6 +174,7 @@ func (s *startupDataSnapshot) deleteBuiltinJob(jobID int64) {
 func buildBuiltinJobEntity(jobID int64, record do.SysJob) *entity.SysJob {
 	return &entity.SysJob{
 		Id:                   jobID,
+		TenantId:             gconv.Int(record.TenantId),
 		GroupId:              gconv.Int64(record.GroupId),
 		Name:                 gconv.String(record.Name),
 		Description:          gconv.String(record.Description),
@@ -198,4 +200,9 @@ func buildBuiltinJobEntity(jobID int64, record do.SysJob) *entity.SysJob {
 		CreatedBy:            gconv.Int64(record.CreatedBy),
 		UpdatedBy:            gconv.Int64(record.UpdatedBy),
 	}
+}
+
+// groupTenantCodeKey builds the startup snapshot key for one tenant-owned group code.
+func groupTenantCodeKey(tenantID int, code string) string {
+	return fmt.Sprintf("%d:%s", tenantID, strings.TrimSpace(code))
 }

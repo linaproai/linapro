@@ -1248,6 +1248,8 @@
     "login": {
       "selectTenant": "选择租户",
       "selectTenantSubtitle": "请选择本次要进入的租户，系统将根据所选租户加载对应的工作台和权限。",
+      "enteringTenant": "正在进入租户",
+      "enteringTenantSubtitle": "正在加载租户工作台与权限，请稍候。",
       "enterTenant": "进入租户"
     },
     "impersonation": {

@@ -50,8 +50,8 @@ export interface JobRecord {
   seedVersion: number;
   createdBy: number;
   updatedBy: number;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: number | null;
+  updatedAt: number | null;
   groupCode: string;
   groupName: string;
 }
@@ -122,13 +122,13 @@ export interface JobLogRecord {
   nodeId: string;
   trigger: JobTrigger;
   paramsSnapshot: string;
-  startAt: string;
-  endAt: string;
+  startAt: number | null;
+  endAt: number | null;
   durationMs: number;
   status: JobLogStatus;
   errMsg: string;
   resultJson: string;
-  createdAt: string;
+  createdAt: number | null;
   jobName: string;
 }
 

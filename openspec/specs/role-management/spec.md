@@ -3,9 +3,7 @@
 ## Purpose
 
 定义角色查询、维护、权限分配、状态控制、用户分配、插件菜单授权、本地化种子展示行为、批量删除和分布式权限缓存失效。
-
 ## Requirements
-
 ### Requirement:角色列表和详情查询
 
 系统 SHALL 提供分页角色列表和详情 API，返回角色标识、权限键、排序、数据范围、状态、备注、时间戳以及适用时的已分配菜单 ID。
@@ -120,7 +118,7 @@
 
 #### Scenario:组织能力未启用时隐藏本部门数据选项
 
-- **当** `org-center` 未安装、未启用或组织能力 provider 不可用时
+- **当** `linapro-org-core` 未安装、未启用或组织能力 provider 不可用时
 - **且** 管理员打开角色新增或编辑表单
 - **则** 数据权限选项中不允许选择本部门数据范围
 - **且** 新建角色默认使用全部数据或仅本人数据中的可用选项
@@ -248,3 +246,73 @@
 - **当** 受保护 API 验证权限、无法确认本地权限快照新鲜度且超过故障窗口时
 - **则** 系统按失败关闭策略拒绝请求
 - **且** 系统不得因旧的本地权限快照而继续允许不确定的权限
+
+### Requirement: 权限拓扑 revision 必须使用 Redis coordination
+系统 SHALL 在集群模式下通过 Redis revision/event 协调权限拓扑变更。角色、菜单、用户角色、角色菜单、插件权限治理等影响权限快照的写路径 MUST 发布 `permission-access` revision。
+
+#### Scenario: 修改角色菜单后跨节点失效
+- **WHEN** 管理员修改角色菜单关联
+- **THEN** 系统发布 `permission-access` Redis revision
+- **AND** 系统发布 cache invalidation event
+- **AND** 其他节点清理本地 token access snapshot
+
+#### Scenario: 修改用户角色后跨节点失效
+- **WHEN** 管理员修改用户角色绑定
+- **THEN** 系统发布 `permission-access` Redis revision
+- **AND** 目标用户在任意节点的后续权限校验使用新权限拓扑
+
+### Requirement: 权限 freshness 不可确认时必须 fail-closed
+系统 SHALL 在集群模式下对权限拓扑 revision 做 freshness 检查。当 Redis revision 不可读取且本地权限缓存超过最大陈旧窗口时，权限校验 MUST fail-closed。
+
+#### Scenario: Redis 权限 revision 不可读
+- **WHEN** 受保护 API 执行权限校验
+- **AND** Redis `permission-access` revision 读取失败
+- **AND** 本地权限 revision 已超过最大陈旧窗口
+- **THEN** 系统拒绝请求
+- **AND** 不得使用可能陈旧的权限快照放行
+
+### Requirement: 权限缓存 key 必须包含租户维度
+系统 SHALL 在 token access snapshot、用户索引和权限 revision 中显式携带租户维度，避免跨租户权限缓存复用。
+
+#### Scenario: 同一用户不同租户权限隔离
+- **WHEN** 用户 U 同时在租户 A 和租户 B 有会话
+- **THEN** 租户 A token 的权限快照不得被租户 B token 复用
+- **AND** 修改租户 A 权限不得失效租户 B 的无关权限快照
+
+### Requirement: 角色授权必须限制为当前上下文可分配权限
+
+系统 SHALL 在角色新增、编辑和角色菜单授权树中使用同一套当前上下文可分配权限集合。租户上下文只能分配当前租户业务允许的菜单和按钮权限；平台租户管理、平台插件治理、全局菜单治理写操作以及其他 platform-only 权限不得出现在租户角色授权树中，也不得通过 API 提交写入租户角色。
+
+#### Scenario: 租户角色授权树排除平台权限
+
+- **WHEN** 租户管理员打开角色新增或编辑抽屉
+- **THEN** 角色菜单授权树不包含平台租户管理菜单和按钮
+- **AND** 不包含插件安装、卸载、同步、上传、安装模式和新租户自动启用策略等平台治理权限
+- **AND** 不包含全局菜单治理写权限
+
+#### Scenario: 租户角色提交平台菜单 ID 被拒绝
+
+- **WHEN** 租户管理员绕过前端调用角色创建或更新接口
+- **AND** 请求 `menuIds` 包含 platform-only 菜单或按钮 ID
+- **THEN** 系统 MUST 拒绝整个角色写入
+- **AND** 不创建或更新 `sys_role_menu` 中任何不允许的授权关系
+- **AND** 返回稳定可本地化业务错误
+
+#### Scenario: 平台上下文可以分配平台治理权限
+
+- **WHEN** 平台管理员处于平台上下文并编辑平台角色
+- **AND** 请求 `menuIds` 包含平台租户管理或插件平台治理权限
+- **THEN** 系统在满足既有角色保护规则后允许写入这些授权
+- **AND** 写入后发布访问拓扑缓存修订号
+
+### Requirement: 异常历史授权不得提升租户访问边界
+
+系统 SHALL 在用户权限解析和受保护 API 边界上保证异常历史授权不会把租户上下文提升为平台上下文。租户角色中已有的 platform-only 菜单关系可以被治理任务后续清理，但在本变更后不得使平台控制面 API 成功。
+
+#### Scenario: 历史 platform-only 授权不授予平台接口访问
+
+- **WHEN** 租户角色历史上已绑定 `system:tenant:list` 对应菜单
+- **AND** 租户用户重新登录获得权限快照
+- **THEN** 平台租户控制面接口仍按平台上下文 guard 拒绝访问
+- **AND** 租户用户不得读取其他租户数据
+

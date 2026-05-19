@@ -17,6 +17,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/pkg/bizerr"
@@ -73,7 +74,10 @@ func applySingleOrder(
 func (s *serviceImpl) defaultGroup(ctx context.Context) (*entity.SysJobGroup, error) {
 	var group *entity.SysJobGroup
 	err := dao.SysJobGroup.Ctx(ctx).
-		Where(do.SysJobGroup{IsDefault: 1}).
+		Where(do.SysJobGroup{
+			TenantId:  datascope.CurrentTenantID(ctx),
+			IsDefault: 1,
+		}).
 		Scan(&group)
 	if err != nil {
 		return nil, err
@@ -88,7 +92,10 @@ func (s *serviceImpl) defaultGroup(ctx context.Context) (*entity.SysJobGroup, er
 func (s *serviceImpl) groupByID(ctx context.Context, id int64) (*entity.SysJobGroup, error) {
 	var group *entity.SysJobGroup
 	err := dao.SysJobGroup.Ctx(ctx).
-		Where(do.SysJobGroup{Id: id}).
+		Where(do.SysJobGroup{
+			Id:       id,
+			TenantId: datascope.CurrentTenantID(ctx),
+		}).
 		Scan(&group)
 	return group, err
 }

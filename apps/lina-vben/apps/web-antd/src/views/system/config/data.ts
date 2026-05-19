@@ -2,6 +2,7 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeGridProps } from '#/adapter/vxe-table';
 
 import { $t } from '#/locales';
+import { formatTimestamp } from '#/utils/time';
 
 /** 查询表单schema */
 export const querySchema: VbenFormSchema[] = [
@@ -44,6 +45,7 @@ export const columns: VxeGridProps['columns'] = [
   {
     title: $t('pages.common.updatedAt'),
     field: 'updatedAt',
+    formatter: ({ cellValue }) => formatTimestamp(cellValue),
   },
   {
     field: 'action',

@@ -46,6 +46,46 @@ The system SHALL provide a unified directory structure and manifest contract for
 - **AND** staging directory updates do not immediately replace the active release
 - **AND** the reloaded manifest includes embedded hooks, resource contracts, and menu metadata
 
+### Requirement: Plugin Manifest Must Validate Plugin ID Safety Boundary
+
+Plugin manifest lifecycle SHALL uniformly validate plugin ID basic safety boundary when loading source plugin manifests, dynamic plugin artifact manifests, and plugin dependency declarations. The validation rules MUST reuse the non-empty, kebab-case, and 64-character length limits defined by the plugin ID governance capability. Runtime validation SHALL NOT enforce `<author>-<domain>-<capability>` recommended structure, domain whitelists, official capability reservations, or old official ID rejection tables. Any plugin ID basic safety validation failure MUST reject the manifest or artifact and return a diagnosable error.
+
+#### Scenario: Source plugin manifest ID validation failure
+- **WHEN** a source plugin `plugin.yaml` declares `id: Monitor_Server`
+- **THEN** the host rejects loading the source plugin manifest
+- **AND** the error states the plugin ID must use kebab-case lowercase letters and digits
+
+#### Scenario: Source plugin registration ID inconsistent with manifest ID
+- **WHEN** a source plugin registration ID is `linapro-monitor-server`
+- **AND** `plugin.yaml` declares `id: linapro-monitor-loginlog`
+- **THEN** the host rejects loading the source plugin
+- **AND** the error states the source plugin registration ID is inconsistent with the manifest ID
+
+#### Scenario: Dynamic plugin artifact manifest ID validation failure
+- **WHEN** an administrator uploads a dynamic plugin artifact
+- **AND** the artifact embedded manifest declares `id: plugin_demo_dynamic`
+- **THEN** the host rejects the artifact
+- **AND** the error states the dynamic plugin ID does not conform to plugin ID basic safety rules
+
+#### Scenario: Plugin dependency declaration uses non-three-segment ID
+- **WHEN** a plugin manifest's `dependencies.plugins[].id` declares `plugin-demo-source`
+- **THEN** the host accepts the dependency declaration
+- **AND** the host must not reject the manifest because it does not satisfy the recommended structure
+
+### Requirement: Plugin Manifest Resource Namespace Must Use Current Plugin ID
+
+Plugin manifest lifecycle SHALL require menus, permissions, runtime i18n, apidoc i18n, cron, and dynamic frontend asset entries declared in the manifest to use the current plugin ID-derived namespace. The host must not automatically derive or backfill these resources from old official IDs.
+
+#### Scenario: Menu key uses old plugin ID
+- **WHEN** plugin `linapro-content-notice` manifest declares menu key `plugin:content-notice:notice`
+- **THEN** the host rejects the manifest
+- **AND** the error states the menu key must use the `plugin:linapro-content-notice:` prefix
+
+#### Scenario: Dynamic plugin menu path uses old asset path
+- **WHEN** dynamic plugin `linapro-demo-dynamic` manifest declares menu path `/plugin-assets/plugin-demo-dynamic/v0.1.0/mount.js`
+- **THEN** the host rejects or governance verification blocks the resource
+- **AND** the error states the dynamic asset path must use `/plugin-assets/linapro-demo-dynamic/`
+
 ### Requirement: Plugin Lifecycle State Machine
 
 The system SHALL provide an auditable plugin lifecycle state machine with distinct semantics for source and dynamic plugins, and allow `plugin.autoEnable` to advance plugins during startup.
@@ -95,6 +135,67 @@ The system SHALL provide an auditable plugin lifecycle state machine with distin
 - **WHEN** an administrator views source plugin management actions
 - **THEN** the host does not show install or uninstall for source plugins
 - **AND** only exposes sync, enable, and disable
+
+### Requirement: Plugin Manifest Lifecycle Must Recognize Dependency Declaration
+
+Plugin manifest discovery, explicit sync, release snapshot, and read-only governance query SHALL preserve and expose plugin `dependencies` declaration. Source plugin and dynamic plugin dependency declarations must use the same structured semantics during manifest validation, sync to release snapshot, and plugin list projection.
+
+#### Scenario: Sync source plugin dependency declaration
+- **WHEN** a source plugin `plugin.yaml` contains `dependencies`
+- **AND** an administrator performs explicit plugin sync
+- **THEN** the system validates the dependency declaration
+- **AND** the system preserves the dependency declaration in the plugin release snapshot
+- **AND** plugin list or detail query can return dependency summary
+
+#### Scenario: Sync dynamic plugin dependency declaration
+- **WHEN** a dynamic plugin artifact manifest contains `dependencies`
+- **AND** the system parses the dynamic plugin artifact
+- **THEN** the system uses the same dependency validation rules as source plugins
+- **AND** the dynamic plugin release snapshot preserves the dependency declaration
+
+### Requirement: Explicit Plugin Install Lifecycle Must Execute Dependency Orchestration
+
+Explicit plugin install requests SHALL call dependency resolution and install orchestration before target plugin install side effects. The system must first execute framework version and plugin dependency checks, then install dependency plugins according to the auto-dependency install plan, and finally install the target plugin.
+
+#### Scenario: Explicit install processes dependencies first
+- **WHEN** an administrator requests installing plugin `x`
+- **AND** `x` has auto-install hard dependency `a`
+- **THEN** the system installs `a` before executing `x`'s install SQL or dynamic runtime coordination
+- **AND** `a` installation succeeds before continuing to install `x`
+
+#### Scenario: Dependency check failure means install has no side effects
+- **WHEN** plugin `x`'s dependency check fails
+- **THEN** the system must not execute `x`'s install SQL
+- **AND** the system must not sync `x`'s menus, permissions, resource references, or install state
+
+### Requirement: Plugin Install Interface Must Return Dependency Plan and Results
+
+Plugin management install interface SHALL support callers obtaining dependency check results, auto-install plans, and auto-install results. On install failure, the error response must express dependency blocker reasons as structured business errors, avoiding reliance on free text alone.
+
+#### Scenario: Install success returns auto-dependency results
+- **WHEN** installing a target plugin auto-installs dependency plugins
+- **THEN** the install response contains the target plugin ID
+- **AND** the install response or subsequent detail query contains the list of successfully auto-installed dependency plugins
+
+#### Scenario: Dependency blocker returns structured error
+- **WHEN** installing a target plugin fails due to dependency version mismatch
+- **THEN** the HTTP response contains a stable business error code
+- **AND** the response contains the target plugin ID, dependency plugin ID, current version, and required version range
+
+### Requirement: Plugin Uninstall Lifecycle Must Check Reverse Dependencies
+
+Plugin uninstall requests SHALL check installed plugins' hard dependencies before executing uninstall side effects. If downstream installed plugins depend on the target, the uninstall lifecycle must block.
+
+#### Scenario: Reverse dependency found before uninstall
+- **WHEN** an administrator requests uninstalling plugin `base`
+- **AND** installed plugin `consumer` hard-depends on `base`
+- **THEN** the system refuses to uninstall `base`
+- **AND** the system returns `consumer` as the downstream dependency
+
+#### Scenario: Reverse dependency reads from release snapshot
+- **WHEN** the currently installed source plugin's workspace manifest is unreadable
+- **THEN** the system preferentially uses the installed release snapshot's dependency declaration for reverse dependency checking
+- **AND** when dependency safety cannot be confirmed, the system adopts a conservative blocking strategy
 
 ### Requirement: Plugin Menu Governance via Manifest Metadata
 

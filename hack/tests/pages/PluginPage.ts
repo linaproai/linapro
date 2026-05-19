@@ -105,83 +105,83 @@ export class PluginPage {
   }
 
   pluginDemoDynamicTitle(): Locator {
-    return this.page.getByTestId("plugin-demo-dynamic-title").first();
+    return this.page.getByTestId("linapro-demo-dynamic-title").first();
   }
 
   pluginDemoDynamicDescription(): Locator {
-    return this.page.getByTestId("plugin-demo-dynamic-description").first();
+    return this.page.getByTestId("linapro-demo-dynamic-description").first();
   }
 
   pluginDemoDynamicOpenStandaloneButton(): Locator {
-    return this.page.getByTestId("plugin-demo-dynamic-open-standalone").first();
+    return this.page.getByTestId("linapro-demo-dynamic-open-standalone").first();
   }
 
   pluginDemoDynamicRecordGrid(): Locator {
-    return this.page.getByTestId("plugin-demo-dynamic-record-grid").first();
+    return this.page.getByTestId("linapro-demo-dynamic-record-grid").first();
   }
 
   pluginDemoDynamicRecordAddButton(): Locator {
-    return this.page.getByTestId("plugin-demo-dynamic-record-add").first();
+    return this.page.getByTestId("linapro-demo-dynamic-record-add").first();
   }
 
   // Pagination locators keep the runtime demo list assertions readable across
   // the pagination regression scenarios.
   pluginDemoDynamicRecordPagination(): Locator {
     return this.page
-      .getByTestId("plugin-demo-dynamic-record-pagination")
+      .getByTestId("linapro-demo-dynamic-record-pagination")
       .first();
   }
 
   pluginDemoDynamicPaginationSummary(): Locator {
     return this.page
-      .getByTestId("plugin-demo-dynamic-pagination-summary")
+      .getByTestId("linapro-demo-dynamic-pagination-summary")
       .first();
   }
 
   pluginDemoDynamicPaginationPage(pageNumber: number): Locator {
     return this.page
-      .getByTestId(`plugin-demo-dynamic-pagination-page-${pageNumber}`)
+      .getByTestId(`linapro-demo-dynamic-pagination-page-${pageNumber}`)
       .first();
   }
 
   pluginDemoDynamicPaginationPrevButton(): Locator {
-    return this.page.getByTestId("plugin-demo-dynamic-pagination-prev").first();
+    return this.page.getByTestId("linapro-demo-dynamic-pagination-prev").first();
   }
 
   pluginDemoDynamicPaginationNextButton(): Locator {
-    return this.page.getByTestId("plugin-demo-dynamic-pagination-next").first();
+    return this.page.getByTestId("linapro-demo-dynamic-pagination-next").first();
   }
 
   pluginDemoDynamicRecordModal(): Locator {
-    return this.page.getByTestId("plugin-demo-dynamic-record-modal").last();
+    return this.page.getByTestId("linapro-demo-dynamic-record-modal").last();
   }
 
   pluginDemoDynamicRecordTitleInput(): Locator {
     return this.page
-      .getByTestId("plugin-demo-dynamic-record-title-input")
+      .getByTestId("linapro-demo-dynamic-record-title-input")
       .last();
   }
 
   pluginDemoDynamicRecordContentInput(): Locator {
     return this.page
-      .getByTestId("plugin-demo-dynamic-record-content-input")
+      .getByTestId("linapro-demo-dynamic-record-content-input")
       .last();
   }
 
   pluginDemoDynamicRecordFileInput(): Locator {
     return this.page
-      .getByTestId("plugin-demo-dynamic-record-file-input")
+      .getByTestId("linapro-demo-dynamic-record-file-input")
       .last();
   }
 
   pluginDemoDynamicRecordRemoveAttachment(): Locator {
     return this.page
-      .getByTestId("plugin-demo-dynamic-record-remove-attachment")
+      .getByTestId("linapro-demo-dynamic-record-remove-attachment")
       .last();
   }
 
   pluginDemoDynamicRecordSubmitButton(): Locator {
-    return this.page.getByTestId("plugin-demo-dynamic-record-submit").last();
+    return this.page.getByTestId("linapro-demo-dynamic-record-submit").last();
   }
 
   pluginDemoDynamicRecordRow(title: string): Locator {
@@ -563,11 +563,11 @@ export class PluginPage {
   }
 
   headerActionBeforeSlot(): Locator {
-    return this.page.getByText("plugin-demo-source 头部前置扩展").first();
+    return this.page.getByText("linapro-demo-source 头部前置扩展").first();
   }
 
   headerActionAfterSlot(): Locator {
-    return this.page.getByText("plugin-demo-source 头部后置扩展").first();
+    return this.page.getByText("linapro-demo-source 头部后置扩展").first();
   }
 
   pluginSidebarIntroTitle(): Locator {
@@ -578,7 +578,7 @@ export class PluginPage {
 
   pluginSidebarIntroSummary(): Locator {
     return this.page.getByText(
-      "这是一条来自 plugin-demo-source 接口的简要介绍，用于验证源码插件菜单页可读取插件后端数据。",
+      "这是一条来自 linapro-demo-source 接口的简要介绍，用于验证源码插件菜单页可读取插件后端数据。",
     );
   }
 
@@ -587,7 +587,7 @@ export class PluginPage {
   }
 
   pluginSourceRecordAddButton(): Locator {
-    return this.page.getByTestId("plugin-demo-source-record-add").first();
+    return this.page.getByTestId("linapro-demo-source-record-add").first();
   }
 
   pluginSourceRecordModal(): Locator {
@@ -598,41 +598,41 @@ export class PluginPage {
 
   pluginSourceRecordAttachmentAlert(): Locator {
     return this.page
-      .getByTestId("plugin-demo-source-record-attachment-alert")
+      .getByTestId("linapro-demo-source-record-attachment-alert")
       .last();
   }
 
   pluginSourceRecordUploadSection(): Locator {
     return this.page
-      .getByTestId("plugin-demo-source-record-upload-section")
+      .getByTestId("linapro-demo-source-record-upload-section")
       .last();
   }
 
   pluginSourceRecordExistingAttachment(): Locator {
     return this.page
-      .getByTestId("plugin-demo-source-record-existing-attachment")
+      .getByTestId("linapro-demo-source-record-existing-attachment")
       .last();
   }
 
   pluginSourceRecordRemoveAttachmentOption(): Locator {
     return this.page
-      .getByTestId("plugin-demo-source-record-remove-attachment-option")
+      .getByTestId("linapro-demo-source-record-remove-attachment-option")
       .last();
   }
 
   pluginSourceRecordDragger(): Locator {
-    return this.page.getByTestId("plugin-demo-source-record-dragger").last();
+    return this.page.getByTestId("linapro-demo-source-record-dragger").last();
   }
 
   pluginSourceRecordTitleInput(): Locator {
     return this.page
-      .getByTestId("plugin-demo-source-record-title-input")
+      .getByTestId("linapro-demo-source-record-title-input")
       .last();
   }
 
   pluginSourceRecordContentInput(): Locator {
     return this.page
-      .getByTestId("plugin-demo-source-record-content-input")
+      .getByTestId("linapro-demo-source-record-content-input")
       .last();
   }
 
@@ -642,7 +642,7 @@ export class PluginPage {
 
   workspaceBeforeSlot(): Locator {
     return this.page.getByText(
-      "plugin-demo-source 正在通过 `dashboard.workspace.before` 在工作台顶部插入横幅内容。",
+      "linapro-demo-source 正在通过 `dashboard.workspace.before` 在工作台顶部插入横幅内容。",
     );
   }
 
@@ -651,7 +651,7 @@ export class PluginPage {
   }
 
   crudToolbarSlot(): Locator {
-    return this.page.getByText("plugin-demo-source CRUD 扩展").first();
+    return this.page.getByText("linapro-demo-source CRUD 扩展").first();
   }
 
   async gotoManage() {

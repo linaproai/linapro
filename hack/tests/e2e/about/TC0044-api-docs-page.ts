@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 import { test, expect } from '../../fixtures/auth';
 import { PluginPage } from '../../pages/PluginPage';
 
-const sourcePluginID = 'plugin-demo-source';
+const sourcePluginID = 'linapro-demo-source';
 const sourcePluginTag = '源码插件示例';
 const sourcePluginPingSummary = '查询源码插件示例公开 ping';
 

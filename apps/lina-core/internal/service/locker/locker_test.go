@@ -84,7 +84,7 @@ func TestService_Lock_ExistingExpiredLock(t *testing.T) {
 		"name":        name,
 		"reason":      "old reason",
 		"holder":      "other-node",
-		"expire_time": gtime.Now().Add(-10 * time.Second),
+		"expire_time": time.Now().Add(-10 * time.Second),
 	}).Insert()
 	if err != nil {
 		t.Fatal(err)
@@ -115,11 +115,13 @@ func TestService_Lock_ExistingExpiredLock(t *testing.T) {
 // TestIsExpiredLockUsesExpireTime verifies lock takeover decisions are based
 // on expire_time before holder data is reused.
 func TestIsExpiredLockUsesExpireTime(t *testing.T) {
-	now := gtime.Now()
-	if !isExpiredLock(now.Add(-time.Second), now) {
+	now := time.Now()
+	past := now.Add(-time.Second)
+	if !isExpiredLock(&past, now) {
 		t.Fatal("expected past expire_time to be expired")
 	}
-	if isExpiredLock(now.Add(time.Second), now) {
+	future := now.Add(time.Second)
+	if isExpiredLock(&future, now) {
 		t.Fatal("expected future expire_time to remain held")
 	}
 }
@@ -140,7 +142,7 @@ func TestService_Lock_ExistingNonExpiredLock(t *testing.T) {
 		"name":        name,
 		"reason":      "old reason",
 		"holder":      "other-node",
-		"expire_time": gtime.Now().Add(30 * time.Second),
+		"expire_time": time.Now().Add(30 * time.Second),
 	}).Insert()
 	if err != nil {
 		t.Fatal(err)
@@ -328,7 +330,7 @@ func TestService_LockFunc(t *testing.T) {
 		t.Assert(executed, true)
 
 		count, err := g.DB().Model("sys_locker").Where("name", name).
-			WhereGTE("expire_time", gtime.Now()).Count()
+			WhereGTE("expire_time", time.Now()).Count()
 		t.AssertNil(err)
 		t.Assert(count, 0)
 	})
@@ -365,7 +367,7 @@ func TestService_LockFunc_AlreadyLocked(t *testing.T) {
 		"name":        name,
 		"reason":      "other reason",
 		"holder":      "other-node",
-		"expire_time": gtime.Now().Add(30 * time.Second),
+		"expire_time": time.Now().Add(30 * time.Second),
 	}).Insert()
 	if err != nil {
 		t.Fatal(err)

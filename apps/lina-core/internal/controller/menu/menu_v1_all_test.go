@@ -118,7 +118,7 @@ func TestConvertToRouteItemsKeepsRegularViewRouteUnchanged(t *testing.T) {
 		{
 			Id:        104,
 			Name:      "Plugin Demo Source",
-			Path:      "plugin-demo-source-sidebar-entry",
+			Path:      "linapro-demo-source-sidebar-entry",
 			Component: "system/plugin/dynamic-page",
 			Type:      menutype.Menu.String(),
 			IsFrame:   0,
@@ -138,7 +138,7 @@ func TestConvertToRouteItemsKeepsRegularViewRouteUnchanged(t *testing.T) {
 	if route.Meta == nil || route.Meta.IframeSrc != "" || route.Meta.Link != "" {
 		t.Fatalf("expected regular route meta to stay without link semantics, got %#v", route.Meta)
 	}
-	if route.Path != "/plugin-demo-source-sidebar-entry" {
+	if route.Path != "/linapro-demo-source-sidebar-entry" {
 		t.Fatalf("expected normal menu path, got %s", route.Path)
 	}
 }
@@ -196,7 +196,7 @@ func TestConvertToRouteItemsSkipsDirectoryWithoutVisibleChildren(t *testing.T) {
 					Id:       302,
 					ParentId: 301,
 					Name:     "操作日志查看",
-					Path:     "monitor-operlog-view",
+					Path:     "linapro-monitor-operlog-view",
 					Type:     menutype.Button.String(),
 					Visible:  1,
 					Status:   1,

@@ -1,98 +1,69 @@
 ## ADDED Requirements
 
-### Requirement: Host must provide topology-aware cache coordination
+### Requirement: 集群模式缓存协调必须使用 Redis revision
+系统 SHALL 在 `cluster.enabled=true` 时通过 Redis revision store 协调关键缓存域修订号。系统 MUST 不依赖 `sys_cache_revision` 表完成跨节点一致性。
 
-The system SHALL provide unified cache coordination for publishing explicit scoped revisions for any legal cache domain, synchronizing in-process derived caches, and differentiating single-node and cluster strategies according to `cluster.enabled`.
+#### Scenario: 集群模式发布缓存 revision
+- **WHEN** 集群模式下业务写路径发布 `runtime-config` 变更
+- **THEN** 系统递增 Redis revision key
+- **AND** 返回新的 shared revision
+- **AND** 不通过 `sys_cache_revision` 行锁递增作为主实现
 
-#### Scenario: Single-node mode uses local coordination
+#### Scenario: 单机模式本地 revision
+- **WHEN** `cluster.enabled=false` 且业务写路径发布缓存变更
+- **THEN** 系统仅更新进程内 revision
+- **AND** 不连接 Redis
 
-- **WHEN** `cluster.enabled=false` and a business write path publishes a cache change
-- **THEN** the system only updates the local revision in the current process
-- **AND** the corresponding cache domain in the current process is invalidated or refreshed immediately
-- **AND** the system MUST NOT depend on a shared revision table or distributed coordination component
+### Requirement: 集群模式缓存失效必须发布 Redis event
+系统 SHALL 在集群模式下为缓存 revision 变更发布跨节点 event。event MUST 携带 tenant ID、cascade 标记、domain、scope、revision、reason、source node 和创建时间。
 
-#### Scenario: Cluster mode uses shared revisions
+#### Scenario: 权限拓扑失效事件
+- **WHEN** 管理员修改角色权限
+- **THEN** 系统递增 `permission-access` revision
+- **AND** 发布 `cache.invalidate` event
+- **AND** 其他节点收到事件后清理本地 token access snapshot
 
-- **WHEN** `cluster.enabled=true` and a business write path publishes a cache change
-- **THEN** the system persistently increments the shared revision for the corresponding cache domain and scope
-- **AND** all nodes refresh local cache after observing the new revision on a request path or watcher path
-- **AND** revision publishing must be idempotent, retryable, and observable
+#### Scenario: 重复事件幂等
+- **WHEN** 节点收到相同 event 两次
+- **THEN** 节点最多执行一次有效刷新
+- **AND** 最终本地 observed revision 与 shared revision 收敛
 
-### Requirement: Shared cache revisions must be persistent and atomically incremented
+### Requirement: revision 读取必须兜底 Pub/Sub 丢失
+系统 SHALL 保留请求路径或 watcher 的 revision check。即使 Redis event 没有被某个节点收到，该节点也 MUST 能通过读取 Redis revision 判断本地缓存是否陈旧。
 
-The system SHALL store critical cache-domain revisions in persistent shared storage and ensure concurrent increments for the same cache domain and scope are not lost.
+#### Scenario: 节点错过失效事件
+- **WHEN** 节点 B 在节点 A 发布失效事件时短暂离线
+- **AND** 节点 B 恢复后处理请求
+- **THEN** 节点 B 读取 Redis revision
+- **AND** 发现本地 observed revision 落后
+- **AND** 刷新对应本地缓存后继续处理请求
 
-#### Scenario: Concurrent revision publishing for the same scope
+### Requirement: 租户范围必须在 Redis revision 中显式表达
+系统 SHALL 在 Redis revision key 和 event payload 中显式表达 tenant scope。单租户失效、平台默认级联失效和全租户运维失效 MUST 可区分。
 
-- **WHEN** multiple nodes concurrently publish changes for the same cache domain and scope
-- **THEN** the system generates a monotonically increasing revision for every successful publish
-- **AND** the final shared revision increases by at least the number of successful publishes
-- **AND** no node may overwrite another node's increment through a read-modify-write race
+#### Scenario: 单租户失效
+- **WHEN** 租户 A 修改租户级字典覆盖
+- **THEN** Redis revision key 包含租户 A ID
+- **AND** event payload `tenantId=A`
+- **AND** 其他租户缓存不被失效
 
-#### Scenario: Revisions remain available after database restart
+#### Scenario: 平台默认级联失效
+- **WHEN** 平台管理员修改平台默认配置
+- **THEN** event payload 包含 `tenantId=0`
+- **AND** event payload 包含 `cascadeToTenants=true`
+- **AND** 各节点按平台 fallback 语义清理受影响租户视图
 
-- **WHEN** the shared database restarts and recovers
-- **THEN** committed cache revisions still exist
-- **AND** newly started nodes can use persistent revisions to determine whether local cache must be refreshed
+### Requirement: 关键缓存故障必须遵循域策略
+系统 SHALL 在 Redis revision 不可读或刷新失败时按缓存域策略处理。权限缓存 MUST fail-closed；插件运行时缓存 MUST conservative-hide；运行时配置 MUST 返回可见错误或等价结构化错误。
 
-#### Scenario: Lossy cache must not carry critical revisions
+#### Scenario: 权限 revision 超过陈旧窗口
+- **WHEN** 节点无法读取 `permission-access` Redis revision
+- **AND** 本地 observed revision 已超过最大陈旧窗口
+- **THEN** 受保护 API 权限校验失败
+- **AND** 系统不得静默放行请求
 
-- **WHEN** the system publishes revisions for critical cache domains such as permissions, runtime configuration, or plugin runtime
-- **THEN** the system writes to the persistent revision table
-- **AND** MUST NOT store critical revisions in `sys_kv_cache` or any other lossy cache
+#### Scenario: 插件 runtime revision 不可确认
+- **WHEN** 节点无法确认 `plugin-runtime` revision freshness
+- **THEN** 动态插件能力按 conservative-hide 处理
+- **AND** 不得暴露可能已禁用或已卸载的插件入口
 
-### Requirement: Cache-domain policy configuration must not gate usage
-
-The system SHALL allow callers to publish and read revisions for any legal cache-domain string directly. It MUST NOT require prior cache-domain registration before a domain participates in coordination. Critical cache domains SHALL declare authoritative data source, consistency model, invalidation trigger, maximum tolerated staleness, cross-instance synchronization mechanism, and failure fallback in their owning implementation code. Unconfigured domains SHALL use the component default policy.
-
-#### Scenario: Use an unconfigured policy domain
-
-- **WHEN** host module or plugin logic publishes a revision for a new legal cache-domain string
-- **THEN** the system accepts the domain and uses default consistency and failure policy
-- **AND** the caller does not need to modify `cachecoord` component source or delivery manifest to add that domain
-
-#### Scenario: Configure critical cache-domain policy
-
-- **WHEN** a host critical cache domain needs a staleness window or fallback behavior different from the default
-- **THEN** that domain's implementation code configures authoritative source and maximum tolerated staleness
-- **AND** that domain's implementation code configures refresh-failure fallback behavior
-- **AND** review can use that configuration to determine whether the domain satisfies cluster consistency requirements
-
-#### Scenario: Critical cache exceeds staleness window
-
-- **WHEN** a node in cluster mode cannot read the shared revision and local cache exceeds the domain's maximum staleness window
-- **THEN** the system handles the request according to that domain's failure policy
-- **AND** permission caches MUST NOT silently allow requests after the failure window is exceeded
-
-### Requirement: Critical write paths must reliably publish invalidation
-
-Critical write paths for permissions, configuration, plugin runtime stable state, and equivalent domains MUST reliably publish the corresponding cache-domain revision after business data changes succeed. If publishing fails, callers MUST NOT receive silent success.
-
-#### Scenario: Publish cache revision inside the transaction
-
-- **WHEN** the business data change and cache revision publishing can use the same database transaction
-- **THEN** the system commits the business data and revision increment in the same transaction
-- **AND** there is no state where business data commits successfully but the revision is missing
-
-#### Scenario: Publishing failure returns an error
-
-- **WHEN** a critical write path completes business data change but cache revision publishing fails
-- **THEN** the system returns a structured business error
-- **AND** the system records observable logs
-- **AND** the caller can retry the operation or trigger a repair flow
-
-### Requirement: Cache coordination state must be observable
-
-The system SHALL expose cache coordination state with at least cache domain, scope, local revision, shared revision, last sync time, latest error, and stale seconds.
-
-#### Scenario: Query cache coordination state
-
-- **WHEN** operations tooling or health checks query cache coordination state
-- **THEN** the system returns synchronization state for configured or touched cache domains
-- **AND** cluster mode can identify whether a node lags behind the shared revision
-
-#### Scenario: Cache synchronization failure is diagnosable
-
-- **WHEN** a node fails to refresh a cache domain
-- **THEN** the system records the latest failure reason and time
-- **AND** subsequent state queries can show that domain as abnormal or stale

@@ -14,6 +14,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	hostconfig "lina-core/internal/service/config"
+	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
 )
 
@@ -94,9 +95,11 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 		err = s.withConfigMutation(ctx, func(ctx context.Context) error {
 			// Check if key exists (GoFrame auto-adds deleted_at IS NULL)
 			var existing *entity.SysConfig
-			scanErr := dao.SysConfig.Ctx(ctx).
-				Where(do.SysConfig{Key: key}).
-				Scan(&existing)
+			existingModel := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{
+				TenantId: datascope.CurrentTenantID(ctx),
+				Key:      key,
+			})
+			scanErr := existingModel.Scan(&existing)
 			if scanErr != nil {
 				return bizerr.WrapCode(scanErr, CodeSysConfigImportQueryFailed)
 			}
@@ -126,13 +129,13 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 			}
 
 			// Create new record (GoFrame auto-fills created_at and updated_at)
-			_, insertErr := dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
-				Name:      name,
-				Key:       key,
-				Value:     value,
-				IsBuiltin: builtInConfigFlag(key),
-				Remark:    remark,
-			}).Insert()
+			data := currentTenantConfigDO(ctx)
+			data.Name = name
+			data.Key = key
+			data.Value = value
+			data.IsBuiltin = builtInConfigFlag(key)
+			data.Remark = remark
+			_, insertErr := dao.SysConfig.Ctx(ctx).Data(data).Insert()
 			if insertErr != nil {
 				return bizerr.WrapCode(insertErr, CodeSysConfigImportInsertFailed)
 			}

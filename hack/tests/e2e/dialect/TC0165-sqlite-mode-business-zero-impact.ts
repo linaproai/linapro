@@ -30,7 +30,7 @@ type ServerMonitorResult = {
   };
 };
 
-const sqliteMonitorPluginId = "monitor-server";
+const sqliteMonitorPluginId = "linapro-monitor-server";
 
 test.describe("TC-165 SQLite mode business zero impact", () => {
   requireSQLiteE2E();

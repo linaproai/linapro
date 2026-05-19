@@ -10,6 +10,7 @@ import { Descriptions, DescriptionsItem, Spin, Tag } from 'ant-design-vue';
 
 import { jobLogDetail } from '#/api/system/jobLog';
 import JsonPreview from '#/components/json-preview/index.vue';
+import { formatTimestamp } from '#/utils/time';
 
 const currentLog = ref<JobLogRecord | null>(null);
 const loading = ref(false);
@@ -125,10 +126,10 @@ function statusLabel(status?: string) {
           {{ currentLog.durationMs }} ms
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.jobLog.fields.startAt')">
-          {{ currentLog.startAt || '-' }}
+          {{ formatTimestamp(currentLog.startAt) }}
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.jobLog.fields.endAt')">
-          {{ currentLog.endAt || '-' }}
+          {{ formatTimestamp(currentLog.endAt) }}
         </DescriptionsItem>
         <DescriptionsItem
           v-if="currentLog.errMsg"

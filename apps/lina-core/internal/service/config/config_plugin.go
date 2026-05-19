@@ -47,7 +47,7 @@ var pluginAllowForceUninstallOverride atomic.Value
 // PluginAutoEnableEntry represents one normalized entry of plugin.autoEnable.
 // The YAML schema enforces a single structured object form per entry:
 //
-//   - id: "plugin-demo-source"
+//   - id: "linapro-demo-source"
 //     withMockData: false
 //
 // withMockData defaults to false when omitted. Operators must explicitly opt

@@ -1,9 +1,13 @@
+// This file implements menu detail retrieval and projects persisted integer
+// flags into typed public API contracts.
+
 package menu
 
 import (
 	"context"
 
 	"lina-core/api/menu/v1"
+	"lina-core/pkg/menutype"
 )
 
 // Get returns the detail of the specified menu.
@@ -26,12 +30,12 @@ func (c *ControllerV1) Get(ctx context.Context, req *v1.GetReq) (res *v1.GetRes,
 			Component:  m.Component,
 			Perms:      m.Perms,
 			Icon:       m.Icon,
-			Type:       m.Type,
+			Type:       menutype.Code(m.Type),
 			Sort:       m.Sort,
-			Visible:    m.Visible,
-			Status:     m.Status,
-			IsFrame:    m.IsFrame,
-			IsCache:    m.IsCache,
+			Visible:    statusflagVisibility(m.Visible),
+			Status:     statusflagEnabled(m.Status),
+			IsFrame:    statusflagYesNo(m.IsFrame),
+			IsCache:    statusflagYesNo(m.IsCache),
 			QueryParam: m.QueryParam,
 			Remark:     m.Remark,
 		},

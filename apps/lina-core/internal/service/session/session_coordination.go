@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
-
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/coordination"
@@ -112,10 +110,10 @@ func (s *CoordinationStore) Set(ctx context.Context, session *Session) error {
 	}
 	now := time.Now()
 	if session.LoginTime == nil {
-		session.LoginTime = gtime.NewFromTime(now)
+		session.LoginTime = &now
 	}
 	if session.LastActiveTime == nil {
-		session.LastActiveTime = gtime.NewFromTime(now)
+		session.LastActiveTime = &now
 	}
 	payload := sessionHotStateFromSession(session, now)
 	encoded, err := encodeSessionHotState(payload)
@@ -268,7 +266,7 @@ func (s *CoordinationStore) TouchOrValidate(ctx context.Context, tenantId int, t
 	if err = s.kvStore.Set(ctx, backendKey, encoded, ttl); err != nil {
 		return false, bizerr.WrapCode(err, CodeSessionStateUnavailable)
 	}
-	if err = s.updateProjectionLastActiveIfDue(ctx, tenantId, tokenId, gtime.NewFromTime(now)); err != nil {
+	if err = s.updateProjectionLastActiveIfDue(ctx, tenantId, tokenId, now); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -313,8 +311,8 @@ func sessionHotStateFromSession(session *Session, now time.Time) sessionHotState
 		IP:             session.Ip,
 		Browser:        session.Browser,
 		OS:             session.Os,
-		LoginTime:      session.LoginTime.Time,
-		LastActiveTime: session.LastActiveTime.Time,
+		LoginTime:      *session.LoginTime,
+		LastActiveTime: *session.LastActiveTime,
 		StoredAt:       now,
 	}
 }
@@ -475,12 +473,12 @@ func (s *CoordinationStore) updateProjectionLastActiveIfDue(
 	ctx context.Context,
 	tenantID int,
 	tokenID string,
-	now *gtime.Time,
+	now time.Time,
 ) error {
 	cols := dao.SysOnlineSession.Columns()
 	_, err := tenantSessionModel(ctx, tenantID, tokenID).
 		WhereLT(cols.LastActiveTime, now.Add(-sessionLastActiveUpdateWindow)).
-		Data(do.SysOnlineSession{LastActiveTime: now}).
+		Data(do.SysOnlineSession{LastActiveTime: &now}).
 		Update()
 	return err
 }

@@ -9,6 +9,8 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
+	"lina-core/pkg/apitime"
+	"lina-core/pkg/statusflag"
 )
 
 // List handles scheduled job list requests.
@@ -17,13 +19,13 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 		PageNum:        req.PageNum,
 		PageSize:       req.PageSize,
 		GroupID:        req.GroupId,
-		Status:         jobmeta.NormalizeJobStatus(req.Status),
-		TaskType:       jobmeta.NormalizeTaskType(req.TaskType),
+		Status:         jobmeta.NormalizeJobStatus(string(req.Status)),
+		TaskType:       jobmeta.NormalizeTaskType(string(req.TaskType)),
 		Keyword:        req.Keyword,
-		Scope:          jobmeta.NormalizeJobScope(req.Scope),
-		Concurrency:    jobmeta.NormalizeJobConcurrency(req.Concurrency),
+		Scope:          jobmeta.NormalizeJobScope(string(req.Scope)),
+		Concurrency:    jobmeta.NormalizeJobConcurrency(string(req.Concurrency)),
 		OrderBy:        req.OrderBy,
-		OrderDirection: req.OrderDirection,
+		OrderDirection: string(req.OrderDirection),
 	})
 	if err != nil {
 		return nil, err
@@ -52,7 +54,7 @@ func jobItem(job *entity.SysJob) v1.JobItem {
 		GroupId:              job.GroupId,
 		Name:                 job.Name,
 		Description:          job.Description,
-		TaskType:             job.TaskType,
+		TaskType:             v1.TaskType(job.TaskType),
 		HandlerRef:           job.HandlerRef,
 		Params:               job.Params,
 		TimeoutSeconds:       job.TimeoutSeconds,
@@ -61,19 +63,19 @@ func jobItem(job *entity.SysJob) v1.JobItem {
 		Env:                  job.Env,
 		CronExpr:             job.CronExpr,
 		Timezone:             job.Timezone,
-		Scope:                job.Scope,
-		Concurrency:          job.Concurrency,
+		Scope:                v1.Scope(job.Scope),
+		Concurrency:          v1.Concurrency(job.Concurrency),
 		MaxConcurrency:       job.MaxConcurrency,
 		MaxExecutions:        job.MaxExecutions,
 		ExecutedCount:        job.ExecutedCount,
 		StopReason:           job.StopReason,
 		LogRetentionOverride: job.LogRetentionOverride,
-		Status:               job.Status,
-		IsBuiltin:            job.IsBuiltin,
+		Status:               v1.Status(job.Status),
+		IsBuiltin:            statusflag.YesNo(job.IsBuiltin),
 		SeedVersion:          job.SeedVersion,
 		CreatedBy:            job.CreatedBy,
 		UpdatedBy:            job.UpdatedBy,
-		CreatedAt:            job.CreatedAt,
-		UpdatedAt:            job.UpdatedAt,
+		CreatedAt:            apitime.Milli(job.CreatedAt),
+		UpdatedAt:            apitime.Milli(job.UpdatedAt),
 	}
 }

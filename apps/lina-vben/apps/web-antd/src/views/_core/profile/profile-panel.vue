@@ -10,6 +10,7 @@ import { Card, Descriptions, DescriptionsItem, Tooltip } from 'ant-design-vue';
 import { userUpdateAvatar } from '#/api/system/user';
 import { CropperAvatar } from '#/components/cropper';
 import { $t } from '#/locales';
+import { formatTimestamp } from '#/utils/time';
 
 const props = defineProps<{ profile?: SysUser }>();
 
@@ -56,7 +57,11 @@ const avatar = computed(
             {{ profile.email || $t('pages.profile.panel.unboundEmail') }}
           </DescriptionsItem>
           <DescriptionsItem :label="$t('pages.profile.panel.lastLogin')">
-            {{ profile.loginDate || $t('pages.profile.panel.noLoginRecord') }}
+            {{
+              profile.loginDate
+                ? formatTimestamp(profile.loginDate)
+                : $t('pages.profile.panel.noLoginRecord')
+            }}
           </DescriptionsItem>
         </Descriptions>
       </div>

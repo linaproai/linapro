@@ -30,7 +30,10 @@ func (s *serviceImpl) WithStartupDataSnapshot(ctx context.Context) (context.Cont
 
 // SyncSourcePlugins scans source plugin manifests and synchronizes default status.
 func (s *serviceImpl) SyncSourcePlugins(ctx context.Context) error {
-	_, err := s.SyncAndList(ctx)
+	if err := s.ensurePlatformGovernance(ctx); err != nil {
+		return err
+	}
+	_, err := s.syncAndList(ctx)
 	return err
 }
 
@@ -38,12 +41,24 @@ func (s *serviceImpl) SyncSourcePlugins(ctx context.Context) error {
 // running host. Tooling is responsible for official submodule preflight before
 // plugin-full operations reach the runtime API.
 func (s *serviceImpl) SyncSourcePluginsStrict(ctx context.Context) (*ListOutput, error) {
-	return s.SyncAndList(ctx)
+	if err := s.ensurePlatformGovernance(ctx); err != nil {
+		return nil, err
+	}
+	return s.syncAndList(ctx)
 }
 
 // SyncAndList scans plugin manifests, synchronizes plugin registry rows, and
 // returns the combined list of source and dynamic plugin items.
 func (s *serviceImpl) SyncAndList(ctx context.Context) (*ListOutput, error) {
+	if err := s.ensurePlatformGovernance(ctx); err != nil {
+		return nil, err
+	}
+	return s.syncAndList(ctx)
+}
+
+// syncAndList scans plugin manifests and mutates plugin governance tables for
+// trusted startup or already-guarded platform management paths.
+func (s *serviceImpl) syncAndList(ctx context.Context) (*ListOutput, error) {
 	manifests, err := s.catalogSvc.ScanManifests()
 	if err != nil {
 		return nil, err

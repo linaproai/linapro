@@ -12,7 +12,6 @@ import (
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gtime"
 	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/model/do"
@@ -255,9 +254,9 @@ func TestGetExpiredKeyIsReadOnlyMiss(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse other key failed: %v", err)
 	}
-	expiredAt := gtime.Now().Add(-time.Minute)
-	insertExpiredKVRow(t, ctx, service, OwnerTypePlugin, targetIdentity, expiredAt)
-	insertExpiredKVRow(t, ctx, service, OwnerTypePlugin, otherIdentity, expiredAt)
+	expiredAt := time.Now().Add(-time.Minute)
+	insertExpiredKVRow(t, ctx, service, OwnerTypePlugin, targetIdentity, &expiredAt)
+	insertExpiredKVRow(t, ctx, service, OwnerTypePlugin, otherIdentity, &expiredAt)
 
 	if _, ok, err := service.Get(ctx, OwnerTypePlugin, targetKey); err != nil {
 		t.Fatalf("get expired target failed: %v", err)
@@ -287,7 +286,8 @@ func TestSetReplacesExpiredRowAsFreshValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse cache key failed: %v", err)
 	}
-	insertExpiredKVRow(t, ctx, service, OwnerTypePlugin, identity, gtime.Now().Add(-time.Minute))
+	expiredAt := time.Now().Add(-time.Minute)
+	insertExpiredKVRow(t, ctx, service, OwnerTypePlugin, identity, &expiredAt)
 
 	item, err := service.Set(ctx, OwnerTypePlugin, cacheKey, "fresh", 0)
 	if err != nil {
@@ -337,7 +337,8 @@ func TestIncrExpiredIntegerStartsFromDelta(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse cache key failed: %v", err)
 	}
-	insertExpiredKVIntRow(t, ctx, service, OwnerTypePlugin, identity, 40, gtime.Now().Add(-time.Minute))
+	expiredAt := time.Now().Add(-time.Minute)
+	insertExpiredKVIntRow(t, ctx, service, OwnerTypePlugin, identity, 40, &expiredAt)
 
 	item, err := service.Incr(ctx, OwnerTypePlugin, cacheKey, 2, 0)
 	if err != nil {
@@ -395,7 +396,8 @@ func TestCleanupExpiredRemovesExpiredRowsAsMisses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse cache key failed: %v", err)
 	}
-	insertExpiredKVRow(t, ctx, service, OwnerTypePlugin, identity, gtime.Now().Add(-time.Minute))
+	expiredAt := time.Now().Add(-time.Minute)
+	insertExpiredKVRow(t, ctx, service, OwnerTypePlugin, identity, &expiredAt)
 
 	if err = service.CleanupExpired(ctx); err != nil {
 		t.Fatalf("cleanup expired rows failed: %v", err)
@@ -628,7 +630,7 @@ func insertExpiredKVRow(
 	service *SQLTableBackend,
 	ownerType OwnerType,
 	identity *cacheIdentity,
-	expiredAt *gtime.Time,
+	expiredAt *time.Time,
 ) {
 	t.Helper()
 
@@ -657,7 +659,7 @@ func insertExpiredKVIntRow(
 	ownerType OwnerType,
 	identity *cacheIdentity,
 	value int64,
-	expiredAt *gtime.Time,
+	expiredAt *time.Time,
 ) {
 	t.Helper()
 
@@ -736,11 +738,11 @@ func readKVExpireAt(
 	service *SQLTableBackend,
 	ownerType OwnerType,
 	identity *cacheIdentity,
-) *gtime.Time {
+) *time.Time {
 	t.Helper()
 
 	var row struct {
-		ExpireAt *gtime.Time
+		ExpireAt *time.Time
 	}
 	err := service.model(ctx).Where(do.SysKvCache{
 		TenantId:  identity.tenantID,

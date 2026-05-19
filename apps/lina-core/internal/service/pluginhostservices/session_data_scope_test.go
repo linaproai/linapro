@@ -9,7 +9,6 @@ import (
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/service/datascope"
 	internalsession "lina-core/internal/service/session"
@@ -21,10 +20,11 @@ import (
 // TestSessionListPageAndRevokeApplyDataScope verifies online-user operations are scope-bound.
 func TestSessionListPageAndRevokeApplyDataScope(t *testing.T) {
 	ctx := context.Background()
+	now := time.Now()
 	store := &sessionDataScopeStore{
 		sessions: []*internalsession.Session{
-			{TokenId: "visible-token", TenantId: 22, UserId: 10, Username: "visible", LoginTime: gtime.Now(), LastActiveTime: gtime.Now()},
-			{TokenId: "hidden-token", TenantId: 33, UserId: 20, Username: "hidden", LoginTime: gtime.Now(), LastActiveTime: gtime.Now()},
+			{TokenId: "visible-token", TenantId: 22, UserId: 10, Username: "visible", LoginTime: &now, LastActiveTime: &now},
+			{TokenId: "hidden-token", TenantId: 33, UserId: 20, Username: "hidden", LoginTime: &now, LastActiveTime: &now},
 		},
 	}
 	svc := &sessionAdapter{
@@ -57,8 +57,8 @@ func TestSessionListPageAndRevokeApplyDataScope(t *testing.T) {
 		TenantId:       33,
 		UserId:         10,
 		Username:       "visible-user-hidden-tenant",
-		LoginTime:      gtime.Now(),
-		LastActiveTime: gtime.Now(),
+		LoginTime:      &now,
+		LastActiveTime: &now,
 	})
 	if err = svc.Revoke(ctx, "hidden-tenant-token"); err == nil {
 		t.Fatal("expected hidden tenant session revoke to be denied")
@@ -234,11 +234,6 @@ func (s sessionTenantScopeService) EnsureTenantVisible(_ context.Context, tenant
 // ResolveTenant is unused by pluginhostservices data-scope tests.
 func (s sessionTenantScopeService) ResolveTenant(ctx context.Context, _ *ghttp.Request) (*pkgtenantcap.ResolverResult, error) {
 	return &pkgtenantcap.ResolverResult{TenantID: s.Current(ctx), Matched: true}, nil
-}
-
-// ReadWithPlatformFallback is unused by pluginhostservices data-scope tests.
-func (s sessionTenantScopeService) ReadWithPlatformFallback(context.Context, tenantcapsvc.FallbackScanner[any]) ([]any, error) {
-	return nil, nil
 }
 
 // ApplyUserTenantScope is unused by pluginhostservices data-scope tests.

@@ -35,7 +35,7 @@ func buildUpgradePreviewResponse(
 	}
 	return &v1.UpgradePreviewRes{
 		PluginId:          preview.PluginID,
-		RuntimeState:      preview.RuntimeState.String(),
+		RuntimeState:      v1.RuntimeState(preview.RuntimeState.String()),
 		EffectiveVersion:  preview.EffectiveVersion,
 		DiscoveredVersion: preview.DiscoveredVersion,
 		FromManifest:      buildPluginManifestSnapshotItem(tableComments, preview.FromManifest),
@@ -64,10 +64,10 @@ func buildPluginManifestSnapshotItem(
 		Id:                        snapshot.ID,
 		Name:                      snapshot.Name,
 		Version:                   snapshot.Version,
-		Type:                      snapshot.Type,
-		ScopeNature:               snapshot.ScopeNature,
+		Type:                      v1.PluginType(snapshot.Type),
+		ScopeNature:               v1.ScopeNature(snapshot.ScopeNature),
 		SupportsMultiTenant:       snapshot.SupportsMultiTenant,
-		DefaultInstallMode:        snapshot.DefaultInstallMode,
+		DefaultInstallMode:        v1.InstallMode(snapshot.DefaultInstallMode),
 		Description:               snapshot.Description,
 		RuntimeKind:               snapshot.RuntimeKind,
 		RuntimeAbiVersion:         snapshot.RuntimeABIVersion,

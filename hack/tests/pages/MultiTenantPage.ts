@@ -113,6 +113,10 @@ function routePath(url: string) {
   return new URL(url).pathname.replace(/^\/api\/v1/, "").replace(/^\/api/, "");
 }
 
+async function delay(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class MultiTenantPage {
   private lastEndImpersonateAuthorization = "";
   private lastMenusAuthorization = "";
@@ -124,6 +128,8 @@ export class MultiTenantPage {
   private lastUserCreatePayload: Record<string, any> | null = null;
   private lastUserUpdatePayload: Record<string, any> | null = null;
   private lastUserTenantFilter: null | string = null;
+  private loginSelectTenantDelayMs = 0;
+  private loginUserInfoDelayMs = 0;
   private workbenchMode: WorkbenchMode = "platform";
 
   constructor(private page: Page) {}
@@ -249,7 +255,7 @@ export class MultiTenantPage {
               "PluginMultiTenantPlatformTenants",
               "/platform/tenants",
               "#/views/system/plugin/dynamic-page",
-              "plugin.multi-tenant.menu.platform.tenants.name",
+              "plugin.linapro-tenant-core.menu.platform.tenants.name",
             ),
           ],
           15,
@@ -408,17 +414,17 @@ export class MultiTenantPage {
                     {
                       enabled: 1,
                       generation: 1,
-                      id: "multi-tenant",
+                      id: "linapro-tenant-core",
                       installed: 1,
-                      statusKey: "sys_plugin.status:multi-tenant",
+                      statusKey: "sys_plugin.status:linapro-tenant-core",
                       version: "v0.1.0",
                     },
                     {
                       enabled: 1,
                       generation: 1,
-                      id: "org-center",
+                      id: "linapro-org-core",
                       installed: 1,
-                      statusKey: "sys_plugin.status:org-center",
+                      statusKey: "sys_plugin.status:linapro-org-core",
                       version: "v0.1.0",
                     },
                   ],
@@ -441,6 +447,9 @@ export class MultiTenantPage {
     await this.page.route(/\/api(?:\/v1)?\/user\/info$/, async (route) => {
       this.lastUserInfoAuthorization =
         route.request().headers().authorization || "";
+      if (this.loginUserInfoDelayMs > 0) {
+        await delay(this.loginUserInfoDelayMs);
+      }
       await route.fulfill(ok(this.userInfo()));
     });
     await this.page.route(
@@ -617,8 +626,8 @@ export class MultiTenantPage {
           ok({
             list: [
               {
-                id: "org-center",
-                pluginId: "org-center",
+                id: "linapro-org-core",
+                pluginId: "linapro-org-core",
                 installed: 0,
                 enabled: 0,
                 status: 0,
@@ -714,6 +723,9 @@ export class MultiTenantPage {
     await this.page.route(
       /\/api(?:\/v1)?\/auth\/select-tenant$/,
       async (route) => {
+        if (this.loginSelectTenantDelayMs > 0) {
+          await delay(this.loginSelectTenantDelayMs);
+        }
         await route.fulfill(ok({ accessToken: "tenant-token" }));
       },
     );
@@ -1270,6 +1282,8 @@ export class MultiTenantPage {
   }
 
   async exerciseTenantSelectionLogin() {
+    this.loginSelectTenantDelayMs = 250;
+    this.loginUserInfoDelayMs = 800;
     await this.mockLoginTenantSelection();
     await this.page.goto("/auth/login");
     await this.page
@@ -1334,6 +1348,21 @@ export class MultiTenantPage {
       /\/api(?:\/v1)?\/auth\/select-tenant$/.test(response.url()),
     );
     await this.page.getByTestId("login-tenant-confirm").click();
+    await expect(this.page.getByTestId("login-tenant-transition")).toBeVisible();
+    await expect(this.page.getByText("正在进入租户")).toBeVisible();
+    await expect(
+      this.page.locator(
+        '#username, [name="username"], input[placeholder*="用户名"], input[placeholder*="username"]',
+      ),
+    ).toHaveCount(0);
+    await expect(
+      this.page.locator(
+        '#password, [name="password"], input[placeholder*="密码"], input[placeholder*="password"]',
+      ),
+    ).toHaveCount(0);
+    await expect(this.page.locator('button[aria-label="login"]')).toHaveCount(
+      0,
+    );
     await selectTenantResponse;
     await expect
       .poll(async () =>
@@ -1343,6 +1372,10 @@ export class MultiTenantPage {
         }),
       )
       .toBe(102);
+    await this.page.waitForURL(/\/system\/user/, { timeout: 15_000 });
+    await expect(this.page.getByTestId("login-tenant-transition")).toHaveCount(
+      0,
+    );
   }
 
   async exerciseTenantSwitch() {

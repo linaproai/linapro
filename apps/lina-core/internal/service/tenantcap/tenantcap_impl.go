@@ -215,7 +215,7 @@ func (s *serviceImpl) ValidateUserMembershipStartupConsistency(ctx context.Conte
 }
 
 // ProvisionAutoEnabledTenantPlugins provisions default tenant plugins through
-// the registered provider when the multi-tenant plugin exposes that optional
+// the registered provider when the linapro-tenant-core plugin exposes that optional
 // startup governance facet.
 func (s *serviceImpl) ProvisionAutoEnabledTenantPlugins(ctx context.Context) error {
 	if !s.Enabled(ctx) {

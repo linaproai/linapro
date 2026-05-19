@@ -36,8 +36,9 @@ type Service interface {
 	Delete(ctx context.Context, id int) error
 	// GetByKey retrieves one tenant-specific or fallback platform config by key.
 	// Missing keys return a sysconfig key-not-found business error and returned
-	// records are localized when i18n is available.
-	GetByKey(ctx context.Context, key string) (*entity.SysConfig, error)
+	// records are localized and decorated with fallback metadata when i18n is
+	// available.
+	GetByKey(ctx context.Context, key string) (*ConfigProjection, error)
 	// Export generates an Excel file with tenant-visible config data. Optional
 	// filters or explicit IDs are applied before visibility filtering; Excel
 	// write errors and database errors are returned.
@@ -83,7 +84,7 @@ type ListInput struct {
 
 // ListOutput defines output for List function.
 type ListOutput struct {
-	List  []*entity.SysConfig // Config list
+	List  []*ConfigProjection // Config list
 	Total int                 // Total count
 }
 

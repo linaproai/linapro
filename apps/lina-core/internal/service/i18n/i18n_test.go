@@ -473,7 +473,7 @@ func TestShippedNonDefaultRuntimeCatalogsHaveNoMissingMessages(t *testing.T) {
 func filterExternalDynamicPluginMissingMessagesForTest(items []MissingMessageItem) []MissingMessageItem {
 	filteredItems := make([]MissingMessageItem, 0, len(items))
 	for _, item := range items {
-		if item.Source.ScopeKey == "plugin-demo-dynamic" {
+		if item.Source.ScopeKey == "linapro-demo-dynamic" {
 			continue
 		}
 		if strings.HasPrefix(item.Source.ScopeKey, "plugin-i18n-test-") {

@@ -3,12 +3,12 @@ import type { Page, Route } from '@playwright/test';
 import { test, expect } from '../../../fixtures/auth';
 import { PluginPage } from '../../../pages/PluginPage';
 
-const autoPlanPluginID = 'plugin-dependency-auto-plan-e2e';
-const blockedPluginID = 'plugin-dependency-blocked-e2e';
-const basePluginID = 'plugin-dependency-base-e2e';
-const consumerPluginID = 'plugin-dependency-consumer-e2e';
-const installNetworkFailurePluginID = 'plugin-dependency-install-network-failure-e2e';
-const uninstallNetworkFailurePluginID = 'plugin-dependency-uninstall-network-failure-e2e';
+const autoPlanPluginID = 'plugin-dev-dependency-auto-plan-e2e';
+const blockedPluginID = 'plugin-dev-dependency-blocked-e2e';
+const basePluginID = 'plugin-dev-dependency-base-e2e';
+const consumerPluginID = 'plugin-dev-dependency-consumer-e2e';
+const installNetworkFailurePluginID = 'plugin-dev-dependency-install-network-failure-e2e';
+const uninstallNetworkFailurePluginID = 'plugin-dev-dependency-uninstall-network-failure-e2e';
 
 type PluginRow = Record<string, unknown>;
 type DependencyCheck = Record<string, unknown>;

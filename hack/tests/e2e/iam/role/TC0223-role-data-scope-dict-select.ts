@@ -140,6 +140,29 @@ async function mockUserInfoWithTenantMenu(page: Page) {
   });
 }
 
+async function mockUserInfoTenantCapability(page: Page, enabled: boolean) {
+  await page.unroute("**/api/v1/user/info").catch(() => {});
+  await page.route("**/api/v1/user/info", async (route) => {
+    const response = await route.fetch();
+    const payload = (await response.json()) as Record<string, unknown>;
+    const data = (payload.data ?? {}) as Record<string, unknown>;
+    const menus = Array.isArray(data.menus) ? data.menus : [];
+    const strippedMenus = stripTenantMenus(menus);
+
+    await route.fulfill({
+      body: JSON.stringify({
+        ...payload,
+        data: {
+          ...data,
+          menus: enabled ? appendTenantMenu(strippedMenus) : strippedMenus,
+        },
+      }),
+      contentType: "application/json",
+      response,
+    });
+  });
+}
+
 function appendTenantMenu(menus: unknown[]) {
   return [
     ...menus,
@@ -152,17 +175,65 @@ function appendTenantMenu(menus: unknown[]) {
   ];
 }
 
+function stripTenantMenus(menus: unknown[]): unknown[] {
+  return menus
+    .filter((item) => !isTenantMenuNode(item))
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return item;
+      }
+      const record = item as Record<string, unknown>;
+      const children = Array.isArray(record.children) ? record.children : [];
+      return {
+        ...record,
+        children: stripTenantMenus(children),
+      };
+    });
+}
+
+function isTenantMenuNode(item: unknown) {
+  if (!item || typeof item !== "object") {
+    return false;
+  }
+  const record = item as Record<string, unknown>;
+  const name = typeof record.name === "string" ? record.name : "";
+  const path = typeof record.path === "string" ? record.path : "";
+  const normalizedPath = path.replace(/^\/+/u, "").replace(/\/+$/u, "");
+  return (
+    normalizedPath === "platform/tenants" ||
+    normalizedPath.startsWith("platform/tenants/") ||
+    normalizedPath === "tenant" ||
+    normalizedPath.startsWith("tenant/") ||
+    name.startsWith("PlatformTenant") ||
+    name.startsWith("Tenant")
+  );
+}
+
 async function mockMultiTenantPluginState(page: Page, enabled: boolean) {
   await mockPluginRuntimeStates(page, [
     {
       enabled: enabled ? 1 : 0,
       generation: 1,
-      id: "multi-tenant",
+      id: "linapro-tenant-core",
       installed: 1,
-      statusKey: "sys_plugin.status:multi-tenant",
+      statusKey: "sys_plugin.status:linapro-tenant-core",
       version: "e2e",
     },
   ]);
+  await mockUserInfoTenantCapability(page, enabled);
+  await page.evaluate((tenantEnabled) => {
+    localStorage.setItem(
+      "linapro:tenant-state",
+      JSON.stringify({
+        currentTenant: null,
+        enabled: tenantEnabled,
+        impersonation: { active: false },
+        tenants: [],
+      }),
+    );
+  }, enabled);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle").catch(() => {});
 }
 
 async function mockPluginRuntimeStates(

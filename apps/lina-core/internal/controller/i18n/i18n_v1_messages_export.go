@@ -14,7 +14,7 @@ func (c *ControllerV1) ExportMessages(ctx context.Context, req *v1.ExportMessage
 	return &v1.ExportMessagesRes{
 		Locale:        output.Locale,
 		DefaultLocale: output.DefaultLocale,
-		Mode:          output.Mode,
+		Mode:          v1.ExportMode(output.Mode),
 		Total:         len(output.Messages),
 		Messages:      output.Messages,
 	}, nil

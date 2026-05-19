@@ -99,9 +99,6 @@ func (l *openAPILocalizer) translate(key string, source string) string {
 		if translated, ok := l.catalog[key]; ok {
 			return translated
 		}
-		if translated, ok := l.catalog[openAPIPluginKeyAlias(key)]; ok {
-			return translated
-		}
 		for _, fallbackKey := range openAPICommonFallbackKeys(key) {
 			if translated, ok := l.catalog[fallbackKey]; ok {
 				return translated
@@ -160,17 +157,6 @@ func matchesOpenAPIStandardResponseField(key string, field string) bool {
 		return segments[index+5] == field && segments[index+6] == "dc" && index+7 == len(segments)
 	}
 	return false
-}
-
-// openAPIPluginKeyAlias supports source-plugin module names such as
-// `lina-plugin-demo-source`, where the plugin ID itself starts with `plugin-`.
-func openAPIPluginKeyAlias(key string) string {
-	parts := strings.Split(strings.TrimSpace(key), ".")
-	if len(parts) < 3 || parts[0] != "plugins" || strings.HasPrefix(parts[1], "plugin_") {
-		return ""
-	}
-	parts[1] = "plugin_" + parts[1]
-	return strings.Join(parts, ".")
 }
 
 // operationBaseKey returns the best stable key base for one operation. Static

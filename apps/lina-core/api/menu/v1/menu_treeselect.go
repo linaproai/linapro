@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"lina-core/pkg/menutype"
+
 	"github.com/gogf/gf/v2/frame/g"
 )
 
@@ -14,7 +16,7 @@ type MenuTreeNode struct {
 	Id       int             `json:"id" dc:"Menu ID" eg:"1"`
 	ParentId int             `json:"parentId" dc:"Parent menu ID" eg:"0"`
 	Label    string          `json:"label" dc:"Menu name" eg:"System management"`
-	Type     string          `json:"type" dc:"Menu type: D=Directory M=Menu B=Button" eg:"D"`
+	Type     menutype.Code   `json:"type" dc:"Menu type: D=Directory M=Menu B=Button" eg:"D"`
 	Icon     string          `json:"icon" dc:"menu icon" eg:"ant-design:dashboard-outlined"`
 	Children []*MenuTreeNode `json:"children" dc:"submenu" eg:"[]"`
 }

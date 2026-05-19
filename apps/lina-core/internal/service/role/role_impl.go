@@ -7,11 +7,13 @@ package role
 
 import (
 	"context"
+
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	tenantcapsvc "lina-core/internal/service/tenantcap"
+	"lina-core/pkg/apitime"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/orgcap"
 	pkgtenantcap "lina-core/pkg/tenantcap"
@@ -44,7 +46,7 @@ func organizationCapabilityStateFromPermissionFilter(permissionFilter Permission
 	return nil
 }
 
-// Enabled reports whether org-center is enabled and the orgcap provider exists.
+// Enabled reports whether linapro-org-core is enabled and the orgcap provider exists.
 func (s pluginBackedOrganizationCapabilityState) Enabled(ctx context.Context) bool {
 	return s.pluginState != nil &&
 		s.pluginState.IsEnabled(ctx, orgcap.ProviderPluginID) &&
@@ -89,14 +91,6 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	// Convert to response format
 	list := make([]*RoleItem, 0, len(roles))
 	for _, r := range roles {
-		createdAt := ""
-		if r.CreatedAt != nil {
-			createdAt = r.CreatedAt.String()
-		}
-		updatedAt := ""
-		if r.UpdatedAt != nil {
-			updatedAt = r.UpdatedAt.String()
-		}
 		list = append(list, &RoleItem{
 			Id:        r.Id,
 			Name:      s.DisplayName(ctx, r),
@@ -105,8 +99,8 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 			DataScope: r.DataScope,
 			Status:    r.Status,
 			Remark:    r.Remark,
-			CreatedAt: createdAt,
-			UpdatedAt: updatedAt,
+			CreatedAt: apitime.Milli(r.CreatedAt),
+			UpdatedAt: apitime.Milli(r.UpdatedAt),
 		})
 	}
 
@@ -169,6 +163,10 @@ func (s *serviceImpl) GetDetail(ctx context.Context, id int) (*GetDetailOutput, 
 	for _, rm := range roleMenus {
 		menuIds = append(menuIds, rm.MenuId)
 	}
+	menuIds, err = s.FilterAssignableMenuIDs(ctx, menuIds)
+	if err != nil {
+		return nil, err
+	}
 
 	return &GetDetailOutput{
 		Role:    role,
@@ -183,6 +181,9 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 	}
 	ownership := currentRoleOwnership(ctx)
 	if err := ensureTenantRoleDataScopeBoundary(ownership.TenantID, in.DataScope); err != nil {
+		return 0, err
+	}
+	if err := s.EnsureAssignableMenuIDs(ctx, in.MenuIds); err != nil {
 		return 0, err
 	}
 
@@ -246,6 +247,9 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		if err := ensureTenantRoleDataScopeBoundary(ownership.TenantID, *in.DataScope); err != nil {
 			return err
 		}
+	}
+	if err := s.EnsureAssignableMenuIDs(ctx, in.MenuIds); err != nil {
+		return err
 	}
 
 	// Check name uniqueness (excluding self)
@@ -588,10 +592,6 @@ func (s *serviceImpl) GetUsers(ctx context.Context, in GetUsersInput) (*GetUsers
 	// Convert to response format
 	list := make([]*RoleUserItem, 0, len(users))
 	for _, u := range users {
-		createdAt := ""
-		if u.CreatedAt != nil {
-			createdAt = u.CreatedAt.String()
-		}
 		list = append(list, &RoleUserItem{
 			Id:        u.Id,
 			Username:  u.Username,
@@ -599,7 +599,7 @@ func (s *serviceImpl) GetUsers(ctx context.Context, in GetUsersInput) (*GetUsers
 			Email:     u.Email,
 			Phone:     u.Phone,
 			Status:    u.Status,
-			CreatedAt: createdAt,
+			CreatedAt: apitime.Milli(u.CreatedAt),
 		})
 	}
 

@@ -36,7 +36,7 @@ func TestExecuteRuntimeUpgradeRejectsNormalPlugin(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-runtime-upgrade-normal"
+		pluginID = "plugin-dev-dynamic-runtime-upgrade-normal"
 		version  = "v0.1.0"
 	)
 
@@ -77,7 +77,7 @@ func TestInstallKeepsDynamicHigherVersionPendingUntilExplicitUpgrade(t *testing.
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-dynamic-runtime-upgrade-install-pending"
+		pluginID   = "plugin-dev-dynamic-runtime-upgrade-install-pending"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.2.0"
 	)
@@ -145,7 +145,7 @@ func TestExecuteRuntimeUpgradeUpgradesDynamicPlugin(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-dynamic-runtime-upgrade-execute"
+		pluginID   = "plugin-dev-dynamic-runtime-upgrade-execute"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.2.0"
 	)
@@ -207,7 +207,7 @@ func TestExecuteRuntimeUpgradeUpgradesDynamicPlugin(t *testing.T) {
 		nil,
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-dynamic-runtime-upgrade-execute.sql",
+				Key:     "001-plugin-dev-dynamic-runtime-upgrade-execute.sql",
 				Content: "CREATE TABLE IF NOT EXISTS plugin_dynamic_runtime_upgrade_execute(id INTEGER);",
 			},
 		},
@@ -292,7 +292,7 @@ func TestExecuteRuntimeUpgradeFailureKeepsEffectiveDynamicVersion(t *testing.T) 
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-dynamic-runtime-upgrade-execute-failed"
+		pluginID   = "plugin-dev-dynamic-runtime-upgrade-execute-failed"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.2.0"
 	)
@@ -335,7 +335,7 @@ func TestExecuteRuntimeUpgradeFailureKeepsEffectiveDynamicVersion(t *testing.T) 
 		newVersion,
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-dynamic-runtime-upgrade-execute-failed.sql",
+				Key:     "001-plugin-dev-dynamic-runtime-upgrade-execute-failed.sql",
 				Content: "THIS IS NOT VALID SQL;",
 			},
 		},
@@ -375,7 +375,7 @@ func TestExecuteRuntimeUpgradeBeforeLifecycleBlocksBeforeRunningState(t *testing
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-dynamic-before-upgrade-fail-closed"
+		pluginID   = "plugin-dev-dynamic-before-upgrade-fail-closed"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.2.0"
 	)
@@ -479,7 +479,7 @@ func TestExecuteRuntimeUpgradeLifecycleCallbackBlocksBeforeUpgradeSQL(t *testing
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-dynamic-upgrade-lifecycle-fail-closed"
+		pluginID   = "plugin-dev-dynamic-upgrade-lifecycle-fail-closed"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.2.0"
 	)
@@ -540,7 +540,7 @@ func TestExecuteRuntimeUpgradeLifecycleCallbackBlocksBeforeUpgradeSQL(t *testing
 		nil,
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-dynamic-upgrade-lifecycle-fail-closed.sql",
+				Key:     "001-plugin-dev-dynamic-upgrade-lifecycle-fail-closed.sql",
 				Content: "CREATE TABLE IF NOT EXISTS plugin_dynamic_upgrade_lifecycle_fail_closed(id INTEGER);",
 			},
 		},

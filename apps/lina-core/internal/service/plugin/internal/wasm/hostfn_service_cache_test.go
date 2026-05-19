@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -74,7 +73,7 @@ func (s *trackingCacheService) Incr(_ context.Context, _ kvcache.OwnerType, cach
 }
 
 // Expire records one cache expiration update.
-func (s *trackingCacheService) Expire(_ context.Context, _ kvcache.OwnerType, cacheKey string, _ time.Duration) (bool, *gtime.Time, error) {
+func (s *trackingCacheService) Expire(_ context.Context, _ kvcache.OwnerType, cacheKey string, _ time.Duration) (bool, *time.Time, error) {
 	s.expireCalls++
 	s.lastKey = cacheKey
 	return true, nil, nil

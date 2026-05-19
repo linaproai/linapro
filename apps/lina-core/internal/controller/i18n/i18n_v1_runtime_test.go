@@ -114,7 +114,7 @@ func TestRuntimeLocalesReturnsLocalizedDescriptors(t *testing.T) {
 		}
 		if actual.Name != expected.Name ||
 			actual.NativeName != expected.NativeName ||
-			actual.Direction != expected.Direction ||
+			actual.Direction != v1.LocaleDirection(expected.Direction) ||
 			actual.IsDefault != expected.IsDefault {
 			t.Fatalf("unexpected locale descriptor for %s: got=%+v expected=%+v", expected.Locale, actual, expected)
 		}
@@ -147,7 +147,7 @@ func TestRuntimeLocalesReturnsDisabledDefaultOnly(t *testing.T) {
 	if res.Items[0].Locale != i18nsvc.DefaultLocale || !res.Items[0].IsDefault {
 		t.Fatalf("expected default-only locale item, got %+v", res.Items[0])
 	}
-	if res.Items[0].Direction != i18nsvc.LocaleDirectionLTR.String() {
+	if res.Items[0].Direction != v1.LocaleDirection(i18nsvc.LocaleDirectionLTR.String()) {
 		t.Fatalf("expected fixed LTR direction, got %q", res.Items[0].Direction)
 	}
 }

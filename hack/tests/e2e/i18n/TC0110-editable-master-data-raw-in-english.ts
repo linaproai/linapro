@@ -3,9 +3,9 @@ import type { APIRequestContext, Page } from '@playwright/test';
 import { test, expect } from '../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { ConfigPage } from '../../pages/ConfigPage';
-import { DeptPage } from '../../../../apps/lina-plugins/org-center/hack/tests/pages/DeptPage';
-import { NoticePage } from '../../../../apps/lina-plugins/content-notice/hack/tests/pages/NoticePage';
-import { PostPage } from '../../../../apps/lina-plugins/org-center/hack/tests/pages/PostPage';
+import { DeptPage } from '../../../../apps/lina-plugins/linapro-org-core/hack/tests/pages/DeptPage';
+import { NoticePage } from '../../../../apps/lina-plugins/linapro-content-notice/hack/tests/pages/NoticePage';
+import { PostPage } from '../../../../apps/lina-plugins/linapro-org-core/hack/tests/pages/PostPage';
 import { RolePage } from '../../pages/RolePage';
 import { UserPage } from '../../pages/UserPage';
 import { createAdminApiContext, expectSuccess } from '../../support/api/job';
@@ -68,7 +68,7 @@ test.describe('TC0110 可编辑主数据退出 i18n 投影专项回归', () => {
 });
 
 async function ensureOrgRawData(page: Page) {
-  await ensureSourcePluginEnabled(page, 'org-center');
+  await ensureSourcePluginEnabled(page, 'linapro-org-core');
   const api = await createAdminApiContext();
   try {
     const dept = await ensureDept(api);
@@ -79,7 +79,7 @@ async function ensureOrgRawData(page: Page) {
 }
 
 async function ensureNoticeRawData(page: Page) {
-  await ensureSourcePluginEnabled(page, 'content-notice');
+  await ensureSourcePluginEnabled(page, 'linapro-content-notice');
   const api = await createAdminApiContext();
   try {
     await ensureNotice(api);

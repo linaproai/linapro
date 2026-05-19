@@ -45,9 +45,9 @@ async function mockMultiTenantPluginState(page: Page, enabled: boolean) {
             {
               enabled: enabled ? 1 : 0,
               generation: 1,
-              id: 'multi-tenant',
+              id: 'linapro-tenant-core',
               installed: 1,
-              statusKey: 'sys_plugin.status:multi-tenant',
+              statusKey: 'sys_plugin.status:linapro-tenant-core',
               version: 'e2e',
             },
           ],

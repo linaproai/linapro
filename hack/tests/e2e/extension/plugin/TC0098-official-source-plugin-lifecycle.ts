@@ -40,7 +40,7 @@ type OfficialPluginCase = {
 
 const officialPluginCases: OfficialPluginCase[] = [
   {
-    id: 'monitor-operlog',
+    id: 'linapro-monitor-operlog',
     mountedTitles: ['操作日志'],
     route: '/monitor/operlog',
     assertAvailable: async (page) => {
@@ -49,7 +49,7 @@ const officialPluginCases: OfficialPluginCase[] = [
     },
   },
   {
-    id: 'monitor-loginlog',
+    id: 'linapro-monitor-loginlog',
     mountedTitles: ['登录日志'],
     route: '/monitor/loginlog',
     assertAvailable: async (page) => {
@@ -58,7 +58,7 @@ const officialPluginCases: OfficialPluginCase[] = [
     },
   },
   {
-    id: 'monitor-server',
+    id: 'linapro-monitor-server',
     mountedTitles: ['服务监控'],
     route: '/monitor/server',
     assertAvailable: async (page) => {
@@ -84,7 +84,7 @@ const officialPluginCases: OfficialPluginCase[] = [
     },
   },
   {
-    id: 'monitor-online',
+    id: 'linapro-monitor-online',
     mountedTitles: ['在线用户'],
     route: '/monitor/online',
     assertAvailable: async (page) => {
@@ -93,7 +93,7 @@ const officialPluginCases: OfficialPluginCase[] = [
     },
   },
   {
-    id: 'org-center',
+    id: 'linapro-org-core',
     mountedTitles: ['部门管理', '岗位管理'],
     route: '/system/dept',
     assertAvailable: async (page) => {
@@ -102,7 +102,7 @@ const officialPluginCases: OfficialPluginCase[] = [
     },
   },
   {
-    id: 'content-notice',
+    id: 'linapro-content-notice',
     mountedTitles: ['通知公告'],
     route: '/system/notice',
     assertAvailable: async (page) => {

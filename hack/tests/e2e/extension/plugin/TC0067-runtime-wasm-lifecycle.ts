@@ -31,19 +31,19 @@ const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
 const publicBaseURL =
   process.env.E2E_PUBLIC_BASE_URL ?? apiBaseURL.replace(/\/api\/v1\/?$/, "");
-const pluginID = "plugin-dynamic-e2e";
+const pluginID = "plugin-dev-dynamic-e2e";
 const pluginName = "Runtime E2E Plugin";
 const pluginVersion = "v0.1.0";
 const hostedAssetPath = `/plugin-assets/${pluginID}/${pluginVersion}/index.html`;
 const embeddedAssetPath = `/plugin-assets/${pluginID}/${pluginVersion}/mount.js`;
-const iframeMenuKey = "plugin:plugin-dynamic-e2e:iframe-entry";
-const embeddedMenuKey = "plugin:plugin-dynamic-e2e:embedded-entry";
-const newWindowMenuKey = "plugin:plugin-dynamic-e2e:new-window-entry";
+const iframeMenuKey = "plugin:plugin-dev-dynamic-e2e:iframe-entry";
+const embeddedMenuKey = "plugin:plugin-dev-dynamic-e2e:embedded-entry";
+const newWindowMenuKey = "plugin:plugin-dev-dynamic-e2e:new-window-entry";
 const iframeMenuName = "运行时 iframe 示例";
 const embeddedMenuName = "运行时内嵌示例";
 const newWindowMenuName = "运行时新标签页示例";
-const bundledRuntimePluginID = "plugin-demo-dynamic";
-const bundledRuntimeRecordTable = "plugin_demo_dynamic_record";
+const bundledRuntimePluginID = "linapro-demo-dynamic";
+const bundledRuntimeRecordTable = "plugin_linapro_demo_dynamic_record";
 const bundledRuntimeAttachmentPath = "demo-record-files/";
 const bundledRuntimeCronHandlerRef = `plugin:${bundledRuntimePluginID}/cron:heartbeat`;
 const bundledRuntimeCronStateKey = "cron_heartbeat_count";
@@ -57,7 +57,7 @@ const bundledRuntimeLegacyArtifactPath = path.join(
 );
 const bundledRuntimeMenuName = "动态插件示例";
 const bundledRuntimeStandalonePath =
-  "/plugin-assets/plugin-demo-dynamic/v0.1.0/standalone.html";
+  "/plugin-assets/linapro-demo-dynamic/v0.1.0/standalone.html";
 const bytesPerMegabyte = 1024 * 1024;
 const defaultRequestBodyLimitBytes = 8 * bytesPerMegabyte;
 const fallbackUploadMaxSizeMB = 20;
@@ -201,7 +201,7 @@ function bundledRuntimeStorageRootDir() {
 }
 
 function bundledRuntimeAttachmentFixturePath() {
-  return path.join(tempDir(), "plugin-demo-dynamic-note.txt");
+  return path.join(tempDir(), "linapro-demo-dynamic-note.txt");
 }
 
 function bundledRuntimeUploadProbePath() {
@@ -354,7 +354,7 @@ function ensureBundledRuntimeAttachmentFixture() {
   mkdirSync(tempDir(), { recursive: true });
   writeFileSync(
     bundledRuntimeAttachmentFixturePath(),
-    "plugin-demo-dynamic attachment fixture",
+    "linapro-demo-dynamic attachment fixture",
   );
   return bundledRuntimeAttachmentFixturePath();
 }
@@ -390,7 +390,7 @@ function buildRuntimeManifestMenus() {
       key: iframeMenuKey,
       name: iframeMenuName,
       path: hostedAssetPath,
-      perms: "plugin-dynamic-e2e:iframe:view",
+      perms: "plugin-dev-dynamic-e2e:iframe:view",
       icon: "ant-design:appstore-outlined",
       type: "M",
       sort: -3,
@@ -401,7 +401,7 @@ function buildRuntimeManifestMenus() {
       name: embeddedMenuName,
       path: embeddedAssetPath,
       component: "system/plugin/dynamic-page",
-      perms: "plugin-dynamic-e2e:embedded:view",
+      perms: "plugin-dev-dynamic-e2e:embedded:view",
       icon: "ant-design:deployment-unit-outlined",
       type: "M",
       sort: -2,
@@ -415,7 +415,7 @@ function buildRuntimeManifestMenus() {
       key: newWindowMenuKey,
       name: newWindowMenuName,
       path: hostedAssetPath,
-      perms: "plugin-dynamic-e2e:new-window:view",
+      perms: "plugin-dev-dynamic-e2e:new-window:view",
       icon: "ant-design:link-outlined",
       type: "M",
       sort: -1,
@@ -498,7 +498,7 @@ function buildRuntimeWasmFixture() {
   const installSQLPayload = Buffer.from(
     JSON.stringify([
       {
-        key: "001-plugin-dynamic-e2e.sql",
+        key: "001-plugin-dev-dynamic-e2e.sql",
         content: buildRuntimeInstallSQL(),
       },
     ]),
@@ -506,7 +506,7 @@ function buildRuntimeWasmFixture() {
   const uninstallSQLPayload = Buffer.from(
     JSON.stringify([
       {
-        key: "001-plugin-dynamic-e2e.sql",
+        key: "001-plugin-dev-dynamic-e2e.sql",
         content: buildRuntimeUninstallSQL(),
       },
     ]),
@@ -924,7 +924,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     ).not.toContain("/plugin-assets/");
   });
 
-  test("TC-67h: 独立的 plugin-demo-dynamic 菜单页会展示按钮并打开纯静态独立页面", async ({
+  test("TC-67h: 独立的 linapro-demo-dynamic 菜单页会展示按钮并打开纯静态独立页面", async ({
     page,
   }) => {
     await loginAsAdmin(page);
@@ -1010,7 +1010,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
       "独立页面应落到动态插件托管的静态资源地址",
     ).toBe(bundledRuntimeStandalonePath);
     await expect(
-      popup.getByTestId("plugin-demo-dynamic-standalone"),
+      popup.getByTestId("linapro-demo-dynamic-standalone"),
     ).toBeVisible();
     await expect(
       popup.getByRole("heading", {
@@ -1019,7 +1019,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     ).toBeVisible();
     await expect(
       popup.getByText(
-        /当前页面由 plugin-demo-dynamic 直接以托管静态资源形式提供|This page is served directly by plugin-demo-dynamic as a hosted static asset/,
+        /当前页面由 linapro-demo-dynamic 直接以托管静态资源形式提供|This page is served directly by linapro-demo-dynamic as a hosted static asset/,
       ),
     ).toBeVisible();
     await popup.close();
@@ -1083,7 +1083,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await expect(pluginPage.pluginRow(pluginID)).toBeVisible();
   });
 
-  test("TC-67j: 启用 plugin-demo-dynamic 后固定前缀动态路由返回真实 Wasm bridge 响应", async ({
+  test("TC-67j: 启用 linapro-demo-dynamic 后固定前缀动态路由返回真实 Wasm bridge 响应", async ({
     page,
   }) => {
     await loginAsAdmin(page);
@@ -1110,20 +1110,20 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
 
     const payload = await response.json();
     expect(payload.message).toContain(
-      "plugin-demo-dynamic Wasm bridge runtime",
+      "linapro-demo-dynamic Wasm bridge runtime",
     );
     expect(payload.pluginId).toBe(bundledRuntimePluginID);
     expect(payload.publicPath).toBe(
       `/api/v1/extensions/${bundledRuntimePluginID}/backend-summary`,
     );
     expect(payload.access).toBe("login");
-    expect(payload.permission).toBe("plugin-demo-dynamic:backend:view");
+    expect(payload.permission).toBe("linapro-demo-dynamic:backend:view");
     expect(payload.authenticated).toBeTruthy();
     expect(payload.username).toBe(config.adminUser);
     expect(payload.isSuperAdmin).toBeTruthy();
   });
 
-  test("TC-67o: plugin-demo-dynamic 安装后其内置定时任务立即出现在任务管理中，启用后可手动执行", async ({
+  test("TC-67o: linapro-demo-dynamic 安装后其内置定时任务立即出现在任务管理中，启用后可手动执行", async ({
     page,
   }) => {
     await loginAsAdmin(page);
@@ -1186,7 +1186,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await expect.poll(() => bundledRuntimeCronStateCount()).toBe(1);
   });
 
-  test("TC-67k: plugin-demo-dynamic 示例记录支持 CRUD，并在禁用与卸载时按选项保留或清理数据附件", async ({
+  test("TC-67k: linapro-demo-dynamic 示例记录支持 CRUD，并在禁用与卸载时按选项保留或清理数据附件", async ({
     page,
   }) => {
     // The CRUD + dual-uninstall lifecycle runs three full install/enable
@@ -1308,7 +1308,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     ).toHaveCount(0);
   });
 
-  test("TC-67l: plugin-demo-dynamic 示例记录列表支持分页浏览并同步更新区间摘要", async ({
+  test("TC-67l: linapro-demo-dynamic 示例记录列表支持分页浏览并同步更新区间摘要", async ({
     page,
   }) => {
     const paginationRecordKey = `${Date.now()}`;
@@ -1365,7 +1365,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await expect(pluginPage.pluginDemoDynamicRecordRow(newestTitle)).toBeVisible();
   });
 
-  test("TC-67m: plugin-demo-dynamic 在 multipart 请求体超过默认 8MB 时仍按上传参数上限完成上传", async () => {
+  test("TC-67m: linapro-demo-dynamic 在 multipart 请求体超过默认 8MB 时仍按上传参数上限完成上传", async () => {
     const artifactPath = ensureBundledRuntimeUploadFixture();
     const paddingBytes = bundledRuntimeMultipartPaddingBytes(artifactPath);
     const uploadPayload = await uploadDynamicPluginViaAPI(
@@ -1384,7 +1384,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     expect(uploadPayload?.enabled ?? 0).toBe(0);
 
     const pluginAfterUpload = await findPlugin(adminApi!, bundledRuntimePluginID);
-    expect(pluginAfterUpload, "上传后应保留 plugin-demo-dynamic 记录").toBeTruthy();
+    expect(pluginAfterUpload, "上传后应保留 linapro-demo-dynamic 记录").toBeTruthy();
     expect(pluginAfterUpload?.installed ?? 0).toBe(0);
     expect(pluginAfterUpload?.enabled ?? 0).toBe(0);
   });
@@ -1403,7 +1403,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
       multipart: {
         overwriteSupport: "0",
         file: {
-          name: "plugin-demo-dynamic-oversized.wasm",
+          name: "linapro-demo-dynamic-oversized.wasm",
           mimeType: "application/wasm",
           buffer: oversizedBuffer,
         },
@@ -1428,7 +1428,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
       pluginPage.dynamicUploadDragger.click(),
     ]);
     await fileChooser.setFiles({
-      name: "plugin-demo-dynamic-oversized.wasm",
+      name: "linapro-demo-dynamic-oversized.wasm",
       mimeType: "application/wasm",
       buffer: oversizedBuffer,
     });

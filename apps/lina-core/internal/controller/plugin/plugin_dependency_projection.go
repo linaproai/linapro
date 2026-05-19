@@ -16,7 +16,7 @@ func buildPluginDependencyCheckResult(in *pluginsvc.DependencyCheckResult) *v1.P
 		Framework: v1.PluginDependencyFrameworkCheck{
 			RequiredVersion: in.Framework.RequiredVersion,
 			CurrentVersion:  in.Framework.CurrentVersion,
-			Status:          in.Framework.Status,
+			Status:          v1.FrameworkStatus(in.Framework.Status),
 		},
 		Dependencies:          buildPluginDependencyItems(in.Dependencies),
 		AutoInstallPlan:       buildPluginDependencyAutoInstallItems(in.AutoInstallPlan),
@@ -44,10 +44,10 @@ func buildPluginDependencyItems(items []*pluginsvc.DependencyPluginCheck) []*v1.
 			RequiredVersion: item.RequiredVersion,
 			CurrentVersion:  item.CurrentVersion,
 			Required:        item.Required,
-			InstallMode:     item.InstallMode,
+			InstallMode:     v1.DependencyInstallMode(item.InstallMode),
 			Installed:       item.Installed,
 			Discovered:      item.Discovered,
-			Status:          item.Status,
+			Status:          v1.DependencyStatus(item.Status),
 			Chain:           cloneAPIStringSlice(item.Chain),
 		})
 	}
@@ -80,7 +80,7 @@ func buildPluginDependencyBlockers(items []*pluginsvc.DependencyBlocker) []*v1.P
 			continue
 		}
 		out = append(out, &v1.PluginDependencyBlocker{
-			Code:            item.Code,
+			Code:            v1.BlockerCode(item.Code),
 			PluginId:        item.PluginID,
 			DependencyId:    item.DependencyID,
 			RequiredVersion: item.RequiredVersion,

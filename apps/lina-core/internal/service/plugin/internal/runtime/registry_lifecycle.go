@@ -6,8 +6,7 @@ package runtime
 
 import (
 	"context"
-
-	"github.com/gogf/gf/v2/os/gtime"
+	"time"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -82,17 +81,17 @@ func (s *serviceImpl) finalizeState(
 	}
 	if installed == catalog.InstalledYes {
 		if registry.Installed != catalog.InstalledYes {
-			data.InstalledAt = gtime.Now()
+			data.InstalledAt = timePtr(time.Now())
 		}
 		if enabled == catalog.StatusEnabled {
-			data.EnabledAt = gtime.Now()
+			data.EnabledAt = timePtr(time.Now())
 		} else {
-			data.DisabledAt = gtime.Now()
+			data.DisabledAt = timePtr(time.Now())
 		}
 	} else {
 		data.Status = catalog.StatusDisabled
 		data.ReleaseId = 0
-		data.DisabledAt = gtime.Now()
+		data.DisabledAt = timePtr(time.Now())
 	}
 
 	_, err := dao.SysPlugin.Ctx(ctx).

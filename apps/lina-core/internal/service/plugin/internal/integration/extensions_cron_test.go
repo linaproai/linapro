@@ -78,7 +78,7 @@ func TestListExecutableCronJobsSkipsDynamicDiscoveryForSourcePlugins(t *testing.
 	executor := &recordingDynamicCronExecutor{}
 	services.Integration.SetDynamicCronExecutor(executor)
 
-	pluginID := "plugin-source-cron-dynamic-skip"
+	pluginID := "plugin-dev-source-cron-dynamic-skip"
 	testutil.CreateTestPluginDir(t, pluginID)
 
 	manifests, err := services.Catalog.ScanManifests()
@@ -123,7 +123,7 @@ func TestListExecutableCronJobsSkipsPendingUpgradeDynamicPlugin(t *testing.T) {
 
 	ctx := context.Background()
 	const (
-		pluginID   = "plugin-dynamic-cron-pending-upgrade"
+		pluginID   = "plugin-dev-dynamic-cron-pending-upgrade"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.2.0"
 	)
@@ -224,8 +224,8 @@ func TestListCronDeclarationsDiscoversDisabledDynamicPlugin(t *testing.T) {
 	services.Integration.SetDynamicCronExecutor(executor)
 
 	ctx := context.Background()
-	const pluginID = "plugin-dynamic-cron-review"
-	const sourcePluginID = "plugin-source-cron-uninstalled-review"
+	const pluginID = "plugin-dev-dynamic-cron-review"
+	const sourcePluginID = "plugin-dev-source-cron-uninstalled-review"
 	testutil.CreateTestPluginDir(t, sourcePluginID)
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, sourcePluginID)
 	t.Cleanup(func() {
@@ -322,7 +322,7 @@ func TestListInstalledCronDeclarationsDiscoversInstalledDisabledDynamicPlugin(t 
 	services.Integration.SetDynamicCronExecutor(executor)
 
 	ctx := context.Background()
-	const pluginID = "plugin-dynamic-cron-installed-review"
+	const pluginID = "plugin-dev-dynamic-cron-installed-review"
 	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
 		t,
 		pluginID,
@@ -380,7 +380,7 @@ func TestListCronDeclarationsDiscoversBundledDynamicSample(t *testing.T) {
 
 	services := testutil.NewServices()
 	ctx := context.Background()
-	const pluginID = "plugin-demo-dynamic"
+	const pluginID = "linapro-demo-dynamic"
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)

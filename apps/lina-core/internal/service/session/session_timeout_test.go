@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
 	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
@@ -22,7 +21,7 @@ func TestTouchOrValidateRejectsExpiredSession(t *testing.T) {
 	ctx := context.Background()
 	tokenID := fmt.Sprintf("session-expired-%d", time.Now().UnixNano())
 
-	insertSessionRecord(t, ctx, tokenID, gtime.Now().Add(-2*time.Hour))
+	insertSessionRecord(t, ctx, tokenID, testTimePtr(time.Now().Add(-2*time.Hour)))
 
 	store := NewDBStore()
 	exists, err := store.TouchOrValidate(ctx, 0, tokenID, time.Hour)
@@ -48,8 +47,8 @@ func TestTouchOrValidateRejectsExpiredSession(t *testing.T) {
 // TestIsSessionInactiveUsesTimeout verifies expiration is checked before a
 // persistent session row can be treated as valid.
 func TestIsSessionInactiveUsesTimeout(t *testing.T) {
-	now := gtime.Now()
-	stored := &entity.SysOnlineSession{LastActiveTime: now.Add(-2 * time.Hour)}
+	now := time.Now()
+	stored := &entity.SysOnlineSession{LastActiveTime: testTimePtr(now.Add(-2 * time.Hour))}
 	if !isSessionInactive(stored, now, time.Hour) {
 		t.Fatal("expected stale session row to be inactive")
 	}
@@ -63,9 +62,9 @@ func TestIsSessionInactiveUsesTimeout(t *testing.T) {
 func TestTouchOrValidateRefreshesActiveSession(t *testing.T) {
 	ctx := context.Background()
 	tokenID := fmt.Sprintf("session-active-%d", time.Now().UnixNano())
-	lastActive := gtime.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
+	lastActive := time.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
 
-	insertSessionRecord(t, ctx, tokenID, lastActive)
+	insertSessionRecord(t, ctx, tokenID, &lastActive)
 
 	store := NewDBStore()
 	exists, err := store.TouchOrValidate(ctx, 0, tokenID, time.Hour)
@@ -96,9 +95,9 @@ func TestTouchOrValidateRefreshesActiveSession(t *testing.T) {
 func TestSessionRecordSurvivesStoreRecreation(t *testing.T) {
 	ctx := context.Background()
 	tokenID := fmt.Sprintf("session-restart-%d", time.Now().UnixNano())
-	lastActive := gtime.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
+	lastActive := time.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
 
-	insertSessionRecord(t, ctx, tokenID, lastActive)
+	insertSessionRecord(t, ctx, tokenID, &lastActive)
 
 	firstStore := NewDBStore()
 	stored, err := firstStore.Get(ctx, tokenID)
@@ -124,9 +123,9 @@ func TestSessionRecordSurvivesStoreRecreation(t *testing.T) {
 func TestTouchOrValidateRejectsTenantMismatch(t *testing.T) {
 	ctx := context.Background()
 	tokenID := fmt.Sprintf("session-tenant-mismatch-%d", time.Now().UnixNano())
-	lastActive := gtime.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
+	lastActive := time.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
 
-	insertTenantSessionRecord(t, ctx, 22, tokenID, lastActive)
+	insertTenantSessionRecord(t, ctx, 22, tokenID, &lastActive)
 
 	store := NewDBStore()
 	stored, err := store.Get(ctx, tokenID)
@@ -157,9 +156,9 @@ func TestTouchOrValidateRejectsTenantMismatch(t *testing.T) {
 func TestTouchOrValidateSkipsRecentActiveSessionUpdate(t *testing.T) {
 	ctx := context.Background()
 	tokenID := fmt.Sprintf("session-recent-%d", time.Now().UnixNano())
-	lastActive := gtime.Now().Truncate(time.Second)
+	lastActive := time.Now().Truncate(time.Second)
 
-	insertSessionRecord(t, ctx, tokenID, lastActive)
+	insertSessionRecord(t, ctx, tokenID, &lastActive)
 
 	store := NewDBStore()
 	exists, err := store.TouchOrValidate(ctx, 0, tokenID, time.Hour)
@@ -180,21 +179,21 @@ func TestTouchOrValidateSkipsRecentActiveSessionUpdate(t *testing.T) {
 	if stored == nil || stored.LastActiveTime == nil {
 		t.Fatal("expected recent session record to remain after validation")
 	}
-	if stored.LastActiveTime.String() != lastActive.String() {
+	if !sameDatabaseSecond(stored.LastActiveTime, &lastActive) {
 		t.Fatalf("expected recent last active time to remain unchanged, got %v want %v", stored.LastActiveTime, lastActive)
 	}
 }
 
 // insertSessionRecord inserts one online-session row used by validation tests
 // and registers cleanup automatically.
-func insertSessionRecord(t *testing.T, ctx context.Context, tokenID string, lastActive *gtime.Time) {
+func insertSessionRecord(t *testing.T, ctx context.Context, tokenID string, lastActive *time.Time) {
 	t.Helper()
 	insertTenantSessionRecord(t, ctx, 0, tokenID, lastActive)
 }
 
 // insertTenantSessionRecord inserts one online-session row for a specific
 // tenant and registers cleanup automatically.
-func insertTenantSessionRecord(t *testing.T, ctx context.Context, tenantID int, tokenID string, lastActive *gtime.Time) {
+func insertTenantSessionRecord(t *testing.T, ctx context.Context, tenantID int, tokenID string, lastActive *time.Time) {
 	t.Helper()
 
 	_, err := dao.SysOnlineSession.Ctx(ctx).Data(do.SysOnlineSession{
@@ -217,4 +216,19 @@ func insertTenantSessionRecord(t *testing.T, ctx context.Context, tenantID int, 
 			t.Fatalf("cleanup session record %s: %v", tokenID, cleanupErr)
 		}
 	})
+}
+
+// testTimePtr returns a pointer to value for generated entity time fields.
+func testTimePtr(value time.Time) *time.Time {
+	return &value
+}
+
+// sameDatabaseSecond compares timestamp-without-time-zone values by their
+// stored wall-clock second instead of interpreting locations as instants.
+func sameDatabaseSecond(left *time.Time, right *time.Time) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	const layout = "2006-01-02 15:04:05"
+	return left.Format(layout) == right.Format(layout)
 }

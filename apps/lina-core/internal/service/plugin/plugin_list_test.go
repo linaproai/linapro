@@ -28,7 +28,7 @@ func TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState(t *testing.T
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-registry-missing"
+		pluginID = "plugin-dev-dynamic-registry-missing"
 	)
 
 	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithFrontendAssets(
@@ -124,7 +124,7 @@ func TestListProjectsMissingRuntimeRegistryWithoutWriting(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-registry-readonly"
+		pluginID = "plugin-dev-dynamic-registry-readonly"
 	)
 
 	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithFrontendAssets(
@@ -231,7 +231,7 @@ func TestListMarksInstalledDynamicPluginWithHigherArtifactPendingUpgrade(t *test
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-dynamic-runtime-upgrade-pending"
+		pluginID   = "plugin-dev-dynamic-runtime-upgrade-pending"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.2.0"
 	)
@@ -339,7 +339,7 @@ func TestPreviewRuntimeUpgradeReturnsPendingDynamicPlan(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-dynamic-runtime-upgrade-preview"
+		pluginID   = "plugin-dev-dynamic-runtime-upgrade-preview"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.2.0"
 	)
@@ -495,7 +495,7 @@ func TestPreviewRuntimeUpgradeRejectsNormalPlugin(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-runtime-upgrade-preview-normal"
+		pluginID = "plugin-dev-dynamic-runtime-upgrade-preview-normal"
 		version  = "v0.1.0"
 	)
 
@@ -536,7 +536,7 @@ func TestListMarksInstalledDynamicPluginWithFailedTargetReleaseUpgradeFailed(t *
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-dynamic-runtime-upgrade-failed"
+		pluginID   = "plugin-dev-dynamic-runtime-upgrade-failed"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.2.0"
 	)
@@ -632,7 +632,7 @@ func TestFilterMenusHidesPendingUpgradePluginMenus(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-dynamic-menu-pending-upgrade"
+		pluginID   = "plugin-dev-dynamic-menu-pending-upgrade"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.2.0"
 	)
@@ -702,7 +702,7 @@ func TestListLocalizesUninstalledDynamicPluginMetadataInEnglish(t *testing.T) {
 	var (
 		service      = newTestService()
 		ctx          = context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: i18nsvc.EnglishLocale})
-		pluginID     = "plugin-dynamic-list-i18n"
+		pluginID     = "plugin-dev-dynamic-list-i18n"
 		artifactPath = filepath.Join(testutil.TestDynamicStorageDir(), pluginID+".wasm")
 	)
 
@@ -744,7 +744,7 @@ func TestListLocalizesUninstalledDynamicPluginMetadataInEnglish(t *testing.T) {
 				"locale": "en-US",
 				"content": `{
   "plugin": {
-    "plugin-dynamic-list-i18n": {
+    "plugin-dev-dynamic-list-i18n": {
       "name": "Dynamic List I18N Plugin",
       "description": "English dynamic plugin description before installation."
     }
@@ -791,7 +791,7 @@ func TestSyncAndListDoesNotRestoreUninstalledDynamicGovernanceProjection(t *test
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-uninstall-governance"
+		pluginID = "plugin-dev-dynamic-uninstall-governance"
 	)
 
 	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
@@ -808,10 +808,10 @@ func TestSyncAndListDoesNotRestoreUninstalledDynamicGovernanceProjection(t *test
 		"v0.3.1",
 		[]*catalog.MenuSpec{
 			{
-				Key:    "plugin:plugin-dynamic-uninstall-governance:entry",
+				Key:    "plugin:plugin-dev-dynamic-uninstall-governance:entry",
 				Name:   "Dynamic Uninstall Governance Plugin",
-				Path:   "plugin-dynamic-uninstall-governance-entry",
-				Perms:  "plugin-dynamic-uninstall-governance:view",
+				Path:   "plugin-dev-dynamic-uninstall-governance-entry",
+				Perms:  "plugin-dev-dynamic-uninstall-governance:view",
 				Icon:   "ant-design:appstore-outlined",
 				Type:   catalog.MenuTypePage.String(),
 				Sort:   1,

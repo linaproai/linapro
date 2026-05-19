@@ -88,8 +88,8 @@ jobs:
         if: ${{ inputs.require-plugin-workspace }}
         uses: ./.github/actions/verify-official-plugin-workspace
 
-      # Install Go for backend build tooling and image-builder helpers.
-      # 安装后端构建工具和 image-builder helper 所需的 Go。
+      # Install Go for backend build tooling and linactl image helpers.
+      # 安装后端构建工具和 linactl image helper 所需的 Go。
       - name: Setup Go
         uses: actions/setup-go@v6
         with:

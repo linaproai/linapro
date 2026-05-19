@@ -30,6 +30,6 @@ type RoleListItem struct {
 	DataScope int    `json:"dataScope" dc:"Data permission scope (1=all 2=current tenant 3=current department 4=only me)" eg:"2"`
 	Status    int    `json:"status" dc:"Status (0=disabled 1=normal)" eg:"1"`
 	Remark    string `json:"remark" dc:"Remarks" eg:"System administrator role"`
-	CreatedAt string `json:"createdAt" dc:"creation time" eg:"2024-01-01 00:00:00"`
-	UpdatedAt string `json:"updatedAt" dc:"Update time" eg:"2024-01-01 00:00:00"`
+	CreatedAt *int64 `json:"createdAt" dc:"Creation time as Unix timestamp in milliseconds" eg:"1704067200000"`
+	UpdatedAt *int64 `json:"updatedAt" dc:"Update time as Unix timestamp in milliseconds" eg:"1704067200000"`
 }

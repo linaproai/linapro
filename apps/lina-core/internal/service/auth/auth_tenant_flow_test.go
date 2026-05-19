@@ -13,7 +13,6 @@ import (
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/golang-jwt/jwt/v5"
 
 	"lina-core/internal/dao"
@@ -821,11 +820,6 @@ func (disabledTenantAuthTestService) ListUserTenants(context.Context, int) ([]pk
 	return []pkgtenantcap.TenantInfo{}, nil
 }
 
-// ReadWithPlatformFallback returns no rows in disabled tenancy tests.
-func (disabledTenantAuthTestService) ReadWithPlatformFallback(context.Context, tenantcapsvc.FallbackScanner[any]) ([]any, error) {
-	return nil, nil
-}
-
 // ApplyUserTenantScope returns the model unchanged when tenancy is disabled.
 func (disabledTenantAuthTestService) ApplyUserTenantScope(
 	_ context.Context,
@@ -914,11 +908,6 @@ func (enabledTenantAuthTestService) ResolveTenant(context.Context, *ghttp.Reques
 // ListUserTenants returns no tenants in auth tests unless provider lookup is used directly.
 func (enabledTenantAuthTestService) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
 	return []pkgtenantcap.TenantInfo{}, nil
-}
-
-// ReadWithPlatformFallback returns no rows in auth tests.
-func (enabledTenantAuthTestService) ReadWithPlatformFallback(context.Context, tenantcapsvc.FallbackScanner[any]) ([]any, error) {
-	return nil, nil
 }
 
 // ApplyUserTenantScope returns the model unchanged in auth tests.
@@ -1178,7 +1167,7 @@ func (s *sharedMemoryKVCache) Incr(_ context.Context, ownerType kvcache.OwnerTyp
 }
 
 // Expire updates one item expiration.
-func (s *sharedMemoryKVCache) Expire(_ context.Context, ownerType kvcache.OwnerType, cacheKey string, ttl time.Duration) (bool, *gtime.Time, error) {
+func (s *sharedMemoryKVCache) Expire(_ context.Context, ownerType kvcache.OwnerType, cacheKey string, ttl time.Duration) (bool, *time.Time, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1214,7 +1203,7 @@ func (s *sharedMemoryKVCache) storeExpireLocked(key string, item *kvcache.Item, 
 	}
 	expireAt := time.Now().Add(ttl)
 	s.expires[key] = expireAt
-	item.ExpireAt = gtime.New(expireAt)
+	item.ExpireAt = &expireAt
 }
 
 // isExpiredLocked reports whether one item is expired. Caller must hold s.mu.

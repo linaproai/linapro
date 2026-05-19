@@ -32,7 +32,7 @@
 - **且** `pkg/dialect` 使用驱动暴露的结构化错误码进行分类，错误文案匹配最多只能作为方言包内部的显式兜底
 
 #### Scenario: 数据库版本查询由 dialect 公共包提供
-- **当** 宿主系统信息或 `monitor-server` 服务监控需要展示数据库版本时
+- **当** 宿主系统信息或 `linapro-monitor-server` 服务监控需要展示数据库版本时
 - **则** 调用方通过 `dialect.DatabaseVersion(ctx, db)` 或等价 `Dialect` 方法查询
 - **且** PostgreSQL 方言使用 `SELECT version()` 或等价语句，返回包含 `PostgreSQL` 引擎名与版本号的字符串
 - **且** SQLite 方言使用 `SELECT sqlite_version()`，返回包含 `SQLite` 引擎名与版本号的字符串

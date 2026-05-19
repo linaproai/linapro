@@ -31,7 +31,7 @@ func TestExecuteManifestSQLFilesRejectsMockDirection(t *testing.T) {
 
 	err := services.Lifecycle.ExecuteManifestSQLFiles(
 		context.Background(),
-		&catalog.Manifest{ID: "plugin-mock-rejection"},
+		&catalog.Manifest{ID: "plugin-dev-mock-rejection"},
 		catalog.MigrationDirectionMock,
 	)
 	if err == nil {
@@ -47,14 +47,14 @@ func TestExecuteManifestSQLFilesRejectsMockDirection(t *testing.T) {
 // continues to keep install/uninstall scans disjoint.
 func TestResolveSQLAssetsHandlesMockDirection(t *testing.T) {
 	services := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-mock-resolver")
+	pluginDir := testutil.CreateTestPluginDir(t, "plugin-dev-mock-resolver")
 
 	mockDir := filepath.Join(pluginDir, "manifest", "sql", "mock-data")
 	if err := os.MkdirAll(mockDir, 0o755); err != nil {
 		t.Fatalf("failed to create mock-data dir: %v", err)
 	}
 	if err := os.WriteFile(
-		filepath.Join(mockDir, "001-plugin-mock-resolver.sql"),
+		filepath.Join(mockDir, "001-plugin-dev-mock-resolver.sql"),
 		[]byte("INSERT INTO sys_user(username) VALUES ('demo') ON CONFLICT DO NOTHING;"),
 		0o644,
 	); err != nil {
@@ -62,7 +62,7 @@ func TestResolveSQLAssetsHandlesMockDirection(t *testing.T) {
 	}
 
 	manifest := &catalog.Manifest{
-		ID:           "plugin-mock-resolver",
+		ID:           "plugin-dev-mock-resolver",
 		Name:         "Mock Resolver Plugin",
 		Version:      "0.1.0",
 		Type:         catalog.TypeSource.String(),
@@ -77,7 +77,7 @@ func TestResolveSQLAssetsHandlesMockDirection(t *testing.T) {
 	if len(assets) != 1 {
 		t.Fatalf("expected one mock asset, got %d: %#v", len(assets), assets)
 	}
-	if assets[0].Key != "001-plugin-mock-resolver.sql" {
+	if assets[0].Key != "001-plugin-dev-mock-resolver.sql" {
 		t.Fatalf("unexpected mock asset key: %s", assets[0].Key)
 	}
 	if !strings.Contains(assets[0].Content, "INSERT INTO sys_user") {
@@ -93,7 +93,7 @@ func TestExecuteManifestMockSQLFilesInTxCommitsAllSuccess(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		pluginID  = "plugin-mock-data-commit"
+		pluginID  = "plugin-dev-mock-data-commit"
 		tableName = "plugin_mock_data_commit_log"
 	)
 	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
@@ -103,13 +103,13 @@ func TestExecuteManifestMockSQLFilesInTxCommitsAllSuccess(t *testing.T) {
 		"v0.1.0",
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-mock-data-commit.sql",
+				Key:     "001-plugin-dev-mock-data-commit.sql",
 				Content: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker VARCHAR(32) NOT NULL);", tableName),
 			},
 		},
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-mock-data-commit.sql",
+				Key:     "001-plugin-dev-mock-data-commit.sql",
 				Content: fmt.Sprintf("DROP TABLE IF EXISTS %s;", tableName),
 			},
 		},
@@ -120,11 +120,11 @@ func TestExecuteManifestMockSQLFilesInTxCommitsAllSuccess(t *testing.T) {
 	}
 	manifest.RuntimeArtifact.MockSQLAssets = []*catalog.ArtifactSQLAsset{
 		{
-			Key:     "001-plugin-mock-data-commit-mock.sql",
+			Key:     "001-plugin-dev-mock-data-commit-mock.sql",
 			Content: fmt.Sprintf("INSERT INTO %s (marker) VALUES ('mock-row-1');", tableName),
 		},
 		{
-			Key:     "002-plugin-mock-data-commit-mock.sql",
+			Key:     "002-plugin-dev-mock-data-commit-mock.sql",
 			Content: fmt.Sprintf("INSERT INTO %s (marker) VALUES ('mock-row-2');", tableName),
 		},
 	}
@@ -177,7 +177,7 @@ func TestExecuteManifestMockSQLFilesInTxRollsBackOnFailure(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		pluginID  = "plugin-mock-data-rollback"
+		pluginID  = "plugin-dev-mock-data-rollback"
 		tableName = "plugin_mock_data_rollback_log"
 	)
 	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
@@ -187,13 +187,13 @@ func TestExecuteManifestMockSQLFilesInTxRollsBackOnFailure(t *testing.T) {
 		"v0.1.0",
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-mock-data-rollback.sql",
+				Key:     "001-plugin-dev-mock-data-rollback.sql",
 				Content: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker VARCHAR(32) NOT NULL);", tableName),
 			},
 		},
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-mock-data-rollback.sql",
+				Key:     "001-plugin-dev-mock-data-rollback.sql",
 				Content: fmt.Sprintf("DROP TABLE IF EXISTS %s;", tableName),
 			},
 		},
@@ -204,11 +204,11 @@ func TestExecuteManifestMockSQLFilesInTxRollsBackOnFailure(t *testing.T) {
 	}
 	manifest.RuntimeArtifact.MockSQLAssets = []*catalog.ArtifactSQLAsset{
 		{
-			Key:     "001-plugin-mock-data-rollback-mock.sql",
+			Key:     "001-plugin-dev-mock-data-rollback-mock.sql",
 			Content: fmt.Sprintf("INSERT INTO %s (marker) VALUES ('mock-row-1');", tableName),
 		},
 		{
-			Key:     "002-plugin-mock-data-rollback-broken-mock.sql",
+			Key:     "002-plugin-dev-mock-data-rollback-broken-mock.sql",
 			Content: "INSERT INTO this_table_does_not_exist (id) VALUES (42);",
 		},
 	}
@@ -235,10 +235,10 @@ func TestExecuteManifestMockSQLFilesInTxRollsBackOnFailure(t *testing.T) {
 	if txErr == nil {
 		t.Fatalf("expected mock SQL to fail, got nil error")
 	}
-	if result.FailedFile != "002-plugin-mock-data-rollback-broken-mock.sql" {
+	if result.FailedFile != "002-plugin-dev-mock-data-rollback-broken-mock.sql" {
 		t.Fatalf("expected failed file to be the second mock asset, got: %s", result.FailedFile)
 	}
-	if len(result.ExecutedFiles) != 1 || result.ExecutedFiles[0] != "001-plugin-mock-data-rollback-mock.sql" {
+	if len(result.ExecutedFiles) != 1 || result.ExecutedFiles[0] != "001-plugin-dev-mock-data-rollback-mock.sql" {
 		t.Fatalf("expected first mock to have executed before rollback, got: %#v", result.ExecutedFiles)
 	}
 
@@ -271,7 +271,7 @@ func TestExecuteManifestMockSQLFilesInTxNoMockReturnsZeroValue(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
 
-	const pluginID = "plugin-mock-data-empty"
+	const pluginID = "plugin-dev-mock-data-empty"
 	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
 		t,
 		pluginID,
@@ -279,13 +279,13 @@ func TestExecuteManifestMockSQLFilesInTxNoMockReturnsZeroValue(t *testing.T) {
 		"v0.1.0",
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-mock-data-empty.sql",
+				Key:     "001-plugin-dev-mock-data-empty.sql",
 				Content: "SELECT 1;",
 			},
 		},
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-mock-data-empty.sql",
+				Key:     "001-plugin-dev-mock-data-empty.sql",
 				Content: "SELECT 1;",
 			},
 		},

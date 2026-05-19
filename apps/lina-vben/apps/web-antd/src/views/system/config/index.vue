@@ -40,7 +40,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
   gridOptions: {
     checkboxConfig: {
-      checkMethod: ({ row }: { row: SysConfig }) => !isBuiltInRecord(row),
+      checkMethod: ({ row }: { row: SysConfig }) => canDeleteRecord(row),
       highlight: true,
       reserve: true,
     },
@@ -88,6 +88,9 @@ function handleAdd() {
 }
 
 function handleEdit(row: SysConfig) {
+  if (!canEditRecord(row)) {
+    return;
+  }
   modalApi.setData({ id: row.id });
   modalApi.open();
 }
@@ -96,8 +99,16 @@ function isBuiltInRecord(row: SysConfig) {
   return row.isBuiltin === 1;
 }
 
+function canEditRecord(row: SysConfig) {
+  return row.canEdit !== false;
+}
+
+function canDeleteRecord(row: SysConfig) {
+  return canEditRecord(row) && !isBuiltInRecord(row);
+}
+
 async function handleDelete(row: SysConfig) {
-  if (isBuiltInRecord(row)) {
+  if (!canDeleteRecord(row)) {
     return;
   }
   await configDelete(row.id);
@@ -107,7 +118,7 @@ async function handleDelete(row: SysConfig) {
 
 function handleMultiDelete() {
   const rows = (gridApi.grid.getCheckboxRecords() as SysConfig[]).filter(
-    (row) => !isBuiltInRecord(row),
+    (row) => canDeleteRecord(row),
   );
   const ids = rows.map((row) => row.id);
   if (ids.length === 0) {
@@ -197,11 +208,11 @@ function handleImport() {
 
       <template #action="{ row }">
         <Space>
-          <ghost-button @click.stop="handleEdit(row)">{{
+          <ghost-button v-if="canEditRecord(row)" @click.stop="handleEdit(row)">{{
             $t('pages.common.edit')
           }}</ghost-button>
           <Tooltip
-            v-if="isBuiltInRecord(row)"
+            v-if="canEditRecord(row) && isBuiltInRecord(row)"
             :title="$t('pages.common.builtinDeleteDisabled')"
           >
             <span
@@ -215,7 +226,7 @@ function handleImport() {
             </span>
           </Tooltip>
           <Popconfirm
-            v-else
+            v-else-if="canDeleteRecord(row)"
             placement="left"
             :title="$t('pages.common.deleteConfirm')"
             @confirm="handleDelete(row)"

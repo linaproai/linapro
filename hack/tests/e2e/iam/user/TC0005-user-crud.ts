@@ -7,7 +7,7 @@ import { UserPage } from '../../../pages/UserPage';
 
 test.describe('TC0005 用户管理 CRUD', () => {
   test.beforeEach(async ({ adminPage }) => {
-    await ensureSourcePluginEnabled(adminPage, 'org-center');
+    await ensureSourcePluginEnabled(adminPage, 'linapro-org-core');
   });
 
   function createTestUsername(scope: string) {

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-定义 `org-center` 源码插件提供的岗位管理查询、维护、部门关联和选项读取行为，确保岗位数据能够稳定地与组织架构和用户管理能力协同工作。
+定义 `linapro-org-core` 源码插件提供的岗位管理查询、维护、部门关联和选项读取行为，确保岗位数据能够稳定地与组织架构和用户管理能力协同工作。
 
 ## Requirements
 ### Requirement:岗位列表查询
@@ -63,7 +63,7 @@
 - **则** 所有指定岗位被软删除
 
 #### Scenario:关联用户的岗位不能删除
-- **当** 删除在 `plugin_org_center_user_post` 中有关联用户的岗位时
+- **当** 删除在 `plugin_linapro_org_core_user_post` 中有关联用户的岗位时
 - **则** 系统返回错误消息，提示该岗位下有用户，必须先移除用户
 
 ### Requirement:查看岗位详情
@@ -108,16 +108,16 @@
 - **则** 返回空列表
 
 ### Requirement:岗位数据表设计
-系统 SHALL 提供 `plugin_org_center_post` 表和 `plugin_org_center_user_post` 关联表。
+系统 SHALL 提供 `plugin_linapro_org_core_post` 表和 `plugin_linapro_org_core_user_post` 关联表。
 
-#### Scenario:plugin_org_center_post 表结构
-- **当** 查看 `plugin_org_center_post` 表结构时
-- **则** 表包含：id、dept_id（INTEGER，引用 `plugin_org_center_dept`.id）、code（VARCHAR，UNIQUE）、name、sort、status、remark、created_at、updated_at、deleted_at
+#### Scenario:plugin_linapro_org_core_post 表结构
+- **当** 查看 `plugin_linapro_org_core_post` 表结构时
+- **则** 表包含：id、dept_id（INTEGER，引用 `plugin_linapro_org_core_dept`.id）、code（VARCHAR，UNIQUE）、name、sort、status、remark、created_at、updated_at、deleted_at
 
-#### Scenario:plugin_org_center_user_post 关联表结构
-- **当** 查看 `plugin_org_center_user_post` 表结构时
+#### Scenario:plugin_linapro_org_core_user_post 关联表结构
+- **当** 查看 `plugin_linapro_org_core_user_post` 表结构时
 - **则** 表包含：user_id（INTEGER）、post_id（INTEGER），联合主键
-- **且** user_id 引用 sys_user.id，post_id 引用 `plugin_org_center_post`.id
+- **且** user_id 引用 sys_user.id，post_id 引用 `plugin_linapro_org_core_post`.id
 
 ### Requirement:岗位管理前端左树右表布局
 系统 SHALL 在岗位管理页面采用左侧部门树 + 右侧岗位列表的布局。
@@ -166,15 +166,15 @@
 
 ### Requirement:岗位管理由组织源码插件交付
 
-系统 SHALL 将岗位管理能力作为 `org-center` 源码插件交付，而非继续作为宿主默认内置模块。
+系统 SHALL 将岗位管理能力作为 `linapro-org-core` 源码插件交付，而非继续作为宿主默认内置模块。
 
 #### Scenario:组织插件启用时提供岗位管理
-- **当** `org-center` 已安装并启用时
+- **当** `linapro-org-core` 已安装并启用时
 - **则** 宿主暴露岗位管理 API、页面和菜单
 - **且** 岗位管理菜单挂载到宿主 `组织管理` 目录，顶层 `parent_key` 为 `org`
 
 #### Scenario:组织插件缺失时隐藏岗位管理入口
-- **当** `org-center` 未安装或未启用时
+- **当** `linapro-org-core` 未安装或未启用时
 - **则** 宿主不显示岗位管理菜单和页面入口
 - **且** 用户管理等宿主能力将按组织降级规则继续可用
 

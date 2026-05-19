@@ -8,8 +8,8 @@ export interface UserMessage {
   sourceType: string;
   sourceId: number;
   isRead: number;
-  readAt: string | null;
-  createdAt: string;
+  readAt: number | null;
+  createdAt: number | null;
 }
 
 export interface UserMessageDetail {
@@ -22,5 +22,5 @@ export interface UserMessageDetail {
   sourceId: number;
   content: string;
   createdByName: string;
-  createdAt: string;
+  createdAt: number | null;
 }

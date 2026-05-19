@@ -9,6 +9,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
+	"lina-core/pkg/apitime"
 )
 
 // List handles scheduled job log list requests.
@@ -17,13 +18,13 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 		PageNum:        req.PageNum,
 		PageSize:       req.PageSize,
 		JobID:          req.JobId,
-		Status:         jobmeta.NormalizeLogStatus(req.Status),
-		Trigger:        jobmeta.NormalizeTriggerType(req.Trigger),
+		Status:         jobmeta.NormalizeLogStatus(string(req.Status)),
+		Trigger:        jobmeta.NormalizeTriggerType(string(req.Trigger)),
 		NodeID:         req.NodeId,
 		BeginTime:      req.BeginTime,
 		EndTime:        req.EndTime,
 		OrderBy:        req.OrderBy,
-		OrderDirection: req.OrderDirection,
+		OrderDirection: string(req.OrderDirection),
 	})
 	if err != nil {
 		return nil, err
@@ -51,14 +52,14 @@ func jobLogItem(log *entity.SysJobLog) v1.JobLogItem {
 		JobId:          log.JobId,
 		JobSnapshot:    log.JobSnapshot,
 		NodeId:         log.NodeId,
-		Trigger:        log.Trigger,
+		Trigger:        v1.Trigger(log.Trigger),
 		ParamsSnapshot: log.ParamsSnapshot,
-		StartAt:        log.StartAt,
-		EndAt:          log.EndAt,
+		StartAt:        apitime.Milli(log.StartAt),
+		EndAt:          apitime.Milli(log.EndAt),
 		DurationMs:     log.DurationMs,
-		Status:         log.Status,
+		Status:         v1.Status(log.Status),
 		ErrMsg:         log.ErrMsg,
 		ResultJson:     log.ResultJson,
-		CreatedAt:      log.CreatedAt,
+		CreatedAt:      apitime.Milli(log.CreatedAt),
 	}
 }

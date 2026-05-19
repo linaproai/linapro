@@ -14,9 +14,9 @@ import {
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
-const targetPluginID = "content-notice";
-const noticeTableName = "plugin_content_notice";
-// Mock data file 001-content-notice-mock-data.sql ships these notice titles.
+const targetPluginID = "linapro-content-notice";
+const noticeTableName = "plugin_linapro_content_notice";
+// Mock data file 001-linapro-content-notice-mock-data.sql ships these notice titles.
 // When mock data is NOT loaded, none of these should appear on the plugin page.
 const mockNoticeTitles = [
   "系统升级通知",

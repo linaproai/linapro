@@ -8,6 +8,7 @@ import { Tag } from 'ant-design-vue';
 import { $t } from '#/locales';
 import { getDictOptions } from '#/utils/dict';
 import { renderDict } from '#/utils/render';
+import { formatTimestamp } from '#/utils/time';
 
 export const DATA_SCOPE_DICT_TYPE = 'sys_data_scope';
 export const DATA_SCOPE_ALL = 1;
@@ -137,6 +138,7 @@ export function columns(
     {
       title: $t('pages.common.createdAt'),
       field: 'createdAt',
+      formatter: ({ cellValue }) => formatTimestamp(cellValue),
       width: 160,
     },
     {

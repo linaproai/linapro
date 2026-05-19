@@ -51,13 +51,13 @@
 
 #### Scenario:规划组织和内容模块
 - **当** 宿主交付默认后台能力时
-- **则** 部门管理和岗位管理由 `org-center` 源码插件提供
-- **且** 通知公告由 `content-notice` 源码插件提供
+- **则** 部门管理和岗位管理由 `linapro-org-core` 源码插件提供
+- **且** 通知公告由 `linapro-content-notice` 源码插件提供
 
 #### Scenario:规划系统监控模块
 - **当** 宿主交付系统监控相关能力时
 - **则** 在线用户、服务监控、操作日志和登录日志由独立的源码插件提供
-- **且** 它们的插件 ID 分别为 `monitor-online`、`monitor-server`、`monitor-operlog`、`monitor-loginlog`
+- **且** 它们的插件 ID 分别为 `linapro-monitor-online`、`linapro-monitor-server`、`linapro-monitor-operlog`、`linapro-monitor-loginlog`
 
 ### Requirement:监控插件必须支持独立安装和启停
 
@@ -69,7 +69,7 @@
 - **且** 未安装的监控插件不会阻塞其他监控插件运行
 
 #### Scenario:禁用单个监控插件
-- **当** 管理员禁用 `monitor-online`、`monitor-server`、`monitor-operlog` 或 `monitor-loginlog` 中的任何一个时
+- **当** 管理员禁用 `linapro-monitor-online`、`linapro-monitor-server`、`linapro-monitor-operlog` 或 `linapro-monitor-loginlog` 中的任何一个时
 - **则** 宿主仅隐藏该插件对应的功能入口
 - **且** 其他监控插件和宿主核心链路继续正常运行
 
@@ -78,27 +78,27 @@
 系统 SHALL 确保源码插件缺失、未安装或未启用时宿主主体功能继续可用。
 
 #### Scenario:组织插件缺失时访问用户管理
-- **当** `org-center` 未安装或未启用时
+- **当** `linapro-org-core` 未安装或未启用时
 - **则** 用户管理页面和接口仍正常工作
 - **且** 与部门和岗位相关的字段、筛选项、树选择器和表单项被安全隐藏或忽略
 
 #### Scenario:日志插件缺失时宿主继续处理请求
-- **当** `monitor-operlog` 或 `monitor-loginlog` 未安装或未启用时
+- **当** `linapro-monitor-operlog` 或 `linapro-monitor-loginlog` 未安装或未启用时
 - **则** 宿主核心请求链路仍正常执行
 - **且** 对应日志持久化相关的能力进入受控降级流程
 - **且** 不会因缺少日志插件导致认证、鉴权或普通业务请求失败
 
 ### Requirement:在线用户插件不得承载认证主链路
 
-系统 SHALL 确保 `monitor-online` 仅承载在线用户管理能力，不会接管宿主认证主链路。
+系统 SHALL 确保 `linapro-monitor-online` 仅承载在线用户管理能力，不会接管宿主认证主链路。
 
 #### Scenario:在线用户插件缺失
-- **当** `monitor-online` 未安装或未启用时
+- **当** `linapro-monitor-online` 未安装或未启用时
 - **则** 宿主仍正常执行登录、退出、受保护接口认证和会话超时清理
 - **且** 宿主继续使用自己的会话事实源维护 `last_active_time` 和超时判定
 
 #### Scenario:在线用户插件执行强制下线
-- **当** `monitor-online` 已安装并执行强制下线管理时
+- **当** `linapro-monitor-online` 已安装并执行强制下线管理时
 - **则** 插件使用宿主提供的会话管理能力使指定会话失效
 - **且** 插件不持有 JWT 验证、会话触碰刷新或超时清理源头
 
@@ -109,15 +109,15 @@
 #### Scenario:登录日志插件已启用
 - **当** 用户成功登录、登录失败或成功退出时
 - **则** 宿主先发出统一登录事件
-- **且** `monitor-loginlog` 订阅事件后完成入库和后续查询管理
+- **且** `linapro-monitor-loginlog` 订阅事件后完成入库和后续查询管理
 
 #### Scenario:操作日志插件已启用
 - **当** 用户触发写操作或标记了 `operLog` 的审计查询时
 - **则** 宿主先发出统一审计事件
-- **且** `monitor-operlog` 订阅事件后完成入库和后续查询管理
+- **且** `linapro-monitor-operlog` 订阅事件后完成入库和后续查询管理
 
 #### Scenario:日志插件未启用
-- **当** `monitor-loginlog` 或 `monitor-operlog` 未安装、未启用或初始化失败时
+- **当** `linapro-monitor-loginlog` 或 `linapro-monitor-operlog` 未安装、未启用或初始化失败时
 - **则** 宿主继续处理原始认证或请求流程
 - **且** 宿主不因缺少特定日志持久化实现而返回错误
 
@@ -132,7 +132,7 @@
 - **且** 生成结果落入插件本地的 `internal/dao`、`internal/model/do` 和 `internal/model/entity`
 
 #### Scenario:插件服务访问插件自有表或共享读表
-- **当** `org-center`、`content-notice`、`monitor-loginlog`、`monitor-operlog`、`monitor-server` 或 `plugin-demo-source` 的 `backend/internal/service/` 访问数据库时
+- **当** `linapro-org-core`、`linapro-content-notice`、`linapro-monitor-loginlog`、`linapro-monitor-operlog`、`linapro-monitor-server` 或 `linapro-demo-source` 的 `backend/internal/service/` 访问数据库时
 - **则** 插件服务使用插件本地生成的 `dao/do/entity`
 - **且** 对 `sys_user`、`sys_dict_data` 等共享读表的访问也通过插件本地生成的产物完成
 - **且** 插件后端不直接依赖宿主 `dao/model` 包
@@ -157,7 +157,7 @@
 - **当** 团队为官方源码插件设计新的业务物理表时
 - **则** 表名使用 `plugin_<plugin_id_snake_case>` 范围命名
 - **且** 单表插件优先使用 `plugin_<plugin_id_snake_case>` 作为完整表名
-- **且** 多表插件在此基础上按需添加业务后缀（如 `plugin_org_center_dept`）
+- **且** 多表插件在此基础上按需添加业务后缀（如 `plugin_linapro_org_core_dept`）
 - **且** 不再使用宿主核心表前缀 `sys_`
 
 #### Scenario:卸载插件并清理数据

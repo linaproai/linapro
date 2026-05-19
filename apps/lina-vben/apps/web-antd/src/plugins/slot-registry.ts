@@ -41,6 +41,13 @@ export interface PluginCapabilityState {
   pluginIds: string[];
 }
 
+export interface PluginCapabilityProviderState {
+  enabled: boolean;
+  observed: boolean;
+  observedPluginIds: string[];
+  pluginIds: string[];
+}
+
 export type PluginCapabilityStateMap = Map<
   PluginCapabilityKey,
   PluginCapabilityState
@@ -187,6 +194,16 @@ function getRegisteredCapabilityModules() {
   ];
 }
 
+function getRegisteredCapabilityProviderIds(capability: PluginCapabilityKey) {
+  const pluginIds = new Set<string>();
+  for (const item of getRegisteredCapabilityModules()) {
+    if (item.capabilities.includes(capability)) {
+      pluginIds.add(item.pluginId);
+    }
+  }
+  return [...pluginIds].toSorted();
+}
+
 function buildPluginStateSignature(items: PluginDynamicState[]) {
   return items
     .map(
@@ -262,6 +279,36 @@ export async function getPluginCapabilityStateMap(force = false) {
     }
   }
   return capabilityMap;
+}
+
+/**
+ * Reports runtime state for plugins that provide a frontend extension capability.
+ */
+export async function getPluginCapabilityProviderState(
+  capability: PluginCapabilityKey,
+  force = false,
+): Promise<PluginCapabilityProviderState> {
+  const pluginStateMap = await getPluginStateMap(force);
+  const pluginIds = getRegisteredCapabilityProviderIds(capability);
+  const observedPluginIds: string[] = [];
+  let enabled = false;
+
+  for (const pluginId of pluginIds) {
+    if (!pluginStateMap.has(pluginId)) {
+      continue;
+    }
+    observedPluginIds.push(pluginId);
+    if (isPluginEnabled(pluginId, pluginStateMap)) {
+      enabled = true;
+    }
+  }
+
+  return {
+    enabled,
+    observed: observedPluginIds.length > 0,
+    observedPluginIds,
+    pluginIds,
+  };
 }
 
 /**

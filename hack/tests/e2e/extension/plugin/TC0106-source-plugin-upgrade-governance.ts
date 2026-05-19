@@ -17,15 +17,15 @@ import {
   pgEscapeLiteral,
 } from '../../../support/postgres';
 
-const pluginID = 'plugin-demo-source';
+const pluginID = 'linapro-demo-source';
 const originalMenuName = '源码插件示例';
 const upgradedMenuName = '源码插件示例升级版';
-const originalMenuKey = 'plugin:plugin-demo-source:sidebar-entry';
-const upgradedMenuKey = 'plugin:plugin-demo-source:sidebar-entry-upgraded';
+const originalMenuKey = 'plugin:linapro-demo-source:sidebar-entry';
+const upgradedMenuKey = 'plugin:linapro-demo-source:sidebar-entry-upgraded';
 const repoRoot = path.resolve(process.cwd(), '../..');
 const pluginManifestPath = path.resolve(
   repoRoot,
-  'apps/lina-plugins/plugin-demo-source/plugin.yaml',
+  'apps/lina-plugins/linapro-demo-source/plugin.yaml',
 );
 
 type OriginalPluginState = {
@@ -53,7 +53,7 @@ function assertOk(response: Awaited<ReturnType<APIRequestContext['get']>>, messa
 function extractPluginVersion(content: string) {
   const match = content.match(/^version:\s*(v\d+\.\d+\.\d+)\s*$/m);
   if (!match) {
-    throw new Error('未能从 plugin-demo-source/plugin.yaml 解析版本号');
+    throw new Error('未能从 linapro-demo-source/plugin.yaml 解析版本号');
   }
   return match[1];
 }
@@ -79,7 +79,7 @@ function buildUpgradedManifestContent(originalContent: string) {
   );
   upgradedContent = upgradedContent.replaceAll(originalMenuKey, upgradedMenuKey);
   upgradedContent = upgradedContent.replace(
-    /(- key: plugin:plugin-demo-source:sidebar-entry-upgraded[\s\S]*?\n\s+name:\s+)[^\n]+/,
+    /(- key: plugin:linapro-demo-source:sidebar-entry-upgraded[\s\S]*?\n\s+name:\s+)[^\n]+/,
     `$1${upgradedMenuName}`,
   );
 

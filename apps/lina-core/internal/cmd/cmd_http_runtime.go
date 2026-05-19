@@ -60,7 +60,7 @@ type httpRuntime struct {
 	orgCapSvc       orgcap.Service          // orgCapSvc exposes optional organization capability.
 	roleSvc         role.Service            // roleSvc owns permission and access snapshot state.
 	sessionStore    session.Store           // sessionStore owns online-session persistence and hot state.
-	tenantSvc       tenantcapsvc.Service    // tenantSvc exposes optional multi-tenant capability.
+	tenantSvc       tenantcapsvc.Service    // tenantSvc exposes optional linapro-tenant-core capability.
 	kvCacheSvc      kvcache.Service         // kvCacheSvc owns runtime-selected KV backend.
 	hostServices    pluginhost.HostServices // hostServices publishes runtime-owned adapters to source plugins.
 	dictSvc         dict.Service            // dictSvc owns dictionary lookup and maintenance.
@@ -200,7 +200,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		roleSvc      = role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
 		scopeSvc     = datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
 		dictSvc      = dict.New(i18nSvc)
-		menuSvc      = menu.New(pluginSvc, i18nSvc, roleSvc)
+		menuSvc      = menu.New(pluginSvc, i18nSvc, roleSvc, tenantSvc)
 		notifySvc    = notify.New(tenantSvc)
 		authSvc      = auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
 		fileStorage  = file.NewLocalStorage(configSvc.GetUploadPath(ctx))
@@ -238,6 +238,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		sessionStore,
 		tenantSvc,
 		notifySvc,
+		kvCacheSvc,
 	)
 	if err != nil {
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)

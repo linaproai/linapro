@@ -4,8 +4,7 @@ package usermsg
 
 import (
 	"context"
-
-	"github.com/gogf/gf/v2/os/gtime"
+	"time"
 
 	"lina-core/internal/service/bizctx"
 	notifysvc "lina-core/internal/service/notify"
@@ -99,30 +98,30 @@ type ListOutput struct {
 
 // MessageItem defines one user message facade item.
 type MessageItem struct {
-	Id           int64       // Message ID
-	UserId       int64       // Recipient user ID
-	Title        string      // Message title
-	CategoryCode string      // Opaque sender-declared category code identifying the notification kind
-	TypeLabel    string      // Localized category label resolved at the host
-	TypeColor    string      // Localized category tag color resolved at the host
-	SourceType   string      // Message source type
-	SourceId     int64       // Message source ID
-	IsRead       int         // Whether the message has been read
-	ReadAt       *gtime.Time // Read time
-	CreatedAt    *gtime.Time // Creation time
+	Id           int64      // Message ID
+	UserId       int64      // Recipient user ID
+	Title        string     // Message title
+	CategoryCode string     // Opaque sender-declared category code identifying the notification kind
+	TypeLabel    string     // Localized category label resolved at the host
+	TypeColor    string     // Localized category tag color resolved at the host
+	SourceType   string     // Message source type
+	SourceId     int64      // Message source ID
+	IsRead       int        // Whether the message has been read
+	ReadAt       *time.Time // Read time
+	CreatedAt    *time.Time // Creation time
 }
 
 // MessageDetail defines one current-user message detail payload used by the
 // inbox preview dialog.
 type MessageDetail struct {
-	Id            int64       // Message ID
-	Title         string      // Message title
-	CategoryCode  string      // Opaque sender-declared category code identifying the notification kind
-	TypeLabel     string      // Localized category label resolved at the host
-	TypeColor     string      // Localized category tag color resolved at the host
-	SourceType    string      // Message source type
-	SourceId      int64       // Message source ID
-	Content       string      // Renderable message body content
-	CreatedByName string      // Sender display name
-	CreatedAt     *gtime.Time // Message creation time
+	Id            int64      // Message ID
+	Title         string     // Message title
+	CategoryCode  string     // Opaque sender-declared category code identifying the notification kind
+	TypeLabel     string     // Localized category label resolved at the host
+	TypeColor     string     // Localized category tag color resolved at the host
+	SourceType    string     // Message source type
+	SourceId      int64      // Message source ID
+	Content       string     // Renderable message body content
+	CreatedByName string     // Sender display name
+	CreatedAt     *time.Time // Message creation time
 }

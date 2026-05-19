@@ -83,11 +83,11 @@ func (p *testPluginRouteProvider) IsEnabled(ctx context.Context, pluginID string
 // ProjectDynamicRoutesToOpenAPI injects one synthetic dynamic-plugin route into
 // the document under test.
 func (p *testPluginRouteProvider) ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths goai.Paths) error {
-	paths["/api/v1/extensions/plugin-demo-dynamic/backend-summary"] = goai.Path{
+	paths["/api/v1/extensions/linapro-demo-dynamic/backend-summary"] = goai.Path{
 		Get: &goai.Operation{
 			Tags:        []string{"Dynamic Plugin Demo"},
 			Summary:     "Query the dynamic plugin backend execution summary",
-			Description: "Return the current bridge execution summary for plugin-demo-dynamic when dispatched through the host prefix /api/v1/extensions/{pluginId}/..., including plugin ID, route information, and current user context.",
+			Description: "Return the current bridge execution summary for linapro-demo-dynamic when dispatched through the host prefix /api/v1/extensions/{pluginId}/..., including plugin ID, route information, and current user context.",
 		},
 	}
 	return nil
@@ -126,19 +126,19 @@ func TestBuildProjectsHostAndEnabledPluginRoutes(t *testing.T) {
 
 	pluginProvider := &testPluginRouteProvider{
 		enabledByID: map[string]bool{
-			"plugin-source-enabled":  true,
-			"plugin-source-disabled": false,
+			"plugin-dev-source-enabled":  true,
+			"plugin-dev-source-disabled": false,
 		},
 		sourceRoutes: []pluginhost.SourceRouteBinding{
 			{
-				PluginID:     "plugin-source-enabled",
+				PluginID:     "plugin-dev-source-enabled",
 				Method:       "GET",
 				Path:         "/api/v1/plugins/enabled/ping",
 				Handler:      testSourceEnabledHandler,
 				Documentable: true,
 			},
 			{
-				PluginID:     "plugin-source-disabled",
+				PluginID:     "plugin-dev-source-disabled",
 				Method:       "GET",
 				Path:         "/api/v1/plugins/disabled/ping",
 				Handler:      testSourceDisabledHandler,
@@ -170,7 +170,7 @@ func TestBuildProjectsHostAndEnabledPluginRoutes(t *testing.T) {
 	if _, ok := document.Paths["/api/v1/plugins/disabled/ping"]; ok {
 		t.Fatalf("expected disabled source-plugin route to be removed from hosted document")
 	}
-	if _, ok := document.Paths["/api/v1/extensions/plugin-demo-dynamic/backend-summary"]; !ok {
+	if _, ok := document.Paths["/api/v1/extensions/linapro-demo-dynamic/backend-summary"]; !ok {
 		t.Fatalf("expected dynamic-plugin route projection to stay available")
 	}
 }
@@ -192,11 +192,11 @@ func TestBuildLocalizesOpenAPIForRequestLocale(t *testing.T) {
 
 	pluginProvider := &testPluginRouteProvider{
 		enabledByID: map[string]bool{
-			"plugin-source-enabled": true,
+			"plugin-dev-source-enabled": true,
 		},
 		sourceRoutes: []pluginhost.SourceRouteBinding{
 			{
-				PluginID:     "plugin-source-enabled",
+				PluginID:     "plugin-dev-source-enabled",
 				Method:       "GET",
 				Path:         "/api/v1/plugins/enabled/ping",
 				Handler:      testSourceEnabledHandler,
@@ -237,17 +237,17 @@ func TestBuildLocalizesOpenAPIForRequestLocale(t *testing.T) {
 	if sourceOperation == nil || sourceOperation.Tags[0] != "Source Plugin Demo" {
 		t.Fatalf("expected source-plugin operation tag to be localized")
 	}
-	dynamicOperation := document.Paths["/api/v1/extensions/plugin-demo-dynamic/backend-summary"].Get
+	dynamicOperation := document.Paths["/api/v1/extensions/linapro-demo-dynamic/backend-summary"].Get
 	if dynamicOperation == nil || dynamicOperation.Summary != "Query the dynamic plugin backend execution summary" {
 		t.Fatalf("expected dynamic-plugin operation summary to be localized")
 	}
 
 	restoreCatalog := registerOpenAPITestCatalog("zh-CN", map[string]string{
-		"core.internal.service.apidoc.testHostListReq.fields.pageNum.dc":     "页码",
-		"core.internal.service.apidoc.testHostListReq.meta.summary":          "获取用户列表",
-		"core.internal.service.apidoc.testHostListReq.meta.tags":             "用户管理",
-		"core.internal.service.apidoc.testSourceEnabledReq.meta.tags":        "源码插件示例",
-		"plugins.plugin_demo_dynamic.paths.get.backend_summary.meta.summary": "查询动态插件后端执行摘要",
+		"core.internal.service.apidoc.testHostListReq.fields.pageNum.dc":      "页码",
+		"core.internal.service.apidoc.testHostListReq.meta.summary":           "获取用户列表",
+		"core.internal.service.apidoc.testHostListReq.meta.tags":              "用户管理",
+		"core.internal.service.apidoc.testSourceEnabledReq.meta.tags":         "源码插件示例",
+		"plugins.linapro_demo_dynamic.paths.get.backend_summary.meta.summary": "查询动态插件后端执行摘要",
 	})
 	defer restoreCatalog()
 
@@ -280,7 +280,7 @@ func TestBuildLocalizesOpenAPIForRequestLocale(t *testing.T) {
 	if zhSourceOperation == nil || zhSourceOperation.Tags[0] != "源码插件示例" {
 		t.Fatalf("expected source-plugin operation tag to be localized to Chinese")
 	}
-	zhDynamicOperation := zhDocument.Paths["/api/v1/extensions/plugin-demo-dynamic/backend-summary"].Get
+	zhDynamicOperation := zhDocument.Paths["/api/v1/extensions/linapro-demo-dynamic/backend-summary"].Get
 	if zhDynamicOperation == nil || zhDynamicOperation.Summary != "查询动态插件后端执行摘要" {
 		t.Fatalf("expected dynamic-plugin operation summary to be localized to Chinese")
 	}

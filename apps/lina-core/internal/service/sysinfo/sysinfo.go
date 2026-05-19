@@ -73,7 +73,7 @@ type SystemInfo struct {
 	Os                 string                  // Os is the operating system name.
 	Arch               string                  // Arch is the runtime architecture.
 	DbVersion          string                  // DbVersion is the database server version string.
-	StartTime          string                  // StartTime is the host start timestamp.
+	StartTime          time.Time               // StartTime is the host start timestamp.
 	RunDuration        string                  // RunDuration is the English fallback uptime string.
 	RunDurationSeconds int64                   // RunDurationSeconds is the total uptime in seconds.
 	BackendComponents  []ComponentInfo         // BackendComponents lists backend technology cards.

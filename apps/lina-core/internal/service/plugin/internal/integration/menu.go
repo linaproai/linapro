@@ -17,7 +17,6 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
-	menusvc "lina-core/internal/service/menu"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/startupstats"
 )
@@ -472,13 +471,6 @@ func (s *serviceImpl) listPluginMenuExternalParents(ctx context.Context, manifes
 		}
 		if _, ok := declaredKeys[spec.ParentKey]; ok {
 			continue
-		}
-		if !menusvc.IsStableCatalogKey(spec.ParentKey) {
-			return nil, gerror.Newf("plugin menu parent_key can only mount to a stable host catalog: %s -> %s", spec.Key, spec.ParentKey)
-		}
-		if allowed, official := menusvc.IsExpectedStableParentKey(manifest.ID, spec.ParentKey); official && !allowed {
-			expectedParentKeys, _ := menusvc.ExpectedStableParentKeys(manifest.ID)
-			return nil, gerror.Newf("official plugin top-level menu parent_key is invalid: %s -> %s, expected %s", spec.Key, spec.ParentKey, strings.Join(expectedParentKeys, " or "))
 		}
 		if _, ok := seen[spec.ParentKey]; ok {
 			continue

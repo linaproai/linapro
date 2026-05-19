@@ -193,8 +193,8 @@ plugin:
   # 阶段同时加载该插件的 manifest/sql/mock-data SQL。示例数据仅用于演示和
   # 功能验证，不建议生产环境启用。
   autoEnable:
-    # - id: "demo-control"
+    # - id: "linapro-ops-demo-guard"
     #   withMockData: false
-    # - id: "plugin-demo-source"
-    # - id: "plugin-demo-dynamic"
+    # - id: "linapro-demo-source"
+    # - id: "linapro-demo-dynamic"
     #   withMockData: true

@@ -99,7 +99,7 @@ export class UserPage {
     return this.getUserDataRow(username);
   }
 
-  /** Tenant filter is rendered only when the multi-tenant plugin is active. */
+  /** Tenant filter is rendered only when the linapro-tenant-core plugin is active. */
   get tenantFilter() {
     return this.page.getByTestId("user-tenant-filter");
   }

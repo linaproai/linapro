@@ -18,7 +18,7 @@ func (c *ControllerV1) MissingMessages(ctx context.Context, req *v1.MissingMessa
 		responseItems = append(responseItems, v1.MissingMessageItem{
 			Key:          item.Key,
 			DefaultValue: item.DefaultValue,
-			SourceType:   item.Source.Type,
+			SourceType:   v1.MessageSourceType(item.Source.Type),
 			SourceKey:    item.Source.ScopeKey,
 		})
 	}

@@ -69,7 +69,7 @@ func TestInstance_Renew(t *testing.T) {
 
 		// Get current expire time
 		var locker struct {
-			ExpireTime *gtime.Time
+			ExpireTime *time.Time
 		}
 		err = g.DB().Model("sys_locker").Where("name", name).Scan(&locker)
 		t.AssertNil(err)
@@ -117,7 +117,7 @@ func TestInstance_Renew_NotHeld(t *testing.T) {
 
 		// Release lock by setting expire_time to past
 		_, err = g.DB().Model("sys_locker").Data(g.Map{
-			"expire_time": gtime.Now().Add(-10 * time.Second),
+			"expire_time": time.Now().Add(-10 * time.Second),
 		}).Where("name", name).Update()
 		t.AssertNil(err)
 
@@ -150,7 +150,7 @@ func TestInstance_Renew_LostToOther(t *testing.T) {
 		// Simulate another node taking over by updating the lock
 		_, err = g.DB().Model("sys_locker").Data(g.Map{
 			"holder":      "other-node",
-			"expire_time": gtime.Now().Add(30 * time.Second),
+			"expire_time": time.Now().Add(30 * time.Second),
 		}).Where("name", name).Update()
 		t.AssertNil(err)
 
@@ -221,7 +221,7 @@ func TestInstance_IsHeld_Expired(t *testing.T) {
 
 		// Set expire time to past
 		_, err = g.DB().Model("sys_locker").Data(g.Map{
-			"expire_time": gtime.Now().Add(-10 * time.Second),
+			"expire_time": time.Now().Add(-10 * time.Second),
 		}).Where("name", name).Update()
 		t.AssertNil(err)
 

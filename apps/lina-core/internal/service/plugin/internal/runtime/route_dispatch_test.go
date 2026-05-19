@@ -38,8 +38,8 @@ func TestMatchDynamicRoutePathSupportsParams(t *testing.T) {
 func TestBuildDynamicRouteMetadataMapsRouteGovernance(t *testing.T) {
 	metadata := runtime.BuildDynamicRouteMetadata(&runtime.DynamicRouteRuntimeState{
 		Match: &runtime.DynamicRouteMatch{
-			PluginID:   "plugin-demo-dynamic",
-			PublicPath: "/api/v1/extensions/plugin-demo-dynamic/review",
+			PluginID:   "linapro-demo-dynamic",
+			PublicPath: "/api/v1/extensions/linapro-demo-dynamic/review",
 			Route: &pluginbridge.RouteContract{
 				Method:  http.MethodGet,
 				Tags:    []string{"plugin-review", "dynamic"},
@@ -53,13 +53,13 @@ func TestBuildDynamicRouteMetadataMapsRouteGovernance(t *testing.T) {
 	if metadata == nil {
 		t.Fatal("expected dynamic route metadata to be built")
 	}
-	if metadata.PluginID != "plugin-demo-dynamic" {
-		t.Fatalf("expected plugin id plugin-demo-dynamic, got %q", metadata.PluginID)
+	if metadata.PluginID != "linapro-demo-dynamic" {
+		t.Fatalf("expected plugin id linapro-demo-dynamic, got %q", metadata.PluginID)
 	}
 	if metadata.Method != http.MethodGet {
 		t.Fatalf("expected method GET, got %q", metadata.Method)
 	}
-	if metadata.PublicPath != "/api/v1/extensions/plugin-demo-dynamic/review" {
+	if metadata.PublicPath != "/api/v1/extensions/linapro-demo-dynamic/review" {
 		t.Fatalf("expected public path to be preserved, got %q", metadata.PublicPath)
 	}
 	if len(metadata.Tags) != 2 || metadata.Tags[0] != "plugin-review" || metadata.Tags[1] != "dynamic" {
@@ -80,7 +80,7 @@ func TestDispatchDynamicRouteReturnsNotFoundWhenTenantPluginDisabled(t *testing.
 	var (
 		services = testutil.NewServices()
 		ctx      = datascope.WithTenantForTest(context.Background(), 7001)
-		pluginID = "plugin-dynamic-route-tenant-disabled"
+		pluginID = "plugin-dev-dynamic-route-tenant-disabled"
 	)
 
 	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
@@ -176,7 +176,7 @@ func TestDispatchDynamicRouteReturnsUpgradeRequiredWhenPendingUpgrade(t *testing
 	var (
 		services   = testutil.NewServices()
 		ctx        = context.Background()
-		pluginID   = "plugin-dynamic-route-pending-upgrade"
+		pluginID   = "plugin-dev-dynamic-route-pending-upgrade"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.2.0"
 	)
@@ -283,12 +283,12 @@ func TestExecuteDynamicWasmBridgeReturnsGuestResponse(t *testing.T) {
 	}
 
 	response, err := services.Runtime.ExecuteDynamicRoute(context.Background(), manifest, &pluginbridge.BridgeRequestEnvelopeV1{
-		PluginID: "plugin-demo-dynamic",
+		PluginID: "linapro-demo-dynamic",
 		Route: &pluginbridge.RouteMatchSnapshotV1{
 			InternalPath: "/backend-summary",
-			PublicPath:   "/api/v1/extensions/plugin-demo-dynamic/backend-summary",
+			PublicPath:   "/api/v1/extensions/linapro-demo-dynamic/backend-summary",
 			Access:       pluginbridge.AccessLogin,
-			Permission:   "plugin-demo-dynamic:backend:view",
+			Permission:   "linapro-demo-dynamic:backend:view",
 		},
 		Identity: &pluginbridge.IdentitySnapshotV1{
 			UserID:       1,
@@ -309,7 +309,7 @@ func TestExecuteDynamicWasmBridgeReturnsGuestResponse(t *testing.T) {
 	if string(response.Body) == "" {
 		t.Fatal("expected guest bridge response body to be non-empty")
 	}
-	if got := response.Headers["X-Lina-Plugin-Bridge"]; len(got) != 1 || got[0] != "plugin-demo-dynamic" {
+	if got := response.Headers["X-Lina-Plugin-Bridge"]; len(got) != 1 || got[0] != "linapro-demo-dynamic" {
 		t.Fatalf("expected guest bridge header to be preserved, got %#v", response.Headers)
 	}
 	if got := response.Headers["X-Lina-Plugin-Middleware"]; len(got) != 1 || got[0] != "backend-summary" {
@@ -320,7 +320,7 @@ func TestExecuteDynamicWasmBridgeReturnsGuestResponse(t *testing.T) {
 	if err = json.Unmarshal(response.Body, &payload); err != nil {
 		t.Fatalf("expected guest response body to be valid json, got error: %v", err)
 	}
-	if payload["pluginId"] != "plugin-demo-dynamic" {
+	if payload["pluginId"] != "linapro-demo-dynamic" {
 		t.Fatalf("expected guest payload pluginId to be preserved, got %#v", payload)
 	}
 	if payload["authenticated"] != true {
@@ -340,13 +340,13 @@ func TestExecuteDynamicWasmBridgeHostCallDemoUsesStructuredHostServices(t *testi
 	}
 
 	response, err := services.Runtime.ExecuteDynamicRoute(context.Background(), manifest, &pluginbridge.BridgeRequestEnvelopeV1{
-		PluginID:  "plugin-demo-dynamic",
+		PluginID:  "linapro-demo-dynamic",
 		RequestID: "req-host-call-demo",
 		Route: &pluginbridge.RouteMatchSnapshotV1{
 			InternalPath: "/host-call-demo",
-			PublicPath:   "/api/v1/extensions/plugin-demo-dynamic/host-call-demo",
+			PublicPath:   "/api/v1/extensions/linapro-demo-dynamic/host-call-demo",
 			Access:       pluginbridge.AccessLogin,
-			Permission:   "plugin-demo-dynamic:backend:view",
+			Permission:   "linapro-demo-dynamic:backend:view",
 			RequestType:  "HostCallDemoReq",
 			QueryValues: map[string][]string{
 				"skipNetwork": {"1"},
@@ -373,7 +373,7 @@ func TestExecuteDynamicWasmBridgeHostCallDemoUsesStructuredHostServices(t *testi
 	if err = json.Unmarshal(response.Body, &payload); err != nil {
 		t.Fatalf("expected host call demo body to be valid json, got error: %v", err)
 	}
-	if payload["pluginId"] != "plugin-demo-dynamic" {
+	if payload["pluginId"] != "linapro-demo-dynamic" {
 		t.Fatalf("expected pluginId to be preserved, got %#v", payload)
 	}
 	if payload["visitCount"] == nil {
@@ -474,7 +474,7 @@ func TestExecuteDeclaredCronJobUsesWasmBridge(t *testing.T) {
 func loadBundledDynamicSampleManifest(t *testing.T, services *testutil.Services) (*catalog.Manifest, error) {
 	t.Helper()
 
-	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), runtime.BuildArtifactFileName("plugin-demo-dynamic"))
+	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), runtime.BuildArtifactFileName("linapro-demo-dynamic"))
 	return services.Catalog.LoadManifestFromArtifactPath(artifactPath)
 }
 

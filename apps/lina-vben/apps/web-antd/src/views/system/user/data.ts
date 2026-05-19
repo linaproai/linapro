@@ -2,6 +2,7 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeGridProps } from '#/adapter/vxe-table';
 
 import { $t } from '#/locales';
+import { formatTimestamp } from '#/utils/time';
 
 type GridColumns = NonNullable<VxeGridProps['columns']>;
 type GridColumn = GridColumns[number];
@@ -157,6 +158,7 @@ export function buildColumns(
     {
       field: 'createdAt',
       title: $t('pages.common.createdAt'),
+      formatter: ({ cellValue }) => formatTimestamp(cellValue),
       minWidth: 180,
       sortable: true,
     },

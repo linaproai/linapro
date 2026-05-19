@@ -1,6 +1,12 @@
+// This file defines the current-user information API DTOs, including the menu
+// tree projection returned to the frontend shell.
+
 package v1
 
 import (
+	"lina-core/pkg/menutype"
+	"lina-core/pkg/statusflag"
+
 	"github.com/gogf/gf/v2/frame/g"
 )
 
@@ -24,18 +30,18 @@ type GetInfoRes struct {
 
 // MenuTree represents a menu node in the user menu tree.
 type MenuTree struct {
-	Id        int         `json:"id" dc:"Menu ID" eg:"1"`
-	ParentId  int         `json:"parentId" dc:"Parent menu ID" eg:"0"`
-	Name      string      `json:"name" dc:"Menu name" eg:"System management"`
-	Path      string      `json:"path" dc:"routing path" eg:"/system"`
-	Component string      `json:"component" dc:"component path" eg:"LAYOUT"`
-	Perms     string      `json:"perms" dc:"Permission ID" eg:"system:user:list"`
-	Icon      string      `json:"icon" dc:"menu icon" eg:"ant-design:setting-outlined"`
-	Type      string      `json:"type" dc:"Menu type: D=Directory M=Menu B=Button" eg:"D"`
-	Sort      int         `json:"sort" dc:"sort" eg:"1"`
-	Visible   int         `json:"visible" dc:"Whether to display: 1=show 0=hide" eg:"1"`
-	Status    int         `json:"status" dc:"Status: 1=normal 0=disabled" eg:"1"`
-	IsFrame   int         `json:"isFrame" dc:"Whether to external link: 1=yes 0=no" eg:"0"`
-	IsCache   int         `json:"isCache" dc:"Whether to cache: 1=yes 0=no" eg:"0"`
-	Children  []*MenuTree `json:"children" dc:"submenu" eg:"[]"`
+	Id        int                   `json:"id" dc:"Menu ID" eg:"1"`
+	ParentId  int                   `json:"parentId" dc:"Parent menu ID" eg:"0"`
+	Name      string                `json:"name" dc:"Menu name" eg:"System management"`
+	Path      string                `json:"path" dc:"routing path" eg:"/system"`
+	Component string                `json:"component" dc:"component path" eg:"LAYOUT"`
+	Perms     string                `json:"perms" dc:"Permission ID" eg:"system:user:list"`
+	Icon      string                `json:"icon" dc:"menu icon" eg:"ant-design:setting-outlined"`
+	Type      menutype.Code         `json:"type" dc:"Menu type: D=Directory M=Menu B=Button" eg:"D"`
+	Sort      int                   `json:"sort" dc:"sort" eg:"1"`
+	Visible   statusflag.Visibility `json:"visible" dc:"Whether to display: 1=show 0=hide" eg:"1"`
+	Status    statusflag.Enabled    `json:"status" dc:"Status: 1=normal 0=disabled" eg:"1"`
+	IsFrame   statusflag.YesNo      `json:"isFrame" dc:"Whether to external link: 1=yes 0=no" eg:"0"`
+	IsCache   statusflag.YesNo      `json:"isCache" dc:"Whether to cache: 1=yes 0=no" eg:"0"`
+	Children  []*MenuTree           `json:"children" dc:"submenu" eg:"[]"`
 }

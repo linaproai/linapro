@@ -5,9 +5,9 @@ package notify
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
@@ -19,15 +19,15 @@ import (
 // inboxListRecord is the joined database projection used to build inbox list
 // response items.
 type inboxListRecord struct {
-	Id           int64       `json:"id"`
-	UserId       int64       `json:"userId"`
-	Title        string      `json:"title"`
-	CategoryCode string      `json:"categoryCode"`
-	SourceType   string      `json:"sourceType"`
-	SourceId     string      `json:"sourceId"`
-	IsRead       int         `json:"isRead"`
-	ReadAt       *gtime.Time `json:"readAt"`
-	CreatedAt    *gtime.Time `json:"createdAt"`
+	Id           int64      `json:"id"`
+	UserId       int64      `json:"userId"`
+	Title        string     `json:"title"`
+	CategoryCode string     `json:"categoryCode"`
+	SourceType   string     `json:"sourceType"`
+	SourceId     string     `json:"sourceId"`
+	IsRead       int        `json:"isRead"`
+	ReadAt       *time.Time `json:"readAt"`
+	CreatedAt    *time.Time `json:"createdAt"`
 }
 
 // InboxUnreadCount returns the unread inbox delivery count for one user.
@@ -128,9 +128,10 @@ func (s *serviceImpl) InboxMarkRead(ctx context.Context, userID int64, deliveryI
 		DeliveryStatus: DeliveryStatusSucceeded,
 	})
 	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	now := time.Now()
 	_, err := model.Data(do.SysNotifyDelivery{
 		IsRead: 1,
-		ReadAt: gtime.Now(),
+		ReadAt: &now,
 	}).Update()
 	return err
 }
@@ -148,9 +149,10 @@ func (s *serviceImpl) InboxMarkAllRead(ctx context.Context, userID int64) error 
 		Where(deliveryCols.DeliveryStatus, DeliveryStatusSucceeded).
 		Where(deliveryCols.IsRead, 0)
 	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	now := time.Now()
 	_, err := model.Data(do.SysNotifyDelivery{
 		IsRead: 1,
-		ReadAt: gtime.Now(),
+		ReadAt: &now,
 	}).
 		Update()
 	return err

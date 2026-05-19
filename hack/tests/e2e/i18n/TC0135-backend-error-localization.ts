@@ -18,10 +18,10 @@ type ErrorEnvelope = {
 };
 
 const sourcePluginIDs = [
-  "content-notice",
-  "org-center",
-  "monitor-loginlog",
-  "monitor-operlog",
+  "linapro-content-notice",
+  "linapro-org-core",
+  "linapro-monitor-loginlog",
+  "linapro-monitor-operlog",
 ] as const;
 
 const errorCases = [

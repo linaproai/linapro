@@ -35,7 +35,7 @@ func (s *serviceImpl) GetInfo(ctx context.Context) (*SystemInfo, error) {
 		GfVersion: gf.VERSION,
 		Os:        runtime.GOOS,
 		Arch:      runtime.GOARCH,
-		StartTime: s.startTime.Format("2006-01-02 15:04:05"),
+		StartTime: s.startTime,
 	}
 
 	durationSeconds := int64(time.Since(s.startTime).Seconds())

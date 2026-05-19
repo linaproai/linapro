@@ -18,6 +18,7 @@ LINACTL       := cd hack/tools/linactl && go run .
 # Include split makefile targets.
 # 引入拆分后的 Makefile 目标文件。
 include hack/makefiles/help.mk
+include hack/makefiles/env.mk
 include hack/makefiles/dev.mk
 include hack/makefiles/build.mk
 include hack/makefiles/plugins.mk

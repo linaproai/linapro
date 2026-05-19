@@ -85,8 +85,8 @@ func ValidateDependencySpec(pluginID string, spec *DependencySpec) error {
 		if dependency.ID == "" {
 			return gerror.Newf("plugin %s dependency %d is missing id", pluginID, index+1)
 		}
-		if !ManifestIDPattern.MatchString(dependency.ID) {
-			return gerror.Newf("plugin %s dependency id must use kebab-case: %s", pluginID, dependency.ID)
+		if err := ValidatePluginID(dependency.ID); err != nil {
+			return gerror.Wrapf(err, "plugin %s dependency id is invalid", pluginID)
 		}
 		if dependency.ID == pluginID {
 			return gerror.Newf("plugin %s cannot depend on itself", pluginID)

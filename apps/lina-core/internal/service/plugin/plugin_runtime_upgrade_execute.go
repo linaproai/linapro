@@ -32,6 +32,9 @@ func (s *serviceImpl) ExecuteRuntimeUpgrade(
 	pluginID string,
 	options RuntimeUpgradeOptions,
 ) (*RuntimeUpgradeResult, error) {
+	if err := s.ensurePlatformGovernance(ctx); err != nil {
+		return nil, err
+	}
 	normalizedPluginID := strings.TrimSpace(pluginID)
 	if normalizedPluginID == "" {
 		return nil, bizerr.NewCode(CodePluginNotFound, bizerr.P("pluginId", normalizedPluginID))

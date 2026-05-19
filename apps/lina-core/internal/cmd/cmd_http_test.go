@@ -324,7 +324,7 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 	dictSvc := dict.New(i18nService)
 	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
 	roleSvc.SetDataScopeService(scopeSvc)
-	menuSvc := menu.New(pluginSvc, i18nService, roleSvc)
+	menuSvc := menu.New(pluginSvc, i18nService, roleSvc, tenantSvc)
 	notifySvc := notify.New(tenantSvc)
 	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
 	fileSvc := filesvc.New(configSvc, filesvc.NewLocalStorage(configSvc.GetUploadPath(ctx)), bizCtxSvc, dictSvc, scopeSvc)
@@ -376,24 +376,24 @@ func TestParsePluginAssetRequestPath(t *testing.T) {
 	}{
 		{
 			name:          "hosted asset file",
-			path:          "plugin-assets/plugin-demo-dynamic/v0.1.0/standalone.html",
-			wantPluginID:  "plugin-demo-dynamic",
+			path:          "plugin-assets/linapro-demo-dynamic/v0.1.0/standalone.html",
+			wantPluginID:  "linapro-demo-dynamic",
 			wantVersion:   "v0.1.0",
 			wantAssetPath: "standalone.html",
 			wantOK:        true,
 		},
 		{
 			name:          "embedded mount entry",
-			path:          "/plugin-assets/plugin-demo-dynamic/v0.1.0/mount.js",
-			wantPluginID:  "plugin-demo-dynamic",
+			path:          "/plugin-assets/linapro-demo-dynamic/v0.1.0/mount.js",
+			wantPluginID:  "linapro-demo-dynamic",
 			wantVersion:   "v0.1.0",
 			wantAssetPath: "mount.js",
 			wantOK:        true,
 		},
 		{
 			name:          "version root path",
-			path:          "/plugin-assets/plugin-demo-dynamic/v0.1.0/",
-			wantPluginID:  "plugin-demo-dynamic",
+			path:          "/plugin-assets/linapro-demo-dynamic/v0.1.0/",
+			wantPluginID:  "linapro-demo-dynamic",
 			wantVersion:   "v0.1.0",
 			wantAssetPath: "",
 			wantOK:        true,
@@ -405,7 +405,7 @@ func TestParsePluginAssetRequestPath(t *testing.T) {
 		},
 		{
 			name:   "missing version",
-			path:   "/plugin-assets/plugin-demo-dynamic",
+			path:   "/plugin-assets/linapro-demo-dynamic",
 			wantOK: false,
 		},
 	}

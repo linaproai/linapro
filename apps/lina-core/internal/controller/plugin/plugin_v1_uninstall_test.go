@@ -10,6 +10,7 @@ import (
 	"lina-core/api/plugin/v1"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
+	"lina-core/pkg/statusflag"
 )
 
 // pluginUninstallFakeService records uninstall calls from the controller.
@@ -49,19 +50,19 @@ func (f *pluginUninstallFakeRoleService) NotifyAccessTopologyChanged(_ context.C
 // converted into the service uninstall policy before lifecycle callbacks run.
 func TestUninstallMapsPurgeStorageData(t *testing.T) {
 	var (
-		zero = 0
-		one  = 1
+		no  = statusflag.No
+		yes = statusflag.Yes
 	)
 	cases := []struct {
 		name        string
-		purge       *int
+		purge       *statusflag.YesNo
 		force       bool
 		expectPurge bool
 	}{
 		{name: "default purges storage data", expectPurge: true},
-		{name: "query one purges storage data", purge: &one, expectPurge: true},
-		{name: "query zero preserves storage data", purge: &zero, expectPurge: false},
-		{name: "force preserves requested purge policy", purge: &one, force: true, expectPurge: true},
+		{name: "query yes purges storage data", purge: &yes, expectPurge: true},
+		{name: "query no preserves storage data", purge: &no, expectPurge: false},
+		{name: "force preserves requested purge policy", purge: &yes, force: true, expectPurge: true},
 	}
 
 	for _, tc := range cases {
@@ -74,21 +75,24 @@ func TestUninstallMapsPurgeStorageData(t *testing.T) {
 			}
 
 			res, err := controller.Uninstall(context.Background(), &v1.UninstallReq{
-				Id:               "multi-tenant",
+				Id:               "linapro-tenant-core",
 				PurgeStorageData: tc.purge,
 				Force:            tc.force,
 			})
 			if err != nil {
 				t.Fatalf("expected uninstall request to succeed, got error: %v", err)
 			}
-			if res == nil || res.Id != "multi-tenant" || res.Installed != 0 || res.Enabled != 0 {
+			if res == nil ||
+				res.Id != "linapro-tenant-core" ||
+				res.Installed != statusflag.Uninstalled ||
+				res.Enabled != statusflag.Disabled {
 				t.Fatalf("unexpected uninstall response: %#v", res)
 			}
 			if pluginSvc.calls != 1 {
 				t.Fatalf("expected one uninstall service call, got %d", pluginSvc.calls)
 			}
-			if pluginSvc.pluginID != "multi-tenant" {
-				t.Fatalf("expected plugin id multi-tenant, got %s", pluginSvc.pluginID)
+			if pluginSvc.pluginID != "linapro-tenant-core" {
+				t.Fatalf("expected plugin id linapro-tenant-core, got %s", pluginSvc.pluginID)
 			}
 			if pluginSvc.options.PurgeStorageData != tc.expectPurge {
 				t.Fatalf(

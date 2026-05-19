@@ -19,7 +19,7 @@ import {
 } from "../../support/api/job";
 import { waitForRouteReady } from "../../support/ui";
 
-const pluginID = "plugin-demo-dynamic";
+const pluginID = "linapro-demo-dynamic";
 const pluginMenuNameEnglish = "Dynamic Plugin Demo";
 const pluginMenuNameChinese = "动态插件示例";
 const repoRoot = path.resolve(process.cwd(), "../..");
@@ -158,7 +158,7 @@ test.describe("TC0107 运行时国际化切换", () => {
       "Dynamic Plugin Demo Is Live",
     );
     await expect(pluginPage.pluginDemoDynamicDescription()).toContainText(
-      "This page is mounted from the plugin-demo-dynamic embedded entry",
+      "This page is mounted from the linapro-demo-dynamic embedded entry",
     );
 
     await mainLayout.switchLanguage("简体中文");
@@ -169,7 +169,7 @@ test.describe("TC0107 运行时国际化切换", () => {
       "动态插件示例已生效",
     );
     await expect(pluginPage.pluginDemoDynamicDescription()).toContainText(
-      "该页面来自 plugin-demo-dynamic 的动态挂载入口",
+      "该页面来自 linapro-demo-dynamic 的动态挂载入口",
     );
   });
 });

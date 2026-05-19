@@ -142,7 +142,11 @@ func (s *bizCtxAdapter) Current(ctx context.Context) plugincontract.CurrentConte
 				ActingUserID:    c.ActingUserId,
 				ActingAsTenant:  c.ActingAsTenant,
 				IsImpersonation: c.IsImpersonation,
-				PlatformBypass:  c.TenantId == 0,
+				PlatformBypass: c.TenantId == 0 &&
+					c.DataScope == 1 &&
+					!c.DataScopeUnsupported &&
+					!c.ActingAsTenant &&
+					!c.IsImpersonation,
 			}
 		}
 	}

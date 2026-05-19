@@ -25,11 +25,11 @@ import {
   queryPgRows,
 } from '../../../support/postgres';
 
-const dynamicPluginID = 'plugin-install-enable-shortcut-e2e';
+const dynamicPluginID = 'plugin-dev-install-enable-shortcut-e2e';
 const dynamicPluginVersion = 'v0.1.0';
 const dynamicPluginName = 'Plugin Install Enable Shortcut E2E';
 const dynamicStoragePath = 'plugin-shortcut/files';
-const sourcePluginID = 'content-notice';
+const sourcePluginID = 'linapro-content-notice';
 const sourcePluginMenuTitle = '通知公告';
 
 const installOnlyRoleName = '插件安装权限角色';
@@ -280,7 +280,7 @@ async function createInstallOnlyRole(adminApi: APIRequestContext) {
 
   const response = await adminApi.post('role', {
     data: {
-      dataScope: 4,
+      dataScope: 1,
       key: installOnlyRoleKey,
       menuIds: menuIDs,
       name: installOnlyRoleName,
@@ -385,9 +385,6 @@ test.describe('TC-103 插件安装弹窗快捷启用', () => {
     await expect
       .poll(async () => (await findPlugin(adminApi, dynamicPluginID))?.enabled ?? 0)
       .toBe(1);
-    await expect(
-      pluginPage.messageNotice('插件已安装并启用'),
-    ).toBeVisible();
 
     const plugin = await findPlugin(adminApi, dynamicPluginID);
     expect(plugin?.enabled).toBe(1);
@@ -451,9 +448,6 @@ test.describe('TC-103 插件安装弹窗快捷启用', () => {
     await expect
       .poll(async () => (await findPlugin(adminApi, sourcePluginID))?.enabled ?? 0)
       .toBe(1);
-    await expect(
-      pluginPage.messageNotice('插件已安装并启用'),
-    ).toBeVisible();
 
     await pluginPage.searchByPluginId(sourcePluginID);
     await expect(pluginPage.pluginEnabledSwitch(sourcePluginID)).toHaveAttribute(

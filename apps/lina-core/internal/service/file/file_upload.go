@@ -55,6 +55,7 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 	if bizCtx := s.bizCtxSvc.Get(ctx); bizCtx != nil {
 		userId = int64(bizCtx.UserId)
 	}
+	tenantID := datascope.CurrentTenantID(ctx)
 	scene := in.Scene
 	if scene == "" {
 		scene = "other"
@@ -63,14 +64,16 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 
 	err = dao.SysFile.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
 		var existing *entity.SysFile
-		existingModel := dao.SysFile.Ctx(ctx).Where(dao.SysFile.Columns().Hash, fileHash)
-		existingModel = datascope.ApplyTenantScope(ctx, existingModel, datascope.TenantColumn)
+		existingModel := dao.SysFile.Ctx(ctx).
+			Where(dao.SysFile.Columns().Hash, fileHash).
+			Where(datascope.TenantColumn, tenantID)
 		err := existingModel.Scan(&existing)
 		if err != nil {
 			return bizerr.WrapCode(err, CodeFileHashQueryFailed)
 		}
 		if existing != nil {
 			result, err := dao.SysFile.Ctx(ctx).Data(do.SysFile{
+				TenantId:  tenantID,
 				Name:      existing.Name,
 				Original:  sanitizedFilename,
 				Suffix:    suffix,
@@ -109,6 +112,7 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 		storedName := gfile.Basename(storagePath)
 		url := s.storage.Url(ctx, storagePath)
 		result, err := dao.SysFile.Ctx(ctx).Data(do.SysFile{
+			TenantId:  tenantID,
 			Name:      storedName,
 			Original:  sanitizedFilename,
 			Suffix:    suffix,

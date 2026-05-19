@@ -12,6 +12,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/gdbutil"
 )
@@ -20,14 +21,16 @@ import (
 func (s *serviceImpl) ListGroups(ctx context.Context, in ListGroupsInput) (*ListGroupsOutput, error) {
 	model := dao.SysJobGroup.Ctx(ctx)
 	cols := dao.SysJobGroup.Columns()
+	model = model.Where(cols.TenantId, datascope.CurrentTenantID(ctx))
 	if keyword := strings.TrimSpace(in.Code); keyword != "" {
 		model = model.WhereLike(cols.Code, "%"+keyword+"%")
 	}
 	if keyword := strings.TrimSpace(in.Name); keyword != "" {
-		model = model.WhereLike(cols.Name, "%"+keyword+"%")
+		nameFilter := model.Builder().WhereLike(cols.Name, "%"+keyword+"%")
 		if s.defaultGroupMatchesKeyword(ctx, keyword) {
-			model = model.WhereOr(cols.Code, defaultBuiltinGroupCode)
+			nameFilter = nameFilter.WhereOr(cols.Code, defaultBuiltinGroupCode)
 		}
+		model = model.Where(nameFilter)
 	}
 
 	total, err := model.Count()
@@ -97,6 +100,7 @@ func jobCountMapByGroupIDs(ctx context.Context, groups []*entity.SysJobGroup) (m
 	jobCols := dao.SysJob.Columns()
 	err := dao.SysJob.Ctx(ctx).
 		Fields(jobCols.GroupId, "COUNT(1) AS job_count").
+		Where(jobCols.TenantId, datascope.CurrentTenantID(ctx)).
 		WhereIn(jobCols.GroupId, groupIDs).
 		Group(jobCols.GroupId).
 		Scan(&rows)
@@ -125,8 +129,9 @@ func (s *serviceImpl) CreateGroup(ctx context.Context, in SaveGroupInput) (int64
 		return 0, bizerr.NewCode(CodeJobGroupNameRequired)
 	}
 
+	tenantID := datascope.CurrentTenantID(ctx)
 	count, err := dao.SysJobGroup.Ctx(ctx).
-		Where(do.SysJobGroup{Code: code}).
+		Where(do.SysJobGroup{TenantId: tenantID, Code: code}).
 		Count()
 	if err != nil {
 		return 0, err
@@ -136,6 +141,7 @@ func (s *serviceImpl) CreateGroup(ctx context.Context, in SaveGroupInput) (int64
 	}
 
 	insertID, err := dao.SysJobGroup.Ctx(ctx).Data(do.SysJobGroup{
+		TenantId:  tenantID,
 		Code:      code,
 		Name:      name,
 		Remark:    strings.TrimSpace(in.Remark),
@@ -167,8 +173,9 @@ func (s *serviceImpl) UpdateGroup(ctx context.Context, in UpdateGroupInput) erro
 		return bizerr.NewCode(CodeJobGroupNameRequired)
 	}
 
+	tenantID := datascope.CurrentTenantID(ctx)
 	count, err := dao.SysJobGroup.Ctx(ctx).
-		Where(do.SysJobGroup{Code: code}).
+		Where(do.SysJobGroup{TenantId: tenantID, Code: code}).
 		WhereNot(dao.SysJobGroup.Columns().Id, in.ID).
 		Count()
 	if err != nil {
@@ -179,7 +186,7 @@ func (s *serviceImpl) UpdateGroup(ctx context.Context, in UpdateGroupInput) erro
 	}
 
 	_, err = dao.SysJobGroup.Ctx(ctx).
-		Where(do.SysJobGroup{Id: in.ID}).
+		Where(do.SysJobGroup{Id: in.ID, TenantId: tenantID}).
 		Data(do.SysJobGroup{
 			Code:      code,
 			Name:      name,
@@ -197,11 +204,6 @@ func (s *serviceImpl) DeleteGroups(ctx context.Context, ids string) error {
 		return bizerr.NewCode(CodeJobGroupDeleteRequired)
 	}
 
-	defaultGroup, err := s.defaultGroup(ctx)
-	if err != nil {
-		return err
-	}
-
 	validIDs := make([]int64, 0, len(groupIDs))
 	for _, groupID := range groupIDs {
 		group, groupErr := s.groupByID(ctx, groupID)
@@ -209,9 +211,9 @@ func (s *serviceImpl) DeleteGroups(ctx context.Context, ids string) error {
 			return groupErr
 		}
 		if group == nil {
-			continue
+			return bizerr.NewCode(CodeJobGroupNotFound)
 		}
-		if group.IsDefault == 1 || group.Id == defaultGroup.Id {
+		if group.IsDefault == 1 {
 			return bizerr.NewCode(CodeJobGroupDefaultDeleteDenied)
 		}
 		validIDs = append(validIDs, groupID)
@@ -220,15 +222,24 @@ func (s *serviceImpl) DeleteGroups(ctx context.Context, ids string) error {
 		return bizerr.NewCode(CodeJobGroupDeleteEmpty)
 	}
 
+	defaultGroup, err := s.defaultGroup(ctx)
+	if err != nil {
+		return err
+	}
+
 	return dao.SysJobGroup.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
+		tenantID := datascope.CurrentTenantID(ctx)
 		jobCols := dao.SysJob.Columns()
 		if _, txErr := dao.SysJob.Ctx(ctx).
+			Where(jobCols.TenantId, tenantID).
 			WhereIn(jobCols.GroupId, validIDs).
 			Data(do.SysJob{GroupId: defaultGroup.Id}).
 			Update(); txErr != nil {
 			return txErr
 		}
+		groupCols := dao.SysJobGroup.Columns()
 		_, txErr := dao.SysJobGroup.Ctx(ctx).
+			Where(groupCols.TenantId, tenantID).
 			WhereIn(dao.SysJobGroup.Columns().Id, validIDs).
 			Delete()
 		return txErr

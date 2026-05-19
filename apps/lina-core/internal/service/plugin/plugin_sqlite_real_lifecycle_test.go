@@ -178,7 +178,7 @@ func createSQLiteLifecycleSourcePlugin(t *testing.T) (string, string) {
 	t.Helper()
 
 	const (
-		pluginID  = "plugin-sqlite-source-lifecycle"
+		pluginID  = "plugin-dev-sqlite-source-lifecycle"
 		tableName = "plugin_sqlite_source_lifecycle"
 	)
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
@@ -201,7 +201,7 @@ func createSQLiteLifecycleDynamicPlugin(t *testing.T) (string, string) {
 	t.Helper()
 
 	const (
-		pluginID  = "plugin-sqlite-dynamic-lifecycle"
+		pluginID  = "plugin-dev-sqlite-dynamic-lifecycle"
 		tableName = "plugin_sqlite_dynamic_lifecycle"
 	)
 	testutil.CreateTestRuntimeStorageArtifact(
@@ -211,13 +211,13 @@ func createSQLiteLifecycleDynamicPlugin(t *testing.T) (string, string) {
 		"v0.1.0",
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-sqlite-dynamic-lifecycle.sql",
+				Key:     "001-plugin-dev-sqlite-dynamic-lifecycle.sql",
 				Content: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker VARCHAR(32) NOT NULL);", tableName),
 			},
 		},
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-sqlite-dynamic-lifecycle-uninstall.sql",
+				Key:     "001-plugin-dev-sqlite-dynamic-lifecycle-uninstall.sql",
 				Content: fmt.Sprintf("DROP TABLE IF EXISTS %s;", tableName),
 			},
 		},

@@ -7,15 +7,15 @@ package session
 
 import (
 	"context"
+	"time"
+
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	tenantcapsvc "lina-core/internal/service/tenantcap"
-	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/os/gtime"
 )
 
 // Set persists a session record.
@@ -51,11 +51,12 @@ func (s *DBStore) Set(ctx context.Context, session *Session) error {
 
 // normalizeSessionLastActive returns the caller-provided activity time or the
 // current time for newly created online-session projections.
-func normalizeSessionLastActive(session *Session) *gtime.Time {
+func normalizeSessionLastActive(session *Session) *time.Time {
 	if session != nil && session.LastActiveTime != nil {
 		return session.LastActiveTime
 	}
-	return gtime.Now()
+	now := time.Now()
+	return &now
 }
 
 // setProjection persists or refreshes a session projection in PostgreSQL.
@@ -316,7 +317,7 @@ func (s *DBStore) TouchOrValidate(ctx context.Context, tenantId int, tokenId str
 	}
 
 	if timeout > 0 {
-		cutoff := gtime.Now().Add(-timeout)
+		cutoff := time.Now().Add(-timeout)
 		expiredCount, err := tenantSessionModel(ctx, tenantId, tokenId).
 			WhereLTE(cols.LastActiveTime, cutoff).
 			Count()
@@ -331,11 +332,11 @@ func (s *DBStore) TouchOrValidate(ctx context.Context, tenantId int, tokenId str
 		}
 	}
 
-	now := gtime.Now()
+	now := time.Now()
 	updateCutoff := now.Add(-sessionLastActiveUpdateWindow)
 	_, err = tenantSessionModel(ctx, tenantId, tokenId).
 		WhereLT(cols.LastActiveTime, updateCutoff).
-		Data(do.SysOnlineSession{LastActiveTime: now}).
+		Data(do.SysOnlineSession{LastActiveTime: &now}).
 		Update()
 	if err != nil {
 		return false, err
@@ -350,7 +351,7 @@ func (s *DBStore) TouchOrValidate(ctx context.Context, tenantId int, tokenId str
 
 // CleanupInactive removes sessions inactive longer than the configured threshold.
 func (s *DBStore) CleanupInactive(ctx context.Context, timeout time.Duration) (int64, error) {
-	cutoff := gtime.Now().Add(-timeout)
+	cutoff := time.Now().Add(-timeout)
 	result, err := dao.SysOnlineSession.Ctx(ctx).
 		WhereLT(dao.SysOnlineSession.Columns().LastActiveTime, cutoff).
 		Delete()
@@ -362,7 +363,7 @@ func (s *DBStore) CleanupInactive(ctx context.Context, timeout time.Duration) (i
 
 // isSessionInactive reports whether one stored session is already expired by
 // the configured inactivity timeout before the caller uses it as valid state.
-func isSessionInactive(stored *entity.SysOnlineSession, now *gtime.Time, timeout time.Duration) bool {
+func isSessionInactive(stored *entity.SysOnlineSession, now time.Time, timeout time.Duration) bool {
 	if stored == nil || timeout <= 0 || stored.LastActiveTime == nil {
 		return false
 	}

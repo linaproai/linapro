@@ -6,7 +6,7 @@ import path from "node:path";
 
 import { test, expect } from "../../fixtures/auth";
 import { ensureSourcePluginEnabled } from "../../fixtures/plugin";
-import { NoticePage } from "../../../../apps/lina-plugins/content-notice/hack/tests/pages/NoticePage";
+import { NoticePage } from "../../../../apps/lina-plugins/linapro-content-notice/hack/tests/pages/NoticePage";
 import { PluginPage } from "../../pages/PluginPage";
 import {
   createAdminApiContext,
@@ -20,7 +20,7 @@ import {
 } from "../../support/api/job";
 import { waitForRouteReady } from "../../support/ui";
 
-const pluginID = "plugin-demo-dynamic";
+const pluginID = "linapro-demo-dynamic";
 const repoRoot = path.resolve(process.cwd(), "../..");
 const legacyRuntimeArtifactPath = path.join(
   repoRoot,
@@ -97,8 +97,8 @@ test.describe("TC0108 英文运行时页面巡检", () => {
     mainLayout,
   }) => {
     test.setTimeout(120_000);
-    await ensureSourcePluginEnabled(adminPage, "monitor-server");
-    await ensureSourcePluginEnabled(adminPage, "monitor-operlog");
+    await ensureSourcePluginEnabled(adminPage, "linapro-monitor-server");
+    await ensureSourcePluginEnabled(adminPage, "linapro-monitor-operlog");
     await ensurePluginInstalledAndEnabled();
 
     // Toggle the plugin lifecycle to create fresh operation logs for this test.
@@ -186,7 +186,7 @@ test.describe("TC0108 英文运行时页面巡检", () => {
     adminPage,
     mainLayout,
   }) => {
-    await ensureSourcePluginEnabled(adminPage, "content-notice");
+    await ensureSourcePluginEnabled(adminPage, "linapro-content-notice");
 
     const noticePage = new NoticePage(adminPage);
 
@@ -232,7 +232,7 @@ test.describe("TC0108 英文运行时页面巡检", () => {
     ).toBeVisible();
     await expect(
       adminPage.getByText(
-        "This record is seeded by the plugin-demo-dynamic install SQL",
+        "This record is seeded by the linapro-demo-dynamic install SQL",
         { exact: false },
       ),
     ).toBeVisible();
@@ -252,7 +252,7 @@ test.describe("TC0108 英文运行时页面巡检", () => {
     ).toBeVisible();
     await expect(
       standalonePage.getByText(
-        "This page is served directly by plugin-demo-dynamic as a hosted static asset",
+        "This page is served directly by linapro-demo-dynamic as a hosted static asset",
         { exact: false },
       ),
     ).toBeVisible();

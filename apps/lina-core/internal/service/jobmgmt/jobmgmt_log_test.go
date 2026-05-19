@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/gtime"
 	"testing"
 	"time"
 
@@ -48,15 +47,15 @@ func insertLogCleanupTestJob(t *testing.T, ctx context.Context) int64 {
 func insertLogCleanupTestLog(t *testing.T, ctx context.Context, jobID int64, suffix string) int64 {
 	t.Helper()
 
-	startAt := gtime.NewFromTime(time.Now())
+	startAt := time.Now()
 	insertID, err := dao.SysJobLog.Ctx(ctx).Data(do.SysJobLog{
 		JobId:          jobID,
 		JobSnapshot:    fmt.Sprintf(`{"name":"%s"}`, suffix),
 		NodeId:         "test-node",
 		Trigger:        string(jobmeta.TriggerTypeManual),
 		ParamsSnapshot: `{}`,
-		StartAt:        startAt,
-		EndAt:          startAt,
+		StartAt:        &startAt,
+		EndAt:          &startAt,
 		DurationMs:     1,
 		Status:         string(jobmeta.LogStatusSuccess),
 		ErrMsg:         "",

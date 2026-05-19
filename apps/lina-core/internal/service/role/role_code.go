@@ -39,7 +39,7 @@ var (
 		"Please select roles to delete",
 		gcode.CodeInvalidParameter,
 	)
-	// CodeRoleDataScopeDeptUnavailable reports that department data scope requires org-center.
+	// CodeRoleDataScopeDeptUnavailable reports that department data scope requires linapro-org-core.
 	CodeRoleDataScopeDeptUnavailable = bizerr.MustDefine(
 		"ROLE_DATA_SCOPE_DEPT_UNAVAILABLE",
 		"Department data scope requires the organization management plugin to be enabled",
@@ -78,6 +78,13 @@ var (
 	CodeTenantRoleAssignmentForbidden = bizerr.MustDefine(
 		"TENANT_ROLE_ASSIGNMENT_FORBIDDEN",
 		"Tenant roles can only be assigned to active users in the same tenant",
+		gcode.CodeNotAuthorized,
+	)
+	// CodeRoleMenuAssignmentForbidden reports that one or more requested menu
+	// permissions are outside the current context's assignable set.
+	CodeRoleMenuAssignmentForbidden = bizerr.MustDefine(
+		"ROLE_MENU_ASSIGNMENT_FORBIDDEN",
+		"Role contains menu permissions that cannot be assigned in the current context",
 		gcode.CodeNotAuthorized,
 	)
 )

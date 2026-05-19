@@ -26,14 +26,14 @@ func TestSyncPluginResourceReferencesRevivesSoftDeletedRows(t *testing.T) {
 	service := services.Integration
 	ctx := context.Background()
 
-	pluginID := "plugin-dynamic-ref-revive"
+	pluginID := "plugin-dev-dynamic-ref-revive"
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
 		pluginID,
 		"Runtime Ref Revive Plugin",
 		"v0.9.0",
 		[]*catalog.ArtifactSQLAsset{
-			{Key: "001-plugin-dynamic-ref-revive.sql", Content: "SELECT 1;"},
+			{Key: "001-plugin-dev-dynamic-ref-revive.sql", Content: "SELECT 1;"},
 		},
 		nil,
 	)
@@ -105,14 +105,14 @@ func TestSyncPluginResourceReferencesNoopSkipsWrites(t *testing.T) {
 	service := services.Integration
 	ctx := context.Background()
 
-	pluginID := "plugin-resource-ref-noop"
+	pluginID := "plugin-dev-resource-ref-noop"
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
 		pluginID,
 		"Runtime Ref Noop Plugin",
 		"v0.9.1",
 		[]*catalog.ArtifactSQLAsset{
-			{Key: "001-plugin-resource-ref-noop.sql", Content: "SELECT 1;"},
+			{Key: "001-plugin-dev-resource-ref-noop.sql", Content: "SELECT 1;"},
 		},
 		nil,
 	)

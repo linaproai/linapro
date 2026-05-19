@@ -160,6 +160,83 @@
 - [x] 20.10 `TC0075-runtime-wasm-lifecycle-boundaries`: uninstall cleanup and version compatibility
 - [x] 20.11 `TC0103-plugin-install-enable-shortcut`: shortcut flow, permission visibility, dynamic-plugin authorization reuse
 
-## 21. Feedback and Bugfixes
+## 21. Plugin ID Normalization
+
+- [x] 21.1 Add plugin ID parsing/validation component with runtime safety boundary (non-empty, 64-char max, kebab-case) and preserve `<author>-<domain>-<capability>` as official naming recommendation
+- [x] 21.2 Rename all 10 official plugin directories, `plugin.yaml` IDs, Go modules, import paths, source registration constants, and GoFrame generation configs to `linapro-*` prefix
+- [x] 21.3 Update host official plugin constants, stable menu parent mappings, `orgcap.ProviderPluginID`, `tenantcap.ProviderPluginID`, startup consistency checks, and provider detection logic
+- [x] 21.4 Update plugin-owned SQL tables, indexes, constraints, mock data, uninstall SQL, DAO/DO/Entity, and service access code to match new plugin ID snake_case scope
+- [x] 21.5 Update manifest menu keys, permissions, cron handlerRefs, dynamic asset paths, extension API paths, i18n/apidoc namespaces, and documentation
+- [x] 21.6 Update frontend plugin management, dynamic pages, menu routes, test page objects, and fixtures
+- [x] 21.7 Add governance scans confirming no old official ID residual in runtime code, configuration, tests, or active OpenSpec documents
+- [x] 21.8 Run full backend Go tests, frontend typecheck, E2E, i18n scan, old ID residual scan, and OpenSpec strict validation
+
+## 22. Plugin Dependency Management
+
+- [x] 22.1 Extend manifest type with `dependencies.framework.version` and `dependencies.plugins[]`; sync dynamic plugin artifact manifest serialization
+- [x] 22.2 Implement dependency field normalization and validation (defaults, plugin ID, version range, self-dependency, duplicates, unknown install strategy)
+- [x] 22.3 Determine LinaPro framework version authoritative source and implement semver range matching
+- [x] 22.4 Implement internal dependency resolver: graph construction, deterministic topological sort, self/cycle detection, hard/soft dependency classification, reverse dependency query
+- [x] 22.5 Integrate dependency check into explicit install path with auto-install plan execution before target plugin install
+- [x] 22.6 Integrate reverse dependency protection into uninstall path; block uninstall when downstream hard dependencies exist
+- [x] 22.7 Integrate dependency resolution into `BootstrapAutoEnable` for topological auto-dependency installation
+- [x] 22.8 Integrate dependency validation into source plugin upgrade and dynamic plugin install/refresh paths
+- [x] 22.9 Design and implement dependency check API or extend install/detail APIs with framework version check, dependency status, auto-install plan, blockers, and reverse blockers
+- [x] 22.10 Update plugin management page with dependency summary, install confirmation auto-install plan, blocker display, and uninstall downstream dependency prompt
+- [x] 22.11 Add E2E `TC0235-plugin-dependency-management` covering install dependency plan, dependency blocker, and uninstall reverse dependency blocker
+- [x] 22.12 Run plugin catalog, dependency resolver, lifecycle, startup auto-enable, upgrade, and runtime Go unit tests
+
+## 23. Plugin Runtime Upgrade
+
+- [x] 23.1 Design and implement runtime state field covering `normal`, `pending_upgrade`, `abnormal`, `upgrade_running`, `upgrade_failed`
+- [x] 23.2 Extend plugin list and detail DTOs with `runtimeState`, `effectiveVersion`, `discoveredVersion`, `upgradeAvailable`, `abnormalReason`, and last failure info
+- [x] 23.3 Adjust source and dynamic plugin discovery logic to mark version drift without overwriting effective release
+- [x] 23.4 Implement `pending_upgrade`/`abnormal`/`upgrade_failed` business entry protection: routes return upgrade-required, menus hidden, cron paused, hooks not dispatched
+- [x] 23.5 Add `GET /plugins/{id}/upgrade/preview` returning before/after manifest, dependency check, SQL summary, hostServices diff, and risk warnings
+- [x] 23.6 Add `POST /plugins/{id}/upgrade` with permission check, confirmation validation, state re-read, and runtime upgrade orchestration
+- [x] 23.7 Implement upgrade orchestration: lock, pre-check, `BeforeUpgrade` callback, custom `Upgrade` callback, upgrade SQL, governance sync, release switch, cache invalidation, `AfterUpgrade` callback
+- [x] 23.8 Implement upgrade failure recording and retry semantics with failure phase, error code, manifest snapshot, and current effective version
+- [x] 23.9 Implement unified lifecycle callback interface (`BeforeInstall`, `BeforeUpgrade`, `Upgrade`, `AfterUpgrade`, `BeforeDisable`, `BeforeUninstall`, etc.) and delete old `Can*`/guard registration
+- [x] 23.10 Extend dynamic plugin lifecycle with `Upgrade` and `Uninstall` execution-phase callbacks, `purgeStorageData` strategy, and tenant disable/delete lifecycle
+- [x] 23.11 Implement upgrade success/failure cache invalidation by plugin ID scope; cluster mode uses distributed lock and shared revision broadcasting
+- [x] 23.12 Add frontend plugin management page runtime upgrade UI: status labels, upgrade button, upgrade confirmation dialog, success/failure refresh, and abnormal repair prompt
+- [x] 23.13 Add E2E `TC0236-plugin-runtime-upgrade` covering pending upgrade state, upgrade button, upgrade confirmation, and success state refresh
+- [x] 23.14 Run comprehensive backend unit tests, frontend typecheck, plugin management E2E, and startup binding package tests
+
+## 24. Official Plugins Submodule Decoupling
+
+- [x] 24.1 Adjust default Go workspace and build entry so host-only state does not fail on missing `apps/lina-plugins` modules
+- [x] 24.2 Remove host default entry unconditional compile-time dependency on official plugin aggregate module; implement explicit plugin-full build path
+- [x] 24.3 Adjust source plugin manifest scanning to return empty set when workspace missing or empty; preserve dynamic plugin discovery
+- [x] 24.4 Adjust frontend Vite plugin page scanning to return empty module set when workspace missing or empty
+- [x] 24.5 Adjust Playwright config and test governance scripts for host-only E2E discovery without plugin workspace
+- [x] 24.6 Mount official plugin repository as single submodule to `apps/lina-plugins` with `.gitmodules` and initialization documentation
+- [x] 24.7 Remove official plugin ID to fixed parent directory host mapping; allow plugins to autonomously declare `parent_key`
+- [x] 24.8 Update README/README.zh-CN, CONTRIBUTING, and AGENTS with submodule initialization, host-only verification, and plugin-full verification workflows
+- [x] 24.9 Add nightly CI host-only-build-smoke job and separate host-only vs plugin-full CI test matrices
+
+## 25. Plugin Workspace Management
+
+- [x] 25.1 Extend `hack/tools/linactl` with `plugins.sources` config structure supporting `repo`, `root`, `ref`, and string array `items`
+- [x] 25.2 Implement `linactl plugins.init` to convert `apps/lina-plugins` from submodule to regular directory preserving content
+- [x] 25.3 Implement `linactl plugins.install` / `plugins.update` with temporary Git checkout, directory copy, target protection, dirty blocking, and `force=1` override
+- [x] 25.4 Implement `apps/lina-plugins/.linapro-plugins.lock.yaml` lock file recording source, repo, root, ref, resolved commit, manifest version, and content digest
+- [x] 25.5 Implement `linactl plugins.status` as read-only diagnosis of workspace type, configured plugins, local state, dirty detection, and remote update status
+- [x] 25.6 Support wildcard `"*"` in `plugins.sources.items` to expand all plugins under source root; block mixing wildcard with explicit IDs
+- [x] 25.7 Update README/README.zh-CN and `hack/tools/linactl` README with plugin workspace management command usage
+
+## 26. Dynamic Lifecycle Auto-Discovery and Source Plugin Cache Service
+
+- [x] 26.1 Extract controller handler metadata discovery entry in `pluginbridge/guest` reusing dispatcher signature, request type, and internal path derivation rules
+- [x] 26.2 Modify `build-wasm` to auto-discover `Before*`/`After*` lifecycle operations from backend controller metadata and generate default `LifecycleContract`
+- [x] 26.3 Demote `backend/lifecycle/*.yaml` to optional override merged by operation; fail build on non-existent handlers, duplicate operations, invalid operations, invalid timeouts, and old `Can*`/guard naming
+- [x] 26.4 Delete `plugin-demo-dynamic/backend/lifecycle/*.yaml` and verify artifact still contains 14 lifecycle contracts via auto-discovery
+- [x] 26.5 Converge lifecycle request manifest snapshot to shared typed `ManifestSnapshotV1` bridge contract; remove hand-written map field names
+- [x] 26.6 Add source-plugin scoped `CacheService` contract in `pluginservice/contract` with `Get`, `Set`, `Delete`, `Incr`, `Expire` and `time.Duration` TTL
+- [x] 26.7 Add `Cache() contract.CacheService` to `pluginhost.HostServices`; implement plugin-scoped cache adapter binding plugin ID, tenant context, namespace, and logical key to shared `kvCacheSvc`
+- [x] 26.8 Modify HTTP route, Cron, managed cron, and hook registration paths to pass plugin-scoped host services with bound cache adapter
+- [x] 26.9 Inject shared `kvCacheSvc` from HTTP startup into `pluginhostservices.New`; no `kvcache.New()` in plugin call paths
+
+## 27. Feedback and Bugfixes
 
 - [x] All feedback items from individual change archives have been addressed and merged into the corresponding functional areas above.

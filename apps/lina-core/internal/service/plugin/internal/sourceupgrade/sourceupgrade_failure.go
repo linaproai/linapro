@@ -7,8 +7,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"strings"
-
-	"github.com/gogf/gf/v2/os/gtime"
+	"time"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -74,6 +73,7 @@ func recordSourceUpgradeFailureMigration(
 	}
 	errorMessage := strings.TrimSpace(upgradeErr.Error())
 	checksum := fmt.Sprintf("%x", sha256.Sum256([]byte(normalizedPhase+":"+errorMessage)))
+	executedAt := time.Now()
 	data := do.SysPluginMigration{
 		PluginId:       strings.TrimSpace(pluginID),
 		ReleaseId:      releaseID,
@@ -83,7 +83,7 @@ func recordSourceUpgradeFailureMigration(
 		Checksum:       checksum,
 		Status:         catalog.MigrationExecutionStatusFailed.String(),
 		ErrorMessage:   errorMessage,
-		ExecutedAt:     gtime.Now(),
+		ExecutedAt:     &executedAt,
 	}
 
 	existing := (*entity.SysPluginMigration)(nil)
