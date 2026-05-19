@@ -10,7 +10,11 @@ on:
   push:
     branches:
     - '**'
-
+  # Validate every pull request target branch before merge.
+  # 在合并前校验所有 pull request 目标分支。
+  pull_request:
+    branches:
+    - '**'
   # Allow maintainers to rerun the main CI manually, optionally with debug support.
   # 允许维护者手动重跑主 CI，并可按需开启调试。
   workflow_dispatch:
