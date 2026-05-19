@@ -9,10 +9,8 @@ import { LoginPage } from "../../../pages/LoginPage";
 import { MainLayout } from "../../../pages/MainLayout";
 import { PluginPage } from "../../../pages/PluginPage";
 
-const apiBaseURL =
-  process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:9120/api/v1/";
-const publicBaseURL =
-  process.env.E2E_PUBLIC_BASE_URL ?? apiBaseURL.replace(/\/api\/v1\/?$/, "");
+const apiBaseURL = config.apiBaseURL;
+const publicBaseURL = config.publicBaseURL;
 const pluginID = "linapro-ops-demo-guard";
 const lifecyclePluginID = "linapro-demo-source";
 const demoControlMessage = "演示模式已开启，禁止执行写操作";

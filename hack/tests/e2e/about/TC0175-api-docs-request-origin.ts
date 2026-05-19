@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/auth';
+import { config } from '../../fixtures/config';
 
 type OpenApiDocument = {
   servers?: Array<{
@@ -15,13 +16,18 @@ test.describe('TC-175 API docs request origin', () => {
     expect(proxiedResponse.ok()).toBeTruthy();
     const proxiedDocument = (await proxiedResponse.json()) as OpenApiDocument;
 
-    expect(proxiedDocument.servers?.[0]?.url).toBe('http://localhost:9120');
+    expect(proxiedDocument.servers?.[0]?.url).toBe(
+      config.frontendProxyBackendOrigin,
+    );
 
-    const directResponse = await request.get('http://127.0.0.1:9120/api.json?lang=zh-CN', {
-      headers: {
-        Host: '127.0.0.1:18088',
+    const directResponse = await request.get(
+      `${config.backendBaseURL}/api.json?lang=zh-CN`,
+      {
+        headers: {
+          Host: '127.0.0.1:18088',
+        },
       },
-    });
+    );
     expect(directResponse.ok()).toBeTruthy();
     const directDocument = (await directResponse.json()) as OpenApiDocument;
 

@@ -27,10 +27,8 @@ import {
 } from "../../../support/postgres";
 import { waitForUploadReady } from "../../../support/ui";
 
-const apiBaseURL =
-  process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:9120/api/v1/";
-const publicBaseURL =
-  process.env.E2E_PUBLIC_BASE_URL ?? apiBaseURL.replace(/\/api\/v1\/?$/, "");
+const apiBaseURL = config.apiBaseURL;
+const publicBaseURL = config.publicBaseURL;
 const pluginID = "plugin-dev-dynamic-e2e";
 const pluginName = "Runtime E2E Plugin";
 const pluginVersion = "v0.1.0";

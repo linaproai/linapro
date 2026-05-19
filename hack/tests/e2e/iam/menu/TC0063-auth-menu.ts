@@ -7,8 +7,7 @@ import { config } from "../../../fixtures/config";
 import { waitForRouteReady } from "../../../support/ui";
 import { getMenuIdsByPermsWithAncestors } from "../../../support/api/job";
 
-const apiBaseURL =
-  process.env.E2E_API_BASE_URL ?? "http://localhost:9120/api/v1/";
+const apiBaseURL = config.apiBaseURL;
 
 type MenuNode = {
   id: number;

@@ -14,8 +14,7 @@ import {
   pgEscapeLiteral,
 } from "../../../support/postgres";
 
-const apiBaseURL =
-  process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:9120/api/v1/";
+const apiBaseURL = config.apiBaseURL;
 
 const successPluginID = "plugin-dev-host-services-e2e";
 const deniedPluginID = "plugin-dev-host-services-denied-e2e";
