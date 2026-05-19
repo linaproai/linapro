@@ -5,6 +5,7 @@
 package devservice
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -20,6 +21,11 @@ import (
 
 	"linactl/internal/toolutil"
 )
+
+// readinessLogTailLines bounds how many trailing log lines are echoed to the
+// terminal when a development service fails its readiness probe.
+// 当就绪探测失败时，回显日志末尾的最大行数，便于失败时直接定位错误。
+const readinessLogTailLines = 30
 
 // Config stores development service paths and ports.
 type Config struct {
@@ -46,6 +52,16 @@ type StatusRow struct {
 // ProcessRunner creates child process commands for service startup.
 type ProcessRunner func(context.Context, string, ...string) *exec.Cmd
 
+// PortInUseFunc reports whether the given TCP port is currently bound. It is
+// declared as a type alias so command-level code can inject test doubles.
+// 端口占用检测函数类型别名，便于测试注入；生产路径使用 IsTCPListening。
+type PortInUseFunc = func(int) bool
+
+// ProcessAliveFunc reports whether a PID currently belongs to a live process.
+// It is declared as a type alias so command-level code can inject test doubles.
+// 进程存活检测函数类型别名，便于测试注入。
+type ProcessAliveFunc = func(int) bool
+
 // Services returns backend and frontend development service definitions.
 func Services(root string, backendPort int, frontendPort int) []Config {
 	tempDir := filepath.Join(root, "temp")
@@ -69,6 +85,19 @@ func Services(root string, backendPort int, frontendPort int) []Config {
 			StartArgs: []string{"--mode", "development", "--host", "127.0.0.1", "--port", strconv.Itoa(frontendPort), "--strictPort"},
 		},
 	}
+}
+
+// ReadinessURL returns the URL that WaitHTTP should probe for the given
+// service. The backend exposes /api.json (configured via
+// server.extensions.apiDocPath) and we require it to answer 2xx, which
+// rejects unrelated occupants whose 4xx on / would otherwise be accepted as
+// "ready". The frontend Vite dev server returns 200 on /.
+// 就绪探测 URL：后端命中 /api.json 才算就绪，避免外部进程的 404 被误判。
+func ReadinessURL(service Config) string {
+	if service.Name == "Backend" {
+		return service.URL + "api.json"
+	}
+	return service.URL
 }
 
 // PrintStatusTable renders development service status without terminal-specific dependencies.
@@ -147,8 +176,52 @@ func printTableRow(out io.Writer, widths []int, values []string) error {
 	return nil
 }
 
+// EnsurePortsAvailable returns an error when any required development port is
+// already bound, providing the operator with an actionable message. Tests pass
+// a custom probe; production uses IsTCPListening.
+// 校验开发端口是否空闲，被占用时直接报错，避免后端启动后 fatal "address already in use"
+// 却被外部占用方的 4xx 响应假装为就绪。
+func EnsurePortsAvailable(probe PortInUseFunc, backendPort int, frontendPort int) error {
+	if probe == nil {
+		probe = IsTCPListening
+	}
+	type portCheck struct {
+		role string
+		port int
+	}
+	checks := []portCheck{
+		{role: "backend", port: backendPort},
+		{role: "frontend", port: frontendPort},
+	}
+	var occupied []string
+	for _, check := range checks {
+		if probe(check.port) {
+			occupied = append(occupied, fmt.Sprintf("%s port %d", check.role, check.port))
+		}
+	}
+	if len(occupied) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"%s already in use; stop the occupant or choose a different port via the BACKEND_PORT/FRONTEND_PORT make variables",
+		strings.Join(occupied, " and "),
+	)
+}
+
 // StartService starts a development service and records its PID file.
-func StartService(root string, stdout io.Writer, env []string, runner ProcessRunner, detach func(*exec.Cmd), service Config) error {
+//
+// After the child is started we spawn a goroutine that calls cmd.Wait() so
+// the kernel can reap the child as soon as it exits. Without this the child
+// becomes a zombie when it dies (because Setsid + manual Process.Release
+// leaves no one to reap it inside the linactl process), and zombies still
+// answer kill(2) signal 0 with success — which would make ProcessAlive lie.
+// The detached child still outlives the linactl invocation thanks to Setsid;
+// Wait only collects the exit status, it does not block the child from
+// running.
+// 启动后 spawn goroutine 调用 cmd.Wait() 让内核及时回收子进程，避免 zombie 状态
+// 导致 ProcessAlive 误判存活；Setsid 已让子进程脱离会话，Wait 仅回收退出码、
+// 不阻止子进程继续运行。
+func StartService(root string, stdout io.Writer, stderr io.Writer, env []string, runner ProcessRunner, detach func(*exec.Cmd), service Config) error {
 	if err := os.MkdirAll(filepath.Dir(service.PIDPath), 0o755); err != nil {
 		return fmt.Errorf("create PID directory: %w", err)
 	}
@@ -180,9 +253,16 @@ func StartService(root string, stdout io.Writer, env []string, runner ProcessRun
 	if err = logFile.Close(); err != nil {
 		return fmt.Errorf("close %s log file: %w", service.Name, err)
 	}
-	if err = cmd.Process.Release(); err != nil {
-		return fmt.Errorf("release %s process: %w", service.Name, err)
-	}
+	go func() {
+		// Reap the child to avoid zombies; ignore non-zero exit errors here
+		// because StartService is a fire-and-forget launcher and the readiness
+		// loop in WaitHTTP will surface the failure as soon as ProcessAlive
+		// observes the PID is gone.
+		// 后台 Wait 仅用于回收子进程；任何非零退出由 WaitHTTP 探活路径感知。
+		if waitErr := cmd.Wait(); waitErr != nil {
+			fmt.Fprintf(stderr, "warning: %s wait: %v\n", service.Name, waitErr)
+		}
+	}()
 	fmt.Fprintf(stdout, "%s started: pid=%d log=%s\n", service.Name, pid, toolutil.RelativePath(root, service.LogPath))
 	return nil
 }
@@ -211,12 +291,32 @@ func StopService(out io.Writer, service Config) error {
 }
 
 // WaitHTTP waits for one service URL to become ready.
-func WaitHTTP(name string, url string, pidPath string, logPath string, timeout time.Duration) error {
+//
+// The probe enforces three independent checks per iteration:
+//  1. PID file still exists (cleared by StopService or never written).
+//  2. The recorded PID still belongs to a live process — caught via the
+//     injected ProcessAliveFunc. This catches fatal startup errors (such as
+//     "bind: address already in use") that would otherwise be invisible
+//     because StartService detaches the child.
+//  3. The HTTP endpoint responds with a status code below 500. The caller
+//     selects the URL via ReadinessURL so an unrelated occupant cannot
+//     accidentally satisfy the probe (e.g. /api.json for the backend).
+//
+// 探活循环同时校验 PID 文件、子进程存活与 HTTP 响应，避免子进程已 fatal 退出却被
+// 端口占用方"假装就绪"的情况。
+func WaitHTTP(name string, url string, pidPath string, logPath string, timeout time.Duration, alive ProcessAliveFunc) error {
+	if alive == nil {
+		alive = func(int) bool { return true }
+	}
 	deadline := time.Now().Add(timeout)
 	client := newReadinessHTTPClient(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if ReadPID(pidPath) == 0 {
+		pid := ReadPID(pidPath)
+		if pid == 0 {
 			return fmt.Errorf("%s startup failed: PID file does not exist; check log: %s", name, logPath)
+		}
+		if !alive(pid) {
+			return fmt.Errorf("%s startup failed: process %d exited; check log: %s", name, pid, logPath)
 		}
 		resp, err := client.Get(url)
 		if err == nil {
@@ -230,19 +330,6 @@ func WaitHTTP(name string, url string, pidPath string, logPath string, timeout t
 		time.Sleep(time.Second)
 	}
 	return fmt.Errorf("%s startup timed out (%s): %s; check log: %s", name, timeout, url, logPath)
-}
-
-// ServiceReady reports whether an HTTP endpoint responds without server error.
-func ServiceReady(url string, timeout time.Duration) bool {
-	client := newReadinessHTTPClient(timeout)
-	resp, err := client.Get(url)
-	if err != nil {
-		return false
-	}
-	if closeErr := resp.Body.Close(); closeErr != nil {
-		return false
-	}
-	return resp.StatusCode < http.StatusInternalServerError
 }
 
 // newReadinessHTTPClient matches curl-style readiness by accepting redirects as responses.
@@ -280,3 +367,62 @@ func ReadPID(path string) int {
 	}
 	return pid
 }
+
+// TailLogToWriter copies the last N lines of a log file to the given writer
+// so operators see the actual failure cause without opening another shell.
+// 把日志末尾若干行回显到给定输出，便于失败时快速定位原因。
+func TailLogToWriter(out io.Writer, name string, logPath string, lines int) error {
+	if lines <= 0 {
+		lines = readinessLogTailLines
+	}
+	file, err := os.Open(logPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("open %s log: %w", name, err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			fmt.Fprintf(out, "warning: close %s log failed: %v\n", name, closeErr)
+		}
+	}()
+
+	// Use a ring buffer to keep memory bounded regardless of log size.
+	// 使用环形缓冲限制内存，无论日志多大都只保留末尾 N 行。
+	buffer := make([]string, 0, lines)
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		if len(buffer) < lines {
+			buffer = append(buffer, scanner.Text())
+			continue
+		}
+		copy(buffer, buffer[1:])
+		buffer[lines-1] = scanner.Text()
+	}
+	if err = scanner.Err(); err != nil {
+		return fmt.Errorf("read %s log: %w", name, err)
+	}
+	if len(buffer) == 0 {
+		return nil
+	}
+	if _, err = fmt.Fprintf(out, "----- last %d lines of %s log (%s) -----\n", len(buffer), name, logPath); err != nil {
+		return fmt.Errorf("write %s log header: %w", name, err)
+	}
+	for _, line := range buffer {
+		if _, err = fmt.Fprintln(out, line); err != nil {
+			return fmt.Errorf("write %s log line: %w", name, err)
+		}
+	}
+	if _, err = fmt.Fprintln(out, "----- end of log tail -----"); err != nil {
+		return fmt.Errorf("write %s log footer: %w", name, err)
+	}
+	return nil
+}
+
+// DefaultReadinessTailLines exposes the readiness log tail line count for
+// callers that prefer to use the package default explicitly rather than
+// passing 0 to TailLogToWriter.
+// 暴露默认 tail 行数常量，便于调用方明确传值。
+const DefaultReadinessTailLines = readinessLogTailLines

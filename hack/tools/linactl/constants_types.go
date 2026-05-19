@@ -49,6 +49,16 @@ type app struct {
 	execCommand func(context.Context, string, ...string) *exec.Cmd
 	lookPath    func(string) (string, error)
 	waitHTTP    func(string, string, string, string, time.Duration) error
+	// portInUse reports whether the given TCP port on localhost is currently
+	// bound. It is exposed as an injectable field so unit tests can simulate
+	// arbitrary port-availability scenarios without binding real sockets.
+	// 端口占用检测函数，通过依赖注入便于单元测试覆盖端口可用与不可用两种场景。
+	portInUse func(int) bool
+	// processAlive reports whether the given PID currently belongs to a live
+	// process. It is injectable for the same reason as portInUse: tests can
+	// simulate "process exited" without spawning real subprocesses.
+	// 进程存活检测函数，通过依赖注入便于单元测试覆盖。
+	processAlive func(int) bool
 }
 
 // targetPlatform stores one normalized Go target platform.

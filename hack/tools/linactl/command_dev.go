@@ -45,6 +45,14 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 		return err
 	}
 
+	// After stopping our own services, verify the ports are actually free.
+	// If something else is still bound, fail fast with an actionable hint
+	// instead of letting the backend silently die with "address already in use".
+	// 停掉自身服务后再校验端口空闲，杜绝外部进程占用导致的"假成功"。
+	if err = devservice.EnsurePortsAvailable(a.portInUse, backendPort, frontendPort); err != nil {
+		return err
+	}
+
 	tempDir := filepath.Join(a.root, "temp")
 	binDir := filepath.Join(tempDir, "bin")
 	if err = os.MkdirAll(binDir, 0o755); err != nil {
@@ -80,13 +88,23 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 		a.env = previousEnv
 	}()
 	for _, service := range services {
-		if err = devservice.StartService(a.root, a.stdout, a.env, a.execCommand, configureDetachedProcess, service); err != nil {
+		if err = devservice.StartService(a.root, a.stdout, a.stderr, a.env, a.execCommand, configureDetachedProcess, service); err != nil {
 			return err
 		}
 	}
 
 	for _, service := range services {
-		if err = a.waitHTTP(service.Name, service.URL, service.PIDPath, service.LogPath, defaultWaitTimeout); err != nil {
+		// readinessURL distinguishes the backend from the frontend so we do
+		// not accept arbitrary 4xx responses from an unrelated process that
+		// happens to be bound to the port (the backend exposes /api.json
+		// configured via server.extensions.apiDocPath).
+		// 后端就绪探测打 /api.json 并要求 2xx，避免外部进程的 404 被误判为就绪。
+		readinessURL := devservice.ReadinessURL(service)
+		if err = a.waitHTTP(service.Name, readinessURL, service.PIDPath, service.LogPath, defaultWaitTimeout); err != nil {
+			tailErr := devservice.TailLogToWriter(a.stderr, service.Name, service.LogPath, devservice.DefaultReadinessTailLines)
+			if tailErr != nil {
+				fmt.Fprintf(a.stderr, "warning: tail %s log failed: %v\n", service.Name, tailErr)
+			}
 			return err
 		}
 		if _, err = fmt.Fprintf(a.stdout, "%s is ready: %s\n", service.Name, service.URL); err != nil {

@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"linactl/internal/devservice"
 	"linactl/internal/fileutil"
@@ -20,15 +21,26 @@ import (
 
 // newApp creates a command application with default process dependencies.
 func newApp(stdout io.Writer, stderr io.Writer, stdin io.Reader) *app {
-	return &app{
-		stdout:      stdout,
-		stderr:      stderr,
-		stdin:       stdin,
-		env:         os.Environ(),
-		execCommand: exec.CommandContext,
-		lookPath:    exec.LookPath,
-		waitHTTP:    devservice.WaitHTTP,
+	a := &app{
+		stdout:       stdout,
+		stderr:       stderr,
+		stdin:        stdin,
+		env:          os.Environ(),
+		execCommand:  exec.CommandContext,
+		lookPath:     exec.LookPath,
+		portInUse:    devservice.IsTCPListening,
+		processAlive: processAlive,
 	}
+	// Default waitHTTP wraps devservice.WaitHTTP so the readiness loop can
+	// dispatch into the injectable processAlive on this app instance. Tests
+	// override this field directly to control readiness behavior without
+	// reaching into devservice internals.
+	// 默认 waitHTTP 包装 devservice.WaitHTTP，并注入 app.processAlive，便于
+	// 测试通过覆盖该字段直接控制就绪行为。
+	a.waitHTTP = func(name string, url string, pidPath string, logPath string, timeout time.Duration) error {
+		return devservice.WaitHTTP(name, url, pidPath, logPath, timeout, a.processAlive)
+	}
+	return a
 }
 
 // run parses the command and dispatches to the command handler.
