@@ -12,6 +12,7 @@ import (
 
 	"linactl/internal/devservice"
 	"linactl/internal/frontend"
+	"linactl/internal/portcheck"
 	"linactl/internal/toolutil"
 )
 
@@ -23,6 +24,17 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 	}
 	frontendPort, err := input.Int("frontend_port", defaultFrontendPort)
 	if err != nil {
+		return err
+	}
+	// 在重建/启动任何子进程之前，先校验三处端口一致性（命令传入的
+	// backend_port、后端 manifest config 的 server.address、前端 vite proxy
+	// target）；任一不一致都直接 fail-fast，避免错配端口启动后再以"探活
+	// 超时"或"接口 404"等间接形式暴露问题。
+	// Verify backend_port, backend manifest server.address, and frontend vite
+	// proxy targets all agree before launching any subprocess. Any mismatch is
+	// surfaced immediately instead of letting downstream services start with
+	// inconsistent ports.
+	if err = portcheck.Verify(a.root, backendPort); err != nil {
 		return err
 	}
 	if err = ensureFrontendDeps(ctx, a); err != nil {
