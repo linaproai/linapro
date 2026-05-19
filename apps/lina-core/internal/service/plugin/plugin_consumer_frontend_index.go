@@ -224,9 +224,6 @@ func activeSourceConsumerFrontendSpec(manifest *catalog.Manifest) *catalog.Consu
 		return nil
 	}
 	frontendSpec := manifest.Consumer.Frontend
-	if frontendSpec.Enabled != nil && !*frontendSpec.Enabled {
-		return nil
-	}
 	if strings.TrimSpace(frontendSpec.MountPath) == "" {
 		return nil
 	}

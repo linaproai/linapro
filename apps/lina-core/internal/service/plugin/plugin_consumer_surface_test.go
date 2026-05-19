@@ -70,8 +70,8 @@ func TestBuildConsumerSurfaceSnapshotAggregatesHostInputs(t *testing.T) {
 		t.Fatalf("expected only consumer-frontend capable plugin, got %#v", snapshot.Plugins)
 	}
 	got := snapshot.Plugins[0]
-	if got.PluginID != "mall" || got.Version != "0.2.0" || !got.Enabled {
-		t.Fatalf("unexpected plugin identity or enablement: %#v", got)
+	if got.PluginID != "mall" || got.Version != "0.2.0" {
+		t.Fatalf("unexpected plugin identity: %#v", got)
 	}
 	if !got.TenantAware ||
 		got.ScopeNature != catalog.ScopeNatureTenantAware.String() ||

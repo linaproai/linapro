@@ -1,6 +1,6 @@
 ## 1. Manifest and Asset Discovery
 
-- [x] 1.1 为源码插件清单新增`consumer.frontend`结构，支持`enabled`、`mount_path`、`index`和`spa_fallback`。
+- [x] 1.1 为源码插件清单新增`consumer.frontend`结构，支持`mount_path`、`index`和`spa_fallback`。
 - [x] 1.2 校验消费端前端挂载路径，禁止根路径、非法路径和宿主保留前缀。
 - [x] 1.3 扩展源码目录和嵌入式文件系统扫描，发现`frontend/consumer/`下的消费端前端资产。
 - [x] 1.4 在插件清单快照中记录消费端前端资源数量。

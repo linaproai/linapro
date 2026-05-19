@@ -9,7 +9,6 @@
 ```yaml
 consumer:
   frontend:
-    enabled: true
     mount_path: /portal
     index: index.html
     spa_fallback: true
@@ -19,8 +18,7 @@ consumer:
 
 | Field | Required | Meaning |
 | --- | --- | --- |
-| `enabled` | No | 是否启用该消费端前端挂载；缺省时只要`mount_path`存在即视为启用。 |
-| `mount_path` | No | 浏览器可访问的稳定挂载路径，不允许为根路径，不允许覆盖宿主保留前缀。 |
+| `mount_path` | No | 浏览器可访问的稳定挂载路径，不允许为根路径，不允许覆盖宿主保留前缀。声明即启用。 |
 | `index` | No | 入口文件，缺省为`index.html`，路径相对于`frontend/consumer/`。 |
 | `spa_fallback` | No | 是否将不存在的干净子路由回退到入口文件；缺省为`false`。 |
 

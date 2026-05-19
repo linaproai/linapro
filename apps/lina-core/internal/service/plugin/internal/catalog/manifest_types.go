@@ -100,8 +100,6 @@ type ConsumerSpec struct {
 
 // ConsumerFrontendSpec declares how a source plugin exposes frontend/consumer assets.
 type ConsumerFrontendSpec struct {
-	// Enabled reports whether the consumer frontend mount is active. Missing means enabled when a mount path is present.
-	Enabled *bool `yaml:"enabled,omitempty" json:"enabled,omitempty"`
 	// MountPath is the stable user-facing mount path, such as /portal.
 	MountPath string `yaml:"mount_path,omitempty" json:"mountPath,omitempty"`
 	// Index is the consumer frontend entry asset. Missing defaults to index.html.

@@ -329,23 +329,11 @@ func TestSourceConsumerSPAFallbackEnabledDefaultsFalse(t *testing.T) {
 	}
 }
 
-// TestActiveSourceConsumerFrontendSpecFiltersDisabledAndNonSourceManifests
-// verifies only enabled source-plugin consumer frontend declarations become mounts.
-func TestActiveSourceConsumerFrontendSpecFiltersDisabledAndNonSourceManifests(t *testing.T) {
+// TestActiveSourceConsumerFrontendSpecFiltersNonSourceManifests
+// verifies only source-plugin consumer frontend declarations become mounts.
+func TestActiveSourceConsumerFrontendSpecFiltersNonSourceManifests(t *testing.T) {
 	if activeSourceConsumerFrontendSpec(&catalog.Manifest{Type: catalog.TypeDynamic.String()}) != nil {
 		t.Fatalf("expected dynamic plugin manifest to be ignored")
-	}
-
-	disabled := false
-	disabledManifest := &catalog.Manifest{
-		Type: catalog.TypeSource.String(),
-		Consumer: &catalog.ConsumerSpec{Frontend: &catalog.ConsumerFrontendSpec{
-			Enabled:   &disabled,
-			MountPath: "/portal",
-		}},
-	}
-	if activeSourceConsumerFrontendSpec(disabledManifest) != nil {
-		t.Fatalf("expected disabled consumer frontend declaration to be ignored")
 	}
 
 	sourceManifest := &catalog.Manifest{
@@ -356,7 +344,7 @@ func TestActiveSourceConsumerFrontendSpecFiltersDisabledAndNonSourceManifests(t 
 	}
 	frontendSpec := activeSourceConsumerFrontendSpec(sourceManifest)
 	if frontendSpec == nil {
-		t.Fatalf("expected enabled source consumer frontend declaration to be active")
+		t.Fatalf("expected source consumer frontend declaration to be active")
 	}
 	if frontendSpec.MountPath != "/portal" || frontendSpec.Index != "index.html" {
 		t.Fatalf("expected normalized frontend spec, got %#v", frontendSpec)
