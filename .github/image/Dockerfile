@@ -26,5 +26,5 @@ RUN $WORKDIR/lina mock --confirm=mock
 #                                   START
 ###############################################################################
 WORKDIR $WORKDIR
-EXPOSE 8080
+EXPOSE 9120
 CMD ["./lina"]

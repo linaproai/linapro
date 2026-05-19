@@ -1,7 +1,7 @@
 # HTTP server configuration
 # HTTP 服务配置
 server:
-  address: ":8080"
+  address: ":9120"
   dumpRouterMap: false
   extensions:
     apiDocPath: "/api.json"
