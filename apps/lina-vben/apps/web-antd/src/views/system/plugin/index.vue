@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SystemPlugin } from '#/api/system/plugin/model';
 
-import { h } from 'vue';
+import { h, ref } from 'vue';
 
 import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
@@ -64,6 +64,7 @@ const pluginAccessCodes = {
 } as const;
 
 const { hasAccessByCodes } = useAccess();
+const statusChangingPluginIds = ref<Record<string, boolean>>({});
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
@@ -409,12 +410,29 @@ function canTogglePluginStatus(row: SystemPlugin) {
     : hasAccessByCodes([pluginAccessCodes.enable]);
 }
 
+function isPluginStatusChanging(row: SystemPlugin) {
+  return statusChangingPluginIds.value[row.id] === true;
+}
+
+function setPluginStatusChanging(pluginId: string, changing: boolean) {
+  const next = { ...statusChangingPluginIds.value };
+  if (changing) {
+    next[pluginId] = true;
+  } else {
+    delete next[pluginId];
+  }
+  statusChangingPluginIds.value = next;
+}
+
 function handleDetail(row: SystemPlugin) {
   detailModalApi.setData({ row });
   detailModalApi.open();
 }
 
 async function handleStatusChange(row: SystemPlugin, checked: boolean) {
+  if (isPluginStatusChanging(row)) {
+    return;
+  }
   if (row.installed !== 1) {
     message.warning($t('pages.system.plugin.messages.installFirst'));
     return;
@@ -440,14 +458,22 @@ async function handleStatusChange(row: SystemPlugin, checked: boolean) {
       return;
     }
   }
-  await (checked ? pluginEnable : pluginDisable)(row.id);
+  const previousEnabled = row.enabled;
   row.enabled = checked ? 1 : 0;
-  await notifyPluginRegistryChanged();
-  message.success(
-    checked
-      ? $t('pages.system.plugin.messages.enabled')
-      : $t('pages.system.plugin.messages.disabled'),
-  );
+  setPluginStatusChanging(row.id, true);
+  try {
+    await (checked ? pluginEnable : pluginDisable)(row.id);
+    await notifyPluginRegistryChanged();
+    message.success(
+      checked
+        ? $t('pages.system.plugin.messages.enabled')
+        : $t('pages.system.plugin.messages.disabled'),
+    );
+  } catch {
+    row.enabled = previousEnabled;
+  } finally {
+    setPluginStatusChanging(row.id, false);
+  }
 }
 
 async function handleTenantProvisioningPolicyChange(
@@ -744,7 +770,12 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
         >
           <Switch
             :checked="row.enabled === 1"
-            :disabled="row.installed !== 1 || !canTogglePluginStatus(row)"
+            :disabled="
+              row.installed !== 1 ||
+              !canTogglePluginStatus(row) ||
+              isPluginStatusChanging(row)
+            "
+            :loading="isPluginStatusChanging(row)"
             :checked-children="$t('pages.status.enabled')"
             :un-checked-children="$t('pages.status.disabled')"
             @change="(checked) => handleStatusChange(row, !!checked)"
