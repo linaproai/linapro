@@ -31,7 +31,7 @@ server:
 func TestGetServerExtensionsUsesDefaultWhenPathMissing(t *testing.T) {
 	setTestServerConfigAdapter(t, `
 server:
-  address: ":8080"
+  address: ":9120"
 `)
 
 	cfg := New().GetServerExtensions(context.Background())

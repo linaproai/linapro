@@ -37,9 +37,9 @@ The system SHALL generate `servers[0].url` based on the current request's scheme
 - **AND** the request address prefix displayed and used for Try It in the API documentation points to the backend service address
 
 #### Scenario: Access API Documentation Through Backend Direct Connection
-- **WHEN** admin opens the System API Docs page by directly accessing the backend service exposed address, e.g., container maps `8080` to host `8088`
+- **WHEN** admin opens the System API Docs page by directly accessing the backend service exposed address, e.g., container maps `9120` to host `8088`
 - **THEN** the `servers[0].url` returned by `/api.json` matches the scheme, host, and port used when the browser accesses the backend service
-- **AND** the API documentation no longer displays the fixed `http://localhost:8080` prefix
+- **AND** the API documentation no longer displays the fixed `http://localhost:9120` prefix
 
 #### Scenario: Access API Documentation Through HTTPS Proxy
 - **WHEN** admin requests `/api.json` through a proxy that sets `X-Forwarded-Proto: https`

@@ -80,19 +80,19 @@
 
 ### Requirement:插件 SQL 资源执行前必须经当前方言转译
 
-系统 SHALL 在执行插件 `manifest/sql/` 安装资产、`manifest/sql/uninstall/` 卸载资产、`manifest/sql/mock-data/` mock 资产中的任一 SQL 文件之前，先调用当前方言的 `TranslateDDL(ctx, sourceName, ddl)` 将单一 MySQL 方言来源的 SQL 内容转换为目标方言可执行内容。`sourceName` SHALL 使用插件标识、资产类型与 SQL 文件路径组合出的稳定诊断名。该规则同时适用于源码插件与动态插件、安装阶段与卸载阶段、运行时嵌入式 SQL 与开发时本地 SQL。插件源码侧 SHALL 仅维护单一 MySQL 方言来源的 SQL 文件，不得为不同数据库引擎维护多份 SQL 文件。
+系统 SHALL 在执行插件 `manifest/sql/` 安装资产、`manifest/sql/uninstall/` 卸载资产、`manifest/sql/mock-data/` mock 资产中的任一 SQL 文件之前，先调用当前方言的 `TranslateDDL(ctx, sourceName, ddl)` 入口处理单一 PostgreSQL 14+ 方言来源的 SQL 内容。`sourceName` SHALL 使用插件标识、资产类型与 SQL 文件路径组合出的稳定诊断名。该规则同时适用于源码插件与动态插件、安装阶段与卸载阶段、运行时嵌入式 SQL 与开发时本地 SQL。插件源码侧 SHALL 仅维护单一 PostgreSQL 方言来源的 SQL 文件，不得为不同数据库引擎维护多份 SQL 文件。
 
 #### Scenario:源码插件安装时 SQL 走方言转译
-- **当** 源码插件 `linapro-monitor-loginlog` 在 SQLite 模式下首次启用并执行 `manifest/sql/001-linapro-monitor-loginlog-schema.sql` 时
-- **则** 插件安装管线先调用当前 SQLite 方言实例的 `TranslateDDL(ctx, sourceName, ddl)` 将 MySQL 方言 DDL 转译为 SQLite 兼容语句
-- **且** 转译后的语句在 SQLite 数据库上成功执行
-- **且** 插件源码 `manifest/sql/` 目录下保持单一 MySQL 方言 SQL 文件
+- **当** 源码插件 `linapro-monitor-loginlog` 在 PostgreSQL 模式下首次启用并执行 `manifest/sql/001-linapro-monitor-loginlog-schema.sql` 时
+- **则** 插件安装管线先调用当前 PostgreSQL 方言实例的 `TranslateDDL(ctx, sourceName, ddl)`
+- **且** 返回的 PostgreSQL SQL 语句逐一成功执行
+- **且** 插件源码 `manifest/sql/` 目录下保持单一 PostgreSQL 方言 SQL 文件
 
 #### Scenario:动态插件升级时 SQL 走方言转译
 - **当** 动态插件升级到新版本且新版本携带新的 `manifest/sql/*.sql` 文件
-- **且** 当前宿主以 SQLite 方言运行
-- **则** 插件升级管线对每个新 SQL 文件调用当前 SQLite 方言实例的 `TranslateDDL(ctx, sourceName, ddl)`
-- **且** 转译后的语句逐一执行
+- **且** 当前宿主以 PostgreSQL 方言运行
+- **则** 插件升级管线对每个新 SQL 文件调用当前 PostgreSQL 方言实例的 `TranslateDDL(ctx, sourceName, ddl)`
+- **且** 返回的语句逐一执行
 - **且** 任一文件转译或执行失败时升级管线返回失败状态
 
 #### Scenario:插件卸载时 uninstall SQL 走方言转译
@@ -104,7 +104,7 @@
 #### Scenario:插件 mock-data 加载时 SQL 走方言转译
 - **当** 运维人员运行 `make mock confirm=mock` 且某插件提供 `manifest/sql/mock-data/*.sql` 时
 - **则** mock 加载管线对每个 mock SQL 文件调用当前方言的 `TranslateDDL`
-- **且** 转译后的 `INSERT IGNORE INTO` / `INSERT INTO` 等语句在当前数据库上成功执行
+- **且** 返回的 `INSERT INTO` 等 PostgreSQL 语句在当前数据库上成功执行
 
 #### Scenario:插件 SQL 转译失败时安装管线快速失败
 - **当** 插件某 SQL 文件包含当前方言转译器未覆盖的 MySQL 语法时
@@ -112,18 +112,18 @@
 - **且** 错误日志包含失败的插件标识、SQL 资产类型、失败文件名、行号提示与未覆盖关键字
 - **且** 管线向上层返回失败状态，便于调用方明确定位待修复的 SQL 文件
 
-### Requirement:插件 SQL 文件必须能被默认方言转译器处理
+### Requirement:插件 SQL 文件必须符合 PostgreSQL-only SQL 源约束
 
-源码插件与动态插件提交到仓库或发布产物中的 SQL 文件 SHALL 限定在默认方言转译器（当前为 SQLite 方言 `TranslateDDL`）的覆盖范围内。具体而言，插件 SQL 不得使用以下 MySQL 特性：`FULLTEXT INDEX` / `SPATIAL INDEX` / `GENERATED ALWAYS AS` / 分区子句 / `ON DUPLICATE KEY UPDATE` / 未纳入转译器覆盖范围的数据库专用函数（`FIND_IN_SET` / `GROUP_CONCAT` / `IF()` 等）；这些语法本就由项目编码规范禁止，新增本规则强化了"在 SQLite 模式下也必须能跑通"的边界要求。若当前项目 SQL 已真实使用且语义可安全等价映射的函数（如 mock SQL 中的 `CONCAT(...)`），必须先纳入转译器与真实资产执行测试，再允许保留。
+源码插件与动态插件提交到仓库或发布产物中的 SQL 文件 SHALL 使用 PostgreSQL 14+ 语法，并遵守 `sql-source-syntax` 中的 PostgreSQL-only 源约束。插件 SQL 不得使用 MySQL 或 SQLite 特有语法，例如 `FULLTEXT INDEX` / `SPATIAL INDEX` / `ON DUPLICATE KEY UPDATE` / `INSERT IGNORE` / `FIND_IN_SET` / `GROUP_CONCAT` / `IF()` / `COLLATE NOCASE` 等。使用 PostgreSQL 高级特性前必须新立 OpenSpec 变更评估可维护性、升级策略、DAO 兼容性和测试覆盖。
 
-#### Scenario:插件 SQL 不使用 FULLTEXT 等未覆盖语法
-- **当** 任一源码插件或动态插件提交的 `manifest/sql/*.sql` 文件被默认方言转译器处理时
-- **则** 转译过程不返回"未覆盖语法"错误
-- **且** 转译结果可在 SQLite 上成功执行
+#### Scenario:插件 SQL 不使用 MySQL 或 SQLite 特有语法
+- **当** 任一源码插件或动态插件提交 `manifest/sql/*.sql` 文件时
+- **则** SQL 文件不包含 MySQL 或 SQLite 特有语法
+- **且** 语句可在 PostgreSQL 上直接成功执行
 
 #### Scenario:违规 SQL 在审查与测试阶段被发现
 - **当** 插件作者提交包含 `FULLTEXT INDEX` 等未覆盖语法的 SQL 文件时
-- **则** 方言转译器单元测试或 E2E 测试在 SQLite 模式下报错
+- **则** SQL 源治理扫描、PostgreSQL 资产 smoke 或审查在合并前报错
 - **且** 错误消息明确指向违规文件与未覆盖关键字
 - **且** 该 SQL 在 PR / 变更审查阶段必须被修复，方可进入主干
 
@@ -212,4 +212,3 @@
 - **AND** 调用插件同步、上传、安装、卸载、启用、禁用或升级接口
 - **THEN** 系统 MUST 拒绝该操作
 - **AND** 不修改平台插件治理数据
-

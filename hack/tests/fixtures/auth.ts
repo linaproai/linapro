@@ -9,6 +9,7 @@ import { waitForRouteReady } from '../support/ui';
 export type AuthFixtures = {
   adminContext: BrowserContext;
   adminPage: Page;
+  authenticatedPage: Page;
   loginPage: LoginPage;
   mainLayout: MainLayout;
 };
@@ -21,6 +22,11 @@ export const test = base.extend<AuthFixtures>({
     });
     await use(context);
     await context.close();
+  },
+  authenticatedPage: async ({ adminContext }, use) => {
+    const page = await adminContext.newPage();
+    await use(page);
+    await page.close();
   },
   adminPage: async ({ adminContext }, use) => {
     const page = await adminContext.newPage();

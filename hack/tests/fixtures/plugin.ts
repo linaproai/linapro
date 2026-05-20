@@ -94,6 +94,19 @@ export async function createAdminApiContext(): Promise<APIRequestContext> {
   });
 }
 
+export async function prepareSourcePluginsBaseline(pluginIds: readonly string[]) {
+  const uniquePluginIds = [...new Set(pluginIds)].sort();
+  const adminApi = await createAdminApiContext();
+  try {
+    await syncPlugins(adminApi);
+    for (const pluginId of uniquePluginIds) {
+      await ensurePluginEnabledState(adminApi, pluginId);
+    }
+  } finally {
+    await adminApi.dispose();
+  }
+}
+
 export async function syncPlugins(adminApi: APIRequestContext) {
   const response = await adminApi.post('plugins/sync');
   assertOk(response, '同步源码插件失败');

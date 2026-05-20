@@ -268,7 +268,7 @@ func (s *serviceImpl) ExecuteManifestMockSQLFilesInTx(
 }
 
 // executeSQLAsset translates and executes one plugin SQL asset statement by
-// statement so SQLite does not depend on driver-level multi-statement support.
+// statement so execution never depends on driver-level multi-statement support.
 func (s *serviceImpl) executeSQLAsset(
 	ctx context.Context,
 	pluginID string,

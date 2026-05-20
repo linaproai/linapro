@@ -1,0 +1,41 @@
+## 1. 后端路由契约调整
+
+- [x] 1.1 在动态插件 runtime 中定义 public prefix `/x`，并让路由匹配只支持该入口。
+- [x] 1.2 调整 HTTP 路由绑定，使 `/x/{pluginId}/...` 挂载宿主统一中间件和动态插件鉴权/权限中间件，且不依赖 `/api/v1` 路由组。
+- [x] 1.3 移除 `/api/v1/extensions/{pluginId}/...` 动态插件分发入口，确保旧路径不再执行动态插件 bridge 路由。
+- [x] 1.4 更新动态插件 public path 元数据构建，确保 bridge 请求、审计上下文和中间件拿到实际命中的 public path。
+
+## 2. OpenAPI、文档与 i18n 同步
+
+- [x] 2.1 将动态插件 OpenAPI 投影和插件资源列表 public path 生成切换到 `/x/{pluginId}/...`。
+- [x] 2.2 更新 apidoc 动态插件路径识别逻辑，使 `/x/{pluginId}/...` 生成和读取稳定插件翻译 key。
+- [x] 2.3 同步更新核心 API DTO 文档、动态示例插件 API 注释、`manifest/i18n` 和 packed apidoc i18n JSON 中关于动态插件公开路径的文案。
+- [x] 2.4 静态扫描非归档代码和文档中的 `/api/v1/extensions` 引用，确认仅保留迁移说明或明确断言旧路径不再分发的测试引用。
+
+## 3. 动态示例插件与测试更新
+
+- [x] 3.1 将 `linapro-demo-dynamic` 前端请求基地址切换为 `/x/${pluginId}`，并确保插件自有 API 版本可在内部路径中表达。
+- [x] 3.2 更新动态插件 runtime、OpenAPI、controller、pluginbridge 编解码相关单元测试，覆盖 `/x` 路径和旧路径不再分发。
+- [x] 3.3 更新官方动态插件 E2E 用例，验证 `/x/{pluginId}/...` 可完成已登录动态插件请求。
+- [x] 3.4 更新性能审计脚本或端点扫描脚本中的动态插件路径识别和 public path 生成逻辑。
+
+## 4. 验证与审查
+
+- [x] 4.1 运行 `openspec validate rename-dynamic-plugin-route-prefix --strict`。
+- [x] 4.2 运行后端 Go 编译/测试门禁，至少覆盖 `apps/lina-core/internal/cmd`、动态插件 runtime、OpenAPI 投影、apidoc 和 pluginbridge 相关变更包。
+- [x] 4.3 运行动态示例插件相关测试或 E2E smoke，覆盖新 `/x` 路径的用户可观察行为。
+- [x] 4.4 记录 i18n 影响判断：本次需要同步 apidoc i18n JSON 和动态示例插件文案，不新增运行时菜单翻译键时也需明确说明。
+- [x] 4.5 记录缓存一致性判断：本次不新增缓存，必须确认 `/x` 路由仍经过插件 runtime freshness、启用状态和派生缓存失效逻辑。
+- [x] 4.6 执行 `/lina-review` 审查，修复发现的问题后再标记任务完成。
+
+## 5. 验证记录
+
+- [x] OpenSpec：`openspec validate rename-dynamic-plugin-route-prefix --strict`
+- [x] 后端 Go：`cd apps/lina-core && go test ./internal/cmd ./internal/service/plugin/internal/runtime ./internal/service/plugin/internal/openapi ./internal/service/apidoc ./internal/controller/plugin ./pkg/pluginbridge/... ./pkg/pluginservice/contract -count=1`
+- [x] 路由回归：`cd apps/lina-core && go test ./internal/cmd -run TestDynamicPluginRootRoutesPrecedeSPAFallback -count=1`
+- [x] 动态示例插件 E2E smoke：重启本地开发服务到当前工作区代码后，`E2E_BROWSER_CHANNEL=chrome pnpm -C hack/tests test:module -- plugin:linapro-demo-dynamic -- --grep "TC-1j"`；验证启用 `linapro-demo-dynamic` 后 `/x/linapro-demo-dynamic/backend-summary` 返回真实 Wasm bridge 响应。
+- [x] E2E 治理：`pnpm -C hack/tests test:validate`
+- [x] 路径静态扫描：`rg -n '/api/v1/extensions|api/v1/extensions|extensions/\\$\\{|`extensions/|/x//|LegacyRoutePublicPrefix|bindLegacyDynamicPluginAPIRoutes|parts\\[0\\] == "extensions"|/extensions' apps/lina-core apps/lina-plugins/linapro-demo-dynamic hack/tests .agents/skills/lina-perf-audit/scripts -g '!node_modules' -g '!dist' -g '!build' -g '!public/stoplight/**'`；仅剩服务依赖基线中的非路由文件名 `extensions.go` 和旧路径不再分发的负向单元测试引用。
+- [x] i18n 影响：已同步核心 API DTO 文档、核心 `manifest/i18n`、核心 packed apidoc i18n、动态示例插件 API 注释和动态示例插件 `manifest/i18n` 中的公开路径文案；本次未新增运行时菜单翻译键。
+- [x] 缓存一致性：本次不新增缓存；`/x` 路由继续通过 `PrepareDynamicRouteMiddleware`、`AuthenticateDynamicRouteMiddleware`、`prepareDynamicRouteRuntime` 和 `ensureRuntimeCacheFresh` 相关路径，仍受插件启用状态、runtime freshness、运行时修订号和派生缓存失效机制约束。
+- [x] `/lina-review`：审查范围限定为本变更相关路由、runtime、OpenAPI/apidoc、插件示例、E2E 引用、性能审计脚本和 OpenSpec 文档；未发现阻塞问题。已补充 `TestDynamicPluginRootRoutesPrecedeSPAFallback` 防止 `/x/...` 被前端 SPA fallback 接管，并修正旧兼容措辞注释。

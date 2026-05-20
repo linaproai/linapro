@@ -10,8 +10,8 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 )
 
-// RoutePublicPrefix is the fixed URL prefix under which all dynamic plugin routes are served.
-const RoutePublicPrefix = "/api/v1/extensions"
+// RoutePublicPrefix is the canonical URL prefix under which dynamic plugin routes are documented.
+const RoutePublicPrefix = "/x"
 
 // Service defines the openapi service contract.
 type Service interface {

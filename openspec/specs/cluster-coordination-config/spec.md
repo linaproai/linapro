@@ -69,15 +69,15 @@ TBD - created by archiving change redis-cluster-coordination. Update Purpose aft
 - **THEN** 宿主继续初始化 cluster、coordination、cron 和插件运行时组件
 - **AND** 健康诊断中显示 coordination backend 为 `redis`
 
-### Requirement: SQLite 方言必须禁止集群 coordination
-当数据库链接为 SQLite 方言时，系统 SHALL 在内存层强制 `cluster.enabled=false`。即使配置文件同时声明 `cluster.coordination=redis`，系统也 MUST 不连接 Redis，不启动集群 coordination。
+### Requirement: 非 PostgreSQL 数据库链接必须在 coordination 启动前失败
+系统仅支持 PostgreSQL 运行时数据库。`sqlite:`、`mysql:` 或未知数据库链接 MUST 在方言解析阶段失败，不得进入 Redis coordination 探活、集群配置覆盖或业务启动流程。
 
 #### Scenario: SQLite 配置了 Redis coordination
 - **WHEN** `database.default.link` 以 `sqlite:` 开头
 - **AND** 配置文件声明 `cluster.enabled=true`
 - **AND** 配置文件声明 `cluster.coordination=redis`
-- **THEN** `IsClusterEnabled` 返回 `false`
-- **AND** 系统输出 SQLite 单机模式警告
+- **THEN** 宿主启动失败并返回 SQLite 不再支持的明确错误
+- **AND** 系统不输出 SQLite 单机模式警告或进入单机降级
 - **AND** 系统不得连接 Redis
 
 ### Requirement: 配置模板必须展示 Redis 集群模式
@@ -88,4 +88,3 @@ TBD - created by archiving change redis-cluster-coordination. Update Purpose aft
 - **THEN** 文件包含 `cluster.coordination: redis` 示例
 - **AND** 文件包含 `cluster.redis.address`、`db`、`password`、`connectTimeout`、`readTimeout`、`writeTimeout` 字段说明
 - **AND** 注释说明 `cluster.enabled=false` 时不需要 Redis
-

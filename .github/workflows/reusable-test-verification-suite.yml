@@ -67,12 +67,6 @@ on:
         description: Whether to run Redis integration tests.
         required: true
         type: boolean
-      # Enables SQLite backend smoke checks.
-      # 启用 SQLite 后端冒烟检查。
-      include-sqlite-smoke:
-        description: Whether to run SQLite smoke tests.
-        required: true
-        type: boolean
       # Enables the host-only build smoke job.
       # 启用宿主模式构建冒烟 job。
       include-host-only-build-smoke:
@@ -204,13 +198,6 @@ jobs:
     if: ${{ inputs.include-redis-integration }}
     uses: ./.github/workflows/reusable-redis-integration-tests.yml
 
-  # Verifies the backend can initialize and run against the SQLite configuration.
-  # 验证后端在 SQLite 配置下可以初始化并运行。
-  sqlite-smoke:
-    name: SQLite smoke
-    if: ${{ inputs.include-sqlite-smoke }}
-    uses: ./.github/workflows/reusable-sqlite-smoke.yml
-
   # Builds a host-only backend artifact and verifies health/login/plugin-list behavior.
   # 构建宿主模式后端产物，并验证健康检查、登录和插件列表行为。
   host-only-build-smoke:
@@ -234,18 +221,34 @@ jobs:
       retention-days: ${{ inputs.retention-days }}
       parallel-workers: ${{ inputs.e2e-parallel-workers }}
 
-  # Runs plugin-full browser E2E when the caller enables E2E verification.
-  # 当调用方启用 E2E 验证时运行插件完整模式浏览器 E2E。
+  # Runs plugin-full browser E2E shards when the caller enables E2E verification.
+  # 当调用方启用 E2E 验证时运行插件完整模式浏览器 E2E 分片。
   plugin-full-e2e-tests:
-    name: E2E tests (plugin-full)
+    name: E2E tests (plugin-full / ${{ matrix.shard.name }})
     if: ${{ inputs.include-plugin-full-e2e-tests }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - name: extension-plugin
+            command: pnpm test:module -- extension:plugin
+          - name: plugins-1-of-5
+            command: pnpm test:module -- plugins -- --shard=1/5
+          - name: plugins-2-of-5
+            command: pnpm test:module -- plugins -- --shard=2/5
+          - name: plugins-3-of-5
+            command: pnpm test:module -- plugins -- --shard=3/5
+          - name: plugins-4-of-5
+            command: pnpm test:module -- plugins -- --shard=4/5
+          - name: plugins-5-of-5
+            command: pnpm test:module -- plugins -- --shard=5/5
     uses: ./.github/workflows/reusable-e2e-tests.yml
     with:
       submodules: recursive
       require-plugin-e2e: true
       start-command: make dev plugins=1
-      test-command: pnpm test
-      artifact-name: ${{ inputs.artifact-prefix }}-plugin-full-e2e-report
+      test-command: ${{ matrix.shard.command }}
+      artifact-name: ${{ inputs.artifact-prefix }}-plugin-full-e2e-${{ matrix.shard.name }}-report
       retention-days: ${{ inputs.retention-days }}
       parallel-workers: ${{ inputs.e2e-parallel-workers }}
 

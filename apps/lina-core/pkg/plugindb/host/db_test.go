@@ -20,7 +20,6 @@ func TestPluginDataDriverTypeUsesSharedSupportedDrivers(t *testing.T) {
 		want     string
 	}{
 		{name: "postgresql", baseType: " pgsql ", want: "plugin-data-pgsql"},
-		{name: "sqlite", baseType: "SQLITE", want: "plugin-data-sqlite"},
 	}
 
 	for _, test := range tests {
@@ -37,6 +36,9 @@ func TestPluginDataDriverTypeUsesSharedSupportedDrivers(t *testing.T) {
 
 	if _, err := pluginDataDriverType("mysql"); err == nil {
 		t.Fatal("expected mysql to be rejected by plugin data driver registry")
+	}
+	if _, err := pluginDataDriverType("sqlite"); err == nil {
+		t.Fatal("expected sqlite to be rejected by plugin data driver registry")
 	}
 }
 

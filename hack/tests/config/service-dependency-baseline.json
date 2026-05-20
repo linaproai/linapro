@@ -91,66 +91,6 @@
       "path": "apps/lina-core/internal/service/role/role_access_revision.go",
       "maxCalls": 1,
       "reason": "role access revision controller uses the process-wide cachecoord default selected by startup topology."
-    },
-    {
-      "path": "apps/lina-plugins/linapro-content-notice/backend/plugin.go",
-      "maxCalls": 2,
-      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
-    },
-    {
-      "path": "apps/lina-plugins/linapro-ops-demo-guard/backend/plugin.go",
-      "maxCalls": 1,
-      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
-    },
-    {
-      "path": "apps/lina-plugins/linapro-monitor-loginlog/backend/plugin.go",
-      "maxCalls": 3,
-      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
-    },
-    {
-      "path": "apps/lina-plugins/linapro-monitor-online/backend/plugin.go",
-      "maxCalls": 2,
-      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
-    },
-    {
-      "path": "apps/lina-plugins/linapro-monitor-operlog/backend/plugin.go",
-      "maxCalls": 3,
-      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
-    },
-    {
-      "path": "apps/lina-plugins/linapro-monitor-server/backend/plugin.go",
-      "maxCalls": 2,
-      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
-    },
-    {
-      "path": "apps/lina-plugins/linapro-tenant-core/backend/plugin.go",
-      "maxCalls": 11,
-      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
-    },
-    {
-      "path": "apps/lina-plugins/linapro-org-core/backend/plugin.go",
-      "maxCalls": 4,
-      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
-    },
-    {
-      "path": "apps/lina-plugins/linapro-org-core/backend/provider/orgcapadapter/orgcapadapter.go",
-      "maxCalls": 1,
-      "reason": "source-plugin provider boundary; constructs plugin-owned DAO service from host-published tenant filter."
-    },
-    {
-      "path": "apps/lina-plugins/linapro-demo-dynamic/backend/internal/controller/dynamic/dynamic.go",
-      "maxCalls": 1,
-      "reason": "dynamic plugin demo guest-side construction boundary; no host service adapter or host runtime service is created."
-    },
-    {
-      "path": "apps/lina-plugins/linapro-demo-dynamic/backend/plugin.go",
-      "maxCalls": 1,
-      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
-    },
-    {
-      "path": "apps/lina-plugins/linapro-demo-source/backend/plugin.go",
-      "maxCalls": 2,
-      "reason": "source-plugin registration boundary; constructs plugin-owned controllers/services from registrar HostServices."
     }
   ]
 }

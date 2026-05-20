@@ -39,7 +39,7 @@ func TestBuildDynamicRouteMetadataMapsRouteGovernance(t *testing.T) {
 	metadata := runtime.BuildDynamicRouteMetadata(&runtime.DynamicRouteRuntimeState{
 		Match: &runtime.DynamicRouteMatch{
 			PluginID:   "linapro-demo-dynamic",
-			PublicPath: "/api/v1/extensions/linapro-demo-dynamic/review",
+			PublicPath: "/x/linapro-demo-dynamic/review",
 			Route: &pluginbridge.RouteContract{
 				Method:  http.MethodGet,
 				Tags:    []string{"plugin-review", "dynamic"},
@@ -59,7 +59,7 @@ func TestBuildDynamicRouteMetadataMapsRouteGovernance(t *testing.T) {
 	if metadata.Method != http.MethodGet {
 		t.Fatalf("expected method GET, got %q", metadata.Method)
 	}
-	if metadata.PublicPath != "/api/v1/extensions/linapro-demo-dynamic/review" {
+	if metadata.PublicPath != "/x/linapro-demo-dynamic/review" {
 		t.Fatalf("expected public path to be preserved, got %q", metadata.PublicPath)
 	}
 	if len(metadata.Tags) != 2 || metadata.Tags[0] != "plugin-review" || metadata.Tags[1] != "dynamic" {
@@ -271,6 +271,28 @@ func TestDispatchDynamicRouteReturnsUpgradeRequiredWhenPendingUpgrade(t *testing
 	}
 }
 
+// TestDispatchDynamicRouteRejectsFormerVersionedPrefix verifies the runtime no
+// longer dispatches dynamic plugin routes under the host control-plane API prefix.
+func TestDispatchDynamicRouteRejectsFormerVersionedPrefix(t *testing.T) {
+	request := &ghttp.Request{}
+	request.Request = httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/extensions/plugin-dev-dynamic-route/summary",
+		nil,
+	)
+
+	response, err := testutil.NewServices().Runtime.DispatchDynamicRoute(
+		context.Background(),
+		&runtime.DynamicRouteDispatchInput{Request: request},
+	)
+	if err != nil {
+		t.Fatalf("expected former dynamic route prefix to return bridge response, got error: %v", err)
+	}
+	if response == nil || response.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected former dynamic route prefix to return 404, got %#v", response)
+	}
+}
+
 // TestExecuteDynamicWasmBridgeReturnsGuestResponse verifies that a bundled
 // runtime plugin route executes and returns the guest response unchanged.
 func TestExecuteDynamicWasmBridgeReturnsGuestResponse(t *testing.T) {
@@ -286,7 +308,7 @@ func TestExecuteDynamicWasmBridgeReturnsGuestResponse(t *testing.T) {
 		PluginID: "linapro-demo-dynamic",
 		Route: &pluginbridge.RouteMatchSnapshotV1{
 			InternalPath: "/backend-summary",
-			PublicPath:   "/api/v1/extensions/linapro-demo-dynamic/backend-summary",
+			PublicPath:   "/x/linapro-demo-dynamic/backend-summary",
 			Access:       pluginbridge.AccessLogin,
 			Permission:   "linapro-demo-dynamic:backend:view",
 		},
@@ -344,7 +366,7 @@ func TestExecuteDynamicWasmBridgeHostCallDemoUsesStructuredHostServices(t *testi
 		RequestID: "req-host-call-demo",
 		Route: &pluginbridge.RouteMatchSnapshotV1{
 			InternalPath: "/host-call-demo",
-			PublicPath:   "/api/v1/extensions/linapro-demo-dynamic/host-call-demo",
+			PublicPath:   "/x/linapro-demo-dynamic/host-call-demo",
 			Access:       pluginbridge.AccessLogin,
 			Permission:   "linapro-demo-dynamic:backend:view",
 			RequestType:  "HostCallDemoReq",

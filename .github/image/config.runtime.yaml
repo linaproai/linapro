@@ -21,7 +21,7 @@ logger:
 # 数据库配置
 database:
   default:
-    link: "sqlite::@file(/app/data/sqlite/linapro.db)"
+    link: "pgsql:postgres:postgres@tcp(postgres:5432)/linapro?sslmode=disable"
     debug: false
 
 # JWT configuration
@@ -70,8 +70,8 @@ i18n:
       nativeName: 繁體中文
 
 # Cluster deployment configuration
-# SQLite forces cluster mode off at startup.
-# SQLite 会在启动期强制关闭集群模式。
+# Default image runtime config is single-node unless Redis coordination is provided.
+# 默认镜像运行配置为单节点模式；如需集群需额外提供 Redis coordination。
 cluster:
   enabled: false
   election:

@@ -14,10 +14,7 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/glog"
 	_ "lina-core/pkg/dbdriver"
 
@@ -377,128 +374,6 @@ func TestExecuteSQLAssetsWithExecutorSkipsEmptyFiles(t *testing.T) {
 	}
 }
 
-// TestMockCommandFailsWithoutInitializedSQLiteSchema verifies mock-data loading
-// depends on an initialized database schema instead of creating tables itself.
-func TestMockCommandFailsWithoutInitializedSQLiteSchema(t *testing.T) {
-	ctx := context.Background()
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "linapro.db")
-	writeTestSQLFile(
-		t,
-		filepath.Join(tempDir, "manifest", "sql", "mock-data", "001-users.sql"),
-		"INSERT INTO sys_user(username) VALUES ('demo') ON CONFLICT DO NOTHING;",
-	)
-
-	adapter, err := gcfg.NewAdapterContent(`
-database:
-  default:
-    link: "sqlite::@file(` + dbPath + `)"
-`)
-	if err != nil {
-		t.Fatalf("create config adapter: %v", err)
-	}
-	db, err := gdb.New(gdb.ConfigNode{Link: "sqlite::@file(" + dbPath + ")"})
-	if err != nil {
-		t.Fatalf("open SQLite command DB: %v", err)
-	}
-	originalAdapter := g.Cfg().GetAdapter()
-	originalCommandDatabase := commandDatabase
-	g.Cfg().SetAdapter(adapter)
-	commandDatabase = func() gdb.DB {
-		return db
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("get current working directory: %v", err)
-	}
-	if err = os.Chdir(tempDir); err != nil {
-		t.Fatalf("chdir temp dir: %v", err)
-	}
-	t.Cleanup(func() {
-		if chdirErr := os.Chdir(cwd); chdirErr != nil {
-			t.Fatalf("restore cwd: %v", chdirErr)
-		}
-		commandDatabase = originalCommandDatabase
-		g.Cfg().SetAdapter(originalAdapter)
-		if closeErr := db.Close(ctx); closeErr != nil {
-			t.Fatalf("close SQLite command DB: %v", closeErr)
-		}
-	})
-
-	_, err = (&Main{}).Mock(ctx, MockInput{
-		Confirm:   mockCommandName,
-		SQLSource: string(sqlAssetSourceLocal),
-	})
-	if err == nil {
-		t.Fatal("expected mock SQL to fail when sys_user has not been initialized")
-	}
-	if !strings.Contains(err.Error(), "001-users.sql") {
-		t.Fatalf("expected error to contain mock SQL file name, got %q", err.Error())
-	}
-
-	count, err := db.GetValue(ctx, "SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name='sys_user'")
-	if err != nil {
-		t.Fatalf("inspect SQLite schema after failed mock SQL: %v", err)
-	}
-	if count.Int() != 0 {
-		t.Fatalf("expected mock SQL not to create sys_user table, got count=%d", count.Int())
-	}
-}
-
-// TestSQLiteInitThenMockCommandLoadsEmbeddedAssets verifies the runtime init
-// and mock commands can execute the full embedded host SQL asset set on SQLite.
-func TestSQLiteInitThenMockCommandLoadsEmbeddedAssets(t *testing.T) {
-	ctx := context.Background()
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "linapro.db")
-
-	adapter, err := gcfg.NewAdapterContent(`
-database:
-  default:
-    link: "sqlite::@file(` + dbPath + `)"
-`)
-	if err != nil {
-		t.Fatalf("create config adapter: %v", err)
-	}
-	db, err := gdb.New(gdb.ConfigNode{Link: "sqlite::@file(" + dbPath + ")"})
-	if err != nil {
-		t.Fatalf("open SQLite command DB: %v", err)
-	}
-	originalAdapter := g.Cfg().GetAdapter()
-	originalCommandDatabase := commandDatabase
-	g.Cfg().SetAdapter(adapter)
-	commandDatabase = func() gdb.DB {
-		return db
-	}
-	t.Cleanup(func() {
-		commandDatabase = originalCommandDatabase
-		g.Cfg().SetAdapter(originalAdapter)
-		if closeErr := db.Close(ctx); closeErr != nil {
-			t.Fatalf("close SQLite command DB: %v", closeErr)
-		}
-	})
-
-	_, err = (&Main{}).Init(ctx, InitInput{
-		Confirm:   initCommandName,
-		SQLSource: string(sqlAssetSourceEmbedded),
-		Rebuild:   "true",
-	})
-	if err != nil {
-		t.Fatalf("run SQLite init with embedded SQL assets: %v", err)
-	}
-	_, err = (&Main{}).Mock(ctx, MockInput{
-		Confirm:   mockCommandName,
-		SQLSource: string(sqlAssetSourceEmbedded),
-	})
-	if err != nil {
-		t.Fatalf("run SQLite mock with embedded SQL assets: %v", err)
-	}
-
-	assertSQLiteTableExists(t, ctx, db, "sys_user")
-	assertSQLiteUserExists(t, ctx, db, "admin")
-	assertSQLiteUserExists(t, ctx, db, "user001")
-}
-
 // TestScanLocalSQLAssetsSortsFiles verifies development-mode local SQL loading
 // keeps lexical order.
 func TestScanLocalSQLAssetsSortsFiles(t *testing.T) {
@@ -595,32 +470,6 @@ func TestMockRuntimeDefaultUsesEmbeddedAssets(t *testing.T) {
 			path.Join("manifest/sql", "mock-data", "001-users.sql"),
 			assets[0].Path,
 		)
-	}
-}
-
-// assertSQLiteTableExists verifies one table was created in the SQLite schema.
-func assertSQLiteTableExists(t *testing.T, ctx context.Context, db gdb.DB, tableName string) {
-	t.Helper()
-
-	count, err := db.GetValue(ctx, "SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name=?", tableName)
-	if err != nil {
-		t.Fatalf("inspect SQLite table %s: %v", tableName, err)
-	}
-	if count.Int() != 1 {
-		t.Fatalf("expected SQLite table %s to exist, got count=%d", tableName, count.Int())
-	}
-}
-
-// assertSQLiteUserExists verifies one expected seed or mock user was loaded.
-func assertSQLiteUserExists(t *testing.T, ctx context.Context, db gdb.DB, username string) {
-	t.Helper()
-
-	count, err := db.GetValue(ctx, "SELECT COUNT(1) FROM sys_user WHERE username=?", username)
-	if err != nil {
-		t.Fatalf("query SQLite user %s: %v", username, err)
-	}
-	if count.Int() != 1 {
-		t.Fatalf("expected SQLite user %s to exist, got count=%d", username, count.Int())
 	}
 }
 

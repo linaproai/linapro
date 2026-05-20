@@ -159,8 +159,8 @@ def infer_resource(route_path: str, module: str) -> str:
         return module
     if parts[0] == "plugins" and len(parts) >= 3:
         return parts[2].replace("-", "_")
-    if parts[0] == "extensions" and len(parts) >= 3:
-        return parts[2].replace("-", "_")
+    if parts[0] == "x" and len(parts) >= 2:
+        return parts[1].replace("-", "_")
     if len(parts) >= 2 and parts[0] in {"dict", "job", "user"}:
         return "_".join(parts[:2]).replace("-", "_")
     return parts[0].replace("-", "_")
@@ -218,7 +218,7 @@ def endpoint_from_struct(file_path: Path, struct_name: str, body: str, owner: di
     plugin_id = owner.get("pluginId")
     plugin_type = owner.get("pluginType")
     if owner["owner"] == "dynamic-plugin":
-        public_path = join_paths(f"{api_prefix}/extensions/{plugin_id}", route_path)
+        public_path = join_paths(f"/x/{plugin_id}", route_path)
     else:
         public_path = join_paths(api_prefix, route_path)
 

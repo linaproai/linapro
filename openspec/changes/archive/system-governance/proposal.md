@@ -16,7 +16,7 @@ LinaPro's admin console, after completing the foundational business modules (use
 - Refactored existing authentication middleware: creates session records on login, deletes session records on logout, and validates session validity during request processing (supporting forced offline and timeout cleanup)
 
 ### System Self-Description
-- New **System API Docs** page: integrates Stoplight Elements OpenAPI document UI via iframe embedding, displays backend API documentation with online testing support; dynamically generates `servers[0].url` from the request origin instead of using a fixed `http://localhost:8080`
+- New **System API Docs** page: integrates Stoplight Elements OpenAPI document UI via iframe embedding, displays backend API documentation with online testing support; dynamically generates `servers[0].url` from the request origin instead of using a fixed `http://localhost:9120`
 - New **System Info** page: displays project introduction, backend/frontend technology component lists; backend provides system runtime information API
 - New **Component Demo** page: embeds vben5 official website demo page via iframe, with load failure handling
 

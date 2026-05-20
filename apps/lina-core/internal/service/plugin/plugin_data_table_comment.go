@@ -14,7 +14,7 @@ import (
 )
 
 // dataTableMetadataSchema is the host schema used by PostgreSQL metadata
-// lookups. SQLite ignores it, and other dialects may map it internally.
+// lookups.
 const dataTableMetadataSchema = "public"
 
 // ResolveDataTableComments resolves host-side table comments for the given

@@ -49,10 +49,10 @@ func TestBuildRouteOpenAPIOperationUsesBridgeState(t *testing.T) {
 }
 
 // TestBuildRoutePublicPathBuildsFixedPublicPath verifies that public route
-// projection always uses the host-managed extension prefix.
+// projection always uses the canonical dynamic plugin prefix.
 func TestBuildRoutePublicPathBuildsFixedPublicPath(t *testing.T) {
 	actual := BuildRoutePublicPath("plugin-openapi-projection", "/review-summary")
-	if actual != "/api/v1/extensions/plugin-openapi-projection/review-summary" {
+	if actual != "/x/plugin-openapi-projection/review-summary" {
 		t.Fatalf("expected fixed public path projection, got %s", actual)
 	}
 }

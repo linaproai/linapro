@@ -5,13 +5,10 @@ package integration_test
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
-	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/pluginbridge"
 )
@@ -372,55 +369,85 @@ func TestListInstalledCronDeclarationsDiscoversInstalledDisabledDynamicPlugin(t 
 	}
 }
 
-// TestListCronDeclarationsDiscoversBundledDynamicSample verifies the plugin
-// list authorization preview path can execute the real bundled Wasm sample's
-// cron registration route before the plugin is installed.
-func TestListCronDeclarationsDiscoversBundledDynamicSample(t *testing.T) {
-	testutil.EnsureBundledRuntimeSampleArtifactForTests(t)
-
+// TestListCronDeclarationsDiscoversSyntheticDynamicPreview verifies the plugin
+// list authorization preview path discovers dynamic cron declarations before
+// the plugin is installed without executing the real bundled Wasm sample.
+func TestListCronDeclarationsDiscoversSyntheticDynamicPreview(t *testing.T) {
 	services := testutil.NewServices()
+	executor := &recordingDynamicCronExecutor{
+		contracts: []*pluginbridge.CronContract{
+			{
+				Name:           "heartbeat",
+				DisplayName:    "Dynamic Plugin Heartbeat",
+				Description:    "Runs a dynamic heartbeat.",
+				Pattern:        "# */10 * * * *",
+				Timezone:       pluginbridge.DefaultCronContractTimezone,
+				Scope:          pluginbridge.CronScopeAllNode,
+				Concurrency:    pluginbridge.CronConcurrencySingleton,
+				MaxConcurrency: 1,
+				TimeoutSeconds: 30,
+				InternalPath:   "/cron-heartbeat",
+			},
+		},
+	}
+	services.Integration.SetDynamicCronExecutor(executor)
+
 	ctx := context.Background()
-	const pluginID = "linapro-demo-dynamic"
+	const pluginID = "plugin-dev-dynamic-cron-preview"
+	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
+		t,
+		pluginID,
+		"Dynamic Cron Preview Plugin",
+		"v0.1.0",
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	})
 
-	storageArtifactPath := filepath.Join(testutil.TestDynamicStorageDir(), runtime.BuildArtifactFileName(pluginID))
-	repoRoot, err := testutil.FindRepoRoot(".")
+	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
 	if err != nil {
-		t.Fatalf("expected repo root to resolve, got error: %v", err)
+		t.Fatalf("expected synthetic dynamic manifest to load, got error: %v", err)
 	}
-	uploadArtifactPath := filepath.Join(repoRoot, "temp", "output", runtime.BuildArtifactFileName(pluginID))
-	if _, err = os.Stat(uploadArtifactPath); err == nil {
-		content, readErr := os.ReadFile(uploadArtifactPath)
-		if readErr != nil {
-			t.Fatalf("expected E2E-built runtime artifact to read, got error: %v", readErr)
-		}
-		if writeErr := os.WriteFile(storageArtifactPath, content, 0o644); writeErr != nil {
-			t.Fatalf("expected E2E-built runtime artifact to copy into test storage, got error: %v", writeErr)
-		}
-	} else if !os.IsNotExist(err) {
-		t.Fatalf("expected E2E-built runtime artifact stat to succeed or miss, got error: %v", err)
+	cronHostServices := []*pluginbridge.HostServiceSpec{{
+		Service: pluginbridge.HostServiceCron,
+		Methods: []string{
+			pluginbridge.HostServiceMethodCronRegister,
+		},
+	}}
+	rewriteRuntimeArtifactHostServices(t, artifactPath, manifest, cronHostServices)
+	manifest.ScopeNature = catalog.ScopeNaturePlatformOnly.String()
+	manifest.DefaultInstallMode = catalog.InstallModeGlobal.String()
+	manifest.HostServices = cronHostServices
+	if _, err = services.Catalog.SyncManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected synthetic dynamic manifest sync to succeed, got error: %v", err)
 	}
 
-	manifest, err := services.Catalog.LoadManifestFromArtifactPath(storageArtifactPath)
+	installedItems, err := services.Integration.ListInstalledCronDeclarations(ctx)
 	if err != nil {
-		t.Fatalf("expected bundled dynamic manifest to load, got error: %v", err)
+		t.Fatalf("expected installed declaration cron list to succeed, got error: %v", err)
 	}
-	if _, err = services.Catalog.SyncManifest(ctx, manifest); err != nil {
-		t.Fatalf("expected bundled dynamic manifest sync to succeed, got error: %v", err)
+	if managedCronListContainsPlugin(installedItems, pluginID) {
+		t.Fatalf("expected uninstalled dynamic plugin %s to expose no installed declarations, got %#v", pluginID, installedItems)
 	}
 
 	declaredItems, err := services.Integration.ListCronDeclarationsByPlugin(ctx, pluginID)
 	if err != nil {
-		t.Fatalf("expected bundled dynamic cron declaration list to succeed, got error: %v", err)
+		t.Fatalf("expected synthetic dynamic cron declaration list to succeed, got error: %v", err)
 	}
 	if len(declaredItems) != 1 {
-		t.Fatalf("expected one bundled dynamic cron declaration, got %#v", declaredItems)
+		t.Fatalf("expected one synthetic dynamic cron declaration, got %#v", declaredItems)
 	}
 	if declaredItems[0].Name != "heartbeat" || declaredItems[0].Pattern != "# */10 * * * *" {
-		t.Fatalf("unexpected bundled dynamic cron declaration: %#v", declaredItems[0])
+		t.Fatalf("unexpected synthetic dynamic cron declaration: %#v", declaredItems[0])
+	}
+	if len(executor.discoverPluginIDs) != 1 || executor.discoverPluginIDs[0] != pluginID {
+		t.Fatalf("expected synthetic dynamic plugin to be discovered once for preview, got %#v", executor.discoverPluginIDs)
 	}
 }
 

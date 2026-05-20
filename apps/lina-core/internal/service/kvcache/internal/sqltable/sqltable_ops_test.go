@@ -4,13 +4,11 @@ package sqltable
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 	_ "lina-core/pkg/dbdriver"
 
@@ -92,56 +90,6 @@ func TestIncrConcurrentCallsAreAtomic(t *testing.T) {
 	}
 }
 
-// TestIncrSQLiteCallsAreAtomic verifies the increment algorithm against the
-// SQLite dialect, including concurrent first writes to a missing cache key.
-func TestIncrSQLiteCallsAreAtomic(t *testing.T) {
-	ctx := context.Background()
-	service := newSQLiteTestSQLTableBackend(t, ctx)
-	cacheKey := BuildCacheKey("unit-plugin", "counter", "sqlite-atomic")
-
-	const workers = 12
-	values := make(chan int64, workers)
-	errs := make(chan error, workers)
-	var wg sync.WaitGroup
-	for range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			item, err := service.Incr(ctx, OwnerTypePlugin, cacheKey, 1, 0)
-			if err != nil {
-				errs <- err
-				return
-			}
-			values <- item.IntValue
-		}()
-	}
-	wg.Wait()
-	close(values)
-	close(errs)
-
-	for err := range errs {
-		if err != nil {
-			t.Fatalf("SQLite concurrent increment failed: %v", err)
-		}
-	}
-
-	seen := make(map[int64]struct{}, workers)
-	for value := range values {
-		seen[value] = struct{}{}
-	}
-	if len(seen) != workers {
-		t.Fatalf("expected %d unique SQLite increment results, got %d: %#v", workers, len(seen), seen)
-	}
-
-	value, ok, err := service.GetInt(ctx, OwnerTypePlugin, cacheKey)
-	if err != nil {
-		t.Fatalf("read final SQLite increment value failed: %v", err)
-	}
-	if !ok || value != workers {
-		t.Fatalf("expected final SQLite value %d, got value=%d ok=%t", workers, value, ok)
-	}
-}
-
 // TestIncrMissingKeyStartsFromDelta verifies first increment preserves the
 // public delta-as-initial-value contract.
 func TestIncrMissingKeyStartsFromDelta(t *testing.T) {
@@ -176,7 +124,6 @@ func TestIncrZeroDeltaIsStable(t *testing.T) {
 		newService func(*testing.T, context.Context) *SQLTableBackend
 	}{
 		{name: "postgres", newService: newTestSQLTableBackend},
-		{name: "sqlite", newService: newSQLiteTestSQLTableBackend},
 	}
 
 	for _, testCase := range testCases {
@@ -240,7 +187,7 @@ func TestIncrRejectsExistingStringWithoutMutation(t *testing.T) {
 // returns a miss without deleting touched or unrelated expired rows.
 func TestGetExpiredKeyIsReadOnlyMiss(t *testing.T) {
 	ctx := context.Background()
-	service := newSQLitePersistentTestSQLTableBackend(t, ctx)
+	service := newTestSQLTableBackend(t, ctx)
 	targetKey := BuildCacheKey("unit-plugin", "ttl", "target")
 	otherKey := BuildCacheKey("unit-plugin", "ttl", "other")
 	cleanupKVCacheKey(t, ctx, service, OwnerTypePlugin, targetKey)
@@ -278,7 +225,7 @@ func TestGetExpiredKeyIsReadOnlyMiss(t *testing.T) {
 // expiration before reusing a persistent row left behind by an earlier process.
 func TestSetReplacesExpiredRowAsFreshValue(t *testing.T) {
 	ctx := context.Background()
-	service := newSQLitePersistentTestSQLTableBackend(t, ctx)
+	service := newTestSQLTableBackend(t, ctx)
 	cacheKey := BuildCacheKey("unit-plugin", "ttl", "set-expired")
 	cleanupKVCacheKey(t, ctx, service, OwnerTypePlugin, cacheKey)
 
@@ -329,7 +276,7 @@ func TestUnexpiredRowSurvivesBackendRecreation(t *testing.T) {
 // stale integer values after the persistent row has expired.
 func TestIncrExpiredIntegerStartsFromDelta(t *testing.T) {
 	ctx := context.Background()
-	service := newSQLitePersistentTestSQLTableBackend(t, ctx)
+	service := newTestSQLTableBackend(t, ctx)
 	cacheKey := BuildCacheKey("unit-plugin", "ttl", "incr-expired")
 	cleanupKVCacheKey(t, ctx, service, OwnerTypePlugin, cacheKey)
 
@@ -538,78 +485,6 @@ func newTestSQLTableBackend(t *testing.T, ctx context.Context) *SQLTableBackend 
 
 	ensureCurrentSQLTableKVCacheTable(t, ctx)
 	return NewSQLTableBackend()
-}
-
-// newSQLiteTestSQLTableBackend creates one isolated SQLite backend after
-// translating the delivered sys_kv_cache table DDL through the public dialect.
-func newSQLiteTestSQLTableBackend(t *testing.T, ctx context.Context) *SQLTableBackend {
-	t.Helper()
-
-	db := newSQLiteKVCacheDB(t, ctx)
-	dbDialect, err := dialect.From("sqlite::@file(./temp/sqlite/kv-cache.db)")
-	if err != nil {
-		t.Fatalf("resolve SQLite dialect failed: %v", err)
-	}
-	translated, err := dbDialect.TranslateDDL(ctx, "sys_kv_cache.sql", currentSQLTableKVCacheDDL)
-	if err != nil {
-		t.Fatalf("translate sys_kv_cache SQLite DDL failed: %v", err)
-	}
-	for _, statement := range dialect.SplitSQLStatements(translated) {
-		if _, err = db.Exec(ctx, statement); err != nil {
-			t.Fatalf("execute sys_kv_cache SQLite DDL failed: %v\nSQL:\n%s", err, statement)
-		}
-	}
-	return NewSQLTableBackendWithDB(db)
-}
-
-// newSQLitePersistentTestSQLTableBackend creates an isolated SQLite backend
-// with direct test DDL for expiration behavior that must not depend on the
-// process default database.
-func newSQLitePersistentTestSQLTableBackend(t *testing.T, ctx context.Context) *SQLTableBackend {
-	t.Helper()
-
-	db := newSQLiteKVCacheDB(t, ctx)
-	statements := []string{
-		`CREATE TABLE IF NOT EXISTS sys_kv_cache (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			tenant_id INTEGER NOT NULL DEFAULT 0,
-			owner_type TEXT NOT NULL DEFAULT '',
-			owner_key TEXT NOT NULL DEFAULT '',
-			namespace TEXT NOT NULL DEFAULT '',
-			cache_key TEXT NOT NULL DEFAULT '',
-			value_kind INTEGER NOT NULL DEFAULT 1,
-			value_bytes BLOB NOT NULL,
-			value_int INTEGER NOT NULL DEFAULT 0,
-			expire_at DATETIME NULL DEFAULT NULL,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE (tenant_id, owner_type, owner_key, namespace, cache_key)
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_sys_kv_cache_expire_at ON sys_kv_cache (expire_at)`,
-	}
-	for _, statement := range statements {
-		if _, err := db.Exec(ctx, statement); err != nil {
-			t.Fatalf("execute SQLite persistent kv-cache test DDL failed: %v\nSQL:\n%s", err, statement)
-		}
-	}
-	return NewSQLTableBackendWithDB(db)
-}
-
-// newSQLiteKVCacheDB opens one temporary SQLite database and closes it with the test.
-func newSQLiteKVCacheDB(t *testing.T, ctx context.Context) gdb.DB {
-	t.Helper()
-
-	dbPath := filepath.Join(t.TempDir(), "kv-cache.db")
-	db, err := gdb.New(gdb.ConfigNode{Link: "sqlite::@file(" + dbPath + ")"})
-	if err != nil {
-		t.Fatalf("create SQLite kv-cache test DB failed: %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := db.Close(ctx); closeErr != nil {
-			t.Fatalf("close SQLite kv-cache test DB failed: %v", closeErr)
-		}
-	})
-	return db
 }
 
 // ensureCurrentSQLTableKVCacheTable creates sys_kv_cache for package tests.

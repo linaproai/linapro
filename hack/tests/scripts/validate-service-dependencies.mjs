@@ -200,11 +200,32 @@ function countCriticalConstructors(filePath, relativePath) {
 }
 
 function loadBaseline() {
-  const parsed = JSON.parse(
-    readFileSync(baselineOverridePath || baselinePath, 'utf8'),
-  );
-  const entries = Array.isArray(parsed.entries) ? parsed.entries : [];
+  const baselineFiles = baselineOverridePath ? [baselineOverridePath] : [
+    baselinePath,
+    ...pluginBaselinePaths(),
+  ];
+  const entries = baselineFiles.flatMap((filePath) => {
+    const parsed = JSON.parse(readFileSync(filePath, 'utf8'));
+    return Array.isArray(parsed.entries) ? parsed.entries : [];
+  });
   return new Map(entries.map((entry) => [entry.path, entry]));
+}
+
+function pluginBaselinePaths() {
+  const pluginRoot = path.resolve(repoRoot, 'apps/lina-plugins');
+  if (!exists(pluginRoot)) {
+    return [];
+  }
+  return readdirSync(pluginRoot)
+    .map((name) =>
+      path.join(
+        pluginRoot,
+        name,
+        'hack/tests/config/service-dependency-baseline.json',
+      ),
+    )
+    .filter(exists)
+    .sort();
 }
 
 function scan() {

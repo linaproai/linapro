@@ -245,7 +245,7 @@ func TestPluginsInstallUpdateAndStatusUseConfiguredSources(t *testing.T) {
 	for _, expected := range []string{
 		"Preparing plugin installation for 1 configured item(s)...",
 		"Installing 1 plugin(s)...",
-		"Downloading plugin source official",
+		"Synchronizing plugin source official",
 		"[1/1] installing plugin linapro-tenant-core from official...",
 		"Installed plugin linapro-tenant-core",
 	} {
@@ -316,6 +316,53 @@ func TestPluginsInstallUpdateAndStatusUseConfiguredSources(t *testing.T) {
 	if strings.Contains(filteredOutput, "remote=current") {
 		t.Fatalf("filtered status output must use table columns, got legacy key-value output:\n%s", filteredOutput)
 	}
+}
+
+// TestPluginsSourceCacheReusesCheckoutWithFetch verifies plugin source sync
+// keeps one reusable checkout and refreshes it through later Git fetches.
+func TestPluginsSourceCacheReusesCheckoutWithFetch(t *testing.T) {
+	root := newGitRepo(t)
+	source := newGitRepo(t)
+	writeFile(t, filepath.Join(source, "linapro-tenant-core", "plugin.yaml"), "id: linapro-tenant-core\nversion: 0.1.0\n")
+	runGit(t, source, "add", ".")
+	runGit(t, source, "commit", "-m", "initial plugin")
+	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  sources:\n    official:\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - \"linapro-tenant-core\"\n")
+
+	var firstOut bytes.Buffer
+	application := newApp(&firstOut, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	if err := runPluginsInstall(context.Background(), application, commandInput{}); err != nil {
+		t.Fatalf("runPluginsInstall returned error: %v", err)
+	}
+	cachePath := plugins.SourceCachePath(root, "official")
+	if !fileutil.DirExists(filepath.Join(cachePath, ".git")) {
+		t.Fatalf("expected reusable source cache at %s", cachePath)
+	}
+	assertNoLegacyPluginSourceTemps(t, root)
+
+	runGit(t, root, "add", ".")
+	runGit(t, root, "commit", "-m", "install plugin")
+	writeFile(t, filepath.Join(source, "linapro-tenant-core", "plugin.yaml"), "id: linapro-tenant-core\nversion: 0.2.0\n")
+	runGit(t, source, "add", ".")
+	runGit(t, source, "commit", "-m", "update plugin")
+
+	var updateOut bytes.Buffer
+	application.stdout = &updateOut
+	if err := runPluginsUpdate(context.Background(), application, commandInput{}); err != nil {
+		t.Fatalf("runPluginsUpdate returned error: %v", err)
+	}
+	output := updateOut.String()
+	if strings.Contains(output, "Cloning into") {
+		t.Fatalf("expected update to reuse source cache instead of cloning again, got:\n%s", output)
+	}
+	content, err := os.ReadFile(filepath.Join(root, "apps", "lina-plugins", "linapro-tenant-core", "plugin.yaml"))
+	if err != nil {
+		t.Fatalf("read updated plugin manifest: %v", err)
+	}
+	if !strings.Contains(string(content), "0.2.0") {
+		t.Fatalf("plugin update did not fetch latest source content:\n%s", string(content))
+	}
+	assertNoLegacyPluginSourceTemps(t, root)
 }
 
 // TestPluginsInstallExpandsWildcardItems verifies items ["*"] installs every
@@ -488,4 +535,19 @@ func runGitOutput(t *testing.T, dir string, args ...string) string {
 		t.Fatalf("git %s failed: %v\n%s", strings.Join(args, " "), err, string(output))
 	}
 	return string(output)
+}
+
+// assertNoLegacyPluginSourceTemps verifies source sync no longer creates
+// one-shot plugin-source-* directories under temp.
+func assertNoLegacyPluginSourceTemps(t *testing.T, root string) {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Join(root, "temp"))
+	if err != nil {
+		t.Fatalf("read temp directory: %v", err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "plugin-source-") {
+			t.Fatalf("unexpected legacy plugin source temp directory: %s", entry.Name())
+		}
+	}
 }

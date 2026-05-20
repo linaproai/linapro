@@ -1,0 +1,50 @@
+import { test, expect } from '../../../fixtures/auth';
+import { UserPage } from '../../../pages/UserPage';
+
+test.describe('TC002 用户列表排序', () => {
+  test('TC002a: 点击用户名列头可触发排序', async ({ adminPage }) => {
+    const userPage = new UserPage(adminPage);
+    await userPage.goto();
+
+    // Verify table has data (seed data should be loaded)
+    const rowCount = await userPage.getVisibleRowCount();
+    expect(rowCount).toBeGreaterThan(0);
+
+    // Click username column header to sort
+    await userPage.clickColumnSort('账号');
+
+    // Verify sort was applied by checking the sort class on visible header
+    const header = userPage.columnHeader('账号');
+    await expect(header.locator('.vxe-cell--sort')).toBeVisible({ timeout: 3000 });
+  });
+
+  test('TC002b: 点击创建时间列头可触发排序', async ({ adminPage }) => {
+    const userPage = new UserPage(adminPage);
+    await userPage.goto();
+
+    await userPage.clickColumnSort('创建时间');
+
+    const header = userPage.columnHeader('创建时间');
+    await expect(header.locator('.vxe-cell--sort')).toBeVisible({ timeout: 3000 });
+  });
+
+  test('TC002c: 排序请求包含正确的排序参数', async ({ adminPage }) => {
+    const userPage = new UserPage(adminPage);
+    await userPage.goto();
+    await adminPage.waitForLoadState('networkidle');
+
+    // Set up request and response intercept BEFORE clicking
+    const responsePromise = adminPage.waitForResponse(
+      (res) => res.url().includes('/api/v1/user') && res.request().method() === 'GET' && res.url().includes('orderBy'),
+      { timeout: 15000 },
+    );
+
+    // Click the column header to trigger sort
+    await userPage.clickColumnSort('账号');
+
+    const response = await responsePromise;
+    const url = response.url();
+    expect(url).toContain('orderBy=username');
+    expect(url).toMatch(/orderDirection=(asc|desc)/);
+  });
+});

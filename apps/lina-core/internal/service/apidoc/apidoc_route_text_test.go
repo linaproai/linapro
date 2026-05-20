@@ -70,7 +70,7 @@ func TestFindRouteTitleOperationKeys(t *testing.T) {
 // TestBuildRouteOperationKeyFromPathNormalizesMethod verifies persisted route
 // methods can be uppercase while apidoc path keys remain lowercase.
 func TestBuildRouteOperationKeyFromPathNormalizesMethod(t *testing.T) {
-	key := BuildRouteOperationKeyFromPath("/api/v1/extensions/linapro-demo-dynamic/backend-summary", "GET")
+	key := BuildRouteOperationKeyFromPath("/x/linapro-demo-dynamic/backend-summary", "GET")
 	if key != "plugins.linapro_demo_dynamic.paths.get.backend_summary" {
 		t.Fatalf("expected lower-case dynamic path key, got %s", key)
 	}

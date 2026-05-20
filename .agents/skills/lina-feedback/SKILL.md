@@ -76,12 +76,10 @@ openspec list --json
 | `specs/` | 增量规范定义 |
 
 ```bash
-# 查找最大 TC ID 用于测试规划，包含宿主、源码插件和 OpenSpec 任务记录中的预留编号
-{
-  find hack/tests/e2e -type f -name 'TC*.ts'
-  find apps/lina-plugins -type f -path '*/hack/tests/e2e/*' -name 'TC*.ts'
-  rg -No 'TC[0-9]{4}' openspec/changes -g 'tasks.md'
-} | rg -No 'TC[0-9]{4}' | sort -u | tail -1
+# 查找目标模块目录内的 TC ID，用于按模块本地递增规划测试编号
+find hack/tests/e2e/<module> -maxdepth 1 -type f -name 'TC*.ts' | sort
+# 或源码插件：
+find apps/lina-plugins/<plugin-id>/hack/tests/e2e/<module> -maxdepth 1 -type f -name 'TC*.ts' | sort
 ```
 
 ---
@@ -202,7 +200,7 @@ rg -l "api/user" hack/tests/e2e apps/lina-plugins -g 'TC*.ts'
 ### FB-X 影响分析
 - 修改文件：apps/lina-core/internal/controller/menu.go
 - 受影响模块：菜单管理
-- 回归测试：TC0005-menu-tree.ts, TC0006-menu-crud.ts
+- 回归测试：hack/tests/e2e/iam/menu/TC001-menu-crud.ts, hack/tests/e2e/iam/menu/TC002-auth-menu.ts
 ```
 
 **f. 验证（标记完成前必须执行）**
@@ -251,8 +249,8 @@ rg -l "api/user" hack/tests/e2e apps/lina-plugins -g 'TC*.ts'
 **验证结果：** 全部通过 / 剩余 N 个问题
 
 ### 本次已修复
-- [x] FB-1: <标题> ✓（测试：TC0010a | 回归：TC0005, TC0006 ✓）
-- [x] FB-2: <标题> ✓（测试：已有覆盖 | 回归：TC0003 ✓）
+- [x] FB-1: <标题> ✓（测试：TC001a | 回归：iam/menu TC001, TC002 ✓）
+- [x] FB-2: <标题> ✓（测试：已有覆盖 | 回归：auth TC003 ✓）
 
 ### 剩余（如有）
 - [ ] FB-3: <标题> — 被 <原因> 阻塞

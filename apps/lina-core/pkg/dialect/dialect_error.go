@@ -5,7 +5,6 @@ package dialect
 
 import (
 	internalpostgres "lina-core/pkg/dialect/internal/postgres"
-	internalsqlite "lina-core/pkg/dialect/internal/sqlite"
 )
 
 // IsRetryableWriteConflict reports whether err represents a transient database
@@ -14,7 +13,7 @@ func IsRetryableWriteConflict(err error) bool {
 	if err == nil {
 		return false
 	}
-	return internalpostgres.IsRetryableWriteConflict(err) || internalsqlite.IsRetryableWriteConflict(err)
+	return internalpostgres.IsRetryableWriteConflict(err)
 }
 
 // IsUniqueConstraintViolation reports whether err represents a database
@@ -23,5 +22,5 @@ func IsUniqueConstraintViolation(err error) bool {
 	if err == nil {
 		return false
 	}
-	return internalpostgres.IsUniqueConstraintViolation(err) || internalsqlite.IsUniqueConstraintViolation(err)
+	return internalpostgres.IsUniqueConstraintViolation(err)
 }
