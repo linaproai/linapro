@@ -27,7 +27,7 @@ type ListInput struct {
 
 // ListOutput defines the paged dictionary-type query result.
 type ListOutput struct {
-	List  []*entity.SysDictType
+	List  []*DictTypeProjection
 	Total int
 }
 
@@ -60,7 +60,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	s.localizeDictTypeEntities(ctx, list)
 
 	return &ListOutput{
-		List:  list,
+		List:  projectDictTypes(ctx, list),
 		Total: total,
 	}, nil
 }

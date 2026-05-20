@@ -11,6 +11,7 @@ import (
 	v1 "lina-core/api/menu/v1"
 	"lina-core/internal/model/entity"
 	menusvc "lina-core/internal/service/menu"
+	"lina-core/pkg/apitime"
 	"lina-core/pkg/menutype"
 )
 
@@ -137,14 +138,6 @@ func cloneMenuItem(item *entity.SysMenu) *menusvc.MenuItem {
 	if item == nil {
 		return nil
 	}
-	createdAt := ""
-	if item.CreatedAt != nil {
-		createdAt = item.CreatedAt.String()
-	}
-	updatedAt := ""
-	if item.UpdatedAt != nil {
-		updatedAt = item.UpdatedAt.String()
-	}
 	return &menusvc.MenuItem{
 		Id:         item.Id,
 		ParentId:   item.ParentId,
@@ -162,8 +155,8 @@ func cloneMenuItem(item *entity.SysMenu) *menusvc.MenuItem {
 		IsCache:    item.IsCache,
 		QueryParam: item.QueryParam,
 		Remark:     item.Remark,
-		CreatedAt:  createdAt,
-		UpdatedAt:  updatedAt,
+		CreatedAt:  apitime.Milli(item.CreatedAt),
+		UpdatedAt:  apitime.Milli(item.UpdatedAt),
 		Children:   []*menusvc.MenuItem{},
 	}
 }

@@ -13,7 +13,6 @@ import (
 	"lina-core/pkg/bizerr"
 
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/gtime"
 )
 
 // Instance represents a distributed lock instance.
@@ -52,7 +51,7 @@ func (i *Instance) Unlock(ctx context.Context) error {
 		}
 	}
 	_, err := dao.SysLocker.Ctx(ctx).Data(do.SysLocker{
-		ExpireTime: gtime.Now().Add(-1 * time.Second),
+		ExpireTime: timePtr(time.Now().Add(-1 * time.Second)),
 	}).Where(do.SysLocker{
 		Id:     i.id,
 		Holder: i.holder,
@@ -70,7 +69,7 @@ func (i *Instance) Renew(ctx context.Context) error {
 		}
 	}
 
-	now := gtime.Now()
+	now := time.Now()
 	expireTime := now.Add(i.lease)
 
 	// First check if lock is still valid
@@ -96,7 +95,7 @@ func (i *Instance) Renew(ctx context.Context) error {
 
 	// Lock is valid, extend it
 	_, err = dao.SysLocker.Ctx(ctx).Data(do.SysLocker{
-		ExpireTime: expireTime,
+		ExpireTime: &expireTime,
 	}).Where(do.SysLocker{
 		Id: locker.Id,
 	}).Update()
@@ -116,7 +115,7 @@ func (i *Instance) IsHeld(ctx context.Context) (bool, error) {
 	}
 	count, err := dao.SysLocker.Ctx(ctx).
 		Where(do.SysLocker{Id: i.id}).
-		WhereGT("expire_time", gtime.Now()).
+		WhereGT("expire_time", time.Now()).
 		Count()
 	if err != nil {
 		return false, err

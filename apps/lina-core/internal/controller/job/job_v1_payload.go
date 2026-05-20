@@ -15,7 +15,7 @@ func buildSaveJobInput(payload v1.JobPayload) jobmgmtsvc.SaveJobInput {
 	var retentionOverride *jobmeta.RetentionOption
 	if payload.LogRetentionOverride != nil {
 		retentionOverride = &jobmeta.RetentionOption{
-			Mode:  jobmeta.NormalizeRetentionMode(payload.LogRetentionOverride.Mode),
+			Mode:  jobmeta.NormalizeRetentionMode(string(payload.LogRetentionOverride.Mode)),
 			Value: payload.LogRetentionOverride.Value,
 		}
 	}
@@ -23,7 +23,7 @@ func buildSaveJobInput(payload v1.JobPayload) jobmgmtsvc.SaveJobInput {
 		GroupID:              payload.GroupId,
 		Name:                 payload.Name,
 		Description:          payload.Description,
-		TaskType:             jobmeta.NormalizeTaskType(payload.TaskType),
+		TaskType:             jobmeta.NormalizeTaskType(string(payload.TaskType)),
 		HandlerRef:           payload.HandlerRef,
 		Params:               payload.Params,
 		Timeout:              time.Duration(payload.TimeoutSeconds) * time.Second,
@@ -32,11 +32,11 @@ func buildSaveJobInput(payload v1.JobPayload) jobmgmtsvc.SaveJobInput {
 		Env:                  payload.Env,
 		CronExpr:             payload.CronExpr,
 		Timezone:             payload.Timezone,
-		Scope:                jobmeta.NormalizeJobScope(payload.Scope),
-		Concurrency:          jobmeta.NormalizeJobConcurrency(payload.Concurrency),
+		Scope:                jobmeta.NormalizeJobScope(string(payload.Scope)),
+		Concurrency:          jobmeta.NormalizeJobConcurrency(string(payload.Concurrency)),
 		MaxConcurrency:       payload.MaxConcurrency,
 		MaxExecutions:        payload.MaxExecutions,
-		Status:               jobmeta.NormalizeJobStatus(payload.Status),
+		Status:               jobmeta.NormalizeJobStatus(string(payload.Status)),
 		LogRetentionOverride: retentionOverride,
 	}
 }

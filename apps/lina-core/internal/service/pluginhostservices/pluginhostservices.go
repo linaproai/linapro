@@ -12,6 +12,7 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/notify"
 	"lina-core/internal/service/session"
 	tenantcapsvc "lina-core/internal/service/tenantcap"
@@ -46,6 +47,7 @@ type directory struct {
 	apiDoc       contract.APIDocService // apiDoc exposes localized API-documentation route text.
 	auth         contract.AuthService   // auth exposes tenant token operations.
 	bizCtx       contract.BizCtxService // bizCtx exposes read-only request business context.
+	cache        kvcache.Service        // cache owns the shared runtime-selected KV backend.
 	config       contract.ConfigService // config exposes read-only host configuration.
 	i18n         contract.I18nService   // i18n exposes runtime translation lookups.
 	notify       contract.NotifyService // notify exposes host notification delivery.
@@ -56,8 +58,20 @@ type directory struct {
 	tenantFilter contract.TenantFilterService // tenantFilter exposes plugin table tenant filtering.
 }
 
+// scopedDirectory wraps a base directory with one plugin-bound cache adapter.
+type scopedDirectory struct {
+	base     *directory
+	pluginID string
+}
+
 // Ensure directory satisfies the source-plugin host service contract.
 var _ pluginhost.HostServices = (*directory)(nil)
+
+// Ensure directory satisfies the plugin-scoped host service factory contract.
+var _ pluginhost.ScopedHostServicesFactory = (*directory)(nil)
+
+// Ensure scopedDirectory satisfies the source-plugin host service contract.
+var _ pluginhost.HostServices = (*scopedDirectory)(nil)
 
 // New creates source-plugin host service adapters from runtime-owned services.
 func New(
@@ -72,7 +86,11 @@ func New(
 	sessionStore session.Store,
 	tenantSvc tenantcapsvc.Service,
 	notifySvc notify.Service,
+	kvCacheSvc kvcache.Service,
 ) (pluginhost.HostServices, error) {
+	if kvCacheSvc == nil {
+		return nil, gerror.New("create plugin host services failed: cache service is nil")
+	}
 	bizCtxAdapter := newBizCtxAdapter(bizCtxSvc)
 	tenantFilterSvc, err := pluginservicetenantfilter.New(bizCtxAdapter, tenantSvc)
 	if err != nil {
@@ -82,6 +100,7 @@ func New(
 		apiDoc:       newAPIDocAdapter(apiDocSvc),
 		auth:         newAuthAdapter(authTokenIssuer),
 		bizCtx:       bizCtxAdapter,
+		cache:        kvCacheSvc,
 		config:       pluginserviceconfig.New(),
 		i18n:         newI18nAdapter(i18nSvc),
 		notify:       newNotifyAdapter(notifySvc),

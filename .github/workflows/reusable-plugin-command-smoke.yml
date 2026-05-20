@@ -71,14 +71,21 @@ jobs:
           git -C "$source_dir" add .
           git -C "$source_dir" commit -q -m "initial plugin"
 
-          mkdir -p "$smoke_root/hack/tools" "$smoke_root/apps/lina-core"
+          mkdir -p "$smoke_root/hack/tools" "$smoke_root/apps/lina-core/pkg"
           cp Makefile "$smoke_root/Makefile"
           cp -R hack/makefiles "$smoke_root/hack/makefiles"
           cp -R hack/tools/linactl "$smoke_root/hack/tools/linactl"
+          cp apps/lina-core/go.mod "$smoke_root/apps/lina-core/go.mod"
+          cp apps/lina-core/go.sum "$smoke_root/apps/lina-core/go.sum"
+          cp -R apps/lina-core/pkg/pluginbridge "$smoke_root/apps/lina-core/pkg/pluginbridge"
+          cp -R apps/lina-core/pkg/plugindb "$smoke_root/apps/lina-core/pkg/plugindb"
           cat > "$smoke_root/go.work" <<'WORK'
           go 1.25.0
 
-          use ./hack/tools/linactl
+          use (
+            ./apps/lina-core
+            ./hack/tools/linactl
+          )
           WORK
           mkdir -p "$smoke_root/hack"
           cat > "$smoke_root/hack/config.yaml" <<YAML

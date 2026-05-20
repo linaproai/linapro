@@ -10,9 +10,9 @@ export interface SysUser {
   avatar: string;
   status: number;
   remark: string;
-  loginDate: string;
-  createdAt: string;
-  updatedAt: string;
+  loginDate: number | null;
+  createdAt: number | null;
+  updatedAt: number | null;
   deptId: number;
   deptName: string;
   postIds: number[];

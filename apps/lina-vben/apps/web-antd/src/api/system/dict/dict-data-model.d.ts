@@ -9,7 +9,13 @@ export interface DictData {
   status: number;
   isBuiltin: number;
   remark: string;
-  createdAt: string;
+  sourceTenantId: number;
+  isFallback: boolean;
+  canEdit: boolean;
+  canOverride: boolean;
+  overrideMode: 'createTenantOverride' | 'none';
+  createdAt: number | null;
+  updatedAt: number | null;
 }
 
 export interface DictDataListParams {

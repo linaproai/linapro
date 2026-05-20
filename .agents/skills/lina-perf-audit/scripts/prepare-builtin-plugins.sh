@@ -254,7 +254,7 @@ fi
 
 TOKEN_FILE="$RUN_DIR/token.txt"
 PLUGINS_JSON="$RUN_DIR/plugins.json"
-API_BASE="http://127.0.0.1:8080/api/v1"
+API_BASE="http://127.0.0.1:9120/api/v1"
 
 [[ -f "$TOKEN_FILE" ]] || die "token file not found: $TOKEN_FILE"
 TOKEN="$(tr -d '\r\n' < "$TOKEN_FILE")"

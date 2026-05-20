@@ -50,7 +50,7 @@ INSERT INTO sys_notify_message (
 )
 SELECT
     0,
-    'content-notice',
+    'linapro-content-notice',
     'notice',
     'mock-maintenance',
     'announcement',
@@ -65,7 +65,7 @@ WHERE admin."username" = 'admin'
       SELECT 1
       FROM sys_notify_message existing
       WHERE existing."tenant_id" = 0
-        AND existing."plugin_id" = 'content-notice'
+        AND existing."plugin_id" = 'linapro-content-notice'
         AND existing."source_type" = 'notice'
         AND existing."source_id" = 'mock-maintenance'
   );

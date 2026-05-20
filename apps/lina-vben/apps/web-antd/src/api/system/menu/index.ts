@@ -16,8 +16,8 @@ export interface Menu {
   isCache: number;
   queryParam: string;
   remark: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: number | null;
+  updatedAt: number | null;
   children?: Menu[];
 }
 

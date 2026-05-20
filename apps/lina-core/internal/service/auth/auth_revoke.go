@@ -128,7 +128,7 @@ func sharedRevokeExpiresAt(ctx context.Context, shared revokeStore, tokenID stri
 	if err != nil || !ok || item == nil || item.ExpireAt == nil {
 		return time.Time{}, false
 	}
-	return item.ExpireAt.Time, true
+	return *item.ExpireAt, true
 }
 
 // Add marks a token as revoked until expiresAt.

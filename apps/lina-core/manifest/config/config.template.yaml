@@ -5,7 +5,7 @@
 server:
   # Server listen address
   # 服务监听地址
-  address: ":8080"
+  address: ":9120"
   # Whether to dump the route table at startup
   # 是否在启动时输出路由表
   dumpRouterMap: false
@@ -52,7 +52,6 @@ database:
     # Default database connection string
     # 默认数据库连接串
     # PostgreSQL 14+: pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable
-    # SQLite: sqlite::@file(./temp/sqlite/linapro.db)
     link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
     # Whether to enable SQL debug logs; keep disabled by default and enable temporarily for SQL diagnostics
     # 是否开启 SQL 调试日志；默认关闭，排查 SQL 执行明细时再临时开启
@@ -193,8 +192,8 @@ plugin:
   # 阶段同时加载该插件的 manifest/sql/mock-data SQL。示例数据仅用于演示和
   # 功能验证，不建议生产环境启用。
   autoEnable:
-    # - id: "demo-control"
+    # - id: "linapro-ops-demo-guard"
     #   withMockData: false
-    # - id: "plugin-demo-source"
-    # - id: "plugin-demo-dynamic"
+    # - id: "linapro-demo-source"
+    # - id: "linapro-demo-dynamic"
     #   withMockData: true

@@ -49,6 +49,20 @@ func TestFromRejectsMySQL(t *testing.T) {
 	}
 }
 
+// TestFromRejectsSQLite verifies SQLite links fail with the explicit removal
+// error instead of falling through to the generic unsupported-dialect path.
+func TestFromRejectsSQLite(t *testing.T) {
+	t.Parallel()
+
+	_, err := From("sqlite::@file(./temp/sqlite/linapro.db)")
+	if err == nil {
+		t.Fatal("expected SQLite dialect to be rejected")
+	}
+	if !bizerr.Is(err, CodeDialectSQLiteUnsupported) {
+		t.Fatalf("expected SQLite unsupported business error, got %v", err)
+	}
+}
+
 // TestFromRejectsPostgresAlias verifies only GoFrame's pgsql: prefix is
 // accepted for PostgreSQL links.
 func TestFromRejectsPostgresAlias(t *testing.T) {

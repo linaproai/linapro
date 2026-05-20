@@ -5,8 +5,8 @@ package usermsg
 
 import (
 	"context"
+	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
@@ -18,14 +18,14 @@ import (
 // messageDetailRecord is the joined database projection used to build one
 // current-user message detail response.
 type messageDetailRecord struct {
-	Id            int64       `json:"id"`
-	Title         string      `json:"title"`
-	CategoryCode  string      `json:"categoryCode"`
-	SourceType    string      `json:"sourceType"`
-	SourceId      string      `json:"sourceId"`
-	Content       string      `json:"content"`
-	CreatedByName string      `json:"createdByName"`
-	CreatedAt     *gtime.Time `json:"createdAt"`
+	Id            int64      `json:"id"`
+	Title         string     `json:"title"`
+	CategoryCode  string     `json:"categoryCode"`
+	SourceType    string     `json:"sourceType"`
+	SourceId      string     `json:"sourceId"`
+	Content       string     `json:"content"`
+	CreatedByName string     `json:"createdByName"`
+	CreatedAt     *time.Time `json:"createdAt"`
 }
 
 // Get returns one current-user message detail for preview consumption.

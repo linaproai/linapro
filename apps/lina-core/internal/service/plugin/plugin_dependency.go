@@ -191,7 +191,7 @@ func (s *serviceImpl) prepareInstallDependencies(
 		installCtx := dependencyContextFrom(nextCtx)
 		installCtx.skipAutoPlan = true
 		itemCtx := context.WithValue(nextCtx, dependencyInstallContextKey{}, installCtx)
-		if _, err = s.Install(itemCtx, item.PluginID, dependencyInstallOptions(options)); err != nil {
+		if _, err = s.install(itemCtx, item.PluginID, dependencyInstallOptions(options)); err != nil {
 			return result, nextCtx, s.buildDependencyAutoInstallFailedError(normalizedID, item.PluginID, installed, err)
 		}
 		installed = append(installed, toDependencyAutoInstallItem(item))
@@ -239,6 +239,9 @@ func (s *serviceImpl) validateUpgradeCandidateDependencies(ctx context.Context, 
 		return s.buildDependencyBlockedError(manifest.ID, blockers)
 	}
 
+	if !s.dependencyTargetAlreadyInstalled(ctx, manifest.ID) {
+		return nil
+	}
 	reverseResult, err := s.resolveReverseDependencies(ctx, manifest.ID, manifest.Version)
 	if err != nil {
 		return err
@@ -334,15 +337,22 @@ func (s *serviceImpl) buildDependencySnapshots(
 		candidateID = strings.TrimSpace(candidate.ID)
 	}
 	for _, registry := range registries {
-		if registry == nil || strings.TrimSpace(registry.PluginId) == "" {
+		if registry == nil {
 			continue
 		}
-		snapshot := snapshotByID[registry.PluginId]
-		if snapshot == nil {
-			snapshot = &plugindep.PluginSnapshot{ID: strings.TrimSpace(registry.PluginId)}
-			snapshotByID[registry.PluginId] = snapshot
+		registryPluginID := strings.TrimSpace(registry.PluginId)
+		if registryPluginID == "" {
+			continue
 		}
-		if strings.TrimSpace(registry.PluginId) == candidateID {
+		snapshot := snapshotByID[registryPluginID]
+		if snapshot == nil {
+			if registry.ReleaseId <= 0 {
+				continue
+			}
+			snapshot = &plugindep.PluginSnapshot{ID: registryPluginID}
+			snapshotByID[registryPluginID] = snapshot
+		}
+		if registryPluginID == candidateID {
 			snapshot.Installed = registry.Installed == catalog.InstalledYes
 			continue
 		}

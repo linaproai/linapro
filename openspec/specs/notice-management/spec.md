@@ -2,14 +2,14 @@
 
 ## Purpose
 
-定义 `content-notice` 源码插件提供的通知公告数据结构、列表查询、详情维护和消息分发行为，确保公告内容可由插件管理并通过宿主通知域投递给目标用户。
+定义 `linapro-content-notice` 源码插件提供的通知公告数据结构、列表查询、详情维护和消息分发行为，确保公告内容可由插件管理并通过宿主通知域投递给目标用户。
 
 ## Requirements
 ### Requirement:通知公告数据库表设计
-系统 SHALL 提供 `plugin_content_notice` 表存储通知公告数据。
+系统 SHALL 提供 `plugin_linapro_content_notice` 表存储通知公告数据。
 
-#### Scenario:plugin_content_notice 表结构
-- **当** 查看 `plugin_content_notice` 表结构时
+#### Scenario:plugin_linapro_content_notice 表结构
+- **当** 查看 `plugin_linapro_content_notice` 表结构时
 - **则** 表包含：`id`（BIGINT 主键自增）、`title`（VARCHAR(255) 标题）、`type`（TINYINT 类型：1=通知 2=公告）、`content`（LONGTEXT 富文本内容）、`file_ids`（VARCHAR(500) 附件文件 ID 列表）、`status`（TINYINT 状态：0=草稿 1=已发布）、`remark`（VARCHAR(500) 备注）、`created_by`（BIGINT 创建者 ID）、`updated_by`（BIGINT 更新者 ID）、`created_at`（DATETIME）、`updated_at`（DATETIME）、`deleted_at`（DATETIME 软删除）
 
 ### Requirement:通知公告列表查询
@@ -132,28 +132,28 @@
 - **则** 弹出确认对话框，确认后批量删除所选通知公告
 
 ### Requirement:通知公告菜单和权限
-系统 SHALL 将通知公告菜单作为 `content-notice` 源码插件菜单挂载到宿主 `内容管理` 目录，而非 `系统管理`。
+系统 SHALL 将通知公告菜单作为 `linapro-content-notice` 源码插件菜单挂载到宿主 `内容管理` 目录，而非 `系统管理`。
 
 #### Scenario:菜单展示
-- **当** `content-notice` 已安装、已启用且当前用户有菜单访问权限时
+- **当** `linapro-content-notice` 已安装、已启用且当前用户有菜单访问权限时
 - **则** `内容管理` 分组下显示 `通知公告` 菜单项
 - **且** 插件治理仍由 `扩展中心 / 插件管理` 负责
 
 #### Scenario:插件缺失或禁用
-- **当** `content-notice` 未安装、未启用或当前用户无权访问其菜单时
+- **当** `linapro-content-notice` 未安装、未启用或当前用户无权访问其菜单时
 - **则** 宿主不显示 `通知公告` 菜单入口
 - **且** 如果 `内容管理` 下没有其他可见子菜单，父目录也将被隐藏
 
 ### Requirement:通知公告由内容源码插件交付
 
-系统 SHALL 将通知公告能力作为 `content-notice` 源码插件交付，而非继续作为宿主默认内置模块。
+系统 SHALL 将通知公告能力作为 `linapro-content-notice` 源码插件交付，而非继续作为宿主默认内置模块。
 
 #### Scenario:内容插件启用时提供通知公告能力
-- **当** `content-notice` 已安装并启用时
+- **当** `linapro-content-notice` 已安装并启用时
 - **则** 宿主暴露通知公告相关 API、页面和菜单
 - **且** 该插件继续承载公告内容管理和发布流程
 
 #### Scenario:内容插件缺失时隐藏通知公告入口
-- **当** `content-notice` 未安装或未启用时
+- **当** `linapro-content-notice` 未安装或未启用时
 - **则** 宿主不显示通知公告菜单和页面入口
 - **且** 宿主其余核心能力继续正常运行

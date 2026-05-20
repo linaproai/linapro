@@ -24,7 +24,7 @@ func TestSingleNodeModeSkipsPluginNodeProjection(t *testing.T) {
 	ctx := context.Background()
 
 	var (
-		pluginID   = "plugin-dynamic-single-node"
+		pluginID   = "plugin-dev-dynamic-single-node"
 		pluginName = "Dynamic Single Node Plugin"
 		version    = "v0.1.0"
 	)
@@ -85,7 +85,7 @@ func TestSingleNodeModeSkipsPluginNodeProjection(t *testing.T) {
 func TestClusterStartupManifestNoopSkipsNodeStateWrite(t *testing.T) {
 	var (
 		ctx      = context.Background()
-		pluginID = "plugin-source-cluster-node-noop"
+		pluginID = "plugin-dev-source-cluster-node-noop"
 		version  = "v0.1.0"
 		topology = &testTopology{
 			enabled: true,

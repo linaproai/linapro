@@ -24,8 +24,8 @@ func TestInstallAutoInstallsSourceDependencyBeforeTarget(t *testing.T) {
 	var (
 		service      = newTestService()
 		ctx          = context.Background()
-		dependencyID = "plugin-source-auto-dependency"
-		targetID     = "plugin-source-auto-target"
+		dependencyID = "plugin-dev-source-auto-dependency"
+		targetID     = "plugin-dev-source-auto-target"
 	)
 
 	createTestSourceDependencyPlugin(t, dependencyID, "Source Auto Dependency", "v0.1.0", "")
@@ -60,7 +60,7 @@ func TestInstallBlocksDependencyViolationBeforeSideEffects(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-source-manual-blocked"
+		pluginID = "plugin-dev-source-manual-blocked"
 	)
 
 	createTestSourceDependencyPlugin(
@@ -70,12 +70,12 @@ func TestInstallBlocksDependencyViolationBeforeSideEffects(t *testing.T) {
 		"v0.1.0",
 		"dependencies:\n"+
 			"  plugins:\n"+
-			"    - id: plugin-source-missing-manual\n"+
+			"    - id: plugin-dev-source-missing-manual\n"+
 			"      version: \">=0.1.0\"\n"+
 			"      required: true\n"+
 			"      install: manual\n",
 	)
-	cleanupTestPluginIDs(t, ctx, pluginID, "plugin-source-missing-manual")
+	cleanupTestPluginIDs(t, ctx, pluginID, "plugin-dev-source-missing-manual")
 
 	_, err := service.Install(ctx, pluginID, InstallOptions{})
 	if !bizerr.Is(err, CodePluginDependencyBlocked) {
@@ -96,8 +96,8 @@ func TestUninstallBlocksInstalledReverseHardDependency(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		baseID     = "plugin-source-reverse-base"
-		consumerID = "plugin-source-reverse-consumer"
+		baseID     = "plugin-dev-source-reverse-base"
+		consumerID = "plugin-dev-source-reverse-consumer"
 	)
 
 	createTestSourceDependencyPlugin(t, baseID, "Source Reverse Base", "v0.1.0", "")
@@ -133,8 +133,8 @@ func TestCheckPluginDependenciesKeepsReverseBlockersOutOfInstallBlockers(t *test
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		baseID     = "plugin-source-check-reverse-base"
-		consumerID = "plugin-source-check-reverse-consumer"
+		baseID     = "plugin-dev-source-check-reverse-base"
+		consumerID = "plugin-dev-source-check-reverse-consumer"
 	)
 
 	createTestSourceDependencyPlugin(t, baseID, "Source Check Reverse Base", "v0.1.0", "")
@@ -178,8 +178,8 @@ func TestCheckPluginDependenciesExposesUnknownReverseSnapshotBlocker(t *testing.
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		baseID     = "plugin-source-check-unknown-base"
-		consumerID = "plugin-source-check-unknown-consumer"
+		baseID     = "plugin-dev-source-check-unknown-base"
+		consumerID = "plugin-dev-source-check-unknown-consumer"
 	)
 
 	createTestSourceDependencyPlugin(t, baseID, "Source Check Unknown Base", "v0.1.0", "")
@@ -229,6 +229,42 @@ func TestCheckPluginDependenciesExposesUnknownReverseSnapshotBlocker(t *testing.
 	}
 }
 
+// TestCheckPluginDependenciesIgnoresStaleRegistryRowsWithoutRelease verifies
+// registry rows that have no discovered manifest and no release snapshot do not
+// block unrelated plugin lifecycle checks.
+func TestCheckPluginDependenciesIgnoresStaleRegistryRowsWithoutRelease(t *testing.T) {
+	var (
+		service       = newTestService()
+		ctx           = context.Background()
+		pluginID      = "plugin-dev-source-stale-row-target"
+		stalePluginID = "platform-only-plugin-stale-row"
+	)
+
+	createTestSourceDependencyPlugin(t, pluginID, "Source Legacy Row Target", "v0.1.0", "")
+	cleanupTestPluginIDs(t, ctx, pluginID, stalePluginID)
+	if _, err := dao.SysPlugin.Ctx(ctx).Data(do.SysPlugin{
+		PluginId:     stalePluginID,
+		Name:         "Stale Plugin Row",
+		Version:      "v0.1.0",
+		Type:         catalog.TypeSource.String(),
+		Installed:    catalog.InstalledYes,
+		Status:       catalog.StatusEnabled,
+		DesiredState: catalog.HostStateEnabled.String(),
+		CurrentState: catalog.HostStateEnabled.String(),
+		Generation:   int64(1),
+	}).Insert(); err != nil {
+		t.Fatalf("expected stale registry row insert to succeed, got error: %v", err)
+	}
+
+	result, err := service.CheckPluginDependencies(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected dependency check to ignore stale registry row, got error: %v", err)
+	}
+	if len(result.ReverseBlockers) != 0 {
+		t.Fatalf("expected no reverse blockers from stale registry row, got %#v", result.ReverseBlockers)
+	}
+}
+
 // TestBootstrapAutoEnableInstallsDependencyWithoutImplicitEnable verifies
 // startup dependency pre-install keeps dependency enablement separate from the
 // explicit plugin.autoEnable target list.
@@ -236,8 +272,8 @@ func TestBootstrapAutoEnableInstallsDependencyWithoutImplicitEnable(t *testing.T
 	var (
 		service      = newTestService()
 		ctx          = context.Background()
-		dependencyID = "plugin-source-bootstrap-dependency"
-		targetID     = "plugin-source-bootstrap-target"
+		dependencyID = "plugin-dev-source-bootstrap-dependency"
+		targetID     = "plugin-dev-source-bootstrap-target"
 	)
 
 	createTestSourceDependencyPlugin(t, dependencyID, "Source Bootstrap Dependency", "v0.1.0", "")
@@ -273,15 +309,15 @@ func TestSourcePluginUpgradeBlocksUnsatisfiedDependency(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-source-upgrade-dependency-block"
+		pluginID   = "plugin-dev-source-upgrade-dependency-block"
 		oldVersion = "v0.1.0"
 		newVersion = "v0.2.0"
 	)
 
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
 	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
-	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Dependency Block", oldVersion, "plugin:plugin-source-upgrade-dependency-block:old")
-	cleanupTestPluginIDs(t, ctx, pluginID, "plugin-source-upgrade-missing")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Dependency Block", oldVersion, "plugin:plugin-dev-source-upgrade-dependency-block:old")
+	cleanupTestPluginIDs(t, ctx, pluginID, "plugin-dev-source-upgrade-missing")
 	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
 		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
@@ -300,10 +336,10 @@ func TestSourcePluginUpgradeBlocksUnsatisfiedDependency(t *testing.T) {
 		pluginID,
 		"Source Upgrade Dependency Block",
 		newVersion,
-		"plugin:plugin-source-upgrade-dependency-block:new",
+		"plugin:plugin-dev-source-upgrade-dependency-block:new",
 		"dependencies:\n"+
 			"  plugins:\n"+
-			"    - id: plugin-source-upgrade-missing\n"+
+			"    - id: plugin-dev-source-upgrade-missing\n"+
 			"      version: \">=0.1.0\"\n"+
 			"      required: true\n"+
 			"      install: manual\n",
@@ -332,7 +368,7 @@ func TestDynamicPluginRefreshBlocksUnsatisfiedDependency(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-refresh-dependency-block"
+		pluginID = "plugin-dev-dynamic-refresh-dependency-block"
 		version  = "v0.1.0"
 	)
 
@@ -358,7 +394,7 @@ func TestDynamicPluginRefreshBlocksUnsatisfiedDependency(t *testing.T) {
 		"Dynamic Refresh Dependency Block",
 		version,
 		&catalog.DependencySpec{Plugins: []*catalog.PluginDependencySpec{
-			testPluginDependencySpec("plugin-dynamic-refresh-missing", ">=0.1.0", true, catalog.DependencyInstallModeManual.String()),
+			testPluginDependencySpec("plugin-dev-dynamic-refresh-missing", ">=0.1.0", true, catalog.DependencyInstallModeManual.String()),
 		}},
 		buildVersionedRuntimeFrontendAssets("blocked"),
 	)

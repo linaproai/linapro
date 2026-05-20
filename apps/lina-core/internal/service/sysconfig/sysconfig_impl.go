@@ -54,7 +54,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	s.localizeConfigEntities(ctx, list)
 
 	return &ListOutput{
-		List:  list,
+		List:  projectConfigs(ctx, list),
 		Total: total,
 	}, nil
 }
@@ -225,7 +225,7 @@ func builtInConfigFlag(key string) int {
 }
 
 // GetByKey retrieves config by key name.
-func (s *serviceImpl) GetByKey(ctx context.Context, key string) (*entity.SysConfig, error) {
+func (s *serviceImpl) GetByKey(ctx context.Context, key string) (*ConfigProjection, error) {
 	var cfg *entity.SysConfig
 	model := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Key: key})
 	model = applySysconfigFallbackScope(ctx, model).
@@ -238,7 +238,7 @@ func (s *serviceImpl) GetByKey(ctx context.Context, key string) (*entity.SysConf
 		return nil, bizerr.NewCode(CodeSysConfigKeyNotFound)
 	}
 	s.localizeConfigEntity(ctx, cfg)
-	return cfg, nil
+	return ProjectConfig(ctx, cfg), nil
 }
 
 // Export generates an Excel file with config data.

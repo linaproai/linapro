@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	jobv1 "lina-core/api/job/v1"
 	"lina-core/api/plugin/v1"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/jobmeta"
@@ -112,8 +113,8 @@ func buildHostServicePermissionCronItems(
 			Description:    cronJob.Description,
 			Pattern:        cronJob.Pattern,
 			Timezone:       cronJob.Timezone,
-			Scope:          string(cronJob.Scope),
-			Concurrency:    string(cronJob.Concurrency),
+			Scope:          jobv1.Scope(cronJob.Scope),
+			Concurrency:    jobv1.Concurrency(cronJob.Concurrency),
 			MaxConcurrency: cronJob.MaxConcurrency,
 		})
 	}

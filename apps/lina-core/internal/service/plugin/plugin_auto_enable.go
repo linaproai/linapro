@@ -29,7 +29,7 @@ const startupAutoEnablePollInterval = 100 * time.Millisecond
 // Per-entry mock-data opt-in flags from config flow into the InstallOptions
 // passed down to Install.
 func (s *serviceImpl) BootstrapAutoEnable(ctx context.Context) error {
-	if err := s.SyncSourcePlugins(ctx); err != nil {
+	if _, err := s.syncAndList(ctx); err != nil {
 		return err
 	}
 
@@ -54,7 +54,7 @@ func (s *serviceImpl) BootstrapAutoEnable(ctx context.Context) error {
 // plugin governance after source plugins have registered tenant-capability
 // providers. Startup auto-enable first installs and enables plugins at the host
 // registry level; this later pass converts tenant-scoped entries into the
-// platform's new-tenant default policy and asks the multi-tenant provider to
+// platform's new-tenant default policy and asks the linapro-tenant-core provider to
 // provision existing tenants.
 func (s *serviceImpl) ReconcileAutoEnabledTenantPlugins(ctx context.Context) error {
 	if s == nil || s.configSvc == nil {
@@ -180,7 +180,7 @@ func (s *serviceImpl) bootstrapAutoInstallDependencies(ctx context.Context, entr
 // installed state. Only the primary node performs shared install side effects.
 func (s *serviceImpl) ensurePluginInstalledDuringStartup(ctx context.Context, pluginID string) error {
 	return s.ensurePluginStateDuringStartup(ctx, pluginID, isPluginStartupInstalled, func() error {
-		if _, err := s.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		if _, err := s.install(ctx, pluginID, InstallOptions{}); err != nil {
 			return err
 		}
 		return nil
@@ -199,10 +199,10 @@ func (s *serviceImpl) bootstrapAutoEnableSourcePlugin(ctx context.Context, manif
 	}
 
 	return s.ensurePluginStateDuringStartup(ctx, manifest.ID, isPluginStartupEnabled, func() error {
-		if _, err := s.Install(ctx, manifest.ID, InstallOptions{InstallMockData: withMockData}); err != nil {
+		if _, err := s.install(ctx, manifest.ID, InstallOptions{InstallMockData: withMockData}); err != nil {
 			return bizerr.WrapCode(err, CodePluginSourceInstallFailed)
 		}
-		if err := s.Enable(ctx, manifest.ID); err != nil {
+		if err := s.updateStatus(ctx, manifest.ID, catalog.StatusEnabled, nil); err != nil {
 			return bizerr.WrapCode(err, CodePluginSourceEnableFailed)
 		}
 		return nil
@@ -222,10 +222,10 @@ func (s *serviceImpl) bootstrapAutoEnableDynamicPlugin(ctx context.Context, mani
 	}
 
 	return s.ensurePluginStateDuringStartup(ctx, manifest.ID, isPluginStartupEnabled, func() error {
-		if _, err := s.Install(ctx, manifest.ID, InstallOptions{InstallMockData: withMockData}); err != nil {
+		if _, err := s.install(ctx, manifest.ID, InstallOptions{InstallMockData: withMockData}); err != nil {
 			return bizerr.WrapCode(err, CodePluginDynamicInstallFailed)
 		}
-		if err := s.Enable(ctx, manifest.ID); err != nil {
+		if err := s.updateStatus(ctx, manifest.ID, catalog.StatusEnabled, nil); err != nil {
 			return bizerr.WrapCode(err, CodePluginDynamicEnableFailed)
 		}
 		return nil

@@ -20,7 +20,7 @@ import (
 func TestScanPluginManifestsDiscoversRuntimePluginFromStorage(t *testing.T) {
 	services := testutil.NewServices()
 
-	pluginID := "plugin-dynamic-storage-scan"
+	pluginID := "plugin-dev-dynamic-storage-scan"
 	testutil.CreateTestRuntimeStorageArtifact(
 		t,
 		pluginID,
@@ -52,7 +52,7 @@ func TestScanPluginManifestsDiscoversRuntimePluginFromStorage(t *testing.T) {
 func TestScanPluginManifestsDropsRuntimePluginAfterArtifactRemoval(t *testing.T) {
 	services := testutil.NewServices()
 
-	pluginID := "plugin-dynamic-missing-scan"
+	pluginID := "plugin-dev-dynamic-missing-scan"
 	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
 		t,
 		pluginID,
@@ -83,7 +83,7 @@ func TestScanPluginManifestsDropsRuntimePluginAfterArtifactRemoval(t *testing.T)
 func TestEnsureRuntimeArtifactAvailableRejectsMissingGeneratedWasm(t *testing.T) {
 	services := testutil.NewServices()
 
-	pluginID := "plugin-dynamic-missing-install"
+	pluginID := "plugin-dev-dynamic-missing-install"
 	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
 		t,
 		pluginID,
@@ -128,19 +128,19 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 	services := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
-		"plugin-dynamic-routes",
+		"plugin-dev-dynamic-routes",
 		"Runtime Route Plugin",
 		"v0.3.0",
 		nil,
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-routes"))
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-routes"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
 		&catalog.ArtifactManifest{
-			ID:      "plugin-dynamic-routes",
+			ID:      "plugin-dev-dynamic-routes",
 			Name:    "Runtime Route Plugin",
 			Version: "v0.3.0",
 			Type:    catalog.TypeDynamic.String(),
@@ -169,7 +169,7 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 				Path:        "/review-summary",
 				Method:      "GET",
 				Access:      pluginbridge.AccessLogin,
-				Permission:  "plugin-dynamic-routes:review:view",
+				Permission:  "plugin-dev-dynamic-routes:review:view",
 				RequestType: "ReviewSummaryReq",
 			},
 		},
@@ -203,19 +203,19 @@ func TestParseRuntimeArtifactLoadsLifecycleContracts(t *testing.T) {
 	services := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
-		"plugin-dynamic-lifecycle-contracts",
+		"plugin-dev-dynamic-lifecycle-contracts",
 		"Runtime Lifecycle Plugin",
 		"v0.3.8",
 		nil,
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-lifecycle-contracts"))
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-lifecycle-contracts"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
 		&catalog.ArtifactManifest{
-			ID:      "plugin-dynamic-lifecycle-contracts",
+			ID:      "plugin-dev-dynamic-lifecycle-contracts",
 			Name:    "Runtime Lifecycle Plugin",
 			Version: "v0.3.8",
 			Type:    catalog.TypeDynamic.String(),
@@ -261,19 +261,19 @@ func TestParseRuntimeArtifactPreservesDependencies(t *testing.T) {
 	services := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
-		"plugin-dynamic-dependencies",
+		"plugin-dev-dynamic-dependencies",
 		"Runtime Dependency Plugin",
 		"v0.3.7",
 		nil,
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-dependencies"))
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-dependencies"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
 		&catalog.ArtifactManifest{
-			ID:      "plugin-dynamic-dependencies",
+			ID:      "plugin-dev-dynamic-dependencies",
 			Name:    "Runtime Dependency Plugin",
 			Version: "v0.3.7",
 			Type:    catalog.TypeDynamic.String(),
@@ -281,7 +281,7 @@ func TestParseRuntimeArtifactPreservesDependencies(t *testing.T) {
 				Framework: &catalog.FrameworkDependencySpec{Version: ">=0.1.0 <1.0.0"},
 				Plugins: []*catalog.PluginDependencySpec{
 					{
-						ID:      "multi-tenant",
+						ID:      "linapro-tenant-core",
 						Version: ">=0.1.0",
 						Install: catalog.DependencyInstallModeAuto.String(),
 					},
@@ -314,7 +314,7 @@ func TestParseRuntimeArtifactPreservesDependencies(t *testing.T) {
 		t.Fatalf("expected one plugin dependency, got %#v", manifest.Dependencies.Plugins)
 	}
 	dependency := manifest.Dependencies.Plugins[0]
-	if dependency.ID != "multi-tenant" || dependency.Install != catalog.DependencyInstallModeAuto.String() {
+	if dependency.ID != "linapro-tenant-core" || dependency.Install != catalog.DependencyInstallModeAuto.String() {
 		t.Fatalf("unexpected plugin dependency: %#v", dependency)
 	}
 	if dependency.Required == nil || !*dependency.Required {
@@ -328,19 +328,19 @@ func TestParseRuntimeArtifactAcceptsNestedRuntimeI18NAssets(t *testing.T) {
 	services := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
-		"plugin-dynamic-runtime-i18n",
+		"plugin-dev-dynamic-runtime-i18n",
 		"Runtime I18N Plugin",
 		"v0.3.6",
 		nil,
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-runtime-i18n"))
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-runtime-i18n"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
 		&catalog.ArtifactManifest{
-			ID:      "plugin-dynamic-runtime-i18n",
+			ID:      "plugin-dev-dynamic-runtime-i18n",
 			Name:    "Runtime I18N Plugin",
 			Version: "v0.3.6",
 			Type:    catalog.TypeDynamic.String(),
@@ -369,7 +369,7 @@ func TestParseRuntimeArtifactAcceptsNestedRuntimeI18NAssets(t *testing.T) {
 		[]map[string]string{
 			{
 				"locale":  "zh-CN",
-				"content": `{"plugin":{"plugin-dynamic-runtime-i18n":{"name":"运行时国际化插件"}}}`,
+				"content": `{"plugin":{"plugin-dev-dynamic-runtime-i18n":{"name":"运行时国际化插件"}}}`,
 			},
 		},
 	)
@@ -393,19 +393,19 @@ func TestParseRuntimeArtifactValidatesAPIDocI18NAssets(t *testing.T) {
 	services := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
-		"plugin-dynamic-apidoc-i18n",
+		"plugin-dev-dynamic-apidoc-i18n",
 		"Runtime APIDoc I18N Plugin",
 		"v0.3.3",
 		nil,
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-apidoc-i18n"))
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-apidoc-i18n"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
 		&catalog.ArtifactManifest{
-			ID:      "plugin-dynamic-apidoc-i18n",
+			ID:      "plugin-dev-dynamic-apidoc-i18n",
 			Name:    "Runtime APIDoc I18N Plugin",
 			Version: "v0.3.3",
 			Type:    catalog.TypeDynamic.String(),
@@ -434,7 +434,7 @@ func TestParseRuntimeArtifactValidatesAPIDocI18NAssets(t *testing.T) {
 		[]map[string]string{
 			{
 				"locale":  "zh-CN",
-				"content": `{"plugins":{"plugin_dynamic_apidoc_i18n":{"paths":{"get":{"summary":"运行时接口文档翻译"}}}}}`,
+				"content": `{"plugins":{"plugin_dev_dynamic_apidoc_i18n":{"paths":{"get":{"summary":"运行时接口文档翻译"}}}}}`,
 			},
 		},
 	)
@@ -458,19 +458,19 @@ func TestParseRuntimeArtifactRejectsInvalidAPIDocI18NAssets(t *testing.T) {
 	services := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
-		"plugin-dynamic-apidoc-i18n-invalid",
+		"plugin-dev-dynamic-apidoc-i18n-invalid",
 		"Runtime APIDoc I18N Invalid Plugin",
 		"v0.3.4",
 		nil,
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-apidoc-i18n-invalid"))
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-apidoc-i18n-invalid"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
 		&catalog.ArtifactManifest{
-			ID:      "plugin-dynamic-apidoc-i18n-invalid",
+			ID:      "plugin-dev-dynamic-apidoc-i18n-invalid",
 			Name:    "Runtime APIDoc I18N Invalid Plugin",
 			Version: "v0.3.4",
 			Type:    catalog.TypeDynamic.String(),
@@ -523,19 +523,19 @@ func TestParseRuntimeArtifactRejectsAPIDocI18NCountMismatch(t *testing.T) {
 	services := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
-		"plugin-dynamic-apidoc-i18n-count",
+		"plugin-dev-dynamic-apidoc-i18n-count",
 		"Runtime APIDoc I18N Count Plugin",
 		"v0.3.5",
 		nil,
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-apidoc-i18n-count"))
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-apidoc-i18n-count"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
 		&catalog.ArtifactManifest{
-			ID:      "plugin-dynamic-apidoc-i18n-count",
+			ID:      "plugin-dev-dynamic-apidoc-i18n-count",
 			Name:    "Runtime APIDoc I18N Count Plugin",
 			Version: "v0.3.5",
 			Type:    catalog.TypeDynamic.String(),
@@ -564,7 +564,7 @@ func TestParseRuntimeArtifactRejectsAPIDocI18NCountMismatch(t *testing.T) {
 		[]map[string]string{
 			{
 				"locale":  "zh-CN",
-				"content": `{"plugins.plugin_dynamic_apidoc_i18n_count.paths.get.summary":"运行时接口文档翻译"}`,
+				"content": `{"plugins.plugin_dev_dynamic_apidoc_i18n_count.paths.get.summary":"运行时接口文档翻译"}`,
 			},
 		},
 	)
@@ -587,19 +587,19 @@ func TestParseRuntimeArtifactRejectsDeprecatedCapabilitiesSection(t *testing.T) 
 	services := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
-		"plugin-dynamic-legacy-capabilities",
+		"plugin-dev-dynamic-legacy-capabilities",
 		"Runtime Legacy Capability Plugin",
 		"v0.3.1",
 		nil,
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-legacy-capabilities"))
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-legacy-capabilities"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
 		&catalog.ArtifactManifest{
-			ID:      "plugin-dynamic-legacy-capabilities",
+			ID:      "plugin-dev-dynamic-legacy-capabilities",
 			Name:    "Runtime Legacy Capability Plugin",
 			Version: "v0.3.1",
 			Type:    catalog.TypeDynamic.String(),
@@ -651,19 +651,19 @@ func TestParseRuntimeArtifactIgnoresLegacyCronContractsSection(t *testing.T) {
 	services := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
-		"plugin-dynamic-crons",
+		"plugin-dev-dynamic-crons",
 		"Runtime Cron Plugin",
 		"v0.3.2",
 		nil,
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-crons"))
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-crons"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
 		&catalog.ArtifactManifest{
-			ID:      "plugin-dynamic-crons",
+			ID:      "plugin-dev-dynamic-crons",
 			Name:    "Runtime Cron Plugin",
 			Version: "v0.3.2",
 			Type:    catalog.TypeDynamic.String(),

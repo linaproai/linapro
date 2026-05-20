@@ -24,15 +24,15 @@ func TestOnConflictTargetsHaveDeclaredIdempotencyBasis(t *testing.T) {
 	targets := collectOnConflictTargets(t, sqlRoots...)
 
 	allowedTargets := map[string]string{
-		"plugin_content_notice":       "uk_plugin_content_notice_title(title)",
-		"plugin_demo_dynamic_record":  "primary key (id)",
-		"plugin_demo_source_record":   "uk_plugin_demo_source_record_title(title)",
-		"plugin_monitor_server":       "uk_plugin_monitor_server_node(node_name,node_ip)",
-		"plugin_multi_tenant_tenant":  "uk_plugin_multi_tenant_tenant_code(code)",
-		"plugin_org_center_dept":      "uk_plugin_org_center_dept_code(NULLIF(code,''))",
-		"plugin_org_center_post":      "uk_plugin_org_center_post_code(code)",
-		"plugin_org_center_user_dept": "primary key (user_id,dept_id)",
-		"plugin_org_center_user_post": "primary key (user_id,post_id)",
+		"plugin_linapro_content_notice":       "uk_plugin_linapro_content_notice_title(title)",
+		"plugin_linapro_demo_dynamic_record":  "primary key (id)",
+		"plugin_linapro_demo_source_record":   "uk_plugin_linapro_demo_source_record_title(title)",
+		"plugin_linapro_monitor_server":       "uk_plugin_linapro_monitor_server_node(node_name,node_ip)",
+		"plugin_linapro_tenant_core_tenant":  "uk_plugin_linapro_tenant_core_tenant_code(code)",
+		"plugin_linapro_org_core_dept":      "uk_plugin_linapro_org_core_dept_code(NULLIF(code,''))",
+		"plugin_linapro_org_core_post":      "uk_plugin_linapro_org_core_post_code(code)",
+		"plugin_linapro_org_core_user_dept": "primary key (user_id,dept_id)",
+		"plugin_linapro_org_core_user_post": "primary key (user_id,post_id)",
 		"sys_config":                  "uk_sys_config_tenant_key(tenant_id,key)",
 		"sys_dict_data":               "uk_sys_dict_data_tenant_type_value(tenant_id,dict_type,value)",
 		"sys_dict_type":               "uk_sys_dict_type_tenant_type(tenant_id,type)",
@@ -47,8 +47,8 @@ func TestOnConflictTargetsHaveDeclaredIdempotencyBasis(t *testing.T) {
 		"sys_user_role":               "primary key (user_id,role_id,tenant_id)",
 	}
 	for _, historyTarget := range []string{
-		"plugin_monitor_loginlog",
-		"plugin_monitor_operlog",
+		"plugin_linapro_monitor_loginlog",
+		"plugin_linapro_monitor_operlog",
 		"sys_job_log",
 		"sys_notify_delivery",
 		"sys_notify_message",
@@ -78,8 +78,8 @@ func TestStaticHistoryMockInsertsHaveExistenceGuards(t *testing.T) {
 		filepath.Join(root, "apps", "lina-plugins"),
 	}
 	historyTargets := map[string]struct{}{
-		"plugin_monitor_loginlog": {},
-		"plugin_monitor_operlog":  {},
+		"plugin_linapro_monitor_loginlog": {},
+		"plugin_linapro_monitor_operlog":  {},
 		"sys_job_log":             {},
 		"sys_notify_delivery":     {},
 		"sys_notify_message":      {},

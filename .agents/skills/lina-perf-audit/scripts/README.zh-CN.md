@@ -11,7 +11,7 @@
   - 将 `apps/lina-core/manifest/config/config.yaml` 中的 logger 配置备份到 `<run-dir>/logger-backup.json`。
   - 临时把 `logger.path` patch 为 run 目录，把 `logger.file` patch 为 `server.log`。
   - 构建动态插件 Wasm 产物、准备宿主嵌入资源，并只启动后端服务。
-  - 等待 `http://127.0.0.1:8080/api/v1/health` 就绪。
+  - 等待 `http://127.0.0.1:9120/api/v1/health` 就绪。
   - 使用 `admin/admin123` 登录，把 token 写入 `<run-dir>/token.txt`，并把 `Trace-ID` 验证写入 `<run-dir>/trace-id-check.txt`。
 
 - `prepare-builtin-plugins.sh`

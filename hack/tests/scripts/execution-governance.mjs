@@ -11,30 +11,9 @@ export const pluginsDir = path.resolve(repoRoot, 'apps/lina-plugins');
 export const manifestPath = path.resolve(testsDir, 'config/execution-manifest.json');
 export const pluginTestEntry = 'plugins';
 export const pluginWorkspaceInitCommand = 'git submodule update --init --recursive';
-export const hostOnlyExcludedEntries = [
-  'e2e/about/TC0044-api-docs-page.ts',
-  'e2e/extension/plugin',
-  'e2e/i18n/TC0107-runtime-i18n-switch.ts',
-  'e2e/i18n/TC0108-english-runtime-page-audit.ts',
-  'e2e/i18n/TC0110-editable-master-data-raw-in-english.ts',
-  'e2e/i18n/TC0111-plugin-page-static-labels-no-raw-i18n-keys.ts',
-  'e2e/i18n/TC0112-english-layout-regression.ts',
-  'e2e/i18n/TC0116-english-built-in-governance-data-localization.ts',
-  'e2e/i18n/TC0135-backend-error-localization.ts',
-  'e2e/i18n/TC0136-backend-export-localization.ts',
-  'e2e/i18n/TC0137-backend-hardcoded-chinese-regression.ts',
-  'e2e/i18n/TC0141-org-dict-config-english-layout.ts',
-  'e2e/scheduler/job/TC0082-job-handler-crud.ts',
-  'e2e/iam/menu/TC0140-menu-dynamic-permission-tree.ts',
-  'e2e/iam/user/TC0005-user-crud.ts',
-  'e2e/iam/user/TC0062-user-role.ts',
-  'e2e/scheduler/job/TC0090-job-plugin-cascade.ts',
-  'e2e/scheduler/job/TC0158-builtin-job-execution-boundary.ts',
-  'e2e/settings/dict/TC0047-dict-global-effect.ts',
-  'e2e/settings/dict/TC0057-dict-data-export.ts',
-  'e2e/settings/dict/TC0169-dict-option-permission-boundary.ts',
-  'e2e/settings/user/TC0170-user-data-permission.ts',
-];
+export const hostOnlyExcludedEntries = [];
+export const tcFilePattern = /TC\d{3}-[^/.]+\.ts$/u;
+export const legacyGlobalTcFilePattern = /TC\d{4}-[^/.]+\.ts$/u;
 
 export const isolationCategories = [
   {
@@ -165,6 +144,34 @@ export function pluginWorkspaceState() {
     return { manifestCount: 0, state: 'empty' };
   }
   return { manifestCount: manifests.length, state: 'ready' };
+}
+
+function readPluginManifestId(manifestFile) {
+  const source = readFileSync(manifestFile, 'utf8');
+  const match = source.match(/^\s*id\s*:\s*["']?([^"'\s#]+)["']?/mu);
+  return match?.[1]?.trim() ?? '';
+}
+
+// listSourcePluginIdentifiers returns plugin identifiers discovered from the
+// optional source-plugin workspace. The root E2E governance checks use this to
+// reject concrete plugin coupling without hardcoding any official plugin IDs.
+export function listSourcePluginIdentifiers() {
+  if (!exists(pluginsDir)) {
+    return [];
+  }
+  const identifiers = new Set();
+  for (const directoryName of readdirSync(pluginsDir).sort()) {
+    const manifestFile = path.join(pluginsDir, directoryName, 'plugin.yaml');
+    if (!exists(manifestFile)) {
+      continue;
+    }
+    identifiers.add(directoryName);
+    const pluginId = readPluginManifestId(manifestFile);
+    if (pluginId) {
+      identifiers.add(pluginId);
+    }
+  }
+  return [...identifiers].sort();
 }
 
 export function requirePluginWorkspace() {
@@ -324,12 +331,12 @@ export function isTcFile(relativePath) {
 
 // isHostTcFile reports whether a path is a host-owned E2E TC file.
 export function isHostTcFile(relativePath) {
-  return /^e2e\/(?:.*\/)?TC\d{4}-[^/.]+\.ts$/u.test(relativePath);
+  return /^e2e\/(?:.*\/)?TC\d{3}-[^/.]+\.ts$/u.test(relativePath);
 }
 
 // isPluginTcFile reports whether a path is a source-plugin-owned E2E TC file.
 export function isPluginTcFile(relativePath) {
-  return /^apps\/lina-plugins\/[^/]+\/hack\/tests\/e2e\/(?:.*\/)?TC\d{4}-[^/.]+\.ts$/u.test(relativePath);
+  return /^apps\/lina-plugins\/[^/]+\/hack\/tests\/e2e\/(?:.*\/)?TC\d{3}-[^/.]+\.ts$/u.test(relativePath);
 }
 
 export function unique(values) {
@@ -345,7 +352,7 @@ export function resolveHostOnlyEntries(entries) {
   return unique(
     (entries ?? [])
       .flatMap((entry) => listTcFiles(entry))
-      .filter((file) => !excluded.has(file)),
+      .filter((file) => isHostTcFile(file) && !excluded.has(file)),
   );
 }
 
@@ -359,6 +366,28 @@ export function serialIsolationEntries(manifest = loadManifest()) {
 
 export function isolationAllowlist(manifest = loadManifest()) {
   return manifest.parallelIsolationAllowlist ?? [];
+}
+
+export function entryRequiresPluginWorkspace(entry) {
+  return (
+    entry === pluginTestEntry ||
+    entry.startsWith('plugins/') ||
+    entry.startsWith('apps/lina-plugins/')
+  );
+}
+
+export function moduleHasPluginWorkspaceEntries(scope, manifest = loadManifest()) {
+  const configuredEntries = manifest.moduleScopes?.[scope] ?? [];
+  return (
+    scope === pluginTestEntry ||
+    /^plugin:[^/:]+$/u.test(scope) ||
+    configuredEntries.some(entryRequiresPluginWorkspace)
+  );
+}
+
+export function moduleRequiresPluginWorkspace(scope, manifest = loadManifest()) {
+  const configuredEntries = manifest.moduleScopes?.[scope] ?? [];
+  return moduleHasPluginWorkspaceEntries(scope, manifest);
 }
 
 export function serialCategoryMap(manifest = loadManifest()) {

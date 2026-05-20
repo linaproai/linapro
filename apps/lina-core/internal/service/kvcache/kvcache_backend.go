@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
-
 	sqltable "lina-core/internal/service/kvcache/internal/sqltable"
 )
 
@@ -39,7 +37,7 @@ type Backend interface {
 	// Incr increments an integer cache value by delta using a backend-neutral TTL.
 	Incr(ctx context.Context, ownerType OwnerType, cacheKey string, delta int64, ttl time.Duration) (*Item, error)
 	// Expire updates the expiration policy of a cache entry.
-	Expire(ctx context.Context, ownerType OwnerType, cacheKey string, ttl time.Duration) (bool, *gtime.Time, error)
+	Expire(ctx context.Context, ownerType OwnerType, cacheKey string, ttl time.Duration) (bool, *time.Time, error)
 	// CleanupExpired removes expired entries when the backend needs external cleanup.
 	CleanupExpired(ctx context.Context) error
 }
@@ -193,7 +191,7 @@ func (b *sqlTableBackend) Expire(
 	ownerType OwnerType,
 	cacheKey string,
 	ttl time.Duration,
-) (bool, *gtime.Time, error) {
+) (bool, *time.Time, error) {
 	return b.backend.Expire(ctx, sqltable.OwnerType(ownerType.String()), cacheKey, ttl)
 }
 
@@ -274,7 +272,7 @@ func (s *serviceImpl) Expire(
 	ownerType OwnerType,
 	cacheKey string,
 	ttl time.Duration,
-) (bool, *gtime.Time, error) {
+) (bool, *time.Time, error) {
 	return s.backend.Expire(ctx, ownerType, cacheKey, ttl)
 }
 

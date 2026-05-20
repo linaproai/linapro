@@ -6,9 +6,9 @@ package runtime
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -200,7 +200,7 @@ func (s *serviceImpl) ForceUninstallMissingArtifact(ctx context.Context, registr
 			CurrentState: stableState,
 			Generation:   nextGeneration,
 			ReleaseId:    0,
-			DisabledAt:   gtime.Now(),
+			DisabledAt:   timePtr(time.Now()),
 		}).
 		Update()
 	if err != nil {
@@ -290,8 +290,8 @@ func (s *serviceImpl) executeDynamicUninstallLifecycleCallback(
 		return nil
 	}
 	decision, err := s.RunDynamicLifecycleCallback(ctx, manifest, DynamicLifecycleInput{
-		PluginID:          manifest.ID,
-		Operation:         pluginhost.LifecycleHookUninstall,
+		PluginID:         manifest.ID,
+		Operation:        pluginhost.LifecycleHookUninstall,
 		PurgeStorageData: purgeStorageData,
 	})
 	if err != nil {

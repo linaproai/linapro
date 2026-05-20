@@ -44,11 +44,11 @@ func TestLeaseManager_StartAndStop(t *testing.T) {
 
 		// Verify lease was renewed (expire_time should be in the future)
 		var locker struct {
-			ExpireTime *gtime.Time
+			ExpireTime *time.Time
 		}
 		err = g.DB().Model("sys_locker").Where("name", name).Scan(&locker)
 		t.AssertNil(err)
-		t.AssertGT(locker.ExpireTime.Unix(), gtime.Now().Unix())
+		t.AssertGT(locker.ExpireTime.Unix(), time.Now().Unix())
 
 		// Stop lease manager
 		lm.Stop()
@@ -139,7 +139,7 @@ func TestLeaseManager_RenewalFailure(t *testing.T) {
 
 		// Simulate lock being taken by another node
 		_, err = g.DB().Model("sys_locker").Data(g.Map{
-			"expire_time": gtime.Now().Add(-1 * time.Second),
+			"expire_time": time.Now().Add(-1 * time.Second),
 		}).Where("name", name).Update()
 		t.AssertNil(err)
 

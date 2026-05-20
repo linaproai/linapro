@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -65,9 +65,9 @@ func (s *serviceImpl) ExecuteManifestSQLFiles(
 			return gerror.Newf("plugin release record does not exist: %s@%s", manifest.ID, manifest.Version)
 		}
 		migrationKey := buildMigrationKey(direction, index+1)
-		executedAt := gtime.Now()
+		executedAt := time.Now()
 		execErr := s.executeSQLAsset(ctx, manifest.ID, direction, asset)
-		if recordErr := s.recordMigration(ctx, manifest.ID, release.Id, direction, migrationKey, index+1, checksum, executedAt, execErr); recordErr != nil {
+		if recordErr := s.recordMigration(ctx, manifest.ID, release.Id, direction, migrationKey, index+1, checksum, &executedAt, execErr); recordErr != nil {
 			return recordErr
 		}
 		if execErr != nil {
@@ -237,7 +237,7 @@ func (s *serviceImpl) ExecuteManifestMockSQLFilesInTx(
 
 		checksum := fmt.Sprintf("%x", sha256.Sum256([]byte(asset.Content)))
 		migrationKey := buildMigrationKey(catalog.MigrationDirectionMock, index+1)
-		executedAt := gtime.Now()
+		executedAt := time.Now()
 		if execErr := s.executeSQLAsset(ctx, manifest.ID, catalog.MigrationDirectionMock, asset); execErr != nil {
 			return MockSQLExecutionResult{
 				ExecutedFiles: executed,
@@ -253,7 +253,7 @@ func (s *serviceImpl) ExecuteManifestMockSQLFilesInTx(
 			migrationKey,
 			index+1,
 			checksum,
-			executedAt,
+			&executedAt,
 			nil,
 		); recordErr != nil {
 			return MockSQLExecutionResult{
@@ -268,7 +268,7 @@ func (s *serviceImpl) ExecuteManifestMockSQLFilesInTx(
 }
 
 // executeSQLAsset translates and executes one plugin SQL asset statement by
-// statement so SQLite does not depend on driver-level multi-statement support.
+// statement so execution never depends on driver-level multi-statement support.
 func (s *serviceImpl) executeSQLAsset(
 	ctx context.Context,
 	pluginID string,
@@ -376,7 +376,7 @@ func (s *serviceImpl) recordMigration(
 	migrationKey string,
 	sequenceNo int,
 	checksum string,
-	executedAt *gtime.Time,
+	executedAt *time.Time,
 	execErr error,
 ) error {
 	status := catalog.MigrationExecutionStatusSucceeded

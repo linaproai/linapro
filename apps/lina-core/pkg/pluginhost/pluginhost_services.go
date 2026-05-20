@@ -15,6 +15,8 @@ type HostServices interface {
 	Auth() contract.AuthService
 	// BizCtx returns the host business-context adapter.
 	BizCtx() contract.BizCtxService
+	// Cache returns the plugin-scoped host cache adapter.
+	Cache() contract.CacheService
 	// Config returns the host static configuration adapter.
 	Config() contract.ConfigService
 	// I18n returns the host runtime translation adapter.

@@ -54,7 +54,7 @@ func TestNewRequiresPluginService(t *testing.T) {
 // facade returns the host service list output unchanged.
 func TestServiceImplDelegatesListSourcePluginStatuses(t *testing.T) {
 	expected := []*SourcePluginStatus{{
-		PluginID:          "plugin-demo-source",
+		PluginID:          "linapro-demo-source",
 		EffectiveVersion:  "v0.1.0",
 		DiscoveredVersion: "v0.5.0",
 	}}
@@ -80,7 +80,7 @@ func TestServiceImplDelegatesListSourcePluginStatuses(t *testing.T) {
 // forwards the requested plugin ID and preserves the host result.
 func TestServiceImplDelegatesUpgradeSourcePlugin(t *testing.T) {
 	expected := &SourcePluginUpgradeResult{
-		PluginID:    "plugin-demo-source",
+		PluginID:    "linapro-demo-source",
 		FromVersion: "v0.1.0",
 		ToVersion:   "v0.5.0",
 		Executed:    true,
@@ -91,14 +91,14 @@ func TestServiceImplDelegatesUpgradeSourcePlugin(t *testing.T) {
 		t.Fatalf("expected source-upgrade facade construction to succeed, got error: %v", err)
 	}
 
-	result, err := service.UpgradeSourcePlugin(context.Background(), "plugin-demo-source")
+	result, err := service.UpgradeSourcePlugin(context.Background(), "linapro-demo-source")
 	if err != nil {
 		t.Fatalf("expected upgrade delegation to succeed, got error: %v", err)
 	}
 	if !fakeService.upgradeCalled {
 		t.Fatal("expected host service upgrade delegation to be called")
 	}
-	if fakeService.upgradedPluginID != "plugin-demo-source" {
+	if fakeService.upgradedPluginID != "linapro-demo-source" {
 		t.Fatalf("expected upgrade delegation to forward plugin ID, got %q", fakeService.upgradedPluginID)
 	}
 	if result != expected {

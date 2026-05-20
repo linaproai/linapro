@@ -2,7 +2,7 @@
 
 ## Purpose
 
-定义 `org-center` 源码插件提供的部门管理树形查询、创建、更新、删除和关联用户能力，确保组织架构可由组织插件稳定维护并支持其他业务模块引用。
+定义 `linapro-org-core` 源码插件提供的部门管理树形查询、创建、更新、删除和关联用户能力，确保组织架构可由组织插件稳定维护并支持其他业务模块引用。
 
 ## Requirements
 ### Requirement:部门列表查询
@@ -64,7 +64,7 @@
 - **则** 系统返回错误消息，提示该部门下有子部门，必须先删除子部门
 
 #### Scenario:有关联用户的部门不能删除
-- **当** 删除在 `plugin_org_center_user_dept` 中有关联用户的部门时
+- **当** 删除在 `plugin_linapro_org_core_user_dept` 中有关联用户的部门时
 - **则** 系统返回错误消息，提示该部门下有用户，必须先移除用户
 
 ### Requirement:查看部门详情
@@ -87,16 +87,16 @@
 - **且** 用于编辑部门时选择上级部门（避免循环引用）
 
 ### Requirement:部门数据表设计
-系统 SHALL 提供 `plugin_org_center_dept` 表和 `plugin_org_center_user_dept` 关联表。
+系统 SHALL 提供 `plugin_linapro_org_core_dept` 表和 `plugin_linapro_org_core_user_dept` 关联表。
 
-#### Scenario:plugin_org_center_dept 表结构
-- **当** 查看 `plugin_org_center_dept` 表结构时
+#### Scenario:plugin_linapro_org_core_dept 表结构
+- **当** 查看 `plugin_linapro_org_core_dept` 表结构时
 - **则** 表包含：id、parent_id、ancestors、name、order_num、leader（INTEGER，引用 sys_user.id）、phone、email、status、remark、created_at、updated_at、deleted_at
 
-#### Scenario:plugin_org_center_user_dept 关联表结构
-- **当** 查看 `plugin_org_center_user_dept` 表结构时
+#### Scenario:plugin_linapro_org_core_user_dept 关联表结构
+- **当** 查看 `plugin_linapro_org_core_user_dept` 表结构时
 - **则** 表包含：user_id（INTEGER）、dept_id（INTEGER），联合主键
-- **且** user_id 引用 sys_user.id，dept_id 引用 `plugin_org_center_dept`.id
+- **且** user_id 引用 sys_user.id，dept_id 引用 `plugin_linapro_org_core_dept`.id
 
 ### Requirement:部门管理前端树形表格
 系统 SHALL 在部门管理页面使用 VXE-Grid 的树形模式展示部门层级。
@@ -133,7 +133,7 @@
 #### Scenario:编辑部门表单
 - **当** 点击编辑按钮时
 - **则** 打开 Drawer 并加载已有数据
-- **且** 负责人字段变为可用（Select），选项列表为该部门下的用户（通过 `plugin_org_center_user_dept` 查询）
+- **且** 负责人字段变为可用（Select），选项列表为该部门下的用户（通过 `plugin_linapro_org_core_user_dept` 查询）
 - **且** 上级部门 TreeSelect 排除自身和子部门节点
 
 ### Requirement:DeptTree 可复用组件
@@ -168,15 +168,15 @@
 
 ### Requirement:部门管理由组织源码插件交付
 
-系统 SHALL 将部门管理能力作为 `org-center` 源码插件交付，而非继续作为宿主默认内置模块。
+系统 SHALL 将部门管理能力作为 `linapro-org-core` 源码插件交付，而非继续作为宿主默认内置模块。
 
 #### Scenario:组织插件启用时提供部门管理
-- **当** `org-center` 已安装并启用时
+- **当** `linapro-org-core` 已安装并启用时
 - **则** 宿主暴露部门管理 API、页面和菜单
 - **且** 部门管理菜单挂载到宿主 `组织管理` 目录，顶层 `parent_key` 为 `org`
 
 #### Scenario:组织插件缺失时隐藏部门管理入口
-- **当** `org-center` 未安装或未启用时
+- **当** `linapro-org-core` 未安装或未启用时
 - **则** 宿主不显示部门管理菜单和页面入口
 - **且** 用户管理等宿主能力将按组织降级规则继续可用
 

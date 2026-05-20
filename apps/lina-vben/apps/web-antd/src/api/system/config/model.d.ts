@@ -5,8 +5,13 @@ export interface SysConfig {
   value: string;
   isBuiltin: number;
   remark: string;
-  createdAt: string;
-  updatedAt: string;
+  sourceTenantId: number;
+  isFallback: boolean;
+  canEdit: boolean;
+  canOverride: boolean;
+  overrideMode: 'createTenantOverride' | 'none';
+  createdAt: number | null;
+  updatedAt: number | null;
 }
 
 export interface ConfigListParams {

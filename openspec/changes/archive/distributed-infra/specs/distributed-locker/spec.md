@@ -1,62 +1,53 @@
 ## ADDED Requirements
 
-### Requirement: Distributed Lock Acquisition
+### Requirement: 集群模式分布式锁必须使用 coordination lock
+系统 SHALL 在 `cluster.enabled=true` 时使用 coordination provider 的 lock store 实现分布式锁。当前 Redis provider MUST 使用带 TTL 的原子锁，不得使用 PostgreSQL `sys_locker` 作为集群锁事实源。
 
-The system SHALL provide distributed lock acquisition supporting lock contention based on a unique name.
+#### Scenario: 集群模式获取锁
+- **WHEN** 集群模式节点获取分布式锁 `plugin:demo:install`
+- **THEN** 系统通过 Redis lock store 创建带 TTL 的锁
+- **AND** 返回包含 owner token 的 lock instance
+- **AND** 不写入 `sys_locker` 作为该锁的事实源
 
-#### Scenario: First acquisition succeeds
+#### Scenario: 单机模式保持轻量锁语义
+- **WHEN** `cluster.enabled=false`
+- **THEN** 系统可继续使用本地或现有 SQL locker 实现
+- **AND** 不要求 Redis lock store 存在
 
-- **WHEN** a node attempts to acquire a lock that does not exist
-- **THEN** the system creates the lock record and returns a lock instance
+### Requirement: 锁释放必须校验 owner token
+系统 SHALL 在释放 Redis 锁时校验 owner token。非持有者、过期 handle 或旧 owner token MUST 不得删除新持有者的锁。
 
-#### Scenario: Lock already held by another node
+#### Scenario: 旧 handle 释放失败
+- **WHEN** 节点 A 获取锁后租约过期
+- **AND** 节点 B 获取同名锁
+- **AND** 节点 A 使用旧 handle 调用 Unlock
+- **THEN** 节点 B 的锁仍然存在
+- **AND** 节点 A 收到未持有锁或等价错误
 
-- **WHEN** a node attempts to acquire a lock that is already held and not expired
-- **THEN** the system returns failure without creating a lock instance
+#### Scenario: 持有者释放成功
+- **WHEN** 锁持有者使用当前 owner token 调用 Unlock
+- **THEN** Redis 中对应锁 key 被删除
+- **AND** 其他节点可随后获取该锁
 
-#### Scenario: Acquire an expired lock
+### Requirement: 锁续约必须校验 owner token
+系统 SHALL 在续约 Redis 锁时校验 owner token。只有当前持有者可以延长租约。
 
-- **WHEN** a node attempts to acquire a lock that has expired
-- **THEN** the system updates the lock record's expiration time and holder, returning a new lock instance
+#### Scenario: 持有者续约成功
+- **WHEN** 锁持有者在 TTL 到期前调用 Renew
+- **THEN** 系统延长锁 TTL
+- **AND** lock instance 继续有效
 
-### Requirement: Distributed Lock Release
+#### Scenario: 非持有者续约失败
+- **WHEN** 锁已被其他节点持有
+- **AND** 旧持有者调用 Renew
+- **THEN** 系统返回续约失败
+- **AND** 不修改当前锁 TTL
 
-The system SHALL provide distributed lock release, allowing the lock holder to voluntarily release the lock.
+### Requirement: 分布式锁应预留 fencing token
+coordination lock store SHALL 在接口层预留 fencing token，用于后续需要防止旧 leader 写入的场景。Redis provider MAY 通过独立递增计数器生成 fencing token。
 
-#### Scenario: Release own lock
+#### Scenario: 获取锁返回 fencing token
+- **WHEN** 节点成功获取支持 fencing 的锁
+- **THEN** lock instance 包含单调递增 fencing token
+- **AND** 后续需要严格防旧写入的模块可记录该 token
 
-- **WHEN** the lock holder calls the Unlock method
-- **THEN** the system sets the lock's expiration time to the current time, allowing other nodes to acquire it
-
-#### Scenario: Release another node's lock
-
-- **WHEN** a non-holder attempts to release the lock
-- **THEN** the system takes no operation (or returns an error)
-
-### Requirement: Lease Renewal
-
-The system SHALL provide lease renewal, allowing the lock holder to extend the lock's validity period.
-
-#### Scenario: Renewal succeeds
-
-- **WHEN** the lock holder calls the Renew method before the lock expires
-- **THEN** the system updates the lock's expiration time to the current time plus the lease duration
-
-#### Scenario: Renewal fails
-
-- **WHEN** the lock has been preempted by another node or has expired when Renew is called
-- **THEN** the system returns an error indicating renewal failure
-
-### Requirement: Lock State Check
-
-The system SHALL provide lock state checking to determine whether the current node holds a specific lock.
-
-#### Scenario: Check own lock
-
-- **WHEN** the lock holder checks the lock state
-- **THEN** the system returns true indicating the current node holds the lock
-
-#### Scenario: Check another node's lock
-
-- **WHEN** a non-holder checks the lock state
-- **THEN** the system returns false indicating the current node does not hold the lock

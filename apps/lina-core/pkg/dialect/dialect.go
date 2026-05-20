@@ -14,8 +14,7 @@ import (
 
 // Supported database link prefixes.
 const (
-	pgsqlPrefix  = "pgsql:"
-	sqlitePrefix = "sqlite:"
+	pgsqlPrefix = "pgsql:"
 )
 
 var (
@@ -28,13 +27,19 @@ var (
 	// CodeDialectUnsupported reports that a database link prefix is not supported.
 	CodeDialectUnsupported = bizerr.MustDefine(
 		"DIALECT_UNSUPPORTED",
-		"Database dialect {prefix} is unsupported; supported prefixes are pgsql: and sqlite:",
+		"Database dialect {prefix} is unsupported; supported prefix is pgsql:",
 		gcode.CodeInvalidParameter,
 	)
 	// CodeDialectMySQLUnsupported reports that MySQL support has been removed.
 	CodeDialectMySQLUnsupported = bizerr.MustDefine(
 		"DIALECT_MYSQL_UNSUPPORTED",
-		"mysql dialect is no longer supported; supported prefixes are pgsql: and sqlite:",
+		"mysql dialect is no longer supported; supported prefix is pgsql:",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeDialectSQLiteUnsupported reports that SQLite support has been removed.
+	CodeDialectSQLiteUnsupported = bizerr.MustDefine(
+		"DIALECT_SQLITE_UNSUPPORTED",
+		"sqlite dialect is no longer supported; supported prefix is pgsql:",
 		gcode.CodeInvalidParameter,
 	)
 )

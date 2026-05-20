@@ -11,6 +11,7 @@ import { useVbenModal } from '@vben/common-ui';
 import { Alert, Descriptions, DescriptionsItem, Tag } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+import { formatTimestamp } from '#/utils/time';
 import PluginHostServiceCards from './plugin-host-service-cards.vue';
 import { buildPluginDetailHostServiceCards } from './plugin-host-service-view';
 import PluginRouteReviewList from './plugin-route-review-list.vue';
@@ -322,10 +323,10 @@ function formatFailurePhase(phase?: string) {
           </Tag>
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.plugin.fields.installedAt')">
-          {{ currentPlugin.installedAt || '-' }}
+          {{ formatTimestamp(currentPlugin.installedAt) }}
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.common.updatedAt')">
-          {{ currentPlugin.updatedAt || '-' }}
+          {{ formatTimestamp(currentPlugin.updatedAt) }}
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.plugin.fields.description')" :span="2">
           <div

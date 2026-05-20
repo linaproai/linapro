@@ -6,6 +6,7 @@ import (
 	v1 "lina-core/api/file/v1"
 	"lina-core/internal/model/entity"
 	filesvc "lina-core/internal/service/file"
+	"lina-core/pkg/apitime"
 )
 
 // List queries file list
@@ -20,7 +21,7 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 		BeginTime:      req.BeginTime,
 		EndTime:        req.EndTime,
 		OrderBy:        req.OrderBy,
-		OrderDirection: req.OrderDirection,
+		OrderDirection: string(req.OrderDirection),
 	})
 	if err != nil {
 		return nil, err
@@ -52,7 +53,7 @@ func fileItem(file *entity.SysFile) v1.FileItem {
 		Size:      file.Size,
 		Url:       file.Url,
 		CreatedBy: file.CreatedBy,
-		CreatedAt: file.CreatedAt,
-		UpdatedAt: file.UpdatedAt,
+		CreatedAt: apitime.Milli(file.CreatedAt),
+		UpdatedAt: apitime.Milli(file.UpdatedAt),
 	}
 }

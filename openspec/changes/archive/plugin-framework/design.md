@@ -1,6 +1,6 @@
 ## Context
 
-LinaPro's extension model previously relied on direct source modification of the host codebase. The plugin platform establishes a unified contract, lifecycle, runtime, governance, and host-service capability model covering source plugins compiled into the host, dynamically installable WASM runtime plugins, frontend page integration, backend hook/slot extensions, permission governance, multi-node hot upgrade, startup automation, installation UX, and structured host-service capabilities for dynamic plugins.
+LinaPro's extension model previously relied on direct source modification of the host codebase. The plugin platform establishes a unified contract, lifecycle, runtime, governance, and host-service capability model covering source plugins compiled into the host, dynamically installable WASM runtime plugins, frontend page integration, backend hook/slot extensions, permission governance, multi-node hot upgrade, startup automation, installation UX, structured host-service capabilities for dynamic plugins, plugin ID governance, dependency management, runtime upgrade, official plugin workspace decoupling, and plugin workspace management.
 
 ## 1. Plugin Contract and Lifecycle
 
@@ -8,7 +8,7 @@ LinaPro's extension model previously relied on direct source modification of the
 
 All plugins use `plugin.yaml` as the entry manifest. Source plugins reside under `apps/lina-plugins/<plugin-id>/`; dynamic plugins are discovered from `plugin.dynamic.storagePath`. The manifest requires only `id`, `name`, `version`, and `type` (`source` or `dynamic`). Dynamic plugin `wasm` is the runtime artifact semantic, not a first-level type.
 
-SQL, frontend pages, slots, menus, and permissions follow directory and code conventions rather than being redundantly declared in the manifest. Menu registration uses manifest `menus` metadata with `menu_key` as the stable business identifier and `parent_key` for parent resolution.
+SQL, frontend pages, slots, menus, and permissions follow directory and code conventions rather than being redundantly declared in the manifest. Menu registration uses manifest `menus` metadata with `menu_key` as the stable business identifier and `parent_key` for parent resolution. Plugins may declare `dependencies` for framework version constraints and plugin dependency constraints.
 
 ### 1.2 Plugin Lifecycle State Machine
 
@@ -23,19 +23,41 @@ Upgrade uses `desired_state/current_state/generation/release_id` state machine. 
 Five metadata tables track plugin state:
 - `sys_plugin`: Current install/enable state, type, error status
 - `sys_plugin_release`: Version, artifact info, resource paths, manifest snapshot
-- `sys_plugin_migration`: SQL migration execution records with `install`, `uninstall`, and `mock` directions
+- `sys_plugin_migration`: SQL migration execution records with `install`, `uninstall`, `mock`, and `upgrade` directions
 - `sys_plugin_resource_ref`: Ownership references for menus, configs, dicts, files, host-service resources
 - `sys_plugin_node_state`: Multi-node convergence state, heartbeat, and error info
+
+### 1.4 Unified Lifecycle Callback Model
+
+The project uses a unified lifecycle callback model replacing the old `Can*` guard pattern. Source plugins and dynamic plugins share the same `Before*`/`After*` operation names:
+
+- `BeforeInstall` / `AfterInstall`: Pre-install veto and post-install notification
+- `BeforeUpgrade` / `Upgrade` / `AfterUpgrade`: Pre-upgrade veto, custom upgrade execution, and post-upgrade notification
+- `BeforeDisable` / `AfterDisable`: Pre-disable veto and post-disable notification
+- `BeforeUninstall` / `Uninstall` / `AfterUninstall`: Pre-uninstall veto, custom cleanup execution, and post-uninstall notification
+- `BeforeTenantDisable` / `AfterTenantDisable`: Tenant-level disable veto and notification
+- `BeforeTenantDelete` / `AfterTenantDelete`: Tenant deletion veto and notification
+- `BeforeInstallModeChange` / `AfterInstallModeChange`: Install mode switch veto and notification
+
+`Before*` callbacks return allow/deny decisions with stable reason keys; `After*` callbacks are best-effort event notifications. The `BeforeUninstall` and `AfterUninstall` callbacks receive `purgeStorageData` strategy to distinguish data-preserving from data-cleaning uninstall. The old `RegisterLifecycleGuard`, `CanUninstall`, `CanDisable`, `CanTenantDelete` interfaces are removed.
 
 ## 2. Dynamic Plugin Runtime
 
 ### 2.1 WASM Artifact and Loading
 
-Dynamic plugins compile to `.wasm` artifacts containing custom sections for manifest, frontend assets, install/uninstall SQL, route contracts, bridge ABI, host-service governance snapshot, and capability declarations. The host validates file headers, ABI version, custom sections, and embedded manifest during upload.
+Dynamic plugins compile to `.wasm` artifacts containing custom sections for manifest, frontend assets, install/uninstall SQL, route contracts, bridge ABI, host-service governance snapshot, lifecycle contracts, and capability declarations. The host validates file headers, ABI version, custom sections, and embedded manifest during upload.
 
 The `wazero` runtime loads artifacts, calls `_initialize` if present, and provides a restricted execution environment. Frontend assets are extracted from custom sections and cached in memory, with startup warmup and request-time lazy loading fallback.
 
-### 2.2 Dynamic Route Runtime
+### 2.2 Build-Time Lifecycle Auto-Discovery
+
+Dynamic plugin lifecycle contracts are auto-discovered at build time from guest controller methods. The `build-wasm` tool identifies methods matching source-plugin lifecycle naming conventions (`BeforeInstall`, `AfterInstall`, `BeforeUpgrade`, etc.) that satisfy guest dispatcher bridge handler signatures, and generates `LifecycleContract` entries written to the WASM `lina.plugin.backend.lifecycle` custom section.
+
+`backend/lifecycle/*.yaml` files are demoted from required declarations to optional overrides, used only to customize `requestType`, `internalPath`, or `timeoutMs` for discovered operations. YAML declarations that reference non-existent handlers, duplicate operations, use invalid operations or old `Can*`/guard naming cause build failures. The host runtime continues to read only artifact-embedded lifecycle contracts; it never probes guest methods at runtime.
+
+The lifecycle request manifest snapshot uses a shared typed bridge contract (`ManifestSnapshotV1`) from `pluginbridge/contract`, eliminating hand-written `map[string]interface{}` field names.
+
+### 2.3 Dynamic Route Runtime
 
 Route contracts are extracted from `backend/api/**/*.go` `g.Meta` during build and embedded in the `lina.plugin.backend.routes` custom section. The host restores `manifest.Routes` on artifact load.
 
@@ -45,7 +67,7 @@ The bridge uses protobuf-encoded `DynamicRouteBridgeRequestEnvelopeV1`/`DynamicR
 
 Dynamic route permissions are materialized as hidden menu items under `sys_menu.perms`, synchronized on plugin enable/disable/uninstall/version change.
 
-### 2.3 Host Functions and Host Services
+### 2.4 Host Functions and Host Services
 
 Host services evolved from discrete opcodes (`host:log`, `host:state`, `host:db:*`) to a structured model. The `lina_env.host_call` entry is preserved but converged to a single `service invoke` channel. All capabilities are published through the host-service registry.
 
@@ -55,7 +77,7 @@ The plugin declares `hostServices` in `plugin.yaml`; the builder validates and e
 **Storage service**: `put/get/delete/list/stat` with logical path authorization via `resources.paths`, path normalization, prefix matching, and default-deny
 **Network service**: `request` with URL pattern authorization, scheme/host/port/path matching, glob wildcards, and platform-level header protection
 **Data service**: `list/get/create/update/delete/transaction` with table-level authorization via `resources.tables`, DAO/ORM execution through `gdb` interceptors, `DoCommit` governance, and `plugindb` guest SDK
-**Cache service**: `get/set/delete/incr/expire` via MySQL `MEMORY` table with namespace/key/value length validation
+**Cache service**: `get/set/delete/incr/expire` via MySQL `MEMORY` table with namespace/key/value length validation; source plugins use scoped facade through `HostServices.Cache()` with plugin ID binding, tenant isolation, and shared `kvCacheSvc` backend
 **Lock service**: `acquire/renew/release` reusing host distributed lock with ticket-based isolation
 **Notify service**: `send` through authorized notification channels with unified notification domain tables
 **Config service**: `get/exists/string/bool/int/duration` for reading host GoFrame static configuration, with arbitrary key access and no key-pattern restrictions
@@ -157,3 +179,151 @@ Dynamic plugins cannot import `pkg/pluginservice/config` directly, so the `confi
 ### 8.7 Trust Boundary
 
 Source plugins can read the full host configuration. Dynamic or third-party plugins must use host service authorization and auditing before reusing this capability. The service does not perform runtime cache invalidation; it reads only static configuration files.
+
+## 9. Plugin ID Normalization
+
+### 9.1 Runtime Safety Boundary
+
+Plugin ID runtime validation enforces only basic safety: non-empty, 64-character maximum, and lowercase kebab-case (letters, digits, hyphens). The host does not enforce `<author>-<domain>-<capability>` structure, domain whitelists, or official capability reservations at runtime.
+
+### 9.2 Official Plugin ID Convention
+
+Official plugins use the `<author>-<domain>-<capability>` naming convention with `linapro` as the author segment. `core` is reserved for official foundational capability implementations (e.g., `linapro-tenant-core`, `linapro-org-core`). This is a repository governance convention, not a runtime enforcement rule.
+
+### 9.3 Breaking Official Plugin ID Mapping
+
+All 10 official plugins are renamed to `linapro-*` prefix:
+
+| Old ID | New ID |
+|--------|--------|
+| `content-notice` | `linapro-content-notice` |
+| `monitor-loginlog` | `linapro-monitor-loginlog` |
+| `monitor-operlog` | `linapro-monitor-operlog` |
+| `monitor-online` | `linapro-monitor-online` |
+| `monitor-server` | `linapro-monitor-server` |
+| `multi-tenant` | `linapro-tenant-core` |
+| `org-center` | `linapro-org-core` |
+| `plugin-demo-dynamic` | `linapro-demo-dynamic` |
+| `plugin-demo-source` | `linapro-demo-source` |
+| `demo-control` | `linapro-ops-demo-guard` |
+
+No backward compatibility aliases are provided. Plugin-owned storage tables are renamed to match the new snake_case plugin ID scope.
+
+### 9.4 Governance Validation
+
+Automated governance scans verify that official plugin directory names, manifest IDs, source registration IDs, menu keys, i18n namespaces, apidoc namespaces, dynamic artifact filenames, configuration entries, and test fixtures all use the current plugin ID. Old official IDs must not appear in runtime code, configuration, tests, or active OpenSpec documents.
+
+## 10. Plugin Dependency Management
+
+### 10.1 Manifest Dependencies Declaration
+
+`plugin.yaml` supports a `dependencies` object with `framework.version` (LinaPro framework version constraint) and `plugins[]` (plugin dependency list). Each plugin dependency specifies `id`, `version` (semver range), `required` (default `true`), and `install` (`auto` or `manual`, default `manual`). Undeclared `dependencies` keeps the plugin valid as dependency-free.
+
+### 10.2 Dependency Resolution
+
+An internal dependency resolver component takes the target plugin ID, discovered manifest collection, registry/release state, and framework version, and produces: dependency check conclusions, auto-install plan, blocker list, dependency chain, topological order, and reverse dependencies. The resolver performs graph construction, deterministic topological sorting (stable by plugin ID within each layer), self-dependency detection, and cycle detection.
+
+### 10.3 Auto-Installation
+
+When a hard dependency declares `install: auto` and the dependency plugin is discovered with a satisfied version but not yet installed, the system automatically installs it before the target plugin. Auto-installation proceeds in topological order, reusing existing source/dynamic install lifecycle for each dependency. Mid-failure stops subsequent installations and returns the installed-so-far list, failed plugin ID, and failure reason. Auto-installed dependencies are not automatically enabled.
+
+### 10.4 Reverse Dependency Protection
+
+Before uninstalling a plugin, the system scans installed plugins' hard dependency declarations. If downstream plugins depend on the target, uninstall is blocked with the downstream plugin list. Uninstall protection reads from installed release snapshots when current workspace manifests are unavailable.
+
+### 10.5 Upgrade Dependency Validation
+
+Source plugin upgrade and dynamic plugin install/upgrade paths validate new version dependency constraints before switching the effective release. New framework version constraints, hard dependency existence, and hard dependency version ranges must be satisfied. Upgrade does not auto-upgrade dependency plugins; it blocks and returns the dependency list requiring manual upgrade first.
+
+### 10.6 Cache Consistency
+
+Read-only dependency checks do not trigger cache invalidation. Multi-plugin state changes from dependency auto-installation reuse existing plugin runtime revision/event, enabled snapshot, frontend bundle, and runtime i18n bundle per-plugin-scope invalidation mechanisms. Cluster mode uses shared revision and event broadcasting.
+
+## 11. Plugin Runtime Upgrade
+
+### 11.1 Runtime State Model
+
+Plugin state is decomposed into three dimensions: `installed` (whether installed), `enabled` (whether enabled), and `runtimeState` (file vs. database version consistency):
+
+- `normal`: Database effective version matches discovered version
+- `pending_upgrade`: Database effective version is lower than discovered version
+- `abnormal`: Database effective version is higher than discovered version, or manifest/release cannot be safely matched
+- `upgrade_running`: An upgrade task is currently executing on this node or cluster
+- `upgrade_failed`: The most recent upgrade failed and requires diagnosis or retry
+
+### 11.2 Startup Scanning
+
+The startup phase scans source plugin directories and dynamic plugin artifact/release metadata, comparing database effective version with file discovered version. Pending upgrades are marked but do not block startup. Abnormal states are marked with stable reason codes. Plugin management page and upgrade APIs remain accessible in all non-normal states.
+
+Business entry protection: when a plugin is in `pending_upgrade`, `abnormal`, or `upgrade_failed`, its business routes return `PLUGIN_RUNTIME_UPGRADE_REQUIRED`, its menus are hidden/disabled from navigation, its cron tasks are not scheduled, and its hooks are not dispatched. Plugin management and upgrade APIs remain fully accessible.
+
+### 11.3 Runtime Upgrade API
+
+- `GET /plugins/{id}/upgrade/preview`: Read-only preview returning before/after versions, manifest diff, dependency check, SQL summary, hostServices changes, and risk warnings. Only available for `pending_upgrade` plugins.
+- `POST /plugins/{id}/upgrade`: Executes the upgrade with permission check, confirmation validation, and server-side state re-read. Only `pending_upgrade` plugins can enter the upgrade flow.
+
+### 11.4 Upgrade Orchestration
+
+The upgrade flow follows a fixed sequence:
+1. Acquire lock and set `upgrade_running` state
+2. Re-read effective and target manifest snapshots
+3. Validate dependencies, reverse dependencies, framework version, and hostServices authorization changes
+4. Execute `BeforeUpgrade` pre-callback (may veto)
+5. Execute plugin custom `Upgrade` callback
+6. Execute upgrade SQL and record `phase=upgrade`
+7. Synchronize governance resources (menus, permissions, resource refs, i18n, apidoc, routes, cron)
+8. Switch `sys_plugin.version`, `release_id`, and release state
+9. Precisely invalidate plugin-scoped caches and broadcast cluster events
+10. Execute `AfterUpgrade` event callback
+11. Set `normal` state
+
+Failure at any step sets `upgrade_failed` with failure phase, error code, error message key, from/to manifest snapshots, and retry information. No automatic rollback is performed.
+
+### 11.5 Cluster Upgrade Coordination
+
+`cluster.enabled=false`: local lock and local cache invalidation. `cluster.enabled=true`: distributed lock via `coordination.LockStore`, shared revision/event broadcasting, no concurrent upgrades of the same plugin across nodes. Upgrade success/failure invalidates plugin-scoped caches (frontend bundle, WASM module, runtime i18n) locally and broadcasts via shared plugin-runtime revision.
+
+## 12. Official Plugins Submodule Decoupling
+
+### 12.1 Host-Only Mode
+
+The host can build, test, and run without `apps/lina-plugins` existing. Go workspace, compile-time imports, runtime scanning, frontend scanning, test discovery, and tool entry points are all tolerant of missing or empty plugin workspace. Source plugin discovery returns an empty set; dynamic plugin discovery continues normally.
+
+### 12.2 Plugin-Full Mode
+
+When `apps/lina-plugins` is initialized as a submodule (or contains plugin code), all official plugin Go unit tests, plugin-owned E2E tests, and dynamic plugin wasm builds execute normally. The build system distinguishes host-only (`plugins=0`) from plugin-full (`plugins=1`) modes, with explicit CI matrix separation.
+
+### 12.3 Menu Parent Mount Decoupling
+
+The host menu service no longer hardcodes official plugin IDs to fixed parent directories. Plugin manifests autonomously declare their `parent_key` for menu mounting. Menu sync validates that the referenced parent menu record exists but does not restrict mounting to stable host directories only.
+
+## 13. Plugin Workspace Management
+
+### 13.1 De-submodulization
+
+`make plugins.init` / `linactl plugins.init` converts `apps/lina-plugins` from a Git submodule to a regular directory, preserving all plugin code. The command removes gitlink tracking, `.gitmodules` section, `.git/config` submodule config, and `.git/modules/apps/lina-plugins` metadata. If `.gitmodules` contains other submodules, only the `apps/lina-plugins` section is removed.
+
+### 13.2 Configuration-Based Source Declaration
+
+`hack/config.yaml` declares plugin sources under `plugins.sources`:
+
+```yaml
+plugins:
+  sources:
+    official:
+      repo: "https://github.com/linaproai/official-plugins.git"
+      root: "."
+      ref: "main"
+      items:
+        - multi-tenant
+        - org-center
+```
+
+Each source specifies `repo`, `root` (relative path within repo, `.` for root), `ref` (shared branch/tag/commit), and `items` (string array of plugin IDs). Wildcard `"*"` expands to all plugin directories containing `plugin.yaml` under the source root. Wildcard and explicit IDs cannot be mixed in the same source. Plugin IDs must be globally unique across all sources.
+
+### 13.3 Install, Update, and Status Commands
+
+- `plugins.install`: Temporary checkout of source repo to `temp/`, copy `<root>/<plugin-id>` to `apps/lina-plugins/<plugin-id>`. Blocks if target directory exists (use `update` or `force=1`).
+- `plugins.update`: Re-fetches from source and overwrites local directory. Blocks on local dirty state unless `force=1`.
+- `plugins.status`: Read-only diagnosis of workspace type, configured plugins, local existence, version, dirty state, lock state, and remote update status.
+- Lock file at `apps/lina-plugins/.linapro-plugins.lock.yaml` records source, repo, root, ref, resolved commit, manifest version, and content digest per plugin.

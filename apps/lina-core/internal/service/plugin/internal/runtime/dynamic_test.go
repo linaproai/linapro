@@ -20,7 +20,7 @@ func TestListRuntimeStatesProjectsMissingRuntimeArtifactWithoutMutatingRegistry(
 	services := testutil.NewServices()
 	ctx := context.Background()
 
-	const pluginID = "plugin-dynamic-runtime-state-readonly"
+	const pluginID = "plugin-dev-dynamic-runtime-state-readonly"
 
 	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
 		t,
@@ -100,7 +100,7 @@ func TestInstallRepairsEmptyReleaseArchive(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		pluginID = "plugin-dynamic-empty-release-repair"
+		pluginID = "plugin-dev-dynamic-empty-release-repair"
 		version  = "v0.9.8"
 	)
 
@@ -190,7 +190,7 @@ func TestUploadDynamicPackageAllowsRecoveryWhenArtifactIsMissing(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
 
-	const pluginID = "plugin-dynamic-upload-recover"
+	const pluginID = "plugin-dev-dynamic-upload-recover"
 
 	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
 		t,

@@ -23,13 +23,13 @@ export interface SystemPlugin {
   type: PluginType;
   description: string;
   installed: number;
-  installedAt: string;
+  installedAt: number | null;
   enabled: number;
   autoEnableManaged: number;
   autoEnableForNewTenants?: boolean;
   supportsMultiTenant?: boolean;
   statusKey: string;
-  updatedAt: string;
+  updatedAt: number | null;
   authorizationRequired: number;
   authorizationStatus: 'confirmed' | 'not_required' | 'pending' | string;
   dependencyCheck?: PluginDependencyCheckResult;

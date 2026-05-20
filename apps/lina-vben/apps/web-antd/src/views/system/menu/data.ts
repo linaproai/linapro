@@ -12,6 +12,7 @@ import { formatMenuPermissionShortLabel } from '#/components/tree';
 import { $t } from '#/locales';
 import { getDictOptions } from '#/utils/dict';
 import { renderDict } from '#/utils/render';
+import { formatTimestamp } from '#/utils/time';
 
 /** 查询表单配置 */
 export function querySchema(): VbenFormSchema[] {
@@ -130,6 +131,7 @@ export const columns: VxeGridProps['columns'] = [
   {
     title: $t('pages.common.createdAt'),
     field: 'createdAt',
+    formatter: ({ cellValue }) => formatTimestamp(cellValue),
   },
   {
     field: 'action',

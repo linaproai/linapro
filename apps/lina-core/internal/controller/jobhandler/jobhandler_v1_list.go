@@ -12,7 +12,7 @@ import (
 
 // List handles scheduled job handler list requests.
 func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListRes, err error) {
-	sourceFilter := jobmeta.NormalizeHandlerSource(req.Source)
+	sourceFilter := jobmeta.NormalizeHandlerSource(string(req.Source))
 	keyword := strings.ToLower(strings.TrimSpace(req.Keyword))
 	items := make([]*v1.ListItem, 0)
 	for _, item := range c.registry.List() {
@@ -30,7 +30,7 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 			Ref:         item.Ref,
 			DisplayName: displayName,
 			Description: description,
-			Source:      string(item.Source),
+			Source:      v1.Source(item.Source),
 			PluginId:    item.PluginID,
 		})
 	}

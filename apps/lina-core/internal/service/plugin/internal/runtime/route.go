@@ -29,8 +29,8 @@ import (
 	bridgecontract "lina-core/pkg/pluginbridge/contract"
 )
 
-// RoutePublicPrefix is the fixed host URL prefix for all dynamic plugin routes.
-const RoutePublicPrefix = "/api/v1/extensions"
+// RoutePublicPrefix is the host URL prefix for dynamic plugin routes.
+const RoutePublicPrefix = "/x"
 
 // Request-context keys and sentinel values used by the dynamic route pipeline.
 const (
@@ -44,7 +44,7 @@ const (
 
 // DynamicRouteDispatchInput describes one host-side dynamic route dispatch call.
 type DynamicRouteDispatchInput struct {
-	// Request is the original GoFrame request that entered the fixed public prefix.
+	// Request is the original GoFrame request that entered a dynamic plugin public prefix.
 	Request *ghttp.Request
 }
 
@@ -219,7 +219,7 @@ func (s *serviceImpl) handleDynamicRouteRequest(r *ghttp.Request) {
 	r.ExitAll()
 }
 
-// DispatchDynamicRoute dispatches one fixed-prefix request into the active release
+// DispatchDynamicRoute dispatches one public-prefix request into the active release
 // of one dynamic plugin. Matching always happens against the archived active manifest
 // so staged uploads cannot affect live traffic before reconcile.
 func (s *serviceImpl) DispatchDynamicRoute(
@@ -247,8 +247,8 @@ func (s *serviceImpl) DispatchDynamicRoute(
 	return s.executePreparedDynamicRoute(ctx, runtimeState, identity, in.Request)
 }
 
-// matchDynamicRoute resolves the fixed `/api/v1/extensions/{pluginId}/...`
-// public path to the plugin-declared internal route contract.
+// matchDynamicRoute resolves `/x/{pluginId}/...` public paths to the
+// plugin-declared internal route contract.
 func (s *serviceImpl) matchDynamicRoute(ctx context.Context, request *ghttp.Request) (*dynamicRouteMatch, error) {
 	publicPath := strings.TrimSpace(request.URL.Path)
 	if !strings.HasPrefix(publicPath, RoutePublicPrefix+"/") {

@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"lina-core/api/sysinfo/v1"
+	"lina-core/pkg/apitime"
 )
 
 const (
@@ -39,7 +40,7 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 		Os:                 info.Os,
 		Arch:               info.Arch,
 		DbVersion:          info.DbVersion,
-		StartTime:          info.StartTime,
+		StartTime:          apitime.MilliFromTime(info.StartTime),
 		RunDuration:        c.formatRunDuration(ctx, info.RunDurationSeconds),
 		RunDurationSeconds: info.RunDurationSeconds,
 		Coordination: v1.CoordinationInfo{
@@ -48,7 +49,7 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 			RedisHealthy:   info.Coordination.RedisHealthy,
 			NodeId:         info.Coordination.NodeID,
 			Primary:        info.Coordination.Primary,
-			LastSuccessAt:  formatOptionalTime(info.Coordination.LastSuccessAt),
+			LastSuccessAt:  apitime.MilliFromTime(info.Coordination.LastSuccessAt),
 			LastError:      info.Coordination.LastError,
 		},
 	}
@@ -93,9 +94,9 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 			Healthy:          item.Healthy,
 			LocalRevision:    item.LocalRevision,
 			SharedRevision:   item.SharedRevision,
-			LastSyncedAt:     formatOptionalTime(item.LastSyncedAt),
+			LastSyncedAt:     apitime.MilliFromTime(item.LastSyncedAt),
 			EventSubscriber:  item.EventSubscriber,
-			LastEventAt:      formatOptionalTime(item.LastEventAt),
+			LastEventAt:      apitime.MilliFromTime(item.LastEventAt),
 			RecentError:      item.RecentError,
 			StaleSeconds:     item.StaleSeconds,
 		})
@@ -150,12 +151,4 @@ func normalizeComponentKey(name string) string {
 		return "unknown"
 	}
 	return normalized
-}
-
-// formatOptionalTime returns an empty value for unset diagnostic timestamps.
-func formatOptionalTime(value time.Time) string {
-	if value.IsZero() {
-		return ""
-	}
-	return value.Format("2006-01-02 15:04:05")
 }

@@ -123,7 +123,7 @@ func TestTranslateDynamicPluginSourceTextUsesReleaseArtifactBeforeEnable(t *test
 		RuntimeKind:    pluginbridge.RuntimeKindWasm,
 		Status:         dynamicPluginReleaseStatusActive,
 		PackagePath:    artifactPath,
-		Checksum:       "dynamic-plugin-source-text-test-checksum",
+		Checksum:       "dynamic-plugin-dev-source-text-test-checksum",
 	})
 	t.Cleanup(func() {
 		deleteDynamicPluginReleaseByID(t, ctx, releaseID)
@@ -167,7 +167,7 @@ func TestTranslateDynamicPluginSourceTextReloadsLatestRelease(t *testing.T) {
 		RuntimeKind:    pluginbridge.RuntimeKindWasm,
 		Status:         dynamicPluginReleaseStatusActive,
 		PackagePath:    firstArtifactPath,
-		Checksum:       "dynamic-plugin-source-text-reload-test-checksum-1",
+		Checksum:       "dynamic-plugin-dev-source-text-reload-test-checksum-1",
 	})
 	t.Cleanup(func() {
 		deleteDynamicPluginReleaseByID(t, ctx, firstReleaseID)
@@ -192,7 +192,7 @@ func TestTranslateDynamicPluginSourceTextReloadsLatestRelease(t *testing.T) {
 		RuntimeKind:    pluginbridge.RuntimeKindWasm,
 		Status:         dynamicPluginReleaseStatusActive,
 		PackagePath:    secondArtifactPath,
-		Checksum:       "dynamic-plugin-source-text-reload-test-checksum-2",
+		Checksum:       "dynamic-plugin-dev-source-text-reload-test-checksum-2",
 	})
 	t.Cleanup(func() {
 		deleteDynamicPluginReleaseByID(t, ctx, secondReleaseID)
@@ -239,7 +239,7 @@ func TestTranslateDynamicPluginSourceTextFallsBackToStagingArtifact(t *testing.T
 		RuntimeKind:    pluginbridge.RuntimeKindWasm,
 		Status:         dynamicPluginReleaseStatusActive,
 		PackagePath:    stalePackage,
-		Checksum:       "dynamic-plugin-source-text-staging-stale-checksum",
+		Checksum:       "dynamic-plugin-dev-source-text-staging-stale-checksum",
 	})
 	pluginRowID := insertDynamicPluginRegistryForTest(t, ctx, do.SysPlugin{
 		PluginId:     pluginID,
@@ -252,7 +252,7 @@ func TestTranslateDynamicPluginSourceTextFallsBackToStagingArtifact(t *testing.T
 		CurrentState: "uninstalled",
 		Generation:   int64(1),
 		ReleaseId:    releaseID,
-		Checksum:     "dynamic-plugin-source-text-staging-stale-checksum",
+		Checksum:     "dynamic-plugin-dev-source-text-staging-stale-checksum",
 	})
 	t.Cleanup(func() {
 		deleteDynamicPluginRegistryByID(t, ctx, pluginRowID)

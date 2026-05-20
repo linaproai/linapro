@@ -73,6 +73,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const loginLoading = ref(false);
   const pendingPreToken = ref('');
+  const tenantLoginTransitioning = ref(false);
 
   /**
    * 异步处理登录操作
@@ -153,6 +154,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
     try {
       loginLoading.value = true;
+      tenantLoginTransitioning.value = true;
       const { accessToken, refreshToken } = await authSelectTenant(
         pendingPreToken.value,
         tenantId,
@@ -179,6 +181,7 @@ export const useAuthStore = defineStore('auth', () => {
         message: $t('pages.multiTenant.messages.tenantSelected'),
       });
     } finally {
+      tenantLoginTransitioning.value = false;
       loginLoading.value = false;
     }
   }
@@ -229,6 +232,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   function $reset() {
     loginLoading.value = false;
+    pendingPreToken.value = '';
+    tenantLoginTransitioning.value = false;
   }
 
   return {
@@ -240,5 +245,6 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     pendingPreToken,
     selectTenant,
+    tenantLoginTransitioning,
   };
 });

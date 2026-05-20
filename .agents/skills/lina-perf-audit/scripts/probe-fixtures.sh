@@ -12,7 +12,7 @@ USAGE
 }
 
 RUN_DIR=""
-BASE_URL="${LINA_PERF_AUDIT_BASE_URL:-http://127.0.0.1:8080}"
+BASE_URL="${LINA_PERF_AUDIT_BASE_URL:-http://127.0.0.1:9120}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -305,8 +305,8 @@ def infer_resource_from_path(path: str, default_resource: str) -> str:
         return default_resource
     if "api" in parts and "v1" in parts:
         parts = parts[parts.index("v1") + 1:]
-    if parts and parts[0] == "extensions" and len(parts) >= 3:
-        return parts[2].replace("-", "_")
+    if parts and parts[0] == "x" and len(parts) >= 2:
+        return parts[1].replace("-", "_")
     if parts and parts[0] == "plugins" and len(parts) >= 3:
         return parts[2].replace("-", "_")
     return (parts[0] if parts else default_resource).replace("-", "_")

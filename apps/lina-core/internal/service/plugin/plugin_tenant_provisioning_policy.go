@@ -17,6 +17,9 @@ func (s *serviceImpl) UpdateTenantProvisioningPolicy(
 	pluginID string,
 	autoEnableForNewTenants bool,
 ) error {
+	if err := s.ensurePlatformGovernance(ctx); err != nil {
+		return err
+	}
 	normalizedPluginID := strings.TrimSpace(pluginID)
 	if normalizedPluginID == "" {
 		return bizerr.NewCode(CodePluginSourceRegistryNotFound, bizerr.P("pluginId", pluginID))

@@ -9,8 +9,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/gogf/gf/v2/net/ghttp"
 	_ "lina-core/pkg/dbdriver"
+
+	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -36,7 +37,7 @@ func TestLoginRejectsBlacklistedIP(t *testing.T) {
 	withRuntimeParamValue(t, hostconfig.RuntimeParamKeyLoginBlackIPList, "127.0.0.1")
 
 	username := fmt.Sprintf("blacklist-test-%s", t.Name())
-	ctx := newRequestContext(t, "127.0.0.1:18080")
+	ctx := newRequestContext(t, "127.0.0.1:19120")
 
 	_, err := newRuntimeParamAuthTestService().Login(ctx, LoginInput{
 		Username: username,
@@ -101,6 +102,9 @@ func (s *runtimeParamAuthTestHostServices) Auth() plugincontract.AuthService { r
 
 // BizCtx returns no bizctx service for auth runtime-parameter tests.
 func (s *runtimeParamAuthTestHostServices) BizCtx() plugincontract.BizCtxService { return nil }
+
+// Cache returns no cache service for auth runtime-parameter tests.
+func (s *runtimeParamAuthTestHostServices) Cache() plugincontract.CacheService { return nil }
 
 // Config returns the test host configuration service.
 func (s *runtimeParamAuthTestHostServices) Config() plugincontract.ConfigService {

@@ -5,8 +5,7 @@ package plugin
 
 import (
 	"context"
-
-	"github.com/gogf/gf/v2/os/gtime"
+	"time"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -16,6 +15,12 @@ import (
 	"lina-core/pkg/logger"
 	"lina-core/pkg/pluginhost"
 )
+
+// timePtr returns a pointer to value for generated DO time fields that preserve
+// database NULL semantics with *time.Time.
+func timePtr(value time.Time) *time.Time {
+	return &value
+}
 
 // installSourcePlugin performs the explicit lifecycle for one discovered source plugin.
 func (s *serviceImpl) installSourcePlugin(ctx context.Context, manifest *catalog.Manifest) error {
@@ -345,16 +350,16 @@ func (s *serviceImpl) applySourcePluginStableState(
 	}
 	if installed == catalog.InstalledYes {
 		if registry.Installed != catalog.InstalledYes {
-			data.InstalledAt = gtime.Now()
+			data.InstalledAt = timePtr(time.Now())
 		}
 		if enabled == catalog.StatusEnabled {
-			data.EnabledAt = gtime.Now()
+			data.EnabledAt = timePtr(time.Now())
 		} else {
-			data.DisabledAt = gtime.Now()
+			data.DisabledAt = timePtr(time.Now())
 		}
 	} else {
 		data.Status = catalog.StatusDisabled
-		data.DisabledAt = gtime.Now()
+		data.DisabledAt = timePtr(time.Now())
 	}
 
 	_, err := dao.SysPlugin.Ctx(ctx).

@@ -78,11 +78,13 @@ func (r *Resolver) CheckReverse(input ReverseCheckInput) *ReverseCheckResult {
 			continue
 		}
 		if plugin.DependencySnapshotUnknown {
-			result.Blockers = append(result.Blockers, &Blocker{
-				Code:     BlockerDependencySnapshotUnknown,
-				PluginID: strings.TrimSpace(plugin.ID),
-				Detail:   "installed plugin dependency snapshot is unavailable",
-			})
+			if unknownSnapshotRequiresReverseBlock(plugin, targetID, result.CandidateVersion == "") {
+				result.Blockers = append(result.Blockers, &Blocker{
+					Code:     BlockerDependencySnapshotUnknown,
+					PluginID: strings.TrimSpace(plugin.ID),
+					Detail:   "installed plugin dependency snapshot is unavailable",
+				})
+			}
 			continue
 		}
 		for _, declaredDependency := range normalizedPluginDependencies(plugin.Dependencies) {
@@ -130,6 +132,26 @@ func (r *Resolver) CheckReverse(input ReverseCheckInput) *ReverseCheckResult {
 		}
 	}
 	return result
+}
+
+// unknownSnapshotRequiresReverseBlock keeps destructive lifecycle checks
+// conservative while allowing unrelated installed plugins with a current
+// discovered manifest to avoid blocking every target plugin operation.
+func unknownSnapshotRequiresReverseBlock(plugin *PluginSnapshot, targetID string, uninstall bool) bool {
+	dependencies := normalizedPluginDependencies(plugin.Dependencies)
+	if len(dependencies) == 0 {
+		return uninstall && plugin.Manifest == nil
+	}
+	for _, declaredDependency := range dependencies {
+		if declaredDependency == nil || strings.TrimSpace(declaredDependency.ID) != targetID {
+			continue
+		}
+		if declaredDependency.Required != nil && !*declaredDependency.Required {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 // walkState carries mutable traversal state for install dependency resolution.

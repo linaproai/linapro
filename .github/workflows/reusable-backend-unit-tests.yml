@@ -53,7 +53,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres -d linapro"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -79,7 +79,8 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: "1.25"
-          cache: false
+          cache: true
+          cache-dependency-path: "**/go.sum"
 
       # Initialize the PostgreSQL schema from LinaPro SQL resources.
       # 使用 LinaPro SQL 资源初始化 PostgreSQL schema。

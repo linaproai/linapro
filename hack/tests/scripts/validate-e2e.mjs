@@ -13,10 +13,13 @@ import {
   isHostTcFile,
   isPluginTcFile,
   knownIsolationCategorySet,
+  legacyGlobalTcFilePattern,
   listLegacyPluginE2EDirs,
   listPluginE2EFiles,
+  listSourcePluginIdentifiers,
   listTcFiles,
   loadManifest,
+  moduleRequiresPluginWorkspace,
   playwrightFileArg,
   pluginTestEntry,
   pluginTestRelativePath,
@@ -110,18 +113,91 @@ function validateReason(reason, ownerLabel) {
   }
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+const sourcePluginIdentifiers = listSourcePluginIdentifiers();
+const forbiddenRootPluginIdPattern =
+  sourcePluginIdentifiers.length > 0
+    ? new RegExp(`(?:^|[^\\w-])(?:${sourcePluginIdentifiers.map(escapeRegExp).join('|')})(?=$|[^\\w-])`, 'u')
+    : null;
+
 const allFiles = [
   ...walk(e2eDir).map((item) => toPosix(path.relative(testsDir, item))),
   ...listPluginE2EFiles(),
 ];
 const legacyPluginE2EDirs = listLegacyPluginE2EDirs();
 const testFiles = [];
-const tcRegistry = new Map();
+const tcRegistryByDirectory = new Map();
 const allowedFiles = new Set(
   Object.values(manifest.moduleScopes)
     .flat()
     .flatMap((entry) => listTcFiles(entry)),
 );
+const rootGovernanceFiles = [
+  'config/execution-manifest.json',
+  'config/service-dependency-baseline.json',
+  'README.md',
+  'README.zh-CN.md',
+  ...walk(e2eDir).map((item) => toPosix(path.relative(testsDir, item))),
+  ...walk(path.resolve(testsDir, 'fixtures')).map((item) => toPosix(path.relative(testsDir, item))),
+  ...walk(path.resolve(testsDir, 'pages')).map((item) => toPosix(path.relative(testsDir, item))),
+  ...walk(path.resolve(testsDir, 'scripts')).map((item) => toPosix(path.relative(testsDir, item))),
+  ...walk(path.resolve(testsDir, 'support')).map((item) => toPosix(path.relative(testsDir, item))),
+].filter((file) => /\.(?:json|mjs|md|ts)$/u.test(file));
+
+function collectStrings(value, owner, results = []) {
+  if (typeof value === 'string') {
+    results.push({ owner, value });
+    return results;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => collectStrings(item, `${owner}[${index}]`, results));
+    return results;
+  }
+  if (value && typeof value === 'object') {
+    Object.entries(value).forEach(([key, item]) => collectStrings(item, `${owner}.${key}`, results));
+  }
+  return results;
+}
+
+function validateRootManifestPluginEntries() {
+  for (const item of collectStrings(manifest, 'execution-manifest')) {
+    if (item.value.startsWith('apps/lina-plugins/')) {
+      addError(
+        `${item.owner} must not reference plugin workspace paths. Use the generic "plugins" module scope or runtime "plugin:<plugin-id>" selector instead.`,
+      );
+    }
+    if (item.value.startsWith('plugins/')) {
+      addError(
+        `${item.owner} must not reference a concrete plugin entry "${item.value}". Use "plugins" in the manifest and "plugin:<plugin-id>" at runtime instead.`,
+      );
+    }
+  }
+}
+
+function validateRootServiceDependencyBaseline() {
+  const baselinePath = path.resolve(testsDir, 'config/service-dependency-baseline.json');
+  const parsed = JSON.parse(readFileSync(baselinePath, 'utf8'));
+  const entries = requireArray(parsed.entries ?? [], 'service-dependency-baseline.entries');
+  for (const [index, entry] of entries.entries()) {
+    const owner = `service-dependency-baseline.entries[${index}]`;
+    if (!entry || typeof entry !== 'object') {
+      addError(`${owner} must be an object.`);
+      continue;
+    }
+    if (typeof entry.path !== 'string' || entry.path.trim() === '') {
+      addError(`${owner}.path must be a non-empty string.`);
+      continue;
+    }
+    if (entry.path.startsWith('apps/lina-plugins/')) {
+      addError(
+        `${owner}.path must not point to ${entry.path}. Plugin-specific service dependency baselines belong under apps/lina-plugins/<plugin-id>/hack/tests/config/.`,
+      );
+    }
+  }
+}
 
 function entryExistsOrResolves(entry) {
   if (listTcFiles(entry).length > 0) {
@@ -151,6 +227,9 @@ function isPluginScope(scope, entries) {
   return scope === pluginTestEntry || entries.some((entry) => isPluginEntry(entry));
 }
 
+validateRootManifestPluginEntries();
+validateRootServiceDependencyBaseline();
+
 for (const directory of legacyPluginE2EDirs) {
   const relativePath = pluginTestRelativePath(directory);
   addError(
@@ -164,20 +243,26 @@ for (const file of allFiles) {
     continue;
   }
 
+  if (legacyGlobalTcFilePattern.test(file)) {
+    addError(`Legacy global four-digit TC filename found: ${file}. Use module-local TC001 style numbering.`);
+    continue;
+  }
+
   if (!isHostTcFile(file) && !isPluginTcFile(file)) {
     addError(`Non-test file found under e2e: ${file}`);
     continue;
   }
 
   testFiles.push(file);
-  const tcId = file.match(/TC(\d{4})/u)?.[1];
+  const tcId = file.match(/TC(\d{3})/u)?.[1];
   if (!tcId) {
     addError(`Unable to parse TC ID from ${file}`);
     continue;
   }
-  const items = tcRegistry.get(tcId) ?? [];
+  const directory = path.posix.dirname(file);
+  const items = tcRegistryByDirectory.get(directory) ?? [];
   items.push(file);
-  tcRegistry.set(tcId, items);
+  tcRegistryByDirectory.set(directory, items);
 
   if (!allowedFiles.has(file)) {
     addError(`File is not under an allowed module scope: ${file}`);
@@ -191,19 +276,60 @@ for (const file of allFiles) {
   }
 }
 
-for (const [tcId, files] of tcRegistry.entries()) {
-  if (files.length > 1) {
-    addError(`Duplicate TC${tcId}: ${files.join(', ')}`);
+for (const [directory, files] of tcRegistryByDirectory.entries()) {
+  const seen = new Map();
+  const parsed = files
+    .map((file) => {
+      const tcId = file.match(/TC(\d{3})/u)?.[1] ?? '';
+      return {
+        file,
+        number: Number.parseInt(tcId, 10),
+      };
+    })
+    .sort((left, right) => left.number - right.number || left.file.localeCompare(right.file));
+
+  for (const item of parsed) {
+    const duplicates = seen.get(item.number) ?? [];
+    duplicates.push(item.file);
+    seen.set(item.number, duplicates);
+  }
+
+  for (const [number, duplicates] of seen.entries()) {
+    if (duplicates.length > 1) {
+      addError(`Duplicate TC${String(number).padStart(3, '0')} in ${directory}: ${duplicates.join(', ')}`);
+    }
+  }
+
+  for (let index = 0; index < parsed.length; index += 1) {
+    const expected = index + 1;
+    if (parsed[index].number !== expected) {
+      addError(
+        `Module-local TC numbering must be continuous in ${directory}: expected TC${String(expected).padStart(3, '0')} but found ${parsed[index].file}.`,
+      );
+      break;
+    }
   }
 }
 
 for (const [scope, entries] of Object.entries(manifest.moduleScopes)) {
+  if (scope.startsWith('host:') && moduleRequiresPluginWorkspace(scope, manifest)) {
+    addError(`Host-prefixed module scope must not require apps/lina-plugins: ${scope}`);
+  }
   if (!pluginWorkspaceReady && isPluginScope(scope, entries)) {
     continue;
   }
   const files = entries.flatMap((entry) => listTcFiles(entry));
   if (files.length === 0 && scope !== pluginTestEntry) {
     addError(`Module scope has no matching test files: ${scope}`);
+  }
+}
+
+for (const file of rootGovernanceFiles) {
+  const source = readFileSync(path.resolve(testsDir, file), 'utf8');
+  if (forbiddenRootPluginIdPattern?.test(source)) {
+    addError(
+      `Root E2E asset references an official source plugin ID: ${file}. Move plugin-specific coverage to apps/lina-plugins/<plugin-id>/hack/tests/.`,
+    );
   }
 }
 

@@ -3,7 +3,7 @@
 
 package sqltable
 
-import "github.com/gogf/gf/v2/os/gtime"
+import "time"
 
 // OwnerType identifies the business scope that owns one cache entry.
 type OwnerType string
@@ -47,7 +47,7 @@ type Item struct {
 	// IntValue is the integer payload of the cache entry.
 	IntValue int64
 	// ExpireAt is the optional expiration time.
-	ExpireAt *gtime.Time
+	ExpireAt *time.Time
 }
 
 // String returns the canonical owner type value.

@@ -12,6 +12,8 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
+	"lina-core/pkg/apitime"
 	"lina-core/pkg/bizerr"
 )
 
@@ -56,14 +58,6 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 func (s *serviceImpl) BuildTree(list []*entity.SysMenu) []*MenuItem {
 	nodeMap := make(map[int]*MenuItem)
 	for _, m := range list {
-		createdAt := ""
-		if m.CreatedAt != nil {
-			createdAt = m.CreatedAt.String()
-		}
-		updatedAt := ""
-		if m.UpdatedAt != nil {
-			updatedAt = m.UpdatedAt.String()
-		}
 		nodeMap[m.Id] = &MenuItem{
 			Id:         m.Id,
 			ParentId:   m.ParentId,
@@ -81,8 +75,8 @@ func (s *serviceImpl) BuildTree(list []*entity.SysMenu) []*MenuItem {
 			IsCache:    m.IsCache,
 			QueryParam: m.QueryParam,
 			Remark:     m.Remark,
-			CreatedAt:  createdAt,
-			UpdatedAt:  updatedAt,
+			CreatedAt:  apitime.Milli(m.CreatedAt),
+			UpdatedAt:  apitime.Milli(m.UpdatedAt),
 			Children:   make([]*MenuItem, 0),
 		}
 	}
@@ -126,6 +120,9 @@ func (s *serviceImpl) GetParentName(ctx context.Context, parentId int) string {
 
 // Create creates a new menu.
 func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
+	if err := s.ensurePlatformMenuGovernance(ctx); err != nil {
+		return 0, err
+	}
 	if err := s.checkNameUnique(ctx, in.Name, in.ParentId, 0); err != nil {
 		return 0, err
 	}
@@ -157,6 +154,9 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 
 // Update updates menu information.
 func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
+	if err := s.ensurePlatformMenuGovernance(ctx); err != nil {
+		return err
+	}
 	menu, err := s.GetById(ctx, in.Id)
 	if err != nil {
 		return err
@@ -240,6 +240,9 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 
 // Delete deletes a menu.
 func (s *serviceImpl) Delete(ctx context.Context, in DeleteInput) error {
+	if err := s.ensurePlatformMenuGovernance(ctx); err != nil {
+		return err
+	}
 	if _, err := s.GetById(ctx, in.Id); err != nil {
 		return err
 	}
@@ -282,6 +285,10 @@ func (s *serviceImpl) GetTreeSelect(ctx context.Context) ([]*MenuTreeNode, error
 	if err != nil {
 		return nil, err
 	}
+	list, err = s.roleSvc.FilterAssignableMenus(ctx, list)
+	if err != nil {
+		return nil, err
+	}
 	s.localizeMenuEntities(ctx, list)
 	return s.buildPermissionTreeNodes(ctx, list), nil
 }
@@ -294,13 +301,19 @@ func (s *serviceImpl) GetRoleMenuTree(ctx context.Context, roleId int) (*RoleMen
 	}
 	rmCols := dao.SysRoleMenu.Columns()
 	var roleMenus []*entity.SysRoleMenu
-	err = dao.SysRoleMenu.Ctx(ctx).Where(rmCols.RoleId, roleId).Scan(&roleMenus)
+	model := dao.SysRoleMenu.Ctx(ctx).Where(rmCols.RoleId, roleId)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err = model.Scan(&roleMenus)
 	if err != nil {
 		return nil, err
 	}
 	checkedKeys := make([]int, 0, len(roleMenus))
 	for _, rm := range roleMenus {
 		checkedKeys = append(checkedKeys, rm.MenuId)
+	}
+	checkedKeys, err = s.roleSvc.FilterAssignableMenuIDs(ctx, checkedKeys)
+	if err != nil {
+		return nil, err
 	}
 	return &RoleMenuTreeOutput{Menus: menus, CheckedKeys: checkedKeys}, nil
 }

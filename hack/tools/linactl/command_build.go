@@ -1,4 +1,4 @@
-// This file implements build and image command orchestration.
+// This file implements the build command for frontend assets and host binaries.
 
 package main
 
@@ -11,7 +11,9 @@ import (
 	"runtime"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"linactl/internal/config"
+	"linactl/internal/fileutil"
+	"linactl/internal/toolutil"
 )
 
 // runBuild builds frontend assets, plugin artifacts, and host binaries.
@@ -51,7 +53,7 @@ func runBuild(ctx context.Context, a *app, input commandInput) error {
 		cgoEnabled = "1"
 	}
 	if raw := input.Get("cgo_enabled"); raw != "" {
-		enabled, parseErr := parseBool(raw, false)
+		enabled, parseErr := toolutil.ParseBool(raw, false)
 		if parseErr != nil {
 			return parseErr
 		}
@@ -85,7 +87,7 @@ func runBuild(ctx context.Context, a *app, input commandInput) error {
 	if err = os.MkdirAll(embedDir, 0o755); err != nil {
 		return fmt.Errorf("create frontend embed directory: %w", err)
 	}
-	if err = copyDirContents(filepath.Join(a.root, "apps", "lina-vben", "apps", "web-antd", "dist"), embedDir); err != nil {
+	if err = fileutil.CopyDirContents(filepath.Join(a.root, "apps", "lina-vben", "apps", "web-antd", "dist"), embedDir); err != nil {
 		return err
 	}
 	fmt.Fprintln(a.stdout, "Host frontend embedded assets generated")
@@ -103,71 +105,27 @@ func runBuild(ctx context.Context, a *app, input commandInput) error {
 
 	multiPlatform := len(targets) > 1
 	for _, target := range targets {
-		targetBinary := filepath.Join(outputDir, executableName(binaryName))
+		targetBinary := filepath.Join(outputDir, toolutil.ExecutableName(binaryName))
 		if multiPlatform {
-			targetBinary = filepath.Join(outputDir, target.OS+"_"+target.Arch, executableName(binaryName))
+			targetBinary = filepath.Join(outputDir, target.OS+"_"+target.Arch, toolutil.ExecutableName(binaryName))
 		}
 		if err = os.MkdirAll(filepath.Dir(targetBinary), 0o755); err != nil {
 			return fmt.Errorf("create backend output directory: %w", err)
 		}
 		fmt.Fprintf(a.stdout, "Building backend for %s/%s...\n", target.OS, target.Arch)
-		targetEnv := setEnvValue(setEnvValue(setEnvValue(env, "CGO_ENABLED", cgoEnabled), "GOOS", target.OS), "GOARCH", target.Arch)
+		targetEnv := toolutil.SetEnvValue(toolutil.SetEnvValue(toolutil.SetEnvValue(env, "CGO_ENABLED", cgoEnabled), "GOOS", target.OS), "GOARCH", target.Arch)
 		err = a.runCommand(ctx, commandOptions{Dir: filepath.Join(a.root, "apps", "lina-core"), Env: targetEnv, Quiet: !verbose}, "go", "build", "-o", targetBinary, ".")
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(a.stdout, "Build complete: %s\n", relativePath(a.root, targetBinary))
+		fmt.Fprintf(a.stdout, "Build complete: %s\n", toolutil.RelativePath(a.root, targetBinary))
 	}
 	return nil
 }
 
-// runImage builds and optionally pushes a production Docker image.
-func runImage(ctx context.Context, a *app, input commandInput) error {
-	if err := runImageBuilder(ctx, a, input, "--preflight"); err != nil {
-		return err
-	}
-	if err := runBuild(ctx, a, input); err != nil {
-		return err
-	}
-	return runImageBuilder(ctx, a, input)
-}
-
-// runImageBuild stages image build artifacts without running docker build.
-func runImageBuild(ctx context.Context, a *app, input commandInput) error {
-	if err := runBuild(ctx, a, input); err != nil {
-		return err
-	}
-	return runImageBuilder(ctx, a, input, "--build-only")
-}
-
 // loadRootConfig loads repository tool defaults from hack/config.yaml.
-func loadRootConfig(root string, input commandInput) (rootConfig, error) {
-	cfg := rootConfig{
-		Build: buildConfig{
-			Platforms:  []string{"auto"},
-			CGOEnabled: false,
-			OutputDir:  filepath.Join("temp", "output"),
-			BinaryName: "lina",
-		},
-		Image: imageConfig{
-			Name:       "linapro",
-			BaseImage:  "alpine:3.22",
-			Dockerfile: filepath.Join("hack", "docker", "Dockerfile"),
-		},
-	}
-
-	configPath := input.GetDefault("config", filepath.Join("hack", "config.yaml"))
-	if !filepath.IsAbs(configPath) {
-		configPath = filepath.Join(root, configPath)
-	}
-	content, err := os.ReadFile(configPath)
-	if err != nil {
-		return cfg, fmt.Errorf("read config %s: %w", configPath, err)
-	}
-	if err = yaml.Unmarshal(content, &cfg); err != nil {
-		return cfg, fmt.Errorf("parse config %s: %w", configPath, err)
-	}
-	return cfg, nil
+func loadRootConfig(root string, input commandInput) (config.Root, error) {
+	return config.Load(root, input.GetDefault("config", filepath.Join("hack", "config.yaml")))
 }
 
 // normalizePlatforms parses build platform strings into Go target tuples.
@@ -199,32 +157,4 @@ func normalizePlatforms(defaults []string, override string) ([]targetPlatform, e
 		return nil, errors.New("no build platforms configured")
 	}
 	return targets, nil
-}
-
-// runImageBuilder invokes the existing image-builder tool with shared arguments.
-func runImageBuilder(ctx context.Context, a *app, input commandInput, extra ...string) error {
-	args := []string{"run", "./hack/tools/image-builder"}
-	args = append(args, extra...)
-	for _, item := range imageBuilderArgs(input) {
-		args = append(args, item)
-	}
-	return a.runCommand(ctx, commandOptions{Dir: a.root}, "go", args...)
-}
-
-// imageBuilderArgs maps linactl parameters to image-builder flags.
-func imageBuilderArgs(input commandInput) []string {
-	known := []string{"image", "tag", "registry", "push", "platforms", "cgo_enabled", "output_dir", "binary_name", "base_image", "config", "verbose", "v"}
-	var args []string
-	for _, key := range known {
-		value, exists := input.Params[key]
-		if !exists || value == "" {
-			continue
-		}
-		flagName := strings.ReplaceAll(key, "_", "-")
-		if key == "v" {
-			flagName = "verbose"
-		}
-		args = append(args, "--"+flagName+"="+value)
-	}
-	return args
 }

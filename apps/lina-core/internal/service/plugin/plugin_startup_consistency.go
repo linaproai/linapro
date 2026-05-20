@@ -82,13 +82,13 @@ func (s *serviceImpl) validatePluginStartupConsistency(ctx context.Context) ([]s
 }
 
 // validateTenantProviderStartupConsistency verifies the tenant capability
-// provider is registered when the multi-tenant plugin is enabled.
+// provider is registered when the linapro-tenant-core plugin is enabled.
 func (s *serviceImpl) validateTenantProviderStartupConsistency(ctx context.Context) ([]string, error) {
 	enabled := s.IsEnabled(ctx, pkgtenantcap.ProviderPluginID)
 	if !enabled || pkgtenantcap.HasProvider() {
 		return nil, nil
 	}
-	return []string{"multi-tenant plugin is enabled but tenantcap provider is not registered"}, nil
+	return []string{"linapro-tenant-core plugin is enabled but tenantcap provider is not registered"}, nil
 }
 
 // validateTenantMembershipStartupConsistency delegates tenant membership

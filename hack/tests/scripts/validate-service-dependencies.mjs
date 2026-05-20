@@ -111,8 +111,15 @@ function parseCriticalImports(source) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function explicitConstructorCall(line, name, method) {
+function explicitConstructorCall(line, name, method, importPath) {
   if (method.includes('WithDependencies') || method.startsWith('NewWith')) {
+    return true;
+  }
+  const allowedPackageConstructors = new Set([
+    'lina-core/internal/service/plugin/internal/dependency#New',
+    'lina-core/pkg/pluginservice/config#New',
+  ]);
+  if (allowedPackageConstructors.has(`${importPath}#${method}`)) {
     return true;
   }
   const allowedExactConstructors = new Set([
@@ -121,13 +128,26 @@ function explicitConstructorCall(line, name, method) {
     'NewDBStore',
     'NewGlobalMiddlewareRegistrar',
     'NewHTTPRegistrar',
+    'NewHookPayload',
+    'NewHookPayloadWithServices',
     'NewLocalStorage',
+    'NewManifestSnapshot',
+    'NewMenuDescriptor',
+    'NewOwnerToken',
+    'NewPermissionDescriptor',
     'NewRedis',
     'NewRouteMiddlewares',
     'NewRouteRegistrar',
     'NewScheduler',
     'NewSQLTableProvider',
     'NewSourcePlugin',
+    'NewSourcePluginInstallModeChangeInput',
+    'NewSourcePluginLifecycleCallbackAdapter',
+    'NewSourcePluginLifecycleInput',
+    'NewSourcePluginLifecycleInputWithUninstallPolicy',
+    'NewSourcePluginTenantLifecycleInput',
+    'NewSourcePluginUninstallInput',
+    'NewSourcePluginUpgradeInput',
   ]);
   if (allowedExactConstructors.has(method)) {
     return true;
@@ -162,7 +182,7 @@ function countCriticalConstructors(filePath, relativePath) {
         continue;
       }
       const method = match.groups?.method || '';
-      if (explicitConstructorCall(line, name, method)) {
+      if (explicitConstructorCall(line, name, method, importPath)) {
         continue;
       }
       if (wasmDefaultHostServiceFallback(relativePath, line)) {
@@ -180,11 +200,32 @@ function countCriticalConstructors(filePath, relativePath) {
 }
 
 function loadBaseline() {
-  const parsed = JSON.parse(
-    readFileSync(baselineOverridePath || baselinePath, 'utf8'),
-  );
-  const entries = Array.isArray(parsed.entries) ? parsed.entries : [];
+  const baselineFiles = baselineOverridePath ? [baselineOverridePath] : [
+    baselinePath,
+    ...pluginBaselinePaths(),
+  ];
+  const entries = baselineFiles.flatMap((filePath) => {
+    const parsed = JSON.parse(readFileSync(filePath, 'utf8'));
+    return Array.isArray(parsed.entries) ? parsed.entries : [];
+  });
   return new Map(entries.map((entry) => [entry.path, entry]));
+}
+
+function pluginBaselinePaths() {
+  const pluginRoot = path.resolve(repoRoot, 'apps/lina-plugins');
+  if (!exists(pluginRoot)) {
+    return [];
+  }
+  return readdirSync(pluginRoot)
+    .map((name) =>
+      path.join(
+        pluginRoot,
+        name,
+        'hack/tests/config/service-dependency-baseline.json',
+      ),
+    )
+    .filter(exists)
+    .sort();
 }
 
 function scan() {

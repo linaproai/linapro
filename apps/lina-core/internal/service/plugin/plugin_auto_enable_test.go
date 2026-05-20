@@ -30,7 +30,7 @@ func TestBootstrapAutoEnableInstallsAndEnablesSourcePlugin(t *testing.T) {
 	var (
 		ctx      = context.Background()
 		service  = newTestService()
-		pluginID = "plugin-source-auto-enable"
+		pluginID = "plugin-dev-source-auto-enable"
 		version  = "v0.1.0"
 	)
 
@@ -88,7 +88,7 @@ func TestBootstrapAutoEnableSourcePluginUpdatesStartupSnapshot(t *testing.T) {
 	var (
 		ctx      = context.Background()
 		service  = newTestService()
-		pluginID = "plugin-source-auto-enable-snapshot"
+		pluginID = "plugin-dev-source-auto-enable-snapshot"
 		version  = "v0.1.0"
 	)
 
@@ -142,7 +142,7 @@ func TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot(t *testing.T) {
 	var (
 		ctx      = context.Background()
 		service  = newTestService()
-		pluginID = "plugin-dynamic-auto-enable-auth"
+		pluginID = "plugin-dev-dynamic-auto-enable-auth"
 		version  = "v0.6.0"
 	)
 
@@ -251,7 +251,7 @@ func TestBootstrapAutoEnableRejectsDynamicPluginWithoutAuthorizationSnapshot(t *
 	var (
 		ctx      = context.Background()
 		service  = newTestService()
-		pluginID = "plugin-dynamic-auto-enable-auth-missing"
+		pluginID = "plugin-dev-dynamic-auto-enable-auth-missing"
 	)
 
 	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), runtimepkg.BuildArtifactFileName(pluginID))
@@ -310,7 +310,7 @@ func TestBootstrapAutoEnableRejectsDynamicPluginWithoutAuthorizationSnapshot(t *
 func TestBootstrapAutoEnableWaitsUntilCurrentNodeBecomesPrimary(t *testing.T) {
 	var (
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-auto-enable-cluster"
+		pluginID = "plugin-dev-dynamic-auto-enable-cluster"
 		topology = &testTopology{
 			enabled: true,
 			primary: false,
@@ -419,8 +419,8 @@ func TestBootstrapAutoEnableHonorsPerEntryMockDataOptIn(t *testing.T) {
 	var (
 		ctx              = context.Background()
 		service          = newTestService()
-		pluginIDNoMock   = "plugin-source-auto-enable-no-mock"
-		pluginIDWithMock = "plugin-source-auto-enable-with-mock"
+		pluginIDNoMock   = "plugin-dev-source-auto-enable-no-mock"
+		pluginIDWithMock = "plugin-dev-source-auto-enable-with-mock"
 		mockTable        = "plugin_source_auto_enable_with_mock_demo"
 		version          = "v0.1.0"
 	)
@@ -497,7 +497,7 @@ func TestBootstrapAutoEnableHonorsPerEntryMockDataOptIn(t *testing.T) {
 
 // TestReconcileAutoEnabledTenantPluginsProvisionsTenantScopedEntries verifies
 // startup auto-enable bridges host-level plugin enablement into tenant-scoped
-// provisioning after the multi-tenant provider has registered.
+// provisioning after the linapro-tenant-core provider has registered.
 func TestReconcileAutoEnabledTenantPluginsProvisionsTenantScopedEntries(t *testing.T) {
 	var (
 		ctx      = context.Background()
@@ -561,7 +561,7 @@ func TestReconcileAutoEnabledTenantPluginsProvisionsTenantScopedEntries(t *testi
 
 // autoEnableTenantProvisioningPluginID is the fixture plugin owned by the
 // startup tenant provisioning test.
-const autoEnableTenantProvisioningPluginID = "plugin-auto-enable-tenant-provisioning"
+const autoEnableTenantProvisioningPluginID = "plugin-dev-auto-enable-tenant-provisioning"
 
 // autoEnableTenantProvisioningService is a narrow tenantcap fake for startup
 // auto-enable provisioning tests.
@@ -607,17 +607,6 @@ func (s *autoEnableTenantProvisioningService) ResolveTenant(
 	*ghttp.Request,
 ) (*pkgtenantcap.ResolverResult, error) {
 	return &pkgtenantcap.ResolverResult{TenantID: s.tenantID, Matched: true}, nil
-}
-
-// ReadWithPlatformFallback is unused by auto-enable provisioning tests.
-func (s *autoEnableTenantProvisioningService) ReadWithPlatformFallback(
-	ctx context.Context,
-	scanner tenantcapsvc.FallbackScanner[any],
-) ([]any, error) {
-	if scanner == nil {
-		return nil, nil
-	}
-	return scanner(ctx, s.tenantID)
 }
 
 // ApplyUserTenantScope is unused by auto-enable provisioning tests.

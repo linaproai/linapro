@@ -2,19 +2,19 @@
 
 ## Purpose
 
-定义 `monitor-loginlog` 源码插件承担的登录日志自动记录、查询、清理和导出行为，确保系统能够跟踪、审计和分析认证成功与失败。
+定义 `linapro-monitor-loginlog` 源码插件承担的登录日志自动记录、查询、清理和导出行为，确保系统能够跟踪、审计和分析认证成功与失败。
 
 ## Requirements
 ### Requirement:登录日志自动记录
-系统 SHALL 在登录成功、登录失败和成功退出等认证生命周期节点自动发出统一登录事件。当 `monitor-loginlog` 已安装并启用时，插件订阅事件并将日志持久化到 `plugin_monitor_loginlog` 表；当插件不可用时，宿主认证链路仍正常执行。
+系统 SHALL 在登录成功、登录失败和成功退出等认证生命周期节点自动发出统一登录事件。当 `linapro-monitor-loginlog` 已安装并启用时，插件订阅事件并将日志持久化到 `plugin_linapro_monitor_loginlog` 表；当插件不可用时，宿主认证链路仍正常执行。
 
 #### Scenario:登录日志插件已启用
-- **当** 用户成功登录、登录失败或成功退出，且 `monitor-loginlog` 已安装并启用时
+- **当** 用户成功登录、登录失败或成功退出，且 `linapro-monitor-loginlog` 已安装并启用时
 - **则** 宿主发出统一登录事件
-- **且** `monitor-loginlog` 订阅事件后写入对应的登录日志记录
+- **且** `linapro-monitor-loginlog` 订阅事件后写入对应的登录日志记录
 
 #### Scenario:登录日志插件缺失或禁用
-- **当** 用户成功登录、登录失败或成功退出，但 `monitor-loginlog` 未安装、未启用或初始化失败时
+- **当** 用户成功登录、登录失败或成功退出，但 `linapro-monitor-loginlog` 未安装、未启用或初始化失败时
 - **则** 宿主仍正常返回认证结果
 - **且** 宿主不因缺少特定登录日志实现而返回错误
 
@@ -73,7 +73,7 @@
 - **则** 返回包含所有符合条件登录日志的 xlsx 文件
 
 ### Requirement:登录日志前端页面
-系统 SHALL 通过 `monitor-loginlog` 源码插件在前端系统监控菜单下提供登录日志管理页面。
+系统 SHALL 通过 `linapro-monitor-loginlog` 源码插件在前端系统监控菜单下提供登录日志管理页面。
 
 #### Scenario:登录日志列表页
 - **当** 管理员访问登录日志页面时
@@ -93,14 +93,14 @@
 
 ### Requirement:登录日志管理接口由源码插件交付
 
-系统 SHALL 将登录日志查询、详情、导出、清理和页面能力作为 `monitor-loginlog` 源码插件交付。
+系统 SHALL 将登录日志查询、详情、导出、清理和页面能力作为 `linapro-monitor-loginlog` 源码插件交付。
 
 #### Scenario:插件启用时暴露管理入口
-- **当** `monitor-loginlog` 已安装并启用时
+- **当** `linapro-monitor-loginlog` 已安装并启用时
 - **则** 宿主暴露登录日志查询、详情、导出、清理接口和前端页面
 - **且** 插件菜单挂载到宿主 `系统监控` 目录，顶层 `parent_key` 为 `monitor`
 
 #### Scenario:插件缺失时隐藏管理入口
-- **当** `monitor-loginlog` 未安装或未启用时
+- **当** `linapro-monitor-loginlog` 未安装或未启用时
 - **则** 宿主不显示登录日志菜单和页面入口
 - **且** 登录和退出流程继续正常运行

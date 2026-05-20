@@ -29,20 +29,20 @@ func (c *ControllerV1) Frontend(ctx context.Context, _ *v1.FrontendReq) (res *v1
 			PageTitle:     c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthPageTitle, "publicFrontend.auth.pageTitle", cfg.Auth.PageTitle),
 			PageDesc:      c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthPageDesc, "publicFrontend.auth.pageDesc", cfg.Auth.PageDesc),
 			LoginSubtitle: c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthLoginSubtitle, "publicFrontend.auth.loginSubtitle", cfg.Auth.LoginSubtitle),
-			PanelLayout:   string(cfg.Auth.PanelLayout),
+			PanelLayout:   v1.PanelLayout(cfg.Auth.PanelLayout),
 		},
 		User: v1.FrontendUserRes{
 			DefaultAvatar: cfg.User.DefaultAvatar,
 		},
 		UI: v1.FrontendUIRes{
-			ThemeMode:        cfg.UI.ThemeMode,
-			Layout:           cfg.UI.Layout,
+			ThemeMode:        v1.ThemeMode(cfg.UI.ThemeMode),
+			Layout:           v1.Layout(cfg.UI.Layout),
 			WatermarkEnabled: cfg.UI.WatermarkEnabled,
 			WatermarkContent: c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyUIWatermarkContent, "publicFrontend.ui.watermarkContent", cfg.UI.WatermarkContent),
 		},
 		Cron: v1.FrontendCronRes{
 			LogRetention: v1.FrontendCronLogRetentionRes{
-				Mode:  string(cfg.Cron.LogRetention.Mode),
+				Mode:  v1.CronLogRetentionMode(cfg.Cron.LogRetention.Mode),
 				Value: cfg.Cron.LogRetention.Value,
 			},
 			Shell: v1.FrontendCronShellRes{

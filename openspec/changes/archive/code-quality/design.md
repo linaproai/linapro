@@ -1,6 +1,6 @@
 ## Context
 
-This change originated from a full-repository code review that identified systematic deviations across GoFrame v2 conventions, REST API consistency, production `panic` discipline, transactional correctness, SQL performance, and host runtime operability. The deviations were already affecting development quality, causing runtime risks, and creating friction in OpenSpec validation and archival workflows.
+This change originated from a full-repository code review that identified systematic deviations across GoFrame v2 conventions, REST API consistency, production `panic` discipline, transactional correctness, SQL performance, host runtime operability, backend source readability, service dependency management, API response safety, and startup efficiency. The deviations were already affecting development quality, causing runtime risks, and creating friction in OpenSpec validation and archival workflows.
 
 The project is new and has no legacy burden. SQL can be modified in place and verified by `make init`. Internal function signatures, call chains, and tests can be adjusted directly without backward compatibility concerns.
 
@@ -8,12 +8,15 @@ The project is new and has no legacy burden. SQL can be modified in place and ve
 
 **Goals:**
 
-- Establish a GoFrame v2 compliance baseline covering ORM usage, soft-delete, controller/service layer patterns, and panic governance.
-- Unify REST API contracts with consistent path parameter binding, HTTP method semantics, and comprehensive documentation tags.
+- Establish a GoFrame v2 compliance baseline covering ORM usage, soft-delete, controller/service layer patterns, panic governance, and main-file responsibility.
+- Unify REST API contracts with consistent path parameter binding, HTTP method semantics, comprehensive documentation tags, timestamp contracts, response DTO hardening, and enum contract abstraction.
 - Fix transactional correctness in user, role, and menu deletion plus role-user assignment flows.
 - Add SQL indexes for common query paths and align dictionary table soft-delete behavior.
 - Add host runtime operations: health probe, graceful shutdown, protected upload routes, and configurable scheduler defaults.
 - Improve frontend performance through visibility-aware polling, bounded caching, and optimized language switching.
+- Optimize startup SQL efficiency by reusing shared startup context, eliminating no-op transactions, and providing structured startup summary logging.
+- Enforce explicit service dependency injection across host, source plugins, and WASM host services.
+- Enforce backend source readability through main-file responsibility, interface method comments, and file-level comments.
 - Provide a repeatable validation framework for ongoing compliance.
 
 **Non-Goals:**
@@ -24,20 +27,33 @@ The project is new and has no legacy burden. SQL can be modified in place and ve
 - No full rewrite of all historical modules; changes are batched by risk and benefit.
 - No audit-log modeling, API rate limiting, TraceID middleware, or DI containerization.
 - No dictionary-management spec changes; the spec is already correct and only SQL implementation needs alignment.
+- No static scanning tool for timestamp contracts or API DTO entity exposure (manual review gate used instead).
 
 ## Decisions
 
-### D1: ORM and soft-delete conformance
+### API Response DTO Hardening
+
+API responses previously embedded database entities directly (e.g., `entity.SysUser`, `entity.SysFile`), exposing passwords, soft-delete timestamps, storage paths, hashes, and internal tenant fields. All host and source-plugin API response DTOs were replaced with explicit response structs containing only permitted fields. Controllers perform field-by-field mapping at the response boundary. Source-plugin DTOs migrated from `*Entity` naming to independent response DTOs. Plugin API contract tests migrated from aggregate root to each plugin's own test directory.
+
+### API Timestamp Contract
+
+Public HTTP JSON response DTO fields representing exact instants use `int64` or `*int64` carrying Unix timestamps in milliseconds. This rule applies only at the API response DTO boundary; internal `dao`, `entity`, `do`, and `service` models continue using Go time types. Calendar-date fields such as `birthday` may use `YYYY-MM-DD` strings with `date-only` documentation. Existing host and source-plugin instant fields were migrated through `apps/lina-core/pkg/apitime`. GoFrame DAO generation configured with `stdTime: true` to use `*time.Time` internally. Manual review gate added to `lina-review`; no static scanner introduced.
+
+### API Enum Contracts
+
+Cross-module stable enum values were abstracted into small public contract components following a Kubernetes-style contract ownership strategy: `pkg/listorder` (sort direction), `pkg/tenantoverride` (tenant override mode), `pkg/statusflag` (common 0/1 flags). Existing stable contracts (`pkg/menutype`, `pkg/pluginbridge`) are reused directly. Domain-private enums remain in their respective packages. External JSON field names, values, and defaults remain unchanged. No large unified `pkg/enums` package was created.
+
+### ORM and Soft-Delete Conformance
 
 GoFrame automatically handles `created_at`, `updated_at`, and `deleted_at` for tables that include these fields. Production code must not manually set these fields or write `WhereNull(deleted_at)` conditions. All database write operations use DO objects rather than `g.Map`.
 
 Dictionary tables (`sys_dict_type`, `sys_dict_data`) receive `deleted_at DATETIME DEFAULT NULL` to align with the existing `dict-management` spec and other business tables. This preserves audit recovery for widely-referenced dictionary data.
 
-### D2: REST path parameter binding unification
+### REST Path Parameter Binding Unification
 
-`g.Meta` uses `{param}` syntax for path parameters. Input DTO fields use `json:"param"` tags for both path and query parameters, eliminating mixed `p:`/`json:` tag usage across the repository. Output DTOs continue using `json` tags. This simplifies Swagger documentation, controller implementation, and frontend calls.
+`g.Meta` uses `{param}` syntax for path parameters. Input DTO fields use `json:"param"` tags for both path and query parameters, eliminating mixed `p:`/`json:` tag usage across the repository. Output DTOs continue using `json` tags.
 
-### D3: Production panic governance
+### Production Panic Governance
 
 A repository-wide panic ban was considered but rejected because it would reduce diagnostics for startup configuration, DB driver registration, and source-plugin contract failures. Instead, an allowlist approach defines five permitted categories:
 
@@ -49,25 +65,15 @@ A repository-wide panic ban was considered but rejected because it would reduce 
 
 Runtime paths (Excel helpers, resource closing, configuration parsing, dynamic plugin normalization) are converted to explicit `error` returns. A static check scans production Go files and requires every `panic(` call site to match the allowlist with a documented category and reason.
 
-**Excel coordinate helpers**: The previous `cellName(col, row) string` helper could only panic. Implementation prefers direct calls like `excelutil.SetCellValue(file, sheet, col, row, value)` and returns `(string, error)` where an A1 coordinate string is needed.
+Initialization and registration APIs (plugin host registration, registrar, callback registration, route/Cron/middleware registration) must return `error` to callers; only top-level static registration entry points may `panic` after receiving errors.
 
-**Dynamic plugin hostServices**: `NormalizeHostServiceSpecs` is split into `NormalizeHostServiceSpecsE` returning `([]*HostServiceSpec, error)` for dynamic input paths, and `MustNormalizeHostServiceSpecs` for compile-time constant paths.
-
-**Runtime configuration reads**: Invalid values in read snapshots (from manual SQL, external writes, or cache pollution) return `error` instead of panicking or silently degrading. Write paths maintain strict validation via `ValidateProtectedConfigValue`.
-
-### D4: Transactional correctness
+### Transactional Correctness
 
 User, role, and menu deletion with association cleanup are placed in single `dao.Xxx.Transaction` closures. Any failure inside the transaction returns the error and rolls back. Notifications like `NotifyAccessTopologyChanged` run after commit. The previous pattern of logging warnings and continuing produced orphaned data on partial failures.
 
-**Why not only add retries:** retries do not provide atomicity, and association cleanup failures usually indicate external state problems. Rolling back is safer than repeatedly logging warnings.
-
-**Alternative:** compensation transactions or Saga. That is overdesigned for this project scale; GoFrame transaction closures cover the need.
-
 `AssignUsers` collects new associations into `[]do.SysUserRole` and executes one `Insert(slice)` inside a transaction, replacing per-row inserts with swallowed `Warningf` failures.
 
-**Why not chunking:** one assignment operation is constrained by UI selection size. At the expected scale under 1000 rows, one insert has comparable cost and keeps the transaction simpler.
-
-### D5: SQL indexes and foreign-key replacement
+### SQL Indexes and Foreign-Key Replacement
 
 | Table | Change | Reason |
 |---|---|---|
@@ -78,20 +84,11 @@ User, role, and menu deletion with association cleanup are placed in single `dao
 | `sys_dict_type` / `sys_dict_data` | `deleted_at DATETIME DEFAULT NULL` | Align soft-delete with other business tables |
 | `sys_job` | Remove `fk_sys_job_group_id`, add `KEY idx_group_id` | Application-level consistency, reduce FK lock overhead |
 
-The project SQL style uses `KEY` rather than `INDEX`, so all additions follow the existing convention.
-
-**Why soft delete for dictionary tables instead of hard delete:**
-
-1. The `dict-management` spec already declares `deleted_at` in the table design.
-2. Dictionary types and data are widely referenced. Hard deletion can make historic logs lose label interpretation, while soft delete preserves audit recovery.
-
-### D6: Menu `isDescendant` uses in-memory traversal
+### Menu isDescendant Uses In-Memory Traversal
 
 Load all menus once with `dao.SysMenu.Ctx(ctx).Scan(&all)`, build `parentChildren := map[int][]int`, and run BFS to determine subtree membership. Complexity changes from per-depth SQL round trips to one `O(N)` load and in-memory traversal. Menu count is far below 1000; memory cost is negligible.
 
-**Why not add an explicit path column:** that requires maintaining path data in every create and move API, expanding the scope. Current data size does not justify a path-column design over in-memory traversal.
-
-### D7: RESTful batch delete design
+### RESTful Batch Delete Design
 
 ```
 DELETE /api/v1/user?ids=1&ids=2&ids=3
@@ -103,38 +100,66 @@ DELETE /api/v1/role?ids=1&ids=2&ids=3
 - Service `BatchDelete` reuses all single-delete protections in one transaction. Any `bizerr` rejects the whole batch.
 - Frontend replaces loop-over-single-delete with one batch API call.
 
-**Why not forward to the single-delete API:** that would still create N transactions and cannot guarantee whole-batch rollback.
-
-**Why query parameters instead of a body:** this matches the project style for query-string resource selection and keeps the `DELETE` semantics bodyless with good browser and middleware compatibility.
-
-### D8: Health probe and graceful shutdown
+### Health Probe and Graceful Shutdown
 
 **Health probe**: Public `GET /api/v1/health` runs `dao.SysUser.Ctx(ctx).Limit(1).Count()` as a DB probe. Returns `200 {status:"ok", mode:"<single|master|slave>"}` when healthy, `503` when unavailable. Timeout controlled by `health.timeout` (default `5s`). Internal errors logged but not exposed to anonymous callers.
 
 **Graceful shutdown**: Uses GoFrame `Server.Run()` built-in signal handling. `cmd_http.go` no longer registers `os/signal`. After `Server.Run()` returns, cleanup runs in order: cron scheduler stop, cluster service stop, database pool close, bounded by `shutdown.timeout` (default `30s`).
 
-### D9: Upload route protection
+### Upload Route Protection
 
 `GET /api/v1/uploads/*` moves into `api/file/v1` and `internal/controller/file`, mounted under the protected route group with Auth and Permission middleware. Permission tag reuses `system:file:download`. The controller queries file metadata from the relative storage path and reads streams through the file service storage backend, not by concatenating local paths.
 
-**Why not signed-on-demand links:** accessing uploaded files is a business action that should go through unified authorization and audit. Signed URL mode is out of scope. Anonymous access remains reserved for explicitly public download scenarios, which are not required now.
-
-### D10: Configurable scheduler timezone
+### Configurable Scheduler Timezone
 
 `defaultManagedJobTimezone` is no longer hard-coded. It reads from configuration key `scheduler.defaultTimezone` and defaults to `UTC`. `config.template.yaml` adds the key with English comments.
 
-### D11: Service interface decomposition
+### Service Interface Decomposition
 
 `config.Service` embeds narrower category interfaces for cluster, auth, login, frontend, i18n, cron, host runtime, delivery metadata, plugin, upload, and runtime parameter synchronization. `middleware.Service` splits into `HTTPMiddleware` and `RuntimeSupport`. These do not change runtime behavior.
 
-### D12: Frontend polling and caching optimizations
+### Startup SQL Optimization
+
+**Shared startup context**: A `StartupContext` created once per HTTP startup orchestration carries catalog, integration, and job startup snapshots plus a statistics collector. `BootstrapAutoEnable`, plugin HTTP route registration, runtime frontend prewarm, and cron builtin sync all reuse this context. Snapshots are scoped to one startup orchestration and do not cross requests or processes.
+
+**No-op fast path**: Plugin manifest synchronization is split into two steps: (1) compute expected projections, (2) compare with startup snapshot current projections. Only when differences exist does the system enter a transaction, write, or post-write read. Menu synchronization uses `PluginMenusMatch` or equivalent comparison to avoid empty transactions.
+
+**Post-write snapshot update**: Insert paths use `InsertAndGetId` to construct entity and update snapshot. Update paths use `existing + data` to synthesize latest entity. Only database-default, auto-timestamp, or complex trigger results require post-write reads.
+
+**Builtin job deduplication**: Cron startup uses `SyncBuiltinJobs`-returned projection snapshots to call `RegisterJobSnapshot`; persistent scheduler startup scan excludes `is_builtin=1` jobs.
+
+**Structured startup summary**: After startup completes, a summary log records plugin scan count, sync change count, no-op plugin count, snapshot construction count, builtin job projection count, and phase durations. No full SQL text is included.
+
+### Explicit Service Dependency Injection
+
+**Explicit constructor parameters**: All production backend components receive interface-typed dependencies as individual constructor parameters. Aggregate dependency structs (`Dependencies`, `Deps`, `Options`) are prohibited for interface-typed runtime dependencies. Pure value configuration structs (strings, booleans, `time.Duration`) are allowed but must not mix in interface-typed dependencies.
+
+**Existing startup orchestration as construction boundary**: `cmd_http_runtime.go` constructs long-lifecycle services. `cmd_http_routes.go` constructs and binds host Controllers. `pluginhost` registrar exposes host-published dependencies to source plugins. WASM host services receive shared services during plugin runtime construction.
+
+**Cache-sensitive instance sharing**: Auth, session, role, plugin, config, i18n, cachecoord, kvcache, locker, notify, and host service adapters must share startup-period instances. The determination criterion is whether the component holds caches, derived state, subscription state, session/token state, plugin enabled snapshots, runtime config snapshots, permission snapshots, or cross-instance coordination dependencies.
+
+**Source plugin registrar pattern**: `pluginhost.HTTPRegistrar` and `CronRegistrar` expose a stable `HostServices` directory. Source plugin route registration obtains host-published adapters from this directory. Plugin business services receive these adapters through explicit dependency injection.
+
+**WASM host service injection**: `ConfigureXxxHostService` entry points receive shared host services from the startup path. Package-level default instances must not serve as actual runtime dependencies after production startup.
+
+### Backend Source Readability Governance
+
+**Main file as contract entry point**: Component main files (`<component>.go`) retain package comments, core types, interface definitions, implementation structs, compile-time assertions, and constructors. Business logic migrates to `<component>_<domain>.go` or `<component>_impl.go` responsibility files. This applies to host `internal/service`, source-plugin `backend/internal/service`, and `lina-core/pkg` public components.
+
+**Interface method comments as usage contracts**: Every interface method must have an adjacent comment describing function, key inputs, outputs, errors, and applicable constraints (permissions, data permissions, caching, i18n, transactions, idempotency, concurrency). Simple methods may be concise but must not just repeat the method name.
+
+**File-level comments by responsibility layer**: Main files use package comments explaining component boundary and reading entry. Non-main files use file comments (one blank line before `package`) explaining the implementation slice, main logic, and caveats.
+
+**linactl governance**: Command implementation files named `command_<command>.go` preserving dot-segment semantics. Complex shared implementations migrated to `hack/tools/linactl/internal/<component>/` sub-packages.
+
+### Frontend Polling and Caching Optimizations
 
 - **Server monitor**: `useIntervalFn` + `useDocumentVisibility` from `@vueuse/core` for 30s polling; pause while hidden, refresh on visibility restore, stop on unmount.
 - **User messages**: Same visibility-aware model for unread-count polling.
 - **Router `loadedPaths`**: Bounded LRU with limit 50; oldest entry evicted on overflow.
 - **Language switching**: Remove `refreshAccessibleState(router)`; keep `syncPublicFrontendSettings` and `useDictStore().resetCache()`. Menu titles update reactively through `meta.i18nKey` and `$t()`.
 
-### D13: Stale package cleanup
+### Stale Package Cleanup
 
 Delete `apps/lina-core/pkg/auditi18n/` and `apps/lina-core/pkg/audittype/` which are empty placeholder directories implying audit capability exists. Real audit logging remains a separate future iteration.
 
@@ -143,12 +168,18 @@ Delete `apps/lina-core/pkg/auditi18n/` and `apps/lina-core/pkg/audittype/` which
 - [SQL reinitialization disrupts local development data] Mitigation: tasks use `modify SQL -> make init`; review checks for no migration-path assumptions.
 - [Protected upload routes break third-party image references] Mitigation: current pages and plugins access uploads with login state; no product requirement for anonymous access.
 - [Stricter deletion transactions increase visible errors] Mitigation: intentional; errors were previously swallowed. E2E covers rollback behavior.
-- [Menu `isDescendant` loads all menus once] Mitigation: menu count is well below 1000; memory cost negligible.
-- [Removing `sys_job` foreign key shifts consistency to application code] Mitigation: job write paths already validate `group_id` in the service layer.
+- [Menu isDescendant loads all menus once] Mitigation: menu count is well below 1000; memory cost negligible.
+- [Removing sys_job foreign key shifts consistency to application code] Mitigation: job write paths already validate group_id in the service layer.
 - [Explicit runtime configuration errors will fail requests] Mitigation: intended fail-visible behavior; strict write validation prevents normal entries from saving invalid values.
 - [Allowlist can degrade into "register and pass"] Mitigation: each entry requires category and reason; tests freeze the current allowed set.
-- [Graceful shutdown timeout handling] Mitigation: HTTP graceful shutdown remains GoFrame-owned; host-owned cleanup is bounded by `shutdown.timeout` (default `30s`) and logs warnings on timeout.
-- [`/health` DB probe adds baseline QPS] Mitigation: `Limit(1).Count()` is lightweight, and Kubernetes probe intervals are normally at least 10 seconds.
+- [Graceful shutdown timeout handling] Mitigation: HTTP graceful shutdown remains GoFrame-owned; host-owned cleanup is bounded by shutdown.timeout (default 30s) and logs warnings on timeout.
+- [/health DB probe adds baseline QPS] Mitigation: Limit(1).Count() is lightweight, and Kubernetes probe intervals are normally at least 10 seconds.
+- [Startup shared snapshot staleness] Mitigation: snapshots only used within one startup orchestration; all write paths must update snapshots synchronously.
+- [No-op comparison misses fields] Mitigation: comparison functions cover persistence fields; tests cover manifest, menu, route permission, and resource ref changes.
+- [Explicit dependency injection changes many constructor signatures] Mitigation: phased migration by risk priority; each phase covers one dependency chain and verifies with package tests.
+- [Circular dependencies exposed] Mitigation: narrow interfaces and responsibility splitting; no global registry or aggregate struct workarounds.
+- [Large-scale file migration creates review noise] Mitigation: per-module batches, same-package moves only, per-batch go test, lina-review segment reviews.
+- [Changing existing timestamp fields from strings to numbers breaks frontend] Mitigation: frontend API types and display formatting updated together with backend migration.
 
 ## Migration Plan
 
@@ -164,3 +195,5 @@ Delete `apps/lina-core/pkg/auditi18n/` and `apps/lina-core/pkg/audittype/` which
 
 - Should the upload route permission tag be `file:read` or a more specific `file:download`? The apply phase compared existing file module permissions and used `system:file:download`.
 - Should `/health` return primary/secondary role information when `cluster.enabled=true`? For this iteration it returns `{status, mode}` without implementing a leader-switching probe.
+- Whether to provide an explicit `make dev sql_debug=1` shortcut or rely only on configuration file modification.
+- Whether startup summary logs should output structured JSON fields or continue using text log format.

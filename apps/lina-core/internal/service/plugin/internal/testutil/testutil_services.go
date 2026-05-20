@@ -132,6 +132,9 @@ func (s *testHostServices) Auth() contract.AuthService { return nil }
 // BizCtx returns no bizctx service for plugin integration tests.
 func (s *testHostServices) BizCtx() contract.BizCtxService { return nil }
 
+// Cache returns no cache service for plugin integration tests.
+func (s *testHostServices) Cache() contract.CacheService { return nil }
+
 // Config returns the test host configuration service.
 func (s *testHostServices) Config() contract.ConfigService {
 	if s == nil {

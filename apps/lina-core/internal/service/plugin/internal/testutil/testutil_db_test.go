@@ -1,46 +1,35 @@
-// This file verifies plugin test database cleanup helpers across supported
-// database dialects.
+// This file verifies plugin test database cleanup helpers.
 
 package testutil
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
-	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 )
 
 // TestCleanupPluginGovernanceRowsHardUsesExplicitPluginConditions verifies the
-// shared cleanup helper keeps DELETE statements scoped on SQLite, where GoFrame
-// rejects unqualified DELETE operations.
+// shared cleanup helper keeps DELETE statements scoped to the target plugin ID.
 func TestCleanupPluginGovernanceRowsHardUsesExplicitPluginConditions(t *testing.T) {
 	ctx := context.Background()
-	link := "sqlite::@file(" + t.TempDir() + "/plugin-cleanup.db)"
-	originalConfig := gdb.GetAllConfig()
-	if err := gdb.SetConfig(gdb.Config{
-		gdb.DefaultGroupName: gdb.ConfigGroup{{Link: link}},
-	}); err != nil {
-		t.Fatalf("configure SQLite cleanup database: %v", err)
-	}
-	db := g.DB()
-	t.Cleanup(func() {
-		if closeErr := db.Close(ctx); closeErr != nil {
-			t.Errorf("close SQLite cleanup database: %v", closeErr)
-		}
-		if err := gdb.SetConfig(originalConfig); err != nil {
-			t.Errorf("restore GoFrame database config: %v", err)
-		}
-	})
+	targetPluginID := fmt.Sprintf("plugin-cleanup-target-%d", time.Now().UnixNano())
+	otherPluginID := fmt.Sprintf("plugin-cleanup-other-%d", time.Now().UnixNano())
 
 	createMinimalPluginGovernanceTables(t, ctx)
-	insertPluginGovernanceRows(t, ctx, "plugin-cleanup-target")
-	insertPluginGovernanceRows(t, ctx, "plugin-cleanup-other")
+	t.Cleanup(func() {
+		CleanupPluginGovernanceRowsHard(t, ctx, targetPluginID)
+		CleanupPluginGovernanceRowsHard(t, ctx, otherPluginID)
+	})
+	insertPluginGovernanceRows(t, ctx, targetPluginID)
+	insertPluginGovernanceRows(t, ctx, otherPluginID)
 
-	CleanupPluginGovernanceRowsHard(t, ctx, "plugin-cleanup-target")
+	CleanupPluginGovernanceRowsHard(t, ctx, targetPluginID)
 
-	assertPluginGovernanceRowCounts(t, ctx, "plugin-cleanup-target", 0)
-	assertPluginGovernanceRowCounts(t, ctx, "plugin-cleanup-other", 6)
+	assertPluginGovernanceRowCounts(t, ctx, targetPluginID, 0)
+	assertPluginGovernanceRowCounts(t, ctx, otherPluginID, 6)
 }
 
 // createMinimalPluginGovernanceTables creates only the columns needed by the
@@ -49,12 +38,12 @@ func createMinimalPluginGovernanceTables(t *testing.T, ctx context.Context) {
 	t.Helper()
 
 	statements := []string{
-		"CREATE TABLE sys_plugin_node_state (id INTEGER PRIMARY KEY AUTOINCREMENT, plugin_id TEXT NOT NULL);",
-		"CREATE TABLE sys_plugin_resource_ref (id INTEGER PRIMARY KEY AUTOINCREMENT, plugin_id TEXT NOT NULL, deleted_at TIMESTAMP NULL);",
-		"CREATE TABLE sys_plugin_state (id INTEGER PRIMARY KEY AUTOINCREMENT, plugin_id TEXT NOT NULL);",
-		"CREATE TABLE sys_plugin_migration (id INTEGER PRIMARY KEY AUTOINCREMENT, plugin_id TEXT NOT NULL);",
-		"CREATE TABLE sys_plugin_release (id INTEGER PRIMARY KEY AUTOINCREMENT, plugin_id TEXT NOT NULL);",
-		"CREATE TABLE sys_plugin (id INTEGER PRIMARY KEY AUTOINCREMENT, plugin_id TEXT NOT NULL, deleted_at TIMESTAMP NULL);",
+		`CREATE TABLE IF NOT EXISTS sys_plugin_node_state ("id" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, "plugin_id" VARCHAR(64) NOT NULL);`,
+		`CREATE TABLE IF NOT EXISTS sys_plugin_resource_ref ("id" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, "plugin_id" VARCHAR(64) NOT NULL, "deleted_at" TIMESTAMP NULL);`,
+		`CREATE TABLE IF NOT EXISTS sys_plugin_state ("id" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, "plugin_id" VARCHAR(64) NOT NULL);`,
+		`CREATE TABLE IF NOT EXISTS sys_plugin_migration ("id" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, "plugin_id" VARCHAR(64) NOT NULL);`,
+		`CREATE TABLE IF NOT EXISTS sys_plugin_release ("id" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, "plugin_id" VARCHAR(64) NOT NULL);`,
+		`CREATE TABLE IF NOT EXISTS sys_plugin ("id" INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, "plugin_id" VARCHAR(64) NOT NULL, "deleted_at" TIMESTAMP NULL);`,
 	}
 	for index, statement := range statements {
 		if _, err := g.DB().Exec(ctx, statement); err != nil {

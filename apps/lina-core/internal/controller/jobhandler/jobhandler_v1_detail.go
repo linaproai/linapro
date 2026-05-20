@@ -20,7 +20,7 @@ func (c *ControllerV1) Detail(ctx context.Context, req *v1.DetailReq) (res *v1.D
 		Ref:          item.Ref,
 		DisplayName:  c.localizeHandlerName(ctx, item.Ref, item.DisplayName),
 		Description:  c.localizeHandlerDescription(ctx, item.Ref, item.Description),
-		Source:       string(item.Source),
+		Source:       v1.Source(item.Source),
 		PluginId:     item.PluginID,
 		ParamsSchema: item.ParamsSchema,
 	}, nil

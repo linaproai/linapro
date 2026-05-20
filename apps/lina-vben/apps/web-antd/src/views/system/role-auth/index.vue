@@ -16,6 +16,7 @@ import { useVbenVxeGrid, vxeCheckboxChecked } from '#/adapter/vxe-table';
 import { roleInfo, roleUnassignUser, roleUnassignUsers, roleUsers } from '#/api/system/role';
 import { $t } from '#/locales';
 import { useDictStore } from '#/store/dict';
+import { formatTimestamp } from '#/utils/time';
 
 const route = useRoute();
 const router = useRouter();
@@ -104,6 +105,7 @@ const gridOptions: VxeGridProps = {
     {
       title: $t('pages.common.createdAt'),
       field: 'createdAt',
+      formatter: ({ cellValue }) => formatTimestamp(cellValue),
       width: 170,
     },
     {

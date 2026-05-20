@@ -1,0 +1,48 @@
+# LinaPro deployment test workspace.
+# Run with: docker compose -f hack/deploy/tests/docker-compose.yaml up -d
+# Then enter the development container with:
+# docker compose -f hack/deploy/tests/docker-compose.yaml exec dev bash
+#
+# This compose file keeps PostgreSQL disposable while providing a long-running
+# Ubuntu + npm container for manual repository command verification.
+name: linapro-deploy-tests
+
+services:
+  postgres:
+    # Override LINAPRO_POSTGRES_IMAGE to test another PostgreSQL-compatible tag.
+    image: ${LINAPRO_POSTGRES_IMAGE:-postgres:14-alpine}
+    container_name: linapro-deploy-tests-postgres
+    environment:
+      POSTGRES_DB: linapro
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      TZ: Asia/Shanghai
+    tmpfs:
+      # Keep database files in memory for a disposable demo.
+      - /var/lib/postgresql/data:size=512m,mode=0700
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres -d linapro
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  dev:
+    # Override LINAPRO_DEV_IMAGE to test a different development base image.
+    image: ${LINAPRO_DEV_IMAGE:-loads/ubuntu:24.04-npm}
+    container_name: linapro-deploy-tests-dev
+    entrypoint:
+      - /bin/bash
+      - -ec
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - |
+        sleep infinity
+    stdin_open: true
+    tty: true
+    restart: unless-stopped

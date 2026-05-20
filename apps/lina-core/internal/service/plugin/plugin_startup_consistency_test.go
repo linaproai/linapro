@@ -15,7 +15,6 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
-	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
 	pkgtenantcap "lina-core/pkg/tenantcap"
 )
@@ -138,7 +137,7 @@ func TestValidateStartupConsistencyRejectsPlatformUserMembership(t *testing.T) {
 }
 
 // TestValidateStartupConsistencyRejectsEnabledTenantPluginWithoutProvider
-// verifies multi-tenant enablement requires a registered tenantcap provider.
+// verifies linapro-tenant-core enablement requires a registered tenantcap provider.
 func TestValidateStartupConsistencyRejectsEnabledTenantPluginWithoutProvider(t *testing.T) {
 	var (
 		service  = newTestService()
@@ -162,11 +161,11 @@ func TestValidateStartupConsistencyRejectsEnabledTenantPluginWithoutProvider(t *
 	})
 
 	err := service.ValidateStartupConsistency(ctx)
-	assertStartupConsistencyErrorContains(t, err, "multi-tenant plugin is enabled but tenantcap provider is not registered")
+	assertStartupConsistencyErrorContains(t, err, "linapro-tenant-core plugin is enabled but tenantcap provider is not registered")
 }
 
 // TestValidateStartupConsistencyAllowsEnabledTenantPluginWithProvider verifies
-// provider registration satisfies multi-tenant startup consistency.
+// provider registration satisfies linapro-tenant-core startup consistency.
 func TestValidateStartupConsistencyAllowsEnabledTenantPluginWithProvider(t *testing.T) {
 	var (
 		service  = newTestService()
@@ -308,14 +307,6 @@ func (s *startupConsistencyTenantCapability) ResolveTenant(context.Context, *ght
 	return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
 }
 
-// ReadWithPlatformFallback is unused by plugin startup consistency tests.
-func (s *startupConsistencyTenantCapability) ReadWithPlatformFallback(
-	ctx context.Context,
-	scanner tenantcapsvc.FallbackScanner[any],
-) ([]any, error) {
-	return scanner(ctx, pkgtenantcap.PLATFORM)
-}
-
 // ApplyUserTenantScope is unused by plugin startup consistency tests.
 func (s *startupConsistencyTenantCapability) ApplyUserTenantScope(
 	_ context.Context,
@@ -388,7 +379,7 @@ func validateStartupConsistencyTestMemberships(ctx context.Context) ([]string, e
 		As("u").
 		Fields("u.id, u.username").
 		InnerJoin(
-			"plugin_multi_tenant_user_membership m",
+			"plugin_linapro_tenant_core_user_membership m",
 			"m.user_id = u.id AND m.deleted_at IS NULL AND m.status = 1",
 		).
 		Where("u.tenant_id", int(pkgtenantcap.PLATFORM)).
@@ -443,7 +434,7 @@ func insertStartupConsistencyUser(t *testing.T, ctx context.Context, username st
 func insertStartupConsistencyTenantMembership(t *testing.T, ctx context.Context, userID int64, tenantID int, status int) {
 	t.Helper()
 
-	_, err := dao.SysUser.DB().Model("plugin_multi_tenant_user_membership").Data(startupConsistencyMembershipRow{
+	_, err := dao.SysUser.DB().Model("plugin_linapro_tenant_core_user_membership").Data(startupConsistencyMembershipRow{
 		UserID:    userID,
 		TenantID:  tenantID,
 		Status:    status,
@@ -474,14 +465,14 @@ func cleanupStartupConsistencyUserMembership(t *testing.T, ctx context.Context, 
 		t.Fatalf("query startup consistency user cleanup: %v", err)
 	}
 	if user != nil {
-		if _, err := dao.SysUser.DB().Model("plugin_multi_tenant_user_membership").
+		if _, err := dao.SysUser.DB().Model("plugin_linapro_tenant_core_user_membership").
 			Unscoped().
 			Where("user_id", user.Id).
 			Delete(); err != nil {
 			t.Fatalf("cleanup startup consistency membership by user: %v", err)
 		}
 	}
-	if _, err := dao.SysUser.DB().Model("plugin_multi_tenant_user_membership").
+	if _, err := dao.SysUser.DB().Model("plugin_linapro_tenant_core_user_membership").
 		Unscoped().
 		Where("tenant_id", tenantID).
 		Delete(); err != nil {

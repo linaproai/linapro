@@ -5,8 +5,8 @@ export interface JobGroupRecord {
   remark: string;
   sortOrder: number;
   isDefault: number;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: number | null;
+  updatedAt: number | null;
   jobCount: number;
 }
 

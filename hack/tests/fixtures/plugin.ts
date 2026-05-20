@@ -9,8 +9,7 @@ import { config } from './config';
 import { execPgSQLFile } from '../support/postgres';
 import { waitForRouteReady } from '../support/ui';
 
-const apiBaseURL =
-  process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:8080/api/v1/';
+const apiBaseURL = config.apiBaseURL;
 const repoRoot = path.resolve(process.cwd(), '../..');
 
 type PluginListItem = {
@@ -93,6 +92,19 @@ export async function createAdminApiContext(): Promise<APIRequestContext> {
       Authorization: `Bearer ${accessToken}`,
     },
   });
+}
+
+export async function prepareSourcePluginsBaseline(pluginIds: readonly string[]) {
+  const uniquePluginIds = [...new Set(pluginIds)].sort();
+  const adminApi = await createAdminApiContext();
+  try {
+    await syncPlugins(adminApi);
+    for (const pluginId of uniquePluginIds) {
+      await ensurePluginEnabledState(adminApi, pluginId);
+    }
+  } finally {
+    await adminApi.dispose();
+  }
 }
 
 export async function syncPlugins(adminApi: APIRequestContext) {

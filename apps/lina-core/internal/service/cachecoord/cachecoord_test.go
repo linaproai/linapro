@@ -185,8 +185,8 @@ func TestDefaultReturnsSharedCoordinatorWithUpdatedTopology(t *testing.T) {
 }
 
 // TestDefaultAllowsRealSingleNodeTopologyToReplaceStaticClusterPlaceholder
-// verifies SQLite startup can downgrade an early static cluster placeholder to
-// the real single-node runtime topology.
+// verifies startup can downgrade an early static cluster placeholder to the
+// real single-node runtime topology.
 func TestDefaultAllowsRealSingleNodeTopologyToReplaceStaticClusterPlaceholder(t *testing.T) {
 	withResetDefaultCoordinator(t)
 

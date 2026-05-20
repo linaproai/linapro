@@ -92,7 +92,7 @@ openspec/            -> OpenSpec相关文档
 ## 开发环境
 
 ```bash
-make dev                         # 启动前后端（前端: 5666，后端: 8080）
+make dev                         # 启动前后端（前端: 5666，后端: 9120）
 make dev plugins=0               # 强制宿主模式启动（不加载官方源码插件）
 make stop                        # 停止所有服务
 make status                      # 查看服务状态
@@ -184,7 +184,7 @@ git submodule update --init --recursive
 # 3. 初始化数据库（DDL + Seed数据）
 make init
 
-# 4. 启动全栈服务（前端: 5666，后端: 8080）
+# 4. 启动全栈服务（前端: 5666，后端: 9120）
 make dev
 ```
 

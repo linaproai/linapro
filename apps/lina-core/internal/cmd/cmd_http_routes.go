@@ -29,8 +29,8 @@ import (
 	"lina-core/pkg/logger"
 )
 
-// bindHostAPIRoutes registers the versioned host API tree, including public,
-// protected, and dynamic plugin dispatch routes.
+// bindHostAPIRoutes registers host control-plane APIs and root-level dynamic
+// plugin data-plane routes with their respective middleware chains.
 func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRuntime) {
 	var (
 		authCtrl       = auth.NewV1(runtime.authSvc, runtime.bizCtxSvc)
@@ -54,13 +54,7 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 	)
 
 	server.Group("/api/v1", func(group *ghttp.RouterGroup) {
-		group.Middleware(
-			ghttp.MiddlewareNeverDoneCtx,
-			middlewareSvc.Response,
-			middlewareSvc.CORS,
-			middlewareSvc.RequestBodyLimit,
-			middlewareSvc.Ctx,
-		)
+		bindHostAPIMiddlewares(group, middlewareSvc)
 
 		bindPublicStaticAPIRoutes(
 			group,
@@ -113,8 +107,24 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 			pluginCtrl.UpdateTenantProvisioningPolicy,
 			pluginCtrl.ResourceList,
 		)
+	})
+
+	server.Group("/x", func(group *ghttp.RouterGroup) {
+		bindHostAPIMiddlewares(group, middlewareSvc)
 		bindDynamicPluginAPIRoutes(group, runtime.pluginSvc)
 	})
+}
+
+// bindHostAPIMiddlewares attaches the common HTTP governance chain shared by
+// host control-plane APIs and root-level dynamic plugin data-plane routes.
+func bindHostAPIMiddlewares(group *ghttp.RouterGroup, middlewareSvc middleware.Service) {
+	group.Middleware(
+		ghttp.MiddlewareNeverDoneCtx,
+		middlewareSvc.Response,
+		middlewareSvc.CORS,
+		middlewareSvc.RequestBodyLimit,
+		middlewareSvc.Ctx,
+	)
 }
 
 // bindPublicStaticAPIRoutes binds endpoints that must be reachable before the
@@ -143,17 +153,15 @@ func bindProtectedStaticAPIRoutes(
 }
 
 // bindDynamicPluginAPIRoutes registers the host-owned dynamic plugin API
-// dispatcher under the versioned extension namespace.
+// dispatcher under a caller-selected dynamic plugin public namespace.
 func bindDynamicPluginAPIRoutes(parent *ghttp.RouterGroup, pluginSvc pluginsvc.Service) {
-	parent.Group("/extensions", func(group *ghttp.RouterGroup) {
-		// Dynamic plugin routes reuse the standard RouterGroup + Middleware flow,
-		// while their route matching and governance remain host-owned.
-		group.Middleware(
-			pluginSvc.PrepareDynamicRouteMiddleware,
-			pluginSvc.AuthenticateDynamicRouteMiddleware,
-		)
-		pluginSvc.RegisterDynamicRouteDispatcher(group)
-	})
+	// Dynamic plugin routes reuse the standard RouterGroup + Middleware flow,
+	// while their route matching and governance remain host-owned.
+	parent.Middleware(
+		pluginSvc.PrepareDynamicRouteMiddleware,
+		pluginSvc.AuthenticateDynamicRouteMiddleware,
+	)
+	pluginSvc.RegisterDynamicRouteDispatcher(parent)
 }
 
 // registerSourcePluginHTTPRoutes lets source plugins contribute host routes

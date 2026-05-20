@@ -13,7 +13,7 @@
 
 - 已安装支持`docker compose`插件的`Docker`。
 - 能够拉取`postgres:14-alpine`与`ghcr.io/linaproai/linapro:nightly`镜像，或本地已经存在这些镜像。
-- 主机端口`8080`可用，或提供自定义`LINAPRO_HTTP_PORT`值。
+- 主机端口`9120`可用，或提供自定义`LINAPRO_HTTP_PORT`值。
 
 ## 启动演示环境
 
@@ -23,7 +23,7 @@
 docker compose -f hack/deploy/docker-compose.yaml up
 ```
 
-等待`linapro`服务健康后，访问`http://localhost:8080`。
+等待`linapro`服务健康后，访问`http://localhost:9120`。
 
 如需后台运行：
 
@@ -52,7 +52,7 @@ docker compose -f hack/deploy/docker-compose.yaml up -d
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
-| `server.address` | `:8080` | 容器内部监听地址。 |
+| `server.address` | `:9120` | 容器内部监听地址。 |
 | `database.default.link` | compose 网络中的 PostgreSQL 服务 | 与`postgres`服务凭据保持一致。 |
 | `jwt.secret` | 演示专用密钥 | 一次性演示以外的环境必须替换。 |
 | `i18n.default` | `zh-CN` | 演示环境默认语言。 |
@@ -63,7 +63,7 @@ docker compose -f hack/deploy/docker-compose.yaml up -d
 
 | 变量 | 默认值 | 用途 |
 | --- | --- | --- |
-| `LINAPRO_HTTP_PORT` | `8080` | 映射到 LinaPro 容器`8080`端口的主机端口。 |
+| `LINAPRO_HTTP_PORT` | `9120` | 映射到 LinaPro 容器`9120`端口的主机端口。 |
 | `LINAPRO_IMAGE` | `ghcr.io/linaproai/linapro:nightly` | 要运行的 LinaPro 镜像。 |
 | `LINAPRO_POSTGRES_IMAGE` | `postgres:14-alpine` | 要运行的 PostgreSQL 兼容镜像。 |
 
@@ -109,7 +109,7 @@ docker compose -f hack/deploy/docker-compose.yaml up
 LinaPro 服务健康检查会访问：
 
 ```bash
-curl http://localhost:8080/api/v1/health
+curl http://localhost:9120/api/v1/health
 ```
 
 健康响应中会包含`"status":"ok"`。

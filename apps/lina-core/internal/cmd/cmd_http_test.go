@@ -1,4 +1,5 @@
-// This file verifies hosted OpenAPI binding and plugin asset path parsing.
+// This file verifies hosted OpenAPI binding, plugin asset path parsing, and
+// route precedence for host API and frontend fallback handlers.
 
 package cmd
 
@@ -6,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -127,8 +129,8 @@ func TestBindHostedOpenAPIDocsUsesRequestOrigin(t *testing.T) {
 		},
 		{
 			name:       "frontend proxy reaches backend port",
-			host:       "localhost:8080",
-			wantOrigin: "http://localhost:8080",
+			host:       "localhost:9120",
+			wantOrigin: "http://localhost:9120",
 		},
 		{
 			name:       "https reverse proxy",
@@ -150,7 +152,7 @@ func TestBindHostedOpenAPIDocsUsesRequestOrigin(t *testing.T) {
 				&fakeApiDocService{document: &goai.OpenApiV3{
 					Servers: &goai.Servers{
 						{
-							URL:         "http://localhost:8080",
+							URL:         "http://localhost:9120",
 							Description: "CoreHostEndpoint",
 						},
 					},
@@ -303,6 +305,58 @@ func TestPluginManagementRuntimeRoutesAreBound(t *testing.T) {
 	}
 }
 
+// TestDynamicPluginRootRoutesPrecedeSPAFallback verifies root-level dynamic
+// plugin paths are claimed before the catch-all frontend fallback can redirect
+// API-style requests to the host SPA entry.
+func TestDynamicPluginRootRoutesPrecedeSPAFallback(t *testing.T) {
+	ctx := context.Background()
+	server := ghttp.GetServer("cmd-http-dynamic-plugin-root-" + guid.S())
+	server.SetPort(0)
+	server.SetDumpRouterMap(false)
+
+	runtime := newRouteBindingTestRuntime(ctx)
+	bindHostAPIRoutes(ctx, server, runtime)
+	if err := bindFrontendAssetRoutes(ctx, server, runtime.pluginSvc); err != nil {
+		t.Fatalf("bind frontend asset routes: %v", err)
+	}
+
+	if err := server.Start(); err != nil {
+		t.Fatalf("start dynamic route test server: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := server.Shutdown(); err != nil {
+			t.Fatalf("shutdown dynamic route test server: %v", err)
+		}
+	})
+
+	response, err := http.Get(fmt.Sprintf(
+		"http://127.0.0.1:%d/x/plugin-dev-route-missing/backend-summary",
+		server.GetListenedPort(),
+	))
+	if err != nil {
+		t.Fatalf("request root dynamic plugin route: %v", err)
+	}
+	defer func() {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			t.Fatalf("close dynamic route response body: %v", closeErr)
+		}
+	}()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read dynamic route response body: %v", err)
+	}
+
+	if response.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected dynamic route 404, got status=%d body=%q", response.StatusCode, string(body))
+	}
+	if strings.TrimSpace(string(body)) != "Dynamic route not found" {
+		t.Fatalf("expected dynamic route not found body, got %q", string(body))
+	}
+	if response.Header.Get("Location") != "" {
+		t.Fatalf("expected no SPA redirect for dynamic route, got location=%q", response.Header.Get("Location"))
+	}
+}
+
 // newRouteBindingTestRuntime creates the shared service graph required by
 // route-binding tests without starting cluster, plugin, or cron lifecycles.
 func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
@@ -324,7 +378,7 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 	dictSvc := dict.New(i18nService)
 	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
 	roleSvc.SetDataScopeService(scopeSvc)
-	menuSvc := menu.New(pluginSvc, i18nService, roleSvc)
+	menuSvc := menu.New(pluginSvc, i18nService, roleSvc, tenantSvc)
 	notifySvc := notify.New(tenantSvc)
 	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
 	fileSvc := filesvc.New(configSvc, filesvc.NewLocalStorage(configSvc.GetUploadPath(ctx)), bizCtxSvc, dictSvc, scopeSvc)
@@ -376,24 +430,24 @@ func TestParsePluginAssetRequestPath(t *testing.T) {
 	}{
 		{
 			name:          "hosted asset file",
-			path:          "plugin-assets/plugin-demo-dynamic/v0.1.0/standalone.html",
-			wantPluginID:  "plugin-demo-dynamic",
+			path:          "plugin-assets/linapro-demo-dynamic/v0.1.0/standalone.html",
+			wantPluginID:  "linapro-demo-dynamic",
 			wantVersion:   "v0.1.0",
 			wantAssetPath: "standalone.html",
 			wantOK:        true,
 		},
 		{
 			name:          "embedded mount entry",
-			path:          "/plugin-assets/plugin-demo-dynamic/v0.1.0/mount.js",
-			wantPluginID:  "plugin-demo-dynamic",
+			path:          "/plugin-assets/linapro-demo-dynamic/v0.1.0/mount.js",
+			wantPluginID:  "linapro-demo-dynamic",
 			wantVersion:   "v0.1.0",
 			wantAssetPath: "mount.js",
 			wantOK:        true,
 		},
 		{
 			name:          "version root path",
-			path:          "/plugin-assets/plugin-demo-dynamic/v0.1.0/",
-			wantPluginID:  "plugin-demo-dynamic",
+			path:          "/plugin-assets/linapro-demo-dynamic/v0.1.0/",
+			wantPluginID:  "linapro-demo-dynamic",
 			wantVersion:   "v0.1.0",
 			wantAssetPath: "",
 			wantOK:        true,
@@ -405,7 +459,7 @@ func TestParsePluginAssetRequestPath(t *testing.T) {
 		},
 		{
 			name:   "missing version",
-			path:   "/plugin-assets/plugin-demo-dynamic",
+			path:   "/plugin-assets/linapro-demo-dynamic",
 			wantOK: false,
 		},
 	}

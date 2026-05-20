@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
@@ -136,12 +135,13 @@ func (s *serviceImpl) createRunningLog(
 	}
 
 	insertID, err := dao.SysJobLog.Ctx(ctx).Data(do.SysJobLog{
+		TenantId:       job.TenantId,
 		JobId:          job.Id,
 		JobSnapshot:    string(snapshot),
 		NodeId:         s.nodeID(),
 		Trigger:        string(trigger),
 		ParamsSnapshot: paramsSnapshot,
-		StartAt:        gtime.New(startedAt),
+		StartAt:        &startedAt,
 		Status:         string(jobmeta.LogStatusRunning),
 	}).InsertAndGetId()
 	if err != nil {
@@ -169,13 +169,14 @@ func (s *serviceImpl) createTerminalLog(
 	}
 
 	_, err = dao.SysJobLog.Ctx(ctx).Data(do.SysJobLog{
+		TenantId:       job.TenantId,
 		JobId:          job.Id,
 		JobSnapshot:    string(snapshot),
 		NodeId:         s.nodeID(),
 		Trigger:        string(trigger),
 		ParamsSnapshot: paramsSnapshot,
-		StartAt:        gtime.New(now),
-		EndAt:          gtime.New(now),
+		StartAt:        &now,
+		EndAt:          &now,
 		DurationMs:     0,
 		Status:         string(status),
 		ErrMsg:         errMsg,
@@ -192,10 +193,11 @@ func (s *serviceImpl) finishLog(
 	errMsg string,
 	resultJSON string,
 ) error {
+	endedAt := time.Now()
 	_, err := dao.SysJobLog.Ctx(ctx).
 		Where(do.SysJobLog{Id: logID}).
 		Data(do.SysJobLog{
-			EndAt:      gtime.New(time.Now()),
+			EndAt:      &endedAt,
 			DurationMs: time.Since(startedAt).Milliseconds(),
 			Status:     string(status),
 			ErrMsg:     errMsg,

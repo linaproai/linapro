@@ -37,6 +37,12 @@ const loginSubtitle = computed(
 const tenantSubtitle = computed(() =>
   $t('pages.multiTenant.login.selectTenantSubtitle'),
 );
+const tenantTransitionTitle = computed(() =>
+  $t('pages.multiTenant.login.enteringTenant'),
+);
+const tenantTransitionSubtitle = computed(() =>
+  $t('pages.multiTenant.login.enteringTenantSubtitle'),
+);
 
 const formSchema = computed((): VbenFormSchema[] => {
   return [
@@ -112,8 +118,28 @@ async function handleSelectTenant() {
 
 <template>
   <div>
+    <div
+      v-if="authStore.tenantLoginTransitioning"
+      aria-live="polite"
+      class="flex min-h-72 flex-col items-center justify-center text-center"
+      data-testid="login-tenant-transition"
+      role="status"
+    >
+      <div
+        aria-hidden="true"
+        class="border-primary/20 border-t-primary mb-8 size-10 animate-spin rounded-full border-2"
+      ></div>
+      <h2
+        class="mb-3 text-2xl/8 font-bold tracking-tight text-foreground lg:text-3xl"
+      >
+        {{ tenantTransitionTitle }}
+      </h2>
+      <p class="max-w-sm text-sm text-muted-foreground lg:text-base">
+        {{ tenantTransitionSubtitle }}
+      </p>
+    </div>
     <AuthenticationLogin
-      v-if="!authStore.pendingPreToken"
+      v-else-if="!authStore.pendingPreToken"
       :form-schema="formSchema"
       :loading="authStore.loginLoading"
       :show-code-login="false"

@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
-
 	"lina-core/internal/service/coordination"
 	"lina-core/pkg/bizerr"
 )
@@ -108,7 +106,7 @@ func TestCoordinationStoreThrottlesProjectionLastActive(t *testing.T) {
 	coordSvc := coordination.NewMemory(nil)
 	store := NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), time.Hour)
 	tokenID := uniqueSessionTestToken("coord-throttle")
-	recent := gtime.Now().Truncate(time.Second)
+	recent := time.Now().Truncate(time.Second)
 
 	t.Cleanup(func() {
 		cleanupSessionTestToken(t, ctx, tokenID)
@@ -118,8 +116,8 @@ func TestCoordinationStoreThrottlesProjectionLastActive(t *testing.T) {
 		TenantId:       41,
 		UserId:         51,
 		Username:       "throttle-user",
-		LoginTime:      recent,
-		LastActiveTime: recent,
+		LoginTime:      &recent,
+		LastActiveTime: &recent,
 	}); err != nil {
 		t.Fatalf("set coordination session: %v", err)
 	}
@@ -130,18 +128,18 @@ func TestCoordinationStoreThrottlesProjectionLastActive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get projected session: %v", err)
 	}
-	if projected == nil || projected.LastActiveTime.String() != recent.String() {
+	if projected == nil || projected.LastActiveTime == nil || !sameDatabaseSecond(projected.LastActiveTime, &recent) {
 		t.Fatalf("expected throttled projection time %v, got %#v", recent, projected)
 	}
 
-	stale := gtime.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
+	stale := time.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
 	if err = insertOrUpdateSessionProjection(ctx, &Session{
 		TokenId:        tokenID,
 		TenantId:       41,
 		UserId:         51,
 		Username:       "throttle-user",
-		LoginTime:      stale,
-		LastActiveTime: stale,
+		LoginTime:      &stale,
+		LastActiveTime: &stale,
 	}); err != nil {
 		t.Fatalf("force stale projection: %v", err)
 	}
@@ -256,7 +254,7 @@ func TestCoordinationStoreCleanupInactiveKeepsProjectionCleanup(t *testing.T) {
 	coordSvc := coordination.NewMemory(nil)
 	store := NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), time.Hour)
 	tokenID := uniqueSessionTestToken("coord-cleanup")
-	stale := gtime.Now().Add(-2 * time.Hour)
+	stale := time.Now().Add(-2 * time.Hour)
 
 	t.Cleanup(func() {
 		cleanupSessionTestToken(t, ctx, tokenID)
@@ -266,8 +264,8 @@ func TestCoordinationStoreCleanupInactiveKeepsProjectionCleanup(t *testing.T) {
 		TenantId:       121,
 		UserId:         131,
 		Username:       "cleanup-user",
-		LoginTime:      stale,
-		LastActiveTime: stale,
+		LoginTime:      &stale,
+		LastActiveTime: &stale,
 	}); err != nil {
 		t.Fatalf("set stale coordination session: %v", err)
 	}

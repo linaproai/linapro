@@ -176,7 +176,8 @@ func TestGetInfoMapsCacheCoordinationDiagnostics(t *testing.T) {
 		!res.Coordination.RedisHealthy ||
 		res.Coordination.NodeId != "node-a" ||
 		!res.Coordination.Primary ||
-		res.Coordination.LastSuccessAt != "2025-01-01 08:00:00" ||
+		res.Coordination.LastSuccessAt == nil ||
+		*res.Coordination.LastSuccessAt != syncedAt.UnixMilli() ||
 		res.Coordination.LastError != "" {
 		t.Fatalf("unexpected coordination diagnostics: %#v", res.Coordination)
 	}
@@ -188,9 +189,11 @@ func TestGetInfoMapsCacheCoordinationDiagnostics(t *testing.T) {
 		!item.Healthy ||
 		item.LocalRevision != 3 ||
 		item.SharedRevision != 4 ||
-		item.LastSyncedAt != "2025-01-01 08:00:00" ||
+		item.LastSyncedAt == nil ||
+		*item.LastSyncedAt != syncedAt.UnixMilli() ||
 		!item.EventSubscriber ||
-		item.LastEventAt != "2025-01-01 08:00:01" ||
+		item.LastEventAt == nil ||
+		*item.LastEventAt != syncedAt.Add(time.Second).UnixMilli() ||
 		item.RecentError != "previous read failed" ||
 		item.StaleSeconds != 2 {
 		t.Fatalf("unexpected cache coordination response row: %#v", item)

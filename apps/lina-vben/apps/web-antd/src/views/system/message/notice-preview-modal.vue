@@ -9,10 +9,11 @@ import { Descriptions, DescriptionsItem, Tag } from 'ant-design-vue';
 
 import { messageInfo } from '#/api/system/message';
 import { $t } from '#/locales';
+import { formatTimestamp } from '#/utils/time';
 
 const notice = ref<UserMessageDetail | null>(null);
 const title = computed(
-  () => notice.value?.title || $t('plugin.content-notice.preview.title'),
+  () => notice.value?.title || $t('plugin.linapro-content-notice.preview.title'),
 );
 
 const [Modal, modalApi] = useVbenModal({
@@ -38,14 +39,14 @@ const [Modal, modalApi] = useVbenModal({
   <Modal :title="title">
     <div v-if="notice" class="p-2">
       <Descriptions :column="3" size="small" bordered class="mb-4">
-        <DescriptionsItem :label="$t('plugin.content-notice.fields.type')">
+        <DescriptionsItem :label="$t('plugin.linapro-content-notice.fields.type')">
           <Tag :color="notice.typeColor">{{ notice.typeLabel }}</Tag>
         </DescriptionsItem>
-        <DescriptionsItem :label="$t('plugin.content-notice.fields.createdBy')">
+        <DescriptionsItem :label="$t('plugin.linapro-content-notice.fields.createdBy')">
           {{ notice.createdByName || '-' }}
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.common.createdAt')">
-          {{ notice.createdAt }}
+          {{ formatTimestamp(notice.createdAt) }}
         </DescriptionsItem>
       </Descriptions>
       <div

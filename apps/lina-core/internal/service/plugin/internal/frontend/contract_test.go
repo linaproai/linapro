@@ -26,7 +26,7 @@ func TestValidateHostedMenuBindingsAcceptsHostedRuntimeModes(t *testing.T) {
 
 	pluginDir := testutil.CreateTestRuntimePluginDirWithFrontendAssets(
 		t,
-		"plugin-dynamic-bindings",
+		"plugin-dev-dynamic-bindings",
 		"Runtime Binding Plugin",
 		"v0.3.0",
 		[]*catalog.ArtifactFrontendAsset{
@@ -46,7 +46,7 @@ func TestValidateHostedMenuBindingsAcceptsHostedRuntimeModes(t *testing.T) {
 	)
 
 	manifest := &catalog.Manifest{
-		ID:           "plugin-dynamic-bindings",
+		ID:           "plugin-dev-dynamic-bindings",
 		Name:         "Runtime Binding Plugin",
 		Version:      "v0.3.0",
 		Type:         catalog.TypeDynamic.String(),
@@ -60,19 +60,19 @@ func TestValidateHostedMenuBindingsAcceptsHostedRuntimeModes(t *testing.T) {
 	hostedBaseURL := service.BuildRuntimeFrontendPublicBaseURL(manifest.ID, manifest.Version)
 	menus := []*entity.SysMenu{
 		{
-			MenuKey: "plugin:plugin-dynamic-bindings:iframe-entry",
+			MenuKey: "plugin:plugin-dev-dynamic-bindings:iframe-entry",
 			Name:    "Hosted iframe entry",
 			Path:    hostedBaseURL + "index.html",
 			IsFrame: 0,
 		},
 		{
-			MenuKey: "plugin:plugin-dynamic-bindings:new-window-entry",
+			MenuKey: "plugin:plugin-dev-dynamic-bindings:new-window-entry",
 			Name:    "Hosted new window entry",
 			Path:    hostedBaseURL + "index.html",
 			IsFrame: 1,
 		},
 		{
-			MenuKey:    "plugin:plugin-dynamic-bindings:embedded-entry",
+			MenuKey:    "plugin:plugin-dev-dynamic-bindings:embedded-entry",
 			Name:       "Hosted embedded entry",
 			Path:       hostedBaseURL + "mount.js",
 			Component:  pluginfrontend.DynamicPageComponentPath,
@@ -97,7 +97,7 @@ func TestValidateHostedMenuBindingsRejectsBrokenEmbeddedMountContract(t *testing
 
 	pluginDir := testutil.CreateTestRuntimePluginDirWithFrontendAssets(
 		t,
-		"plugin-dynamic-broken-bindings",
+		"plugin-dev-dynamic-broken-bindings",
 		"Broken Runtime Binding Plugin",
 		"v0.3.1",
 		[]*catalog.ArtifactFrontendAsset{
@@ -112,7 +112,7 @@ func TestValidateHostedMenuBindingsRejectsBrokenEmbeddedMountContract(t *testing
 	)
 
 	manifest := &catalog.Manifest{
-		ID:           "plugin-dynamic-broken-bindings",
+		ID:           "plugin-dev-dynamic-broken-bindings",
 		Name:         "Broken Runtime Binding Plugin",
 		Version:      "v0.3.1",
 		Type:         catalog.TypeDynamic.String(),
@@ -126,7 +126,7 @@ func TestValidateHostedMenuBindingsRejectsBrokenEmbeddedMountContract(t *testing
 	hostedBaseURL := service.BuildRuntimeFrontendPublicBaseURL(manifest.ID, manifest.Version)
 	menus := []*entity.SysMenu{
 		{
-			MenuKey:    "plugin:plugin-dynamic-broken-bindings:embedded-entry",
+			MenuKey:    "plugin:plugin-dev-dynamic-broken-bindings:embedded-entry",
 			Name:       "Broken embedded entry",
 			Path:       hostedBaseURL + "index.html",
 			Component:  pluginfrontend.DynamicPageComponentPath,

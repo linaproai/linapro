@@ -80,7 +80,12 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 对照 `AGENTS.md` `API` 设计规范进行检查，包括：
 1. `HTTP` 方法和资源路径是否符合 `RESTful` 规则
 2. `API DTO` 文档元数据的完整性
-3. `API` 文档国际化合规性：
+3. `API` 响应时间字段契约：
+   - 公开 `HTTP JSON` 响应 `DTO` 中表示具体时间点的字段必须使用 Unix 毫秒时间戳，`JSON` 类型为数字，`Go DTO` 类型为 `int64` 或 `*int64`
+   - 新增或修改的时间点字段不得直接使用 `time.Time`、`*time.Time`、`gtime.Time`、`*gtime.Time`，也不得以格式化字符串返回
+   - 时间点字段的 `dc` 或接口文档必须包含 `Unix timestamp in milliseconds` 单位说明
+   - `birthday`、`businessDate`、`periodDate` 等只表示日历日期的字段可以使用 `YYYY-MM-DD` 字符串，但必须在 `dc` 或接口文档中明确 `date-only` 语义
+4. `API` 文档国际化合规性：
    - `g.Meta` 和手写的 `DTO` 文档标签必须使用可读的英文源文本，禁止使用中文源文本或不透明的国际化占位符
    - 接口文档本地化必须使用专用的 `apidoc i18n JSON` 资源，与运行时前端 `UI` 的 `i18n` 语言包隔离
    - 必须使用稳定的结构化 `apidoc` 键而非源文本键；宿主 `core.*` `apidoc` 键保留在 `lina-core` 资源中，插件 `plugins.*` `apidoc` 键保留在各插件自己的 `manifest/i18n/<locale>/apidoc/**/*.json` 中
@@ -280,9 +285,11 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 1. 默认开发、构建、测试、代码生成、资源打包、服务启停、CI 辅助和仓库治理入口必须能在 `Windows`、`Linux`、`macOS` 上运行。标记依赖单一平台默认命令或语义的实现，例如 `bash`、`sh`、`sed`、`awk`、`grep`、`perl`、`lsof`、`pgrep`、`xargs`、`kill`、`rm`、`cp`、`mv`、`mkdir -p`、POSIX 路径分隔符、Unix 信号或 PowerShell 专属语法。
 2. 长期维护的仓库工具应优先实现为 `Go` 工具，并通过 `go run ./hack/tools/<tool>`、`linactl` 或薄包装入口调用。审查是否把文件复制、目录遍历、配置改写、进程启停、端口探测、HTTP smoke、压缩/解压、模板渲染和静态扫描等逻辑留在 Shell 管道中；能合理迁移到 Go 标准库或已有 Go 组件的，应报告为问题。
 3. `Makefile` 与 `make.cmd` 只能作为兼容包装层，不得承载复杂业务逻辑；二者应委托 `linactl` 或其他跨平台工具。标记在包装层新增不可移植命令、平台专属环境写法或与 Go workspace/plugin workspace 规则冲突的隐式覆盖。
-4. `hack/scripts/` 不应继续承载长期维护脚本。新增或保留 `.sh`、`.ps1` 等平台脚本时，审查结论必须说明无法使用 Go 工具链的原因、受支持平台、等价跨平台入口和验证方式；没有说明的平台脚本应标记为严重问题。
-5. 工具变更必须提供匹配验证证据，例如 `cd hack/tools/linactl && go test ./... -count=1`、`go run ./hack/tools/linactl test-scripts`、目标 Go 工具单元测试、跨平台 smoke 或静态扫描。仅使用 `bash -n`、本机 Shell 试跑或单平台 workflow 不能证明跨平台合规。
-6. 如果变更无开发工具或脚本影响，审查结论应明确说明该判断。
+4. `hack/tools/linactl/` 中承载具体 `make` 或 `linactl` 命令实现的源码文件必须按对应命令名称命名为 `command_<command>.go`，并保留命令的点分段语义。审查时确认 `make dev` 对应 `command_dev.go`、`make build` 对应 `command_build.go`、`make env.setup` 对应 `command_env.setup.go` 这类映射；若命令名与 `Go` 工具链文件后缀规则冲突，确认文件使用明确的命令专属后缀并记录原因，例如 `test` 使用 `command_testcmd.go`，`wasm` 使用 `command_wasmcmd.go`。标记把多个无直接归属的命令继续混放到 `command_ops.go` 等兜底文件，或把跨命令复用逻辑伪装成某个命令文件的实现。
+5. `hack/tools/linactl/` 根目录应尽可能只保留 `command_*.go` 指令入口、`command.go` 注册与参数解析、`app.go`/`main.go` 启动装配、基础类型和必要的平台适配文件。审查开发服务、插件工作区、GoFrame CLI、前端依赖、Playwright、镜像构建、仓库治理扫描、文件系统工具等跨命令或较复杂实现是否迁移到 `internal/<组件名称>/` 子组件；发现根目录新增或遗留 `*_ops.go`、`*_management.go`、`*_workspace.go`、`*_util.go` 等复杂共享实现文件时，应标记为目录治理问题。
+6. `hack/scripts/` 不应继续承载长期维护脚本。新增或保留 `.sh`、`.ps1` 等平台脚本时，审查结论必须说明无法使用 Go 工具链的原因、受支持平台、等价跨平台入口和验证方式；没有说明的平台脚本应标记为严重问题。
+7. 工具变更必须提供匹配验证证据，例如 `cd hack/tools/linactl && go test ./... -count=1`、`go run ./hack/tools/linactl test.scripts`、目标 Go 工具单元测试、跨平台 smoke 或静态扫描。仅使用 `bash -n`、本机 Shell 试跑或单平台 workflow 不能证明跨平台合规。
+8. 如果变更无开发工具或脚本影响，审查结论应明确说明该判断。
 
 ### 6. SQL 规范审查
 
@@ -298,11 +305,13 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 
 ### 7. E2E 测试审查
 
-**触发条件**：`hack/tests/e2e/`、`hack/tests/pages/`、`hack/tests/support/` 或 `apps/lina-plugins/<plugin-id>/hack/tests/{e2e,pages,support}/` 下新增或修改的 E2E 测试、页面对象或 helper
+**触发条件**：`hack/tests/e2e/`、`hack/tests/pages/`、`hack/tests/support/`、`hack/tests/fixtures/`、`hack/tests/config/`、`hack/tests/scripts/` 或 `apps/lina-plugins/<plugin-id>/hack/tests/{e2e,pages,support,fixtures,config,scripts}/` 下新增或修改的 E2E 测试、页面对象、helper、fixture、runner 配置、执行 manifest、测试数据、baseline 或治理脚本
 
 1. 调用 `lina-e2e` 技能检查测试规范
 2. 对照 `AGENTS.md` E2E 测试规范进行检查
 3. 源码插件专属 E2E 必须保留在插件自己的 `hack/tests/e2e/` 目录；插件专属 POM/helper 必须保留在同插件的 `hack/tests/pages/`、`hack/tests/support/`，不得回流到宿主 `hack/tests/e2e/extension/plugin/` 或 `hack/tests/pages/`
+4. 项目根路径下的 E2E 测试文件、页面对象、helper、fixture、runner 配置、执行 manifest、测试数据、baseline 和治理脚本不得硬编码或耦合任何具体源码插件 `ID`、插件路径、插件菜单、插件路由、插件 mock 数据、插件配置或插件 `i18n` key；插件相关测试数据和配置必须位于对应 `apps/lina-plugins/<plugin-id>/hack/tests/` 目录
+5. E2E 测试文件名必须使用模块本地递增的 `TC{NNN}-{brief-name}.ts` 前缀；审查时需确认同一模块目录内编号从 `TC001` 开始连续递增，拒绝旧的全局递增编号、四位 `TC{NNNN}` 文件名、目录内重复编号或因其他模块编号产生的跳号
 
 ### 8. 反馈验证覆盖审查
 
@@ -350,6 +359,8 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 
 ### 开发工具与脚本跨平台审查
 ✓ 开发工具和脚本跨平台合规 / ⚠ 发现 N 个跨平台问题
+✓ linactl 命令文件命名合规 / ⚠ 发现 N 个命令文件命名问题
+✓ linactl 子组件组织合规 / ⚠ 发现 N 个根目录复杂共享实现问题
 
 ### SQL 审查
 ✓ 无 SQL 变更 / ✓ SQL 变更合规 / ⚠ 发现 N 个 SQL 问题

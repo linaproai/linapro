@@ -21,7 +21,6 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/guid"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/mssola/useragent"
@@ -130,9 +129,10 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 	}
 
 	// Record login time
+	loginDate := time.Now()
 	if _, err = dao.SysUser.Ctx(ctx).
 		Where(do.SysUser{Id: user.Id}).
-		Data(do.SysUser{LoginDate: gtime.Now()}).
+		Data(do.SysUser{LoginDate: &loginDate}).
 		Update(); err != nil {
 		return nil, bizerr.WrapCode(err, CodeAuthLoginStateUpdateFailed)
 	}
@@ -601,6 +601,7 @@ func (s *serviceImpl) createSession(ctx context.Context, user *entity.SysUser, t
 		}
 		ttlSetter.SetDefaultTTL(timeout)
 	}
+	loginTime := time.Now()
 	if err := s.sessionStore.Set(ctx, &session.Session{
 		TokenId:   tokenID,
 		TenantId:  tenantID,
@@ -610,7 +611,7 @@ func (s *serviceImpl) createSession(ctx context.Context, user *entity.SysUser, t
 		Ip:        ip,
 		Browser:   browser,
 		Os:        osName,
-		LoginTime: gtime.Now(),
+		LoginTime: &loginTime,
 	}); err != nil {
 		return err
 	}

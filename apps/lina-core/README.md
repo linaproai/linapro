@@ -79,16 +79,6 @@ database:
 
 For external hosted `PostgreSQL`, such as `RDS` or `Aliyun PolarDB`, point `database.default.link` at the provider endpoint and run initialization with an account that has the permissions above.
 
-For a single-node development demo, set the link to `SQLite`:
-
-```yaml
-database:
-  default:
-    link: "sqlite::@file(./temp/sqlite/linapro.db)"
-```
-
-`SQLite` mode is single-node only, automatically forces `cluster.enabled=false`, and is not supported for production deployments.
-
 ## Cluster Coordination
 
 Single-node deployments keep the lightweight local mode: they do not require `Redis`, do not connect to `Redis`, and continue to use PostgreSQL plus process-local cache coordination where appropriate.

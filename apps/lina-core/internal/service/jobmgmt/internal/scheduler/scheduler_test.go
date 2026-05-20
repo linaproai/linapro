@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/os/gcron"
+	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -250,6 +250,48 @@ func latestLogs(t *testing.T, ctx context.Context, jobID int64) []*entity.SysJob
 	return logs
 }
 
+// querySchedulerLog loads one scheduler log row by ID.
+func querySchedulerLog(t *testing.T, ctx context.Context, logID int64) *entity.SysJobLog {
+	t.Helper()
+
+	var logRow *entity.SysJobLog
+	if err := dao.SysJobLog.Ctx(ctx).Where(do.SysJobLog{Id: logID}).Scan(&logRow); err != nil {
+		t.Fatalf("expected scheduler log query to succeed, got error: %v", err)
+	}
+	if logRow == nil {
+		t.Fatalf("expected scheduler log %d to exist", logID)
+	}
+	return logRow
+}
+
+// latestSchedulerLogForJob returns the latest persisted log for one job.
+func latestSchedulerLogForJob(t *testing.T, ctx context.Context, jobID int64) *entity.SysJobLog {
+	t.Helper()
+
+	var logRow *entity.SysJobLog
+	if err := dao.SysJobLog.Ctx(ctx).
+		Where(do.SysJobLog{JobId: jobID}).
+		OrderDesc(dao.SysJobLog.Columns().Id).
+		Scan(&logRow); err != nil {
+		t.Fatalf("expected latest scheduler log query to succeed, got error: %v", err)
+	}
+	if logRow == nil {
+		t.Fatalf("expected at least one scheduler log for job %d", jobID)
+	}
+	return logRow
+}
+
+// cleanupSchedulerLogs removes temporary scheduler log rows.
+func cleanupSchedulerLogs(t *testing.T, ctx context.Context, ids []int64) {
+	t.Helper()
+	if len(ids) == 0 {
+		return
+	}
+	if _, err := dao.SysJobLog.Ctx(ctx).WhereIn(dao.SysJobLog.Columns().Id, ids).Delete(); err != nil {
+		t.Fatalf("expected scheduler log cleanup to succeed, got error: %v", err)
+	}
+}
+
 // TestNormalizeGcronPatternUsesHashPlaceholder verifies 5-field cron input is
 // normalized with GoFrame's `#` seconds placeholder instead of a fixed zero.
 func TestNormalizeGcronPatternUsesHashPlaceholder(t *testing.T) {
@@ -259,6 +301,48 @@ func TestNormalizeGcronPatternUsesHashPlaceholder(t *testing.T) {
 	}
 	if pattern != "# 17 3 * * *" {
 		t.Fatalf("expected 5-field cron to normalize to '# 17 3 * * *', got %q", pattern)
+	}
+}
+
+// TestExecutionLogsInheritJobTenant verifies scheduler-created logs keep the
+// owning job tenant so log list filters can find tenant executions.
+func TestExecutionLogsInheritJobTenant(t *testing.T) {
+	ctx := context.Background()
+	tenantID := 100
+	job := &entity.SysJob{
+		Id:             time.Now().UnixNano(),
+		TenantId:       tenantID,
+		Name:           "scheduler-tenant-log",
+		TaskType:       string(jobmeta.TaskTypeHandler),
+		HandlerRef:     "host:scheduler-tenant-log",
+		Params:         `{}`,
+		TimeoutSeconds: 30,
+		Scope:          string(jobmeta.JobScopeMasterOnly),
+		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		Status:         string(jobmeta.JobStatusEnabled),
+	}
+	svc := &serviceImpl{
+		clusterSvc: fakeClusterService{nodeID: "tenant-log-node"},
+	}
+
+	runningLogID, err := svc.createRunningLog(ctx, job, jobmeta.TriggerTypeManual, time.Now())
+	if err != nil {
+		t.Fatalf("create tenant running log: %v", err)
+	}
+	t.Cleanup(func() { cleanupSchedulerLogs(t, ctx, []int64{runningLogID}) })
+
+	runningLog := querySchedulerLog(t, ctx, runningLogID)
+	if runningLog.TenantId != tenantID {
+		t.Fatalf("expected running log tenant_id=%d, got %d", tenantID, runningLog.TenantId)
+	}
+
+	if err = svc.createTerminalLog(ctx, job, jobmeta.TriggerTypeCron, jobmeta.LogStatusSkippedNotPrimary, "not primary"); err != nil {
+		t.Fatalf("create tenant terminal log: %v", err)
+	}
+	terminalLog := latestSchedulerLogForJob(t, ctx, job.Id)
+	t.Cleanup(func() { cleanupSchedulerLogs(t, ctx, []int64{terminalLog.Id}) })
+	if terminalLog.TenantId != tenantID {
+		t.Fatalf("expected terminal log tenant_id=%d, got %d", tenantID, terminalLog.TenantId)
 	}
 }
 

@@ -1,3 +1,6 @@
+// This file implements menu creation and converts typed public flag fields into
+// the menu service's integer model.
+
 package menu
 
 import (
@@ -16,12 +19,12 @@ func (c *ControllerV1) Create(ctx context.Context, req *v1.CreateReq) (res *v1.C
 		Component:  req.Component,
 		Perms:      req.Perms,
 		Icon:       req.Icon,
-		Type:       req.Type,
+		Type:       string(req.Type),
 		Sort:       req.Sort,
-		Visible:    req.Visible,
-		Status:     req.Status,
-		IsFrame:    req.IsFrame,
-		IsCache:    req.IsCache,
+		Visible:    req.Visible.Int(),
+		Status:     req.Status.Int(),
+		IsFrame:    req.IsFrame.Int(),
+		IsCache:    req.IsCache.Int(),
 		QueryParam: req.QueryParam,
 		Remark:     req.Remark,
 	})

@@ -79,15 +79,6 @@ database:
 
 使用外部托管`PostgreSQL`，例如`RDS`或阿里云`PolarDB`时，请将`database.default.link`指向供应商端点，并使用具备上述权限的账号执行初始化。
 
-如需单节点开发演示，可将链接改为`SQLite`：
-
-```yaml
-database:
-  default:
-    link: "sqlite::@file(./temp/sqlite/linapro.db)"
-```
-
-`SQLite`模式仅支持单节点，会自动强制`cluster.enabled=false`，不支持生产部署。
 
 ## 集群协调
 

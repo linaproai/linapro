@@ -11,7 +11,7 @@ import (
 
 // UpdateStatus handles scheduled job status change requests.
 func (c *ControllerV1) UpdateStatus(ctx context.Context, req *v1.UpdateStatusReq) (res *v1.UpdateStatusRes, err error) {
-	if err = c.jobMgmtSvc.UpdateJobStatus(ctx, req.Id, jobmeta.NormalizeJobStatus(req.Status)); err != nil {
+	if err = c.jobMgmtSvc.UpdateJobStatus(ctx, req.Id, jobmeta.NormalizeJobStatus(string(req.Status))); err != nil {
 		return nil, err
 	}
 	return &v1.UpdateStatusRes{}, nil

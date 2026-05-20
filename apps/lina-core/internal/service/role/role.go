@@ -87,6 +87,21 @@ type RoleMutationService interface {
 	UpdateStatus(ctx context.Context, id int, status int) error
 }
 
+// RoleMenuAssignmentService defines the assignable permission-menu projection
+// used by role forms and role-menu persistence.
+type RoleMenuAssignmentService interface {
+	// FilterAssignableMenus returns only menu rows that may be assigned by the
+	// current request context. The caller-provided order is preserved.
+	FilterAssignableMenus(ctx context.Context, menus []*entity.SysMenu) ([]*entity.SysMenu, error)
+	// FilterAssignableMenuIDs returns the subset of menuIDs that remains
+	// assignable in the current request context. The caller-provided order is
+	// preserved after de-duplication.
+	FilterAssignableMenuIDs(ctx context.Context, menuIDs []int) ([]int, error)
+	// EnsureAssignableMenuIDs rejects the submitted menu IDs when any positive
+	// ID is outside the current request context's assignable set.
+	EnsureAssignableMenuIDs(ctx context.Context, menuIDs []int) error
+}
+
 // RoleUserAssignmentService defines role-to-user assignment operations.
 type RoleUserAssignmentService interface {
 	// GetUsers queries users assigned to a role.
@@ -150,6 +165,7 @@ type RoleAccessSnapshotService interface {
 type Service interface {
 	RoleQueryService
 	RoleMutationService
+	RoleMenuAssignmentService
 	RoleUserAssignmentService
 	UserRoleLookupService
 	UserPermissionLookupService
@@ -235,8 +251,8 @@ type RoleItem struct {
 	DataScope int    `json:"dataScope"`
 	Status    int    `json:"status"`
 	Remark    string `json:"remark"`
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
+	CreatedAt *int64 `json:"createdAt"`
+	UpdatedAt *int64 `json:"updatedAt"`
 }
 
 // GetDetailOutput defines output for GetDetail function.
@@ -289,7 +305,7 @@ type RoleUserItem struct {
 	Email     string `json:"email"`
 	Phone     string `json:"phone"`
 	Status    int    `json:"status"`
-	CreatedAt string `json:"createdAt"`
+	CreatedAt *int64 `json:"createdAt"`
 }
 
 // GetUsersInput defines input for GetUsers function.

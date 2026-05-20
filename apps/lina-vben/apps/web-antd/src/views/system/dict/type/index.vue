@@ -45,7 +45,7 @@ const [BasicTable, tableApi] = useVbenVxeGrid({
   },
   gridOptions: {
     checkboxConfig: {
-      checkMethod: ({ row }: { row: DictType }) => !isBuiltInRecord(row),
+      checkMethod: ({ row }: { row: DictType }) => canDeleteRecord(row),
       highlight: true,
       reserve: true,
     },
@@ -103,6 +103,9 @@ function handleAdd() {
 }
 
 function handleEdit(record: DictType) {
+  if (!canEditRecord(record)) {
+    return;
+  }
   modalApi.setData({ id: record.id });
   modalApi.open();
 }
@@ -111,8 +114,16 @@ function isBuiltInRecord(row: DictType) {
   return row.isBuiltin === 1;
 }
 
+function canEditRecord(row: DictType) {
+  return row.canEdit !== false;
+}
+
+function canDeleteRecord(row: DictType) {
+  return canEditRecord(row) && !isBuiltInRecord(row);
+}
+
 async function handleDelete(row: DictType) {
-  if (isBuiltInRecord(row)) {
+  if (!canDeleteRecord(row)) {
     return;
   }
   Modal.confirm({
@@ -139,7 +150,7 @@ async function handleDelete(row: DictType) {
 
 function handleMultiDelete() {
   const rows = (tableApi.grid.getCheckboxRecords() as DictType[]).filter(
-    (row) => !isBuiltInRecord(row),
+    (row) => canDeleteRecord(row),
   );
   const ids = rows.map((row) => row.id);
   if (ids.length === 0) {
@@ -245,11 +256,11 @@ watch(
       </template>
       <template #action="{ row }">
         <Space>
-          <ghost-button @click.stop="handleEdit(row)">{{
+          <ghost-button v-if="canEditRecord(row)" @click.stop="handleEdit(row)">{{
             $t('pages.common.edit')
           }}</ghost-button>
           <Tooltip
-            v-if="isBuiltInRecord(row)"
+            v-if="canEditRecord(row) && isBuiltInRecord(row)"
             :title="$t('pages.common.builtinDeleteDisabled')"
           >
             <span
@@ -263,7 +274,7 @@ watch(
             </span>
           </Tooltip>
           <ghost-button
-            v-else
+            v-else-if="canDeleteRecord(row)"
             danger
             :data-testid="`dict-type-delete-${row.id}`"
             @click.stop="handleDelete(row)"

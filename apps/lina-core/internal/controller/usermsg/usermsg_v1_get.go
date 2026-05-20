@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"lina-core/api/usermsg/v1"
+	"lina-core/pkg/apitime"
 )
 
 // Get returns one current-user message detail for inbox preview.
@@ -22,10 +23,10 @@ func (c *ControllerV1) Get(ctx context.Context, req *v1.GetReq) (res *v1.GetRes,
 		CategoryCode:  detail.CategoryCode,
 		TypeLabel:     detail.TypeLabel,
 		TypeColor:     detail.TypeColor,
-		SourceType:    detail.SourceType,
+		SourceType:    v1.SourceType(detail.SourceType),
 		SourceId:      detail.SourceId,
 		Content:       detail.Content,
 		CreatedByName: detail.CreatedByName,
-		CreatedAt:     detail.CreatedAt,
+		CreatedAt:     apitime.Milli(detail.CreatedAt),
 	}, nil
 }

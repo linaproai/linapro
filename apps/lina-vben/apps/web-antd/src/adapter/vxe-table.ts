@@ -24,6 +24,7 @@ import {
   renderJobCronExpression,
 } from '#/api/system/job/meta';
 import { pluginSlotKeys } from '#/plugins/plugin-slots';
+import { formatTimestamp } from '#/utils/time';
 
 import { useVbenForm } from './form';
 
@@ -309,7 +310,12 @@ export function buildJobGroupColumns(): VxeTableGridOptions['columns'] {
       title: $t('pages.common.remark'),
       minWidth: 200,
     },
-    { field: 'updatedAt', title: $t('pages.common.updatedAt'), minWidth: 180 },
+    {
+      field: 'updatedAt',
+      title: $t('pages.common.updatedAt'),
+      formatter: ({ cellValue }) => formatTimestamp(cellValue),
+      minWidth: 180,
+    },
     {
       field: 'action',
       fixed: 'right',
@@ -438,7 +444,12 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
             : '-',
       },
     },
-    { field: 'updatedAt', title: $t('pages.common.updatedAt'), minWidth: 180 },
+    {
+      field: 'updatedAt',
+      title: $t('pages.common.updatedAt'),
+      formatter: ({ cellValue }) => formatTimestamp(cellValue),
+      minWidth: 180,
+    },
     {
       field: 'action',
       fixed: 'right',
@@ -495,11 +506,13 @@ export function buildJobLogColumns(): VxeTableGridOptions['columns'] {
     {
       field: 'startAt',
       title: $t('pages.system.jobLog.fields.startAt'),
+      formatter: ({ cellValue }) => formatTimestamp(cellValue),
       minWidth: 180,
     },
     {
       field: 'endAt',
       title: $t('pages.system.jobLog.fields.endAt'),
+      formatter: ({ cellValue }) => formatTimestamp(cellValue),
       minWidth: 180,
     },
     {

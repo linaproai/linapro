@@ -1,2 +1,12 @@
-export { expect } from '@playwright/test';
-export type { APIRequestContext, Locator, Page } from '@playwright/test';
+export { expect, request } from '@playwright/test';
+export type {
+  APIRequestContext,
+  APIResponse,
+  Browser,
+  BrowserContext,
+  Locator,
+  Page,
+  Request,
+  Response,
+  Route,
+} from '@playwright/test';

@@ -3,9 +3,7 @@
 ## Purpose
 
 定义定时任务管理行为，包括日志清理策略治理、内置任务投射、手动触发确认和 Shell 任务操作可用性。
-
 ## Requirements
-
 ### Requirement:日志清理策略
 
 系统 SHALL 提供带任务级覆盖的全局默认清理策略，由内置系统定时任务定期执行。内置清理任务 SHALL 通过宿主源码注册并在服务启动时投射到 `sys_job`；交付 SQL 不得将 `host:cleanup-job-logs` 的初始化种子数据写入 `sys_job`。该内置任务的 `sys_job` 行是用于展示、日志和审计关联的治理投影，而非启动持久化加载使用的执行定义源。
@@ -203,3 +201,75 @@
 - **且** 请求终止其他用户创建任务的 running 日志
 - **则** 系统拒绝终止
 - **且** 目标任务执行状态不因该请求改变
+
+### Requirement: Master-Only 定时任务必须基于 Redis primary 状态
+系统 SHALL 在集群模式下通过 Redis leader election 的 primary 状态决定 Master-Only 定时任务是否执行。
+
+#### Scenario: primary 执行 Master-Only 任务
+- **WHEN** Master-Only 定时任务触发
+- **AND** 当前节点持有 Redis leader lock
+- **THEN** 当前节点执行任务
+
+#### Scenario: follower 跳过 Master-Only 任务
+- **WHEN** Master-Only 定时任务触发
+- **AND** 当前节点未持有 Redis leader lock
+- **THEN** 当前节点跳过任务
+- **AND** 不产生业务副作用
+
+### Requirement: coordination KV kvcache backend 不得注册 SQL 过期清理任务
+系统 SHALL 根据 kvcache backend 判断是否注册 KV 过期清理任务。coordination KV backend MUST 不注册 SQL table cleanup job。
+
+#### Scenario: 集群 coordination KV backend 启动
+- **WHEN** 宿主以集群模式启动并使用 coordination KV kvcache backend
+- **THEN** 系统不投射 `host:kvcache-cleanup-expired` 任务
+- **AND** Redis TTL 负责缓存过期
+
+### Requirement: 集群 watcher 任务必须作为 revision 兜底
+系统 SHALL 保留权限拓扑、运行时配置和插件运行时同步任务作为 Redis event 的兜底机制。watcher MUST 读取 Redis revision 而不是 PostgreSQL revision 表。
+
+#### Scenario: watcher 发现 revision 前进
+- **WHEN** 节点错过 Redis event
+- **AND** watcher 读取到 Redis revision 高于本地 observed revision
+- **THEN** 节点刷新本地派生缓存
+- **AND** 更新 observed revision
+
+### Requirement: 任务分组必须按租户作用域隔离
+
+系统 SHALL 将 `sys_job_group` 作为租户作用域资源处理。任务分组列表、详情、创建、更新、删除、分组下任务计数和删除迁移 MUST 使用当前租户上下文限制到对应 `tenant_id`。租户上下文不得读取、更新、删除或迁移其他租户或平台上下文的任务分组。
+
+#### Scenario: 租户查询只返回本租户任务分组
+
+- **WHEN** 租户 A 用户查询任务分组列表
+- **THEN** 系统只返回 `tenant_id = A` 的任务分组
+- **AND** 不返回平台 `tenant_id = 0` 或租户 B 的任务分组
+
+#### Scenario: 租户创建任务分组写入当前租户
+
+- **WHEN** 租户 A 用户创建任务分组
+- **THEN** 新记录的 `tenant_id` MUST 等于租户 A
+- **AND** 分组编码唯一性按 `(tenant_id, code)` 校验
+- **AND** 不得依赖数据库默认值写入 `tenant_id = 0`
+
+#### Scenario: 租户更新范围外任务分组被拒绝
+
+- **WHEN** 租户 A 用户请求更新租户 B 或平台的任务分组 ID
+- **THEN** 系统 MUST 返回结构化不可见或权限错误
+- **AND** 不修改目标任务分组
+
+#### Scenario: 删除任务分组只迁移当前租户任务
+
+- **WHEN** 租户 A 用户删除本租户任务分组
+- **THEN** 系统仅将租户 A 中属于该分组的任务迁移到租户 A 的默认分组
+- **AND** 不修改租户 B 或平台任务的 `group_id`
+- **AND** 删除和迁移在同一租户边界内原子完成
+
+### Requirement: 任务分组数据权限和缓存边界必须明确
+
+任务分组读写 SHALL 与定时任务管理的数据权限治理兼容。读取类接口在数据库查询阶段注入租户过滤；详情和写操作在操作前校验目标分组可见性。任务分组本身不应引入独立跨节点缓存；若后续添加缓存，必须按 `tenant_id` 分桶并使用显式作用域失效。
+
+#### Scenario: 任务分组计数不泄露其他租户任务
+
+- **WHEN** 租户 A 查询任务分组列表并返回每个分组的任务数量
+- **THEN** 每个计数只统计租户 A 可见任务
+- **AND** 不因其他租户存在同名或同 ID 分组而改变计数
+

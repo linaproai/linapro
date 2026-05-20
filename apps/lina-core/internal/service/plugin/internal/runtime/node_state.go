@@ -6,8 +6,8 @@ package runtime
 import (
 	"context"
 	"strings"
+	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
@@ -143,6 +143,7 @@ func (s *serviceImpl) syncNodeProjection(ctx context.Context, in nodeProjectionI
 		generation = 1
 	}
 
+	lastHeartbeatAt := time.Now()
 	data := do.SysPluginNodeState{
 		PluginId:        pluginID,
 		ReleaseId:       in.ReleaseID,
@@ -150,7 +151,7 @@ func (s *serviceImpl) syncNodeProjection(ctx context.Context, in nodeProjectionI
 		DesiredState:    desiredState,
 		CurrentState:    currentState,
 		Generation:      generation,
-		LastHeartbeatAt: gtime.Now(),
+		LastHeartbeatAt: &lastHeartbeatAt,
 		ErrorMessage:    strings.TrimSpace(in.Message),
 	}
 

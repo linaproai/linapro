@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -35,9 +34,9 @@ var errIncrConflict = errors.New("cache increment compare-and-swap conflict")
 // incrSnapshot carries the integer value and expiration metadata selected
 // after an atomic increment.
 type incrSnapshot struct {
-	ValueKind int         `orm:"value_kind"`
-	ValueInt  int64       `orm:"value_int"`
-	ExpireAt  *gtime.Time `orm:"expire_at"`
+	ValueKind int        `orm:"value_kind"`
+	ValueInt  int64      `orm:"value_int"`
+	ExpireAt  *time.Time `orm:"expire_at"`
 }
 
 // Get returns the current cache entry snapshot identified by ownerType and one
@@ -70,7 +69,7 @@ func (b *SQLTableBackend) Get(
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
 		CacheKey:  identity.cacheKey,
-	}).Wheref("(%s IS NULL OR %s > ?)", cols.ExpireAt, cols.ExpireAt, gtime.Now()).Scan(&row)
+	}).Wheref("(%s IS NULL OR %s > ?)", cols.ExpireAt, cols.ExpireAt, time.Now()).Scan(&row)
 	if err != nil {
 		return nil, false, err
 	}
@@ -111,7 +110,7 @@ func (b *SQLTableBackend) GetInt(
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
 		CacheKey:  identity.cacheKey,
-	}).Wheref("(%s IS NULL OR %s > ?)", cols.ExpireAt, cols.ExpireAt, gtime.Now()).Scan(&row)
+	}).Wheref("(%s IS NULL OR %s > ?)", cols.ExpireAt, cols.ExpireAt, time.Now()).Scan(&row)
 	if err != nil {
 		return 0, false, err
 	}
@@ -266,7 +265,7 @@ func (b *SQLTableBackend) incrOnce(
 	ownerType OwnerType,
 	identity *cacheIdentity,
 	delta int64,
-	expireAt *gtime.Time,
+	expireAt *time.Time,
 ) (*Item, error) {
 	cols := dao.SysKvCache.Columns()
 	snapshot, found, err := b.readIdentitySnapshot(ctx, ownerType, identity)
@@ -315,7 +314,7 @@ func (b *SQLTableBackend) incrOnce(
 		CacheKey:  identity.cacheKey,
 		ValueKind: ValueKindInt,
 		ValueInt:  snapshot.ValueInt,
-	}).Wheref("(%s IS NULL OR %s > ?)", cols.ExpireAt, cols.ExpireAt, gtime.Now()).Data(updateData)
+	}).Wheref("(%s IS NULL OR %s > ?)", cols.ExpireAt, cols.ExpireAt, time.Now()).Data(updateData)
 	if expireAt == nil {
 		updateModel = updateModel.Fields(cols.ValueKind, cols.ValueBytes, cols.ValueInt)
 	}
@@ -341,7 +340,7 @@ func (b *SQLTableBackend) ensureIncrementSeedRow(
 	ctx context.Context,
 	ownerType OwnerType,
 	identity *cacheIdentity,
-	expireAt *gtime.Time,
+	expireAt *time.Time,
 ) error {
 	_, err := b.model(ctx).Data(do.SysKvCache{
 		TenantId:   identity.tenantID,
@@ -375,7 +374,7 @@ func (b *SQLTableBackend) readIdentitySnapshot(
 			Namespace: identity.namespace,
 			CacheKey:  identity.cacheKey,
 		}).
-		Wheref("(%s IS NULL OR %s > ?)", cols.ExpireAt, cols.ExpireAt, gtime.Now()).
+		Wheref("(%s IS NULL OR %s > ?)", cols.ExpireAt, cols.ExpireAt, time.Now()).
 		Scan(&row)
 	if err != nil {
 		return nil, false, err
@@ -388,7 +387,7 @@ func (b *SQLTableBackend) readIdentitySnapshot(
 
 // resolveIncrementExpireAt returns the effective expiration after one
 // successful increment write.
-func resolveIncrementExpireAt(current *gtime.Time, requested *gtime.Time) *gtime.Time {
+func resolveIncrementExpireAt(current *time.Time, requested *time.Time) *time.Time {
 	if requested != nil {
 		return requested
 	}
@@ -435,7 +434,7 @@ func sleepBeforeIncrRetry(ctx context.Context, attempt int) error {
 //
 // Returns:
 //   - bool: whether an existing cache entry was found and updated.
-//   - *gtime.Time: the normalized absolute expiration time; nil means the entry will not expire.
+//   - *time.Time: the normalized absolute expiration time; nil means the entry will not expire.
 //   - error: returned when the scoped cache key is invalid, ttl is negative,
 //     expired-entry cleanup fails, or the database update fails.
 func (b *SQLTableBackend) Expire(
@@ -443,7 +442,7 @@ func (b *SQLTableBackend) Expire(
 	ownerType OwnerType,
 	cacheKey string,
 	ttl time.Duration,
-) (bool, *gtime.Time, error) {
+) (bool, *time.Time, error) {
 	identity, err := b.resolveIdentity(ownerType, cacheKey)
 	if err != nil {
 		return false, nil, err
@@ -494,7 +493,7 @@ func (b *SQLTableBackend) CleanupExpired(ctx context.Context) error {
 	if err := b.model(ctx).
 		Fields(cols.Id).
 		WhereNotNull(cols.ExpireAt).
-		WhereLT(cols.ExpireAt, gtime.Now()).
+		WhereLT(cols.ExpireAt, time.Now()).
 		OrderAsc(cols.ExpireAt).
 		Limit(expiredCleanupBatchSize).
 		Scan(&expiredRows); err != nil {
@@ -594,7 +593,7 @@ func (b *SQLTableBackend) cleanupExpiredIdentity(
 			CacheKey:  identity.cacheKey,
 		}).
 		WhereNotNull(cols.ExpireAt).
-		WhereLT(cols.ExpireAt, gtime.Now()).
+		WhereLT(cols.ExpireAt, time.Now()).
 		Delete()
 	return err
 }
@@ -640,14 +639,15 @@ func (b *SQLTableBackend) validateIdentity(
 
 // normalizeExpireAt converts an expiration duration in seconds into an
 // absolute expiration time, or nil for persistent entries.
-func normalizeExpireAt(ttl time.Duration) (*gtime.Time, error) {
+func normalizeExpireAt(ttl time.Duration) (*time.Time, error) {
 	if ttl < 0 {
 		return nil, bizerr.NewCode(CodeKVCacheExpireSecondsNegative)
 	}
 	if ttl == 0 {
 		return nil, nil
 	}
-	return gtime.Now().Add(ttl), nil
+	expireAt := time.Now().Add(ttl)
+	return &expireAt, nil
 }
 
 // validateByteLength enforces a non-empty string field with a maximum byte

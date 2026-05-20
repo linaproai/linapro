@@ -2,6 +2,8 @@
 
 package v1
 
+import jobv1 "lina-core/api/job/v1"
+
 // HostServiceAuthorizationReq describes the host-confirmed authorization result
 // submitted during plugin install or enable flows.
 type HostServiceAuthorizationReq struct {
@@ -63,9 +65,9 @@ type HostServicePermissionCronItem struct {
 	// Timezone stores the UI display timezone for cron-style patterns.
 	Timezone string `json:"timezone,omitempty" dc:"Task time zone; time zone identifier used in cron expression parsing and display" eg:"Asia/Shanghai"`
 	// Scope stores the declared dispatch scope.
-	Scope string `json:"scope" dc:"Scheduling scope: master_only=Only the master node executes all_node=All nodes execute" eg:"all_node"`
+	Scope jobv1.Scope `json:"scope" dc:"Scheduling scope: master_only=Only the master node executes all_node=All nodes execute" eg:"all_node"`
 	// Concurrency stores the declared overlap strategy.
-	Concurrency string `json:"concurrency" dc:"Concurrency strategy: singleton=single case execution parallel=allows parallel execution" eg:"singleton"`
+	Concurrency jobv1.Concurrency `json:"concurrency" dc:"Concurrency strategy: singleton=single case execution parallel=allows parallel execution" eg:"singleton"`
 	// MaxConcurrency stores the parallel overlap ceiling when enabled.
 	MaxConcurrency int `json:"maxConcurrency,omitempty" dc:"Maximum number of concurrencies; only meaningful under parallel strategy, singleton strategy is usually 1" eg:"1"`
 }

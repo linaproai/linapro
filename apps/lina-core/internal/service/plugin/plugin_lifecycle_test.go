@@ -27,7 +27,7 @@ func TestUpdateStatusEnablesBackendOnlyDynamicPluginWithoutFrontendAssets(t *tes
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-backend-only"
+		pluginID = "plugin-dev-dynamic-backend-only"
 	)
 
 	frontend.ResetBundleCache()
@@ -143,7 +143,7 @@ func TestInstallPersistsExplicitDynamicInstallMode(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-explicit-install-mode"
+		pluginID = "plugin-dev-dynamic-explicit-install-mode"
 	)
 
 	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithFrontendAssets(
@@ -234,7 +234,7 @@ func TestApplyTargetReleaseAuthorizedHostServicesFiltersMissingRelease(t *testin
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-lifecycle-missing-release-auth"
+		pluginID = "plugin-dev-dynamic-lifecycle-missing-release-auth"
 	)
 
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
@@ -283,7 +283,7 @@ func TestDynamicLifecycleBeforeInstallFailsClosedBeforeInstall(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-before-install-fail-closed"
+		pluginID = "plugin-dev-dynamic-before-install-fail-closed"
 	)
 
 	artifactPath := createDynamicLifecyclePreconditionArtifact(
@@ -325,8 +325,8 @@ func TestUninstallDynamicUsesArchivedReleaseWhenStagingArtifactMissing(t *testin
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-uninstall-missing-staging"
-		menuKey  = "plugin:plugin-dynamic-uninstall-missing-staging:entry"
+		pluginID = "plugin-dev-dynamic-uninstall-missing-staging"
+		menuKey  = "plugin:plugin-dev-dynamic-uninstall-missing-staging:entry"
 		version  = "v0.4.3"
 	)
 
@@ -353,8 +353,8 @@ func TestUninstallDynamicUsesArchivedReleaseWhenStagingArtifactMissing(t *testin
 			{
 				Key:   menuKey,
 				Name:  "Dynamic Missing Staging Uninstall Plugin",
-				Path:  "plugin-dynamic-uninstall-missing-staging",
-				Perms: "plugin-dynamic-uninstall-missing-staging:view",
+				Path:  "plugin-dev-dynamic-uninstall-missing-staging",
+				Perms: "plugin-dev-dynamic-uninstall-missing-staging:view",
 				Icon:  "ant-design:appstore-outlined",
 				Type:  catalog.MenuTypePage.String(),
 				Sort:  1,
@@ -411,7 +411,7 @@ func TestDynamicLifecycleBeforeDisableFailsClosedBeforeStatusChange(t *testing.T
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-before-disable-fail-closed"
+		pluginID = "plugin-dev-dynamic-before-disable-fail-closed"
 	)
 
 	artifactPath := createDynamicLifecyclePreconditionArtifact(
@@ -456,7 +456,7 @@ func TestDynamicLifecycleBeforeUninstallUsesActiveReleaseWhenStagingMissing(t *t
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-before-uninstall-active"
+		pluginID = "plugin-dev-dynamic-before-uninstall-active"
 		version  = "v0.4.7"
 	)
 
@@ -506,8 +506,8 @@ func TestDynamicLifecycleUninstallRunsOnlyWhenPurgeRequested(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		blockingID = "plugin-dynamic-uninstall-cleanup-fail-closed"
-		skipID     = "plugin-dynamic-uninstall-cleanup-skipped"
+		blockingID = "plugin-dev-dynamic-uninstall-cleanup-fail-closed"
+		skipID     = "plugin-dev-dynamic-uninstall-cleanup-skipped"
 		version    = "v0.4.8"
 	)
 
@@ -577,8 +577,8 @@ func TestUninstallForceClearsDynamicOrphanWhenArtifactsMissing(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-force-orphan-uninstall"
-		menuKey  = "plugin:plugin-dynamic-force-orphan-uninstall:entry"
+		pluginID = "plugin-dev-dynamic-force-orphan-uninstall"
+		menuKey  = "plugin:plugin-dev-dynamic-force-orphan-uninstall:entry"
 		version  = "v0.4.4"
 	)
 
@@ -606,8 +606,8 @@ func TestUninstallForceClearsDynamicOrphanWhenArtifactsMissing(t *testing.T) {
 			{
 				Key:   menuKey,
 				Name:  "Dynamic Force Orphan Uninstall Plugin",
-				Path:  "plugin-dynamic-force-orphan-uninstall",
-				Perms: "plugin-dynamic-force-orphan-uninstall:view",
+				Path:  "plugin-dev-dynamic-force-orphan-uninstall",
+				Perms: "plugin-dev-dynamic-force-orphan-uninstall:view",
 				Icon:  "ant-design:appstore-outlined",
 				Type:  catalog.MenuTypePage.String(),
 				Sort:  1,
@@ -760,7 +760,7 @@ func TestTenantPluginDisableRunsSourceLifecyclePrecondition(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-source-tenant-disable-precondition"
+		pluginID = "plugin-dev-source-tenant-disable-precondition"
 	)
 	plugin := pluginhost.NewSourcePlugin(pluginID)
 	if err := plugin.Lifecycle().RegisterBeforeTenantDisableHandler(func(
@@ -792,7 +792,7 @@ func TestDynamicLifecycleBeforeTenantDisableFailsClosed(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-before-tenant-disable"
+		pluginID = "plugin-dev-dynamic-before-tenant-disable"
 	)
 
 	artifactPath := createDynamicLifecyclePreconditionArtifact(
@@ -828,7 +828,7 @@ func TestDynamicLifecycleBeforeTenantDeleteFailsClosed(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-before-tenant-delete"
+		pluginID = "plugin-dev-dynamic-before-tenant-delete"
 	)
 
 	artifactPath := createDynamicLifecyclePreconditionArtifact(
@@ -864,7 +864,7 @@ func TestUninstallForceRequiresConfig(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-force-precondition"
+		pluginID = "plugin-dev-force-precondition"
 	)
 	registerUninstallLifecycleVetoForTest(t, pluginID)
 	t.Cleanup(func() { configsvc.SetPluginAllowForceUninstallOverride(nil) })
@@ -883,7 +883,7 @@ func TestUninstallForceBypassesLifecyclePreconditionWhenConfigured(t *testing.T)
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-force-missing-after-precondition"
+		pluginID = "plugin-dev-force-missing-after-precondition"
 	)
 	registerUninstallLifecycleVetoForTest(t, pluginID)
 	t.Cleanup(func() { configsvc.SetPluginAllowForceUninstallOverride(nil) })
@@ -905,7 +905,7 @@ func TestSourceLifecycleBeforeInstallBlocksInstall(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-source-before-install-veto"
+		pluginID   = "plugin-dev-source-before-install-veto"
 		operations []string
 	)
 
@@ -950,7 +950,7 @@ func TestSourceLifecycleBeforeDisableBlocksDisable(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-source-before-disable-veto"
+		pluginID   = "plugin-dev-source-before-disable-veto"
 		operations []string
 	)
 
@@ -999,7 +999,7 @@ func TestSourceLifecycleBeforeUninstallBlocksUninstall(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-source-before-uninstall-veto"
+		pluginID   = "plugin-dev-source-before-uninstall-veto"
 		operations []string
 	)
 
@@ -1045,7 +1045,7 @@ func TestSourceLifecycleBeforeUninstallForceBypassesWhenConfigured(t *testing.T)
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-source-before-uninstall-force"
+		pluginID   = "plugin-dev-source-before-uninstall-force"
 		operations []string
 	)
 
@@ -1089,8 +1089,8 @@ func TestSourceLifecycleBeforeUninstallReceivesPurgePolicy(t *testing.T) {
 	var (
 		service      = newTestService()
 		ctx          = context.Background()
-		skipID       = "plugin-source-before-uninstall-keep-data"
-		purgeID      = "plugin-source-before-uninstall-purge-data"
+		skipID       = "plugin-dev-source-before-uninstall-keep-data"
+		purgeID      = "plugin-dev-source-before-uninstall-purge-data"
 		skipOps      []string
 		purgeOps     []string
 		purgeAllowed = true
@@ -1169,7 +1169,7 @@ func TestSourceLifecycleAfterInstallRunsAfterInstall(t *testing.T) {
 	var (
 		service    = newTestService()
 		ctx        = context.Background()
-		pluginID   = "plugin-source-after-install"
+		pluginID   = "plugin-dev-source-after-install"
 		operations []string
 	)
 
@@ -1378,7 +1378,7 @@ func TestSyncAndListReportsPendingHostServiceAuthorization(t *testing.T) {
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-host-auth-pending"
+		pluginID = "plugin-dev-dynamic-host-auth-pending"
 	)
 
 	artifactPath := filepath.Join(
@@ -1464,7 +1464,7 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 	var (
 		service  = newTestService()
 		ctx      = context.Background()
-		pluginID = "plugin-dynamic-host-auth-enabled"
+		pluginID = "plugin-dev-dynamic-host-auth-enabled"
 	)
 
 	artifactPath := filepath.Join(
@@ -1588,8 +1588,8 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 	)
 
 	const (
-		pluginID = "plugin-source-explicit-lifecycle"
-		menuKey  = "plugin:plugin-source-explicit-lifecycle:entry"
+		pluginID = "plugin-dev-source-explicit-lifecycle"
+		menuKey  = "plugin:plugin-dev-source-explicit-lifecycle:entry"
 	)
 
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
@@ -1607,9 +1607,9 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 			"menus:\n"+
 			"  - key: "+menuKey+"\n"+
 			"    name: Source Explicit Lifecycle Plugin\n"+
-			"    path: plugin-source-explicit-lifecycle\n"+
+			"    path: plugin-dev-source-explicit-lifecycle\n"+
 			"    component: system/plugin/dynamic-page\n"+
-			"    perms: plugin-source-explicit-lifecycle:view\n"+
+			"    perms: plugin-dev-source-explicit-lifecycle:view\n"+
 			"    icon: ant-design:appstore-outlined\n"+
 			"    type: M\n"+
 			"    sort: -1\n",

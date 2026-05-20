@@ -4,6 +4,8 @@ import { spawnSync } from 'node:child_process';
 import {
   listTcFiles,
   loadManifest,
+  moduleHasPluginWorkspaceEntries,
+  moduleRequiresPluginWorkspace,
   playwrightFileArg,
   pluginTestEntry,
   requirePluginWorkspace,
@@ -32,10 +34,14 @@ function runPlaywright(files, workers, label) {
   const runnableFiles = files.map(playwrightFileArg);
   const args = ['exec', 'playwright', 'test', ...runnableFiles, `--workers=${workers}`, ...extraArgs];
   console.log(`\n[${label}] playwright test ${files.length} file(s), workers=${workers}`);
+  const env = {
+    ...process.env,
+    E2E_HOST_ONLY_PLUGINS: label.startsWith('host') ? '1' : (process.env.E2E_HOST_ONLY_PLUGINS ?? '0'),
+  };
   const result = spawnSync('pnpm', args, {
     cwd: testsDir,
     stdio: 'inherit',
-    env: process.env,
+    env,
   });
   return result.status ?? 1;
 }
@@ -91,6 +97,29 @@ function runHostMode(entries, label) {
   return runPlaywright(serialFiles, 1, `${label}:serial`);
 }
 
+function runHostModuleMode(entries, label) {
+  const { files, parallelFiles, serialFiles } = splitHostOnlyBySerial(entries, manifest);
+  if (files.length === 0) {
+    return null;
+  }
+  const categorySummary = summarizeIsolationCategories(serialFiles, manifest);
+  console.log(
+    [
+      `[${label}] selected=${files.length}`,
+      `parallel=${parallelFiles.length}`,
+      `serial=${serialFiles.length}`,
+      `parallelWorkers=${Math.max(parallelWorkers, 1)}`,
+      `serialIsolation=${formatCategorySummary(categorySummary)}`,
+    ].join(' '),
+  );
+
+  const parallelStatus = runPlaywright(parallelFiles, Math.max(parallelWorkers, 1), `${label}:parallel`);
+  if (parallelStatus !== 0) {
+    return parallelStatus;
+  }
+  return runPlaywright(serialFiles, 1, `${label}:serial`);
+}
+
 function resolveModuleEntries(scope) {
   const configuredEntries = manifest.moduleScopes[scope];
   if (configuredEntries) {
@@ -117,13 +146,14 @@ if (mode === 'full') {
   exitCode = runHostMode(['e2e'], 'host');
 } else if (mode === 'smoke') {
   exitCode = runMode(manifest.smoke ?? [], 'smoke');
-} else if (mode === 'module') {
+} else if (mode === 'module' || mode === 'host-module') {
   const rawModuleArgs = process.argv.slice(3);
   const moduleArgs = normalizePassthroughArgs(rawModuleArgs);
   const scope = moduleArgs[0];
   const passthroughArgs = normalizePassthroughArgs(moduleArgs.slice(1));
   if (!scope) {
-    console.error('Missing module scope. Example: pnpm test:module -- iam:user');
+    const command = mode === 'host-module' ? 'pnpm test:host:module' : 'pnpm test:module';
+    console.error(`Missing module scope. Example: ${command} -- iam:user`);
     process.exit(1);
   }
   const entries = resolveModuleEntries(scope);
@@ -134,9 +164,13 @@ if (mode === 'full') {
     );
     process.exit(1);
   }
+  if (mode === 'host-module' && moduleHasPluginWorkspaceEntries(scope, manifest)) {
+    console.error(`Host-only module scope cannot require apps/lina-plugins: ${scope}`);
+    process.exit(1);
+  }
   const resolvedEntries = resolveEntries(entries);
-  const isPluginScope = /^plugin:[^:]+$/u.test(scope);
-  if (scope === pluginTestEntry || isPluginScope) {
+  const isPluginScope = /^plugin:[^/:]+$/u.test(scope);
+  if (moduleRequiresPluginWorkspace(scope, manifest)) {
     try {
       requirePluginWorkspace();
     } catch (error) {
@@ -144,7 +178,7 @@ if (mode === 'full') {
       process.exit(1);
     }
   }
-  if (resolvedEntries.length === 0 && scope !== pluginTestEntry) {
+  if (mode === 'module' && resolvedEntries.length === 0 && scope !== pluginTestEntry) {
     console.error(`Module scope has no matching test files: ${scope}`);
     if (isPluginScope) {
       console.error('Expected plugin-owned tests under apps/lina-plugins/<plugin-id>/hack/tests/e2e/.');
@@ -153,7 +187,16 @@ if (mode === 'full') {
   }
 
   extraArgs.splice(0, extraArgs.length, ...passthroughArgs);
-  exitCode = runMode(entries, `module:${scope}`);
+  if (mode === 'host-module') {
+    const hostModuleStatus = runHostModuleMode(entries, `host-module:${scope}`);
+    if (hostModuleStatus === null) {
+      console.error(`Host-only module scope has no matching test files after plugin-environment exclusions: ${scope}`);
+      process.exit(1);
+    }
+    exitCode = hostModuleStatus;
+  } else {
+    exitCode = runMode(entries, `module:${scope}`);
+  }
 } else {
   console.error(`Unknown run mode: ${mode}`);
   process.exit(1);

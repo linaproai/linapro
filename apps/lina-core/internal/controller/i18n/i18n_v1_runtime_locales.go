@@ -18,7 +18,7 @@ func (c *ControllerV1) RuntimeLocales(ctx context.Context, req *v1.RuntimeLocale
 			Locale:     descriptor.Locale,
 			Name:       descriptor.Name,
 			NativeName: descriptor.NativeName,
-			Direction:  descriptor.Direction,
+			Direction:  v1.LocaleDirection(descriptor.Direction),
 			IsDefault:  descriptor.IsDefault,
 		})
 	}

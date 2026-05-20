@@ -15,6 +15,8 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
+	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/orgcap"
 	"lina-core/pkg/bizerr"
 )
@@ -241,6 +243,36 @@ func TestUserDataScopeExportAllAppliesSelfScope(t *testing.T) {
 	}
 }
 
+// TestTenantUserImportPersistsCurrentTenant verifies imported users created in
+// tenant context are not written to the platform tenant.
+func TestTenantUserImportPersistsCurrentTenant(t *testing.T) {
+	ctx := context.Background()
+	tenantID := 99
+	tenantCtx := datascope.WithTenantForTest(ctx, tenantID)
+	username := fmt.Sprintf("tenant-import-user-%d", time.Now().UnixNano())
+	importData := buildUserImportWorkbook(t, []string{username, "P@ssw0rd123", "Tenant Import User", "", "", "0", "1", "tenant import"})
+
+	result, err := newUserTestService().Import(tenantCtx, bytes.NewReader(importData))
+	if err != nil {
+		t.Fatalf("import tenant user: %v", err)
+	}
+	if result.Success != 1 || result.Fail != 0 {
+		t.Fatalf("expected one successful tenant user import, got success=%d fail=%d failures=%#v", result.Success, result.Fail, result.FailList)
+	}
+	t.Cleanup(func() { cleanupUserImportRowsByUsername(t, ctx, username) })
+
+	var imported *entity.SysUser
+	if err = dao.SysUser.Ctx(ctx).Where(do.SysUser{Username: username}).Scan(&imported); err != nil {
+		t.Fatalf("query imported user: %v", err)
+	}
+	if imported == nil {
+		t.Fatal("expected imported user to exist")
+	}
+	if imported.TenantId != tenantID {
+		t.Fatalf("expected imported user tenant_id=%d, got %d", tenantID, imported.TenantId)
+	}
+}
+
 // insertUserDataScopeTestRole inserts one temporary role with a configurable
 // data scope and status.
 func insertUserDataScopeTestRole(t *testing.T, ctx context.Context, label string, scope userDataScope, status int) int {
@@ -307,6 +339,65 @@ func readUserDataScopeExportRows(data []byte) (rows [][]string, err error) {
 	}()
 	rows, err = f.GetRows("Sheet1")
 	return rows, err
+}
+
+// buildUserImportWorkbook builds one user-import workbook with a single data
+// row.
+func buildUserImportWorkbook(t *testing.T, row []string) []byte {
+	t.Helper()
+
+	f := excelize.NewFile()
+	sheet := "Sheet1"
+	headers := []string{"Username", "Password", "Nickname", "Mobile Number", "Email", "Gender", "Status", "Remark"}
+	for i, header := range headers {
+		cell, err := excelize.CoordinatesToCellName(i+1, 1)
+		if err != nil {
+			t.Fatalf("build user import header cell name: %v", err)
+		}
+		if err = f.SetCellValue(sheet, cell, header); err != nil {
+			t.Fatalf("set user import header %s: %v", header, err)
+		}
+	}
+	for i, value := range row {
+		cell, err := excelize.CoordinatesToCellName(i+1, 2)
+		if err != nil {
+			t.Fatalf("build user import row cell name: %v", err)
+		}
+		if err = f.SetCellValue(sheet, cell, value); err != nil {
+			t.Fatalf("set user import row value %s: %v", value, err)
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := f.Write(&buf); err != nil {
+		t.Fatalf("write user import workbook: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close user import workbook: %v", err)
+	}
+	return buf.Bytes()
+}
+
+// cleanupUserImportRowsByUsername removes one imported test user by username.
+func cleanupUserImportRowsByUsername(t *testing.T, ctx context.Context, username string) {
+	t.Helper()
+
+	var imported *entity.SysUser
+	if err := dao.SysUser.Ctx(ctx).
+		Unscoped().
+		Where(do.SysUser{Username: username}).
+		Scan(&imported); err != nil {
+		t.Fatalf("query imported user for cleanup: %v", err)
+	}
+	if imported == nil {
+		return
+	}
+	if _, err := dao.SysUserRole.Ctx(ctx).Where(do.SysUserRole{UserId: imported.Id}).Delete(); err != nil {
+		t.Fatalf("cleanup imported user roles: %v", err)
+	}
+	if _, err := dao.SysUser.Ctx(ctx).Unscoped().Where(do.SysUser{Id: imported.Id}).Delete(); err != nil {
+		t.Fatalf("cleanup imported user: %v", err)
+	}
 }
 
 // userDataScopeListIDs returns user IDs from list output for clear assertions.

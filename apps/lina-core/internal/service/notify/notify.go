@@ -4,8 +4,7 @@ package notify
 
 import (
 	"context"
-
-	"github.com/gogf/gf/v2/os/gtime"
+	"time"
 
 	tenantcapsvc "lina-core/internal/service/tenantcap"
 )
@@ -127,9 +126,9 @@ type InboxListItem struct {
 	// IsRead reports whether the inbox row has been marked as read.
 	IsRead int
 	// ReadAt is the optional read timestamp.
-	ReadAt *gtime.Time
+	ReadAt *time.Time
 	// CreatedAt is the inbox delivery creation timestamp.
-	CreatedAt *gtime.Time
+	CreatedAt *time.Time
 }
 
 // New creates a notify service from explicit runtime-owned dependencies.

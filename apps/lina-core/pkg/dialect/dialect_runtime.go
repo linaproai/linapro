@@ -10,7 +10,6 @@ import (
 
 	"lina-core/pkg/bizerr"
 	internalpostgres "lina-core/pkg/dialect/internal/postgres"
-	internalsqlite "lina-core/pkg/dialect/internal/sqlite"
 )
 
 // fromLink resolves one database dialect from the database.default.link prefix.
@@ -22,8 +21,8 @@ func fromLink(link string) (Dialect, error) {
 	switch {
 	case strings.HasPrefix(normalized, pgsqlPrefix):
 		return postgresDialect{}, nil
-	case strings.HasPrefix(normalized, sqlitePrefix):
-		return sqliteDialect{link: normalized}, nil
+	case strings.HasPrefix(normalized, "sqlite:"):
+		return nil, bizerr.NewCode(CodeDialectSQLiteUnsupported)
 	case strings.HasPrefix(normalized, "mysql:"):
 		return nil, bizerr.NewCode(CodeDialectMySQLUnsupported)
 	default:
@@ -92,55 +91,4 @@ func (postgresDialect) QueryTableMetadata(ctx context.Context, db gdb.DB, schema
 // OnStartup has no PostgreSQL-specific startup side effects.
 func (postgresDialect) OnStartup(ctx context.Context, runtime RuntimeConfig) error {
 	return internalpostgres.OnStartup(ctx, runtime)
-}
-
-// sqliteDialect is the public package wrapper for the internal SQLite dialect.
-type sqliteDialect struct {
-	link string // link stores the source database link for startup diagnostics.
-}
-
-// Name returns the stable SQLite dialect name.
-func (sqliteDialect) Name() string {
-	return internalsqlite.Name
-}
-
-// TranslateDDL converts the project's PostgreSQL-source SQL subset to SQLite SQL.
-func (sqliteDialect) TranslateDDL(ctx context.Context, sourceName string, ddl string) (string, error) {
-	return internalsqlite.TranslateDDL(ctx, sourceName, ddl)
-}
-
-// PrepareDatabase prepares the SQLite database file before init SQL runs.
-func (sqliteDialect) PrepareDatabase(ctx context.Context, link string, rebuild bool) error {
-	return internalsqlite.PrepareDatabase(ctx, link, rebuild)
-}
-
-// SupportsCluster reports whether SQLite can back cluster coordination tables.
-func (sqliteDialect) SupportsCluster() bool {
-	return internalsqlite.SupportsCluster()
-}
-
-// DatabaseVersion returns the SQLite library version label.
-func (sqliteDialect) DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
-	return internalsqlite.DatabaseVersion(ctx, db)
-}
-
-// QueryTableMetadata returns SQLite table names with empty comments.
-func (sqliteDialect) QueryTableMetadata(ctx context.Context, db gdb.DB, schema string, tableNames []string) ([]TableMeta, error) {
-	metas, err := internalsqlite.QueryTableMetadata(ctx, db, schema, tableNames)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]TableMeta, 0, len(metas))
-	for _, meta := range metas {
-		result = append(result, TableMeta{
-			TableName:    meta.TableName,
-			TableComment: meta.TableComment,
-		})
-	}
-	return result, nil
-}
-
-// OnStartup applies SQLite-specific startup behavior before cluster services start.
-func (d sqliteDialect) OnStartup(ctx context.Context, runtime RuntimeConfig) error {
-	return internalsqlite.OnStartup(ctx, d.link, runtime)
 }

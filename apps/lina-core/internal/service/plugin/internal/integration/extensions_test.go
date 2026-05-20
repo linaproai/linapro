@@ -27,7 +27,7 @@ func TestRunPluginDeclaredHookHonorsTimeoutAndErrorActions(t *testing.T) {
 	timeoutCtx, cancel := integration.BuildPluginHookTimeoutContext(context.Background(), sleepHook)
 	defer cancel()
 
-	err := services.Integration.RunPluginDeclaredHook(timeoutCtx, "plugin-dynamic-timeout", sleepHook, nil)
+	err := services.Integration.RunPluginDeclaredHook(timeoutCtx, "plugin-dev-dynamic-timeout", sleepHook, nil)
 	if err == nil || !strings.Contains(err.Error(), "timeout") {
 		t.Fatalf("expected timeout error for sleep hook, got: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestRunPluginDeclaredHookHonorsTimeoutAndErrorActions(t *testing.T) {
 		Action:       pluginhost.HookActionError,
 		ErrorMessage: "runtime hook failed on purpose",
 	}
-	err = services.Integration.RunPluginDeclaredHook(context.Background(), "plugin-dynamic-error", errorHook, nil)
+	err = services.Integration.RunPluginDeclaredHook(context.Background(), "plugin-dev-dynamic-error", errorHook, nil)
 	if err == nil || !strings.Contains(err.Error(), "runtime hook failed on purpose") {
 		t.Fatalf("expected declared error hook message, got: %v", err)
 	}

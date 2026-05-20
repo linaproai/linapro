@@ -24,7 +24,7 @@ func TestDynamicPluginRuntimeUpgradeKeepsPreviousReleaseFrontendAssets(t *testin
 	service := newTestService()
 	ctx := context.Background()
 
-	pluginID := "plugin-dynamic-upgrade"
+	pluginID := "plugin-dev-dynamic-upgrade"
 	pluginName := "Dynamic Upgrade Plugin"
 	versionOne := "v0.1.0"
 	versionTwo := "v0.2.0"
@@ -136,7 +136,7 @@ func TestDynamicPluginRuntimeUpgradeFailureRollsBackStableRelease(t *testing.T) 
 	service := newTestService()
 	ctx := context.Background()
 
-	pluginID := "plugin-dynamic-upgrade-failed"
+	pluginID := "plugin-dev-dynamic-upgrade-failed"
 	pluginName := "Dynamic Upgrade Failure Plugin"
 	versionOne := "v0.1.0"
 	versionTwo := "v0.2.0"
@@ -196,7 +196,7 @@ func TestDynamicPluginRuntimeUpgradeFailureRollsBackStableRelease(t *testing.T) 
 		buildVersionedRuntimeFrontendAssets("broken-version"),
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-dynamic-upgrade-failed.sql",
+				Key:     "001-plugin-dev-dynamic-upgrade-failed.sql",
 				Content: "THIS IS NOT VALID SQL;",
 			},
 		},
@@ -290,7 +290,7 @@ func TestDynamicPluginUninstallFailureRestoresStableRegistryFlags(t *testing.T) 
 	service := newTestService()
 	ctx := context.Background()
 
-	pluginID := "plugin-dynamic-uninstall-failed"
+	pluginID := "plugin-dev-dynamic-uninstall-failed"
 	pluginName := "Dynamic Uninstall Failure Plugin"
 	version := "v0.1.0"
 
@@ -308,7 +308,7 @@ func TestDynamicPluginUninstallFailureRestoresStableRegistryFlags(t *testing.T) 
 		nil,
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-dynamic-uninstall-failed.sql",
+				Key:     "001-plugin-dev-dynamic-uninstall-failed.sql",
 				Content: "THIS IS NOT VALID SQL;",
 			},
 		},
@@ -365,7 +365,7 @@ func TestDynamicPluginFollowerDefersUntilPrimaryReconciles(t *testing.T) {
 	service := newTestServiceWithTopology(topology)
 	ctx := context.Background()
 
-	pluginID := "plugin-dynamic-follower"
+	pluginID := "plugin-dev-dynamic-follower"
 	pluginName := "Dynamic Follower Plugin"
 	versionOne := "v0.1.0"
 
@@ -434,7 +434,7 @@ func TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact(t *test
 	service := newTestService()
 	ctx := context.Background()
 
-	pluginID := "plugin-dynamic-same-version-refresh"
+	pluginID := "plugin-dev-dynamic-same-version-refresh"
 	pluginName := "Dynamic Same Version Refresh Plugin"
 	version := "v0.1.0"
 

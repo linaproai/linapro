@@ -35,7 +35,7 @@ func (c *testCronRegistrationCollector) Register(contract *pluginbridge.CronCont
 func TestHandleHostServiceInvokeCronRegister(t *testing.T) {
 	collector := &testCronRegistrationCollector{}
 	hcc := &hostCallContext{
-		pluginID: "plugin-demo-dynamic",
+		pluginID: "linapro-demo-dynamic",
 		capabilities: map[string]struct{}{
 			pluginbridge.CapabilityCron: {},
 		},
@@ -73,7 +73,7 @@ func TestHandleHostServiceInvokeCronRegister(t *testing.T) {
 // cron registration is only available during discovery executions.
 func TestHandleHostServiceInvokeCronRegisterRejectsWrongExecutionSource(t *testing.T) {
 	hcc := &hostCallContext{
-		pluginID: "plugin-demo-dynamic",
+		pluginID: "linapro-demo-dynamic",
 		capabilities: map[string]struct{}{
 			pluginbridge.CapabilityCron: {},
 		},
@@ -105,7 +105,7 @@ func TestHandleHostServiceInvokeCronRegisterRejectsWrongExecutionSource(t *testi
 // collector validation failures are surfaced as invalid requests.
 func TestHandleHostServiceInvokeCronRegisterRejectsCollectorErrors(t *testing.T) {
 	hcc := &hostCallContext{
-		pluginID: "plugin-demo-dynamic",
+		pluginID: "linapro-demo-dynamic",
 		capabilities: map[string]struct{}{
 			pluginbridge.CapabilityCron: {},
 		},
@@ -139,7 +139,7 @@ func TestHandleHostServiceInvokeCronRegisterRejectsCollectorErrors(t *testing.T)
 // reserved discovery execution cannot call other host-service families.
 func TestHandleHostServiceInvokeCronDiscoveryBlocksNonCronServices(t *testing.T) {
 	hcc := &hostCallContext{
-		pluginID: "plugin-demo-dynamic",
+		pluginID: "linapro-demo-dynamic",
 		capabilities: map[string]struct{}{
 			pluginbridge.CapabilityRuntime: {},
 		},

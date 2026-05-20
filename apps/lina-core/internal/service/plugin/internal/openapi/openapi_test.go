@@ -12,7 +12,7 @@ import (
 // TestBuildRouteOpenAPIOperationUsesBridgeState verifies that projected
 // responses follow the runtime bridge execution flag.
 func TestBuildRouteOpenAPIOperationUsesBridgeState(t *testing.T) {
-	operation := BuildRouteOpenAPIOperation("plugin-demo-dynamic", &pluginbridge.RouteContract{
+	operation := BuildRouteOpenAPIOperation("linapro-demo-dynamic", &pluginbridge.RouteContract{
 		Path:    "/review-summary",
 		Method:  http.MethodGet,
 		Access:  pluginbridge.AccessLogin,
@@ -33,7 +33,7 @@ func TestBuildRouteOpenAPIOperationUsesBridgeState(t *testing.T) {
 		t.Fatal("expected login route to project bearer security")
 	}
 
-	placeholder := BuildRouteOpenAPIOperation("plugin-demo-dynamic", &pluginbridge.RouteContract{
+	placeholder := BuildRouteOpenAPIOperation("linapro-demo-dynamic", &pluginbridge.RouteContract{
 		Path:   "/placeholder",
 		Method: http.MethodGet,
 		Access: pluginbridge.AccessPublic,
@@ -49,10 +49,10 @@ func TestBuildRouteOpenAPIOperationUsesBridgeState(t *testing.T) {
 }
 
 // TestBuildRoutePublicPathBuildsFixedPublicPath verifies that public route
-// projection always uses the host-managed extension prefix.
+// projection always uses the canonical dynamic plugin prefix.
 func TestBuildRoutePublicPathBuildsFixedPublicPath(t *testing.T) {
 	actual := BuildRoutePublicPath("plugin-openapi-projection", "/review-summary")
-	if actual != "/api/v1/extensions/plugin-openapi-projection/review-summary" {
+	if actual != "/x/plugin-openapi-projection/review-summary" {
 		t.Fatalf("expected fixed public path projection, got %s", actual)
 	}
 }

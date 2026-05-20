@@ -14,12 +14,12 @@ import (
 func TestBuildSourceUpgradeStatusMarksPendingUpgrade(t *testing.T) {
 	status, err := buildSourceUpgradeStatus(
 		&catalog.Manifest{
-			ID:      "plugin-source-upgrade-status",
+			ID:      "plugin-dev-source-upgrade-status",
 			Name:    "Source Upgrade Status Plugin",
 			Version: "v0.5.0",
 		},
 		&entity.SysPlugin{
-			PluginId:  "plugin-source-upgrade-status",
+			PluginId:  "plugin-dev-source-upgrade-status",
 			Name:      "Source Upgrade Status Plugin",
 			Version:   "v0.1.0",
 			Installed: catalog.InstalledYes,
@@ -45,12 +45,12 @@ func TestBuildSourceUpgradeStatusMarksPendingUpgrade(t *testing.T) {
 func TestBuildSourceUpgradeStatusKeepsUninstalledPluginsOutOfUpgradeFlow(t *testing.T) {
 	status, err := buildSourceUpgradeStatus(
 		&catalog.Manifest{
-			ID:      "plugin-source-upgrade-uninstalled",
+			ID:      "plugin-dev-source-upgrade-uninstalled",
 			Name:    "Source Upgrade Uninstalled Plugin",
 			Version: "v0.5.0",
 		},
 		&entity.SysPlugin{
-			PluginId:  "plugin-source-upgrade-uninstalled",
+			PluginId:  "plugin-dev-source-upgrade-uninstalled",
 			Name:      "Source Upgrade Uninstalled Plugin",
 			Version:   "v0.1.0",
 			Installed: catalog.InstalledNo,
@@ -76,12 +76,12 @@ func TestBuildSourceUpgradeStatusKeepsUninstalledPluginsOutOfUpgradeFlow(t *test
 func TestBuildSourceUpgradeStatusMarksDowngrade(t *testing.T) {
 	status, err := buildSourceUpgradeStatus(
 		&catalog.Manifest{
-			ID:      "plugin-source-upgrade-downgrade",
+			ID:      "plugin-dev-source-upgrade-downgrade",
 			Name:    "Source Upgrade Downgrade Plugin",
 			Version: "v0.1.0",
 		},
 		&entity.SysPlugin{
-			PluginId:  "plugin-source-upgrade-downgrade",
+			PluginId:  "plugin-dev-source-upgrade-downgrade",
 			Name:      "Source Upgrade Downgrade Plugin",
 			Version:   "v0.5.0",
 			Installed: catalog.InstalledYes,
@@ -106,7 +106,7 @@ func TestBuildSourceUpgradeStatusMarksDowngrade(t *testing.T) {
 // snapshots are projected through the pluginhost typed manifest contract.
 func TestSourceManifestSnapshotViewPublishesTypedSnapshot(t *testing.T) {
 	view := sourceManifestSnapshotView(&catalog.ManifestSnapshot{
-		ID:                      "plugin-source-upgrade-snapshot",
+		ID:                      "plugin-dev-source-upgrade-snapshot",
 		Name:                    "Source Upgrade Snapshot Plugin",
 		Version:                 "v1.2.3",
 		Type:                    "source",
@@ -125,7 +125,7 @@ func TestSourceManifestSnapshotViewPublishesTypedSnapshot(t *testing.T) {
 	if view == nil {
 		t.Fatal("expected projected manifest snapshot")
 	}
-	if view.ID() != "plugin-source-upgrade-snapshot" ||
+	if view.ID() != "plugin-dev-source-upgrade-snapshot" ||
 		view.Name() != "Source Upgrade Snapshot Plugin" ||
 		view.Version() != "v1.2.3" ||
 		view.Type() != "source" {

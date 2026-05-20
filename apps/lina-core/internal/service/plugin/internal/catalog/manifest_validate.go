@@ -12,7 +12,6 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gfile"
 
-	menusvc "lina-core/internal/service/menu"
 	"lina-core/pkg/pluginfs"
 )
 
@@ -63,8 +62,9 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 	if err := normalizeManifestTenantGovernance(manifest); err != nil {
 		return gerror.Wrapf(err, "plugin tenant governance metadata is invalid: %s", fileLabel)
 	}
-	if !ManifestIDPattern.MatchString(manifest.ID) {
-		return gerror.Newf("plugin ID must use kebab-case: %s", manifest.ID)
+	manifest.ID = strings.TrimSpace(manifest.ID)
+	if err := ValidatePluginID(manifest.ID); err != nil {
+		return gerror.Wrapf(err, "plugin ID is invalid: %s", fileLabel)
 	}
 	if err := ValidateManifestSemanticVersion(manifest.Version); err != nil {
 		return gerror.Wrapf(err, "plugin version is invalid: %s", fileLabel)
@@ -76,8 +76,14 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 		return gerror.Wrapf(err, "plugin dependency metadata is invalid: %s", fileLabel)
 	}
 	if NormalizeType(manifest.Type) == TypeSource {
-		if manifest.SourcePlugin != nil && strings.TrimSpace(manifest.SourcePlugin.ID()) != "" && manifest.ID != manifest.SourcePlugin.ID() {
-			return gerror.Newf("source plugin embedded manifest ID does not match registered plugin ID: %s != %s", manifest.ID, manifest.SourcePlugin.ID())
+		if manifest.SourcePlugin != nil && strings.TrimSpace(manifest.SourcePlugin.ID()) != "" {
+			registeredPluginID := strings.TrimSpace(manifest.SourcePlugin.ID())
+			if err := ValidatePluginID(registeredPluginID); err != nil {
+				return gerror.Wrapf(err, "source plugin registered ID is invalid: %s", registeredPluginID)
+			}
+			if manifest.ID != registeredPluginID {
+				return gerror.Newf("source plugin embedded manifest ID does not match registered plugin ID: %s != %s", manifest.ID, registeredPluginID)
+			}
 		}
 		goModPath := filepath.Join(rootDir, "go.mod")
 		if !HasSourcePluginEmbeddedFiles(manifest) && !gfile.Exists(goModPath) {
@@ -138,8 +144,9 @@ func (s *serviceImpl) ValidateUploadedRuntimeManifest(manifest *Manifest) error 
 	if err := normalizeManifestTenantGovernance(manifest); err != nil {
 		return err
 	}
-	if manifest.ID == "" || !ManifestIDPattern.MatchString(manifest.ID) {
-		return gerror.New("dynamic plugin ID is invalid")
+	manifest.ID = strings.TrimSpace(manifest.ID)
+	if err := ValidatePluginID(manifest.ID); err != nil {
+		return gerror.Wrap(err, "dynamic plugin ID is invalid")
 	}
 	if manifest.Name == "" {
 		return gerror.New("dynamic plugin name cannot be empty")
@@ -263,19 +270,6 @@ func ValidateManifestMenus(manifest *Manifest) error {
 		if pluginID == "" || pluginID != manifest.ID {
 			return gerror.Newf("plugin menu key must use current plugin prefix plugin:%s:* : %s", manifest.ID, spec.Key)
 		}
-		parentPluginID := parsePluginIDFromMenuKey(spec.ParentKey)
-		if parentPluginID != "" && parentPluginID != manifest.ID {
-			return gerror.Newf("plugin menu parent_key cannot reference another plugin menu: %s -> %s", spec.Key, spec.ParentKey)
-		}
-		if spec.ParentKey != "" && parentPluginID == "" && !menusvc.IsStableCatalogKey(spec.ParentKey) {
-			return gerror.Newf("plugin menu parent_key can only mount to a stable host catalog: %s -> %s", spec.Key, spec.ParentKey)
-		}
-		if spec.ParentKey != "" && parentPluginID == "" {
-			if allowed, official := menusvc.IsExpectedStableParentKey(manifest.ID, spec.ParentKey); official && !allowed {
-				expectedParentKey, _ := menusvc.ExpectedStableParentKey(manifest.ID)
-				return gerror.Newf("official plugin top-level menu parent_key is invalid: %s -> %s, expected %s", spec.Key, spec.ParentKey, expectedParentKey)
-			}
-		}
 		if _, ok := declaredKeys[spec.Key]; ok {
 			return gerror.Newf("plugin menu key is duplicated: %s", spec.Key)
 		}
@@ -302,8 +296,7 @@ func ValidateManifestMenus(manifest *Manifest) error {
 		if spec == nil || spec.ParentKey == "" {
 			continue
 		}
-		parentPluginID := parsePluginIDFromMenuKey(spec.ParentKey)
-		if parentPluginID != manifest.ID {
+		if parsePluginIDFromMenuKey(spec.ParentKey) != manifest.ID {
 			continue
 		}
 		if _, ok := declaredKeys[spec.ParentKey]; !ok {

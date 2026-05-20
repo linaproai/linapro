@@ -16,6 +16,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/bizerr"
@@ -404,6 +405,7 @@ func (s *serviceImpl) buildBuiltinJobRecord(
 	}
 
 	record := do.SysJob{
+		TenantId:             datascope.CurrentTenantID(ctx),
 		GroupId:              group.Id,
 		Name:                 name,
 		Description:          strings.TrimSpace(job.Description),
@@ -435,12 +437,15 @@ func (s *serviceImpl) buildBuiltinJobRecord(
 // groupByCode queries one job group by stable code.
 func (s *serviceImpl) groupByCode(ctx context.Context, code string) (*entity.SysJobGroup, error) {
 	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
-		return snapshot.groupByCode(code), nil
+		return snapshot.groupByTenantAndCode(datascope.CurrentTenantID(ctx), code), nil
 	}
 
 	var group *entity.SysJobGroup
 	err := dao.SysJobGroup.Ctx(ctx).
-		Where(do.SysJobGroup{Code: strings.TrimSpace(code)}).
+		Where(do.SysJobGroup{
+			TenantId: datascope.CurrentTenantID(ctx),
+			Code:     strings.TrimSpace(code),
+		}).
 		Scan(&group)
 	return group, err
 }

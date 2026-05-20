@@ -79,7 +79,7 @@ func (s *serviceImpl) registryEnabledForTenant(ctx context.Context, registry *en
 	}
 	tenantID := datascope.CurrentTenantID(ctx)
 	// Platform-only describes tenant governance visibility, not runtime
-	// availability. Global platform-only plugins such as multi-tenant can still
+	// availability. Global platform-only plugins such as linapro-tenant-core can still
 	// publish tenant-context APIs and permissions while tenant administrators
 	// remain unable to control them through the tenant plugin list.
 	if catalog.NormalizeInstallMode(registry.InstallMode) != catalog.InstallModeTenantScoped || tenantID == datascope.PlatformTenantID {
@@ -274,14 +274,17 @@ func (s *serviceImpl) buildEnabledPluginMapFromCatalog(
 		}
 		enabledByID[pluginID] = enabled
 	}
-	s.storeLoadedEnabledSnapshot(enabledByID)
+	s.storeLoadedEnabledSnapshot(ctx, enabledByID)
 	return enabledByID, nil
 }
 
 // storeLoadedEnabledSnapshot refreshes the process-local business-entry snapshot
 // from one registry read so later filters in the same process can reuse it.
-func (s *serviceImpl) storeLoadedEnabledSnapshot(enabledByID map[string]bool) {
+func (s *serviceImpl) storeLoadedEnabledSnapshot(ctx context.Context, enabledByID map[string]bool) {
 	if s == nil || s.sharedState == nil {
+		return
+	}
+	if datascope.CurrentTenantID(ctx) != datascope.PlatformTenantID {
 		return
 	}
 	snapshot := make(map[string]bool, len(enabledByID))

@@ -23,7 +23,7 @@ export interface SystemInfoResult {
   os: string;
   arch: string;
   dbVersion: string;
-  startTime: string;
+  startTime: number | null;
   runDuration: string;
   runDurationSeconds: number;
   backendComponents: ComponentInfo[];

@@ -20,7 +20,7 @@ func TestExecuteManifestSQLFilesReplaysInstallSQL(t *testing.T) {
 	service := services.Lifecycle
 	ctx := context.Background()
 
-	pluginID := "plugin-dynamic-reinstall"
+	pluginID := "plugin-dev-dynamic-reinstall"
 	tableName := "plugin_runtime_reinstall_log"
 	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
 		t,
@@ -29,17 +29,17 @@ func TestExecuteManifestSQLFilesReplaysInstallSQL(t *testing.T) {
 		"v0.9.1",
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-dynamic-reinstall-create.sql",
+				Key:     "001-plugin-dev-dynamic-reinstall-create.sql",
 				Content: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker VARCHAR(32) NOT NULL);", tableName),
 			},
 			{
-				Key:     "002-plugin-dynamic-reinstall-seed.sql",
+				Key:     "002-plugin-dev-dynamic-reinstall-seed.sql",
 				Content: fmt.Sprintf("INSERT INTO %s (marker) VALUES ('install-ran');", tableName),
 			},
 		},
 		[]*catalog.ArtifactSQLAsset{
 			{
-				Key:     "001-plugin-dynamic-reinstall.sql",
+				Key:     "001-plugin-dev-dynamic-reinstall.sql",
 				Content: fmt.Sprintf("DROP TABLE IF EXISTS %s;", tableName),
 			},
 		},

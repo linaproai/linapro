@@ -16,7 +16,7 @@ func TestResolveHomePathPrefersStableHostRoutes(t *testing.T) {
 	items := []*menu.MenuItem{
 		{
 			Name:      "源码插件示例",
-			Path:      "plugin-demo-source-sidebar-entry",
+			Path:      "linapro-demo-source-sidebar-entry",
 			Component: pluginDynamicPageComponentPath,
 			Type:      menutype.Menu.String(),
 		},
@@ -39,7 +39,7 @@ func TestResolveHomePathPrefersStableHostRoutes(t *testing.T) {
 		},
 		{
 			Name: "动态插件示例",
-			Path: "/plugin-assets/plugin-demo-dynamic/v0.1.0/mount.js",
+			Path: "/plugin-assets/linapro-demo-dynamic/v0.1.0/mount.js",
 			Type: menutype.Menu.String(),
 		},
 	}
@@ -55,12 +55,12 @@ func TestResolveHomePathFallsBackToHostedPluginAssetWhenNeeded(t *testing.T) {
 	items := []*menu.MenuItem{
 		{
 			Name: "动态插件示例",
-			Path: "/plugin-assets/plugin-demo-dynamic/v0.1.0/mount.js",
+			Path: "/plugin-assets/linapro-demo-dynamic/v0.1.0/mount.js",
 			Type: menutype.Menu.String(),
 		},
 	}
 
-	if got := resolveHomePath(items); got != "/plugin-assets/plugin-demo-dynamic/v0.1.0/mount.js" {
+	if got := resolveHomePath(items); got != "/plugin-assets/linapro-demo-dynamic/v0.1.0/mount.js" {
 		t.Fatalf("expected hosted plugin asset fallback, got %s", got)
 	}
 }

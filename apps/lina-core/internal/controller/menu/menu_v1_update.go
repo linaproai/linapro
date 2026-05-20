@@ -1,3 +1,6 @@
+// This file implements menu updates and preserves omitted optional flag fields
+// while adapting public DTO values to the service input model.
+
 package menu
 
 import (
@@ -10,7 +13,8 @@ import (
 // Update updates the specified menu.
 func (c *ControllerV1) Update(ctx context.Context, req *v1.UpdateReq) (res *v1.UpdateRes, err error) {
 	// Convert required string fields to pointers for service
-	var path, component, perms, icon, menuType, queryParam, remark *string
+	var path, component, perms, icon, queryParam, remark *string
+	var menuType *string
 	if req.Path != "" {
 		path = &req.Path
 	}
@@ -24,7 +28,8 @@ func (c *ControllerV1) Update(ctx context.Context, req *v1.UpdateReq) (res *v1.U
 		icon = &req.Icon
 	}
 	if req.Type != "" {
-		menuType = &req.Type
+		value := string(req.Type)
+		menuType = &value
 	}
 	if req.QueryParam != "" {
 		queryParam = &req.QueryParam
@@ -43,10 +48,10 @@ func (c *ControllerV1) Update(ctx context.Context, req *v1.UpdateReq) (res *v1.U
 		Icon:       icon,
 		Type:       menuType,
 		Sort:       req.Sort,
-		Visible:    req.Visible,
-		Status:     req.Status,
-		IsFrame:    req.IsFrame,
-		IsCache:    req.IsCache,
+		Visible:    visibilityPtrToInt(req.Visible),
+		Status:     enabledPtrToInt(req.Status),
+		IsFrame:    yesNoPtrToInt(req.IsFrame),
+		IsCache:    yesNoPtrToInt(req.IsCache),
 		QueryParam: queryParam,
 		Remark:     remark,
 	})

@@ -28,6 +28,9 @@ func (s *serviceImpl) ListRuntimeStates(ctx context.Context) (*RuntimeStateListO
 
 // UploadDynamicPackage validates and stores a runtime WASM package.
 func (s *serviceImpl) UploadDynamicPackage(ctx context.Context, in *DynamicUploadInput) (*DynamicUploadOutput, error) {
+	if err := s.ensurePlatformGovernance(ctx); err != nil {
+		return nil, err
+	}
 	out, err := s.runtimeSvc.UploadDynamicPackage(ctx, in)
 	if err != nil {
 		return nil, err

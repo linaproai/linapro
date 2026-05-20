@@ -3,9 +3,9 @@
 # =====================
 
 # Initialize the backend database with schema and required seed data.
-# The backend dispatches by database.default.link, for example PostgreSQL or SQLite.
+# The backend dispatches by database.default.link and currently supports PostgreSQL.
 # 初始化后端数据库表结构和系统必需的种子数据。
-# 后端会按 database.default.link 自动分发到 PostgreSQL 或 SQLite 等方言。
+# 后端会按 database.default.link 自动分发，目前仅支持 PostgreSQL 方言。
 ## init: Initialize the database with DDL and seed data only
 .PHONY: init
 init:

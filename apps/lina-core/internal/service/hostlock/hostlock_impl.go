@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/guid"
 
 	"lina-core/pkg/bizerr"
@@ -49,15 +48,16 @@ func (s *serviceImpl) Acquire(ctx context.Context, in AcquireInput) (*AcquireOut
 		return nil, err
 	}
 
+	expireAt := time.Now().Add(lease)
 	return &AcquireOutput{
 		Acquired: true,
 		Ticket:   ticket,
-		ExpireAt: gtime.Now().Add(lease),
+		ExpireAt: &expireAt,
 	}, nil
 }
 
 // Renew extends one held lock using the issued lock ticket.
-func (s *serviceImpl) Renew(ctx context.Context, pluginID string, tenantID int64, resourceRef string, ticket string) (*gtime.Time, error) {
+func (s *serviceImpl) Renew(ctx context.Context, pluginID string, tenantID int64, resourceRef string, ticket string) (*time.Time, error) {
 	claims, err := decodeAndValidateTicket(ticket, pluginID, tenantID, resourceRef)
 	if err != nil {
 		return nil, err
@@ -75,7 +75,8 @@ func (s *serviceImpl) Renew(ctx context.Context, pluginID string, tenantID int64
 	if err != nil {
 		return nil, err
 	}
-	return gtime.Now().Add(lease), nil
+	expireAt := time.Now().Add(lease)
+	return &expireAt, nil
 }
 
 // Release releases one held lock using the issued lock ticket.

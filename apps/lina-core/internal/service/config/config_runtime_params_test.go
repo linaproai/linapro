@@ -34,8 +34,8 @@ func TestNewCacheCoordRuntimeParamRevisionControllerSelectsByClusterMode(t *test
 }
 
 // TestOverrideClusterEnabledForDialectReselectsRuntimeParamRevisionController
-// verifies SQLite startup can force a config service constructed from
-// cluster.enabled=true back to local runtime-parameter revision handling.
+// verifies dialect startup overrides can force a config service constructed
+// from cluster.enabled=true back to local runtime-parameter revision handling.
 func TestOverrideClusterEnabledForDialectReselectsRuntimeParamRevisionController(t *testing.T) {
 	svc := &serviceImpl{}
 	svc.runtimeParamRevisionCtrl = newCacheCoordRuntimeParamRevisionController(true)

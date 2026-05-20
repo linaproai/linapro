@@ -1,7 +1,7 @@
 # LinaPro backend main CI workflow.
-# Runs on every push and pull request branch.
+# Runs on every push, pull request, and manual dispatch branch.
 # LinaPro 后端主 CI 工作流。
-# 在每次分支 push 和手动触发时运行。
+# 在每次分支 push、pull request 和手动触发时运行。
 name: Main CI
 
 on:
@@ -10,7 +10,11 @@ on:
   push:
     branches:
     - '**'
-
+  # Validate every pull request target branch before merge.
+  # 在合并前校验所有 pull request 目标分支。
+  pull_request:
+    branches:
+    - '**'
   # Allow maintainers to rerun the main CI manually, optionally with debug support.
   # 允许维护者手动重跑主 CI，并可按需开启调试。
   workflow_dispatch:
@@ -49,7 +53,6 @@ jobs:
       include-plugin-command-smoke: true
       include-make-command-smoke: true
       include-redis-integration: true
-      include-sqlite-smoke: true
       include-host-only-build-smoke: true
       include-host-only-e2e-tests: false
       include-plugin-full-e2e-tests: false

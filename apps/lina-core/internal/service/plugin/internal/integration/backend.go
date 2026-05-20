@@ -13,7 +13,6 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gfile"
-	"github.com/gogf/gf/v2/os/gtime"
 	"gopkg.in/yaml.v3"
 
 	"lina-core/internal/service/plugin/internal/catalog"
@@ -237,15 +236,17 @@ func resolvePluginResourceRecordValue(recordMap map[string]interface{}, field *c
 	return nil
 }
 
-// normalizePluginResourceValue converts GoFrame time values to JSON-safe strings.
+// normalizePluginResourceValue converts time values to JSON-safe strings.
 func normalizePluginResourceValue(value interface{}) interface{} {
 	switch typedValue := value.(type) {
-	case *gtime.Time:
+	case *time.Time:
 		if typedValue == nil {
 			return ""
 		}
-		return typedValue.String()
-	case gtime.Time:
+		return typedValue.Format(time.RFC3339Nano)
+	case time.Time:
+		return typedValue.Format(time.RFC3339Nano)
+	case interface{ String() string }:
 		return typedValue.String()
 	default:
 		return value
@@ -315,7 +316,7 @@ func executePluginErrorHook(hook *catalog.HookSpec) error {
 // resolvePluginHookValue evaluates one hook field expression against the hook payload.
 func resolvePluginHookValue(expr string, payload map[string]interface{}) (interface{}, error) {
 	if expr == "now" {
-		return gtime.Now(), nil
+		return time.Now(), nil
 	}
 	if strings.HasPrefix(expr, pluginHookEventFieldExprPrefix) {
 		fieldName := strings.TrimPrefix(expr, pluginHookEventFieldExprPrefix)

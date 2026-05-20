@@ -64,7 +64,6 @@ func (f *pluginResourceFakeBizCtx) SetImpersonation(_ context.Context, actingUse
 	}
 }
 
-
 // SetUserAccess records the role-derived data-scope snapshot.
 func (f *pluginResourceFakeBizCtx) SetUserAccess(_ context.Context, dataScope int, dataScopeUnsupported bool, unsupportedDataScope int) {
 	if f.ctx != nil {
@@ -102,7 +101,7 @@ func (f pluginResourceFakeService) ResolveResourcePermission(_ context.Context, 
 // plugin resource route carries the role data-scope snapshot into downstream
 // plugin resource queries after controller-level permission checks.
 func TestEnsurePluginResourcePermissionPropagatesDataScope(t *testing.T) {
-	const requiredPermission = "plugin-dynamic-governance:records:list"
+	const requiredPermission = "plugin-dev-dynamic-governance:records:list"
 
 	bizCtx := &pluginResourceFakeBizCtx{
 		ctx: &model.Context{
@@ -128,7 +127,7 @@ func TestEnsurePluginResourcePermissionPropagatesDataScope(t *testing.T) {
 
 	allowed, err := controller.ensurePluginResourcePermission(
 		context.Background(),
-		"plugin-dynamic-governance",
+		"plugin-dev-dynamic-governance",
 		"records",
 	)
 	if err != nil {

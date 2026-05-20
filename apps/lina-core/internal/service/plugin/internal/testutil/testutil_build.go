@@ -1,4 +1,5 @@
-// This file contains repository-location helpers and external runtime artifact build helpers.
+// This file contains repository-location helpers and external runtime artifact
+// build helpers that exercise the public linactl wasm command.
 
 package testutil
 
@@ -25,7 +26,7 @@ var bundledRuntimeSampleErr error
 // bundledRuntimeSampleMissing reports whether the bundled sample plugin is absent.
 var bundledRuntimeSampleMissing bool
 
-// RuntimeBuildOutput describes one artifact produced by the hack/tools/build-wasm helper in tests.
+// RuntimeBuildOutput describes one artifact produced by the linactl wasm helper in tests.
 type RuntimeBuildOutput struct {
 	// ArtifactPath is the on-disk path of the produced wasm artifact.
 	ArtifactPath string
@@ -76,7 +77,7 @@ func EnsureBundledRuntimeSampleArtifactForTests(t *testing.T) {
 			return
 		}
 
-		pluginDir := filepath.Join(repoRoot, "apps", "lina-plugins", "plugin-demo-dynamic")
+		pluginDir := filepath.Join(repoRoot, "apps", "lina-plugins", "linapro-demo-dynamic")
 		if _, statErr := os.Stat(filepath.Join(pluginDir, "plugin.yaml")); statErr != nil {
 			if os.IsNotExist(statErr) {
 				bundledRuntimeSampleMissing = true
@@ -86,7 +87,6 @@ func EnsureBundledRuntimeSampleArtifactForTests(t *testing.T) {
 			return
 		}
 
-		builderDir := filepath.Join(repoRoot, "hack", "tools", "build-wasm")
 		if err = ensureBuildWasmPluginWorkspace(repoRoot, pluginDir); err != nil {
 			bundledRuntimeSampleErr = err
 			return
@@ -95,16 +95,15 @@ func EnsureBundledRuntimeSampleArtifactForTests(t *testing.T) {
 			"go",
 			"run",
 			".",
-			"--plugin-dir",
-			pluginDir,
-			"--output-dir",
-			testDynamicStorageDir,
+			"wasm",
+			"plugin_dir="+pluginDir,
+			"out="+testDynamicStorageDir,
 		)
-		cmd.Dir = builderDir
+		cmd.Dir = filepath.Join(repoRoot, "hack", "tools", "linactl")
 		cmd.Env = append(os.Environ(), "GOWORK="+selectBuildWasmGoWork(repoRoot, pluginDir))
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			bundledRuntimeSampleErr = fmt.Errorf("run hack/tools/build-wasm failed: %w output=%s", err, string(output))
+			bundledRuntimeSampleErr = fmt.Errorf("run linactl wasm failed: %w output=%s", err, string(output))
 		}
 	})
 
@@ -116,7 +115,7 @@ func EnsureBundledRuntimeSampleArtifactForTests(t *testing.T) {
 	}
 }
 
-// BuildRuntimeArtifactWithHackTool runs hack/tools/build-wasm for one plugin source directory.
+// BuildRuntimeArtifactWithHackTool runs linactl wasm for one plugin source directory.
 func BuildRuntimeArtifactWithHackTool(t *testing.T, pluginDir string) *RuntimeBuildOutput {
 	t.Helper()
 
@@ -124,17 +123,16 @@ func BuildRuntimeArtifactWithHackTool(t *testing.T, pluginDir string) *RuntimeBu
 	if err != nil {
 		t.Fatalf("failed to resolve repo root: %v", err)
 	}
-	builderDir := filepath.Join(repoRoot, "hack", "tools", "build-wasm")
 	outputDir := filepath.Join(t.TempDir(), "output")
 	if err = ensureBuildWasmPluginWorkspace(repoRoot, pluginDir); err != nil {
 		t.Fatalf("failed to prepare temporary plugin workspace: %v", err)
 	}
-	cmd := exec.Command("go", "run", ".", "--plugin-dir", pluginDir, "--output-dir", outputDir)
-	cmd.Dir = builderDir
+	cmd := exec.Command("go", "run", ".", "wasm", "plugin_dir="+pluginDir, "out="+outputDir)
+	cmd.Dir = filepath.Join(repoRoot, "hack", "tools", "linactl")
 	cmd.Env = append(os.Environ(), "GOWORK="+selectBuildWasmGoWork(repoRoot, pluginDir))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("failed to run hack/tools/build-wasm: %v output=%s", err, string(output))
+		t.Fatalf("failed to run linactl wasm: %v output=%s", err, string(output))
 	}
 
 	type manifestIDHolder struct {
@@ -159,15 +157,15 @@ func BuildRuntimeArtifactWithHackTool(t *testing.T, pluginDir string) *RuntimeBu
 	}
 }
 
-// selectBuildWasmGoWork chooses the Go workspace used to run the build-wasm
-// tool itself. Guest runtime builds use temp/go.work.plugins when the plugin is
-// inside the official plugin workspace.
+// selectBuildWasmGoWork chooses the Go workspace used to run linactl. Guest
+// runtime builds use temp/go.work.plugins when the plugin is inside the
+// official plugin workspace.
 func selectBuildWasmGoWork(repoRoot string, pluginDir string) string {
 	return filepath.Join(repoRoot, "go.work")
 }
 
 // ensureBuildWasmPluginWorkspace mirrors linactl's temporary workspace setup
-// for tests that invoke the build-wasm helper directly.
+// for tests that invoke linactl wasm through a child process.
 func ensureBuildWasmPluginWorkspace(repoRoot string, pluginDir string) error {
 	officialRoot := filepath.Join(repoRoot, "apps", "lina-plugins")
 	absolutePluginDir, err := filepath.Abs(pluginDir)

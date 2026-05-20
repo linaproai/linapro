@@ -7,6 +7,7 @@ import (
 
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/role"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
 )
 
 // Service defines the menu service contract.
@@ -54,12 +55,13 @@ type serviceImpl struct {
 	menuFilter MenuFilter
 	i18nSvc    menuI18nTranslator
 	roleSvc    role.Service
+	tenantSvc  tenantcapsvc.Service
 }
 
 // New creates and returns a new menu service instance.
 // Pass a non-nil menuFilter when menu listing must respect plugin-driven menu
 // visibility; pass nil to use the default no-op filter.
-func New(menuFilter MenuFilter, i18nSvc menuI18nTranslator, roleSvc role.Service) Service {
+func New(menuFilter MenuFilter, i18nSvc menuI18nTranslator, roleSvc role.Service, tenantSvc tenantcapsvc.Service) Service {
 	if menuFilter == nil {
 		menuFilter = noopMenuFilter{}
 	}
@@ -67,6 +69,7 @@ func New(menuFilter MenuFilter, i18nSvc menuI18nTranslator, roleSvc role.Service
 		menuFilter: menuFilter,
 		i18nSvc:    i18nSvc,
 		roleSvc:    roleSvc,
+		tenantSvc:  tenantSvc,
 	}
 }
 
@@ -101,8 +104,8 @@ type MenuItem struct {
 	IsCache    int         `json:"isCache"`
 	QueryParam string      `json:"queryParam"`
 	Remark     string      `json:"remark"`
-	CreatedAt  string      `json:"createdAt"`
-	UpdatedAt  string      `json:"updatedAt"`
+	CreatedAt  *int64      `json:"createdAt"`
+	UpdatedAt  *int64      `json:"updatedAt"`
 	Children   []*MenuItem `json:"children"`
 }
 

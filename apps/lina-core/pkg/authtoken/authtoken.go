@@ -1,6 +1,6 @@
 // Package authtoken declares the JWT `tokenType` claim contract shared by the
 // host auth service, host-side dynamic route parsing, and source plugins that
-// need to sign or validate host-compatible JWTs (for example multi-tenant
+// need to sign or validate host-compatible JWTs (for example linapro-tenant-core
 // impersonation). Keeping these literals in one place prevents the host signer
 // and the plugin/runtime validators from drifting apart.
 package authtoken

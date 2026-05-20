@@ -88,12 +88,26 @@
 5. **URL 设计使用名词复数或资源名**：如 `/user`、`/dept`、`/dict/type`，避免在 URL 中使用动词（如 `/getUser`、`/deleteUser`）
 6. **子资源使用嵌套路径**：如 `/dept/{id}/users`、`/user/{id}/status`
 
+## API响应时间字段契约
+
+为满足国际化、多时区和前端页面差异化展示要求，公开 HTTP JSON 响应 DTO 中表示具体时间点的字段必须统一返回 Unix 毫秒时间戳，由前端根据页面和用户语言环境自行格式化展示。
+
+**强制规则**：
+
+1. **时间点字段使用 Unix 毫秒时间戳**：`createdAt`、`updatedAt`、`deletedAt`、`loginAt`、`startedAt`、`endedAt`、`expiredAt`、`lastRunAt`等表示具体时间点的响应字段，JSON 类型必须为数字，Go DTO 类型必须为`int64`或`*int64`
+2. **禁止响应 DTO 暴露时间对象或格式化时间点字符串**：公开响应 DTO 不得直接使用`time.Time`、`*time.Time`、`gtime.Time`、`*gtime.Time`作为时间点字段类型，也不得将时间点格式化为字符串返回
+3. **规则仅约束 API 响应边界**：`dao`、`do`、`entity`、`service`等内部模型仍可使用 Go 时间类型；在投影到公开响应 DTO 时完成 Unix 毫秒时间戳转换
+4. **日历日期字段必须显式说明语义**：`birthday`、`businessDate`、`periodDate`等只表示日历日期、不表示具体时间点的字段可以使用`YYYY-MM-DD`字符串，但字段`dc`或接口文档必须明确说明`date-only`语义，禁止让调用方推断服务端时区中的具体时间点
+5. **接口文档必须声明单位**：时间点响应字段的`dc`或接口文档必须包含`Unix timestamp in milliseconds`说明，避免调用方混淆秒、毫秒或其他单位
+
 # 代码开发规范
 
 ## 开发工具与脚本规范
 
 - **开发工具和脚本必须跨平台执行**：所有新增或修改的开发、构建、测试、代码生成、资源打包、服务启停、CI 辅助和仓库治理入口，都必须能在 `Windows`、`Linux`、`macOS` 上执行，禁止依赖单一平台默认存在的命令或语义，例如 `bash`、`sh`、`sed`、`awk`、`grep`、`perl`、`lsof`、`pgrep`、`xargs`、`kill`、`rm`、`cp`、`mv`、`mkdir -p`、POSIX 路径分隔符、Unix 信号或 PowerShell 专属语法。确实只能在特定平台运行的操作必须写明平台边界、提供等价跨平台入口或在 CI/文档中显式标注为平台专属运维步骤，不能作为默认开发和测试入口。
 - **优先使用 Go 工具链实现仓库工具**：长期维护的开发工具和脚本应优先实现为 `Go` 工具，放在 `hack/tools/<tool>/` 并通过 `go run ./hack/tools/<tool>`、`linactl` 或薄包装入口调用。文件复制、目录遍历、配置改写、进程启停、端口探测、HTTP smoke、压缩/解压、模板渲染和静态扫描等逻辑应使用 Go 标准库或项目已有 Go 组件实现，避免用 Shell 管道拼接系统命令。根 `Makefile` 和 `make.cmd` 只允许作为兼容包装层，业务逻辑必须收敛到跨平台工具中。
+- **`linactl` 命令文件命名规范**：`hack/tools/linactl/` 下承载具体 `make` 或 `linactl` 命令实现的源码文件，必须按对应命令名称命名为 `command_<command>.go`，其中 `<command>` 保持命令的点分段语义；例如 `make dev` 对应 `command_dev.go`，`make build` 对应 `command_build.go`，`make env.setup` 对应 `command_env.setup.go`。同一文件只应承载该命令的主实现及其紧密私有辅助逻辑；跨命令复用能力应提取到职责明确的非命令文件，禁止继续把多个无直接归属的命令混放到 `command_ops.go` 这类兜底文件中。若命令名与 `Go` 工具链文件后缀规则冲突，必须使用明确的命令专属后缀并记录原因，例如 `test` 命令使用 `command_testcmd.go` 以避免 `_test.go` 被排除在普通构建外，`wasm` 命令使用 `command_wasmcmd.go` 以避免 `_wasm.go` 被视为 `GOARCH=wasm` 专属文件。
+- **`linactl` 子组件组织规范**：`hack/tools/linactl/` 根目录应尽可能只保留 `command_*.go` 指令入口、`command.go` 注册与参数解析、`app.go`/`main.go` 启动装配、基础类型和必要的平台适配文件；开发服务、插件工作区、GoFrame CLI、前端依赖、Playwright、镜像构建、仓库治理扫描、文件系统工具等跨命令或较复杂实现逻辑必须迁移到 `hack/tools/linactl/internal/<组件名称>/` 子组件中，通过明确的包接口被根目录命令文件引用。禁止在根目录继续新增 `*_ops.go`、`*_management.go`、`*_workspace.go`、`*_util.go` 这类承载复杂共享实现的兜底文件；确需保留根目录非命令文件时，必须说明其属于启动装配、命令注册、基础类型或平台边界。
 - **脚本目录治理**：`hack/scripts/` 不再作为长期维护开发工具目录；已有能力应迁移到 `hack/tools/linactl` 或独立 Go 工具。测试辅助入口若必须保留在 `hack/tests/scripts/`，应优先使用 `node` 或 `Go` 编写；新增或修改 `.sh`、`.ps1` 等平台脚本必须在变更记录和审查结论中说明无法使用 Go 工具链的原因、受支持平台、等价入口和验证方式。
 - **跨平台验证要求**：涉及开发工具或脚本的变更必须运行对应 Go 工具测试或跨平台 smoke（例如 `cd hack/tools/linactl && go test ./... -count=1`、`go run ./hack/tools/linactl test.scripts`），并通过静态扫描确认默认开发路径没有新增平台专属命令依赖。若本次变更确认不影响开发工具或脚本，也应在任务记录或审查结论中明确说明。
 
@@ -314,8 +328,6 @@ dao.SysDictType.Ctx(ctx).Where(do.SysDictType{Id: id}).Delete()
 
 - 测试用例必须要完整覆盖业务模块的各项操作（如增删改查等操作），保证功能的完整性和可用性
 - 所有的用例需要在`tasks.md`中有工作记录，并且使用`lina-e2e`技能生成和管理对应的测试用例
-- 宿主功能测试放在 `hack/tests/e2e/<module>/`；源码插件专属功能测试必须放在 `apps/lina-plugins/<plugin-id>/hack/tests/e2e/`，不得放到宿主的`e2e`测试脚本目录下
-- 插件专属页面对象和 helper 必须放在插件自己的 `hack/tests/pages/`、`hack/tests/support/`；不得为了插件功能把专属定位器加到宿主的`e2e`测试脚本目录下
 - 修复`bug`或新增功能涉及**用户可观察行为变化**时，必须编写或更新对应的`E2E`测试用例
 - 涉及功能行为的 `bugfix` 反馈修复必须编写或更新至少一个自动化测试来验证修复有效性：内部逻辑缺陷可使用单元测试，用户可观察行为或跨模块工作流缺陷必须使用 `E2E` 测试；测试应覆盖原始问题的失败场景和修复后的预期行为
 - 纯项目治理类反馈不要求新增单元测试或`E2E`测试，应使用 `openspec validate`、静态扫描、文件检查、格式检查或审查结论等治理验证方式

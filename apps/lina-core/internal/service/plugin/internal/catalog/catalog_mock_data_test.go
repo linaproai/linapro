@@ -21,16 +21,16 @@ import (
 // scan, and that they only surface through the dedicated mock entry points.
 func TestListMockSQLPathsExcludedFromInstallScan(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-mock-data-disjoint")
+	pluginDir := testutil.CreateTestPluginDir(t, "plugin-dev-mock-data-disjoint")
 
 	mockDir := filepath.Join(pluginDir, "manifest", "sql", "mock-data")
 	mockSQL := "INSERT INTO sys_user(username) VALUES ('alice') ON CONFLICT DO NOTHING;"
-	if err := writeFileTree(mockDir, "001-plugin-mock-data-disjoint.sql", mockSQL); err != nil {
+	if err := writeFileTree(mockDir, "001-plugin-dev-mock-data-disjoint.sql", mockSQL); err != nil {
 		t.Fatalf("failed to write mock SQL: %v", err)
 	}
 
 	manifest := &catalog.Manifest{
-		ID:           "plugin-mock-data-disjoint",
+		ID:           "plugin-dev-mock-data-disjoint",
 		Name:         "Mock Data Disjoint Plugin",
 		Version:      "0.1.0",
 		Type:         catalog.TypeSource.String(),
@@ -43,10 +43,10 @@ func TestListMockSQLPathsExcludedFromInstallScan(t *testing.T) {
 		t.Fatalf("expected install assets, got error: %v", err)
 	}
 	for _, asset := range installAssets {
-		if asset.Key == "001-plugin-mock-data-disjoint.sql" && asset.Content != "SELECT 1;" {
+		if asset.Key == "001-plugin-dev-mock-data-disjoint.sql" && asset.Content != "SELECT 1;" {
 			continue
 		}
-		if filepath.Base(asset.Key) == "001-plugin-mock-data-disjoint.sql" && asset.Content == mockSQL {
+		if filepath.Base(asset.Key) == "001-plugin-dev-mock-data-disjoint.sql" && asset.Content == mockSQL {
 			t.Fatalf("mock data leaked into install scan: %#v", asset)
 		}
 	}
@@ -58,7 +58,7 @@ func TestListMockSQLPathsExcludedFromInstallScan(t *testing.T) {
 	if len(mockAssets) != 1 {
 		t.Fatalf("expected 1 mock asset, got %d: %#v", len(mockAssets), mockAssets)
 	}
-	if mockAssets[0].Key != "001-plugin-mock-data-disjoint.sql" {
+	if mockAssets[0].Key != "001-plugin-dev-mock-data-disjoint.sql" {
 		t.Fatalf("unexpected mock asset key: %s", mockAssets[0].Key)
 	}
 
@@ -72,10 +72,10 @@ func TestListMockSQLPathsExcludedFromInstallScan(t *testing.T) {
 // HasMockSQLData=false so the management UI can hide the install checkbox.
 func TestListMockSQLPathsEmptyWhenAbsent(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-mock-data-absent")
+	pluginDir := testutil.CreateTestPluginDir(t, "plugin-dev-mock-data-absent")
 
 	manifest := &catalog.Manifest{
-		ID:           "plugin-mock-data-absent",
+		ID:           "plugin-dev-mock-data-absent",
 		Name:         "Mock Data Absent Plugin",
 		Version:      "0.1.0",
 		Type:         catalog.TypeSource.String(),
