@@ -1,16 +1,34 @@
+# =============================================================================
+# Editors / IDEs
+# =============================================================================
 .buildpath
-.hgignore.swp
 .project
-.orig
-.swp
-.tmp/
-.idea/
 .settings/
+.idea/
 .vscode/
+.hgignore.swp
+*.swp
+*.orig
+# CodeBuddy local plans
+.codebuddy/plan/
+
+# =============================================================================
+# OS
+# =============================================================================
 **/.DS_Store
+
+# =============================================================================
+# Temp / scratch
+# =============================================================================
+.tmp/
+temp/
 assets/
 !.github/assets/
 !.github/assets/linapro-logo.webp
+
+# =============================================================================
+# Agent / AI tooling local config
+# =============================================================================
 .aiprompt.zh.md
 .codex/config.toml
 .github/codex/*
@@ -18,13 +36,13 @@ assets/
 !.github/codex/config.template.toml
 !.github/codex/auth.template.json
 .github/codex/auth.json
-temp/
+
+# Vendored skill sources (managed externally)
 .agents/skills/goframe-v2/
 
-# CodeBuddy plans
-.codebuddy/plan/
-
-# Backend
+# =============================================================================
+# Backend (apps/lina-core)
+# =============================================================================
 apps/lina-core/temp/
 apps/lina-core/internal/packed/manifest/**
 !apps/lina-core/internal/packed/manifest/.gitkeep
@@ -32,22 +50,75 @@ apps/lina-core/internal/packed/manifest/**
 !apps/lina-core/internal/packed/manifest/apidoc/i18n/
 !apps/lina-core/internal/packed/manifest/apidoc/i18n/*.json
 
+# =============================================================================
 # Frontend
+# =============================================================================
 **/node_modules/
 **/dist/
 **/dist.zip
 **/.turbo/
 
+# =============================================================================
 # Testing
+# =============================================================================
 .playwright-cli/
 .playwright-mcp/
 playwright-report/
 test-results/
 *.tar.zst
 
+# =============================================================================
 # Build artifacts
+# =============================================================================
 *.exe
 *.test
 *.out
 apps/lina-plugins/*/temp/
 /apps/lina-plugins/.linapro-plugins.lock.yaml
+
+# =============================================================================
+# Agent skill symlinks managed by `make skills.link`
+# Sources live under .agents/skills; do not commit the per-tool symlinks.
+# =============================================================================
+/.adal/skills
+/.aider-desk/skills
+/.augment/skills
+/.bob/skills
+/.claude/skills
+/.codeartsdoer/skills
+/.codebuddy/skills
+/.codemaker/skills
+/.codestudio/skills
+/.commandcode/skills
+/.continue/skills
+/.cortex/skills
+/.crush/skills
+/.devin/skills
+/.factory/skills
+/.forge/skills
+/.goose/skills
+/.hermes/skills
+/.iflow/skills
+/.junie/skills
+/.kilocode/skills
+/.kiro/skills
+/.kode/skills
+/.mcpjam/skills
+/.mux/skills
+/.neovate/skills
+/.openhands/skills
+/.pi/skills
+/.pochi/skills
+/.qoder/skills
+/.qwen/skills
+/.roo/skills
+/.rovodev/skills
+/.tabnine/agent/skills
+/.trae/skills
+/.vibe/skills
+/.windsurf/skills
+/.zencoder/skills
+
+# rootCollision agent (openclaw) — only created with explicit AGENT=openclaw FORCE=1.
+# Ignored to keep an opt-in symlink from polluting the repo root if a user enables it.
+/skills

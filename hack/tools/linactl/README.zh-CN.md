@@ -90,6 +90,46 @@ go run . i18n.check
 
 默认扫描`allowlist`维护在`hack/tools/linactl/internal/runtimei18n/allowlist.json`。
 
+## Agent 技能软链管理
+
+`linactl skills.link` 与 `linactl skills.unlink` 用于管理仓库内各`AI Coding`工具技能目录到 `.agents/skills` 的软链接。受支持的`Agent`列表与 [vercel-labs/skills](https://github.com/vercel-labs/skills#supported-agents) 官方项目路径表保持一致。命令只在仓库根目录范围内操作，不会修改`HOME`目录或任何系统全局路径。
+
+```bash
+make skills                                 # 终端下进入操作菜单（link / unlink / quit）
+make skills.link                            # 终端下进入交互式选择；CI 或管道下显示只读列表
+make skills.link AGENT=claude-code          # 非交互式：为单个 Agent 创建软链
+make skills.link AGENT=claude-code,qoder    # 为多个 Agent 创建软链
+make skills.link AGENT=all                  # 为所有 link 类 Agent 创建软链
+make skills.link AGENT=all FORCE=1          # 强制重建指向错误源的旧软链
+
+make skills.unlink                          # 终端下进入交互式选择（仅列出当前已建立的受管软链）
+make skills.unlink AGENT=claude-code        # 移除单个 Agent 的受管软链
+make skills.unlink AGENT=all                # 移除所有 Agent 的受管软链
+```
+
+### 交互模式
+
+`make skills` 在终端下展示一个简短的操作菜单（`[1] link` / `[2] unlink` / `[q] quit`），根据所选项进入对应子命令的交互式流程；CI 与管道环境会打印用法指引，提示使用显式子命令。
+
+当未传入 `AGENT` 且标准输入连接到真实终端时，`skills.link` 会以 3 列网格展示 `link` 类 Agent 候选，每个单元格使用单字符状态符号和图例，整体能在 24 行终端中完整显示。命令读取以逗号分隔的选择（或 `all` / `q`）。如果选中的 Agent 中存在 `mismatch` 状态，命令会再次询问是否使用 `FORCE=1` 重建。`skills.unlink` 仅列出当前已经是受管软链的 Agent。CI 与管道环境保持非交互行为：`skills.link` 退化为只读列表，`skills.unlink` 必须显式传入 `AGENT=`。
+
+交互式网格中的状态符号：
+
+- `[+]` linked — 已指向 `.agents/skills`
+- `[~]` mismatch — 软链存在但指向其他位置
+- `[.]` absent — 尚未建立软链
+- `[!]` conflict — 真实目录或文件阻止建立软链
+- `[*]` root-collision — Agent 使用仓库根 `skills/` 路径（仅 `openclaw`）
+- `[?]` error — 检测失败，详情请运行非交互列表
+
+### 分类
+
+- `native`：项目路径本身就是 `.agents/skills`（如 `cursor`、`gemini-cli`、`codex`），无需软链。
+- `link`：项目路径是 `.<tool>/skills`（如 `claude-code` → `.claude/skills`、`codebuddy` → `.codebuddy/skills`），按需创建相对软链指向 `.agents/skills`。
+- `rootCollision`：项目路径是仓库根的 `skills/`（目前仅 `openclaw`）。默认跳过；显式 `AGENT=openclaw FORCE=1` 才会创建。
+
+任何情况下命令都不会自动删除已存在的真实目录或文件，包含 `FORCE=1` 时也不会。`FORCE=1` 仅作用于"已是软链但指向非 `.agents/skills`"的情况。所有 Agent 软链目录已在 `.gitignore` 中忽略，本地创建不会污染仓库。
+
 ## Release Tag 校验
 
 `release.tag.check` 会读取 `apps/lina-core/manifest/config/metadata.yaml`，并校验 release tag 与 `framework.version` 完全一致。

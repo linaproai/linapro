@@ -90,6 +90,46 @@ go run . i18n.check
 
 The default scanner allowlist is maintained at `hack/tools/linactl/internal/runtimei18n/allowlist.json`.
 
+## Agent Skill Symlinks
+
+`linactl skills.link` and `linactl skills.unlink` manage repository-local symlinks from supported AI coding agents' project skill paths to the canonical `.agents/skills` directory. The supported agent list mirrors [vercel-labs/skills](https://github.com/vercel-labs/skills#supported-agents). The commands only operate inside the repository root; they never modify HOME directories or system-global paths.
+
+```bash
+make skills                                 # interactive action menu (link / unlink) on a TTY
+make skills.link                            # interactive selection on a TTY; read-only listing on CI/pipes
+make skills.link AGENT=claude-code          # create a single agent's link (non-interactive)
+make skills.link AGENT=claude-code,qoder    # create several agents' links
+make skills.link AGENT=all                  # create links for every link-class agent
+make skills.link AGENT=all FORCE=1          # rebuild mismatched links
+
+make skills.unlink                          # interactive selection on a TTY (lists currently linked agents only)
+make skills.unlink AGENT=claude-code        # remove one managed link
+make skills.unlink AGENT=all                # remove every managed link
+```
+
+### Interactive mode
+
+`make skills` opens a small action menu (`[1] link` / `[2] unlink` / `[q] quit`) on a TTY and dispatches to the selected subcommand's interactive flow. CI and piped invocations print usage guidance pointing at the explicit subcommands.
+
+When `AGENT` is omitted and stdin is attached to a real terminal, `skills.link` shows a 3-column grid of `link`-class agents annotated with single-character status glyphs and a legend, so the entire list fits within a typical 24-row terminal viewport. The command reads a comma-separated selection (or `all` / `q`). If any selected agent currently has a mismatched link, the command prompts to rebuild with `FORCE=1`. `skills.unlink` similarly lists only agents whose project paths are currently managed symlinks. CI and piped invocations remain non-interactive: `skills.link` falls back to the read-only listing, and `skills.unlink` requires an explicit `AGENT=` value.
+
+Status glyphs in the interactive grid:
+
+- `[+]` linked — already pointing at `.agents/skills`
+- `[~]` mismatch — symlink exists but targets another location
+- `[.]` absent — no symlink yet
+- `[!]` conflict — a real directory or file blocks linking
+- `[*]` root-collision — agent uses the repo-root `skills/` path (only `openclaw`)
+- `[?]` error — inspection failed; see the non-interactive status table for details
+
+### Categories
+
+- `native` — project path is already `.agents/skills` (e.g. `cursor`, `gemini-cli`, `codex`). No symlink needed.
+- `link` — project path is `.<tool>/skills` (e.g. `claude-code` → `.claude/skills`, `codebuddy` → `.codebuddy/skills`). A relative symlink to `.agents/skills` is created on demand.
+- `rootCollision` — project path is `skills/` at the repository root (currently only `openclaw`). Skipped by default; pass `AGENT=openclaw FORCE=1` to opt in.
+
+Real directories or files at the target path are never auto-removed, even with `FORCE=1`. `FORCE=1` only rebuilds symlinks that already exist but point at a non-managed target. Per-tool symlinks are listed in `.gitignore`, so creating them locally does not pollute the repository.
+
 ## Release Tag Check
 
 `release.tag.check` reads `apps/lina-core/manifest/config/metadata.yaml` and verifies that the release tag exactly matches `framework.version`.
