@@ -1,10 +1,11 @@
-// This file implements the interactive selection flow used by skills.link
-// and skills.unlink commands when callers omit the agent parameter on a TTY.
-// The interactive flow uses only the Go standard library; it relies on
-// os.File.Stat()'s ModeCharDevice bit to detect a real terminal so callers
-// in CI or piped contexts continue to receive non-interactive output.
+// This file implements the interactive selection helpers shared by every
+// resource subpackage. The flow uses only the Go standard library: it
+// detects a real terminal via os.File.Stat()'s ModeCharDevice bit, reads
+// numbered selections from a generic io.Reader, and renders candidate
+// agents in a 3-column glyph grid with a legend so users can understand
+// each candidate's current status without scrolling.
 
-package skilllink
+package common
 
 import (
 	"bufio"
@@ -29,9 +30,10 @@ func IsInteractiveTerminal(file *os.File) bool {
 	return info.Mode()&os.ModeCharDevice != 0
 }
 
-// ReadLine reads a single trimmed line from the provided reader. EOF is
-// treated as an empty line so callers can interpret it as cancellation.
-// Other read errors are wrapped with context for upstream display.
+// ReadLine reads a single trimmed and lower-cased line from the provided
+// reader. EOF is treated as an empty line so callers can interpret it as
+// cancellation. Other read errors are wrapped with context for upstream
+// display.
 func ReadLine(in io.Reader) (string, error) {
 	reader := bufio.NewReader(in)
 	line, err := reader.ReadString('\n')
@@ -42,63 +44,23 @@ func ReadLine(in io.Reader) (string, error) {
 }
 
 // SelectableEntry describes one candidate row for interactive selection.
+// The Spec field is held as SpecLike so the helper works for any resource
+// subpackage's AgentSpec type.
 type SelectableEntry struct {
 	// Spec is the agent backing this row.
-	Spec AgentSpec
+	Spec SpecLike
 	// CurrentStatus is the current Inspect status, used to render context.
 	CurrentStatus Status
 	// Detail mirrors Inspect's detail field for the same row.
 	Detail string
 }
 
-// LinkCandidates returns selectable entries for skills.link interactive mode.
-// native agents are excluded because they require no action; rootCollision
-// agents are excluded because they require explicit FORCE=1.
-func LinkCandidates(repoRoot string) []SelectableEntry {
-	out := make([]SelectableEntry, 0)
-	for _, spec := range agents {
-		if spec.Category != CategoryLink {
-			continue
-		}
-		result := Inspect(repoRoot, spec)
-		out = append(out, SelectableEntry{
-			Spec:          spec,
-			CurrentStatus: result.Status,
-			Detail:        result.Detail,
-		})
-	}
-	return out
-}
-
-// UnlinkCandidates returns selectable entries for skills.unlink interactive
-// mode. Only agents whose project path is currently a managed symlink (i.e.
-// pointing at .agents/skills) are returned, since unlink is a no-op for any
-// other state.
-func UnlinkCandidates(repoRoot string) []SelectableEntry {
-	out := make([]SelectableEntry, 0)
-	for _, spec := range agents {
-		if spec.Category == CategoryNative {
-			continue
-		}
-		result := Inspect(repoRoot, spec)
-		if result.Status != StatusOK {
-			continue
-		}
-		out = append(out, SelectableEntry{
-			Spec:          spec,
-			CurrentStatus: result.Status,
-			Detail:        result.Detail,
-		})
-	}
-	return out
-}
-
-// PromptSelection runs an interactive numbered prompt and returns the agent
-// names selected by the user. The function renders the candidate list to
-// out, reads one line of input from in, and parses comma-separated indexes,
-// "all" or "q" (cancel). An empty selection is treated as cancellation.
-//
-// Returned agent names are deduplicated and ordered by the candidate list.
+// PromptSelection runs an interactive numbered prompt and returns the
+// agent names selected by the user. The function renders the candidate
+// list to out, reads one line of input from in, and parses comma-separated
+// indexes, "all" or "q" (cancel). An empty selection is treated as
+// cancellation. Returned agent names are deduplicated and ordered by the
+// candidate list.
 func PromptSelection(in io.Reader, out io.Writer, title string, candidates []SelectableEntry) ([]string, error) {
 	if len(candidates) == 0 {
 		fmt.Fprintln(out, title+": no candidates available.")
@@ -124,7 +86,7 @@ func PromptSelection(in io.Reader, out io.Writer, title string, candidates []Sel
 	if strings.EqualFold(line, "all") {
 		names := make([]string, 0, len(candidates))
 		for _, entry := range candidates {
-			names = append(names, entry.Spec.Name)
+			names = append(names, entry.Spec.SpecName())
 		}
 		return names, nil
 	}
@@ -148,13 +110,13 @@ func PromptSelection(in io.Reader, out io.Writer, title string, candidates []Sel
 			continue
 		}
 		picked[index] = struct{}{}
-		names = append(names, candidates[index-1].Spec.Name)
+		names = append(names, candidates[index-1].Spec.SpecName())
 	}
 	return names, nil
 }
 
 // PromptYesNo asks a yes/no question with a default answer used when the
-// user submits an empty line. Used by skills.link to confirm FORCE rebuilds.
+// user submits an empty line. Used by link flows to confirm FORCE rebuilds.
 func PromptYesNo(in io.Reader, out io.Writer, question string, defaultYes bool) (bool, error) {
 	suffix := " [y/N] "
 	if defaultYes {
@@ -181,22 +143,20 @@ func PromptYesNo(in io.Reader, out io.Writer, question string, defaultYes bool) 
 }
 
 // renderCandidateGrid lays out candidates in a 3-column grid so the entire
-// list of link-class agents fits within the typical 24-row terminal viewport.
-// Each cell shows the numbered index, a single-character status glyph and the
-// agent name. A legend is printed before the grid so users can map glyphs
-// back to their full status meanings without expanding the grid width.
+// list of link-class agents fits within the typical 24-row terminal
+// viewport. Each cell shows the numbered index, a single-character status
+// glyph and the agent name. A legend is printed before the grid so users
+// can map glyphs back to their full status meanings without expanding the
+// grid width.
 //
 // Glyphs:
 //
-//	[+] linked         ok
+//	[+] linked         ok / created / rebuilt / removed
 //	[~] mismatch       linked but pointing at a foreign target
-//	[.] absent         not linked yet
+//	[.] absent         not linked yet (or native, no action)
 //	[!] conflict       a real directory or file blocks linking
-//	[*] root collision agent uses the repo-root skills/ path (openclaw)
+//	[*] root collision agent uses a colliding repo-root path (openclaw)
 //	[?] error          inspection failed; see status table for details
-//
-// Callers that need the full status text and project path can run the
-// non-interactive listing via `make skills.link` without an AGENT argument.
 func renderCandidateGrid(out io.Writer, candidates []SelectableEntry) error {
 	const columns = 3
 	if _, err := fmt.Fprintln(out, "  Legend: [+] linked  [~] mismatch  [.] absent  [!] conflict  [*] root-collision  [?] error"); err != nil {
@@ -204,7 +164,7 @@ func renderCandidateGrid(out io.Writer, candidates []SelectableEntry) error {
 	}
 	maxName := 0
 	for _, entry := range candidates {
-		if width := len(entry.Spec.Name); width > maxName {
+		if width := len(entry.Spec.SpecName()); width > maxName {
 			maxName = width
 		}
 	}
@@ -222,8 +182,8 @@ func renderCandidateGrid(out io.Writer, candidates []SelectableEntry) error {
 			}
 			if _, err := fmt.Fprintf(out, "  [%2d] %s %-*s%s",
 				index+1,
-				statusGlyph(entry.CurrentStatus),
-				maxName, entry.Spec.Name,
+				StatusGlyph(entry.CurrentStatus),
+				maxName, entry.Spec.SpecName(),
 				separator,
 			); err != nil {
 				return fmt.Errorf("write candidate grid: %w", err)
@@ -236,10 +196,10 @@ func renderCandidateGrid(out io.Writer, candidates []SelectableEntry) error {
 	return nil
 }
 
-// statusGlyph maps a Status to a single-character indicator used in the
+// StatusGlyph maps a Status to a single-character indicator used in the
 // interactive grid. Unknown statuses fall back to "?" so the grid never
 // silently drops a state.
-func statusGlyph(status Status) string {
+func StatusGlyph(status Status) string {
 	switch status {
 	case StatusOK, StatusCreated, StatusRebuilt, StatusRemoved:
 		return "[+]"

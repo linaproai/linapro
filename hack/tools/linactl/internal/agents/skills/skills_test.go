@@ -1,11 +1,10 @@
-// This file contains unit tests for the skilllink subcomponent. Tests cover
+// This file contains unit tests for the skills subpackage. Tests cover
 // agent registry integrity, selector parsing/expansion, link/unlink state
 // transitions and conflict guarding.
 
-package skilllink
+package skills
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -94,34 +93,6 @@ func TestParseSelectors(t *testing.T) {
 				t.Fatalf("ParseSelectors(%q)[%d] got=%s want=%s", testCase.input, index, got[index], testCase.want[index])
 			}
 		}
-	}
-}
-
-func TestResolveTargetsAllExpansion(t *testing.T) {
-	got, err := resolveTargets([]string{"all"}, targetPolicy{includeNative: false, includeRootCollision: false})
-	if err != nil {
-		t.Fatalf("resolveTargets(all): %v", err)
-	}
-	if len(got) == 0 {
-		t.Fatalf("expected link-class agents")
-	}
-	for _, spec := range got {
-		if spec.Category != CategoryLink {
-			t.Fatalf("agent %s leaked into all expansion despite category=%s", spec.Name, spec.Category)
-		}
-	}
-	withRoot, err := resolveTargets([]string{"all"}, targetPolicy{includeNative: true, includeRootCollision: true})
-	if err != nil {
-		t.Fatalf("resolveTargets(all,full): %v", err)
-	}
-	if len(withRoot) <= len(got) {
-		t.Fatalf("expected full expansion to include native and rootCollision")
-	}
-}
-
-func TestResolveTargetsUnknownAgent(t *testing.T) {
-	if _, err := resolveTargets([]string{"no-such-agent"}, targetPolicy{}); err == nil {
-		t.Fatalf("expected unknown agent error")
 	}
 }
 
@@ -251,8 +222,8 @@ func TestApplyLinkRootCollisionWithAllPolicy(t *testing.T) {
 		t.Fatalf("apply all: %v", err)
 	}
 	for _, result := range results {
-		if result.Spec.Category == CategoryRootCollision {
-			t.Fatalf("rootCollision agent %s should not appear in default all expansion", result.Spec.Name)
+		if result.Spec.SpecCategory() == CategoryRootCollision {
+			t.Fatalf("rootCollision agent %s should not appear in default all expansion", result.Spec.SpecName())
 		}
 	}
 }
@@ -293,7 +264,7 @@ func TestApplyUnlinkOnlyManagedLinks(t *testing.T) {
 	}
 	statusByName := make(map[string]Status, len(results))
 	for _, result := range results {
-		statusByName[result.Spec.Name] = result.Status
+		statusByName[result.Spec.SpecName()] = result.Status
 	}
 	if statusByName["claude-code"] != StatusRemoved {
 		t.Fatalf("claude-code: expected removed, got %s", statusByName["claude-code"])
@@ -330,49 +301,5 @@ func TestPlanListCoversAllAgents(t *testing.T) {
 	results := PlanList(root)
 	if len(results) != len(Agents()) {
 		t.Fatalf("PlanList should cover every agent: got=%d want=%d", len(results), len(Agents()))
-	}
-}
-
-func TestRenderProducesTabularOutput(t *testing.T) {
-	root := newRepoFixture(t)
-	results := PlanList(root)
-	var buffer bytes.Buffer
-	if err := Render(&buffer, results); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	output := buffer.String()
-	if !strings.Contains(output, "AGENT") || !strings.Contains(output, "PROJECT PATH") {
-		t.Fatalf("missing header columns; got %q", output)
-	}
-	if !strings.Contains(output, "claude-code") || !strings.Contains(output, "cursor") {
-		t.Fatalf("expected key agents in output: %s", output)
-	}
-}
-
-func TestEmitHintsReflectsStatuses(t *testing.T) {
-	results := []Result{
-		{Spec: AgentSpec{Name: "claude-code"}, Status: StatusMismatch},
-		{Spec: AgentSpec{Name: "codebuddy"}, Status: StatusConflict},
-		{Spec: AgentSpec{Name: "openclaw"}, Status: StatusSkippedRootCollision},
-		{Spec: AgentSpec{Name: "demo"}, Status: StatusError, Detail: "boom"},
-	}
-	var buffer bytes.Buffer
-	if err := EmitHints(&buffer, results); err != nil {
-		t.Fatalf("emit: %v", err)
-	}
-	hint := buffer.String()
-	for _, fragment := range []string{"FORCE=1", "Resolve listed paths", "rootCollision", "DETAIL"} {
-		if !strings.Contains(hint, fragment) {
-			t.Fatalf("missing hint fragment %q in %q", fragment, hint)
-		}
-	}
-}
-
-func TestHasErrorReports(t *testing.T) {
-	if HasError([]Result{{Status: StatusOK}}) {
-		t.Fatalf("expected false")
-	}
-	if !HasError([]Result{{Status: StatusError}}) {
-		t.Fatalf("expected true")
 	}
 }

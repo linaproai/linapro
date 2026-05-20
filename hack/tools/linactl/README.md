@@ -90,45 +90,85 @@ go run . i18n.check
 
 The default scanner allowlist is maintained at `hack/tools/linactl/internal/runtimei18n/allowlist.json`.
 
-## Agent Skill Symlinks
+## Agent Symlinks (agents.* command tree)
 
-`linactl skills.link` and `linactl skills.unlink` manage repository-local symlinks from supported AI coding agents' project skill paths to the canonical `.agents/skills` directory. The supported agent list mirrors [vercel-labs/skills](https://github.com/vercel-labs/skills#supported-agents). The commands only operate inside the repository root; they never modify HOME directories or system-global paths.
+`linactl agents.<resource>.<action>` manages repository-local symlinks that bridge canonical sources under `.agents/` (and `AGENTS.md`) to per-agent project paths used by supported AI coding agents. Three resource types are supported:
+
+- **skills** — directory bridge from `.<tool>/skills` to `.agents/skills`. The supported agent list mirrors [vercel-labs/skills](https://github.com/vercel-labs/skills#supported-agents).
+- **prompts** — directory bridge from `.<tool>/.../opsx` to `.agents/prompts/opsx` (each agent declares its own source path).
+- **md** — single-file bridge from `.<tool>.md` (or other private guide file) to the repo-root `AGENTS.md`.
+
+The commands only operate inside the repository root; they never modify HOME directories or system-global paths, and they never remove real directories or files (even with `FORCE=1`).
+
+### Aggregate menu
 
 ```bash
-make skills                                 # interactive action menu (link / unlink) on a TTY
-make skills.link                            # interactive selection on a TTY; read-only listing on CI/pipes
-make skills.link AGENT=claude-code          # create a single agent's link (non-interactive)
-make skills.link AGENT=claude-code,qoder    # create several agents' links
-make skills.link AGENT=all                  # create links for every link-class agent
-make skills.link AGENT=all FORCE=1          # rebuild mismatched links
+make agents                                  # interactive resource -> action -> agent menu on a TTY
+                                             # CI / piped contexts print usage guidance instead
+```
 
-make skills.unlink                          # interactive selection on a TTY (lists currently linked agents only)
-make skills.unlink AGENT=claude-code        # remove one managed link
-make skills.unlink AGENT=all                # remove every managed link
+### Per-resource subcommands
+
+```bash
+# skills
+make agents.skills.link                              # interactive selection on a TTY; read-only listing on CI/pipes
+make agents.skills.link AGENT=claude-code            # create a single agent's link (non-interactive)
+make agents.skills.link AGENT=claude-code,qoder      # create several agents' links
+make agents.skills.link AGENT=all                    # create links for every link-class agent
+make agents.skills.link AGENT=all FORCE=1            # rebuild mismatched links
+make agents.skills.unlink                            # interactive selection on a TTY (managed links only)
+make agents.skills.unlink AGENT=claude-code          # remove one managed link
+make agents.skills.unlink AGENT=all                  # remove every managed link
+
+# prompts
+make agents.prompts.link AGENT=claude-code           # link .claude/commands/opsx -> .agents/prompts/opsx
+make agents.prompts.link AGENT=all                   # link every agent's commands/prompts directory
+make agents.prompts.unlink AGENT=claude-code         # remove a managed prompts link
+
+# md
+make agents.md.link AGENT=claude-code                # link CLAUDE.md -> AGENTS.md
+make agents.md.link AGENT=all                        # link every link-class agent's private guide file
+make agents.md.unlink AGENT=claude-code              # remove a managed AGENTS.md link
 ```
 
 ### Interactive mode
 
-`make skills` opens a small action menu (`[1] link` / `[2] unlink` / `[q] quit`) on a TTY and dispatches to the selected subcommand's interactive flow. CI and piped invocations print usage guidance pointing at the explicit subcommands.
-
-When `AGENT` is omitted and stdin is attached to a real terminal, `skills.link` shows a 3-column grid of `link`-class agents annotated with single-character status glyphs and a legend, so the entire list fits within a typical 24-row terminal viewport. The command reads a comma-separated selection (or `all` / `q`). If any selected agent currently has a mismatched link, the command prompts to rebuild with `FORCE=1`. `skills.unlink` similarly lists only agents whose project paths are currently managed symlinks. CI and piped invocations remain non-interactive: `skills.link` falls back to the read-only listing, and `skills.unlink` requires an explicit `AGENT=` value.
+`make agents` opens a three-level menu (resource → action → agent) on a TTY. Each per-resource subcommand also enters interactive selection when `AGENT` is omitted and stdin is attached to a real terminal: a 3-column grid of `link`-class agents annotated with single-character status glyphs and a legend, sized to fit a typical 24-row viewport. The command reads a comma-separated selection (or `all` / `q`); if any selected agent currently has a mismatched link, the command prompts to rebuild with `FORCE=1`. CI and piped invocations remain non-interactive: `agents.<resource>.link` falls back to the read-only listing and `agents.<resource>.unlink` requires an explicit `AGENT=` value.
 
 Status glyphs in the interactive grid:
 
-- `[+]` linked — already pointing at `.agents/skills`
+- `[+]` linked — symlink exists and points at the canonical source
 - `[~]` mismatch — symlink exists but targets another location
-- `[.]` absent — no symlink yet
+- `[.]` absent — no symlink yet (or `native`, no action needed)
 - `[!]` conflict — a real directory or file blocks linking
-- `[*]` root-collision — agent uses the repo-root `skills/` path (only `openclaw`)
+- `[*]` root-collision — agent uses a colliding repo-root path (only `openclaw` for skills)
 - `[?]` error — inspection failed; see the non-interactive status table for details
 
 ### Categories
 
-- `native` — project path is already `.agents/skills` (e.g. `cursor`, `gemini-cli`, `codex`). No symlink needed.
-- `link` — project path is `.<tool>/skills` (e.g. `claude-code` → `.claude/skills`, `codebuddy` → `.codebuddy/skills`). A relative symlink to `.agents/skills` is created on demand.
-- `rootCollision` — project path is `skills/` at the repository root (currently only `openclaw`). Skipped by default; pass `AGENT=openclaw FORCE=1` to opt in.
+- `native` — agent reads the canonical source path directly. No symlink needed (e.g. for skills: `cursor`, `gemini-cli`, `codex`; for md: every agent that natively reads `AGENTS.md`).
+- `link` — agent uses a different project path. A relative symlink to the canonical source is created on demand.
+- `rootCollision` — project path is a bare repo-root name (only `skills/`, used by `openclaw`). Skipped by default; pass `AGENT=openclaw FORCE=1` to opt in. Does not apply to prompts or md resources.
 
-Real directories or files at the target path are never auto-removed, even with `FORCE=1`. `FORCE=1` only rebuilds symlinks that already exist but point at a non-managed target. Per-tool symlinks are listed in `.gitignore`, so creating them locally does not pollute the repository.
+Real directories or files at the target path are never auto-removed, even with `FORCE=1`. `FORCE=1` only rebuilds symlinks that already exist but point at a non-managed target. Per-tool skills and prompts symlinks are listed in `.gitignore`, so creating them locally does not pollute the repository.
+
+### Migration from `make skills.*`
+
+The old `make skills` / `make skills.link` / `make skills.unlink` targets and the corresponding `linactl skills*` subcommands have been **removed** in favor of the `agents.*` command tree. There are no aliases; existing scripts and documentation must be updated:
+
+| Removed (no longer works) | Replacement |
+| --- | --- |
+| `make skills` | `make agents` |
+| `make skills.link` | `make agents.skills.link` |
+| `make skills.link AGENT=<name>` | `make agents.skills.link AGENT=<name>` |
+| `make skills.link AGENT=all FORCE=1` | `make agents.skills.link AGENT=all FORCE=1` |
+| `make skills.unlink` | `make agents.skills.unlink` |
+| `make skills.unlink AGENT=<name>` | `make agents.skills.unlink AGENT=<name>` |
+| `linactl skills` | `linactl agents` |
+| `linactl skills.link` | `linactl agents.skills.link` |
+| `linactl skills.unlink` | `linactl agents.skills.unlink` |
+
+The `agents.skills.*` subcommands behave identically to the previous `skills.*` commands (same registry, same status state machine, same TTY/CI behaviors). Only the command name changed.
 
 ## Release Tag Check
 

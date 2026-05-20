@@ -1,8 +1,10 @@
-// This file contains unit tests for the interactive selection helpers.
-// Tests use bytes.Buffer as both input and output so they exercise the
-// parser without requiring a real TTY.
+// This file contains unit tests for the resource-agnostic interactive
+// helpers in the common subpackage: PromptSelection, PromptYesNo,
+// ReadLine, IsInteractiveTerminal and the candidate-grid rendering
+// behavior. Tests use bytes.Buffer as both input and output so they
+// exercise the parser without requiring a real TTY.
 
-package skilllink
+package common
 
 import (
 	"bytes"
@@ -10,11 +12,14 @@ import (
 	"testing"
 )
 
+// makeCandidates builds three SelectableEntry rows used by the
+// PromptSelection tests below. The fakeSpec type already lives in
+// common_test.go alongside ResolveTargets tests so we reuse it here.
 func makeCandidates() []SelectableEntry {
 	return []SelectableEntry{
-		{Spec: AgentSpec{Name: "claude-code", ProjectPath: ".claude/skills", Category: CategoryLink}, CurrentStatus: StatusAbsent},
-		{Spec: AgentSpec{Name: "codebuddy", ProjectPath: ".codebuddy/skills", Category: CategoryLink}, CurrentStatus: StatusOK},
-		{Spec: AgentSpec{Name: "qoder", ProjectPath: ".qoder/skills", Category: CategoryLink}, CurrentStatus: StatusMismatch, Detail: "-> elsewhere"},
+		{Spec: fakeSpec{name: "claude-code", category: CategoryLink}, CurrentStatus: StatusAbsent},
+		{Spec: fakeSpec{name: "codebuddy", category: CategoryLink}, CurrentStatus: StatusOK},
+		{Spec: fakeSpec{name: "qoder", category: CategoryLink}, CurrentStatus: StatusMismatch, Detail: "-> elsewhere"},
 	}
 }
 
@@ -125,34 +130,6 @@ func TestPromptYesNoInvalid(t *testing.T) {
 	}
 }
 
-func TestLinkCandidatesExcludeNativeAndRoot(t *testing.T) {
-	root := newRepoFixture(t)
-	candidates := LinkCandidates(root)
-	for _, entry := range candidates {
-		if entry.Spec.Category != CategoryLink {
-			t.Fatalf("LinkCandidates leaked %s (category=%s)", entry.Spec.Name, entry.Spec.Category)
-		}
-	}
-}
-
-func TestUnlinkCandidatesOnlyManagedLinks(t *testing.T) {
-	root := newRepoFixture(t)
-	if _, err := ApplyLink(root, LinkRequest{Selectors: []string{"claude-code", "codebuddy"}}); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-	candidates := UnlinkCandidates(root)
-	names := make(map[string]bool, len(candidates))
-	for _, entry := range candidates {
-		names[entry.Spec.Name] = true
-		if entry.CurrentStatus != StatusOK {
-			t.Fatalf("UnlinkCandidates included non-managed entry %s status=%s", entry.Spec.Name, entry.CurrentStatus)
-		}
-	}
-	if !names["claude-code"] || !names["codebuddy"] {
-		t.Fatalf("expected seeded agents in candidates, got %v", names)
-	}
-}
-
 func TestIsInteractiveTerminalNilFile(t *testing.T) {
 	if IsInteractiveTerminal(nil) {
 		t.Fatalf("nil file must not be a terminal")
@@ -176,32 +153,6 @@ func TestReadLineTrimsAndLowercases(t *testing.T) {
 		}
 		if got != testCase.want {
 			t.Fatalf("ReadLine(%q) got=%q want=%q", testCase.input, got, testCase.want)
-		}
-	}
-}
-
-func TestStatusGlyphCoversAllStatuses(t *testing.T) {
-	cases := []struct {
-		status Status
-		want   string
-	}{
-		{StatusOK, "[+]"},
-		{StatusCreated, "[+]"},
-		{StatusRebuilt, "[+]"},
-		{StatusRemoved, "[+]"},
-		{StatusMismatch, "[~]"},
-		{StatusSkippedForeignTarget, "[~]"},
-		{StatusSkippedNotManaged, "[~]"},
-		{StatusAbsent, "[.]"},
-		{StatusNative, "[.]"},
-		{StatusConflict, "[!]"},
-		{StatusSkippedRootCollision, "[*]"},
-		{StatusError, "[?]"},
-		{Status("unknown"), "[?]"},
-	}
-	for _, testCase := range cases {
-		if got := statusGlyph(testCase.status); got != testCase.want {
-			t.Fatalf("statusGlyph(%s) got=%s want=%s", testCase.status, got, testCase.want)
 		}
 	}
 }
@@ -233,7 +184,6 @@ func TestPromptSelectionRendersThreeColumnGrid(t *testing.T) {
 	if rowCount != 1 {
 		t.Fatalf("expected exactly 1 grid row for 3 candidates in 3 columns; got %d rows in %q", rowCount, output)
 	}
-	// All candidate names must appear on that single row.
 	for _, name := range []string{"claude-code", "codebuddy", "qoder"} {
 		if !strings.Contains(output, name) {
 			t.Fatalf("expected candidate %s in grid; got %q", name, output)
