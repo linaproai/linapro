@@ -1,3 +1,6 @@
+// This file verifies the packed embed filesystem contains the baseline assets
+// required by command startup, runtime i18n, and clean-checkout compilation.
+
 package packed
 
 import (
@@ -56,6 +59,17 @@ func TestFilesEmbedPreparedManifestAssets(t *testing.T) {
 		if _, err := fs.ReadFile(Files, path); err != nil {
 			t.Fatalf("read embedded manifest asset %q: %v", path, err)
 		}
+	}
+}
+
+// TestFilesEmbedFrontendPlaceholder verifies clean checkouts keep at least one
+// tracked frontend asset placeholder so the public embed pattern can compile
+// before generated frontend build artifacts are prepared.
+func TestFilesEmbedFrontendPlaceholder(t *testing.T) {
+	t.Parallel()
+
+	if _, err := fs.ReadFile(Files, "public/.gitkeep"); err != nil {
+		t.Fatalf("read embedded frontend placeholder: %v", err)
 	}
 }
 

@@ -16,6 +16,10 @@ import (
 	"linactl/internal/toolutil"
 )
 
+// packedPublicPlaceholderName is tracked so Go embed patterns keep compiling
+// before generated frontend build assets exist in a clean checkout.
+const packedPublicPlaceholderName = ".gitkeep"
+
 // runBuild builds frontend assets, plugin artifacts, and host binaries.
 func runBuild(ctx context.Context, a *app, input commandInput) error {
 	cfg, err := loadRootConfig(a.root, input)
@@ -90,6 +94,9 @@ func runBuild(ctx context.Context, a *app, input commandInput) error {
 	if err = fileutil.CopyDirContents(filepath.Join(a.root, "apps", "lina-vben", "apps", "web-antd", "dist"), embedDir); err != nil {
 		return err
 	}
+	if err = ensurePackedPublicPlaceholder(embedDir); err != nil {
+		return err
+	}
 	fmt.Fprintln(a.stdout, "Host frontend embedded assets generated")
 
 	if err = runPreparePackedAssets(ctx, a, commandInput{}); err != nil {
@@ -119,6 +126,15 @@ func runBuild(ctx context.Context, a *app, input commandInput) error {
 			return err
 		}
 		fmt.Fprintf(a.stdout, "Build complete: %s\n", toolutil.RelativePath(a.root, targetBinary))
+	}
+	return nil
+}
+
+// ensurePackedPublicPlaceholder recreates the tracked placeholder after the
+// build command refreshes ignored frontend assets in internal/packed/public.
+func ensurePackedPublicPlaceholder(embedDir string) error {
+	if err := os.WriteFile(filepath.Join(embedDir, packedPublicPlaceholderName), []byte{}, 0o644); err != nil {
+		return fmt.Errorf("write frontend embed placeholder: %w", err)
 	}
 	return nil
 }

@@ -531,6 +531,24 @@ func TestPreparePackedAssetsCopiesExpectedFiles(t *testing.T) {
 	}
 }
 
+// TestEnsurePackedPublicPlaceholderCreatesGitkeep verifies build refreshes can
+// recreate the tracked frontend embed placeholder after cleaning generated files.
+func TestEnsurePackedPublicPlaceholderCreatesGitkeep(t *testing.T) {
+	root := t.TempDir()
+	embedDir := filepath.Join(root, "apps", "lina-core", "internal", "packed", "public")
+	if err := os.MkdirAll(embedDir, 0o755); err != nil {
+		t.Fatalf("mkdir packed public dir: %v", err)
+	}
+
+	if err := ensurePackedPublicPlaceholder(embedDir); err != nil {
+		t.Fatalf("ensurePackedPublicPlaceholder returned error: %v", err)
+	}
+
+	if !fileutil.FileExists(filepath.Join(embedDir, packedPublicPlaceholderName)) {
+		t.Fatalf("missing packed public placeholder")
+	}
+}
+
 func TestRunWasmResolvesExplicitRelativeOutputFromCurrentDirectory(t *testing.T) {
 	root := t.TempDir()
 	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
