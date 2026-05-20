@@ -29,11 +29,11 @@ func NewLocalStorage(basePath string) *LocalStorage {
 	return &LocalStorage{basePath: basePath}
 }
 
-// Put saves file data organized by year/month directory structure.
-// Returns the relative path from basePath, e.g. "2026/03/20260319_abc12345.png".
+// Put saves file data organized by tenant and year/month directory structure.
+// Returns the relative path from basePath, e.g. "0/2026/03/20260319_abc12345.png".
 func (s *LocalStorage) Put(ctx context.Context, filename string, data io.Reader) (path string, err error) {
 	now := gtime.Now()
-	dir := fmt.Sprintf("t/%d/%s/%s", datascope.CurrentTenantID(ctx), now.Format("Y"), now.Format("m"))
+	dir := fmt.Sprintf("%d/%s/%s", datascope.CurrentTenantID(ctx), now.Format("Y"), now.Format("m"))
 	fullDir := gfile.Join(s.basePath, dir)
 	if err := gfile.Mkdir(fullDir); err != nil {
 		return "", err

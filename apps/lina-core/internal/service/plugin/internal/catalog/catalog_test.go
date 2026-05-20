@@ -1077,6 +1077,96 @@ func TestGetRegistryReleaseFallsBackWhenReleasePointerIsDangling(t *testing.T) {
 	}
 }
 
+// TestStartupDataSnapshotReusesReleaseByIDAndVersion verifies one catalog
+// snapshot backs both release lookup shapes and can be explicitly refreshed
+// after the authority database row changes.
+func TestStartupDataSnapshotReusesReleaseByIDAndVersion(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		svcs     = testutil.NewServices()
+		pluginID = "acme-demo-release-snapshot-reuse"
+		version  = "v0.1.0"
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest := &catalog.Manifest{
+		ID:                 pluginID,
+		Name:               "Release Snapshot Reuse",
+		Version:            version,
+		Type:               catalog.TypeDynamic.String(),
+		ScopeNature:        catalog.ScopeNatureTenantAware.String(),
+		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
+	}
+	registry, err := svcs.Catalog.SyncManifest(ctx, manifest)
+	if err != nil {
+		t.Fatalf("expected manifest sync to create registry and release, got error: %v", err)
+	}
+	if err = svcs.Catalog.SetPluginInstalled(ctx, pluginID, catalog.InstalledYes); err != nil {
+		t.Fatalf("expected installed marker update to succeed, got error: %v", err)
+	}
+	registry, err = svcs.Catalog.GetRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup to succeed, got error: %v", err)
+	}
+	registry, err = svcs.Catalog.SyncRegistryReleaseReference(ctx, registry, manifest)
+	if err != nil {
+		t.Fatalf("expected release reference sync to succeed, got error: %v", err)
+	}
+	if registry == nil || registry.ReleaseId <= 0 {
+		t.Fatalf("expected registry to point at release, got %#v", registry)
+	}
+
+	snapshotCtx, err := svcs.Catalog.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		t.Fatalf("expected catalog snapshot to build, got error: %v", err)
+	}
+	byID, err := svcs.Catalog.GetReleaseByID(snapshotCtx, registry.ReleaseId)
+	if err != nil {
+		t.Fatalf("expected release lookup by id to succeed, got error: %v", err)
+	}
+	byVersion, err := svcs.Catalog.GetRelease(snapshotCtx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected release lookup by plugin version to succeed, got error: %v", err)
+	}
+	if byID == nil || byVersion == nil || byID.Id != byVersion.Id {
+		t.Fatalf("expected both lookup shapes to return the same release, got byID=%#v byVersion=%#v", byID, byVersion)
+	}
+
+	const refreshedChecksum = "release-snapshot-refreshed"
+	if _, err = dao.SysPluginRelease.Ctx(ctx).
+		Where(do.SysPluginRelease{Id: registry.ReleaseId}).
+		Data(do.SysPluginRelease{Checksum: refreshedChecksum}).
+		Update(); err != nil {
+		t.Fatalf("expected release checksum update to succeed, got error: %v", err)
+	}
+	staleByVersion, err := svcs.Catalog.GetRelease(snapshotCtx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected stale snapshot lookup to succeed, got error: %v", err)
+	}
+	if staleByVersion == nil || staleByVersion.Checksum == refreshedChecksum {
+		t.Fatalf("expected request snapshot to remain stable before explicit refresh, got %#v", staleByVersion)
+	}
+
+	refreshed, err := svcs.Catalog.RefreshStartupReleaseByID(snapshotCtx, registry.ReleaseId)
+	if err != nil {
+		t.Fatalf("expected snapshot refresh to succeed, got error: %v", err)
+	}
+	if refreshed == nil || refreshed.Checksum != refreshedChecksum {
+		t.Fatalf("expected refreshed release checksum %s, got %#v", refreshedChecksum, refreshed)
+	}
+	refreshedByVersion, err := svcs.Catalog.GetRelease(snapshotCtx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected refreshed version lookup to succeed, got error: %v", err)
+	}
+	if refreshedByVersion == nil || refreshedByVersion.Checksum != refreshedChecksum {
+		t.Fatalf("expected version index to use refreshed release checksum %s, got %#v", refreshedChecksum, refreshedByVersion)
+	}
+}
+
 // TestRuntimeUpgradeStateReportsExplicitRunningMarker verifies management
 // projections expose upgrade_running while an explicit runtime upgrade is in progress.
 func TestRuntimeUpgradeStateReportsExplicitRunningMarker(t *testing.T) {

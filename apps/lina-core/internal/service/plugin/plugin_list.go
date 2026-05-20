@@ -157,6 +157,7 @@ func (s *serviceImpl) ReadOnlyList(ctx context.Context) (*ListOutput, error) {
 	if err != nil {
 		return nil, err
 	}
+	readCtx = s.WithDependencySnapshotCache(readCtx)
 	registries, err := s.catalogSvc.ListAllRegistries(readCtx)
 	if err != nil {
 		return nil, err

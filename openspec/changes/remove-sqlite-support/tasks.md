@@ -40,6 +40,7 @@
 ## Feedback
 
 - [x] **FB-1**: `linapro-monitor-server` PostgreSQL 单测未注册 `pgsql` 驱动导致 `g.DB()` 初始化 panic。
+- [x] **FB-2**: `make init` 在 clean checkout 中因 `internal/packed/public` 没有被跟踪的嵌入文件而无法编译 `go:embed all:public`。
 
 ## Feedback 验证记录
 
@@ -54,3 +55,15 @@
 - 缓存影响：本次不新增或修改运行时缓存、缓存键、失效触发点或跨实例同步机制。
 - 数据权限影响：本次不新增或修改 HTTP/API 数据操作接口、数据库查询路径或角色数据权限边界。
 - 审查：`/lina-review` 已完成；审查范围为 `linapro-monitor-server` monitor 单测驱动注册修复与 `remove-sqlite-support` 反馈记录，未发现阻断问题。
+
+- FB-2 修复：为 `apps/lina-core/internal/packed/public` 增加被 Git 跟踪的 `.gitkeep` 占位文件，确保 clean checkout 中 `//go:embed all:public all:manifest` 至少能匹配一个 public 文件；同时让 `linactl build` 刷新前端嵌入目录后自动重建该占位文件。
+- 新增测试：`apps/lina-core/internal/packed` 增加占位文件嵌入断言；`hack/tools/linactl` 增加 `linactl build` 占位文件重建断言。
+- 验证通过：`cd apps/lina-core && go test ./internal/packed -run '^TestFilesEmbedFrontendPlaceholder$' -count=1`。
+- 验证通过：`cd hack/tools/linactl && go test ./... -run '^TestEnsurePackedPublicPlaceholderCreatesGitkeep$' -count=1`。
+- 验证通过：仅保留 `internal/packed/public/.gitkeep` 的 clean-checkout 模拟下执行 `cd apps/lina-core && go run main.go init --help`，确认原始 `go:embed all:public` 编译错误消失。
+- 验证通过：`cd apps/lina-core && go test ./internal/cmd ./internal/packed -count=1`。
+- 验证通过：`cd hack/tools/linactl && go test ./... -count=1`。
+- i18n 影响：本次不新增或修改用户可见文案、运行时语言包、插件 `manifest/i18n` 或 apidoc i18n JSON。
+- 缓存影响：本次不新增或修改运行时缓存、缓存键、失效触发点或跨实例同步机制。
+- 数据权限影响：本次不新增或修改 HTTP/API 数据操作接口、数据库查询路径或角色数据权限边界。
+- 审查：`/lina-review` 已完成；审查范围为 `internal/packed` 嵌入占位、`linactl build` 占位重建逻辑、相关测试与 `remove-sqlite-support` 反馈记录，未发现阻断问题。

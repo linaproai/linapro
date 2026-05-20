@@ -35,6 +35,12 @@ func TestSharedStateCrossInstance(t *testing.T) {
 	if !secondChecker(context.Background(), "plugin-demo") {
 		t.Fatal("expected second instance to share enabled snapshot updates")
 	}
+	if !first.IsEnabled(context.Background(), "plugin-demo") {
+		t.Fatal("expected platform IsEnabled to reuse loaded shared snapshot")
+	}
+	if first.IsEnabled(datascope.WithTenantForTest(context.Background(), 42), "plugin-demo") {
+		t.Fatal("expected tenant IsEnabled to bypass platform snapshot")
+	}
 
 	first.setSourceRouteBindings("plugin-demo", []pluginhost.SourceRouteBinding{
 		{

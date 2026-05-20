@@ -127,10 +127,31 @@ type (
 		// skipAutoPlan disables recursive auto-install planning for plan items.
 		skipAutoPlan bool
 	}
+
+	// dependencySnapshotCache stores request-local dependency snapshots for
+	// repeated read-only dependency checks during one plugin list projection.
+	dependencySnapshotCache struct {
+		snapshots []*plugindep.PluginSnapshot
+	}
 )
 
 // dependencyInstallContextKey stores request-local dependency orchestration state.
 type dependencyInstallContextKey struct{}
+
+// dependencySnapshotCacheContextKey stores request-local dependency snapshots.
+type dependencySnapshotCacheContextKey struct{}
+
+// WithDependencySnapshotCache returns a child context that can reuse dependency
+// snapshots across repeated read-only dependency checks in one request.
+func (s *serviceImpl) WithDependencySnapshotCache(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if dependencySnapshotCacheFromContext(ctx) != nil {
+		return ctx
+	}
+	return context.WithValue(ctx, dependencySnapshotCacheContextKey{}, &dependencySnapshotCache{})
+}
 
 // CheckPluginDependencies evaluates install and uninstall dependency status for one plugin.
 func (s *serviceImpl) CheckPluginDependencies(ctx context.Context, pluginID string) (*DependencyCheckResult, error) {
@@ -301,6 +322,11 @@ func (s *serviceImpl) buildDependencySnapshots(
 	ctx context.Context,
 	candidate *catalog.Manifest,
 ) ([]*plugindep.PluginSnapshot, error) {
+	if candidate == nil {
+		if cache := dependencySnapshotCacheFromContext(ctx); cache != nil && cache.snapshots != nil {
+			return cloneDependencySnapshots(cache.snapshots), nil
+		}
+	}
 	manifests, err := s.catalogSvc.ScanManifests()
 	if err != nil {
 		return nil, err
@@ -328,7 +354,11 @@ func (s *serviceImpl) buildDependencySnapshots(
 		}
 	}
 
-	registries, err := s.catalogSvc.ListAllRegistries(ctx)
+	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	registries, err := s.catalogSvc.ListAllRegistries(readCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -356,12 +386,17 @@ func (s *serviceImpl) buildDependencySnapshots(
 			snapshot.Installed = registry.Installed == catalog.InstalledYes
 			continue
 		}
-		applyRegistryDependencySnapshot(ctx, s.catalogSvc, snapshot, registry)
+		applyRegistryDependencySnapshot(readCtx, s.catalogSvc, snapshot, registry)
 	}
 
 	out := make([]*plugindep.PluginSnapshot, 0, len(snapshotByID))
 	for _, snapshot := range snapshotByID {
 		out = append(out, snapshot)
+	}
+	if candidate == nil {
+		if cache := dependencySnapshotCacheFromContext(ctx); cache != nil {
+			cache.snapshots = cloneDependencySnapshots(out)
+		}
 	}
 	return out, nil
 }
@@ -428,6 +463,35 @@ func dependencyContextFrom(ctx context.Context) *dependencyInstallContext {
 		}
 	}
 	return &dependencyInstallContext{active: make(map[string]bool)}
+}
+
+// dependencySnapshotCacheFromContext returns the request-local dependency
+// snapshot cache, if the current read path enabled one.
+func dependencySnapshotCacheFromContext(ctx context.Context) *dependencySnapshotCache {
+	if ctx == nil {
+		return nil
+	}
+	value, ok := ctx.Value(dependencySnapshotCacheContextKey{}).(*dependencySnapshotCache)
+	if !ok {
+		return nil
+	}
+	return value
+}
+
+// cloneDependencySnapshots returns a detached copy so callers cannot mutate the
+// cached dependency snapshot slice for later checks in the same request.
+func cloneDependencySnapshots(items []*plugindep.PluginSnapshot) []*plugindep.PluginSnapshot {
+	out := make([]*plugindep.PluginSnapshot, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			out = append(out, nil)
+			continue
+		}
+		cloned := *item
+		cloned.Dependencies = catalog.CloneDependencySpec(item.Dependencies)
+		out = append(out, &cloned)
+	}
+	return out
 }
 
 // dependencyInstallOptions limits operator-only install decorations to the original target plugin.

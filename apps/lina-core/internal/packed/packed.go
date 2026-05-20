@@ -1,3 +1,4 @@
+// Package packed exposes embedded host frontend and manifest assets.
 package packed
 
 import "embed"

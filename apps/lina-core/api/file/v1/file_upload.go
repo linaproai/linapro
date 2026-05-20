@@ -15,7 +15,7 @@ type UploadRes struct {
 	Id       int64  `json:"id" dc:"File ID" eg:"1"`
 	Name     string `json:"name" dc:"Store file name" eg:"20260319_abc12345.png"`
 	Original string `json:"original" dc:"original file name" eg:"avatar.png"`
-	Url      string `json:"url" dc:"File access URL" eg:"/api/v1/uploads/2026/03/20260319_abc12345.png"`
+	Url      string `json:"url" dc:"File access URL" eg:"/api/v1/uploads/0/2026/03/20260319_abc12345.png"`
 	Suffix   string `json:"suffix" dc:"file suffix" eg:"png"`
 	Size     int64  `json:"size" dc:"File size (bytes)" eg:"102400"`
 }

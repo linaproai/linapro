@@ -156,12 +156,9 @@ type goTestModuleSummary struct {
 // goTestModulePlanForDir lists packages in one module and separates packages
 // with test files from packages that only need a lightweight compile smoke.
 func goTestModulePlanForDir(ctx context.Context, a *app, moduleDir string) (goTestModulePlan, error) {
-	cmd := a.execCommand(ctx, "go", "list", "-json", "./...")
-	cmd.Dir = moduleDir
-	cmd.Env = a.env
-	output, err := cmd.CombinedOutput()
+	output, stderr, err := runGoDiscoveryCommand(ctx, a, moduleDir, "list", "-json", "./...")
 	if err != nil {
-		message := strings.TrimSpace(string(output))
+		message := goDiscoveryErrorOutput(output, stderr)
 		if message != "" {
 			return goTestModulePlan{}, fmt.Errorf("list Go packages for %s: %w: %s", toolutil.RelativePath(a.root, moduleDir), err, message)
 		}
@@ -169,7 +166,7 @@ func goTestModulePlanForDir(ctx context.Context, a *app, moduleDir string) (goTe
 	}
 
 	plan := goTestModulePlan{ModuleDir: moduleDir}
-	decoder := json.NewDecoder(bytes.NewReader(output))
+	decoder := json.NewDecoder(strings.NewReader(output))
 	for {
 		var pkg goListPackage
 		decodeErr := decoder.Decode(&pkg)
@@ -193,18 +190,15 @@ func goTestModulePlanForDir(ctx context.Context, a *app, moduleDir string) (goTe
 
 // goWorkspaceModules lists module directories from the current Go workspace.
 func goWorkspaceModules(ctx context.Context, a *app) ([]string, error) {
-	cmd := a.execCommand(ctx, "go", "list", "-m", "-f", "{{.Dir}}")
-	cmd.Dir = a.root
-	cmd.Env = a.env
-	output, err := cmd.CombinedOutput()
+	output, stderr, err := runGoDiscoveryCommand(ctx, a, a.root, "list", "-m", "-f", "{{.Dir}}")
 	if err != nil {
-		message := strings.TrimSpace(string(output))
+		message := goDiscoveryErrorOutput(output, stderr)
 		if message != "" {
 			return nil, fmt.Errorf("list Go workspace modules: %w: %s", err, message)
 		}
 		return nil, fmt.Errorf("list Go workspace modules: %w", err)
 	}
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	lines := strings.Split(strings.TrimSpace(output), "\n")
 	var modules []string
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -213,6 +207,31 @@ func goWorkspaceModules(ctx context.Context, a *app) ([]string, error) {
 		}
 	}
 	return modules, nil
+}
+
+// runGoDiscoveryCommand runs internal go discovery commands with separate
+// stdout and stderr buffers so go: diagnostics cannot corrupt machine-readable
+// stdout formats such as go list -json.
+func runGoDiscoveryCommand(ctx context.Context, a *app, dir string, args ...string) (string, string, error) {
+	cmd := a.execCommand(ctx, "go", args...)
+	cmd.Dir = dir
+	cmd.Env = a.env
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return stdout.String(), stderr.String(), err
+}
+
+// goDiscoveryErrorOutput returns the most actionable diagnostic for a failed go
+// discovery command while preserving stdout for unusual tools that do not use
+// stderr for failures.
+func goDiscoveryErrorOutput(stdout string, stderr string) string {
+	if message := strings.TrimSpace(stderr); message != "" {
+		return message
+	}
+	return strings.TrimSpace(stdout)
 }
 
 // isGeneratedOfficialPluginAggregateModule reports whether a module directory

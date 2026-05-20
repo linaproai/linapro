@@ -39,3 +39,17 @@
 - [x] i18n 影响：已同步核心 API DTO 文档、核心 `manifest/i18n`、核心 packed apidoc i18n、动态示例插件 API 注释和动态示例插件 `manifest/i18n` 中的公开路径文案；本次未新增运行时菜单翻译键。
 - [x] 缓存一致性：本次不新增缓存；`/x` 路由继续通过 `PrepareDynamicRouteMiddleware`、`AuthenticateDynamicRouteMiddleware`、`prepareDynamicRouteRuntime` 和 `ensureRuntimeCacheFresh` 相关路径，仍受插件启用状态、runtime freshness、运行时修订号和派生缓存失效机制约束。
 - [x] `/lina-review`：审查范围限定为本变更相关路由、runtime、OpenAPI/apidoc、插件示例、E2E 引用、性能审计脚本和 OpenSpec 文档；未发现阻塞问题。已补充 `TestDynamicPluginRootRoutesPrecedeSPAFallback` 防止 `/x/...` 被前端 SPA fallback 接管，并修正旧兼容措辞注释。
+
+## Feedback
+
+- [x] **FB-1**: 将动态插件 API DTO 中的 `gmeta.Meta` 统一改为 `g.Meta`
+
+## Feedback Verification
+
+- [x] FB-1 后端 Go：`cd apps/lina-plugins/linapro-demo-dynamic && GOWORK=off go test ./backend/api/... -count=1`
+- [x] FB-1 WASM API 编译烟测：`cd apps/lina-plugins/linapro-demo-dynamic && GOWORK=off GOOS=wasip1 GOARCH=wasm go test ./backend/api/dynamic/v1 -run '^$' -count=1`
+- [x] FB-1 动态插件产物构建：`cd apps/lina-plugins && go run ../../hack/tools/linactl wasm p=linapro-demo-dynamic out=temp/output`
+- [x] FB-1 OpenSpec：`openspec validate rename-dynamic-plugin-route-prefix --strict`
+- [x] FB-1 i18n 影响：本次仅统一 Go DTO 元数据嵌入类型，未新增、修改或删除用户可见文案、菜单、路由、API 文档源文本或 apidoc i18n JSON。
+- [x] FB-1 缓存一致性：本次不新增或修改缓存逻辑，不影响动态插件 runtime freshness、启用状态或派生缓存失效机制。
+- [x] FB-1 `/lina-review`：审查范围限定为动态插件 API DTO、独立模块依赖元数据和 OpenSpec 反馈记录；未发现阻塞问题。`g.Meta` 是 `gmeta.Meta` 的类型别名，路由元数据、权限标签和 apidoc 源文本未发生语义变化；`frame/g` 引入的依赖变更已通过普通 Go 测试和实际 `wasip1/wasm` 产物构建验证。

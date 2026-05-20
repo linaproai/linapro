@@ -307,46 +307,34 @@ func (s *DBStore) Count(ctx context.Context) (int, error) {
 // refreshes last_active_time only when the previous activity is outside the
 // short write-throttle window.
 func (s *DBStore) TouchOrValidate(ctx context.Context, tenantId int, tokenId string, timeout time.Duration) (bool, error) {
-	cols := dao.SysOnlineSession.Columns()
-	count, err := tenantSessionModel(ctx, tenantId, tokenId).Count()
+	var stored *entity.SysOnlineSession
+	err := tenantSessionModel(ctx, tenantId, tokenId).Scan(&stored)
 	if err != nil {
 		return false, err
 	}
-	if count == 0 {
+	if stored == nil {
 		return false, nil
 	}
 
-	if timeout > 0 {
-		cutoff := time.Now().Add(-timeout)
-		expiredCount, err := tenantSessionModel(ctx, tenantId, tokenId).
-			WhereLTE(cols.LastActiveTime, cutoff).
-			Count()
+	now := time.Now()
+	if isSessionInactive(stored, now, timeout) {
+		if _, err = tenantSessionModel(ctx, tenantId, tokenId).Delete(); err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+
+	updateCutoff := now.Add(-sessionLastActiveUpdateWindow)
+	if stored.LastActiveTime != nil && sessionWallClockBefore(*stored.LastActiveTime, updateCutoff) {
+		_, err = tenantSessionModel(ctx, tenantId, tokenId).
+			WhereLT(dao.SysOnlineSession.Columns().LastActiveTime, updateCutoff).
+			Data(do.SysOnlineSession{LastActiveTime: &now}).
+			Update()
 		if err != nil {
 			return false, err
 		}
-		if expiredCount > 0 {
-			if _, err = tenantSessionModel(ctx, tenantId, tokenId).Delete(); err != nil {
-				return false, err
-			}
-			return false, nil
-		}
 	}
-
-	now := time.Now()
-	updateCutoff := now.Add(-sessionLastActiveUpdateWindow)
-	_, err = tenantSessionModel(ctx, tenantId, tokenId).
-		WhereLT(cols.LastActiveTime, updateCutoff).
-		Data(do.SysOnlineSession{LastActiveTime: &now}).
-		Update()
-	if err != nil {
-		return false, err
-	}
-
-	count, err = tenantSessionModel(ctx, tenantId, tokenId).Count()
-	if err != nil {
-		return false, err
-	}
-	return count > 0, nil
+	return true, nil
 }
 
 // CleanupInactive removes sessions inactive longer than the configured threshold.
@@ -367,5 +355,32 @@ func isSessionInactive(stored *entity.SysOnlineSession, now time.Time, timeout t
 	if stored == nil || timeout <= 0 || stored.LastActiveTime == nil {
 		return false
 	}
-	return !stored.LastActiveTime.After(now.Add(-timeout))
+	return sessionWallClockBeforeOrEqual(*stored.LastActiveTime, now.Add(-timeout))
+}
+
+// sessionWallClockBefore reports whether left is before right using database
+// timestamp-without-time-zone wall-clock fields instead of absolute instants.
+func sessionWallClockBefore(left time.Time, right time.Time) bool {
+	return sessionWallClockTime(left).Before(sessionWallClockTime(right))
+}
+
+// sessionWallClockBeforeOrEqual reports whether left is before or equal to
+// right using the same wall-clock semantics as PostgreSQL timestamp columns.
+func sessionWallClockBeforeOrEqual(left time.Time, right time.Time) bool {
+	return !sessionWallClockTime(left).After(sessionWallClockTime(right))
+}
+
+// sessionWallClockTime normalizes a timestamp into UTC while preserving its
+// displayed calendar fields, matching database timestamp comparison semantics.
+func sessionWallClockTime(value time.Time) time.Time {
+	return time.Date(
+		value.Year(),
+		value.Month(),
+		value.Day(),
+		value.Hour(),
+		value.Minute(),
+		value.Second(),
+		value.Nanosecond(),
+		time.UTC,
+	)
 }
