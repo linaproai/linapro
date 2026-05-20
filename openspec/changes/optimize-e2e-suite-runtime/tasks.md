@@ -66,6 +66,7 @@
 - [x] **FB-8**: GitHub Actions plugin-full E2E 中动态插件示例记录和英文布局回归用例存在跨用例状态泄漏。
 - [x] **FB-9**: 完整 E2E 中角色新增/编辑抽屉会在异步初始化完成后覆盖已填写字段，导致提交未发出角色保存请求。
 - [x] **FB-10**: Nightly plugin-full `plugins` scope 仍在单个 CI job 中串行执行全部源码插件自有 E2E，导致最长分片接近 1 小时。
+- [x] **FB-11**: GitHub Actions `plugins-1-of-5` 分片中动态插件禁用后侧边栏菜单隐藏断言存在菜单投影刷新竞态。
 
 ## Feedback 验证记录
 
@@ -144,3 +145,10 @@
 - 本次完整 host-only E2E 已通过：`E2E_BROWSER_CHANNEL=chrome E2E_BASE_URL=http://127.0.0.1:5666 E2E_API_BASE_URL=http://127.0.0.1:8080/api/v1/ E2E_PUBLIC_BASE_URL=http://127.0.0.1:8080 pnpm -C hack/tests test:host`，结果 `244 passed, 1 skipped (14.6m)`。
 - 本次完整 plugin-full E2E 已通过：`E2E_BROWSER_CHANNEL=chrome E2E_BASE_URL=http://127.0.0.1:5666 E2E_API_BASE_URL=http://127.0.0.1:8080/api/v1/ E2E_PUBLIC_BASE_URL=http://127.0.0.1:8080 pnpm -C hack/tests test`，结果 `516 passed, 8 skipped (42.8m)`。
 - 本次最终静态与治理验证已通过：`pnpm -C apps/lina-vben exec tsc -p apps/web-antd/tsconfig.node.json --noEmit`、`pnpm -C hack/tests exec tsc --noEmit`、`pnpm -C hack/tests test:validate`、`openspec validate optimize-e2e-suite-runtime --strict` 和 `git diff --check`。
+- FB-11 日志分析结论：用户提供的 GitHub Actions 日志显示 `plugin-full / plugins-1-of-5` 于 `2026-05-20T01:54:31Z` 和 retry `2026-05-20T01:55:28Z` 均失败在 `linapro-demo-dynamic/hack/tests/e2e/runtime/TC001-runtime-wasm-lifecycle.ts` 的 `TC-1k`，错误为禁用插件后 `expectSidebarMenuHidden("动态插件示例")` 仍观察到侧边栏菜单可见；同一分片其余 `55` 个测试通过，根因是 UI 开关状态已切换但当前页面的菜单投影刷新存在 CI 时序竞态。
+- FB-11 已在 `TC001-runtime-wasm-lifecycle.ts` 中新增 `expectCurrentUserRouteVisible`，在禁用 `linapro-demo-dynamic` 后轮询 `menus/all`，确认当前用户路由投影已不包含 `动态插件示例`，再刷新页面并断言侧边栏隐藏，避免断言抢在菜单投影刷新前执行。
+- FB-11 已通过精确回归：`E2E_BROWSER_CHANNEL=chrome E2E_BASE_URL=http://127.0.0.1:5666 E2E_API_BASE_URL=http://127.0.0.1:9120/api/v1/ E2E_PUBLIC_BASE_URL=http://127.0.0.1:9120 pnpm -C hack/tests exec playwright test ../apps/lina-plugins/linapro-demo-dynamic/hack/tests/e2e/runtime/TC001-runtime-wasm-lifecycle.ts --config playwright.config.ts --project=chromium --workers=1 --grep "TC-1k"`，结果 `1 passed (1.3m)`。
+- FB-11 已通过 `pnpm -C hack/tests exec tsc --noEmit`、`pnpm -C hack/tests test:validate`、`openspec validate optimize-e2e-suite-runtime --strict`、`git diff --check` 和 `git -C apps/lina-plugins diff --check`。
+- FB-11 i18n 影响：本次只调整 E2E 等待与断言顺序，不新增或修改前端运行时文案、插件 manifest i18n 或 apidoc i18n JSON。
+- FB-11 缓存一致性影响：本次不修改生产缓存逻辑；E2E 通过后端 `menus/all` 轮询确认插件禁用后的菜单投影失效已完成，再刷新当前页面观察真实侧栏结果。
+- Review(FB-11): 已完成 `lina-review` 审查。审查范围来源：`git status --short --ignore-submodules=none`、`git -C apps/lina-plugins status --short --untracked-files=all`、`openspec status --change optimize-e2e-suite-runtime --json`、`git diff -- openspec/changes/optimize-e2e-suite-runtime/tasks.md` 和 `git -C apps/lina-plugins diff -- linapro-demo-dynamic/hack/tests/e2e/runtime/TC001-runtime-wasm-lifecycle.ts`。确认本次只调整动态插件 E2E 对菜单投影刷新的等待与 OpenSpec 反馈记录；未修改生产 Go/前端代码、业务 API、数据库 schema、运行时缓存逻辑、数据权限逻辑或 i18n 资源。严重问题 0；警告 0。
