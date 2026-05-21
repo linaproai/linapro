@@ -88,7 +88,7 @@
 - [x] 9.1 运行`openspec validate agents-multi-resource --strict`，确认变更通过 OpenSpec 校验
 - [x] 9.2 运行`openspec list --json`确认本变更状态为`active`且任务清单可解析
 - [x] 9.3 调用`/lina-review`技能进行变更审查，重点核对：通用能力是否真的下沉到`common`、每资源子包是否仅依赖`common`、命令命名是否严格按命令树形态、旧命令字符串是否已清理、文档迁移指引是否完整、跨平台 Go 标准库实现约束是否满足
-- [ ] 9.4 审查通过后，在用户确认本次迭代完成时通过`/opsx:archive`将本变更归档；归档时保持文档原始中文语言（与 propose 阶段 q14 决策一致），并将本变更对`agent-skills-link-cli`的修改同步合并到`openspec/specs/agent-skills-link-cli/spec.md`基线
+- [x] 9.4 审查通过后，在用户确认本次迭代完成时通过`/opsx:archive`将本变更归档；归档时保持文档原始中文语言（与 propose 阶段 q14 决策一致），并将本变更对`agent-skills-link-cli`的修改同步合并到`openspec/specs/agent-skills-link-cli/spec.md`基线
 
 ## Feedback
 
