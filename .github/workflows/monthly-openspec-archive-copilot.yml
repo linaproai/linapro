@@ -106,6 +106,18 @@ jobs:
         with:
           openspec-version: ${{ env.OPENSPEC_VERSION }}
 
+      # Preserve the validated deterministic archive result so optional AI consolidation can be rolled back.
+      # 保存已校验的确定性归档结果，以便可选 AI 聚合失败时回退。
+      - name: Snapshot Deterministic Archive State
+        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
+        run: |
+          set -euo pipefail
+
+          snapshot_dir="${RUNNER_TEMP}/openspec-auto-archive-snapshot"
+          rm -rf "${snapshot_dir}"
+          mkdir -p "${snapshot_dir}"
+          cp -a openspec "${snapshot_dir}/openspec"
+
       # Install and configure GitHub Copilot CLI for unattended consolidation prompt execution.
       # 安装并配置 GitHub Copilot CLI，用于无人值守聚合提示词执行。
       - name: Prepare GitHub Copilot CLI Runtime
@@ -160,7 +172,9 @@ jobs:
       # Consolidate archive records only when the auto-archive phase produced changes.
       # 仅在自动归档阶段产生变更时聚合归档记录。
       - name: Run Lina Archive Consolidate
+        id: archive-consolidate
         if: ${{ steps.archive-diff.outputs.changed == 'true' }}
+        continue-on-error: true
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: |
@@ -195,11 +209,52 @@ jobs:
 
       # Validate immediately after consolidation so invalid aggregate output stops before PR finalization.
       # 聚合后立即校验，避免无效聚合结果继续进入 PR 收尾。
+      - name: Check Archive Consolidate Temporary Change Cleanup
+        id: consolidate-cleanup
+        if: ${{ steps.archive-diff.outputs.changed == 'true' && steps.archive-consolidate.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+
+          if [ -e openspec/changes/archive-consolidation ]; then
+            echo "Archive consolidation left temporary OpenSpec change openspec/changes/archive-consolidation." >&2
+            echo "The temporary tracking change must be removed before validation and PR finalization." >&2
+            exit 1
+          fi
+
       - name: Validate OpenSpec After Archive Consolidate
-        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
+        id: consolidate-validate
+        if: ${{ steps.archive-diff.outputs.changed == 'true' && steps.archive-consolidate.outcome == 'success' && steps.consolidate-cleanup.outcome == 'success' }}
+        continue-on-error: true
         uses: ./.github/actions/monthly-openspec-validate
         with:
           openspec-version: ${{ env.OPENSPEC_VERSION }}
+
+      # Capture optional consolidation failures before restoring the deterministic archive snapshot.
+      # 在恢复确定性归档快照前记录可选聚合失败诊断。
+      - name: Capture Archive Consolidate Failure Diagnostics
+        if: ${{ steps.archive-diff.outputs.changed == 'true' && (steps.archive-consolidate.outcome == 'failure' || steps.consolidate-cleanup.outcome == 'failure' || steps.consolidate-validate.outcome == 'failure') }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p "${COPILOT_LOGS}"
+          git status --short > "${COPILOT_LOGS}/archive-consolidate.failure.status.txt" || true
+          git diff -- openspec > "${COPILOT_LOGS}/archive-consolidate.failure.diff" || true
+          npx -y "@fission-ai/openspec@${OPENSPEC_VERSION}" validate --all > "${COPILOT_LOGS}/archive-consolidate.failure.validate.log" 2>&1 || true
+
+          echo "Archive consolidation failed or produced invalid OpenSpec. Restoring deterministic archive result."
+          cat "${COPILOT_LOGS}/archive-consolidate.failure.validate.log" || true
+
+      # Restore the previously validated deterministic archive result when optional consolidation is invalid.
+      # 当可选聚合无效时恢复此前已校验的确定性归档结果。
+      - name: Restore Deterministic Archive State
+        if: ${{ steps.archive-diff.outputs.changed == 'true' && (steps.archive-consolidate.outcome == 'failure' || steps.consolidate-cleanup.outcome == 'failure' || steps.consolidate-validate.outcome == 'failure') }}
+        run: |
+          set -euo pipefail
+
+          rm -rf openspec
+          cp -a "${RUNNER_TEMP}/openspec-auto-archive-snapshot/openspec" openspec
+          npx -y "@fission-ai/openspec@${OPENSPEC_VERSION}" validate --all
 
       # Validate, commit, push, and open/update the archive pull request.
       # 校验、提交、推送，并创建或更新归档 PR。
