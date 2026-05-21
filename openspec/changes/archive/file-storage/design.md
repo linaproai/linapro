@@ -1,133 +1,50 @@
-## 技术方案
+# Design
 
-### 1. 数据库设计
+## 数据模型与场景建模
 
-新增 `sys_file` 文件管理表，使用场景（scene）字段直接存储在表中，不设独立关联表：
+系统通过 `sys_file` 表统一记录所有上传文件的元信息，包括存储文件名、原始文件名、后缀、大小、散列值、访问 URL、相对存储路径、存储引擎、使用场景和上传者等字段。使用场景直接落在 `scene` 字段中，不再维护独立的关联表，以降低查询和写入复杂度。
 
-```sql
-CREATE TABLE sys_file (
-  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '文件ID',
-  name       VARCHAR(255)    NOT NULL DEFAULT '' COMMENT '存储文件名',
-  original   VARCHAR(255)    NOT NULL DEFAULT '' COMMENT '原始文件名',
-  suffix     VARCHAR(32)     NOT NULL DEFAULT '' COMMENT '文件后缀',
-  size       BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '文件大小（字节）',
-  hash       VARCHAR(64)     NOT NULL DEFAULT '' COMMENT '文件SHA-256散列值，用于去重',
-  url        VARCHAR(512)    NOT NULL DEFAULT '' COMMENT '文件访问URL',
-  path       VARCHAR(512)    NOT NULL DEFAULT '' COMMENT '文件存储路径',
-  engine     VARCHAR(32)     NOT NULL DEFAULT 'local' COMMENT '存储引擎：local=本地',
-  scene      VARCHAR(64)     NOT NULL DEFAULT '' COMMENT '使用场景：avatar/notice_image/notice_attachment等',
-  created_by BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '上传者用户ID',
-  created_at DATETIME        NOT NULL COMMENT '上传时间',
-  updated_at DATETIME        NOT NULL COMMENT '更新时间',
-  PRIMARY KEY (id),
-  INDEX idx_engine (engine),
-  INDEX idx_created_by (created_by),
-  INDEX idx_suffix (suffix),
-  INDEX idx_hash (hash),
-  INDEX idx_scene (scene)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文件管理';
-```
+系统预定义场景至少包括 `avatar`、`notice_image` 和 `notice_attachment`。同一物理文件内容即使在不同场景复用，也通过独立元数据记录表达业务上下文，确保列表筛选、详情展示和后续业务审计保持清晰。
 
-使用场景直接记录在 `scene` 字段中，系统预定义场景包括：`avatar`（用户头像）、`notice_image`（通知公告图片）、`notice_attachment`（通知公告附件）。相同散列值的文件如在不同场景使用，则各自创建独立的文件记录。
+## 存储抽象与本地路径策略
 
-### 2. 后端架构
+`internal/service/file/` 提供统一的 `Storage` 抽象，默认由本地存储实现负责物理文件写入、读取、删除和 URL 生成，后续可以在不改动上层业务语义的前提下扩展 OSS 后端。文件服务主模块继续负责上传、下载、列表、删除、后缀列表和场景列表等业务编排。
 
-#### 2.1 文件存储抽象层
+本地存储以 `upload.path` 作为根目录，并按租户与年月组织物理文件。普通文件写入新的物理文件时，相对存储路径采用 `<tenantId>/<yyyy>/<MM>/<generated-file-name>`，保留租户 ID 目录以支持物理隔离、排查和后续按租户治理，同时去掉原先仅作为缩写的 `t` 目录层。`upload.maxSize` 用于限制单次上传大小。
 
-在 `internal/service/file/` 中设计存储接口，默认实现本地存储，后续可扩展 OSS：
+文件访问与下载始终以数据库中的 `sys_file.path` 为权威路径。历史记录如果已经保存为 `t/<tenantId>/...`，系统继续按原记录读取存储后端，不对旧文件执行迁移或路径重写。因此旧路径和新路径可以长期并存访问。
 
-```
-service/file/
-├── file.go          # 主服务：上传/下载/列表/删除/后缀列表等业务逻辑
-├── file_code.go     # 错误码定义
-├── storage.go       # Storage 接口定义
-└── storage_local.go # 本地存储实现
-```
+## 去重与兼容性约束
 
-**Storage 接口**：
-- `Put(ctx, filename, data) (path, error)` -- 保存文件
-- `Get(ctx, path) (data, error)` -- 读取文件
-- `Delete(ctx, path) error` -- 删除文件
-- `Url(ctx, path) string` -- 获取访问 URL
+上传流程继续基于当前租户和文件 SHA-256 散列值进行去重。命中重复内容时，系统复用已有物理文件，仅新增文件元数据记录，并保留原有物理路径；如果历史重复文件使用的是 `t/<tenantId>/...` 路径，也不会为了生成新格式路径而再次写入文件。这一策略同时保证了存储去重语义、历史路径兼容性和路径规则调整的低风险落地。
 
-#### 2.2 API 端点设计
+路径规则调整只影响真正写入的新物理文件，不改变公开上传、下载和访问 API，也不修改数据库 schema、DAO、实体或既有文件记录。插件 host storage service 的路径规则保持不变。
+
+## 后端 API 与业务编排
+
+文件管理能力通过统一 RESTful API 暴露：
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/file/upload` | 上传文件（multipart/form-data），支持可选参数 scene |
-| GET | `/file` | 文件列表（分页+筛选：文件名、后缀、使用场景、时间范围），支持排序（大小、上传时间） |
+| POST | `/file/upload` | 上传文件（`multipart/form-data`），支持可选 `scene` 参数 |
+| GET | `/file` | 文件列表（分页+筛选：文件名、后缀、使用场景、时间范围），支持按大小、上传时间排序 |
 | GET | `/file/download/{id}` | 下载文件 |
 | DELETE | `/file/{ids}` | 删除文件（支持批量） |
 | GET | `/file/suffixes` | 获取数据库中已存在的文件后缀列表 |
 | GET | `/file/scenes` | 获取系统预定义的使用场景列表 |
 
-上传接口返回：
-```json
-{
-  "id": 1,
-  "name": "20260319_abc123.png",
-  "original": "avatar.png",
-  "url": "http://host:port/api/v1/uploads/2026/03/20260319_abc123.png",
-  "suffix": "png",
-  "size": 102400
-}
-```
+上传接口返回文件 ID、存储文件名、原始文件名、后缀、大小和完整访问 URL。列表接口同样返回可直接使用的完整 URL，避免前端自行拼接。场景列表接口返回系统预定义场景集合，而不是仅返回数据库中已存在的数据，以保证前端筛选和上传组件行为稳定。
 
-文件列表接口返回的 url 字段为完整的 HTTP 地址，方便前端直接使用。
+通知公告富文本编辑器通过 `uploadHandler` 调用统一上传接口并使用 `notice_image` 场景插入完整 URL；通知公告附件通过通用文件上传组件使用 `notice_attachment` 场景；用户头像上传统一切换到 `avatar` 场景，并复用同一套文件存储与管理能力。
 
-#### 2.3 文件去重机制
+## 前端模块与交互设计
 
-上传时计算文件 SHA-256 散列值，与已有记录比对。相同散列值的文件直接复用已有存储文件，仅新增一条文件记录。每条记录独立关联使用场景和业务上下文。
+前端在 `src/components/upload/` 下提供通用 `FileUpload`、`ImageUpload` 组件和配套上传逻辑，用于处理拖拽上传、图片卡片回显、进度、校验和错误反馈。组件通过 `v-model:value` 绑定文件 ID，并通过 `scene` 参数声明业务场景。
 
-### 3. 前端架构
+系统管理下新增“文件管理”页面，统一承载文件列表、搜索、上传、批量删除、下载、详情和预览能力。页面默认开启预览模式，图片和 PDF 直接预览，其他不可预览文件展示可复制和可点击的 URL 地址；文件类型筛选使用 Select，下拉选项来自 `/file/suffixes` 接口且不包含点号。详情弹窗展示文件完整信息、使用场景、文件路径等元数据，并通过统一宽度约束保持可读性。
 
-#### 3.1 通用上传组件
+## 运行时治理评估
 
-参考 ruoyi-plus-vben5 的实现，在 `src/components/upload/` 创建：
+本次能力设计不新增用户可见运行时文案，因此不需要维护新的前端语言包、插件 `manifest/i18n` 或 apidoc i18n 资源；仅需同步接口示例和相关说明文本。
 
-- `FileUpload` -- 文件上传组件（支持拖拽上传）
-- `ImageUpload` -- 图片上传组件（picture-card 样式）
-- 通用上传 hook（`useUpload`）处理进度、校验、错误等
-
-组件通过 `v-model:value` 绑定文件 ID（单文件为 string，多文件为 string[]），回显时通过文件 ID 查询文件信息。上传时支持传入 scene 参数标识使用场景。
-
-#### 3.2 文件管理页面
-
-在系统管理菜单下新增"文件管理"子菜单，页面功能包含：
-
-- 文件列表表格（文件类型、原始名、预览、大小、上传时间、上传者、操作）
-- 搜索条件（文件名、文件类型下拉选择、使用场景、上传时间范围）
-- 工具栏按钮（批量删除、文件上传、图片上传）
-- 操作列（详情、下载、删除）
-- 图片预览模式默认开启，非图片非 PDF 文件展示可点击的 URL 地址（过长省略，悬停显示完整链接）
-- 详情弹窗展示文件完整信息及使用场景
-
-文件类型筛选为 Select 下拉选择，选项从后端 `/file/suffixes` 接口动态获取已存在的后缀列表（不含点号）。
-
-#### 3.3 现有功能改造
-
-**通知公告编辑器**：
-- 给 TiptapEditor 传入 `uploadHandler` prop，调用文件上传接口（scene=notice_image）
-- 上传成功后返回完整 URL 插入编辑器
-- 移除 Base64 内嵌模式依赖
-- 新增 FileUpload 组件用于附件上传（scene=notice_attachment）
-
-**用户头像上传**：
-- 改为调用通用文件上传接口 `POST /file/upload`，传入 scene=avatar
-- 上传后使用返回的 URL 更新用户头像
-- 删除原有的 `POST /user/profile/avatar` 独立上传端点及静态文件服务路由
-
-### 4. 文件存储路径
-
-本地存储按年月组织目录结构：
-```
-temp/upload/
-  2026/
-    03/
-      20260319_abc123.png
-      20260319_def456.docx
-```
-
-### 5. 配置变更
-
-`config.yaml` 中 `upload.path` 配置项保持不变（`temp/upload`），新增 `upload.maxSize` 配置项控制最大上传文件大小。
+系统不新增或修改缓存，文件访问继续以 `sys_file.path` 数据库记录为权威数据源，因此不会引入额外的分布式缓存一致性问题。数据权限边界也保持不变：上传记录仍归属当前租户，读取和下载继续依赖既有元数据查询、租户过滤和权限校验流程。

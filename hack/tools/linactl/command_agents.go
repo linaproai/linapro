@@ -337,8 +337,8 @@ func collectAgentUniverse() []selectableAgent {
 }
 
 // runAgentInteractiveMenu drives the two-step TTY flow:
-//   1. select one agent from the link-class universe (huh single-select);
-//   2. select link or unlink (huh single-select).
+//  1. select one agent from the link-class universe (huh single-select);
+//  2. select link or unlink (huh single-select).
 //
 // Cancellation at either step returns nil after printing "Cancelled.".
 func runAgentInteractiveMenu(a *app, universe []selectableAgent, force bool) error {
@@ -388,8 +388,8 @@ func runAgentInteractiveMenu(a *app, universe []selectableAgent, force bool) err
 // dispatchAgentSetup executes the chosen action across every resource
 // type the agent participates in. For each resource:
 //   - link-class agent  -> delegate to executeAgentsXxxLink/Unlink
-//                          (which renders the per-resource result table
-//                           and emits hints internally).
+//     (which renders the per-resource result table
+//     and emits hints internally).
 //   - native agent      -> record a skip with reason "native".
 //   - unregistered      -> record a skip with reason "not registered".
 //
@@ -414,10 +414,10 @@ func dispatchAgentSetup(a *app, agentName string, action agentSetupAction, force
 	}
 
 	type resourceOutcome struct {
-		kind   resourceKind
-		err    error
+		kind    resourceKind
+		err     error
 		skipped bool
-		reason string
+		reason  string
 	}
 	outcomes := make([]resourceOutcome, 0, 3)
 	var firstErr error

@@ -1,233 +1,57 @@
-## Context
+# Design
 
-### Current State
+## 测试目录与资产归属
 
-- `hack/tests/e2e/` already contains close to 100 `TC*.ts` files, but the directory tree still largely follows the legacy workbench grouping. The oversized `system/` directory still contains most host-owned test cases, even though it no longer matches the stable workbench menu boundaries.
-- Frontend static routes have already stabilized around capability groups such as `IAM`, `System Settings`, `Task Scheduling`, `Extension Center`, `About`, and `Dashboard`, while organization, content, and monitoring capabilities have been heavily pluginized. If the E2E suite keeps following the old `system/monitor/plugin` grouping, locating and maintaining coverage will only become more expensive.
-- `hack/tests/playwright.config.ts` still uses `workers: 1` and `fullyParallel: false`. In `hack/tests/fixtures/auth.ts`, the `adminPage` fixture performs a full UI login for each test.
-- Existing page objects and some test files still contain a large number of `waitForTimeout(...)` calls. Fixed waits both increase total execution time and hide the real readiness signals of the product.
-- `hack/tests/e2e/` also includes files that do not satisfy the test-case conventions, such as debug scripts and shared helpers. Duplicate TC IDs have already appeared, which shows that directory and numbering governance can no longer rely on manual discipline.
-- Full regressions expose shared-state contention between tests: plugin lifecycle, runtime i18n caches, global configuration, dictionaries, menu permissions, and other cases mutate the same database or cache state when executed in parallel, causing protocol-correct tests to produce false failures.
-- While test files can be assigned to serial or parallel execution via `hack/tests/config/execution-manifest.json`, there is no auditable global-state mutation classification and no governance documentation for runtime caches, plugin lifecycle, system parameters, dictionaries, menu permissions, and other shared state.
+E2E 资产被划分为两个明确边界：根 `hack/tests/` 负责宿主能力、宿主插件框架和动态测试插件运行时的通用测试能力；`apps/lina-plugins/<plugin-id>/hack/tests/` 负责具体官方源码插件的自有用例、页面对象、测试数据和专属 baseline。目录组织以稳定能力边界为第一层，例如 `iam/`、`settings/`、`scheduler/`、`extension/`、`dashboard/`、`about/`，再按清晰子域使用第二层目录。这样导航从用户能力出发，而不是从历史 URL bucket 或物理源码位置出发。
 
-### Constraints
+根路径 E2E 不再允许耦合具体官方插件 ID、插件路径、插件菜单、插件 i18n key、插件 mock data 或插件专属 baseline。需要验证具体官方插件行为时，测试必须回收到对应插件目录，通过 `plugins` 或 `plugin:<plugin-id>` 入口选择。这个边界让 host-only 主框架环境不必默认依赖 `apps/lina-plugins`，也避免根测试资产随着插件扩张持续膨胀。
 
-- The suite must continue to follow the `lina-e2e` conventions: `TC{NNNN}-{brief-name}.ts`, globally unique TC IDs, and each file being independently runnable.
-- `make test` and `pnpm test` must keep their meaning as a full E2E regression entrypoint.
-- Reorganizing the suite must not reduce valuable coverage, especially for plugin lifecycle, permission governance, task scheduling, and system configuration.
-- This is a greenfield project, so there is no need to preserve long-term compatibility with the old test directory shape. The suite can converge directly to the target structure.
-- This change targets test infrastructure and test governance; it does not alter business APIs or product runtime behavior. Existing E2E naming conventions, module directory boundaries, and i18n continuous governance requirements must continue to be followed.
+`hack/tests/e2e/` 只保留真实用例文件。共享 API helper、wait util、fixture 辅助、governance script 和 debug script 统一迁入 `fixtures/`、`support/`、`scripts/` 与 `debug/`。目录 ownership、非测试文件、根路径插件耦合和 manifest 引用都通过治理校验持续守卫。
 
-## Goals / Non-Goals
+## 编号与治理模型
 
-**Goals:**
+早期 suite 使用全局 `TC{NNNN}` 编号，便于单一目录阶段的唯一性检查，但随着宿主模块和多个插件模块并行演进，全局编号会把无关目录耦合在一起，带来重命名冲突和长期维护成本。最终治理模型改为模块目录本地 `TC{NNN}` 连续递增：每个拥有目录从 `TC001` 开始，独立维护本目录内的编号连续性，宿主目录与各插件目录互不影响。
 
-1. Align the E2E directory structure with the current stable workbench capability boundaries and plugin ownership.
-2. Provide `smoke`, `module`, and `full` execution layers so developers can get the right level of feedback without always waiting for the entire suite.
-3. Reuse authenticated state to remove the cost of repeated UI login in high-frequency fixtures.
-4. Replace high-frequency fixed waits with state-based waits without sacrificing stability.
-5. Introduce limited parallelism only where execution boundaries are clearly safe.
-6. Add automated governance for directory ownership, TC uniqueness, helper placement, and execution manifests.
-7. Define "shared global state" as a classifiable, verifiable, auditable E2E execution attribute.
-8. Enable runner scripts and validation scripts to detect when high-risk shared-state cases have not entered a serial boundary.
-9. Ensure plugin, mock data, language-pack cache, system parameter, dictionary, and menu-permission related tests have stable prerequisites and cleanup strategies.
-10. Refactor cache/ETag tests to validate protocol semantics, accepting that legitimate global version refreshes may return fresh resources during a full regression.
-11. Produce documented test conflict cases and governance rules for reuse when adding new test cases.
+治理校验不再只检查“全局是否重复”，而是同时检查：目录内编号是否从 `TC001` 开始连续递增、是否仍残留旧四位全局编号、测试文件是否落在允许的能力目录、根路径是否重新引入具体插件耦合、以及 execution manifest 是否引用了失效文件或错误 scope。这使目录重构、插件迁移和后续增量迭代都具备可持续的自动守卫。
 
-**Non-Goals:**
+## 执行入口与环境职责
 
-1. Do not replace Playwright or introduce a second testing framework.
-2. Do not rewrite every page object in this change; prioritize the most expensive and most frequently reused paths.
-3. Do not shrink business coverage or delete valuable tests as a shortcut for speed.
-4. Do not treat backend startup, database initialization, or frontend build time as the core target of this iteration; this change focuses on the E2E suite itself.
-5. Do not force all tests into parallel execution; high-risk shared-state cases may remain in a serial pool.
-6. Do not change real business module data models, API contracts, or runtime i18n behavior.
-7. Do not disable plugin lifecycle, cache invalidation, permission synchronization, or other real business mechanisms for testing convenience.
+执行入口围绕“默认全量、按需快反馈、按环境分责”组织：
 
-## Decisions
+- `pnpm test` / `pnpm test:full`：完整回归入口。
+- `pnpm test:smoke`：关键路径快速反馈。
+- `pnpm test:module -- <scope>`：按 manifest scope 解析模块范围。
+- `pnpm test:host`：不依赖官方插件工作区的宿主全量回归。
+- `pnpm test:host:module -- <scope>`：仅执行可在 host-only 环境运行的宿主 scope。
 
-### D1. Reorganize the suite around stable capability boundaries instead of legacy URL buckets
+execution manifest 是 smoke 文件、module scope、串行边界、隔离类别和 allowlist 的唯一事实来源。full 与 module 模式都采用同一套“并行池 + 串行池”拆分逻辑，module 运行不会绕过隔离规则。host-only module 在解析到 `plugins`、`plugin:<plugin-id>` 或任何需要 `apps/lina-plugins` 的 scope 时必须直接失败，避免在错误环境中产生伪失败。
 
-**Decision**: Restructure `hack/tests/e2e/` around stable capability boundaries such as `iam/`, `settings/`, `scheduler/`, `extension/`, `monitor/`, `org/`, `content/`, `dashboard/`, and `about/`. Allow second-level directories for clear subdomains such as `scheduler/job/` and `monitor/operlog/`.
+plugin-full 的职责被显式收敛：根路径 scope `extension:plugin` 只负责宿主插件框架、动态测试插件运行时和通用插件治理；源码插件自有测试统一通过 `plugins` 或 `plugin:<plugin-id>` 入口选择。这样 plugin-full 不再用“重新跑一遍宿主全量套件”的方式覆盖插件能力，而是由 host-only 保持宿主基线、由插件目录维护插件闭环回归。
 
-```text
-hack/tests/
-  e2e/
-    auth/
-    dashboard/
-    about/
-    iam/
-      user/
-      role/
-      menu/
-    settings/
-      dict/
-      config/
-      file/
-    org/
-      dept/
-      post/
-      user-org/
-    content/
-      notice/
-      message/
-    monitor/
-      operlog/
-      loginlog/
-      online/
-      server/
-    scheduler/
-      job/
-      job-group/
-      job-log/
-    extension/
-      plugin/
-```
+## CI 分片与执行证据
 
-**Rationale**: The primary job of the suite tree is to help developers quickly locate the regression surface of a capability. Capability boundaries have already stabilized in frontend routing, host menus, and plugin directories, so continuing to use an overloaded legacy bucket such as `system/` only adds cognitive overhead.
+在本地和 CI 中都继续复用现有 runner 与 manifest 体系，不引入新的测试框架。plugin-full 通过通用 scope 进行分片：宿主插件框架 scope 独立运行，`plugins` scope 继续使用通用入口并借助 Playwright shard 拆成多个独立 job。每个分片使用独立服务实例、独立 PostgreSQL、独立 artifact 名称，失败会阻断完整 verification suite 的下游 job。
 
-**Alternatives considered**:
-- Keep `system/` and add documentation only: rejected because the directory itself still fails to express the new capability boundaries.
-- Organize tests strictly by source ownership: rejected because regression navigation should start from user-facing capabilities, not physical source placement.
+为了让 wall clock 优化可复核，runner 在 full、module 和 shard 模式下都输出并行文件数、串行文件数、worker 数量和串行隔离类别摘要；CI 继续上传 Playwright report、test-results 与前后端日志。PostgreSQL service health check 改为显式 `pg_isready -U postgres -d linapro`，避免依赖 runner OS 用户产生无效健康检查噪声。
 
-### D2. Move helpers, debug scripts, and governance scripts out of `e2e/`
+## 认证态、页面装配与等待策略
 
-**Decision**: Keep only real `TC*.ts` files under `hack/tests/e2e/`. Move shared API helpers, wait utilities, and data builders into `hack/tests/support/` or `hack/tests/fixtures/`. Move ad-hoc debug scripts into `hack/tests/debug/` or `hack/tests/scripts/`. Add automated validation for duplicate TC IDs, invalid files, and incorrect directory ownership.
+高频已登录用例默认复用预生成 `storageState`。`adminPage` 保持兼容语义，继续代表“进入默认工作台后操作页面”；同时新增不自动导航 dashboard 的 `authenticatedPage`，让慢文件可以直接进入目标业务路由，消除重复的首页加载和二次跳转成本。登录、登出、未认证跳转、登录失败等认证场景仍显式走真实登录流程，避免被共享登录态掩盖。
 
-**Rationale**: Mixing non-test files into `e2e/` weakens readability and makes review, scanning, and execution harder to reason about. Separating executable tests from support assets simplifies both governance and tooling.
+等待策略统一收敛到 page object 和 shared support 层，优先使用表格装载完成、抽屉/弹窗可见、toast 完成、route 变化、dropdown/confirm overlay 状态和 API 完成作为就绪信号。固定时长等待只允许保留在有明确业务理由的位置，并需要注释说明。业务状态断言优先使用稳定 API 字段、ID、code、permission key、labelKey 或计数值；展示文案和多语言 copy 作为单独的表现层断言。
 
-**Alternative considered**:
-- Allow a small number of colocated helpers next to tests: rejected because the rule would quickly erode and reintroduce the same drift.
+## 共享状态隔离与前置条件装配
 
-### D3. Keep the full regression default and add manifest-driven smoke/module entrypoints
+E2E 运行时把“跨文件共享全局状态”当成一等治理对象。manifest 为插件生命周期、运行时 i18n 缓存、系统参数、公共前端配置、字典数据、权限矩阵、共享数据库种子、文件系统插件产物等风险面声明机器可读的 isolation category。validator 再通过静态启发式扫描高风险 API、helper 和关键字，发现高风险用例未被归入串行边界或未声明分类时立即失败。确有并行安全例外时，只能通过带理由的 allowlist 显式声明。
 
-**Decision**:
-- Keep `pnpm test` as the full regression entrypoint so it remains compatible with existing habits and `make test` expectations.
-- Add `pnpm test:full` as an explicit full-suite alias.
-- Add `pnpm test:smoke` and `pnpm test:module -- <scope>` as fast-feedback entrypoints driven by a suite manifest instead of ad-hoc globs.
-- Maintain an execution manifest such as `config/execution-manifest.json` as the source of truth for smoke files, module scopes, and serial boundaries.
+前置条件由 fixture 持有而不是由文件间隐式共享。普通插件功能用例通过 suite/shard 级幂等 baseline 统一完成插件同步、安装、启用、可用 mock 数据加载和插件投影刷新；生命周期用例仍自行控制安装、启用、禁用、卸载、上传、升级和清理状态，避免 baseline 污染被测对象。测试创建的数据必须带唯一前缀并自行清理，确保单文件独立运行。
 
-**Rationale**: Day-to-day development needs fast feedback, not a full regression on every iteration. Keeping `pnpm test` as a full run avoids surprise behavior changes, while manifest-driven fast entrypoints keep the workflow standardized and discoverable.
+## 生命周期覆盖策略
 
-**Alternatives considered**:
-- Change `pnpm test` to smoke: rejected because it would silently change an established workflow.
-- Rely on README instructions for custom globs: rejected because discoverability and consistency would remain weak.
+完整 UI 生命周期只保留给代表性官方插件与必须验证宿主壳、iframe、runtime 切换的动态插件场景，其余官方插件采用 API/contract smoke、菜单/路由挂载检查和核心页面可访问性验证，以在不丢失语义的前提下降低重复生命周期成本。对运行时缓存、ETag 与条件请求相关场景，断言关注协议语义：请求是否携带条件头，响应是否是合法的 `304`，或合法的 `200 + 新 ETag + 有效 body`。只有在测试独占资源版本时才要求固定结果码。
 
-### D4. Reuse authenticated state via pre-generated `storageState`
+## 反馈驱动的稳定性修正
 
-**Decision**:
-- Add a one-time login preparation step that generates an admin `storageState` before the suite runs.
-- Update `adminPage` and similar fixtures to consume that prepared state directly.
-- Keep real login flows available for authentication-focused tests such as login, logout, failed login, and unauthenticated redirect scenarios.
+优化与分片之后，回归会更快暴露真实边界问题，因此设计上允许把“保证 suite 稳定运行所需的最小生产/运行时修正”纳入同一能力体系。这类修正包括：插件资源数据权限映射与宿主枚举对齐、host-only 环境对插件依赖用例的过滤、动态插件菜单投影刷新等待、Vite `/x` 代理和动态示例数据清理、角色权限抽屉异步初始化等待、动态插件上传探测改为文件路径输入、插件页面列顺序/卸载前置条件断言更新，以及动态插件热升级后当前稳定 iframe 页的可访问路由刷新保护。
 
-**Rationale**: Most back-office tests are validating post-login capability pages, not the login flow itself. Repeating UI login in every file is one of the biggest sources of avoidable runtime and instability.
-
-**Alternative considered**:
-- Use API login to inject token or cookie state: not chosen for now because a UI-generated `storageState` keeps the coupling to login internals lower.
-
-### D5. Replace fixed waits with reusable state-based waits
-
-**Decision**: Govern waits at the page-object and fixture boundaries by extracting shared readiness helpers for:
-- table readiness
-- drawer and modal readiness
-- toast and feedback readiness
-- route readiness
-- dropdown visibility and confirmation overlays
-
-Prioritize the highest-frequency page objects such as menus, roles, dictionaries, users, and configuration pages.
-
-**Rationale**: Fixed waits are both a linear performance tax and a common source of flakes. Centralizing wait behavior inside shared helpers and page objects yields broad benefits with a contained change surface.
-
-**Alternative considered**:
-- Replace `waitForTimeout` calls one by one inside individual tests: rejected because the payoff is fragmented and hard to sustain.
-
-### D6. Use file-level pool splitting for parallel safety
-
-**Decision**:
-- Keep `fullyParallel: false` so each file still runs in order.
-- Raise file-level throughput with a limited worker count controlled by configuration and environment variables.
-- Place obviously shared-state scenarios such as plugin lifecycle, permission governance, runtime config, import/export, and scheduling into an explicit serial pool.
-- Run the full suite in two phases: a parallel pool for isolated files and a serial pool for shared-state files.
-
-**Rationale**: Current tests already have meaningful file-level isolation, so `workers: 1` artificially limits throughput. At the same time, turning on broad parallelism would amplify shared-state conflicts. A pool-splitting strategy gives a practical balance between stability and speed.
-
-**Alternatives considered**:
-- Enable broad multi-worker execution for everything: rejected because the shared-state surface is still too large.
-- Keep the suite permanently single-worker: rejected because it cannot satisfy the efficiency goal.
-
-### D7. Enforce suite governance with automated validation
-
-**Decision**: Add a validation script that checks at minimum:
-- global TC ID uniqueness
-- non-`TC` files under `hack/tests/e2e/`
-- allowed directory ownership for test files
-- valid smoke, serial, and module references in the execution manifest
-
-The validator serves both as the migration acceptance tool and as a standing guardrail for future changes.
-
-**Rationale**: Duplicate TC IDs and invalid files have already shown that manual discipline is insufficient. Automated validation is inexpensive and provides durable governance.
-
-### D8. Introduce global-state classification in the execution manifest
-
-**Decision**: Maintain machine-readable classifications for serial entries or test files in `execution-manifest.json`, such as `pluginLifecycle`, `runtimeI18nCache`, `systemConfig`, `dictionaryData`, `permissionMatrix`, `sharedDatabaseSeed`. The runner script continues to execute serial files as a set, while the validation script additionally checks classification completeness.
-
-**Rationale**: Relying solely on file paths or manual conventions to determine serial boundaries has low cost but cannot explain why a given file must be serial, nor automatically alert when new high-risk cases are added.
-
-**Alternative considered**:
-- Rely on file paths or manual conventions only: rejected because it cannot explain serial rationale or auto-detect omissions.
-
-### D9. Supplement manual classification with static heuristic detection
-
-**Decision**: `validate-e2e.mjs` should scan for high-risk APIs, helpers, or keywords such as plugin `install/enable/disable/uninstall/sync`, system parameter writes, dictionary import/modify, menu permission modifications, runtime language-pack cache assertions, `localStorage` ETag caching, and more. When a high-risk pattern is detected but the file is not in the serial boundary or lacks a declared classification, validation should fail with actionable remediation guidance.
-
-**Rationale**: Heuristics do not pursue perfect semantic analysis; they serve only as an engineering guard against omissions. Complex false positives may be handled through explicit classification or allowlist entries, but each allowlist entry must document its justification.
-
-### D10. Consolidate plugin and mock-data prerequisites into fixtures
-
-**Decision**: Tests that depend on source-plugin or dynamic-plugin state must prepare plugin state through unified fixtures/helpers. Fixtures must provide idempotent installation, enabling, necessary mock SQL loading, and frontend plugin projection refresh. Test files should not implicitly depend on another file having installed a plugin, nor assume that a specific plugin table or mock data already exists.
-
-**Rationale**: This adds a small amount of setup time but yields single-file runnability and full-regression stability.
-
-### D11. Cache tests validate protocol semantics rather than fixed response codes
-
-**Decision**: Runtime i18n ETag, public config cache, plugin frontend resource generation, and similar tests should verify "whether the request carries the correct conditional header" and "whether the server response matches the current resource version." For example, when reloading with a stale ETag, `304` indicates the version has not changed, and `200 + new ETag + body` indicates the version has legitimately refreshed; both are correct.
-
-Only when the test exclusively owns the resource version and there is no concurrent global-state mutation should a fixed `304` be asserted.
-
-**Rationale**: Global resource versions may legitimately refresh during a full regression due to plugin lifecycle, language-pack operations, or other parallel tests. Protocol-semantic assertions avoid false failures while still verifying cache behavior correctness.
-
-### D12. Prefer stable fields for business-state assertions
-
-**Decision**: When testing business counts, states, and permissions, prefer stable API fields, IDs, codes, labelKeys, and permission keys over inferring business state from localized UI text. UI copy should still be tested, but as separate presentation assertions, not as part of cross-language business-state computation.
-
-**Rationale**: This avoids language switching, traditional/simplified Chinese switching, or copy adjustments causing false business-test failures.
-
-## Risks / Trade-offs
-
-- **Directory migration causes many import path updates**: migrate module by module, update support-file destinations first, and run targeted regressions after each batch.
-- **Authenticated-state reuse could hide login issues**: keep `auth/` tests on real login flows.
-- **Incorrect serial/parallel classification could introduce flakes**: start conservatively, allow worker fallback, and keep obviously shared-state files in the serial pool.
-- **Partial wait cleanup could reduce the speed gain**: prioritize the highest-frequency page objects and shared flows first.
-- **A poorly curated smoke pack could drift away from real risk**: seed it with login, workspace navigation, core management CRUD, and plugin-governance paths, then evolve it with the product.
-- **Overly broad serial classification slows down full regressions**: classification covers only true global-state mutations; read-only audits, locally unique data, and files without shared state continue to run in parallel.
-- **Heuristic detection produces false positives**: allowlist entries with documented reasons are supported; reviewers must explain why parallel execution is safe.
-- **Fixture auto-loading of mock SQL may mask missing prerequisites**: fixtures only handle demo/mock data required by the test and keep SQL idempotent; business installation SQL still goes through plugin lifecycle verification.
-- **Cache tests become less strict after accepting both `200` and `304`**: the `200` branch must assert that the new ETag differs from the old ETag and that a response body is present, still verifying protocol correctness.
-- **Adding classification and validation requires short-term cleanup of existing cases**: migrate in batches, first covering known conflict files and high-risk modules, then progressively converging on other hits.
-
-## Migration Plan
-
-1. Inventory the current E2E tree, support files, duplicate TC IDs, fixed-wait hotspots, and shared-state risks.
-2. Create the target directories and support folders, move helpers/debug files, and repair imports.
-3. Move `TC*.ts` files module by module and fix duplicate TC IDs and naming conflicts.
-4. Add the execution manifest plus `smoke`, `module`, and `full` entrypoints while preserving the existing full-regression default.
-5. Introduce `storageState` generation and the new authenticated fixtures, then validate high-frequency modules outside `auth/`.
-6. Apply the first round of state-based wait cleanup, define serial/parallel pools, and run targeted plus full regressions.
-7. Extend the execution manifest with machine-readable isolation categories and update the runner to report serial/parallel boundaries.
-8. Add high-risk heuristic detection to the validation script and remediate known conflict cases.
-9. Consolidate plugin and mock-data prerequisites into idempotent fixtures; adjust cache/ETag assertions to protocol semantics.
-10. Document conflict governance rules, record timing and stability baselines, and verify with full regression.
-
-## Open Questions
-
-- No blocking open questions remain. `pnpm test` continues to mean a full regression run, while the fast-feedback entrypoints are additive.
+同一思路也覆盖测试支撑配置的一致性修正：上传默认上限需要在配置模板、初始化 SQL、运行时 fallback 与 packed asset 中一致对齐到 100MB，运行时 cache/reconciler reason 统一收敛为命名类型常量，避免测试与生产路径对同一约束出现分叉。这样 E2E 优化不只是“跑得更快”，而是形成可持续揭示和修复真实回归问题的长期机制。
