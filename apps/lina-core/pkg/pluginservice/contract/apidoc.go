@@ -141,8 +141,8 @@ func normalizeOpenAPIPath(path string) string {
 func buildOpenAPIPathOperationKey(pathName string, method string) string {
 	segments := openAPIPathSegments(pathName)
 	if isDynamicPluginOpenAPIPath(pathName) {
-		pluginID := sanitizeOpenAPIKeyPart(segments[3])
-		remainingPath := strings.Join(segments[4:], ".")
+		pluginID, remainingSegments := dynamicPluginOpenAPIPathParts(segments)
+		remainingPath := strings.Join(remainingSegments, ".")
 		if remainingPath == "" {
 			remainingPath = "root"
 		}
@@ -156,10 +156,29 @@ func buildOpenAPIPathKey(pathName string) string {
 	return "core.paths." + sanitizeOpenAPIPathKey(pathName)
 }
 
-// isDynamicPluginOpenAPIPath reports whether a public OpenAPI path belongs to the extension namespace.
+// isDynamicPluginOpenAPIPath reports whether a public OpenAPI path belongs to the dynamic-plugin namespace.
 func isDynamicPluginOpenAPIPath(pathName string) bool {
 	segments := openAPIPathSegments(pathName)
-	return len(segments) >= 4 && segments[0] == "api" && segments[1] == "v1" && segments[2] == "extensions"
+	_, _, ok := dynamicPluginOpenAPIPath(segments)
+	return ok
+}
+
+// dynamicPluginOpenAPIPathParts returns the stable plugin key segment and the
+// plugin-owned route path segments for dynamic routes.
+func dynamicPluginOpenAPIPathParts(segments []string) (string, []string) {
+	pluginIndex, routeStart, ok := dynamicPluginOpenAPIPath(segments)
+	if !ok {
+		return "", nil
+	}
+	return sanitizeOpenAPIKeyPart(segments[pluginIndex]), segments[routeStart:]
+}
+
+// dynamicPluginOpenAPIPath detects `/x/{pluginId}/...` paths after OpenAPI key sanitization.
+func dynamicPluginOpenAPIPath(segments []string) (pluginIndex int, routeStart int, ok bool) {
+	if len(segments) >= 2 && segments[0] == "x" {
+		return 1, 2, true
+	}
+	return 0, 0, false
 }
 
 // sanitizeOpenAPIPathKey converts an OpenAPI path into dot-separated key parts.

@@ -36,7 +36,11 @@ type PluginDynamicStateItem struct {
 
 // ListRuntimeStates returns public plugin runtime states for shell slot rendering.
 func (s *serviceImpl) ListRuntimeStates(ctx context.Context) (*RuntimeStateListOutput, error) {
-	registries, err := s.catalogSvc.ListAllRegistries(ctx)
+	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	registries, err := s.catalogSvc.ListAllRegistries(readCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +73,7 @@ func (s *serviceImpl) ListRuntimeStates(ctx context.Context) (*RuntimeStateListO
 				enabled = catalog.StatusDisabled
 			}
 		}
-		if projection, err := s.catalogSvc.BuildRuntimeUpgradeState(ctx, registry, manifest); err == nil {
+		if projection, err := s.catalogSvc.BuildRuntimeUpgradeState(readCtx, registry, manifest); err == nil {
 			runtimeState = projection.State
 		}
 

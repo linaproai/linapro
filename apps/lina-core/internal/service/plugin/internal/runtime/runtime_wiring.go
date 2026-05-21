@@ -146,10 +146,16 @@ func (s *serviceImpl) validateFrontendMenuBindings(ctx context.Context, manifest
 // bundles after one plugin lifecycle change. Only the dynamic-plugin sector for
 // the affected plugin is invalidated; host and source-plugin sectors stay hot
 // for unrelated locales and plugins.
-func (s *serviceImpl) invalidateRuntimeCaches(ctx context.Context, pluginID string, reason string) {
-	wasm.InvalidateAllCache(ctx)
+func (s *serviceImpl) invalidateRuntimeCaches(ctx context.Context, manifest *catalog.Manifest, reason runtimeChangeReason) {
+	var pluginID string
+	if manifest != nil {
+		pluginID = manifest.ID
+		if manifest.RuntimeArtifact != nil {
+			wasm.InvalidateCache(ctx, manifest.RuntimeArtifact.Path)
+		}
+	}
 	if s.frontendSvc != nil {
-		s.frontendSvc.InvalidateBundle(ctx, pluginID, reason)
+		s.frontendSvc.InvalidateBundle(ctx, pluginID, string(reason))
 	}
 	if s.i18nSvc != nil {
 		s.i18nSvc.InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
@@ -161,9 +167,9 @@ func (s *serviceImpl) invalidateRuntimeCaches(ctx context.Context, pluginID stri
 
 // notifyRuntimeCacheChanged publishes a successful dynamic runtime mutation to
 // other cluster nodes through the root plugin facade.
-func (s *serviceImpl) notifyRuntimeCacheChanged(ctx context.Context, reason string) error {
+func (s *serviceImpl) notifyRuntimeCacheChanged(ctx context.Context, reason runtimeChangeReason) error {
 	if s.cacheChangeNotifier == nil {
 		return nil
 	}
-	return s.cacheChangeNotifier.MarkRuntimeCacheChanged(ctx, reason)
+	return s.cacheChangeNotifier.MarkRuntimeCacheChanged(ctx, string(reason))
 }

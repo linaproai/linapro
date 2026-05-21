@@ -30,6 +30,8 @@ const (
 	ManagedRootRelativePath = "apps/lina-plugins"
 	// pluginLockFileName stores tool-generated source-plugin state.
 	pluginLockFileName = ".linapro-plugins.lock.yaml"
+	// pluginSourceCacheDirName stores reusable Git checkouts for configured sources.
+	pluginSourceCacheDirName = "plugin-sources"
 	// pluginWildcardItem expands to every plugin directory under the source root.
 	pluginWildcardItem = "*"
 )
@@ -79,7 +81,7 @@ type pluginPlanItem struct {
 	All    bool
 }
 
-// pluginSourceCheckout stores one temporary checkout and resolved commit.
+// pluginSourceCheckout stores one source checkout and resolved commit.
 type pluginSourceCheckout struct {
 	Dir    string
 	Commit string
@@ -115,21 +117,8 @@ type pluginStatusRow struct {
 
 // InstallOrUpdate executes install or update for selected plugins.
 func InstallOrUpdate(ctx context.Context, runtime Runtime, input Input, update bool) error {
-	workspace, err := InspectManagedWorkspace(ctx, runtime)
-	if err != nil {
+	if _, err := EnsureManagedWorkspaceReady(ctx, runtime, false); err != nil {
 		return err
-	}
-	if workspace.State == ManagedWorkspaceSubmodule {
-		return errors.New("apps/lina-plugins is still a submodule; run `make plugins.init` first")
-	}
-	if workspace.State == ManagedWorkspaceNestedGit {
-		return errors.New("apps/lina-plugins contains nested Git metadata; run `make plugins.init` or remove nested metadata first")
-	}
-	if workspace.State == ManagedWorkspaceInvalid {
-		return fmt.Errorf("apps/lina-plugins is invalid: %s", workspace.Root)
-	}
-	if err = os.MkdirAll(workspace.Root, 0o755); err != nil {
-		return fmt.Errorf("create plugin workspace: %w", err)
 	}
 
 	force, err := input.Bool("force", false)
@@ -158,7 +147,6 @@ func InstallOrUpdate(ctx context.Context, runtime Runtime, input Input, update b
 	if err != nil {
 		return err
 	}
-	defer cleanupPluginSourceCheckouts(runtime, checkouts)
 	if len(sourceErrors) > 0 {
 		return firstPluginSourceError(sourceErrors)
 	}
@@ -186,15 +174,11 @@ func InstallOrUpdate(ctx context.Context, runtime Runtime, input Input, update b
 
 // Status prints read-only plugin workspace and source status.
 func Status(ctx context.Context, runtime Runtime, input Input) error {
-	workspace, err := InspectManagedWorkspace(ctx, runtime)
+	workspace, err := EnsureManagedWorkspaceReady(ctx, runtime, false)
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(runtime.Stdout, "Plugin workspace: %s (%s)\n", toolutil.RelativePath(runtime.Root, workspace.Root), workspace.State)
-	if workspace.State == ManagedWorkspaceSubmodule {
-		fmt.Fprintln(runtime.Stdout, "Action required: run `make plugins.init` before installing or updating user-project plugins.")
-		return nil
-	}
 
 	plan, err := LoadPlan(runtime.Root, input)
 	if err != nil {
@@ -213,7 +197,6 @@ func Status(ctx context.Context, runtime Runtime, input Input) error {
 	if err != nil {
 		return err
 	}
-	defer cleanupPluginSourceCheckouts(runtime, checkouts)
 	expandedPlan, expandErr := expandPluginPlanFromCheckouts(plan, checkouts)
 	if expandErr != nil {
 		return expandErr
@@ -389,7 +372,7 @@ func ValidateConfig(cfg config.Plugins, input Input) (pluginPlan, error) {
 	return pluginPlan{Items: items, Filter: pluginFilter}, nil
 }
 
-// checkoutPluginSources checks out each configured source once.
+// checkoutPluginSources synchronizes each configured source once.
 func checkoutPluginSources(ctx context.Context, runtime Runtime, items []pluginPlanItem) (map[string]pluginSourceCheckout, map[string]error, error) {
 	checkouts := map[string]pluginSourceCheckout{}
 	sourceErrors := map[string]error{}
@@ -400,7 +383,7 @@ func checkoutPluginSources(ctx context.Context, runtime Runtime, items []pluginP
 		if _, ok := sourceErrors[item.Source]; ok {
 			continue
 		}
-		if _, err := fmt.Fprintf(runtime.Stdout, "Downloading plugin source %s from %s (%s)...\n", item.Source, item.Repo, item.Ref); err != nil {
+		if _, err := fmt.Fprintf(runtime.Stdout, "Synchronizing plugin source %s from %s (%s)...\n", item.Source, item.Repo, item.Ref); err != nil {
 			return checkouts, sourceErrors, fmt.Errorf("write plugin source progress: %w", err)
 		}
 		checkout, err := checkoutPluginSource(ctx, runtime, item)
@@ -414,15 +397,6 @@ func checkoutPluginSources(ctx context.Context, runtime Runtime, items []pluginP
 		}
 	}
 	return checkouts, sourceErrors, nil
-}
-
-// cleanupPluginSourceCheckouts removes temporary source checkout directories.
-func cleanupPluginSourceCheckouts(runtime Runtime, checkouts map[string]pluginSourceCheckout) {
-	for _, checkout := range checkouts {
-		if cleanupErr := os.RemoveAll(checkout.Dir); cleanupErr != nil {
-			fmt.Fprintf(runtime.Stderr, "warning: remove temporary plugin checkout %s: %v\n", checkout.Dir, cleanupErr)
-		}
-	}
 }
 
 // firstPluginSourceError returns the first deterministic source checkout error.
@@ -615,6 +589,43 @@ func InspectManagedWorkspace(ctx context.Context, runtime Runtime) (ManagedWorks
 	return ManagedWorkspace{Root: root, State: ManagedWorkspaceOrdinary}, nil
 }
 
+// EnsureManagedWorkspaceReady initializes apps/lina-plugins when a plugins.*
+// command can safely recover from a missing directory or historical submodule.
+func EnsureManagedWorkspaceReady(ctx context.Context, runtime Runtime, reportOrdinary bool) (ManagedWorkspace, error) {
+	workspace, err := InspectManagedWorkspace(ctx, runtime)
+	if err != nil {
+		return ManagedWorkspace{}, err
+	}
+	switch workspace.State {
+	case ManagedWorkspaceOrdinary:
+		if reportOrdinary {
+			if _, err = fmt.Fprintf(runtime.Stdout, "Plugin workspace already ordinary: %s\n", toolutil.RelativePath(runtime.Root, workspace.Root)); err != nil {
+				return ManagedWorkspace{}, fmt.Errorf("write plugin workspace status: %w", err)
+			}
+		}
+		return workspace, nil
+	case ManagedWorkspaceMissing:
+		if err = os.MkdirAll(workspace.Root, 0o755); err != nil {
+			return ManagedWorkspace{}, fmt.Errorf("create plugin workspace: %w", err)
+		}
+		if _, err = fmt.Fprintf(runtime.Stdout, "Plugin workspace created: %s\n", toolutil.RelativePath(runtime.Root, workspace.Root)); err != nil {
+			return ManagedWorkspace{}, fmt.Errorf("write plugin workspace status: %w", err)
+		}
+		return ManagedWorkspace{Root: workspace.Root, State: ManagedWorkspaceOrdinary}, nil
+	case ManagedWorkspaceSubmodule:
+		if err = ConvertSubmoduleToDirectory(ctx, runtime, workspace); err != nil {
+			return ManagedWorkspace{}, err
+		}
+		return ManagedWorkspace{Root: workspace.Root, State: ManagedWorkspaceOrdinary}, nil
+	case ManagedWorkspaceNestedGit:
+		return ManagedWorkspace{}, fmt.Errorf("plugin workspace contains nested Git metadata; remove %s manually before plugin workspace initialization", toolutil.RelativePath(runtime.Root, filepath.Join(workspace.Root, ".git")))
+	case ManagedWorkspaceInvalid:
+		return ManagedWorkspace{}, fmt.Errorf("plugin workspace is invalid: %s", toolutil.RelativePath(runtime.Root, workspace.Root))
+	default:
+		return ManagedWorkspace{}, fmt.Errorf("unknown plugin workspace state: %s", workspace.State)
+	}
+}
+
 // ConvertSubmoduleToDirectory removes submodule metadata while keeping files.
 func ConvertSubmoduleToDirectory(ctx context.Context, runtime Runtime, workspace ManagedWorkspace) error {
 	if err := os.MkdirAll(workspace.Root, 0o755); err != nil {
@@ -712,39 +723,94 @@ func isGitlink(ctx context.Context, runtime Runtime, relative string) bool {
 	return strings.HasPrefix(strings.TrimSpace(output), "160000 ")
 }
 
-// checkoutPluginSource checks out the configured source into a temporary directory.
+// checkoutPluginSource synchronizes the configured source into the reusable cache.
 func checkoutPluginSource(ctx context.Context, runtime Runtime, item pluginPlanItem) (pluginSourceCheckout, error) {
-	tempRoot := filepath.Join(runtime.Root, "temp")
-	if err := os.MkdirAll(tempRoot, 0o755); err != nil {
-		return pluginSourceCheckout{}, fmt.Errorf("create temp directory: %w", err)
-	}
-	dir, err := os.MkdirTemp(tempRoot, "plugin-source-"+item.Source+"-")
+	cacheDir := SourceCachePath(runtime.Root, item.Source)
+	reusable, err := pluginSourceCacheReusable(ctx, runtime, cacheDir, item.Repo)
 	if err != nil {
-		return pluginSourceCheckout{}, fmt.Errorf("create plugin source checkout: %w", err)
+		return pluginSourceCheckout{}, err
 	}
-	cleanup := true
-	defer func() {
-		if cleanup {
-			if cleanupErr := os.RemoveAll(dir); cleanupErr != nil {
-				fmt.Fprintf(runtime.Stderr, "warning: remove temporary plugin checkout %s: %v\n", dir, cleanupErr)
-			}
+	if !reusable {
+		if err = rebuildPluginSourceCache(ctx, runtime, item, cacheDir); err != nil {
+			return pluginSourceCheckout{}, err
 		}
-	}()
-	if err = runtime.run(ctx, toolrun.Options{Dir: runtime.Root, Stderr: runtime.Stdout}, "git", "clone", "--progress", "--no-checkout", item.Repo, dir); err != nil {
+	} else if err = fetchPluginSourceCache(ctx, runtime, cacheDir); err != nil {
 		return pluginSourceCheckout{}, err
 	}
-	if err = runtime.run(ctx, toolrun.Options{Dir: dir, Quiet: true}, "git", "checkout", "--quiet", item.Ref); err != nil {
-		return pluginSourceCheckout{}, err
-	}
-	commit, err := runtime.output(ctx, toolrun.Options{Dir: dir, Quiet: true}, "git", "rev-parse", "HEAD")
+
+	commit, err := resolvePluginSourceRef(ctx, runtime, cacheDir, item.Ref)
 	if err != nil {
 		return pluginSourceCheckout{}, err
 	}
-	cleanup = false
-	return pluginSourceCheckout{Dir: dir, Commit: strings.TrimSpace(commit)}, nil
+	if err = runtime.run(ctx, toolrun.Options{Dir: cacheDir, Quiet: true}, "git", "checkout", "--quiet", "--force", "--detach", commit); err != nil {
+		return pluginSourceCheckout{}, err
+	}
+	if err = runtime.run(ctx, toolrun.Options{Dir: cacheDir, Quiet: true}, "git", "reset", "--hard", "--quiet", commit); err != nil {
+		return pluginSourceCheckout{}, err
+	}
+	if err = runtime.run(ctx, toolrun.Options{Dir: cacheDir, Quiet: true}, "git", "clean", "-fdx", "--quiet"); err != nil {
+		return pluginSourceCheckout{}, err
+	}
+	return pluginSourceCheckout{Dir: cacheDir, Commit: commit}, nil
 }
 
-// applyPluginFromCheckout copies one plugin from a temporary checkout.
+// pluginSourceCacheReusable reports whether an existing source cache can be reused.
+func pluginSourceCacheReusable(ctx context.Context, runtime Runtime, cacheDir string, repo string) (bool, error) {
+	info, err := os.Stat(cacheDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("stat plugin source cache: %w", err)
+	}
+	if !info.IsDir() {
+		return false, nil
+	}
+	if _, err = runtime.output(ctx, toolrun.Options{Dir: cacheDir, Quiet: true}, "git", "rev-parse", "--git-dir"); err != nil {
+		return false, nil
+	}
+	remote, err := runtime.output(ctx, toolrun.Options{Dir: cacheDir, Quiet: true}, "git", "remote", "get-url", "origin")
+	if err != nil {
+		return false, nil
+	}
+	return strings.TrimSpace(remote) == strings.TrimSpace(repo), nil
+}
+
+// rebuildPluginSourceCache recreates one source cache from the configured repo.
+func rebuildPluginSourceCache(ctx context.Context, runtime Runtime, item pluginPlanItem, cacheDir string) error {
+	if err := os.RemoveAll(cacheDir); err != nil {
+		return fmt.Errorf("remove stale plugin source cache: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(cacheDir), 0o755); err != nil {
+		return fmt.Errorf("create plugin source cache parent: %w", err)
+	}
+	if err := runtime.run(ctx, toolrun.Options{Dir: runtime.Root, Stderr: runtime.Stdout}, "git", "clone", "--progress", "--no-checkout", item.Repo, cacheDir); err != nil {
+		return err
+	}
+	return nil
+}
+
+// fetchPluginSourceCache updates one reusable source cache from origin.
+func fetchPluginSourceCache(ctx context.Context, runtime Runtime, cacheDir string) error {
+	if err := runtime.run(ctx, toolrun.Options{Dir: cacheDir, Stderr: runtime.Stdout}, "git", "fetch", "--prune", "--progress", "origin"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// resolvePluginSourceRef resolves a configured source ref to a commit.
+func resolvePluginSourceRef(ctx context.Context, runtime Runtime, cacheDir string, ref string) (string, error) {
+	candidates := []string{"refs/remotes/origin/" + ref, ref}
+	for _, candidate := range candidates {
+		commit, err := runtime.output(ctx, toolrun.Options{Dir: cacheDir, Quiet: true}, "git", "rev-parse", "--verify", candidate+"^{commit}")
+		if err == nil && strings.TrimSpace(commit) != "" {
+			return strings.TrimSpace(commit), nil
+		}
+	}
+	return "", fmt.Errorf("resolve plugin source ref %s", ref)
+}
+
+// applyPluginFromCheckout copies one plugin from a source checkout.
 func applyPluginFromCheckout(ctx context.Context, runtime Runtime, item pluginPlanItem, checkout pluginSourceCheckout, lock *pluginLockFile, update bool, force bool) error {
 	sourceDir := filepath.Join(checkout.Dir, filepath.FromSlash(sourcePluginRelativePath(item)))
 	if !fileutil.FileExists(filepath.Join(sourceDir, "plugin.yaml")) {
@@ -1062,4 +1128,9 @@ func ManagedPath(root string, pluginID string) string {
 // pluginLockPath returns the tool-generated lock file path.
 func LockPath(root string) string {
 	return filepath.Join(ManagedRoot(root), pluginLockFileName)
+}
+
+// SourceCachePath returns the reusable checkout path for one configured source.
+func SourceCachePath(root string, source string) string {
+	return filepath.Join(root, "temp", pluginSourceCacheDirName, source)
 }

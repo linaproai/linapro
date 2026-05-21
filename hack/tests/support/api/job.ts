@@ -10,9 +10,7 @@ import { config } from "../../fixtures/config";
 export { playwrightRequest };
 export type { APIRequestContext, APIResponse };
 
-const apiBaseURL =
-  process.env.E2E_API_BASE_URL ??
-  new URL("/api/v1/", config.baseURL).toString();
+const apiBaseURL = config.apiBaseURL;
 
 export type ApiEnvelope<T> = {
   code: number;

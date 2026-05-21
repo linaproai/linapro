@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SystemPlugin } from '#/api/system/plugin/model';
 
-import { h } from 'vue';
+import { h, ref } from 'vue';
 
 import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
@@ -65,6 +65,7 @@ const pluginAccessCodes = {
 } as const;
 
 const { hasAccessByCodes } = useAccess();
+const statusChangingPluginIds = ref<Record<string, boolean>>({});
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
@@ -136,16 +137,36 @@ const [Grid, gridApi] = useVbenVxeGrid({
   gridOptions: {
     columns: [
       {
+        align: 'left',
         field: 'id',
-        minWidth: 160,
+        headerAlign: 'center',
+        minWidth: 220,
         title: $t('pages.system.plugin.fields.id'),
       },
       {
+        align: 'left',
         className: 'plugin-name-column',
         field: 'name',
-        minWidth: 280,
+        headerAlign: 'center',
+        minWidth: 200,
         slots: { default: 'name' },
         title: $t('pages.system.plugin.fields.name'),
+      },
+      {
+        align: 'left',
+        className: 'plugin-description-column',
+        field: 'description',
+        headerAlign: 'center',
+        minWidth: 260,
+        showOverflow: false,
+        slots: { default: 'description' },
+        title: $t('pages.system.plugin.fields.description'),
+      },
+      {
+        field: 'version',
+        slots: { default: 'version' },
+        title: $t('pages.system.plugin.fields.version'),
+        width: 110,
       },
       {
         field: 'type',
@@ -154,30 +175,16 @@ const [Grid, gridApi] = useVbenVxeGrid({
         width: 120,
       },
       {
-        field: 'version',
-        slots: { default: 'version' },
-        title: $t('pages.system.plugin.fields.version'),
-        width: 180,
-      },
-      {
-        field: 'runtimeState',
-        slots: { default: 'runtimeState' },
-        title: $t('pages.system.plugin.fields.runtimeState'),
-        width: 150,
-      },
-      {
-        className: 'plugin-description-column',
-        field: 'description',
-        minWidth: 260,
-        showOverflow: false,
-        slots: { default: 'description' },
-        title: $t('pages.fields.description'),
-      },
-      {
         field: 'enabled',
         slots: { default: 'enabled' },
         title: $t('pages.common.status'),
         width: 130,
+      },
+      {
+        field: 'runtimeState',
+        slots: { default: 'runtimeState', header: 'runtimeStateHeader' },
+        title: $t('pages.system.plugin.fields.runtimeState'),
+        width: 120,
       },
       {
         field: 'hasMockData',
@@ -420,12 +427,29 @@ function canTogglePluginStatus(row: SystemPlugin) {
     : hasAccessByCodes([pluginAccessCodes.enable]);
 }
 
+function isPluginStatusChanging(row: SystemPlugin) {
+  return statusChangingPluginIds.value[row.id] === true;
+}
+
+function setPluginStatusChanging(pluginId: string, changing: boolean) {
+  const next = { ...statusChangingPluginIds.value };
+  if (changing) {
+    next[pluginId] = true;
+  } else {
+    delete next[pluginId];
+  }
+  statusChangingPluginIds.value = next;
+}
+
 function handleDetail(row: SystemPlugin) {
   detailModalApi.setData({ row });
   detailModalApi.open();
 }
 
 async function handleStatusChange(row: SystemPlugin, checked: boolean) {
+  if (isPluginStatusChanging(row)) {
+    return;
+  }
   if (row.installed !== 1) {
     message.warning($t('pages.system.plugin.messages.installFirst'));
     return;
@@ -451,14 +475,25 @@ async function handleStatusChange(row: SystemPlugin, checked: boolean) {
       return;
     }
   }
-  await (checked ? pluginEnable : pluginDisable)(row.id);
-  row.enabled = checked ? 1 : 0;
-  await notifyPluginRegistryChanged();
-  message.success(
-    checked
-      ? $t('pages.system.plugin.messages.enabled')
-      : $t('pages.system.plugin.messages.disabled'),
-  );
+  const previousEnabled = row.enabled;
+  const nextEnabled = checked ? 1 : 0;
+
+  setPluginStatusChanging(row.id, true);
+  row.enabled = nextEnabled;
+  try {
+    await (checked ? pluginEnable : pluginDisable)(row.id);
+    await notifyPluginRegistryChanged();
+    message.success(
+      checked
+        ? $t('pages.system.plugin.messages.enabled')
+        : $t('pages.system.plugin.messages.disabled'),
+    );
+  } catch {
+    row.enabled = previousEnabled;
+    await gridApi.query();
+  } finally {
+    setPluginStatusChanging(row.id, false);
+  }
 }
 
 async function handleTenantProvisioningPolicyChange(
@@ -623,6 +658,28 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
         </span>
       </template>
 
+      <template #runtimeStateHeader>
+        <span class="inline-flex items-center gap-1">
+          <span>{{ $t('pages.system.plugin.fields.runtimeState') }}</span>
+          <Tooltip
+            :title="$t('pages.system.plugin.columnHelp.runtimeState')"
+            placement="top"
+          >
+            <span
+              :aria-label="
+                getColumnHelpAriaLabel(
+                  $t('pages.system.plugin.fields.runtimeState'),
+                )
+              "
+              class="icon-[ant-design--question-circle-outlined] inline-flex size-4 cursor-help items-center justify-center text-[14px] leading-none text-[var(--ant-color-text-secondary)] transition-colors hover:text-[var(--ant-color-primary)]"
+              data-testid="plugin-runtime-state-column-help-icon"
+              role="img"
+              tabindex="0"
+            ></span>
+          </Tooltip>
+        </span>
+      </template>
+
       <template #hasMockDataHeader>
         <span class="inline-flex items-center gap-1">
           <span>{{ $t('pages.system.plugin.fields.hasMockData') }}</span>
@@ -755,7 +812,12 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
         >
           <Switch
             :checked="row.enabled === 1"
-            :disabled="row.installed !== 1 || !canTogglePluginStatus(row)"
+            :disabled="
+              row.installed !== 1 ||
+              !canTogglePluginStatus(row) ||
+              isPluginStatusChanging(row)
+            "
+            :loading="isPluginStatusChanging(row)"
             :checked-children="$t('pages.status.enabled')"
             :un-checked-children="$t('pages.status.disabled')"
             @change="(checked) => handleStatusChange(row, !!checked)"

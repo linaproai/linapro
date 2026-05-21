@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
 import {
+  dismissTourOverlayIfPresent as dismissSharedTourOverlayIfPresent,
   waitForBusyIndicatorsToClear,
   waitForConfirmOverlay,
   waitForDialogReady,
@@ -41,12 +42,14 @@ export class RolePage {
 
   async openCreateDrawer(options: { keepTourOpen?: boolean } = {}) {
     await waitForRouteReady(this.page);
+    await this.markPermissionGuideRead(options);
     await this.page
       .getByRole("button", { name: /新\s*增|Add/i })
       .first()
       .click({ force: true });
 
     const drawer = await waitForDialogReady(this.drawer);
+    await this.waitForPermissionTreeReady(drawer);
     if (!options.keepTourOpen) {
       await this.dismissTourOverlayIfPresent();
     }
@@ -93,6 +96,7 @@ export class RolePage {
     options: { keepTourOpen?: boolean } = {},
   ) {
     await waitForRouteReady(this.page);
+    await this.markPermissionGuideRead(options);
     const rows = this.page.locator(".vxe-body--row:visible");
     const row = rows.filter({ hasText: roleName }).first();
     await row.waitFor({ state: "visible", timeout: 10000 });
@@ -111,6 +115,7 @@ export class RolePage {
       .click();
 
     const drawer = await waitForDialogReady(this.drawer);
+    await this.waitForPermissionTreeReady(drawer);
     if (!options.keepTourOpen) {
       await this.dismissTourOverlayIfPresent();
     }
@@ -177,16 +182,18 @@ export class RolePage {
     await this.selectDataScope(drawer, "全部数据");
 
     // Select menus if needed - for basic test we skip menu selection
-    // Menu selection is tested separately in TC0061e
+    // Menu selection is tested separately in TC001e
 
     // Click confirm button - scroll into view first since dialog may be taller than viewport
     const confirmBtn = drawer.getByRole("button", { name: /确\s*认/ });
     await confirmBtn.scrollIntoViewIfNeeded();
     await this.dismissTourOverlayIfPresent();
+    const createResponse = this.waitForRoleMutationResponse("POST");
     await confirmBtn.click({ force: true });
+    await createResponse;
 
     await this.page.waitForLoadState("load");
-    await this.waitForDrawerHidden().catch(() => {});
+    await this.waitForDrawerHidden(15000);
     await waitForBusyIndicatorsToClear(this.page);
   }
 
@@ -206,10 +213,12 @@ export class RolePage {
     const confirmBtn = drawer.getByRole("button", { name: /确\s*认/ });
     await confirmBtn.scrollIntoViewIfNeeded();
     await this.dismissTourOverlayIfPresent();
+    const createResponse = this.waitForRoleMutationResponse("PUT");
     await confirmBtn.click({ force: true });
+    await createResponse;
 
     await this.page.waitForLoadState("load");
-    await this.waitForDrawerHidden().catch(() => {});
+    await this.waitForDrawerHidden(15000);
     await waitForBusyIndicatorsToClear(this.page);
   }
 
@@ -480,18 +489,43 @@ export class RolePage {
   }
 
   private async dismissTourOverlayIfPresent() {
-    const endTourBtn = this.page.getByRole("button", {
-      name: /结束导览|End Tour/i,
-    });
-    if (await endTourBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await endTourBtn.click({ force: true });
-      await waitForBusyIndicatorsToClear(this.page);
-    }
+    await dismissSharedTourOverlayIfPresent(this.page);
+  }
 
-    const tourClose = this.page.locator(".ant-tour-close");
-    if (await tourClose.isVisible({ timeout: 300 }).catch(() => false)) {
-      await tourClose.click({ force: true });
-      await waitForBusyIndicatorsToClear(this.page);
+  private async markPermissionGuideRead(options: { keepTourOpen?: boolean }) {
+    if (options.keepTourOpen) {
+      return;
     }
+    await this.page.evaluate(() => {
+      localStorage.setItem("menu_select_fullscreen_read", "true");
+    });
+  }
+
+  private async waitForRoleMutationResponse(method: "POST" | "PUT") {
+    const response = await this.page.waitForResponse(
+      (target) => {
+        const request = target.request();
+        const url = new URL(target.url());
+        const path = url.pathname.replace(/\/$/, "");
+        if (request.method() !== method) {
+          return false;
+        }
+        return method === "POST"
+          ? path === "/api/v1/role"
+          : /^\/api\/v1\/role\/[^/]+$/.test(path);
+      },
+      { timeout: 15000 },
+    );
+    expect(response.ok()).toBeTruthy();
+  }
+
+  private async waitForPermissionTreeReady(drawer: Locator) {
+    await drawer
+      .getByTestId("menu-permission-toolbar")
+      .waitFor({ state: "visible", timeout: 15000 });
+    await expect(
+      drawer.locator("#menu-select-table .vxe-body--row").first(),
+    ).toBeVisible({ timeout: 15000 });
+    await waitForBusyIndicatorsToClear(drawer, 15000);
   }
 }

@@ -617,7 +617,7 @@
                 "dc": "宿主权限标识；public 路由返回空字符串"
               },
               "publicPath": {
-                "dc": "宿主真实公开路径，固定以 /api/v1/extensions/{pluginId}/ 开头"
+                "dc": "宿主真实公开路径，固定以 /x/{pluginId}/ 开头"
               },
               "summary": {
                 "dc": "动态路由摘要，来自路由合同中的 summary"

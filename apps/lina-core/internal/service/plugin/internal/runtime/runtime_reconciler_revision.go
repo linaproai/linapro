@@ -24,7 +24,7 @@ type backgroundReconcileDecision struct {
 	// shouldRun reports whether the tick should execute a full convergence pass.
 	shouldRun bool
 	// reason identifies why the tick needs to run.
-	reason string
+	reason runtimeChangeReason
 }
 
 // configureReconcilerRevisionController wires the cluster-aware controller
@@ -82,13 +82,13 @@ func (s *serviceImpl) ensureReconcilerRevisionController() *pluginruntimecache.C
 
 // notifyReconcilerChanged publishes one desired-state or runtime-state mutation
 // that may require another node to run a dynamic-plugin convergence pass.
-func (s *serviceImpl) notifyReconcilerChanged(ctx context.Context, reason string) error {
+func (s *serviceImpl) notifyReconcilerChanged(ctx context.Context, reason runtimeChangeReason) error {
 	return s.publishReconcilerChanged(ctx, reason, true)
 }
 
 // publishReconcilerChanged publishes one reconciler wake-up revision and
 // controls whether the local runtime marks that revision as already consumed.
-func (s *serviceImpl) publishReconcilerChanged(ctx context.Context, reason string, storeObserved bool) error {
+func (s *serviceImpl) publishReconcilerChanged(ctx context.Context, reason runtimeChangeReason, storeObserved bool) error {
 	controller := s.ensureReconcilerRevisionController()
 	if controller == nil {
 		return nil
@@ -106,7 +106,7 @@ func (s *serviceImpl) publishReconcilerChanged(ctx context.Context, reason strin
 		return err
 	}
 	if revision > 0 {
-		logger.Debugf(ctx, "dynamic plugin reconciler revision bumped reason=%s revision=%d", reason, revision)
+		logger.Debugf(ctx, "dynamic plugin reconciler revision bumped reason=%s revision=%d", string(reason), revision)
 	}
 	return nil
 }
@@ -117,7 +117,7 @@ func (s *serviceImpl) nextBackgroundReconcileDecision(ctx context.Context) (back
 	if !s.isClusterModeEnabled() {
 		return backgroundReconcileDecision{
 			shouldRun: true,
-			reason:    "single_node",
+			reason:    runtimeChangeReasonSingleNode,
 		}, nil
 	}
 
@@ -130,14 +130,14 @@ func (s *serviceImpl) nextBackgroundReconcileDecision(ctx context.Context) (back
 		return backgroundReconcileDecision{
 			revision:  revision,
 			shouldRun: true,
-			reason:    "revision_changed",
+			reason:    runtimeChangeReasonRevisionChanged,
 		}, nil
 	}
 	if s.shouldRunReconcilerSafetySweep(time.Now()) {
 		return backgroundReconcileDecision{
 			revision:  revision,
 			shouldRun: true,
-			reason:    "safety_sweep",
+			reason:    runtimeChangeReasonSafetySweep,
 		}, nil
 	}
 	return backgroundReconcileDecision{

@@ -34,8 +34,8 @@ func TestNewCacheCoordRuntimeParamRevisionControllerSelectsByClusterMode(t *test
 }
 
 // TestOverrideClusterEnabledForDialectReselectsRuntimeParamRevisionController
-// verifies SQLite startup can force a config service constructed from
-// cluster.enabled=true back to local runtime-parameter revision handling.
+// verifies dialect startup overrides can force a config service constructed
+// from cluster.enabled=true back to local runtime-parameter revision handling.
 func TestOverrideClusterEnabledForDialectReselectsRuntimeParamRevisionController(t *testing.T) {
 	svc := &serviceImpl{}
 	svc.runtimeParamRevisionCtrl = newCacheCoordRuntimeParamRevisionController(true)
@@ -698,34 +698,30 @@ func withRuntimeParamAbsent(t *testing.T, key string) {
 func withCachedRuntimeParamValue(t *testing.T, key string, value string) {
 	t.Helper()
 
-	ctx := context.Background()
-	resetRuntimeParamCacheTestState(t)
-	storeLocalRuntimeParamRevision(1)
-
-	cached := &cachedRuntimeParamSnapshot{
-		Revision:    1,
-		RefreshedAt: time.Now(),
-		Snapshot: &runtimeParamSnapshot{
-			revision:       1,
-			values:         map[string]string{key: value},
-			durationValues: make(map[string]time.Duration),
-			int64Values:    make(map[string]int64),
-			parseErrors:    make(map[string]error),
-		},
-	}
-	if err := runtimeParamSnapshotCache.Set(
-		ctx,
-		runtimeParamSnapshotCacheKey,
-		cached,
-		runtimeParamSnapshotCacheTTL,
-	); err != nil {
-		t.Fatalf("seed runtime param snapshot cache: %v", err)
-	}
+	withCachedRuntimeParamSnapshot(t, &runtimeParamSnapshot{
+		values:         map[string]string{key: value},
+		durationValues: make(map[string]time.Duration),
+		int64Values:    make(map[string]int64),
+		parseErrors:    make(map[string]error),
+	})
 }
 
 // withCachedRuntimeParamParseError injects one runtime snapshot parse error so
 // tests can exercise read-side fallback behavior.
 func withCachedRuntimeParamParseError(t *testing.T, key string, parseErr error) {
+	t.Helper()
+
+	withCachedRuntimeParamSnapshot(t, &runtimeParamSnapshot{
+		values:         map[string]string{key: "bad"},
+		durationValues: make(map[string]time.Duration),
+		int64Values:    make(map[string]int64),
+		parseErrors:    map[string]error{key: parseErr},
+	})
+}
+
+// withCachedRuntimeParamSnapshot injects one process-local runtime snapshot so
+// tests can exercise fallback and override logic without shared sys_config state.
+func withCachedRuntimeParamSnapshot(t *testing.T, snapshot *runtimeParamSnapshot) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -735,21 +731,18 @@ func withCachedRuntimeParamParseError(t *testing.T, key string, parseErr error) 
 	cached := &cachedRuntimeParamSnapshot{
 		Revision:    1,
 		RefreshedAt: time.Now(),
-		Snapshot: &runtimeParamSnapshot{
-			revision:       1,
-			values:         map[string]string{key: "bad"},
-			durationValues: make(map[string]time.Duration),
-			int64Values:    make(map[string]int64),
-			parseErrors:    map[string]error{key: parseErr},
-		},
+		Snapshot:    snapshot,
 	}
+	if cached.Snapshot == nil {
+		cached.Snapshot = &runtimeParamSnapshot{}
+	}
+	cached.Snapshot.revision = 1
 	if err := runtimeParamSnapshotCache.Set(
 		ctx,
 		runtimeParamSnapshotCacheKey,
-		cached,
-		runtimeParamSnapshotCacheTTL,
+		cached, runtimeParamSnapshotCacheTTL,
 	); err != nil {
-		t.Fatalf("seed runtime param snapshot parse error: %v", err)
+		t.Fatalf("seed runtime param snapshot cache: %v", err)
 	}
 }
 

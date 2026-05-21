@@ -127,6 +127,58 @@ func TestOpenByPathReadsThroughStorageBackendWithoutUserContext(t *testing.T) {
 	}
 }
 
+// TestOpenByPathPreservesLegacyTenantPrefixPath verifies existing t-prefixed
+// metadata paths remain readable without rewrite after the upload path change.
+func TestOpenByPathPreservesLegacyTenantPrefixPath(t *testing.T) {
+	ctx := context.Background()
+	storagePath := "t/42/2026/05/legacy-upload.png"
+	storage := &fakeAccessStorage{content: "legacy-content"}
+	adminUserID := mustQueryFileAccessAdminUserID(t, ctx)
+	svc := &serviceImpl{
+		storage:   storage,
+		bizCtxSvc: fileAccessStaticBizCtx{},
+	}
+
+	result, err := dao.SysFile.Ctx(ctx).Data(do.SysFile{
+		Name:      "legacy-upload.png",
+		Original:  "legacy-upload.png",
+		Suffix:    "png",
+		Scene:     "other",
+		Size:      int64(len(storage.content)),
+		Hash:      "legacy-upload-hash",
+		Url:       "/api/v1/uploads/" + storagePath,
+		Path:      storagePath,
+		Engine:    EngineLocal,
+		CreatedBy: adminUserID,
+	}).Insert()
+	if err != nil {
+		t.Fatalf("insert legacy file metadata: %v", err)
+	}
+	fileID, err := result.LastInsertId()
+	if err != nil {
+		t.Fatalf("read inserted legacy file metadata id: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, cleanupErr := dao.SysFile.Ctx(ctx).Unscoped().Where(do.SysFile{Id: fileID}).Delete(); cleanupErr != nil {
+			t.Fatalf("cleanup legacy file metadata: %v", cleanupErr)
+		}
+	})
+
+	output, err := svc.OpenByPath(ctx, "/"+storagePath)
+	if err != nil {
+		t.Fatalf("open legacy file by storage path: %v", err)
+	}
+	defer func() {
+		if closeErr := output.Reader.Close(); closeErr != nil {
+			t.Fatalf("close legacy file stream: %v", closeErr)
+		}
+	}()
+
+	if storage.getPath != storagePath {
+		t.Fatalf("expected legacy storage path %q, got %q", storagePath, storage.getPath)
+	}
+}
+
 // fileAccessStaticBizCtx returns a fixed request business context for file tests.
 type fileAccessStaticBizCtx struct {
 	ctx *model.Context
@@ -149,7 +201,6 @@ func (s fileAccessStaticBizCtx) SetTenant(context.Context, int) {}
 
 // SetImpersonation is unused by file service tests.
 func (s fileAccessStaticBizCtx) SetImpersonation(context.Context, int, int, bool, bool) {}
-
 
 // SetUserAccess is unused by file service tests.
 func (s fileAccessStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}

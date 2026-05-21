@@ -14,12 +14,19 @@ import (
 	pkgorgcap "lina-core/pkg/orgcap"
 )
 
-// Host data-scope levels reused when filtering generic plugin resource queries.
+// pluginResourceDataScopeMode classifies host role scopes for generic plugin resource filtering.
+type pluginResourceDataScopeMode int
+
+// Internal plugin resource data-scope filter modes derived from sys_role.data_scope.
 const (
-	pluginResourceDataScopeNone = 0
-	pluginResourceDataScopeAll  = 1
-	pluginResourceDataScopeDept = 2
-	pluginResourceDataScopeSelf = 3
+	// pluginResourceDataScopeDeny denies access to governed plugin resource rows.
+	pluginResourceDataScopeDeny pluginResourceDataScopeMode = iota
+	// pluginResourceDataScopeAll grants all rows visible in the current tenant boundary.
+	pluginResourceDataScopeAll
+	// pluginResourceDataScopeDept restricts rows by the resource department-owner column.
+	pluginResourceDataScopeDept
+	// pluginResourceDataScopeSelf restricts rows by the resource user-owner column.
+	pluginResourceDataScopeSelf
 )
 
 // applyPluginResourceDataScope injects host role data-scope constraints into one plugin resource query.
@@ -45,7 +52,7 @@ func (s *serviceImpl) applyPluginResourceDataScope(
 		)
 	}
 
-	switch s.bizCtxSvc.GetDataScope(ctx) {
+	switch resolvePluginResourceDataScopeMode(s.bizCtxSvc.GetDataScope(ctx)) {
 	case pluginResourceDataScopeAll:
 		return model, nil
 	case pluginResourceDataScopeDept:
@@ -67,6 +74,20 @@ func (s *serviceImpl) applyPluginResourceDataScope(
 		return model.Where(resource.DataScope.UserColumn, currentUserID), nil
 	default:
 		return model.Where("1 = 0"), nil
+	}
+}
+
+// resolvePluginResourceDataScopeMode maps host role data-scope values to plugin resource filter modes.
+func resolvePluginResourceDataScopeMode(scope int) pluginResourceDataScopeMode {
+	switch datascope.Scope(scope) {
+	case datascope.ScopeAll, datascope.ScopeTenant:
+		return pluginResourceDataScopeAll
+	case datascope.ScopeDept:
+		return pluginResourceDataScopeDept
+	case datascope.ScopeSelf:
+		return pluginResourceDataScopeSelf
+	default:
+		return pluginResourceDataScopeDeny
 	}
 }
 

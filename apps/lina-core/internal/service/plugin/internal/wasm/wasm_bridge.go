@@ -24,14 +24,15 @@ func ExecuteBridge(
 		return nil, gerror.New("dynamic plugin is missing Wasm bridge metadata")
 	}
 
-	rt, compiled, err := getOrCompileWasmModule(ctx, input.ArtifactPath)
+	lease, err := getOrCompileWasmModule(ctx, input.ArtifactPath)
 	if err != nil {
 		return nil, err
 	}
+	defer lease.Release()
 
 	// Each request gets a fresh module instance because guest globals (request
 	// and response buffers) are mutable and must not be shared across requests.
-	module, err := rt.InstantiateModule(ctx, compiled, wazero.NewModuleConfig().WithName("").WithStartFunctions())
+	module, err := lease.runtime.InstantiateModule(ctx, lease.compiled, wazero.NewModuleConfig().WithName("").WithStartFunctions())
 	if err != nil {
 		return nil, gerror.Wrap(err, "instantiate dynamic plugin Wasm failed")
 	}

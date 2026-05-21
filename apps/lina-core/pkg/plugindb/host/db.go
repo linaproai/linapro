@@ -14,6 +14,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-core/pkg/dbdriver"
+	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
 	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
@@ -32,6 +33,7 @@ type pluginDataDriver struct {
 // audit enforcement for plugin-owned data access.
 type pluginDataDB struct {
 	gdb.DB
+	dialect dialect.Dialect
 }
 
 // Governed host-side plugin data DB registry and cache state.
@@ -123,12 +125,16 @@ func (driver *pluginDataDriver) New(core *gdb.Core, node *gdb.ConfigNode) (gdb.D
 	if !ok {
 		return nil, gerror.Newf("plugin data service does not support database type: %s", driver.baseType)
 	}
+	dbDialect, err := dialect.FromDriverType(driver.baseType)
+	if err != nil {
+		return nil, err
+	}
 
 	baseDB, err := baseDriver.New(core, node)
 	if err != nil {
 		return nil, err
 	}
-	return &pluginDataDB{DB: baseDB}, nil
+	return &pluginDataDB{DB: baseDB, dialect: dbDialect}, nil
 }
 
 // DoCommit validates governed SQL access before delegating to the wrapped DB
@@ -136,7 +142,7 @@ func (driver *pluginDataDriver) New(core *gdb.Core, node *gdb.ConfigNode) (gdb.D
 func (db *pluginDataDB) DoCommit(ctx context.Context, in gdb.DoCommitInput) (out gdb.DoCommitOutput, err error) {
 	metadata := AuditFromContext(ctx)
 	if metadata != nil {
-		if validateErr := validatePluginDataCommit(metadata, in); validateErr != nil {
+		if validateErr := validatePluginDataCommit(metadata, in, db.dialect); validateErr != nil {
 			logger.Warningf(
 				ctx,
 				"plugin data service commit blocked plugin=%s table=%s method=%s type=%s transaction=%t err=%v",
@@ -183,7 +189,7 @@ func (db *pluginDataDB) DoCommit(ctx context.Context, in gdb.DoCommitInput) (out
 
 // validatePluginDataCommit validates one SQL commit request against the current
 // audit metadata and allowed host-service method set.
-func validatePluginDataCommit(metadata *AuditMetadata, in gdb.DoCommitInput) error {
+func validatePluginDataCommit(metadata *AuditMetadata, in gdb.DoCommitInput, dbDialect dialect.Dialect) error {
 	if metadata == nil {
 		return nil
 	}
@@ -198,7 +204,7 @@ func validatePluginDataCommit(metadata *AuditMetadata, in gdb.DoCommitInput) err
 		}
 		return nil
 	case gdb.SqlTypeQueryContext, gdb.SqlTypeStmtQueryContext, gdb.SqlTypeStmtQueryRowContext:
-		return validatePluginDataCommitTable(metadata, in)
+		return validatePluginDataCommitTable(metadata, in, dbDialect)
 	case gdb.SqlTypeExecContext, gdb.SqlTypeStmtExecContext, gdb.SqlTypePrepareContext:
 		if metadata.Method != bridgehostservice.HostServiceMethodDataCreate &&
 			metadata.Method != bridgehostservice.HostServiceMethodDataUpdate &&
@@ -207,19 +213,120 @@ func validatePluginDataCommit(metadata *AuditMetadata, in gdb.DoCommitInput) err
 			return gerror.Newf("plugin data service method %s cannot execute mutation commit type %s", metadata.Method, in.Type)
 		}
 	}
-	return validatePluginDataCommitTable(metadata, in)
+	return validatePluginDataCommitTable(metadata, in, dbDialect)
 }
 
 // validatePluginDataCommitTable verifies that the SQL statement references the
 // authorized host table recorded in the audit metadata.
-func validatePluginDataCommitTable(metadata *AuditMetadata, in gdb.DoCommitInput) error {
+func validatePluginDataCommitTable(metadata *AuditMetadata, in gdb.DoCommitInput, dbDialect dialect.Dialect) error {
 	normalizedSQL := strings.ToLower(strings.TrimSpace(in.Sql))
-	normalizedTable := strings.ToLower(strings.TrimSpace(metadata.ResourceTable))
+	normalizedTable := normalizePluginDataIdentifier(metadata.ResourceTable)
 	if normalizedSQL == "" || normalizedTable == "" {
 		return nil
 	}
-	if !strings.Contains(normalizedSQL, normalizedTable) {
-		return gerror.Newf("plugin data service SQL does not reference authorized table %s", metadata.ResourceTable)
+	if pluginDataSQLContainsIdentifier(normalizedSQL, normalizedTable) {
+		return nil
 	}
-	return nil
+	if pluginDataCommitTypeAllowsTablelessRead(in.Type) && dbDialect != nil {
+		classification := dbDialect.ClassifyReadSQL(normalizedSQL)
+		if classification.MetadataLookup && pluginDataArgsContainIdentifier(in.Args, normalizedTable) {
+			return nil
+		}
+		if classification.SchemaProbe {
+			return nil
+		}
+	}
+	return gerror.Newf("plugin data service SQL does not reference authorized table %s", metadata.ResourceTable)
+}
+
+// normalizePluginDataIdentifier trims quotes and lowercases one SQL identifier
+// before comparing it with a governed resource table name.
+func normalizePluginDataIdentifier(value string) string {
+	trimmed := strings.TrimSpace(strings.ToLower(value))
+	trimmed = strings.Trim(trimmed, "`\"[]")
+	return trimmed
+}
+
+// pluginDataSQLContainsIdentifier reports whether SQL contains one exact table
+// identifier token instead of a loose substring match.
+func pluginDataSQLContainsIdentifier(sql string, identifier string) bool {
+	target := normalizePluginDataIdentifier(identifier)
+	if target == "" {
+		return false
+	}
+	for _, token := range pluginDataIdentifierTokens(sql) {
+		if token == target {
+			return true
+		}
+	}
+	return false
+}
+
+// pluginDataArgsContainIdentifier reports whether any SQL argument carries the
+// authorized table identifier used by metadata lookup queries.
+func pluginDataArgsContainIdentifier(args []any, identifier string) bool {
+	target := normalizePluginDataIdentifier(identifier)
+	if target == "" {
+		return false
+	}
+	for _, arg := range args {
+		switch value := arg.(type) {
+		case string:
+			if normalizePluginDataIdentifier(value) == target {
+				return true
+			}
+		case []byte:
+			if normalizePluginDataIdentifier(string(value)) == target {
+				return true
+			}
+		default:
+			if normalizePluginDataIdentifier(fmt.Sprint(value)) == target {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// pluginDataCommitTypeAllowsTablelessRead reports whether one commit type can
+// run read-only driver metadata queries that do not include a governed table.
+func pluginDataCommitTypeAllowsTablelessRead(commitType gdb.SqlType) bool {
+	switch commitType {
+	case gdb.SqlTypeQueryContext, gdb.SqlTypeStmtQueryContext, gdb.SqlTypeStmtQueryRowContext:
+		return true
+	default:
+		return false
+	}
+}
+
+// pluginDataIdentifierTokens extracts SQL identifier-like tokens for exact
+// comparisons against authorized table names.
+func pluginDataIdentifierTokens(sql string) []string {
+	tokens := make([]string, 0)
+	start := -1
+	for index, r := range sql {
+		if isPluginDataIdentifierRune(r) {
+			if start < 0 {
+				start = index
+			}
+			continue
+		}
+		if start >= 0 {
+			tokens = append(tokens, normalizePluginDataIdentifier(sql[start:index]))
+			start = -1
+		}
+	}
+	if start >= 0 {
+		tokens = append(tokens, normalizePluginDataIdentifier(sql[start:]))
+	}
+	return tokens
+}
+
+// isPluginDataIdentifierRune reports whether a rune belongs to the identifier
+// alphabet used by LinaPro managed table names and SQL aliases.
+func isPluginDataIdentifierRune(r rune) bool {
+	return r == '_' ||
+		(r >= 'a' && r <= 'z') ||
+		(r >= 'A' && r <= 'Z') ||
+		(r >= '0' && r <= '9')
 }

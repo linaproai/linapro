@@ -13,7 +13,7 @@ This directory contains the `Docker Compose` assets for starting a disposable Li
 
 - `Docker` with the `docker compose` plugin.
 - Network access to pull `postgres:14-alpine` and `ghcr.io/linaproai/linapro:nightly`, unless the images already exist locally.
-- Host port `8080` available, or a custom `LINAPRO_HTTP_PORT` value.
+- Host port `9120` available, or a custom `LINAPRO_HTTP_PORT` value.
 
 ## Start the Demo
 
@@ -23,7 +23,7 @@ Run the command from the repository root:
 docker compose -f hack/deploy/docker-compose.yaml up
 ```
 
-Open `http://localhost:8080` after the `linapro` service becomes healthy.
+Open `http://localhost:9120` after the `linapro` service becomes healthy.
 
 To run the demo in the background:
 
@@ -52,7 +52,7 @@ Common settings:
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| `server.address` | `:8080` | Internal container address. |
+| `server.address` | `:9120` | Internal container address. |
 | `database.default.link` | PostgreSQL service in the compose network | Matches the `postgres` service credentials. |
 | `jwt.secret` | Demo-only secret | Replace it outside disposable demos. |
 | `i18n.default` | `zh-CN` | Default demo language. |
@@ -63,7 +63,7 @@ Common settings:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `LINAPRO_HTTP_PORT` | `8080` | Host port mapped to the LinaPro container port `8080`. |
+| `LINAPRO_HTTP_PORT` | `9120` | Host port mapped to the LinaPro container port `9120`. |
 | `LINAPRO_IMAGE` | `ghcr.io/linaproai/linapro:nightly` | LinaPro image to run. |
 | `LINAPRO_POSTGRES_IMAGE` | `postgres:14-alpine` | PostgreSQL-compatible image to run. |
 
@@ -109,7 +109,7 @@ docker compose -f hack/deploy/docker-compose.yaml up
 The LinaPro service health check calls:
 
 ```bash
-curl http://localhost:8080/api/v1/health
+curl http://localhost:9120/api/v1/health
 ```
 
 A healthy response includes `"status":"ok"`.

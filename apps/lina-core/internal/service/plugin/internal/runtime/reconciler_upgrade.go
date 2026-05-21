@@ -91,15 +91,15 @@ func (s *serviceImpl) applyUpgrade(
 	}
 	s.cleanupStaleReleaseArtifacts(ctx, manifest.ID)
 	if enabled == catalog.StatusEnabled {
-		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_upgraded")
+		s.invalidateRuntimeCaches(ctx, manifest, runtimeChangeReasonPluginUpgraded)
 	}
 	if err = s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin release upgraded on primary node."); err != nil {
 		return err
 	}
-	if err = s.notifyRuntimeCacheChanged(ctx, "plugin_upgraded"); err != nil {
+	if err = s.notifyRuntimeCacheChanged(ctx, runtimeChangeReasonPluginUpgraded); err != nil {
 		return err
 	}
-	if err = s.notifyReconcilerChanged(ctx, "plugin_upgraded"); err != nil {
+	if err = s.notifyReconcilerChanged(ctx, runtimeChangeReasonPluginUpgraded); err != nil {
 		return err
 	}
 	return s.dispatchHookEvent(
@@ -270,17 +270,17 @@ func (s *serviceImpl) applyStateToggle(
 		}
 	}
 	if enabled == catalog.StatusDisabled {
-		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_disabled")
+		s.invalidateRuntimeCaches(ctx, manifest, runtimeChangeReasonPluginDisabled)
 	} else {
-		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_enabled")
+		s.invalidateRuntimeCaches(ctx, manifest, runtimeChangeReasonPluginEnabled)
 	}
 	if err = s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin status converged on primary node."); err != nil {
 		return err
 	}
-	if err = s.notifyRuntimeCacheChanged(ctx, "plugin_status_changed"); err != nil {
+	if err = s.notifyRuntimeCacheChanged(ctx, runtimeChangeReasonPluginStatusChanged); err != nil {
 		return err
 	}
-	if err = s.notifyReconcilerChanged(ctx, "plugin_status_changed"); err != nil {
+	if err = s.notifyReconcilerChanged(ctx, runtimeChangeReasonPluginStatusChanged); err != nil {
 		return err
 	}
 	return s.dispatchHookEvent(
@@ -358,15 +358,15 @@ func (s *serviceImpl) applyRefresh(
 	}
 	s.cleanupStaleReleaseArtifacts(ctx, manifest.ID)
 	if enabled == catalog.StatusEnabled {
-		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_refreshed")
+		s.invalidateRuntimeCaches(ctx, manifest, runtimeChangeReasonPluginRefreshed)
 	}
 	if err = s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin release refreshed on primary node."); err != nil {
 		return err
 	}
-	if err = s.notifyRuntimeCacheChanged(ctx, "plugin_refreshed"); err != nil {
+	if err = s.notifyRuntimeCacheChanged(ctx, runtimeChangeReasonPluginRefreshed); err != nil {
 		return err
 	}
-	return s.notifyReconcilerChanged(ctx, "plugin_refreshed")
+	return s.notifyReconcilerChanged(ctx, runtimeChangeReasonPluginRefreshed)
 }
 
 // validateCandidateDependencies delegates release dependency checks to the root

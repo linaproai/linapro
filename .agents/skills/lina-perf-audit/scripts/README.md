@@ -16,7 +16,7 @@ These scripts are maintained inside `.agents/skills/lina-perf-audit/scripts/` an
     `server.log`.
   - Builds dynamic plugin Wasm artifacts, prepares embedded host assets, and
     starts only the backend service.
-  - Waits for `http://127.0.0.1:8080/api/v1/health`.
+  - Waits for `http://127.0.0.1:9120/api/v1/health`.
   - Logs in as `admin/admin123`, writes the token to `<run-dir>/token.txt`, and
     records the `Trace-ID` check in `<run-dir>/trace-id-check.txt`.
 

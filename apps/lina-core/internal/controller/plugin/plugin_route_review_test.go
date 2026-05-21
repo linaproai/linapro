@@ -42,7 +42,7 @@ func TestBuildPluginRouteReviewItemsBuildsPublicRouteMetadata(t *testing.T) {
 	if items[0].Method != http.MethodGet {
 		t.Fatalf("expected first route method GET, got %s", items[0].Method)
 	}
-	if items[0].PublicPath != "/api/v1/extensions/plugin-dev-route-review/review-summary" {
+	if items[0].PublicPath != "/x/plugin-dev-route-review/review-summary" {
 		t.Fatalf("unexpected first route public path: %s", items[0].PublicPath)
 	}
 	if items[0].Access != pluginbridge.AccessLogin {
@@ -61,7 +61,7 @@ func TestBuildPluginRouteReviewItemsBuildsPublicRouteMetadata(t *testing.T) {
 	if items[1].Method != http.MethodPost {
 		t.Fatalf("expected second route method POST, got %s", items[1].Method)
 	}
-	if items[1].PublicPath != "/api/v1/extensions/plugin-dev-route-review/public-ping" {
+	if items[1].PublicPath != "/x/plugin-dev-route-review/public-ping" {
 		t.Fatalf("unexpected second route public path: %s", items[1].PublicPath)
 	}
 	if items[1].Access != pluginbridge.AccessPublic {

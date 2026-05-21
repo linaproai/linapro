@@ -18,12 +18,6 @@ database:
   default:
     link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
 `)
-	withRuntimeParamAbsent(t, RuntimeParamKeyJWTExpire)
-	withRuntimeParamAbsent(t, RuntimeParamKeySessionTimeout)
-	withRuntimeParamAbsent(t, RuntimeParamKeyUploadMaxSize)
-	withRuntimeParamAbsent(t, RuntimeParamKeyLoginBlackIPList)
-	withRuntimeParamAbsent(t, RuntimeParamKeyCronShellEnabled)
-	withRuntimeParamAbsent(t, RuntimeParamKeyCronLogRetention)
 
 	ctx := context.Background()
 	svc := New()
@@ -36,10 +30,6 @@ database:
 		t.Fatalf("get session config: %v", err)
 	}
 	monitorCfg := svc.GetMonitor(ctx)
-	uploadCfg, err := svc.GetUpload(ctx)
-	if err != nil {
-		t.Fatalf("get upload config: %v", err)
-	}
 
 	if jwtCfg.Expire != 24*time.Hour {
 		t.Fatalf("expected default jwt expire to be 24h, got %s", jwtCfg.Expire)
@@ -56,8 +46,9 @@ database:
 	if monitorCfg.RetentionMultiplier != 5 {
 		t.Fatalf("expected default retention multiplier to be 5, got %d", monitorCfg.RetentionMultiplier)
 	}
-	if uploadCfg.MaxSize != 20 {
-		t.Fatalf("expected default upload max size to be 20, got %d", uploadCfg.MaxSize)
+	staticUploadCfg := svc.(*serviceImpl).getStaticUploadConfig(ctx)
+	if staticUploadCfg.MaxSize != 100 {
+		t.Fatalf("expected static default upload max size to be 100, got %d", staticUploadCfg.MaxSize)
 	}
 }
 

@@ -737,7 +737,7 @@
       },
       "lifecycle": {
         "precondition": {
-          "vetoed": "插件 {pluginId} 的生命周期操作 {operation} 被生命周期前置条件阻断：{reasons}"
+          "vetoed": "当前操作被插件保护策略阻止：{reasons}"
         }
       },
       "uninstall": {

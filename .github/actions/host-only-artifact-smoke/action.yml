@@ -16,6 +16,10 @@ inputs:
     description: Path for the backend smoke log.
     required: false
     default: temp/host-only-smoke/lina-core.log
+  backend-port:
+    description: TCP port the host-only backend listens on; must match server.address in apps/lina-core/manifest/config/config.yaml.
+    required: false
+    default: "9120"
 
 runs:
   using: composite
@@ -27,6 +31,7 @@ runs:
       env:
         BINARY_PATH: ${{ inputs.binary-path }}
         LOG_PATH: ${{ inputs.log-path }}
+        BACKEND_PORT: ${{ inputs.backend-port }}
       run: |
         # Resolve relative paths against the workspace root.
         # 将相对路径解析为基于工作区根目录的绝对路径。
@@ -67,7 +72,7 @@ runs:
             echo "Check log: ${LOG_PATH}" >&2
             exit 1
           fi
-          response="$(curl -fsS "http://127.0.0.1:8080/api/v1/health" 2>/dev/null || true)"
+          response="$(curl -fsS "http://127.0.0.1:${BACKEND_PORT}/api/v1/health" 2>/dev/null || true)"
           if [ -n "${response}" ] && HEALTH_RESPONSE="${response}" python3 - <<'PY'
         import json
         import os
@@ -115,7 +120,7 @@ runs:
           curl -fsS \
             -H "Content-Type: application/json" \
             -d '{"username":"admin","password":"admin123"}' \
-            "http://127.0.0.1:8080/api/v1/auth/login"
+            "http://127.0.0.1:${BACKEND_PORT}/api/v1/auth/login"
         )"
         token="$(LOGIN_RESPONSE="${login_response}" python3 - <<'PY'
         import json
@@ -137,7 +142,7 @@ runs:
         plugins_response="$(
           curl -fsS \
             -H "Authorization: Bearer ${token}" \
-            "http://127.0.0.1:8080/api/v1/plugins?type=source"
+            "http://127.0.0.1:${BACKEND_PORT}/api/v1/plugins?type=source"
         )"
         PLUGINS_RESPONSE="${plugins_response}" python3 - <<'PY'
         import json

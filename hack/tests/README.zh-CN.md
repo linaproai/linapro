@@ -43,18 +43,17 @@ apps/lina-plugins/<plugin-id>/
 - `scheduler/`
 - `extension/`
 
-源码插件自有业务覆盖不再放在宿主 `e2e/` 树下，而是保留在对应插件目录：
+源码插件自有业务覆盖不再放在宿主 `e2e/` 树下，而是保留在对应插件目录。根套件只暴露通用插件选择：
 
-- `plugins/linapro-content-notice` 映射到 `apps/lina-plugins/linapro-content-notice/hack/tests/e2e/`
-- `plugins/linapro-content-notice/message` 映射到 linapro-content-notice 插件自有消息中心覆盖
-- `plugins/linapro-tenant-core` 映射到 `apps/lina-plugins/linapro-tenant-core/hack/tests/e2e/`
-- `plugins/linapro-org-core` 映射到 `apps/lina-plugins/linapro-org-core/hack/tests/e2e/`
-- `plugins/monitor-*` 映射到对应监控插件的 `hack/tests/e2e/`
+- `plugins` 映射到所有 `apps/lina-plugins/<plugin-id>/hack/tests/e2e/` 目录。
+- `plugin:<plugin-id>` 映射到单个 `apps/lina-plugins/<plugin-id>/hack/tests/e2e/` 目录。
+- 如需选择插件内子目录，路径从所属插件的 `hack/tests/e2e/` 目录解析。
 
 ## 命名规则
 
-- 测试文件必须使用 `TC{NNNN}-{brief-name}.ts`。
-- `TC` 编号在整个套件范围内全局唯一。
+- 测试文件必须使用 `TC{NNN}-{brief-name}.ts`。
+- `TC` 编号按模块目录本地维护：每个所属 `E2E` 目录都从 `TC001` 开始，并在该目录内连续递增。
+- 不得因为其他宿主模块或插件模块已经使用更大的编号而预留或跳号。
 - `hack/tests/e2e/` 下只允许存放真正的 `TC` 用例文件。
 - 共享 helper 必须放在 `fixtures/`、`support/`、`scripts/` 或 `debug/` 中。
 
@@ -64,10 +63,10 @@ apps/lina-plugins/<plugin-id>/
 | --- | --- |
 | `pnpm test` | 运行完整的分层 `E2E` 套件。 |
 | `pnpm test:full` | 显式运行完整的分层 `E2E` 套件。 |
+| `pnpm test:host` | 在排除插件环境用例后运行宿主自有 `E2E` 用例。 |
+| `pnpm test:host:module -- <scope>` | 在排除插件环境用例后运行单个宿主模块范围。 |
 | `pnpm test:smoke` | 运行预定义的高价值 `smoke` 套件。 |
 | `pnpm test:module -- <scope>` | 运行 `execution manifest` 中声明的模块范围。 |
-| `pnpm test:sqlite` | 准备基于配置文件的 SQLite 数据库，重启应用，并运行 SQLite 专用 E2E 用例。 |
-| `pnpm test:sqlite:e2e-smoke` | 只运行 SQLite 浏览器启动/登录 E2E 用例。 |
 | `pnpm test:validate` | 校验 `TC` 唯一性、目录归属与 manifest 引用。 |
 | `pnpm report` | 打开 Playwright `HTML` 报告。 |
 
@@ -75,19 +74,10 @@ apps/lina-plugins/<plugin-id>/
 
 - `iam:user`
 - `settings:config`
-- `monitor:operlog`
 - `scheduler:job`
 - `extension:plugin`
-- `dialect`
 - `plugins`
 - `plugin:<plugin-id>`，用于运行 `apps/lina-plugins/<plugin-id>/hack/tests/e2e/` 下的源码插件测试
-
-`pnpm test:sqlite` 是完整 SQLite 专用通道。脚本会先备份
-`apps/lina-core/manifest/config/config.yaml`，再把
-`database.default.link=sqlite::@file(./temp/sqlite/linapro.db)` 写入该配置文件，
-随后执行 `make init confirm=init rebuild=true`、`make mock confirm=mock`、
-启动 `make dev`，运行 `TC0164` 到 `TC0166`，最后恢复原配置。后端运行时仍然只从配置文件解析当前数据库方言。
-`pnpm test:sqlite:e2e-smoke` 使用相同准备流程，但只运行 `TC0164`。主 CI 不再为 SQLite 安装前端依赖或 Playwright，而是调用 `hack/tests/scripts/run-sqlite-smoke.sh`，只启动后端并检查 SQLite 启动警告、health 单节点状态和管理员登录接口。
 
 ## 执行模型
 
@@ -103,15 +93,15 @@ apps/lina-plugins/<plugin-id>/
 运行器会把选中的文件拆分为并行池与串行池，使高共享状态场景仍能安全执行。
 每次执行都会打印选中文件数、并行文件数、串行文件数、并行 worker 数，以及串行池覆盖的隔离类别摘要。
 完整套件会通过通用 `plugins` 入口包含插件自有测试。
+插件自有用例的模块选择只保留通用入口：使用 `plugins` 运行全部源码插件自有 `E2E`，或使用 `plugin:<plugin-id>` 运行单个源码插件。
+如果只想在没有 `apps/lina-plugins` 的主框架环境中运行某个宿主模块，可以使用 `pnpm test:host:module -- <scope>`，该入口会复用 host-only 的插件环境排除规则。
 单个源码插件可以不修改 manifest 直接运行：
 
 ```bash
-pnpm test:module -- plugin:cms
+pnpm test:module -- plugin:<plugin-id>
 ```
 
-```bash
-pnpm test:module -- plugin:linapro-tenant-core
-```
+根 `hack/tests` 树不得硬编码具体源码插件 `ID`、插件自有路由、插件特定 mock 数据、插件特定测试配置、插件特定 baseline 数据、插件特定 i18n key 或插件专属页面对象。插件行为、测试数据、测试配置与插件 POM 必须闭环在所属 `apps/lina-plugins/<plugin-id>/hack/tests/` 目录。根套件只能保留通用插件发现与 runner 机制。
 
 ## 隔离类别
 
@@ -135,7 +125,7 @@ pnpm test:module -- plugin:linapro-tenant-core
 ## Fixture 前置条件
 
 测试文件必须可以独立运行。
-源码插件前置条件应统一走 `fixtures/plugin.ts`，由它负责同步源码插件、按需安装或启用、刷新前端插件投影，并在存在匹配插件 mock SQL 时加载 mock 数据。
+插件自有测试可以通过 `fixtures/plugin.ts` 同步源码插件、按需安装或启用所属插件、刷新前端插件投影，并在存在匹配插件 mock SQL 时加载 mock 数据。
 创建用户、部门、岗位、通知、文件、插件、导入行或导出产物的测试，应使用唯一名称或稳定测试前缀，并在 `finally`、`afterEach` 或 `afterAll` 中自行清理。
 
 ## 缓存重校验
@@ -197,7 +187,9 @@ pnpm test:module -- plugin:linapro-tenant-core
 新增、重命名或迁移测试文件后，都应执行 `pnpm test:validate`。
 校验脚本会检查：
 
-- 重复 `TC` 编号
+- 单个模块目录内重复的 `TC` 编号
+- 模块内不连续的 `TC` 编号
+- 旧的四位全局 `TC` 文件名
 - `e2e/` 下混入非 `TC` 文件
 - 测试文件落在未允许的模块目录下
 - `smoke` 与串行清单中的失效引用

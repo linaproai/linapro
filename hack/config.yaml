@@ -53,4 +53,12 @@ plugins:
       # Use "*" as a quoted string to install every plugin directory under root.
       # 使用带引号的 "*" 可安装 root 下的全部插件目录。
       items:
-        - "*"
+        - linapro-demo-source
+        - linapro-demo-dynamic
+        - linapro-content-notice
+        - linapro-monitor-loginlog
+        - linapro-monitor-server
+        - linapro-monitor-online
+        - linapro-monitor-operlog
+        - linapro-org-core
+        - linapro-tenant-core

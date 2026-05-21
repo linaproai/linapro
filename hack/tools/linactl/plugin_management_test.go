@@ -222,6 +222,50 @@ func TestRunPluginsInitConvertsGitlinkAndPreservesFiles(t *testing.T) {
 	}
 }
 
+// TestPluginsInstallAutoInitializesSubmoduleWorkspace verifies install runs
+// the same workspace initialization as plugins.init before copying plugins.
+func TestPluginsInstallAutoInitializesSubmoduleWorkspace(t *testing.T) {
+	root := newGitRepo(t)
+	source := newGitRepo(t)
+	writeFile(t, filepath.Join(source, "linapro-tenant-core", "plugin.yaml"), "id: linapro-tenant-core\nversion: 0.1.0\n")
+	runGit(t, source, "add", ".")
+	runGit(t, source, "commit", "-m", "initial plugin")
+	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  sources:\n    official:\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - \"linapro-tenant-core\"\n")
+	writeFile(t, filepath.Join(root, ".gitmodules"), `[submodule "apps/lina-plugins"]
+	path = apps/lina-plugins
+	url = https://example.com/plugins.git
+`)
+	writeFile(t, filepath.Join(root, ".git", "config"), `[core]
+	repositoryformatversion = 0
+[submodule "apps/lina-plugins"]
+	url = https://example.com/plugins.git
+`)
+	writeFile(t, filepath.Join(root, "apps", "lina-plugins", ".git"), "gitdir: ../../.git/modules/apps/lina-plugins\n")
+	writeFile(t, filepath.Join(root, ".git", "modules", "apps", "lina-plugins", "config"), "[core]\n")
+	runGit(t, root, "update-index", "--add", "--cacheinfo", "160000,1111111111111111111111111111111111111111,apps/lina-plugins")
+
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	if err := runPluginsInstall(context.Background(), application, commandInput{}); err != nil {
+		t.Fatalf("runPluginsInstall returned error: %v", err)
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "Plugin workspace converted to ordinary directory") || !strings.Contains(output, "Installed plugin linapro-tenant-core") {
+		t.Fatalf("expected install to auto-initialize workspace and continue, got:\n%s", output)
+	}
+	if !fileutil.FileExists(filepath.Join(root, "apps", "lina-plugins", "linapro-tenant-core", "plugin.yaml")) {
+		t.Fatalf("plugin was not installed after auto initialization")
+	}
+	stage := runGitOutput(t, root, "ls-files", "--stage", "--", plugins.ManagedRootRelativePath)
+	if strings.Contains(stage, "160000") {
+		t.Fatalf("gitlink still exists after plugins.install auto initialization: %s", stage)
+	}
+	if fileutil.FileExists(filepath.Join(root, "apps", "lina-plugins", ".git")) || fileutil.DirExists(filepath.Join(root, ".git", "modules", "apps", "lina-plugins")) {
+		t.Fatalf("submodule metadata was not cleaned")
+	}
+}
+
 // TestPluginsInstallUpdateAndStatusUseConfiguredSources verifies install,
 // update, lock writing, and status output against a local source repository.
 func TestPluginsInstallUpdateAndStatusUseConfiguredSources(t *testing.T) {
@@ -245,7 +289,7 @@ func TestPluginsInstallUpdateAndStatusUseConfiguredSources(t *testing.T) {
 	for _, expected := range []string{
 		"Preparing plugin installation for 1 configured item(s)...",
 		"Installing 1 plugin(s)...",
-		"Downloading plugin source official",
+		"Synchronizing plugin source official",
 		"[1/1] installing plugin linapro-tenant-core from official...",
 		"Installed plugin linapro-tenant-core",
 	} {
@@ -316,6 +360,53 @@ func TestPluginsInstallUpdateAndStatusUseConfiguredSources(t *testing.T) {
 	if strings.Contains(filteredOutput, "remote=current") {
 		t.Fatalf("filtered status output must use table columns, got legacy key-value output:\n%s", filteredOutput)
 	}
+}
+
+// TestPluginsSourceCacheReusesCheckoutWithFetch verifies plugin source sync
+// keeps one reusable checkout and refreshes it through later Git fetches.
+func TestPluginsSourceCacheReusesCheckoutWithFetch(t *testing.T) {
+	root := newGitRepo(t)
+	source := newGitRepo(t)
+	writeFile(t, filepath.Join(source, "linapro-tenant-core", "plugin.yaml"), "id: linapro-tenant-core\nversion: 0.1.0\n")
+	runGit(t, source, "add", ".")
+	runGit(t, source, "commit", "-m", "initial plugin")
+	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  sources:\n    official:\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - \"linapro-tenant-core\"\n")
+
+	var firstOut bytes.Buffer
+	application := newApp(&firstOut, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	if err := runPluginsInstall(context.Background(), application, commandInput{}); err != nil {
+		t.Fatalf("runPluginsInstall returned error: %v", err)
+	}
+	cachePath := plugins.SourceCachePath(root, "official")
+	if !fileutil.DirExists(filepath.Join(cachePath, ".git")) {
+		t.Fatalf("expected reusable source cache at %s", cachePath)
+	}
+	assertNoLegacyPluginSourceTemps(t, root)
+
+	runGit(t, root, "add", ".")
+	runGit(t, root, "commit", "-m", "install plugin")
+	writeFile(t, filepath.Join(source, "linapro-tenant-core", "plugin.yaml"), "id: linapro-tenant-core\nversion: 0.2.0\n")
+	runGit(t, source, "add", ".")
+	runGit(t, source, "commit", "-m", "update plugin")
+
+	var updateOut bytes.Buffer
+	application.stdout = &updateOut
+	if err := runPluginsUpdate(context.Background(), application, commandInput{}); err != nil {
+		t.Fatalf("runPluginsUpdate returned error: %v", err)
+	}
+	output := updateOut.String()
+	if strings.Contains(output, "Cloning into") {
+		t.Fatalf("expected update to reuse source cache instead of cloning again, got:\n%s", output)
+	}
+	content, err := os.ReadFile(filepath.Join(root, "apps", "lina-plugins", "linapro-tenant-core", "plugin.yaml"))
+	if err != nil {
+		t.Fatalf("read updated plugin manifest: %v", err)
+	}
+	if !strings.Contains(string(content), "0.2.0") {
+		t.Fatalf("plugin update did not fetch latest source content:\n%s", string(content))
+	}
+	assertNoLegacyPluginSourceTemps(t, root)
 }
 
 // TestPluginsInstallExpandsWildcardItems verifies items ["*"] installs every
@@ -430,11 +521,20 @@ func TestRunPluginsUpdateRejectsCommittedLockDrift(t *testing.T) {
 	}
 }
 
-// TestPluginsStatusReportsSubmoduleWithoutMutating verifies status is read-only
-// when the plugin workspace is still a submodule.
-func TestPluginsStatusReportsSubmoduleWithoutMutating(t *testing.T) {
+// TestPluginsStatusAutoInitializesSubmoduleWithoutPluginWrites verifies status
+// initializes the workspace but still avoids plugin directory and lock writes.
+func TestPluginsStatusAutoInitializesSubmoduleWithoutPluginWrites(t *testing.T) {
 	root := newGitRepo(t)
-	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  sources:\n    official:\n      repo: \"https://example.com/plugins.git\"\n      root: \".\"\n      ref: \"main\"\n      items:\n        - \"linapro-tenant-core\"\n")
+	source := newGitRepo(t)
+	writeFile(t, filepath.Join(source, "linapro-tenant-core", "plugin.yaml"), "id: linapro-tenant-core\nversion: 0.1.0\n")
+	runGit(t, source, "add", ".")
+	runGit(t, source, "commit", "-m", "initial plugin")
+	writeFile(t, filepath.Join(root, "hack", "config.yaml"), "plugins:\n  sources:\n    official:\n      repo: \""+filepath.ToSlash(source)+"\"\n      root: \".\"\n      ref: \"master\"\n      items:\n        - \"linapro-tenant-core\"\n")
+	writeFile(t, filepath.Join(root, ".gitmodules"), `[submodule "apps/lina-plugins"]
+	path = apps/lina-plugins
+	url = https://example.com/plugins.git
+`)
+	writeFile(t, filepath.Join(root, "apps", "lina-plugins", ".git"), "gitdir: ../../.git/modules/apps/lina-plugins\n")
 	runGit(t, root, "update-index", "--add", "--cacheinfo", "160000,1111111111111111111111111111111111111111,apps/lina-plugins")
 
 	var stdout bytes.Buffer
@@ -444,12 +544,18 @@ func TestPluginsStatusReportsSubmoduleWithoutMutating(t *testing.T) {
 		t.Fatalf("runPluginsStatus returned error: %v", err)
 	}
 	output := stdout.String()
-	if !strings.Contains(output, "submodule") || !strings.Contains(output, "make plugins.init") {
-		t.Fatalf("expected submodule diagnostic, got:\n%s", output)
+	if !strings.Contains(output, "Plugin workspace converted to ordinary directory") || !strings.Contains(output, "Plugin workspace: apps/lina-plugins (ordinary)") {
+		t.Fatalf("expected status to auto-initialize workspace and continue, got:\n%s", output)
 	}
 	stage := runGitOutput(t, root, "ls-files", "--stage", "--", plugins.ManagedRootRelativePath)
-	if !strings.Contains(stage, "160000") {
-		t.Fatalf("status mutated gitlink: %s", stage)
+	if strings.Contains(stage, "160000") {
+		t.Fatalf("gitlink still exists after plugins.status auto initialization: %s", stage)
+	}
+	if fileutil.DirExists(filepath.Join(root, "apps", "lina-plugins", "linapro-tenant-core")) {
+		t.Fatalf("status must not install plugin directories")
+	}
+	if fileutil.FileExists(plugins.LockPath(root)) {
+		t.Fatalf("status must not write plugin lock state")
 	}
 }
 
@@ -488,4 +594,19 @@ func runGitOutput(t *testing.T, dir string, args ...string) string {
 		t.Fatalf("git %s failed: %v\n%s", strings.Join(args, " "), err, string(output))
 	}
 	return string(output)
+}
+
+// assertNoLegacyPluginSourceTemps verifies source sync no longer creates
+// one-shot plugin-source-* directories under temp.
+func assertNoLegacyPluginSourceTemps(t *testing.T, root string) {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Join(root, "temp"))
+	if err != nil {
+		t.Fatalf("read temp directory: %v", err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "plugin-source-") {
+			t.Fatalf("unexpected legacy plugin source temp directory: %s", entry.Name())
+		}
+	}
 }

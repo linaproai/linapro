@@ -5,8 +5,10 @@ package wasm
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
 
@@ -153,7 +155,9 @@ func TestHandleHostServiceInvokeRuntimeInfoNowAndNode(t *testing.T) {
 		},
 	}
 
+	beforeMillis := time.Now().Add(-1 * time.Second).UnixMilli()
 	nowResponse := invokeRuntimeHostService(t, hcc, pluginbridge.HostServiceMethodRuntimeInfoNow, nil)
+	afterMillis := time.Now().Add(1 * time.Second).UnixMilli()
 	if nowResponse.Status != pluginbridge.HostCallStatusSuccess {
 		t.Fatalf("expected info.now success, got status=%d payload=%s", nowResponse.Status, string(nowResponse.Payload))
 	}
@@ -163,6 +167,13 @@ func TestHandleHostServiceInvokeRuntimeInfoNowAndNode(t *testing.T) {
 	}
 	if strings.TrimSpace(nowPayload.Value) == "" {
 		t.Fatal("expected info.now value to be non-empty")
+	}
+	nowMillis, err := strconv.ParseInt(nowPayload.Value, 10, 64)
+	if err != nil {
+		t.Fatalf("expected info.now value to be Unix milliseconds, got %q: %v", nowPayload.Value, err)
+	}
+	if nowMillis < beforeMillis || nowMillis > afterMillis {
+		t.Fatalf("expected info.now value within test window, got %d outside [%d,%d]", nowMillis, beforeMillis, afterMillis)
 	}
 
 	nodeResponse := invokeRuntimeHostService(t, hcc, pluginbridge.HostServiceMethodRuntimeInfoNode, nil)

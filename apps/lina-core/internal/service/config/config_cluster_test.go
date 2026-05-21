@@ -5,16 +5,13 @@ package config
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
-	"github.com/gogf/gf/v2/os/glog"
 
 	"lina-core/pkg/dialect"
-	"lina-core/pkg/logger"
 )
 
 // TestGetClusterUsesClusterElectionConfig verifies nested cluster election
@@ -131,56 +128,8 @@ cluster:
 	}
 }
 
-// TestSQLiteDialectOnStartupOverridesConfigService verifies the concrete config
-// service satisfies dialect.RuntimeConfig during startup.
-func TestSQLiteDialectOnStartupOverridesConfigService(t *testing.T) {
-	setTestConfigContent(t, `
-cluster:
-  enabled: true
-  coordination: redis
-  redis:
-    address: "127.0.0.1:6379"
-  election:
-    lease: 45s
-    renewInterval: 15s
-`)
-
-	svc := New()
-	var messages []string
-	logger.Logger().SetHandlers(func(ctx context.Context, in *glog.HandlerInput) {
-		messages = append(messages, in.ValuesContent())
-	})
-	t.Cleanup(func() {
-		logger.Logger().SetHandlers()
-	})
-
-	dbDialect, err := dialect.From("sqlite::@file(./temp/sqlite/linapro.db)")
-	if err != nil {
-		t.Fatalf("resolve SQLite dialect failed: %v", err)
-	}
-	if err = dbDialect.OnStartup(context.Background(), svc); err != nil {
-		t.Fatalf("run SQLite startup hook failed: %v", err)
-	}
-
-	if svc.IsClusterEnabled(context.Background()) {
-		t.Fatal("expected SQLite startup hook to force config service cluster mode off")
-	}
-	if len(messages) != 3 {
-		t.Fatalf("expected 3 SQLite startup messages, got %d: %#v", len(messages), messages)
-	}
-	for _, needle := range []string{
-		"sqlite::@file(./temp/sqlite/linapro.db)",
-		"cluster.enabled",
-		"production",
-	} {
-		if !containsCapturedWarning(messages, needle) {
-			t.Fatalf("expected SQLite startup message to contain %q, got %#v", needle, messages)
-		}
-	}
-}
-
 // TestPostgreSQLDialectOnStartupKeepsConfigServiceClusterEnabled verifies
-// PostgreSQL startup hooks are no-op for cluster mode and SQLite warnings.
+// PostgreSQL startup hooks are no-op for cluster mode.
 func TestPostgreSQLDialectOnStartupKeepsConfigServiceClusterEnabled(t *testing.T) {
 	setTestConfigContent(t, `
 cluster:
@@ -191,13 +140,6 @@ cluster:
 `)
 
 	svc := New()
-	var warnings []string
-	logger.Logger().SetHandlers(func(ctx context.Context, in *glog.HandlerInput) {
-		warnings = append(warnings, in.ValuesContent())
-	})
-	t.Cleanup(func() {
-		logger.Logger().SetHandlers()
-	})
 
 	dbDialect, err := dialect.From("pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable")
 	if err != nil {
@@ -209,9 +151,6 @@ cluster:
 
 	if !svc.IsClusterEnabled(context.Background()) {
 		t.Fatal("expected PostgreSQL startup hook to preserve enabled cluster mode")
-	}
-	if len(warnings) != 0 {
-		t.Fatalf("expected no PostgreSQL startup warnings, got %#v", warnings)
 	}
 }
 
@@ -288,16 +227,6 @@ cluster:
 	if cfg.Redis.Address != "" {
 		t.Fatalf("expected empty redis address in single-node config, got %q", cfg.Redis.Address)
 	}
-}
-
-// containsCapturedWarning reports whether one captured warning contains a substring.
-func containsCapturedWarning(warnings []string, needle string) bool {
-	for _, warning := range warnings {
-		if strings.Contains(warning, needle) {
-			return true
-		}
-	}
-	return false
 }
 
 // setTestConfigContent swaps the config adapter content for one test case and

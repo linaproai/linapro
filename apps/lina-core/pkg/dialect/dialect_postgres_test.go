@@ -35,6 +35,20 @@ func TestFromResolvesPostgreSQL(t *testing.T) {
 	}
 }
 
+// TestFromDriverTypeResolvesPostgreSQL verifies callers that only have a
+// GoFrame driver type can still resolve the shared dialect boundary.
+func TestFromDriverTypeResolvesPostgreSQL(t *testing.T) {
+	t.Parallel()
+
+	dbDialect, err := FromDriverType(" pgsql ")
+	if err != nil {
+		t.Fatalf("resolve PostgreSQL dialect by driver type failed: %v", err)
+	}
+	if dbDialect.Name() != "postgres" {
+		t.Fatalf("expected postgres dialect, got %s", dbDialect.Name())
+	}
+}
+
 // TestFromRejectsMySQL verifies MySQL links fail with the explicit removal
 // error instead of falling through to the generic unsupported-dialect path.
 func TestFromRejectsMySQL(t *testing.T) {
@@ -46,6 +60,20 @@ func TestFromRejectsMySQL(t *testing.T) {
 	}
 	if !bizerr.Is(err, CodeDialectMySQLUnsupported) {
 		t.Fatalf("expected MySQL unsupported business error, got %v", err)
+	}
+}
+
+// TestFromRejectsSQLite verifies SQLite links fail with the explicit removal
+// error instead of falling through to the generic unsupported-dialect path.
+func TestFromRejectsSQLite(t *testing.T) {
+	t.Parallel()
+
+	_, err := From("sqlite::@file(./temp/sqlite/linapro.db)")
+	if err == nil {
+		t.Fatal("expected SQLite dialect to be rejected")
+	}
+	if !bizerr.Is(err, CodeDialectSQLiteUnsupported) {
+		t.Fatalf("expected SQLite unsupported business error, got %v", err)
 	}
 }
 

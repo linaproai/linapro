@@ -147,7 +147,7 @@ func TestNextBackgroundReconcileDecisionUsesSharedRevision(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first reconcile decision failed: %v", err)
 	}
-	if !decision.shouldRun || decision.revision != 3 || decision.reason != "revision_changed" {
+	if !decision.shouldRun || decision.revision != 3 || decision.reason != runtimeChangeReasonRevisionChanged {
 		t.Fatalf("expected revision-changed run for revision 3, got %+v", decision)
 	}
 	service.markBackgroundReconcileObserved(decision.revision, time.Now())
@@ -165,7 +165,7 @@ func TestNextBackgroundReconcileDecisionUsesSharedRevision(t *testing.T) {
 	if err != nil {
 		t.Fatalf("third reconcile decision failed: %v", err)
 	}
-	if !decision.shouldRun || decision.revision != 4 || decision.reason != "revision_changed" {
+	if !decision.shouldRun || decision.revision != 4 || decision.reason != runtimeChangeReasonRevisionChanged {
 		t.Fatalf("expected revision-changed run for revision 4, got %+v", decision)
 	}
 	if fakeCoord.currentScope != cachecoord.ScopeReconciler {
@@ -195,7 +195,7 @@ func TestNextBackgroundReconcileDecisionAllowsSafetySweep(t *testing.T) {
 	if err != nil {
 		t.Fatalf("safety sweep decision failed: %v", err)
 	}
-	if !decision.shouldRun || decision.revision != 9 || decision.reason != "safety_sweep" {
+	if !decision.shouldRun || decision.revision != 9 || decision.reason != runtimeChangeReasonSafetySweep {
 		t.Fatalf("expected safety-sweep run for revision 9, got %+v", decision)
 	}
 }
@@ -215,7 +215,7 @@ func TestNotifyReconcilerChangedUsesReconcilerScope(t *testing.T) {
 		reconcilerRevisionCtrl:     newTestReconcilerRevisionController(fakeCoord, observed),
 	}
 
-	if err := service.notifyReconcilerChanged(context.Background(), "test_mutation"); err != nil {
+	if err := service.notifyReconcilerChanged(context.Background(), runtimeChangeReason("test_mutation")); err != nil {
 		t.Fatalf("notify reconciler changed failed: %v", err)
 	}
 	if fakeCoord.markCalls != 1 {
@@ -249,7 +249,7 @@ func TestPublishReconcilerChangedCanLeaveLocalRevisionUnobserved(t *testing.T) {
 		lastReconcilerSweepAt:      time.Now(),
 	}
 
-	if err := service.publishReconcilerChanged(context.Background(), "desired_state_changed", false); err != nil {
+	if err := service.publishReconcilerChanged(context.Background(), runtimeChangeReasonDesiredStateChanged, false); err != nil {
 		t.Fatalf("publish reconciler changed failed: %v", err)
 	}
 	if service.reconcilerRevisionCtrl.IsObserved(21) {
@@ -260,7 +260,7 @@ func TestPublishReconcilerChangedCanLeaveLocalRevisionUnobserved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decision after unobserved publish failed: %v", err)
 	}
-	if !decision.shouldRun || decision.revision != 21 || decision.reason != "revision_changed" {
+	if !decision.shouldRun || decision.revision != 21 || decision.reason != runtimeChangeReasonRevisionChanged {
 		t.Fatalf("expected background retry for unobserved revision 21, got %+v", decision)
 	}
 }

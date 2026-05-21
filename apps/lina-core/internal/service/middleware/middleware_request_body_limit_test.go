@@ -81,15 +81,15 @@ func TestRequestBodyLimitFriendlyError(t *testing.T) {
 
 	err := requestBodyLimitFriendlyError(
 		"multipart/form-data; boundary=abc",
-		gerror.Wrap(&http.MaxBytesError{Limit: 21 * bytesPerMegabyte}, "r.ParseMultipartForm failed"),
-		20,
+		gerror.Wrap(&http.MaxBytesError{Limit: 101 * bytesPerMegabyte}, "r.ParseMultipartForm failed"),
+		100,
 	)
 	if err == nil {
 		t.Fatal("expected multipart size overflow to map to friendly error")
 	}
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: i18nsvc.DefaultLocale})
-	if localized := i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil)).LocalizeError(ctx, err); localized != "文件大小不能超过20MB" {
-		t.Fatalf("expected friendly size error %q, got %q", "文件大小不能超过20MB", localized)
+	if localized := i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil)).LocalizeError(ctx, err); localized != "文件大小不能超过100MB" {
+		t.Fatalf("expected friendly size error %q, got %q", "文件大小不能超过100MB", localized)
 	}
 }
 

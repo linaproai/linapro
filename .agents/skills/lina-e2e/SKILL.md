@@ -1,6 +1,6 @@
 ---
 name: lina-e2e
-description: Playwright E2E test case management standards for the OpenSpec workflow. Defines file naming conventions (TC{NNNN}), module-based directory layout, TC ID assignment, file isolation rules, and sub-assertion patterns. Use when creating, planning, or reviewing E2E test cases within an OpenSpec change.
+description: Playwright E2E test case management standards for the OpenSpec workflow. Defines file naming conventions (module-local TC{NNN}), module-based directory layout, TC ID assignment, file isolation rules, and sub-assertion patterns. Use when creating, planning, or reviewing E2E test cases within an OpenSpec change.
 compatibility: 依赖 Playwright。
 ---
 
@@ -18,19 +18,19 @@ compatibility: 依赖 Playwright。
 hack/tests/
 ├── e2e/
 │   ├── auth/                        # 宿主模块：认证
-│   │   ├── TC0001-login-verification.ts
-│   │   └── TC0007-logout.ts
+│   │   ├── TC001-login-verification.ts
+│   │   └── TC002-logout.ts
 │   ├── admin/                       # 宿主模块：管理功能
-│   │   ├── TC0002-spec-management.ts
-│   │   └── TC0003-user-management.ts
+│   │   ├── TC001-spec-management.ts
+│   │   └── TC002-user-management.ts
 │   ├── notebook/                    # 宿主模块：笔记本生命周期
-│   │   ├── TC0004-create-notebook.ts
-│   │   ├── TC0005-jupyterlab-access.ts
-│   │   ├── TC0006-training-execution.ts
-│   │   ├── TC0008-multi-image-notebook.ts
-│   │   └── TC0009-shared-directory.ts
+│   │   ├── TC001-create-notebook.ts
+│   │   ├── TC002-jupyterlab-access.ts
+│   │   ├── TC003-training-execution.ts
+│   │   ├── TC004-multi-image-notebook.ts
+│   │   └── TC005-shared-directory.ts
 │   └── {module}/                    # 宿主新模块遵循相同模式
-│       └── TC{NNNN}-{brief-name}.ts
+│       └── TC{NNN}-{brief-name}.ts
 ├── fixtures/
 │   ├── auth.ts
 │   ├── config.ts
@@ -48,7 +48,7 @@ hack/tests/
 apps/lina-plugins/<plugin-id>/
 └── hack/tests/
     ├── e2e/
-    │   └── TC{NNNN}-{brief-name}.ts
+    │   └── TC{NNN}-{brief-name}.ts
     ├── pages/
     │   └── <PluginPageObject>.ts
     └── support/
@@ -68,24 +68,24 @@ apps/lina-plugins/<plugin-id>/
 每个测试文件必须遵循以下模式：
 
 ```
-TC{NNNN}-{brief-name}.ts
+TC{NNN}-{brief-name}.ts
 ```
 
 | 组成部分     | 格式           | 示例                            |
 |-------------|----------------|--------------------------------|
 | 前缀        | `TC`           | `TC`                           |
-| ID          | `4` 位数字，补零  | `0001`、`0012`、`0100`          |
+| ID          | `3` 位数字，补零  | `001`、`012`、`100`             |
 | 分隔符      | `-`            | `-`                            |
 | 简短名称    | kebab-case     | `login-verification`           |
 | 扩展名      | `.ts`          | `.ts`                          |
 
 **完整示例：**
-- `TC0001-login-verification.ts`
-- `TC0014-bulk-delete-notebooks.ts`
+- `TC001-login-verification.ts`
+- `TC014-bulk-delete-notebooks.ts`
 
 **规则：**
 - 每个文件只包含一个测试用例（一个 `test.describe` 块）。
-- `TC ID` 在所有模块中**全局唯一**。
+- `TC ID` 只在当前模块目录内唯一并连续递增。
 - 不使用 `.spec.ts` 后缀，使用普通的 `.ts`。
 
 ---
@@ -94,20 +94,18 @@ TC{NNNN}-{brief-name}.ts
 
 添加新测试用例前：
 
-1. **扫描所有模块目录下的现有 TC 文件**：
+1. **扫描目标模块目录下的现有 TC 文件**：
    ```bash
-   {
-     find hack/tests/e2e -type f -name 'TC*.ts'
-     find apps/lina-plugins -type f -path '*/hack/tests/e2e/*' -name 'TC*.ts'
-     rg -No 'TC[0-9]{4}' openspec/changes -g 'tasks.md'
-   } | rg -No 'TC[0-9]{4}' | sort -u | tail -1
+   find hack/tests/e2e/<module> -maxdepth 1 -type f -name 'TC*.ts' | sort
+   # 或源码插件：
+   find apps/lina-plugins/<plugin-id>/hack/tests/e2e/<module> -maxdepth 1 -type f -name 'TC*.ts' | sort
    ```
-2. **确定当前已实现和 OpenSpec 任务记录中使用或预留的最大 TC 编号**。
+2. **确定当前模块目录内已使用的最大 TC 编号**。
 3. **分配下一个顺序编号**（递增 1）。
 
-**示例：** 如果现有最大文件为 `TC0009-shared-directory.ts`，则下一个测试用例为 `TC0010`。
+**示例：** 如果当前模块目录内现有最大文件为 `TC005-shared-directory.ts`，则下一个测试用例为 `TC006`。
 
-**重要：** TC ID 永不复用，即使测试用例被删除也是如此。始终从历史最大值递增。
+**重要：** TC ID 只在所属模块目录内维护，必须从 `TC001` 开始连续递增。不要因为其他模块或其他插件使用过更大的编号而跳号。
 
 ---
 
@@ -172,7 +170,7 @@ test.describe('TC-{N} {插件功能描述}', () => {
 - **自行清理。** 创建资源的测试应清理资源以避免污染其他测试。
 - **可独立运行：**
   ```bash
-  npx playwright test hack/tests/e2e/auth/TC0001-login-verification.ts
+  npx playwright test hack/tests/e2e/auth/TC001-login-verification.ts
   pnpm -C hack/tests test:module -- plugin:<plugin-id>
   ```
 
@@ -242,26 +240,26 @@ import { test, expect } from '@playwright/test'
 在 OpenSpec 变更中编写 `tasks.md` 时，E2E 测试任务必须引用 TC ID：
 
 ```markdown
-### 任务 3：E2E — TC0010 笔记本自动保存
+### 任务 3：E2E — TC006 笔记本自动保存
 
-- [ ] 创建 `hack/tests/e2e/notebook/TC0010-notebook-auto-save.ts`
-- [ ] 实现 TC-10a：空闲超时后文件自动保存
-- [ ] 实现 TC-10b：UI 中显示保存指示器
-- [ ] 实现 TC-10c：页面重新加载后内容持久化
+- [ ] 创建 `hack/tests/e2e/notebook/TC006-notebook-auto-save.ts`
+- [ ] 实现 TC-6a：空闲超时后文件自动保存
+- [ ] 实现 TC-6b：UI 中显示保存指示器
+- [ ] 实现 TC-6c：页面重新加载后内容持久化
 ```
 
 源码插件示例：
 
 ```markdown
-### 任务 3：E2E — TC0221 插件页面入口
+### 任务 3：E2E — TC003 插件页面入口
 
-- [ ] 创建 `apps/lina-plugins/example-plugin/hack/tests/e2e/TC0221-example-plugin-entry.ts`
-- [ ] 实现 TC-221a：插件公开接口可读取
-- [ ] 实现 TC-221b：插件插槽内容可见
-- [ ] 实现 TC-221c：插件管理页可访问
+- [ ] 创建 `apps/lina-plugins/example-plugin/hack/tests/e2e/TC003-example-plugin-entry.ts`
+- [ ] 实现 TC-3a：插件公开接口可读取
+- [ ] 实现 TC-3b：插件插槽内容可见
+- [ ] 实现 TC-3c：插件管理页可访问
 ```
 
-任务标题中的 TC ID 必须与文件名匹配。子断言（`TC-10a`、`TC-10b`）应列为子项。
+任务标题中的 TC ID 必须与文件名匹配。子断言（`TC-6a`、`TC-6b`）应列为子项。
 
 ---
 
@@ -269,8 +267,8 @@ import { test, expect } from '@playwright/test'
 
 | 项目                  | 规范                                                |
 |----------------------|----------------------------------------------------|
-| 文件名               | `TC{NNNN}-{brief-name}.ts`                         |
-| TC ID 范围           | 全局唯一，跨所有模块                                  |
+| 文件名               | `TC{NNN}-{brief-name}.ts`                          |
+| TC ID 范围           | 当前模块目录内唯一并连续递增                            |
 | 宿主测试目录          | `hack/tests/e2e/{module}/`                         |
 | 源码插件测试目录       | `apps/lina-plugins/<plugin-id>/hack/tests/e2e/`    |
 | Describe 标签        | `TC-{N} {描述}`                                     |
@@ -279,4 +277,4 @@ import { test, expect } from '@playwright/test'
 | 插件导入 test/expect  | 从相对路径 `../../../../../../hack/tests/fixtures/auth` 导入 |
 | 页面交互              | 通过宿主 `pages/` 或插件 `hack/tests/pages/` 中的 POM 类 |
 | 独立性               | 每个文件可独立运行                                    |
-| ID 分配              | 扫描宿主、插件和 OpenSpec 任务记录已用/预留最大值 → 递增 1 |
+| ID 分配              | 扫描当前模块目录已用最大值 → 递增 1                    |

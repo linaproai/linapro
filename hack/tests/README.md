@@ -43,18 +43,17 @@ The `e2e/` tree is organized by stable capability boundaries instead of the lega
 - `scheduler/`
 - `extension/`
 
-Source-plugin-owned business coverage lives in each plugin directory instead of the host `e2e/` tree:
+Source-plugin-owned business coverage lives in each plugin directory instead of the host `e2e/` tree. The root suite only exposes generic plugin selection:
 
-- `plugins/linapro-content-notice` maps to `apps/lina-plugins/linapro-content-notice/hack/tests/e2e/`
-- `plugins/linapro-content-notice/message` maps to the linapro-content-notice-owned message center coverage
-- `plugins/linapro-tenant-core` maps to `apps/lina-plugins/linapro-tenant-core/hack/tests/e2e/`
-- `plugins/linapro-org-core` maps to `apps/lina-plugins/linapro-org-core/hack/tests/e2e/`
-- `plugins/monitor-*` maps to the matching monitor plugin `hack/tests/e2e/`
+- `plugins` maps to every `apps/lina-plugins/<plugin-id>/hack/tests/e2e/` tree.
+- `plugin:<plugin-id>` maps to one `apps/lina-plugins/<plugin-id>/hack/tests/e2e/` tree.
+- Nested plugin paths are resolved from the owning plugin `hack/tests/e2e/` tree when needed.
 
 ## Naming Rules
 
-- Test files must use `TC{NNNN}-{brief-name}.ts`.
-- `TC` identifiers are globally unique across the whole suite.
+- Test files must use `TC{NNN}-{brief-name}.ts`.
+- `TC` identifiers are module-local: each owning E2E directory starts at `TC001` and increments continuously inside that directory.
+- Do not reserve or skip numbers because another host module or plugin module has already used them.
 - Only real `TC` files may live under `hack/tests/e2e/`.
 - Shared helpers must live in `fixtures/`, `support/`, `scripts/`, or `debug/`.
 
@@ -64,10 +63,10 @@ Source-plugin-owned business coverage lives in each plugin directory instead of 
 | --- | --- |
 | `pnpm test` | Run the full layered suite. |
 | `pnpm test:full` | Run the full layered suite explicitly. |
+| `pnpm test:host` | Run host-owned E2E cases with plugin-environment exclusions. |
+| `pnpm test:host:module -- <scope>` | Run one host-only module scope with plugin-environment exclusions. |
 | `pnpm test:smoke` | Run the curated high-value smoke pack. |
 | `pnpm test:module -- <scope>` | Run a module scope from the execution manifest. |
-| `pnpm test:sqlite` | Prepare a SQLite config-file database, restart the app, and run SQLite-only E2E cases. |
-| `pnpm test:sqlite:e2e-smoke` | Run only the SQLite browser startup/login E2E case. |
 | `pnpm test:validate` | Validate `TC` uniqueness, directory ownership, and manifest references. |
 | `pnpm report` | Open the Playwright HTML report. |
 
@@ -75,23 +74,10 @@ Example module scopes:
 
 - `iam:user`
 - `settings:config`
-- `monitor:operlog`
 - `scheduler:job`
 - `extension:plugin`
-- `dialect`
 - `plugins`
 - `plugin:<plugin-id>` for a source plugin with tests under `apps/lina-plugins/<plugin-id>/hack/tests/e2e/`
-
-`pnpm test:sqlite` is the dedicated full SQLite channel. The script backs up
-`apps/lina-core/manifest/config/config.yaml`, writes
-`database.default.link=sqlite::@file(./temp/sqlite/linapro.db)` into that config
-file, runs `make init confirm=init rebuild=true`, `make mock confirm=mock`,
-starts `make dev`, runs `TC0164` to `TC0166`, then restores the original config.
-The backend still derives the active database dialect only from its config file.
-`pnpm test:sqlite:e2e-smoke` uses the same preparation path but only runs
-`TC0164`. Main CI does not install frontend dependencies or Playwright for
-SQLite; it calls `hack/tests/scripts/run-sqlite-smoke.sh`, which starts only the
-backend and checks SQLite startup warnings, health mode, and admin login.
 
 ## Execution Model
 
@@ -107,15 +93,15 @@ The suite uses `config/execution-manifest.json` as the single source of truth fo
 The runner splits the selected files into a parallel pool and a serial pool so global-state heavy scenarios still execute safely.
 Every run prints the selected file count, parallel file count, serial file count, parallel worker count, and the isolation categories represented in the serial pool.
 Full-suite runs include plugin-owned tests through the generic `plugins` entry.
+Plugin-owned module selection intentionally stays generic: use `plugins` for all source-plugin-owned E2E files or `plugin:<plugin-id>` for one source plugin.
+Use `pnpm test:host:module -- <scope>` to run only the host-owned portion of a scope without requiring `apps/lina-plugins`.
 Individual source plugins can be run without editing the manifest:
 
 ```bash
-pnpm test:module -- plugin:cms
+pnpm test:module -- plugin:<plugin-id>
 ```
 
-```bash
-pnpm test:module -- plugin:linapro-tenant-core
-```
+The root `hack/tests` tree must not hardcode concrete source-plugin IDs, plugin-owned routes, plugin-specific mock data, plugin-specific test configuration, plugin-specific baseline data, plugin-specific i18n keys, or plugin-specific page objects. Keep plugin behavior, plugin test data, plugin configuration, and plugin POMs under the owning `apps/lina-plugins/<plugin-id>/hack/tests/` tree. The root suite may keep only generic plugin discovery and runner mechanics.
 
 ## Isolation Categories
 
@@ -139,7 +125,7 @@ The validator rejects missing categories and allowlist entries without reasons.
 ## Fixture-Owned Prerequisites
 
 Test files must be independently runnable.
-Source plugin prerequisites should go through `fixtures/plugin.ts`, which syncs source plugins, installs or enables them when needed, refreshes the frontend projection, and loads matching plugin mock SQL when present.
+Plugin-owned tests may use `fixtures/plugin.ts` to sync source plugins, install or enable their owning plugin, refresh the frontend projection, and load matching plugin mock SQL when present.
 Tests that create users, departments, posts, notices, files, plugins, import rows, or export artifacts should use unique names or stable test prefixes and clean up their own data in `finally`, `afterEach`, or `afterAll`.
 
 ## Cache Revalidation
@@ -201,7 +187,9 @@ Use fixed `waitForTimeout` calls only when a test has a clear business reason th
 Run `pnpm test:validate` whenever you add, rename, or move test files.
 The validator checks:
 
-- duplicate `TC` identifiers
+- duplicate `TC` identifiers in one module directory
+- non-continuous module-local `TC` numbering
+- legacy four-digit global `TC` filenames
 - non-`TC` files under `e2e/`
 - files outside the allowed module scopes
 - broken smoke and serial manifest references

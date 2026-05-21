@@ -124,7 +124,7 @@ jobs:
       # 即使冒烟检查失败，也上传后端产物运行日志。
       - name: Upload Host-only Smoke Log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}
           path: |

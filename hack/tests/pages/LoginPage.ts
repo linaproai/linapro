@@ -120,12 +120,6 @@ export class LoginPage {
     );
   }
 
-  get pluginLoginSlot() {
-    return this.page.getByText(
-      "linapro-demo-source 已向登录页公开区注册扩展内容，用于验证 `auth.login.after` 插槽。",
-    );
-  }
-
   getText(text: string) {
     return this.page.getByText(text, { exact: true }).first();
   }

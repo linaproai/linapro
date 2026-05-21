@@ -25,7 +25,10 @@ type RuntimeEnvelope<T> = {
 
 type PluginLifecycleRequestOptions = {
   silentErrorMessage?: boolean;
+  timeout?: number;
 };
+
+const pluginLifecycleRequestTimeout = 120_000;
 
 /** 插件列表 */
 export async function pluginList(params?: PluginListParams) {
@@ -135,7 +138,11 @@ export function pluginEnable(
 
 /** 禁用插件 */
 export function pluginDisable(pluginId: string) {
-  return requestClient.put(`/plugins/${pluginId}/disable`);
+  return requestClient.put(
+    `/plugins/${pluginId}/disable`,
+    undefined,
+    buildPluginLifecycleRequestConfig(),
+  );
 }
 
 /** 更新插件新租户自动启用策略 */
@@ -170,6 +177,7 @@ export async function pluginUninstall(
       params: Object.keys(params).length > 0 ? params : undefined,
       responseReturn: 'body',
       silentErrorMessage: options?.silentErrorMessage === true,
+      timeout: pluginLifecycleRequestTimeout,
     },
   );
   if (!res || res.code !== 0) {
@@ -181,8 +189,8 @@ export async function pluginUninstall(
 function buildPluginLifecycleRequestConfig(
   options?: PluginLifecycleRequestOptions,
 ): RequestClientConfig | undefined {
-  if (options?.silentErrorMessage !== true) {
-    return undefined;
-  }
-  return { silentErrorMessage: true };
+  return {
+    silentErrorMessage: options?.silentErrorMessage === true,
+    timeout: options?.timeout ?? pluginLifecycleRequestTimeout,
+  };
 }

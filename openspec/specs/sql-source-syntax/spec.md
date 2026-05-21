@@ -23,7 +23,7 @@ TBD - created by archiving change switch-default-database-to-postgres. Update Pu
 
 ### Requirement: SQL 源 MUST 使用默认 deterministic 文本比较语义
 
-系统 SHALL 使用 PostgreSQL 默认 deterministic collation 提供文本比较、排序和唯一约束语义。SQL 源文件 MUST NOT 创建自定义 collation，也 MUST NOT 在列定义中声明 `COLLATE linapro_ci`、`COLLATE NOCASE` 或其他非默认排序规则。业务文本键默认大小写敏感：仅大小写不同的用户名、配置 key、字典类型、角色 key、菜单 key、插件 ID 或业务编码 SHALL 被视为不同值。若未来某个具体业务字段确实需要大小写不敏感语义，必须通过新的 OpenSpec 变更单独设计规范化写入、`lower(...)` 表达式唯一索引、`citext` 或等价方案，并评估 SQLite 翻译、索引性能和查询语义。
+系统 SHALL 使用 PostgreSQL 默认 deterministic collation 提供文本比较、排序和唯一约束语义。SQL 源文件 MUST NOT 创建自定义 collation，也 MUST NOT 在列定义中声明 `COLLATE linapro_ci`、`COLLATE NOCASE` 或其他非默认排序规则。业务文本键默认大小写敏感：仅大小写不同的用户名、配置 key、字典类型、角色 key、菜单 key、插件 ID 或业务编码 SHALL 被视为不同值。若未来某个具体业务字段确实需要大小写不敏感语义，必须通过新的 OpenSpec 变更单独设计规范化写入、`lower(...)` 表达式唯一索引、`citext` 或等价方案，并评估索引性能和查询语义。
 
 #### Scenario: 不创建自定义排序规则
 - **WHEN** 扫描所有 SQL 源文件
@@ -34,11 +34,6 @@ TBD - created by archiving change switch-default-database-to-postgres. Update Pu
 - **WHEN** 表包含用户名、邮箱、手机号、字典类型、字典值、配置 key、角色 key、菜单 key、插件 ID、业务编码或其他稳定业务文本键
 - **THEN** 对应列定义 MUST 使用普通 `VARCHAR` / `CHAR` / `TEXT` 类型
 - **AND** 唯一索引或唯一约束 MUST 按 PostgreSQL 默认语义允许仅大小写不同的不同值
-
-#### Scenario: SQLite 保持默认文本比较语义
-- **WHEN** SQLite 方言转译 SQL 源中的文本列定义
-- **THEN** 转译结果 MUST NOT 追加 `COLLATE NOCASE`
-- **AND** SQLite 开发演示路径与 PostgreSQL 默认路径保持大小写敏感的唯一约束语义
 
 ### Requirement: SQL 源 MUST 使用 PG IDENTITY 列定义自增主键
 
@@ -196,9 +191,9 @@ TBD - created by archiving change switch-default-database-to-postgres. Update Pu
 - **THEN** 库的创建/重建由 `Dialect.PrepareDatabase` 完成
 - **AND** 后续 SQL 文件加载只关心表与数据，不关心库本身
 
-### Requirement: SQL 源 MUST NOT 使用 PG 高级特性以保证 SQLite 翻译可行
+### Requirement: SQL 源使用 PG 高级特性前必须单独评估
 
-系统 SHALL 限制 SQL 源使用纯 PG 14+ ANSI 子集，不使用 SQLite 翻译器无法处理的 PG 高级特性。被禁止的特性包括但不限于：`JSONB` / `JSON` 列类型与运算符（如 `->`、`->>`、`@>`）、数组类型与运算符、`GENERATED ALWAYS AS (expr) STORED` 计算列、`CREATE EXTENSION`、`CREATE FUNCTION`、`CREATE TRIGGER`、`CREATE TYPE`、`CREATE SCHEMA`（除 `public` 外）、`DOMAIN` 自定义域、`MERGE` 语句、`WITH RECURSIVE` 递归 CTE、`LATERAL` 联接、`TABLESAMPLE`、`PARTITION OF` 子句、`EXCLUSION CONSTRAINT`、`SERIAL` / `BIGSERIAL` 简写。如确有业务需要使用上述特性，必须新立 OpenSpec 变更评估对 SQLite 方言支持的影响。
+系统 SHALL 默认使用项目约定的 PostgreSQL 14+ 可治理子集。使用 `JSONB` / `JSON` 列类型与运算符、数组类型与运算符、`GENERATED ALWAYS AS (expr) STORED` 计算列、`CREATE EXTENSION`、`CREATE FUNCTION`、`CREATE TRIGGER`、`CREATE TYPE`、`CREATE SCHEMA`（除 `public` 外）、`DOMAIN` 自定义域、`MERGE` 语句、`WITH RECURSIVE` 递归 CTE、`LATERAL` 联接、`TABLESAMPLE`、`PARTITION OF` 子句、`EXCLUSION CONSTRAINT`、`SERIAL` / `BIGSERIAL` 简写等 PostgreSQL 高级特性前，必须新立 OpenSpec 变更评估可维护性、升级策略、索引性能、DAO 兼容性、备份恢复和测试覆盖。不再为了 SQLite 翻译能力限制 SQL 源。
 
 #### Scenario: SQL 源不使用 JSONB
 - **WHEN** 扫描所有 SQL 源文件
@@ -229,4 +224,3 @@ TBD - created by archiving change switch-default-database-to-postgres. Update Pu
 - **WHEN** 在已经初始化过的数据库上重复执行同一个 SQL 源文件
 - **THEN** 所有语句 MUST 成功执行且不引发错误
 - **AND** 数据库最终状态 MUST 与单次执行后一致
-

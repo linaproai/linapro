@@ -32,9 +32,6 @@ func (s *serviceImpl) applyUninstall(ctx context.Context, registry *entity.SysPl
 			return err
 		}
 	}
-	if manifest != nil && manifest.RuntimeArtifact != nil {
-		wasm.InvalidateCache(ctx, manifest.RuntimeArtifact.Path)
-	}
 	release, err := s.catalogSvc.GetRegistryRelease(ctx, registry)
 	if err != nil {
 		return err
@@ -84,7 +81,7 @@ func (s *serviceImpl) applyUninstall(ctx context.Context, registry *entity.SysPl
 			return err
 		}
 	}
-	s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_uninstalled")
+	s.invalidateRuntimeCaches(ctx, manifest, runtimeChangeReasonPluginUninstalled)
 	if _, err = dao.SysPluginResourceRef.Ctx(ctx).
 		Unscoped().
 		Where(do.SysPluginResourceRef{PluginId: manifest.ID}).
@@ -101,10 +98,10 @@ func (s *serviceImpl) applyUninstall(ctx context.Context, registry *entity.SysPl
 	}); err != nil {
 		return err
 	}
-	if err = s.notifyRuntimeCacheChanged(ctx, "plugin_uninstalled"); err != nil {
+	if err = s.notifyRuntimeCacheChanged(ctx, runtimeChangeReasonPluginUninstalled); err != nil {
 		return err
 	}
-	if err = s.notifyReconcilerChanged(ctx, "plugin_uninstalled"); err != nil {
+	if err = s.notifyReconcilerChanged(ctx, runtimeChangeReasonPluginUninstalled); err != nil {
 		return err
 	}
 	return s.dispatchHookEvent(
@@ -220,7 +217,7 @@ func (s *serviceImpl) ForceUninstallMissingArtifact(ctx context.Context, registr
 		return nil
 	}
 
-	s.invalidateRuntimeCaches(ctx, pluginID, "plugin_orphan_uninstalled")
+	s.invalidateRuntimeCaches(ctx, &catalog.Manifest{ID: pluginID}, runtimeChangeReasonPluginOrphanUninstalled)
 	if err = s.syncNodeProjection(ctx, nodeProjectionInput{
 		PluginID:     pluginID,
 		ReleaseID:    0,
@@ -231,10 +228,10 @@ func (s *serviceImpl) ForceUninstallMissingArtifact(ctx context.Context, registr
 	}); err != nil {
 		return err
 	}
-	if err = s.notifyRuntimeCacheChanged(ctx, "plugin_orphan_uninstalled"); err != nil {
+	if err = s.notifyRuntimeCacheChanged(ctx, runtimeChangeReasonPluginOrphanUninstalled); err != nil {
 		return err
 	}
-	if err = s.notifyReconcilerChanged(ctx, "plugin_orphan_uninstalled"); err != nil {
+	if err = s.notifyReconcilerChanged(ctx, runtimeChangeReasonPluginOrphanUninstalled); err != nil {
 		return err
 	}
 	return s.dispatchHookEvent(

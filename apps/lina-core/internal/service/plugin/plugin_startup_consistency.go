@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/integration"
 	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
 	pkgtenantcap "lina-core/pkg/tenantcap"
@@ -28,6 +29,7 @@ func (s *serviceImpl) ValidateStartupConsistency(ctx context.Context) error {
 	if s == nil || s.catalogSvc == nil {
 		return nil
 	}
+	ctx = integration.WithAuthoritativeEnablement(ctx)
 	var details []string
 	pluginDetails, err := s.validatePluginStartupConsistency(ctx)
 	if err != nil {

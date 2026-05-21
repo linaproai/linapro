@@ -123,7 +123,7 @@ jobs:
       # 即使冒烟脚本失败，也上传后端集群模式日志。
       - name: Upload Redis Cluster Smoke Log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}
           path: |

@@ -137,7 +137,7 @@ Operation log middleware writes to the database **asynchronously via goroutine**
 
 #### 12. Dynamic Server URL Generation for API Documentation
 
-**Problem**: The `openapi.serverUrl` in `metadata.yaml` was fixed at `http://localhost:8080`. When the service is deployed behind container port mapping, reverse proxy, or direct host-mapped port access, the API documentation request addresses would not match the browser's actual accessible address.
+**Problem**: The `openapi.serverUrl` in `metadata.yaml` was fixed at `http://localhost:9120`. When the service is deployed behind container port mapping, reverse proxy, or direct host-mapped port access, the API documentation request addresses would not match the browser's actual accessible address.
 
 **Choice**: Dynamically generate `servers[0].url` from the current request origin in the `/api.json` handler.
 

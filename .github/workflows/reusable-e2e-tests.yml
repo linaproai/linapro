@@ -85,7 +85,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres -d linapro"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -185,8 +185,8 @@ jobs:
         working-directory: hack/tests
         env:
           E2E_BASE_URL: "http://127.0.0.1:5666"
-          E2E_API_BASE_URL: "http://127.0.0.1:8080/api/v1/"
-          E2E_PUBLIC_BASE_URL: "http://127.0.0.1:8080"
+          E2E_API_BASE_URL: "http://127.0.0.1:9120/api/v1/"
+          E2E_PUBLIC_BASE_URL: "http://127.0.0.1:9120"
           E2E_PARALLEL_WORKERS: ${{ inputs.parallel-workers }}
         run: ${{ inputs.test-command }}
 
@@ -200,7 +200,7 @@ jobs:
       # 上传 Playwright 报告和服务日志，便于失败诊断。
       - name: Upload E2E Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}
           path: |

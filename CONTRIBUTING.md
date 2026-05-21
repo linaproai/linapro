@@ -92,7 +92,7 @@ openspec/            -> OpenSpec documents
 ## Development Environment
 
 ```bash
-make dev                         # Start frontend and backend (frontend: 5666, backend: 8080)
+make dev                         # Start frontend and backend (frontend: 5666, backend: 9120)
 make dev plugins=0               # Force host-only mode without official source plugins
 make stop                        # Stop all services
 make status                      # Check service status
@@ -184,7 +184,7 @@ git submodule update --init --recursive
 # 3. Initialize the database (DDL + seed data)
 make init
 
-# 4. Start the full stack (frontend: 5666, backend: 8080)
+# 4. Start the full stack (frontend: 5666, backend: 9120)
 make dev
 ```
 

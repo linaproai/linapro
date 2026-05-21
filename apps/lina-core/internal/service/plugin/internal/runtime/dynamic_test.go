@@ -7,7 +7,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
@@ -91,6 +95,63 @@ func TestListRuntimeStatesProjectsMissingRuntimeArtifactWithoutMutatingRegistry(
 	if registryAfter.Installed != catalog.InstalledYes || registryAfter.Status != catalog.StatusEnabled {
 		t.Fatalf("expected runtime-state projection to avoid mutating sys_plugin, got installed=%d enabled=%d", registryAfter.Installed, registryAfter.Status)
 	}
+}
+
+// TestListRuntimeStatesUsesCatalogSnapshotForReleaseLookups verifies the public
+// runtime-state list does not perform per-plugin release point queries.
+func TestListRuntimeStatesUsesCatalogSnapshotForReleaseLookups(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		firstPluginID  = "plugin-dev-dynamic-runtime-state-snapshot-a"
+		secondPluginID = "plugin-dev-dynamic-runtime-state-snapshot-b"
+		version        = "v0.9.9"
+	)
+
+	for _, pluginID := range []string{firstPluginID, secondPluginID} {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	}
+	t.Cleanup(func() {
+		for _, pluginID := range []string{firstPluginID, secondPluginID} {
+			testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		}
+	})
+
+	for _, pluginID := range []string{firstPluginID, secondPluginID} {
+		artifactPath := testutil.CreateTestRuntimeStorageArtifact(
+			t,
+			pluginID,
+			"Runtime State Snapshot Plugin",
+			version,
+			nil,
+			nil,
+		)
+		manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+		if err != nil {
+			t.Fatalf("expected dynamic artifact manifest to load for %s, got error: %v", pluginID, err)
+		}
+		if _, err = services.Catalog.SyncManifest(ctx, manifest); err != nil {
+			t.Fatalf("expected dynamic manifest sync to succeed for %s, got error: %v", pluginID, err)
+		}
+		if err = services.Lifecycle.Install(ctx, pluginID); err != nil {
+			t.Fatalf("expected dynamic plugin install to succeed for %s, got error: %v", pluginID, err)
+		}
+	}
+
+	var output *runtime.RuntimeStateListOutput
+	sqls, err := gdb.CatchSQL(ctx, func(ctx context.Context) error {
+		var listErr error
+		output, listErr = services.Runtime.ListRuntimeStates(ctx)
+		return listErr
+	})
+	if err != nil {
+		t.Fatalf("expected runtime state list to succeed, got error: %v", err)
+	}
+	if findRuntimeStateItem(output.List, firstPluginID) == nil || findRuntimeStateItem(output.List, secondPluginID) == nil {
+		t.Fatalf("expected runtime state list to include both snapshot test plugins")
+	}
+	assertNoReleasePointQueries(t, sqls)
 }
 
 // TestInstallRepairsEmptyReleaseArchive verifies a same-version lifecycle pass
@@ -261,4 +322,24 @@ func findRuntimeStateItem(items []*runtime.PluginDynamicStateItem, pluginID stri
 		}
 	}
 	return nil
+}
+
+// assertNoReleasePointQueries fails when captured SQL shows release lookups by
+// primary key or plugin/version instead of the request-level release snapshot.
+func assertNoReleasePointQueries(t *testing.T, sqls []string) {
+	t.Helper()
+
+	dbPrefix := g.DB().GetPrefix()
+	releaseTable := dbPrefix + "sys_plugin_release"
+	for _, sql := range sqls {
+		normalized := strings.ToLower(sql)
+		if !strings.Contains(normalized, strings.ToLower(releaseTable)) {
+			continue
+		}
+		if strings.Contains(normalized, "where") &&
+			(strings.Contains(normalized, `"id"=`) ||
+				(strings.Contains(normalized, `"plugin_id"=`) && strings.Contains(normalized, `"release_version"=`))) {
+			t.Fatalf("expected runtime-state list to avoid release point query, got SQL %q from %#v", sql, sqls)
+		}
+	}
 }

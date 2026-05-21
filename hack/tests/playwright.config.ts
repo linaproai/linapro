@@ -11,8 +11,8 @@ export default defineConfig({
   // 6–7 level relative paths.
   tsconfig: './tsconfig.json',
   testMatch: [
-    /hack[\\/]tests[\\/]e2e[\\/](?:.*[\\/])?TC\d{4}-[^\\.\\/]+\.ts$/,
-    /apps[\\/]lina-plugins[\\/][^\\/]+[\\/]hack[\\/]tests[\\/]e2e[\\/](?:.*[\\/])?TC\d{4}-[^\\.\\/]+\.ts$/,
+    /hack[\\/]tests[\\/]e2e[\\/](?:.*[\\/])?TC\d{3}-[^\\.\\/]+\.ts$/,
+    /apps[\\/]lina-plugins[\\/][^\\/]+[\\/]hack[\\/]tests[\\/]e2e[\\/](?:.*[\\/])?TC\d{3}-[^\\.\\/]+\.ts$/,
   ],
   testIgnore: ['**/temp/**'],
   fullyParallel: false,

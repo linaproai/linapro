@@ -1,9 +1,9 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { dirname, join, relative, sep } from 'node:path';
+import {existsSync, readdirSync, readFileSync} from 'node:fs';
+import {createRequire} from 'node:module';
+import {dirname, join, relative, sep} from 'node:path';
 
-import { defineConfig } from '@vben/vite-config';
-import type { ViteDevServer } from 'vite';
+import {defineConfig} from '@vben/vite-config';
+import type {ViteDevServer} from 'vite';
 
 // Cache the HTML content to avoid repeated synchronous file reads
 let cachedApidocsHtml: string | undefined;
@@ -470,19 +470,28 @@ export default defineConfig(async () => {
         proxy: {
           '/api': {
             changeOrigin: true,
-            // Forward /api/* to backend at localhost:8080/api/*
-            target: 'http://localhost:8080',
+            // Forward /api/* to backend at localhost:9120/api/*
+            target: 'http://localhost:9120',
             ws: true,
           },
           '/plugin-assets': {
             changeOrigin: true,
             // Runtime plugin static assets are hosted by the backend even in
             // dev mode, so the frontend dev server must proxy these requests.
-            target: 'http://localhost:8080',
+            target: 'http://localhost:9120',
+          },
+          '/x': {
+            changeOrigin: true,
+            // Dynamic plugin backend routes share the frontend origin in
+            // production; dev mode proxies them to the backend runtime.
+            target: 'http://localhost:9120',
           },
           '/stoplight/apidocs.html': {
-            target: 'http://localhost:8080',
+            target: 'http://localhost:9120',
             bypass(_req, res) {
+              if (!res) {
+                return;
+              }
               // Serve the static HTML file directly, bypassing Vite's SPA fallback
               if (!cachedApidocsHtml) {
                 const filePath = join(

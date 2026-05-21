@@ -137,7 +137,7 @@ type PluginRouteReviewItem struct {
 	// Method is the normalized HTTP method declared by the dynamic route.
 	Method string `json:"method" dc:"Dynamic routing HTTP methods" eg:"GET"`
 	// PublicPath is the host-visible public URL served for this dynamic route.
-	PublicPath string `json:"publicPath" dc:"The real public path of the host, always starts with /api/v1/extensions/{pluginId}/" eg:"/api/v1/extensions/linapro-demo-dynamic/review-summary"`
+	PublicPath string `json:"publicPath" dc:"The real public path of the host, always starts with /x/{pluginId}/" eg:"/x/linapro-demo-dynamic/review-summary"`
 	// Access identifies whether the route is public or requires login context.
 	Access string `json:"access" dc:"Access level: public=public access login=login access" eg:"login"`
 	// Permission is the host permission key enforced for authenticated routes.

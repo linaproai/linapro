@@ -3,7 +3,6 @@
 package dialect
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -30,22 +29,6 @@ func (e fakePostgreSQLError) Error() string {
 // SQLState returns the fake PostgreSQL SQLSTATE.
 func (e fakePostgreSQLError) SQLState() string {
 	return e.state
-}
-
-// fakeSQLiteCodeError mimics the narrow Code() shape exposed by supported
-// SQLite drivers without depending on unexported driver error fields.
-type fakeSQLiteCodeError struct {
-	code int
-}
-
-// Error returns a compact fake SQLite error message.
-func (e fakeSQLiteCodeError) Error() string {
-	return "fake sqlite error"
-}
-
-// Code returns the fake SQLite result code.
-func (e fakeSQLiteCodeError) Code() int {
-	return e.code
 }
 
 // TestIsRetryableWriteConflictClassifiesPostgreSQLErrors verifies PostgreSQL
@@ -90,55 +73,6 @@ func TestIsRetryableWriteConflictClassifiesPostgreSQLErrors(t *testing.T) {
 	}
 }
 
-// TestIsRetryableWriteConflictClassifiesSQLiteErrors verifies SQLite retryable
-// lock conflicts are recognized by result code rather than text.
-func TestIsRetryableWriteConflictClassifiesSQLiteErrors(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{
-			name: "busy",
-			err:  fakeSQLiteCodeError{code: 5},
-			want: true,
-		},
-		{
-			name: "locked wrapped by goframe",
-			err:  gerror.Wrap(fakeSQLiteCodeError{code: 6}, "update failed"),
-			want: true,
-		},
-		{
-			name: "busy extended",
-			err:  fakeSQLiteCodeError{code: 5 | (1 << 8)},
-			want: true,
-		},
-		{
-			name: "constraint is not retryable",
-			err:  fakeSQLiteCodeError{code: 19},
-			want: false,
-		},
-		{
-			name: "plain error is not retryable",
-			err:  errors.New("database is locked"),
-			want: false,
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := IsRetryableWriteConflict(test.err); got != test.want {
-				t.Fatalf("expected retryable=%t, got %t", test.want, got)
-			}
-		})
-	}
-}
-
 // TestIsUniqueConstraintViolationClassifiesDatabaseErrors verifies duplicate
 // writes are recognized without matching driver error text.
 func TestIsUniqueConstraintViolationClassifiesDatabaseErrors(t *testing.T) {
@@ -157,16 +91,6 @@ func TestIsUniqueConstraintViolationClassifiesDatabaseErrors(t *testing.T) {
 		{
 			name: "postgres deadlock",
 			err:  fakePostgreSQLError{state: testPGDeadlockDetected},
-			want: false,
-		},
-		{
-			name: "sqlite unique",
-			err:  fakeSQLiteCodeError{code: 19 | (8 << 8)},
-			want: true,
-		},
-		{
-			name: "sqlite generic constraint",
-			err:  fakeSQLiteCodeError{code: 19},
 			want: false,
 		},
 	}

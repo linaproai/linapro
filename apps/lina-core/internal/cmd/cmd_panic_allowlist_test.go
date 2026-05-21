@@ -214,7 +214,7 @@ var productionPanicPolicy = panicAuditPolicy{
 		{
 			Path:     "apps/lina-plugins/linapro-ops-demo-guard/backend/plugin.go",
 			Function: "init",
-			Count:    2,
+			Count:    3,
 			Category: panicCategoryPluginRegistration,
 			Reason:   "top-level source plugin registration chooses fail-fast after the error-returning registration API rejects invalid static declarations",
 		},

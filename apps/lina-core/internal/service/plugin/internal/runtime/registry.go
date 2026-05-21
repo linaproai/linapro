@@ -341,11 +341,11 @@ func (s *serviceImpl) reconcileRegistryArtifactState(ctx context.Context, regist
 		return nil, err
 	}
 
-	s.invalidateRuntimeCaches(ctx, registry.PluginId, "runtime_artifact_missing")
-	if err = s.notifyRuntimeCacheChanged(ctx, "runtime_artifact_missing"); err != nil {
+	s.invalidateRuntimeCaches(ctx, &catalog.Manifest{ID: registry.PluginId}, runtimeChangeReasonRuntimeArtifactMissing)
+	if err = s.notifyRuntimeCacheChanged(ctx, runtimeChangeReasonRuntimeArtifactMissing); err != nil {
 		return nil, err
 	}
-	if err = s.notifyReconcilerChanged(ctx, "runtime_artifact_missing"); err != nil {
+	if err = s.notifyReconcilerChanged(ctx, runtimeChangeReasonRuntimeArtifactMissing); err != nil {
 		return nil, err
 	}
 

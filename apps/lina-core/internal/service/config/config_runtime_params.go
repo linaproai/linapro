@@ -48,7 +48,7 @@ var runtimeParamSpecs = []RuntimeParamSpec{
 	},
 	{
 		Key:          RuntimeParamKeyUploadMaxSize,
-		DefaultValue: "20",
+		DefaultValue: "100",
 	},
 	{
 		Key:          RuntimeParamKeyLoginBlackIPList,

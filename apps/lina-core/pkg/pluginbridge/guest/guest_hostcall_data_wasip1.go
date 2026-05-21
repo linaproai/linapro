@@ -4,7 +4,10 @@
 
 package guest
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+)
 
 // DataHostService exposes the compatibility guest-side helpers for the governed
 // structured data host service. New guest code should prefer plugindb.
@@ -326,7 +329,9 @@ func unmarshalJSONValue(data []byte) (any, error) {
 		return nil, nil
 	}
 	var value any
-	if err := json.Unmarshal(data, &value); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&value); err != nil {
 		return nil, err
 	}
 	return value, nil
@@ -338,7 +343,9 @@ func unmarshalJSONRecord(data []byte) (map[string]any, error) {
 		return nil, nil
 	}
 	record := make(map[string]any)
-	if err := json.Unmarshal(data, &record); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&record); err != nil {
 		return nil, err
 	}
 	return record, nil

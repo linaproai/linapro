@@ -111,6 +111,28 @@ jobs:
           cat > "$smoke_root/apps/lina-core/manifest/config/config.template.yaml" <<'YAML'
           template: true
           YAML
+          # linactl dev 启动前会通过 portcheck 校验后端 server.address 与前端
+          # vite proxy target 的端口与 BACKEND_PORT 一致；这里写入与沙盒
+          # backend_port=18080 对齐的最小 config.yaml 与 vite.config.mts，确保
+          # portcheck 在沙盒内通过。
+          # linactl dev runs portcheck before starting subprocesses; emit minimal
+          # backend config.yaml and frontend vite.config.mts aligned to
+          # backend_port=18080 so portcheck.Verify passes inside the sandbox.
+          cat > "$smoke_root/apps/lina-core/manifest/config/config.yaml" <<'YAML'
+          server:
+            address: ":18080"
+          YAML
+          cat > "$smoke_root/apps/lina-vben/apps/web-antd/vite.config.mts" <<'TS'
+          // Minimal vite config used only by linactl portcheck inside this smoke sandbox.
+          // 仅用于沙盒内 linactl portcheck 校验的最小 vite 配置。
+          export default {
+            server: {
+              proxy: {
+                '/api': { target: 'http://localhost:18080' },
+              },
+            },
+          };
+          TS
           cat > "$smoke_root/apps/lina-core/manifest/config/metadata.yaml" <<'YAML'
           framework:
             version: v0.0.0

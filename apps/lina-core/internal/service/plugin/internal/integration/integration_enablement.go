@@ -17,6 +17,10 @@ import (
 	"lina-core/pkg/pluginhost"
 )
 
+// authoritativeEnablementContextKey stores the opt-in marker for persisted
+// registry reads that must ignore process-local enablement snapshots.
+type authoritativeEnablementContextKey struct{}
+
 // isEnabled reports whether the plugin with the given ID is currently enabled.
 func (r *filterRuntime) isEnabled(pluginID string) bool {
 	if r == nil {
@@ -25,13 +29,32 @@ func (r *filterRuntime) isEnabled(pluginID string) bool {
 	return r.enabledByID[strings.TrimSpace(pluginID)]
 }
 
+// WithAuthoritativeEnablement marks plugin enablement reads that must bypass
+// process-local snapshots and resolve against the persisted registry state.
+func WithAuthoritativeEnablement(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, authoritativeEnablementContextKey{}, true)
+}
+
 // IsEnabled reports whether the plugin with the given ID can expose business entries.
 func (s *serviceImpl) IsEnabled(ctx context.Context, pluginID string) bool {
-	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" || s == nil {
+		return false
+	}
+	if enabled, ok := s.loadedPlatformEnabledState(ctx, normalizedPluginID); ok {
+		return enabled
+	}
+	if s.catalogSvc == nil {
+		return false
+	}
+	registry, err := s.catalogSvc.GetRegistry(ctx, normalizedPluginID)
 	if err != nil || registry == nil {
 		return false
 	}
-	manifest, _ := s.catalogSvc.GetDesiredManifest(pluginID)
+	manifest, _ := s.catalogSvc.GetDesiredManifest(normalizedPluginID)
 	enabled, err := s.registryBusinessEntryEnabledForTenant(ctx, registry, manifest)
 	return err == nil && enabled
 }
@@ -249,12 +272,17 @@ func (s *serviceImpl) buildEnabledPluginMapFromCatalog(
 		return enabledByID, nil
 	}
 	if allowLoadedSnapshot &&
+		!authoritativeEnablement(ctx) &&
 		datascope.CurrentTenantID(ctx) == datascope.PlatformTenantID &&
 		s.applyLoadedEnabledSnapshot(enabledByID) {
 		return enabledByID, nil
 	}
 
-	registries, err := s.catalogSvc.ListAllRegistries(ctx)
+	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	registries, err := s.catalogSvc.ListAllRegistries(readCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +296,7 @@ func (s *serviceImpl) buildEnabledPluginMapFromCatalog(
 		if _, ok := enabledByID[pluginID]; !ok {
 			continue
 		}
-		enabled, err := s.registryBusinessEntryEnabledForTenant(ctx, registry, manifestByID[pluginID])
+		enabled, err := s.registryBusinessEntryEnabledForTenant(readCtx, registry, manifestByID[pluginID])
 		if err != nil {
 			return nil, err
 		}
@@ -317,6 +345,37 @@ func (s *serviceImpl) applyLoadedEnabledSnapshot(enabledByID map[string]bool) bo
 	return true
 }
 
+// loadedPlatformEnabledState returns one process-local platform enablement
+// snapshot entry when the caller is not in a tenant-scoped request.
+func (s *serviceImpl) loadedPlatformEnabledState(ctx context.Context, pluginID string) (bool, bool) {
+	if authoritativeEnablement(ctx) {
+		return false, false
+	}
+	if s == nil || s.sharedState == nil || datascope.CurrentTenantID(ctx) != datascope.PlatformTenantID {
+		return false, false
+	}
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" {
+		return false, false
+	}
+	s.sharedState.enabledSnapshotMu.RLock()
+	defer s.sharedState.enabledSnapshotMu.RUnlock()
+	if !s.sharedState.enabledSnapshotLoaded {
+		return false, false
+	}
+	return s.sharedState.enabledSnapshot[normalizedPluginID], true
+}
+
+// authoritativeEnablement reports whether the caller requested a persisted
+// registry read instead of the process-local platform snapshot.
+func authoritativeEnablement(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	enabled, _ := ctx.Value(authoritativeEnablementContextKey{}).(bool)
+	return enabled
+}
+
 // manifestByPluginID indexes discovered manifests by plugin ID.
 func manifestByPluginID(manifests []*catalog.Manifest) map[string]*catalog.Manifest {
 	result := make(map[string]*catalog.Manifest, len(manifests))
@@ -344,11 +403,7 @@ func (s *serviceImpl) buildBackgroundEnabledChecker() pluginhost.PluginEnabledCh
 			return s.IsEnabled(ctx, normalizedPluginID)
 		}
 
-		s.sharedState.enabledSnapshotMu.RLock()
-		enabled, ok := s.sharedState.enabledSnapshot[normalizedPluginID]
-		loaded := s.sharedState.enabledSnapshotLoaded
-		s.sharedState.enabledSnapshotMu.RUnlock()
-		if ok || loaded {
+		if enabled, ok := s.loadedPlatformEnabledState(ctx, normalizedPluginID); ok {
 			return enabled
 		}
 		return s.IsEnabled(ctx, normalizedPluginID)

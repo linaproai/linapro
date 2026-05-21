@@ -1,3 +1,6 @@
+// This file verifies the packed embed filesystem contains the baseline assets
+// required by command startup, runtime i18n, and clean-checkout compilation.
+
 package packed
 
 import (
@@ -59,6 +62,17 @@ func TestFilesEmbedPreparedManifestAssets(t *testing.T) {
 	}
 }
 
+// TestFilesEmbedFrontendPlaceholder verifies clean checkouts keep at least one
+// tracked frontend asset placeholder so the public embed pattern can compile
+// before generated frontend build artifacts are prepared.
+func TestFilesEmbedFrontendPlaceholder(t *testing.T) {
+	t.Parallel()
+
+	if _, err := fs.ReadFile(Files, "public/.gitkeep"); err != nil {
+		t.Fatalf("read embedded frontend placeholder: %v", err)
+	}
+}
+
 // TestFilesExcludeLocalConfig verifies developer-local config.yaml is not
 // embedded into the packed manifest asset set.
 func TestFilesExcludeLocalConfig(t *testing.T) {
@@ -87,8 +101,8 @@ func TestFilesEmbedUpdatedUploadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read packed config template: %v", err)
 	}
-	if !strings.Contains(string(configContent), "maxSize: 20") {
-		t.Fatalf("expected packed config template to keep 20MB upload default, got %q", string(configContent))
+	if !strings.Contains(string(configContent), "maxSize: 100") {
+		t.Fatalf("expected packed config template to keep 100MB upload default, got %q", string(configContent))
 	}
 	if !strings.Contains(string(configContent), "enabled: true") {
 		t.Fatalf("expected packed config template to include i18n enabled default, got %q", string(configContent))
@@ -111,8 +125,8 @@ func TestFilesEmbedUpdatedUploadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read packed config-management sql: %v", err)
 	}
-	if !strings.Contains(string(sqlContent), "'sys.upload.maxSize', '20'") {
-		t.Fatalf("expected packed config-management sql to keep 20MB upload default, got %q", string(sqlContent))
+	if !strings.Contains(string(sqlContent), "'sys.upload.maxSize', '100'") {
+		t.Fatalf("expected packed config-management sql to keep 100MB upload default, got %q", string(sqlContent))
 	}
 }
 

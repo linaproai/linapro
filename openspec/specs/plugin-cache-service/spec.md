@@ -6,7 +6,7 @@
 ## Requirements
 ### Requirement:动态插件通过基于易失性缓存表的授权命名空间访问宿主分布式缓存
 
-系统 SHALL 为动态插件提供受治理的缓存服务。插件只能通过宿主授权的命名缓存命名空间访问宿主通用 KV 缓存基础，不得直接接收本地缓存实现或其他低级缓存客户端。通用缓存模块 SHALL 通过后端/提供者抽象隐藏底层实现。当前默认后端为基于 SQL 表的实现（包名 `sqltable`，常量 `BackendSQLTable`，字符串值 `"sql-table"`），MySQL 交付 SQL 保持原始 `sys_kv_cache ENGINE=MEMORY` 表结构与引擎类型，SQLite 方言下由 DDL 转译器去除引擎子句后使用普通 SQLite 表，并依赖应用层 TTL 与定时清理任务处理过期条目；未来后端如 Redis 可替换它。所有后端 SHALL 被视为有损缓存，不得作为权限、配置、插件稳定状态、缓存修订号或任何其他可靠业务状态的权威来源。
+系统 SHALL 为动态插件提供受治理的缓存服务。插件只能通过宿主授权的命名缓存命名空间访问宿主通用 KV 缓存基础，不得直接接收本地缓存实现或其他低级缓存客户端。通用缓存模块 SHALL 通过后端/提供者抽象隐藏底层实现。当前单机默认后端为基于 PostgreSQL 普通持久表的 SQL table 实现（包名 `sqltable`，常量 `BackendSQLTable`，字符串值 `"sql-table"`），并依赖应用层 TTL 与定时清理任务处理过期条目；集群模式必须使用 coordination KV backend，未来后端如 Redis 可替换单机默认实现。所有后端 SHALL 被视为有损缓存，不得作为权限、配置、插件稳定状态、缓存修订号或任何其他可靠业务状态的权威来源。
 
 #### Scenario:插件访问授权的缓存命名空间
 
@@ -20,14 +20,6 @@
 - **当** `sys_kv_cache` 表内容因人为清理、重建数据库或数据库文件丢失而不存在时
 - **则** 插件缓存读取作为缓存未命中处理
 - **且** 系统不得依赖 `sys_kv_cache` 恢复关键业务状态或缓存修订号
-
-#### Scenario:SQLite 模式下缓存条目持久化但仍按有损缓存处理
-
-- **当** 宿主以 SQLite 方言运行且 `sys_kv_cache` 为普通持久化表时
-- **则** 缓存条目在数据库文件中持久存储
-- **且** 缓存的过期清理仍由应用层 TTL 检查与现有定时清理任务处理
-- **且** 系统仍将缓存内容视为有损缓存，不依赖其作为权威数据来源
-- **且** 关键修订号仍通过独立持久化机制协调，不写入 `sys_kv_cache`
 
 #### Scenario:插件写入超过字段长度限制的缓存值
 
@@ -60,14 +52,14 @@
 
 ### Requirement:插件缓存递增在缓存存活期间必须是原子的
 
-系统 SHALL 保证同一插件缓存键的 `incr` 在共享数据库和缓存表存活期间线性递增。数据库重建、缓存表内容被人为删除或 SQLite 数据库文件丢失后，后续递增可能从新缓存值重新开始。`incr` 实现 SHALL 使用方言中性的 CAS 重试模式：读取当前整数快照；若行不存在，则用幂等插入初始化缺失整数行为 0 后重新读取；若现有行不是整数，则返回结构化错误且不修改原值；随后执行带 `value_int=<snapshot>` 条件的参数化 `UPDATE` 写入新值。实现不得使用任何数据库专用的原子自增技巧（如 MySQL `LAST_INSERT_ID(value_int + delta)`、`RETURNING` 等），不得为了原子递增修改原始 MySQL `sys_kv_cache` 表结构或引擎类型。遇到快照竞争、MySQL deadlock/lock wait timeout 或 SQLite busy/locked 等可重试冲突时，系统 SHALL 对单次 `incr` 执行有限退避重试；超过重试上限后返回明确错误。
+系统 SHALL 保证同一插件缓存键的 `incr` 在共享数据库和缓存表存活期间线性递增。数据库重建或缓存表内容被人为删除后，后续递增可能从新缓存值重新开始。`incr` 实现 SHALL 使用 PostgreSQL 可执行的 CAS 重试模式：读取当前整数快照；若行不存在，则用幂等插入初始化缺失整数行为 0 后重新读取；若现有行不是整数，则返回结构化错误且不修改原值；随后执行带 `value_int=<snapshot>` 条件的参数化 `UPDATE` 写入新值。实现不得使用任何数据库专用的原子自增技巧（如 MySQL `LAST_INSERT_ID(value_int + delta)`），不得为了原子递增修改 `sys_kv_cache` 表结构。遇到快照竞争或 PostgreSQL 可重试写冲突时，系统 SHALL 对单次 `incr` 执行有限退避重试；超过重试上限后返回明确错误。
 
-#### Scenario:多节点并发递增同一缓存键
+#### Scenario:单机并发递增同一缓存键
 
-- **当** 多个节点（仅 MySQL 模式可能存在）并发对同一插件缓存键执行 `incr` 时
+- **当** 单机进程内多个调用方并发对同一插件缓存键执行 `incr` 时
 - **则** 每次成功调用返回唯一的递增整数值
 - **且** 最终缓存值等于初始值加上所有成功递增的总和
-- **且** 任何节点不得通过读-修改-写竞争丢失递增
+- **且** 任何调用方不得通过读-修改-写竞争丢失递增
 
 #### Scenario:并发首次递增缺失缓存键
 
@@ -96,11 +88,11 @@
 - **当** 缓存服务执行 `incr` 操作时
 - **则** SQL 执行路径不包含 `LAST_INSERT_ID(...)` / `RETURNING` / 其他数据库专用原子函数
 - **且** 单次成功的 `incr` 操作通过读取快照、必要时的缺失键幂等插入、类型校验和单条 CAS `UPDATE` 完成
-- **且** 在 MySQL 与 SQLite 两种方言下行为完全一致
+- **且** 在 PostgreSQL SQL table 后端下行为稳定一致
 
 ### Requirement:插件缓存过期清理必须避免热路径全表扫描
 
-读取插件缓存时，系统 SHALL 仅执行只读查询。不得仅因缓存条目过期就在查询请求中删除数据。过期清理必须由后端在读取结果上的过期过滤和后台批量清理或写路径替换处理。`sqltable` 后端在 MySQL 与 SQLite 两种方言下都必须提供后台批量清理能力，因为两种方言下的 `sys_kv_cache` 都不支持自动过期淘汰。
+读取插件缓存时，系统 SHALL 仅执行只读查询。不得仅因缓存条目过期就在查询请求中删除数据。过期清理必须由后端在读取结果上的过期过滤和后台批量清理或写路径替换处理。`sqltable` 后端在 PostgreSQL 方言下必须提供后台批量清理能力，因为 `sys_kv_cache` 不支持自动过期淘汰。
 
 #### Scenario:读取过期的缓存键
 
@@ -116,13 +108,6 @@
 - **且** `sqltable` 后端 SHALL 提供内置定时任务，每小时调用一次 `CleanupExpired`
 - **且** 集群模式下，任务不得在多个节点间产生不受控的重复压力
 - **且** 不需要外部过期清理的后端（如未来的 Redis）可将 `CleanupExpired` 实现为空操作，无需投射 SQL 表清理任务
-
-#### Scenario:SQLite 模式下定时清理任务正常运行
-
-- **当** 宿主以 SQLite 方言运行且过期清理定时任务到点
-- **则** 任务直接在当前节点执行（cluster 已被锁定为 false）
-- **且** 任务对 `sys_kv_cache` 的删除操作以方言中性 SQL 完成
-- **且** 任务执行不依赖任何数据库引擎专属行为
 
 ### Requirement: 集群模式插件缓存必须使用 coordination KV backend
 系统 SHALL 在 `cluster.enabled=true` 时使用 coordination KV backend 承载 host/plugin KV cache。coordination KV backend MUST 通过统一 coordination provider 创建，不得由插件缓存服务自行创建 Redis client。
@@ -279,4 +264,3 @@ coordination KV backend SHALL 使用 coordination KV 原子递增能力实现 `i
 - **WHEN** 源码插件对现有字符串缓存值执行 `incr`
 - **THEN** 系统返回结构化类型错误
 - **AND** 原始字符串值不得被修改
-

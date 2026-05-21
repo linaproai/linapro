@@ -4,8 +4,10 @@
 package shared
 
 import (
+	"bytes"
 	"encoding/json"
 	"reflect"
+	"sort"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 )
@@ -14,6 +16,9 @@ import (
 func MarshalValueJSON(value any) ([]byte, error) {
 	if value == nil {
 		return nil, nil
+	}
+	if record, ok := value.(map[string]any); ok {
+		return marshalStringAnyMapJSON(record)
 	}
 	return json.Marshal(value)
 }
@@ -44,10 +49,64 @@ func UnmarshalValueJSON(data []byte) (any, error) {
 		return nil, nil
 	}
 	var value any
-	if err := json.Unmarshal(data, &value); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&value); err != nil {
 		return nil, err
 	}
 	return value, nil
+}
+
+// marshalStringAnyMapJSON normalizes generic map values through the JSON
+// decoder before the final encode. The extra round trip keeps numeric values as
+// json.Number and avoids wasip1-specific float formatting panics observed when
+// Go's JSON encoder receives directly constructed map[string]any mutation
+// records from dynamic plugins.
+func marshalStringAnyMapJSON(record map[string]any) ([]byte, error) {
+	if record == nil {
+		return nil, nil
+	}
+	content, err := marshalOrderedMapJSON(record)
+	if err != nil {
+		return nil, err
+	}
+	normalized := make(map[string]any)
+	decoder := json.NewDecoder(bytes.NewReader(content))
+	decoder.UseNumber()
+	if err = decoder.Decode(&normalized); err != nil {
+		return nil, err
+	}
+	return marshalOrderedMapJSON(normalized)
+}
+
+// marshalOrderedMapJSON encodes map entries in a deterministic order.
+func marshalOrderedMapJSON(record map[string]any) ([]byte, error) {
+	keys := make([]string, 0, len(record))
+	for key := range record {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	var builder bytes.Buffer
+	builder.WriteByte('{')
+	for index, key := range keys {
+		if index > 0 {
+			builder.WriteByte(',')
+		}
+		keyJSON, err := json.Marshal(key)
+		if err != nil {
+			return nil, err
+		}
+		valueJSON, err := json.Marshal(record[key])
+		if err != nil {
+			return nil, err
+		}
+		builder.Write(keyJSON)
+		builder.WriteByte(':')
+		builder.Write(valueJSON)
+	}
+	builder.WriteByte('}')
+	return builder.Bytes(), nil
 }
 
 // UnmarshalValuesJSON decodes one list of JSON-encoded values.

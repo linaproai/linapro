@@ -310,8 +310,8 @@ BACKEND_BINARY="temp/bin/lina-perf-audit-backend"
 BACKEND_PID_FILE="temp/pids/backend.pid"
 LOGGER_PATH="${RUN_DIR}/"
 LOGGER_FILE="server.log"
-HEALTH_URL="http://127.0.0.1:8080/api/v1/health"
-LOGIN_URL="http://127.0.0.1:8080/api/v1/auth/login"
+HEALTH_URL="http://127.0.0.1:9120/api/v1/health"
+LOGIN_URL="http://127.0.0.1:9120/api/v1/auth/login"
 
 mkdir -p "$RUN_DIR" temp/bin temp/pids
 

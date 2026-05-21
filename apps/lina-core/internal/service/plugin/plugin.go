@@ -74,7 +74,7 @@ type (
 
 	// InstallOptions captures the per-request install decoration that callers can opt into.
 	// All fields default to the zero value, which preserves the original install behavior
-	// (no mock data, no host-service authorization snapshot).
+	// (no mock data, no host-service authorization snapshot, no startup context).
 	InstallOptions struct {
 		// Authorization optionally carries a host-service authorization snapshot for
 		// dynamic plugins that require explicit confirmation before install.
@@ -87,6 +87,9 @@ type (
 		// database transaction; any failure rolls back only the mock load and leaves
 		// the install SQL phase results intact.
 		InstallMockData bool
+		// startupAutoEnable marks install requests initiated by plugin.autoEnable
+		// startup bootstrap for the explicitly configured target plugin.
+		startupAutoEnable bool
 		// dependencyResult records the server-side dependency plan and automatic
 		// installation result produced during this install request.
 		dependencyResult *DependencyCheckResult
@@ -550,8 +553,9 @@ type serviceImpl struct {
 	frontendSvc frontend.Service
 	// openapiSvc projects dynamic routes into the host OpenAPI document.
 	openapiSvc openapi.Service
-	// i18nSvc invalidates runtime translation bundles after plugin lifecycle mutations.
-	i18nSvc runtimeBundleInvalidator
+	// i18nSvc localizes plugin lifecycle messages and invalidates runtime
+	// translation bundles after plugin lifecycle mutations.
+	i18nSvc pluginI18nService
 	// runtimeCacheRevisionCtrl coordinates process-local runtime caches in cluster deployments.
 	runtimeCacheRevisionCtrl *pluginruntimecache.Controller
 	// runtimeUpgradeLockStore coordinates explicit runtime upgrades across cluster nodes.
