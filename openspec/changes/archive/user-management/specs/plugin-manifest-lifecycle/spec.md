@@ -1,26 +1,16 @@
 ## ADDED Requirements
 
-### Requirement: 插件生命周期和租户供应策略治理必须要求平台上下文
+### Requirement: plugin.yaml Multi-Tenant Fields
+plugin.yaml SHALL add: `scope_nature` (required), `supports_multi_tenant` (required boolean), `default_install_mode` (optional when scope_nature=tenant_aware).
 
-插件显式同步、上传、安装、卸载、启用、禁用、升级、安装模式变更和租户供应策略写入 SHALL 被视为平台生命周期治理。调用方除具备对应权限字符串外，还 MUST 处于平台上下文；租户上下文和代管租户上下文均不得执行这些操作。
+### Requirement: Install-Time Consistency Validation
+Install SHALL validate: `scope_nature=platform_only` only `install_mode=global`; `scope_nature=platform_only` `supports_multi_tenant` must be `false`.
 
-#### Scenario: 租户上下文修改新租户自动启用策略被拒绝
+### Requirement: sys_plugin Adds Governance Columns
+`sys_plugin` SHALL add `scope_nature VARCHAR(32)`, `install_mode VARCHAR(32)` and platform strategy column `auto_enable_for_new_tenants BOOL`; `sys_plugin_state` SHALL keep `id` auto-increment primary key, add `tenant_id INT NOT NULL DEFAULT 0`, use `(plugin_id, tenant_id, state_key)` unique index for business uniqueness.
 
-- **WHEN** 租户用户调用插件新租户自动启用策略更新接口
-- **THEN** 系统 MUST 返回平台上下文 required 的结构化业务错误
-- **AND** 不修改 `sys_plugin.auto_enable_for_new_tenants`
-- **AND** 不触发插件状态缓存刷新
+### Requirement: Uninstall Protected by LifecycleGuard Veto
+Uninstall flow SHALL call all plugins' `CanUninstall` hooks before actual uninstall steps.
 
-#### Scenario: 平台上下文修改新租户自动启用策略
-
-- **WHEN** 平台管理员在平台上下文更新插件新租户自动启用策略
-- **THEN** 系统在校验插件能力、安装模式和既有治理规则后保存策略
-- **AND** 触发插件治理缓存或运行时快照的显式作用域失效
-- **AND** 后续新租户供应按更新后的策略执行
-
-#### Scenario: 代管上下文不能执行插件生命周期治理
-
-- **WHEN** 平台管理员正在代管某租户
-- **AND** 调用插件同步、上传、安装、卸载、启用、禁用或升级接口
-- **THEN** 系统 MUST 拒绝该操作
-- **AND** 不修改平台插件治理数据
+### Requirement: Dynamic Plugin Orphan Uninstall
+When dynamic plugin installed but staging and active release artifacts unavailable, host SHALL allow platform admin through `force=true` restricted orphan uninstall.

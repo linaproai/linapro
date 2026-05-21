@@ -1,25 +1,25 @@
 ## MODIFIED Requirements
 
-### Requirement: 管理工作台首次启动语言必须按浏览器语言自动识别
+### Requirement: Management workbench first-start language must be automatically identified by browser language
 
-默认管理工作台 SHALL 在没有用户已保存语言偏好且初始化参数未显式指定语言时，根据浏览器首选语言自动选择启动语言。若浏览器首选语言为中文语言标签（如 `zh`、`zh-CN`、`zh-TW`、`zh-Hans-CN`），工作台默认使用 `zh-CN`；否则默认使用 `en-US`。该自动识别只影响首次启动默认值，不得覆盖用户通过语言切换器或偏好设置保存的语言偏好，也不得覆盖调用方通过初始化 `overrides.app.locale` 显式指定的语言。默认交付不再提供 `zh-TW` 静态语言包，中文类浏览器语言必须统一映射到默认内置中文 `zh-CN`。
+The default management workbench SHALL automatically select the startup language based on the browser's preferred language when no user-saved language preference exists and initialization parameters do not explicitly specify a language. If the browser's preferred language is a Chinese language tag (such as `zh`, `zh-CN`, `zh-TW`, `zh-Hans-CN`), the workbench defaults to `zh-CN`; otherwise it defaults to `en-US`. This automatic identification only affects the first-start default value, must not override language preferences saved by the user through the language switcher or preference settings, and must not override the language explicitly specified by the caller through initialization `overrides.app.locale`. Default delivery no longer provides `zh-TW` static language packs, and Chinese browser language tags must uniformly map to the default built-in Chinese `zh-CN`.
 
-#### Scenario: 中文浏览器首次访问默认使用简体中文
-- **WHEN** 用户浏览器语言为 `zh-CN` 或 `zh-TW`
-- **AND** 当前工作台命名空间下没有已保存的 `preferences`
-- **AND** 初始化参数没有显式指定 `app.locale`
-- **THEN** 工作台启动语言为 `zh-CN`
-- **AND** 登录页、运行时语言包请求和公共前端配置请求均使用 `zh-CN`
+#### Scenario: Chinese browser first visit defaults to Simplified Chinese
+- **WHEN** the user's browser language is `zh-CN` or `zh-TW`
+- **AND** no saved `preferences` exist in the current workbench namespace
+- **AND** initialization parameters do not explicitly specify `app.locale`
+- **THEN** the workbench startup language is `zh-CN`
+- **AND** login page, runtime language pack requests, and public frontend configuration requests all use `zh-CN`
 
-#### Scenario: 非中文浏览器首次访问默认使用英文
-- **WHEN** 用户浏览器语言为 `en-US`
-- **AND** 当前工作台命名空间下没有已保存的 `preferences`
-- **AND** 初始化参数没有显式指定 `app.locale`
-- **THEN** 工作台启动语言为 `en-US`
-- **AND** 登录页、运行时语言包请求和公共前端配置请求均使用 `en-US`
+#### Scenario: Non-Chinese browser first visit defaults to English
+- **WHEN** the user's browser language is `en-US`
+- **AND** no saved `preferences` exist in the current workbench namespace
+- **AND** initialization parameters do not explicitly specify `app.locale`
+- **THEN** the workbench startup language is `en-US`
+- **AND** login page, runtime language pack requests, and public frontend configuration requests all use `en-US`
 
-#### Scenario: 已保存语言偏好优先于浏览器语言
-- **WHEN** 当前工作台命名空间下已保存语言偏好为 `zh-CN`
-- **AND** 用户浏览器语言为 `en-US`
-- **THEN** 工作台启动语言保持 `zh-CN`
-- **AND** 浏览器语言不会覆盖用户已保存的选择
+#### Scenario: Saved language preference takes priority over browser language
+- **WHEN** a saved language preference of `zh-CN` exists in the current workbench namespace
+- **AND** the user's browser language is `en-US`
+- **THEN** the workbench startup language remains `zh-CN`
+- **AND** the browser language does not override the user's saved selection

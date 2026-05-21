@@ -1,390 +1,336 @@
-## 1. Database Design and Migration
+## 1. Schema and Initialization
 
-- [x] 1.1 Create SQL migration file `008-menu-role-management.sql`
-- [x] 1.2 Create `sys_menu` table
-- [x] 1.3 Create `sys_role` table
-- [x] 1.4 Create `sys_role_menu` table
-- [x] 1.5 Create `sys_user_role` table
-- [x] 1.6 Add menu-related dictionary types (menu status, display status, menu type)
-- [x] 1.7 Add initial role data (admin, user roles)
-- [x] 1.8 Add initial menu data (system management menus and sub-menus)
-- [x] 1.9 Assign admin role to default administrator user
-- [x] 1.10 Add `sys.auth.loginPanelLayout` and `sys.auth.pageDesc` to `sys_config` seed data with default values
+- [x] 1.1 Define `tenant_id INT NOT NULL DEFAULT 0` directly in each host table's source SQL, upgrade indexes to `(tenant_id, ...)` composite indexes (idempotent); `016` only retains explanation, not migration patches or seed
+- [x] 1.2 Define `tenant_id` and four-level `data_scope` (`1=all, 2=tenant, 3=dept, 4=personal`) directly in `006-menu-role-management.sql`'s `sys_role` table; no platform role boolean field
+- [x] 1.3 Define `tenant_id INT NOT NULL DEFAULT 0` directly in `006-menu-role-management.sql`'s `sys_user_role` table, primary key changed to `(user_id, role_id, tenant_id)`
+- [x] 1.4 Define `allow_tenant_override BOOL NOT NULL DEFAULT FALSE` directly in `002-dictionary-management.sql`'s `sys_dict_type` table
+- [x] 1.5 Define `scope_nature VARCHAR(32) NOT NULL DEFAULT 'tenant_aware'`, `install_mode VARCHAR(32) NOT NULL DEFAULT 'global'` and `auto_enable_for_new_tenants BOOL NOT NULL DEFAULT FALSE` directly in `008-plugin-framework.sql`'s `sys_plugin` table
+- [x] 1.6 Define `tenant_id INT NOT NULL DEFAULT 0` directly in `009-plugin-host-call.sql`'s `sys_plugin_state` table, keep `id` auto-increment technical primary key, use `(plugin_id, tenant_id, state_key)` unique index for business uniqueness, plugin enable state uses `state_key='__tenant_enabled__'`
+- [x] 1.7 Add `acting_user_id`, `on_behalf_of_tenant_id`, `is_impersonation` fields to `monitor-loginlog` and `monitor-operlog` plugin schemas
+- [x] 1.8 Add `tenant_id INT NOT NULL DEFAULT 0` to all plugin business tables (`plugin_*`), upgrade indexes
+- [x] 1.9 Seed data: Platform super admin role (`tenant_id=0, data_scope=1`), admin user bound to platform super admin role; existing seed dict/config unified to `tenant_id=0`
+- [x] 1.10 Modify existing mock-data SQL to default write `tenant_id=0`, ensure `make mock` single-tenant out-of-box experience unchanged
+- [x] 1.11 Execute `make init` to rebuild database, verify all table structures and indexes correct
+- [x] 1.12 Execute `make mock` to verify mock data loads successfully and single-tenant behavior not broken
 
-## 2. Backend - Menu Management Module
+## 2. Host Stable Seam (pkg/tenantcap)
 
-- [x] 2.1 Run `make dao` to generate menu-related DAO/DO/Entity
-- [x] 2.2 Create menu API definition files `api/menu/v1/`
-- [x] 2.3 Define menu list query endpoint `GET /menu`
-- [x] 2.4 Define menu detail endpoint `GET /menu/:id`
-- [x] 2.5 Define menu creation endpoint `POST /menu`
-- [x] 2.6 Define menu update endpoint `PUT /menu/:id`
-- [x] 2.7 Define menu deletion endpoint `DELETE /menu/:id`
-- [x] 2.8 Define menu dropdown tree endpoint `GET /menu/treeselect`
-- [x] 2.9 Define role menu tree endpoint `GET /menu/role/:roleId`
-- [x] 2.10 Run `make ctrl` to generate menu controller skeleton
-- [x] 2.11 Implement menu service layer `internal/service/menu/menu.go`
-- [x] 2.12 Implement menu list query (tree structure)
-- [x] 2.13 Implement menu detail query
-- [x] 2.14 Implement menu creation (name uniqueness validation)
-- [x] 2.15 Implement menu update
-- [x] 2.16 Implement menu deletion (cascade child menus, clean role associations)
-- [x] 2.17 Implement menu dropdown tree endpoint
-- [x] 2.18 Implement role menu tree endpoint
+- [x] 2.1 Create `apps/lina-core/pkg/tenantcap/` package, define `Provider` interface, `TenantID` type, `PLATFORM` constant, `RegisterProvider`/`CurrentProvider`/`HasProvider` (reference pkg/orgcap shape)
+- [x] 2.2 Evaluate and remove unimplemented tenant lifecycle event interfaces; `pkg/tenantcap` only retains stable Provider, Resolver and tenant projection contracts
+- [x] 2.3 Define `TenantInfo` struct (id, code, name, status) and `Resolver` sub-interface in `pkg/tenantcap/`
 
-## 3. Backend - Role Management Module
+## 3. Host-Side tenantcap Service
 
-- [x] 3.1 Run `make dao` to generate role-related DAO/DO/Entity
-- [x] 3.2 Create role API definition files `api/role/v1/`
-- [x] 3.3 Define role list query endpoint `GET /role`
-- [x] 3.4 Define role detail endpoint `GET /role/:id`
-- [x] 3.5 Define role creation endpoint `POST /role`
-- [x] 3.6 Define role update endpoint `PUT /role/:id`
-- [x] 3.7 Define role deletion endpoint `DELETE /role/:id`
-- [x] 3.8 Define role status toggle endpoint `PUT /role/:id/status`
-- [x] 3.9 Define role dropdown options endpoint `GET /role/options`
-- [x] 3.10 Define role user list endpoint `GET /role/:id/users`
-- [x] 3.11 Define role assign users endpoint `POST /role/:id/users`
-- [x] 3.12 Define remove user authorization endpoint `DELETE /role/:id/users/:userId`
-- [x] 3.13 Run `make ctrl` to generate role controller skeleton
-- [x] 3.14 Implement role service layer `internal/service/role/role.go`
-- [x] 3.15 Implement role list query (paginated)
-- [x] 3.16 Implement role detail query (including menu ID list)
-- [x] 3.17 Implement role creation (name and key uniqueness validation)
-- [x] 3.18 Implement role update (including menu association update)
-- [x] 3.19 Implement role deletion (clean menu and user associations)
-- [x] 3.20 Implement role status toggle
-- [x] 3.21 Implement role dropdown options endpoint
-- [x] 3.22 Implement role user list query
-- [x] 3.23 Implement role assign users
-- [x] 3.24 Implement remove user authorization
+- [x] 3.1 Create `apps/lina-core/internal/service/tenantcap/tenantcap.go` main file: `Service` interface, `serviceImpl`, `New()`, implement `Enabled`, `Apply`, `Current`, `PlatformBypass`, `EnsureTenantVisible`
+- [x] 3.2 Define shared `bizerr.Code` in `apps/lina-core/pkg/tenantcap/tenantcap_code.go` (`CodeTenantRequired`, `CodeTenantForbidden`, `CodeCrossTenantNotAllowed`, `CodePlatformPermissionRequired`, `CodeTenantSuspended`, etc.)
+- [x] 3.3 Implement chain-of-responsibility dispatcher in `tenantcap_resolver_chain.go`, supporting registration of multiple `Resolver` and traversal by configured order
+- [x] 3.4 Implement `ReadWithPlatformFallback` helper in `tenantcap_fallback.go` (application-layer two-query merge) for dict/config "tenant override" resources
+- [x] 3.5 Supplementary unit tests (self-contained, order-independent): cover `Apply` injection, `PlatformBypass`, chain order, fallback semantics
 
-## 4. Backend - User Management Extension
+## 4. bizctx and Middleware
 
-- [x] 4.1 Extend user list API to return roleIds and roleNames
-- [x] 4.2 Extend user detail API to return roleIds
-- [x] 4.3 Extend user creation to support roleIds parameter
-- [x] 4.4 Extend user update to support roleIds parameter
-- [x] 4.5 Extend user deletion to clean sys_user_role associations
+- [x] 4.1 Add `TenantId int`, `ActingAsTenant bool`, `ActingUserId int`, `IsImpersonation bool` fields to `internal/service/bizctx/bizctx.go`; add `SetTenant`, `SetImpersonation` methods
+- [x] 4.2 Create `internal/service/middleware/middleware_tenancy.go`, implement tenancy middleware: call `tenantcap.Provider.ResolveTenant` after auth and before permission check, write to bizctx
+- [x] 4.3 Register tenancy middleware in `cmd` startup; short-circuit to inject `TenantId=0` when multi-tenant not enabled
+- [x] 4.4 Unit tests: cover middleware injection path, short-circuit path, resolver chain selection
 
-## 5. Backend - Login Authentication Extension
+## 5. Startup Consistency Validation
 
-- [x] 5.1 Extend `/user/info` endpoint response structure
-- [x] 5.2 Implement user role query logic
-- [x] 5.3 Implement user menu tree construction logic
-- [x] 5.4 Implement user permission identifier aggregation logic
-- [x] 5.5 Handle super admin special logic (return all menus)
-- [x] 5.6 Handle user with no roles (empty menu logic)
+- [x] 5.1 Add consistency checks in `framework-bootstrap-installer` startup flow: `scope_nature` vs `install_mode`, tenant roles cannot use `data_scope=1`, platform users have no membership, multi-tenant enabled vs Provider registration
+- [x] 5.2 Print clear log and panic to prevent startup on check failure
+- [x] 5.3 Integration test: Intentionally construct illegal state to verify startup failure
 
-## 6. Backend - Login-Page Config Parameters
+## 6. Multi-Tenant Plugin Skeleton (lina-plugin-multi-tenant)
 
-- [x] 6.1 Add protected public-frontend metadata, default values, domain validation, and whitelist projection for `sys.auth.loginPanelLayout`
-- [x] 6.2 Add protected public-frontend metadata, default values, and length validation for `sys.auth.pageDesc`
-- [x] 6.3 Update built-in system-parameter seed list in host initialization SQL
-- [x] 6.4 Add backend config unit tests covering valid values, invalid value rejection, and public-frontend output
+- [x] 6.1 Create `apps/lina-plugins/multi-tenant/` directory with `plugin.yaml` (scope_nature=platform_only, install_mode=global), `plugin_embed.go`, `backend/`, `frontend/`, `manifest/`
+- [x] 6.2 Register `_ "lina-plugin-multi-tenant/backend"` in `apps/lina-plugins/lina-plugins.go`
+- [x] 6.3 Build `backend/` structure: `api/`, `internal/{controller, service, dao, model/{do, entity}}`, `hack/config.yaml`, `plugin.go`
+- [x] 6.4 Create `manifest/sql/001-multi-tenant-schema.sql` (all plugin-owned tables) and `manifest/sql/uninstall/`
+- [x] 6.5 Create `manifest/i18n/zh-CN/plugin.json` and `manifest/i18n/en-US/plugin.json` placeholder skeletons
+- [x] 6.6 plugin.yaml lists menus (platform admin side: tenants) and hidden permission points (unified `system:tenant:*`, `system:tenant:member:*`, `system:tenant:plugin:*` etc.); tenant membership managed through user management page, no independent tenant workbench directory
 
-## 7. Frontend - Menu Management Page
+## 7. Multi-Tenant Plugin Schema
 
-- [x] 7.1 Create menu management API file `src/api/system/menu/`
-- [x] 7.2 Create menu management route `src/router/routes/modules/system.ts`
-- [x] 7.3 Create menu management page `src/views/system/menu/index.vue`
-- [x] 7.4 Create menu form drawer `src/views/system/menu/menu-drawer.vue`
-- [x] 7.5 Create menu data definitions `src/views/system/menu/data.ts`
-- [x] 7.6 Implement menu tree table display
-- [x] 7.7 Implement menu search functionality
-- [x] 7.8 Implement menu creation functionality
-- [x] 7.9 Implement menu editing functionality
-- [x] 7.10 Implement menu deletion functionality (with cascade)
-- [x] 7.11 Implement menu status toggle
-- [x] 7.12 Implement menu icon selector
+- [x] 7.1 `plugin_multi_tenant_tenant`: id, code (unique), name, status, remark, created_at, updated_at, deleted_at (soft delete)
+- [x] 7.2 `plugin_multi_tenant_user_membership`: id, user_id, tenant_id, status, joined_at, UNIQUE (user_id, tenant_id)
+- [x] 7.3 `plugin_multi_tenant_config_override`: placeholder extension, first version may not create or only create table skeleton
+- [x] 7.4 No tenant quota table or placeholder execution logic in this round; quota/billing model designed in subsequent iteration
+- [x] 7.5 Delete `plugin_multi_tenant_resolver_config`: resolution chain, reserved subdomains and ambiguous behavior fixed in code
+- [x] 7.6 Delete `plugin_multi_tenant_event_outbox`: do not retain outbox placeholder table lacking subscription, distribution, retry and per-subscriber state
+- [x] 7.7 `manifest/sql/uninstall/001-cleanup.sql`: Clean plugin tables on uninstall (preconditions guaranteed by LifecycleGuard)
+- [x] 7.8 `dao/`, `model/{do,entity}/` generated via `cd apps/lina-plugins/multi-tenant/backend && make dao`
 
-## 8. Frontend - Role Management Page
+## 8. Multi-Tenant Plugin Service Layer
 
-- [x] 8.1 Create role management API file `src/api/system/role/`
-- [x] 8.2 Create role management route
-- [x] 8.3 Create role management page `src/views/system/role/index.vue`
-- [x] 8.4 Create role form drawer `src/views/system/role/role-drawer.vue`
-- [x] 8.5 Create role data definitions `src/views/system/role/data.ts`
-- [x] 8.6 Create role menu selection component `src/components/tree/MenuSelectTable.vue`
-- [x] 8.7 Create role user assignment page `src/views/system/role/authUser.vue`
-- [x] 8.8 Implement role list display
-- [x] 8.9 Implement role search functionality
-- [x] 8.10 Implement role creation (including menu selection)
-- [x] 8.11 Implement role editing (including menu selection)
-- [x] 8.12 Implement role deletion
-- [x] 8.13 Implement role status toggle
-- [x] 8.14 Implement role user assignment
-- [x] 8.15 Implement remove user authorization
+- [x] 8.1 `service/tenant/`: `Service` interface, `serviceImpl`, implement tenant CRUD, state machine migration, code uniqueness validation, tombstone 30-day retention
+- [x] 8.2 `service/membership/`: 1:N membership CRUD, reserve `single` strategy validation, platform admin cannot add membership
+- [x] 8.3 `service/resolver/`: Implement 6 Resolvers (override/jwt/session/header/subdomain/default), support config-driven chain; formal JWT priority over header/subdomain hints
+- [x] 8.4 Delete unimplemented `service/lifecycle/` event outbox path; tenant creation side effects changed to explicit domain service calls
+- [x] 8.5 `service/provider/`: `tenantcap.Provider` implementation, aggregates tenant + membership service, calls `tenantcap.RegisterProvider` when plugin enabled
+- [x] 8.6 `service/lifecycleguard/`: Implement `CanUninstall` (active tenants exist then false), `CanDisable`, `CanTenantDelete` (subscribe to other plugin hook aggregation)
+- [x] 8.7 `service/impersonate/`: Platform admin impersonation token issuance, end impersonation, dual-track log writing
+- [x] 8.8 `service/resolverconfig/`: Provide code-built-in resolution strategy query and no-op validation, reject runtime strategy changes
+- [x] 8.9 Service layer unit tests self-contained coverage
 
-## 9. Frontend - User Management Extension
+## 9. Multi-Tenant Plugin Controller Layer
 
-- [x] 9.1 Extend user list to add role column
-- [x] 9.2 Extend user form to add role selector
-- [x] 9.3 Extend user creation to support role association
-- [x] 9.4 Extend user editing to support role association
+- [x] 9.1 `controller/platform/`: `/platform/tenants/*` (CRUD), `/platform/tenants/{id}/impersonate`, `/platform/tenant/resolver-config` strategy query/validation, `/platform/users`
+- [x] 9.2 `controller/tenant/`: `/tenant/members/*` (list, invite, remove, adjust role), `/tenant/members/me`
+- [x] 9.3 `controller/auth/`: `/auth/login-tenants`, `/auth/select-tenant`, `/auth/switch-tenant` (overrides host original login)
+- [x] 9.4 Controller generated via `cd apps/lina-plugins/multi-tenant/backend && make ctrl`, business logic written in generated files
+- [x] 9.5 All controller fields hold dependency services, initialized in NewV1 (prohibit service.New() in methods)
 
-## 10. Frontend - Login Authentication Extension
+## 10. JWT / Session / Auth Transformation
 
-- [x] 10.1 Update user info type definitions, add menus and permissions
-- [x] 10.2 Update useUserStore to store menu and permission info
-- [x] 10.3 Configure frontend dynamic route generation logic
-- [x] 10.4 Implement menu-tree-based route registration
-- [x] 10.5 Implement button-level permission directive v-access
+- [x] 10.1 Add `TenantId int`, `IsImpersonation bool`, `ActingUserId int` fields to `auth.Claims`; adjust issuance and parsing logic
+- [x] 10.2 Modify `auth.Service.Login` to two-phase: return pre_token + tenant list (single-tenant user compatible direct issuance)
+- [x] 10.3 Implement pre_token short-term single-use mechanism (60s TTL, stored in redis/session store)
+- [x] 10.4 Implement `/auth/select-tenant`: validate pre_token + membership -> issue formal JWT
+- [x] 10.5 Implement `/auth/switch-tenant`: validate membership -> add old token to revoke list -> re-sign
+- [x] 10.6 Implement token revoke list (local memory + cluster broadcast)
+- [x] 10.7 Modify `session.Store`: primary key is globally unique `token_id`, retain `tenant_id` as session ownership and validation dimension, index covers `(tenant_id, user_id)` and `(tenant_id, login_time)`
+- [x] 10.8 Modify `auth.Logout`: only revoke current (tenant, token) row
+- [x] 10.9 Unit tests cover Login -> SelectTenant -> SwitchTenant -> Logout full chain
 
-## 11. Frontend - Login Page Presentation
+## 11. DAO Injection Discipline Implementation
 
-- [x] 11.1 Adjust frontend default preferences and public-frontend runtime sync so login page defaults to `panel-right`
-- [x] 11.2 Adjust login-page assembly so forgot password, registration, mobile login, QR-code login, and third-party login entry points are explicitly hidden
-- [x] 11.3 Adjust auth-route registration so unfinished auth subpages redirect to `/auth/login`
-- [x] 11.4 Update login-page description to match product positioning
-- [x] 11.5 Update frontend runtime tests for public-frontend config sync
+- [x] 11.1 Transform user service in `internal/service/user/`: multi-tenant enabled list/detail uses membership join as visibility authoritative boundary; `sys_user.tenant_id` only primary tenant; write fills primary tenant and creates membership
+- [x] 11.2 Transform all reads of `sys_role` and `sys_user_role` in `internal/service/role/`; role queries filtered by current tenant context and `tenant_id`
+- [x] 11.3 Transform `internal/service/menu/`: menu remains platform global, but filter by (tenant, plugin) enable state when resolving
+- [x] 11.4 Transform `internal/service/dict/` to `ReadWithPlatformFallback` mode; write to current tenant; `allow_tenant_override` validation
+- [x] 11.5 Same for `internal/service/sysconfig/`
+- [x] 11.6 Transform `internal/service/file/` storage path prefix `/storage/t/{tid}/...`; read validation
+- [x] 11.7 Transform `internal/service/notify/` notification send/query, cross-tenant broadcast platform only
+- [x] 11.8 Transform `internal/service/usermsg/` message inbox filtered by tenant
+- [x] 11.9 Transform `internal/service/jobmgmt/` `jobmeta/` `jobhandler/`, task execution constructs tenant bizctx
+- [x] 11.10 Transform `internal/service/session/` and `internal/service/cron/`, session cleanup and scheduled task context bound to tenant
+- [x] 11.11 Adjust Apply order in `internal/service/datascope/`: tenantcap first then datascope
+- [x] 11.12 Grep all host code `dao.Sys*.Ctx(ctx)` to ensure no scattered omissions
 
-## 12. Backend - Server Monitor Optimization
+## 12. Cache and Consistency
 
-- [x] 12.1 Create SQL migration `009-server-monitor-updated-at.sql` adding `updated_at` field
-- [x] 12.2 Run `make dao` to regenerate DAO/DO/Entity
-- [x] 12.3 Modify `CollectAndStore` method to use framework auto-handled time fields
-- [x] 12.4 Modify `GetLatest` method to sort by `updated_at`
-- [x] 12.5 Update frontend "collection time" label to "data update time"
-- [x] 12.6 Add `CleanupStale` method to `servermon` module
-- [x] 12.7 Extract cron job registration logic to `cron/cron_servermon_cleanup.go`
+- [x] 12.1 Transform cache keys in `internal/service/kvcache/`, `internal/service/pluginruntimecache/`, `internal/service/cachecoord/` to `(tenant_id, scope, key)` form
+- [x] 12.2 Create `tenantcap.CacheKey(tenant, scope, key)` helper, all cache consumers unified call
+- [x] 12.3 Invalidation message schema adds `tenant_id` field; supports `cascade_to_tenants` flag
+- [x] 12.4 `cluster.Service` cluster broadcast path transparent to tenant dimension
+- [x] 12.5 Translation cache (framework-i18n-runtime) key and invalidation scope transformation
+- [x] 12.6 Dict cache, config cache, role cache, permission cache, menu cache all bucketed by tenant
+- [x] 12.7 Unit tests: cross-tenant cache isolation anti-examples, platform default cascade invalidation
 
-## 13. E2E Tests
+## 13. Plugin Governance Transformation
 
-- [x] 13.1 Create menu management test `TC0060-menu-crud.ts`
-- [x] 13.2 Test menu creation
-- [x] 13.3 Test menu editing
-- [x] 13.4 Test menu deletion
-- [x] 13.5 Test menu tree display
-- [x] 13.6 Create role management test `TC0061-role-crud.ts`
-- [x] 13.7 Test role creation
-- [x] 13.8 Test role editing (including menu selection)
-- [x] 13.9 Test role deletion
-- [x] 13.10 Test role user assignment
-- [x] 13.11 Create user-role association test `TC0062-user-role.ts`
-- [x] 13.12 Test user creation with role selection
-- [x] 13.13 Test user editing with role modification
-- [x] 13.14 Test user list displays roles
-- [x] 13.15 Create login menu test `TC0063-auth-menu.ts`
-- [x] 13.16 Test menu displays correctly after login
-- [x] 13.17 Test different role users see different menus
-- [x] 13.18 Create role form defaults test `TC0064-role-form-defaults.ts`
-- [x] 13.19 Create login page presentation test `TC0102-login-page-presentation.ts`
-- [x] 13.20 Test unfinished entry points stay hidden
-- [x] 13.21 Test login page defaults to right-aligned layout
-- [x] 13.22 Test system parameter switches layout
+- [x] 13.1 Add `scope_nature` / `install_mode` parsing and persistence in `internal/service/plugin/`, plugin.yaml parsing validation
+- [x] 13.2 Transform `IsEnabled(ctx, pluginID)` to tenant-aware (reads `(plugin_id, tenant_id)`)
+- [x] 13.3 Implement install_mode switching flow (global vs tenant_scoped) and force channel
+- [x] 13.4 Implement `LifecycleGuard` interface family (`pkg/pluginhost/lifecycle_guard.go`) and concurrent invocation / timeout / panic recover framework
+- [x] 13.5 Call `CanUninstall` hook in `plugin.Uninstall` flow and aggregate vetoes
+- [x] 13.6 Call `CanDisable` hook (global) or `CanTenantDisable` (tenant_scoped) in `plugin.Disable` flow
+- [x] 13.7 Call `CanTenantDelete` hook in `tenant.Delete` flow
+- [x] 13.8 Implement `--force` channel (config switch `plugin.allow_force_uninstall`) and platform audit
+- [x] 13.9 Unit tests: hook aggregation, timeout fail-safe, panic recover, force channel
 
-## 14. Integration and Verification
+## 14. Route and Permission Transformation
 
-- [x] 14.1 Run backend unit tests
-- [x] 14.2 Run frontend type checks
-- [x] 14.3 Run full E2E test suite
-- [x] 14.4 Manually verify super admin login menu
-- [x] 14.5 Manually verify regular user login menu
-- [x] 14.6 Manually verify button-level permission control
-- [x] 14.7 Manually verify login page presentation and system-parameter behavior
+- [x] 14.1 Transform `pluginruntimecache` / `plugin.routing` request-time filtering: return 404 by (tenant, plugin) enable state
+- [x] 14.2 Transform `permission` middleware: permission resolution filters disabled plugins by current tenant
+- [x] 14.3 Remove permission point platform/tenant prefix constraints, unified use of `system:*`; platform/tenant boundaries constrained by route plane, tenant context, data permissions, and plugin enable state
+- [x] 14.4 Unit tests: cover route 404 / menu hide / permission point filtering
 
-## Feedback
+## 15. org-center Plugin Tenantization
 
-- [x] **FB-1**: Menu page data display failure due to query form dictionary option loading method error causing VXE-Grid initialization failure
-- [x] **FB-2**: Menu status search dropdown showing incorrect options
-- [x] **FB-3**: Empty column on right side of table
-- [x] **FB-4**: Status and display column label styles inconsistent with reference project
-- [x] **FB-5**: Form row spacing and remark input style inconsistent with reference project
-- [x] **FB-6**: Menu management page query form dictionary dropdowns empty; switched from `getDictOptionsSync()` to `getDictOptions()` for async loading
-- [x] **FB-9**: Menu status search dropdown showing extra options due to test data pollution from TC0013; fixed with independent test dictionary type and SQL cleanup
-- [x] **FB-10**: Edit menu drawer not showing edited menu content; root cause: `handleEdit` passes `isEdit` but drawer checks `update`
-- [x] **FB-11**: Parent menu dropdown tree not showing child menus in new/edit drawer; root cause: backend returns tree but frontend treated as flat list
-- [x] **FB-12**: Edit menu parent selector should disable current menu and descendants to prevent circular reference
-- [x] **FB-13**: Remark input in new/edit menu drawer too small; replaced with Textarea component
-- [x] **FB-14**: Clicking "add" on specific menu should show that menu as parent in the add panel; root cause: `resetForm()` called after `setFieldValue()`
-- [x] **FB-16**: Role sort InputNumber default value correctly configured
-- [x] **FB-17**: Data permission field has `rules: 'required'` for mandatory selection
-- [x] **FB-18**: Role menu permission tree shows type icons and permission checkboxes; added Type and Icon fields to MenuTreeNode
-- [x] **FB-19**: Role sort InputNumber default not displaying; changed `getDrawerSchema()` from async to sync
-- [x] **FB-20**: Data permission field defaults to "all data permissions"; confirmed `defaultValue: 1` correct after FB-19 fix
-- [x] **FB-21**: Role status Select dictionary loading timing issue; changed to RadioGroup with hardcoded options
-- [x] **FB-22**: Server monitor data storage optimization; added `updated_at` field and `CleanupStale` method
-- [x] **FB-24**: Improve cron job service layer encapsulation; added `CleanupStale` to servermon, extracted cron registration
-- [x] **FB-login-1**: Expand `sys.auth.pageDesc` length limit to 500 characters with validation and regression coverage
-- [x] **FB-login-2**: Update default login-page description and standardize default login-panel layout to right side
+- [x] 15.1 Modify `apps/lina-plugins/org-center/manifest/sql/001-org-center-schema.sql`, all tables add `tenant_id`, indexes upgraded
+- [x] 15.2 Modify mock-data/*.sql, default write `tenant_id=0` (single-tenant experience unchanged)
+- [x] 15.3 Modify `org-center` plugin.yaml: `scope_nature: tenant_aware`, `default_install_mode: global`
+- [x] 15.4 Transform service/dao implementation: all queries use `tenantcap.Apply`, all writes fill `tenant_id`
+- [x] 15.5 Remove unimplemented `tenantcap.LifecycleSubscriber` placeholder contract
+- [x] 15.6 Transform `orgcap.Provider` implementation to filter by `bizctx.TenantId`
+- [x] 15.7 Unit tests self-contained, cover tenant isolation, event subscription idempotent, cascade cleanup
 
-## Menu Structure Summary
-```
-Dashboard (sort:0)
-  Analysis
-  Workspace
-System Management (sort:1)
-  User Management + 7 buttons
-  Role Management + 4 buttons
-  Menu Management + 4 buttons
-  Department Management + 4 buttons
-  Post Management + 5 buttons
-  Dictionary Management + 5 buttons
-  Notice Announcement + 4 buttons
-  Parameter Settings + 5 buttons
-  File Management + 4 buttons
-  Message List (hidden)
-  Role Auth Users (hidden)
-System Monitor (sort:2)
-  Online Users + 2 buttons
-  Server Monitor
-  Operation Log + 4 buttons
-  Login Log + 4 buttons
-System Info (sort:3)
-  System API
-  Version Info
-Personal Center (hidden, sort:99)
-```
+## 16. Other Existing Plugin Tenantization
 
+- [x] 16.1 `monitor-loginlog`: Table adds `tenant_id`, `acting_user_id`, `on_behalf_of_tenant_id`, `is_impersonation`; dao/service/controller transformation; plugin.yaml `scope_nature: tenant_aware, default_install_mode: tenant_scoped`
+- [x] 16.2 `monitor-online`: Table adds `tenant_id`, session query/kick adds tenant validation; plugin.yaml same
+- [x] 16.3 `monitor-operlog`: Table adds tenant and impersonation fields; controller supports `operType` filter; plugin.yaml same
+- [x] 16.4 `monitor-server`: plugin.yaml `scope_nature: platform_only`; not visible to tenant admin view
+- [x] 16.5 `content-notice`: Table adds `tenant_id`, notice filtered by tenant; plugin.yaml `scope_nature: tenant_aware, default_install_mode: tenant_scoped`
+- [x] 16.6 `demo-control`, `plugin-demo-source`, `plugin-demo-dynamic`: Add tenant fields (if persistent); plugin.yaml `scope_nature: tenant_aware`
+- [x] 16.7 Each plugin i18n resources add `plugin.<id>.uninstall_blocked.*` and other reason key translations
 
----
+## 17. Backend API and DTO
 
-## Tenant Permission Boundary Hardening Tasks
+- [x] 17.1 All platform API DTOs defined in `apps/lina-plugins/multi-tenant/backend/api/platform/v1/`, English dc + eg
+- [x] 17.2 All tenant API DTOs defined in `apps/lina-plugins/multi-tenant/backend/api/tenant/v1/`
+- [x] 17.3 Declare `permission` tag on g.Meta, platform and tenant APIs both use unified `system:*` permission identifiers
+- [x] 17.4 apidoc i18n: multi-tenant plugin maintains own `manifest/i18n/<locale>/apidoc/**/*.json`, English empty, zh-CN provides translation
+- [x] 17.5 Error codes `bizerr.Code*` defined centrally in `internal/service/<module>/<module>_code.go`
+- [x] 17.6 Unit tests: DTO field validation, permission validation, i18n completeness
 
-## 1. 后端权限边界
+## 18. Frontend Workbench Transformation
 
-- [x] 1.1 新增或复用平台上下文 guard，覆盖平台租户接口、菜单治理写操作、插件平台治理写操作，并显式拒绝代管租户上下文
-- [x] 1.2 在 `apps/lina-plugins/multi-tenant/backend/internal/service/tenant` 的平台租户列表、详情、创建、更新、删除、启停和代管入口接入平台上下文校验
-- [x] 1.3 在 `apps/lina-core/internal/service/menu` 的创建、更新、删除、状态/显隐变更路径接入平台上下文校验，并保持权限拓扑修订号发布失败时失败关闭
-- [x] 1.4 在 `apps/lina-core/internal/service/plugin` 的插件同步、上传、安装、卸载、启用、禁用、升级、安装模式和 tenant provisioning policy 写路径接入平台上下文校验
+- [x] 18.1 Add platform/tenant/auth new interface clients in `apps/lina-vben/apps/web-antd/src/api/`
+- [x] 18.2 Add `platform/tenants/`, `platform/users/` pages in `src/views/`, no runtime config page for resolution strategy
+- [x] 18.3 Tenant admin entry reclaimed to user management page, no `tenant/members/`, `tenant/plugins/` left menu entry
+- [x] 18.4 Transform login page `views/login/` to support tenant selector (based on resolution strategy)
+- [x] 18.5 Workbench header adds tenant identifier + switcher (platform vs tenant visual distinction)
+- [x] 18.6 Transform route guard, link-hide tenant UI based on multi-tenant enable state
+- [x] 18.7 Add impersonation header red bar prompt and "exit impersonation" button
+- [x] 18.8 Add `views/platform/plugins/install-mode-selector.vue` install-time install_mode selection dialog
+- [x] 18.9 Add LifecycleGuard veto reason display dialog (supports multi-reason aggregation + i18n rendering + force second confirmation)
+- [x] 18.10 Route modules `src/router/routes/modules/platform.ts`, `tenant.ts` registration
+- [x] 18.11 Global Pinia store adds `useTenantStore` managing current tenant, selectable tenant list, impersonation state
 
-## 2. 角色授权可分配集合
+## 19. Frontend i18n Resources
 
-- [x] 2.1 实现集中可分配菜单/权限谓词，按平台上下文、租户上下文、`menu_key`、权限字符串和插件治理元数据判定 platform-only 权限
-- [x] 2.2 更新角色菜单树查询，租户上下文过滤平台租户管理、平台插件治理和全局菜单治理写权限
-- [x] 2.3 更新角色创建和更新，在写入 `sys_role_menu` 前校验所有 `menuIds` 均属于当前上下文可分配集合
-- [x] 2.4 确认异常历史 platform-only 授权不会绕过平台控制面 guard，并在必要时过滤租户态 checked keys
+- [x] 19.1 Add multi-tenant related keys in `apps/lina-vben/apps/web-antd/src/locales/zh-CN.json` and `en-US.json` (menus, forms, errors, veto reasons, impersonation prompts)
+- [x] 19.2 Platform multi-tenant menu i18n key namespace retained `menu.platform.*`, remove independent tenant workbench `menu.tenant.*` top-level menu namespace
+- [x] 19.3 i18n completeness validation script (CI) blocks omissions
 
-## 3. 任务分组租户隔离
+## 20. Configuration and Documentation
 
-- [x] 3.1 更新任务分组列表、详情和任务计数查询，按当前租户在数据库查询阶段过滤
-- [x] 3.2 更新任务分组创建，显式写入当前 `tenant_id` 并按 `(tenant_id, code)` 校验唯一性
-- [x] 3.3 更新任务分组更新和删除，操作前校验目标分组属于当前租户
-- [x] 3.4 更新删除分组迁移逻辑，只迁移当前租户内任务到当前租户默认分组
-- [x] 3.5 盘点并按需调整 seed/mock 任务分组数据，确保租户演示数据不依赖 `tenant_id=0` 全局分组
+- [x] 20.1 Tenant default policies defined centrally in code; host config template does not provide `tenant.*`, no runtime resolution config table created or read
+- [x] 20.2 `plugin.allow_force_uninstall: true` config item and documentation
+- [x] 20.3 Update root `README.md` and `README.zh-CN.md` add multi-tenant chapters
+- [x] 20.4 Add plugin author guide in `docs/`: scope_nature, install_mode, LifecycleGuard, tenant event subscription
+- [x] 20.5 `apps/lina-plugins/multi-tenant/README.md` and `README.zh-CN.md` bilingual mirrors
 
-## 4. Fallback 元数据与前端显隐
+## 21. Platform Context Guard (Permission Boundary Hardening)
 
-- [x] 4.1 更新配置 API DTO、服务投影和前端类型，返回 `sourceTenantId`、`isFallback`、`canEdit`、`canOverride`、`overrideMode`
-- [x] 4.2 更新字典类型和字典数据 API DTO、服务投影和前端类型，返回同一套 fallback 来源与动作元数据
-- [x] 4.3 更新参数设置页面，按动作元数据隐藏 fallback 行的直接编辑/删除入口，并避免必失败详情请求
-- [x] 4.4 更新字典类型和字典数据页面，按动作元数据隐藏 fallback 行的直接编辑/删除入口，并避免必失败详情请求
-- [x] 4.5 若本阶段实现创建租户覆盖入口，补齐明确的覆盖创建流程；若不实现，保留 `canOverride` 元数据但不显示直接覆盖按钮
+- [x] 21.1 Add or reuse platform context guard, cover platform tenant interfaces, menu governance write operations, plugin platform governance write operations, explicitly reject acting-as-tenant context
+- [x] 21.2 Integrate platform context validation in `apps/lina-plugins/multi-tenant/backend/internal/service/tenant` platform tenant list, detail, create, update, delete, enable/disable and impersonation entries
+- [x] 21.3 Integrate platform context validation in `apps/lina-core/internal/service/menu` create, update, delete, status/visibility change paths, maintain permission topology revision publish failure-close
+- [x] 21.4 Integrate platform context validation in `apps/lina-core/internal/service/plugin` sync, upload, install, uninstall, enable, disable, upgrade, install mode and tenant provisioning policy write paths
 
-## 5. i18n、apidoc 和错误治理
+## 22. Role Authorization Assignable Set
 
-- [x] 5.1 为平台上下文缺失、角色菜单分配 forbidden、任务分组租户不可见等新增或复用稳定 `bizerr` 错误码
-- [x] 5.2 补齐宿主和 multi-tenant 插件的 `manifest/i18n/{zh-CN,en-US}/error.json` 错误翻译
-- [x] 5.3 补齐相关 apidoc i18n JSON，确保新增错误和新增响应字段有中英文说明
-- [x] 5.4 补齐前端运行时语言包中 fallback 只读、继承平台默认、创建租户覆盖等可见文案；本阶段未新增 fallback 可见文案，仅隐藏直接编辑/删除入口并保留 `canOverride` 元数据
+- [x] 22.1 Implement centralized assignable menu/permission predicate, determine platform-only permissions by platform context, tenant context, `menu_key`, permission string and plugin governance metadata
+- [x] 22.2 Update role menu tree query, tenant context filters platform tenant management, platform plugin governance and global menu governance write permissions
+- [x] 22.3 Update role create and update, validate all `menuIds` belong to current context assignable set before writing `sys_role_menu`
+- [x] 22.4 Confirm abnormal historical platform-only authorization cannot bypass platform control plane guard, filter tenant-state checked keys if necessary
 
-## 6. 自动化测试
+## 23. Job Group Tenant Isolation
 
-- [x] 6.1 后端单元测试：租户上下文即使持有异常 `system:tenant:*` 权限也不能访问 `/platform/tenants`
-- [x] 6.2 后端单元测试：租户角色授权树不返回平台节点，角色创建/更新提交 platform-only `menuIds` 被拒绝
-- [x] 6.3 后端单元测试：租户上下文不能创建、更新、删除全局菜单
-- [x] 6.4 后端单元测试：租户上下文不能更新插件 tenant provisioning policy 或执行平台插件生命周期治理动作
-- [x] 6.5 后端单元测试：任务分组列表、创建、更新、删除、任务计数和删除迁移均按 `tenant_id` 隔离
-- [x] 6.6 后端单元测试：配置和字典 fallback 行返回正确来源与动作元数据
-- [x] 6.7 新增 multi-tenant 插件 E2E `TC0239-tenant-role-platform-permission-blocked.ts`，覆盖租户角色授权树隐藏平台节点、提交平台 `menuIds` 被拒绝、异常平台权限不能访问平台租户接口
-- [x] 6.8 新增 E2E `TC0240-tenant-governance-actions-hidden.ts`，覆盖租户态菜单管理和插件管理平台治理动作隐藏且后端拒绝直接调用
-- [x] 6.9 新增 E2E `TC0241-tenant-job-group-isolation.ts`，覆盖租户任务分组只显示本租户、创建写入当前租户、不能更新或删除范围外分组
-- [x] 6.10 新增 E2E `TC0242-config-dict-fallback-readonly.ts`，覆盖参数和字典 fallback 行不显示直接编辑入口且不触发 not found 详情请求
+- [x] 23.1 Update job group list, detail and task count queries, filter by current tenant at database query stage
+- [x] 23.2 Update job group create, explicitly write current `tenant_id` and validate uniqueness by `(tenant_id, code)`
+- [x] 23.3 Update job group update and delete, validate target group belongs to current tenant before operation
+- [x] 23.4 Update delete group migration logic, only migrate current tenant's tasks to current tenant's default group
+- [x] 23.5 Inventory and adjust seed/mock job group data as needed, ensure tenant demo data does not depend on `tenant_id=0` global groups
 
-## 7. 验证与审查
+## 24. Fallback Metadata and Frontend Visibility
 
-- [x] 7.1 运行受影响 Go 包测试，至少覆盖 `apps/lina-core/internal/service/{menu,role,plugin,jobmgmt,sysconfig,dict}` 和 `apps/lina-plugins/multi-tenant/backend/internal/service/tenant`
-  - 已通过：`cd apps/lina-core && go test ./internal/service/menu ./internal/service/role ./internal/service/jobmgmt ./internal/service/sysconfig ./internal/service/dict -count=1`
-  - 已通过：`cd apps/lina-core && go test ./internal/service/plugin -run 'TestPluginGovernanceMethodsRejectTenantContext|TestUpdateTenantProvisioningPolicy' -count=1`
-  - 已通过：`cd apps/lina-plugins/multi-tenant/backend && GOWORK=off go test ./internal/service/tenant -count=1`
-  - 已通过：使用完整宿主配置副本并将 `database.default.link` 指向临时 SQLite 库 `/tmp/linapro-plugin-test.Vl4Jba/linapro-plugin-test.db`，执行 `GF_GCFG_PATH=/tmp/linapro-plugin-test.Vl4Jba GF_GCFG_FILE=config.yaml go run main.go init --confirm=init --sql-source=local --rebuild=true` 初始化宿主 schema，再补齐 multi-tenant 插件 `manifest/sql/001-multi-tenant-schema.sql` 后运行 `GF_GCFG_PATH=/tmp/linapro-plugin-test.Vl4Jba GF_GCFG_FILE=config.yaml go test ./internal/service/plugin -count=1`
-  - 说明：共享开发 Postgres 库上直接运行 `cd apps/lina-core && go test ./internal/service/plugin -count=1` 曾因历史插件治理残留失败，错误为 `Plugin <id> cannot be changed because installed plugins depend on it`；隔离初始化库完整通过后，判定该失败来自共享库状态污染而非当前工作区代码或测试用例。
-- [x] 7.2 如修改 Controller 构造、路由绑定、启动编排或 API 签名，运行 `cd apps/lina-core && go test ./internal/cmd -count=1` 或更窄但覆盖绑定的测试
-  - 已通过：`cd apps/lina-core && go test ./internal/cmd -count=1`
-- [x] 7.3 运行前端 typecheck、i18n 检查、E2E TypeScript 校验和新增 Playwright 用例
-  - 已通过：`cd apps/lina-vben && pnpm -F @lina/web-antd typecheck`
-  - 已通过：`go run ./hack/tools/linactl i18n.check`
-  - 已通过：`cd hack/tests && pnpm exec tsc --noEmit -p tsconfig.json`
-  - 已通过：`cd hack/tests && pnpm test:validate`
-  - 已通过：重启当前工作区服务后，`cd hack/tests && E2E_BROWSER_CHANNEL=chrome pnpm exec playwright test apps/lina-plugins/multi-tenant/hack/tests/e2e/tenant-isolation/TC0239-tenant-role-platform-permission-blocked.ts apps/lina-plugins/multi-tenant/hack/tests/e2e/platform-admin/TC0240-tenant-governance-actions-hidden.ts apps/lina-plugins/multi-tenant/hack/tests/e2e/tenant-isolation/TC0241-tenant-job-group-isolation.ts apps/lina-plugins/multi-tenant/hack/tests/e2e/tenant-isolation/TC0242-config-dict-fallback-readonly.ts`
-- [x] 7.4 运行 `openspec validate tenant-permission-boundary-hardening --strict`
-  - 已通过：`openspec validate tenant-permission-boundary-hardening --strict`
-- [x] 7.5 运行相关 diff 空白检查，并记录 i18n、缓存一致性、数据权限和开发工具影响结论
-  - 已通过：`git diff --check`
-  - 已通过：`git -C apps/lina-plugins diff --check`
-  - i18n 结论：已同步宿主和 multi-tenant 插件错误资源、宿主 apidoc i18n JSON 与前端类型；本阶段 fallback 可见操作仅隐藏直接编辑/删除入口，未新增前端运行时可见文案。
-  - 缓存一致性结论：未新增缓存；菜单、角色和插件治理继续复用既有权限拓扑、插件运行时状态和显式作用域失效机制；任务分组无独立缓存。
-  - 数据权限结论：平台控制面新增平台上下文强 guard；角色授权可分配集合、任务分组读写迁移、配置/字典 fallback 元数据均按当前租户上下文收敛。
-  - 开发工具结论：未新增或修改长期维护开发工具/脚本；验证复用现有 `linactl`、Go、pnpm 和 Playwright 入口。
-- [x] 7.6 完成实现后调用 `lina-review` 进行代码和规范审查
-  - 已完成：审查发现 `SyncSourcePlugins` 仍可作为公开写入口绕过新增平台 guard，已补齐同一 `ensurePlatformGovernance` 校验并纳入 `TestPluginGovernanceMethodsRejectTenantContext` 覆盖。
-  - 审查结论：未发现新的必须阻断问题；`plugin` 全包测试的动态/源码插件生命周期失败仍作为 7.1 阻断和剩余风险保留。
+- [x] 24.1 Update config API DTO, service projection and frontend types, return `sourceTenantId`, `isFallback`, `canEdit`, `canOverride`, `overrideMode`
+- [x] 24.2 Update dict type and dict data API DTO, service projection and frontend types, return same fallback source and action metadata
+- [x] 24.3 Update parameter settings page, hide fallback row direct edit/delete entries by action metadata, avoid must-fail detail requests
+- [x] 24.4 Update dict type and dict data pages, hide fallback row direct edit/delete entries by action metadata, avoid must-fail detail requests
+- [x] 24.5 If implementing tenant override creation entry in this phase, supplement clear override creation flow; if not implementing, retain `canOverride` metadata but do not display direct override button
 
-## Feedback
+## 25. Tenant Switcher UI Fix
 
-- [x] **FB-1**: 平台 admin 在监控插件已安装启用时，系统监控目录只显示服务监控，缺少登录日志、在线用户和操作日志
-  - 插件状态：通过 `/api/v1/plugins` 确认 `monitor-loginlog`、`monitor-online`、`monitor-operlog` 均为 `installed=1`、`enabled=1`、`runtimeState=normal`，安装模式为 `tenant_scoped` 且 `scopeNature=tenant_aware`。
-  - 根因：插件集成层的已启用快照为进程级共享状态，租户上下文菜单过滤可能把租户范围插件写入为 disabled，平台 admin 后续复用该租户派生快照时会错误隐藏登录日志、在线用户和操作日志菜单。
-  - 修复：`storeLoadedEnabledSnapshot` 改为接收 `ctx`，仅平台租户上下文允许刷新共享启用快照，避免租户态过滤污染平台 admin 菜单过滤结果。
-  - 自动化验证已通过：`cd apps/lina-core && go test ./internal/service/plugin/internal/integration -run 'TestStoreLoadedEnabledSnapshotBackfillsSharedState|TestTenantSnapshotDoesNotOverwritePlatformSnapshot|TestPlatformOnlyGlobalPluginRemainsEnabledInTenantContext' -count=1`、`cd apps/lina-core && go test ./internal/service/plugin/internal/integration -count=1`。
-  - 接口验证已通过：`/api/v1/menus/all` 返回 `/monitor/online`、`/monitor/server`、`/monitor/operlog`、`/monitor/loginlog`，`/api/v1/user/info` 返回对应 `monitor:*` 权限。
-  - Playwright 验证已通过：admin 登录后展开系统监控目录，可见 `在线用户`、`服务监控`、`操作日志`、`登录日志`，截图保存为 `temp/screenshots/admin-monitor-menus.png`。
-  - i18n 影响：本次未新增、修改或删除用户可见文案和翻译键。
-  - 缓存一致性影响：未新增缓存键或缓存后端；修复范围为进程内插件启用快照写入边界，禁止租户上下文覆盖平台快照，分布式插件状态仍沿用既有运行时状态与拓扑失效机制。
-  - 数据权限影响：未新增数据读写接口；仅修正平台 admin 菜单可见性，租户态菜单过滤边界不扩大。
-  - lina-review 结论：未发现新的阻断问题；变更未修改 API、Controller、路由绑定或数据库访问面，Go 编译门禁由 `go test ./internal/service/plugin/internal/integration -count=1` 覆盖，新增测试可复现并防止租户上下文污染平台共享快照。
-- [x] **FB-2**: tenant-user 上传图片后文件管理列表不可见，但平台 admin 可见；同时审查其他业务模块是否存在类似租户归属漏写问题
-  - 根因：`file.Upload` 写入 `sys_file` 时未设置 `tenant_id`，租户上传的文件落到平台租户 `0`；文件管理列表已经按当前租户和角色数据权限过滤，所以 tenant-user 查不到，平台 admin 可见。
-  - 修复：文件上传新文件和重复 hash 复用路径均写入当前 `tenant_id`，重复 hash 查询限定同一租户，保证跨租户不会复用范围外文件元数据。
-  - 同类修复：用户 Excel 导入写入 `sys_user.tenant_id`，并在需要时同事务写入租户成员关系；字典类型/数据导入和参数配置导入均按当前租户判断存在性、写入当前租户，并避免租户覆盖导入误更新平台 fallback 行；调度器创建运行中/终态任务日志时继承 `sys_job.tenant_id`。
-  - 同类审查：角色、角色菜单、用户角色、任务分组/任务创建、通知消息/投递、在线会话、KV cache、插件状态、动态插件 host state、源码插件 content-notice/org-center/monitor 登录和操作日志等路径已显式设置或传递租户；插件目录、插件发布、插件节点状态、源码插件治理数据属于平台/运行时治理边界，本次未改。
-  - 自动化验证已通过：`cd apps/lina-core && go test ./internal/service/file -count=1`、`cd apps/lina-core && go test ./internal/service/sysconfig -count=1`、`cd apps/lina-core && go test ./internal/service/dict -count=1`、`cd apps/lina-core && go test ./internal/service/user -count=1`、`cd apps/lina-core && go test ./internal/service/jobmgmt ./internal/service/jobmgmt/internal/scheduler -count=1`。
-  - 治理验证已通过：`openspec validate tenant-permission-boundary-hardening --strict`、`git diff --check`。
-  - i18n 影响：未新增、修改或删除用户可见文案、错误码、API DTO 或翻译键。
-  - 缓存一致性影响：未新增缓存或缓存失效路径；修复仅调整持久化租户归属，读取侧继续复用既有租户/数据权限过滤。
-  - 数据权限影响：写入归属与已有读取过滤对齐；文件列表、配置/字典 fallback 读取、用户列表和任务日志列表不会再因写入 `tenant_id=0` 泄漏或隐藏租户数据。
-  - 开发工具影响：未新增或修改开发工具、脚本或跨平台入口。
-  - lina-review 结论：审查发现导入和文件 hash 复用路径不能用平台绕过式 `ApplyTenantScope` 表达“当前租户存在性”，已改为显式 `tenant_id = CurrentTenantID(ctx)` 并重新运行上述测试；未发现新的阻断问题。
-- [x] **FB-3**: tenant-user mock 租户用户不应看到平台级服务监控菜单
-  - 根因：multi-tenant mock 数据为 `tenant-user` 动态授予平台管理子树以外的所有启用菜单；`monitor-server` 是 `platform_only` + `global` 插件，因此仍会被授权并在租户上下文显示为服务监控。
-  - 修复：`tenant-user` mock 授权 SQL 在排除平台管理子树的基础上，额外排除 `plugin:monitor-server:%` 菜单键，避免授予服务监控页面及其权限节点。
-  - 自动化验证已通过：`cd apps/lina-plugins/multi-tenant && GOWORK=off go test . -run TestMultiTenantMockDataContainsTenantUserIsolationAccount -count=1`、`cd apps/lina-plugins/multi-tenant && GOWORK=off go test . -count=1`。
-  - 治理验证已通过：`openspec validate tenant-permission-boundary-hardening --strict`。
-  - i18n 影响：仅调整 mock SQL 注释和测试断言，不新增、修改或删除用户可见文案、翻译键、manifest i18n 或 apidoc 资源。
-  - 缓存一致性影响：不新增缓存读写或失效路径；变更仅影响重新初始化或重新加载 mock 数据后的角色菜单关系。
-  - 数据权限影响：收窄 `tenant-user` mock 角色菜单授权，避免租户演示账号获得平台级服务监控入口；未改变运行时权限解析、真实租户插件启用规则或业务数据访问接口。
-  - 开发工具影响：未新增或修改开发工具、脚本或跨平台入口。
-  - lina-review 结论：未发现新的阻断问题；变更范围仅为 mock SQL 授权谓词、对应测试断言和任务记录，未修改生产 Go 代码、API、Controller、路由绑定、缓存逻辑或 i18n 资源。
-- [x] **FB-4**: 配置和字典 fallback `overrideMode` 等 API DTO 使用裸 `string` 表达枚举语义，需审查并修复同类 API 枚举字段
-  - 根因：配置和字典 fallback 元数据中的 `overrideMode` 是有限动作模式，但 API DTO 使用裸 `string`；同类问题还存在于定时任务、任务日志、任务处理器、菜单、插件治理、公共前端配置、健康检查、i18n 诊断、用户消息来源和列表排序方向等 DTO 字段。
-  - 修复：为上述 API 包新增或补齐命名枚举类型与常量，并在 Controller 边界显式完成服务层字符串/领域枚举到 API DTO 枚举的转换；JSON wire 值保持不变。
-  - 同类审查：`dictType`/字典 `type`、文件 `scene`、分组 `code`、错误 `reason`/`errorCode`、缓存 `scope`、租户候选 `status` 等保留为 `string`，原因分别是字典类型标识、字典模块维护的业务值、开放业务编码、机器错误码/说明、显式缓存作用域或 provider-owned 生命周期状态，不属于宿主 API 可封闭维护的 Go 枚举。
-  - 自动化验证已通过：`cd apps/lina-core && go test ./api/... -count=1`、`cd apps/lina-core && go test ./api ./internal/controller/config ./internal/controller/dict ./internal/controller/job ./internal/controller/joblog ./internal/controller/jobhandler ./internal/controller/menu ./internal/controller/user ./internal/controller/plugin ./internal/controller/publicconfig ./internal/controller/health ./internal/controller/i18n ./internal/controller/usermsg ./internal/controller/file ./internal/controller/jobgroup -count=1`、`cd apps/lina-core && go test ./internal/cmd -count=1`。
-  - 治理验证已通过：`openspec validate tenant-permission-boundary-hardening --strict`、`git diff --check`。
-  - i18n 影响：未新增、修改或删除用户可见文案、错误码、运行时语言包、`manifest/i18n` 或 `apidoc i18n JSON`；仅收紧 Go API DTO 类型。
-  - 缓存一致性影响：不涉及缓存读写、失效、刷新或跨实例协调；JSON wire 值不变。
-  - 数据权限影响：不新增或扩大数据操作接口，不改变查询、详情、写操作或导出过滤边界；仅调整 DTO 类型和投影转换。
-  - 开发工具影响：未新增或修改长期维护开发工具、脚本或跨平台执行入口。
-  - lina-review 结论：未发现新的阻断问题；后端 Go 编译门禁、启动绑定包测试、OpenSpec 严格校验和空白检查均已通过。
-- [x] **FB-5**: 登录页选择租户后不应短暂回显账号密码输入界面，应展示进入租户的过渡加载状态直到后台路由完成
-  - 根因：`selectTenant` 在拿到租户访问令牌后立即清空 `pendingPreToken`，登录页条件渲染因此短暂切回账号密码表单；随后 `fetchUserInfo` 与后台路由跳转完成后才离开登录页。
-  - 修复：新增 `tenantLoginTransitioning` 状态，选择租户后优先展示 `login-tenant-transition` 过渡界面，避免账号密码表单在令牌交换、用户信息加载和后台路由跳转期间回显。
-  - 自动化验证已通过：`cd apps/lina-vben && pnpm -F @lina/web-antd typecheck`、`cd hack/tests && pnpm exec tsc --noEmit -p tsconfig.json`、`cd hack/tests && pnpm test:validate`、`cd hack/tests && E2E_BROWSER_CHANNEL=chrome pnpm exec playwright test apps/lina-plugins/multi-tenant/hack/tests/e2e/tenant-switching/TC0184-login-select-tenant.ts --config playwright.config.ts --project=chromium`。
-  - Playwright 截图验证已通过：使用延迟的 `/auth/select-tenant` mock 捕获选择租户后的页面，确认显示“正在进入租户”与加载环且账号密码输入框不存在，截图保存为 `temp/screenshots/login-tenant-transition.png`。
-  - 治理验证已通过：`go run ./hack/tools/linactl i18n.check`、`openspec validate tenant-permission-boundary-hardening --strict`、`git diff --check -- apps/lina-vben/apps/web-antd/src/store/auth.ts apps/lina-vben/apps/web-antd/src/views/_core/authentication/login.vue apps/lina-vben/apps/web-antd/src/locales/langs/zh-CN/pages.json apps/lina-vben/apps/web-antd/src/locales/langs/en-US/pages.json hack/tests/pages/MultiTenantPage.ts openspec/changes/tenant-permission-boundary-hardening/tasks.md`。
-  - i18n 影响：新增登录租户过渡界面中英文运行时文案，未修改 `manifest/i18n` 或 `apidoc i18n JSON`。
-  - 缓存一致性影响：不涉及缓存读写、失效或跨实例协调。
-  - 数据权限影响：不涉及后端数据接口或数据权限过滤；仅调整前端登录流程的过渡展示状态。
-  - 开发工具影响：未新增或修改默认开发工具、脚本或跨平台执行入口。
-  - lina-review 结论：未发现新的阻断问题；审查范围限定为前端登录状态切换、运行时语言包、共享 E2E 页面对象和任务记录，未修改 Go 生产代码、REST API、Controller、路由绑定、数据库、缓存或数据权限路径。
-- [x] **FB-6**: API 层 `xxx_enum.go` 文件仅承载过渡枚举定义，应合并到对应模块主 `xxx.go` 文件以保持 API 代码紧凑
-  - 根因：FB-4 为修复裸 `string` 枚举字段新增了多个 API 枚举定义文件，但这些 `xxx_enum.go` 只承载过渡类型与常量，降低了 API DTO 文件的聚合度。
-  - 修复：将配置、字典、文件、任务、任务分组、任务日志、任务处理器、菜单、插件、公共前端配置、健康检查、i18n 运行时语言和用户消息等 API 枚举定义合并到对应模块主 DTO 文件或最相关的核心 DTO 文件，并删除所有 `api/*/v1/*_enum.go`。
-  - 自动化验证已通过：`cd apps/lina-core && go test ./api/... -count=1`、`cd apps/lina-core && go test ./api ./internal/controller/config ./internal/controller/dict ./internal/controller/job ./internal/controller/joblog ./internal/controller/jobhandler ./internal/controller/menu ./internal/controller/user ./internal/controller/plugin ./internal/controller/publicconfig ./internal/controller/health ./internal/controller/i18n ./internal/controller/usermsg ./internal/controller/file ./internal/controller/jobgroup -count=1`、`cd apps/lina-core && go test ./internal/cmd -count=1`。
-  - 治理验证已通过：`find apps/lina-core/api -path '*/v1/*_enum.go' -print | sort` 无残留输出、`openspec validate tenant-permission-boundary-hardening --strict`、`git diff --check`。
-  - i18n 影响：不新增、修改或删除用户可见文案、错误码、运行时语言包、`manifest/i18n` 或 `apidoc i18n JSON`；JSON wire 值不变。
-  - 缓存一致性影响：不涉及缓存读写、失效、刷新、跨实例协调或最大陈旧时间变化。
-  - 数据权限影响：不新增或扩大数据操作接口，不改变读取、详情、写操作、导出或聚合过滤边界。
-  - 开发工具影响：未新增或修改长期维护开发工具、脚本或跨平台执行入口。
-  - lina-review 结论：未发现新的阻断问题；变更仅为 API 层类型定义文件组织调整和必要文件顶部注释补齐，Go 编译门禁、启动绑定包测试、OpenSpec 严格校验和空白检查均已通过。
+- [x] 25.1 Converge tenant switcher fixed width, right margin, impersonation prompt, option truncation, dark mode styles to component-local scoped CSS
+- [x] 25.2 Change building icon from Tailwind CSS utility classes to explicit `IconifyIcon` component
+- [x] 25.3 Extend multi-tenant workbench E2E page objects with switcher width, position, and spacing assertions
+
+## 26. i18n, apidoc and Error Governance
+
+- [x] 26.1 For platform context missing, role menu assignment forbidden, job group tenant invisible and other new or reused stable `bizerr` error codes
+- [x] 26.2 Supplement host and multi-tenant plugin `manifest/i18n/{zh-CN,en-US}/error.json` error translations
+- [x] 26.3 Supplement related apidoc i18n JSON, ensure new errors and new response fields have bilingual descriptions
+- [x] 26.4 Supplement frontend runtime language pack with fallback read-only, inherit platform default, create tenant override visible text; this phase does not add fallback visible text, only hides direct edit/delete entries and retains `canOverride` metadata
+
+## 27. Unit Tests
+
+- [x] 27.1 tenantcap unit tests self-contained
+- [x] 27.2 bizctx unit tests
+- [x] 27.3 tenancy middleware unit tests
+- [x] 27.4 Resolution chain unit tests (one case set per resolver)
+- [x] 27.5 LifecycleGuard hook framework unit tests (aggregation, timeout, panic, force)
+- [x] 27.6 Multi-tenant plugin service layer unit tests self-contained, cover all branches
+- [x] 27.7 org-center transformation unit tests self-contained
+- [x] 27.8 Cache isolation unit tests (cluster mode mock)
+- [x] 27.9 Platform context guard unit tests: tenant context even holding abnormal `system:tenant:*` permissions cannot access `/platform/tenants`
+- [x] 27.10 Role authorization unit tests: tenant role authorization tree does not return platform nodes, role create/submit platform-only `menuIds` rejected
+- [x] 27.11 Menu governance unit tests: tenant context cannot create, update, delete global menus
+- [x] 27.12 Plugin governance unit tests: tenant context cannot update plugin tenant provisioning policy or execute platform plugin lifecycle governance actions
+- [x] 27.13 Job group unit tests: list, create, update, delete, task count and delete migration all isolated by `tenant_id`
+- [x] 27.14 Config and dict fallback unit tests: fallback rows return correct source and action metadata
+
+## 28. E2E Tests -- Multi-Tenant Foundation
+
+- [x] 28.1 Create `hack/tests/e2e/multi-tenant/` directory and fixtures (`multi-tenant-disabled` and `multi-tenant-enabled`)
+- [x] 28.2 TC0178 Multi-tenant enabled: Platform admin installs multi-tenant plugin, system behavior correct after enable
+- [x] 28.3 TC0179 Platform admin creates tenant: Basic CRUD, code validation, tombstone
+- [x] 28.4 TC0180 Tenant suspend/resume: Suspended tenant users rejected on login, resume restores
+- [x] 28.5 TC0181 Tenant management page does not expose archive entry
+- [x] 28.6 TC0182 Tenant delete protected by LifecycleGuard: guard rejects when blocking, allows after passing
+- [x] 28.7 TC0183 Multi-tenant disabled: Uninstall multi-tenant degrades to single-tenant behavior
+- [x] 28.8 TC0184 1:N user login tenant selection: Returns pre_token + list + select-tenant flow
+- [x] 28.9 TC0185 Tenant switch re-sign token: Old token immediately invalidated
+- [x] 28.10 TC0186 Platform admin impersonation start and exit
+
+## 29. E2E Tests -- Cross-Tenant Isolation Matrix
+
+- [x] 29.1 TC0187 User cross-tenant isolation: Tenant A cannot see B users
+- [x] 29.2 TC0188 Role cross-tenant isolation + platform roles only visible to platform admin
+- [x] 29.3 TC0189 Dict cross-tenant isolation + platform fallback correct
+- [x] 29.4 TC0190 Config cross-tenant isolation + platform fallback correct
+- [x] 29.5 TC0191 File cross-tenant isolation + platform shared path correct
+- [x] 29.6 TC0192 Notice cross-tenant isolation + platform broadcast correct
+- [x] 29.7 TC0193 Job cross-tenant isolation + built-in system jobs platform-level
+- [x] 29.8 TC0194 Online session cross-tenant isolation + kick validated by tenant
+- [x] 29.9 TC0195 Login log/oper log cross-tenant isolation + impersonation dual-track marking
+- [x] 29.10 TC0196 Dept (org-center) cross-tenant isolation
+- [x] 29.11 TC0197 Post (org-center) cross-tenant isolation + same code cross-tenant allowed
+
+## 30. E2E Tests -- Resolution Strategy and Login Flow
+
+- [x] 30.1 TC0198 Header resolver: Pre-login X-Tenant-Code hint hits, authenticated business request cannot override JWT TenantId
+- [x] 30.2 TC0199 Subdomain resolver: Pre-login subdomain hint hits + reserved subdomains ignored
+- [x] 30.3 TC0200 JWT resolver: Claims hit
+- [x] 30.4 TC0201 Session resolver: Post-login selection + persistent hit
+- [x] 30.5 TC0202 Default resolver + ambiguous prompt mode
+- [x] 30.6 TC0203 Fixed prompt ambiguity strategy, reject runtime switch
+- [x] 30.7 TC0204 Override: Platform admin X-Tenant-Override valid + normal user ignored
+- [x] 30.8 TC0205 Resolution chain fixed strategy, built-in strategy no-op write does not change runtime state
+
+## 31. E2E Tests -- Plugin Governance Two-Layer
+
+- [x] 31.1 TC0206 Platform admin installs tenant_aware plugin: install_mode selection global / tenant_scoped
+- [x] 31.2 TC0207 Install platform_only plugin: install_mode forced global, tenant admin cannot see
+- [x] 31.3 TC0208 Tenant admin enable/disable tenant_scoped plugin: menu/route/permission linked
+- [x] 31.4 TC0209 install_mode switch global vs tenant_scoped: state correctly migrated
+- [x] 31.5 TC0210 LifecycleGuard vetoes uninstall: active tenants block multi-tenant uninstall, aggregated reason
+- [x] 31.6 TC0211 Force channel: Platform admin force uninstall + dual confirmation + mandatory audit
+- [x] 31.7 TC0212 Hook timeout / panic fail-safe
+- [x] 31.8 TC0213 Platform new tenant auto-enable policy writes tenant plugin state on new tenant creation
+
+## 32. E2E Tests -- Platform Admin Scenarios
+
+- [x] 32.1 TC0214 Platform admin can cross-tenant read full data
+- [x] 32.2 TC0215 Platform admin impersonation operation logs dual-track recorded
+- [x] 32.3 TC0216 Platform admin force operations separately audited
+- [x] 32.4 TC0217 Platform admin view vs tenant admin view UI differentiation
+
+## 33. E2E Tests -- Permission Boundary Hardening
+
+- [x] 33.1 TC0239 Tenant role platform permission blocked: tenant role authorization tree hides platform nodes, submit platform menuIds rejected, abnormal platform permissions cannot access platform tenant interfaces
+- [x] 33.2 TC0240 Tenant governance actions hidden: tenant-state menu management and plugin management platform governance actions hidden and backend rejects direct calls
+- [x] 33.3 TC0241 Tenant job group isolation: tenant job groups only show current tenant, create writes current tenant, cannot update or delete out-of-scope groups
+- [x] 33.4 TC0242 Config dict fallback readonly: parameter and dict fallback rows do not show direct edit entry and do not trigger not found detail requests
+
+## 34. Cluster Consistency E2E
+
+- [x] 34.1 TC0218 Reject runtime resolution strategy changes, no tenant-resolution shared revision created
+- [x] 34.2 TC0219 Cross-node cache isolated by tenant invalidation
+- [x] 34.3 TC0220 Token revoke cross-node broadcast
+
+## 35. Performance and Regression
+
+- [x] 35.1 Composite index performance verification: PG `EXPLAIN` verifies key queries (user list, role list, menu resolution, dict fallback)
+- [x] 35.2 Existing single-tenant e2e suite passes under multi-tenant disabled fixture
+- [x] 35.3 Startup consistency validation passes baseline test
+
+## 36. Review and Archive Preparation
+
+- [x] 36.1 Call `/lina-review` for spec and code review, process review items
+- [x] 36.2 i18n completeness validation (zh-CN / en-US) no omissions
+- [x] 36.3 Documentation bilingual mirror sync (README, AGENTS, SKILL, etc.)
+- [x] 36.4 `openspec validate user-management --strict` passes

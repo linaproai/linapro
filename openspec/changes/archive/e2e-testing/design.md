@@ -1,233 +1,76 @@
 ## Context
 
-### Current State
+The current E2E execution chain already has a good governance foundation: `run-suite.mjs` supports full, host, smoke, and module modes; `execution-manifest.json` declares module scope, serial isolation files, and isolation categories; GitHub Actions already wraps browser E2E as `reusable-e2e-tests.yml`. Therefore, this optimization should prioritize reusing the existing runner and manifest rather than introducing a new test framework or rewriting Playwright organization.
 
-- `hack/tests/e2e/` already contains close to 100 `TC*.ts` files, but the directory tree still largely follows the legacy workbench grouping. The oversized `system/` directory still contains most host-owned test cases, even though it no longer matches the stable workbench menu boundaries.
-- Frontend static routes have already stabilized around capability groups such as `IAM`, `System Settings`, `Task Scheduling`, `Extension Center`, `About`, and `Dashboard`, while organization, content, and monitoring capabilities have been heavily pluginized. If the E2E suite keeps following the old `system/monitor/plugin` grouping, locating and maintaining coverage will only become more expensive.
-- `hack/tests/playwright.config.ts` still uses `workers: 1` and `fullyParallel: false`. In `hack/tests/fixtures/auth.ts`, the `adminPage` fixture performs a full UI login for each test.
-- Existing page objects and some test files still contain a large number of `waitForTimeout(...)` calls. Fixed waits both increase total execution time and hide the real readiness signals of the product.
-- `hack/tests/e2e/` also includes files that do not satisfy the test-case conventions, such as debug scripts and shared helpers. Duplicate TC IDs have already appeared, which shows that directory and numbering governance can no longer rely on manual discipline.
-- Full regressions expose shared-state contention between tests: plugin lifecycle, runtime i18n caches, global configuration, dictionaries, menu permissions, and other cases mutate the same database or cache state when executed in parallel, causing protocol-correct tests to produce false failures.
-- While test files can be assigned to serial or parallel execution via `hack/tests/config/execution-manifest.json`, there is no auditable global-state mutation classification and no governance documentation for runtime caches, plugin lifecycle, system parameters, dictionaries, menu permissions, and other shared state.
-
-### Constraints
-
-- The suite must continue to follow the `lina-e2e` conventions: `TC{NNNN}-{brief-name}.ts`, globally unique TC IDs, and each file being independently runnable.
-- `make test` and `pnpm test` must keep their meaning as a full E2E regression entrypoint.
-- Reorganizing the suite must not reduce valuable coverage, especially for plugin lifecycle, permission governance, task scheduling, and system configuration.
-- This is a greenfield project, so there is no need to preserve long-term compatibility with the old test directory shape. The suite can converge directly to the target structure.
-- This change targets test infrastructure and test governance; it does not alter business APIs or product runtime behavior. Existing E2E naming conventions, module directory boundaries, and i18n continuous governance requirements must continue to be followed.
+From GitHub Actions logs, host-only mode is approximately 36 minutes, with Playwright tests approximately 25 minutes, mainly accumulated from a large number of 5-10 second UI cases. Plugin-full mode is approximately 2 hours, with Playwright tests approximately 112 minutes, mainly due to plugin lifecycle tests, plugin-specific functionality tests, and plugin-sensitive host regression tests executing serially in a single job.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-1. Align the E2E directory structure with the current stable workbench capability boundaries and plugin ownership.
-2. Provide `smoke`, `module`, and `full` execution layers so developers can get the right level of feedback without always waiting for the entire suite.
-3. Reuse authenticated state to remove the cost of repeated UI login in high-frequency fixtures.
-4. Replace high-frequency fixed waits with state-based waits without sacrificing stability.
-5. Introduce limited parallelism only where execution boundaries are clearly safe.
-6. Add automated governance for directory ownership, TC uniqueness, helper placement, and execution manifests.
-7. Define "shared global state" as a classifiable, verifiable, auditable E2E execution attribute.
-8. Enable runner scripts and validation scripts to detect when high-risk shared-state cases have not entered a serial boundary.
-9. Ensure plugin, mock data, language-pack cache, system parameter, dictionary, and menu-permission related tests have stable prerequisites and cleanup strategies.
-10. Refactor cache/ETag tests to validate protocol semantics, accepting that legitimate global version refreshes may return fresh resources during a full regression.
-11. Produce documented test conflict cases and governance rules for reuse when adding new test cases.
+- Reduce plugin-full E2E wall clock to within 45 minutes as priority, while maintaining official plugin coverage.
+- Reduce host-only E2E wall clock to within 30 minutes as priority, while preserving existing host functionality coverage.
+- Reduce repeated precondition costs for ordinary plugin page tests.
+- Preserve isolation semantics for plugin lifecycle, permission matrix, runtime i18n, shared database seed, and filesystem artifact high-risk tests.
+- Allow optimization results to be reviewable through CI logs, Playwright reports, and test timing records.
 
 **Non-Goals:**
 
-1. Do not replace Playwright or introduce a second testing framework.
-2. Do not rewrite every page object in this change; prioritize the most expensive and most frequently reused paths.
-3. Do not shrink business coverage or delete valuable tests as a shortcut for speed.
-4. Do not treat backend startup, database initialization, or frontend build time as the core target of this iteration; this change focuses on the E2E suite itself.
-5. Do not force all tests into parallel execution; high-risk shared-state cases may remain in a serial pool.
-6. Do not change real business module data models, API contracts, or runtime i18n behavior.
-7. Do not disable plugin lifecycle, cache invalidation, permission synchronization, or other real business mechanisms for testing convenience.
+- Do not change production API, database schema, frontend user functionality, or plugin runtime semantics.
+- Do not remove critical E2E coverage for speed; when plugin-full scope needs narrowing, specific plugin behaviors must be recovered to their owning plugin directory for maintenance.
+- Do not introduce new external test services or new CI platforms.
+- Do not adjust product copy or i18n resources in this change.
 
 ## Decisions
 
-### D1. Reorganize the suite around stable capability boundaries instead of legacy URL buckets
+### Plugin-full first uses generic module scope for CI sharding
 
-**Decision**: Restructure `hack/tests/e2e/` around stable capability boundaries such as `iam/`, `settings/`, `scheduler/`, `extension/`, `monitor/`, `org/`, `content/`, `dashboard/`, and `about/`. Allow second-level directories for clear subdomains such as `scheduler/job/` and `monitor/operlog/`.
+Use existing runner capability to split plugin-full job, prioritizing shards:
 
-```text
-hack/tests/
-  e2e/
-    auth/
-    dashboard/
-    about/
-    iam/
-      user/
-      role/
-      menu/
-    settings/
-      dict/
-      config/
-      file/
-    org/
-      dept/
-      post/
-      user-org/
-    content/
-      notice/
-      message/
-    monitor/
-      operlog/
-      loginlog/
-      online/
-      server/
-    scheduler/
-      job/
-      job-group/
-      job-log/
-    extension/
-      plugin/
-```
+- `extension:plugin`
+- `plugins`
 
-**Rationale**: The primary job of the suite tree is to help developers quickly locate the regression surface of a capability. Capability boundaries have already stabilized in frontend routing, host menus, and plugin directories, so continuing to use an overloaded legacy bucket such as `system/` only adds cognitive overhead.
+Each shard continues to use `make dev plugins=1` and official plugin submodule checkout, with artifact names containing shard names. `extension:plugin` only selects host plugin framework, dynamic test plugin, and generic plugin governance cases from the root directory that do not depend on specific official plugins; `plugins` serves as the generic entry for all source plugin owned tests. `plugin:<plugin-id>` still serves as the generic entry for selecting a single source plugin's own tests during local or temporary CI debugging, but routine CI no longer enumerates specific official plugin IDs. This minimizes runner changes, lets source plugin owned cases execute under a unified entry, and avoids manifest maintaining long-term aliases by official plugin business modules.
 
-**Alternatives considered**:
-- Keep `system/` and add documentation only: rejected because the directory itself still fails to express the new capability boundaries.
-- Organize tests strictly by source ownership: rejected because regression navigation should start from user-facing capabilities, not physical source placement.
+Alternative is to increase the Playwright worker count per job, but many plugin-full files in the current manifest are serialized due to shared state, and directly increasing workers has limited benefit for wall clock while being more prone to state pollution.
 
-### D2. Move helpers, debug scripts, and governance scripts out of `e2e/`
+### Plugin-full and host-only maintain responsibility distinction
 
-**Decision**: Keep only real `TC*.ts` files under `hack/tests/e2e/`. Move shared API helpers, wait utilities, and data builders into `hack/tests/support/` or `hack/tests/fixtures/`. Move ad-hoc debug scripts into `hack/tests/debug/` or `hack/tests/scripts/`. Add automated validation for duplicate TC IDs, invalid files, and incorrect directory ownership.
+Host-only continues to cover host full capability; plugin-full focuses on root directory generic plugin framework tests, dynamic test plugin runtime, and each official source plugin directory's self-contained own E2E. Root `hack/tests` must not depend on any specific official plugin ID, path, menu, mock data, i18n key, or page locator; any case needing to verify specific official plugin behavior must move to `apps/lina-plugins/<plugin-id>/hack/tests/e2e/` and run through `plugin:<plugin-id>`.
 
-**Rationale**: Mixing non-test files into `e2e/` weakens readability and makes review, scanning, and execution harder to reason about. Separating executable tests from support assets simplifies both governance and tooling.
+When wanting to run a host module in a main framework environment without `apps/lina-plugins`, use `pnpm test:host:module -- <scope>`. This entry reuses the host-only exclusion list, only executing host cases in the specified scope that do not depend on official plugin workspace.
 
-**Alternative considered**:
-- Allow a small number of colocated helpers next to tests: rejected because the rule would quickly erode and reintroduce the same drift.
+Alternative is to let plugin-full continue executing `pnpm test` full volume with all modules split. This reduces wall clock but significantly increases runner minutes and continues confusing host-only and plugin-full verification responsibilities.
 
-### D3. Keep the full regression default and add manifest-driven smoke/module entrypoints
+### New authenticated page fixture without auto-navigation
 
-**Decision**:
-- Keep `pnpm test` as the full regression entrypoint so it remains compatible with existing habits and `make test` expectations.
-- Add `pnpm test:full` as an explicit full-suite alias.
-- Add `pnpm test:smoke` and `pnpm test:module -- <scope>` as fast-feedback entrypoints driven by a suite manifest instead of ad-hoc globs.
-- Maintain an execution manifest such as `config/execution-manifest.json` as the source of truth for smoke files, module scopes, and serial boundaries.
+Preserve existing `adminPage` for backward compatibility while adding a lightweight fixture, such as `authenticatedPage`. This fixture only creates a page with admin storage state, without defaulting to `/dashboard/analytics`. When migrating high-time-cost files, test cases directly navigate to the target business route, avoiding repeated dashboard first-screen loading and subsequent business page navigation costs.
 
-**Rationale**: Day-to-day development needs fast feedback, not a full regression on every iteration. Keeping `pnpm test` as a full run avoids surprise behavior changes, while manifest-driven fast entrypoints keep the workflow standardized and discoverable.
+Alternative is to directly modify `adminPage` behavior, but this affects many existing tests with higher risk.
 
-**Alternatives considered**:
-- Change `pnpm test` to smoke: rejected because it would silently change an established workflow.
-- Rely on README instructions for custom globs: rejected because discoverability and consistency would remain weak.
+### Plugin baseline prepared idempotently at suite or shard level
 
-### D4. Reuse authenticated state via pre-generated `storageState`
+Add shared helper capability allowing ordinary plugin page tests to declare needed plugin collections, executing once at suite or shard level:
 
-**Decision**:
-- Add a one-time login preparation step that generates an admin `storageState` before the suite runs.
-- Update `adminPage` and similar fixtures to consume that prepared state directly.
-- Keep real login flows available for authentication-focused tests such as login, logout, failed login, and unauthenticated redirect scenarios.
+- `syncPlugins`
+- install/enable required plugins
+- load plugin mock data when present
+- refresh plugin projection
 
-**Rationale**: Most back-office tests are validating post-login capability pages, not the login flow itself. Repeating UI login in every file is one of the biggest sources of avoidable runtime and instability.
+Lifecycle tests continue to self-control installation, enablement, disablement, and uninstallation, avoiding baseline interference with tested state.
 
-**Alternative considered**:
-- Use API login to inject token or cookie state: not chosen for now because a UI-generated `storageState` keeps the coupling to login internals lower.
+Alternative is to continue `beforeEach ensureSourcePluginEnabled` in each test file, which is simple but costly, and repeatedly refreshing plugin projection will continue amplifying plugin-full runtime.
 
-### D5. Replace fixed waits with reusable state-based waits
+### Lifecycle heavy users use representative full chain plus batch contract smoke
 
-**Decision**: Govern waits at the page-object and fixture boundaries by extracting shared readiness helpers for:
-- table readiness
-- drawer and modal readiness
-- toast and feedback readiness
-- route readiness
-- dropdown visibility and confirmation overlays
+Official plugin lifecycle tests should not run complete UI installation, enablement, disablement, uninstallation, route missing, and route recovery for every plugin. Retain one representative plugin for complete UI lifecycle, while other official plugins use API lifecycle, menu mounting, and page accessibility smoke verification.
 
-Prioritize the highest-frequency page objects such as menus, roles, dictionaries, users, and configuration pages.
-
-**Rationale**: Fixed waits are both a linear performance tax and a common source of flakes. Centralizing wait behavior inside shared helpers and page objects yields broad benefits with a contained change surface.
-
-**Alternative considered**:
-- Replace `waitForTimeout` calls one by one inside individual tests: rejected because the payoff is fragmented and hard to sustain.
-
-### D6. Use file-level pool splitting for parallel safety
-
-**Decision**:
-- Keep `fullyParallel: false` so each file still runs in order.
-- Raise file-level throughput with a limited worker count controlled by configuration and environment variables.
-- Place obviously shared-state scenarios such as plugin lifecycle, permission governance, runtime config, import/export, and scheduling into an explicit serial pool.
-- Run the full suite in two phases: a parallel pool for isolated files and a serial pool for shared-state files.
-
-**Rationale**: Current tests already have meaningful file-level isolation, so `workers: 1` artificially limits throughput. At the same time, turning on broad parallelism would amplify shared-state conflicts. A pool-splitting strategy gives a practical balance between stability and speed.
-
-**Alternatives considered**:
-- Enable broad multi-worker execution for everything: rejected because the shared-state surface is still too large.
-- Keep the suite permanently single-worker: rejected because it cannot satisfy the efficiency goal.
-
-### D7. Enforce suite governance with automated validation
-
-**Decision**: Add a validation script that checks at minimum:
-- global TC ID uniqueness
-- non-`TC` files under `hack/tests/e2e/`
-- allowed directory ownership for test files
-- valid smoke, serial, and module references in the execution manifest
-
-The validator serves both as the migration acceptance tool and as a standing guardrail for future changes.
-
-**Rationale**: Duplicate TC IDs and invalid files have already shown that manual discipline is insufficient. Automated validation is inexpensive and provides durable governance.
-
-### D8. Introduce global-state classification in the execution manifest
-
-**Decision**: Maintain machine-readable classifications for serial entries or test files in `execution-manifest.json`, such as `pluginLifecycle`, `runtimeI18nCache`, `systemConfig`, `dictionaryData`, `permissionMatrix`, `sharedDatabaseSeed`. The runner script continues to execute serial files as a set, while the validation script additionally checks classification completeness.
-
-**Rationale**: Relying solely on file paths or manual conventions to determine serial boundaries has low cost but cannot explain why a given file must be serial, nor automatically alert when new high-risk cases are added.
-
-**Alternative considered**:
-- Rely on file paths or manual conventions only: rejected because it cannot explain serial rationale or auto-detect omissions.
-
-### D9. Supplement manual classification with static heuristic detection
-
-**Decision**: `validate-e2e.mjs` should scan for high-risk APIs, helpers, or keywords such as plugin `install/enable/disable/uninstall/sync`, system parameter writes, dictionary import/modify, menu permission modifications, runtime language-pack cache assertions, `localStorage` ETag caching, and more. When a high-risk pattern is detected but the file is not in the serial boundary or lacks a declared classification, validation should fail with actionable remediation guidance.
-
-**Rationale**: Heuristics do not pursue perfect semantic analysis; they serve only as an engineering guard against omissions. Complex false positives may be handled through explicit classification or allowlist entries, but each allowlist entry must document its justification.
-
-### D10. Consolidate plugin and mock-data prerequisites into fixtures
-
-**Decision**: Tests that depend on source-plugin or dynamic-plugin state must prepare plugin state through unified fixtures/helpers. Fixtures must provide idempotent installation, enabling, necessary mock SQL loading, and frontend plugin projection refresh. Test files should not implicitly depend on another file having installed a plugin, nor assume that a specific plugin table or mock data already exists.
-
-**Rationale**: This adds a small amount of setup time but yields single-file runnability and full-regression stability.
-
-### D11. Cache tests validate protocol semantics rather than fixed response codes
-
-**Decision**: Runtime i18n ETag, public config cache, plugin frontend resource generation, and similar tests should verify "whether the request carries the correct conditional header" and "whether the server response matches the current resource version." For example, when reloading with a stale ETag, `304` indicates the version has not changed, and `200 + new ETag + body` indicates the version has legitimately refreshed; both are correct.
-
-Only when the test exclusively owns the resource version and there is no concurrent global-state mutation should a fixed `304` be asserted.
-
-**Rationale**: Global resource versions may legitimately refresh during a full regression due to plugin lifecycle, language-pack operations, or other parallel tests. Protocol-semantic assertions avoid false failures while still verifying cache behavior correctness.
-
-### D12. Prefer stable fields for business-state assertions
-
-**Decision**: When testing business counts, states, and permissions, prefer stable API fields, IDs, codes, labelKeys, and permission keys over inferring business state from localized UI text. UI copy should still be tested, but as separate presentation assertions, not as part of cross-language business-state computation.
-
-**Rationale**: This avoids language switching, traditional/simplified Chinese switching, or copy adjustments causing false business-test failures.
+Dynamic runtime tests split into core lifecycle and demo functionality verification. Assertions not needing real browser interaction such as upload size, API bridge, and data retention prioritize API/request layer verification; scenarios needing to verify host shell, iframe, new tab, and embedded runtime retain UI coverage.
 
 ## Risks / Trade-offs
 
-- **Directory migration causes many import path updates**: migrate module by module, update support-file destinations first, and run targeted regressions after each batch.
-- **Authenticated-state reuse could hide login issues**: keep `auth/` tests on real login flows.
-- **Incorrect serial/parallel classification could introduce flakes**: start conservatively, allow worker fallback, and keep obviously shared-state files in the serial pool.
-- **Partial wait cleanup could reduce the speed gain**: prioritize the highest-frequency page objects and shared flows first.
-- **A poorly curated smoke pack could drift away from real risk**: seed it with login, workspace navigation, core management CRUD, and plugin-governance paths, then evolve it with the product.
-- **Overly broad serial classification slows down full regressions**: classification covers only true global-state mutations; read-only audits, locally unique data, and files without shared state continue to run in parallel.
-- **Heuristic detection produces false positives**: allowlist entries with documented reasons are supported; reviewers must explain why parallel execution is safe.
-- **Fixture auto-loading of mock SQL may mask missing prerequisites**: fixtures only handle demo/mock data required by the test and keep SQL idempotent; business installation SQL still goes through plugin lifecycle verification.
-- **Cache tests become less strict after accepting both `200` and `304`**: the `200` branch must assert that the new ETag differs from the old ETag and that a response body is present, still verifying protocol correctness.
-- **Adding classification and validation requires short-term cleanup of existing cases**: migrate in batches, first covering known conflict files and high-risk modules, then progressively converging on other hits.
-
-## Migration Plan
-
-1. Inventory the current E2E tree, support files, duplicate TC IDs, fixed-wait hotspots, and shared-state risks.
-2. Create the target directories and support folders, move helpers/debug files, and repair imports.
-3. Move `TC*.ts` files module by module and fix duplicate TC IDs and naming conflicts.
-4. Add the execution manifest plus `smoke`, `module`, and `full` entrypoints while preserving the existing full-regression default.
-5. Introduce `storageState` generation and the new authenticated fixtures, then validate high-frequency modules outside `auth/`.
-6. Apply the first round of state-based wait cleanup, define serial/parallel pools, and run targeted plus full regressions.
-7. Extend the execution manifest with machine-readable isolation categories and update the runner to report serial/parallel boundaries.
-8. Add high-risk heuristic detection to the validation script and remediate known conflict cases.
-9. Consolidate plugin and mock-data prerequisites into idempotent fixtures; adjust cache/ETag assertions to protocol semantics.
-10. Document conflict governance rules, record timing and stability baselines, and verify with full regression.
-
-## Open Questions
-
-- No blocking open questions remain. `pnpm test` continues to mean a full regression run, while the fast-feedback entrypoints are additive.
+- [Risk] CI sharding increases total runner minutes and artifact count. -> Start with limited shards, prioritizing plugin-related scope; artifact names include shard name for easy failure location.
+- [Risk] Each shard independently initializes database and service, potentially exposing hidden cross-file dependencies. -> Maintain test file independence requirements; on failure prioritize fixing fixture preconditions rather than restoring cross-file dependencies.
+- [Risk] New fixture coexisting with old `adminPage` may cause selection confusion. -> Only migrate high-time-cost files initially, with clear usage scenarios in fixture comments and task records.
+- [Risk] Plugin baseline may mask lifecycle test expected initial states. -> Baseline only used for ordinary plugin functionality tests; lifecycle directories continue explicit cleanup and assembly.
+- [Risk] Narrowing plugin-full scope may miss host and plugin framework regression. -> Root directory only retains generic plugin framework and dynamic test plugin coverage; specific official plugin behaviors must be closed-loop in corresponding plugin directories, selectable through `plugins` or `plugin:<plugin-id>`.

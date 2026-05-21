@@ -1,99 +1,99 @@
 ## MODIFIED Requirements
 
-### Requirement: 宿主必须通过资源约定和默认配置发现内置语言
+### Requirement: Host must discover built-in languages through resource conventions and default configuration
 
-宿主系统 SHALL 从 `manifest/i18n/<locale>/*.json` 文件自动发现内置运行时语言，并通过默认配置文件中的 `i18n` 配置段维护无法从文件名推导的默认语言、多语言开关、显示排序、原生名称等元数据。LinaPro 默认交付 SHALL 只内置 `zh-CN` 和 `en-US` 两种语言资源。新增内置语言必须只需添加对应的运行时 JSON、apidoc JSON、插件 JSON 和可选的默认配置元数据，不得需要新增后端 Go 语言枚举、SQL 种子或前端 TS 语言清单。运行时文本方向按当前宿主约定固定为 `ltr`，不得需要在配置中维护 `direction`。运行时语言列表、缺失翻译检查、资源源诊断、运行时翻译包 API、ETag 协商和前端持久缓存必须自动覆盖默认启用的 `zh-CN` 和 `en-US`。
+The host system SHALL automatically discover built-in runtime languages from `manifest/i18n/<locale>/*.json` files, and maintain default language, multi-language switch, display sorting, native names, and other metadata through the `i18n` configuration section in the default configuration file. LinaPro default delivery SHALL only include `zh-CN` and `en-US` language resources. Adding a built-in language must only require adding the corresponding runtime JSON, apidoc JSON, plugin JSON, and optional default configuration metadata, without needing to add backend Go language enumerations, SQL seed, or frontend TS language lists. Runtime text direction is fixed as `ltr` per current host convention, without needing to maintain `direction` in configuration. Runtime language list, missing translation checks, resource source diagnostics, runtime translation pack API, ETag negotiation, and frontend persistent cache must automatically cover the default-enabled `zh-CN` and `en-US`.
 
-#### Scenario: 默认运行时语言列表只包含简体中文和英文
-- **WHEN** 项目使用默认 `manifest/i18n` 资源和默认配置启动
-- **THEN** `/i18n/runtime/locales` API 返回的语言列表只包含 `zh-CN` 和 `en-US`
-- **AND** `zh-CN` 标记为默认语言
-- **AND** 每个语言的 direction 字段为固定值 `ltr`
+#### Scenario: Default runtime language list only contains Simplified Chinese and English
+- **WHEN** the project starts with default `manifest/i18n` resources and default configuration
+- **THEN** the `/i18n/runtime/locales` API returns a language list containing only `zh-CN` and `en-US`
+- **AND** `zh-CN` is marked as the default language
+- **AND** each language's direction field is the fixed value `ltr`
 
-#### Scenario: 新增语言无需 Go、SQL 或前端 TS 语言清单变更
-- **WHEN** 交付项目为某语言添加 `manifest/i18n/<locale>/*.json` 和 `manifest/i18n/<locale>/apidoc/**/*.json` 资源
-- **AND** 源码插件和动态插件按相同目录约定添加该语言的资源
-- **AND** 如需控制默认语言、排序、原生名称或启用/禁用状态，仅修改默认配置文件中的 `i18n` 配置段
-- **THEN** 菜单、字典、配置、定时任务、插件、角色、系统信息等动态元数据自动返回该语言的本地化结果
-- **AND** 运行时语言列表自动包含该语言
-- **AND** 无需修改后端 Go 常量、SQL 种子、前端 `SUPPORT_LANGUAGES` 或第三方语言切换分支
+#### Scenario: Adding a language without Go, SQL, or frontend TS language list changes
+- **WHEN** a delivery project adds `manifest/i18n/<locale>/*.json` and `manifest/i18n/<locale>/apidoc/**/*.json` resources for a language
+- **AND** source plugins and dynamic plugins add resources for that language following the same directory convention
+- **AND** if default language, sorting, native name, or enabled/disabled state needs control, only the `i18n` configuration section in the default configuration file is modified
+- **THEN** menus, dictionaries, configurations, scheduled tasks, plugins, roles, system info, and other dynamic metadata automatically return localized results for that language
+- **AND** the runtime language list automatically includes that language
+- **AND** no modification to backend Go constants, SQL seed, frontend `SUPPORT_LANGUAGES`, or third-party language switching branches is needed
 
-#### Scenario: 禁用多语言仅使用默认语言
-- **WHEN** 默认配置文件中 `i18n.enabled` 为 `false`
-- **AND** 用户的浏览器或请求参数传递非默认语言
-- **THEN** 宿主请求语言解析回退到 `i18n.default`
-- **AND** `/i18n/runtime/locales` 响应将多语言开关标记为关闭，仅返回默认语言描述符
-- **AND** 默认管理工作台隐藏语言切换按钮，以默认语言加载静态语言包、运行时翻译包和公共前端配置
+#### Scenario: Disabling multi-language uses only the default language
+- **WHEN** `i18n.enabled` is `false` in the default configuration file
+- **AND** the user's browser or request parameters pass a non-default language
+- **THEN** host request language parsing falls back to `i18n.default`
+- **AND** the `/i18n/runtime/locales` response marks the multi-language switch as off, returning only the default language descriptor
+- **AND** the default management workbench hides the language switch button, loading static language packs, runtime translation packs, and public frontend configuration in the default language
 
-#### Scenario: 从 locales 列表移除语言即禁用该语言
-- **WHEN** 项目存在多个 `manifest/i18n/<locale>/*.json` 资源
-- **AND** 默认配置文件 `i18n.locales` 仅列出部分语言
-- **THEN** `/i18n/runtime/locales` 仅返回 `i18n.locales` 中列出的语言
-- **AND** 请求未列出的语言回退到 `i18n.default`
+#### Scenario: Removing a language from the locales list disables it
+- **WHEN** the project has multiple `manifest/i18n/<locale>/*.json` resources
+- **AND** the default configuration file `i18n.locales` lists only some languages
+- **THEN** `/i18n/runtime/locales` returns only languages listed in `i18n.locales`
+- **AND** requests for unlisted languages fall back to `i18n.default`
 
-### Requirement: 默认管理工作台必须维护固定 LTR 文档方向
+### Requirement: Default management workbench must maintain fixed LTR document direction
 
-默认管理工作台 SHALL 按当前宿主约定将文档方向固定为 `ltr`。语言切换时，工作台必须同时设置 `<html dir>` 为 `ltr` 并向 `Ant Design Vue` 的 `ConfigProvider` 注入 `direction="ltr"`。前端不得维护静态 RTL 语言注册表，新增语言时不得需要修改方向相关的 TypeScript 分支。
+The default management workbench SHALL fix document direction as `ltr` per current host convention. When switching languages, the workbench must simultaneously set `<html dir>` to `ltr` and inject `direction="ltr"` into `Ant Design Vue`'s `ConfigProvider`. The frontend must not maintain a static RTL language registry, and adding languages must not require modifying direction-related TypeScript branches.
 
-#### Scenario: 切换默认内置语言时 html 方向保持 LTR
-- **WHEN** 用户在默认管理工作台切换语言到 `zh-CN` 或 `en-US` 时
-- **THEN** `document.documentElement` 的 `dir` 属性保持 `ltr`
-- **AND** `Ant Design Vue` 的 `ConfigProvider` 接收 `direction="ltr"`
+#### Scenario: html direction remains LTR when switching default built-in languages
+- **WHEN** a user switches language to `zh-CN` or `en-US` in the default management workbench
+- **THEN** `document.documentElement`'s `dir` attribute remains `ltr`
+- **AND** `Ant Design Vue`'s `ConfigProvider` receives `direction="ltr"`
 
-#### Scenario: 默认内置语言页面文案完整性足够
-- **WHEN** 用户在默认内置语言环境下打开框架默认交付的列表页、抽屉和弹窗时
-- **THEN** 页面文案以当前语言显示，布局不阻塞核心操作
-- **AND** 不需要 RTL 镜像布局
+#### Scenario: Default built-in language page text completeness is sufficient
+- **WHEN** a user opens framework default delivery list pages, drawers, and dialogs in the default built-in language environment
+- **THEN** page text displays in the current language, layout does not block core operations
+- **AND** RTL mirrored layout is not needed
 
-### Requirement: 宿主必须提供运行时翻译包分发能力
+### Requirement: Host must provide runtime translation pack distribution capability
 
-宿主系统 SHALL 提供运行时翻译包 API 和语言列表 API，按语言返回聚合消息资源和当前可用语言描述符信息，供默认管理工作台和宿主嵌入插件页面加载。运行时翻译包必须能够同时包含宿主、源码插件和当前启用的动态插件的 i18n 消息，并在输出时转换为前端可直接消费的嵌套消息对象。运行时翻译包 API 必须在响应中输出 `ETag` 头，其值由当前语言和运行时翻译包版本派生，版本变化时值必须不同；系统必须接收请求中的 `If-None-Match` 头，匹配时返回 `304 Not Modified` 且不携带消息体。任何扇区缓存失效必须触运行时翻译包版本自动递增，确保同一语言的不同翻译包内容具有不同的 ETag。
+The host system SHALL provide runtime translation pack API and language list API, returning aggregated message resources and current available language descriptor information by language, for the default management workbench and host-embedded plugin pages to load. Runtime translation packs must be able to simultaneously include host, source plugin, and currently enabled dynamic plugin i18n messages, converting to nested message objects that the frontend can directly consume. The runtime translation pack API must output an `ETag` header in the response, derived from the current language and runtime translation pack version; the system must accept the `If-None-Match` header from requests, returning `304 Not Modified` without message body when matched. Any sector cache invalidation must trigger automatic runtime translation pack version increment, ensuring different ETag values for different translation pack content in the same language.
 
-#### Scenario: 默认工作台加载运行时翻译包
-- **WHEN** 前端请求 `zh-CN` 的运行时翻译包时
-- **THEN** 宿主返回该语言的聚合消息集
-- **AND** 结果包含宿主资源、源码插件资源和启用的动态插件资源的合并结果
-- **AND** 响应包含 `ETag` 头
+#### Scenario: Default workbench loads runtime translation pack
+- **WHEN** the frontend requests the `zh-CN` runtime translation pack
+- **THEN** the host returns the aggregated message set for that language
+- **AND** the result includes merged results from host resources, source plugin resources, and enabled dynamic plugin resources
+- **AND** the response includes an `ETag` header
 
-#### Scenario: 前端获取宿主支持的语言列表
-- **WHEN** 前端请求运行时语言列表时
-- **THEN** 宿主返回多语言开关、当前支持的语言代码、默认语言标记、显示名称、原生名称和固定 LTR 文本方向
-- **AND** 显示名称以当前请求语言返回，原生名称保持对应语言自身的文本
-- **AND** 默认交付列表只包含 `zh-CN` 和 `en-US`
+#### Scenario: Frontend obtains host-supported language list
+- **WHEN** the frontend requests the runtime language list
+- **THEN** the host returns multi-language switch, currently supported language codes, default language marker, display name, native name, and fixed LTR text direction
+- **AND** the display name is returned in the current request language, the native name maintains the text of the corresponding language itself
+- **AND** the default delivery list only contains `zh-CN` and `en-US`
 
-#### Scenario: 运行时语言包支持分层维护同时保持扁平治理
-- **WHEN** 宿主从文件、源码插件或动态插件加载翻译资源时
-- **THEN** 宿主允许运行时 UI 文件资源使用分层 JSON 或扁平点分键格式
-- **AND** 宿主内部统一将消息聚合为扁平键
-- **AND** 运行时 API 以嵌套对象结构返回结果给前端，供直接合并到前端 `vue-i18n` 消息树
+#### Scenario: Runtime language pack supports layered maintenance while maintaining flat governance
+- **WHEN** the host loads translation resources from files, source plugins, or dynamic plugins
+- **THEN** the host allows runtime UI file resources to use layered JSON or flat dot-separated key format
+- **AND** the host internally unifies messages to flat keys
+- **AND** the runtime API returns results to the frontend as nested object structures for direct merging into the frontend `vue-i18n` message tree
 
-#### Scenario: 禁用插件的翻译资源不再暴露
-- **WHEN** 插件被禁用或卸载时
-- **THEN** 后续运行时翻译包结果不再包含该插件贡献的翻译消息
-- **AND** 其他宿主和启用的插件资源保持可用
-- **AND** 系统相应触发该插件相关扇区的缓存失效，运行时翻译包版本自动递增
+#### Scenario: Disabled plugin translation resources are no longer exposed
+- **WHEN** a plugin is disabled or uninstalled
+- **THEN** subsequent runtime translation pack results no longer include translation messages contributed by that plugin
+- **AND** other host and enabled plugin resources remain available
+- **AND** the system correspondingly triggers cache invalidation for sectors related to that plugin, automatically incrementing the runtime translation pack version
 
-#### Scenario: 对同一翻译包的第二次请求返回 304
-- **WHEN** 前端保存了第一次运行时翻译包请求的 `ETag`
-- **AND** 两次请求之间后端未发生缓存失效
-- **AND** 前端在第二次请求中携带 `If-None-Match` 等于之前的 `ETag`
-- **THEN** 后端返回 `304 Not Modified` 且不携带消息体
+#### Scenario: Second request for the same translation pack returns 304
+- **WHEN** the frontend saved the `ETag` from the first runtime translation pack request
+- **AND** no backend cache invalidation occurred between the two requests
+- **AND** the frontend carries `If-None-Match` equal to the previous `ETag` in the second request
+- **THEN** the backend returns `304 Not Modified` without message body
 
-### Requirement: 英文回归扫描必须覆盖框架交付页面和种子显示内容
+### Requirement: English regression scan must cover framework delivery pages and seed display content
 
-默认管理工作台 SHALL 为框架交付页面提供英文回归覆盖，确保系统生成内容、默认种子显示内容和静态 UI 文案不保留中文文本。
+The default management workbench SHALL provide English regression coverage for framework delivery pages, ensuring system-generated content, default seed display content, and static UI text do not retain Chinese text.
 
-#### Scenario: 英文回归页面不包含中文系统文案
-- **WHEN** 管理员切换到 `en-US` 并打开工作台、用户管理、角色管理、部门管理、岗位管理、字典管理、系统配置、服务监控和定时任务时
-- **THEN** 框架交付的标题、按钮、表单标签、表格列、系统生成节点、内置记录显示和确认弹窗使用英文
-- **AND** 用户可编辑的业务字段仅在明确包含在框架交付投影规则中时才本地化
+#### Scenario: English regression page does not contain Chinese system text
+- **WHEN** an administrator switches to `en-US` and opens the workbench, user management, role management, department management, position management, dictionary management, system configuration, service monitoring, and scheduled tasks
+- **THEN** framework delivery titles, buttons, form labels, table columns, system-generated nodes, built-in record displays, and confirmation dialogs use English
+- **AND** user-editable business fields are only localized when explicitly included in framework delivery projection rules
 
-#### Scenario: 英文布局回归截图检查
-- **WHEN** Playwright 在 `en-US` 下捕获岗位表单、字典表单和服务监控磁盘表格时
-- **THEN** 关键标签、选项、表头和值不会不可读地换行或重叠
-- **AND** 截图结果作为验收证据的一部分
+#### Scenario: English layout regression screenshot check
+- **WHEN** Playwright captures position form, dictionary form, and service monitoring disk table in `en-US`
+- **THEN** critical labels, options, headers, and values do not unreadably wrap or overlap
+- **AND** screenshot results serve as part of acceptance evidence
 
-#### Scenario: 版本信息菜单标题本地化一致
-- **WHEN** 管理员查看开发中心下的版本信息菜单项时
-- **THEN** 简体中文和英文各显示对应语言的标题
-- **AND** 英文标题为 `Version Info`
+#### Scenario: Version info menu title localization consistency
+- **WHEN** an administrator views the version info menu item under the development center
+- **THEN** Simplified Chinese and English each display the corresponding language title
+- **AND** the English title is `Version Info`

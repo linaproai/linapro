@@ -1,45 +1,44 @@
 ## ADDED Requirements
 
-### Requirement: 集群模式必须使用 Redis coordination
-系统 SHALL 在 PostgreSQL 集群模式下使用 Redis coordination 作为唯一支持的分布式协调实现。`cluster.enabled=true` MUST 与 `cluster.coordination=redis` 同时成立后才允许进入集群启动流程。
+### Requirement: Cluster mode must use Redis coordination
+The system SHALL use Redis coordination as the only supported distributed coordination implementation in PostgreSQL cluster mode. `cluster.enabled=true` MUST coexist with `cluster.coordination=redis` before allowing cluster startup flow.
 
-#### Scenario: PostgreSQL 集群模式启用 Redis coordination
-- **WHEN** 数据库链接为 PostgreSQL
+#### Scenario: PostgreSQL cluster mode enables Redis coordination
+- **WHEN** database link is PostgreSQL
 - **AND** `cluster.enabled=true`
 - **AND** `cluster.coordination=redis`
-- **AND** Redis 探活成功
-- **THEN** 宿主进入集群模式
-- **AND** leader election、cache coordination、session hot state 和 kvcache 均使用 coordination provider
+- **AND** Redis probe succeeds
+- **THEN** host enters cluster mode
+- **AND** leader election, cache coordination, session hot state, and kvcache all use coordination provider
 
-#### Scenario: PostgreSQL 集群模式未配置 coordination
-- **WHEN** 数据库链接为 PostgreSQL
+#### Scenario: PostgreSQL cluster mode missing coordination
+- **WHEN** database link is PostgreSQL
 - **AND** `cluster.enabled=true`
-- **AND** `cluster.coordination` 缺失
-- **THEN** 宿主启动失败
-- **AND** 不得回退到 PostgreSQL 表协调实现
+- **AND** `cluster.coordination` is missing
+- **THEN** host startup fails
+- **AND** must not fall back to PostgreSQL table coordination implementation
 
-### Requirement: 单机模式不得强制依赖 Redis
-系统 SHALL 在 `cluster.enabled=false` 时保持单机实现精简。单机模式 MUST 不启动 Redis coordination、不注册 Redis event subscriber、不使用 Redis lock 选主。
+### Requirement: Standalone mode must not force Redis dependency
+The system SHALL keep standalone implementation lean when `cluster.enabled=false`. Standalone mode MUST not start Redis coordination, not register Redis event subscriber, not use Redis lock for primary election.
 
-#### Scenario: 单机模式保留进程内协调
+#### Scenario: Standalone mode preserves process-internal coordination
 - **WHEN** `cluster.enabled=false`
-- **THEN** 当前节点直接按主节点语义运行
-- **AND** cache revision 使用进程内状态
-- **AND** kvcache 可继续使用 SQL table backend
-- **AND** auth/session 不要求 Redis
+- **THEN** current node runs directly as primary node semantics
+- **AND** cache revision uses process-internal state
+- **AND** kvcache can continue using SQL table backend
+- **AND** auth/session does not require Redis
 
-### Requirement: 集群模式不得使用 PostgreSQL 作为跨节点协调主实现
-系统 SHALL 禁止集群模式依赖 `sys_locker`、`sys_cache_revision` 或 `sys_kv_cache` 完成跨节点一致性。上述表 MAY 保留用于单机、测试、诊断或未来兜底实现。
+### Requirement: Cluster mode must not use PostgreSQL as cross-node coordination primary implementation
+The system SHALL prohibit cluster mode from depending on `sys_locker`, `sys_cache_revision`, or `sys_kv_cache` for cross-node consistency. These tables MAY be retained for standalone, testing, diagnostics, or future fallback implementation.
 
-#### Scenario: 集群模式 cachecoord 不写 sys_cache_revision
-- **WHEN** `cluster.enabled=true` 且 `cluster.coordination=redis`
-- **AND** 业务写路径发布缓存 revision
-- **THEN** 系统使用 Redis revision store
-- **AND** 不依赖 `sys_cache_revision` 递增来通知其他节点
+#### Scenario: Cluster mode cachecoord does not write sys_cache_revision
+- **WHEN** `cluster.enabled=true` and `cluster.coordination=redis`
+- **AND** business write path publishes cache revision
+- **THEN** system uses Redis revision store
+- **AND** does not depend on `sys_cache_revision` increment to notify other nodes
 
-#### Scenario: 集群模式 leader election 不写 sys_locker
-- **WHEN** `cluster.enabled=true` 且 `cluster.coordination=redis`
-- **AND** 节点参与 primary election
-- **THEN** 系统使用 Redis lock store
-- **AND** 不依赖 `sys_locker` 判断 primary
-
+#### Scenario: Cluster mode leader election does not write sys_locker
+- **WHEN** `cluster.enabled=true` and `cluster.coordination=redis`
+- **AND** node participates in primary election
+- **THEN** system uses Redis lock store
+- **AND** does not depend on `sys_locker` to determine primary

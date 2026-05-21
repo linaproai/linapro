@@ -1,24 +1,14 @@
 ## ADDED Requirements
 
-### Requirement: Plugin host service adapters must be uniformly constructed by the host runtime
+### Requirement: 插件宿主服务适配器必须由宿主运行期统一构造
+系统 SHALL 由宿主运行期统一构造并发布源码插件和动态插件 host service 适配器。适配器 MUST 复用启动期共享的宿主服务实例或共享后端，MUST 不在插件调用路径中自行构造孤立宿主服务图。
 
-The system SHALL have the host runtime uniformly construct and publish source-plugin and dynamic-plugin host service adapters. Adapters MUST reuse startup-shared host service instances or shared backends, and MUST NOT construct isolated host service graphs on their own in plugin call paths.
+#### Scenario: 源码插件使用宿主服务适配器
+- **WHEN** 源码插件调用 `pkg/pluginservice/*` 发布的宿主能力
+- **THEN** 该能力适配器由宿主运行期构造并通过 registrar 传递给插件
+- **AND** 插件生产路径不得无参创建该适配器
 
-#### Scenario: Source plugin uses host service adapters
-
-- **WHEN** a source plugin calls host capabilities published by `pkg/pluginservice/*`
-- **THEN** the capability adapter is constructed by the host runtime and passed to the plugin through the registrar
-- **AND** the adapter reuses host-shared auth, session, notify, config, i18n, pluginstate, or other dependencies
-- **AND** plugin production paths MUST NOT create the adapter with no parameters
-
-#### Scenario: Dynamic plugin host service calls shared host capabilities
-
-- **WHEN** a dynamic plugin calls cache, lock, notify, config, runtime, storage, or data host capabilities through the unified host service protocol
-- **THEN** the host service handler uses shared host services or shared backends injected by the plugin runtime
-- **AND** the handler MUST NOT create independent cache, lock, notify, config, or plugin service instances on each call
-
-#### Scenario: WASM host service configuration entry is injected during startup
-
-- **WHEN** the host starts and initializes WASM host services
-- **THEN** the startup path explicitly configures shared dependencies for cache, lock, notify, storage, config, and runtime host services
-- **AND** package-level default instances MUST NOT continue serving as actual runtime dependencies after production startup
+#### Scenario: 动态插件 host service 调用共享宿主能力
+- **WHEN** 动态插件通过统一 host service 协议调用宿主能力
+- **THEN** host service handler 使用插件 runtime 注入的共享宿主服务或共享后端
+- **AND** handler 不得在每次调用中创建独立服务实例

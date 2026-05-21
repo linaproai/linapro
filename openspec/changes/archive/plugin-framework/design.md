@@ -301,7 +301,7 @@ The host menu service no longer hardcodes official plugin IDs to fixed parent di
 
 ### 13.1 De-submodulization
 
-`make plugins.init` / `linactl plugins.init` converts `apps/lina-plugins` from a Git submodule to a regular directory, preserving all plugin code. The command removes gitlink tracking, `.gitmodules` section, `.git/config` submodule config, and `.git/modules/apps/lina-plugins` metadata. If `.gitmodules` contains other submodules, only the `apps/lina-plugins` section is removed.
+`make plugins.init` / `linactl plugins.init` converts `apps/lina-plugins` from a Git submodule to a regular directory, preserving all plugin code. The command removes gitlink tracking, `.gitmodules` section, `.git/config` submodule config, and `.git/modules/apps/lina-plugins` metadata. If `.gitmodules` contains other submodules, only the `apps/lina-plugins` section is removed. If the workspace is already a regular directory, the command outputs the status and exits successfully without deleting content.
 
 ### 13.2 Configuration-Based Source Declaration
 
@@ -317,13 +317,39 @@ plugins:
       items:
         - multi-tenant
         - org-center
+    custom:
+      repo: "https://github.com/linaproai/linapro.git"
+      root: "apps/lina-plugins"
+      ref: "main"
+      items:
+        - content-notice
 ```
 
-Each source specifies `repo`, `root` (relative path within repo, `.` for root), `ref` (shared branch/tag/commit), and `items` (string array of plugin IDs). Wildcard `"*"` expands to all plugin directories containing `plugin.yaml` under the source root. Wildcard and explicit IDs cannot be mixed in the same source. Plugin IDs must be globally unique across all sources.
+Each source specifies `repo`, `root` (relative path within repo, `.` for root), `ref` (shared branch/tag/commit), and `items` (string array of plugin IDs). `items` only accepts string arrays; object forms are not supported. Wildcard `"*"` expands to all plugin directories containing `plugin.yaml` under the source root. Wildcard and explicit IDs cannot be mixed in the same source. Plugin IDs must be globally unique across all sources. Path safety validation rejects empty root, absolute paths, `..`, path separator injection, and Windows drive paths.
 
 ### 13.3 Install, Update, and Status Commands
 
-- `plugins.install`: Temporary checkout of source repo to `temp/`, copy `<root>/<plugin-id>` to `apps/lina-plugins/<plugin-id>`. Blocks if target directory exists (use `update` or `force=1`).
+- `plugins.install`: Temporary checkout of source repo, copy `<root>/<plugin-id>` to `apps/lina-plugins/<plugin-id>`. Blocks if target directory exists (use `update` or `force=1`). Supports subset filtering via `p=<plugin-id>` and `source=<source-name>`.
 - `plugins.update`: Re-fetches from source and overwrites local directory. Blocks on local dirty state unless `force=1`.
-- `plugins.status`: Read-only diagnosis of workspace type, configured plugins, local existence, version, dirty state, lock state, and remote update status.
+- `plugins.status`: Read-only diagnosis of workspace type, configured plugins, local existence, version, dirty state, lock state, and remote update status. May update `temp/plugin-sources/<source>` tool cache for remote status, but must not create one-time `temp/plugin-source-<source>-*` clone directories.
 - Lock file at `apps/lina-plugins/.linapro-plugins.lock.yaml` records source, repo, root, ref, resolved commit, manifest version, and content digest per plugin.
+
+All commands share a workspace readiness precheck: if `apps/lina-plugins` is missing, it is created; if it is a historical submodule/gitlink, the submodule metadata is automatically converted to a plain directory before continuing. Users do not need to manually run `plugins.init` before `plugins.install`, `plugins.update`, or `plugins.status`.
+
+### 13.4 Source Checkout Caching
+
+Plugin source repository checkouts use persistent caching at `temp/plugin-sources/<source>` instead of one-time temporary clones. First access clones to the cache directory; subsequent access validates the cache is a Git repository with matching `origin` URL, then uses `git fetch --prune origin` to get incremental updates before checkout/reset to the configured `ref`. If the cache is corrupted, not a Git repository, or has a mismatched `origin` URL, the tool safely deletes only `temp/plugin-sources/<source>` and re-clones.
+
+### 13.5 Dynamic Plugin Route Namespace
+
+Dynamic plugin data plane routes use `/x/{pluginId}/...` as the canonical public prefix, decoupled from the host control plane `/api/v1` namespace. The host only extracts `pluginId` from the path; everything after belongs to the plugin. Plugins can declare their own API versions (e.g., `/x/{pluginId}/api/v1/...`, `/x/{pluginId}/api/v2/...`) or non-REST paths (e.g., `/x/{pluginId}/graphql`).
+
+The `/x` routes are mounted outside the `/api/v1` group but still go through the host unified HTTP governance chain: Response wrapper, CORS, RequestBodyLimit, Ctx initialization, runtime freshness check, PrepareDynamicRouteMiddleware, AuthenticateDynamicRouteMiddleware, and permission checks. The old `/api/v1/extensions/{pluginId}/...` path is removed without redirect or compatibility entry.
+
+### 13.6 Source Plugin Cache Service
+
+Source plugins access host KV cache through a scoped facade exposed via `HostServices.Cache()`. The contract provides `Get`, `Set`, `Delete`, `Incr`, and `Expire` operations with `time.Duration` TTL. Cache keys are internally generated by the host using the current `pluginID`, `namespace`, logical `key`, and tenant context from `ctx`.
+
+The cache adapter reuses the startup-injected shared `kvCacheSvc` instance. `cluster.enabled=false` uses the shared single-machine SQL/local backend; `cluster.enabled=true` uses the shared coordination KV backend. The cache is lossy and must not be used as the authoritative source for permissions, configuration, plugin state, tenant isolation, business data, or critical cache revision numbers. Write failures return errors honestly; they are never disguised as successes.
+
+Plugin-scoped `HostServices` wrappers are created per plugin during HTTP route registration, Cron registration, managed cron collection, and hook dispatch, binding `Cache()` to the current plugin ID.

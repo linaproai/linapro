@@ -1,68 +1,63 @@
 ## Why
 
-LinaPro's developer tooling and operations infrastructure lacked coherence across several dimensions: cross-platform compatibility, tool consolidation, environment management, automated governance, release quality gates, and version integrity.
-
-**Cross-platform compatibility** was absent. The repository's development commands relied on GNU Make, POSIX Shell, and Linux/macOS-specific tools (`lsof`, `awk`, `sed`, `nohup`, `kill`). Windows users could not execute common development tasks without installing GNU Make, Git Bash, or MSYS2. There was no unified, low-barrier entry point for Windows, macOS, and Linux developers.
-
-**Build tool fragmentation** accumulated over time. `hack/tools/image-builder`, `hack/tools/build-wasm`, and `hack/tools/runtime-i18n` existed as independent Go modules despite primarily being invoked through `linactl`. This created duplicate `go.work` entries, redundant CI fixtures, and scattered documentation paths.
-
-**Developer environment management** was conflated with service startup. The `make dev.setup` entry mixed dependency installation with the `dev` command's service-startup semantics, and there was no lightweight cross-platform health check to verify tool requirements before development.
-
-**OpenSpec archive governance** depended entirely on manual triggering. Completed changes lingered in the active directory, increasing noise in the active change list and causing feedback flows to misidentify completed work as pending.
-
-**Release quality gates** were inconsistent. The release workflow did not reuse the shared test verification suite used by nightly and main CI, and there was no version governance to ensure release tags matched framework metadata.
-
-**Upgrade governance** was incomplete. Framework upgrades worked, but source plugins lacked a formal upgrade entry point, and the source scan could overwrite effective versions with discovered versions.
-
-**Database configuration** was duplicated, cross-platform onboarding was fragmented, and API performance auditing was ad hoc.
+LinaPro 的开发工具链、发布流程和测试运行时在多个维度上存在入口分散、重复维护和效率瓶颈。`linactl` 作为统一跨平台开发入口，仍保留了 `image-builder`、`build-wasm`、`runtime-i18n` 等独立工具模块；开发环境初始化入口语义不清，缺少轻量环境检查能力；release 发布链路缺少版本一致性门禁、共享测试验证和受控打标入口；Go 单元测试耗时偏高，真实 Wasm 执行和无测试包扫描拉长了 CI 周期；登录后首页运行期 SQL 存在大量重复查询。
 
 ## What Changes
 
-- Provide a cross-platform Go CLI (`hack/tools/linactl`) as the primary development command entry point, with a Windows `make.cmd` thin wrapper for `cmd.exe` and PowerShell compatibility.
-- Consolidate `hack/tools/image-builder`, `hack/tools/build-wasm`, and `hack/tools/runtime-i18n` into `linactl/internal/` subcomponents, removing independent tool modules.
-- Add `env.check` for lightweight tool-level environment health checks and `env.setup` for frontend dependency and Playwright browser installation, replacing the old `dev.setup` entry.
-- Automate monthly OpenSpec archive governance through GitHub Actions, supporting configurable AI Coding tools (Codex, Claude Code, GitHub Copilot CLI) with PR-based write-back.
-- Restructure release workflow to reuse the shared test verification suite with Main CI's brief test scope, add release tag version governance with `linactl release.tag.check`, and provide a controlled release tag creation workflow.
-- Provide a manual nightly image build workflow that bypasses test gates, plus a memory-only Docker Compose demo launcher.
-- Extend `make upgrade` with upgrade scopes for both framework and source-plugin upgrades, with effective-version separation and startup fail-fast checks.
-- Converge duplicated database connection settings through YAML anchors and rework local SQL execution to remove `multiStatements` dependency.
-- Add cross-platform installation scripts under `hack/scripts/install/` for new developer onboarding.
-- Register the built-in log cleanup cron task through source code startup projection.
-- Add the `lina-perf-audit` agent skill for automated backend API performance auditing.
+### Build Tool Consolidation
+
+- 将镜像构建实现迁移到 `hack/tools/linactl/internal/imagebuilder`，`linactl image` 与 `linactl image.build` 直接调用内部包。
+- 将动态插件 Wasm 打包实现迁移到 `hack/tools/linactl/internal/wasmbuilder`，`linactl wasm` 直接调用内部包。
+- 将运行时 i18n 治理扫描实现迁移到 `hack/tools/linactl/internal/runtimei18n`，`linactl i18n.check` 直接调用内部包。
+- 移除 `hack/tools/image-builder`、`hack/tools/build-wasm` 与 `hack/tools/runtime-i18n` 独立工具模块及其 `go.work` 条目。
+- 更新 CI 夹具、测试辅助、E2E 代码和中英文工具文档中的旧路径引用。
+
+### Development Environment
+
+- 新增 `make env.check` / `linactl env.check`，以表格展示本地 Go、Node.js、pnpm、Vite、Playwright 和 PostgreSQL 的名称、当前版本、要求版本、是否满足和备注。
+- 新增 `make env.setup` / `linactl env.setup`，承接原 `make dev.setup` 的前端依赖安装与 Playwright Chromium 浏览器安装能力。
+- 移除 `make dev.setup` / `linactl dev.setup` 公开入口。
+- PostgreSQL 版本检测通过 Go 数据库连接直接查询 `SHOW server_version`，不依赖 `psql` 客户端工具。
+
+### Release Governance
+
+- 新增 `linactl release.tag.check` 作为唯一版本一致性校验入口，读取 `metadata.yaml` 的 `framework.version` 并校验 tag 名称。
+- 在 `Release Test and Build` workflow 中增加最早执行的 release tag 版本一致性 job，所有测试和镜像发布 job 依赖该前置 job。
+- 新增受控 `Create Release Tag` 手动 workflow，通过 GitHub App installation token 创建匹配 `framework.version` 的 tag。
+- 将 release workflow 调整为复用共享测试验证套件，采用 Main CI 的简要测试范围（不含 E2E），镜像发布等待全部验证成功。
+- 新增手动 nightly 镜像发布 workflow，直接调用镜像发布 workflow 跳过测试门禁。
+- 新增内存态 Docker Compose 演示启动入口和部署测试 Compose 开发容器。
+
+### Test Runtime Optimization
+
+- 保留 Go 单元测试主路径中的 `-race` 并发安全检测，优化重点放在测试设计和重复重型 fixture 治理上。
+- 将真实 bundled dynamic Wasm 样例执行收敛为少量 smoke 覆盖，普通单测优先使用 synthetic artifact、fake executor 或轻量测试替身。
+- 为插件 runtime、catalog、integration 和生命周期测试引入可复用轻量 fixture。
+- 调整 `linactl test.go` 的测试发现与执行策略，区分含 `_test.go` 的包和无测试包，输出可审计的耗时摘要。
+- 优化在线会话校验流程，减少每个鉴权请求对 `sys_online_session` 的重复 SQL 往返。
+- 优化插件 catalog 运行期读取路径，使用请求级快照减少 `sys_plugin_release` 重复查询。
+- 将 E2E 全局默认单测试超时从 60 秒调整为 180 秒，拆分过长 E2E 流程，调整并行 worker 为 1。
 
 ## Capabilities
 
-### Modified Capabilities
-- `upgrade-governance`: Expand framework source upgrade governance into a unified development-time entry point covering both framework and source-plugin upgrades.
-- `plugin-upgrade-governance`: Define source-plugin version discovery, effective-version separation, explicit development-time upgrades, and startup fail-fast checks.
-- `database-bootstrap-commands`: Update SQL asset-source selection by execution phase and rework local SQL execution to remove `multiStatements` dependency.
-- `cron-job-management`: Project the built-in cleanup task into `sys_job` during startup rather than through delivery SQL seed data.
-- `runtime-upgrade-governance`: Keep runtime business upgrade only as a directional constraint for future work.
-- `project-setup`: Adjust development environment commands, add environment check and initialization entries, and remove the old `dev.setup` entry.
-- `release-image-build`: Restructure release workflow to reuse shared test verification suite, add version governance, provide manual nightly entry, and add controlled release tag creation.
-- `e2e-suite-organization`: Complete E2E covers host and official plugin tests in nightly; release uses brief test scope without E2E.
-- `spec-governance`: Supplement OpenSpec archive governance with controlled monthly automation.
-
 ### New Capabilities
-- `cross-platform-dev-commands`: Define the project's cross-platform development command entry, Windows `make.cmd` compatibility, make-style parameter compatibility, external tool invocation boundaries, testing and documentation requirements.
-- `linactl-build-tool-consolidation`: Define `linactl` as the unified carrier for image building, dynamic plugin Wasm packaging, and runtime i18n governance scanning.
-- `framework-bootstrap-installer`: Provide cross-platform source code download, target directory deployment, safe extraction, environment health check, and post-installation guidance.
-- `lina-perf-audit-skill`: Define the public contract for LinaPro's backend API performance and read-request side-effect audit skill.
-- `monthly-openspec-archive`: Define monthly OpenSpec automatic archiving, consolidation, validation, PR write-back, AI Coding tool selection, and credential injection.
-- `release-version-governance`: Define release tag version consistency enforcement, cross-platform validation tooling, and controlled release tag creation workflow.
+
+- `linactl-build-tool-consolidation`：定义 linactl 统一承载镜像构建、动态插件 Wasm 打包与运行时 i18n 治理扫描能力的开发工具边界。
+- `go-unit-test-execution-efficiency`：约束 Go 单元测试的执行效率、测试层级、重型 fixture 复用、真实 Wasm smoke 边界、race 覆盖和可观测耗时报告。
+- `login-home-sql-efficiency`：约束登录后首页运行期 SQL 数量、重复查询治理、会话校验往返、插件 catalog 读取复用和验证要求。
+
+### Modified Capabilities
+
+- `release-image-build`：镜像构建命令实现边界从独立工具调整为 linactl 内部组件；发布链路增加版本一致性门禁、共享测试验证和受控打标入口。
+- `project-setup`：调整开发环境命令要求，新增环境检查与环境初始化入口，移除旧的 `dev.setup` 入口。
+- `e2e-suite-execution-efficiency`：E2E 测试执行效率优化，包括超时调整、并行 worker 控制和长流程拆分。
+- `e2e-suite-organization`：完整 E2E 由 nightly 覆盖宿主和官方插件自有 E2E；release 不运行完整 E2E。
 
 ## Impact
 
-- The repository-root development commands are unified through `hack/tools/linactl`, with `make`, `make.cmd`, and direct `linactl` invocation as interchangeable entry points.
-- `hack/tools/image-builder`, `hack/tools/build-wasm`, and `hack/tools/runtime-i18n` are removed as independent modules; their implementations live under `linactl/internal/`.
-- New `env.check` and `env.setup` commands replace `dev.setup` for environment management.
-- Monthly OpenSpec archive automation runs on a configurable schedule with PR-based write-back, supporting Codex, Claude Code, and GitHub Copilot CLI.
-- Release workflow reuses the shared test verification suite, enforces tag-version consistency, and creates GitHub Releases after successful publishing.
-- Manual nightly image build bypasses test gates for maintenance re-publishing.
-- Docker Compose demo launcher provides a memory-only experience environment.
-- Plugin registry and release synchronization no longer overwrites the current effective version during source scanning.
-- Host startup gains a preflight source-plugin upgrade check that blocks startup when upgrades are pending.
-- `apps/lina-core/hack/config.yaml` uses YAML anchors for database connection deduplication.
-- New `hack/scripts/install/` provides cross-platform installation scripts.
-- The built-in log cleanup cron task is registered through startup projection.
-- Adds `.agents/skills/lina-perf-audit/` with automated backend API performance auditing.
+- 影响 `hack/tools/linactl` 及其内部组件、根 `go.work`、`Makefile`、`make.cmd`。
+- 影响 `.github/workflows/` 中 nightly、release、main CI 和 reusable workflow。
+- 影响 `hack/deploy/` Docker Compose 演示和测试入口。
+- 影响 `apps/lina-core/internal/service/session` 和 `apps/lina-core/internal/service/plugin/internal/catalog` 的运行期读取路径。
+- 影响 `hack/tests/` E2E 配置和测试用例。
+- 不涉及后端 REST API 语义、数据库 schema 变更、前端页面结构或用户可见运行时文案。

@@ -1,28 +1,27 @@
-## Tasks
+## 1. Implementation
 
-- [x] 新增 `sys_file` 数据表及版本 SQL 文件，记录所有上传文件的元信息（文件名、原始名、大小、后缀、散列值、存储路径、使用场景、上传者等）
-- [x] 设计并实现后端文件存储抽象层（Storage 接口 + 本地存储实现），预留 OSS 扩展能力
-- [x] 实现文件管理后端 API（`POST /file/upload` 上传、`GET /file` 列表、`GET /file/download/{id}` 下载、`DELETE /file/{ids}` 删除、`GET /file/suffixes` 后缀列表、`GET /file/scenes` 场景列表），生成 DAO/Controller 骨架
-- [x] 创建前端通用文件上传 API 和 FileUpload / ImageUpload 组件，参考 ruoyi-plus-vben5 的上传组件设计
-- [x] 新增文件管理页面（系统管理 > 文件管理），包含文件列表、搜索、上传弹窗、下载、批量删除、图片预览等功能，参考 ruoyi-plus-vben5 的 OSS 文件管理页面
-- [x] 改造 TiptapEditor 富文本编辑器的图片上传，从 Base64 内嵌改为调用通用文件上传接口（scene=notice_image），新增附件上传功能（scene=notice_attachment）
-- [x] 改造用户头像上传，使用通用文件上传接口（scene=avatar）替代原有独立实现，移除旧的 avatar 上传端点和静态文件服务路由
-- [x] 编写文件管理模块及改造功能的 E2E 测试用例
-- [x] 修复文件下载功能：前端 handleDownload 改用 requestClient.download 方法，避免 JSON 响应拦截器解析二进制数据失败
-- [x] 修复文件预览 URL 展示：后端返回文件列表时拼接完整 HTTP 地址，前端直接使用
-- [x] 修复上传者列展示：显示账号名称（username）而非昵称（nickname）
-- [x] 新增文件大小和上传时间列的排序支持，后端实现排序参数处理
-- [x] 实现文件去重机制：基于 SHA-256 散列值判断重复文件，相同散列值复用已有存储文件
-- [x] 新增使用场景支持：上传接口增加 scene 可选参数，系统预定义场景列表（avatar/notice_image/notice_attachment），前端组件调用时传入对应场景
-- [x] 新增文件详情弹窗，展示文件完整信息（文件名、原始文件名、上传者、上传时间、文件大小、文件路径、使用场景等）
-- [x] 修复后端接口路径冲突：使用场景接口从 `/file/usage/scenes` 改为 `/file/scenes` 避免 301 重定向循环
-- [x] 调整文件详情弹窗宽度至 900px，设置 Descriptions 组件最小标签宽度和内容宽度，避免列折叠换行
-- [x] 修复使用场景列表接口：返回系统预定义的所有场景（从 SceneLabelMap 获取），而非仅返回数据库中已存在的场景
-- [x] 调整文件详情弹窗中 label/content 的 minWidth 统一，保持列宽一致
-- [x] 优化文件列表展示：去掉"文件名"列，将"文件后缀"改为"文件类型"，详情弹窗同步修改标签名
-- [x] 文件类型搜索框改为 Select 下拉选择，选项从后端 `/file/suffixes` 接口获取已存在的后缀列表
-- [x] 移除 sys_file_usage 关联表，将 scene 字段直接放到 sys_file 表中简化架构
-- [x] 修复文件类型筛选下拉框值格式问题：后端 Suffixes 方法使用 Array() 提取单列值，避免整行 JSON 序列化
-- [x] 优化非预览文件展示：不可预览文件显示 URL 地址（过长省略，鼠标悬停显示完整链接），替代"下载"链接
-- [x] 修复文件类型下拉框选项 Label 不含点号（如 `.docx` 显示为 `docx`）
-- [x] 文件管理列表默认开启预览模式
+- [x] 1.1 Adjust ordinary file local storage path generation, removing `t` directory layer from new upload paths.
+- [x] 1.2 Synchronously update upload path comments and API examples, avoiding continued display of old path format.
+
+## 2. Testing
+
+- [x] 2.1 Supplement or update file service unit tests, covering new upload path format.
+- [x] 2.2 Supplement or confirm old `t/...` paths still accessible by database record.
+
+## 3. Verification and Review
+
+- [x] 3.1 Run `openspec validate --strict`.
+- [x] 3.2 Run `cd apps/lina-core && go test ./internal/service/file -count=1`.
+- [x] 3.3 Run backend startup binding compile smoke `cd apps/lina-core && go test ./internal/cmd -count=1`.
+- [x] 3.4 Record i18n, cache consistency, data permission, development tools cross-platform impact assessment, and execute `lina-review` review.
+
+## 4. Completion Records
+
+- Implementation: New uploaded files' local relative storage path changed from `t/<tenantId>/<yyyy>/<MM>/<filename>` to `<tenantId>/<yyyy>/<MM>/<filename>`; historical `sys_file.path` records not migrated, reads continue by database record path access.
+- Testing: Added `TestLocalStoragePutUsesTenantIDWithoutTenantPrefix` covering new path format; added `TestOpenByPathPreservesLegacyTenantPrefixPath` covering old `t/...` path compatible read.
+- i18n: No new, modified, or deleted user-visible runtime copy, frontend language packs, plugin manifest/i18n, or apidoc i18n resources; only synchronized Go API DTO English example values.
+- Cache consistency: No new or modified cache; file access still uses `sys_file.path` database record as authoritative path, no new cache consistency risk in distributed environment.
+- Data permission: No new or modified data operation interfaces; upload records still write to current tenant, reads still depend on existing metadata query, tenant filtering, and data permission validation.
+- Development tools cross-platform: No new or modified development tools, scripts, CI entries, or default development commands.
+- Verification: `openspec validate --strict` passed; `cd apps/lina-core && go test ./internal/service/file -count=1` passed; `cd apps/lina-core && go test ./api/file/v1 ./api/user/v1 -count=1` passed; `cd apps/lina-core && go test ./internal/cmd -count=1` passed.
+- Review: Checked this change's OpenSpec records, Go backend path generation, API examples, old path compatibility tests, Go compile gate, i18n, cache consistency, data permission, and development tools cross-platform impact per `lina-review` scope, no blocking issues found.

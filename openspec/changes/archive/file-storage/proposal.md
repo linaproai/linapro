@@ -1,30 +1,27 @@
 ## Why
 
-当前系统中文件上传功能分散且实现方式不一致：用户头像通过 multipart/form-data 上传到本地文件系统，通知公告中的图片则以 Base64 编码直接存储在数据库 LONGTEXT 字段中。Base64 方式对数据库存储压力大，且缺乏统一的文件管理能力。后续还需要支持附件上传和第三方 OSS 对接，因此需要设计一个抽象且通用的文件上传模块。
+The current relative storage path for ordinary file uploads includes a `t/<tenantId>/...` prefix, where `t` is just an abbreviation for tenant, which is not intuitive enough for callers and operations troubleshooting. Users want to remove this extra directory layer while preserving the physical organization partitioned by tenant ID.
 
 ## What Changes
 
-- **通用文件上传后端模块**：设计抽象的文件存储接口（Storage Interface），默认实现本地存储，后续可扩展 OSS（阿里云、腾讯云、MinIO 等）。统一的上传 API 端点处理所有文件上传请求。
-- **文件管理数据表**：新增 `sys_file` 表记录所有上传文件的元信息（文件名、原始名、大小、后缀、存储路径、使用场景、上传者等）。
-- **文件管理业务模块**：前端新增文件管理页面，参考 ruoyi-plus-vben5 的 OSS 文件管理模块设计，支持文件列表查看、上传、下载、删除、预览等操作。
-- **通知公告附件改造**：将 TiptapEditor 中的图片从 Base64 内嵌改为调用通用文件上传接口，同时新增附件上传功能。
-- **用户头像上传改造**：将头像上传改为调用通用文件上传接口，复用统一的文件存储和管理能力。
+- New uploaded files' relative storage path changes from `t/<tenantId>/<yyyy>/<MM>/<filename>` to `<tenantId>/<yyyy>/<MM>/<filename>`.
+- Preserve existing historical paths recorded in `sys_file.path`, not performing historical file migration.
+- Download and URL access continue to use the relative path from database records, so old `t/...` files and new path files can coexist for access.
+- Update file upload path examples, unit tests, and implementation task records.
 
 ## Capabilities
 
 ### New Capabilities
-- `file-storage`: 通用文件存储抽象层，支持本地存储（默认）和 OSS 扩展，基于 SHA-256 散列值实现文件去重
-- `file-management`: 文件管理业务模块，提供文件列表、上传、下载、删除、预览、按类型和使用场景筛选等功能
+
+- `file-upload-storage-path`: Constrain ordinary file upload tenant-partitioned relative path, historical path compatibility, and verification requirements.
 
 ### Modified Capabilities
-- `user-avatar`: 用户头像上传改为调用通用文件上传接口，使用 avatar 场景标识
-- `notice-editor`: 通知公告富文本编辑器图片上传改为调用通用文件上传接口，新增附件上传功能
+
+- None.
 
 ## Impact
 
-- **数据库**：新增 `sys_file` 文件管理表
-- **后端 API**：新增文件上传/下载/列表/删除/后缀列表等 API 端点
-- **后端代码**：新增 `api/file/`、`controller/file/`、`service/file/` 模块，新增存储抽象层
-- **前端路由**：系统管理菜单下新增"文件管理"子菜单
-- **前端视图**：新增文件管理页面，修改通知公告编辑器和用户头像上传组件
-- **前端组件**：新增通用 FileUpload / ImageUpload 组件
+- Affects `apps/lina-core/internal/service/file` local storage path generation logic.
+- Affects file upload related unit tests and API documentation examples.
+- Does not change public upload, download, access API paths, does not change database schema, does not migrate existing files.
+- Does not add user-visible copy, does not affect frontend runtime language packs or plugin manifest/i18n.

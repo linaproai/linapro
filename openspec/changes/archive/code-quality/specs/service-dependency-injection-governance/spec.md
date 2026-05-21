@@ -1,140 +1,27 @@
 ## ADDED Requirements
 
-### Requirement: Backend components must manage runtime dependencies through explicit dependency injection
+### Requirement: 后端组件必须通过显式依赖注入管理运行期依赖
+系统 SHALL 要求宿主和源码插件的生产后端组件通过构造函数参数逐项显式接收运行期依赖。Controller、Middleware、Service、插件宿主服务适配器和 WASM host service MUST 不在业务构造函数、请求处理、插件回调或 host service 调用路径中隐式创建关键服务依赖，MUST NOT 通过聚合依赖结构体整体传递多个接口型运行期依赖。
 
-The system SHALL require host and source-plugin production backend components to receive runtime dependencies through individual constructor parameters. Controllers, Middleware, Services, plugin host service adapters, and WASM host services MUST NOT implicitly create key service dependencies in business constructors, request processing, plugin callbacks, or host service call paths, and MUST NOT pass multiple interface-typed runtime dependencies through aggregate dependency structs.
+#### Scenario: 服务构造函数逐项接收接口依赖
+- **WHEN** 宿主服务需要访问配置、插件、权限、租户、会话、缓存协调或 i18n 等运行期依赖
+- **THEN** 构造函数在签名中逐项接收这些接口型依赖
+- **AND** 构造函数不得在依赖缺失时静默调用其他关键服务的 `New()` 补齐依赖
 
-#### Scenario: Service constructors receive interface dependencies individually
+#### Scenario: 禁止聚合结构体隐藏接口依赖
+- **WHEN** 后端组件需要接收多个接口对象、服务对象或宿主能力适配器
+- **THEN** 这些接口型依赖必须拆分为独立构造函数参数
+- **AND** 不得通过 `Dependencies`、`Deps`、`Options` 或等价聚合结构体整体传递
+- **AND** 依赖新增、删除或替换必须能通过 Go 编译错误暴露所有未同步调用点
 
-- **WHEN** a host service needs access to configuration, plugin, authorization, tenant, session, cache coordination, or i18n runtime dependencies
-- **THEN** the constructor receives these interface-typed dependencies as individual parameters in its signature
-- **AND** the constructor MUST NOT silently call other key services' `New()` to fill in missing dependencies
+### Requirement: 缓存敏感组件必须共享运行期实例或共享后端
+系统 SHALL 对所有持有缓存、派生状态、失效观察状态、session/token 状态、插件运行时状态、运行时配置快照、权限快照或跨实例协调依赖的组件强制共享同一运行期实例或同一共享后端。
 
-#### Scenario: Aggregate structs must not hide interface dependencies
+### Requirement: 源码插件必须通过宿主发布依赖获取宿主能力
+系统 SHALL 通过源码插件 registrar 或等价宿主发布上下文向源码插件提供稳定的宿主服务目录。源码插件 Controller 和 Service MUST 通过该目录接收宿主能力适配器。
 
-- **WHEN** a backend component needs to receive multiple interface objects, service objects, or host capability adapters
-- **THEN** these interface-typed dependencies MUST be split into individual constructor parameters
-- **AND** they MUST NOT be passed through `Dependencies`, `Deps`, `Options`, or equivalent aggregate structs
-- **AND** dependency additions, removals, or replacements MUST be exposed through Go compilation errors at all unsynchronized call sites
+### Requirement: 初始化与注册 API 必须返回错误给调用方决策
+系统 SHALL 要求宿主和源码插件的运行时初始化、源码插件注册、registrar、回调注册、路由注册、Cron 注册和中间件注册 API 在依赖缺失或校验失败时返回 `error`。这些 API MUST NOT 在内部直接 `panic` 处理可预期错误。
 
-#### Scenario: Controller constructors receive service dependencies
-
-- **WHEN** a host or source-plugin controller depends on one or more service components
-- **THEN** the controller constructor receives these service instances through parameters
-- **AND** the controller constructor MUST NOT create cache-sensitive or runtime-state-sensitive service instances on its own
-
-#### Scenario: Request paths must not create key services temporarily
-
-- **WHEN** an HTTP handler, middleware, plugin callback, or WASM host service is processing a runtime call
-- **THEN** the path reuses dependencies injected at construction time
-- **AND** the path MUST NOT temporarily call key service `New()` to create a new service graph
-
-### Requirement: Must not bypass explicit dependencies through generic containers or global service locators
-
-The system SHALL complete dependency management without introducing generic DI containers, global service locators, or new host-private assembly layers. Existing startup orchestration, route binding, and plugin registrar SHALL serve as explicit construction boundaries.
-
-#### Scenario: Startup orchestration holds shared instances
-
-- **WHEN** the HTTP runtime constructs host long-lifecycle services
-- **THEN** these services are held by the existing startup orchestration structure and passed to route binding, plugin registration, and host service configuration
-- **AND** business components MUST NOT query dependencies through a global registry at runtime
-
-#### Scenario: Generic DI containers are prohibited
-
-- **WHEN** developers design solutions for backend dependency management
-- **THEN** the solution MUST NOT introduce third-party or self-developed generic DI containers
-- **AND** dependency relationships MUST remain visible through Go type signatures
-
-### Requirement: Cache-sensitive components must share runtime instances or shared backends
-
-The system SHALL enforce sharing of the same runtime instance or shared backend for all components that hold caches, derived state, subscription state, session/token state, plugin runtime state, runtime configuration snapshots, permission snapshots, or cross-instance coordination dependencies.
-
-#### Scenario: Middleware reuses authentication and authorization service instances
-
-- **WHEN** host authentication, tenant, and authorization middleware are constructed
-- **THEN** the middleware receives startup-constructed `auth`, `role`, `tenant`, `config`, `i18n`, `bizctx`, and `plugin` dependencies
-- **AND** the middleware MUST NOT create another authentication, authorization, tenant, or plugin service graph on its own
-
-#### Scenario: Plugin management and plugin runtime reuse the same plugin service
-
-- **WHEN** plugin management controllers, plugin HTTP route dispatchers, plugin runtime cache, source route registrars, or dynamic plugin host services need plugin governance state
-- **THEN** they reuse the same plugin service instance from startup or narrow interfaces published by that instance
-- **AND** they MUST NOT create plugin service instances that hold independent enabled snapshots, route bindings, frontend bundles, runtime i18n, or revision observers
-
-#### Scenario: Cache coordination backends remain consistent in cluster mode
-
-- **WHEN** `cluster.enabled=true` and a component needs cachecoord, kvcache, lock, session hot state, or token state
-- **THEN** the component uses the startup-injected coordination-backed service or the same shared coordination backend
-- **AND** it MUST NOT fall back to a local default instance visible only to the current node
-
-### Requirement: Source plugins must obtain host capabilities through host-published dependencies
-
-The system SHALL provide source plugins with a stable host service directory through the source-plugin registrar or equivalent host-published context. Source-plugin Controllers and Services MUST receive host capability adapters through this directory, and MUST NOT construct host internal service graphs on their own in plugin production paths.
-
-#### Scenario: Source plugin registers HTTP routes
-
-- **WHEN** a source plugin constructs controllers and services in the `http.route.register` callback
-- **THEN** the plugin obtains `bizctx`, `config`, `i18n`, `notify`, `auth`, `session`, `pluginstate`, and other host capabilities from the registrar-exposed host service directory
-- **AND** plugin business services receive these capabilities through explicit dependency injection
-
-#### Scenario: Plugin host service adapters are constructed by the host
-
-- **WHEN** source plugins use host capabilities published by `pkg/pluginservice/*`
-- **THEN** adapter instances are constructed by the host runtime and passed through the registrar
-- **AND** plugin production paths MUST NOT call parameterless adapter constructors to create isolated host service graphs
-
-### Requirement: Initialization and registration APIs must return errors for caller decision-making
-
-The system SHALL require host and source-plugin runtime initialization, source-plugin registration, registrar, callback registration, route registration, Cron registration, and middleware registration APIs to return `error` when dependencies are missing, registration parameters are invalid, configuration sources are missing, backend creation fails, or validation fails. These APIs MUST NOT internally `panic` to handle expected errors; whether to abort the process, ignore, or degrade MUST be explicitly decided by the topmost entry point in the call stack.
-
-#### Scenario: Source-plugin registration API returns errors
-
-- **WHEN** a source plugin declares an invalid extension point, invalid execution mode, nil callback, or duplicate registration
-- **THEN** the `pluginhost` registration API returns `error`
-- **AND** the API MUST NOT internally `panic`
-
-#### Scenario: Top-level static registration entry chooses failure exit
-
-- **WHEN** a source-plugin package-level `init` calls a registration API and receives an error
-- **THEN** the top-level static registration entry MAY explicitly `panic`
-- **AND** the panic governance scan allowlist MUST record this as a top-level entry receiving an error and choosing to exit
-
-#### Scenario: Runtime callbacks missing host dependencies
-
-- **WHEN** HTTP, Cron, Hook, or middleware registration callbacks discover missing host-published dependencies during execution
-- **THEN** the callback returns `error`
-- **AND** the host caller decides whether to block startup, record the failure, or execute another degradation strategy
-
-### Requirement: Dependency injection rules must be included in project specifications and lina-review
-
-The system SHALL write explicit dependency injection, implicit construction prohibition, initialization/registration error return, and cache-sensitive shared instance requirements into project specifications and `lina-review` review standards. Reviews MUST cover host, source plugins, plugin host services, WASM host services, and test verification.
-
-#### Scenario: Reviewing backend implementation changes
-
-- **WHEN** `lina-review` reviews any backend Go change
-- **THEN** the review checks whether newly added or modified components manage runtime dependencies through explicit dependency injection
-- **AND** the review flags implicit key service construction in production paths
-
-#### Scenario: Reviewing initialization and registration error handling
-
-- **WHEN** `lina-review` reviews runtime initialization, source-plugin registration, registrar, callback registration, or startup assembly changes
-- **THEN** the review confirms expected failures are returned as `error` to the caller
-- **AND** the review flags APIs that internally `panic` to handle expected errors
-
-#### Scenario: Reviewing aggregate interface dependency structs
-
-- **WHEN** `lina-review` reviews constructor or dependency injection designs
-- **THEN** the review flags implementations that pass multiple interface-typed runtime dependencies through aggregate structs
-- **AND** the review requires interface-typed dependencies to be split into individual constructor parameters
-
-#### Scenario: Reviewing cache-sensitive components
-
-- **WHEN** `lina-review` reviews changes involving authentication, authorization, session, plugin, configuration, i18n, cachecoord, kvcache, lock, notify, or host services
-- **THEN** the review requires explanation of how shared instances or shared backends ensure state consistency
-- **AND** if the change has no cache impact, the review conclusion MUST explicitly state this
-
-#### Scenario: Static scanning prevents regression
-
-- **WHEN** change verification completes
-- **THEN** the project executes static scanning or equivalent governance verification to identify key service `New()` calls outside test files and startup construction boundaries
-- **AND** any newly added violating calls MUST be fixed or recorded with explicit exemption reasons
+### Requirement: 依赖注入规则必须纳入项目规范和 lina-review 审查
+系统 SHALL 将显式依赖注入、隐式构造禁止、初始化/注册错误返回和缓存敏感共享实例要求写入项目规范与 lina-review 审查标准。

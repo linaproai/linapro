@@ -1,24 +1,9 @@
 ## ADDED Requirements
 
-### Requirement: Source-plugin HTTP registration must receive host-published dependency directory
+### Requirement: 源码插件 HTTP 注册必须接收宿主发布依赖目录
+系统 SHALL 在源码插件 HTTP、全局中间件和 Cron 注册回调中向插件暴露宿主发布的依赖目录。插件通过该目录获取稳定宿主能力适配器，并使用显式依赖注入构造插件 Controller 和 Service。
 
-The system SHALL expose the host-published dependency directory to source plugins in HTTP, global middleware, and Cron registration callbacks. Plugins obtain stable host capability adapters through this directory and use explicit dependency injection to construct plugin Controllers and Services.
-
-#### Scenario: Plugin route registration constructs controllers
-
-- **WHEN** a source plugin binds controllers in the `http.route.register` callback
-- **THEN** the plugin obtains the host-published dependency directory from the registrar
-- **AND** the plugin controller constructor receives the constructed plugin service or its explicit dependencies
-- **AND** the plugin controller MUST NOT create host `pluginservice` adapter instances on its own
-
-#### Scenario: Plugin global middleware reuses host dependencies
-
-- **WHEN** a source plugin registers global HTTP middleware
-- **THEN** the middleware service obtains plugin state, i18n, configuration, or other host capability dependencies through the registrar
-- **AND** the middleware MUST NOT create new host service adapters on the request path
-
-#### Scenario: Plugin Cron registration reuses host dependencies
-
-- **WHEN** a source plugin registers scheduled tasks
-- **THEN** the scheduled task service obtains host-published dependencies through the Cron registrar or equivalent context
-- **AND** the scheduled task execution path MUST NOT temporarily create key host service graphs
+#### Scenario: 插件路由注册构造控制器
+- **当** 源码插件在 `http.route.register` 回调中绑定控制器
+- **则** 插件从 registrar 获取宿主发布依赖目录
+- **且** 插件控制器构造函数接收已构造的插件 service 或其显式依赖

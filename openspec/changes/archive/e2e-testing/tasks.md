@@ -1,72 +1,72 @@
-## 1. Baseline Inventory and Governance Skeleton
+## 1. CI Sharding and Basic Governance
 
-- [x] 1.1 Inventory the current `hack/tests/e2e/` file tree, output the migration mapping from legacy directories to target capability directories, and record duplicate TC IDs, non-`TC*.ts` files, and high-frequency `waitForTimeout` hotspots.
-- [x] 1.2 Create the new execution manifest and support-directory skeleton under `hack/tests/` (for example `config/`, `support/`, `scripts/`, and `debug/`), and define where `smoke`, module scopes, and serial-pool declarations live.
-- [x] 1.3 Add an E2E governance validator that automatically checks global TC uniqueness, misplaced files, wrong directory ownership, and broken execution-manifest references.
+- [x] 1.1 Fix browser E2E workflow PostgreSQL health check, explicitly using `pg_isready -U postgres -d linapro`.
+- [x] 1.2 Change plugin-full E2E job to shard execution based on generic entry points, with shards covering `extension:plugin` and `plugins`.
+- [x] 1.3 Generate unique artifact names for plugin-full shards, ensuring Playwright report, test-results, backend logs, and frontend logs do not overwrite each other.
+- [x] 1.4 Verify shard failure causes the complete verification suite to fail and blocks dependent jobs.
 
-## 2. Directory Reorganization and Numbering Governance
+## 2. Plugin-full Coverage Scope Convergence
 
-- [x] 2.1 Create the target capability directory tree, split `hack/tests/e2e/system/` into stable capability boundaries such as `iam`, `settings`, `org`, `content`, and `scheduler`, and repair imports.
-- [x] 2.2 Further split directories such as `monitor/` and `plugin/` by plugin capability and subdomain so monitoring and extension-center cases can be located by capability.
-- [x] 2.3 Move non-test files such as `hack/tests/e2e/system/job/helpers.ts` and `hack/tests/e2e/debug/export-debug.ts` out of `e2e/` into dedicated support locations.
-- [x] 2.4 Fix existing duplicate TC IDs and naming conflicts, and update the affected imports, documentation, and manifest references.
+- [x] 2.1 Review plugin-full plugin framework generic cases to retain, clarifying generic coverage files for menus, permissions, routes, i18n, tasks, and runtime resources.
+- [x] 2.2 Converge root E2E manifest so plugin-full no longer selects root test file sets depending on specific official plugins.
+- [x] 2.3 Confirm host-only still covers host full capability, plugin-full still covers official plugin own cases and plugin lifecycle.
 
-## 3. Execution Entrypoints and Auth-State Reuse
+## 3. Authentication Fixture and Host Slow Case Optimization
 
-- [x] 3.1 Add pre-generated administrator login-state preparation and `storageState` artifact management for Playwright, and wire the preparation flow into `playwright.config.ts`.
-- [x] 3.2 Refactor `hack/tests/fixtures/auth.ts` so high-frequency fixtures such as `adminPage` reuse the prepared login state by default while authentication-focused cases still keep a real login path.
-- [x] 3.3 Add `test:smoke`, `test:module`, and `test:full` scripts to `hack/tests/package.json` while preserving the full-regression meaning of `pnpm test`.
-- [x] 3.4 Implement parallel-pool and serial-pool scheduling from the execution manifest so full regression runs in two phases: parallel-safe files first, then high-risk serial files.
+- [x] 3.1 Add lightweight authenticated page fixture in `hack/tests/fixtures/auth.ts` that does not auto-navigate to dashboard, preserving existing `adminPage` behavior.
+- [x] 3.2 Prioritize migrating menu CRUD cases suitable for direct business route entry, reducing repeated dashboard loading.
+- [x] 3.3 Prioritize migrating file management cases suitable for direct business route entry, reducing repeated dashboard loading.
+- [x] 3.4 Evaluate and migrate role CRUD, parameter import, dictionary import, and similar pattern slow files.
 
-## 4. Wait Strategy and Speed Improvements
+## 4. Plugin Baseline and Ordinary Plugin Case Optimization
 
-- [x] 4.1 Add shared state-based wait helpers for tables, dialogs, toasts, and route readiness in `hack/tests/support/` or an equivalent shared layer.
-- [x] 4.2 Refactor the page objects with the densest fixed waits first, at minimum covering menus, roles, dictionaries, users, and config pages, and replace the main `waitForTimeout` usage with state-based waits.
-- [x] 4.3 Review plugin governance, permission governance, import/export, runtime configuration, and other obvious shared-state test files to classify what must stay serial and what can safely move into the parallel pool after isolation fixes.
-- [x] 4.4 Run a second cleanup pass over the remaining fixed waits, keep only the few waits that have an explicit business justification, and document that justification with comments.
-  - A second fixed-wait cleanup pass was completed for `NoticePage`, `DeptPage`, `JobPage`, `JobLogPage`, `JobGroupPage`, `FilePage`, `RolePage`, `PluginPage`, `MenuPage`, and `TC0002`, `TC0010`, `TC0015`, `TC0017`, `TC0020`, `TC0024`, `TC0025`, `TC0026~TC0036`, `TC0038`, `TC0040`, `TC0046`, `TC0048`, `TC0049`, `TC0050`, `TC0051`, `TC0052`, `TC0056`, `TC0057`, `TC0059`, `TC0060`, `TC0061`, `TC0063`, `TC0064`, `TC0066`, `TC0099`, plus `hack/tests/debug/export-debug.ts`.
-  - The repository now has 0 remaining `waitForTimeout` usages in business tests and debug scripts.
+- [x] 4.1 Add idempotent baseline helper in plugin E2E fixture/support, supporting one-time synchronization, installation, enablement, available mock data loading, and plugin projection refresh.
+- [x] 4.2 Migrate repeated `ensureSourcePluginEnabled` in ordinary plugin page tests to suite or shard-level baseline.
+- [x] 4.3 Confirm plugin lifecycle tests still explicitly control installation, enablement, disablement, uninstallation, upload, synchronization, and cleanup state, not interfered with by ordinary baseline.
 
-## 5. Global State Isolation and Conflict Classification
+## 5. Lifecycle Heavy User Refactoring
 
-- [x] 5.1 Review the most recent full E2E regression log, catalog shared-state conflict cases, affected test files, root causes, and remediation directions.
-- [x] 5.2 Scan `hack/tests/e2e` for high-risk operations including plugin lifecycle, system parameters, dictionaries, menu permissions, runtime i18n caches, and public config caches.
-- [x] 5.3 For each hit, determine the isolation category, whether it must be serial, and whether the conflict can be resolved via fixture or semantic assertion.
-- [x] 5.4 Extend `hack/tests/config/execution-manifest.json` to add machine-readable isolation categories for serial entries or high-risk files.
-- [x] 5.5 Update `hack/tests/scripts/run-suite.mjs` to output parallel file count, serial file count, worker count, and serial isolation category summary in full, smoke, and module modes.
-- [x] 5.6 Ensure module mode continues to apply the same serial/parallel split so that module regressions cannot bypass isolation rules.
+- [x] 5.1 Refactor official source plugin lifecycle cases, retaining one representative official plugin's complete UI lifecycle, changing other official plugins to API/contract smoke plus page accessibility verification.
+- [x] 5.2 Refactor dynamic runtime lifecycle cases, distinguishing runtime core UI lifecycle from dynamic demo API/functionality verification, merging repeated assembly and retaining key UI coverage.
+- [x] 5.3 Review source plugin lifecycle cases, eliminating mergeable or API-convertible repeated lifecycle steps.
 
-## 6. E2E Validation Gate Enhancement
+## 6. Verification and Acceptance Records
 
-- [x] 6.1 Extend `hack/tests/scripts/validate-e2e.mjs` to validate isolation category format, referenced path existence, and serial entry classification completeness.
-- [x] 6.2 Add high-risk heuristic detection covering plugin install/enable/disable/uninstall/sync/upload/upgrade, system parameter writes, dictionary import/modify, menu permission modifications, and runtime i18n ETag cache assertions.
-- [x] 6.3 Output actionable error messages for files that hit high-risk patterns but are not in the serial boundary or lack a declared classification.
-- [x] 6.4 Add an allowlist structure with documented reasons for justified parallel-safe exceptions and enforce reason entry during validation.
-- [x] 6.5 Add script-level unit tests or executable verification cases for the runner covering full/module splitting and category summary output.
+- [x] 6.1 Run `openspec validate` and fix all specification issues.
+- [x] 6.2 Run affected module scope E2E smoke, covering at least `extension:plugin`, one official plugin functionality scope, and migrated host slow files.
+- [x] 6.3 Record host-only optimization before/after wall clock, total test time, slowest file, and slowest case comparison.
+- [x] 6.4 Record plugin-full optimization before/after wall clock, per-shard time, longest shard, and runner minutes change.
+- [x] 6.5 Explicitly record that this change does not affect production API, database schema, runtime cache semantics, and i18n resources; if visible copy or script entry is added during implementation, supplement corresponding governance description.
+- [x] 6.6 Complete tasks and execute `/lina-review`, reviewing CI sharding, fixtures, baselines, slow case refactoring, and verification records.
 
-## 7. Fixture and Test Case Remediation
+## Verification Records
 
-- [x] 7.1 Consolidate source-plugin state preparation logic to ensure tests depending on plugin pages/APIs/mock data use idempotent fixtures.
-- [x] 7.2 Review local files, attachments, plugin tables, and mock-data cleanup logic in dynamic-plugin and source-plugin tests to ensure single-file independence.
-- [x] 7.3 Adjust cache/ETag tests to assert that requests carry conditional headers and accept either `304` or a legitimate `200 + new ETag + body`.
-- [x] 7.4 Adjust tests that infer business state from localized UI text; switch business assertions to stable IDs, codes, labelKeys, permission keys, or API counters.
-- [x] 7.5 Perform minimal-scope remediation on known conflict-related files, covering at least `TC0124-runtime-i18n-etag.ts`, plugin lifecycle cases, organization department tree count cases, and content notice dependency cases.
-
-## 8. Documentation and Verification
-
-- [x] 8.1 Add `README.md` and `README.zh-CN.md` for `hack/tests/` to document directory boundaries, execution entrypoints, manifest mechanics, governance-script usage, isolation categories, serial boundaries, fixture prerequisites, and cache semantic assertion rules.
-- [x] 8.2 Add an E2E conflict governance record listing conflict types, representative cases, remediation approaches, and a checklist for adding new test cases.
-- [x] 8.3 Run the governance validator, `pnpm test:smoke`, at least two module-scoped regressions, and `pnpm test` / `pnpm test:full`, then record timing and stability baselines before and after the migration.
-  - Completed `pnpm run test:validate`, `pnpm test:smoke`, `pnpm run test:module -- iam:user`, `pnpm run test:module -- settings:config`, `pnpm run test:module -- settings:dict`, and `pnpm test:full`.
-  - `pnpm run test:full` passed on 2026-04-23 with 80 parallel-pool test files passing and 262 serial-pool test files passing.
-  - For the second fixed-wait cleanup and plugin-regression fixes, additional targeted regressions were rerun for notice, department, menu, online users, operation/login logs, dictionary cascading delete, login failure, message panel, user selector, dictionary export, host-boundary regression, and scheduling scenarios; all passed.
-  - `pnpm test:validate` validated 138 E2E files, 28 scopes, 7 smoke files, and 103 serial files.
-  - `node scripts/run-suite.mjs module i18n --list` outputs module split and isolation category summary.
-  - Affected subset: `TC0066-source-plugin-lifecycle.ts`, `TC0124-runtime-i18n-etag.ts`, `TC0021-user-dept-tree-count.ts`, `TC0037-notice-crud.ts` all passed; `TC0124` passed 5/5 after fix.
-  - Full regression second round: parallel phase `102/102` passed; serial phase executed 326 assertions, 260 passed, 6 skipped, 4 not run.
-- [x] 8.4 Cross-check the delivered directory structure, execution layering, auth-state reuse, parallel boundaries, isolation categories, and conflict governance against the OpenSpec design and specs so the change is ready for archive.
+- Passed `openspec validate --strict`.
+- Passed `pnpm -C hack/tests exec tsc --noEmit`.
+- Passed `pnpm -C hack/tests test:validate`.
+- Passed `git diff --check`.
+- Verified local service `http://127.0.0.1:5666` and `http://127.0.0.1:8080/api/v1/health` accessible.
+- Host-only optimization baseline from provided logs: job approximately 36 minutes, Playwright report `197 passed (25.1m)`; migrated menu CRUD, file management, role CRUD, parameter import, dictionary import slow cases using `authenticatedPage` without pre-loaded dashboard.
+- Plugin-full optimization baseline from provided logs: job approximately 2 hours, `pnpm test` approximately 112 minutes; changed to `extension:plugin` and `plugins` two generic shards.
+- Complete host-only E2E passed: `244 passed, 1 skipped (14.6m)`.
+- Complete plugin-full E2E passed: `516 passed, 8 skipped (42.8m)`.
+- This change only adjusts CI workflow, E2E runner manifest, Playwright fixtures, and test code; does not modify production API, database schema, runtime cache semantics, or user-visible functionality; no new or modified frontend runtime copy, plugin manifest i18n, or apidoc i18n JSON, confirmed no i18n resource synchronization needed.
 
 ## Feedback
 
-- [x] **FB-1**: After enabling a source plugin, public `ping` and protected `summary` routes in `TC-66d` returned `404`.
-- [x] **FB-2**: The bundled-runtime plugin upload probe in `TC-67m` did not return a success payload when the request body exceeded 8 MB.
+- [x] **FB-1**: Distinguish host module scope without `apps/lina-plugins` from plugin-full seam scope requiring official plugin workspace.
+- [x] **FB-2**: Converge plugin-full scope, only retaining `plugins` and `plugin:<plugin-id>` as generic selection entries for source plugin own cases.
+- [x] **FB-3**: Root `hack/tests` E2E code and configuration must not couple any specific official source plugin ID; plugin-related cases must be closed-loop in corresponding plugin directory.
+- [x] **FB-4**: Root path E2E test files, configuration, test data, and baseline must not couple any specific plugin information; plugin-related test assets must be in corresponding plugin directory.
+- [x] **FB-5**: E2E test file name prefixes no longer globally increment, changed to increment from `TC001` per current module directory.
+- [x] **FB-6**: Fix generic plugin resource query layer inconsistency with host `sys_role.data_scope` enumeration.
+- [x] **FB-7**: Fix host-only E2E still running some plugin-full or plugin-dependent cases.
+- [x] **FB-8**: Fix cross-case state leakage in plugin-full E2E dynamic plugin example records and English layout regression cases.
+- [x] **FB-9**: Fix role add/edit drawer async initialization race condition overwriting filled fields.
+- [x] **FB-10**: Split `plugins` scope from single CI job into 5 Playwright shards for nightly plugin-full.
+- [x] **FB-11**: Fix dynamic plugin disable sidebar menu hidden assertion race condition.
+- [x] **FB-12**: Fix runtime cache invalidation and reconciler notification reason string hardcoding.
+- [x] **FB-13**: Fix dynamic plugin multipart upload case assuming wasm artifact smaller than default upload limit.
+- [x] **FB-14**: Fix source plugin management table column order assertion using outdated title and position contract.
+- [x] **FB-15**: Fix multi-tenant plugin uninstall precondition dialog assertion using outdated localized reason text.
+- [x] **FB-16**: Increase default file upload size limit from 20MB to 100MB, maintaining consistency across initialization, configuration template, backend fallback, and packaged assets.

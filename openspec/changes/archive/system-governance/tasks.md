@@ -1,267 +1,179 @@
-## 1. Database and Infrastructure
+## 1. OpenSpec 归档自动化基础架构
+
+- [x] 1.1 调整 `.gitignore`，允许提交 `.github/codex/config.template.toml` 和无密钥模板，同时继续忽略真实认证文件
+- [x] 1.2 新增或整理 `.github/codex` 配置模板，确保 workflow 可复制配置但不会提交真实 `OPENAI_API_KEY`
+- [x] 1.3 新增 `Monthly OpenSpec Archive` GitHub Actions workflow，支持 schedule 和 `workflow_dispatch`
+- [x] 1.4 在 workflow 中通过临时 `CODEX_HOME` 注入 Codex 配置和 `OPENAI_API_KEY` secret
+- [x] 1.5 实现 OpenSpec 完成状态预检查，无可归档变更时跳过 AI 工具执行
+- [x] 1.6 实现 OpenSpec 校验、变更范围保护和自动写回逻辑
 
-- [x] 1.1 Create operation log and login log SQL files, including `sys_oper_log` and `sys_login_log` table creation statements, and `sys_oper_type` dictionary type and dictionary data Seed DML
-- [x] 1.2 Create online user and server monitor SQL files, adding `sys_online_session` (MEMORY engine) and `sys_server_monitor` table DDL, and new system monitoring menu data
-- [x] 1.3 Create parameter settings SQL file, adding `sys_config` table DDL and menu/button permission seed data
-- [x] 1.4 Execute `make init` to update database, execute `make dao` to generate DAO/DO/Entity files
-- [x] 1.5 Add User-Agent parsing dependency (`mssola/useragent`) and system metric collection dependency (`github.com/shirou/gopsutil/v4`)
-
-## 2. Backend - Audit Log Module
-
-### 2.1 Login Log
-
-- [x] 2.1.1 Create `api/loginlog/v1/` interface definitions: List, Get, Clean, Export, Delete (batch delete)
-- [x] 2.1.2 Execute `make ctrl` to generate controller skeleton
-- [x] 2.1.3 Implement `internal/service/loginlog/` service layer: Create, List, Get, Clean, Export, Delete
-- [x] 2.1.4 Fill controller method implementations, register login log routes in `cmd_http.go`
-
-### 2.2 Operation Log
-
-- [x] 2.2.1 Create `api/operlog/v1/` interface definitions: List, Get, Clean, Export, Delete (batch delete)
-- [x] 2.2.2 Execute `make ctrl` to generate controller skeleton
-- [x] 2.2.3 Implement `internal/service/operlog/` service layer: Create, List, Get, Clean, Export, Delete
-- [x] 2.2.4 Fill controller method implementations, register operation log routes in `cmd_http.go`
-
-### 2.3 Operation Log Middleware
-
-- [x] 2.3.1 Implement operation log middleware `internal/service/middleware/operlog.go`: intercept write operations, parse `g.Meta` tags for module name and operation type, record request parameters (truncated + masked) and response results (truncated), calculate elapsed time, async database write
-- [x] 2.3.2 Register operation log middleware after Auth middleware in `cmd_http.go`
-- [x] 2.3.3 Add `operLog:"4"` tag to existing export interface `g.Meta`
-
-## 3. Backend - Authentication Module Refactoring
-
-- [x] 3.1 Define session storage abstract interface `SessionStore`, implement MySQL-based `DBSessionStore` (Create, Query, Delete, List filtering, TouchOrValidate, CleanupInactive)
-- [x] 3.2 Refactor auth service (`internal/service/auth/`): create session record and write login log on successful login, delete session record and write login log on logout
-- [x] 3.3 Refactor auth middleware (`internal/service/middleware/`): check session validity via TouchOrValidate after JWT verification, return 401 when session does not exist
-- [x] 3.4 Implement inactive session auto-cleanup scheduled task, with timeout threshold and cleanup frequency configurable through config file
-
-## 4. Backend - Online User Module
-
-- [x] 4.1 Create online user API definition (`api/monitor/v1/`): `GET /monitor/online/list`, `DELETE /monitor/online/{tokenId}`
-- [x] 4.2 Implement online user Controller and Service: list query, forced offline logic
-- [x] 4.3 Register online user routes in `cmd_http.go`
-
-## 5. Backend - Server Monitor Module
-
-- [x] 5.1 Implement metric collection service (CPU, memory, disk, network, Go runtime, server basic info)
-- [x] 5.2 Implement periodic collection task: collect once immediately on service startup, then every 30 seconds, UPSERT strategy keeping only latest record per node
-- [x] 5.3 Create server monitor API definition (`api/monitor/v1/`): `GET /monitor/server`
-- [x] 5.4 Implement server monitor Controller and Service: read latest monitoring data per node from database
-- [x] 5.5 Register server monitor routes and periodic collection task in `cmd_http.go`
-
-## 6. Backend - System Info Module
-
-- [x] 6.1 Create API definition `api/sysinfo/v1/info.go`, define request/response structs for `GET /api/v1/system/info`
-- [x] 6.2 Implement `internal/service/sysinfo/sysinfo.go` system info service layer, obtain runtime information
-- [x] 6.3 Fill controller method implementations, register system info routes in `cmd_http.go` (within auth route group)
-
-## 7. Backend - Parameter Settings Module
-
-- [x] 7.1 Create API definition `api/config/v1/`: List, Get, Create, Update, Delete, ByKey, Export, Import, ImportTemplate (7 files)
-- [x] 7.2 Execute `make ctrl` to generate controller skeleton
-- [x] 7.3 Implement `internal/service/sysconfig/` service layer: complete CRUD, query by key name, export, import (overwrite/ignore modes)
-- [x] 7.4 Fill controller method implementations, register parameter settings routes in `cmd_http.go`
-
-## 8. Backend - Dictionary Export/Import Optimization
-
-- [x] 8.1 New dictionary merged export endpoint (`GET /dict/export`), simultaneously exporting dictionary types and dictionary data to dual-sheet Excel file
-- [x] 8.2 New dictionary merged import endpoint (`POST /dict/import`), supporting simultaneous import of dictionary types and dictionary data
-- [x] 8.3 New dictionary import template download endpoint, returning template file with two sheets
-- [x] 8.4 Dictionary type delete logic changed to cascade delete; deleting dictionary type also deletes associated dictionary data
-
-## 9. Backend - Scheduled Tasks and Configuration Refactoring
-
-- [x] 9.1 Migrate all scheduled tasks from gtimer to gcron component, using crontab expressions
-- [x] 9.2 Change all hardcoded config reads to struct-based maintenance, create config structs grouped by module
-- [x] 9.3 Migrate `internal/config/` to `internal/service/config/`, split into independent Go files by module
-- [x] 9.4 Extract scheduled task logic from cmd_http.go into service/cron independent component
-
-## 10. Backend - Host Data Permission Governance
-
-### 10.1 Core Data Permission Service
-
-- [x] 10.1.1 Review GoFrame DAO / gdb.Model integration approach using `goframe-v2` skill, avoid manual SQL concatenation
-- [x] 10.1.2 Add host internal data permission service, parse current user, superadmin, enabled roles and effective `dataScope`
-- [x] 10.1.3 Implement multi-role widest-range merge rules: all data > department data > self only > no permission
-- [x] 10.1.4 Define data permission named types and constants; prohibit hardcoding data scope strings or bare enum semantics in business branches
-- [x] 10.1.5 Define explicit per-module policy integration approach, supporting user column, department semi-join, and custom visibility check resource integration
-- [x] 10.1.6 Implement list query constraint injection capability, supporting empty-scope fast-return
-- [x] 10.1.7 Implement detail, write operation, and execution-type operation target record visibility check capability
-- [x] 10.1.8 Define `bizerr.Code` for data permission rejection, context missing, and org capability unavailable
-
-### 10.2 Organizational Capability and Cache Consistency
-
-- [x] 10.2.1 Review `orgcap` current capabilities, supplement department user set resolution interfaces or adapter methods needed by data permission
-- [x] 10.2.2 Implement safe degradation strategy when org capability unavailable: all data unaffected, department degrades to self-only, self-only continues to work
-- [x] 10.2.3 Include role `dataScope` changes, role enable/disable, and user-role relationship changes in access topology or data permission cache invalidation
-- [x] 10.2.4 Effective role data scope merged into token permission snapshot; department user set not cached; future independent cache must introduce explicit scope/revision
-- [x] 10.2.5 No independent data permission cache domain this phase; reuse access topology cache invalidation and cross-node revision testing
-
-### 10.3 User Management Integration
-
-- [x] 10.3.1 User list and export integrate data permission, supporting all, department, and self-only scopes
-- [x] 10.3.2 User detail integrates data permission; out-of-range users return structured data-not-visible error
-- [x] 10.3.3 User update, status change, password reset, and role association change integrate target user visibility check
-- [x] 10.3.4 User single and batch delete integrate data permission; batch operation rejects entirely if any target is not visible
-- [x] 10.3.5 Role-authorized user list and user selection range integrate data permission, avoiding exposing out-of-range users on authorization page
-- [x] 10.3.6 Preserve built-in admin and current user deletion protection rules, ensuring data permission does not bypass existing protections
-
-### 10.4 File Management Integration
-
-- [x] 10.4.1 File list integrates `sys_file.created_by` uploader range filtering
-- [x] 10.4.2 File detail, batch info integrate uploader visibility check; uploaded file URL access remains public with path normalization and metadata validation
-- [x] 10.4.3 File download integrates data permission; out-of-range files must not return binary content
-- [x] 10.4.4 File delete integrates data permission; refuse to delete out-of-range database records and physical files
-- [x] 10.4.5 File suffix, scenario, and other aggregate queries filter by current data permission scope, avoiding leaking out-of-range data existence
-
-### 10.5 Cron Job and Log Integration
-
-- [x] 10.5.1 User-created task list integrates `sys_job.created_by` data permission filtering
-- [x] 10.5.2 Maintain `sys_job.is_builtin=1` built-in task projection without data permission filtering, continuing to use built-in task governance rules
-- [x] 10.5.3 User-created task detail, edit, delete, enable, disable, reset integrate target task visibility check
-- [x] 10.5.4 Manual trigger of user-created tasks checks data permission first; out-of-range tasks must not create `sys_job_log`
-- [x] 10.5.5 Task log list, detail, cleanup, and terminate running log integrate parent task's data permission boundary
-- [x] 10.5.6 Confirm Shell task independent permission point and data permission both apply; lacking either must reject
-
-### 10.6 Online User and User Message Integration
-
-- [x] 10.6.1 Online user list integrates data permission filtering by `sys_online_session.user_id`
-- [x] 10.6.2 Forced offline checks target `tokenId`'s owning user against current data permission scope before execution
-- [x] 10.6.3 User message unread count, list, mark read, and delete paths confirmed to maintain current user self-isolation
-- [x] 10.6.4 Add user message tests confirming users with all data permission still cannot read, mark, or delete others' messages
-
-### 10.7 i18n and API Documentation Governance
-
-- [x] 10.7.1 Add `zh-CN`, `en-US`, `zh-TW` runtime translations for new `bizerr` errors
-- [x] 10.7.2 Check whether this change modifies API DTO documentation metadata; if so, maintain non-English apidoc i18n JSON
-- [x] 10.7.3 Confirm role page does not add new frontend visible fields; no new role form translations needed in frontend runtime language pack
-- [x] 10.7.4 Add or update i18n completeness tests ensuring new error translations are not missing
-
-## 11. Frontend - Operation Log Page
-
-- [x] 11.1 Create operation log API layer: `src/api/monitor/operlog/`
-- [x] 11.2 Create operation log list page: `src/views/monitor/operlog/index.vue` and `data.ts` (table + filters)
-- [x] 11.3 Create operation log detail drawer component, request parameters and response results use vue-json-pretty for JSON syntax highlighting
-- [x] 11.4 Implement cleanup functionality (modal with time range selection then hard delete) and batch delete functionality
-
-## 12. Frontend - Login Log Page
-
-- [x] 12.1 Create login log API layer: `src/api/monitor/loginlog/`
-- [x] 12.2 Create login log list page: `src/views/monitor/loginlog/index.vue` and `data.ts`
-- [x] 12.3 Create login log detail modal component
-- [x] 12.4 Implement cleanup functionality and batch delete functionality
-
-## 13. Frontend - Online User Page
-
-- [x] 13.1 Create frontend API file `src/api/monitor/online/`
-- [x] 13.2 Create online user page `src/views/monitor/online/index.vue` and `data.ts`: search form, VXE-Grid table, toolbar online user count, forced offline Popconfirm
-- [x] 13.3 Add system monitor route module `src/router/routes/modules/monitor.ts`
-
-## 14. Frontend - Server Monitor Page
-
-- [x] 14.1 Create frontend API file `src/api/monitor/server/`
-- [x] 14.2 Create server monitor page `src/views/monitor/server/index.vue` and sub-components: server info cards, CPU/memory circular progress bars, Go runtime info, disk usage table, network traffic info
-- [x] 14.3 Implement multi-node switching logic and collapsible node list layout
-
-## 15. Frontend - System Info Page
-
-- [x] 15.1 Create route module `src/router/routes/modules/about.ts`, define "System Info" top-level menu with three child routes
-- [x] 15.2 Create frontend config file `src/views/about/config.ts`, define configurable items
-- [x] 15.3 Implement system API docs page: iframe embedding Stoplight Elements static document page
-- [x] 15.4 Implement version info page: about project, backend components, frontend components three sections
-- [x] 15.5 Implement component demo page: iframe embedding vben5 official demo, with load failure handling
-- [x] 15.6 Create API file `src/api/about/index.ts`, call `GET /api/v1/system/info`
-
-## 16. Frontend - Parameter Settings Page
-
-- [x] 16.1 Create frontend API layer `src/api/system/config/`
-- [x] 16.2 Create parameter settings page `src/views/system/config/index.vue`, `config-modal.vue`, `data.ts`
-- [x] 16.3 Add parameter settings route to system route module
-
-## 17. Frontend - Dictionary Export/Import Optimization
-
-- [x] 17.1 Frontend dictionary type panel updates export/import functionality to use merged interface
-- [x] 17.2 Frontend dictionary data panel removes export and import buttons
-- [x] 17.3 Abstract generic export confirmation modal component `ExportConfirmModal`, reuse across all export modules
-- [x] 17.4 Unify export file naming conventions across all modules
-
-## 18. Frontend - General Improvements
-
-- [x] 18.1 User management page status field changed to dynamically read from dictionary module
-- [x] 18.2 Department/post management page status options changed to dynamically read from dictionary module
-- [x] 18.3 Dictionary management page clears dictStore cache after modifying dictionary data
-- [x] 18.4 Remove extra menu items from avatar dropdown menu, fix user email and nickname display
-- [x] 18.5 Personal center form field adjustments (nickname required, non-required field corrections)
-- [x] 18.6 Global pagination options add 100 items/page
-
-## 19. API Documentation Completion
-
-- [x] 19.1 Complete auth module API documentation: add dc tags to g.Meta, supplement dc and eg tags for all input/output fields
-- [x] 19.2 Complete user module API documentation (13 files)
-- [x] 19.3 Complete dept module API documentation (8 files)
-- [x] 19.4 Complete post module API documentation (8 files)
-- [x] 19.5 Complete dict module API documentation (14 files)
-- [x] 19.6 Complete notice module API documentation (5 files)
-- [x] 19.7 Complete loginlog module API documentation (5 files)
-- [x] 19.8 Complete operlog module API documentation (5 files)
-- [x] 19.9 Complete usermsg module API documentation (6 files)
-- [x] 19.10 Complete sysinfo module API documentation (1 file)
-
-## 20. API Documentation Dynamic Server URL
-
-- [x] 20.1 Override OpenAPI `servers[0].url` in host `/api.json` handler based on current request origin
-- [x] 20.2 Retain `serverDescription` as service address description, with safe fallback when host is missing
-- [x] 20.3 Remove dependency on fixed `openapi.serverUrl` as runtime request address authoritative source
-
-## 21. Backend Tests
-
-- [x] 21.1 TC0026-TC0034: Operation log and login log list query, detail view, cleanup, export, auto-recording tests
-- [x] 21.2 TC0044-TC0045: System API docs page and version info page load tests
-- [x] 21.3 TC0049-TC0052: Online user list, search, forced offline, server monitor page tests
-- [x] 21.4 Parameter settings page CRUD, search, export/import tests
-- [x] 21.5 Dictionary merged export/import tests
-- [x] 21.6 Export confirmation modal tests (all export modules)
-- [x] 21.7 Dictionary modification global effect tests
-- [x] 21.8 Run all E2E tests to confirm no regressions
-- [x] 21.9 Add backend unit tests covering direct-mapped port, frontend proxy to backend port, and `X-Forwarded-Proto=https` origin scenarios
-- [x] 21.10 New E2E case `TC0175-api-docs-request-origin.ts` verifying `/api.json` `servers[0].url` dynamically changes with frontend proxy and backend direct access
-
-## 22. Data Permission Backend Tests
-
-- [x] 22.1 New data permission parsing unit tests covering superadmin, multi-role widest range, disabled roles, no roles, no user context
-- [x] 22.2 New org capability degradation tests covering department-to-self degradation and self-only without org capability
-- [x] 22.3 New user management data permission tests covering list, detail, export, write operations, batch delete
-- [x] 22.4 New file management data permission tests covering list, detail, download, delete, aggregate queries
-- [x] 22.5 New cron job and task log data permission tests covering user-created tasks, built-in task projection, and log termination
-- [x] 22.6 New online user data permission tests covering list and forced offline
-- [x] 22.7 New user message self-isolation regression tests covering all-data-permission not widening message boundary
-- [x] 22.8 Run `cd apps/lina-core && go test ./...`
-
-## 23. Data Permission E2E Tests
-
-- [x] 23.1 Create `hack/tests/e2e/settings/user/TC0170-user-data-permission.ts`, covering TC-170a department user list filtering, TC-170b self-only detail restriction, TC-170c out-of-range user write operation rejection
-- [x] 23.2 Create `hack/tests/e2e/settings/file/TC0171-file-data-permission.ts`, covering TC-171a file list filtering, TC-171b out-of-range download rejection, TC-171c out-of-range delete rejection
-- [x] 23.3 Create `hack/tests/e2e/scheduler/job/TC0172-job-data-permission.ts`, covering TC-172a user-created task list filtering, TC-172b built-in task projection visibility, TC-172c out-of-range trigger rejection
-- [x] 23.4 Create `hack/tests/e2e/monitor/TC0173-online-user-data-permission.ts`, covering TC-173a online user list filtering, TC-173b out-of-range forced offline rejection
-- [x] 23.5 Create `hack/tests/e2e/content/message/TC0174-user-message-self-boundary.ts`, covering TC-174a all-data-permission does not read others' messages, TC-174b does not mark others' messages, TC-174c does not delete others' messages
-- [x] 23.6 Run affected E2E test cases and record results
-
-## 24. Code Quality and Refactoring
-
-- [x] 24.1 user/dept/file service transaction management fix; Create/Update methods use transactions to ensure data consistency
-- [x] 24.2 Extract duplicate department tree traversal logic from user and post services into dept service for reuse
-- [x] 24.3 Replace MySQL-specific FIND_IN_SET in department hierarchy query with cross-database generic parent_id iterative query implementation
-- [x] 24.4 Fix user list query N+1 problem, batch query department info
-- [x] 24.5 Dictionary type update validates Type field uniqueness
-- [x] 24.6 Log export method adds record count limit to prevent memory overflow
-- [x] 24.7 File upload adds filename sanitization to prevent path traversal attacks
-- [x] 24.8 Notice announcement NoticeModal formRules changed to reactive object to fix Vue warn
-- [x] 24.9 Fix breadcrumb link color in dark mode
-- [x] 24.10 Container environment compatibility optimization: filter virtual filesystem mount points, graceful degradation on collection failure
-
-## 25. Verification and Review
-
-- [x] 25.1 Run `openspec validate host-data-permission-governance --strict`
-- [x] 25.2 This round of data permission did not add host SQL; org-center plugin indexes verified via backend and E2E paths, database not reset
-- [x] 25.3 Run affected frontend type checks or build commands
-- [x] 25.4 Execute `/lina-review`, focusing on data permission gaps, cache consistency, and i18n completeness
+## 2. AI 工具路由与 reusable workflow 隔离
+
+- [x] 2.1 主 workflow 通过 GitHub Variables 中的 `AI_CODING_TOOL` 在 `codex` 和 `cc` 之间切换 AI Coding 工具
+- [x] 2.2 主 workflow 通过工具专属 reusable workflow 封装 Codex 和 Claude Code 实现细节，主 workflow 只负责检测和路由
+- [x] 2.3 新增 `.github/workflows/monthly-openspec-archive-codex.yml` 和 `.github/workflows/monthly-openspec-archive-cc.yml`
+- [x] 2.4 调整 `ANTHROPIC_BASE_URL`、`ANTHROPIC_CUSTOM_MODEL` 和 `OPENAI_BASE_URL` 为 GitHub Variables 读取
+
+## 3. 公共组件抽取与提示词复用
+
+- [x] 3.1 新增 `.github/actions/monthly-openspec-setup`、`.github/actions/monthly-openspec-detect-changes`、`.github/actions/monthly-openspec-finalize-pr` 本地 composite action
+- [x] 3.2 提取自动归档和归档聚合提示词到 `.github/prompts/` 公共文件，由 Codex 和 Claude Code workflow 共同引用
+- [x] 3.3 Codex 配置模板使用 `.github/codex/config.template.toml` 文件名，并更新 workflow、忽略规则和 OpenSpec 引用
+- [x] 3.4 产生文件修改时创建或更新维护 PR，而不是直接推送到默认分支
+
+## 4. 月度调度与 Copilot 支持
+
+- [x] 4.1 工作流改为每月 1 日 00:00 Asia/Shanghai 触发一次，保留手动触发，并同步调整文件名与工作流名称
+- [x] 4.2 支持通过 GitHub Copilot CLI 执行自动归档和归档聚合，并通过 GitHub Variables 配置 Copilot 模型
+- [x] 4.3 支持通过 GitHub Variables 配置推理等级并传递给 `--reasoning-effort`
+- [x] 4.4 确保 AI 工具进程输出实时显示到 GitHub Actions step 日志
+
+## 5. 阶段化失败与校验强化
+
+- [x] 5.1 任一阶段失败时立即失败退出，不得继续执行后续阶段
+- [x] 5.2 新增 `.github/actions/monthly-openspec-assert-archive-complete` 和 `.github/actions/monthly-openspec-validate` composite action
+- [x] 5.3 `openspec validate --all` 必须通过，避免归档工作流因既有主规范格式失败
+- [x] 5.4 将 `openspec/specs/**/spec.md` 主规范统一为 OpenSpec 1.3.1 可识别结构
+
+## 6. 确定性基础归档
+
+- [x] 6.1 新增共享 monthly OpenSpec 确定性归档 composite action `.github/actions/monthly-openspec-auto-archive`
+- [x] 6.2 将 Codex、Claude Code 和 GitHub Copilot reusable workflow 接入确定性归档，AI 工具仅用于聚合
+- [x] 6.3 确定性归档有部分成功时先写入归档 PR，然后在所有候选处理完成后失败退出
+- [x] 6.4 升级 artifact upload workflow actions 到最新运行时版本
+
+## 7. 归档阻塞修复与分支策略
+
+- [x] 7.1 修复 `remove-sqlite-support` 使其可被 `openspec archive -y` 正常归档
+- [x] 7.2 `workflow_dispatch` 允许从任意分支触发，手动触发以触发分支作为检测和 PR 目标分支
+- [x] 7.3 归档 PR 来源分支包含触发分支的安全化标识
+- [x] 7.4 AI 归档聚合失败或产生无效 OpenSpec 时恢复确定性归档快照，不阻塞已通过校验的归档 PR
+- [x] 7.5 仓库策略阻止 PR 创建时输出手动 PR 链接并成功结束
+
+## 8. 归档自动化验证与审查
+
+- [x] 8.1 运行 `openspec validate` 对所有相关变更执行 strict 校验
+- [x] 8.2 对新增 workflow、action 和配置模板执行静态检查，确认 YAML、JSON 和 TOML 格式有效
+- [x] 8.3 运行 actionlint 验证 workflow 和 composite action
+- [x] 8.4 运行临时副本确定性归档 smoke 测试
+- [x] 8.5 记录 i18n、缓存一致性、数据权限、REST API、E2E 和 Go 生产代码影响判断
+- [x] 8.6 完成实现后调用 `lina-review` 审查
+
+## 9. 规范与审查标准落地
+
+- [x] 9.1 更新 `AGENTS.md` 后端代码规范，写入主文件契约入口、接口方法详细注释、文件顶部详细说明和 `lina-core/pkg` 公共组件同等治理要求
+- [x] 9.2 更新 `.agents/skills/lina-review/SKILL.md`，增加主文件职责、接口方法注释完整度、文件顶部注释质量和分批验证记录审查项
+- [x] 9.3 校验 OpenSpec 增量规范与设计文档，确认 `backend-conformance` 变更覆盖宿主、源码插件和 `lina-core/pkg`
+- [x] 9.4 记录本轮规范变更的 i18n、缓存一致性、数据权限和开发工具脚本影响判断
+
+## 10. 基线扫描与任务切片确认
+
+- [x] 10.1 扫描宿主 `apps/lina-core/internal/service/**` 主文件，列出仍包含复杂 receiver 方法实现的组件
+- [x] 10.2 扫描 `apps/lina-core/pkg/**` 主文件，列出仍包含复杂实现逻辑的公共组件
+- [x] 10.3 扫描源码插件 `apps/lina-plugins/*/backend/internal/service/**` 主文件，列出仍包含复杂 receiver 方法实现的插件组件
+- [x] 10.4 将扫描结果按模块批次记录到任务备注，作为后续整改范围和终审对账依据
+
+## 11. 宿主基础与安全服务整改
+
+- [x] 11.1 整改 `auth` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 11.2 整改 `session` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 11.3 整改 `middleware` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 11.4 整改 `bizctx` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 11.5 运行基础与安全服务变更包 Go 编译门禁，并记录 i18n、缓存一致性和数据权限影响判断
+- [x] 11.6 调用 `lina-review` 审查本批基础与安全服务整改
+
+## 12. 宿主用户、角色与数据权限服务整改
+
+- [x] 12.1 整改 `user` 主文件职责、接口方法注释和文件顶部说明，按列表、详情、资料、导入导出、批量操作等职责迁移实现
+- [x] 12.2 整改 `role` 主文件职责、接口方法注释和文件顶部说明，按角色、菜单、数据权限、访问缓存等职责迁移实现
+- [x] 12.3 整改 `datascope` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 12.4 整改 `tenantcap` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 12.5 整改 `orgcap` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 12.6 运行用户、角色、数据权限相关变更包 Go 编译门禁，并记录 i18n、缓存一致性和数据权限影响判断
+- [x] 12.7 调用 `lina-review` 审查本批用户、角色与数据权限服务整改
+
+## 13. 宿主系统治理服务整改
+
+- [x] 13.1 整改 `config` 主文件职责、接口方法注释和文件顶部说明，保持各配置分组实现文件边界清晰
+- [x] 13.2 整改 `sysconfig` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 13.3 整改 `sysinfo` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 13.4 整改 `dict` 主文件职责、接口方法注释和文件顶部说明，按类型、数据、导入导出和 i18n 职责迁移实现
+- [x] 13.5 整改 `menu` 主文件职责、接口方法注释和文件顶部说明，按权限树、过滤、校验和 i18n 职责迁移实现
+- [x] 13.6 整改 `file` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 13.7 运行系统治理服务变更包 Go 编译门禁，并记录 i18n、缓存一致性和数据权限影响判断
+- [x] 13.8 调用 `lina-review` 审查本批系统治理服务整改
+
+## 14. 宿主任务、调度与运行状态服务整改
+
+- [x] 14.1 整改 `cron` 主文件职责、接口方法注释和文件顶部说明，确保调度注册与具体任务逻辑分文件
+- [x] 14.2 整改 `jobhandler` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 14.3 整改 `jobmeta` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 14.4 整改 `jobmgmt` 及其 internal 子组件主文件职责、接口方法注释和文件顶部说明
+- [x] 14.5 整改 `startupstats` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 14.6 运行任务与调度相关变更包 Go 编译门禁，并记录 i18n、缓存一致性和数据权限影响判断
+- [x] 14.7 调用 `lina-review` 审查本批任务、调度与运行状态服务整改
+
+## 15. 宿主缓存、协调与分布式基础服务整改
+
+- [x] 15.1 整改 `cluster` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 15.2 整改 `coordination` 及其 internal 子组件主文件职责、接口方法注释和文件顶部说明
+- [x] 15.3 整改 `cachecoord` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 15.4 整改 `kvcache` 及其 internal 子组件主文件职责、接口方法注释和文件顶部说明
+- [x] 15.5 整改 `locker` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 15.6 整改 `hostlock` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 15.7 运行缓存、协调与锁相关变更包 Go 编译门禁，并记录缓存一致性影响判断
+- [x] 15.8 调用 `lina-review` 审查本批缓存、协调与分布式基础服务整改
+
+## 16. 宿主 i18n、通知与 API 文档服务整改
+
+- [x] 16.1 整改 `i18n` 主文件职责、接口方法注释和文件顶部说明，按 locale、cache、resource、source text、dynamic plugin 等职责保持实现分文件
+- [x] 16.2 整改 `notify` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 16.3 整改 `usermsg` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 16.4 整改 `apidoc` 主文件职责、接口方法注释和文件顶部说明，具体实现迁移到职责文件
+- [x] 16.5 运行 i18n、通知和 API 文档相关变更包 Go 编译门禁，并记录 i18n 与缓存一致性影响判断
+- [x] 16.6 调用 `lina-review` 审查本批 i18n、通知与 API 文档服务整改
+
+## 17. 宿主插件外层与内部子组件整改
+
+- [x] 17.1 整改 `plugin` 主文件职责、接口方法注释和文件顶部说明，按列表、生命周期、运行时、升级、前端、OpenAPI、host service 等职责迁移实现
+- [x] 17.2 整改 `pluginruntimecache` 和 `pluginhostservices` 主文件职责、接口方法注释和文件顶部说明
+- [x] 17.3 整改 `plugin/internal/catalog`、`runtime`、`integration`、`frontend`、`openapi`、`lifecycle`、`wasm` 主文件职责、接口方法注释和文件顶部说明
+- [x] 17.4 运行插件服务变更包 Go 编译门禁，并记录 i18n、缓存一致性、数据权限和插件桥接影响判断
+- [x] 17.5 调用 `lina-review` 审查本批宿主插件服务整改
+
+## 18. `lina-core/pkg` 公共组件整改
+
+- [x] 18.1 整改小型公共组件 `authtoken`、`bizerr`、`closeutil`、`dbdriver`、`excelutil`、`gdbutil`、`logger`、`menutype`、`orgcap`、`pluginfs`、`tenantcap`、`testsupport` 主文件职责和文件顶部说明
+- [x] 18.2 整改插件与桥接公共组件 `pluginhost`、`pluginbridge`、`pluginservice`、`plugindb`、`sourceupgrade` 主文件职责、接口方法注释和文件顶部说明
+- [x] 18.3 整改数据库、方言与资源公共组件 `dialect`、`i18nresource` 主文件职责、接口方法注释和文件顶部说明
+- [x] 18.4 运行 `lina-core/pkg` 公共组件变更包 Go 编译门禁，并记录 i18n、缓存一致性和数据权限影响判断
+- [x] 18.5 调用 `lina-review` 审查本批 `lina-core/pkg` 公共组件整改
+
+## 19. 源码插件后端服务整改
+
+- [x] 19.1 整改 `org-center` 插件 `dept`、`post` 服务主文件职责、接口方法注释和文件顶部说明
+- [x] 19.2 整改 `multi-tenant` 插件 `tenant`、`membership`、`tenantplugin`、`resolver`、`resolverconfig`、`impersonate`、`provider`、`lifecycleprecondition` 服务主文件职责、接口方法注释和文件顶部说明
+- [x] 19.3 整改监控插件 `monitor-loginlog`、`monitor-operlog`、`monitor-online`、`monitor-server` 和内容插件 `content-notice` 服务主文件职责、接口方法注释和文件顶部说明
+- [x] 19.4 整改示例与演示插件 `demo-control`、`plugin-demo-source`、`plugin-demo-dynamic` 服务主文件职责、接口方法注释和文件顶部说明
+- [x] 19.5 运行源码插件后端变更包 Go 编译门禁，并记录 i18n、缓存一致性、数据权限和插件桥接影响判断
+- [x] 19.6 调用 `lina-review` 审查本批源码插件后端服务整改
+
+## 20. `linactl` 命令文件组织治理
+
+- [x] 20.1 在 `AGENTS.md` 开发工具与脚本规范中补充 `linactl` 命令文件命名规则和子组件组织规则
+- [x] 20.2 在 `lina-review` 开发工具与脚本跨平台审查中补充命令文件命名和子组件组织审查项
+- [x] 20.3 将现有 `hack/tools/linactl` 命令入口按规范拆分到具体命令文件，删除旧兜底文件
+- [x] 20.4 将共享实现迁移到 `internal/<组件名称>/` 子组件
+- [x] 20.5 运行 `hack/tools/linactl` 包测试和工具 smoke 验证
+- [x] 20.6 调用 `lina-review` 审查 `linactl` 命令组织治理
+
+## 21. 全量复核与治理验证
+
+- [x] 21.1 全量扫描宿主、源码插件和 `lina-core/pkg` 主文件，确认复杂实现逻辑已按任务范围迁出或记录明确例外
+- [x] 21.2 全量扫描新增或修改的接口定义，确认接口方法注释覆盖功能、输入、输出、错误和关键约束
+- [x] 21.3 全量扫描新增或修改的 Go 文件顶部注释，确认主文件和非主文件注释层级正确
+- [x] 21.4 运行 `openspec validate --strict` 对所有相关变更执行校验
+- [x] 21.5 运行 `git diff --check` 覆盖本变更所有文档和 Go 文件
+- [x] 21.6 汇总所有分批 Go 编译门禁结果
+- [x] 21.7 记录本变更最终 i18n、缓存一致性、数据权限、开发工具脚本和 E2E 影响判断
+- [x] 21.8 调用 `lina-review` 完成终审并修复审查发现
