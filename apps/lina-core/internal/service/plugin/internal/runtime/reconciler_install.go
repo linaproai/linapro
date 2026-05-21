@@ -78,12 +78,12 @@ func (s *serviceImpl) applyInstall(
 		return err
 	}
 	if enabled == catalog.StatusEnabled {
-		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_installed")
+		s.invalidateRuntimeCaches(ctx, manifest, runtimeChangeReasonPluginInstalled)
 	}
-	if err = s.notifyRuntimeCacheChanged(ctx, "plugin_installed"); err != nil {
+	if err = s.notifyRuntimeCacheChanged(ctx, runtimeChangeReasonPluginInstalled); err != nil {
 		return err
 	}
-	if err = s.notifyReconcilerChanged(ctx, "plugin_installed"); err != nil {
+	if err = s.notifyReconcilerChanged(ctx, runtimeChangeReasonPluginInstalled); err != nil {
 		return err
 	}
 	if err = s.dispatchHookEvent(

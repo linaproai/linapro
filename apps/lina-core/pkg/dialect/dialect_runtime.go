@@ -88,6 +88,15 @@ func (postgresDialect) QueryTableMetadata(ctx context.Context, db gdb.DB, schema
 	return result, nil
 }
 
+// ClassifyReadSQL classifies PostgreSQL driver and ORM read-only SQL.
+func (postgresDialect) ClassifyReadSQL(sql string) ReadSQLClassification {
+	classification := internalpostgres.ClassifyReadSQL(sql)
+	return ReadSQLClassification{
+		MetadataLookup: classification.MetadataLookup,
+		SchemaProbe:    classification.SchemaProbe,
+	}
+}
+
 // OnStartup has no PostgreSQL-specific startup side effects.
 func (postgresDialect) OnStartup(ctx context.Context, runtime RuntimeConfig) error {
 	return internalpostgres.OnStartup(ctx, runtime)

@@ -112,9 +112,9 @@ func (s *serviceImpl) reconcileDynamicPluginRequest(
 		return err
 	}
 	if !s.isPrimaryNode() {
-		return s.notifyReconcilerChanged(ctx, "desired_state_changed")
+		return s.notifyReconcilerChanged(ctx, runtimeChangeReasonDesiredStateChanged)
 	}
-	if err := s.publishReconcilerChanged(ctx, "desired_state_changed", false); err != nil {
+	if err := s.publishReconcilerChanged(ctx, runtimeChangeReasonDesiredStateChanged, false); err != nil {
 		return err
 	}
 	return s.reconcileRuntimePlugin(ctx, pluginID)

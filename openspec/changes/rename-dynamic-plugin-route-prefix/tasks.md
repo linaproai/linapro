@@ -43,6 +43,8 @@
 ## Feedback
 
 - [x] **FB-1**: 将动态插件 API DTO 中的 `gmeta.Meta` 统一改为 `g.Meta`
+- [x] **FB-2**: 优化插件管理列表的列对齐、运行时状态列位置、列宽和运行时状态说明
+- [x] **FB-3**: 调整插件管理列表列标题居中、名称/版本列宽和基础信息列顺序
 
 ## Feedback Verification
 
@@ -53,3 +55,19 @@
 - [x] FB-1 i18n 影响：本次仅统一 Go DTO 元数据嵌入类型，未新增、修改或删除用户可见文案、菜单、路由、API 文档源文本或 apidoc i18n JSON。
 - [x] FB-1 缓存一致性：本次不新增或修改缓存逻辑，不影响动态插件 runtime freshness、启用状态或派生缓存失效机制。
 - [x] FB-1 `/lina-review`：审查范围限定为动态插件 API DTO、独立模块依赖元数据和 OpenSpec 反馈记录；未发现阻塞问题。`g.Meta` 是 `gmeta.Meta` 的类型别名，路由元数据、权限标签和 apidoc 源文本未发生语义变化；`frame/g` 引入的依赖变更已通过普通 Go 测试和实际 `wasip1/wasm` 产物构建验证。
+- [x] FB-2 OpenSpec：`openspec validate rename-dynamic-plugin-route-prefix --strict`
+- [x] FB-2 前端 i18n/E2E 治理：`pnpm -C hack/tests test:validate`
+- [x] FB-2 前端类型检查：`pnpm -C apps/lina-vben -F @lina/web-antd typecheck`
+- [x] FB-2 E2E：`E2E_BROWSER_CHANNEL=chrome pnpm -C hack/tests exec playwright test /Users/john/Workspace/github/linaproai/linapro/hack/tests/e2e/extension/plugin/TC013-plugin-management-table-layout.ts --grep "TC-13a" --workers=1`
+- [x] FB-2 i18n 影响：本次新增插件管理页运行时状态列表头说明文案，已同步 `zh-CN` 和 `en-US` 前端运行时语言包；不涉及菜单、路由、manifest i18n 或 apidoc i18n。
+- [x] FB-2 缓存一致性：本次仅调整前端表格列展示、列宽和 tooltip 文案，不新增或修改缓存逻辑，不影响插件 runtime freshness、启用状态或派生缓存失效机制。
+- [x] FB-2 数据权限影响：本次不新增、修改或扩大任何数据操作接口；插件列表查询仍复用既有接口与权限边界。
+- [x] FB-2 `/lina-review`：审查范围包含插件管理页列配置、中英文运行时语言包、宿主插件页 POM、新增 E2E 用例和 OpenSpec 反馈记录；未发现阻塞问题。变更不涉及 Go 生产代码、REST API、后端数据权限或缓存逻辑，Go 编译门禁不适用。
+- [x] FB-3 OpenSpec：`openspec validate rename-dynamic-plugin-route-prefix --strict`
+- [x] FB-3 前端 i18n/E2E 治理：`pnpm -C hack/tests test:validate`
+- [x] FB-3 前端类型检查：`pnpm -C apps/lina-vben -F @lina/web-antd typecheck`
+- [x] FB-3 E2E：`E2E_BROWSER_CHANNEL=chrome pnpm -C hack/tests exec playwright test /Users/john/Workspace/github/linaproai/linapro/hack/tests/e2e/extension/plugin/TC013-plugin-management-table-layout.ts --grep "TC-13a" --workers=1`
+- [x] FB-3 i18n 影响：本次将插件管理列表描述列表头统一为插件专属“插件描述/Plugin Description”，已同步 `zh-CN` 和 `en-US` 前端运行时语言包；不涉及菜单、路由、manifest i18n 或 apidoc i18n。
+- [x] FB-3 缓存一致性：本次仅调整前端表格列顺序、表头对齐和列宽，不新增或修改缓存逻辑，不影响插件 runtime freshness、启用状态或派生缓存失效机制。
+- [x] FB-3 数据权限影响：本次不新增、修改或扩大任何数据操作接口；插件列表查询仍复用既有接口与权限边界。
+- [x] FB-3 `/lina-review`：审查范围包含插件管理页列配置、中英文运行时语言包、宿主插件页 POM、插件管理列表布局 E2E 和 OpenSpec 反馈记录；未发现阻塞问题。变更不涉及 Go 生产代码、REST API、后端数据权限或缓存逻辑，Go 编译门禁不适用。

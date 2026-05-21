@@ -38,6 +38,9 @@ type SourcePluginLifecycleInput interface {
 	PluginID() string
 	// Operation returns the stable lifecycle operation key.
 	Operation() string
+	// StartupAutoEnable reports whether this lifecycle action was initiated by
+	// the host startup plugin.autoEnable bootstrap for the target plugin.
+	StartupAutoEnable() bool
 	// PurgeStorageData reports whether an uninstall lifecycle action should
 	// clear plugin-owned storage and business data. It returns false for
 	// non-uninstall lifecycle operations.
@@ -91,9 +94,10 @@ type sourcePluginUninstallInput struct {
 // sourcePluginLifecycleInput is the host-owned implementation passed to generic
 // source-plugin lifecycle precondition callbacks.
 type sourcePluginLifecycleInput struct {
-	pluginID         string
-	operation        string
-	purgeStorageData bool
+	pluginID          string
+	operation         string
+	startupAutoEnable bool
+	purgeStorageData  bool
 }
 
 // sourcePluginTenantLifecycleInput is the host-owned implementation passed to
@@ -163,10 +167,33 @@ func NewSourcePluginLifecycleInputWithUninstallPolicy(
 	operation string,
 	purgeStorageData bool,
 ) SourcePluginLifecycleInput {
+	return NewSourcePluginLifecycleInputWithPolicy(pluginID, operation, SourcePluginLifecyclePolicy{
+		PurgeStorageData: purgeStorageData,
+	})
+}
+
+// SourcePluginLifecyclePolicy carries host-owned lifecycle metadata that source
+// plugins can inspect without depending on internal plugin facade options.
+type SourcePluginLifecyclePolicy struct {
+	// StartupAutoEnable reports whether the action was initiated by startup
+	// plugin.autoEnable for the target plugin.
+	StartupAutoEnable bool
+	// PurgeStorageData reports whether uninstall should remove plugin-owned data.
+	PurgeStorageData bool
+}
+
+// NewSourcePluginLifecycleInputWithPolicy creates one lifecycle input wrapper
+// with host-owned lifecycle metadata attached.
+func NewSourcePluginLifecycleInputWithPolicy(
+	pluginID string,
+	operation string,
+	policy SourcePluginLifecyclePolicy,
+) SourcePluginLifecycleInput {
 	return &sourcePluginLifecycleInput{
-		pluginID:         pluginID,
-		operation:        operation,
-		purgeStorageData: purgeStorageData,
+		pluginID:          pluginID,
+		operation:         operation,
+		startupAutoEnable: policy.StartupAutoEnable,
+		purgeStorageData:  policy.PurgeStorageData,
 	}
 }
 
@@ -272,6 +299,14 @@ func (i *sourcePluginLifecycleInput) Operation() string {
 		return ""
 	}
 	return i.operation
+}
+
+// StartupAutoEnable reports whether the host started this action from config.
+func (i *sourcePluginLifecycleInput) StartupAutoEnable() bool {
+	if i == nil {
+		return false
+	}
+	return i.startupAutoEnable
 }
 
 // PurgeStorageData reports whether an uninstall lifecycle should clear data.

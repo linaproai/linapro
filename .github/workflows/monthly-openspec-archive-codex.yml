@@ -14,6 +14,18 @@ on:
         required: false
         type: string
         default: "1.3.1"
+      # Selects the branch whose OpenSpec state should be archived.
+      # 选择需要执行 OpenSpec 归档的目标分支。
+      target_branch:
+        description: Branch whose OpenSpec state should be archived.
+        required: true
+        type: string
+      # Selects the archive pull request source branch.
+      # 选择归档 Pull Request 的来源分支。
+      pr_branch:
+        description: Pull request head branch for generated archive changes.
+        required: true
+        type: string
       # Allows GitHub Variables to provide the OpenAI-compatible API base URL.
       # 允许通过 GitHub Variables 提供 OpenAI 兼容 API base URL。
       openai_base_url:
@@ -37,23 +49,25 @@ permissions:
 env:
   TZ: "Asia/Shanghai"
   OPENSPEC_VERSION: ${{ inputs.openspec_version }}
+  TARGET_BRANCH: ${{ inputs.target_branch }}
+  ARCHIVE_PR_BRANCH: ${{ inputs.pr_branch }}
   OPENAI_BASE_URL_INPUT: ${{ inputs.openai_base_url }}
 
 jobs:
-  # Runs auto-archive, optional archive consolidation, and PR finalization through Codex.
-  # 通过 Codex 运行自动归档、可选归档聚合和 PR 收尾。
+  # Runs auto-archive, archive consolidation, and PR finalization through Codex.
+  # 通过 Codex 运行自动归档、归档聚合和 PR 收尾。
   archive:
     name: Archive and consolidate with Codex
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
     steps:
-      # Check out the default branch with full history so archive branches can be created.
-      # 拉取默认分支完整历史，以便创建归档分支。
+      # Check out the selected target branch with full history so archive branches can be created.
+      # 拉取选定目标分支完整历史，以便创建归档分支。
       - name: Checkout Repository
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ env.TARGET_BRANCH }}
           fetch-depth: 0
 
       # Install shared Node/OpenSpec/GitHub CLI prerequisites used by both archive phases.
@@ -61,8 +75,8 @@ jobs:
       - name: Prepare Shared Runtime
         uses: ./.github/actions/monthly-openspec-setup
 
-      # Create an isolated Codex home, auth file, OpenSpec shim, and log directory.
-      # 创建隔离的 Codex home、认证文件、OpenSpec 包装入口和日志目录。
+      # Create an isolated Codex home, auth file, OpenSpec shim, and log directory for archive phases.
+      # 为归档阶段创建隔离的 Codex home、认证文件、OpenSpec 包装入口和日志目录。
       - name: Prepare Codex Runtime
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -118,9 +132,10 @@ jobs:
             echo "CODEX_LOGS=${codex_logs}"
           } >> "${GITHUB_ENV}"
 
-      # Run the lina-auto-archive prompt inside the Codex container.
-      # 在 Codex 容器内运行 lina-auto-archive 提示词。
+      # Archive completed active changes with the same Codex runtime used by consolidation.
+      # 使用与聚合相同的 Codex 运行时归档已完成的活跃变更。
       - name: Run Lina Auto Archive
+        id: auto-archive
         run: |
           set -euo pipefail
 
@@ -146,29 +161,24 @@ jobs:
               --output-last-message /tmp/codex-logs/auto-archive.md \
               - < .github/prompts/monthly-openspec-auto-archive.zh-CN.md 2>&1 | tee "${CODEX_LOGS}/auto-archive.console.log"
 
-      # Fail fast when the auto-archive phase reports success but leaves completed changes active.
-      # 当自动归档阶段报告成功但仍遗留已完成活跃变更时快速失败。
-      - name: Assert Auto Archive Completed
-        uses: ./.github/actions/monthly-openspec-assert-archive-complete
-        with:
-          openspec-version: ${{ env.OPENSPEC_VERSION }}
-
-      # Validate immediately after auto-archive so invalid archive results do not enter consolidation.
-      # 自动归档后立即校验，避免无效归档结果继续进入聚合阶段。
-      - name: Validate OpenSpec After Auto Archive
-        uses: ./.github/actions/monthly-openspec-validate
-        with:
-          openspec-version: ${{ env.OPENSPEC_VERSION }}
-
-      # Detect whether auto-archive changed repository files.
-      # 检测自动归档是否修改了仓库文件。
+      # Detect whether the Codex auto-archive phase changed repository files.
+      # 检测 Codex 自动归档阶段是否修改了仓库文件。
       - name: Detect Archive Changes
         id: archive-diff
         uses: ./.github/actions/monthly-openspec-detect-changes
 
+      # Validate immediately after auto-archive so invalid archive results do not enter consolidation.
+      # 自动归档后立即校验，避免无效归档结果继续进入聚合阶段。
+      - name: Validate OpenSpec After Auto Archive
+        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
+        uses: ./.github/actions/monthly-openspec-validate
+        with:
+          openspec-version: ${{ env.OPENSPEC_VERSION }}
+
       # Consolidate archive records only when the auto-archive phase produced changes.
       # 仅在自动归档阶段产生变更时聚合归档记录。
       - name: Run Lina Archive Consolidate
+        id: archive-consolidate
         if: ${{ steps.archive-diff.outputs.changed == 'true' }}
         run: |
           set -euo pipefail
@@ -197,7 +207,20 @@ jobs:
 
       # Validate immediately after consolidation so invalid aggregate output stops before PR finalization.
       # 聚合后立即校验，避免无效聚合结果继续进入 PR 收尾。
+      - name: Check Archive Consolidate Temporary Change Cleanup
+        id: consolidate-cleanup
+        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
+        run: |
+          set -euo pipefail
+
+          if [ -e openspec/changes/archive-consolidation ]; then
+            echo "Archive consolidation left temporary OpenSpec change openspec/changes/archive-consolidation." >&2
+            echo "The temporary tracking change must be removed before validation and PR finalization." >&2
+            exit 1
+          fi
+
       - name: Validate OpenSpec After Archive Consolidate
+        id: consolidate-validate
         if: ${{ steps.archive-diff.outputs.changed == 'true' }}
         uses: ./.github/actions/monthly-openspec-validate
         with:
@@ -210,13 +233,13 @@ jobs:
         with:
           changed: ${{ steps.archive-diff.outputs.changed }}
           openspec-version: ${{ env.OPENSPEC_VERSION }}
-          base-branch: ${{ github.event.repository.default_branch }}
+          base-branch: ${{ env.TARGET_BRANCH }}
+          pr-branch: ${{ env.ARCHIVE_PR_BRANCH }}
 
       # Upload Codex task logs for review and failure diagnosis.
       # 上传 Codex 任务日志，便于审查和失败诊断。
       - name: Upload Codex Logs
-        if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: monthly-openspec-codex-logs
           path: ${{ runner.temp }}/codex-logs/

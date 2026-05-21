@@ -35,6 +35,20 @@ func TestFromResolvesPostgreSQL(t *testing.T) {
 	}
 }
 
+// TestFromDriverTypeResolvesPostgreSQL verifies callers that only have a
+// GoFrame driver type can still resolve the shared dialect boundary.
+func TestFromDriverTypeResolvesPostgreSQL(t *testing.T) {
+	t.Parallel()
+
+	dbDialect, err := FromDriverType(" pgsql ")
+	if err != nil {
+		t.Fatalf("resolve PostgreSQL dialect by driver type failed: %v", err)
+	}
+	if dbDialect.Name() != "postgres" {
+		t.Fatalf("expected postgres dialect, got %s", dbDialect.Name())
+	}
+}
+
 // TestFromRejectsMySQL verifies MySQL links fail with the explicit removal
 // error instead of falling through to the generic unsupported-dialect path.
 func TestFromRejectsMySQL(t *testing.T) {

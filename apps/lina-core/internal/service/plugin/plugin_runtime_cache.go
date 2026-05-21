@@ -17,11 +17,13 @@ import (
 // plugin facade cache domain inside this process.
 var pluginRuntimeCacheObservedRevision = pluginruntimecache.NewObservedRevision()
 
-// runtimeBundleInvalidator defines the narrow i18n cache invalidation method
-// needed by plugin runtime cache refreshes.
-type runtimeBundleInvalidator interface {
+// pluginI18nService defines the i18n methods needed by plugin lifecycle,
+// runtime cache refresh, and source-plugin reason rendering paths.
+type pluginI18nService interface {
 	// InvalidateRuntimeBundleCache clears cached runtime bundles for one explicit scope.
 	InvalidateRuntimeBundleCache(scope i18nsvc.InvalidateScope)
+	// Translate renders one runtime i18n key in the current request locale.
+	Translate(ctx context.Context, key string, fallback string) string
 }
 
 // newRuntimeCacheRevisionController creates the cluster-aware revision
@@ -31,7 +33,7 @@ func newRuntimeCacheRevisionController(
 	cacheCoordSvc cachecoord.Service,
 	integrationSvc pluginRuntimeIntegrationRefresher,
 	frontendSvc pluginRuntimeFrontendInvalidator,
-	i18nSvc runtimeBundleInvalidator,
+	i18nSvc pluginI18nService,
 ) *pluginruntimecache.Controller {
 	clusterEnabled := false
 	if topology != nil {

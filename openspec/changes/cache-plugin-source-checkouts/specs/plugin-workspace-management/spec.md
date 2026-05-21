@@ -13,11 +13,13 @@
 - **AND** 目标目录不包含来源仓库的 `.git` 元数据
 - **AND** 命令更新插件锁定状态文件
 
-#### Scenario: 安装前仍是 submodule
+#### Scenario: 安装前自动初始化 submodule 工作区
 - **WHEN** 用户运行 `make plugins.install`
 - **AND** `apps/lina-plugins` 仍是 submodule
-- **THEN** 命令失败并提示先运行 `make plugins.init`
-- **AND** 命令不写入任何插件目录
+- **THEN** 命令自动执行等价于 `make plugins.init` 的工作区初始化
+- **AND** 命令继续安装配置中的插件
+- **AND** 插件工作区转换后不再保留 submodule Git metadata
+- **AND** 用户不需要手动补跑 `make plugins.init`
 
 #### Scenario: 目标插件目录已存在
 - **WHEN** 用户运行 `make plugins.install`
@@ -60,7 +62,7 @@
 
 ### Requirement: 插件状态检查必须提供只读诊断
 
-系统 SHALL 提供 `make plugins.status`，只读检查插件工作区状态、配置插件状态、本地改动、插件版本、锁定状态和远端更新状态。该命令不得修改 `apps/lina-plugins`、`.gitmodules`、父仓库 Git index 或锁定状态文件。该命令 MAY 更新 `temp/plugin-sources/<source>` 下的工具缓存以获取远端状态，但 MUST NOT 创建命令结束即删除的 `temp/plugin-source-<source>-*` 一次性 clone 目录。
+系统 SHALL 提供 `make plugins.status`，只读检查插件工作区状态、配置插件状态、本地改动、插件版本、锁定状态和远端更新状态。除自动初始化缺失或历史 submodule 插件工作区外，该命令不得修改 `apps/lina-plugins`、`.gitmodules`、父仓库 Git index 或锁定状态文件。该命令 MAY 更新 `temp/plugin-sources/<source>` 下的工具缓存以获取远端状态，但 MUST NOT 创建命令结束即删除的 `temp/plugin-source-<source>-*` 一次性 clone 目录。
 
 #### Scenario: 状态检查普通插件工作区
 - **WHEN** 用户运行 `make plugins.status`
@@ -68,12 +70,12 @@
 - **THEN** 命令输出工作区类型为普通目录
 - **AND** 命令列出配置中每个插件的本地存在性、source、ref、插件版本和本地 dirty 状态
 
-#### Scenario: 状态检查发现仍是 submodule
+#### Scenario: 状态检查自动初始化 submodule 工作区
 - **WHEN** 用户运行 `make plugins.status`
 - **AND** `apps/lina-plugins` 仍是 submodule
-- **THEN** 命令输出 submodule 状态
-- **AND** 命令提示先运行 `make plugins.init`
-- **AND** 命令不修改 submodule 配置
+- **THEN** 命令自动执行等价于 `make plugins.init` 的工作区初始化
+- **AND** 命令继续输出普通插件工作区状态
+- **AND** 命令不写入插件目录或锁定状态文件
 
 #### Scenario: 远端不可达
 - **WHEN** 用户运行 `make plugins.status`

@@ -39,6 +39,10 @@
 
    该命令的只读边界针对用户插件工作区、父仓库 Git 配置/index 和锁文件。更新 `temp/` 下的开发工具缓存不改变用户插件目录，可接受并能显著减少重复下载。
 
+5. `plugins.install`、`plugins.update` 与 `plugins.status` 在执行前统一确保插件工作区已初始化。
+
+   命令入口复用与 `plugins.init` 相同的预检和转换逻辑。缺失目录时创建 `apps/lina-plugins`，历史 submodule/gitlink 状态时先移除 submodule metadata 并保留已有插件文件，再继续执行原命令。嵌套 `.git` metadata 或非目录路径仍然失败，因为这些状态可能覆盖用户维护的独立仓库或异常文件。
+
 ## Risks / Trade-offs
 
 - [Risk] 缓存工作树残留本地变更导致远端状态计算不稳定。  

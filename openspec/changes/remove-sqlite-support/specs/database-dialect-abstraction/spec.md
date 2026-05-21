@@ -2,7 +2,7 @@
 
 ### Requirement: 宿主必须通过统一的方言抽象层收敛数据库引擎差异
 
-系统 SHALL 在 `apps/lina-core/pkg/dialect/` 提供公共稳定的 `Dialect` 接口与方言辅助能力作为数据库引擎差异的唯一收敛点。当前唯一支持的具体数据库方言 SHALL 为 PostgreSQL。所有数据库引擎相关的差异化行为（数据库准备、集群能力查询、启动期钩子、驱动错误分类、数据库版本查询、表元数据查询）必须通过该包暴露，业务模块（`controller` / `service` / `model` / `dao`）不得在自身代码路径中出现 `if isPostgres / if isSQLite` 等数据库引擎判断。`pkg/dialect` 的公开签名 SHALL 只依赖稳定窄接口，不得暴露宿主 `internal` 包中的具体服务类型，也不得导出 PostgreSQL 方言具体实现类型；具体方言实现应收敛在 `pkg/dialect/internal/postgres` 内部子包中，由公共工厂与公共门面能力统一委托。
+系统 SHALL 在 `apps/lina-core/pkg/dialect/` 提供公共稳定的 `Dialect` 接口与方言辅助能力作为数据库引擎差异的唯一收敛点。当前唯一支持的具体数据库方言 SHALL 为 PostgreSQL。所有数据库引擎相关的差异化行为（数据库准备、集群能力查询、启动期钩子、驱动错误分类、数据库版本查询、表元数据查询、驱动/ORM 只读 SQL 分类）必须通过该包暴露，业务模块（`controller` / `service` / `model` / `dao`）不得在自身代码路径中出现 `if isPostgres / if isSQLite` 等数据库引擎判断。`pkg/dialect` 的公开签名 SHALL 只依赖稳定窄接口，不得暴露宿主 `internal` 包中的具体服务类型，也不得导出 PostgreSQL 方言具体实现类型；具体方言实现应收敛在 `pkg/dialect/internal/postgres` 内部子包中，由公共工厂与公共门面能力统一委托。
 
 #### Scenario: 业务模块不感知数据库引擎差异
 
@@ -12,7 +12,7 @@
 
 #### Scenario: 所有方言相关行为通过 Dialect 接口暴露
 
-- **当** 宿主需要执行“数据库准备 / 集群能力查询 / 启动期钩子 / 数据库版本查询 / 表元数据查询”中的任一行为时
+- **当** 宿主需要执行“数据库准备 / 集群能力查询 / 启动期钩子 / 数据库版本查询 / 表元数据查询 / 驱动与 ORM 只读 SQL 分类”中的任一行为时
 - **则** 调用方通过 `dialect.From(link)` 或 `dialect.FromDatabase(db)` 获取当前方言实例
 - **且** 调用方仅依赖 `Dialect` 接口的方法签名，不依赖具体实现的内部细节
 
@@ -20,7 +20,7 @@
 
 - **当** 宿主、插件生命周期或工具链代码导入 `apps/lina-core/pkg/dialect` 时
 - **则** 公共包不导出 `PostgresDialect` 等具体实现类型
-- **且** PostgreSQL 的数据库准备、启动期行为、驱动错误分类、表元数据查询实现维护在 `pkg/dialect/internal/postgres` 内部子包中
+- **且** PostgreSQL 的数据库准备、启动期行为、驱动错误分类、表元数据查询、只读 SQL 分类实现维护在 `pkg/dialect/internal/postgres` 内部子包中
 - **且** 调用方只能通过 `Dialect` 接口、`dialect.From(link)` / `dialect.FromDatabase(db)` 工厂函数和 `dialect.IsRetryableWriteConflict(err)` / `dialect.SplitSQLStatements(content)` 等必要公共门面能力访问方言相关行为
 
 #### Scenario: 驱动错误分类由 dialect 公共包提供
@@ -43,6 +43,14 @@
 - **则** 调用方通过 `Dialect.QueryTableMetadata(ctx, db, schema, names)` 查询
 - **且** 调用方不得直接编写 `information_schema.TABLES` / `pg_catalog.pg_description` 等方言特有 SQL
 - **且** PostgreSQL 实现使用 `information_schema.tables` JOIN `pg_class` 的 `obj_description(oid)` 查询表注释
+
+#### Scenario: 驱动与 ORM 只读 SQL 分类由 dialect 公共包提供
+
+- **当** `plugindb/host` 等治理层需要允许驱动或 ORM 发出的表元数据读、schema probe、版本 probe 等无业务表只读 SQL 时
+- **则** 调用方通过 `Dialect.ClassifyReadSQL(sql)` 或等价公共门面获取语义分类
+- **且** 治理层不得直接硬编码 `information_schema`、`pg_catalog`、`pg_class`、`current_schema()`、`version()` 等 PostgreSQL 特有 SQL 片段
+- **且** PostgreSQL 具体识别逻辑必须维护在 `pkg/dialect/internal/postgres` 内部子包中
+- **且** 分类不得允许带有未授权业务表的 SQL 绕过插件数据表级授权校验
 
 #### Scenario: dialect 公共包不暴露宿主 internal 具体类型
 
@@ -82,7 +90,7 @@
 - **则** `dialect.From(link)` 返回包含前缀名与已支持前缀列表的明确错误
 - **且** 系统不静默回退到任何默认方言
 
-### Requirement: PostgreSQL 方言 DDL 转译为无操作
+### Requirement: PostgreSQL 方言 DDL 入口为无操作
 
 `Dialect.TranslateDDL(ctx, sourceName, ddl)` SHALL 接收调用方传入的 `sourceName` 诊断名。`sourceName` MUST 是源 SQL 文件路径、嵌入资产路径或调用方构造的稳定描述，用于在错误消息中定位失败来源。PostgreSQL 方言的 `TranslateDDL` SHALL 直接返回输入字符串，不做任何修改。这保证了 PostgreSQL 作为唯一 SQL 源方言时生产路径无翻译开销。
 
@@ -166,17 +174,3 @@
 - **当** 调用方传入的 `tableNames` 中部分表名在数据库中不存在
 - **则** 返回的 `[]TableMeta` 仅包含实际存在的表
 - **且** 不为不存在的表名返回任何记录或错误
-
-## REMOVED Requirements
-
-### Requirement: SQLite 方言 DDL 转译必须覆盖项目 PG SQL 子集
-
-**Reason**: SQLite 不再是 LinaPro 支持的运行时、开发、演示或测试数据库。
-
-**Migration**: 使用 PostgreSQL 14+ 数据库并直接执行 PostgreSQL SQL 源文件。
-
-### Requirement: DDL 转译失败时必须返回明确错误
-
-**Reason**: 移除 SQLite DDL 转译器后，不再存在跨方言转译失败路径。
-
-**Migration**: PostgreSQL 源 SQL 由 PostgreSQL 直接解析；语法错误通过 PostgreSQL 执行错误返回。

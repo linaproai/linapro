@@ -200,7 +200,7 @@ jobs:
       # 上传 Playwright 报告和服务日志，便于失败诊断。
       - name: Upload E2E Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}
           path: |

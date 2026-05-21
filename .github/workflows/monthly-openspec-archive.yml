@@ -25,8 +25,8 @@ permissions:
   contents: write
   pull-requests: write
 
-# Keep a single archive router run active per branch to avoid duplicate PRs.
-# 每个分支只保留一个归档路由运行，避免重复创建 PR。
+# Keep a single archive router run active per trigger ref to avoid duplicate PRs for the same target.
+# 每个触发 ref 只保留一个归档路由运行，避免同一目标重复创建 PR。
 concurrency:
   group: "${{ github.workflow }} @ ${{ github.ref }}"
   cancel-in-progress: false
@@ -45,11 +45,13 @@ jobs:
     name: Detect completed OpenSpec changes
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/')) || github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     outputs:
       has_candidates: ${{ steps.detect.outputs.has_candidates }}
       ai_coding_tool: ${{ steps.resolve.outputs.ai_coding_tool }}
       should_run: ${{ steps.monthly-window.outputs.should_run }}
+      target_branch: ${{ steps.target-branch.outputs.target_branch }}
+      pr_branch: ${{ steps.target-branch.outputs.pr_branch }}
 
     steps:
       # Guard the duplicate February schedule in leap years; manual runs are unrestricted.
@@ -80,6 +82,41 @@ jobs:
             echo "Scheduled run is inside the monthly archive window."
           fi
 
+      # Resolve the branch whose OpenSpec state will be inspected and archived.
+      # 解析本次用于检测和归档 OpenSpec 状态的目标分支。
+      - name: Resolve Target Branch
+        if: ${{ steps.monthly-window.outputs.should_run == 'true' }}
+        id: target-branch
+        env:
+          GITHUB_REF_NAME_VALUE: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const targetBranch = String(process.env.GITHUB_REF_NAME_VALUE || '').trim();
+          if (!targetBranch) {
+            console.error('Unable to resolve the workflow trigger branch.');
+            process.exit(1);
+          }
+
+          const slug = targetBranch
+            .toLowerCase()
+            .replace(/[^a-z0-9._-]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 80) || 'branch';
+          const prBranch = `automation/monthly-openspec-archive-${slug}`;
+
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `target_branch=${targetBranch}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `pr_branch=${prBranch}\n`);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Monthly OpenSpec archive target branch: ${targetBranch}\n`);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Monthly OpenSpec archive PR branch: ${prBranch}\n`);
+
+          console.log(`Resolved target branch: ${targetBranch}`);
+          console.log(`Resolved archive PR branch: ${prBranch}`);
+          NODE
+
       # Configure the runner timezone before OpenSpec commands produce timestamps.
       # 在 OpenSpec 命令产出时间戳前配置 runner 时区。
       - name: Setup Timezone
@@ -88,13 +125,13 @@ jobs:
           sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
           echo Asia/Shanghai | sudo tee /etc/timezone
 
-      # Check out the default branch with full history for archive branch creation.
-      # 拉取默认分支完整历史，供后续创建归档分支。
+      # Check out the trigger branch with full history for archive branch creation.
+      # 拉取触发分支完整历史，供后续创建归档分支。
       - name: Checkout Repository
         if: ${{ steps.monthly-window.outputs.should_run == 'true' }}
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ steps.target-branch.outputs.target_branch }}
           fetch-depth: 0
 
       # Install Node for the pinned OpenSpec CLI invocation.
@@ -171,6 +208,8 @@ jobs:
       pull-requests: write
     with:
       openspec_version: ${{ vars.OPENSPEC_VERSION || '1.3.1' }}
+      target_branch: ${{ needs.detect.outputs.target_branch }}
+      pr_branch: ${{ needs.detect.outputs.pr_branch }}
       openai_base_url: ${{ vars.OPENAI_BASE_URL }}
     secrets:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -187,6 +226,8 @@ jobs:
       pull-requests: write
     with:
       openspec_version: ${{ vars.OPENSPEC_VERSION || '1.3.1' }}
+      target_branch: ${{ needs.detect.outputs.target_branch }}
+      pr_branch: ${{ needs.detect.outputs.pr_branch }}
       anthropic_base_url: ${{ vars.ANTHROPIC_BASE_URL }}
       anthropic_custom_model: ${{ vars.ANTHROPIC_CUSTOM_MODEL }}
     secrets:
@@ -204,6 +245,8 @@ jobs:
       pull-requests: write
     with:
       openspec_version: ${{ vars.OPENSPEC_VERSION || '1.3.1' }}
+      target_branch: ${{ needs.detect.outputs.target_branch }}
+      pr_branch: ${{ needs.detect.outputs.pr_branch }}
       copilot_model: ${{ vars.COPILOT_MODEL || 'auto' }}
       copilot_reasoning_effort: ${{ vars.COPILOT_REASONING_EFFORT || '' }}
     secrets:

@@ -206,7 +206,7 @@ func (s *serviceImpl) storeUploadedPackage(
 		}
 		return nil, err
 	}
-	s.invalidateRuntimeCaches(ctx, reloadedManifest.ID, "runtime_package_uploaded")
+	s.invalidateRuntimeCaches(ctx, reloadedManifest, runtimeChangeReasonRuntimePackageUploaded)
 
 	syncedRegistry, err := s.catalogSvc.SyncManifest(ctx, reloadedManifest)
 	if err != nil {
@@ -215,7 +215,7 @@ func (s *serviceImpl) storeUploadedPackage(
 		}
 		return nil, err
 	}
-	if err = s.notifyReconcilerChanged(ctx, "dynamic_package_uploaded"); err != nil {
+	if err = s.notifyReconcilerChanged(ctx, runtimeChangeReasonDynamicPackageUploaded); err != nil {
 		return nil, err
 	}
 

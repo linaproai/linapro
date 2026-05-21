@@ -9,7 +9,7 @@ import (
 // Upload config defaults used when config.yaml omits the upload section.
 const (
 	defaultUploadPath    = "temp/upload"
-	defaultUploadMaxSize = int64(20)
+	defaultUploadMaxSize = int64(100)
 )
 
 // UploadConfig holds file upload configuration.

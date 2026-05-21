@@ -101,8 +101,8 @@ func TestFilesEmbedUpdatedUploadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read packed config template: %v", err)
 	}
-	if !strings.Contains(string(configContent), "maxSize: 20") {
-		t.Fatalf("expected packed config template to keep 20MB upload default, got %q", string(configContent))
+	if !strings.Contains(string(configContent), "maxSize: 100") {
+		t.Fatalf("expected packed config template to keep 100MB upload default, got %q", string(configContent))
 	}
 	if !strings.Contains(string(configContent), "enabled: true") {
 		t.Fatalf("expected packed config template to include i18n enabled default, got %q", string(configContent))
@@ -125,8 +125,8 @@ func TestFilesEmbedUpdatedUploadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read packed config-management sql: %v", err)
 	}
-	if !strings.Contains(string(sqlContent), "'sys.upload.maxSize', '20'") {
-		t.Fatalf("expected packed config-management sql to keep 20MB upload default, got %q", string(sqlContent))
+	if !strings.Contains(string(sqlContent), "'sys.upload.maxSize', '100'") {
+		t.Fatalf("expected packed config-management sql to keep 100MB upload default, got %q", string(sqlContent))
 	}
 }
 

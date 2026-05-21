@@ -55,7 +55,7 @@ func (s *serviceImpl) installSourcePlugin(ctx context.Context, manifest *catalog
 		ctx,
 		manifest,
 		pluginhost.LifecycleHookBeforeInstall,
-		sourceLifecyclePolicy{},
+		sourceLifecyclePolicy{startupAutoEnable: sourceLifecycleStartupAutoEnable(ctx)},
 	); err != nil {
 		return err
 	}
@@ -216,8 +216,9 @@ func (s *serviceImpl) uninstallSourcePlugin(
 // sourceLifecyclePolicy carries host-side action options into source-plugin
 // generic lifecycle callbacks.
 type sourceLifecyclePolicy struct {
-	force            bool
-	purgeStorageData bool
+	force             bool
+	startupAutoEnable bool
+	purgeStorageData  bool
 }
 
 // executeSourcePluginBeforeLifecycle invokes lifecycle facade precondition
@@ -233,10 +234,13 @@ func (s *serviceImpl) executeSourcePluginBeforeLifecycle(
 	}
 	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
 		Hook: hook,
-		PluginInput: pluginhost.NewSourcePluginLifecycleInputWithUninstallPolicy(
+		PluginInput: pluginhost.NewSourcePluginLifecycleInputWithPolicy(
 			manifest.ID,
 			hook.String(),
-			policy.purgeStorageData,
+			pluginhost.SourcePluginLifecyclePolicy{
+				StartupAutoEnable: policy.startupAutoEnable,
+				PurgeStorageData:  policy.purgeStorageData,
+			},
 		),
 		Participants: []pluginhost.LifecycleParticipant{
 			{
@@ -248,7 +252,7 @@ func (s *serviceImpl) executeSourcePluginBeforeLifecycle(
 	if result.OK {
 		return nil
 	}
-	reasons := summarizeLifecycleVetoReasons(result.Decisions)
+	reasons := s.summarizeLocalizedLifecycleVetoReasons(ctx, result.Decisions)
 	if policy.force && hook == pluginhost.LifecycleHookBeforeUninstall {
 		if err := s.ensureForceUninstallEnabled(ctx); err != nil {
 			return err
@@ -283,10 +287,13 @@ func (s *serviceImpl) executeSourcePluginAfterLifecycle(
 	}
 	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
 		Hook: hook,
-		PluginInput: pluginhost.NewSourcePluginLifecycleInputWithUninstallPolicy(
+		PluginInput: pluginhost.NewSourcePluginLifecycleInputWithPolicy(
 			manifest.ID,
 			hook.String(),
-			policy.purgeStorageData,
+			pluginhost.SourcePluginLifecyclePolicy{
+				StartupAutoEnable: policy.startupAutoEnable,
+				PurgeStorageData:  policy.purgeStorageData,
+			},
 		),
 		Participants: []pluginhost.LifecycleParticipant{
 			{

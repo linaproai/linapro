@@ -76,7 +76,7 @@
 - **且** 命令直接使用当前配置中的 `database.default.link` 连接已初始化数据库并加载 mock SQL
 - **且** 如果目标数据库、数据表或基础 seed 不存在，命令快速失败并返回数据库错误，不静默创建或重建数据库
 
-### Requirement: 数据库引导命令必须在执行 SQL 前调用方言转译
+### Requirement: 数据库引导命令必须在执行 SQL 前调用方言入口
 
 系统 SHALL 在 `init` / `mock` 执行每个 SQL 文件前，先调用当前方言的 `TranslateDDL(ctx, sourceName, ddl)`。`sourceName` SHALL 使用源 SQL 文件路径或嵌入资产路径。当前唯一支持的 PostgreSQL 方言下转译为 no-op，SQL 文件的源文件保持 PostgreSQL 14+ 方言来源。
 

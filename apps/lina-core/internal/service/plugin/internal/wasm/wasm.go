@@ -37,8 +37,24 @@ type ExecutionInput struct {
 	CronCollector CronRegistrationCollector
 }
 
-// wasmCacheEntry stores one compiled module together with the runtime that owns it.
+// wasmCacheEntry stores one compiled module together with the runtime that owns
+// it. The entry tracks active execution leases so cache invalidation can remove
+// stale entries immediately without closing a runtime that is still instantiating
+// or executing a guest module.
 type wasmCacheEntry struct {
+	mu          sync.Mutex
+	idle        *sync.Cond
+	runtime     wazero.Runtime
+	compiled    wazero.CompiledModule
+	active      int
+	invalidated bool
+	closed      bool
+}
+
+// wasmModuleLease pins a cached module entry while a bridge execution uses its
+// runtime and compiled module.
+type wasmModuleLease struct {
+	entry    *wasmCacheEntry
 	runtime  wazero.Runtime
 	compiled wazero.CompiledModule
 }

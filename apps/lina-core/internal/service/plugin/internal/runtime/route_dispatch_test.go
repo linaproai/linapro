@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -444,6 +445,65 @@ func TestExecuteDynamicWasmBridgeHostCallDemoUsesStructuredHostServices(t *testi
 	}
 }
 
+// TestExecuteDynamicWasmBridgeCreatesDemoRecord verifies the bundled dynamic
+// sample can execute the create demo-record route with data and storage host
+// services, matching the E2E CRUD path.
+func TestExecuteDynamicWasmBridgeCreatesDemoRecord(t *testing.T) {
+	testutil.EnsureBundledRuntimeSampleArtifactForTests(t)
+	ensureDynamicDemoRecordTable(t)
+
+	services := testutil.NewServices()
+	manifest, err := loadBundledDynamicSampleManifest(t, services)
+	if err != nil {
+		t.Fatalf("expected bundled runtime artifact to load, got error: %v", err)
+	}
+
+	response, err := services.Runtime.ExecuteDynamicRoute(context.Background(), manifest, &pluginbridge.BridgeRequestEnvelopeV1{
+		PluginID:  "linapro-demo-dynamic",
+		RequestID: "req-demo-record-create",
+		Route: &pluginbridge.RouteMatchSnapshotV1{
+			Method:       http.MethodPost,
+			InternalPath: "/demo-records",
+			PublicPath:   "/x/linapro-demo-dynamic/demo-records",
+			Access:       pluginbridge.AccessLogin,
+			Permission:   "linapro-demo-dynamic:record:create",
+			RequestType:  "CreateDemoRecordReq",
+			RoutePath:    "/demo-records",
+		},
+		Identity: &pluginbridge.IdentitySnapshotV1{
+			UserID:       1,
+			Username:     "admin",
+			DataScope:    1,
+			IsSuperAdmin: true,
+		},
+		Request: &pluginbridge.HTTPRequestSnapshotV1{
+			Method:      http.MethodPost,
+			ContentType: "application/json",
+			Body: []byte(`{
+				"title":"Dynamic route create test",
+				"content":"Created through the bundled dynamic WASM bridge",
+				"attachmentName":"linapro-demo-dynamic-note.txt",
+				"attachmentContentBase64":"bGluYXByby1kZW1vLWR5bmFtaWMgYXR0YWNobWVudCBmaXh0dXJl",
+				"attachmentContentType":"text/plain"
+			}`),
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected demo-record create route to succeed, got error: %v", err)
+	}
+	if response == nil || response.StatusCode != http.StatusOK {
+		t.Fatalf("expected demo-record create response 200, got %#v body=%s", response, responseBodyForTest(response))
+	}
+
+	payload := map[string]interface{}{}
+	if err = json.Unmarshal(response.Body, &payload); err != nil {
+		t.Fatalf("expected demo-record create body to be valid json, got error: %v body=%s", err, string(response.Body))
+	}
+	if payload["title"] != "Dynamic route create test" || payload["hasAttachment"] != true {
+		t.Fatalf("expected created demo-record payload with attachment, got %#v", payload)
+	}
+}
+
 // TestExecuteDeclaredCronJobUsesWasmBridge verifies that dynamic-plugin cron
 // discovery and execution both reuse the shared Wasm bridge.
 func TestExecuteDeclaredCronJobUsesWasmBridge(t *testing.T) {
@@ -498,6 +558,41 @@ func loadBundledDynamicSampleManifest(t *testing.T, services *testutil.Services)
 
 	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), runtime.BuildArtifactFileName("linapro-demo-dynamic"))
 	return services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+}
+
+// ensureDynamicDemoRecordTable provisions the dynamic sample table needed by
+// bundled route tests that bypass the full plugin install lifecycle.
+func ensureDynamicDemoRecordTable(t *testing.T) {
+	t.Helper()
+	ctx := context.Background()
+	_, err := g.DB().Exec(ctx, `
+CREATE TABLE IF NOT EXISTS plugin_linapro_demo_dynamic_record (
+    "id"              VARCHAR(64) PRIMARY KEY,
+    "tenant_id"       INT NOT NULL DEFAULT 0,
+    "title"           VARCHAR(128) NOT NULL DEFAULT '',
+    "content"         VARCHAR(1000) NOT NULL DEFAULT '',
+    "attachment_name" VARCHAR(255) NOT NULL DEFAULT '',
+    "attachment_path" VARCHAR(500) NOT NULL DEFAULT '',
+    "created_at"      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at"      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`)
+	if err != nil {
+		t.Fatalf("failed to create dynamic demo record table: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, cleanupErr := g.DB().Exec(ctx, `DELETE FROM plugin_linapro_demo_dynamic_record WHERE "title" = ?`, "Dynamic route create test"); cleanupErr != nil {
+			t.Fatalf("failed to cleanup dynamic demo record table: %v", cleanupErr)
+		}
+	})
+}
+
+// responseBodyForTest returns response body bytes without forcing every failure
+// assertion to nil-check the response first.
+func responseBodyForTest(response *pluginbridge.BridgeResponseEnvelopeV1) []byte {
+	if response == nil {
+		return nil
+	}
+	return response.Body
 }
 
 // findCronContract locates one declared cron contract by stable plugin-local name.

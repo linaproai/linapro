@@ -117,21 +117,8 @@ type pluginStatusRow struct {
 
 // InstallOrUpdate executes install or update for selected plugins.
 func InstallOrUpdate(ctx context.Context, runtime Runtime, input Input, update bool) error {
-	workspace, err := InspectManagedWorkspace(ctx, runtime)
-	if err != nil {
+	if _, err := EnsureManagedWorkspaceReady(ctx, runtime, false); err != nil {
 		return err
-	}
-	if workspace.State == ManagedWorkspaceSubmodule {
-		return errors.New("apps/lina-plugins is still a submodule; run `make plugins.init` first")
-	}
-	if workspace.State == ManagedWorkspaceNestedGit {
-		return errors.New("apps/lina-plugins contains nested Git metadata; run `make plugins.init` or remove nested metadata first")
-	}
-	if workspace.State == ManagedWorkspaceInvalid {
-		return fmt.Errorf("apps/lina-plugins is invalid: %s", workspace.Root)
-	}
-	if err = os.MkdirAll(workspace.Root, 0o755); err != nil {
-		return fmt.Errorf("create plugin workspace: %w", err)
 	}
 
 	force, err := input.Bool("force", false)
@@ -187,15 +174,11 @@ func InstallOrUpdate(ctx context.Context, runtime Runtime, input Input, update b
 
 // Status prints read-only plugin workspace and source status.
 func Status(ctx context.Context, runtime Runtime, input Input) error {
-	workspace, err := InspectManagedWorkspace(ctx, runtime)
+	workspace, err := EnsureManagedWorkspaceReady(ctx, runtime, false)
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(runtime.Stdout, "Plugin workspace: %s (%s)\n", toolutil.RelativePath(runtime.Root, workspace.Root), workspace.State)
-	if workspace.State == ManagedWorkspaceSubmodule {
-		fmt.Fprintln(runtime.Stdout, "Action required: run `make plugins.init` before installing or updating user-project plugins.")
-		return nil
-	}
 
 	plan, err := LoadPlan(runtime.Root, input)
 	if err != nil {
@@ -604,6 +587,43 @@ func InspectManagedWorkspace(ctx context.Context, runtime Runtime) (ManagedWorks
 		return ManagedWorkspace{Root: root, State: ManagedWorkspaceNestedGit}, nil
 	}
 	return ManagedWorkspace{Root: root, State: ManagedWorkspaceOrdinary}, nil
+}
+
+// EnsureManagedWorkspaceReady initializes apps/lina-plugins when a plugins.*
+// command can safely recover from a missing directory or historical submodule.
+func EnsureManagedWorkspaceReady(ctx context.Context, runtime Runtime, reportOrdinary bool) (ManagedWorkspace, error) {
+	workspace, err := InspectManagedWorkspace(ctx, runtime)
+	if err != nil {
+		return ManagedWorkspace{}, err
+	}
+	switch workspace.State {
+	case ManagedWorkspaceOrdinary:
+		if reportOrdinary {
+			if _, err = fmt.Fprintf(runtime.Stdout, "Plugin workspace already ordinary: %s\n", toolutil.RelativePath(runtime.Root, workspace.Root)); err != nil {
+				return ManagedWorkspace{}, fmt.Errorf("write plugin workspace status: %w", err)
+			}
+		}
+		return workspace, nil
+	case ManagedWorkspaceMissing:
+		if err = os.MkdirAll(workspace.Root, 0o755); err != nil {
+			return ManagedWorkspace{}, fmt.Errorf("create plugin workspace: %w", err)
+		}
+		if _, err = fmt.Fprintf(runtime.Stdout, "Plugin workspace created: %s\n", toolutil.RelativePath(runtime.Root, workspace.Root)); err != nil {
+			return ManagedWorkspace{}, fmt.Errorf("write plugin workspace status: %w", err)
+		}
+		return ManagedWorkspace{Root: workspace.Root, State: ManagedWorkspaceOrdinary}, nil
+	case ManagedWorkspaceSubmodule:
+		if err = ConvertSubmoduleToDirectory(ctx, runtime, workspace); err != nil {
+			return ManagedWorkspace{}, err
+		}
+		return ManagedWorkspace{Root: workspace.Root, State: ManagedWorkspaceOrdinary}, nil
+	case ManagedWorkspaceNestedGit:
+		return ManagedWorkspace{}, fmt.Errorf("plugin workspace contains nested Git metadata; remove %s manually before plugin workspace initialization", toolutil.RelativePath(runtime.Root, filepath.Join(workspace.Root, ".git")))
+	case ManagedWorkspaceInvalid:
+		return ManagedWorkspace{}, fmt.Errorf("plugin workspace is invalid: %s", toolutil.RelativePath(runtime.Root, workspace.Root))
+	default:
+		return ManagedWorkspace{}, fmt.Errorf("unknown plugin workspace state: %s", workspace.State)
+	}
 }
 
 // ConvertSubmoduleToDirectory removes submodule metadata while keeping files.

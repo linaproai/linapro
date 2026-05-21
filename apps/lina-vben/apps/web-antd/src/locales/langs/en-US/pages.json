@@ -830,6 +830,7 @@
       "columnHelp": {
         "ariaLabel": "{label} column help",
         "type": "Source plugins are delivered with host source code and build artifacts for built-in or trusted extensions; dynamic plugins are uploaded as wasm artifacts for runtime install, upgrade, and isolated governance.",
+        "runtimeState": "Runtime state shows whether discovered plugin files, the database-effective version, upgrade flow, and abnormal diagnostics are consistent. The Status column only shows whether the plugin is currently enabled for business entry.",
         "mockData": "Yes means the plugin ships bundled mock data that can be loaded during install; No means no bundled mock data is available.",
         "supportsMultiTenant": "Yes means the plugin declares multi-tenant governance support and can use tenant-scoped install mode and tenant-side enablement; No means it is managed only as a platform-global capability.",
         "tenantProvisioning": "Controls whether a tenant-scoped plugin is enabled automatically for newly created tenants. Only multi-tenant plugins installed in tenant-scoped mode can use this policy."
@@ -838,7 +839,7 @@
         "id": "Plugin ID",
         "name": "Plugin Name",
         "type": "Plugin Type",
-        "description": "Description",
+        "description": "Plugin Description",
         "installed": "Installed",
         "installedAt": "Installed At",
         "version": "Version",

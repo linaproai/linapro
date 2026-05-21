@@ -41,6 +41,7 @@
 
 - [x] **FB-1**: `linapro-monitor-server` PostgreSQL 单测未注册 `pgsql` 驱动导致 `g.DB()` 初始化 panic。
 - [x] **FB-2**: `make init` 在 clean checkout 中因 `internal/packed/public` 没有被跟踪的嵌入文件而无法编译 `go:embed all:public`。
+- [x] **FB-3**: `plugindb/host` 的元数据读与 schema probe 判定包含 PostgreSQL 专属 SQL 字符串，导致插件数据治理层与具体数据库实现强绑定。
 
 ## Feedback 验证记录
 
@@ -67,3 +68,15 @@
 - 缓存影响：本次不新增或修改运行时缓存、缓存键、失效触发点或跨实例同步机制。
 - 数据权限影响：本次不新增或修改 HTTP/API 数据操作接口、数据库查询路径或角色数据权限边界。
 - 审查：`/lina-review` 已完成；审查范围为 `internal/packed` 嵌入占位、`linactl build` 占位重建逻辑、相关测试与 `remove-sqlite-support` 反馈记录，未发现阻断问题。
+
+- FB-3 修复：将插件数据治理层的读 SQL 分类改为依赖 `pkg/dialect` 暴露的 `ClassifyReadSQL` 抽象；`plugindb/host` 只判断“元数据读/无表 schema probe”语义，不再包含 PostgreSQL catalog/schema probe 具体字符串，PostgreSQL 专属识别逻辑收敛到 `pkg/dialect/internal/postgres`；同步更新 `database-dialect-abstraction` 增量规范，明确驱动/ORM 只读 SQL 分类属于方言边界。
+- 新增测试：`pkg/dialect/internal/postgres` 覆盖 PostgreSQL catalog lookup、schema probe 与普通应用读分类；`pkg/dialect` 覆盖通过 GoFrame driver type 解析方言；`pkg/plugindb/host` 覆盖 table guard 继续允许 ORM 元数据读和只读 schema probe，同时新增源码扫描断言防止 `plugindb/host/db.go` 再引入 PostgreSQL catalog 字符串。
+- 验证通过：`cd apps/lina-core && go test ./pkg/dialect/internal/postgres ./pkg/dialect ./pkg/plugindb/host -count=1`。
+- 验证通过：`cd apps/lina-core && go test ./pkg/dialect/... ./pkg/plugindb/... -count=1`。
+- 验证通过：`openspec validate remove-sqlite-support --strict`。
+- 静态扫描通过：`rg -n "information_schema|pg_catalog|current_schema|pg_class|pg_namespace|version\\(\\)" apps/lina-core/pkg/plugindb/host/db.go` 无匹配。
+- i18n 影响：本次仅调整后端治理抽象和单元测试，不新增、修改或删除用户可见文案、运行时语言包、插件 `manifest/i18n` 或 apidoc i18n JSON。
+- 缓存影响：本次不新增或修改运行时缓存、缓存键、失效触发点、跨实例同步机制或缓存一致性模型。
+- 数据权限影响：本次不新增或修改 HTTP/API 数据操作接口；插件数据服务原有表级治理继续在 `DoCommit` 阶段校验授权资源表，本次只移动数据库方言分类边界。
+- 开发工具影响：本次不新增或修改开发工具、脚本、CI 默认入口或平台相关命令。
+- 审查：`/lina-review` 已完成；审查范围为 `pkg/dialect` 只读 SQL 分类抽象、`pkg/plugindb/host` 表级治理调用点、相关单元测试与 `remove-sqlite-support` 反馈记录，未发现阻断问题。

@@ -737,7 +737,7 @@
       },
       "lifecycle": {
         "precondition": {
-          "vetoed": "Plugin lifecycle operation {operation} for {pluginId} was blocked by lifecycle preconditions: {reasons}"
+          "vetoed": "The requested operation was blocked by a plugin protection policy: {reasons}"
         }
       },
       "uninstall": {

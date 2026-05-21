@@ -213,7 +213,7 @@ make plugins.update force=1
 make plugins.status
 ```
 
-`plugins.init` 会将 `apps/lina-plugins` 从 `submodule` 转成普通目录并保留文件。`plugins.install` 和 `plugins.update` 会复用 `temp/plugin-sources/<source>` 下的配置来源缓存，首次 clone 后通过 fetch 更新，再复制插件目录到 `apps/lina-plugins/<plugin-id>`，并更新工具生成的 `apps/lina-plugins/.linapro-plugins.lock.yaml` 锁文件。
+`plugins.init` 会将 `apps/lina-plugins` 从 `submodule` 转成普通目录并保留文件。`plugins.install`、`plugins.update` 和 `plugins.status` 会在需要时自动执行同等工作区初始化，因此用户可以直接执行实际需要的命令。`plugins.install` 和 `plugins.update` 会复用 `temp/plugin-sources/<source>` 下的配置来源缓存，首次 clone 后通过 fetch 更新，再复制插件目录到 `apps/lina-plugins/<plugin-id>`，并更新工具生成的 `apps/lina-plugins/.linapro-plugins.lock.yaml` 锁文件。
 
 ## 验证
 

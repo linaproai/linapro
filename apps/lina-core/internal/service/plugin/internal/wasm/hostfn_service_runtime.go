@@ -6,6 +6,7 @@ package wasm
 import (
 	"context"
 	"os"
+	"strconv"
 
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/guid"
@@ -32,7 +33,7 @@ func dispatchRuntimeHostService(
 	case bridgehostservice.HostServiceMethodRuntimeStateDelete:
 		return handleHostStateDelete(ctx, hcc, payload)
 	case bridgehostservice.HostServiceMethodRuntimeInfoNow:
-		return buildRuntimeInfoValueResponse(gtime.Now().String())
+		return buildRuntimeInfoValueResponse(strconv.FormatInt(gtime.Now().Time.UnixMilli(), 10))
 	case bridgehostservice.HostServiceMethodRuntimeInfoUUID:
 		return buildRuntimeInfoValueResponse(guid.S())
 	case bridgehostservice.HostServiceMethodRuntimeInfoNode:

@@ -10,9 +10,11 @@ const pluginDetailActionPattern = /详\s*情|Detail(?:s)?/iu;
 const pluginUpgradeActionPattern = /升\s*级|重试升级|Upgrade|Retry Upgrade/iu;
 const confirmActionPattern = /确\s*认|确\s*定|confirm|ok/iu;
 const cancelActionPattern = /取\s*消|cancel/iu;
+const pluginLifecycleActionTimeout = 120_000;
 
 type PluginColumnHelpName =
   | "mockData"
+  | "runtimeState"
   | "supportsMultiTenant"
   | "tenantProvisioning"
   | "type";
@@ -35,6 +37,7 @@ export class PluginPage {
   pluginColumnHelpIcon(name: PluginColumnHelpName): Locator {
     const testIds = {
       mockData: "plugin-mock-data-column-help-icon",
+      runtimeState: "plugin-runtime-state-column-help-icon",
       supportsMultiTenant: "plugin-supports-multi-tenant-column-help-icon",
       tenantProvisioning: "plugin-tenant-provisioning-column-help-icon",
       type: "plugin-type-column-help-icon",
@@ -165,6 +168,13 @@ export class PluginPage {
   tableColumn(title: string): Locator {
     return this.page
       .locator(".vxe-table--header .vxe-cell--title", { hasText: title })
+      .first();
+  }
+
+  tableHeaderCell(title: string): Locator {
+    return this.page
+      .locator(".vxe-table--header .vxe-header--column")
+      .filter({ hasText: title })
       .first();
   }
 
@@ -763,14 +773,28 @@ export class PluginPage {
         await this.uninstallPurgeCheckbox().click();
       }
     }
+    const uninstallResponse = this.page.waitForResponse(
+      (response) => {
+        const request = response.request();
+        return (
+          request.method() === "DELETE" &&
+          new URL(response.url()).pathname.endsWith(`/plugins/${pluginId}`)
+        );
+      },
+      { timeout: pluginLifecycleActionTimeout },
+    );
     await this.uninstallDialog()
       .getByRole("button", { name: confirmActionPattern })
       .last()
       .click();
-    await expect(this.uninstallDialog()).toHaveCount(0);
+    const response = await uninstallResponse;
+    expect(response.ok(), `uninstall ${pluginId} should return 2xx`).toBe(true);
+    await expect(this.uninstallDialog()).toHaveCount(0, {
+      timeout: pluginLifecycleActionTimeout,
+    });
     await expect(
       await this.pluginActionButton(pluginId, pluginInstallActionPattern),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: pluginLifecycleActionTimeout });
   }
 
   async openUninstallDialogAndConfirm(pluginId: string) {
@@ -787,6 +811,19 @@ export class PluginPage {
     const switcher = row.locator(".ant-switch").first();
     const isChecked = (await switcher.getAttribute("aria-checked")) === "true";
     if (isChecked !== enabled) {
+      const actionPath = enabled ? "enable" : "disable";
+      const statusResponse = this.page.waitForResponse(
+        (response) => {
+          const request = response.request();
+          return (
+            request.method() === "PUT" &&
+            new URL(response.url()).pathname.endsWith(
+              `/plugins/${pluginId}/${actionPath}`,
+            )
+          );
+        },
+        { timeout: pluginLifecycleActionTimeout },
+      );
       await switcher.click();
       if (enabled) {
         const authDialogVisible = await this.hostServiceAuthDialog()
@@ -796,9 +833,15 @@ export class PluginPage {
           await this.confirmHostServiceAuthorization();
         }
       }
+      const response = await statusResponse;
+      expect(
+        response.ok(),
+        `${actionPath} ${pluginId} should return 2xx`,
+      ).toBe(true);
       await expect(switcher).toHaveAttribute(
         "aria-checked",
         enabled ? "true" : "false",
+        { timeout: pluginLifecycleActionTimeout },
       );
       await this.page
         .getByText(
@@ -812,7 +855,7 @@ export class PluginPage {
       await this.page
         .getByText(/加载菜单中|Loading Menu/i)
         .last()
-        .waitFor({ state: "hidden", timeout: 15_000 })
+        .waitFor({ state: "hidden", timeout: pluginLifecycleActionTimeout })
         .catch(() => undefined);
     }
   }
@@ -943,9 +986,9 @@ export class PluginPage {
   }
 
   async expectTableColumnBetween(
-    targetTitle: string,
-    previousTitle: string,
-    nextTitle: string,
+    targetTitle: string | string[],
+    previousTitle: string | string[],
+    nextTitle: string | string[],
   ) {
     const headerTitles = (
       await this.page
@@ -955,14 +998,48 @@ export class PluginPage {
       .map((title) => title.trim())
       .filter(Boolean);
 
+    const findHeaderIndex = (titleOrTitles: string | string[]) => {
+      const titles = Array.isArray(titleOrTitles) ? titleOrTitles : [titleOrTitles];
+      return headerTitles.findIndex((title) => titles.includes(title));
+    };
+    const formatTitle = (titleOrTitles: string | string[]) =>
+      Array.isArray(titleOrTitles) ? titleOrTitles.join(" / ") : titleOrTitles;
+
+    const targetIndex = findHeaderIndex(targetTitle);
+    const previousIndex = findHeaderIndex(previousTitle);
+    const nextIndex = findHeaderIndex(nextTitle);
+    const targetLabel = formatTitle(targetTitle);
+    const previousLabel = formatTitle(previousTitle);
+    const nextLabel = formatTitle(nextTitle);
+
+    expect(targetIndex, `未找到列表列: ${targetLabel}`).toBeGreaterThanOrEqual(
+      0,
+    );
+    expect(
+      previousIndex,
+      `未找到列表列: ${previousLabel}`,
+    ).toBeGreaterThanOrEqual(0);
+    expect(nextIndex, `未找到列表列: ${nextLabel}`).toBeGreaterThanOrEqual(0);
+    expect(
+      targetIndex,
+      `${targetLabel} 应位于 ${previousLabel} 之后`,
+    ).toBeGreaterThan(previousIndex);
+    expect(targetIndex, `${targetLabel} 应位于 ${nextLabel} 之前`).toBeLessThan(
+      nextIndex,
+    );
+  }
+
+  async expectTableColumnAfter(targetTitle: string, previousTitle: string) {
+    const headerTitles = (
+      await this.page
+        .locator(".vxe-table--header .vxe-cell--title")
+        .allTextContents()
+    )
+      .map((title) => title.trim())
+      .filter(Boolean);
+
     const targetIndex = headerTitles.indexOf(targetTitle);
-    const previousIndex =
-      previousTitle === "版本"
-        ? headerTitles.findIndex(
-            (title) => title === "版本" || title === "版本号",
-          )
-        : headerTitles.indexOf(previousTitle);
-    const nextIndex = headerTitles.indexOf(nextTitle);
+    const previousIndex = headerTitles.indexOf(previousTitle);
 
     expect(targetIndex, `未找到列表列: ${targetTitle}`).toBeGreaterThanOrEqual(
       0,
@@ -971,14 +1048,99 @@ export class PluginPage {
       previousIndex,
       `未找到列表列: ${previousTitle}`,
     ).toBeGreaterThanOrEqual(0);
-    expect(nextIndex, `未找到列表列: ${nextTitle}`).toBeGreaterThanOrEqual(0);
     expect(
       targetIndex,
       `${targetTitle} 应位于 ${previousTitle} 之后`,
     ).toBeGreaterThan(previousIndex);
-    expect(targetIndex, `${targetTitle} 应位于 ${nextTitle} 之前`).toBeLessThan(
-      nextIndex,
+  }
+
+  async expectTableColumnOrder(expectedTitles: string[]) {
+    const headerTitles = (
+      await this.page
+        .locator(".vxe-table--header .vxe-cell--title")
+        .allTextContents()
+    )
+      .map((title) => title.trim())
+      .filter(Boolean);
+
+    expect(
+      headerTitles.slice(0, expectedTitles.length),
+      "插件管理列表前置列顺序不符合预期",
+    ).toEqual(expectedTitles);
+  }
+
+  async expectTableColumnAligned(title: string, expectedAlign: string) {
+    const cell = this.tableHeaderCell(title);
+    await expect(cell, `未找到列表列: ${title}`).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          await cell.evaluate(
+            (element) => globalThis.getComputedStyle(element).textAlign,
+          ),
+        { message: `${title} 列标题应${expectedAlign}对齐` },
+      )
+      .toBe(expectedAlign);
+  }
+
+  async expectTableColumnBodyAligned(title: string, expectedAlign: string) {
+    const headerTitles = (
+      await this.page
+        .locator(".vxe-table--header .vxe-cell--title")
+        .allTextContents()
+    )
+      .map((headerTitle) => headerTitle.trim())
+      .filter(Boolean);
+    const columnIndex = headerTitles.indexOf(title);
+
+    expect(columnIndex, `未找到列表列: ${title}`).toBeGreaterThanOrEqual(0);
+
+    const bodyCell = this.page
+      .locator(".vxe-table--main-wrapper .vxe-body--row")
+      .first()
+      .locator(".vxe-body--column")
+      .nth(columnIndex);
+    await expect(bodyCell, `未找到列表单元格: ${title}`).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          await bodyCell.evaluate(
+            (element) => globalThis.getComputedStyle(element).textAlign,
+          ),
+        { message: `${title} 列内容应${expectedAlign}对齐` },
+      )
+      .toBe(expectedAlign);
+  }
+
+  async expectTableColumnLeftAligned(title: string) {
+    await this.expectTableColumnBodyAligned(title, "left");
+  }
+
+  async expectTableColumnCentered(title: string) {
+    await this.expectTableColumnAligned(title, "center");
+  }
+
+  async expectTableColumnWiderThan(
+    widerTitle: string,
+    narrowerTitles: string[],
+  ) {
+    const widerCell = this.tableHeaderCell(widerTitle);
+    await expect(widerCell, `未找到列表列: ${widerTitle}`).toBeVisible();
+    const widerWidth = await widerCell.evaluate(
+      (element) => element.getBoundingClientRect().width,
     );
+
+    for (const narrowerTitle of narrowerTitles) {
+      const narrowerCell = this.tableHeaderCell(narrowerTitle);
+      await expect(narrowerCell, `未找到列表列: ${narrowerTitle}`).toBeVisible();
+      const narrowerWidth = await narrowerCell.evaluate(
+        (element) => element.getBoundingClientRect().width,
+      );
+      expect(
+        widerWidth,
+        `${widerTitle} 列宽应大于 ${narrowerTitle}`,
+      ).toBeGreaterThan(narrowerWidth);
+    }
   }
 
   async expectBooleanTableCell(

@@ -72,7 +72,7 @@ cluster:
 # Uploaded files are stored in /app/data tmpfs and disappear with the container.
 upload:
   path: "/app/data/upload"
-  maxSize: 20
+  maxSize: 100
 
 # Enable the source-plugin demo surface and public-demo protection.
 plugin:

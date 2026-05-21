@@ -199,7 +199,10 @@ func (s *serviceImpl) bootstrapAutoEnableSourcePlugin(ctx context.Context, manif
 	}
 
 	return s.ensurePluginStateDuringStartup(ctx, manifest.ID, isPluginStartupEnabled, func() error {
-		if _, err := s.install(ctx, manifest.ID, InstallOptions{InstallMockData: withMockData}); err != nil {
+		if _, err := s.install(ctx, manifest.ID, InstallOptions{
+			InstallMockData:   withMockData,
+			startupAutoEnable: true,
+		}); err != nil {
 			return bizerr.WrapCode(err, CodePluginSourceInstallFailed)
 		}
 		if err := s.updateStatus(ctx, manifest.ID, catalog.StatusEnabled, nil); err != nil {

@@ -49,7 +49,7 @@ INSERT INTO sys_config ("tenant_id", "name", "key", "value", "is_builtin", "rema
 (0, '登录展示-登录框位置', 'sys.auth.loginPanelLayout', 'panel-right', 1, '控制登录框默认布局，可选值：panel-left、panel-center、panel-right。', NOW(), NOW()),
 (0, '认证管理-JWT Token 有效期', 'sys.jwt.expire', '24h', 1, '控制新签发 JWT Token 的有效期，支持 Go duration 格式如 12h、24h。', NOW(), NOW()),
 (0, '在线用户-会话超时时间', 'sys.session.timeout', '24h', 1, '控制在线会话无活动超时时长，支持 Go duration 格式，如 30m、24h。', NOW(), NOW()),
-(0, '文件管理-上传大小上限', 'sys.upload.maxSize', '20', 1, '控制单个上传文件大小上限，单位为 MB，必须为正整数。', NOW(), NOW()),
+(0, '文件管理-上传大小上限', 'sys.upload.maxSize', '100', 1, '控制单个上传文件大小上限，单位为 MB，必须为正整数。', NOW(), NOW()),
 (0, '用户登录-IP 黑名单列表', 'sys.login.blackIPList', '', 1, '禁止登录的 IP 或 CIDR 网段，多个值以英文分号分隔，例如 127.0.0.1;10.0.0.0/8。', NOW(), NOW()),
 (0, '界面风格-主题模式', 'sys.ui.theme.mode', 'light', 1, '控制默认主题模式，可选值：light、dark、auto。', NOW(), NOW()),
 (0, '界面风格-工作台布局', 'sys.ui.layout', 'sidebar-nav', 1, '控制后台默认布局，可选值：sidebar-nav、sidebar-mixed-nav、header-nav、header-sidebar-nav、header-mixed-nav、mixed-nav、full-content。', NOW(), NOW()),

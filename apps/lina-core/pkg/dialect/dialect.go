@@ -74,6 +74,10 @@ type Dialect interface {
 	// the requested schema. Missing table names are skipped and database errors
 	// are returned to the caller without fallback data.
 	QueryTableMetadata(ctx context.Context, db gdb.DB, schema string, tableNames []string) ([]TableMeta, error)
+	// ClassifyReadSQL classifies database driver and ORM read-only SQL that may
+	// not include an application table literal. Callers use the result to keep
+	// governance code independent from concrete database catalog syntax.
+	ClassifyReadSQL(sql string) ReadSQLClassification
 	// OnStartup applies dialect-specific runtime bootstrap behavior before
 	// cluster services start. Implementations may use runtime to adjust in-memory
 	// cluster compatibility flags, and return errors for startup blockers.
@@ -85,6 +89,13 @@ type Dialect interface {
 type TableMeta struct {
 	TableName    string // TableName is the database table identifier.
 	TableComment string // TableComment is the optional table comment.
+}
+
+// ReadSQLClassification describes read-only SQL emitted by database drivers or
+// ORM internals that should be treated differently from application data reads.
+type ReadSQLClassification struct {
+	MetadataLookup bool // MetadataLookup reports catalog SQL that binds the table name as an argument.
+	SchemaProbe    bool // SchemaProbe reports database/session probes that do not target one application table.
 }
 
 // RuntimeConfig is the narrow startup configuration interface needed by
@@ -113,6 +124,15 @@ func FromDatabase(db gdb.DB) (Dialect, error) {
 		}
 	}
 	return From(link)
+}
+
+// FromDriverType resolves one database dialect from a GoFrame driver type.
+func FromDriverType(driverType string) (Dialect, error) {
+	normalized := strings.TrimSpace(driverType)
+	if normalized == "" {
+		return From("")
+	}
+	return From(normalized + ":")
 }
 
 // DatabaseVersion returns a display-ready database engine and version label for

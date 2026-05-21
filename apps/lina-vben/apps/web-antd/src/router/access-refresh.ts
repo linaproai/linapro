@@ -1,4 +1,4 @@
-import type { RouteRecordRaw, Router } from 'vue-router';
+import type { Router } from 'vue-router';
 
 import { preferences } from '@vben/preferences';
 import { useAccessStore, useUserStore } from '@vben/stores';
@@ -6,9 +6,11 @@ import { resetStaticRoutes } from '@vben/utils';
 
 import { useAuthStore } from '#/store';
 import { getPendingPluginPageRefresh } from '#/plugins/plugin-page-refresh';
+import { getPluginStateMap } from '#/plugins/slot-registry';
 import { useTenantStore } from '#/store/tenant';
 
 import { generateAccess } from './access';
+import { resolveAccessibleRouteRefreshTarget } from './access-refresh-route-match';
 import { routes } from './routes';
 import { accessRoutes } from './routes';
 
@@ -18,21 +20,6 @@ let accessRefreshRefreshUserInfo = false;
 let accessRefreshShowLoadingToast = false;
 let accessRefreshSkipRouteNavigation = false;
 let accessRefreshForceDefaultRoute = false;
-
-function collectAccessibleRouteNames(
-  routeList: RouteRecordRaw[],
-  names: Set<string> = new Set(),
-) {
-  for (const route of routeList) {
-    if (typeof route.name === 'string' && route.name) {
-      names.add(route.name);
-    }
-    if (route.children?.length) {
-      collectAccessibleRouteNames(route.children, names);
-    }
-  }
-  return names;
-}
 
 async function forceReplacePath(router: Router, path: string) {
   const location = router.resolve(path);
@@ -70,7 +57,8 @@ async function performAccessibleStateRefresh(
     return;
   }
 
-  const currentFullPath = router.currentRoute.value.fullPath;
+  const currentRoute = router.currentRoute.value;
+  const currentFullPath = currentRoute.fullPath;
   const userInfo = refreshUserInfo
     ? await authStore.fetchUserInfo()
     : userStore.userInfo;
@@ -107,11 +95,13 @@ async function performAccessibleStateRefresh(
     return;
   }
 
-  const accessibleNames = collectAccessibleRouteNames(accessibleRoutes);
   const resolved = router.resolve(currentFullPath);
-  const hasAccessibleMatch = resolved.matched.some((route) => {
-    return typeof route.name === 'string' && accessibleNames.has(route.name);
-  });
+  const accessibleMatch = resolveAccessibleRouteRefreshTarget(
+    accessibleRoutes,
+    resolved,
+    currentRoute,
+    await getPluginStateMap(),
+  );
   const pendingPluginPageRefresh = getPendingPluginPageRefresh(
     router.currentRoute.value,
   );
@@ -120,8 +110,15 @@ async function performAccessibleStateRefresh(
     return;
   }
 
-  if (hasAccessibleMatch) {
-    const refreshedLocation = router.resolve(currentFullPath);
+  if (accessibleMatch.accessible) {
+    const refreshTarget = accessibleMatch.replacementPath
+      ? {
+          hash: currentRoute.hash,
+          path: accessibleMatch.replacementPath,
+          query: currentRoute.query,
+        }
+      : currentFullPath;
+    const refreshedLocation = router.resolve(refreshTarget);
     // Force a rematch even when the URL is unchanged so regenerated route meta
     // (for example refreshed iframe asset URLs) becomes visible immediately.
     await router.replace({

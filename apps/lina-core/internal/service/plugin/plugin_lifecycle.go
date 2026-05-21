@@ -63,6 +63,7 @@ func (s *serviceImpl) install(
 		return result, err
 	}
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
+		ctx = withSourceLifecycleInstallOptions(ctx, options)
 		if err = s.installSourcePlugin(ctx, manifest); err != nil {
 			if !isMockDataLoadError(err) {
 				return result, err
@@ -673,7 +674,7 @@ func (s *serviceImpl) ensureSourceTenantPluginLifecyclePreconditionAllowed(
 		CodePluginLifecyclePreconditionVetoed,
 		bizerr.P("operation", hook.String()),
 		bizerr.P("pluginId", pluginID),
-		bizerr.P("reasons", summarizeLifecycleVetoReasons(result.Decisions)),
+		bizerr.P("reasons", s.summarizeLocalizedLifecycleVetoReasons(ctx, result.Decisions)),
 	)
 }
 
@@ -698,7 +699,7 @@ func (s *serviceImpl) ensureTenantLifecyclePreconditionAllowed(
 		CodePluginLifecyclePreconditionVetoed,
 		bizerr.P("operation", hook.String()),
 		bizerr.P("pluginId", "tenant"),
-		bizerr.P("reasons", summarizeLifecycleVetoReasons(result.Decisions)),
+		bizerr.P("reasons", s.summarizeLocalizedLifecycleVetoReasons(ctx, result.Decisions)),
 	)
 }
 
@@ -1204,7 +1205,7 @@ func (s *serviceImpl) ensureLifecyclePreconditionAllowed(
 		return nil
 	}
 
-	reasons := summarizeLifecycleVetoReasons(result.Decisions)
+	reasons := s.summarizeLocalizedLifecycleVetoReasons(ctx, result.Decisions)
 	if force && hook == pluginhost.LifecycleHookBeforeUninstall {
 		if err := s.ensureForceUninstallEnabled(ctx); err != nil {
 			return err
@@ -1236,7 +1237,7 @@ func (s *serviceImpl) dynamicLifecycleError(
 	decisions []runtime.DynamicLifecycleDecision,
 	force bool,
 ) error {
-	reasons := summarizeDynamicLifecycleVetoReasons(decisions)
+	reasons := s.summarizeLocalizedDynamicLifecycleVetoReasons(ctx, decisions)
 	if force && hook == pluginhost.LifecycleHookBeforeUninstall {
 		if err := s.ensureForceUninstallEnabled(ctx); err != nil {
 			return err
@@ -1267,9 +1268,34 @@ func (s *serviceImpl) ensureForceUninstallEnabled(ctx context.Context) error {
 	return nil
 }
 
-// summarizeLifecycleVetoReasons builds one deterministic reason string for
-// bizerr params and audit logs.
+// summarizeLifecycleVetoReasons builds one deterministic raw reason string for
+// audit logs and development diagnostics.
 func summarizeLifecycleVetoReasons(decisions []pluginhost.LifecycleDecision) string {
+	return summarizeLifecycleVetoReasonsWithTranslator(decisions, nil)
+}
+
+// summarizeLocalizedLifecycleVetoReasons builds one deterministic localized
+// reason string for caller-visible lifecycle precondition errors.
+func (s *serviceImpl) summarizeLocalizedLifecycleVetoReasons(
+	ctx context.Context,
+	decisions []pluginhost.LifecycleDecision,
+) string {
+	return summarizeLifecycleVetoReasonsWithTranslator(decisions, func(key string) string {
+		if s == nil || s.i18nSvc == nil {
+			return ""
+		}
+		return s.i18nSvc.Translate(ctx, key, "")
+	})
+}
+
+// summarizeLifecycleVetoReasonsWithTranslator applies an optional translator to
+// reason keys while preserving the existing plugin-prefixed reason format used
+// by lifecycle callers.
+func summarizeLifecycleVetoReasonsWithTranslator(
+	decisions []pluginhost.LifecycleDecision,
+	translate func(key string) string,
+) string {
+	includePluginPrefix := translate == nil || countLifecycleVetoes(decisions) > 1
 	items := make([]string, 0, len(decisions))
 	for _, decision := range decisions {
 		if decision.OK {
@@ -1282,7 +1308,17 @@ func summarizeLifecycleVetoReasons(decisions []pluginhost.LifecycleDecision) str
 		if reason == "" {
 			reason = "plugin." + strings.TrimSpace(decision.PluginID) + ".lifecycle.vetoed"
 		}
-		items = append(items, strings.TrimSpace(decision.PluginID)+":"+reason)
+		if translate != nil {
+			if translated := strings.TrimSpace(translate(reason)); translated != "" {
+				reason = translated
+			}
+		}
+		pluginID := strings.TrimSpace(decision.PluginID)
+		if includePluginPrefix && pluginID != "" {
+			items = append(items, pluginID+":"+reason)
+			continue
+		}
+		items = append(items, reason)
 	}
 	if len(items) == 0 {
 		return "unknown"
@@ -1290,9 +1326,33 @@ func summarizeLifecycleVetoReasons(decisions []pluginhost.LifecycleDecision) str
 	return strings.Join(items, ";")
 }
 
-// summarizeDynamicLifecycleVetoReasons builds one deterministic reason string
-// for dynamic lifecycle precondition results.
+// summarizeDynamicLifecycleVetoReasons builds one deterministic raw reason
+// string for dynamic lifecycle precondition results.
 func summarizeDynamicLifecycleVetoReasons(decisions []runtime.DynamicLifecycleDecision) string {
+	return summarizeDynamicLifecycleVetoReasonsWithTranslator(decisions, nil)
+}
+
+// summarizeLocalizedDynamicLifecycleVetoReasons builds one deterministic
+// localized reason string for caller-visible dynamic lifecycle errors.
+func (s *serviceImpl) summarizeLocalizedDynamicLifecycleVetoReasons(
+	ctx context.Context,
+	decisions []runtime.DynamicLifecycleDecision,
+) string {
+	return summarizeDynamicLifecycleVetoReasonsWithTranslator(decisions, func(key string) string {
+		if s == nil || s.i18nSvc == nil {
+			return ""
+		}
+		return s.i18nSvc.Translate(ctx, key, "")
+	})
+}
+
+// summarizeDynamicLifecycleVetoReasonsWithTranslator applies an optional
+// translator to dynamic lifecycle reason keys.
+func summarizeDynamicLifecycleVetoReasonsWithTranslator(
+	decisions []runtime.DynamicLifecycleDecision,
+	translate func(key string) string,
+) string {
+	includePluginPrefix := translate == nil || countDynamicLifecycleVetoes(decisions) > 1
 	items := make([]string, 0, len(decisions))
 	for _, decision := range decisions {
 		if decision.OK {
@@ -1305,12 +1365,44 @@ func summarizeDynamicLifecycleVetoReasons(decisions []runtime.DynamicLifecycleDe
 		if reason == "" {
 			reason = "plugin." + strings.TrimSpace(decision.PluginID) + ".lifecycle.vetoed"
 		}
-		items = append(items, strings.TrimSpace(decision.PluginID)+":"+reason)
+		if translate != nil {
+			if translated := strings.TrimSpace(translate(reason)); translated != "" {
+				reason = translated
+			}
+		}
+		pluginID := strings.TrimSpace(decision.PluginID)
+		if includePluginPrefix && pluginID != "" {
+			items = append(items, pluginID+":"+reason)
+			continue
+		}
+		items = append(items, reason)
 	}
 	if len(items) == 0 {
 		return "unknown"
 	}
 	return strings.Join(items, ";")
+}
+
+// countLifecycleVetoes returns how many source lifecycle decisions blocked the action.
+func countLifecycleVetoes(decisions []pluginhost.LifecycleDecision) int {
+	count := 0
+	for _, decision := range decisions {
+		if !decision.OK {
+			count++
+		}
+	}
+	return count
+}
+
+// countDynamicLifecycleVetoes returns how many dynamic lifecycle decisions blocked the action.
+func countDynamicLifecycleVetoes(decisions []runtime.DynamicLifecycleDecision) int {
+	count := 0
+	for _, decision := range decisions {
+		if !decision.OK {
+			count++
+		}
+	}
+	return count
 }
 
 // dynamicLifecycleDecisionsAllowed reports whether all dynamic decisions allowed the action.

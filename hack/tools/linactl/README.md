@@ -213,7 +213,7 @@ make plugins.update force=1
 make plugins.status
 ```
 
-`plugins.init` converts `apps/lina-plugins` from a submodule into a normal directory while preserving files. `plugins.install` and `plugins.update` reuse configured source checkouts under `temp/plugin-sources/<source>`, fetching updates after the first clone, copy plugin directories into `apps/lina-plugins/<plugin-id>`, and update the generated `apps/lina-plugins/.linapro-plugins.lock.yaml` lock file.
+`plugins.init` converts `apps/lina-plugins` from a submodule into a normal directory while preserving files. `plugins.install`, `plugins.update`, and `plugins.status` run the same workspace initialization automatically when needed, so users can start with the command they actually need. `plugins.install` and `plugins.update` reuse configured source checkouts under `temp/plugin-sources/<source>`, fetching updates after the first clone, copy plugin directories into `apps/lina-plugins/<plugin-id>`, and update the generated `apps/lina-plugins/.linapro-plugins.lock.yaml` lock file.
 
 ## Verification
 

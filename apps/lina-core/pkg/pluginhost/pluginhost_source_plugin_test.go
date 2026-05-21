@@ -244,8 +244,20 @@ func TestLifecycleInputPublishesUninstallPolicySnapshot(t *testing.T) {
 	if !input.PurgeStorageData() {
 		t.Fatal("expected purgeStorageData to be published")
 	}
-	if NewSourcePluginLifecycleInput("test-plugin-install", LifecycleHookBeforeInstall.String()).PurgeStorageData() {
+	defaultInput := NewSourcePluginLifecycleInput("test-plugin-install", LifecycleHookBeforeInstall.String())
+	if defaultInput.PurgeStorageData() {
 		t.Fatal("expected default lifecycle input to keep purgeStorageData false")
+	}
+	if defaultInput.StartupAutoEnable() {
+		t.Fatal("expected default lifecycle input to keep startupAutoEnable false")
+	}
+	startupInput := NewSourcePluginLifecycleInputWithPolicy(
+		"test-plugin-startup-install",
+		LifecycleHookBeforeInstall.String(),
+		SourcePluginLifecyclePolicy{StartupAutoEnable: true},
+	)
+	if !startupInput.StartupAutoEnable() {
+		t.Fatal("expected startupAutoEnable to be published")
 	}
 }
 

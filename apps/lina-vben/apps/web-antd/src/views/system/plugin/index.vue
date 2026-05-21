@@ -137,16 +137,36 @@ const [Grid, gridApi] = useVbenVxeGrid({
   gridOptions: {
     columns: [
       {
+        align: 'left',
         field: 'id',
-        minWidth: 160,
+        headerAlign: 'center',
+        minWidth: 220,
         title: $t('pages.system.plugin.fields.id'),
       },
       {
+        align: 'left',
         className: 'plugin-name-column',
         field: 'name',
-        minWidth: 280,
+        headerAlign: 'center',
+        minWidth: 200,
         slots: { default: 'name' },
         title: $t('pages.system.plugin.fields.name'),
+      },
+      {
+        align: 'left',
+        className: 'plugin-description-column',
+        field: 'description',
+        headerAlign: 'center',
+        minWidth: 260,
+        showOverflow: false,
+        slots: { default: 'description' },
+        title: $t('pages.system.plugin.fields.description'),
+      },
+      {
+        field: 'version',
+        slots: { default: 'version' },
+        title: $t('pages.system.plugin.fields.version'),
+        width: 110,
       },
       {
         field: 'type',
@@ -155,30 +175,16 @@ const [Grid, gridApi] = useVbenVxeGrid({
         width: 120,
       },
       {
-        field: 'version',
-        slots: { default: 'version' },
-        title: $t('pages.system.plugin.fields.version'),
-        width: 180,
-      },
-      {
-        field: 'runtimeState',
-        slots: { default: 'runtimeState' },
-        title: $t('pages.system.plugin.fields.runtimeState'),
-        width: 150,
-      },
-      {
-        className: 'plugin-description-column',
-        field: 'description',
-        minWidth: 260,
-        showOverflow: false,
-        slots: { default: 'description' },
-        title: $t('pages.fields.description'),
-      },
-      {
         field: 'enabled',
         slots: { default: 'enabled' },
         title: $t('pages.common.status'),
         width: 130,
+      },
+      {
+        field: 'runtimeState',
+        slots: { default: 'runtimeState', header: 'runtimeStateHeader' },
+        title: $t('pages.system.plugin.fields.runtimeState'),
+        width: 120,
       },
       {
         field: 'hasMockData',
@@ -470,8 +476,10 @@ async function handleStatusChange(row: SystemPlugin, checked: boolean) {
     }
   }
   const previousEnabled = row.enabled;
-  row.enabled = checked ? 1 : 0;
+  const nextEnabled = checked ? 1 : 0;
+
   setPluginStatusChanging(row.id, true);
+  row.enabled = nextEnabled;
   try {
     await (checked ? pluginEnable : pluginDisable)(row.id);
     await notifyPluginRegistryChanged();
@@ -482,6 +490,7 @@ async function handleStatusChange(row: SystemPlugin, checked: boolean) {
     );
   } catch {
     row.enabled = previousEnabled;
+    await gridApi.query();
   } finally {
     setPluginStatusChanging(row.id, false);
   }
@@ -642,6 +651,28 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
               "
               class="icon-[ant-design--question-circle-outlined] inline-flex size-4 cursor-help items-center justify-center text-[14px] leading-none text-[var(--ant-color-text-secondary)] transition-colors hover:text-[var(--ant-color-primary)]"
               data-testid="plugin-type-column-help-icon"
+              role="img"
+              tabindex="0"
+            ></span>
+          </Tooltip>
+        </span>
+      </template>
+
+      <template #runtimeStateHeader>
+        <span class="inline-flex items-center gap-1">
+          <span>{{ $t('pages.system.plugin.fields.runtimeState') }}</span>
+          <Tooltip
+            :title="$t('pages.system.plugin.columnHelp.runtimeState')"
+            placement="top"
+          >
+            <span
+              :aria-label="
+                getColumnHelpAriaLabel(
+                  $t('pages.system.plugin.fields.runtimeState'),
+                )
+              "
+              class="icon-[ant-design--question-circle-outlined] inline-flex size-4 cursor-help items-center justify-center text-[14px] leading-none text-[var(--ant-color-text-secondary)] transition-colors hover:text-[var(--ant-color-primary)]"
+              data-testid="plugin-runtime-state-column-help-icon"
               role="img"
               tabindex="0"
             ></span>
