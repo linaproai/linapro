@@ -33,6 +33,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/huh"
 )
 
@@ -61,6 +62,19 @@ func promptIOReady(in io.Reader) (*os.File, bool) {
 		return nil, false
 	}
 	return file, true
+}
+
+// abortKeyMap returns a huh KeyMap whose Quit binding accepts both
+// `ctrl+c` (huh's default) AND `esc`, so users can dismiss a prompt
+// with either key. huh's default keymap only binds `ctrl+c` to Quit;
+// `esc` is reserved for sub-features like filter clear and is mostly
+// disabled at the form level, which means `esc` does nothing in our
+// single-group prompts. Adding `esc` to Quit keeps the documented
+// "Esc / Ctrl+C cancels" behaviour consistent with reality.
+func abortKeyMap() *huh.KeyMap {
+	keymap := huh.NewDefaultKeyMap()
+	keymap.Quit = key.NewBinding(key.WithKeys("ctrl+c", "esc"), key.WithHelp("esc", "cancel"))
+	return keymap
 }
 
 // PromptSelection renders a multi-select huh form and returns the agent
@@ -102,7 +116,7 @@ func PromptSelection(in io.Reader, out io.Writer, title string, candidates []Sel
 				Filterable(true).
 				Value(&selected),
 		),
-	).WithInput(stdin).WithOutput(out)
+	).WithInput(stdin).WithOutput(out).WithKeyMap(abortKeyMap())
 
 	if err := form.Run(); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
@@ -164,7 +178,7 @@ func PromptSingleSelection(in io.Reader, out io.Writer, title string, options []
 				Filtering(true).
 				Value(&chosen),
 		),
-	).WithInput(stdin).WithOutput(out)
+	).WithInput(stdin).WithOutput(out).WithKeyMap(abortKeyMap())
 
 	if err := form.Run(); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
@@ -194,7 +208,7 @@ func PromptYesNo(in io.Reader, out io.Writer, question string, defaultYes bool) 
 				Negative("No").
 				Value(&answer),
 		),
-	).WithInput(stdin).WithOutput(out)
+	).WithInput(stdin).WithOutput(out).WithKeyMap(abortKeyMap())
 
 	if err := form.Run(); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {

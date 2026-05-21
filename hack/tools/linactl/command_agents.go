@@ -66,6 +66,12 @@ type selectableAgent struct {
 	// in. A resource not present in the map means the agent is not
 	// registered there.
 	Roles map[resourceKind]common.Category
+	// RuntimeStatus records the current binding state for each resource
+	// the agent participates in (only populated for link-class
+	// resources; native / unregistered resources are absent from the
+	// map). Used by the interactive picker to surface "is this agent
+	// already configured?" without a separate listing step.
+	RuntimeStatus map[resourceKind]common.Status
 }
 
 // hasLinkRole reports whether the agent has at least one resource where
@@ -81,15 +87,23 @@ func (s selectableAgent) hasLinkRole() bool {
 }
 
 // summary builds a short human-readable role description for the agent
-// (e.g. "skills: link, md: link, prompts: native") used inside huh
-// option labels so users can see at a glance which resource types each
-// agent will actually touch.
+// (e.g. "skills: link[+], prompts: link[+], md: link[~]") used inside
+// huh option labels so users can see at a glance which resource types
+// each agent will actually touch and whether each one is already
+// linked. Link-class resources include a runtime status glyph; native
+// resources are flagged with [.] (no work needed).
 func (s selectableAgent) summary() string {
 	parts := make([]string, 0, 3)
 	for _, kind := range []resourceKind{resourceSkills, resourcePrompts, resourceMd} {
-		if category, ok := s.Roles[kind]; ok {
-			parts = append(parts, fmt.Sprintf("%s: %s", kind, category))
+		category, present := s.Roles[kind]
+		if !present {
+			continue
 		}
+		segment := fmt.Sprintf("%s: %s", kind, category)
+		if status, ok := s.RuntimeStatus[kind]; ok {
+			segment = fmt.Sprintf("%s%s", segment, common.StatusGlyph(status))
+		}
+		parts = append(parts, segment)
 	}
 	return strings.Join(parts, ", ")
 }
@@ -146,7 +160,7 @@ func runAgents(_ context.Context, a *app, input commandInput) error {
 		return err
 	}
 
-	universe := collectAgentUniverse()
+	universe := collectAgentUniverse(a.root)
 
 	if rawAgent == "" {
 		if !common.IsInteractiveTerminal(stdinAsFile(a)) {
@@ -287,29 +301,62 @@ func agentPriorityRank(name string) (int, bool) {
 // agentDisplayPriority appear first in the configured order, with the
 // remaining agents falling back to alphabetical order for stable
 // output.
-func collectAgentUniverse() []selectableAgent {
+//
+// repoRoot is used to inspect each link-class binding's current
+// runtime status (linked / mismatch / absent / conflict / ...), which
+// the interactive picker embeds in option labels so users can see
+// "is this agent already configured?" without leaving the prompt.
+// repoRoot may be empty, in which case runtime status inspection is
+// skipped (e.g. the non-interactive validator path).
+func collectAgentUniverse(repoRoot string) []selectableAgent {
 	universe := make(map[string]*selectableAgent)
 
-	upsert := func(name, display string, kind resourceKind, category common.Category) {
+	upsert := func(name, display string, kind resourceKind, category common.Category, status common.Status, hasStatus bool) {
 		entry, exists := universe[name]
 		if !exists {
-			entry = &selectableAgent{Name: name, DisplayName: display, Roles: map[resourceKind]common.Category{}}
+			entry = &selectableAgent{
+				Name:          name,
+				DisplayName:   display,
+				Roles:         map[resourceKind]common.Category{},
+				RuntimeStatus: map[resourceKind]common.Status{},
+			}
 			universe[name] = entry
 		}
 		if entry.DisplayName == "" {
 			entry.DisplayName = display
 		}
 		entry.Roles[kind] = category
+		if hasStatus {
+			entry.RuntimeStatus[kind] = status
+		}
 	}
 
 	for _, spec := range skills.Agents() {
-		upsert(spec.Name, spec.DisplayName, resourceSkills, spec.Category)
+		var status common.Status
+		hasStatus := false
+		if repoRoot != "" && spec.Category == common.CategoryLink {
+			status = skills.Inspect(repoRoot, spec).Status
+			hasStatus = true
+		}
+		upsert(spec.Name, spec.DisplayName, resourceSkills, spec.Category, status, hasStatus)
 	}
 	for _, spec := range prompts.Agents() {
-		upsert(spec.Name, spec.DisplayName, resourcePrompts, spec.Category)
+		var status common.Status
+		hasStatus := false
+		if repoRoot != "" && spec.Category == common.CategoryLink {
+			status = prompts.Inspect(repoRoot, spec).Status
+			hasStatus = true
+		}
+		upsert(spec.Name, spec.DisplayName, resourcePrompts, spec.Category, status, hasStatus)
 	}
 	for _, spec := range md.Agents() {
-		upsert(spec.Name, spec.DisplayName, resourceMd, spec.Category)
+		var status common.Status
+		hasStatus := false
+		if repoRoot != "" && spec.Category == common.CategoryLink {
+			status = md.Inspect(repoRoot, spec).Status
+			hasStatus = true
+		}
+		upsert(spec.Name, spec.DisplayName, resourceMd, spec.Category, status, hasStatus)
 	}
 
 	out := make([]selectableAgent, 0, len(universe))

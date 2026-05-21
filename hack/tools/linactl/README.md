@@ -146,9 +146,14 @@ make agents.md.unlink AGENT=claude-code              # remove a managed AGENTS.m
 
 ### Interactive mode
 
-All interactive entry points (the `agents` aggregate command and every `agents.<resource>.<action>` subcommand) are driven by [charmbracelet/huh](https://github.com/charmbracelet/huh): use the **arrow keys** to navigate, **space** to toggle multi-select rows, **enter** to confirm, **type** to filter, and **Esc** / **Ctrl+C** to cancel. Each option label embeds the agent name plus a single-character status glyph and short status descriptor so you can see every candidate's current binding state without leaving the prompt. CI and piped invocations remain non-interactive: `agents` prints a usage hint, `agents.<resource>.link` falls back to a read-only listing, and `agents.<resource>.unlink` requires an explicit `AGENT=` value.
+All interactive entry points (the `agents` aggregate command and every `agents.<resource>.<action>` subcommand) are driven by [charmbracelet/huh](https://github.com/charmbracelet/huh): use the **arrow keys** to navigate, **space** to toggle multi-select rows, **enter** to confirm, **type** to filter, and **Esc** / **Ctrl+C** to cancel. CI and piped invocations remain non-interactive: `agents` prints a usage hint, `agents.<resource>.link` falls back to a read-only listing, and `agents.<resource>.unlink` requires an explicit `AGENT=` value.
 
-Status glyphs embedded in interactive option labels:
+Option labels follow two different conventions depending on the prompt:
+
+- The aggregate `agents` command's "pick an agent" step is a single-select across the cross-resource registry. Each option embeds the agent name plus a **resource roles summary with runtime status glyphs** (e.g. `claude-code (Claude Code) — skills: link[+], prompts: link[!], md: link[+]`) so you can see at a glance which resource types the chosen agent will touch and whether each one is already linked. Link-class resources show the runtime glyph; `native` resources are listed without a glyph (no work needed); unregistered resources are omitted.
+- Per-resource subcommands (`agents.<resource>.<action>`) operate within a single resource and embed a **single-character status glyph** plus a short descriptor (e.g. `[~] claude-code  (mismatch)`) so you can see each candidate's current binding state without leaving the prompt.
+
+Status glyphs embedded in per-resource option labels:
 
 - `[+]` linked — symlink exists and points at the canonical source
 - `[~]` mismatch — symlink exists but targets another location

@@ -146,9 +146,14 @@ make agents.md.unlink AGENT=claude-code              # 移除 AGENTS.md 软链
 
 ### 交互模式
 
-所有交互入口（聚合命令 `agents` 与各 `agents.<resource>.<action>` 子命令）统一基于 [charmbracelet/huh](https://github.com/charmbracelet/huh) 的方向键交互：使用 **方向键** 移动、**空格** 切换多选行、**回车** 确认、**直接输入字符** 快速过滤、**Esc** / **Ctrl+C** 取消。每个候选项的标题中嵌入了 Agent 名称、单字符状态符号与简短状态说明，便于在选择时直接看清当前绑定状态。CI 与管道环境保持非交互：`agents` 打印用法指引，`agents.<resource>.link` 退化为只读列表，`agents.<resource>.unlink` 必须显式传入 `AGENT=`。
+所有交互入口（聚合命令 `agents` 与各 `agents.<resource>.<action>` 子命令）统一基于 [charmbracelet/huh](https://github.com/charmbracelet/huh) 的方向键交互：使用 **方向键** 移动、**空格** 切换多选行、**回车** 确认、**直接输入字符** 快速过滤、**Esc** / **Ctrl+C** 取消。CI 与管道环境保持非交互：`agents` 打印用法指引，`agents.<resource>.link` 退化为只读列表，`agents.<resource>.unlink` 必须显式传入 `AGENT=`。
 
-交互式选项标题中嵌入的状态符号：
+候选项标题根据交互场景采用不同约定：
+
+- 聚合命令 `agents` 的"选 Agent"是跨资源单选。每个选项标题嵌入 Agent 名称与 **带运行时状态符号的资源角色摘要**（形如 `claude-code (Claude Code) — skills: link[+], prompts: link[!], md: link[+]`），便于在选择前看清该 Agent 在 skills/prompts/md 三类资源中分别会执行 `link` 还是被作为 `native` / 未注册自动跳过，同时直接看清当前每类资源是否已经建好软链。`link` 类资源附带运行时状态符号；`native` 资源不带符号（无需操作）；未注册资源直接省略。
+- 各资源子命令 `agents.<resource>.<action>` 仅作用于单个资源，标题嵌入 **单字符状态符号** 与简短状态说明（形如 `[~] claude-code  (mismatch)`），便于直接看清当前绑定状态。
+
+各资源子命令选项标题中嵌入的状态符号：
 
 - `[+]` linked — 软链存在且指向标准源
 - `[~]` mismatch — 软链存在但指向其他位置

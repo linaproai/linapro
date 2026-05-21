@@ -40,7 +40,7 @@ func newTestApp(t *testing.T) (*app, *bytes.Buffer) {
 }
 
 func TestCollectAgentUniverseExcludesNativeOnly(t *testing.T) {
-	universe := collectAgentUniverse()
+	universe := collectAgentUniverse(t.TempDir())
 	if len(universe) == 0 {
 		t.Fatalf("expected non-empty agent universe")
 	}
@@ -52,7 +52,7 @@ func TestCollectAgentUniverseExcludesNativeOnly(t *testing.T) {
 }
 
 func TestCollectAgentUniverseSorted(t *testing.T) {
-	universe := collectAgentUniverse()
+	universe := collectAgentUniverse(t.TempDir())
 
 	// Build a name -> position map for assertions.
 	positions := make(map[string]int, len(universe))
@@ -130,7 +130,7 @@ func TestAgentPriorityRank(t *testing.T) {
 }
 
 func TestCollectAgentUniverseMergesAcrossRegistries(t *testing.T) {
-	universe := collectAgentUniverse()
+	universe := collectAgentUniverse(t.TempDir())
 	// claude-code is link-class in both skills and md; its roles map
 	// must contain at least those two resources.
 	for _, agent := range universe {
@@ -149,7 +149,7 @@ func TestCollectAgentUniverseMergesAcrossRegistries(t *testing.T) {
 }
 
 func TestValidateSingleAgentName(t *testing.T) {
-	universe := collectAgentUniverse()
+	universe := collectAgentUniverse(t.TempDir())
 	cases := []struct {
 		name    string
 		input   string
@@ -293,7 +293,8 @@ func TestRunAgentsRejectsBadAction(t *testing.T) {
 // registered (e.g. claude-code is not in prompts? actually it is in
 // prompts; pick an agent only in skills to assert skip).
 func TestDispatchAgentSetupSkipsUnregisteredResources(t *testing.T) {
-	universe := collectAgentUniverse()
+	a, stdout := newTestApp(t)
+	universe := collectAgentUniverse(a.root)
 	// Pick the first agent that is link-class in skills only, or fall
 	// back to a known link-only-in-skills entry. `codebuddy` is a
 	// strong candidate (skills link, no md/prompts entry today).
@@ -302,7 +303,6 @@ func TestDispatchAgentSetupSkipsUnregisteredResources(t *testing.T) {
 		t.Skipf("expected %q in universe; got %v", target, universe)
 	}
 
-	a, stdout := newTestApp(t)
 	// We expect no error in non-TTY because executeAgentsSkillsLink
 	// will return after rendering its own table; the temp dir has no
 	// pre-existing collisions, so a fresh symlink should be created.
