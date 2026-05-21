@@ -100,14 +100,27 @@ go run . i18n.check
 
 命令只在仓库根目录范围内操作，不会修改 `HOME` 或任何系统全局路径，也不会自动删除真实目录或文件（`FORCE=1` 同样不会）。
 
-### 聚合菜单
+### 聚合入口（推荐用法）
+
+聚合命令 `agents` 采用 **Agent 优先** 设计：选定一个 Agent，所选动作会自动作用到该 Agent 在 skills/prompts/md 三类资源中所有适用的绑定；对该 Agent 而言为 `native` 或未注册的资源会在最终摘要中显式列出跳过原因。
 
 ```bash
-make agents                                  # 终端下进入资源 → 动作 → Agent 三层菜单
-                                             # CI/管道下打印用法指引
+# 交互模式（终端）：
+#   第 1 步：方向键选择 Agent（可输入字符过滤）。
+#   第 2 步：方向键选择 `link` 或 `unlink`。
+make agents
+
+# 一键模式（CI/管道也可用）：
+make agents AGENT=claude-code                    # 一次为 claude-code 在 skills + md 建立软链（prompts 按注册表跳过）
+make agents AGENT=claude-code FORCE=1            # 同时重建指向错误源的旧软链
+make agents AGENT=claude-code ACTION=unlink      # 移除 claude-code 的所有受管软链
 ```
 
-### 各资源子命令
+`AGENT` 必须是单个受支持 Agent 名称：聚合命令显式拒绝 `AGENT=all` 与逗号列表（批量场景请走下方子命令）。`ACTION` 默认为 `link`。未传 `AGENT` 时，非终端环境会打印用法指引而不会阻塞等待输入。
+
+### 各资源子命令（高级用法）
+
+推荐入口为聚合命令 `make agents`。下列各资源子命令保留用于聚合命令显式不支持的批量场景，特别是 `AGENT=all` 与逗号列表。
 
 ```bash
 # skills
@@ -133,9 +146,9 @@ make agents.md.unlink AGENT=claude-code              # 移除 AGENTS.md 软链
 
 ### 交互模式
 
-`make agents` 在终端下展示资源 → 动作 → Agent 三层菜单。各资源子命令在未传入 `AGENT` 且标准输入连接到真实终端时也会进入交互式选择：以 3 列网格展示 `link` 类 Agent 候选，每个单元格使用单字符状态符号和图例，整体能在 24 行终端中完整显示。命令读取以逗号分隔的选择（或 `all` / `q`）；若选中的 Agent 中存在 `mismatch` 状态，命令会再次询问是否使用 `FORCE=1` 重建。CI 与管道环境保持非交互：`agents.<resource>.link` 退化为只读列表，`agents.<resource>.unlink` 必须显式传入 `AGENT=`。
+所有交互入口（聚合命令 `agents` 与各 `agents.<resource>.<action>` 子命令）统一基于 [charmbracelet/huh](https://github.com/charmbracelet/huh) 的方向键交互：使用 **方向键** 移动、**空格** 切换多选行、**回车** 确认、**直接输入字符** 快速过滤、**Esc** / **Ctrl+C** 取消。每个候选项的标题中嵌入了 Agent 名称、单字符状态符号与简短状态说明，便于在选择时直接看清当前绑定状态。CI 与管道环境保持非交互：`agents` 打印用法指引，`agents.<resource>.link` 退化为只读列表，`agents.<resource>.unlink` 必须显式传入 `AGENT=`。
 
-交互式网格中的状态符号：
+交互式选项标题中嵌入的状态符号：
 
 - `[+]` linked — 软链存在且指向标准源
 - `[~]` mismatch — 软链存在但指向其他位置

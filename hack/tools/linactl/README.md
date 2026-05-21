@@ -100,14 +100,27 @@ The default scanner allowlist is maintained at `hack/tools/linactl/internal/runt
 
 The commands only operate inside the repository root; they never modify HOME directories or system-global paths, and they never remove real directories or files (even with `FORCE=1`).
 
-### Aggregate menu
+### Aggregate menu (recommended)
+
+The `agents` aggregate command is **agent-first**: pick one agent and the chosen action runs across every resource type that agent participates in. Resources where the agent is `native` or unregistered are skipped with an explicit reason in the final summary.
 
 ```bash
-make agents                                  # interactive resource -> action -> agent menu on a TTY
-                                             # CI / piped contexts print usage guidance instead
+# Interactive (TTY):
+#   Step 1: arrow-key pick the agent (filter by typing).
+#   Step 2: arrow-key pick `link` or `unlink`.
+make agents
+
+# One-shot (works in any environment, including CI):
+make agents AGENT=claude-code                    # link claude-code across skills + md (prompts skipped per registry)
+make agents AGENT=claude-code FORCE=1            # rebuild mismatched links during the same run
+make agents AGENT=claude-code ACTION=unlink      # remove every managed symlink for claude-code
 ```
 
-### Per-resource subcommands
+`AGENT` must name a single supported agent: `AGENT=all` and comma-separated lists are explicitly rejected by the aggregate command (use the per-resource subcommands below for batch flows). `ACTION` defaults to `link`. Without `AGENT`, non-TTY invocations print a usage hint instead of blocking on input.
+
+### Per-resource subcommands (advanced)
+
+The aggregate `make agents` command is the recommended entry point. The per-resource subcommands below remain available for batch flows that the aggregate command intentionally does not support — in particular `AGENT=all` and comma-separated lists.
 
 ```bash
 # skills
@@ -133,9 +146,9 @@ make agents.md.unlink AGENT=claude-code              # remove a managed AGENTS.m
 
 ### Interactive mode
 
-`make agents` opens a three-level menu (resource → action → agent) on a TTY. Each per-resource subcommand also enters interactive selection when `AGENT` is omitted and stdin is attached to a real terminal: a 3-column grid of `link`-class agents annotated with single-character status glyphs and a legend, sized to fit a typical 24-row viewport. The command reads a comma-separated selection (or `all` / `q`); if any selected agent currently has a mismatched link, the command prompts to rebuild with `FORCE=1`. CI and piped invocations remain non-interactive: `agents.<resource>.link` falls back to the read-only listing and `agents.<resource>.unlink` requires an explicit `AGENT=` value.
+All interactive entry points (the `agents` aggregate command and every `agents.<resource>.<action>` subcommand) are driven by [charmbracelet/huh](https://github.com/charmbracelet/huh): use the **arrow keys** to navigate, **space** to toggle multi-select rows, **enter** to confirm, **type** to filter, and **Esc** / **Ctrl+C** to cancel. Each option label embeds the agent name plus a single-character status glyph and short status descriptor so you can see every candidate's current binding state without leaving the prompt. CI and piped invocations remain non-interactive: `agents` prints a usage hint, `agents.<resource>.link` falls back to a read-only listing, and `agents.<resource>.unlink` requires an explicit `AGENT=` value.
 
-Status glyphs in the interactive grid:
+Status glyphs embedded in interactive option labels:
 
 - `[+]` linked — symlink exists and points at the canonical source
 - `[~]` mismatch — symlink exists but targets another location

@@ -1,12 +1,19 @@
-// This file implements the agents aggregate command. When invoked from a
-// terminal it presents a three-level menu: first choose the resource
-// type (skills / prompts / md), then the action (link / unlink), then
-// hand off to the matching agents.<resource>.<action> interactive flow.
-// In non-TTY contexts it prints usage guidance pointing callers at the
-// six explicit subcommands.
+// This file implements the agents aggregate command. The command takes
+// an agent-first stance: users either pass `agent=<name>` for a one-shot
+// non-interactive setup, or run from a TTY to walk a two-step menu
+// (pick agent -> pick link/unlink) that automatically applies to every
+// resource type (skills / prompts / md) the chosen agent participates
+// in. Resources where the agent is native or unregistered are skipped
+// with an explicit reason in the final summary.
 //
 // This file also owns the writeLine / writeLines stdout helpers shared
-// by every agents.* command.
+// by every agents.* command, and the stdinAsFile helper used by the
+// resource subcommands' TTY-detection branches.
+//
+// The previous three-level menu (resource -> action -> agent) and the
+// `agents.<resource>.<action>` six-target Makefile expansion remain
+// available as advanced entry points; only the aggregate `agents`
+// command is reshaped here.
 
 package main
 
@@ -15,9 +22,77 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
+	"strings"
 
 	"linactl/internal/agents/common"
+	"linactl/internal/agents/md"
+	"linactl/internal/agents/prompts"
+	"linactl/internal/agents/skills"
 )
+
+// agentSetupAction enumerates the actions the aggregate command can
+// dispatch. Only link and unlink are supported today; the type exists
+// so the dispatcher can be extended without leaking string literals
+// into business logic.
+type agentSetupAction string
+
+const (
+	actionLink   agentSetupAction = "link"
+	actionUnlink agentSetupAction = "unlink"
+)
+
+// resourceKind tags a resource entry inside the cross-resource agent
+// universe with a stable identifier matching the registry it came from.
+type resourceKind string
+
+const (
+	resourceSkills  resourceKind = "skills"
+	resourcePrompts resourceKind = "prompts"
+	resourceMd      resourceKind = "md"
+)
+
+// selectableAgent describes one agent's role across the three resource
+// registries (skills / prompts / md). It is built once at command entry
+// by collectAgentUniverse and consumed by both the interactive picker
+// (huh option labels) and the dispatch loop (which resources to act on).
+type selectableAgent struct {
+	// Name is the canonical agent identifier shared across registries.
+	Name string
+	// DisplayName is the human-readable label aggregated from whichever
+	// registry first carries it.
+	DisplayName string
+	// Roles records the agent's category in each resource it appears
+	// in. A resource not present in the map means the agent is not
+	// registered there.
+	Roles map[resourceKind]common.Category
+}
+
+// hasLinkRole reports whether the agent has at least one resource where
+// it is link-class. Only such agents are eligible for interactive
+// selection (native-only agents have nothing to link/unlink).
+func (s selectableAgent) hasLinkRole() bool {
+	for _, category := range s.Roles {
+		if category == common.CategoryLink {
+			return true
+		}
+	}
+	return false
+}
+
+// summary builds a short human-readable role description for the agent
+// (e.g. "skills: link, md: link, prompts: native") used inside huh
+// option labels so users can see at a glance which resource types each
+// agent will actually touch.
+func (s selectableAgent) summary() string {
+	parts := make([]string, 0, 3)
+	for _, kind := range []resourceKind{resourceSkills, resourcePrompts, resourceMd} {
+		if category, ok := s.Roles[kind]; ok {
+			parts = append(parts, fmt.Sprintf("%s: %s", kind, category))
+		}
+	}
+	return strings.Join(parts, ", ")
+}
 
 // writeLine prints a single line to the writer, wrapping any write error
 // so linactl never silently drops stdout failures (e.g. a broken pipe).
@@ -49,120 +124,396 @@ func stdinAsFile(a *app) *os.File {
 	return nil
 }
 
-// runAgents dispatches the agents aggregate menu.
-func runAgents(ctx context.Context, a *app, input commandInput) error {
-	if !common.IsInteractiveTerminal(stdinAsFile(a)) {
-		return writeLines(a.stdout,
-			"Usage: linactl agents.<resource>.<action>",
-			"  resource: skills | prompts | md",
-			"  action:   link | unlink",
-			"",
-			"Examples:",
-			"  make agents.skills.link [AGENT=<name|all|csv>] [FORCE=1]",
-			"  make agents.skills.unlink [AGENT=<name|all|csv>]",
-			"  make agents.prompts.link [AGENT=<name|all|csv>] [FORCE=1]",
-			"  make agents.prompts.unlink [AGENT=<name|all|csv>]",
-			"  make agents.md.link [AGENT=<name|all|csv>] [FORCE=1]",
-			"  make agents.md.unlink [AGENT=<name|all|csv>]",
-			"",
-			"Hint: run `make agents` from an interactive terminal to use the menu.",
-		)
-	}
-	return runAgentsInteractiveMenu(ctx, a, input)
-}
-
-// runAgentsInteractiveMenu renders the resource-selection menu (level 1)
-// and dispatches to the action menu (level 2). Cancellation (`q`,
-// `quit`, blank line) at any level returns nil.
-func runAgentsInteractiveMenu(ctx context.Context, a *app, input commandInput) error {
-	for {
-		if err := writeLines(a.stdout,
-			"What resource do you want to manage?",
-			"  [1] skills    Agent skills directory bridge (.<tool>/skills -> .agents/skills)",
-			"  [2] prompts   Agent commands/prompts directory bridge (.<tool>/.../opsx -> .agents/prompts/opsx)",
-			"  [3] md        AGENTS.md project guide file bridge (.<tool>.md -> AGENTS.md)",
-			"  [q] quit",
-		); err != nil {
-			return err
-		}
-		if _, err := fmt.Fprint(a.stdout, "> "); err != nil {
-			return fmt.Errorf("write prompt: %w", err)
-		}
-
-		choice, err := common.ReadLine(a.stdin)
-		if err != nil {
-			return err
-		}
-		switch choice {
-		case "", "q", "quit":
-			return writeLine(a.stdout, "Cancelled.")
-		case "1", "skills", "s":
-			if err = runAgentsActionMenu(ctx, a, input, "skills"); err != nil {
-				return err
-			}
-			return nil
-		case "2", "prompts", "p":
-			if err = runAgentsActionMenu(ctx, a, input, "prompts"); err != nil {
-				return err
-			}
-			return nil
-		case "3", "md", "m":
-			if err = runAgentsActionMenu(ctx, a, input, "md"); err != nil {
-				return err
-			}
-			return nil
-		default:
-			return fmt.Errorf("invalid choice %q: expected 1, 2, 3 or q", choice)
-		}
-	}
-}
-
-// runAgentsActionMenu renders the action-selection menu (level 2) and
-// dispatches to the matching agents.<resource>.<action> interactive
-// flow. `q` / `back` returns to the resource menu via nil.
-func runAgentsActionMenu(_ context.Context, a *app, input commandInput, resource string) error {
-	if err := writeLines(a.stdout,
-		"",
-		"What do you want to do?",
-		"  [1] link    Create symlinks for the chosen resource",
-		"  [2] unlink  Remove managed symlinks for the chosen resource",
-		"  [q] back",
-	); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprint(a.stdout, "> "); err != nil {
-		return fmt.Errorf("write prompt: %w", err)
-	}
-
-	choice, err := common.ReadLine(a.stdin)
+// runAgents dispatches the aggregate agents command. Behaviour:
+//
+//   - agent=<name> [action=link|unlink] [force=1] : one-shot setup; the
+//     selected action runs against every resource type the agent is
+//     link-class in.
+//   - no agent + TTY                              : two-step menu (pick
+//     agent -> pick action) backed by huh.
+//   - no agent + non-TTY                          : print usage and
+//     return successfully.
+//
+// Unknown agents, the literal string "all", and comma-separated lists
+// are explicitly rejected to keep the one-shot path safe; multi-agent
+// batch flows remain available through the per-resource
+// `agents.<resource>.<action>` subcommands.
+func runAgents(_ context.Context, a *app, input commandInput) error {
+	rawAgent := strings.TrimSpace(input.GetDefault("agent", ""))
+	rawAction := strings.TrimSpace(strings.ToLower(input.GetDefault("action", "")))
+	force, err := input.Bool("force", false)
 	if err != nil {
 		return err
 	}
-	switch choice {
-	case "", "q", "quit", "back", "b":
-		return writeLine(a.stdout, "Cancelled.")
-	case "1", "link", "l":
-		force, _ := input.Bool("force", false)
-		switch resource {
-		case "skills":
-			return runAgentsSkillsLinkInteractive(a, force)
-		case "prompts":
-			return runAgentsPromptsLinkInteractive(a, force)
-		case "md":
-			return runAgentsMdLinkInteractive(a, force)
+
+	universe := collectAgentUniverse()
+
+	if rawAgent == "" {
+		if !common.IsInteractiveTerminal(stdinAsFile(a)) {
+			return printAgentsUsage(a.stdout)
 		}
-	case "2", "unlink", "u":
-		switch resource {
-		case "skills":
-			return runAgentsSkillsUnlinkInteractive(a)
-		case "prompts":
-			return runAgentsPromptsUnlinkInteractive(a)
-		case "md":
-			return runAgentsMdUnlinkInteractive(a)
-		}
-	default:
-		return fmt.Errorf("invalid choice %q: expected 1, 2 or q", choice)
+		return runAgentInteractiveMenu(a, universe, force)
 	}
-	// Unreachable: every resource is handled above.
-	return fmt.Errorf("unsupported resource %q", resource)
+
+	agentName, err := validateSingleAgentName(rawAgent, universe)
+	if err != nil {
+		return err
+	}
+	action, err := parseAgentSetupAction(rawAction, actionLink)
+	if err != nil {
+		return err
+	}
+	return dispatchAgentSetup(a, agentName, action, force, universe)
+}
+
+// printAgentsUsage emits the non-interactive usage hint pointing
+// callers at the one-shot mode and the advanced subcommands.
+func printAgentsUsage(out io.Writer) error {
+	return writeLines(out,
+		"Usage: linactl agents [agent=<name>] [action=link|unlink] [force=1]",
+		"",
+		"One-shot mode (works in any environment):",
+		"  make agents AGENT=<name> [ACTION=link|unlink] [FORCE=1]",
+		"  - AGENT must name a single supported agent (no 'all', no csv).",
+		"  - ACTION defaults to 'link'.",
+		"  - The selected action runs against every resource type the agent supports.",
+		"",
+		"Interactive mode (TTY only):",
+		"  make agents",
+		"  - Step 1: arrow-key pick the agent.",
+		"  - Step 2: arrow-key pick link or unlink.",
+		"",
+		"Advanced per-resource entry points (still available):",
+		"  make agents.skills.link  | agents.skills.unlink",
+		"  make agents.prompts.link | agents.prompts.unlink",
+		"  make agents.md.link      | agents.md.unlink",
+	)
+}
+
+// parseAgentSetupAction normalizes an action string (link/unlink). An
+// empty value falls back to fallback. Any other value yields an error
+// so typos are caught at the CLI boundary.
+func parseAgentSetupAction(raw string, fallback agentSetupAction) (agentSetupAction, error) {
+	switch raw {
+	case "":
+		return fallback, nil
+	case string(actionLink):
+		return actionLink, nil
+	case string(actionUnlink):
+		return actionUnlink, nil
+	default:
+		return "", fmt.Errorf("invalid action %q: expected 'link' or 'unlink'", raw)
+	}
+}
+
+// validateSingleAgentName enforces the one-shot mode contract: exactly
+// one supported agent name, no "all", no comma list. The candidate
+// listing in error messages is limited to the link-class universe so
+// users see only agents the aggregate command can actually drive.
+func validateSingleAgentName(raw string, universe []selectableAgent) (string, error) {
+	if raw == "" {
+		return "", fmt.Errorf("agent= must be set; pass a single supported agent name")
+	}
+	if strings.Contains(raw, ",") {
+		return "", fmt.Errorf("agent=%q: comma-separated lists are not supported by `linactl agents`; use the per-resource subcommands for batch operations", raw)
+	}
+	if strings.EqualFold(raw, common.SelectorAll) {
+		return "", fmt.Errorf("agent=all is not supported by `linactl agents` (safety guard); pass a specific agent name")
+	}
+	for _, candidate := range universe {
+		if candidate.Name == raw {
+			return candidate.Name, nil
+		}
+	}
+	return "", fmt.Errorf("unknown agent %q; supported agents: %s", raw, joinAgentNames(universe))
+}
+
+// joinAgentNames flattens the universe slice into a comma-separated
+// candidate listing for error messages.
+func joinAgentNames(universe []selectableAgent) string {
+	names := make([]string, 0, len(universe))
+	for _, agent := range universe {
+		names = append(names, agent.Name)
+	}
+	return strings.Join(names, ", ")
+}
+
+// agentDisplayPriority lists the most commonly used agents in the order
+// they should appear at the top of the interactive picker. The first
+// entry takes precedence over the second, and so on. Agents not present
+// in this list fall through to alphabetical order. The list reflects
+// broader community/usage signals so the picker surfaces the agents
+// most users actually need without scrolling; project-internal entries
+// (e.g. codebuddy) intentionally fall back to the alphabetical tail to
+// avoid biasing the default surface. Names that are not currently
+// registered (e.g. cline) are kept in the priority list intentionally —
+// they cost nothing when absent and keep the ordering stable when new
+// registrations land.
+var agentDisplayPriority = []string{
+	"claude-code",
+	"codex",
+	"cursor",
+	"gemini-cli",
+	"windsurf",
+	"qwen-code",
+	"continue",
+	"cline",
+	"trae",
+	"roo",
+	"kiro-cli",
+	"aider-desk",
+	"augment",
+}
+
+// agentPriorityRank returns the configured display rank for the given
+// agent name. Agents not present in agentDisplayPriority receive a rank
+// strictly larger than any priority entry so they sort after every
+// priority agent. The boolean reports whether the name was found inside
+// the priority list, which lets callers distinguish "alphabetical tail"
+// from "explicit priority" without relying on sentinel values.
+func agentPriorityRank(name string) (int, bool) {
+	for index, candidate := range agentDisplayPriority {
+		if candidate == name {
+			return index, true
+		}
+	}
+	return len(agentDisplayPriority), false
+}
+
+// collectAgentUniverse merges the three resource registries and returns
+// every agent that is link-class in at least one resource. Native-only
+// agents are excluded because the aggregate command never has work to
+// do on them. The returned slice is sorted so that agents listed in
+// agentDisplayPriority appear first in the configured order, with the
+// remaining agents falling back to alphabetical order for stable
+// output.
+func collectAgentUniverse() []selectableAgent {
+	universe := make(map[string]*selectableAgent)
+
+	upsert := func(name, display string, kind resourceKind, category common.Category) {
+		entry, exists := universe[name]
+		if !exists {
+			entry = &selectableAgent{Name: name, DisplayName: display, Roles: map[resourceKind]common.Category{}}
+			universe[name] = entry
+		}
+		if entry.DisplayName == "" {
+			entry.DisplayName = display
+		}
+		entry.Roles[kind] = category
+	}
+
+	for _, spec := range skills.Agents() {
+		upsert(spec.Name, spec.DisplayName, resourceSkills, spec.Category)
+	}
+	for _, spec := range prompts.Agents() {
+		upsert(spec.Name, spec.DisplayName, resourcePrompts, spec.Category)
+	}
+	for _, spec := range md.Agents() {
+		upsert(spec.Name, spec.DisplayName, resourceMd, spec.Category)
+	}
+
+	out := make([]selectableAgent, 0, len(universe))
+	for _, entry := range universe {
+		if !entry.hasLinkRole() {
+			continue
+		}
+		out = append(out, *entry)
+	}
+	sort.Slice(out, func(left, right int) bool {
+		leftRank, leftPriority := agentPriorityRank(out[left].Name)
+		rightRank, rightPriority := agentPriorityRank(out[right].Name)
+		switch {
+		case leftPriority && rightPriority:
+			return leftRank < rightRank
+		case leftPriority:
+			return true
+		case rightPriority:
+			return false
+		default:
+			return out[left].Name < out[right].Name
+		}
+	})
+	return out
+}
+
+// runAgentInteractiveMenu drives the two-step TTY flow:
+//   1. select one agent from the link-class universe (huh single-select);
+//   2. select link or unlink (huh single-select).
+//
+// Cancellation at either step returns nil after printing "Cancelled.".
+func runAgentInteractiveMenu(a *app, universe []selectableAgent, force bool) error {
+	if len(universe) == 0 {
+		return writeLine(a.stdout, "No link-class agents are registered; nothing to set up.")
+	}
+
+	options := make([]common.SingleOption, 0, len(universe))
+	for _, agent := range universe {
+		label := agent.Name
+		if agent.DisplayName != "" && agent.DisplayName != agent.Name {
+			label = fmt.Sprintf("%s (%s)", agent.Name, agent.DisplayName)
+		}
+		if summary := agent.summary(); summary != "" {
+			label = fmt.Sprintf("%s — %s", label, summary)
+		}
+		options = append(options, common.SingleOption{Value: agent.Name, Label: label})
+	}
+
+	agentName, err := common.PromptSingleSelection(a.stdin, a.stdout, "Select an agent to configure:", options)
+	if err != nil {
+		return err
+	}
+	if agentName == "" {
+		return writeLine(a.stdout, "Cancelled.")
+	}
+
+	actionChoice, err := common.PromptSingleSelection(a.stdin, a.stdout,
+		fmt.Sprintf("What should we do for %s?", agentName), []common.SingleOption{
+			{Value: string(actionLink), Label: "link    Create or rebuild symlinks for this agent"},
+			{Value: string(actionUnlink), Label: "unlink  Remove managed symlinks for this agent"},
+		})
+	if err != nil {
+		return err
+	}
+	if actionChoice == "" {
+		return writeLine(a.stdout, "Cancelled.")
+	}
+
+	action, err := parseAgentSetupAction(actionChoice, actionLink)
+	if err != nil {
+		return err
+	}
+	return dispatchAgentSetup(a, agentName, action, force, universe)
+}
+
+// dispatchAgentSetup executes the chosen action across every resource
+// type the agent participates in. For each resource:
+//   - link-class agent  -> delegate to executeAgentsXxxLink/Unlink
+//                          (which renders the per-resource result table
+//                           and emits hints internally).
+//   - native agent      -> record a skip with reason "native".
+//   - unregistered      -> record a skip with reason "not registered".
+//
+// A summary table of skipped resources is printed last. The function
+// returns the first per-resource error encountered (mirroring the
+// existing per-subcommand exit-code semantics: any HasError surfaces
+// as a non-zero exit).
+func dispatchAgentSetup(a *app, agentName string, action agentSetupAction, force bool, universe []selectableAgent) error {
+	target, ok := lookupAgent(universe, agentName)
+	if !ok {
+		// Should not happen: validateSingleAgentName already rejected
+		// unknown names. Defensive guard so callers that bypass the
+		// validator (future internal callers) still get a clear error.
+		return fmt.Errorf("agent %q not found in the cross-resource registry", agentName)
+	}
+
+	if err := writeLines(a.stdout,
+		fmt.Sprintf("Running `%s` for agent %s across all supported resources...", action, target.Name),
+		"",
+	); err != nil {
+		return err
+	}
+
+	type resourceOutcome struct {
+		kind   resourceKind
+		err    error
+		skipped bool
+		reason string
+	}
+	outcomes := make([]resourceOutcome, 0, 3)
+	var firstErr error
+
+	runOne := func(kind resourceKind, runner func() error) {
+		if err := writeLine(a.stdout, fmt.Sprintf("== %s ==", kind)); err != nil {
+			outcomes = append(outcomes, resourceOutcome{kind: kind, err: err})
+			if firstErr == nil {
+				firstErr = err
+			}
+			return
+		}
+		if err := runner(); err != nil {
+			outcomes = append(outcomes, resourceOutcome{kind: kind, err: err})
+			if firstErr == nil {
+				firstErr = err
+			}
+			return
+		}
+		outcomes = append(outcomes, resourceOutcome{kind: kind})
+		_ = writeLine(a.stdout, "")
+	}
+
+	for _, kind := range []resourceKind{resourceSkills, resourcePrompts, resourceMd} {
+		category, present := target.Roles[kind]
+		if !present {
+			outcomes = append(outcomes, resourceOutcome{kind: kind, skipped: true, reason: "not registered"})
+			continue
+		}
+		if category != common.CategoryLink {
+			outcomes = append(outcomes, resourceOutcome{kind: kind, skipped: true, reason: fmt.Sprintf("%s (no symlink work)", category)})
+			continue
+		}
+		runOne(kind, func() error {
+			return runResourceAction(a, kind, agentName, action, force)
+		})
+	}
+
+	if err := writeLine(a.stdout, "Summary:"); err != nil {
+		return err
+	}
+	for _, outcome := range outcomes {
+		switch {
+		case outcome.skipped:
+			if err := writeLine(a.stdout, fmt.Sprintf("  - %-7s skipped (%s)", outcome.kind, outcome.reason)); err != nil {
+				return err
+			}
+		case outcome.err != nil:
+			if err := writeLine(a.stdout, fmt.Sprintf("  - %-7s failed (%v)", outcome.kind, outcome.err)); err != nil {
+				return err
+			}
+		default:
+			if err := writeLine(a.stdout, fmt.Sprintf("  - %-7s applied", outcome.kind)); err != nil {
+				return err
+			}
+		}
+	}
+
+	return firstErr
+}
+
+// runResourceAction routes a single resource's link/unlink call to the
+// existing per-resource execute helpers. Keeping the dispatch concentrated
+// here means the aggregate command does not duplicate state-machine
+// logic from any subcommand.
+func runResourceAction(a *app, kind resourceKind, agentName string, action agentSetupAction, force bool) error {
+	selectors := []string{agentName}
+	switch kind {
+	case resourceSkills:
+		if action == actionLink {
+			return executeAgentsSkillsLink(a, selectors, force)
+		}
+		return executeAgentsSkillsUnlink(a, selectors)
+	case resourcePrompts:
+		if action == actionLink {
+			return executeAgentsPromptsLink(a, selectors, force)
+		}
+		return executeAgentsPromptsUnlink(a, selectors)
+	case resourceMd:
+		if action == actionLink {
+			return executeAgentsMdLink(a, selectors, force)
+		}
+		return executeAgentsMdUnlink(a, selectors)
+	default:
+		return fmt.Errorf("unsupported resource %q", kind)
+	}
+}
+
+// lookupAgent finds a selectableAgent by name in the universe slice.
+// Used by dispatchAgentSetup to resolve role information once name
+// validation has succeeded.
+func lookupAgent(universe []selectableAgent, name string) (selectableAgent, bool) {
+	for _, agent := range universe {
+		if agent.Name == name {
+			return agent, true
+		}
+	}
+	return selectableAgent{}, false
 }

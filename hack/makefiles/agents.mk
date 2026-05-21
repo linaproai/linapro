@@ -1,26 +1,39 @@
 # Agents resource symlink management targets.
 # Agents 资源软链管理目标。
 #
-# This Makefile fragment exposes the agents.<resource>.<action> command
-# tree provided by linactl. Three resource types are supported, each
-# with a link/unlink action pair:
-#   - skills:  directory bridge from .<tool>/skills    -> .agents/skills
-#   - prompts: directory bridge from .<tool>/.../opsx  -> .agents/prompts/opsx
-#   - md:      single-file bridge from .<tool>.md      -> AGENTS.md
+# This Makefile fragment exposes two layered entry points:
 #
-# The bare `agents` target opens an interactive resource/action menu on
-# a TTY and prints usage guidance otherwise.
+#   1. `agents` (recommended) — agent-first one-shot/interactive setup.
+#      - On a TTY without AGENT, opens an arrow-key driven menu that
+#        first picks the agent, then picks link or unlink. The chosen
+#        action is automatically applied to every resource type
+#        (skills / prompts / md) the agent participates in; resources
+#        where the agent is native or unregistered are skipped with an
+#        explicit reason in the final summary.
+#      - With AGENT=<name>, runs the same dispatch non-interactively.
+#        ACTION defaults to `link`; pass ACTION=unlink to remove.
+#        AGENT must be a single supported agent name (no `all`, no
+#        comma-separated list).
+#
+#   2. `agents.<resource>.<action>` (advanced) — per-resource batch
+#      operations preserved from before:
+#        - skills:  directory bridge from .<tool>/skills    -> .agents/skills
+#        - prompts: directory bridge from .<tool>/.../opsx  -> .agents/prompts/opsx
+#        - md:      single-file bridge from .<tool>.md      -> AGENTS.md
+#      These accept AGENT=<name|all|csv> and remain the recommended
+#      route for batch updates across many agents at once.
 
 .PHONY: agents \
         agents.skills.link agents.skills.unlink \
         agents.prompts.link agents.prompts.unlink \
         agents.md.link agents.md.unlink
 
-# agents opens an interactive three-level menu (resource -> action ->
-# agent) when invoked on a TTY. CI and piped contexts print usage
-# guidance pointing at the explicit subcommands instead.
+# agents drives the agent-first aggregate command. Without arguments and
+# attached to a TTY, it opens the arrow-key picker. With AGENT set, it
+# runs non-interactively against every resource the agent participates
+# in. Pass FORCE=1 to rebuild mismatched links, ACTION=unlink to remove.
 agents:
-	$(LINACTL) agents
+	$(LINACTL) agents $(if $(AGENT),agent=$(AGENT)) $(if $(ACTION),action=$(ACTION)) $(if $(FORCE),force=1)
 
 # agents.skills.link manages repository-local symlinks from supported
 # agents' project skills paths to .agents/skills. Pass AGENT=<name|all|csv>

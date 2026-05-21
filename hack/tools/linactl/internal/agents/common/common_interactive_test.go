@@ -1,8 +1,20 @@
 // This file contains unit tests for the resource-agnostic interactive
-// helpers in the common subpackage: PromptSelection, PromptYesNo,
-// ReadLine, IsInteractiveTerminal and the candidate-grid rendering
-// behavior. Tests use bytes.Buffer as both input and output so they
-// exercise the parser without requiring a real TTY.
+// primitives that survived the migration to charmbracelet/huh.
+//
+// We test only the parts that are testable without a real terminal:
+//   - IsInteractiveTerminal and ReadLine (legacy primitives that still
+//     drive non-TTY paths and unit tests).
+//   - The non-TTY degrade behaviour of PromptSelection / PromptSingleSelection
+//     / PromptYesNo. When stdin is not a *os.File pointing at a character
+//     device the helpers must return safe zero values rather than spawn a
+//     huh form. This protects test harnesses that wire bytes.Buffer streams
+//     and CI invocations that should never reach the interactive path.
+//
+// The actual huh-driven TUI rendering and key handling is exercised by
+// charmbracelet/huh's own test suite and verified manually; we do not
+// attempt to assert on its output bytes here because they include
+// terminal control sequences whose layout is intentionally not part of
+// our public contract.
 
 package common
 
@@ -12,121 +24,13 @@ import (
 	"testing"
 )
 
-// makeCandidates builds three SelectableEntry rows used by the
-// PromptSelection tests below. The fakeSpec type already lives in
-// common_test.go alongside ResolveTargets tests so we reuse it here.
-func makeCandidates() []SelectableEntry {
+// fakeSelectables produces a tiny SelectableEntry slice for tests in
+// this file. It mirrors makeFakeRegistry/fakeSpec from common_test.go
+// but composes the SelectableEntry rows directly.
+func fakeSelectables() []SelectableEntry {
 	return []SelectableEntry{
 		{Spec: fakeSpec{name: "claude-code", category: CategoryLink}, CurrentStatus: StatusAbsent},
 		{Spec: fakeSpec{name: "codebuddy", category: CategoryLink}, CurrentStatus: StatusOK},
-		{Spec: fakeSpec{name: "qoder", category: CategoryLink}, CurrentStatus: StatusMismatch, Detail: "-> elsewhere"},
-	}
-}
-
-func TestPromptSelectionAcceptsCommaList(t *testing.T) {
-	in := bytes.NewBufferString("1,3\n")
-	out := &bytes.Buffer{}
-	got, err := PromptSelection(in, out, "Select:", makeCandidates())
-	if err != nil {
-		t.Fatalf("prompt: %v", err)
-	}
-	if len(got) != 2 || got[0] != "claude-code" || got[1] != "qoder" {
-		t.Fatalf("unexpected selection: %v", got)
-	}
-	if !strings.Contains(out.String(), "claude-code") {
-		t.Fatalf("expected candidate listing in output: %q", out.String())
-	}
-}
-
-func TestPromptSelectionAll(t *testing.T) {
-	in := bytes.NewBufferString("all\n")
-	got, err := PromptSelection(in, &bytes.Buffer{}, "Select:", makeCandidates())
-	if err != nil {
-		t.Fatalf("prompt: %v", err)
-	}
-	if len(got) != 3 {
-		t.Fatalf("expected all 3 selected, got %v", got)
-	}
-}
-
-func TestPromptSelectionCancel(t *testing.T) {
-	for _, line := range []string{"\n", "q\n", "  \n"} {
-		in := bytes.NewBufferString(line)
-		got, err := PromptSelection(in, &bytes.Buffer{}, "Select:", makeCandidates())
-		if err != nil {
-			t.Fatalf("prompt(%q): %v", line, err)
-		}
-		if len(got) != 0 {
-			t.Fatalf("prompt(%q) expected no selection, got %v", line, got)
-		}
-	}
-}
-
-func TestPromptSelectionEmptyCandidates(t *testing.T) {
-	out := &bytes.Buffer{}
-	got, err := PromptSelection(bytes.NewBufferString(""), out, "Select:", nil)
-	if err != nil {
-		t.Fatalf("prompt: %v", err)
-	}
-	if len(got) != 0 {
-		t.Fatalf("expected empty selection")
-	}
-	if !strings.Contains(out.String(), "no candidates") {
-		t.Fatalf("expected no-candidates message: %q", out.String())
-	}
-}
-
-func TestPromptSelectionRejectsOutOfRange(t *testing.T) {
-	in := bytes.NewBufferString("99\n")
-	if _, err := PromptSelection(in, &bytes.Buffer{}, "Select:", makeCandidates()); err == nil {
-		t.Fatalf("expected out-of-range error")
-	}
-	in2 := bytes.NewBufferString("abc\n")
-	if _, err := PromptSelection(in2, &bytes.Buffer{}, "Select:", makeCandidates()); err == nil {
-		t.Fatalf("expected non-numeric error")
-	}
-}
-
-func TestPromptSelectionDeduplicates(t *testing.T) {
-	in := bytes.NewBufferString("1,1,2,2,3\n")
-	got, err := PromptSelection(in, &bytes.Buffer{}, "Select:", makeCandidates())
-	if err != nil {
-		t.Fatalf("prompt: %v", err)
-	}
-	if len(got) != 3 {
-		t.Fatalf("expected 3 unique selections, got %v", got)
-	}
-}
-
-func TestPromptYesNoDefaults(t *testing.T) {
-	got, err := PromptYesNo(bytes.NewBufferString("\n"), &bytes.Buffer{}, "OK?", false)
-	if err != nil || got {
-		t.Fatalf("default no: got=%v err=%v", got, err)
-	}
-	got, err = PromptYesNo(bytes.NewBufferString("\n"), &bytes.Buffer{}, "OK?", true)
-	if err != nil || !got {
-		t.Fatalf("default yes: got=%v err=%v", got, err)
-	}
-}
-
-func TestPromptYesNoExplicit(t *testing.T) {
-	for _, line := range []string{"y\n", "Y\n", "yes\n", "YES\n"} {
-		got, err := PromptYesNo(bytes.NewBufferString(line), &bytes.Buffer{}, "OK?", false)
-		if err != nil || !got {
-			t.Fatalf("expected true for %q got=%v err=%v", line, got, err)
-		}
-	}
-	for _, line := range []string{"n\n", "no\n"} {
-		got, err := PromptYesNo(bytes.NewBufferString(line), &bytes.Buffer{}, "OK?", true)
-		if err != nil || got {
-			t.Fatalf("expected false for %q got=%v err=%v", line, got, err)
-		}
-	}
-}
-
-func TestPromptYesNoInvalid(t *testing.T) {
-	if _, err := PromptYesNo(bytes.NewBufferString("maybe\n"), &bytes.Buffer{}, "OK?", false); err == nil {
-		t.Fatalf("expected error for invalid yes/no")
 	}
 }
 
@@ -157,36 +61,88 @@ func TestReadLineTrimsAndLowercases(t *testing.T) {
 	}
 }
 
-func TestPromptSelectionRendersThreeColumnGrid(t *testing.T) {
-	in := bytes.NewBufferString("q\n")
+// TestPromptSelectionNonTTYReturnsEmpty verifies that PromptSelection
+// gracefully degrades to (nil, nil) when stdin is not a *os.File. This
+// keeps mock-based command tests from accidentally spawning a huh form.
+func TestPromptSelectionNonTTYReturnsEmpty(t *testing.T) {
+	in := bytes.NewBufferString("")
 	out := &bytes.Buffer{}
-	candidates := makeCandidates()
-	if _, err := PromptSelection(in, out, "Select:", candidates); err != nil {
-		t.Fatalf("prompt: %v", err)
+	got, err := PromptSelection(in, out, "Select:", fakeSelectables())
+	if err != nil {
+		t.Fatalf("PromptSelection: %v", err)
 	}
-	output := out.String()
-	if !strings.Contains(output, "Legend:") {
-		t.Fatalf("expected legend line; got %q", output)
+	if len(got) != 0 {
+		t.Fatalf("expected empty selection on non-TTY, got %v", got)
 	}
-	for _, fragment := range []string{"[+]", "[~]", "[.]", "[!]"} {
-		if !strings.Contains(output, fragment) {
-			t.Fatalf("legend missing glyph %s; got %q", fragment, output)
-		}
+}
+
+// TestPromptSelectionEmptyCandidates verifies the explicit empty-list
+// message that runs even on non-TTY callers, since it does not require
+// terminal IO.
+func TestPromptSelectionEmptyCandidates(t *testing.T) {
+	out := &bytes.Buffer{}
+	got, err := PromptSelection(bytes.NewBufferString(""), out, "Select:", nil)
+	if err != nil {
+		t.Fatalf("PromptSelection: %v", err)
 	}
-	// All three candidates share a single row in the 3-column layout.
-	gridLines := strings.Split(output, "\n")
-	rowCount := 0
-	for _, line := range gridLines {
-		if strings.HasPrefix(line, "  [") {
-			rowCount++
-		}
+	if len(got) != 0 {
+		t.Fatalf("expected empty selection")
 	}
-	if rowCount != 1 {
-		t.Fatalf("expected exactly 1 grid row for 3 candidates in 3 columns; got %d rows in %q", rowCount, output)
+	if !strings.Contains(out.String(), "no candidates") {
+		t.Fatalf("expected no-candidates message: %q", out.String())
 	}
-	for _, name := range []string{"claude-code", "codebuddy", "qoder"} {
-		if !strings.Contains(output, name) {
-			t.Fatalf("expected candidate %s in grid; got %q", name, output)
+}
+
+// TestPromptSingleSelectionNonTTYReturnsEmpty mirrors the multi-select
+// degrade path for the single-select helper.
+func TestPromptSingleSelectionNonTTYReturnsEmpty(t *testing.T) {
+	got, err := PromptSingleSelection(bytes.NewBufferString(""), &bytes.Buffer{}, "Pick:", []SingleOption{
+		{Value: "a", Label: "A"},
+		{Value: "b", Label: "B"},
+	})
+	if err != nil {
+		t.Fatalf("PromptSingleSelection: %v", err)
+	}
+	if got != "" {
+		t.Fatalf("expected empty value on non-TTY, got %q", got)
+	}
+}
+
+// TestPromptSingleSelectionEmptyOptionsErrors guards against passing an
+// empty options slice, which is a programmer error.
+func TestPromptSingleSelectionEmptyOptionsErrors(t *testing.T) {
+	if _, err := PromptSingleSelection(bytes.NewBufferString(""), &bytes.Buffer{}, "Pick:", nil); err == nil {
+		t.Fatalf("expected error for empty options")
+	}
+}
+
+// TestPromptYesNoNonTTYReturnsDefault verifies the helper returns the
+// caller-supplied default when stdin is not a TTY, instead of spawning
+// a form or erroring.
+func TestPromptYesNoNonTTYReturnsDefault(t *testing.T) {
+	got, err := PromptYesNo(bytes.NewBufferString(""), &bytes.Buffer{}, "OK?", true)
+	if err != nil || !got {
+		t.Fatalf("default yes path: got=%v err=%v", got, err)
+	}
+	got, err = PromptYesNo(bytes.NewBufferString(""), &bytes.Buffer{}, "OK?", false)
+	if err != nil || got {
+		t.Fatalf("default no path: got=%v err=%v", got, err)
+	}
+}
+
+// TestFormatCandidateLabelEmbedsGlyphAndStatus exercises the label
+// builder used to compose huh option text. We verify glyph + name +
+// status descriptor are all present.
+func TestFormatCandidateLabelEmbedsGlyphAndStatus(t *testing.T) {
+	entry := SelectableEntry{
+		Spec:          fakeSpec{name: "claude-code", category: CategoryLink},
+		CurrentStatus: StatusMismatch,
+		Detail:        "-> /elsewhere",
+	}
+	got := formatCandidateLabel(entry)
+	for _, want := range []string{"[~]", "claude-code", "-> /elsewhere"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("formatCandidateLabel missing %q in %q", want, got)
 		}
 	}
 }
