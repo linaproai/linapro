@@ -813,6 +813,19 @@ func TestRunDevRejectsOccupiedPort(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "go.work"), "go 1.25.0\n")
 	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "config.template.yaml"), "template: true\n")
+	// portcheck.Verify 在 runDev 入口校验后端 server.address 与前端 vite proxy
+	// target 是否与 defaultBackendPort 对齐，用例需要自带最小一致夹具，否则
+	// 测试会在端口校验前的 portcheck 阶段失败，无法覆盖 EnsurePortsAvailable
+	// 的端口占用拒绝逻辑。
+	// portcheck.Verify runs at the start of runDev and requires both the
+	// backend server.address and the frontend vite proxy target to match
+	// the supplied backend port; without these the test would fail in
+	// portcheck before reaching the EnsurePortsAvailable check it intends
+	// to validate.
+	backendAddress := fmt.Sprintf("server:\n  address: \":%d\"\n", defaultBackendPort)
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "config.yaml"), backendAddress)
+	viteConfig := fmt.Sprintf("proxy: { '/api': { target: 'http://localhost:%d' } }\n", defaultBackendPort)
+	writeFile(t, filepath.Join(root, "apps", "lina-vben", "apps", "web-antd", "vite.config.mts"), viteConfig)
 	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "metadata: true\n")
 	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "sql", "001.sql"), "select 1;\n")
 	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "i18n", "en-US", "framework.json"), "{}\n")
