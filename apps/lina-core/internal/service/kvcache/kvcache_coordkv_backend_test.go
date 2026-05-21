@@ -5,6 +5,7 @@ package kvcache
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -41,6 +42,36 @@ func TestCoordKVBackendStoresStringWithNativeTTL(t *testing.T) {
 	time.Sleep(40 * time.Millisecond)
 	if _, ok, err = service.Get(ctx, OwnerTypePlugin, cacheKey); err != nil || ok {
 		t.Fatalf("expected expired coordination KV value miss, ok=%t err=%v", ok, err)
+	}
+}
+
+// TestCoordKVBackendUsesPlainRedisKeys verifies business cache keys are
+// directly visible in the coordination backend.
+func TestCoordKVBackendUsesPlainRedisKeys(t *testing.T) {
+	ctx := context.Background()
+	coordSvc := coordination.NewMemory(nil)
+	service := New(WithProvider(NewCoordinationKVProvider(coordSvc)))
+	cacheKey := BuildCacheKey("media", "route-memory", "route_data:device-1:channel-2")
+
+	if _, err := service.Set(ctx, OwnerTypePlugin, cacheKey, "value", time.Minute); err != nil {
+		t.Fatalf("set plain coordination KV value: %v", err)
+	}
+	key, err := coordSvc.KeyBuilder().KVKey(
+		0,
+		OwnerTypePlugin.String(),
+		"media",
+		"route-memory",
+		"route_data:device-1:channel-2",
+	)
+	if err != nil {
+		t.Fatalf("build plain key: %v", err)
+	}
+	if !strings.Contains(key, "media:route-memory:route_data:device-1:channel-2") {
+		t.Fatalf("expected route memory segments to stay plain, got %q", key)
+	}
+	raw, ok, err := coordSvc.KV().Get(ctx, key)
+	if err != nil || !ok || !strings.Contains(raw, "value") {
+		t.Fatalf("expected plain backend key to contain value, raw=%q ok=%t err=%v", raw, ok, err)
 	}
 }
 
