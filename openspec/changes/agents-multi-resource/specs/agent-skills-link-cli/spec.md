@@ -55,7 +55,8 @@
 #### Scenario: TTY 下`agents.skills.link`默认进入交互式
 
 - **WHEN** 开发者在终端下运行`make agents.skills.link`或`linactl agents.skills.link`且未传入`agent`参数
-- **THEN** 命令以 3 列网格展示`link`类 Agent 候选，每个单元格包含编号、单字符状态符号（`[+]`linked/`[~]`mismatch/`[.]`absent/`[!]`conflict/`[*]`root-collision/`[?]`error）和 Agent 名称
+- **THEN** 命令首先打印一份覆盖注册表全部条目（含`native`、`link`、`rootCollision`三类）的状态总览表，使用与非交互模式相同的`Render`格式，让开发者可见所有 Agent 的当前状态
+- **AND** 状态总览之后命令以 3 列网格展示`link`类 Agent 候选，每个单元格包含编号、单字符状态符号（`[+]`linked/`[~]`mismatch/`[.]`absent/`[!]`conflict/`[*]`root-collision/`[?]`error）和 Agent 名称
 - **AND** 网格上方输出图例行，将状态符号映射到完整状态语义
 - **AND** 网格 + 图例 + 标题 + 提示总行数控制在 24 行终端可一屏完整显示
 - **AND** 命令读取一行以逗号分隔的选择

@@ -88,4 +88,10 @@
 - [x] 9.1 运行`openspec validate agents-multi-resource --strict`，确认变更通过 OpenSpec 校验
 - [x] 9.2 运行`openspec list --json`确认本变更状态为`active`且任务清单可解析
 - [x] 9.3 调用`/lina-review`技能进行变更审查，重点核对：通用能力是否真的下沉到`common`、每资源子包是否仅依赖`common`、命令命名是否严格按命令树形态、旧命令字符串是否已清理、文档迁移指引是否完整、跨平台 Go 标准库实现约束是否满足
-- [ ] 9.4 审查通过后，在用户确认本次迭代完成时通过`/opsx:archive`将本变更归档；归档时按 OpenSpec 规则将文档统一翻译为英文，并将本变更对`agent-skills-link-cli`的修改同步合并到`openspec/specs/agent-skills-link-cli/spec.md`基线
+- [ ] 9.4 审查通过后，在用户确认本次迭代完成时通过`/opsx:archive`将本变更归档；归档时保持文档原始中文语言（与 propose 阶段 q14 决策一致），并将本变更对`agent-skills-link-cli`的修改同步合并到`openspec/specs/agent-skills-link-cli/spec.md`基线
+
+## Feedback
+
+- [x] **FB-1**: `agents.md.link`和`agents.skills.link`的 TTY 交互模式在进入候选`grid`前未渲染包含`native`类`Agent`的完整状态总览表，导致用户无法看到`native`类`Agent`的存在，与`md`资源 propose 阶段确认的"显示全部 native"诉求不符
+- [x] **FB-2**: `md`注册表覆盖范围不全（22 项），相对于`skills`注册表（55 项）漏注册 33 个`Agent`（含`codebuddy`），需要逐个调研其对`AGENTS.md`的实际支持情况，将有可靠证据的`Agent`补全到`md`注册表，未能查到可靠证据的明确跳过
+- [x] **FB-3**: 根据 CodeBuddy 官方文档（CodeBuddy 在 `CODEBUDDY.md` 不存在时会自动 fallback 读取 `AGENTS.md`），将`codebuddy`在`md`注册表中的分类从`link`改为`native`，并在`linactl README`（中英双版）补充对`fallback`机制的事实陈述说明

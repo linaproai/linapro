@@ -243,6 +243,58 @@ func TestPlanListCoversAllAgents(t *testing.T) {
 	}
 }
 
+// TestRegistryCoversCuratedAgents asserts that agents added during the
+// FB-2 expansion are present with the correct category and (for link
+// agents) the correct private guide file path. Each entry corresponds
+// to an agent whose AGENTS.md behaviour is documented by an upstream
+// source — see the inline comments next to the registry definitions in
+// md_agents.go for citations. This guards against accidental removal
+// or category flips during future edits and serves as a quick lookup
+// reference for reviewers checking the curation rationale.
+func TestRegistryCoversCuratedAgents(t *testing.T) {
+	type expectation struct {
+		category    common.Category
+		projectPath string // empty for native agents
+	}
+	expected := map[string]expectation{
+		// link-class additions from FB-2
+		"aider-desk":  {common.CategoryLink, "CONVENTIONS.md"},
+		"crush":       {common.CategoryLink, "CRUSH.md"},
+		"iflow-cli":   {common.CategoryLink, "IFLOW.md"},
+		"tabnine-cli": {common.CategoryLink, "TABNINE.md"},
+
+		// native-class additions from FB-2 / FB-3
+		"codebuddy":    {common.CategoryNative, ""},
+		"devin":        {common.CategoryNative, ""},
+		"droid":        {common.CategoryNative, ""},
+		"forgecode":    {common.CategoryNative, ""},
+		"goose":        {common.CategoryNative, ""},
+		"hermes-agent": {common.CategoryNative, ""},
+		"kode":         {common.CategoryNative, ""},
+		"mistral-vibe": {common.CategoryNative, ""},
+		"mux":          {common.CategoryNative, ""},
+		"neovate":      {common.CategoryNative, ""},
+		"openclaw":     {common.CategoryNative, ""},
+		"openhands":    {common.CategoryNative, ""},
+		"pi":           {common.CategoryNative, ""},
+		"trae":         {common.CategoryNative, ""},
+		"trae-cn":      {common.CategoryNative, ""},
+	}
+	for name, want := range expected {
+		spec, ok := FindAgent(name)
+		if !ok {
+			t.Errorf("expected agent %q in registry", name)
+			continue
+		}
+		if spec.Category != want.category {
+			t.Errorf("agent %q: category=%s want=%s", name, spec.Category, want.category)
+		}
+		if spec.ProjectPath != want.projectPath {
+			t.Errorf("agent %q: ProjectPath=%q want=%q", name, spec.ProjectPath, want.projectPath)
+		}
+	}
+}
+
 func TestLinkCandidatesExcludesNative(t *testing.T) {
 	root := newRepoFixture(t)
 	candidates := LinkCandidates(root)

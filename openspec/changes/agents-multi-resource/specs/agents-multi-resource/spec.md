@@ -102,6 +102,23 @@
 - **THEN** 命令仅在目标是软链且`Readlink`命中`AGENTS.md`时执行`Remove`
 - **AND** 目标是真实文件时输出`skipped-not-managed`且不删除
 
+### Requirement: `agents.md`和`agents.skills`的`TTY`交互模式必须先打印含`native`类的完整状态总览
+
+系统 SHALL 在`agents.md.link`和`agents.skills.link`的`TTY`交互模式下，**进入候选`grid`选择之前**先调用`PlanList`渲染一份覆盖注册表全部条目（含`native`、`link`、`rootCollision`三类）的状态总览表，使用与非交互模式相同的`Render`格式，让开发者明确看到`native`类`Agent`原生支持，无需手工建链。状态总览仅用于展示，不进入候选选择；候选`grid`仍只列出可建链的`link`类`Agent`。`agents.md.unlink`和`agents.skills.unlink`不受此约束，它们的`TTY`候选`grid`仅列出当前为受管软链（`StatusOK`）的`Agent`，与既有行为保持一致。
+
+#### Scenario: `agents.md.link`交互模式先渲染含 native 的状态总览
+
+- **WHEN** 开发者在终端下运行`make agents.md.link`且未传入`AGENT=`
+- **THEN** 命令首先打印一份覆盖注册表全部条目的状态总览表，`native`类条目以`native`状态出现
+- **AND** 表格之后再进入候选`grid`选择`link`类`Agent`
+- **AND** `grid`本身仍只列出`link`类`Agent`，不允许选中`native`条目
+
+#### Scenario: `agents.skills.link`交互模式先渲染含 native 的状态总览
+
+- **WHEN** 开发者在终端下运行`make agents.skills.link`且未传入`AGENT=`
+- **THEN** 命令首先打印一份覆盖注册表全部条目的状态总览表，`native`类条目（如`cursor`、`gemini-cli`、`codex`）以`native`状态出现
+- **AND** 表格之后再进入候选`grid`选择`link`类`Agent`
+
 ### Requirement: 聚合命令必须在`TTY`下提供三层交互菜单
 
 系统 SHALL 在`linactl agents`和`make agents`下提供`TTY`聚合菜单：第一层选择资源类型（`skills`/`prompts`/`md`/`quit`），第二层选择动作（`link`/`unlink`/`back`），第三层进入对应子命令的既有交互式选择流程（复用`agents.<resource>.<action>`的`TTY`分支）。在`CI`、管道或非`TTY`输入上下文中，命令 SHALL 打印用法指引而不阻塞。

@@ -51,8 +51,19 @@ func runAgentsSkillsLink(_ context.Context, a *app, input commandInput) error {
 
 // runAgentsSkillsLinkInteractive walks the user through a numbered
 // selection of link-class agents and optionally enables FORCE for
-// mismatched rebuilds.
+// mismatched rebuilds. Before showing the selection grid it renders a
+// full status overview that includes native and rootCollision agents,
+// so users can see every agent's current state — including agents that
+// read .agents/skills directly and need no symlink — even though the
+// grid only lets them pick link-class agents to act on.
 func runAgentsSkillsLinkInteractive(a *app, force bool) error {
+	overview := skills.PlanList(a.root)
+	if err := common.Render(a.stdout, overview); err != nil {
+		return err
+	}
+	if err := writeLine(a.stdout, ""); err != nil {
+		return err
+	}
 	candidates := skills.LinkCandidates(a.root)
 	names, err := common.PromptSelection(a.stdin, a.stdout, "Select agents to link (skills):", candidates)
 	if err != nil {

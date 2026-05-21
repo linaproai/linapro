@@ -150,6 +150,8 @@ make agents.md.unlink AGENT=claude-code              # 移除 AGENTS.md 软链
 - `link`：Agent 使用其它项目路径，按需创建相对软链指向标准源。
 - `rootCollision`：项目路径为仓库根的裸名（仅 skills 中的 `skills/`，由 `openclaw` 使用）。默认跳过；显式 `AGENT=openclaw FORCE=1` 才创建。prompts 与 md 资源中不存在该分类。
 
+> **md 资源的 fallback 行为说明**：部分 Agent 在私有规范文件（如 `CODEBUDDY.md`、`CLAUDE.md`）不存在时，会自动 fallback 读取 `AGENTS.md`。`CodeBuddy` 就是这样一个 Agent——根据腾讯官方文档，CodeBuddy 优先读取 `CODEBUDDY.md`，但当 `CODEBUDDY.md` 不存在时会自动加载 `AGENTS.md`。这类有官方文档支持的自动 fallback 机制的 Agent，在 md 注册表中按 `native` 注册，这样仓库 clone 即可用，无需建链；只有当 Agent 仅读取私有规范文件、不存在 fallback 路径时，才注册为 `link` 以便用户显式建链接入。每条 Agent 的证据来源都记录在 `internal/agents/md/md_agents.go` 的行内注释中。
+
 任何情况下命令都不会自动删除已存在的真实目录或文件，包含 `FORCE=1` 时也不会。`FORCE=1` 仅作用于"已是软链但指向其它位置"的情况。所有 skills 与 prompts 受管软链目录已在 `.gitignore` 中忽略，本地创建不会污染仓库。
 
 ### 从 `make skills.*` 迁移

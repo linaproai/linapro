@@ -45,8 +45,19 @@ func runAgentsMdLink(_ context.Context, a *app, input commandInput) error {
 
 // runAgentsMdLinkInteractive walks the user through a numbered selection
 // of link-class agents and optionally enables FORCE for mismatched
-// rebuilds.
+// rebuilds. Before showing the selection grid it renders a full status
+// overview that includes native-class agents, so users can see every
+// agent's current state — including agents that read AGENTS.md
+// natively and need no symlink — even though the grid only lets them
+// pick link-class agents to act on.
 func runAgentsMdLinkInteractive(a *app, force bool) error {
+	overview := md.PlanList(a.root)
+	if err := common.Render(a.stdout, overview); err != nil {
+		return err
+	}
+	if err := writeLine(a.stdout, ""); err != nil {
+		return err
+	}
 	candidates := md.LinkCandidates(a.root)
 	names, err := common.PromptSelection(a.stdin, a.stdout, "Select agents to link (md):", candidates)
 	if err != nil {
