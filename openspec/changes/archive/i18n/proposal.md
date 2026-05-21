@@ -1,141 +1,89 @@
 ## Why
 
-LinaPro is positioned as an AI-driven full-stack development framework. Internationalization must be framework infrastructure, not something every delivered project rebuilds from scratch. The frontend already had static locale bundle support through `vue-i18n`, but the host lacked project-level i18n capability: menus, dictionaries, system parameter metadata, plugin manifests, backend errors, import/export content, and many backend-returned labels were still stored and returned as single-language text. Delivery teams had to edit copy manually in many places, which could not reliably support multilingual project delivery.
+LinaPro定位为面向可持续交付的`AI`原生全栈框架，国际化必须成为框架级基础设施，而不是每个交付项目重复搭建的附属能力。默认管理工作台虽然已具备`vue-i18n`静态语言包能力，但宿主侧长期缺少统一的语言解析、动态元数据投影、运行时翻译包分发和插件资源治理机制，导致菜单、字典、系统参数、系统信息、插件元数据、后端错误、导入导出内容以及大量宿主返回标签仍以单语言文本交付，难以稳定支撑多语言项目交付。
 
-Beyond the missing foundation, several systemic issues emerged across subsequent iterations:
+随着能力演进，问题逐步集中在几个方面：翻译热路径频繁克隆整包消息，缓存失效粒度过粗，运行时翻译包缺少版本协商；业务模块各自决定何时翻译、如何翻译，`i18n`服务接口职责过载，资源加载与`WASM`解析实现重复；后端、插件与前端仍存在大量硬编码中文或中英混杂文案；默认工作台在英文环境下存在布局、交互与权限挂载不一致；项目文档和系统定位也未完全体现LinaPro作为框架宿主而非单一后台产品的边界。
 
-1. **Performance**: The `Translate` hot path cloned the entire runtime message bundle on every call; cache invalidation cleared all languages and all sectors at once; the runtime translation bundle API had no ETag/version stamp, causing full retransmission on every frontend language switch.
-2. **Consistency**: Business modules independently decided "when to translate / when to skip / which Translate* to use"; the `Service` interface carried 18 methods while business modules only needed a few; `sysconfig_i18n.go` hardcoded English/Chinese maps in Go; source-text namespace ownership leaked into the i18n package.
-3. **Boundary**: `apidoc` and runtime bundle each maintained duplicate resource loaders; WASM custom section parsing was duplicated inside the i18n package; frontend `loadMessages` used `Promise.all` for three things with different failure semantics.
-4. **Message governance**: Backend and plugin logic still contained large amounts of direct Chinese returns, mixed Chinese-English strings, or raw backend text being passed through -- in error messages, import failure reasons, Excel exports, plugin bridging errors, and frontend page labels.
-5. **Hardcoded Chinese**: Handwritten non-test Go files contained Chinese string literals that could reach HTTP responses, plugin responses, export files, management UI projections, or runtime configuration display.
-6. **UI gaps**: Manual regression found gaps in English localization, default seed display, dynamic plugin permission mounting, table and form layout, and built-in protection.
-7. **Project positioning**: Repository documentation and system metadata still described LinaPro as a "backend management system" rather than an AI-driven full-stack development framework. The `lina-core` boundary between core host capabilities and workspace adaptation was not explicitly defined. README files lacked unified internationalization rules.
+在此基础上，默认交付同时维护简体中文、繁体中文和英文三套资源，又显著放大了宿主、插件、前端运行时语言包和`API`文档资源的同步成本。框架默认交付只需要覆盖`zh-CN`与`en-US`两种内置语言，因此需要在保留“通过资源目录和配置即可扩展新语言”机制的前提下，收敛默认语言范围，移除繁体中文默认资源与验收负担。
 
 ## What Changes
 
-### I18n Infrastructure
-- Establish a three-layer i18n model for static UI copy, dynamic metadata, and business content.
-- Use a "file baseline plus database override" resource governance model (later simplified to file-only single source of truth).
-- Add backend request-level locale resolution (`lang` query parameter > `Accept-Language` header > system default).
-- Define stable translation-key conventions derived from business keys (`menu.<key>.title`, `dict.<type>.name`, etc.).
-- Provide runtime message bundle and locale list APIs with aggregated message resources.
-- Add i18n resource loading rules for plugins through `manifest/i18n/<locale>/` directories.
-- Provide import/export, missing translation checks, and resource source diagnostics.
+### I18n Foundation
 
-### Performance Optimization
-- Rewrite `Translate`/`TranslateSourceText`/`TranslateOrKey`/`TranslateWithDefaultLocale` hot paths to read directly from cache instead of cloning.
-- Refactor `runtimeBundleCache` into a layered structure by locale + sector (host/source-plugin/dynamic-plugin).
-- Runtime translation bundle API outputs `ETag` and supports `If-None-Match` 304 negotiation.
-- Frontend persists runtime translations to `localStorage` with 7-day TTL for zero-network language switching.
-- Split frontend `loadMessages` by failure semantics: runtime bundle failure -> persistent fallback; public config failure -> fire-and-forget; third-party library locale -> must await.
+- 建立覆盖静态界面文案、宿主动/插件动态元数据和业务内容的三层国际化模型。
+- 统一宿主语言解析优先级：`lang`查询参数优先，其次是`Accept-Language`请求头，最后回退到系统默认语言。
+- 采用“文件资源为单一事实来源”的资源治理模型，以`manifest/i18n/<locale>/`及`manifest/i18n/<locale>/apidoc/**/*.json`作为宿主、插件和`API`文档翻译资源入口，移除运行时持久化翻译表依赖。
+- 建立稳定翻译键约定与源码命名空间注册机制，使菜单、字典、系统参数、角色、插件、系统信息、任务等宿主治理元数据能按稳定业务锚点投影。
+- 默认内置语言收敛为`zh-CN`与`en-US`，中文浏览器语言标签（包括`zh-TW`）首次访问时统一映射到`zh-CN`；默认管理工作台固定使用`ltr`文档方向。
 
-### Interface and Boundary Improvements
-- Split the `i18n.Service` large interface into `LocaleResolver` / `Translator` / `BundleProvider` / `Maintainer` four smaller interfaces.
-- Extract `pkg/i18nresource` shared `ResourceLoader` used by both runtime bundle and apidoc loading.
-- Move WASM custom section parsing to `pkg/pluginbridge`.
-- Introduce `RegisterSourceTextNamespace` explicit registration for code-owned namespaces.
-- Converge projection rules within business module boundaries; prohibit the i18n foundation service from reverse-perceiving business entities.
-- Remove `sys_i18n_locale` / `sys_i18n_message` / `sys_i18n_content` runtime persistence tables; converge to JSON/YAML resources as single source of truth.
-- Introduce Traditional Chinese (`zh-TW`) as a stress test third language; fix document direction to LTR.
+### Runtime Delivery and Performance
 
-### Message and Error Governance
-- Establish a structured backend error model through `bizerr` with stable error codes, translation keys, English source messages, parameters, and GoFrame type codes.
-- Classify runtime messages into six categories: `UserMessage`, `UserArtifact`, `UserProjection`, `DeveloperDiagnostic`, `OpsLog`, `UserData`.
-- Define unified localization helpers for Excel exports, import templates, and import failure reasons.
-- Define unified error return contracts for plugin bridging, host service calls, and plugin lifecycle results.
-- Add automated scanning and test gates for hardcoded messages.
+- 提供运行时翻译包与语言列表接口，聚合宿主、源码插件和启用中的动态插件语言资源。
+- 重写`Translate`等热路径方法，命中缓存时直接读取消息，不再克隆整包翻译数据。
+- 将运行时翻译缓存重构为按“语言 × 扇区（宿主、源码插件、动态插件）”分层的结构，并要求失效操作显式传入作用域。
+- 为运行时翻译包输出`ETag`并支持`If-None-Match`协商，前端持久化运行时翻译包并在后台执行`304`校验，实现低网络开销的语言切换。
+- 按失败语义拆分前端`loadMessages`流程，分别处理运行时翻译包、公共前端配置和第三方组件语言包加载。
 
-### Backend Hardcoded Chinese Cleanup
-- Classify all Chinese string findings in backend Go source by category.
-- Replace caller-visible Chinese errors with module-owned `bizerr` codes and runtime i18n resources.
-- Localize backend-owned projections and deliverables through runtime i18n or structured fields.
-- Convert plugin-platform developer diagnostics to stable English text.
-- Govern generated schema text at SQL comments or generation inputs.
+### Interface and Boundary Governance
 
-### UI and Content Localization
-- Remove remaining Chinese copy from framework-delivered English pages and seed displays.
-- Improve English layout for tables, forms, and search areas with long English labels.
-- Mount dynamic plugin route permission buttons under the owning plugin menu.
-- Add confirmation for scheduled-job Run Now.
-- Converge default workbench to real navigation entries and operational semantics.
-- Block plugin governance writes when demo-control is enabled.
-- Protect built-in dictionaries and system parameters from deletion while keeping them editable.
-- Align role display between user management and role management.
+- 将庞大的`i18n.Service`拆分为`LocaleResolver`、`Translator`、`BundleProvider`和`Maintainer`四类小接口。
+- 抽取共享`ResourceLoader`供运行时翻译包和`apidoc`资源加载复用，并将`WASM`自定义`section`读取能力统一下沉到`pkg/pluginbridge`。
+- 明确业务模块在各自边界内维护本地化投影规则，禁止`i18n`基础服务反向感知业务实体或保护规则。
+- 保持“新增语言只依赖资源目录和默认配置元数据”的扩展机制，不引入新的后端语言枚举、`SQL seed`或前端硬编码语言清单。
 
-### Project Governance and Documentation
-- Unify LinaPro project positioning as "AI-driven full-stack development framework".
-- Establish lina-core as the core host service, separate from the default management workspace.
-- Establish full-repository README bilingual governance: English `README.md` + Chinese `README.zh-CN.md`.
-- Add explicit confirmation guards for database `init`/`mock` commands.
-- Standardize plugin installation review with a unified detail dialog and authorization snapshot.
+### Message Governance and Content Cleanup
 
-## Capabilities
+- 建立基于`bizerr`的结构化业务错误模型，统一输出`errorCode`、`messageKey`、`messageParams`与按请求语言本地化后的`message`。
+- 将运行时消息分为用户消息、用户交付物、用户投影、开发者诊断、运维日志和用户数据六类，并按类型定义本地化边界。
+- 统一导入导出模板、表头、失败原因、插件桥接错误和宿主服务错误契约，清理后端及插件中可返回给调用方的硬编码中文。
+- 对英文页面、默认种子显示、宿主公共文案和插件集成界面做系统性本地化补齐与布局修正。
 
-### New Capabilities
-- `i18n-infrastructure`: Locale resolution, translation resource aggregation, runtime message bundle distribution, three-layer model, performance optimization (zero-copy hot path, layered cache, ETag/304), Service interface split, ResourceLoader, source-text namespace registration, Traditional Chinese support, fixed LTR direction, file-only single source of truth.
-- `project-positioning-governance`: Unified project positioning as AI-driven full-stack development framework, system metadata and user-visible copy alignment.
-- `readme-localization-governance`: Full-repository README bilingual mirror governance.
-- `core-host-boundary-governance`: Core host boundary and workspace adaptation interface classification.
-- `database-bootstrap-commands`: Explicit confirmation guards and first-error-stops semantics for database init/mock commands.
-- `message-governance`: Runtime message classification, structured error model through `bizerr`, import/export localization, plugin error contracts, automated scanning, backend hardcoded Chinese cleanup.
-- `demo-control-guard`: Demo-control plugin blocks plugin governance writes when enabled.
+### Default Workspace and Project Governance
 
-### Modified Capabilities
-- `menu-management`: Localized menu titles from stable `menu_key`, button permissions as short action words, dynamic plugin button mounting under owning plugin menu, clickable menu tree rows.
-- `dict-management`: Localized dictionary names and labels, tag style dropdown with readable options, built-in dictionary types editable but not deletable.
-- `config-management`: Localized config metadata, import/export headers via translation keys, public frontend config i18n, built-in system parameters editable but not deletable.
-- `login-page-presentation`: Localized login page title/description/subtitle from host public config, language-switch refresh.
-- `system-info`: Localized project description and component descriptions, unified project positioning across languages.
-- `system-api-docs`: English source copy in DTOs, independent apidoc i18n resources, OpenAPI metadata aligned with project positioning.
-- `plugin-manifest-lifecycle`: Plugin i18n resource declaration and lifecycle management, unified install review dialog, authorization snapshot reuse.
-- `plugin-ui-integration`: Plugin pages in host locale context, multiple host integration modes, dynamic routing, hot-upgrade flows.
-- `plugin-runtime-loading`: WASM custom section parsing in pluginbridge, shared ResourceLoader.
-- `plugin-permission-governance`: Plugin resource interfaces checked by plugin resource permissions.
-- `role-management`: Built-in protected role localization, consistent role display across pages.
-- `cron-job-management`: Localized built-in job metadata, trigger confirmation.
-- `dashboard-workbench`: Runtime i18n for workbench copy, real navigation entries, metric semantics, theme preference, dark-mode logo.
-- `base-layout`: Default management workspace semantics instead of "backend management system".
+- 默认管理工作台只保留`zh-CN`与`en-US`静态语言包，语言切换时同步刷新运行时翻译包、公共前端配置、动态菜单和路由上下文。
+- 统一LinaPro项目定位为“面向可持续交付的`AI`原生全栈框架”，明确`apps/lina-core`作为核心宿主服务的能力边界。
+- 建立仓库级`README.md`与`README.zh-CN.md`镜像治理规则。
+- 为数据库`init`与`mock`命令增加显式确认门禁，并统一插件安装审查、演示环境写保护与治理验证流程。
 
-## Impact
+### Breaking Changes
 
-- **Backend capabilities**: Affects request context, shared middleware, `bizerr` error model, config/menu/dictionary/plugin/system information/cron/role services, the i18n resource model, runtime message bundle APIs, import/export localization, plugin platform error contracts, and automated scanning in `apps/lina-core`.
-- **Database model**: Initially added locale/translation/content tables (later removed in favor of file-only resources); affects seed/mock data localization for all built-in modules.
-- **Frontend capabilities**: Affects `vue-i18n` initialization, runtime message loading with ETag/persistent cache, language switch refresh, public frontend config sync, dynamic menu refresh, request interceptor error handling, English layout adaptation, and plugin page integration in `apps/lina-vben`.
-- **Plugin ecosystem**: Affects resource organization around `plugin.yaml` in `apps/lina-plugins`, plugin translation resource directories, plugin lifecycle management, install review dialogs, and plugin error contracts.
-- **Documentation and governance**: Affects `CLAUDE.md`, repository README files, OpenAPI metadata, system information page, and scanning tooling under `hack/tools/`.
-
-
----
-
-## Remove Traditional Chinese I18n
-
-## Why
-
-当前默认交付同时维护简体中文、繁体中文和英文三套 i18n 资源，增加了宿主、插件、前端运行时语言包和 API 文档资源的同步成本。项目默认只需要保留英文和简体中文，因此需要移除繁体中文默认资源，降低后续内建能力和插件示例的 i18n 维护复杂度。
-
-## What Changes
-
-- **BREAKING**: 默认交付不再提供 `zh-TW` 繁体中文运行时语言、插件 manifest 语言包或 API 文档翻译资源。
-- 默认配置中的 `i18n.locales` 仅保留 `en-US` 和 `zh-CN`。
-- 默认管理工作台和共享前端语言包仅保留 `en-US` 和 `zh-CN` 静态资源。
-- 移除或调整以 `zh-TW` 为目标的 E2E/单元测试断言，保留英文和简体中文语言治理检查。
+- 默认交付不再提供`zh-TW`运行时语言、默认管理工作台静态语言包、插件`manifest`繁体中文资源或`API`文档繁体中文翻译资源。
+- 默认配置中的`i18n.locales`仅保留`zh-CN`与`en-US`。
+- 默认测试、静态检查和验收基线不再要求繁体中文专项覆盖，但项目仍可按现有资源目录约定自行新增第三方语言。
 
 ## Capabilities
 
 ### New Capabilities
 
-- 无。
+- `i18n-infrastructure`：统一语言解析、文件资源单一事实来源、运行时翻译包分发、稳定翻译键约定、语言发现与默认双语治理。
+- `message-governance`：结构化业务错误、消息分类、导入导出本地化、插件桥接错误契约与硬编码文案治理。
+- `project-positioning-governance`：统一项目定位、宿主边界和系统元数据表述。
+- `readme-localization-governance`：目录级主文档英文主版与中文镜像协同治理。
+- `core-host-boundary-governance`：核心宿主与默认工作台适配边界收敛。
+- `database-bootstrap-commands`：数据库初始化与模拟数据命令显式确认和首错即停语义。
+- `demo-control-guard`：演示环境下插件治理写操作阻断。
 
 ### Modified Capabilities
 
-- `framework-i18n-foundation`: 默认内置语言从 `zh-CN`、`en-US`、`zh-TW` 收敛为 `zh-CN` 和 `en-US`，并移除繁体中文运行时语言列表、页面内容、API 文档和测试验收要求。
-- `management-workbench-i18n`: 中文浏览器语言标签（包括 `zh-TW`）首次访问时继续统一回退到 `zh-CN`，但默认工作台不再提供 `zh-TW` 静态语言包。
+- `framework-i18n-foundation`：默认内置语言治理、运行时翻译包缓存与`ETag`协商、共享资源加载器、接口拆分和插件语言资源生命周期。
+- `management-workbench-i18n`：首次访问按浏览器语言自动选择默认语言、中文语言标签统一回退`zh-CN`、默认静态语言包收敛为双语、语言切换同步刷新运行时依赖。
+- `menu-management`：菜单标题按稳定`menu_key`本地化，动态插件按钮挂到所属插件菜单下。
+- `dict-management`：字典类型、字典标签和内置保护记录按当前语言投影。
+- `config-management`：系统参数元数据、公共前端配置和导入导出表头按翻译键本地化，内置参数可编辑但不可删除。
+- `system-info`：系统简介、组件描述和项目定位文案统一多语言表达。
+- `system-api-docs`：`API`文档以英文源文本书写，使用独立`apidoc`翻译资源完成多语言呈现。
+- `plugin-governance`：插件语言资源声明、安装审查、生命周期资源同步和资源权限治理。
+- `plugin-runtime-loading`：动态插件`WASM`自定义`section`读取与资源装载边界收敛。
+- `role-management`：内置角色名称显示统一由后端按当前语言返回。
+- `cron-job-management`：内置任务、任务组和执行日志元数据本地化，执行动作增加确认治理。
+- `dashboard-workbench`：工作台默认文案、导航、指标语义、主题偏好和暗色细节按当前语言收敛。
+- `base-layout`：默认工作台语义从“后台管理系统”统一为框架默认工作台。
 
 ## Impact
 
-- 影响宿主 `apps/lina-core/manifest/i18n` 资源目录和默认配置模板。
-- 影响源码插件 `apps/lina-plugins/*/manifest/i18n` 资源目录。
-- 影响默认管理工作台和共享前端语言包 `apps/lina-vben/**/locales`。
-- 影响繁体中文专项 E2E、前端单元测试、后端 i18n 相关测试和 i18n 静态检查脚本。
-- 不新增 REST API、数据库 schema、SQL seed、权限边界或运行时缓存机制。
+- **后端能力**：影响请求上下文、`bizerr`错误模型、菜单、字典、系统参数、系统信息、角色、定时任务、插件治理、运行时翻译包接口、导入导出本地化与扫描治理能力。
+- **前端能力**：影响`vue-i18n`初始化、运行时翻译包加载与持久化、语言切换刷新、公共前端配置同步、动态菜单与路由更新、错误提示渲染和英文布局适配。
+- **插件生态**：影响`apps/lina-plugins/*/manifest/i18n`资源组织、插件生命周期中的翻译资源同步、宿主嵌入式页面语言上下文和插件安装审查流程。
+- **文档与治理**：影响仓库`README`体系、`CLAUDE.md`、`OpenAPI`元数据、静态扫描工具和国际化运维规范。
+- **验证基线**：影响`E2E`、前端单元测试、后端国际化测试和缺失翻译检查的默认覆盖范围，默认验收仅要求`zh-CN`与`en-US`。
+- **兼容性影响**：依赖默认繁体中文资源的页面、插件、测试和文档需要迁移到项目自定义语言资源或双语默认交付基线。

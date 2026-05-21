@@ -1,76 +1,49 @@
-## Context
+# Design
 
-LinaPro is positioned as an AI-driven full-stack development framework. The frontend already had `vue-i18n` base with static locale bundles, and workspace requests carried `Accept-Language`, but the host lacked framework-level i18n capability. Menus, dictionaries, system parameter metadata, public login-page configuration, system information, plugin `plugin.yaml` metadata, backend errors, import/export content, and many backend-returned labels were still stored and returned as single-language text. The `Service` interface had 18 methods carrying multiple responsibility categories. Business modules independently decided projection rules. Resource loading was duplicated between apidoc and runtime bundles. WASM parsing leaked into the i18n package. Backend code contained widespread hardcoded Chinese strings. The repository documentation described LinaPro as a "backend management system" rather than a framework.
+## Context and Goals
 
-Since this is a new project, no historical compatibility layer is required. This design directly establishes unified i18n infrastructure, performance optimization, message governance, and project positioning without preserving long-term dual-track behavior.
+LinaPro需要把国际化能力沉淀为宿主级基础设施，而不是让默认工作台、业务模块和插件各自维护语言解析、资源装载和文案治理。设计目标是同时解决四类问题：一是让宿主、插件和前端在统一约定下发现、装载和分发翻译资源；二是让动态元数据、错误消息和导入导出内容按当前请求语言稳定投影；三是降低运行时翻译热路径、缓存和前端语言切换的性能成本；四是把默认交付范围收敛为真正需要长期维护的双语基线，同时保留项目自行扩展更多语言的机制。
 
-## I18n Infrastructure
+本设计不再保留历史双轨兼容层。最终形态以“默认交付仅维护`zh-CN`与`en-US`，其他语言通过资源目录和默认配置扩展”为准；繁体中文不再作为框架默认资源与验收目标，但浏览器中文语言标签仍统一回退到默认中文。
 
-### Three-Layer Model
+## Resource Model and Locale Governance
 
-Internationalized text is split by source and lifecycle:
+### Three-Layer I18n Model
 
-- **Static UI copy**: Frontend framework and page-local static copy continues to be maintained by local `vue-i18n` JSON.
-- **Dynamic metadata**: Menus, dictionaries, system parameter metadata, system information, plugin descriptions, and similar metadata are projected by the backend according to locale.
-- **Business content**: Business modules that need multilingual titles, descriptions, or body content adopt the common multilingual content model within their own module boundaries.
+国际化文本按来源与生命周期拆分为三层：
 
-Static UI copy and dynamic metadata have different sources. Mixing them blurs maintenance boundaries. Menus, dictionaries, and system configuration metadata are backend-governed data and should be projected by the backend rather than hard-coded across frontend combinations.
+- **静态界面文案**：由默认管理工作台和共享前端包的本地`JSON`资源维护。
+- **动态元数据**：菜单、字典、系统参数、系统信息、角色、任务、插件元数据等由后端按请求语言投影。
+- **业务内容**：确实需要多语言正文的业务模块，在模块自身边界内维护多语言内容模型。
 
-### Resource Governance Model
+这种拆分避免前端用稳定业务键或数据库值反向翻译宿主治理数据，也避免宿主基础服务越界理解业务实体。
 
-i18n resources use files as the single source of truth. The host and delivered projects maintain base locale resource files. Plugins declare translation files in their own directories. The only required change for adding a new language is corresponding JSON resources in host/plugin/frontend, with optional changes being `i18n` metadata in the default config file.
+### File-Only Source of Truth
 
-Runtime persistence tables (`sys_i18n_locale` / `sys_i18n_message` / `sys_i18n_content`) were initially designed but later removed. Database overrides create a dual-source truth, making auditing, missing checks, and delivery write-back more complex. The lowest-risk path for adding new languages is "supplement resources + optional YAML metadata", not modifying SQL, backend Go, frontend TS and cache invalidation strategy.
+翻译资源统一以文件为权威来源。宿主、源码插件和动态插件均通过`manifest/i18n/<locale>/`维护运行时语言资源，通过`manifest/i18n/<locale>/apidoc/**/*.json`维护`API`文档翻译资源。运行时不再依赖`sys_i18n_locale`、`sys_i18n_message`、`sys_i18n_content`等翻译持久化表，避免数据库覆盖与文件资源并存造成审计、缺失检查、回写和缓存失效复杂化。
 
-Resource files are organized by locale directory and semantic domain:
+资源组织按语义域拆分，例如：
 
 ```text
 manifest/i18n/
   en-US/
-    framework.json    # Framework name, description, language name, common display text
-    menu.json         # Menu, route titles, navigation text
-    dict.json         # Dictionary type names, item labels, enum display text
-    config.json       # System config names, descriptions, groups
-    error.json        # bizerr business errors, validation errors
-    artifact.json     # Import/export headers, templates, failure reasons
-    public-frontend.json  # Login page, public pages, default console text
+    framework.json
+    menu.json
+    dict.json
+    config.json
+    error.json
+    artifact.json
+    public-frontend.json
     apidoc/
       common.json
       core-api-user.json
 ```
 
-Source plugins use the same layout with resources owned by the plugin directory. Runtime keys are governed by existing namespaces: `error.<domain>.<case>`, `artifact.<module>.<section>.<field>`, `menu.<menu_key>.title`, `dict.<dict_type>.name`, `config.<config_key>.name`, `plugin.<plugin_id>.name`, etc.
+运行时资源既允许层级`JSON`，也允许点分键格式；宿主加载后统一展平成扁平键治理，对前端接口再输出嵌套对象结构。
 
-### Locale Resolution
+### Built-in Locale Discovery and Default Scope
 
-A host `LocaleResolver` and request-context injection mechanism resolves locale with priority:
-
-1. Query parameter `lang`
-2. `Accept-Language` request header
-3. System default locale (from `i18n.default` in default config file)
-
-The resolved `locale` is available to controllers, services, and plugin host bridges. When `i18n.enabled=false`, the host only accepts the default language, the frontend hides the language switch button and loads messages in the default language.
-
-### Translation Key Conventions
-
-Translation keys are derived from stable business keys:
-
-- Menu title: `menu.<menu_key>.title`
-- Dictionary type name: `dict.<dict_type>.name`
-- Dictionary label: `dict.<dict_type>.<value>.label`
-- Config name/remark: `config.<config_key>.name`, `config.<config_key>.remark`
-- Plugin name/description: `plugin.<plugin_id>.name`, `plugin.<plugin_id>.description`
-- System information: `systemInfo.component.<section>.<name>.description`
-- Public frontend config: `publicFrontend.<group>.<field>`
-- Config field headers: `config.field.<name>`
-- Error messages: `error.<domain>.<case>`
-- Role names: `role.builtin.<key>.name`
-
-Runtime UI resource files may be authored as nested JSON or flat dotted keys; the host normalizes them to flat keys for governance. API endpoints return nested message objects for frontend consumption.
-
-### Language Discovery and Configuration
-
-Built-in languages are auto-discovered from host `manifest/i18n/<locale>/*.json` files. The `i18n` configuration section in the default config file maintains metadata that cannot be derived from filenames:
+宿主从`manifest/i18n/<locale>/*.json`自动发现可用语言，再通过默认配置中的`i18n`段维护默认语言、多语言开关、排序和原生名称。默认交付收敛为双语：
 
 ```yaml
 i18n:
@@ -81,287 +54,190 @@ i18n:
       nativeName: English
     - locale: zh-CN
       nativeName: 简体中文
-    - locale: zh-TW
-      nativeName: 繁體中文
 ```
 
-Adding a new built-in language only requires adding corresponding JSON resources and optional config metadata. No backend Go constants, SQL seeds, or frontend TS language lists need modification. Third-party library locales (dayjs, antd, vxe) are derived by language code convention. Document direction is fixed to `ltr` per current host convention.
+设计约束如下：
 
-### Service Interface
+- 新增内置语言只能通过补充宿主、插件、`apidoc`与前端资源，以及可选的默认配置元数据完成。
+- 禁止为了注册语言而新增后端`Go`枚举、`SQL seed`或前端硬编码语言清单。
+- 默认交付不再保留`zh-TW`运行时资源、静态语言包或专项翻译基线。
+- 当`i18n.enabled=false`时，宿主只接受默认语言，工作台隐藏语言切换器，仅加载默认语言资源。
+- 浏览器语言只作为首次访问默认值参考，所有中文语言标签（包括`zh-TW`、`zh-Hans-CN`）统一映射到`zh-CN`。
 
-The `i18n.Service` large interface is split into four smaller interfaces by responsibility:
+### Translation Key Conventions
 
-- `LocaleResolver`: Resolves request language and context language.
-- `Translator`: Provides translation lookup and error localization (`Translate`, `TranslateSourceText`, `TranslateOrKey`, `TranslateWithDefaultLocale`, `LocalizeError`).
-- `BundleProvider`: Outputs runtime translation bundles and language lists (`BuildRuntimeMessages`, `ListRuntimeLocales`, `BundleVersion`).
-- `Maintainer`: Provides resource export, missing checks, source diagnostics, and cache invalidation (`ExportMessages`, `CheckMissingMessages`, `DiagnoseMessages`, `InvalidateRuntimeBundleCache`).
+动态元数据翻译键由稳定业务锚点推导，避免建立额外映射表。主要规则包括：
 
-`serviceImpl` implements all four interfaces. Business modules' `i18nSvc` field types converge to the minimum interface they actually depend on (typically `LocaleResolver + Translator`).
+- 菜单：`menu.<menu_key>.title`
+- 字典类型：`dict.<dict_type>.name`
+- 字典项：`dict.<dict_type>.<value>.label`
+- 系统参数：`config.<config_key>.name`、`config.<config_key>.remark`
+- 参数字段表头：`config.field.<name>`
+- 插件：`plugin.<plugin_id>.name`、`plugin.<plugin_id>.description`
+- 系统信息：`systemInfo.component.<section>.<name>.description`
+- 公共前端配置：`publicFrontend.<group>.<field>`
+- 错误消息：`error.<domain>.<case>`
+- 内置角色：`role.builtin.<key>.name`
 
-### ResourceLoader
+## Runtime Distribution and Performance
 
-A shared `ResourceLoader` component in `pkg/i18nresource/` accepts `Subdir`, `LocaleSubdir`, `PluginScope`, `LayoutMode`, and `ValueMode` configuration parameters, centrally implementing the discovery and loading logic for host embedded resources, source plugin resources, and dynamic plugin resources. Both runtime UI translation resource loading and API documentation translation resource loading are completed through different `ResourceLoader` instances, eliminating ~280 lines of duplicate code while preventing apidoc from reverse-depending on `internal/service/i18n`.
+### Locale Resolution
 
-### Plugin I18n Integration
+宿主通过`LocaleResolver`在请求入口统一解析语言，优先级为：
 
-Plugins add a standard `manifest/i18n/<locale>/` resource directory. The host handles plugin i18n resources during source-plugin synchronization and discovery, dynamic plugin installation or upgrade (where resource snapshots are written for the release), plugin enablement (where resources join runtime message aggregation), and plugin disablement or uninstallation (where resources are removed from runtime aggregation). Plugin i18n resources are delivered with the plugin version and managed consistently by the host.
+1. 查询参数`lang`
+2. 请求头`Accept-Language`
+3. 默认配置中的`i18n.default`
 
-## Performance Optimization
+解析结果写入统一业务上下文，供控制器、服务、插件桥接、导入导出和运行时翻译包聚合共用。语言不可用时总是回退到默认语言，不隐式混入其他语言内容。
 
-### Zero-Copy Hot Path
+### Runtime Bundle API and ETag Negotiation
 
-`Translate` / `TranslateSourceText` / `TranslateOrKey` / `TranslateWithDefaultLocale` directly hold a read lock on `runtimeBundleCache` and look up values, no longer going through `buildRuntimeMessageCatalog -> cloneFlatMessageMap`. Only `BuildRuntimeMessages` (output to frontend) and `ExportMessages` retain clone semantics. 99% of `Translate` call paths only read 1 key; cloning the entire 800+ key map was pure waste. Concurrent read-only access to `map[string]string` is safe with `sync.RWMutex`.
+宿主提供运行时翻译包与语言列表接口：
 
-### Layered Cache
+- 翻译包接口按语言返回宿主、源码插件和启用中的动态插件聚合后的消息对象。
+- 语言列表接口返回多语言开关、默认语言标记、显示名、原生名和固定`ltr`方向。
+- 翻译包响应头输出`ETag: "<locale>-<bundleVersion>"`与`Cache-Control: private, must-revalidate`。
+- 当前端携带匹配的`If-None-Match`时，接口返回`304 Not Modified`且不携带消息体。
 
-The `runtimeBundleCache` is refactored to a layered structure by `locale x sector`:
+任何与翻译资源相关的缓存失效都会推动`bundleVersion`递增，确保同一语言的不同内容拥有不同的版本标识。
 
-- `host`: Immutable, loaded once at startup.
-- `plugins`: Source plugins, refreshed when source registry changes.
-- `dynamic`: Dynamic plugins, refreshed by plugin lifecycle hooks.
-- `merged`: Merged view by priority, invalidated when any sub-layer changes.
+### Layered Cache and Scoped Invalidation
 
-Invalidation granularity: dynamic plugin enable/disable only clears that plugin ID's dynamic sub-layer; source plugin registry changes invalidate the plugins layer; resource metadata or test-triggered invalidation clears by locale/sector. Each invalidation triggers `version.Add(1)`, driving frontend ETag negotiation.
+`runtimeBundleCache`按“语言 × 扇区”重构为分层缓存：
 
-### ETag and 304 Negotiation
+- `host`：宿主资源，启动后加载。
+- `plugins`：源码插件资源，在源码插件注册变更时刷新。
+- `dynamic`：动态插件资源，在安装、启用、禁用、升级、卸载时刷新。
+- `merged`：按优先级聚合后的视图，对前端输出使用。
 
-The `/i18n/runtime/messages` API outputs `ETag: "<locale>-<bundleVersion>"` and `Cache-Control: private, must-revalidate`. When the request carries `If-None-Match` matching the current ETag, the API returns `304 Not Modified` with no message body. The backend maintains a `bundleVersion` atomic counter that auto-increments on any invalidation.
+失效必须显式传入作用域，例如按语言、扇区、插件`ID`清理，而不是无差别清空所有语言和所有扇区。这样既满足单机模式下的细粒度缓存控制，也为分布式环境下的跨实例失效广播保留明确作用域边界。
 
-### Frontend Persistent Cache
+### Zero-Copy Translation Hot Path
 
-The frontend `runtime-i18n.ts` switches from raw `fetch` to `requestClient`, integrating auth/error/degradation chain. It persists `{locale, etag, messages, savedAt}` to `localStorage` with a 7-day TTL. On subsequent page loads or language switches, persistent data renders immediately, then asynchronously negotiates with `If-None-Match` in the background. On 304 hit, persistent data stays unchanged. This enables zero-network language switching.
+`Translate`、`TranslateSourceText`、`TranslateOrKey`和`TranslateWithDefaultLocale`在缓存命中时仅持有读锁并直接返回单值结果，不再克隆整包消息。只有`BuildRuntimeMessages`和`ExportMessages`这类需要向调用方返回消息集合的方法才保留克隆语义。这样可以消除高频路径上无意义的内存复制，稳定翻译调用延迟。
 
-### Load Messages Split
+### Frontend Persistent Cache and Load Flow
 
-Frontend `loadMessages` handles three things independently by failure semantics:
+前端`runtime-i18n.ts`改为使用`requestClient`请求运行时翻译包，并将`{ locale, etag, messages, savedAt }`持久化到`localStorage`，默认`TTL`为`7`天。页面加载或语言切换时优先使用持久化缓存立即渲染，再后台发送带`If-None-Match`的请求校验是否需要更新。
 
-1. Runtime bundle failure -> hit persistent cache or fallback; user notification via degradation mechanism.
-2. Public config failure -> fire-and-forget without blocking.
-3. Third-party library locale -> must await (dayjs, antd, vxe locale modules).
+`loadMessages`按失败语义拆分：
 
-## Message Governance
+1. 运行时翻译包失败时，优先使用持久缓存或降级提示。
+2. 公共前端配置失败时，不阻塞主流程。
+3. 第三方组件语言包必须等待成功加载后再继续初始化。
+
+## Service Boundaries and Shared Components
+
+### Interface Split
+
+原有`i18n.Service`职责过重，拆分为四类小接口：
+
+- `LocaleResolver`：解析请求语言和上下文语言。
+- `Translator`：负责翻译查询与错误本地化。
+- `BundleProvider`：负责运行时翻译包、语言列表和版本输出。
+- `Maintainer`：负责导出、缺失检查、资源诊断与缓存失效。
+
+`Service`保留为四类接口的组合类型，业务模块按最小依赖声明字段类型，降低测试替身和模块耦合成本。
+
+### ResourceLoader Reuse
+
+在`pkg/i18nresource/`中提供共享`ResourceLoader`，通过`Subdir`、`LocaleSubdir`、`PluginScope`、`LayoutMode`和`ValueMode`等参数装配宿主运行时资源与`apidoc`资源加载流程。运行时翻译包和`API`文档不再各自维护重复的插件遍历和资源合并实现。
+
+### WASM Section Parsing Ownership
+
+动态插件`WASM`自定义`section`读取统一由`pkg/pluginbridge`提供`ReadCustomSection`与`ListCustomSections`能力，`i18n`、`apidoc`和插件运行时都通过这一能力读取动态插件产物中的资源片段，避免在`i18n`包内重复维护`WASM`解析逻辑。
+
+### Business Projection Ownership
+
+业务模块自行维护本地化投影规则，`internal/service/i18n`只提供语言解析、翻译查找、资源加载、缓存和缺失检查等基础能力。菜单、字典、系统参数、任务、角色、插件等模块各自在自身`*_i18n.go`或等价文件中决定：
+
+- 如何推导翻译键。
+- 哪些字段属于宿主治理元数据，应该按语言投影。
+- 哪些字段属于用户编辑数据，应保留数据库原值。
+- 哪些记录属于内置受保护对象，允许读时本地化但禁止删除。
+
+### Source Namespace Registration
+
+源码拥有的翻译命名空间通过`RegisterSourceTextNamespace(prefix, reason string)`显式注册。业务模块在各自`init()`中声明自己的前缀，缺失翻译检查和资源诊断再基于注册表识别“由代码拥有的翻译键”，而不是在`i18n`基础服务中硬编码业务模块名单。
+
+## Message Governance and Localization Rules
 
 ### Message Classification
 
-Runtime messages are classified into six categories:
+运行时消息被划分为六类：
 
-- `UserMessage`: API errors, business validation, frontend toasts, admin result prompts -- must use error codes or translation keys.
-- `UserArtifact`: Excel headers, sheet names, import template examples, import failure reasons, export enum values -- must render by request language.
-- `UserProjection`: Menus, dictionaries, roles, tasks, audit/operation logs and other backend-owned display data -- must use stable business keys for projection.
-- `DeveloperDiagnostic`: Plugin protocol, WASM host call, manifest validation, CLI diagnostics -- must have stable machine codes, default English source messages.
-- `OpsLog`: Server logs and metrics -- use English and structured fields, do not participate in runtime i18n.
-- `UserData`: User input, external system content, database business values -- preserved and returned as-is.
+- `UserMessage`：用户可见错误、校验失败、前端提示。
+- `UserArtifact`：导入导出文件、模板、表头、失败原因、枚举文本。
+- `UserProjection`：宿主治理元数据和只读展示投影。
+- `DeveloperDiagnostic`：插件协议、`WASM`宿主调用、清单校验、`CLI`诊断等开发者可读文本。
+- `OpsLog`：运维日志与指标，使用稳定英文与结构化字段。
+- `UserData`：用户输入或外部系统数据，默认保持原值。
 
 ### Structured Error Model
 
-The `bizerr` package in `apps/lina-core/pkg/bizerr` provides unified business error construction. Each component defines business errors centrally in a dedicated `*_code.go` file using `bizerr.MustDefine`. Business code only references component error definitions:
+宿主通过`apps/lina-core/pkg/bizerr`统一构造业务错误。业务模块在各自`*_code.go`中集中定义稳定错误码和英文兜底文本，请求响应中统一输出：
 
-```go
-var CodeDictTypeExists = bizerr.MustDefine(
-    "DICT_TYPE_EXISTS",
-    "Dictionary type already exists",
-    gcode.CodeInvalidParameter,
-)
-```
+- `code`：GoFrame类型错误码。
+- `message`：按当前请求语言解析后的显示文案。
+- `errorCode`：稳定业务语义标识。
+- `messageKey`与`messageParams`：供前端和插件复用的本地化锚点。
 
-The unified response middleware identifies structured error metadata and outputs:
+这样前端优先渲染`messageKey`，无法渲染时再使用后端已本地化的`message`，避免再次依赖中文源文本做判断。
 
-```json
-{
-  "code": 65,
-  "message": "Dictionary type already exists",
-  "errorCode": "DICT_TYPE_EXISTS",
-  "messageKey": "error.dict.type.exists",
-  "messageParams": {},
-  "data": null
-}
-```
+### Import/Export and Plugin Contract
 
-`code` is the GoFrame type error code expressing the error category. `message` is the display text resolved by the server according to request language. `errorCode` and `messageKey` are for frontend, tests, plugins, or third-party callers to make stable business semantic judgments. Business semantic identifiers are governed by module namespace: host modules use `<MODULE>_<CASE>` format, plugin modules use `<PLUGIN>_<MODULE>_<CASE>` format.
+导入导出流程在请求级别解析语言并复用翻译结果，由业务服务传入本地化后的工作表名、列标题、枚举文本和失败原因。插件桥接、宿主服务和动态插件返回的错误契约保留结构化字段，默认使用稳定英文开发者诊断文本，并在进入工作台时根据`messageKey`按当前语言展示。
 
-### Import/Export Localization
+### Hardcoded Content Cleanup and Scanning
 
-Import/export flows parse the current locale at the request level and reuse translation results. Batch pre-fetching makes localization cost proportional to field count, not row count. The `excelutil` package continues to only handle Excel file operations; the business service is responsible for passing in localized sheet names, headers, enum text, and failure reasons.
+通过静态扫描和代码审查治理后端、插件、前端中可返回给调用方的硬编码中文。扫描重点覆盖`gerror`构造、`panic`边界、导入导出表头数组、前端表单与表格标题、弹窗提示和插件错误构造，允许名单仅用于注释、测试数据、用户示例和运维类英文文本。
 
-### Plugin Error Contracts
+## Default Workspace Experience
 
-Plugin bridging protocol, WASM host call, and host service protocol return stable status codes and error codes. Default error source messages use English developer diagnostics. When these errors enter the admin UI, they are rendered using `messageKey` and locale. Dynamic plugin guest-returned JSON errors support `errorCode/messageKey/messageParams/message`, and the host preserves structured fields when passing through.
+### Startup Language and Static Bundles
 
-### Frontend Error Handling
+默认管理工作台在无已保存偏好且未显式传入初始化语言时，按浏览器首选语言决定首次启动语言。所有中文类标签映射到`zh-CN`，其他语言默认使用`en-US`。默认工作台只交付`zh-CN`与`en-US`静态语言包，不再保留`zh-TW`默认静态资源。
 
-The default console request error handling priority is:
+### Fixed LTR Direction
 
-1. If the backend returns `messageKey`, the frontend renders using `$t(messageKey, messageParams)`.
-2. Otherwise, use the backend's `message` already localized by request language.
-3. Otherwise, use the request library's default error text.
+工作台文档方向固定为`ltr`。语言切换时同时更新`<html dir>`与`Ant Design Vue ConfigProvider`的`direction="ltr"`。设计上不维护静态`RTL`语言分支，避免新增语言时再补充方向逻辑。
 
-Page-level messages must use `$t` or runtime language packs. Directly writing Chinese or mixed Chinese-English strings in user-visible locations is prohibited.
+### Runtime Refresh on Language Switch
 
-### Scanning and Governance
+语言切换不仅刷新静态语言包，还要同步刷新以下内容：
 
-A Go tool under `hack/tools/runtime-i18n` maintains runtime message scanning and language pack coverage checks. The tool uses auditable rule patterns to identify high-risk positions:
+- 运行时翻译包。
+- 公共前端配置中的品牌与登录页文案。
+- 动态菜单、路由标题和相关工作台上下文。
+- 宿主嵌入式插件页面的语言上下文。
 
-- Go: `gerror.New*`, `gerror.Wrap*`, `panic(gerror...)`, `Reason/Message/Fallback` fields, export header arrays, status text mappings, plugin bridging error construction.
-- Vue/TypeScript: `title/label/placeholder`, template text nodes, `message.*`, `notification.*`, `Modal.confirm`, table column definitions.
-- Allowlist: comments, test fixtures, user example data, technical units, protocol constants, English operations logs.
+### English Sweep and Layout Adaptation
 
-### Log and Audit Boundaries
+针对默认交付页面执行英文回归，确保标题、按钮、标签、表头、空状态、系统生成节点、内置记录显示和确认弹窗不残留中文。对英文较长的表单标签、表格列头、抽屉标题和按钮区域做布局适配，保证在常见桌面分辨率下仍可读、可操作。
 
-Operations logs use stable English and structured fields, recording `errorCode/messageKey` and key parameters. They do not depend on the current request language. Operation logs, login logs, task logs, and plugin upgrade results store stable codes and parameters, and are projected by request language for lists, details, and exports.
+### Built-in Protection and Workbench Governance
 
-## Module Boundaries
+内置字典、系统参数和类似治理对象允许编辑但禁止删除；后端返回结构化业务错误，前端同步隐藏或阻止删除入口。动态插件按钮挂载到所属插件菜单下，工作台默认内容从示例模板收敛为真实导航与业务语义。启用`demo-control`插件时，插件治理写操作被阻断，但读取能力保留。
 
-### Business Module Projection Ownership
+## Plugin and Repository Governance
 
-Business modules maintain localization projection rules within their own module boundaries. `internal/service/i18n` only provides foundational capabilities such as language resolution, translation lookup, resource loading, caching, and missing checks. It does not reference business entities, business protection rules, or business translation key derivation logic.
+### Plugin Locale Lifecycle
 
-Each business module owns its `*_i18n.go` or equivalent file:
-- `menu_i18n.go`: Menu translation key derivation and projection.
-- `dict_i18n.go`: Dictionary default-language skip strategy and `dict.*` key conventions.
-- `sysconfig_i18n.go`: Config projection and field header translation keys.
-- `jobmgmt_i18n.go`: Built-in tasks and default task group protection rules.
-- `role.go`: Built-in admin role projection rules.
-- Plugin runtime: Plugin metadata projection rules.
+插件通过标准`manifest/i18n/<locale>/`目录交付语言资源。宿主在源码插件同步、动态插件安装、升级、启用、禁用与卸载过程中同步维护这些资源对运行时翻译聚合的影响。新增语言时，只要插件补齐对应目录资源，无需修改宿主代码或插件生命周期代码。
 
-The initial `LocaleProjector` centralized approach was rejected because it would cause the i18n foundation service to reverse-couple with business entities and business protection rules, violating core host boundary and module decoupling principles.
+### Project Positioning and Host Boundary
 
-### Source-Text Namespace Registration
+LinaPro统一定位为“面向可持续交付的`AI`原生全栈框架”。`apps/lina-core`是核心宿主服务，负责提供通用模块接口、系统治理和插件扩展能力；默认管理工作台只是框架默认入口与适配层，而不是宿主能力边界本身。仅影响工作台展示结构的需求应优先通过前端适配或工作台适配接口解决。
 
-`RegisterSourceTextNamespace(prefix, reason string)` provides explicit registration for code-owned namespaces. Business modules register their namespaces in their own `init()`. Missing translation checks, override source diagnostics, and import/export identify "namespaces whose translation keys are owned by code sources" by querying this registry. The i18n package does not hardcode any specific business module's namespace prefix.
+### README and Bootstrap Governance
 
-### Projection Rules
+所有目录级主说明文档统一维护英文`README.md`与中文镜像`README.zh-CN.md`。数据库`init`与`mock`命令要求显式确认参数，并在执行`SQL`时采用首错即停策略，防止误操作和部分成功带来的不一致状态。
 
-For business master data editable in the management workspace (departments, posts, roles, dictionaries, parameters, notices, scheduler data), management lists, details, edit backfill, and selectors keep database values by default. Unless a specific field has explicitly been integrated with multilingual business content storage, the system does not rewrite its display value based on stable keys or seed mappings.
+## Risks and Trade-offs
 
-Menu governance is host navigation metadata: menu tree lists, parent menu displays, role menu trees, and related read-only selectors return localized titles from stable `menu_key` anchors. The editable `name` field in menu detail forms keeps the database value.
-
-The only exception is framework-built-in governance records that are protected and cannot be edited or deleted. Those records provide name localization in read-only list display positions based on stable business anchors, while details, edit backfill, and selectors still keep database values.
-
-## UI and Content Localization
-
-### English Page Sweep
-
-Framework-delivered pages are checked in `en-US` for Chinese system copy, seed display leakage, localized role names, generated department nodes, built-in config metadata, and public workbench content. This covers:
-- Dashboard and shared shell surfaces (statistic cards, workspace demo copy, user profile display, route titles, tab-title refresh).
-- Access management (user, role, menu page search fields, table headers, action buttons, drawers, authorization modals).
-- Organization center (department/post pages, tree selectors, drawer forms, plugin menus).
-- System settings (dictionary, parameter, file pages plus import/export/upload modals).
-- Content management (notice lists, edit/preview modals).
-- System monitoring (online users, service monitoring, operation logs, login logs).
-- Scheduler center (job/group/execution-log pages, job forms).
-- Extension center (plugin management, development center, dynamic plugin example pages).
-- Host shared components (export confirmation, tree select, upload/cropper, profile center, security settings).
-
-### Layout Adaptation
-
-Forms and tables with long English labels receive layout adjustments so labels and critical table columns remain readable. Search labels, table headers, form labels, buttons, and tab titles must not become unreadable because English copy is longer. Constrained areas remain readable through layout adjustment, wider labels/columns, shorter default English copy, tooltips, or equivalent treatment.
-
-### Menu and Navigation
-
-Dynamic plugin route permission buttons mount under the owning plugin menu. Menu tree rows expose direct title-click expansion with pointer affordance. Button titles under resource menus use short action words such as `Query`, `Create`, `Update`, `Delete`, and `Export`.
-
-### Built-in Data Protection
-
-Built-in dictionaries, system parameters, and similar governance records are editable but protected from deletion in both frontend and backend. The backend returns structured business errors when deletion of built-in records is requested.
-
-### Role Display Alignment
-
-User management and role management show the same localized display value for the same built-in role. The user management list uses role display names returned by the backend.
-
-### Workbench
-
-The dashboard workbench uses runtime i18n for all copy. It displays real navigation entries and operational semantics instead of template demo content. User theme preference takes precedence over public frontend defaults. The brand logo icon adds a subtle cyan edge glow in dark mode.
-
-### Demo Control
-
-When the `demo-control` plugin is enabled, the system rejects plugin governance writes (synchronization, dynamic package upload, installation, uninstallation, enablement, disablement) while allowing plugin management reads.
-
-## Project Governance
-
-### Unified Positioning
-
-LinaPro is uniformly positioned as an "AI-driven full-stack development framework". All project-level descriptions, system metadata, and user-visible copy maintain this positioning. The default management workspace, system management modules, user permission modules and similar capabilities are LinaPro's default entry points and built-in general capabilities, not the project's sole product boundary.
-
-### Core Host Boundary
-
-`apps/lina-core` is the framework's core host service, providing general module interface capabilities, component capabilities, system governance capabilities, and plugin extension capabilities. Its design prioritizes generality, stability, and reusability, and must not be strongly bound to specific workspace page display structures, interaction details, or frontend framework implementations.
-
-Workspace adaptation interfaces (menu route projection, current-user workspace startup data, tree selectors, dropdown options) are explicitly classified as workspace adaptation interfaces rather than general domain interfaces. When a requirement only changes table columns, filters, tree selectors, workspace aggregation, route assembly, or other page-specific display structures, the system should prioritize solving through workspace adaptation interfaces or frontend adaptation layers.
-
-### README Governance
-
-All directory-level main documentation uses English `README.md` as the primary document. A Chinese mirror `README.zh-CN.md` must exist in the same directory. Both documents maintain consistent structure and information, differing only in language. Updates to one require synchronized updates to the other. The repository root provides both files as the project entry point.
-
-### Database Bootstrap Safety
-
-The host `init` and `mock` commands require explicit confirmation values matching the command name (`confirm=init` for init, `confirm=mock` for mock). The repository root `Makefile`, `apps/lina-core/Makefile`, and backend command implementation all follow the same confirmation semantics. The common SQL execution flow stops at the first error and returns failure status.
-
-### Plugin Installation Governance
-
-Source plugins default to "discovered but not installed" governance form. Both source and dynamic plugins go through a unified install review dialog before installation. Dynamic plugins form an authorization snapshot during installation; subsequent enables reuse the snapshot without repeating the confirmation dialog. Plugin resource interfaces are checked by the plugin's own resource permissions, not by additional governance permissions like `plugin:query`.
-
-## Risks / Trade-offs
-
-- **[Risk]** After removing clone semantics from `Translate`, if any business code assumes the returned map is writable and modifies it, the cache will be corrupted. -> Mitigation: `Translate` series only returns `string`, with no map exposed to business callers.
-- **[Risk]** Sector cache refactoring involves multiple invalidation call sites. -> Mitigation: Replace bare calls with `Maintainer.InvalidateRuntimeBundleCache(scope)`, with scope explicitly passed by callers.
-- **[Risk]** ETag negotiation may show stale translations when frontend persistence and backend bundleVersion are inconsistent. -> Mitigation: Every invalidation path increments version; persistent 7-day TTL provides fallback.
-- **[Risk]** Interface splitting may cause downstream modules to change type signatures on a large scale. -> Mitigation: `Service` still exists as a composite type; changing field types to smaller interfaces is optional per-module.
-- **[Risk]** Traditional Chinese may cause `CheckMissingMessages` to be permanently red due to missing translation resources. -> Mitigation: Traditional Chinese manifest completion is an independent task; CI threshold for `zh-TW` matches `en-US`.
-- **[Risk]** Translation key count grows rapidly. -> Mitigation: Use namespace conventions and missing checks; split resource files by locale directory and semantic domain.
-- **[Risk]** Batch export localization affects performance. -> Mitigation: Use request-level batch pre-fetching and map lookups; prohibit building bundles inside row loops.
-- **[Risk]** Scan rule false positives or misses. -> Mitigation: First phase outputs warn/report; after stabilization, switch to blocking; allowlist carries classification and reason.
-- **[Risk]** README governance scope expands to affect many files. -> Mitigation: Rules and entry points first, then incremental subdirectory governance.
-- **[Trade-off]** ResourceLoader abstraction adds an extra layer of indirect calls. -> Accepted: eliminating ~280 lines of duplicate implementation far outweighs one abstraction layer.
-- **[Trade-off]** Fixed LTR sacrifices future configuration flexibility for automatic direction switching. -> Accepted: current host positioning prioritizes reducing configuration complexity.
-- **[Trade-off]** Removing database overrides means online translation hotfixing via API is no longer possible. -> Accepted: current priority is reducing new language complexity; future hotfix capability can be designed as an optional plugin.
-
-
----
-
-## Remove Traditional Chinese I18n Design
-
-## Context
-
-当前 i18n 基础能力支持通过 `manifest/i18n/<locale>` 目录发现语言，默认配置通过 `i18n.locales` 维护启用语言、排序和原生名称。宿主、默认管理工作台、共享前端包和源码插件样例都提供了 `zh-TW` 资源，且部分测试将繁体中文作为默认交付验收目标。
-
-本次变更不是移除运行时 i18n 框架的多语言扩展能力，而是调整 LinaPro 默认交付内容：默认只维护英文和简体中文两套资源。后续项目仍可按现有资源目录约定自行新增其他语言。
-
-## Goals / Non-Goals
-
-**Goals:**
-
-- 删除宿主、源码插件、默认管理工作台和共享前端包中的 `zh-TW` 默认翻译资源。
-- 将默认配置中的内置语言列表收敛为 `en-US` 和 `zh-CN`。
-- 清理繁体中文专项测试、静态检查和文案描述，避免默认 CI 或本地验证继续要求 `zh-TW`。
-- 保持“通过资源目录和配置发现语言”的扩展机制不变。
-
-**Non-Goals:**
-
-- 不删除运行时 i18n API、语言发现机制、缓存机制或 ETag 协商能力。
-- 不新增数据库表、SQL seed、Go 语言枚举或前端硬编码语言清单。
-- 不迁移用户自定义项目中可能自行新增的第三方语言资源。
-- 不改变中文浏览器首次访问默认进入 `zh-CN` 的行为。
-
-## Decisions
-
-1. 直接删除默认 `zh-TW` 资源目录，而不是保留空目录或占位 JSON。
-   - 原因：语言注册的权威来源是资源目录与 `i18n.locales` 白名单；保留占位目录会让语言发现和维护检查产生歧义。
-   - 替代方案：保留空目录但从配置中禁用。该方案仍会留下需要解释和维护的默认资源骨架，不符合精简目标。
-
-2. 前端静态语言包只保留 `en-US` 和 `zh-CN`。
-   - 原因：默认管理工作台启动和离线 fallback 需要静态语言包；既然默认不再支持繁体中文，静态包也应同步删除。
-   - 替代方案：保留前端 `zh-TW` 但删除后端资源。该方案会造成语言切换器、运行时语言列表和静态包可用范围不一致。
-
-3. 繁体中文专项 E2E 直接移除，通用 i18n 测试改为覆盖 `zh-CN` 与 `en-US`。
-   - 原因：被删除语言不应继续作为默认项目验收项；保留测试会迫使后续改动继续维护不存在的默认资源。
-   - 替代方案：把繁体中文测试改成跳过。跳过测试会保留过期治理噪音。
-
-4. 默认配置不再列出 `zh-TW`，但语言发现和新增语言流程不变。
-   - 原因：AGENTS 约束要求新增内置语言通过资源和配置元数据完成，禁止新增 Go 枚举、SQL seed 或前端语言清单；本次移除同样遵循该边界。
-
-## Risks / Trade-offs
-
-- 默认交付不再能直接切换繁体中文 → 通过规格和配置说明明确这是有意的默认范围收敛；项目需要繁体中文时按资源目录约定自行添加。
-- 测试或脚本中可能存在隐式 `zh-TW` 引用 → 通过静态扫描 `zh-TW`、`繁體`、`Traditional Chinese` 等关键词验证默认资源和测试引用被清理。
-- 删除目录可能影响 glob 加载顺序或静态检查 → 运行前端 `i18n:check`、typecheck 和相关单元测试确认只要求 `zh-CN` 对齐 `en-US`。
-- 缓存一致性风险低 → 本次不新增缓存键或运行时失效路径；运行时语言列表仍以配置和资源目录为权威来源。
+- 默认交付移除`zh-TW`会降低即装即用的语言覆盖面，但能显著降低内建能力和插件示例的维护成本；需要繁体中文的项目仍可按资源约定自行扩展。
+- 分层缓存与作用域失效增加了实现复杂度，但可以避免任意改动触发全量清缓存，并为分布式环境的跨实例同步保留清晰边界。
+- 共享`ResourceLoader`和接口拆分引入额外抽象层，但能显著减少重复实现和跨模块耦合。
+- 固定`ltr`牺牲了未来自动切换文档方向的灵活性，但当前宿主优先目标是降低默认交付复杂度。
+- 去除数据库翻译覆盖能力意味着不能通过运行时接口快速热修语言资源，但“文件资源单一事实来源”更利于审计、缺失检查和长期交付治理。
