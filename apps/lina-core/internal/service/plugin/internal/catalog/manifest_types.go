@@ -38,6 +38,15 @@ func IsSupportedMenuType(value MenuType) bool {
 	return menutype.IsSupported(value)
 }
 
+// I18NPolicy declares whether a plugin participates in runtime and
+// API-documentation internationalization governance. Missing policy keeps the
+// plugin managed by default; authors must set disabled: true to opt out.
+type I18NPolicy struct {
+	// Disabled explicitly opts the plugin out of runtime and API-documentation
+	// i18n governance. Nil and false both keep the default managed behavior.
+	Disabled *bool `json:"disabled,omitempty" yaml:"disabled,omitempty"`
+}
+
 // Manifest defines plugin metadata loaded from plugin.yaml or wasm custom sections.
 type Manifest struct {
 	// ID is the unique kebab-case plugin identifier.
@@ -62,6 +71,8 @@ type Manifest struct {
 	Homepage string `yaml:"homepage"`
 	// License is an optional license identifier.
 	License string `yaml:"license"`
+	// I18N declares whether this plugin participates in i18n governance.
+	I18N *I18NPolicy `yaml:"i18n"`
 	// Dependencies declares host and plugin dependency constraints.
 	Dependencies *DependencySpec `yaml:"dependencies"`
 	// Menus holds manifest-declared host menu entries.

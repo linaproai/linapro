@@ -13,6 +13,7 @@ import (
 	"testing/fstest"
 
 	"github.com/gogf/gf/v2/os/gfile"
+
 	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
@@ -45,6 +46,57 @@ func TestValidatePluginManifestAcceptsMinimalSourcePlugin(t *testing.T) {
 
 	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
 		t.Fatalf("expected manifest to be valid, got error: %v", err)
+	}
+}
+
+// TestLoadManifestFromYAMLReadsI18NPolicy verifies plugin.yaml i18n policy is
+// part of the framework manifest contract rather than test-only parsing.
+func TestLoadManifestFromYAMLReadsI18NPolicy(t *testing.T) {
+	cases := []struct {
+		name     string
+		content  string
+		disabled *bool
+	}{
+		{
+			name:    "missing policy stays managed",
+			content: "id: demo\nname: Demo\n",
+		},
+		{
+			name:     "disabled false stays managed",
+			content:  "id: demo\nname: Demo\ni18n:\n  disabled: false\n",
+			disabled: boolPtr(false),
+		},
+		{
+			name:     "disabled true opts out",
+			content:  "id: demo\nname: Demo\ni18n:\n  disabled: true\n",
+			disabled: boolPtr(true),
+		},
+	}
+
+	for _, item := range cases {
+		t.Run(item.name, func(t *testing.T) {
+			manifestPath := filepath.Join(t.TempDir(), "plugin.yaml")
+			if err := os.WriteFile(manifestPath, []byte(item.content), 0o644); err != nil {
+				t.Fatalf("write manifest fixture failed: %v", err)
+			}
+
+			manifest := &catalog.Manifest{}
+			if err := testutil.NewServices().Catalog.LoadManifestFromYAML(manifestPath, manifest); err != nil {
+				t.Fatalf("expected manifest to load, got error: %v", err)
+			}
+			if item.disabled == nil {
+				if manifest.I18N != nil {
+					t.Fatalf("expected missing i18n policy to stay nil, got %#v", manifest.I18N)
+				}
+				return
+			}
+			if manifest.I18N == nil || manifest.I18N.Disabled == nil {
+				t.Fatalf("expected i18n.disabled to be parsed, got %#v", manifest.I18N)
+			}
+			if *manifest.I18N.Disabled != *item.disabled {
+				t.Fatalf("unexpected i18n.disabled value: got %v want %v", *manifest.I18N.Disabled, *item.disabled)
+			}
+		})
 	}
 }
 

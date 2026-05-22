@@ -20,6 +20,7 @@ import (
 	"testing/fstest"
 	"unicode"
 
+	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/testsupport"
 )
 
@@ -100,10 +101,13 @@ func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
 		"core.api.user.v1.ListReq.fields.pageNum.dc",
 	)
 	if testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
-		requiredKeys = append(requiredKeys,
-			"plugins.linapro_monitor_loginlog.api.loginlog.v1.ListReq.meta.tags",
-			"plugins.linapro_demo_dynamic.paths.get.backend_summary.meta.summary",
-		)
+		managedPluginIDs := openAPII18NManagedPluginIDSet(t)
+		if _, ok := managedPluginIDs["linapro-monitor-loginlog"]; ok {
+			requiredKeys = append(requiredKeys, "plugins.linapro_monitor_loginlog.api.loginlog.v1.ListReq.meta.tags")
+		}
+		if _, ok := managedPluginIDs["linapro-demo-dynamic"]; ok {
+			requiredKeys = append(requiredKeys, "plugins.linapro_demo_dynamic.paths.get.backend_summary.meta.summary")
+		}
 	}
 
 	for _, locale := range discoverOpenAPINonEnglishLocales(t, repoRoot) {
@@ -217,7 +221,7 @@ func TestOpenAPIBundlesAreSeparatedFromRuntimeI18n(t *testing.T) {
 		filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n"),
 	}
 	if testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
-		scanRoots = append(scanRoots, filepath.Join(repoRoot, "apps/lina-plugins"))
+		scanRoots = append(scanRoots, openAPII18NManagedPluginRoots(t, repoRoot)...)
 	}
 	for _, root := range scanRoots {
 		if err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
@@ -424,7 +428,7 @@ func collectOpenAPISourceMetadataStrings(t *testing.T) []openAPIMetadataValue {
 		filepath.Join(repoRoot, "apps/lina-core/manifest/config"),
 	}
 	if testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
-		scanRoots = append(scanRoots, filepath.Join(repoRoot, "apps/lina-plugins"))
+		scanRoots = append(scanRoots, openAPII18NManagedPluginRoots(t, repoRoot)...)
 	}
 	packedConfigRoot := filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/config")
 	if _, err := os.Stat(packedConfigRoot); err == nil {
@@ -445,7 +449,7 @@ func collectOpenAPITranslatableStructuredKeys(t *testing.T) []string {
 		filepath.Join(repoRoot, "apps/lina-core/api"),
 	}
 	if testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
-		scanRoots = append(scanRoots, filepath.Join(repoRoot, "apps/lina-plugins"))
+		scanRoots = append(scanRoots, openAPII18NManagedPluginRoots(t, repoRoot)...)
 	}
 	for _, root := range scanRoots {
 		if err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
@@ -869,11 +873,15 @@ func readOpenAPIPluginJSONBundles(t *testing.T, repoRoot string, locale string) 
 	if err != nil {
 		t.Fatalf("read plugin root %s failed: %v", pluginsRoot, err)
 	}
+	managedPluginIDs := openAPII18NManagedPluginIDSet(t)
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
 		pluginID := entry.Name()
+		if _, ok := managedPluginIDs[pluginID]; !ok {
+			continue
+		}
 		pluginRoot := filepath.Join(pluginsRoot, pluginID)
 		bundleDir := filepath.Join(pluginsRoot, pluginID, "manifest/i18n", locale, "apidoc")
 
@@ -921,6 +929,55 @@ func pluginHasOpenAPIResources(t *testing.T, pluginRoot string) bool {
 		t.Fatalf("scan plugin API root %s failed: %v", apiRoot, err)
 	}
 	return hasAPI
+}
+
+// openAPII18NManagedPluginRoots returns source plugin roots that participate in
+// apidoc localization governance. The decision uses source plugin manifests
+// parsed by the unified plugin catalog scanner.
+func openAPII18NManagedPluginRoots(t *testing.T, repoRoot string) []string {
+	t.Helper()
+
+	pluginsRoot := testsupport.OfficialPluginsRoot(repoRoot)
+	entries, err := os.ReadDir(pluginsRoot)
+	if err != nil {
+		t.Fatalf("read plugin root %s failed: %v", pluginsRoot, err)
+	}
+
+	managedPluginIDs := openAPII18NManagedPluginIDSet(t)
+	roots := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if _, ok := managedPluginIDs[entry.Name()]; !ok {
+			continue
+		}
+		roots = append(roots, filepath.Join(pluginsRoot, entry.Name()))
+	}
+	sort.Strings(roots)
+	return roots
+}
+
+// openAPII18NManagedPluginIDSet returns the source plugins that still
+// participate in i18n/apidoc governance after manifest policy is applied.
+func openAPII18NManagedPluginIDSet(t *testing.T) map[string]struct{} {
+	t.Helper()
+
+	manifests, err := pluginsvc.ScanRegisteredSourceManifests()
+	if err != nil {
+		t.Fatalf("scan source plugin manifests for apidoc i18n governance failed: %v", err)
+	}
+	managedPluginIDs := make(map[string]struct{}, len(manifests))
+	for _, manifest := range manifests {
+		if manifest == nil || strings.TrimSpace(manifest.ID) == "" {
+			continue
+		}
+		if manifest.I18N != nil && manifest.I18N.Disabled != nil && *manifest.I18N.Disabled {
+			continue
+		}
+		managedPluginIDs[manifest.ID] = struct{}{}
+	}
+	return managedPluginIDs
 }
 
 // assertOpenAPIEnglishBundlePlaceholder ensures English docs are driven by API
