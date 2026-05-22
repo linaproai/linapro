@@ -6,6 +6,7 @@ package catalog
 import (
 	"strings"
 
+	hostconfig "lina-core/internal/service/config"
 	"lina-core/pkg/menutype"
 	"lina-core/pkg/pluginbridge"
 	"lina-core/pkg/pluginhost"
@@ -62,6 +63,9 @@ type Manifest struct {
 	Homepage string `yaml:"homepage"`
 	// License is an optional license identifier.
 	License string `yaml:"license"`
+	// I18N declares plugin language metadata using the host i18n config shape.
+	// Missing i18n config means the plugin does not participate in i18n governance.
+	I18N *hostconfig.I18nConfig `yaml:"i18n"`
 	// Dependencies declares host and plugin dependency constraints.
 	Dependencies *DependencySpec `yaml:"dependencies"`
 	// Menus holds manifest-declared host menu entries.
@@ -103,6 +107,16 @@ func (manifest *Manifest) SupportsTenantGovernance() bool {
 		return *manifest.SupportsMultiTenant
 	}
 	return NormalizeScopeNature(manifest.ScopeNature) == ScopeNatureTenantAware
+}
+
+// I18NEnabled reports whether this manifest participates in i18n governance.
+// Missing i18n config or enabled=false means the plugin is single-language and
+// does not require manifest or apidoc i18n resources.
+func (manifest *Manifest) I18NEnabled() bool {
+	if manifest == nil || manifest.I18N == nil {
+		return false
+	}
+	return manifest.I18N.Enabled
 }
 
 // MenuSpec defines one manifest-declared host menu entry.

@@ -20,6 +20,8 @@ import (
 	"testing/fstest"
 	"unicode"
 
+	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/pkg/pluginhost"
 	"lina-core/pkg/testsupport"
 )
 
@@ -100,10 +102,13 @@ func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
 		"core.api.user.v1.ListReq.fields.pageNum.dc",
 	)
 	if testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
-		requiredKeys = append(requiredKeys,
-			"plugins.linapro_monitor_loginlog.api.loginlog.v1.ListReq.meta.tags",
-			"plugins.linapro_demo_dynamic.paths.get.api.v1.backend_summary.meta.summary",
-		)
+		managedPluginIDs := openAPII18NManagedPluginIDSet(t)
+		if _, ok := managedPluginIDs["linapro-monitor-loginlog"]; ok {
+			requiredKeys = append(requiredKeys, "plugins.linapro_monitor_loginlog.api.loginlog.v1.ListReq.meta.tags")
+		}
+		if _, ok := managedPluginIDs["linapro-demo-dynamic"]; ok {
+			requiredKeys = append(requiredKeys, "plugins.linapro_demo_dynamic.paths.get.api.v1.backend_summary.meta.summary")
+		}
 	}
 
 	for _, locale := range discoverOpenAPINonEnglishLocales(t, repoRoot) {
@@ -217,7 +222,7 @@ func TestOpenAPIBundlesAreSeparatedFromRuntimeI18n(t *testing.T) {
 		filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n"),
 	}
 	if testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
-		scanRoots = append(scanRoots, filepath.Join(repoRoot, "apps/lina-plugins"))
+		scanRoots = append(scanRoots, openAPII18NManagedPluginRoots(t, repoRoot)...)
 	}
 	for _, root := range scanRoots {
 		if err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
@@ -381,6 +386,80 @@ func TestServiceOpenAPIMessageCatalogIgnoresWorkspacePluginI18NFiles(t *testing.
 	}
 }
 
+// TestServiceOpenAPIMessageCatalogHonorsSourcePluginI18NPolicy verifies runtime
+// apidoc resource loading applies the same manifest i18n policy as governance
+// coverage tests.
+func TestServiceOpenAPIMessageCatalogHonorsSourcePluginI18NPolicy(t *testing.T) {
+	const (
+		managedPluginID = "plugin-dev-apidoc-i18n-managed"
+		optOutPluginID  = "plugin-dev-apidoc-i18n-opt-out"
+	)
+
+	managedPlugin := pluginhost.NewSourcePlugin(managedPluginID)
+	managedPlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
+		"plugin.yaml": &fstest.MapFile{Data: []byte("id: " + managedPluginID + "\nname: Managed\nversion: v0.1.0\ntype: source\nscope_nature: platform_only\nsupports_multi_tenant: false\ndefault_install_mode: global\ni18n:\n  enabled: true\n  default: zh-CN\n  locales:\n    - locale: zh-CN\n      nativeName: 简体中文\n")},
+		"manifest/i18n/zh-CN/apidoc/plugin.json": &fstest.MapFile{Data: []byte(`{
+  "plugins": {
+    "plugin_dev_apidoc_i18n_managed": {
+      "api": {
+        "demo": {
+          "v1": {
+            "PingReq": {
+              "meta": {
+                "summary": "已管理插件"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)},
+	})
+	cleanupManaged, err := pluginhost.RegisterSourcePluginForTest(managedPlugin)
+	if err != nil {
+		t.Fatalf("register managed source plugin failed: %v", err)
+	}
+	t.Cleanup(cleanupManaged)
+
+	missingI18nPlugin := pluginhost.NewSourcePlugin(optOutPluginID)
+	missingI18nPlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
+		"plugin.yaml": &fstest.MapFile{Data: []byte("id: " + optOutPluginID + "\nname: Opt Out\nversion: v0.1.0\ntype: source\nscope_nature: platform_only\nsupports_multi_tenant: false\ndefault_install_mode: global\n")},
+		"manifest/i18n/zh-CN/apidoc/plugin.json": &fstest.MapFile{Data: []byte(`{
+  "plugins": {
+    "plugin_dev_apidoc_i18n_opt_out": {
+      "api": {
+        "demo": {
+          "v1": {
+            "PingReq": {
+              "meta": {
+                "summary": "不应加载"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)},
+	})
+	cleanupOptOut, err := pluginhost.RegisterSourcePluginForTest(missingI18nPlugin)
+	if err != nil {
+		t.Fatalf("register opt-out source plugin failed: %v", err)
+	}
+	t.Cleanup(cleanupOptOut)
+	t.Cleanup(invalidateOpenAPIMessageCache)
+	invalidateOpenAPIMessageCache()
+
+	catalog := loadOpenAPIMessageCatalog(context.Background(), "zh-CN")
+	if got := catalog["plugins.plugin_dev_apidoc_i18n_managed.api.demo.v1.PingReq.meta.summary"]; got != "已管理插件" {
+		t.Fatalf("expected managed plugin apidoc resource to load, got %q", got)
+	}
+	if value, ok := catalog["plugins.plugin_dev_apidoc_i18n_opt_out.api.demo.v1.PingReq.meta.summary"]; ok {
+		t.Fatalf("expected plugin without i18n config apidoc resource to be skipped, got %q", value)
+	}
+}
+
 // TestOpenAPICommonFallbackKeys verifies generated wrapper metadata can share
 // common apidoc translations without repeating the same exact key per API.
 func TestOpenAPICommonFallbackKeys(t *testing.T) {
@@ -424,7 +503,7 @@ func collectOpenAPISourceMetadataStrings(t *testing.T) []openAPIMetadataValue {
 		filepath.Join(repoRoot, "apps/lina-core/manifest/config"),
 	}
 	if testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
-		scanRoots = append(scanRoots, filepath.Join(repoRoot, "apps/lina-plugins"))
+		scanRoots = append(scanRoots, openAPII18NManagedPluginRoots(t, repoRoot)...)
 	}
 	packedConfigRoot := filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/config")
 	if _, err := os.Stat(packedConfigRoot); err == nil {
@@ -445,7 +524,7 @@ func collectOpenAPITranslatableStructuredKeys(t *testing.T) []string {
 		filepath.Join(repoRoot, "apps/lina-core/api"),
 	}
 	if testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
-		scanRoots = append(scanRoots, filepath.Join(repoRoot, "apps/lina-plugins"))
+		scanRoots = append(scanRoots, openAPII18NManagedPluginRoots(t, repoRoot)...)
 	}
 	for _, root := range scanRoots {
 		if err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
@@ -869,11 +948,15 @@ func readOpenAPIPluginJSONBundles(t *testing.T, repoRoot string, locale string) 
 	if err != nil {
 		t.Fatalf("read plugin root %s failed: %v", pluginsRoot, err)
 	}
+	managedPluginIDs := openAPII18NManagedPluginIDSet(t)
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
 		pluginID := entry.Name()
+		if _, ok := managedPluginIDs[pluginID]; !ok {
+			continue
+		}
 		pluginRoot := filepath.Join(pluginsRoot, pluginID)
 		bundleDir := filepath.Join(pluginsRoot, pluginID, "manifest/i18n", locale, "apidoc")
 
@@ -921,6 +1004,55 @@ func pluginHasOpenAPIResources(t *testing.T, pluginRoot string) bool {
 		t.Fatalf("scan plugin API root %s failed: %v", apiRoot, err)
 	}
 	return hasAPI
+}
+
+// openAPII18NManagedPluginRoots returns source plugin roots that participate in
+// apidoc localization governance. The decision uses source plugin manifests
+// parsed by the unified plugin catalog scanner.
+func openAPII18NManagedPluginRoots(t *testing.T, repoRoot string) []string {
+	t.Helper()
+
+	pluginsRoot := testsupport.OfficialPluginsRoot(repoRoot)
+	entries, err := os.ReadDir(pluginsRoot)
+	if err != nil {
+		t.Fatalf("read plugin root %s failed: %v", pluginsRoot, err)
+	}
+
+	managedPluginIDs := openAPII18NManagedPluginIDSet(t)
+	roots := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if _, ok := managedPluginIDs[entry.Name()]; !ok {
+			continue
+		}
+		roots = append(roots, filepath.Join(pluginsRoot, entry.Name()))
+	}
+	sort.Strings(roots)
+	return roots
+}
+
+// openAPII18NManagedPluginIDSet returns the source plugins that still
+// participate in i18n/apidoc governance after manifest policy is applied.
+func openAPII18NManagedPluginIDSet(t *testing.T) map[string]struct{} {
+	t.Helper()
+
+	manifests, err := pluginsvc.ScanRegisteredSourceManifests()
+	if err != nil {
+		t.Fatalf("scan source plugin manifests for apidoc i18n governance failed: %v", err)
+	}
+	managedPluginIDs := make(map[string]struct{}, len(manifests))
+	for _, manifest := range manifests {
+		if manifest == nil || strings.TrimSpace(manifest.ID) == "" {
+			continue
+		}
+		if !manifest.I18NEnabled() {
+			continue
+		}
+		managedPluginIDs[manifest.ID] = struct{}{}
+	}
+	return managedPluginIDs
 }
 
 // assertOpenAPIEnglishBundlePlaceholder ensures English docs are driven by API

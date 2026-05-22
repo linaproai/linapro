@@ -1099,6 +1099,11 @@ func TestSourceLifecyclePreconditionLocalizesReasonParams(t *testing.T) {
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
 	testutil.WriteTestFile(
 		t,
+		filepath.Join(pluginDir, "plugin.yaml"),
+		"id: "+pluginID+"\nname: test\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\ni18n:\n  enabled: true\n  default: "+i18nsvc.DefaultLocale+"\n  locales:\n    - locale: "+i18nsvc.DefaultLocale+"\n      nativeName: 简体中文\n    - locale: "+i18nsvc.EnglishLocale+"\n      nativeName: English\n",
+	)
+	testutil.WriteTestFile(
+		t,
 		filepath.Join(pluginDir, "manifest", "i18n", i18nsvc.DefaultLocale, "error.json"),
 		fmt.Sprintf(`{"plugin":{"%s":{"BeforeInstall":{"veto":"只能通过配置 plugin.autoEnable 并重启宿主来安装"}}}}`, pluginID),
 	)

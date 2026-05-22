@@ -13,6 +13,7 @@ import (
 
 	"lina-core/internal/packed"
 	i18nsvc "lina-core/internal/service/i18n"
+	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/pluginhost"
@@ -93,9 +94,11 @@ func normalizeOpenAPILocale(locale string) string {
 func loadOpenAPISourcePluginBundles(ctx context.Context, locale string) map[string]string {
 	bundle := make(map[string]string)
 	pluginBundles := openAPIResourceLoader(i18nresource.ResourceLoader{
-		SourcePlugins: listOpenAPII18nSourcePlugins,
-		Subdir:        openAPIPluginI18nDir,
-		PluginScope:   i18nresource.PluginScopeRestrictedToPluginNamespace,
+		SourcePlugins: func() []i18nresource.SourcePlugin {
+			return listOpenAPII18nSourcePlugins(ctx)
+		},
+		Subdir:      openAPIPluginI18nDir,
+		PluginScope: i18nresource.PluginScopeRestrictedToPluginNamespace,
 	}).LoadSourcePluginBundles(ctx, locale)
 	if len(pluginBundles) == 0 {
 		return bundle
@@ -112,16 +115,45 @@ func loadOpenAPISourcePluginBundles(ctx context.Context, locale string) map[stri
 	return bundle
 }
 
-// listOpenAPII18nSourcePlugins adapts pluginhost source plugins to the shared
-// ResourceLoader interface without adding a pluginhost dependency to that package.
-func listOpenAPII18nSourcePlugins() []i18nresource.SourcePlugin {
-	sourcePlugins := pluginhost.ListSourcePlugins()
-	plugins := make([]i18nresource.SourcePlugin, 0, len(sourcePlugins))
-	for _, sourcePlugin := range sourcePlugins {
-		if sourcePlugin == nil {
+// openAPII18nSourcePlugin adapts an i18n-managed source manifest to the shared
+// ResourceLoader interface while keeping the governance decision manifest-driven.
+type openAPII18nSourcePlugin struct {
+	id    string
+	files fs.FS
+}
+
+// ID returns the source plugin identifier used for namespace filtering.
+func (plugin openAPII18nSourcePlugin) ID() string {
+	return plugin.id
+}
+
+// GetEmbeddedFiles returns the plugin-owned embedded resource filesystem.
+func (plugin openAPII18nSourcePlugin) GetEmbeddedFiles() fs.FS {
+	return plugin.files
+}
+
+// listOpenAPII18nSourcePlugins adapts i18n-managed source plugin manifests to
+// the shared ResourceLoader interface.
+func listOpenAPII18nSourcePlugins(ctx context.Context) []i18nresource.SourcePlugin {
+	manifests, err := pluginsvc.ScanRegisteredSourceManifests()
+	if err != nil {
+		logger.Warningf(ctx, "scan source plugin manifests for apidoc i18n resources failed err=%v", err)
+		return []i18nresource.SourcePlugin{}
+	}
+
+	plugins := make([]i18nresource.SourcePlugin, 0, len(manifests))
+	for _, manifest := range manifests {
+		if manifest == nil || !manifest.I18NEnabled() || manifest.SourcePlugin == nil {
 			continue
 		}
-		plugins = append(plugins, sourcePlugin)
+		embeddedFiles := manifest.SourcePlugin.GetEmbeddedFiles()
+		if strings.TrimSpace(manifest.ID) == "" || embeddedFiles == nil {
+			continue
+		}
+		plugins = append(plugins, openAPII18nSourcePlugin{
+			id:    strings.TrimSpace(manifest.ID),
+			files: embeddedFiles,
+		})
 	}
 	return plugins
 }

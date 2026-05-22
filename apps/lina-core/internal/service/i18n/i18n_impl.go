@@ -5,13 +5,18 @@ package i18n
 
 import (
 	"context"
+	"io/fs"
 	"sort"
 	"strings"
 
 	"github.com/gogf/gf/v2/net/ghttp"
+	"gopkg.in/yaml.v3"
 
 	"lina-core/internal/packed"
+	hostconfig "lina-core/internal/service/config"
 	"lina-core/pkg/i18nresource"
+	"lina-core/pkg/logger"
+	"lina-core/pkg/pluginfs"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -288,10 +293,12 @@ func mergeLocaleSectors(lc *localeCache, locale string) (map[string]string, map[
 // cache can attribute each key to its owning plugin.
 func loadSourcePluginLocaleBundles(ctx context.Context, locale string) map[string]map[string]string {
 	return i18nresource.ResourceLoader{
-		SourcePlugins: listRuntimeI18nSourcePlugins,
-		Subdir:        pluginI18nDir,
-		PluginScope:   i18nresource.PluginScopeOpen,
-		ValueMode:     i18nresource.ValueModeStringifyScalars,
+		SourcePlugins: func() []i18nresource.SourcePlugin {
+			return listRuntimeI18nSourcePlugins(ctx)
+		},
+		Subdir:      pluginI18nDir,
+		PluginScope: i18nresource.PluginScopeOpen,
+		ValueMode:   i18nresource.ValueModeStringifyScalars,
 	}.LoadSourcePluginBundles(ctx, locale)
 }
 
@@ -306,6 +313,9 @@ func loadSourcePluginLocaleBundle(ctx context.Context, locale string, pluginID s
 	if !ok || sourcePlugin == nil {
 		return map[string]string{}
 	}
+	if !sourcePluginRuntimeI18NEnabled(ctx, normalizedPluginID, sourcePlugin.GetEmbeddedFiles()) {
+		return map[string]string{}
+	}
 	bundles := i18nresource.ResourceLoader{
 		SourcePlugins: func() []i18nresource.SourcePlugin {
 			return []i18nresource.SourcePlugin{sourcePlugin}
@@ -317,18 +327,48 @@ func loadSourcePluginLocaleBundle(ctx context.Context, locale string, pluginID s
 	return bundles[normalizedPluginID]
 }
 
+// sourcePluginRuntimeI18NManifest stores only the plugin.yaml policy fields the
+// runtime i18n loader needs. The field shape intentionally reuses the host
+// i18n config contract so source plugins and the host share one config format.
+type sourcePluginRuntimeI18NManifest struct {
+	I18N *hostconfig.I18nConfig `yaml:"i18n"`
+}
+
 // listRuntimeI18nSourcePlugins adapts pluginhost definitions to the shared
-// ResourceLoader interface without coupling the loader package to pluginhost.
-func listRuntimeI18nSourcePlugins() []i18nresource.SourcePlugin {
+// ResourceLoader interface after applying the source plugin i18n policy.
+func listRuntimeI18nSourcePlugins(ctx context.Context) []i18nresource.SourcePlugin {
 	sourcePlugins := pluginhost.ListSourcePlugins()
 	plugins := make([]i18nresource.SourcePlugin, 0, len(sourcePlugins))
 	for _, sourcePlugin := range sourcePlugins {
 		if sourcePlugin == nil {
 			continue
 		}
+		if !sourcePluginRuntimeI18NEnabled(ctx, sourcePlugin.ID(), sourcePlugin.GetEmbeddedFiles()) {
+			continue
+		}
 		plugins = append(plugins, sourcePlugin)
 	}
 	return plugins
+}
+
+// sourcePluginRuntimeI18NEnabled reports whether one source plugin opted into
+// runtime i18n resource loading through plugin.yaml. Missing plugin.yaml,
+// missing i18n config, and enabled=false all mean the plugin is single-language.
+func sourcePluginRuntimeI18NEnabled(ctx context.Context, pluginID string, filesystem fs.FS) bool {
+	if filesystem == nil {
+		return false
+	}
+	content, err := fs.ReadFile(filesystem, pluginfs.EmbeddedManifestPath)
+	if err != nil {
+		logger.Warningf(ctx, "read source plugin manifest for runtime i18n resources failed plugin=%s err=%v", pluginID, err)
+		return false
+	}
+	manifest := &sourcePluginRuntimeI18NManifest{}
+	if err = yaml.Unmarshal(content, manifest); err != nil {
+		logger.Warningf(ctx, "parse source plugin manifest for runtime i18n resources failed plugin=%s err=%v", pluginID, err)
+		return false
+	}
+	return manifest.I18N != nil && manifest.I18N.Enabled
 }
 
 // loadEmbeddedHostLocaleBundle loads host runtime messages from embedded manifest assets.

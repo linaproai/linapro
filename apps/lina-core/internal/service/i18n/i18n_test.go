@@ -37,6 +37,7 @@ func (s stubConfigService) GetI18n(_ context.Context) *hostconfig.I18nConfig {
 func init() {
 	plugin := pluginhost.NewSourcePlugin(testPluginID)
 	plugin.Assets().UseEmbeddedFiles(fstest.MapFS{
+		"plugin.yaml": &fstest.MapFile{Data: []byte(sourcePluginI18NManifestFixture(testPluginID, true))},
 		"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(`{
   "plugin": {
     "plugin-i18n-test": {
@@ -372,6 +373,7 @@ func TestRegisterSourcePluginInvalidatesRuntimeBundleCache(t *testing.T) {
 
 	plugin := pluginhost.NewSourcePlugin(testCacheInvalidatePluginID)
 	plugin.Assets().UseEmbeddedFiles(fstest.MapFS{
+		"plugin.yaml": &fstest.MapFile{Data: []byte(sourcePluginI18NManifestFixture(testCacheInvalidatePluginID, true))},
 		"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(`{
   "plugin": {
     "plugin-i18n-cache-invalidate": {
