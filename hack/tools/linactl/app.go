@@ -16,6 +16,7 @@ import (
 	"linactl/internal/devservice"
 	"linactl/internal/fileutil"
 	"linactl/internal/plugins"
+	"linactl/internal/process"
 	"linactl/internal/toolrun"
 )
 
@@ -29,7 +30,7 @@ func newApp(stdout io.Writer, stderr io.Writer, stdin io.Reader) *app {
 		execCommand:  exec.CommandContext,
 		lookPath:     exec.LookPath,
 		portInUse:    devservice.IsTCPListening,
-		processAlive: processAlive,
+		processAlive: process.Alive,
 	}
 	// Default waitHTTP wraps devservice.WaitHTTP so the readiness loop can
 	// dispatch into the injectable processAlive on this app instance. Tests

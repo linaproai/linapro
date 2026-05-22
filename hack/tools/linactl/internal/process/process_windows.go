@@ -1,8 +1,11 @@
-// This file configures detached development-service processes on Windows.
+// This file implements ConfigureDetached and Alive on Windows.
+// ConfigureDetached attaches DETACHED_PROCESS plus CREATE_NEW_PROCESS_GROUP
+// so spawned services outlive the linactl console, and Alive opens the
+// process with the minimal query right and inspects GetExitCodeProcess.
 
 //go:build windows
 
-package main
+package process
 
 import (
 	"os/exec"
@@ -22,9 +25,9 @@ const processQueryLimitedInformation = 0x1000
 // Windows 进程仍在运行时 GetExitCodeProcess 返回的固定值。
 const stillActiveExitCode uint32 = 259
 
-// configureDetachedProcess lets development services outlive the linactl
+// ConfigureDetached lets development services outlive the linactl
 // invocation that launched them.
-func configureDetachedProcess(cmd *exec.Cmd) {
+func ConfigureDetached(cmd *exec.Cmd) {
 	if cmd == nil {
 		return
 	}
@@ -34,11 +37,11 @@ func configureDetachedProcess(cmd *exec.Cmd) {
 	}
 }
 
-// processAlive reports whether the given PID currently belongs to a live
+// Alive reports whether the given PID currently belongs to a live
 // process on Windows. It opens the process with limited query rights and
 // inspects the exit code: STILL_ACTIVE means the process is still running.
 // Windows 平台下检测进程是否存活：使用最小权限打开进程并通过退出码判断。
-func processAlive(pid int) bool {
+func Alive(pid int) bool {
 	if pid <= 1 {
 		return false
 	}

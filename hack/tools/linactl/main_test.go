@@ -26,6 +26,7 @@ import (
 	"linactl/internal/devservice"
 	"linactl/internal/fileutil"
 	"linactl/internal/plugins"
+	"linactl/internal/process"
 	"linactl/internal/repository"
 	"linactl/internal/runtimei18n"
 	"linactl/internal/toolutil"
@@ -759,9 +760,9 @@ func TestWaitHTTPAcceptsRedirectWithoutFollowingLoop(t *testing.T) {
 	defer server.Close()
 
 	pidFile := filepath.Join(t.TempDir(), "service.pid")
-	// Use the current test process PID so processAlive reports the recorded
+	// Use the current test process PID so process.Alive reports the recorded
 	// process as live; we are validating redirect handling, not liveness.
-	// 使用当前测试进程 PID，让 processAlive 视为存活，专注校验重定向处理。
+	// 使用当前测试进程 PID，让 process.Alive 视为存活，专注校验重定向处理。
 	if err := os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
 		t.Fatalf("write pid file: %v", err)
 	}
@@ -797,7 +798,7 @@ func TestWaitHTTPFailsFastWhenProcessExits(t *testing.T) {
 	}
 
 	start := time.Now()
-	err := devservice.WaitHTTP("Backend", server.URL+"/api.json", pidFile, "service.log", 10*time.Second, processAlive)
+	err := devservice.WaitHTTP("Backend", server.URL+"/api.json", pidFile, "service.log", 10*time.Second, process.Alive)
 	elapsed := time.Since(start)
 	if err == nil {
 		t.Fatalf("devservice.WaitHTTP should fail when recorded process is not alive")

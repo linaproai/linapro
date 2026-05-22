@@ -13,6 +13,7 @@ import (
 	"linactl/internal/devservice"
 	"linactl/internal/frontend"
 	"linactl/internal/portcheck"
+	"linactl/internal/process"
 	"linactl/internal/toolutil"
 )
 
@@ -100,7 +101,7 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 		a.env = previousEnv
 	}()
 	for _, service := range services {
-		if err = devservice.StartService(a.root, a.stdout, a.stderr, a.env, a.execCommand, configureDetachedProcess, service); err != nil {
+		if err = devservice.StartService(a.root, a.stdout, a.stderr, a.env, a.execCommand, process.ConfigureDetached, service); err != nil {
 			return err
 		}
 	}

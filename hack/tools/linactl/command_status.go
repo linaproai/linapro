@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"linactl/internal/devservice"
+	"linactl/internal/process"
 	"linactl/internal/toolutil"
 )
 
@@ -42,7 +43,7 @@ func runStatus(_ context.Context, a *app, input commandInput) error {
 
 	aliveProbe := a.processAlive
 	if aliveProbe == nil {
-		aliveProbe = processAlive
+		aliveProbe = process.Alive
 	}
 	listenProbe := a.portInUse
 	if listenProbe == nil {

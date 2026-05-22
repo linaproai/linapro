@@ -1,8 +1,11 @@
-// This file configures detached development-service processes on Unix systems.
+// This file implements ConfigureDetached and Alive for Unix-like platforms.
+// ConfigureDetached enables Setsid so spawned services outlive the linactl
+// invocation, and Alive combines kill(0) with /proc/<pid>/status (Linux) to
+// detect liveness while explicitly rejecting zombie processes.
 
 //go:build !windows
 
-package main
+package process
 
 import (
 	"errors"
@@ -13,17 +16,16 @@ import (
 	"syscall"
 )
 
-// configureDetachedProcess lets development services outlive the linactl
-// invocation that launched them.
-func configureDetachedProcess(cmd *exec.Cmd) {
+// ConfigureDetached lets development services outlive the linactl
+// invocation that launched them by attaching Setsid to the child process.
+func ConfigureDetached(cmd *exec.Cmd) {
 	if cmd == nil {
 		return
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 }
 
-// processAlive reports whether the given PID currently belongs to a live
-// process.
+// Alive reports whether the given PID currently belongs to a live process.
 //
 // We combine two checks because each one has a known blind spot:
 //  1. syscall.Kill(pid, 0) reports success on zombie processes too, so a
@@ -38,7 +40,7 @@ func configureDetachedProcess(cmd *exec.Cmd) {
 //
 // 双重校验：先用 kill(0) 排除 ESRCH，再读 /proc/<pid>/status 排除 zombie 状态；
 // 直接调用 syscall.Kill 绕开 os.Process pidfd 缓存导致的误报。
-func processAlive(pid int) bool {
+func Alive(pid int) bool {
 	if pid <= 1 {
 		return false
 	}
