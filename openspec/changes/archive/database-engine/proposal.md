@@ -1,100 +1,78 @@
 ## Why
 
-LinaPro currently supports only MySQL as its database engine. The configuration field `database.default.link` requires a `mysql:user@tcp(...)` connection string, all host and plugin install/mock/uninstall SQL assets are deeply coupled to MySQL dialect, and the `kvcache` module uses a MySQL-specific `LAST_INSERT_ID(value_int + delta)` atomic increment trick. This creates an unnecessary barrier for "demo / personal testing / zero-dependency local trial" scenarios -- users who want to quickly try the framework must first install and configure MySQL, or even `make init` will not work. This change introduces SQLite as an optional database engine for demo and testing scenarios, allowing users to run the entire framework with zero dependencies by changing a single line in `config.yaml`.
+LinaPro在数据库引擎治理上先后经历了两次关键收敛：先将默认数据库与SQL源语法从`MySQL`切换到更接近标准SQL、也更符合企业部署偏好的`PostgreSQL`，再把一度保留用于开发演示的`SQLite`运行链路彻底移除。前一阶段解决了`MySQL`专属语法、`ENGINE=MEMORY`语义和初始化流程深度耦合的问题；后一阶段则解决了“运行时支持矩阵过宽、测试与文档长期维护两套路径、SQL源持续受非生产方言约束”的问题。
+
+最终目标是让`LinaPro`围绕`PostgreSQL 14+`形成单一、清晰、可持续维护的数据库基线：运行时、初始化命令、插件SQL生命周期、缓存与集群协调、CI、镜像交付和双语文档全部以`PostgreSQL`为准，不再保留`MySQL`或`SQLite`作为受支持的运行时数据库。
 
 ## What Changes
 
-### New Dialect Abstraction Layer
+### 数据库支持范围与配置口径收敛
 
-- **Add** `apps/lina-core/pkg/dialect/` public stable package, defining a `Dialect` interface (`Name()` / `TranslateDDL(ctx, sourceName, ddl)` / `PrepareDatabase()` / `SupportsCluster()` / `OnStartup()`) as the unified boundary for database engine differences; the package exposes a stable narrow interface and must not bind host `internal` concrete service types in its public signatures; MySQL / SQLite concrete implementations are consolidated under `pkg/dialect/internal/mysql` and `pkg/dialect/internal/sqlite`
-- **Add** MySQL internal dialect implementation: `TranslateDDL` is a no-op, `PrepareDatabase` reuses existing `DROP DATABASE` / `CREATE DATABASE` behavior, `SupportsCluster` returns `true`
-- **Add** SQLite internal dialect implementation: `TranslateDDL` invokes the SQLite DDL translator, `PrepareDatabase` deletes the database file when `rebuild=true`, `SupportsCluster` returns `false`, `OnStartup` forces `cluster.enabled=false` and outputs startup prompt logs
-- **Add** SQLite DDL translator covering the following MySQL-to-SQLite dialect mappings:
-  - Backtick identifier removal
-  - All `INT/BIGINT [UNSIGNED] AUTO_INCREMENT PRIMARY KEY` / `PRIMARY KEY AUTO_INCREMENT` / table-level `PRIMARY KEY(id)` combinations currently present in SQL files converted to SQLite-executable `INTEGER PRIMARY KEY AUTOINCREMENT` semantics
-  - `TINYINT / SMALLINT [UNSIGNED]` to `INTEGER`
-  - `VARCHAR(N) / CHAR(N) / LONGTEXT` to `TEXT`
-  - `DECIMAL(M,N)` to `NUMERIC`
-  - `INSERT IGNORE INTO` to `INSERT OR IGNORE INTO`
-  - Removal of `ENGINE=` / `DEFAULT CHARSET=` / `COLLATE=` / column-level and table-level `COMMENT '...'`
-  - Removal of only the `ON UPDATE` part from `DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP` (DAO layer already maintains `updated_at` automatically)
-  - Inline `KEY` / `INDEX` / `UNIQUE KEY` / `UNIQUE INDEX` (including expression indexes currently present in SQL) extracted as standalone `CREATE INDEX` statements after table creation
-  - `CONCAT(a, b, ...)` currently present in mock SQL translated to SQLite string concatenation `a || b || ...`
-  - `CREATE DATABASE` / `USE database` statements deleted entirely
+- 运行时数据库支持统一为`PostgreSQL 14+`，`database.default.link`仅支持`pgsql:`前缀。
+- `sqlite:`、`mysql:`和其他未知前缀在方言解析阶段即明确失败，不再进入启动、初始化、mock加载、cluster coordination或业务运行流程。
+- 配置模板、镜像运行配置、README与测试文档统一改为`PostgreSQL-only`口径，不再推荐`SQLite`作为开发、演示或容器默认数据库。
 
-### Modified Host Bootstrap Commands
+### 保留方言抽象层，但只围绕PostgreSQL治理
 
-- **Modify** `apps/lina-core/internal/cmd/cmd_init_database.go`: migrate MySQL-specific link parsing and `DROP/CREATE DATABASE` logic into the MySQL dialect's `PrepareDatabase`; `prepareInitDatabase` dispatches to the corresponding dialect based on the `link` protocol prefix
-- **Modify** `cmd_init.go` / `cmd_mock.go`: before executing SQL files, call the current dialect's `TranslateDDL(ctx, sourceName, ddl)` to convert single MySQL-source DDL into dialect-executable statements; `sourceName` uses the source file path or embedded asset path for error message file location
-- **Clarify** `make mock` must depend on an already-initialized database and is not responsible for creating, rebuilding, or preparing the database; when `make init` has not been executed, it should fail fast and return a database error
-- **Modify** SQLite mode: `rebuild=true` deletes the database file; on startup, if the database file parent directory does not exist, automatically `mkdir -p`
+- 保留`apps/lina-core/pkg/dialect/`作为公共稳定边界，继续统一承载数据库准备、SQL入口、数据库版本查询、表元数据查询、驱动错误分类和驱动/ORM只读SQL分类能力。
+- 删除`SQLite`方言实现、DDL转译器、错误分类和启动降级钩子，只保留`PostgreSQL`具体实现以及明确的不支持错误。
+- `init`通过连接系统库`postgres`执行`PrepareDatabase`完成建库、删库和重建；`mock`只连接已初始化数据库，不负责准备数据库。
 
-### Modified Cluster Mode Switch
+### SQL源、易失性表与缓存语义统一
 
-- **Modify** `cluster-deployment-mode` specification: under SQLite links, the `cluster.enabled` configuration value is forced to `false` at the in-memory layer regardless of what the user writes in `config.yaml`; during startup, a clear prompt is output stating "currently in SQLite mode, only single-node deployment is supported, all features run in standalone mode, do not use in production"
+- 宿主与插件SQL资源统一使用受治理的`PostgreSQL 14+`语法子集编写，移除`MySQL`专属语法遗留，不再为了`SQLite`翻译能力限制运行时支持矩阵。
+- `sys_online_session`、`sys_locker`、`sys_kv_cache`作为原易失性表，统一改为`PostgreSQL`普通持久表，依赖`last_active_time`、`expire_time`、`expire_at`和既有TTL清理自然收敛。
+- 插件缓存服务继续使用`sqltable`后端与CAS递增语义，在单机默认路径下落到共享`PostgreSQL`表，在集群模式下依赖coordination KV backend；缓存始终视为有损缓存。
 
-### Modified Plugin Manifest Lifecycle
+### 集群、协调、工具链与发布链路收敛
 
-- **Modify** plugin install, uninstall, and mock data loading pipelines: before executing SQL resources under `manifest/sql/`, `manifest/sql/uninstall/`, and `manifest/sql/mock-data/`, uniformly pass through the current dialect's `TranslateDDL`; plugin source code requires no changes, single MySQL-dialect source SQL files execute correctly in SQLite mode
+- `cluster.enabled`只在`PostgreSQL`路径下按配置生效；不支持的数据库方言必须在cluster初始化前失败，不再通过`SQLite`单机锁定或启动告警继续运行。
+- 删除`SQLite` smoke、E2E通道、脚本入口、CI workflow输入与package scripts，主干、nightly、release和共享验证模板统一为`PostgreSQL-only`。
+- Release镜像与测试门禁继续复用共享测试模板，但不再包含任何`SQLite`验证通道。
 
-### Renamed kvcache Backend and Removed MySQL-Specific Syntax
+### 文档与README治理同步
 
-- **BREAKING (internal)** `apps/lina-core/internal/service/kvcache/internal/mysql-memory/` renamed to `sqltable/`; constant `BackendMySQLMemory` renamed to `BackendSQLTable`, string value changed from `"mysql-memory"` to `"sql-table"`
-- **Modify** `Incr` operation: replace `LAST_INSERT_ID(value_int + delta)` + `SELECT LAST_INSERT_ID()` MySQL-specific pattern with dialect-neutral CAS retry: read current integer snapshot, if missing use `INSERT IGNORE value_int=0` for idempotent initialization, then execute parameterized `UPDATE` with `value_int=<snapshot>` condition to write new value; on `affected=0` due to competing writes, retry with bounded backoff, ensuring successful calls yield linear increments
-- **Modify** `plugin-cache-service` specification: default MySQL delivery SQL retains original `sys_kv_cache ENGINE=MEMORY` table structure and engine type; SQLite mode only removes engine clauses via DDL translator to produce a plain SQLite table. Both modes rely on application-layer TTL and scheduled cleanup, and continue treating the cache as lossy
-
-### Modified Configuration Defaults and Dependencies
-
-- **Modify** `apps/lina-core/manifest/config/config.template.yaml` and `config.yaml` to add SQLite link examples in comments (default value remains MySQL link for zero-change experience for MySQL users)
-- **Add** `go.mod` dependency: `github.com/gogf/gf/contrib/drivers/sqlite/v2`
-- **Confirm** SQLite default path resides under `temp/` directory which is already ignored by the repository root `.gitignore`, no additional SQLite-specific ignore entries needed
-
-### New E2E and Unit Tests
-
-- **Add** SQLite DDL translator unit tests that automatically scan host install SQL, plugin install SQL, host mock SQL, plugin mock SQL, and plugin uninstall SQL as fixtures, asserting translation results execute successfully on SQLite
-- **Add** SQLite mode E2E test cases: through test fixtures that write test configuration files before startup to switch `database.default.link`, without introducing command-line arguments or environment variables as runtime dialect sources, verify business modules behave identically under SQLite engine; main CI runs lightweight backend SQLite smoke only, full SQLite E2E remains as manual verification entry
-- **Add** unit tests for startup cluster locking and startup prompt log output
+- 根目录与`apps/lina-core/`的双语README同步更新数据库支持矩阵、初始化说明和外部数据库依赖口径。
+- 目录级说明文档继续采用`README.md`与`README.zh-CN.md`双语镜像约定，避免数据库治理相关文档口径漂移。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `database-dialect-abstraction`: defines the database dialect abstraction layer, `Dialect` interface, and link-prefix-based dialect dispatch mechanism as the single convergence point for MySQL, SQLite, and other database engine differences; defines the SQLite DDL translator's coverage scope and executable result guarantees for MySQL-dialect DDL
+- `postgresql-only-database-support`：定义运行时、初始化、测试、CI与交付链路只支持`PostgreSQL 14+`的能力边界。
+- `cluster-coordination-config`：定义非`PostgreSQL`数据库链接必须在coordination启动前失败的约束。
+- `readme-localization-governance`：定义目录级README双语镜像命名与同步治理规则。
 
 ### Modified Capabilities
 
-- `database-bootstrap-commands`: adds dialect-dispatched init/rebuild semantics; adds mandatory dialect translation before SQL resource execution; adds SQLite database file path and parent directory auto-creation semantics
-- `cluster-deployment-mode`: adds SQLite link `cluster.enabled` forced to `false` requirement; adds startup prompt log visibility requirement
-- `plugin-cache-service`: clarifies MySQL delivery SQL `sys_kv_cache` retains existing `ENGINE=MEMORY` table structure and engine type; SQLite mode only removes engine clauses at execution time via DDL translator, and continues treating cache as lossy
-- `plugin-manifest-lifecycle`: adds requirement that plugin SQL resources (`manifest/sql/` / `uninstall/` / `mock-data/`) must pass through current dialect translation before execution
+- `project-setup`：项目默认数据库从“`PostgreSQL + SQLite`开发演示模式”收敛为“`PostgreSQL-only`运行时”。
+- `database-dialect-abstraction`：保留方言抽象边界，但删除`SQLite`实现与转译路径，只保留`PostgreSQL`实现、元数据查询和只读SQL分类能力。
+- `database-bootstrap-commands`：初始化与mock命令仅围绕`PostgreSQL`准备与SQL执行工作流运行，不再支持`SQLite`准备或转译。
+- `cluster-deployment-mode`：移除`SQLite`专属单机锁定与启动警告，集群模式只在`PostgreSQL`支持矩阵内生效。
+- `sql-source-syntax`：继续以受治理的`PostgreSQL 14+`子集约束SQL源，但不再把`SQLite`运行时支持作为前提。
+- `volatile-table-bootstrap`：易失性表自然过期规范收敛到`PostgreSQL`持久表路径。
+- `plugin-cache-service`：插件缓存规范移除`SQLite`专属语义，仅保留`PostgreSQL`单机与集群路径。
+- `release-image-build`：发布构建与共享测试模板移除`SQLite` smoke门禁。
 
 ## Impact
 
 ### Affected Code
 
-- `apps/lina-core/pkg/dialect/` (new)
-- `apps/lina-core/internal/cmd/cmd_init_database.go`, `cmd_init.go`, `cmd_mock.go` (refactored)
-- `apps/lina-core/internal/service/kvcache/internal/mysql-memory/` -> `sqltable/` (renamed + `Incr` rewritten)
-- `apps/lina-core/internal/service/kvcache/kvcache_backend.go` (constant name adjustment)
-- `apps/lina-core/internal/service/plugin/` (plugin install/uninstall pipeline integrates dialect translation)
-- `apps/lina-core/internal/cmd/cmd_http_runtime.go` or equivalent startup bootstrap entry (SQLite startup cluster lock + startup prompt log)
-- `apps/lina-core/manifest/config/config.template.yaml`, `config.yaml` (comments add SQLite link example)
-
-### Affected Tests
-
-- New dialect translator unit tests (covering current host/plugin install, mock, uninstall SQL assets)
-- New startup cluster locking and log output unit tests
-- Reuse existing E2E suite, add SQLite mode parameterized execution channel; main CI uses backend SQLite smoke covering startup prompt, single-node health, and admin login flow
+- `apps/lina-core/pkg/dialect`、`apps/lina-core/pkg/dbdriver`、初始化命令、系统信息和插件数据治理相关代码。
+- `apps/lina-core/manifest/config/`、镜像运行配置、`hack/tests`、CI workflow、`linactl`与`make`相关说明入口。
+- 宿主与插件SQL治理基线，以及`sys_online_session`、`sys_locker`、`sys_kv_cache`相关自然过期路径。
 
 ### Affected Dependencies
 
-- `apps/lina-core/go.mod` adds `github.com/gogf/gf/contrib/drivers/sqlite/v2`
-- `.gitignore` does not need new SQLite-specific entries; repository root already has `temp/` ignore rule covering default SQLite database file path
+- 移除`github.com/gogf/gf/contrib/drivers/sqlite/v2`及其SQLite驱动链路残留。
+- 保持`PostgreSQL`驱动与相关测试依赖作为唯一数据库后端依赖。
 
-### Unaffected
+### Affected Verification
 
-- Business modules (`controller` / `service` / `model` / `dao`): zero code changes, zero awareness of database engine differences (constraint #3)
-- Existing MySQL users: default configuration remains MySQL, behavior fully backward compatible
-- Plugin source code: single MySQL-dialect SQL files continue working, SQLite handled transparently by dialect layer
-- `gf gen dao` / `gf gen ctrl` workflows: unchanged
-- `apidoc` / i18n resources: unaffected by dialect switch
+- PostgreSQL编译、单元测试、工具链验证、OpenSpec校验和静态扫描成为默认门禁。
+- 原`SQLite` smoke、专属E2E与package script入口被移除，不再作为交付验证路径。
+
+### i18n / Cache Impact
+
+- 本次不新增、修改或删除运行时语言包、插件`manifest/i18n`或apidoc i18n JSON，仅同步更新配置、文档和规范中的数据库支持描述。
+- 本次不新增缓存策略，只删除`SQLite`特有的运行分支；单机仍使用SQL表缓存后端，集群仍依赖coordination能力保证一致性。

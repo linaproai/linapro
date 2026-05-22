@@ -1,131 +1,102 @@
-## Context
+# Design
 
-This archive consolidates work from several closely related host-governance efforts completed during overlapping implementation windows:
+## 目标
 
-1. A governed runtime configuration model for host-consumed settings. The host already depended on settings such as JWT expiry, session timeout, upload limits, and login IP blacklists, but the parameter-management layer did not yet provide a clear protected registry, runtime-safe validation, or multi-instance-friendly cache behavior.
+- 让运行时配置真正驱动宿主行为，而不是仅作为可编辑的键值记录存在。
+- 让宿主而不是底层框架拥有系统 API 文档与插件治理投影的最终控制权。
+- 在不改变插件生命周期、定时任务、鉴权和首页交互语义的前提下，减少启动链路与登录后首页的重复 SQL。
+- 用自动化测试、覆盖率门槛和结构化摘要日志取代"观察 SQL 刷屏"式的回归判断方式。
 
-2. A host-controlled API document generation system. GoFrame's built-in `/api.json` output could not distinguish source-plugin routes from host routes, could not project source-plugin routes by enablement state, and would have required a duplicate route declaration model if the project had tried to solve the problem through `plugin.yaml`.
+## 运行时配置契约
 
-3. A unified upload-size default. The repository still carried both a 10 MB and a 16 MB baseline across different default sources, causing inconsistent behavior in new environments.
+### 决策：宿主统一注册受保护的运行时参数与公共前端配置
 
-4. A strengthened unit-test suite for the config-management component. Package-level coverage was at 71.9%, well below the 80% target, with significant gaps in plugin config, public frontend helpers, cache behavior, and cluster revision logic.
+宿主配置服务集中维护一组稳定的受保护键，包括 `sys.jwt.expire`、`sys.session.timeout`、`sys.upload.maxSize`、`sys.login.blackIPList`，以及登录页和工作台启动需要的公共前端配置。这个注册表同时定义默认值、格式说明、校验规则、运行时覆盖读取方式，以及重命名、删除、导入和更新保护，避免认证、会话、上传和前端启动逻辑各自维护一套隐式约定。
 
-Several follow-up improvements were also folded in: plugin detail dialog and host-service presentation refinements, OpenSpec language-governance rules, structured logging and unified log sinks, configuration extension namespacing, and comment-conformance cleanup for affected backend code paths.
+公共前端配置通过白名单接口暴露，返回结构化且可审计的响应，而不是开放任意 `sys_config` 键的匿名读取能力。这样登录页和工作台既能在未登录阶段安全获取品牌和主题配置，又不会把通用配置读权限泄露给匿名调用方。
 
-## Goals
+### 决策：`sys.upload.maxSize` 作为上传大小的唯一业务真源
 
-- Ensure runtime configuration actually drives host behavior instead of existing only as editable key-value records.
-- Keep hot-path runtime reads on process memory whenever possible, without breaking multi-instance convergence.
-- Preserve source-plugin route flexibility while giving the host explicit route ownership metadata.
-- Unify the host upload-size default at 20 MB across all initialization and fallback paths.
-- Bring config-management unit-test coverage to 80% or above with meaningful regression protection for high-risk branches.
-- Archive the iteration with English proposal, design, tasks, and delta specs.
+上传大小默认值不再分别散落在数据库初始化、配置模板和后端静态兜底逻辑中，而是统一收敛到 20 MB，并让 `sys.upload.maxSize` 成为唯一业务来源。数据库种子值、`config.template.yaml` 与 `config_upload.go` 的兜底读取都保持一致，上传链路、请求体保护与用户可见错误提示也随之统一，避免不同启动路径下出现 10 MB、16 MB、20 MB 并存的行为分裂。
 
-## Non-Goals
+### 决策：高频运行时读取采用本地不可变快照加共享修订号
 
-- No route-prefix constraint is imposed on source plugins.
-- No duplicate route declaration model is added to `plugin.yaml`.
-- No dynamic-plugin middleware model is forced onto source plugins.
-- No redesign of the file-upload module or addition of new runtime parameters.
-- No removal of the administrator's ability to override `sys.upload.maxSize`.
-- No repository-wide coverage governance beyond the `config` package.
+宿主不在每次请求都直接查询 `sys_config`。相反，每个进程维护解析后的本地快照；写入路径立即清理本地快照并递增共享修订号；其他节点通过周期同步感知修订变化后重建快照。单机模式只使用本地失效和重建，不强制依赖共享协调组件；集群模式仍通过共享修订号保证跨实例最终收敛。这个模型既减少热路径查询，又明确了多实例一致性边界。
 
-## Themes
+## 系统 API 文档与插件治理
 
-### 1. Runtime Configuration Model
+### 决策：宿主管理 `/api.json`
 
-#### Decision: Runtime configuration is modeled as a protected host-owned contract
+系统 API 文档不再直接依赖 GoFrame 默认输出，而是由宿主管理的 OpenAPI 构建器扫描真实路由表后生成。宿主静态接口、启用中的源码插件接口和启用中的动态插件接口统一在这个出口内投影；静态兜底路由、动态插件分发入口、宿主管理的 `/api.json` 自身和其他内部非业务路由必须被排除。这样系统 API 文档只暴露宿主愿意公开的接口集合，并且能随插件启用状态实时变化。
 
-Protected runtime parameters and protected public frontend settings are registered centrally in the host configuration service. The contract includes stable key ownership, default values, validation rules, runtime override lookup, and protection against rename and deletion. This keeps parameter governance in one place instead of scattering rules across auth, session, upload, UI bootstrap, and import flows.
+### 决策：源码插件在注册时捕获路由归属与文档元数据
 
-#### Decision: Public frontend settings are exposed through a whitelist endpoint
+源码插件仍然只在代码中声明后端路由，不需要在 `plugin.yaml` 里重复维护路由清单。宿主通过可观测的路由注册 facade 在绑定时捕获插件 ID、方法、路径、处理器归属和 DTO `g.Meta` 中的 tags、summary、description、permission 等文档元数据。原始 handler 仍可注册，但没有 DTO 元数据时不会自动进入 OpenAPI 投影。这既保留了源码插件自由定义路径和路由结构的能力，也避免为文档生成引入第二套真相源。
 
-Unauthenticated pages and bootstrap flows need a safe subset of host-managed settings. The design keeps a whitelist contract, structured typed response payloads, and no arbitrary public key lookup. This allows login pages and workspace bootstrap to consume branding and theme settings without exposing generic configuration access.
+### 决策：源码插件中间件仍由插件自主管理
 
-### 2. Upload Size Configuration
+宿主只负责捕获归属信息和执行真实绑定，不把源码插件中间件改造成动态插件式的声明模型，也不要求固定路由前缀。插件可以继续自行决定中间件顺序和组合方式，宿主文档治理只消费绑定结果。
 
-#### Decision: Normalize existing default sources directly instead of adding a compatibility migration layer
+### 决策：插件治理展示与运维配套同步收敛
 
-The existing host initialization SQL, config template, and backend static fallback are updated directly so 20 MB becomes the only default baseline. This keeps the implementation aligned with the project rule that this is a new project and existing SQL can be updated directly with re-initialization.
+默认管理工作台补齐插件详情弹窗，统一展示插件身份、安装状态、授权状态、版本、描述、授权需求和宿主服务范围。对于动态插件，只有在"声明范围"和"实际授权范围"不一致时才拆开展示；对源码插件则避免无意义的空态块。与此同步，HTTP 服务日志与业务日志统一接入结构化日志开关，宿主扩展配置移动到明确的 `extensions.server` 与 `extensions.logger` 命名空间，相关后端包和插件样例补齐注释规范，降低后续治理成本。
 
-- Alternative: add a new SQL iteration file that only overrides the old default value.
-- Why not: that would keep default-value ownership split across multiple places and would not fit the current no-compatibility-overhead expectation.
+## 启动编排与启动 SQL 效率
 
-#### Decision: Treat `sys.upload.maxSize` as the single business source of truth and align every fallback with it
+### 决策：SQL 明细日志默认关闭，显式 debug 作为诊断模式保留
 
-`sys.upload.maxSize` already represents host upload-size governance, so the 20 MB default must live not only in config-management seed data but also in the config template and the static fallback inside `config_upload.go`. That guarantees the database default, direct config-file reads, and upload-chain validation all see the same baseline.
+启动日志刷屏首先是交付配置问题。交付默认配置中的 `database.default.debug` 统一为 `false`，普通开发、演示和生产路径默认不输出 ORM 逐条 SQL；当维护者需要排查 SQL 时，仍可显式打开 `true` 进入诊断模式。这样可以把"默认日志可读性"与"真实 SQL 优化"拆开治理，避免把关闭日志误认为减少了实际查询。
 
-- Alternative: change only the initialization SQL.
-- Why not: if only SQL changes, any uninitialized or non-overridden path can still fall back to 10 MB or 16 MB and the split behavior remains.
+### 决策：一次 HTTP 启动编排内共享 `StartupContext`
 
-#### Decision: Update user-facing error copy and derived artifacts together
+HTTP 启动编排在最外层创建一次 `StartupContext`，其中包含：
 
-Friendly messages shown when uploads exceed the limit, request-body protection assertions, and any embedded or packaged manifest artifact derived from the manifest all move to 20 MB together. That avoids a state where source code has been updated but build outputs or test baselines still expose the old default.
+- catalog 启动快照：`sys_plugin`、`sys_plugin_release`
+- integration 启动快照：`sys_menu`、`sys_plugin_resource_ref`
+- job 启动快照：`sys_job_group` 与内置 `sys_job` 投影
+- 启动统计采集器：记录阶段耗时、插件扫描数量、变更数量、no-op 数量和快照构造次数
 
-### 3. OpenAPI Governance
+`BootstrapAutoEnable`、源码插件 HTTP 路由注册、运行时前端包预热、插件只读投影和 cron 启动同步全部复用这组快照。快照生命周期严格限制在单次启动编排内，不跨请求、不跨进程、不充当业务缓存，因此不会引入新的长期一致性问题。
 
-#### Decision: The host owns `/api.json`
+### 决策：插件清单同步采用差异驱动的 no-op fast path
 
-The host no longer relies on GoFrame's default OpenAPI output as the source of truth. The host-managed OpenAPI builder scans real host routes for documentable static APIs, excludes internal and non-business routes, excludes plugin routes from the host-static route set, projects enabled source-plugin routes using captured route bindings, and projects enabled dynamic-plugin routes using runtime route contracts. This gives the host precise control over what appears in system API documentation.
+插件同步先构造期望投影，再与当前 registry、release、菜单、权限和资源引用投影比较。只有存在差异时才进入事务、写库或刷新投影；无差异时直接返回，不得产生空 `BEGIN/COMMIT`，也不得为了刷新启动快照再回读数据库。对于插入和更新路径，优先用已知的 manifest/DO 数据与现有实体合成新快照，只有在依赖数据库默认值或特殊副作用时才回读。
 
-#### Decision: Source-plugin route ownership is captured at registration time
+### 决策：内置定时任务按声明派生快照注册
 
-Source plugins still define routes in code only. The host wraps route registration with an observable facade that records plugin ID, method, path, handler ownership, and DTO `g.Meta` documentation metadata when present. This avoids path-prefix heuristics and avoids duplicating route declarations in plugin manifests.
+内置任务的执行定义权威来源始终是源码声明，`sys_job.is_builtin=1` 只是治理投影。启动同步时先把声明派生为 projection snapshot，再直接调用注册逻辑完成运行时调度；持久化调度器启动扫描显式排除 `is_builtin=1`，只加载用户创建任务或非内置插件任务。这样可以避免"刚同步完内置任务，又从 `sys_job` 里把同一批任务读回来再注册一次"的重复开销。
 
-#### Decision: Source-plugin middleware remains plugin-owned
+### 决策：以结构化启动摘要和行为测试代替精确 SQL 条数门禁
 
-Source plugins keep their current flexibility for middleware registration and ordering. The host captures route ownership and performs real binding, but it does not try to reinterpret source-plugin middleware chains as dynamic-plugin-style declarative middleware descriptors.
+GoFrame 首次访问 DAO 时的元数据探测 SQL 受方言、版本和环境影响，不适合用精确条数做门禁。交付门槛改为约束项目可控行为：默认配置不输出 SQL 明细、无差异插件同步不写库不启事务、catalog/integration/job 启动快照构造次数保持在预算内、启动摘要日志包含关键阶段统计且不含完整 SQL 文本。统计口径明确区分宿主启动编排、首轮定时任务和浏览器首屏请求，防止把不同阶段的查询混在一起。
 
-### 4. Cache Strategy
+## 登录后首页 SQL 效率
 
-#### Decision: Runtime reads use local snapshots plus shared revision convergence
+### 决策：在线会话校验改为单次读取后判定
 
-Hot-path host behavior does not read `sys_config` for every request. Instead:
+DB-only 会话校验不再为每个鉴权请求执行多次 `COUNT`。新流程先读取一条 `sys_online_session` 记录，再判断租户、超时状态和是否需要更新 `last_active_time`：会话过期时删除记录并拒绝请求；租户不匹配或会话不存在时直接拒绝；只有超过写入节流窗口时才更新活跃时间。这样可以在不改变强制下线、租户隔离和超时语义的前提下，把有效请求的在线会话访问压缩到一次读取加按需更新。
 
-- each process keeps an immutable parsed snapshot in local cache
-- writers bump a shared revision and clear their own local snapshot immediately
-- other nodes converge through periodic revision synchronization
-- single-node mode skips the shared coordination path and keeps only the local invalidation model
+### 决策：插件 release 读取优先使用请求级或列表级快照
 
-This design reduces hot-path overhead while preserving bounded cross-node convergence.
+`sys_plugin_release` 虽然是小表，但承载安装、启用、升级、卸载和授权相关状态。为了避免在集群场景下引入无失效机制的长期陈旧缓存，本轮只在单个请求或单次列表投影内复用已读取的 release 行，或提前批量读取后在上下文中复用。同一首页请求、插件管理列表或动态运行态列表中，对同一 release ID 或同一 `plugin_id + release_version` 的等价查询必须命中同一快照；请求结束后快照立即释放，不跨实例共享。
 
-### 5. Plugin UI and Operational Follow-up
+### 决策：保留框架冷启动元数据探测，不通过兼容层规避
 
-Several follow-up improvements were folded into the implementation window:
+首页日志中的一部分元数据探测来自 GoFrame 首次访问热点表时的表结构读取。这不是本轮主要重复源，因此不额外引入预热或手写 SQL 兼容层，而是把治理重点放在项目自身可控的重复读取路径上。
 
-- Plugin detail dialog and host-service presentation refinements in the default admin workspace.
-- Plugin resource grouping, labels, empty-state behavior, and layout consistency between detail and authorization dialogs.
-- Pagination behavior for the dynamic plugin demo record list.
-- Structured logging switch support and alignment of HTTP server logs with business log sinks.
-- Host-specific server and logger extensions moved under explicit `extensions` namespaces.
+## 测试、风险与交付边界
 
-### 6. Unit Test Coverage
+### 决策：`config` 包以包级覆盖率不低于 80% 作为交付门槛
 
-#### Decision: Use package-level coverage as the acceptance baseline instead of per-file thresholds
+覆盖率门禁使用 `cd apps/lina-core && go test ./internal/service/config -cover` 的包级结果判断，重点补齐插件配置路径、公共前端辅助方法、运行时修订号控制器、快照缓存和默认值/异常分支测试。目标不是平均铺满每个文件，而是优先覆盖高风险低覆盖路径。
 
-Acceptance is based on `cd apps/lina-core && go test ./internal/service/config -cover` with the final result required to be >= 80%. The built-in Go coverage command is simple, local, and easy to wire into CI later. The gaps are currently spread across multiple files, so a package-level metric fits the goal of raising overall coverage in one pass.
+### 决策：运行期 SQL 优化必须由自动化测试约束关键行为
 
-#### Decision: Prioritize low-coverage high-risk branches instead of spreading effort evenly
+启动 SQL 与登录后首页 SQL 优化都属于行为变更，不能只依赖人工观察日志。对应测试必须覆盖：默认无 SQL 明细日志、显式 debug 仍可输出 SQL、插件 no-op 同步无写入无空事务、启动快照复用预算、会话校验的有效/过期/租户不匹配/近期活跃分支，以及插件 release 按 ID 与按版本读取的复用行为。
 
-This iteration prioritizes by coverage gap multiplied by risk:
+### 风险与权衡
 
-1. `config_plugin.go`: plugin dynamic storage defaults, compatibility fallbacks, and override logic.
-2. `config_public_frontend.go`: protected-key detection, shared validation entry point, whitelist metadata, and time-zone parsing.
-3. `config_runtime_params_revision.go` / `config_runtime_params_cache.go`: cluster synchronization, cache rebuilds, and degraded fallbacks.
-4. Remaining getters/helpers: default-value, empty-object, and defensive-branch checks.
-
-#### Decision: Design test scenarios in groups of primary path, fallback path, and exception path
-
-Each submodule covers at least two of three path types, and the critical modules cover all three:
-
-- **Primary path**: normal config reads, cache hits, successful parsing.
-- **Fallback path**: missing config, compatibility fallback, default values applied, cache reuse.
-- **Exception path**: shared-KV failure, corrupt cached value, invalid input, empty object, or unparseable state.
-
-## Risks and Trade-offs
-
-- Source-plugin raw handlers remain registrable but are not automatically projected into OpenAPI without DTO metadata, which is intentional to avoid a second route-truth system.
-- Derived package artifacts may still contain the old upload default. Mitigation: update or regenerate embedded resources as part of the implementation and check both source files and derived outputs.
-- Local environments that already changed `sys.upload.maxSize` manually will not automatically become 20 MB. This change targets the default baseline; validation is done in a clean reinitialized environment.
-- Global-state cross-contamination in config tests. Mitigation: use shared reset helpers and paired `t.Cleanup` calls to contain contamination.
-- Coverage reaches the target but adds little value. Mitigation: the task breakdown explicitly prioritizes low-coverage hot spots and exception paths, not just easy happy-path tests.
+- 没有 DTO 元数据的源码插件原始 handler 仍可运行，但不会自动进入 OpenAPI 文档，这是为了避免再引入一套 manifest 路由清单。
+- 启动快照与请求级 release 快照都不是长期缓存；如果未来要引入跨请求缓存，必须接入共享修订号、广播或等价失效机制。
+- 本次不调整公开 HTTP API 契约、数据库 schema、前端首页交互，也不新增运行时 i18n、插件 manifest i18n 或 apidoc i18n 资源。
+- 精确 SQL 条数不会作为稳定门禁，因为框架元数据探测具有环境差异；门禁只约束项目自身可控的重复行为。

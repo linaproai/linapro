@@ -12,20 +12,51 @@ import (
 	"lina-core/pkg/bizerr"
 )
 
-// TestKeyBuilderEncodesSegments verifies generated keys are namespaced and
-// reject missing required segments.
-func TestKeyBuilderEncodesSegments(t *testing.T) {
+// TestKeyBuilderJoinsPlainSegments verifies coordination keys stay namespaced
+// with readable segments and reject missing required segments.
+func TestKeyBuilderJoinsPlainSegments(t *testing.T) {
 	keys := NewKeyBuilder("app one", "dev", "node-a")
 
 	lockKey, err := keys.LockKey("leader election")
 	if err != nil {
 		t.Fatalf("build lock key: %v", err)
 	}
-	if lockKey == "app one:dev:node-a:lock:leader election" {
-		t.Fatalf("expected encoded key segments, got %q", lockKey)
+	if lockKey != "app one:dev:node-a:lock:leader election" {
+		t.Fatalf("expected plain key segments, got %q", lockKey)
 	}
 	if _, err = keys.LockKey(" "); !bizerr.Is(err, CodeCoordinationKeyInvalid) {
 		t.Fatalf("expected invalid key error, got %v", err)
+	}
+}
+
+// TestKVKeyJoinsPlainSegments verifies KV keys are built by direct string
+// concatenation without base64 encoding.
+func TestKVKeyJoinsPlainSegments(t *testing.T) {
+	keys := NewKeyBuilder("", "", "")
+
+	key, err := keys.KVKey(0, "plugin", "media", "route-memory", "route_data:device-1:channel-2")
+	if err != nil {
+		t.Fatalf("build coordination KV key: %v", err)
+	}
+	expected := "linapro:default:default:kv:0:plugin:media:route-memory:route_data:device-1:channel-2"
+	if key != expected {
+		t.Fatalf("expected plain route-memory key %q, got %q", expected, key)
+	}
+
+	rawKey, err := keys.RawKVKey("session", "token", "jwt:id")
+	if err != nil {
+		t.Fatalf("build raw coordination KV key: %v", err)
+	}
+	if rawKey != "linapro:default:default:session:token:jwt:id" {
+		t.Fatalf("expected plain raw key, got %q", rawKey)
+	}
+
+	revisionKey, err := keys.RevisionKey(RevisionKey{TenantID: 3, Domain: "plugin:media", Scope: "route"})
+	if err != nil {
+		t.Fatalf("build revision key: %v", err)
+	}
+	if revisionKey != "linapro:default:default:rev:3:plugin:media:route" {
+		t.Fatalf("expected plain revision key, got %q", revisionKey)
 	}
 }
 

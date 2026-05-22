@@ -80,6 +80,12 @@ TBD - created by archiving change redis-cluster-coordination. Update Purpose aft
 - **AND** 系统不输出 SQLite 单机模式警告或进入单机降级
 - **AND** 系统不得连接 Redis
 
+#### Scenario: SQLite 配置了单机模式
+- **WHEN** `database.default.link` 以 `sqlite:` 开头
+- **AND** 配置文件声明 `cluster.enabled=false`
+- **THEN** 宿主启动失败并返回 SQLite 不再支持的明确错误
+- **AND** 系统不得进入单机缓存、单机 coordination 或业务启动流程
+
 ### Requirement: 配置模板必须展示 Redis 集群模式
 系统 SHALL 在 `manifest/config/config.template.yaml` 中提供 Redis coordination 配置示例，并明确注释单机模式不需要 Redis、集群模式必须配置 `cluster.coordination=redis`。
 
@@ -88,3 +94,4 @@ TBD - created by archiving change redis-cluster-coordination. Update Purpose aft
 - **THEN** 文件包含 `cluster.coordination: redis` 示例
 - **AND** 文件包含 `cluster.redis.address`、`db`、`password`、`connectTimeout`、`readTimeout`、`writeTimeout` 字段说明
 - **AND** 注释说明 `cluster.enabled=false` 时不需要 Redis
+

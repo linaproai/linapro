@@ -3,7 +3,6 @@
 package core
 
 import (
-	"encoding/base64"
 	"strconv"
 	"strings"
 
@@ -42,20 +41,20 @@ func DefaultKeyBuilder() *KeyBuilder {
 
 // LockKey builds the key used to store one distributed lock owner token.
 func (b *KeyBuilder) LockKey(name string) (string, error) {
-	encoded, err := encodeRequired("lock", name)
+	segment, err := requireSegment("lock", name)
 	if err != nil {
 		return "", err
 	}
-	return b.join("lock", encoded), nil
+	return b.join("lock", segment), nil
 }
 
 // LockFenceKey builds the key used to generate fencing tokens for a lock.
 func (b *KeyBuilder) LockFenceKey(name string) (string, error) {
-	encoded, err := encodeRequired("lock", name)
+	segment, err := requireSegment("lock", name)
 	if err != nil {
 		return "", err
 	}
-	return b.join("lock-fence", encoded), nil
+	return b.join("lock-fence", segment), nil
 }
 
 // KVKey builds a tenant-aware short-lived key-value cache key.
@@ -67,21 +66,21 @@ func (b *KeyBuilder) KVKey(tenantID int64, ownerType string, ownerKey string, na
 		namespace,
 		key,
 	}
-	encoded, err := encodeParts("kv", parts...)
+	segments, err := requireSegments("kv", parts...)
 	if err != nil {
 		return "", err
 	}
-	return b.join(append([]string{"kv"}, encoded...)...), nil
+	return b.join(append([]string{"kv"}, segments...)...), nil
 }
 
 // RawKVKey builds a short-lived key-value key for host-internal auth/session
 // state that already has a component-specific logical key.
 func (b *KeyBuilder) RawKVKey(component string, parts ...string) (string, error) {
-	encoded, err := encodeParts(component, parts...)
+	segments, err := requireSegments(component, parts...)
 	if err != nil {
 		return "", err
 	}
-	return b.join(append([]string{component}, encoded...)...), nil
+	return b.join(append([]string{component}, segments...)...), nil
 }
 
 // RevisionKey builds the key used for one cache-domain revision.
@@ -91,11 +90,11 @@ func (b *KeyBuilder) RevisionKey(key RevisionKey) (string, error) {
 		key.Domain,
 		key.Scope,
 	}
-	encoded, err := encodeParts("revision", parts...)
+	segments, err := requireSegments("revision", parts...)
 	if err != nil {
 		return "", err
 	}
-	return b.join(append([]string{"rev"}, encoded...)...), nil
+	return b.join(append([]string{"rev"}, segments...)...), nil
 }
 
 // EventChannel returns the Redis pub/sub channel for coordination events.
@@ -109,7 +108,7 @@ func normalizeNamespacePart(value string, fallback string) string {
 	if trimmed == "" {
 		return fallback
 	}
-	return base64.RawURLEncoding.EncodeToString([]byte(trimmed))
+	return trimmed
 }
 
 // join creates a namespaced backend key.
@@ -118,24 +117,24 @@ func (b *KeyBuilder) join(parts ...string) string {
 	return strings.Join(append(prefix, parts...), ":")
 }
 
-// encodeParts encodes required key parts.
-func encodeParts(field string, parts ...string) ([]string, error) {
-	encoded := make([]string, 0, len(parts))
+// requireSegments validates required key parts and returns trimmed segments.
+func requireSegments(field string, parts ...string) ([]string, error) {
+	segments := make([]string, 0, len(parts))
 	for _, part := range parts {
-		value, err := encodeRequired(field, part)
+		value, err := requireSegment(field, part)
 		if err != nil {
 			return nil, err
 		}
-		encoded = append(encoded, value)
+		segments = append(segments, value)
 	}
-	return encoded, nil
+	return segments, nil
 }
 
-// encodeRequired encodes one non-empty key component.
-func encodeRequired(field string, value string) (string, error) {
+// requireSegment validates and trims one non-empty key component.
+func requireSegment(field string, value string) (string, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return "", bizerr.NewCode(CodeCoordinationKeyInvalid, bizerr.P("field", field))
 	}
-	return base64.RawURLEncoding.EncodeToString([]byte(trimmed)), nil
+	return trimmed, nil
 }

@@ -27,3 +27,4 @@ include hack/makefiles/release.mk
 include hack/makefiles/test.mk
 include hack/makefiles/i18n.mk
 include hack/makefiles/database.mk
+include hack/makefiles/agents.mk
