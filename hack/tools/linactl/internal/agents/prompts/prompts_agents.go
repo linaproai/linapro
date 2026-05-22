@@ -1,8 +1,8 @@
 // This file defines the supported agent registry for the prompts resource.
-// Each entry declares a per-agent SourcePath because different agents may
-// link different prompt catalogs in the future. The current registry only
-// links the OpenSpec /opsx slash command directory, but the structure
-// supports adding more entries (or per-agent multiple bindings) later.
+// Each entry declares a per-agent commands/prompts root directory. The
+// current registry links each agent root to .agents/prompts so every
+// prompt catalog under that source root is exposed without creating one
+// symlink per catalog.
 
 package prompts
 
@@ -22,11 +22,10 @@ type AgentSpec struct {
 	// DisplayName is the human-readable label rendered in status output.
 	DisplayName string
 	// SourcePath is the canonical repo-relative source directory the
-	// managed symlink must point at. Different agents may use different
-	// source directories under .agents/prompts/.
+	// managed symlink must point at.
 	SourcePath string
 	// ProjectPath is the project-relative target directory where the
-	// symlink should live (e.g. .claude/commands/opsx).
+	// symlink should live (e.g. .claude/commands).
 	ProjectPath string
 	// Category indicates how the agent's project path should be handled.
 	// Only common.CategoryLink and common.CategoryNative are meaningful
@@ -59,45 +58,45 @@ func (s AgentSpec) SpecKind() common.Kind { return common.KindDir }
 // by Name in init() so callers can rely on stable iteration order.
 //
 // Initial coverage focuses on the four mainstream agents that have a
-// clearly-defined commands/prompts surface:
-//   - claude-code: Claude Code reads .claude/commands/<name>/ as slash
-//     commands.
-//   - cursor: Cursor reads .cursor/commands/<name>/ as slash commands.
-//   - codex: OpenAI Codex CLI reads .codex/prompts/<name>/ as named
-//     prompts.
-//   - gemini-cli: Gemini CLI reads .gemini/commands/<name>/ as slash
-//     commands.
+// clearly-defined commands/prompts root:
+//   - claude-code: Claude Code reads slash command directories under
+//     .claude/commands.
+//   - cursor: Cursor reads slash command directories under .cursor/commands.
+//   - codex: OpenAI Codex CLI reads named prompt directories under
+//     .codex/prompts.
+//   - gemini-cli: Gemini CLI reads slash command directories under
+//     .gemini/commands.
 //
-// All four currently link the OpenSpec /opsx slash command source at
-// .agents/prompts/opsx into the agent-specific layout. Additional sources
-// can be added later without changing the engine.
+// All four currently link their commands/prompts root to .agents/prompts.
+// This exposes .agents/prompts/opsx as <agent-root>/opsx while avoiding
+// conflicts when the parent commands directory is already a managed symlink.
 var agents = []AgentSpec{
 	{
 		Name:        "claude-code",
 		DisplayName: "Claude Code",
-		SourcePath:  ".agents/prompts/opsx",
-		ProjectPath: ".claude/commands/opsx",
+		SourcePath:  ".agents/prompts",
+		ProjectPath: ".claude/commands",
 		Category:    common.CategoryLink,
 	},
 	{
 		Name:        "codex",
 		DisplayName: "Codex",
-		SourcePath:  ".agents/prompts/opsx",
-		ProjectPath: ".codex/prompts/opsx",
+		SourcePath:  ".agents/prompts",
+		ProjectPath: ".codex/prompts",
 		Category:    common.CategoryLink,
 	},
 	{
 		Name:        "cursor",
 		DisplayName: "Cursor",
-		SourcePath:  ".agents/prompts/opsx",
-		ProjectPath: ".cursor/commands/opsx",
+		SourcePath:  ".agents/prompts",
+		ProjectPath: ".cursor/commands",
 		Category:    common.CategoryLink,
 	},
 	{
 		Name:        "gemini-cli",
 		DisplayName: "Gemini CLI",
-		SourcePath:  ".agents/prompts/opsx",
-		ProjectPath: ".gemini/commands/opsx",
+		SourcePath:  ".agents/prompts",
+		ProjectPath: ".gemini/commands",
 		Category:    common.CategoryLink,
 	},
 }

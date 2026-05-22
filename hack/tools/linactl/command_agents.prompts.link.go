@@ -1,8 +1,7 @@
 // This file implements the agents.prompts.link command which manages
 // repository-local directory symlinks from supported agents' project
-// commands/prompts paths to per-agent source directories under
-// .agents/prompts/. The status table includes a SOURCE column because
-// each agent declares its own source path.
+// commands/prompts roots to .agents/prompts. The status table includes a
+// SOURCE column because each agent declares its own source path.
 
 package main
 

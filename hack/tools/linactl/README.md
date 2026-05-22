@@ -95,10 +95,10 @@ The default scanner allowlist is maintained at `hack/tools/linactl/internal/runt
 `linactl agents.<resource>.<action>` manages repository-local symlinks that bridge canonical sources under `.agents/` (and `AGENTS.md`) to per-agent project paths used by supported AI coding agents. Three resource types are supported:
 
 - **skills** — directory bridge from `.<tool>/skills` to `.agents/skills`. The supported agent list mirrors [vercel-labs/skills](https://github.com/vercel-labs/skills#supported-agents).
-- **prompts** — directory bridge from `.<tool>/.../opsx` to `.agents/prompts/opsx` (each agent declares its own source path).
+- **prompts** — directory bridge from each agent's commands/prompts root (for example `.claude/commands`) to `.agents/prompts`.
 - **md** — single-file bridge from `.<tool>.md` (or other private guide file) to the repo-root `AGENTS.md`.
 
-The commands only operate inside the repository root; they never modify HOME directories or system-global paths, and they never remove real directories or files (even with `FORCE=1`).
+The commands only operate inside the repository root; they never modify HOME directories or system-global paths, and they never remove real directories or files (even with `force=1`).
 
 ### Aggregate menu (recommended)
 
@@ -111,46 +111,47 @@ The `agents` aggregate command is **agent-first**: pick one agent and the chosen
 make agents
 
 # One-shot (works in any environment, including CI):
-make agents AGENT=claude-code                    # link claude-code across skills + md (prompts skipped per registry)
-make agents AGENT=claude-code FORCE=1            # rebuild mismatched links during the same run
-make agents AGENT=claude-code ACTION=unlink      # remove every managed symlink for claude-code
+make agents agent=claude-code                    # link claude-code across skills + prompts + md
+make agents agent=ClaudeCode                     # same as agent=claude-code
+make agents agent=claude-code force=1            # rebuild mismatched links during the same run
+make agents agent=claude-code action=unlink      # remove every managed symlink for claude-code
 ```
 
-`AGENT` must name a single supported agent: `AGENT=all` and comma-separated lists are explicitly rejected by the aggregate command (use the per-resource subcommands below for batch flows). `ACTION` defaults to `link`. Without `AGENT`, non-TTY invocations print a usage hint instead of blocking on input.
+`agent` must name a single supported agent: `agent=all` and comma-separated lists are explicitly rejected by the aggregate command (use the per-resource subcommands below for batch flows). Agent names are normalized to canonical kebab-case, so `ClaudeCode`, `Claude Code`, `claude_code`, and `claude-code` all resolve to `claude-code`. `action` defaults to `link`. Without `agent`, non-TTY invocations print a usage hint instead of blocking on input. The upper-case Make variables `AGENT`, `ACTION`, and `FORCE` remain accepted as compatibility aliases, but new examples should prefer the lower-case names because they match `linactl`'s `key=value` parameters.
 
 ### Per-resource subcommands (advanced)
 
-The aggregate `make agents` command is the recommended entry point. The per-resource subcommands below remain available for batch flows that the aggregate command intentionally does not support — in particular `AGENT=all` and comma-separated lists.
+The aggregate `make agents` command is the recommended entry point. The per-resource subcommands below remain available for batch flows that the aggregate command intentionally does not support, in particular `agent=all` and comma-separated lists.
 
 ```bash
 # skills
 make agents.skills.link                              # interactive selection on a TTY; read-only listing on CI/pipes
-make agents.skills.link AGENT=claude-code            # create a single agent's link (non-interactive)
-make agents.skills.link AGENT=claude-code,qoder      # create several agents' links
-make agents.skills.link AGENT=all                    # create links for every link-class agent
-make agents.skills.link AGENT=all FORCE=1            # rebuild mismatched links
+make agents.skills.link agent=claude-code            # create a single agent's link (non-interactive)
+make agents.skills.link agent=claude-code,qoder      # create several agents' links
+make agents.skills.link agent=all                    # create links for every link-class agent
+make agents.skills.link agent=all force=1            # rebuild mismatched links
 make agents.skills.unlink                            # interactive selection on a TTY (managed links only)
-make agents.skills.unlink AGENT=claude-code          # remove one managed link
-make agents.skills.unlink AGENT=all                  # remove every managed link
+make agents.skills.unlink agent=claude-code          # remove one managed link
+make agents.skills.unlink agent=all                  # remove every managed link
 
 # prompts
-make agents.prompts.link AGENT=claude-code           # link .claude/commands/opsx -> .agents/prompts/opsx
-make agents.prompts.link AGENT=all                   # link every agent's commands/prompts directory
-make agents.prompts.unlink AGENT=claude-code         # remove a managed prompts link
+make agents.prompts.link agent=claude-code           # link .claude/commands -> .agents/prompts
+make agents.prompts.link agent=all                   # link every agent's commands/prompts directory
+make agents.prompts.unlink agent=claude-code         # remove a managed prompts link
 
 # md
-make agents.md.link AGENT=claude-code                # link CLAUDE.md -> AGENTS.md
-make agents.md.link AGENT=all                        # link every link-class agent's private guide file
-make agents.md.unlink AGENT=claude-code              # remove a managed AGENTS.md link
+make agents.md.link agent=claude-code                # link CLAUDE.md -> AGENTS.md
+make agents.md.link agent=all                        # link every link-class agent's private guide file
+make agents.md.unlink agent=claude-code              # remove a managed AGENTS.md link
 ```
 
 ### Interactive mode
 
-All interactive entry points (the `agents` aggregate command and every `agents.<resource>.<action>` subcommand) are driven by [charmbracelet/huh](https://github.com/charmbracelet/huh): use the **arrow keys** to navigate, **space** to toggle multi-select rows, **enter** to confirm, **type** to filter, and **Esc** / **Ctrl+C** to cancel. CI and piped invocations remain non-interactive: `agents` prints a usage hint, `agents.<resource>.link` falls back to a read-only listing, and `agents.<resource>.unlink` requires an explicit `AGENT=` value.
+All interactive entry points (the `agents` aggregate command and every `agents.<resource>.<action>` subcommand) are driven by [charmbracelet/huh](https://github.com/charmbracelet/huh): use the **arrow keys** to navigate, **space** to toggle multi-select rows, **enter** to confirm, **type** to filter, and **Esc** / **Ctrl+C** to cancel. CI and piped invocations remain non-interactive: `agents` prints a usage hint, `agents.<resource>.link` falls back to a read-only listing, and `agents.<resource>.unlink` requires an explicit `agent=` value.
 
 Option labels follow two different conventions depending on the prompt:
 
-- The aggregate `agents` command's "pick an agent" step is a single-select across the cross-resource registry. Each option embeds the agent name plus a **resource roles summary with runtime status glyphs** (e.g. `claude-code (Claude Code) — skills: link[+], prompts: link[!], md: link[+]`) so you can see at a glance which resource types the chosen agent will touch and whether each one is already linked. Link-class resources show the runtime glyph; `native` resources are listed without a glyph (no work needed); unregistered resources are omitted.
+- The aggregate `agents` command's "pick an agent" step is a single-select across the cross-resource registry. Each option shows only the human-readable agent name (for example `Claude Code`, `Codex`, `Cursor`) so the picker stays compact. The result table printed after confirmation lists which resources were applied or skipped.
 - Per-resource subcommands (`agents.<resource>.<action>`) operate within a single resource and embed a **single-character status glyph** plus a short descriptor (e.g. `[~] claude-code  (mismatch)`) so you can see each candidate's current binding state without leaving the prompt.
 
 Status glyphs embedded in per-resource option labels:
@@ -166,11 +167,11 @@ Status glyphs embedded in per-resource option labels:
 
 - `native` — agent reads the canonical source path directly. No symlink needed (e.g. for skills: `cursor`, `gemini-cli`, `codex`; for md: every agent that natively reads `AGENTS.md`).
 - `link` — agent uses a different project path. A relative symlink to the canonical source is created on demand.
-- `rootCollision` — project path is a bare repo-root name (only `skills/`, used by `openclaw`). Skipped by default; pass `AGENT=openclaw FORCE=1` to opt in. Does not apply to prompts or md resources.
+- `rootCollision` — project path is a bare repo-root name (only `skills/`, used by `openclaw`). Skipped by default; pass `agent=openclaw force=1` to opt in. Does not apply to prompts or md resources.
 
 > **Fallback behaviour for `md`:** some agents auto-fall back to `AGENTS.md` when their preferred private guide file (e.g. `CODEBUDDY.md`, `CLAUDE.md`) is absent. CodeBuddy is one such agent — Tencent's docs state it prefers `CODEBUDDY.md` but loads `AGENTS.md` automatically when no `CODEBUDDY.md` is present. Agents with a documented automatic fallback are registered as `native` so cloned repositories work zero-config; agents whose preferred file is the *only* path they read are registered as `link` so you can opt into a symlink. See the inline comments in `internal/agents/md/md_agents.go` for the source-of-truth citation behind every entry.
 
-Real directories or files at the target path are never auto-removed, even with `FORCE=1`. `FORCE=1` only rebuilds symlinks that already exist but point at a non-managed target. Per-tool skills and prompts symlinks are listed in `.gitignore`, so creating them locally does not pollute the repository.
+Real directories or files at the target path are never auto-removed, even with `force=1`. `force=1` only rebuilds symlinks that already exist but point at a non-managed target. Per-tool skills and prompts symlinks are listed in `.gitignore`, so creating them locally does not pollute the repository.
 
 ### Migration from `make skills.*`
 
@@ -180,10 +181,10 @@ The old `make skills` / `make skills.link` / `make skills.unlink` targets and th
 | --- | --- |
 | `make skills` | `make agents` |
 | `make skills.link` | `make agents.skills.link` |
-| `make skills.link AGENT=<name>` | `make agents.skills.link AGENT=<name>` |
-| `make skills.link AGENT=all FORCE=1` | `make agents.skills.link AGENT=all FORCE=1` |
+| `make skills.link AGENT=<name>` | `make agents.skills.link agent=<name>` |
+| `make skills.link AGENT=all FORCE=1` | `make agents.skills.link agent=all force=1` |
 | `make skills.unlink` | `make agents.skills.unlink` |
-| `make skills.unlink AGENT=<name>` | `make agents.skills.unlink AGENT=<name>` |
+| `make skills.unlink AGENT=<name>` | `make agents.skills.unlink agent=<name>` |
 | `linactl skills` | `linactl agents` |
 | `linactl skills.link` | `linactl agents.skills.link` |
 | `linactl skills.unlink` | `linactl agents.skills.unlink` |

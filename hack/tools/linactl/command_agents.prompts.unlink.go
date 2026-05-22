@@ -1,7 +1,7 @@
 // This file implements the agents.prompts.unlink command which removes
-// managed directory symlinks pointing at canonical .agents/prompts/...
-// source directories. It never removes real directories or files and
-// never touches symlinks pointing at foreign targets.
+// managed directory symlinks pointing at canonical .agents/prompts. It
+// never removes real directories or files and never touches symlinks
+// pointing at foreign targets.
 
 package main
 

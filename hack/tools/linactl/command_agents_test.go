@@ -148,14 +148,44 @@ func TestCollectAgentUniverseMergesAcrossRegistries(t *testing.T) {
 	t.Fatalf("claude-code not found in universe")
 }
 
+func TestSelectableAgentOptionLabelUsesDisplayNameOnly(t *testing.T) {
+	universe := collectAgentUniverse(t.TempDir())
+	cases := map[string]string{
+		"claude-code": "Claude Code",
+		"codex":       "Codex",
+		"cursor":      "Cursor",
+	}
+	for name, want := range cases {
+		t.Run(name, func(t *testing.T) {
+			agent, ok := lookupAgent(universe, name)
+			if !ok {
+				t.Fatalf("agent %q not found in universe", name)
+			}
+			got := agent.optionLabel()
+			if got != want {
+				t.Fatalf("optionLabel(%q) got=%q want=%q", name, got, want)
+			}
+			for _, forbidden := range []string{name, "skills:", "prompts:", "md:", "link", "native", "["} {
+				if strings.Contains(got, forbidden) {
+					t.Fatalf("option label %q should not include internal fragment %q", got, forbidden)
+				}
+			}
+		})
+	}
+}
+
 func TestValidateSingleAgentName(t *testing.T) {
 	universe := collectAgentUniverse(t.TempDir())
 	cases := []struct {
 		name    string
 		input   string
+		want    string
 		wantErr bool
 	}{
-		{name: "valid claude-code", input: "claude-code", wantErr: false},
+		{name: "valid claude-code", input: "claude-code", want: "claude-code", wantErr: false},
+		{name: "valid ClaudeCode", input: "ClaudeCode", want: "claude-code", wantErr: false},
+		{name: "valid Claude Code", input: "Claude Code", want: "claude-code", wantErr: false},
+		{name: "valid claude_code", input: "claude_code", want: "claude-code", wantErr: false},
 		{name: "empty", input: "", wantErr: true},
 		{name: "literal all", input: "all", wantErr: true},
 		{name: "case-insensitive all", input: "ALL", wantErr: true},
@@ -174,10 +204,30 @@ func TestValidateSingleAgentName(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error for %q: %v", testCase.input, err)
 			}
-			if got != testCase.input {
-				t.Fatalf("validate(%q) returned %q", testCase.input, got)
+			if got != testCase.want {
+				t.Fatalf("validate(%q) got=%q want=%q", testCase.input, got, testCase.want)
 			}
 		})
+	}
+}
+
+func TestRunAgentsNormalizesOneShotAgentName(t *testing.T) {
+	a, stdout := newTestApp(t)
+	if err := runAgents(context.Background(), a, commandInput{Params: map[string]string{"agent": "ClaudeCode"}}); err != nil {
+		t.Fatalf("runAgents normalized: %v", err)
+	}
+	output := stdout.String()
+	for _, fragment := range []string{
+		"Agent: Claude Code",
+		"Action: link",
+		"RESOURCE",
+		"skills",
+		"prompts",
+		"md",
+	} {
+		if !strings.Contains(output, fragment) {
+			t.Fatalf("normalized one-shot output missing %q; got %q", fragment, output)
+		}
 	}
 }
 
@@ -288,10 +338,9 @@ func TestRunAgentsRejectsBadAction(t *testing.T) {
 	}
 }
 
-// TestDispatchAgentSetupSkipsResourcesNotRegistered verifies the
-// dispatcher gracefully skips resources where the agent is not
-// registered (e.g. claude-code is not in prompts? actually it is in
-// prompts; pick an agent only in skills to assert skip).
+// TestDispatchAgentSetupRendersCompactTable verifies the aggregate
+// dispatcher prints one compact resource-level table instead of the
+// verbose per-resource tables used by agents.skills/prompts/md commands.
 func TestDispatchAgentSetupSkipsUnregisteredResources(t *testing.T) {
 	a, stdout := newTestApp(t)
 	universe := collectAgentUniverse(a.root)
@@ -303,19 +352,30 @@ func TestDispatchAgentSetupSkipsUnregisteredResources(t *testing.T) {
 		t.Skipf("expected %q in universe; got %v", target, universe)
 	}
 
-	// We expect no error in non-TTY because executeAgentsSkillsLink
-	// will return after rendering its own table; the temp dir has no
+	// We expect no error in non-TTY because the temp dir has no
 	// pre-existing collisions, so a fresh symlink should be created.
 	if err := dispatchAgentSetup(a, target, actionLink, false, universe); err != nil {
 		t.Fatalf("dispatchAgentSetup: %v", err)
 	}
 	output := stdout.String()
-	if !strings.Contains(output, "Summary:") {
-		t.Fatalf("expected summary block; got %q", output)
+	for _, fragment := range []string{
+		"Agent: CodeBuddy",
+		"Action: link",
+		"RESOURCE",
+		"STATUS",
+		"DETAIL",
+		"skills",
+		"applied",
+		"skipped",
+		"not registered",
+	} {
+		if !strings.Contains(output, fragment) {
+			t.Fatalf("expected compact output to contain %q; got %q", fragment, output)
+		}
 	}
-	// At least one of prompts/md must be reported as skipped because
-	// codebuddy has no registration there.
-	if !strings.Contains(output, "skipped") {
-		t.Fatalf("expected at least one resource to be reported as skipped; got %q", output)
+	for _, forbidden := range []string{"Summary:", "== skills ==", "PROJECT PATH", "CATEGORY"} {
+		if strings.Contains(output, forbidden) {
+			t.Fatalf("compact aggregate output should not contain %q; got %q", forbidden, output)
+		}
 	}
 }

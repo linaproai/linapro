@@ -36,7 +36,7 @@ func init() {
 }
 
 func TestParseCommandInputSupportsMakeStyleParams(t *testing.T) {
-	input, err := parseCommandInput([]string{"confirm=init", "rebuild=true", "--platforms=linux/amd64,linux/arm64", "-h", "extra"})
+	input, err := parseCommandInput([]string{"confirm=init", "rebuild=true", "--platforms=linux/amd64,linux/arm64", "AGENT=ClaudeCode", "-h", "extra"})
 	if err != nil {
 		t.Fatalf("parseCommandInput returned error: %v", err)
 	}
@@ -53,6 +53,9 @@ func TestParseCommandInputSupportsMakeStyleParams(t *testing.T) {
 	input.Params["base_image"] = "alpine"
 	if input.Get("base-image") != "alpine" {
 		t.Fatalf("hyphenated key did not resolve normalized parameter")
+	}
+	if input.Get("agent") != "ClaudeCode" {
+		t.Fatalf("upper-case key did not resolve normalized parameter")
 	}
 	if !input.HasBool("h") {
 		t.Fatalf("expected -h to be parsed as true")

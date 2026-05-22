@@ -173,7 +173,7 @@ func PromptSingleSelection(in io.Reader, out io.Writer, title string, options []
 		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title(title).
-				Description("Use arrow keys to navigate, enter to confirm, Esc to cancel.").
+				Description("Arrow keys to navigate, Enter to confirm, Esc to cancel, any key to search.").
 				Options(huhOptions...).
 				Filtering(true).
 				Value(&chosen),

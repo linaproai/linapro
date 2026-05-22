@@ -81,6 +81,7 @@ func TestParseSelectors(t *testing.T) {
 		{input: "claude-code", want: []string{"claude-code"}},
 		{input: "claude-code,codebuddy", want: []string{"claude-code", "codebuddy"}},
 		{input: " claude-code , , qoder ", want: []string{"claude-code", "qoder"}},
+		{input: " ClaudeCode , qwen_code ", want: []string{"claude-code", "qwen-code"}},
 		{input: "all", want: []string{"all"}},
 	}
 	for _, testCase := range cases {

@@ -15,8 +15,8 @@ import (
 )
 
 // newRepoFixture creates an isolated repository root with the canonical
-// .agents/prompts/opsx source directory populated. It returns the
-// absolute repo root.
+// .agents/prompts source directory populated. It returns the absolute
+// repo root.
 func newRepoFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -79,7 +79,7 @@ func TestApplyLinkCreatesAndIsIdempotent(t *testing.T) {
 	if len(results) != 1 || results[0].Status != common.StatusCreated {
 		t.Fatalf("expected created, got %+v", results)
 	}
-	link := filepath.Join(root, ".claude", "commands", "opsx")
+	link := filepath.Join(root, ".claude", "commands")
 	info, err := os.Lstat(link)
 	if err != nil || info.Mode()&os.ModeSymlink == 0 {
 		t.Fatalf("expected symlink at %s, err=%v info=%+v", link, err, info)
@@ -88,9 +88,12 @@ func TestApplyLinkCreatesAndIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("readlink: %v", err)
 	}
-	// Relative target should walk up from .claude/commands/ to .agents/prompts/opsx.
-	if filepath.ToSlash(target) != "../../.agents/prompts/opsx" {
+	// Relative target should walk up from .claude/ to .agents/prompts.
+	if filepath.ToSlash(target) != "../.agents/prompts" {
 		t.Fatalf("unexpected relative target %s", target)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".claude", "commands", "opsx")); err != nil {
+		t.Fatalf("opsx catalog should be visible through parent link: %v", err)
 	}
 
 	again, err := ApplyLink(root, LinkRequest{Selectors: []string{"claude-code"}})
@@ -120,7 +123,7 @@ func TestApplyLinkAllExpandsToLinkClass(t *testing.T) {
 
 func TestApplyLinkMismatchRequiresForce(t *testing.T) {
 	root := newRepoFixture(t)
-	link := filepath.Join(root, ".claude", "commands", "opsx")
+	link := filepath.Join(root, ".claude", "commands")
 	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
 		t.Fatalf("mkdir parent: %v", err)
 	}
@@ -149,7 +152,7 @@ func TestApplyLinkMismatchRequiresForce(t *testing.T) {
 
 func TestApplyLinkConflictNeverDeletes(t *testing.T) {
 	root := newRepoFixture(t)
-	conflict := filepath.Join(root, ".claude", "commands", "opsx")
+	conflict := filepath.Join(root, ".claude", "commands")
 	if err := os.MkdirAll(conflict, 0o755); err != nil {
 		t.Fatalf("mkdir conflict: %v", err)
 	}
@@ -180,13 +183,13 @@ func TestApplyUnlinkOnlyManagedLinks(t *testing.T) {
 	if err := os.MkdirAll(otherTarget, 0o755); err != nil {
 		t.Fatalf("mkdir elsewhere: %v", err)
 	}
-	cursorLink := filepath.Join(root, ".cursor", "commands", "opsx")
+	cursorLink := filepath.Join(root, ".cursor", "commands")
 	if err := os.MkdirAll(filepath.Dir(cursorLink), 0o755); err != nil {
 		t.Fatalf("mkdir cursor parent: %v", err)
 	}
 	trySymlink(t, otherTarget, cursorLink)
 	// Real directory for codex must be preserved.
-	codexReal := filepath.Join(root, ".codex", "prompts", "opsx")
+	codexReal := filepath.Join(root, ".codex", "prompts")
 	if err := os.MkdirAll(codexReal, 0o755); err != nil {
 		t.Fatalf("mkdir codex real: %v", err)
 	}

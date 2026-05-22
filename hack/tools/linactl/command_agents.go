@@ -66,12 +66,16 @@ type selectableAgent struct {
 	// in. A resource not present in the map means the agent is not
 	// registered there.
 	Roles map[resourceKind]common.Category
-	// RuntimeStatus records the current binding state for each resource
-	// the agent participates in (only populated for link-class
-	// resources; native / unregistered resources are absent from the
-	// map). Used by the interactive picker to surface "is this agent
-	// already configured?" without a separate listing step.
-	RuntimeStatus map[resourceKind]common.Status
+}
+
+// optionLabel returns the compact label shown in the aggregate TTY agent
+// picker. The picker intentionally hides internal IDs, resource paths and
+// status summaries; those remain available in the per-resource commands.
+func (s selectableAgent) optionLabel() string {
+	if label := strings.TrimSpace(s.DisplayName); label != "" {
+		return label
+	}
+	return s.Name
 }
 
 // hasLinkRole reports whether the agent has at least one resource where
@@ -84,28 +88,6 @@ func (s selectableAgent) hasLinkRole() bool {
 		}
 	}
 	return false
-}
-
-// summary builds a short human-readable role description for the agent
-// (e.g. "skills: link[+], prompts: link[+], md: link[~]") used inside
-// huh option labels so users can see at a glance which resource types
-// each agent will actually touch and whether each one is already
-// linked. Link-class resources include a runtime status glyph; native
-// resources are flagged with [.] (no work needed).
-func (s selectableAgent) summary() string {
-	parts := make([]string, 0, 3)
-	for _, kind := range []resourceKind{resourceSkills, resourcePrompts, resourceMd} {
-		category, present := s.Roles[kind]
-		if !present {
-			continue
-		}
-		segment := fmt.Sprintf("%s: %s", kind, category)
-		if status, ok := s.RuntimeStatus[kind]; ok {
-			segment = fmt.Sprintf("%s%s", segment, common.StatusGlyph(status))
-		}
-		parts = append(parts, segment)
-	}
-	return strings.Join(parts, ", ")
 }
 
 // writeLine prints a single line to the writer, wrapping any write error
@@ -187,9 +169,10 @@ func printAgentsUsage(out io.Writer) error {
 		"Usage: linactl agents [agent=<name>] [action=link|unlink] [force=1]",
 		"",
 		"One-shot mode (works in any environment):",
-		"  make agents AGENT=<name> [ACTION=link|unlink] [FORCE=1]",
-		"  - AGENT must name a single supported agent (no 'all', no csv).",
-		"  - ACTION defaults to 'link'.",
+		"  make agents agent=<name> [action=link|unlink] [force=1]",
+		"  - agent must name a single supported agent (no 'all', no csv).",
+		"  - action defaults to 'link'.",
+		"  - Upper-case AGENT/ACTION/FORCE aliases remain accepted for compatibility.",
 		"  - The selected action runs against every resource type the agent supports.",
 		"",
 		"Interactive mode (TTY only):",
@@ -225,17 +208,18 @@ func parseAgentSetupAction(raw string, fallback agentSetupAction) (agentSetupAct
 // listing in error messages is limited to the link-class universe so
 // users see only agents the aggregate command can actually drive.
 func validateSingleAgentName(raw string, universe []selectableAgent) (string, error) {
-	if raw == "" {
+	normalized := common.NormalizeAgentName(raw)
+	if normalized == "" {
 		return "", fmt.Errorf("agent= must be set; pass a single supported agent name")
 	}
 	if strings.Contains(raw, ",") {
 		return "", fmt.Errorf("agent=%q: comma-separated lists are not supported by `linactl agents`; use the per-resource subcommands for batch operations", raw)
 	}
-	if strings.EqualFold(raw, common.SelectorAll) {
+	if normalized == common.SelectorAll {
 		return "", fmt.Errorf("agent=all is not supported by `linactl agents` (safety guard); pass a specific agent name")
 	}
 	for _, candidate := range universe {
-		if candidate.Name == raw {
+		if candidate.Name == normalized {
 			return candidate.Name, nil
 		}
 	}
@@ -302,23 +286,20 @@ func agentPriorityRank(name string) (int, bool) {
 // remaining agents falling back to alphabetical order for stable
 // output.
 //
-// repoRoot is used to inspect each link-class binding's current
-// runtime status (linked / mismatch / absent / conflict / ...), which
-// the interactive picker embeds in option labels so users can see
-// "is this agent already configured?" without leaving the prompt.
-// repoRoot may be empty, in which case runtime status inspection is
-// skipped (e.g. the non-interactive validator path).
-func collectAgentUniverse(repoRoot string) []selectableAgent {
+// The repoRoot parameter is intentionally unused. It remains in the
+// signature because callers already pass it and future registries may need
+// repository context, but the aggregate picker does not inspect runtime
+// link state while building its compact labels.
+func collectAgentUniverse(_ string) []selectableAgent {
 	universe := make(map[string]*selectableAgent)
 
-	upsert := func(name, display string, kind resourceKind, category common.Category, status common.Status, hasStatus bool) {
+	upsert := func(name, display string, kind resourceKind, category common.Category) {
 		entry, exists := universe[name]
 		if !exists {
 			entry = &selectableAgent{
-				Name:          name,
-				DisplayName:   display,
-				Roles:         map[resourceKind]common.Category{},
-				RuntimeStatus: map[resourceKind]common.Status{},
+				Name:        name,
+				DisplayName: display,
+				Roles:       map[resourceKind]common.Category{},
 			}
 			universe[name] = entry
 		}
@@ -326,37 +307,16 @@ func collectAgentUniverse(repoRoot string) []selectableAgent {
 			entry.DisplayName = display
 		}
 		entry.Roles[kind] = category
-		if hasStatus {
-			entry.RuntimeStatus[kind] = status
-		}
 	}
 
 	for _, spec := range skills.Agents() {
-		var status common.Status
-		hasStatus := false
-		if repoRoot != "" && spec.Category == common.CategoryLink {
-			status = skills.Inspect(repoRoot, spec).Status
-			hasStatus = true
-		}
-		upsert(spec.Name, spec.DisplayName, resourceSkills, spec.Category, status, hasStatus)
+		upsert(spec.Name, spec.DisplayName, resourceSkills, spec.Category)
 	}
 	for _, spec := range prompts.Agents() {
-		var status common.Status
-		hasStatus := false
-		if repoRoot != "" && spec.Category == common.CategoryLink {
-			status = prompts.Inspect(repoRoot, spec).Status
-			hasStatus = true
-		}
-		upsert(spec.Name, spec.DisplayName, resourcePrompts, spec.Category, status, hasStatus)
+		upsert(spec.Name, spec.DisplayName, resourcePrompts, spec.Category)
 	}
 	for _, spec := range md.Agents() {
-		var status common.Status
-		hasStatus := false
-		if repoRoot != "" && spec.Category == common.CategoryLink {
-			status = md.Inspect(repoRoot, spec).Status
-			hasStatus = true
-		}
-		upsert(spec.Name, spec.DisplayName, resourceMd, spec.Category, status, hasStatus)
+		upsert(spec.Name, spec.DisplayName, resourceMd, spec.Category)
 	}
 
 	out := make([]selectableAgent, 0, len(universe))
@@ -395,14 +355,7 @@ func runAgentInteractiveMenu(a *app, universe []selectableAgent, force bool) err
 
 	options := make([]common.SingleOption, 0, len(universe))
 	for _, agent := range universe {
-		label := agent.Name
-		if agent.DisplayName != "" && agent.DisplayName != agent.Name {
-			label = fmt.Sprintf("%s (%s)", agent.Name, agent.DisplayName)
-		}
-		if summary := agent.summary(); summary != "" {
-			label = fmt.Sprintf("%s — %s", label, summary)
-		}
-		options = append(options, common.SingleOption{Value: agent.Name, Label: label})
+		options = append(options, common.SingleOption{Value: agent.Name, Label: agent.optionLabel()})
 	}
 
 	agentName, err := common.PromptSingleSelection(a.stdin, a.stdout, "Select an agent to configure:", options)
@@ -433,17 +386,10 @@ func runAgentInteractiveMenu(a *app, universe []selectableAgent, force bool) err
 }
 
 // dispatchAgentSetup executes the chosen action across every resource
-// type the agent participates in. For each resource:
-//   - link-class agent  -> delegate to executeAgentsXxxLink/Unlink
-//     (which renders the per-resource result table
-//     and emits hints internally).
-//   - native agent      -> record a skip with reason "native".
-//   - unregistered      -> record a skip with reason "not registered".
-//
-// A summary table of skipped resources is printed last. The function
-// returns the first per-resource error encountered (mirroring the
-// existing per-subcommand exit-code semantics: any HasError surfaces
-// as a non-zero exit).
+// type the agent participates in and renders a compact resource-level
+// summary. Per-resource commands still own the verbose path/category
+// tables; the aggregate command stays focused on the high-level outcome
+// for the selected agent.
 func dispatchAgentSetup(a *app, agentName string, action agentSetupAction, force bool, universe []selectableAgent) error {
 	target, ok := lookupAgent(universe, agentName)
 	if !ok {
@@ -454,103 +400,167 @@ func dispatchAgentSetup(a *app, agentName string, action agentSetupAction, force
 	}
 
 	if err := writeLines(a.stdout,
-		fmt.Sprintf("Running `%s` for agent %s across all supported resources...", action, target.Name),
+		fmt.Sprintf("Agent: %s", target.optionLabel()),
+		fmt.Sprintf("Action: %s", action),
 		"",
 	); err != nil {
 		return err
 	}
 
-	type resourceOutcome struct {
-		kind    resourceKind
-		err     error
-		skipped bool
-		reason  string
-	}
-	outcomes := make([]resourceOutcome, 0, 3)
+	outcomes := make([]aggregateResourceOutcome, 0, 3)
 	var firstErr error
-
-	runOne := func(kind resourceKind, runner func() error) {
-		if err := writeLine(a.stdout, fmt.Sprintf("== %s ==", kind)); err != nil {
-			outcomes = append(outcomes, resourceOutcome{kind: kind, err: err})
-			if firstErr == nil {
-				firstErr = err
-			}
-			return
-		}
-		if err := runner(); err != nil {
-			outcomes = append(outcomes, resourceOutcome{kind: kind, err: err})
-			if firstErr == nil {
-				firstErr = err
-			}
-			return
-		}
-		outcomes = append(outcomes, resourceOutcome{kind: kind})
-		_ = writeLine(a.stdout, "")
-	}
 
 	for _, kind := range []resourceKind{resourceSkills, resourcePrompts, resourceMd} {
 		category, present := target.Roles[kind]
 		if !present {
-			outcomes = append(outcomes, resourceOutcome{kind: kind, skipped: true, reason: "not registered"})
+			outcomes = append(outcomes, aggregateResourceOutcome{
+				kind:   kind,
+				status: aggregateStatusSkipped,
+				detail: "not registered",
+			})
 			continue
 		}
 		if category != common.CategoryLink {
-			outcomes = append(outcomes, resourceOutcome{kind: kind, skipped: true, reason: fmt.Sprintf("%s (no symlink work)", category)})
+			outcomes = append(outcomes, aggregateResourceOutcome{
+				kind:   kind,
+				status: aggregateStatusSkipped,
+				detail: fmt.Sprintf("%s (no symlink work)", category),
+			})
 			continue
 		}
-		runOne(kind, func() error {
-			return runResourceAction(a, kind, agentName, action, force)
-		})
+		results, err := runAggregateResourceAction(a, kind, agentName, action, force)
+		if err != nil {
+			outcomes = append(outcomes, aggregateResourceOutcome{
+				kind:   kind,
+				status: aggregateStatusFailed,
+				detail: err.Error(),
+			})
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		outcome := aggregateOutcomeFromResults(kind, results)
+		outcomes = append(outcomes, outcome)
+		if outcome.status == aggregateStatusFailed && firstErr == nil {
+			firstErr = fmt.Errorf("one or more agents failed; see result table")
+		}
 	}
 
-	if err := writeLine(a.stdout, "Summary:"); err != nil {
+	if err := renderAggregateOutcomes(a.stdout, outcomes); err != nil {
 		return err
-	}
-	for _, outcome := range outcomes {
-		switch {
-		case outcome.skipped:
-			if err := writeLine(a.stdout, fmt.Sprintf("  - %-7s skipped (%s)", outcome.kind, outcome.reason)); err != nil {
-				return err
-			}
-		case outcome.err != nil:
-			if err := writeLine(a.stdout, fmt.Sprintf("  - %-7s failed (%v)", outcome.kind, outcome.err)); err != nil {
-				return err
-			}
-		default:
-			if err := writeLine(a.stdout, fmt.Sprintf("  - %-7s applied", outcome.kind)); err != nil {
-				return err
-			}
-		}
 	}
 
 	return firstErr
 }
 
-// runResourceAction routes a single resource's link/unlink call to the
-// existing per-resource execute helpers. Keeping the dispatch concentrated
-// here means the aggregate command does not duplicate state-machine
-// logic from any subcommand.
-func runResourceAction(a *app, kind resourceKind, agentName string, action agentSetupAction, force bool) error {
+// aggregateResourceOutcome is one row in the aggregate agents result
+// table. status intentionally uses coarse values so the table stays
+// scannable; the original per-resource Status is included in detail.
+type aggregateResourceOutcome struct {
+	kind   resourceKind
+	status string
+	detail string
+}
+
+const (
+	aggregateStatusApplied = "applied"
+	aggregateStatusSkipped = "skipped"
+	aggregateStatusFailed  = "failed"
+)
+
+// runAggregateResourceAction executes one resource without rendering the
+// verbose per-resource table. The aggregate command renders its own
+// compact table after all resources have been processed.
+func runAggregateResourceAction(a *app, kind resourceKind, agentName string, action agentSetupAction, force bool) ([]common.Result, error) {
 	selectors := []string{agentName}
 	switch kind {
 	case resourceSkills:
 		if action == actionLink {
-			return executeAgentsSkillsLink(a, selectors, force)
+			return skills.ApplyLink(a.root, skills.LinkRequest{Selectors: selectors, Force: force})
 		}
-		return executeAgentsSkillsUnlink(a, selectors)
+		return skills.ApplyUnlink(a.root, skills.UnlinkRequest{Selectors: selectors})
 	case resourcePrompts:
 		if action == actionLink {
-			return executeAgentsPromptsLink(a, selectors, force)
+			return prompts.ApplyLink(a.root, prompts.LinkRequest{Selectors: selectors, Force: force})
 		}
-		return executeAgentsPromptsUnlink(a, selectors)
+		return prompts.ApplyUnlink(a.root, prompts.UnlinkRequest{Selectors: selectors})
 	case resourceMd:
 		if action == actionLink {
-			return executeAgentsMdLink(a, selectors, force)
+			return md.ApplyLink(a.root, md.LinkRequest{Selectors: selectors, Force: force})
 		}
-		return executeAgentsMdUnlink(a, selectors)
+		return md.ApplyUnlink(a.root, md.UnlinkRequest{Selectors: selectors})
 	default:
-		return fmt.Errorf("unsupported resource %q", kind)
+		return nil, fmt.Errorf("unsupported resource %q", kind)
 	}
+}
+
+// aggregateOutcomeFromResults converts a per-resource result list into
+// one coarse summary row. The aggregate command always resolves a single
+// agent, but the loop keeps the function robust if a future caller passes
+// more than one result.
+func aggregateOutcomeFromResults(kind resourceKind, results []common.Result) aggregateResourceOutcome {
+	if len(results) == 0 {
+		return aggregateResourceOutcome{kind: kind, status: aggregateStatusSkipped, detail: "no result"}
+	}
+	status := aggregateStatusApplied
+	parts := make([]string, 0, len(results))
+	for _, result := range results {
+		if result.Status == common.StatusError {
+			status = aggregateStatusFailed
+		} else if status != aggregateStatusFailed && !aggregateResultApplied(result.Status) {
+			status = aggregateStatusSkipped
+		}
+		detail := string(result.Status)
+		if trimmed := strings.TrimSpace(result.Detail); trimmed != "" {
+			detail = fmt.Sprintf("%s: %s", result.Status, trimmed)
+		}
+		parts = append(parts, detail)
+	}
+	return aggregateResourceOutcome{
+		kind:   kind,
+		status: status,
+		detail: strings.Join(parts, "; "),
+	}
+}
+
+// aggregateResultApplied reports whether a per-resource status represents
+// successful application or an already-satisfied binding.
+func aggregateResultApplied(status common.Status) bool {
+	switch status {
+	case common.StatusOK, common.StatusCreated, common.StatusRebuilt, common.StatusRemoved:
+		return true
+	default:
+		return false
+	}
+}
+
+// renderAggregateOutcomes writes the compact aggregate result table.
+func renderAggregateOutcomes(out io.Writer, outcomes []aggregateResourceOutcome) error {
+	const (
+		columnResource = "RESOURCE"
+		columnStatus   = "STATUS"
+		columnDetail   = "DETAIL"
+	)
+	maxResource := len(columnResource)
+	maxStatus := len(columnStatus)
+	for _, outcome := range outcomes {
+		if width := len(string(outcome.kind)); width > maxResource {
+			maxResource = width
+		}
+		if width := len(outcome.status); width > maxStatus {
+			maxStatus = width
+		}
+	}
+	if _, err := fmt.Fprintf(out, "%-*s  %-*s  %s\n", maxResource, columnResource, maxStatus, columnStatus, columnDetail); err != nil {
+		return fmt.Errorf("write aggregate header: %w", err)
+	}
+	for _, outcome := range outcomes {
+		if _, err := fmt.Fprintf(out, "%-*s  %-*s  %s\n", maxResource, outcome.kind, maxStatus, outcome.status, outcome.detail); err != nil {
+			return fmt.Errorf("write aggregate row: %w", err)
+		}
+	}
+	return nil
 }
 
 // lookupAgent finds a selectableAgent by name in the universe slice.

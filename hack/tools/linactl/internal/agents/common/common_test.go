@@ -18,12 +18,12 @@ type fakeSpec struct {
 	category Category
 }
 
-func (s fakeSpec) SpecName() string         { return s.name }
-func (s fakeSpec) SpecDisplayName() string  { return s.name }
-func (s fakeSpec) SpecCategory() Category   { return s.category }
-func (s fakeSpec) SpecSourcePath() string   { return ".source" }
-func (s fakeSpec) SpecProjectPath() string  { return ".project" }
-func (s fakeSpec) SpecKind() Kind           { return KindDir }
+func (s fakeSpec) SpecName() string        { return s.name }
+func (s fakeSpec) SpecDisplayName() string { return s.name }
+func (s fakeSpec) SpecCategory() Category  { return s.category }
+func (s fakeSpec) SpecSourcePath() string  { return ".source" }
+func (s fakeSpec) SpecProjectPath() string { return ".project" }
+func (s fakeSpec) SpecKind() Kind          { return KindDir }
 
 func makeFakeRegistry() []fakeSpec {
 	return []fakeSpec{
@@ -69,6 +69,56 @@ func TestResolveTargetsUnknownAgentReturnsError(t *testing.T) {
 	registry := makeFakeRegistry()
 	if _, err := ResolveTargets([]string{"no-such-agent"}, registry, TargetPolicy{}); err == nil {
 		t.Fatalf("expected unknown agent error")
+	}
+}
+
+func TestNormalizeAgentName(t *testing.T) {
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{input: "", want: ""},
+		{input: "  ", want: ""},
+		{input: "claude-code", want: "claude-code"},
+		{input: "ClaudeCode", want: "claude-code"},
+		{input: "Claude Code", want: "claude-code"},
+		{input: "claude_code", want: "claude-code"},
+		{input: "QwenCode", want: "qwen-code"},
+	}
+	for _, testCase := range cases {
+		if got := NormalizeAgentName(testCase.input); got != testCase.want {
+			t.Fatalf("NormalizeAgentName(%q) got=%q want=%q", testCase.input, got, testCase.want)
+		}
+	}
+}
+
+func TestParseSelectorsNormalizesAgentNames(t *testing.T) {
+	got := ParseSelectors(" ClaudeCode , qwen_code , Claude Code ")
+	want := []string{"claude-code", "qwen-code", "claude-code"}
+	if len(got) != len(want) {
+		t.Fatalf("ParseSelectors length got=%v want=%v", got, want)
+	}
+	for index := range got {
+		if got[index] != want[index] {
+			t.Fatalf("ParseSelectors[%d] got=%q want=%q", index, got[index], want[index])
+		}
+	}
+}
+
+func TestResolveTargetsNormalizesExplicitNames(t *testing.T) {
+	registry := []fakeSpec{
+		{name: "claude-code", category: CategoryLink},
+		{name: "qwen-code", category: CategoryLink},
+	}
+	got, err := ResolveTargets([]string{"ClaudeCode", "qwen_code", "Claude Code"}, registry, TargetPolicy{})
+	if err != nil {
+		t.Fatalf("ResolveTargets normalized explicit: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected de-duplicated 2 specs, got %d: %v", len(got), got)
+	}
+	if got[0].SpecName() != "claude-code" || got[1].SpecName() != "qwen-code" {
+		t.Fatalf("expected sorted normalized output, got %v", got)
 	}
 }
 

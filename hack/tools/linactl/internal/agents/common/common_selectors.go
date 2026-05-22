@@ -11,6 +11,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/gogf/gf/v2/text/gstr"
 )
 
 // SelectorAll is the special selector value that targets every link-class
@@ -29,13 +31,24 @@ func ParseSelectors(value string) []string {
 	parts := strings.Split(value, ",")
 	out := make([]string, 0, len(parts))
 	for _, part := range parts {
-		token := strings.TrimSpace(part)
+		token := NormalizeAgentName(part)
 		if token == "" {
 			continue
 		}
 		out = append(out, token)
 	}
 	return out
+}
+
+// NormalizeAgentName converts user-facing agent selector input to the
+// canonical kebab-case identifier used by registries. It accepts common
+// variants such as "ClaudeCode", "Claude Code" and "claude_code".
+func NormalizeAgentName(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	return gstr.CaseKebab(value)
 }
 
 // TargetPolicy controls which agent categories an "all" selector expands
@@ -60,7 +73,8 @@ func ResolveTargets[S SpecLike](selectors []string, registry []S, policy TargetP
 	if len(selectors) == 0 {
 		return nil, nil
 	}
-	if hasAll(selectors) {
+	normalizedSelectors := normalizeSelectors(selectors)
+	if hasAll(normalizedSelectors) {
 		out := make([]S, 0, len(registry))
 		for _, spec := range registry {
 			switch spec.SpecCategory() {
@@ -82,10 +96,10 @@ func ResolveTargets[S SpecLike](selectors []string, registry []S, policy TargetP
 	for _, spec := range registry {
 		byName[spec.SpecName()] = spec
 	}
-	seen := make(map[string]struct{}, len(selectors))
-	out := make([]S, 0, len(selectors))
+	seen := make(map[string]struct{}, len(normalizedSelectors))
+	out := make([]S, 0, len(normalizedSelectors))
 	var unknown []string
-	for _, name := range selectors {
+	for _, name := range normalizedSelectors {
 		if _, exists := seen[name]; exists {
 			continue
 		}
@@ -109,4 +123,18 @@ func ResolveTargets[S SpecLike](selectors []string, registry []S, policy TargetP
 // hasAll reports whether a selector list contains SelectorAll.
 func hasAll(selectors []string) bool {
 	return slices.Contains(selectors, SelectorAll)
+}
+
+// normalizeSelectors applies NormalizeAgentName to a selector list while
+// preserving input order and dropping empty tokens.
+func normalizeSelectors(selectors []string) []string {
+	out := make([]string, 0, len(selectors))
+	for _, selector := range selectors {
+		normalized := NormalizeAgentName(selector)
+		if normalized == "" {
+			continue
+		}
+		out = append(out, normalized)
+	}
+	return out
 }
