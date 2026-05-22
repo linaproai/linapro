@@ -86,15 +86,15 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
    - 时间点字段的 `dc` 或接口文档必须包含 `Unix timestamp in milliseconds` 单位说明
    - `birthday`、`businessDate`、`periodDate` 等只表示日历日期的字段可以使用 `YYYY-MM-DD` 字符串，但必须在 `dc` 或接口文档中明确 `date-only` 语义
 4. `API` 文档国际化合规性：
-   - 参与 `i18n` 资源治理的宿主与源码插件（`i18n.enabled=true`）中，`g.Meta` 和手写的 `DTO` 文档标签必须使用可读的英文源文本；未配置 `i18n` 或 `i18n.enabled` 不是 `true` 的源码插件可以按自身源内容语言编写源文本；所有场景都禁止使用不透明的国际化占位符
+   - 宿主 API 文档按宿主 `i18n` 配置治理；插件 API 文档必须先读取插件自己的 `plugin.yaml`，只有插件显式配置 `i18n.enabled: true` 时，`g.Meta` 和手写的 `DTO` 文档标签才必须使用可读的英文源文本并进入插件自身 `apidoc` 翻译检查；未配置 `i18n`、缺少 `enabled` 或 `i18n.enabled` 不是 `true` 的插件可以按自身源内容语言编写源文本；所有场景都禁止使用不透明的国际化占位符
    - 接口文档本地化必须使用专用的 `apidoc i18n JSON` 资源，与运行时前端 `UI` 的 `i18n` 语言包隔离
-   - 必须使用稳定的结构化 `apidoc` 键而非源文本键；宿主 `core.*` `apidoc` 键保留在 `lina-core` 资源中，插件 `plugins.*` `apidoc` 键保留在各插件自己的 `manifest/i18n/<locale>/apidoc/**/*.json` 中
-   - 宿主与源码插件的语言判断必须读取各自的 `i18n.default`、`i18n.enabled`、`i18n.locales` 配置；源码插件 `plugin.yaml` 缺少 `i18n` 或 `i18n.enabled` 不是 `true` 时表示不支持 `i18n` 治理
-   - 只有对应源码插件的 `plugin.yaml` 显式配置 `i18n.enabled: true` 时，才按 `i18n.default` 和 `i18n.locales` 检查或补齐该插件自身的 `manifest/i18n` 与 `apidoc i18n JSON` 资源
-   - 参与 `i18n` 资源治理时，`en-US` `apidoc JSON` 文件保留为空占位符（英文文档直接使用源文本）
+   - 必须使用稳定的结构化 `apidoc` 键而非源文本键；宿主 `core.*` `apidoc` 键保留在 `lina-core` 资源中，启用 `i18n.enabled: true` 的插件 `plugins.*` `apidoc` 键保留在各插件自己的 `manifest/i18n/<locale>/apidoc/**/*.json` 中，未启用 i18n 的插件不得被要求补这些插件翻译资源
+   - 宿主与插件的语言判断必须读取各自的 `i18n.enabled`、`i18n.locales` 配置；插件 `plugin.yaml` 缺少 `i18n` 或 `i18n.enabled` 不是 `true` 时表示不支持 `i18n` 治理
+   - 只有对应插件的 `plugin.yaml` 显式配置 `i18n.enabled: true` 时，才按 `i18n.locales` 检查或补齐该插件自身的 `manifest/i18n` 与 `apidoc i18n JSON` 资源
+   - 宿主或显式启用 i18n 的插件参与 `i18n` 资源治理时，`en-US` `apidoc JSON` 文件保留为空占位符（英文文档直接使用源文本）；未启用 i18n 的插件不要求提供空占位文件
    - 禁止为 `internal.model.entity.*` 等生成的 `Schema` 元数据添加服务层中英文回退映射或 `apidoc JSON` 映射
    - 生成的元数据按数据源原文展示；`eg/example` 示例值不翻译且不纳入 `apidoc i18n` 资源
-   - 参与 `i18n` 资源治理时，必须包含测试或审查检查以防止英文源文本变更时遗漏非英文 `apidoc` 翻译
+   - 宿主或显式启用 i18n 的插件参与 `i18n` 资源治理时，必须包含测试或审查检查以防止英文源文本变更时遗漏非英文 `apidoc` 翻译；未启用 i18n 的插件跳过该翻译完整性约束
 
 ### 5. 项目规范审查
 
@@ -209,12 +209,12 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 
 对每个功能变更，还需执行**国际化影响审查**：
 1. 识别变更是否新增、修改或删除了用户可见的文本、菜单、路由、按钮、表单字段、表格列、状态标签、提示信息、校验/错误信息、`API` 文档、插件清单、种子数据标签或其他本地化内容。
-2. 验证对应的 `i18n JSON` 资源是否已按需新增、更新或删除，包括前端运行时语言包、宿主/插件 `manifest/i18n` 资源以及专用的 `apidoc i18n JSON` 文件。
-3. 宿主与源码插件的语言判断必须读取各自的 `i18n.default`、`i18n.enabled`、`i18n.locales` 配置；源码插件 `plugin.yaml` 缺少 `i18n` 或 `i18n.enabled` 不是 `true` 时表示不支持 `i18n` 治理。
-4. 只有对应源码插件的 `plugin.yaml` 显式配置 `i18n.enabled: true` 时，才按 `i18n.default` 和 `i18n.locales` 检查或补齐该插件自身的 `manifest/i18n` 与 `apidoc i18n JSON` 资源。
-5. AI、脚手架或人工生成插件代码、文档、菜单、接口源文本和示例数据时，必须优先读取宿主或插件的 `i18n.default` 作为源内容语言，并根据 `i18n.enabled` 与 `i18n.locales` 决定是否生成多语言资源。
-6. 标记硬编码的用户界面文本、缺失的翻译键、功能删除后遗留的失效/孤立翻译条目，以及未明确评估 i18n 影响的变更。
-7. 如果变更无 `i18n` 影响，要求审查结果中明确说明该结论。
+2. 先区分宿主与插件的治理边界。宿主能力始终按宿主 `i18n.enabled`、`i18n.locales` 配置验证前端运行时语言包、宿主 `manifest/i18n` 资源以及宿主 `apidoc i18n JSON`。
+3. 插件必须先读取自身 `plugin.yaml`。只有插件显式配置 `i18n.enabled: true` 时，才按该插件的 `i18n.locales` 检查或补齐插件自己的 `manifest/i18n` 与 `apidoc i18n JSON` 资源。
+4. 插件 `plugin.yaml` 缺少 `i18n`、缺少 `enabled` 或 `i18n.enabled` 不是 `true` 时，必须视为单语言插件并跳过该插件自身的 `manifest/i18n` 与 `apidoc i18n JSON` 资源约束；审查不得要求这类插件补翻译键、空占位文件或多语言目录。
+5. AI、脚手架或人工生成内容时，启用 `i18n` 多语言特性必须使用英文作为源内容语言；未启用 `i18n` 的插件按用户指定语言或当前需求上下文语言生成单语言内容。
+6. 标记宿主或已启用 i18n 插件中的硬编码用户界面文本、缺失翻译键、功能删除后遗留的失效/孤立翻译条目，以及未明确评估 i18n 影响的变更；未启用 i18n 的插件只审查不透明占位符和明显错误的资源引用，不强制补多语言资源。
+7. 如果变更无 `i18n` 影响，或变更位于未启用 i18n 的插件且无需多语言资源，要求审查结果中明确说明该结论。
 
 **硬编码双语映射**
 
