@@ -11,15 +11,15 @@ import (
 
 // I18nConfig holds runtime internationalization settings loaded from config.yaml.
 type I18nConfig struct {
-	Default string             `json:"default"` // Default is used when a request locale is missing or unsupported.
-	Enabled bool               `json:"enabled"` // Enabled controls whether multiple runtime languages may be selected.
-	Locales []I18nLocaleConfig `json:"locales"` // Locales defines enabled runtime locale order and native names.
+	Default string             `json:"default" yaml:"default"` // Default is used when a request locale is missing or unsupported.
+	Enabled bool               `json:"enabled" yaml:"enabled"` // Enabled controls whether multiple runtime languages may be selected.
+	Locales []I18nLocaleConfig `json:"locales" yaml:"locales"` // Locales defines enabled runtime locale order and native names.
 }
 
 // I18nLocaleConfig stores metadata for one enabled runtime locale.
 type I18nLocaleConfig struct {
-	Locale     string `json:"locale"`     // Locale is the canonical locale code.
-	NativeName string `json:"nativeName"` // NativeName is the locale's own display name.
+	Locale     string `json:"locale" yaml:"locale"`         // Locale is the canonical locale code.
+	NativeName string `json:"nativeName" yaml:"nativeName"` // NativeName is the locale's own display name.
 }
 
 // GetI18n reads runtime internationalization config from configuration file.

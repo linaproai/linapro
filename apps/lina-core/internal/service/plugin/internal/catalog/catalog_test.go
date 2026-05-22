@@ -53,23 +53,39 @@ func TestValidatePluginManifestAcceptsMinimalSourcePlugin(t *testing.T) {
 // part of the framework manifest contract rather than test-only parsing.
 func TestLoadManifestFromYAMLReadsI18NPolicy(t *testing.T) {
 	cases := []struct {
-		name     string
-		content  string
-		disabled *bool
+		name        string
+		content     string
+		wantPolicy  bool
+		wantEnabled bool
+		wantDefault string
+		wantLocales []string
 	}{
 		{
-			name:    "missing policy stays managed",
-			content: "id: demo\nname: Demo\n",
+			name:        "missing policy opts out",
+			content:     "id: demo\nname: Demo\n",
+			wantEnabled: false,
 		},
 		{
-			name:     "disabled false stays managed",
-			content:  "id: demo\nname: Demo\ni18n:\n  disabled: false\n",
-			disabled: boolPtr(false),
+			name:        "enabled true opts in",
+			content:     "id: demo\nname: Demo\ni18n:\n  enabled: true\n  default: zh-CN\n  locales:\n    - locale: zh-CN\n      nativeName: 简体中文\n    - locale: en-US\n      nativeName: English\n",
+			wantPolicy:  true,
+			wantEnabled: true,
+			wantDefault: "zh-CN",
+			wantLocales: []string{"zh-CN", "en-US"},
 		},
 		{
-			name:     "disabled true opts out",
-			content:  "id: demo\nname: Demo\ni18n:\n  disabled: true\n",
-			disabled: boolPtr(true),
+			name:        "enabled false remains opted out",
+			content:     "id: demo\nname: Demo\ni18n:\n  enabled: false\n  default: zh-CN\n",
+			wantPolicy:  true,
+			wantEnabled: false,
+			wantDefault: "zh-CN",
+		},
+		{
+			name:        "missing enabled remains opted out",
+			content:     "id: demo\nname: Demo\ni18n:\n  default: zh-CN\n",
+			wantPolicy:  true,
+			wantEnabled: false,
+			wantDefault: "zh-CN",
 		},
 	}
 
@@ -84,17 +100,28 @@ func TestLoadManifestFromYAMLReadsI18NPolicy(t *testing.T) {
 			if err := testutil.NewServices().Catalog.LoadManifestFromYAML(manifestPath, manifest); err != nil {
 				t.Fatalf("expected manifest to load, got error: %v", err)
 			}
-			if item.disabled == nil {
+			if !item.wantPolicy {
 				if manifest.I18N != nil {
 					t.Fatalf("expected missing i18n policy to stay nil, got %#v", manifest.I18N)
 				}
-				return
+			} else if manifest.I18N == nil {
+				t.Fatal("expected i18n policy to be parsed")
 			}
-			if manifest.I18N == nil || manifest.I18N.Disabled == nil {
-				t.Fatalf("expected i18n.disabled to be parsed, got %#v", manifest.I18N)
+			if got := manifest.I18NEnabled(); got != item.wantEnabled {
+				t.Fatalf("unexpected i18n enabled value: got %v want %v", got, item.wantEnabled)
 			}
-			if *manifest.I18N.Disabled != *item.disabled {
-				t.Fatalf("unexpected i18n.disabled value: got %v want %v", *manifest.I18N.Disabled, *item.disabled)
+			if item.wantDefault != "" && manifest.I18N.Default != item.wantDefault {
+				t.Fatalf("unexpected i18n.default value: got %q want %q", manifest.I18N.Default, item.wantDefault)
+			}
+			if len(item.wantLocales) > 0 {
+				if len(manifest.I18N.Locales) != len(item.wantLocales) {
+					t.Fatalf("unexpected i18n.locales length: got %d want %d", len(manifest.I18N.Locales), len(item.wantLocales))
+				}
+				for index, wantLocale := range item.wantLocales {
+					if manifest.I18N.Locales[index].Locale != wantLocale {
+						t.Fatalf("unexpected i18n.locales[%d].locale: got %q want %q", index, manifest.I18N.Locales[index].Locale, wantLocale)
+					}
+				}
 			}
 		})
 	}

@@ -6,6 +6,7 @@ package catalog
 import (
 	"strings"
 
+	hostconfig "lina-core/internal/service/config"
 	"lina-core/pkg/menutype"
 	"lina-core/pkg/pluginbridge"
 	"lina-core/pkg/pluginhost"
@@ -38,15 +39,6 @@ func IsSupportedMenuType(value MenuType) bool {
 	return menutype.IsSupported(value)
 }
 
-// I18NPolicy declares whether a plugin participates in runtime and
-// API-documentation internationalization governance. Missing policy keeps the
-// plugin managed by default; authors must set disabled: true to opt out.
-type I18NPolicy struct {
-	// Disabled explicitly opts the plugin out of runtime and API-documentation
-	// i18n governance. Nil and false both keep the default managed behavior.
-	Disabled *bool `json:"disabled,omitempty" yaml:"disabled,omitempty"`
-}
-
 // Manifest defines plugin metadata loaded from plugin.yaml or wasm custom sections.
 type Manifest struct {
 	// ID is the unique kebab-case plugin identifier.
@@ -71,8 +63,9 @@ type Manifest struct {
 	Homepage string `yaml:"homepage"`
 	// License is an optional license identifier.
 	License string `yaml:"license"`
-	// I18N declares whether this plugin participates in i18n governance.
-	I18N *I18NPolicy `yaml:"i18n"`
+	// I18N declares plugin language metadata using the host i18n config shape.
+	// Missing i18n config means the plugin does not participate in i18n governance.
+	I18N *hostconfig.I18nConfig `yaml:"i18n"`
 	// Dependencies declares host and plugin dependency constraints.
 	Dependencies *DependencySpec `yaml:"dependencies"`
 	// Menus holds manifest-declared host menu entries.
@@ -111,6 +104,16 @@ func (manifest *Manifest) SupportsTenantGovernance() bool {
 		return *manifest.SupportsMultiTenant
 	}
 	return NormalizeScopeNature(manifest.ScopeNature) == ScopeNatureTenantAware
+}
+
+// I18NEnabled reports whether this manifest participates in i18n governance.
+// Missing i18n config or enabled=false means the plugin is single-language and
+// does not require manifest or apidoc i18n resources.
+func (manifest *Manifest) I18NEnabled() bool {
+	if manifest == nil || manifest.I18N == nil {
+		return false
+	}
+	return manifest.I18N.Enabled
 }
 
 // MenuSpec defines one manifest-declared host menu entry.

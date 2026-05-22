@@ -21,6 +21,7 @@ import (
 	"unicode"
 
 	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/pkg/pluginhost"
 	"lina-core/pkg/testsupport"
 )
 
@@ -382,6 +383,80 @@ func TestServiceOpenAPIMessageCatalogIgnoresWorkspacePluginI18NFiles(t *testing.
 	catalog := (&serviceImpl{}).loadOpenAPIMessageCatalog(context.Background(), "zh-CN")
 	if value, ok := catalog["plugins.workspace_only.api.demo.v1.PingReq.meta.summary"]; ok {
 		t.Fatalf("expected runtime apidoc loader to ignore local workspace i18n file, got %q", value)
+	}
+}
+
+// TestServiceOpenAPIMessageCatalogHonorsSourcePluginI18NPolicy verifies runtime
+// apidoc resource loading applies the same manifest i18n policy as governance
+// coverage tests.
+func TestServiceOpenAPIMessageCatalogHonorsSourcePluginI18NPolicy(t *testing.T) {
+	const (
+		managedPluginID = "plugin-dev-apidoc-i18n-managed"
+		optOutPluginID  = "plugin-dev-apidoc-i18n-opt-out"
+	)
+
+	managedPlugin := pluginhost.NewSourcePlugin(managedPluginID)
+	managedPlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
+		"plugin.yaml": &fstest.MapFile{Data: []byte("id: " + managedPluginID + "\nname: Managed\nversion: v0.1.0\ntype: source\nscope_nature: platform_only\nsupports_multi_tenant: false\ndefault_install_mode: global\ni18n:\n  enabled: true\n  default: zh-CN\n  locales:\n    - locale: zh-CN\n      nativeName: 简体中文\n")},
+		"manifest/i18n/zh-CN/apidoc/plugin.json": &fstest.MapFile{Data: []byte(`{
+  "plugins": {
+    "plugin_dev_apidoc_i18n_managed": {
+      "api": {
+        "demo": {
+          "v1": {
+            "PingReq": {
+              "meta": {
+                "summary": "已管理插件"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)},
+	})
+	cleanupManaged, err := pluginhost.RegisterSourcePluginForTest(managedPlugin)
+	if err != nil {
+		t.Fatalf("register managed source plugin failed: %v", err)
+	}
+	t.Cleanup(cleanupManaged)
+
+	missingI18nPlugin := pluginhost.NewSourcePlugin(optOutPluginID)
+	missingI18nPlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
+		"plugin.yaml": &fstest.MapFile{Data: []byte("id: " + optOutPluginID + "\nname: Opt Out\nversion: v0.1.0\ntype: source\nscope_nature: platform_only\nsupports_multi_tenant: false\ndefault_install_mode: global\n")},
+		"manifest/i18n/zh-CN/apidoc/plugin.json": &fstest.MapFile{Data: []byte(`{
+  "plugins": {
+    "plugin_dev_apidoc_i18n_opt_out": {
+      "api": {
+        "demo": {
+          "v1": {
+            "PingReq": {
+              "meta": {
+                "summary": "不应加载"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)},
+	})
+	cleanupOptOut, err := pluginhost.RegisterSourcePluginForTest(missingI18nPlugin)
+	if err != nil {
+		t.Fatalf("register opt-out source plugin failed: %v", err)
+	}
+	t.Cleanup(cleanupOptOut)
+	t.Cleanup(invalidateOpenAPIMessageCache)
+	invalidateOpenAPIMessageCache()
+
+	catalog := loadOpenAPIMessageCatalog(context.Background(), "zh-CN")
+	if got := catalog["plugins.plugin_dev_apidoc_i18n_managed.api.demo.v1.PingReq.meta.summary"]; got != "已管理插件" {
+		t.Fatalf("expected managed plugin apidoc resource to load, got %q", got)
+	}
+	if value, ok := catalog["plugins.plugin_dev_apidoc_i18n_opt_out.api.demo.v1.PingReq.meta.summary"]; ok {
+		t.Fatalf("expected plugin without i18n config apidoc resource to be skipped, got %q", value)
 	}
 }
 
@@ -972,7 +1047,7 @@ func openAPII18NManagedPluginIDSet(t *testing.T) map[string]struct{} {
 		if manifest == nil || strings.TrimSpace(manifest.ID) == "" {
 			continue
 		}
-		if manifest.I18N != nil && manifest.I18N.Disabled != nil && *manifest.I18N.Disabled {
+		if !manifest.I18NEnabled() {
 			continue
 		}
 		managedPluginIDs[manifest.ID] = struct{}{}
