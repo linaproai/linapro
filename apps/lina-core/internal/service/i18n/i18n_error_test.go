@@ -4,8 +4,6 @@ package i18n
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 	"testing/fstest"
 
@@ -18,7 +16,6 @@ import (
 	"lina-core/internal/service/config"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/pluginhost"
-	"lina-core/pkg/testsupport"
 )
 
 // TestLocalizeErrorSupportsStructuredRuntimeMessages verifies structured
@@ -97,6 +94,7 @@ func TestLocalizeErrorUsesRuntimeBundleCache(t *testing.T) {
 	)
 	plugin := pluginhost.NewSourcePlugin(pluginID)
 	plugin.Assets().UseEmbeddedFiles(fstest.MapFS{
+		"plugin.yaml": &fstest.MapFile{Data: []byte(sourcePluginI18NManifestFixture(pluginID, true))},
 		"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(fmt.Sprintf(
 			`{"test":{"structured":{"cache":{"%s":"Cached {value}"}}}}`,
 			pluginID,
@@ -317,27 +315,53 @@ func TestLocalizeErrorUsesHostUserTenantMembershipErrorResources(t *testing.T) {
 	}
 }
 
-// TestLocalizeErrorUsesRealPluginErrorResources verifies representative source
-// plugin business errors render through the shipped plugin runtime i18n files.
-func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {
+// TestLocalizeErrorUsesSourcePluginErrorResources verifies representative
+// source-plugin business errors render through opt-in plugin runtime i18n files.
+func TestLocalizeErrorUsesSourcePluginErrorResources(t *testing.T) {
 	resetRuntimeBundleCache()
 	t.Cleanup(resetRuntimeBundleCache)
 
-	repoRoot := findRepoRootForI18NTest(t)
-	if !testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
-		t.Skip("official plugin workspace is not initialized")
-	}
-	pluginDirs := []string{
-		"linapro-content-notice",
-		"linapro-org-core",
-		"linapro-monitor-loginlog",
-		"linapro-monitor-operlog",
-		"linapro-demo-source",
-		"linapro-demo-dynamic",
-	}
-	for _, pluginDir := range pluginDirs {
-		registerSourcePluginDirectoryI18N(t, repoRoot, pluginDir)
-	}
+	pluginID := nextTestSourcePluginID()
+	registerTestSourcePluginI18N(t, pluginID, map[string]string{
+		DefaultLocale: `{
+  "error": {
+    "content": {"notice": {"not": {"found": "通知公告不存在"}}},
+    "org": {
+      "dept": {"not": {"found": "部门不存在"}},
+      "post": {"assigned": {"delete": {"denied": "岗位ID {id} 已分配给用户，不能删除"}}}
+    },
+    "monitor": {
+      "loginlog": {"not": {"found": "登录日志不存在"}},
+      "operlog": {"not": {"found": "操作日志不存在"}}
+    },
+    "plugin": {
+      "demo": {
+        "source": {"attachment": {"size": {"too": {"large": "附件大小不能超过{maxSizeMB}MB"}}}},
+        "dynamic": {"record": {"title": {"too": {"long": "记录标题长度不能超过{maxChars}个字符"}}}}
+      }
+    }
+  }
+}`,
+		EnglishLocale: `{
+  "error": {
+    "content": {"notice": {"not": {"found": "Notice does not exist"}}},
+    "org": {
+      "dept": {"not": {"found": "Department does not exist"}},
+      "post": {"assigned": {"delete": {"denied": "Post {id} has assigned users and cannot be deleted"}}}
+    },
+    "monitor": {
+      "loginlog": {"not": {"found": "Login log does not exist"}},
+      "operlog": {"not": {"found": "Operation log does not exist"}}
+    },
+    "plugin": {
+      "demo": {
+        "source": {"attachment": {"size": {"too": {"large": "Attachment size must not exceed {maxSizeMB}MB"}}}},
+        "dynamic": {"record": {"title": {"too": {"long": "Record title must not exceed {maxChars} characters"}}}}
+      }
+    }
+  }
+}`,
+	})
 
 	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	testCases := []struct {
@@ -434,44 +458,4 @@ func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {
 			}
 		})
 	}
-}
-
-// findRepoRootForI18NTest resolves the repository root for tests that need
-// actual source-plugin manifest resources.
-func findRepoRootForI18NTest(t *testing.T) string {
-	t.Helper()
-
-	workingDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("resolve working directory: %v", err)
-	}
-	current := workingDir
-	for {
-		if _, statErr := os.Stat(filepath.Join(current, "apps", "lina-core", "go.mod")); statErr == nil {
-			return current
-		}
-		parent := filepath.Dir(current)
-		if parent == current {
-			t.Fatalf("repository root not found from %s", workingDir)
-		}
-		current = parent
-	}
-}
-
-// registerSourcePluginDirectoryI18N registers one source plugin backed by the
-// plugin's real manifest directory from the repository checkout.
-func registerSourcePluginDirectoryI18N(t *testing.T, repoRoot string, pluginDir string) {
-	t.Helper()
-
-	pluginPath := filepath.Join(repoRoot, "apps", "lina-plugins", pluginDir)
-	if _, err := os.Stat(filepath.Join(pluginPath, "manifest", "i18n")); err != nil {
-		t.Fatalf("plugin i18n directory missing for %s: %v", pluginDir, err)
-	}
-	pluginID := nextTestSourcePluginID() + "-" + pluginDir
-	plugin := pluginhost.NewSourcePlugin(pluginID)
-	plugin.Assets().UseEmbeddedFiles(os.DirFS(pluginPath))
-	if err := pluginhost.RegisterSourcePlugin(plugin); err != nil {
-		t.Fatalf("failed to register source plugin fixture: %v", err)
-	}
-	resetRuntimeBundleCache()
 }
