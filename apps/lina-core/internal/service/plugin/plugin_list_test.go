@@ -696,6 +696,53 @@ func TestFilterMenusHidesPendingUpgradePluginMenus(t *testing.T) {
 	}
 }
 
+// TestFilterMenusUsesAuthoritativeRegistryState verifies user-facing menu
+// projection does not reuse stale process-local enablement snapshots after
+// direct lifecycle-state changes have reached the persisted registry.
+func TestFilterMenusUsesAuthoritativeRegistryState(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dev-source-menu-authoritative"
+	)
+
+	testutil.CreateTestPluginDir(t, pluginID)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
+	}
+	service.integrationSvc.SetPluginEnabledState(pluginID, false)
+	if err := service.catalogSvc.SetPluginStatus(ctx, pluginID, catalog.StatusEnabled); err != nil {
+		t.Fatalf("expected persisted plugin status update to succeed, got error: %v", err)
+	}
+
+	menus := []*entity.SysMenu{
+		{
+			Id:      1,
+			MenuKey: "plugin:" + pluginID + ":entry",
+			Name:    "source menu",
+			Type:    catalog.MenuTypePage.String(),
+			Status:  1,
+			Visible: 1,
+		},
+	}
+	filtered := service.FilterMenus(ctx, menus)
+	if len(filtered) != 1 {
+		t.Fatalf("expected enabled source plugin menu to stay visible, got %d entries", len(filtered))
+	}
+	filteredPermissions := service.FilterPermissionMenus(ctx, menus)
+	if len(filteredPermissions) != 1 {
+		t.Fatalf("expected enabled source plugin permission menu to stay visible, got %d entries", len(filteredPermissions))
+	}
+}
+
 // TestListLocalizesUninstalledDynamicPluginMetadataInEnglish verifies that
 // plugin management can display artifact-owned metadata before installation.
 func TestListLocalizesUninstalledDynamicPluginMetadataInEnglish(t *testing.T) {

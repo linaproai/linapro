@@ -8,6 +8,7 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -104,13 +105,13 @@ func (s *serviceImpl) DispatchHookEvent(
 // FilterMenus filters disabled plugin menus from the given menu list.
 func (s *serviceImpl) FilterMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu {
 	s.ensureRuntimeCacheFreshBestEffort(ctx, "filter_menus")
-	return s.integrationSvc.FilterMenus(ctx, menus)
+	return s.integrationSvc.FilterMenus(integration.WithAuthoritativeEnablement(ctx), menus)
 }
 
 // FilterPermissionMenus filters permission menus based on plugin enablement.
 func (s *serviceImpl) FilterPermissionMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu {
 	s.ensureRuntimeCacheFreshBestEffort(ctx, "filter_permission_menus")
-	return s.integrationSvc.FilterPermissionMenus(ctx, menus)
+	return s.integrationSvc.FilterPermissionMenus(integration.WithAuthoritativeEnablement(ctx), menus)
 }
 
 // ResolveResourcePermission resolves the plugin-scoped permission required by one plugin resource.

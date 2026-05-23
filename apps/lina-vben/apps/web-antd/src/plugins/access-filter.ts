@@ -132,16 +132,17 @@ function filterRouteTree<T extends RouteLike>(
 
 export async function filterDisabledPluginRoutes<T extends RouteLike>(
   routes: T[],
+  pluginStateMap?: Map<string, PluginDynamicState>,
 ) {
   if (routes.length === 0) {
     return routes;
   }
 
   try {
-    const pluginStateMap = await getPluginStateMap();
+    const stateMap = pluginStateMap ?? (await getPluginStateMap());
     const runtimeStates: PluginDynamicState[] = [];
     const seenPluginIDs = new Set<string>();
-    for (const item of pluginStateMap.values()) {
+    for (const item of stateMap.values()) {
       if (!item?.id || seenPluginIDs.has(item.id)) {
         continue;
       }

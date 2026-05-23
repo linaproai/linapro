@@ -4,6 +4,8 @@ import type {
   RouteRecordRaw,
 } from '@vben/types';
 
+import type { PluginDynamicState } from '#/api/system/plugin/model';
+
 import { generateAccessible } from '@vben/access';
 import { preferences } from '@vben/preferences';
 
@@ -20,7 +22,13 @@ const forbiddenComponent = () => import('#/views/_core/fallback/forbidden.vue');
 
 async function generateAccess(
   options: GenerateMenuAndRoutesOptions,
-  { showLoadingToast = true }: { showLoadingToast?: boolean } = {},
+  {
+    pluginStateMap,
+    showLoadingToast = true,
+  }: {
+    pluginStateMap?: Map<string, PluginDynamicState>;
+    showLoadingToast?: boolean;
+  } = {},
 ) {
   const accessRoutes = filterTenantAccessRoutes(options.routes);
   const hiddenFrontendRoutes = collectHiddenFrontendRoutes(accessRoutes);
@@ -46,6 +54,7 @@ async function generateAccess(
       const routes = await getAllMenusApi();
       return await filterDisabledPluginRoutes(
         filterTenantAccessRoutes(routes),
+        pluginStateMap,
       );
     },
     // 可以指定没有权限跳转403页面

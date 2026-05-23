@@ -24,6 +24,8 @@
 ## Feedback
 
 - [x] **FB-1**: 启动异步插件管理列表预热需要通过 debug 日志打印预热耗时
+- [x] **FB-2**: CI 中插件管理首次加载 E2E 仍等待已移除的插件详情懒加载接口
+- [x] **FB-3**: 插件生命周期变更后前端菜单与路由刷新仍可能复用过期插件运行态快照
 
 ## Feedback 执行记录
 
@@ -35,3 +37,20 @@
 - FB-1 已执行验证：`openspec validate speed-up-plugin-management-first-load --strict` 通过。
 - FB-1 已执行验证：`git diff --check -- apps/lina-core/internal/cmd/cmd_http_runtime.go apps/lina-core/internal/cmd/cmd_http_routes.go apps/lina-core/internal/cmd/cmd_test.go openspec/changes/speed-up-plugin-management-first-load/tasks.md` 通过。
 - FB-1 审查结论：已执行 `lina-review`；本次反馈仅新增启动期插件预热 debug 耗时日志与对应单元测试，不新增 API、SQL、i18n 资源、开发工具脚本或数据操作接口；日志继续使用启动上下文或 detached 启动上下文，未发现阻断问题。
+- FB-2 影响分析：更新 `hack/tests/e2e/extension/plugin/TC014-plugin-management-first-load.ts`，将断言从旧的详情懒加载接口改为完整列表投影直接渲染详情和安装授权弹窗；不修改生产 API、SQL、缓存、数据权限、开发工具脚本、运行时用户文案或 i18n 资源。
+- FB-2 自动化测试：`TC014` 现在显式统计 `GET /api/v1/plugins/{id}` 次数，并断言详情弹窗和安装授权弹窗均不再触发详情请求，覆盖 CI 中 host-only 与 plugin-full extension-plugin 失败路径。
+- FB-2 已执行测试：`pnpm -C hack/tests exec playwright test e2e/extension/plugin/TC014-plugin-management-first-load.ts --workers=1` 通过。
+- FB-3 影响分析：修改前端访问刷新链路和宿主插件菜单过滤链路。前端 `refreshAccessibleState` 在重建菜单/路由前强制读取最新 `/plugins/dynamic` 状态，并显式传递给插件路由过滤与当前页保留判断；后端 `FilterMenus` 与 `FilterPermissionMenus` 对用户菜单和权限菜单投影使用权威注册表状态，避免进程内 enabled snapshot 过期导致已启用插件菜单被隐藏。本变更不新增 HTTP API、DTO、SQL、插件目录资源、运行时用户文案、语言包或开发工具入口；数据权限边界不变。
+- FB-3 缓存一致性记录：前端插件状态缓存权威源仍为 `/plugins/dynamic`，生命周期刷新路径通过 `getPluginStateMap(true)` 显式刷新并复用同一快照；后端用户菜单投影权威源为插件注册表和运行时升级状态，单机和集群仍由既有插件运行时修订控制刷新本地缓存，菜单过滤额外绕过过期平台 snapshot。
+- FB-3 自动化测试：新增 `apps/lina-vben/apps/web-antd/src/plugins/access-filter.test.ts`，覆盖旧缓存禁用但刷新传入最新启用快照时插件路由不被过滤；新增 `TestFilterMenusUsesAuthoritativeRegistryState`，覆盖后端持久注册表已启用但进程内 snapshot 仍为禁用时菜单和权限菜单仍可见。
+- FB-3 已执行测试：`pnpm -C apps/lina-vben test:unit apps/web-antd/src/plugins/access-filter.test.ts apps/web-antd/src/router/access-refresh-route-match.test.ts` 通过。
+- FB-3 已执行测试：`pnpm -C apps/lina-vben exec vue-tsc --noEmit -p apps/web-antd/tsconfig.json` 通过。
+- FB-3 已执行测试：`cd apps/lina-core && go test ./internal/service/plugin -run 'Test(FilterMenusUsesAuthoritativeRegistryState|FilterMenusHidesPendingUpgradePluginMenus)' -count=1` 通过。
+- FB-3 已执行测试：`cd apps/lina-core && go test ./internal/service/plugin -count=1` 通过。
+- FB-3 已执行测试：`cd apps/lina-core && go test ./internal/service/plugin/... -count=1` 通过。
+- FB-3 已执行测试：`cd apps/lina-core && go test ./internal/cmd -count=1` 通过。
+- FB-3 已执行验证：`pnpm -C hack/tests test:validate` 通过。
+- FB-3 已执行验证：`openspec validate speed-up-plugin-management-first-load --strict` 通过。
+- FB-3 已执行验证：`git diff --check` 通过。
+- FB-3 E2E 备注：本地 `TC001-source-plugin-lifecycle` 与 `TC002-runtime-i18n-switch` 可在旧服务上复现 CI 失败，但当前本地 Vite/后端服务未重启到本次补丁且前端 bundle 检索不到 source plugin 页面入口，不能作为修复后结果；本次以新增前后端自动化测试和 `TC014` 定向 E2E 作为可重复验证证据。
+- FB-2/FB-3 审查结论：已执行 `lina-review`；本次反馈修复覆盖前端路由刷新缓存、后端插件菜单/权限菜单投影和 E2E 断言更新，不新增 API、DTO、SQL、插件目录资源、运行时用户文案、语言包或开发工具入口；数据权限边界不变；缓存权威源、强制刷新路径和后端权威注册表读取均已记录并有自动化测试覆盖，未发现阻断问题。

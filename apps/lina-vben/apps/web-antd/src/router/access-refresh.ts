@@ -63,6 +63,7 @@ async function performAccessibleStateRefresh(
     ? await authStore.fetchUserInfo()
     : userStore.userInfo;
   const userRoles = userInfo?.roles ?? userStore.userRoles ?? [];
+  const pluginStateMap = await getPluginStateMap(true);
 
   resetStaticRoutes(router, routes);
   accessStore.setIsAccessChecked(false);
@@ -74,6 +75,7 @@ async function performAccessibleStateRefresh(
       routes: accessRoutes,
     },
     {
+      pluginStateMap,
       showLoadingToast,
     },
   );
@@ -100,7 +102,7 @@ async function performAccessibleStateRefresh(
     accessibleRoutes,
     resolved,
     currentRoute,
-    await getPluginStateMap(),
+    pluginStateMap,
   );
   const pendingPluginPageRefresh = getPendingPluginPageRefresh(
     router.currentRoute.value,

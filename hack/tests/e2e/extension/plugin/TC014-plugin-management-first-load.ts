@@ -3,7 +3,7 @@ import type { Page, Route } from "@playwright/test";
 import { test, expect } from "../../../fixtures/auth";
 import { PluginPage } from "../../../pages/PluginPage";
 
-const lightweightPluginID = "plugin-management-first-load-e2e";
+const pluginID = "plugin-management-first-load-e2e";
 
 function apiEnvelope(data: unknown) {
   return {
@@ -13,19 +13,19 @@ function apiEnvelope(data: unknown) {
   };
 }
 
-function lightweightPluginRow() {
+function completePluginListRow() {
   return {
     abnormalReason: "",
     authorizationRequired: 1,
     authorizationStatus: "pending",
     autoEnableForNewTenants: false,
     autoEnableManaged: 0,
-    description: "Used by E2E to verify lightweight plugin list rendering.",
+    description: "Complete list projection includes governance payload.",
     discoveredVersion: "v0.1.0",
     effectiveVersion: "v0.1.0",
     enabled: 0,
     hasMockData: 0,
-    id: lightweightPluginID,
+    id: pluginID,
     installMode: "tenant_scoped",
     installed: 0,
     installedAt: null,
@@ -39,24 +39,17 @@ function lightweightPluginRow() {
     updatedAt: null,
     upgradeAvailable: false,
     version: "v0.1.0",
-  };
-}
-
-function detailPluginRow() {
-  return {
-    ...lightweightPluginRow(),
     declaredRoutes: [
       {
         access: "authenticated",
-        description: "Route detail returned only by the plugin detail API.",
+        description: "Route detail returned by the full list projection.",
         method: "GET",
-        permission: `${lightweightPluginID}:report:query`,
+        permission: `${pluginID}:report:query`,
         publicPath: "/governed-report",
         summary: "Governed report",
       },
     ],
     dependencyCheck: emptyDependencyCheck(),
-    description: "Loaded from the detail endpoint with governance payload.",
     requestedHostServices: [
       {
         methods: ["get"],
@@ -84,7 +77,7 @@ function emptyDependencyCheck() {
     reverseBlockers: [],
     reverseDependents: [],
     softUnsatisfied: [],
-    targetId: lightweightPluginID,
+    targetId: pluginID,
   };
 }
 
@@ -98,8 +91,7 @@ async function mockPluginManagementApis(page: Page) {
 
     if (request.method() === "GET" && /\/api\/v1\/plugins$/u.test(path)) {
       const id = url.searchParams.get("id")?.trim();
-      const rows =
-        id && !lightweightPluginID.includes(id) ? [] : [lightweightPluginRow()];
+      const rows = id && !pluginID.includes(id) ? [] : [completePluginListRow()];
       await route.fulfill({
         json: apiEnvelope({
           list: rows,
@@ -120,18 +112,18 @@ async function mockPluginManagementApis(page: Page) {
 
     if (
       request.method() === "GET" &&
-      path.endsWith(`/plugins/${lightweightPluginID}`)
+      path.endsWith(`/plugins/${pluginID}`)
     ) {
       detailRequestCount += 1;
       await route.fulfill({
-        json: apiEnvelope(detailPluginRow()),
+        json: apiEnvelope(completePluginListRow()),
       });
       return;
     }
 
     if (
       request.method() === "GET" &&
-      path.endsWith(`/plugins/${lightweightPluginID}/dependencies`)
+      path.endsWith(`/plugins/${pluginID}/dependencies`)
     ) {
       await route.fulfill({
         json: apiEnvelope(emptyDependencyCheck()),
@@ -147,20 +139,8 @@ async function mockPluginManagementApis(page: Page) {
   };
 }
 
-function waitForPluginDetailResponse(page: Page) {
-  return page.waitForResponse((response) => {
-    const request = response.request();
-    return (
-      request.method() === "GET" &&
-      new URL(response.url()).pathname.endsWith(
-        `/plugins/${lightweightPluginID}`,
-      )
-    );
-  });
-}
-
 test.describe("TC-14 插件管理首次加载优化", () => {
-  test("TC-14a: 轻量列表缺少治理重字段时仍可渲染并按需加载详情", async ({
+  test("TC-14a: 完整列表投影已包含治理字段并可直接渲染详情", async ({
     adminPage,
   }) => {
     const pageErrors: string[] = [];
@@ -169,60 +149,54 @@ test.describe("TC-14 插件管理首次加载优化", () => {
 
     const pluginPage = new PluginPage(adminPage);
     await pluginPage.gotoManage();
-    await pluginPage.searchByPluginId(lightweightPluginID);
+    await pluginPage.searchByPluginId(pluginID);
 
-    await expect(pluginPage.pluginRow(lightweightPluginID)).toBeVisible();
-    await expect(pluginPage.pluginNameCell(lightweightPluginID)).toContainText(
+    await expect(pluginPage.pluginRow(pluginID)).toBeVisible();
+    await expect(pluginPage.pluginNameCell(pluginID)).toContainText(
       "Plugin Management First Load E2E",
     );
     await expect(
-      pluginPage.pluginRuntimeState(lightweightPluginID),
+      pluginPage.pluginRuntimeState(pluginID),
     ).toContainText(/正常|Normal/iu);
     expect(api.detailRequestCount()).toBe(0);
     expect(pageErrors).toEqual([]);
 
-    const detailResponsePromise = waitForPluginDetailResponse(adminPage);
-    await pluginPage.openPluginDetail(lightweightPluginID);
-    const detailResponse = await detailResponsePromise;
-    expect(detailResponse.ok()).toBe(true);
+    await pluginPage.openPluginDetail(pluginID);
 
     await expect(pluginPage.pluginDetailModal()).toContainText(
-      "Loaded from the detail endpoint with governance payload.",
+      "Complete list projection includes governance payload.",
     );
     await expect(pluginPage.pluginDetailModal()).toContainText("reports/");
     await expect(
       adminPage.getByTestId("plugin-route-review-list").last(),
     ).toContainText("/governed-report");
-    expect(api.detailRequestCount()).toBe(1);
+    expect(api.detailRequestCount()).toBe(0);
     expect(pageErrors).toEqual([]);
   });
 
-  test("TC-14b: 安装授权弹窗打开时先读取完整详情再展示授权范围", async ({
+  test("TC-14b: 安装授权弹窗直接复用列表治理字段展示授权范围", async ({
     adminPage,
   }) => {
     const api = await mockPluginManagementApis(adminPage);
 
     const pluginPage = new PluginPage(adminPage);
     await pluginPage.gotoManage();
-    await pluginPage.searchByPluginId(lightweightPluginID);
+    await pluginPage.searchByPluginId(pluginID);
     expect(api.detailRequestCount()).toBe(0);
 
-    const detailResponsePromise = waitForPluginDetailResponse(adminPage);
-    await pluginPage.openInstallAuthorization(lightweightPluginID);
-    const detailResponse = await detailResponsePromise;
-    expect(detailResponse.ok()).toBe(true);
+    await pluginPage.openInstallAuthorization(pluginID);
 
     await expect(pluginPage.hostServiceAuthModal()).toContainText("reports/");
     await expect(
       adminPage
         .getByTestId(
-          `plugin-host-service-auth-list-${lightweightPluginID}-storage`,
+          `plugin-host-service-auth-list-${pluginID}-storage`,
         )
         .last(),
     ).toContainText("reports/");
     await expect(
       adminPage.getByTestId("plugin-route-review-list").last(),
     ).toContainText("/governed-report");
-    expect(api.detailRequestCount()).toBe(1);
+    expect(api.detailRequestCount()).toBe(0);
   });
 });
