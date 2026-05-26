@@ -98,7 +98,7 @@ go run . i18n.check
 - **prompts**：目录级软链，各 Agent 的 commands/prompts 根目录（例如 `.claude/commands`）→ `.agents/prompts`。
 - **md**：单文件软链，`.<tool>.md`（或其他私有规范文件）→ 仓库根 `AGENTS.md`。
 
-命令只在仓库根目录范围内操作，不会修改`HOME`或任何系统全局路径，也不会自动删除真实目录或文件（`force=1`同样不会）。
+命令只在仓库根目录范围内操作，不会修改`HOME`或任何系统全局路径，也不会自动删除真实目录或非 Git 降级伪文件（`force=1`同样不会）。
 
 ### 聚合入口（推荐用法）
 
@@ -171,7 +171,7 @@ make agents.md.unlink agent=claude-code              # 移除 AGENTS.md 软链
 
 > **md 资源的 fallback 行为说明**：部分 Agent 在私有规范文件（如 `CODEBUDDY.md`、`CLAUDE.md`）不存在时，会自动 fallback 读取 `AGENTS.md`。`CodeBuddy` 就是这样一个 Agent——根据腾讯官方文档，CodeBuddy 优先读取 `CODEBUDDY.md`，但当 `CODEBUDDY.md` 不存在时会自动加载 `AGENTS.md`。这类有官方文档支持的自动 fallback 机制的 Agent，在 md 注册表中按 `native` 注册，这样仓库 clone 即可用，无需建链；只有当 Agent 仅读取私有规范文件、不存在 fallback 路径时，才注册为 `link` 以便用户显式建链接入。每条 Agent 的证据来源都记录在 `internal/agents/md/md_agents.go` 的行内注释中。
 
-任何情况下命令都不会自动删除已存在的真实目录或文件，包含`force=1`时也不会。`force=1`仅作用于"已是软链但指向其它位置"的情况。所有 skills 与 prompts 受管软链目录已在`.gitignore`中忽略，本地创建不会污染仓库。
+任何情况下命令都不会自动删除已存在的真实目录或文件，**除非**该文件是 Git 在`core.symlinks=false`时创建的降级软链伪文件。Git 在禁用符号链接时会将预期的链接目标路径作为纯文本写入文件内容；`force=1`能自动检测这类伪文件（普通文件、≤512 字节、内容与预期的相对源路径匹配）并将其替换为真正的符号链接。具有任意内容的正常文件仍然不会被触碰。`force=1`同时也会重建"已是软链但指向其它位置"的情况。所有 skills 与 prompts 受管软链目录已在`.gitignore`中忽略，本地创建不会污染仓库。
 
 ### 从 `make skills.*` 迁移
 

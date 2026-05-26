@@ -40,7 +40,8 @@ agents.force := $(or $(force),$(FORCE))
 # agents drives the agent-first aggregate command. Without arguments and
 # attached to a TTY, it opens the arrow-key picker. With agent/AGENT set, it
 # runs non-interactively against every resource the agent participates
-# in. Pass force=1 to rebuild mismatched links, action=unlink to remove.
+# in. Pass force=1 to rebuild mismatched links and auto-replace degraded
+# git symlink stubs (created when core.symlinks=false), action=unlink to remove.
 agents:
 	@$(LINACTL) agents $(if $(agents.agent),agent=$(agents.agent)) $(if $(agents.action),action=$(agents.action)) $(if $(agents.force),force=1)
 

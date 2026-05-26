@@ -98,7 +98,7 @@ The default scanner allowlist is maintained at `hack/tools/linactl/internal/runt
 - **prompts** — directory bridge from each agent's commands/prompts root (for example `.claude/commands`) to `.agents/prompts`.
 - **md** — single-file bridge from `.<tool>.md` (or other private guide file) to the repo-root `AGENTS.md`.
 
-The commands only operate inside the repository root; they never modify HOME directories or system-global paths, and they never remove real directories or files (even with `force=1`).
+The commands only operate inside the repository root; they never modify HOME directories or system-global paths, and they never remove real directories or files that are not degraded Git symlink stubs (even with `force=1`).
 
 ### Aggregate menu (recommended)
 
@@ -171,7 +171,7 @@ Status glyphs embedded in per-resource option labels:
 
 > **Fallback behaviour for `md`:** some agents auto-fall back to `AGENTS.md` when their preferred private guide file (e.g. `CODEBUDDY.md`, `CLAUDE.md`) is absent. CodeBuddy is one such agent — Tencent's docs state it prefers `CODEBUDDY.md` but loads `AGENTS.md` automatically when no `CODEBUDDY.md` is present. Agents with a documented automatic fallback are registered as `native` so cloned repositories work zero-config; agents whose preferred file is the *only* path they read are registered as `link` so you can opt into a symlink. See the inline comments in `internal/agents/md/md_agents.go` for the source-of-truth citation behind every entry.
 
-Real directories or files at the target path are never auto-removed, even with `force=1`. `force=1` only rebuilds symlinks that already exist but point at a non-managed target. Per-tool skills and prompts symlinks are listed in `.gitignore`, so creating them locally does not pollute the repository.
+Real directories or files at the target path are never auto-removed, even with `force=1`, **unless** the file is a degraded symlink stub created by Git when `core.symlinks=false`. Git writes the intended link target path as plain-text file content when symlinks are disabled; `force=1` detects these stubs (regular file, ≤512 bytes, content matches the expected relative source path) and replaces them with real symlinks automatically. Genuine files with arbitrary content are still never touched. `force=1` also rebuilds symlinks that already exist but point at a non-managed target. Per-tool skills and prompts symlinks are listed in `.gitignore`, so creating them locally does not pollute the repository.
 
 ### Migration from `make skills.*`
 
