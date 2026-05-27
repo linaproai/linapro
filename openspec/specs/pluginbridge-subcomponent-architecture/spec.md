@@ -3,7 +3,9 @@
 ## Purpose
 
 定义 `apps/lina-core/pkg/pluginbridge` 的子组件化拆分规范，确保职责清晰、依赖方向正确、协议行为不变。
+
 ## Requirements
+
 ### Requirement:pluginbridge 必须按职责提供公开子组件
 
 系统 SHALL 将 `apps/lina-core/pkg/pluginbridge` 组织为职责明确的公开子组件包。子组件至少覆盖 bridge 合约、bridge 编解码、WASM 产物辅助、host call 协议、host service 协议和 guest SDK。根目录不得继续承载大量跨职责实现文件；根包只允许保留 facade、包说明和必要的兼容入口。
@@ -17,6 +19,20 @@
 - **当** 系统完成 pluginbridge 子组件化
 - **则** 子组件包名必须使用清晰职责名称
 - **且** 不得使用 `common`、`util`、`helper` 等兜底包名承载跨领域逻辑
+
+### Requirement:根包 facade 必须保持现有稳定调用路径
+
+系统 SHALL 保留 `lina-core/pkg/pluginbridge` 根包作为兼容 facade。现有公开常量、类型和函数必须继续可以通过根包访问，并委托到对应子组件实现。facade 不得复制协议实现逻辑；协议实现只能存在于一个权威子组件中。
+
+#### Scenario:旧 import 路径继续编译
+- **当** 宿主内部代码、动态插件样例或用户插件继续 import `lina-core/pkg/pluginbridge`
+- **则** 既有公开 API 调用必须继续编译
+- **且** 返回行为与重构前保持一致
+
+#### Scenario:facade 不重复实现协议逻辑
+- **当** 开发者查看根包 facade
+- **则** 公开入口通过 type alias、const alias 或 wrapper 调用子组件
+- **且** 根包不得维护独立的 protobuf wire 编解码、WASM section 遍历或 host service payload 编解码实现
 
 ### Requirement:子组件依赖方向必须防止循环依赖
 
@@ -82,27 +98,3 @@
 - **当** 对动态插件样例执行普通 Go 测试和 `GOOS=wasip1 GOARCH=wasm` 构建
 - **则** 样例必须通过编译
 - **且** guest 侧 bridge helper 调用必须可用
-
-### Requirement:pluginbridge 根包不得发布业务能力 client
-
-系统 SHALL 将`pkg/plugin/pluginbridge`根包收敛为动态插件 ABI、协议 facade 和 transport 边界。根包 MUST NOT 发布 runtime、storage、data、cache、lock、config、notify、manifest、org 或 tenant 等业务能力 client；这些动态插件业务能力 client MUST 由`pkg/plugin/capability/guest`发布。
-
-#### Scenario:动态插件访问业务能力
-
-- **WHEN** 动态插件 guest 代码需要访问 runtime、storage、data、cache、lock、config、notify、manifest、org 或 tenant 能力
-- **THEN** 它从`pkg/plugin/capability/guest`导入对应 client
-- **AND** 不通过`pluginbridge.Runtime()`、`pluginbridge.Data()`或同类根包入口访问业务能力
-
-#### Scenario:pluginbridge 根包暴露协议能力
-
-- **WHEN** 调用方需要 ABI 常量、bridge envelope、WASM section、host call、host service wire 校验或动态路由 dispatcher
-- **THEN** 它可以使用`pluginbridge`根包或更精确子包提供的协议入口
-- **AND** 根包不得因此重新拥有 capability 业务语义
-- **AND** 根包不得提供对`capability/guest`业务 client 的兼容转发方法或类型别名
-
-#### Scenario:新增动态宿主能力 client
-
-- **WHEN** 开发者新增一个动态插件宿主能力 client
-- **THEN** client 首先定义在`pkg/plugin/capability/guest`
-- **AND** `pluginbridge`只维护必要的 service/method wire 常量、payload 编解码和授权校验
-
