@@ -51,6 +51,9 @@
     "iam": {
       "title": "权限管理"
     },
+    "auth-provider": {
+      "title": "授权管理"
+    },
     "monitor": {
       "title": "系统监控"
     },

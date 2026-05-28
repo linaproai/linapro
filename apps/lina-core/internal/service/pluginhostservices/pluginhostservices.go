@@ -13,6 +13,7 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/notify"
+	"lina-core/internal/service/pluginsettings"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/plugin/capability"
 	capabilityconfig "lina-core/pkg/plugin/capability/config"
@@ -37,22 +38,23 @@ type PluginLifecycleRunner interface {
 
 // directory implements the source-plugin host service directory.
 type directory struct {
-	apiDoc       contract.APIDocService // apiDoc exposes localized API-documentation route text.
-	auth         contract.AuthService   // auth exposes tenant token operations.
-	bizCtx       contract.BizCtxService // bizCtx exposes read-only request business context.
-	cache        kvcache.Service        // cache owns the shared runtime-selected KV backend.
-	config       contract.ConfigServiceFactory
-	hostConfig   contract.HostConfigService
-	i18n         contract.I18nService // i18n exposes runtime translation lookups.
-	manifest     contract.ManifestServiceFactory
-	notify       contract.NotifyService // notify exposes host notification delivery.
-	org          capabilityorgcap.Service
-	pluginLife   contract.PluginLifecycleService
-	pluginState  contract.PluginStateService // pluginState exposes plugin enablement lookups.
-	route        contract.RouteService       // route exposes dynamic route metadata lookups.
-	session      contract.SessionService     // session exposes online-session operations.
-	tenant       capabilitytenantcap.Service
-	tenantFilter contract.TenantFilterService // tenantFilter exposes plugin table tenant filtering.
+	apiDoc         contract.APIDocService // apiDoc exposes localized API-documentation route text.
+	auth           contract.AuthService   // auth exposes tenant token operations.
+	bizCtx         contract.BizCtxService // bizCtx exposes read-only request business context.
+	cache          kvcache.Service        // cache owns the shared runtime-selected KV backend.
+	config         contract.ConfigServiceFactory
+	hostConfig     contract.HostConfigService
+	i18n           contract.I18nService // i18n exposes runtime translation lookups.
+	manifest       contract.ManifestServiceFactory
+	notify         contract.NotifyService // notify exposes host notification delivery.
+	org            capabilityorgcap.Service
+	pluginLife     contract.PluginLifecycleService
+	pluginSettings contract.PluginSettingsService // pluginSettings exposes namespaced key-value settings.
+	pluginState    contract.PluginStateService    // pluginState exposes plugin enablement lookups.
+	route          contract.RouteService          // route exposes dynamic route metadata lookups.
+	session        contract.SessionService        // session exposes online-session operations.
+	tenant         capabilitytenantcap.Service
+	tenantFilter   contract.TenantFilterService // tenantFilter exposes plugin table tenant filtering.
 }
 
 // scopedDirectory wraps a base directory with one plugin-bound cache adapter.
@@ -102,21 +104,22 @@ func New(
 		return nil, gerror.Wrap(err, "create plugin tenant filter service failed")
 	}
 	return &directory{
-		apiDoc:       newAPIDocAdapter(apiDocSvc),
-		auth:         newAuthAdapter(authTokenIssuer),
-		bizCtx:       bizCtxAdapter,
-		cache:        kvCacheSvc,
-		config:       capabilityconfig.NewFactory("", ""),
-		hostConfig:   capabilityhostconfig.New(configSvc),
-		i18n:         newI18nAdapter(i18nSvc),
-		manifest:     capabilitymanifest.NewFactory(""),
-		notify:       newNotifyAdapter(notifySvc),
-		org:          orgSvc,
-		pluginLife:   capabilitypluginlifecycle.New(pluginLifecycleRunner),
-		pluginState:  capabilitypluginstate.New(pluginStateSvc),
-		route:        newRouteAdapter(),
-		session:      newSessionAdapter(authSvc, scopeSvc, sessionStore, tenantSvc),
-		tenant:       tenantSvc,
-		tenantFilter: tenantFilterSvc,
+		apiDoc:         newAPIDocAdapter(apiDocSvc),
+		auth:           newAuthAdapter(authTokenIssuer, authSvc, configSvc),
+		bizCtx:         bizCtxAdapter,
+		cache:          kvCacheSvc,
+		config:         capabilityconfig.NewFactory("", ""),
+		hostConfig:     capabilityhostconfig.New(configSvc),
+		i18n:           newI18nAdapter(i18nSvc),
+		manifest:       capabilitymanifest.NewFactory(""),
+		notify:         newNotifyAdapter(notifySvc),
+		org:            orgSvc,
+		pluginLife:     capabilitypluginlifecycle.New(pluginLifecycleRunner),
+		pluginSettings: newPluginSettingsAdapter(pluginsettings.New()),
+		pluginState:    capabilitypluginstate.New(pluginStateSvc),
+		route:          newRouteAdapter(),
+		session:        newSessionAdapter(authSvc, scopeSvc, sessionStore, tenantSvc),
+		tenant:         tenantSvc,
+		tenantFilter:   tenantFilterSvc,
 	}, nil
 }

@@ -16,6 +16,8 @@ type ListReq struct {
 	Type      PluginType               `json:"type" dc:"Filter by plugin type: source=source plugin dynamic=dynamic plugin, if not passed, all will be queried; the current dynamic plugin implementation only supports WASM" eg:"dynamic"`
 	Status    *statusflag.Enabled      `json:"status" dc:"Filter by enabled status: 1=enabled 0=disabled, if not passed, query all" eg:"1"`
 	Installed *statusflag.Installation `json:"installed" dc:"Filter by installation status: 1=Installed 0=Not installed, if not uploaded, query all" eg:"1"`
+	PageNum   int                      `json:"pageNum" d:"1" v:"min:1" dc:"Page number, starting from 1" eg:"1"`
+	PageSize  int                      `json:"pageSize" d:"10" v:"min:1|max:100" dc:"Number of records per page, maximum 100" eg:"10"`
 }
 
 // ListRes is the response for querying plugin list.

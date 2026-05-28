@@ -136,6 +136,11 @@ func (s *runtimeParamAuthTestCapabilities) I18n() plugincontract.I18nService {
 // Notify returns no notification service for auth runtime-parameter tests.
 func (s *runtimeParamAuthTestCapabilities) Notify() plugincontract.NotifyService { return nil }
 
+// PluginSettings returns no plugin settings service for auth runtime-parameter tests.
+func (s *runtimeParamAuthTestCapabilities) PluginSettings() plugincontract.PluginSettingsService {
+	return nil
+}
+
 // Org returns the default organization capability fallback service.
 func (s *runtimeParamAuthTestCapabilities) Org() orgcap.Service {
 	return orgcap.New(nil)

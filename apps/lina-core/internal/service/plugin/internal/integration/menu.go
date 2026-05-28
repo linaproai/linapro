@@ -17,6 +17,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	menusvc "lina-core/internal/service/menu"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/startupstats"
 )
@@ -80,6 +81,10 @@ func (s *serviceImpl) DeletePluginMenusByManifest(ctx context.Context, manifest 
 	if manifest == nil {
 		return nil
 	}
+	managedParents, err := s.listReferencedManagedParents(ctx, manifest)
+	if err != nil {
+		return err
+	}
 	existingMenus, err := s.listPluginMenusByPlugin(ctx, manifest.ID)
 	if err != nil {
 		return err
@@ -91,7 +96,10 @@ func (s *serviceImpl) DeletePluginMenusByManifest(ctx context.Context, manifest 
 		}
 		menuKeys = append(menuKeys, strings.TrimSpace(item.MenuKey))
 	}
-	return s.deletePluginMenusByKeys(ctx, menuKeys)
+	if err := s.deletePluginMenusByKeys(ctx, menuKeys); err != nil {
+		return err
+	}
+	return s.deleteEmptyManagedParents(ctx, managedParents)
 }
 
 // pluginMenusAndPermissionsNeedSync checks whether the full menu projection
@@ -136,6 +144,13 @@ func (s *serviceImpl) pluginDeclaredMenusNeedSyncWithExisting(
 	externalParents, err := s.listPluginMenuExternalParents(ctx, manifest)
 	if err != nil {
 		return false, nil, err
+	}
+
+	if len(s.collectManagedParentMenuSpecs(manifest, declaredKeys, externalParents)) > 0 {
+		// A referenced host-managed parent catalog is missing and must be
+		// auto-created, so a sync is required. This check stays read-only; the
+		// parent is created in the write path.
+		return true, existingByKey, nil
 	}
 
 	resolvedIDs := make(map[string]int, len(manifest.Menus))
@@ -248,6 +263,10 @@ func (s *serviceImpl) syncPluginMenusInTx(ctx context.Context, manifest *catalog
 
 	externalParents, err := s.listPluginMenuExternalParents(ctx, manifest)
 	if err != nil {
+		return err
+	}
+
+	if err := s.ensureManagedParentMenus(ctx, manifest, declaredKeys, externalParents); err != nil {
 		return err
 	}
 
@@ -476,6 +495,164 @@ func (s *serviceImpl) listPluginMenuExternalParents(ctx context.Context, manifes
 		parentKeys = append(parentKeys, spec.ParentKey)
 	}
 	return s.listMenusByKeys(ctx, parentKeys, false)
+}
+
+// collectManagedParentMenuSpecs returns synthetic directory specs for manifest
+// parent_key values that reference a missing host-owned on-demand catalog. These
+// let the host materialize a shared parent catalog from its own definition so
+// plugins can mount under it without a pre-seeded host menu. Parents that already
+// exist, belong to the plugin itself, or are not host-owned managed catalogs are
+// skipped, preserving orphan rejection for unknown missing parents.
+func (s *serviceImpl) collectManagedParentMenuSpecs(
+	manifest *catalog.Manifest,
+	declaredKeys map[string]struct{},
+	externalParents map[string]*entity.SysMenu,
+) []*catalog.MenuSpec {
+	if manifest == nil {
+		return nil
+	}
+	specsByKey := make(map[string]*catalog.MenuSpec)
+	order := make([]string, 0)
+	for _, spec := range manifest.Menus {
+		if spec == nil {
+			continue
+		}
+		parentKey := strings.TrimSpace(spec.ParentKey)
+		if parentKey == "" {
+			continue
+		}
+		if _, ok := declaredKeys[parentKey]; ok {
+			continue
+		}
+		if existing := externalParents[parentKey]; existing != nil && existing.DeletedAt == nil {
+			continue
+		}
+		def, ok := menusvc.LookupManagedCatalog(parentKey)
+		if !ok {
+			continue
+		}
+		if _, seen := specsByKey[parentKey]; seen {
+			continue
+		}
+		specsByKey[parentKey] = &catalog.MenuSpec{
+			Key:    def.Key,
+			Name:   def.Name,
+			Icon:   def.Icon,
+			Type:   catalog.MenuTypeDirectory.String(),
+			Sort:   def.Sort,
+			Remark: def.Remark,
+		}
+		order = append(order, parentKey)
+	}
+	result := make([]*catalog.MenuSpec, 0, len(order))
+	for _, key := range order {
+		result = append(result, specsByKey[key])
+	}
+	return result
+}
+
+// ensureManagedParentMenus auto-creates missing host-managed parent catalog menus
+// declared through plugin parent metadata and records the resulting rows in
+// externalParents so child menu resolution can mount under them within the same
+// sync. Soft-deleted rows with the same key are reused through upsert.
+func (s *serviceImpl) ensureManagedParentMenus(
+	ctx context.Context,
+	manifest *catalog.Manifest,
+	declaredKeys map[string]struct{},
+	externalParents map[string]*entity.SysMenu,
+) error {
+	managed := s.collectManagedParentMenuSpecs(manifest, declaredKeys, externalParents)
+	if len(managed) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(managed))
+	for _, spec := range managed {
+		keys = append(keys, spec.Key)
+	}
+	existingByKey, err := s.listMenusByKeys(ctx, keys, true)
+	if err != nil {
+		return err
+	}
+	for _, spec := range managed {
+		menuID, err := s.upsertPluginMenu(ctx, spec, 0, existingByKey[spec.Key])
+		if err != nil {
+			return err
+		}
+		data, err := buildPluginMenuData(spec, 0)
+		if err != nil {
+			return err
+		}
+		externalParents[spec.Key] = buildPluginMenuEntity(menuID, data)
+	}
+	return nil
+}
+
+// isManagedPluginParentMenu reports whether a menu row is one host-owned on-demand
+// catalog the host may remove once empty. Stable host catalogs and user-authored
+// menus never match because only registered managed catalogs qualify.
+func isManagedPluginParentMenu(menu *entity.SysMenu) bool {
+	if menu == nil {
+		return false
+	}
+	menuKey := strings.TrimSpace(menu.MenuKey)
+	if menusvc.IsStableCatalogKey(menuKey) {
+		return false
+	}
+	return menusvc.IsManagedCatalogKey(menuKey)
+}
+
+// listReferencedManagedParents returns the existing host-managed parent catalog
+// menus the manifest mounts under, captured before plugin menu deletion so empty
+// ones can be removed afterwards.
+func (s *serviceImpl) listReferencedManagedParents(ctx context.Context, manifest *catalog.Manifest) ([]*entity.SysMenu, error) {
+	externalParents, err := s.listPluginMenuExternalParents(ctx, manifest)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*entity.SysMenu, 0, len(externalParents))
+	for _, parent := range externalParents {
+		if parent == nil || parent.DeletedAt != nil {
+			continue
+		}
+		if isManagedPluginParentMenu(parent) {
+			result = append(result, parent)
+		}
+	}
+	return result, nil
+}
+
+// deleteEmptyManagedParents removes host-managed parent catalog menus that no
+// longer have any child menu after plugin menu cleanup. Parents that still own a
+// child menu, including children contributed by other plugins, are preserved.
+func (s *serviceImpl) deleteEmptyManagedParents(ctx context.Context, parents []*entity.SysMenu) error {
+	emptyKeys := make([]string, 0, len(parents))
+	for _, parent := range parents {
+		if parent == nil {
+			continue
+		}
+		childCount, err := s.countMenuChildren(ctx, parent.Id)
+		if err != nil {
+			return err
+		}
+		if childCount == 0 {
+			emptyKeys = append(emptyKeys, strings.TrimSpace(parent.MenuKey))
+		}
+	}
+	return s.deletePluginMenusByKeys(ctx, emptyKeys)
+}
+
+// countMenuChildren counts non-deleted menus directly nested under parentID,
+// honoring the startup snapshot when present to avoid extra queries.
+func (s *serviceImpl) countMenuChildren(ctx context.Context, parentID int) (int, error) {
+	if parentID == 0 {
+		return 0, nil
+	}
+	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+		return snapshot.countMenuChildren(parentID), nil
+	}
+	return dao.SysMenu.Ctx(ctx).
+		Where(do.SysMenu{ParentId: parentID}).
+		Count()
 }
 
 // resolvePluginMenuParentID resolves the parent menu ID for one manifest menu

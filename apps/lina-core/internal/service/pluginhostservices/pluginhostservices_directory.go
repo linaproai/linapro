@@ -91,6 +91,14 @@ func (s *directory) PluginLifecycle() contract.PluginLifecycleService {
 	return s.pluginLife
 }
 
+// PluginSettings returns the host namespaced key-value settings adapter.
+func (s *directory) PluginSettings() contract.PluginSettingsService {
+	if s == nil {
+		return nil
+	}
+	return s.pluginSettings
+}
+
 // PluginState returns the host plugin enablement adapter.
 func (s *directory) PluginState() contract.PluginStateService {
 	if s == nil {
@@ -231,6 +239,14 @@ func (s *scopedDirectory) PluginLifecycle() contract.PluginLifecycleService {
 		return nil
 	}
 	return s.base.PluginLifecycle()
+}
+
+// PluginSettings returns the delegated plugin settings adapter.
+func (s *scopedDirectory) PluginSettings() contract.PluginSettingsService {
+	if s == nil || s.base == nil {
+		return nil
+	}
+	return s.base.PluginSettings()
 }
 
 // PluginState returns the delegated plugin enablement adapter.

@@ -15,9 +15,29 @@ import (
 // workspace. It is intentionally not "/" so source plugins can own root routes.
 const defaultWorkspaceBasePath = "/admin"
 
+// defaultWorkspaceRouterMode is the default vue-router history backend used
+// by the admin workspace. Hash mode is the default because it works without
+// server-side SPA fallback configuration, matching the bundled deployment.
+const defaultWorkspaceRouterMode = "hash"
+
+// WorkspaceRouterModeHash represents the hash-based vue-router history backend.
+const WorkspaceRouterModeHash = "hash"
+
+// WorkspaceRouterModeHistory represents the HTML5 history vue-router backend.
+const WorkspaceRouterModeHistory = "history"
+
 // WorkspaceConfig holds static admin workspace routing settings.
 type WorkspaceConfig struct {
-	BasePath string `json:"basePath"` // BasePath is the admin workspace entry path.
+	// BasePath is the admin workspace entry path.
+	BasePath string `json:"basePath"`
+	// RouterMode selects the vue-router history backend used by the
+	// workspace. Allowed values are "hash" (default, no server SPA fallback
+	// required) and "history" (requires the host or a reverse proxy to
+	// serve the SPA index for unknown paths under BasePath). The backend
+	// uses this together with BasePath to compose full workspace URLs for
+	// OAuth handoff and other post-login redirects so backend-issued URLs
+	// stay in sync with the frontend bundle's actual routing.
+	RouterMode string `json:"routerMode"`
 }
 
 // getStaticWorkspaceConfig lazily loads and validates workspace routing
@@ -25,10 +45,12 @@ type WorkspaceConfig struct {
 func (s *serviceImpl) getStaticWorkspaceConfig(ctx context.Context) *WorkspaceConfig {
 	return processStaticConfigCaches.workspace.load(func() *WorkspaceConfig {
 		cfg := &WorkspaceConfig{
-			BasePath: defaultWorkspaceBasePath,
+			BasePath:   defaultWorkspaceBasePath,
+			RouterMode: defaultWorkspaceRouterMode,
 		}
 		mustScanConfig(ctx, "workspace", cfg)
 		cfg.BasePath = mustNormalizeWorkspaceBasePath(cfg.BasePath)
+		cfg.RouterMode = mustNormalizeWorkspaceRouterMode(cfg.RouterMode)
 		return cfg
 	})
 }
@@ -45,6 +67,86 @@ func (s *serviceImpl) GetWorkspaceBasePath(ctx context.Context) string {
 		return defaultWorkspaceBasePath
 	}
 	return cfg.BasePath
+}
+
+// GetWorkspaceRouterMode returns the normalized vue-router history backend
+// (hash or history) used by the admin workspace.
+func (s *serviceImpl) GetWorkspaceRouterMode(ctx context.Context) string {
+	cfg := s.getStaticWorkspaceConfig(ctx)
+	if cfg == nil || strings.TrimSpace(cfg.RouterMode) == "" {
+		return defaultWorkspaceRouterMode
+	}
+	return cfg.RouterMode
+}
+
+// BuildWorkspaceRouteURL composes the absolute URL path that the browser
+// must visit to land on one workspace route. It always uses the configured
+// base path and inserts the vue-router hash separator when the workspace is
+// built with hash history, so backend-issued redirects (such as OAuth
+// handoff) always reach the SPA regardless of which router backend the
+// frontend uses.
+func (s *serviceImpl) BuildWorkspaceRouteURL(ctx context.Context, routePath string, rawQuery string) string {
+	return composeWorkspaceRouteURL(s.GetWorkspaceBasePath(ctx), s.GetWorkspaceRouterMode(ctx), routePath, rawQuery)
+}
+
+// composeWorkspaceRouteURL assembles one workspace URL from raw inputs
+// without reading from the config store, so unit tests can exercise the
+// routing math without standing up the runtime config service.
+func composeWorkspaceRouteURL(basePath string, routerMode string, routePath string, rawQuery string) string {
+	normalizedBase := strings.TrimSpace(basePath)
+	if normalizedBase == "" {
+		normalizedBase = defaultWorkspaceBasePath
+	}
+	normalizedBase = strings.TrimRight(normalizedBase, "/")
+	normalizedRoute := strings.TrimSpace(routePath)
+	if normalizedRoute == "" {
+		normalizedRoute = "/"
+	}
+	if !strings.HasPrefix(normalizedRoute, "/") {
+		normalizedRoute = "/" + normalizedRoute
+	}
+	normalizedQuery := strings.TrimSpace(rawQuery)
+	normalizedQuery = strings.TrimPrefix(normalizedQuery, "?")
+	normalizedMode := strings.TrimSpace(routerMode)
+	if normalizedMode == "" {
+		normalizedMode = defaultWorkspaceRouterMode
+	}
+	var builder strings.Builder
+	if normalizedBase != "" && normalizedBase != "/" {
+		builder.WriteString(normalizedBase)
+	}
+	if normalizedMode == WorkspaceRouterModeHash {
+		builder.WriteString("/#")
+		builder.WriteString(normalizedRoute)
+	} else {
+		builder.WriteString(normalizedRoute)
+	}
+	if normalizedQuery != "" {
+		builder.WriteString("?")
+		builder.WriteString(normalizedQuery)
+	}
+	return builder.String()
+}
+
+// mustNormalizeWorkspaceRouterMode validates a router-mode value and
+// returns the canonical form. Invalid values fail fast because
+// backend-issued URLs must not silently fall back to a different routing
+// scheme than the bundled frontend.
+func mustNormalizeWorkspaceRouterMode(raw string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(raw))
+	if trimmed == "" {
+		return defaultWorkspaceRouterMode
+	}
+	switch trimmed {
+	case WorkspaceRouterModeHash, WorkspaceRouterModeHistory:
+		return trimmed
+	default:
+		panic(workspaceStartupDiagnosticError(
+			"workspace.routerMode",
+			"must be one of: hash, history",
+			"set workspace.routerMode=hash to match the bundled frontend",
+		))
+	}
 }
 
 // mustNormalizeWorkspaceBasePath normalizes and validates the workspace base

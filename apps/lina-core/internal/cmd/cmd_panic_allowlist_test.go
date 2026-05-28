@@ -163,6 +163,13 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "invalid static workspace basePath would make frontend fallback route binding ambiguous, so startup must fail before serving HTTP traffic",
 		},
 		{
+			Path:     "apps/lina-core/internal/service/config/config_workspace.go",
+			Function: "mustNormalizeWorkspaceRouterMode",
+			Count:    1,
+			Category: panicCategoryStaticConfig,
+			Reason:   "invalid static workspace routerMode would desynchronize backend-issued OAuth handoff URLs from the bundled frontend's vue-router backend, so startup must fail before serving HTTP traffic",
+		},
+		{
 			Path:     "apps/lina-core/internal/service/config/config_runtime_params_revision.go",
 			Function: "configureRuntimeParamCacheDomain",
 			Count:    1,

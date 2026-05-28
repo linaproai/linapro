@@ -40,6 +40,10 @@ type Services interface {
 	Org() orgcap.Service
 	// PluginLifecycle returns the plugin lifecycle orchestration service.
 	PluginLifecycle() contract.PluginLifecycleService
+	// PluginSettings returns the host namespaced key-value settings adapter
+	// that source plugins use to persist per-plugin configuration in the
+	// shared sys_config table instead of owning private SQL schemas.
+	PluginSettings() contract.PluginSettingsService
 	// PluginState returns the plugin state and enablement service.
 	PluginState() contract.PluginStateService
 	// Route returns the dynamic-route metadata service.

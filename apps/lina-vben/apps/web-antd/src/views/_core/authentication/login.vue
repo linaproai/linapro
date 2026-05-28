@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 import type { VbenFormSchema } from '@vben/common-ui';
 
-import { computed, reactive } from 'vue';
+import type { AuthApi } from '#/api/core/auth';
+
+import { computed, onMounted, reactive, ref } from 'vue';
 
 import {
   AuthenticationLogin,
@@ -9,8 +11,10 @@ import {
   VbenButton,
   z,
 } from '@vben/common-ui';
+import { IconifyIcon } from '@vben/icons';
 import { $t } from '@vben/locales';
 
+import { listAuthProvidersApi } from '#/api/core/auth';
 import PluginSlotOutlet from '#/components/plugin/plugin-slot-outlet.vue';
 import { pluginSlotKeys } from '#/plugins/plugin-slots';
 import { publicFrontendSettings } from '#/runtime/public-frontend';
@@ -114,6 +118,43 @@ async function handleSelectTenant() {
   }
   await authStore.selectTenant(tenantId);
 }
+
+// Third-party login provider entries discovered via /auth/providers. The
+// host filters out providers whose owning plugin is disabled, so this list
+// reflects exactly the entries the workbench should render.
+const authProviders = ref<AuthApi.ProviderEntity[]>([]);
+
+/**
+ * Composes the URL the browser visits when an operator clicks the
+ * provider's login button. When backend redirect routing is enabled the
+ * provider id is appended as a state parameter so the OAuth callback can
+ * resolve the matching post-login redirect rule.
+ */
+function buildLoginEntryURL(provider: AuthApi.ProviderEntity) {
+  if (!provider.backendRedirectEnabled) {
+    return provider.entryUrl;
+  }
+  return `${provider.entryUrl}?state=${encodeURIComponent(provider.providerId)}`;
+}
+
+function handleProviderClick(provider: AuthApi.ProviderEntity) {
+  window.location.href = buildLoginEntryURL(provider);
+}
+
+onMounted(() => {
+  void (async () => {
+    try {
+      const res = await listAuthProvidersApi();
+      authProviders.value = Array.isArray(res.providers)
+        ? res.providers
+            .slice()
+            .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+        : [];
+    } catch {
+      authProviders.value = [];
+    }
+  })();
+});
 </script>
 
 <template>
@@ -178,6 +219,23 @@ async function handleSelectTenant() {
       >
         {{ $t('pages.multiTenant.login.enterTenant') }}
       </VbenButton>
+    </div>
+    <div
+      v-if="authProviders.length > 0 && !authStore.pendingPreToken && !authStore.tenantLoginTransitioning"
+      class="mt-4 space-y-3"
+    >
+      <a-button
+        v-for="provider in authProviders"
+        :key="provider.providerId"
+        block
+        size="large"
+        @click="handleProviderClick(provider)"
+      >
+        <template #icon>
+          <IconifyIcon :icon="provider.icon || 'ant-design:login-outlined'" />
+        </template>
+        Continue with {{ provider.name }}
+      </a-button>
     </div>
     <PluginSlotOutlet :slot-key="pluginSlotKeys.authLoginAfter" class="mt-4" />
   </div>

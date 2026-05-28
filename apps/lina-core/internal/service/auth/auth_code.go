@@ -59,4 +59,18 @@ var (
 		"Failed to update last login time",
 		gcode.CodeInternalError,
 	)
+	// CodeAuthExternalIdentityInvalid reports that an external auth provider returned no usable identity.
+	CodeAuthExternalIdentityInvalid = bizerr.MustDefineWithKey(
+		"AUTH_EXTERNAL_IDENTITY_INVALID",
+		"error.auth.external.identityInvalid",
+		"External authentication provider returned an invalid identity",
+		gcode.CodeNotAuthorized,
+	)
+	// CodeAuthExternalUserNotProvisioned reports that no local user matches the external identity.
+	CodeAuthExternalUserNotProvisioned = bizerr.MustDefineWithKey(
+		"AUTH_EXTERNAL_USER_NOT_PROVISIONED",
+		"error.auth.external.userNotProvisioned",
+		"No local account is linked to this external identity",
+		gcode.CodeNotAuthorized,
+	)
 )

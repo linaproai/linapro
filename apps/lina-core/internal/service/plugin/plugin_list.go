@@ -144,7 +144,29 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		}
 		filtered = append(filtered, item)
 	}
-	return &ListOutput{List: filtered, Total: len(filtered)}, nil
+	return &ListOutput{List: paginatePluginItems(filtered, in.PageNum, in.PageSize), Total: len(filtered)}, nil
+}
+
+// paginatePluginItems returns the requested page window of the filtered plugin
+// list. Total in ListOutput stays the full filtered count so the management UI
+// can render page navigation. A non-positive page size disables pagination and
+// returns all items, keeping internal callers that do not page unaffected.
+func paginatePluginItems(items []*PluginItem, pageNum int, pageSize int) []*PluginItem {
+	if pageSize <= 0 {
+		return items
+	}
+	if pageNum <= 0 {
+		pageNum = 1
+	}
+	start := (pageNum - 1) * pageSize
+	if start >= len(items) {
+		return []*PluginItem{}
+	}
+	end := start + pageSize
+	if end > len(items) {
+		end = len(items)
+	}
+	return items[start:end]
 }
 
 // Get returns one read-only plugin detail projection by exact plugin ID.

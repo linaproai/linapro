@@ -21,6 +21,8 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 		Type:      string(req.Type),
 		Status:    enabledPtrToInt(req.Status),
 		Installed: installationPtrToInt(req.Installed),
+		PageNum:   req.PageNum,
+		PageSize:  req.PageSize,
 	})
 	if err != nil {
 		return nil, err

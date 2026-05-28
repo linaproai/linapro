@@ -107,6 +107,15 @@ workspace:
   # 内建管理工作台入口路径。该配置在启动期生效；独立管理后台域名场景可使用 "/"，
   # 但不能使用 "/api"、"/x"、"/x-assets" 或其他保留路径。
   basePath: "/admin"
+  # vue-router history backend used by the workspace bundle.
+  # Allowed values: "hash" (default, no SPA fallback required) or "history"
+  # (requires the host or reverse proxy to serve index.html for unknown paths).
+  # The value MUST match VITE_ROUTER_HISTORY in the frontend build because the
+  # backend composes OAuth handoff and other post-login redirect URLs from it.
+  # 管理工作台使用的 vue-router 历史模式。允许的值为 "hash"（默认，无需 SPA 兜底）
+  # 与 "history"（需要宿主或反向代理将未知路径回退到 index.html）。该值必须与
+  # 前端构建期的 VITE_ROUTER_HISTORY 保持一致。
+  routerMode: "hash"
 
 # Internationalization configuration
 # 国际化配置

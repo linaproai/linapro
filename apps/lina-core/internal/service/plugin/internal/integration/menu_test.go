@@ -1137,6 +1137,261 @@ func TestSyncPluginMenusResolvesChosenExternalParent(t *testing.T) {
 	}
 }
 
+// TestSyncPluginMenusMaterializesHostManagedParent verifies the host
+// materializes its on-demand auth-provider catalog from the host-owned
+// definition when a plugin mounts under it, and nests the plugin menu beneath it.
+func TestSyncPluginMenusMaterializesHostManagedParent(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		pluginID = "plugin-managed-parent-create"
+		menuKey  = "plugin:plugin-managed-parent-create:main-entry"
+	)
+
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	cleanupMenuByKeyHard(t, ctx, menusvc.AuthProvider)
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+		cleanupMenuByKeyHard(t, ctx, menusvc.AuthProvider)
+	})
+
+	manifest := &catalog.Manifest{
+		ID:      pluginID,
+		Name:    "Managed Parent Create Plugin",
+		Version: "v0.1.0",
+		Type:    catalog.TypeSource.String(),
+		Menus: []*catalog.MenuSpec{
+			{
+				Key:       menuKey,
+				ParentKey: menusvc.AuthProvider,
+				Name:      "Managed Parent Create Plugin",
+				Path:      "plugin-managed-parent-create",
+				Component: "system/plugin/dynamic-page",
+				Type:      catalog.MenuTypePage.String(),
+			},
+		},
+	}
+
+	if err := services.Integration.SyncPluginMenusAndPermissions(ctx, manifest); err != nil {
+		t.Fatalf("expected plugin menu sync to materialize host parent, got error: %v", err)
+	}
+
+	parent, err := testutil.QueryMenuByKey(ctx, menusvc.AuthProvider)
+	if err != nil {
+		t.Fatalf("expected managed parent query to succeed, got error: %v", err)
+	}
+	if parent == nil {
+		t.Fatalf("expected host to materialize managed parent %s", menusvc.AuthProvider)
+	}
+	if parent.Type != catalog.MenuTypeDirectory.String() {
+		t.Fatalf("expected managed parent to be a directory, got type %q", parent.Type)
+	}
+	if parent.ParentId != 0 {
+		t.Fatalf("expected managed parent to be top-level, got parent_id %d", parent.ParentId)
+	}
+	if parent.Name != "Authentication Providers" {
+		t.Fatalf("expected host-owned parent name, got %q", parent.Name)
+	}
+
+	child, err := testutil.QueryMenuByKey(ctx, menuKey)
+	if err != nil {
+		t.Fatalf("expected plugin menu query to succeed, got error: %v", err)
+	}
+	if child == nil {
+		t.Fatalf("expected plugin menu %s to be created", menuKey)
+	}
+	if child.ParentId != parent.Id {
+		t.Fatalf("expected plugin menu to mount under managed parent %d, got %d", parent.Id, child.ParentId)
+	}
+}
+
+// TestDeletePluginMenusRemovesEmptyHostManagedParent verifies the on-demand
+// auth-provider catalog is removed once its last child menu is deleted.
+func TestDeletePluginMenusRemovesEmptyHostManagedParent(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		pluginID = "plugin-managed-parent-delete"
+		menuKey  = "plugin:plugin-managed-parent-delete:main-entry"
+	)
+
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	cleanupMenuByKeyHard(t, ctx, menusvc.AuthProvider)
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+		cleanupMenuByKeyHard(t, ctx, menusvc.AuthProvider)
+	})
+
+	manifest := &catalog.Manifest{
+		ID:      pluginID,
+		Name:    "Managed Parent Delete Plugin",
+		Version: "v0.1.0",
+		Type:    catalog.TypeSource.String(),
+		Menus: []*catalog.MenuSpec{
+			{
+				Key:       menuKey,
+				ParentKey: menusvc.AuthProvider,
+				Name:      "Managed Parent Delete Plugin",
+				Path:      "plugin-managed-parent-delete",
+				Component: "system/plugin/dynamic-page",
+				Type:      catalog.MenuTypePage.String(),
+			},
+		},
+	}
+
+	if err := services.Integration.SyncPluginMenusAndPermissions(ctx, manifest); err != nil {
+		t.Fatalf("expected plugin menu sync to succeed, got error: %v", err)
+	}
+	if parent, err := testutil.QueryMenuByKey(ctx, menusvc.AuthProvider); err != nil || parent == nil {
+		t.Fatalf("expected managed parent to exist after sync, parent=%v err=%v", parent, err)
+	}
+
+	if err := services.Integration.DeletePluginMenusByManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected plugin menu deletion to succeed, got error: %v", err)
+	}
+
+	child, err := testutil.QueryMenuByKey(ctx, menuKey)
+	if err != nil {
+		t.Fatalf("expected plugin menu cleanup query to succeed, got error: %v", err)
+	}
+	if child != nil {
+		t.Fatalf("expected plugin menu %s to be deleted", menuKey)
+	}
+	parent, err := testutil.QueryMenuByKey(ctx, menusvc.AuthProvider)
+	if err != nil {
+		t.Fatalf("expected managed parent cleanup query to succeed, got error: %v", err)
+	}
+	if parent != nil {
+		t.Fatalf("expected empty managed parent %s to be auto-removed", menusvc.AuthProvider)
+	}
+}
+
+// TestHostManagedParentSurvivesUntilLastChildRemoved verifies the shared
+// auth-provider catalog is preserved while another plugin still mounts under it
+// and removed only after its final child is deleted.
+func TestHostManagedParentSurvivesUntilLastChildRemoved(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		pluginA  = "plugin-shared-parent-a"
+		pluginB  = "plugin-shared-parent-b"
+		menuKeyA = "plugin:plugin-shared-parent-a:main-entry"
+		menuKeyB = "plugin:plugin-shared-parent-b:main-entry"
+	)
+
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginA)
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginB)
+	cleanupMenuByKeyHard(t, ctx, menusvc.AuthProvider)
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginA)
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginB)
+		cleanupMenuByKeyHard(t, ctx, menusvc.AuthProvider)
+	})
+
+	manifestFor := func(id string, key string) *catalog.Manifest {
+		return &catalog.Manifest{
+			ID:      id,
+			Name:    id,
+			Version: "v0.1.0",
+			Type:    catalog.TypeSource.String(),
+			Menus: []*catalog.MenuSpec{
+				{
+					Key:       key,
+					ParentKey: menusvc.AuthProvider,
+					Name:      id,
+					Path:      id,
+					Component: "system/plugin/dynamic-page",
+					Type:      catalog.MenuTypePage.String(),
+				},
+			},
+		}
+	}
+
+	manifestA := manifestFor(pluginA, menuKeyA)
+	manifestB := manifestFor(pluginB, menuKeyB)
+
+	if err := services.Integration.SyncPluginMenusAndPermissions(ctx, manifestA); err != nil {
+		t.Fatalf("expected plugin A sync to succeed, got error: %v", err)
+	}
+	if err := services.Integration.SyncPluginMenusAndPermissions(ctx, manifestB); err != nil {
+		t.Fatalf("expected plugin B sync to succeed, got error: %v", err)
+	}
+
+	if err := services.Integration.DeletePluginMenusByManifest(ctx, manifestA); err != nil {
+		t.Fatalf("expected plugin A deletion to succeed, got error: %v", err)
+	}
+	parent, err := testutil.QueryMenuByKey(ctx, menusvc.AuthProvider)
+	if err != nil {
+		t.Fatalf("expected managed parent query to succeed, got error: %v", err)
+	}
+	if parent == nil {
+		t.Fatalf("expected shared managed parent %s to survive while plugin B child remains", menusvc.AuthProvider)
+	}
+
+	if err := services.Integration.DeletePluginMenusByManifest(ctx, manifestB); err != nil {
+		t.Fatalf("expected plugin B deletion to succeed, got error: %v", err)
+	}
+	parent, err = testutil.QueryMenuByKey(ctx, menusvc.AuthProvider)
+	if err != nil {
+		t.Fatalf("expected managed parent cleanup query to succeed, got error: %v", err)
+	}
+	if parent != nil {
+		t.Fatalf("expected shared managed parent %s to be removed after last child deleted", menusvc.AuthProvider)
+	}
+}
+
+// TestSyncPluginMenusRejectsUnknownMissingParent verifies a parent_key naming a
+// menu the host neither has nor owns is still rejected to avoid orphaned trees.
+func TestSyncPluginMenusRejectsUnknownMissingParent(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		pluginID  = "plugin-unknown-missing-parent"
+		menuKey   = "plugin:plugin-unknown-missing-parent:main-entry"
+		parentKey = "test-unknown-missing-parent"
+	)
+
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	})
+
+	manifest := &catalog.Manifest{
+		ID:      pluginID,
+		Name:    "Unknown Missing Parent Plugin",
+		Version: "v0.1.0",
+		Type:    catalog.TypeSource.String(),
+		Menus: []*catalog.MenuSpec{
+			{
+				Key:       menuKey,
+				ParentKey: parentKey,
+				Name:      "Unknown Missing Parent Plugin",
+				Path:      "plugin-unknown-missing-parent",
+				Component: "system/plugin/dynamic-page",
+				Type:      catalog.MenuTypePage.String(),
+			},
+		},
+	}
+
+	err := services.Integration.SyncPluginMenusAndPermissions(ctx, manifest)
+	if err == nil || !strings.Contains(err.Error(), "parent_key") {
+		t.Fatalf("expected unknown missing parent to be rejected, got %v", err)
+	}
+}
+
+// cleanupMenuByKeyHard hard-deletes one menu row by key so host-managed parent
+// tests leave no residual host menu rows.
+func cleanupMenuByKeyHard(t *testing.T, ctx context.Context, menuKey string) {
+	t.Helper()
+	if _, err := dao.SysMenu.Ctx(ctx).Unscoped().Where(do.SysMenu{MenuKey: menuKey}).Delete(); err != nil {
+		t.Fatalf("expected managed parent cleanup to succeed, got error: %v", err)
+	}
+}
+
 // ensureTestStableHostMenu ensures a stable host menu exists for integration
 // tests running against databases initialized before the current iteration.
 func ensureTestStableHostMenu(t *testing.T, ctx context.Context, menuKey string) *entity.SysMenu {

@@ -1,0 +1,23 @@
+{
+  "oidc": {
+    "settings": {
+      "instructionsCard": "Configuration Guide",
+      "stepCreateCredentialsPrefix": "Visit ",
+      "stepCreateCredentialsSuffix": " and create OAuth2 credentials",
+      "stepWebApp": "Choose \"Web Application\" as the application type",
+      "stepFillCredentials": "Fill in the Client ID and Client Secret below",
+      "stepRegisterRedirect": "Add the Redirect URI shown below to the \"{section}\" list",
+      "stepEnabled": "Once enabled, the login page will show a \"{label}\" button"
+    },
+    "google": {
+      "consoleName": "Google Cloud Console",
+      "registerSection": "Authorized redirect URIs",
+      "buttonLabel": "Continue with Google"
+    },
+    "discord": {
+      "consoleName": "Discord Developer Portal",
+      "registerSection": "Redirects",
+      "buttonLabel": "Continue with Discord"
+    }
+  }
+}

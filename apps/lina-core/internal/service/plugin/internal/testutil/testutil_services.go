@@ -258,6 +258,9 @@ func (s *testCapabilities) Org() capabilityorgcap.Service {
 // PluginLifecycle returns no lifecycle service for plugin integration tests.
 func (s *testCapabilities) PluginLifecycle() contract.PluginLifecycleService { return nil }
 
+// PluginSettings returns no plugin settings service for plugin integration tests.
+func (s *testCapabilities) PluginSettings() contract.PluginSettingsService { return nil }
+
 // PluginState returns no plugin-state service for plugin integration tests.
 func (s *testCapabilities) PluginState() contract.PluginStateService { return nil }
 

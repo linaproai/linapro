@@ -30,6 +30,13 @@ type WorkspaceConfigReader interface {
 	GetWorkspace(ctx context.Context) *WorkspaceConfig
 	// GetWorkspaceBasePath returns the normalized admin workspace entry path.
 	GetWorkspaceBasePath(ctx context.Context) string
+	// GetWorkspaceRouterMode returns the normalized vue-router history backend
+	// (hash or history) used by the admin workspace.
+	GetWorkspaceRouterMode(ctx context.Context) string
+	// BuildWorkspaceRouteURL composes the absolute URL path that the browser
+	// must visit to land on one workspace route, honoring base path and
+	// router mode so backend-issued redirects stay in sync with the SPA.
+	BuildWorkspaceRouteURL(ctx context.Context, routePath string, rawQuery string) string
 }
 
 // ClusterConfigReader reads cluster topology settings.

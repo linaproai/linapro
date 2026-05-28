@@ -135,6 +135,23 @@ func (s *startupDataSnapshot) menusByKeys(menuKeys []string, unscoped bool) map[
 	return result
 }
 
+// countMenuChildren counts non-deleted snapshot menus directly nested under parentID.
+func (s *startupDataSnapshot) countMenuChildren(parentID int) int {
+	if s == nil || parentID == 0 {
+		return 0
+	}
+	count := 0
+	for _, menu := range s.menusByKey {
+		if menu == nil || menu.DeletedAt != nil {
+			continue
+		}
+		if menu.ParentId == parentID {
+			count++
+		}
+	}
+	return count
+}
+
 // storeMenu records a menu row in the startup snapshot.
 func (s *startupDataSnapshot) storeMenu(menu *entity.SysMenu) {
 	if s == nil || menu == nil || strings.TrimSpace(menu.MenuKey) == "" {

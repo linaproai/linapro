@@ -1,0 +1,23 @@
+{
+  "oidc": {
+    "settings": {
+      "instructionsCard": "配置说明",
+      "stepCreateCredentialsPrefix": "前往 ",
+      "stepCreateCredentialsSuffix": " 创建 OAuth2 凭据",
+      "stepWebApp": "选择应用类型为 Web 应用程序",
+      "stepFillCredentials": "将 Client ID 和 Client Secret 填入下方配置",
+      "stepRegisterRedirect": "在「{section}」中添加下方 Redirect URI 展示的完整地址",
+      "stepEnabled": "启用后，登录页面将显示「{label}」按钮"
+    },
+    "google": {
+      "consoleName": "Google Cloud Console",
+      "registerSection": "已获授权的重定向 URI",
+      "buttonLabel": "Continue with Google"
+    },
+    "discord": {
+      "consoleName": "Discord Developer Portal",
+      "registerSection": "Redirects",
+      "buttonLabel": "Continue with Discord"
+    }
+  }
+}

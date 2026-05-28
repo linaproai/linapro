@@ -71,6 +71,18 @@ type Service interface {
 	// RevokeSession writes a shared revoke marker, removes one online session by
 	// token ID, and invalidates token-bound role access cache across callers.
 	RevokeSession(ctx context.Context, tokenId string) error
+	// LoginByExternal resolves a verified external provider identity into a
+	// host login outcome. Source-plugin OAuth callbacks must have already
+	// verified the provider exchange before calling this method; the host
+	// enforces login policy, user lookup by email, tenant resolution, JWT
+	// issuance, online session creation, and auth lifecycle hooks identically
+	// to password login.
+	LoginByExternal(ctx context.Context, in ExternalLoginInput) (*LoginOutput, error)
+	// ListProviders returns enabled authentication provider entries discovered
+	// from the host auth-provider registry. Each entry includes static
+	// metadata plus a runtime snapshot of post-login redirect rules so the
+	// default workbench login page can render third-party login buttons.
+	ListProviders(ctx context.Context) ([]ProviderEntryView, error)
 }
 
 // TenantTokenIssuer defines the narrow host-owned token handoff used by
@@ -258,4 +270,55 @@ type ImpersonationTokenOutput struct {
 	TokenID      string // Host token/session identifier
 	TenantID     int    // Target tenant ID
 	ActingUserID int    // Platform administrator user ID
+}
+
+// ExternalLoginInput describes a verified external provider identity passed
+// from a source-plugin OAuth callback to the host login handoff.
+type ExternalLoginInput struct {
+	// ProviderID is the stable provider identifier (e.g. "google").
+	ProviderID string
+	// PluginID is the owning source-plugin identifier (e.g. "linapro-oidc-google").
+	PluginID string
+	// ExternalUserID is the provider-side user identifier, used for logging.
+	ExternalUserID string
+	// Email is the email address returned by the provider; required.
+	Email string
+	// DisplayName is the human-readable name returned by the provider; optional.
+	DisplayName string
+	// ClientIP is the original client IP forwarded by the OAuth callback.
+	// When empty the host falls back to the current request IP.
+	ClientIP string
+}
+
+// ProviderEntryView is the host-side projection of one authentication
+// provider entry used by /auth/providers responses and source-plugin
+// AuthService.LoginByExternal flows.
+type ProviderEntryView struct {
+	// ProviderID is the stable provider identifier (e.g. "google").
+	ProviderID string
+	// PluginID is the owning source-plugin identifier.
+	PluginID string
+	// Kind is the provider kind: "oauth2", "oidc", "ldap", "saml", "cas".
+	Kind string
+	// Name is the display name shown on the login page.
+	Name string
+	// Description is the short tagline shown next to the entry.
+	Description string
+	// Icon is the icon identifier rendered by the workbench.
+	Icon string
+	// EntryURL is the provider login entry URL or deep-link route.
+	EntryURL string
+	// BackendRedirectEnabled reports whether the provider supports
+	// state-based post-login redirect rules.
+	BackendRedirectEnabled bool
+	// BackendRedirectDefault is the fallback redirect URL used when no
+	// state-based rule matches.
+	BackendRedirectDefault string
+	// BackendRedirectRules is the JSON object mapping state to redirect URL.
+	BackendRedirectRules string
+	// DisplayOrder controls login entry sort order; smaller values first.
+	DisplayOrder int
+	// Enabled reports whether the entry should be rendered on the login
+	// page (the owning plugin is enabled and the provider opted in).
+	Enabled bool
 }

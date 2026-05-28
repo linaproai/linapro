@@ -5,6 +5,7 @@ package pluginhostservices
 
 import (
 	"context"
+	netUrl "net/url"
 	"sort"
 	"strings"
 
@@ -17,6 +18,7 @@ import (
 	internali18n "lina-core/internal/service/i18n"
 	internalnotify "lina-core/internal/service/notify"
 	internalplugin "lina-core/internal/service/plugin"
+	internalpluginsettings "lina-core/internal/service/pluginsettings"
 	internalsession "lina-core/internal/service/session"
 	"lina-core/pkg/bizerr"
 	plugincontract "lina-core/pkg/plugin/capability/contract"
@@ -83,12 +85,34 @@ func (s *apiDocAdapter) FindRouteTitleOperationKeys(ctx context.Context, keyword
 
 // authAdapter bridges the internal auth service into the published plugin contract.
 type authAdapter struct {
+	// tokenIssuer is the narrow tenant-token/impersonation seam.
 	tokenIssuer internalauth.TenantTokenIssuer
+	// externalLogin is the full auth service used for external login handoff.
+	externalLogin internalauth.Service
+	// workspaceRoute resolves the workspace base path and router mode so the
+	// adapter can compose OAuth handoff URLs without leaking host config.
+	workspaceRoute workspaceRouteResolver
+}
+
+// workspaceRouteResolver is the narrow workspace URL builder required by the
+// plugin auth adapter to compose the OAuth handoff redirect.
+type workspaceRouteResolver interface {
+	// BuildWorkspaceRouteURL composes one workspace URL with the configured
+	// base path and vue-router history backend.
+	BuildWorkspaceRouteURL(ctx context.Context, routePath string, rawQuery string) string
 }
 
 // newAuthAdapter creates the source-plugin auth service adapter.
-func newAuthAdapter(tokenIssuer internalauth.TenantTokenIssuer) plugincontract.AuthService {
-	return &authAdapter{tokenIssuer: tokenIssuer}
+func newAuthAdapter(
+	tokenIssuer internalauth.TenantTokenIssuer,
+	externalLogin internalauth.Service,
+	workspaceRoute workspaceRouteResolver,
+) plugincontract.AuthService {
+	return &authAdapter{
+		tokenIssuer:    tokenIssuer,
+		externalLogin:  externalLogin,
+		workspaceRoute: workspaceRoute,
+	}
 }
 
 // SelectTenant consumes a pre-login token and issues a tenant-bound token.
@@ -155,6 +179,158 @@ func (s *authAdapter) RevokeImpersonationToken(ctx context.Context, in plugincon
 		return bizerr.NewCode(internalauth.CodeAuthTokenInvalid)
 	}
 	return s.tokenIssuer.RevokeImpersonationToken(ctx, in.BearerToken, in.TenantID)
+}
+
+// LoginByExternal hands a verified external identity to the host login flow
+// and reshapes the host login outcome into the plugin-visible contract.
+func (s *authAdapter) LoginByExternal(ctx context.Context, in plugincontract.ExternalLoginInput) (*plugincontract.ExternalLoginOutput, error) {
+	if s == nil || s.externalLogin == nil {
+		return nil, bizerr.NewCode(internalauth.CodeAuthTokenStateUnavailable)
+	}
+	out, err := s.externalLogin.LoginByExternal(ctx, internalauth.ExternalLoginInput{
+		ProviderID:     in.ProviderID,
+		PluginID:       in.PluginID,
+		ExternalUserID: in.ExternalUserID,
+		Email:          in.Email,
+		DisplayName:    in.DisplayName,
+		ClientIP:       in.ClientIP,
+	})
+	if err != nil {
+		return nil, err
+	}
+	tenants := make([]plugincontract.ExternalLoginTenant, 0, len(out.Tenants))
+	for _, item := range out.Tenants {
+		tenants = append(tenants, plugincontract.ExternalLoginTenant{
+			ID:     item.Id,
+			Code:   item.Code,
+			Name:   item.Name,
+			Status: item.Status,
+		})
+	}
+	return &plugincontract.ExternalLoginOutput{
+		AccessToken:  out.AccessToken,
+		RefreshToken: out.RefreshToken,
+		PreToken:     out.PreToken,
+		Tenants:      tenants,
+	}, nil
+}
+
+// OAuthHandoffURL returns the workspace-relative URL that source-plugin OAuth
+// callbacks should redirect to after handing the host login outcome back. It
+// composes the full URL using the configured workspace base path and
+// vue-router history backend so plugin callers do not need to know whether
+// the workspace uses hash or history routing.
+func (s *authAdapter) OAuthHandoffURL(ctx context.Context, queryParams map[string]string) string {
+	encoded := encodeOAuthHandoffQuery(queryParams)
+	const fallbackPath = "/oauth-handoff"
+	if s == nil || s.workspaceRoute == nil {
+		if encoded == "" {
+			return fallbackPath
+		}
+		return fallbackPath + "?" + encoded
+	}
+	return s.workspaceRoute.BuildWorkspaceRouteURL(ctx, fallbackPath, encoded)
+}
+
+// encodeOAuthHandoffQuery percent-encodes the supplied query map into a stable
+// key=value&... string. Keys are emitted in alphabetical order so the encoded
+// URL is deterministic for tests, audit logs, and accidental browser caches.
+func encodeOAuthHandoffQuery(queryParams map[string]string) string {
+	if len(queryParams) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(queryParams))
+	for key := range queryParams {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	if len(keys) == 0 {
+		return ""
+	}
+	sort.Strings(keys)
+	values := netUrl.Values{}
+	for _, key := range keys {
+		values.Set(key, queryParams[key])
+	}
+	return values.Encode()
+}
+
+// pluginSettingsAdapter bridges the internal pluginsettings service to the
+// published source-plugin contract.
+type pluginSettingsAdapter struct {
+	// service is the runtime-owned settings service backed by sys_config.
+	service internalpluginsettings.Service
+}
+
+// newPluginSettingsAdapter creates the source-plugin settings adapter.
+func newPluginSettingsAdapter(service internalpluginsettings.Service) plugincontract.PluginSettingsService {
+	return &pluginSettingsAdapter{service: service}
+}
+
+// GetString returns the persisted setting value or defaultValue.
+func (s *pluginSettingsAdapter) GetString(ctx context.Context, pluginID string, key string, defaultValue string) (string, error) {
+	if s == nil || s.service == nil {
+		return defaultValue, nil
+	}
+	return s.service.GetString(ctx, pluginID, key, defaultValue)
+}
+
+// GetBool returns the parsed bool value or defaultValue.
+func (s *pluginSettingsAdapter) GetBool(ctx context.Context, pluginID string, key string, defaultValue bool) (bool, error) {
+	if s == nil || s.service == nil {
+		return defaultValue, nil
+	}
+	return s.service.GetBool(ctx, pluginID, key, defaultValue)
+}
+
+// GetInt returns the parsed int value or defaultValue.
+func (s *pluginSettingsAdapter) GetInt(ctx context.Context, pluginID string, key string, defaultValue int) (int, error) {
+	if s == nil || s.service == nil {
+		return defaultValue, nil
+	}
+	return s.service.GetInt(ctx, pluginID, key, defaultValue)
+}
+
+// SetString writes the setting value (empty clears the row).
+func (s *pluginSettingsAdapter) SetString(ctx context.Context, pluginID string, key string, value string) error {
+	if s == nil || s.service == nil {
+		return nil
+	}
+	return s.service.SetString(ctx, pluginID, key, value)
+}
+
+// SetSecret writes a secret-style setting (empty preserves the stored secret).
+func (s *pluginSettingsAdapter) SetSecret(ctx context.Context, pluginID string, key string, value string) error {
+	if s == nil || s.service == nil {
+		return nil
+	}
+	return s.service.SetSecret(ctx, pluginID, key, value)
+}
+
+// GetMaskedSecret returns a masked projection of the stored secret.
+func (s *pluginSettingsAdapter) GetMaskedSecret(ctx context.Context, pluginID string, key string) (string, error) {
+	if s == nil || s.service == nil {
+		return "", nil
+	}
+	return s.service.GetMaskedSecret(ctx, pluginID, key)
+}
+
+// Delete removes one stored setting (missing rows are no-op).
+func (s *pluginSettingsAdapter) Delete(ctx context.Context, pluginID string, key string) error {
+	if s == nil || s.service == nil {
+		return nil
+	}
+	return s.service.Delete(ctx, pluginID, key)
+}
+
+// List returns every persisted setting in the plugin namespace.
+func (s *pluginSettingsAdapter) List(ctx context.Context, pluginID string) (map[string]string, error) {
+	if s == nil || s.service == nil {
+		return map[string]string{}, nil
+	}
+	return s.service.List(ctx, pluginID)
 }
 
 // bizCtxAdapter bridges the internal bizctx service into the published plugin contract.

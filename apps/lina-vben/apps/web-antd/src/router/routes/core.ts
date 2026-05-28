@@ -90,6 +90,37 @@ const coreRoutes: RouteRecordRaw[] = [
       },
     ],
   },
+  /**
+   * OAuth handoff entry served at the workspace root so source-plugin OAuth
+   * callbacks can land at /<workspace>/#/oauth-handoff with the host login
+   * outcome encoded as query parameters. The page itself is rendered inside
+   * AuthPageLayout but lives outside /auth/* so deep links from third-party
+   * providers stay short and stable.
+   */
+  {
+    component: AuthPageLayout,
+    meta: {
+      hideInBreadcrumb: true,
+      hideInMenu: true,
+      hideInTab: true,
+      ignoreAccess: true,
+      title: 'OAuth Handoff',
+    },
+    name: 'OAuthHandoffRoot',
+    path: '/oauth-handoff',
+    children: [
+      {
+        name: 'OAuthHandoff',
+        path: '',
+        component: () =>
+          import('#/views/_core/authentication/oauth-handoff.vue'),
+        meta: {
+          ignoreAccess: true,
+          title: 'OAuth Handoff',
+        },
+      },
+    ],
+  },
 ];
 
 export { coreRoutes, fallbackNotFoundRoute };

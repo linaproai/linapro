@@ -186,6 +186,74 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /**
+   * 消费源码插件 OAuth 回调投递的登录结果。
+   *
+   * 回调通过 /oauth-handoff 路由的 query 参数把宿主 LoginByExternal 的结果带过来：
+   * - 单租户用户携带 accessToken/refreshToken，可直接进入工作台；
+   * - 多租户用户携带 preToken + tenants，需要继续走租户选择流程。
+   */
+  async function completeOAuthHandoff(payload: {
+    accessToken?: string;
+    preToken?: string;
+    redirect?: string;
+    refreshToken?: string;
+    tenants?: LoginTenant[];
+  }) {
+    const tenants = Array.isArray(payload.tenants) ? payload.tenants : [];
+
+    if (payload.accessToken) {
+      try {
+        loginLoading.value = true;
+        accessStore.setAccessToken(payload.accessToken);
+        accessStore.setRefreshToken(payload.refreshToken ?? null);
+        const userInfo = await fetchUserInfo();
+        userStore.setUserInfo(userInfo);
+        tenantStore.setTenantContext({
+          currentTenant: tenants.length === 1 ? tenants[0] : null,
+          enabled: resolveTenantEnabled(tenants, userInfo, tenants[0] ?? null),
+          tenants,
+        });
+        accessStore.setLoginExpired(false);
+        await router.replace(
+          tenantStore.resolveFallbackPath(
+            payload.redirect ||
+              userInfo.homePath ||
+              preferences.app.defaultHomePath,
+          ),
+        );
+        if (userInfo?.realName) {
+          notification.success({
+            description: `${$t('authentication.loginSuccessDesc')}: ${userInfo.realName}`,
+            duration: 3,
+            message: $t('authentication.loginSuccess'),
+          });
+        }
+      } finally {
+        loginLoading.value = false;
+      }
+      return { requiresTenantSelection: false };
+    }
+
+    if (payload.preToken && tenants.length > 0) {
+      pendingPreToken.value = payload.preToken;
+      tenantStore.setTenantContext({
+        currentTenant: null,
+        enabled: true,
+        tenants,
+      });
+      await router.replace({
+        path: LOGIN_PATH,
+        query: payload.redirect
+          ? { redirect: encodeURIComponent(payload.redirect) }
+          : {},
+      });
+      return { requiresTenantSelection: true, tenants };
+    }
+
+    throw new Error('OAuth handoff payload is missing tokens or pre-login token');
+  }
+
   async function clearSession(redirect: boolean = true) {
     resetAllStores();
     tenantStore.$reset();
@@ -240,6 +308,7 @@ export const useAuthStore = defineStore('auth', () => {
     $reset,
     authLogin,
     clearSession,
+    completeOAuthHandoff,
     fetchUserInfo,
     loginLoading,
     logout,

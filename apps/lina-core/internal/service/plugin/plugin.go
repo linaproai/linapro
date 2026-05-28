@@ -266,6 +266,12 @@ type ListInput struct {
 	Status *int
 	// Installed filters by installed flag.
 	Installed *int
+	// PageNum is the requested 1-based page number. A non-positive value with a
+	// positive PageSize is treated as the first page.
+	PageNum int
+	// PageSize is the requested page size. A non-positive value disables
+	// pagination so internal callers keep the full filtered projection.
+	PageSize int
 }
 
 // AuthLoginSucceededInput defines input for auth hook events.
