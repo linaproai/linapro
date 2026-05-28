@@ -5,11 +5,21 @@ package wasm
 
 import (
 	"sync"
+	"time"
 
 	"github.com/tetratelabs/wazero"
 
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
+)
+
+const (
+	// defaultBridgeExecutionTimeout is the host-side fallback for dynamic
+	// plugin bridge calls when callers do not provide a tighter deadline.
+	defaultBridgeExecutionTimeout = 30 * time.Second
+	// defaultWasmMemoryLimitPages caps one dynamic plugin module instance to
+	// 256 MiB because each WebAssembly memory page is 64 KiB.
+	defaultWasmMemoryLimitPages uint32 = 4096
 )
 
 // ExecutionInput carries the minimum manifest data needed to run one bridge call.

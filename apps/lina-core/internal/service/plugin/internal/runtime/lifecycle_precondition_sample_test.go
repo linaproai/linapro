@@ -7,6 +7,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
@@ -24,6 +25,14 @@ func TestRunBundledDynamicSampleBeforeInstallLifecycleAllowsRuntimeLog(t *testin
 	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
 	if err != nil {
 		t.Fatalf("expected bundled dynamic manifest to load, got error: %v", err)
+	}
+	for _, contract := range manifest.LifecycleHandlers {
+		if contract != nil && contract.Operation.String() == pluginhost.LifecycleHookBeforeInstall.String() {
+			// CI runs this package with -race, so the real bundled sample gets a
+			// wider test-only cold-start budget without changing production defaults.
+			contract.TimeoutMs = int((2 * time.Minute) / time.Millisecond)
+			break
+		}
 	}
 
 	decision, err := services.Runtime.RunDynamicLifecyclePrecondition(context.Background(), manifest, runtime.DynamicLifecycleInput{

@@ -7,13 +7,17 @@ import (
 	"context"
 	"strings"
 
-	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/governance"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/pkg/bizerr"
 	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
+
+// platformGovernanceTenantCapability is the tenant-capability slice required by
+// plugin governance guards.
+type platformGovernanceTenantCapability = governance.TenantCapability
 
 // pluginTenantStartupCapability is the tenant slice needed by plugin startup
 // consistency checks. It excludes request resolution, data-scope, membership
@@ -59,6 +63,21 @@ func (s *serviceImpl) SetOrganizationCapability(service orgcapsvc.Service) {
 	s.integrationSvc.SetOrganizationCapability(service)
 }
 
+// ensurePlatformGovernance verifies the current request can mutate platform
+// plugin governance state.
+func (s *serviceImpl) ensurePlatformGovernance(ctx context.Context) error {
+	return governance.EnsurePlatformContext(ctx, s.platformGovernanceTenantCapability())
+}
+
+// platformGovernanceTenantCapability returns the tenant capability used by the
+// plugin governance guard.
+func (s *serviceImpl) platformGovernanceTenantCapability() platformGovernanceTenantCapability {
+	if s == nil {
+		return nil
+	}
+	return s.tenantGovernance
+}
+
 // ValidateStartupConsistency verifies persisted startup state that must be
 // coherent before HTTP routes and plugin callbacks become reachable.
 func (s *serviceImpl) ValidateStartupConsistency(ctx context.Context) error {
@@ -98,25 +117,7 @@ func (s *serviceImpl) validatePluginStartupConsistency(ctx context.Context) ([]s
 	if err != nil {
 		return nil, err
 	}
-	details := make([]string, 0)
-	for _, registry := range registries {
-		if registry == nil {
-			continue
-		}
-		scope := strings.TrimSpace(strings.ToLower(registry.ScopeNature))
-		mode := strings.TrimSpace(strings.ToLower(registry.InstallMode))
-		if !catalog.IsSupportedScopeNature(scope) {
-			details = append(details, "plugin "+registry.PluginId+" has invalid scope_nature "+registry.ScopeNature)
-		}
-		if !catalog.IsSupportedInstallMode(mode) {
-			details = append(details, "plugin "+registry.PluginId+" has invalid install_mode "+registry.InstallMode)
-		}
-		if catalog.NormalizeScopeNature(scope) == catalog.ScopeNaturePlatformOnly &&
-			catalog.NormalizeInstallMode(mode) != catalog.InstallModeGlobal {
-			details = append(details, "platform_only plugin "+registry.PluginId+" must use global install_mode")
-		}
-	}
-	return details, nil
+	return governance.ValidatePluginRegistryRows(registries), nil
 }
 
 // validateProviderStartupConsistency verifies the tenant capability provider

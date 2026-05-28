@@ -2,6 +2,9 @@
   "error": {
     "auth": {
       "login": {
+        "clientType": {
+          "invalid": "客户端类型无效"
+        },
         "invalidCredentials": "用户名或密码错误",
         "ipBlacklisted": "登录IP已被禁止",
         "updateLastLoginFailed": "更新最后登录时间失败",
@@ -1244,6 +1247,9 @@
       "login": {
         "password": {
           "required": "请输入密码"
+        },
+        "clientType": {
+          "required": "请输入客户端类型"
         },
         "username": {
           "required": "请输入用户名"

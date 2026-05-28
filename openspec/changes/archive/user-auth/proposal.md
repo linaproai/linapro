@@ -28,6 +28,7 @@ LinaPro 当前是单租户架构:`sys_*` 表无租户维度、用户角色全局
 - **租户解析中间件固定策略**:责任链顺序、保留子域名清单、未识别请求行为(`prompt`)使用代码默认值,不提供解析配置表或后台运行时调整;`rootDomain` 后续开放设置,当前固定为空并禁用子域名解析;正式 JWT 是普通业务请求的权威租户身份,header/subdomain 仅作为登录前 hint。
 - **审计日志全面租户化**:`monitor-operlog` 与 `monitor-loginlog` 表加 `tenant_id` 与 `acting_on_behalf_of_tenant_id`,平台管理员代为操作时双轨记录。
 - **i18n 资源治理**:运行时翻译缓存保持按交付资源维度(`locale` / `sector` / `plugin`)精细失效;字典/配置等租户覆盖缓存按租户维度隔离;所有新增否决理由、错误信息均通过 i18n key 维护。
+- **客户端类型会话元数据**:登录请求必须显式提交`clientType`,认证服务、JWT claims、`pre_token`、`bizCtx`、在线会话和认证生命周期 Hook 统一使用该事实源,支持`web`、`mobile`、`desktop`和`cli`四类客户端。
 
 **重要边界**:
 - 隔离模型采用 Pool(单库 + tenant_id 列),代码默认值固定为 `pool`,宿主配置模板不暴露租户隔离配置项。
@@ -52,12 +53,14 @@ LinaPro 当前是单租户架构:`sys_*` 表无租户维度、用户角色全局
 - `plugin-tenant-enablement`: 租户管理员对 `tenant_scoped` 插件的启用/禁用、租户级状态存储、缓存失效。
 - `plugin-lifecycle-guard`: 插件否决型钩子族(`CanUninstall`/`CanDisable`/`CanTenantDisable`/`CanTenantDelete`)、否决聚合、超时容错、`--force` 通道、审计要求。
 - `tenant-data-isolation`: 文件存储路径、缓存 key、审计日志、跨租户操作日志的隔离与可观察性规范。
+- `session-hot-state`: 在线会话热状态、认证短 TTL 状态、强退、过期、列表投影和集群协调语义。
 
 ### Modified Capabilities
 
 仅列出"规范级行为契约发生变化"的能力(下文每项均产出 delta spec)。租户敏感业务表的 `tenant_id` 字段、查询过滤与平台控制面表豁免清单在 `tasks.md` 中执行并由规范边界约束:
 
 - `user-auth`: 登录流程增加租户解析与挑选;Claims 增加 TenantId;新增切换租户重签接口与 token 作废规则。
+- `user-auth`: 登录、登出、租户令牌签发、刷新、impersonation 和认证生命周期 Hook 必须携带真实`clientType`,不再隐式补齐`web`。
 - `user-management`: 用户身份与租户成员关系分层;查询/创建/导入按租户隔离。
 - `user-role-association`: 用户-角色绑定按租户隔离;平台上下文角色仅可绑定平台用户,租户上下文角色仅可绑定同租户 active membership 用户。
 - `role-management`: 角色以 `tenant_id` 归属和 `data_scope` 表达数据边界;不维护平台角色布尔字段,可见性与可分配性按当前租户上下文隔离。
@@ -99,6 +102,7 @@ LinaPro 当前是单租户架构:`sys_*` 表无租户维度、用户角色全局
 - **现有插件改造**:`org-center` 全表加 `tenant_id` 并接入租户过滤;`monitor-loginlog` / `monitor-online` / `monitor-operlog` / `content-notice` / `demo-control` / `plugin-demo-source` / `plugin-demo-dynamic` 全部加 `tenant_id` 列并接入租户过滤;`monitor-server` 保持 `platform_only`。
 - **宿主代码**:新增 `pkg/tenantcap` 与 `internal/service/tenantcap`;`bizctx` 增字段;`auth` / `session` / `role` / `dict` / `sysconfig` / `file` / `notify` 消息与投递 / `usermsg` / `jobmgmt` / `jobhandler` / `jobmeta` / `online` / `cachecoord` / `kvcache` / `pluginruntimecache` / `plugin` 启用状态全面接入租户上下文;菜单目录、插件注册目录、插件发布迁移记录、分布式锁、通知通道配置保持平台全局。
 - **API**:新增 `/auth/login-tenants`(登录后挑选租户)、`/auth/switch-tenant`、`/platform/tenants/*`、`/platform/plugins/*` install_mode 选项、`/tenant/plugins/*` 启用禁用接口、`/tenant/members/*` 成员管理接口。所有现有接口的请求/响应保持兼容(租户从 ctx 注入,不暴露在 DTO 中)。
+- **会话元数据**:`POST /api/v1/auth/login`显式接收`clientType`;`sys_online_session`、Redis session hot state、JWT、`pre_token`和插件 session contract 均投影同一客户端类型。
 - **前端**:登录页增加租户挑选器;工作台头部增加租户切换器;平台管理下新增"租户管理"页面并仅承载租户本体操作;平台管理员和租户管理员均通过"用户管理"维护租户成员关系;不再提供独立"租户工作台"目录、平台"租户成员"菜单或租户侧成员/插件管理菜单。
 - **配置**:宿主 `config.template.yaml` 不包含 `tenant.*` 段;租户默认策略在代码中集中定义,不创建或读取运行时解析配置表。
 - **审计与可观察性**:操作日志、登录日志全面租户化;平台管理员 impersonation 双轨记录;否决钩子结果与 `--force` 操作单独审计。

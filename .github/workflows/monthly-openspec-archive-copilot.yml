@@ -68,7 +68,7 @@ jobs:
   archive:
     name: Archive and consolidate with GitHub Copilot CLI
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
 
     steps:
       # Check out the selected target branch with full history so archive branches can be created.
@@ -191,6 +191,7 @@ jobs:
         if: ${{ steps.archive-diff.outputs.changed == 'true' }}
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          COPILOT_TASK_WAIT_TIMEOUT_SECONDS: "21600"
         run: |
           set -euo pipefail
 
@@ -220,6 +221,19 @@ jobs:
             --allow-tool 'shell(git:*)' \
             --allow-tool write \
             -p "${prompt}" 2>&1 | tee "${COPILOT_LOGS}/archive-consolidate.console.log"
+
+      # Fail the job if the consolidation step hit the background task timeout.
+      # 如果聚合步骤触发了后台任务超时，则将该步骤标记为失败。
+      - name: Check Consolidation Timeout
+        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
+        run: |
+          set -euo pipefail
+
+          consolidate_log="${COPILOT_LOGS}/archive-consolidate.console.log"
+          if [ -f "${consolidate_log}" ] && grep -q "waitForPendingBackgroundTasks timed out" "${consolidate_log}"; then
+            echo "::error::Archive consolidation hit the background task timeout. The consolidation output may be incomplete."
+            exit 1
+          fi
 
       # Validate immediately after consolidation so invalid aggregate output stops before PR finalization.
       # 聚合后立即校验，避免无效聚合结果继续进入 PR 收尾。

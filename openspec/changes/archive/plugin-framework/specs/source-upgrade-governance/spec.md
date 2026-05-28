@@ -1,36 +1,30 @@
+# 源码升级治理规范
+
+## Purpose
+
+定义框架元数据展示的来源，并明确旧的开发期源码升级命令不再作为当前规范能力。源码插件文件更新属于离线文件覆盖，运行时状态和数据升级由插件运行时升级治理负责。
 ## Requirements
+### Requirement:框架元数据必须集中维护并直接在系统信息中展示
 
-### Requirement: Framework Metadata Must Be Centrally Maintained and Displayed in System Information
+框架 SHALL 将其名称、版本、描述、主页、仓库 URL 和许可证保存在 `apps/lina-core/manifest/config/metadata.yaml` 中。系统信息 API 必须直接返回该元数据，使系统信息页面无需前端硬编码值即可渲染项目卡片。
 
-The framework SHALL store its name, version, description, homepage, repository URL, and license in `apps/lina-core/manifest/config/metadata.yaml`. The system information API must directly return this metadata so the system information page can render the project card without frontend hardcoded values.
+#### Scenario: 系统信息 API 返回框架元数据
+- **WHEN** 管理工作台请求系统信息
+- **THEN** 响应包含框架名称、版本、描述、主页、仓库 URL 和许可证
+- **AND** 每个值来自宿主 `metadata.yaml`
 
-#### Scenario: System information API returns framework metadata
-- **WHEN** the management workspace requests system information
-- **THEN** the response includes framework name, version, description, homepage, repository URL, and license
-- **AND** each value comes from the host `metadata.yaml`
+### Requirement: 源码插件升级实现不得作为公共 pkg 能力暴露
 
-## REMOVED Requirements
+系统 SHALL 将源码插件升级、发现版本对比、发布快照同步和升级执行器视为插件运行时升级治理的内部实现。除稳定的插件管理 API、运行时状态 DTO 和必要治理契约外，旧`sourceupgrade`实现不得作为插件或外部组件可直接依赖的公共`pkg`能力；相关实现 MUST 收敛到职责明确的宿主`internal`组件。
 
-### Requirement: Source Upgrade Must Provide Unified Development-Time Entry
+#### Scenario: 源码插件升级通过运行时治理入口执行
 
-**Reason**: The old development-time upgrade entry was an unimplemented command and should not continue as the framework or source plugin upgrade specification requirement. Source plugin and dynamic plugin file overwrites are development-stage offline updates; runtime state and data upgrades must be handled through the host's post-startup plugin runtime upgrade flow.
+- **WHEN** 管理员升级源码插件
+- **THEN** 操作通过插件运行时升级治理 API 执行
+- **AND** 业务代码不得直接 import 旧`pkg/sourceupgrade`执行升级逻辑
 
-**Migration**: Delete old development-time upgrade entry related documentation, tasks, and error prompts. Source plugin offline file updates use `plugins.update` or direct plugin directory overwrite; plugin runtime upgrade uses the plugin management page and `POST /plugins/{id}/upgrade`. Framework source upgrade itself is not in scope of this plugin runtime upgrade change.
+#### Scenario: 内部升级执行器不被插件依赖
 
-### Requirement: Source Upgrade Must Complete Safety Check Before Execution
-
-**Reason**: This requirement is specific to the old development-time upgrade command. Since the command is not a current delivery capability, the related Git working tree safety check must not be retained as a specification requirement for a non-existent command.
-
-**Migration**: Local change protection for plugin offline file overwrite is handled by `plugin-workspace-management`'s `plugins.update` dirty blocking and `force=1` rules. Runtime upgrade safety checks are handled by plugin runtime upgrade pre-check, permission validation, and confirmation dialog.
-
-### Requirement: Framework Upgrade Must Only Read Upgrade Metadata from hack Config
-
-**Reason**: This requirement binds to the old framework source code upgrade tool and upgrade entry, does not belong to current implemented capabilities, and is not part of plugin runtime upgrade scope.
-
-**Migration**: Retain framework metadata display capability. If framework source upgrade is redesigned in the future, it should be proposed as a separate change without reusing the plugin runtime upgrade flow.
-
-### Requirement: Framework Upgrade Must Replay All Host SQL from First File
-
-**Reason**: This requirement binds to the old framework source code upgrade tool and host SQL replay strategy, does not belong to current plugin runtime upgrade capabilities, and retaining it would mislead users into thinking a development-time upgrade entry exists.
-
-**Migration**: Plugin runtime upgrade only executes the target plugin's own `manifest/sql` upgrade resources and governance synchronization, and is not responsible for full host framework SQL replay. Future framework upgrade strategy requires independent design and implementation.
+- **WHEN** 源码插件需要声明升级回调、SQL 或治理资源
+- **THEN** 插件通过`pluginhost`生命周期和插件 manifest 资源声明
+- **AND** 插件不得依赖宿主内部 source upgrade scanner、executor 或 state reconciler

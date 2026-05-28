@@ -1,35 +1,215 @@
-## ADDED Requirements
+# 字典管理
 
-### Requirement: 字典表加 tenant_id 与覆盖开关
-`sys_dict_type` 与 `sys_dict_data` SHALL 增加 `tenant_id INT NOT NULL DEFAULT 0`;`sys_dict_type` 同时增加 `allow_tenant_override BOOL NOT NULL DEFAULT FALSE` 控制是否允许租户覆盖。
+## Purpose
 
-#### Scenario: 系统枚举字典禁止覆盖
-- **WHEN** seed 数据 `dict_type='sys_user_status' allow_tenant_override=false`
-- **AND** 租户管理员尝试修改其字典数据
-- **THEN** 返回 `bizerr.CodeDictTypeNotOverridable`
+定义字典类型和字典数据管理、前端字典渲染、导入/导出行为、初始化数据、内置保护和英文布局要求。
+## Requirements
+### Requirement:字典类型管理 API
 
-#### Scenario: 业务字典允许覆盖
-- **WHEN** `dict_type='business_priority' allow_tenant_override=true`
-- **AND** 租户 A 添加字典项
-- **THEN** 写入 `tenant_id=A` 行,fallback 时优先于 PLATFORM 默认
+系统 SHALL 提供 RESTful API 用于列表、创建、更新、删除、导出和读取字典类型。
 
-### Requirement: 字典读路径走 platform fallback
-字典数据读取 SHALL 通过 `tenantcap.ReadWithPlatformFallback` 实现"租户覆盖优先 + PLATFORM fallback"语义。
+#### Scenario:查询字典类型列表
+- **当** 调用方请求带分页和可选名称、类型或状态筛选的字典类型时
+- **则** 系统返回匹配的未删除字典类型和总数
 
-#### Scenario: 租户未覆盖时 fallback
-- **WHEN** 租户 B 查询 `business_priority` 但未设置覆盖
-- **THEN** fallback 返回 `tenant_id=0` 的平台默认数据
+#### Scenario:创建或更新字典类型
+- **当** 调用方提交有效的字典类型字段时
+- **则** 系统创建或更新字典类型
+- **且** 重复的字典类型键被拒绝
 
-### Requirement: 字典缓存 key 携带租户
-字典缓存 key SHALL 形如 `dict:tenant=<id>:type=<type>`;租户写入触发本租户失效;平台默认写入触发全租户失效。
+#### Scenario:删除字典类型
+- **当** 调用方删除字典类型时
+- **则** 系统按现有治理规则软删除该类型
 
-#### Scenario: 平台默认变更级联失效
-- **WHEN** 平台管理员修改 `business_priority` 平台默认
-- **THEN** 所有租户的对应字典缓存失效
+### Requirement:字典数据管理 API
 
-### Requirement: 平台管理员管理平台默认
-平台管理员 SHALL 通过 `/platform/dict/*` 接口管理 `tenant_id=0` 的平台默认字典;租户管理员 SHALL 通过 `/dict/*` 接口管理本租户覆盖。
+系统 SHALL 提供 RESTful API 用于按字典类型列表、创建、更新、删除、导出和查询字典数据。
 
-#### Scenario: 租户管理员看不到平台 API
-- **WHEN** 租户管理员尝试 `/platform/dict/type/list`
-- **THEN** 返回 403 `bizerr.CodePlatformPermissionRequired`
+#### Scenario:查询字典数据列表
+- **当** 调用方请求带可选字典类型、标签、值或状态筛选的字典数据时
+- **则** 系统返回按排序排列的匹配未删除数据行
+
+#### Scenario:创建或更新字典数据
+- **当** 调用方提交有效的字典类型、标签、值、排序、标签样式、CSS 类、状态和备注字段时
+- **则** 系统创建或更新字典数据行
+
+#### Scenario:按类型获取字典选项
+- **当** 调用方请求某字典类型的选项时
+- **则** 系统返回包含标签、值、标签样式和 CSS 类的启用行
+
+### Requirement:字典表必须支持类型和数据记录
+
+系统 SHALL 提供 `sys_dict_type` 和 `sys_dict_data` 表用于字典治理。
+
+#### Scenario:字典类型表结构
+- **当** 检查字典类型表时
+- **则** 包含标识符、名称、唯一类型键、状态、备注、时间戳和软删除字段
+
+#### Scenario:字典数据表结构
+- **当** 检查字典数据表时
+- **则** 包含标识符、字典类型键、标签、值、排序、标签样式、CSS 类、状态、备注、时间戳和软删除字段
+
+### Requirement:标签样式渲染必须支持预设和自定义样式
+
+系统 SHALL 提供字典标签样式配置，支持预设颜色、自定义颜色和 CSS 类。
+
+#### Scenario:预设颜色渲染
+- **当** 字典数据有 `cyan`、`green`、`orange`、`purple`、`red`、`success`、`warning` 或 `default` 等预设标签样式时
+- **则** `DictTag` 渲染匹配的 Ant Design 标签颜色
+
+#### Scenario:自定义颜色渲染
+- **当** 字典数据有十六进制颜色标签样式时
+- **则** `DictTag` 以该自定义颜色渲染标签
+
+#### Scenario:TagStylePicker 组件
+- **当** 用户编辑字典数据标签样式时
+- **则** UI 提供默认颜色和自定义颜色模式
+- **且** 自定义颜色模式使用无透明度的十六进制颜色选择器
+
+### Requirement:字典管理前端必须使用双面板布局
+
+字典管理页面 SHALL 使用左侧字典类型面板和右侧字典数据面板。
+
+#### Scenario:双面板交互
+- **当** 用户打开字典管理时
+- **则** 左侧面板显示字典类型，右侧面板显示选中类型的数据
+- **且** 右侧面板在选择类型前为空
+
+#### Scenario:响应式布局
+- **当** 在桌面端查看页面时
+- **则** 面板并排显示
+- **当** 在移动端查看页面时
+- **则** 面板垂直堆叠
+
+### Requirement:全局字典组件和 Store 必须缓存字典数据
+
+系统 SHALL 提供可复用的 `DictTag` 组件和 Pinia 字典 Store，使字典选项加载一次后跨页面复用。
+
+#### Scenario:DictTag 渲染字典值
+- **当** `DictTag` 接收字典选项和值时
+- **则** 显示匹配的标签和配置的标签样式
+- **且** 不匹配的值显示回退文本
+
+#### Scenario:字典 Store 请求去重
+- **当** 多个组件并发请求同一字典类型时
+- **则** 仅发出一个 API 请求
+- **且** 所有调用方共享同一结果
+
+#### Scenario:字典缓存刷新
+- **当** 用户刷新字典缓存时
+- **则** 缓存的字典数据被清除，后续请求从 API 重新加载
+
+### Requirement:字典初始化数据必须交付
+
+系统 SHALL 提供框架模块所需的基线字典类型和数据，包括正常/禁用状态和用户性别值。
+
+#### Scenario:初始化通用字典
+- **当** 数据库初始化运行时
+- **则** 通用框架字典类型和数据被幂等创建
+
+### Requirement:必须支持字典导入和导出
+
+系统 SHALL 为字典类型和字典数据提供 Excel 模板、导入流程和导出文件。
+
+#### Scenario:导出字典数据
+- **当** 用户导出字典时
+- **则** 系统返回包含字典类型和字典数据工作表的 Excel 文件
+
+#### Scenario:导入字典类型或数据
+- **当** 用户导入有效模板时
+- **则** 系统验证必填列并按现有幂等规则写入字典记录
+
+### Requirement:字典表单布局在英文下必须保持可读
+
+字典创建和编辑表单 SHALL 在英文下提供足够的标签宽度，使 `Dictionary Type` 和 `Tag Style` 等标签不会换行或损害视觉对齐。
+
+#### Scenario:字典类型标签保持可读
+- **当** 管理员以 `en-US` 打开字典类型新增或编辑表单时
+- **则** `Dictionary Type` 保持可读，不被强制尴尬换行
+- **且** 输入字段与标签清晰对齐
+
+#### Scenario:字典数据标签样式标签保持可读
+- **当** 管理员以 `en-US` 打开字典数据新增或编辑表单时
+- **则** `Tag Style` 保持可读
+- **且** 标签样式选择器不与其他字段重叠
+
+### Requirement:标签样式下拉必须显示可读的本地化选项
+
+字典数据表单的标签样式下拉 SHALL 以当前语言显示人类可读的选项文本，不得暴露运行时 i18n 键。
+
+#### Scenario:英文标签样式下拉标签
+- **当** 管理员以 `en-US` 打开标签样式下拉时
+- **则** 选项显示 `Default`、`Primary` 和 `Success` 等标签
+- **且** 不显示原始的 `pages.*` 或 `component.*` 键
+
+### Requirement:内置字典类型和数据必须可编辑但不可删除
+
+系统拥有的字典类型和字典数据 SHALL 标记为内置。在允许的情况下保持可编辑，但前端和后端都必须阻断删除。
+
+#### Scenario:内置字典类型删除操作被禁用
+- **当** 管理员查看内置字典类型时
+- **则** 删除操作被禁用，不打开确认
+- **且** 悬停文本说明内置数据不可删除
+- **且** 编辑保持可用
+
+#### Scenario:内置字典数据删除操作被禁用
+- **当** 管理员查看内置字典数据时
+- **则** 删除操作被禁用，不打开确认
+- **且** 编辑保持可用
+
+#### Scenario:后端拒绝内置字典删除
+- **当** 调用方绕过前端请求删除内置字典类型或数据时
+- **则** 后端返回结构化业务错误并保留记录
+- **且** 非内置字典记录在现有规则下保持可删除
+
+### Requirement: 租户字典 fallback 行必须返回来源和动作元数据
+
+租户上下文查询字典类型和字典数据时，系统 SHALL 对平台默认 fallback 行返回来源和动作元数据。元数据至少包含 `sourceTenantId`、`isFallback`、`canEdit`、`canOverride` 和 `overrideMode`。租户上下文不得把平台 fallback 字典类型或字典数据伪装成可直接编辑的本租户记录。
+
+#### Scenario: 租户看到平台 fallback 字典类型
+
+- **WHEN** 租户 A 未覆盖某个字典类型
+- **AND** 字典类型列表通过平台默认值 fallback 返回该类型
+- **THEN** 响应行包含 `sourceTenantId = 0`
+- **AND** `isFallback = true`
+- **AND** `canEdit = false`
+- **AND** 前端不得显示直接编辑或删除该平台行的可执行入口
+
+#### Scenario: 租户看到本租户字典类型
+
+- **WHEN** 租户 A 已覆盖某个字典类型
+- **THEN** 响应行包含 `sourceTenantId = A`
+- **AND** `isFallback = false`
+- **AND** `canEdit` 根据当前用户权限和内置保护规则计算
+
+#### Scenario: 租户看到平台 fallback 字典数据
+
+- **WHEN** 租户 A 查询某个 fallback 字典类型下的字典数据
+- **AND** 字典数据来自平台默认行
+- **THEN** 每条 fallback 数据行均返回来源和动作元数据
+- **AND** 租户上下文不得直接更新或删除这些平台默认数据行
+
+### Requirement: 字典 fallback 动作必须避免必失败详情请求
+
+前端 SHALL 使用字典行的动作元数据决定字典类型和字典数据的操作按钮。对 `isFallback = true` 且 `canEdit = false` 的行，前端不得显示会调用当前租户详情编辑接口且必然返回 not found 的编辑入口。若 `canOverride = true`，前端 MAY 显示创建租户覆盖入口，但该入口 MUST 调用明确的覆盖创建流程。
+
+#### Scenario: fallback 字典类型不显示直接编辑
+
+- **WHEN** 租户用户在字典类型列表看到平台 fallback 行
+- **AND** 该行 `canEdit = false`
+- **THEN** 前端不显示直接编辑按钮
+- **AND** 用户不会触发返回“字典类型不存在”的详情请求
+
+#### Scenario: fallback 字典数据不显示直接编辑
+
+- **WHEN** 租户用户在字典数据列表看到平台 fallback 行
+- **AND** 该行 `canEdit = false`
+- **THEN** 前端不显示直接编辑按钮
+- **AND** 用户不会触发返回“字典数据不存在”的详情请求
+
+#### Scenario: fallback 字典行允许创建覆盖
+
+- **WHEN** 租户用户看到 `canOverride = true` 且 `overrideMode = createTenantOverride` 的 fallback 字典行
+- **THEN** 前端显示的覆盖入口必须表达为创建租户覆盖
+- **AND** 保存后创建或更新当前租户的字典覆盖记录
+- **AND** 字典缓存失效范围限定为当前租户和对应字典键

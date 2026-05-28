@@ -1,29 +1,44 @@
-## ADDED Requirements
+# 插件存储服务规范
 
-### Requirement: 插件文件存储路径租户前缀
-插件通过 host storage service 上传文件 SHALL 自动在路径前缀注入 `tenant=<id>`,具体路径 `/storage/t/<tenant_id>/plugin-<plugin-id>/...`。
+## Purpose
+待定 - 由归档变更 dynamic-plugin-host-service-extension 创建。归档后更新目的。
 
-#### Scenario: 默认租户隔离
-- **WHEN** 插件 P 在租户 A 上下文中上传文件
-- **THEN** 文件路径 `/storage/t/A/plugin-P/yyyy/mm/dd/{file_id}`
-- **AND** sys_file 表记录 `tenant_id=A`
+## Requirements
+### Requirement: 动态插件通过逻辑存储空间访问文件
 
-### Requirement: 跨租户访问需显式平台接口
-插件读取文件 SHALL 校验 `bizctx.TenantId` 与 `sys_file.tenant_id` 匹配;不匹配返回 403。平台管理员管理平台模式只能通过显式 `/platform/*` 只读接口或专用平台 host service 跨租户访问;impersonation 模式不绕过目标租户过滤。
+系统 SHALL 为动态插件提供受隔离的存储服务，插件只能通过宿主授权的逻辑存储空间访问文件，不能直接指定宿主物理路径。
 
-#### Scenario: 跨租户读取被拒
-- **WHEN** 插件在租户 B 上下文中尝试读取租户 A 的文件 fileX
-- **THEN** 返回 403 `bizerr.CodePluginFileTenantForbidden`
+#### Scenario: 插件写入授权存储空间
 
-#### Scenario: 平台显式只读访问
-- **WHEN** 平台管理员通过平台 host service 读取租户 B 的文件用于排障
-- **THEN** service 校验平台权限后返回文件内容
-- **AND** 记录跨租户只读审计
+- **WHEN** 插件调用存储服务写入文件
+- **THEN** 请求必须指向该插件已授权的逻辑存储空间或对象引用
+- **AND** 宿主按插件隔离目录或对象前缀保存文件
+- **AND** 宿主返回文件标识、大小和元数据摘要
 
-### Requirement: 平台共享文件路径
-插件需要存储跨租户共享文件(如平台 logo)SHALL 通过 `storage.SaveAsPlatform(...)` 显式写入 `/storage/t/0/...`,需处于平台上下文、有效数据权限为全部数据权限并具备对应 `system:*` 存储写入功能权限。
+#### Scenario: 插件读取授权存储对象
 
-#### Scenario: 平台共享上传
-- **WHEN** 平台管理员上传通用模板
-- **THEN** 路径 `/storage/t/0/plugin-<id>/...`
-- **AND** 所有租户可读
+- **WHEN** 插件调用存储服务读取文件
+- **THEN** 宿主仅允许读取当前插件被授权访问的逻辑对象
+- **AND** 宿主不得向 guest 暴露宿主物理文件路径
+
+#### Scenario: 插件尝试访问未授权路径
+
+- **WHEN** 插件尝试通过路径拼接、目录穿越或未授权`resourceRef`访问文件
+- **THEN** 宿主拒绝该调用
+- **AND** 宿主不暴露宿主真实文件系统结构
+
+### Requirement: 宿主存储服务实施大小、类型和公开性治理
+
+系统 SHALL 对动态插件的文件读写操作实施大小限制、类型限制和可见性治理。
+
+#### Scenario: 宿主校验文件写入约束
+
+- **WHEN** 插件向某个逻辑存储空间写入或覆盖文件
+- **THEN** 宿主根据该空间策略校验最大大小、允许类型和覆盖规则
+- **AND** 不符合策略的请求被拒绝
+
+#### Scenario: 插件请求对外暴露文件
+
+- **WHEN** 插件请求生成文件的对外访问地址
+- **THEN** 宿主仅对声明为公开或允许签名访问的逻辑存储空间返回可访问地址
+- **AND** 私有存储空间不得返回永久公开链接

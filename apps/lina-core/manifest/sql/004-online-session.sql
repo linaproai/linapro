@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS sys_online_session (
     "token_id"         VARCHAR(64) NOT NULL,
     "user_id"          INT NOT NULL DEFAULT 0,
     "username"         VARCHAR(64) NOT NULL DEFAULT '',
+    "client_type"      VARCHAR(32) NOT NULL,
     "dept_name"        VARCHAR(100) NOT NULL DEFAULT '',
     "ip"               VARCHAR(64) NOT NULL DEFAULT '',
     "browser"          VARCHAR(100) NOT NULL DEFAULT '',
@@ -21,6 +22,7 @@ COMMENT ON COLUMN sys_online_session."tenant_id" IS 'Owning tenant ID, 0 means P
 COMMENT ON COLUMN sys_online_session."token_id" IS 'Session token ID (UUID)';
 COMMENT ON COLUMN sys_online_session."user_id" IS 'User ID';
 COMMENT ON COLUMN sys_online_session."username" IS 'Login account';
+COMMENT ON COLUMN sys_online_session."client_type" IS 'User session client type: web, mobile, desktop, cli';
 COMMENT ON COLUMN sys_online_session."dept_name" IS 'Department name';
 COMMENT ON COLUMN sys_online_session."ip" IS 'Login IP';
 COMMENT ON COLUMN sys_online_session."browser" IS 'Browser';

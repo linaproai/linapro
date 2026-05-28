@@ -1,0 +1,178 @@
+# Deterministically checks completed OpenSpec archive candidates before AI execution.
+# 在 AI 归档执行前确定性检查已完成的 OpenSpec 候选。
+name: Monthly OpenSpec Preflight Archive
+description: Validate completed active OpenSpec changes before monthly auto archive runs.
+
+inputs:
+  openspec-version:
+    description: OpenSpec CLI version to run.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Preflight Completed Archive Candidates
+      shell: bash
+      env:
+        OPENSPEC_VERSION: ${{ inputs.openspec-version }}
+      run: |
+        set -euo pipefail
+
+        node <<'NODE'
+        const fs = require('node:fs');
+        const path = require('node:path');
+        const { execFileSync } = require('node:child_process');
+
+        const completedStatuses = new Set(['complete', 'completed', 'done']);
+        const doneStatuses = new Set(['done', 'complete', 'completed']);
+        const openspecVersion = process.env.OPENSPEC_VERSION || '1.3.1';
+        const openspec = (...args) => execFileSync(
+          'npx',
+          ['-y', `@fission-ai/openspec@${openspecVersion}`, ...args],
+          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+        );
+
+        const parseJson = (label, output) => {
+          try {
+            return JSON.parse(output);
+          } catch (error) {
+            throw new Error(`${label} did not return valid JSON: ${error.message}`);
+          }
+        };
+
+        const list = parseJson('openspec list', openspec('list', '--json'));
+        const changes = Array.isArray(list.changes) ? list.changes : [];
+        const candidates = changes.filter((change) => completedStatuses.has(String(change.status || '').toLowerCase()));
+        const failures = [];
+        const specTitleCache = new Map();
+
+        const readRequirementTitles = (filePath) => {
+          if (!fs.existsSync(filePath)) {
+            return null;
+          }
+
+          if (specTitleCache.has(filePath)) {
+            return specTitleCache.get(filePath);
+          }
+
+          const titles = new Set();
+          const content = fs.readFileSync(filePath, 'utf8');
+          for (const line of content.split(/\r?\n/)) {
+            const match = line.match(/^### Requirement:\s*(.+?)\s*$/);
+            if (match) {
+              titles.add(match[1].trim());
+            }
+          }
+
+          specTitleCache.set(filePath, titles);
+          return titles;
+        };
+
+        const walkSpecFiles = (dir) => {
+          if (!fs.existsSync(dir)) {
+            return [];
+          }
+
+          const results = [];
+          for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+              results.push(...walkSpecFiles(fullPath));
+            } else if (entry.isFile() && entry.name === 'spec.md') {
+              results.push(fullPath);
+            }
+          }
+          return results;
+        };
+
+        const checkHeaderMatches = (changeName) => {
+          const specsRoot = path.join('openspec', 'changes', changeName, 'specs');
+          for (const filePath of walkSpecFiles(specsRoot)) {
+            const relative = path.relative(specsRoot, filePath);
+            const capability = relative.slice(0, -'/spec.md'.length);
+            const baselinePath = path.join('openspec', 'specs', capability, 'spec.md');
+            const baselineTitles = readRequirementTitles(baselinePath);
+            const content = fs.readFileSync(filePath, 'utf8');
+            let section = '';
+
+            for (const line of content.split(/\r?\n/)) {
+              const sectionMatch = line.match(/^##\s+(ADDED|MODIFIED|REMOVED)\s+Requirements\s*$/);
+              if (sectionMatch) {
+                section = sectionMatch[1];
+                continue;
+              }
+
+              const reqMatch = line.match(/^### Requirement:\s*(.+?)\s*$/);
+              if (!reqMatch || (section !== 'MODIFIED' && section !== 'REMOVED')) {
+                continue;
+              }
+
+              const title = reqMatch[1].trim();
+              if (!baselineTitles) {
+                failures.push(`${changeName}: ${section} requirement references missing baseline spec ${baselinePath}`);
+              } else if (!baselineTitles.has(title)) {
+                failures.push(`${changeName}: ${section} requirement header not found in ${baselinePath}: ${title}`);
+              }
+            }
+          }
+        };
+
+        for (const change of candidates) {
+          const name = String(change.name || '');
+          if (!name) {
+            failures.push('openspec list returned a completed change without a name');
+            continue;
+          }
+
+          if (Number.isInteger(change.completedTasks) && Number.isInteger(change.totalTasks) && change.completedTasks !== change.totalTasks) {
+            failures.push(`${name}: task count mismatch ${change.completedTasks}/${change.totalTasks}`);
+          }
+
+          let status;
+          try {
+            status = parseJson(`openspec status ${name}`, openspec('status', '--change', name, '--json'));
+          } catch (error) {
+            failures.push(`${name}: openspec status failed: ${error.message}`);
+            continue;
+          }
+
+          if (status.isComplete !== true) {
+            failures.push(`${name}: openspec status isComplete is not true`);
+          }
+
+          const artifacts = Array.isArray(status.artifacts) ? status.artifacts : [];
+          for (const artifact of artifacts) {
+            const artifactStatus = String(artifact.status || '').toLowerCase();
+            if (!doneStatuses.has(artifactStatus)) {
+              failures.push(`${name}: artifact ${artifact.id || 'unknown'} is ${artifact.status || 'unknown'}`);
+            }
+          }
+
+          const tasksPath = path.join('openspec', 'changes', name, 'tasks.md');
+          if (!fs.existsSync(tasksPath)) {
+            failures.push(`${name}: missing tasks.md`);
+          } else {
+            const tasks = fs.readFileSync(tasksPath, 'utf8');
+            const unchecked = tasks.split(/\r?\n/).filter((line) => /^- \[ \]|^- \[未完成\]/.test(line)).length;
+            if (unchecked > 0) {
+              failures.push(`${name}: tasks.md still has ${unchecked} unchecked task(s)`);
+            }
+          }
+
+          checkHeaderMatches(name);
+        }
+
+        if (failures.length > 0) {
+          const message = [
+            'Monthly OpenSpec archive preflight failed:',
+            ...failures.map((failure) => `- ${failure}`),
+          ].join('\n');
+          console.error(message);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${message}\n`);
+          process.exit(1);
+        }
+
+        const message = `Monthly OpenSpec archive preflight passed for ${candidates.length} completed candidate(s).`;
+        console.log(message);
+        fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${message}\n`);
+        NODE

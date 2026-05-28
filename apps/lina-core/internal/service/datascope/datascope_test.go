@@ -207,7 +207,7 @@ func (s dataScopeStaticBizCtx) Current(context.Context) contract.CurrentContext 
 func (s dataScopeStaticBizCtx) SetLocale(context.Context, string) {}
 
 // SetUser is unused by data-scope tests.
-func (s dataScopeStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
+func (s dataScopeStaticBizCtx) SetUser(context.Context, string, int, string, int, string) {}
 
 // SetTenant is unused by data-scope tests.
 func (s dataScopeStaticBizCtx) SetTenant(context.Context, int) {}

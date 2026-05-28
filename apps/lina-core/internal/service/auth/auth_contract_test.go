@@ -5,6 +5,8 @@ package auth
 import (
 	"reflect"
 	"testing"
+
+	"lina-core/pkg/bizerr"
 )
 
 // TestServiceContractDoesNotExposeTenantWorkflow verifies tenant workflow
@@ -31,6 +33,25 @@ func TestTenantTokenIssuerOwnsTenantTokenWorkflow(t *testing.T) {
 	} {
 		if _, ok := issuerType.MethodByName(methodName); !ok {
 			t.Fatalf("TenantTokenIssuer must expose tenant token method %s", methodName)
+		}
+	}
+}
+
+// TestClientTypeRejectsNonUserActors verifies service and plugin actors do not
+// enter the user-session client type enum.
+func TestClientTypeRejectsNonUserActors(t *testing.T) {
+	for _, value := range []string{"", "service", "plugin"} {
+		if _, err := ParseClientType(value); !bizerr.Is(err, CodeAuthClientTypeInvalid) {
+			t.Fatalf("expected invalid client type for %q, got %v", value, err)
+		}
+	}
+	for _, value := range []ClientType{ClientTypeWeb, ClientTypeMobile, ClientTypeDesktop, ClientTypeCLI} {
+		parsed, err := ParseClientType(value.String())
+		if err != nil {
+			t.Fatalf("parse allowed client type %q: %v", value, err)
+		}
+		if parsed != value {
+			t.Fatalf("expected client type %q, got %q", value, parsed)
 		}
 	}
 }

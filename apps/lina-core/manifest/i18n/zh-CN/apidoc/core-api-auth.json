@@ -5,6 +5,9 @@
         "v1": {
           "LoginReq": {
             "fields": {
+              "clientType": {
+                "dc": "用户会话客户端类型。允许值：web、mobile、desktop、cli"
+              },
               "password": {
                 "dc": "密码"
               },

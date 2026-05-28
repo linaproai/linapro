@@ -16,7 +16,6 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/datascope"
-	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
@@ -48,17 +47,22 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		osName = ua.OS()
 	}
 
+	clientType, err := ParseClientType(in.ClientType.String())
+	if err != nil {
+		return nil, err
+	}
+
 	dispatchLoginFailed := func(username string, msg string, reason string) {
-		if s.pluginSvc == nil {
+		if s.hookSvc == nil {
 			return
 		}
-		if hookErr := s.pluginSvc.HandleAuthLoginFailed(ctx, pluginsvc.AuthLoginSucceededInput{
+		if hookErr := s.hookSvc.HandleAuthLoginFailed(ctx, pluginhost.AuthHookPayloadInput{
 			UserName:   username,
 			Status:     authLoginStatusFail,
-			Ip:         ip,
-			ClientType: "web",
+			IP:         ip,
+			ClientType: clientType.String(),
 			Browser:    browser,
-			Os:         osName,
+			OS:         osName,
 			Message:    msg,
 			Reason:     reason,
 		}); hookErr != nil {
@@ -68,11 +72,11 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 
 	blacklisted, err := s.configSvc.IsLoginIPBlacklisted(ctx, ip)
 	if err != nil {
-		dispatchLoginFailed(in.Username, pluginsvc.AuthEventMessageInvalidCredentials, pluginhost.AuthHookReasonInvalidCredentials)
+		dispatchLoginFailed(in.Username, authEventMessageInvalidCredentials, pluginhost.AuthHookReasonInvalidCredentials)
 		return nil, err
 	}
 	if blacklisted {
-		dispatchLoginFailed(in.Username, pluginsvc.AuthEventMessageIPBlacklisted, pluginhost.AuthHookReasonIPBlacklisted)
+		dispatchLoginFailed(in.Username, authEventMessageIPBlacklisted, pluginhost.AuthHookReasonIPBlacklisted)
 		return nil, bizerr.NewCode(CodeAuthIPBlacklisted)
 	}
 
@@ -85,19 +89,19 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		return nil, err
 	}
 	if user == nil {
-		dispatchLoginFailed(in.Username, pluginsvc.AuthEventMessageInvalidCredentials, pluginhost.AuthHookReasonInvalidCredentials)
+		dispatchLoginFailed(in.Username, authEventMessageInvalidCredentials, pluginhost.AuthHookReasonInvalidCredentials)
 		return nil, bizerr.NewCode(CodeAuthInvalidCredentials)
 	}
 
 	// Verify password
 	if err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(in.Password)); err != nil {
-		dispatchLoginFailed(in.Username, pluginsvc.AuthEventMessageInvalidCredentials, pluginhost.AuthHookReasonInvalidCredentials)
+		dispatchLoginFailed(in.Username, authEventMessageInvalidCredentials, pluginhost.AuthHookReasonInvalidCredentials)
 		return nil, bizerr.NewCode(CodeAuthInvalidCredentials)
 	}
 
 	// Check status
 	if user.Status == statusDisabled {
-		dispatchLoginFailed(in.Username, pluginsvc.AuthEventMessageUserDisabled, pluginhost.AuthHookReasonUserDisabled)
+		dispatchLoginFailed(in.Username, authEventMessageUserDisabled, pluginhost.AuthHookReasonUserDisabled)
 		return nil, bizerr.NewCode(CodeAuthUserDisabled)
 	}
 
@@ -111,9 +115,10 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 	}
 	if len(tenants) > 1 {
 		preToken, err := s.preTokens.Create(ctx, preTokenRecord{
-			UserID:   user.Id,
-			Username: user.Username,
-			Status:   user.Status,
+			UserID:     user.Id,
+			Username:   user.Username,
+			Status:     user.Status,
+			ClientType: clientType,
 		})
 		if err != nil {
 			return nil, bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
@@ -127,7 +132,7 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 	}
 
 	// Generate JWT token pair
-	accessToken, refreshToken, tokenId, err := s.generateTokenPair(ctx, user, tenantID)
+	accessToken, refreshToken, tokenId, err := s.generateTokenPair(ctx, user, tenantID, clientType)
 	if err != nil {
 		return nil, err
 	}
@@ -142,19 +147,19 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 	}
 
 	// Create online session
-	if err = s.createSession(ctx, user, tenantID, tokenId); err != nil {
+	if err = s.createSession(ctx, user, tenantID, tokenId, clientType); err != nil {
 		logger.Warningf(ctx, "create online session failed tokenId=%s err=%v", tokenId, err)
 	}
 
-	if s.pluginSvc != nil {
-		if err := s.pluginSvc.HandleAuthLoginSucceeded(ctx, pluginsvc.AuthLoginSucceededInput{
+	if s.hookSvc != nil {
+		if err := s.hookSvc.HandleAuthLoginSucceeded(ctx, pluginhost.AuthHookPayloadInput{
 			UserName:   in.Username,
 			Status:     authLoginStatusSuccess,
-			Ip:         ip,
-			ClientType: "web",
+			IP:         ip,
+			ClientType: clientType.String(),
 			Browser:    browser,
-			Os:         osName,
-			Message:    pluginsvc.AuthEventMessageLoginSuccessful,
+			OS:         osName,
+			Message:    authEventMessageLoginSuccessful,
 			Reason:     pluginhost.AuthHookReasonLoginSuccessful,
 		}); err != nil {
 			logger.Warningf(ctx, "plugin login succeeded hook failed: %v", err)
@@ -175,12 +180,16 @@ func (s *serviceImpl) IssueTenantToken(ctx context.Context, in TenantTokenIssueI
 	if err := s.validateUserTenant(ctx, record.UserID, in.TenantID); err != nil {
 		return nil, err
 	}
-	user := &entity.SysUser{Id: record.UserID, Username: record.Username, Status: record.Status}
-	accessToken, refreshToken, tokenID, err := s.generateTokenPair(ctx, user, in.TenantID)
+	clientType, err := ParseClientType(record.ClientType.String())
 	if err != nil {
 		return nil, err
 	}
-	if err = s.createSession(ctx, user, in.TenantID, tokenID); err != nil {
+	user := &entity.SysUser{Id: record.UserID, Username: record.Username, Status: record.Status}
+	accessToken, refreshToken, tokenID, err := s.generateTokenPair(ctx, user, in.TenantID, clientType)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.createSession(ctx, user, in.TenantID, tokenID, clientType); err != nil {
 		logger.Warningf(ctx, "create tenant token session failed tokenId=%s tenantId=%d err=%v", tokenID, in.TenantID, err)
 	}
 	return &TenantTokenOutput{AccessToken: accessToken, RefreshToken: refreshToken}, nil
@@ -194,6 +203,10 @@ func (s *serviceImpl) ReissueTenantToken(ctx context.Context, in TenantTokenReis
 	if err := s.validateSwitchTenant(ctx, in.CurrentClaims.UserId, in.TenantID); err != nil {
 		return nil, err
 	}
+	clientType, err := claimsClientType(in.CurrentClaims)
+	if err != nil {
+		return nil, err
+	}
 	expiresAt := time.Time{}
 	if in.CurrentClaims.ExpiresAt != nil {
 		expiresAt = in.CurrentClaims.ExpiresAt.Time
@@ -202,11 +215,11 @@ func (s *serviceImpl) ReissueTenantToken(ctx context.Context, in TenantTokenReis
 		return nil, err
 	}
 	user := &entity.SysUser{Id: in.CurrentClaims.UserId, Username: in.CurrentClaims.Username, Status: in.CurrentClaims.Status}
-	accessToken, refreshToken, tokenID, err := s.generateTokenPair(ctx, user, in.TenantID)
+	accessToken, refreshToken, tokenID, err := s.generateTokenPair(ctx, user, in.TenantID, clientType)
 	if err != nil {
 		return nil, err
 	}
-	if err = s.createSession(ctx, user, in.TenantID, tokenID); err != nil {
+	if err = s.createSession(ctx, user, in.TenantID, tokenID, clientType); err != nil {
 		logger.Warningf(ctx, "create reissued tenant session failed tokenId=%s tenantId=%d err=%v", tokenID, in.TenantID, err)
 	}
 	return &TenantTokenOutput{AccessToken: accessToken, RefreshToken: refreshToken}, nil
@@ -242,13 +255,21 @@ func (s *serviceImpl) IssueImpersonationToken(ctx context.Context, in Impersonat
 	if user.Status == statusDisabled {
 		return nil, bizerr.NewCode(CodeAuthUserDisabled)
 	}
+	businessCtx, _ := ctx.Value(bizctx.ContextKey).(*model.Context)
+	if businessCtx == nil {
+		return nil, bizerr.NewCode(CodeAuthTokenInvalid)
+	}
+	clientType, err := ParseClientType(businessCtx.ClientType)
+	if err != nil {
+		return nil, bizerr.NewCode(CodeAuthTokenInvalid)
+	}
 
 	tokenID := guid.S()
-	accessToken, err := s.signToken(ctx, user, in.TenantID, tokenID, tokenKindAccess, true, in.ActingUserID)
+	accessToken, err := s.signToken(ctx, user, in.TenantID, tokenID, tokenKindAccess, clientType, true, in.ActingUserID)
 	if err != nil {
 		return nil, err
 	}
-	if err = s.createImpersonationSession(ctx, user, in.TenantID, tokenID, in.ActingUserID); err != nil {
+	if err = s.createImpersonationSession(ctx, user, in.TenantID, tokenID, clientType, in.ActingUserID); err != nil {
 		return nil, err
 	}
 	return &ImpersonationTokenOutput{
@@ -362,7 +383,7 @@ func (s *serviceImpl) Refresh(ctx context.Context, in RefreshInput) (*RefreshOut
 		}
 	}
 
-	accessToken, err := s.signToken(ctx, user, claims.TenantId, claims.TokenId, tokenKindAccess, claims.IsImpersonation, claims.ActingUserId)
+	accessToken, err := s.signToken(ctx, user, claims.TenantId, claims.TokenId, tokenKindAccess, claims.ClientType, claims.IsImpersonation, claims.ActingUserId)
 	if err != nil {
 		return nil, err
 	}
@@ -387,6 +408,9 @@ func (s *serviceImpl) parseToken(ctx context.Context, tokenString string, expect
 		if claims.TokenType != expected {
 			return nil, bizerr.NewCode(CodeAuthTokenInvalid)
 		}
+		if _, err := claimsClientType(claims); err != nil {
+			return nil, bizerr.NewCode(CodeAuthTokenInvalid)
+		}
 		revoked, err := s.revoked.Revoked(ctx, claims.TokenId)
 		if err != nil {
 			return nil, bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
@@ -409,7 +433,11 @@ func (s *serviceImpl) HashPassword(password string) (string, error) {
 }
 
 // Logout records logout login log and removes session.
-func (s *serviceImpl) Logout(ctx context.Context, username string, tenantId int, tokenId string) error {
+func (s *serviceImpl) Logout(ctx context.Context, in LogoutInput) error {
+	clientType, err := ParseClientType(in.ClientType.String())
+	if err != nil {
+		return err
+	}
 	var ip, browser, osName string
 	if r := g.RequestFromCtx(ctx); r != nil {
 		ip = r.GetClientIp()
@@ -419,21 +447,21 @@ func (s *serviceImpl) Logout(ctx context.Context, username string, tenantId int,
 		osName = ua.OS()
 	}
 	// Delete session
-	if tokenId != "" {
-		if err := s.RevokeSession(ctx, tokenId); err != nil {
-			logger.Warningf(ctx, "revoke session during logout failed tokenId=%s tenantId=%d err=%v", tokenId, tenantId, err)
+	if in.TokenID != "" {
+		if err := s.RevokeSession(ctx, in.TokenID); err != nil {
+			logger.Warningf(ctx, "revoke session during logout failed tokenId=%s tenantId=%d err=%v", in.TokenID, in.TenantID, err)
 			return err
 		}
 	}
-	if s.pluginSvc != nil {
-		if err := s.pluginSvc.HandleAuthLogoutSucceeded(ctx, pluginsvc.AuthLoginSucceededInput{
-			UserName:   username,
+	if s.hookSvc != nil {
+		if err := s.hookSvc.HandleAuthLogoutSucceeded(ctx, pluginhost.AuthHookPayloadInput{
+			UserName:   in.Username,
 			Status:     authLoginStatusSuccess,
-			Ip:         ip,
-			ClientType: "web",
+			IP:         ip,
+			ClientType: clientType.String(),
 			Browser:    browser,
-			Os:         osName,
-			Message:    pluginsvc.AuthEventMessageLogoutSuccessful,
+			OS:         osName,
+			Message:    authEventMessageLogoutSuccessful,
 			Reason:     pluginhost.AuthHookReasonLogoutSuccessful,
 		}); err != nil {
 			logger.Warningf(ctx, "plugin logout succeeded hook failed: %v", err)
@@ -496,9 +524,9 @@ func (s *serviceImpl) fallbackRevocationExpiresAt(ctx context.Context) (time.Tim
 }
 
 // generateToken generates JWT token for given user, returns token string and tokenId.
-func (s *serviceImpl) generateToken(ctx context.Context, user *entity.SysUser, tenantID int) (string, string, error) {
+func (s *serviceImpl) generateToken(ctx context.Context, user *entity.SysUser, tenantID int, clientType ClientType) (string, string, error) {
 	tokenID := guid.S()
-	token, err := s.signToken(ctx, user, tenantID, tokenID, tokenKindAccess, false, 0)
+	token, err := s.signToken(ctx, user, tenantID, tokenID, tokenKindAccess, clientType, false, 0)
 	if err != nil {
 		return "", "", err
 	}
@@ -506,13 +534,13 @@ func (s *serviceImpl) generateToken(ctx context.Context, user *entity.SysUser, t
 }
 
 // generateTokenPair signs access and refresh JWTs for one online session.
-func (s *serviceImpl) generateTokenPair(ctx context.Context, user *entity.SysUser, tenantID int) (string, string, string, error) {
+func (s *serviceImpl) generateTokenPair(ctx context.Context, user *entity.SysUser, tenantID int, clientType ClientType) (string, string, string, error) {
 	tokenID := guid.S()
-	accessToken, err := s.signToken(ctx, user, tenantID, tokenID, tokenKindAccess, false, 0)
+	accessToken, err := s.signToken(ctx, user, tenantID, tokenID, tokenKindAccess, clientType, false, 0)
 	if err != nil {
 		return "", "", "", err
 	}
-	refreshToken, err := s.signToken(ctx, user, tenantID, tokenID, tokenKindRefresh, false, 0)
+	refreshToken, err := s.signToken(ctx, user, tenantID, tokenID, tokenKindRefresh, clientType, false, 0)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -526,9 +554,14 @@ func (s *serviceImpl) signToken(
 	tenantID int,
 	tokenID string,
 	kind tokenKind,
+	clientType ClientType,
 	isImpersonation bool,
 	actingUserID int,
 ) (string, error) {
+	clientType, err := ParseClientType(clientType.String())
+	if err != nil {
+		return "", err
+	}
 	jwtTTL, err := s.tokenTTL(ctx, kind)
 	if err != nil {
 		return "", err
@@ -537,6 +570,7 @@ func (s *serviceImpl) signToken(
 	claims := Claims{
 		TokenId:         tokenID,
 		TokenType:       kind,
+		ClientType:      clientType,
 		UserId:          user.Id,
 		Username:        user.Username,
 		Status:          user.Status,
@@ -591,6 +625,19 @@ func (s *serviceImpl) getUserDeptName(ctx context.Context, userId int) string {
 	return deptName
 }
 
+// claimsClientType validates and returns the user-session client type from
+// parsed JWT claims.
+func claimsClientType(claims *Claims) (ClientType, error) {
+	if claims == nil {
+		return "", bizerr.NewCode(CodeAuthTokenInvalid)
+	}
+	clientType, err := ParseClientType(claims.ClientType.String())
+	if err != nil {
+		return "", bizerr.NewCode(CodeAuthTokenInvalid)
+	}
+	return clientType, nil
+}
+
 // loginTenants returns active tenant candidates for a login user.
 func (s *serviceImpl) loginTenants(ctx context.Context, userID int) ([]TenantInfo, error) {
 	if s == nil || s.tenantSvc == nil || !s.tenantSvc.Available(ctx) {
@@ -629,9 +676,9 @@ func (s *serviceImpl) validateSwitchTenant(ctx context.Context, userID int, tena
 }
 
 // createSession persists a tenant-bound online-session row.
-func (s *serviceImpl) createSession(ctx context.Context, user *entity.SysUser, tenantID int, tokenID string) error {
+func (s *serviceImpl) createSession(ctx context.Context, user *entity.SysUser, tenantID int, tokenID string, clientType ClientType) error {
 	tenantScopedCtx := datascope.WithTenantScope(ctx, tenantID)
-	return s.createSessionWithPrimeContext(ctx, tenantScopedCtx, user, tenantID, tokenID)
+	return s.createSessionWithPrimeContext(ctx, tenantScopedCtx, user, tenantID, tokenID, clientType)
 }
 
 // createImpersonationSession persists an impersonation session and primes role
@@ -641,19 +688,25 @@ func (s *serviceImpl) createImpersonationSession(
 	user *entity.SysUser,
 	tenantID int,
 	tokenID string,
+	clientType ClientType,
 	actingUserID int,
 ) error {
+	clientType, err := ParseClientType(clientType.String())
+	if err != nil {
+		return err
+	}
 	impersonationCtx := context.WithValue(datascope.WithTenantScope(ctx, tenantID), bizctx.ContextKey, &model.Context{
 		TokenId:         tokenID,
 		UserId:          user.Id,
 		Username:        user.Username,
 		Status:          user.Status,
+		ClientType:      clientType.String(),
 		TenantId:        tenantID,
 		ActingAsTenant:  true,
 		ActingUserId:    actingUserID,
 		IsImpersonation: true,
 	})
-	return s.createSessionWithPrimeContext(impersonationCtx, impersonationCtx, user, tenantID, tokenID)
+	return s.createSessionWithPrimeContext(impersonationCtx, impersonationCtx, user, tenantID, tokenID, clientType)
 }
 
 // createSessionWithPrimeContext persists a tenant-bound online-session row and
@@ -664,7 +717,12 @@ func (s *serviceImpl) createSessionWithPrimeContext(
 	user *entity.SysUser,
 	tenantID int,
 	tokenID string,
+	clientType ClientType,
 ) error {
+	clientType, err := ParseClientType(clientType.String())
+	if err != nil {
+		return err
+	}
 	var ip, browser, osName string
 	if r := g.RequestFromCtx(ctx); r != nil {
 		ip = r.GetClientIp()
@@ -683,21 +741,22 @@ func (s *serviceImpl) createSessionWithPrimeContext(
 	}
 	loginTime := time.Now()
 	if err := s.sessionStore.Set(ctx, &session.Session{
-		TokenId:   tokenID,
-		TenantId:  tenantID,
-		UserId:    user.Id,
-		Username:  user.Username,
-		DeptName:  deptName,
-		Ip:        ip,
-		Browser:   browser,
-		Os:        osName,
-		LoginTime: &loginTime,
+		TokenId:    tokenID,
+		TenantId:   tenantID,
+		UserId:     user.Id,
+		Username:   user.Username,
+		ClientType: clientType.String(),
+		DeptName:   deptName,
+		Ip:         ip,
+		Browser:    browser,
+		Os:         osName,
+		LoginTime:  &loginTime,
 	}); err != nil {
 		return err
 	}
 	if s.roleSvc == nil {
 		return nil
 	}
-	_, err := s.roleSvc.PrimeTokenAccessContext(primeCtx, tokenID, user.Id)
+	_, err = s.roleSvc.PrimeTokenAccessContext(primeCtx, tokenID, user.Id)
 	return err
 }

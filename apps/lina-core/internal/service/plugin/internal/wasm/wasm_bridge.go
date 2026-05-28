@@ -20,6 +20,11 @@ func ExecuteBridge(
 	input ExecutionInput,
 	requestContent []byte,
 ) (response *bridgecontract.BridgeResponseEnvelopeV1, err error) {
+	ctx, cancel := bridgeExecutionContext(ctx)
+	if cancel != nil {
+		defer cancel()
+	}
+
 	if input.BridgeSpec == nil {
 		return nil, gerror.New("dynamic plugin is missing Wasm bridge metadata")
 	}
@@ -37,7 +42,8 @@ func ExecuteBridge(
 		return nil, gerror.Wrap(err, "instantiate dynamic plugin Wasm failed")
 	}
 	defer func() {
-		if closeErr := module.Close(ctx); closeErr != nil && err == nil {
+		closeCtx := context.WithoutCancel(ctx)
+		if closeErr := module.Close(closeCtx); closeErr != nil && err == nil {
 			err = gerror.Wrap(closeErr, "close dynamic plugin Wasm module failed")
 		}
 	}()
@@ -107,6 +113,18 @@ func ExecuteBridge(
 		return nil, err
 	}
 	return response, nil
+}
+
+// bridgeExecutionContext returns a deadline-bound context for one dynamic
+// plugin bridge execution. Existing caller deadlines remain authoritative.
+func bridgeExecutionContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, nil
+	}
+	return context.WithTimeout(ctx, defaultBridgeExecutionTimeout)
 }
 
 // cloneExecutionManifestResources detaches release-bound manifest resources for

@@ -5,6 +5,7 @@ import { requestClient } from '#/api/request';
 export namespace AuthApi {
   /** 登录接口参数 */
   export interface LoginParams {
+    clientType?: 'cli' | 'desktop' | 'mobile' | 'web';
     password?: string;
     username?: string;
   }
@@ -28,7 +29,10 @@ export namespace AuthApi {
  * 登录
  */
 export async function loginApi(data: AuthApi.LoginParams) {
-  return requestClient.post<AuthApi.LoginResult>('/auth/login', data);
+  return requestClient.post<AuthApi.LoginResult>('/auth/login', {
+    ...data,
+    clientType: 'web',
+  });
 }
 
 /**

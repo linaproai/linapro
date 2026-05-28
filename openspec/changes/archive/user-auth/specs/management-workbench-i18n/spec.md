@@ -1,28 +1,31 @@
-## ADDED Requirements
+# 管理工作台国际化规范
 
-### Requirement: 多租户相关术语 i18n key 完整覆盖
-工作台 i18n 资源 SHALL 包含完整的中英双语翻译,涵盖:
-- 租户(Tenant)、平台管理员(Platform Administrator)、租户管理员(Tenant Administrator)、成员(Member)、邀请(Invite)、切换租户(Switch Tenant)、impersonation(Acting as Tenant)。
-- 登录挑选器、租户选择、租户挂起、租户删除等流程文案。
-- 否决理由 reason key(plugin lifecycle guard 类)。
-- 错误码消息(`bizerr.Code*` 中所有多租户相关码)。
+## Purpose
 
-#### Scenario: 双语完整
-- **WHEN** 检查 `manifest/i18n/zh-CN/*.json` 与 `manifest/i18n/en-US/*.json`
-- **THEN** 多租户相关 key 在两种语言中均存在
-- **AND** 无遗漏
+定义默认管理工作台首次启动语言解析行为，确保浏览器语言只作为首次默认值来源。
 
-### Requirement: 翻译完整性自动校验
-CI 测试 SHALL 包含针对多租户 i18n key 的覆盖校验;任意目标语言缺失某 key 时阻断发布。
+## Requirements
 
-#### Scenario: 缺失阻断
-- **WHEN** 开发提交时遗漏 `tenant.suspended.confirm` 的 zh-CN 翻译
-- **THEN** CI 测试失败,提示具体缺失 key
+### Requirement:管理工作台首次启动语言必须按浏览器语言自动识别
 
-### Requirement: 多租户菜单 i18n
-菜单 i18n 投影规则 SHALL 仅暴露"平台管理"顶级分组下的多租户平台管理入口;系统 SHALL NOT 为 multi-tenant 插件创建单独的"租户工作台"顶级菜单分组。
+默认管理工作台 SHALL 在没有用户已保存语言偏好且初始化参数未显式指定语言时，根据浏览器首选语言自动选择启动语言。若浏览器首选语言为中文语言标签（如 `zh`、`zh-CN`、`zh-TW`、`zh-Hans-CN`），工作台默认使用 `zh-CN`；否则默认使用 `en-US`。该自动识别只影响首次启动默认值，不得覆盖用户通过语言切换器或偏好设置保存的语言偏好，也不得覆盖调用方通过初始化 `overrides.app.locale` 显式指定的语言。
 
-#### Scenario: 多租户菜单 key 唯一
-- **WHEN** 检查工作台菜单 i18n 资源
-- **THEN** 平台管理项位于 `menu.platform.*` 命名空间
-- **AND** 不存在 `menu.tenant.*` 顶级租户工作台菜单命名空间
+#### Scenario:中文浏览器首次访问默认使用简体中文
+- **当** 用户浏览器语言为 `zh-CN`
+- **且** 当前工作台命名空间下没有已保存的 `preferences`
+- **且** 初始化参数没有显式指定 `app.locale`
+- **则** 工作台启动语言为 `zh-CN`
+- **且** 登录页、运行时语言包请求和公共前端配置请求均使用 `zh-CN`
+
+#### Scenario:非中文浏览器首次访问默认使用英文
+- **当** 用户浏览器语言为 `en-US`
+- **且** 当前工作台命名空间下没有已保存的 `preferences`
+- **且** 初始化参数没有显式指定 `app.locale`
+- **则** 工作台启动语言为 `en-US`
+- **且** 登录页、运行时语言包请求和公共前端配置请求均使用 `en-US`
+
+#### Scenario:已保存语言偏好优先于浏览器语言
+- **当** 当前工作台命名空间下已保存语言偏好为 `zh-CN`
+- **且** 用户浏览器语言为 `en-US`
+- **则** 工作台启动语言保持 `zh-CN`
+- **且** 浏览器语言不会覆盖用户已保存的选择

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"lina-core/internal/service/cachecoord"
-	"lina-core/internal/service/pluginruntimecache"
+	"lina-core/internal/service/plugin/runtimecache"
 )
 
 // reconcilerRevisionTestTopology provides deterministic cluster topology for
@@ -114,11 +114,11 @@ func (f *reconcilerRevisionCacheCoord) Snapshot(_ context.Context) ([]cachecoord
 // revision controller for tests.
 func newTestReconcilerRevisionController(
 	fakeCoord cachecoord.Service,
-	observed *pluginruntimecache.ObservedRevision,
-) *pluginruntimecache.Controller {
-	return pluginruntimecache.NewControllerForScopeWithCoordinator(
+	observed *runtimecache.ObservedRevision,
+) *runtimecache.Controller {
+	return runtimecache.NewControllerForScopeWithCoordinator(
 		cachecoord.ScopeReconciler,
-		pluginruntimecache.ReconcilerCacheChangeReason,
+		runtimecache.ReconcilerCacheChangeReason,
 		true,
 		fakeCoord,
 		observed,
@@ -131,7 +131,7 @@ func newTestReconcilerRevisionController(
 func TestNextBackgroundReconcileDecisionUsesSharedRevision(t *testing.T) {
 	ctx := context.Background()
 	fakeCoord := &reconcilerRevisionCacheCoord{revision: 3}
-	observed := pluginruntimecache.NewObservedRevision()
+	observed := runtimecache.NewObservedRevision()
 	service := &serviceImpl{
 		topology: reconcilerRevisionTestTopology{
 			cluster: true,
@@ -178,7 +178,7 @@ func TestNextBackgroundReconcileDecisionUsesSharedRevision(t *testing.T) {
 func TestNextBackgroundReconcileDecisionAllowsSafetySweep(t *testing.T) {
 	ctx := context.Background()
 	fakeCoord := &reconcilerRevisionCacheCoord{revision: 9}
-	observed := pluginruntimecache.NewObservedRevision()
+	observed := runtimecache.NewObservedRevision()
 	observed.Store(9)
 	service := &serviceImpl{
 		topology: reconcilerRevisionTestTopology{
@@ -204,7 +204,7 @@ func TestNextBackgroundReconcileDecisionAllowsSafetySweep(t *testing.T) {
 // mutations publish wake-up revisions under the reconciler coordination domain.
 func TestNotifyReconcilerChangedUsesReconcilerScope(t *testing.T) {
 	fakeCoord := &reconcilerRevisionCacheCoord{revision: 12}
-	observed := pluginruntimecache.NewObservedRevision()
+	observed := runtimecache.NewObservedRevision()
 	service := &serviceImpl{
 		topology: reconcilerRevisionTestTopology{
 			cluster: true,
@@ -224,8 +224,8 @@ func TestNotifyReconcilerChangedUsesReconcilerScope(t *testing.T) {
 	if fakeCoord.markScope != cachecoord.ScopeReconciler {
 		t.Fatalf("expected reconciler scope %q, got %q", cachecoord.ScopeReconciler, fakeCoord.markScope)
 	}
-	if fakeCoord.markReason != pluginruntimecache.ReconcilerCacheChangeReason {
-		t.Fatalf("expected reconciler reason %q, got %q", pluginruntimecache.ReconcilerCacheChangeReason, fakeCoord.markReason)
+	if fakeCoord.markReason != runtimecache.ReconcilerCacheChangeReason {
+		t.Fatalf("expected reconciler reason %q, got %q", runtimecache.ReconcilerCacheChangeReason, fakeCoord.markReason)
 	}
 	if !service.reconcilerRevisionCtrl.IsObserved(13) {
 		t.Fatalf("expected published revision 13 to be observed locally")
@@ -237,7 +237,7 @@ func TestNotifyReconcilerChangedUsesReconcilerScope(t *testing.T) {
 // background retry behavior if the immediate convergence fails.
 func TestPublishReconcilerChangedCanLeaveLocalRevisionUnobserved(t *testing.T) {
 	fakeCoord := &reconcilerRevisionCacheCoord{revision: 20}
-	observed := pluginruntimecache.NewObservedRevision()
+	observed := runtimecache.NewObservedRevision()
 	service := &serviceImpl{
 		topology: reconcilerRevisionTestTopology{
 			cluster: true,

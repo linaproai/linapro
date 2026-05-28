@@ -1,34 +1,68 @@
-## ADDED Requirements
+# 登录页展示规范
 
-### Requirement: 登录页按解析策略呈现
-登录页 SHALL 根据当前生效的解析策略呈现不同 UI:
-- subdomain 策略:不显示租户输入框(从 URL 自动解析)。
-- header 策略:显示租户编码输入框(将作为登录前 `X-Tenant-Code` hint 发送,不得覆盖已签发正式 JWT 的 `TenantId`)。
-- jwt/session/default 策略:不显示租户输入,凭 username/password 登录后由 select-tenant 决定。
+## Purpose
+待定 - 由归档变更 login-page-simplification-and-positioning 创建。归档后更新目的。
 
-#### Scenario: subdomain 模式登录
-- **WHEN** 用户访问 `acme.app.com/login`
-- **THEN** 登录页无租户输入
-- **AND** 提交后 `/auth/login` 直接定位租户 acme
+## Requirements
+### Requirement:当前阶段仅暴露用户名/密码登录入口
 
-#### Scenario: 1:N 用户的挑选器
-- **WHEN** 1:N 用户登录后 `/auth/login` 返回 pre_token + 租户列表
-- **THEN** 前端在登录框内容区域切换为租户下拉挑选器(展示 code + name)
-- **AND** 账号密码登录框与租户挑选器不得同时展示
-- **AND** 挑选器说明文案应描述"选择本次要进入的租户"场景,不得继续提示填写账号密码
-- **AND** 租户下拉控件应复用前端框架表单/选择器组件并与确认按钮保持清晰垂直间距
-- **AND** 用户选定后调 `/auth/select-tenant`
+系统在当前阶段 SHALL 仅暴露用户名/密码登录能力，不得继续展示或保留未完成的认证入口作为正式公开能力。
 
-### Requirement: prompt 模式下的可见性
-当 ambiguous 行为 = `prompt` 时,挑选器 SHALL 提供清晰指引("您加入了多个组织,请选择登录目标");`reject` 模式下不展示挑选器,仅显示错误。
+#### Scenario:标准登录页仅显示用户名/密码表单
+- **当** 未认证用户访问 `/auth/login` 时
+- **则** 页面显示用户名、密码、记住我和登录控件
+- **且** 页面不显示忘记密码、注册、手机登录、二维码登录或第三方登录入口
 
-#### Scenario: prompt 模式
-- **WHEN** 1:N 用户首次登录,服务端返回 `TENANT_REQUIRED`
-- **THEN** 前端识别错误码,展示挑选器
+#### Scenario:用户访问未完成的认证子路由
+- **当** 用户访问 `/auth/code-login`、`/auth/qrcode-login`、`/auth/forget-password` 或 `/auth/register` 时
+- **则** 系统重定向回标准登录页 `/auth/login`
+- **且** 页面仍仅暴露用户名/密码登录能力
 
-### Requirement: 多租户禁用时退化
-当 multi-tenant 未启用,登录页 SHALL 仅显示传统的 username/password,登录成功直接进入工作台。
+### Requirement:登录面板默认右对齐布局并支持位置配置
 
-#### Scenario: 单租户行为等价
-- **WHEN** multi-tenant 未启用
-- **THEN** 登录页与单租户时代视觉/交互一致
+系统 SHALL 默认以右对齐布局渲染登录面板，并允许宿主公共前端配置切换到左、中或右布局。
+
+#### Scenario:无覆盖时登录面板默认右侧
+- **当** 浏览器加载登录页且宿主未提供登录面板位置覆盖时
+- **则** 登录页使用 `panel-right` 布局
+- **且** 登录面板显示在主页面区域的右侧
+
+#### Scenario:宿主配置覆盖登录面板位置
+- **当** 宿主公共前端配置返回 `auth.panelLayout` 为 `panel-left`、`panel-center` 或 `panel-right` 时
+- **则** 登录页渲染对应的布局模式
+- **且** 登录页工具栏中的布局切换器仍允许在三种布局选项间切换
+
+### Requirement:默认登录页描述支持宿主配置
+
+系统 SHALL 在宿主未提供覆盖时显示默认登录页描述，并在宿主公共前端配置提供时显示配置值。
+
+#### Scenario:无覆盖时显示默认描述
+- **当** 浏览器加载登录页且宿主未提供 `auth.pageDesc` 覆盖时
+- **则** 登录页显示描述 `Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model`
+
+#### Scenario:宿主配置覆盖登录页描述
+- **当** 宿主公共前端配置返回非空的 `auth.pageDesc` 时
+- **则** 登录页显示返回的描述
+
+### Requirement:登录页必须支持宿主国际化文案和语言切换刷新
+
+系统 SHALL 根据当前语言渲染登录页标题、描述和副标题，结合前端静态语言资源和宿主返回的本地化公共前端设置。当前语言变化时，登录页必须刷新显示的文案，无需新的登录会话。
+
+#### Scenario:登录页以英文显示宿主文案
+- **当** 浏览器语言为 `en-US` 且宿主提供该语言的公共前端配置文案时
+- **则** 登录页显示英文标题、描述和登录副标题
+- **且** 静态表单字段文案继续从前端静态语言包渲染
+
+#### Scenario:语言切换后登录页文案刷新
+- **当** 用户在登录前或登录后切换工作区语言时
+- **则** 登录页或认证布局中的宿主文案刷新为新语言结果
+- **且** 登录页组件结构无需重新配置
+
+### Requirement:登录页国际化缺失必须回退到默认文案
+
+当宿主未为当前语言提供本地化登录页文本时，系统 SHALL 回退到默认语言文案或内置静态文案。
+
+#### Scenario:当前语言缺少登录页描述翻译
+- **当** 当前语言没有 `auth.pageDesc` 的可用本地化结果时
+- **则** 登录页回退到默认语言描述或内置默认描述文案
+- **且** 登录页布局和认证流程保持可用

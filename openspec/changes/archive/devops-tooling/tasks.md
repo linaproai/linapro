@@ -320,3 +320,27 @@
 - [x] **FB-OA-13**: Support Copilot reasoning effort configuration
 - [x] **FB-OA-14**: Fail fast after each archive phase
 - [x] **FB-OA-15**: Fix `openspec validate --all` failing on existing main spec format
+
+## 21. Agent Resource Management
+
+- [x] Replace legacy `skills.*` commands and make targets with `agents.skills.*` equivalents.
+- [x] Add `agents.prompts.*` and `agents.md.*` command groups with resource-specific registries.
+- [x] Share symlink state, conflict handling, selector parsing and TTY helpers across Agent resources.
+- [x] Simplify aggregate `make agents` display while preserving detailed resource-specific status tables.
+- [x] Update README, `.gitignore` and command migration notes for the new command tree.
+
+## 22. Embedded Code Generation and Dev Reliability
+
+- [x] Embed GoFrame controller and DAO generation into `linactl` through the repository-pinned GoFrame CLI dependency.
+- [x] Remove local `gf` executable detection, download and invocation from default generation commands.
+- [x] Add code generation smoke and unit coverage ensuring `linactl ctrl` and `linactl dao` do not depend on `PATH` `gf`.
+- [x] Make `linactl dev` wait for managed backend and frontend ports after stopping tracked services.
+- [x] Preserve refusal semantics for unknown external port owners and cover both restart paths in tests.
+
+## 23. Deterministic Archive and E2E Setup Tooling
+
+- [x] Run monthly auto-archive and archive consolidation through the selected AI coding tool runtime.
+- [x] Fail fast on archive, consolidation, validation, push and pull request steps, and report unarchived completed changes directly.
+- [x] Align archive blockers and artifact upload actions with current workflow requirements.
+- [x] Make `env.setup` install Playwright Chromium headless shell by default while preserving Linux `--with-deps` behavior.
+- [x] Update E2E setup documentation and tests to distinguish default headless shell from headed/debug full browser requirements.

@@ -5,10 +5,15 @@ package cmd
 
 import (
 	"context"
+	`strings`
+
+	`lina-core/internal/cmd/internal/dbconfig`
+	`lina-core/pkg/dialect`
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 
+	"lina-core/internal/cmd/internal/sqlassets"
 	"lina-core/pkg/logger"
 )
 
@@ -30,7 +35,7 @@ func (m *Main) Init(ctx context.Context, in InitInput) (out *InitOutput, err err
 	if err = requireCommandConfirmation(initCommandName, in.Confirm); err != nil {
 		return nil, err
 	}
-	source, err := resolveSQLAssetSource(in.SQLSource)
+	source, err := sqlassets.ResolveSource(in.SQLSource)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +46,7 @@ func (m *Main) Init(ctx context.Context, in InitInput) (out *InitOutput, err err
 	if err = prepareInitDatabase(ctx, rebuild); err != nil {
 		return nil, err
 	}
-	assets, err := scanInitSQLAssets(ctx, source)
+	assets, err := sqlassets.ScanInit(ctx, source)
 	if err != nil {
 		return nil, gerror.Wrap(err, "scan initialization SQL files failed")
 	}
@@ -49,7 +54,7 @@ func (m *Main) Init(ctx context.Context, in InitInput) (out *InitOutput, err err
 		logger.Warning(ctx, "no SQL files found for initialization")
 		return
 	}
-	if err = executeSQLAssets(ctx, assets); err != nil {
+	if err = sqlassets.Execute(ctx, assets); err != nil {
 		return nil, err
 	}
 
@@ -57,14 +62,30 @@ func (m *Main) Init(ctx context.Context, in InitInput) (out *InitOutput, err err
 	return
 }
 
-// scanInitSQLAssets loads host initialization SQL assets from the selected source.
-func scanInitSQLAssets(ctx context.Context, source sqlAssetSource) ([]sqlAsset, error) {
-	switch source {
-	case sqlAssetSourceLocal:
-		return scanLocalSQLAssets(ctx, hostInitSQLDir())
-	case sqlAssetSourceEmbedded:
-		return scanEmbeddedSQLAssets(ctx, hostInitSQLDir())
+// parseInitRebuildFlag parses the optional init rebuild flag while treating an
+// omitted value as a non-destructive initialization.
+func parseInitRebuildFlag(value string) (bool, error) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	switch normalized {
+	case "", "false", "0", "no", "n", "off":
+		return false, nil
+	case "true", "1", "yes", "y", "on":
+		return true, nil
 	default:
-		return nil, gerror.Newf("unsupported init SQL asset source: %s", source)
+		return false, gerror.Newf("unsupported rebuild value: %s; available values are true or false", value)
 	}
+}
+
+// prepareInitDatabase creates the canonical database before executing SQL
+// assets and drops it first when rebuild is explicitly enabled.
+func prepareInitDatabase(ctx context.Context, rebuild bool) (err error) {
+	link, err := dbconfig.CurrentDatabaseLink(ctx)
+	if err != nil {
+		return err
+	}
+	dbDialect, err := dialect.From(link)
+	if err != nil {
+		return err
+	}
+	return dbDialect.PrepareDatabase(ctx, link, rebuild)
 }

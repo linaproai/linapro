@@ -7,23 +7,13 @@ import (
 	"context"
 	"strings"
 	"sync"
-	"time"
-
-	"github.com/gogf/gf/v2/util/guid"
 
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/runtimeupgrade"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
-)
-
-const (
-	// runtimeUpgradeDistributedLockLease bounds orphaned upgrade locks after a
-	// node crash while remaining longer than normal plugin SQL/governance phases.
-	runtimeUpgradeDistributedLockLease = 30 * time.Minute
-	// runtimeUpgradeDistributedLockReason records the owner purpose in coordination backends.
-	runtimeUpgradeDistributedLockReason = "plugin-runtime-upgrade"
 )
 
 // ExecuteRuntimeUpgrade runs one explicit runtime upgrade after confirmation.
@@ -59,7 +49,7 @@ func (s *serviceImpl) ExecuteRuntimeUpgrade(
 	if err != nil {
 		return nil, err
 	}
-	if !runtimeUpgradeCanExecute(projection.State) {
+	if !runtimeupgrade.CanExecute(projection.State) {
 		return nil, bizerr.NewCode(
 			CodePluginRuntimeUpgradeUnavailable,
 			bizerr.P("pluginId", normalizedPluginID),
@@ -149,13 +139,6 @@ func (s *serviceImpl) ExecuteRuntimeUpgrade(
 		result.DiscoveredVersion = refreshedRegistry.Version
 	}
 	return result, nil
-}
-
-// runtimeUpgradeCanExecute reports whether the explicit management upgrade
-// endpoint may run side effects for a runtime-upgrade state.
-func runtimeUpgradeCanExecute(state catalog.RuntimeUpgradeState) bool {
-	return state == catalog.RuntimeUpgradeStatePendingUpgrade ||
-		state == catalog.RuntimeUpgradeStateUpgradeFailed
 }
 
 // loadRuntimeUpgradeExecutionState re-reads the target manifest, registry row,
@@ -264,14 +247,14 @@ func (s *serviceImpl) lockRuntimeUpgrade(ctx context.Context, pluginID string) (
 		)
 	}
 
-	lockName := runtimeUpgradeDistributedLockName(pluginID)
-	owner := runtimeUpgradeDistributedLockOwner(s.topology)
+	lockName := runtimeupgrade.DistributedLockName(pluginID)
+	owner := runtimeupgrade.DistributedLockOwner(s.topology)
 	handle, ok, err := s.runtimeUpgradeLockStore.Acquire(
 		ctx,
 		lockName,
 		owner,
-		runtimeUpgradeDistributedLockReason,
-		runtimeUpgradeDistributedLockLease,
+		runtimeupgrade.DistributedLockReason,
+		runtimeupgrade.DistributedLockLease,
 	)
 	if err != nil {
 		localUnlock()
@@ -316,19 +299,4 @@ func (s *serviceImpl) lockRuntimeUpgradeLocal(pluginID string) func() {
 	s.runtimeUpgradeLocksMu.Unlock()
 	lock.Lock()
 	return lock.Unlock
-}
-
-// runtimeUpgradeDistributedLockName builds the cluster-wide lock name for one plugin upgrade.
-func runtimeUpgradeDistributedLockName(pluginID string) string {
-	return "plugin-runtime-upgrade:" + strings.TrimSpace(pluginID)
-}
-
-// runtimeUpgradeDistributedLockOwner builds a unique owner for one acquisition
-// so concurrent requests from the same node cannot re-enter the same lock.
-func runtimeUpgradeDistributedLockOwner(topology Topology) string {
-	nodeID := "local-node"
-	if topology != nil && strings.TrimSpace(topology.NodeID()) != "" {
-		nodeID = strings.TrimSpace(topology.NodeID())
-	}
-	return nodeID + ":" + guid.S()
 }

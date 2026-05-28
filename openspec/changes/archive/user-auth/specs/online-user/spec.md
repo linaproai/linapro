@@ -1,31 +1,186 @@
-## ADDED Requirements
+# 在线用户
 
-### Requirement: sys_online_session 增加租户字段
-`sys_online_session` SHALL 加 `tenant_id` 列;主键 SHALL 使用全局唯一 `token_id`;`tenant_id` SHALL 仅作为会话归属、列表过滤、数据权限与请求时 claim/session 一致性校验维度;索引 SHALL 覆盖 `(tenant_id, user_id)` 与 `(tenant_id, login_time)`。
+## Purpose
 
-#### Scenario: 同用户多租户多会话
-- **WHEN** 用户 U 在租户 A 与租户 B 各登录一次
-- **THEN** session store 包含两行 `(A, T1, U)` 与 `(B, T2, U)`
-- **AND** 两行互不干扰
+定义在线会话存储抽象、登录状态跟踪、列表查询和强制下线能力，确保系统能够稳定管理当前在线用户及其会话生命周期。
+## Requirements
+### Requirement:会话存储抽象层
+系统 SHALL 将在线会话存储、会话有效性验证和会话活跃时间维护视为宿主认证会话核心；`linapro-monitor-online` 仅消费宿主提供的会话投影和管理能力。
 
-### Requirement: 在线会话查询按租户过滤
-`GET /online/list` SHALL 经 `tenantcap.Apply` 过滤;租户管理员仅可见本租户在线会话。平台管理员仅通过 `/platform/online/list` 管理平台接口查看全量会话并标记 `tenant_id`;impersonation 模式下仍仅可见目标租户会话。
+#### Scenario:在线用户插件未安装
+- **当** `linapro-monitor-online` 未安装或未启用时
+- **则** 宿主仍在 `sys_online_session` 中创建、删除、验证和清理会话记录
+- **且** 登录、退出、受保护接口认证和超时判定继续正常工作
 
-#### Scenario: 租户管理员视图
-- **WHEN** 租户 A 管理员查询在线列表
-- **THEN** 仅返回 `tenant_id=A` 的会话
+#### Scenario:在线用户插件已启用
+- **当** `linapro-monitor-online` 已安装并启用时
+- **则** 插件通过宿主提供的会话投影查询在线用户并执行强制下线管理
+- **且** 插件不持有 JWT 验证、`last_active_time` 维护或清理任务的事实源
 
-### Requirement: 踢人接口按租户校验
-`POST /online/{token_id}/kick` SHALL 先按全局唯一 `token_id` 定位目标 session,再校验目标 session 的 `user_id` 与 `tenant_id` 是否处于当前操作者可见的数据范围;不匹配返回 403。平台管理员踢除跨租户会话必须使用显式平台能力并记录审计;impersonation 模式不绕过目标租户校验。
+### Requirement: 在线用户列表查询
 
-#### Scenario: 跨租户踢人被拒
-- **WHEN** 租户 A 管理员尝试踢租户 B 的会话
-- **THEN** 返回 403 `bizerr.CodeOnlineSessionTenantForbidden`
+系统 SHALL 在`linapro-monitor-online`已安装并启用时为管理员提供查询当前在线用户的能力，支持按用户名和 IP 地址筛选。在线用户列表 SHALL 接入宿主数据权限治理：全部数据范围可查询所有在线会话；本部门数据范围仅查询当前用户所在部门范围内用户的在线会话；仅本人数据范围仅查询当前用户自己的在线会话。在线会话投影 MUST 包含用户会话客户端类型`clientType`。
 
-### Requirement: session 清理任务按租户感知
-session 过期清理定时任务 SHALL 按 `last_active_time` 扫描,并在需要按租户观察或治理时使用 `(tenant_id, last_active_time)` 索引;清理粒度按租户独立统计,但任务本身为平台级(`tenant_id=0`)。
+#### Scenario: 查询在线用户列表
 
-#### Scenario: 租户暂停时会话立即失效
-- **WHEN** 租户 T 被暂停
-- **THEN** `session` store 中 `tenant_id=T` 的所有行立即被删除
-- **AND** 该租户用户后续请求被拒
+- **当** `linapro-monitor-online`已安装并启用且管理员请求在线用户列表时
+- **则** 插件返回宿主会话投影中的在线会话记录列表
+- **且** 每条记录仍包含 token_id、用户名、部门名称、IP、登录地点、浏览器、操作系统、登录时间和`clientType`等治理字段
+
+#### Scenario: 本部门范围限制在线用户列表
+
+- **当** 普通用户角色数据范围为本部门数据
+- **且** 查询在线用户列表
+- **则** 系统仅返回当前用户可见部门范围内用户的在线会话
+- **且** 返回记录中的`clientType`来自宿主会话投影，不通过额外逐项查询补齐
+
+#### Scenario: 仅本人范围限制在线用户列表
+
+- **当** 普通用户角色数据范围为仅本人数据
+- **且** 查询在线用户列表
+- **则** 系统仅返回当前登录用户自己的在线会话
+
+### Requirement:强制下线
+
+系统 SHALL 在 `linapro-monitor-online` 已安装并启用时支持管理员强制下线指定在线用户。下线用户的后续请求必须返回 401。强制下线 SHALL 接入宿主数据权限治理，调用方只能强制下线其数据权限范围内的在线会话。
+
+#### Scenario:插件执行强制下线
+
+- **当** 管理员使用 `linapro-monitor-online` 强制指定 `tokenId` 下线时
+- **则** 宿主会话内核使该会话记录失效
+- **且** 后续携带该 Token 的请求被宿主认证中间件拒绝
+
+#### Scenario:拒绝强制下线范围外会话
+
+- **当** 普通用户角色数据范围为本部门数据
+- **且** 目标 `tokenId` 属于部门范围外用户
+- **则** 系统拒绝强制下线操作
+- **且** 目标会话继续保持有效，直到其自身退出或超时
+
+### Requirement:在线用户前端页面
+
+系统 SHALL 提供在线用户管理页面，展示当前在线用户列表并支持强制下线操作。
+
+#### Scenario:页面展示在线用户列表
+- **当** 管理员访问在线用户页面时
+- **则** 页面以 VXE-Grid 形式展示，包含：登录账号、部门名称、IP 地址、登录地点、浏览器（带图标）、操作系统（带图标）、登录时间、操作（强制下线按钮）；工具栏显示在线人数统计
+
+#### Scenario:搜索筛选
+- **当** 管理员在搜索栏输入用户名或 IP 地址并搜索时
+- **则** 表格数据根据筛选条件刷新
+
+#### Scenario:强制下线交互
+- **当** 管理员点击某用户行的"强制下线"按钮时
+- **则** 弹出确认对话框，确认后调用强制下线 API，成功后刷新表格数据
+
+### Requirement:会话活跃时间跟踪
+
+系统 SHALL 跟踪每个在线用户的最后活跃时间，用于判断会话是否超时。认证中间件必须在每个受保护请求上验证会话和超时，但当持久化的活跃时间仍在配置的短更新窗口内时，可跳过写入 `last_active_time`。
+
+#### Scenario:登录时的初始活跃时间
+- **当** 用户成功登录，系统创建 `sys_online_session` 会话记录时
+- **则** `last_active_time` 字段必须设置为当前时间
+
+#### Scenario:每个受保护请求验证活跃会话
+- **当** 持有有效 Token 的已登录用户访问受保护 API 时
+- **则** 认证中间件必须验证会话记录存在
+- **且** 如果持久化的 `last_active_time` 已超过有效超时阈值，认证中间件必须拒绝请求
+
+#### Scenario:更新窗口后刷新活跃时间
+- **当** 持有有效 Token 的已登录用户访问受保护 API 且持久化的 `last_active_time` 早于短更新窗口时
+- **则** 认证中间件必须将 `last_active_time` 更新为当前时间
+- **且** 更新成功后请求正常处理
+
+#### Scenario:更新窗口内跳过重复活跃时间写入
+- **当** 持有有效 Token 的已登录用户在短更新窗口内重复访问受保护 API 时
+- **则** 认证中间件可跳过重复的 `last_active_time` 更新
+- **且** 如果会话未超时，请求仍正常处理
+
+### Requirement:不活跃会话自动清理
+系统 SHALL 提供定时任务自动清理长时间不活跃的在线会话，防止会话表无限增长。超时阈值和清理频率必须支持通过时长字符串配置调整。
+
+#### Scenario:定时清理超时会话
+- **当** 定时清理任务执行时（默认每 5 分钟）
+- **则** 系统必须查询 `sys_online_session` 表中 `last_active_time` 超过超时阈值（默认 24 小时）的记录并删除
+
+#### Scenario:超时阈值可通过新配置调整
+- **当** 管理员在 `config.yaml` 中设置 `session.timeout = 24h` 时
+- **则** 系统必须使用该时长值作为会话超时阈值，未设置时默认 24 小时
+
+#### Scenario:清理频率可通过新配置调整
+- **当** 管理员在 `config.yaml` 中设置 `session.cleanupInterval = 5m` 时
+- **则** 系统必须使用该时长值作为清理任务执行间隔，未设置时默认 5 分钟
+
+### Requirement:系统监控菜单
+系统 SHALL 在 `linapro-monitor-online` 已安装并启用时，将 `在线用户` 菜单作为插件菜单挂载到宿主 `系统监控` 目录，而非要求它与 `服务监控` 一起作为固定内置子菜单出现。
+
+#### Scenario:菜单展示
+- **当** `linapro-monitor-online` 已安装、已启用且当前用户有权访问其菜单时
+- **则** `系统监控` 下显示 `在线用户` 子菜单
+- **且** 此规则不要求 `服务监控` 也存在
+
+#### Scenario:插件缺失或禁用
+- **当** `linapro-monitor-online` 未安装、未启用或当前用户无权访问其菜单时
+- **则** 宿主隐藏 `在线用户` 菜单入口
+- **且** 宿主认证会话内核继续独立运行
+
+### Requirement:运行时配置的会话超时
+系统 SHALL 允许 `sys.session.timeout` 在运行时控制在线会话超时阈值，无运行时覆盖时回退到静态配置。
+
+#### Scenario:运行时超时值生效
+- **当** 管理员维护 `sys.session.timeout=24h` 时
+- **则** 宿主使用该时长作为有效的在线会话超时阈值
+
+### Requirement:认证在每个受保护请求上检查会话超时
+系统 SHALL 在认证期间评估会话超时，而非仅依赖定时清理。
+
+#### Scenario:过期会话在认证期间被拒绝
+- **当** 受保护请求携带的 Token 对应的会话 `last_active_time` 超过有效超时阈值时
+- **则** 认证链以 `401` 拒绝请求
+- **且** 宿主清理对应的在线会话记录
+
+### Requirement:sys_online_session 必须包含 last_active_time 索引
+
+系统 SHALL 在 `sys_online_session` 表上维护 `KEY idx_last_active_time (last_active_time)`，以支持按 `last_active_time` 范围的不活跃会话清理查询，避免全表扫描。
+
+#### Scenario:索引存在
+
+- **当** `make init` 完成数据库初始化时
+- **则** `SHOW INDEX FROM sys_online_session` 必须包含列 `last_active_time` 上的 `idx_last_active_time`
+
+#### Scenario:不活跃会话清理使用索引
+
+- **当** 服务执行 `WHERE last_active_time < ?` 形式的清理查询时
+- **则** 数据库必须选择 `idx_last_active_time` 以避免全表扫描
+
+### Requirement: 在线用户列表必须使用 PostgreSQL 投影并可结合 Redis hot state
+
+系统 SHALL 继续以`sys_online_session`作为在线用户管理查询投影。集群模式下请求热状态存储在 Redis，但在线用户列表的数据权限过滤、分页、搜索和治理字段 MUST 通过 PostgreSQL 投影完成。
+
+#### Scenario: 集群模式查询在线用户列表
+- **WHEN** 管理员在集群模式下查询在线用户列表
+- **THEN** 系统从`sys_online_session`投影查询可见会话
+- **AND** 查询继续接入 tenantcap 和 datascope
+- **AND** 返回 token_id、用户名、部门、IP、浏览器、操作系统、clientType、登录时间和最后活跃时间
+
+#### Scenario: Redis hot state 与投影短暂不一致
+- **WHEN** Redis session 已过期但 PostgreSQL 投影尚未清理
+- **THEN** 清理任务最终删除投影
+- **AND** 认证链以 Redis hot state 为请求有效性权威
+
+### Requirement: 在线用户强退必须撤销 Redis hot state
+系统 SHALL 在强制下线时删除 Redis session hot key 并写入 Redis revoke 状态。仅删除 PostgreSQL 投影不得视为完成强退。
+
+#### Scenario: 强退后所有节点拒绝 token
+- **WHEN** 管理员强制下线 token T
+- **THEN** 系统删除 Redis session hot key
+- **AND** 系统写入 Redis revoke key
+- **AND** 任意节点收到 token T 的后续请求时拒绝
+
+### Requirement: 在线用户清理必须区分 hot state 和投影
+系统 SHALL 使用 Redis TTL 管理 session hot state 过期，并保留 PostgreSQL 投影清理任务。投影清理任务 MUST 幂等。
+
+#### Scenario: 投影清理删除过期会话
+- **WHEN** PostgreSQL 投影中存在 `last_active_time` 超过会话超时阈值的记录
+- **THEN** 清理任务删除该投影
+- **AND** 重复执行清理任务不会产生错误

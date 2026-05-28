@@ -1,30 +1,159 @@
-## ADDED Requirements
+# 通知公告管理
 
-### Requirement: 通知消息与投递租户化
-`sys_notify_message` 与 `sys_notify_delivery` SHALL 加 `tenant_id`;CRUD 按租户过滤;跨租户通知由平台管理员通过 `/platform/notify/*` 接口发起,显式指定目标租户。`sys_notify_channel` 是平台全局通道目录,不携带 `tenant_id`;租户级渠道覆盖若后续落地,应使用独立租户配置表表达,不得破坏全局 `channel_key` 语义。
+## Purpose
 
-#### Scenario: 租户内通知
-- **WHEN** 租户 A 管理员发送通知给本租户用户
-- **THEN** 写入 `tenant_id=A`
-- **AND** 仅租户 A 用户可见
+定义 `linapro-content-notice` 源码插件提供的通知公告数据结构、列表查询、详情维护和消息分发行为，确保公告内容可由插件管理并通过宿主通知域投递给目标用户。
 
-#### Scenario: 平台广播通知
-- **WHEN** 平台管理员发送系统通知给所有租户
-- **THEN** 通过 `/platform/notify/broadcast` 显式指定 `target_tenant_ids=[A,B,C]`
-- **AND** 各租户独立写入一条消息
+## Requirements
+### Requirement:通知公告数据库表设计
+系统 SHALL 提供 `plugin_linapro_content_notice` 表存储通知公告数据。
 
-### Requirement: 通知发送渠道保持平台全局配置
-通知渠道目录(`sys_notify_channel`)SHALL 保持平台全局配置,内置 `inbox` 通道由全局 `channel_key` 唯一识别。租户管理员不得直接修改全局通道配置;若未来需要短信/邮件/webhook 的租户覆盖,必须通过单独的租户配置或覆盖表实现。
+#### Scenario:plugin_linapro_content_notice 表结构
+- **当** 查看 `plugin_linapro_content_notice` 表结构时
+- **则** 表包含：`id`（BIGINT 主键自增）、`title`（VARCHAR(255) 标题）、`type`（TINYINT 类型：1=通知 2=公告）、`content`（LONGTEXT 富文本内容）、`file_ids`（VARCHAR(500) 附件文件 ID 列表）、`status`（TINYINT 状态：0=草稿 1=已发布）、`remark`（VARCHAR(500) 备注）、`created_by`（BIGINT 创建者 ID）、`updated_by`（BIGINT 更新者 ID）、`created_at`（DATETIME）、`updated_at`（DATETIME）、`deleted_at`（DATETIME 软删除）
 
-#### Scenario: 内置站内信通道全局唯一
-- **WHEN** 任意租户发送站内信
-- **THEN** 系统读取全局 `channel_key=inbox` 通道配置
-- **AND** 消息与投递记录仍按发送上下文写入对应 `tenant_id`
+### Requirement:通知公告列表查询
+系统 SHALL 提供通知公告分页列表查询接口。
 
-### Requirement: 通知投递日志按租户记录
-`sys_notify_delivery` SHALL 加 `tenant_id`;查询接口 MUST 按租户隔离,租户管理员仅可见本租户日志。平台管理员仅通过 `/platform/notify/deliveries` 管理平台接口查看全量;impersonation 模式下仍仅可见目标租户投递日志。
+#### Scenario:查询通知公告列表
+- **当** 调用 `GET /api/v1/notice` 并传入分页参数 `pageNum` 和 `pageSize` 时
+- **则** 返回 `{list: [...], total: number}` 格式的通知公告列表和总数
+- **且** 列表按创建时间倒序排列
 
-#### Scenario: 跨租户日志不可见
-- **WHEN** 租户 A 管理员查询投递日志
-- **THEN** 仅返回 `tenant_id=A` 行
-- **AND** 不见租户 B 的投递记录
+#### Scenario:通知列表支持条件筛选
+- **当** 查询时传入筛选参数 `title`（标题）、`type`（类型）或 `createdBy`（创建者）
+- **则** `title` 使用模糊匹配（LIKE），`type` 使用精确匹配
+- **且** `createdBy` 通过关联用户表匹配创建者用户名（模糊匹配）
+- **且** 返回符合条件的通知公告列表
+
+#### Scenario:通知公告列表排除已删除记录
+- **当** 查询通知公告列表时
+- **则** 软删除的记录不包含在结果中
+
+#### Scenario:列表返回创建者名称
+- **当** 查询通知公告列表时
+- **则** 每条记录包含 `createdByName` 字段，即创建者的用户名
+
+### Requirement:获取通知公告详情
+系统 SHALL 提供查询通知公告详情接口。
+
+#### Scenario:查询通知公告详情
+- **当** 调用 `GET /api/v1/notice/{id}` 时
+- **则** 返回通知公告的完整信息，包括富文本内容
+
+#### Scenario:查询不存在的通知公告
+- **当** 调用 `GET /api/v1/notice/{id}` 且 ID 不存在时
+- **则** 系统返回错误消息
+
+### Requirement:创建通知公告
+系统 SHALL 提供创建通知公告接口。
+
+#### Scenario:创建通知公告成功
+- **当** 调用 `POST /api/v1/notice` 并提交 `title`、`type`、`content`、`status` 字段时
+- **则** 系统创建通知公告并自动将 `created_by` 记录为当前登录用户 ID
+- **且** 返回成功
+
+#### Scenario:直接创建并发布通知
+- **当** 创建通知公告时 `status` 为 1（已发布）
+- **则** 系统创建通知公告后，通过宿主统一 `notify` 服务为目标用户创建通知主记录和收件箱投递记录
+
+#### Scenario:创建草稿通知
+- **当** 创建通知公告时 `status` 为 0（草稿）
+- **则** 仅创建通知公告记录，不分发用户消息
+
+#### Scenario:必填字段验证
+- **当** 创建通知公告时缺少 `title`、`type` 或 `content`
+- **则** 系统返回参数验证错误
+
+### Requirement:更新通知公告
+系统 SHALL 提供更新通知公告接口。
+
+#### Scenario:更新通知公告成功
+- **当** 调用 `PUT /api/v1/notice/{id}` 并提交要更新的字段时
+- **则** 系统更新对应的通知公告信息，并自动将 `updated_by` 记录为当前登录用户 ID
+
+#### Scenario:草稿更新为已发布
+- **当** 更新通知公告时将 `status` 从 0 改为 1
+- **则** 系统更新通知公告状态后，通过宿主统一 `notify` 服务为目标用户创建通知主记录和收件箱投递记录
+
+#### Scenario:已发布通知再次编辑
+- **当** 更新已发布通知公告的内容（不改变状态）时
+- **则** 仅更新通知公告记录，不重复分发用户消息
+
+#### Scenario:更新不存在的通知公告
+- **当** 更新不存在的通知公告 ID
+- **则** 系统返回错误消息
+
+### Requirement:删除通知公告
+系统 SHALL 提供删除通知公告接口，支持批量删除。
+
+#### Scenario:删除通知公告成功
+- **当** 调用 `DELETE /api/v1/notice` 并传入 `ids` 参数（逗号分隔的 ID 列表）时
+- **则** 对应的通知公告被软删除（设置 `deleted_at`）
+
+### Requirement:通知公告字典数据
+系统 SHALL 提供通知公告相关的字典数据。
+
+#### Scenario:初始化通知类型字典
+- **当** 执行 v0.4.0 数据库迁移脚本时
+- **则** 创建字典类型 `sys_notice_type`（通知类型），包含字典数据：通知（1）、公告（2）
+
+#### Scenario:初始化公告状态字典
+- **当** 执行 v0.4.0 数据库迁移脚本时
+- **则** 创建字典类型 `sys_notice_status`（公告状态），包含字典数据：草稿（0）、已发布（1）
+
+### Requirement:通知公告管理前端列表页
+系统 SHALL 提供通知公告管理列表页。
+
+#### Scenario:列表页展示
+- **当** 用户进入通知公告管理页面时
+- **则** 以 VXE-Grid 形式展示通知公告列表，支持分页
+- **且** 展示列：公告标题、公告类型（字典渲染）、状态（字典渲染）、创建者、创建时间
+- **且** 支持复选框多选
+
+#### Scenario:搜索筛选
+- **当** 用户在搜索栏输入标题、选择类型或输入创建者并点击搜索时
+- **则** 表格刷新展示符合条件的通知公告
+
+#### Scenario:新增通知公告
+- **当** 用户点击"新增"按钮时
+- **则** 弹出弹窗（800px 宽），包含标题、状态（RadioButton）、类型（RadioButton）、内容（Tiptap 编辑器）字段
+
+#### Scenario:编辑通知公告
+- **当** 用户点击某条记录的"编辑"按钮时
+- **则** 弹出弹窗并回显通知公告信息，修改后提交更新
+
+#### Scenario:删除通知公告
+- **当** 用户点击某条记录的"删除"按钮时
+- **则** 弹出确认对话框，确认后删除通知公告并自动刷新列表
+
+#### Scenario:批量删除
+- **当** 用户选择多条记录并点击工具栏上的"删除"按钮时
+- **则** 弹出确认对话框，确认后批量删除所选通知公告
+
+### Requirement:通知公告菜单和权限
+系统 SHALL 将通知公告菜单作为 `linapro-content-notice` 源码插件菜单挂载到宿主 `内容管理` 目录，而非 `系统管理`。
+
+#### Scenario:菜单展示
+- **当** `linapro-content-notice` 已安装、已启用且当前用户有菜单访问权限时
+- **则** `内容管理` 分组下显示 `通知公告` 菜单项
+- **且** 插件治理仍由 `扩展中心 / 插件管理` 负责
+
+#### Scenario:插件缺失或禁用
+- **当** `linapro-content-notice` 未安装、未启用或当前用户无权访问其菜单时
+- **则** 宿主不显示 `通知公告` 菜单入口
+- **且** 如果 `内容管理` 下没有其他可见子菜单，父目录也将被隐藏
+
+### Requirement:通知公告由内容源码插件交付
+
+系统 SHALL 将通知公告能力作为 `linapro-content-notice` 源码插件交付，而非继续作为宿主默认内置模块。
+
+#### Scenario:内容插件启用时提供通知公告能力
+- **当** `linapro-content-notice` 已安装并启用时
+- **则** 宿主暴露通知公告相关 API、页面和菜单
+- **且** 该插件继续承载公告内容管理和发布流程
+
+#### Scenario:内容插件缺失时隐藏通知公告入口
+- **当** `linapro-content-notice` 未安装或未启用时
+- **则** 宿主不显示通知公告菜单和页面入口
+- **且** 宿主其余核心能力继续正常运行

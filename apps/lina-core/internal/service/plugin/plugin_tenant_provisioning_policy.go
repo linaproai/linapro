@@ -8,6 +8,7 @@ import (
 
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/governance"
 	"lina-core/pkg/bizerr"
 )
 
@@ -46,21 +47,5 @@ func (s *serviceImpl) UpdateTenantProvisioningPolicy(
 // for one registry and falls back to the persisted scope if the manifest is
 // unavailable to keep registry-only tests and startup projections deterministic.
 func (s *serviceImpl) registrySupportsTenantGovernance(ctx context.Context, registry *entity.SysPlugin) bool {
-	if registry == nil {
-		return false
-	}
-	if strings.TrimSpace(registry.ManifestPath) != "" {
-		manifest := &catalog.Manifest{}
-		if loadErr := s.catalogSvc.LoadManifestFromYAML(registry.ManifestPath, manifest); loadErr == nil {
-			if manifest.SupportsMultiTenant == nil {
-				return catalog.NormalizeScopeNature(manifest.ScopeNature) == catalog.ScopeNatureTenantAware
-			}
-			return manifest.SupportsTenantGovernance()
-		}
-	}
-	manifest, err := s.catalogSvc.GetActiveManifest(ctx, registry.PluginId)
-	if err == nil && manifest != nil {
-		return manifest.SupportsTenantGovernance()
-	}
-	return catalog.NormalizeScopeNature(registry.ScopeNature) == catalog.ScopeNatureTenantAware
+	return governance.RegistrySupportsTenantGovernance(ctx, s.catalogSvc, registry)
 }

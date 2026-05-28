@@ -55,12 +55,13 @@ func (f *pluginResourceFakeBizCtx) SetLocale(_ context.Context, locale string) {
 }
 
 // SetUser records the current authenticated user snapshot.
-func (f *pluginResourceFakeBizCtx) SetUser(_ context.Context, tokenId string, userId int, username string, status int) {
+func (f *pluginResourceFakeBizCtx) SetUser(_ context.Context, tokenId string, userId int, username string, status int, clientType string) {
 	if f.ctx != nil {
 		f.ctx.TokenId = tokenId
 		f.ctx.UserId = userId
 		f.ctx.Username = username
 		f.ctx.Status = status
+		f.ctx.ClientType = clientType
 	}
 }
 

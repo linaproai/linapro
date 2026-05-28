@@ -238,8 +238,6 @@ Personal Center (hidden, sort:99)
 ```
 
 
----
-
 ## Tenant Permission Boundary Hardening Tasks
 
 ## 1. 后端权限边界

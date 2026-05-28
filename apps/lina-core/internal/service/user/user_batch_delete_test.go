@@ -289,7 +289,7 @@ func (s userDeleteStaticBizCtx) Current(context.Context) contract.CurrentContext
 func (s userDeleteStaticBizCtx) SetLocale(context.Context, string) {}
 
 // SetUser is unused by delete tests.
-func (s userDeleteStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
+func (s userDeleteStaticBizCtx) SetUser(context.Context, string, int, string, int, string) {}
 
 // SetTenant is unused by delete tests.
 func (s userDeleteStaticBizCtx) SetTenant(context.Context, int) {}

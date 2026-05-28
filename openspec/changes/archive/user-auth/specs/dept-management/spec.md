@@ -1,33 +1,195 @@
-## ADDED Requirements
+# 部门管理
 
-### Requirement: org-center 部门表租户化
-`plugin_org_center_dept` 与 `plugin_org_center_user_dept` SHALL 加 `tenant_id` 列;部门树构建/查询/修改全部按 `tenant_id = bizctx.TenantId` 隔离。
+## Purpose
 
-#### Scenario: 跨租户部门不可见
-- **WHEN** 租户 A 管理员查询部门树
-- **THEN** 仅返回 `tenant_id=A` 的部门节点
-- **AND** 不见租户 B 的任何部门
+定义 `linapro-org-core` 源码插件提供的部门管理树形查询、创建、更新、删除和关联用户能力，确保组织架构可由组织插件稳定维护并支持其他业务模块引用。
 
-### Requirement: 租户创建默认部门暂不自动建模
-`org-center` 插件 SHALL NOT 依赖未实现的 `tenant.created` 事件总线自动创建租户根部门;租户部门数据由 org-center 的租户化 CRUD 与 mock/业务初始化流程显式维护。
+## Requirements
+### Requirement:部门列表查询
+系统 SHALL 提供部门的树形列表查询接口（无分页）。
 
-#### Scenario: 租户创建不写事件 outbox
-- **WHEN** 平台管理员创建租户 T,name="ACME"
-- **THEN** 系统不写入 `plugin_multi_tenant_event_outbox`
-- **AND** org-center 部门表不会因为事件订阅自动新增根部门
+#### Scenario:查询部门列表
+- **当** 调用 `GET /api/v1/dept` 时
+- **则** 返回所有部门数据的扁平列表，前端通过 parentId 构建树形结构
+- **且** 按 order_num 升序排列
 
-### Requirement: 租户删除时不通过事件级联清理部门
-`org-center` 插件 SHALL NOT 依赖未实现的 `tenant.deleted` 事件总线清理租户部门数据;需要清理时应通过显式管理流程或后续可靠生命周期编排设计实现。
+#### Scenario:部门列表支持条件筛选
+- **当** 查询时传入筛选参数 `name`（部门名称）或 `status`（状态）
+- **则** `name` 使用模糊匹配（LIKE）
+- **且** `status` 使用精确匹配
 
-#### Scenario: 删除租户清理部门
-- **WHEN** 租户 T 被删除
-- **THEN** 不触发 `tenant.deleted` outbox 或订阅者回调
-- **AND** 不影响其他租户数据
+#### Scenario:部门列表排除已删除记录
+- **当** 查询部门列表时
+- **则** 软删除的记录不包含在结果中
 
-### Requirement: orgcap.Provider 实现按租户视图
-`org-center` 插件实现的 `orgcap.Provider` 接口方法 SHALL 内部读取 `bizctx.TenantId` 并过滤本租户数据;平台管理员 impersonation 时按目标租户视图返回。
+### Requirement:创建部门
+系统 SHALL 提供创建部门接口。
 
-#### Scenario: 部门 scope 注入
-- **WHEN** 租户 A 内的查询走 `datascope.ApplyUserScope` 触发 dept-scope 注入
-- **THEN** EXISTS 子查询的 dept 来自 `tenant_id=A`
-- **AND** 不污染租户 B 的查询计划
+#### Scenario:部门创建成功
+- **当** 调用 `POST /api/v1/dept` 并提交 parentId、name、orderNum 等字段时
+- **则** 系统创建部门，自动计算 ancestors 字段（如 "0,1,2"），并返回成功
+
+#### Scenario:创建根部门
+- **当** 创建部门时 parentId 为 0
+- **则** 该部门为根部门，ancestors 为 "0"
+
+#### Scenario:必填字段验证
+- **当** 创建部门时缺少 name
+- **则** 系统返回参数验证错误
+
+### Requirement:更新部门
+系统 SHALL 提供更新部门信息接口。
+
+#### Scenario:更新部门成功
+- **当** 调用 `PUT /api/v1/dept/{id}` 并提交要更新的字段时
+- **则** 系统更新对应的部门信息并返回成功
+
+#### Scenario:部门不能设置为自身的子部门
+- **当** 更新部门时将 parentId 设置为自身 ID 或自身子部门 ID
+- **则** 系统返回错误消息，提示上级部门不能是自身或其子部门
+
+#### Scenario:更新部门时同步更新子部门 ancestors
+- **当** 部门的 parentId 发生变更时
+- **则** 系统自动更新该部门及所有子部门的 ancestors 字段
+
+### Requirement:删除部门
+系统 SHALL 提供删除部门接口。
+
+#### Scenario:部门删除成功
+- **当** 调用 `DELETE /api/v1/dept/{id}` 时
+- **则** 部门被软删除
+
+#### Scenario:有子部门的部门不能删除
+- **当** 删除有子部门的部门时
+- **则** 系统返回错误消息，提示该部门下有子部门，必须先删除子部门
+
+#### Scenario:有关联用户的部门不能删除
+- **当** 删除在 `plugin_linapro_org_core_user_dept` 中有关联用户的部门时
+- **则** 系统返回错误消息，提示该部门下有用户，必须先移除用户
+
+### Requirement:查看部门详情
+系统 SHALL 提供部门详情查询接口。
+
+#### Scenario:查询部门详情
+- **当** 调用 `GET /api/v1/dept/{id}` 时
+- **则** 返回该部门的完整信息
+
+### Requirement:部门树结构接口
+系统 SHALL 提供部门树接口，用于 TreeSelect 组件。
+
+#### Scenario:获取完整部门树
+- **当** 调用 `GET /api/v1/dept/tree` 时
+- **则** 返回树形结构数据，每个节点包含 id、label（部门名称）、children
+
+#### Scenario:获取排除指定节点的部门树
+- **当** 调用 `GET /api/v1/dept/exclude/{id}` 时
+- **则** 返回排除该节点及其所有子节点的部门列表
+- **且** 用于编辑部门时选择上级部门（避免循环引用）
+
+### Requirement:部门数据表设计
+系统 SHALL 提供 `plugin_linapro_org_core_dept` 表和 `plugin_linapro_org_core_user_dept` 关联表。
+
+#### Scenario:plugin_linapro_org_core_dept 表结构
+- **当** 查看 `plugin_linapro_org_core_dept` 表结构时
+- **则** 表包含：id、parent_id、ancestors、name、order_num、leader（INTEGER，引用 sys_user.id）、phone、email、status、remark、created_at、updated_at、deleted_at
+
+#### Scenario:plugin_linapro_org_core_user_dept 关联表结构
+- **当** 查看 `plugin_linapro_org_core_user_dept` 表结构时
+- **则** 表包含：user_id（INTEGER）、dept_id（INTEGER），联合主键
+- **且** user_id 引用 sys_user.id，dept_id 引用 `plugin_linapro_org_core_dept`.id
+
+### Requirement:部门管理前端树形表格
+系统 SHALL 在部门管理页面使用 VXE-Grid 的树形模式展示部门层级。
+
+#### Scenario:树形展示
+- **当** 打开部门管理页面时
+- **则** 使用 VXE-Grid treeConfig（parentField: 'parentId', rowField: 'id', transform: true）渲染树形表格
+- **且** 默认展开所有节点
+
+#### Scenario:展开/折叠操作
+- **当** 点击工具栏上的"展开全部"按钮时
+- **则** 展开所有树节点
+- **当** 点击工具栏上的"折叠全部"按钮时
+- **则** 折叠所有树节点
+- **当** 双击某行时
+- **则** 切换该节点的展开/折叠状态
+
+#### Scenario:表格列定义
+- **当** 查看部门列表表格时
+- **则** 显示以下列：部门名称（树节点）、排序、状态（DictTag 渲染）、创建时间、操作
+
+#### Scenario:行操作按钮
+- **当** 查看每行的操作列时
+- **则** 显示三个按钮：编辑（ghost）、新增子部门（ghost，绿色）、删除（ghost，红色，Popconfirm 确认）
+
+### Requirement:部门编辑抽屉
+系统 SHALL 提供 600px 宽度的 Drawer 用于新增和编辑部门。
+
+#### Scenario:新增部门表单
+- **当** 点击"新增根部门"或"新增子部门"按钮时
+- **则** 打开 Drawer。表单字段包括：上级部门（TreeSelect，显示完整路径）、部门名称（必填）、排序（必填，默认 0）、负责人（Select，禁用）、联系电话（正则验证）、邮箱（邮箱验证）、状态（RadioGroup 按钮样式）
+- **且** 新增子部门时，上级部门自动填入当前部门
+
+#### Scenario:编辑部门表单
+- **当** 点击编辑按钮时
+- **则** 打开 Drawer 并加载已有数据
+- **且** 负责人字段变为可用（Select），选项列表为该部门下的用户（通过 `plugin_linapro_org_core_user_dept` 查询）
+- **且** 上级部门 TreeSelect 排除自身和子部门节点
+
+### Requirement:DeptTree 可复用组件
+系统 SHALL 提供可复用的 DeptTree 组件，用于用户管理和岗位管理。
+
+#### Scenario:DeptTree 组件功能
+- **当** 使用 DeptTree 组件时
+- **则** 展示部门树形结构，支持搜索、刷新和单选
+- **且** 通过 v-model:selectDeptId 绑定选中的部门 ID
+- **且** 默认展开所有节点
+
+#### Scenario:DeptTree 搜索
+- **当** 在搜索框输入关键词时
+- **则** 筛选显示匹配的部门节点
+
+#### Scenario:DeptTree 刷新
+- **当** 点击刷新按钮时
+- **则** 重新加载部门树数据并触发 reload 事件
+
+### Requirement:部门初始化数据
+系统 SHALL 提供基础部门初始化数据。
+
+#### Scenario:初始化部门结构
+- **当** 执行 v0.2.0 数据库迁移脚本时
+- **则** 创建以下部门结构：
+  - 莱纳科技（根部门，id=1）
+    - 研发部门（id=2）
+    - 市场部门（id=3）
+    - 测试部门（id=4）
+    - 财务部门（id=5）
+    - 运维部门（id=6）
+
+### Requirement:部门管理由组织源码插件交付
+
+系统 SHALL 将部门管理能力作为 `linapro-org-core` 源码插件交付，而非继续作为宿主默认内置模块。
+
+#### Scenario:组织插件启用时提供部门管理
+- **当** `linapro-org-core` 已安装并启用时
+- **则** 宿主暴露部门管理 API、页面和菜单
+- **且** 部门管理菜单挂载到宿主 `组织管理` 目录，顶层 `parent_key` 为 `org`
+
+#### Scenario:组织插件缺失时隐藏部门管理入口
+- **当** `linapro-org-core` 未安装或未启用时
+- **则** 宿主不显示部门管理菜单和页面入口
+- **且** 用户管理等宿主能力将按组织降级规则继续可用
+
+### Requirement:系统生成的未分配节点必须本地化
+
+系统生成的虚拟未分配部门节点 SHALL 按当前请求语言本地化，通过后端或插件运行时 i18n 资源维护。
+
+#### Scenario:未分配以英文显示
+- **当** 管理员以 `en-US` 打开带部门树筛选的页面时
+- **则** 系统生成的未分配虚拟节点显示为 `Unassigned`
+- **且** 不显示中文的未分配标签
+
+#### Scenario:虚拟节点标识保持稳定
+- **当** 管理员选择未分配虚拟节点筛选用户或岗位时
+- **则** 前端仍提交现有的虚拟节点 ID
+- **且** 后端筛选语义不随显示语言变化

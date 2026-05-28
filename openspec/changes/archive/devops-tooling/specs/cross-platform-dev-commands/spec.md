@@ -1,153 +1,153 @@
 ## ADDED Requirements
 
-### Requirement: Cross-platform command primary entry point
+### Requirement: 跨平台命令主入口
 
-The system MUST provide a cross-platform development command primary entry point that does not depend on GNU Make or POSIX Shell for executing common development, build, initialization, and verification tasks.
+系统 MUST 提供不依赖 GNU Make 或 POSIX Shell 的跨平台开发命令主入口，用于执行项目常用开发、构建、初始化和验证任务。
 
-#### Scenario: Execute common commands via Go CLI
+#### Scenario: 使用 Go CLI 执行常用命令
 
-- **WHEN** a developer executes the cross-platform command entry at the project root with a supported command such as `dev`, `stop`, `status`, `build`, `wasm`, `init`, `mock`, `test`, `test-go`, or `help`
-- **THEN** the system MUST execute the corresponding task through the cross-platform implementation rather than requiring the caller to install GNU Make or POSIX Shell tooling
+- **WHEN** 开发者在项目根目录执行跨平台命令入口并指定 `dev`、`stop`、`status`、`build`、`wasm`、`init`、`mock`、`test`、`test-go` 或 `help` 等受支持命令
+- **THEN** 系统 MUST 通过跨平台实现执行对应任务，而不是要求调用者安装 GNU Make 或 POSIX Shell 工具链
 
-#### Scenario: Missing external professional tool
+#### Scenario: 缺失外部专业工具
 
-- **WHEN** a supported command needs to call an external professional tool such as `go`, `pnpm`, `docker`, `kubectl`, `gf`, or `playwright` but the tool is missing from the current environment
-- **THEN** the system MUST output the missing tool name, current command context, and an actionable installation or fix prompt
+- **WHEN** 受支持命令需要调用 `go`、`pnpm`、`docker`、`kubectl`、`gf` 或 `playwright` 等外部专业工具但当前环境缺失该工具
+- **THEN** 系统 MUST 输出明确的缺失工具名称、当前命令上下文和可执行的安装或修复提示
 
-### Requirement: Windows make.cmd compatibility entry point
+### Requirement: Windows make.cmd 兼容入口
 
-The system MUST provide a Windows `make.cmd` thin wrapper at the project root that delegates all real task logic to the cross-platform command primary entry point.
+系统 MUST 在项目根目录提供 Windows `make.cmd` 薄包装入口，并将所有真实任务逻辑委托给跨平台命令主入口。
 
-#### Scenario: cmd.exe uses make-style commands
+#### Scenario: cmd.exe 使用 make 风格命令
 
-- **WHEN** a Windows `cmd.exe` user executes `make dev` at the project root
-- **THEN** `make.cmd` MUST forward the command and parameters to the cross-platform command primary entry point to execute the `dev` task
+- **WHEN** Windows `cmd.exe` 用户在项目根目录执行 `make dev`
+- **THEN** `make.cmd` MUST 将命令和参数转发给跨平台命令主入口执行 `dev` 任务
 
-#### Scenario: PowerShell uses current-directory make entry
+#### Scenario: PowerShell 使用当前目录 make 入口
 
-- **WHEN** a Windows PowerShell user executes `.\make dev` or `.\make.cmd dev` at the project root
-- **THEN** `make.cmd` MUST forward the command and parameters to the cross-platform command primary entry point without requiring a separate `make.ps1`
+- **WHEN** Windows PowerShell 用户在项目根目录执行 `.\make dev` 或 `.\make.cmd dev`
+- **THEN** `make.cmd` MUST 将命令和参数转发给跨平台命令主入口执行 `dev` 任务，且不得要求维护额外的 `make.ps1`
 
-#### Scenario: Parameter forwarding
+#### Scenario: 参数透传
 
-- **WHEN** a Windows user executes `make init confirm=init rebuild=true`
-- **THEN** `make.cmd` MUST forward `init`, `confirm=init`, and `rebuild=true` parameters as-is and return the cross-platform command primary entry point's exit code
+- **WHEN** Windows 用户执行 `make init confirm=init rebuild=true`
+- **THEN** `make.cmd` MUST 原样透传 `init`、`confirm=init` 和 `rebuild=true` 参数，并返回跨平台命令主入口的退出码
 
-### Requirement: Makefile compatibility layer
+### Requirement: Makefile 兼容层
 
-The system MUST retain the existing `Makefile` entry as a compatibility layer for Linux/macOS and existing CI, and MUST NOT continue maintaining complex shell orchestration logic in migrated targets.
+系统 MUST 保留现有 `Makefile` 入口作为 Linux/macOS 与既有 CI 的兼容层，并避免在已迁移目标中继续维护复杂 shell 编排逻辑。
 
-#### Scenario: Existing make targets remain available
+#### Scenario: 既有 make 目标继续可用
 
-- **WHEN** a Linux/macOS developer executes existing `make dev`, `make build`, `make init confirm=init`, and similar commands
-- **THEN** the system MUST maintain target semantics compatibility and implement task orchestration through the cross-platform command primary entry point or equivalent cross-platform tool
+- **WHEN** Linux/macOS 开发者执行现有 `make dev`、`make build`、`make init confirm=init` 等命令
+- **THEN** 系统 MUST 保持目标语义兼容，并通过跨平台命令主入口或等价跨平台工具实现任务编排
 
-#### Scenario: Development services start asynchronously with final status output
+#### Scenario: 开发服务异步启动与最终状态输出
 
-- **WHEN** a developer executes `make dev` or the cross-platform command primary entry point `dev`
-- **THEN** the system MUST start backend and frontend as async development service processes detachable from the current command lifecycle, record corresponding PID files, and output the current frontend/backend process status table as the terminal's final output after readiness checks complete
+- **WHEN** 开发者执行 `make dev` 或跨平台命令主入口 `dev`
+- **THEN** 系统 MUST 将后端与前端作为可脱离当前命令生命周期的异步开发服务进程启动,记录对应 PID 文件,并在 readiness 检查完成后将当前前后端进程状态表作为终端最终输出
 
-#### Scenario: Thin wrapper consistency
+#### Scenario: 薄包装一致性
 
-- **WHEN** the same target supports `make <target>`, `make.cmd <target>`, and the cross-platform command primary entry point
-- **THEN** all three entries MUST call the same task implementation and maintain consistent parameter semantics, exit codes, and key error messages
+- **WHEN** 同一个目标同时支持 `make <target>`、`make.cmd <target>` 和跨平台命令主入口
+- **THEN** 三种入口 MUST 调用同一套任务实现，并保持参数语义、退出码和关键错误信息一致
 
-### Requirement: Make-style parameter compatibility
+### Requirement: Make 风格参数兼容
 
-The cross-platform command primary entry point MUST support existing make-style `key=value` parameters and map them to internal command options.
+跨平台命令主入口 MUST 支持现有 make 风格 `key=value` 参数，并可将其映射到内部命令选项。
 
-#### Scenario: Initialization parameter compatibility
+#### Scenario: 初始化参数兼容
 
-- **WHEN** a developer executes the cross-platform command primary entry point `init confirm=init rebuild=true`
-- **THEN** the system MUST recognize `confirm=init` and `rebuild=true` as initialization task parameters and maintain behavior equivalent to existing `make init confirm=init rebuild=true`
+- **WHEN** 开发者执行跨平台命令主入口 `init confirm=init rebuild=true`
+- **THEN** 系统 MUST 将 `confirm=init` 和 `rebuild=true` 识别为初始化任务参数，并保持与现有 `make init confirm=init rebuild=true` 等价的行为
 
-#### Scenario: Build parameter compatibility
+#### Scenario: 构建参数兼容
 
-- **WHEN** a developer executes the cross-platform command primary entry point `build platforms=linux/amd64,linux/arm64 verbose=1`
-- **THEN** the system MUST recognize `platforms` and `verbose` as build task parameters and execute the build flow with specified platforms and log mode
+- **WHEN** 开发者执行跨平台命令主入口 `build platforms=linux/amd64,linux/arm64 verbose=1`
+- **THEN** 系统 MUST 将 `platforms` 和 `verbose` 识别为构建任务参数，并按指定平台和日志模式执行构建流程
 
-#### Scenario: Plugin parameter compatibility
+#### Scenario: 插件参数兼容
 
-- **WHEN** a developer executes the cross-platform command primary entry point `wasm p=plugin-demo-dynamic`
-- **THEN** the system MUST execute dynamic Wasm build only for the specified plugin and maintain behavior equivalent to existing `make wasm p=plugin-demo-dynamic`
+- **WHEN** 开发者执行跨平台命令主入口 `wasm p=plugin-demo-dynamic`
+- **THEN** 系统 MUST 仅对指定插件执行动态 Wasm 构建，并保持与现有 `make wasm p=plugin-demo-dynamic` 等价的行为
 
-### Requirement: Shell dependency governance
+### Requirement: Shell 依赖治理
 
-The system MUST migrate common command-path logic such as file copying, directory cleanup, process startup, port detection, HTTP readiness, plugin discovery, and help output to cross-platform implementations, avoiding Linux/macOS-specific commands.
+系统 MUST 将常用命令路径中的文件复制、目录清理、进程启动、端口检测、HTTP readiness、插件发现和帮助输出等逻辑迁移到跨平台实现，避免依赖 Linux/macOS 专属命令。
 
-#### Scenario: File copying and directory cleanup
+#### Scenario: 文件复制和目录清理
 
-- **WHEN** the build flow needs to prepare embedded resources or clean output directories
-- **THEN** the system MUST use cross-platform file system implementations for directory creation, deletion, and copying rather than depending on `rm`, `cp`, `mkdir`, or `touch`
+- **WHEN** 构建流程需要准备嵌入资源或清理输出目录
+- **THEN** 系统 MUST 使用跨平台文件系统实现完成目录创建、删除和复制，而不是依赖 `rm`、`cp`、`mkdir` 或 `touch`
 
-#### Scenario: Service status and stop
+#### Scenario: 服务状态和停止
 
-- **WHEN** a developer executes `status` or `stop`
-- **THEN** the system MUST use cross-platform methods to check ports, PID files, process startup records, and service readiness, avoiding `lsof`, `pgrep`, `ps`, `kill`, `sed`, `head`, or `tr`
+- **WHEN** 开发者执行 `status` 或 `stop`
+- **THEN** 系统 MUST 使用跨平台方式检查端口、PID 文件、进程启动记录和服务 readiness，并避免依赖 `lsof`、`pgrep`、`ps`、`kill`、`sed`、`head` 或 `tr`
 
-#### Scenario: Status command table output
+#### Scenario: 状态命令表格输出
 
-- **WHEN** a developer executes `status` or `dev` completes service startup
-- **THEN** the system MUST display backend and frontend service name, running status, URL, PID, PID file, and log path in a cross-platform stable table format
+- **WHEN** 开发者执行 `status`，或 `dev` 在服务启动完成后展示最终状态
+- **THEN** 系统 MUST 以跨平台稳定的表格格式展示后端与前端的服务名、运行状态、URL、PID、PID 文件和日志路径
 
-#### Scenario: Help output
+#### Scenario: 帮助输出
 
-- **WHEN** a developer executes `help`
-- **THEN** the system MUST output available command descriptions from cross-platform command definitions or equivalent structures, not depending on `awk`, `sort`, or POSIX pipes
+- **WHEN** 开发者执行 `help`
+- **THEN** 系统 MUST 从跨平台命令定义或等价结构输出可用命令说明，而不是依赖 `awk`、`sort` 或 POSIX 管道
 
-### Requirement: Documentation and verification
+### Requirement: 文档和验证
 
-The system MUST provide bilingual documentation and automated verification for the cross-platform command entry, ensuring Windows, Linux, and macOS usage is clear and executable.
+系统 MUST 为跨平台命令入口提供中英文文档和自动化验证，确保 Windows、Linux、macOS 使用方式清晰可执行。
 
-#### Scenario: README shows cross-platform entry
+#### Scenario: README 展示跨平台入口
 
-- **WHEN** a developer reads the root README and its Chinese mirror
-- **THEN** documentation MUST clearly show the cross-platform recommended command, Windows `cmd.exe` `make` usage without `.cmd` suffix, PowerShell `.\make` usage, explicit `.\make.cmd` usage when needed, and Linux/macOS compatibility `make` usage
+- **WHEN** 开发者阅读根目录 README 和中文镜像 README
+- **THEN** 文档 MUST 明确展示跨平台推荐命令、Windows `cmd.exe` 中省略 `.cmd` 后缀的 `make` 使用方式、PowerShell 的 `.\make` 使用方式、必要时可显式使用的 `.\make.cmd` 方式，以及 Linux/macOS 的兼容 `make` 使用方式
 
-#### Scenario: Tool documentation synchronization
+#### Scenario: 工具文档同步
 
-- **WHEN** a new cross-platform tool directory is added
-- **THEN** the directory MUST provide both English `README.md` and Chinese `README.zh-CN.md` simultaneously, documenting commands, parameters, examples, output, and verification methods
+- **WHEN** 新增跨平台工具目录
+- **THEN** 该目录 MUST 同步提供英文 `README.md` 和中文 `README.zh-CN.md`，并说明命令、参数、示例、输出和验证方式
 
-#### Scenario: Automated verification
+#### Scenario: 自动化验证
 
-- **WHEN** cross-platform command entry implementation is complete
-- **THEN** the system MUST cover parameter parsing, entry forwarding, file operations, plugin discovery, help output, and Makefile thin-wrapper consistency through Go unit tests, command-level smoke tests, static scanning, or equivalent governance verification
+- **WHEN** 完成跨平台命令入口实现
+- **THEN** 系统 MUST 通过 Go 单元测试、命令级 smoke 测试、静态扫描或等价治理验证覆盖参数解析、入口转发、文件操作、插件发现、帮助输出和 Makefile 薄包装一致性
 
-### Requirement: GitHub Actions Windows verification
+### Requirement: GitHub Actions Windows 验证
 
-The system MUST add Windows runner basic command verification in `.github/workflows/` workflows related to building, testing, or tool verification, ensuring cross-platform command entry and `make.cmd` work on Windows.
+系统 MUST 在 `.github/workflows/` 下与构建、测试或工具验证相关的 GitHub Actions 中增加 Windows runner 基本命令验证，确保 Windows 下跨平台命令入口和 `make.cmd` 可用。
 
-#### Scenario: Windows runner verifies Go CLI basic commands
+#### Scenario: Windows runner 验证 Go CLI 基本命令
 
-- **WHEN** GitHub Actions executes cross-platform command verification on a `windows-latest` runner
-- **THEN** the workflow MUST verify at least `go run ./hack/tools/linactl help`, `go run ./hack/tools/linactl status`, and one file or plugin tool command that does not depend on external services can execute successfully
+- **WHEN** GitHub Actions 在 `windows-latest` runner 上执行跨平台命令验证
+- **THEN** workflow MUST 至少验证 `go run ./hack/tools/linactl help`、`go run ./hack/tools/linactl status` 和一个不依赖外部服务的文件或插件工具命令能够成功执行
 
-#### Scenario: Windows runner verifies make.cmd
+#### Scenario: Windows runner 验证 make.cmd
 
-- **WHEN** GitHub Actions executes Windows entry verification on a `windows-latest` runner
-- **THEN** the workflow MUST verify `make.cmd` can forward parameters to the cross-platform command primary entry point and cover at least lightweight commands like `help` or `status`
+- **WHEN** GitHub Actions 在 `windows-latest` runner 上执行 Windows 入口验证
+- **THEN** workflow MUST 验证 `make.cmd` 能够透传参数到跨平台命令主入口，并至少覆盖 `help` 或 `status` 这类轻量命令
 
-#### Scenario: cmd.exe and PowerShell usage
+#### Scenario: cmd.exe 与 PowerShell 使用方式
 
-- **WHEN** GitHub Actions verifies Windows command entry
-- **THEN** the workflow MUST cover `make <target>` or `make.cmd <target>` usage in `cmd.exe` and `.\make <target>` or `.\make.cmd <target>` usage in PowerShell, ensuring both documented Windows terminal entries can execute
+- **WHEN** GitHub Actions 验证 Windows 命令入口
+- **THEN** workflow MUST 覆盖 `cmd.exe` 中的 `make <target>` 或 `make.cmd <target>` 用法，以及 PowerShell 中的 `.\make <target>` 或 `.\make.cmd <target>` 用法，确保文档声明的两类 Windows 终端入口均可执行
 
-#### Scenario: Windows CI cost control
+#### Scenario: Windows CI 成本控制
 
-- **WHEN** basic commands require external databases, Docker daemon, long-running dev services, or full frontend dependencies to execute
-- **THEN** the workflow MUST use lightweight smoke, dry-run, skip heavy paths, or split subsequent verification to avoid binding Windows basic command verification to unstable or high-cost external dependencies
+- **WHEN** 基本命令需要外部数据库、Docker daemon、长驻开发服务或完整前端依赖才能执行
+- **THEN** workflow MUST 使用轻量 smoke、dry-run、跳过重型路径或拆分后续验证，避免把 Windows 基本命令验证绑定到不稳定或高成本的外部依赖
 
-### Requirement: Runtime impact isolation
+### Requirement: 运行时影响隔离
 
-The cross-platform command entry change MUST NOT alter LinaPro backend runtime API, database schema, permission model, data permissions, plugin runtime contracts, frontend user interface, runtime i18n resources, or business cache behavior.
+跨平台命令入口变更 MUST 不改变 LinaPro 后端运行时 API、数据库 Schema、权限模型、数据权限、插件运行时契约、前端用户界面、运行时 i18n 资源或业务缓存行为。
 
-#### Scenario: Runtime resources are unaffected
+#### Scenario: 运行时资源不受影响
 
-- **WHEN** the cross-platform command entry change is complete
-- **THEN** the system MUST NOT add or modify runtime menus, buttons, forms, API messages, plugin manifest copy, runtime i18n JSON, manifest i18n, apidoc i18n, or business cache invalidation logic
+- **WHEN** 跨平台命令入口变更完成
+- **THEN** 系统 MUST 不新增或修改运行时菜单、按钮、表单、接口消息、插件 manifest 文案、运行时 i18n JSON、manifest i18n、apidoc i18n 或业务缓存失效逻辑
 
-#### Scenario: External tools are wrapped, not rewritten
+#### Scenario: 外部工具只包装不重写
 
-- **WHEN** the cross-platform command entry needs to execute building, code generation, container images, deployment, or testing tasks
-- **THEN** the system MUST call `go`, `pnpm`, `docker`, `kubectl`, `gf`, `playwright`, and other professional tools through clear command wrappers, and MUST NOT rewrite these tools' core capabilities in this change
+- **WHEN** 跨平台命令入口需要执行构建、代码生成、容器镜像、部署或测试任务
+- **THEN** 系统 MUST 通过清晰的命令包装调用 `go`、`pnpm`、`docker`、`kubectl`、`gf`、`playwright` 等专业工具，而不得在本次变更中重写这些工具的核心能力

@@ -1,23 +1,192 @@
-## ADDED Requirements
+# 岗位管理
 
-### Requirement: org-center 岗位表租户化
-`plugin_org_center_post` 与 `plugin_org_center_user_post` SHALL 加 `tenant_id` 列;岗位 CRUD 与"用户岗位选项"查询按 `tenant_id = bizctx.TenantId` 隔离。
+## Purpose
 
-#### Scenario: 跨租户岗位不可见
-- **WHEN** 租户 A 管理员查询岗位列表
-- **THEN** 仅返回 `tenant_id=A` 岗位
+定义 `linapro-org-core` 源码插件提供的岗位管理查询、维护、部门关联和选项读取行为，确保岗位数据能够稳定地与组织架构和用户管理能力协同工作。
 
-### Requirement: 租户内岗位编码唯一
-岗位 `code` 唯一性约束 SHALL 在 `(tenant_id, code)` 上;不同租户可重复使用同 code。
+## Requirements
+### Requirement:岗位列表查询
+系统 SHALL 提供岗位分页列表查询接口，支持按部门筛选。
 
-#### Scenario: 同 code 跨租户不冲突
-- **WHEN** 租户 A 与租户 B 各自创建 `code='engineer'` 岗位
-- **THEN** 两次创建均成功
+#### Scenario:查看岗位列表
+- **当** 调用 `GET /api/v1/post` 并传入分页参数 `pageNum` 和 `pageSize` 时
+- **则** 返回 `{list: [...], total: number}` 格式的岗位列表和总数
 
-### Requirement: 租户删除时不通过事件级联清理岗位
-`org-center` SHALL NOT 依赖未实现的 `tenant.deleted` 事件总线清理本租户岗位与用户-岗位关联;需要清理时应通过显式管理流程或后续可靠生命周期编排设计实现。
+#### Scenario:按部门筛选岗位
+- **当** 查询时传入 `deptId` 参数
+- **则** 仅返回属于该部门的岗位
 
-#### Scenario: 不写岗位清理事件
-- **WHEN** 租户 T 被删除
-- **THEN** 系统不写入 `tenant.deleted` outbox
-- **AND** 不触发岗位事件订阅者回调
+#### Scenario:岗位列表支持条件筛选
+- **当** 查询时传入筛选参数 `code`（岗位编码）、`name`（岗位名称）或 `status`（状态）
+- **则** `code` 和 `name` 使用模糊匹配（LIKE）
+- **且** `status` 使用精确匹配
+
+#### Scenario:岗位列表排除已删除记录
+- **当** 查询岗位列表时
+- **则** 软删除的记录不包含在结果中
+
+### Requirement:创建岗位
+系统 SHALL 提供创建岗位接口。
+
+#### Scenario:岗位创建成功
+- **当** 调用 `POST /api/v1/post` 并提交 deptId、code、name、sort 等字段时
+- **则** 系统创建岗位并返回成功
+
+#### Scenario:岗位编码重复
+- **当** 创建岗位时提交已存在的 code 值
+- **则** 系统返回错误消息，提示岗位编码已存在
+
+#### Scenario:必填字段验证
+- **当** 创建岗位时缺少 deptId、code 或 name
+- **则** 系统返回参数验证错误
+
+### Requirement:更新岗位
+系统 SHALL 提供更新岗位信息接口。
+
+#### Scenario:岗位更新成功
+- **当** 调用 `PUT /api/v1/post/{id}` 并提交要更新的字段时
+- **则** 系统更新对应的岗位信息并返回成功
+
+#### Scenario:更新不存在的岗位
+- **当** 更新不存在的岗位 ID
+- **则** 系统返回错误消息
+
+### Requirement:删除岗位
+系统 SHALL 提供删除岗位接口，支持批量删除。
+
+#### Scenario:删除单个岗位
+- **当** 调用 `DELETE /api/v1/post/{id}` 时
+- **则** 岗位被软删除
+
+#### Scenario:批量删除岗位
+- **当** 调用 `DELETE /api/v1/post/{ids}`，ids 为逗号分隔的多个 ID 时
+- **则** 所有指定岗位被软删除
+
+#### Scenario:关联用户的岗位不能删除
+- **当** 删除在 `plugin_linapro_org_core_user_post` 中有关联用户的岗位时
+- **则** 系统返回错误消息，提示该岗位下有用户，必须先移除用户
+
+### Requirement:查看岗位详情
+系统 SHALL 提供岗位详情查询接口。
+
+#### Scenario:查看详情
+- **当** 调用 `GET /api/v1/post/{id}` 时
+- **则** 返回该岗位的完整信息
+
+### Requirement:导出岗位
+系统 SHALL 提供将岗位列表导出为 Excel 文件的功能。
+
+#### Scenario:导出岗位
+- **当** 调用 `GET /api/v1/post/export` 并传入筛选参数时
+- **则** 返回 Excel 文件流
+- **且** 导出字段包括：岗位编码、岗位名称、排序、状态、备注、创建时间
+
+### Requirement:岗位部门树接口
+系统 SHALL 提供岗位管理左侧筛选的部门树接口，包含"未分配"虚拟节点。
+
+#### Scenario:获取岗位部门树
+- **当** 调用 `GET /api/v1/post/dept-tree` 时
+- **则** 返回部门树结构数据
+
+#### Scenario:未分配虚拟节点
+- **当** 部门树返回数据时
+- **则** 包含 id 为 -1 的"未分配"虚拟节点
+
+#### Scenario:按未分配筛选岗位
+- **当** 查询岗位列表时传入 `deptId=-1`
+- **则** 返回所有 dept_id 为 0 的岗位（未分配部门的岗位）
+
+### Requirement:按部门获取岗位选项
+系统 SHALL 提供按部门获取岗位选项的接口，用于用户编辑表单。
+
+#### Scenario:获取部门下的岗位选项
+- **当** 调用 `GET /api/v1/post/option-select` 并传入 `deptId` 参数时
+- **则** 返回该部门下所有正常状态岗位的列表，包含 id 和 name
+
+#### Scenario:部门下无岗位
+- **当** 查询的部门下没有岗位时
+- **则** 返回空列表
+
+### Requirement:岗位数据表设计
+系统 SHALL 提供 `plugin_linapro_org_core_post` 表和 `plugin_linapro_org_core_user_post` 关联表。
+
+#### Scenario:plugin_linapro_org_core_post 表结构
+- **当** 查看 `plugin_linapro_org_core_post` 表结构时
+- **则** 表包含：id、dept_id（INTEGER，引用 `plugin_linapro_org_core_dept`.id）、code（VARCHAR，UNIQUE）、name、sort、status、remark、created_at、updated_at、deleted_at
+
+#### Scenario:plugin_linapro_org_core_user_post 关联表结构
+- **当** 查看 `plugin_linapro_org_core_user_post` 表结构时
+- **则** 表包含：user_id（INTEGER）、post_id（INTEGER），联合主键
+- **且** user_id 引用 sys_user.id，post_id 引用 `plugin_linapro_org_core_post`.id
+
+### Requirement:岗位管理前端左树右表布局
+系统 SHALL 在岗位管理页面采用左侧部门树 + 右侧岗位列表的布局。
+
+#### Scenario:布局结构
+- **当** 打开岗位管理页面时
+- **则** 左侧显示 DeptTree 组件（260px 宽度），右侧显示岗位列表（flex-1）
+
+#### Scenario:部门筛选联动
+- **当** 左侧选择部门时
+- **则** 右侧岗位列表自动按该部门筛选
+- **当** 取消部门选择时
+- **则** 右侧显示所有岗位
+
+#### Scenario:表格列定义
+- **当** 查看岗位列表表格时
+- **则** 显示以下列：复选框、岗位编码、岗位名称、排序、状态（DictTag 渲染）、创建时间、操作
+
+#### Scenario:工具栏操作
+- **当** 查看工具栏时
+- **则** 显示：新增按钮（primary）、批量删除按钮（danger，勾选后启用）、导出按钮
+
+#### Scenario:行操作按钮
+- **当** 查看每行的操作列时
+- **则** 显示两个按钮：编辑（ghost）、删除（ghost，红色，Popconfirm 确认）
+
+### Requirement:岗位编辑抽屉
+系统 SHALL 提供 600px 宽度的 Drawer 用于新增和编辑岗位。
+
+#### Scenario:岗位表单字段
+- **当** 打开岗位编辑 Drawer 时
+- **则** 表单字段包括：部门（TreeSelect，必填，显示完整路径）、岗位名称（必填）、岗位编码（必填）、排序（必填，默认 0）、状态（RadioGroup 按钮样式，默认正常）、备注（Textarea，全宽）
+- **且** 表单使用 2 列网格布局
+
+### Requirement:岗位初始化数据
+系统 SHALL 提供基础岗位初始化数据。
+
+#### Scenario:初始化岗位数据
+- **当** 执行 v0.2.0 数据库迁移脚本时
+- **则** 创建以下岗位数据：
+  - 总经理（code: CEO，dept: 莱纳科技，sort: 1）
+  - 技术总监（code: CTO，dept: 研发部门，sort: 2）
+  - 项目经理（code: PM，dept: 研发部门，sort: 3）
+  - 开发工程师（code: DEV，dept: 研发部门，sort: 4）
+  - 测试工程师（code: QA，dept: 测试部门，sort: 5）
+
+### Requirement:岗位管理由组织源码插件交付
+
+系统 SHALL 将岗位管理能力作为 `linapro-org-core` 源码插件交付，而非继续作为宿主默认内置模块。
+
+#### Scenario:组织插件启用时提供岗位管理
+- **当** `linapro-org-core` 已安装并启用时
+- **则** 宿主暴露岗位管理 API、页面和菜单
+- **且** 岗位管理菜单挂载到宿主 `组织管理` 目录，顶层 `parent_key` 为 `org`
+
+#### Scenario:组织插件缺失时隐藏岗位管理入口
+- **当** `linapro-org-core` 未安装或未启用时
+- **则** 宿主不显示岗位管理菜单和页面入口
+- **且** 用户管理等宿主能力将按组织降级规则继续可用
+
+### Requirement:岗位表单状态选择器在英文下必须保持可读
+岗位新增和编辑表单 SHALL 保持状态字段标签和选项在英文下可读，避免因空间不足导致的尴尬换行。
+
+#### Scenario:英文岗位状态选项保持单行
+- **当** 管理员在 `en-US` 下打开岗位新增或编辑表单时
+- **则** 状态标签和选项如 `Normal` 和 `Disabled` 在空间允许时保持单行可读
+- **且** 表单布局不遮挡后续字段或操作按钮
+
+#### Scenario:岗位表单保持响应式
+- **当** 视口太窄无法容纳双列表单时
+- **则** 表单可降级为单列或使用合理的更宽布局
+- **且** 状态选项保持可读和可操作

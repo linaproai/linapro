@@ -134,6 +134,16 @@ func BuildRuntimeUpgradeProjection(
 		projection.State = RuntimeUpgradeStateUpgradeRunning
 		return projection
 	}
+	if registryRuntimeStateIsFailed(registry) {
+		projection.State = RuntimeUpgradeStateUpgradeFailed
+		projection.LastFailure = BuildRuntimeUpgradeFailure(targetRelease)
+		return projection
+	}
+	if failed := BuildRuntimeUpgradeFailure(targetRelease); failed != nil {
+		projection.State = RuntimeUpgradeStateUpgradeFailed
+		projection.LastFailure = failed
+		return projection
+	}
 
 	versionCompare, err := CompareSemanticVersions(
 		projection.EffectiveVersion,
@@ -172,6 +182,15 @@ func registryRuntimeStateIsUpgradeRunning(registry *entity.SysPlugin) bool {
 	state := strings.TrimSpace(registry.CurrentState)
 	return state == RuntimeUpgradeStateUpgradeRunning.String() ||
 		state == HostStateReconciling.String()
+}
+
+// registryRuntimeStateIsFailed reports whether the registry carries an explicit
+// failed runtime marker that must block business entries until repaired.
+func registryRuntimeStateIsFailed(registry *entity.SysPlugin) bool {
+	if registry == nil {
+		return false
+	}
+	return strings.TrimSpace(registry.CurrentState) == HostStateFailed.String()
 }
 
 // RegistryRuntimeStateIsUpgradeRunning reports whether a registry row is in the

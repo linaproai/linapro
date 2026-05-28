@@ -259,12 +259,13 @@ func seedVolatileSentinels(ctx context.Context, link string) (err error) {
 	future := now.Add(time.Hour)
 	if _, err = db.Exec(
 		ctx,
-		`INSERT INTO sys_online_session (token_id, user_id, username, dept_name, ip, browser, os, login_time, last_active_time)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		`INSERT INTO sys_online_session (token_id, user_id, username, client_type, dept_name, ip, browser, os, login_time, last_active_time)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		 ON CONFLICT DO NOTHING`,
 		multiProcessSessionToken,
 		1,
 		"admin",
+		"web",
 		"Cluster",
 		"127.0.0.1",
 		"Chrome",

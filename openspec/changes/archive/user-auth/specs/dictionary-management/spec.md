@@ -1,29 +1,24 @@
-## ADDED Requirements
+# 字典复用读取规范
 
-### Requirement: 平台字典与租户字典的可见性规则
-租户管理员查询字典类型/数据 SHALL 仅返回:
-- `tenant_id = bizctx.TenantId` 的本租户覆盖,以及
-- `tenant_id = 0 AND allow_tenant_override` 仅作为 fallback 候选(实际可见性由读路径决定)。
+## Purpose
 
-#### Scenario: 租户管理员视图
-- **WHEN** 租户 A 管理员查询字典类型列表
-- **THEN** 返回 `tenant_id=A 的所有 ∪ tenant_id=0 且 allow_tenant_override=true 的标记为"平台默认"`
-- **AND** `tenant_id=0 且 allow_tenant_override=false` 的字典类型隐式存在但不在管理列表中可改
+定义字典选项在跨业务模块页面中的复用读取边界，使业务页面可读取启用字典项而不获得字典管理权限。
 
-### Requirement: 字典写入权限
-租户管理员 SHALL 仅可对 `allow_tenant_override=true` 的字典类型创建/修改 `tenant_id=current` 的字典数据;不可改字典类型 metadata 自身;不可改 `tenant_id=0` 的平台默认。
+## Requirements
 
-#### Scenario: 租户管理员写覆盖
-- **WHEN** 租户 A 管理员对 `business_priority` 添加字典项 "P0"
-- **THEN** 写入 `(tenant_id=A, dict_type=business_priority, value="P0")`
+### Requirement:字典数据必须支持跨业务模块复用读取
 
-#### Scenario: 修改字典类型 metadata 被拒
-- **WHEN** 租户管理员尝试修改 `dict_type` 的 `name` 或 `allow_tenant_override`
-- **THEN** 返回 `bizerr.CodePlatformPermissionRequired`
+系统 SHALL 区分字典管理权限与字典选项复用读取权限。字典类型、字典数据的管理列表、详情、创建、更新、删除、导入和导出仍 SHALL 受 `system:dict:*` 权限控制。按字典类型读取启用字典项的接口 SHALL 作为登录后复用型查询能力提供给已认证用户，用于授权业务模块中的筛选项、表单选项和展示标签；调用该接口不得要求用户额外拥有字典管理目录或 `system:dict:query` 权限。
 
-### Requirement: 字典数据 SQL 编排
-所有字典 seed SQL SHALL 写入 `tenant_id=0`;mock 数据可选指定租户;现有 SQL 文件按"无历史负担"策略直接修改。
+#### Scenario:授权业务页面复用字典选项
+- **当** 普通用户拥有组织管理或内容管理页面权限
+- **且** 未拥有字典管理目录权限或 `system:dict:query`
+- **当** 该用户访问业务页面并加载状态、公告类型等字典选项
+- **则** 按字典类型读取启用字典项的接口返回成功
+- **且** 页面不得显示字典选项接口的无权限错误
 
-#### Scenario: seed 字典默认平台
-- **WHEN** `make init` 执行 seed
-- **THEN** 所有 seed 字典数据 `tenant_id=0`
+#### Scenario:字典管理接口仍需要字典权限
+- **当** 普通用户未拥有 `system:dict:query`
+- **当** 该用户访问字典数据管理列表或字典类型管理列表接口
+- **则** 系统拒绝请求
+- **且** 不允许用户获得字典管理能力

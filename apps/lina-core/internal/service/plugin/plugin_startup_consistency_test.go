@@ -17,6 +17,8 @@ import (
 	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
+const startupConsistencyMembershipTable = "plugin_linapro_tenant_core_user_membership"
+
 // TestValidateStartupConsistencyRequiresInjectedTenantCapability verifies
 // startup validation fails fast instead of building an implicit tenant service.
 func TestValidateStartupConsistencyRequiresInjectedTenantCapability(t *testing.T) {
@@ -224,7 +226,7 @@ func validateStartupConsistencyTestMemberships(ctx context.Context) ([]string, e
 		As("u").
 		Fields("u.id, u.username").
 		InnerJoin(
-			"plugin_linapro_tenant_core_user_membership m",
+			startupConsistencyMembershipTable+" m",
 			"m.user_id = u.id AND m.deleted_at IS NULL AND m.status = 1",
 		).
 		Where("u.tenant_id", int(tenantcap.PLATFORM)).
@@ -279,7 +281,8 @@ func insertStartupConsistencyUser(t *testing.T, ctx context.Context, username st
 func insertStartupConsistencyTenantMembership(t *testing.T, ctx context.Context, userID int64, tenantID int, status int) {
 	t.Helper()
 
-	_, err := dao.SysUser.DB().Model("plugin_linapro_tenant_core_user_membership").Data(startupConsistencyMembershipRow{
+	ensureStartupConsistencyTenantMembershipTable(t, ctx)
+	_, err := dao.SysUser.DB().Model(startupConsistencyMembershipTable).Data(startupConsistencyMembershipRow{
 		UserID:    userID,
 		TenantID:  tenantID,
 		Status:    status,
@@ -288,6 +291,44 @@ func insertStartupConsistencyTenantMembership(t *testing.T, ctx context.Context,
 	}).Insert()
 	if err != nil {
 		t.Fatalf("insert startup consistency membership: %v", err)
+	}
+}
+
+// ensureStartupConsistencyTenantMembershipTable creates the plugin-owned
+// membership table required by startup validation tests when the plugin schema
+// has not been installed in the local test database.
+func ensureStartupConsistencyTenantMembershipTable(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS plugin_linapro_tenant_core_user_membership (
+			"id" BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+			"user_id" BIGINT NOT NULL,
+			"tenant_id" BIGINT NOT NULL,
+			"status" SMALLINT NOT NULL DEFAULT 1,
+			"joined_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			"created_by" BIGINT NOT NULL DEFAULT 0,
+			"updated_by" BIGINT NOT NULL DEFAULT 0,
+			"created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			"updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			"deleted_at" TIMESTAMP,
+			CONSTRAINT uk_plugin_linapro_tenant_core_membership_user_tenant UNIQUE ("user_id", "tenant_id")
+		)`,
+		`ALTER TABLE plugin_linapro_tenant_core_user_membership ADD COLUMN IF NOT EXISTS "joined_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+		`ALTER TABLE plugin_linapro_tenant_core_user_membership ADD COLUMN IF NOT EXISTS "created_by" BIGINT NOT NULL DEFAULT 0`,
+		`ALTER TABLE plugin_linapro_tenant_core_user_membership ADD COLUMN IF NOT EXISTS "updated_by" BIGINT NOT NULL DEFAULT 0`,
+		`ALTER TABLE plugin_linapro_tenant_core_user_membership ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+		`ALTER TABLE plugin_linapro_tenant_core_user_membership ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+		`ALTER TABLE plugin_linapro_tenant_core_user_membership ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMP`,
+		`CREATE INDEX IF NOT EXISTS idx_plugin_linapro_tenant_core_membership_tenant
+			ON plugin_linapro_tenant_core_user_membership ("tenant_id", "status")`,
+		`CREATE INDEX IF NOT EXISTS idx_plugin_linapro_tenant_core_membership_user
+			ON plugin_linapro_tenant_core_user_membership ("user_id", "status")`,
+	}
+	for _, statement := range statements {
+		if _, err := dao.SysUser.DB().Exec(ctx, statement); err != nil {
+			t.Fatalf("ensure startup consistency membership table: %v", err)
+		}
 	}
 }
 
@@ -305,19 +346,20 @@ type startupConsistencyMembershipRow struct {
 func cleanupStartupConsistencyUserMembership(t *testing.T, ctx context.Context, username string, tenantID int) {
 	t.Helper()
 
+	ensureStartupConsistencyTenantMembershipTable(t, ctx)
 	var user *entity.SysUser
 	if err := dao.SysUser.Ctx(ctx).Unscoped().Where(do.SysUser{Username: username}).Scan(&user); err != nil {
 		t.Fatalf("query startup consistency user cleanup: %v", err)
 	}
 	if user != nil {
-		if _, err := dao.SysUser.DB().Model("plugin_linapro_tenant_core_user_membership").
+		if _, err := dao.SysUser.DB().Model(startupConsistencyMembershipTable).
 			Unscoped().
 			Where("user_id", user.Id).
 			Delete(); err != nil {
 			t.Fatalf("cleanup startup consistency membership by user: %v", err)
 		}
 	}
-	if _, err := dao.SysUser.DB().Model("plugin_linapro_tenant_core_user_membership").
+	if _, err := dao.SysUser.DB().Model(startupConsistencyMembershipTable).
 		Unscoped().
 		Where("tenant_id", tenantID).
 		Delete(); err != nil {

@@ -102,6 +102,7 @@ func BuildDynamicRouteMetadata(runtimeState *DynamicRouteRuntimeState) *DynamicR
 type dynamicRouteClaims struct {
 	TokenId         string `json:"tokenId"`
 	TokenType       string `json:"tokenType"`
+	ClientType      string `json:"clientType"`
 	TenantId        int    `json:"tenantId"`
 	UserId          int    `json:"userId"`
 	Username        string `json:"username"`
@@ -513,7 +514,7 @@ func (s *serviceImpl) buildDynamicRouteIdentitySnapshot(
 	}
 
 	if s.userCtx != nil {
-		s.userCtx.SetUser(ctx, claims.TokenId, claims.UserId, claims.Username, claims.Status)
+		s.userCtx.SetUser(ctx, claims.TokenId, claims.UserId, claims.Username, claims.Status, claims.ClientType)
 		s.userCtx.SetTenant(ctx, claims.TenantId)
 		if claims.ActingAsTenant || claims.IsImpersonation {
 			if impersonationSetter, ok := s.userCtx.(userImpersonationSetter); ok {
@@ -578,6 +579,9 @@ func (s *serviceImpl) parseDynamicRouteToken(ctx context.Context, tokenString st
 		return nil, gerror.New("invalid token")
 	}
 	if claims.TokenType != authtoken.KindAccess {
+		return nil, gerror.New("invalid token")
+	}
+	if _, ok := authtoken.ParseClientType(claims.ClientType); !ok {
 		return nil, gerror.New("invalid token")
 	}
 	return claims, nil

@@ -132,6 +132,7 @@ export async function createApiContext(
     data: {
       username,
       password,
+      clientType: "web",
     },
   });
   const loginPayload = await expectSuccess<{ accessToken: string }>(

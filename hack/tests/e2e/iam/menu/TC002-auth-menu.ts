@@ -103,6 +103,7 @@ async function createAdminApiContext(): Promise<APIRequestContext> {
     data: {
       username: config.adminUser,
       password: config.adminPass,
+      clientType: "web",
     },
   });
   expect(loginResponse.ok()).toBeTruthy();

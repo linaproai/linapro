@@ -81,7 +81,7 @@ func (s jobmgmtStaticBizCtx) Current(context.Context) contract.CurrentContext {
 func (s jobmgmtStaticBizCtx) SetLocale(context.Context, string) {}
 
 // SetUser is unused by job-management service tests.
-func (s jobmgmtStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
+func (s jobmgmtStaticBizCtx) SetUser(context.Context, string, int, string, int, string) {}
 
 // SetTenant is unused by job-management service tests.
 func (s jobmgmtStaticBizCtx) SetTenant(context.Context, int) {}

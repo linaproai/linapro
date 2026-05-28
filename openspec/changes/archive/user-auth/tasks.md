@@ -279,3 +279,12 @@
 - [x] 29.3 文档双语镜像同步(README、AGENTS、SKILL 等)
 - [x] 29.4 `openspec validate multi-tenant --strict` 通过
 - [x] 29.5 用户验收确认本迭代完成
+
+## 30. Client Type Session Metadata
+
+- [x] 30.1 Add required `clientType` to login request validation with allowed values `web`、`mobile`、`desktop` and `cli`.
+- [x] 30.2 Propagate `clientType` through login, logout, tenant token issuance, tenant switch, refresh and impersonation flows.
+- [x] 30.3 Persist `clientType` in JWT claims, `pre_token`, `bizCtx`, `sys_online_session` and Redis session hot state.
+- [x] 30.4 Publish authentication lifecycle events with the session fact-source `clientType`.
+- [x] 30.5 Update default web login to submit `clientType=web`.
+- [x] 30.6 Expose `clientType` through the session contract and online-user projection, with tests covering hook payloads and storage.

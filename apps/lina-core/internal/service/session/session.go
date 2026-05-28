@@ -27,6 +27,7 @@ type Session struct {
 	TenantId       int        // Tenant ID, where 0 means platform
 	UserId         int        // User ID
 	Username       string     // Username
+	ClientType     string     // User-session client type
 	DeptName       string     // Department name
 	Ip             string     // Login IP address
 	Browser        string     // Browser information

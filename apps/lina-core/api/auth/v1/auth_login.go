@@ -8,9 +8,10 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // LoginReq defines the request for user login.
 type LoginReq struct {
-	g.Meta   `path:"/auth/login" method:"post" tags:"Authentication" summary:"User login" dc:"Authentication is performed through username and password. After successful authentication, a JWT token is returned for subsequent interface authentication."`
-	Username string `json:"username" v:"required#validation.auth.login.username.required" dc:"Username" eg:"admin"`
-	Password string `json:"password" v:"required#validation.auth.login.password.required" dc:"Password" eg:"admin123"`
+	g.Meta     `path:"/auth/login" method:"post" tags:"Authentication" summary:"User login" dc:"Authentication is performed through username and password. After successful authentication, a JWT token is returned for subsequent interface authentication."`
+	Username   string `json:"username" v:"required#validation.auth.login.username.required" dc:"Username" eg:"admin"`
+	Password   string `json:"password" v:"required#validation.auth.login.password.required" dc:"Password" eg:"admin123"`
+	ClientType string `json:"clientType" v:"required#validation.auth.login.clientType.required" dc:"User session client type. Allowed values: web, mobile, desktop, cli" eg:"web"`
 }
 
 // LoginTenantEntity is one tenant candidate returned during two-stage login.

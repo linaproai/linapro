@@ -9,11 +9,11 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"lina-core/internal/service/kvcache"
-	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/authtoken"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // Auth status constants used by login validation.
@@ -25,6 +25,20 @@ const (
 	authLoginStatusSuccess = 0
 	// authLoginStatusFail marks a failed login lifecycle event.
 	authLoginStatusFail = 1
+)
+
+// English fallback messages published with host authentication lifecycle hooks.
+const (
+	// authEventMessageLoginSuccessful is the English fallback for successful login messages.
+	authEventMessageLoginSuccessful = "Login successful"
+	// authEventMessageInvalidCredentials is the English fallback for invalid credential messages.
+	authEventMessageInvalidCredentials = "Invalid username or password"
+	// authEventMessageUserDisabled is the English fallback for disabled account messages.
+	authEventMessageUserDisabled = "User account is disabled"
+	// authEventMessageIPBlacklisted is the English fallback for blocked login IP messages.
+	authEventMessageIPBlacklisted = "Login IP is blacklisted"
+	// authEventMessageLogoutSuccessful is the English fallback for successful logout messages.
+	authEventMessageLogoutSuccessful = "Logout successful"
 )
 
 // tokenKind identifies the intended use of one signed JWT. The underlying
@@ -64,10 +78,11 @@ type Service interface {
 	// HashPassword hashes a plaintext password with bcrypt for user-account
 	// writes; it does not persist the result.
 	HashPassword(password string) (string, error)
-	// Logout revokes the supplied token ID, clears cached access context, removes
-	// the online-session row, and dispatches logout hooks. An empty tokenId only
-	// records hook state and leaves sessions unchanged.
-	Logout(ctx context.Context, username string, tenantId int, tokenId string) error
+	// Logout revokes the supplied token ID, clears cached access context,
+	// removes the online-session row, and dispatches logout hooks using the
+	// current session client type. An empty tokenId only records hook state and
+	// leaves sessions unchanged.
+	Logout(ctx context.Context, in LogoutInput) error
 	// RevokeSession writes a shared revoke marker, removes one online session by
 	// token ID, and invalidates token-bound role access cache across callers.
 	RevokeSession(ctx context.Context, tokenId string) error
@@ -106,12 +121,24 @@ var _ TenantTokenIssuer = (*serviceImpl)(nil)
 type serviceImpl struct {
 	configSvc    authConfigService // Configuration service
 	orgCapSvc    authOrgProjectionService
-	pluginSvc    pluginsvc.Service // Plugin service
-	roleSvc      authRoleService   // Role service
+	hookSvc      authHookService // Authentication lifecycle hook dispatcher
+	roleSvc      authRoleService // Role service
 	tenantSvc    authTenantAccessService
 	sessionStore session.Store // Session store
 	preTokens    preTokenStore
 	revoked      revokeStore
+}
+
+// authHookService is the narrow plugin-hook surface required by auth. Auth
+// owns authentication state and publishes hook payloads without depending on
+// the plugin service root package.
+type authHookService interface {
+	// HandleAuthLoginSucceeded dispatches a login-succeeded hook to enabled plugins.
+	HandleAuthLoginSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error
+	// HandleAuthLoginFailed dispatches a login-failed hook to enabled plugins.
+	HandleAuthLoginFailed(ctx context.Context, input pluginhost.AuthHookPayloadInput) error
+	// HandleAuthLogoutSucceeded dispatches a logout-succeeded hook to enabled plugins.
+	HandleAuthLogoutSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error
 }
 
 // authConfigService is the narrow config surface used by auth.
@@ -169,11 +196,11 @@ type authTenantAccessService interface {
 }
 
 // New creates the concrete auth service from explicit runtime-owned dependencies.
-func New(configSvc authConfigService, pluginSvc pluginsvc.Service, orgCapSvc authOrgProjectionService, roleSvc authRoleService, tenantSvc authTenantAccessService, sessionStore session.Store, kvCacheSvc kvcache.Service) Service {
+func New(configSvc authConfigService, hookSvc authHookService, orgCapSvc authOrgProjectionService, roleSvc authRoleService, tenantSvc authTenantAccessService, sessionStore session.Store, kvCacheSvc kvcache.Service) Service {
 	return &serviceImpl{
 		configSvc:    configSvc,
 		orgCapSvc:    orgCapSvc,
-		pluginSvc:    pluginSvc,
+		hookSvc:      hookSvc,
 		roleSvc:      roleSvc,
 		tenantSvc:    tenantSvc,
 		sessionStore: sessionStore,
@@ -184,21 +211,31 @@ func New(configSvc authConfigService, pluginSvc pluginsvc.Service, orgCapSvc aut
 
 // Claims defines JWT token claims.
 type Claims struct {
-	TokenId         string    `json:"tokenId"`         // Unique token identifier
-	TokenType       tokenKind `json:"tokenType"`       // TokenType identifies access or refresh token usage.
-	UserId          int       `json:"userId"`          // User ID
-	Username        string    `json:"username"`        // Username
-	Status          int       `json:"status"`          // Status
-	TenantId        int       `json:"tenantId"`        // Tenant ID, where 0 means platform
-	IsImpersonation bool      `json:"isImpersonation"` // Whether the token represents impersonation
-	ActingUserId    int       `json:"actingUserId"`    // Real user ID during impersonation
+	TokenId         string     `json:"tokenId"`         // Unique token identifier
+	TokenType       tokenKind  `json:"tokenType"`       // TokenType identifies access or refresh token usage.
+	ClientType      ClientType `json:"clientType"`      // ClientType identifies the user-session client.
+	UserId          int        `json:"userId"`          // User ID
+	Username        string     `json:"username"`        // Username
+	Status          int        `json:"status"`          // Status
+	TenantId        int        `json:"tenantId"`        // Tenant ID, where 0 means platform
+	IsImpersonation bool       `json:"isImpersonation"` // Whether the token represents impersonation
+	ActingUserId    int        `json:"actingUserId"`    // Real user ID during impersonation
 	jwt.RegisteredClaims
 }
 
 // LoginInput defines input for Login function.
 type LoginInput struct {
-	Username string // Username
-	Password string // Password
+	Username   string     // Username
+	Password   string     // Password
+	ClientType ClientType // User-session client type
+}
+
+// LogoutInput defines input for Logout function.
+type LogoutInput struct {
+	Username   string     // Username
+	TenantID   int        // Tenant ID, where 0 means platform
+	TokenID    string     // Token/session identifier
+	ClientType ClientType // User-session client type
 }
 
 // LoginOutput defines output for Login function.

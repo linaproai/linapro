@@ -97,7 +97,7 @@ func (s userMsgScopeStaticBizCtx) Current(context.Context) contract.CurrentConte
 func (s userMsgScopeStaticBizCtx) SetLocale(context.Context, string) {}
 
 // SetUser is unused by user-message tests.
-func (s userMsgScopeStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
+func (s userMsgScopeStaticBizCtx) SetUser(context.Context, string, int, string, int, string) {}
 
 // SetTenant is unused by user-message tests.
 func (s userMsgScopeStaticBizCtx) SetTenant(context.Context, int) {}

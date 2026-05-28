@@ -39,6 +39,7 @@ type sessionHotState struct {
 	TenantID       int       `json:"tenantId"`
 	UserID         int       `json:"userId"`
 	Username       string    `json:"username"`
+	ClientType     string    `json:"clientType"`
 	DeptName       string    `json:"deptName,omitempty"`
 	IP             string    `json:"ip,omitempty"`
 	Browser        string    `json:"browser,omitempty"`
@@ -307,6 +308,7 @@ func sessionHotStateFromSession(session *Session, now time.Time) sessionHotState
 		TenantID:       session.TenantId,
 		UserID:         session.UserId,
 		Username:       session.Username,
+		ClientType:     session.ClientType,
 		DeptName:       session.DeptName,
 		IP:             session.Ip,
 		Browser:        session.Browser,

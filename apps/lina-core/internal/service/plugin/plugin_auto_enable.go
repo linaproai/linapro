@@ -11,6 +11,7 @@ import (
 	"lina-core/internal/model/entity"
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/plugin/internal/catalog"
+	plugindep "lina-core/internal/service/plugin/internal/dependency"
 	"lina-core/pkg/bizerr"
 )
 
@@ -161,7 +162,7 @@ func (s *serviceImpl) checkStartupAutoEnableDependencies(ctx context.Context, en
 	if err != nil {
 		return err
 	}
-	if hasDependencyBlockers(plan.Blockers) {
+	if plugindep.HasBlockers(plan.Blockers) {
 		return s.buildDependencyBlockedError(entry.ID, plan.Blockers)
 	}
 	return nil

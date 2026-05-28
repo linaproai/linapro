@@ -54,8 +54,6 @@ The menu and role management subsystem provides the core RBAC backbone: menus fo
 - Admin role bypasses menu association checks and receives all permissions
 
 
----
-
 ## Tenant Permission Boundary Hardening
 
 ## Why

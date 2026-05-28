@@ -9,13 +9,13 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/wasm"
-	"lina-core/internal/service/pluginruntimecache"
+	"lina-core/internal/service/plugin/runtimecache"
 	"lina-core/pkg/logger"
 )
 
 // pluginRuntimeCacheObservedRevision records the revision consumed by the root
 // plugin facade cache domain inside this process.
-var pluginRuntimeCacheObservedRevision = pluginruntimecache.NewObservedRevision()
+var pluginRuntimeCacheObservedRevision = runtimecache.NewObservedRevision()
 
 // pluginI18nService defines the i18n methods needed by plugin lifecycle,
 // runtime cache refresh, and source-plugin reason rendering paths.
@@ -39,12 +39,12 @@ func newRuntimeCacheRevisionController(
 	frontendSvc pluginRuntimeFrontendInvalidator,
 	i18nSvc pluginI18nService,
 	managementListInvalidator pluginManagementListInvalidator,
-) *pluginruntimecache.Controller {
+) *runtimecache.Controller {
 	clusterEnabled := false
 	if topology != nil {
 		clusterEnabled = topology.IsEnabled()
 	}
-	return pluginruntimecache.NewControllerWithCoordinator(
+	return runtimecache.NewControllerWithCoordinator(
 		clusterEnabled,
 		cacheCoordSvc,
 		pluginRuntimeCacheObservedRevision,

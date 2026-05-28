@@ -1,5 +1,8 @@
-## ADDED Requirements
+# file-upload-storage-path Specification
 
+## Purpose
+TBD - created by archiving change simplify-upload-storage-path. Update Purpose after archive.
+## Requirements
 ### Requirement: 新上传文件路径必须省略 tenant 缩写目录
 
 普通文件上传写入新的物理文件时，系统 SHALL 使用 `<tenantId>/<yyyy>/<MM>/<generated-file-name>` 作为相对存储路径，不得再在租户 ID 前增加 `t` 目录层。

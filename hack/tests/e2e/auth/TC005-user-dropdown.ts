@@ -27,6 +27,7 @@ async function createAdminApiContext(): Promise<APIRequestContext> {
     data: {
       password: config.adminPass,
       username: config.adminUser,
+      clientType: 'web',
     },
   });
   expect(

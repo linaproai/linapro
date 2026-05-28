@@ -12,11 +12,12 @@ import (
 
 	"lina-core/internal/model/entity"
 	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/locker"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/openapi"
-	"lina-core/internal/service/pluginruntimecache"
+	"lina-core/internal/service/plugin/runtimecache"
 	"lina-core/internal/service/session"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 	"lina-core/pkg/plugin/pluginhost"
@@ -72,8 +73,8 @@ type UploadSizeProvider interface {
 
 // UserContextSetter injects authenticated user information into the request context.
 type UserContextSetter interface {
-	// SetUser populates the context with the resolved token and user identity fields.
-	SetUser(ctx context.Context, tokenID string, userID int, username string, status int)
+	// SetUser populates the context with the resolved token, user identity, and client type fields.
+	SetUser(ctx context.Context, tokenID string, userID int, username string, status int, clientType string)
 	// SetTenant populates the resolved request tenant.
 	SetTenant(ctx context.Context, tenantID int)
 	// SetUserAccess populates cached access-snapshot fields for downstream plugin integrations.
@@ -375,13 +376,15 @@ type serviceImpl struct {
 	menuFilter PermissionMenuFilter
 	// cacheChangeNotifier publishes runtime cache changes after successful convergence.
 	cacheChangeNotifier CacheChangeNotifier
+	// reconcilerLockSvc serializes primary lifecycle side effects per dynamic plugin.
+	reconcilerLockSvc locker.Service
 	// dependencyValidator checks candidate release dependency constraints before
 	// dynamic lifecycle side effects.
 	dependencyValidator DependencyValidator
 	// reconcilerRevisionObserved records the reconciler revision consumed by this runtime service.
-	reconcilerRevisionObserved *pluginruntimecache.ObservedRevision
+	reconcilerRevisionObserved *runtimecache.ObservedRevision
 	// reconcilerRevisionCtrl coordinates cluster-wide dynamic-plugin reconciler wake-up.
-	reconcilerRevisionCtrl *pluginruntimecache.Controller
+	reconcilerRevisionCtrl *runtimecache.Controller
 	// reconcilerSafetyMu protects the last full-sweep timestamp.
 	reconcilerSafetyMu sync.Mutex
 	// lastReconcilerSweepAt records the last successful background full-scan pass.
@@ -407,6 +410,7 @@ func New(
 	frontendSvc frontend.Service,
 	openapiSvc openapi.Service,
 	i18nSvc runtimeI18nService,
+	reconcilerLockSvc locker.Service,
 ) Service {
 	return &serviceImpl{
 		catalogSvc:                 catalogSvc,
@@ -414,7 +418,8 @@ func New(
 		frontendSvc:                frontendSvc,
 		openapiSvc:                 openapiSvc,
 		sessionStore:               session.NewDBStore(),
-		reconcilerRevisionObserved: pluginruntimecache.NewObservedRevision(),
+		reconcilerLockSvc:          reconcilerLockSvc,
+		reconcilerRevisionObserved: runtimecache.NewObservedRevision(),
 		i18nSvc:                    i18nSvc,
 	}
 }

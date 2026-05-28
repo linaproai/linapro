@@ -80,7 +80,7 @@ func getOrCompileWasmModule(ctx context.Context, artifactPath string) (*wasmModu
 		delete(wasmModuleCache, artifactPath)
 	}
 
-	rt := wazero.NewRuntime(ctx)
+	rt := newWasmRuntime(ctx)
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, rt); err != nil {
 		if closeErr := rt.Close(ctx); closeErr != nil {
 			logger.Warningf(ctx, "close wasm runtime after WASI init failure failed err=%v", closeErr)
@@ -123,6 +123,16 @@ func getOrCompileWasmModule(ctx context.Context, artifactPath string) (*wasmModu
 		return nil, gerror.New("compiled dynamic plugin Wasm cache entry is not available")
 	}
 	return lease, nil
+}
+
+// newWasmRuntime creates one host-governed runtime for dynamic plugin modules.
+// Context cancellation is wired into guest execution so bridge deadlines can
+// stop non-returning guest code, while memory pages are capped for every module.
+func newWasmRuntime(ctx context.Context) wazero.Runtime {
+	config := wazero.NewRuntimeConfig().
+		WithCloseOnContextDone(true).
+		WithMemoryLimitPages(defaultWasmMemoryLimitPages)
+	return wazero.NewRuntimeWithConfig(ctx, config)
 }
 
 // acquireLease pins the entry for one bridge execution.

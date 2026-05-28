@@ -33,6 +33,9 @@ const (
 	runtimeChangeReasonDynamicPackageUploaded runtimeChangeReason = "dynamic_package_uploaded"
 	// runtimeChangeReasonRuntimeArtifactMissing means an active runtime artifact disappeared and registry state changed.
 	runtimeChangeReasonRuntimeArtifactMissing runtimeChangeReason = "runtime_artifact_missing"
+	// runtimeChangeReasonStaleReconcilingRestored means an abandoned transient
+	// reconcile state was restored to a stable state.
+	runtimeChangeReasonStaleReconcilingRestored runtimeChangeReason = "stale_reconciling_restored"
 	// runtimeChangeReasonDesiredStateChanged means a management request changed one plugin target state.
 	runtimeChangeReasonDesiredStateChanged runtimeChangeReason = "desired_state_changed"
 	// runtimeChangeReasonSingleNode means single-node mode should run reconciliation every tick.

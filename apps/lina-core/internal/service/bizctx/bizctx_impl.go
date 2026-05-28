@@ -60,12 +60,13 @@ func (s *serviceImpl) SetLocale(ctx context.Context, locale string) {
 }
 
 // SetUser sets user info into business context.
-func (s *serviceImpl) SetUser(ctx context.Context, tokenId string, userId int, username string, status int) {
+func (s *serviceImpl) SetUser(ctx context.Context, tokenId string, userId int, username string, status int, clientType string) {
 	if c := s.Get(ctx); c != nil {
 		c.TokenId = tokenId
 		c.UserId = userId
 		c.Username = username
 		c.Status = status
+		c.ClientType = clientType
 	}
 }
 

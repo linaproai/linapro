@@ -25,13 +25,14 @@ func TestCoordinationStoreWritesHotStateAndProjection(t *testing.T) {
 		cleanupSessionTestToken(t, ctx, tokenID)
 	})
 	if err := store.Set(ctx, &Session{
-		TokenId:  tokenID,
-		TenantId: 7,
-		UserId:   11,
-		Username: "coord-user",
-		Ip:       "127.0.0.1",
-		Browser:  "go-test",
-		Os:       "darwin",
+		TokenId:    tokenID,
+		TenantId:   7,
+		UserId:     11,
+		Username:   "coord-user",
+		ClientType: "desktop",
+		Ip:         "127.0.0.1",
+		Browser:    "go-test",
+		Os:         "darwin",
 	}); err != nil {
 		t.Fatalf("set coordination session: %v", err)
 	}
@@ -45,7 +46,7 @@ func TestCoordinationStoreWritesHotStateAndProjection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode hot state: %v", err)
 	}
-	if payload.TokenID != tokenID || payload.TenantID != 7 || payload.UserID != 11 {
+	if payload.TokenID != tokenID || payload.TenantID != 7 || payload.UserID != 11 || payload.ClientType != "desktop" {
 		t.Fatalf("unexpected hot-state payload: %#v", payload)
 	}
 	ttl, err := coordSvc.KV().TTL(ctx, hotKey)
@@ -60,7 +61,7 @@ func TestCoordinationStoreWritesHotStateAndProjection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get projected session: %v", err)
 	}
-	if projected == nil || projected.TenantId != 7 || projected.UserId != 11 {
+	if projected == nil || projected.TenantId != 7 || projected.UserId != 11 || projected.ClientType != "desktop" {
 		t.Fatalf("expected projected session, got %#v", projected)
 	}
 }

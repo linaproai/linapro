@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"lina-core/internal/service/cachecoord"
-	"lina-core/internal/service/pluginruntimecache"
+	"lina-core/internal/service/plugin/runtimecache"
 	"lina-core/pkg/logger"
 )
 
@@ -31,11 +31,11 @@ type backgroundReconcileDecision struct {
 // after topology has been injected.
 func (s *serviceImpl) configureReconcilerRevisionController() {
 	if s.reconcilerRevisionObserved == nil {
-		s.reconcilerRevisionObserved = pluginruntimecache.NewObservedRevision()
+		s.reconcilerRevisionObserved = runtimecache.NewObservedRevision()
 	}
-	s.reconcilerRevisionCtrl = pluginruntimecache.NewControllerForScopeWithCoordinator(
+	s.reconcilerRevisionCtrl = runtimecache.NewControllerForScopeWithCoordinator(
 		cachecoord.ScopeReconciler,
-		pluginruntimecache.ReconcilerCacheChangeReason,
+		runtimecache.ReconcilerCacheChangeReason,
 		s.isClusterModeEnabled(),
 		cachecoord.Default(runtimeCacheCoordTopology{s: s}),
 		s.reconcilerRevisionObserved,
@@ -73,7 +73,7 @@ func (t runtimeCacheCoordTopology) NodeID() string {
 // ensureReconcilerRevisionController returns the configured controller, creating
 // a topology-aware no-op controller when tests or direct constructors skipped
 // setter injection.
-func (s *serviceImpl) ensureReconcilerRevisionController() *pluginruntimecache.Controller {
+func (s *serviceImpl) ensureReconcilerRevisionController() *runtimecache.Controller {
 	if s.reconcilerRevisionCtrl == nil {
 		s.configureReconcilerRevisionController()
 	}

@@ -448,3 +448,11 @@ default_install_mode: global
 - **租户级 i18n 自定义文案**:本次不落地;留 schema 扩展位 `plugin_multi_tenant_i18n_override` 不创建。
 - **平台管理员全平台聚合视图**:本次提供"租户总览 + 用户聚合 + 操作日志全量"基础页面,深度看板留扩展。
 - **配额(quota)强制时机**:本次不建表、不写入 mock 数据、不实现 hook;租户级配额/计费由后续迭代重新建模。
+
+### 18. Client Type Session Metadata
+
+Authentication treats `clientType` as part of the session fact, not a hardcoded hook attribute. Login requests explicitly provide one of `web`、`mobile`、`desktop` or `cli`; the default management workspace submits `web`. The value is written to `pre_token`, JWT claims, `bizCtx`, `sys_online_session` and Redis session hot state so login, logout, tenant switching, refresh and impersonation flows all publish lifecycle events with the same source value.
+
+`clientType` is a named backend type with constants and validation. The online-session plugin and host session contract expose the projected value as metadata. Cluster mode stores the same value in Redis hot state and PostgreSQL management projection, so forced offline, timeout cleanup and online-user listing do not diverge between nodes.
+
+The change is intentionally breaking at the login request boundary because implicit `web` defaults made future mobile, desktop and CLI clients indistinguishable in audit and hook integrations.

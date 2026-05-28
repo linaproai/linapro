@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 
@@ -51,30 +52,34 @@ func (s *serviceImpl) ExecuteManifestSQLFiles(
 		return err
 	}
 
-	for index, asset := range sqlAssets {
-		if asset == nil {
-			return gerror.New("plugin SQL asset cannot be nil")
-		}
-
-		checksum := fmt.Sprintf("%x", sha256.Sum256([]byte(asset.Content)))
-		release, err := s.catalogSvc.GetRelease(ctx, manifest.ID, manifest.Version)
-		if err != nil {
-			return err
-		}
-		if release == nil {
-			return gerror.Newf("plugin release record does not exist: %s@%s", manifest.ID, manifest.Version)
-		}
-		migrationKey := buildMigrationKey(direction, index+1)
-		executedAt := time.Now()
-		execErr := s.executeSQLAsset(ctx, manifest.ID, direction, asset)
-		if recordErr := s.recordMigration(ctx, manifest.ID, release.Id, direction, migrationKey, index+1, checksum, &executedAt, execErr); recordErr != nil {
-			return recordErr
-		}
-		if execErr != nil {
-			return gerror.Wrapf(execErr, "execute plugin SQL failed: %s", asset.Key)
-		}
+	release, err := s.catalogSvc.GetRelease(ctx, manifest.ID, manifest.Version)
+	if err != nil {
+		return err
 	}
-	return nil
+	if release == nil {
+		return gerror.Newf("plugin release record does not exist: %s@%s", manifest.ID, manifest.Version)
+	}
+
+	return dao.SysPluginMigration.Transaction(ctx, func(txCtx context.Context, _ gdb.TX) error {
+		for index, asset := range sqlAssets {
+			if asset == nil {
+				return gerror.New("plugin SQL asset cannot be nil")
+			}
+			var (
+				checksum     = fmt.Sprintf("%x", sha256.Sum256([]byte(asset.Content)))
+				migrationKey = buildMigrationKey(direction, index+1)
+				executedAt   = time.Now()
+				execErr      = s.executeSQLAsset(txCtx, manifest.ID, direction, asset)
+			)
+			if execErr != nil {
+				return gerror.Wrapf(execErr, "execute plugin SQL failed: %s", asset.Key)
+			}
+			if recordErr := s.recordMigration(txCtx, manifest.ID, release.Id, direction, migrationKey, index+1, checksum, &executedAt, nil); recordErr != nil {
+				return recordErr
+			}
+		}
+		return nil
+	})
 }
 
 // ResolveSQLAssets extracts lifecycle SQL either from embedded runtime artifact sections

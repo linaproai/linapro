@@ -228,6 +228,38 @@ Sub agents use GoFrame's default `Trace-ID` response header to correlate endpoin
 
 Each finding writes a persistent markdown card under repository-root `perf-issues/`. Cards are de-duplicated by fingerprint. Repeated findings update `last_seen_run` and `seen_count`. Previously fixed cards are reopened when issues recur.
 
+## Agent Resource Management
+
+### Decision 45: Use `agents` as the multi-resource command root
+
+`skills.link` and `skills.unlink` were too narrow once prompts and project instruction files also needed repository-local bridges. The command tree now uses `linactl agents` with resource-specific subcommands: `agents.skills.*`、`agents.prompts.*` and `agents.md.*`. The aggregate TTY flow selects an Agent first with human-readable names, then applies the selected resource action. Resource-specific subcommands still render detailed status tables for diagnostics.
+
+### Decision 46: Shared symlink state machine, separate registries
+
+The implementation shares cross-platform symlink status, conflict handling, selector parsing and TTY helpers across resources, while keeping separate registries for skills directories, prompt directories and single-file `AGENTS.md` bridges. `force=1` only rebuilds wrong symlinks; real files and directories are never deleted.
+
+### Decision 47: Agent command display favors daily operation
+
+The aggregate command does not print full per-resource path tables after every run. It applies the selected resource APIs directly and renders a compact resource summary. Detailed `skills`、`prompts` and `md` tables remain available when users need path-level debugging.
+
+## Embedded GoFrame Code Generation
+
+### Decision 48: Pin GoFrame CLI through `linactl`
+
+`linactl ctrl` and `linactl dao` execute GoFrame code generation through a hidden internal entrypoint that imports `github.com/gogf/gf/cmd/gf/v2` at the repository-pinned version. This removes local `gf` installation and `latest` release drift from the default development path while preserving `apps/lina-core` as the generation working directory.
+
+## Development Service Restart Reliability
+
+### Decision 49: Wait only for managed port release
+
+`linactl dev` may stop services that it previously started and tracked through `temp/pids`. When it does, it waits briefly for those service ports to be released before running the usual port availability check. Ports owned by unknown external processes are still treated as protected external occupation and are never killed automatically.
+
+## Deterministic Archive Automation
+
+### Decision 50: Keep archive execution inside the selected AI runtime
+
+The monthly workflow invokes the same AI coding tool runtime for both auto-archive and archive consolidation. Shared preflight, validation, artifact upload, push and pull request steps fail fast. If completed changes remain unarchived, the workflow reports them explicitly instead of letting a later assertion fail without context.
+
 ## Risks / Trade-offs
 
 - Go CLI compilation adds startup latency to each command invocation. Accepted for cross-platform consistency; cached binary entry can be added later.

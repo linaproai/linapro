@@ -1,24 +1,115 @@
-## ADDED Requirements
+# 插件 HTTP Slot 扩展
 
-### Requirement: Source-plugin HTTP registration must receive host-published dependency directory
+## Purpose
 
-The system SHALL expose the host-published dependency directory to source plugins in HTTP, global middleware, and Cron registration callbacks. Plugins obtain stable host capability adapters through this directory and use explicit dependency injection to construct plugin Controllers and Services.
+定义宿主为源码插件管理的后端回调扩展点，重点包括 HTTP 路由注册、中间件注册、定时任务注册和其他受治理的集成接缝。
+## Requirements
+### Requirement:宿主通过回调注册发布通用后端扩展点
+系统 SHALL 为源码插件提供最小化的、回调注册式后端扩展接口，防止插件作者为常见扩展场景维护复杂的声明式属性。
 
-#### Scenario: Plugin route registration constructs controllers
+#### Scenario:事件 Hook 和注册接口属于同一类后端扩展点
+- **当** 宿主同时发布事件型 Hook 和注册式回调扩展点时
+- **则** 两类能力必须被视为"在宿主发布的后端扩展点上的回调注册"
+- **且** 插件开发者统一通过 Go 类型常量选择扩展点并注册回调函数
+- **且** 宿主仅允许执行模式决定回调是阻塞主流程还是异步执行
 
-- **WHEN** a source plugin binds controllers in the `http.route.register` callback
-- **THEN** the plugin obtains the host-published dependency directory from the registrar
-- **AND** the plugin controller constructor receives the constructed plugin service or its explicit dependencies
-- **AND** the plugin controller MUST NOT create host `pluginservice` adapter instances on its own
+#### Scenario:宿主维护正式的后端回调扩展点目录
+- **当** 宿主发布源码插件后端扩展能力时
+- **则** 宿主必须提供统一的 Go 注册入口和回调注册方式
+- **且** 一期至少提供 `http.route.register`、`cron.register`、`menu.filter`、`permission.filter`
+- **且** 这些扩展点必须与已发布的 Hook 在同一技术文档中维护
 
-#### Scenario: Plugin global middleware reuses host dependencies
+#### Scenario:宿主在统一 Go 类型目录中管理所有后端扩展点
+- **当** 宿主同时发布事件型 Hook 和注册式回调扩展点时
+- **则** 宿主必须使用统一的 Go `type` 和常量目录维护这些后端扩展点
+- **且** 插件代码、宿主调度代码和技术文档必须都引用同一套类型常量
+- **且** 不允许硬编码的后端扩展点字符串散落在宿主实现或插件示例中
 
-- **WHEN** a source plugin registers global HTTP middleware
-- **THEN** the middleware service obtains plugin state, i18n, configuration, or other host capability dependencies through the registrar
-- **AND** the middleware MUST NOT create new host service adapters on the request path
+#### Scenario:宿主为后端回调扩展点声明执行模式
+- **当** 插件向宿主注册某后端扩展点回调时
+- **则** 注册接口必须显式声明回调的执行模式
+- **且** 执行模式至少区分 `blocking` 和 `async`
+- **且** 宿主必须验证当前扩展点是否支持声明的执行模式
+- **且** 不支持的执行模式必须在注册阶段被拒绝
 
-#### Scenario: Plugin Cron registration reuses host dependencies
+#### Scenario:宿主以接口类型暴露回调输入对象
+- **当** 宿主向插件暴露 Hook、HTTP 注册、Cron、菜单过滤或权限过滤等回调输入对象时
+- **则** 宿主必须优先暴露抽象接口而非具体结构体指针
+- **且** 插件回调仅依赖宿主暴露的方法契约
+- **且** 宿主后续扩展字段或能力时，不应要求插件直接耦合内部结构体实现
 
-- **WHEN** a source plugin registers scheduled tasks
-- **THEN** the scheduled task service obtains host-published dependencies through the Cron registrar or equivalent context
-- **AND** the scheduled task execution path MUST NOT temporarily create key host service graphs
+#### Scenario:插件通过统一 HTTP 注册入口声明路由和中间件
+- **当** 宿主向源码插件开放 HTTP 注册能力时
+- **则** 宿主必须向插件暴露统一的 HTTP 注册入口对象
+- **且** 该对象同时提供路由注册器和全局 HTTP 中间件注册器
+- **且** 插件不直接持有裸 `*ghttp.Server`
+
+#### Scenario:插件通过回调注册宿主治理的 HTTP 路由
+- **当** 源码插件注册自己的 HTTP 路由时
+- **则** 宿主在启动时自动组装该路由
+- **且** 插件被禁用后，这些路由请求将被宿主拒绝或降级
+- **且** 插件作者无需手动修改宿主控制器或路由骨架代码
+- **且** 插件作者只需在 `apps/lina-plugins/lina-plugins.go` 中维护插件后端包的显式导入关系
+
+#### Scenario:宿主为插件提供独立无前缀的路由分组
+- **当** 宿主向源码插件开放 HTTP 路由注册能力时
+- **则** 宿主必须提供独立于主服务 `/api/v1` 分组的插件路由分组
+- **且** 插件路由分组本身不得有任何内置固定路由前缀
+- **且** 插件可选择挂载到 `/api/v1`、其他业务前缀或无前缀路径
+
+#### Scenario:宿主向插件暴露可选的主服务路由中间件目录
+- **当** 宿主向源码插件开放 HTTP 路由分组注册能力时
+- **则** 宿主必须向插件暴露已发布的主服务路由中间件目录
+- **且** 一期至少包含 `NeverDoneCtx`、`HandlerResponse`、`CORS`、`RequestBodyLimit`、`Ctx`、`Auth`、`Permission`
+- **且** 插件可根据自身路由分组需求选择任意子集并决定组合顺序
+- **且** 插件也可将宿主路由中间件与插件自定义分组中间件组合使用
+
+#### Scenario:宿主向插件暴露受治理的全局 HTTP 中间件注册器
+- **当** 源码插件需要在宿主动态请求链路周围实现审计或其他请求级横切逻辑时
+- **则** 宿主必须向插件暴露独立于路由分组的全局 HTTP 中间件注册器
+- **且** 注册器使用 GoFrame 原语模式作为作用域
+- **且** 宿主使用 `ghttp.Server` 全局中间件组装这些处理器
+- **且** 插件停用后，宿主通过运行时开关绕过对应中间件逻辑，无需重建路由树
+
+#### Scenario:插件可拆分多个具有不同治理策略的路由分组
+- **当** 同一源码插件需要同时暴露免认证接口和受保护接口时
+- **则** 插件必须能在一次路由注册回调中声明多个独立路由分组
+- **且** 路由分组注册方式必须与宿主主服务一致，支持 `group.Group(prefix, func(group *ghttp.RouterGroup) { ... })` 风格
+- **且** 每个路由分组可选择以任意顺序承载已发布中间件的任意子集和组合
+- **且** 每个路由分组可继续追加自己的子路径前缀
+
+#### Scenario:插件注册由宿主控制启停的定时任务
+- **当** 源码插件注册自己的定时任务时
+- **则** 宿主通过统一的 `cron` 组件完成注册
+- **且** 插件被禁用后，宿主不执行该插件的定时任务回调
+- **且** 插件作者无需在宿主 `cmd` 层手动添加定时任务代码
+
+#### Scenario:定时任务注册暴露主节点标识能力
+- **当** 宿主向插件暴露定时任务注册输入对象时
+- **则** 该对象必须提供"当前节点是否为主节点"的标识方法
+- **且** 插件可根据该方法决定是否执行仅在主节点生效的定时逻辑
+
+#### Scenario:插件通过菜单和权限过滤参与宿主管理链路
+- **当** 宿主生成菜单列表或权限列表时
+- **则** 宿主向已启用的插件发布 `menu.filter` 和 `permission.filter` 回调
+- **且** 插件只能过滤和判断宿主暴露的菜单/权限描述
+- **且** 过滤失败不会破坏宿主原有的菜单和权限计算流程
+
+### Requirement: 源码插件 HTTP 注册必须接收宿主发布依赖目录
+系统 SHALL 在源码插件 HTTP、全局中间件和 Cron 注册回调中向插件暴露宿主发布的依赖目录。插件通过该目录获取稳定宿主能力适配器，并使用显式依赖注入构造插件 Controller 和 Service。
+
+#### Scenario: 插件路由注册构造控制器
+- **当** 源码插件在 `http.route.register` 回调中绑定控制器
+- **则** 插件从 registrar 获取宿主发布依赖目录
+- **且** 插件控制器构造函数接收已构造的插件 service 或其显式依赖
+- **且** 插件控制器不得自行创建宿主 `pluginservice` 适配器实例
+
+#### Scenario: 插件全局中间件复用宿主依赖
+- **当** 源码插件注册全局 HTTP 中间件
+- **则** 该中间件服务通过 registrar 获取插件状态、i18n、配置或其他宿主能力依赖
+- **且** 中间件不得在请求路径上创建新的宿主服务适配器
+
+#### Scenario: 插件 Cron 注册复用宿主依赖
+- **当** 源码插件注册定时任务
+- **则** 定时任务服务通过 Cron registrar 或等价上下文获取宿主发布依赖
+- **且** 定时任务执行路径不得临时创建关键宿主服务图

@@ -22,6 +22,7 @@ import (
 	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
+	"lina-core/internal/service/locker"
 	middlewaresvc "lina-core/internal/service/middleware"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
@@ -507,7 +508,7 @@ func newRuntimeMessagesTestMiddleware() middlewaresvc.Service {
 	bizCtxSvc := bizctx.New()
 	i18nSvc := newTestI18nService()
 	cacheCoordSvc := cachecoord.Default(nil)
-	pluginSvc, err := pluginsvc.New(nil, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, session.NewDBStore(), nil)
+	pluginSvc, err := pluginsvc.New(nil, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, session.NewDBStore(), locker.New(), nil)
 	if err != nil {
 		panic(err)
 	}

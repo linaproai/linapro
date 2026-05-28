@@ -327,3 +327,35 @@ Each source specifies `repo`, `root` (relative path within repo, `.` for root), 
 - `plugins.update`: Re-fetches from source and overwrites local directory. Blocks on local dirty state unless `force=1`.
 - `plugins.status`: Read-only diagnosis of workspace type, configured plugins, local existence, version, dirty state, lock state, and remote update status.
 - Lock file at `apps/lina-plugins/.linapro-plugins.lock.yaml` records source, repo, root, ref, resolved commit, manifest version, and content digest per plugin.
+
+## 14. Plugin Package and Capability Boundaries
+
+Plugin public contracts are organized under `pkg/plugin` with three stable responsibilities:
+
+- `pluginhost`: source-plugin contribution entry for routes, hooks, cron, lifecycle and provider factory declarations.
+- `pluginbridge`: dynamic-plugin ABI and transport boundary, including envelope, codec, host call, artifact sections and dynamic route dispatch.
+- `capability`: source-plugin and dynamic-plugin consumption of host capabilities through DTO-oriented, batch-friendly, read-only or explicitly governed contracts.
+
+Legacy top-level packages such as `pluginservice`, `plugindb` and `sourceupgrade` are removed from the public contract surface. Source-plugin upgrade comparison and execution remain host-internal runtime governance; dynamic-plugin data SDKs live under the capability namespace and expose only guest-side DSLs and public request plans. Host-side executors, DB wrappers, audit context, provider availability, resource scanning and plugin runtime state stay in `internal` packages.
+
+Framework capabilities such as organization and tenant are registered through narrow provider factories. Provider adapters live inside the providing plugin's internal backend implementation, while consuming plugins receive stable service projections through the capability directory. Provider availability is determined from the plugin enabled snapshot and runtime revision, not from global mutable registration during route wiring.
+
+## 15. Workspace Route Boundary
+
+The default management workspace is an embedded application entry rather than the whole frontend boundary. Its default entry path is `/admin`, and the host SPA fallback only serves that entry and its descendants. Root path and other non-reserved paths remain available for source plugins to register public pages, static resources or their own fallback handlers through normal GoFrame routing.
+
+Plugin APIs use `/x/{plugin-id}/api/v1/...` for both source and dynamic plugins. Public plugin assets use `/x-assets/{plugin-id}/{version}/...` and are version-bound; resource changes require a plugin version or content-version change. The host reserves the management entry path, host control-plane API paths, `/x` and `/x-assets`. Route conflicts are exposed by GoFrame route registration instead of being hidden by the management workspace fallback.
+
+## 16. Plugin Configuration and Manifest Resources
+
+Plugin configuration reads are plugin-scoped by default. `HostServices.Config()` reads the current plugin's runtime config from plugin-owned `manifest/config/config.yaml` or deployment-scoped equivalent. `HostServices.HostConfig()` only reads host keys explicitly published as public configuration. `HostServices.Manifest()` reads declared resources under the current plugin's `manifest/` directory and rejects absolute paths, path traversal, URLs and cross-plugin access.
+
+Dynamic plugins use the same resource model through embedded artifact resources. Config, host config and manifest resource host services declare a simple read method in `plugin.yaml`; typed helpers such as string, bool, int, duration or scan remain SDK conveniences over the same authorization boundary.
+
+## 17. Runtime Safety and Management Read Model
+
+All dynamic WASM execution entries share host-side resource controls: route execution, cron discovery, cron execution and lifecycle callbacks use the caller deadline when present and otherwise apply a host default timeout; memory usage is bounded by the runtime configuration. Plugin install, upgrade, uninstall and rollback lifecycle SQL is committed in the same transaction as migration ledger writes so PostgreSQL remains the authority for lifecycle success.
+
+Rollback diagnostics are preserved in the error chain or plugin failure state. Cluster mode protects per-plugin lifecycle side effects with the host distributed lock or coordination lock. The reconciler detects stale `reconciling` states and recovers them through a later tick, and each tick recovers from panic so one plugin failure cannot permanently stop background convergence.
+
+The plugin management list is a governed read model. Request-local manifest and dependency snapshots are reused during list construction, and an async warmup builds the full list model after host startup. Explicit invalidation is triggered by sync, upload, install, uninstall, enable, disable, source upgrade, dynamic upgrade and tenant provisioning policy changes, and cluster mode reuses the existing plugin runtime revision/event path.

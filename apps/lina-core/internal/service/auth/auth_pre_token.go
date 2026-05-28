@@ -35,10 +35,11 @@ type preTokenStore interface {
 // preTokenRecord stores the authenticated user identity between password
 // verification and tenant selection.
 type preTokenRecord struct {
-	UserID    int
-	Username  string
-	Status    int
-	ExpiresAt time.Time
+	UserID     int
+	Username   string
+	Status     int
+	ClientType ClientType
+	ExpiresAt  time.Time
 }
 
 // storedPreTokenRecord is the persisted JSON envelope for pre-login tokens.

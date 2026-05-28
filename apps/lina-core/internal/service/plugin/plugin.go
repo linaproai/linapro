@@ -15,14 +15,18 @@ import (
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/coordination"
 	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/locker"
 	"lina-core/internal/service/plugin/internal/catalog"
+	plugindep "lina-core/internal/service/plugin/internal/dependency"
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/lifecycle"
+	"lina-core/internal/service/plugin/internal/management"
 	"lina-core/internal/service/plugin/internal/openapi"
 	"lina-core/internal/service/plugin/internal/runtime"
+	"lina-core/internal/service/plugin/internal/runtimeupgrade"
 	sourceupgradeinternal "lina-core/internal/service/plugin/internal/sourceupgrade"
-	"lina-core/internal/service/pluginruntimecache"
+	"lina-core/internal/service/plugin/runtimecache"
 	"lina-core/internal/service/session"
 	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
@@ -33,7 +37,39 @@ import (
 	"lina-core/pkg/plugin/pluginhost"
 )
 
+// Topology defines the cluster semantics required by plugin runtime behavior.
+type Topology interface {
+	// IsEnabled reports whether the host is running in clustered mode.
+	IsEnabled() bool
+	// IsPrimary reports whether the current node is the primary node.
+	IsPrimary() bool
+	// NodeID returns the stable identifier of the current node.
+	NodeID() string
+}
+
+// singleNodeTopology provides the default topology used when clustering is disabled.
+type singleNodeTopology struct{}
+
+// IsEnabled reports false because the default topology is always single-node.
+func (singleNodeTopology) IsEnabled() bool {
+	return false
+}
+
+// IsPrimary reports true because the only node is also the primary node.
+func (singleNodeTopology) IsPrimary() bool {
+	return true
+}
+
+// NodeID returns the stable placeholder node identifier for single-node mode.
+func (singleNodeTopology) NodeID() string {
+	return "local-node"
+}
+
 type (
+	// SourceManifest aliases the framework plugin manifest model discovered
+	// from registered source plugins.
+	SourceManifest = catalog.Manifest
+
 	// DynamicUploadInput defines input for uploading a runtime WASM package.
 	DynamicUploadInput = runtime.DynamicUploadInput
 
@@ -48,6 +84,15 @@ type (
 
 	// RuntimeUpgradeManifestSnapshot aliases the review-friendly manifest snapshot model.
 	RuntimeUpgradeManifestSnapshot = catalog.ManifestSnapshot
+
+	// RuntimeUpgradeSQLSummary summarizes manifest SQL assets visible to preview.
+	RuntimeUpgradeSQLSummary = runtimeupgrade.SQLSummary
+
+	// RuntimeUpgradeHostServicesDiff summarizes service-level hostServices drift.
+	RuntimeUpgradeHostServicesDiff = runtimeupgrade.HostServicesDiff
+
+	// RuntimeUpgradeHostServiceChange summarizes one service-level hostServices change.
+	RuntimeUpgradeHostServiceChange = runtimeupgrade.HostServiceChange
 
 	// RuntimeUpgradeState aliases the plugin runtime-upgrade state enum.
 	RuntimeUpgradeState = runtime.RuntimeUpgradeState
@@ -112,6 +157,30 @@ type (
 	// ManagedCronJob describes one plugin-owned scheduled-job definition that
 	// the host can project into the unified scheduled-job management table.
 	ManagedCronJob = integration.ManagedCronJob
+
+	// DependencyFrameworkCheck exposes framework compatibility for management clients.
+	DependencyFrameworkCheck = plugindep.FrameworkProjection
+
+	// DependencyPluginCheck exposes one plugin dependency edge.
+	DependencyPluginCheck = plugindep.PluginProjection
+
+	// DependencyBlocker exposes one hard dependency failure.
+	DependencyBlocker = plugindep.BlockerProjection
+
+	// DependencyReverseDependent exposes one installed downstream hard dependency.
+	DependencyReverseDependent = plugindep.ReverseDependentProjection
+
+	// DependencyCheckResult is the management-facing dependency status snapshot.
+	DependencyCheckResult = plugindep.CheckProjection
+
+	// PluginItem is the display-ready projection of one plugin entry.
+	PluginItem = management.PluginItem
+
+	// ListOutput defines output for plugin list query.
+	ListOutput = management.ListOutput
+
+	// ListInput defines input for plugin list query.
+	ListInput = management.ListInput
 )
 
 const (
@@ -130,13 +199,6 @@ const (
 	// RuntimeUpgradeAbnormalReasonVersionCompareFailed means at least one version string is not semver-compatible.
 	RuntimeUpgradeAbnormalReasonVersionCompareFailed = runtime.RuntimeUpgradeAbnormalReasonVersionCompareFailed
 )
-
-// PluginItem is the display-ready projection of one plugin entry.
-type PluginItem struct {
-	runtime.PluginItem
-	// DependencyCheck carries server-side dependency status for management UIs.
-	DependencyCheck *DependencyCheckResult
-}
 
 // RuntimeUpgradePreview describes the side-effect-free plan shown before a
 // runtime plugin upgrade is confirmed.
@@ -161,58 +223,6 @@ type RuntimeUpgradePreview struct {
 	HostServicesDiff RuntimeUpgradeHostServicesDiff
 	// RiskHints lists stable operator-facing risk hint keys.
 	RiskHints []string
-}
-
-// RuntimeUpgradeSQLSummary summarizes manifest SQL assets visible to preview.
-type RuntimeUpgradeSQLSummary struct {
-	// InstallSQLCount is the number of target install/upgrade SQL assets.
-	InstallSQLCount int
-	// UninstallSQLCount is the number of target uninstall SQL assets.
-	UninstallSQLCount int
-	// MockSQLCount is the number of target mock SQL assets excluded from upgrade.
-	MockSQLCount int
-	// RuntimeSQLAssetCount is the dynamic artifact SQL section count when present.
-	RuntimeSQLAssetCount int
-}
-
-// RuntimeUpgradeHostServicesDiff summarizes service-level hostServices drift.
-type RuntimeUpgradeHostServicesDiff struct {
-	// Added contains services declared by the target manifest but not by the effective snapshot.
-	Added []*RuntimeUpgradeHostServiceChange
-	// Removed contains services no longer requested by the target manifest.
-	Removed []*RuntimeUpgradeHostServiceChange
-	// Changed contains services whose methods or governed targets changed.
-	Changed []*RuntimeUpgradeHostServiceChange
-	// AuthorizationRequired reports whether the target manifest needs host confirmation.
-	AuthorizationRequired bool
-	// AuthorizationChanged reports whether requested host service scope changed.
-	AuthorizationChanged bool
-}
-
-// RuntimeUpgradeHostServiceChange summarizes one service-level hostServices change.
-type RuntimeUpgradeHostServiceChange struct {
-	// Service is the logical host service identifier.
-	Service string
-	// FromMethods is the effective method set before upgrade.
-	FromMethods []string
-	// ToMethods is the target method set after upgrade.
-	ToMethods []string
-	// FromResourceCount is the number of governed targets before upgrade.
-	FromResourceCount int
-	// ToResourceCount is the number of governed targets after upgrade.
-	ToResourceCount int
-	// FromTables is the effective data-table set before upgrade.
-	FromTables []string
-	// ToTables is the target data-table set after upgrade.
-	ToTables []string
-	// FromPaths is the effective storage path set before upgrade.
-	FromPaths []string
-	// ToPaths is the target storage path set after upgrade.
-	ToPaths []string
-	// FromKeys is the effective public host config key set before upgrade.
-	FromKeys []string
-	// ToKeys is the target public host config key set after upgrade.
-	ToKeys []string
 }
 
 // RuntimeUpgradeResult describes one completed explicit runtime upgrade action.
@@ -246,56 +256,20 @@ type UninstallOptions struct {
 // This package-level function is retained for callers that cannot import the runtime sub-package.
 var GetDynamicRouteMetadata = runtime.GetDynamicRouteMetadata
 
-// ListOutput defines output for plugin list query.
-type ListOutput struct {
-	// List contains the filtered plugin list.
-	List []*PluginItem
-	// Total is the number of returned plugins.
-	Total int
-}
-
-// ListInput defines input for plugin list query.
-type ListInput struct {
-	// ID filters by plugin identifier.
-	ID string
-	// Name filters by plugin display name.
-	Name string
-	// Type filters by normalized plugin type.
-	Type string
-	// Status filters by enabled flag.
-	Status *int
-	// Installed filters by installed flag.
-	Installed *int
-}
-
-// AuthLoginSucceededInput defines input for auth hook events.
-type AuthLoginSucceededInput struct {
-	// UserName is the authenticated username.
-	UserName string
-	// Status is the login status code.
-	Status int
-	// Ip is the client IP address.
-	Ip string
-	// ClientType identifies the login client type.
-	ClientType string
-	// Browser is the detected browser description.
-	Browser string
-	// Os is the detected operating-system description.
-	Os string
-	// Message is the audit message delivered to plugins.
-	Message string
-	// Reason is the stable auth lifecycle reason code delivered to plugins.
-	Reason string
+// ScanRegisteredSourceManifests returns registered source-plugin manifests
+// without synchronizing registry, release, menu, permission, or cache state.
+func ScanRegisteredSourceManifests() ([]*SourceManifest, error) {
+	return catalog.New(nil).ScanEmbeddedSourceManifests()
 }
 
 // AuthHookService defines auth-related plugin hook operations.
 type AuthHookService interface {
 	// HandleAuthLoginSucceeded dispatches a login-succeeded hook to all enabled plugins.
-	HandleAuthLoginSucceeded(ctx context.Context, input AuthLoginSucceededInput) error
+	HandleAuthLoginSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error
 	// HandleAuthLoginFailed dispatches a login-failed hook to all enabled plugins.
-	HandleAuthLoginFailed(ctx context.Context, input AuthLoginSucceededInput) error
+	HandleAuthLoginFailed(ctx context.Context, input pluginhost.AuthHookPayloadInput) error
 	// HandleAuthLogoutSucceeded dispatches a logout-succeeded hook to all enabled plugins.
-	HandleAuthLogoutSucceeded(ctx context.Context, input AuthLoginSucceededInput) error
+	HandleAuthLogoutSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error
 }
 
 // DataCommentService defines host data-table comment lookup operations.
@@ -583,11 +557,11 @@ type serviceImpl struct {
 	// translation bundles after plugin lifecycle mutations.
 	i18nSvc pluginI18nService
 	// runtimeCacheRevisionCtrl coordinates process-local runtime caches in cluster deployments.
-	runtimeCacheRevisionCtrl *pluginruntimecache.Controller
+	runtimeCacheRevisionCtrl *runtimecache.Controller
 	// runtimeUpgradeLockStore coordinates explicit runtime upgrades across cluster nodes.
 	runtimeUpgradeLockStore coordination.LockStore
 	// managementListCache stores the complete plugin-management read model.
-	managementListCache pluginManagementListCache
+	managementListCache *management.ListCache
 	// tenantStartup validates tenant-governance startup state through a narrow tenant capability.
 	tenantStartup pluginTenantStartupCapability
 	// tenantProvisioning provisions tenant-scoped auto-enabled plugins after startup policy convergence.
@@ -603,6 +577,8 @@ type serviceImpl struct {
 // New creates and returns a new plugin Service.
 // Pass a non-nil topology for cluster-aware deployments; pass nil to use the
 // default single-node topology implementation.
+// reconcilerLockSvc must be created by the startup composition root and shared
+// with host-lock services that use the same deployment-selected locker backend.
 func New(
 	topology Topology,
 	configProvider configsvc.Service,
@@ -610,6 +586,7 @@ func New(
 	cacheCoordSvc cachecoord.Service,
 	i18nSvc i18nsvc.Service,
 	sessionStore session.Store,
+	reconcilerLockSvc locker.Service,
 	runtimeUpgradeLockStore coordination.LockStore,
 ) (Service, error) {
 	if configProvider == nil {
@@ -627,6 +604,9 @@ func New(
 	if sessionStore == nil {
 		return nil, gerror.New("plugin service requires a non-nil session store")
 	}
+	if reconcilerLockSvc == nil {
+		return nil, gerror.New("plugin service requires a non-nil reconciler lock service")
+	}
 
 	var topo Topology = singleNodeTopology{}
 	if topology != nil {
@@ -638,7 +618,7 @@ func New(
 		lifecycleSvc   = lifecycle.New(catalogSvc)
 		frontendSvc    = frontend.New(catalogSvc)
 		openapiSvc     = openapi.New(catalogSvc)
-		runtimeSvc     = runtime.New(catalogSvc, lifecycleSvc, frontendSvc, openapiSvc, i18nSvc)
+		runtimeSvc     = runtime.New(catalogSvc, lifecycleSvc, frontendSvc, openapiSvc, i18nSvc, reconcilerLockSvc)
 		integrationSvc = integration.New(catalogSvc)
 	)
 
@@ -680,6 +660,7 @@ func New(
 		openapiSvc:              openapiSvc,
 		i18nSvc:                 i18nSvc,
 		runtimeUpgradeLockStore: runtimeUpgradeLockStore,
+		managementListCache:     management.NewListCache(),
 		runtimeUpgradeLocks:     make(map[string]*sync.Mutex),
 	}
 	service.runtimeCacheRevisionCtrl = newRuntimeCacheRevisionController(

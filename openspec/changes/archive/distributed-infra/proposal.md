@@ -60,8 +60,6 @@ LinaPro targets multi-node deployment (Kubernetes, multi-instance load balancing
 **i18n**: cache coordination diagnostic fields added to `/system/info` response with `zh-CN` and `zh-TW` apidoc i18n JSON synchronized; runtime error codes added for cache coordination and kvcache failures with `en-US`, `zh-CN`, and `zh-TW` error.json synchronized; no frontend page, button, menu, or runtime UI copy added by the distributed infrastructure changes. The pluginbridge refactor does not add, modify, or delete any i18n resources.
 
 
----
-
 ## Redis Cluster Coordination
 
 ## Why

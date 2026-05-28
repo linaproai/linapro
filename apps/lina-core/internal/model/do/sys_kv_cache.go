@@ -20,7 +20,7 @@ type SysKvCache struct {
 	Namespace  any        // Cache namespace mapped to the host-cache resource identifier
 	CacheKey   any        // Cache key
 	ValueKind  any        // Value type: 1=string, 2=integer
-	ValueBytes any        // Cache byte value used by get/set
+	ValueBytes []byte     // Cache byte value used by get/set
 	ValueInt   any        // Cache integer value used by incr
 	ExpireAt   *time.Time // Expiration time, NULL means never expires
 	CreatedAt  *time.Time // Creation time

@@ -240,3 +240,28 @@
 ## 27. Feedback and Bugfixes
 
 - [x] All feedback items from individual change archives have been addressed and merged into the corresponding functional areas above.
+
+## 28. Package Boundary and Capability Governance
+
+- [x] Consolidate plugin public packages under `pkg/plugin` and remove legacy top-level plugin public package entry points.
+- [x] Separate `pluginhost`, `pluginbridge` and `capability` responsibilities so source-plugin contribution, dynamic transport and host capability consumption do not overlap.
+- [x] Split ordinary capability consumption from provider-facing and host-internal interfaces, ensuring public capability directories do not expose host DB models, HTTP request objects, write paths or data-scope injection internals.
+- [x] Move dynamic guest clients and data DSLs to the capability namespace while keeping host-side executors, audit context and runtime governance internal.
+- [x] Add governance validation for old package names, old facade methods, ambiguous host service aliases and plugin-to-plugin internal imports.
+
+## 29. Plugin Config, Manifest Resources, and Route Boundaries
+
+- [x] Make plugin config reads plugin-scoped by default and expose host config only through an explicit public whitelist.
+- [x] Add read-only current-plugin manifest resource access with path traversal, absolute path, URL and cross-plugin protections.
+- [x] Preserve plugin config and manifest resources in dynamic plugin artifact snapshots.
+- [x] Move the default management workspace entry to `/admin`, constrain SPA fallback to that path, and free non-reserved paths for source-plugin public routes.
+- [x] Unify source and dynamic plugin API paths under `/x/{plugin-id}/api/v1/...` and public plugin assets under `/x-assets/{plugin-id}/{version}/...`.
+
+## 30. Runtime Safety and Management List Performance
+
+- [x] Add default timeout and memory controls across dynamic plugin WASM execution entries.
+- [x] Put lifecycle SQL and migration ledger writes in one transaction for install, upgrade, uninstall and rollback paths.
+- [x] Preserve rollback failure diagnostics and plugin failure state when rollback SQL, menu recovery or resource recovery fails.
+- [x] Protect cluster-mode dynamic plugin lifecycle side effects with per-plugin distributed locking and recover stale `reconciling` states.
+- [x] Add reconciler panic recovery so one failed tick does not stop background convergence.
+- [x] Reuse request-local scan snapshots and add a warmed plugin management list read model with explicit invalidation on lifecycle and artifact changes.

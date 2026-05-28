@@ -54,6 +54,7 @@ func TestTouchDynamicRouteSessionKeepsExistingSessionWhenTimestampDoesNotChange(
 		TenantId:       tenantID,
 		UserId:         1,
 		Username:       "admin",
+		ClientType:     "web",
 		DeptName:       "系统管理",
 		Ip:             "127.0.0.1",
 		Browser:        "go-test",
@@ -189,22 +190,27 @@ func TestParseDynamicRouteTokenRejectsRefreshToken(t *testing.T) {
 	service := &serviceImpl{jwtConfig: routeTestJwtConfig{secret: "route-token-secret"}, sessionStore: session.NewDBStore()}
 
 	testCases := []struct {
-		name      string
-		tokenType string
+		name       string
+		tokenType  string
+		clientType string
 	}{
-		{name: "missing token type", tokenType: ""},
-		{name: "refresh token", tokenType: authtoken.KindRefresh},
+		{name: "missing token type", tokenType: "", clientType: "web"},
+		{name: "refresh token", tokenType: authtoken.KindRefresh, clientType: "web"},
+		{name: "missing client type", tokenType: authtoken.KindAccess, clientType: ""},
+		{name: "plugin client type", tokenType: authtoken.KindAccess, clientType: "plugin"},
+		{name: "service client type", tokenType: authtoken.KindAccess, clientType: "service"},
 	}
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			token := jwt.NewWithClaims(jwt.SigningMethodHS256, dynamicRouteClaims{
-				TokenId:   "refresh-token-id",
-				TokenType: testCase.tokenType,
-				TenantId:  11,
-				UserId:    1,
-				Username:  "admin",
-				Status:    statusNormal,
+				TokenId:    "refresh-token-id",
+				TokenType:  testCase.tokenType,
+				ClientType: testCase.clientType,
+				TenantId:   11,
+				UserId:     1,
+				Username:   "admin",
+				Status:     statusNormal,
 			})
 			tokenString, err := token.SignedString([]byte("route-token-secret"))
 			if err != nil {
@@ -368,6 +374,7 @@ func insertDynamicRouteAccessTestSession(
 		TenantId:       tenantID,
 		UserId:         userID,
 		Username:       "dynamic-route-access",
+		ClientType:     "web",
 		DeptName:       "runtime-test",
 		Ip:             "127.0.0.1",
 		Browser:        "go-test",
@@ -391,12 +398,13 @@ func signDynamicRouteAccessTestToken(
 	t.Helper()
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, dynamicRouteClaims{
-		TokenId:   tokenID,
-		TokenType: authtoken.KindAccess,
-		TenantId:  tenantID,
-		UserId:    userID,
-		Username:  "dynamic-route-access",
-		Status:    statusNormal,
+		TokenId:    tokenID,
+		TokenType:  authtoken.KindAccess,
+		ClientType: "web",
+		TenantId:   tenantID,
+		UserId:     userID,
+		Username:   "dynamic-route-access",
+		Status:     statusNormal,
 	})
 	tokenString, err := token.SignedString([]byte(config.GetJwtSecret(context.Background())))
 	if err != nil {
@@ -420,6 +428,7 @@ func signDynamicRouteImpersonationTestToken(
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, dynamicRouteClaims{
 		TokenId:         tokenID,
 		TokenType:       authtoken.KindAccess,
+		ClientType:      "web",
 		TenantId:        tenantID,
 		UserId:          userID,
 		Username:        "dynamic-route-access",

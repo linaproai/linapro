@@ -7,11 +7,13 @@ package runtime
 
 import (
 	"context"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/util/guid"
 
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
@@ -23,6 +25,16 @@ import (
 // checking the shared reconciler revision. Full scans run only when the revision
 // changes or when the low-frequency safety sweep interval elapses.
 const runtimeReconcilerRevisionPollInterval = 2 * time.Second
+
+const (
+	// runtimeReconcilerStaleReconcilingAfter is the conservative window after
+	// which a leftover transient host state is treated as abandoned.
+	runtimeReconcilerStaleReconcilingAfter = 5 * time.Minute
+	// runtimeReconcilerDistributedLockLease bounds one per-plugin primary-side
+	// reconcile lease in clustered deployments.
+	runtimeReconcilerDistributedLockLease  = 30 * time.Minute
+	runtimeReconcilerDistributedLockReason = "plugin-runtime-reconcile"
+)
 
 // Background reconciler singletons ensure only one reconcile loop and one
 // convergence pass run at a time inside the current process.
@@ -48,15 +60,26 @@ func (s *serviceImpl) runReconciler(ctx context.Context) {
 	ticker := time.NewTicker(runtimeReconcilerRevisionPollInterval)
 	defer ticker.Stop()
 
-	s.runReconcilerTick(ctx)
+	s.runReconcilerTickSafely(ctx)
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.runReconcilerTick(ctx)
+			s.runReconcilerTickSafely(ctx)
 		}
 	}
+}
+
+// runReconcilerTickSafely isolates panics from one background tick so the loop
+// can continue and stale transient rows can be recovered by later ticks.
+func (s *serviceImpl) runReconcilerTickSafely(ctx context.Context) {
+	defer func() {
+		if panicValue := recover(); panicValue != nil {
+			logger.Errorf(ctx, "dynamic plugin reconciler tick panic recovered panic=%v stack=%s", panicValue, string(debug.Stack()))
+		}
+	}()
+	s.runReconcilerTick(ctx)
 }
 
 // runReconcilerTick executes one revision-gated background reconcile check.
@@ -118,7 +141,7 @@ func (s *serviceImpl) RefreshInstalledRuntimePluginReleases(ctx context.Context)
 
 	var firstErr error
 	for _, registry := range registries {
-		if err = s.refreshInstalledRuntimePluginRelease(ctx, registry); err != nil && firstErr == nil {
+		if err = s.reconcilePrimaryPluginWithLock(ctx, registry, s.refreshInstalledRuntimePluginRelease); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
@@ -219,7 +242,7 @@ func (s *serviceImpl) reconcileRuntimeRegistry(
 	if isPrimary {
 		// Only the primary node mutates shared lifecycle state such as release
 		// activation, migrations, and desired/current host states.
-		if err = s.reconcilePluginIfNeeded(ctx, registry); err != nil {
+		if err = s.reconcilePrimaryPluginWithLock(ctx, registry, s.reconcilePluginIfNeeded); err != nil {
 			logger.Warningf(ctx, "reconcile dynamic plugin failed plugin=%s err=%v", pluginID, err)
 			return err
 		}
@@ -245,6 +268,15 @@ func (s *serviceImpl) reconcileRuntimeRegistry(
 // registry row: install, upgrade, same-version refresh, state toggle, or uninstall.
 func (s *serviceImpl) reconcilePluginIfNeeded(ctx context.Context, registry *entity.SysPlugin) error {
 	if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
+		return nil
+	}
+
+	var err error
+	registry, err = s.recoverStaleReconciling(ctx, registry)
+	if err != nil {
+		return err
+	}
+	if registry == nil {
 		return nil
 	}
 
@@ -285,6 +317,148 @@ func (s *serviceImpl) reconcilePluginIfNeeded(ctx context.Context, registry *ent
 		return s.applyStateToggle(ctx, registry, desiredManifest, desiredState)
 	}
 	return nil
+}
+
+// reconcilePrimaryPluginWithLock serializes primary-only lifecycle side
+// effects. Single-node mode relies on the process mutex; clustered mode also
+// acquires a per-plugin distributed lock before running the supplied callback.
+func (s *serviceImpl) reconcilePrimaryPluginWithLock(
+	ctx context.Context,
+	registry *entity.SysPlugin,
+	fn func(context.Context, *entity.SysPlugin) error,
+) error {
+	if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
+		return nil
+	}
+	if fn == nil {
+		return nil
+	}
+	locked, unlock, err := s.lockRuntimeReconcilePlugin(ctx, registry.PluginId)
+	if err != nil {
+		return err
+	}
+	if !locked {
+		logger.Debugf(ctx, "skip dynamic plugin reconcile because per-plugin lock is held plugin=%s", registry.PluginId)
+		return nil
+	}
+	defer unlock()
+	return fn(ctx, registry)
+}
+
+// reconcilePrimaryPluginWithRequiredLock serializes explicit caller-initiated
+// lifecycle side effects. Unlike the background reconciler, callers must see a
+// lock-conflict error instead of observing a false success.
+func (s *serviceImpl) reconcilePrimaryPluginWithRequiredLock(
+	ctx context.Context,
+	registry *entity.SysPlugin,
+	fn func(context.Context, *entity.SysPlugin) error,
+) error {
+	if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
+		return nil
+	}
+	if fn == nil {
+		return nil
+	}
+	locked, unlock, err := s.lockRuntimeReconcilePlugin(ctx, registry.PluginId)
+	if err != nil {
+		return err
+	}
+	if !locked {
+		return gerror.Newf("dynamic plugin reconciler lock is held: %s", registry.PluginId)
+	}
+	defer unlock()
+	return fn(ctx, registry)
+}
+
+// recoverStaleReconciling restores abandoned transient host states before a
+// primary-side reconcile pass. Fresh reconciling rows are skipped so another
+// node or request can finish the in-flight lifecycle side effects.
+func (s *serviceImpl) recoverStaleReconciling(ctx context.Context, registry *entity.SysPlugin) (*entity.SysPlugin, error) {
+	if registry == nil || strings.TrimSpace(registry.CurrentState) != catalog.HostStateReconciling.String() {
+		return registry, nil
+	}
+	if registry.UpdatedAt != nil && runtimeReconcilerUpdatedAtAge(registry.UpdatedAt, time.Now()) < runtimeReconcilerStaleReconcilingAfter {
+		logger.Debugf(ctx, "skip fresh dynamic plugin reconciling state plugin=%s updatedAt=%s", registry.PluginId, registry.UpdatedAt.Format(time.RFC3339))
+		return nil, nil
+	}
+	restored, err := s.restoreStableState(ctx, registry)
+	if err != nil {
+		return nil, err
+	}
+	if restored != nil {
+		logger.Warningf(ctx, "restored stale dynamic plugin reconciling state plugin=%s", restored.PluginId)
+		if err = s.notifyReconcilerChanged(ctx, runtimeChangeReasonStaleReconcilingRestored); err != nil {
+			return nil, err
+		}
+	}
+	return restored, nil
+}
+
+// runtimeReconcilerUpdatedAtAge computes an age for database TIMESTAMP values.
+// PostgreSQL TIMESTAMP columns can be decoded with a UTC location while carrying
+// the database wall-clock time; when that makes the instant appear in the future,
+// reinterpret the wall-clock fields in the local runtime location.
+func runtimeReconcilerUpdatedAtAge(updatedAt *time.Time, now time.Time) time.Duration {
+	if updatedAt == nil {
+		return runtimeReconcilerStaleReconcilingAfter
+	}
+	age := now.Sub(*updatedAt)
+	if age >= 0 {
+		return age
+	}
+	localWallClock := time.Date(
+		updatedAt.Year(),
+		updatedAt.Month(),
+		updatedAt.Day(),
+		updatedAt.Hour(),
+		updatedAt.Minute(),
+		updatedAt.Second(),
+		updatedAt.Nanosecond(),
+		now.Location(),
+	)
+	return now.Sub(localWallClock)
+}
+
+// lockRuntimeReconcilePlugin acquires the per-plugin lifecycle side-effect lock.
+// Single-node mode is already protected by the process-wide reconcile mutex, so
+// only clustered deployments need the distributed locker backend.
+func (s *serviceImpl) lockRuntimeReconcilePlugin(ctx context.Context, pluginID string) (bool, func(), error) {
+	if !s.isClusterModeEnabled() {
+		return true, func() {}, nil
+	}
+	lockSvc := s.reconcilerLockSvc
+	if lockSvc == nil {
+		return false, nil, gerror.New("dynamic plugin reconciler lock service is not configured")
+	}
+
+	lockName := runtimeReconcilerLockName(pluginID)
+	holder := s.runtimeReconcilerLockHolder()
+	instance, ok, err := lockSvc.Lock(ctx, lockName, holder, runtimeReconcilerDistributedLockReason, runtimeReconcilerDistributedLockLease)
+	if err != nil {
+		return false, nil, err
+	}
+	if !ok || instance == nil {
+		return false, func() {}, nil
+	}
+	return true, func() {
+		if unlockErr := instance.Unlock(ctx); unlockErr != nil {
+			logger.Warningf(ctx, "release dynamic plugin reconciler lock failed plugin=%s lock=%s err=%v", pluginID, lockName, unlockErr)
+		}
+	}, nil
+}
+
+// runtimeReconcilerLockName builds the stable per-plugin reconciler lock name.
+func runtimeReconcilerLockName(pluginID string) string {
+	return "plugin-runtime-reconcile:" + strings.TrimSpace(pluginID)
+}
+
+// runtimeReconcilerLockHolder returns a unique lock holder for this attempt.
+func (s *serviceImpl) runtimeReconcilerLockHolder() string {
+	nodeID := strings.TrimSpace(s.currentNodeID())
+	if nodeID == "" {
+		nodeID = "local-node"
+	}
+	return nodeID + ":" + guid.S()
 }
 
 // reconcileCurrentNodeProjection verifies the current node can serve the active

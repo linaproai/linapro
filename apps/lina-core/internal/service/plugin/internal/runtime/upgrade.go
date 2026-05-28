@@ -9,6 +9,7 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
+	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
 )
 
@@ -55,5 +56,7 @@ func (s *serviceImpl) UpgradeDynamicPluginRequest(ctx context.Context, pluginID 
 	}
 
 	desiredState := catalog.BuildStableHostState(registry)
-	return s.applyUpgrade(ctx, registry, desiredManifest, desiredState)
+	return s.reconcilePrimaryPluginWithRequiredLock(ctx, registry, func(lockCtx context.Context, lockedRegistry *entity.SysPlugin) error {
+		return s.applyUpgrade(lockCtx, lockedRegistry, desiredManifest, desiredState)
+	})
 }

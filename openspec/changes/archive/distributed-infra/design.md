@@ -267,8 +267,6 @@ The online user list API now supports pagination parameters instead of returning
 Role assign user page aligns with `ruoyi-plus-vben5` reference implementation: adds bulk revoke button in toolbar, adds email column, adjusts column widths for complete timestamp display.
 
 
----
-
 ## Redis Cluster Coordination Design
 
 ## Context

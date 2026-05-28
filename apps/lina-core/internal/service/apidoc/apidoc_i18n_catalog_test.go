@@ -20,7 +20,6 @@ import (
 	"testing/fstest"
 	"unicode"
 
-	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/plugin/pluginhost"
 	"lina-core/pkg/testsupport"
 )
@@ -1038,19 +1037,27 @@ func openAPII18NManagedPluginRoots(t *testing.T, repoRoot string) []string {
 func openAPII18NManagedPluginIDSet(t *testing.T) map[string]struct{} {
 	t.Helper()
 
-	manifests, err := pluginsvc.ScanRegisteredSourceManifests()
-	if err != nil {
-		t.Fatalf("scan source plugin manifests for apidoc i18n governance failed: %v", err)
-	}
-	managedPluginIDs := make(map[string]struct{}, len(manifests))
-	for _, manifest := range manifests {
-		if manifest == nil || strings.TrimSpace(manifest.ID) == "" {
+	sourcePlugins := pluginhost.ListSourcePlugins()
+	managedPluginIDs := make(map[string]struct{}, len(sourcePlugins))
+	for _, sourcePlugin := range sourcePlugins {
+		if sourcePlugin == nil || sourcePlugin.GetEmbeddedFiles() == nil {
 			continue
 		}
-		if !manifest.I18NEnabled() {
+		manifest, err := readOpenAPISourcePluginManifest(sourcePlugin.GetEmbeddedFiles())
+		if err != nil {
+			t.Fatalf("read source plugin manifest for apidoc i18n governance plugin=%s: %v", sourcePlugin.ID(), err)
+		}
+		if manifest == nil || !manifest.i18nEnabled() {
 			continue
 		}
-		managedPluginIDs[manifest.ID] = struct{}{}
+		pluginID := strings.TrimSpace(manifest.ID)
+		if pluginID == "" {
+			pluginID = strings.TrimSpace(sourcePlugin.ID())
+		}
+		if pluginID == "" {
+			continue
+		}
+		managedPluginIDs[pluginID] = struct{}{}
 	}
 	return managedPluginIDs
 }

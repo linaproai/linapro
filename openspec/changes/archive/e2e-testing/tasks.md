@@ -67,3 +67,10 @@
 - [x] 通过关键支撑测试，包括前端 route refresh 单测、前端单测全集、相关 Go 精确门禁与 `internal/cmd` 启动绑定测试，确保与回归稳定性直接相关的宿主/插件修正可编译且可执行。
 - [x] 记录并复核优化收益：host-only 基线从约 36 分钟收敛到 `244 passed, 1 skipped (14.6m)`；plugin-full 基线从约 2 小时 / 112 分钟 Playwright 收敛到 `516 passed, 8 skipped (42.8m)`，且 `plugins` 分片最长耗时显著下降。
 - [x] 逐轮完成 `lina-review`，复核目录结构、环境职责、fixture、分片、baseline、反馈修复和验证证据，确认本组变更达到归档条件。
+
+## 10. 环境初始化与完整套件稳定化
+
+- [x] 将默认 Playwright 安装切换为 Chromium headless shell，并保留 Linux 系统依赖安装。
+- [x] 更新 E2E 文档，说明 headed/debug 场景需要完整浏览器。
+- [x] 修复完整测试套件中与当前核心契约不一致的测试替身、fixture 和依赖装配。
+- [x] 验证 Go 单元测试、前端测试和 Playwright E2E 可重复执行，不通过放宽断言或固定等待掩盖问题。

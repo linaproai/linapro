@@ -275,6 +275,7 @@ async function createAdminApiContext(): Promise<APIRequestContext> {
     data: {
       username: config.adminUser,
       password: config.adminPass,
+      clientType: "web",
     },
   });
   assertOk(loginResponse, "管理员登录 API 失败");

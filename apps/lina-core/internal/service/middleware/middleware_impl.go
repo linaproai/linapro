@@ -99,7 +99,7 @@ func (s *serviceImpl) Auth(r *ghttp.Request) {
 	}
 
 	// Inject user info into business context.
-	s.bizCtxSvc.SetUser(r.Context(), claims.TokenId, claims.UserId, claims.Username, claims.Status)
+	s.bizCtxSvc.SetUser(r.Context(), claims.TokenId, claims.UserId, claims.Username, claims.Status, claims.ClientType.String())
 	s.bizCtxSvc.SetTenant(r.Context(), claims.TenantId)
 	s.bizCtxSvc.SetImpersonation(
 		r.Context(),

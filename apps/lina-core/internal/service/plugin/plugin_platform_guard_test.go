@@ -13,6 +13,7 @@ import (
 
 	"lina-core/internal/model"
 	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/plugin/internal/governance"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/tenantcap"
 )
@@ -20,7 +21,7 @@ import (
 // TestEnsurePlatformGovernanceAllowsSingleTenantMode verifies disabled tenancy
 // keeps plugin governance available in platform-only deployments.
 func TestEnsurePlatformGovernanceAllowsSingleTenantMode(t *testing.T) {
-	err := ensurePlatformGovernanceContext(context.Background(), pluginTenantGuardHolder{tenantSvc: pluginTenantGuard{enabled: false}})
+	err := governance.EnsurePlatformContext(context.Background(), pluginTenantGuard{enabled: false})
 	if err != nil {
 		t.Fatalf("expected disabled tenancy to allow plugin governance, got %v", err)
 	}
@@ -29,7 +30,7 @@ func TestEnsurePlatformGovernanceAllowsSingleTenantMode(t *testing.T) {
 // TestEnsurePlatformGovernanceRejectsTenantContext verifies active
 // multi-tenancy requires platform all-data context for lifecycle writes.
 func TestEnsurePlatformGovernanceRejectsTenantContext(t *testing.T) {
-	err := ensurePlatformGovernanceContext(context.Background(), pluginTenantGuardHolder{tenantSvc: pluginTenantGuard{enabled: true, platformBypass: false}})
+	err := governance.EnsurePlatformContext(context.Background(), pluginTenantGuard{enabled: true, platformBypass: false})
 	if !bizerr.Is(err, tenantcap.CodePlatformPermissionRequired) {
 		t.Fatalf("expected platform permission error, got %v", err)
 	}
@@ -38,7 +39,7 @@ func TestEnsurePlatformGovernanceRejectsTenantContext(t *testing.T) {
 // TestEnsurePlatformGovernanceAllowsPlatformBypass verifies platform all-data
 // context can perform plugin governance actions.
 func TestEnsurePlatformGovernanceAllowsPlatformBypass(t *testing.T) {
-	err := ensurePlatformGovernanceContext(context.Background(), pluginTenantGuardHolder{tenantSvc: pluginTenantGuard{enabled: true, platformBypass: true}})
+	err := governance.EnsurePlatformContext(context.Background(), pluginTenantGuard{enabled: true, platformBypass: true})
 	if err != nil {
 		t.Fatalf("expected platform bypass to allow plugin governance, got %v", err)
 	}
@@ -109,16 +110,6 @@ func TestPluginGovernanceMethodsRejectTenantContext(t *testing.T) {
 			}
 		})
 	}
-}
-
-// pluginTenantGuardHolder adapts a narrow tenant fake to the plugin guard helper.
-type pluginTenantGuardHolder struct {
-	tenantSvc pluginTenantGuard
-}
-
-// platformGovernanceTenantCapability returns the narrow test tenant capability.
-func (h pluginTenantGuardHolder) platformGovernanceTenantCapability() platformGovernanceTenantCapability {
-	return h.tenantSvc
 }
 
 // pluginTenantGuard is the narrow tenantcap fake needed by plugin platform-guard tests.

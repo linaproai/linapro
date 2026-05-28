@@ -1,29 +1,166 @@
-## ADDED Requirements
+# 模块解耦规范
 
-### Requirement: multi-tenant 插件禁用时的联动隐藏
-当 `multi-tenant` 插件未启用时,前端 SHALL 完全隐藏:
-- 登录页的租户挑选器与租户输入框。
-- 工作台头部的"当前租户"标识与切换器。
-- 用户管理页面的"租户"列与筛选项。
-- 所有 `/platform/*` 与 `/tenant/*` 入口菜单。
+## Purpose
+定义业务模块按需启用或禁用时的后端降级和数据完整性要求，确保模块间的松耦合。
 
-#### Scenario: 未启用时干净 UI
-- **WHEN** multi-tenant 插件未启用
-- **THEN** 工作台无任何"租户"相关 UI
-- **AND** 等价于单租户系统的完整体验
+## Requirements
+### Requirement:模块启用状态可配置
+系统 SHALL 为业务模块提供清晰的启用/禁用配置入口，使模块能力可按需开启或关闭。
 
-### Requirement: 启用时联动显示
-启用后 SHALL 联动显示对应 UI;状态切换通过 `IsEnabled(ctx, 'multi-tenant')` 判断,与现有"模块禁用"机制一致。
+#### Scenario:关闭业务模块
+- **当** 管理员或配置将业务模块标记为禁用时
+- **则** 后端识别该模块的禁用状态
+- **且** 依赖该模块的聚合逻辑、扩展字段或关联查询能够进入降级流程
 
-#### Scenario: 启用后立即生效
-- **WHEN** 平台管理员安装并启用 multi-tenant
-- **THEN** 平台管理员页面立即出现租户管理菜单
-- **AND** 登录页流程切换为两阶段
+### Requirement:模块禁用时服务层平滑降级
+后端服务层 SHALL 在依赖模块禁用时返回零值、空集合或跳过关联逻辑，而非抛出运行时错误。
 
-### Requirement: 跨租户 UI 元素的双向隐藏
-租户管理员视图 SHALL 隐藏所有平台级 UI(平台管理员菜单、impersonation 入口、跨租户报表);平台管理员视图 SHALL 同样隐藏租户级私有 UI(避免误操作)。
+#### Scenario:聚合接口访问禁用模块数据
+- **当** 一个接口聚合了来自可选业务模块的数据且该模块当前已禁用时
+- **则** 接口体仍正常返回
+- **且** 禁用模块对应的数据字段返回零值、空集合或被安全忽略
 
-#### Scenario: 双向隔离
-- **WHEN** 租户管理员登录工作台
-- **THEN** 不可见 `/platform/*` 入口与 impersonation 按钮
-- **AND** 平台管理员登录(tenant_id=0)时不可见仅租户内的菜单
+### Requirement:模块禁用不破坏历史数据
+模块禁用 SHALL 仅影响功能暴露和运行时依赖，不得直接删除或破坏已有业务数据。
+
+#### Scenario:禁用后重新启用模块
+- **当** 业务模块先被禁用后重新启用时
+- **则** 模块历史数据仍可重新读取和使用
+- **且** 恢复基本能力不需要额外的数据修复步骤
+
+### Requirement:插件禁用时宿主平滑降级
+系统 SHALL 将插件视为可独立启用或禁用的扩展模块，并在插件不可用时保证宿主平滑降级。
+
+#### Scenario:插件禁用后访问宿主聚合页面
+- **当** 宿主页面或接口依赖已禁用插件的可选扩展时
+- **则** 宿主体内容仍正常返回
+- **且** 与插件关联的 UI、字段或扩展逻辑被安全隐藏或忽略
+
+### Requirement:插件缺失或升级期间宿主稳定性不受影响
+系统 SHALL 在插件产物缺失、加载失败或热升级期间保护宿主核心功能。
+
+#### Scenario:动态插件加载失败
+- **当** 动态插件因产物缺失、校验失败或初始化异常无法加载时
+- **则** 宿主将该插件标记为不可用
+- **且** 不属于该插件的页面、接口和模块继续正常运行
+- **且** 系统为管理员提供可诊断的失败信息
+
+### Requirement:非核心管理模块作为源码插件交付
+
+系统 SHALL 将组织管理、内容管理和系统监控中的非核心模块作为源码插件交付，开发者可按需安装和启用。
+
+#### Scenario:规划组织和内容模块
+- **当** 宿主交付默认后台能力时
+- **则** 部门管理和岗位管理由 `linapro-org-core` 源码插件提供
+- **且** 通知公告由 `linapro-content-notice` 源码插件提供
+
+#### Scenario:规划系统监控模块
+- **当** 宿主交付系统监控相关能力时
+- **则** 在线用户、服务监控、操作日志和登录日志由独立的源码插件提供
+- **且** 它们的插件 ID 分别为 `linapro-monitor-online`、`linapro-monitor-server`、`linapro-monitor-operlog`、`linapro-monitor-loginlog`
+
+### Requirement:监控插件必须支持独立安装和启停
+
+系统 SHALL 将在线用户、服务监控、操作日志和登录日志视为四个独立的源码插件，而非单一的监控插件套件。
+
+#### Scenario:仅安装部分监控插件
+- **当** 管理员仅安装或启用部分监控插件时
+- **则** 宿主仅显示这些已安装并启用的插件对应的监控菜单
+- **且** 未安装的监控插件不会阻塞其他监控插件运行
+
+#### Scenario:禁用单个监控插件
+- **当** 管理员禁用 `linapro-monitor-online`、`linapro-monitor-server`、`linapro-monitor-operlog` 或 `linapro-monitor-loginlog` 中的任何一个时
+- **则** 宿主仅隐藏该插件对应的功能入口
+- **且** 其他监控插件和宿主核心链路继续正常运行
+
+### Requirement:插件缺失时宿主必须优雅降级
+
+系统 SHALL 确保源码插件缺失、未安装或未启用时宿主主体功能继续可用。
+
+#### Scenario:组织插件缺失时访问用户管理
+- **当** `linapro-org-core` 未安装或未启用时
+- **则** 用户管理页面和接口仍正常工作
+- **且** 与部门和岗位相关的字段、筛选项、树选择器和表单项被安全隐藏或忽略
+
+#### Scenario:日志插件缺失时宿主继续处理请求
+- **当** `linapro-monitor-operlog` 或 `linapro-monitor-loginlog` 未安装或未启用时
+- **则** 宿主核心请求链路仍正常执行
+- **且** 对应日志持久化相关的能力进入受控降级流程
+- **且** 不会因缺少日志插件导致认证、鉴权或普通业务请求失败
+
+### Requirement:在线用户插件不得承载认证主链路
+
+系统 SHALL 确保 `linapro-monitor-online` 仅承载在线用户管理能力，不会接管宿主认证主链路。
+
+#### Scenario:在线用户插件缺失
+- **当** `linapro-monitor-online` 未安装或未启用时
+- **则** 宿主仍正常执行登录、退出、受保护接口认证和会话超时清理
+- **且** 宿主继续使用自己的会话事实源维护 `last_active_time` 和超时判定
+
+#### Scenario:在线用户插件执行强制下线
+- **当** `linapro-monitor-online` 已安装并执行强制下线管理时
+- **则** 插件使用宿主提供的会话管理能力使指定会话失效
+- **且** 插件不持有 JWT 验证、会话触碰刷新或超时清理源头
+
+### Requirement:日志插件通过宿主事件接收非核心日志并入库
+
+系统 SHALL 将登录日志和操作日志的日志记录职责解耦为"宿主发出事件 + 插件按需订阅持久化"。
+
+#### Scenario:登录日志插件已启用
+- **当** 用户成功登录、登录失败或成功退出时
+- **则** 宿主先发出统一登录事件
+- **且** `linapro-monitor-loginlog` 订阅事件后完成入库和后续查询管理
+
+#### Scenario:操作日志插件已启用
+- **当** 用户触发写操作或标记了 `operLog` 的审计查询时
+- **则** 宿主先发出统一审计事件
+- **且** `linapro-monitor-operlog` 订阅事件后完成入库和后续查询管理
+
+#### Scenario:日志插件未启用
+- **当** `linapro-monitor-loginlog` 或 `linapro-monitor-operlog` 未安装、未启用或初始化失败时
+- **则** 宿主继续处理原始认证或请求流程
+- **且** 宿主不因缺少特定日志持久化实现而返回错误
+
+### Requirement:源码插件后端数据库访问在插件内闭环
+
+系统 SHALL 要求官方源码插件在各自的 `backend/` 目录中维护独立的 GoFrame ORM 代码生成配置，并通过插件本地的 `dao/do/entity` 完成数据库访问，避免重新依赖宿主 `dao/model` 包或长期保留散落的 `g.DB().Model(...)` 直连实现。
+
+#### Scenario:插件后端维护独立的代码生成配置
+- **当** 团队创建或维护官方源码插件后端时
+- **则** 插件 `backend/` 目录包含 `hack/config.yaml`
+- **且** 开发者可直接在插件的 `backend/` 目录执行 `make dao`
+- **且** 生成结果落入插件本地的 `internal/dao`、`internal/model/do` 和 `internal/model/entity`
+
+#### Scenario:插件服务访问插件自有表或共享读表
+- **当** `linapro-org-core`、`linapro-content-notice`、`linapro-monitor-loginlog`、`linapro-monitor-operlog`、`linapro-monitor-server` 或 `linapro-demo-source` 的 `backend/internal/service/` 访问数据库时
+- **则** 插件服务使用插件本地生成的 `dao/do/entity`
+- **且** 对 `sys_user`、`sys_dict_data` 等共享读表的访问也通过插件本地生成的产物完成
+- **且** 插件后端不直接依赖宿主 `dao/model` 包
+- **且** 宿主不再并行保留这些插件业务表的 ORM 产物
+
+#### Scenario:当前版本不直接访问数据库的源码插件
+- **当** 官方源码插件当前版本仅通过宿主稳定能力完成业务处理时
+- **则** 插件仍保留本地 `backend/hack/config.yaml`
+- **且** 未来新增数据库访问时继续使用插件本地的 `make dao` 和 `dao/do/entity` 结构
+
+### Requirement:源码插件有独立的存储生命周期和命名空间
+
+系统 SHALL 为官方源码插件建立清晰的数据表命名和加载边界，使插件自有存储和宿主核心存储在同一数据库中可稳定区分。
+
+#### Scenario:插件安装业务表
+- **当** 官方源码插件创建自己的业务表时
+- **则** 通过插件 `manifest/sql/` 下的安装 SQL 创建
+- **且** 宿主 `manifest/sql/` 不创建这些表
+- **且** 宿主 `manifest/sql/mock-data/` 不写入这些表
+
+#### Scenario:规划插件自有业务表的命名
+- **当** 团队为官方源码插件设计新的业务物理表时
+- **则** 表名使用 `plugin_<plugin_id_snake_case>` 范围命名
+- **且** 单表插件优先使用 `plugin_<plugin_id_snake_case>` 作为完整表名
+- **且** 多表插件在此基础上按需添加业务后缀（如 `plugin_linapro_org_core_dept`）
+- **且** 不再使用宿主核心表前缀 `sys_`
+
+#### Scenario:卸载插件并清理数据
+- **当** 管理员卸载插件并选择清理其业务数据时
+- **则** 插件 `manifest/sql/uninstall/` 负责删除插件范围的业务表
+- **且** 宿主不额外维护插件业务表的清理 SQL

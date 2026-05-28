@@ -23,7 +23,7 @@
 
 ### Requirement:插件列表查询无副作用
 
-系统 SHALL 将插件列表查询视为无副作用的读操作。列表查询可读取发现的源码清单、动态插件注册表数据、发布快照和治理投影，但不得创建、更新或删除插件治理表数据。插件扫描和治理同步必须仅由显式同步操作或宿主启动同步操作触发。宿主启动同步也 SHALL 是差异驱动的：当插件 registry、release snapshot、菜单、权限和资源引用投影均无差异时，不得开启事务、不得写入数据库、不得执行写后回读。
+系统 SHALL 将插件列表查询视为无副作用的读操作。列表查询可读取发现的源码清单、动态插件注册表数据、发布快照和治理投影，但不得创建、更新或删除插件治理表数据。插件扫描和治理同步必须仅由显式同步操作或宿主启动同步操作触发。宿主启动同步也 SHALL 是差异驱动的：当插件 registry、release snapshot、菜单、权限和资源引用投影均无差异时，不得开启事务、不得写入数据库、不得执行写后回读。系统 SHALL 允许插件列表查询复用已预热的完整插件管理读模型，但该读模型必须在插件清单、动态产物、插件治理状态、发布快照、资源引用、菜单权限投影、插件声明或租户供应策略发生变化后显式失效。
 
 #### Scenario:从管理页面查询插件列表
 - **当** 管理员打开插件管理并调用 `GET /api/v1/plugins` 时
@@ -39,6 +39,18 @@
 - **当** 宿主启动同步发现插件清单与现有治理投影完全一致
 - **则** 系统不得为该插件写入 `sys_plugin`、`sys_plugin_release`、`sys_plugin_resource_ref`、`sys_menu` 或 `sys_role_menu`
 - **且** 系统不得开启空事务或为了刷新启动快照重复回读同一治理行
+
+#### Scenario:列表读模型命中时保持完整治理字段
+- **当** 插件管理列表读模型已预热且仍有效
+- **则** `GET /api/v1/plugins` 可以直接复用该读模型返回结果
+- **且** 返回字段必须保持与同步构建路径一致，包含依赖检查、宿主服务授权信息、声明路由、mock 数据标识、运行时升级状态和租户供应策略
+- **且** 系统不得为了提升首屏速度删除弹窗依赖的治理字段
+
+#### Scenario:插件治理变化后列表读模型失效
+- **当** 插件同步、动态包上传、安装、卸载、启用、禁用、源码升级、动态升级或租户供应策略更新成功后
+- **则** 系统必须显式失效插件管理列表读模型
+- **且** 单机部署中后续列表查询必须重建本地读模型
+- **且** 集群部署中其他实例必须通过共享修订号或等价机制观察到失效并刷新本地读模型
 
 ### Requirement:插件宿主服务元数据查找必须避免模式探测错误
 
@@ -144,35 +156,6 @@
 - **THEN** 系统使用与源码插件相同的依赖校验规则
 - **AND** 动态插件发布快照保留依赖声明
 
-### Requirement: 显式插件安装生命周期必须执行依赖编排
-
-显式插件安装请求 SHALL 在目标插件安装副作用前调用依赖解析和安装编排。系统必须先执行框架版本和插件依赖检查，再按自动依赖安装计划安装依赖插件，最后安装目标插件。
-
-#### Scenario: 显式安装先处理依赖
-- **WHEN** 管理员请求安装插件 `x`
-- **AND** `x` 存在自动安装硬依赖 `a`
-- **THEN** 系统在执行 `x` 的安装 SQL 或动态运行时协调前先安装 `a`
-- **AND** `a` 安装成功后才继续安装 `x`
-
-#### Scenario: 依赖检查失败时安装无副作用
-- **WHEN** 插件 `x` 的依赖检查失败
-- **THEN** 系统不得执行 `x` 的安装 SQL
-- **AND** 系统不得同步 `x` 的菜单、权限、资源引用或安装状态
-
-### Requirement: 插件安装接口必须返回依赖计划和结果
-
-插件管理安装接口 SHALL 支持调用端获取依赖检查结果、自动安装计划和自动安装结果。安装失败时，错误响应必须以结构化业务错误表达依赖阻断原因，避免只依赖自由文本。
-
-#### Scenario: 安装成功返回自动依赖结果
-- **WHEN** 安装目标插件时自动安装了依赖插件
-- **THEN** 安装响应包含目标插件 ID
-- **AND** 安装响应或后续详情查询包含自动安装成功的依赖插件列表
-
-#### Scenario: 依赖阻断返回结构化错误
-- **WHEN** 安装目标插件因为依赖版本不满足失败
-- **THEN** HTTP 响应包含稳定业务错误码
-- **AND** 响应包含目标插件 ID、依赖插件 ID、当前版本和要求版本范围
-
 ### Requirement: 插件卸载生命周期必须检查反向依赖
 
 插件卸载请求 SHALL 在执行卸载副作用前检查已安装插件的硬依赖。如果下游已安装插件依赖目标插件，卸载生命周期必须阻断。
@@ -212,3 +195,145 @@
 - **AND** 调用插件同步、上传、安装、卸载、启用、禁用或升级接口
 - **THEN** 系统 MUST 拒绝该操作
 - **AND** 不修改平台插件治理数据
+
+### Requirement: 插件生命周期 SQL 与迁移账本必须事务一致
+
+系统 SHALL 在 PostgreSQL 默认运行环境下，将插件 install、upgrade、uninstall 和 rollback 生命周期 SQL 文件执行与对应 `sys_plugin_migration` 账本记录放入同一事务边界。任一 SQL 文件转译、语句执行或账本写入失败时，系统 MUST 回滚本次生命周期 SQL 和账本写入。
+
+#### Scenario: 生命周期 SQL 中途失败时回滚账本
+- **WHEN** 插件 P 安装期间执行多个 `manifest/sql/*.sql` 文件
+- **AND** 其中一个 SQL 语句执行失败
+- **THEN** 系统回滚本次安装生命周期中已执行的 SQL 语句
+- **AND** 系统不得写入表示该失败 SQL 文件已成功完成的 `sys_plugin_migration` 记录
+
+#### Scenario: 迁移账本写入失败时回滚 SQL
+- **WHEN** 插件 P 升级期间 SQL 文件已经执行成功
+- **AND** 对应 `sys_plugin_migration` 账本写入失败
+- **THEN** 系统回滚本次升级生命周期 SQL
+- **AND** 插件 P 不得进入升级成功状态
+
+#### Scenario: rollback SQL 使用相同事务语义
+- **WHEN** 插件 P 的 rollback SQL 被执行
+- **THEN** rollback SQL 文件执行和 rollback 方向迁移账本写入在同一事务中完成
+- **AND** 任一步失败都会回滚本次 rollback SQL 与账本写入
+
+### Requirement: 插件生命周期 rollback 失败必须进入权威诊断
+
+系统 SHALL 将插件生命周期失败后的 rollback 失败纳入权威失败诊断。rollback SQL、菜单恢复、前端资源恢复、权限治理恢复或发布状态恢复失败时，系统 MUST 保留原始失败原因和 rollback 失败原因；不得只写 warning 日志后返回原始错误。
+
+#### Scenario: rollback SQL 失败被返回给调用方
+- **WHEN** 动态插件 P 安装失败后执行 rollback SQL
+- **AND** rollback SQL 执行失败
+- **THEN** 系统返回或记录同时包含安装原始失败和 rollback SQL 失败的诊断
+- **AND** 插件 P 的运行时状态标记为失败或需要人工处理
+
+#### Scenario: 治理资源恢复失败被记录
+- **WHEN** 动态插件 P 升级失败后系统尝试恢复菜单、前端资源或权限治理资源
+- **AND** 任一恢复动作失败
+- **THEN** 系统将恢复失败写入插件发布、节点状态或 registry 的失败诊断
+- **AND** 后续管理或协调流程可以读取该失败原因
+
+### Requirement:插件 manifest 资源必须支持插件自作用域只读读取
+
+系统 SHALL 为源码插件和动态插件提供`HostServices.Manifest()`能力，使插件代码能够只读读取当前插件`manifest/`目录下的声明型资源。读取范围 MUST 绑定当前插件 ID，不得允许插件读取宿主 manifest、其他插件 manifest、任意文件系统路径或 URL。`metadata.yaml` SHALL 在插件实际提供该文件时作为可通过该能力读取的插件声明资源，但系统不得要求所有插件都提交`metadata.yaml`。
+
+#### Scenario:源码插件读取自身 metadata
+
+- **WHEN** 源码插件`plugin-a`调用`HostServices.Manifest().Get(ctx, "metadata.yaml")`
+- **AND** `apps/lina-plugins/plugin-a/manifest/metadata.yaml`存在
+- **THEN** 系统返回该文件内容
+- **AND** 读取作用域限定为`plugin-a`的`manifest/`目录
+
+#### Scenario:插件未提供 metadata
+
+- **WHEN** 插件未维护`manifest/metadata.yaml`
+- **THEN** 插件无需为了目录规范提交空白或占位 metadata 文件
+- **AND** 插件清单不得申请读取不存在的`metadata.yaml`
+
+#### Scenario:动态插件读取 artifact 中的 metadata
+
+- **WHEN** 动态插件`plugin-a`调用`manifest.get`读取`metadata.yaml`
+- **AND** 当前 active release artifact 携带`manifest/metadata.yaml`
+- **THEN** 系统从该 active release 的资源快照返回文件内容
+- **AND** 该内容绑定当前 active release 的 checksum 或 generation
+
+#### Scenario:插件扫描 metadata 到结构体
+
+- **WHEN** 插件调用`HostServices.Manifest().Scan(ctx, "metadata.yaml", "", &metadata)`
+- **AND** `metadata.yaml`是合法 YAML 文档
+- **THEN** 系统将文件内容绑定到插件提供的结构体
+- **AND** 结构体业务语义和验证逻辑由插件内部维护
+
+### Requirement:Manifest 资源读取必须执行路径安全治理
+
+系统 SHALL 将`Manifest()`的路径参数解释为相对当前插件`manifest/`根目录的 slash 路径。系统 MUST 拒绝空根读取、绝对路径、路径穿越、Windows drive path、URL、跨插件路径和未授权路径；动态插件还 MUST 按`plugin.yaml`中的`manifest.resources.paths`与宿主确认后的授权快照校验。
+
+#### Scenario:合法相对路径被允许
+
+- **WHEN** 插件读取`metadata.yaml`或`resources/policy.yaml`
+- **AND** 该路径位于当前插件`manifest/`目录下且满足授权策略
+- **THEN** 系统允许读取该资源
+- **AND** 返回内容不包含其他插件资源
+
+#### Scenario:路径穿越被拒绝
+
+- **WHEN** 插件读取`../other-plugin/manifest/metadata.yaml`或`../../apps/lina-core/manifest/config/config.yaml`
+- **THEN** 系统拒绝该请求
+- **AND** 不访问目标文件系统路径
+
+#### Scenario:绝对路径和 URL 被拒绝
+
+- **WHEN** 插件读取`/etc/passwd`、`C:\\secret.yaml`或`http://example.com/config.yaml`
+- **THEN** 系统拒绝该请求
+- **AND** 不发起本地文件或网络读取
+
+### Requirement:插件 manifest 专用生命周期资源不得被通用 Manifest 读取混用
+
+系统 SHALL 保持插件`manifest/sql/`、`manifest/i18n/`和`manifest/config/`等专用目录的既有治理边界。`HostServices.Manifest()`用于读取声明型元数据资源，不得绕过 SQL 生命周期管线、i18n 资源管线或插件配置服务。插件运行期配置 MUST 通过`HostServices.Config()`读取。
+
+#### Scenario:配置目录通过 Config 读取
+
+- **WHEN** 插件需要读取`manifest/config/config.yaml`中的运行期配置
+- **THEN** 插件使用`HostServices.Config()`读取配置键或扫描配置段
+- **AND** 不通过`HostServices.Manifest()`把配置文件作为普通 manifest 资源读取
+
+#### Scenario:SQL 和 i18n 资源继续由专用管线处理
+
+- **WHEN** 插件安装 SQL 或 i18n 资源需要被宿主加载
+- **THEN** 系统继续使用插件生命周期、数据库和 i18n 管线扫描`manifest/sql/`和`manifest/i18n/`
+- **AND** `HostServices.Manifest()`不得成为执行 SQL 或加载翻译包的替代入口
+
+### Requirement: 显式插件安装生命周期必须执行依赖检查
+
+显式插件安装请求 SHALL 在目标插件安装副作用前调用依赖解析和依赖检查。系统必须先执行框架版本和插件依赖检查，确认所有声明的插件依赖已经安装且版本满足后，才安装目标插件。系统 MUST NOT 根据插件清单自动安装依赖插件，也 MUST NOT 通过`required`、`install`或等价字段驱动软依赖、手动安装策略或自动安装策略。
+
+#### Scenario: 显式安装先检查依赖
+
+- **WHEN** 管理员请求安装插件`x`
+- **AND** `x`在`dependencies.plugins`中声明依赖`a`
+- **THEN** 系统在执行`x`的安装 SQL 或动态运行时协调前检查`a`是否已安装且版本满足
+- **AND** `a`未安装或版本不满足时拒绝安装`x`
+- **AND** 系统不得自动安装`a`
+
+#### Scenario: 依赖检查失败时安装无副作用
+
+- **WHEN** 插件`x`的依赖检查失败
+- **THEN** 系统不得执行`x`的安装 SQL
+- **AND** 系统不得同步`x`的菜单、权限、资源引用或安装状态
+
+### Requirement: 插件安装接口必须返回依赖检查结果
+
+插件管理安装接口 SHALL 支持调用端获取依赖检查结果。安装失败时，错误响应必须以结构化业务错误表达依赖阻断原因，避免只依赖自由文本。接口响应和详情投影 MUST NOT 返回由插件清单驱动的自动安装计划、自动安装结果、软依赖提示或手动安装策略。
+
+#### Scenario: 依赖阻断返回结构化错误
+
+- **WHEN** 安装目标插件因为依赖缺失或依赖版本不满足失败
+- **THEN** HTTP 响应包含稳定业务错误码
+- **AND** 响应包含目标插件 ID、依赖插件 ID、当前版本和要求版本范围
+
+#### Scenario: 安装成功不返回自动依赖结果
+
+- **WHEN** 目标插件安装成功
+- **THEN** 安装响应包含目标插件 ID
+- **AND** 安装响应不得包含自动安装成功的依赖插件列表
+

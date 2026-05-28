@@ -163,6 +163,18 @@ DELETE /api/v1/role?ids=1&ids=2&ids=3
 
 Delete `apps/lina-core/pkg/auditi18n/` and `apps/lina-core/pkg/audittype/` which are empty placeholder directories implying audit capability exists. Real audit logging remains a separate future iteration.
 
+### Service Interface Method Governance
+
+Service interfaces are not only checked for comments; the method set itself is part of the contract. A service interface must not contain duplicate methods, near-synonym methods with unclear precedence, or ambiguous names that force callers to inspect implementation details before choosing an entry point. If a temporary compatibility method is unavoidable, the design and review record must explain owner, migration path, removal condition and which method is authoritative.
+
+`lina-review` checks interface method definitions for uniqueness, naming clarity, duplicated semantics and compatibility notes. The check applies to host services, plugin backend services, host service adapters and WASM host service contracts because these are the places where unclear contracts most easily become long-term extension hazards.
+
+### Go Unit Test Execution Efficiency
+
+The test strategy distinguishes ordinary unit tests, integration-like unit tests and real-chain smoke tests. The main unit-test path keeps `-race` because it catches concurrency regressions in cache, session, plugin and runtime services. Runtime reduction comes from moving real bundled dynamic Wasm execution to a small smoke set, using synthetic artifacts or fake executors for ordinary plugin tests, and centralizing lightweight fixtures for plugin catalog, lifecycle and runtime paths.
+
+`linactl test.go` avoids spending full test-entry overhead on packages without `_test.go` files while keeping compile smoke where it provides coverage. PostgreSQL health checks and test reports are kept readable so future performance audits can distinguish real test slowness from environment noise.
+
 ## Risks / Trade-offs
 
 - [SQL reinitialization disrupts local development data] Mitigation: tasks use `modify SQL -> make init`; review checks for no migration-path assumptions.

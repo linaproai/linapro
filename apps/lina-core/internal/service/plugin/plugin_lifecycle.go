@@ -8,6 +8,7 @@ import (
 
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	plugindep "lina-core/internal/service/plugin/internal/dependency"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/pkg/bizerr"
@@ -15,6 +16,96 @@ import (
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
 )
+
+// withInstallMockData decorates ctx with the operator's install-mock-data
+// opt-in flag. Backed by catalog.WithInstallMockData so source-plugin and
+// dynamic-plugin install paths share the same key.
+func withInstallMockData(ctx context.Context, enable bool) context.Context {
+	return catalog.WithInstallMockData(ctx, enable)
+}
+
+// shouldInstallMockData reports whether the current request opted into mock
+// data. Backed by catalog.ShouldInstallMockData.
+func shouldInstallMockData(ctx context.Context) bool {
+	return catalog.ShouldInstallMockData(ctx)
+}
+
+// sourceLifecycleInstallOptionsContextKey isolates source-plugin lifecycle
+// metadata attached by the root install facade.
+type sourceLifecycleInstallOptionsContextKey struct{}
+
+// sourceLifecycleInstallOptions carries install metadata that is safe to expose
+// to source-plugin lifecycle callbacks.
+type sourceLifecycleInstallOptions struct {
+	startupAutoEnable bool
+}
+
+// withSourceLifecycleInstallOptions decorates ctx with source lifecycle
+// metadata for the current install request.
+func withSourceLifecycleInstallOptions(ctx context.Context, options InstallOptions) context.Context {
+	return context.WithValue(ctx, sourceLifecycleInstallOptionsContextKey{}, sourceLifecycleInstallOptions{
+		startupAutoEnable: options.startupAutoEnable,
+	})
+}
+
+// sourceLifecycleStartupAutoEnable reports whether the current source-plugin
+// install was initiated by startup plugin.autoEnable.
+func sourceLifecycleStartupAutoEnable(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	options, ok := ctx.Value(sourceLifecycleInstallOptionsContextKey{}).(sourceLifecycleInstallOptions)
+	return ok && options.startupAutoEnable
+}
+
+// syncEnabledSnapshotFromRegistry refreshes the in-memory enablement snapshot
+// for one plugin using the latest registry row after a lifecycle transition.
+func (s *serviceImpl) syncEnabledSnapshotFromRegistry(ctx context.Context, pluginID string) error {
+	return s.syncEnabledSnapshotStateFromRegistry(ctx, pluginID)
+}
+
+// syncEnabledSnapshotStateFromRegistry updates only the in-memory enabled
+// snapshot for the same registry state.
+func (s *serviceImpl) syncEnabledSnapshotStateFromRegistry(
+	ctx context.Context,
+	pluginID string,
+) error {
+	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+	if err != nil {
+		return err
+	}
+	if registry == nil || registry.Installed != catalog.InstalledYes {
+		s.integrationSvc.DeletePluginEnabledState(pluginID)
+		return nil
+	}
+	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
+	if err != nil {
+		return err
+	}
+	runtimeState, err := s.catalogSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
+	if err != nil {
+		return err
+	}
+	enabled := registry.Status == catalog.StatusEnabled &&
+		catalog.RuntimeStateAllowsBusinessEntry(runtimeState.State)
+	s.integrationSvc.SetPluginEnabledState(pluginID, enabled)
+	return nil
+}
+
+// syncEnabledSnapshotAndPublishRuntimeChange updates local enablement, publishes
+// the runtime revision, and lets capability providers observe the refreshed
+// platform enabled snapshot at use time.
+func (s *serviceImpl) syncEnabledSnapshotAndPublishRuntimeChange(
+	ctx context.Context,
+	pluginID string,
+	reason string,
+) error {
+	if err := s.syncEnabledSnapshotStateFromRegistry(ctx, pluginID); err != nil {
+		return err
+	}
+	_, err := s.markRuntimeCacheChanged(ctx, reason)
+	return err
+}
 
 // Install executes the install lifecycle and returns the dependency plan/result
 // generated before target plugin side effects. It optionally persists one
@@ -465,7 +556,7 @@ func (s *serviceImpl) updateStatus(
 		if err != nil {
 			return err
 		}
-		if hasDependencyBlockers(check.Blockers) {
+		if plugindep.HasBlockers(check.Blockers) {
 			return s.buildDependencyBlockedError(pluginID, check.Blockers)
 		}
 	}

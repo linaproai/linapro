@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/gogf/gf/v2/os/gctx"
@@ -19,8 +20,33 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/dialect"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
+
+// TestNormalizeDataTableNamesTrimsAndDeduplicates verifies metadata lookups
+// query each non-empty table name at most once.
+func TestNormalizeDataTableNamesTrimsAndDeduplicates(t *testing.T) {
+	got := normalizeDataTableNames([]string{" sys_plugin ", "", "sys_user", "sys_plugin", "  "})
+	want := []string{"sys_plugin", "sys_user"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected normalized table names %v, got %v", want, got)
+	}
+}
+
+// TestDataTableCommentsFromMetadataMapsNonBlankComments verifies dialect
+// metadata results are converted into the governance display map.
+func TestDataTableCommentsFromMetadataMapsNonBlankComments(t *testing.T) {
+	got := dataTableCommentsFromMetadata([]dialect.TableMeta{
+		{TableName: " sys_plugin ", TableComment: " Plugin registry "},
+		{TableName: "sys_user", TableComment: ""},
+		{TableName: "", TableComment: "ignored"},
+	})
+	want := map[string]string{"sys_plugin": "Plugin registry"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected metadata comments %v, got %v", want, got)
+	}
+}
 
 // TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState verifies that
 // missing runtime artifacts reconcile registry state without hiding the plugin.

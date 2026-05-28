@@ -142,8 +142,6 @@
 - [x] 20.1 FB-1: Add bugfix feedback test coverage requirement to project standards and `lina-review` skill
 
 
----
-
 ## Redis Cluster Coordination Tasks
 
 ## 1. 配置模型与启动校验

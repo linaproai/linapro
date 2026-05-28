@@ -26,6 +26,11 @@ func (s *serviceImpl) RegisterHTTPRoutes(
 	return s.integrationSvc.RegisterHTTPRoutes(ctx, server, pluginGroup, middlewares)
 }
 
+// ListSourceRouteBindings returns the source-plugin route bindings captured during registration.
+func (s *serviceImpl) ListSourceRouteBindings() []pluginhost.SourceRouteBinding {
+	return s.integrationSvc.ListSourceRouteBindings()
+}
+
 // RegisterCrons registers callback-contributed cron jobs for source plugins.
 func (s *serviceImpl) RegisterCrons(ctx context.Context) error {
 	return s.integrationSvc.RegisterCrons(ctx)

@@ -238,7 +238,7 @@ func (s fileScopeStaticBizCtx) Current(context.Context) contract.CurrentContext 
 func (s fileScopeStaticBizCtx) SetLocale(context.Context, string) {}
 
 // SetUser is unused by file data-scope tests.
-func (s fileScopeStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
+func (s fileScopeStaticBizCtx) SetUser(context.Context, string, int, string, int, string) {}
 
 // SetTenant is unused by file data-scope tests.
 func (s fileScopeStaticBizCtx) SetTenant(context.Context, int) {}

@@ -31,6 +31,7 @@ type SysOnlineSessionColumns struct {
 	Os             string // Operating system
 	LoginTime      string // Login time
 	LastActiveTime string // Last active time
+	ClientType     string // User session client type: web, mobile, desktop, cli
 }
 
 // sysOnlineSessionColumns holds the columns for the table sys_online_session.
@@ -45,6 +46,7 @@ var sysOnlineSessionColumns = SysOnlineSessionColumns{
 	Os:             "os",
 	LoginTime:      "login_time",
 	LastActiveTime: "last_active_time",
+	ClientType:     "client_type",
 }
 
 // NewSysOnlineSessionDao creates and returns a new DAO object for table data access.

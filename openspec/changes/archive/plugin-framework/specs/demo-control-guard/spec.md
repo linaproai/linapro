@@ -1,124 +1,97 @@
+# 演示控制守卫
+
+## Purpose
+
+定义官方 `linapro-ops-demo-guard` 源码插件在启用演示模式时如何启用只读演示保护，同时保留必要的会话访问并阻断插件治理写操作。
 ## Requirements
+### Requirement:演示只读模式由插件的启用状态控制系统
 
-### Requirement: Demo Read-Only Mode Controlled by linapro-ops-demo-guard Enabled State
+系统 SHALL 将 `linapro-ops-demo-guard` 的已安装并启用状态视为演示保护的运行时开关。`plugin.autoEnable` 控制启动安装和启用；启动后不得将其视为单独的运行时开关。`linapro-ops-demo-guard` 本身 SHALL 拒绝普通插件管理安装，只允许通过 `plugin.autoEnable` 启动自动启用完成安装。
 
-The system SHALL treat `linapro-ops-demo-guard`'s installed and enabled state as the runtime switch for demo protection. `plugin.autoEnable` only controls startup auto-enable; after startup it must not be treated as a separate runtime switch.
+#### Scenario:默认配置下演示保护保持禁用
+- **当** 宿主以默认交付配置启动且 `plugin.autoEnable` 不包含 `linapro-ops-demo-guard` 时
+- **则** 宿主不安装或启用 `linapro-ops-demo-guard`
+- **且** 从未启用该插件的部署默认不阻断写操作
 
-#### Scenario: Default config does not enable demo protection
-- **WHEN** the host starts with default delivery config and `plugin.autoEnable` does not contain `linapro-ops-demo-guard`
-- **THEN** the host does not install or enable `linapro-ops-demo-guard`
-- **AND** deployments that never enabled the plugin do not block write operations by default
+#### Scenario:配置自动启用激活演示保护
+- **当** 运维人员在 `plugin.autoEnable` 中配置 `linapro-ops-demo-guard`
+- **且** 宿主启动引导安装并启用该插件
+- **则** linapro-ops-demo-guard 中间件对后续请求生效
+- **且** 写请求被只读演示规则阻断
 
-#### Scenario: Manual enablement activates demo protection
-- **WHEN** an administrator installs and enables `linapro-ops-demo-guard`
-- **THEN** the demo guard middleware takes effect on subsequent requests
-- **AND** write requests are blocked by read-only demo rules
+#### Scenario:拒绝插件管理页面安装
+- **当** 管理员从插件管理页面或管理 API 对 `linapro-ops-demo-guard` 发起普通安装
+- **则** `linapro-ops-demo-guard` 的 `BeforeInstall` 生命周期回调拒绝该安装
+- **且** 宿主不得执行该插件安装 SQL、菜单同步或 installed 状态写入
 
-### Requirement: Host Must Ship linapro-ops-demo-guard Source Plugin with Source Tree
+### Requirement:宿主必须随源码树交付 linapro-ops-demo-guard 源码插件
 
-The system SHALL ship an official source plugin named `linapro-ops-demo-guard` so that deployments can enable this capability through startup configuration or plugin governance. The host must not continue exposing the old ID `demo-control` as the official demo read-only protection plugin ID.
+系统 SHALL 交付名为 `linapro-ops-demo-guard` 的官方源码插件，使部署可通过启动配置启用该能力。该插件 SHALL 继续被源码插件发现和注册表同步识别，但普通插件治理安装入口不得安装该插件。
 
-#### Scenario: Host discovers linapro-ops-demo-guard source plugin
-- **WHEN** the host scans source plugins and synchronizes registry data
-- **THEN** it discovers `linapro-ops-demo-guard`
-- **AND** operations staff can decide whether to enable it
-- **AND** the plugin list must not show a `demo-control` official plugin entry
+#### Scenario:宿主发现 linapro-ops-demo-guard 源码插件
+- **当** 宿主扫描源码插件并同步注册表数据时
+- **则** 发现 `linapro-ops-demo-guard`
+- **且** 运维人员可通过 `plugin.autoEnable` 决定是否在启动时安装并启用
+- **且** 管理页面普通安装该插件时被生命周期前置条件拒绝
 
-### Requirement: linapro-ops-demo-guard Plugin Must Block System Write Operations When Enabled
+### Requirement:linapro-ops-demo-guard 插件启用时必须阻断系统写操作
 
-When enabled, `linapro-ops-demo-guard` SHALL block system write requests by HTTP method semantics while allowing read requests.
+启用时，linapro-ops-demo-guard SHALL 按 HTTP 方法语义阻断系统写请求，同时允许读式请求。
 
-#### Scenario: No write interception when disabled
-- **WHEN** `linapro-ops-demo-guard` is not enabled
-- **THEN** `POST`, `PUT`, and `DELETE` requests are not rejected by the demo guard
+#### Scenario:禁用时无写拦截
+- **当** `linapro-ops-demo-guard` 未启用时
+- **则** `POST`、`PUT` 和 `DELETE` 请求不被 linapro-ops-demo-guard 拒绝
 
-#### Scenario: Query requests remain allowed
-- **WHEN** `linapro-ops-demo-guard` is enabled
-- **AND** the request uses `GET`, `HEAD`, or `OPTIONS`
-- **THEN** the demo guard allows the request to continue
+#### Scenario:查询式请求保持允许
+- **当** `linapro-ops-demo-guard` 已启用
+- **且** 请求使用 `GET`、`HEAD` 或 `OPTIONS` 时
+- **则** linapro-ops-demo-guard 允许请求继续
 
-#### Scenario: Write requests are rejected
-- **WHEN** `linapro-ops-demo-guard` is enabled
-- **AND** the request uses `POST`, `PUT`, or `DELETE`
-- **THEN** the demo guard rejects the request with a clear read-only demo message
-- **AND** the request does not continue into business processing
+#### Scenario:写请求被拒绝
+- **当** `linapro-ops-demo-guard` 已启用
+- **且** 请求使用 `POST`、`PUT` 或 `DELETE` 时
+- **则** linapro-ops-demo-guard 以清晰的只读演示消息拒绝请求
+- **且** 请求不继续进入业务处理
 
-### Requirement: linapro-ops-demo-guard Plugin Must Preserve Minimal Session Whitelist
+### Requirement:linapro-ops-demo-guard 插件必须保留最小会话白名单
 
-The system SHALL preserve login, token refresh, tenant selection, tenant switching, and logout behavior when `linapro-ops-demo-guard` is enabled, keeping the demo environment usable.
+系统 SHALL 在 linapro-ops-demo-guard 启用时保留登录和退出行为，使演示环境保持可用。
 
-#### Scenario: Login remains allowed
-- **WHEN** `linapro-ops-demo-guard` is enabled
-- **AND** the request is `POST /api/v1/auth/login`
-- **THEN** the demo guard allows the request to continue
+#### Scenario:登录保持允许
+- **当** `linapro-ops-demo-guard` 已启用
+- **且** 请求为 `POST /api/v1/auth/login` 时
+- **则** linapro-ops-demo-guard 允许请求继续
 
-#### Scenario: Logout remains allowed
-- **WHEN** `linapro-ops-demo-guard` is enabled
-- **AND** the request is `POST /api/v1/auth/logout`
-- **THEN** the demo guard allows the request to continue
+#### Scenario:退出保持允许
+- **当** `linapro-ops-demo-guard` 已启用
+- **且** 请求为 `POST /api/v1/auth/logout` 时
+- **则** linapro-ops-demo-guard 允许请求继续
 
-#### Scenario: Multi-tenant session switch remains allowed
-- **WHEN** `linapro-ops-demo-guard` is enabled
-- **AND** the request is `POST /api/v1/auth/select-tenant` or `POST /api/v1/auth/switch-tenant`
-- **THEN** the demo guard allows the request to continue
+### Requirement:linapro-ops-demo-guard 插件启用时必须拒绝插件治理写操作
 
-### Requirement: linapro-ops-demo-guard Plugin Must Reject Plugin Governance Write Operations When Enabled
+`linapro-ops-demo-guard` 启用时，系统 SHALL 拒绝插件治理写操作，包括插件同步、动态包上传、安装、卸载、启用和禁用。插件管理的 `GET`、`HEAD` 和 `OPTIONS` 请求作为只读操作保持允许。
 
-When `linapro-ops-demo-guard` is enabled, the system SHALL reject plugin governance write operations including plugin sync, dynamic package upload, install, uninstall, enable, and disable. Plugin management `GET`, `HEAD`, and `OPTIONS` requests remain allowed as read-only operations.
+#### Scenario:启用 linapro-ops-demo-guard 时拒绝插件安装
+- **当** `linapro-ops-demo-guard` 已启用
+- **且** 请求为 `POST /api/v1/plugins/{id}/install` 时
+- **则** linapro-ops-demo-guard 以只读演示消息拒绝请求
 
-#### Scenario: Reject plugin install when linapro-ops-demo-guard is enabled
-- **WHEN** `linapro-ops-demo-guard` is enabled
-- **AND** the request is `POST /api/v1/plugins/{id}/install`
-- **THEN** the demo guard rejects the request with a read-only demo message
+#### Scenario:拒绝插件启用和禁用请求
+- **当** `linapro-ops-demo-guard` 已启用
+- **且** 请求为 `PUT /api/v1/plugins/{id}/enable` 或 `PUT /api/v1/plugins/{id}/disable` 时
+- **则** linapro-ops-demo-guard 以只读演示消息拒绝请求
 
-#### Scenario: Reject plugin enable and disable requests
-- **WHEN** `linapro-ops-demo-guard` is enabled
-- **AND** the request is `PUT /api/v1/plugins/{id}/enable` or `PUT /api/v1/plugins/{id}/disable`
-- **THEN** the demo guard rejects the request with a read-only demo message
+#### Scenario:拒绝插件卸载
+- **当** `linapro-ops-demo-guard` 已启用
+- **且** 请求为 `DELETE /api/v1/plugins/{id}` 时
+- **则** linapro-ops-demo-guard 以只读演示消息拒绝请求
 
-#### Scenario: Reject plugin uninstall
-- **WHEN** `linapro-ops-demo-guard` is enabled
-- **AND** the request is `DELETE /api/v1/plugins/{id}`
-- **THEN** the demo guard rejects the request with a read-only demo message
+#### Scenario:拒绝插件同步和上传写操作
+- **当** `linapro-ops-demo-guard` 已启用
+- **且** 请求为 `POST /api/v1/plugins/sync` 或 `POST /api/v1/plugins/dynamic/package` 时
+- **则** linapro-ops-demo-guard 以只读演示消息拒绝请求
 
-#### Scenario: Reject plugin sync and upload write operations
-- **WHEN** `linapro-ops-demo-guard` is enabled
-- **AND** the request is `POST /api/v1/plugins/sync` or `POST /api/v1/plugins/dynamic/package`
-- **THEN** the demo guard rejects the request with a read-only demo message
-
-#### Scenario: Plugin management reads remain allowed
-- **WHEN** `linapro-ops-demo-guard` is enabled
-- **AND** the request is a plugin management query using `GET`, `HEAD`, or `OPTIONS`
-- **THEN** the demo guard allows the request to continue
-
-## REMOVED Requirements
-
-### Requirement: Demo Read-Only Mode Controlled by demo-control Enabled State
-
-**Reason**: This requirement binds to the old official plugin ID `demo-control`. This change renames the plugin to `linapro-ops-demo-guard` in a breaking manner, with no old ID compatibility.
-
-**Migration**: Use the new requirement "Demo Read-Only Mode Controlled by linapro-ops-demo-guard Enabled State".
-
-### Requirement: Host Must Ship demo-control Source Plugin with Source Tree
-
-**Reason**: The official demo read-only protection plugin ID changed from `demo-control` to `linapro-ops-demo-guard`.
-
-**Migration**: Use `apps/lina-plugins/linapro-ops-demo-guard` and manifest ID `linapro-ops-demo-guard`.
-
-### Requirement: demo-control Plugin Must Block System Write Operations When Enabled
-
-**Reason**: Guard behavior is preserved, but the old plugin ID `demo-control` is no longer a valid runtime identity.
-
-**Migration**: Use the new requirement "linapro-ops-demo-guard Plugin Must Block System Write Operations When Enabled".
-
-### Requirement: demo-control Plugin Must Preserve Minimal Session Whitelist
-
-**Reason**: Session whitelist behavior is preserved, but the old plugin ID `demo-control` is no longer a valid runtime identity.
-
-**Migration**: Use the new requirement "linapro-ops-demo-guard Plugin Must Preserve Minimal Session Whitelist".
-
-### Requirement: demo-control Plugin Must Reject Plugin Governance Write Operations When Enabled
-
-**Reason**: Plugin governance write operation rejection behavior is preserved, but the old plugin ID `demo-control` is no longer a valid runtime identity.
-
-**Migration**: Use the new requirement "linapro-ops-demo-guard Plugin Must Reject Plugin Governance Write Operations When Enabled".
+#### Scenario:插件管理读取保持允许
+- **当** `linapro-ops-demo-guard` 已启用
+- **且** 请求为使用 `GET`、`HEAD` 或 `OPTIONS` 的插件管理查询时
+- **则** linapro-ops-demo-guard 允许请求继续

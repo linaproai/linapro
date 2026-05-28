@@ -276,8 +276,6 @@ Vben login toolbar includes a layout switcher. This change keeps that capability
 4. **Future toolbar layout persistence**: Should a future iteration persist toolbar layout changes as user-specific preference? For now, host default is page-load source of truth; personalized preference governance is out of scope.
 
 
----
-
 ## Tenant Permission Boundary Hardening Design
 
 ## Context

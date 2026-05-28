@@ -189,6 +189,14 @@ jobs:
           }
           NODE
 
+      # Fail before tool execution when a completed candidate cannot be archived safely.
+      # 当已完成候选无法安全归档时，在调用 AI 工具前失败。
+      - name: Preflight Completed Archive Candidates
+        if: ${{ steps.monthly-window.outputs.should_run == 'true' && steps.detect.outputs.has_candidates == 'true' }}
+        uses: ./.github/actions/monthly-openspec-preflight-archive
+        with:
+          openspec-version: ${{ env.OPENSPEC_VERSION }}
+
       # End the router cleanly when there is nothing to archive.
       # 没有可归档内容时，让路由工作流干净结束。
       - name: Skip When No Completed Changes Exist

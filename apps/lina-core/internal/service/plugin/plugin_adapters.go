@@ -59,8 +59,8 @@ func (a *uploadSizeAdapter) GetUploadMaxSize(ctx context.Context) (int64, error)
 type userCtxAdapter struct{ svc bizctx.Service }
 
 // SetUser injects authenticated user identity into the request context.
-func (a *userCtxAdapter) SetUser(ctx context.Context, tokenID string, userID int, username string, status int) {
-	a.svc.SetUser(ctx, tokenID, userID, username, status)
+func (a *userCtxAdapter) SetUser(ctx context.Context, tokenID string, userID int, username string, status int, clientType string) {
+	a.svc.SetUser(ctx, tokenID, userID, username, status, clientType)
 }
 
 // SetTenant injects the resolved tenant into the request context.

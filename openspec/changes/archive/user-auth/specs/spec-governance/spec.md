@@ -1,27 +1,123 @@
-## ADDED Requirements
+# 规范治理规范
 
-### Requirement: 多租户敏感能力 spec 必须显式声明四类行为
-凡涉及租户敏感业务数据、缓存、审计的能力 spec(无论新建或修改),其 Requirements 中 SHALL 显式声明对 `tenant_id` 的处理方式;凡涉及平台控制面或全局配置表,也 SHALL 显式声明不使用 `tenant_id` 的理由与替代隔离边界。相关说明覆盖以下四类行为:
-1. **读路径**:列表/详情/聚合查询是否注入 `tenant_id` 过滤,是否走 platform fallback。
-2. **写路径**:创建/更新是否自动写入当前 `tenant_id`,是否需平台权限才能跨租户写。
-3. **缓存**:cache key 是否携带 `tenant_id`,失效作用域如何确定。
-4. **审计**:操作日志是否记录 `tenant_id` / `acting_user_id` / `on_behalf_of_tenant_id`。
+## Purpose
+规范 OpenSpec 主规范的结构、归档残留治理与归档前校验要求，保障规格资产可持续维护。
+## Requirements
+### Requirement: 主规范结构统一
+系统 SHALL 将 `openspec/specs/` 下的主规范统一为当前 OpenSpec schema 要求的标准结构，至少包含 `## Purpose` 和 `## Requirements` 两个核心章节。
 
-#### Scenario: spec 四类行为完整
-- **WHEN** 评审某 tenancy-aware 能力 spec
-- **THEN** 至少包含上述四类中相关项的 Requirement
-- **AND** 缺失项需在 design.md 显式说明"该能力不涉及该行为"
+#### Scenario: 校验主规范结构
+- **WHEN** 开发者对任一主规范执行 OpenSpec 校验或查看命令
+- **THEN** 该主规范使用当前 schema 可识别的章节结构
+- **AND** 不因缺少 `Purpose`、`Requirements` 等必需章节而失败
 
-### Requirement: lina-review 审查清单纳入 tenancy 检查
-`/lina-review` 在审查 spec 与代码时 SHALL 检查:
-- DAO 调用是否经 `tenantcap.Apply`。
-- 带 `tenant_id` 表的 DAO 调用是否经 `tenantcap.Apply`,平台控制面表是否通过治理 service 访问。
-- 租户敏感缓存 key 是否携带 tenant 维度,全局交付资源缓存是否保持明确 scope。
-- 带 `tenant_id` 业务表写入是否填 tenant_id。
-- 审计日志是否记录 tenant 字段。
+### Requirement: 归档残留治理
+系统 SHALL 在归档失败或中断后识别并治理半成品主规范更新，避免后续归档因为重复新增或残留文件而阻塞。系统 SHALL 允许通过受控 monthly 自动化流程执行已完成变更的归档治理，但该流程必须在创建或更新归档 PR 前执行 OpenSpec 校验并保护变更范围。
 
-任何违反项视为审查不通过。
+#### Scenario: 存在半成品主规范文件
+- **WHEN** 归档过程异常中断并遗留半成品主规范文件
+- **THEN** 系统或维护流程能够识别该残留
+- **AND** 在下一次归档前完成清理或对齐，避免产生重复 capability 写入
 
-#### Scenario: 审查阻断
-- **WHEN** 提交的 PR 中存在 `dao.SysUser.Ctx(ctx).Where(...).Scan` 未经 `tenantcap.Apply`
-- **THEN** lina-review 标记为不通过,要求修复
+#### Scenario: Monthly 自动归档治理
+- **WHEN** monthly OpenSpec 归档流程自动归档已完成变更
+- **THEN** 流程在创建或更新归档 PR 前执行 OpenSpec 校验
+- **AND** 流程拒绝将归档治理允许范围外的文件变更写入 PR
+
+### Requirement: 归档前主规范可验证
+系统 SHALL 在执行归档前确保将被更新的主规范通过当前 OpenSpec schema 的基础验证。
+
+#### Scenario: 执行变更归档
+- **WHEN** 开发者归档一个会更新主规范的变更
+- **THEN** 被影响的主规范均能通过结构和 requirement 级校验
+- **AND** 归档流程不会因为历史主规范格式不兼容而中断
+
+### Requirement:新活跃变更产物遵循用户语言
+系统 SHALL 以用户当前请求语言生成新的活跃变更产物，除非用户显式请求另一种语言。
+
+#### Scenario:中文请求上下文创建新的活跃变更
+- **当** 用户主要以简体中文请求新的活跃变更时
+- **则** 生成的提案、设计、任务和增量规范使用简体中文
+
+#### Scenario:英文请求上下文创建新的活跃变更
+- **当** 用户主要以英文请求新的活跃变更时
+- **则** 生成的提案、设计、任务和增量规范使用英文
+
+### Requirement:归档变更文档使用英文
+系统 SHALL 以英文归档变更文档和归档增量规范，无论当前对话语言是什么。
+
+#### Scenario:从中文对话执行归档
+- **当** 已完成的变更从中文对话上下文归档时
+- **则** 归档的提案、设计、任务和归档增量规范以英文编写
+- **且** 归档引入的任何同步基线规范更新也以英文编写
+
+### Requirement:活跃变更状态由归档状态决定
+系统 SHALL 将 `openspec/changes/` 下每个未归档的变更目录视为活跃变更，无论其实现任务是否已完成。
+
+#### Scenario:已完成但未归档的变更仍接收反馈
+- **当** 变更目录仍存在于 `openspec/changes/` 下且未移入 `openspec/changes/archive/`
+- **且** 该变更报告所有任务已完成或 `openspec list --json` 显示 `status: complete`
+- **则** 工作流仍将该变更视为活跃
+- **且** 新反馈必须追加到该现有变更而非创建新变更
+
+### Requirement: 外部规则文件必须被项目执行规范显式加载
+项目规范 SHALL 将 `AGENTS.md` 显式引用的 `.agents/rules/*.md` 视为对应治理领域的唯一细则来源。项目执行、反馈和审查规则 MUST 在对应领域受影响时读取这些外部规则文件，并在任务记录或审查结论中记录影响判断。该要求通过项目规范与项目自维护技能承载，不要求手动修改由 OpenSpec 工具维护的技能或 prompt 文件。
+
+#### Scenario: 项目规范保留标题并声明强制规则文件入口
+- **当** `AGENTS.md` 将某个规范领域的细则迁移到 `.agents/rules/*.md`
+- **则** `AGENTS.md` 必须保留该规范领域的标题或导航入口
+- **且** 必须说明该规范领域细则的唯一事实来源规则文件
+- **且** 必须列出命中该规范领域时必须读取并遵守规则文件的触发场景
+- **且** 必须说明未读取命中规则文件时不得实施、标记任务完成、通过审查或归档
+
+#### Scenario: 实施和反馈阶段执行通用规则加载矩阵
+- **当** 执行者实施任务或 `lina-feedback` 处理反馈时
+- **则** 必须先读取 `AGENTS.md`
+- **且** 必须按 `AGENTS.md` 的强制规则加载矩阵识别命中的规则域
+- **且** 必须在修改代码、修改文档、更新任务状态或输出审查结论前读取所有命中的 `.agents/rules/*.md`
+- **且** 禁止仅凭记忆、历史上下文、摘要或此前读取记录替代本次读取
+
+#### Scenario: 审查阶段执行通用规则加载矩阵
+- **当** `lina-review` 审查任何任务、反馈、治理或归档前变更时
+- **则** 必须先读取 `AGENTS.md`
+- **且** 必须按审查范围识别命中的所有规则域并读取对应 `.agents/rules/*.md`
+- **且** 审查报告必须说明已读取的规则文件
+- **且** 未读取命中规则文件的审查结论无效，不得据此标记任务完成、反馈完成或执行归档
+
+#### Scenario: 审查技能不重复维护领域规则细则
+- **当** `lina-review` 需要审查接口契约、后端 Go、数据库、缓存、数据权限、插件、前端、测试、开发工具、文档、架构或 `i18n` 等领域要求时
+- **则** `lina-review` 必须引用并读取 `AGENTS.md` 命中的对应 `.agents/rules/*.md`
+- **且** `lina-review` 只维护审查编排、范围收集、规则加载、报告结构和阻塞语义
+- **且** 不得在技能文件中复制维护领域规则细则
+- **且** 若发现某条审查要求只存在于 `lina-review` 而不存在于 `AGENTS.md` 或对应规则文件，必须先报告规则归属问题，不能将其作为正式项目规范执行
+
+#### Scenario: 规则文件缺失或冲突时阻断执行
+- **当** 触发场景命中但对应规则文件不存在、无法读取或存在无法调和的规则冲突时
+- **则** 执行者不得继续实施、反馈修复、审查或归档
+- **且** 必须先修复规则入口或向用户说明阻断原因
+
+#### Scenario: 插件目录规则区分通用资源、源码插件和动态插件
+- **当** 项目规范约束插件目录结构时
+- **则** 规范必须区分插件通用资源、源码插件与动态插件共享的后端开发结构、源码插件编译嵌入对接结构、动态插件运行时对接结构和动态插件发布产物资源视图
+- **且** 源码插件和动态插件共享的 `plugin.yaml`、`manifest/sql/`、`manifest/sql/uninstall/`、`manifest/sql/mock-data/`、`manifest/i18n/` 和 `frontend/pages/` 资源约定必须由同一插件规则文件承载
+- **且** 源码插件和动态插件必须共享 `backend/api/`、`backend/plugin.go`、`backend/internal/controller/` 和 `backend/internal/service/` 后端业务开发结构
+- **且** 插件需要自有数据库访问时，DAO 生成目录必须统一放在插件自己的 `backend/internal/dao/` 与 `backend/internal/model/{do,entity}/`
+- **且** 源码插件专属的 `plugin_embed.go`、registrar、provider 或 adapter 要求必须表达为编译嵌入对接结构
+- **且** 动态插件专属的 `main.go`、`go.mod`、WASM 构建入口、`pluginbridge` 路由声明、`hostServices` 授权声明和发布产物资源视图必须表达为运行时对接与交付结构，不得替代共享的 `api`、`controller`、`service` 开发结构
+
+#### Scenario: 提案和设计记录 i18n 影响
+- **当** 执行者创建新的 OpenSpec 提案、设计、任务或增量规范时
+- **则** 执行规范必须要求评估是否涉及运行时用户可见文案、前端 UI、API 文档源文本、`manifest/i18n`、插件清单、语言配置、翻译缓存、错误、字典、路由或菜单等 `i18n` 面
+- **且** 若存在影响，必须在生成相关产物前读取 `.agents/rules/i18n.md`
+- **且** 若确认无影响，必须在任务记录、设计影响分析或审查结论中记录无影响判断
+
+#### Scenario: 实施和反馈阶段执行 i18n 规则
+- **当** 执行者实施任务或 `lina-feedback` 处理涉及 `i18n` 的反馈时
+- **则** 项目规范或反馈技能必须要求先读取 `.agents/rules/i18n.md`
+- **且** 修复或实现记录必须说明资源归属、宿主与插件边界、目标语言范围和验证方式中适用的内容
+- **且** 未涉及 `i18n` 时必须明确记录无运行时行为、前端 UI、API 文档源文本、插件清单或语言包资源影响
+
+#### Scenario: 审查阶段至少检查 i18n 影响记录
+- **当** `lina-review` 审查任何功能、反馈、治理或归档前变更时
+- **则** 审查必须确认变更记录包含 `i18n` 影响判断
+- **且** 当变更涉及 `i18n` 资源或服务边界时，审查必须读取 `.agents/rules/i18n.md` 并按该规则文件执行深度审查

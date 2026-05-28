@@ -206,23 +206,32 @@
 - [x] 23.23 Convert `pluginhost` registration APIs to return `error`; source-plugin `init` top-level entry points handle errors and choose to panic
 - [x] 23.24 Run host core service unit tests, host Controller and cmd route tests, all source-plugin backend tests, static scan, OpenSpec validation, and `lina-review`
 
-## 24. Unit Tests, E2E, and Regression Verification
+## 24. Service Interface and Unit Test Governance
 
-- [x] 24.1 Create E2E test for anonymous health probe access
-- [x] 24.2 Create E2E test for user batch delete
-- [x] 24.3 Create E2E test for role batch delete
-- [x] 24.4 Create E2E test for server monitor visibility-aware polling
-- [x] 24.5 Create E2E test for upload route requires auth
-- [x] 24.6 Create E2E test for language switch no user-info reload
-- [x] 24.7 Add Go unit tests for Excel helpers, invalid hostServices input, invalid runtime config values, and panic allowlist
-- [x] 24.8 Run `go test ./...` and confirm all service-layer tests pass
-- [x] 24.9 Run `pnpm test` and confirm all E2E tests pass
+- [x] 24.1 Extend backend interface governance to require unique, semantically clear service method definitions.
+- [x] 24.2 Update review rules to check duplicate methods, near-synonym methods, ambiguous names and missing compatibility-period notes.
+- [x] 24.3 Define Go unit test execution-efficiency boundaries for ordinary unit tests, integration-like unit tests and real-chain smoke tests.
+- [x] 24.4 Move ordinary plugin runtime tests toward synthetic artifacts, fake executors and lightweight shared fixtures while keeping real Wasm execution in smoke coverage.
+- [x] 24.5 Adjust `linactl test.go` package discovery and reporting to avoid unnecessary full test runs for packages without tests while preserving compile smoke.
+- [x] 24.6 Keep `-race` in the main unit-test path and clean PostgreSQL health-check noise from CI output.
 
-## 25. Review and Archive Readiness
+## 25. Unit Tests, E2E, and Regression Verification
 
-- [x] 25.1 Run `/lina-review` for full change review covering code, SQL, E2E, and specification compliance
-- [x] 25.2 Append and complete repair tasks based on review findings; sync spec deltas if behavior changed
-- [x] 25.3 Rerun `openspec validate` and `make test`, confirming no regressions
+- [x] 25.1 Create E2E test for anonymous health probe access
+- [x] 25.2 Create E2E test for user batch delete
+- [x] 25.3 Create E2E test for role batch delete
+- [x] 25.4 Create E2E test for server monitor visibility-aware polling
+- [x] 25.5 Create E2E test for upload route requires auth
+- [x] 25.6 Create E2E test for language switch no user-info reload
+- [x] 25.7 Add Go unit tests for Excel helpers, invalid hostServices input, invalid runtime config values, and panic allowlist
+- [x] 25.8 Run `go test ./...` and confirm all service-layer tests pass
+- [x] 25.9 Run `pnpm test` and confirm all E2E tests pass
+
+## 26. Review and Archive Readiness
+
+- [x] 26.1 Run `/lina-review` for full change review covering code, SQL, E2E, and specification compliance
+- [x] 26.2 Append and complete repair tasks based on review findings; sync spec deltas if behavior changed
+- [x] 26.3 Rerun `openspec validate` and `make test`, confirming no regressions
 
 ## Feedback
 

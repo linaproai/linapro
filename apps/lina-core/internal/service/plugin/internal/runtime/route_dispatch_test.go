@@ -277,6 +277,81 @@ func TestDispatchDynamicRouteReturnsUpgradeRequiredWhenPendingUpgrade(t *testing
 	}
 }
 
+// TestDispatchDynamicRouteBlocksFailedActiveRelease verifies rollback failure
+// state uses the conservative exposure policy and does not serve a failed
+// dynamic release even if the archived route manifest is still loadable.
+func TestDispatchDynamicRouteBlocksFailedActiveRelease(t *testing.T) {
+	var (
+		services = testutil.NewServices()
+		ctx      = context.Background()
+		pluginID = "plugin-dev-dynamic-route-failed-active-release"
+		version  = "v1.0.0"
+	)
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
+		t,
+		pluginID,
+		"Failed Active Release Route Plugin",
+		version,
+		testutil.DefaultTestRuntimeFrontendAssets(),
+		nil,
+		nil,
+		[]*protocol.RouteContract{
+			{
+				Path:        "/api/v1/summary",
+				Method:      http.MethodGet,
+				Access:      protocol.AccessPublic,
+				RequestType: "SummaryReq",
+			},
+		},
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.SupportedABIVersion,
+			RuntimeKind:    protocol.RuntimeKindWasm,
+			RouteExecution: true,
+			RequestCodec:   protocol.CodecProtobuf,
+			ResponseCodec:  protocol.CodecProtobuf,
+		},
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath); err != nil {
+		t.Fatalf("expected dynamic route manifest to load, got error: %v", err)
+	}
+	if err := services.Lifecycle.Install(ctx, pluginID); err != nil {
+		t.Fatalf("expected dynamic route plugin install to succeed, got error: %v", err)
+	}
+	if err := services.Catalog.SetPluginStatus(ctx, pluginID, catalog.StatusEnabled); err != nil {
+		t.Fatalf("expected dynamic route plugin enable state to be set, got error: %v", err)
+	}
+	registry, err := services.Catalog.GetRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup to succeed, got error: %v", err)
+	}
+	if registry == nil || registry.ReleaseId <= 0 {
+		t.Fatalf("expected installed plugin to point at active release, got %#v", registry)
+	}
+	if err = services.Catalog.UpdateReleaseState(ctx, registry.ReleaseId, catalog.ReleaseStatusFailed, ""); err != nil {
+		t.Fatalf("expected release failure marker update to succeed, got error: %v", err)
+	}
+
+	request := &ghttp.Request{}
+	request.Request = httptest.NewRequest(http.MethodGet, pluginhost.PluginAPINamespacePrefix+"/"+pluginID+"/api/v1/summary", nil)
+	response, err := services.Runtime.DispatchDynamicRoute(ctx, &runtime.DynamicRouteDispatchInput{Request: request})
+	if err != nil {
+		t.Fatalf("expected failed-release dynamic route to return bridge failure response, got error: %v", err)
+	}
+	if response == nil || response.StatusCode != http.StatusConflict {
+		t.Fatalf("expected failed-release dynamic route to return 409, got %#v", response)
+	}
+	if response.Failure == nil || response.Failure.Code != runtime.CodePluginRuntimeUpgradeRequired.RuntimeCode() {
+		t.Fatalf("expected stable upgrade-required failure code, got %#v", response)
+	}
+}
+
 // TestDispatchDynamicRouteAllowsPluginOwnedPathShapes verifies the runtime only
 // forces the `/x/{pluginId}` prefix and preserves the following plugin-owned
 // path content for contract matching and bridge metadata.

@@ -23,6 +23,7 @@ compatibility: 依赖 OpenSpec CLI，要求在 LinaPro 仓库根目录执行。
 4. **不要人工放行未完成项**：本技能是自动归档流程，不对未完成变更发起“是否强制归档”的确认，也不要使用 `--no-validate` 绕过校验。
 5. **保留可追溯结果**：结束时必须列出成功归档的变更，以及未归档变更和具体原因。
 6. **尊重现有工作区**：执行前查看 `git status --short`，了解是否已有用户改动。不要还原、整理或修改与归档无关的文件。
+7. **先全量预检再归档**：在执行任何 `openspec archive` 前，必须先完成全部候选变更的完成态、任务清单和增量规范 header 匹配预检。若任一完成态候选无法安全归档，停止本轮自动归档，不得先归档其他候选后再报告失败。
 
 ---
 
@@ -37,6 +38,7 @@ compatibility: 依赖 OpenSpec CLI，要求在 LinaPro 仓库根目录执行。
    - `- [ ]`
    - `- [未完成]`（若项目中出现中文任务标记）
 5. 若 `openspec list --json` 提供 `completedTasks` 和 `totalTasks`，则二者必须相等。
+6. 变更中的所有 `MODIFIED` 和 `REMOVED` requirement header 必须能在当前 `openspec/specs/<capability>/spec.md` 中找到。缺失时说明 `OpenSpec header 不匹配：<capability>/<requirement>`，并跳过自动归档。
 
 如果 `tasks.md` 不存在，应将该变更标记为“无法判定任务完成情况”，并跳过自动归档。LinaPro 的 OpenSpec 变更应维护任务清单，缺失任务文件不适合自动处理。
 
@@ -106,7 +108,20 @@ openspec/changes/<change-name>/tasks.md
 - `artifact 未完成：proposal, design`
 - `归档失败：<错误摘要>`
 
-### 4. 执行归档
+### 4. 归档前全量预检
+
+执行任何归档命令前，必须先检查全部候选变更，并形成可归档列表与跳过列表。
+
+预检内容包括：
+
+- `openspec status --change "<change-name>" --json` 能读取且所有 artifact 完成。
+- `tasks.md` 存在且未包含未完成任务标记。
+- `openspec list --json` 的 `completedTasks` 与 `totalTasks` 一致（如 CLI 提供）。
+- `specs/**/spec.md` 中所有 `MODIFIED`/`REMOVED` requirement header 都存在于当前主规范对应 capability 的 `openspec/specs/<capability>/spec.md`。
+
+如果存在任何 `openspec list --json` 已报告完成但预检失败的活跃变更，应停止本轮自动归档，并报告所有预检失败原因。不要先归档其他可归档变更。
+
+### 5. 执行归档
 
 仅对通过完成判定的变更执行：
 
@@ -123,7 +138,7 @@ openspec archive -y "<change-name>"
 
 如果归档命令失败，记录为未归档，并保留错误摘要；不要手动 `mv` 目录来绕过 OpenSpec CLI。
 
-### 5. 输出结果报告
+### 6. 输出结果报告
 
 执行完成后，用中文输出结构化结果。必须包含：
 

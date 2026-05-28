@@ -4,13 +4,14 @@ package plugin
 
 import (
 	"context"
-	"sort"
+	"errors"
 	"strings"
 
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	plugindep "lina-core/internal/service/plugin/internal/dependency"
+	"lina-core/internal/service/plugin/internal/runtimeupgrade"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 const (
@@ -52,7 +53,7 @@ func (s *serviceImpl) PreviewRuntimeUpgrade(ctx context.Context, pluginID string
 	if err != nil {
 		return nil, err
 	}
-	if !runtimeUpgradeCanExecute(projection.State) {
+	if !runtimeupgrade.CanExecute(projection.State) {
 		return nil, bizerr.NewCode(
 			CodePluginRuntimeUpgradePreviewUnavailable,
 			bizerr.P("pluginId", normalizedPluginID),
@@ -76,7 +77,7 @@ func (s *serviceImpl) PreviewRuntimeUpgrade(ctx context.Context, pluginID string
 	if err != nil {
 		return nil, err
 	}
-	sqlSummary := buildRuntimeUpgradeSQLSummary(toSnapshot)
+	sqlSummary := runtimeupgrade.BuildSQLSummary(toSnapshot)
 
 	return &RuntimeUpgradePreview{
 		PluginID:          normalizedPluginID,
@@ -88,7 +89,11 @@ func (s *serviceImpl) PreviewRuntimeUpgrade(ctx context.Context, pluginID string
 		DependencyCheck:   dependencyCheck,
 		SQLSummary:        sqlSummary,
 		HostServicesDiff:  hostServicesDiff,
-		RiskHints:         buildRuntimeUpgradeRiskHints(sqlSummary, hostServicesDiff, dependencyCheck),
+		RiskHints: buildRuntimeUpgradeRiskHints(
+			sqlSummary,
+			hostServicesDiff,
+			plugindep.ProjectionHasBlockers(dependencyCheck),
+		),
 	}, nil
 }
 
@@ -125,9 +130,9 @@ func (s *serviceImpl) buildRuntimeUpgradeDependencyCheck(
 	if err != nil {
 		return nil, err
 	}
-	result := toDependencyCheckResult(installResult)
-	result.ReverseDependents = toDependencyReverseDependents(reverseResult.Dependents)
-	result.ReverseBlockers = toDependencyBlockers(reverseResult.Blockers)
+	result := plugindep.ToCheckProjection(installResult)
+	result.ReverseDependents = plugindep.ToReverseDependentProjections(reverseResult.Dependents)
+	result.ReverseBlockers = plugindep.ToBlockerProjections(reverseResult.Blockers)
 	return result, nil
 }
 
@@ -222,264 +227,38 @@ func manifestVersion(manifest *catalog.Manifest) string {
 	return manifest.Version
 }
 
-// buildRuntimeUpgradeSQLSummary derives a count-only SQL preview from the target snapshot.
-func buildRuntimeUpgradeSQLSummary(snapshot *catalog.ManifestSnapshot) RuntimeUpgradeSQLSummary {
-	if snapshot == nil {
-		return RuntimeUpgradeSQLSummary{}
-	}
-	return RuntimeUpgradeSQLSummary{
-		InstallSQLCount:      snapshot.InstallSQLCount,
-		UninstallSQLCount:    snapshot.UninstallSQLCount,
-		MockSQLCount:         snapshot.MockSQLCount,
-		RuntimeSQLAssetCount: snapshot.RuntimeSQLAssetCount,
-	}
-}
-
 // buildRuntimeUpgradeHostServicesDiff compares effective and target requested
 // hostServices at service level.
 func buildRuntimeUpgradeHostServicesDiff(
 	fromSnapshot *catalog.ManifestSnapshot,
 	toSnapshot *catalog.ManifestSnapshot,
 ) (RuntimeUpgradeHostServicesDiff, error) {
-	fromServices, err := normalizeRuntimeUpgradeHostServices(fromSnapshot, snapshotRequestedHostServices(fromSnapshot))
+	diff, err := runtimeupgrade.BuildHostServicesDiff(fromSnapshot, toSnapshot)
 	if err != nil {
-		return RuntimeUpgradeHostServicesDiff{}, err
-	}
-	toServices, err := normalizeRuntimeUpgradeHostServices(toSnapshot, snapshotRequestedHostServices(toSnapshot))
-	if err != nil {
-		return RuntimeUpgradeHostServicesDiff{}, err
-	}
-	diff := RuntimeUpgradeHostServicesDiff{}
-	diff.AuthorizationRequired = toSnapshot != nil && toSnapshot.HostServiceAuthRequired
-
-	serviceSet := make(map[string]struct{}, len(fromServices)+len(toServices))
-	for service := range fromServices {
-		serviceSet[service] = struct{}{}
-	}
-	for service := range toServices {
-		serviceSet[service] = struct{}{}
-	}
-	services := make([]string, 0, len(serviceSet))
-	for service := range serviceSet {
-		services = append(services, service)
-	}
-	sort.Strings(services)
-
-	for _, service := range services {
-		fromSpec := fromServices[service]
-		toSpec := toServices[service]
-		change := buildRuntimeUpgradeHostServiceChange(service, fromSpec, toSpec)
-		switch {
-		case fromSpec == nil && toSpec != nil:
-			diff.Added = append(diff.Added, change)
-		case fromSpec != nil && toSpec == nil:
-			diff.Removed = append(diff.Removed, change)
-		case runtimeUpgradeHostServiceChanged(fromSpec, toSpec):
-			diff.Changed = append(diff.Changed, change)
+		var snapshotErr *runtimeupgrade.SnapshotInvalidError
+		if errors.As(err, &snapshotErr) {
+			return RuntimeUpgradeHostServicesDiff{}, bizerr.WrapCode(
+				err,
+				CodePluginRuntimeUpgradeSnapshotInvalid,
+				bizerr.P("pluginId", snapshotErr.PluginID),
+				bizerr.P("version", snapshotErr.Version),
+			)
 		}
+		return RuntimeUpgradeHostServicesDiff{}, err
 	}
-	diff.AuthorizationChanged = len(diff.Added) > 0 || len(diff.Removed) > 0 || len(diff.Changed) > 0
 	return diff, nil
-}
-
-// snapshotRequestedHostServices returns requested hostServices from one snapshot.
-func snapshotRequestedHostServices(snapshot *catalog.ManifestSnapshot) []*protocol.HostServiceSpec {
-	if snapshot == nil {
-		return nil
-	}
-	return snapshot.RequestedHostServices
-}
-
-// normalizeRuntimeUpgradeHostServices normalizes hostServices into one map.
-func normalizeRuntimeUpgradeHostServices(
-	snapshot *catalog.ManifestSnapshot,
-	specs []*protocol.HostServiceSpec,
-) (map[string]*protocol.HostServiceSpec, error) {
-	normalized, err := protocol.NormalizeHostServiceSpecs(specs)
-	if err != nil {
-		return nil, bizerr.WrapCode(
-			err,
-			CodePluginRuntimeUpgradeSnapshotInvalid,
-			bizerr.P("pluginId", snapshotPluginID(snapshot)),
-			bizerr.P("version", snapshotVersion(snapshot)),
-		)
-	}
-	result := make(map[string]*protocol.HostServiceSpec, len(normalized))
-	for _, spec := range normalized {
-		if spec == nil || strings.TrimSpace(spec.Service) == "" {
-			continue
-		}
-		result[strings.TrimSpace(spec.Service)] = spec
-	}
-	return result, nil
-}
-
-// snapshotPluginID safely extracts the plugin ID for diagnostics.
-func snapshotPluginID(snapshot *catalog.ManifestSnapshot) string {
-	if snapshot == nil {
-		return ""
-	}
-	return snapshot.ID
-}
-
-// snapshotVersion safely extracts the plugin version for diagnostics.
-func snapshotVersion(snapshot *catalog.ManifestSnapshot) string {
-	if snapshot == nil {
-		return ""
-	}
-	return snapshot.Version
-}
-
-// buildRuntimeUpgradeHostServiceChange converts two service specs into a
-// stable summary for API projection.
-func buildRuntimeUpgradeHostServiceChange(
-	service string,
-	fromSpec *protocol.HostServiceSpec,
-	toSpec *protocol.HostServiceSpec,
-) *RuntimeUpgradeHostServiceChange {
-	return &RuntimeUpgradeHostServiceChange{
-		Service:           service,
-		FromMethods:       cloneSortedStrings(hostServiceMethods(fromSpec)),
-		ToMethods:         cloneSortedStrings(hostServiceMethods(toSpec)),
-		FromResourceCount: len(hostServiceResources(fromSpec)),
-		ToResourceCount:   len(hostServiceResources(toSpec)),
-		FromTables:        cloneSortedStrings(hostServiceTables(fromSpec)),
-		ToTables:          cloneSortedStrings(hostServiceTables(toSpec)),
-		FromPaths:         cloneSortedStrings(hostServicePaths(fromSpec)),
-		ToPaths:           cloneSortedStrings(hostServicePaths(toSpec)),
-		FromKeys:          cloneSortedStrings(hostServiceKeys(fromSpec)),
-		ToKeys:            cloneSortedStrings(hostServiceKeys(toSpec)),
-	}
-}
-
-// runtimeUpgradeHostServiceChanged reports whether two normalized specs differ
-// in methods or governed targets.
-func runtimeUpgradeHostServiceChanged(
-	fromSpec *protocol.HostServiceSpec,
-	toSpec *protocol.HostServiceSpec,
-) bool {
-	if fromSpec == nil || toSpec == nil {
-		return fromSpec != toSpec
-	}
-	if !stringSlicesEqual(hostServiceMethods(fromSpec), hostServiceMethods(toSpec)) {
-		return true
-	}
-	if !stringSlicesEqual(hostServiceTables(fromSpec), hostServiceTables(toSpec)) {
-		return true
-	}
-	if !stringSlicesEqual(hostServicePaths(fromSpec), hostServicePaths(toSpec)) {
-		return true
-	}
-	if !stringSlicesEqual(hostServiceKeys(fromSpec), hostServiceKeys(toSpec)) {
-		return true
-	}
-	return !stringSlicesEqual(hostServiceResourceRefs(fromSpec), hostServiceResourceRefs(toSpec))
-}
-
-// hostServiceMethods returns normalized methods from one spec.
-func hostServiceMethods(spec *protocol.HostServiceSpec) []string {
-	if spec == nil {
-		return nil
-	}
-	return spec.Methods
-}
-
-// hostServiceTables returns normalized data tables from one spec.
-func hostServiceTables(spec *protocol.HostServiceSpec) []string {
-	if spec == nil {
-		return nil
-	}
-	return spec.Tables
-}
-
-// hostServicePaths returns normalized storage paths from one spec.
-func hostServicePaths(spec *protocol.HostServiceSpec) []string {
-	if spec == nil {
-		return nil
-	}
-	return spec.Paths
-}
-
-// hostServiceKeys returns normalized public host config keys from one spec.
-func hostServiceKeys(spec *protocol.HostServiceSpec) []string {
-	if spec == nil {
-		return nil
-	}
-	return spec.Keys
-}
-
-// hostServiceResources returns governed resources from one spec.
-func hostServiceResources(spec *protocol.HostServiceSpec) []*protocol.HostServiceResourceSpec {
-	if spec == nil {
-		return nil
-	}
-	return spec.Resources
-}
-
-// hostServiceResourceRefs returns normalized resource refs from one spec.
-func hostServiceResourceRefs(spec *protocol.HostServiceSpec) []string {
-	resources := hostServiceResources(spec)
-	refs := make([]string, 0, len(resources))
-	for _, resource := range resources {
-		if resource == nil || strings.TrimSpace(resource.Ref) == "" {
-			continue
-		}
-		refs = append(refs, strings.TrimSpace(resource.Ref))
-	}
-	sort.Strings(refs)
-	return refs
-}
-
-// cloneSortedStrings copies and sorts a string slice before exposing it.
-func cloneSortedStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		normalized := strings.TrimSpace(value)
-		if normalized == "" {
-			continue
-		}
-		out = append(out, normalized)
-	}
-	sort.Strings(out)
-	return out
-}
-
-// stringSlicesEqual compares slices as normalized sorted sets.
-func stringSlicesEqual(left []string, right []string) bool {
-	leftValues := cloneSortedStrings(left)
-	rightValues := cloneSortedStrings(right)
-	if len(leftValues) != len(rightValues) {
-		return false
-	}
-	for index := range leftValues {
-		if leftValues[index] != rightValues[index] {
-			return false
-		}
-	}
-	return true
 }
 
 // buildRuntimeUpgradeRiskHints returns stable i18n keys for operator risk hints.
 func buildRuntimeUpgradeRiskHints(
 	sqlSummary RuntimeUpgradeSQLSummary,
 	hostServicesDiff RuntimeUpgradeHostServicesDiff,
-	dependencyCheck *DependencyCheckResult,
+	dependencyBlocked bool,
 ) []string {
-	hints := make([]string, 0, 4)
-	if sqlSummary.InstallSQLCount > 0 || sqlSummary.RuntimeSQLAssetCount > 0 {
-		hints = append(hints, RuntimeUpgradeRiskHintUpgradeSQLRequiresReview)
-	}
-	if sqlSummary.MockSQLCount > 0 {
-		hints = append(hints, RuntimeUpgradeRiskHintMockSQLExcluded)
-	}
-	if hostServicesDiff.AuthorizationChanged || hostServicesDiff.AuthorizationRequired {
-		hints = append(hints, RuntimeUpgradeRiskHintHostServiceAuthorizationChanged)
-	}
-	if dependencyCheck != nil && (len(dependencyCheck.Blockers) > 0 || len(dependencyCheck.ReverseBlockers) > 0) {
-		hints = append(hints, RuntimeUpgradeRiskHintDependencyBlockers)
-	}
-	return hints
+	return runtimeupgrade.BuildRiskHints(sqlSummary, hostServicesDiff, dependencyBlocked, runtimeupgrade.RiskHintKeys{
+		UpgradeSQLRequiresReview:        RuntimeUpgradeRiskHintUpgradeSQLRequiresReview,
+		MockSQLExcluded:                 RuntimeUpgradeRiskHintMockSQLExcluded,
+		HostServiceAuthorizationChanged: RuntimeUpgradeRiskHintHostServiceAuthorizationChanged,
+		DependencyBlockers:              RuntimeUpgradeRiskHintDependencyBlockers,
+	})
 }

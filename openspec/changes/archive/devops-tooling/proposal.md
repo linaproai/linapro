@@ -29,6 +29,11 @@ LinaPro's developer tooling and operations infrastructure lacked coherence acros
 - Add cross-platform installation scripts under `hack/scripts/install/` for new developer onboarding.
 - Register the built-in log cleanup cron task through source code startup projection.
 - Add the `lina-perf-audit` agent skill for automated backend API performance auditing.
+- Manage project-level AI Agent resources through a unified `linactl agents` command tree, replacing the older `skills.*` command surface and covering `skills`、`prompts` and `AGENTS.md` soft-link bridges.
+- Simplify `make agents` interactive display so daily usage shows human-readable agent names first, while detailed resource tables remain available in resource-specific subcommands.
+- Embed GoFrame controller and DAO code generation into `linactl`, removing the dependency on a locally installed or auto-downloaded external `gf` binary.
+- Make `linactl dev` wait briefly for ports owned by previously stopped `linactl`-managed services to be released, while still refusing to kill unknown external port owners.
+- Keep monthly OpenSpec archiving inside the configured AI coding tool runtime, run auto-archive and consolidation prompts deterministically, and fail fast with clear unarchived-change diagnostics.
 
 ## Capabilities
 
@@ -38,14 +43,17 @@ LinaPro's developer tooling and operations infrastructure lacked coherence acros
 - `database-bootstrap-commands`: Update SQL asset-source selection by execution phase and rework local SQL execution to remove `multiStatements` dependency.
 - `cron-job-management`: Project the built-in cleanup task into `sys_job` during startup rather than through delivery SQL seed data.
 - `runtime-upgrade-governance`: Keep runtime business upgrade only as a directional constraint for future work.
-- `project-setup`: Adjust development environment commands, add environment check and initialization entries, and remove the old `dev.setup` entry.
+- `project-setup`: Adjust development environment commands, add environment check and initialization entries, remove the old `dev.setup` entry, default Playwright setup to Chromium headless shell, make development service restart wait for managed port release, and keep lower-case make parameters as the recommended form.
 - `release-image-build`: Restructure release workflow to reuse shared test verification suite, add version governance, provide manual nightly entry, and add controlled release tag creation.
 - `e2e-suite-organization`: Complete E2E covers host and official plugin tests in nightly; release uses brief test scope without E2E.
-- `spec-governance`: Supplement OpenSpec archive governance with controlled monthly automation.
+- `spec-governance`: Supplement OpenSpec archive governance with controlled monthly automation, deterministic archive execution, archive consolidation, validation, and unarchived-change diagnostics.
+- `linactl-build-tool-consolidation`: `ctrl` and `dao` generation run through the embedded GoFrame CLI entrypoint pinned by repository dependencies, not a local `gf` executable.
+- `agent-skills-link-cli`: Repository-local Agent skill links are managed through the `agents.skills.*` command surface after the multi-resource migration.
 
 ### New Capabilities
 - `cross-platform-dev-commands`: Define the project's cross-platform development command entry, Windows `make.cmd` compatibility, make-style parameter compatibility, external tool invocation boundaries, testing and documentation requirements.
 - `linactl-build-tool-consolidation`: Define `linactl` as the unified carrier for image building, dynamic plugin Wasm packaging, and runtime i18n governance scanning.
+- `agents-multi-resource`: Define the `agents` command tree for `skills`、`prompts` and `AGENTS.md` bridges with shared state handling, resource-specific registries, TTY selection and cross-platform symlink semantics.
 - `framework-bootstrap-installer`: Provide cross-platform source code download, target directory deployment, safe extraction, environment health check, and post-installation guidance.
 - `lina-perf-audit-skill`: Define the public contract for LinaPro's backend API performance and read-request side-effect audit skill.
 - `monthly-openspec-archive`: Define monthly OpenSpec automatic archiving, consolidation, validation, PR write-back, AI Coding tool selection, and credential injection.
@@ -66,3 +74,4 @@ LinaPro's developer tooling and operations infrastructure lacked coherence acros
 - New `hack/scripts/install/` provides cross-platform installation scripts.
 - The built-in log cleanup cron task is registered through startup projection.
 - Adds `.agents/skills/lina-perf-audit/` with automated backend API performance auditing.
+- Agent resource bridge commands affect repository-local symlinks only and do not change runtime i18n、API、database、cache or data permission boundaries.

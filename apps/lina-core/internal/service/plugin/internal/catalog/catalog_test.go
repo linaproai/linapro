@@ -1566,6 +1566,71 @@ func TestRuntimeUpgradeStateReportsExplicitRunningMarker(t *testing.T) {
 	}
 }
 
+// TestRuntimeUpgradeStateBlocksFailedTargetRelease verifies failed releases do
+// not project as normal runtime state even when their semantic version matches
+// the current effective registry version.
+func TestRuntimeUpgradeStateBlocksFailedTargetRelease(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		svcs     = testutil.NewServices()
+		pluginID = "acme-demo-runtime-upgrade-failed-target"
+		version  = "v0.1.0"
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest := &catalog.Manifest{
+		ID:                 pluginID,
+		Name:               "Runtime Upgrade Failed Target",
+		Version:            version,
+		Type:               catalog.TypeDynamic.String(),
+		ScopeNature:        catalog.ScopeNatureTenantAware.String(),
+		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
+	}
+	registry, err := svcs.Catalog.SyncManifest(ctx, manifest)
+	if err != nil {
+		t.Fatalf("expected manifest sync to succeed, got error: %v", err)
+	}
+	if err = svcs.Catalog.SetPluginInstalled(ctx, pluginID, catalog.InstalledYes); err != nil {
+		t.Fatalf("expected installed marker update to succeed, got error: %v", err)
+	}
+	if err = svcs.Catalog.SetPluginStatus(ctx, pluginID, catalog.StatusEnabled); err != nil {
+		t.Fatalf("expected enabled marker update to succeed, got error: %v", err)
+	}
+	registry, err = svcs.Catalog.GetRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup to succeed, got error: %v", err)
+	}
+	registry, err = svcs.Catalog.SyncRegistryReleaseReference(ctx, registry, manifest)
+	if err != nil {
+		t.Fatalf("expected registry release reference sync to succeed, got error: %v", err)
+	}
+	if registry == nil || registry.ReleaseId <= 0 {
+		t.Fatalf("expected registry to point at release, got %#v", registry)
+	}
+	if err = svcs.Catalog.UpdateReleaseState(ctx, registry.ReleaseId, catalog.ReleaseStatusFailed, ""); err != nil {
+		t.Fatalf("expected failed release state update to succeed, got error: %v", err)
+	}
+
+	release, err := svcs.Catalog.GetReleaseByID(ctx, registry.ReleaseId)
+	if err != nil {
+		t.Fatalf("expected release lookup to succeed, got error: %v", err)
+	}
+	projection, err := svcs.Catalog.BuildRuntimeUpgradeState(ctx, registry, manifest)
+	if err != nil {
+		t.Fatalf("expected runtime state projection to succeed, got error: %v", err)
+	}
+	if projection.State != catalog.RuntimeUpgradeStateUpgradeFailed {
+		t.Fatalf("expected failed target release to block runtime state, got %#v", projection)
+	}
+	if projection.LastFailure == nil || projection.LastFailure.ReleaseID != release.Id {
+		t.Fatalf("expected failed release diagnostic for release %d, got %#v", release.Id, projection.LastFailure)
+	}
+}
+
 // TestNormalizePluginStatusEnums verifies raw database flags are normalized
 // into the new strongly typed plugin status enums before state derivation runs.
 func TestNormalizePluginStatusEnums(t *testing.T) {

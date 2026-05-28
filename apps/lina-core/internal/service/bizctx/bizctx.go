@@ -30,9 +30,9 @@ type Service interface {
 	Current(ctx context.Context) contract.CurrentContext
 	// SetLocale records the resolved request locale for downstream i18n lookups.
 	SetLocale(ctx context.Context, locale string)
-	// SetUser records authenticated token and user identity after token
-	// validation.
-	SetUser(ctx context.Context, tokenId string, userId int, username string, status int)
+	// SetUser records authenticated token, user identity, and session client
+	// type after token validation.
+	SetUser(ctx context.Context, tokenId string, userId int, username string, status int, clientType string)
 	// SetTenant records the resolved tenant boundary for tenant-aware services.
 	SetTenant(ctx context.Context, tenantId int)
 	// SetImpersonation records platform impersonation metadata used by tenancy

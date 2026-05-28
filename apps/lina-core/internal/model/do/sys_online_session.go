@@ -23,4 +23,5 @@ type SysOnlineSession struct {
 	Os             any        // Operating system
 	LoginTime      *time.Time // Login time
 	LastActiveTime *time.Time // Last active time
+	ClientType     any        // User session client type: web, mobile, desktop, cli
 }

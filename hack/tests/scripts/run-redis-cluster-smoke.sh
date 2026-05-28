@@ -98,7 +98,7 @@ assert_login_and_sysinfo() {
   login_response="$(
     curl -fsS \
       -H "Content-Type: application/json" \
-      -d '{"username":"admin","password":"admin123"}' \
+      -d '{"username":"admin","password":"admin123","clientType":"web"}' \
       "http://127.0.0.1:$SMOKE_PORT/api/v1/auth/login"
   )"
 

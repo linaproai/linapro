@@ -25,7 +25,7 @@ const (
 )
 
 // HandleAuthLoginSucceeded dispatches a login-succeeded hook to all enabled plugins.
-func (s *serviceImpl) HandleAuthLoginSucceeded(ctx context.Context, input AuthLoginSucceededInput) error {
+func (s *serviceImpl) HandleAuthLoginSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
 	return s.dispatchAuthHookEvent(
 		ctx,
 		pluginhost.ExtensionPointAuthLoginSucceeded,
@@ -36,7 +36,7 @@ func (s *serviceImpl) HandleAuthLoginSucceeded(ctx context.Context, input AuthLo
 }
 
 // HandleAuthLoginFailed dispatches a login-failed hook to all enabled plugins.
-func (s *serviceImpl) HandleAuthLoginFailed(ctx context.Context, input AuthLoginSucceededInput) error {
+func (s *serviceImpl) HandleAuthLoginFailed(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
 	return s.dispatchAuthHookEvent(
 		ctx,
 		pluginhost.ExtensionPointAuthLoginFailed,
@@ -47,7 +47,7 @@ func (s *serviceImpl) HandleAuthLoginFailed(ctx context.Context, input AuthLogin
 }
 
 // HandleAuthLogoutSucceeded dispatches a logout-succeeded hook to all enabled plugins.
-func (s *serviceImpl) HandleAuthLogoutSucceeded(ctx context.Context, input AuthLoginSucceededInput) error {
+func (s *serviceImpl) HandleAuthLogoutSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
 	return s.dispatchAuthHookEvent(
 		ctx,
 		pluginhost.ExtensionPointAuthLogoutSucceeded,
@@ -57,20 +57,17 @@ func (s *serviceImpl) HandleAuthLogoutSucceeded(ctx context.Context, input AuthL
 	)
 }
 
-// dispatchAuthHookEvent normalizes common auth payload defaults before
-// forwarding the event to the shared integration hook dispatcher.
+// dispatchAuthHookEvent normalizes common auth payload reason and message
+// defaults before forwarding the event to the shared integration hook dispatcher.
 func (s *serviceImpl) dispatchAuthHookEvent(
 	ctx context.Context,
 	event pluginhost.ExtensionPoint,
-	input AuthLoginSucceededInput,
+	input pluginhost.AuthHookPayloadInput,
 	defaultReason string,
 	defaultMessage string,
 ) error {
 	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
 		return err
-	}
-	if input.ClientType == "" {
-		input.ClientType = "web"
 	}
 	if input.Reason == "" {
 		input.Reason = defaultReason
@@ -84,10 +81,10 @@ func (s *serviceImpl) dispatchAuthHookEvent(
 		pluginhost.BuildAuthHookPayloadValues(pluginhost.AuthHookPayloadInput{
 			UserName:   input.UserName,
 			Status:     input.Status,
-			IP:         input.Ip,
+			IP:         input.IP,
 			ClientType: input.ClientType,
 			Browser:    input.Browser,
-			OS:         input.Os,
+			OS:         input.OS,
 			Message:    input.Message,
 			Reason:     input.Reason,
 		}),

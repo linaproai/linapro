@@ -19,19 +19,19 @@
 
 ### Requirement:动态插件运行时派生缓存必须跨节点失效
 
-动态插件安装、启用、禁用、卸载、升级或同版本刷新后，系统 SHALL 使用统一缓存协调机制使所有节点上的插件运行时派生缓存失效或刷新。
+动态插件安装、启用、禁用、卸载、升级或同版本刷新后，系统 SHALL 使用统一缓存协调机制使所有节点上的插件运行时派生缓存失效或刷新。派生缓存范围 SHALL 包含插件前端包、运行时 i18n 包、Wasm 编译缓存、插件 manifest 资源视图和动态 artifact 中的插件默认配置视图。
 
 #### Scenario:非主节点观察到插件运行时修订号变更
 
-- **当** 集群模式下主节点完成动态插件运行时状态转换并发布插件运行时缓存修订号时
-- **则** 非主节点在下一个请求路径或监听路径上观察到新修订号
-- **且** 非主节点刷新插件启用快照
-- **且** 非主节点使插件前端包、运行时 i18n 包和 Wasm 编译缓存失效
+- **WHEN** 集群模式下主节点完成动态插件运行时状态转换并发布插件运行时缓存修订号
+- **THEN** 非主节点在下一个请求路径或监听路径上观察到新修订号
+- **AND** 非主节点刷新插件启用快照
+- **AND** 非主节点使插件前端包、运行时 i18n 包、Wasm 编译缓存、manifest 资源视图和 artifact 默认配置视图失效
 
 #### Scenario:插件禁用后非主节点不再暴露能力
 
-- **当** 主节点上动态插件被禁用或卸载时
-- **则** 非主节点不得在插件运行时缓存域允许的陈旧窗口之外继续从过期本地缓存暴露该插件的菜单、前端资产或动态路由能力
+- **WHEN** 主节点上动态插件被禁用或卸载
+- **THEN** 非主节点不得在插件运行时缓存域允许的陈旧窗口之外继续从过期本地缓存暴露该插件的菜单、前端资产、manifest 资源、默认配置或动态路由能力
 
 ### Requirement:Wasm 编译缓存必须绑定到产物校验和或 generation
 
@@ -51,35 +51,39 @@
 
 ### Requirement:动态插件产物归档必须支持同版本刷新一致性
 
-系统 SHALL 确保同版本刷新后的活跃发布指向可验证的新产物内容，并且其他节点可使用共享发布状态判断本地缓存是否过期。
+系统 SHALL 确保同版本刷新后的活跃发布指向可验证的新产物内容，并且其他节点可使用共享发布状态判断本地缓存是否过期。动态插件 manifest 资源视图和 artifact 默认配置视图 MUST 绑定当前活跃发布的产物校验和或 generation，不得仅通过可变产物路径决定复用。
 
 #### Scenario:同版本刷新写入新产物
 
-- **当** 插件同版本刷新提交新产物内容时
-- **则** 系统更新活跃发布的校验和或 generation
-- **且** 发布插件运行时缓存修订号
-- **且** 其他节点可使用活跃发布的校验和或 generation 判断本地缓存是否需要重建
+- **WHEN** 插件同版本刷新提交新产物内容
+- **THEN** 系统更新活跃发布的校验和或 generation
+- **AND** 发布插件运行时缓存修订号
+- **AND** 其他节点可使用活跃发布的校验和或 generation 判断本地 manifest 资源视图、artifact 默认配置视图和 Wasm 编译缓存是否需要重建
 
 #### Scenario:旧产物清理不影响当前活跃发布
 
-- **当** 系统清理旧动态插件产物时
-- **则** 当前活跃发布引用的产物不得被删除
-- **且** 仍被本地缓存引用但不再活跃的产物可根据保留策略稍后清理
+- **WHEN** 系统清理旧动态插件产物
+- **THEN** 当前活跃发布引用的产物不得被删除
+- **AND** 仍被本地缓存引用但不再活跃的产物可根据保留策略稍后清理
 
 ### Requirement: 插件运行时变更必须发布 Redis coordination event
-系统 SHALL 在集群模式下为插件安装、启用、禁用、卸载、升级、active release 切换、动态插件 artifact 变化发布 `plugin-runtime` Redis revision 和 event。
+
+系统 SHALL 在集群模式下为插件安装、启用、禁用、卸载、升级、active release 切换、动态插件 artifact 变化发布`plugin-runtime`Redis revision 和 event。该 revision/event MUST 覆盖动态插件 manifest 资源视图和 artifact 默认配置视图的失效。
 
 #### Scenario: 动态插件启用后其他节点刷新
+
 - **WHEN** 主节点启用动态插件 P
-- **THEN** 系统发布 `plugin-runtime` Redis revision
+- **THEN** 系统发布`plugin-runtime`Redis revision
 - **AND** 其他节点收到 event 后刷新 enabled snapshot
 - **AND** 其他节点可路由到插件 P 的 active release
+- **AND** 其他节点后续读取插件 P 的 manifest 资源或 artifact 默认配置时使用 active release 的最新资源视图
 
 #### Scenario: 动态插件禁用后其他节点隐藏
+
 - **WHEN** 主节点禁用动态插件 P
-- **THEN** 系统发布 `plugin-runtime` Redis revision
-- **AND** 其他节点失效 frontend bundle、runtime i18n 和 Wasm 派生缓存
-- **AND** 后续访问插件 P 路由返回不可用或 404
+- **THEN** 系统发布`plugin-runtime`Redis revision
+- **AND** 其他节点失效 frontend bundle、runtime i18n、Wasm、manifest 资源视图和 artifact 默认配置视图派生缓存
+- **AND** 后续访问插件 P 路由或插件 P 的 host service 资源读取返回不可用或拒绝
 
 ### Requirement: 插件 runtime freshness 不可确认时必须 conservative-hide
 系统 SHALL 在无法确认 `plugin-runtime` revision freshness 且超过最大陈旧窗口时采用 conservative-hide 策略。系统不得暴露可能已禁用、卸载或权限变化的插件能力。
@@ -105,12 +109,20 @@
 - **AND** 最终运行时状态与权威 release 记录一致
 
 ### Requirement: 插件派生缓存失效必须按 scope 精细化
-系统 SHALL 在插件运行时变更时按插件 ID、sector、locale 或 global scope 精细失效 frontend bundle、runtime i18n 和 Wasm 缓存。普通路径不得无理由清空所有插件所有派生缓存。
+
+系统 SHALL 在插件运行时变更时按插件 ID、sector、locale 或 global scope 精细失效 frontend bundle、runtime i18n、Wasm 缓存、manifest 资源视图和 artifact 默认配置视图。普通路径不得无理由清空所有插件所有派生缓存。
 
 #### Scenario: 单插件 frontend bundle 失效
+
 - **WHEN** 动态插件 P 上传新 frontend bundle
 - **THEN** 系统仅失效插件 P 相关 frontend bundle cache
 - **AND** 其他插件 bundle cache 保持可用
+
+#### Scenario: 单插件 manifest 资源失效
+
+- **WHEN** 动态插件 P 上传或刷新包含新`manifest/metadata.yaml`的 artifact
+- **THEN** 系统仅失效插件 P 相关 manifest 资源视图和 artifact 默认配置视图
+- **AND** 其他插件的 manifest 资源缓存保持可用
 
 ### Requirement: 动态插件生命周期契约必须支持构建期自动发现
 
@@ -260,4 +272,128 @@
 
 - **WHEN** 请求通过 `/x/plugin-a/backend-summary` 命中动态插件路由
 - **THEN** 传递给动态插件 bridge 和宿主中间件的 public path 元数据反映实际命中的 `/x/plugin-a/backend-summary`
+
+### Requirement: 插件运行时缓存协调组件必须归属 plugin runtimecache 子组件
+
+系统 SHALL 将`plugin-runtime`缓存域的 revision controller、observed revision、change reason、scope 和 domain policy 实现归属到`apps/lina-core/internal/service/plugin/runtimecache`子组件。该子组件属于宿主插件服务边界，但 MUST 可被`plugin`根包、`plugin/internal/runtime`和`i18n`等宿主内部组件通过受控路径复用。旧`apps/lina-core/internal/service/pluginruntimecache`不得作为长期生产入口保留。
+
+#### Scenario: i18n 观察插件运行时修订号
+- **WHEN** `i18n`运行时消息包需要确认 source plugin 或 dynamic plugin 资源 freshness
+- **THEN** 它通过`plugin/runtimecache`创建或持有自身的 revision controller
+- **AND** 它不依赖`plugin/internal/runtimecache`
+- **AND** 它不通过导入`plugin`根包绕过真实缓存协调 owner
+
+#### Scenario: runtime reconciler 使用独立 scope
+- **WHEN** 动态插件 reconciler 发布或观察 wake-up revision
+- **THEN** 它继续通过`plugin/runtimecache`使用 reconciler scope 和 reconciler change reason
+- **AND** 该 scope 不得与普通插件运行时缓存失效 scope 混用
+
+#### Scenario: 旧缓存协调包被移除
+- **WHEN** runtime cache 迁移完成
+- **THEN** 生产 Go 代码不得继续 import `lina-core/internal/service/pluginruntimecache`
+- **AND** 测试和 panic allowlist 等治理文件必须同步到新路径或说明已删除
+
+### Requirement: 插件运行时缓存迁移不得改变一致性语义
+
+系统 SHALL 在迁移`plugin-runtime`缓存协调组件时保持现有一致性语义不变。迁移不得改变权威数据源、缓存域名称、change reason、scope、最大可接受陈旧时间、故障回退策略、跨实例同步机制或各调用方的本地 observed revision 独立性。
+
+#### Scenario: 多个本地缓存域独立观察同一 revision
+- **WHEN** `plugin`根 facade、`plugin/internal/runtime` reconciler 和`i18n`运行时 bundle 分别消费`plugin-runtime`revision
+- **THEN** 每个调用方维护自己的`ObservedRevision`
+- **AND** 一个调用方记录 observed revision 不得让另一个调用方跳过自身 refresh 或 invalidate
+
+#### Scenario: 集群模式继续复用统一 cachecoord
+- **WHEN** `cluster.enabled=true`且插件安装、启用、禁用、卸载、升级或 active release 切换发布运行时变更
+- **THEN** 系统继续通过宿主统一`cachecoord`后端发布`plugin-runtime`revision 和 event
+- **AND** 其他节点继续按现有路径刷新 enabled snapshot、frontend bundle、runtime i18n 和 Wasm 派生缓存
+
+#### Scenario: freshness 不可确认时保持 conservative-hide
+- **WHEN** 节点无法确认`plugin-runtime`revision freshness
+- **THEN** 动态插件能力继续按既有 conservative-hide 或调用方定义的安全降级处理
+- **AND** 迁移不得因包路径变化退化为继续暴露可能已禁用、卸载或权限变化的插件能力
+
+### Requirement: 动态插件 WASM 执行必须具备宿主兜底资源边界
+
+系统 SHALL 为动态插件 WASM bridge 执行提供宿主侧默认超时和内存上限。调用方上下文已经包含 deadline 时，系统 MUST 尊重调用方 deadline；调用方未提供 deadline 时，系统 MUST 使用 bridge 默认超时。动态插件 HTTP 路由、cron discovery、cron job 和生命周期回调等所有宿主执行入口 MUST 经过同一资源边界。
+
+#### Scenario: 无调用方 deadline 时使用默认超时
+- **WHEN** 动态插件 WASM route handler 执行时调用方 context 不包含 deadline
+- **THEN** 宿主 bridge 为本次执行设置默认超时
+- **AND** guest 无限循环或长时间不返回时本次执行被取消
+
+#### Scenario: 调用方 deadline 更严格时不放宽
+- **WHEN** 动态插件生命周期回调执行时调用方 context 已包含更短 deadline
+- **THEN** 宿主 bridge 使用调用方 deadline
+- **AND** 不用默认超时延长本次执行窗口
+
+#### Scenario: WASM 内存分配超过上限
+- **WHEN** 动态插件在 WASM 执行中请求超过宿主配置或默认内存上限的内存
+- **THEN** 宿主拒绝或终止本次 WASM 执行
+- **AND** 调用方收到资源耗尽或等价失败诊断
+
+### Requirement: 动态插件协调器必须恢复 stale reconciling 状态
+
+系统 SHALL 检测并恢复动态插件中过期的 `reconciling` 瞬态状态。仅当 `CurrentState=reconciling` 且状态更新时间超过配置或默认阈值时，系统 MAY 将其恢复为由权威安装状态、启用状态和 active release 推导出的稳定状态，并继续后续协调；阈值内的 `reconciling` 状态 MUST 保持不变。
+
+#### Scenario: 过期 reconciling 被恢复
+- **WHEN** 动态插件 P 的 `CurrentState` 为 `reconciling`
+- **AND** 该状态更新时间超过 stale 阈值
+- **THEN** 协调器将 P 恢复到可推导的稳定状态或失败诊断状态
+- **AND** 后续协调 tick 可以继续收敛 P
+
+#### Scenario: 活跃 reconciling 不被重置
+- **WHEN** 动态插件 P 的 `CurrentState` 为 `reconciling`
+- **AND** 该状态更新时间未超过 stale 阈值
+- **THEN** 协调器不得重置 P 的当前状态
+- **AND** 当前 tick 不得并发执行 P 的生命周期副作用
+
+### Requirement: 动态插件协调器 tick panic 必须被隔离
+
+系统 SHALL 在动态插件协调器 tick 边界恢复 panic。单次 tick 内的 panic MUST 被记录为运行时诊断，并且 MUST NOT 终止后续协调循环。
+
+#### Scenario: 单次 tick panic 后继续运行
+- **WHEN** 动态插件协调器在一次 tick 中发生 panic
+- **THEN** 系统恢复该 panic 并记录诊断
+- **AND** 协调器 goroutine 继续等待并执行后续 tick
+
+#### Scenario: panic 后瞬态状态可继续恢复
+- **WHEN** 协调器 panic 发生前插件 P 已进入 `reconciling`
+- **AND** P 的 `reconciling` 状态随后超过 stale 阈值
+- **THEN** 后续 tick 按 stale `reconciling` 恢复规则处理 P
+
+### Requirement: 动态插件协调器必须按插件串行化共享副作用
+
+系统 SHALL 对动态插件协调器中会修改共享状态的生命周期副作用按插件 ID 串行化。共享副作用包括生命周期 SQL、迁移账本、菜单和权限治理资源同步、active release 切换、frontend bundle 切换以及 runtime revision 发布。
+
+#### Scenario: 同一插件不会并发执行生命周期副作用
+- **WHEN** 两个协调触发同时尝试收敛动态插件 P
+- **THEN** 系统只允许一个执行方进入 P 的共享生命周期副作用
+- **AND** 另一个执行方跳过或等待后续协调机会
+
+#### Scenario: 不同插件可独立收敛
+- **WHEN** 动态插件 P 和 Q 同时需要收敛
+- **THEN** P 的 per-plugin 互斥不得阻塞 Q 的独立收敛
+- **AND** 系统可以在各自锁边界内分别处理 P 和 Q
+
+### Requirement:动态插件运行时资源视图必须包含配置和通用 manifest 资源
+
+系统 SHALL 在动态插件运行时加载时从 active release artifact 构建插件资源视图。该视图 MUST 包含 artifact 实际携带的`manifest/config/config.yaml`、`manifest/config/config.example.yaml`以及`manifest/**/*.yaml`中属于插件声明型资源的文件，并保持与源码插件目录一致的路径语义；未提供`manifest/metadata.yaml`的插件不得被要求提交占位文件。
+
+#### Scenario:动态插件加载 metadata 资源
+
+- **WHEN** 动态插件 active release artifact 携带`manifest/metadata.yaml`
+- **THEN** 运行时资源视图包含相对路径`metadata.yaml`
+- **AND** 插件可通过`manifest.get`或`HostServices.Manifest()`读取该资源
+
+#### Scenario:动态插件加载默认配置资源
+
+- **WHEN** 动态插件 active release artifact 携带`manifest/config/config.yaml`
+- **THEN** 运行时资源视图记录该 artifact 默认配置来源
+- **AND** 插件配置 resolver 可在不存在生产外部配置时读取该默认配置
+
+#### Scenario:资源视图不暴露宿主路径
+
+- **WHEN** 动态插件读取 artifact 中的配置或 manifest 资源
+- **THEN** 系统使用 artifact 资源视图返回内容
+- **AND** 响应不得暴露宿主本地 artifact 存储绝对路径作为插件可用资源路径
 

@@ -159,7 +159,7 @@ func (s fileAccessStaticBizCtx) Current(context.Context) contract.CurrentContext
 func (s fileAccessStaticBizCtx) SetLocale(context.Context, string) {}
 
 // SetUser is unused by file service tests.
-func (s fileAccessStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
+func (s fileAccessStaticBizCtx) SetUser(context.Context, string, int, string, int, string) {}
 
 // SetTenant is unused by file service tests.
 func (s fileAccessStaticBizCtx) SetTenant(context.Context, int) {}

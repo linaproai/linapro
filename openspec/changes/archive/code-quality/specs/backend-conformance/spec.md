@@ -1,200 +1,182 @@
-## MODIFIED Requirements
-
-### Requirement: Controller and service layer implementation constraints
-
-Backend production code SHALL follow the GoFrame v2 layered conventions defined by the repository: controller dependencies are injected through constructor functions, and service components are organized by convention directories and naming. Controllers, services, Middleware, plugin adapters, and other runtime components SHALL receive key dependencies through explicit dependency injection and MUST NOT implicitly create cache-sensitive or runtime-state-sensitive service instances in business constructors or request paths.
-
-#### Scenario: Controller dependency initialization
-
-- **WHEN** a controller depends on one or more service components
-- **THEN** those dependencies are explicitly passed in by the caller through the corresponding `_new.go` constructor function
-- **AND** controller constructors and interface methods do not internally call key `service.New()` to create dependencies
-
-#### Scenario: Service component file splitting
-
-- **WHEN** a service component has multiple responsibility sub-modules
-- **THEN** code is split into independent files by component prefix and sub-module suffix
-- **AND** bare filenames unrelated to the component name are not used to host sub-module logic
-
-#### Scenario: Service layer dependencies explicitly passed in
-
-- **WHEN** a service component depends on configuration, authentication, authorization, tenant, plugin, i18n, session, cache coordination, KV cache, lock, or notification capabilities
-- **THEN** the service constructor receives these interface-typed dependencies through individual parameters
-- **AND** the service constructor MUST NOT create another equivalent runtime service graph internally
-- **AND** the service constructor MUST NOT receive multiple interface-typed runtime dependencies through aggregate structs such as `Dependencies`, `Deps`, `Options`, or equivalents
-
-#### Scenario: Middleware shares runtime dependencies
-
-- **WHEN** HTTP Middleware is constructed for authentication, tenant, authorization, response, context, or request size control
-- **THEN** the Middleware uses shared service instances passed in during startup
-- **AND** the Middleware MUST NOT re-create authentication, configuration, i18n, plugin, role, or tenant services in its own constructor
-
-#### Scenario: Initialization and registration errors returned to caller
-
-- **WHEN** backend runtime initialization, source-plugin registration, registrar, callback registration, route/Cron/middleware registration, or startup assembly helper encounters missing dependencies, invalid registration parameters, missing configuration sources, backend creation failures, or validation failures
-- **THEN** the API returns `error` to the caller
-- **AND** the API MUST NOT internally `panic` to handle expected errors
-- **AND** only the topmost entry point in the call stack may choose to abort the process after explicitly handling the error
-
-#### Scenario: Stateless local construction must be auditable
-
-- **WHEN** a backend component genuinely needs to locally construct a stateless helper or pure DAO query service
-- **THEN** the construction MUST NOT hold caches, subscriptions, sessions, tokens, plugin state, runtime configuration, or cross-instance coordination state
-- **AND** the review conclusion MUST be able to explain that the construction does not affect runtime consistency
-
-### Requirement: ORM and soft-delete conformance
-
-Backend production code SHALL use GoFrame-recommended ORM patterns for database access and follow automatic soft-delete and timestamp maintenance conventions.
-
-#### Scenario: Querying soft-delete tables
-
-- **WHEN** code queries a table that contains a `deleted_at` field
-- **THEN** the query logic relies on GoFrame automatic soft-delete filtering
-- **AND** production code does not hand-write `WhereNull(deleted_at)` or equivalent SQL conditions
-
-#### Scenario: Updating and writing data
-
-- **WHEN** code performs database writes, updates, or association maintenance
-- **THEN** production code uses DO objects to pass `Data`
-- **AND** does not manually maintain `created_at`, `updated_at`, or `deleted_at` fields that are handled by the framework
-
-### Requirement: Exported symbol documentation completeness
-
-Backend exported methods, structs, and key public fields SHALL carry comments that follow Go documentation conventions, suitable for doc generation and long-term maintenance. Interface method comments MUST describe function, key inputs, outputs, error returns, and applicable constraints; they MUST NOT only repeat the method name or only supplement implementation methods.
-
-#### Scenario: Adding or modifying exported symbols
-
-- **WHEN** code contains exported methods, exported structs, or key exported fields
-- **THEN** their declarations are preceded by adjacent, semantically clear comments
-- **AND** comments are recognizable by Go doc, not just separator remarks or detached notes
-
-#### Scenario: Interface method comments describe usage contracts
-
-- **WHEN** backend production code declares or refactors any `interface` method
-- **THEN** each method declaration has an adjacent comment describing the method's function and side effects
-- **AND** the comment describes key input parameter semantics, return value meanings, and empty-result or zero-value semantics where applicable
-- **AND** the comment describes applicable business errors, permission errors, data-permission rejections, configuration errors, or underlying errors
-
-#### Scenario: Interface method comments cover important constraints
-
-- **WHEN** an interface method involves permissions, data permissions, tenant isolation, caching, i18n, transactions, idempotency, concurrency, or external resource access
-- **THEN** the method comment explicitly describes constraints, visibility boundaries, cache consistency, or failure handling semantics the caller needs to understand
-- **AND** the caller does not need to read the implementation to learn the method's main usage considerations
-
-### Requirement: Runtime errors must not replace explicit error handling with panic
-
-Production backend code SHALL use `panic` only for startup, initialization, unrecoverable critical paths, `Must*` semantic constructors, or unknown panic rethrow scenarios. Ordinary requests, import/export flows, dynamic plugin input, runtime configuration reads, and recoverable resource handling paths MUST use explicit `error` returns, unified error responses, or controlled degradation.
-
-#### Scenario: Startup unrecoverable errors use fail-fast
-
-- **WHEN** the backend detects an unrecoverable error during process startup, driver registration, command tree initialization, or source-plugin static registration
-- **THEN** the code MAY use `panic` to fail the process fast
-- **AND** the panic call site MUST be in the allowlist with a reason for retaining it
-
-#### Scenario: Ordinary business requests return errors
-
-- **WHEN** an ordinary HTTP request, file import/export, Excel generation, or resource close operation encounters a recoverable error
-- **THEN** the service or controller MUST return `error` so the unified error handling chain can generate the response
-- **AND** it MUST NOT use `panic` instead of returning the error
-
-#### Scenario: Dynamic plugin input validation fails
-
-- **WHEN** a dynamic plugin artifact, manifest, hostServices declaration, or authorization input is invalid
-- **THEN** the host MUST return a validation error with context
-- **AND** plugin-provided dynamic input MUST NOT trigger a production-code panic
-
-#### Scenario: Invalid runtime configuration values return explicitly
-
-- **WHEN** a protected runtime configuration value has a parsing error while a snapshot is being read
-- **THEN** the backend MUST expose the configuration problem through an explicit `error` return or unified error response
-- **AND** write paths MUST still keep strict validation so normal management entries cannot save invalid values
-
-#### Scenario: New panics are constrained by static checks
-
-- **WHEN** a developer adds a `panic` call in production backend Go code
-- **THEN** automated checks MUST require the call site to match the allowlist
-- **AND** the allowlist entry MUST document its category and retained reason
-
-## ADDED Requirements
-
-### Requirement: Public component main files must serve as stable contract entry points
-
-`apps/lina-core/pkg` public components SHALL use main-file responsibility governance consistent with service components. `pkg/<component>/<component>.go` main files MUST serve as public component contract entry points, retaining public types, interfaces, constructors, and lightweight contract methods; complex implementation logic MUST migrate to responsibility files in the same package.
-
-#### Scenario: Public component main files stay concise
-
-- **WHEN** a developer adds or refactors `apps/lina-core/pkg/<component>/<component>.go`
-- **THEN** the main file retains public component comments, exported types, public interfaces, constructors, and necessary lightweight methods
-- **AND** parsing, encoding/decoding, validation, database access, runtime execution, bridge adaptation, and complex business logic migrate to other files in the same package
-
-#### Scenario: Public component migration preserves external contracts
-
-- **WHEN** public component implementation logic migrates out of the main file
-- **THEN** package name, exported symbols, function signatures, error semantics, and calling behavior remain unchanged
-- **AND** host and source-plugin callers do not need to modify import paths or calling conventions
-
-### Requirement: Backend source file top comments must describe file purpose and caveats
-
-All backend production Go source files SHALL provide comments at the top of the file sufficient to help developers understand the file's purpose. Main file comments MUST describe component-level responsibilities, boundaries, and reading entry points; non-main file comments MUST describe the implementation slice the file carries, its main logic, and caveats.
-
-#### Scenario: Main files use component-level comments
-
-- **WHEN** a backend main file declares its package
-- **THEN** the package comment is adjacent to the `package` declaration
-- **AND** the comment describes the component's overall responsibilities, main capability boundaries, and dependencies or key constraints callers need to know
-
-#### Scenario: Non-main files use file-responsibility comments
-
-- **WHEN** a backend non-main file declares its package
-- **THEN** the file top comment has one blank line before the `package` declaration
-- **AND** the comment describes the implementation slice the file carries, its main flow, and caveats
-- **AND** the comment does not use the main file's component-level description as its sole content
-
-#### Scenario: Comment quality avoids vagueness and line-by-line repetition
-
-- **WHEN** a developer adds or refactors file top comments
-- **THEN** the comment does not consist of a single generic sentence that cannot distinguish the file's responsibility
-- **AND** the comment does not line-by-line repeat the implementation code
-- **AND** the comment focuses on why the file exists, what logic it handles, and what important constraints apply
-
-### Requirement: Backend source readability governance must be included in lina-review
-
-`lina-review` SHALL include backend main-file responsibility, interface method comment completeness, file-level comment quality, and batch verification records in its review standards. Any backend Go change MUST undergo these checks; large-scale refactoring MUST proceed per-module in batches with per-batch verification evidence.
-
-#### Scenario: Reviewing main-file responsibility
-
-- **WHEN** `lina-review` reviews backend Go changes
-- **THEN** the review identifies whether newly added or modified `internal/service` main files and `lina-core/pkg` main files only serve as contract entry points
-- **AND** the review flags new or remaining complex business implementation logic in main files
-
-#### Scenario: Reviewing interface method comments
-
-- **WHEN** `lina-review` reviews newly added or modified backend interface definitions
-- **THEN** the review confirms each interface method has an adjacent comment
-- **AND** the review confirms complex method comments cover function, inputs, outputs, errors, and key constraints where applicable
-
-#### Scenario: Reviewing file-level comments
-
-- **WHEN** `lina-review` reviews newly added or modified backend Go files
-- **THEN** the review confirms file-level comments describe file purpose, main logic, and caveats
-- **AND** the review confirms main files and non-main files follow different comment-level responsibilities
-
-#### Scenario: Reviewing batch refactoring verification
-
-- **WHEN** a backend source readability refactoring task completes a module batch
-- **THEN** the review confirms the task recorded the batch's modification scope, behavior-unchanged judgment, i18n impact, cache consistency impact, data permission impact, and Go compilation gate results
-- **AND** batches without corresponding verification evidence MUST NOT be marked complete
-
-#### Scenario: Reviewing linactl command file naming
-
-- **WHEN** `lina-review` reviews newly added or modified command implementations under `hack/tools/linactl/`
-- **THEN** the review confirms specific command implementation files are named `command_<command>.go` preserving dot-segment command semantics
-- **AND** the review confirms commands that conflict with Go toolchain file suffix rules (e.g., `test`, `wasm`) use documented command-specific suffixes
-- **AND** the review flags implementations where multiple unrelated commands are mixed into `command_ops.go` or similar catch-all files
-
-#### Scenario: Reviewing linactl sub-component organization
-
-- **WHEN** `lina-review` reviews newly added or modified shared implementation logic under `hack/tools/linactl/`
-- **THEN** the review confirms complex implementations have migrated to `internal/<component>/` sub-packages and are referenced through package interfaces
-- **AND** the review confirms newly added or remaining non-command files in the root directory belong to command registration, startup assembly, base types, or platform adaptation boundaries
-- **AND** the review flags root directory files that continue to carry development services, plugin workspaces, GoFrame CLI, frontend dependencies, Playwright, image building, repository governance scanning, or file system tools
+# 后端一致性规范
+
+## Purpose
+约束后端 GoFrame v2 分层实现、ORM 使用方式与公开符号文档标准，持续保持生产代码符合项目规范。
+## Requirements
+### Requirement: 控制器与服务层实现约束
+后端生产代码 SHALL 遵循仓库定义的 GoFrame v2 分层约束，控制器依赖通过构造函数注入，服务层组件按约定目录与命名组织。控制器、服务层、Middleware、插件适配器和其他运行期组件 SHALL 通过显式依赖注入接收关键依赖，MUST 不在业务构造函数或请求路径中隐式创建缓存敏感或运行期状态敏感服务实例。
+
+#### Scenario: 控制器依赖初始化
+- **当** 控制器依赖一个或多个服务组件时
+- **则** 这些依赖由调用方通过对应的 `_new.go` 构造函数显式传入
+- **且** 控制器构造函数和接口方法内部不再临时调用关键 `service.New()` 创建依赖
+
+#### Scenario: 服务组件拆分
+- **当** 某个服务组件存在多个职责子模块时
+- **则** 代码按组件前缀和子模块后缀拆分到独立文件
+- **且** 不使用与组件名无关的裸文件名承载子模块逻辑
+
+#### Scenario: 服务层依赖显式传入
+- **当** 服务层组件依赖配置、认证、权限、租户、插件、i18n、session、缓存协调、KV cache、锁或通知能力时
+- **则** 服务构造函数通过逐项参数接收这些接口型依赖
+- **且** 服务构造函数不得自行创建另一套等价运行期服务图
+- **且** 服务构造函数不得通过 `Dependencies`、`Deps`、`Options` 或等价聚合结构体整体接收多个接口型运行期依赖
+
+#### Scenario: Middleware 共享运行期依赖
+- **当** HTTP Middleware 被构造用于认证、租户、权限、响应、上下文或请求大小控制时
+- **则** Middleware 使用启动期传入的共享服务实例
+- **且** Middleware 不得在自身构造函数中重新创建认证、配置、i18n、插件、角色或租户服务
+
+#### Scenario: 初始化与注册错误返回调用方
+- **当** 后端运行时初始化、源码插件注册、registrar、回调注册、路由/Cron/中间件注册或启动装配辅助函数遇到依赖缺失、注册参数非法、配置来源缺失、后端创建失败或校验失败时
+- **则** 该 API 返回 `error` 给调用方
+- **且** API 内部不得直接 `panic` 处理可预期错误
+- **且** 只有调用栈最上层入口可以在显式处理错误后选择中止进程
+
+#### Scenario: 无状态局部构造需要可审查
+- **当** 后端组件确实需要局部构造无状态 helper 或纯 DAO 查询服务时
+- **则** 该构造不得持有缓存、订阅、session、token、插件状态、运行时配置或跨实例协调状态
+- **且** 审查结论必须能说明该构造不影响运行期一致性
+
+### Requirement:ORM 与软删除一致性
+后端生产代码 SHALL 使用 GoFrame 推荐的 ORM 方式访问数据库，并遵循自动软删除与时间维护约定。
+
+#### Scenario:查询软删除表
+- **当** 代码查询包含 `deleted_at` 字段的表时
+- **则** 查询逻辑依赖 GoFrame 自动软删除过滤
+- **且** 生产代码不手写 `WhereNull(deleted_at)` 或等价 SQL 条件
+
+#### Scenario:更新和写入数据
+- **当** 代码执行数据库写入、更新或关联关系维护时
+- **则** 生产代码使用 DO 对象传递 `Data`
+- **且** 不手工维护 `created_at`、`updated_at`、`deleted_at` 这些由框架自动维护的字段
+
+### Requirement: 公开符号文档完整
+后端公开方法、结构体、关键公开字段以及后端接口定义 SHALL 具有符合 Go 文档习惯且足以指导调用方使用的注释，便于生成文档和长期维护。接口方法注释 MUST 说明方法功能、关键输入、输出结果、错误返回和适用约束，不得只重复方法名或仅在实现方法上补充说明。后端接口方法定义 MUST 保持唯一且语义清晰，不得通过重复、近义或边界模糊的方法集合让调用方无法判断唯一权威契约。
+
+#### Scenario: 新增或整改公开符号
+- **当** 代码中存在导出方法、导出结构体或关键导出字段时
+- **则** 其声明前包含紧邻且语义明确的注释
+- **且** 注释可被 Go doc 正常识别，而不是仅保留分隔说明或脱离声明的备注
+
+#### Scenario: 接口方法注释描述使用契约
+- **当** 后端生产代码声明或整改任何 `interface` 方法时
+- **则** 每个方法声明前都有紧邻注释说明该方法的功能作用和副作用
+- **且** 注释说明关键输入参数语义、返回值含义和空结果或零值语义中适用的内容
+- **且** 注释说明可能返回的业务错误、权限错误、数据权限拒绝、配置错误或底层错误中适用的内容
+
+#### Scenario: 接口方法注释覆盖重要约束
+- **当** 接口方法涉及权限、数据权限、租户隔离、缓存、i18n、事务、幂等、并发或外部资源访问时
+- **则** 方法注释明确说明调用方需要理解的约束、可见性边界、缓存一致性或失败处理语义
+- **且** 调用方不需要阅读具体实现才能获知该方法的主要使用注意事项
+
+#### Scenario: 接口方法定义保持唯一
+- **当** 后端生产代码声明或整改任何 `interface`、组合接口或同一职责包中的协作接口时
+- **则** 接口方法集合不得重复声明同名或等价方法
+- **且** 即使重复方法签名一致且可以编译，也必须移除冗余声明或明确唯一权威接口
+
+#### Scenario: 接口方法语义避免歧义
+- **当** 后端接口暴露多个职责、参数、返回值或调用语义接近的方法时
+- **则** 方法名、参数名、返回形态和注释必须让调用方清楚区分首选方法、资源范围、读写语义、权限/租户边界、缓存新鲜度、事务归属、幂等性和失败语义中适用的内容
+- **且** 若方法只是兼容期保留的重复或近义入口，接口注释或任务记录必须说明首选方法、过渡原因、弃用计划和后续清理任务
+
+### Requirement:运行时错误不得用 panic 替代显式错误处理
+生产后端代码 SHALL 仅在启动、初始化、不可恢复的关键路径、`Must*` 语义构造器或未知 panic 重抛场景使用 `panic`。普通请求、导入/导出流程、动态插件输入、运行时配置读取和可恢复的资源处理路径必须使用显式 `error` 返回、统一错误响应或受控降级。
+
+#### Scenario:启动不可恢复错误使用快速失败
+- **当** 后端在进程启动、驱动注册、命令树初始化或源码插件静态注册期间检测到不可恢复错误时
+- **则** 代码可使用 `panic` 快速失败进程
+- **且** panic 调用点必须在白名单中并有保留原因
+
+#### Scenario:普通业务请求返回错误
+- **当** 普通 HTTP 请求、文件导入/导出、Excel 生成或资源关闭操作遇到可恢复错误时
+- **则** 服务或控制器必须返回 `error`，使统一错误处理链能生成响应
+- **且** 不得使用 `panic` 代替返回错误
+
+#### Scenario:动态插件输入验证失败
+- **当** 动态插件产物、清单、hostServices 声明或授权输入无效时
+- **则** 宿主必须返回带上下文的验证错误
+- **且** 插件提供的动态输入不得触发生产代码 panic
+
+#### Scenario:无效运行时配置值显式返回
+- **当** 读取快照时受保护的运行时配置值有解析错误
+- **则** 后端必须通过显式 `error` 返回或统一错误响应暴露配置问题
+- **且** 写路径必须保持严格验证，使正常管理入口无法保存无效值
+
+#### Scenario:新 panic 受静态检查约束
+- **当** 开发者在生产后端 Go 代码中添加 `panic` 调用时
+- **则** 自动检查必须要求调用点匹配白名单
+- **且** 白名单条目必须记录其分类和保留原因
+
+### Requirement: 公共组件主文件必须作为稳定契约入口
+`apps/lina-core/pkg` 下公共组件 SHALL 使用与服务组件一致的主文件职责治理。`pkg/<component>/<component>.go` 主文件 MUST 作为公共组件契约入口，保留公共类型、接口、构造函数和轻量契约方法；复杂实现逻辑 MUST 迁移到同包职责文件。
+
+#### Scenario: 公共组件主文件保持简洁
+- **WHEN** 开发者新增或整改 `apps/lina-core/pkg/<component>/<component>.go`
+- **THEN** 主文件保留公共组件说明、导出类型、公共接口、构造函数和必要的轻量方法
+- **AND** 解析、编解码、校验、数据库访问、运行时执行、桥接适配和复杂业务逻辑迁移到同包其他文件
+
+#### Scenario: 公共组件迁移保持外部契约
+- **WHEN** 公共组件实现逻辑迁出主文件
+- **THEN** 包名、导出符号、函数签名、错误语义和调用行为保持不变
+- **AND** 宿主和源码插件调用方不需要修改导入路径或调用方式
+
+### Requirement: 后端源文件顶部注释必须说明文件职责和注意事项
+所有后端生产 Go 源文件 SHALL 在文件顶部提供足以帮助开发者理解文件用途的注释。主文件注释 MUST 说明组件整体职责、边界和阅读入口；非主文件注释 MUST 说明当前文件承载的实现切片、主要逻辑和注意事项。
+
+#### Scenario: 主文件使用组件级注释
+- **WHEN** 后端主文件声明 package
+- **THEN** package 注释紧贴 `package` 声明
+- **AND** 注释说明组件整体职责、主要能力边界、依赖或调用方需要了解的关键约束
+
+#### Scenario: 非主文件使用文件职责注释
+- **WHEN** 后端非主文件声明 package
+- **THEN** 文件顶部注释与 `package` 声明之间保留一个空行
+- **AND** 注释说明该文件承载的实现切片、主要流程和注意事项
+- **AND** 注释不得重复主文件的组件级说明作为唯一内容
+
+#### Scenario: 注释质量避免空泛和逐行复述
+- **WHEN** 开发者新增或整改文件顶部注释
+- **THEN** 注释不得只写一句无法区分文件职责的泛化描述
+- **AND** 注释不得逐行复述实现代码
+- **AND** 注释聚焦文件为什么存在、处理哪类逻辑和有什么重要约束
+
+### Requirement: 后端源码可读性治理必须纳入 lina-review
+`lina-review` SHALL 将后端主文件职责、接口方法注释完整度、接口方法定义唯一性与语义清晰度、文件顶部注释质量和分批验证记录纳入审查标准。任何后端 Go 变更 MUST 接受这些检查；大规模整改 MUST 按模块分批并提供每批验证证据。
+
+#### Scenario: 审查主文件职责
+- **WHEN** `lina-review` 审查后端 Go 变更
+- **THEN** 审查识别新增或修改的 `internal/service` 主文件和 `lina-core/pkg` 主文件是否只承载契约入口
+- **AND** 审查标记主文件中新增或遗留的复杂业务实现逻辑
+
+#### Scenario: 审查接口方法注释
+- **WHEN** `lina-review` 审查新增或修改的后端接口定义
+- **THEN** 审查确认每个接口方法都有紧邻注释
+- **AND** 审查确认复杂方法注释覆盖功能、输入、输出、错误和关键约束中适用的内容
+
+#### Scenario: 审查接口方法定义唯一性与语义清晰度
+- **WHEN** `lina-review` 审查后端接口定义
+- **THEN** 审查枚举接口及嵌入接口暴露的方法集合，标记重复声明、近义方法并存、职责 owner 不清或命名边界含糊的问题
+- **AND** 审查要求重复或歧义方法通过合并、重命名、拆分窄接口、适配器、兼容层或明确弃用计划消除调用方选择歧义
+
+#### Scenario: 审查文件顶部注释
+- **WHEN** `lina-review` 审查新增或修改的后端 Go 文件
+- **THEN** 审查确认文件顶部注释说明文件职责、主要逻辑和注意事项
+- **AND** 审查确认主文件和非主文件注释遵循不同层级职责
+
+#### Scenario: 审查分批整改验证
+- **WHEN** 后端源码可读性整改任务完成一个模块批次
+- **THEN** 审查确认任务记录了本批修改范围、行为不变判断、i18n 影响、缓存一致性影响、数据权限影响和 Go 编译门禁结果
+- **AND** 未提供对应验证证据的批次不得标记完成
+
+#### Scenario: 审查 linactl 命令文件命名
+- **WHEN** `lina-review` 审查 `hack/tools/linactl/` 下新增或修改的命令实现
+- **THEN** 审查确认具体命令实现文件按 `command_<command>.go` 命名并保留点分段命令语义
+- **AND** 审查确认 `test`、`wasm` 等与 `Go` 工具链后缀规则冲突的命令使用有说明的命令专属后缀
+- **AND** 审查标记多个无直接归属的命令被混放到 `command_ops.go` 等兜底文件的实现
+
+#### Scenario: 审查 linactl 子组件组织
+- **WHEN** `lina-review` 审查 `hack/tools/linactl/` 下新增或修改的共享实现逻辑
+- **THEN** 审查确认复杂实现已迁移到 `internal/<组件名称>/` 子组件并通过包接口引用
+- **AND** 审查确认根目录新增或遗留的非命令文件属于命令注册、启动装配、基础类型或平台适配边界
+- **AND** 审查标记根目录继续承载开发服务、插件工作区、GoFrame CLI、前端依赖、Playwright、镜像构建、仓库治理扫描或文件系统工具等复杂共享实现的问题

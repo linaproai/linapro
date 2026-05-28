@@ -17,6 +17,8 @@ type Session struct {
 	UserId int
 	// Username is the authenticated username.
 	Username string
+	// ClientType is the user-session client type.
+	ClientType string
 	// DeptName is the projected department display name.
 	DeptName string
 	// Ip is the login IP address.

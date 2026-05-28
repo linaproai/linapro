@@ -1,92 +1,311 @@
+# 插件 UI 集成规范
+
+## Purpose
+待定 - 由归档变更 plugin-framework 创建。归档后更新目的。
 ## Requirements
+### Requirement:插件页面支持多种宿主集成模式
+系统 SHALL 支持三种插件页面集成模式：`iframe`、新标签页导航和宿主嵌入式挂载。
 
-### Requirement: Plugin Pages Support Multiple Host Integration Modes
+#### Scenario:以 iframe 模式集成插件页面
+- **当** 插件菜单声明使用 `iframe` 模式的页面时
+- **则** 宿主在统一布局内的 iframe 中加载插件页面 URL
+- **且** 宿主仍通过 LinaPro 菜单、权限和导航管理页面入口
 
-The system SHALL support iframe, new-tab, and embedded-mount plugin page integration modes.
+#### Scenario:以新标签页模式集成插件页面
+- **当** 插件菜单声明使用新标签页模式的页面时
+- **则** 点击菜单时宿主在新浏览器标签页中打开对应的插件页面
+- **且** 原始宿主工作区导航状态不受影响
 
-#### Scenario: iframe mode
-- **WHEN** a plugin menu declares iframe mode
-- **THEN** the host loads the plugin page in an iframe within the unified layout
-- **AND** uses Lina's menu, permission, and navigation system
+#### Scenario:以宿主嵌入模式集成插件页面
+- **当** 插件页面声明宿主嵌入式挂载模式时
+- **则** 宿主将插件前端挂载入口加载到指定容器中
+- **且** 插件内部可使用任何前端框架
+- **且** 前端入口必须满足宿主定义的挂载契约
 
-#### Scenario: New-tab mode
-- **WHEN** a plugin menu declares new-tab mode
-- **THEN** clicking the menu opens the plugin page in a new tab
-- **AND** the host backend navigation state is unaffected
+### Requirement:宿主管理插件前端资产
+系统 SHALL 根据插件类型托管前端资产，并为每种页面集成模式提供稳定的资产访问 URL。
 
-#### Scenario: Embedded-mount mode
-- **WHEN** a plugin page declares embedded-mount mode
-- **THEN** the host loads the plugin's frontend mount entry in a container
-- **AND** the plugin can use any frontend framework internally
-- **AND** the entry must satisfy the host's mount contract
+#### Scenario:源码插件参与宿主构建
+- **当** 源码插件按约定提供前端资产时
+- **则** 这些前端资产参与宿主前端构建管线
+- **且** 源码插件的宿主嵌入页面必须使用真实的前端源文件实现，而非仅声明式 JSON 页面描述
+- **且** 这些源文件默认放置在 `frontend/pages/` 下，在宿主构建时发现
+- **且** 最终资产与宿主前端一起嵌入后端二进制文件
 
-### Requirement: Host Manages Plugin Frontend Resources
+#### Scenario:动态插件提供前端资产
+- **当** 安装了带资产的运行时 `wasm` 插件时
+- **则** 宿主提取并托管插件的静态前端资产
+- **且** 宿主为插件生成稳定的静态资产路径
+- **且** 未正确准备前端资产的插件页面无法启用
 
-The system SHALL host plugin frontend resources and provide stable access paths.
+#### Scenario:动态插件前端资产可来自嵌入式资源声明
+- **当** 动态插件作者通过 `go:embed` 声明 `frontend` 目录资产时
+- **则** 构建器必须从嵌入式文件系统提取前端静态资产并写入运行时快照
+- **且** 宿主继续从该运行时快照提供 `/plugin-assets/<plugin-id>/<version>/...` 服务
+- **且** 宿主不需要通过 guest 运行时方法逐项读取前端资产内容
 
-#### Scenario: Source plugins participate in host build
-- **WHEN** a source plugin provides frontend resources
-- **THEN** resources participate in host frontend build
-- **AND** pages are real source files, not JSON declarations
-- **AND** resources are placed in `frontend/pages/` by convention
-- **AND** final artifacts embed with the host binary
+### Requirement:插件页面参与宿主路由和 generation 感知
+系统 SHALL 将已启用的插件页面纳入宿主动态路由系统，并在插件 generation 变更时保护当前用户体验。
 
-#### Scenario: Dynamic plugins provide frontend resources
-- **WHEN** a runtime WASM plugin with resources is installed
-- **THEN** the host extracts and hosts static resources
-- **AND** generates stable static resource access paths
-- **AND** unprepared plugin pages cannot be enabled
+#### Scenario:宿主生成插件页面路由
+- **当** 已启用的插件声明可见菜单和页面入口时
+- **则** 宿主将这些入口添加到当前用户的可访问菜单集和动态路由中
+- **且** 插件页面可见性仍由 LinaPro 角色权限控制
 
-#### Scenario: Dynamic plugin frontend resources can come from embedded declaration
-- **WHEN** a dynamic plugin author uses `go:embed` for `frontend` resources
-- **THEN** the builder extracts from the embedded filesystem into the runtime snapshot
-- **AND** the host continues hosting from the snapshot at `/plugin-assets/<plugin-id>/<version>/...`
+#### Scenario:插件向左侧导航菜单插入顶级入口
+- **当** 已启用的插件声明左侧导航菜单的顶级入口时
+- **则** 宿主在左侧菜单顶部附近显示该插件入口
+- **且** 点击入口在主内容区域打开插件标签页
+- **且** 页面内容清晰指示该入口来自插件扩展机制
 
-### Requirement: Plugin Pages Enter Host Routing with Generation Awareness
+#### Scenario:当前会话中启用插件后立即刷新左侧导航菜单
+- **当** 管理员在已登录会话中启用已安装但当前禁用的源码插件时
+- **则** 宿主刷新动态路由和左侧导航菜单，无需重新登录
+- **且** 插件新增的顶级菜单入口立即可见
+- **且** 当前页面保持在宿主工作区环境内
 
-The system SHALL include enabled plugin pages in the dynamic route system and protect user experience during generation changes.
+#### Scenario:插件状态变更后当前会话重新获得焦点
+- **当** 当前登录会话外的其他操作更改了插件启用状态，且当前浏览器标签页重新获得焦点时
+- **则** 宿主自动重新同步插件相关动态路由和左侧导航菜单
+- **且** 已启用插件的入口重新可见
+- **且** 已禁用插件的入口及时隐藏
 
-#### Scenario: Plugin page generation refresh prompt
-- **WHEN** a user is on a plugin page when that plugin hot-upgrades
-- **THEN** the host shows "Plugin updated, please refresh current page"
-- **AND** non-plugin-page users are not affected
+#### Scenario:当前用户停留在插件页面时发生热升级
+- **当** 当前用户正在访问插件页面且该插件升级到新 generation 时
+- **则** 宿主显示提示告知用户插件已更新，当前页面应刷新
+- **且** 不在该插件页面上的用户不被强制中断
 
-#### Scenario: Refresh switches to new generation without forced navigation
-- **WHEN** a user on a plugin page clicks refresh after generation change
-- **THEN** the host rebuilds menus and dynamic routes
-- **AND** does not force-navigate to another workspace page
-- **AND** the plugin page remounts to the new generation
+#### Scenario:刷新后当前插件页面切换到新 generation
+- **当** 当前用户停留在动态插件页面且该插件已完成 generation 切换时
+- **则** 用户点击"刷新当前页面"后，宿主先为当前登录用户重建可访问菜单和动态路由
+- **且** 宿主不强制先将用户导航到其他工作区页面
+- **且** 当前插件页面随后以新 generation 资产重新挂载并更新相关标签页元数据
 
-### Requirement: Plugin Management Page Shows Key Governance Information
+#### Scenario:热升级后非插件页面上的用户不受影响
+- **当** 动态插件完成热升级但当前用户未停留在该插件页面时
+- **则** 宿主不显示插件刷新提示
+- **且** 宿主不因该升级强制中断当前非插件页面的浏览
+- **且** 用户仅在稍后进入插件页面时才开始使用新 generation 资产
 
-The system SHALL prioritize key governance fields in the plugin management page.
+### Requirement:插件管理页面聚焦关键治理信息
 
-#### Scenario: Source plugin type display
-- **WHEN** plugin type is `source`
-- **THEN** the management page shows "Source Plugin"
+系统 SHALL 优先展示插件管理页面所需的关键治理字段，避免在列表概览中挤满低价值信息。系统 SHALL 优化插件管理首次进入时的后端列表构建成本，但不得通过移除既有弹窗复用字段来降低首屏耗时；完整列表读模型可在启动后异步预热，并在失效后由请求同步重建。
 
-#### Scenario: Dynamic plugin type display
-- **WHEN** plugin type is `dynamic`
-- **THEN** the management page shows "Dynamic Plugin"
+#### Scenario:显示源码插件的治理类别
+- **当** 清单中的插件类型为 `source` 时
+- **则** 插件管理页面在"插件类型"列显示为"源码插件"
 
-### Requirement: Frontend Plugin Page Discovery Must Support Empty Source Plugin Workspace
+#### Scenario:显示动态插件的治理类别
+- **当** 清单中的插件类型为 `dynamic` 时
+- **则** 插件管理页面在"插件类型"列一致显示为"动态插件"
+- **且** 当前 `dynamic` 插件在治理列表中仍显示和筛选为"动态插件"，即使具体产物是 `wasm` 产品
 
-The host frontend SHALL complete build and runtime when the source plugin workspace does not exist or is empty. Plugin page auto-discovery must treat missing or empty plugin frontend directories as an empty page set, not a build error.
+#### Scenario:简化插件管理列表概览字段
+- **当** 管理员查看插件管理列表时
+- **则** 页面不再显示"交付模式"、"集成模式"和"入口"列
+- **且** 页面在"更新时间"前显示"安装时间"
 
-#### Scenario: Frontend build when plugin workspace does not exist
-- **WHEN** host frontend build scans source plugin pages
-- **AND** `apps/lina-plugins` does not exist
-- **THEN** the plugin page module set is empty
-- **AND** the frontend build continues executing
+#### Scenario:首次进入复用预热读模型
+- **当** 宿主启动后的插件管理列表读模型预热已完成
+- **且** 管理员首次进入插件管理页面
+- **则** 页面加载列表时复用已预热的完整治理读模型
+- **且** 详情、安装、卸载、升级和授权确认弹窗所需字段仍随列表返回
 
-#### Scenario: Frontend build when plugin workspace is empty
-- **WHEN** host frontend build scans source plugin pages
-- **AND** `apps/lina-plugins` is an empty directory
-- **THEN** the plugin page module set is empty
-- **AND** frontend route registration does not create source plugin page entries
+#### Scenario:预热失败时请求回退同步构建
+- **当** 宿主启动后的插件管理列表读模型预热失败或尚未完成
+- **且** 管理员进入插件管理页面
+- **则** 列表接口同步构建完整治理读模型并返回
+- **且** 构建成功后后续列表查询可复用该读模型
 
-#### Scenario: After submodule initialization plugin pages participate in build
-- **WHEN** `apps/lina-plugins` submodule initialization is complete
-- **AND** source plugins provide `frontend/pages/` pages
-- **THEN** host frontend build discovers these pages
-- **AND** plugin pages continue participating in host routing and permission filtering
+### Requirement:插件管理支持详情弹窗
+系统 SHALL 为插件管理中的插件记录提供详情弹窗，使管理员无需离开列表页即可查看插件治理信息。
+
+#### Scenario:管理员从列表打开插件详情
+- **当** 管理员点击插件记录的详情操作时
+- **则** 系统打开详情弹窗
+- **且** 弹窗显示插件的标识、类型、版本、描述、安装状态、状态、授权要求、授权状态、安装时间和更新时间
+
+### Requirement:动态插件详情合并请求的和有效的宿主服务范围
+系统 SHALL 以区分声明意图和有效授权的方式呈现动态插件宿主服务信息，仅在两者不同时进行区分。
+
+#### Scenario:请求的和授权的宿主服务范围相同
+- **当** 动态插件的请求和授权宿主服务范围相同时
+- **则** 弹窗将它们合并为一个有效范围展示
+- **且** UI 避免重复的解释文本
+
+#### Scenario:请求的和授权的宿主服务范围不同
+- **当** 动态插件的授权宿主服务范围与请求范围不同时
+- **则** 弹窗将请求范围和授权范围显示为独立部分
+- **且** 资源组使用一个语义标题加资源列表，而非为每个资源项重复相同前缀
+
+### Requirement:空宿主服务状态仅对动态插件显示
+系统 SHALL 仅在动态插件没有宿主服务治理数据时显示空宿主服务状态。
+
+#### Scenario:无宿主服务治理数据的源码插件
+- **当** 源码插件没有宿主服务治理信息时
+- **则** 详情弹窗不显示不必要的宿主服务空状态块
+
+### Requirement:动态插件演示记录支持分页
+系统 SHALL 让管理员在动态插件示例页面上分页查看演示记录。
+
+#### Scenario:管理员切换演示记录页面
+- **当** 管理员在动态插件演示记录列表中更改页面时
+- **则** 页面重新加载目标页面并相应更新范围摘要和当前页面状态
+
+### Requirement:插件安装弹窗支持安装并启用快捷操作
+
+系统 SHALL 在插件安装弹窗中提供"仅安装"和"安装并启用"两种治理操作，使管理员在审查插件信息后可立即完成启用，无需返回列表执行第二步。
+
+#### Scenario:用户有安装和启用权限时显示快捷操作
+- **当** 管理员为未安装的插件打开安装弹窗，且当前帐户同时拥有 `plugin:install` 和 `plugin:enable` 权限时
+- **则** 弹窗显示"安装并启用"快捷操作
+- **且** 弹窗仍保留"仅安装"操作，使管理员可明确选择仅安装不启用
+
+#### Scenario:用户仅有安装权限时隐藏快捷操作
+- **当** 管理员为未安装的插件打开安装弹窗，但当前帐户仅有 `plugin:install` 而无 `plugin:enable` 权限时
+- **则** 弹窗仅显示"仅安装"操作
+- **且** UI 不得显示"安装并启用"按钮，以免暗示可执行超出用户权限范围的治理操作
+
+#### Scenario:复合操作第二步失败时显示真实状态
+- **当** 管理员在安装弹窗中选择"安装并启用"，安装步骤成功但启用步骤失败时
+- **则** 刷新后的插件管理页面必须显示该插件为"已安装但已禁用"
+- **且** UI 清晰告知管理员安装已完成但启用未成功，可稍后重试
+
+### Requirement:宿主嵌入式插件页面必须参与宿主语言上下文和消息刷新
+系统 SHALL 让宿主管理的插件页面参与宿主语言上下文和运行时消息刷新流程。当前语言变更时，宿主嵌入式插件页面及其路由元数据必须刷新为新语言，无需重新安装插件。
+
+#### Scenario:语言切换后插件路由标题刷新
+- **当** 用户在已认证会话中切换工作区语言时
+- **则** 宿主重建当前用户可访问的插件路由标题和菜单标题
+- **且** 已启用的插件页面将其导航和标签页显示文案切换为新语言
+
+#### Scenario:宿主嵌入式插件页面加载运行时消息包
+- **当** 宿主以嵌入模式加载插件前端页面时
+- **则** 插件页面可访问宿主当前语言上下文和匹配的运行时翻译资源
+- **且** 插件不需要重新实现脱离宿主的语言解析规则
+
+### Requirement:插件语言资源变更必须被宿主及时观察
+系统 SHALL 在插件启用、禁用或升级后刷新插件相关运行时消息，使宿主 UI 不继续显示过期的插件翻译。
+
+#### Scenario:启用的插件立即显示插件翻译
+- **当** 管理员在当前会话中启用有 i18n 资源的插件时
+- **则** 宿主刷新运行时消息包和动态菜单
+- **且** 插件的导航标题和页面文案可立即以当前语言显示
+
+#### Scenario:插件升级切换到新版本翻译资源
+- **当** 插件升级到包含新翻译资源的发布且切换生效时
+- **则** 宿主后续提供的运行时消息包使用新发布资源
+- **且** 前端不再消费旧发布的翻译消息
+
+### Requirement: 源码插件 HTTP 路由不得被强制绑定到管理工作台 UI 模型
+
+系统 SHALL 将源码插件通过代码注册的 HTTP 路由视为插件实现细节。管理工作台只通过 `plugin.yaml` 的 `menus` 声明感知插件贡献的工作台导航和权限；源码插件公开页面、门户、静态资源和自管 fallback 不得自动投影为菜单、工作台页面、权限节点、OpenAPI 文档或插件资源引用。源码插件在统一插件 API 前缀下注册且符合文档条件的 API 路由 MAY 进入 OpenAPI 投影，但该能力不得扩展为对所有 HTTP 路由的自动投影。
+
+#### Scenario: 插件公开 HTTP 路由不进入菜单治理
+- **WHEN** 源码插件通过代码注册 `/` 或 `/portal/*` 等公开 HTTP 路由
+- **THEN** 管理工作台菜单列表不得因为这些 HTTP 路由自动新增菜单
+- **AND** 角色授权不得因为这些 HTTP 路由自动新增权限节点
+
+#### Scenario: 插件工作台菜单仍由 manifest 管理
+- **WHEN** 源码插件需要向管理工作台贡献导航入口
+- **THEN** 插件仍必须通过 `plugin.yaml` 的 `menus` 声明菜单、按钮权限、排序和父子关系
+- **AND** 主框架按菜单声明同步 `sys_menu` 并参与角色授权
+
+#### Scenario: 示例插件菜单归入扩展中心
+- **WHEN** 官方源码插件示例和动态插件示例安装后同步工作台菜单
+- **THEN** 源码插件示例和动态插件示例菜单必须挂载到宿主 `extension` 扩展中心目录下
+- **AND** 扩展中心目录下的可见菜单顺序必须为插件管理、源码插件示例、动态插件示例
+
+#### Scenario: 菜单声明不代表 HTTP 路由存在
+- **WHEN** `plugin.yaml` 声明某个工作台菜单路径
+- **THEN** 主框架只将该路径作为管理工作台动态路由和导航资源
+- **AND** 主框架不得据此推断源码插件已经注册了同路径 HTTP handler
+
+#### Scenario: 公开 HTTP 路由不进入 OpenAPI
+- **WHEN** 源码插件通过代码注册 `/portal/*`、`/assets/*` 或自管 SPA fallback
+- **THEN** 主框架不得因为这些路由可通过 HTTP 访问而自动生成 OpenAPI 路径
+- **AND** 只有统一插件 API 前缀下符合 GoFrame DTO 文档形态的源码插件 API MAY 参与 OpenAPI 投影
+
+### Requirement: 源码插件前端实现必须允许脱离管理工作台 SPA bundle
+
+系统 SHALL 允许源码插件在其 HTTP handler 中自行返回页面、静态资源、SPA fallback 或其他内容。主框架不得要求源码插件公开页面或静态资源必须参与默认管理工作台 SPA bundle。源码插件和动态插件 MAY 在 `plugin.yaml` 的 `public_assets` 中声明由宿主托管的公开静态资源目录；该声明只表达 public asset 托管，不表达 HTTP 路由、门户路由或工作台页面语义。
+
+#### Scenario: 源码插件自行返回页面内容
+- **WHEN** 源码插件 HTTP handler 返回 HTML、JSON、文件流或其他响应
+- **THEN** 主框架不得要求这些响应来自管理工作台前端构建产物
+- **AND** 主框架不得要求插件为自行注册的 HTTP handler 声明对应静态资源目录
+
+#### Scenario: 管理工作台继续消费 manifest 菜单页面
+- **WHEN** 源码插件的 `plugin.yaml` 菜单指向 `system/plugin/dynamic-page` 或其他工作台组件
+- **THEN** 管理工作台继续按菜单和权限加载对应页面
+- **AND** 这不影响同一插件通过 HTTP 路由闭环维护公开页面或静态资源
+
+#### Scenario: `/x-assets` 不是源码插件公开前端的强制入口
+- **WHEN** 源码插件选择通过自己的 HTTP 路由服务静态资源
+- **THEN** 系统不得强制其使用 `/x-assets/{plugin-id}/{version}/...`
+- **AND** `/x-assets` 只能作为宿主提供的可选插件 `public_assets` 托管入口
+- **AND** 系统不得保留 `/plugin-assets` 兼容入口
+
+### Requirement: 插件公开静态资源必须通过声明式 public asset 托管
+
+系统 SHALL 允许源码插件和动态插件在 `plugin.yaml` 的 `public_assets` 根字段中声明可公开的静态资源目录，并由宿主在 `/x-assets/{plugin-id}/{version}/...` 下统一托管这些 public assets。宿主不得因为插件注册了 embedded files、运行时 artifact 或 manifest 资源而默认公开整个插件资源包；只有 `public_assets` 明确声明的插件自有资源才能被托管。每个声明项 MUST 使用 `source` 指向插件内相对目录或动态 artifact asset 前缀，并 MAY 使用 `mount` 指定在 `/x-assets/{plugin-id}/{version}/` 下的相对挂载路径；`mount` 为空或 `/` 时，声明目录内文件直接挂载到版本根。每个声明项 MAY 使用 `index` 指定访问该挂载目录本身时默认返回的文件名；未配置 `index` 时默认使用 `index.html`。宿主 SHALL 使用严格路径 schema 校验 `public_assets`，非法声明必须阻止插件校验、安装或启用。宿主 SHALL NOT 按目录名维护治理黑名单或前端目录白名单；插件配置声明的插件内目录即为发布授权边界。本变更 SHALL NOT 保留 `/plugin-assets` 旧路径兼容。
+
+#### Scenario: 源码插件声明 public assets
+- **WHEN** 源码插件通过 `plugin.Assets().UseEmbeddedFiles(...)` 注册 embedded files
+- **AND** 插件在 `plugin.yaml` 的 `public_assets` 中声明 `source: frontend/public` 和 `mount: /`
+- **THEN** 宿主从该 embedded filesystem 中读取声明目录，并将 `frontend/public/logo.png` 映射为 `/x-assets/{plugin-id}/{version}/logo.png`
+- **AND** 未声明目录中的文件不得被该路由访问
+
+#### Scenario: 动态插件声明 public assets
+- **WHEN** 动态插件 artifact 中包含 frontend assets
+- **AND** 插件在 `plugin.yaml` 的 `public_assets` 中声明 `source` 前缀和可选 `mount`
+- **THEN** 宿主通过 `/x-assets/{plugin-id}/{version}/...` 仅提供声明匹配的 public asset 集合
+- **AND** SQL、生命周期、host-service、路由契约、i18n 和 apidoc 资源不得被 public asset resolver 读取
+
+#### Scenario: 动态插件既有 frontend assets 迁移到声明式模型
+- **WHEN** 动态插件 artifact 中存在 frontend asset，但 `plugin.yaml` 未在 `public_assets` 中声明对应 `source`
+- **THEN** `/x-assets/{plugin-id}/{version}/...` 不得因为 artifact 中存在该 frontend asset 而自动返回资源
+- **AND** 依赖该资源的动态插件菜单或页面必须迁移为引用 `public_assets` 声明后生成的访问路径
+
+#### Scenario: public asset 声明以插件自身资源边界为安全边界
+- **WHEN** 插件声明 `manifest`、`backend` 或其他插件自身目录为 public assets
+- **THEN** 宿主必须按插件作者的显式声明发布这些目录中的资源
+- **AND** 当 `source` 使用 `../`、绝对路径、URL 或符号链接逃逸插件自身资源边界时，宿主必须拒绝该声明或使插件校验失败
+
+#### Scenario: public asset 声明使用严格 schema
+- **WHEN** 插件声明空 `source`、绝对路径、包含 `../` 的路径、不存在的 `source`、符号链接逃逸插件资源边界、重复或互相覆盖的 `mount`
+- **THEN** 宿主必须拒绝该声明并使插件校验、安装或启用失败
+- **AND** 宿主不得静默忽略非法声明项
+- **AND** 可访问文件的 Content-Type 必须按文件扩展名或等价 MIME 推断能力确定
+
+#### Scenario: public asset 目录访问使用声明的 index 文件
+- **WHEN** 插件在 `public_assets` 中声明 `source: frontend/public`、`mount: /docs` 和 `index: index.htm`
+- **THEN** 浏览器访问 `/x-assets/{plugin-id}/{version}/docs` 或 `/x-assets/{plugin-id}/{version}/docs/` 时，宿主必须返回 `frontend/public/index.htm`
+- **AND** 当 `index` 未配置时，宿主必须继续默认返回声明目录下的 `index.html`
+- **AND** `index` 必须是安全的相对文件名，不能是目录、绝对路径、URL、通配符或包含 `../` 的路径
+
+#### Scenario: 插件版本作为 public asset 缓存边界
+- **WHEN** public asset 通过 `/x-assets/{plugin-id}/{version}/...` 访问
+- **THEN** 同一 `{plugin-id, version}` 下的资源内容必须保持稳定
+- **AND** 插件变更 public asset 内容时必须升级插件版本或使用明确的内容版本机制
+
+#### Scenario: 插件不可用时 public assets 不可访问
+- **WHEN** 插件未安装、未启用或当前租户不可用
+- **THEN** `/x-assets/{plugin-id}/{version}/...` 默认返回 404
+- **AND** 请求缺少租户上下文且无法判定租户时，系统按插件全局启用状态判断可用性
+- **AND** 租户专属、用户专属或需要鉴权的文件不得通过 `public_assets` 发布，应由插件自管 HTTP 路由并自行挂载鉴权与租户中间件
+
+### Requirement: 动态插件工作台页面必须继续通过动态页组件承载公开资源
+
+系统 SHALL 将动态插件 hosted frontend 菜单迁移为继续使用 `system/plugin/dynamic-page` 或等价工作台承载组件，并通过菜单 query 或等价参数引用 `/x-assets/{plugin-id}/{version}/...` 下的声明式 public asset 入口。管理工作台不得把 `/x-assets/{plugin-id}/{version}/index.html` 这类资源 URL 直接作为动态插件菜单路由路径来替代动态页组件。
+
+#### Scenario: 动态插件菜单通过动态页组件引用 x-assets
+- **WHEN** 动态插件菜单需要加载 embedded-mount 或 iframe 前端资源
+- **THEN** 菜单组件仍指向 `system/plugin/dynamic-page` 或等价动态页组件
+- **AND** 菜单 query 或等价参数引用 `/x-assets/{plugin-id}/{version}/...` 下的声明式 public asset URL
+- **AND** 前端刷新、iframe、embedded-mount 和插件页面热升级匹配逻辑必须识别 `/x-assets` 资源 URL
+
+#### Scenario: 动态插件菜单不得直接使用 x-assets 作为工作台路由
+- **WHEN** 动态插件菜单 path 直接声明为 `/x-assets/{plugin-id}/{version}/index.html`
+- **THEN** 系统不得把该 path 当作管理工作台动态路由来替代 `system/plugin/dynamic-page`
+- **AND** 插件开发文档和测试夹具必须使用动态页组件加资源 URL 参数的迁移形态

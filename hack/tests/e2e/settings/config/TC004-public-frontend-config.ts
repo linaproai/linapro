@@ -25,6 +25,7 @@ async function loginAsAdmin(request: APIRequestContext): Promise<string> {
     data: {
       password: config.adminPass,
       username: config.adminUser,
+      clientType: "web",
     },
   });
   expect(response.ok()).toBeTruthy();

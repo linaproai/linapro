@@ -22,6 +22,13 @@ var (
 		"Login IP is blacklisted",
 		gcode.CodeNotAuthorized,
 	)
+	// CodeAuthClientTypeInvalid reports a missing or unknown user-session client type.
+	CodeAuthClientTypeInvalid = bizerr.MustDefineWithKey(
+		"AUTH_CLIENT_TYPE_INVALID",
+		"error.auth.login.clientType.invalid",
+		"Client type is invalid",
+		gcode.CodeInvalidParameter,
+	)
 	// CodeAuthUserDisabled reports a disabled user login attempt.
 	CodeAuthUserDisabled = bizerr.MustDefine(
 		"AUTH_USER_DISABLED",

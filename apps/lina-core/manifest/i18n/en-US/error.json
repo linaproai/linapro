@@ -2,6 +2,9 @@
   "error": {
     "auth": {
       "login": {
+        "clientType": {
+          "invalid": "Client type is invalid"
+        },
         "invalidCredentials": "Invalid username or password",
         "ipBlacklisted": "Login from this IP address is blocked",
         "updateLastLoginFailed": "Failed to update last login time",
@@ -1244,6 +1247,9 @@
       "login": {
         "password": {
           "required": "Please enter a password"
+        },
+        "clientType": {
+          "required": "Please enter a client type"
         },
         "username": {
           "required": "Please enter a username"

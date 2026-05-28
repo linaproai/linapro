@@ -4,11 +4,11 @@ package plugin
 
 import (
 	"context"
-	"sort"
 	"strings"
 
-	"lina-core/internal/model/entity"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/management"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/bizerr"
@@ -40,7 +40,7 @@ func (s *serviceImpl) SyncSourcePlugins(ctx context.Context) error {
 	if _, err = s.markRuntimeCacheChanged(ctx, "source_plugins_synced"); err != nil {
 		return err
 	}
-	s.managementListCache.store(s.managementListCacheKey(ctx), out)
+	s.managementListCache.Store(s.managementListCacheKey(ctx), out)
 	return nil
 }
 
@@ -58,7 +58,7 @@ func (s *serviceImpl) SyncSourcePluginsStrict(ctx context.Context) (*ListOutput,
 	if _, err = s.markRuntimeCacheChanged(ctx, "source_plugins_synced"); err != nil {
 		return nil, err
 	}
-	s.managementListCache.store(s.managementListCacheKey(ctx), out)
+	s.managementListCache.Store(s.managementListCacheKey(ctx), out)
 	return out, nil
 }
 
@@ -75,7 +75,7 @@ func (s *serviceImpl) SyncAndList(ctx context.Context) (*ListOutput, error) {
 	if _, err = s.markRuntimeCacheChanged(ctx, "plugins_synced_and_listed"); err != nil {
 		return nil, err
 	}
-	s.managementListCache.store(s.managementListCacheKey(ctx), out)
+	s.managementListCache.Store(s.managementListCacheKey(ctx), out)
 	return out, nil
 }
 
@@ -93,7 +93,7 @@ func (s *serviceImpl) syncAndList(ctx context.Context) (*ListOutput, error) {
 	if err != nil {
 		return nil, err
 	}
-	syncCtx = withManifestSnapshot(syncCtx, manifests)
+	syncCtx = management.WithManifestSnapshot(syncCtx, manifests)
 	syncCtx = s.WithDependencySnapshotCache(syncCtx)
 
 	covered := make(map[string]struct{}, len(manifests))
@@ -112,7 +112,7 @@ func (s *serviceImpl) syncAndList(ctx context.Context) (*ListOutput, error) {
 		return nil, err
 	}
 	items = append(items, s.buildServicePluginItems(syncCtx, runtimeItems)...)
-	sortServicePluginItems(items)
+	management.SortPluginItems(items)
 	if err = s.integrationSvc.RefreshEnabledSnapshot(syncCtx); err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		if in.Name != "" && !strings.Contains(item.Name, in.Name) {
 			continue
 		}
-		if in.Type != "" && !matchPluginType(item.Type, in.Type) {
+		if in.Type != "" && !management.MatchesPluginType(item.Type, in.Type) {
 			continue
 		}
 		if in.Status != nil && item.Enabled != *in.Status {
@@ -171,6 +171,67 @@ func (s *serviceImpl) ReadOnlyList(ctx context.Context) (*ListOutput, error) {
 	return s.buildManagementList(ctx)
 }
 
+// PrewarmManagementList builds the complete plugin management list read model
+// so the first administrator request can reuse hot discovery and dependency
+// projections. Failures are returned to foreground callers and logged by
+// asynchronous startup callers.
+func (s *serviceImpl) PrewarmManagementList(ctx context.Context) error {
+	if _, err := s.managementList(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+// managementList returns the complete unfiltered plugin management read model.
+func (s *serviceImpl) managementList(ctx context.Context) (*ListOutput, error) {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return nil, err
+	}
+	cacheKey := s.managementListCacheKey(ctx)
+	if cached, ok := s.managementListCache.Get(cacheKey); ok {
+		return cached, nil
+	}
+	out, err := s.buildManagementList(ctx)
+	if err != nil {
+		return nil, err
+	}
+	s.managementListCache.Store(s.managementListCacheKey(ctx), out)
+	return management.CloneListOutput(out), nil
+}
+
+// InvalidateManagementListCache clears this process-local read model. Cluster
+// peers observe the same plugin-runtime revision and invalidate through the
+// root runtime-cache refresh callback.
+func (s *serviceImpl) InvalidateManagementListCache(_ context.Context, _ string) {
+	if s == nil || s.managementListCache == nil {
+		return
+	}
+	s.managementListCache.Invalidate()
+}
+
+// managementListCacheKey returns the current cache partition because plugin
+// display metadata is localized during projection and can change when the
+// runtime translation bundle version changes.
+func (s *serviceImpl) managementListCacheKey(ctx context.Context) management.ListCacheKey {
+	if s == nil || s.i18nSvc == nil {
+		return management.ListCacheKey{Locale: i18nsvc.DefaultLocale}
+	}
+	locale := normalizeManagementListCacheLocale(s.i18nSvc.GetLocale(ctx))
+	return management.ListCacheKey{
+		Locale:               locale,
+		RuntimeBundleVersion: s.i18nSvc.BundleVersion(locale),
+	}
+}
+
+// normalizeManagementListCacheLocale keeps cache keys stable for detached
+// startup contexts and tests that do not carry business locale metadata.
+func normalizeManagementListCacheLocale(locale string) string {
+	if locale == "" {
+		return i18nsvc.DefaultLocale
+	}
+	return locale
+}
+
 // buildManagementList scans plugin manifests and projects current registry
 // state without synchronizing governance tables.
 func (s *serviceImpl) buildManagementList(ctx context.Context) (*ListOutput, error) {
@@ -188,14 +249,14 @@ func (s *serviceImpl) buildManagementList(ctx context.Context) (*ListOutput, err
 	if err != nil {
 		return nil, err
 	}
-	readCtx = withManifestSnapshot(readCtx, manifests)
+	readCtx = management.WithManifestSnapshot(readCtx, manifests)
 	readCtx = s.WithDependencySnapshotCache(readCtx)
 	registries, err := s.catalogSvc.ListAllRegistries(readCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	registryByPluginID := buildRegistryByPluginID(registries)
+	registryByPluginID := management.RegistryByPluginID(registries)
 	covered := make(map[string]struct{}, len(manifests))
 	items := make([]*PluginItem, 0, len(manifests))
 	for _, manifest := range manifests {
@@ -213,20 +274,8 @@ func (s *serviceImpl) buildManagementList(ctx context.Context) (*ListOutput, err
 		return nil, err
 	}
 	items = append(items, s.buildServicePluginItems(readCtx, runtimeItems)...)
-	sortServicePluginItems(items)
+	management.SortPluginItems(items)
 	return &ListOutput{List: items, Total: len(items)}, nil
-}
-
-// buildRegistryByPluginID indexes registry rows by plugin ID for read-only list projection.
-func buildRegistryByPluginID(registries []*entity.SysPlugin) map[string]*entity.SysPlugin {
-	result := make(map[string]*entity.SysPlugin, len(registries))
-	for _, registry := range registries {
-		if registry == nil || strings.TrimSpace(registry.PluginId) == "" {
-			continue
-		}
-		result[registry.PluginId] = registry
-	}
-	return result
 }
 
 // buildServicePluginItems wraps runtime projections with facade-level metadata.
@@ -252,19 +301,6 @@ func (s *serviceImpl) buildServicePluginItem(ctx context.Context, item *runtime.
 	return out
 }
 
-// sortServicePluginItems sorts facade plugin projections by plugin ID.
-func sortServicePluginItems(items []*PluginItem) {
-	sort.Slice(items, func(i int, j int) bool {
-		if items[i] == nil {
-			return false
-		}
-		if items[j] == nil {
-			return true
-		}
-		return items[i].Id < items[j].Id
-	})
-}
-
 // ListEnabledPluginIDs returns the IDs of plugins that are currently
 // installed and enabled.
 func (s *serviceImpl) ListEnabledPluginIDs(ctx context.Context) ([]string, error) {
@@ -287,15 +323,4 @@ func (s *serviceImpl) ListEnabledPluginIDs(ctx context.Context) ([]string, error
 		pluginIDs = append(pluginIDs, strings.TrimSpace(registry.PluginId))
 	}
 	return pluginIDs, nil
-}
-
-// matchPluginType compares normalized plugin types so list filtering accepts
-// user input that differs only by case or alias formatting.
-func matchPluginType(actual string, expected string) bool {
-	actualType := catalog.NormalizeType(actual)
-	expectedType := catalog.NormalizeType(expected)
-	if expectedType == "" {
-		return true
-	}
-	return actualType == expectedType
 }

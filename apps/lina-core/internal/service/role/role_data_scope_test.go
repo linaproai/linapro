@@ -122,7 +122,7 @@ func (s roleScopeStaticBizCtx) Current(context.Context) contract.CurrentContext 
 func (s roleScopeStaticBizCtx) SetLocale(context.Context, string) {}
 
 // SetUser is unused by role data-scope tests.
-func (s roleScopeStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
+func (s roleScopeStaticBizCtx) SetUser(context.Context, string, int, string, int, string) {}
 
 // SetTenant is unused by role data-scope tests.
 func (s roleScopeStaticBizCtx) SetTenant(context.Context, int) {}

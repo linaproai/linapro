@@ -1,87 +1,87 @@
-## Requirements
+## ADDED Requirements
 
-### Requirement: Official Plugin Workspace Must Be Optional
+### Requirement: 官方插件工作区必须可选
 
-The system SHALL treat `apps/lina-plugins` as the default location for official source plugin workspace, but host basic development, build, and test entry points must not require the directory to exist or contain plugin code. The directory can be absent, an empty directory, or mounted as a `git submodule` containing official plugin code.
+系统 SHALL 将 `apps/lina-plugins` 视为官方源码插件工作区的默认位置，但宿主基础开发、构建和测试入口不得要求该目录一定存在或一定包含插件代码。该目录可以不存在、为空目录，或作为 `git submodule` 挂载并包含官方插件代码。
 
-#### Scenario: Host commands executable when plugin workspace absent
-- **WHEN** `apps/lina-plugins` does not exist in the workspace
-- **THEN** host backend compilation and host backend unit tests remain executable
-- **AND** failures must not come from Go workspace loading missing plugin modules or host compile-time importing official plugin aggregate package
+#### Scenario: 插件工作区不存在时宿主命令可执行
+- **WHEN** 工作区中不存在 `apps/lina-plugins`
+- **THEN** 宿主后端编译和宿主后端单元测试仍可执行
+- **AND** 失败不得来自 Go workspace 加载缺失插件模块或宿主编译期导入官方插件聚合包
 
-#### Scenario: Host commands executable when plugin workspace empty
-- **WHEN** an empty directory `apps/lina-plugins` exists in the workspace
-- **THEN** host backend compilation and host backend unit tests remain executable
-- **AND** source plugin discovery results in an empty set
-- **AND** host startup must not fail due to absence of source plugin manifests
+#### Scenario: 插件工作区为空时宿主命令可执行
+- **WHEN** 工作区中存在空目录 `apps/lina-plugins`
+- **THEN** 宿主后端编译和宿主后端单元测试仍可执行
+- **AND** 源码插件发现结果为空集合
+- **AND** 宿主启动不得因为没有源码插件清单而失败
 
-#### Scenario: Official plugins restored via submodule
-- **WHEN** `apps/lina-plugins` submodule initialization is complete
-- **THEN** the host can discover official source plugin manifests
-- **AND** official source plugin backend, frontend, manifest, SQL, and E2E continue using the `apps/lina-plugins/<plugin-id>/` directory convention
+#### Scenario: 官方插件通过 submodule 恢复
+- **WHEN** `apps/lina-plugins` 作为 submodule 初始化完成
+- **THEN** 宿主可发现官方源码插件清单
+- **AND** 官方源码插件后端、前端、manifest、SQL 和 E2E 继续使用 `apps/lina-plugins/<plugin-id>/` 目录约定
 
-### Requirement: Host and Official Source Plugin Compile-Time Dependency Must Be Decoupled
+### Requirement: 宿主与官方源码插件编译期依赖必须解耦
 
-The host SHALL be able to complete default compilation without official source plugin Go modules. Official source plugin backend registration must be enabled by an explicit plugin-full build path, build tag, generated aggregate file, or equivalent mechanism; the host default entry must not unconditionally depend on the `lina-plugins` module.
+宿主 SHALL 能在没有官方源码插件 Go module 的情况下完成默认编译。官方源码插件后端注册必须由显式的插件完整构建路径、构建标签、生成聚合文件或等价机制启用，不得由宿主默认入口无条件依赖 `lina-plugins` module。
 
-#### Scenario: Default host build does not import official plugin aggregate module
-- **WHEN** a developer builds `apps/lina-core` in a workspace where `apps/lina-plugins` is not initialized
-- **THEN** the build does not resolve the `lina-plugins` module
-- **AND** the build does not require any `lina-plugin-*` module to exist
+#### Scenario: 默认宿主构建不导入官方插件聚合模块
+- **WHEN** 开发者在未初始化 `apps/lina-plugins` 的工作区中构建 `apps/lina-core`
+- **THEN** 构建不解析 `lina-plugins` module
+- **AND** 构建不要求任何 `lina-plugin-*` module 存在
 
-#### Scenario: Full plugin build enables official source plugin registration
-- **WHEN** a developer explicitly runs a full build or test entry including official plugins
-- **THEN** the build path enables official source plugin backend registration
-- **AND** if `apps/lina-plugins` submodule is not initialized, the command fails fast with a prompt to initialize the submodule
+#### Scenario: 完整插件构建启用官方源码插件注册
+- **WHEN** 开发者显式运行包含官方插件的完整构建或测试入口
+- **THEN** 构建路径启用官方源码插件后端注册
+- **AND** 如果 `apps/lina-plugins` submodule 未初始化，命令快速失败并提示初始化 submodule
 
-### Requirement: Plugin Workspace State Must Be Diagnosable
+### Requirement: 插件工作区状态必须可诊断
 
-The developer tool SHALL distinguish four workspace states: missing, empty directory, initialized submodule, and path exists but structure invalid, and output actionable diagnostics in commands that need plugin content.
+开发工具 SHALL 能区分插件工作区缺失、空目录、已初始化 submodule 和路径存在但结构无效四类状态，并在需要插件内容的命令中输出可操作诊断。
 
-#### Scenario: Submodule not initialized when plugin content needed
-- **WHEN** a developer runs official plugin unit tests, plugin E2E, dynamic plugin wasm build, or full plugin build
-- **AND** `apps/lina-plugins` does not exist or is empty
-- **THEN** the command fails and explains the current lack of official plugin workspace
-- **AND** the error prompt includes `git submodule update --init --recursive`
+#### Scenario: 需要插件内容但 submodule 未初始化
+- **WHEN** 开发者运行官方插件单元测试、插件 E2E、动态插件 wasm 构建或完整插件构建
+- **AND** `apps/lina-plugins` 不存在或为空
+- **THEN** 命令失败并说明当前缺少官方插件工作区
+- **AND** 错误提示包含 `git submodule update --init --recursive`
 
-#### Scenario: Host command encounters missing plugin workspace
-- **WHEN** a developer runs a host-only host command
-- **AND** `apps/lina-plugins` does not exist or is empty
-- **THEN** the command continues executing
-- **AND** diagnostics at most output at info level that the current mode is host-only
+#### Scenario: 宿主命令遇到缺失插件工作区
+- **WHEN** 开发者运行 host-only 宿主命令
+- **AND** `apps/lina-plugins` 不存在或为空
+- **THEN** 命令继续执行
+- **AND** 诊断最多以信息级输出当前处于 host-only 模式
 
-### Requirement: Host-only and Plugin-full Verification Must Be Separated
+### Requirement: Host-only 与 Plugin-full 验证必须分离
 
-The system SHALL provide repeatable host-only verification and plugin-full verification. Host-only verification must cover host backend, host frontend, and host E2E in both absent and empty plugin workspace states; plugin-full verification must cover official plugin backend unit tests and plugin E2E after submodule initialization.
+系统 SHALL 提供可重复执行的 host-only 验证和 plugin-full 验证。Host-only 验证必须在插件工作区不存在和为空两种状态下覆盖宿主后端、宿主前端和宿主 E2E；plugin-full 验证必须在 submodule 初始化后覆盖官方插件后端单元测试和插件 E2E。
 
-#### Scenario: Host-only verification covers missing plugin directory state
-- **WHEN** `apps/lina-plugins` is temporarily removed from the workspace
-- **THEN** host-only verification runs host backend unit tests
-- **AND** host-only verification runs host frontend type check or build
-- **AND** host-only verification runs host E2E tests not dependent on official source plugin content
+#### Scenario: Host-only 验证覆盖插件目录缺失状态
+- **WHEN** `apps/lina-plugins` 被临时移出工作区
+- **THEN** host-only 验证运行宿主后端单元测试
+- **AND** host-only 验证运行宿主前端类型检查或构建
+- **AND** host-only 验证运行不依赖官方源码插件内容的宿主 E2E
 
-#### Scenario: Host-only verification covers empty plugin directory state
-- **WHEN** `apps/lina-plugins` is an empty directory
-- **THEN** host-only verification runs the same set of host verifications
-- **AND** plugin management or plugin discovery related host tests assert correct behavior when source plugin set is empty
+#### Scenario: Host-only 验证覆盖插件目录为空状态
+- **WHEN** `apps/lina-plugins` 是空目录
+- **THEN** host-only 验证运行同一组宿主验证
+- **AND** 插件管理或插件发现相关宿主测试断言源码插件集合为空时行为正确
 
-#### Scenario: Plugin-full verification covers submodule state
-- **WHEN** `apps/lina-plugins` submodule initialization is complete
-- **THEN** plugin-full verification runs all official plugin Go unit tests
-- **AND** plugin-full verification runs all official plugin-owned E2E tests
-- **AND** plugin-full verification runs dynamic plugin wasm build or equivalent plugin artifact verification
+#### Scenario: Plugin-full 验证覆盖 submodule 状态
+- **WHEN** `apps/lina-plugins` submodule 初始化完成
+- **THEN** plugin-full 验证运行所有官方插件 Go 单元测试
+- **AND** plugin-full 验证运行所有官方插件自有 E2E
+- **AND** plugin-full 验证运行动态插件 wasm 构建或等价插件产物验证
 
-### Requirement: Official Plugin Submodule Migration Must Preserve Default Path
+### Requirement: 官方插件 submodule 迁移必须保持默认路径
 
-The official plugin repository SHALL be mounted as a single submodule to `apps/lina-plugins` unless a subsequent OpenSpec change explicitly approves a path migration. Main repository documentation, CI, and developer commands must describe initialization and verification flows around this default mount path.
+官方插件仓库 SHALL 作为单个 submodule 挂载到 `apps/lina-plugins`，除非后续 OpenSpec 变更明确批准路径迁移。主仓库文档、CI 和开发命令必须围绕该默认挂载路径描述初始化与验证流程。
 
-#### Scenario: Clone main repository then initialize official plugins
-- **WHEN** a developer clones the main repository and needs full official plugin capabilities
-- **THEN** documentation provides the submodule initialization command
-- **AND** after initialization, official plugin directories appear under `apps/lina-plugins`
-- **AND** existing plugin directory structure specifications continue to apply
+#### Scenario: 克隆主仓库后初始化官方插件
+- **WHEN** 开发者克隆主仓库并需要完整官方插件能力
+- **THEN** 文档提供 submodule 初始化命令
+- **AND** 初始化后 `apps/lina-plugins` 下出现官方插件目录
+- **AND** 现有插件目录结构规范继续适用
 
-#### Scenario: Main repository only runs host capabilities
-- **WHEN** a developer clones the main repository but does not initialize the submodule
-- **THEN** documentation explains that host-only development and test entry points can be run
-- **AND** documentation explains that plugin-specific commands require submodule initialization
+#### Scenario: 主仓库只运行宿主能力
+- **WHEN** 开发者克隆主仓库但不初始化 submodule
+- **THEN** 文档说明可运行 host-only 开发和测试入口
+- **AND** 文档说明插件专属命令需要初始化 submodule

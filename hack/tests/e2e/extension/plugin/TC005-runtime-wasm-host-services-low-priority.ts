@@ -132,6 +132,7 @@ async function createAdminApiContext(): Promise<APIRequestContext> {
     data: {
       username: config.adminUser,
       password: config.adminPass,
+      clientType: "web",
     },
   });
   const loginPayload = await expectApiSuccess<{ accessToken?: string }>(
@@ -156,6 +157,7 @@ async function apiLogin(username: string, password: string): Promise<string> {
       data: {
         username,
         password,
+        clientType: "web",
       },
     });
     const loginPayload = await expectApiSuccess<{ accessToken?: string }>(

@@ -1,42 +1,105 @@
-## ADDED Requirements
+# 用户角色关联规范
 
-### Requirement: sys_user_role 增加租户维度
-`sys_user_role` SHALL 增加 `tenant_id INT NOT NULL DEFAULT 0` 字段;UNIQUE 约束改为 `(user_id, role_id, tenant_id)`,表示"用户 U 在租户 T 内持有角色 R"。
+## Purpose
 
-#### Scenario: 用户在不同租户持有不同角色
-- **WHEN** 用户 U 在租户 A 是 admin,在租户 B 是普通用户
-- **THEN** `sys_user_role` 中存在两行:`(U, role_admin, A)` 与 `(U, role_user, B)`
+定义用户角色关联管理、角色分配和角色选项行为，确保用户权限归属在用户管理工作流中保持一致。
 
-### Requirement: 角色绑定按租户校验
-绑定时 SHALL 校验 `sys_role.tenant_id` 与请求 `tenant_id` 匹配;租户管理员仅可绑定本租户角色;平台上下文角色仅可绑定给平台用户。
+## Requirements
 
-#### Scenario: 租户管理员绑定本租户角色
-- **WHEN** 租户 A 管理员绑定角色 R(`sys_role.tenant_id=A`)给用户 U
-- **THEN** 写入 `(U, R, A)` 一行
-- **AND** 校验 U 在租户 A 存在 active membership
+### Requirement:用户列表显示角色信息
 
-#### Scenario: 跨租户绑定被拒
-- **WHEN** 租户 A 管理员尝试将租户 B 的角色绑定给某用户
-- **THEN** 返回 `bizerr.CodeRoleTenantMismatch`
-- **AND** 不写入
+系统 SHALL 在用户列表中显示每个用户关联的角色信息。
 
-#### Scenario: 平台上下文角色绑定到普通用户被拒
-- **WHEN** 任意用户尝试将 `tenant_id=0` 的角色绑给租户用户
-- **THEN** 返回 `bizerr.CodePlatformRoleAssignmentForbidden`
+#### Scenario:用户列表包含角色列
 
-### Requirement: 权限解析按当前租户过滤
-权限/菜单解析 SHALL 仅取 `sys_user_role.tenant_id = bizctx.TenantId` 的关联;平台管理员上下文(`bizctx.TenantId=0`)取平台角色。
+- **当** 用户打开用户管理时
+- **则** 用户列表包含角色列
+- **且** 角色列显示所有关联的角色名称，以逗号分隔
+- **且** 未分配角色的用户显示空值或未分配状态
 
-#### Scenario: 用户切换租户后权限刷新
-- **WHEN** 用户 U 持租户 A token 时拥有角色 R_A
-- **AND** 切换到租户 B 后持有角色 R_B
-- **THEN** 切换后菜单/按钮权限按 R_B 解析
-- **AND** R_A 的权限点不可见
+#### Scenario:用户详情包含角色信息
 
-### Requirement: 用户登出/被踢清理状态
-当用户从某租户被移除(membership 删除)或租户被删除时,SHALL 级联删除 `sys_user_role.tenant_id = T` 相关行,但保留其他租户的关联。
+- **当** 用户查看详情时
+- **则** 系统返回关联的角色 ID 列表 `roleIds` 和角色名称列表 `roleNames`
 
-#### Scenario: 移除 membership 触发清理
-- **WHEN** 租户管理员从租户 A 移除用户 U
-- **THEN** `sys_user_role(user_id=U, tenant_id=A)` 行被删除
-- **AND** `sys_user_role(user_id=U, tenant_id=其他)` 行不受影响
+### Requirement:创建用户时分配角色
+
+系统 SHALL 支持在创建用户时选择关联角色。
+
+#### Scenario:创建用户并分配角色
+
+- **当** 用户在创建用户表单中选择一个或多个角色并提交时
+- **则** 系统创建用户记录
+- **且** 向 `sys_user_role` 插入用户角色关联记录
+
+#### Scenario:创建用户时不分配角色
+
+- **当** 用户提交创建用户表单但未选择角色时
+- **则** 系统创建用户记录
+- **且** `sys_user_role` 中不存在该用户的关联记录
+
+### Requirement:更新用户时修改角色
+
+系统 SHALL 支持在更新用户时修改关联角色。
+
+#### Scenario:更新用户角色
+
+- **当** 用户在编辑用户表单中更改角色选择并提交时
+- **则** 系统更新用户基本信息
+- **且** 删除旧的 `sys_user_role` 关联记录
+- **且** 插入新的 `sys_user_role` 关联记录
+
+#### Scenario:清除用户角色
+
+- **当** 用户在编辑用户表单中清除所有角色选择并提交时
+- **则** 系统更新用户基本信息
+- **且** 删除该用户的所有 `sys_user_role` 关联记录
+
+### Requirement:删除用户时清理角色关联
+
+系统 SHALL 在删除用户时清理角色关联数据。用户软删除和 `sys_user_role` 关联清理必须在同一个事务中运行，任何失败必须回滚整个操作。
+
+#### Scenario:用户删除事务性清理角色关联
+
+- **当** 用户删除另一个用户
+- **且** 所有清理步骤成功
+- **则** 系统在事务中软删除用户记录
+- **且** 删除该用户的所有 `sys_user_role` 关联
+- **且** 仅在事务提交后通知访问拓扑变更
+
+#### Scenario:关联清理失败回滚整个操作
+
+- **当** 用户删除另一个用户
+- **且** `sys_user_role` 关联清理在事务中返回错误
+- **则** 用户软删除也必须回滚
+- **且** 操作返回底层错误
+
+### Requirement:角色选项加载
+
+系统 SHALL 在用户表单中提供角色选项。
+
+#### Scenario:加载角色选项
+
+- **当** 用户打开创建用户或编辑用户表单时
+- **则** 系统请求角色选项
+- **且** 角色选择器显示所有启用的角色
+
+#### Scenario:选择多个角色
+
+- **当** 用户在角色选择器中选择多个角色时
+- **则** 选择器以标签形式显示已选角色
+- **且** 用户可以移除已选角色
+
+### Requirement:sys_user_role 必须包含 role_id 反向索引
+
+系统 SHALL 在 `sys_user_role` 表上维护 `KEY idx_role_id (role_id)`，以支持按角色查询用户和按角色批量删除关联等访问路径。避免仅存在 `(user_id, role_id)` 组合主键时的全表扫描。
+
+#### Scenario:sys_user_role 反向索引存在
+
+- **当** `make init` 完成数据库初始化时
+- **则** `SHOW INDEX FROM sys_user_role` 必须包含列 `role_id` 上的 `idx_role_id`
+
+#### Scenario:按角色查询用户使用索引
+
+- **当** 服务执行 `WHERE role_id = ?` 形式的查询时
+- **则** 数据库必须选择 `idx_role_id` 以避免全表扫描

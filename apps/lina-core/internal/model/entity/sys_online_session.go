@@ -20,4 +20,5 @@ type SysOnlineSession struct {
 	Os             string     `json:"os"             orm:"os"               description:"Operating system"`
 	LoginTime      *time.Time `json:"loginTime"      orm:"login_time"       description:"Login time"`
 	LastActiveTime *time.Time `json:"lastActiveTime" orm:"last_active_time" description:"Last active time"`
+	ClientType     string     `json:"clientType"     orm:"client_type"      description:"User session client type: web, mobile, desktop, cli"`
 }
