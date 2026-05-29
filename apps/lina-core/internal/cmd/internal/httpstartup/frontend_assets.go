@@ -34,7 +34,7 @@ func bindFrontendAssetRoutes(
 ) error {
 	subFS, err := fs.Sub(packed.Files, "public")
 	if err != nil {
-		logger.Panicf(ctx, "load embedded frontend assets failed: %v", err)
+		logger.Errorf(ctx, "load embedded frontend assets failed: %v", err)
 		return err
 	}
 	return bindFrontendAssetRoutesWithFS(server, pluginSvc, workspaceBasePath, subFS)

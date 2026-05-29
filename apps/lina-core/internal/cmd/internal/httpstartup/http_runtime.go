@@ -479,7 +479,7 @@ func validateHTTPStartupPluginConsistency(ctx context.Context, pluginSvc pluginS
 		return pluginSvc.ValidateStartupConsistency(ctx)
 	})
 	if err != nil {
-		logger.Panicf(ctx, "plugin startup consistency validation failed: %v", err)
+		logger.Errorf(ctx, "plugin startup consistency validation failed: %v", err)
 	}
 	return err
 }

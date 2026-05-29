@@ -140,28 +140,23 @@ func TestPrewarmHTTPRuntimeFrontendBundlesLogsDebugDuration(t *testing.T) {
 	}
 }
 
-// TestValidateHTTPStartupPluginConsistencyPanicsOnInvalidState verifies
-// startup consistency failures stop HTTP startup before later phases run.
-func TestValidateHTTPStartupPluginConsistencyPanicsOnInvalidState(t *testing.T) {
+// TestValidateHTTPStartupPluginConsistencyReturnsErrorOnInvalidState verifies
+// startup consistency failures return an error so the top-level startup
+// orchestrator can log and exit cleanly instead of crashing the process.
+func TestValidateHTTPStartupPluginConsistencyReturnsErrorOnInvalidState(t *testing.T) {
 	ctx := startupstats.WithCollector(context.Background(), startupstats.New())
 	pluginSvc := &startupConsistencyFailingPluginService{err: gerror.New("invalid startup state")}
 
-	defer func() {
-		recovered := recover()
-		if recovered == nil {
-			t.Fatal("expected startup consistency failure to panic")
-		}
-		if !pluginSvc.called {
-			t.Fatal("expected startup consistency validator to be called")
-		}
-		snapshot := startupstats.FromContext(ctx).Snapshot()
-		if _, ok := snapshot.Phases[startupstats.PhasePluginStartupConsistency]; !ok {
-			t.Fatalf("expected startup consistency phase to be recorded, got %#v", snapshot.Phases)
-		}
-	}()
-
-	if err := validateHTTPStartupPluginConsistency(ctx, pluginSvc); err != nil {
-		t.Fatalf("expected panic path before returning error, got %v", err)
+	err := validateHTTPStartupPluginConsistency(ctx, pluginSvc)
+	if err == nil {
+		t.Fatal("expected startup consistency failure to return an error, got nil")
+	}
+	if !pluginSvc.called {
+		t.Fatal("expected startup consistency validator to be called")
+	}
+	snapshot := startupstats.FromContext(ctx).Snapshot()
+	if _, ok := snapshot.Phases[startupstats.PhasePluginStartupConsistency]; !ok {
+		t.Fatalf("expected startup consistency phase to be recorded, got %#v", snapshot.Phases)
 	}
 }
 

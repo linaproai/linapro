@@ -35,7 +35,8 @@ func Run(ctx context.Context) error {
 
 	bindHostAPIRoutes(startupCtx, server, runtime)
 	if err = registerSourcePluginHTTPRoutes(startupCtx, server, runtime); err != nil {
-		logger.Panicf(startupCtx, "register plugin routes failed: %v", err)
+		logger.Errorf(startupCtx, "register plugin routes failed: %v", err)
+		return err
 	}
 	if err = finishHTTPRuntimeAfterSourceRoutes(startupCtx, runtime); err != nil {
 		return err
