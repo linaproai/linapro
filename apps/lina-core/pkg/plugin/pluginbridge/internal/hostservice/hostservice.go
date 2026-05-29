@@ -198,7 +198,7 @@ const (
 
 // Manifest host-service methods describe plugin-scoped manifest resource reads.
 const (
-	// HostServiceMethodManifestGet reads one plugin manifest declaration resource.
+	// HostServiceMethodManifestGet reads one plugin-scoped manifest resource.
 	HostServiceMethodManifestGet = "get"
 )
 

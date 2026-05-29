@@ -1,6 +1,6 @@
-// Package manifest exposes read-only plugin manifest resources to source and
-// dynamic plugins while keeping config, SQL, and i18n directories on their
-// dedicated lifecycle pipelines.
+// Package manifest exposes plugin-owned manifest/ files as read-only raw
+// resources to source and dynamic plugins. Config, SQL, and i18n files remain
+// governed by their dedicated lifecycle pipelines when they need to take effect.
 package manifest
 
 import (
@@ -11,7 +11,7 @@ import (
 	"lina-core/pkg/plugin/pluginhost"
 )
 
-// serviceAdapter reads declaration resources under one plugin manifest root.
+// serviceAdapter reads raw resources under one plugin manifest root.
 type serviceAdapter struct {
 	pluginID          string
 	developmentRoot   string

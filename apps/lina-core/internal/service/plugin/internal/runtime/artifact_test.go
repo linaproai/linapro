@@ -255,7 +255,7 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 }
 
 // TestParseRuntimeArtifactLoadsManifestResources verifies dynamic artifact
-// manifest/config resources are decoded and exposed on the active artifact view.
+// manifest resources are decoded and exposed on the active artifact view.
 func TestParseRuntimeArtifactLoadsManifestResources(t *testing.T) {
 	services := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
@@ -280,7 +280,7 @@ func TestParseRuntimeArtifactLoadsManifestResources(t *testing.T) {
 		&catalog.ArtifactSpec{
 			RuntimeKind:           protocol.RuntimeKindWasm,
 			ABIVersion:            protocol.SupportedABIVersion,
-			ManifestResourceCount: 3,
+			ManifestResourceCount: 5,
 			ManifestResources: []*catalog.ArtifactManifestResource{
 				{
 					Path:          "manifest/config/config.yaml",
@@ -293,6 +293,14 @@ func TestParseRuntimeArtifactLoadsManifestResources(t *testing.T) {
 				{
 					Path:          "manifest/metadata.yaml",
 					ContentBase64: base64.StdEncoding.EncodeToString([]byte("title: demo\n")),
+				},
+				{
+					Path:          "manifest/sql/001-schema.sql",
+					ContentBase64: base64.StdEncoding.EncodeToString([]byte("CREATE TABLE plugin_demo(id bigint);\n")),
+				},
+				{
+					Path:          "manifest/i18n/zh-CN/plugin.json",
+					ContentBase64: base64.StdEncoding.EncodeToString([]byte(`{"plugin.demo":"demo"}`)),
 				},
 			},
 		},
@@ -308,8 +316,8 @@ func TestParseRuntimeArtifactLoadsManifestResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected runtime artifact with manifest resources to parse, got error: %v", err)
 	}
-	if artifact.ManifestResourceCount != 3 || len(artifact.ManifestResources) != 3 {
-		t.Fatalf("expected three manifest resources, got count=%d resources=%#v", artifact.ManifestResourceCount, artifact.ManifestResources)
+	if artifact.ManifestResourceCount != 5 || len(artifact.ManifestResources) != 5 {
+		t.Fatalf("expected five manifest resources, got count=%d resources=%#v", artifact.ManifestResourceCount, artifact.ManifestResources)
 	}
 	if string(artifact.ManifestResources[0].Content) != "feature:\n  enabled: true\n" {
 		t.Fatalf("expected decoded config content, got %q", string(artifact.ManifestResources[0].Content))
@@ -317,7 +325,7 @@ func TestParseRuntimeArtifactLoadsManifestResources(t *testing.T) {
 }
 
 // TestParseRuntimeArtifactRejectsInvalidManifestResourcePath verifies artifact
-// resources cannot smuggle SQL, i18n, absolute, or traversal paths.
+// resources cannot smuggle absolute or traversal paths.
 func TestParseRuntimeArtifactRejectsInvalidManifestResourcePath(t *testing.T) {
 	services := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
@@ -345,7 +353,7 @@ func TestParseRuntimeArtifactRejectsInvalidManifestResourcePath(t *testing.T) {
 			ManifestResourceCount: 1,
 			ManifestResources: []*catalog.ArtifactManifestResource{
 				{
-					Path:          "manifest/sql/001-invalid.yaml",
+					Path:          "../manifest/metadata.yaml",
 					ContentBase64: base64.StdEncoding.EncodeToString([]byte("SELECT 1;\n")),
 				},
 			},
@@ -362,8 +370,8 @@ func TestParseRuntimeArtifactRejectsInvalidManifestResourcePath(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected invalid manifest resource path to be rejected")
 	}
-	if !strings.Contains(err.Error(), "dedicated pipeline") {
-		t.Fatalf("expected dedicated pipeline path error, got %v", err)
+	if !strings.Contains(err.Error(), "escapes manifest root") {
+		t.Fatalf("expected path traversal error, got %v", err)
 	}
 }
 

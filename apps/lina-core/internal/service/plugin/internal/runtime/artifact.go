@@ -435,7 +435,7 @@ func buildRuntimeArtifactRemark(manifest *catalog.Manifest) string {
 		return ""
 	}
 	return fmt.Sprintf(
-		"The host validated one %s runtime artifact using ABI %s with %d embedded frontend assets, %d manifest/config resources, %d install SQL assets, %d uninstall SQL assets, %d mock SQL assets, and %d dynamic routes declared.",
+		"The host validated one %s runtime artifact using ABI %s with %d embedded frontend assets, %d manifest resources, %d install SQL assets, %d uninstall SQL assets, %d mock SQL assets, and %d dynamic routes declared.",
 		manifest.RuntimeArtifact.RuntimeKind,
 		manifest.RuntimeArtifact.ABIVersion,
 		manifest.RuntimeArtifact.FrontendAssetCount,
@@ -617,8 +617,8 @@ func parseRuntimeArtifactSQLAssets(
 	return assets, nil
 }
 
-// parseRuntimeArtifactManifestResources restores embedded manifest/config
-// resources and validates source-layout path semantics before exposing them to
+// parseRuntimeArtifactManifestResources restores embedded manifest resources
+// and validates source-layout path semantics before exposing them to
 // release-bound config and manifest views.
 func parseRuntimeArtifactManifestResources(
 	filePath string,
@@ -664,9 +664,9 @@ func parseRuntimeArtifactManifestResources(
 }
 
 // normalizeRuntimeArtifactManifestResourcePath validates artifact resource paths
-// using plugin source layout semantics. Config defaults keep the full
-// manifest/config path; declaration resources keep the full manifest path and
-// are later projected relative to manifest/ for HostServices.Manifest().
+// using plugin source layout semantics. All manifest resources keep the full
+// manifest/ source path and are later projected relative to manifest/ for
+// HostServices.Manifest().
 func normalizeRuntimeArtifactManifestResourcePath(resourcePath string) (string, error) {
 	raw := strings.ReplaceAll(strings.TrimSpace(resourcePath), "\\", "/")
 	if raw == "" || raw == "." {
@@ -689,19 +689,8 @@ func normalizeRuntimeArtifactManifestResourcePath(resourcePath string) (string, 
 	if normalized == "." || normalized == ".." || strings.HasPrefix(normalized, "../") {
 		return "", gerror.Newf("manifest resource path escapes manifest root: %s", resourcePath)
 	}
-	if normalized == "manifest/config/config.yaml" || normalized == "manifest/config/config.example.yaml" {
-		return normalized, nil
-	}
 	if !strings.HasPrefix(normalized, "manifest/") {
 		return "", gerror.Newf("manifest resource path must use manifest source layout: %s", resourcePath)
-	}
-	for _, reserved := range []string{"manifest/config", "manifest/sql", "manifest/i18n"} {
-		if normalized == reserved || strings.HasPrefix(normalized, reserved+"/") {
-			return "", gerror.Newf("manifest resource path is managed by a dedicated pipeline: %s", resourcePath)
-		}
-	}
-	if path.Ext(normalized) != ".yaml" {
-		return "", gerror.Newf("manifest resource path must be a YAML resource: %s", resourcePath)
 	}
 	return normalized, nil
 }

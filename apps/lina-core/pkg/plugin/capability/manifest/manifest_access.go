@@ -17,7 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Get returns one declaration resource under the current plugin manifest root.
+// Get returns one raw resource under the current plugin manifest root.
 func (s *serviceAdapter) Get(_ context.Context, resourcePath string) ([]byte, error) {
 	normalizedPath, err := normalizeManifestResourcePath(resourcePath)
 	if err != nil {
@@ -51,7 +51,7 @@ func (s *serviceAdapter) Get(_ context.Context, resourcePath string) ([]byte, er
 	return nil, nil
 }
 
-// Exists reports whether one allowed declaration resource exists.
+// Exists reports whether one allowed manifest resource exists.
 func (s *serviceAdapter) Exists(ctx context.Context, resourcePath string) (bool, error) {
 	content, err := s.Get(ctx, resourcePath)
 	if err != nil {
@@ -124,11 +124,6 @@ func normalizeManifestResourcePath(resourcePath string) (string, error) {
 	}
 	if strings.HasPrefix(normalized, "manifest/") || normalized == "manifest" {
 		return "", gerror.Newf("manifest resource path must be relative to manifest root: %s", resourcePath)
-	}
-	for _, reserved := range []string{"config", "sql", "i18n"} {
-		if normalized == reserved || strings.HasPrefix(normalized, reserved+"/") {
-			return "", gerror.Newf("manifest resource path is managed by a dedicated pipeline: %s", resourcePath)
-		}
 	}
 	return normalized, nil
 }

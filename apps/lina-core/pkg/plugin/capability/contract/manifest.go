@@ -16,10 +16,10 @@ type ManifestServiceFactory interface {
 
 // ManifestService defines read-only access to one plugin's manifest resources.
 type ManifestService interface {
-	// Get returns one declaration resource under the current plugin manifest
+	// Get returns one raw resource under the current plugin manifest
 	// root. Paths are slash-separated and relative to manifest/.
 	Get(ctx context.Context, path string) ([]byte, error)
-	// Exists reports whether one allowed declaration resource exists under the
+	// Exists reports whether one allowed manifest resource exists under the
 	// current plugin manifest root.
 	Exists(ctx context.Context, path string) (bool, error)
 	// Scan unmarshals the selected YAML resource, or the nested key inside it,

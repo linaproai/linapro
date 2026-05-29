@@ -357,10 +357,5 @@ func normalizeManifestDeclaredPath(value string) (string, error) {
 	if normalizedPath == "manifest" || strings.HasPrefix(normalizedPath, "manifest/") {
 		return "", gerror.Newf("path must be relative to manifest root: %s", value)
 	}
-	for _, reserved := range []string{"config", "sql", "i18n"} {
-		if normalizedPath == reserved || strings.HasPrefix(normalizedPath, reserved+"/") {
-			return "", gerror.Newf("path is managed by a dedicated pipeline: %s", value)
-		}
-	}
 	return normalizedPath, nil
 }

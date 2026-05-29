@@ -37,8 +37,8 @@ type ExecutionInput struct {
 	// ArtifactDefaultConfig is the active-release manifest/config/config.yaml
 	// content used as the lowest-priority plugin config source.
 	ArtifactDefaultConfig []byte
-	// ArtifactManifestResources stores active-release manifest declaration
-	// resources keyed relative to manifest/.
+	// ArtifactManifestResources stores active-release manifest resources keyed
+	// relative to manifest/.
 	ArtifactManifestResources map[string][]byte
 	// ExecutionSource identifies what triggered this bridge execution.
 	ExecutionSource bridgecontract.ExecutionSource

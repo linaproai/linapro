@@ -282,13 +282,26 @@ func TestValidateHostServiceSpecsAcceptsManifestPaths(t *testing.T) {
 	specs := []*HostServiceSpec{{
 		Service: HostServiceManifest,
 		Methods: []string{HostServiceMethodManifestGet},
-		Paths:   []string{" metadata.yaml ", "resources/*.yaml"},
+		Paths: []string{
+			" metadata.yaml ",
+			"config/config.example.yaml",
+			"i18n/zh-CN/plugin.json",
+			"resources/*.yaml",
+			"sql/001-schema.sql",
+		},
 	}}
 
 	if err := ValidateHostServiceSpecs(specs); err != nil {
 		t.Fatalf("expected manifest paths to validate, got %v", err)
 	}
-	if len(specs[0].Paths) != 2 || specs[0].Paths[0] != "metadata.yaml" || specs[0].Paths[1] != "resources/*.yaml" {
+	expectedPaths := []string{
+		"config/config.example.yaml",
+		"i18n/zh-CN/plugin.json",
+		"metadata.yaml",
+		"resources/*.yaml",
+		"sql/001-schema.sql",
+	}
+	if !reflect.DeepEqual(specs[0].Paths, expectedPaths) {
 		t.Fatalf("expected normalized manifest paths, got %#v", specs[0].Paths)
 	}
 	capabilities := CapabilityMapFromHostServices(specs)
@@ -298,7 +311,7 @@ func TestValidateHostServiceSpecsAcceptsManifestPaths(t *testing.T) {
 }
 
 // TestValidateHostServiceSpecsRejectsUnsafeManifestPaths verifies manifest
-// declarations reject paths that could escape or bypass dedicated manifest pipes.
+// declarations reject paths that could escape the manifest root.
 func TestValidateHostServiceSpecsRejectsUnsafeManifestPaths(t *testing.T) {
 	for _, manifestPath := range []string{
 		"",
@@ -307,9 +320,6 @@ func TestValidateHostServiceSpecsRejectsUnsafeManifestPaths(t *testing.T) {
 		`C:\secret.yaml`,
 		"http://example.com/metadata.yaml",
 		"manifest/metadata.yaml",
-		"config/config.yaml",
-		"sql/install.sql",
-		"i18n/zh-CN/messages.json",
 	} {
 		manifestPath := manifestPath
 		t.Run(manifestPath, func(t *testing.T) {

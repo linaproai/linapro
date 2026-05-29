@@ -147,7 +147,7 @@ func TestHostCallContextHasManifestPathAccess(t *testing.T) {
 		hostServices: []*protocol.HostServiceSpec{{
 			Service: protocol.HostServiceManifest,
 			Methods: []string{protocol.HostServiceMethodManifestGet},
-			Paths:   []string{"metadata.yaml", "resources/*.yaml"},
+			Paths:   []string{"metadata.yaml", "resources/*.yaml", "config/config.example.yaml"},
 		}},
 	}
 	if !hcc.hasHostServiceAccess(protocol.HostServiceManifest, protocol.HostServiceMethodManifestGet, "metadata.yaml", "") {
@@ -156,8 +156,11 @@ func TestHostCallContextHasManifestPathAccess(t *testing.T) {
 	if !hcc.hasHostServiceAccess(protocol.HostServiceManifest, protocol.HostServiceMethodManifestGet, "resources/policy.yaml", "") {
 		t.Error("expected globbed manifest path to be allowed")
 	}
+	if !hcc.hasHostServiceAccess(protocol.HostServiceManifest, protocol.HostServiceMethodManifestGet, "config/config.example.yaml", "") {
+		t.Error("expected authorized config manifest path to be allowed")
+	}
 	if hcc.hasHostServiceAccess(protocol.HostServiceManifest, protocol.HostServiceMethodManifestGet, "config/config.yaml", "") {
-		t.Error("expected dedicated config manifest path to be denied")
+		t.Error("expected unauthorized config manifest path to be denied")
 	}
 }
 

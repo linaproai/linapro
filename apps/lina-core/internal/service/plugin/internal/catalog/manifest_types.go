@@ -267,7 +267,7 @@ type ArtifactSpec struct {
 	APIDocI18NAssetCount int
 	// SQLAssetCount is the count of embedded SQL migration assets.
 	SQLAssetCount int
-	// ManifestResourceCount is the count of embedded manifest/config resources.
+	// ManifestResourceCount is the count of embedded manifest resources.
 	ManifestResourceCount int
 	// RouteCount is the count of declared bridge routes.
 	RouteCount int
@@ -283,7 +283,7 @@ type ArtifactSpec struct {
 	// the operator opts in at install time. The host executes these inside a
 	// single database transaction so any failure rolls back the entire load.
 	MockSQLAssets []*ArtifactSQLAsset
-	// ManifestResources holds embedded manifest/config resources from the active release.
+	// ManifestResources holds embedded manifest resources from the active release.
 	ManifestResources []*ArtifactManifestResource
 	// HookSpecs holds the embedded hook handler declarations.
 	HookSpecs []*HookSpec

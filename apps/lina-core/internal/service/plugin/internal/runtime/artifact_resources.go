@@ -1,5 +1,5 @@
-// This file projects validated dynamic artifact manifest/config resources into
-// the per-execution views consumed by plugin config and manifest host services.
+// This file projects validated dynamic artifact manifest resources into the
+// per-execution views consumed by plugin config and manifest host services.
 
 package runtime
 
@@ -28,9 +28,9 @@ func buildArtifactDefaultConfig(manifest *catalog.Manifest) []byte {
 	return nil
 }
 
-// buildArtifactManifestResources returns declaration resources keyed relative
-// to manifest/. Config, SQL, and i18n resources stay on their dedicated
-// pipelines and are intentionally omitted from HostServices.Manifest().
+// buildArtifactManifestResources returns raw manifest resources keyed relative
+// to manifest/. Dedicated config, SQL, and i18n pipelines decide how those
+// resources take effect; this view only exposes their original bytes.
 func buildArtifactManifestResources(manifest *catalog.Manifest) map[string][]byte {
 	if manifest == nil || manifest.RuntimeArtifact == nil {
 		return nil
@@ -44,24 +44,10 @@ func buildArtifactManifestResources(manifest *catalog.Manifest) map[string][]byt
 		if relativePath == "" || relativePath == resource.Path {
 			continue
 		}
-		if isDedicatedManifestPipelinePath(relativePath) {
-			continue
-		}
 		resources[relativePath] = append([]byte(nil), resource.Content...)
 	}
 	if len(resources) == 0 {
 		return nil
 	}
 	return resources
-}
-
-// isDedicatedManifestPipelinePath reports whether a manifest-relative path
-// belongs to config, SQL, or i18n resource governance instead of Manifest().
-func isDedicatedManifestPipelinePath(relativePath string) bool {
-	for _, reserved := range []string{"config", "sql", "i18n"} {
-		if relativePath == reserved || strings.HasPrefix(relativePath, reserved+"/") {
-			return true
-		}
-	}
-	return false
 }

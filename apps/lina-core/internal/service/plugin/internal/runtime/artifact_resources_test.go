@@ -1,5 +1,5 @@
-// This file verifies active-release manifest/config resource projection for
-// dynamic-plugin host services.
+// This file verifies active-release manifest resource projection for dynamic
+// plugin host services.
 
 package runtime
 
@@ -26,6 +26,14 @@ func TestBuildArtifactResourceViews(t *testing.T) {
 					Content: []byte("name: demo\n"),
 				},
 				{
+					Path:    "manifest/sql/001-schema.sql",
+					Content: []byte("CREATE TABLE plugin_demo(id bigint);\n"),
+				},
+				{
+					Path:    "manifest/i18n/zh-CN/plugin.json",
+					Content: []byte(`{"plugin.demo":"demo"}`),
+				},
+				{
 					Path:    "manifest/resources/policy.yaml",
 					Content: []byte("enabled: true\n"),
 				},
@@ -39,16 +47,25 @@ func TestBuildArtifactResourceViews(t *testing.T) {
 	}
 
 	resources := buildArtifactManifestResources(manifest)
-	if len(resources) != 2 {
-		t.Fatalf("expected two declaration resources, got %#v", resources)
+	if len(resources) != 6 {
+		t.Fatalf("expected all manifest resources, got %#v", resources)
 	}
 	if string(resources["metadata.yaml"]) != "name: demo\n" {
 		t.Fatalf("expected metadata resource, got %#v", resources)
 	}
+	if string(resources["config/config.example.yaml"]) != "template: true\n" {
+		t.Fatalf("expected config template resource, got %#v", resources)
+	}
+	if string(resources["config/config.yaml"]) != "runtime: true\n" {
+		t.Fatalf("expected config resource, got %#v", resources)
+	}
+	if string(resources["sql/001-schema.sql"]) != "CREATE TABLE plugin_demo(id bigint);\n" {
+		t.Fatalf("expected SQL resource, got %#v", resources)
+	}
+	if string(resources["i18n/zh-CN/plugin.json"]) != `{"plugin.demo":"demo"}` {
+		t.Fatalf("expected i18n resource, got %#v", resources)
+	}
 	if string(resources["resources/policy.yaml"]) != "enabled: true\n" {
 		t.Fatalf("expected policy resource, got %#v", resources)
-	}
-	if _, ok := resources["config/config.yaml"]; ok {
-		t.Fatalf("expected config resources to be excluded from manifest view, got %#v", resources)
 	}
 }

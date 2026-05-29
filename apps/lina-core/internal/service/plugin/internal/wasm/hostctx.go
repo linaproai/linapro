@@ -244,10 +244,5 @@ func normalizeManifestAuthorizedPath(value string) (string, error) {
 	if normalized == "manifest" || strings.HasPrefix(normalized, "manifest/") {
 		return "", errors.New("invalid manifest host service resource")
 	}
-	for _, reserved := range []string{"config", "sql", "i18n"} {
-		if normalized == reserved || strings.HasPrefix(normalized, reserved+"/") {
-			return "", errors.New("invalid manifest host service resource")
-		}
-	}
 	return normalized, nil
 }

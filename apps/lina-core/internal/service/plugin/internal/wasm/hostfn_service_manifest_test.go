@@ -61,19 +61,30 @@ func (s *trackingManifestService) Scan(context.Context, string, string, any) err
 // reads authorized plugin-scoped manifest resources.
 func TestHandleHostServiceInvokeManifestReadsAuthorizedPath(t *testing.T) {
 	manifestSvc := &trackingManifestService{resources: map[string][]byte{
-		"metadata.yaml": []byte("name: demo\n"),
+		"metadata.yaml":              []byte("name: demo\n"),
+		"config/config.example.yaml": []byte("feature:\n  enabled: false\n"),
+		"sql/001-schema.sql":         []byte("CREATE TABLE plugin_demo(id bigint);\n"),
+		"i18n/zh-CN/plugin.json":     []byte(`{"plugin.demo":"demo"}`),
 	}}
 	factory := configureTrackingManifestFactory(t, manifestSvc)
 
-	response := invokeManifestHostService(t, manifestHostCallContext([]string{"metadata.yaml"}), "metadata.yaml")
-	payload := decodeManifestResponse(t, response)
-	if !payload.Found || string(payload.Body) != "name: demo\n" {
-		t.Fatalf("expected metadata payload, got %#v", payload)
+	hcc := manifestHostCallContext([]string{
+		"metadata.yaml",
+		"config/config.example.yaml",
+		"sql/001-schema.sql",
+		"i18n/zh-CN/plugin.json",
+	})
+	for path, expected := range manifestSvc.resources {
+		response := invokeManifestHostService(t, hcc, path)
+		payload := decodeManifestResponse(t, response)
+		if !payload.Found || string(payload.Body) != string(expected) {
+			t.Fatalf("expected %s payload %q, got %#v", path, string(expected), payload)
+		}
 	}
 	if factory.lastPluginID != "test-plugin-manifest" {
 		t.Fatalf("expected manifest factory to be scoped to plugin, got %q", factory.lastPluginID)
 	}
-	if manifestSvc.getCalls != 1 || manifestSvc.lastPath != "metadata.yaml" {
+	if manifestSvc.getCalls != len(manifestSvc.resources) {
 		t.Fatalf("expected manifest get call, got calls=%d path=%q", manifestSvc.getCalls, manifestSvc.lastPath)
 	}
 }
@@ -82,17 +93,18 @@ func TestHandleHostServiceInvokeManifestReadsAuthorizedPath(t *testing.T) {
 // resources.paths are enforced before dispatch.
 func TestHandleHostServiceInvokeManifestRejectsUnauthorizedPath(t *testing.T) {
 	configureTrackingManifestFactory(t, &trackingManifestService{resources: map[string][]byte{
-		"metadata.yaml": []byte("name: demo\n"),
+		"metadata.yaml":              []byte("name: demo\n"),
+		"config/config.example.yaml": []byte("feature:\n  enabled: false\n"),
 	}})
 
-	response := invokeManifestHostService(t, manifestHostCallContext([]string{"metadata.yaml"}), "resources/policy.yaml")
+	response := invokeManifestHostService(t, manifestHostCallContext([]string{"metadata.yaml"}), "config/config.example.yaml")
 	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Fatalf("expected unauthorized manifest path to be denied, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
 
 // TestHandleHostServiceInvokeManifestAllowsGlobPath verifies glob paths can
-// authorize declaration resources.
+// authorize manifest resources.
 func TestHandleHostServiceInvokeManifestAllowsGlobPath(t *testing.T) {
 	configureTrackingManifestFactory(t, &trackingManifestService{resources: map[string][]byte{
 		"resources/policy.yaml": []byte("enabled: true\n"),
@@ -109,20 +121,20 @@ func TestHandleHostServiceInvokeManifestAllowsGlobPath(t *testing.T) {
 // release manifest resources are passed to the scoped factory for each execution.
 func TestHandleHostServiceInvokeManifestBindsArtifactResources(t *testing.T) {
 	manifestSvc := &trackingManifestService{resources: map[string][]byte{
-		"metadata.yaml": []byte("name: demo\n"),
+		"config/config.example.yaml": []byte("feature:\n  enabled: false\n"),
 	}}
 	factory := configureTrackingManifestFactory(t, manifestSvc)
-	hcc := manifestHostCallContext([]string{"metadata.yaml"})
+	hcc := manifestHostCallContext([]string{"config/config.example.yaml"})
 	hcc.artifactManifestResources = map[string][]byte{
-		"metadata.yaml": []byte("name: artifact\n"),
+		"config/config.example.yaml": []byte("feature:\n  enabled: true\n"),
 	}
 
-	response := invokeManifestHostService(t, hcc, "metadata.yaml")
+	response := invokeManifestHostService(t, hcc, "config/config.example.yaml")
 	payload := decodeManifestResponse(t, response)
-	if !payload.Found || string(payload.Body) != "name: demo\n" {
+	if !payload.Found || string(payload.Body) != "feature:\n  enabled: false\n" {
 		t.Fatalf("expected manifest payload, got %#v", payload)
 	}
-	if factory.lastArtifactPlugin != "test-plugin-manifest" || string(factory.lastArtifactResources["metadata.yaml"]) != "name: artifact\n" {
+	if factory.lastArtifactPlugin != "test-plugin-manifest" || string(factory.lastArtifactResources["config/config.example.yaml"]) != "feature:\n  enabled: true\n" {
 		t.Fatalf("expected artifact manifest resources binding, got plugin=%q resources=%#v", factory.lastArtifactPlugin, factory.lastArtifactResources)
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -18,18 +17,29 @@ type testMetadata struct {
 	Enabled bool `yaml:"enabled"`
 }
 
-// TestManifestReadsDevelopmentMetadata verifies a plugin can read its own
-// manifest/metadata.yaml from the development source tree.
-func TestManifestReadsDevelopmentMetadata(t *testing.T) {
+// TestManifestReadsDevelopmentResources verifies a plugin can read its own
+// raw manifest resources from the development source tree.
+func TestManifestReadsDevelopmentResources(t *testing.T) {
 	repoRoot := t.TempDir()
-	writeManifestFile(t, repoRoot, "plugin-a", "metadata.yaml", "name: alpha\nenabled: true\n")
-
-	content, err := NewFactory(repoRoot).ForPlugin("plugin-a").Get(context.Background(), "metadata.yaml")
-	if err != nil {
-		t.Fatalf("read metadata: %v", err)
+	fixtures := map[string]string{
+		"metadata.yaml":              "name: alpha\nenabled: true\n",
+		"config/config.example.yaml": "feature:\n  enabled: false\n",
+		"sql/001-schema.sql":         "CREATE TABLE plugin_demo(id bigint);\n",
+		"i18n/zh-CN/plugin.json":     `{"plugin.demo":"demo"}`,
 	}
-	if !strings.Contains(string(content), "alpha") {
-		t.Fatalf("expected metadata content, got %s", content)
+	for path, content := range fixtures {
+		writeManifestFile(t, repoRoot, "plugin-a", path, content)
+	}
+
+	svc := NewFactory(repoRoot).ForPlugin("plugin-a")
+	for path, expected := range fixtures {
+		content, err := svc.Get(context.Background(), path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if string(content) != expected {
+			t.Fatalf("expected %s content %q, got %q", path, expected, string(content))
+		}
 	}
 }
 
@@ -59,9 +69,6 @@ func TestManifestRejectsUnsafePaths(t *testing.T) {
 		"C:\\secret.yaml",
 		"http://example.com/config.yaml",
 		"manifest/metadata.yaml",
-		"config/config.yaml",
-		"sql/001-schema.sql",
-		"i18n/zh-CN/plugin.json",
 	} {
 		if _, err := svc.Get(context.Background(), path); err == nil {
 			t.Fatalf("expected path %q to be rejected", path)
@@ -85,6 +92,20 @@ func TestManifestDoesNotCrossPluginScope(t *testing.T) {
 	}
 	if exists {
 		t.Fatal("expected plugin-a metadata to be absent")
+	}
+}
+
+// TestManifestMissingResourceReturnsNil verifies missing resources are reported
+// without errors or synthetic placeholder metadata files.
+func TestManifestMissingResourceReturnsNil(t *testing.T) {
+	svc := NewFactory(t.TempDir()).ForPlugin("plugin-a")
+
+	content, err := svc.Get(context.Background(), "metadata.yaml")
+	if err != nil {
+		t.Fatalf("read missing metadata: %v", err)
+	}
+	if len(content) != 0 {
+		t.Fatalf("expected missing metadata to return empty content, got %q", string(content))
 	}
 }
 
