@@ -113,14 +113,62 @@ func TestCommandRegistryUsesDottedPackAssetsCommand(t *testing.T) {
 // command names.
 func TestCommandRegistryUsesDottedDatabaseCommands(t *testing.T) {
 	registry := commandRegistry()
-	for _, name := range []string{"db.init", "db.mock"} {
+	for _, name := range []string{"db.init", "db.upgrade", "db.mock"} {
 		if _, ok := registry[name]; !ok {
 			t.Fatalf("expected command %q to be registered", name)
 		}
 	}
-	for _, name := range []string{"init", "mock"} {
+	for _, name := range []string{"init", "upgrade", "mock"} {
 		if _, ok := registry[name]; ok {
 			t.Fatalf("legacy command %q should not be registered", name)
+		}
+	}
+}
+
+// TestRunUpgradeDispatchesCoreUpgrade verifies db.upgrade replays host SQL via
+// the Lina core upgrade command instead of reusing destructive init flags.
+func TestRunUpgradeDispatchesCoreUpgrade(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "apps", "lina-core"), 0o755); err != nil {
+		t.Fatalf("mkdir core dir: %v", err)
+	}
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	var calls []capturedCommand
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+
+	err := runUpgrade(context.Background(), application, commandInput{Params: map[string]string{"confirm": "upgrade"}})
+	if err != nil {
+		t.Fatalf("runUpgrade returned error: %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected one child command, got %d: %#v", len(calls), calls)
+	}
+	call := calls[0]
+	if call.name != "go" {
+		t.Fatalf("child command name mismatch: got %q want %q", call.name, "go")
+	}
+	if call.cmd.Dir != filepath.Join(root, "apps", "lina-core") {
+		t.Fatalf("child command dir mismatch: got %q", call.cmd.Dir)
+	}
+	expectedArgs := []string{"run", "main.go", "upgrade", "--confirm=upgrade", "--sql-source=local"}
+	if len(call.args) != len(expectedArgs) {
+		t.Fatalf("child command args length mismatch: got %#v want %#v", call.args, expectedArgs)
+	}
+	for i := range expectedArgs {
+		if call.args[i] != expectedArgs[i] {
+			t.Fatalf("child command args mismatch: got %#v want %#v", call.args, expectedArgs)
 		}
 	}
 }

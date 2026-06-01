@@ -44,6 +44,11 @@ func TestRequireCommandConfirmation(t *testing.T) {
 			confirmValue: mockCommandName,
 		},
 		{
+			name:         "upgrade accepts matching confirmation",
+			commandName:  upgradeCommandName,
+			confirmValue: upgradeCommandName,
+		},
+		{
 			name:         "init rejects missing confirmation",
 			commandName:  initCommandName,
 			confirmValue: "",
@@ -63,6 +68,17 @@ func TestRequireCommandConfirmation(t *testing.T) {
 				"command mock performs sensitive upgrade or database operations",
 				makeConfirmationExample(mockCommandName),
 				goRunConfirmationExample(mockCommandName),
+			},
+		},
+		{
+			name:         "upgrade rejects missing confirmation",
+			commandName:  upgradeCommandName,
+			confirmValue: "",
+			wantErr:      true,
+			wantSubstrings: []string{
+				"command upgrade performs sensitive upgrade or database operations",
+				makeConfirmationExample(upgradeCommandName),
+				goRunConfirmationExample(upgradeCommandName),
 			},
 		},
 	}

@@ -16,8 +16,9 @@ type Main struct {
 
 // Sensitive command names that require explicit confirmation.
 const (
-	initCommandName = "init"
-	mockCommandName = "mock"
+	initCommandName    = "init"
+	mockCommandName    = "mock"
+	upgradeCommandName = "upgrade"
 )
 
 // requireCommandConfirmation validates the explicit confirmation value for a
@@ -43,7 +44,7 @@ func expectedCommandConfirmation(commandName string) string {
 
 // makeConfirmationExample returns the safe make invocation for the command.
 func makeConfirmationExample(commandName string) string {
-	return fmt.Sprintf("make %s confirm=%s", commandName, expectedCommandConfirmation(commandName))
+	return fmt.Sprintf("make db.%s confirm=%s", commandName, expectedCommandConfirmation(commandName))
 }
 
 // goRunConfirmationExample returns the safe go run invocation for the command.

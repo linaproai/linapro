@@ -32,6 +32,7 @@ func commandRegistry() map[string]commandSpec {
 		{Name: "env.check", Description: "Check local development tool versions.", Usage: "linactl env.check", Run: runEnvCheck},
 		{Name: "env.setup", Description: "Install frontend dependencies and Playwright browsers.", Usage: "linactl env.setup", Run: runEnvSetup},
 		{Name: "db.init", Description: "Initialize the database with DDL and seed data.", Usage: "linactl db.init confirm=init [rebuild=true]", Run: runInit},
+		{Name: "db.upgrade", Description: "Replay host SQL assets to upgrade the configured database.", Usage: "linactl db.upgrade confirm=upgrade", Run: runUpgrade},
 		{Name: "db.mock", Description: "Load optional mock demo data.", Usage: "linactl db.mock confirm=mock", Run: runMock},
 		{Name: "test", Description: "Run the Playwright E2E test suite.", Usage: "linactl test [scope=full|host|plugins|plugin:<id>]", Run: runTest},
 		{Name: "test.go", Description: "Run Go unit tests for workspace modules.", Usage: "linactl test.go [plugins=auto|0|1] [race=true] [verbose=true]", Run: runTestGo},

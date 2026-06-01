@@ -14,6 +14,7 @@ go run . wasm plugin_dir=/path/to/plugin out=temp/output
 go run . plugins.status
 go run . i18n.check
 go run . db.init confirm=init
+go run . db.upgrade confirm=upgrade
 go run . db.mock confirm=mock
 go run . tidy
 go run . build platforms=linux/amd64,linux/arm64
@@ -34,6 +35,7 @@ make.cmd pack.assets
 make.cmd plugins.status
 make.cmd i18n.check
 make.cmd db.init confirm=init
+make.cmd db.upgrade confirm=upgrade
 make.cmd db.mock confirm=mock
 make.cmd tidy
 make.cmd version to=v0.2.0
@@ -57,7 +59,7 @@ In PowerShell, run it with an explicit current-directory prefix:
 
 | Parameter | Example | Purpose |
 | --- | --- | --- |
-| `confirm` | `confirm=init` | Confirms destructive bootstrap commands. |
+| `confirm` | `confirm=upgrade` | Confirms sensitive database maintenance commands. |
 | `rebuild` | `rebuild=true` | Rebuilds the configured database during `db.init`. |
 | `platforms` | `platforms=linux/amd64,linux/arm64` | Selects build target platforms. |
 | `plugins` | `plugins=0` | Overrides automatic plugin-full detection for build, dev, image, and Go test commands. |

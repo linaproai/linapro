@@ -11,6 +11,17 @@
 db.init:
 	@$(LINACTL) db.init confirm=$(confirm) $(if $(rebuild),rebuild=$(rebuild),)
 
+# Replay all host framework SQL files for database upgrades.
+# The SQL files are idempotent, so this upgrades existing tables and seed data
+# to the latest delivered state without rebuilding the configured database.
+# 重放主框架全部 SQL 文件用于数据库升级。
+# SQL 文件是幂等的，因此会将已有表结构和种子数据升级到最新交付状态，
+# 不会重建配置中的数据库。
+## db.upgrade: Replay host SQL files to upgrade the database
+.PHONY: db.upgrade
+db.upgrade:
+	@$(LINACTL) db.upgrade confirm=$(confirm)
+
 # Load optional mock data for local demos and development verification.
 # Mock loading uses the same database.default.link dialect and requires db.init first.
 # 加载用于本地演示和开发验证的可选 Mock 数据。
