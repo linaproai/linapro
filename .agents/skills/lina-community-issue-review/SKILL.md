@@ -19,12 +19,13 @@ description: >-
 7. 功能需求或`Bug`反馈在当前项目中已经处理时，必须用自然语言简明说明已处理原因，并关闭`Issue`，避免重复进入待实现或待修复队列。
 8. 如果用户反馈的现象实际属于使用方式、配置方式或操作路径错误，而不是功能缺陷、设计缺陷或新增需求，必须说明判断原因，告知正确使用方式，按`question`处理并关闭`Issue`，避免误导后续处理。
 9. 功能需求类请求必须评估是否符合项目定位、是否能在现有架构下实现、是否需要 OpenSpec 变更；可行且未处理时添加`feature`标签并保持开放等待实现。
-10. `Bug`类请求必须评估可能原因、受影响范围和验证证据；可行且未修复时添加`bug`标签并保持开放等待修复。
-11. 已带有`question`、`feature`或`bug`分类标签的`Issue`，必须根据本次内容理解确认标签是否准确；如果现有分类标签与内容描述不一致，必须先移除不匹配的分类标签，再添加正确分类标签。
-12. 描述模糊、无法判断、骚扰或广告类`Issue`必须完成关闭处理，并发布说明原因或补充要求的评论。
-13. 所有`GitHub`评论必须跟随`Issue`正文语言；正文为空或无法判断时按标题判断，仍无法判断时默认中文。
-14. 公开评论应像维护者回复用户一样自然、简洁，直接回答问题或说明`Issue`当前状态，避免机械套用分类话术或堆叠内部审查细节。
-15. 多次处理同一个`Issue`时，历史评论一律只读；不得编辑、删除或覆盖既有评论，包括当前执行账号此前创建的评论。需要补充、更正或说明阻断原因时，必须发布新的带隐藏标记评论。
+10. 新功能需求虽然可以实现，但经评估实现价值不高、使用频率有限或投入产出不匹配时，必须委婉说明暂不纳入实现队列的原因，建议用户通过现有功能组合、第三方工具或变通方式实现或规避，不添加`feature`标签，并关闭`Issue`。
+11. `Bug`类请求必须评估可能原因、受影响范围和验证证据；可行且未修复时添加`bug`标签并保持开放等待修复。
+12. 已带有`question`、`feature`或`bug`分类标签的`Issue`，必须根据本次内容理解确认标签是否准确；如果现有分类标签与内容描述不一致，必须先移除不匹配的分类标签，再添加正确分类标签。
+13. 描述模糊、无法判断、骚扰或广告类`Issue`必须完成关闭处理，并发布说明原因或补充要求的评论。
+14. 所有`GitHub`评论必须跟随`Issue`正文语言；正文为空或无法判断时按标题判断，仍无法判断时默认中文。
+15. 公开评论应像维护者回复用户一样自然、简洁，直接回答问题或说明`Issue`当前状态，避免机械套用分类话术或堆叠内部审查细节。
+16. 多次处理同一个`Issue`时，历史评论一律只读；不得编辑、删除或覆盖既有评论，包括当前执行账号此前创建的评论。需要补充、更正或说明阻断原因时，必须发布新的带隐藏标记评论。
 
 ## 输入识别
 
@@ -87,7 +88,7 @@ gh api "repos/$REPO/issues/$ISSUE_NUMBER/comments?per_page=100" --paginate
 2. 搜索隐藏标记：
 
 ```markdown
-<!-- lina-community-issue-review repo=<owner/repo> issue=<number> status=<question|feature|bug|resolved|invalid|blocked> -->
+<!-- lina-community-issue-review repo=<owner/repo> issue=<number> status=<question|feature|bug|resolved|declined|invalid|blocked> -->
 ```
 
 3. 如果存在该隐藏标记，且`Issue`标签包含与隐藏标记状态一致的唯一分类标签，并且本次读取的标题、正文和评论没有显示明显分类不一致，跳过该`Issue`。
@@ -200,11 +201,13 @@ gh api "repos/$REPO/contents/.agents/rules/<rule>.md?ref=$DEFAULT_BRANCH" \
 - 当前项目规范、源码或测试中是否已经存在等价能力。
 - 是否触及后端、前端、插件、数据库、`HTTP API`、权限、缓存、`i18n`或测试规则域。
 - 是否有明显架构冲突、性能风险、数据权限风险或安全风险。
+- 是否具备足够实现价值，包括目标用户覆盖面、使用频率、对可持续交付能力的贡献和维护成本。
 - 是否需要拆分为更小的 OpenSpec 变更。
 
 处理方式：
 
 - 已处理时按“已处理核对”流程关闭，不添加`feature`标签。
+- 可以实现但实现价值不高、使用频率有限或投入产出不匹配时，发布带`status=declined`隐藏标记的评论，委婉说明原因，给出至少一种替代实现或规避方式，关闭`Issue`，不添加`feature`标签。
 - 可行时添加`feature`标签，然后发布最终评估评论，保持`Issue`开放等待实现。
 - 明确不可行时评论原因，不添加`feature`标签；如果明显不属于项目范围，可以关闭。
 - 信息不足但不像骚扰或广告时，评论要求补充关键上下文，保持开放，不添加`feature`标签。
@@ -278,7 +281,7 @@ gh issue edit "$ISSUE_NUMBER" -R "$REPO" --add-label bug
 
 1. 将`question`、`feature`和`bug`视为互斥分类标签。除非用户另有明确要求，一个`Issue`最多保留一个这类分类标签。
 2. 本次审查结论是`question`、`feature`或`bug`时，先移除实际存在且不匹配结论的分类标签，再添加正确标签。例如内容判断为`question`但现有标签为`bug`时，先移除`bug`，再添加`question`。
-3. 本次审查结论是`resolved`、`invalid`、`blocked`或信息不足时，若现有`question`、`feature`或`bug`标签会误导后续处理，必须移除这些分类标签，不再添加新的分类标签。
+3. 本次审查结论是`resolved`、`declined`、`invalid`、`blocked`或信息不足时，若现有`question`、`feature`或`bug`标签会误导后续处理，必须移除这些分类标签，不再添加新的分类标签。
 4. 只对当前`Issue`实际存在的不匹配标签执行移除命令；不要为了移除不存在的标签制造失败。
 
 ```bash
@@ -401,6 +404,34 @@ This has already been handled in the current project.
 I closed this issue to avoid tracking the same work twice.
 ```
 
+中文低价值需求评论模板：
+
+```markdown
+<!-- lina-community-issue-review repo=<repo> issue=<number> status=declined -->
+
+感谢建议。这个需求可以理解，但暂时不适合进入项目实现队列。
+
+主要原因是：<用一到两句话委婉说明使用场景较窄、维护成本偏高、与核心定位关联较弱或投入产出不匹配。>
+
+建议先通过：<说明一种或多种替代方式，例如现有功能组合、第三方工具、配置约定或流程上的变通方式。>
+
+为避免占用后续实现跟进资源，我已关闭这个`Issue`。
+```
+
+英文低价值需求评论模板：
+
+```markdown
+<!-- lina-community-issue-review repo=<repo> issue=<number> status=declined -->
+
+Thanks for the suggestion. The request is understandable, but it is not a good fit for the implementation queue right now.
+
+The main reason is: <politely explain in one or two sentences that the use case is narrow, the maintenance cost is high, it is weakly aligned with the core direction, or the cost-benefit tradeoff is not strong enough.>
+
+A practical alternative is: <suggest one or more alternatives, such as combining existing features, using a third-party tool, adopting a configuration convention, or using a workflow workaround.>
+
+I closed this issue to avoid keeping low-priority implementation work in the active queue.
+```
+
 中文无效评论模板：
 
 ```markdown
@@ -463,6 +494,7 @@ Needs human confirmation: <item>
 - 已回答并关闭的疑问类`Issue`；
 - 因使用方式、配置方式或操作路径问题已说明并关闭的`Issue`；
 - 因功能或`Bug`已在当前项目中处理而关闭的`Issue`；
+- 因实现价值不高、已建议替代方式并关闭的新需求`Issue`；
 - 已纠正`question`、`feature`或`bug`分类标签的`Issue`；
 - 已添加`feature`标签的`Issue`；
 - 已添加`bug`标签的`Issue`；
