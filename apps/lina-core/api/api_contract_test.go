@@ -2,6 +2,7 @@
 package api_test
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	authv1 "lina-core/api/auth/v1"
 	configv1 "lina-core/api/config/v1"
 	dictv1 "lina-core/api/dict/v1"
 	filev1 "lina-core/api/file/v1"
@@ -78,6 +80,7 @@ func TestResponseDTOsDoNotExposeInternalJSONFields(t *testing.T) {
 		joblogv1.JobLogItem{},
 		joblogv1.ListItem{},
 		joblogv1.ListRes{},
+		authv1.ProviderEntity{},
 		userv1.UserItem{},
 		userv1.GetRes{},
 		userv1.GetProfileRes{},
@@ -90,6 +93,86 @@ func TestResponseDTOsDoNotExposeInternalJSONFields(t *testing.T) {
 			"path":      {},
 			"engine":    {},
 			"hash":      {},
+		})
+	}
+}
+
+// TestAuthProviderEntityKeepsPublicProjection verifies the anonymous
+// /auth/providers DTO exposes only login button metadata and never SSO
+// redirect delivery settings.
+func TestAuthProviderEntityKeepsPublicProjection(t *testing.T) {
+	typ := reflect.TypeOf(authv1.ProviderEntity{})
+	jsonFields := make(map[string]struct{}, typ.NumField())
+	for i := 0; i < typ.NumField(); i++ {
+		jsonName := strings.Split(typ.Field(i).Tag.Get("json"), ",")[0]
+		if jsonName == "" || jsonName == "-" {
+			continue
+		}
+		jsonFields[jsonName] = struct{}{}
+	}
+
+	for _, forbidden := range []string{
+		"backendRedirectDefault",
+		"backendRedirectEnabled",
+		"backendRedirectRules",
+	} {
+		if _, exists := jsonFields[forbidden]; exists {
+			t.Fatalf("ProviderEntity must not expose %s on anonymous /auth/providers", forbidden)
+		}
+	}
+}
+
+// TestAuthListProvidersUsesProviderEnablement verifies the host auth service
+// delegates anonymous provider discovery to the provider-enable seam instead
+// of business-entry visibility. The test parses the implementation file so it
+// does not depend on auth package runtime initialization.
+func TestAuthListProvidersUsesProviderEnablement(t *testing.T) {
+	fileSet := token.NewFileSet()
+	parsed, err := parser.ParseFile(
+		fileSet,
+		filepath.Join("..", "internal", "service", "auth", "auth_provider.go"),
+		nil,
+		0,
+	)
+	if err != nil {
+		t.Fatalf("parse auth_provider.go: %v", err)
+	}
+
+	foundProviderEnabled := false
+	foundBusinessEnabled := false
+	inspectFunctionCalls(parsed, "ListProviders", func(selector string) {
+		switch selector {
+		case "IsProviderEnabled":
+			foundProviderEnabled = true
+		case "IsEnabled":
+			foundBusinessEnabled = true
+		}
+	})
+	if !foundProviderEnabled {
+		t.Fatal("ListProviders must call pluginSvc.IsProviderEnabled")
+	}
+	if foundBusinessEnabled {
+		t.Fatal("ListProviders must not call pluginSvc.IsEnabled")
+	}
+}
+
+func inspectFunctionCalls(file *ast.File, functionName string, visit func(selector string)) {
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != functionName || fn.Body == nil {
+			continue
+		}
+		ast.Inspect(fn.Body, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			selector, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			visit(selector.Sel.Name)
+			return true
 		})
 	}
 }

@@ -290,9 +290,10 @@ type ExternalLoginInput struct {
 	ClientIP string
 }
 
-// ProviderEntryView is the host-side projection of one authentication
-// provider entry used by /auth/providers responses and source-plugin
-// AuthService.LoginByExternal flows.
+// ProviderEntryView is the host-side projection of one public authentication
+// provider entry used by /auth/providers responses. It intentionally contains
+// only login button metadata; SSO redirect rules remain internal to provider
+// callback handlers and authenticated plugin settings APIs.
 type ProviderEntryView struct {
 	// ProviderID is the stable provider identifier (e.g. "google").
 	ProviderID string
@@ -308,14 +309,6 @@ type ProviderEntryView struct {
 	Icon string
 	// EntryURL is the provider login entry URL or deep-link route.
 	EntryURL string
-	// BackendRedirectEnabled reports whether the provider supports
-	// state-based post-login redirect rules.
-	BackendRedirectEnabled bool
-	// BackendRedirectDefault is the fallback redirect URL used when no
-	// state-based rule matches.
-	BackendRedirectDefault string
-	// BackendRedirectRules is the JSON object mapping state to redirect URL.
-	BackendRedirectRules string
 	// DisplayOrder controls login entry sort order; smaller values first.
 	DisplayOrder int
 	// Enabled reports whether the entry should be rendered on the login

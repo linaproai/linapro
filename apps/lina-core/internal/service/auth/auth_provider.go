@@ -12,16 +12,15 @@ import (
 )
 
 // ListProviders returns ProviderEntryView entries for every enabled
-// authentication provider registered by source plugins. Each entry's
-// runtime fields (BackendRedirectEnabled, BackendRedirectDefault,
-// BackendRedirectRules) reflect the owning plugin's live settings so
-// admin updates take effect without a server restart.
+// authentication provider registered by source plugins. The projection is
+// intentionally public and static so the high-traffic login page does not read
+// provider settings or expose SSO redirect rules.
 func (s *serviceImpl) ListProviders(ctx context.Context) ([]ProviderEntryView, error) {
 	checker := func(checkCtx context.Context, pluginID string) bool {
 		if s == nil || s.pluginSvc == nil {
 			return true
 		}
-		return s.pluginSvc.IsEnabled(checkCtx, pluginID)
+		return s.pluginSvc.IsProviderEnabled(checkCtx, pluginID)
 	}
 	views, err := authprovider.ListViews(ctx, checker)
 	if err != nil {
@@ -30,18 +29,15 @@ func (s *serviceImpl) ListProviders(ctx context.Context) ([]ProviderEntryView, e
 	out := make([]ProviderEntryView, 0, len(views))
 	for _, v := range views {
 		out = append(out, ProviderEntryView{
-			ProviderID:             v.ProviderID,
-			PluginID:               v.PluginID,
-			Kind:                   v.Kind.String(),
-			Name:                   v.Name,
-			Description:            v.Description,
-			Icon:                   v.Icon,
-			EntryURL:               v.EntryURL,
-			BackendRedirectEnabled: v.BackendRedirectEnabled,
-			BackendRedirectDefault: v.BackendRedirectDefault,
-			BackendRedirectRules:   v.BackendRedirectRules,
-			DisplayOrder:           v.DisplayOrder,
-			Enabled:                v.Enabled,
+			ProviderID:   v.ProviderID,
+			PluginID:     v.PluginID,
+			Kind:         v.Kind.String(),
+			Name:         v.Name,
+			Description:  v.Description,
+			Icon:         v.Icon,
+			EntryURL:     v.EntryURL,
+			DisplayOrder: v.DisplayOrder,
+			Enabled:      v.Enabled,
 		})
 	}
 	return out, nil

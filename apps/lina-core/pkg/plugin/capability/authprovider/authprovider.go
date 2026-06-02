@@ -6,7 +6,10 @@
 // host /auth/providers endpoint can enumerate enabled third-party login
 // entries (Google, Discord, GitHub, custom OIDC, …) without depending on
 // any specific plugin package. The host filters out providers whose owning
-// plugin is currently disabled before returning the list.
+// plugin is currently disabled before returning the list. The public list
+// path intentionally exposes only static button metadata; redirect rules and
+// token-delivery receiver URLs remain internal to authenticated plugin
+// settings and callback handlers.
 package authprovider
 
 import (
@@ -58,15 +61,16 @@ type Provider interface {
 	PluginID() string
 	// Kind returns the provider's protocol family.
 	Kind() Kind
-	// LoginEntry returns the runtime login-entry metadata. Implementations
-	// are expected to read live plugin settings each call so admin toggles
-	// take effect without restarting the plugin.
+	// LoginEntry returns the public login button metadata. Implementations must
+	// not read per-provider settings or expose redirect rules from this path;
+	// high-traffic public login pages need bounded database access and only need
+	// button projection fields.
 	LoginEntry(ctx context.Context) (*LoginEntry, error)
 }
 
-// LoginEntry is the runtime metadata returned by Provider.LoginEntry. The
-// host maps this verbatim into ProviderView and /auth/providers responses
-// after filtering disabled plugins.
+// LoginEntry is the public metadata returned by Provider.LoginEntry. The host
+// maps only button projection fields into ProviderView and /auth/providers
+// responses after filtering disabled plugins.
 type LoginEntry struct {
 	// ProviderID matches Provider.ProviderID() for traceability.
 	ProviderID string
@@ -82,15 +86,6 @@ type LoginEntry struct {
 	Icon string
 	// EntryURL is the URL the browser visits to start the login flow.
 	EntryURL string
-	// BackendRedirectEnabled reports whether the provider should append a
-	// state token so the callback can route the user to a state-specific
-	// redirect URL after login.
-	BackendRedirectEnabled bool
-	// BackendRedirectDefault is the fallback redirect URL when no state
-	// matches any configured rule.
-	BackendRedirectDefault string
-	// BackendRedirectRules is the JSON object mapping state to redirect URL.
-	BackendRedirectRules string
 	// DisplayOrder controls login entry sort order; smaller values first.
 	DisplayOrder int
 }
@@ -113,12 +108,6 @@ type ProviderView struct {
 	Icon string
 	// EntryURL is the login entry URL.
 	EntryURL string
-	// BackendRedirectEnabled mirrors LoginEntry.
-	BackendRedirectEnabled bool
-	// BackendRedirectDefault mirrors LoginEntry.
-	BackendRedirectDefault string
-	// BackendRedirectRules mirrors LoginEntry.
-	BackendRedirectRules string
 	// DisplayOrder controls login entry sort order.
 	DisplayOrder int
 	// Enabled is true when the owning plugin is enabled.
@@ -222,18 +211,15 @@ func ListViews(ctx context.Context, isEnabled PluginEnabledChecker) ([]ProviderV
 			continue
 		}
 		views = append(views, ProviderView{
-			ProviderID:             entry.ProviderID,
-			PluginID:               entry.PluginID,
-			Kind:                   entry.Kind,
-			Name:                   entry.Name,
-			Description:            entry.Description,
-			Icon:                   entry.Icon,
-			EntryURL:               entry.EntryURL,
-			BackendRedirectEnabled: entry.BackendRedirectEnabled,
-			BackendRedirectDefault: entry.BackendRedirectDefault,
-			BackendRedirectRules:   entry.BackendRedirectRules,
-			DisplayOrder:           entry.DisplayOrder,
-			Enabled:                true,
+			ProviderID:   entry.ProviderID,
+			PluginID:     entry.PluginID,
+			Kind:         entry.Kind,
+			Name:         entry.Name,
+			Description:  entry.Description,
+			Icon:         entry.Icon,
+			EntryURL:     entry.EntryURL,
+			DisplayOrder: entry.DisplayOrder,
+			Enabled:      true,
 		})
 	}
 	sort.SliceStable(views, func(i, j int) bool {

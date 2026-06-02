@@ -124,21 +124,8 @@ async function handleSelectTenant() {
 // reflects exactly the entries the workbench should render.
 const authProviders = ref<AuthApi.ProviderEntity[]>([]);
 
-/**
- * Composes the URL the browser visits when an operator clicks the
- * provider's login button. When backend redirect routing is enabled the
- * provider id is appended as a state parameter so the OAuth callback can
- * resolve the matching post-login redirect rule.
- */
-function buildLoginEntryURL(provider: AuthApi.ProviderEntity) {
-  if (!provider.backendRedirectEnabled) {
-    return provider.entryUrl;
-  }
-  return `${provider.entryUrl}?state=${encodeURIComponent(provider.providerId)}`;
-}
-
 function handleProviderClick(provider: AuthApi.ProviderEntity) {
-  window.location.href = buildLoginEntryURL(provider);
+  window.location.href = provider.entryUrl;
 }
 
 onMounted(() => {
@@ -234,7 +221,7 @@ onMounted(() => {
         <template #icon>
           <IconifyIcon :icon="provider.icon || 'ant-design:login-outlined'" />
         </template>
-        Continue with {{ provider.name }}
+        {{ $t('authentication.continueWithProvider', [provider.name]) }}
       </a-button>
     </div>
     <PluginSlotOutlet :slot-key="pluginSlotKeys.authLoginAfter" class="mt-4" />

@@ -55,6 +55,32 @@
   "qq": "QQ",
   "gitHub": "GitHub",
   "google": "Google",
+  "continueWithProvider": "使用 {0} 登录",
+  "oauthHandoff": {
+    "title": "OAuth 登录",
+    "pending": "正在完成认证，请稍候...",
+    "finished": "OAuth 登录已完成。",
+    "unknownFailure": "OAuth 登录交接失败，原因未知。",
+    "defaultError": "OAuth 登录失败：{0}",
+    "errors": {
+      "externalIdentityInvalid": "外部 provider 未返回有效身份，请重试。",
+      "externalLoginFailed": "OAuth 登录失败，请重试或联系管理员。",
+      "externalUserNotProvisioned": "当前外部身份未关联本地账号，请联系管理员授权访问。",
+      "ipBlacklisted": "当前网络来源已被禁止登录。",
+      "tenantUnavailable": "当前账号没有可用租户。",
+      "userDisabled": "当前账号已被停用。",
+      "authorizeUrlFailed": "OAuth 登录启动失败，请检查 provider 配置。",
+      "codeExchangeFailed": "授权码交换失败，请重试。",
+      "emailNotVerified": "provider 未返回已验证邮箱。",
+      "emptyLoginResult": "OAuth 登录返回结果为空，请重试。",
+      "handoffFailed": "OAuth 登录交接失败，请重新发起登录。",
+      "invalidState": "OAuth state 校验失败，请重新发起登录。",
+      "missingCodeOrState": "OAuth 回调缺少必要参数。",
+      "providerDisabled": "当前认证 provider 已被停用。",
+      "settingsUnavailable": "OAuth provider 配置暂时不可用，请联系管理员。",
+      "userinfoFailed": "获取外部用户资料失败，请重试。"
+    }
+  },
   "loginAgainTitle": "重新登录",
   "loginAgainSubTitle": "您的登录状态已过期，请重新登录以继续。",
   "layout": {

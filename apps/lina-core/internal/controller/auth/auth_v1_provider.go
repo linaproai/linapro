@@ -35,17 +35,14 @@ func toProviderEntities(views []authsvc.ProviderEntryView) []*v1.ProviderEntity 
 	entities := make([]*v1.ProviderEntity, 0, len(views))
 	for _, v := range views {
 		entities = append(entities, &v1.ProviderEntity{
-			ProviderID:             v.ProviderID,
-			PluginID:               v.PluginID,
-			Kind:                   v.Kind,
-			Name:                   v.Name,
-			Description:            v.Description,
-			Icon:                   v.Icon,
-			EntryURL:               v.EntryURL,
-			BackendRedirectEnabled: v.BackendRedirectEnabled,
-			BackendRedirectDefault: v.BackendRedirectDefault,
-			BackendRedirectRules:   v.BackendRedirectRules,
-			DisplayOrder:           v.DisplayOrder,
+			ProviderID:   v.ProviderID,
+			PluginID:     v.PluginID,
+			Kind:         v.Kind,
+			Name:         v.Name,
+			Description:  v.Description,
+			Icon:         v.Icon,
+			EntryURL:     v.EntryURL,
+			DisplayOrder: v.DisplayOrder,
 		})
 	}
 	return entities

@@ -5,6 +5,7 @@ import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { LOGIN_PATH } from '@vben/constants';
+import { $t } from '@vben/locales';
 
 import { useAuthStore } from '#/store';
 
@@ -15,7 +16,26 @@ const router = useRouter();
 const authStore = useAuthStore();
 
 const status = ref<'failed' | 'finished' | 'pending'>('pending');
-const message = ref('Finishing authentication, please wait...');
+const message = ref($t('authentication.oauthHandoff.pending'));
+
+const oauthErrorMessageKeyByCode: Record<string, string> = {
+  AUTH_EXTERNAL_IDENTITY_INVALID: 'externalIdentityInvalid',
+  AUTH_EXTERNAL_LOGIN_FAILED: 'externalLoginFailed',
+  AUTH_EXTERNAL_USER_NOT_PROVISIONED: 'externalUserNotProvisioned',
+  AUTH_IP_BLACKLISTED: 'ipBlacklisted',
+  AUTH_TENANT_UNAVAILABLE: 'tenantUnavailable',
+  AUTH_USER_DISABLED: 'userDisabled',
+  authorize_url_failed: 'authorizeUrlFailed',
+  code_exchange_failed: 'codeExchangeFailed',
+  email_not_verified: 'emailNotVerified',
+  empty_login_result: 'emptyLoginResult',
+  handoff_failed: 'handoffFailed',
+  invalid_state: 'invalidState',
+  missing_code_or_state: 'missingCodeOrState',
+  provider_disabled: 'providerDisabled',
+  settings_unavailable: 'settingsUnavailable',
+  userinfo_failed: 'userinfoFailed',
+};
 
 /**
  * Reads the OAuth handoff payload from the current route query.
@@ -71,50 +91,15 @@ function decodeTenants(value: string | undefined): LoginTenant[] {
  * to a generic shape so operators see the raw code for diagnostics.
  */
 function describeOAuthError(code: string): string {
-  switch (code) {
-    case 'AUTH_EXTERNAL_IDENTITY_INVALID': {
-      return 'The external provider did not return a valid identity. Please try again.';
-    }
-    case 'AUTH_EXTERNAL_LOGIN_FAILED': {
-      return 'OAuth login failed. Please try again or contact your administrator.';
-    }
-    case 'AUTH_EXTERNAL_USER_NOT_PROVISIONED': {
-      return 'No local account is linked to this external identity. Please contact your administrator to grant access.';
-    }
-    case 'AUTH_IP_BLACKLISTED': {
-      return 'Login from this network is currently blocked.';
-    }
-    case 'AUTH_TENANT_UNAVAILABLE': {
-      return 'No active tenant is available for this account.';
-    }
-    case 'AUTH_USER_DISABLED': {
-      return 'This account has been disabled.';
-    }
-    case 'code_exchange_failed': {
-      return 'Failed to exchange the authorization code. Please try again.';
-    }
-    case 'email_not_verified': {
-      return 'The provider did not return a verified email address.';
-    }
-    case 'empty_login_result': {
-      return 'OAuth login returned an empty result. Please try again.';
-    }
-    case 'invalid_state': {
-      return 'OAuth state validation failed. Please restart the login flow.';
-    }
-    case 'missing_code_or_state': {
-      return 'OAuth callback is missing required parameters.';
-    }
-    case 'provider_disabled': {
-      return 'This authentication provider is currently disabled.';
-    }
-    case 'userinfo_failed': {
-      return 'Failed to fetch the external user profile. Please try again.';
-    }
-    default: {
-      return `OAuth login failed: ${code}`;
-    }
+  const messageKey = oauthErrorMessageKeyByCode[code];
+  if (!messageKey) {
+    return $t('authentication.oauthHandoff.defaultError', [code]);
   }
+  const key = `authentication.oauthHandoff.errors.${messageKey}`;
+  const translated = $t(key);
+  return translated === key
+    ? $t('authentication.oauthHandoff.defaultError', [code])
+    : translated;
 }
 
 onMounted(async () => {
@@ -139,13 +124,13 @@ onMounted(async () => {
       tenants: decodeTenants(payload.tenants),
     });
     status.value = 'finished';
-    message.value = 'OAuth login finished.';
+    message.value = $t('authentication.oauthHandoff.finished');
   } catch (error) {
     status.value = 'failed';
     message.value =
       error instanceof Error
         ? error.message
-        : 'OAuth handoff failed for an unknown reason.';
+        : $t('authentication.oauthHandoff.unknownFailure');
     await router.replace({
       path: LOGIN_PATH,
       query: { oauthError: 'handoff_failed' },
@@ -188,7 +173,7 @@ onMounted(async () => {
         "
       ></div>
       <h1 style="margin: 0 0 8px; font-size: 18px; font-weight: 600">
-        OAuth Login
+        {{ $t('authentication.oauthHandoff.title') }}
       </h1>
       <p style="margin: 0; color: #4b5563; line-height: 1.6">
         {{ message }}

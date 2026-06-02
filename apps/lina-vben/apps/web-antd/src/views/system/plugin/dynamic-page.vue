@@ -81,6 +81,14 @@ const pageEntry = computed(() => {
   }
   return null;
 });
+const resolvedPluginPageTitle = computed(() => {
+  const title = pageEntry.value?.title ?? '';
+  if (!title) {
+    return '';
+  }
+  const translated = $t(title);
+  return translated === title ? title : translated;
+});
 const dynamicEmbeddedHost = ref<HTMLElement>();
 const dynamicEmbeddedLoading = ref(false);
 const dynamicEmbeddedError = ref('');
@@ -349,7 +357,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <component :is="pageEntry.component" v-if="pageEntry" />
+  <section v-if="pageEntry" class="space-y-4">
+    <h1 v-if="resolvedPluginPageTitle" class="sr-only">
+      {{ resolvedPluginPageTitle }}
+    </h1>
+    <component :is="pageEntry.component" />
+  </section>
   <section v-else-if="isDynamicEmbeddedMountMode" class="dynamic-embedded-page">
     <div class="dynamic-embedded-page__body">
       <div

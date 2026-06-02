@@ -25,9 +25,6 @@ export namespace AuthApi {
 
   /** 第三方登录入口接口返回的 provider 元数据 */
   export interface ProviderEntity {
-    backendRedirectDefault: string;
-    backendRedirectEnabled: boolean;
-    backendRedirectRules: string;
     description: string;
     displayOrder: number;
     entryUrl: string;

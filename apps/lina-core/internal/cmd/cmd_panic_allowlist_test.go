@@ -275,6 +275,20 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "top-level source plugin and framework provider factory registration chooses fail-fast after error-returning registration APIs reject invalid static declarations",
 		},
 		{
+			Path:     "apps/lina-plugins/linapro-oidc-google/backend/plugin.go",
+			Function: "init",
+			Count:    2,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "top-level source plugin and auth provider route registration chooses fail-fast after error-returning registration APIs reject invalid static declarations",
+		},
+		{
+			Path:     "apps/lina-plugins/linapro-oidc-discord/backend/plugin.go",
+			Function: "init",
+			Count:    2,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "top-level source plugin and auth provider route registration chooses fail-fast after error-returning registration APIs reject invalid static declarations",
+		},
+		{
 			Path:     "apps/lina-plugins/linapro-demo-source/backend/plugin.go",
 			Function: "init",
 			Count:    5,

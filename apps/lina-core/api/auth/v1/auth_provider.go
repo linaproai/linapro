@@ -2,8 +2,9 @@
 // the host /auth/providers endpoint. The default workbench login page calls
 // this endpoint to render third-party login entries discovered via source
 // plugins (Google, Discord, GitHub, custom OIDC, ...). The endpoint is
-// publicly accessible because it lists entry metadata only; sensitive provider
-// configuration stays on the host.
+// publicly accessible and therefore returns button metadata only; sensitive
+// redirect rules and token-delivery settings stay behind authenticated plugin
+// settings APIs and provider callback logic.
 
 package v1
 
@@ -18,17 +19,14 @@ type ListProvidersReq struct {
 
 // ProviderEntity is one auth provider entry returned by /auth/providers.
 type ProviderEntity struct {
-	ProviderID             string `json:"providerId" dc:"Stable provider identifier" eg:"google"`
-	PluginID               string `json:"pluginId" dc:"Owning source-plugin identifier" eg:"linapro-oidc-google"`
-	Kind                   string `json:"kind" dc:"Provider kind: oauth2, oidc, ldap, saml, cas" eg:"oidc"`
-	Name                   string `json:"name" dc:"Display name shown on the login page" eg:"Google"`
-	Description            string `json:"description" dc:"Short description of the provider capability" eg:"Sign in with a Google account"`
-	Icon                   string `json:"icon" dc:"Icon identifier rendered by the workbench" eg:"logos:google-icon"`
-	EntryURL               string `json:"entryUrl" dc:"Provider login entry URL or deep-link route" eg:"/api/v1/auth/google"`
-	BackendRedirectEnabled bool   `json:"backendRedirectEnabled" dc:"Whether the provider should append a state token for backend redirect routing" eg:"true"`
-	BackendRedirectDefault string `json:"backendRedirectDefault" dc:"Fallback redirect URL used when backend redirect state does not match any rule" eg:"/admin"`
-	BackendRedirectRules   string `json:"backendRedirectRules" dc:"JSON object mapping state to redirect URL used by backend redirect routing" eg:"{\"google\":\"/admin\"}"`
-	DisplayOrder           int    `json:"displayOrder" dc:"Login entry sort order; smaller values first" eg:"10"`
+	ProviderID   string `json:"providerId" dc:"Stable provider identifier" eg:"google"`
+	PluginID     string `json:"pluginId" dc:"Owning source-plugin identifier" eg:"linapro-oidc-google"`
+	Kind         string `json:"kind" dc:"Provider kind: oauth2, oidc, ldap, saml, cas" eg:"oidc"`
+	Name         string `json:"name" dc:"Display name shown on the login page" eg:"Google"`
+	Description  string `json:"description" dc:"Short description of the provider capability" eg:"Sign in with a Google account"`
+	Icon         string `json:"icon" dc:"Icon identifier rendered by the workbench" eg:"logos:google-icon"`
+	EntryURL     string `json:"entryUrl" dc:"Provider login entry URL or deep-link route" eg:"/api/v1/auth/google"`
+	DisplayOrder int    `json:"displayOrder" dc:"Login entry sort order; smaller values first" eg:"10"`
 }
 
 // ListProvidersRes is the /auth/providers response payload.

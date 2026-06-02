@@ -7,17 +7,54 @@
       "stepWebApp": "选择应用类型为 Web 应用程序",
       "stepFillCredentials": "将 Client ID 和 Client Secret 填入下方配置",
       "stepRegisterRedirect": "在「{section}」中添加下方 Redirect URI 展示的完整地址",
-      "stepEnabled": "启用后，登录页面将显示「{label}」按钮"
+      "stepEnabled": "请在插件管理中启用本插件；启用后登录页面将显示「{label}」按钮",
+      "copyFailed": "复制失败",
+      "loadFailed": "加载配置失败",
+      "saveSuccess": "配置已保存",
+      "saveFailed": "保存配置失败",
+      "cardTitle": "{provider} 登录配置",
+      "clientIdLabel": "Client ID",
+      "clientSecretLabel": "Client Secret",
+      "clientIdPlaceholder": "请输入 {provider} OAuth2 Client ID",
+      "clientSecretPlaceholder": "请输入 {provider} OAuth2 Client Secret",
+      "clientIdHelp": "从 {console} 获取的 OAuth2 客户端 ID",
+      "clientSecretHelp": "留空表示不修改当前密钥；如需更新请重新输入完整 Client Secret。",
+      "redirectUriLabel": "Redirect URI",
+      "copy": "复制",
+      "redirectUriCopied": "Redirect URI 已复制",
+      "redirectUriHelp": "根据当前站点自动生成，不可编辑。请把这个完整地址注册到「{section}」。",
+      "defaultRedirectLabel": "登录成功后默认跳转",
+      "defaultRedirectHelp": "登录成功且未命中下方 SSO 规则时，SPA 内部跳转到这个落地页（默认 /dashboard）。",
+      "enableSsoLabel": "启用 SSO Token 投递",
+      "enabledText": "启用",
+      "disabledText": "禁用",
+      "enableSsoHelp": "启用后，当 OAuth 入口附带的 state 命中下方规则，会直接把 accessToken/refreshToken 作为 query 投递到规则配置的外部 URL，不再进入 SPA。state 为空或未命中时走“登录成功后默认跳转”。",
+      "rulesTitle": "SSO Token 投递规则（state → 外部 URL）",
+      "rulesEmpty": "当前未配置 SSO 规则。默认登录会走“登录成功后默认跳转”，不会触发 SSO 投递。",
+      "statePlaceholder": "state，例如 partner-a",
+      "receiverPlaceholder": "外部 URL，例如 https://app.example.com/sso/receive",
+      "delete": "删除",
+      "entryLabel": "对应登录入口：",
+      "stateEntryCopied": "state 登录入口 URL 已复制",
+      "addRule": "新增 SSO 规则",
+      "rulesHelp": "页面自动把多行规则组装成 JSON 存到后端。state 未命中时走“登录成功后默认跳转”。",
+      "save": "保存配置"
     },
     "google": {
+      "displayName": "Google",
       "consoleName": "Google Cloud Console",
       "registerSection": "已获授权的重定向 URI",
-      "buttonLabel": "Continue with Google"
+      "buttonLabel": "使用 Google 登录",
+      "loginTitle": "使用 Google 登录",
+      "loginDescription": "点击下方按钮开始 Google 登录流程。插件会跳转到 Google 完成授权，然后带您回到工作台。"
     },
     "discord": {
+      "displayName": "Discord",
       "consoleName": "Discord Developer Portal",
       "registerSection": "Redirects",
-      "buttonLabel": "Continue with Discord"
+      "buttonLabel": "使用 Discord 登录",
+      "loginTitle": "使用 Discord 登录",
+      "loginDescription": "点击下方按钮开始 Discord 登录流程。插件会跳转到 Discord 完成授权，然后带您回到工作台。"
     }
   }
 }

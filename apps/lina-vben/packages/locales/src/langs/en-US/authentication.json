@@ -55,6 +55,32 @@
   "qq": "QQ",
   "gitHub": "GitHub",
   "google": "Google",
+  "continueWithProvider": "Continue with {0}",
+  "oauthHandoff": {
+    "title": "OAuth Login",
+    "pending": "Finishing authentication, please wait...",
+    "finished": "OAuth login finished.",
+    "unknownFailure": "OAuth handoff failed for an unknown reason.",
+    "defaultError": "OAuth login failed: {0}",
+    "errors": {
+      "externalIdentityInvalid": "The external provider did not return a valid identity. Please try again.",
+      "externalLoginFailed": "OAuth login failed. Please try again or contact your administrator.",
+      "externalUserNotProvisioned": "No local account is linked to this external identity. Please contact your administrator to grant access.",
+      "ipBlacklisted": "Login from this network is currently blocked.",
+      "tenantUnavailable": "No active tenant is available for this account.",
+      "userDisabled": "This account has been disabled.",
+      "authorizeUrlFailed": "Failed to start OAuth login. Please check the provider settings.",
+      "codeExchangeFailed": "Failed to exchange the authorization code. Please try again.",
+      "emailNotVerified": "The provider did not return a verified email address.",
+      "emptyLoginResult": "OAuth login returned an empty result. Please try again.",
+      "handoffFailed": "OAuth login handoff failed. Please restart the login flow.",
+      "invalidState": "OAuth state validation failed. Please restart the login flow.",
+      "missingCodeOrState": "OAuth callback is missing required parameters.",
+      "providerDisabled": "This authentication provider is currently disabled.",
+      "settingsUnavailable": "OAuth provider settings are temporarily unavailable. Please contact your administrator.",
+      "userinfoFailed": "Failed to fetch the external user profile. Please try again."
+    }
+  },
   "loginAgainTitle": "Please Log In Again",
   "loginAgainSubTitle": "Your login session has expired. Please log in again to continue.",
   "layout": {

@@ -14,6 +14,7 @@ type fakeProvider struct {
 	pluginID   string
 	providerID string
 	entry      LoginEntry
+	loadCount  *int
 	loadErr    error
 }
 
@@ -21,6 +22,9 @@ func (f *fakeProvider) ProviderID() string { return f.providerID }
 func (f *fakeProvider) PluginID() string   { return f.pluginID }
 func (f *fakeProvider) Kind() Kind         { return f.entry.Kind }
 func (f *fakeProvider) LoginEntry(context.Context) (*LoginEntry, error) {
+	if f.loadCount != nil {
+		*f.loadCount++
+	}
 	if f.loadErr != nil {
 		return nil, f.loadErr
 	}
@@ -28,6 +32,45 @@ func (f *fakeProvider) LoginEntry(context.Context) (*LoginEntry, error) {
 	out.ProviderID = f.providerID
 	out.PluginID = f.pluginID
 	return &out, nil
+}
+
+// TestListViewsDoesNotLoadDisabledProvider verifies disabled providers are
+// filtered before LoginEntry is called, keeping anonymous discovery from
+// touching provider-specific settings or other expensive state.
+func TestListViewsDoesNotLoadDisabledProvider(t *testing.T) {
+	ResetForTest()
+	defer ResetForTest()
+
+	activeLoads := 0
+	disabledLoads := 0
+	RegisterProvider(&fakeProvider{
+		pluginID:   "plugin-active",
+		providerID: "active",
+		entry:      LoginEntry{Name: "Active", Kind: KindOIDC, DisplayOrder: 1},
+		loadCount:  &activeLoads,
+	})
+	RegisterProvider(&fakeProvider{
+		pluginID:   "plugin-disabled",
+		providerID: "disabled",
+		entry:      LoginEntry{Name: "Disabled", Kind: KindOIDC, DisplayOrder: 2},
+		loadCount:  &disabledLoads,
+	})
+
+	views, err := ListViews(context.Background(), func(_ context.Context, pluginID string) bool {
+		return pluginID == "plugin-active"
+	})
+	if err != nil {
+		t.Fatalf("ListViews: %v", err)
+	}
+	if len(views) != 1 || views[0].ProviderID != "active" {
+		t.Fatalf("expected only active provider view, got %#v", views)
+	}
+	if activeLoads != 1 {
+		t.Fatalf("expected active provider LoginEntry once, got %d", activeLoads)
+	}
+	if disabledLoads != 0 {
+		t.Fatalf("expected disabled provider LoginEntry not to run, got %d", disabledLoads)
+	}
 }
 
 // TestRegisterProviderAndListViews verifies registration plus ListViews

@@ -5,7 +5,14 @@
 
 package pluginsettings
 
-import "testing"
+import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"path/filepath"
+	"runtime"
+	"testing"
+)
 
 // TestBuildKeyComposesNamespacedKey verifies the canonical "<pluginID>.<key>"
 // format used to store one setting in sys_config.
@@ -71,4 +78,89 @@ func TestMaskSecretLongValue(t *testing.T) {
 	if got := MaskSecret("abcdefghijkl"); got != "abc***jkl" {
 		t.Fatalf("expected first-and-last preserving mask, got %q", got)
 	}
+}
+
+// TestUpsertValueConflictUpdateColumns verifies the atomic upsert path keeps
+// framework-owned metadata and built-in protection fields out of conflict
+// updates. This is a static contract test so it does not depend on a live
+// database while still guarding the critical ORM column list.
+func TestUpsertValueConflictUpdateColumns(t *testing.T) {
+	columns := duplicateColumnsInUpsertValue(t)
+	blocked := map[string]struct{}{
+		"CreatedAt": {},
+		"IsBuiltin": {},
+		"UpdatedAt": {},
+	}
+	for _, column := range columns {
+		if _, exists := blocked[column]; exists {
+			t.Fatalf("upsertValue OnDuplicate must not update %s", column)
+		}
+	}
+	for _, required := range []string{"Name", "Value"} {
+		if !containsString(columns, required) {
+			t.Fatalf("upsertValue OnDuplicate columns = %v, want %s", columns, required)
+		}
+	}
+}
+
+func duplicateColumnsInUpsertValue(t *testing.T) []string {
+	t.Helper()
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current test file")
+	}
+	filePath := filepath.Join(filepath.Dir(currentFile), "pluginsettings.go")
+	fileSet := token.NewFileSet()
+	parsed, err := parser.ParseFile(fileSet, filePath, nil, 0)
+	if err != nil {
+		t.Fatalf("parse pluginsettings.go: %v", err)
+	}
+	var columns []string
+	ast.Inspect(parsed, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok || len(call.Args) == 0 {
+			return true
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || selector.Sel.Name != "OnDuplicate" {
+			return true
+		}
+		if !enclosingFunctionContains(parsed, call, "upsertValue") {
+			return true
+		}
+		for _, arg := range call.Args {
+			argSelector, ok := arg.(*ast.SelectorExpr)
+			if !ok {
+				continue
+			}
+			columns = append(columns, argSelector.Sel.Name)
+		}
+		return false
+	})
+	if len(columns) == 0 {
+		t.Fatal("upsertValue OnDuplicate columns not found")
+	}
+	return columns
+}
+
+func enclosingFunctionContains(file *ast.File, target ast.Node, functionName string) bool {
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != functionName || fn.Body == nil {
+			continue
+		}
+		if fn.Body.Pos() <= target.Pos() && target.End() <= fn.Body.End() {
+			return true
+		}
+	}
+	return false
+}
+
+func containsString(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
 }

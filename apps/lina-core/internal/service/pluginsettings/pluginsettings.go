@@ -21,7 +21,6 @@ import (
 	"context"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
@@ -209,38 +208,24 @@ func (s *serviceImpl) fetchValue(ctx context.Context, fullKey string) (string, b
 	return row.Value, true, nil
 }
 
-// upsertValue inserts or updates one sys_config row.
+// upsertValue atomically inserts or updates one sys_config row. GoFrame
+// maintains created_at and updated_at for sys_config, so the DO payload omits
+// timestamp fields and lets the framework policy stay authoritative.
 func (s *serviceImpl) upsertValue(ctx context.Context, fullKey string, value string) error {
-	now := time.Now()
-	count, err := dao.SysConfig.Ctx(ctx).
-		Where(dao.SysConfig.Columns().TenantId, platformTenantID).
-		Where(dao.SysConfig.Columns().Key, fullKey).
-		Count()
-	if err != nil {
-		return err
-	}
-	if count > 0 {
-		_, err = dao.SysConfig.Ctx(ctx).
-			Where(dao.SysConfig.Columns().TenantId, platformTenantID).
-			Where(dao.SysConfig.Columns().Key, fullKey).
-			Data(do.SysConfig{
-				Value:     value,
-				UpdatedAt: &now,
-			}).
-			Update()
-		return err
-	}
-	_, err = dao.SysConfig.Ctx(ctx).
+	_, err := dao.SysConfig.Ctx(ctx).
 		Data(do.SysConfig{
 			TenantId:  platformTenantID,
 			Name:      fullKey,
 			Key:       fullKey,
 			Value:     value,
 			IsBuiltin: 0,
-			CreatedAt: &now,
-			UpdatedAt: &now,
 		}).
-		Insert()
+		OnConflict(dao.SysConfig.Columns().TenantId, dao.SysConfig.Columns().Key).
+		OnDuplicate(
+			dao.SysConfig.Columns().Name,
+			dao.SysConfig.Columns().Value,
+		).
+		Save()
 	return err
 }
 
