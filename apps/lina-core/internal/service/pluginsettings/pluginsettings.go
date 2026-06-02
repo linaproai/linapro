@@ -211,6 +211,14 @@ func (s *serviceImpl) fetchValue(ctx context.Context, fullKey string) (string, b
 // upsertValue atomically inserts or updates one sys_config row. GoFrame
 // maintains created_at and updated_at for sys_config, so the DO payload omits
 // timestamp fields and lets the framework policy stay authoritative.
+//
+// The OnDuplicate list intentionally includes deleted_at so any pre-existing
+// soft-deleted row (from a legacy clear path or a parallel writer) is
+// recovered to the visible state when the same (tenant_id, key) is upserted
+// again. Without resetting deleted_at, the PostgreSQL unique index on
+// (tenant_id, key) would match the soft-deleted row, the DO UPDATE branch
+// would update name/value but keep deleted_at non-null, and subsequent
+// GetString/List calls would silently filter the row out.
 func (s *serviceImpl) upsertValue(ctx context.Context, fullKey string, value string) error {
 	_, err := dao.SysConfig.Ctx(ctx).
 		Data(do.SysConfig{
@@ -224,6 +232,7 @@ func (s *serviceImpl) upsertValue(ctx context.Context, fullKey string, value str
 		OnDuplicate(
 			dao.SysConfig.Columns().Name,
 			dao.SysConfig.Columns().Value,
+			dao.SysConfig.Columns().DeletedAt,
 		).
 		Save()
 	return err
@@ -231,8 +240,16 @@ func (s *serviceImpl) upsertValue(ctx context.Context, fullKey string, value str
 
 // deleteByFullKey removes one sys_config row by full key. Missing rows
 // return nil so callers can use this to enforce absence.
+//
+// Plugin settings are opaque key-value rows with no audit-trail or recovery
+// use case, so the delete path uses Unscoped() to physically remove the
+// row instead of GoFrame's default soft-delete. Soft-deleting these rows
+// would leave them as orphaned ghosts under the unique (tenant_id, key)
+// index, causing subsequent upserts of the same key to update the
+// soft-deleted row in place and never become visible to readers again.
 func (s *serviceImpl) deleteByFullKey(ctx context.Context, fullKey string) error {
 	_, err := dao.SysConfig.Ctx(ctx).
+		Unscoped().
 		Where(dao.SysConfig.Columns().TenantId, platformTenantID).
 		Where(dao.SysConfig.Columns().Key, fullKey).
 		Delete()

@@ -82,8 +82,9 @@ func TestMaskSecretLongValue(t *testing.T) {
 
 // TestUpsertValueConflictUpdateColumns verifies the atomic upsert path keeps
 // framework-owned metadata and built-in protection fields out of conflict
-// updates. This is a static contract test so it does not depend on a live
-// database while still guarding the critical ORM column list.
+// updates while still resetting deleted_at to recover from any pre-existing
+// soft-deleted row. This is a static contract test so it does not depend on
+// a live database while still guarding the critical ORM column list.
 func TestUpsertValueConflictUpdateColumns(t *testing.T) {
 	columns := duplicateColumnsInUpsertValue(t)
 	blocked := map[string]struct{}{
@@ -96,10 +97,26 @@ func TestUpsertValueConflictUpdateColumns(t *testing.T) {
 			t.Fatalf("upsertValue OnDuplicate must not update %s", column)
 		}
 	}
-	for _, required := range []string{"Name", "Value"} {
+	// Name and Value are the value-bearing columns that must be refreshed on
+	// conflict. DeletedAt must also be reset so a previously soft-deleted row
+	// becomes visible again after the same (tenant_id, key) is upserted; the
+	// regression test TestUpsertValueRecoversSoftDeletedRow exercises the
+	// behavior end-to-end against the database.
+	for _, required := range []string{"Name", "Value", "DeletedAt"} {
 		if !containsString(columns, required) {
 			t.Fatalf("upsertValue OnDuplicate columns = %v, want %s", columns, required)
 		}
+	}
+}
+
+// TestDeleteByFullKeyUsesUnscoped verifies the plugin-settings clear path
+// physically removes the sys_config row instead of soft-deleting it. Soft
+// delete would leave a ghost row under the unique (tenant_id, key) index
+// and cause future upserts to update an invisible row in place. This is a
+// static contract test so it never requires a live database.
+func TestDeleteByFullKeyUsesUnscoped(t *testing.T) {
+	if !functionBodyContainsCall(t, "deleteByFullKey", "Unscoped") {
+		t.Fatal("deleteByFullKey must call Unscoped() to bypass soft-delete on plugin-settings rows")
 	}
 }
 
@@ -153,6 +170,50 @@ func enclosingFunctionContains(file *ast.File, target ast.Node, functionName str
 			return true
 		}
 	}
+	return false
+}
+
+// functionBodyContainsCall reports whether the given top-level function
+// declared in pluginsettings.go contains any call expression whose selector
+// matches the supplied method name. It is intentionally narrow: it only
+// inspects direct method invocations like `model.Unscoped()` so static
+// contract tests do not have to encode the full chain order.
+func functionBodyContainsCall(t *testing.T, functionName string, callName string) bool {
+	t.Helper()
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current test file")
+	}
+	filePath := filepath.Join(filepath.Dir(currentFile), "pluginsettings.go")
+	fileSet := token.NewFileSet()
+	parsed, err := parser.ParseFile(fileSet, filePath, nil, 0)
+	if err != nil {
+		t.Fatalf("parse pluginsettings.go: %v", err)
+	}
+	for _, decl := range parsed.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != functionName || fn.Body == nil {
+			continue
+		}
+		found := false
+		ast.Inspect(fn.Body, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			selector, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			if selector.Sel.Name == callName {
+				found = true
+				return false
+			}
+			return true
+		})
+		return found
+	}
+	t.Fatalf("function %s not found in pluginsettings.go", functionName)
 	return false
 }
 
