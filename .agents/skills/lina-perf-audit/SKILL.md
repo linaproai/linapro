@@ -1,6 +1,11 @@
 ---
 name: lina-perf-audit
-description: "Manual trigger only. Run a comprehensive LinaPro backend API performance audit only when the user explicitly requests lina-perf-audit or confirms a full audit. This workflow resets the database via make db.init/mock, restarts services, installs and enables all built-in plugins, seeds load-test data, and launches concurrent sub-agents — it takes significant time (tens of minutes to hours) and consumes substantial tokens. Do not invoke from other skills, CI, scheduled tasks, Git hooks, or vague performance requests."
+description: >-
+  仅手动触发。只有当用户明确要求 lina-perf-audit，或确认要运行完整审计时，
+  才执行 LinaPro 后端 API 全量性能审计。该流程会通过 make db.init/mock
+  重置数据库、重启服务、安装并启用所有内置插件、准备压测数据，并启动并发子代理；
+  通常需要几十分钟到数小时，且会消耗大量 Token。不得从其他技能、CI、定时任务、
+  Git 钩子或模糊的性能请求中触发。
 ---
 
 # LinaPro 性能审计

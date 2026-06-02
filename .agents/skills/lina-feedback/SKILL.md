@@ -1,9 +1,9 @@
 ---
 name: lina-feedback
 description: >-
-  Track, fix, verify, and test bugs, improvements, or gaps reported against an OpenSpec change.
-  Must be used whenever the user reports issues, defects, bugs, or gaps related to an existing
-  implementation, even if they don't explicitly mention "feedback" or OpenSpec.
+  用于处理 OpenSpec 变更相关的反馈闭环：记录问题、修复实现、验证结果并补充测试。
+  凡是用户针对已有实现反馈 Bug、缺陷、改进点或实现遗漏，即使没有明确提到
+  “反馈”或 OpenSpec，也必须使用本技能。
 compatibility: 依赖 openspec CLI、lina-e2e 技能、lina-review 技能。
 ---
 
