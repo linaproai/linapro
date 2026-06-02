@@ -2,11 +2,11 @@
 
 ### Requirement: 归档聚合必须执行高价值摘要压缩
 
-`lina-archive-consolidate` SHALL 在生成或更新聚合归档目录时，对输入归档内容执行高价值摘要压缩，而不是把原始`proposal.md`、`design.md`、`tasks.md`和`specs/`内容机械拼接到输出文档中。
+`lina-community-archive-consolidate` SHALL 在生成或更新聚合归档目录时，对输入归档内容执行高价值摘要压缩，而不是把原始`proposal.md`、`design.md`、`tasks.md`和`specs/`内容机械拼接到输出文档中。
 
 #### Scenario: 聚合日期前缀原始归档
 
-- **WHEN** 用户调用`lina-archive-consolidate`且未指定变更列表
+- **WHEN** 用户调用`lina-community-archive-consolidate`且未指定变更列表
 - **THEN** 技能仅选择`openspec/changes/archive/`下目录名匹配`YYYY-MM-DD-`前缀的原始归档目录作为默认输入
 - **AND** 技能按功能领域生成或更新非日期前缀聚合归档目录
 - **AND** 技能对输入归档内容执行摘要压缩，保留背景、设计、规范、反馈、验证和审查的高价值语义
@@ -20,7 +20,7 @@
 
 ### Requirement: 压缩前必须逐目录读取完整归档语义
 
-`lina-archive-consolidate` SHALL 在执行高价值摘要压缩前，逐个输入归档目录读取`proposal.md`、`design.md`、`tasks.md`以及`specs/`目录下的全部规范文件，并以这些文件的完整语义作为压缩输入。
+`lina-community-archive-consolidate` SHALL 在执行高价值摘要压缩前，逐个输入归档目录读取`proposal.md`、`design.md`、`tasks.md`以及`specs/`目录下的全部规范文件，并以这些文件的完整语义作为压缩输入。
 
 #### Scenario: 逐个目录建立语义输入
 
@@ -38,7 +38,7 @@
 
 ### Requirement: 高价值摘要压缩不得由脚本生成
 
-`lina-archive-consolidate` SHALL 由执行者逐个目录理解归档语义并重写聚合文档，不得使用脚本、正则拼接、自动摘要程序或批量文本转换工具生成高价值语义摘要压缩结果。
+`lina-community-archive-consolidate` SHALL 由执行者逐个目录理解归档语义并重写聚合文档，不得使用脚本、正则拼接、自动摘要程序或批量文本转换工具生成高价值语义摘要压缩结果。
 
 #### Scenario: 脚本仅用于发现或验证
 
@@ -54,7 +54,7 @@
 
 ### Requirement: 聚合文档必须按信息类型分层承载历史语义
 
-`lina-archive-consolidate` SHALL 将归档历史语义按维护目标分配到聚合归档的`proposal.md`、`design.md`、`tasks.md`和`specs/`，避免任一文件承担所有历史过程。
+`lina-community-archive-consolidate` SHALL 将归档历史语义按维护目标分配到聚合归档的`proposal.md`、`design.md`、`tasks.md`和`specs/`，避免任一文件承担所有历史过程。
 
 #### Scenario: 背景和影响进入 proposal
 
@@ -76,7 +76,7 @@
 
 ### Requirement: 聚合 tasks 必须保留维护证据摘要
 
-`lina-archive-consolidate` SHALL 将聚合归档中的`tasks.md`写成以减少存储空间为首要目标的维护摘要，保留未来排障和审查仍有价值的证据，并最大限度裁剪低价值执行流水。
+`lina-community-archive-consolidate` SHALL 将聚合归档中的`tasks.md`写成以减少存储空间为首要目标的维护摘要，保留未来排障和审查仍有价值的证据，并最大限度裁剪低价值执行流水。
 
 #### Scenario: 保留反馈闭环
 
@@ -104,7 +104,7 @@
 
 ### Requirement: 清理原始归档前必须通过语义覆盖门禁
 
-`lina-archive-consolidate` SHALL 只有在确认聚合输出覆盖输入归档的高价值语义后，才允许清理本次参与聚合且符合日期前缀规则的原始归档目录。
+`lina-community-archive-consolidate` SHALL 只有在确认聚合输出覆盖输入归档的高价值语义后，才允许清理本次参与聚合且符合日期前缀规则的原始归档目录。
 
 #### Scenario: 覆盖门禁通过后清理
 
@@ -121,7 +121,7 @@
 
 ### Requirement: 聚合报告必须说明压缩结果
 
-`lina-archive-consolidate` SHALL 在最终报告中说明摘要压缩结果，支持维护者审查本次聚合是否安全。
+`lina-community-archive-consolidate` SHALL 在最终报告中说明摘要压缩结果，支持维护者审查本次聚合是否安全。
 
 #### Scenario: 输出压缩报告
 

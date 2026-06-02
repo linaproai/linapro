@@ -2,11 +2,11 @@
 
 ### Requirement: 技能必须手动生成版本更新日志
 
-`lina-release-changelog`技能 SHALL 作为手动触发的仓库级技能，用于从当前`LinaPro`仓库生成版本更新日志，并 SHALL 将结果写入项目根目录`temp/changelog.md`。该技能 SHALL NOT 自动创建`GitHub Release`、推送标签、提交文件或修改任何`CI`工作流。
+`lina-community-release-changelog`技能 SHALL 作为手动触发的仓库级技能，用于从当前`LinaPro`仓库生成版本更新日志，并 SHALL 将结果写入项目根目录`temp/changelog.md`。该技能 SHALL NOT 自动创建`GitHub Release`、推送标签、提交文件或修改任何`CI`工作流。
 
 #### Scenario: 手动执行生成临时更新日志
 
-- **WHEN** 用户手动调用`lina-release-changelog`
+- **WHEN** 用户手动调用`lina-community-release-changelog`
 - **THEN** 技能在仓库根目录生成或覆盖`temp/changelog.md`
 - **AND** 生成内容使用`Markdown`格式
 - **AND** 技能不修改`.github/workflows/`下任何文件
@@ -14,14 +14,14 @@
 
 #### Scenario: 技能声明不接入自动化发布
 
-- **WHEN** `.agents/skills/lina-release-changelog/SKILL.md`被读取
+- **WHEN** `.agents/skills/lina-community-release-changelog/SKILL.md`被读取
 - **THEN** 技能说明其当前阶段仅用于手动执行
 - **AND** 技能说明稳定前不接入`CI`或`GitHub Actions`
 - **AND** 技能说明输出路径为`temp/changelog.md`
 
 ### Requirement: 技能必须支持默认和显式比较范围
 
-`lina-release-changelog`技能 SHALL 支持在用户未指定范围时生成最近可达发布标签到当前`HEAD`的更新日志，并 SHALL 支持用户显式指定两个`Git`引用来生成历史区间更新日志。技能 SHALL 将最终比较范围规范化为旧引用到新引用的`<from>..<to>`形式。
+`lina-community-release-changelog`技能 SHALL 支持在用户未指定范围时生成最近可达发布标签到当前`HEAD`的更新日志，并 SHALL 支持用户显式指定两个`Git`引用来生成历史区间更新日志。技能 SHALL 将最终比较范围规范化为旧引用到新引用的`<from>..<to>`形式。
 
 #### Scenario: 未指定范围时使用最近发布标签到 HEAD
 
@@ -53,7 +53,7 @@
 
 ### Requirement: 技能必须基于仓库证据整理内容
 
-`lina-release-changelog`技能 SHALL 根据`Git`历史记录、源码差异和`OpenSpec`内容整理版本更新日志。技能 MUST NOT 要求`PR`中新增关键标识、发布说明字段、`label`或其他额外流程数据。
+`lina-community-release-changelog`技能 SHALL 根据`Git`历史记录、源码差异和`OpenSpec`内容整理版本更新日志。技能 MUST NOT 要求`PR`中新增关键标识、发布说明字段、`label`或其他额外流程数据。
 
 #### Scenario: 收集 Git 历史和源码差异
 
@@ -78,7 +78,7 @@
 
 ### Requirement: 技能必须生成固定双语 Markdown 模板
 
-`lina-release-changelog`技能 SHALL 使用固定`Markdown`模板生成更新日志，英文内容位于上半部分，中文内容位于下半部分，中间使用模板中的分割线。技能 SHALL NOT 在固定模板外新增其他章节。
+`lina-community-release-changelog`技能 SHALL 使用固定`Markdown`模板生成更新日志，英文内容位于上半部分，中文内容位于下半部分，中间使用模板中的分割线。技能 SHALL NOT 在固定模板外新增其他章节。
 
 #### Scenario: 生成英文和中文固定章节
 
@@ -102,7 +102,7 @@
 
 ### Requirement: 技能必须保障内容详尽性和双语一致性
 
-`lina-release-changelog`技能 SHALL 生成详尽的发布日志，覆盖比较范围内的关键内容，不得只输出提交摘要。英文和中文内容 SHALL 分别完整成文且语义一致，不得中英文交叉混写。
+`lina-community-release-changelog`技能 SHALL 生成详尽的发布日志，覆盖比较范围内的关键内容，不得只输出提交摘要。英文和中文内容 SHALL 分别完整成文且语义一致，不得中英文交叉混写。
 
 #### Scenario: 关键变更不被遗漏
 

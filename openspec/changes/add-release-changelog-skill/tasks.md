@@ -1,6 +1,6 @@
 ## 1. 技能实现
 
-- [x] 1.1 新建`.agents/skills/lina-release-changelog/`目录和`SKILL.md`，声明手动触发、输出路径、依赖工具和触发场景。
+- [x] 1.1 新建`.agents/skills/lina-community-release-changelog/`目录和`SKILL.md`，声明手动触发、输出路径、依赖工具和触发场景。
 - [x] 1.2 在`SKILL.md`中定义比较范围解析规则，覆盖默认范围、显式双引用范围、反向输入规范化、空范围和无法安全排序的失败处理。
 - [x] 1.3 在`SKILL.md`中定义证据收集流程，要求读取`Git`历史、文件差异统计、关键源码变更和相关`OpenSpec`文档。
 - [x] 1.4 在`SKILL.md`中固定`temp/changelog.md`的双语`Markdown`模板，确保章节与规范一致且不新增额外章节。
@@ -29,7 +29,7 @@
 - 验证命令：`openspec validate add-release-changelog-skill --strict`通过；文件存在性检查通过；静态检索确认技能输出路径仍为`temp/changelog.md`；`git status --short .github/workflows`、`git diff --name-only -- .github/workflows`和`git ls-files --others --exclude-standard -- .github/workflows`均无输出。
 - 技能结构检查：使用`Ruby YAML`等价检查验证`SKILL.md`frontmatter只包含允许字段且`name`和`description`有效；官方`quick_validate.py`因本机缺少`PyYAML`未能执行。
 - 影响分析：`i18n`仅影响生成的双语发布文档内容，不修改运行时语言包、接口文档翻译或翻译缓存；缓存一致性无影响；数据权限无影响；模块启停无影响；核心宿主接口契约无影响；开发工具跨平台无新增长期脚本或`linactl`命令；未新增运行期依赖，`DI`来源无影响。
-- `lina-review`结果：审查范围为`.agents/skills/lina-release-changelog/SKILL.md`和`openspec/changes/add-release-changelog-skill/`下的`OpenSpec`文件；已按`git status --short`和`git ls-files --others --exclude-standard`展开未跟踪目录，并将忽略的`temp/changelog.md`作为生成产物验证证据；未发现阻塞问题。
+- `lina-review`结果：审查范围为`.agents/skills/lina-community-release-changelog/SKILL.md`和`openspec/changes/add-release-changelog-skill/`下的`OpenSpec`文件；已按`git status --short`和`git ls-files --others --exclude-standard`展开未跟踪目录，并将忽略的`temp/changelog.md`作为生成产物验证证据；未发现阻塞问题。
 
 ## Feedback
 

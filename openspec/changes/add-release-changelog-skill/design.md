@@ -8,7 +8,7 @@
 
 **Goals:**
 
-- 新增`lina-release-changelog`技能，用于手动生成`temp/changelog.md`。
+- 新增`lina-community-release-changelog`技能，用于手动生成`temp/changelog.md`。
 - 支持默认比较范围和用户显式指定的两个`Git`引用比较范围。
 - 固定输出用户确认的双语`Markdown`模板，英文在上、中文在下，中间保持模板分割线。
 - 要求技能读取`Git`提交历史、源码差异和`OpenSpec`内容，形成详尽、可追溯、面向发布人员的变更说明。
@@ -26,7 +26,7 @@
 
 ### 手动技能优先于自动化发布集成
 
-先将能力实现为`.agents/skills/lina-release-changelog/SKILL.md`，不接入`CI`。这样发布人员可以在不同版本区间上人工试运行、审阅和修订技能提示，待生成质量稳定后再设计自动发布集成。
+先将能力实现为`.agents/skills/lina-community-release-changelog/SKILL.md`，不接入`CI`。这样发布人员可以在不同版本区间上人工试运行、审阅和修订技能提示，待生成质量稳定后再设计自动发布集成。
 
 替代方案是立即集成到`create-release-tag.yml`或`release-test-and-build.yml`。该方案会更快进入发布链路，但当前生成质量尚未验证，且`temp/changelog.md`跨工作流传递还需要额外设计，因此暂不采用。
 

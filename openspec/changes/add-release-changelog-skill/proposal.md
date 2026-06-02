@@ -1,10 +1,10 @@
 ## Why
 
-发布人员当前缺少一个稳定、可复用的手动流程来从`Git`历史、源码变更和`OpenSpec`内容中整理详尽的版本更新日志。新增`lina-release-changelog`技能可以在接入`CI`前先通过人工执行验证生成质量，降低发布说明遗漏关键变更或格式不一致的风险。
+发布人员当前缺少一个稳定、可复用的手动流程来从`Git`历史、源码变更和`OpenSpec`内容中整理详尽的版本更新日志。新增`lina-community-release-changelog`技能可以在接入`CI`前先通过人工执行验证生成质量，降低发布说明遗漏关键变更或格式不一致的风险。
 
 ## What Changes
 
-- 新增仓库级`lina-release-changelog`技能，用于手动生成`LinaPro`版本更新日志。
+- 新增仓库级`lina-community-release-changelog`技能，用于手动生成`LinaPro`版本更新日志。
 - 技能根据指定或默认的`Git`比较范围分析提交历史、源码差异和`OpenSpec`文档，生成详尽的双语`Markdown`更新日志。
 - 生成结果固定写入项目根目录`temp/changelog.md`，不创建`GitHub Release`，不修改`CI`或发布工作流。
 - 技能支持用户显式指定两个比较版本、标签或提交，例如比较`v0.1.0`与`v0.2.0`之间的历史变更；未指定时默认使用最近可达发布标签到当前`HEAD`。
@@ -15,7 +15,7 @@
 
 ### New Capabilities
 
-- `release-changelog-skill`: 定义`lina-release-changelog`技能的手动触发、比较范围解析、证据收集、双语模板和输出文件契约。
+- `release-changelog-skill`: 定义`lina-community-release-changelog`技能的手动触发、比较范围解析、证据收集、双语模板和输出文件契约。
 
 ### Modified Capabilities
 
@@ -23,7 +23,7 @@
 
 ## Impact
 
-- 新增`.agents/skills/lina-release-changelog/SKILL.md`。
+- 新增`.agents/skills/lina-community-release-changelog/SKILL.md`。
 - 可能新增技能评估或示例材料，用于验证默认范围、显式版本范围和内容完整性。
 - 生成产物位于已忽略的`temp/changelog.md`，不会作为版本库交付文件提交。
 - 本变更不修改后端、前端、数据库、`HTTP API`、插件运行时、`CI`或`GitHub Actions`发布流程。
