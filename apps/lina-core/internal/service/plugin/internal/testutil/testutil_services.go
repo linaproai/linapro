@@ -23,6 +23,8 @@ import (
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/wasm"
 	"lina-core/pkg/plugin/capability"
+	capabilityai "lina-core/pkg/plugin/capability/ai"
+	capabilityaitext "lina-core/pkg/plugin/capability/ai/aitext"
 	capabilityconfig "lina-core/pkg/plugin/capability/config"
 	"lina-core/pkg/plugin/capability/contract"
 	capabilityhostconfig "lina-core/pkg/plugin/capability/hostconfig"
@@ -164,6 +166,7 @@ func mustConfigureWasmHostServicesForTest(
 		{name: "lock", fn: func() error { return wasm.ConfigureLockHostService(hostLockSvc) }},
 		{name: "notify", fn: func() error { return wasm.ConfigureNotifyHostService(notifySvc) }},
 		{name: "storage", fn: func() error { return wasm.ConfigureStorageHostService(configProvider) }},
+		{name: "ai", fn: func() error { return wasm.ConfigureAITextHostService(hostServices) }},
 		{name: "org", fn: func() error { return wasm.ConfigureOrgHostService(hostServices) }},
 		{name: "tenant", fn: func() error { return wasm.ConfigureTenantHostService(hostServices) }},
 		{name: "config", fn: func() error { return wasm.ConfigureConfigHostService(configFactory) }},
@@ -207,6 +210,11 @@ func (s *testCapabilities) APIDoc() contract.APIDocService { return nil }
 
 // Auth returns no auth service for plugin integration tests.
 func (s *testCapabilities) Auth() contract.AuthService { return nil }
+
+// AI returns the default AI capability fallback namespace.
+func (s *testCapabilities) AI() capabilityai.Service {
+	return capabilityai.New(capabilityaitext.New(nil))
+}
 
 // BizCtx returns no bizctx service for plugin integration tests.
 func (s *testCapabilities) BizCtx() contract.BizCtxService { return nil }

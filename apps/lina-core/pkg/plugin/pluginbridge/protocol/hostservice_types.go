@@ -6,6 +6,7 @@ package protocol
 import "lina-core/pkg/plugin/pluginbridge/internal/hostservice"
 
 type (
+	HostServiceAITextGenerateRequest             = hostservice.HostServiceAITextGenerateRequest
 	HostServiceCacheDeleteRequest                = hostservice.HostServiceCacheDeleteRequest
 	HostServiceCacheExpireRequest                = hostservice.HostServiceCacheExpireRequest
 	HostServiceCacheExpireResponse               = hostservice.HostServiceCacheExpireResponse

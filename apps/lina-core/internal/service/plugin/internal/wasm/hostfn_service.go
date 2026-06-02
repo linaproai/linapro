@@ -81,6 +81,8 @@ func handleHostServiceInvoke(
 		return dispatchHostConfigService(ctx, hcc, request.Method, request.Payload)
 	case bridgehostservice.HostServiceManifest:
 		return dispatchManifestHostService(ctx, hcc, request.Method, request.Payload)
+	case bridgehostservice.HostServiceAI:
+		return dispatchAIHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
 	case bridgehostservice.HostServiceOrg:
 		return dispatchOrgHostService(ctx, hcc, request.Method, request.Payload)
 	case bridgehostservice.HostServiceTenant:

@@ -34,6 +34,7 @@ import (
 	"lina-core/internal/model/entity"
 
 	"lina-core/pkg/plugin/capability"
+	aitextsvc "lina-core/pkg/plugin/capability/ai/aitext"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -400,6 +401,8 @@ type LifecycleManagementService interface {
 	IsEnabled(ctx context.Context, pluginID string) bool
 	// IsProviderEnabled returns whether pluginID is platform-enabled for framework capability provider use.
 	IsProviderEnabled(ctx context.Context, pluginID string) bool
+	// AITextProviderEnv returns typed, plugin-scoped text AI provider construction inputs.
+	AITextProviderEnv(pluginID string) aitextsvc.ProviderEnv
 	// OrgProviderEnv returns typed, plugin-scoped organization-provider construction inputs.
 	OrgProviderEnv(pluginID string) orgcapsvc.ProviderEnv
 	// TenantProviderEnv returns typed, plugin-scoped tenant-provider construction inputs.

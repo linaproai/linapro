@@ -17,7 +17,32 @@ gfcli:
   gen:
     dao:
       - link: *localDatabaseLink
-        tables: "sys_*"
+        tables: >-
+          sys_cache_revision,
+          sys_config,
+          sys_dict_data,
+          sys_dict_type,
+          sys_file,
+          sys_job,
+          sys_job_group,
+          sys_job_log,
+          sys_kv_cache,
+          sys_locker,
+          sys_menu,
+          sys_notify_channel,
+          sys_notify_delivery,
+          sys_notify_message,
+          sys_online_session,
+          sys_plugin,
+          sys_plugin_migration,
+          sys_plugin_node_state,
+          sys_plugin_release,
+          sys_plugin_resource_ref,
+          sys_plugin_state,
+          sys_role,
+          sys_role_menu,
+          sys_user,
+          sys_user_role
         descriptionTag: true
         noModelComment: true
         stdTime: true

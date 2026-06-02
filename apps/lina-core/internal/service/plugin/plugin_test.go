@@ -20,6 +20,8 @@ import (
 	"lina-core/internal/service/session"
 	_ "lina-core/pkg/dbdriver"
 	"lina-core/pkg/plugin/capability"
+	capabilityai "lina-core/pkg/plugin/capability/ai"
+	aitextsvc "lina-core/pkg/plugin/capability/ai/aitext"
 	"lina-core/pkg/plugin/capability/contract"
 	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
 	capabilitypluginlifecycle "lina-core/pkg/plugin/capability/pluginlifecycle"
@@ -104,6 +106,11 @@ func (s *rootTestCapabilities) APIDoc() contract.APIDocService { return nil }
 
 // Auth returns no auth service for root plugin facade tests.
 func (s *rootTestCapabilities) Auth() contract.AuthService { return nil }
+
+// AI returns the default AI capability fallback namespace.
+func (s *rootTestCapabilities) AI() capabilityai.Service {
+	return capabilityai.New(aitextsvc.New(nil))
+}
 
 // BizCtx returns the host business-context projection used by provider construction.
 func (s *rootTestCapabilities) BizCtx() contract.BizCtxService {

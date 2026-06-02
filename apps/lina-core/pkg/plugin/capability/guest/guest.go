@@ -48,6 +48,8 @@ type Services interface {
 	// never exposes provider internals and reports unavailable capability state
 	// through Status or Available errors when host transport fails.
 	Tenant() TenantService
+	// AI returns the guest-side AI capability namespace.
+	AI() AIService
 }
 
 // New creates a guest-side capability directory backed by pluginbridge

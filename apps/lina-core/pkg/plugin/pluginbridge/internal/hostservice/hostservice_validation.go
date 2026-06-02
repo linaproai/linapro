@@ -209,11 +209,60 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 				}
 			}
 		}
+		if spec.Service == HostServiceAI {
+			for _, resource := range spec.Resources {
+				if resource == nil {
+					continue
+				}
+				if !strings.HasPrefix(resource.Ref, "purpose:") || strings.TrimSpace(strings.TrimPrefix(resource.Ref, "purpose:")) == "" {
+					return gerror.Newf("host service %s resource ref must use purpose:<name>: %s", spec.Service, resource.Ref)
+				}
+				if len(resource.AllowMethods) > 0 || len(resource.HeaderAllowList) > 0 || resource.TimeoutMs > 0 || resource.MaxBodyBytes > 0 {
+					return gerror.Newf("host service %s purpose resources only allow attributes: %s", spec.Service, resource.Ref)
+				}
+				if err := validateAIResourceAttributes(resource.Attributes); err != nil {
+					return gerror.Wrapf(err, "host service %s has invalid ai resource attributes", spec.Service)
+				}
+			}
+		}
 	}
 
 	sort.Slice(specs, func(i, j int) bool {
 		return specs[i].Service < specs[j].Service
 	})
+	return nil
+}
+
+// validateAIResourceAttributes validates optional governance attributes on AI purpose resources.
+func validateAIResourceAttributes(attributes map[string]string) error {
+	for key, value := range attributes {
+		switch key {
+		case "defaultTier":
+			switch value {
+			case "", "basic", "standard", "advanced":
+			default:
+				return gerror.Newf("defaultTier must be basic, standard, or advanced: %s", value)
+			}
+		case "maxOutputTokens":
+			if strings.TrimSpace(value) == "" {
+				return gerror.New("maxOutputTokens cannot be empty")
+			}
+			allZero := true
+			for _, r := range value {
+				if r < '0' || r > '9' {
+					return gerror.Newf("maxOutputTokens must be a positive integer: %s", value)
+				}
+				if r != '0' {
+					allZero = false
+				}
+			}
+			if allZero {
+				return gerror.New("maxOutputTokens must be greater than zero")
+			}
+		default:
+			return gerror.Newf("unsupported ai resource attribute: %s", key)
+		}
+	}
 	return nil
 }
 

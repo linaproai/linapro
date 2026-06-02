@@ -461,6 +461,67 @@ func TestValidateHostServiceSpecsAcceptsCacheLockNotifyResources(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsAcceptsAITextPurposeResources verifies AI text
+// host service declarations derive host:ai:text and require purpose resources.
+func TestValidateHostServiceSpecsAcceptsAITextPurposeResources(t *testing.T) {
+	specs := []*HostServiceSpec{{
+		Service: HostServiceAI,
+		Methods: []string{HostServiceMethodAITextGenerate},
+		Resources: []*HostServiceResourceSpec{{
+			Ref: " purpose:content.summary ",
+			Attributes: map[string]string{
+				"defaultTier":     "basic",
+				"maxOutputTokens": "1024",
+			},
+		}},
+	}}
+
+	if err := ValidateHostServiceSpecs(specs); err != nil {
+		t.Fatalf("expected ai text host service specs to validate, got %v", err)
+	}
+	if specs[0].Resources[0].Ref != "purpose:content.summary" {
+		t.Fatalf("expected normalized purpose resource ref, got %#v", specs[0].Resources[0])
+	}
+	capabilities := CapabilityMapFromHostServices(specs)
+	if _, ok := capabilities[CapabilityAIText]; !ok {
+		t.Fatalf("expected ai declaration to derive %s capability", CapabilityAIText)
+	}
+}
+
+// TestValidateHostServiceSpecsRejectsAITextInvalidResources verifies unsupported
+// AI methods and non-purpose resources are rejected before runtime.
+func TestValidateHostServiceSpecsRejectsAITextInvalidResources(t *testing.T) {
+	for _, testCase := range []HostServiceSpec{
+		{
+			Service: HostServiceAI,
+			Methods: []string{"image.generate"},
+			Resources: []*HostServiceResourceSpec{{
+				Ref: "purpose:content.summary",
+			}},
+		},
+		{
+			Service: HostServiceAI,
+			Methods: []string{HostServiceMethodAITextGenerate},
+			Resources: []*HostServiceResourceSpec{{
+				Ref: "content.summary",
+			}},
+		},
+		{
+			Service: HostServiceAI,
+			Methods: []string{HostServiceMethodAITextGenerate},
+			Resources: []*HostServiceResourceSpec{{
+				Ref:        "purpose:content.summary",
+				Attributes: map[string]string{"maxOutputTokens": "all"},
+			}},
+		},
+	} {
+		spec := testCase
+		if err := ValidateHostServiceSpecs([]*HostServiceSpec{&spec}); err == nil {
+			t.Fatalf("expected invalid ai host service declaration to be rejected: %#v", testCase)
+		}
+	}
+}
+
 // TestValidateHostServiceSpecsRejectsNetworkResourceGovernanceFields verifies
 // network resources only declare URL patterns.
 func TestValidateHostServiceSpecsRejectsNetworkResourceGovernanceFields(t *testing.T) {

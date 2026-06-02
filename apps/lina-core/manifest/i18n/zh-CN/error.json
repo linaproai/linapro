@@ -39,6 +39,44 @@
         }
       }
     },
+    "ai": {
+      "text": {
+        "provider": {
+          "unavailable": "文本AI供应商暂不可用"
+        },
+        "tier": {
+          "invalid": "不支持文本AI档位 {tier}"
+        },
+        "messages": {
+          "required": "文本AI生成至少需要一条消息"
+        },
+        "message": {
+          "role": {
+            "invalid": "不支持文本AI消息角色 {role}"
+          }
+        },
+        "thinking": {
+          "effort": {
+            "invalid": "不支持文本AI thinking effort {effort}"
+          }
+        },
+        "purpose": {
+          "required": "文本AI用途不能为空"
+        },
+        "metadata": {
+          "too": {
+            "large": "文本AI metadata 超出允许大小"
+          }
+        },
+        "max": {
+          "output": {
+            "tokens": {
+              "invalid": "文本AI最大输出 tokens 不能小于 0"
+            }
+          }
+        }
+      }
+    },
     "sysconfig": {
       "builtin": {
         "delete": {

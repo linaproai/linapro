@@ -39,6 +39,44 @@
         }
       }
     },
+    "ai": {
+      "text": {
+        "provider": {
+          "unavailable": "Text AI provider is unavailable"
+        },
+        "tier": {
+          "invalid": "Text AI tier {tier} is not supported"
+        },
+        "messages": {
+          "required": "Text AI generation requires at least one message"
+        },
+        "message": {
+          "role": {
+            "invalid": "Text AI message role {role} is not supported"
+          }
+        },
+        "thinking": {
+          "effort": {
+            "invalid": "Text AI thinking effort {effort} is not supported"
+          }
+        },
+        "purpose": {
+          "required": "Text AI purpose is required"
+        },
+        "metadata": {
+          "too": {
+            "large": "Text AI metadata exceeds the allowed size"
+          }
+        },
+        "max": {
+          "output": {
+            "tokens": {
+              "invalid": "Text AI max output tokens must be greater than or equal to zero"
+            }
+          }
+        }
+      }
+    },
     "sysconfig": {
       "builtin": {
         "delete": {

@@ -76,6 +76,9 @@ var (
 		HostServiceManifest: {
 			HostServiceMethodManifestGet: CapabilityManifest,
 		},
+		HostServiceAI: {
+			HostServiceMethodAITextGenerate: CapabilityAIText,
+		},
 		HostServiceOrg: {
 			HostServiceMethodOrgAvailable:               CapabilityOrg,
 			HostServiceMethodOrgStatus:                  CapabilityOrg,
@@ -113,6 +116,7 @@ var (
 		CapabilityConfig:       {},
 		CapabilityHostConfig:   {},
 		CapabilityManifest:     {},
+		CapabilityAIText:       {},
 		CapabilityOrg:          {},
 		CapabilityTenant:       {},
 	}

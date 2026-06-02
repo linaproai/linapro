@@ -10,6 +10,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/pkg/plugin/capability"
+	aitextsvc "lina-core/pkg/plugin/capability/ai/aitext"
 	"lina-core/pkg/plugin/capability/contract"
 	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
@@ -43,6 +44,21 @@ func (s *serviceImpl) SetCapabilities(capabilities capability.Services) {
 	}
 	s.capabilities = capabilities
 	s.integrationSvc.SetCapabilities(capabilities)
+}
+
+// AITextProviderEnv returns typed, plugin-scoped text AI provider construction inputs.
+func (s *serviceImpl) AITextProviderEnv(pluginID string) aitextsvc.ProviderEnv {
+	env := aitextsvc.ProviderEnv{PluginID: pluginID}
+	if s == nil || s.capabilities == nil {
+		return env
+	}
+	services := capability.ServicesForPlugin(s.capabilities, pluginID)
+	if services == nil {
+		return env
+	}
+	env.BizCtx = services.BizCtx()
+	env.Cache = services.Cache()
+	return env
 }
 
 // OrgProviderEnv returns typed, plugin-scoped organization-provider construction inputs.

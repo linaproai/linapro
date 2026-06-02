@@ -15,6 +15,7 @@ import (
 	"lina-core/internal/service/plugin/internal/hostservices"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/plugin/capability"
+	capabilityaitext "lina-core/pkg/plugin/capability/ai/aitext"
 	"lina-core/pkg/plugin/capability/contract"
 	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
 	capabilitytenantcap "lina-core/pkg/plugin/capability/tenantcap"
@@ -93,6 +94,7 @@ func NewHostServices(
 	pluginStateSvc contract.PluginStateService,
 	pluginLifecycleRunner contract.PluginLifecycleRunner,
 	sessionStore session.Store,
+	aiTextSvc capabilityaitext.Service,
 	orgSvc capabilityorgcap.Service,
 	tenantSvc capabilitytenantcap.RuntimeService,
 	notifySvc HostNotifyPublisher,
@@ -109,6 +111,7 @@ func NewHostServices(
 		pluginStateSvc,
 		pluginLifecycleRunner,
 		sessionStore,
+		aiTextSvc,
 		orgSvc,
 		tenantSvc,
 		notifySvc,

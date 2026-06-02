@@ -42,6 +42,7 @@ import (
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/capability"
+	"lina-core/pkg/plugin/capability/ai/aitext"
 	pluginserviceconfig "lina-core/pkg/plugin/capability/config"
 	pluginservicehostconfig "lina-core/pkg/plugin/capability/hostconfig"
 	pluginservicemanifest "lina-core/pkg/plugin/capability/manifest"
@@ -60,6 +61,7 @@ type httpRuntime struct {
 	authTokenIssuer auth.TenantTokenIssuer
 	bizCtxSvc       bizctx.Service              // bizCtxSvc owns request-scoped business context mutation.
 	i18nSvc         i18nsvc.Service             // i18nSvc owns runtime language bundles and localization.
+	aiTextSvc       aitext.Service              // aiTextSvc exposes optional text AI capability.
 	orgCapSvc       orgcap.Service              // orgCapSvc exposes optional organization capability.
 	orgProjection   orgcap.ProjectionService    // orgProjection exposes host user-management organization projections.
 	roleSvc         role.Service                // roleSvc owns permission and access snapshot state.
@@ -207,6 +209,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 	}
 	var (
 		orgCapSvc     = orgcap.New(pluginSvc)
+		aiTextSvc     = aitext.New(pluginSvc)
 		orgProjection = orgCapSvc
 		tenantSvc     = tenantcapsvc.New(pluginSvc, bizCtxSvc)
 		kvCacheSvc    = kvcache.New()
@@ -253,6 +256,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		pluginSvc,
 		pluginSvc,
 		sessionStore,
+		aiTextSvc,
 		orgCapSvc,
 		tenantSvc,
 		notifySvc,
@@ -313,6 +317,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		authTokenIssuer: authTokenSvc,
 		bizCtxSvc:       bizCtxSvc,
 		i18nSvc:         i18nSvc,
+		aiTextSvc:       aiTextSvc,
 		orgCapSvc:       orgCapSvc,
 		orgProjection:   orgProjection,
 		roleSvc:         roleSvc,

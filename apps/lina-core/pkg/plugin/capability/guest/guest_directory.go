@@ -50,3 +50,6 @@ func (directory) Org() OrgService { return orgService{} }
 
 // Tenant returns the tenant capability guest client.
 func (directory) Tenant() TenantService { return tenantService{} }
+
+// AI returns the guest-side AI capability namespace.
+func (directory) AI() AIService { return aiService{} }

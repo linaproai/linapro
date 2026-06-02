@@ -39,6 +39,9 @@ func ConfigureWasmHostServices(
 	if err := wasm.ConfigureStorageHostService(configSvc); err != nil {
 		return gerror.Wrap(err, "configure wasm storage host service failed")
 	}
+	if err := wasm.ConfigureAITextHostService(hostServices); err != nil {
+		return gerror.Wrap(err, "configure wasm ai text host service failed")
+	}
 	if err := wasm.ConfigureOrgHostService(hostServices); err != nil {
 		return gerror.Wrap(err, "configure wasm org host service failed")
 	}

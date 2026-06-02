@@ -7,6 +7,7 @@ package capability
 import (
 	"strings"
 
+	"lina-core/pkg/plugin/capability/ai"
 	"lina-core/pkg/plugin/capability/contract"
 	"lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/tenantcap"
@@ -22,6 +23,8 @@ type Services interface {
 	APIDoc() contract.APIDocService
 	// Auth returns the tenant-auth token handoff service.
 	Auth() contract.AuthService
+	// AI returns the host AI capability namespace.
+	AI() ai.Service
 	// BizCtx returns the current request business-context projection service.
 	BizCtx() contract.BizCtxService
 	// Cache returns the plugin-scoped runtime cache service.

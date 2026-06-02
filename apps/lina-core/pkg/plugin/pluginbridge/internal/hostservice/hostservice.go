@@ -35,6 +35,8 @@ const (
 	CapabilityHostConfig = "host:hostconfig"
 	// CapabilityManifest grants access to plugin-scoped manifest resources.
 	CapabilityManifest = "host:manifest"
+	// CapabilityAIText grants access to host-defined text AI capability services.
+	CapabilityAIText = "host:ai:text"
 	// CapabilityOrg grants access to host-defined organization capability services.
 	CapabilityOrg = "host:org"
 	// CapabilityTenant grants access to host-defined tenant capability services.
@@ -72,6 +74,8 @@ const (
 	HostServiceHostConfig = "hostconfig"
 	// HostServiceManifest is the plugin-scoped manifest resource service identifier.
 	HostServiceManifest = "manifest"
+	// HostServiceAI is the AI capability host service identifier.
+	HostServiceAI = "ai"
 	// HostServiceOrg is the organization capability host service identifier.
 	HostServiceOrg = "org"
 	// HostServiceTenant is the tenant capability host service identifier.
@@ -242,6 +246,14 @@ const (
 	HostServiceMethodTenantListUserTenants = "user_tenants.list"
 	// HostServiceMethodTenantValidateSwitch validates one tenant switch target.
 	HostServiceMethodTenantValidateSwitch = "switch.validate"
+)
+
+// AI host-service methods describe the governed AI capability surface
+// available to authorized dynamic plugins. The first version only exposes
+// synchronous text generation.
+const (
+	// HostServiceMethodAITextGenerate executes one governed text generation request.
+	HostServiceMethodAITextGenerate = "text.generate"
 )
 
 // Storage visibility constants describe the serving posture attached to plugin

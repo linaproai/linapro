@@ -4,6 +4,7 @@ package hostservices
 
 import (
 	"lina-core/pkg/plugin/capability"
+	capabilityai "lina-core/pkg/plugin/capability/ai"
 	"lina-core/pkg/plugin/capability/contract"
 	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
 	capabilitytenantcap "lina-core/pkg/plugin/capability/tenantcap"
@@ -23,6 +24,14 @@ func (s *directory) Auth() contract.AuthService {
 		return nil
 	}
 	return s.auth
+}
+
+// AI returns the host AI capability namespace.
+func (s *directory) AI() capabilityai.Service {
+	if s == nil || s.ai == nil {
+		return capabilityai.New(nil)
+	}
+	return s.ai
 }
 
 // BizCtx returns the host business-context adapter.
@@ -153,6 +162,14 @@ func (s *scopedDirectory) Auth() contract.AuthService {
 		return nil
 	}
 	return s.base.Auth()
+}
+
+// AI returns the plugin-scoped AI capability namespace.
+func (s *scopedDirectory) AI() capabilityai.Service {
+	if s == nil || s.base == nil {
+		return capabilityai.New(nil)
+	}
+	return capabilityai.ForPlugin(s.base.AI(), s.pluginID)
 }
 
 // BizCtx returns the delegated business-context adapter.

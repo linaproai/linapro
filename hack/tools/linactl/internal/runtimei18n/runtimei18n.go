@@ -18,6 +18,8 @@ const (
 	commandScan = "scan"
 	// commandMessages runs runtime i18n message key coverage validation.
 	commandMessages = "messages"
+	// commandFrontendKeys validates frontend static $t key references.
+	commandFrontendKeys = "frontend-keys"
 )
 
 // RunCheck runs the scanner and message coverage checks, preserving the
@@ -25,14 +27,15 @@ const (
 func RunCheck(repoRoot string, out io.Writer) error {
 	scanErr := runAsError(repoRoot, []string{commandScan}, out)
 	messageErr := runAsError(repoRoot, []string{commandMessages}, out)
-	return errors.Join(scanErr, messageErr)
+	frontendKeyErr := runAsError(repoRoot, []string{commandFrontendKeys}, out)
+	return errors.Join(scanErr, messageErr, frontendKeyErr)
 }
 
 // Run parses a runtime i18n subcommand and executes the selected verification
 // flow against the provided repository root.
 func Run(repoRoot string, args []string, out io.Writer) (int, error) {
 	if len(args) == 0 {
-		return 1, fmt.Errorf("missing command, expected %s or %s", commandScan, commandMessages)
+		return 1, fmt.Errorf("missing command, expected %s, %s, or %s", commandScan, commandMessages, commandFrontendKeys)
 	}
 	root := filepath.Clean(strings.TrimSpace(repoRoot))
 	if root == "" || root == "." {
@@ -44,8 +47,10 @@ func Run(repoRoot string, args []string, out io.Writer) (int, error) {
 		return runScanCommand(root, args[1:], out)
 	case commandMessages:
 		return runMessagesCommand(root, args[1:], out)
+	case commandFrontendKeys:
+		return runFrontendKeysCommand(root, args[1:], out)
 	default:
-		return 1, fmt.Errorf("unknown command %q, expected %s or %s", args[0], commandScan, commandMessages)
+		return 1, fmt.Errorf("unknown command %q, expected %s, %s, or %s", args[0], commandScan, commandMessages, commandFrontendKeys)
 	}
 }
 
@@ -108,6 +113,37 @@ func runMessagesCommand(repoRoot string, args []string, out io.Writer) (int, err
 	if err = emitMessageCoverage(out, errors); err != nil {
 		return 1, err
 	}
+	if len(errors) > 0 {
+		return 1, nil
+	}
+	return 0, nil
+}
+
+// runFrontendKeysCommand validates frontend static $t key references.
+func runFrontendKeysCommand(repoRoot string, args []string, out io.Writer) (int, error) {
+	flagSet := flag.NewFlagSet(commandFrontendKeys, flag.ContinueOnError)
+	flagSet.SetOutput(io.Discard)
+	if err := flagSet.Parse(args); err != nil {
+		return 1, fmt.Errorf("parse frontend key flags: %w", err)
+	}
+
+	errors, err := validateFrontendI18NKeyReferences(repoRoot)
+	if err != nil {
+		return 1, err
+	}
+	if err = emitFrontendKeyCoverage(out, errors); err != nil {
+		return 1, err
+	}
+
+	// Module-level $t() call warnings (non-blocking).
+	warnings, warnErr := validateModuleLevelFrontendI18NCalls(repoRoot)
+	if warnErr != nil {
+		return 1, warnErr
+	}
+	if warnErr = emitModuleLevelWarnings(out, warnings); warnErr != nil {
+		return 1, warnErr
+	}
+
 	if len(errors) > 0 {
 		return 1, nil
 	}

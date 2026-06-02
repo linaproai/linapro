@@ -15,6 +15,8 @@ import (
 	"lina-core/internal/service/notify"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/plugin/capability"
+	capabilityai "lina-core/pkg/plugin/capability/ai"
+	capabilityaitext "lina-core/pkg/plugin/capability/ai/aitext"
 	capabilityconfig "lina-core/pkg/plugin/capability/config"
 	"lina-core/pkg/plugin/capability/contract"
 	capabilitymanifest "lina-core/pkg/plugin/capability/manifest"
@@ -94,6 +96,7 @@ type PluginLifecycleRunner interface {
 type directory struct {
 	apiDoc       contract.APIDocService // apiDoc exposes localized API-documentation route text.
 	auth         contract.AuthService   // auth exposes tenant token operations.
+	ai           capabilityai.Service
 	bizCtx       contract.BizCtxService // bizCtx exposes read-only request business context.
 	cache        kvcache.Service        // cache owns the shared runtime-selected KV backend.
 	config       contract.ConfigServiceFactory
@@ -143,6 +146,7 @@ func New(
 	pluginStateSvc contract.PluginStateService,
 	pluginLifecycleRunner PluginLifecycleRunner,
 	sessionStore session.Store,
+	aiTextSvc capabilityaitext.Service,
 	orgSvc capabilityorgcap.Service,
 	tenantSvc capabilitytenantcap.RuntimeService,
 	notifySvc NotifyPublisher,
@@ -159,6 +163,7 @@ func New(
 	return &directory{
 		apiDoc:       newAPIDocAdapter(apiDocSvc),
 		auth:         newAuthAdapter(authTokenIssuer),
+		ai:           capabilityai.New(aiTextSvc),
 		bizCtx:       bizCtxAdapter,
 		cache:        kvCacheSvc,
 		config:       capabilityconfig.NewFactory("", ""),

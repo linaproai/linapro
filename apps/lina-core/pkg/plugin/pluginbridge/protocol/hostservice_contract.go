@@ -21,6 +21,7 @@ const (
 	CapabilityConfig       = hostservice.CapabilityConfig
 	CapabilityHostConfig   = hostservice.CapabilityHostConfig
 	CapabilityManifest     = hostservice.CapabilityManifest
+	CapabilityAIText       = hostservice.CapabilityAIText
 	CapabilityOrg          = hostservice.CapabilityOrg
 	CapabilityTenant       = hostservice.CapabilityTenant
 
@@ -38,6 +39,7 @@ const (
 	HostServiceConfig     = hostservice.HostServiceConfig
 	HostServiceHostConfig = hostservice.HostServiceHostConfig
 	HostServiceManifest   = hostservice.HostServiceManifest
+	HostServiceAI         = hostservice.HostServiceAI
 	HostServiceOrg        = hostservice.HostServiceOrg
 	HostServiceTenant     = hostservice.HostServiceTenant
 
@@ -78,6 +80,7 @@ const (
 	HostServiceMethodConfigDuration             = hostservice.HostServiceMethodConfigDuration
 	HostServiceMethodHostConfigGet              = hostservice.HostServiceMethodHostConfigGet
 	HostServiceMethodManifestGet                = hostservice.HostServiceMethodManifestGet
+	HostServiceMethodAITextGenerate             = hostservice.HostServiceMethodAITextGenerate
 	HostServiceMethodOrgAvailable               = hostservice.HostServiceMethodOrgAvailable
 	HostServiceMethodOrgStatus                  = hostservice.HostServiceMethodOrgStatus
 	HostServiceMethodOrgListUserDeptAssignments = hostservice.HostServiceMethodOrgListUserDeptAssignments

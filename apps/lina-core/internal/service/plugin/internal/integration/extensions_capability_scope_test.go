@@ -19,6 +19,7 @@ import (
 
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/plugin/capability"
+	capabilityai "lina-core/pkg/plugin/capability/ai"
 	"lina-core/pkg/plugin/capability/contract"
 	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
@@ -337,6 +338,9 @@ func (emptySourceServicesDirectory) APIDoc() contract.APIDocService { return nil
 
 // Auth returns no auth service for this capability-scope test.
 func (emptySourceServicesDirectory) Auth() contract.AuthService { return nil }
+
+// AI returns the default AI fallback namespace for this capability-scope test.
+func (emptySourceServicesDirectory) AI() capabilityai.Service { return capabilityai.New(nil) }
 
 // BizCtx returns no business-context service for this capability-scope test.
 func (emptySourceServicesDirectory) BizCtx() contract.BizCtxService { return nil }

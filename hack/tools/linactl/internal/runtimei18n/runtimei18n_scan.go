@@ -98,8 +98,13 @@ var scannerRules = []scanRule{
 		Identifier: "frontend-property-han",
 		Category:   "UserMessage",
 		Include: []string{
+			"apps/lina-vben/apps/web-antd/src/**/*.js",
 			"apps/lina-vben/apps/web-antd/src/**/*.ts",
+			"apps/lina-vben/apps/web-antd/src/**/*.tsx",
 			"apps/lina-vben/apps/web-antd/src/**/*.vue",
+			"apps/lina-plugins/*/frontend/**/*.js",
+			"apps/lina-plugins/*/frontend/**/*.ts",
+			"apps/lina-plugins/*/frontend/**/*.tsx",
 			"apps/lina-plugins/*/frontend/**/*.vue",
 		},
 		Pattern: regexp.MustCompile(`\b(?:title|label|placeholder|content|emptyText)\s*:\s*['"][^'"]*[\x{3400}-\x{9fff}]`),
@@ -109,8 +114,13 @@ var scannerRules = []scanRule{
 		Identifier: "frontend-message-call-han",
 		Category:   "UserMessage",
 		Include: []string{
+			"apps/lina-vben/apps/web-antd/src/**/*.js",
 			"apps/lina-vben/apps/web-antd/src/**/*.ts",
+			"apps/lina-vben/apps/web-antd/src/**/*.tsx",
 			"apps/lina-vben/apps/web-antd/src/**/*.vue",
+			"apps/lina-plugins/*/frontend/**/*.js",
+			"apps/lina-plugins/*/frontend/**/*.ts",
+			"apps/lina-plugins/*/frontend/**/*.tsx",
 			"apps/lina-plugins/*/frontend/**/*.vue",
 		},
 		Pattern: regexp.MustCompile(`\b(?:message|notification)\.(?:success|error|warning|info|loading)\([^)\n]*['"][^'"]*[\x{3400}-\x{9fff}]`),
@@ -416,7 +426,7 @@ func iterSourceFiles(repoRoot string) ([]string, error) {
 // isScannableSourceSuffix reports whether one file suffix is included in scanning.
 func isScannableSourceSuffix(path string) bool {
 	switch filepath.Ext(path) {
-	case ".go", ".ts", ".vue":
+	case ".go", ".js", ".ts", ".tsx", ".vue":
 		return true
 	default:
 		return false

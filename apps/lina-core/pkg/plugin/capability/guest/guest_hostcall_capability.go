@@ -16,7 +16,13 @@ import (
 // invokeCapabilityJSON invokes one capability host-service method and decodes
 // the JSON response value into out when supplied.
 func invokeCapabilityJSON(service string, method string, request []byte, out any) error {
-	payload, err := invokeHostService(service, method, "", "", request)
+	return invokeCapabilityJSONWithResource(service, method, "", request, out)
+}
+
+// invokeCapabilityJSONWithResource invokes one resource-scoped capability host
+// service method and decodes the JSON response value into out when supplied.
+func invokeCapabilityJSONWithResource(service string, method string, resourceRef string, request []byte, out any) error {
+	payload, err := invokeHostService(service, method, resourceRef, "", request)
 	if err != nil {
 		return err
 	}
