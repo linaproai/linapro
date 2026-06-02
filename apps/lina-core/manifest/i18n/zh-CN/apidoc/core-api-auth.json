@@ -73,6 +73,51 @@
               }
             }
           },
+          "ListProvidersReq": {
+            "meta": {
+              "dc": "列出由源码插件注册并已启用的第三方认证 Provider，供默认管理工作台登录页渲染入口。",
+              "summary": "列出已启用的认证 Provider",
+              "tags": "身份认证"
+            },
+            "schema": {
+              "dc": "列出由源码插件注册并已启用的第三方认证 Provider，供默认管理工作台登录页渲染入口。"
+            }
+          },
+          "ListProvidersRes": {
+            "fields": {
+              "providers": {
+                "dc": "登录页可见的已启用认证 Provider 列表"
+              }
+            }
+          },
+          "ProviderEntity": {
+            "fields": {
+              "providerId": {
+                "dc": "Provider 稳定标识"
+              },
+              "pluginId": {
+                "dc": "归属源码插件标识"
+              },
+              "kind": {
+                "dc": "Provider 协议种类：oauth2、oidc、ldap、saml、cas"
+              },
+              "name": {
+                "dc": "登录页展示名称"
+              },
+              "description": {
+                "dc": "Provider 能力简介"
+              },
+              "icon": {
+                "dc": "工作台渲染使用的图标标识"
+              },
+              "entryUrl": {
+                "dc": "Provider 登录入口 URL 或深链路由"
+              },
+              "displayOrder": {
+                "dc": "登录入口排序值，越小越靠前"
+              }
+            }
+          },
           "LogoutReq": {
             "meta": {
               "dc": "退出当前登录状态，清除服务端JWT令牌缓存",

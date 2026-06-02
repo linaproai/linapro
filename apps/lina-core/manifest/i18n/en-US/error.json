@@ -1,6 +1,10 @@
 {
   "error": {
     "auth": {
+      "external": {
+        "identityInvalid": "External authentication provider returned an invalid identity",
+        "userNotProvisioned": "No local account is linked to this external identity"
+      },
       "login": {
         "invalidCredentials": "Invalid username or password",
         "ipBlacklisted": "Login from this IP address is blocked",
