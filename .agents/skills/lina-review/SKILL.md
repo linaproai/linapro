@@ -1,17 +1,15 @@
 ---
 name: lina-review
 description: >-
-  Code and spec review for the OpenSpec workflow. Automatically triggered after /opsx:apply tasks
-  complete, after /opsx:feedback tasks complete, and before /opsx:archive runs. Also use when the
-  user requests a code review, spec compliance check, or invokes /lina-review explicitly.
+  用于审查 LinaPro OpenSpec 工作流中的代码变更和规范合规性。在完成 /opsx:apply 任务、
+  完成 lina-feedback 反馈修复、执行 /opsx:archive 归档前必须使用；在用户要求代码审查、
+  规范合规检查，或明确调用 /lina-review 时也必须使用。
 compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 ---
 
 # Lina 审查
 
-`OpenSpec`开发工作流的结构化代码与规范审查。
-
-`lina-review`只维护审查编排、范围收集、规则加载、报告结构和阻塞语义。项目领域规范的唯一事实来源是`AGENTS.md`及其显式引用的`.agents/rules/*.md`，包括接口契约、后端 Go、数据库、缓存、数据权限、插件、前端、测试、开发工具、文档、架构和`i18n`等细则。
+`lina-review`审查当前项目变更是否符合项目规范。项目领域规范的唯一事实来源是`AGENTS.md`及其显式引用的`.agents/rules/*.md`，包括接口契约、后端 Go、数据库、缓存、数据权限、插件、前端、测试、开发工具、文档、架构和`i18n`等细则。
 
 审查必须先读取`AGENTS.md`，再按其中的强制规则加载矩阵识别审查范围命中的规则域，并读取所有对应规则文件。禁止仅凭记忆、历史上下文、摘要、此前读取记录或其他代理转述替代本次读取。未读取命中规则文件的审查结论无效，不得据此标记任务完成、反馈完成或执行归档。
 
@@ -58,6 +56,17 @@ git ls-files --others --exclude-standard
 ```bash
 git ls-files --others --exclude-standard -- <path>
 ```
+
+当`git status --short`报告子仓库或`submodule`存在变更时，例如父仓库只显示`m apps/lina-plugins`，不得把该路径整体视为已审查。审查前必须进入子仓库收集内部状态、已跟踪差异和未跟踪文件，并把结果加上父路径前缀纳入审查候选项：
+
+```bash
+git -C <path> status --short
+git -C <path> diff --name-only
+git -C <path> diff --cached --name-only
+git -C <path> ls-files --others --exclude-standard
+```
+
+对于`apps/lina-plugins`这类插件子仓库，展开后的候选文件必须继续按`AGENTS.md`的插件本地规范优先级处理；涉及具体`apps/lina-plugins/<plugin-id>/`时，必须检查该插件根目录是否存在`AGENTS.md`普通文件或符号链接，并在审查结论中记录插件本地规范读取结果或不存在判断。
 
 如果任务运行过代码生成器、治理脚本或测试生成流程，即使生成文件未出现在`git diff`中，也必须显式纳入审查范围。`git diff`只能作为状态收集后的辅助工具，不能单独定义审查范围。
 

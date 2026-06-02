@@ -1,8 +1,8 @@
 ---
-name: lina-auto-archive
+name: lina-community-auto-archive
 description: >-
   自动扫描并归档 LinaPro 仓库中已经完成的 OpenSpec 活跃变更。用户要求自动归档、批量归档、清理已完成变更、
-  扫描 openspec/changes 中可归档项目，或提到 lina-auto-archive 时必须使用本技能。技能会跳过仍有未完成任务、
+  扫描 openspec/changes 中可归档项目，或提到 lina-community-auto-archive 时必须使用本技能。技能会跳过仍有未完成任务、
   OpenSpec 状态未完成、已归档目录或无法安全判定的变更，并在结束后用中文汇总成功归档列表与未归档原因。
 compatibility: 依赖 OpenSpec CLI，要求在 LinaPro 仓库根目录执行。
 ---
@@ -166,7 +166,7 @@ openspec archive -y "<change-name>"
 
 ```markdown
 无法执行自动归档：未找到 OpenSpec CLI。
-请先安装或修复 `openspec` 命令后再运行 `lina-auto-archive`。
+请先安装或修复 `openspec` 命令后再运行 `lina-community-auto-archive`。
 ```
 
 ---

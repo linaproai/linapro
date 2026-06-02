@@ -1,8 +1,8 @@
 ---
-name: lina-release-changelog
+name: lina-community-release-changelog
 description: >-
   手动生成 LinaPro 版本更新日志。用户要求生成 changelog、release notes、版本更新日志、发布说明，或提到
-  lina-release-changelog 时必须使用本技能。技能会基于 Git 历史、源码差异和 OpenSpec 内容整理详尽的双语
+  lina-community-release-changelog 时必须使用本技能。技能会基于 Git 历史、源码差异和 OpenSpec 内容整理详尽的双语
   Markdown 更新日志，支持默认比较范围和用户指定两个版本/标签/提交进行比较，固定写入 temp/changelog.md。
 ---
 
@@ -113,6 +113,30 @@ git diff --name-status <from>..<to>
 
 对于重要提交，使用 `git show --stat <commit>` 和必要的源码片段确认真实行为。提交标题只能作为线索，不能作为关键内容的唯一证据。
 
+#### 插件 submodule 证据
+
+`apps/lina-plugins/`是父仓库中的`submodule`时，父仓库的`git diff`只能显示`gitlink`指针变化，不能展示插件仓库内部提交和文件差异。只要`git diff --name-status <from>..<to>`包含`apps/lina-plugins`，或`git ls-files -s apps/lina-plugins`显示该路径的`mode`为`160000`，必须解析`submodule`两端`commit`并进入插件仓库收集证据：
+
+```bash
+git ls-tree <from> apps/lina-plugins
+git ls-tree <to> apps/lina-plugins
+git -C apps/lina-plugins rev-parse --verify "<old-plugin-commit>^{commit}"
+git -C apps/lina-plugins rev-parse --verify "<new-plugin-commit>^{commit}"
+git -C apps/lina-plugins log --decorate --date=short --format="%h %ad %s" <old-plugin-commit>..<new-plugin-commit>
+git -C apps/lina-plugins diff --stat <old-plugin-commit>..<new-plugin-commit>
+git -C apps/lina-plugins diff --name-status <old-plugin-commit>..<new-plugin-commit>
+```
+
+如果本地`submodule`缺少比较端`commit`，先执行只更新插件仓库`Git`对象的读取性拉取，再重试验证：
+
+```bash
+git -C apps/lina-plugins fetch --tags --prune origin
+```
+
+如果拉取失败或`commit`仍不可用，不得断言插件无变化；必须在证据来源摘要和保守处理说明中记录无法确认的`submodule`范围。如果`old-plugin-commit`与`new-plugin-commit`相同，记录父仓库比较范围内没有已提交的插件指针变化；`git -C apps/lina-plugins status --short`只能作为工作区状态提示，不能把未提交的插件工作区改动写入发布变更。
+
+不要把父仓库中的`M apps/lina-plugins`或`gitlink`指针本身写成发布功能。插件发布说明必须来自插件仓库内部提交、文件差异、`OpenSpec`或源码事实。
+
 ### 4. 读取 OpenSpec 语义
 
 如果比较范围涉及 `openspec/`，优先读取相关文件：
@@ -123,6 +147,8 @@ git diff --name-status <from>..<to>
 - `specs/**/spec.md`
 
 包括活跃变更和 `openspec/changes/archive/` 下落入比较范围的归档变更。用 `OpenSpec` 内容提炼功能语义、治理目标、验收范围和用户可见价值。若 `Git` 历史和 `OpenSpec` 表述存在差异，以源码和最终 `OpenSpec` 状态为准，并使用保守描述。
+
+如果`apps/lina-plugins/`的`submodule`内部差异涉及插件内容，必须按`apps/lina-plugins/<plugin-id>/`分组梳理语义，重点确认插件清单、前后端入口、菜单或路由、权限标签、`pluginbridge`路由声明、`hostServices`声明、安装或卸载`SQL`、资源产物、生命周期扫描、宿主能力调用和插件间能力调用边界。每个插件只写对发布读者有价值的用户可见能力、行为修复、运行时契约或开发体验变化；纯内部重排只有在影响发布风险、使用方式或维护方式时才写入。
 
 ### 5. 分类规则
 
@@ -211,8 +237,9 @@ temp/changelog.md
 5. 英文和中文表达地道、清晰、流利、易懂，没有生硬直译、罕见词或拗口表达。
 6. 没有把软件语境中的 `seam`、`fixture` 等词机械翻译成“接缝”“夹具”等不自然说法。
 7. 每个章节要么有证据支持的内容，要么写明未识别到相关变更。
-8. `.github/workflows/` 没有被修改。
-9. 没有执行提交、推送、打标签或创建 `GitHub Release`。
+8. 若`apps/lina-plugins/`是`submodule`且指针变化，已包含插件仓库内部`old/new commit`、`log`、`diff`证据和按插件 ID 的语义总结；若无法获取历史，已明确保守处理。
+9. `.github/workflows/` 没有被修改。
+10. 没有执行提交、推送、打标签或创建 `GitHub Release`。
 
 结束时用中文汇报：
 
@@ -220,4 +247,5 @@ temp/changelog.md
 - 标题版本。
 - 输出文件路径。
 - 证据来源摘要。
+- 插件`submodule`处理情况。
 - 是否存在无法确认而被保守处理的内容。

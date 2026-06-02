@@ -1,5 +1,5 @@
 ---
-name: lina-archive-consolidate
+name: lina-community-archive-consolidate
 description: >-
   按功能职责对已归档的 OpenSpec 迭代内容进行聚合分类和高价值摘要压缩。默认只读取 openspec/changes/archive/ 下以日期开头命名的原始归档变更，
   按功能领域分组，对每个分组逐目录读取 proposal.md、design.md、tasks.md 和 specs/ 全部内容并进行语义合并；禁止用脚本生成摘要正文，将 tasks.md 以减少存储空间为首要目标压缩为最小维护摘要；确认语义覆盖后清理已成功合并的原始日期前缀归档目录，归档数量较多时自动新建一个临时 OpenSpec 变更来跟踪聚合工作，完成后清理该临时变更。
