@@ -1,4 +1,4 @@
-这是无人值守的 `monthly CI` 归档聚合任务。请使用仓库内 `.agents/skills/lina-community-archive-consolidate/SKILL.md` 的规则执行归档聚合：
+这是无人值守的 `monthly CI` 归档聚合任务。请使用仓库内 `.agents/skills/lina-openspec-archive-consolidate/SKILL.md` 的规则执行归档聚合：
 1. 未指定变更列表时，只处理 `openspec/changes/archive/` 下目录名以 `YYYY-MM-DD-` 开头的原始归档变更。
 2. 不要把既有非日期前缀聚合目录再次作为默认输入。
 3. 生成或更新聚合归档文档时必须执行高价值摘要压缩：保留背景、设计决策、最终规范、`FB-*`、根因、验证证据、审查结论和治理影响，裁剪普通 checklist、重复命令和逐文件流水。

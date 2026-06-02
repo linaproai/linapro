@@ -1,7 +1,7 @@
 ---
 name: lina-community-issue-review
 description: >-
-  审查 LinaPro 社区 GitHub Issues，并按项目规范和源码实现分类处理。用户要求审查 LinaPro issue、社区 issue、GitHub issue、question、feature、bug、关闭无效 issue，或提到 lina-community-issue-review 时必须使用本技能。默认审查 https://github.com/linaproai/linapro；用户指定 issue 编号时只审查指定 issue，否则扫描全部开放 issue；已由本技能评论且带有 question、feature 或 bug 标签的 issue 不重复审查；疑问类用自然语言回答后打 question 标签并关闭；功能或 bug 已处理时简明说明原因并关闭；可行新需求打 feature 标签；可行未修复 bug 打 bug 标签；模糊、骚扰或广告类 issue 用简短说明关闭。
+  审查 LinaPro 社区 GitHub Issues，并按项目规范和源码实现分类处理。用户要求审查 LinaPro issue、社区 issue、GitHub issue、question、feature、bug、关闭无效 issue，或提到 lina-community-issue-review 时必须使用本技能。
 ---
 
 # Lina Community Issue Review
@@ -22,6 +22,7 @@ description: >-
 10. 描述模糊、无法判断、骚扰或广告类`Issue`必须完成关闭处理，并发布说明原因或补充要求的评论。
 11. 所有`GitHub`评论必须跟随`Issue`正文语言；正文为空或无法判断时按标题判断，仍无法判断时默认中文。
 12. 公开评论应像维护者回复用户一样自然、简洁，直接回答问题或说明`Issue`当前状态，避免机械套用分类话术或堆叠内部审查细节。
+13. 多次处理同一个`Issue`时，历史评论一律只读；不得编辑、删除或覆盖既有评论，包括当前执行账号此前创建的评论。需要补充、更正或说明阻断原因时，必须发布新的带隐藏标记评论。
 
 ## 输入识别
 
@@ -280,15 +281,14 @@ gh issue close "$ISSUE_NUMBER" -R "$REPO"
 
 ## 评论发布
 
-每个`Issue`使用带隐藏标记的评论。优先创建新评论；如果当前执行账号已经创建过同一技能标记评论且本次需要修正状态，可以更新该评论。只能编辑当前`GitHub`用户创建的评论。
+每次需要公开说明时，创建一条新的带隐藏标记评论。历史评论仅用于跳过判断和理解处理记录，不得编辑、删除或覆盖；即使需要修正当前执行账号此前评论中的状态，也必须新增更正评论。
 
 成功状态评论中如果声明已经添加标签、保持开放或关闭`Issue`，必须先完成对应`GitHub`状态变更，再发布最终成功评论。如果状态变更失败，改用阻断评论或终端报告，不得发布与实际状态不一致的成功评论。
 
-通过`gh api`创建或更新评论，不使用交互式提示：
+通过`gh api`创建评论，不使用交互式提示，也不得使用`PATCH`、`DELETE`或`GraphQL updateIssueComment`修改历史评论：
 
 ```bash
 gh api "repos/$REPO/issues/$ISSUE_NUMBER/comments" -F body=@comment.md
-gh api -X PATCH "repos/$REPO/issues/comments/$COMMENT_ID" -F body=@comment.md
 ```
 
 中文疑问评论模板：

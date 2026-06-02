@@ -1,6 +1,6 @@
 ## Context
 
-`lina-community-archive-consolidate`当前已经定义了按功能领域聚合归档的流程：默认读取`openspec/changes/archive/`下日期前缀原始归档，生成非日期前缀的领域归档目录，并在验证后清理原始目录。这个流程能降低归档碎片数量，但它仍把`tasks.md`视为需要语义合并的任务列表，缺少面向长期维护的摘要压缩边界。
+`lina-openspec-archive-consolidate`当前已经定义了按功能领域聚合归档的流程：默认读取`openspec/changes/archive/`下日期前缀原始归档，生成非日期前缀的领域归档目录，并在验证后清理原始目录。这个流程能降低归档碎片数量，但它仍把`tasks.md`视为需要语义合并的任务列表，缺少面向长期维护的摘要压缩边界。
 
 当前历史归档中的`tasks.md`通常混合了低价值执行流水和高价值维护证据。低价值内容包括普通 checklist、文件级搬迁流水和重复验证命令；高价值内容包括`FB-*`反馈闭环、根因、修复说明、废弃方案、验证证据、审查结论、`i18n`、缓存、数据权限、DI、跨平台影响等治理记录。若不区分这些内容，归档聚合会持续增长；若直接清空`tasks.md`，又会丢失未来排障和设计追溯所需的证据。
 
@@ -8,7 +8,7 @@
 
 **Goals:**
 
-- 让`lina-community-archive-consolidate`在聚合归档时自动执行高价值摘要压缩。
+- 让`lina-openspec-archive-consolidate`在聚合归档时自动执行高价值摘要压缩。
 - 明确信息分层：背景进入`proposal.md`，设计决策进入`design.md`，最终契约进入`specs/`，执行与反馈证据摘要进入`tasks.md`。
 - 将`tasks.md`从任务流水压缩为维护摘要，保留反馈、根因、验证和审查证据。
 - 在清理原始归档前增加语义覆盖门禁，避免不可逆信息丢失。
@@ -25,7 +25,7 @@
 
 ### 1. 在既有技能中内建压缩，而不是新增独立清理技能
 
-`lina-community-archive-consolidate`已经拥有归档输入边界、分组规则、清理边界和月度自动化入口。把摘要压缩放进该技能，可以让“聚合”和“裁剪”在同一次语义判断中完成，避免另一个清理工具在不了解聚合结果的情况下删除高价值历史。
+`lina-openspec-archive-consolidate`已经拥有归档输入边界、分组规则、清理边界和月度自动化入口。把摘要压缩放进该技能，可以让“聚合”和“裁剪”在同一次语义判断中完成，避免另一个清理工具在不了解聚合结果的情况下删除高价值历史。
 
 替代方案是新增`lina-archive-compact`技能。该方案职责更单一，但需要重新定义输入边界、清理安全、报告和月度 CI 集成，容易与现有聚合流程产生重复或冲突。
 
@@ -84,7 +84,7 @@
 
 ## Migration Plan
 
-1. 更新`lina-community-archive-consolidate`技能说明，加入摘要压缩模式、信息分层、`tasks.md`高价值抽取规则、清理门禁和报告格式。
+1. 更新`lina-openspec-archive-consolidate`技能说明，加入摘要压缩模式、信息分层、`tasks.md`高价值抽取规则、清理门禁和报告格式。
 2. 更新月度归档聚合提示词，明确无人值守执行时必须遵守压缩门禁，无法确认语义覆盖时失败。
 3. 新增或更新 OpenSpec 增量规范，定义人工调用和月度自动化调用的行为要求。
 4. 运行`openspec validate improve-archive-consolidation-compaction --strict`。

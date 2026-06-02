@@ -11,7 +11,7 @@ TBD - created by archiving change monthly-openspec-archive. Update Purpose after
 - **AND** 当前 Asia/Shanghai 日期为每月 1 日
 - **THEN** workflow 在仓库默认分支 checkout 代码
 - **AND** workflow invokes the configured AI Coding tool to run `.github/prompts/monthly-openspec-auto-archive.zh-CN.md`
-- **AND** auto archive uses the repository `lina-community-auto-archive` rules to run `openspec archive -y <change>` for safe completed active changes
+- **AND** auto archive uses the repository `lina-openspec-auto-archive` rules to run `openspec archive -y <change>` for safe completed active changes
 - **AND** workflow invokes archive consolidation only after tool-driven auto archive produces OpenSpec file changes that need consolidation
 
 #### Scenario: Monthly schedule window
@@ -54,18 +54,18 @@ TBD - created by archiving change monthly-openspec-archive. Update Purpose after
 - **AND** workflow does not create or update an archive PR
 
 ### Requirement: Monthly workflow must consolidate only after new archive changes
-系统 SHALL 仅在本次 monthly 工具运行时自动归档产生 OpenSpec 文件变更后执行 `lina-community-archive-consolidate` 技能，避免无新增归档时重复重写聚合归档文档。
+系统 SHALL 仅在本次 monthly 工具运行时自动归档产生 OpenSpec 文件变更后执行 `lina-openspec-archive-consolidate` 技能，避免无新增归档时重复重写聚合归档文档。
 
 #### Scenario: Archive produced changes
 - **WHEN** tool-specific auto archive 执行后 `openspec/` 下存在新的文件变更
-- **THEN** workflow 调用 `lina-community-archive-consolidate` 聚合已归档变更
+- **THEN** workflow 调用 `lina-openspec-archive-consolidate` 聚合已归档变更
 - **AND** workflow 在聚合后执行临时变更清理检查和 OpenSpec 校验
 - **AND** workflow stops before PR finalization if archive consolidation, temporary change cleanup, or OpenSpec validation fails
 
 #### Scenario: Archive produced no changes
 - **WHEN** tool-specific auto archive 执行完成
 - **AND** `openspec/` 下没有新的文件变更
-- **THEN** workflow 跳过 `lina-community-archive-consolidate`
+- **THEN** workflow 跳过 `lina-openspec-archive-consolidate`
 - **AND** workflow 不创建或更新归档 PR
 
 ### Requirement: Monthly workflow must select the AI Coding tool from GitHub Variables
@@ -139,7 +139,7 @@ TBD - created by archiving change monthly-openspec-archive. Update Purpose after
 系统 SHALL 将 monthly OpenSpec 自动归档和归档聚合提示词维护为 `.github/prompts/` 下的公共文件，并 SHALL 让所有工具专属 reusable workflow 引用同一份自动归档提示词和同一份聚合提示词内容。
 
 #### Scenario: Shared archive consolidate prompt
-- **WHEN** 任一工具专属 reusable workflow 执行 `lina-community-archive-consolidate`
+- **WHEN** 任一工具专属 reusable workflow 执行 `lina-openspec-archive-consolidate`
 - **THEN** workflow 从 `.github/prompts/monthly-openspec-archive-consolidate.zh-CN.md` 读取提示词
 - **AND** workflow 不在工具专属 workflow 中内联维护重复的归档聚合提示词正文
 
