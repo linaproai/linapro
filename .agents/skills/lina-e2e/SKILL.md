@@ -1,6 +1,6 @@
 ---
 name: lina-e2e
-description: Playwright E2E test case management standards for the OpenSpec workflow. Defines file naming conventions (module-local TC{NNN}), module-based directory layout, TC ID assignment, file isolation rules, and sub-assertion patterns. Use when creating, planning, or reviewing E2E test cases within an OpenSpec change.
+description: Playwright E2E 测试用例管理规范。定义文件命名（模块本地 TC{NNN}）、目录布局、TC ID 分配、文件隔离和子断言模式。创建、规划或审查 OpenSpec 变更中的 E2E 测试用例时使用。
 compatibility: 依赖 Playwright。
 ---
 
@@ -9,6 +9,8 @@ compatibility: 依赖 Playwright。
 本项目中 `Playwright E2E` 测试用例的组织、命名和编写标准。
 
 **交互语言**：与用户交互的内容语言以用户上下文使用的语言为准，用户使用英文则使用英文，用户使用中文则使用中文。
+
+**规范来源**：E2E 质量审查、截图验证、i18n 文案断言等执行要求的唯一事实来源为 `.agents/rules/testing.md`。本技能只负责用例组织、命名和目录布局，不重复维护质量审查和验证细则。创建或审查 E2E 用例时，必须读取并遵守 `.agents/rules/testing.md` 中的 E2E 质量审查要求和 E2E 截图验证要求。
 
 ---
 
@@ -263,6 +265,24 @@ import { test, expect } from '@playwright/test'
 
 ---
 
+## 9. 截图验证
+
+当执行 E2E 测试的代理支持多模态图片识别时，必须在关键交互步骤后捕获浏览器截图并审查截图内容。截图可以发现文本断言无法捕获的问题，包括 `i18n` key 未翻译、布局错乱、接口报错 toast 等。
+
+截图规范和审查要求的完整定义在 `.agents/rules/testing.md` 的"E2E 截图验证要求"章节。本节仅列出 Playwright 截图调用约定：
+
+```typescript
+// 在关键交互后捕获截图
+await adminPage.screenshot({
+  path: `temp/${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}-${description}.png`,
+  fullPage: false, // 只捕获视口，避免过大的截图
+});
+```
+
+截图文件命名格式：`{YYYYMMDD}-{HHmmss}-{描述}.png`，放置在项目根目录 `temp/` 下。
+
+---
+
 ## 9. 快速参考
 
 | 项目                  | 规范                                                |
@@ -278,3 +298,5 @@ import { test, expect } from '@playwright/test'
 | 页面交互              | 通过宿主 `pages/` 或插件 `hack/tests/pages/` 中的 POM 类 |
 | 独立性               | 每个文件可独立运行                                    |
 | ID 分配              | 扫描当前模块目录已用最大值 → 递增 1                    |
+| 截图验证              | 多模态可用时，关键交互后截图并审查；详见 `.agents/rules/testing.md` |
+| 质量审查              | 详见 `.agents/rules/testing.md` 的 E2E 质量审查要求    |
