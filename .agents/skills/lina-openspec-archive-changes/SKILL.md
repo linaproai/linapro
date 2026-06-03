@@ -1,13 +1,13 @@
 ---
-name: lina-openspec-auto-archive
+name: lina-openspec-archive-changes
 description: >-
-  自动扫描并归档 LinaPro 仓库中已经完成的 OpenSpec 活跃变更。
+  扫描并归档 LinaPro 仓库中已经完成的所有 OpenSpec 活跃变更。
 compatibility: 依赖 OpenSpec CLI，要求在 LinaPro 仓库根目录执行。
 ---
 
 # Lina 自动归档
 
-自动扫描 `openspec/changes/` 根目录下的活跃 OpenSpec 变更，将已经完成的变更执行归档，并清晰展示本次处理结果。
+扫描 `openspec/changes/` 根目录下的活跃 OpenSpec 变更，将已经完成的变更执行归档，并清晰展示本次处理结果。
 
 ## 适用场景
 
@@ -164,7 +164,7 @@ openspec archive -y "<change-name>"
 
 ```markdown
 无法执行自动归档：未找到 OpenSpec CLI。
-请先安装或修复 `openspec` 命令后再运行 `lina-openspec-auto-archive`。
+请先安装或修复 `openspec` 命令后再运行 `lina-openspec-archive-changes`。
 ```
 
 ---

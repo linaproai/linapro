@@ -1,4 +1,4 @@
-这是无人值守的 `monthly CI` 自动归档任务。请使用仓库内 `.agents/skills/lina-openspec-auto-archive/SKILL.md` 的规则执行自动归档：
+这是无人值守的 `monthly CI` 自动归档任务。请使用仓库内 `.agents/skills/lina-openspec-archive-changes/SKILL.md` 的规则执行自动归档：
 1. 只扫描 `openspec/changes/` 根目录下的活跃变更，明确排除 `openspec/changes/archive/`。
 2. 只归档已经完成的变更；如状态、任务清单或 OpenSpec 输出无法安全判定为完成，请失败并说明原因。
 3. 在执行任何归档命令前，先对所有候选完成变更做完整预检：`openspec status --change "<change-name>" --json` 的 artifact 必须全部完成，`tasks.md` 不得缺失且不得含未完成任务，所有 `MODIFIED`/`REMOVED` requirement header 必须能在当前 `openspec/specs/<capability>/spec.md` 中找到。

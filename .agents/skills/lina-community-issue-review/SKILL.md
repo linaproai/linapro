@@ -24,7 +24,7 @@ description: >-
 12. 已带有`question`、`feature`或`bug`分类标签的`Issue`，必须根据本次内容理解确认标签是否准确；如果现有分类标签与内容描述不一致，必须先移除不匹配的分类标签，再添加正确分类标签。
 13. 描述模糊、无法判断、骚扰或广告类`Issue`必须完成关闭处理，并发布说明原因或补充要求的评论。
 14. 所有`GitHub`评论必须跟随`Issue`正文语言；正文为空或无法判断时按标题判断，仍无法判断时默认中文。
-15. 公开评论应像维护者回复用户一样自然、简洁，直接回答问题或说明`Issue`当前状态，避免机械套用分类话术或堆叠内部审查细节。
+15. 公开评论应像维护者回复用户一样自然、简洁、礼貌且尊重，直接回答问题或说明`Issue`当前状态，避免机械套用分类话术或堆叠内部审查细节。
 16. 多次处理同一个`Issue`时，历史评论一律只读；不得编辑、删除或覆盖既有评论，包括当前执行账号此前创建的评论。需要补充、更正或说明阻断原因时，必须发布新的带隐藏标记评论。
 
 ## 输入识别
@@ -114,6 +114,10 @@ gh api "repos/$REPO/issues/$ISSUE_NUMBER/comments?per_page=100" --paginate
 
 公开评论用于让提交者理解结论，不是完整审查记录。生成评论时必须遵守：
 
+- 始终假设提交者是善意反馈，语气保持礼貌、尊重和建设性；不得评价提交者个人能力、动机、态度或表达水平。
+- 指出问题时聚焦事实、影响和下一步建议，避免使用可能被理解为指责、命令或贬低的措辞。
+- 提修改建议时优先使用“建议”“可以考虑”“如果可能的话”“为了便于后续处理”等表达；英文优先使用“consider”“could”“it would help to”等表达。
+- 即使需要关闭`Issue`、拒绝需求或说明内容无效，也要先认可可理解的反馈意图，再说明当前项目为什么暂不处理或需要哪些补充信息。
 - 保留隐藏标记，但正文使用自然口吻，不写“这是一个某某类`Issue`”这类机械分类句。
 - 先回答或说明结论，再说明下一步状态，例如已关闭、保持开放或需要补充信息。
 - 只写提交者需要知道的信息。规则文件、源码路径、测试证据和影响范围默认用于内部判断，只有能帮助理解结论时才保留一到两条最关键引用。
@@ -319,7 +323,7 @@ gh api "repos/$REPO/issues/$ISSUE_NUMBER/comments" -F body=@comment.md
 
 感谢反馈。这个问题的结论是：<回答内容>
 
-我已添加`question`标签并关闭这个`Issue`。如果后续发现这里和实际场景不一致，可以带上具体情况重新提交。
+我已添加`question`标签并关闭这个`Issue`。如果后续发现这里和实际场景不一致，欢迎带上具体情况重新提交。
 ```
 
 英文疑问评论模板：
@@ -329,7 +333,7 @@ gh api "repos/$REPO/issues/$ISSUE_NUMBER/comments" -F body=@comment.md
 
 Thanks for raising this. The short answer is: <answer>
 
-I added the `question` label and closed this issue. If the behavior does not match your actual case, please open a new issue with the exact scenario.
+I added the `question` label and closed this issue. If the behavior does not match your actual case, feel free to open a new issue with the exact scenario.
 ```
 
 中文功能评论模板：
@@ -351,7 +355,7 @@ I added the `question` label and closed this issue. If the behavior does not mat
 
 This request looks aligned with the project direction and can be considered for implementation.
 
-The main thing to cover next is: <describe the user-facing problem or expected outcome in one or two sentences>
+The main thing to consider next is: <describe the user-facing problem or expected outcome in one or two sentences>
 
 I added the `feature` label and left this issue open.
 ```
@@ -363,7 +367,7 @@ I added the `feature` label and left this issue open.
 
 这个反馈可以作为缺陷继续跟进。
 
-目前看到的问题是：<用简短自然语言说明不符合预期的行为>
+目前建议重点关注：<用简短自然语言说明不符合预期的行为>
 
 我已添加`bug`标签，并保留这个`Issue`开放。
 ```
@@ -375,7 +379,7 @@ I added the `feature` label and left this issue open.
 
 This can be tracked as a bug.
 
-The problem is: <briefly describe the behavior that does not match expectations>
+The main behavior to look at is: <briefly describe the behavior that does not match expectations>
 
 I added the `bug` label and left this issue open.
 ```
@@ -389,7 +393,7 @@ I added the `bug` label and left this issue open.
 
 <用一到两句话说明功能已存在或问题已修复的原因。必要时补充一个最关键路径或记录。>
 
-为避免重复跟进，我已关闭这个`Issue`。
+为了避免重复跟进同一项工作，我已关闭这个`Issue`。
 ```
 
 英文已处理评论模板：
@@ -401,7 +405,7 @@ This has already been handled in the current project.
 
 <Explain in one or two sentences why the feature already exists or why the bug has been fixed. Add one key path or record only if it helps.>
 
-I closed this issue to avoid tracking the same work twice.
+I closed this issue so the same work is not tracked twice.
 ```
 
 中文低价值需求评论模板：
@@ -411,11 +415,11 @@ I closed this issue to avoid tracking the same work twice.
 
 感谢建议。这个需求可以理解，但暂时不适合进入项目实现队列。
 
-主要原因是：<用一到两句话委婉说明使用场景较窄、维护成本偏高、与核心定位关联较弱或投入产出不匹配。>
+主要考虑是：<用一到两句话委婉说明使用场景较窄、维护成本偏高、与核心定位关联较弱或投入产出不匹配。>
 
-建议先通过：<说明一种或多种替代方式，例如现有功能组合、第三方工具、配置约定或流程上的变通方式。>
+可以先考虑：<说明一种或多种替代方式，例如现有功能组合、第三方工具、配置约定或流程上的变通方式。>
 
-为避免占用后续实现跟进资源，我已关闭这个`Issue`。
+为了让后续实现队列保持聚焦，我已关闭这个`Issue`。
 ```
 
 英文低价值需求评论模板：
@@ -425,11 +429,11 @@ I closed this issue to avoid tracking the same work twice.
 
 Thanks for the suggestion. The request is understandable, but it is not a good fit for the implementation queue right now.
 
-The main reason is: <politely explain in one or two sentences that the use case is narrow, the maintenance cost is high, it is weakly aligned with the core direction, or the cost-benefit tradeoff is not strong enough.>
+The main consideration is: <politely explain in one or two sentences that the use case is narrow, the maintenance cost is high, it is weakly aligned with the core direction, or the cost-benefit tradeoff is not strong enough.>
 
-A practical alternative is: <suggest one or more alternatives, such as combining existing features, using a third-party tool, adopting a configuration convention, or using a workflow workaround.>
+One practical alternative to consider is: <suggest one or more alternatives, such as combining existing features, using a third-party tool, adopting a configuration convention, or using a workflow workaround.>
 
-I closed this issue to avoid keeping low-priority implementation work in the active queue.
+I closed this issue so the active implementation queue stays focused.
 ```
 
 中文无效评论模板：
@@ -437,13 +441,13 @@ I closed this issue to avoid keeping low-priority implementation work in the act
 ```markdown
 <!-- lina-community-issue-review repo=<repo> issue=<number> status=invalid -->
 
-这条内容目前还不能直接处理。
+感谢反馈。这条内容目前还缺少足够信息，暂时还无法作为可执行事项处理。
 
-原因是：<用一句话说明内容模糊、无关、骚扰或广告问题>
+主要原因是：<用一句话说明内容模糊、无关、骚扰或广告问题>
 
-如果要继续，请补充：<最小补充要求>
+如果方便的话，可以补充：<最小补充要求>
 
-我先关闭这个`Issue`。
+我会先暂时关闭这个`Issue`。
 ```
 
 英文无效评论模板：
@@ -451,11 +455,11 @@ I closed this issue to avoid keeping low-priority implementation work in the act
 ```markdown
 <!-- lina-community-issue-review repo=<repo> issue=<number> status=invalid -->
 
-This cannot be handled as an actionable project issue yet.
+Thanks for the feedback. There is not enough actionable information to handle this as a project issue yet.
 
-The reason is: <briefly explain whether it is unclear, unrelated, abusive, or promotional>
+The main reason is: <briefly explain whether it is unclear, unrelated, abusive, or promotional>
 
-To continue, please provide: <minimal required information>
+If possible, please provide: <minimal required information>
 
 I closed this issue for now.
 ```
@@ -469,7 +473,7 @@ I closed this issue for now.
 
 原因是：<用一句话说明阻断原因>
 
-需要人工确认：<确认点>
+建议人工确认：<确认点>
 ```
 
 英文阻断评论模板：
@@ -481,7 +485,7 @@ I cannot complete this review reliably yet.
 
 The reason is: <briefly explain the blocker>
 
-Needs human confirmation: <item>
+It would help to have human confirmation on: <item>
 ```
 
 ## 最终报告

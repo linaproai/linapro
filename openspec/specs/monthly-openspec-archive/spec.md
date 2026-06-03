@@ -11,7 +11,7 @@ TBD - created by archiving change monthly-openspec-archive. Update Purpose after
 - **AND** 当前 Asia/Shanghai 日期为每月 1 日
 - **THEN** workflow 在仓库默认分支 checkout 代码
 - **AND** workflow invokes the configured AI Coding tool to run `.github/prompts/monthly-openspec-auto-archive.zh-CN.md`
-- **AND** auto archive uses the repository `lina-openspec-auto-archive` rules to run `openspec archive -y <change>` for safe completed active changes
+- **AND** auto archive uses the repository `lina-openspec-archive-changes` rules to run `openspec archive -y <change>` for safe completed active changes
 - **AND** workflow invokes archive consolidation only after tool-driven auto archive produces OpenSpec file changes that need consolidation
 
 #### Scenario: Monthly schedule window
