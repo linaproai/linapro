@@ -77,13 +77,15 @@
 
 - **WHEN** 前端按`capabilityType=image`和`capabilityMethod=generate`查询档位
 - **THEN** 系统 MUST 返回该能力方法下的`basic`、`standard`、`advanced`档位投影
-- **AND** 响应 MUST 包含主绑定、默认参数摘要、最近测试摘要和 Unix 毫秒更新时间
+- **AND** 响应 MUST 包含主绑定、最近测试摘要和 Unix 毫秒更新时间
+- **AND** 默认参数 MUST 通过能力方法默认参数接口在配置抽屉中展示和维护，而不是作为列表页默认值展示
 
 #### Scenario: 默认参数不跨模态复用
 
 - **WHEN** 管理员配置`audio.transcribe`档位
 - **THEN** 系统 MUST 使用音频转写相关默认参数
 - **AND** 系统 MUST NOT 暴露`thinkingEffort`、图片尺寸或视频时长等不属于该方法的默认参数
+- **AND** 默认参数配置输入 MUST 支持代码高亮并保存为该能力方法的默认参数
 
 #### Scenario: 固定档位 seed
 
@@ -148,10 +150,18 @@
 #### Scenario: 档位页面按能力类型 Tab 切换
 
 - **WHEN** 管理员在档位管理页选择文档能力`Tab`
-- **THEN** 页面 MUST 展示该能力类型当前默认方法下的三档配置、绑定模型、默认参数和最近测试结果
+- **THEN** 页面 MUST 展示该能力类型当前默认方法下的三档配置、绑定模型和最近测试结果
 - **AND** 页面 MUST 不再要求管理员通过顶部搜索表单选择`document.analyze`等具体能力方法
 - **AND** `Tab`标题 MUST 通过插件运行时`i18n`资源渲染，英文标题使用首字母大写，中文标题使用专业能力名称
 - **AND** 页面内部请求和保存仍 MUST 带上目标`capabilityType`和默认`capabilityMethod`
+
+#### Scenario: 档位配置抽屉维护默认参数
+
+- **WHEN** 管理员编辑某个能力类型的档位
+- **THEN** 配置抽屉 MUST 展示该能力方法的默认参数 JSON
+- **AND** 参数输入框 MUST 支持 JSON 代码高亮
+- **AND** 保存时 MUST 同时持久化档位绑定配置和该能力方法默认参数
+- **AND** 文本生成档位的空`Thinking Effort` MUST 显示为“模型默认”并按空值保存，不能自动落到`low`
 
 #### Scenario: 不展示业务任务页面
 
