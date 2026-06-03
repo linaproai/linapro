@@ -28,6 +28,7 @@ const apiURL = normalizeApiBaseURL(configuredApiURL);
 const pluginApiOrigin = resolvePluginApiOrigin(apiURL);
 
 type RuntimeErrorResponse = {
+  code?: number;
   error?: string;
   message?: string;
   messageKey?: string;
@@ -35,12 +36,20 @@ type RuntimeErrorResponse = {
 };
 
 type RefreshTokenEnvelope = RuntimeErrorResponse & {
-  code?: number;
   data?: {
     accessToken?: string;
     refreshToken?: string;
   };
 };
+
+type SessionExpiredError = Error & {
+  response: {
+    data: RuntimeErrorResponse;
+    status: number;
+  };
+};
+
+const sessionExpiredMessageKey = 'ui.fallback.http.unauthorized';
 
 const refreshRequestClient = new RequestClient({ baseURL: apiURL });
 
@@ -65,6 +74,25 @@ function resolveRuntimeErrorMessage(responseData: RuntimeErrorResponse) {
     }
   }
   return responseData?.error || responseData?.message || '';
+}
+
+function createSessionExpiredError(
+  responseData: RuntimeErrorResponse = {},
+): SessionExpiredError {
+  const data = {
+    ...responseData,
+    messageKey: responseData.messageKey || sessionExpiredMessageKey,
+  };
+  const message =
+    resolveRuntimeErrorMessage(data) ||
+    $t(sessionExpiredMessageKey) ||
+    'Session expired';
+  const error = new Error(message) as SessionExpiredError;
+  error.response = {
+    data,
+    status: 401,
+  };
+  return error;
 }
 
 function createRequestClient(baseURL: string, options?: RequestClientOptions) {
@@ -96,7 +124,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     const accessStore = useAccessStore();
     const refreshToken = accessStore.refreshToken;
     if (!refreshToken) {
-      throw new Error('Missing refresh token');
+      throw createSessionExpiredError();
     }
 
     const response =
@@ -112,9 +140,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     const responseData = response.data;
     const nextAccessToken = responseData?.data?.accessToken;
     if (responseData?.code !== 0 || !nextAccessToken) {
-      throw new Error(
-        resolveRuntimeErrorMessage(responseData) || 'Refresh token failed',
-      );
+      throw createSessionExpiredError(responseData);
     }
 
     accessStore.setAccessToken(nextAccessToken);

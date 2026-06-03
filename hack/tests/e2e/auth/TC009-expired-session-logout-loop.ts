@@ -220,4 +220,66 @@ test.describe('TC009 过期会话登出保护', () => {
     await expect(page).not.toHaveURL(/auth\/login/);
     expect(userInfoRetryAuthorization).toBe('Bearer new-access-token');
   });
+
+  test('TC009c: refresh token 无效时显示登录过期提示而非内部服务器错误', async ({
+    page,
+  }) => {
+    let refreshRequestCount = 0;
+
+    await page.route('**/api/v1/auth/refresh', async (route) => {
+      refreshRequestCount += 1;
+      await route.fulfill({
+        contentType: 'application/json',
+        status: 200,
+        body: JSON.stringify({
+          code: 61,
+          message: 'Not Authorized',
+        }),
+      });
+    });
+    await page.route('**/api/v1/user/info', async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        status: 401,
+        body: JSON.stringify({
+          code: 401,
+          message: 'Unauthorized',
+        }),
+      });
+    });
+
+    await page.addInitScript(() => {
+      localStorage.clear();
+      const expiredAccessState = JSON.stringify({
+        accessCodes: ['*'],
+        accessToken: 'expired-access-token',
+        isLockScreen: false,
+        refreshToken: 'invalid-refresh-token',
+      });
+      for (const envName of ['dev', 'prod']) {
+        localStorage.setItem(
+          `lina-web-antd-5.6.0-${envName}-core-access`,
+          expiredAccessState,
+        );
+      }
+    });
+
+    await page.goto(workspacePath('/dashboard/analytics'));
+    await expect
+      .poll(() => refreshRequestCount, { timeout: 15_000 })
+      .toBeGreaterThanOrEqual(1);
+
+    await expect(
+      page
+        .locator('.ant-message-notice')
+        .filter({ hasText: '登录认证过期，请重新登录后继续。' })
+        .last(),
+    ).toBeVisible({ timeout: 5000 });
+    await expect(
+      page
+        .locator('.ant-message-notice')
+        .filter({ hasText: '内部服务器错误，请稍后再试。' }),
+    ).toHaveCount(0);
+    await page.waitForURL(/auth\/login/, { timeout: 15_000 });
+  });
 });

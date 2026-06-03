@@ -135,9 +135,9 @@
 - **THEN** provider adapter MUST 从插件数据库重建解析结果
 - **AND** 数据库不可用时 MUST 返回结构化不可用错误并记录脱敏失败摘要
 
-### Requirement: 智能中心多模态页面必须按能力方法分组
+### Requirement: 智能中心多模态页面必须按能力类型组织交互
 
-系统 SHALL 在智能中心页面中按能力方法管理多模态配置。页面 MUST 复用现有`Vben`、`vxe-table`、表单、抽屉、弹窗和操作列模式，并遵守插件`i18n`治理。
+系统 SHALL 在智能中心页面中按能力类型组织多模态配置入口。档位管理页面当前版本 MUST 使用能力类型`Tab`降低操作复杂度，后端和内部请求仍 MUST 使用`capabilityType + capabilityMethod + tierCode`作为档位身份。页面 MUST 复用现有`Vben`、`vxe-table`、表单、抽屉、弹窗和操作列模式，并遵守插件`i18n`治理。
 
 #### Scenario: 供应商页面展示 endpoint 和模型能力
 
@@ -145,11 +145,13 @@
 - **THEN** 页面 MUST 分页展示 provider、endpoint 摘要、密钥脱敏摘要和模型能力摘要
 - **AND** 后端 MUST 一次性返回当前页所需投影，MUST NOT 诱导前端逐行补查
 
-#### Scenario: 档位页面按能力方法筛选
+#### Scenario: 档位页面按能力类型 Tab 切换
 
-- **WHEN** 管理员在档位管理页选择`document.analyze`
-- **THEN** 页面 MUST 展示该能力方法下的三档配置、绑定模型、默认参数和最近测试结果
-- **AND** 页面 MUST 隐藏不属于该方法的参数字段
+- **WHEN** 管理员在档位管理页选择文档能力`Tab`
+- **THEN** 页面 MUST 展示该能力类型当前默认方法下的三档配置、绑定模型、默认参数和最近测试结果
+- **AND** 页面 MUST 不再要求管理员通过顶部搜索表单选择`document.analyze`等具体能力方法
+- **AND** `Tab`标题 MUST 通过插件运行时`i18n`资源渲染，英文标题使用首字母大写，中文标题使用专业能力名称
+- **AND** 页面内部请求和保存仍 MUST 带上目标`capabilityType`和默认`capabilityMethod`
 
 #### Scenario: 不展示业务任务页面
 

@@ -241,7 +241,7 @@ host:ai:video:generate
 页面结构建议：
 
 - “供应商”：provider、endpoint 和模型能力摘要，支持端点维护和模型能力维护。
-- “档位管理”：按能力方法分组展示`basic`、`standard`、`advanced`，支持绑定、默认参数和测试。
+- “档位管理”：按能力类型`Tab`展示`basic`、`standard`、`advanced`，当前版本每个类型映射到默认能力方法完成绑定、默认参数和测试；后续可根据实际使用情况再在页面交互上展开到具体能力方法。
 - “调用日志”：支持 capability type、method、provider、model、purpose、status、time range 过滤，只展示脱敏摘要。
 
 不新增“视频任务”“音频任务”页面。
