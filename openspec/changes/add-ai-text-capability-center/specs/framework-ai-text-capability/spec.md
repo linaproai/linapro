@@ -16,6 +16,13 @@
 - **THEN** `framework.ai.text.v1` 的消费 service MUST 将文本生成调用委托给该 provider
 - **AND** 返回值 MUST 使用该能力自有 DTO、投影和值对象
 
+#### Scenario: 文本生成映射到固定能力方法
+
+- **WHEN** 调用方通过 `framework.ai.text.v1` 执行 `GenerateText`
+- **THEN** 宿主契约 MUST 将该调用视为 `capabilityType=text` 与 `capabilityMethod=generate`
+- **AND** Go 契约 MUST 使用命名类型和常量表达该能力方法
+- **AND** 调用方 MUST NOT 通过请求字段把 `GenerateText` 改写为图片、向量、音频或其他方法
+
 #### Scenario: 供应商存储不进入宿主
 
 - **WHEN** 系统实现 `framework.ai.text.v1`
@@ -113,6 +120,12 @@
 ### Requirement: 文本能力版本必须为后续多模态能力保留边界
 
 系统 SHALL 将 `framework.ai.text.v1` 限定为同步文本生成能力。图片、音频、向量、重排、工具调用、多模态消息和流式输出 MUST 通过后续独立能力、独立方法或新版本契约扩展，MUST NOT 破坏 `v1` 文本同步响应语义。
+
+#### Scenario: 能力方法不复用文本契约字段
+
+- **WHEN** 后续新增 `image.generate`、`embedding.create`、`audio.transcribe` 或 `audio.synthesize`
+- **THEN** 新能力 MUST 使用独立 capability method、host service method 或 `framework.ai.*` 新契约
+- **AND** 新能力 MUST NOT 复用 `thinkingEffort`、`messages` 或文本响应字段作为跨模态通用参数
 
 #### Scenario: 后续新增图片能力
 

@@ -7,6 +7,20 @@ import "lina-core/pkg/plugin/pluginbridge/internal/hostservice"
 
 type (
 	HostServiceAITextGenerateRequest             = hostservice.HostServiceAITextGenerateRequest
+	HostServiceAIImageGenerateRequest            = hostservice.HostServiceAIImageGenerateRequest
+	HostServiceAIImageEditRequest                = hostservice.HostServiceAIImageEditRequest
+	HostServiceAIEmbeddingCreateRequest          = hostservice.HostServiceAIEmbeddingCreateRequest
+	HostServiceAIAudioTranscribeRequest          = hostservice.HostServiceAIAudioTranscribeRequest
+	HostServiceAIAudioSynthesizeRequest          = hostservice.HostServiceAIAudioSynthesizeRequest
+	HostServiceAIVisionAnalyzeRequest            = hostservice.HostServiceAIVisionAnalyzeRequest
+	HostServiceAIDocumentAnalyzeRequest          = hostservice.HostServiceAIDocumentAnalyzeRequest
+	HostServiceAIDocumentCiteRequest             = hostservice.HostServiceAIDocumentCiteRequest
+	HostServiceAISafetyModerateRequest           = hostservice.HostServiceAISafetyModerateRequest
+	HostServiceAIVideoGenerateRequest            = hostservice.HostServiceAIVideoGenerateRequest
+	HostServiceAIVideoEditRequest                = hostservice.HostServiceAIVideoEditRequest
+	HostServiceAIVideoExtendRequest              = hostservice.HostServiceAIVideoExtendRequest
+	HostServiceAIVideoOperationGetRequest        = hostservice.HostServiceAIVideoOperationGetRequest
+	HostServiceAIVideoOperationCancelRequest     = hostservice.HostServiceAIVideoOperationCancelRequest
 	HostServiceCacheDeleteRequest                = hostservice.HostServiceCacheDeleteRequest
 	HostServiceCacheExpireRequest                = hostservice.HostServiceCacheExpireRequest
 	HostServiceCacheExpireResponse               = hostservice.HostServiceCacheExpireResponse

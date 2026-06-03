@@ -488,13 +488,68 @@ func TestValidateHostServiceSpecsAcceptsAITextPurposeResources(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsAcceptsAIMultimodalPurposeResources verifies
+// multimodal AI host service declarations derive method-specific capabilities.
+func TestValidateHostServiceSpecsAcceptsAIMultimodalPurposeResources(t *testing.T) {
+	specs := []*HostServiceSpec{{
+		Service: HostServiceAI,
+		Methods: []string{
+			HostServiceMethodAIImageGenerate,
+			HostServiceMethodAIEmbeddingCreate,
+			HostServiceMethodAIAudioTranscribe,
+			HostServiceMethodAIVisionAnalyze,
+			HostServiceMethodAIDocumentAnalyze,
+			HostServiceMethodAISafetyModerate,
+			HostServiceMethodAIVideoGenerate,
+			HostServiceMethodAIVideoOperationGet,
+		},
+		Resources: []*HostServiceResourceSpec{{
+			Ref: " purpose:media.pipeline ",
+			Attributes: map[string]string{
+				"defaultTier":      "standard",
+				"maxPayloadBytes":  "4096",
+				"maxInputAssets":   "4",
+				"maxOutputAssets":  "2",
+				"maxAssetBytes":    "1048576",
+				"allowedMimeTypes": "image/*,audio/mpeg,application/pdf",
+				"allowOperation":   "true",
+			},
+		}},
+	}}
+
+	if err := ValidateHostServiceSpecs(specs); err != nil {
+		t.Fatalf("expected multimodal ai host service specs to validate, got %v", err)
+	}
+	capabilities := CapabilityMapFromHostServices(specs)
+	for _, capability := range []string{
+		CapabilityAIImage,
+		CapabilityAIEmbedding,
+		CapabilityAIAudio,
+		CapabilityAIVision,
+		CapabilityAIDocument,
+		CapabilityAISafety,
+		CapabilityAIVideo,
+	} {
+		if _, ok := capabilities[capability]; !ok {
+			t.Fatalf("expected ai declaration to derive %s capability", capability)
+		}
+	}
+}
+
 // TestValidateHostServiceSpecsRejectsAITextInvalidResources verifies unsupported
 // AI methods and non-purpose resources are rejected before runtime.
 func TestValidateHostServiceSpecsRejectsAITextInvalidResources(t *testing.T) {
 	for _, testCase := range []HostServiceSpec{
 		{
 			Service: HostServiceAI,
-			Methods: []string{"image.generate"},
+			Methods: []string{"computer.act"},
+			Resources: []*HostServiceResourceSpec{{
+				Ref: "purpose:content.summary",
+			}},
+		},
+		{
+			Service: HostServiceAI,
+			Methods: []string{"ui.operate"},
 			Resources: []*HostServiceResourceSpec{{
 				Ref: "purpose:content.summary",
 			}},

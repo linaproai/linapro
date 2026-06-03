@@ -27,6 +27,14 @@ const (
 	CapabilityTypeText CapabilityType = "text"
 )
 
+// CapabilityMethod identifies one AI method inside a capability family.
+type CapabilityMethod string
+
+const (
+	// CapabilityMethodGenerate identifies synchronous text generation.
+	CapabilityMethodGenerate CapabilityMethod = "generate"
+)
+
 // Tier identifies the platform text AI service level requested by callers.
 type Tier string
 
@@ -230,6 +238,16 @@ func ForPlugin(service Service, pluginID string) Service {
 // Provide declares one plugin-provided text AI capability factory.
 func Provide(pluginID string, factory ProviderFactory) error {
 	return registerFactory(pluginID, factory)
+}
+
+// CapabilityType returns the fixed capability family for text generation.
+func (r GenerateRequest) CapabilityType() CapabilityType {
+	return CapabilityTypeText
+}
+
+// CapabilityMethod returns the fixed capability method for text generation.
+func (r GenerateRequest) CapabilityMethod() CapabilityMethod {
+	return CapabilityMethodGenerate
 }
 
 // Valid reports whether the tier is one of the stable platform text tiers.

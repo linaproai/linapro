@@ -45,6 +45,18 @@ func TestGenerateTextValidatesTierAndThinkingEffort(t *testing.T) {
 	}
 }
 
+func TestGenerateRequestCapabilityIdentity(t *testing.T) {
+	t.Parallel()
+
+	request := validGenerateRequest()
+	if request.CapabilityType() != CapabilityTypeText {
+		t.Fatalf("expected capability type %q, got %q", CapabilityTypeText, request.CapabilityType())
+	}
+	if request.CapabilityMethod() != CapabilityMethodGenerate {
+		t.Fatalf("expected capability method %q, got %q", CapabilityMethodGenerate, request.CapabilityMethod())
+	}
+}
+
 func TestGenerateTextDelegatesToActiveProvider(t *testing.T) {
 	t.Parallel()
 

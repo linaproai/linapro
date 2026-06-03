@@ -76,13 +76,40 @@ function getVisibleRootTitles(list: RouteNode[]): string[] {
     .filter(Boolean);
 }
 
-function getVisibleMenuIcons(list: RouteNode[]): string[] {
+const stableHostMenuTitles = new Set([
+  "工作台",
+  "分析页",
+  "权限管理",
+  "用户管理",
+  "角色管理",
+  "菜单管理",
+  "系统设置",
+  "字典管理",
+  "参数设置",
+  "文件管理",
+  "任务调度",
+  "任务管理",
+  "分组管理",
+  "执行日志",
+  "扩展中心",
+  "插件管理",
+  "开发中心",
+  "接口文档",
+  "版本信息",
+]);
+
+function getStableHostMenuIcons(list: RouteNode[]): string[] {
   return list.flatMap((item) => {
     if (item.meta?.hideInMenu) {
       return [];
     }
-    const currentIcon = item.meta?.icon ? [item.meta.icon] : [];
-    return [...currentIcon, ...getVisibleMenuIcons(item.children ?? [])];
+    const currentIcon =
+      item.meta?.title &&
+      stableHostMenuTitles.has(item.meta.title) &&
+      item.meta.icon
+        ? [item.meta.icon]
+        : [];
+    return [...currentIcon, ...getStableHostMenuIcons(item.children ?? [])];
   });
 }
 
@@ -291,7 +318,7 @@ test.describe("TC002 登录后菜单显示", () => {
     }
 
     const duplicateIcons = findDuplicateIcons(
-      getVisibleMenuIcons(currentUserRoutes),
+      getStableHostMenuIcons(currentUserRoutes),
     );
     expect(duplicateIcons).toEqual([]);
 

@@ -56,7 +56,11 @@ test.describe('TC001 系统接口页面', () => {
     // Verify Overview is visible in sidebar
     await expect(frame.getByText('Overview')).toBeVisible({ timeout: 15_000 });
     // Verify ENDPOINTS section is visible
-    await expect(frame.getByText('ENDPOINTS')).toBeVisible();
+    await expect(
+      frame
+        .locator('.sl-uppercase.sl-font-bold')
+        .filter({ hasText: /^Endpoints$/i }),
+    ).toBeVisible();
   });
 
   test('TC001b: 系统接口页面不污染主页面样式', async ({ adminPage }) => {

@@ -56,7 +56,6 @@ func newTestServiceWithTopology(topology Topology) *serviceImpl {
 		serviceImpl.SetCapabilities(newRootTestCapabilities(bizCtxProvider, serviceImpl))
 		serviceImpl.SetTenantStartupCapability(tenantSvc)
 		serviceImpl.SetTenantProvisioningCapability(tenantSvc)
-		serviceImpl.SetTenantPlatformGovernanceCapability(tenantSvc)
 		return serviceImpl
 	}
 	i18nSvc := i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
@@ -69,7 +68,6 @@ func newTestServiceWithTopology(topology Topology) *serviceImpl {
 	serviceImpl.SetCapabilities(newRootTestCapabilities(bizCtxProvider, serviceImpl))
 	serviceImpl.SetTenantStartupCapability(tenantSvc)
 	serviceImpl.SetTenantProvisioningCapability(tenantSvc)
-	serviceImpl.SetTenantPlatformGovernanceCapability(tenantSvc)
 	return serviceImpl
 }
 

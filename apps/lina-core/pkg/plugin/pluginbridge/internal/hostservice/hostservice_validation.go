@@ -243,24 +243,67 @@ func validateAIResourceAttributes(attributes map[string]string) error {
 			default:
 				return gerror.Newf("defaultTier must be basic, standard, or advanced: %s", value)
 			}
-		case "maxOutputTokens":
-			if strings.TrimSpace(value) == "" {
-				return gerror.New("maxOutputTokens cannot be empty")
+		case "maxOutputTokens", "maxPayloadBytes", "maxInputAssets", "maxOutputAssets", "maxAssetBytes":
+			if err := validatePositiveIntegerAttribute(key, value); err != nil {
+				return err
 			}
-			allZero := true
-			for _, r := range value {
-				if r < '0' || r > '9' {
-					return gerror.Newf("maxOutputTokens must be a positive integer: %s", value)
-				}
-				if r != '0' {
-					allZero = false
-				}
+		case "allowOperation", "allowOperationCancel":
+			if err := validateBooleanAttribute(key, value); err != nil {
+				return err
 			}
-			if allZero {
-				return gerror.New("maxOutputTokens must be greater than zero")
+		case "allowedMimeTypes":
+			if err := validateMIMEListAttribute(value); err != nil {
+				return err
 			}
 		default:
 			return gerror.Newf("unsupported ai resource attribute: %s", key)
+		}
+	}
+	return nil
+}
+
+// validatePositiveIntegerAttribute checks string-encoded positive integer policy attributes.
+func validatePositiveIntegerAttribute(key string, value string) error {
+	if strings.TrimSpace(value) == "" {
+		return gerror.Newf("%s cannot be empty", key)
+	}
+	allZero := true
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return gerror.Newf("%s must be a positive integer: %s", key, value)
+		}
+		if r != '0' {
+			allZero = false
+		}
+	}
+	if allZero {
+		return gerror.Newf("%s must be greater than zero", key)
+	}
+	return nil
+}
+
+// validateBooleanAttribute checks string-encoded boolean policy attributes.
+func validateBooleanAttribute(key string, value string) error {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "true", "false":
+		return nil
+	default:
+		return gerror.Newf("%s must be true or false: %s", key, value)
+	}
+}
+
+// validateMIMEListAttribute checks comma-separated MIME type allow-list values.
+func validateMIMEListAttribute(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return gerror.New("allowedMimeTypes cannot be empty")
+	}
+	for _, item := range strings.Split(value, ",") {
+		mimeType := strings.TrimSpace(item)
+		if mimeType == "" {
+			return gerror.New("allowedMimeTypes cannot contain empty entries")
+		}
+		if !strings.Contains(mimeType, "/") && mimeType != "*" {
+			return gerror.Newf("allowedMimeTypes contains invalid mime type: %s", mimeType)
 		}
 	}
 	return nil

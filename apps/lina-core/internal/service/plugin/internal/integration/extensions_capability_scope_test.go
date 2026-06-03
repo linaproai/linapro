@@ -94,6 +94,11 @@ func (d *scopedSourceServicesDirectory) BizCtx() contract.BizCtxService {
 	return scopedCapabilityBizCtx{}
 }
 
+// Cache returns a no-op cache service required by Smart Center route registration.
+func (d *scopedSourceServicesDirectory) Cache() contract.CacheService {
+	return scopedCapabilityCache{}
+}
+
 // Config returns a defaulting plugin configuration service required by plugin cron registration.
 func (d *scopedSourceServicesDirectory) Config() contract.ConfigService {
 	return scopedCapabilityConfig{}
@@ -326,6 +331,34 @@ func (scopedCapabilityTenantFilter) Context(context.Context) contract.TenantFilt
 // Apply returns the model unchanged because registration-only tests never query plugin tables.
 func (scopedCapabilityTenantFilter) Apply(_ context.Context, model *gdb.Model, _ string) *gdb.Model {
 	return model
+}
+
+// scopedCapabilityCache is a no-op cache fixture for registration-only tests.
+type scopedCapabilityCache struct{}
+
+// Get reports a cache miss because registration-only tests never persist cache data.
+func (scopedCapabilityCache) Get(context.Context, string, string) (*contract.CacheItem, bool, error) {
+	return nil, false, nil
+}
+
+// Set returns the stored projection without touching shared cache state.
+func (scopedCapabilityCache) Set(_ context.Context, namespace string, key string, value string, _ time.Duration) (*contract.CacheItem, error) {
+	return &contract.CacheItem{Key: namespace + ":" + key, ValueKind: contract.CacheValueKindString, Value: value}, nil
+}
+
+// Delete is a successful no-op for registration-only tests.
+func (scopedCapabilityCache) Delete(context.Context, string, string) error {
+	return nil
+}
+
+// Incr returns the requested delta as an isolated integer cache item.
+func (scopedCapabilityCache) Incr(_ context.Context, namespace string, key string, delta int64, _ time.Duration) (*contract.CacheItem, error) {
+	return &contract.CacheItem{Key: namespace + ":" + key, ValueKind: contract.CacheValueKindInt, IntValue: delta}, nil
+}
+
+// Expire reports that no cache item existed to expire.
+func (scopedCapabilityCache) Expire(context.Context, string, string, time.Duration) (bool, *time.Time, error) {
+	return false, nil, nil
 }
 
 // emptySourceServicesDirectory is a minimal Services test double.

@@ -10,6 +10,7 @@
 - **THEN** 构建器或宿主清单校验 MUST 识别该声明为文本 `AI` 调用权限申请
 - **AND** 声明 MUST 支持 `resources` 中以 `purpose:<name>` 表达调用用途
 - **AND** 声明本身 MUST NOT 自动授予运行时调用权限
+- **AND** 运行时 MUST 将该方法映射为 `capabilityType=text` 与 `capabilityMethod=generate`
 
 #### Scenario: 未声明插件调用被拒绝
 
@@ -27,6 +28,7 @@
 - **AND** 调用请求的 `purpose` 与授权快照中的 `purpose:<name>` 匹配
 - **THEN** host service handler MUST 将请求转换为 `framework.ai.text.v1` 的 `GenerateText` 请求
 - **AND** 调用 MUST 复用同一个文本能力消费 service 和 provider 可用性语义
+- **AND** 档位解析 MUST 使用 `text.generate + tier` 作为能力范围
 
 #### Scenario: 未授权 purpose 被拒绝
 
@@ -92,5 +94,5 @@
 #### Scenario: 后续能力独立扩展
 
 - **WHEN** 系统后续新增图片、音频或向量能力
-- **THEN** 新方法 MUST 明确定义资源授权、请求响应 DTO、审计字段和与框架 capability 的适配关系
+- **THEN** 新方法 MUST 明确定义 `capabilityType`、`capabilityMethod`、资源授权、请求响应 DTO、审计字段和与框架 capability 的适配关系
 - **AND** 新方法 MUST NOT 改变现有 `ai.text.generate` 的授权和同步文本响应语义

@@ -340,14 +340,11 @@ test.describe("TC004 公开前端配置系统参数", () => {
     const loginPage = new LoginPage(page);
     await loginPage.goto();
 
+    const appFontFamily = await loginPage.getRootFontFamily();
     const loadingFontFamily = await captureLoadingTitleFontOnRefresh(
       page,
       loginPage,
     );
-
-    await loginPage.usernameInput.waitFor({ state: "visible" });
-
-    const appFontFamily = await loginPage.getRootFontFamily();
 
     expect(normalizeFontFamily(loadingFontFamily)).toBe(
       normalizeFontFamily(appFontFamily),

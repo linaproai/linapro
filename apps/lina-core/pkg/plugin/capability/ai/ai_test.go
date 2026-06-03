@@ -5,10 +5,15 @@ package ai
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/ai/aiaudio"
+	"lina-core/pkg/plugin/capability/ai/aicommon"
+	"lina-core/pkg/plugin/capability/ai/aiimage"
 	"lina-core/pkg/plugin/capability/ai/aitext"
+	"lina-core/pkg/plugin/capability/ai/aivideo"
 )
 
 func TestTextReturnsFallbackService(t *testing.T) {
@@ -35,7 +40,66 @@ func TestForPluginReturnsFallbackService(t *testing.T) {
 	t.Parallel()
 
 	service := ForPlugin(nil, "source-plugin")
-	if service == nil || service.Text() == nil {
+	if service == nil || service.Text() == nil || service.Image() == nil || service.Embedding() == nil ||
+		service.Audio() == nil || service.Vision() == nil || service.Document() == nil ||
+		service.Safety() == nil || service.Video() == nil {
 		t.Fatal("expected plugin-scoped AI fallback service")
+	}
+}
+
+func TestMultimodalFallbackServicesReturnUnavailable(t *testing.T) {
+	t.Parallel()
+
+	service := New(nil)
+	_, err := service.Image().Generate(context.Background(), imageGenerateRequest())
+	if !bizerr.Is(err, aicommon.CodeProviderUnavailable) {
+		t.Fatalf("expected image provider unavailable, got %v", err)
+	}
+	_, err = service.Audio().Transcribe(context.Background(), audioTranscribeRequest())
+	if !bizerr.Is(err, aicommon.CodeProviderUnavailable) {
+		t.Fatalf("expected audio provider unavailable, got %v", err)
+	}
+	_, err = service.Video().OperationGet(context.Background(), videoOperationGetRequest())
+	if !bizerr.Is(err, aicommon.CodeProviderUnavailable) {
+		t.Fatalf("expected video operation provider unavailable, got %v", err)
+	}
+}
+
+func TestAINamespaceDoesNotExposeWeakGateway(t *testing.T) {
+	t.Parallel()
+
+	serviceType := reflect.TypeOf((*Service)(nil)).Elem()
+	for _, method := range []string{"Invoke", "Generate"} {
+		if _, ok := serviceType.MethodByName(method); ok {
+			t.Fatalf("AI namespace must not expose weak gateway method %s", method)
+		}
+	}
+}
+
+func imageGenerateRequest() aiimage.GenerateRequest {
+	return aiimage.GenerateRequest{
+		Purpose: "asset.preview",
+		Tier:    aicommon.TierStandard,
+		Prompt:  "draw a chart",
+		Count:   1,
+	}
+}
+
+func audioTranscribeRequest() aiaudio.TranscribeRequest {
+	return aiaudio.TranscribeRequest{
+		Purpose: "meeting.transcript",
+		Tier:    aicommon.TierStandard,
+		Audio: aicommon.AssetRef{
+			Ref:       "asset/audio-1",
+			MimeType:  "audio/mpeg",
+			SizeBytes: 1024,
+		},
+	}
+}
+
+func videoOperationGetRequest() aivideo.OperationGetRequest {
+	return aivideo.OperationGetRequest{
+		Purpose:      "video.preview",
+		OperationRef: "operation-1",
 	}
 }

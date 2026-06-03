@@ -1843,6 +1843,180 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 	}
 }
 
+// TestPersistDynamicAuthorizationRefreshesStaleSameVersionHostServices verifies
+// same-version dynamic artifact rebuilds do not keep hostServices authorization
+// confirmed for an older requested declaration.
+func TestPersistDynamicAuthorizationRefreshesStaleSameVersionHostServices(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dev-dynamic-host-auth-same-version-refresh"
+		version  = "v0.5.2"
+	)
+
+	artifactPath := filepath.Join(
+		testutil.TestDynamicStorageDir(),
+		pluginID+".wasm",
+	)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+			t.Fatalf("failed to remove artifact %s: %v", artifactPath, cleanupErr)
+		}
+	})
+
+	writeDynamicAuthorizationRefreshArtifact(t, artifactPath, pluginID, version, []*protocol.HostServiceSpec{
+		{
+			Service: protocol.HostServiceRuntime,
+			Methods: []string{
+				protocol.HostServiceMethodRuntimeInfoNow,
+			},
+		},
+		{
+			Service: protocol.HostServiceStorage,
+			Methods: []string{
+				protocol.HostServiceMethodStorageGet,
+			},
+			Paths: []string{"private-files/"},
+		},
+	})
+	initialManifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected initial artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, initialManifest); err != nil {
+		t.Fatalf("expected initial manifest sync to succeed, got error: %v", err)
+	}
+	authorization := &HostServiceAuthorizationInput{
+		Services: []*catalog.HostServiceAuthorizationDecision{
+			{
+				Service: protocol.HostServiceStorage,
+				Paths:   []string{"private-files/"},
+			},
+		},
+	}
+	if _, err = service.catalogSvc.PersistReleaseHostServiceAuthorization(ctx, initialManifest, authorization); err != nil {
+		t.Fatalf("expected initial authorization persistence to succeed, got error: %v", err)
+	}
+
+	writeDynamicAuthorizationRefreshArtifact(t, artifactPath, pluginID, version, []*protocol.HostServiceSpec{
+		{
+			Service: protocol.HostServiceManifest,
+			Methods: []string{
+				protocol.HostServiceMethodManifestGet,
+			},
+			Paths: []string{"config/config.yaml", "config/profile.yaml"},
+		},
+		{
+			Service: protocol.HostServiceRuntime,
+			Methods: []string{
+				protocol.HostServiceMethodRuntimeInfoNow,
+			},
+		},
+		{
+			Service: protocol.HostServiceStorage,
+			Methods: []string{
+				protocol.HostServiceMethodStorageGet,
+			},
+			Paths: []string{"private-files/"},
+		},
+	})
+	refreshedManifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected refreshed artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, refreshedManifest); err != nil {
+		t.Fatalf("expected refreshed manifest sync to succeed, got error: %v", err)
+	}
+
+	release, err := service.getPluginRelease(ctx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected refreshed release lookup to succeed, got error: %v", err)
+	}
+	syncedSnapshot, err := service.catalogSvc.ParseManifestSnapshot(release.ManifestSnapshot)
+	if err != nil {
+		t.Fatalf("expected refreshed snapshot parse to succeed, got error: %v", err)
+	}
+	if syncedSnapshot.HostServiceAuthConfirmed {
+		t.Fatalf("expected changed hostServices to invalidate prior confirmation, got %#v", syncedSnapshot)
+	}
+	if containsHostService(syncedSnapshot.AuthorizedHostServices, protocol.HostServiceManifest) {
+		t.Fatalf("expected background sync to avoid silently authorizing new manifest service, got %#v", syncedSnapshot.AuthorizedHostServices)
+	}
+
+	if err = service.persistDynamicPluginAuthorization(ctx, refreshedManifest, nil); err != nil {
+		t.Fatalf("expected nil install/enable authorization to refresh current declaration, got error: %v", err)
+	}
+	release, err = service.getPluginRelease(ctx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected authorized release lookup to succeed, got error: %v", err)
+	}
+	authorizedSnapshot, err := service.catalogSvc.ParseManifestSnapshot(release.ManifestSnapshot)
+	if err != nil {
+		t.Fatalf("expected authorized snapshot parse to succeed, got error: %v", err)
+	}
+	if !authorizedSnapshot.HostServiceAuthConfirmed {
+		t.Fatalf("expected install/enable authorization to confirm current hostServices, got %#v", authorizedSnapshot)
+	}
+	if !containsHostService(authorizedSnapshot.AuthorizedHostServices, protocol.HostServiceManifest) {
+		t.Fatalf("expected authorized snapshot to include manifest service, got %#v", authorizedSnapshot.AuthorizedHostServices)
+	}
+	activeManifest, err := service.catalogSvc.LoadReleaseManifest(ctx, release)
+	if err != nil {
+		t.Fatalf("expected release manifest to load, got error: %v", err)
+	}
+	if activeManifest == nil || activeManifest.HostCapabilities == nil {
+		t.Fatalf("expected release manifest with host capabilities, got %#v", activeManifest)
+	}
+	if _, ok := activeManifest.HostCapabilities[protocol.CapabilityManifest]; !ok {
+		t.Fatalf("expected active manifest to derive manifest capability, got %#v", activeManifest.HostCapabilities)
+	}
+}
+
+// writeDynamicAuthorizationRefreshArtifact writes a minimal dynamic artifact for
+// same-version hostServices authorization refresh regression coverage.
+func writeDynamicAuthorizationRefreshArtifact(
+	t *testing.T,
+	artifactPath string,
+	pluginID string,
+	version string,
+	hostServices []*protocol.HostServiceSpec,
+) {
+	t.Helper()
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:      pluginID,
+			Name:    "Same Version Authorization Refresh Plugin",
+			Version: version,
+			Type:    catalog.TypeDynamic.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind:  protocol.RuntimeKindWasm,
+			ABIVersion:   protocol.SupportedABIVersion,
+			HostServices: hostServices,
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+}
+
+// containsHostService reports whether specs include one normalized service name.
+func containsHostService(specs []*protocol.HostServiceSpec, service string) bool {
+	for _, spec := range specs {
+		if spec != nil && spec.Service == service {
+			return true
+		}
+	}
+	return false
+}
+
 // TestSourcePluginInstallAndUninstallRequireExplicitLifecycle verifies that
 // source plugins stay discovered-only until the host explicitly installs them.
 func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {

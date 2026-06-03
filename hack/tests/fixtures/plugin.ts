@@ -17,8 +17,10 @@ type PluginListItem = {
   id: string;
   installMode?: string;
   installed?: number;
+  runtimeState?: string;
   scopeNature?: string;
   type?: string;
+  upgradeAvailable?: boolean;
   version?: string;
 };
 
@@ -35,10 +37,22 @@ async function ensurePluginEnabledState(
     await installPlugin(adminApi, pluginId, installMode);
     plugin = await findPlugin(adminApi, pluginId);
   }
+  if (plugin && plugin.installed === 1 && pluginNeedsRuntimeUpgrade(plugin)) {
+    await upgradePlugin(adminApi, pluginId);
+    plugin = await findPlugin(adminApi, pluginId);
+  }
   if (plugin?.enabled !== 1) {
     await updatePluginStatus(adminApi, pluginId, true);
   }
   loadSourcePluginMockData(pluginId);
+}
+
+function pluginNeedsRuntimeUpgrade(plugin: PluginListItem) {
+  return (
+    plugin.upgradeAvailable === true ||
+    plugin.runtimeState === 'pending_upgrade' ||
+    plugin.runtimeState === 'upgrade_failed'
+  );
 }
 
 function unwrapApiData(payload: any) {
@@ -146,6 +160,15 @@ export async function installPlugin(
       : undefined,
   });
   assertOk(response, `安装插件失败: ${pluginId}`);
+}
+
+export async function upgradePlugin(adminApi: APIRequestContext, pluginId: string) {
+  const response = await adminApi.post(`plugins/${pluginId}/upgrade`, {
+    data: {
+      confirmed: true,
+    },
+  });
+  assertOk(response, `升级插件失败: ${pluginId}`);
 }
 
 export async function uninstallPlugin(

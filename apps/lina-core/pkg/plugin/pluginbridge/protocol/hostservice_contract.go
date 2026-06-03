@@ -22,6 +22,13 @@ const (
 	CapabilityHostConfig   = hostservice.CapabilityHostConfig
 	CapabilityManifest     = hostservice.CapabilityManifest
 	CapabilityAIText       = hostservice.CapabilityAIText
+	CapabilityAIImage      = hostservice.CapabilityAIImage
+	CapabilityAIEmbedding  = hostservice.CapabilityAIEmbedding
+	CapabilityAIAudio      = hostservice.CapabilityAIAudio
+	CapabilityAIVision     = hostservice.CapabilityAIVision
+	CapabilityAIDocument   = hostservice.CapabilityAIDocument
+	CapabilityAISafety     = hostservice.CapabilityAISafety
+	CapabilityAIVideo      = hostservice.CapabilityAIVideo
 	CapabilityOrg          = hostservice.CapabilityOrg
 	CapabilityTenant       = hostservice.CapabilityTenant
 
@@ -81,6 +88,20 @@ const (
 	HostServiceMethodHostConfigGet              = hostservice.HostServiceMethodHostConfigGet
 	HostServiceMethodManifestGet                = hostservice.HostServiceMethodManifestGet
 	HostServiceMethodAITextGenerate             = hostservice.HostServiceMethodAITextGenerate
+	HostServiceMethodAIImageGenerate            = hostservice.HostServiceMethodAIImageGenerate
+	HostServiceMethodAIImageEdit                = hostservice.HostServiceMethodAIImageEdit
+	HostServiceMethodAIEmbeddingCreate          = hostservice.HostServiceMethodAIEmbeddingCreate
+	HostServiceMethodAIAudioTranscribe          = hostservice.HostServiceMethodAIAudioTranscribe
+	HostServiceMethodAIAudioSynthesize          = hostservice.HostServiceMethodAIAudioSynthesize
+	HostServiceMethodAIVisionAnalyze            = hostservice.HostServiceMethodAIVisionAnalyze
+	HostServiceMethodAIDocumentAnalyze          = hostservice.HostServiceMethodAIDocumentAnalyze
+	HostServiceMethodAIDocumentCite             = hostservice.HostServiceMethodAIDocumentCite
+	HostServiceMethodAISafetyModerate           = hostservice.HostServiceMethodAISafetyModerate
+	HostServiceMethodAIVideoGenerate            = hostservice.HostServiceMethodAIVideoGenerate
+	HostServiceMethodAIVideoEdit                = hostservice.HostServiceMethodAIVideoEdit
+	HostServiceMethodAIVideoExtend              = hostservice.HostServiceMethodAIVideoExtend
+	HostServiceMethodAIVideoOperationGet        = hostservice.HostServiceMethodAIVideoOperationGet
+	HostServiceMethodAIVideoOperationCancel     = hostservice.HostServiceMethodAIVideoOperationCancel
 	HostServiceMethodOrgAvailable               = hostservice.HostServiceMethodOrgAvailable
 	HostServiceMethodOrgStatus                  = hostservice.HostServiceMethodOrgStatus
 	HostServiceMethodOrgListUserDeptAssignments = hostservice.HostServiceMethodOrgListUserDeptAssignments

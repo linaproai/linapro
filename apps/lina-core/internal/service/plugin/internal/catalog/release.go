@@ -300,13 +300,9 @@ func (s *serviceImpl) buildManifestSnapshot(manifest *Manifest, existing *entity
 			return "", parseErr
 		}
 		if existingSnapshot != nil {
-			authorizedHostServices, normalizeErr := protocol.NormalizeHostServiceSpecs(existingSnapshot.AuthorizedHostServices)
-			if normalizeErr != nil {
-				return "", normalizeErr
+			if applyErr := applyExistingHostServiceAuthorization(snapshot, existingSnapshot); applyErr != nil {
+				return "", applyErr
 			}
-			snapshot.AuthorizedHostServices = authorizedHostServices
-			snapshot.HostServiceAuthConfirmed = existingSnapshot.HostServiceAuthConfirmed
-			snapshot.UninstallPurgeStorageData = existingSnapshot.UninstallPurgeStorageData
 		}
 	}
 	content, err := yaml.Marshal(snapshot)

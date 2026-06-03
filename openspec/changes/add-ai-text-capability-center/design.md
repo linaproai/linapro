@@ -4,16 +4,16 @@ LinaPro 当前已经具备源码插件、动态插件、插件宿主服务、组
 
 参考 `/Users/john/Workspace/github/gqcn/agent-box` 的供应商、模型和能力档位设计时，只吸收产品对象和交互经验，不复用其“主应用直接拥有 `AI` 能力实现”的边界。LinaPro 的目标架构采用“宿主定义抽象能力，插件提供实现”的模式，类似组织和租户能力。
 
-本次仅实现文本相关 `AI` 接口，但数据模型、请求契约和日志必须保留 `capabilityType`、协议、模型能力声明和 host service 方法扩展空间，后续可以自然增加图片、音频、向量等能力。用户补充的 `thinkingEffort` 必须进入文本请求契约；平台侧将其抽象为可选枚举参数，而不是把某一家供应商的请求结构固化为框架契约。
+本次仅实现文本相关 `AI` 接口，但数据模型、请求契约和日志必须保留 `capabilityType`、`capabilityMethod`、协议、模型能力声明和 host service 方法扩展空间，后续可以自然增加图片、音频、向量等能力。用户补充的 `thinkingEffort` 必须进入文本请求契约；平台侧将其抽象为可选枚举参数，而不是把某一家供应商的请求结构固化为框架契约。
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- 新增官方源码插件 `linapro-ai-core`，菜单为“智能中心”，包含“供应商管理”“档位管理”“调用日志”三个页面。
+- 新增官方源码插件 `linapro-ai-core`，菜单为“智能中心”，包含“供应商”“档位管理”“调用日志”三个页面。
 - 在 `apps/lina-core`新增文本 `AI` 抽象能力 `framework.ai.text.v1`，让宿主模块、源码插件和动态插件可以按档位调用文本生成。
-- 首期固定提供 `basic`、`standard`、`advanced` 三个文本能力档位，并允许每个档位绑定一个主供应商模型。
-- 供应商管理直接维护供应商和供应商支持的模型，包含增删改查、模型增删改查、模型同步和引用保护。
+- 首期固定提供 `text.generate` 下的 `basic`、`standard`、`advanced` 三个文本能力档位，并允许每个档位绑定一个主供应商模型。
+- 供应商页面直接维护供应商和供应商支持的模型，包含增删改查、模型新增、模型同步和引用保护。
 - 调用日志只记录最小审计与监控字段，支持分页筛选，不保存完整输入、完整输出、完整密钥或敏感链路内容。
 - 文本请求支持 `messages`、`purpose`、`tier`、`maxOutputTokens`、`temperature`、可选 `thinkingEffort` 和 `metadata`。
 - `thinkingEffort` 使用平台统一枚举 `low`、`medium`、`high`、`xhigh`、`max`；模型声明支持范围，适配器按供应商能力映射、忽略或拒绝。
@@ -33,7 +33,7 @@ LinaPro 当前已经具备源码插件、动态插件、插件宿主服务、组
 
 ### 1. 模块命名为“智能中心”
 
-菜单使用“智能中心”，子菜单为“供应商管理”“档位管理”“调用日志”。该名称比“AI 能力中心”更适合作为长期顶级入口，既能覆盖当前文本 `AI` 能力，也能容纳后续图片、音频、向量、智能体等能力治理。
+菜单使用“智能中心”，子菜单为“供应商”“档位管理”“调用日志”。该名称比“AI 能力中心”更适合作为长期顶级入口，既能覆盖当前文本 `AI` 能力，也能容纳后续图片、音频、向量、智能体等能力治理。
 
 备选方案：
 
@@ -47,7 +47,7 @@ LinaPro 当前已经具备源码插件、动态插件、插件宿主服务、组
 
 - `Available(ctx)`：返回当前文本能力是否有可用 provider。
 - `Status(ctx)`：返回能力 ID、可用性、provider 插件状态和不可用原因。
-- `GenerateText(ctx, request)`：按 `purpose + tier` 执行文本生成。
+- `GenerateText(ctx, request)`：按 `purpose + tier` 执行文本生成；能力方法固定为 `text.generate`，由 Go 契约中的 `CapabilityTypeText` 与 `CapabilityMethodGenerate` 表达，不允许调用方传入任意字符串改变文本生成方法。
 
 核心契约使用自有 DTO，不返回插件内部 `DAO`、`DO`、`Entity`、缓存对象或供应商密钥结构。`lina-core`不创建具体 `AI` 配置表，不提供工作台页面，不硬编码供应商协议实现。
 
@@ -105,7 +105,15 @@ TextGenerateResponse
 | `standard` | `medium` | 常规代码生成、代码解释、代码优化 |
 | `advanced` | `high` | 复杂代码生成和跨文件推理；`xhigh`、`max` 仅在模型显式支持时开放 |
 
-### 5. 官方插件拥有供应商、模型、档位和日志存储
+### 5. 能力方法是档位身份的一部分
+
+能力档位不是只按 `capabilityType + tier` 唯一，而是按 `capabilityType + capabilityMethod + tierCode` 唯一。`capabilityType` 表示能力族，例如 `text`、`image`、`embedding`、`audio`；`capabilityMethod` 表示该能力族下的具体方法，例如 `generate`、`create`、`transcribe`、`synthesize`。首期只 seed `text.generate` 的 `basic`、`standard`、`advanced` 三档。
+
+档位管理页面可以按能力方法分组展示或筛选，但 `capabilityType` 与 `capabilityMethod` 是档位记录的不可变身份字段，不进入档位编辑表单。编辑动作只能修改启用状态、主绑定、默认参数和测试结果。后续新增 `image.generate`、`embedding.create`、`audio.transcribe`、`audio.synthesize` 时，应在同一档位表内 seed 对应能力方法下的三档记录，而不是复制一套 Text 专属表。
+
+Go 契约层必须显式定义能力方法常量和方法语义。`framework.ai.text.v1` 的 `GenerateText` 永远映射到 `CapabilityTypeText + CapabilityMethodGenerate`；动态插件 `ai.text.generate` 也必须映射到同一能力方法。插件端档位解析缓存、调用日志、模型筛选和唯一约束均使用 `capabilityType + capabilityMethod` 作为能力范围，避免后续 `audio.transcribe` 与 `audio.synthesize` 因同属 `audio` 而共享错误档位。
+
+### 6. 官方插件拥有供应商、模型、档位和日志存储
 
 `linapro-ai-core`维护插件自有 SQL，表名使用插件命名空间：
 
@@ -127,6 +135,7 @@ plugin_linapro_ai_model
   id
   provider_id
   capability_type       -- text，预留 image/audio/embedding
+  capability_method     -- generate，预留 create/transcribe/synthesize
   model_name
   protocol              -- openai | anthropic
   source                -- manual | api
@@ -142,6 +151,7 @@ plugin_linapro_ai_model
 plugin_linapro_ai_tier
   id
   capability_type       -- text
+  capability_method     -- generate
   code                  -- basic | standard | advanced
   display_name
   description
@@ -166,6 +176,7 @@ plugin_linapro_ai_invocation
   id
   request_id
   capability_type
+  capability_method
   purpose
   tier_code
   source_plugin_id
@@ -188,9 +199,9 @@ plugin_linapro_ai_invocation
 
 密钥不得明文返回。存储优先使用宿主 secret 能力或等价加密存储，仅在插件表中保留 `api_key_secret_ref` 或脱敏摘要。供应商和模型删除必须检查档位绑定引用；被引用时拒绝删除，并返回可本地化业务错误。
 
-固定档位和用户可见枚举显示必须接入字典或插件 `i18n` 资源治理；后端实现使用 Go 命名类型和常量，避免散落字符串。`capabilityType`、`protocol`、`source`、`status`、`thinkingEffort` 等枚举语义在代码中必须集中定义。
+固定档位和用户可见枚举显示必须接入字典或插件 `i18n` 资源治理；后端实现使用 Go 命名类型和常量，避免散落字符串。`capabilityType`、`capabilityMethod`、`protocol`、`source`、`status`、`thinkingEffort` 等枚举语义在代码中必须集中定义。
 
-### 6. 管理 API 使用 REST 资源语义
+### 7. 管理 API 使用 REST 资源语义
 
 管理 API 由 `linapro-ai-core` 注册，资源语义保持以下形态。若实现期插件统一 API 前缀要求包含插件路径，则只调整挂载前缀，不改变资源名。
 
@@ -211,19 +222,19 @@ POST   /api/ai/tiers/{code}/test
 GET    /api/ai/invocations
 ```
 
-列表接口必须分页、可筛选并返回当前页面所需的最小投影。供应商列表可通过批量聚合返回模型数量和启用数量，不允许前端对每个供应商逐项查询模型详情。档位列表一次返回 `basic`、`standard`、`advanced` 及主绑定投影。调用日志按 `created_at DESC` 分页，支持按 `capabilityType`、`purpose`、`tier`、`status`、`providerId`、`modelId` 和时间范围过滤。
+列表接口必须分页、可筛选并返回当前页面所需的最小投影。供应商列表通过当前页供应商 `ID` 批量返回模型摘要、脱敏密钥和端点投影，不允许前端对每个供应商逐项查询模型详情。档位列表按 `capabilityType + capabilityMethod` 一次返回 `basic`、`standard`、`advanced` 及主绑定投影。调用日志按 `created_at DESC` 分页，支持按 `capabilityType`、`capabilityMethod`、`purpose`、`tier`、`status`、`providerId`、`modelId` 和时间范围过滤。
 
-### 7. 页面交互聚焦配置效率和可诊断性
+### 8. 页面交互聚焦配置效率和可诊断性
 
-“供应商管理”页面以表格为主，支持供应商新增、编辑、删除、启停、模型同步和模型维护。供应商详情或抽屉内展示模型表，避免进入页面后出现前端瀑布式查询。
+“供应商”页面以表格为主，支持供应商新增、编辑、删除、启停和独立新增模型。供应商新增和编辑抽屉只维护供应商字段；列表模型列使用后端批量摘要投影渲染，避免进入页面后出现前端瀑布式查询。
 
-“档位管理”页面以三档配置为第一屏核心内容，`basic`、`standard`、`advanced` 使用稳定顺序展示。每档展示启用状态、供应商、模型、协议、`thinkingEffort` 默认值、模型是否支持 thinking、最近测试结果和保存入口。模型选择应按供应商过滤，并在模型能力不支持当前默认 `thinkingEffort` 时给出明确校验提示。
+“档位管理”页面以当前能力方法下的三档配置为第一屏核心内容，首期固定展示 `text.generate` 的 `basic`、`standard`、`advanced`，并使用稳定顺序展示。每档展示启用状态、供应商、模型、协议、`thinkingEffort` 默认值、模型是否支持 thinking、最近测试结果和保存入口。模型选择应按供应商和 `capabilityType + capabilityMethod` 过滤，并在模型能力不支持当前默认 `thinkingEffort` 时给出明确校验提示。
 
 “调用日志”页面使用表格、筛选表单和详情抽屉。详情只展示调用摘要、错误摘要、用量和耗时，不展示完整输入输出。日志数据默认平台管理员可见；如果后续开放租户侧自查，必须新增租户可见性规格。
 
 前端实现必须复用现有 `Vben`、`vxe-table`、表单、弹窗、抽屉、操作列和 `IconifyIcon` 模式。插件禁用、未安装或无权限时，菜单和页面入口必须完全隐藏。
 
-### 8. 动态插件通过 `ai.text.generate` 使用文本能力
+### 9. 动态插件通过 `ai.text.generate` 使用文本能力
 
 动态插件在 `plugin.yaml` 中声明：
 
@@ -239,13 +250,13 @@ hostServices:
           maxOutputTokens: "1024"
 ```
 
-`hostServices` 声明是权限申请，不是自动授权。运行时调用必须同时通过 service/method 校验和资源授权校验。资源标识以 `purpose:<name>` 表达调用场景，宿主可以限制插件只能调用已授权用途和最大输出规模。动态插件调用最终进入同一个 `framework.ai.text.v1` 消费服务，`pluginbridge`只承担 transport 和 payload 编解码。
+`hostServices` 声明是权限申请，不是自动授权。运行时调用必须同时通过 service/method 校验和资源授权校验。资源标识以 `purpose:<name>` 表达调用场景，宿主可以限制插件只能调用已授权用途和最大输出规模。动态插件调用最终进入同一个 `framework.ai.text.v1` 消费服务，并解析为 `text.generate` 能力方法；`pluginbridge`只承担 transport 和 payload 编解码。
 
 源码插件和宿主模块通过显式注入的文本能力 service 调用，不 import `linapro-ai-core/backend/internal/**`，也不直接读取插件表。
 
-### 9. 档位解析使用受控缓存
+### 10. 档位解析使用受控缓存
 
-文本调用路径会频繁解析 `capabilityType + tier` 到供应商模型绑定。实现应在 `linapro-ai-core` provider 内维护只读解析缓存：
+文本调用路径会频繁解析 `capabilityType + capabilityMethod + tier` 到供应商模型绑定。实现应在 `linapro-ai-core` provider 内维护只读解析缓存：
 
 - 权威数据源：`linapro-ai-core` 插件数据库表。
 - 缓存内容：档位、主绑定、供应商模型公开元数据和 secret 引用，不缓存完整 API key。
@@ -257,7 +268,7 @@ hostServices:
 
 缓存刷新不得清空无关插件、语言包、路由或前端 bundle 缓存。
 
-### 10. 权限和数据可见性
+### 11. 权限和数据可见性
 
 智能中心管理面属于平台配置控制面。供应商、模型、档位和调用日志管理 API 除插件菜单/按钮权限外，还必须要求平台上下文；租户上下文和代管租户上下文不得执行平台配置动作。
 
@@ -278,13 +289,13 @@ ai:invocation:list
 
 调用日志列表首期仅平台管理员可见。日志写入可以记录 `tenant_id`、`user_id`、`source_plugin_id` 和 `purpose` 作为审计投影，但不得通过日志响应泄露租户外业务输入存在性。
 
-### 11. 外部协议适配保持窄边界
+### 12. 外部协议适配保持窄边界
 
 首期插件实现 OpenAI-compatible 和 Anthropic-compatible 文本适配器。适配器只接收统一文本请求和已解析模型配置，返回统一文本结果和 usage。供应商 API 地址需要支持 SDK 风格 base URL、根域名和完整资源端点规范化，避免重复拼接资源路径。
 
 模型同步使用供应商协议对应的模型列表接口，失败时保留已有手工模型和被引用模型。模型同步结果只写入模型名称、协议、来源和可公开展示能力，不自动推断未声明的 thinking 支持。
 
-### 12. 影响分析
+### 13. 影响分析
 
 - `i18n`：新增用户可见菜单、页面、按钮、表单、表格、错误和 API 文档。实现期必须先读取插件 `plugin.yaml` 的 `i18n.enabled`，若启用则维护插件 `manifest/i18n/<locale>/` 和 `apidoc` 资源；若未启用，必须在任务记录中说明单语言插件判断。
 - 缓存一致性：档位解析缓存是关键运行时数据，设计中已定义权威源、失效触发、集群同步、TTL 和降级策略。

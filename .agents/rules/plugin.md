@@ -8,6 +8,42 @@
 
 ## 插件通用资源要求
 
+插件ID命名规范：`<author>-<domain>-<capability>` 
+- `<author>`: 插件的作者或组织名称，建议使用小写字母和数字的组合，长度不超过 20 字符。
+- `<domain>`: 插件所属的功能领域或业务域，建议使用小写字母和数字的组合，长度不超过 20 字符。
+- `<capability>`: 插件提供的具体能力或功能，建议使用小写字母和数字的组合，长度不超过 20 字符。
+- 插件 ID 必须唯一，且在整个 LinaPro 插件生态中保持稳定。插件 ID 会同时进入 URL path、动态资源路径、文件名、数据库键、菜单 key、权限字符串、`i18n` namespace、`apidoc` namespace 和宿主能力发现，因此必须严格遵守上述命名规范，避免使用特殊字符、空格或过长的名称，以确保插件能够正确识别和加载。
+
+插件目录结构规范：
+```text
+apps/lina-plugins/<plugin-id>/
+├── plugin.yaml
+├── plugin_embed.go
+├── backend/
+│   ├── api/                         # API DTO与路由契约
+│   ├── hack/
+│   │   └── config.yaml              # make dao等插件开发配置
+│   ├── internal/
+│   │   ├── controller/              # HTTP控制器
+│   │   ├── service/                 # 业务服务层
+│   │   ├── dao/                     # make dao生成
+│   │   └── model/                   # do/entity模型
+│   └── plugin.go                    # 插件注册入口
+├── frontend/
+│   ├── pages/                       # 插件页面
+│   └── slots/                       # 插槽页面，可选
+├── manifest/
+│   ├── config/
+│   │   ├── config.yaml              # 开发期默认配置
+│   │   └── config.example.yaml      # 配置模板，不作为运行时默认值
+│   ├── sql/                         # 安装与升级SQL
+│   │   ├── mock-data/               # 演示数据，可选
+│   │   └── uninstall/               # 卸载SQL
+│   └── i18n/                        # 插件语言包
+├── README.md
+└── README.zh-CN.md
+```
+
 源码插件和动态插件都必须遵守以下通用资源约定：
 
 - 插件源码目录统一放在`apps/lina-plugins/<plugin-id>/`下，`<plugin-id>`必须与`plugin.yaml`中的`id`一致。

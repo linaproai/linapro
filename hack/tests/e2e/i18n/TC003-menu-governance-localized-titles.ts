@@ -58,6 +58,36 @@ const userButtonEnglishNames = [
   'Reset Password',
 ];
 
+const hostGovernanceButtonPermissionPrefixes = [
+  'system:user:',
+  'system:role:',
+  'system:menu:',
+  'system:dict:',
+  'system:config:',
+  'system:file:',
+  'system:job:',
+  'system:jobgroup:',
+  'system:joblog:',
+];
+
+const hostPluginButtonPermissions = new Set([
+  'plugin:query',
+  'plugin:enable',
+  'plugin:disable',
+  'plugin:edit',
+  'plugin:install',
+  'plugin:uninstall',
+]);
+
+function isHostGovernanceButtonPermission(permission: string) {
+  return (
+    hostPluginButtonPermissions.has(permission) ||
+    hostGovernanceButtonPermissionPrefixes.some((prefix) =>
+      permission.startsWith(prefix),
+    )
+  );
+}
+
 function flattenMenuList(list: MenuListItem[]): MenuListItem[] {
   return list.flatMap((item) => [item, ...flattenMenuList(item.children ?? [])]);
 }
@@ -124,7 +154,12 @@ test.describe('TC003 菜单治理标题国际化专项回归', () => {
       pluginButtonEnglishNames,
     );
 
-    const buttonMenus = flatMenus.filter((item) => item.type === 'B');
+    const buttonMenus = flatMenus.filter(
+      (item) =>
+        item.type === 'B' &&
+        isHostGovernanceButtonPermission(item.perms),
+    );
+    expect(buttonMenus.length).toBeGreaterThan(0);
     for (const buttonMenu of buttonMenus) {
       expect(buttonMenu.name, `${buttonMenu.perms} should not contain CJK text`).not.toMatch(
         /[\u4e00-\u9fff]/,

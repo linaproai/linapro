@@ -13,7 +13,7 @@
 1. 通过`/opsx:explore`在给定需求描述的前提下进行探索式对话，分析问题、设计方案、评估风险。
 2. 当探索式对话结束并形成清晰方案时，通过`/opsx:propose <feature-name>`转化为正式 OpenSpec 变更提案。`feature-name`必须使用`kebab-case`，例如`user-auth`、`data-export`。
 3. 通过`/opsx:apply`按照`tasks.md`逐条执行，完成代码实现、测试、文档更新等工作。任务完成后必须调用`lina-review`进行代码和规范审查。
-4. 用户反馈的问题或改进点必须调用`lina-feedback`进行修复和验证，并更新相关 OpenSpec 文档。任务完成后必须调用`lina-review`进行审查。
+4. 用户反馈的问题或改进点必须调用`lina-feedback`进行分诊、修复和验证；达到 OpenSpec 记录门槛时更新相关 OpenSpec 文档。任务完成后必须调用`lina-review`进行审查。
 5. 用户确认本次迭代功能已完成且没有问题后，执行`/opsx:archive`归档。归档前必须调用`lina-review`进行全面变更审查。
 
 ## OpenSpec 启用条件
@@ -27,14 +27,6 @@
 - 凡是仍位于`openspec/changes/`根目录下、且未移动到`openspec/changes/archive/`中的变更目录，都属于活跃变更。
 - 即便该变更已经完成全部任务、`openspec list --json`显示`status: complete`，只要尚未执行归档，仍然必须视为活跃变更。
 - 只有位于`openspec/changes/archive/`下的变更才是非活跃变更。
-
-## 反馈处理要求
-
-- 当用户报告问题缺陷或改进建议时，如果当前项目存在活跃 OpenSpec 变更，必须调用`lina-feedback`技能。
-- 反馈处理必须先记录再修复。每个问题必须追加到目标变更的`tasks.md`反馈章节中，使用`FB-<N>`编号。
-- 反馈修复必须先排查并报告原因，再进行代码修复。执行者应先读取相关代码、规范、测试和运行证据，给出已确认根因；如果暂时无法完全确认根因，必须明确标注为合理假设和待验证点，不得在未说明原因的情况下直接修改代码。
-- 反馈修复必须根据变更内容读取`AGENTS.md`中命中的规则文件，并记录影响分析。
-- 功能行为类 bugfix 必须按`.agents/rules/testing.md`新增或更新自动化测试；项目治理类反馈使用 OpenSpec 校验、静态扫描、文件检查、格式检查或审查结论等治理验证。
 
 ## 审查触发要求
 

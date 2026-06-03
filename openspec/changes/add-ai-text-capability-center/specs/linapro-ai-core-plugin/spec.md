@@ -2,13 +2,14 @@
 
 ### Requirement: 官方插件必须提供智能中心菜单和页面
 
-系统 SHALL 新增官方源码插件 `linapro-ai-core`，并由该插件贡献“智能中心”菜单。菜单 MUST 包含“供应商管理”“档位管理”“调用日志”三个页面，且页面、路由、权限和静态资源 MUST 归属于插件目录。
+系统 SHALL 新增官方源码插件 `linapro-ai-core`，并由该插件贡献“智能中心”菜单。菜单 MUST 包含“供应商”“档位管理”“调用日志”三个页面，且页面、路由、权限和静态资源 MUST 归属于插件目录。
 
 #### Scenario: 插件启用后显示智能中心
 
 - **WHEN** `linapro-ai-core` 插件已安装、启用且当前用户拥有对应菜单权限
 - **THEN** 前端 MUST 显示“智能中心”菜单
-- **AND** 菜单下 MUST 显示“供应商管理”“档位管理”“调用日志”
+- **AND** 菜单下 MUST 显示“供应商”“档位管理”“调用日志”
+- **AND** “智能中心”顶级菜单 MUST 排在“扩展中心”之前
 
 #### Scenario: 插件禁用或无权限时隐藏入口
 
@@ -22,16 +23,22 @@
 - **THEN** 这些资源 MUST 放在 `apps/lina-plugins/linapro-ai-core/` 的统一插件目录结构中
 - **AND** 修改插件目录前 MUST 检查并遵守该插件根目录 `AGENTS.md`
 
-### Requirement: 供应商管理必须维护供应商和模型
+### Requirement: 供应商页面必须维护供应商和模型
 
-系统 SHALL 在“供应商管理”页面和插件 API 中提供供应商及其模型的增删改查能力。供应商 MUST 支持启停、协议地址、密钥引用和备注；模型 MUST 关联供应商，并声明能力类型、协议、名称、启停、token 上限和 thinking 支持范围。
+系统 SHALL 在“供应商”页面和插件 API 中提供供应商及其模型的增删改查能力。供应商 MUST 支持启停、协议地址、密钥引用和备注；模型 MUST 关联供应商，并声明能力类型、协议、名称、启停、token 上限和 thinking 支持范围。
 
 #### Scenario: 查询供应商列表
 
-- **WHEN** 用户打开“供应商管理”页面
+- **WHEN** 用户打开“供应商”页面
 - **THEN** 系统 MUST 分页返回供应商列表
-- **AND** 每行 MUST 包含当前页面所需的最小供应商投影、模型数量和启用模型数量
-- **AND** 后端 MUST 使用集合化查询或聚合查询装配模型数量，MUST NOT 诱导前端逐供应商补查详情
+- **AND** 每行 MUST 包含当前页面所需的最小供应商投影、密钥脱敏摘要、端点投影和模型摘要列表
+- **AND** 后端 MUST 使用集合化查询或聚合查询装配模型摘要，MUST NOT 诱导前端逐供应商补查详情
+- **AND** 页面 MUST 将 OpenAI-compatible 和 Anthropic-compatible 地址合并到“端点”列分行展示，并用标签标识端点类型
+- **AND** 多个端点同时存在时，页面 MUST 完整展示每个端点地址，协议标签 MUST NOT 遮挡或挤压地址内容
+- **AND** OpenAI-compatible 和 Anthropic-compatible 协议标签 MUST 使用一致宽度并右对齐，使端点 URL 保持左对齐
+- **AND** 页面 MUST 在端点列右侧展示“密钥”列，密钥内容必须脱敏展示
+- **AND** 密钥脱敏 MUST 基于原有存储值保留可识别前缀和末尾 2 位，中间使用星号隐藏，例如 `sk-1234567890` 展示为 `sk-**********90`
+- **AND** 页面 MUST 在更新时间左侧展示“模型”列，MUST NOT 展示“模型数”或“启用模型数”列
 
 #### Scenario: 创建或更新供应商
 
@@ -39,18 +46,31 @@
 - **THEN** 系统 MUST 校验供应商名称、协议地址和启用状态
 - **AND** 系统 MUST 只保存密钥引用、加密密文或脱敏摘要
 - **AND** API 响应 MUST NOT 返回 API key 明文
+- **AND** 页面表单 MUST 使用“名称”作为供应商名称字段的用户可见标签
+- **AND** 页面表单 MUST 使用“API 密钥”作为密钥字段名称
+- **AND** 修改供应商时，页面 MUST NOT 将脱敏密钥回填到密钥输入框
+- **AND** 修改供应商时，密钥输入框 MUST 为空，并通过 placeholder 提示“留空则保持原密钥”
+- **AND** 页面表单字段 MUST 单独一行展示，不得把状态字段或其他输入域并排放在同一行
+- **AND** 供应商新增和修改表单 MUST NOT 嵌入模型维护内容
 
 #### Scenario: 维护供应商模型
 
 - **WHEN** 用户在供应商下新增、编辑、删除或启停模型
 - **THEN** 系统 MUST 校验模型属于目标供应商
 - **AND** 模型 MUST 声明 `capabilityType`，首期可用值为 `text`
+- **AND** 模型 MUST 声明 `capabilityMethod`，首期 `text` 可用值为 `generate`
 - **AND** 文本模型 MUST 声明 `protocol`、`supportsThinking` 和 `supportedEfforts`
+- **AND** 供应商列表工具栏 MUST 同时提供“新增供应商”和“新增模型”入口，且两个按钮 MUST 使用可区分的样式
+- **AND** 供应商列表模型列 MUST 使用常规字重展示模型名，不得加粗模型名
+- **AND** 模型删除入口 MUST 使用图标按钮展示，不得使用文字 `X` 作为删除按钮
 
 #### Scenario: 同步模型列表
 
 - **WHEN** 用户触发供应商模型同步
 - **THEN** 系统 MUST 调用供应商协议对应的模型列表接口并写入公开模型元数据
+- **AND** 页面 MUST 在供应商列表操作列中提供 OpenAI-compatible 和 Anthropic-compatible 的模型同步入口
+- **AND** 同步入口 MUST 直接展示在操作列中，不得折叠进“更多”菜单
+- **AND** OpenAI-compatible 和 Anthropic-compatible 同步入口同时存在时 MUST 分两行展示
 - **AND** 同步失败 MUST 保留既有手工模型和被引用模型
 - **AND** 系统 MUST NOT 自动推断未由供应商或用户明确声明的 `thinkingEffort` 支持范围
 
@@ -82,19 +102,30 @@
 
 系统 SHALL 在“档位管理”页面和插件 API 中固定提供 `basic`、`standard`、`advanced` 三个文本能力档位。每个档位 MUST 能绑定一个主供应商模型，配置启用状态、默认 `thinkingEffort` 和测试入口。
 
+#### Scenario: 档位身份包含能力方法
+
+- **WHEN** 系统存储或查询能力档位
+- **THEN** 档位记录 MUST 使用 `capabilityType + capabilityMethod + tierCode` 作为唯一身份
+- **AND** 首期文本生成档位 MUST 使用 `capabilityType=text` 与 `capabilityMethod=generate`
+- **AND** 同一能力方法范围下每个 `basic`、`standard`、`advanced` 档位 MUST 只能存在一条记录
+- **AND** `capabilityType` 与 `capabilityMethod` MUST NOT 作为档位编辑表单中的可变字段
+
 #### Scenario: 查询档位列表
 
 - **WHEN** 前端调用 `GET /api/ai/tiers`
-- **THEN** 系统 MUST 返回 `basic`、`standard`、`advanced` 三个文本档位
-- **AND** 每个档位 MUST 包含代码、显示名称、说明、启用状态、默认 `thinkingEffort`、主绑定投影、最近测试摘要和更新时间
+- **THEN** 系统 MUST 按请求中的 `capabilityType` 与 `capabilityMethod` 返回该能力方法下的 `basic`、`standard`、`advanced` 三个档位
+- **AND** 未传 `capabilityMethod` 时首期 MUST 默认使用 `generate`
+- **AND** 每个档位 MUST 包含能力类型、能力方法、代码、显示名称、说明、启用状态、默认 `thinkingEffort`、主绑定投影、最近测试摘要和更新时间
 - **AND** 所有公开时间点字段 MUST 使用 Unix timestamp in milliseconds
 
 #### Scenario: 更新档位主绑定
 
 - **WHEN** 用户调用 `PUT /api/ai/tiers/{code}` 保存档位
 - **THEN** 系统 MUST 校验档位代码属于 `basic`、`standard` 或 `advanced`
+- **AND** 系统 MUST 使用请求中的 `capabilityType + capabilityMethod + code` 定位档位，首期默认定位 `text.generate`
 - **AND** 系统 MUST 校验供应商和模型真实存在、已启用且模型属于供应商
 - **AND** 系统 MUST 校验模型的 `capabilityType` 为 `text`
+- **AND** 系统 MUST 校验模型的 `capabilityMethod` 为 `generate`
 - **AND** 系统 MUST 将该模型设置为该档位的主绑定
 
 #### Scenario: 默认 thinkingEffort 校验
@@ -122,7 +153,7 @@
 #### Scenario: 模型选择按供应商过滤
 
 - **WHEN** 用户在某个档位选择供应商
-- **THEN** 模型选择项 MUST 只展示该供应商下已启用的文本模型
+- **THEN** 模型选择项 MUST 只展示该供应商下已启用且匹配当前 `capabilityType + capabilityMethod` 的模型
 - **AND** 模型选项 MUST 展示协议和 thinking 支持信息
 
 #### Scenario: 不支持 effort 时提示
@@ -161,7 +192,7 @@
 #### Scenario: 记录成功调用
 
 - **WHEN** 文本 `AI` 调用成功
-- **THEN** 系统 MUST 记录 `requestId`、`capabilityType`、`purpose`、档位、调用来源、供应商模型投影、协议、`thinkingEffort`、状态、token 用量、耗时和创建时间
+- **THEN** 系统 MUST 记录 `requestId`、`capabilityType`、`capabilityMethod`、`purpose`、档位、调用来源、供应商模型投影、协议、`thinkingEffort`、状态、token 用量、耗时和创建时间
 - **AND** 系统 MUST NOT 保存完整 `messages`、完整响应正文、隐藏思考内容或 API key
 
 #### Scenario: 记录失败调用
@@ -174,7 +205,7 @@
 
 - **WHEN** 用户调用 `GET /api/ai/invocations`
 - **THEN** 系统 MUST 按创建时间倒序分页返回日志
-- **AND** 查询 MUST 支持按 `capabilityType`、`purpose`、档位、状态、供应商、模型、来源插件和时间范围过滤
+- **AND** 查询 MUST 支持按 `capabilityType`、`capabilityMethod`、`purpose`、档位、状态、供应商、模型、来源插件和时间范围过滤
 - **AND** 后端 MUST 在数据库侧完成过滤、排序和分页
 
 ### Requirement: 插件存储必须由 linapro-ai-core 自有并具备性能边界
@@ -185,13 +216,14 @@
 
 - **WHEN** 安装或初始化 `linapro-ai-core`
 - **THEN** 插件 SQL MUST 创建 `plugin_linapro_ai_provider`、`plugin_linapro_ai_model`、`plugin_linapro_ai_tier`、`plugin_linapro_ai_tier_binding` 和 `plugin_linapro_ai_invocation`
-- **AND** SQL MUST seed `text` 能力的 `basic`、`standard`、`advanced` 三个固定档位
+- **AND** SQL MUST seed `text.generate` 能力方法的 `basic`、`standard`、`advanced` 三个固定档位
+- **AND** 档位唯一约束 MUST 覆盖 `capability_type`、`capability_method` 和 `code`
 - **AND** SQL MUST 满足重复执行结果一致
 
 #### Scenario: 高频查询具备索引
 
 - **WHEN** 系统查询供应商列表、模型列表、档位解析或调用日志
-- **THEN** 表结构 MUST 为供应商模型关联、档位绑定解析、日志时间范围、状态、档位、供应商和模型过滤提供必要索引
+- **THEN** 表结构 MUST 为供应商模型关联、`capabilityType + capabilityMethod` 模型筛选、档位绑定解析、日志时间范围、状态、档位、供应商和模型过滤提供必要索引
 - **AND** 设计 MUST 支持集合化读取和当前页批量装配，MUST NOT 依赖动态结果集逐行查询
 
 #### Scenario: 不写入自增主键
@@ -202,7 +234,7 @@
 
 ### Requirement: 档位解析缓存必须保持一致性
 
-系统 SHALL 在 `linapro-ai-core` provider 内维护文本档位解析缓存，用于将 `capabilityType + tier` 解析为可调用供应商模型绑定。缓存权威源 MUST 是插件数据库，失效 MUST 与配置写入成功耦合。
+系统 SHALL 在 `linapro-ai-core` provider 内维护文本档位解析缓存，用于将 `capabilityType + capabilityMethod + tier` 解析为可调用供应商模型绑定。缓存权威源 MUST 是插件数据库，失效 MUST 与配置写入成功耦合。
 
 #### Scenario: 配置变更后失效缓存
 
@@ -242,7 +274,7 @@
 
 - **WHEN** 动态插件获得 `ai.text.generate` host service 授权
 - **THEN** 该授权 MUST 只允许按授权 purpose 调用文本能力
-- **AND** 插件 MUST NOT 因该授权访问供应商管理、档位管理或调用日志管理 API
+- **AND** 插件 MUST NOT 因该授权访问供应商、档位管理或调用日志管理 API
 
 ### Requirement: 插件 i18n 和 API 文档必须按插件配置治理
 

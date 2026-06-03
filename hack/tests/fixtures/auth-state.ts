@@ -37,13 +37,18 @@ export async function writeAdminStorageState(baseURL = config.baseURL) {
       const preferencesKey = Object.keys(localStorage).find((key) =>
         key.endsWith('preferences'),
       );
-      if (!preferencesKey) {
-        return;
+      if (preferencesKey) {
+        const preferences = JSON.parse(localStorage.getItem(preferencesKey) || '{}');
+        if (preferences.value?.app) {
+          preferences.value.app.locale = 'zh-CN';
+          localStorage.setItem(preferencesKey, JSON.stringify(preferences));
+        }
       }
-      const preferences = JSON.parse(localStorage.getItem(preferencesKey) || '{}');
-      if (preferences.value?.app) {
-        preferences.value.app.locale = 'zh-CN';
-        localStorage.setItem(preferencesKey, JSON.stringify(preferences));
+
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('linapro:i18n:runtime:')) {
+          localStorage.removeItem(key);
+        }
       }
     });
     await context.storageState({ path: adminStorageStatePath });

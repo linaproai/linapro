@@ -5,6 +5,7 @@ package catalog
 
 import (
 	"context"
+	"reflect"
 	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -152,6 +153,54 @@ func (s *serviceImpl) ParseManifestSnapshot(content string) (*ManifestSnapshot, 
 	return snapshot, nil
 }
 
+// applyExistingHostServiceAuthorization carries forward an existing release
+// authorization only when it was confirmed against the same requested
+// hostServices declaration. Same-version dynamic artifacts can be rebuilt with
+// new hostServices, so a confirmed snapshot for an older declaration must not
+// shadow the current release request.
+func applyExistingHostServiceAuthorization(
+	snapshot *ManifestSnapshot,
+	existingSnapshot *ManifestSnapshot,
+) error {
+	if snapshot == nil || existingSnapshot == nil {
+		return nil
+	}
+	snapshot.UninstallPurgeStorageData = existingSnapshot.UninstallPurgeStorageData
+
+	matches, err := hostServiceSpecsEqual(snapshot.RequestedHostServices, existingSnapshot.RequestedHostServices)
+	if err != nil {
+		return err
+	}
+	if !matches {
+		return nil
+	}
+
+	authorizedHostServices, err := protocol.NormalizeHostServiceSpecs(existingSnapshot.AuthorizedHostServices)
+	if err != nil {
+		return err
+	}
+	snapshot.AuthorizedHostServices = authorizedHostServices
+	snapshot.HostServiceAuthConfirmed = existingSnapshot.HostServiceAuthConfirmed
+	return nil
+}
+
+// hostServiceSpecsEqual compares two host service snapshots after protocol
+// normalization so ordering and declaration casing do not affect drift checks.
+func hostServiceSpecsEqual(
+	left []*protocol.HostServiceSpec,
+	right []*protocol.HostServiceSpec,
+) (bool, error) {
+	leftSpecs, err := protocol.NormalizeHostServiceSpecs(left)
+	if err != nil {
+		return false, err
+	}
+	rightSpecs, err := protocol.NormalizeHostServiceSpecs(right)
+	if err != nil {
+		return false, err
+	}
+	return reflect.DeepEqual(leftSpecs, rightSpecs), nil
+}
+
 // PersistReleaseHostServiceAuthorization writes the current requested and
 // authorized host service snapshot into the matching release row.
 func (s *serviceImpl) PersistReleaseHostServiceAuthorization(
@@ -181,13 +230,9 @@ func (s *serviceImpl) PersistReleaseHostServiceAuthorization(
 		return nil, err
 	}
 	if existingSnapshot != nil {
-		snapshot.HostServiceAuthConfirmed = existingSnapshot.HostServiceAuthConfirmed
-		authorizedHostServices, normalizeErr := protocol.NormalizeHostServiceSpecs(existingSnapshot.AuthorizedHostServices)
-		if normalizeErr != nil {
-			return nil, normalizeErr
+		if err = applyExistingHostServiceAuthorization(snapshot, existingSnapshot); err != nil {
+			return nil, err
 		}
-		snapshot.AuthorizedHostServices = authorizedHostServices
-		snapshot.UninstallPurgeStorageData = existingSnapshot.UninstallPurgeStorageData
 	}
 
 	if !snapshot.HostServiceAuthRequired {
@@ -199,6 +244,12 @@ func (s *serviceImpl) PersistReleaseHostServiceAuthorization(
 		snapshot.HostServiceAuthConfirmed = false
 	} else if input != nil {
 		snapshot.AuthorizedHostServices, err = BuildAuthorizedHostServiceSpecs(snapshot.RequestedHostServices, input)
+		if err != nil {
+			return nil, err
+		}
+		snapshot.HostServiceAuthConfirmed = true
+	} else if !snapshot.HostServiceAuthConfirmed {
+		snapshot.AuthorizedHostServices, err = BuildAuthorizedHostServiceSpecs(snapshot.RequestedHostServices, nil)
 		if err != nil {
 			return nil, err
 		}
