@@ -32,7 +32,7 @@ assets/
 # =============================================================================
 # Agent / AI tooling local config
 # =============================================================================
-.aiprompt.zh.md
+/localdocs/
 .codex/config.toml
 .github/codex/*
 !.github/codex/
