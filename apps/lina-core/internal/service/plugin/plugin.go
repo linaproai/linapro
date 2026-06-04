@@ -676,6 +676,9 @@ func New(
 	)
 	runtimeSvc.SetRuntimeCacheChangeNotifier(service)
 	runtimeSvc.SetDependencyValidator(service)
+	if err := runtimeSvc.ValidateRequiredDependencies(); err != nil {
+		return nil, gerror.Wrap(err, "plugin runtime wiring validation failed")
+	}
 	service.sourceUpgradeSvc = sourceupgradeinternal.New(catalogSvc, lifecycleSvc, runtimeSvc, integrationSvc, i18nSvc, service)
 	return service, nil
 }

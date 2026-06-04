@@ -7,6 +7,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"lina-core/pkg/plugin/capability/ai/aitext"
 )
 
 // TestDefaultDirectoryReturnsCapabilityClients verifies the guest directory
@@ -30,10 +32,10 @@ func TestDefaultDirectoryReturnsCapabilityClients(t *testing.T) {
 	assertSameClient(t, services.Manifest(), Manifest(), "manifest")
 }
 
-// TestOrgTenantServicesUseBridgeTransport verifies capability guest clients use
-// independent structured host services and surface unsupported stubs in
-// ordinary Go builds.
-func TestOrgTenantServicesUseBridgeTransport(t *testing.T) {
+// TestSharedCapabilityServicesUseBridgeTransport verifies capability guest
+// clients use independent structured host services and surface unsupported
+// stubs in ordinary Go builds.
+func TestSharedCapabilityServicesUseBridgeTransport(t *testing.T) {
 	_, err := New().Org().GetUserDeptIDs(context.Background(), 1)
 	if !errors.Is(err, ErrHostCallsUnavailable) {
 		t.Fatalf("expected non-WASI org capability to use host-call stub, got %v", err)
@@ -41,6 +43,10 @@ func TestOrgTenantServicesUseBridgeTransport(t *testing.T) {
 	_, err = New().Tenant().ListUserTenants(context.Background(), 1)
 	if !errors.Is(err, ErrHostCallsUnavailable) {
 		t.Fatalf("expected non-WASI tenant capability to use host-call stub, got %v", err)
+	}
+	_, err = New().AI().Text().GenerateText(context.Background(), aitext.GenerateRequest{Purpose: "content.summary"})
+	if !errors.Is(err, ErrHostCallsUnavailable) {
+		t.Fatalf("expected non-WASI AI capability to use host-call stub, got %v", err)
 	}
 }
 

@@ -137,6 +137,9 @@ type ManifestReader interface {
 	// ScanManifests merges source-plugin discovery and runtime-wasm discovery
 	// into one normalized manifest list used by lifecycle and governance services.
 	ScanManifests() ([]*Manifest, error)
+	// ScanManifestsByID returns the latest discovered manifests keyed by plugin ID
+	// for list and projection paths that need to reuse one discovery result.
+	ScanManifestsByID() (map[string]*Manifest, error)
 	// ReadSourcePluginManifestContent reads the raw manifest content from an embedded or
 	// filesystem-backed source plugin.
 	ReadSourcePluginManifestContent(manifest *Manifest) ([]byte, error)

@@ -12,12 +12,12 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gfile"
 
-	"lina-core/internal/service/config"
 	"lina-core/internal/service/plugin/internal/resourcefs"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
@@ -38,8 +38,12 @@ type storageConfigReader interface {
 	GetPluginDynamicStoragePath(ctx context.Context) string
 }
 
-// storageConfigSvc provides the runtime storage root configuration.
-var storageConfigSvc storageConfigReader = config.New()
+// storageConfigState stores the runtime storage root configuration. It must be
+// configured by the host startup composition root before use.
+var storageConfigState struct {
+	sync.RWMutex
+	service storageConfigReader
+}
 
 // ConfigureStorageHostService replaces the storage configuration reader used
 // by wasm host calls. The service must be non-nil.
@@ -47,8 +51,18 @@ func ConfigureStorageHostService(service storageConfigReader) error {
 	if service == nil {
 		return gerror.New("wasm storage host service requires a non-nil config reader")
 	}
-	storageConfigSvc = service
+	storageConfigState.Lock()
+	storageConfigState.service = service
+	storageConfigState.Unlock()
 	return nil
+}
+
+// currentStorageConfigReader returns the currently configured storage config reader.
+func currentStorageConfigReader() storageConfigReader {
+	storageConfigState.RLock()
+	service := storageConfigState.service
+	storageConfigState.RUnlock()
+	return service
 }
 
 // storageResourceConfig stores the resolved storage root and visibility for one plugin.
@@ -72,11 +86,12 @@ func dispatchStorageHostService(
 			"storage host service requires one authorized target path",
 		)
 	}
-	if storageConfigSvc == nil {
+	configReader := currentStorageConfigReader()
+	if configReader == nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "storage host service is not configured")
 	}
 
-	resourceConfig, err := buildStorageResourceConfig(ctx, hcc)
+	resourceConfig, err := buildStorageResourceConfig(ctx, hcc, configReader)
 	if err != nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
@@ -331,13 +346,17 @@ func handleStorageStat(
 func buildStorageResourceConfig(
 	ctx context.Context,
 	hcc *hostCallContext,
+	configReader storageConfigReader,
 ) (*storageResourceConfig, error) {
 	if hcc == nil {
 		return nil, gerror.New("host call context not available")
 	}
+	if configReader == nil {
+		return nil, gerror.New("storage host service is not configured")
+	}
 
 	rootDir := filepath.Join(
-		storageConfigSvc.GetPluginDynamicStoragePath(ctx),
+		configReader.GetPluginDynamicStoragePath(ctx),
 		storageHostServiceRootDirName,
 		storageHostServiceDirName,
 		hcc.pluginID,

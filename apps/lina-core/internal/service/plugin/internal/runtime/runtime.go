@@ -316,6 +316,8 @@ type DependencyWiringService interface {
 	SetRuntimeCacheChangeNotifier(n CacheChangeNotifier)
 	// SetDependencyValidator wires release dependency validation.
 	SetDependencyValidator(v DependencyValidator)
+	// ValidateRequiredDependencies verifies production runtime wiring after all setters run.
+	ValidateRequiredDependencies() error
 }
 
 // DynamicPackageService defines runtime WASM package upload and storage operations.
@@ -417,7 +419,6 @@ func New(
 		lifecycleSvc:               lifecycleSvc,
 		frontendSvc:                frontendSvc,
 		openapiSvc:                 openapiSvc,
-		sessionStore:               session.NewDBStore(),
 		reconcilerLockSvc:          reconcilerLockSvc,
 		reconcilerRevisionObserved: runtimecache.NewObservedRevision(),
 		i18nSvc:                    i18nSvc,

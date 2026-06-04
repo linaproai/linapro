@@ -311,13 +311,8 @@ func validateMIMEListAttribute(value string) error {
 
 // defaultHostServiceMethods returns service-specific default method grants.
 func defaultHostServiceMethods(service string) []string {
-	switch service {
-	case HostServiceConfig:
-		return []string{HostServiceMethodConfigGet}
-	case HostServiceHostConfig:
-		return []string{HostServiceMethodHostConfigGet}
-	case HostServiceManifest:
-		return []string{HostServiceMethodManifestGet}
+	if methods := hostServiceDefaultMethods[service]; len(methods) > 0 {
+		return append([]string(nil), methods...)
 	}
 	return nil
 }

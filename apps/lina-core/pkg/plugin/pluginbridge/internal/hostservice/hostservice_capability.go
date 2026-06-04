@@ -9,159 +9,16 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
-// Shared host-service lookup tables drive capability derivation and per-service
-// validation rules used by manifest normalization.
+// Shared host-service lookup tables are derived from hostServiceDescriptors so
+// capability derivation and resource validation share one governed metadata source.
 var (
-	hostServiceMethodCapabilityMap = map[string]map[string]string{
-		HostServiceRuntime: {
-			HostServiceMethodRuntimeLogWrite:    CapabilityRuntime,
-			HostServiceMethodRuntimeStateGet:    CapabilityRuntime,
-			HostServiceMethodRuntimeStateSet:    CapabilityRuntime,
-			HostServiceMethodRuntimeStateDelete: CapabilityRuntime,
-			HostServiceMethodRuntimeInfoNow:     CapabilityRuntime,
-			HostServiceMethodRuntimeInfoUUID:    CapabilityRuntime,
-			HostServiceMethodRuntimeInfoNode:    CapabilityRuntime,
-		},
-		HostServiceCron: {
-			HostServiceMethodCronRegister: CapabilityCron,
-		},
-		HostServiceStorage: {
-			HostServiceMethodStoragePut:    CapabilityStorage,
-			HostServiceMethodStorageGet:    CapabilityStorage,
-			HostServiceMethodStorageDelete: CapabilityStorage,
-			HostServiceMethodStorageList:   CapabilityStorage,
-			HostServiceMethodStorageStat:   CapabilityStorage,
-		},
-		HostServiceNetwork: {
-			HostServiceMethodNetworkRequest: CapabilityHTTPRequest,
-		},
-		HostServiceData: {
-			HostServiceMethodDataList:        CapabilityDataRead,
-			HostServiceMethodDataGet:         CapabilityDataRead,
-			HostServiceMethodDataCreate:      CapabilityDataMutate,
-			HostServiceMethodDataUpdate:      CapabilityDataMutate,
-			HostServiceMethodDataDelete:      CapabilityDataMutate,
-			HostServiceMethodDataTransaction: CapabilityDataMutate,
-		},
-		HostServiceCache: {
-			HostServiceMethodCacheGet:    CapabilityCache,
-			HostServiceMethodCacheSet:    CapabilityCache,
-			HostServiceMethodCacheDelete: CapabilityCache,
-			HostServiceMethodCacheIncr:   CapabilityCache,
-			HostServiceMethodCacheExpire: CapabilityCache,
-		},
-		HostServiceLock: {
-			HostServiceMethodLockAcquire: CapabilityLock,
-			HostServiceMethodLockRenew:   CapabilityLock,
-			HostServiceMethodLockRelease: CapabilityLock,
-		},
-		HostServiceSecret: {
-			"resolve": CapabilitySecret,
-		},
-		HostServiceEvent: {
-			"publish": CapabilityEventPublish,
-		},
-		HostServiceQueue: {
-			"enqueue": CapabilityQueueEnqueue,
-		},
-		HostServiceNotify: {
-			HostServiceMethodNotifySend: CapabilityNotify,
-		},
-		HostServiceConfig: {
-			HostServiceMethodConfigGet: CapabilityConfig,
-		},
-		HostServiceHostConfig: {
-			HostServiceMethodHostConfigGet: CapabilityHostConfig,
-		},
-		HostServiceManifest: {
-			HostServiceMethodManifestGet: CapabilityManifest,
-		},
-		HostServiceAI: {
-			HostServiceMethodAITextGenerate:         CapabilityAIText,
-			HostServiceMethodAIImageGenerate:        CapabilityAIImage,
-			HostServiceMethodAIImageEdit:            CapabilityAIImage,
-			HostServiceMethodAIEmbeddingCreate:      CapabilityAIEmbedding,
-			HostServiceMethodAIAudioTranscribe:      CapabilityAIAudio,
-			HostServiceMethodAIAudioSynthesize:      CapabilityAIAudio,
-			HostServiceMethodAIVisionAnalyze:        CapabilityAIVision,
-			HostServiceMethodAIDocumentAnalyze:      CapabilityAIDocument,
-			HostServiceMethodAIDocumentCite:         CapabilityAIDocument,
-			HostServiceMethodAISafetyModerate:       CapabilityAISafety,
-			HostServiceMethodAIVideoGenerate:        CapabilityAIVideo,
-			HostServiceMethodAIVideoEdit:            CapabilityAIVideo,
-			HostServiceMethodAIVideoExtend:          CapabilityAIVideo,
-			HostServiceMethodAIVideoOperationGet:    CapabilityAIVideo,
-			HostServiceMethodAIVideoOperationCancel: CapabilityAIVideo,
-		},
-		HostServiceOrg: {
-			HostServiceMethodOrgAvailable:               CapabilityOrg,
-			HostServiceMethodOrgStatus:                  CapabilityOrg,
-			HostServiceMethodOrgListUserDeptAssignments: CapabilityOrg,
-			HostServiceMethodOrgGetUserDeptInfo:         CapabilityOrg,
-			HostServiceMethodOrgGetUserDeptName:         CapabilityOrg,
-			HostServiceMethodOrgGetUserDeptIDs:          CapabilityOrg,
-			HostServiceMethodOrgGetUserPostIDs:          CapabilityOrg,
-		},
-		HostServiceTenant: {
-			HostServiceMethodTenantAvailable:            CapabilityTenant,
-			HostServiceMethodTenantStatus:               CapabilityTenant,
-			HostServiceMethodTenantCurrent:              CapabilityTenant,
-			HostServiceMethodTenantPlatformBypass:       CapabilityTenant,
-			HostServiceMethodTenantEnsureVisible:        CapabilityTenant,
-			HostServiceMethodTenantValidateUserInTenant: CapabilityTenant,
-			HostServiceMethodTenantListUserTenants:      CapabilityTenant,
-			HostServiceMethodTenantValidateSwitch:       CapabilityTenant,
-		},
-	}
-
-	allCapabilities = map[string]struct{}{
-		CapabilityRuntime:      {},
-		CapabilityCron:         {},
-		CapabilityStorage:      {},
-		CapabilityHTTPRequest:  {},
-		CapabilityDataRead:     {},
-		CapabilityDataMutate:   {},
-		CapabilityCache:        {},
-		CapabilityLock:         {},
-		CapabilitySecret:       {},
-		CapabilityEventPublish: {},
-		CapabilityQueueEnqueue: {},
-		CapabilityNotify:       {},
-		CapabilityConfig:       {},
-		CapabilityHostConfig:   {},
-		CapabilityManifest:     {},
-		CapabilityAIText:       {},
-		CapabilityAIImage:      {},
-		CapabilityAIEmbedding:  {},
-		CapabilityAIAudio:      {},
-		CapabilityAIVision:     {},
-		CapabilityAIDocument:   {},
-		CapabilityAISafety:     {},
-		CapabilityAIVideo:      {},
-		CapabilityOrg:          {},
-		CapabilityTenant:       {},
-	}
-
-	hostServicesWithoutResources = map[string]struct{}{
-		HostServiceRuntime: {},
-		HostServiceCron:    {},
-		HostServiceConfig:  {},
-		HostServiceOrg:     {},
-		HostServiceTenant:  {},
-	}
-
-	hostServicesWithKeys = map[string]struct{}{
-		HostServiceHostConfig: {},
-	}
-
-	hostServicesWithTables = map[string]struct{}{
-		HostServiceData: {},
-	}
-
-	hostServicesWithPaths = map[string]struct{}{
-		HostServiceStorage:  {},
-		HostServiceManifest: {},
-	}
+	hostServiceMethodCapabilityMap = buildHostServiceMethodCapabilityMap()
+	allCapabilities                = buildHostServiceCapabilitySet()
+	hostServiceDefaultMethods      = buildHostServiceDefaultMethods()
+	hostServicesWithoutResources   = buildHostServiceResourceKindSet(HostServiceResourceNone)
+	hostServicesWithKeys           = buildHostServiceResourceKindSet(HostServiceResourceKey)
+	hostServicesWithTables         = buildHostServiceResourceKindSet(HostServiceResourceTable)
+	hostServicesWithPaths          = buildHostServiceResourceKindSet(HostServiceResourcePath)
 )
 
 // RequiredCapabilityForHostServiceMethod returns the capability required by one host service method.

@@ -52,9 +52,13 @@ func buildStorageResourceConfigForPlugin(
 	if normalizedPluginID == "" {
 		return nil, gerror.New("plugin id cannot be empty")
 	}
+	configReader := currentStorageConfigReader()
+	if configReader == nil {
+		return nil, gerror.New("storage host service is not configured")
+	}
 
 	rootDir := filepath.Join(
-		storageConfigSvc.GetPluginDynamicStoragePath(ctx),
+		configReader.GetPluginDynamicStoragePath(ctx),
 		storageHostServiceRootDirName,
 		storageHostServiceDirName,
 		normalizedPluginID,

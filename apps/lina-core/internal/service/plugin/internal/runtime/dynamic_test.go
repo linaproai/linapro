@@ -154,6 +154,70 @@ func TestListRuntimeStatesUsesCatalogSnapshotForReleaseLookups(t *testing.T) {
 	assertNoReleasePointQueries(t, sqls)
 }
 
+// TestListRuntimeStatesScansDynamicManifestsOnce verifies the public runtime
+// state list reuses one manifest scan instead of reparsing every artifact for
+// every registry row.
+func TestListRuntimeStatesScansDynamicManifestsOnce(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		firstPluginID  = "plugin-dev-dynamic-runtime-state-scan-a"
+		secondPluginID = "plugin-dev-dynamic-runtime-state-scan-b"
+		version        = "v0.9.10"
+	)
+
+	for _, pluginID := range []string{firstPluginID, secondPluginID} {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	}
+	t.Cleanup(func() {
+		for _, pluginID := range []string{firstPluginID, secondPluginID} {
+			testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		}
+	})
+
+	artifactPaths := make(map[string]string, 2)
+	for _, pluginID := range []string{firstPluginID, secondPluginID} {
+		artifactPath := testutil.CreateTestRuntimeStorageArtifact(
+			t,
+			pluginID,
+			"Runtime State Scan Plugin",
+			version,
+			nil,
+			nil,
+		)
+		artifactPaths[pluginID] = artifactPath
+
+		manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+		if err != nil {
+			t.Fatalf("expected dynamic artifact manifest to load for %s, got error: %v", pluginID, err)
+		}
+		if _, err = services.Catalog.SyncManifest(ctx, manifest); err != nil {
+			t.Fatalf("expected dynamic manifest sync to succeed for %s, got error: %v", pluginID, err)
+		}
+	}
+
+	parser := &countingArtifactParser{
+		delegate:    services.Runtime,
+		parseCounts: make(map[string]int, len(artifactPaths)),
+	}
+	services.Catalog.SetArtifactParser(parser)
+
+	output, err := services.Runtime.ListRuntimeStates(ctx)
+	if err != nil {
+		t.Fatalf("expected runtime state list to succeed, got error: %v", err)
+	}
+	if findRuntimeStateItem(output.List, firstPluginID) == nil || findRuntimeStateItem(output.List, secondPluginID) == nil {
+		t.Fatalf("expected runtime state list to include both scan-count test plugins")
+	}
+
+	for _, pluginID := range []string{firstPluginID, secondPluginID} {
+		if count := parser.ParseCount(artifactPaths[pluginID]); count != 1 {
+			t.Fatalf("expected runtime state list to parse artifact %s once, got %d", pluginID, count)
+		}
+	}
+}
+
 // TestInstallRepairsEmptyReleaseArchive verifies a same-version lifecycle pass
 // replaces a corrupt zero-byte release artifact before the release is activated.
 func TestInstallRepairsEmptyReleaseArchive(t *testing.T) {
@@ -322,6 +386,41 @@ func findRuntimeStateItem(items []*runtime.PluginDynamicStateItem, pluginID stri
 		}
 	}
 	return nil
+}
+
+// countingArtifactParser records file-based runtime artifact parses while
+// delegating all parsing and validation behavior to the real runtime service.
+type countingArtifactParser struct {
+	// delegate preserves production artifact parsing and validation behavior.
+	delegate catalog.ArtifactParser
+	// parseCounts stores ParseRuntimeWasmArtifact calls by normalized file path.
+	parseCounts map[string]int
+}
+
+// ParseRuntimeWasmArtifact records one file parse and delegates parsing to the
+// wrapped artifact parser.
+func (p *countingArtifactParser) ParseRuntimeWasmArtifact(filePath string) (*catalog.ArtifactSpec, error) {
+	p.parseCounts[filepath.Clean(filePath)]++
+	return p.delegate.ParseRuntimeWasmArtifact(filePath)
+}
+
+// ParseRuntimeWasmArtifactContent delegates in-memory parsing without updating
+// file parse counts because it is not part of storage manifest scanning.
+func (p *countingArtifactParser) ParseRuntimeWasmArtifactContent(
+	filePath string,
+	content []byte,
+) (*catalog.ArtifactSpec, error) {
+	return p.delegate.ParseRuntimeWasmArtifactContent(filePath, content)
+}
+
+// ValidateRuntimeArtifact delegates source-tree runtime artifact validation.
+func (p *countingArtifactParser) ValidateRuntimeArtifact(manifest *catalog.Manifest, rootDir string) error {
+	return p.delegate.ValidateRuntimeArtifact(manifest, rootDir)
+}
+
+// ParseCount returns how many file-based parses were recorded for filePath.
+func (p *countingArtifactParser) ParseCount(filePath string) int {
+	return p.parseCounts[filepath.Clean(filePath)]
 }
 
 // assertNoReleasePointQueries fails when captured SQL shows release lookups by

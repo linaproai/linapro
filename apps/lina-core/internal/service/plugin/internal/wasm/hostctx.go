@@ -14,11 +14,9 @@ import (
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-// hostCallContextKey is the private context key for host call state.
 // hostCallContextKey is the context key type for host call state values.
 type hostCallContextKey struct{}
 
-// hostCallContext carries per-request state into wazero host function callbacks.
 // hostCallContext carries per-request plugin identity and authorization state.
 type hostCallContext struct {
 	// pluginID identifies the calling plugin.
@@ -45,13 +43,11 @@ type hostCallContext struct {
 	cronCollector CronRegistrationCollector
 }
 
-// withHostCallContext attaches a host call context to the given context.
 // withHostCallContext attaches the host call context to the execution context.
 func withHostCallContext(ctx context.Context, hcc *hostCallContext) context.Context {
 	return context.WithValue(ctx, hostCallContextKey{}, hcc)
 }
 
-// hostCallContextFrom extracts the host call context from the given context.
 // hostCallContextFrom retrieves the host call context from the execution context.
 func hostCallContextFrom(ctx context.Context) *hostCallContext {
 	if hcc, ok := ctx.Value(hostCallContextKey{}).(*hostCallContext); ok {
@@ -60,7 +56,6 @@ func hostCallContextFrom(ctx context.Context) *hostCallContext {
 	return nil
 }
 
-// hasCapability checks if the plugin has been granted a specific capability.
 // hasCapability reports whether the plugin execution was granted the capability.
 func (hcc *hostCallContext) hasCapability(capability string) bool {
 	if hcc == nil || hcc.capabilities == nil {
@@ -70,7 +65,6 @@ func (hcc *hostCallContext) hasCapability(capability string) bool {
 	return ok
 }
 
-// hasHostServiceAccess checks whether the plugin may invoke one service method and governed target.
 // hasHostServiceAccess reports whether the plugin may invoke the governed
 // host-service target under the persisted authorization snapshot.
 func (hcc *hostCallContext) hasHostServiceAccess(service string, method string, resourceRef string, table string) bool {

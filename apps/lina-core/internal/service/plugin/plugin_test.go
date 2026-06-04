@@ -14,15 +14,21 @@ import (
 	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/coordination"
+	"lina-core/internal/service/hostlock"
 	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/locker"
+	notifysvc "lina-core/internal/service/notify"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/session"
 	_ "lina-core/pkg/dbdriver"
 	"lina-core/pkg/plugin/capability"
 	capabilityai "lina-core/pkg/plugin/capability/ai"
 	aitextsvc "lina-core/pkg/plugin/capability/ai/aitext"
+	capabilityconfig "lina-core/pkg/plugin/capability/config"
 	"lina-core/pkg/plugin/capability/contract"
+	capabilityhostconfig "lina-core/pkg/plugin/capability/hostconfig"
+	capabilitymanifest "lina-core/pkg/plugin/capability/manifest"
 	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
 	capabilitypluginlifecycle "lina-core/pkg/plugin/capability/pluginlifecycle"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
@@ -44,31 +50,63 @@ func newTestServiceWithTopology(topology Topology) *serviceImpl {
 	)
 	if topology != nil && topology.IsEnabled() {
 		coordSvc := coordination.NewMemory(nil)
+		lockerSvc := locker.New()
 		cachecoord.DefaultWithCoordination(topology, coordSvc)
 		cacheCoordSvc = cachecoord.Default(topology)
 		i18nSvc := i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
-		service, err := New(topology, configProvider, bizCtxProvider, cacheCoordSvc, i18nSvc, session.NewDBStore(), locker.New(), coordSvc.Lock())
+		service, err := New(topology, configProvider, bizCtxProvider, cacheCoordSvc, i18nSvc, session.NewDBStore(), lockerSvc, coordSvc.Lock())
 		if err != nil {
 			panic(err)
 		}
 		serviceImpl := service.(*serviceImpl)
 		tenantSvc := tenantcapsvc.New(serviceImpl, bizCtxProvider)
-		serviceImpl.SetCapabilities(newRootTestCapabilities(bizCtxProvider, serviceImpl))
+		capabilities := newRootTestCapabilities(bizCtxProvider, serviceImpl)
+		serviceImpl.SetCapabilities(capabilities)
 		serviceImpl.SetTenantStartupCapability(tenantSvc)
 		serviceImpl.SetTenantProvisioningCapability(tenantSvc)
+		configureRootWasmHostServicesForTest(configProvider, bizCtxProvider, capabilities, lockerSvc)
 		return serviceImpl
 	}
+	lockerSvc := locker.New()
 	i18nSvc := i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
-	service, err := New(topology, configProvider, bizCtxProvider, cacheCoordSvc, i18nSvc, session.NewDBStore(), locker.New(), nil)
+	service, err := New(topology, configProvider, bizCtxProvider, cacheCoordSvc, i18nSvc, session.NewDBStore(), lockerSvc, nil)
 	if err != nil {
 		panic(err)
 	}
 	serviceImpl := service.(*serviceImpl)
 	tenantSvc := tenantcapsvc.New(serviceImpl, bizCtxProvider)
-	serviceImpl.SetCapabilities(newRootTestCapabilities(bizCtxProvider, serviceImpl))
+	capabilities := newRootTestCapabilities(bizCtxProvider, serviceImpl)
+	serviceImpl.SetCapabilities(capabilities)
 	serviceImpl.SetTenantStartupCapability(tenantSvc)
 	serviceImpl.SetTenantProvisioningCapability(tenantSvc)
+	configureRootWasmHostServicesForTest(configProvider, bizCtxProvider, capabilities, lockerSvc)
 	return serviceImpl
+}
+
+// configureRootWasmHostServicesForTest mirrors HTTP startup host-service wiring
+// for root plugin facade tests that construct plugin.Service directly.
+func configureRootWasmHostServicesForTest(
+	configProvider configsvc.Service,
+	bizCtxProvider bizctx.Service,
+	capabilities capability.Services,
+	lockerSvc locker.Service,
+) {
+	hostLockSvc, err := hostlock.New(lockerSvc)
+	if err != nil {
+		panic(err)
+	}
+	if err = ConfigureWasmHostServices(
+		kvcache.New(),
+		hostLockSvc,
+		notifysvc.New(tenantcapsvc.New(nil, bizCtxProvider)),
+		configProvider,
+		capabilities,
+		capabilityconfig.NewFactory("", ""),
+		capabilityhostconfig.New(configProvider),
+		capabilitymanifest.NewFactory(""),
+	); err != nil {
+		panic(err)
+	}
 }
 
 // rootTestCapabilities publishes the minimal host service directory required

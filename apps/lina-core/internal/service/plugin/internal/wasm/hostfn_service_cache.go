@@ -4,6 +4,7 @@ package wasm
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
@@ -13,8 +14,12 @@ import (
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-// cacheHostService is the shared governed cache backend used by wasm host calls.
-var cacheHostService = kvcache.New()
+// cacheHostServiceState stores the shared governed cache backend used by wasm
+// host calls. It must be configured by the host startup composition root before use.
+var cacheHostServiceState struct {
+	sync.RWMutex
+	service kvcache.Service
+}
 
 // ConfigureCacheHostService replaces the governed cache backend used by wasm
 // host calls. The service must be non-nil.
@@ -22,8 +27,18 @@ func ConfigureCacheHostService(service kvcache.Service) error {
 	if service == nil {
 		return gerror.New("wasm cache host service requires a non-nil cache service")
 	}
-	cacheHostService = service
+	cacheHostServiceState.Lock()
+	cacheHostServiceState.service = service
+	cacheHostServiceState.Unlock()
 	return nil
+}
+
+// currentCacheHostService returns the currently configured cache backend.
+func currentCacheHostService() kvcache.Service {
+	cacheHostServiceState.RLock()
+	service := cacheHostServiceState.service
+	cacheHostServiceState.RUnlock()
+	return service
 }
 
 // dispatchCacheHostService routes cache host service methods to the governed cache backend.
@@ -40,7 +55,8 @@ func dispatchCacheHostService(
 	if namespace == "" {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusCapabilityDenied, "cache host service requires one authorized namespace")
 	}
-	if cacheHostService == nil {
+	service := currentCacheHostService()
+	if service == nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "cache host service is not configured")
 	}
 	cacheKey := func(logicalKey string) string {
@@ -53,7 +69,7 @@ func dispatchCacheHostService(
 		if err != nil {
 			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
-		item, found, callErr := cacheHostService.Get(
+		item, found, callErr := service.Get(
 			ctx,
 			kvcache.OwnerTypePlugin,
 			cacheKey(request.Key),
@@ -71,7 +87,7 @@ func dispatchCacheHostService(
 		if err != nil {
 			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
-		item, callErr := cacheHostService.Set(
+		item, callErr := service.Set(
 			ctx,
 			kvcache.OwnerTypePlugin,
 			cacheKey(request.Key),
@@ -89,7 +105,7 @@ func dispatchCacheHostService(
 		if err != nil {
 			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
-		if callErr := cacheHostService.Delete(
+		if callErr := service.Delete(
 			ctx,
 			kvcache.OwnerTypePlugin,
 			cacheKey(request.Key),
@@ -102,7 +118,7 @@ func dispatchCacheHostService(
 		if err != nil {
 			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
-		item, callErr := cacheHostService.Incr(
+		item, callErr := service.Incr(
 			ctx,
 			kvcache.OwnerTypePlugin,
 			cacheKey(request.Key),
@@ -120,7 +136,7 @@ func dispatchCacheHostService(
 		if err != nil {
 			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
-		found, expireAt, callErr := cacheHostService.Expire(
+		found, expireAt, callErr := service.Expire(
 			ctx,
 			kvcache.OwnerTypePlugin,
 			cacheKey(request.Key),

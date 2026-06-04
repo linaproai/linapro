@@ -22,6 +22,7 @@ import (
 	"lina-core/internal/service/plugin/internal/openapi"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/wasm"
+	"lina-core/internal/service/session"
 	"lina-core/pkg/plugin/capability"
 	capabilityai "lina-core/pkg/plugin/capability/ai"
 	capabilityaitext "lina-core/pkg/plugin/capability/ai/aitext"
@@ -84,6 +85,7 @@ func NewServices() *Services {
 		integrationSvc = integration.New(catalogSvc)
 		topology       = singleNodeTopology{}
 		kvCacheSvc     = kvcache.New()
+		sessionStore   = session.NewDBStore()
 		tenantSvc      = tenantcapsvc.New(nil, bizCtxProvider)
 		notifySvc      = notify.New(tenantSvc)
 		capabilitySvc  = newTestCapabilities()
@@ -114,6 +116,9 @@ func NewServices() *Services {
 	runtimeSvc.SetUploadSizeProvider(&uploadSizeAdapter{svc: configProvider})
 	runtimeSvc.SetUserContextSetter(&userCtxAdapter{svc: bizCtxProvider})
 	runtimeSvc.SetTopology(topology)
+	runtimeSvc.SetSessionStore(sessionStore)
+	runtimeSvc.SetRuntimeCacheChangeNotifier(runtimeCacheChangeNotifier{})
+	runtimeSvc.SetDependencyValidator(runtimeDependencyValidator{})
 
 	mustConfigureWasmHostServicesForTest(
 		kvCacheSvc,
@@ -134,6 +139,26 @@ func NewServices() *Services {
 		Integration: integrationSvc,
 		OpenAPI:     openapiSvc,
 	}
+}
+
+// runtimeCacheChangeNotifier is a no-op cache revision publisher for isolated
+// plugin runtime tests.
+type runtimeCacheChangeNotifier struct{}
+
+// MarkRuntimeCacheChanged accepts one runtime cache change without publishing
+// cross-node notifications in package tests.
+func (runtimeCacheChangeNotifier) MarkRuntimeCacheChanged(context.Context, string) error {
+	return nil
+}
+
+// runtimeDependencyValidator is a no-op dynamic dependency validator for
+// isolated plugin runtime tests.
+type runtimeDependencyValidator struct{}
+
+// ValidateDynamicPluginCandidate accepts runtime test manifests without
+// consulting the root plugin facade.
+func (runtimeDependencyValidator) ValidateDynamicPluginCandidate(context.Context, *catalog.Manifest) error {
+	return nil
 }
 
 // mustNewHostLockServiceForTest creates the host-lock dependency used by wasm

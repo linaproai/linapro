@@ -5,6 +5,7 @@ package wasm
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -82,6 +83,51 @@ func (s *trackingCacheService) Expire(_ context.Context, _ kvcache.OwnerType, ca
 // CleanupExpired records no behavior for the fake backend.
 func (s *trackingCacheService) CleanupExpired(context.Context) error { return nil }
 
+// staticCacheService is stateless so concurrent wiring tests can exercise the
+// host-service reference without introducing fake-service data races.
+type staticCacheService struct{}
+
+// BackendName returns a deterministic backend name for assertions.
+func (staticCacheService) BackendName() kvcache.BackendName {
+	return kvcache.BackendName("static")
+}
+
+// RequiresExpiredCleanup reports no cleanup requirement for the fake backend.
+func (staticCacheService) RequiresExpiredCleanup() bool { return false }
+
+// Get returns one deterministic cache item.
+func (staticCacheService) Get(_ context.Context, _ kvcache.OwnerType, cacheKey string) (*kvcache.Item, bool, error) {
+	return &kvcache.Item{Key: cacheKey, ValueKind: kvcache.ValueKindString, Value: "race-safe"}, true, nil
+}
+
+// GetInt returns no dedicated integer value because host service dispatch uses Get.
+func (staticCacheService) GetInt(context.Context, kvcache.OwnerType, string) (int64, bool, error) {
+	return 0, false, nil
+}
+
+// Set returns one deterministic string cache item.
+func (staticCacheService) Set(_ context.Context, _ kvcache.OwnerType, cacheKey string, value string, _ time.Duration) (*kvcache.Item, error) {
+	return &kvcache.Item{Key: cacheKey, ValueKind: kvcache.ValueKindString, Value: value}, nil
+}
+
+// Delete accepts one cache delete.
+func (staticCacheService) Delete(context.Context, kvcache.OwnerType, string) error {
+	return nil
+}
+
+// Incr returns one deterministic integer cache item.
+func (staticCacheService) Incr(_ context.Context, _ kvcache.OwnerType, cacheKey string, delta int64, _ time.Duration) (*kvcache.Item, error) {
+	return &kvcache.Item{Key: cacheKey, ValueKind: kvcache.ValueKindInt, IntValue: delta}, nil
+}
+
+// Expire accepts one expiration update.
+func (staticCacheService) Expire(context.Context, kvcache.OwnerType, string, time.Duration) (bool, *time.Time, error) {
+	return true, nil, nil
+}
+
+// CleanupExpired records no behavior for the fake backend.
+func (staticCacheService) CleanupExpired(context.Context) error { return nil }
+
 // createPluginKVCacheTableSQL prepares the governed plugin cache table for tests.
 const createPluginKVCacheTableSQL = `
 CREATE TABLE IF NOT EXISTS sys_kv_cache (
@@ -106,6 +152,7 @@ CREATE INDEX IF NOT EXISTS idx_sys_kv_cache_expire_at ON sys_kv_cache (expire_at
 func TestHandleHostServiceInvokeCacheLifecycle(t *testing.T) {
 	ctx := context.Background()
 	ensurePluginKVCacheTable(t, ctx)
+	configureCacheHostServiceForTest(t, kvcache.New())
 
 	pluginID := "test-plugin-cache"
 	namespace := "orders-cache"
@@ -233,6 +280,7 @@ func TestHandleHostServiceInvokeCacheLifecycle(t *testing.T) {
 func TestHandleHostServiceInvokeCacheRejectsOversizedValue(t *testing.T) {
 	ctx := context.Background()
 	ensurePluginKVCacheTable(t, ctx)
+	configureCacheHostServiceForTest(t, kvcache.New())
 
 	hcc := newCacheHostCallContext("test-plugin-cache-limit", "orders-cache")
 	response := invokeCacheHostService(
@@ -265,17 +313,33 @@ func TestHandleHostServiceInvokeCacheRejectsUnauthorizedNamespace(t *testing.T) 
 	}
 }
 
+// TestHandleHostServiceInvokeCacheRequiresConfiguredService verifies missing
+// cache service wiring fails explicitly instead of using a package default.
+func TestHandleHostServiceInvokeCacheRequiresConfiguredService(t *testing.T) {
+	previousCacheSvc := currentCacheHostService()
+	setCacheHostServiceForTest(nil)
+	t.Cleanup(func() {
+		setCacheHostServiceForTest(previousCacheSvc)
+	})
+
+	hcc := newCacheHostCallContext("test-plugin-cache-unconfigured", "orders-cache")
+	response := invokeCacheHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodCacheGet,
+		"orders-cache",
+		protocol.MarshalHostServiceCacheGetRequest(&protocol.HostServiceCacheGetRequest{Key: "profile"}),
+	)
+	if response.Status != protocol.HostCallStatusInternalError {
+		t.Fatalf("expected internal error for unconfigured cache service, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+}
+
 // TestHandleHostServiceInvokeCacheUsesConfiguredSharedService verifies cache
 // host service dispatch reuses the explicitly configured shared instance.
 func TestHandleHostServiceInvokeCacheUsesConfiguredSharedService(t *testing.T) {
 	cacheSvc := &trackingCacheService{}
-	previousCacheSvc := cacheHostService
-	if err := ConfigureCacheHostService(cacheSvc); err != nil {
-		t.Fatalf("configure cache host service failed: %v", err)
-	}
-	t.Cleanup(func() {
-		cacheHostService = previousCacheSvc
-	})
+	configureCacheHostServiceForTest(t, cacheSvc)
 
 	hcc := newTenantCacheHostCallContext("test-plugin-cache-shared", "orders-cache", 77)
 	setResponse := invokeCacheHostService(
@@ -314,13 +378,7 @@ func TestHandleHostServiceInvokeCacheUsesConfiguredSharedService(t *testing.T) {
 // the host cache service can run on coordination KV and keeps tenant keys apart.
 func TestHandleHostServiceInvokeCacheUsesCoordinationKVAndTenantIsolation(t *testing.T) {
 	cacheSvc := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
-	previousCacheSvc := cacheHostService
-	if err := ConfigureCacheHostService(cacheSvc); err != nil {
-		t.Fatalf("configure cache host service failed: %v", err)
-	}
-	t.Cleanup(func() {
-		cacheHostService = previousCacheSvc
-	})
+	configureCacheHostServiceForTest(t, cacheSvc)
 
 	if cacheSvc.BackendName() != kvcache.BackendCoordinationKV {
 		t.Fatalf("expected coordination KV backend, got %q", cacheSvc.BackendName())
@@ -344,6 +402,78 @@ func TestConfigureCacheHostServiceRejectsNil(t *testing.T) {
 	if err := ConfigureCacheHostService(nil); err == nil {
 		t.Fatal("expected nil cache host service to return an error")
 	}
+}
+
+// TestConfigureCacheHostServiceConcurrentDispatchIsRaceSafe verifies the
+// host-service reference can be configured while concurrent host calls read it.
+func TestConfigureCacheHostServiceConcurrentDispatchIsRaceSafe(t *testing.T) {
+	configureCacheHostServiceForTest(t, staticCacheService{})
+
+	hcc := newCacheHostCallContext("test-plugin-cache-race", "orders-cache")
+	const (
+		workers    = 8
+		iterations = 50
+	)
+	errCh := make(chan string, workers*iterations)
+	var wg sync.WaitGroup
+
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				if err := ConfigureCacheHostService(staticCacheService{}); err != nil {
+					errCh <- err.Error()
+					return
+				}
+			}
+		}()
+	}
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				response := dispatchCacheHostServiceRequest(
+					hcc,
+					protocol.HostServiceMethodCacheGet,
+					"orders-cache",
+					protocol.MarshalHostServiceCacheGetRequest(&protocol.HostServiceCacheGetRequest{Key: "profile"}),
+				)
+				if response.Status != protocol.HostCallStatusSuccess {
+					errCh <- string(response.Payload)
+					return
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errCh)
+	for msg := range errCh {
+		t.Fatalf("concurrent cache host service dispatch failed: %s", msg)
+	}
+}
+
+// configureCacheHostServiceForTest installs one explicit cache service and
+// restores the previous package-level wiring at test cleanup.
+func configureCacheHostServiceForTest(t *testing.T, service kvcache.Service) {
+	t.Helper()
+	previousCacheSvc := currentCacheHostService()
+	if err := ConfigureCacheHostService(service); err != nil {
+		t.Fatalf("configure cache host service failed: %v", err)
+	}
+	t.Cleanup(func() {
+		setCacheHostServiceForTest(previousCacheSvc)
+	})
+}
+
+// setCacheHostServiceForTest replaces the cache host service without the
+// production non-nil guard so tests can cover the unconfigured branch.
+func setCacheHostServiceForTest(service kvcache.Service) {
+	cacheHostServiceState.Lock()
+	cacheHostServiceState.service = service
+	cacheHostServiceState.Unlock()
 }
 
 // ensurePluginKVCacheTable creates the plugin cache table needed by cache host call tests.
@@ -447,7 +577,16 @@ func invokeCacheHostService(
 	payload []byte,
 ) *protocol.HostCallResponseEnvelope {
 	t.Helper()
+	return dispatchCacheHostServiceRequest(hcc, method, namespace, payload)
+}
 
+// dispatchCacheHostServiceRequest dispatches one cache host service request.
+func dispatchCacheHostServiceRequest(
+	hcc *hostCallContext,
+	method string,
+	namespace string,
+	payload []byte,
+) *protocol.HostCallResponseEnvelope {
 	request := &protocol.HostServiceRequestEnvelope{
 		Service:     protocol.HostServiceCache,
 		Method:      method,

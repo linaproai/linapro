@@ -6,6 +6,8 @@ package runtime
 import (
 	"context"
 
+	"github.com/gogf/gf/v2/errors/gerror"
+
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/wasm"
@@ -64,6 +66,56 @@ func (s *serviceImpl) SetRuntimeCacheChangeNotifier(n CacheChangeNotifier) {
 // SetDependencyValidator wires release dependency validation.
 func (s *serviceImpl) SetDependencyValidator(v DependencyValidator) {
 	s.dependencyValidator = v
+}
+
+// ValidateRequiredDependencies verifies production runtime wiring after all
+// setters run. Unit tests may still construct partial runtime services for
+// isolated helpers, but host startup must call this before exposing dynamic
+// plugin routes, lifecycle reconciliation, or host service dispatch.
+func (s *serviceImpl) ValidateRequiredDependencies() error {
+	if s == nil {
+		return gerror.New("plugin runtime service is not initialized")
+	}
+	if s.catalogSvc == nil {
+		return gerror.New("plugin runtime requires a non-nil catalog service")
+	}
+	if s.lifecycleSvc == nil {
+		return gerror.New("plugin runtime requires a non-nil lifecycle service")
+	}
+	if s.reconcilerLockSvc == nil {
+		return gerror.New("plugin runtime requires a non-nil reconciler lock service")
+	}
+	if s.topology == nil {
+		return gerror.New("plugin runtime requires a non-nil topology provider")
+	}
+	if s.menuMgr == nil {
+		return gerror.New("plugin runtime requires a non-nil menu manager")
+	}
+	if s.hookDispatcher == nil {
+		return gerror.New("plugin runtime requires a non-nil hook dispatcher")
+	}
+	if s.jwtConfig == nil {
+		return gerror.New("plugin runtime requires a non-nil JWT config provider")
+	}
+	if s.uploadSize == nil {
+		return gerror.New("plugin runtime requires a non-nil upload size provider")
+	}
+	if s.userCtx == nil {
+		return gerror.New("plugin runtime requires a non-nil user context setter")
+	}
+	if s.sessionStore == nil {
+		return gerror.New("plugin runtime requires a non-nil session store")
+	}
+	if s.menuFilter == nil {
+		return gerror.New("plugin runtime requires a non-nil permission menu filter")
+	}
+	if s.cacheChangeNotifier == nil {
+		return gerror.New("plugin runtime requires a non-nil cache change notifier")
+	}
+	if s.dependencyValidator == nil {
+		return gerror.New("plugin runtime requires a non-nil dependency validator")
+	}
+	return nil
 }
 
 // isClusterModeEnabled is a nil-safe wrapper around the topology provider.

@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"lina-core/internal/service/config"
@@ -26,11 +27,22 @@ func (s *trackingStorageConfig) GetPluginDynamicStoragePath(context.Context) str
 	return s.rootPath
 }
 
+// staticStorageConfig returns a fixed dynamic storage path without mutable state.
+type staticStorageConfig struct {
+	rootPath string
+}
+
+// GetPluginDynamicStoragePath returns the configured root path.
+func (s staticStorageConfig) GetPluginDynamicStoragePath(context.Context) string {
+	return s.rootPath
+}
+
 // TestHandleHostServiceInvokeStorageLifecycle verifies storage put/get/list/
 // delete/stat behavior against the plugin-scoped storage root.
 func TestHandleHostServiceInvokeStorageLifecycle(t *testing.T) {
 	storageRoot := t.TempDir()
 	config.SetPluginDynamicStoragePathOverride(storageRoot)
+	configureStorageHostServiceForTest(t, config.New())
 	t.Cleanup(func() {
 		config.SetPluginDynamicStoragePathOverride("")
 	})
@@ -159,6 +171,7 @@ func TestHandleHostServiceInvokeStorageLifecycleWithRelativeStorageRoot(t *testi
 		t.Fatalf("build relative storage root failed: %v", err)
 	}
 	config.SetPluginDynamicStoragePathOverride(relativeStorageRoot)
+	configureStorageHostServiceForTest(t, config.New())
 	t.Cleanup(func() {
 		config.SetPluginDynamicStoragePathOverride("")
 	})
@@ -202,6 +215,7 @@ func TestHandleHostServiceInvokeStorageLifecycleWithRelativeStorageRoot(t *testi
 // outside the authorized logical path set are denied.
 func TestHandleHostServiceInvokeStorageRejectsUnauthorizedPath(t *testing.T) {
 	config.SetPluginDynamicStoragePathOverride(t.TempDir())
+	configureStorageHostServiceForTest(t, config.New())
 	t.Cleanup(func() {
 		config.SetPluginDynamicStoragePathOverride("")
 	})
@@ -226,6 +240,7 @@ func TestHandleHostServiceInvokeStorageRejectsUnauthorizedPath(t *testing.T) {
 // payload path must match the declared target resource reference.
 func TestHandleHostServiceInvokeStorageRejectsTargetMismatch(t *testing.T) {
 	config.SetPluginDynamicStoragePathOverride(t.TempDir())
+	configureStorageHostServiceForTest(t, config.New())
 	t.Cleanup(func() {
 		config.SetPluginDynamicStoragePathOverride("")
 	})
@@ -246,17 +261,36 @@ func TestHandleHostServiceInvokeStorageRejectsTargetMismatch(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeStorageRequiresConfiguredService verifies missing
+// storage config wiring fails explicitly instead of using a package default.
+func TestHandleHostServiceInvokeStorageRequiresConfiguredService(t *testing.T) {
+	previousConfigSvc := currentStorageConfigReader()
+	setStorageConfigServiceForTest(nil)
+	t.Cleanup(func() {
+		setStorageConfigServiceForTest(previousConfigSvc)
+	})
+
+	hcc := newStorageHostCallContext([]string{"reports/"})
+	response := invokeStorageHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodStoragePut,
+		"reports/demo.json",
+		protocol.MarshalHostServiceStoragePutRequest(&protocol.HostServiceStoragePutRequest{
+			Path: "reports/demo.json",
+			Body: []byte("blocked"),
+		}),
+	)
+	if response.Status != protocol.HostCallStatusInternalError {
+		t.Fatalf("expected internal error for unconfigured storage service, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+}
+
 // TestHandleHostServiceInvokeStorageUsesConfiguredSharedConfig verifies
 // storage host service dispatch reuses the explicitly configured config reader.
 func TestHandleHostServiceInvokeStorageUsesConfiguredSharedConfig(t *testing.T) {
 	configSvc := &trackingStorageConfig{rootPath: t.TempDir()}
-	previousConfigSvc := storageConfigSvc
-	if err := ConfigureStorageHostService(configSvc); err != nil {
-		t.Fatalf("configure storage host service failed: %v", err)
-	}
-	t.Cleanup(func() {
-		storageConfigSvc = previousConfigSvc
-	})
+	configureStorageHostServiceForTest(t, configSvc)
 
 	hcc := newStorageHostCallContext([]string{"reports/"})
 	response := invokeStorageHostService(
@@ -292,11 +326,84 @@ func TestHandleHostServiceInvokeStorageUsesConfiguredSharedConfig(t *testing.T) 
 	}
 }
 
+// configureStorageHostServiceForTest installs one explicit storage config reader
+// and restores the previous package-level wiring at test cleanup.
+func configureStorageHostServiceForTest(t *testing.T, service storageConfigReader) {
+	t.Helper()
+	previousConfigSvc := currentStorageConfigReader()
+	if err := ConfigureStorageHostService(service); err != nil {
+		t.Fatalf("configure storage host service failed: %v", err)
+	}
+	t.Cleanup(func() {
+		setStorageConfigServiceForTest(previousConfigSvc)
+	})
+}
+
+// setStorageConfigServiceForTest replaces the storage config reader without
+// the production non-nil guard so tests can cover the unconfigured branch.
+func setStorageConfigServiceForTest(service storageConfigReader) {
+	storageConfigState.Lock()
+	storageConfigState.service = service
+	storageConfigState.Unlock()
+}
+
 // TestConfigureStorageHostServiceRejectsNil verifies missing runtime config
 // reader injection returns an error instead of silently constructing an isolated config service.
 func TestConfigureStorageHostServiceRejectsNil(t *testing.T) {
 	if err := ConfigureStorageHostService(nil); err == nil {
 		t.Fatal("expected nil storage host service to return an error")
+	}
+}
+
+// TestConfigureStorageHostServiceConcurrentDispatchIsRaceSafe verifies the
+// storage config reference can be configured while concurrent host calls read it.
+func TestConfigureStorageHostServiceConcurrentDispatchIsRaceSafe(t *testing.T) {
+	storageRoot := t.TempDir()
+	configureStorageHostServiceForTest(t, staticStorageConfig{rootPath: storageRoot})
+
+	hcc := newStorageHostCallContext([]string{"reports/"})
+	const (
+		workers    = 8
+		iterations = 50
+	)
+	errCh := make(chan string, workers*iterations)
+	var wg sync.WaitGroup
+
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				if err := ConfigureStorageHostService(staticStorageConfig{rootPath: storageRoot}); err != nil {
+					errCh <- err.Error()
+					return
+				}
+			}
+		}()
+	}
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				response := dispatchStorageHostServiceRequest(
+					hcc,
+					protocol.HostServiceMethodStorageGet,
+					"reports/demo.json",
+					protocol.MarshalHostServiceStorageGetRequest(&protocol.HostServiceStorageGetRequest{Path: "reports/demo.json"}),
+				)
+				if response.Status != protocol.HostCallStatusSuccess {
+					errCh <- string(response.Payload)
+					return
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errCh)
+	for msg := range errCh {
+		t.Fatalf("concurrent storage host service dispatch failed: %s", msg)
 	}
 }
 
@@ -352,7 +459,16 @@ func invokeStorageHostService(
 	payload []byte,
 ) *protocol.HostCallResponseEnvelope {
 	t.Helper()
+	return dispatchStorageHostServiceRequest(hcc, method, targetPath, payload)
+}
 
+// dispatchStorageHostServiceRequest dispatches one storage host-service request.
+func dispatchStorageHostServiceRequest(
+	hcc *hostCallContext,
+	method string,
+	targetPath string,
+	payload []byte,
+) *protocol.HostCallResponseEnvelope {
 	request := &protocol.HostServiceRequestEnvelope{
 		Service:     protocol.HostServiceStorage,
 		Method:      method,

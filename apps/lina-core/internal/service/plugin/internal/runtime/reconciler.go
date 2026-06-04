@@ -112,10 +112,17 @@ func (s *serviceImpl) ReconcileRuntimePlugins(ctx context.Context) error {
 	}
 
 	isPrimary := s.isPrimaryNode()
+	var manifestByID map[string]*catalog.Manifest
+	if isPrimary {
+		manifestByID, err = s.catalogSvc.ScanManifestsByID()
+		if err != nil {
+			return err
+		}
+	}
 
 	var firstErr error
 	for _, registry := range registries {
-		if err = s.reconcileRuntimeRegistry(ctx, registry, isPrimary); err != nil {
+		if err = s.reconcileRuntimeRegistry(ctx, registry, isPrimary, manifestByID); err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -138,10 +145,16 @@ func (s *serviceImpl) RefreshInstalledRuntimePluginReleases(ctx context.Context)
 	if !s.isPrimaryNode() {
 		return nil
 	}
+	manifestByID, err := s.catalogSvc.ScanManifestsByID()
+	if err != nil {
+		return err
+	}
 
 	var firstErr error
 	for _, registry := range registries {
-		if err = s.reconcilePrimaryPluginWithLock(ctx, registry, s.refreshInstalledRuntimePluginRelease); err != nil && firstErr == nil {
+		if err = s.reconcilePrimaryPluginWithLock(ctx, registry, func(ctx context.Context, lockedRegistry *entity.SysPlugin) error {
+			return s.refreshInstalledRuntimePluginRelease(ctx, lockedRegistry, manifestByID)
+		}); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
@@ -151,13 +164,17 @@ func (s *serviceImpl) RefreshInstalledRuntimePluginReleases(ctx context.Context)
 // refreshInstalledRuntimePluginRelease executes the same-version refresh path
 // only when an installed dynamic release is already bound to the discovered
 // manifest version and the archived artifact/snapshot is stale.
-func (s *serviceImpl) refreshInstalledRuntimePluginRelease(ctx context.Context, registry *entity.SysPlugin) error {
+func (s *serviceImpl) refreshInstalledRuntimePluginRelease(
+	ctx context.Context,
+	registry *entity.SysPlugin,
+	manifestByID map[string]*catalog.Manifest,
+) error {
 	if registry == nil ||
 		catalog.NormalizeType(registry.Type) != catalog.TypeDynamic ||
 		registry.Installed != catalog.InstalledYes {
 		return nil
 	}
-	desiredManifest, err := s.catalogSvc.GetDesiredManifest(registry.PluginId)
+	desiredManifest, err := s.lookupDesiredManifest(registry.PluginId, manifestByID)
 	if err != nil {
 		return err
 	}
@@ -211,7 +228,7 @@ func (s *serviceImpl) reconcileRuntimePlugin(ctx context.Context, pluginID strin
 	if registry == nil {
 		return gerror.New("plugin does not exist")
 	}
-	return s.reconcileRuntimeRegistry(ctx, registry, true)
+	return s.reconcileRuntimeRegistry(ctx, registry, true, nil)
 }
 
 // reconcileRuntimeRegistry converges one runtime registry row, optionally
@@ -220,6 +237,7 @@ func (s *serviceImpl) reconcileRuntimeRegistry(
 	ctx context.Context,
 	registry *entity.SysPlugin,
 	isPrimary bool,
+	manifestByID map[string]*catalog.Manifest,
 ) error {
 	if registry == nil {
 		return nil
@@ -242,7 +260,9 @@ func (s *serviceImpl) reconcileRuntimeRegistry(
 	if isPrimary {
 		// Only the primary node mutates shared lifecycle state such as release
 		// activation, migrations, and desired/current host states.
-		if err = s.reconcilePrimaryPluginWithLock(ctx, registry, s.reconcilePluginIfNeeded); err != nil {
+		if err = s.reconcilePrimaryPluginWithLock(ctx, registry, func(ctx context.Context, lockedRegistry *entity.SysPlugin) error {
+			return s.reconcilePluginIfNeeded(ctx, lockedRegistry, manifestByID)
+		}); err != nil {
 			logger.Warningf(ctx, "reconcile dynamic plugin failed plugin=%s err=%v", pluginID, err)
 			return err
 		}
@@ -266,7 +286,11 @@ func (s *serviceImpl) reconcileRuntimeRegistry(
 
 // reconcilePluginIfNeeded selects the smallest convergence action for the current
 // registry row: install, upgrade, same-version refresh, state toggle, or uninstall.
-func (s *serviceImpl) reconcilePluginIfNeeded(ctx context.Context, registry *entity.SysPlugin) error {
+func (s *serviceImpl) reconcilePluginIfNeeded(
+	ctx context.Context,
+	registry *entity.SysPlugin,
+	manifestByID map[string]*catalog.Manifest,
+) error {
 	if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
 		return nil
 	}
@@ -292,7 +316,7 @@ func (s *serviceImpl) reconcilePluginIfNeeded(ctx context.Context, registry *ent
 		return s.applyUninstall(ctx, registry)
 	}
 
-	desiredManifest, err := s.catalogSvc.GetDesiredManifest(registry.PluginId)
+	desiredManifest, err := s.lookupDesiredManifest(registry.PluginId, manifestByID)
 	if err != nil {
 		return err
 	}
@@ -317,6 +341,27 @@ func (s *serviceImpl) reconcilePluginIfNeeded(ctx context.Context, registry *ent
 		return s.applyStateToggle(ctx, registry, desiredManifest, desiredState)
 	}
 	return nil
+}
+
+// lookupDesiredManifest resolves one desired manifest from a caller-owned batch
+// map when available, falling back to the catalog single-item reader for targeted
+// management paths that keep the previous single-plugin call shape.
+func (s *serviceImpl) lookupDesiredManifest(
+	pluginID string,
+	manifestByID map[string]*catalog.Manifest,
+) (*catalog.Manifest, error) {
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" {
+		return nil, gerror.New("plugin ID cannot be empty")
+	}
+	if manifestByID == nil {
+		return s.catalogSvc.GetDesiredManifest(normalizedPluginID)
+	}
+	manifest := manifestByID[normalizedPluginID]
+	if manifest == nil {
+		return nil, gerror.New("plugin does not exist")
+	}
+	return manifest, nil
 }
 
 // reconcilePrimaryPluginWithLock serializes primary-only lifecycle side

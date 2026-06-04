@@ -44,6 +44,10 @@ func (s *serviceImpl) ListRuntimeStates(ctx context.Context) (*RuntimeStateListO
 	if err != nil {
 		return nil, err
 	}
+	manifestByID, err := s.catalogSvc.ScanManifestsByID()
+	if err != nil {
+		manifestByID = map[string]*catalog.Manifest{}
+	}
 
 	items := make([]*PluginDynamicStateItem, 0, len(registries))
 	for _, registry := range registries {
@@ -55,10 +59,7 @@ func (s *serviceImpl) ListRuntimeStates(ctx context.Context) (*RuntimeStateListO
 			continue
 		}
 
-		manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
-		if err != nil {
-			manifest = nil
-		}
+		manifest := manifestByID[pluginID]
 
 		installed := registry.Installed
 		enabled := registry.Status

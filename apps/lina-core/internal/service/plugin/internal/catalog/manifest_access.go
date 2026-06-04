@@ -6,9 +6,32 @@ package catalog
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 )
+
+// ScanManifestsByID returns the discovered manifests keyed by plugin ID so list
+// and projection callers can reuse one scan result across many registry rows.
+func (s *serviceImpl) ScanManifestsByID() (map[string]*Manifest, error) {
+	manifests, err := s.ScanManifests()
+	if err != nil {
+		return nil, err
+	}
+
+	manifestByID := make(map[string]*Manifest, len(manifests))
+	for _, manifest := range manifests {
+		if manifest == nil {
+			continue
+		}
+		pluginID := strings.TrimSpace(manifest.ID)
+		if pluginID == "" {
+			continue
+		}
+		manifestByID[pluginID] = manifest
+	}
+	return manifestByID, nil
+}
 
 // GetDesiredManifest returns the latest discovered manifest for the given plugin ID.
 // For dynamic plugins this is the mutable staging artifact stored at the configured
@@ -18,14 +41,12 @@ func (s *serviceImpl) GetDesiredManifest(pluginID string) (*Manifest, error) {
 	if pluginID == "" {
 		return nil, gerror.New("plugin ID cannot be empty")
 	}
-	manifests, err := s.ScanManifests()
+	manifestByID, err := s.ScanManifestsByID()
 	if err != nil {
 		return nil, err
 	}
-	for _, manifest := range manifests {
-		if manifest != nil && manifest.ID == pluginID {
-			return manifest, nil
-		}
+	if manifest, ok := manifestByID[pluginID]; ok {
+		return manifest, nil
 	}
 	return nil, gerror.New("plugin does not exist")
 }
