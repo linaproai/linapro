@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"linactl/internal/process"
 	"linactl/internal/toolutil"
 )
 
@@ -66,6 +67,12 @@ type PortInUseFunc = func(int) bool
 // It is declared as a type alias so command-level code can inject test doubles.
 // 进程存活检测函数类型别名，便于测试注入。
 type ProcessAliveFunc = func(int) bool
+
+// ProcessListFunc returns visible operating-system processes.
+type ProcessListFunc func() ([]process.Info, error)
+
+// ProcessKillFunc stops one process by PID.
+type ProcessKillFunc func(int) error
 
 // Services returns backend and frontend development service definitions.
 func Services(root string, backendPort int, frontendPort int) []Config {
@@ -200,6 +207,53 @@ func EnsurePortsAvailable(probe PortInUseFunc, backendPort int, frontendPort int
 	)
 }
 
+// StopCurrentProjectServiceProcessesForOccupiedPorts stops untracked
+// current-repository service processes when their development ports are still
+// occupied after PID-file-backed stop has run. Unknown or ambiguous matches are
+// deliberately left alone so the final EnsurePortsAvailable diagnostic remains
+// conservative.
+func StopCurrentProjectServiceProcessesForOccupiedPorts(out io.Writer, root string, services []Config, probe PortInUseFunc, list ProcessListFunc, kill ProcessKillFunc) ([]int, error) {
+	if probe == nil {
+		probe = IsTCPListening
+	}
+	if list == nil || kill == nil {
+		return nil, nil
+	}
+
+	occupied := make([]Config, 0, len(services))
+	for _, service := range services {
+		if probe(service.Port) {
+			occupied = append(occupied, service)
+		}
+	}
+	if len(occupied) == 0 {
+		return nil, nil
+	}
+
+	infos, err := list()
+	if err != nil {
+		fmt.Fprintf(out, "warning: inspect port occupants failed: %v\n", err)
+		return nil, nil
+	}
+
+	stoppedPorts := make([]int, 0, len(occupied))
+	for _, service := range occupied {
+		matches := matchingProjectServiceProcesses(root, service, infos)
+		if len(matches) != 1 {
+			continue
+		}
+		match := matches[0]
+		if err = kill(match.PID); err != nil {
+			return stoppedPorts, fmt.Errorf("stop %s process %d occupying port %d: %w", service.Name, match.PID, service.Port, err)
+		}
+		if _, err = fmt.Fprintf(out, "%s port %d is occupied by current project process %d; stopped it\n", service.Name, service.Port, match.PID); err != nil {
+			return stoppedPorts, fmt.Errorf("write port occupant cleanup output: %w", err)
+		}
+		stoppedPorts = append(stoppedPorts, service.Port)
+	}
+	return stoppedPorts, nil
+}
+
 // WaitPortsReleased waits briefly for TCP ports to become free after managed
 // development services were stopped. It deliberately does not report errors:
 // the caller should run EnsurePortsAvailable afterwards so the final diagnostic
@@ -251,6 +305,83 @@ func boundPorts(probe PortInUseFunc, ports ...int) []int {
 		}
 	}
 	return occupied
+}
+
+func matchingProjectServiceProcesses(root string, service Config, infos []process.Info) []process.Info {
+	matches := make([]process.Info, 0, 1)
+	for _, info := range infos {
+		if info.PID <= 1 || !processBelongsToRoot(root, info) {
+			continue
+		}
+		switch service.Name {
+		case "Backend":
+			if matchesBackendService(root, info) {
+				matches = append(matches, info)
+			}
+		case "Frontend":
+			if matchesFrontendService(service, info) {
+				matches = append(matches, info)
+			}
+		}
+	}
+	return matches
+}
+
+func processBelongsToRoot(root string, info process.Info) bool {
+	if pathWithin(root, info.CWD) {
+		return true
+	}
+	return strings.Contains(filepath.ToSlash(info.CommandLine()), filepath.ToSlash(filepath.Clean(root)))
+}
+
+func matchesBackendService(root string, info process.Info) bool {
+	command := filepath.ToSlash(info.CommandLine())
+	backendBinary := filepath.ToSlash(filepath.Join(root, "temp", "bin", "lina"))
+	windowsBackendBinary := filepath.ToSlash(filepath.Join(root, "temp", "bin", "lina.exe"))
+	return strings.Contains(command, backendBinary) || strings.Contains(command, windowsBackendBinary)
+}
+
+func matchesFrontendService(service Config, info process.Info) bool {
+	command := strings.ToLower(filepath.ToSlash(info.CommandLine()))
+	if !strings.Contains(command, "vite") {
+		return false
+	}
+	if hasExplicitDifferentPort(info.Args, service.Port) {
+		return false
+	}
+	return pathWithin(service.WorkDir, info.CWD) || strings.Contains(command, "apps/lina-vben")
+}
+
+func hasExplicitDifferentPort(args []string, expected int) bool {
+	expectedText := strconv.Itoa(expected)
+	for i, arg := range args {
+		if arg == "--port" && i+1 < len(args) {
+			return args[i+1] != expectedText
+		}
+		if strings.HasPrefix(arg, "--port=") {
+			return strings.TrimPrefix(arg, "--port=") != expectedText
+		}
+	}
+	return false
+}
+
+func pathWithin(root string, path string) bool {
+	if root == "" || path == "" {
+		return false
+	}
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return false
+	}
+	pathAbs, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(filepath.Clean(rootAbs), filepath.Clean(pathAbs))
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
 // StartService starts a development service and records its PID file.

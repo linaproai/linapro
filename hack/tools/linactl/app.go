@@ -32,6 +32,8 @@ func newApp(stdout io.Writer, stderr io.Writer, stdin io.Reader) *app {
 		lookPath:     exec.LookPath,
 		portInUse:    devservice.IsTCPListening,
 		processAlive: process.Alive,
+		processList:  process.List,
+		processKill:  process.Kill,
 	}
 	// Default waitHTTP wraps devservice.WaitHTTP so the readiness loop can
 	// dispatch into the injectable processAlive on this app instance. Tests

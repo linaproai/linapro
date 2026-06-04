@@ -54,12 +54,20 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 		"backend_port":  strconv.Itoa(backendPort),
 		"frontend_port": strconv.Itoa(frontendPort),
 	}}
+	services := devservice.Services(a.root, backendPort, frontendPort)
 	stoppedPorts, err := stopServices(a, stopInput)
 	if err != nil {
 		return err
 	}
 	if len(stoppedPorts) > 0 {
 		devservice.WaitPortsReleased(a.portInUse, defaultPortReleaseTimeout, stoppedPorts...)
+	}
+	stoppedProjectPorts, err := devservice.StopCurrentProjectServiceProcessesForOccupiedPorts(a.stdout, a.root, services, a.portInUse, a.processList, a.processKill)
+	if err != nil {
+		return err
+	}
+	if len(stoppedProjectPorts) > 0 {
+		devservice.WaitPortsReleased(a.portInUse, defaultPortReleaseTimeout, stoppedProjectPorts...)
 	}
 
 	// After stopping our own services, verify the ports are actually free.
@@ -96,7 +104,6 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 		return err
 	}
 
-	services := devservice.Services(a.root, backendPort, frontendPort)
 	services[0].StartName = backendBinary
 	services[1].StartName = toolutil.ViteCommand(a.root)
 	previousEnv := a.env

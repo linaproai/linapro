@@ -8,6 +8,8 @@ import (
 	"io"
 	"os/exec"
 	"time"
+
+	"linactl/internal/process"
 )
 
 const (
@@ -64,6 +66,15 @@ type app struct {
 	// simulate "process exited" without spawning real subprocesses.
 	// 进程存活检测函数，通过依赖注入便于单元测试覆盖。
 	processAlive func(int) bool
+	// processList returns visible operating-system processes. It lets dev
+	// clean up current-project service processes that lost their PID file,
+	// while tests can inject synthetic process tables.
+	// 进程列表函数，用于识别丢失 PID 文件的当前项目服务进程，并便于单测注入。
+	processList func() ([]process.Info, error)
+	// processKill stops a process by PID. Tests inject this to avoid sending
+	// signals to real user processes.
+	// 进程停止函数，便于单测避免触碰真实系统进程。
+	processKill func(int) error
 }
 
 // targetPlatform stores one normalized Go target platform.
