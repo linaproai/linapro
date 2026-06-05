@@ -235,10 +235,18 @@ func TestManagementListCacheIsLocaleScoped(t *testing.T) {
 	if _, err := service.List(englishCtx, ListInput{ID: englishID}); err != nil {
 		t.Fatalf("build english-locale management list: %v", err)
 	}
-	if _, ok := service.managementListCache.Get(service.managementListCacheKey(baseCtx)); !ok {
+	baseKey, err := service.managementListCacheKey(baseCtx)
+	if err != nil {
+		t.Fatalf("build default-locale cache key: %v", err)
+	}
+	if _, ok := service.managementListCache.Get(baseKey); !ok {
 		t.Fatalf("expected default-locale management list cache")
 	}
-	if _, ok := service.managementListCache.Get(service.managementListCacheKey(englishCtx)); !ok {
+	englishKey, err := service.managementListCacheKey(englishCtx)
+	if err != nil {
+		t.Fatalf("build english-locale cache key: %v", err)
+	}
+	if _, ok := service.managementListCache.Get(englishKey); !ok {
 		t.Fatalf("expected english-locale management list cache")
 	}
 }

@@ -3,6 +3,7 @@ import type {
   PluginDependencyCheckResult,
   PluginInstallResult,
   PluginListParams,
+  PluginListItem,
   PluginDynamicState,
   PluginUploadDynamicResult,
   PluginUpgradePreview,
@@ -32,11 +33,16 @@ const pluginLifecycleRequestTimeout = 120_000;
 
 /** 插件列表 */
 export async function pluginList(params?: PluginListParams) {
-  const res = await requestClient.get<{ list: SystemPlugin[]; total: number }>(
+  const res = await requestClient.get<{ list: PluginListItem[]; total: number }>(
     '/plugins',
     { params },
   );
   return { items: res.list, total: res.total };
+}
+
+/** 插件详情 */
+export function pluginDetail(pluginId: string) {
+  return requestClient.get<SystemPlugin>(`/plugins/${pluginId}`);
 }
 
 /** 公共插件运行时状态 */

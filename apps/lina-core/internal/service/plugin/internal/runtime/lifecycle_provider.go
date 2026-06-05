@@ -42,6 +42,21 @@ func (s *serviceImpl) BuildPluginItem(ctx context.Context, manifest *catalog.Man
 	return s.buildPluginItem(ctx, manifest, registry)
 }
 
+// BuildPluginSummaryItem returns the lightweight management-list projection for
+// one manifest + registry pair.
+func (s *serviceImpl) BuildPluginSummaryItem(ctx context.Context, manifest *catalog.Manifest, registry *entity.SysPlugin) *PluginItem {
+	return s.buildPluginSummaryItem(ctx, manifest, registry)
+}
+
+// BuildPluginItemReadOnly returns one detail projection without mutating
+// governance state when a dynamic artifact is missing from storage.
+func (s *serviceImpl) BuildPluginItemReadOnly(ctx context.Context, manifest *catalog.Manifest, registry *entity.SysPlugin) *PluginItem {
+	if manifest == nil {
+		registry = s.projectRegistryArtifactState(ctx, registry)
+	}
+	return s.buildPluginItem(ctx, manifest, registry)
+}
+
 // BuildRuntimeItems returns PluginItems for dynamic plugins present in the registry
 // but absent from the given manifest map. Used by the plugin facade SyncAndList.
 func (s *serviceImpl) BuildRuntimeItems(ctx context.Context, covered map[string]struct{}) ([]*PluginItem, error) {
@@ -62,6 +77,29 @@ func (s *serviceImpl) BuildRuntimeItems(ctx context.Context, covered map[string]
 			return nil, err
 		}
 		if item := s.buildPluginItem(ctx, nil, registry); item != nil {
+			items = append(items, item)
+		}
+	}
+	return items, nil
+}
+
+// BuildRuntimeSummaryItemsReadOnly returns lightweight dynamic PluginItems
+// without mutating governance state when artifacts are missing from runtime storage.
+func (s *serviceImpl) BuildRuntimeSummaryItemsReadOnly(ctx context.Context, covered map[string]struct{}) ([]*PluginItem, error) {
+	registries, err := s.listRuntimeRegistries(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]*PluginItem, 0)
+	for _, registry := range registries {
+		if registry == nil {
+			continue
+		}
+		if _, ok := covered[registry.PluginId]; ok {
+			continue
+		}
+		registry = s.projectRegistryArtifactState(ctx, registry)
+		if item := s.buildPluginSummaryItem(ctx, nil, registry); item != nil {
 			items = append(items, item)
 		}
 	}

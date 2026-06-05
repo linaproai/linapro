@@ -201,9 +201,18 @@ type RuntimeRegistryService interface {
 	// BuildPluginItem returns a PluginItem projection for one manifest + registry pair.
 	// Used by the plugin facade SyncAndList coordination method.
 	BuildPluginItem(ctx context.Context, manifest *catalog.Manifest, registry *entity.SysPlugin) *PluginItem
+	// BuildPluginSummaryItem returns the lightweight management-list projection
+	// for one manifest + registry pair.
+	BuildPluginSummaryItem(ctx context.Context, manifest *catalog.Manifest, registry *entity.SysPlugin) *PluginItem
+	// BuildPluginItemReadOnly returns one detail projection without mutating
+	// governance state when a dynamic artifact is missing from storage.
+	BuildPluginItemReadOnly(ctx context.Context, manifest *catalog.Manifest, registry *entity.SysPlugin) *PluginItem
 	// BuildRuntimeItems returns PluginItems for dynamic plugins present in the registry
 	// but absent from the given manifest map. Used by the plugin facade SyncAndList.
 	BuildRuntimeItems(ctx context.Context, covered map[string]struct{}) ([]*PluginItem, error)
+	// BuildRuntimeSummaryItemsReadOnly returns lightweight dynamic PluginItems
+	// without mutating missing artifacts back into governance tables.
+	BuildRuntimeSummaryItemsReadOnly(ctx context.Context, covered map[string]struct{}) ([]*PluginItem, error)
 	// BuildRuntimeItemsReadOnly returns dynamic PluginItems without reconciling
 	// missing artifacts back into governance tables.
 	BuildRuntimeItemsReadOnly(ctx context.Context, covered map[string]struct{}) ([]*PluginItem, error)

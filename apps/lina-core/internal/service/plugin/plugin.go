@@ -466,11 +466,11 @@ type RegistryQueryService interface {
 	// SyncAndList scans plugin manifests, synchronizes plugin registry rows, and
 	// returns the combined list of source and dynamic plugin items.
 	SyncAndList(ctx context.Context) (*ListOutput, error)
-	// List returns the read-only plugin list with optional in-memory filtering applied.
+	// List returns the paginated read-only plugin summary list with optional filtering applied.
 	List(ctx context.Context, in ListInput) (*ListOutput, error)
 	// Get returns one read-only plugin detail projection by exact plugin ID.
 	Get(ctx context.Context, pluginID string) (*PluginItem, error)
-	// PrewarmManagementList builds the complete plugin management list read model.
+	// PrewarmManagementList builds the plugin management summary list read model.
 	PrewarmManagementList(ctx context.Context) error
 	// PreviewRuntimeUpgrade returns a side-effect-free upgrade preview for one pending plugin.
 	PreviewRuntimeUpgrade(ctx context.Context, pluginID string) (*RuntimeUpgradePreview, error)
@@ -563,7 +563,7 @@ type serviceImpl struct {
 	runtimeCacheRevisionCtrl *runtimecache.Controller
 	// runtimeUpgradeLockStore coordinates explicit runtime upgrades across cluster nodes.
 	runtimeUpgradeLockStore coordination.LockStore
-	// managementListCache stores the complete plugin-management read model.
+	// managementListCache stores the plugin-management summary read model.
 	managementListCache *management.ListCache
 	// tenantStartup validates tenant-governance startup state through a narrow tenant capability.
 	tenantStartup pluginTenantStartupCapability

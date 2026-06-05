@@ -10,7 +10,9 @@ import (
 
 // ListReq is the request for querying plugin list.
 type ListReq struct {
-	g.Meta    `path:"/plugins" method:"get" tags:"Plugin Management" summary:"Query plugin list" permission:"plugin:query" dc:"Scan the source plugin directory and synchronize the basic status of the plugin, and return the plugin list and activation status"`
+	g.Meta    `path:"/plugins" method:"get" tags:"Plugin Management" summary:"Query plugin list" permission:"plugin:query" dc:"Return a paginated plugin management summary list with bounded first-load fields and read-only plugin status"`
+	PageNum   int                      `json:"pageNum" d:"1" v:"min:1" dc:"Page number for the plugin management summary list, starting from 1" eg:"1"`
+	PageSize  int                      `json:"pageSize" d:"20" v:"min:1|max:100" dc:"Page size for the plugin management summary list, default 20 and maximum 100" eg:"20"`
 	Id        string                   `json:"id" dc:"Filter by the unique identifier of the plugin, fuzzy matching, query all if not passed" eg:"linapro-demo-source"`
 	Name      string                   `json:"name" dc:"Filter by plugin name, fuzzy match, query all if not passed" eg:"Source Plugin Demo"`
 	Type      PluginType               `json:"type" dc:"Filter by plugin type: source=source plugin dynamic=dynamic plugin, if not passed, all will be queried; the current dynamic plugin implementation only supports WASM" eg:"dynamic"`
@@ -20,8 +22,36 @@ type ListReq struct {
 
 // ListRes is the response for querying plugin list.
 type ListRes struct {
-	List  []*PluginItem `json:"list" dc:"Plugin list" eg:"[]"`
-	Total int           `json:"total" dc:"Total number of plugins" eg:"1"`
+	List  []*PluginListItem `json:"list" dc:"Paginated plugin management summary list without detail-only governance payloads" eg:"[]"`
+	Total int               `json:"total" dc:"Total number of plugins matching the filters before pagination" eg:"1"`
+}
+
+// PluginListItem represents lightweight plugin information for the management list.
+type PluginListItem struct {
+	Id                      string                    `json:"id" dc:"Plugin unique identifier" eg:"linapro-demo-source"`
+	Name                    string                    `json:"name" dc:"Plugin name" eg:"Source Plugin Demo"`
+	Version                 string                    `json:"version" dc:"Plugin current manifest version number" eg:"v0.1.0"`
+	RuntimeState            RuntimeState              `json:"runtimeState" dc:"Plugin runtime upgrade state: normal, pending_upgrade, abnormal, upgrade_running, or upgrade_failed" eg:"pending_upgrade"`
+	EffectiveVersion        string                    `json:"effectiveVersion" dc:"Database-effective plugin version currently used by the host" eg:"v0.1.0"`
+	DiscoveredVersion       string                    `json:"discoveredVersion" dc:"Plugin version currently discovered from source plugin.yaml or dynamic artifact metadata" eg:"v0.2.0"`
+	UpgradeAvailable        bool                      `json:"upgradeAvailable" dc:"Whether the plugin has a newer discovered version that can be upgraded by runtime management" eg:"true"`
+	AbnormalReason          RuntimeAbnormalReason     `json:"abnormalReason,omitempty" dc:"Stable diagnostic reason when runtimeState is abnormal" eg:"discovered_version_lower_than_effective"`
+	LastUpgradeFailure      *PluginUpgradeFailureItem `json:"lastUpgradeFailure,omitempty" dc:"Latest observable runtime upgrade failure summary for list diagnosis" eg:"{}"`
+	Type                    PluginType                `json:"type" dc:"Plugin first-level type: source=source plugin dynamic=dynamic plugin" eg:"source"`
+	Description             string                    `json:"description" dc:"Plugin description" eg:"Source plugin that provides left-side menu pages and public/protected routing examples"`
+	Installed               statusflag.Installation   `json:"installed" dc:"Installation status: 1=installed 0=not installed; the source plugin can still be in the uninstalled state by default after being discovered by the host" eg:"1"`
+	InstalledAt             *int64                    `json:"installedAt" dc:"Plugin installation time as Unix timestamp in milliseconds, empty if it is not installed" eg:"1767240000000"`
+	Enabled                 statusflag.Enabled        `json:"enabled" dc:"Enabled status: 1=enabled 0=disabled" eg:"1"`
+	AutoEnableManaged       statusflag.YesNo          `json:"autoEnableManaged" dc:"Whether it is hit by plugin.autoEnable in the host's main configuration file: 1=yes 0=no; if hit, it means that the host will ensure that the plugin is enabled when it starts." eg:"1"`
+	AutoEnableForNewTenants bool                      `json:"autoEnableForNewTenants" dc:"Platform policy: whether installed and enabled tenant-scoped plugins are enabled for new tenants automatically" eg:"true"`
+	SupportsMultiTenant     bool                      `json:"supportsMultiTenant" dc:"Whether the plugin manifest declares support for tenant-level plugin governance" eg:"true"`
+	ScopeNature             ScopeNature               `json:"scopeNature" dc:"Plugin scope nature: platform_only or tenant_aware" eg:"tenant_aware"`
+	InstallMode             InstallMode               `json:"installMode" dc:"Plugin install mode: global or tenant_scoped" eg:"tenant_scoped"`
+	StatusKey               string                    `json:"statusKey" dc:"The location key name of the plugin status in the system plugin registry. The frontend registry monitor will use this key to determine whether the plugin status needs to be refreshed." eg:"sys_plugin.status:linapro-demo-source"`
+	UpdatedAt               *int64                    `json:"updatedAt" dc:"Plugin registry last updated time as Unix timestamp in milliseconds" eg:"1767240000000"`
+	AuthorizationRequired   statusflag.YesNo          `json:"authorizationRequired" dc:"Whether there is a hostServices resource application that needs to be confirmed during installation/activation: 1=Yes 0=No" eg:"1"`
+	AuthorizationStatus     AuthorizationStatus       `json:"authorizationStatus" dc:"Current authorization status: not_required=no confirmation required pending=to be confirmed confirmed=confirmed" eg:"confirmed"`
+	HasMockData             statusflag.YesNo          `json:"hasMockData" dc:"Whether the plugin ships any mock-data SQL files under manifest/sql/mock-data/: 1=yes 0=no. The frontend uses this to decide whether to render the optional Install mock data checkbox in the install dialog." eg:"1"`
 }
 
 // PluginItem represents plugin information.

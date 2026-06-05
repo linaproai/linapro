@@ -102,7 +102,7 @@ type pluginStartupTenantProvisioner interface {
 // pluginManagementListPrewarmer is the startup-only contract for warming the
 // plugin management read model after runtime plugin state has converged.
 type pluginManagementListPrewarmer interface {
-	// PrewarmManagementList builds the complete plugin management list read model and returns build errors to the caller.
+	// PrewarmManagementList builds the plugin management summary list read model and returns build errors to the caller.
 	PrewarmManagementList(ctx context.Context) error
 }
 

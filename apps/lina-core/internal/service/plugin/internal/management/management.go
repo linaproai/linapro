@@ -4,6 +4,7 @@ package management
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strconv"
 	"strings"
@@ -33,6 +34,10 @@ type ListOutput struct {
 
 // ListInput defines input for plugin list query.
 type ListInput struct {
+	// PageNum is the one-based page number for the summary list.
+	PageNum int
+	// PageSize is the bounded page size for the summary list.
+	PageSize int
 	// ID filters by plugin identifier.
 	ID string
 	// Name filters by plugin display name.
@@ -45,18 +50,68 @@ type ListInput struct {
 	Installed *int
 }
 
-// ListCache stores one complete unfiltered plugin management list read model.
-// Filtered API requests derive their page data from this complete projection so
-// modal-dependent fields remain available.
+const (
+	// DefaultListPageNum is used when callers omit the page number.
+	DefaultListPageNum = 1
+	// DefaultListPageSize is used when callers omit the page size.
+	DefaultListPageSize = 20
+	// MaxListPageSize bounds the plugin management summary list response size.
+	MaxListPageSize = 100
+)
+
+// NormalizeListPage applies default and maximum pagination bounds.
+func NormalizeListPage(pageNum int, pageSize int) (int, int) {
+	if pageNum < DefaultListPageNum {
+		pageNum = DefaultListPageNum
+	}
+	if pageSize <= 0 {
+		pageSize = DefaultListPageSize
+	}
+	if pageSize > MaxListPageSize {
+		pageSize = MaxListPageSize
+	}
+	return pageNum, pageSize
+}
+
+// PaginatePluginItems returns the requested page and the total item count.
+func PaginatePluginItems(items []*PluginItem, pageNum int, pageSize int) ([]*PluginItem, int) {
+	pageNum, pageSize = NormalizeListPage(pageNum, pageSize)
+	total := len(items)
+	start := (pageNum - 1) * pageSize
+	if start >= total {
+		return []*PluginItem{}, total
+	}
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+	return items[start:end], total
+}
+
+// ListCache stores one complete unfiltered plugin management summary read model.
+// Filtered API requests derive page data from this lightweight projection; detail
+// and action modals use the separate plugin detail path.
 type ListCache struct {
-	mu     sync.RWMutex
-	values map[string]*ListOutput
+	mu         sync.RWMutex
+	values     map[string]*ListOutput
+	builds     map[string]*listCacheBuildCall
+	generation uint64
+}
+
+// listCacheBuildCall records one in-flight cache build for a single cache key.
+type listCacheBuildCall struct {
+	wg         sync.WaitGroup
+	generation uint64
+	value      *ListOutput
+	err        error
 }
 
 // NewListCache creates an empty process-local management list cache.
 func NewListCache() *ListCache {
 	return &ListCache{}
 }
+
+var errListCacheBuildInvalidated = errors.New("plugin management list cache build invalidated")
 
 // Get returns a defensive copy of the cached list, if available.
 func (c *ListCache) Get(key ListCacheKey) (*ListOutput, bool) {
@@ -75,6 +130,79 @@ func (c *ListCache) Get(key ListCacheKey) (*ListOutput, bool) {
 	return CloneListOutput(value), true
 }
 
+// LoadOrBuild returns a cached list or runs one in-flight build per cache key.
+func (c *ListCache) LoadOrBuild(key ListCacheKey, build func() (*ListOutput, error)) (*ListOutput, error) {
+	if c == nil {
+		return build()
+	}
+	for {
+		value, err, retry := c.loadOrBuildOnce(key, build)
+		if retry {
+			continue
+		}
+		return value, err
+	}
+}
+
+// loadOrBuildOnce performs one cached lookup/build cycle. If the cache is
+// invalidated while a build is running, callers retry against the new generation.
+func (c *ListCache) loadOrBuildOnce(key ListCacheKey, build func() (*ListOutput, error)) (*ListOutput, error, bool) {
+	keyString := key.String()
+	c.mu.Lock()
+	if c.values != nil {
+		if value := c.values[keyString]; value != nil {
+			out := CloneListOutput(value)
+			c.mu.Unlock()
+			return out, nil, false
+		}
+	}
+	if c.builds != nil {
+		if call := c.builds[keyString]; call != nil {
+			c.mu.Unlock()
+			call.wg.Wait()
+			if errors.Is(call.err, errListCacheBuildInvalidated) {
+				return nil, nil, true
+			}
+			if call.err != nil {
+				return nil, call.err, false
+			}
+			return CloneListOutput(call.value), nil, false
+		}
+	}
+	if c.builds == nil {
+		c.builds = make(map[string]*listCacheBuildCall)
+	}
+	call := &listCacheBuildCall{generation: c.generation}
+	call.wg.Add(1)
+	c.builds[keyString] = call
+	c.mu.Unlock()
+
+	value, err := build()
+	built := CloneListOutput(value)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	defer call.wg.Done()
+	if err == nil && built != nil && c.generation != call.generation {
+		call.err = errListCacheBuildInvalidated
+		delete(c.builds, keyString)
+		return nil, nil, true
+	}
+	if err == nil && built != nil {
+		c.storeLocked(key, built)
+	}
+	call.value = built
+	call.err = err
+	delete(c.builds, keyString)
+	if len(c.builds) == 0 {
+		c.builds = nil
+	}
+	if err != nil {
+		return nil, err, false
+	}
+	return CloneListOutput(built), nil, false
+}
+
 // Store replaces the cached list with a defensive copy and drops stale entries
 // for the same locale but older runtime bundle versions.
 func (c *ListCache) Store(key ListCacheKey, value *ListOutput) {
@@ -83,6 +211,11 @@ func (c *ListCache) Store(key ListCacheKey, value *ListOutput) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.storeLocked(key, value)
+}
+
+// storeLocked writes one defensive cache entry while the caller holds c.mu.
+func (c *ListCache) storeLocked(key ListCacheKey, value *ListOutput) {
 	if c.values == nil {
 		c.values = make(map[string]*ListOutput)
 	}
@@ -102,6 +235,7 @@ func (c *ListCache) Invalidate() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.values = nil
+	c.generation++
 }
 
 // ListCacheKey identifies one localized management list read model.
@@ -110,11 +244,15 @@ type ListCacheKey struct {
 	Locale string
 	// RuntimeBundleVersion is the i18n runtime bundle version for Locale.
 	RuntimeBundleVersion uint64
+	// RuntimeRevision is the shared plugin-runtime cache revision.
+	RuntimeRevision int64
 }
 
 // String returns a stable map key for the localized read-model cache.
 func (k ListCacheKey) String() string {
-	return k.Locale + "@" + strconv.FormatUint(k.RuntimeBundleVersion, 10)
+	return k.Locale + "@" +
+		strconv.FormatUint(k.RuntimeBundleVersion, 10) + "@" +
+		strconv.FormatInt(k.RuntimeRevision, 10)
 }
 
 // listCacheKeyLocale extracts the locale prefix from one cache key.

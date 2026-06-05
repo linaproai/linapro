@@ -10,7 +10,7 @@ export interface PluginListParams {
   type?: PluginType;
 }
 
-export interface SystemPlugin {
+export interface PluginListItem {
   id: string;
   name: string;
   version: string;
@@ -36,6 +36,9 @@ export interface SystemPlugin {
   hasMockData: number;
   installMode?: 'global' | 'tenant_scoped' | string;
   scopeNature?: 'platform_only' | 'tenant_aware' | string;
+}
+
+export interface SystemPlugin extends PluginListItem {
   requestedHostServices?: HostServicePermissionItem[];
   authorizedHostServices?: HostServicePermissionItem[];
   declaredRoutes?: PluginRouteReviewItem[];

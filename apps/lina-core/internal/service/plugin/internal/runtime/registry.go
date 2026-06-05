@@ -98,8 +98,33 @@ func (s *serviceImpl) listRuntimeRegistries(ctx context.Context) ([]*entity.SysP
 	return list, nil
 }
 
+// pluginItemOptions controls whether the projection includes detail-only
+// governance payloads used by management dialogs.
+type pluginItemOptions struct {
+	includeGovernanceDetails bool
+}
+
 // buildPluginItem returns a PluginItem projection combining manifest and registry data.
 func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Manifest, registry *entity.SysPlugin) *PluginItem {
+	return s.buildPluginItemWithOptions(ctx, manifest, registry, pluginItemOptions{
+		includeGovernanceDetails: true,
+	})
+}
+
+// buildPluginSummaryItem returns the lightweight list projection without
+// dependency, host-service detail, or declared-route payloads.
+func (s *serviceImpl) buildPluginSummaryItem(ctx context.Context, manifest *catalog.Manifest, registry *entity.SysPlugin) *PluginItem {
+	return s.buildPluginItemWithOptions(ctx, manifest, registry, pluginItemOptions{})
+}
+
+// buildPluginItemWithOptions returns a PluginItem projection combining manifest
+// and registry data while keeping list and detail payload boundaries explicit.
+func (s *serviceImpl) buildPluginItemWithOptions(
+	ctx context.Context,
+	manifest *catalog.Manifest,
+	registry *entity.SysPlugin,
+	options pluginItemOptions,
+) *PluginItem {
 	if manifest == nil && registry == nil {
 		return nil
 	}
@@ -208,20 +233,27 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 	)
 
 	if snapshot != nil {
-		requestedHostServices = normalizeHostServices("snapshot.requested", snapshot.RequestedHostServices)
-		authorizedHostServices = normalizeHostServices("snapshot.authorized", snapshot.AuthorizedHostServices)
 		authorizationRequired = snapshot.HostServiceAuthRequired
 		authorizationStatus = buildAuthorizationStatus(snapshot.HostServiceAuthRequired, snapshot.HostServiceAuthConfirmed)
+		if options.includeGovernanceDetails {
+			requestedHostServices = normalizeHostServices("snapshot.requested", snapshot.RequestedHostServices)
+			authorizedHostServices = normalizeHostServices("snapshot.authorized", snapshot.AuthorizedHostServices)
+		}
 	} else if manifest != nil {
-		requestedHostServices = normalizeHostServices("manifest.requested", manifest.HostServices)
 		authorizationRequired = catalog.HasResourceScopedHostServices(manifest.HostServices)
 		if authorizationRequired {
 			authorizationStatus = AuthorizationStatusPending
 		} else {
-			authorizedHostServices = normalizeHostServices("manifest.authorized", manifest.HostServices)
+			authorizationStatus = AuthorizationStatusNotRequired
+		}
+		if options.includeGovernanceDetails {
+			requestedHostServices = normalizeHostServices("manifest.requested", manifest.HostServices)
+			if !authorizationRequired {
+				authorizedHostServices = normalizeHostServices("manifest.authorized", manifest.HostServices)
+			}
 		}
 	}
-	if manifest != nil {
+	if manifest != nil && options.includeGovernanceDetails {
 		declaredRoutes = cloneRouteContracts(manifest.Routes)
 	}
 	name, description = s.localizePluginMetadata(ctx, id, pluginType, name, description)

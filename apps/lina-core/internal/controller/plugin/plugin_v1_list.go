@@ -16,6 +16,8 @@ import (
 // List scans plugins and returns current synchronized status list.
 func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListRes, err error) {
 	out, err := c.pluginSvc.List(ctx, pluginsvc.ListInput{
+		PageNum:   req.PageNum,
+		PageSize:  req.PageSize,
 		ID:        req.Id,
 		Name:      req.Name,
 		Type:      string(req.Type),
@@ -26,20 +28,12 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 		return nil, err
 	}
 
-	tableComments := c.pluginSvc.ResolveDataTableComments(
-		ctx,
-		collectPluginDataAuthorizationTables(out.List),
-	)
-	managedCronJobsByPlugin := c.buildManagedCronJobMap(ctx, out.List)
 	autoEnableManagedSet := buildAutoEnableManagedSet(c.configSvc.GetPluginAutoEnable(ctx))
 
-	items := make([]*v1.PluginItem, 0, len(out.List))
+	items := make([]*v1.PluginListItem, 0, len(out.List))
 	for _, item := range out.List {
-		items = append(items, c.buildPluginItemResponse(
-			ctx,
+		items = append(items, c.buildPluginListItemResponse(
 			item,
-			tableComments,
-			managedCronJobsByPlugin[strings.TrimSpace(item.Id)],
 			autoEnableManagedSet[strings.TrimSpace(item.Id)],
 		))
 	}
@@ -47,8 +41,45 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 	return &v1.ListRes{List: items, Total: out.Total}, nil
 }
 
-// buildPluginItemResponse maps the service plugin projection into the public
-// management DTO used by both list and detail endpoints.
+// buildPluginListItemResponse maps the service plugin summary projection into
+// the public list DTO. Detail-only governance payloads are intentionally absent.
+func (c *ControllerV1) buildPluginListItemResponse(
+	item *pluginsvc.PluginItem,
+	autoEnableManaged bool,
+) *v1.PluginListItem {
+	if item == nil {
+		return nil
+	}
+	return &v1.PluginListItem{
+		Id:                      item.Id,
+		Name:                    item.Name,
+		Version:                 item.Version,
+		RuntimeState:            v1.RuntimeState(item.RuntimeState.String()),
+		EffectiveVersion:        item.EffectiveVersion,
+		DiscoveredVersion:       item.DiscoveredVersion,
+		UpgradeAvailable:        item.UpgradeAvailable,
+		AbnormalReason:          v1.RuntimeAbnormalReason(item.AbnormalReason.String()),
+		LastUpgradeFailure:      buildPluginUpgradeFailureItem(item.LastUpgradeFailure),
+		Type:                    v1.PluginType(item.Type),
+		Description:             item.Description,
+		Installed:               statusflag.Installation(item.Installed),
+		InstalledAt:             item.InstalledAt,
+		Enabled:                 statusflag.Enabled(item.Enabled),
+		AutoEnableManaged:       boolToYesNo(autoEnableManaged),
+		AutoEnableForNewTenants: item.AutoEnableForNewTenants,
+		SupportsMultiTenant:     item.SupportsMultiTenant,
+		ScopeNature:             v1.ScopeNature(item.ScopeNature),
+		InstallMode:             v1.InstallMode(item.InstallMode),
+		StatusKey:               item.StatusKey,
+		UpdatedAt:               item.UpdatedAt,
+		AuthorizationRequired:   boolToYesNo(item.AuthorizationRequired),
+		AuthorizationStatus:     v1.AuthorizationStatus(item.AuthorizationStatus),
+		HasMockData:             boolToYesNo(item.HasMockData),
+	}
+}
+
+// buildPluginItemResponse maps the service plugin detail projection into the
+// public management DTO used by detail and action review endpoints.
 func (c *ControllerV1) buildPluginItemResponse(
 	ctx context.Context,
 	item *pluginsvc.PluginItem,

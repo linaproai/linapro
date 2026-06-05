@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import type { SystemPlugin } from '#/api/system/plugin/model';
+import type {
+  PluginListItem,
+  SystemPlugin,
+} from '#/api/system/plugin/model';
 
-import { h, ref } from 'vue';
+import { defineAsyncComponent, h, ref } from 'vue';
 
 import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
@@ -11,6 +14,7 @@ import { message, Modal, Space, Switch, Tag, Tooltip } from 'ant-design-vue';
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
   pluginDisable,
+  pluginDetail,
   pluginEnable,
   pluginList,
   pluginSync,
@@ -20,12 +24,24 @@ import { $t } from '#/locales';
 import { notifyPluginRegistryChanged } from '#/plugins/slot-registry';
 import { formatTimestamp } from '#/utils/time';
 
-import PluginDetailModal from './plugin-detail-modal.vue';
-import PluginDynamicUploadModal from './plugin-dynamic-upload-modal.vue';
-import PluginHostServiceAuthModal from './plugin-host-service-auth-modal.vue';
-import PluginUninstallModal from './plugin-uninstall-modal.vue';
-import PluginUpgradeModal from './plugin-upgrade-modal.vue';
-import LifecyclePreconditionDialog from '#/views/platform/plugins/lifecycle-precondition-dialog.vue';
+const PluginDetailModal = defineAsyncComponent(
+  () => import('./plugin-detail-modal.vue'),
+);
+const PluginDynamicUploadModal = defineAsyncComponent(
+  () => import('./plugin-dynamic-upload-modal.vue'),
+);
+const PluginHostServiceAuthModal = defineAsyncComponent(
+  () => import('./plugin-host-service-auth-modal.vue'),
+);
+const PluginUninstallModal = defineAsyncComponent(
+  () => import('./plugin-uninstall-modal.vue'),
+);
+const PluginUpgradeModal = defineAsyncComponent(
+  () => import('./plugin-upgrade-modal.vue'),
+);
+const LifecyclePreconditionDialog = defineAsyncComponent(
+  () => import('#/views/platform/plugins/lifecycle-precondition-dialog.vue'),
+);
 
 const [DetailModal, detailModalApi] = useVbenModal({
   connectedComponent: PluginDetailModal,
@@ -273,19 +289,19 @@ function getPluginTypeColor(type: string) {
   return typeColorMap[type === 'source' ? 'source' : 'dynamic'] || 'default';
 }
 
-function isAutoEnableManaged(row: SystemPlugin) {
+function isAutoEnableManaged(row: PluginListItem) {
   return row.autoEnableManaged === 1;
 }
 
-function hasPluginMockData(row: SystemPlugin) {
+function hasPluginMockData(row: PluginListItem) {
   return row.hasMockData === 1;
 }
 
-function supportsPluginMultiTenant(row: SystemPlugin) {
+function supportsPluginMultiTenant(row: PluginListItem) {
   return row.supportsMultiTenant === true;
 }
 
-function formatPluginVersion(row: SystemPlugin) {
+function formatPluginVersion(row: PluginListItem) {
   if (row.effectiveVersion || row.discoveredVersion) {
     const effective = row.effectiveVersion || row.version || '-';
     const discovered = row.discoveredVersion || row.version || '-';
@@ -294,7 +310,7 @@ function formatPluginVersion(row: SystemPlugin) {
   return row.version || '-';
 }
 
-function isRuntimeUpgradeAvailable(row: SystemPlugin) {
+function isRuntimeUpgradeAvailable(row: PluginListItem) {
   return (
     row.installed === 1 &&
     row.upgradeAvailable === true &&
@@ -302,7 +318,7 @@ function isRuntimeUpgradeAvailable(row: SystemPlugin) {
   );
 }
 
-function isRuntimeAbnormal(row: SystemPlugin) {
+function isRuntimeAbnormal(row: PluginListItem) {
   return row.runtimeState === 'abnormal';
 }
 
@@ -330,7 +346,7 @@ function getRuntimeStateColor(state?: string) {
   }
 }
 
-function buildRuntimeStateTooltip(row: SystemPlugin) {
+function buildRuntimeStateTooltip(row: PluginListItem) {
   if (row.runtimeState === 'pending_upgrade') {
     return $t('pages.system.plugin.runtimeStateHint.pendingUpgrade', {
       discoveredVersion: row.discoveredVersion || '-',
@@ -358,7 +374,7 @@ function formatAbnormalReason(reason?: string) {
   return label === key ? reason || '-' : label;
 }
 
-function isTenantProvisioningPolicySupported(row: SystemPlugin) {
+function isTenantProvisioningPolicySupported(row: PluginListItem) {
   return (
     supportsPluginMultiTenant(row) &&
     row.scopeNature === 'tenant_aware' &&
@@ -366,7 +382,7 @@ function isTenantProvisioningPolicySupported(row: SystemPlugin) {
   );
 }
 
-function buildAutoEnableManagedTooltip(row: SystemPlugin) {
+function buildAutoEnableManagedTooltip(row: PluginListItem) {
   return $t('pages.system.plugin.messages.autoEnableTooltip', {
     pluginId: row.id,
   });
@@ -421,13 +437,13 @@ function canUninstallPlugin() {
   return hasAccessByCodes([pluginAccessCodes.uninstall]);
 }
 
-function canTogglePluginStatus(row: SystemPlugin) {
+function canTogglePluginStatus(row: PluginListItem) {
   return row.enabled === 1
     ? hasAccessByCodes([pluginAccessCodes.disable])
     : hasAccessByCodes([pluginAccessCodes.enable]);
 }
 
-function isPluginStatusChanging(row: SystemPlugin) {
+function isPluginStatusChanging(row: PluginListItem) {
   return statusChangingPluginIds.value[row.id] === true;
 }
 
@@ -441,12 +457,17 @@ function setPluginStatusChanging(pluginId: string, changing: boolean) {
   statusChangingPluginIds.value = next;
 }
 
-function handleDetail(row: SystemPlugin) {
-  detailModalApi.setData({ row });
+async function loadPluginDetail(row: PluginListItem): Promise<SystemPlugin> {
+  return await pluginDetail(row.id);
+}
+
+async function handleDetail(row: PluginListItem) {
+  const detail = await loadPluginDetail(row);
+  detailModalApi.setData({ row: detail });
   detailModalApi.open();
 }
 
-async function handleStatusChange(row: SystemPlugin, checked: boolean) {
+async function handleStatusChange(row: PluginListItem, checked: boolean) {
   if (isPluginStatusChanging(row)) {
     return;
   }
@@ -463,7 +484,8 @@ async function handleStatusChange(row: SystemPlugin, checked: boolean) {
     row.authorizationRequired === 1 &&
     row.authorizationStatus !== 'confirmed'
   ) {
-    hostServiceAuthModalApi.setData({ mode: 'enable', row });
+    const detail = await loadPluginDetail(row);
+    hostServiceAuthModalApi.setData({ mode: 'enable', row: detail });
     hostServiceAuthModalApi.open();
     return;
   }
@@ -497,7 +519,7 @@ async function handleStatusChange(row: SystemPlugin, checked: boolean) {
 }
 
 async function handleTenantProvisioningPolicyChange(
-  row: SystemPlugin,
+  row: PluginListItem,
   checked: boolean,
 ) {
   if (!canEditPluginPolicy()) {
@@ -515,34 +537,37 @@ async function handleTenantProvisioningPolicyChange(
   message.success($t('pages.system.plugin.messages.tenantProvisioningUpdated'));
 }
 
-async function handleInstall(row: SystemPlugin) {
+async function handleInstall(row: PluginListItem) {
   if (!canInstallPlugin()) {
     message.warning($t('pages.system.plugin.messages.noInstallPermission'));
     return;
   }
+  const detail = await loadPluginDetail(row);
   hostServiceAuthModalApi.setData({
     allowInstallAndEnable: canInstallAndEnablePlugin(),
     mode: 'install',
-    row,
+    row: detail,
   });
   hostServiceAuthModalApi.open();
 }
 
-function handleOpenUninstall(row: SystemPlugin) {
+async function handleOpenUninstall(row: PluginListItem) {
   if (!canUninstallPlugin()) {
     message.warning($t('pages.system.plugin.messages.noUninstallPermission'));
     return;
   }
-  uninstallModalApi.setData({ row });
+  const detail = await loadPluginDetail(row);
+  uninstallModalApi.setData({ row: detail });
   uninstallModalApi.open();
 }
 
-function handleOpenUpgrade(row: SystemPlugin) {
+async function handleOpenUpgrade(row: PluginListItem) {
   if (!canInstallPlugin()) {
     message.warning($t('pages.system.plugin.messages.noUpgradePermission'));
     return;
   }
-  upgradeModalApi.setData({ row });
+  const detail = await loadPluginDetail(row);
+  upgradeModalApi.setData({ row: detail });
   upgradeModalApi.open();
 }
 

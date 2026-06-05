@@ -18,6 +18,7 @@ import (
 	"lina-core/internal/model/entity"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/management"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/dialect"
@@ -237,6 +238,156 @@ func TestListProjectsMissingRuntimeRegistryWithoutWriting(t *testing.T) {
 			registryAfter.Generation,
 			registryAfter.ReleaseId,
 		)
+	}
+}
+
+// TestNormalizePluginListPageBounds verifies plugin management list pagination
+// applies stable defaults and the service-side maximum page size.
+func TestNormalizePluginListPageBounds(t *testing.T) {
+	pageNum, pageSize := management.NormalizeListPage(0, 0)
+	if pageNum != management.DefaultListPageNum || pageSize != management.DefaultListPageSize {
+		t.Fatalf("expected default page %d/%d, got %d/%d", management.DefaultListPageNum, management.DefaultListPageSize, pageNum, pageSize)
+	}
+
+	pageNum, pageSize = management.NormalizeListPage(2, management.MaxListPageSize+1)
+	if pageNum != 2 || pageSize != management.MaxListPageSize {
+		t.Fatalf("expected bounded page 2/%d, got %d/%d", management.MaxListPageSize, pageNum, pageSize)
+	}
+}
+
+// TestListPaginatesAndKeepsGovernanceDetailsOutOfSummary verifies the GET-list
+// path is a paginated summary while exact detail lookup still exposes governance
+// review payloads for the selected plugin only.
+func TestListPaginatesAndKeepsGovernanceDetailsOutOfSummary(t *testing.T) {
+	var (
+		service       = newTestService()
+		ctx           = context.Background()
+		filterPrefix  = "plugin-dev-summary-page-"
+		firstPluginID = filterPrefix + "a"
+		secondID      = filterPrefix + "b"
+		detailID      = "plugin-dev-dynamic-summary-detail"
+		version       = "v0.1.0"
+	)
+
+	createTestSourceDependencyPlugin(t, firstPluginID, "Summary Page A", version, "")
+	createTestSourceDependencyPlugin(t, secondID, "Summary Page B", version, "")
+	cleanupTestPluginIDs(t, context.Background(), firstPluginID, secondID, detailID)
+
+	out, err := service.List(ctx, ListInput{
+		PageNum:  2,
+		PageSize: 1,
+		ID:       filterPrefix,
+	})
+	if err != nil {
+		t.Fatalf("expected paginated summary list to succeed, got error: %v", err)
+	}
+	if out.Total != 2 || len(out.List) != 1 {
+		t.Fatalf("expected second page of two filtered plugins, got total=%d len=%d", out.Total, len(out.List))
+	}
+	if out.List[0] == nil || out.List[0].Id != secondID {
+		t.Fatalf("expected second plugin on page 2, got %#v", out.List)
+	}
+	emptyPage, err := service.List(ctx, ListInput{
+		PageNum:  3,
+		PageSize: 1,
+		ID:       filterPrefix,
+	})
+	if err != nil {
+		t.Fatalf("expected empty page summary list to succeed, got error: %v", err)
+	}
+	if emptyPage.Total != 2 || len(emptyPage.List) != 0 {
+		t.Fatalf("expected empty page with retained total=2, got total=%d len=%d", emptyPage.Total, len(emptyPage.List))
+	}
+
+	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), detailID+".wasm")
+	t.Cleanup(func() {
+		if err := os.Remove(artifactPath); err != nil && !os.IsNotExist(err) {
+			t.Fatalf("failed to remove dynamic summary artifact %s: %v", artifactPath, err)
+		}
+	})
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:                  detailID,
+			Name:                "Dynamic Summary Detail Plugin",
+			Version:             version,
+			Type:                catalog.TypeDynamic.String(),
+			ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+			SupportsMultiTenant: &testutil.DefaultTestSupportsMultiTenant,
+			DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
+			HostServices: []*protocol.HostServiceSpec{
+				{
+					Service: protocol.HostServiceStorage,
+					Methods: []string{
+						protocol.HostServiceMethodStorageGet,
+					},
+					Paths: []string{"reports/"},
+				},
+			},
+			RouteCount: 1,
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		[]*protocol.RouteContract{
+			{
+				Path:        "/governed-report",
+				Method:      "GET",
+				Access:      protocol.AccessLogin,
+				Permission:  detailID + ":report:query",
+				RequestType: "DynamicSummaryDetailReq",
+			},
+		},
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.ABIVersionV1,
+			RuntimeKind:    protocol.RuntimeKindWasm,
+			RouteExecution: true,
+			RequestCodec:   protocol.CodecProtobuf,
+			ResponseCodec:  protocol.CodecProtobuf,
+			AllocExport:    protocol.DefaultGuestAllocExport,
+			ExecuteExport:  protocol.DefaultGuestExecuteExport,
+		},
+	)
+	service.InvalidateManagementListCache(ctx, "dynamic_summary_artifact_created")
+
+	summary, err := service.List(ctx, ListInput{ID: detailID})
+	if err != nil {
+		t.Fatalf("expected summary list for dynamic plugin to succeed, got error: %v", err)
+	}
+	summaryItem := findPluginItem(summary, detailID)
+	if summaryItem == nil {
+		t.Fatalf("expected dynamic plugin summary item")
+	}
+	if !summaryItem.AuthorizationRequired {
+		t.Fatalf("expected summary to retain authorization-required status, got %#v", summaryItem)
+	}
+	if summaryItem.DependencyCheck != nil {
+		t.Fatalf("expected summary list not to attach dependency check, got %#v", summaryItem.DependencyCheck)
+	}
+	if len(summaryItem.RequestedHostServices) != 0 ||
+		len(summaryItem.AuthorizedHostServices) != 0 ||
+		len(summaryItem.DeclaredRoutes) != 0 {
+		t.Fatalf("expected summary list to omit detail governance payloads, got requested=%#v authorized=%#v routes=%#v", summaryItem.RequestedHostServices, summaryItem.AuthorizedHostServices, summaryItem.DeclaredRoutes)
+	}
+
+	detail, err := service.Get(ctx, detailID)
+	if err != nil {
+		t.Fatalf("expected plugin detail to succeed, got error: %v", err)
+	}
+	if detail.DependencyCheck == nil {
+		t.Fatalf("expected detail to attach dependency check")
+	}
+	if len(detail.RequestedHostServices) != 1 || detail.RequestedHostServices[0].Service != protocol.HostServiceStorage {
+		t.Fatalf("expected detail requested host service, got %#v", detail.RequestedHostServices)
+	}
+	if len(detail.DeclaredRoutes) != 1 || detail.DeclaredRoutes[0].Path != "/governed-report" {
+		t.Fatalf("expected detail declared route, got %#v", detail.DeclaredRoutes)
 	}
 }
 
