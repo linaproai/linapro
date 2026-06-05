@@ -2,13 +2,13 @@
 
 ### Requirement: 宿主必须发布文本 AI 抽象能力
 
-系统 SHALL 在 `apps/lina-core` 中发布版本化文本 `AI` 抽象能力 `framework.ai.text.v1`。该能力 MUST 只定义消费契约、状态查询、降级语义和 provider 接入边界，MUST NOT 在宿主中持有供应商、模型、档位或调用日志业务存储。
+系统 SHALL 在 `apps/lina-core` 中发布版本化文本 `AI` 抽象能力 `framework.ai.text.v1`。该能力 MUST 只定义消费契约、状态查询、降级语义和 provider 接入边界，MUST NOT 在宿主中持有渠道、模型、档位或调用日志业务存储。
 
 #### Scenario: 消费方通过文本能力接口调用
 
 - **WHEN** 宿主模块、源码插件或动态插件需要执行文本生成
 - **THEN** 调用方 MUST 通过 `framework.ai.text.v1` 的消费接口发起调用
-- **AND** 调用方 MUST NOT 直接依赖 `linapro-ai-core` 的 `backend/internal/**`、插件表、供应商密钥结构或 provider adapter
+- **AND** 调用方 MUST NOT 直接依赖 `linapro-ai-core` 的 `backend/internal/**`、插件表、渠道密钥结构或 provider adapter
 
 #### Scenario: 官方插件提供文本能力实现
 
@@ -23,15 +23,15 @@
 - **AND** Go 契约 MUST 使用命名类型和常量表达该能力方法
 - **AND** 调用方 MUST NOT 通过请求字段把 `GenerateText` 改写为图片、向量、音频或其他方法
 
-#### Scenario: 供应商存储不进入宿主
+#### Scenario: 渠道存储不进入宿主
 
 - **WHEN** 系统实现 `framework.ai.text.v1`
-- **THEN** `apps/lina-core` MUST NOT 新增供应商、模型、档位或调用日志业务表
+- **THEN** `apps/lina-core` MUST NOT 新增渠道、模型、档位或调用日志业务表
 - **AND** 宿主公开契约 MUST NOT 暴露插件内部 `DAO`、`DO`、`Entity`、缓存快照或密钥明文
 
 ### Requirement: 文本生成请求响应必须稳定且可扩展
 
-系统 SHALL 为 `framework.ai.text.v1` 定义同步文本生成请求和响应契约。请求 MUST 包含 `purpose`、`tier`、`messages`、可选生成参数和可选 `thinkingEffort`；响应 MUST 返回文本、实际档位、实际供应商模型投影、用量、耗时和 Unix 毫秒时间点。
+系统 SHALL 为 `framework.ai.text.v1` 定义同步文本生成请求和响应契约。请求 MUST 包含 `purpose`、`tier`、`messages`、可选生成参数和可选 `thinkingEffort`；响应 MUST 返回文本、实际档位、实际渠道模型投影、用量、耗时和 Unix 毫秒时间点。
 
 #### Scenario: 请求使用消息数组
 
@@ -40,7 +40,7 @@
 - **AND** 每条消息首期 MUST 至少包含 `role` 和纯文本 `content`
 - **AND** 调用方 MUST NOT 通过 `metadata` 承载大段 prompt、diff、文件内容或业务原文
 
-#### Scenario: 响应返回最小供应商投影
+#### Scenario: 响应返回最小渠道投影
 
 - **WHEN** 文本生成成功
 - **THEN** 响应 MUST 包含生成文本、`tier`、`providerName`、`modelName`、`protocol`、`usage.inputTokens`、`usage.outputTokens`、`latencyMs` 和 `generatedAt`
@@ -50,32 +50,32 @@
 #### Scenario: 无效档位被拒绝
 
 - **WHEN** 调用方传入不是 `basic`、`standard` 或 `advanced` 的文本档位
-- **THEN** 系统 MUST 在执行供应商调用前拒绝请求
+- **THEN** 系统 MUST 在执行渠道调用前拒绝请求
 - **AND** 错误 MUST 是结构化业务错误，包含可诊断的错误码和可本地化消息键
 
 ### Requirement: 文本能力必须支持 thinkingEffort 抽象参数
 
-系统 SHALL 在文本生成请求中预留可选 `thinkingEffort` 参数。`thinkingEffort` MUST 使用平台统一枚举 `low`、`medium`、`high`、`xhigh`、`max`，并由具体模型能力声明决定是否可用。
+系统 SHALL 在文本生成请求中预留可选 `thinkingEffort` 参数。`thinkingEffort` MUST 使用平台统一枚举 `low`、`medium`、`high`、`xhigh`、`max`。模型管理 MUST NOT 声明或预先限制支持范围，具体是否可用 MUST 由测试调用、真实运行结果或 provider adapter 的结构化错误反馈判断。
 
-#### Scenario: 模型支持请求的 thinkingEffort
+#### Scenario: 请求合法 thinkingEffort
 
 - **WHEN** 调用方请求 `thinkingEffort: high`
-- **AND** 当前档位绑定模型声明支持 `high`
-- **THEN** provider adapter MUST 将平台枚举映射到目标供应商协议支持的字段或等价参数
+- **THEN** 系统 MUST 先校验该值属于平台枚举集合
+- **AND** provider adapter SHOULD 将平台枚举映射到目标渠道协议支持的字段或等价参数
 - **AND** 调用日志 MUST 记录请求值和实际应用值
 
-#### Scenario: 模型不支持请求的 thinkingEffort
+#### Scenario: 渠道或协议不支持请求的 thinkingEffort
 
-- **WHEN** 调用方请求的 `thinkingEffort` 不在当前模型支持集合内
-- **THEN** 系统 MUST 在执行供应商调用前返回结构化业务错误
+- **WHEN** 测试调用或真实调用发现目标渠道、协议或模型不支持请求的 `thinkingEffort`
+- **THEN** 系统 MUST 返回结构化业务错误
 - **AND** 系统 MUST NOT 静默降级到其他 effort
-- **AND** 系统 MUST NOT 向供应商发送不受支持的专有 thinking 参数
+- **AND** 系统 MUST NOT 向渠道发送不受支持的专有 thinking 参数
 
 #### Scenario: 未传 thinkingEffort
 
 - **WHEN** 调用方未传 `thinkingEffort`
 - **THEN** 系统 MUST 使用档位默认值或模型默认行为
-- **AND** 若档位默认值不受模型支持，系统 MUST 按配置错误拒绝调用并指示需要修正档位配置
+- **AND** 若档位默认值在实际调用中不受目标渠道、协议或模型支持，系统 MUST 返回结构化错误并指示需要修正档位配置
 
 ### Requirement: 文本能力必须提供可用性和降级状态
 
@@ -92,7 +92,7 @@
 
 - **WHEN** 调用方使用未配置启用主绑定的档位生成文本
 - **THEN** 系统 MUST 拒绝调用
-- **AND** 错误 MUST 明确指出该档位未配置可用供应商模型
+- **AND** 错误 MUST 明确指出该档位未配置可用渠道模型
 
 #### Scenario: 可选消费方降级
 
@@ -108,12 +108,12 @@
 #### Scenario: 成功调用不记录完整输入输出
 
 - **WHEN** 文本生成成功
-- **THEN** 系统 MAY 记录 `purpose`、档位、供应商模型投影、token 用量、耗时和状态
+- **THEN** 系统 MAY 记录 `purpose`、档位、渠道模型投影、token 用量、耗时和状态
 - **AND** 系统 MUST NOT 在宿主日志、调用日志或审计摘要中保存完整 `messages` 或完整生成正文
 
 #### Scenario: 失败调用脱敏
 
-- **WHEN** 供应商调用失败
+- **WHEN** 渠道调用失败
 - **THEN** 错误摘要 MUST 脱敏 API key、认证头、请求体和响应体中的敏感片段
 - **AND** 返回给调用方的错误 MUST 保留足够诊断信息，但不得包含密钥或业务原文
 

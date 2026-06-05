@@ -79,7 +79,7 @@ func TestJobDataScopeFiltersUserJobsKeepsBuiltinsAndProtectsLogs(t *testing.T) {
 	if _, err = svc.TriggerJob(ctx, hiddenJobID); !bizerr.Is(err, CodeJobDataScopeDenied) {
 		t.Fatalf("expected hidden job trigger denied, got %v", err)
 	}
-	if err = svc.ClearLogs(ctx, nil, int64ToString(hiddenLogID)); !bizerr.Is(err, CodeJobDataScopeDenied) {
+	if _, err = svc.ClearLogs(ctx, ClearLogsInput{IDs: int64ToString(hiddenLogID)}); !bizerr.Is(err, CodeJobDataScopeDenied) {
 		t.Fatalf("expected hidden log clear denied, got %v", err)
 	}
 

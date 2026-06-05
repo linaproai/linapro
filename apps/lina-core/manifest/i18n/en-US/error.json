@@ -42,7 +42,7 @@
     "ai": {
       "text": {
         "provider": {
-          "unavailable": "Text AI provider is unavailable"
+          "unavailable": "Text AI channel is unavailable"
         },
         "tier": {
           "invalid": "Text AI tier {tier} is not supported"

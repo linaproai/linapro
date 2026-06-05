@@ -115,7 +115,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 					Value:  value,
 					Remark: remark,
 				}
-				if hostconfig.IsProtectedConfigParam(key) {
+				if hostconfig.IsManagedSysConfigKey(key) {
 					data.IsBuiltin = 1
 				}
 				_, updateErr := dao.SysConfig.Ctx(ctx).

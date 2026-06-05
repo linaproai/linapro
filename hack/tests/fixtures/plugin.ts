@@ -202,6 +202,13 @@ export async function refreshPluginProjection(page: Page) {
     waitUntil: 'domcontentloaded',
   });
   await waitForRouteReady(page, 15000);
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('linapro:i18n:runtime:')) {
+        localStorage.removeItem(key);
+      }
+    }
+  });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitForRouteReady(page, 15000);
 }

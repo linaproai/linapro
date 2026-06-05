@@ -86,9 +86,10 @@ type LogService interface {
 	// GetLog returns one execution-log detail snapshot after data-scope
 	// visibility checks. Missing logs return jobmeta business errors.
 	GetLog(ctx context.Context, id int64) (*LogDetailOutput, error)
-	// ClearLogs deletes matching execution logs by selected IDs, job, or all
-	// rows within the caller's data scope.
-	ClearLogs(ctx context.Context, jobID *int64, ids string) error
+	// ClearLogs deletes matching execution logs by selected IDs, job, optional
+	// start-time range, or all rows within the caller's data scope. It returns
+	// the number of rows removed.
+	ClearLogs(ctx context.Context, in ClearLogsInput) (int64, error)
 	// CancelLog cancels one currently running execution instance after
 	// visibility checks. Non-running or unknown logs return business errors.
 	CancelLog(ctx context.Context, id int64) error
@@ -343,6 +344,14 @@ type ListLogsInput struct {
 	EndTime        string              // EndTime filters by start_at upper bound.
 	OrderBy        string              // OrderBy selects one supported sort field.
 	OrderDirection string              // OrderDirection selects asc or desc ordering.
+}
+
+// ClearLogsInput stores execution-log cleanup filters.
+type ClearLogsInput struct {
+	JobID     *int64 // JobID limits cleanup to one visible job.
+	IDs       string // IDs stores comma-separated log IDs and takes priority.
+	BeginTime string // BeginTime filters start_at lower bound.
+	EndTime   string // EndTime filters start_at upper bound.
 }
 
 // LogListItem defines one log row returned to controllers.

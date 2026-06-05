@@ -115,36 +115,67 @@ func (s *serviceImpl) GetLog(ctx context.Context, id int64) (*LogDetailOutput, e
 	}, nil
 }
 
-// ClearLogs deletes matching execution logs.
-func (s *serviceImpl) ClearLogs(ctx context.Context, jobID *int64, ids string) error {
+// ClearLogs deletes matching execution logs and returns the deleted row count.
+func (s *serviceImpl) ClearLogs(ctx context.Context, in ClearLogsInput) (int64, error) {
 	model := dao.SysJobLog.Ctx(ctx)
-	logIDs := parseInt64IDs(ids)
+	logIDs := parseInt64IDs(in.IDs)
 	cols := dao.SysJobLog.Columns()
+	beginTime := strings.TrimSpace(in.BeginTime)
+	endTime := strings.TrimSpace(in.EndTime)
 
 	switch {
 	case len(logIDs) > 0:
 		model = model.WhereIn(cols.Id, logIDs)
 		if err := s.ensureLogsVisible(ctx, logIDs); err != nil {
-			return err
+			return 0, err
 		}
-	case jobID != nil && *jobID > 0:
-		if err := s.ensureJobsVisibleByID(ctx, []int64{*jobID}); err != nil {
-			return err
+	case in.JobID != nil && *in.JobID > 0:
+		if err := s.ensureJobsVisibleByID(ctx, []int64{*in.JobID}); err != nil {
+			return 0, err
 		}
-		model = model.Where(do.SysJobLog{JobId: *jobID})
+		model = model.Where(do.SysJobLog{JobId: *in.JobID})
+		var err error
+		model, err = s.applyJobLogDataScope(ctx, model)
+		if err != nil {
+			return 0, err
+		}
 	default:
 		var err error
 		model, err = s.applyJobLogDataScope(ctx, model)
 		if err != nil {
-			return err
+			return 0, err
 		}
-		// GoFrame blocks DELETE without WHERE by default, so explicit full-table
+	}
+	if len(logIDs) == 0 && beginTime != "" {
+		model = model.WhereGTE(cols.StartAt, beginTime)
+	}
+	if len(logIDs) == 0 && endTime != "" {
+		model = model.WhereLTE(cols.StartAt, normalizeLogCleanupEndTime(endTime))
+	}
+	if len(logIDs) == 0 && (in.JobID == nil || *in.JobID <= 0) &&
+		beginTime == "" && endTime == "" {
+		// GoFrame blocks DELETE without WHERE by default, so explicit full-scope
 		// cleanup must still provide a tautology condition.
 		model = model.Where("1 = 1")
 	}
 
-	_, err := model.Delete()
-	return err
+	result, err := model.Delete()
+	if err != nil {
+		return 0, err
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return deleted, nil
+}
+
+// normalizeLogCleanupEndTime expands date-only end values to the end of day.
+func normalizeLogCleanupEndTime(value string) string {
+	if len(value) == 10 {
+		return value + " 23:59:59"
+	}
+	return value
 }
 
 // CancelLog cancels one currently running execution instance.
@@ -169,9 +200,18 @@ func (s *serviceImpl) CancelLog(ctx context.Context, id int64) error {
 
 // CleanupDueLogs removes logs that exceed the effective retention policies.
 func (s *serviceImpl) CleanupDueLogs(ctx context.Context) (int64, error) {
-	globalCfg, err := s.configSvc.GetCronLogRetention(ctx)
+	logRetentionDays, err := s.configSvc.GetLogRetentionDays(ctx)
 	if err != nil {
 		return 0, err
+	}
+	deletedTotal, err := s.cleanupJobLogsByGlobalRetention(ctx, logRetentionDays)
+	if err != nil {
+		return deletedTotal, err
+	}
+
+	globalCfg, err := s.configSvc.GetCronLogRetention(ctx)
+	if err != nil {
+		return deletedTotal, err
 	}
 	globalOption := &jobmeta.RetentionOption{
 		Mode:  jobmeta.NormalizeRetentionMode(string(globalCfg.Mode)),
@@ -182,10 +222,9 @@ func (s *serviceImpl) CleanupDueLogs(ctx context.Context) (int64, error) {
 	model := dao.SysJob.Ctx(ctx)
 	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
 	if err := model.Scan(&jobs); err != nil {
-		return 0, err
+		return deletedTotal, err
 	}
 
-	var deletedTotal int64
 	for _, job := range jobs {
 		if job == nil {
 			continue
@@ -204,6 +243,23 @@ func (s *serviceImpl) CleanupDueLogs(ctx context.Context) (int64, error) {
 		deletedTotal += deleted
 	}
 	return deletedTotal, nil
+}
+
+// cleanupJobLogsByGlobalRetention enforces the system-wide maximum retention
+// period before per-job retention policies apply stricter cleanup.
+func (s *serviceImpl) cleanupJobLogsByGlobalRetention(ctx context.Context, days int64) (int64, error) {
+	if days <= 0 {
+		return 0, nil
+	}
+	cols := dao.SysJobLog.Columns()
+	model := dao.SysJobLog.Ctx(ctx).
+		WhereLT(cols.StartAt, time.Now().AddDate(0, 0, -int(days)).Format("2006-01-02 15:04:05"))
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	result, err := model.Delete()
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 // cleanupJobLogsByPolicy applies one retention policy to one job's logs.

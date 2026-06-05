@@ -25,7 +25,7 @@
 
 ### Requirement: 多模态 AI host service 必须按方法和资源授权
 
-系统 SHALL 对每一次多模态`ai`host service 调用同时校验 service、method、resource、调用来源和策略属性。任一校验失败时，宿主 MUST 在读取密钥、解析档位或调用供应商前拒绝请求。
+系统 SHALL 对每一次多模态`ai`host service 调用同时校验 service、method、resource、调用来源和策略属性。任一校验失败时，宿主 MUST 在读取密钥、解析档位或调用渠道前拒绝请求。
 
 #### Scenario: 授权资源匹配后调用成功
 
@@ -38,7 +38,7 @@
 
 - **WHEN** 动态插件请求未在授权快照中确认的`purpose`
 - **THEN** 宿主 MUST 拒绝调用
-- **AND** 宿主 MUST NOT 读取供应商 endpoint、secret 引用或模型绑定
+- **AND** 宿主 MUST NOT 读取渠道 endpoint、secret 引用或模型绑定
 
 #### Scenario: payload 超限被拒绝
 
@@ -64,13 +64,13 @@
 
 ### Requirement: AI host service 必须支持 provider operation 查询边界
 
-系统 SHALL 允许动态插件在获得授权后使用 provider operation 查询方法跟踪供应商异步 operation。operation 查询 MUST 表达供应商协议状态，MUST NOT 表达业务任务状态。
+系统 SHALL 允许动态插件在获得授权后使用 provider operation 查询方法跟踪渠道异步 operation。operation 查询 MUST 表达渠道协议状态，MUST NOT 表达业务任务状态。
 
 #### Scenario: 视频生成返回 provider operation
 
 - **WHEN** 动态插件调用`video.generate`
-- **AND** 供应商返回异步 operation
-- **THEN** host service 响应 MUST 返回不透明`operationRef`、状态、供应商模型投影、`nextPollAfterMs`和过期时间
+- **AND** 渠道返回异步 operation
+- **THEN** host service 响应 MUST 返回不透明`operationRef`、状态、渠道模型投影、`nextPollAfterMs`和过期时间
 - **AND** 响应 MUST NOT 返回业务任务 ID
 
 #### Scenario: 查询 operation 状态
@@ -89,16 +89,16 @@
 
 ### Requirement: 多模态 AI host service 必须记录最小审计
 
-系统 SHALL 对动态插件多模态`ai`host service 调用记录最小审计信息。审计 MUST 支持诊断插件、方法、资源、耗时、状态和错误，但 MUST NOT 保存完整输入输出、大对象内容、供应商响应原文或密钥。
+系统 SHALL 对动态插件多模态`ai`host service 调用记录最小审计信息。审计 MUST 支持诊断插件、方法、资源、耗时、状态和错误，但 MUST NOT 保存完整输入输出、大对象内容、渠道响应原文或密钥。
 
 #### Scenario: 成功调用记录摘要
 
 - **WHEN** 动态插件通过多模态`ai`host service 成功调用 provider
 - **THEN** 宿主服务审计 MUST 记录`pluginId`、service、method、purpose、授权资源摘要、状态和耗时
-- **AND** 智能中心调用日志 MUST 记录来源插件、能力方法、供应商模型投影、资产引用摘要和用量摘要
+- **AND** 智能中心调用日志 MUST 记录来源插件、能力方法、渠道模型投影、资产引用摘要和用量摘要
 
 #### Scenario: 失败调用脱敏
 
 - **WHEN** 多模态`ai`host service 调用失败
 - **THEN** 审计和调用日志 MUST 记录失败状态、稳定错误码和脱敏错误摘要
-- **AND** 审计和日志 MUST NOT 包含完整文件内容、音视频内容、API key、认证头或供应商响应原文
+- **AND** 审计和日志 MUST NOT 包含完整文件内容、音视频内容、API key、认证头或渠道响应原文

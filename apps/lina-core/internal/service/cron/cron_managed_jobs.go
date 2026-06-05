@@ -308,11 +308,43 @@ func (s *serviceImpl) invokeSessionCleanup(ctx context.Context, _ json.RawMessag
 	if s == nil || s.sessionStore == nil || s.sessionCfg == nil {
 		return nil, bizerr.NewCode(CodeCronSessionCleanupDependencyMissing)
 	}
-	cleaned, err := s.sessionStore.CleanupInactive(ctx, s.sessionCfg.Timeout)
+	timeout, err := s.effectiveSessionCleanupTimeout(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cleaned, err := s.sessionStore.CleanupInactive(ctx, timeout)
 	if err != nil {
 		return nil, err
 	}
 	return map[string]any{"cleanedCount": cleaned}, nil
+}
+
+// effectiveSessionCleanupTimeout returns the stricter boundary between the
+// session inactivity timeout and the global maximum log-retention period.
+func (s *serviceImpl) effectiveSessionCleanupTimeout(ctx context.Context) (time.Duration, error) {
+	timeout := s.sessionCfg.Timeout
+	if s.configSvc == nil {
+		return timeout, nil
+	}
+	runtimeTimeout, err := s.configSvc.GetSessionTimeout(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if runtimeTimeout > 0 {
+		timeout = runtimeTimeout
+	}
+	days, err := s.configSvc.GetLogRetentionDays(ctx)
+	if err != nil {
+		return 0, err
+	}
+	retentionTimeout := time.Duration(days) * 24 * time.Hour
+	if retentionTimeout <= 0 {
+		return timeout, nil
+	}
+	if timeout <= 0 || retentionTimeout < timeout {
+		return retentionTimeout, nil
+	}
+	return timeout, nil
 }
 
 // invokeKVCacheExpiredCleanup runs the kvcache expired-entry cleanup handler.

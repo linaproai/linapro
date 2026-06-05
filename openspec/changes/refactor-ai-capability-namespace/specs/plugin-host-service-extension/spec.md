@@ -15,7 +15,7 @@
 - **WHEN** guest SDK 执行 `AI().Text().GenerateText(...)`
 - **THEN** SDK MUST 构造既有 `service: ai`、`method: text.generate` host service 调用
 - **AND** 请求资源 MUST 继续使用 `purpose:<name>` 表达授权用途
-- **AND** 宿主 MUST 在执行文本能力或供应商调用前完成 service、method、资源和策略属性校验
+- **AND** 宿主 MUST 在执行文本能力或渠道调用前完成 service、method、资源和策略属性校验
 
 #### Scenario: 动态插件协议不因 Go 入口重构改变
 

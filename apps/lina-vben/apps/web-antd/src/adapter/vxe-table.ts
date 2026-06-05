@@ -465,7 +465,6 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
  */
 export function buildJobLogColumns(): VxeTableGridOptions['columns'] {
   return [
-    { type: 'checkbox', width: 56 },
     {
       field: 'jobName',
       title: $t('pages.system.jobLog.fields.jobName'),

@@ -92,6 +92,12 @@
           "remark": "Blocks login from IPs or CIDR ranges separated by semicolons."
         }
       },
+      "log": {
+        "retentionDays": {
+          "name": "System Logs - Maximum Retention Days",
+          "remark": "Controls the maximum storage period for system logs, in days. The value must be a positive integer. Default: 90 days."
+        }
+      },
       "session": {
         "timeout": {
           "name": "Online User - Session Timeout",

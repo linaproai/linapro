@@ -23,6 +23,8 @@ const (
 	RuntimeParamKeyUploadMaxSize = "sys.upload.maxSize"
 	// RuntimeParamKeyLoginBlackIPList stores the runtime login IP blacklist.
 	RuntimeParamKeyLoginBlackIPList = "sys.login.blackIPList"
+	// RuntimeParamKeyLogRetentionDays stores the maximum log retention period in days.
+	RuntimeParamKeyLogRetentionDays = "sys.log.retentionDays"
 	// RuntimeParamKeyCronShellEnabled stores the global shell-job enable switch.
 	RuntimeParamKeyCronShellEnabled = "cron.shell.enabled"
 	// RuntimeParamKeyCronLogRetention stores the default cron-log retention policy.
@@ -55,6 +57,10 @@ var runtimeParamSpecs = []RuntimeParamSpec{
 		DefaultValue: "",
 	},
 	{
+		Key:          RuntimeParamKeyLogRetentionDays,
+		DefaultValue: "90",
+	},
+	{
 		Key:          RuntimeParamKeyCronShellEnabled,
 		DefaultValue: "true",
 	},
@@ -80,6 +86,7 @@ var runtimeParamKeys = []string{
 	RuntimeParamKeySessionTimeout,
 	RuntimeParamKeyUploadMaxSize,
 	RuntimeParamKeyLoginBlackIPList,
+	RuntimeParamKeyLogRetentionDays,
 	RuntimeParamKeyCronShellEnabled,
 	RuntimeParamKeyCronLogRetention,
 }
@@ -97,9 +104,9 @@ func LookupRuntimeParamSpec(key string) (RuntimeParamSpec, bool) {
 	return spec, ok
 }
 
-// IsProtectedRuntimeParam reports whether the key belongs to one built-in
-// runtime parameter that must not be renamed or deleted.
-func IsProtectedRuntimeParam(key string) bool {
+// IsManagedRuntimeParamKey reports whether the key belongs to one built-in
+// runtime parameter managed through sys_config by the host runtime.
+func IsManagedRuntimeParamKey(key string) bool {
 	_, ok := LookupRuntimeParamSpec(key)
 	return ok
 }
@@ -121,6 +128,10 @@ func ValidateRuntimeParamValue(key string, value string) error {
 
 	case RuntimeParamKeyLoginBlackIPList:
 		return validateIPBlacklistValue(key, value)
+
+	case RuntimeParamKeyLogRetentionDays:
+		_, err := validatePositiveInt64Value(key, value)
+		return err
 
 	case RuntimeParamKeyCronShellEnabled:
 		_, err := parseStrictBoolValue(key, value)

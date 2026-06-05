@@ -51,6 +51,7 @@ INSERT INTO sys_config ("tenant_id", "name", "key", "value", "is_builtin", "rema
 (0, '在线用户-会话超时时间', 'sys.session.timeout', '24h', 1, '控制在线会话无活动超时时长，支持 Go duration 格式，如 30m、24h。', NOW(), NOW()),
 (0, '文件管理-上传大小上限', 'sys.upload.maxSize', '100', 1, '控制单个上传文件大小上限，单位为 MB，必须为正整数。', NOW(), NOW()),
 (0, '用户登录-IP 黑名单列表', 'sys.login.blackIPList', '', 1, '禁止登录的 IP 或 CIDR 网段，多个值以英文分号分隔，例如 127.0.0.1;10.0.0.0/8。', NOW(), NOW()),
+(0, '系统日志-最长存储时间', 'sys.log.retentionDays', '90', 1, '控制系统日志最长存储时间，单位为天，必须为正整数；默认 90 天。', NOW(), NOW()),
 (0, '界面风格-主题模式', 'sys.ui.theme.mode', 'light', 1, '控制默认主题模式，可选值：light、dark、auto。', NOW(), NOW()),
 (0, '界面风格-工作台布局', 'sys.ui.layout', 'sidebar-nav', 1, '控制后台默认布局，可选值：sidebar-nav、sidebar-mixed-nav、header-nav、header-sidebar-nav、header-mixed-nav、mixed-nav、full-content。', NOW(), NOW()),
 (0, '界面风格-是否启用水印', 'sys.ui.watermark.enabled', 'false', 1, '控制工作台是否启用水印，可选值：true、false。', NOW(), NOW()),

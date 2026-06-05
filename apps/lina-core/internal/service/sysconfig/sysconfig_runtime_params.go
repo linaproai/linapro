@@ -29,7 +29,7 @@ func (s *serviceImpl) refreshRuntimeParamSnapshotIfNeeded(
 	currentValue string,
 	created bool,
 ) error {
-	if !hostconfig.IsProtectedConfigParam(key) {
+	if !hostconfig.IsManagedSysConfigKey(key) {
 		return nil
 	}
 	if !created && previousValue == currentValue {

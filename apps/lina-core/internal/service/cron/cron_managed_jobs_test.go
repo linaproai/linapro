@@ -6,6 +6,7 @@ package cron
 import (
 	"context"
 	"testing"
+	"time"
 
 	"lina-core/internal/model/entity"
 	hostconfig "lina-core/internal/service/config"
@@ -84,6 +85,24 @@ type managedPluginCronStub struct {
 	listExecutableCalled        bool
 	listInstalledDeclaredCalled bool
 	installedDeclarations       []pluginsvc.ManagedCronJob
+}
+
+// managedCronConfigStub overrides runtime settings while inheriting the rest
+// of the host config service contract from a real service instance.
+type managedCronConfigStub struct {
+	hostconfig.Service
+	sessionTimeout  time.Duration
+	logRetentionDay int64
+}
+
+// GetSessionTimeout returns the runtime-effective session timeout for tests.
+func (s managedCronConfigStub) GetSessionTimeout(context.Context) (time.Duration, error) {
+	return s.sessionTimeout, nil
+}
+
+// GetLogRetentionDays returns the runtime-effective log retention in days for tests.
+func (s managedCronConfigStub) GetLogRetentionDays(context.Context) (int64, error) {
+	return s.logRetentionDay, nil
 }
 
 // ListExecutableCronJobs records unexpected executable-list usage.
@@ -174,5 +193,47 @@ func TestBuildPluginBuiltinJobsUsesInstalledDeclarations(t *testing.T) {
 	}
 	if jobs[0].HandlerRef != "plugin:plugin-cron-installed/cron:heartbeat" {
 		t.Fatalf("unexpected plugin handler ref: %s", jobs[0].HandlerRef)
+	}
+}
+
+// TestEffectiveSessionCleanupTimeoutUsesRuntimeSessionTimeout verifies online
+// session cleanup honors the runtime session timeout before retention boundaries.
+func TestEffectiveSessionCleanupTimeoutUsesRuntimeSessionTimeout(t *testing.T) {
+	svc := &serviceImpl{
+		sessionCfg: &hostconfig.SessionConfig{Timeout: 30 * 24 * time.Hour},
+		configSvc: managedCronConfigStub{
+			Service:         hostconfig.New(),
+			sessionTimeout:  6 * time.Hour,
+			logRetentionDay: 90,
+		},
+	}
+
+	timeout, err := svc.effectiveSessionCleanupTimeout(context.Background())
+	if err != nil {
+		t.Fatalf("resolve effective session cleanup timeout: %v", err)
+	}
+	if timeout != 6*time.Hour {
+		t.Fatalf("expected runtime session timeout 6h, got %s", timeout)
+	}
+}
+
+// TestEffectiveSessionCleanupTimeoutUsesStricterLogRetention verifies the
+// global log-retention maximum can tighten online-session cleanup.
+func TestEffectiveSessionCleanupTimeoutUsesStricterLogRetention(t *testing.T) {
+	svc := &serviceImpl{
+		sessionCfg: &hostconfig.SessionConfig{Timeout: 30 * 24 * time.Hour},
+		configSvc: managedCronConfigStub{
+			Service:         hostconfig.New(),
+			sessionTimeout:  20 * 24 * time.Hour,
+			logRetentionDay: 7,
+		},
+	}
+
+	timeout, err := svc.effectiveSessionCleanupTimeout(context.Background())
+	if err != nil {
+		t.Fatalf("resolve effective session cleanup timeout: %v", err)
+	}
+	if timeout != 7*24*time.Hour {
+		t.Fatalf("expected stricter log retention timeout 168h, got %s", timeout)
 	}
 }

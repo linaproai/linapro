@@ -14,6 +14,7 @@ type Service interface {
 	ClusterConfigReader
 	AuthConfigReader
 	LoginConfigReader
+	LogRetentionConfigReader
 	FrontendConfigReader
 	I18nConfigReader
 	CronConfigReader
@@ -66,6 +67,12 @@ type LoginConfigReader interface {
 	// IsLoginIPBlacklisted reports whether the input IP is denied by the
 	// runtime-effective blacklist without constructing a full config object.
 	IsLoginIPBlacklisted(ctx context.Context, ip string) (bool, error)
+}
+
+// LogRetentionConfigReader reads shared log-retention governance settings.
+type LogRetentionConfigReader interface {
+	// GetLogRetentionDays returns the runtime-effective maximum log retention period in days.
+	GetLogRetentionDays(ctx context.Context) (int64, error)
 }
 
 // FrontendConfigReader reads public frontend shell settings.

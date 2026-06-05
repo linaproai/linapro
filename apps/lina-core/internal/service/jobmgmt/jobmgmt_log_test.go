@@ -6,17 +6,43 @@ package jobmgmt
 import (
 	"context"
 	"fmt"
-	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"testing"
 	"time"
+
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/jobmeta"
 )
+
+// jobLogCleanupConfigStub overrides log-retention settings while inheriting
+// the rest of the config contract from a real host config service.
+type jobLogCleanupConfigStub struct {
+	hostconfig.Service
+	logRetentionDays int64
+	cronRetention    *hostconfig.CronLogRetentionConfig
+}
+
+// GetLogRetentionDays returns the global maximum log retention period for tests.
+func (s jobLogCleanupConfigStub) GetLogRetentionDays(context.Context) (int64, error) {
+	return s.logRetentionDays, nil
+}
+
+// GetCronLogRetention returns the default cron-log retention policy for tests.
+func (s jobLogCleanupConfigStub) GetCronLogRetention(context.Context) (*hostconfig.CronLogRetentionConfig, error) {
+	if s.cronRetention != nil {
+		return s.cronRetention, nil
+	}
+	return &hostconfig.CronLogRetentionConfig{
+		Mode:  hostconfig.CronLogRetentionModeNone,
+		Value: 0,
+	}, nil
+}
 
 // insertLogCleanupTestJob creates one disabled handler job for execution-log tests.
 func insertLogCleanupTestJob(t *testing.T, ctx context.Context) int64 {
@@ -47,7 +73,20 @@ func insertLogCleanupTestJob(t *testing.T, ctx context.Context) int64 {
 func insertLogCleanupTestLog(t *testing.T, ctx context.Context, jobID int64, suffix string) int64 {
 	t.Helper()
 
-	startAt := time.Now()
+	return insertLogCleanupTestLogAt(t, ctx, jobID, suffix, time.Now())
+}
+
+// insertLogCleanupTestLogAt creates one persisted execution log at a controlled
+// start time for retention-boundary tests.
+func insertLogCleanupTestLogAt(
+	t *testing.T,
+	ctx context.Context,
+	jobID int64,
+	suffix string,
+	startAt time.Time,
+) int64 {
+	t.Helper()
+
 	insertID, err := dao.SysJobLog.Ctx(ctx).Data(do.SysJobLog{
 		JobId:          jobID,
 		JobSnapshot:    fmt.Sprintf(`{"name":"%s"}`, suffix),
@@ -105,8 +144,12 @@ func TestClearLogsSupportsDeleteAllAndSelectedIDs(t *testing.T) {
 		firstLogID := insertLogCleanupTestLog(t, ctx, jobID, "first")
 		secondLogID := insertLogCleanupTestLog(t, ctx, jobID, "second")
 
-		if err := svc.ClearLogs(ctx, nil, fmt.Sprintf("%d", firstLogID)); err != nil {
+		deleted, err := svc.ClearLogs(ctx, ClearLogsInput{IDs: fmt.Sprintf("%d", firstLogID)})
+		if err != nil {
 			t.Fatalf("expected selected execution-log delete to succeed, got error: %v", err)
+		}
+		if deleted != 1 {
+			t.Fatalf("expected selected execution-log delete count 1, got %d", deleted)
 		}
 
 		remainingIDs := listJobLogIDs(t, ctx, jobID)
@@ -114,12 +157,78 @@ func TestClearLogsSupportsDeleteAllAndSelectedIDs(t *testing.T) {
 			t.Fatalf("expected only second log to remain after selected delete, got %#v", remainingIDs)
 		}
 
-		if err := svc.ClearLogs(ctx, nil, ""); err != nil {
+		rangeLogID := insertLogCleanupTestLog(t, ctx, jobID, "range")
+		deleted, err = svc.ClearLogs(ctx, ClearLogsInput{
+			JobID:     &jobID,
+			BeginTime: "2000-01-01",
+			EndTime:   time.Now().AddDate(0, 0, 1).Format("2006-01-02"),
+		})
+		if err != nil {
+			t.Fatalf("expected ranged execution-log cleanup to succeed, got error: %v", err)
+		}
+		if deleted != 2 {
+			t.Fatalf("expected ranged execution-log cleanup count 2, got %d", deleted)
+		}
+
+		if remainingIDs = listJobLogIDs(t, ctx, jobID); len(remainingIDs) != 0 {
+			t.Fatalf("expected ranged cleanup to remove second and range logs including %d, got %#v", rangeLogID, remainingIDs)
+		}
+
+		insertLogCleanupTestLog(t, ctx, jobID, "full")
+		deleted, err = svc.ClearLogs(ctx, ClearLogsInput{})
+		if err != nil {
 			t.Fatalf("expected full execution-log cleanup to succeed, got error: %v", err)
+		}
+		if deleted < 1 {
+			t.Fatalf("expected full execution-log cleanup to delete at least one row, got %d", deleted)
 		}
 
 		if remainingIDs = listJobLogIDs(t, ctx, jobID); len(remainingIDs) != 0 {
 			t.Fatalf("expected all execution logs to be removed after full cleanup, got %#v", remainingIDs)
+		}
+		return gerror.New(rollbackMessage)
+	})
+	if err == nil || err.Error() != rollbackMessage {
+		t.Fatalf("expected transaction rollback marker %q, got %v", rollbackMessage, err)
+	}
+}
+
+// TestCleanupDueLogsAppliesGlobalRetentionBeforeJobPolicy verifies the
+// system-wide maximum retention deletes old execution logs even when the
+// default cron-specific policy is disabled.
+func TestCleanupDueLogsAppliesGlobalRetentionBeforeJobPolicy(t *testing.T) {
+	var (
+		ctx   = context.Background()
+		svc   = newTestService(t)
+		jobID = insertLogCleanupTestJob(t, ctx)
+	)
+	setJobMgmtTestBizCtx(svc, jobmgmtStaticBizCtx{ctx: &model.Context{UserId: 1}})
+	svc.configSvc = jobLogCleanupConfigStub{
+		Service:          hostconfig.New(),
+		logRetentionDays: 7,
+		cronRetention: &hostconfig.CronLogRetentionConfig{
+			Mode:  hostconfig.CronLogRetentionModeNone,
+			Value: 0,
+		},
+	}
+	t.Cleanup(func() { cleanupJobHard(t, ctx, jobID) })
+
+	const rollbackMessage = "rollback global execution-log retention test transaction"
+	err := dao.SysJobLog.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
+		oldLogID := insertLogCleanupTestLogAt(t, ctx, jobID, "old", time.Now().AddDate(0, 0, -10))
+		newLogID := insertLogCleanupTestLogAt(t, ctx, jobID, "new", time.Now().AddDate(0, 0, -3))
+
+		deleted, err := svc.CleanupDueLogs(ctx)
+		if err != nil {
+			t.Fatalf("expected cleanup due logs to succeed, got error: %v", err)
+		}
+		if deleted < 1 {
+			t.Fatalf("expected at least the old fixture log to be deleted, got %d", deleted)
+		}
+
+		remainingIDs := listJobLogIDs(t, ctx, jobID)
+		if len(remainingIDs) != 1 || remainingIDs[0] != newLogID {
+			t.Fatalf("expected only new log %d to remain after global cleanup, old=%d got %#v", newLogID, oldLogID, remainingIDs)
 		}
 		return gerror.New(rollbackMessage)
 	})

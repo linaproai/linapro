@@ -19,7 +19,12 @@ func (s *serviceImpl) startSessionCleanup(ctx context.Context) {
 			logger.Debug(ctx, "skipping session cleanup on non-primary node")
 			return
 		}
-		cleaned, cleanErr := s.sessionStore.CleanupInactive(ctx, s.sessionCfg.Timeout)
+		timeout, timeoutErr := s.effectiveSessionCleanupTimeout(ctx)
+		if timeoutErr != nil {
+			logger.Warningf(ctx, "resolve session cleanup timeout error: %v", timeoutErr)
+			return
+		}
+		cleaned, cleanErr := s.sessionStore.CleanupInactive(ctx, timeout)
 		if cleanErr != nil {
 			logger.Warningf(ctx, "session cleanup error: %v", cleanErr)
 		} else if cleaned > 0 {

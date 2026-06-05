@@ -68,27 +68,27 @@
 - **THEN** 响应 MUST 返回`assetRef`、`mimeType`、`sizeBytes`和`durationMs`
 - **AND** 调用方 MUST 通过受控资产能力读取或下载音频内容
 
-#### Scenario: 供应商临时 URL 不直接外泄
+#### Scenario: 渠道临时 URL 不直接外泄
 
-- **WHEN** 供应商返回临时下载 URL 或远程资产 URL
+- **WHEN** 渠道返回临时下载 URL 或远程资产 URL
 - **THEN** provider adapter MUST 将其转换为受控资产引用或受控临时资产投影
-- **AND** 响应 MUST NOT 向动态插件或前端暴露携带认证信息的供应商 URL
+- **AND** 响应 MUST NOT 向动态插件或前端暴露携带认证信息的渠道 URL
 
-### Requirement: 供应商异步协议必须通过 ProviderOperationRef 表达
+### Requirement: 渠道异步协议必须通过 ProviderOperationRef 表达
 
-系统 SHALL 使用`ProviderOperationRef`表达供应商侧异步 operation。`ProviderOperationRef` MUST 是 provider 协议适配引用，MUST NOT 表示业务任务、业务队列或用户进度记录。
+系统 SHALL 使用`ProviderOperationRef`表达渠道侧异步 operation。`ProviderOperationRef` MUST 是 provider 协议适配引用，MUST NOT 表示业务任务、业务队列或用户进度记录。
 
 #### Scenario: 视频生成返回 operation 引用
 
-- **WHEN** `video.generate`调用的供应商无法同步返回最终视频资产
+- **WHEN** `video.generate`调用的渠道无法同步返回最终视频资产
 - **THEN** 能力响应 MUST 返回`ProviderOperationRef`
-- **AND** `ProviderOperationRef` MUST 包含不透明`operationRef`、能力方法、供应商模型投影、状态、建议下次查询时间和过期时间
+- **AND** `ProviderOperationRef` MUST 包含不透明`operationRef`、能力方法、渠道模型投影、状态、建议下次查询时间和过期时间
 - **AND** 响应 MUST NOT 创建或返回业务视频任务 ID
 
 #### Scenario: 查询 provider operation
 
 - **WHEN** 调用方持有有效`operationRef`并调用`video.operation.get`
-- **THEN** 系统 MUST 查询供应商 operation 状态或本地最小投影
+- **THEN** 系统 MUST 查询渠道 operation 状态或本地最小投影
 - **AND** operation 成功完成时 MUST 返回资产引用
 - **AND** operation 未完成时 MUST 返回状态和`nextPollAfterMs`
 
@@ -107,7 +107,7 @@
 - **WHEN** 调用方请求`audio.transcribe`
 - **AND** 当前没有启用的 provider model 声明支持`audio.transcribe`
 - **THEN** `AI().Audio().Status()`或等价状态能力 MUST 返回不可用原因
-- **AND** 调用方法 MUST 在执行供应商请求前返回结构化不可用错误
+- **AND** 调用方法 MUST 在执行渠道请求前返回结构化不可用错误
 
 #### Scenario: 插件禁用后能力降级
 
@@ -117,16 +117,16 @@
 
 ### Requirement: 多模态调用必须保护敏感输入输出
 
-系统 SHALL 将多模态调用视为敏感执行路径。能力层、host service 和 provider adapter MUST NOT 默认记录完整图片、音频、视频、文件、prompt、供应商响应原文或密钥。
+系统 SHALL 将多模态调用视为敏感执行路径。能力层、host service 和 provider adapter MUST NOT 默认记录完整图片、音频、视频、文件、prompt、渠道响应原文或密钥。
 
 #### Scenario: 成功调用只记录摘要
 
 - **WHEN** 多模态能力调用成功
-- **THEN** 系统记录调用日志时 MUST 只记录`capabilityType`、`capabilityMethod`、`purpose`、档位、供应商模型投影、资产引用、用量、耗时和状态等最小摘要
-- **AND** 系统 MUST NOT 保存完整输入资产、完整输出资产或完整供应商响应正文
+- **THEN** 系统记录调用日志时 MUST 只记录`capabilityType`、`capabilityMethod`、`purpose`、档位、渠道模型投影、资产引用、用量、耗时和状态等最小摘要
+- **AND** 系统 MUST NOT 保存完整输入资产、完整输出资产或完整渠道响应正文
 
 #### Scenario: 失败调用脱敏
 
 - **WHEN** 多模态 provider 调用失败
-- **THEN** 错误摘要 MUST 脱敏 API key、认证头、供应商 URL 中的凭证、请求体和响应体敏感片段
+- **THEN** 错误摘要 MUST 脱敏 API key、认证头、渠道 URL 中的凭证、请求体和响应体敏感片段
 - **AND** 返回给调用方的错误 MUST 包含稳定错误码和可本地化消息键

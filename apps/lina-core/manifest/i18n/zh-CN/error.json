@@ -42,7 +42,7 @@
     "ai": {
       "text": {
         "provider": {
-          "unavailable": "文本AI供应商暂不可用"
+          "unavailable": "文本AI渠道暂不可用"
         },
         "tier": {
           "invalid": "不支持文本AI档位 {tier}"

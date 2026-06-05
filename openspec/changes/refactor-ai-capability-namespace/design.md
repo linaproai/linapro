@@ -1,10 +1,10 @@
 ## Context
 
-`add-ai-text-capability-center` 已经让 `apps/lina-core` 发布 `framework.ai.text.v1` 文本 `AI` 能力，并让官方源码插件 `linapro-ai-core` 提供供应商、模型、档位和调用日志实现。当前问题不在文本能力本身，而在能力入口形态：`capability.Services` 直接暴露 `AIText() aitext.Service`，后续继续新增 `AIImage()`、`AIEmbedding()` 会让根服务目录承载过多同族能力。
+`add-ai-text-capability-center` 已经让 `apps/lina-core` 发布 `framework.ai.text.v1` 文本 `AI` 能力，并让官方源码插件 `linapro-ai-core` 提供渠道、模型、档位和调用日志实现。当前问题不在文本能力本身，而在能力入口形态：`capability.Services` 直接暴露 `AIText() aitext.Service`，后续继续新增 `AIImage()`、`AIEmbedding()` 会让根服务目录承载过多同族能力。
 
 现有动态插件 host service 协议已经使用 `service: ai` 和 `method: text.generate`，这说明运行时协议层已经具备 `AI` 服务族概念。Go 侧源码插件和 guest SDK 应与这一结构对齐，通过 `AI().Text()` 表达统一入口和子能力访问。
 
-本变更属于宿主通用能力和插件能力接缝重构，不属于工作台展示适配层能力。实现必须保持 `apps/lina-core` 对供应商、模型、档位和调用日志的宿主边界不变，不能把 `linapro-ai-core` 内部实现、`DAO`、`DO`、`Entity` 或缓存对象暴露给调用方。
+本变更属于宿主通用能力和插件能力接缝重构，不属于工作台展示适配层能力。实现必须保持 `apps/lina-core` 对渠道、模型、档位和调用日志的宿主边界不变，不能把 `linapro-ai-core` 内部实现、`DAO`、`DO`、`Entity` 或缓存对象暴露给调用方。
 
 ## Goals / Non-Goals
 
@@ -20,7 +20,7 @@
 **Non-Goals:**
 
 - 不新增 `Image()`、`Embedding()` 或任何图片、向量、音频能力实现。
-- 不改变 `linapro-ai-core` 的供应商、模型、档位、调用日志数据模型、管理 API 或前端页面。
+- 不改变 `linapro-ai-core` 的渠道、模型、档位、调用日志数据模型、管理 API 或前端页面。
 - 不改变动态插件 `plugin.yaml` 中 `service: ai`、`method: text.generate`、`host:ai:text`、`purpose:<name>` 的授权语义。
 - 不新增数据库迁移、Seed、Mock 数据、语言包、菜单、路由或用户可见文案。
 - 不引入泛化 `Generate(capabilityType, payload)` 网关，也不把不同 `AI` 子能力合并成一个弱类型运行时分发接口。
@@ -51,7 +51,7 @@ type Service interface {
 }
 ```
 
-`ai.Service` 的职责是命名空间聚合和插件身份绑定，不负责供应商选择、档位解析、授权判断或弱类型方法分发。文本能力仍由 `aitext.Service` 维护自己的 DTO、状态、错误和 provider factory。
+`ai.Service` 的职责是命名空间聚合和插件身份绑定，不负责渠道选择、档位解析、授权判断或弱类型方法分发。文本能力仍由 `aitext.Service` 维护自己的 DTO、状态、错误和 provider factory。
 
 拒绝方案：
 

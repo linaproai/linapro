@@ -82,17 +82,17 @@ func TestPublicFrontendSettingSpecsExposeUpdatedLoginDefaults(t *testing.T) {
 	}
 }
 
-// TestIsProtectedConfigParamRecognizesRuntimeAndFrontendKeys verifies both
-// protected-key families are visible through one helper.
-func TestIsProtectedConfigParamRecognizesRuntimeAndFrontendKeys(t *testing.T) {
-	if !IsProtectedConfigParam(RuntimeParamKeyJWTExpire) {
-		t.Fatal("expected runtime param key to be protected")
+// TestIsManagedSysConfigKeyRecognizesRuntimeAndFrontendKeys verifies both
+// managed sys_config key families are visible through one helper.
+func TestIsManagedSysConfigKeyRecognizesRuntimeAndFrontendKeys(t *testing.T) {
+	if !IsManagedSysConfigKey(RuntimeParamKeyJWTExpire) {
+		t.Fatal("expected runtime param key to be managed")
 	}
-	if !IsProtectedConfigParam(PublicFrontendSettingKeyAppName) {
-		t.Fatal("expected public frontend key to be protected")
+	if !IsManagedSysConfigKey(PublicFrontendSettingKeyAppName) {
+		t.Fatal("expected public frontend key to be managed")
 	}
-	if IsProtectedConfigParam("sys.unknown.key") {
-		t.Fatal("expected unknown key not to be protected")
+	if IsManagedSysConfigKey("sys.unknown.key") {
+		t.Fatal("expected unknown key not to be managed")
 	}
 }
 

@@ -745,6 +745,12 @@
       "messages": {
         "cancelSent": "终止指令已发送",
         "deleteSelectedConfirm": "确认删除选中的 {count} 条执行日志吗？",
+        "deleteAllHint": "勾选后将忽略日期范围，删除当前权限范围内的所有执行日志。",
+        "deleteAllLabel": "删除所有执行日志",
+        "deleteRangeDescription": "请选择执行日志删除方式。默认按日期范围清理，勾选全部日志后将清理当前权限范围内的所有执行日志。",
+        "deleteRangeRequired": "请选择完整的执行日志日期范围",
+        "deleteRangeSuccess": "已删除 {count} 条执行日志",
+        "deleteRangeTitle": "删除执行日志",
         "clearCurrentConfirm": "确认清空当前任务的执行日志吗？",
         "clearAllConfirm": "确认清空全部执行日志吗？",
         "clearSuccess": "清空成功",

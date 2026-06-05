@@ -220,10 +220,10 @@ func LookupPublicFrontendSettingSpec(key string) (RuntimeParamSpec, bool) {
 	return spec, ok
 }
 
-// IsProtectedConfigParam reports whether the key belongs to one built-in host
-// parameter whose key name and record lifecycle are protected.
-func IsProtectedConfigParam(key string) bool {
-	if IsProtectedRuntimeParam(key) {
+// IsManagedSysConfigKey reports whether the key belongs to one built-in
+// sys_config value managed by the host runtime.
+func IsManagedSysConfigKey(key string) bool {
+	if IsManagedRuntimeParamKey(key) {
 		return true
 	}
 	_, ok := LookupPublicFrontendSettingSpec(key)
@@ -233,7 +233,7 @@ func IsProtectedConfigParam(key string) bool {
 // ValidateProtectedConfigValue validates one built-in protected config value.
 func ValidateProtectedConfigValue(key string, value string) error {
 	trimmedKey := strings.TrimSpace(key)
-	if IsProtectedRuntimeParam(trimmedKey) {
+	if IsManagedRuntimeParamKey(trimmedKey) {
 		return ValidateRuntimeParamValue(trimmedKey, value)
 	}
 	return ValidatePublicFrontendSettingValue(trimmedKey, value)

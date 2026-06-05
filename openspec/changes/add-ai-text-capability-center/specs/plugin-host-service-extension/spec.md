@@ -15,12 +15,12 @@
 #### Scenario: 未声明插件调用被拒绝
 
 - **WHEN** 动态插件未声明或未获确认 `ai.text.generate` 授权却发起文本 `AI` 调用
-- **THEN** 宿主 MUST 在执行 `framework.ai.text.v1` 或供应商调用前拒绝
+- **THEN** 宿主 MUST 在执行 `framework.ai.text.v1` 或渠道调用前拒绝
 - **AND** 宿主 MUST 返回结构化授权错误
 
 ### Requirement: ai.text.generate 必须受 service、method 和资源授权约束
 
-系统 SHALL 对每一次 `ai.text.generate` 调用同时校验 service、method、`purpose` 资源、调用来源和策略属性。任一校验失败时，宿主 MUST 拒绝调用，并且 MUST NOT 执行外部供应商请求。
+系统 SHALL 对每一次 `ai.text.generate` 调用同时校验 service、method、`purpose` 资源、调用来源和策略属性。任一校验失败时，宿主 MUST 拒绝调用，并且 MUST NOT 执行外部渠道请求。
 
 #### Scenario: 授权 purpose 调用成功进入文本能力
 
@@ -34,7 +34,7 @@
 
 - **WHEN** 动态插件请求未在授权快照中确认的 `purpose`
 - **THEN** 宿主 MUST 拒绝调用
-- **AND** 宿主 MUST NOT 解析档位绑定、读取供应商密钥或执行供应商 API 请求
+- **AND** 宿主 MUST NOT 解析档位绑定、读取渠道密钥或执行渠道 API 请求
 
 #### Scenario: 策略属性限制输出规模
 
@@ -57,7 +57,7 @@
 
 - **WHEN** 动态插件调用 `ai.text.generate` 未传 `thinkingEffort`
 - **THEN** 宿主 MUST 保持字段为空并由档位默认值或模型默认行为决定实际 effort
-- **AND** 宿主 MUST NOT 在 host service 层硬编码某个供应商专有 effort 值
+- **AND** 宿主 MUST NOT 在 host service 层硬编码某个渠道专有 effort 值
 
 #### Scenario: 动态插件 metadata 有界
 
@@ -73,13 +73,13 @@
 
 - **WHEN** 动态插件通过 `ai.text.generate` 成功生成文本
 - **THEN** 宿主服务审计 MUST 记录 `pluginId`、service、method、purpose 摘要、结果状态和耗时
-- **AND** 智能中心调用日志 MUST 记录 `sourcePluginId`、`purpose`、档位、供应商模型投影、`thinkingEffort`、token 用量和耗时
+- **AND** 智能中心调用日志 MUST 记录 `sourcePluginId`、`purpose`、档位、渠道模型投影、`thinkingEffort`、token 用量和耗时
 
 #### Scenario: 失败调用记录脱敏错误
 
 - **WHEN** 动态插件调用 `ai.text.generate` 失败
 - **THEN** 宿主服务审计和智能中心调用日志 MUST 记录失败状态与脱敏错误摘要
-- **AND** 审计和日志 MUST NOT 包含完整 `messages`、API key、认证头或供应商响应原文
+- **AND** 审计和日志 MUST NOT 包含完整 `messages`、API key、认证头或渠道响应原文
 
 ### Requirement: ai service 必须拒绝首期未开放的方法
 

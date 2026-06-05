@@ -221,7 +221,7 @@ func (s *serviceImpl) loadRuntimeParamSnapshot(ctx context.Context, revision int
 		revision:         revision,
 		values:           make(map[string]string, len(protectedConfigKeys)),
 		durationValues:   make(map[string]time.Duration, 2),
-		int64Values:      make(map[string]int64, 1),
+		int64Values:      make(map[string]int64, 2),
 		parseErrors:      make(map[string]error, 3),
 		loginBlackIPList: nil,
 	}
@@ -244,7 +244,7 @@ func (s *serviceImpl) loadRuntimeParamSnapshot(ctx context.Context, revision int
 			}
 			snapshot.durationValues[key] = duration
 
-		case RuntimeParamKeyUploadMaxSize:
+		case RuntimeParamKeyUploadMaxSize, RuntimeParamKeyLogRetentionDays:
 			if strings.TrimSpace(row.Value) == "" {
 				continue
 			}

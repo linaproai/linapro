@@ -2,7 +2,7 @@
 
 ### Requirement: 智能中心必须只管理 AI 能力元数据和 provider 实现
 
-系统 SHALL 让`linapro-ai-core`作为智能中心管理多模态`AI`能力元数据、供应商端点、模型能力、档位、调用日志和 provider adapter。`linapro-ai-core` MUST NOT 承载具体业务场景任务实现。
+系统 SHALL 让`linapro-ai-core`作为智能中心管理多模态`AI`能力元数据、渠道端点、模型能力、档位、调用日志和 provider adapter。`linapro-ai-core` MUST NOT 承载具体业务场景任务实现。
 
 #### Scenario: 视频业务任务不进入智能中心
 
@@ -12,62 +12,63 @@
 
 #### Scenario: provider operation 只用于协议适配
 
-- **WHEN** 供应商返回异步 operation ID
+- **WHEN** 渠道返回异步 operation ID
 - **THEN** `linapro-ai-core`如需保存或暴露 operation 状态，MUST 只保存最小 provider operation 投影用于后续查询和诊断
 - **AND** 该投影 MUST NOT 包含业务对象 ID、业务状态机或业务通知配置
 
 ### Requirement: 智能中心必须使用可扩展 provider endpoint 模型
 
-系统 SHALL 将供应商协议端点建模为 provider 下的可扩展 endpoint 记录。系统 MUST NOT 通过在 provider 主表追加按协议命名的固定基础地址列、密钥引用列或等价字段来支持新协议。
+系统 SHALL 将渠道协议端点建模为 provider 下的可扩展 endpoint 记录。系统 MUST NOT 通过在 provider 主表追加按协议命名的固定基础地址列、密钥引用列或等价字段来支持新协议。
 
 #### Scenario: 创建 provider endpoint
 
-- **WHEN** 管理员为供应商新增协议端点
+- **WHEN** 管理员为渠道新增协议端点
 - **THEN** 系统 MUST 保存`providerId`、`protocol`、`baseUrl`、`secretRef`或等价密钥引用、启用状态和必要元数据
 - **AND** API 响应 MUST NOT 返回 API key 明文
 
 #### Scenario: 一个 provider 支持多个协议
 
-- **WHEN** 同一供应商同时配置 OpenAI-compatible、Anthropic-compatible 或 Voyage-compatible 端点
+- **WHEN** 同一渠道同时配置 OpenAI-compatible、Anthropic-compatible 或 Voyage-compatible 端点
 - **THEN** 系统 MUST 允许多个 endpoint 关联同一个 provider
-- **AND** 供应商列表 MUST 使用当前页 provider ID 集合化装配 endpoint 摘要
+- **AND** 渠道列表 MUST 使用当前页 provider ID 集合化装配 endpoint 摘要
 - **AND** 前端 MUST NOT 对每个 provider 逐项请求 endpoint 详情
 
 #### Scenario: 删除被引用 endpoint
 
 - **WHEN** 管理员删除或禁用某个 endpoint
-- **AND** 该 endpoint 被启用模型能力或档位绑定引用
+- **AND** 该 endpoint 被启用模型或档位绑定引用
 - **THEN** 系统 MUST 在破坏绑定前拒绝操作或要求先解除引用
 - **AND** 错误 MUST 是结构化且可本地化的业务错误
 
-### Requirement: 模型必须声明多模态能力方法
+### Requirement: 模型管理不得声明多模态能力方法
 
-系统 SHALL 为模型维护能力方法声明。模型是否支持`image.generate`、`embedding.create`、`audio.transcribe`、`vision.analyze`、`document.analyze`、`safety.moderate`或`video.generate`等方法 MUST 由模型能力记录显式表达。模型基础记录 MUST NOT 再保存`capabilityType`、`capabilityMethod`、token 上限、`thinkingEffort`支持范围或其他方法级能力字段。
+系统 SHALL 不在模型管理中维护能力方法声明。模型是否支持`image.generate`、`embedding.create`、`audio.transcribe`、`vision.analyze`、`document.analyze`、`safety.moderate`或`video.generate`等方法 MUST 由管理员在档位绑定、测试调用和运行时结果中判断。模型基础记录 MUST 只保存渠道、默认 endpoint、模型名称、协议、来源和启停状态，MUST NOT 保存`capabilityType`、`capabilityMethod`、token 上限、`thinkingEffort`支持范围或其他方法级能力字段。
 
-#### Scenario: 查询模型能力
+#### Scenario: 查询模型列表
 
-- **WHEN** 前端查询供应商模型列表或档位可选模型
-- **THEN** API MUST 返回模型支持的`capabilityType`、`capabilityMethod`、输入模态、输出模态、token 上限、资产数量上限、资产大小上限和 operation 支持状态
-- **AND** 后端 MUST 使用批量查询或集合化投影装配当前页模型能力
-- **AND** 模型方法筛选、候选模型查询和档位绑定校验 MUST 以模型能力记录为唯一事实来源
+- **WHEN** 前端查询渠道模型列表或档位可选模型
+- **THEN** API MUST 返回模型名称、渠道、默认 endpoint、协议、来源、启停状态和时间投影
+- **AND** 后端 MUST 使用数据库侧过滤、分页和批量投影装配当前页渠道与 endpoint 信息
+- **AND** 模型方法筛选、候选模型查询和档位绑定校验 MUST NOT 以模型能力记录作为限制来源
 
 #### Scenario: 模型同步不自动推断能力
 
-- **WHEN** 管理员从供应商同步模型列表
-- **THEN** 系统 MUST 只写入供应商明确返回且平台可确认的公开模型元数据
-- **AND** 系统 MUST NOT 自动推断未声明的多模态能力、`thinkingEffort`支持范围或视频 operation 支持
+- **WHEN** 管理员从渠道同步模型列表
+- **THEN** 系统 MUST 只写入模型名称、协议、默认 endpoint、来源和启停状态
+- **AND** 系统 MUST NOT 自动推断多模态能力、`thinkingEffort`支持范围或视频 operation 支持
 
-#### Scenario: 档位绑定校验模型能力
+#### Scenario: 档位绑定不依赖模型能力声明
 
 - **WHEN** 管理员把模型绑定到某个能力方法档位
-- **THEN** 系统 MUST 校验该模型启用且显式声明支持目标`capabilityType + capabilityMethod`
-- **AND** 不支持目标方法时 MUST 拒绝保存
+- **THEN** 系统 MUST 校验渠道、endpoint 和模型真实存在且已启用
+- **AND** 系统 MUST NOT 要求模型显式声明支持目标`capabilityType + capabilityMethod`
+- **AND** 是否适配目标方法 MUST 由管理员通过测试调用和运行时结果判断
 
 #### Scenario: 模型基础表不重复保存能力方法字段
 
-- **WHEN** 系统保存、同步或更新供应商模型基础信息
-- **THEN** 模型基础记录 MUST 只保存供应商、默认 endpoint、模型名称、协议、来源和启用状态等模型身份字段
-- **AND** 方法级能力、输入输出约束、`thinkingEffort`支持和默认参数 MUST 保存到模型能力记录
+- **WHEN** 系统保存、同步或更新渠道模型基础信息
+- **THEN** 模型基础记录 MUST 只保存渠道、默认 endpoint、模型名称、协议、来源和启用状态等模型身份字段
+- **AND** 方法级能力、输入输出约束、`thinkingEffort`支持和默认参数 MUST NOT 保存到模型管理记录或作为模型候选限制
 
 ### Requirement: 档位和默认参数必须按能力方法管理
 
@@ -100,8 +101,8 @@
 #### Scenario: 记录多模态成功调用
 
 - **WHEN** `image.generate`、`audio.transcribe`、`vision.analyze`、`document.analyze`、`safety.moderate`或`video.generate`调用成功
-- **THEN** 系统 MUST 记录 request ID、能力方法、purpose、来源插件、租户和用户投影、供应商模型投影、状态、耗时、用量和资产引用摘要
-- **AND** 系统 MUST NOT 保存完整图片、音频、视频、文档、prompt 或供应商响应原文
+- **THEN** 系统 MUST 记录 request ID、能力方法、purpose、来源插件、租户和用户投影、渠道模型投影、状态、耗时、用量和资产引用摘要
+- **AND** 系统 MUST NOT 保存完整图片、音频、视频、文档、prompt 或渠道响应原文
 
 #### Scenario: 查询调用日志
 
@@ -121,7 +122,7 @@
 
 #### Scenario: 配置变更后失效方法缓存
 
-- **WHEN** 管理员创建、更新、启停或删除 provider、endpoint、model、model capability、tier、binding 或默认参数
+- **WHEN** 管理员创建、更新、启停或删除 provider、endpoint、model、tier、binding 或默认参数
 - **THEN** 系统 MUST 在数据库写入成功后失效相关`capabilityType + capabilityMethod`解析缓存
 - **AND** 后续调用 MUST 使用刷新后的配置或在 cache miss 时从数据库重建
 
@@ -141,11 +142,12 @@
 
 系统 SHALL 在智能中心页面中按能力类型组织多模态配置入口。档位管理页面当前版本 MUST 使用能力类型`Tab`降低操作复杂度，后端和内部请求仍 MUST 使用`capabilityType + capabilityMethod + tierCode`作为档位身份。页面 MUST 复用现有`Vben`、`vxe-table`、表单、抽屉、弹窗和操作列模式，并遵守插件`i18n`治理。
 
-#### Scenario: 供应商页面展示 endpoint 和模型能力
+#### Scenario: 渠道页面展示 endpoint 和模型
 
-- **WHEN** 管理员打开供应商页面
-- **THEN** 页面 MUST 分页展示 provider、endpoint 摘要、密钥脱敏摘要和模型能力摘要
+- **WHEN** 管理员打开渠道页面
+- **THEN** 页面 MUST 分页展示 provider、endpoint 摘要、密钥脱敏摘要和模型摘要
 - **AND** 后端 MUST 一次性返回当前页所需投影，MUST NOT 诱导前端逐行补查
+- **AND** 页面 MUST NOT 展示、筛选或编辑模型能力方法声明
 
 #### Scenario: 档位页面按能力类型 Tab 切换
 

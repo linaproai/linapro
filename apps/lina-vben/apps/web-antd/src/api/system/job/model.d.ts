@@ -149,3 +149,13 @@ export interface JobLogListResult {
   items: JobLogRecord[];
   total: number;
 }
+
+export interface JobLogClearParams {
+  beginTime?: string;
+  endTime?: string;
+  jobId?: number;
+}
+
+export interface JobLogClearResult {
+  deleted: number;
+}

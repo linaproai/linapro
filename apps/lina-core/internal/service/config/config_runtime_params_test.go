@@ -67,6 +67,10 @@ func TestValidateRuntimeParamValue(t *testing.T) {
 		{key: RuntimeParamKeyUploadMaxSize, value: "0", shouldErr: true},
 		{key: RuntimeParamKeyLoginBlackIPList, value: "127.0.0.1;10.0.0.0/8"},
 		{key: RuntimeParamKeyLoginBlackIPList, value: "invalid-ip", shouldErr: true},
+		{key: RuntimeParamKeyLogRetentionDays, value: "90"},
+		{key: RuntimeParamKeyLogRetentionDays, value: "0", shouldErr: true},
+		{key: RuntimeParamKeyLogRetentionDays, value: "-1", shouldErr: true},
+		{key: RuntimeParamKeyLogRetentionDays, value: "bad", shouldErr: true},
 		{key: RuntimeParamKeyCronShellEnabled, value: "true"},
 		{key: RuntimeParamKeyCronShellEnabled, value: "yes", shouldErr: true},
 		{key: RuntimeParamKeyCronLogRetention, value: `{"mode":"days","value":30}`},
@@ -89,13 +93,13 @@ func TestValidateRuntimeParamValue(t *testing.T) {
 }
 
 // TestRuntimeParamSpecsExcludeLoggerTraceIDSwitch verifies the TraceID switch
-// is no longer exposed as one protected sys_config runtime parameter.
+// is no longer exposed as one managed sys_config runtime parameter.
 func TestRuntimeParamSpecsExcludeLoggerTraceIDSwitch(t *testing.T) {
 	if _, ok := LookupRuntimeParamSpec("sys.logger.traceID.enabled"); ok {
-		t.Fatal("expected logger TraceID switch to be removed from protected runtime params")
+		t.Fatal("expected logger TraceID switch to be removed from managed runtime params")
 	}
-	if IsProtectedRuntimeParam("sys.logger.traceID.enabled") {
-		t.Fatal("expected logger TraceID switch not to be treated as protected")
+	if IsManagedRuntimeParamKey("sys.logger.traceID.enabled") {
+		t.Fatal("expected logger TraceID switch not to be treated as managed")
 	}
 }
 
@@ -701,12 +705,30 @@ func withRuntimeParamAbsent(t *testing.T, key string) {
 func withCachedRuntimeParamValue(t *testing.T, key string, value string) {
 	t.Helper()
 
-	withCachedRuntimeParamSnapshot(t, &runtimeParamSnapshot{
+	snapshot := &runtimeParamSnapshot{
 		values:         map[string]string{key: value},
 		durationValues: make(map[string]time.Duration),
 		int64Values:    make(map[string]int64),
 		parseErrors:    make(map[string]error),
-	})
+	}
+	switch key {
+	case RuntimeParamKeyJWTExpire, RuntimeParamKeySessionTimeout:
+		parsed, err := validatePositiveDurationValue(key, value)
+		if err != nil {
+			snapshot.parseErrors[key] = err
+		} else {
+			snapshot.durationValues[key] = parsed
+		}
+	case RuntimeParamKeyUploadMaxSize, RuntimeParamKeyLogRetentionDays:
+		parsed, err := validatePositiveInt64Value(key, value)
+		if err != nil {
+			snapshot.parseErrors[key] = err
+		} else {
+			snapshot.int64Values[key] = parsed
+		}
+	}
+
+	withCachedRuntimeParamSnapshot(t, snapshot)
 }
 
 // withCachedRuntimeParamParseError injects one runtime snapshot parse error so

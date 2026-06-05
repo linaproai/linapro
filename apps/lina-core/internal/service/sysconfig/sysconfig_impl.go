@@ -212,13 +212,13 @@ func isBuiltInConfigRecord(record *entity.SysConfig) bool {
 	if record == nil {
 		return false
 	}
-	return record.IsBuiltin == 1 || hostconfig.IsProtectedConfigParam(record.Key)
+	return record.IsBuiltin == 1 || hostconfig.IsManagedSysConfigKey(record.Key)
 }
 
 // builtInConfigFlag returns the persisted built-in marker for protected
 // system parameters that are created through management or import paths.
 func builtInConfigFlag(key string) int {
-	if hostconfig.IsProtectedConfigParam(key) {
+	if hostconfig.IsManagedSysConfigKey(key) {
 		return 1
 	}
 	return 0

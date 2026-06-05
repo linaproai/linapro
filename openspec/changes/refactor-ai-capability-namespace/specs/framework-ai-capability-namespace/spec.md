@@ -52,7 +52,7 @@
 
 - **WHEN** 文本能力包迁移到 `capability/ai/aitext`
 - **THEN** `framework.ai.text.v1` 的 capability ID、`Available(ctx)`、`Status(ctx)`、`GenerateText(ctx, request)` 和 provider factory 语义 MUST 保持不变
-- **AND** 迁移 MUST NOT 新增供应商、模型、档位或调用日志宿主存储
+- **AND** 迁移 MUST NOT 新增渠道、模型、档位或调用日志宿主存储
 
 ### Requirement: 文本 AI 来源身份必须由能力服务注入
 

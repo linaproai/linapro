@@ -241,6 +241,7 @@ func setTestConfigContent(t *testing.T, content string) {
 
 	originalContent := adapter.GetContent()
 	adapter.SetContent(content)
+	adapter.Clear()
 	resetStaticConfigCaches()
 
 	t.Cleanup(func() {
@@ -249,6 +250,7 @@ func setTestConfigContent(t *testing.T, content string) {
 		} else {
 			adapter.RemoveContent()
 		}
+		adapter.Clear()
 		resetStaticConfigCaches()
 	})
 }

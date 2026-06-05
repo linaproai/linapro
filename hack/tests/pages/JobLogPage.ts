@@ -1,7 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
 import {
-  waitForConfirmOverlay,
   waitForDialogReady,
   waitForRouteReady,
   waitForTableReady,
@@ -43,34 +42,23 @@ export class JobLogPage {
       .waitFor({ state: "visible" });
   }
 
-  async clearLogs() {
-    if (await this.dialog.isVisible().catch(() => false)) {
-      await this.page.keyboard.press("Escape");
-      await this.dialog.waitFor({ state: "hidden" });
-    }
-    await this.page.getByTestId("job-log-clear").click();
-    await this.confirmPopconfirm();
-    await waitForRouteReady(this.page);
-  }
-
-  async selectFirstRow() {
-    if (await this.dialog.isVisible().catch(() => false)) {
-      await this.page.keyboard.press("Escape");
-      await this.dialog.waitFor({ state: "hidden" });
-    }
-    const checkbox = this.page
-      .locator(".vxe-table--body .vxe-checkbox--icon")
-      .first();
-    await checkbox.click();
-  }
-
-  async deleteSelectedLogs() {
+  async openDeleteDialog() {
     if (await this.dialog.isVisible().catch(() => false)) {
       await this.page.keyboard.press("Escape");
       await this.dialog.waitFor({ state: "hidden" });
     }
     await this.page.getByTestId("job-log-delete").click();
-    await this.confirmPopconfirm();
+    return waitForDialogReady(
+      this.page.locator(".ant-modal-wrap:visible").filter({
+        hasText: /删除执行日志|Delete Execution Logs/i,
+      }),
+    );
+  }
+
+  async confirmDeleteDialog(dialog: Locator) {
+    await dialog
+      .getByRole("button", { name: /确\s*(认|定)|Confirm/i })
+      .click();
     await waitForRouteReady(this.page);
   }
 
@@ -84,13 +72,5 @@ export class JobLogPage {
         ? new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
         : text;
     return this.dialog.getByText(matcher).first().isVisible();
-  }
-
-  private async confirmPopconfirm() {
-    const overlay = await waitForConfirmOverlay(this.page);
-    const confirm = overlay
-      .getByRole("button", { name: /确\s*定|OK|是/i })
-      .last();
-    await confirm.click();
   }
 }

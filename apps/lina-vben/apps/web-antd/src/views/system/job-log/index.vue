@@ -5,13 +5,21 @@ import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
 import { $t } from '@vben/locales';
 
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 
-import { message, Modal, Popconfirm, Space } from 'ant-design-vue';
+import {
+  Alert,
+  Checkbox,
+  DatePicker,
+  message,
+  Modal,
+  Popconfirm,
+  Space,
+} from 'ant-design-vue';
 
 import { buildJobLogColumns, useVbenVxeGrid } from '#/adapter/vxe-table';
 import { jobList } from '#/api/system/job';
-import { jobLogCancel, jobLogClear, jobLogDelete } from '#/api/system/jobLog';
+import { jobLogCancel, jobLogClear } from '#/api/system/jobLog';
 
 import JobLogDetail from './detail.vue';
 
@@ -28,9 +36,12 @@ const [DetailModal, detailModalApi] = useVbenModal({
   connectedComponent: JobLogDetail,
 });
 
+const RangePicker = DatePicker.RangePicker;
 const jobOptions = ref<Array<{ label: string; value: number }>>([]);
-const checkedRows = ref<JobLogRecord[]>([]);
-const hasChecked = computed(() => checkedRows.value.length > 0);
+const deleteRange = ref<[string, string]>();
+const deleteAllLogs = ref(false);
+const deleteRangeModalOpen = ref(false);
+const deleteRangeSubmitting = ref(false);
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
@@ -82,10 +93,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
     wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
   },
   gridOptions: {
-    checkboxConfig: {
-      highlight: true,
-      reserve: true,
-    },
     columns: buildJobLogColumns(),
     height: 'auto',
     keepSource: true,
@@ -116,10 +123,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
       keyField: 'id',
     },
     id: 'system-job-log-index',
-  },
-  gridEvents: {
-    checkboxAll: syncCheckedRows,
-    checkboxChange: syncCheckedRows,
   },
 });
 
@@ -155,11 +158,6 @@ function isShellLog(row: JobLogRecord) {
   }
 }
 
-function syncCheckedRows() {
-  checkedRows.value = (gridApi.grid?.getCheckboxRecords() ||
-    []) as JobLogRecord[];
-}
-
 function canCancelRow(row: JobLogRecord) {
   if (row.status !== 'running') {
     return false;
@@ -185,40 +183,33 @@ async function handleCancel(row: JobLogRecord) {
 }
 
 function handleDelete() {
-  const ids = checkedRows.value.map((row) => row.id);
-  Modal.confirm({
-    title: $t('pages.common.confirmTitle'),
-    okType: 'danger',
-    content: $t('pages.system.jobLog.messages.deleteSelectedConfirm', {
-      count: ids.length,
-    }),
-    onOk: async () => {
-      await jobLogDelete(ids);
-      checkedRows.value = [];
-      message.success($t('pages.common.deleteSuccess'));
-      await gridApi.query();
-    },
-  });
+  deleteRange.value = undefined;
+  deleteAllLogs.value = false;
+  deleteRangeModalOpen.value = true;
 }
 
-function handleClear() {
-  const formValues = gridApi.formApi.form.values as Record<string, any>;
-  const jobId =
-    typeof formValues.jobId === 'number' ? formValues.jobId : undefined;
-  const content = jobId
-    ? $t('pages.system.jobLog.messages.clearCurrentConfirm')
-    : $t('pages.system.jobLog.messages.clearAllConfirm');
-  Modal.confirm({
-    title: $t('pages.common.confirmTitle'),
-    okType: 'danger',
-    content,
-    onOk: async () => {
-      await jobLogClear(jobId);
-      checkedRows.value = [];
-      message.success($t('pages.system.jobLog.messages.clearSuccess'));
-      await gridApi.query();
-    },
-  });
+async function handleDeleteRangeConfirm() {
+  const [beginTime, endTime] = deleteRange.value ?? [];
+  if (!deleteAllLogs.value && (!beginTime || !endTime)) {
+    message.warning($t('pages.system.jobLog.messages.deleteRangeRequired'));
+    return;
+  }
+
+  deleteRangeSubmitting.value = true;
+  try {
+    const result = await jobLogClear(
+      deleteAllLogs.value ? undefined : { beginTime, endTime },
+    );
+    message.success(
+      $t('pages.system.jobLog.messages.deleteRangeSuccess', {
+        count: result?.deleted ?? 0,
+      }),
+    );
+    deleteRangeModalOpen.value = false;
+    await gridApi.query();
+  } finally {
+    deleteRangeSubmitting.value = false;
+  }
 }
 
 function handleReload() {
@@ -233,20 +224,12 @@ function handleReload() {
         <Space>
           <a-button
             v-if="hasAccessByCodes([accessCodes.remove])"
-            :disabled="!hasChecked"
             danger
             type="primary"
             data-testid="job-log-delete"
             @click="handleDelete"
           >
             {{ $t('pages.common.delete') }}
-          </a-button>
-          <a-button
-            v-if="hasAccessByCodes([accessCodes.remove])"
-            data-testid="job-log-clear"
-            @click="handleClear"
-          >
-            {{ $t('pages.common.clear') }}
           </a-button>
         </Space>
       </template>
@@ -278,5 +261,50 @@ function handleReload() {
     </Grid>
 
     <DetailModal @reload="handleReload" />
+
+    <Modal
+      v-model:open="deleteRangeModalOpen"
+      :destroy-on-close="true"
+      :title="$t('pages.system.jobLog.messages.deleteRangeTitle')"
+    >
+      <div>
+        <div data-testid="job-log-delete-alert">
+          <Alert
+            :message="$t('pages.system.jobLog.messages.deleteRangeDescription')"
+            show-icon
+            type="warning"
+          />
+        </div>
+        <div data-testid="job-log-delete-all-option" style="margin-top: 16px">
+          <Checkbox v-model:checked="deleteAllLogs">
+            {{ $t('pages.system.jobLog.messages.deleteAllLabel') }}
+          </Checkbox>
+          <div class="text-xs text-gray-500" style="margin-top: 4px">
+            {{ $t('pages.system.jobLog.messages.deleteAllHint') }}
+          </div>
+        </div>
+        <div data-testid="job-log-delete-range-section" style="margin-top: 16px">
+          <RangePicker
+            v-model:value="deleteRange"
+            :disabled="deleteAllLogs"
+            class="w-full"
+            value-format="YYYY-MM-DD"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <a-button @click="deleteRangeModalOpen = false">
+          {{ $t('pages.common.cancel') }}
+        </a-button>
+        <a-button
+          :loading="deleteRangeSubmitting"
+          danger
+          type="primary"
+          @click="handleDeleteRangeConfirm"
+        >
+          {{ $t('pages.common.confirm') }}
+        </a-button>
+      </template>
+    </Modal>
   </Page>
 </template>

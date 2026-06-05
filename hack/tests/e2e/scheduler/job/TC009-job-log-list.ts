@@ -17,7 +17,7 @@ import {
   triggerJob,
 } from "../../../support/api/job";
 
-test.describe("TC-9 执行日志查询与清理", () => {
+test.describe("TC-9 执行日志查询与删除", () => {
   const jobName = `e2e_job_log_${Date.now()}`;
   let api: APIRequestContext;
   let jobId = 0;
@@ -40,7 +40,7 @@ test.describe("TC-9 执行日志查询与清理", () => {
     await api.dispose();
   });
 
-  test("TC-9a~e: 日志支持列表筛选、详情查看、批量删除，并可按任务维度清空", async ({
+  test("TC-9a~e: 日志支持列表筛选、详情查看，并通过范围删除弹窗发起删除", async ({
     adminPage,
   }) => {
     const defaultGroup = await getDefaultGroup(api);
@@ -101,35 +101,47 @@ test.describe("TC-9 执行日志查询与清理", () => {
     await expect(await jobLogPage.detailContains("manual")).toBe(true);
     await expect(await jobLogPage.detailContains(/success|成功/i)).toBe(true);
 
-    await jobLogPage.selectFirstRow();
-    await jobLogPage.deleteSelectedLogs();
+    await expect(adminPage.getByTestId("job-log-clear")).toHaveCount(0);
+    await expect(adminPage.locator(".vxe-checkbox--icon")).toHaveCount(0);
 
-    await expect
-      .poll(
-        async () => {
-          const remained = await listLogs(api, jobId);
-          return remained.total;
-        },
-        {
-          timeout: 5000,
-          message: "批量删除后应只剩余 1 条执行日志",
-        },
-      )
-      .toBe(1);
+    const deleteDialog = await jobLogPage.openDeleteDialog();
+    await expect(deleteDialog).toContainText("删除执行日志");
+    await expect(deleteDialog).toContainText("请选择执行日志删除方式");
+    await expect(deleteDialog).toContainText("删除所有执行日志");
+    await expect(deleteDialog.locator(".ant-picker-range")).toBeVisible();
 
-    await jobLogPage.clearLogs();
+    await deleteDialog
+      .getByRole("button", { name: /确\s*(认|定)/ })
+      .click();
+    await expect(
+      adminPage.getByText("请选择完整的执行日志日期范围"),
+    ).toBeVisible();
 
-    await expect
-      .poll(
-        async () => {
-          const cleared = await listLogs(api, jobId);
-          return cleared.total;
-        },
-        {
-          timeout: 5000,
-          message: "按任务清空日志后应看不到历史记录",
-        },
-      )
-      .toBe(0);
+    await deleteDialog.getByText("删除所有执行日志").click();
+    await expect(
+      deleteDialog.locator(".ant-picker-range input").first(),
+    ).toBeDisabled();
+
+    let cleanRequestUrl = "";
+    await adminPage.route("**/job/log**", async (route) => {
+      if (route.request().method() !== "DELETE") {
+        await route.continue();
+        return;
+      }
+      cleanRequestUrl = route.request().url();
+      await route.fulfill({
+        body: JSON.stringify({ code: 0, data: { deleted: 0 }, message: "OK" }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await jobLogPage.confirmDeleteDialog(deleteDialog);
+    await expect.poll(() => cleanRequestUrl).not.toBe("");
+    const deleteUrl = new URL(cleanRequestUrl);
+    expect(deleteUrl.searchParams.has("beginTime")).toBe(false);
+    expect(deleteUrl.searchParams.has("endTime")).toBe(false);
+
+    const remained = await listLogs(api, jobId);
+    expect(remained.total).toBeGreaterThanOrEqual(2);
   });
 });
