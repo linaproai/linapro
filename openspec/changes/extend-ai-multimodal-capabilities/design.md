@@ -19,7 +19,7 @@
 - 定义二进制和大对象结果的`assetRef`边界，禁止大段 base64 进入 JSON 或 WASM host call。
 - 定义`ProviderOperationRef`，让`linapro-ai-core`能适配渠道异步协议，但不实现具体业务任务。
 - 将`linapro-ai-core`渠道端点从固定列重构为可扩展 endpoint 模型，支撑 OpenAI-compatible、Anthropic-compatible、Voyage-compatible 等协议。
-- 扩展能力方法档位、默认参数、调用日志、缓存失效、平台权限和`i18n`治理；模型管理只维护模型身份，不维护能力方法声明。
+- 扩展能力方法档位、调用参数边界、调用日志、缓存失效、平台权限和`i18n`治理；模型管理只维护模型身份，不维护能力方法声明或默认参数模板。
 
 **Non-Goals:**
 
@@ -124,7 +124,7 @@ ProviderOperationRef
 - secret 引用或加密密文。
 - 模型身份。
 - `capabilityType + capabilityMethod + tier`档位和绑定。
-- 默认参数和 provider 支持矩阵。
+- provider 支持矩阵；调用参数由每次`AI`请求传入，不在智能中心持久化任意默认参数 JSON。
 - 最小调用日志。
 - provider operation 的最小投影和状态查询适配。
 
@@ -200,8 +200,8 @@ host:ai:video:generate
 
 - 权威源：`linapro-ai-core`插件数据库。
 - 缓存键：`capabilityType + capabilityMethod + tier + optional purpose`。
-- 缓存内容：启用档位、主绑定、provider endpoint、model、默认参数和 secret 引用，不缓存密钥明文。
-- 失效触发：provider、endpoint、model、tier、binding 和默认参数写入成功后。
+- 缓存内容：启用档位、主绑定、provider endpoint、model 和 secret 引用，不缓存密钥明文或调用参数。
+- 失效触发：provider、endpoint、model、tier 和 binding 写入成功后。
 - 集群同步：`cluster.enabled=true`时使用宿主统一集群协调、修订号、事件广播或等价机制。
 - 最大陈旧时间：正常写后失效应在事务成功后生效，兜底 TTL 不超过 30 秒。
 - 降级：缓存不可用时读数据库重建；数据库不可用时返回结构化不可用错误。
@@ -219,7 +219,7 @@ host:ai:video:generate
 页面结构建议：
 
 - “渠道”：provider、endpoint 和模型摘要，支持端点维护和模型维护，不展示或编辑模型能力方法声明。
-- “档位管理”：按能力类型`Tab`展示`basic`、`standard`、`advanced`，当前版本每个类型映射到默认能力方法完成绑定、默认参数和测试；后续可根据实际使用情况再在页面交互上展开到具体能力方法。
+- “档位管理”：按能力类型`Tab`展示`basic`、`standard`、`advanced`，当前版本每个类型映射到默认能力方法完成绑定和测试；调用参数由具体调用请求传入，不在页面维护默认参数 JSON。
 - “调用日志”：支持 capability type、method、provider、model、purpose、status、time range 过滤，只展示脱敏摘要。
 
 不新增“视频任务”“音频任务”页面。

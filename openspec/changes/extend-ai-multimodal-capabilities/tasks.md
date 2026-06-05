@@ -23,7 +23,7 @@
 
 ## 4. 智能中心数据库和 DAO 生成
 
-- [x] 4.1 在`apps/lina-plugins/linapro-ai-core/manifest/sql/`新增当前迭代 SQL，建立 provider endpoint、model capability、method default params 和 provider operation 最小投影表。
+- [x] 4.1 在`apps/lina-plugins/linapro-ai-core/manifest/sql/`新增当前迭代 SQL，建立 provider endpoint、model capability、tier、invocation 和 provider operation 最小投影表，且不建立方法默认参数表。
 - [x] 4.2 将 provider endpoint 表作为端点配置单一事实来源，provider 主表不得保留固定端点列、密钥引用列或面向旧结构的迁移回填逻辑；SQL 必须幂等，且不得显式写入自增`id`。
 - [x] 4.3 为 provider、endpoint、model capability、tier、binding、invocation 和 operation 常用筛选、排序、关联和软删除路径补充索引。
 - [x] 4.4 执行插件数据库初始化和 DAO 生成流程，确认生成结果位于`apps/lina-plugins/linapro-ai-core/backend/internal/dao`和`internal/model/{do,entity}`，不得手工创建或修改生成工件。
@@ -31,7 +31,7 @@
 
 ## 5. 智能中心后端服务和 Provider Adapter
 
-- [x] 5.1 扩展`linapro-ai-core`后端 API 和 service，支持 provider endpoint 管理、模型能力声明、能力方法档位查询/更新、默认参数和 operation 状态查询。
+- [x] 5.1 扩展`linapro-ai-core`后端 API 和 service，支持 provider endpoint 管理、模型能力声明、能力方法档位查询/更新和 operation 状态查询；调用参数由具体调用请求传入。
 - [x] 5.2 确保智能中心管理 API 要求平台上下文和对应权限，渠道、endpoint、模型、档位、日志和 operation 查询不得向租户侧开放。
 - [x] 5.3 扩展 provider adapter，优先实现文本既有行为无回归，并分批支持 embedding、vision/document、safety、image/audio 和 video operation 协议形态。
 - [x] 5.4 实现 capability method 解析缓存，覆盖权威源、写后失效、集群模式同步、最大 30 秒兜底 TTL、缓存不可用降级和脱敏错误日志。
@@ -53,7 +53,7 @@
 - [x] 7.2 为动态插件多模态 host service 授权、payload 上限、资源策略、assetRef 可见性和脱敏审计补充 Go 单元测试。
 - [x] 7.3 为`linapro-ai-core`provider endpoint、model capability、tier 解析缓存、日志脱敏和 operation 投影补充插件后端单元测试。
 - [x] 7.4 创建插件 E2E`apps/lina-plugins/linapro-ai-core/hack/tests/e2e/TC004-smart-center-provider-endpoints.ts`，覆盖 provider endpoint、模型能力维护、i18n 文案和关键截图验证。
-- [x] 7.5 创建插件 E2E`apps/lina-plugins/linapro-ai-core/hack/tests/e2e/TC005-smart-center-multimodal-tiers.ts`，覆盖能力类型`Tab`切换、三档绑定、默认参数校验、测试入口和错误路径。
+- [x] 7.5 创建插件 E2E`apps/lina-plugins/linapro-ai-core/hack/tests/e2e/TC005-smart-center-multimodal-tiers.ts`，覆盖能力类型`Tab`切换、三档绑定、默认参数入口移除、测试入口和错误路径。
 - [x] 7.6 创建插件 E2E`apps/lina-plugins/linapro-ai-core/hack/tests/e2e/TC006-smart-center-multimodal-logs.ts`，覆盖多模态日志筛选、资产摘要、operation 摘要、脱敏错误和权限隐藏。
 - [x] 7.7 保证新增 E2E 使用插件本地`pages/`和`support/`目录，测试可独立运行、可清理数据，并按截图验证要求把临时截图放到项目根目录`temp/`。
 
@@ -101,6 +101,7 @@
 - [x] **FB-30**: 将能力方法默认参数从档位列表移入配置抽屉编辑，并提供 JSON 代码高亮输入和 E2E 覆盖。
 - [x] **FB-31**: 修复英文环境调用日志搜索表单`Capability Method`标签换行的问题。
 - [x] **FB-32**: 修复渠道同步模型时把未知模型能力硬编码为`text.generate`的问题。
+- [x] **FB-33**: 移除智能中心档位管理的默认参数 JSON 控制，改为调用时传入参数。
 
 ## 实施记录
 
@@ -111,7 +112,7 @@
 - SQL 与 DAO：`linapro-ai-core`插件安装基线收敛到`manifest/sql/001-linapro-ai-core-schema.sql`，数据分类为插件 DDL 与 Seed DML；脚本使用存在性保护、稳定业务键和`ON CONFLICT DO NOTHING`，未显式写入自增`id`，且不包含历史数据兼容迁移逻辑。DAO/DO/Entity 通过`make dao p=linapro-ai-core`生成，生成结果位于插件`backend/internal/dao`和`backend/internal/model/{do,entity}`。
 - 性能与`N+1`：provider 列表按当前页 provider ID 批量装配 endpoint 和模型摘要；模型能力、档位绑定、调用日志与 provider operation 均使用数据库侧过滤、排序、分页或集合化查询；未引入前端逐行详情补查。
 - 数据权限：智能中心 provider、endpoint、model、tier、日志和 provider operation 管理 API 均声明宿主权限标签，并在 service 层通过`ensurePlatform`限制平台上下文；日志首期不向租户侧开放。
-- 缓存一致性：能力方法解析缓存权威源为插件数据库；provider、endpoint、model、model capability、tier、binding 和默认参数写入成功后触发失效；缓存使用插件 scoped 共享 revision、方法级 key 和最长 30 秒 TTL，缓存不可用时走数据库重建，数据库不可用时返回结构化不可用错误。
+- 缓存一致性：能力方法解析缓存权威源为插件数据库；provider、endpoint、model、model capability、tier 和 binding 写入成功后触发失效；缓存内容不包含默认参数 JSON 或调用请求参数；缓存使用插件 scoped 共享 revision、方法级 key 和最长 30 秒 TTL，缓存不可用时走数据库重建，数据库不可用时返回结构化不可用错误。
 - DI 来源检查：`linapro-ai-core`智能中心 service owner 为源码插件；创建位置为`backend/plugin.go`的`smartCenter(...)`，依赖由宿主 registrar 提供的`BizCtx`和`Cache`逐项传入，并复用包级共享 service 与共享`http.Client`，保证管理写入和框架 provider 调用观察同一解析缓存。宿主多模态能力、guest SDK 与 WASM host service 沿既有 pluginbridge/hostservice 装配路径扩展，未绕过启动期共享实例。
 - `i18n`：`linapro-ai-core/plugin.yaml`启用`i18n.enabled: true`；新增运行时文案、菜单文案、错误文案和`apidoc`翻译资源均维护在插件自己的`manifest/i18n`下。`make i18n.check`通过，存在既有 module-level `$t()` warning，未命中本次新增阻断问题。
 - 业务任务边界：静态检索确认未新增`/api/ai/video-jobs`、`/api/ai/audio-jobs`或等价视频/音频业务任务页面/API；provider operation 仅作为渠道协议诊断投影。
@@ -216,4 +217,9 @@
 - `FB-32`修复：将远端模型同步结果拆分为模型身份和 provider 明确确认的能力列表；当前 OpenAI/Anthropic `/models`只返回模型身份，因此同步只创建`plugin_linapro_ai_model`记录，不创建`plugin_linapro_ai_model_capability`。未来若 provider 明确返回能力，同步前会批量加载已有能力键并只补充缺失能力记录，不覆盖管理员手工维护的既有能力，也避免按模型逐条查询既有能力。渠道模型列表接口改为只有显式传入`capabilityType/capabilityMethod`时才按能力筛选；未传能力筛选时包含未声明能力模型。渠道摘要和模型列表新增“未声明能力/Unclassified”标签。
 - `FB-32`影响分析：已读取`AGENTS.md`、`.agents/rules/openspec.md`、`.agents/rules/documentation.md`、`.agents/rules/architecture.md`、`.agents/rules/plugin.md`、`.agents/rules/api-contract.md`、`.agents/rules/backend-go.md`、`.agents/rules/data-permission.md`、`.agents/rules/cache-consistency.md`、`.agents/rules/frontend-ui.md`、`.agents/rules/testing.md`和`.agents/rules/i18n.md`，并使用`lina-feedback`、`goframe-v2`、`vben`和`lina-e2e`规范。`apps/lina-plugins/linapro-ai-core/AGENTS.md`不存在。本次修改集中在插件后端同步服务、插件 API DTO 文档、插件前端展示、插件运行时语言包、插件 E2E/POM/helper 和 OpenSpec 反馈记录；未修改`lina-core`宿主契约。`i18n`影响为新增“未声明能力/Unclassified”运行时文案并更新中文`apidoc`翻译；数据权限边界沿用既有平台上下文和`ai:provider:list/update`权限；缓存一致性仍为数据库事务成功后统一失效 tier cache，未新增缓存或改变跨实例策略；SQL/DAO无变更；DI 来源无新增运行期依赖；开发工具跨平台无脚本、CI 或默认入口变化；E2E 质量审查触发，覆盖同步态未声明能力标签、无原始`i18n` key 和截图验证。
 - `FB-32`验证：`GOWORK=off go test ./backend/internal/service/ai -run 'TestSyncModelsAggregatesEnabledEndpoints|TestConfirmedRemoteCapabilitiesInsertMissingOnly|TestOpenAIModelListRetriesVersionedURLAndCachesBase' -count=1`通过；`GOWORK=off go test ./backend/internal/service/ai -count=1`通过；`GOWORK=off go test ./backend/api/provider/v1 ./backend/internal/controller/provider ./backend/internal/service/ai -count=1`通过；`pnpm -C apps/lina-vben -F @lina/web-antd typecheck`通过；`pnpm -C apps/lina-vben -F @lina/web-antd i18n:check`通过；`pnpm -C hack/tests exec tsc --noEmit`通过；`pnpm -C hack/tests test:validate`通过；`openspec validate extend-ai-multimodal-capabilities --strict`通过；`git diff --check`和`git -C apps/lina-plugins diff --check`通过；`make dev`重启当前开发服务后，`pnpm -C hack/tests exec playwright test ../apps/lina-plugins/linapro-ai-core/hack/tests/e2e/TC001-smart-center-provider-management.ts --project=chromium --workers=1 --reporter=list --trace=off --grep "TC-1e"`通过，结果为`1 passed`。截图验证已查看`temp/20260604/20260604134003-tc001-provider-unclassified-model.png`，确认渠道行显示“未声明能力”，未发现原始`i18n` key、文本截断或元素重叠。
-- 最终验证：完整验证日志位于`temp/extend-ai-multimodal-capabilities-final-20260603-014508/`。`openspec validate`、宿主 Go 测试、插件 Go 测试、`make i18n.check`、前端构建、`hack/tests test:validate`和`pnpm -C hack/tests test:module -- plugin:linapro-ai-core`全部通过，插件 E2E 结果为`11 passed`。TC004、TC005、TC006 聚焦组合验证为`3 passed`，截图已按规则写入项目根`temp/`目录。
+- `FB-33`根因：`FB-30`把能力方法默认参数移入档位配置抽屉后，默认参数 JSON 被建模为智能中心持久化元数据，形成独立表、API、前端编辑器、语言包和缓存失效入口；这与“参数由调用方在每次 AI 请求中传入”的职责边界冲突，也会让档位管理承担请求级参数模板控制。
+- `FB-33`修复：删除`plugin_linapro_ai_method_default_param`表、模型能力`default_params_json`字段、方法默认参数 API 和 controller、service 接口与实现、前端默认参数 JSON 编辑器、运行时语言包和`apidoc`翻译资源；`make ctrl p=linapro-ai-core`和`make dao p=linapro-ai-core`重新生成接口与 DAO，过期`method_default_param`生成文件随表删除同步移除。档位抽屉只维护启用状态、`Thinking Effort`和渠道模型绑定；调用参数继续由档位测试和具体 AI 调用请求体显式传入，例如 E2E 覆盖`maxOutputTokens: 128`。
+- `FB-33`补充修复：组合 E2E 暴露出`document.analyze`档位可绑定未声明文档能力的文本模型，后端补充非`text.generate`档位的模型能力声明校验；文本生成仍保持已有未声明能力模型兜底，非文本能力必须存在同`capabilityType + capabilityMethod`且启用的模型能力记录。新增服务层单元测试覆盖保存档位和草稿测试两个入口。
+- `FB-33`影响分析：已读取`AGENTS.md`、`.agents/rules/openspec.md`、`.agents/rules/documentation.md`、`.agents/rules/architecture.md`、`.agents/rules/plugin.md`、`.agents/rules/api-contract.md`、`.agents/rules/backend-go.md`、`.agents/rules/database.md`、`.agents/rules/data-permission.md`、`.agents/rules/cache-consistency.md`、`.agents/rules/dev-tooling.md`、`.agents/rules/frontend-ui.md`、`.agents/rules/testing.md`和`.agents/rules/i18n.md`，并使用`lina-feedback`、`goframe-v2`、`vben`和`lina-e2e`规范。`apps/lina-plugins/linapro-ai-core/AGENTS.md`不存在。本次修改集中在`linapro-ai-core`插件 API、Go service/controller、SQL/DAO、前端页面、插件语言包、`apidoc`翻译、E2E/POM/helper 和 OpenSpec 文档；未修改`lina-core`宿主契约。`i18n`影响为删除默认参数运行时文案与旧 API 文档翻译，`make i18n.check`通过且仅保留既有 module-level`$t()`警告；数据权限边界仍为平台上下文和`ai:tier/update`、模型能力维护权限，无租户侧开放；缓存一致性变为不再缓存或失效默认参数，仍由 provider/endpoint/model/model capability/tier/binding 写后失效维护档位解析缓存；SQL 变更为插件基线 DDL/Seed 删除表和字段，脚本经插件 SQL 执行、DAO 生成和 SQL 治理测试验证；开发工具跨平台无脚本、CI 或默认入口变化；DI 来源无新增运行期依赖；E2E 质量审查触发，覆盖默认参数入口移除、旧接口不被调用、调用参数请求体和截图验证。
+- `FB-33`验证：`make ctrl p=linapro-ai-core`通过；插件 SQL 通过`linapro-ai-core`服务测试辅助执行成功后，`make dao p=linapro-ai-core`通过；`GOWORK=off go test ./backend/internal/service/ai -run 'TestTierBindingAllowsModelWithoutCapabilityDeclaration|TestMultimodalTierBindingRequiresModelCapabilityDeclaration' -count=1`通过；`GOWORK=off go test ./backend/... -count=1`通过；`go test ./pkg/dialect -run 'TestOnConflictTargetsHaveDeclaredIdempotencyBasis|TestSQLCreateTablesHaveBilingualPurposeComments' -count=1`通过；`pnpm -C apps/lina-vben -F @lina/web-antd typecheck`通过；`pnpm -C apps/lina-vben -F @lina/web-antd i18n:check`通过；`make i18n.check`通过；`pnpm -C hack/tests exec tsc --noEmit`通过；`pnpm -C hack/tests test:validate`通过；`openspec validate extend-ai-multimodal-capabilities --strict`通过；`git diff --check`和`git -C apps/lina-plugins diff --check`通过；`make dev`重启当前服务后，`pnpm -C hack/tests exec playwright test ../apps/lina-plugins/linapro-ai-core/hack/tests/e2e/TC005-smart-center-multimodal-tiers.ts --project=chromium --workers=1 --reporter=list --trace=off`通过，结果为`1 passed`；`pnpm -C hack/tests exec playwright test ../apps/lina-plugins/linapro-ai-core/hack/tests/e2e/TC002-smart-center-tier-management.ts ../apps/lina-plugins/linapro-ai-core/hack/tests/e2e/TC004-smart-center-provider-endpoints.ts ../apps/lina-plugins/linapro-ai-core/hack/tests/e2e/TC005-smart-center-multimodal-tiers.ts --project=chromium --workers=1 --reporter=list --trace=off`通过，结果为`8 passed`。静态检索确认生产代码、SQL、语言包和 API 文档资源中无`defaultParamsJson`、`method-defaults`、`method_default_param`或`json-highlight-editor`残留；仅保留 E2E 对旧`method-defaults`接口未被调用的负向断言。截图已查看`temp/20260605/20260605130706-tc002-tier-config-drawer.png`、`temp/20260605/20260605130723-tc004-provider-endpoint-list.png`、`temp/20260605/20260605130728-tc005-document-tier-tab-list.png`和`temp/20260605/20260605130729-tc005-document-tier-test-loading.png`，未发现默认参数 JSON 输入、原始`i18n` key、文本截断或元素重叠。
+- 最终验证：最新`FB-33`范围内 OpenSpec、SQL/DAO、Go、前端类型、`i18n`、E2E 静态校验、插件聚焦 E2E 和截图审查均通过；开发服务已按当前源码重启，后端`http://127.0.0.1:9120/`、前端`http://127.0.0.1:5666/`可用。

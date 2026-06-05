@@ -70,23 +70,23 @@
 - **THEN** 模型基础记录 MUST 只保存渠道、默认 endpoint、模型名称、协议、来源和启用状态等模型身份字段
 - **AND** 方法级能力、输入输出约束、`thinkingEffort`支持和默认参数 MUST NOT 保存到模型管理记录或作为模型候选限制
 
-### Requirement: 档位和默认参数必须按能力方法管理
+### Requirement: 档位必须按能力方法管理且调用参数由请求传入
 
-系统 SHALL 继续使用`capabilityType + capabilityMethod + tierCode`作为档位身份。系统 SHALL 允许每个能力方法拥有`basic`、`standard`、`advanced`三档及其默认参数，但默认参数 MUST 按方法语义分别定义。
+系统 SHALL 继续使用`capabilityType + capabilityMethod + tierCode`作为档位身份。系统 SHALL 允许每个能力方法拥有`basic`、`standard`、`advanced`三档及其主绑定。系统 MUST NOT 在智能中心、模型能力元数据或档位管理中持久化任意默认参数 JSON；`maxOutputTokens`、图片尺寸、音频格式、视频时长、资产选项等调用参数 MUST 由调用方在每次`AI`能力请求或档位测试请求中显式传入。
 
 #### Scenario: 查询能力方法档位
 
 - **WHEN** 前端按`capabilityType=image`和`capabilityMethod=generate`查询档位
 - **THEN** 系统 MUST 返回该能力方法下的`basic`、`standard`、`advanced`档位投影
 - **AND** 响应 MUST 包含主绑定、最近测试摘要和 Unix 毫秒更新时间
-- **AND** 默认参数 MUST 通过能力方法默认参数接口在配置抽屉中展示和维护，而不是作为列表页默认值展示
+- **AND** 响应 MUST NOT 包含或诱导前端补查能力方法默认参数 JSON
 
-#### Scenario: 默认参数不跨模态复用
+#### Scenario: 调用参数不进入档位管理
 
-- **WHEN** 管理员配置`audio.transcribe`档位
-- **THEN** 系统 MUST 使用音频转写相关默认参数
-- **AND** 系统 MUST NOT 暴露`thinkingEffort`、图片尺寸或视频时长等不属于该方法的默认参数
-- **AND** 默认参数配置输入 MUST 支持代码高亮并保存为该能力方法的默认参数
+- **WHEN** 管理员配置`audio.transcribe`、`image.generate`或`video.generate`档位
+- **THEN** 配置抽屉 MUST 只维护启停状态、可用渠道模型绑定和该方法允许的受控档位字段
+- **AND** 系统 MUST NOT 展示、保存或校验任意默认参数 JSON 模板
+- **AND** 调用方 MUST 在具体调用请求中传入该次调用所需的转写语言、图片尺寸、视频时长、输出上限或等价方法参数
 
 #### Scenario: 固定档位 seed
 
@@ -118,11 +118,11 @@
 
 ### Requirement: 智能中心缓存必须按能力方法保持一致
 
-系统 SHALL 为多模态能力方法解析 provider、endpoint、model、tier 和默认参数维护受控缓存。缓存权威源 MUST 是`linapro-ai-core`插件数据库，失效 MUST 与配置写入成功耦合。
+系统 SHALL 为多模态能力方法解析 provider、endpoint、model 和 tier 维护受控缓存。缓存权威源 MUST 是`linapro-ai-core`插件数据库，失效 MUST 与配置写入成功耦合。
 
 #### Scenario: 配置变更后失效方法缓存
 
-- **WHEN** 管理员创建、更新、启停或删除 provider、endpoint、model、tier、binding 或默认参数
+- **WHEN** 管理员创建、更新、启停或删除 provider、endpoint、model、tier 或 binding
 - **THEN** 系统 MUST 在数据库写入成功后失效相关`capabilityType + capabilityMethod`解析缓存
 - **AND** 后续调用 MUST 使用刷新后的配置或在 cache miss 时从数据库重建
 
@@ -157,12 +157,11 @@
 - **AND** `Tab`标题 MUST 通过插件运行时`i18n`资源渲染，英文标题使用首字母大写，中文标题使用专业能力名称
 - **AND** 页面内部请求和保存仍 MUST 带上目标`capabilityType`和默认`capabilityMethod`
 
-#### Scenario: 档位配置抽屉维护默认参数
+#### Scenario: 档位配置抽屉不维护默认参数
 
 - **WHEN** 管理员编辑某个能力类型的档位
-- **THEN** 配置抽屉 MUST 展示该能力方法的默认参数 JSON
-- **AND** 参数输入框 MUST 支持 JSON 代码高亮
-- **AND** 保存时 MUST 同时持久化档位绑定配置和该能力方法默认参数
+- **THEN** 配置抽屉 MUST NOT 展示默认参数 JSON 输入框或独立默认参数保存动作
+- **AND** 保存时 MUST 只持久化档位启停、主渠道模型绑定和受控档位字段
 - **AND** 文本生成档位的空`Thinking Effort` MUST 显示为“模型默认”并按空值保存，不能自动落到`low`
 
 #### Scenario: 不展示业务任务页面
