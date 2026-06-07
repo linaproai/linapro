@@ -605,7 +605,7 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	capabilityguest "lina-core/pkg/plugin/capability/guest"
+	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -616,9 +616,9 @@ const (
 
 func (c *Controller) LowPriorityHostServices(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	var (
-		cacheSvc = capabilityguest.Cache()
-		lockSvc = capabilityguest.Lock()
-		notifySvc = capabilityguest.Notify()
+		cacheSvc = bridgeguest.Cache()
+		lockSvc = bridgeguest.Lock()
+		notifySvc = bridgeguest.Notify()
 	)
 
 	cacheSetValue, err := cacheSvc.Set(cacheNamespace, "profile", request.PluginID, 60)
@@ -810,12 +810,12 @@ func New() *Controller {
 import (
 	"strings"
 
-	capabilityguest "lina-core/pkg/plugin/capability/guest"
+	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 func (c *Controller) CacheLimit(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := capabilityguest.Cache().Set("limited-cache", "oversized", strings.Repeat("a", 4097), 0)
+	_, err := bridgeguest.Cache().Set("limited-cache", "oversized", strings.Repeat("a", 4097), 0)
 	if err != nil {
 		return nil, err
 	}
@@ -823,7 +823,7 @@ func (c *Controller) CacheLimit(request *protocol.BridgeRequestEnvelopeV1) (*pro
 }
 
 func (c *Controller) LockDenied(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := capabilityguest.Lock().Acquire("blocked-lock", 1000)
+	_, err := bridgeguest.Lock().Acquire("blocked-lock", 1000)
 	if err != nil {
 		return nil, err
 	}
@@ -831,7 +831,7 @@ func (c *Controller) LockDenied(request *protocol.BridgeRequestEnvelopeV1) (*pro
 }
 
 func (c *Controller) NotifyDenied(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := capabilityguest.Notify().Send("ops-webhook", &protocol.HostServiceNotifySendRequest{
+	_, err := bridgeguest.Notify().Send("ops-webhook", &protocol.HostServiceNotifySendRequest{
 		Title: "denied notify",
 		Content: "blocked",
 		RecipientUserIDs: []int64{1},

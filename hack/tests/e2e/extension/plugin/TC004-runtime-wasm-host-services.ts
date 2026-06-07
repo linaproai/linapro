@@ -517,8 +517,8 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	plugindata "lina-core/pkg/plugin/capability/data"
-	capabilityguest "lina-core/pkg/plugin/capability/guest"
+	"lina-core/pkg/plugin/capability/recordstore"
+	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -529,10 +529,10 @@ const (
 
 func (c *Controller) HostServices(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	var (
-		runtimeSvc = capabilityguest.Runtime()
-		storageSvc = capabilityguest.Storage()
-		httpSvc    = capabilityguest.Network()
-		dataSvc    = plugindata.Open()
+		runtimeSvc = bridgeguest.Runtime()
+		storageSvc = bridgeguest.Storage()
+		httpSvc    = bridgeguest.Network()
+		dataSvc    = bridgeguest.Default().RecordStore()
 	)
 
 	nowValue, err := runtimeSvc.Now()
@@ -619,7 +619,7 @@ func (c *Controller) HostServices(request *protocol.BridgeRequestEnvelopeV1) (*p
 		return nil, err
 	}
 
-	err = dataSvc.Transaction(func(tx *plugindata.Tx) error {
+	err = dataSvc.Transaction(func(tx *recordstore.Tx) error {
 		_, txErr := tx.Table(dataTable).Insert(map[string]any{
 			"pluginId": request.PluginID,
 			"releaseId": 0,
@@ -805,13 +805,12 @@ func New() *Controller {
     `package dynamic
 
 import (
-	plugindata "lina-core/pkg/plugin/capability/data"
-	capabilityguest "lina-core/pkg/plugin/capability/guest"
+	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 func (c *Controller) DeniedMethod(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, _, _, err := capabilityguest.Storage().Get("authorized-files/blocked.txt")
+	_, _, _, err := bridgeguest.Storage().Get("authorized-files/blocked.txt")
 	if err != nil {
 		return nil, err
 	}
@@ -819,7 +818,7 @@ func (c *Controller) DeniedMethod(request *protocol.BridgeRequestEnvelopeV1) (*p
 }
 
 func (c *Controller) DeniedResource(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := capabilityguest.Storage().PutText("denied-files/blocked.txt", "blocked", "text/plain", true)
+	_, err := bridgeguest.Storage().PutText("denied-files/blocked.txt", "blocked", "text/plain", true)
 	if err != nil {
 		return nil, err
 	}
@@ -827,7 +826,7 @@ func (c *Controller) DeniedResource(request *protocol.BridgeRequestEnvelopeV1) (
 }
 
 func (c *Controller) DeniedService(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, _, err := plugindata.Open().Table("sys_plugin_node_state").Page(1, 1).All()
+	_, _, err := bridgeguest.Default().RecordStore().Table("sys_plugin_node_state").Page(1, 1).All()
 	if err != nil {
 		return nil, err
 	}
