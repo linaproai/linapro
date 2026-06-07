@@ -14,7 +14,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/plugin/internal/catalog"
-	plugindatahost "lina-core/internal/service/plugin/internal/datahost/internal/host"
+	recordstorehost "lina-core/internal/service/plugin/internal/datahost/internal/host"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -284,9 +284,9 @@ CREATE TABLE test_datahost_identity_contract (
 	}
 }
 
-// TestExecuteListSupportsDataCapabilityPlan verifies typed data capability
+// TestExecuteListSupportsRecordStoreCapabilityPlan verifies typed record store capability
 // list plans are honored.
-func TestExecuteListSupportsDataCapabilityPlan(t *testing.T) {
+func TestExecuteListSupportsRecordStoreCapabilityPlan(t *testing.T) {
 	ctx := context.Background()
 	resource := buildTestNodeStateResource()
 	identity := &protocol.IdentitySnapshotV1{
@@ -504,7 +504,7 @@ func TestPluginDataDBDoCommitRejectsUnauthorizedTable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("getPluginDataDB failed: %v", err)
 	}
-	ctx := withPluginDataAudit(context.Background(), &plugindatahost.AuditMetadata{
+	ctx := withPluginDataAudit(context.Background(), &recordstorehost.AuditMetadata{
 		PluginID:      "test-plugin-data",
 		Table:         "sys_plugin_node_state",
 		Method:        protocol.HostServiceMethodDataDelete,

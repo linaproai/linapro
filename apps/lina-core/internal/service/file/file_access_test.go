@@ -4,17 +4,18 @@ package file
 
 import (
 	"context"
-	"github.com/gogf/gf/v2/net/ghttp"
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 )
 
 // fakeAccessStorage records object reads and returns deterministic content.
@@ -140,11 +141,11 @@ func (s fileAccessStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 func (s fileAccessStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
 
 // Current returns the plugin-visible business context projection.
-func (s fileAccessStaticBizCtx) Current(context.Context) contract.CurrentContext {
+func (s fileAccessStaticBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	if s.ctx == nil {
-		return contract.CurrentContext{}
+		return bizctxcap.CurrentContext{}
 	}
-	return contract.CurrentContext{
+	return bizctxcap.CurrentContext{
 		UserID:          s.ctx.UserId,
 		Username:        s.ctx.Username,
 		TenantID:        s.ctx.TenantId,

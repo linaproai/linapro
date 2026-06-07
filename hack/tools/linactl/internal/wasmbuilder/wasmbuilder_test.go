@@ -658,6 +658,49 @@ func TestBuildRuntimeWasmArtifactFromSourceSkipsHiddenEmbeddedDirectoryEntries(t
 	}
 }
 
+func TestBuildRuntimeWasmArtifactFromSourceRejectsNonOwnedDataTables(t *testing.T) {
+	cases := []struct {
+		name         string
+		table        string
+		errorMessage string
+	}{
+		{
+			name:         "host core table",
+			table:        "sys_user",
+			errorMessage: "host service data cannot declare host core table",
+		},
+		{
+			name:         "other plugin table",
+			table:        "plugin_other_plugin_record",
+			errorMessage: "host service data table must belong to plugin plugin-dev-dynamic-data namespace",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pluginDir := t.TempDir()
+			mustWriteFile(
+				t,
+				filepath.Join(pluginDir, "plugin.yaml"),
+				"id: plugin-dev-dynamic-data\nname: Dynamic Data Boundary\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\nhostServices:\n  - service: data\n    methods:\n      - list\n    resources:\n      tables:\n        - "+tc.table+"\n",
+			)
+			mustWriteFile(
+				t,
+				filepath.Join(pluginDir, "main.go"),
+				"package main\n\nfunc main() {}\n",
+			)
+
+			_, err := BuildRuntimeWasmArtifactFromSource(pluginDir)
+			if err == nil {
+				t.Fatalf("expected dynamic build to reject table %s", tc.table)
+			}
+			if !strings.Contains(err.Error(), tc.errorMessage) {
+				t.Fatalf("expected error to contain %q, got %v", tc.errorMessage, err)
+			}
+		})
+	}
+}
+
 func TestBuildRuntimeWasmArtifactFromSourceCleansTemporaryGoMod(t *testing.T) {
 	pluginDir := t.TempDir()
 	outputDir := t.TempDir()

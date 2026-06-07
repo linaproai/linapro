@@ -7,7 +7,7 @@ package file
 import (
 	"context"
 
-	"lina-core/api/file/v1"
+	v1 "lina-core/api/file/v1"
 )
 
 type IFileV1 interface {

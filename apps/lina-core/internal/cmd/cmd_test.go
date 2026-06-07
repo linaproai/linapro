@@ -18,7 +18,7 @@ import (
 
 	_ "lina-core/pkg/dbdriver"
 
-	"lina-core/pkg/testsupport"
+	"lina-core/internal/utility/testsupport"
 )
 
 // TestRequireCommandConfirmation verifies sensitive command confirmation tokens
@@ -397,6 +397,13 @@ var productionPanicPolicy = panicAuditPolicy{
 			Count:    1,
 			Category: panicCategoryMustConstructor,
 			Reason:   "Must helper is reserved for compile-time host service declarations",
+		},
+		{
+			Path:     "apps/lina-core/pkg/plugin/pluginbridge/internal/hostservice/hostservice_validation.go",
+			Function: "MustNormalizeHostServiceSpecsForPlugin",
+			Count:    1,
+			Category: panicCategoryMustConstructor,
+			Reason:   "Must helper is reserved for compile-time plugin-scoped host service declarations",
 		},
 		{
 			Path:     "apps/lina-core/internal/service/plugin/internal/datahost/internal/host/db.go",

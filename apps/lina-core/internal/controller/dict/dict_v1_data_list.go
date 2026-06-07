@@ -9,8 +9,8 @@ import (
 	v1 "lina-core/api/dict/v1"
 	dictsvc "lina-core/internal/service/dict"
 	"lina-core/pkg/apitime"
+	"lina-core/pkg/fallbackoverride"
 	"lina-core/pkg/statusflag"
-	"lina-core/pkg/tenantoverride"
 )
 
 // DataList returns dictionary data list.
@@ -52,7 +52,7 @@ func dictDataItem(row *dictsvc.DictDataProjection) v1.DictDataItem {
 		IsFallback:     row.IsFallback,
 		CanEdit:        row.CanEdit,
 		CanOverride:    row.CanOverride,
-		OverrideMode:   tenantoverride.Mode(row.OverrideMode),
+		OverrideMode:   fallbackoverride.Mode(row.OverrideMode),
 		CreatedAt:      apitime.Milli(row.CreatedAt),
 		UpdatedAt:      apitime.Milli(row.UpdatedAt),
 	}
@@ -75,7 +75,7 @@ func dictTypeItem(row *dictsvc.DictTypeProjection) v1.DictTypeItem {
 		IsFallback:          row.IsFallback,
 		CanEdit:             row.CanEdit,
 		CanOverride:         row.CanOverride,
-		OverrideMode:        tenantoverride.Mode(row.OverrideMode),
+		OverrideMode:        fallbackoverride.Mode(row.OverrideMode),
 		CreatedAt:           apitime.Milli(row.CreatedAt),
 		UpdatedAt:           apitime.Milli(row.UpdatedAt),
 	}

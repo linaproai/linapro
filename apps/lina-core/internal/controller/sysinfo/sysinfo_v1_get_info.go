@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode"
 
-	"lina-core/api/sysinfo/v1"
+	v1 "lina-core/api/sysinfo/v1"
 	"lina-core/pkg/apitime"
 )
 

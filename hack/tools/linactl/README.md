@@ -111,6 +111,16 @@ go run . i18n.check
 
 The default scanner allowlist is maintained at `hack/tools/linactl/internal/runtimei18n/allowlist.json`.
 
+## Plugin Governance Checks
+
+`linactl plugins.check` scans every plugin directory under `apps/lina-plugins` that contains `plugin.yaml`. It checks production plugin paths for host core table generation, direct `sys_*` table access, legacy pluginbridge host-service usage, and dynamic `data` host-service table grants that do not belong to the current plugin.
+
+```bash
+make plugins.check
+go run . plugins.check
+go run . plugins.check format=json
+```
+
 ## Agent Symlinks (agents.* command tree)
 
 `linactl agents.<resource>.<action>` manages repository-local symlinks that bridge canonical sources under `.agents/` (and `AGENTS.md`) to per-agent project paths used by supported AI coding agents. Three resource types are supported:

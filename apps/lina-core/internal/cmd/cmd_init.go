@@ -5,10 +5,10 @@ package cmd
 
 import (
 	"context"
-	`strings`
+	"strings"
 
-	`lina-core/internal/cmd/internal/dbconfig`
-	`lina-core/pkg/dialect`
+	"lina-core/internal/cmd/internal/dbconfig"
+	"lina-core/pkg/dialect"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"

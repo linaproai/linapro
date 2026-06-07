@@ -7,7 +7,7 @@ import (
 	"io/fs"
 
 	"lina-core/pkg/plugin/capability"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 const (
@@ -54,10 +54,15 @@ type SourcePlugin interface {
 // capability.Services.
 type Services interface {
 	capability.Services
+	// Admin returns the source-plugin management service directory. Admin
+	// methods are governed by domain owners through CapabilityContext, tenant
+	// boundaries, target data visibility, state-machine checks, limits, and
+	// audit records rather than by source-plugin string capability declarations.
+	Admin() capability.AdminServices
 	// TenantFilter returns the source-plugin tenant-filter service for
 	// plugin-owned tables. This method carries a database query builder and is
 	// intentionally kept out of the ordinary capability services.
-	TenantFilter() contract.TenantFilterService
+	TenantFilter() tenantcap.PluginTableFilterService
 }
 
 // SourcePluginAssets exposes plugin-owned asset declarations grouped under one

@@ -11,14 +11,15 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/util/gconv"
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/startupstats"
+
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/util/gconv"
 )
 
 // Plugin menu defaults and synthetic permission-menu settings used during menu sync.

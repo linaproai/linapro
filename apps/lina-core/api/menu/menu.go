@@ -7,7 +7,7 @@ package menu
 import (
 	"context"
 
-	"lina-core/api/menu/v1"
+	v1 "lina-core/api/menu/v1"
 )
 
 type IMenuV1 interface {

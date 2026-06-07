@@ -530,6 +530,7 @@ func TestExecuteDynamicWasmBridgeReturnsGuestResponse(t *testing.T) {
 // that structured host-service declarations are available inside guest code.
 func TestExecuteDynamicWasmBridgeHostCallDemoUsesStructuredHostServices(t *testing.T) {
 	testutil.EnsureBundledRuntimeSampleArtifactForTests(t)
+	ensureDynamicDemoRecordTable(t)
 
 	services := testutil.NewServices()
 	manifest, err := loadBundledDynamicSampleManifest(t, services)
@@ -601,8 +602,8 @@ func TestExecuteDynamicWasmBridgeHostCallDemoUsesStructuredHostServices(t *testi
 	if !ok {
 		t.Fatalf("expected data payload object, got %#v", payload["data"])
 	}
-	if dataPayload["table"] != "sys_plugin_node_state" {
-		t.Fatalf("expected data table sys_plugin_node_state, got %#v", dataPayload)
+	if dataPayload["table"] != "plugin_linapro_demo_dynamic_record" {
+		t.Fatalf("expected data table plugin_linapro_demo_dynamic_record, got %#v", dataPayload)
 	}
 	if dataPayload["updated"] != true || dataPayload["deleted"] != true {
 		t.Fatalf("expected data payload to confirm update/delete lifecycle, got %#v", dataPayload)

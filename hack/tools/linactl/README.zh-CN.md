@@ -111,6 +111,16 @@ go run . i18n.check
 
 默认扫描`allowlist`维护在`hack/tools/linactl/internal/runtimei18n/allowlist.json`。
 
+## 插件治理检查
+
+`linactl plugins.check`会扫描`apps/lina-plugins`下所有包含`plugin.yaml`的插件目录。它检查插件生产路径中的宿主核心表生成、`sys_*`表直接访问、旧`pluginbridge host-service`使用，以及动态`data host-service`中不属于当前插件的表授权。
+
+```bash
+make plugins.check
+go run . plugins.check
+go run . plugins.check format=json
+```
+
 ## Agent 软链管理（agents.* 命令树）
 
 `linactl agents.<resource>.<action>` 用于管理仓库内三类资源的本地软链，把 `.agents/`（以及 `AGENTS.md`）下的标准源映射到各 AI Coding 工具的私有项目路径：

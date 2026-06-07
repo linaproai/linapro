@@ -130,12 +130,13 @@ func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Man
 		return nil, gerror.Newf("dynamic plugin is missing embedded manifest: %s", artifactPath)
 	}
 
-	hostServices, err := protocol.NormalizeHostServiceSpecs(artifact.HostServices)
+	pluginID := strings.TrimSpace(artifact.Manifest.ID)
+	hostServices, err := protocol.NormalizeHostServiceSpecsForPlugin(pluginID, artifact.HostServices)
 	if err != nil {
 		return nil, gerror.Wrapf(err, "dynamic plugin host service declaration is invalid: %s", artifactPath)
 	}
 	manifest := &Manifest{
-		ID:                  strings.TrimSpace(artifact.Manifest.ID),
+		ID:                  pluginID,
 		Name:                strings.TrimSpace(artifact.Manifest.Name),
 		Version:             strings.TrimSpace(artifact.Manifest.Version),
 		Type:                NormalizeType(artifact.Manifest.Type).String(),
@@ -151,7 +152,7 @@ func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Man
 		LifecycleHandlers:   CloneLifecycleContracts(artifact.LifecycleContracts),
 		Routes:              artifact.RouteContracts,
 		BridgeSpec:          artifact.BridgeSpec,
-		HostCapabilities:    protocol.CapabilityMapFromHostServices(artifact.HostServices),
+		HostCapabilities:    protocol.CapabilityMapFromHostServices(hostServices),
 		HostServices:        hostServices,
 		RuntimeArtifact:     artifact,
 	}

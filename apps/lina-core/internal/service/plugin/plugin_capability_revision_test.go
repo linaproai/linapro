@@ -10,7 +10,7 @@ import (
 
 	"github.com/gogf/gf/v2/net/ghttp"
 
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -19,7 +19,7 @@ import (
 // declarations remain inert until their owning source plugin is platform-enabled.
 func TestSourceProviderAvailabilityFollowsEnabledSnapshot(t *testing.T) {
 	var (
-		ctx      = contract.WithCurrentContext(context.Background(), contract.CurrentContext{TenantID: 0, PlatformBypass: true})
+		ctx      = bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 0, PlatformBypass: true})
 		pluginID = "plugin-dev-source-capability-revision"
 		service  = newTestServiceWithTopology(&testTopology{
 			enabled: true,

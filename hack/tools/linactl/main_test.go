@@ -196,6 +196,18 @@ func TestCommandRegistryUsesEnvironmentCommands(t *testing.T) {
 	}
 }
 
+// TestCommandRegistryUsesPluginsCheck verifies plugin governance uses the
+// generic plugins.check entrypoint.
+func TestCommandRegistryUsesPluginsCheck(t *testing.T) {
+	registry := commandRegistry()
+	if _, ok := registry["plugins.check"]; !ok {
+		t.Fatalf("expected command %q to be registered", "plugins.check")
+	}
+	if _, ok := registry["plugins.boundary.check"]; ok {
+		t.Fatalf("legacy command %q should not be registered", "plugins.boundary.check")
+	}
+}
+
 // TestPrintHelpHidesInternalCommands verifies root make help lists only
 // repository-level commands by default.
 func TestPrintHelpHidesInternalCommands(t *testing.T) {

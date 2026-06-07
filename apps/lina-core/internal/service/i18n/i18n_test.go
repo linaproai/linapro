@@ -4,12 +4,13 @@ package i18n
 
 import (
 	"context"
-	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/gctx"
-	"github.com/gogf/gf/v2/util/gvalid"
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/os/gctx"
+	"github.com/gogf/gf/v2/util/gvalid"
 
 	"lina-core/internal/model"
 	"lina-core/internal/service/bizctx"

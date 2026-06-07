@@ -14,7 +14,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 )
 
 // TestRoleUsersApplyDataScope verifies role authorization pages and assignment
@@ -103,11 +103,11 @@ func (s roleScopeStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 func (s roleScopeStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
 
 // Current returns the plugin-visible business context projection.
-func (s roleScopeStaticBizCtx) Current(context.Context) contract.CurrentContext {
+func (s roleScopeStaticBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	if s.ctx == nil {
-		return contract.CurrentContext{}
+		return bizctxcap.CurrentContext{}
 	}
-	return contract.CurrentContext{
+	return bizctxcap.CurrentContext{
 		UserID:          s.ctx.UserId,
 		Username:        s.ctx.Username,
 		TenantID:        s.ctx.TenantId,

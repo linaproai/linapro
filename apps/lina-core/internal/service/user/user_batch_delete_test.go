@@ -17,7 +17,8 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/orgcap"
 )
 
@@ -270,11 +271,11 @@ func (s userDeleteStaticBizCtx) Get(context.Context) *model.Context {
 }
 
 // Current returns the plugin-visible business context projection.
-func (s userDeleteStaticBizCtx) Current(context.Context) contract.CurrentContext {
+func (s userDeleteStaticBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	if s.ctx == nil {
-		return contract.CurrentContext{}
+		return bizctxcap.CurrentContext{}
 	}
-	return contract.CurrentContext{
+	return bizctxcap.CurrentContext{
 		UserID:          s.ctx.UserId,
 		Username:        s.ctx.Username,
 		TenantID:        s.ctx.TenantId,
@@ -309,8 +310,8 @@ type userDeleteFailingOrgCap struct {
 func (f userDeleteFailingOrgCap) Available(context.Context) bool { return false }
 
 // Status returns an unavailable organization capability status.
-func (f userDeleteFailingOrgCap) Status(context.Context) contract.CapabilityStatus {
-	return contract.CapabilityStatus{}
+func (f userDeleteFailingOrgCap) Status(context.Context) capmodel.CapabilityStatus {
+	return capmodel.CapabilityStatus{}
 }
 
 // ListUserDeptAssignments returns no organization assignments.

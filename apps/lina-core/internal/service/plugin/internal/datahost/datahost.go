@@ -13,8 +13,8 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	plugindata "lina-core/pkg/plugin/capability/data"
 	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/recordstore"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -89,7 +89,7 @@ func ExecuteList(
 	response := &protocol.HostServiceDataListResponse{
 		Total: int32(total),
 	}
-	if requestPlan.Action == plugindata.DataPlanActionCount {
+	if requestPlan.Action == recordstore.PlanActionCount {
 		return response, nil
 	}
 	fieldArgs, err := buildPlanFieldArgs(resource, requestPlan.Fields)
@@ -274,7 +274,7 @@ func ExecuteTransaction(
 		return nil, err
 	}
 	if request == nil || len(request.Operations) == 0 {
-		return nil, gerror.New("data transaction requires at least one operation")
+		return nil, gerror.New("record store transaction requires at least one operation")
 	}
 
 	db, err := getPluginDataDB()
@@ -289,7 +289,7 @@ func ExecuteTransaction(
 	err = db.Transaction(txCtx, func(txExecCtx context.Context, tx gdb.TX) error {
 		for _, operation := range request.Operations {
 			if operation == nil {
-				return gerror.New("data transaction operation cannot be nil")
+				return gerror.New("record store transaction operation cannot be nil")
 			}
 			switch strings.ToLower(strings.TrimSpace(operation.Method)) {
 			case protocol.HostServiceMethodDataCreate:
@@ -338,7 +338,7 @@ func ExecuteTransaction(
 				response.Results = append(response.Results, result)
 				response.AffectedRows += result.AffectedRows
 			default:
-				return gerror.Newf("data transaction operation is not supported: %s", operation.Method)
+				return gerror.Newf("record store transaction operation is not supported: %s", operation.Method)
 			}
 		}
 		return nil
@@ -732,14 +732,14 @@ func decodeJSONObject(content []byte) (map[string]interface{}, error) {
 // decodeJSONScalar decodes a required scalar key payload.
 func decodeJSONScalar(content []byte) (interface{}, error) {
 	if len(content) == 0 {
-		return nil, gerror.New("data key cannot be empty")
+		return nil, gerror.New("record store key cannot be empty")
 	}
 	var value interface{}
 	if err := json.Unmarshal(content, &value); err != nil {
 		return nil, err
 	}
 	if value == nil {
-		return nil, gerror.New("data key cannot be empty")
+		return nil, gerror.New("record store key cannot be empty")
 	}
 	return value, nil
 }

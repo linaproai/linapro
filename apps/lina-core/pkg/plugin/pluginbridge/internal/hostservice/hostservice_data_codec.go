@@ -10,7 +10,7 @@ import (
 
 // HostServiceDataListRequest carries one governed paged list request.
 type HostServiceDataListRequest struct {
-	// PlanJSON is the JSON-encoded typed query plan used by capability/data.
+	// PlanJSON is the JSON-encoded typed query plan used by capability/recordstore.
 	PlanJSON []byte `json:"planJson,omitempty"`
 }
 
@@ -24,7 +24,7 @@ type HostServiceDataListResponse struct {
 
 // HostServiceDataGetRequest carries one governed detail query by key.
 type HostServiceDataGetRequest struct {
-	// PlanJSON is the JSON-encoded typed query plan used by capability/data.
+	// PlanJSON is the JSON-encoded typed query plan used by capability/recordstore.
 	PlanJSON []byte `json:"planJson,omitempty"`
 }
 
@@ -379,7 +379,7 @@ func UnmarshalHostServiceDataMutationResponse(data []byte) (*HostServiceDataMuta
 	return out, nil
 }
 
-// MarshalHostServiceDataTransactionRequest encodes one data transaction request.
+// MarshalHostServiceDataTransactionRequest encodes one record store transaction request.
 func MarshalHostServiceDataTransactionRequest(req *HostServiceDataTransactionRequest) []byte {
 	var content []byte
 	if req == nil {
@@ -394,21 +394,21 @@ func MarshalHostServiceDataTransactionRequest(req *HostServiceDataTransactionReq
 	return content
 }
 
-// UnmarshalHostServiceDataTransactionRequest decodes one data transaction request.
+// UnmarshalHostServiceDataTransactionRequest decodes one record store transaction request.
 func UnmarshalHostServiceDataTransactionRequest(data []byte) (*HostServiceDataTransactionRequest, error) {
 	out := &HostServiceDataTransactionRequest{}
 	content := data
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("failed to decode data transaction request tag")
+			return nil, gerror.New("failed to decode record store transaction request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("failed to decode data transaction request operation")
+				return nil, gerror.New("failed to decode record store transaction request operation")
 			}
 			operation, err := unmarshalHostServiceDataTransactionOperation(value)
 			if err != nil {
@@ -419,7 +419,7 @@ func UnmarshalHostServiceDataTransactionRequest(data []byte) (*HostServiceDataTr
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("failed to skip unknown data transaction request field")
+				return nil, gerror.New("failed to skip unknown record store transaction request field")
 			}
 			content = content[size:]
 		}
@@ -430,7 +430,7 @@ func UnmarshalHostServiceDataTransactionRequest(data []byte) (*HostServiceDataTr
 	return out, nil
 }
 
-// MarshalHostServiceDataTransactionResponse encodes one data transaction response.
+// MarshalHostServiceDataTransactionResponse encodes one record store transaction response.
 func MarshalHostServiceDataTransactionResponse(resp *HostServiceDataTransactionResponse) []byte {
 	var content []byte
 	if resp == nil {
@@ -448,21 +448,21 @@ func MarshalHostServiceDataTransactionResponse(resp *HostServiceDataTransactionR
 	return content
 }
 
-// UnmarshalHostServiceDataTransactionResponse decodes one data transaction response.
+// UnmarshalHostServiceDataTransactionResponse decodes one record store transaction response.
 func UnmarshalHostServiceDataTransactionResponse(data []byte) (*HostServiceDataTransactionResponse, error) {
 	out := &HostServiceDataTransactionResponse{}
 	content := data
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("failed to decode data transaction response tag")
+			return nil, gerror.New("failed to decode record store transaction response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("failed to decode data transaction response result")
+				return nil, gerror.New("failed to decode record store transaction response result")
 			}
 			result, err := UnmarshalHostServiceDataMutationResponse(value)
 			if err != nil {
@@ -473,14 +473,14 @@ func UnmarshalHostServiceDataTransactionResponse(data []byte) (*HostServiceDataT
 		case 2:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("failed to decode data transaction response affectedRows")
+				return nil, gerror.New("failed to decode record store transaction response affectedRows")
 			}
 			out.AffectedRows = int64(value)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("failed to skip unknown data transaction response field")
+				return nil, gerror.New("failed to skip unknown record store transaction response field")
 			}
 			content = content[size:]
 		}
@@ -518,35 +518,35 @@ func unmarshalHostServiceDataTransactionOperation(data []byte) (*HostServiceData
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("failed to decode data transaction operation tag")
+			return nil, gerror.New("failed to decode record store transaction operation tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("failed to decode data transaction operation method")
+				return nil, gerror.New("failed to decode record store transaction operation method")
 			}
 			out.Method = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("failed to decode data transaction operation keyJson")
+				return nil, gerror.New("failed to decode record store transaction operation keyJson")
 			}
 			out.KeyJSON = append([]byte(nil), value...)
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("failed to decode data transaction operation recordJson")
+				return nil, gerror.New("failed to decode record store transaction operation recordJson")
 			}
 			out.RecordJSON = append([]byte(nil), value...)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("failed to skip unknown data transaction operation field")
+				return nil, gerror.New("failed to skip unknown record store transaction operation field")
 			}
 			content = content[size:]
 		}

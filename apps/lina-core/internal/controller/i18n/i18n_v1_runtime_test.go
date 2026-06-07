@@ -30,9 +30,10 @@ import (
 	"lina-core/pkg/plugin/capability/orgcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 
+	_ "lina-core/pkg/dbdriver"
+
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gctx"
-	_ "lina-core/pkg/dbdriver"
 )
 
 // newTestI18nService creates a standalone i18n service for tests.

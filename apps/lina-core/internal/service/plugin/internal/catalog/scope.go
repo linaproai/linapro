@@ -66,4 +66,3 @@ func IsSupportedInstallMode(value string) bool {
 	trimmed := strings.TrimSpace(strings.ToLower(value))
 	return trimmed == InstallModeGlobal.String() || trimmed == InstallModeTenantScoped.String()
 }
-

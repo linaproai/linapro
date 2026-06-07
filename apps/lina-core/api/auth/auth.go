@@ -7,7 +7,7 @@ package auth
 import (
 	"context"
 
-	"lina-core/api/auth/v1"
+	v1 "lina-core/api/auth/v1"
 )
 
 type IAuthV1 interface {

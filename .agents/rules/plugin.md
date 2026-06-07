@@ -6,6 +6,10 @@
 
 源码插件和动态插件必须共享插件清单、生命周期资源、SQL、i18n、前端静态资源和后端业务开发结构约定。两类插件的差异仅体现在与宿主的对接方式、运行时加载方式和交付形态上：源码插件随宿主编译嵌入，动态插件通过 WASM artifact、`pluginbridge`和`hostServices`协议接入。禁止让动态插件绕过统一的`api`、`controller`、`service`分层开发结构，也禁止让动态插件绕过通用插件资源约定。
 
+## 文档同步要求
+
+主框架插件能力发生变更时，必须审查`apps/lina-core/pkg/plugin`目录下的README文档是否需要同步更新。
+
 ## 插件通用资源要求
 
 插件ID命名规范：`<author>-<domain>-<capability>` 
@@ -95,4 +99,3 @@ apps/lina-plugins/<plugin-id>/
 - 动态插件源码目录应维护`main.go`作为 WASM guest 构建入口。
 - 动态插件的 controller和service 是 guest 内部开发分层，宿主不得把它们当作源码插件原生 controller和service 直接加载；宿主只能通过`pluginbridge`、WASM host call 或版本化 host service 协议与动态插件交互。
 - 动态插件涉及 Go guest 代码、WASM host service、host call 协议或插件桥接时，必须遵守`.agents/rules/backend-go.md`中关于动态插件 host service、WASM host service、错误处理和共享实例的要求。
-

@@ -1,4 +1,4 @@
-// This file tests host-side data capability audit context propagation helpers.
+// This file tests host-side record store capability audit context propagation helpers.
 
 package host
 

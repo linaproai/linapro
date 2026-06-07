@@ -9,14 +9,14 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/plugin/capability/ai/aiaudio"
-	"lina-core/pkg/plugin/capability/ai/aidocument"
-	"lina-core/pkg/plugin/capability/ai/aiembedding"
-	"lina-core/pkg/plugin/capability/ai/aiimage"
-	"lina-core/pkg/plugin/capability/ai/aisafety"
-	"lina-core/pkg/plugin/capability/ai/aitext"
-	"lina-core/pkg/plugin/capability/ai/aivideo"
-	"lina-core/pkg/plugin/capability/ai/aivision"
+	"lina-core/pkg/plugin/capability/aicap/aiaudio"
+	"lina-core/pkg/plugin/capability/aicap/aidocument"
+	"lina-core/pkg/plugin/capability/aicap/aiembedding"
+	"lina-core/pkg/plugin/capability/aicap/aiimage"
+	"lina-core/pkg/plugin/capability/aicap/aisafety"
+	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/aicap/aivideo"
+	"lina-core/pkg/plugin/capability/aicap/aivision"
 )
 
 // HostServiceAITextGenerateRequest carries one text generation host-service request.

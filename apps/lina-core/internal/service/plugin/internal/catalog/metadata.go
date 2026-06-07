@@ -278,6 +278,7 @@ type ManifestSnapshot struct {
 	RouteExecutionEnabled     bool                        `yaml:"routeExecutionEnabled,omitempty"`
 	RouteRequestCodec         string                      `yaml:"routeRequestCodec,omitempty"`
 	RouteResponseCodec        string                      `yaml:"routeResponseCodec,omitempty"`
+	Routes                    []*protocol.RouteContract   `yaml:"routes,omitempty"`
 	RuntimeFrontendAssetCount int                         `yaml:"runtimeFrontendAssetCount,omitempty"`
 	RuntimeSQLAssetCount      int                         `yaml:"runtimeSqlAssetCount,omitempty"`
 	PublicAssets              []*PublicAssetSpec          `yaml:"public_assets,omitempty"`

@@ -7,7 +7,7 @@ package health
 import (
 	"context"
 
-	"lina-core/api/health/v1"
+	v1 "lina-core/api/health/v1"
 )
 
 type IHealthV1 interface {

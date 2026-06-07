@@ -5,7 +5,7 @@ package jobgroup
 import (
 	"context"
 
-	"lina-core/api/jobgroup/v1"
+	v1 "lina-core/api/jobgroup/v1"
 )
 
 // Delete handles scheduled job group deletion requests.

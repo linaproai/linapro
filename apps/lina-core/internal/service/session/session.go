@@ -55,6 +55,14 @@ type Store interface {
 	Set(ctx context.Context, session *Session) error
 	// Get returns one online session by its globally unique token ID.
 	Get(ctx context.Context, tokenId string) (*Session, error)
+	// BatchGetScoped returns online sessions for the requested token IDs after
+	// applying tenant ownership and data-scope constraints.
+	BatchGetScoped(
+		ctx context.Context,
+		tokenIds []string,
+		scopeSvc datascope.Service,
+		tenantSvc tenantcapsvc.ScopeService,
+	) ([]*Session, error)
 	// Delete removes one online session by its globally unique token ID.
 	Delete(ctx context.Context, tokenId string) error
 	// DeleteByUserId removes all online sessions that belong to one user in one tenant.

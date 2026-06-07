@@ -12,7 +12,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/util/gconv"
 
-	"lina-core/api/plugin/v1"
+	v1 "lina-core/api/plugin/v1"
 	i18nsvc "lina-core/internal/service/i18n"
 	middlewaresvc "lina-core/internal/service/middleware"
 	pluginsvc "lina-core/internal/service/plugin"

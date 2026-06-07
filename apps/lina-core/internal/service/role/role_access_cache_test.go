@@ -5,12 +5,13 @@ package role
 
 import (
 	"context"
-	"github.com/gogf/gf/v2/os/gcache"
 	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/gogf/gf/v2/os/gcache"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -129,6 +130,11 @@ func (f *fakeRoleConfigService) GetCronLogRetention(_ context.Context) (*hostcon
 		Mode:  hostconfig.CronLogRetentionModeDays,
 		Value: 30,
 	}, nil
+}
+
+// GetLogRetentionDays returns the shared default log retention for tests.
+func (f *fakeRoleConfigService) GetLogRetentionDays(_ context.Context) (int64, error) {
+	return 30, nil
 }
 
 // IsLoginIPBlacklisted always reports false in tests.

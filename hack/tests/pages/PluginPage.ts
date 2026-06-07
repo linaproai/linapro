@@ -13,6 +13,7 @@ const pluginUpgradeActionPattern = /升\s*级|重试升级|Upgrade|Retry Upgrade
 const confirmActionPattern = /确\s*认|确\s*定|confirm|ok/iu;
 const cancelActionPattern = /取\s*消|cancel/iu;
 const pluginLifecycleActionTimeout = 120_000;
+const pluginLifecycleRefreshProbeTimeout = 5_000;
 
 type SidebarMenuName = RegExp | string;
 
@@ -225,6 +226,54 @@ export class PluginPage {
 
   pluginRow(pluginId: string): Locator {
     return this.pluginMainRows().filter({ hasText: pluginId }).first();
+  }
+
+  private pluginLifecycleSwitch(row: Locator): Locator {
+    return row
+      .locator(
+        '.ant-switch:not(.ant-switch-small):not([data-testid^="plugin-tenant-provisioning-"])',
+      )
+      .first();
+  }
+
+  private pluginIdSearchInput(): Locator {
+    return this.page
+      .getByRole("textbox", { name: /插件标识|Plugin ID/iu })
+      .first();
+  }
+
+  private async filterByPluginId(pluginId: string) {
+    const input = this.pluginIdSearchInput();
+    await expect(input).toBeVisible();
+    await input.fill(pluginId);
+
+    const listResponse = this.page
+      .waitForResponse(
+        (response) => {
+          const request = response.request();
+          return (
+            request.method() === "GET" &&
+            new URL(response.url()).pathname.endsWith("/plugins")
+          );
+        },
+        { timeout: 30_000 },
+      )
+      .catch(() => null);
+
+    await this.page.getByRole("button", { name: /搜\s*索|Search/iu }).click();
+    await listResponse;
+  }
+
+  private async ensurePluginRowVisible(pluginId: string) {
+    const row = this.pluginRow(pluginId);
+    if (await row.isVisible({ timeout: 1500 }).catch(() => false)) {
+      return row;
+    }
+
+    await this.filterByPluginId(pluginId);
+    const filteredRow = this.pluginRow(pluginId);
+    await expect(filteredRow, `未找到插件行: ${pluginId}`).toBeVisible();
+    return filteredRow;
   }
 
   hostServiceAuthModal(): Locator {
@@ -490,7 +539,7 @@ export class PluginPage {
   }
 
   pluginEnabledSwitch(pluginId: string): Locator {
-    return this.pluginRow(pluginId).locator(".ant-switch").first();
+    return this.pluginLifecycleSwitch(this.pluginRow(pluginId));
   }
 
   pluginDescriptionCell(pluginId: string): Locator {
@@ -521,12 +570,7 @@ export class PluginPage {
   }
 
   async searchByPluginId(pluginId: string) {
-    const input = this.page
-      .getByRole("textbox", { name: /插件标识|Plugin ID/iu })
-      .first();
-    await expect(input).toBeVisible();
-    await input.fill(pluginId);
-    await this.page.getByRole("button", { name: /搜\s*索|Search/iu }).click();
+    await this.filterByPluginId(pluginId);
     await expect(this.pluginRow(pluginId)).toBeVisible();
   }
 
@@ -847,11 +891,30 @@ export class PluginPage {
   }
 
   async setPluginEnabled(pluginId: string, enabled: boolean) {
-    const row = this.pluginRow(pluginId);
-    await expect(row).toBeVisible();
-    const switcher = row.locator(".ant-switch").first();
-    const isChecked = (await switcher.getAttribute("aria-checked")) === "true";
-    if (isChecked !== enabled) {
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      const row = await this.ensurePluginRowVisible(pluginId);
+      const switcher = this.pluginLifecycleSwitch(row);
+      await expect(
+        switcher,
+        `未找到插件启用状态开关: ${pluginId}`,
+      ).toBeVisible();
+      const isChecked = (await switcher.getAttribute("aria-checked")) === "true";
+      if (isChecked === enabled) {
+        return;
+      }
+
+      const className = (await switcher.getAttribute("class")) ?? "";
+      if (className.includes("ant-switch-disabled")) {
+        if (attempt < 4) {
+          await this.filterByPluginId(pluginId);
+          await waitForRouteReady(this.page, 15000);
+          continue;
+        }
+        await expect(switcher).not.toHaveClass(/ant-switch-disabled/, {
+          timeout: pluginLifecycleActionTimeout,
+        });
+      }
+
       const actionPath = enabled ? "enable" : "disable";
       const statusResponse = this.page.waitForResponse(
         (response) => {
@@ -865,6 +928,32 @@ export class PluginPage {
         },
         { timeout: pluginLifecycleActionTimeout },
       );
+      const pluginStateRefresh = this.page
+        .waitForResponse(
+          (response) => {
+            const request = response.request();
+            return (
+              request.method() === "GET" &&
+              new URL(response.url()).pathname.endsWith(
+                "/plugins/dynamic/state",
+              )
+            );
+          },
+          { timeout: pluginLifecycleRefreshProbeTimeout },
+        )
+        .catch(() => null);
+      const menuRefresh = this.page
+        .waitForResponse(
+          (response) => {
+            const request = response.request();
+            return (
+              request.method() === "GET" &&
+              new URL(response.url()).pathname.endsWith("/menus/all")
+            );
+          },
+          { timeout: pluginLifecycleRefreshProbeTimeout },
+        )
+        .catch(() => null);
       await switcher.click();
       if (enabled) {
         const authDialogVisible = await this.hostServiceAuthDialog()
@@ -879,7 +968,12 @@ export class PluginPage {
         response.ok(),
         `${actionPath} ${pluginId} should return 2xx`,
       ).toBe(true);
-      await expect(switcher).toHaveAttribute(
+      await Promise.all([pluginStateRefresh, menuRefresh]);
+      await this.filterByPluginId(pluginId);
+      const refreshedSwitcher = this.pluginLifecycleSwitch(
+        this.pluginRow(pluginId),
+      );
+      await expect(refreshedSwitcher).toHaveAttribute(
         "aria-checked",
         enabled ? "true" : "false",
         { timeout: pluginLifecycleActionTimeout },
@@ -898,6 +992,7 @@ export class PluginPage {
         .last()
         .waitFor({ state: "hidden", timeout: pluginLifecycleActionTimeout })
         .catch(() => undefined);
+      return;
     }
   }
 
@@ -971,8 +1066,7 @@ export class PluginPage {
   }
 
   private async pluginActionButton(pluginId: string, name: RegExp) {
-    const row = this.pluginRow(pluginId);
-    await expect(row, `未找到插件行: ${pluginId}`).toBeVisible();
+    const row = await this.ensurePluginRowVisible(pluginId);
 
     const rowID = await row.getAttribute("rowid");
     expect(rowID, `未找到插件行 rowid: ${pluginId}`).toBeTruthy();

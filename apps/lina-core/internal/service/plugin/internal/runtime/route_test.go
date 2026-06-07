@@ -13,14 +13,14 @@ import (
 
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/golang-jwt/jwt/v5"
-	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/session"
-	"lina-core/pkg/authtoken"
+	_ "lina-core/pkg/dbdriver"
+	tokencap "lina-core/pkg/plugin/capability/authcap/token"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -195,10 +195,10 @@ func TestParseDynamicRouteTokenRejectsRefreshToken(t *testing.T) {
 		clientType string
 	}{
 		{name: "missing token type", tokenType: "", clientType: "web"},
-		{name: "refresh token", tokenType: authtoken.KindRefresh, clientType: "web"},
-		{name: "missing client type", tokenType: authtoken.KindAccess, clientType: ""},
-		{name: "plugin client type", tokenType: authtoken.KindAccess, clientType: "plugin"},
-		{name: "service client type", tokenType: authtoken.KindAccess, clientType: "service"},
+		{name: "refresh token", tokenType: tokencap.KindRefresh, clientType: "web"},
+		{name: "missing client type", tokenType: tokencap.KindAccess, clientType: ""},
+		{name: "plugin client type", tokenType: tokencap.KindAccess, clientType: "plugin"},
+		{name: "service client type", tokenType: tokencap.KindAccess, clientType: "service"},
 	}
 	for _, testCase := range testCases {
 		testCase := testCase
@@ -399,7 +399,7 @@ func signDynamicRouteAccessTestToken(
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, dynamicRouteClaims{
 		TokenId:    tokenID,
-		TokenType:  authtoken.KindAccess,
+		TokenType:  tokencap.KindAccess,
 		ClientType: "web",
 		TenantId:   tenantID,
 		UserId:     userID,
@@ -427,7 +427,7 @@ func signDynamicRouteImpersonationTestToken(
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, dynamicRouteClaims{
 		TokenId:         tokenID,
-		TokenType:       authtoken.KindAccess,
+		TokenType:       tokencap.KindAccess,
 		ClientType:      "web",
 		TenantId:        tenantID,
 		UserId:          userID,

@@ -42,6 +42,11 @@ export class UserPage {
     return this.page.getByLabel(/用户账号|User Account/i).first();
   }
 
+  /** Resolve one search-form input by its translated label. */
+  private searchInput(label: string) {
+    return this.page.getByLabel(label, { exact: true }).first();
+  }
+
   /** User drawer role combobox */
   private get roleCombobox() {
     return this.drawer
@@ -295,11 +300,14 @@ export class UserPage {
 
   /** Fill the search form field by label */
   async fillSearchField(label: string, value: string) {
-    // The Vben5 form renders labels as text followed by input fields
-    // Use getByLabel which matches aria-label or associated label text
-    const input = this.page.getByLabel(label, { exact: true }).first();
+    const input = this.searchInput(label);
     await input.clear();
     await input.fill(value);
+  }
+
+  /** Assert a search form field value after form actions such as reset. */
+  async expectSearchFieldValue(label: string, value: string) {
+    await expect(this.searchInput(label)).toHaveValue(value);
   }
 
   /** Select status in search form */

@@ -152,6 +152,20 @@ func (s *CoordinationStore) Get(ctx context.Context, tokenId string) (*Session, 
 	return s.projection.Get(ctx, tokenId)
 }
 
+// BatchGetScoped returns requested session projections from PostgreSQL after
+// applying tenant ownership and data-scope constraints.
+func (s *CoordinationStore) BatchGetScoped(
+	ctx context.Context,
+	tokenIds []string,
+	scopeSvc datascope.Service,
+	tenantSvc tenantcapsvc.ScopeService,
+) ([]*Session, error) {
+	if s == nil || s.projection == nil {
+		return []*Session{}, nil
+	}
+	return s.projection.BatchGetScoped(ctx, tokenIds, scopeSvc, tenantSvc)
+}
+
 // Delete removes one session from coordination KV and PostgreSQL projection.
 func (s *CoordinationStore) Delete(ctx context.Context, tokenId string) error {
 	if s == nil {

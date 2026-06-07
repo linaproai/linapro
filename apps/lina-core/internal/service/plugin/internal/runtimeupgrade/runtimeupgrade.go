@@ -236,7 +236,7 @@ func normalizeHostServices(
 	snapshot *catalog.ManifestSnapshot,
 	specs []*protocol.HostServiceSpec,
 ) (map[string]*protocol.HostServiceSpec, error) {
-	normalized, err := protocol.NormalizeHostServiceSpecs(specs)
+	normalized, err := protocol.NormalizeHostServiceSpecsForPlugin(snapshotPluginID(snapshot), specs)
 	if err != nil {
 		return nil, &SnapshotInvalidError{
 			PluginID: snapshotPluginID(snapshot),

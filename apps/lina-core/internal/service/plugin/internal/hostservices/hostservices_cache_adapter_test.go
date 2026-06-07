@@ -14,7 +14,8 @@ import (
 	"lina-core/internal/service/kvcache"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability"
-	plugincontract "lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/cachecap"
 	"lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 )
@@ -30,7 +31,7 @@ func TestCacheAdapterUsesSharedKVCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("set source plugin cache: %v", err)
 	}
-	if item == nil || item.ValueKind != plugincontract.CacheValueKindString || item.Value != "value" {
+	if item == nil || item.ValueKind != cachecap.CacheValueKindString || item.Value != "value" {
 		t.Fatalf("unexpected set item: %#v", item)
 	}
 	if item.Key != "current" {
@@ -49,7 +50,7 @@ func TestCacheAdapterUsesSharedKVCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("increment source plugin cache: %v", err)
 	}
-	if counter == nil || counter.ValueKind != plugincontract.CacheValueKindInt || counter.IntValue != 2 {
+	if counter == nil || counter.ValueKind != cachecap.CacheValueKindInt || counter.IntValue != 2 {
 		t.Fatalf("unexpected counter item: %#v", counter)
 	}
 
@@ -96,8 +97,8 @@ func TestCacheAdapterScopesByPluginID(t *testing.T) {
 func TestCacheAdapterScopesByTenantContext(t *testing.T) {
 	cacheSvc := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
 	adapter := newCacheAdapter(cacheSvc, nil, "source-plugin-a")
-	tenantOne := plugincontract.WithCurrentContext(context.Background(), plugincontract.CurrentContext{TenantID: 1001})
-	tenantTwo := plugincontract.WithCurrentContext(context.Background(), plugincontract.CurrentContext{TenantID: 1002})
+	tenantOne := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 1001})
+	tenantTwo := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 1002})
 
 	if _, err := adapter.Set(tenantOne, "profiles", "current", "tenant-one", 0); err != nil {
 		t.Fatalf("set tenant one cache: %v", err)

@@ -6,7 +6,7 @@ import (
 	"context"
 	"strings"
 
-	"lina-core/api/jobhandler/v1"
+	v1 "lina-core/api/jobhandler/v1"
 	"lina-core/internal/service/jobmeta"
 )
 

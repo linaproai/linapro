@@ -6,7 +6,7 @@ import (
 	"context"
 	"strings"
 
-	"lina-core/api/plugin/v1"
+	v1 "lina-core/api/plugin/v1"
 	pluginsvc "lina-core/internal/service/plugin"
 )
 

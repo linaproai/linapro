@@ -9,7 +9,7 @@ import (
 
 	"github.com/gogf/gf/v2/frame/g"
 
-	"lina-core/api/health/v1"
+	v1 "lina-core/api/health/v1"
 	"lina-core/internal/dao"
 	"lina-core/pkg/logger"
 )

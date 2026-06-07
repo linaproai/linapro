@@ -4,22 +4,38 @@ package hostservices
 
 import (
 	"lina-core/pkg/plugin/capability"
-	capabilityai "lina-core/pkg/plugin/capability/ai"
-	"lina-core/pkg/plugin/capability/contract"
+	capabilityai "lina-core/pkg/plugin/capability/aicap"
+	"lina-core/pkg/plugin/capability/apidoccap"
+	"lina-core/pkg/plugin/capability/authcap"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/cachecap"
+	capabilitydictcap "lina-core/pkg/plugin/capability/dictcap"
+	capabilityfilecap "lina-core/pkg/plugin/capability/filecap"
+	"lina-core/pkg/plugin/capability/hostconfigcap"
+	"lina-core/pkg/plugin/capability/i18ncap"
+	capabilityinfracap "lina-core/pkg/plugin/capability/infracap"
+	capabilityjobcap "lina-core/pkg/plugin/capability/jobcap"
+	"lina-core/pkg/plugin/capability/manifestcap"
+	capabilitynotifycap "lina-core/pkg/plugin/capability/notifycap"
 	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
+	capabilityplugincap "lina-core/pkg/plugin/capability/plugincap"
+	"lina-core/pkg/plugin/capability/routecap"
+	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 	capabilitytenantcap "lina-core/pkg/plugin/capability/tenantcap"
+	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 )
 
 // APIDoc returns the host API-documentation localization adapter.
-func (s *directory) APIDoc() contract.APIDocService {
+func (s *directory) APIDoc() apidoccap.Service {
 	if s == nil {
 		return nil
 	}
 	return s.apiDoc
 }
 
-// Auth returns the host tenant-auth adapter.
-func (s *directory) Auth() contract.AuthService {
+// Auth returns the host authentication and authorization namespace.
+func (s *directory) Auth() authcap.Service {
 	if s == nil {
 		return nil
 	}
@@ -34,8 +50,16 @@ func (s *directory) AI() capabilityai.Service {
 	return s.ai
 }
 
+// Users returns the user-domain ordinary capability service.
+func (s *directory) Users() capabilityusercap.Service {
+	if s == nil {
+		return nil
+	}
+	return s.users
+}
+
 // BizCtx returns the host business-context adapter.
-func (s *directory) BizCtx() contract.BizCtxService {
+func (s *directory) BizCtx() bizctxcap.Service {
 	if s == nil {
 		return nil
 	}
@@ -44,18 +68,28 @@ func (s *directory) BizCtx() contract.BizCtxService {
 
 // Cache returns nil for the unscoped base directory because cache operations
 // require a plugin-bound service view.
-func (s *directory) Cache() contract.CacheService {
+func (s *directory) Cache() cachecap.Service {
 	return nil
 }
 
-// Config returns nil for the unscoped base directory because config reads
-// require a plugin-bound service view.
-func (s *directory) Config() contract.ConfigService {
-	return nil
+// Dict returns the dictionary-domain ordinary capability service.
+func (s *directory) Dict() capabilitydictcap.Service {
+	if s == nil {
+		return nil
+	}
+	return s.dict
+}
+
+// Files returns the file-domain ordinary capability service.
+func (s *directory) Files() capabilityfilecap.Service {
+	if s == nil {
+		return nil
+	}
+	return s.files
 }
 
 // HostConfig returns the host config adapter.
-func (s *directory) HostConfig() contract.HostConfigService {
+func (s *directory) HostConfig() hostconfigcap.Service {
 	if s == nil {
 		return nil
 	}
@@ -63,25 +97,41 @@ func (s *directory) HostConfig() contract.HostConfigService {
 }
 
 // I18n returns the host runtime translation adapter.
-func (s *directory) I18n() contract.I18nService {
+func (s *directory) I18n() i18ncap.Service {
 	if s == nil {
 		return nil
 	}
 	return s.i18n
 }
 
-// Manifest returns nil for the unscoped base directory because manifest reads
-// require a plugin-bound service view.
-func (s *directory) Manifest() contract.ManifestService {
-	return nil
-}
-
-// Notify returns the host notification adapter.
-func (s *directory) Notify() contract.NotifyService {
+// Infra returns the infrastructure-domain ordinary capability service.
+func (s *directory) Infra() capabilityinfracap.Service {
 	if s == nil {
 		return nil
 	}
-	return s.notify
+	return s.infra
+}
+
+// Jobs returns the scheduled-job domain ordinary capability service.
+func (s *directory) Jobs() capabilityjobcap.Service {
+	if s == nil {
+		return nil
+	}
+	return s.jobs
+}
+
+// Manifest returns nil for the unscoped base directory because manifest reads
+// require a plugin-bound service view.
+func (s *directory) Manifest() manifestcap.Service {
+	return nil
+}
+
+// Notifications returns the notification-domain ordinary capability service.
+func (s *directory) Notifications() capabilitynotifycap.Service {
+	if s == nil {
+		return nil
+	}
+	return s.notifications
 }
 
 // Org returns the organization capability service.
@@ -92,40 +142,32 @@ func (s *directory) Org() capabilityorgcap.Service {
 	return s.org
 }
 
-// PluginLifecycle returns the host plugin lifecycle orchestration adapter.
-func (s *directory) PluginLifecycle() contract.PluginLifecycleService {
+// Plugins returns the plugin-governance ordinary capability service.
+func (s *directory) Plugins() capabilityplugincap.Service {
 	if s == nil {
 		return nil
 	}
-	return s.pluginLife
-}
-
-// PluginState returns the host plugin enablement adapter.
-func (s *directory) PluginState() contract.PluginStateService {
-	if s == nil {
-		return nil
-	}
-	return s.pluginState
+	return s.plugins
 }
 
 // Route returns the host dynamic-route metadata adapter.
-func (s *directory) Route() contract.RouteService {
+func (s *directory) Route() routecap.Service {
 	if s == nil {
 		return nil
 	}
 	return s.route
 }
 
-// Session returns the host online-session adapter.
-func (s *directory) Session() contract.SessionService {
+// Sessions returns the online-session domain ordinary capability service.
+func (s *directory) Sessions() capabilitysessioncap.Service {
 	if s == nil {
 		return nil
 	}
-	return s.session
+	return s.sessions
 }
 
 // TenantFilter returns the host tenant-filter adapter.
-func (s *directory) TenantFilter() contract.TenantFilterService {
+func (s *directory) TenantFilter() tenantcap.PluginTableFilterService {
 	if s == nil {
 		return nil
 	}
@@ -149,15 +191,15 @@ func (s *directory) ForPlugin(pluginID string) capability.Services {
 }
 
 // APIDoc returns the delegated API-documentation localization adapter.
-func (s *scopedDirectory) APIDoc() contract.APIDocService {
+func (s *scopedDirectory) APIDoc() apidoccap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
 	return s.base.APIDoc()
 }
 
-// Auth returns the delegated tenant-auth adapter.
-func (s *scopedDirectory) Auth() contract.AuthService {
+// Auth returns the delegated authentication and authorization namespace.
+func (s *scopedDirectory) Auth() authcap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
@@ -172,8 +214,16 @@ func (s *scopedDirectory) AI() capabilityai.Service {
 	return capabilityai.ForPlugin(s.base.AI(), s.pluginID)
 }
 
+// Users returns the delegated user-domain ordinary capability service.
+func (s *scopedDirectory) Users() capabilityusercap.Service {
+	if s == nil || s.base == nil {
+		return nil
+	}
+	return s.base.Users()
+}
+
 // BizCtx returns the delegated business-context adapter.
-func (s *scopedDirectory) BizCtx() contract.BizCtxService {
+func (s *scopedDirectory) BizCtx() bizctxcap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
@@ -181,26 +231,31 @@ func (s *scopedDirectory) BizCtx() contract.BizCtxService {
 }
 
 // Cache returns the plugin-scoped host cache adapter.
-func (s *scopedDirectory) Cache() contract.CacheService {
+func (s *scopedDirectory) Cache() cachecap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
 	return newCacheAdapter(s.base.cache, s.base.bizCtx, s.pluginID)
 }
 
-// Config returns the plugin-scoped static configuration adapter.
-func (s *scopedDirectory) Config() contract.ConfigService {
+// Dict returns the delegated dictionary-domain ordinary capability service.
+func (s *scopedDirectory) Dict() capabilitydictcap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
-	if s.base.config == nil {
+	return s.base.Dict()
+}
+
+// Files returns the delegated file-domain ordinary capability service.
+func (s *scopedDirectory) Files() capabilityfilecap.Service {
+	if s == nil || s.base == nil {
 		return nil
 	}
-	return s.base.config.ForPlugin(s.pluginID)
+	return s.base.Files()
 }
 
 // HostConfig returns the delegated host config adapter.
-func (s *scopedDirectory) HostConfig() contract.HostConfigService {
+func (s *scopedDirectory) HostConfig() hostconfigcap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
@@ -208,15 +263,31 @@ func (s *scopedDirectory) HostConfig() contract.HostConfigService {
 }
 
 // I18n returns the delegated runtime translation adapter.
-func (s *scopedDirectory) I18n() contract.I18nService {
+func (s *scopedDirectory) I18n() i18ncap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
 	return s.base.I18n()
 }
 
+// Infra returns the delegated infrastructure-domain ordinary capability service.
+func (s *scopedDirectory) Infra() capabilityinfracap.Service {
+	if s == nil || s.base == nil {
+		return nil
+	}
+	return s.base.Infra()
+}
+
+// Jobs returns the delegated scheduled-job domain ordinary capability service.
+func (s *scopedDirectory) Jobs() capabilityjobcap.Service {
+	if s == nil || s.base == nil {
+		return nil
+	}
+	return s.base.Jobs()
+}
+
 // Manifest returns the plugin-scoped manifest resource adapter.
-func (s *scopedDirectory) Manifest() contract.ManifestService {
+func (s *scopedDirectory) Manifest() manifestcap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
@@ -226,12 +297,12 @@ func (s *scopedDirectory) Manifest() contract.ManifestService {
 	return s.base.manifest.ForPlugin(s.pluginID)
 }
 
-// Notify returns the delegated notification adapter.
-func (s *scopedDirectory) Notify() contract.NotifyService {
+// Notifications returns the delegated notification-domain ordinary capability service.
+func (s *scopedDirectory) Notifications() capabilitynotifycap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
-	return s.base.Notify()
+	return s.base.Notifications()
 }
 
 // Org returns the delegated organization capability service.
@@ -242,40 +313,32 @@ func (s *scopedDirectory) Org() capabilityorgcap.Service {
 	return s.base.Org()
 }
 
-// PluginLifecycle returns the delegated plugin lifecycle orchestration adapter.
-func (s *scopedDirectory) PluginLifecycle() contract.PluginLifecycleService {
+// Plugins returns the delegated plugin-governance ordinary capability service.
+func (s *scopedDirectory) Plugins() capabilityplugincap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
-	return s.base.PluginLifecycle()
-}
-
-// PluginState returns the delegated plugin enablement adapter.
-func (s *scopedDirectory) PluginState() contract.PluginStateService {
-	if s == nil || s.base == nil {
-		return nil
-	}
-	return s.base.PluginState()
+	return s.base.plugins.ForPlugin(s.pluginID)
 }
 
 // Route returns the delegated dynamic-route metadata adapter.
-func (s *scopedDirectory) Route() contract.RouteService {
+func (s *scopedDirectory) Route() routecap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
 	return s.base.Route()
 }
 
-// Session returns the delegated online-session adapter.
-func (s *scopedDirectory) Session() contract.SessionService {
+// Sessions returns the delegated online-session domain ordinary capability service.
+func (s *scopedDirectory) Sessions() capabilitysessioncap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
-	return s.base.Session()
+	return s.base.Sessions()
 }
 
 // TenantFilter returns the delegated tenant-filter adapter.
-func (s *scopedDirectory) TenantFilter() contract.TenantFilterService {
+func (s *scopedDirectory) TenantFilter() tenantcap.PluginTableFilterService {
 	if s == nil || s.base == nil {
 		return nil
 	}

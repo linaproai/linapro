@@ -19,7 +19,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/orgcap"
 )
 
@@ -446,8 +446,8 @@ type userDataScopeStaticOrgCap struct {
 func (f userDataScopeStaticOrgCap) Available(context.Context) bool { return f.enabled }
 
 // Status returns the fake organization capability status.
-func (f userDataScopeStaticOrgCap) Status(context.Context) contract.CapabilityStatus {
-	return contract.CapabilityStatus{Available: f.enabled}
+func (f userDataScopeStaticOrgCap) Status(context.Context) capmodel.CapabilityStatus {
+	return capmodel.CapabilityStatus{Available: f.enabled}
 }
 
 // ListUserDeptAssignments returns no department projections for list rendering.

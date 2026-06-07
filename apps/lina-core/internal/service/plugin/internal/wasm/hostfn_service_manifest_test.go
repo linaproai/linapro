@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -19,13 +19,13 @@ type trackingManifestFactory struct {
 }
 
 // ForPlugin returns the configured tracking manifest service for one plugin scope.
-func (f *trackingManifestFactory) ForPlugin(pluginID string) contract.ManifestService {
+func (f *trackingManifestFactory) ForPlugin(pluginID string) manifestcap.Service {
 	f.lastPluginID = pluginID
 	return f.service
 }
 
 // WithArtifactResources records release-bound resources passed by the execution context.
-func (f *trackingManifestFactory) WithArtifactResources(pluginID string, resources map[string][]byte) contract.ManifestServiceFactory {
+func (f *trackingManifestFactory) WithArtifactResources(pluginID string, resources map[string][]byte) manifestcap.ServiceFactory {
 	f.lastArtifactPlugin = pluginID
 	f.lastArtifactResources = resources
 	return f

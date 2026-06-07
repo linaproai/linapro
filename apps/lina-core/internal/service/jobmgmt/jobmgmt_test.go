@@ -24,7 +24,7 @@ import (
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/role"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/orgcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
@@ -62,11 +62,11 @@ func (s jobmgmtStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 func (s jobmgmtStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
 
 // Current returns the plugin-visible business context projection.
-func (s jobmgmtStaticBizCtx) Current(context.Context) contract.CurrentContext {
+func (s jobmgmtStaticBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	if s.ctx == nil {
-		return contract.CurrentContext{}
+		return bizctxcap.CurrentContext{}
 	}
-	return contract.CurrentContext{
+	return bizctxcap.CurrentContext{
 		UserID:          s.ctx.UserId,
 		Username:        s.ctx.Username,
 		TenantID:        s.ctx.TenantId,

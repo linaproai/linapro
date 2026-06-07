@@ -5,7 +5,7 @@ package job
 import (
 	"context"
 
-	"lina-core/api/job/v1"
+	v1 "lina-core/api/job/v1"
 	"lina-core/internal/service/jobmeta"
 )
 

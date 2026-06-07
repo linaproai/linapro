@@ -5,9 +5,10 @@ package file
 
 import (
 	"context"
-	"github.com/gogf/gf/v2/net/ghttp"
 	"mime/multipart"
 	"testing"
+
+	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"

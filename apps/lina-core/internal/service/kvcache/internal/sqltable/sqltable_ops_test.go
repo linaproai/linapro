@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/frame/g"
 	_ "lina-core/pkg/dbdriver"
+
+	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-core/internal/model/do"
 	"lina-core/pkg/dialect"

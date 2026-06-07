@@ -390,6 +390,56 @@ func TestValidateHostServiceSpecsAcceptsDataTables(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsForPluginAcceptsOwnedDataTables verifies
+// production validation allows only data tables in the current plugin namespace.
+func TestValidateHostServiceSpecsForPluginAcceptsOwnedDataTables(t *testing.T) {
+	specs := []*HostServiceSpec{{
+		Service: HostServiceData,
+		Methods: []string{HostServiceMethodDataList, HostServiceMethodDataUpdate},
+		Tables: []string{
+			" plugin_linapro_demo_dynamic_record ",
+			"plugin_linapro_demo_dynamic",
+		},
+	}}
+
+	if err := ValidateHostServiceSpecsForPlugin("linapro-demo-dynamic", specs); err != nil {
+		t.Fatalf("expected plugin-owned data tables to validate, got %v", err)
+	}
+	if len(specs[0].Tables) != 2 || specs[0].Tables[0] != "plugin_linapro_demo_dynamic" || specs[0].Tables[1] != "plugin_linapro_demo_dynamic_record" {
+		t.Fatalf("expected normalized plugin-owned tables, got %#v", specs[0].Tables)
+	}
+}
+
+// TestValidateHostServiceSpecsForPluginRejectsCoreDataTables verifies dynamic
+// data service declarations cannot authorize host sys_* core tables.
+func TestValidateHostServiceSpecsForPluginRejectsCoreDataTables(t *testing.T) {
+	err := ValidateHostServiceSpecsForPlugin("linapro-demo-dynamic", []*HostServiceSpec{{
+		Service: HostServiceData,
+		Methods: []string{HostServiceMethodDataList},
+		Tables:  []string{"sys_plugin_node_state"},
+	}})
+	if err == nil {
+		t.Fatal("expected host core data table to be rejected")
+	}
+}
+
+// TestNormalizeHostServiceSpecsForPluginRejectsOtherPluginDataTables verifies
+// official capability plugin tables stay inaccessible through another plugin's
+// generic data host service authorization.
+func TestNormalizeHostServiceSpecsForPluginRejectsOtherPluginDataTables(t *testing.T) {
+	normalized, err := NormalizeHostServiceSpecsForPlugin("linapro-demo-dynamic", []*HostServiceSpec{{
+		Service: HostServiceData,
+		Methods: []string{HostServiceMethodDataList},
+		Tables:  []string{"plugin_linapro_org_dept"},
+	}})
+	if err == nil {
+		t.Fatal("expected other plugin data table to be rejected")
+	}
+	if len(normalized) != 0 {
+		t.Fatalf("expected rejected declaration to return no normalized entries, got %#v", normalized)
+	}
+}
+
 // TestValidateHostServiceSpecsRejectsDataResources verifies data services must
 // use table authorization instead of generic resources.
 func TestValidateHostServiceSpecsRejectsDataResources(t *testing.T) {

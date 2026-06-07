@@ -8,18 +8,18 @@ import (
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/plugincap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // configHostServiceFactory is the shared plugin-scoped configuration factory
 // used by wasm host calls.
-var configHostServiceFactory contract.ConfigServiceFactory
+var configHostServiceFactory plugincap.ConfigServiceFactory
 
 // ConfigureConfigHostService replaces the plugin-scoped configuration factory
 // used by wasm host calls. The factory must be non-nil.
-func ConfigureConfigHostService(factory contract.ConfigServiceFactory) error {
+func ConfigureConfigHostService(factory plugincap.ConfigServiceFactory) error {
 	if factory == nil {
 		return gerror.New("wasm config host service requires a non-nil config factory")
 	}
@@ -59,7 +59,7 @@ func dispatchConfigHostService(
 }
 
 // handleConfigGet reads one raw configuration value and returns its JSON representation.
-func handleConfigGet(ctx context.Context, reader contract.ConfigService, key string) *bridgehostcall.HostCallResponseEnvelope {
+func handleConfigGet(ctx context.Context, reader plugincap.ConfigService, key string) *bridgehostcall.HostCallResponseEnvelope {
 	if reader == nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "config host service is not scoped")
 	}

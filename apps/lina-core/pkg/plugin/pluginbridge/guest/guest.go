@@ -1,5 +1,6 @@
 // Package guest provides dynamic-plugin bridge runtime helpers, controller
-// dispatch, request/response binding, and raw host-call transport.
+// dispatch, request/response binding, raw host-call transport, and guest-side
+// host-service capability clients.
 package guest
 
 import "lina-core/pkg/plugin/pluginbridge/protocol"

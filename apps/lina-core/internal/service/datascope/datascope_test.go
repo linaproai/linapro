@@ -8,15 +8,16 @@ import (
 	"testing"
 	"time"
 
+	_ "lina-core/pkg/dbdriver"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/net/ghttp"
-	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/contract"
 )
 
 // TestCurrentResolvesWidestScope verifies super-admin, enabled-role merging,
@@ -188,11 +189,11 @@ func (s dataScopeStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 func (s dataScopeStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
 
 // Current returns the plugin-visible business context projection.
-func (s dataScopeStaticBizCtx) Current(context.Context) contract.CurrentContext {
+func (s dataScopeStaticBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	if s.ctx == nil {
-		return contract.CurrentContext{}
+		return bizctxcap.CurrentContext{}
 	}
-	return contract.CurrentContext{
+	return bizctxcap.CurrentContext{
 		UserID:          s.ctx.UserId,
 		Username:        s.ctx.Username,
 		TenantID:        s.ctx.TenantId,

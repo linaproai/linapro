@@ -19,6 +19,7 @@ const apiBaseURL = config.apiBaseURL;
 const successPluginID = "plugin-dev-host-services-e2e";
 const deniedPluginID = "plugin-dev-host-services-denied-e2e";
 const rawSQLPluginID = "plugin-dev-host-services-raw-sql-e2e";
+const successDataTable = "plugin_plugin_dev_host_services_e2e_record";
 
 type PluginListItem = {
   id: string;
@@ -250,6 +251,27 @@ function ensurePluginStateTable() {
   ]);
 }
 
+function ensureSuccessDataTable() {
+  execPgSQLStatements([
+    `DROP TABLE IF EXISTS ${successDataTable};`,
+    [
+      `CREATE TABLE ${successDataTable} (`,
+      "  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,",
+      "  plugin_id VARCHAR(64) NOT NULL DEFAULT '',",
+      "  release_id INTEGER NOT NULL DEFAULT 0,",
+      "  node_key VARCHAR(255) NOT NULL DEFAULT '',",
+      "  desired_state VARCHAR(64) NOT NULL DEFAULT '',",
+      "  current_state VARCHAR(64) NOT NULL DEFAULT '',",
+      "  generation INTEGER NOT NULL DEFAULT 0,",
+      "  error_message TEXT NOT NULL DEFAULT '',",
+      "  created_at TIMESTAMP,",
+      "  updated_at TIMESTAMP,",
+      "  deleted_at TIMESTAMP",
+      ");",
+    ].join(" "),
+  ]);
+}
+
 function cleanupPluginRows(pluginIDs: string[]) {
   const statements: string[] = [];
   for (const pluginID of pluginIDs) {
@@ -266,6 +288,14 @@ function cleanupPluginRows(pluginIDs: string[]) {
     );
   }
   execPgSQLStatements(statements);
+}
+
+function cleanupSuccessDataTable() {
+  execPgSQLStatements([`DELETE FROM ${successDataTable};`]);
+}
+
+function dropSuccessDataTable() {
+  execPgSQLStatements([`DROP TABLE IF EXISTS ${successDataTable};`]);
 }
 
 function cleanupArtifacts(pluginIDs: string[]) {
@@ -452,7 +482,7 @@ hostServices:
       - transaction
     resources:
       tables:
-        - sys_plugin_node_state
+        - ${successDataTable}
 `,
   );
   writeTestFile(
@@ -494,7 +524,7 @@ import (
 
 const (
 	networkURL = "${upstreamBaseURL}"
-	dataTable  = "sys_plugin_node_state"
+	dataTable  = "${successDataTable}"
 )
 
 func (c *Controller) HostServices(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
@@ -986,6 +1016,7 @@ test.describe("TC-4 Runtime Wasm Host Services", () => {
     mkdirSync(sourceRoot(), { recursive: true });
     mkdirSync(buildOutputDir(), { recursive: true });
     ensurePluginStateTable();
+    ensureSuccessDataTable();
 
     const upstream = await startUpstreamServer();
     upstreamServer = upstream.server;
@@ -1020,6 +1051,7 @@ test.describe("TC-4 Runtime Wasm Host Services", () => {
       });
     }
     cleanupPluginRows([successPluginID, deniedPluginID, rawSQLPluginID]);
+    dropSuccessDataTable();
     cleanupArtifacts([successPluginID, deniedPluginID, rawSQLPluginID]);
     rmSync(tempRoot(), { force: true, recursive: true });
   });
@@ -1028,6 +1060,7 @@ test.describe("TC-4 Runtime Wasm Host Services", () => {
     await resetPlugin(adminApi!, successPluginID);
     await resetPlugin(adminApi!, deniedPluginID);
     cleanupPluginRows([successPluginID, deniedPluginID, rawSQLPluginID]);
+    cleanupSuccessDataTable();
     cleanupArtifacts([successPluginID, deniedPluginID, rawSQLPluginID]);
   });
 
@@ -1035,6 +1068,7 @@ test.describe("TC-4 Runtime Wasm Host Services", () => {
     await resetPlugin(adminApi!, successPluginID);
     await resetPlugin(adminApi!, deniedPluginID);
     cleanupPluginRows([successPluginID, deniedPluginID, rawSQLPluginID]);
+    cleanupSuccessDataTable();
     cleanupArtifacts([successPluginID, deniedPluginID, rawSQLPluginID]);
   });
 

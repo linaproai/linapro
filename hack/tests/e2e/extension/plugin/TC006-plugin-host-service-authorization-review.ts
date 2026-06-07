@@ -20,8 +20,8 @@ const pluginDescription =
   "用于演示动态插件在授权审查与详情弹窗中同时展示宿主服务范围、注册路由清单，以及较长描述信息时的治理体验优化。";
 const networkURLPattern = "https://*.example.com/api";
 const storagePath = "plugin-demo/records";
-const dataTableName = "sys_plugin_node_state";
-const dataTableComment = "Plugin node state table";
+const dataTableName = "plugin_plugin_dev_dynamic_host_auth_ui_record";
+const dataTableLabel = dataTableName;
 const routeSummaryPath = `/x/${pluginID}/api/v1/review-summary`;
 const routeHealthPath = `/x/${pluginID}/api/v1/healthz`;
 const routeAuditPath = `/x/${pluginID}/api/v1/audit-log`;
@@ -91,6 +91,12 @@ async function listPlugins(adminApi: APIRequestContext): Promise<PluginListItem[
 async function findPlugin(adminApi: APIRequestContext, pluginId = pluginID) {
   const list = await listPlugins(adminApi);
   return list.find((item) => item.id === pluginId) ?? null;
+}
+
+async function getPluginDetail(adminApi: APIRequestContext, pluginId = pluginID) {
+  const response = await adminApi.get(`plugins/${pluginId}`);
+  assertOk(response, "查询插件详情失败");
+  return unwrapApiData(await response.json()) as PluginListItem;
 }
 
 async function uploadDynamicPlugin(
@@ -341,9 +347,7 @@ test.describe("TC-2 插件安装/启用时审查 hostServices 授权", () => {
     await expect(hostServiceAuthModal).not.toContainText("申请数据表名");
     await expect(hostServiceAuthModal).not.toContainText("申请访问地址");
     await expect(hostServiceAuthModal).toContainText(storagePath);
-    await expect(hostServiceAuthModal).toContainText(
-      `${dataTableName} (${dataTableComment})`,
-    );
+    await expect(hostServiceAuthModal).toContainText(dataTableLabel);
     await expect(hostServiceAuthModal).toContainText(networkURLPattern);
     await expect(
       hostServiceAuthModal.getByTestId(
@@ -384,7 +388,7 @@ test.describe("TC-2 插件安装/启用时审查 hostServices 授权", () => {
       hostServiceAuthModal.getByTestId(
         `plugin-host-service-auth-item-${pluginID}-data-${dataTableName}`,
       ),
-    ).toHaveText(`${dataTableName} (${dataTableComment})`);
+    ).toHaveText(dataTableLabel);
     await expect(
       hostServiceAuthModal.getByTestId(
         `plugin-host-service-auth-item-${pluginID}-network-${networkURLPattern}`,
@@ -479,7 +483,7 @@ test.describe("TC-2 插件安装/启用时审查 hostServices 授权", () => {
       .poll(async () => (await findPlugin(adminApi, pluginID))?.installed ?? 0)
       .toBe(1);
 
-    const installedPlugin = await findPlugin(adminApi, pluginID);
+    const installedPlugin = await getPluginDetail(adminApi, pluginID);
     expect(installedPlugin?.installed).toBe(1);
     expect(installedPlugin?.authorizationStatus).toBe("confirmed");
     expect(installedPlugin?.declaredRoutes?.length ?? 0).toBe(3);
@@ -509,7 +513,7 @@ test.describe("TC-2 插件安装/启用时审查 hostServices 授权", () => {
     );
     await expect(adminPage.getByText("插件已启用").last()).toBeVisible();
 
-    const enabledPlugin = await findPlugin(adminApi, pluginID);
+    const enabledPlugin = await getPluginDetail(adminApi, pluginID);
     expect(enabledPlugin?.enabled).toBe(1);
     expect(
       enabledPlugin?.authorizedHostServices?.some(
@@ -533,9 +537,7 @@ test.describe("TC-2 插件安装/启用时审查 hostServices 授权", () => {
       "以下范围展示的是当前插件元数据与授权快照。",
     );
     await expect(detailModal).toContainText(storagePath);
-    await expect(detailModal).toContainText(
-      `${dataTableName} (${dataTableComment})`,
-    );
+    await expect(detailModal).toContainText(dataTableLabel);
     await expect(detailModal).toContainText(networkURLPattern);
     await expect(detailModal).not.toContainText("宿主服务申请清单");
     await expect(detailModal).not.toContainText("宿主服务授权快照");

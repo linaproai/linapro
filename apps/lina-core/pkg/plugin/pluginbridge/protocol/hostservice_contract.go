@@ -129,8 +129,11 @@ var (
 	CapabilitiesFromHostServices           = hostservice.CapabilitiesFromHostServices
 	CapabilityMapFromHostServices          = hostservice.CapabilityMapFromHostServices
 	ValidateHostServiceSpecs               = hostservice.ValidateHostServiceSpecs
+	ValidateHostServiceSpecsForPlugin      = hostservice.ValidateHostServiceSpecsForPlugin
 	NormalizeHostServiceSpecs              = hostservice.NormalizeHostServiceSpecs
+	NormalizeHostServiceSpecsForPlugin     = hostservice.NormalizeHostServiceSpecsForPlugin
 	MustNormalizeHostServiceSpecs          = hostservice.MustNormalizeHostServiceSpecs
+	MustNormalizeHostServiceSpecsForPlugin = hostservice.MustNormalizeHostServiceSpecsForPlugin
 	AllCapabilities                        = hostservice.AllCapabilities
 	ValidateCapabilities                   = hostservice.ValidateCapabilities
 	NormalizeCapabilities                  = hostservice.NormalizeCapabilities

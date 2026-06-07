@@ -286,7 +286,7 @@ func TestBuildLifecycleAuthorizedHostServicesDropsUnconfirmedResources(t *testin
 		},
 	}
 
-	withoutAuthorization, err := buildLifecycleAuthorizedHostServices(hostServices, nil)
+	withoutAuthorization, err := buildLifecycleAuthorizedHostServices("plugin-test-lifecycle", hostServices, nil)
 	if err != nil {
 		t.Fatalf("expected lifecycle host services to normalize, got error: %v", err)
 	}
@@ -295,6 +295,7 @@ func TestBuildLifecycleAuthorizedHostServicesDropsUnconfirmedResources(t *testin
 	}
 
 	withAuthorization, err := buildLifecycleAuthorizedHostServices(
+		"plugin-test-lifecycle",
 		hostServices,
 		&HostServiceAuthorizationInput{
 			Services: []*HostServiceAuthorizationDecision{

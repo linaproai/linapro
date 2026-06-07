@@ -121,6 +121,7 @@
 - 新增或修改`apps/lina-plugins/<plugin-id>/`下的源码插件或动态插件源码目录下的内容
 - 修改源码插件编译嵌入对接结构，包括`plugin_embed.go`、registrar、provider 或 adapter
 - 修改动态插件运行时对接结构，包括`main.go`、`go.mod`、WASM 构建入口、`pluginbridge`路由声明、`hostServices`声明或动态插件产物资源视图
+- 新增或修改主框架插件能力包、能力注册/发现、`pluginbridge`协议、`hostServices`契约或`WASM host call`
 - 修改宿主与插件之间的资源归属、发布产物、打包资源或生命周期扫描逻辑
 - 修改插件访问宿主能力、宿主调用插件能力或插件间能力调用的接口契约与授权边界
 

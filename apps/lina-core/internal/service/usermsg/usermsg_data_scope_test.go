@@ -8,16 +8,17 @@ import (
 	"testing"
 	"time"
 
+	_ "lina-core/pkg/dbdriver"
+
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/util/gconv"
-	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/notify"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
@@ -78,11 +79,11 @@ func (s userMsgScopeStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 func (s userMsgScopeStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
 
 // Current returns the plugin-visible business context projection.
-func (s userMsgScopeStaticBizCtx) Current(context.Context) contract.CurrentContext {
+func (s userMsgScopeStaticBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	if s.ctx == nil {
-		return contract.CurrentContext{}
+		return bizctxcap.CurrentContext{}
 	}
-	return contract.CurrentContext{
+	return bizctxcap.CurrentContext{
 		UserID:          s.ctx.UserId,
 		Username:        s.ctx.Username,
 		TenantID:        s.ctx.TenantId,

@@ -7,7 +7,7 @@ package sysinfo
 import (
 	"context"
 
-	"lina-core/api/sysinfo/v1"
+	v1 "lina-core/api/sysinfo/v1"
 )
 
 type ISysinfoV1 interface {

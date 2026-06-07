@@ -12,7 +12,7 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 )
 
 const tenantFallbackProviderID = "tenantcap-fallback-test-provider"
@@ -23,7 +23,7 @@ func TestDisabledTenantCapabilityReturnsPlatformFallbacks(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	svc := New(nil, tenantFallbackBizCtx{current: contract.CurrentContext{
+	svc := New(nil, tenantFallbackBizCtx{current: bizctxcap.CurrentContext{
 		UserID:   10,
 		TenantID: 22,
 	}})
@@ -91,7 +91,7 @@ func TestDisabledTenantCapabilityReturnsNeutralMembershipAndStartupValues(t *tes
 	t.Parallel()
 
 	ctx := context.Background()
-	svc := New(nil, tenantFallbackBizCtx{current: contract.CurrentContext{TenantID: 22}})
+	svc := New(nil, tenantFallbackBizCtx{current: bizctxcap.CurrentContext{TenantID: 22}})
 
 	tenants, err := svc.ListUserTenants(ctx, 10)
 	if err != nil {
@@ -132,7 +132,7 @@ func TestTenantVisibilityUsesControlledRejectionWhenEnabled(t *testing.T) {
 	ensureTenantFallbackProviderDeclared(t)
 	svc := &serviceImpl{
 		runtime: tenantFallbackRuntime{enabledPluginID: tenantFallbackProviderID},
-		bizCtxSvc: tenantFallbackBizCtx{current: contract.CurrentContext{
+		bizCtxSvc: tenantFallbackBizCtx{current: bizctxcap.CurrentContext{
 			UserID:   10,
 			TenantID: 22,
 		}},
@@ -149,7 +149,7 @@ func TestTenantPlatformBypassAllowsVisibilityWhenEnabled(t *testing.T) {
 	ensureTenantFallbackProviderDeclared(t)
 	svc := &serviceImpl{
 		runtime: tenantFallbackRuntime{enabledPluginID: tenantFallbackProviderID},
-		bizCtxSvc: tenantFallbackBizCtx{current: contract.CurrentContext{
+		bizCtxSvc: tenantFallbackBizCtx{current: bizctxcap.CurrentContext{
 			UserID:         10,
 			TenantID:       0,
 			PlatformBypass: true,
@@ -162,10 +162,10 @@ func TestTenantPlatformBypassAllowsVisibilityWhenEnabled(t *testing.T) {
 }
 
 type tenantFallbackBizCtx struct {
-	current contract.CurrentContext
+	current bizctxcap.CurrentContext
 }
 
-func (s tenantFallbackBizCtx) Current(context.Context) contract.CurrentContext {
+func (s tenantFallbackBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	return s.current
 }
 

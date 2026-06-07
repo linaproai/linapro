@@ -65,10 +65,10 @@ func validateRuntimeBuildManifest(manifest *pluginManifest, manifestPath string)
 	if err := validateDependencySpec(manifest.ID, manifest.Dependencies); err != nil {
 		return fmt.Errorf("dynamic plugin dependencies invalid: %w", err)
 	}
-	if err := protocol.ValidateHostServiceSpecs(manifest.HostServices); err != nil {
+	if err := protocol.ValidateHostServiceSpecsForPlugin(manifest.ID, manifest.HostServices); err != nil {
 		return fmt.Errorf("dynamic plugin hostServices invalid: %w", err)
 	}
-	hostServices, err := protocol.NormalizeHostServiceSpecs(manifest.HostServices)
+	hostServices, err := protocol.NormalizeHostServiceSpecsForPlugin(manifest.ID, manifest.HostServices)
 	if err != nil {
 		return fmt.Errorf("dynamic plugin hostServices normalization failed: %w", err)
 	}

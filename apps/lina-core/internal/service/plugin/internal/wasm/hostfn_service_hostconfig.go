@@ -8,17 +8,17 @@ import (
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/hostconfigcap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // hostConfigService is the shared host config reader used by wasm host calls.
-var hostConfigService contract.HostConfigService
+var hostConfigService hostconfigcap.Service
 
 // ConfigureHostConfigService replaces the host config reader used by wasm host
 // calls. The service must be non-nil.
-func ConfigureHostConfigService(service contract.HostConfigService) error {
+func ConfigureHostConfigService(service hostconfigcap.Service) error {
 	if service == nil {
 		return gerror.New("wasm host config service requires a non-nil adapter")
 	}
@@ -53,7 +53,7 @@ func dispatchHostConfigService(
 }
 
 // handleHostConfigGet reads one authorized host config value and returns JSON.
-func handleHostConfigGet(ctx context.Context, reader contract.HostConfigService, key string) *bridgehostcall.HostCallResponseEnvelope {
+func handleHostConfigGet(ctx context.Context, reader hostconfigcap.Service, key string) *bridgehostcall.HostCallResponseEnvelope {
 	found, err := reader.Exists(ctx, key)
 	if err != nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())

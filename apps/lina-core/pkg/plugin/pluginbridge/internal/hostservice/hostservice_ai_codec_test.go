@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"lina-core/pkg/plugin/capability/ai/aitext"
+	"lina-core/pkg/plugin/capability/aicap/aitext"
 )
 
 // TestHostServiceAITextGenerateRequestRoundTrip verifies AI text requests keep

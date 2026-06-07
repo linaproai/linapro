@@ -11,7 +11,7 @@ import (
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
-	"lina-core/pkg/authtoken"
+	tokencap "lina-core/pkg/plugin/capability/authcap/token"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -42,15 +42,15 @@ const (
 )
 
 // tokenKind identifies the intended use of one signed JWT. The underlying
-// string values are owned by `pkg/authtoken` so host signers, host parsers,
+// string values are owned by `authcap/token` so host signers, host parsers,
 // dynamic plugin routes, and source plugins stay in lock-step.
 type tokenKind string
 
 const (
 	// tokenKindAccess marks JWTs accepted by protected API middleware.
-	tokenKindAccess tokenKind = authtoken.KindAccess
+	tokenKindAccess tokenKind = tokencap.KindAccess
 	// tokenKindRefresh marks JWTs accepted only by the refresh-token endpoint.
-	tokenKindRefresh tokenKind = authtoken.KindRefresh
+	tokenKindRefresh tokenKind = tokencap.KindRefresh
 	// defaultRefreshTokenTTL is the minimum lifetime for refresh tokens.
 	defaultRefreshTokenTTL time.Duration = 7 * 24 * time.Hour
 )

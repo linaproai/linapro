@@ -20,8 +20,8 @@ import (
 	"testing/fstest"
 	"unicode"
 
+	"lina-core/internal/utility/testsupport"
 	"lina-core/pkg/plugin/pluginhost"
-	"lina-core/pkg/testsupport"
 )
 
 var openAPIMetadataTagPattern = regexp.MustCompile(`([A-Za-z0-9_-]+):"((?:\\.|[^"\\])*)"`)

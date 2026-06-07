@@ -20,8 +20,8 @@ import (
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
-	"lina-core/pkg/plugin/capability/ai/aitext"
-	capabilityhostconfig "lina-core/pkg/plugin/capability/hostconfig"
+	"lina-core/pkg/plugin/capability/aicap/aitext"
+	capabilityhostconfig "lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/capability/orgcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )

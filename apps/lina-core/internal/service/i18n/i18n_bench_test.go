@@ -5,8 +5,9 @@ package i18n
 
 import (
 	"context"
-	"github.com/gogf/gf/v2/os/gctx"
 	"testing"
+
+	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/internal/model"
 	"lina-core/internal/service/bizctx"

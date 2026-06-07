@@ -1,14 +1,16 @@
-import type { Page, Route } from '@playwright/test';
+import type { Page, Route } from "@playwright/test";
 
-import { test, expect } from '../../../fixtures/auth';
-import { PluginPage } from '../../../pages/PluginPage';
+import { test, expect } from "../../../fixtures/auth";
+import { PluginPage } from "../../../pages/PluginPage";
 
-const frameworkBlockedPluginID = 'plugin-dev-dependency-framework-blocked-e2e';
-const blockedPluginID = 'plugin-dev-dependency-blocked-e2e';
-const basePluginID = 'plugin-dev-dependency-base-e2e';
-const consumerPluginID = 'plugin-dev-dependency-consumer-e2e';
-const installNetworkFailurePluginID = 'plugin-dev-dependency-install-network-failure-e2e';
-const uninstallNetworkFailurePluginID = 'plugin-dev-dependency-uninstall-network-failure-e2e';
+const frameworkBlockedPluginID = "plugin-dev-dependency-framework-blocked-e2e";
+const blockedPluginID = "plugin-dev-dependency-blocked-e2e";
+const basePluginID = "plugin-dev-dependency-base-e2e";
+const consumerPluginID = "plugin-dev-dependency-consumer-e2e";
+const installNetworkFailurePluginID =
+  "plugin-dev-dependency-install-network-failure-e2e";
+const uninstallNetworkFailurePluginID =
+  "plugin-dev-dependency-uninstall-network-failure-e2e";
 
 type PluginRow = Record<string, unknown>;
 type DependencyCheck = Record<string, unknown>;
@@ -17,7 +19,7 @@ function apiEnvelope(data: unknown) {
   return {
     code: 0,
     data,
-    message: 'success',
+    message: "success",
   };
 }
 
@@ -27,9 +29,20 @@ function pluginRow(input: {
   installed: number;
   name: string;
 }): PluginRow {
+  const requestedHostServices =
+    input.installed === 1
+      ? []
+      : [
+          {
+            methods: ["get"],
+            paths: [`dependency/${input.id}`],
+            service: "storage",
+          },
+        ];
   return {
-    authorizationRequired: 0,
-    authorizationStatus: 'not_required',
+    authorizationRequired: requestedHostServices.length > 0 ? 1 : 0,
+    authorizationStatus:
+      requestedHostServices.length > 0 ? "pending" : "not_required",
     autoEnableForNewTenants: false,
     autoEnableManaged: 0,
     authorizedHostServices: [],
@@ -39,17 +52,17 @@ function pluginRow(input: {
     enabled: 0,
     hasMockData: 0,
     id: input.id,
-    installMode: 'global',
+    installMode: "global",
     installed: input.installed,
-    installedAt: '',
+    installedAt: "",
     name: input.name,
-    requestedHostServices: [],
-    scopeNature: 'global',
-    statusKey: input.installed === 1 ? 'disabled' : 'not_installed',
+    requestedHostServices,
+    scopeNature: "platform_only",
+    statusKey: input.installed === 1 ? "disabled" : "not_installed",
     supportsMultiTenant: false,
-    type: 'source',
-    updatedAt: '',
-    version: 'v0.1.0',
+    type: "source",
+    updatedAt: "",
+    version: "v0.1.0",
   };
 }
 
@@ -59,9 +72,9 @@ function emptyDependencyCheck(pluginId: string): DependencyCheck {
     cycle: [],
     dependencies: [],
     framework: {
-      currentVersion: 'v0.6.0',
-      requiredVersion: '',
-      status: 'not_declared',
+      currentVersion: "v0.6.0",
+      requiredVersion: "",
+      status: "not_declared",
     },
     reverseBlockers: [],
     reverseDependents: [],
@@ -73,9 +86,9 @@ function frameworkBlockerCheck(): DependencyCheck {
   return {
     ...emptyDependencyCheck(frameworkBlockedPluginID),
     framework: {
-      currentVersion: 'v0.6.0',
-      requiredVersion: '>=0.7.0',
-      status: 'unsatisfied',
+      currentVersion: "v0.6.0",
+      requiredVersion: ">=0.7.0",
+      status: "unsatisfied",
     },
   };
 }
@@ -86,24 +99,24 @@ function installBlockerCheck(): DependencyCheck {
     blockers: [
       {
         chain: [blockedPluginID, basePluginID],
-        code: 'dependency_version_unsatisfied',
-        currentVersion: 'v0.1.0',
+        code: "dependency_version_unsatisfied",
+        currentVersion: "v0.1.0",
         dependencyId: basePluginID,
         pluginId: blockedPluginID,
-        requiredVersion: '>=0.3.0',
+        requiredVersion: ">=0.3.0",
       },
     ],
     dependencies: [
       {
         chain: [blockedPluginID, basePluginID],
-        currentVersion: 'v0.1.0',
+        currentVersion: "v0.1.0",
         dependencyId: basePluginID,
-        dependencyName: 'Dependency Base',
+        dependencyName: "Dependency Base",
         discovered: true,
         installed: true,
         ownerId: blockedPluginID,
-        requiredVersion: '>=0.3.0',
-        status: 'version_unsatisfied',
+        requiredVersion: ">=0.3.0",
+        status: "version_unsatisfied",
       },
     ],
   };
@@ -115,18 +128,18 @@ function reverseBlockerCheck(): DependencyCheck {
     reverseBlockers: [
       {
         chain: [consumerPluginID, basePluginID],
-        code: 'reverse_dependency',
+        code: "reverse_dependency",
         dependencyId: basePluginID,
         pluginId: consumerPluginID,
-        requiredVersion: '>=0.1.0',
+        requiredVersion: ">=0.1.0",
       },
     ],
     reverseDependents: [
       {
-        name: 'Consumer Plugin',
+        name: "Consumer Plugin",
         pluginId: consumerPluginID,
-        requiredVersion: '>=0.1.0',
-        version: 'v0.1.0',
+        requiredVersion: ">=0.1.0",
+        version: "v0.1.0",
       },
     ],
   };
@@ -139,16 +152,33 @@ async function mockPluginDependencyApis(
   failingDependencyPluginIds: string[] = [],
 ) {
   const failingPluginIdSet = new Set(failingDependencyPluginIds);
-  await page.route('**/api/v1/plugins**', async (route: Route) => {
+  await page.route("**/api/v1/plugins**", async (route: Route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
-    const dependencyMatch = path.match(/\/api\/v1\/plugins\/([^/]+)\/dependencies$/u);
+    const detailMatch = path.match(/\/api\/v1\/plugins\/([^/]+)\/?$/u);
+    const dependencyMatch = path.match(
+      /\/api\/v1\/plugins\/([^/]+)\/dependencies$/u,
+    );
 
-    if (request.method() === 'GET' && dependencyMatch) {
-      const pluginId = decodeURIComponent(dependencyMatch[1] ?? '');
+    if (request.method() === "GET" && detailMatch) {
+      const pluginId = decodeURIComponent(detailMatch[1] ?? "");
+      const row = rows.find((item) => String(item.id ?? "") === pluginId);
+      if (row) {
+        await route.fulfill({
+          json: apiEnvelope({
+            ...row,
+            dependencyCheck: checks[pluginId] ?? emptyDependencyCheck(pluginId),
+          }),
+        });
+        return;
+      }
+    }
+
+    if (request.method() === "GET" && dependencyMatch) {
+      const pluginId = decodeURIComponent(dependencyMatch[1] ?? "");
       if (failingPluginIdSet.has(pluginId)) {
-        await route.abort('failed');
+        await route.abort("failed");
         return;
       }
       await route.fulfill({
@@ -157,10 +187,10 @@ async function mockPluginDependencyApis(
       return;
     }
 
-    if (request.method() === 'GET' && /\/api\/v1\/plugins$/u.test(path)) {
-      const id = url.searchParams.get('id')?.trim();
+    if (request.method() === "GET" && /\/api\/v1\/plugins$/u.test(path)) {
+      const id = url.searchParams.get("id")?.trim();
       const filteredRows = id
-        ? rows.filter((row) => String(row.id ?? '').includes(id))
+        ? rows.filter((row) => String(row.id ?? "").includes(id))
         : rows;
       await route.fulfill({
         json: apiEnvelope({
@@ -175,18 +205,17 @@ async function mockPluginDependencyApis(
   });
 }
 
-test.describe('TC-6 插件依赖管理展示', () => {
-  test('TC-6a: 安装确认展示框架版本阻断并禁用提交', async ({
-    adminPage,
-  }) => {
+test.describe("TC-6 插件依赖管理展示", () => {
+  test("TC-6a: 安装确认展示框架版本阻断并禁用提交", async ({ adminPage }) => {
     await mockPluginDependencyApis(
       adminPage,
       [
         pluginRow({
-          description: 'Used by E2E to verify framework dependency blocker display.',
+          description:
+            "Used by E2E to verify framework dependency blocker display.",
           id: frameworkBlockedPluginID,
           installed: 0,
-          name: 'Dependency Framework Blocked Plugin',
+          name: "Dependency Framework Blocked Plugin",
         }),
       ],
       { [frameworkBlockedPluginID]: frameworkBlockerCheck() },
@@ -199,10 +228,10 @@ test.describe('TC-6 插件依赖管理展示', () => {
 
     await expect(pluginPage.pluginDependencyFrameworkBlocker()).toBeVisible();
     await expect(pluginPage.pluginDependencyFrameworkBlocker()).toContainText(
-      '框架版本不满足插件要求。',
+      "框架版本不满足插件要求。",
     );
     await expect(pluginPage.pluginDependencyFrameworkBlocker()).toContainText(
-      '要求版本：>=0.7.0；当前版本：v0.6.0。',
+      "要求版本：>=0.7.0；当前版本：v0.6.0。",
     );
     await expect(pluginPage.hostServiceAuthConfirmButton()).toBeDisabled();
     await expect(
@@ -210,17 +239,15 @@ test.describe('TC-6 插件依赖管理展示', () => {
     ).toBeDisabled();
   });
 
-  test('TC-6b: 安装确认展示依赖阻断并禁用提交', async ({
-    adminPage,
-  }) => {
+  test("TC-6b: 安装确认展示依赖阻断并禁用提交", async ({ adminPage }) => {
     await mockPluginDependencyApis(
       adminPage,
       [
         pluginRow({
-          description: 'Used by E2E to verify dependency blockers.',
+          description: "Used by E2E to verify dependency blockers.",
           id: blockedPluginID,
           installed: 0,
-          name: 'Dependency Blocked Plugin',
+          name: "Dependency Blocked Plugin",
         }),
       ],
       { [blockedPluginID]: installBlockerCheck() },
@@ -233,10 +260,10 @@ test.describe('TC-6 插件依赖管理展示', () => {
 
     await expect(pluginPage.pluginDependencyBlockers()).toBeVisible();
     await expect(pluginPage.pluginDependencyBlockers()).toContainText(
-      '请先处理依赖阻断项',
+      "请先处理依赖阻断项",
     );
     await expect(pluginPage.pluginDependencyBlockers()).toContainText(
-      '依赖版本不满足',
+      "依赖版本不满足",
     );
     await expect(pluginPage.pluginDependencyBlockers()).toContainText(
       basePluginID,
@@ -247,17 +274,15 @@ test.describe('TC-6 插件依赖管理展示', () => {
     ).toBeDisabled();
   });
 
-  test('TC-6c: 卸载确认展示反向依赖阻断并禁用提交', async ({
-    adminPage,
-  }) => {
+  test("TC-6c: 卸载确认展示反向依赖阻断并禁用提交", async ({ adminPage }) => {
     await mockPluginDependencyApis(
       adminPage,
       [
         pluginRow({
-          description: 'Used by E2E to verify reverse dependency blockers.',
+          description: "Used by E2E to verify reverse dependency blockers.",
           id: basePluginID,
           installed: 1,
-          name: 'Dependency Base',
+          name: "Dependency Base",
         }),
       ],
       { [basePluginID]: reverseBlockerCheck() },
@@ -270,25 +295,26 @@ test.describe('TC-6 插件依赖管理展示', () => {
 
     await expect(pluginPage.pluginDependencyReverseBlockers()).toBeVisible();
     await expect(pluginPage.pluginDependencyReverseBlockers()).toContainText(
-      '该插件仍被已安装插件依赖。',
+      "该插件仍被已安装插件依赖。",
     );
     await expect(pluginPage.pluginDependencyReverseBlockers()).toContainText(
-      'Consumer Plugin >=0.1.0',
+      "Consumer Plugin >=0.1.0",
     );
     await expect(pluginPage.uninstallConfirmButton()).toBeDisabled();
   });
 
-  test('TC-6d: 安装弹窗依赖检查网络失败时只显示本地刷新失败提示', async ({
+  test("TC-6d: 安装弹窗依赖检查网络失败时只显示本地刷新失败提示", async ({
     adminPage,
   }) => {
     await mockPluginDependencyApis(
       adminPage,
       [
         pluginRow({
-          description: 'Used by E2E to verify dependency failure toast handling.',
+          description:
+            "Used by E2E to verify dependency failure toast handling.",
           id: installNetworkFailurePluginID,
           installed: 0,
-          name: 'Dependency Install Network Failure Plugin',
+          name: "Dependency Install Network Failure Plugin",
         }),
       ],
       {},
@@ -301,24 +327,25 @@ test.describe('TC-6 插件依赖管理展示', () => {
     await pluginPage.openInstallAuthorization(installNetworkFailurePluginID);
 
     await expect(
-      pluginPage.messageNotice('刷新插件依赖检查结果失败'),
+      pluginPage.messageNotice("刷新插件依赖检查结果失败"),
     ).toBeVisible();
     await expect(
-      pluginPage.messageNotice('网络异常，请检查您的网络连接后重试。'),
+      pluginPage.messageNotice("网络异常，请检查您的网络连接后重试。"),
     ).toHaveCount(0);
   });
 
-  test('TC-6e: 卸载弹窗依赖检查网络失败时只显示本地刷新失败提示', async ({
+  test("TC-6e: 卸载弹窗依赖检查网络失败时只显示本地刷新失败提示", async ({
     adminPage,
   }) => {
     await mockPluginDependencyApis(
       adminPage,
       [
         pluginRow({
-          description: 'Used by E2E to verify dependency failure toast handling.',
+          description:
+            "Used by E2E to verify dependency failure toast handling.",
           id: uninstallNetworkFailurePluginID,
           installed: 1,
-          name: 'Dependency Uninstall Network Failure Plugin',
+          name: "Dependency Uninstall Network Failure Plugin",
         }),
       ],
       {},
@@ -331,10 +358,10 @@ test.describe('TC-6 插件依赖管理展示', () => {
     await pluginPage.openUninstallDialog(uninstallNetworkFailurePluginID);
 
     await expect(
-      pluginPage.messageNotice('刷新插件依赖检查结果失败'),
+      pluginPage.messageNotice("刷新插件依赖检查结果失败"),
     ).toBeVisible();
     await expect(
-      pluginPage.messageNotice('网络异常，请检查您的网络连接后重试。'),
+      pluginPage.messageNotice("网络异常，请检查您的网络连接后重试。"),
     ).toHaveCount(0);
   });
 });

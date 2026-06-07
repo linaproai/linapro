@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/os/gcron"
 	_ "lina-core/pkg/dbdriver"
+
+	"github.com/gogf/gf/v2/os/gcron"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"

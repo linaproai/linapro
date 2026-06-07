@@ -19,10 +19,31 @@ import (
 
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/plugin/capability"
-	capabilityai "lina-core/pkg/plugin/capability/ai"
-	"lina-core/pkg/plugin/capability/contract"
+	capabilityai "lina-core/pkg/plugin/capability/aicap"
+	"lina-core/pkg/plugin/capability/apidoccap"
+	"lina-core/pkg/plugin/capability/authcap"
+	capabilityauthz "lina-core/pkg/plugin/capability/authcap/authz"
+	"lina-core/pkg/plugin/capability/authcap/token"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/cachecap"
+	"lina-core/pkg/plugin/capability/capmodel"
+	capabilityconfigcap "lina-core/pkg/plugin/capability/configcap"
+	capabilitydictcap "lina-core/pkg/plugin/capability/dictcap"
+	capabilityfilecap "lina-core/pkg/plugin/capability/filecap"
+	"lina-core/pkg/plugin/capability/hostconfigcap"
+	"lina-core/pkg/plugin/capability/i18ncap"
+	capabilityinfracap "lina-core/pkg/plugin/capability/infracap"
+	capabilityjobcap "lina-core/pkg/plugin/capability/jobcap"
+	"lina-core/pkg/plugin/capability/manifestcap"
+	capabilitynotifycap "lina-core/pkg/plugin/capability/notifycap"
 	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/plugincap"
+	capabilityplugincap "lina-core/pkg/plugin/capability/plugincap"
+	"lina-core/pkg/plugin/capability/routecap"
+	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -79,64 +100,94 @@ func (d *scopedSourceServicesDirectory) scopedPluginID() string {
 }
 
 // APIDoc returns a fallback API-doc service required by source-plugin route registration.
-func (d *scopedSourceServicesDirectory) APIDoc() contract.APIDocService {
+func (d *scopedSourceServicesDirectory) APIDoc() apidoccap.Service {
 	return scopedCapabilityAPIDoc{}
 }
 
-// Auth returns a no-op auth service required by tenant-core route registration.
-func (d *scopedSourceServicesDirectory) Auth() contract.AuthService {
-	return scopedCapabilityAuth{}
+// Auth returns a no-op auth namespace required by tenant-core route registration.
+func (d *scopedSourceServicesDirectory) Auth() authcap.Service {
+	return authcap.New(scopedCapabilityAuth{}, scopedCapabilityAuthz{})
 }
 
 // BizCtx returns a minimal non-nil business context service required by source
 // plugin route registration callbacks in this test.
-func (d *scopedSourceServicesDirectory) BizCtx() contract.BizCtxService {
+func (d *scopedSourceServicesDirectory) BizCtx() bizctxcap.Service {
 	return scopedCapabilityBizCtx{}
 }
 
 // Cache returns a no-op cache service required by Smart Center route registration.
-func (d *scopedSourceServicesDirectory) Cache() contract.CacheService {
+func (d *scopedSourceServicesDirectory) Cache() cachecap.Service {
 	return scopedCapabilityCache{}
 }
 
-// Config returns a defaulting plugin configuration service required by plugin cron registration.
-func (d *scopedSourceServicesDirectory) Config() contract.ConfigService {
+// PluginConfig returns a defaulting plugin configuration service required by plugin cron registration.
+func (d *scopedSourceServicesDirectory) PluginConfig() plugincap.ConfigService {
 	return scopedCapabilityConfig{}
 }
 
-// Notify returns a no-op notification service required by content-notice route registration.
-func (d *scopedSourceServicesDirectory) Notify() contract.NotifyService {
+// Config returns a runtime-config domain service for registration-only tests.
+func (d *scopedSourceServicesDirectory) Config() capabilityconfigcap.Service {
+	return scopedCapabilityConfig{}
+}
+
+// Dict returns an empty dictionary service required by monitor route registration.
+func (d *scopedSourceServicesDirectory) Dict() capabilitydictcap.Service {
+	return scopedCapabilityDict{}
+}
+
+// Notifications returns a no-op notification-domain service required by content-notice route registration.
+func (d *scopedSourceServicesDirectory) Notifications() capabilitynotifycap.Service {
 	return scopedCapabilityNotify{}
 }
 
+// Admin returns a minimal management directory required by tenant route registration.
+func (d *scopedSourceServicesDirectory) Admin() capability.AdminServices {
+	return scopedCapabilityAdminServices{}
+}
+
+// Plugins returns an empty plugin-governance service required by tenant route registration.
+func (d *scopedSourceServicesDirectory) Plugins() capabilityplugincap.Service {
+	return scopedCapabilityPlugins{}
+}
+
 // I18n returns a fallback translator required by source-plugin route registration.
-func (d *scopedSourceServicesDirectory) I18n() contract.I18nService {
+func (d *scopedSourceServicesDirectory) I18n() i18ncap.Service {
 	return scopedCapabilityI18n{}
 }
 
 // PluginLifecycle returns no-op lifecycle operations required by tenant-core route registration.
-func (d *scopedSourceServicesDirectory) PluginLifecycle() contract.PluginLifecycleService {
+func (d *scopedSourceServicesDirectory) PluginLifecycle() plugincap.LifecycleService {
 	return scopedCapabilityPluginLifecycle{}
 }
 
 // PluginState returns a disabled-state reader required by global middleware registration.
-func (d *scopedSourceServicesDirectory) PluginState() contract.PluginStateService {
+func (d *scopedSourceServicesDirectory) PluginState() plugincap.StateService {
 	return scopedCapabilityPluginState{}
 }
 
 // Route returns a no-op dynamic-route metadata reader required by audit middleware registration.
-func (d *scopedSourceServicesDirectory) Route() contract.RouteService {
+func (d *scopedSourceServicesDirectory) Route() routecap.Service {
 	return scopedCapabilityRoute{}
 }
 
-// Session returns an empty session service required by monitor-online route registration.
-func (d *scopedSourceServicesDirectory) Session() contract.SessionService {
+// Sessions returns an empty session domain service required by monitor-online route registration.
+func (d *scopedSourceServicesDirectory) Sessions() capabilitysessioncap.Service {
 	return scopedCapabilitySession{}
+}
+
+// Users returns an empty user-domain service required by notice route registration.
+func (d *scopedSourceServicesDirectory) Users() capabilityusercap.Service {
+	return scopedCapabilityUsers{}
+}
+
+// HostConfig returns a defaulting host-config service required by cleanup cron registration.
+func (d *scopedSourceServicesDirectory) HostConfig() hostconfigcap.Service {
+	return scopedCapabilityConfig{}
 }
 
 // TenantFilter returns a no-op tenant filter service required by source-plugin
 // registrations that construct tenant-aware services.
-func (d *scopedSourceServicesDirectory) TenantFilter() contract.TenantFilterService {
+func (d *scopedSourceServicesDirectory) TenantFilter() tenantcap.PluginTableFilterService {
 	return scopedCapabilityTenantFilter{}
 }
 
@@ -144,15 +195,15 @@ func (d *scopedSourceServicesDirectory) TenantFilter() contract.TenantFilterServ
 type scopedCapabilityAPIDoc struct{}
 
 // ResolveRouteText returns the supplied fallback route text.
-func (scopedCapabilityAPIDoc) ResolveRouteText(_ context.Context, input contract.RouteTextInput) contract.RouteTextOutput {
-	return contract.RouteTextOutput{Title: input.FallbackTitle, Summary: input.FallbackSummary}
+func (scopedCapabilityAPIDoc) ResolveRouteText(_ context.Context, input apidoccap.RouteTextInput) apidoccap.RouteTextOutput {
+	return apidoccap.RouteTextOutput{Title: input.FallbackTitle, Summary: input.FallbackSummary}
 }
 
 // ResolveRouteTexts returns fallback route text for each input.
-func (scopedCapabilityAPIDoc) ResolveRouteTexts(_ context.Context, inputs []contract.RouteTextInput) []contract.RouteTextOutput {
-	outputs := make([]contract.RouteTextOutput, 0, len(inputs))
+func (scopedCapabilityAPIDoc) ResolveRouteTexts(_ context.Context, inputs []apidoccap.RouteTextInput) []apidoccap.RouteTextOutput {
+	outputs := make([]apidoccap.RouteTextOutput, 0, len(inputs))
 	for _, input := range inputs {
-		outputs = append(outputs, contract.RouteTextOutput{Title: input.FallbackTitle, Summary: input.FallbackSummary})
+		outputs = append(outputs, apidoccap.RouteTextOutput{Title: input.FallbackTitle, Summary: input.FallbackSummary})
 	}
 	return outputs
 }
@@ -166,31 +217,60 @@ func (scopedCapabilityAPIDoc) FindRouteTitleOperationKeys(context.Context, strin
 type scopedCapabilityAuth struct{}
 
 // SelectTenant returns an empty token output because registration-only tests never authenticate.
-func (scopedCapabilityAuth) SelectTenant(context.Context, contract.SelectTenantInput) (*contract.TenantTokenOutput, error) {
-	return &contract.TenantTokenOutput{}, nil
+func (scopedCapabilityAuth) SelectTenant(context.Context, token.SelectTenantInput) (*token.TenantTokenOutput, error) {
+	return &token.TenantTokenOutput{}, nil
 }
 
 // SwitchTenant returns an empty token output because registration-only tests never authenticate.
-func (scopedCapabilityAuth) SwitchTenant(context.Context, contract.SwitchTenantInput) (*contract.TenantTokenOutput, error) {
-	return &contract.TenantTokenOutput{}, nil
+func (scopedCapabilityAuth) SwitchTenant(context.Context, token.SwitchTenantInput) (*token.TenantTokenOutput, error) {
+	return &token.TenantTokenOutput{}, nil
 }
 
 // IssueImpersonationToken returns an empty token output for registration-only tests.
-func (scopedCapabilityAuth) IssueImpersonationToken(context.Context, contract.ImpersonationTokenIssueInput) (*contract.ImpersonationTokenOutput, error) {
-	return &contract.ImpersonationTokenOutput{}, nil
+func (scopedCapabilityAuth) IssueImpersonationToken(context.Context, token.ImpersonationTokenIssueInput) (*token.ImpersonationTokenOutput, error) {
+	return &token.ImpersonationTokenOutput{}, nil
 }
 
 // RevokeImpersonationToken performs no revocation in registration-only tests.
-func (scopedCapabilityAuth) RevokeImpersonationToken(context.Context, contract.ImpersonationTokenRevokeInput) error {
+func (scopedCapabilityAuth) RevokeImpersonationToken(context.Context, token.ImpersonationTokenRevokeInput) error {
 	return nil
+}
+
+// scopedCapabilityAuthz is an empty authorization fixture for registration-only tests.
+type scopedCapabilityAuthz struct{}
+
+// BatchGetPermissions returns label projections for non-empty permission keys.
+func (scopedCapabilityAuthz) BatchGetPermissions(_ context.Context, _ capmodel.CapabilityContext, keys []capabilityauthz.PermissionKey) (*capmodel.BatchResult[*capabilityauthz.PermissionProjection, capabilityauthz.PermissionKey], error) {
+	result := &capmodel.BatchResult[*capabilityauthz.PermissionProjection, capabilityauthz.PermissionKey]{
+		Items:      make(map[capabilityauthz.PermissionKey]*capabilityauthz.PermissionProjection, len(keys)),
+		MissingIDs: []capabilityauthz.PermissionKey{},
+	}
+	for _, key := range keys {
+		if key == "" {
+			result.MissingIDs = append(result.MissingIDs, key)
+			continue
+		}
+		result.Items[key] = &capabilityauthz.PermissionProjection{Key: key}
+	}
+	return result, nil
+}
+
+// HasPermission reports false because registration-only tests never authorize requests.
+func (scopedCapabilityAuthz) HasPermission(context.Context, capmodel.CapabilityContext, capabilityauthz.PermissionKey) (bool, error) {
+	return false, nil
+}
+
+// IsPlatformAdmin reports false because registration-only tests never check admin status.
+func (scopedCapabilityAuthz) IsPlatformAdmin(context.Context, capmodel.CapabilityContext, capabilityauthz.UserID) (bool, error) {
+	return false, nil
 }
 
 // scopedCapabilityBizCtx is a minimal plugin-visible business-context fixture.
 type scopedCapabilityBizCtx struct{}
 
 // Current returns a platform-scoped context for registration-only tests.
-func (scopedCapabilityBizCtx) Current(context.Context) contract.CurrentContext {
-	return contract.CurrentContext{PlatformBypass: true}
+func (scopedCapabilityBizCtx) Current(context.Context) bizctxcap.CurrentContext {
+	return bizctxcap.CurrentContext{PlatformBypass: true}
 }
 
 // scopedCapabilityConfig is a defaulting config fixture for registration-only tests.
@@ -231,16 +311,60 @@ func (scopedCapabilityConfig) Duration(_ context.Context, _ string, defaultValue
 	return defaultValue, nil
 }
 
+// BatchGetConfig returns all requested config keys as opaque missing entries.
+func (scopedCapabilityConfig) BatchGetConfig(_ context.Context, _ capmodel.CapabilityContext, keys []capabilityconfigcap.ConfigKey) (*capmodel.BatchResult[*capabilityconfigcap.Projection, capabilityconfigcap.ConfigKey], error) {
+	return &capmodel.BatchResult[*capabilityconfigcap.Projection, capabilityconfigcap.ConfigKey]{
+		Items:      map[capabilityconfigcap.ConfigKey]*capabilityconfigcap.Projection{},
+		MissingIDs: append([]capabilityconfigcap.ConfigKey(nil), keys...),
+	}, nil
+}
+
+// scopedCapabilityDict is an empty dictionary fixture for registration-only tests.
+type scopedCapabilityDict struct{}
+
+// ResolveLabels returns deterministic label projections for requested values.
+func (scopedCapabilityDict) ResolveLabels(_ context.Context, _ capmodel.CapabilityContext, input capabilitydictcap.ResolveInput) (*capmodel.BatchResult[*capabilitydictcap.LabelProjection, capabilitydictcap.Value], error) {
+	result := &capmodel.BatchResult[*capabilitydictcap.LabelProjection, capabilitydictcap.Value]{
+		Items:      make(map[capabilitydictcap.Value]*capabilitydictcap.LabelProjection, len(input.Values)),
+		MissingIDs: []capabilitydictcap.Value{},
+	}
+	for _, value := range input.Values {
+		if value == "" {
+			result.MissingIDs = append(result.MissingIDs, value)
+			continue
+		}
+		result.Items[value] = &capabilitydictcap.LabelProjection{
+			Type:  input.Type,
+			Value: value,
+			Label: string(value),
+		}
+	}
+	return result, nil
+}
+
 // scopedCapabilityNotify is a no-op notification fixture for registration-only tests.
 type scopedCapabilityNotify struct{}
 
-// SendNoticePublication records no messages in registration-only tests.
-func (scopedCapabilityNotify) SendNoticePublication(context.Context, contract.NoticePublishInput) (*contract.SendOutput, error) {
-	return &contract.SendOutput{}, nil
+// BatchGetMessages returns all requested messages as opaque missing entries.
+func (scopedCapabilityNotify) BatchGetMessages(_ context.Context, _ capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) (*capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID], error) {
+	return &capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID]{
+		Items:      map[capabilitynotifycap.MessageID]map[string]any{},
+		MissingIDs: append([]capabilitynotifycap.MessageID(nil), ids...),
+	}, nil
+}
+
+// Send records no messages in registration-only tests.
+func (scopedCapabilityNotify) Send(context.Context, capmodel.CapabilityContext, capabilitynotifycap.SendInput) (*capabilitynotifycap.SendResult, error) {
+	return &capabilitynotifycap.SendResult{}, nil
+}
+
+// DeleteMessages removes no messages in registration-only tests.
+func (scopedCapabilityNotify) DeleteMessages(context.Context, capmodel.CapabilityContext, []capabilitynotifycap.MessageID) error {
+	return nil
 }
 
 // DeleteBySource removes no messages in registration-only tests.
-func (scopedCapabilityNotify) DeleteBySource(context.Context, contract.SourceType, []string) error {
+func (scopedCapabilityNotify) DeleteBySource(context.Context, capmodel.CapabilityContext, capabilitynotifycap.SourceType, []string) error {
 	return nil
 }
 
@@ -303,20 +427,28 @@ func (scopedCapabilityPluginState) IsEnabledAuthoritative(context.Context, strin
 type scopedCapabilityRoute struct{}
 
 // DynamicRouteMetadata returns no dynamic-route metadata.
-func (scopedCapabilityRoute) DynamicRouteMetadata(*ghttp.Request) *contract.DynamicRouteMetadata {
+func (scopedCapabilityRoute) DynamicRouteMetadata(*ghttp.Request) *routecap.DynamicRouteMetadata {
 	return nil
 }
 
 // scopedCapabilitySession is an empty session fixture for registration-only tests.
 type scopedCapabilitySession struct{}
 
-// ListPage returns an empty session page.
-func (scopedCapabilitySession) ListPage(context.Context, *contract.ListFilter, int, int) (*contract.ListResult, error) {
-	return &contract.ListResult{Items: []*contract.Session{}, Total: 0}, nil
+// SearchSessions returns an empty session page.
+func (scopedCapabilitySession) SearchSessions(context.Context, capmodel.CapabilityContext, capabilitysessioncap.SearchInput) (*capmodel.PageResult[*capabilitysessioncap.Projection], error) {
+	return &capmodel.PageResult[*capabilitysessioncap.Projection]{Items: []*capabilitysessioncap.Projection{}, Total: 0}, nil
 }
 
-// Revoke records no revocation in registration-only tests.
-func (scopedCapabilitySession) Revoke(context.Context, string) error {
+// BatchGetSessions returns all requested sessions as opaque missing entries.
+func (scopedCapabilitySession) BatchGetSessions(_ context.Context, _ capmodel.CapabilityContext, ids []capabilitysessioncap.SessionID) (*capmodel.BatchResult[*capabilitysessioncap.Projection, capabilitysessioncap.SessionID], error) {
+	return &capmodel.BatchResult[*capabilitysessioncap.Projection, capabilitysessioncap.SessionID]{
+		Items:      map[capabilitysessioncap.SessionID]*capabilitysessioncap.Projection{},
+		MissingIDs: append([]capabilitysessioncap.SessionID(nil), ids...),
+	}, nil
+}
+
+// RevokeSession records no revocation in registration-only tests.
+func (scopedCapabilitySession) RevokeSession(context.Context, capmodel.CapabilityContext, capabilitysessioncap.SessionID) error {
 	return nil
 }
 
@@ -324,8 +456,8 @@ func (scopedCapabilitySession) Revoke(context.Context, string) error {
 type scopedCapabilityTenantFilter struct{}
 
 // Context returns a platform-bypass tenant context for registration-only tests.
-func (scopedCapabilityTenantFilter) Context(context.Context) contract.TenantFilterContext {
-	return contract.TenantFilterContext{PlatformBypass: true}
+func (scopedCapabilityTenantFilter) Context(context.Context) tenantcap.TenantFilterContext {
+	return tenantcap.TenantFilterContext{PlatformBypass: true}
 }
 
 // Apply returns the model unchanged because registration-only tests never query plugin tables.
@@ -337,13 +469,13 @@ func (scopedCapabilityTenantFilter) Apply(_ context.Context, model *gdb.Model, _
 type scopedCapabilityCache struct{}
 
 // Get reports a cache miss because registration-only tests never persist cache data.
-func (scopedCapabilityCache) Get(context.Context, string, string) (*contract.CacheItem, bool, error) {
+func (scopedCapabilityCache) Get(context.Context, string, string) (*cachecap.CacheItem, bool, error) {
 	return nil, false, nil
 }
 
 // Set returns the stored projection without touching shared cache state.
-func (scopedCapabilityCache) Set(_ context.Context, namespace string, key string, value string, _ time.Duration) (*contract.CacheItem, error) {
-	return &contract.CacheItem{Key: namespace + ":" + key, ValueKind: contract.CacheValueKindString, Value: value}, nil
+func (scopedCapabilityCache) Set(_ context.Context, namespace string, key string, value string, _ time.Duration) (*cachecap.CacheItem, error) {
+	return &cachecap.CacheItem{Key: namespace + ":" + key, ValueKind: cachecap.CacheValueKindString, Value: value}, nil
 }
 
 // Delete is a successful no-op for registration-only tests.
@@ -352,13 +484,122 @@ func (scopedCapabilityCache) Delete(context.Context, string, string) error {
 }
 
 // Incr returns the requested delta as an isolated integer cache item.
-func (scopedCapabilityCache) Incr(_ context.Context, namespace string, key string, delta int64, _ time.Duration) (*contract.CacheItem, error) {
-	return &contract.CacheItem{Key: namespace + ":" + key, ValueKind: contract.CacheValueKindInt, IntValue: delta}, nil
+func (scopedCapabilityCache) Incr(_ context.Context, namespace string, key string, delta int64, _ time.Duration) (*cachecap.CacheItem, error) {
+	return &cachecap.CacheItem{Key: namespace + ":" + key, ValueKind: cachecap.CacheValueKindInt, IntValue: delta}, nil
 }
 
 // Expire reports that no cache item existed to expire.
 func (scopedCapabilityCache) Expire(context.Context, string, string, time.Duration) (bool, *time.Time, error) {
 	return false, nil, nil
+}
+
+// scopedCapabilityPlugins is an empty plugin-governance fixture for registration-only tests.
+type scopedCapabilityPlugins struct{}
+
+// BatchGetPlugins returns all requested plugin IDs as opaque missing records.
+func (scopedCapabilityPlugins) BatchGetPlugins(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityplugincap.PluginID) (*capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID], error) {
+	return &capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID]{
+		Items:      map[capabilityplugincap.PluginID]*capabilityplugincap.Projection{},
+		MissingIDs: append([]capabilityplugincap.PluginID(nil), ids...),
+	}, nil
+}
+
+// ListTenantPlugins returns an empty page for registration-only tests.
+func (scopedCapabilityPlugins) ListTenantPlugins(context.Context, capmodel.CapabilityContext) (*capmodel.PageResult[*capabilityplugincap.TenantProjection], error) {
+	return &capmodel.PageResult[*capabilityplugincap.TenantProjection]{Items: []*capabilityplugincap.TenantProjection{}}, nil
+}
+
+// Config returns a blank plugin configuration reader for registration-only tests.
+func (scopedCapabilityPlugins) Config() capabilityplugincap.ConfigService {
+	return scopedCapabilityConfig{}
+}
+
+// State returns a nil-backed plugin state reader for registration-only tests.
+func (scopedCapabilityPlugins) State() capabilityplugincap.StateService {
+	return plugincap.NewState(nil)
+}
+
+// Lifecycle returns a nil-backed lifecycle service for registration-only tests.
+func (scopedCapabilityPlugins) Lifecycle() capabilityplugincap.LifecycleService {
+	return plugincap.NewLifecycle(nil)
+}
+
+// Registry returns the test registry projection service.
+func (s scopedCapabilityPlugins) Registry() capabilityplugincap.RegistryService {
+	return s
+}
+
+// scopedCapabilityPluginAdmin is a no-op plugin-governance admin fixture.
+type scopedCapabilityPluginAdmin struct{}
+
+// SetPluginEnabled accepts enablement changes without mutating test state.
+func (scopedCapabilityPluginAdmin) SetPluginEnabled(context.Context, capmodel.CapabilityContext, capabilityplugincap.PluginID, bool) error {
+	return nil
+}
+
+// ProvisionTenantDefaults accepts tenant default provisioning without mutating test state.
+func (scopedCapabilityPluginAdmin) ProvisionTenantDefaults(context.Context, capmodel.CapabilityContext, capmodel.DomainID) error {
+	return nil
+}
+
+// scopedCapabilityAdminServices exposes only the admin slices needed by registration tests.
+type scopedCapabilityAdminServices struct{}
+
+// Users returns no user management commands for registration-only tests.
+func (scopedCapabilityAdminServices) Users() capabilityusercap.AdminService { return nil }
+
+// Auth returns no authentication or authorization management commands for registration-only tests.
+func (scopedCapabilityAdminServices) Auth() authcap.AdminService { return nil }
+
+// Dict returns no dictionary management commands for registration-only tests.
+func (scopedCapabilityAdminServices) Dict() capabilitydictcap.AdminService { return nil }
+
+// Files returns no file management commands for registration-only tests.
+func (scopedCapabilityAdminServices) Files() capabilityfilecap.AdminService { return nil }
+
+// Sessions returns no-op session management commands for registration-only tests.
+func (scopedCapabilityAdminServices) Sessions() capabilitysessioncap.AdminService {
+	return scopedCapabilitySession{}
+}
+
+// Config returns no runtime-config management commands for registration-only tests.
+func (scopedCapabilityAdminServices) Config() capabilityconfigcap.AdminService { return nil }
+
+// Notifications returns no-op notification management commands for registration-only tests.
+func (scopedCapabilityAdminServices) Notifications() capabilitynotifycap.AdminService {
+	return scopedCapabilityNotify{}
+}
+
+// Plugins returns no-op plugin management commands for tenant route construction.
+func (scopedCapabilityAdminServices) Plugins() capabilityplugincap.AdminService {
+	return scopedCapabilityPluginAdmin{}
+}
+
+// Jobs returns no scheduled-job management commands for registration-only tests.
+func (scopedCapabilityAdminServices) Jobs() capabilityjobcap.AdminService { return nil }
+
+// Infra returns no infrastructure management commands for registration-only tests.
+func (scopedCapabilityAdminServices) Infra() capabilityinfracap.AdminService { return nil }
+
+// scopedCapabilityUsers is an empty user-domain fixture for registration-only tests.
+type scopedCapabilityUsers struct{}
+
+// BatchGetUsers returns all requested user IDs as opaque missing records.
+func (scopedCapabilityUsers) BatchGetUsers(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
+	return &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID]{
+		Items:      map[capabilityusercap.UserID]*capabilityusercap.UserProjection{},
+		MissingIDs: append([]capabilityusercap.UserID(nil), ids...),
+	}, nil
+}
+
+// SearchUsers returns an empty page because registration-only tests never query users.
+func (scopedCapabilityUsers) SearchUsers(context.Context, capmodel.CapabilityContext, capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
+	return &capmodel.PageResult[*capabilityusercap.UserProjection]{Items: []*capabilityusercap.UserProjection{}}, nil
+}
+
+// EnsureUsersVisible accepts all users because registration-only tests never execute route handlers.
+func (scopedCapabilityUsers) EnsureUsersVisible(context.Context, capmodel.CapabilityContext, []capabilityusercap.UserID) error {
+	return nil
 }
 
 // emptySourceServicesDirectory is a minimal Services test double.
@@ -367,55 +608,79 @@ type emptySourceServicesDirectory struct{}
 var _ pluginhost.Services = (*emptySourceServicesDirectory)(nil)
 
 // APIDoc returns no API-doc service for this capability-scope test.
-func (emptySourceServicesDirectory) APIDoc() contract.APIDocService { return nil }
+func (emptySourceServicesDirectory) APIDoc() apidoccap.Service { return nil }
 
-// Auth returns no auth service for this capability-scope test.
-func (emptySourceServicesDirectory) Auth() contract.AuthService { return nil }
+// Auth returns no auth namespace for this capability-scope test.
+func (emptySourceServicesDirectory) Auth() authcap.Service { return nil }
+
+// Admin returns no management directory for this capability-scope test.
+func (emptySourceServicesDirectory) Admin() capability.AdminServices { return nil }
 
 // AI returns the default AI fallback namespace for this capability-scope test.
 func (emptySourceServicesDirectory) AI() capabilityai.Service { return capabilityai.New(nil) }
 
+// Users returns no user-domain service for this capability-scope test.
+func (emptySourceServicesDirectory) Users() capabilityusercap.Service { return nil }
+
 // BizCtx returns no business-context service for this capability-scope test.
-func (emptySourceServicesDirectory) BizCtx() contract.BizCtxService { return nil }
+func (emptySourceServicesDirectory) BizCtx() bizctxcap.Service { return nil }
 
 // Cache returns no cache service for this capability-scope test.
-func (emptySourceServicesDirectory) Cache() contract.CacheService { return nil }
+func (emptySourceServicesDirectory) Cache() cachecap.Service { return nil }
 
-// Config returns no config service for this capability-scope test.
-func (emptySourceServicesDirectory) Config() contract.ConfigService { return nil }
+// PluginConfig returns no plugin config service for this capability-scope test.
+func (emptySourceServicesDirectory) PluginConfig() plugincap.ConfigService { return nil }
+
+// Config returns no runtime-config domain service for this capability-scope test.
+func (emptySourceServicesDirectory) Config() capabilityconfigcap.Service { return nil }
+
+// Dict returns no dictionary-domain service for this capability-scope test.
+func (emptySourceServicesDirectory) Dict() capabilitydictcap.Service { return nil }
+
+// Files returns no file-domain service for this capability-scope test.
+func (emptySourceServicesDirectory) Files() capabilityfilecap.Service { return nil }
 
 // HostConfig returns no host-config service for this capability-scope test.
-func (emptySourceServicesDirectory) HostConfig() contract.HostConfigService { return nil }
+func (emptySourceServicesDirectory) HostConfig() hostconfigcap.Service { return nil }
 
 // I18n returns no i18n service for this capability-scope test.
-func (emptySourceServicesDirectory) I18n() contract.I18nService { return nil }
+func (emptySourceServicesDirectory) I18n() i18ncap.Service { return nil }
+
+// Infra returns no infrastructure-domain service for this capability-scope test.
+func (emptySourceServicesDirectory) Infra() capabilityinfracap.Service { return nil }
+
+// Jobs returns no scheduled-job domain service for this capability-scope test.
+func (emptySourceServicesDirectory) Jobs() capabilityjobcap.Service { return nil }
 
 // Manifest returns no manifest service for this capability-scope test.
-func (emptySourceServicesDirectory) Manifest() contract.ManifestService { return nil }
+func (emptySourceServicesDirectory) Manifest() manifestcap.Service { return nil }
 
-// Notify returns no notification service for this capability-scope test.
-func (emptySourceServicesDirectory) Notify() contract.NotifyService { return nil }
+// Notifications returns no notification-domain service for this capability-scope test.
+func (emptySourceServicesDirectory) Notifications() capabilitynotifycap.Service { return nil }
 
 // Org returns no organization capability for this capability-scope test.
 func (emptySourceServicesDirectory) Org() capabilityorgcap.Service { return nil }
 
+// Plugins returns no plugin-governance domain service for this capability-scope test.
+func (emptySourceServicesDirectory) Plugins() capabilityplugincap.Service { return nil }
+
 // PluginLifecycle returns no plugin lifecycle service for this capability-scope test.
-func (emptySourceServicesDirectory) PluginLifecycle() contract.PluginLifecycleService { return nil }
+func (emptySourceServicesDirectory) PluginLifecycle() plugincap.LifecycleService { return nil }
 
 // PluginState returns no plugin-state service for this capability-scope test.
-func (emptySourceServicesDirectory) PluginState() contract.PluginStateService { return nil }
+func (emptySourceServicesDirectory) PluginState() plugincap.StateService { return nil }
 
 // Route returns no route service for this capability-scope test.
-func (emptySourceServicesDirectory) Route() contract.RouteService { return nil }
+func (emptySourceServicesDirectory) Route() routecap.Service { return nil }
 
-// Session returns no session service for this capability-scope test.
-func (emptySourceServicesDirectory) Session() contract.SessionService { return nil }
+// Sessions returns no online-session domain service for this capability-scope test.
+func (emptySourceServicesDirectory) Sessions() capabilitysessioncap.Service { return nil }
 
 // Tenant returns no tenant capability for this capability-scope test.
 func (emptySourceServicesDirectory) Tenant() tenantcapsvc.Service { return nil }
 
 // TenantFilter returns no tenant-filter service for this capability-scope test.
-func (emptySourceServicesDirectory) TenantFilter() contract.TenantFilterService { return nil }
+func (emptySourceServicesDirectory) TenantFilter() tenantcap.PluginTableFilterService { return nil }
 
 // scopedCapabilityView is implemented by test doubles returned from ForPlugin.
 type scopedCapabilityView interface {

@@ -6,7 +6,7 @@ import (
 	"context"
 	"strings"
 
-	"lina-core/api/publicconfig/v1"
+	v1 "lina-core/api/publicconfig/v1"
 	hostconfig "lina-core/internal/service/config"
 )
 

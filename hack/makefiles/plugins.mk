@@ -16,6 +16,11 @@ ifneq ($(origin force), undefined)
 PLUGIN_CONFIG_ARGS += force=$(force)
 endif
 
+PLUGIN_CHECK_ARGS :=
+ifneq ($(origin format), undefined)
+PLUGIN_CHECK_ARGS += format=$(format)
+endif
+
 # Convert apps/lina-plugins from a submodule into a normal directory.
 # 将 apps/lina-plugins 从 submodule 转换为普通目录。
 ## plugins.init: Convert apps/lina-plugins from submodule to ordinary directory while preserving plugin code
@@ -43,3 +48,10 @@ plugins.update:
 .PHONY: plugins.status
 plugins.status:
 	@$(LINACTL) plugins.status $(PLUGIN_CONFIG_ARGS)
+
+# Run plugin governance checks for every plugin under apps/lina-plugins.
+# 对 apps/lina-plugins 下所有插件执行治理检查。
+## plugins.check: Run plugin governance checks for every plugin under apps/lina-plugins
+.PHONY: plugins.check
+plugins.check:
+	@$(LINACTL) plugins.check $(PLUGIN_CHECK_ARGS)

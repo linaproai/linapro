@@ -1,5 +1,5 @@
 // This file builds plugin data audit metadata and bridges the datahost package
-// to the reusable data capability host-side governance layer.
+// to the reusable record store capability host-side governance layer.
 
 package datahost
 
@@ -14,7 +14,7 @@ import (
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-// withPluginDataAudit attaches audit metadata for downstream data capability host logging.
+// withPluginDataAudit attaches audit metadata for downstream record store capability host logging.
 func withPluginDataAudit(ctx context.Context, metadata *datahost.AuditMetadata) context.Context {
 	return datahost.WithAudit(ctx, metadata)
 }
@@ -44,7 +44,7 @@ func buildPluginDataAuditMetadata(
 	return metadata
 }
 
-// getPluginDataDB returns the governed data capability host database handle.
+// getPluginDataDB returns the governed record store capability host database handle.
 func getPluginDataDB() (gdb.DB, error) {
 	return datahost.DB()
 }

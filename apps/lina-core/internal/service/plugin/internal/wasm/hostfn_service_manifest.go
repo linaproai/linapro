@@ -7,17 +7,17 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/manifestcap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // manifestHostServiceFactory is the shared plugin-scoped manifest service factory.
-var manifestHostServiceFactory contract.ManifestServiceFactory
+var manifestHostServiceFactory manifestcap.ServiceFactory
 
 // ConfigureManifestHostService replaces the plugin-scoped manifest service
 // factory used by wasm host calls. The factory must be non-nil.
-func ConfigureManifestHostService(factory contract.ManifestServiceFactory) error {
+func ConfigureManifestHostService(factory manifestcap.ServiceFactory) error {
 	if factory == nil {
 		return gerror.New("wasm manifest host service requires a non-nil manifest factory")
 	}
@@ -56,7 +56,7 @@ func dispatchManifestHostService(
 }
 
 // handleManifestGet reads one manifest resource and returns its bytes.
-func handleManifestGet(ctx context.Context, reader contract.ManifestService, resourcePath string) *bridgehostcall.HostCallResponseEnvelope {
+func handleManifestGet(ctx context.Context, reader manifestcap.Service, resourcePath string) *bridgehostcall.HostCallResponseEnvelope {
 	if reader == nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "manifest host service is not scoped")
 	}

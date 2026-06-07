@@ -191,7 +191,7 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 	if err != nil {
 		return nil, err
 	}
-	hostServices, err := parseRuntimeArtifactHostServices(filePath, sections)
+	hostServices, err := parseRuntimeArtifactHostServices(filePath, embeddedManifest.ID, sections)
 	if err != nil {
 		return nil, err
 	}
@@ -808,6 +808,7 @@ func parseRuntimeArtifactBridgeSpec(
 // parseRuntimeArtifactHostServices restores and validates embedded host-service declarations.
 func parseRuntimeArtifactHostServices(
 	filePath string,
+	pluginID string,
 	sections map[string][]byte,
 ) ([]*bridgehostservice.HostServiceSpec, error) {
 	content, ok := sections[bridgeartifact.WasmSectionBackendHostServices]
@@ -819,10 +820,10 @@ func parseRuntimeArtifactHostServices(
 	if err := json.Unmarshal(content, &items); err != nil {
 		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin host-service declarations: %s", filePath)
 	}
-	if err := bridgehostservice.ValidateHostServiceSpecs(items); err != nil {
+	if err := bridgehostservice.ValidateHostServiceSpecsForPlugin(pluginID, items); err != nil {
 		return nil, gerror.Wrapf(err, "Failed to validate dynamic plugin host-service declarations: %s", filePath)
 	}
-	normalized, err := bridgehostservice.NormalizeHostServiceSpecs(items)
+	normalized, err := bridgehostservice.NormalizeHostServiceSpecsForPlugin(pluginID, items)
 	if err != nil {
 		return nil, gerror.Wrapf(err, "Failed to normalize dynamic plugin host-service declarations: %s", filePath)
 	}

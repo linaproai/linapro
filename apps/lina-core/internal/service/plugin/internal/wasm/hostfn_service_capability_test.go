@@ -16,11 +16,29 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 
 	"lina-core/pkg/plugin/capability"
-	capabilityai "lina-core/pkg/plugin/capability/ai"
-	"lina-core/pkg/plugin/capability/ai/aitext"
-	"lina-core/pkg/plugin/capability/contract"
+	capabilityai "lina-core/pkg/plugin/capability/aicap"
+	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/apidoccap"
+	"lina-core/pkg/plugin/capability/authcap"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/cachecap"
+	"lina-core/pkg/plugin/capability/capmodel"
+	capabilityconfigcap "lina-core/pkg/plugin/capability/configcap"
+	capabilitydictcap "lina-core/pkg/plugin/capability/dictcap"
+	capabilityfilecap "lina-core/pkg/plugin/capability/filecap"
+	"lina-core/pkg/plugin/capability/hostconfigcap"
+	"lina-core/pkg/plugin/capability/i18ncap"
+	capabilityinfracap "lina-core/pkg/plugin/capability/infracap"
+	capabilityjobcap "lina-core/pkg/plugin/capability/jobcap"
+	"lina-core/pkg/plugin/capability/manifestcap"
+	capabilitynotifycap "lina-core/pkg/plugin/capability/notifycap"
 	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/plugincap"
+	capabilityplugincap "lina-core/pkg/plugin/capability/plugincap"
+	"lina-core/pkg/plugin/capability/routecap"
+	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
 	"lina-core/pkg/plugin/capability/tenantcap"
+	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -39,10 +57,10 @@ var _ capability.Services = (*capabilityHostServiceTestServices)(nil)
 var _ capability.ScopedServicesFactory = (*capabilityHostServiceTestServices)(nil)
 
 // APIDoc returns no adapter for capability host-service tests.
-func (*capabilityHostServiceTestServices) APIDoc() contract.APIDocService { return nil }
+func (*capabilityHostServiceTestServices) APIDoc() apidoccap.Service { return nil }
 
 // Auth returns no adapter for capability host-service tests.
-func (*capabilityHostServiceTestServices) Auth() contract.AuthService { return nil }
+func (*capabilityHostServiceTestServices) Auth() authcap.Service { return nil }
 
 // AI returns the configured AI capability namespace.
 func (s *capabilityHostServiceTestServices) AI() capabilityai.Service {
@@ -56,43 +74,64 @@ func (s *capabilityHostServiceTestServices) AI() capabilityai.Service {
 	return capabilityai.New(text)
 }
 
+// Users returns no user-domain service for capability host-service tests.
+func (*capabilityHostServiceTestServices) Users() capabilityusercap.Service { return nil }
+
 // BizCtx returns no adapter for capability host-service tests.
-func (*capabilityHostServiceTestServices) BizCtx() contract.BizCtxService { return nil }
+func (*capabilityHostServiceTestServices) BizCtx() bizctxcap.Service { return nil }
 
 // Cache returns no adapter for capability host-service tests.
-func (*capabilityHostServiceTestServices) Cache() contract.CacheService { return nil }
+func (*capabilityHostServiceTestServices) Cache() cachecap.Service { return nil }
 
-// Config returns no adapter for capability host-service tests.
-func (*capabilityHostServiceTestServices) Config() contract.ConfigService { return nil }
+// PluginConfig returns no adapter for capability host-service tests.
+func (*capabilityHostServiceTestServices) PluginConfig() plugincap.ConfigService { return nil }
+
+// Config returns no runtime-config domain service for capability host-service tests.
+func (*capabilityHostServiceTestServices) Config() capabilityconfigcap.Service { return nil }
+
+// Dict returns no dictionary-domain service for capability host-service tests.
+func (*capabilityHostServiceTestServices) Dict() capabilitydictcap.Service { return nil }
+
+// Files returns no file-domain service for capability host-service tests.
+func (*capabilityHostServiceTestServices) Files() capabilityfilecap.Service { return nil }
 
 // HostConfig returns no adapter for capability host-service tests.
-func (*capabilityHostServiceTestServices) HostConfig() contract.HostConfigService { return nil }
+func (*capabilityHostServiceTestServices) HostConfig() hostconfigcap.Service { return nil }
 
 // I18n returns no adapter for capability host-service tests.
-func (*capabilityHostServiceTestServices) I18n() contract.I18nService { return nil }
+func (*capabilityHostServiceTestServices) I18n() i18ncap.Service { return nil }
+
+// Infra returns no infrastructure-domain service for capability host-service tests.
+func (*capabilityHostServiceTestServices) Infra() capabilityinfracap.Service { return nil }
+
+// Jobs returns no scheduled-job domain service for capability host-service tests.
+func (*capabilityHostServiceTestServices) Jobs() capabilityjobcap.Service { return nil }
 
 // Manifest returns no adapter for capability host-service tests.
-func (*capabilityHostServiceTestServices) Manifest() contract.ManifestService { return nil }
+func (*capabilityHostServiceTestServices) Manifest() manifestcap.Service { return nil }
 
-// Notify returns no adapter for capability host-service tests.
-func (*capabilityHostServiceTestServices) Notify() contract.NotifyService { return nil }
+// Notifications returns no notification-domain service for capability host-service tests.
+func (*capabilityHostServiceTestServices) Notifications() capabilitynotifycap.Service { return nil }
 
 // Org returns the configured organization capability service.
 func (s *capabilityHostServiceTestServices) Org() orgcap.Service { return s.org }
 
+// Plugins returns no plugin-governance domain service for capability host-service tests.
+func (*capabilityHostServiceTestServices) Plugins() capabilityplugincap.Service { return nil }
+
 // PluginLifecycle returns no adapter for capability host-service tests.
-func (*capabilityHostServiceTestServices) PluginLifecycle() contract.PluginLifecycleService {
+func (*capabilityHostServiceTestServices) PluginLifecycle() plugincap.LifecycleService {
 	return nil
 }
 
 // PluginState returns no adapter for capability host-service tests.
-func (*capabilityHostServiceTestServices) PluginState() contract.PluginStateService { return nil }
+func (*capabilityHostServiceTestServices) PluginState() plugincap.StateService { return nil }
 
 // Route returns no adapter for capability host-service tests.
-func (*capabilityHostServiceTestServices) Route() contract.RouteService { return nil }
+func (*capabilityHostServiceTestServices) Route() routecap.Service { return nil }
 
-// Session returns no adapter for capability host-service tests.
-func (*capabilityHostServiceTestServices) Session() contract.SessionService { return nil }
+// Sessions returns no online-session domain service for capability host-service tests.
+func (*capabilityHostServiceTestServices) Sessions() capabilitysessioncap.Service { return nil }
 
 // Tenant returns the configured tenant capability service.
 func (s *capabilityHostServiceTestServices) Tenant() tenantcap.Service { return s.tenant }
@@ -134,7 +173,7 @@ func TestHandleHostServiceInvokeOrgMethods(t *testing.T) {
 	if statusResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected org status success, got status=%d payload=%s", statusResponse.Status, string(statusResponse.Payload))
 	}
-	var status contract.CapabilityStatus
+	var status capmodel.CapabilityStatus
 	decodeCapabilityJSONResponse(t, statusResponse.Payload, &status)
 	if !status.Available || status.ActiveProvider != providerPluginID {
 		t.Fatalf("expected active org provider status, got %#v", status)
@@ -573,8 +612,8 @@ type capabilityHostServiceAITextService struct {
 func (s *capabilityHostServiceAITextService) Available(context.Context) bool { return true }
 
 // Status returns an available fake text AI capability status.
-func (s *capabilityHostServiceAITextService) Status(context.Context) contract.CapabilityStatus {
-	return contract.CapabilityStatus{
+func (s *capabilityHostServiceAITextService) Status(context.Context) capmodel.CapabilityStatus {
+	return capmodel.CapabilityStatus{
 		CapabilityID:   aitext.CapabilityAITextV1,
 		Available:      true,
 		ActiveProvider: aitext.ProviderPluginID,
@@ -610,7 +649,7 @@ func (s *capabilityHostServiceScopedAITextService) Available(ctx context.Context
 }
 
 // Status delegates to the base fake service.
-func (s *capabilityHostServiceScopedAITextService) Status(ctx context.Context) contract.CapabilityStatus {
+func (s *capabilityHostServiceScopedAITextService) Status(ctx context.Context) capmodel.CapabilityStatus {
 	return s.base.Status(ctx)
 }
 
@@ -737,8 +776,8 @@ type capabilityHostServiceTenantService struct {
 func (*capabilityHostServiceTenantService) Available(context.Context) bool { return true }
 
 // Status returns an active tenant capability status.
-func (*capabilityHostServiceTenantService) Status(context.Context) contract.CapabilityStatus {
-	return contract.CapabilityStatus{Available: true, ActiveProvider: "test-tenant-provider"}
+func (*capabilityHostServiceTenantService) Status(context.Context) capmodel.CapabilityStatus {
+	return capmodel.CapabilityStatus{Available: true, ActiveProvider: "test-tenant-provider"}
 }
 
 // Current returns a deterministic current tenant.

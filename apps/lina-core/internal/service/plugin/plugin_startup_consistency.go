@@ -7,6 +7,8 @@ import (
 	"context"
 	"strings"
 
+	"lina-core/internal/model/entity"
+	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/governance"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/pkg/bizerr"
@@ -14,10 +16,6 @@ import (
 	"lina-core/pkg/plugin/capability/tenantcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
-
-// platformGovernanceTenantCapability is the tenant-capability slice required by
-// plugin governance guards.
-type platformGovernanceTenantCapability = governance.TenantCapability
 
 // pluginTenantStartupCapability is the tenant slice needed by plugin startup
 // consistency checks. It excludes request resolution, data-scope, membership
@@ -46,14 +44,6 @@ func (s *serviceImpl) SetTenantProvisioningCapability(service tenantcapsvc.Plugi
 	s.tenantProvisioning = service
 }
 
-// SetTenantPlatformGovernanceCapability wires platform plugin-governance checks.
-func (s *serviceImpl) SetTenantPlatformGovernanceCapability(service platformGovernanceTenantCapability) {
-	if s == nil {
-		return
-	}
-	s.tenantGovernance = service
-}
-
 // SetOrganizationCapability wires the runtime-owned organization capability
 // used by plugin-owned resource data-scope filtering.
 func (s *serviceImpl) SetOrganizationCapability(service orgcapsvc.Service) {
@@ -61,21 +51,6 @@ func (s *serviceImpl) SetOrganizationCapability(service orgcapsvc.Service) {
 		return
 	}
 	s.integrationSvc.SetOrganizationCapability(service)
-}
-
-// ensurePlatformGovernance verifies the current request can mutate platform
-// plugin governance state.
-func (s *serviceImpl) ensurePlatformGovernance(ctx context.Context) error {
-	return governance.EnsurePlatformContext(ctx, s.platformGovernanceTenantCapability())
-}
-
-// platformGovernanceTenantCapability returns the tenant capability used by the
-// plugin governance guard.
-func (s *serviceImpl) platformGovernanceTenantCapability() platformGovernanceTenantCapability {
-	if s == nil {
-		return nil
-	}
-	return s.tenantGovernance
 }
 
 // ValidateStartupConsistency verifies persisted startup state that must be
@@ -140,4 +115,42 @@ func (s *serviceImpl) validateTenantMembershipStartupConsistency(ctx context.Con
 		)
 	}
 	return s.tenantStartup.ValidateUserMembershipStartupConsistency(ctx)
+}
+
+// UpdateTenantProvisioningPolicy updates the platform-owned new-tenant plugin provisioning policy.
+func (s *serviceImpl) UpdateTenantProvisioningPolicy(
+	ctx context.Context,
+	pluginID string,
+	autoEnableForNewTenants bool,
+) error {
+	if err := s.ensurePlatformGovernance(ctx); err != nil {
+		return err
+	}
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" {
+		return bizerr.NewCode(CodePluginSourceRegistryNotFound, bizerr.P("pluginId", pluginID))
+	}
+	registry, err := s.catalogSvc.GetRegistry(ctx, normalizedPluginID)
+	if err != nil {
+		return err
+	}
+	if registry == nil {
+		return bizerr.NewCode(CodePluginSourceRegistryNotFound, bizerr.P("pluginId", normalizedPluginID))
+	}
+	if !s.registrySupportsTenantGovernance(ctx, registry) ||
+		catalog.NormalizeInstallMode(registry.InstallMode) != catalog.InstallModeTenantScoped {
+		return bizerr.NewCode(CodePluginTenantProvisioningPolicyInvalid, bizerr.P("pluginId", normalizedPluginID))
+	}
+	if err = s.catalogSvc.SetAutoEnableForNewTenants(ctx, normalizedPluginID, autoEnableForNewTenants); err != nil {
+		return err
+	}
+	_, err = s.markRuntimeCacheChanged(ctx, "plugin_tenant_provisioning_policy_updated")
+	return err
+}
+
+// registrySupportsTenantGovernance resolves the current manifest declaration
+// for one registry and falls back to the persisted scope if the manifest is
+// unavailable to keep registry-only tests and startup projections deterministic.
+func (s *serviceImpl) registrySupportsTenantGovernance(ctx context.Context, registry *entity.SysPlugin) bool {
+	return governance.RegistrySupportsTenantGovernance(ctx, s.catalogSvc, registry)
 }

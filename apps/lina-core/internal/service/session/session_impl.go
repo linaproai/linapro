@@ -7,6 +7,7 @@ package session
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"lina-core/internal/dao"
@@ -114,6 +115,78 @@ func (s *DBStore) Get(ctx context.Context, tokenId string) (*Session, error) {
 		LoginTime:      e.LoginTime,
 		LastActiveTime: e.LastActiveTime,
 	}, nil
+}
+
+// BatchGetScoped returns requested sessions constrained by tenant and user data scope.
+func (s *DBStore) BatchGetScoped(
+	ctx context.Context,
+	tokenIds []string,
+	scopeSvc datascope.Service,
+	tenantSvc tenantcapsvc.ScopeService,
+) ([]*Session, error) {
+	requestedTokenIDs := normalizeSessionTokenIDs(tokenIds)
+	if len(requestedTokenIDs) == 0 {
+		return []*Session{}, nil
+	}
+
+	cols := dao.SysOnlineSession.Columns()
+	model := dao.SysOnlineSession.Ctx(ctx).
+		Fields(
+			cols.TokenId,
+			cols.TenantId,
+			cols.UserId,
+			cols.Username,
+			cols.ClientType,
+			cols.DeptName,
+			cols.Ip,
+			cols.Browser,
+			cols.Os,
+			cols.LoginTime,
+			cols.LastActiveTime,
+		).
+		WhereIn(cols.TokenId, requestedTokenIDs)
+	if tenantSvc != nil {
+		var err error
+		model, err = tenantSvc.Apply(ctx, model, qualifiedOnlineSessionTenantIDColumn())
+		if err != nil {
+			return nil, err
+		}
+	}
+	if scopeSvc != nil {
+		var err error
+		var empty bool
+		model, empty, err = scopeSvc.ApplyUserScope(ctx, model, qualifiedOnlineSessionUserIDColumn())
+		if err != nil {
+			return nil, err
+		}
+		if empty {
+			return []*Session{}, nil
+		}
+	}
+
+	var entities []*entity.SysOnlineSession
+	if err := model.Scan(&entities); err != nil {
+		return nil, err
+	}
+	return sessionsFromEntities(entities), nil
+}
+
+// normalizeSessionTokenIDs trims and de-duplicates non-empty session token IDs.
+func normalizeSessionTokenIDs(tokenIds []string) []string {
+	requestedTokenIDs := make([]string, 0, len(tokenIds))
+	seen := make(map[string]struct{}, len(tokenIds))
+	for _, tokenID := range tokenIds {
+		normalizedTokenID := strings.TrimSpace(tokenID)
+		if normalizedTokenID == "" {
+			continue
+		}
+		if _, exists := seen[normalizedTokenID]; exists {
+			continue
+		}
+		seen[normalizedTokenID] = struct{}{}
+		requestedTokenIDs = append(requestedTokenIDs, normalizedTokenID)
+	}
+	return requestedTokenIDs
 }
 
 // Delete removes a session by globally unique token ID.
@@ -293,6 +366,30 @@ func (s *DBStore) ListPageScoped(
 		Items: sessions,
 		Total: total,
 	}, nil
+}
+
+// sessionsFromEntities maps online-session entities to stable service projections.
+func sessionsFromEntities(entities []*entity.SysOnlineSession) []*Session {
+	sessions := make([]*Session, 0, len(entities))
+	for _, e := range entities {
+		if e == nil {
+			continue
+		}
+		sessions = append(sessions, &Session{
+			TokenId:        e.TokenId,
+			TenantId:       e.TenantId,
+			UserId:         e.UserId,
+			Username:       e.Username,
+			ClientType:     e.ClientType,
+			DeptName:       e.DeptName,
+			Ip:             e.Ip,
+			Browser:        e.Browser,
+			Os:             e.Os,
+			LoginTime:      e.LoginTime,
+			LastActiveTime: e.LastActiveTime,
+		})
+	}
+	return sessions
 }
 
 // qualifiedOnlineSessionUserIDColumn returns the fully qualified session owner column.

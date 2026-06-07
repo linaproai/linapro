@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/xuri/excelize/v2"
 	_ "lina-core/pkg/dbdriver"
+
+	"github.com/xuri/excelize/v2"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"

@@ -6,7 +6,7 @@ package menu
 import (
 	"context"
 
-	"lina-core/api/menu/v1"
+	v1 "lina-core/api/menu/v1"
 	menusvc "lina-core/internal/service/menu"
 	"lina-core/pkg/menutype"
 )

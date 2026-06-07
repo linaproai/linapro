@@ -3,7 +3,7 @@ package role
 import (
 	"context"
 
-	"lina-core/api/role/v1"
+	v1 "lina-core/api/role/v1"
 )
 
 // RoleOptions returns enabled role options.

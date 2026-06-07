@@ -3,7 +3,7 @@ package menu
 import (
 	"context"
 
-	"lina-core/api/menu/v1"
+	v1 "lina-core/api/menu/v1"
 )
 
 // RoleMenuTree returns the menu tree and checked menu IDs for a role.

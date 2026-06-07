@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	_ "lina-core/pkg/dbdriver"
+
 	"github.com/gogf/gf/v2/os/gctx"
 
 	v1 "lina-core/api/publicconfig/v1"

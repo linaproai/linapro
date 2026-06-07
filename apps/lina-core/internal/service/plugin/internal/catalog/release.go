@@ -319,7 +319,7 @@ func (s *serviceImpl) buildManifestSnapshotModel(manifest *Manifest) (*ManifestS
 		return nil, nil
 	}
 
-	requestedHostServices, err := protocol.NormalizeHostServiceSpecs(manifest.HostServices)
+	requestedHostServices, err := protocol.NormalizeHostServiceSpecsForPlugin(manifest.ID, manifest.HostServices)
 	if err != nil {
 		return nil, err
 	}
@@ -353,6 +353,7 @@ func (s *serviceImpl) buildManifestSnapshotModel(manifest *Manifest) (*ManifestS
 		RouteExecutionEnabled:     buildDynamicRouteExecutionEnabled(manifest),
 		RouteRequestCodec:         buildDynamicRouteRequestCodec(manifest),
 		RouteResponseCodec:        buildDynamicRouteResponseCodec(manifest),
+		Routes:                    cloneRouteContracts(manifest.Routes),
 		RuntimeFrontendAssetCount: buildDynamicFrontendAssetCount(manifest),
 		RuntimeSQLAssetCount:      buildDynamicSQLAssetCount(manifest),
 		PublicAssets:              ClonePublicAssetSpecs(manifest.PublicAssets),
@@ -360,7 +361,7 @@ func (s *serviceImpl) buildManifestSnapshotModel(manifest *Manifest) (*ManifestS
 		HostServiceAuthRequired:   HasResourceScopedHostServices(manifest.HostServices),
 	}
 	if !snapshot.HostServiceAuthRequired {
-		authorizedHostServices, normalizeErr := protocol.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
+		authorizedHostServices, normalizeErr := protocol.NormalizeHostServiceSpecsForPlugin(manifest.ID, snapshot.RequestedHostServices)
 		if normalizeErr != nil {
 			return nil, normalizeErr
 		}
@@ -436,7 +437,7 @@ func (s *serviceImpl) applyReleaseAuthorizedHostServices(manifest *Manifest, rel
 	if !snapshot.HostServiceAuthConfirmed && snapshot.HostServiceAuthRequired {
 		return nil
 	}
-	hostServices, err := protocol.NormalizeHostServiceSpecs(snapshot.AuthorizedHostServices)
+	hostServices, err := protocol.NormalizeHostServiceSpecsForPlugin(manifest.ID, snapshot.AuthorizedHostServices)
 	if err != nil {
 		return err
 	}
@@ -461,6 +462,36 @@ func (s *serviceImpl) BuildPackagePath(manifest *Manifest) string {
 		return filepath.ToSlash(filepath.Base(normalizedPath))
 	}
 	return filepath.ToSlash(manifest.RootDir)
+}
+
+// cloneRouteContracts copies dynamic route declarations into release snapshots
+// so installed dynamic plugins keep review metadata even when the staging
+// artifact is absent from the current discovery scan.
+func cloneRouteContracts(routes []*protocol.RouteContract) []*protocol.RouteContract {
+	if len(routes) == 0 {
+		return nil
+	}
+	items := make([]*protocol.RouteContract, 0, len(routes))
+	for _, route := range routes {
+		if route == nil {
+			continue
+		}
+		items = append(items, &protocol.RouteContract{
+			Path:        route.Path,
+			Method:      route.Method,
+			Tags:        append([]string(nil), route.Tags...),
+			Summary:     route.Summary,
+			Description: route.Description,
+			Access:      route.Access,
+			Permission:  route.Permission,
+			Meta:        cloneStringMap(route.Meta),
+			RequestType: route.RequestType,
+		})
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	return items
 }
 
 // buildReleasePackagePathForSync keeps archived dynamic-release package paths stable.

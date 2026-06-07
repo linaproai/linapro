@@ -25,7 +25,7 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	rolesvc "lina-core/internal/service/role"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/orgcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
@@ -219,11 +219,11 @@ func (s fileScopeStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 func (s fileScopeStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
 
 // Current returns the plugin-visible business context projection.
-func (s fileScopeStaticBizCtx) Current(context.Context) contract.CurrentContext {
+func (s fileScopeStaticBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	if s.ctx == nil {
-		return contract.CurrentContext{}
+		return bizctxcap.CurrentContext{}
 	}
-	return contract.CurrentContext{
+	return bizctxcap.CurrentContext{
 		UserID:          s.ctx.UserId,
 		Username:        s.ctx.Username,
 		TenantID:        s.ctx.TenantId,

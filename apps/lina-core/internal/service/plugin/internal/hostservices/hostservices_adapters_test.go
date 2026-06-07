@@ -6,7 +6,6 @@ package hostservices
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/gogf/gf/v2/os/gctx"
 
@@ -15,9 +14,10 @@ import (
 	"lina-core/internal/service/auth"
 	internalbizctx "lina-core/internal/service/bizctx"
 	i18nsvc "lina-core/internal/service/i18n"
-	"lina-core/internal/service/notify"
-	internalsession "lina-core/internal/service/session"
-	plugincontract "lina-core/pkg/plugin/capability/contract"
+	"lina-core/internal/service/kvcache"
+	"lina-core/pkg/plugin/capability/apidoccap"
+	"lina-core/pkg/plugin/capability/authcap/token"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestAPIDocAdapterConvertsRouteTextDTOs verifies plugin apidoc calls are
@@ -27,7 +27,7 @@ func TestAPIDocAdapterConvertsRouteTextDTOs(t *testing.T) {
 	resolver := &fakeAPIDocResolver{}
 	svc := newAPIDocAdapter(resolver)
 
-	single := svc.ResolveRouteText(ctx, plugincontract.RouteTextInput{
+	single := svc.ResolveRouteText(ctx, apidoccap.RouteTextInput{
 		OperationKey:    "api.plugin.route",
 		Method:          "GET",
 		Path:            "/plugin/routes",
@@ -41,7 +41,7 @@ func TestAPIDocAdapterConvertsRouteTextDTOs(t *testing.T) {
 		t.Fatalf("expected host apidoc input to be recorded, got %#v", resolver.singleInput)
 	}
 
-	batch := svc.ResolveRouteTexts(ctx, []plugincontract.RouteTextInput{
+	batch := svc.ResolveRouteTexts(ctx, []apidoccap.RouteTextInput{
 		{OperationKey: "api.plugin.one", Method: "GET", Path: "/plugin/one", FallbackTitle: "One", FallbackSummary: "List one"},
 		{OperationKey: "api.plugin.two", Method: "POST", Path: "/plugin/two", FallbackTitle: "Two", FallbackSummary: "Create two"},
 	})
@@ -64,7 +64,7 @@ func TestAuthAdapterUsesTenantTokenIssuer(t *testing.T) {
 	issuer := &fakeTenantTokenIssuer{}
 	svc := &authAdapter{tokenIssuer: issuer}
 
-	selected, err := svc.SelectTenant(ctx, plugincontract.SelectTenantInput{PreToken: "pre-token", TenantID: 11})
+	selected, err := svc.SelectTenant(ctx, token.SelectTenantInput{PreToken: "pre-token", TenantID: 11})
 	if err != nil {
 		t.Fatalf("select tenant: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestAuthAdapterUsesTenantTokenIssuer(t *testing.T) {
 		)
 	}
 
-	switched, err := svc.SwitchTenant(ctx, plugincontract.SwitchTenantInput{BearerToken: "bearer-token", TenantID: 22})
+	switched, err := svc.SwitchTenant(ctx, token.SwitchTenantInput{BearerToken: "bearer-token", TenantID: 22})
 	if err != nil {
 		t.Fatalf("switch tenant: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestAuthAdapterUsesTenantTokenIssuer(t *testing.T) {
 		)
 	}
 
-	impersonated, err := svc.IssueImpersonationToken(ctx, plugincontract.ImpersonationTokenIssueInput{ActingUserID: 1, TenantID: 33})
+	impersonated, err := svc.IssueImpersonationToken(ctx, token.ImpersonationTokenIssueInput{ActingUserID: 1, TenantID: 33})
 	if err != nil {
 		t.Fatalf("issue impersonation token: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestAuthAdapterUsesTenantTokenIssuer(t *testing.T) {
 		t.Fatalf("expected impersonation issue call, out=%#v issuer=%#v", impersonated, issuer)
 	}
 
-	if err = svc.RevokeImpersonationToken(ctx, plugincontract.ImpersonationTokenRevokeInput{BearerToken: "Bearer impersonation-token", TenantID: 33}); err != nil {
+	if err = svc.RevokeImpersonationToken(ctx, token.ImpersonationTokenRevokeInput{BearerToken: "Bearer impersonation-token", TenantID: 33}); err != nil {
 		t.Fatalf("revoke impersonation token: %v", err)
 	}
 	if issuer.revokedImpersonationBearer != "Bearer impersonation-token" || issuer.revokedImpersonationTenantID != 33 {
@@ -140,129 +140,6 @@ func TestI18nAdapterFindMessageKeysUsesHostExport(t *testing.T) {
 	}
 	if runtimeI18n.exportedLocale != "en-US" {
 		t.Fatalf("expected export locale en-US, got %q", runtimeI18n.exportedLocale)
-	}
-}
-
-// TestNotifyAdapterConvertsNoticeDTOs verifies source-plugin notify DTOs are
-// converted to host notify DTOs inside the hostservices boundary.
-func TestNotifyAdapterConvertsNoticeDTOs(t *testing.T) {
-	ctx := context.Background()
-	publisher := &fakeNotifyPublisher{}
-	svc := newNotifyAdapter(publisher)
-
-	output, err := svc.SendNoticePublication(ctx, plugincontract.NoticePublishInput{
-		NoticeID:     1001,
-		Title:        "Release",
-		Content:      "Published",
-		CategoryCode: plugincontract.CategoryCodeOther,
-		SenderUserID: 42,
-	})
-	if err != nil {
-		t.Fatalf("send notice publication: %v", err)
-	}
-	if output == nil || output.MessageID != 9001 || output.DeliveryCount != 3 {
-		t.Fatalf("unexpected notify output: %#v", output)
-	}
-	if publisher.noticeInput.NoticeID != 1001 ||
-		publisher.noticeInput.CategoryCode != notify.CategoryCodeOther ||
-		publisher.noticeInput.SenderUserID != 42 {
-		t.Fatalf("expected host notify input to be recorded, got %#v", publisher.noticeInput)
-	}
-
-	if err = svc.DeleteBySource(ctx, plugincontract.SourceTypeNotice, []string{"1001"}); err != nil {
-		t.Fatalf("delete by source: %v", err)
-	}
-	if publisher.deletedSourceType != notify.SourceTypeNotice || len(publisher.deletedSourceIDs) != 1 || publisher.deletedSourceIDs[0] != "1001" {
-		t.Fatalf("expected host notify delete input to be recorded, got %q %#v", publisher.deletedSourceType, publisher.deletedSourceIDs)
-	}
-}
-
-// TestToInternalSessionFilter verifies the published filter contract is converted explicitly.
-func TestToInternalSessionFilter(t *testing.T) {
-	if result := toInternalSessionFilter(nil); result != nil {
-		t.Fatalf("expected nil filter, got %#v", result)
-	}
-
-	filter := &plugincontract.ListFilter{
-		Username: "admin",
-		Ip:       "127.0.0.1",
-	}
-	result := toInternalSessionFilter(filter)
-	if result == nil {
-		t.Fatal("expected converted filter, got nil")
-	}
-	if result.Username != "admin" || result.Ip != "127.0.0.1" {
-		t.Fatalf("unexpected converted filter: %#v", result)
-	}
-}
-
-// TestFromInternalSession verifies host-internal session projections are copied into plugin DTOs.
-func TestFromInternalSession(t *testing.T) {
-	loginTime := time.Now()
-	sessionItem := &internalsession.Session{
-		TokenId:        "token-1",
-		UserId:         100,
-		Username:       "admin",
-		ClientType:     "desktop",
-		DeptName:       "Engineering",
-		Ip:             "127.0.0.1",
-		Browser:        "Chrome",
-		Os:             "macOS",
-		LoginTime:      &loginTime,
-		LastActiveTime: &loginTime,
-	}
-
-	result := fromInternalSession(sessionItem)
-	if result == nil {
-		t.Fatal("expected converted session, got nil")
-	}
-	if result.TokenId != sessionItem.TokenId ||
-		result.UserId != sessionItem.UserId ||
-		result.Username != sessionItem.Username ||
-		result.ClientType != sessionItem.ClientType ||
-		result.DeptName != sessionItem.DeptName ||
-		result.Ip != sessionItem.Ip ||
-		result.Browser != sessionItem.Browser ||
-		result.Os != sessionItem.Os ||
-		result.LoginTime != sessionItem.LoginTime ||
-		result.LastActiveTime != sessionItem.LastActiveTime {
-		t.Fatalf("unexpected converted session: %#v", result)
-	}
-}
-
-// TestFromInternalSessionListResult verifies nil-safe list conversion and item projection.
-func TestFromInternalSessionListResult(t *testing.T) {
-	empty := fromInternalSessionListResult(nil)
-	if empty == nil {
-		t.Fatal("expected empty result, got nil")
-	}
-	if empty.Total != 0 || len(empty.Items) != 0 {
-		t.Fatalf("unexpected empty result: %#v", empty)
-	}
-
-	loginTime := time.Now()
-	result := fromInternalSessionListResult(&internalsession.ListResult{
-		Items: []*internalsession.Session{
-			{
-				TokenId:        "token-2",
-				UserId:         101,
-				Username:       "demo",
-				ClientType:     "mobile",
-				DeptName:       "QA",
-				Ip:             "10.0.0.1",
-				Browser:        "Firefox",
-				Os:             "Linux",
-				LoginTime:      &loginTime,
-				LastActiveTime: &loginTime,
-			},
-		},
-		Total: 1,
-	})
-	if result.Total != 1 || len(result.Items) != 1 {
-		t.Fatalf("unexpected converted list result: %#v", result)
-	}
-	if result.Items[0] == nil || result.Items[0].TokenId != "token-2" || result.Items[0].ClientType != "mobile" {
-		t.Fatalf("unexpected converted item: %#v", result.Items[0])
 	}
 }
 
@@ -409,22 +286,65 @@ func (f *fakeRuntimeI18nService) ExportMessages(_ context.Context, locale string
 	}
 }
 
-// fakeNotifyPublisher records notify DTOs passed to the host notify boundary.
-type fakeNotifyPublisher struct {
-	noticeInput       notify.NoticePublishInput
-	deletedSourceType notify.SourceType
-	deletedSourceIDs  []string
-}
-
-// SendNoticePublication records one host notify publication input.
-func (f *fakeNotifyPublisher) SendNoticePublication(_ context.Context, in notify.NoticePublishInput) (*notify.SendOutput, error) {
-	f.noticeInput = in
-	return &notify.SendOutput{MessageID: 9001, DeliveryCount: 3}, nil
-}
-
-// DeleteBySource records one host notify delete request.
-func (f *fakeNotifyPublisher) DeleteBySource(_ context.Context, sourceType notify.SourceType, sourceIDs []string) error {
-	f.deletedSourceType = sourceType
-	f.deletedSourceIDs = append([]string(nil), sourceIDs...)
-	return nil
+// TestNewWiresCompleteAdminDirectory verifies source plugins receive every
+// typed management domain advertised by capability.AdminServices.
+func TestNewWiresCompleteAdminDirectory(t *testing.T) {
+	services, err := New(
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		kvcache.New(),
+	)
+	if err != nil {
+		t.Fatalf("create host services: %v", err)
+	}
+	hostServices, ok := services.(pluginhost.Services)
+	if !ok {
+		t.Fatalf("expected New to return pluginhost.Services, got %T", services)
+	}
+	admin := hostServices.Admin()
+	if admin == nil {
+		t.Fatal("expected admin directory")
+	}
+	if admin.Users() == nil {
+		t.Fatal("expected user admin service")
+	}
+	if admin.Auth() == nil || admin.Auth().Authz() == nil {
+		t.Fatal("expected authz admin service")
+	}
+	if admin.Dict() == nil {
+		t.Fatal("expected dict admin service")
+	}
+	if admin.Files() == nil {
+		t.Fatal("expected file admin service")
+	}
+	if admin.Sessions() == nil {
+		t.Fatal("expected session admin service")
+	}
+	if admin.Config() == nil {
+		t.Fatal("expected runtime config admin service")
+	}
+	if admin.Notifications() == nil {
+		t.Fatal("expected notification admin service")
+	}
+	if admin.Plugins() == nil {
+		t.Fatal("expected plugin admin service")
+	}
+	if admin.Jobs() == nil {
+		t.Fatal("expected job admin service")
+	}
+	if admin.Infra() == nil {
+		t.Fatal("expected infra admin service")
+	}
 }

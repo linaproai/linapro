@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"lina-core/pkg/bizerr"
+	tokencap "lina-core/pkg/plugin/capability/authcap/token"
 )
 
 // TestServiceContractDoesNotExposeTenantWorkflow verifies tenant workflow
@@ -45,7 +46,7 @@ func TestClientTypeRejectsNonUserActors(t *testing.T) {
 			t.Fatalf("expected invalid client type for %q, got %v", value, err)
 		}
 	}
-	for _, value := range []ClientType{ClientTypeWeb, ClientTypeMobile, ClientTypeDesktop, ClientTypeCLI} {
+	for _, value := range []ClientType{tokencap.ClientTypeWeb, tokencap.ClientTypeMobile, tokencap.ClientTypeDesktop, tokencap.ClientTypeCLI} {
 		parsed, err := ParseClientType(value.String())
 		if err != nil {
 			t.Fatalf("parse allowed client type %q: %v", value, err)

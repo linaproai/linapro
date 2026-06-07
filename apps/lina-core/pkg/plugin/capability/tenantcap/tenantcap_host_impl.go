@@ -12,7 +12,7 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/capmodel"
 )
 
 // Available reports whether an active tenant provider is available.
@@ -24,7 +24,7 @@ func (s *serviceImpl) Available(ctx context.Context) bool {
 }
 
 // Status returns the current tenant capability activation state.
-func (s *serviceImpl) Status(ctx context.Context) contract.CapabilityStatus {
+func (s *serviceImpl) Status(ctx context.Context) capmodel.CapabilityStatus {
 	if s == nil {
 		return convertCapabilityStatus(defaultManager.Status(ctx, CapabilityTenantV1, nil))
 	}

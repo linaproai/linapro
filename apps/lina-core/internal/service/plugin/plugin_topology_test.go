@@ -4,12 +4,13 @@ package plugin
 
 import (
 	"context"
-	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/glog"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/glog"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"

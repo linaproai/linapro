@@ -7,11 +7,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/gogf/gf/v2/database/gdb"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gogf/gf/v2/database/gdb"
 )
 
 // TestConfigNodeFromLink verifies database links are parsed by GoFrame's

@@ -225,19 +225,19 @@ const (
 // business DTOs are owned by capability/orgcap and adapted by guest clients.
 const (
 	// HostServiceMethodOrgAvailable reports whether organization capability is available.
-	HostServiceMethodOrgAvailable = "available"
+	HostServiceMethodOrgAvailable = "capability.available"
 	// HostServiceMethodOrgStatus reads organization capability status.
-	HostServiceMethodOrgStatus = "status"
+	HostServiceMethodOrgStatus = "capability.status"
 	// HostServiceMethodOrgListUserDeptAssignments lists user department assignments in batch.
-	HostServiceMethodOrgListUserDeptAssignments = "user_dept_assignments.list"
+	HostServiceMethodOrgListUserDeptAssignments = "users.dept_assignments.list"
 	// HostServiceMethodOrgGetUserDeptInfo reads one user's department identifier and name.
-	HostServiceMethodOrgGetUserDeptInfo = "user_dept_info.get"
+	HostServiceMethodOrgGetUserDeptInfo = "users.dept_info.get"
 	// HostServiceMethodOrgGetUserDeptName reads one user's department name.
-	HostServiceMethodOrgGetUserDeptName = "user_dept_name.get"
+	HostServiceMethodOrgGetUserDeptName = "users.dept_name.get"
 	// HostServiceMethodOrgGetUserDeptIDs reads one user's department identifiers.
-	HostServiceMethodOrgGetUserDeptIDs = "user_dept_ids.get"
+	HostServiceMethodOrgGetUserDeptIDs = "users.dept_ids.get"
 	// HostServiceMethodOrgGetUserPostIDs reads one user's post identifiers.
-	HostServiceMethodOrgGetUserPostIDs = "user_post_ids.get"
+	HostServiceMethodOrgGetUserPostIDs = "users.post_ids.get"
 )
 
 // Tenant host-service methods describe the ordinary tenant capability surface
@@ -245,21 +245,21 @@ const (
 // and lifecycle governance stay out of this protocol.
 const (
 	// HostServiceMethodTenantAvailable reports whether tenant capability is available.
-	HostServiceMethodTenantAvailable = "available"
+	HostServiceMethodTenantAvailable = "capability.available"
 	// HostServiceMethodTenantStatus reads tenant capability status.
-	HostServiceMethodTenantStatus = "status"
+	HostServiceMethodTenantStatus = "capability.status"
 	// HostServiceMethodTenantCurrent reads the current request tenant.
-	HostServiceMethodTenantCurrent = "current"
+	HostServiceMethodTenantCurrent = "tenants.current"
 	// HostServiceMethodTenantPlatformBypass reports whether tenant filtering may be bypassed.
-	HostServiceMethodTenantPlatformBypass = "platform_bypass"
+	HostServiceMethodTenantPlatformBypass = "tenants.platform_bypass"
 	// HostServiceMethodTenantEnsureVisible validates that the current user can access one tenant.
-	HostServiceMethodTenantEnsureVisible = "visible.ensure"
+	HostServiceMethodTenantEnsureVisible = "tenants.visible.ensure"
 	// HostServiceMethodTenantValidateUserInTenant validates one user's tenant membership.
-	HostServiceMethodTenantValidateUserInTenant = "user_in_tenant.validate"
+	HostServiceMethodTenantValidateUserInTenant = "users.tenant_membership.validate"
 	// HostServiceMethodTenantListUserTenants lists tenants visible to one user.
-	HostServiceMethodTenantListUserTenants = "user_tenants.list"
+	HostServiceMethodTenantListUserTenants = "users.tenants.list"
 	// HostServiceMethodTenantValidateSwitch validates one tenant switch target.
-	HostServiceMethodTenantValidateSwitch = "switch.validate"
+	HostServiceMethodTenantValidateSwitch = "tenants.switch.validate"
 )
 
 // AI host-service methods describe the governed typed AI capability surface

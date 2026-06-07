@@ -4,7 +4,7 @@ package plugin
 import (
 	"context"
 
-	"lina-core/api/plugin/v1"
+	v1 "lina-core/api/plugin/v1"
 )
 
 // DependencyCheck returns the server-side dependency check result for one plugin.

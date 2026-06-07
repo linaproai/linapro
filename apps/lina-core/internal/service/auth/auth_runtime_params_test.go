@@ -22,6 +22,7 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/session"
+	tokencap "lina-core/pkg/plugin/capability/authcap/token"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -36,7 +37,7 @@ func TestLoginRejectsBlacklistedIP(t *testing.T) {
 	_, err := newRuntimeParamAuthTestService().Login(ctx, LoginInput{
 		Username:   username,
 		Password:   "ignored",
-		ClientType: ClientTypeWeb,
+		ClientType: tokencap.ClientTypeWeb,
 	})
 	if err == nil {
 		t.Fatal("expected blacklisted login attempt to fail")

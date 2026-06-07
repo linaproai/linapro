@@ -7,10 +7,9 @@ package orgcap
 
 import (
 	"context"
+	"lina-core/pkg/plugin/capability/capmodel"
 
 	"github.com/gogf/gf/v2/database/gdb"
-
-	"lina-core/pkg/plugin/capability/contract"
 )
 
 // IsProviderEnabled always returns false.
@@ -32,7 +31,7 @@ func (s *serviceImpl) Available(ctx context.Context) bool {
 }
 
 // Status returns the current organization capability activation state.
-func (s *serviceImpl) Status(ctx context.Context) contract.CapabilityStatus {
+func (s *serviceImpl) Status(ctx context.Context) capmodel.CapabilityStatus {
 	if s == nil {
 		return convertCapabilityStatus(defaultManager.Status(ctx, CapabilityOrgV1, nil))
 	}

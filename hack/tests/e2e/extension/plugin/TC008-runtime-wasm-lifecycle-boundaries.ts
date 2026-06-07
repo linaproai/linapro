@@ -23,7 +23,7 @@ const baseVersion = "v1.0.0";
 const higherVersion = "v1.1.0";
 const lowerVersion = "v0.9.0";
 const networkURLPattern = "https://*.example.com/api";
-const dataTableName = "sys_plugin_node_state";
+const dataTableName = "plugin_plugin_dev_lifecycle_boundary_e2e_record";
 const pageMenuKey = `plugin:${primaryPluginID}:page-entry`;
 const buttonMenuKey = `plugin:${primaryPluginID}:inspect`;
 const assetPathForVersion = (version: string) =>
@@ -331,6 +331,14 @@ async function findPlugin(adminApi: APIRequestContext, pluginID: string) {
   return list.find((item) => item.id === pluginID) ?? null;
 }
 
+async function getPluginDetail(adminApi: APIRequestContext, pluginID: string) {
+  const response = await adminApi.get(`plugins/${pluginID}`);
+  return expectApiSuccess<PluginListItem>(
+    response,
+    `查询插件详情失败: ${pluginID}`,
+  );
+}
+
 async function uploadDynamicPlugin(
   adminApi: APIRequestContext,
   filePath: string,
@@ -507,7 +515,7 @@ test.describe("TC-4 Runtime Wasm Lifecycle Boundaries", () => {
     );
     expect(resourceRefCount, "安装后应写入插件治理资源索引").toBeGreaterThan(0);
 
-    const installedPlugin = await findPlugin(adminApi, primaryPluginID);
+    const installedPlugin = await getPluginDetail(adminApi, primaryPluginID);
     expect(
       installedPlugin?.authorizedHostServices?.length ?? 0,
       "安装后应持久化授权快照",

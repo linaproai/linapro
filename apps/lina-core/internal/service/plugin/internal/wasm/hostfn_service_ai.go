@@ -13,9 +13,9 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/pkg/plugin/capability"
-	"lina-core/pkg/plugin/capability/ai"
-	"lina-core/pkg/plugin/capability/ai/aicommon"
-	"lina-core/pkg/plugin/capability/ai/aitext"
+	"lina-core/pkg/plugin/capability/aicap"
+	"lina-core/pkg/plugin/capability/aicap/aicommon"
+	"lina-core/pkg/plugin/capability/aicap/aitext"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -517,7 +517,7 @@ func aiTextServiceForPlugin(pluginID string) aitext.Service {
 }
 
 // aiServiceForPlugin returns the runtime-owned AI namespace bound to one dynamic plugin.
-func aiServiceForPlugin(pluginID string) ai.Service {
+func aiServiceForPlugin(pluginID string) aicap.Service {
 	if aiTextHostServices == nil {
 		return nil
 	}
@@ -537,7 +537,7 @@ func aiTextServiceForHostCall(hcc *hostCallContext) aitext.Service {
 }
 
 // aiServiceForHostCall resolves the AI namespace service for one host call.
-func aiServiceForHostCall(hcc *hostCallContext) ai.Service {
+func aiServiceForHostCall(hcc *hostCallContext) aicap.Service {
 	if hcc == nil {
 		return nil
 	}

@@ -41,6 +41,7 @@ func commandRegistry() map[string]commandSpec {
 		{Name: "tidy", Description: "Run go mod tidy in every maintained Go module directory.", Usage: "linactl tidy", Run: runTidy},
 		{Name: "test.scripts", Description: "Run repository tool smoke tests.", Usage: "linactl test.scripts", Run: runTestScripts},
 		{Name: "i18n.check", Description: "Run runtime i18n hard-coded text and message coverage checks.", Usage: "linactl i18n.check", Run: runI18nCheck},
+		{Name: "plugins.check", Description: "Run governance checks for every plugin under apps/lina-plugins.", Usage: "linactl plugins.check [format=text|json]", Run: runPluginsCheck},
 		{Name: "agents", Description: "One-shot agent setup: arrow-key picker on TTY, or agent=<name> for non-interactive use.", Usage: "linactl agents [agent=<name>] [action=link|unlink] [force=1]", Run: runAgents},
 		{Name: "agents.skills.link", Description: "Manage repository-local symlinks from supported agents' project skill paths to .agents/skills.", Usage: "linactl agents.skills.link [agent=<name|all|csv>] [force=1]", Run: runAgentsSkillsLink},
 		{Name: "agents.skills.unlink", Description: "Remove repository-local skills symlinks managed by agents.skills.link.", Usage: "linactl agents.skills.unlink agent=<name|all|csv>", Run: runAgentsSkillsUnlink},

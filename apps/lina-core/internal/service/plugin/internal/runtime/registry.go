@@ -216,7 +216,7 @@ func (s *serviceImpl) buildPluginItemWithOptions(
 	}
 
 	normalizeHostServices := func(source string, specs []*bridgehostservice.HostServiceSpec) []*bridgehostservice.HostServiceSpec {
-		normalized, normalizeErr := bridgehostservice.NormalizeHostServiceSpecs(specs)
+		normalized, normalizeErr := bridgehostservice.NormalizeHostServiceSpecsForPlugin(id, specs)
 		if normalizeErr != nil {
 			logger.Warningf(ctx, "normalize plugin host services failed plugin=%s source=%s err=%v", id, source, normalizeErr)
 			return []*bridgehostservice.HostServiceSpec{}
@@ -255,6 +255,8 @@ func (s *serviceImpl) buildPluginItemWithOptions(
 	}
 	if manifest != nil && options.includeGovernanceDetails {
 		declaredRoutes = cloneRouteContracts(manifest.Routes)
+	} else if snapshot != nil && options.includeGovernanceDetails {
+		declaredRoutes = cloneRouteContracts(snapshot.Routes)
 	}
 	name, description = s.localizePluginMetadata(ctx, id, pluginType, name, description)
 

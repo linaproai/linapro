@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	capabilityconfig "lina-core/pkg/plugin/capability/config"
+	capabilityconfig "lina-core/pkg/plugin/capability/plugincap"
 )
 
 // buildArtifactDefaultConfig returns the active-release default config content

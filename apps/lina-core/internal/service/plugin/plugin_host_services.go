@@ -1,23 +1,32 @@
-// This file exposes the startup facade for source-plugin host service
-// adapters while keeping concrete adapter implementations inside plugin internals.
+// This file exposes startup facades for source-plugin host service adapters
+// and dynamic-plugin Wasm host service dispatchers while keeping concrete
+// adapter implementations inside plugin internals.
 
 package plugin
 
 import (
 	"context"
 
+	"github.com/gogf/gf/v2/errors/gerror"
+
 	"lina-core/internal/service/apidoc"
 	"lina-core/internal/service/auth"
+	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
+	"lina-core/internal/service/hostlock"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/notify"
 	"lina-core/internal/service/plugin/internal/hostservices"
+	"lina-core/internal/service/plugin/internal/wasm"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/plugin/capability"
-	capabilityaitext "lina-core/pkg/plugin/capability/ai/aitext"
-	"lina-core/pkg/plugin/capability/contract"
+	capabilityaitext "lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/hostconfigcap"
+	"lina-core/pkg/plugin/capability/manifestcap"
 	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/plugincap"
 	capabilitytenantcap "lina-core/pkg/plugin/capability/tenantcap"
 )
 
@@ -56,7 +65,7 @@ type HostTenantTokenIssuer interface {
 // required by source-plugin adapters.
 type HostBizContextProvider interface {
 	// Current returns the plugin-visible read-only projection of the current business context.
-	Current(ctx context.Context) contract.CurrentContext
+	Current(ctx context.Context) bizctxcap.CurrentContext
 }
 
 // HostRuntimeI18nService defines the runtime translation slice required by
@@ -72,6 +81,8 @@ type HostRuntimeI18nService interface {
 
 // HostNotifyPublisher defines the notification slice required by source-plugin adapters.
 type HostNotifyPublisher interface {
+	// Send validates the notify channel and creates unified notify message and delivery records.
+	Send(ctx context.Context, in notify.SendInput) (*notify.SendOutput, error)
 	// SendNoticePublication sends one published notice through the built-in inbox channel.
 	SendNoticePublication(ctx context.Context, in notify.NoticePublishInput) (*notify.SendOutput, error)
 	// DeleteBySource removes notify records for the given business source identifiers.
@@ -88,11 +99,11 @@ func NewHostServices(
 	authSvc HostAuthSessionRevoker,
 	authTokenIssuer HostTenantTokenIssuer,
 	bizCtxSvc HostBizContextProvider,
-	hostConfigSvc contract.HostConfigService,
+	hostConfigSvc hostconfigcap.Service,
 	scopeSvc datascope.Service,
 	i18nSvc HostRuntimeI18nService,
-	pluginStateSvc contract.PluginStateService,
-	pluginLifecycleRunner contract.PluginLifecycleRunner,
+	pluginStateSvc plugincap.StateService,
+	pluginLifecycleRunner plugincap.LifecycleRunner,
 	sessionStore session.Store,
 	aiTextSvc capabilityaitext.Service,
 	orgSvc capabilityorgcap.Service,
@@ -117,4 +128,49 @@ func NewHostServices(
 		notifySvc,
 		kvCacheSvc,
 	)
+}
+
+// ConfigureWasmHostServices wires dynamic-plugin host-service dispatchers to
+// the same runtime-owned services used by the host HTTP process.
+func ConfigureWasmHostServices(
+	kvCacheSvc kvcache.Service,
+	lockSvc hostlock.Service,
+	notifySvc notify.Service,
+	configSvc configsvc.PluginConfigReader,
+	hostServices capability.Services,
+	configFactory plugincap.ConfigServiceFactory,
+	hostConfigSvc hostconfigcap.Service,
+	manifestFactory manifestcap.ServiceFactory,
+) error {
+	if err := wasm.ConfigureCacheHostService(kvCacheSvc); err != nil {
+		return gerror.Wrap(err, "configure wasm cache host service failed")
+	}
+	if err := wasm.ConfigureLockHostService(lockSvc); err != nil {
+		return gerror.Wrap(err, "configure wasm lock host service failed")
+	}
+	if err := wasm.ConfigureNotifyHostService(notifySvc); err != nil {
+		return gerror.Wrap(err, "configure wasm notify host service failed")
+	}
+	if err := wasm.ConfigureStorageHostService(configSvc); err != nil {
+		return gerror.Wrap(err, "configure wasm storage host service failed")
+	}
+	if err := wasm.ConfigureAITextHostService(hostServices); err != nil {
+		return gerror.Wrap(err, "configure wasm ai text host service failed")
+	}
+	if err := wasm.ConfigureOrgHostService(hostServices); err != nil {
+		return gerror.Wrap(err, "configure wasm org host service failed")
+	}
+	if err := wasm.ConfigureTenantHostService(hostServices); err != nil {
+		return gerror.Wrap(err, "configure wasm tenant host service failed")
+	}
+	if err := wasm.ConfigureConfigHostService(configFactory); err != nil {
+		return gerror.Wrap(err, "configure wasm config host service failed")
+	}
+	if err := wasm.ConfigureHostConfigService(hostConfigSvc); err != nil {
+		return gerror.Wrap(err, "configure wasm host config service failed")
+	}
+	if err := wasm.ConfigureManifestHostService(manifestFactory); err != nil {
+		return gerror.Wrap(err, "configure wasm manifest host service failed")
+	}
+	return nil
 }

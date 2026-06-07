@@ -1,4 +1,4 @@
-// This file implements the reusable host-side data capability Driver / DB wrapper and
+// This file implements the reusable host-side record store capability Driver / DB wrapper and
 // DoCommit governance interception.
 
 package host
@@ -43,7 +43,7 @@ var (
 	pluginDataDBCache            = make(map[string]gdb.DB)
 )
 
-// DB returns one governed host-side data capability connection wrapper.
+// DB returns one governed host-side record store capability connection wrapper.
 func DB() (gdb.DB, error) {
 	registerPluginDataDrivers()
 

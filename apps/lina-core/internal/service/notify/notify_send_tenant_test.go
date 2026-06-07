@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	_ "lina-core/pkg/dbdriver"
+
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
-	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"

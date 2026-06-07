@@ -9,7 +9,7 @@ import (
 	"context"
 
 	"lina-core/internal/model"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 )
@@ -33,9 +33,9 @@ func (s *serviceImpl) Get(ctx context.Context) *model.Context {
 
 // Current returns the plugin-visible read-only projection of the current
 // business context.
-func (s *serviceImpl) Current(ctx context.Context) contract.CurrentContext {
+func (s *serviceImpl) Current(ctx context.Context) bizctxcap.CurrentContext {
 	if c := s.Get(ctx); c != nil {
-		return contract.CurrentContext{
+		return bizctxcap.CurrentContext{
 			UserID:          c.UserId,
 			Username:        c.Username,
 			TenantID:        c.TenantId,
@@ -49,7 +49,7 @@ func (s *serviceImpl) Current(ctx context.Context) contract.CurrentContext {
 				!c.IsImpersonation,
 		}
 	}
-	return contract.CurrentFromContext(ctx)
+	return bizctxcap.CurrentFromContext(ctx)
 }
 
 // SetLocale sets locale info into business context.

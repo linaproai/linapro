@@ -7,7 +7,7 @@ import (
 
 	"github.com/gogf/gf/v2/frame/g"
 
-	"lina-core/api/joblog/v1"
+	v1 "lina-core/api/joblog/v1"
 	jobmgmt "lina-core/internal/service/jobmgmt"
 )
 

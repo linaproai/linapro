@@ -10,9 +10,9 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/pkg/plugin/capability"
-	aitextsvc "lina-core/pkg/plugin/capability/ai/aitext"
-	"lina-core/pkg/plugin/capability/contract"
+	aitextsvc "lina-core/pkg/plugin/capability/aicap/aitext"
 	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -72,12 +72,13 @@ func (s *serviceImpl) OrgProviderEnv(pluginID string) orgcapsvc.ProviderEnv {
 		return env
 	}
 	sourceServices, ok := services.(interface {
-		TenantFilter() contract.TenantFilterService
+		TenantFilter() tenantcap.PluginTableFilterService
 	})
 	if !ok {
 		return env
 	}
 	env.TenantFilter = sourceServices.TenantFilter()
+	env.Users = services.Users()
 	return env
 }
 
@@ -92,7 +93,18 @@ func (s *serviceImpl) TenantProviderEnv(pluginID string) tenantcapsvc.ProviderEn
 		return env
 	}
 	env.BizCtx = services.BizCtx()
-	env.PluginLifecycle = services.PluginLifecycle()
+	if plugins := services.Plugins(); plugins != nil {
+		env.PluginLifecycle = plugins.Lifecycle()
+	}
+	env.Users = services.Users()
+	env.Plugins = services.Plugins()
+	if sourceServices, ok := services.(interface {
+		Admin() capability.AdminServices
+	}); ok {
+		if admin := sourceServices.Admin(); admin != nil {
+			env.PluginAdmin = admin.Plugins()
+		}
+	}
 	return env
 }
 

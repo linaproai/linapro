@@ -9,8 +9,10 @@ import (
 
 	"github.com/gogf/gf/v2/database/gdb"
 
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/capmodel"
 	internalregistry "lina-core/pkg/plugin/capability/internal/capabilityregistry"
+	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/usercap"
 )
 
 const (
@@ -56,7 +58,10 @@ type ProviderEnv struct {
 	// PluginID is the organization provider plugin being constructed.
 	PluginID string
 	// TenantFilter constrains provider-owned plugin tables by the current tenant.
-	TenantFilter contract.TenantFilterService
+	TenantFilter tenantcap.PluginTableFilterService
+	// Users resolves host-owned user projections without exposing sys_user
+	// storage to the organization provider plugin.
+	Users usercap.Service
 }
 
 // ProviderRuntime defines the narrow plugin state and environment capability
@@ -217,7 +222,7 @@ type Service interface {
 	// Status returns the current organization capability activation state.
 	//
 	// Status 返回组织能力激活状态，适用于诊断、治理检查和插件能力状态展示。
-	Status(ctx context.Context) contract.CapabilityStatus
+	Status(ctx context.Context) capmodel.CapabilityStatus
 	// ListUserDeptAssignments returns user-to-department projections for the provided users.
 	//
 	// ListUserDeptAssignments 批量返回用户部门归属投影，适用于列表、详情批量和导出等需要集合化装配部门信息的场景。

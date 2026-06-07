@@ -10,7 +10,8 @@ import (
 
 	"lina-core/internal/service/kvcache"
 	"lina-core/pkg/bizerr"
-	plugincontract "lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/cachecap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
@@ -23,16 +24,16 @@ const (
 // cacheAdapter binds the shared host cache service to one source plugin.
 type cacheAdapter struct {
 	service  kvcache.Service
-	bizCtx   plugincontract.BizCtxService
+	bizCtx   bizctxcap.Service
 	pluginID string
 }
 
 // newCacheAdapter creates one source-plugin cache adapter bound to pluginID.
 func newCacheAdapter(
 	service kvcache.Service,
-	bizCtx plugincontract.BizCtxService,
+	bizCtx bizctxcap.Service,
 	pluginID string,
-) plugincontract.CacheService {
+) cachecap.Service {
 	return &cacheAdapter{
 		service:  service,
 		bizCtx:   bizCtx,
@@ -41,7 +42,7 @@ func newCacheAdapter(
 }
 
 // Get returns one unexpired plugin cache item.
-func (s *cacheAdapter) Get(ctx context.Context, namespace string, key string) (*plugincontract.CacheItem, bool, error) {
+func (s *cacheAdapter) Get(ctx context.Context, namespace string, key string) (*cachecap.CacheItem, bool, error) {
 	cacheKey, err := s.buildCacheKey(ctx, namespace, key)
 	if err != nil {
 		return nil, false, err
@@ -60,7 +61,7 @@ func (s *cacheAdapter) Set(
 	key string,
 	value string,
 	ttl time.Duration,
-) (*plugincontract.CacheItem, error) {
+) (*cachecap.CacheItem, error) {
 	cacheKey, err := s.buildCacheKey(ctx, namespace, key)
 	if err != nil {
 		return nil, err
@@ -85,7 +86,7 @@ func (s *cacheAdapter) Incr(
 	key string,
 	delta int64,
 	ttl time.Duration,
-) (*plugincontract.CacheItem, error) {
+) (*cachecap.CacheItem, error) {
 	cacheKey, err := s.buildCacheKey(ctx, namespace, key)
 	if err != nil {
 		return nil, err
@@ -134,16 +135,16 @@ func (s *cacheAdapter) currentTenantID(ctx context.Context) int {
 	if s != nil && s.bizCtx != nil {
 		return s.bizCtx.Current(ctx).TenantID
 	}
-	return plugincontract.CurrentFromContext(ctx).TenantID
+	return bizctxcap.CurrentFromContext(ctx).TenantID
 }
 
 // fromKVCacheItem maps one internal cache item into the source-plugin contract
 // without exposing host-internal encoded cache keys.
-func fromKVCacheItem(item *kvcache.Item, logicalKey string) *plugincontract.CacheItem {
+func fromKVCacheItem(item *kvcache.Item, logicalKey string) *cachecap.CacheItem {
 	if item == nil {
 		return nil
 	}
-	return &plugincontract.CacheItem{
+	return &cachecap.CacheItem{
 		Key:       strings.TrimSpace(logicalKey),
 		ValueKind: item.ValueKind,
 		Value:     item.Value,

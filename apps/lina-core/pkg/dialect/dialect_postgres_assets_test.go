@@ -14,7 +14,7 @@ import (
 
 	"github.com/gogf/gf/v2/database/gdb"
 
-	"lina-core/pkg/testsupport"
+	"lina-core/internal/utility/testsupport"
 )
 
 // TestPostgreSQLProjectSQLAssetsSmoke executes all PostgreSQL-source SQL

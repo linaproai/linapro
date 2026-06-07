@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"lina-core/api/joblog/v1"
+	v1 "lina-core/api/joblog/v1"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"

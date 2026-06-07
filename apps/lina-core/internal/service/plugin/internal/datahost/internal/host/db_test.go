@@ -1,4 +1,4 @@
-// This file tests host-side data capability DB wrapper and DoCommit governance
+// This file tests host-side record store capability DB wrapper and DoCommit governance
 // interception.
 
 package host
@@ -207,7 +207,7 @@ func TestPluginDataHostDoesNotEmbedPostgreSQLCatalogSQL(t *testing.T) {
 		"version()",
 	} {
 		if strings.Contains(source, forbidden) {
-			t.Fatalf("data capability host must not embed database-specific catalog SQL %q", forbidden)
+			t.Fatalf("record store capability host must not embed database-specific catalog SQL %q", forbidden)
 		}
 	}
 }

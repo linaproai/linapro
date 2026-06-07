@@ -12,8 +12,11 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/net/ghttp"
 
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/capmodel"
 	internalregistry "lina-core/pkg/plugin/capability/internal/capabilityregistry"
+	"lina-core/pkg/plugin/capability/plugincap"
+	"lina-core/pkg/plugin/capability/usercap"
 )
 
 const (
@@ -103,9 +106,15 @@ type ProviderEnv struct {
 	// PluginID is the tenant provider plugin being constructed.
 	PluginID string
 	// BizCtx exposes the current request business context without host internals.
-	BizCtx contract.BizCtxService
+	BizCtx bizctxcap.Service
 	// PluginLifecycle exposes governed plugin lifecycle hooks needed by tenant-owned plugin policy.
-	PluginLifecycle contract.PluginLifecycleService
+	PluginLifecycle plugincap.LifecycleService
+	// Users resolves host-owned user projections without exposing sys_user storage.
+	Users usercap.Service
+	// Plugins resolves host-owned plugin governance projections.
+	Plugins plugincap.Service
+	// PluginAdmin executes governed host plugin management commands.
+	PluginAdmin plugincap.AdminService
 }
 
 // ProviderRuntime defines the narrow plugin state and environment capability
@@ -157,7 +166,7 @@ type Service interface {
 	// Status returns the current tenant capability activation state.
 	//
 	// Status 返回租户能力激活状态，适用于运行时诊断、治理检查和插件能力状态展示。
-	Status(ctx context.Context) contract.CapabilityStatus
+	Status(ctx context.Context) capmodel.CapabilityStatus
 	// Current returns the current request tenant, defaulting to platform when context is unavailable.
 	//
 	// Current 返回当前请求租户，适用于业务查询、缓存键和权限判断；当上下文缺失或租户能力不可用时返回平台租户。
@@ -338,7 +347,7 @@ type ProviderFactory func(ctx context.Context, env ProviderEnv) (Provider, error
 // platform-safe fallback values when no provider is usable.
 type serviceImpl struct {
 	runtime   ProviderRuntime
-	bizCtxSvc contract.BizCtxService
+	bizCtxSvc bizctxcap.Service
 }
 
 // Ensure serviceImpl implements Service.
@@ -351,7 +360,7 @@ var _ StartupConsistencyService = (*serviceImpl)(nil)
 var _ RuntimeService = (*serviceImpl)(nil)
 
 // New creates an optional tenant capability service from explicit runtime-owned dependencies.
-func New(runtime ProviderRuntime, bizCtxSvc contract.BizCtxService) RuntimeService {
+func New(runtime ProviderRuntime, bizCtxSvc bizctxcap.Service) RuntimeService {
 	if runtime == nil {
 		runtime = noopProviderRuntime{}
 	}

@@ -6,14 +6,14 @@ package orgcap
 import (
 	"context"
 
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/capmodel"
 	internalregistry "lina-core/pkg/plugin/capability/internal/capabilityregistry"
 )
 
 // ProviderStatuses returns all organization provider states.
-func ProviderStatuses(ctx context.Context, runtime ProviderRuntime) []contract.ProviderStatus {
+func ProviderStatuses(ctx context.Context, runtime ProviderRuntime) []capmodel.ProviderStatus {
 	statuses := defaultManager.Statuses(ctx, runtime)
-	result := make([]contract.ProviderStatus, 0, len(statuses))
+	result := make([]capmodel.ProviderStatus, 0, len(statuses))
 	for _, status := range statuses {
 		result = append(result, convertProviderStatus(status))
 	}
@@ -32,12 +32,12 @@ func registerFactory(pluginID string, factory ProviderFactory) error {
 }
 
 // convertCapabilityStatus copies internal capability state into public DTOs.
-func convertCapabilityStatus(status internalregistry.CapabilityStatus) contract.CapabilityStatus {
-	providers := make([]contract.ProviderStatus, 0, len(status.Providers))
+func convertCapabilityStatus(status internalregistry.CapabilityStatus) capmodel.CapabilityStatus {
+	providers := make([]capmodel.ProviderStatus, 0, len(status.Providers))
 	for _, provider := range status.Providers {
 		providers = append(providers, convertProviderStatus(provider))
 	}
-	return contract.CapabilityStatus{
+	return capmodel.CapabilityStatus{
 		CapabilityID:   status.CapabilityID,
 		Available:      status.Available,
 		ActiveProvider: status.ActiveProvider,
@@ -47,8 +47,8 @@ func convertCapabilityStatus(status internalregistry.CapabilityStatus) contract.
 }
 
 // convertProviderStatus copies one internal provider state into a public DTO.
-func convertProviderStatus(status internalregistry.ProviderStatus) contract.ProviderStatus {
-	return contract.ProviderStatus{
+func convertProviderStatus(status internalregistry.ProviderStatus) capmodel.ProviderStatus {
+	return capmodel.ProviderStatus{
 		CapabilityID: status.CapabilityID,
 		PluginID:     status.PluginID,
 		Active:       status.Active,

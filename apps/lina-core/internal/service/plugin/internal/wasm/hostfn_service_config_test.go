@@ -11,7 +11,7 @@ import (
 	"github.com/gogf/gf/v2/container/gvar"
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -24,13 +24,13 @@ type trackingConfigFactory struct {
 }
 
 // ForPlugin returns the configured tracking service for one plugin scope.
-func (f *trackingConfigFactory) ForPlugin(pluginID string) contract.ConfigService {
+func (f *trackingConfigFactory) ForPlugin(pluginID string) plugincap.ConfigService {
 	f.lastPluginID = pluginID
 	return f.service
 }
 
 // WithArtifactConfig records release-bound default config passed by the execution context.
-func (f *trackingConfigFactory) WithArtifactConfig(pluginID string, content []byte) contract.ConfigServiceFactory {
+func (f *trackingConfigFactory) WithArtifactConfig(pluginID string, content []byte) plugincap.ConfigServiceFactory {
 	f.lastArtifactPlugin = pluginID
 	f.lastArtifactContent = string(content)
 	return f

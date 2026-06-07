@@ -13,7 +13,7 @@ import (
 	"lina-core/internal/service/datascope"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 )
 
 // pluginResourceFakeBizCtx stores one mutable business context for controller tests.
@@ -32,11 +32,11 @@ func (f *pluginResourceFakeBizCtx) Get(_ context.Context) *model.Context {
 }
 
 // Current returns the plugin-visible business context projection.
-func (f *pluginResourceFakeBizCtx) Current(context.Context) contract.CurrentContext {
+func (f *pluginResourceFakeBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	if f.ctx == nil {
-		return contract.CurrentContext{}
+		return bizctxcap.CurrentContext{}
 	}
-	return contract.CurrentContext{
+	return bizctxcap.CurrentContext{
 		UserID:          f.ctx.UserId,
 		Username:        f.ctx.Username,
 		TenantID:        f.ctx.TenantId,

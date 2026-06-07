@@ -20,8 +20,8 @@ func TestHostServiceDescriptorsCoverProtocolGuestAndDispatcher(t *testing.T) {
 	root := repoRootForDescriptorTest(t)
 	protocolDir := filepath.Join(root, "pkg/plugin/pluginbridge/protocol")
 	guestDirs := []string{
-		filepath.Join(root, "pkg/plugin/capability/guest"),
-		filepath.Join(root, "pkg/plugin/capability/data"),
+		filepath.Join(root, "pkg/plugin/pluginbridge/guest"),
+		filepath.Join(root, "pkg/plugin/capability/recordstore"),
 	}
 	wasmDir := filepath.Join(root, "internal/service/plugin/internal/wasm")
 
@@ -61,15 +61,15 @@ func TestHostServiceDescriptorsCoverProtocolGuestAndDispatcher(t *testing.T) {
 // service family keeps a host-build unsupported stub.
 func TestHostServiceDescriptorsCoverNonWASIStubs(t *testing.T) {
 	root := repoRootForDescriptorTest(t)
-	guestStubFuncs := declaredFuncNamesForBuildTag(t, filepath.Join(root, "pkg/plugin/capability/guest"), "!wasip1")
-	dataStubFuncs := declaredFuncNamesForBuildTag(t, filepath.Join(root, "pkg/plugin/capability/data"), "!wasip1")
+	guestStubFuncs := declaredFuncNamesForBuildTag(t, filepath.Join(root, "pkg/plugin/pluginbridge/guest"), "!wasip1")
+	dataStubFuncs := declaredFuncNamesForBuildTag(t, filepath.Join(root, "pkg/plugin/capability/recordstore"), "!wasip1")
 	expectedGuestFactories := map[string]string{
 		HostServiceRuntime:    "Runtime",
 		HostServiceStorage:    "Storage",
 		HostServiceNetwork:    "Network",
 		HostServiceCache:      "Cache",
 		HostServiceLock:       "Lock",
-		HostServiceConfig:     "Config",
+		HostServiceConfig:     "pluginConfig",
 		HostServiceNotify:     "Notify",
 		HostServiceCron:       "Cron",
 		HostServiceHostConfig: "HostConfig",

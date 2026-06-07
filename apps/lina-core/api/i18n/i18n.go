@@ -7,7 +7,7 @@ package i18n
 import (
 	"context"
 
-	"lina-core/api/i18n/v1"
+	v1 "lina-core/api/i18n/v1"
 )
 
 type II18NV1 interface {

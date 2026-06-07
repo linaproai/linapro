@@ -42,11 +42,11 @@ import (
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/capability"
-	"lina-core/pkg/plugin/capability/ai/aitext"
-	pluginserviceconfig "lina-core/pkg/plugin/capability/config"
-	pluginservicehostconfig "lina-core/pkg/plugin/capability/hostconfig"
-	pluginservicemanifest "lina-core/pkg/plugin/capability/manifest"
+	"lina-core/pkg/plugin/capability/aicap/aitext"
+	pluginservicehostconfig "lina-core/pkg/plugin/capability/hostconfigcap"
+	pluginservicemanifest "lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/capability/orgcap"
+	pluginserviceconfig "lina-core/pkg/plugin/capability/plugincap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
@@ -242,7 +242,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		jobMgmtSvc            = jobmgmtsvc.New(bizCtxSvc, configSvc, i18nSvc, jobRegistry, jobScheduler, scopeSvc)
 		middlewareSvc         = middleware.New(authSvc, bizCtxSvc, configSvc, i18nSvc, pluginSvc, roleSvc, tenantSvc)
 		hostConfigSvc         = pluginservicehostconfig.New(configSvc)
-		pluginConfigFactory   = pluginserviceconfig.NewFactory("", "")
+		pluginConfigFactory   = pluginserviceconfig.NewConfigFactory("", "")
 		pluginManifestFactory = pluginservicemanifest.NewFactory("")
 	)
 	capabilities, err := pluginsvc.NewHostServices(

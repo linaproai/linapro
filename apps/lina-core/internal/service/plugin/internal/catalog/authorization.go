@@ -140,11 +140,11 @@ func (s *serviceImpl) ParseManifestSnapshot(content string) (*ManifestSnapshot, 
 	}
 	migrateLegacyManifestSnapshotHostServices(snapshot.RequestedHostServices)
 	migrateLegacyManifestSnapshotHostServices(snapshot.AuthorizedHostServices)
-	requestedHostServices, err := protocol.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
+	requestedHostServices, err := protocol.NormalizeHostServiceSpecsForPlugin(snapshot.ID, snapshot.RequestedHostServices)
 	if err != nil {
 		return nil, gerror.Wrap(err, "parse requested plugin host service snapshot failed")
 	}
-	authorizedHostServices, err := protocol.NormalizeHostServiceSpecs(snapshot.AuthorizedHostServices)
+	authorizedHostServices, err := protocol.NormalizeHostServiceSpecsForPlugin(snapshot.ID, snapshot.AuthorizedHostServices)
 	if err != nil {
 		return nil, gerror.Wrap(err, "parse authorized plugin host service snapshot failed")
 	}
@@ -167,7 +167,7 @@ func applyExistingHostServiceAuthorization(
 	}
 	snapshot.UninstallPurgeStorageData = existingSnapshot.UninstallPurgeStorageData
 
-	matches, err := hostServiceSpecsEqual(snapshot.RequestedHostServices, existingSnapshot.RequestedHostServices)
+	matches, err := hostServiceSpecsEqual(snapshot.ID, snapshot.RequestedHostServices, existingSnapshot.RequestedHostServices)
 	if err != nil {
 		return err
 	}
@@ -175,7 +175,7 @@ func applyExistingHostServiceAuthorization(
 		return nil
 	}
 
-	authorizedHostServices, err := protocol.NormalizeHostServiceSpecs(existingSnapshot.AuthorizedHostServices)
+	authorizedHostServices, err := protocol.NormalizeHostServiceSpecsForPlugin(snapshot.ID, existingSnapshot.AuthorizedHostServices)
 	if err != nil {
 		return err
 	}
@@ -187,14 +187,15 @@ func applyExistingHostServiceAuthorization(
 // hostServiceSpecsEqual compares two host service snapshots after protocol
 // normalization so ordering and declaration casing do not affect drift checks.
 func hostServiceSpecsEqual(
+	pluginID string,
 	left []*protocol.HostServiceSpec,
 	right []*protocol.HostServiceSpec,
 ) (bool, error) {
-	leftSpecs, err := protocol.NormalizeHostServiceSpecs(left)
+	leftSpecs, err := protocol.NormalizeHostServiceSpecsForPlugin(pluginID, left)
 	if err != nil {
 		return false, err
 	}
-	rightSpecs, err := protocol.NormalizeHostServiceSpecs(right)
+	rightSpecs, err := protocol.NormalizeHostServiceSpecsForPlugin(pluginID, right)
 	if err != nil {
 		return false, err
 	}
@@ -236,20 +237,20 @@ func (s *serviceImpl) PersistReleaseHostServiceAuthorization(
 	}
 
 	if !snapshot.HostServiceAuthRequired {
-		authorizedHostServices, normalizeErr := protocol.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
+		authorizedHostServices, normalizeErr := protocol.NormalizeHostServiceSpecsForPlugin(manifest.ID, snapshot.RequestedHostServices)
 		if normalizeErr != nil {
 			return nil, normalizeErr
 		}
 		snapshot.AuthorizedHostServices = authorizedHostServices
 		snapshot.HostServiceAuthConfirmed = false
 	} else if input != nil {
-		snapshot.AuthorizedHostServices, err = BuildAuthorizedHostServiceSpecs(snapshot.RequestedHostServices, input)
+		snapshot.AuthorizedHostServices, err = BuildAuthorizedHostServiceSpecsForPlugin(manifest.ID, snapshot.RequestedHostServices, input)
 		if err != nil {
 			return nil, err
 		}
 		snapshot.HostServiceAuthConfirmed = true
 	} else if !snapshot.HostServiceAuthConfirmed {
-		snapshot.AuthorizedHostServices, err = BuildAuthorizedHostServiceSpecs(snapshot.RequestedHostServices, nil)
+		snapshot.AuthorizedHostServices, err = BuildAuthorizedHostServiceSpecsForPlugin(manifest.ID, snapshot.RequestedHostServices, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -280,7 +281,17 @@ func BuildAuthorizedHostServiceSpecs(
 	requested []*protocol.HostServiceSpec,
 	input *HostServiceAuthorizationInput,
 ) ([]*protocol.HostServiceSpec, error) {
-	requestedSpecs, err := protocol.NormalizeHostServiceSpecs(requested)
+	return BuildAuthorizedHostServiceSpecsForPlugin("", requested, input)
+}
+
+// BuildAuthorizedHostServiceSpecsForPlugin applies one host confirmation input
+// and enforces plugin-owned data tables in the final authorization snapshot.
+func BuildAuthorizedHostServiceSpecsForPlugin(
+	pluginID string,
+	requested []*protocol.HostServiceSpec,
+	input *HostServiceAuthorizationInput,
+) ([]*protocol.HostServiceSpec, error) {
+	requestedSpecs, err := protocol.NormalizeHostServiceSpecsForPlugin(pluginID, requested)
 	if err != nil {
 		return nil, err
 	}
@@ -460,7 +471,7 @@ func BuildAuthorizedHostServiceSpecs(
 			Resources: resources,
 		})
 	}
-	return protocol.NormalizeHostServiceSpecs(authorized)
+	return protocol.NormalizeHostServiceSpecsForPlugin(pluginID, authorized)
 }
 
 // buildHostServiceKeySet normalizes declared key-scoped authorizations into one lookup set.

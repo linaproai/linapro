@@ -56,10 +56,10 @@ func CreateTestPluginDir(t *testing.T, pluginID string) string {
 		pluginhost.CallbackExecutionModeBlocking,
 		func(ctx context.Context, registrar pluginhost.CronRegistrar) error {
 			services := registrar.Services()
-			if services == nil || services.Config() == nil {
+			if services == nil || services.Plugins() == nil || services.Plugins().Config() == nil {
 				return gerror.New("test source plugin cron requires host config service")
 			}
-			if _, err := services.Config().Exists(ctx, "monitor.interval"); err != nil {
+			if _, err := services.Plugins().Config().Exists(ctx, "monitor.interval"); err != nil {
 				return err
 			}
 			return registrar.AddWithMetadata(

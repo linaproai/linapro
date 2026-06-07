@@ -58,55 +58,6 @@ func sourceLifecycleStartupAutoEnable(ctx context.Context) bool {
 	return ok && options.startupAutoEnable
 }
 
-// syncEnabledSnapshotFromRegistry refreshes the in-memory enablement snapshot
-// for one plugin using the latest registry row after a lifecycle transition.
-func (s *serviceImpl) syncEnabledSnapshotFromRegistry(ctx context.Context, pluginID string) error {
-	return s.syncEnabledSnapshotStateFromRegistry(ctx, pluginID)
-}
-
-// syncEnabledSnapshotStateFromRegistry updates only the in-memory enabled
-// snapshot for the same registry state.
-func (s *serviceImpl) syncEnabledSnapshotStateFromRegistry(
-	ctx context.Context,
-	pluginID string,
-) error {
-	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
-	if err != nil {
-		return err
-	}
-	if registry == nil || registry.Installed != catalog.InstalledYes {
-		s.integrationSvc.DeletePluginEnabledState(pluginID)
-		return nil
-	}
-	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
-	if err != nil {
-		return err
-	}
-	runtimeState, err := s.catalogSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
-	if err != nil {
-		return err
-	}
-	enabled := registry.Status == catalog.StatusEnabled &&
-		catalog.RuntimeStateAllowsBusinessEntry(runtimeState.State)
-	s.integrationSvc.SetPluginEnabledState(pluginID, enabled)
-	return nil
-}
-
-// syncEnabledSnapshotAndPublishRuntimeChange updates local enablement, publishes
-// the runtime revision, and lets capability providers observe the refreshed
-// platform enabled snapshot at use time.
-func (s *serviceImpl) syncEnabledSnapshotAndPublishRuntimeChange(
-	ctx context.Context,
-	pluginID string,
-	reason string,
-) error {
-	if err := s.syncEnabledSnapshotStateFromRegistry(ctx, pluginID); err != nil {
-		return err
-	}
-	_, err := s.markRuntimeCacheChanged(ctx, reason)
-	return err
-}
-
 // Install executes the install lifecycle and returns the dependency plan/result
 // generated before target plugin side effects. It optionally persists one
 // host-confirmed host service authorization snapshot when the target is a dynamic
@@ -234,7 +185,7 @@ func cloneManifestWithAuthorizedHostServices(
 	if manifest == nil {
 		return nil, nil
 	}
-	hostServices, err := buildLifecycleAuthorizedHostServices(manifest.HostServices, authorization)
+	hostServices, err := buildLifecycleAuthorizedHostServices(manifest.ID, manifest.HostServices, authorization)
 	if err != nil {
 		return nil, err
 	}
@@ -248,13 +199,14 @@ func cloneManifestWithAuthorizedHostServices(
 // operation-confirmed host services. When no confirmation is provided, only
 // capability-only services are exposed.
 func buildLifecycleAuthorizedHostServices(
+	pluginID string,
 	hostServices []*protocol.HostServiceSpec,
 	authorization *HostServiceAuthorizationInput,
 ) ([]*protocol.HostServiceSpec, error) {
 	if authorization != nil {
-		return catalog.BuildAuthorizedHostServiceSpecs(hostServices, authorization)
+		return catalog.BuildAuthorizedHostServiceSpecsForPlugin(pluginID, hostServices, authorization)
 	}
-	requested, err := protocol.NormalizeHostServiceSpecs(hostServices)
+	requested, err := protocol.NormalizeHostServiceSpecsForPlugin(pluginID, hostServices)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +217,7 @@ func buildLifecycleAuthorizedHostServices(
 		}
 		authorized = append(authorized, spec)
 	}
-	return protocol.NormalizeHostServiceSpecs(authorized)
+	return protocol.NormalizeHostServiceSpecsForPlugin(pluginID, authorized)
 }
 
 // applyInstallModeSelection validates the explicit install-mode request and
@@ -1218,7 +1170,7 @@ func (s *serviceImpl) applyTargetReleaseAuthorizedHostServices(
 	if snapshot == nil || !snapshot.HostServiceAuthRequired || !snapshot.HostServiceAuthConfirmed {
 		return cloneManifestWithAuthorizedHostServices(manifest, nil)
 	}
-	hostServices, err := protocol.NormalizeHostServiceSpecs(snapshot.AuthorizedHostServices)
+	hostServices, err := protocol.NormalizeHostServiceSpecsForPlugin(manifest.ID, snapshot.AuthorizedHostServices)
 	if err != nil {
 		return nil, err
 	}

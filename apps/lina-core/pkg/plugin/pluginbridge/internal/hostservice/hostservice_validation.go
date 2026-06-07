@@ -11,8 +11,22 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
-// ValidateHostServiceSpecs validates and normalizes host service declarations in-place.
+// ValidateHostServiceSpecs validates and normalizes host service declarations
+// in-place without plugin ownership checks. Production manifest paths should
+// prefer ValidateHostServiceSpecsForPlugin so data tables stay plugin-owned.
 func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
+	return validateHostServiceSpecs(specs, "")
+}
+
+// ValidateHostServiceSpecsForPlugin validates and normalizes host service
+// declarations in-place, additionally enforcing plugin-owned data tables.
+func ValidateHostServiceSpecsForPlugin(pluginID string, specs []*HostServiceSpec) error {
+	return validateHostServiceSpecs(specs, pluginID)
+}
+
+// validateHostServiceSpecs applies structural host-service validation and, when
+// pluginID is present, data-service table ownership validation.
+func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 	if len(specs) == 0 {
 		return nil
 	}
@@ -160,6 +174,11 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 			if len(spec.Tables) == 0 {
 				return gerror.Newf("host service %s must declare at least one table", spec.Service)
 			}
+			if spec.Service == HostServiceData {
+				if err := validateDataServiceTablesForPlugin(pluginID, spec.Tables); err != nil {
+					return err
+				}
+			}
 			continue
 		}
 		if _, ok := hostServicesWithKeys[spec.Service]; ok {
@@ -231,6 +250,47 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 		return specs[i].Service < specs[j].Service
 	})
 	return nil
+}
+
+// validateDataServiceTablesForPlugin restricts dynamic data-service access to
+// the current plugin namespace. Blank pluginID keeps legacy structural tests
+// usable while production manifest paths pass the concrete plugin ID.
+func validateDataServiceTablesForPlugin(pluginID string, tables []string) error {
+	normalizedPluginID := normalizePluginIDForTableNamespace(pluginID)
+	if normalizedPluginID == "" {
+		return nil
+	}
+	ownedTable := "plugin_" + normalizedPluginID
+	ownedPrefix := ownedTable + "_"
+	for _, table := range tables {
+		normalizedTable := strings.ToLower(strings.TrimSpace(table))
+		if normalizedTable == "" {
+			continue
+		}
+		if strings.HasPrefix(normalizedTable, "sys_") {
+			return gerror.Newf("host service data cannot declare host core table: %s", table)
+		}
+		if normalizedTable != ownedTable && !strings.HasPrefix(normalizedTable, ownedPrefix) {
+			return gerror.Newf(
+				"host service data table must belong to plugin %s namespace %s*: %s",
+				pluginID,
+				ownedPrefix,
+				table,
+			)
+		}
+	}
+	return nil
+}
+
+// normalizePluginIDForTableNamespace converts a plugin ID into the database
+// namespace used by plugin-owned tables.
+func normalizePluginIDForTableNamespace(pluginID string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(pluginID))
+	if trimmed == "" {
+		return ""
+	}
+	replacer := strings.NewReplacer("-", "_", ".", "_")
+	return replacer.Replace(trimmed)
 }
 
 // validateAIResourceAttributes validates optional governance attributes on AI purpose resources.
@@ -319,6 +379,17 @@ func defaultHostServiceMethods(service string) []string {
 
 // NormalizeHostServiceSpecs returns deep-cloned and normalized host service declarations.
 func NormalizeHostServiceSpecs(specs []*HostServiceSpec) ([]*HostServiceSpec, error) {
+	return normalizeHostServiceSpecs(specs, "")
+}
+
+// NormalizeHostServiceSpecsForPlugin returns deep-cloned and normalized host
+// service declarations while enforcing plugin-owned data table declarations.
+func NormalizeHostServiceSpecsForPlugin(pluginID string, specs []*HostServiceSpec) ([]*HostServiceSpec, error) {
+	return normalizeHostServiceSpecs(specs, pluginID)
+}
+
+// normalizeHostServiceSpecs clones declarations before validation mutates them.
+func normalizeHostServiceSpecs(specs []*HostServiceSpec, pluginID string) ([]*HostServiceSpec, error) {
 	if len(specs) == 0 {
 		return []*HostServiceSpec{}, nil
 	}
@@ -352,7 +423,7 @@ func NormalizeHostServiceSpecs(specs []*HostServiceSpec) ([]*HostServiceSpec, er
 		}
 		cloned = append(cloned, next)
 	}
-	if err := ValidateHostServiceSpecs(cloned); err != nil {
+	if err := validateHostServiceSpecs(cloned, pluginID); err != nil {
 		return nil, err
 	}
 	return cloned, nil
@@ -370,6 +441,16 @@ func normalizeDeclaredPathForService(service string, value string) (string, erro
 // compile-time constants whose invalid form must fail fast.
 func MustNormalizeHostServiceSpecs(specs []*HostServiceSpec) []*HostServiceSpec {
 	normalized, err := NormalizeHostServiceSpecs(specs)
+	if err != nil {
+		panic(err)
+	}
+	return normalized
+}
+
+// MustNormalizeHostServiceSpecsForPlugin returns plugin-aware normalized
+// declarations or panics for compile-time constants whose invalid form must fail fast.
+func MustNormalizeHostServiceSpecsForPlugin(pluginID string, specs []*HostServiceSpec) []*HostServiceSpec {
+	normalized, err := NormalizeHostServiceSpecsForPlugin(pluginID, specs)
 	if err != nil {
 		panic(err)
 	}
