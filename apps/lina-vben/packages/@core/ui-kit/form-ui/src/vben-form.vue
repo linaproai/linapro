@@ -71,6 +71,7 @@ watchEffect(() => {
         <FormActions
           v-if="showDefaultActions"
           :model-value="currentCollapsed"
+          :show-collapse-button="slotProps.showCollapseButton"
           @update:model-value="handleUpdateCollapsed"
         />
       </slot>

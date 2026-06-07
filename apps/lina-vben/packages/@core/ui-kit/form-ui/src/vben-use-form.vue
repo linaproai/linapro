@@ -130,6 +130,7 @@ onMounted(async () => {
         <FormActions
           v-if="forward.showDefaultActions"
           :model-value="state?.collapsed"
+          :show-collapse-button="slotProps.showCollapseButton"
           @update:model-value="handleUpdateCollapsed"
         >
           <template #reset-before="resetSlotProps">
