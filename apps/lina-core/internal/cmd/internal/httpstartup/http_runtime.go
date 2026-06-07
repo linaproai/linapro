@@ -238,10 +238,15 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, err
 	}
+	hostConfigReader, ok := configSvc.(pluginservicehostconfig.RawConfigReader)
+	if !ok {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
+		return nil, gerror.New("host config service does not support raw reads")
+	}
 	var (
 		jobMgmtSvc            = jobmgmtsvc.New(bizCtxSvc, configSvc, i18nSvc, jobRegistry, jobScheduler, scopeSvc)
 		middlewareSvc         = middleware.New(authSvc, bizCtxSvc, configSvc, i18nSvc, pluginSvc, roleSvc, tenantSvc)
-		hostConfigSvc         = pluginservicehostconfig.New(configSvc)
+		hostConfigSvc         = pluginservicehostconfig.New(hostConfigReader)
 		pluginConfigFactory   = pluginserviceconfig.NewConfigFactory("", "")
 		pluginManifestFactory = pluginservicemanifest.NewFactory("")
 	)

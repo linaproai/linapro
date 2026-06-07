@@ -143,9 +143,21 @@ func newWasmHostServiceTestDeps(t *testing.T) *wasmHostServiceTestDeps {
 		configSvc:       configSvc,
 		hostServices:    newRootTestCapabilities(bizCtxSvc, nil),
 		configFactory:   capabilityconfig.NewConfigFactory("", ""),
-		hostConfigSvc:   capabilityhostconfig.New(configSvc),
+		hostConfigSvc:   capabilityhostconfig.New(mustHostConfigRawReaderForTest(t, configSvc)),
 		manifestFactory: capabilitymanifest.NewFactory(""),
 	}
+}
+
+// mustHostConfigRawReaderForTest returns the raw host-config reader implemented
+// by the test config service or fails the current test during fixture wiring.
+func mustHostConfigRawReaderForTest(t *testing.T, configSvc configsvc.Service) capabilityhostconfig.RawConfigReader {
+	t.Helper()
+
+	reader, ok := configSvc.(capabilityhostconfig.RawConfigReader)
+	if !ok {
+		t.Fatal("test config service does not support raw host config reads")
+	}
+	return reader
 }
 
 // configureWasmHostServicesForTest calls the production root configuration

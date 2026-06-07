@@ -8,10 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gogf/gf/v2/container/gvar"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
-
-	hostconfigsvc "lina-core/internal/service/config"
 )
 
 // TestHostConfigReadsAnyNonRootHostConfigKey verifies source plugins can read
@@ -26,7 +25,7 @@ plugin:
     storagePath: "temp/dynamic"
 `)
 
-	svc := New(hostconfigsvc.New())
+	svc := New(testRawHostConfigReader{})
 	ctx := context.Background()
 
 	link, err := svc.String(ctx, "database.default.link", "")
@@ -54,7 +53,7 @@ workspace:
   basePath: "/admin"
 `)
 
-	svc := New(hostconfigsvc.New())
+	svc := New(testRawHostConfigReader{})
 	found, err := svc.Exists(context.Background(), "database.default.link")
 	if err != nil {
 		t.Fatalf("check missing host config key: %v", err)
@@ -72,7 +71,7 @@ workspace:
   basePath: "/admin"
 `)
 
-	svc := New(hostconfigsvc.New())
+	svc := New(testRawHostConfigReader{})
 	value, err := svc.Get(context.Background(), ".")
 	if err != nil {
 		t.Fatalf("read host config root: %v", err)
@@ -102,17 +101,6 @@ func TestHostConfigRequiresInjectedRawReader(t *testing.T) {
 	}
 }
 
-// TestHostConfigRejectsServiceWithoutRawReads verifies accidental stand-ins
-// cannot bypass the injected host config service contract.
-func TestHostConfigRejectsServiceWithoutRawReads(t *testing.T) {
-	svc := New(hostConfigServiceWithoutRawReads{})
-
-	if _, err := svc.Get(context.Background(), "workspace.basePath"); err == nil ||
-		!strings.Contains(err.Error(), "does not support raw reads") {
-		t.Fatalf("expected service without raw reads to fail explicitly, got %v", err)
-	}
-}
-
 // setTestHostConfigAdapter swaps the process config adapter for one test case
 // and restores the original adapter afterward.
 func setTestHostConfigAdapter(t *testing.T, content string) {
@@ -130,13 +118,10 @@ func setTestHostConfigAdapter(t *testing.T, content string) {
 	})
 }
 
-// hostConfigServiceWithoutRawReads satisfies the broad host config service
-// contract but intentionally omits GetRaw for dependency-boundary tests.
-type hostConfigServiceWithoutRawReads struct {
-	hostconfigsvc.Service
-}
+// testRawHostConfigReader reads from the test-scoped GoFrame config adapter.
+type testRawHostConfigReader struct{}
 
-// GetWorkspaceBasePath returns a deterministic workspace base path.
-func (hostConfigServiceWithoutRawReads) GetWorkspaceBasePath(context.Context) string {
-	return "/admin"
+// GetRaw returns one raw test config value through the active GoFrame adapter.
+func (testRawHostConfigReader) GetRaw(ctx context.Context, key string) (*gvar.Var, error) {
+	return g.Cfg().Get(ctx, key)
 }

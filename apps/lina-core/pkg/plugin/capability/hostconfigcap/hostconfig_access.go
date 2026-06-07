@@ -103,9 +103,5 @@ func (s *serviceAdapter) valueForKey(ctx context.Context, key string) (*gvar.Var
 	if s == nil || s.configSvc == nil {
 		return nil, gerror.New("host config service is not configured")
 	}
-	reader, ok := s.configSvc.(rawConfigReader)
-	if !ok {
-		return nil, gerror.New("host config service does not support raw reads")
-	}
-	return reader.GetRaw(ctx, key)
+	return s.configSvc.GetRaw(ctx, key)
 }

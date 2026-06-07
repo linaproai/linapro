@@ -124,11 +124,21 @@ func configureRootWasmHostServicesForTest(
 		configProvider,
 		capabilities,
 		capabilityconfig.NewConfigFactory("", ""),
-		capabilityhostconfig.New(configProvider),
+		capabilityhostconfig.New(mustHostConfigRawReader(configProvider)),
 		capabilitymanifest.NewFactory(""),
 	); err != nil {
 		panic(err)
 	}
+}
+
+// mustHostConfigRawReader returns the raw host-config reader implemented by
+// the root test config service and panics if the fixture wiring regresses.
+func mustHostConfigRawReader(configProvider configsvc.Service) capabilityhostconfig.RawConfigReader {
+	reader, ok := configProvider.(capabilityhostconfig.RawConfigReader)
+	if !ok {
+		panic("test config service does not support raw host config reads")
+	}
+	return reader
 }
 
 // rootTestCapabilities publishes the minimal host service directory required

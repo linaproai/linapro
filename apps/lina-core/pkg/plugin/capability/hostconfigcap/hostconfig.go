@@ -7,23 +7,22 @@ import (
 	"context"
 
 	"github.com/gogf/gf/v2/container/gvar"
-
-	hostconfigsvc "lina-core/internal/service/config"
 )
 
-// rawConfigReader is implemented by the host-owned config service. It keeps
-// this adapter dependent on the startup-injected config instance instead of
-// reaching around the service graph for global configuration.
-type rawConfigReader interface {
+// RawConfigReader is implemented by the host-owned config service. It keeps
+// this adapter dependent on the startup-injected config instance without
+// coupling this public capability package to host internal service packages.
+type RawConfigReader interface {
+	// GetRaw returns one raw host configuration value or root snapshot.
 	GetRaw(ctx context.Context, key string) (*gvar.Var, error)
 }
 
 // serviceAdapter reads individual host config keys from the host config service.
 type serviceAdapter struct {
-	configSvc hostconfigsvc.Service
+	configSvc RawConfigReader
 }
 
 // New creates a host config reader backed by the host config service.
-func New(configSvc hostconfigsvc.Service) Service {
+func New(configSvc RawConfigReader) Service {
 	return &serviceAdapter{configSvc: configSvc}
 }

@@ -50,7 +50,11 @@ func newUserTestService(tenantRuntimes ...tenantcapsvc.ProviderRuntime) Service 
 	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
 	notifySvc := notify.New(tenantSvc)
 	apiDocSvc := apidoc.New(configSvc, bizCtxSvc, i18nSvc, pluginSvc)
-	hostConfigSvc := capabilityhostconfig.New(configSvc)
+	hostConfigReader, ok := configSvc.(capabilityhostconfig.RawConfigReader)
+	if !ok {
+		panic("test config service does not support raw host config reads")
+	}
+	hostConfigSvc := capabilityhostconfig.New(hostConfigReader)
 	capabilities, err := pluginsvc.NewHostServices(
 		apiDocSvc,
 		authSvc,

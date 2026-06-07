@@ -2016,8 +2016,7 @@ func TestPluginCommandSmokeFixtureIncludesLinactlLocalReplaceDeps(t *testing.T) 
 	for _, expected := range []string{
 		`cp apps/lina-core/go.mod "$smoke_root/apps/lina-core/go.mod"`,
 		`cp apps/lina-core/go.sum "$smoke_root/apps/lina-core/go.sum"`,
-		`cp -R apps/lina-core/pkg/plugin/pluginbridge "$smoke_root/apps/lina-core/pkg/plugin/pluginbridge"`,
-		`cp -R apps/lina-core/pkg/plugin/capability/data "$smoke_root/apps/lina-core/pkg/plugin/capability/data"`,
+		`cp -R apps/lina-core/pkg "$smoke_root/apps/lina-core/pkg"`,
 		`./apps/lina-core`,
 	} {
 		if !strings.Contains(text, expected) {
@@ -2042,8 +2041,7 @@ func TestMakeCommandSmokeDevFixtureIncludesLinactlLocalReplaceDeps(t *testing.T)
 	for _, expected := range []string{
 		`cp apps/lina-core/go.mod "$smoke_root/apps/lina-core/go.mod"`,
 		`cp apps/lina-core/go.sum "$smoke_root/apps/lina-core/go.sum"`,
-		`cp -R apps/lina-core/pkg/plugin/pluginbridge "$smoke_root/apps/lina-core/pkg/plugin/pluginbridge"`,
-		`cp -R apps/lina-core/pkg/plugin/capability/data "$smoke_root/apps/lina-core/pkg/plugin/capability/data"`,
+		`cp -R apps/lina-core/pkg "$smoke_root/apps/lina-core/pkg"`,
 		`./apps/lina-core`,
 	} {
 		if !strings.Contains(text, expected) {
@@ -2052,6 +2050,28 @@ func TestMakeCommandSmokeDevFixtureIncludesLinactlLocalReplaceDeps(t *testing.T)
 	}
 	if strings.Contains(text, "module smoke-core") {
 		t.Fatalf("make command smoke workflow must preserve the lina-core module path for linactl local replace")
+	}
+}
+
+// TestReusableSmokeWorkflowsDoNotCopyRemovedPluginCapabilityData guards the
+// isolated CI smoke fixtures after plugin capability packages are split by
+// domain instead of living under the removed capability/data path.
+func TestReusableSmokeWorkflowsDoNotCopyRemovedPluginCapabilityData(t *testing.T) {
+	root, err := fileutil.DiscoverRepoRoot()
+	if err != nil {
+		t.Fatalf("discover repo root: %v", err)
+	}
+	for _, workflow := range []string{
+		filepath.Join(root, ".github", "workflows", "reusable-plugin-command-smoke.yml"),
+		filepath.Join(root, ".github", "workflows", "reusable-make-command-smoke.yml"),
+	} {
+		content, readErr := os.ReadFile(workflow)
+		if readErr != nil {
+			t.Fatalf("read workflow %s: %v", workflow, readErr)
+		}
+		if strings.Contains(string(content), "apps/lina-core/pkg/plugin/capability/data") {
+			t.Fatalf("workflow %s must not copy removed plugin capability/data package", workflow)
+		}
 	}
 }
 

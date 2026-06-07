@@ -150,7 +150,7 @@ func NewServices() *Services {
 		configProvider,
 		capabilitySvc,
 		capabilityconfig.NewConfigFactory("", ""),
-		capabilityhostconfig.New(configProvider),
+		capabilityhostconfig.New(mustHostConfigRawReader(configProvider)),
 		capabilitymanifest.NewFactory(""),
 	)
 
@@ -162,6 +162,16 @@ func NewServices() *Services {
 		Integration: integrationSvc,
 		OpenAPI:     openapiSvc,
 	}
+}
+
+// mustHostConfigRawReader returns the raw host-config reader implemented by
+// the shared test config service and panics if fixture wiring regresses.
+func mustHostConfigRawReader(configProvider configsvc.Service) capabilityhostconfig.RawConfigReader {
+	reader, ok := configProvider.(capabilityhostconfig.RawConfigReader)
+	if !ok {
+		panic("test config service does not support raw host config reads")
+	}
+	return reader
 }
 
 // runtimeCacheChangeNotifier is a no-op cache revision publisher for isolated
