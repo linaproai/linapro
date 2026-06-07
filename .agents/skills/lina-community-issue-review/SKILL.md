@@ -436,6 +436,34 @@ One practical alternative to consider is: <suggest one or more alternatives, suc
 I closed this issue so the active implementation queue stays focused.
 ```
 
+中文低价值需求评论模板：
+
+```markdown
+<!-- lina-community-issue-review repo=<repo> issue=<number> status=declined -->
+
+感谢建议。这个需求可以理解，但暂时不适合进入项目实现队列。
+
+主要原因是：<用一到两句话委婉说明使用场景较窄、维护成本偏高、与核心定位关联较弱或投入产出不匹配。>
+
+建议先通过：<说明一种或多种替代方式，例如现有功能组合、第三方工具、配置约定或流程上的变通方式。>
+
+为避免占用后续实现跟进资源，我已关闭这个`Issue`。
+```
+
+英文低价值需求评论模板：
+
+```markdown
+<!-- lina-community-issue-review repo=<repo> issue=<number> status=declined -->
+
+Thanks for the suggestion. The request is understandable, but it is not a good fit for the implementation queue right now.
+
+The main reason is: <politely explain in one or two sentences that the use case is narrow, the maintenance cost is high, it is weakly aligned with the core direction, or the cost-benefit tradeoff is not strong enough.>
+
+A practical alternative is: <suggest one or more alternatives, such as combining existing features, using a third-party tool, adopting a configuration convention, or using a workflow workaround.>
+
+I closed this issue to avoid keeping low-priority implementation work in the active queue.
+```
+
 中文无效评论模板：
 
 ```markdown
