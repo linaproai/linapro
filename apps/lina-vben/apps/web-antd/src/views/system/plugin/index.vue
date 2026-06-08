@@ -18,6 +18,7 @@ import {
 } from '#/api/system/plugin';
 import { $t } from '#/locales';
 import { notifyPluginRegistryChanged } from '#/plugins/slot-registry';
+import { closePluginTabs } from '#/plugins/tabbar-cleanup';
 import { formatTimestamp } from '#/utils/time';
 
 import PluginDetailModal from './plugin-detail-modal.vue';
@@ -576,7 +577,10 @@ async function handleHostServiceAuthReload() {
   await gridApi.query();
 }
 
-async function handleUninstallReload() {
+async function handleUninstallReload(payload?: { pluginId?: string }) {
+  if (payload?.pluginId) {
+    await closePluginTabs(payload.pluginId);
+  }
   await notifyPluginRegistryChanged();
   await gridApi.query();
 }

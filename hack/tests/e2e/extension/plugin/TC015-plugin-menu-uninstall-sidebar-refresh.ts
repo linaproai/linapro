@@ -293,8 +293,12 @@ async function expectSidebarMenuWithoutReload(pluginPage: PluginPage) {
   ).toBeVisible();
 }
 
+function tabbarItem(page: Page, name: string) {
+  return page.locator('[data-tab-item="true"]').filter({ hasText: name });
+}
+
 test.describe('TC-15 插件卸载后的侧边菜单刷新', () => {
-  test('TC-15a: 卸载已访问过菜单的插件后左侧菜单无需强刷仍可见', async ({
+  test('TC-15a: 卸载已访问过菜单的插件后左侧菜单和历史标签无需强刷仍同步刷新', async ({
     adminPage,
   }) => {
     const pageErrors: string[] = [];
@@ -315,6 +319,8 @@ test.describe('TC-15 插件卸载后的侧边菜单刷新', () => {
     await expect(pluginMenuItem).toBeVisible();
     await pluginMenuItem.click();
     await waitForRouteReady(adminPage, 15_000);
+    await expect(tabbarItem(adminPage, pluginMenuName)).toBeVisible();
+
     await pluginPage.sidebarMenu
       .getByText(pluginManageMenuPattern)
       .first()
@@ -328,6 +334,7 @@ test.describe('TC-15 插件卸载后的侧边菜单刷新', () => {
     await expect(
       pluginPage.sidebarMenu.getByRole('menuitem', { name: pluginMenuName }),
     ).toHaveCount(0);
+    await expect(tabbarItem(adminPage, pluginMenuName)).toHaveCount(0);
     expect(pageErrors).toEqual([]);
   });
 });

@@ -33,7 +33,7 @@ const emit = defineEmits<{
       reasons: string[];
     },
   ];
-  reload: [];
+  reload: [payload: { pluginId: string }];
 }>();
 
 const currentPlugin = ref<SystemPlugin | null>(null);
@@ -125,7 +125,7 @@ async function submitUninstallByState(
         silentErrorMessage: true,
       });
       message.success($t('pages.system.plugin.messages.uninstalled'));
-      emit('reload');
+      emit('reload', { pluginId });
       handleClosed();
     } catch (error) {
       if (
