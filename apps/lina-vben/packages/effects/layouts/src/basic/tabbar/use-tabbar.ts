@@ -1,6 +1,6 @@
 import type { RouteLocationNormalizedGeneric } from 'vue-router';
 
-import type { TabDefinition } from '@vben/types';
+import type { MenuRecordRaw, TabDefinition } from '@vben/types';
 
 import type { IContextMenuItem } from '@vben-core/tabs-ui';
 
@@ -24,6 +24,10 @@ import {
 import { $t, $te, useI18n } from '@vben/locales';
 import { getTabKey, useAccessStore, useTabbarStore } from '@vben/stores';
 import { filterTree } from '@vben/utils';
+
+interface MenuSnapshot {
+  paths: Set<string>;
+}
 
 export function useTabbar() {
   const router = useRouter();
@@ -53,6 +57,9 @@ export function useTabbar() {
 
   const { locale } = useI18n();
   const currentTabs = ref<RouteLocationNormalizedGeneric[]>();
+  let previousMenuSnapshot: MenuSnapshot = {
+    paths: new Set<string>(),
+  };
   watch(
     [
       () => tabbarStore.getTabs,
@@ -73,6 +80,83 @@ export function useTabbar() {
     });
     tabbarStore.setAffixTabs(affixTabs);
   };
+
+  function normalizeMenuPath(path: unknown) {
+    if (typeof path !== 'string') {
+      return '';
+    }
+
+    const normalized = path.split(/[?#]/u)[0]?.replace(/\/+$/u, '');
+    return normalized || '/';
+  }
+
+  function collectMenuSnapshot(
+    menus: MenuRecordRaw[],
+    snapshot: MenuSnapshot = {
+      paths: new Set<string>(),
+    },
+  ) {
+    for (const menu of menus) {
+      const path = normalizeMenuPath(menu.path);
+      if (path) {
+        snapshot.paths.add(path);
+      }
+
+      if (menu.children?.length) {
+        collectMenuSnapshot(menu.children, snapshot);
+      }
+    }
+
+    return snapshot;
+  }
+
+  function getRemovedSnapshot(currentSnapshot: MenuSnapshot): MenuSnapshot {
+    return {
+      paths: new Set(
+        [...previousMenuSnapshot.paths].filter(
+          (path) => !currentSnapshot.paths.has(path),
+        ),
+      ),
+    };
+  }
+
+  function getTabCandidatePaths(tab: TabDefinition) {
+    return [
+      tab.path,
+      tab.fullPath,
+      tab.meta?.activePath,
+      tab.meta?.link,
+      ...(tab.matched?.map((item) => item.path) ?? []),
+    ]
+      .map((path) => normalizeMenuPath(path))
+      .filter((path) => path !== '');
+  }
+
+  function isRemovedMenuTab(tab: TabDefinition, removedSnapshot: MenuSnapshot) {
+    return getTabCandidatePaths(tab).some((path) =>
+      removedSnapshot.paths.has(path),
+    );
+  }
+
+  async function closeRemovedMenuTabs(menus: MenuRecordRaw[]) {
+    const currentSnapshot = collectMenuSnapshot(menus);
+    const removedSnapshot = getRemovedSnapshot(currentSnapshot);
+    previousMenuSnapshot = currentSnapshot;
+
+    if (removedSnapshot.paths.size === 0) {
+      return;
+    }
+
+    const staleKeys = tabbarStore.getTabs
+      .filter((tab) => !tab.meta?.affixTab)
+      .filter((tab) => isRemovedMenuTab(tab, removedSnapshot))
+      .map((tab) => tab.key)
+      .filter((key): key is string => typeof key === 'string' && key !== '');
+
+    if (staleKeys.length > 0) {
+      await tabbarStore._bulkCloseByKeys(staleKeys);
+    }
+  }
 
   // 点击tab,跳转路由
   const handleClick = (key: string) => {
@@ -127,8 +211,9 @@ export function useTabbar() {
 
   watch(
     () => accessStore.accessMenus,
-    () => {
+    async (menus) => {
       initAffixTabs();
+      await closeRemovedMenuTabs(menus);
     },
     { immediate: true },
   );
