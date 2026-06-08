@@ -483,6 +483,9 @@ async function handleStatusChange(row: SystemPlugin, checked: boolean) {
   row.enabled = nextEnabled;
   try {
     await (checked ? pluginEnable : pluginDisable)(row.id);
+    if (!checked) {
+      await closePluginTabs(row.id);
+    }
     await notifyPluginRegistryChanged();
     message.success(
       checked

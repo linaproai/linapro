@@ -125,7 +125,7 @@ function menuRoutes(includePluginMenu: boolean) {
   ];
 }
 
-function pluginRow(installed: 0 | 1): {
+function pluginRow(installed: 0 | 1, enabled: 0 | 1 = installed): {
   abnormalReason: string;
   authorizationRequired: 0;
   authorizationStatus: 'not_required';
@@ -165,10 +165,10 @@ function pluginRow(installed: 0 | 1): {
     declaredRoutes: [],
     dependencyCheck: emptyDependencyCheck(),
     description:
-      'Installed plugin used to verify sidebar menu refresh after uninstall.',
+      'Installed plugin used to verify sidebar menu refresh after lifecycle changes.',
     discoveredVersion: 'v0.1.0',
     effectiveVersion: 'v0.1.0',
-    enabled: installed,
+    enabled: installed === 1 ? enabled : 0,
     hasMockData: 0,
     id: pluginID,
     installMode: 'global',
@@ -179,7 +179,8 @@ function pluginRow(installed: 0 | 1): {
     requestedHostServices: [],
     runtimeState: 'normal',
     scopeNature: 'global',
-    statusKey: installed === 1 ? 'enabled' : 'not_installed',
+    statusKey:
+      installed !== 1 ? 'not_installed' : enabled === 1 ? 'enabled' : 'disabled',
     supportsMultiTenant: false,
     type: 'source',
     updatedAt: '',
@@ -218,7 +219,7 @@ function emptyDependencyCheck() {
 
 async function mockPluginMenuRefreshApis(page: Page) {
   let installed: 0 | 1 = 1;
-  let includePluginMenu = true;
+  let enabled: 0 | 1 = 1;
 
   await page.route('**/api/v1/config/public/frontend', async (route) => {
     await route.fulfill({ json: apiEnvelope(publicFrontendSettings()) });
@@ -227,7 +228,7 @@ async function mockPluginMenuRefreshApis(page: Page) {
   await page.route('**/api/v1/menus/all', async (route) => {
     await route.fulfill({
       json: apiEnvelope({
-        list: menuRoutes(includePluginMenu),
+        list: menuRoutes(installed === 1 && enabled === 1),
       }),
     });
   });
@@ -239,7 +240,7 @@ async function mockPluginMenuRefreshApis(page: Page) {
 
     if (request.method() === 'GET' && /\/api\/v1\/plugins$/u.test(path)) {
       const id = url.searchParams.get('id')?.trim();
-      const row = pluginRow(installed);
+      const row = pluginRow(installed, enabled);
       const rows = id && !pluginID.includes(id) ? [] : [row];
       await route.fulfill({
         json: apiEnvelope({
@@ -253,14 +254,14 @@ async function mockPluginMenuRefreshApis(page: Page) {
     if (request.method() === 'GET' && path.endsWith('/plugins/dynamic')) {
       await route.fulfill({
         json: apiEnvelope({
-          list: [dynamicState(pluginRow(installed))],
+          list: [dynamicState(pluginRow(installed, enabled))],
         }),
       });
       return;
     }
 
     if (request.method() === 'GET' && path.endsWith(`/plugins/${pluginID}`)) {
-      await route.fulfill({ json: apiEnvelope(pluginRow(installed)) });
+      await route.fulfill({ json: apiEnvelope(pluginRow(installed, enabled)) });
       return;
     }
 
@@ -277,7 +278,26 @@ async function mockPluginMenuRefreshApis(page: Page) {
       path.endsWith(`/plugins/${pluginID}`)
     ) {
       installed = 0;
-      includePluginMenu = false;
+      enabled = 0;
+      await route.fulfill({ json: apiEnvelope(null) });
+      return;
+    }
+
+    if (
+      request.method() === 'PUT' &&
+      path.endsWith(`/plugins/${pluginID}/disable`)
+    ) {
+      enabled = 0;
+      await route.fulfill({ json: apiEnvelope(null) });
+      return;
+    }
+
+    if (
+      request.method() === 'PUT' &&
+      path.endsWith(`/plugins/${pluginID}/enable`)
+    ) {
+      installed = 1;
+      enabled = 1;
       await route.fulfill({ json: apiEnvelope(null) });
       return;
     }
@@ -297,7 +317,7 @@ function tabbarItem(page: Page, name: string) {
   return page.locator('[data-tab-item="true"]').filter({ hasText: name });
 }
 
-test.describe('TC-15 插件卸载后的侧边菜单刷新', () => {
+test.describe('TC-15 插件生命周期后的侧边菜单刷新', () => {
   test('TC-15a: 卸载已访问过菜单的插件后左侧菜单和历史标签无需强刷仍同步刷新', async ({
     adminPage,
   }) => {
@@ -329,6 +349,46 @@ test.describe('TC-15 插件卸载后的侧边菜单刷新', () => {
     await pluginPage.searchByPluginId(pluginID);
 
     await pluginPage.uninstallPlugin(pluginID);
+
+    await expectSidebarMenuWithoutReload(pluginPage);
+    await expect(
+      pluginPage.sidebarMenu.getByRole('menuitem', { name: pluginMenuName }),
+    ).toHaveCount(0);
+    await expect(tabbarItem(adminPage, pluginMenuName)).toHaveCount(0);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('TC-15b: 禁用已访问过菜单的插件后左侧菜单和历史标签无需强刷仍同步刷新', async ({
+    adminPage,
+  }) => {
+    const pageErrors: string[] = [];
+    adminPage.on('pageerror', (error) => pageErrors.push(error.message));
+    await mockPluginMenuRefreshApis(adminPage);
+
+    const pluginPage = new PluginPage(adminPage);
+    await adminPage.goto(workspacePath('/system/plugin'), {
+      waitUntil: 'domcontentloaded',
+    });
+    await waitForRouteReady(adminPage, 15_000);
+    await pluginPage.searchByPluginId(pluginID);
+    await expectSidebarMenuWithoutReload(pluginPage);
+
+    const pluginMenuItem = pluginPage.sidebarMenu
+      .getByRole('menuitem', { name: pluginMenuName })
+      .first();
+    await expect(pluginMenuItem).toBeVisible();
+    await pluginMenuItem.click();
+    await waitForRouteReady(adminPage, 15_000);
+    await expect(tabbarItem(adminPage, pluginMenuName)).toBeVisible();
+
+    await pluginPage.sidebarMenu
+      .getByText(pluginManageMenuPattern)
+      .first()
+      .click();
+    await waitForRouteReady(adminPage, 15_000);
+    await pluginPage.searchByPluginId(pluginID);
+
+    await pluginPage.setPluginEnabled(pluginID, false);
 
     await expectSidebarMenuWithoutReload(pluginPage);
     await expect(
