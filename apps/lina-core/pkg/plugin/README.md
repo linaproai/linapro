@@ -305,8 +305,6 @@ This chapter lists the `hostServices` service names dynamic plugins can declare 
 | `users.tenants.list` | List tenants visible to one user. |
 | `tenants.switch.validate` | Validate one tenant switch target. |
 
-Reserved governance entries currently exist for `secret.resolve`, `event.publish`, and `queue.enqueue`. They are part of the descriptor catalog for future governance alignment, but they are not published guest-callable methods and should not be used for executable dynamic plugin calls until host dispatcher and guest SDK support is added.
-
 ## Developer Guide
 
 - Use `capability.Services` when a source plugin or host package needs ordinary read-oriented plugin-facing capabilities.

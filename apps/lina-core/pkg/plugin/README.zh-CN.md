@@ -305,8 +305,6 @@ hostServices:
 | `users.tenants.list` | 列出单个用户可见的租户。 |
 | `tenants.switch.validate` | 校验一个租户切换目标。 |
 
-当前还存在`secret.resolve`、`event.publish`和`queue.enqueue`预留治理条目。它们属于描述符目录，用于后续治理对齐，但不是已发布的`guest`可调用方法；在宿主分发器和`guest SDK`支持补齐前，不应把它们用于可执行动态插件调用。
-
 ## 开发者指南
 
 - 源码插件或宿主包需要普通读取型插件可见能力时，使用`capability.Services`。

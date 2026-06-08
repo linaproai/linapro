@@ -15,3 +15,7 @@
 - [x] 3.1 更新并运行`pluginbridge`和`WASM` host service 单元测试，覆盖`ai.resources`拒绝、方法授权成功和未授权方法拒绝
 - [x] 3.2 运行 Go 编译门禁和`openspec validate simplify-dynamic-ai-host-service-auth --strict`
 - [x] 3.3 执行`lina-review`，确认 OpenSpec、插件、后端 Go、测试、文档和`i18n`影响均已闭环
+
+## Feedback
+
+- [x] **FB-1**: 删除动态插件 README 中`secret.resolve`、`event.publish`和`queue.enqueue`预留治理条目说明
