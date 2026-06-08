@@ -13,13 +13,17 @@ vi.mock('./page-registry', () => ({
       pluginId: 'media',
       routePath: 'media',
     },
+    {
+      pluginId: 'media-library',
+      routePath: 'media-library',
+    },
   ],
 }));
 
 function tab(
   path: string,
   title: string,
-  meta: Partial<TabDefinition['meta']> = {},
+  meta: Record<string, unknown> = {},
 ) {
   const routeMeta = {
     ...meta,
@@ -46,6 +50,7 @@ describe('plugin tabbar cleanup', () => {
       tab('/dashboard/analytics', 'Analytics', { affixTab: true }),
       tab('/system/plugin', 'Plugin Management'),
       tab('/media', 'Media'),
+      tab('/media-library', 'Media Library'),
       tab('/watermark-service', 'Watermark', {
         authority: ['watermark-service:page'],
       }),
@@ -56,6 +61,7 @@ describe('plugin tabbar cleanup', () => {
     expect(tabbarStore.getTabs.map((item) => item.path)).toEqual([
       '/dashboard/analytics',
       '/system/plugin',
+      '/media-library',
       '/watermark-service',
     ]);
   });
@@ -68,6 +74,22 @@ describe('plugin tabbar cleanup', () => {
         query: {
           embeddedSrc: '/x-assets/media/v0.1.0/pages/index.js',
         },
+      }),
+    ];
+
+    await closePluginTabs('media');
+
+    expect(tabbarStore.getTabs.map((item) => item.path)).toEqual([
+      '/system/plugin',
+    ]);
+  });
+
+  it('closes plugin tabs by string authority metadata', async () => {
+    const tabbarStore = useTabbarStore();
+    tabbarStore.tabs = [
+      tab('/system/plugin', 'Plugin Management'),
+      tab('/dynamic-media', 'Dynamic Media', {
+        authority: 'media:page',
       }),
     ];
 
