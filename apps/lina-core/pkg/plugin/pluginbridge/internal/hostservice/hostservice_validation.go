@@ -228,22 +228,6 @@ func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 				}
 			}
 		}
-		if spec.Service == HostServiceAI {
-			for _, resource := range spec.Resources {
-				if resource == nil {
-					continue
-				}
-				if !strings.HasPrefix(resource.Ref, "purpose:") || strings.TrimSpace(strings.TrimPrefix(resource.Ref, "purpose:")) == "" {
-					return gerror.Newf("host service %s resource ref must use purpose:<name>: %s", spec.Service, resource.Ref)
-				}
-				if len(resource.AllowMethods) > 0 || len(resource.HeaderAllowList) > 0 || resource.TimeoutMs > 0 || resource.MaxBodyBytes > 0 {
-					return gerror.Newf("host service %s purpose resources only allow attributes: %s", spec.Service, resource.Ref)
-				}
-				if err := validateAIResourceAttributes(resource.Attributes); err != nil {
-					return gerror.Wrapf(err, "host service %s has invalid ai resource attributes", spec.Service)
-				}
-			}
-		}
 	}
 
 	sort.Slice(specs, func(i, j int) bool {
@@ -291,82 +275,6 @@ func normalizePluginIDForTableNamespace(pluginID string) string {
 	}
 	replacer := strings.NewReplacer("-", "_", ".", "_")
 	return replacer.Replace(trimmed)
-}
-
-// validateAIResourceAttributes validates optional governance attributes on AI purpose resources.
-func validateAIResourceAttributes(attributes map[string]string) error {
-	for key, value := range attributes {
-		switch key {
-		case "defaultTier":
-			switch value {
-			case "", "basic", "standard", "advanced":
-			default:
-				return gerror.Newf("defaultTier must be basic, standard, or advanced: %s", value)
-			}
-		case "maxOutputTokens", "maxPayloadBytes", "maxInputAssets", "maxOutputAssets", "maxAssetBytes":
-			if err := validatePositiveIntegerAttribute(key, value); err != nil {
-				return err
-			}
-		case "allowOperation", "allowOperationCancel":
-			if err := validateBooleanAttribute(key, value); err != nil {
-				return err
-			}
-		case "allowedMimeTypes":
-			if err := validateMIMEListAttribute(value); err != nil {
-				return err
-			}
-		default:
-			return gerror.Newf("unsupported ai resource attribute: %s", key)
-		}
-	}
-	return nil
-}
-
-// validatePositiveIntegerAttribute checks string-encoded positive integer policy attributes.
-func validatePositiveIntegerAttribute(key string, value string) error {
-	if strings.TrimSpace(value) == "" {
-		return gerror.Newf("%s cannot be empty", key)
-	}
-	allZero := true
-	for _, r := range value {
-		if r < '0' || r > '9' {
-			return gerror.Newf("%s must be a positive integer: %s", key, value)
-		}
-		if r != '0' {
-			allZero = false
-		}
-	}
-	if allZero {
-		return gerror.Newf("%s must be greater than zero", key)
-	}
-	return nil
-}
-
-// validateBooleanAttribute checks string-encoded boolean policy attributes.
-func validateBooleanAttribute(key string, value string) error {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "true", "false":
-		return nil
-	default:
-		return gerror.Newf("%s must be true or false: %s", key, value)
-	}
-}
-
-// validateMIMEListAttribute checks comma-separated MIME type allow-list values.
-func validateMIMEListAttribute(value string) error {
-	if strings.TrimSpace(value) == "" {
-		return gerror.New("allowedMimeTypes cannot be empty")
-	}
-	for _, item := range strings.Split(value, ",") {
-		mimeType := strings.TrimSpace(item)
-		if mimeType == "" {
-			return gerror.New("allowedMimeTypes cannot contain empty entries")
-		}
-		if !strings.Contains(mimeType, "/") && mimeType != "*" {
-			return gerror.Newf("allowedMimeTypes contains invalid mime type: %s", mimeType)
-		}
-	}
-	return nil
 }
 
 // defaultHostServiceMethods returns service-specific default method grants.

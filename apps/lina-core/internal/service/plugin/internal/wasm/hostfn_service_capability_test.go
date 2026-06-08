@@ -254,7 +254,7 @@ func TestHandleHostServiceInvokeTenantMethods(t *testing.T) {
 }
 
 // TestHandleHostServiceInvokeAITextGenerate verifies AI host-service calls are
-// purpose-authorized and routed through capability.Services.AIText.
+// method-authorized and routed through capability.Services.AIText.
 func TestHandleHostServiceInvokeAITextGenerate(t *testing.T) {
 	aiSvc := &capabilityHostServiceAITextService{
 		response: &aitext.GenerateResponse{
@@ -278,12 +278,11 @@ func TestHandleHostServiceInvokeAITextGenerate(t *testing.T) {
 	}
 	t.Cleanup(func() { aiTextHostServices = previous })
 
-	response := invokeCapabilityHostServiceWithResource(
+	response := invokeCapabilityHostService(
 		t,
-		aiTextHostCallContext("purpose:content.summary", "1024"),
+		aiTextHostCallContext(),
 		protocol.HostServiceAI,
 		protocol.HostServiceMethodAITextGenerate,
-		"purpose:content.summary",
 		protocol.MarshalHostServiceAITextGenerateRequest(
 			&protocol.HostServiceAITextGenerateRequest{
 				Purpose:         "content.summary",
@@ -306,11 +305,14 @@ func TestHandleHostServiceInvokeAITextGenerate(t *testing.T) {
 	if aiSvc.lastSourcePluginID != "test-ai-plugin" || aiSvc.lastRequest.Purpose != "content.summary" {
 		t.Fatalf("unexpected routed ai request: source=%s request=%#v", aiSvc.lastSourcePluginID, aiSvc.lastRequest)
 	}
+	if aiSvc.lastRequest.MaxOutputTokens != 512 {
+		t.Fatalf("expected dto maxOutputTokens to pass through, got %d", aiSvc.lastRequest.MaxOutputTokens)
+	}
 }
 
-// TestHandleHostServiceInvokeAITextRejectsUnauthorizedPurpose verifies the
-// handler rejects calls before touching the text AI service when purpose is not authorized.
-func TestHandleHostServiceInvokeAITextRejectsUnauthorizedPurpose(t *testing.T) {
+// TestHandleHostServiceInvokeAITextRoutesPurposeFromDTO verifies purpose stays
+// a request DTO field instead of a host-service resource authorization key.
+func TestHandleHostServiceInvokeAITextRoutesPurposeFromDTO(t *testing.T) {
 	aiSvc := &capabilityHostServiceAITextService{}
 	services := &capabilityHostServiceTestServices{
 		org:    orgcap.New(nil),
@@ -323,12 +325,11 @@ func TestHandleHostServiceInvokeAITextRejectsUnauthorizedPurpose(t *testing.T) {
 	}
 	t.Cleanup(func() { aiTextHostServices = previous })
 
-	response := invokeCapabilityHostServiceWithResource(
+	response := invokeCapabilityHostService(
 		t,
-		aiTextHostCallContext("purpose:content.summary", "256"),
+		aiTextHostCallContext(),
 		protocol.HostServiceAI,
 		protocol.HostServiceMethodAITextGenerate,
-		"purpose:content.summary",
 		protocol.MarshalHostServiceAITextGenerateRequest(
 			&protocol.HostServiceAITextGenerateRequest{
 				Purpose:         "code.review",
@@ -340,17 +341,17 @@ func TestHandleHostServiceInvokeAITextRejectsUnauthorizedPurpose(t *testing.T) {
 			},
 		),
 	)
-	if response.Status != protocol.HostCallStatusCapabilityDenied {
-		t.Fatalf("expected capability denied, got status=%d payload=%s", response.Status, string(response.Payload))
+	if response.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected ai text success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
-	if aiSvc.called {
-		t.Fatal("expected unauthorized purpose to be rejected before AI service call")
+	if !aiSvc.called || aiSvc.lastRequest.Purpose != "code.review" {
+		t.Fatalf("expected purpose to reach AI service from DTO, called=%v request=%#v", aiSvc.called, aiSvc.lastRequest)
 	}
 }
 
-// TestHandleHostServiceInvokeAITextRejectsOutputLimit verifies purpose policy
-// attributes constrain requests before provider dispatch.
-func TestHandleHostServiceInvokeAITextRejectsOutputLimit(t *testing.T) {
+// TestHandleHostServiceInvokeAITextDoesNotEnforceOutputLimit verifies bridge
+// dispatch no longer enforces resource maxOutputTokens policy.
+func TestHandleHostServiceInvokeAITextDoesNotEnforceOutputLimit(t *testing.T) {
 	aiSvc := &capabilityHostServiceAITextService{}
 	services := &capabilityHostServiceTestServices{
 		org:    orgcap.New(nil),
@@ -363,12 +364,11 @@ func TestHandleHostServiceInvokeAITextRejectsOutputLimit(t *testing.T) {
 	}
 	t.Cleanup(func() { aiTextHostServices = previous })
 
-	response := invokeCapabilityHostServiceWithResource(
+	response := invokeCapabilityHostService(
 		t,
-		aiTextHostCallContext("purpose:content.summary", "64"),
+		aiTextHostCallContext(),
 		protocol.HostServiceAI,
 		protocol.HostServiceMethodAITextGenerate,
-		"purpose:content.summary",
 		protocol.MarshalHostServiceAITextGenerateRequest(
 			&protocol.HostServiceAITextGenerateRequest{
 				Purpose:         "content.summary",
@@ -380,17 +380,17 @@ func TestHandleHostServiceInvokeAITextRejectsOutputLimit(t *testing.T) {
 			},
 		),
 	)
-	if response.Status != protocol.HostCallStatusInvalidRequest {
-		t.Fatalf("expected invalid request, got status=%d payload=%s", response.Status, string(response.Payload))
+	if response.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected ai text success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
-	if aiSvc.called {
-		t.Fatal("expected maxOutputTokens policy to reject before AI service call")
+	if !aiSvc.called || aiSvc.lastRequest.MaxOutputTokens != 128 {
+		t.Fatalf("expected maxOutputTokens to pass through, called=%v request=%#v", aiSvc.called, aiSvc.lastRequest)
 	}
 }
 
-// TestHandleHostServiceInvokeAITextAppliesDefaultOutputLimit verifies omitted
-// maxOutputTokens cannot bypass the authorized purpose policy.
-func TestHandleHostServiceInvokeAITextAppliesDefaultOutputLimit(t *testing.T) {
+// TestHandleHostServiceInvokeAITextDoesNotApplyDefaultOutputLimit verifies the
+// bridge does not derive default output limits from host-service resources.
+func TestHandleHostServiceInvokeAITextDoesNotApplyDefaultOutputLimit(t *testing.T) {
 	aiSvc := &capabilityHostServiceAITextService{}
 	services := &capabilityHostServiceTestServices{
 		org:    orgcap.New(nil),
@@ -403,12 +403,11 @@ func TestHandleHostServiceInvokeAITextAppliesDefaultOutputLimit(t *testing.T) {
 	}
 	t.Cleanup(func() { aiTextHostServices = previous })
 
-	response := invokeCapabilityHostServiceWithResource(
+	response := invokeCapabilityHostService(
 		t,
-		aiTextHostCallContext("purpose:content.summary", "96"),
+		aiTextHostCallContext(),
 		protocol.HostServiceAI,
 		protocol.HostServiceMethodAITextGenerate,
-		"purpose:content.summary",
 		protocol.MarshalHostServiceAITextGenerateRequest(
 			&protocol.HostServiceAITextGenerateRequest{
 				Purpose: "content.summary",
@@ -422,8 +421,40 @@ func TestHandleHostServiceInvokeAITextAppliesDefaultOutputLimit(t *testing.T) {
 	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected ai text success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
-	if aiSvc.lastRequest.MaxOutputTokens != 96 {
-		t.Fatalf("expected omitted maxOutputTokens to use authorized cap, got %d", aiSvc.lastRequest.MaxOutputTokens)
+	if aiSvc.lastRequest.MaxOutputTokens != 0 {
+		t.Fatalf("expected omitted maxOutputTokens to stay unset, got %d", aiSvc.lastRequest.MaxOutputTokens)
+	}
+}
+
+// TestHandleHostServiceInvokeAIRejectsUnauthorizedMethod verifies host-service
+// method authorization rejects undeclared AI methods before dispatch.
+func TestHandleHostServiceInvokeAIRejectsUnauthorizedMethod(t *testing.T) {
+	aiSvc := &capabilityHostServiceAITextService{}
+	services := &capabilityHostServiceTestServices{
+		org:    orgcap.New(nil),
+		aiText: aiSvc,
+		tenant: tenantcap.New(nil, nil),
+	}
+	previous := aiTextHostServices
+	if err := ConfigureAITextHostService(services); err != nil {
+		t.Fatalf("configure ai text host service failed: %v", err)
+	}
+	t.Cleanup(func() { aiTextHostServices = previous })
+
+	hcc := aiTextHostCallContext()
+	hcc.capabilities[protocol.CapabilityAIDocument] = struct{}{}
+	response := invokeCapabilityHostService(
+		t,
+		hcc,
+		protocol.HostServiceAI,
+		protocol.HostServiceMethodAIDocumentCite,
+		nil,
+	)
+	if response.Status != protocol.HostCallStatusCapabilityDenied {
+		t.Fatalf("expected capability denied, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	if aiSvc.called {
+		t.Fatal("expected unauthorized method to be rejected before AI service call")
 	}
 }
 
@@ -444,12 +475,11 @@ func TestHandleHostServiceInvokeAITextRedactsProviderErrors(t *testing.T) {
 	}
 	t.Cleanup(func() { aiTextHostServices = previous })
 
-	response := invokeCapabilityHostServiceWithResource(
+	response := invokeCapabilityHostService(
 		t,
-		aiTextHostCallContext("purpose:content.summary", "256"),
+		aiTextHostCallContext(),
 		protocol.HostServiceAI,
 		protocol.HostServiceMethodAITextGenerate,
-		"purpose:content.summary",
 		protocol.MarshalHostServiceAITextGenerateRequest(
 			&protocol.HostServiceAITextGenerateRequest{
 				Purpose:         "content.summary",
@@ -486,7 +516,7 @@ func TestConfigureCapabilityHostServicesRejectNil(t *testing.T) {
 	}
 }
 
-// invokeCapabilityHostService dispatches one organization or tenant host-service request.
+// invokeCapabilityHostService dispatches one method-authorized host-service request.
 func invokeCapabilityHostService(
 	t *testing.T,
 	hcc *hostCallContext,
@@ -561,7 +591,7 @@ func orgTenantHostCallContext() *hostCallContext {
 }
 
 // aiTextHostCallContext builds an authorized AI text host service context.
-func aiTextHostCallContext(resourceRef string, maxOutputTokens string) *hostCallContext {
+func aiTextHostCallContext() *hostCallContext {
 	return &hostCallContext{
 		pluginID: "test-ai-plugin",
 		capabilities: map[string]struct{}{
@@ -572,15 +602,6 @@ func aiTextHostCallContext(resourceRef string, maxOutputTokens string) *hostCall
 				Service: protocol.HostServiceAI,
 				Methods: []string{
 					protocol.HostServiceMethodAITextGenerate,
-				},
-				Resources: []*protocol.HostServiceResourceSpec{
-					{
-						Ref: resourceRef,
-						Attributes: map[string]string{
-							"defaultTier":     "basic",
-							"maxOutputTokens": maxOutputTokens,
-						},
-					},
 				},
 			},
 		},

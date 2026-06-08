@@ -21,9 +21,9 @@ import (
 
 // HostServiceAITextGenerateRequest carries one text generation host-service request.
 type HostServiceAITextGenerateRequest struct {
-	// Purpose is the governed calling scenario and must match resourceRef.
+	// Purpose is the governed calling scenario passed to the AI capability.
 	Purpose string `json:"purpose"`
-	// Tier is the requested text AI tier; empty lets the resource default apply.
+	// Tier is the requested text AI tier; empty delegates defaulting to AI policy.
 	Tier aitext.Tier `json:"tier,omitempty"`
 	// Messages carries ordered plain-text generation context.
 	Messages []aitext.Message `json:"messages"`

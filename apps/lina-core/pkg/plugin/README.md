@@ -127,25 +127,22 @@ hostServices:
   - service: ai
     methods:
       - text.generate
-    resources:
-      - ref: purpose:report.summary
-        attributes:
-          defaultTier: standard
+      - document.cite
 ```
 
 Resource declaration shapes:
 
 | Resource kind | Declaration fields | Services |
 |---------------|--------------------|----------|
-| `none` | No `paths`, `tables`, `keys`, or `resources`. | `runtime`, `cron`, `config`, `org`, `tenant` |
+| `none` | No `paths`, `tables`, `keys`, or `resources`. | `runtime`, `cron`, `config`, `ai`, `org`, `tenant` |
 | `path` | `paths` | `storage`, `manifest` |
 | `table` | `tables` | `data` |
 | `key` | `keys` | `hostconfig` |
-| `resource` | `resources[].ref` plus service-specific governance fields. | `network`, `cache`, `lock`, `notify`, `ai` |
+| `resource` | `resources[].ref` plus service-specific governance fields. | `network`, `cache`, `lock`, `notify` |
 
 `data` service tables are plugin-owned in production validation. A dynamic plugin must not declare host core tables such as `sys_*`.
 
-`network` resources use authorized `http` or `https` URL patterns. `ai` resources use `purpose:<name>` refs and may include governed attributes such as `defaultTier`, `maxOutputTokens`, `maxPayloadBytes`, `maxInputAssets`, `maxOutputAssets`, `maxAssetBytes`, `allowOperation`, `allowOperationCancel`, and `allowedMimeTypes`.
+`network` resources use authorized `http` or `https` URL patterns. `ai` uses method declarations only; request DTOs carry `purpose`, `tier`, `maxOutputTokens`, asset references, and other method parameters for the `AI` capability service and `linapro-ai-core` to validate.
 
 `config`, `hostconfig`, and `manifest` default to `get` when methods are omitted. The dynamic guest config helpers such as `Exists`, `String`, `Bool`, `Int`, and `Duration` map through `config.get`; `plugin.yaml` should still declare `config.get`.
 
@@ -168,7 +165,7 @@ This chapter lists the `hostServices` service names dynamic plugins can declare 
 | `config` | `none` | Read-only access to the current plugin runtime configuration. |
 | `hostconfig` | `key` | Read-only access to explicitly authorized host configuration keys. |
 | `manifest` | `path` | Read-only access to plugin-scoped resources under `manifest/`. |
-| `ai` | `resource` | Governed typed `AI` calls authorized by `purpose:<name>` resources. |
+| `ai` | `none` | Governed typed `AI` calls authorized by declared methods; request DTOs carry `purpose`, `tier`, and method parameters. |
 | `org` | `none` | Organization capability status and user organization projections. |
 | `tenant` | `none` | Tenant capability status, current tenant, visibility, membership, and switch checks. |
 

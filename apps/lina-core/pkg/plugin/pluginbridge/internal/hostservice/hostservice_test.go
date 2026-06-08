@@ -511,26 +511,25 @@ func TestValidateHostServiceSpecsAcceptsCacheLockNotifyResources(t *testing.T) {
 	}
 }
 
-// TestValidateHostServiceSpecsAcceptsAITextPurposeResources verifies AI text
-// host service declarations derive host:ai:text and require purpose resources.
-func TestValidateHostServiceSpecsAcceptsAITextPurposeResources(t *testing.T) {
+// TestValidateHostServiceSpecsAcceptsAITextMethodsWithoutResources verifies AI
+// text host service declarations derive host:ai:text without resource refs.
+func TestValidateHostServiceSpecsAcceptsAITextMethodsWithoutResources(t *testing.T) {
 	specs := []*HostServiceSpec{{
-		Service: HostServiceAI,
-		Methods: []string{HostServiceMethodAITextGenerate},
-		Resources: []*HostServiceResourceSpec{{
-			Ref: " purpose:content.summary ",
-			Attributes: map[string]string{
-				"defaultTier":     "basic",
-				"maxOutputTokens": "1024",
-			},
-		}},
+		Service: " AI ",
+		Methods: []string{" Text.Generate "},
 	}}
 
 	if err := ValidateHostServiceSpecs(specs); err != nil {
 		t.Fatalf("expected ai text host service specs to validate, got %v", err)
 	}
-	if specs[0].Resources[0].Ref != "purpose:content.summary" {
-		t.Fatalf("expected normalized purpose resource ref, got %#v", specs[0].Resources[0])
+	if len(specs[0].Resources) != 0 {
+		t.Fatalf("expected ai host service to stay resource-less, got %#v", specs[0].Resources)
+	}
+	if specs[0].Service != HostServiceAI {
+		t.Fatalf("expected normalized ai service, got %s", specs[0].Service)
+	}
+	if len(specs[0].Methods) != 1 || specs[0].Methods[0] != HostServiceMethodAITextGenerate {
+		t.Fatalf("expected normalized ai text method, got %#v", specs[0].Methods)
 	}
 	capabilities := CapabilityMapFromHostServices(specs)
 	if _, ok := capabilities[CapabilityAIText]; !ok {
@@ -538,9 +537,10 @@ func TestValidateHostServiceSpecsAcceptsAITextPurposeResources(t *testing.T) {
 	}
 }
 
-// TestValidateHostServiceSpecsAcceptsAIMultimodalPurposeResources verifies
-// multimodal AI host service declarations derive method-specific capabilities.
-func TestValidateHostServiceSpecsAcceptsAIMultimodalPurposeResources(t *testing.T) {
+// TestValidateHostServiceSpecsAcceptsAIMultimodalMethodsWithoutResources
+// verifies multimodal AI declarations derive method-specific capabilities
+// without resource refs.
+func TestValidateHostServiceSpecsAcceptsAIMultimodalMethodsWithoutResources(t *testing.T) {
 	specs := []*HostServiceSpec{{
 		Service: HostServiceAI,
 		Methods: []string{
@@ -553,18 +553,6 @@ func TestValidateHostServiceSpecsAcceptsAIMultimodalPurposeResources(t *testing.
 			HostServiceMethodAIVideoGenerate,
 			HostServiceMethodAIVideoOperationGet,
 		},
-		Resources: []*HostServiceResourceSpec{{
-			Ref: " purpose:media.pipeline ",
-			Attributes: map[string]string{
-				"defaultTier":      "standard",
-				"maxPayloadBytes":  "4096",
-				"maxInputAssets":   "4",
-				"maxOutputAssets":  "2",
-				"maxAssetBytes":    "1048576",
-				"allowedMimeTypes": "image/*,audio/mpeg,application/pdf",
-				"allowOperation":   "true",
-			},
-		}},
 	}}
 
 	if err := ValidateHostServiceSpecs(specs); err != nil {
@@ -586,20 +574,33 @@ func TestValidateHostServiceSpecsAcceptsAIMultimodalPurposeResources(t *testing.
 	}
 }
 
-// TestValidateHostServiceSpecsRejectsAITextInvalidResources verifies unsupported
-// AI methods and non-purpose resources are rejected before runtime.
-func TestValidateHostServiceSpecsRejectsAITextInvalidResources(t *testing.T) {
+// TestValidateHostServiceSpecsRejectsAIUnsupportedMethods verifies unsupported
+// AI methods are rejected before runtime.
+func TestValidateHostServiceSpecsRejectsAIUnsupportedMethods(t *testing.T) {
 	for _, testCase := range []HostServiceSpec{
 		{
 			Service: HostServiceAI,
 			Methods: []string{"computer.act"},
-			Resources: []*HostServiceResourceSpec{{
-				Ref: "purpose:content.summary",
-			}},
 		},
 		{
 			Service: HostServiceAI,
 			Methods: []string{"ui.operate"},
+		},
+	} {
+		spec := testCase
+		if err := ValidateHostServiceSpecs([]*HostServiceSpec{&spec}); err == nil {
+			t.Fatalf("expected invalid ai host service method to be rejected: %#v", testCase)
+		}
+	}
+}
+
+// TestValidateHostServiceSpecsRejectsAIResources verifies AI declarations use
+// method authorization only and reject every resource declaration shape.
+func TestValidateHostServiceSpecsRejectsAIResources(t *testing.T) {
+	for _, testCase := range []HostServiceSpec{
+		{
+			Service: HostServiceAI,
+			Methods: []string{HostServiceMethodAITextGenerate},
 			Resources: []*HostServiceResourceSpec{{
 				Ref: "purpose:content.summary",
 			}},
@@ -607,22 +608,22 @@ func TestValidateHostServiceSpecsRejectsAITextInvalidResources(t *testing.T) {
 		{
 			Service: HostServiceAI,
 			Methods: []string{HostServiceMethodAITextGenerate},
-			Resources: []*HostServiceResourceSpec{{
-				Ref: "content.summary",
-			}},
+			Paths:   []string{"reports/"},
 		},
 		{
 			Service: HostServiceAI,
 			Methods: []string{HostServiceMethodAITextGenerate},
-			Resources: []*HostServiceResourceSpec{{
-				Ref:        "purpose:content.summary",
-				Attributes: map[string]string{"maxOutputTokens": "all"},
-			}},
+			Tables:  []string{"plugin_demo_reports"},
+		},
+		{
+			Service: HostServiceAI,
+			Methods: []string{HostServiceMethodAITextGenerate},
+			Keys:    []string{"ai.default"},
 		},
 	} {
 		spec := testCase
 		if err := ValidateHostServiceSpecs([]*HostServiceSpec{&spec}); err == nil {
-			t.Fatalf("expected invalid ai host service declaration to be rejected: %#v", testCase)
+			t.Fatalf("expected ai host service resources to be rejected: %#v", testCase)
 		}
 	}
 }

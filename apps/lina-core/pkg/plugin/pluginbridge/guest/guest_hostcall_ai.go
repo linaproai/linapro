@@ -1,6 +1,6 @@
 // This file implements guest-side text AI capability calls that cross the
-// pluginbridge host-service transport. Purpose resource authorization is
-// expressed through the host-service resourceRef.
+// pluginbridge host-service transport. Authorization is scoped to the declared
+// AI host-service method; purpose and tier stay in the request DTO.
 
 package guest
 
@@ -22,7 +22,7 @@ import (
 // AITextService exposes guest-side governed text AI generation.
 type AITextService interface {
 	// GenerateText executes one governed text generation call through the host
-	// AI service. The call is authorized by purpose resource and returns the
+	// AI service. The call is authorized by service method and returns the
 	// same stable DTO used by source-plugin text AI consumers.
 	GenerateText(ctx context.Context, request aitext.GenerateRequest) (*aitext.GenerateResponse, error)
 }
@@ -180,10 +180,8 @@ func (aiTextService) GenerateText(_ context.Context, request aitext.GenerateRequ
 			Metadata:        request.Metadata,
 		},
 	)
-	err := invokeCapabilityJSONWithResource(
-		protocol.HostServiceAI,
+	err := invokeAIJSON(
 		protocol.HostServiceMethodAITextGenerate,
-		aitext.PurposeResourceRef(request.Purpose),
 		payload,
 		&response,
 	)
@@ -198,7 +196,6 @@ func (aiImageService) Generate(_ context.Context, request aiimage.GenerateReques
 	var response aiimage.Response
 	err := invokeAIJSON(
 		protocol.HostServiceMethodAIImageGenerate,
-		aicommon.PurposeResourceRef(request.Purpose),
 		protocol.MarshalHostServiceAIImageGenerateRequest(&request),
 		&response,
 	)
@@ -213,7 +210,6 @@ func (aiImageService) Edit(_ context.Context, request aiimage.EditRequest) (*aii
 	var response aiimage.Response
 	err := invokeAIJSON(
 		protocol.HostServiceMethodAIImageEdit,
-		aicommon.PurposeResourceRef(request.Purpose),
 		protocol.MarshalHostServiceAIImageEditRequest(&request),
 		&response,
 	)
@@ -228,7 +224,6 @@ func (aiEmbeddingService) Create(_ context.Context, request aiembedding.CreateRe
 	var response aiembedding.CreateResponse
 	err := invokeAIJSON(
 		protocol.HostServiceMethodAIEmbeddingCreate,
-		aicommon.PurposeResourceRef(request.Purpose),
 		protocol.MarshalHostServiceAIEmbeddingCreateRequest(&request),
 		&response,
 	)
@@ -243,7 +238,6 @@ func (aiAudioService) Transcribe(_ context.Context, request aiaudio.TranscribeRe
 	var response aiaudio.TranscribeResponse
 	err := invokeAIJSON(
 		protocol.HostServiceMethodAIAudioTranscribe,
-		aicommon.PurposeResourceRef(request.Purpose),
 		protocol.MarshalHostServiceAIAudioTranscribeRequest(&request),
 		&response,
 	)
@@ -258,7 +252,6 @@ func (aiAudioService) Synthesize(_ context.Context, request aiaudio.SynthesizeRe
 	var response aiaudio.SynthesizeResponse
 	err := invokeAIJSON(
 		protocol.HostServiceMethodAIAudioSynthesize,
-		aicommon.PurposeResourceRef(request.Purpose),
 		protocol.MarshalHostServiceAIAudioSynthesizeRequest(&request),
 		&response,
 	)
@@ -273,7 +266,6 @@ func (aiVisionService) Analyze(_ context.Context, request aivision.AnalyzeReques
 	var response aivision.AnalyzeResponse
 	err := invokeAIJSON(
 		protocol.HostServiceMethodAIVisionAnalyze,
-		aicommon.PurposeResourceRef(request.Purpose),
 		protocol.MarshalHostServiceAIVisionAnalyzeRequest(&request),
 		&response,
 	)
@@ -288,7 +280,6 @@ func (aiDocumentService) Analyze(_ context.Context, request aidocument.AnalyzeRe
 	var response aidocument.Response
 	err := invokeAIJSON(
 		protocol.HostServiceMethodAIDocumentAnalyze,
-		aicommon.PurposeResourceRef(request.Purpose),
 		protocol.MarshalHostServiceAIDocumentAnalyzeRequest(&request),
 		&response,
 	)
@@ -303,7 +294,6 @@ func (aiDocumentService) Cite(_ context.Context, request aidocument.CiteRequest)
 	var response aidocument.Response
 	err := invokeAIJSON(
 		protocol.HostServiceMethodAIDocumentCite,
-		aicommon.PurposeResourceRef(request.Purpose),
 		protocol.MarshalHostServiceAIDocumentCiteRequest(&request),
 		&response,
 	)
@@ -318,7 +308,6 @@ func (aiSafetyService) Moderate(_ context.Context, request aisafety.ModerateRequ
 	var response aisafety.ModerateResponse
 	err := invokeAIJSON(
 		protocol.HostServiceMethodAISafetyModerate,
-		aicommon.PurposeResourceRef(request.Purpose),
 		protocol.MarshalHostServiceAISafetyModerateRequest(&request),
 		&response,
 	)
@@ -333,7 +322,6 @@ func (aiVideoService) Generate(_ context.Context, request aivideo.GenerateReques
 	var response aivideo.Response
 	err := invokeAIJSON(
 		protocol.HostServiceMethodAIVideoGenerate,
-		aicommon.PurposeResourceRef(request.Purpose),
 		protocol.MarshalHostServiceAIVideoGenerateRequest(&request),
 		&response,
 	)
@@ -348,7 +336,6 @@ func (aiVideoService) Edit(_ context.Context, request aivideo.EditRequest) (*aiv
 	var response aivideo.Response
 	err := invokeAIJSON(
 		protocol.HostServiceMethodAIVideoEdit,
-		aicommon.PurposeResourceRef(request.Purpose),
 		protocol.MarshalHostServiceAIVideoEditRequest(&request),
 		&response,
 	)
@@ -363,7 +350,6 @@ func (aiVideoService) Extend(_ context.Context, request aivideo.ExtendRequest) (
 	var response aivideo.Response
 	err := invokeAIJSON(
 		protocol.HostServiceMethodAIVideoExtend,
-		aicommon.PurposeResourceRef(request.Purpose),
 		protocol.MarshalHostServiceAIVideoExtendRequest(&request),
 		&response,
 	)
@@ -378,7 +364,6 @@ func (aiVideoService) OperationGet(_ context.Context, request aivideo.OperationG
 	var response aivideo.Response
 	err := invokeAIJSON(
 		protocol.HostServiceMethodAIVideoOperationGet,
-		aicommon.PurposeResourceRef(request.Purpose),
 		protocol.MarshalHostServiceAIVideoOperationGetRequest(&request),
 		&response,
 	)
@@ -393,7 +378,6 @@ func (aiVideoService) OperationCancel(_ context.Context, request aivideo.Operati
 	var response aicommon.ProviderOperationRef
 	err := invokeAIJSON(
 		protocol.HostServiceMethodAIVideoOperationCancel,
-		aicommon.PurposeResourceRef(request.Purpose),
 		protocol.MarshalHostServiceAIVideoOperationCancelRequest(&request),
 		&response,
 	)
@@ -403,6 +387,6 @@ func (aiVideoService) OperationCancel(_ context.Context, request aivideo.Operati
 	return &response, nil
 }
 
-func invokeAIJSON(method string, resourceRef string, payload []byte, out any) error {
-	return invokeCapabilityJSONWithResource(protocol.HostServiceAI, method, resourceRef, payload, out)
+func invokeAIJSON(method string, payload []byte, out any) error {
+	return invokeCapabilityJSON(protocol.HostServiceAI, method, payload, out)
 }

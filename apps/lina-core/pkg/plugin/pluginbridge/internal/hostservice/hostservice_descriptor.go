@@ -179,7 +179,7 @@ var hostServiceDescriptors = []HostServiceDescriptor{
 	},
 	{
 		Service:      HostServiceAI,
-		ResourceKind: HostServiceResourceRef,
+		ResourceKind: HostServiceResourceNone,
 		Methods: []HostServiceMethodDescriptor{
 			hostMethod(HostServiceMethodAITextGenerate, "HostServiceMethodAITextGenerate", CapabilityAIText, "HostServiceAITextGenerateRequest", "HostServiceCapabilityJSONResponse"),
 			hostMethod(HostServiceMethodAIImageGenerate, "HostServiceMethodAIImageGenerate", CapabilityAIImage, "HostServiceAIImageGenerateRequest", "HostServiceCapabilityJSONResponse"),

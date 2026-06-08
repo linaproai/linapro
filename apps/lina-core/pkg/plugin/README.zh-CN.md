@@ -127,25 +127,22 @@ hostServices:
   - service: ai
     methods:
       - text.generate
-    resources:
-      - ref: purpose:report.summary
-        attributes:
-          defaultTier: standard
+      - document.cite
 ```
 
 资源声明形态：
 
 | 资源类型 | 声明字段 | 服务 |
 |----------|----------|------|
-| `none` | 不声明`paths`、`tables`、`keys`或`resources`。 | `runtime`、`cron`、`config`、`org`、`tenant` |
+| `none` | 不声明`paths`、`tables`、`keys`或`resources`。 | `runtime`、`cron`、`config`、`ai`、`org`、`tenant` |
 | `path` | `paths` | `storage`、`manifest` |
 | `table` | `tables` | `data` |
 | `key` | `keys` | `hostconfig` |
-| `resource` | `resources[].ref`以及服务专属治理字段。 | `network`、`cache`、`lock`、`notify`、`ai` |
+| `resource` | `resources[].ref`以及服务专属治理字段。 | `network`、`cache`、`lock`、`notify` |
 
 生产校验会要求`data`服务表属于插件自有命名空间。动态插件不得声明`sys_*`这类宿主核心表。
 
-`network`资源使用已授权的`http`或`https` URL pattern。`ai`资源使用`purpose:<name>`引用，并可包含`defaultTier`、`maxOutputTokens`、`maxPayloadBytes`、`maxInputAssets`、`maxOutputAssets`、`maxAssetBytes`、`allowOperation`、`allowOperationCancel`和`allowedMimeTypes`等受治理属性。
+`network`资源使用已授权的`http`或`https` URL pattern。`ai`只使用方法声明；请求 DTO 中携带`purpose`、`tier`、`maxOutputTokens`、资产引用和其他方法参数，并交由`AI`能力服务与`linapro-ai-core`校验。
 
 `config`、`hostconfig`和`manifest`在省略方法时默认使用`get`。动态`guest`配置辅助方法，例如`Exists`、`String`、`Bool`、`Int`和`Duration`，都会映射到`config.get`；`plugin.yaml`中仍应声明`config.get`。
 
@@ -168,7 +165,7 @@ hostServices:
 | `config` | `none` | 只读访问当前插件运行时配置。 |
 | `hostconfig` | `key` | 只读访问显式授权的宿主配置键。 |
 | `manifest` | `path` | 只读访问插件作用域`manifest/`资源。 |
-| `ai` | `resource` | 通过`purpose:<name>`资源授权的受治理类型化`AI`调用。 |
+| `ai` | `none` | 通过声明方法授权的受治理类型化`AI`调用；请求 DTO 携带`purpose`、`tier`和方法参数。 |
 | `org` | `none` | 组织能力状态和用户组织投影。 |
 | `tenant` | `none` | 租户能力状态、当前租户、可见性、成员关系和切换校验。 |
 
