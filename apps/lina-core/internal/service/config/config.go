@@ -138,6 +138,8 @@ type PluginConfigReader interface {
 	GetPluginAutoEnableEntries(ctx context.Context) []PluginAutoEnableEntry
 	// GetPluginDynamicStoragePath returns the runtime-resolved dynamic wasm storage directory.
 	GetPluginDynamicStoragePath(ctx context.Context) string
+	// GetPluginStorage returns plugin object-storage provider configuration.
+	GetPluginStorage(ctx context.Context) PluginStorageConfig
 }
 
 // UploadConfigReader reads upload storage and size-limit settings.

@@ -58,8 +58,8 @@ const (
 	ExtensionPointSystemStarted ExtensionPoint = "system.started"
 	// ExtensionPointHTTPRouteRegister registers plugin-owned HTTP routes at host startup.
 	ExtensionPointHTTPRouteRegister ExtensionPoint = "http.route.register"
-	// ExtensionPointCronRegister registers plugin-owned cron jobs.
-	ExtensionPointCronRegister ExtensionPoint = "cron.register"
+	// ExtensionPointJobsRegister registers plugin-owned scheduled jobs.
+	ExtensionPointJobsRegister ExtensionPoint = "jobs.register"
 	// ExtensionPointMenuFilter filters host menus.
 	ExtensionPointMenuFilter ExtensionPoint = "menu.filter"
 	// ExtensionPointPermissionFilter filters host permissions.
@@ -92,7 +92,7 @@ var publishedExtensionPoints = map[ExtensionPoint]ExtensionPointDefinition{
 	ExtensionPointPluginUpgraded:      {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointSystemStarted:       {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointHTTPRouteRegister:   {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
-	ExtensionPointCronRegister:        {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
+	ExtensionPointJobsRegister:        {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointMenuFilter:          {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointPermissionFilter:    {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
 }
@@ -139,7 +139,7 @@ var supportedExtensionPointModes = map[ExtensionPoint]map[CallbackExecutionMode]
 	ExtensionPointHTTPRouteRegister: {
 		CallbackExecutionModeBlocking: {},
 	},
-	ExtensionPointCronRegister: {
+	ExtensionPointJobsRegister: {
 		CallbackExecutionModeBlocking: {},
 	},
 	ExtensionPointMenuFilter: {

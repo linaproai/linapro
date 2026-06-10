@@ -23,7 +23,7 @@ func TestHandlerUnregisterPausesEnabledJobs(t *testing.T) {
 		registry  = jobhandler.New()
 		scheduler = &trackingScheduler{}
 		handler   = jobhandler.HandlerDef{
-			Ref:          "plugin:test-job-handler/cron:wait",
+			Ref:          "plugin:test-job-handler/jobs:wait",
 			DisplayName:  "Plugin Test Wait Handler",
 			Description:  "Used to verify registry cascade behavior.",
 			ParamsSchema: `{"type":"object","properties":{}}`,
@@ -34,7 +34,7 @@ func TestHandlerUnregisterPausesEnabledJobs(t *testing.T) {
 			},
 		}
 		disabledHandler = jobhandler.HandlerDef{
-			Ref:          "plugin:test-job-handler/cron:wait-disabled",
+			Ref:          "plugin:test-job-handler/jobs:wait-disabled",
 			DisplayName:  "Plugin Disabled Test Handler",
 			Description:  "Used to verify disabled builtin jobs stay untouched.",
 			ParamsSchema: `{"type":"object","properties":{}}`,
@@ -90,7 +90,7 @@ func TestHandlerRegisterRestoresPausedJobs(t *testing.T) {
 		registry  = jobhandler.New()
 		scheduler = &trackingScheduler{}
 		handler   = jobhandler.HandlerDef{
-			Ref:          "plugin:test-job-handler/cron:restore",
+			Ref:          "plugin:test-job-handler/jobs:restore",
 			DisplayName:  "Plugin Restore Handler",
 			Description:  "Used to verify paused job restoration.",
 			ParamsSchema: `{"type":"object","properties":{}}`,

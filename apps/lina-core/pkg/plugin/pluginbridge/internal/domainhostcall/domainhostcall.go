@@ -1,0 +1,96 @@
+// This file defines the guest-side domain hostcall client constructors and
+// shared request helpers. The package is intentionally internal so dynamic
+// plugin authors continue to depend only on pkg/plugin/pluginbridge.
+
+package domainhostcall
+
+import (
+	"encoding/json"
+
+	"github.com/gogf/gf/v2/errors/gerror"
+
+	"lina-core/pkg/plugin/pluginbridge/protocol"
+)
+
+// Invoker dispatches one already-encoded capability host-service request and
+// decodes the host response into out when supplied.
+type Invoker func(service string, method string, request []byte, out any) error
+
+// ResourceInvoker dispatches one resource-scoped capability host-service
+// request and decodes the host response into out when supplied.
+type ResourceInvoker func(service string, method string, resourceRef string, request []byte, out any) error
+
+// HostServiceInvoker dispatches one raw host-service request and returns the
+// encoded response payload.
+type HostServiceInvoker func(service string, method string, resourceRef string, table string, request []byte) ([]byte, error)
+
+// baseService stores the hostcall invoker shared by one concrete client.
+type baseService struct {
+	invoke         Invoker
+	invokeResource ResourceInvoker
+	invokeHost     HostServiceInvoker
+}
+
+// newBaseService wraps the injected hostcall invoker for concrete clients.
+func newBaseService(invoker Invoker) baseService {
+	return baseService{invoke: invoker}
+}
+
+// newBaseServiceWithResource wraps the injected resource-aware hostcall
+// invoker for concrete clients that require method-level resource references.
+func newBaseServiceWithResource(invoker ResourceInvoker) baseService {
+	return baseService{invokeResource: invoker}
+}
+
+// newBaseServiceWithHostService wraps both JSON and raw host-service invokers.
+func newBaseServiceWithHostService(invoker Invoker, hostInvoker HostServiceInvoker) baseService {
+	return baseService{invoke: invoker, invokeHost: hostInvoker}
+}
+
+// call dispatches one encoded request through the injected invoker.
+func (s baseService) call(service string, method string, request []byte, out any) error {
+	if s.invoke == nil {
+		if s.invokeResource != nil {
+			return s.invokeResource(service, method, "", request, out)
+		}
+		return gerror.New("domain hostcall invoker is nil")
+	}
+	return s.invoke(service, method, request, out)
+}
+
+// callResource dispatches one resource-scoped encoded request.
+func (s baseService) callResource(service string, method string, resourceRef string, request []byte, out any) error {
+	if s.invokeResource == nil {
+		if s.invoke != nil && resourceRef == "" {
+			return s.invoke(service, method, request, out)
+		}
+		return gerror.New("domain hostcall resource invoker is nil")
+	}
+	return s.invokeResource(service, method, resourceRef, request, out)
+}
+
+// callHostService dispatches one raw host-service request.
+func (s baseService) callHostService(service string, method string, resourceRef string, table string, request []byte) ([]byte, error) {
+	if s.invokeHost == nil {
+		return nil, gerror.New("domain raw hostcall invoker is nil")
+	}
+	return s.invokeHost(service, method, resourceRef, table, request)
+}
+
+// callJSONRequest encodes one JSON input envelope and dispatches it.
+func (s baseService) callJSONRequest(service string, method string, input any, out any) error {
+	var payload []byte
+	if input != nil {
+		content, err := json.Marshal(input)
+		if err != nil {
+			return err
+		}
+		payload = protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: content})
+	}
+	return s.call(service, method, payload, out)
+}
+
+// idsRequest carries a string identifier batch for JSON capability methods.
+type idsRequest struct {
+	IDs []string `json:"ids"`
+}

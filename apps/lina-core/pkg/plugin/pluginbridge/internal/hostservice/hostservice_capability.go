@@ -13,6 +13,7 @@ import (
 // capability derivation and resource validation share one governed metadata source.
 var (
 	hostServiceMethodCapabilityMap = buildHostServiceMethodCapabilityMap()
+	hostServiceMethodResourceMap   = buildHostServiceMethodResourceMap()
 	allCapabilities                = buildHostServiceCapabilitySet()
 	hostServiceDefaultMethods      = buildHostServiceDefaultMethods()
 	hostServicesWithoutResources   = buildHostServiceResourceKindSet(HostServiceResourceNone)

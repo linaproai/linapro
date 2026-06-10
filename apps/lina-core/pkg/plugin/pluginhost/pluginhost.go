@@ -1,5 +1,5 @@
 // Package pluginhost defines the public backend extension contracts that source
-// plugins use to register routes, hooks, cron jobs, and governance callbacks
+// plugins use to register routes, hooks, scheduled jobs, and governance callbacks
 // through grouped facade interfaces.
 package pluginhost
 
@@ -29,23 +29,23 @@ const (
 	DynamicAccessModeEmbeddedMount = "embedded-mount"
 )
 
-// SourcePlugin defines the grouped plugin-facing contract published to source
-// plugins during compile-time registration.
-type SourcePlugin interface {
+// Declarations defines the grouped declaration-time contract published to
+// source plugins during compile-time registration.
+type Declarations interface {
 	// ID returns the stable plugin identifier that must match `plugin.yaml`.
 	ID() string
 	// Assets returns the plugin asset registration facade.
-	Assets() SourcePluginAssets
+	Assets() AssetDeclarations
 	// Lifecycle returns the plugin lifecycle callback registration facade.
-	Lifecycle() SourcePluginLifecycle
+	Lifecycle() LifecycleDeclarations
 	// Hooks returns the event-hook registration facade.
-	Hooks() SourcePluginHooks
+	Hooks() HookDeclarations
 	// HTTP returns the HTTP registration facade.
-	HTTP() SourcePluginHTTP
-	// Cron returns the cron registration facade.
-	Cron() SourcePluginCron
+	HTTP() HTTPDeclarations
+	// Jobs returns the scheduled-job registration facade.
+	Jobs() JobDeclarations
 	// Governance returns the menu and permission governance registration facade.
-	Governance() SourcePluginGovernance
+	Governance() GovernanceDeclarations
 }
 
 // Services is the source-plugin runtime service directory used by registrar and
@@ -65,16 +65,16 @@ type Services interface {
 	TenantFilter() tenantcap.PluginTableFilterService
 }
 
-// SourcePluginAssets exposes plugin-owned asset declarations grouped under one
+// AssetDeclarations exposes plugin-owned asset declarations grouped under one
 // dedicated facade.
-type SourcePluginAssets interface {
+type AssetDeclarations interface {
 	// UseEmbeddedFiles binds one plugin-owned embedded filesystem.
 	UseEmbeddedFiles(fileSystem fs.FS)
 }
 
-// SourcePluginLifecycle exposes lifecycle callback registrations grouped under
+// LifecycleDeclarations exposes lifecycle callback registrations grouped under
 // one dedicated facade.
-type SourcePluginLifecycle interface {
+type LifecycleDeclarations interface {
 	// RegisterBeforeInstallHandler registers a pre-install lifecycle callback
 	// for the source plugin. The host invokes this callback before it applies
 	// install SQL, synchronizes plugin governance resources, or marks the plugin
@@ -209,30 +209,30 @@ type SourcePluginLifecycle interface {
 	RegisterUninstallHandler(handler SourcePluginUninstallHandler) error
 }
 
-// SourcePluginHooks exposes callback-style host hook registrations grouped
+// HookDeclarations exposes callback-style host hook registrations grouped
 // under one dedicated facade.
-type SourcePluginHooks interface {
+type HookDeclarations interface {
 	// RegisterHook registers one callback-style host hook handler.
 	RegisterHook(point ExtensionPoint, mode CallbackExecutionMode, handler HookHandler) error
 }
 
-// SourcePluginHTTP exposes HTTP-adjacent registrations grouped under one
+// HTTPDeclarations exposes HTTP-adjacent registrations grouped under one
 // dedicated facade.
-type SourcePluginHTTP interface {
+type HTTPDeclarations interface {
 	// RegisterRoutes registers one callback that contributes plugin-owned HTTP routes.
 	RegisterRoutes(point ExtensionPoint, mode CallbackExecutionMode, handler RouteRegisterHandler) error
 }
 
-// SourcePluginCron exposes cron registrations grouped under one dedicated
+// JobDeclarations exposes scheduled-job registrations grouped under one dedicated
 // facade.
-type SourcePluginCron interface {
-	// RegisterCron registers one callback that contributes plugin-owned cron jobs.
-	RegisterCron(point ExtensionPoint, mode CallbackExecutionMode, handler CronRegisterHandler) error
+type JobDeclarations interface {
+	// RegisterJobs registers one callback that contributes plugin-owned scheduled jobs.
+	RegisterJobs(point ExtensionPoint, mode CallbackExecutionMode, handler JobRegisterHandler) error
 }
 
-// SourcePluginGovernance exposes governance callback registrations grouped
+// GovernanceDeclarations exposes governance callback registrations grouped
 // under one dedicated facade.
-type SourcePluginGovernance interface {
+type GovernanceDeclarations interface {
 	// RegisterMenuFilter registers one callback that filters host menus.
 	RegisterMenuFilter(point ExtensionPoint, mode CallbackExecutionMode, handler MenuFilterHandler) error
 	// RegisterPermissionFilter registers one callback that filters host permissions.
@@ -242,15 +242,15 @@ type SourcePluginGovernance interface {
 // SourcePluginDefinition exposes the host-side read model restored from one
 // grouped source-plugin registration.
 type SourcePluginDefinition interface {
-	SourcePlugin
+	Declarations
 	// GetEmbeddedFiles returns the plugin-owned embedded filesystem when declared.
 	GetEmbeddedFiles() fs.FS
 	// GetHookHandlers returns the registered callback-style hook handlers.
 	GetHookHandlers() []*HookHandlerRegistration
 	// GetRouteRegistrars returns the registered route contribution callbacks.
 	GetRouteRegistrars() []*RouteHandlerRegistration
-	// GetCronRegistrars returns the registered cron contribution callbacks.
-	GetCronRegistrars() []*CronHandlerRegistration
+	// GetJobRegistrars returns the registered scheduled-job contribution callbacks.
+	GetJobRegistrars() []*JobHandlerRegistration
 	// GetMenuFilters returns the registered menu filter callbacks.
 	GetMenuFilters() []*MenuFilterHandlerRegistration
 	// GetPermissionFilters returns the registered permission filter callbacks.

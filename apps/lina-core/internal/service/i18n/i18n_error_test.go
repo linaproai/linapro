@@ -92,7 +92,7 @@ func TestLocalizeErrorUsesRuntimeBundleCache(t *testing.T) {
 		"Fallback {value}",
 		gcode.CodeInvalidParameter,
 	)
-	plugin := pluginhost.NewSourcePlugin(pluginID)
+	plugin := pluginhost.NewDeclarations(pluginID)
 	plugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte(sourcePluginI18NManifestFixture(pluginID, true))},
 		"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(fmt.Sprintf(

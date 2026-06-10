@@ -33,9 +33,9 @@ type sourcePluginHTTP struct {
 	plugin *sourcePlugin
 }
 
-// sourcePluginCron is the cron-registration facade bound to one source plugin
+// sourcePluginJobs is the scheduled-job registration facade bound to one source plugin
 // definition.
-type sourcePluginCron struct {
+type sourcePluginJobs struct {
 	plugin *sourcePlugin
 }
 
@@ -54,7 +54,7 @@ func (p *sourcePlugin) ID() string {
 }
 
 // Assets returns the plugin asset registration facade.
-func (p *sourcePlugin) Assets() SourcePluginAssets {
+func (p *sourcePlugin) Assets() AssetDeclarations {
 	if p == nil {
 		return nil
 	}
@@ -62,7 +62,7 @@ func (p *sourcePlugin) Assets() SourcePluginAssets {
 }
 
 // Lifecycle returns the plugin lifecycle callback registration facade.
-func (p *sourcePlugin) Lifecycle() SourcePluginLifecycle {
+func (p *sourcePlugin) Lifecycle() LifecycleDeclarations {
 	if p == nil {
 		return nil
 	}
@@ -70,7 +70,7 @@ func (p *sourcePlugin) Lifecycle() SourcePluginLifecycle {
 }
 
 // Hooks returns the event-hook registration facade.
-func (p *sourcePlugin) Hooks() SourcePluginHooks {
+func (p *sourcePlugin) Hooks() HookDeclarations {
 	if p == nil {
 		return nil
 	}
@@ -78,23 +78,23 @@ func (p *sourcePlugin) Hooks() SourcePluginHooks {
 }
 
 // HTTP returns the HTTP registration facade.
-func (p *sourcePlugin) HTTP() SourcePluginHTTP {
+func (p *sourcePlugin) HTTP() HTTPDeclarations {
 	if p == nil {
 		return nil
 	}
 	return p.http
 }
 
-// Cron returns the cron registration facade.
-func (p *sourcePlugin) Cron() SourcePluginCron {
+// Jobs returns the scheduled-job registration facade.
+func (p *sourcePlugin) Jobs() JobDeclarations {
 	if p == nil {
 		return nil
 	}
-	return p.cron
+	return p.jobs
 }
 
 // Governance returns the menu and permission governance registration facade.
-func (p *sourcePlugin) Governance() SourcePluginGovernance {
+func (p *sourcePlugin) Governance() GovernanceDeclarations {
 	if p == nil {
 		return nil
 	}
@@ -261,16 +261,16 @@ func (r *sourcePluginHTTP) RegisterRoutes(
 	return r.plugin.registerRoutes(point, mode, handler)
 }
 
-// RegisterCron registers one callback that contributes plugin-owned cron jobs.
-func (r *sourcePluginCron) RegisterCron(
+// RegisterJobs registers one callback that contributes plugin-owned scheduled jobs.
+func (r *sourcePluginJobs) RegisterJobs(
 	point ExtensionPoint,
 	mode CallbackExecutionMode,
-	handler CronRegisterHandler,
+	handler JobRegisterHandler,
 ) error {
 	if r == nil || r.plugin == nil {
-		return gerror.New("pluginhost: source plugin cron facade is nil")
+		return gerror.New("pluginhost: source plugin jobs facade is nil")
 	}
-	return r.plugin.registerCron(point, mode, handler)
+	return r.plugin.registerJobs(point, mode, handler)
 }
 
 // RegisterMenuFilter registers one callback that filters host menus.

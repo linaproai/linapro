@@ -1,5 +1,5 @@
-// This file validates persisted plugin and tenant-governance state before the
-// host starts serving requests.
+// This file coordinates startup snapshots, startup consistency validation, and
+// platform governance guards for plugin mutations.
 
 package plugin
 
@@ -16,6 +16,10 @@ import (
 	"lina-core/pkg/plugin/capability/tenantcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
+
+// platformGovernanceTenantCapability is the tenant-capability slice required by
+// plugin governance guards.
+type platformGovernanceTenantCapability = governance.TenantCapability
 
 // pluginTenantStartupCapability is the tenant slice needed by plugin startup
 // consistency checks. It excludes request resolution, data-scope, membership
@@ -51,6 +55,28 @@ func (s *serviceImpl) SetOrganizationCapability(service orgcapsvc.Service) {
 		return
 	}
 	s.integrationSvc.SetOrganizationCapability(service)
+}
+
+// SetTenantPlatformGovernanceCapability wires platform plugin-governance checks.
+func (s *serviceImpl) SetTenantPlatformGovernanceCapability(service platformGovernanceTenantCapability) {
+	if s == nil {
+		return
+	}
+	s.tenantGovernance = service
+}
+
+// WithStartupDataSnapshot returns a child context carrying catalog and
+// integration startup snapshots for one host startup orchestration.
+func (s *serviceImpl) WithStartupDataSnapshot(ctx context.Context) (context.Context, error) {
+	startupCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		return ctx, err
+	}
+	startupCtx, err = s.integrationSvc.WithStartupDataSnapshot(startupCtx)
+	if err != nil {
+		return ctx, err
+	}
+	return startupCtx, nil
 }
 
 // ValidateStartupConsistency verifies persisted startup state that must be
@@ -115,6 +141,21 @@ func (s *serviceImpl) validateTenantMembershipStartupConsistency(ctx context.Con
 		)
 	}
 	return s.tenantStartup.ValidateUserMembershipStartupConsistency(ctx)
+}
+
+// ensurePlatformGovernance verifies the current request can mutate platform
+// plugin governance state.
+func (s *serviceImpl) ensurePlatformGovernance(ctx context.Context) error {
+	return governance.EnsurePlatformContext(ctx, s.platformGovernanceTenantCapability())
+}
+
+// platformGovernanceTenantCapability returns the tenant capability used by the
+// plugin governance guard.
+func (s *serviceImpl) platformGovernanceTenantCapability() platformGovernanceTenantCapability {
+	if s == nil {
+		return nil
+	}
+	return s.tenantGovernance
 }
 
 // UpdateTenantProvisioningPolicy updates the platform-owned new-tenant plugin provisioning policy.

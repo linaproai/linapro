@@ -6,22 +6,22 @@ package pluginhost
 import "io/fs"
 
 // sourcePlugin stores one compile-time source plugin definition behind the
-// published grouped SourcePlugin interfaces.
+// published grouped Declarations interface.
 type sourcePlugin struct {
 	// id is the stable plugin id and must match `plugin.yaml`.
 	id string
 	// assets exposes grouped asset registration helpers.
-	assets SourcePluginAssets
+	assets AssetDeclarations
 	// lifecycle exposes grouped lifecycle registration helpers.
-	lifecycle SourcePluginLifecycle
+	lifecycle LifecycleDeclarations
 	// hooks exposes grouped hook registration helpers.
-	hooks SourcePluginHooks
+	hooks HookDeclarations
 	// http exposes grouped HTTP registration helpers.
-	http SourcePluginHTTP
-	// cron exposes grouped cron registration helpers.
-	cron SourcePluginCron
+	http HTTPDeclarations
+	// jobs exposes grouped scheduled-job registration helpers.
+	jobs JobDeclarations
 	// governance exposes grouped menu and permission governance helpers.
-	governance SourcePluginGovernance
+	governance GovernanceDeclarations
 
 	embeddedFiles     fs.FS
 	beforeInstall     SourcePluginBeforeLifecycleHandler
@@ -42,18 +42,18 @@ type sourcePlugin struct {
 	uninstallHandler  SourcePluginUninstallHandler
 	hookHandlers      []*HookHandlerRegistration
 	routeRegistrars   []*RouteHandlerRegistration
-	cronRegistrars    []*CronHandlerRegistration
+	jobRegistrars     []*JobHandlerRegistration
 	menuFilters       []*MenuFilterHandlerRegistration
 	permissionFilters []*PermissionFilterHandlerRegistration
 }
 
-// NewSourcePlugin creates and returns a new grouped source plugin definition.
-func NewSourcePlugin(id string) SourcePlugin {
+// NewDeclarations creates and returns a new grouped source-plugin declarations facade.
+func NewDeclarations(id string) Declarations {
 	plugin := &sourcePlugin{
 		id:                id,
 		hookHandlers:      make([]*HookHandlerRegistration, 0),
 		routeRegistrars:   make([]*RouteHandlerRegistration, 0),
-		cronRegistrars:    make([]*CronHandlerRegistration, 0),
+		jobRegistrars:     make([]*JobHandlerRegistration, 0),
 		menuFilters:       make([]*MenuFilterHandlerRegistration, 0),
 		permissionFilters: make([]*PermissionFilterHandlerRegistration, 0),
 	}
@@ -61,7 +61,7 @@ func NewSourcePlugin(id string) SourcePlugin {
 	plugin.lifecycle = &sourcePluginLifecycle{plugin: plugin}
 	plugin.hooks = &sourcePluginHooks{plugin: plugin}
 	plugin.http = &sourcePluginHTTP{plugin: plugin}
-	plugin.cron = &sourcePluginCron{plugin: plugin}
+	plugin.jobs = &sourcePluginJobs{plugin: plugin}
 	plugin.governance = &sourcePluginGovernance{plugin: plugin}
 	return plugin
 }
@@ -102,13 +102,13 @@ func (p *sourcePlugin) GetRouteRegistrars() []*RouteHandlerRegistration {
 	return items
 }
 
-// GetCronRegistrars returns the registered cron contribution callbacks.
-func (p *sourcePlugin) GetCronRegistrars() []*CronHandlerRegistration {
+// GetJobRegistrars returns the registered scheduled-job contribution callbacks.
+func (p *sourcePlugin) GetJobRegistrars() []*JobHandlerRegistration {
 	if p == nil {
-		return []*CronHandlerRegistration{}
+		return []*JobHandlerRegistration{}
 	}
-	items := make([]*CronHandlerRegistration, len(p.cronRegistrars))
-	copy(items, p.cronRegistrars)
+	items := make([]*JobHandlerRegistration, len(p.jobRegistrars))
+	copy(items, p.jobRegistrars)
 	return items
 }
 

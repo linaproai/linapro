@@ -10,12 +10,210 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/os/glog"
+
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/testutil"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginhost"
 )
+
+// TestSingleNodeModeSkipsPluginNodeProjection verifies that single-node mode
+// does not materialize per-node runtime projections for dynamic plugins.
+func TestSingleNodeModeSkipsPluginNodeProjection(t *testing.T) {
+	service := newTestService()
+	ctx := context.Background()
+
+	var (
+		pluginID   = "plugin-dev-dynamic-single-node"
+		pluginName = "Dynamic Single Node Plugin"
+		version    = "v0.1.0"
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	testutil.CreateTestRuntimeStorageArtifactWithFrontendAssets(
+		t,
+		pluginID,
+		pluginName,
+		version,
+		buildVersionedRuntimeFrontendAssets("single-node"),
+		nil,
+		nil,
+	)
+
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected single-node install to succeed, got error: %v", err)
+	}
+	if err := service.Enable(ctx, pluginID); err != nil {
+		t.Fatalf("expected single-node enable to succeed, got error: %v", err)
+	}
+
+	nodeStateCount, err := dao.SysPluginNodeState.Ctx(ctx).
+		Where(do.SysPluginNodeState{PluginId: pluginID}).
+		Count()
+	if err != nil {
+		t.Fatalf("expected plugin node-state count query to succeed, got error: %v", err)
+	}
+	if nodeStateCount != 0 {
+		t.Fatalf("expected single-node mode to skip node-state projection rows, got %d", nodeStateCount)
+	}
+
+	snapshot, err := service.buildPluginGovernanceSnapshot(
+		ctx,
+		pluginID,
+		version,
+		catalog.TypeDynamic.String(),
+		catalog.InstalledYes,
+		catalog.StatusEnabled,
+	)
+	if err != nil {
+		t.Fatalf("expected governance snapshot build to succeed, got error: %v", err)
+	}
+	if snapshot == nil {
+		t.Fatal("expected governance snapshot to exist")
+	}
+	if snapshot.NodeState != catalog.NodeStateEnabled.String() {
+		t.Fatalf("expected governance snapshot to derive enabled node state, got %s", snapshot.NodeState)
+	}
+}
+
+// TestClusterStartupManifestNoopSkipsNodeStateWrite verifies repeated startup
+// manifest sync avoids rewriting the current-node projection when nothing changed.
+func TestClusterStartupManifestNoopSkipsNodeStateWrite(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		pluginID = "plugin-dev-source-cluster-node-noop"
+		version  = "v0.1.0"
+		topology = &testTopology{
+			enabled: true,
+			primary: true,
+			nodeID:  "startup-node-noop",
+		}
+		service = newTestServiceWithTopology(topology)
+	)
+
+	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
+	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
+	testutil.WriteTestFile(
+		t,
+		manifestPath,
+		"id: "+pluginID+"\n"+
+			"name: Source Cluster Node Noop Plugin\n"+
+			"version: "+version+"\n"+
+			"type: source\n"+
+			"scope_nature: tenant_aware\n"+
+			"supports_multi_tenant: false\n"+
+			"default_install_mode: global\n",
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest := &catalog.Manifest{}
+	if err := service.catalogSvc.LoadManifestFromYAML(manifestPath, manifest); err != nil {
+		t.Fatalf("expected source manifest load to succeed, got error: %v", err)
+	}
+	if _, err := service.catalogSvc.SyncManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected initial manifest sync to succeed, got error: %v", err)
+	}
+
+	startupCtx, err := service.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		t.Fatalf("expected startup snapshot build to succeed, got error: %v", err)
+	}
+	sqls, logs, err := captureSQLDuringStartupTopologyTest(t, startupCtx, func(ctx context.Context) error {
+		_, syncErr := service.catalogSvc.SyncManifest(ctx, manifest)
+		return syncErr
+	})
+	if err != nil {
+		t.Fatalf("expected no-op manifest sync to succeed, got error: %v", err)
+	}
+	assertNoNodeStateMutationSQL(t, sqls)
+	assertNoNodeStateMutationSQL(t, logs)
+}
+
+// TestSourceProviderAvailabilityFollowsEnabledSnapshot verifies provider
+// declarations remain inert until their owning source plugin is platform-enabled.
+func TestSourceProviderAvailabilityFollowsEnabledSnapshot(t *testing.T) {
+	var (
+		ctx      = bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 0, PlatformBypass: true})
+		pluginID = "plugin-dev-source-capability-revision"
+		service  = newTestServiceWithTopology(&testTopology{
+			enabled: true,
+			primary: true,
+			nodeID:  "capability-revision-node",
+		})
+	)
+	cleanupTestPluginIDs(t, ctx, pluginID)
+
+	plugin := pluginhost.NewDeclarations(pluginID)
+	plugin.Assets().UseEmbeddedFiles(fstest.MapFS{
+		"plugin.yaml": &fstest.MapFile{Data: []byte(
+			"id: " + pluginID + "\n" +
+				"name: Runtime Revision Provider\n" +
+				"version: v0.1.0\n" +
+				"type: source\n" +
+				"scope_nature: tenant_aware\n" +
+				"supports_multi_tenant: false\n" +
+				"default_install_mode: global\n",
+		)},
+	})
+	cleanup, err := pluginhost.RegisterSourcePluginForTest(plugin)
+	if err != nil {
+		t.Fatalf("register source plugin fixture failed: %v", err)
+	}
+	t.Cleanup(cleanup)
+
+	if err = tenantcap.Provide(pluginID, func(
+		context.Context,
+		tenantcap.ProviderEnv,
+	) (tenantcap.Provider, error) {
+		return capabilityRevisionProvider{}, nil
+	}); err != nil {
+		t.Fatalf("register tenant provider factory failed: %v", err)
+	}
+
+	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("install source provider plugin failed: %v", err)
+	}
+	tenantSvc := tenantcap.New(capabilityRevisionRuntime{service: service, pluginID: pluginID}, nil)
+	status := tenantSvc.Status(ctx)
+	if status.Available || status.ActiveProvider == pluginID {
+		t.Fatalf("expected installed-but-disabled provider unavailable, got %#v", status)
+	}
+
+	if err = service.Enable(ctx, pluginID); err != nil {
+		t.Fatalf("enable source provider plugin failed: %v", err)
+	}
+	status = tenantSvc.Status(ctx)
+	if !status.Available || status.ActiveProvider != pluginID {
+		t.Fatalf("expected tenant provider active for %s, got %#v", pluginID, status)
+	}
+
+	if err = service.Disable(ctx, pluginID); err != nil {
+		t.Fatalf("disable source provider plugin failed: %v", err)
+	}
+	status = tenantSvc.Status(ctx)
+	if status.Available || status.ActiveProvider == pluginID {
+		t.Fatalf("expected disabled provider unavailable, got %#v", status)
+	}
+}
 
 // TestDynamicPluginRuntimeUpgradeKeepsPreviousReleaseFrontendAssets verifies
 // explicit runtime upgrade keeps archived frontend bundles available for drain
@@ -607,4 +805,114 @@ func runtimeRoutePermissionMenus(pluginID string, pluginName string, version str
 			Query:     map[string]interface{}{"pluginAccessMode": "embedded-mount"},
 		},
 	}
+}
+
+// assertNoNodeStateMutationSQL fails when captured SQL rewrites plugin node state.
+func assertNoNodeStateMutationSQL(t *testing.T, sqls []string) {
+	t.Helper()
+
+	for _, sql := range sqls {
+		normalized := strings.ToUpper(strings.TrimSpace(sql))
+		if !strings.Contains(normalized, "SYS_PLUGIN_NODE_STATE") {
+			continue
+		}
+		for _, keyword := range []string{"INSERT ", "UPDATE ", "DELETE "} {
+			if strings.Contains(normalized, keyword) {
+				t.Fatalf("expected no sys_plugin_node_state mutation SQL, got %q from %#v", sql, sqls)
+			}
+		}
+	}
+}
+
+// captureSQLDuringStartupTopologyTest captures GoFrame SQL and debug log lines
+// emitted by fn so no-op startup paths can assert write avoidance.
+func captureSQLDuringStartupTopologyTest(
+	t *testing.T,
+	ctx context.Context,
+	fn func(context.Context) error,
+) ([]string, []string, error) {
+	t.Helper()
+
+	db := g.DB()
+	previousDebug := db.GetDebug()
+	previousLogger := db.GetLogger()
+	captureLogger := glog.New()
+	captureLogger.SetStdoutPrint(false)
+
+	db.SetDebug(true)
+	db.SetLogger(captureLogger)
+	defer func() {
+		db.SetLogger(previousLogger)
+		db.SetDebug(previousDebug)
+	}()
+
+	var logs []string
+	captureLogger.SetHandlers(func(ctx context.Context, in *glog.HandlerInput) {
+		logs = append(logs, in.ValuesContent())
+	})
+
+	sqls, err := gdb.CatchSQL(ctx, fn)
+	return sqls, logs, err
+}
+
+// capabilityRevisionProvider is a no-op tenant provider used by the
+// lifecycle/runtime-revision integration test.
+type capabilityRevisionProvider struct{}
+
+// capabilityRevisionRuntime exposes only the provider plugin owned by this
+// test so shared linapro-tenant-core state from broader Go runs cannot affect
+// the provider activation assertions.
+type capabilityRevisionRuntime struct {
+	service  *serviceImpl
+	pluginID string
+}
+
+// IsProviderEnabled delegates enablement for the test provider and hides every
+// unrelated tenant provider registered in the process.
+func (r capabilityRevisionRuntime) IsProviderEnabled(ctx context.Context, pluginID string) bool {
+	return r.service != nil &&
+		pluginID == r.pluginID &&
+		r.service.IsProviderEnabled(ctx, pluginID)
+}
+
+// TenantProviderEnv returns the minimal environment required by the no-op test provider.
+func (capabilityRevisionRuntime) TenantProviderEnv(string) tenantcap.ProviderEnv {
+	return tenantcap.ProviderEnv{}
+}
+
+// ResolveTenant returns the platform tenant.
+func (capabilityRevisionProvider) ResolveTenant(
+	context.Context,
+	*ghttp.Request,
+) (*tenantcap.ResolverResult, error) {
+	return &tenantcap.ResolverResult{
+		TenantID: tenantcap.PLATFORM,
+		Matched:  true,
+	}, nil
+}
+
+// ValidateUserInTenant accepts every tenant validation request.
+func (capabilityRevisionProvider) ValidateUserInTenant(
+	context.Context,
+	int,
+	tenantcap.TenantID,
+) error {
+	return nil
+}
+
+// ListUserTenants returns no tenant memberships.
+func (capabilityRevisionProvider) ListUserTenants(
+	context.Context,
+	int,
+) ([]tenantcap.TenantInfo, error) {
+	return []tenantcap.TenantInfo{}, nil
+}
+
+// SwitchTenant accepts every tenant switch request.
+func (capabilityRevisionProvider) SwitchTenant(
+	context.Context,
+	int,
+	tenantcap.TenantID,
+) error {
+	return nil
 }

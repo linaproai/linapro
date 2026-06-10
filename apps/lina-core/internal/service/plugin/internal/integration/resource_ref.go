@@ -588,7 +588,7 @@ func mapHostServiceResourceKind(service string) catalog.ResourceKind {
 		return catalog.ResourceKindHostEventTopic
 	case protocol.HostServiceQueue:
 		return catalog.ResourceKindHostQueue
-	case protocol.HostServiceNotify:
+	case protocol.HostServiceNotifications:
 		return catalog.ResourceKindHostNotify
 	default:
 		return ""

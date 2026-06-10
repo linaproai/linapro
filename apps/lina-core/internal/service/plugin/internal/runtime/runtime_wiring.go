@@ -12,6 +12,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/wasm"
 	"lina-core/internal/service/session"
+	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -66,6 +67,12 @@ func (s *serviceImpl) SetRuntimeCacheChangeNotifier(n CacheChangeNotifier) {
 // SetDependencyValidator wires release dependency validation.
 func (s *serviceImpl) SetDependencyValidator(v DependencyValidator) {
 	s.dependencyValidator = v
+}
+
+// SetStorageCleanupServices wires storage cleanup capabilities for dynamic
+// uninstall flows.
+func (s *serviceImpl) SetStorageCleanupServices(services capability.Services) {
+	s.storageCleanupServices = services
 }
 
 // ValidateRequiredDependencies verifies production runtime wiring after all

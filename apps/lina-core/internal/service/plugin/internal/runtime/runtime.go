@@ -19,6 +19,7 @@ import (
 	"lina-core/internal/service/plugin/internal/openapi"
 	"lina-core/internal/service/plugin/runtimecache"
 	"lina-core/internal/service/session"
+	"lina-core/pkg/plugin/capability"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -160,23 +161,6 @@ type DynamicRouteService interface {
 	) (*bridgecontract.BridgeResponseEnvelopeV1, error)
 }
 
-// DynamicCronService defines dynamic plugin cron discovery and execution operations.
-type DynamicCronService interface {
-	// DiscoverCronContracts runs the reserved guest-side cron registration entry
-	// point and collects all declared dynamic-plugin cron contracts.
-	DiscoverCronContracts(
-		ctx context.Context,
-		manifest *catalog.Manifest,
-	) ([]*bridgecontract.CronContract, error)
-	// ExecuteDeclaredCronJob runs one declared dynamic-plugin cron job through
-	// the active runtime bridge.
-	ExecuteDeclaredCronJob(
-		ctx context.Context,
-		manifest *catalog.Manifest,
-		contract *bridgecontract.CronContract,
-	) error
-}
-
 // LifecycleReconcileService defines runtime lifecycle convergence operations
 // needed by install, enable, disable, and upgrade flows.
 type LifecycleReconcileService interface {
@@ -283,6 +267,15 @@ type DynamicLifecyclePreconditionService interface {
 	) (*DynamicLifecycleDecision, error)
 }
 
+// DynamicJobService defines dynamic-plugin built-in Jobs discovery and
+// execution operations.
+type DynamicJobService interface {
+	// DiscoverJobContracts runs the dynamic plugin Jobs declaration entry point.
+	DiscoverJobContracts(ctx context.Context, manifest *catalog.Manifest) ([]*bridgecontract.JobContract, error)
+	// ExecuteDeclaredJob runs one declared dynamic-plugin job through the active runtime.
+	ExecuteDeclaredJob(ctx context.Context, manifest *catalog.Manifest, contract *bridgecontract.JobContract) error
+}
+
 // RuntimeLifecycleService defines dynamic plugin uninstall and emergency cleanup operations.
 type RuntimeLifecycleService interface {
 	// Uninstall executes uninstall lifecycle for an installed dynamic plugin.
@@ -325,6 +318,9 @@ type DependencyWiringService interface {
 	SetRuntimeCacheChangeNotifier(n CacheChangeNotifier)
 	// SetDependencyValidator wires release dependency validation.
 	SetDependencyValidator(v DependencyValidator)
+	// SetStorageCleanupServices wires plugin-scoped storage capabilities used
+	// by dynamic uninstall cleanup.
+	SetStorageCleanupServices(services capability.Services)
 	// ValidateRequiredDependencies verifies production runtime wiring after all setters run.
 	ValidateRequiredDependencies() error
 }
@@ -343,13 +339,13 @@ type Service interface {
 	ArtifactService
 	RuntimeStateQueryService
 	DynamicRouteService
-	DynamicCronService
 	LifecycleReconcileService
 	RuntimeRegistryService
 	RuntimeProjectionService
 	RuntimeReconcilerService
 	RuntimeUpgradeService
 	DynamicLifecyclePreconditionService
+	DynamicJobService
 	RuntimeLifecycleService
 	ActiveManifestService
 	DependencyWiringService
@@ -392,6 +388,9 @@ type serviceImpl struct {
 	// dependencyValidator checks candidate release dependency constraints before
 	// dynamic lifecycle side effects.
 	dependencyValidator DependencyValidator
+	// storageCleanupServices resolves plugin-scoped storage cleanup capability
+	// views for dynamic uninstall resource purging.
+	storageCleanupServices capability.Services
 	// reconcilerRevisionObserved records the reconciler revision consumed by this runtime service.
 	reconcilerRevisionObserved *runtimecache.ObservedRevision
 	// reconcilerRevisionCtrl coordinates cluster-wide dynamic-plugin reconciler wake-up.

@@ -763,11 +763,11 @@ func renderWasmDispatcher(spec *wasmDispatcherSpec) ([]byte, error) {
 // writeWasmDispatcherImports renders imports required by the generated dispatcher.
 func writeWasmDispatcherImports(builder *strings.Builder, spec *wasmDispatcherSpec) {
 	imports := map[string]string{
-		"protocol":    "lina-core/pkg/plugin/pluginbridge/protocol",
-		"bridgeguest": "lina-core/pkg/plugin/pluginbridge/guest",
-		"strconv":     "strconv",
-		"strings":     "strings",
-		"sync":        "sync",
+		"protocol":     "lina-core/pkg/plugin/pluginbridge/protocol",
+		"bridgeplugin": "lina-core/pkg/plugin/pluginbridge",
+		"strconv":      "strconv",
+		"strings":      "strings",
+		"sync":         "sync",
 	}
 	for _, controller := range spec.APIControllers {
 		imports[controller.ImportAlias] = controller.PackagePath
@@ -943,19 +943,19 @@ func generatedWasmRouteBodyFieldList(route *wasmRouteHandlerSpec) string {
 func writeWasmHandlerFunctions(builder *strings.Builder, spec *wasmDispatcherSpec) {
 	for _, route := range spec.Routes {
 		builder.WriteString(fmt.Sprintf("func handleGenerated%s(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {\n", route.RequestType))
-		builder.WriteString("\tctx := bridgeguest.NewGuestControllerContext(request)\n")
+		builder.WriteString("\tctx := bridgeplugin.NewGuestControllerContext(request)\n")
 		builder.WriteString(fmt.Sprintf("\treq := &%s{}\n", route.RequestTypeExpr))
 		builder.WriteString(fmt.Sprintf("\tif response := bindGeneratedWasmRequest(request, req, %s); response != nil {\n", generatedWasmRouteBodyFieldList(route)))
 		builder.WriteString("\t\treturn response, nil\n")
 		builder.WriteString("\t}\n")
 		builder.WriteString(fmt.Sprintf("\tres, err := generated%s().%s(ctx, req)\n", upperFirst(route.ControllerAlias), route.MethodName))
-		builder.WriteString("\tif response := bridgeguest.ResponseFromError(err); response != nil {\n")
+		builder.WriteString("\tif response := bridgeplugin.ResponseFromError(err); response != nil {\n")
 		builder.WriteString("\t\treturn response, nil\n")
 		builder.WriteString("\t}\n")
 		builder.WriteString("\tif err != nil {\n")
 		builder.WriteString("\t\treturn nil, err\n")
 		builder.WriteString("\t}\n")
-		builder.WriteString("\treturn bridgeguest.BuildGuestControllerResponse(ctx, res)\n")
+		builder.WriteString("\treturn bridgeplugin.BuildGuestControllerResponse(ctx, res)\n")
 		builder.WriteString("}\n\n")
 	}
 	for _, route := range spec.LifecycleRoutes {
@@ -969,9 +969,9 @@ func writeWasmHandlerFunctions(builder *strings.Builder, spec *wasmDispatcherSpe
 	builder.WriteString("\t\treturn protocol.NewBadRequestResponse(\"Dynamic bridge request target is nil\")\n")
 	builder.WriteString("\t}\n")
 	builder.WriteString("\tif shouldBindGeneratedWasmJSONBody(request, bodyFields) {\n")
-	builder.WriteString("\t\tbound, err := bridgeguest.BindJSON[T](request)\n")
+	builder.WriteString("\t\tbound, err := bridgeplugin.BindJSON[T](request)\n")
 	builder.WriteString("\t\tif err != nil {\n")
-	builder.WriteString("\t\t\tif response := bridgeguest.ClassifyBindJSONError(err); response != nil {\n")
+	builder.WriteString("\t\t\tif response := bridgeplugin.ClassifyBindJSONError(err); response != nil {\n")
 	builder.WriteString("\t\t\t\treturn response\n")
 	builder.WriteString("\t\t\t}\n")
 	builder.WriteString("\t\t\treturn protocol.NewBadRequestResponse(err.Error())\n")
@@ -993,19 +993,19 @@ func writeWasmCallbackHandlerFunction(
 	methodName string,
 ) {
 	builder.WriteString(fmt.Sprintf("func handleGenerated%s(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {\n", requestType))
-	builder.WriteString("\tctx := bridgeguest.NewGuestControllerContext(request)\n")
+	builder.WriteString("\tctx := bridgeplugin.NewGuestControllerContext(request)\n")
 	builder.WriteString(fmt.Sprintf("\treq := &%s{}\n", requestTypeExpr))
 	builder.WriteString("\tif response := bindGeneratedWasmRequest(request, req, nil); response != nil {\n")
 	builder.WriteString("\t\treturn response, nil\n")
 	builder.WriteString("\t}\n")
 	builder.WriteString(fmt.Sprintf("\tres, err := generated%s().%s(ctx, req)\n", upperFirst(controllerAlias), methodName))
-	builder.WriteString("\tif response := bridgeguest.ResponseFromError(err); response != nil {\n")
+	builder.WriteString("\tif response := bridgeplugin.ResponseFromError(err); response != nil {\n")
 	builder.WriteString("\t\treturn response, nil\n")
 	builder.WriteString("\t}\n")
 	builder.WriteString("\tif err != nil {\n")
 	builder.WriteString("\t\treturn nil, err\n")
 	builder.WriteString("\t}\n")
-	builder.WriteString("\treturn bridgeguest.BuildGuestControllerResponse(ctx, res)\n")
+	builder.WriteString("\treturn bridgeplugin.BuildGuestControllerResponse(ctx, res)\n")
 	builder.WriteString("}\n\n")
 }
 
@@ -1092,10 +1092,10 @@ func generatedWasmRequestMethod(request *protocol.BridgeRequestEnvelopeV1) strin
 }
 
 func generatedWasmRouteValue(request *protocol.BridgeRequestEnvelopeV1, key string) string {
-	if value := bridgeguest.PathParam(request, key); value != "" {
+	if value := bridgeplugin.PathParam(request, key); value != "" {
 		return value
 	}
-	return bridgeguest.QueryValue(request, key)
+	return bridgeplugin.QueryValue(request, key)
 }
 
 func generatedWasmPathParams(request *protocol.BridgeRequestEnvelopeV1) map[string]string {
@@ -1179,9 +1179,9 @@ func writeWasmRouteValueAssignment(builder *strings.Builder, field *wasmDTOField
 	}
 	switch field.GoType {
 	case "string":
-		builder.WriteString(fmt.Sprintf("\t\tif value := bridgeguest.PathParam(targetRequest, %s); value != \"\" {\n", strconv.Quote(jsonName)))
+		builder.WriteString(fmt.Sprintf("\t\tif value := bridgeplugin.PathParam(targetRequest, %s); value != \"\" {\n", strconv.Quote(jsonName)))
 		builder.WriteString(fmt.Sprintf("\t\t\treq.%s = value\n", goName))
-		builder.WriteString(fmt.Sprintf("\t\t} else if value := bridgeguest.QueryValue(targetRequest, %s); value != \"\" {\n", strconv.Quote(jsonName)))
+		builder.WriteString(fmt.Sprintf("\t\t} else if value := bridgeplugin.QueryValue(targetRequest, %s); value != \"\" {\n", strconv.Quote(jsonName)))
 		builder.WriteString(fmt.Sprintf("\t\t\treq.%s = value\n", goName))
 		builder.WriteString("\t\t}\n")
 	case "bool":

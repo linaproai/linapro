@@ -12,19 +12,20 @@ import (
 	"lina-core/pkg/plugin/capability/authcap"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/cachecap"
-	"lina-core/pkg/plugin/capability/configcap"
 	"lina-core/pkg/plugin/capability/dictcap"
 	"lina-core/pkg/plugin/capability/filecap"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/capability/i18ncap"
 	"lina-core/pkg/plugin/capability/infracap"
 	"lina-core/pkg/plugin/capability/jobcap"
+	"lina-core/pkg/plugin/capability/lockcap"
 	"lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/capability/notifycap"
 	"lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/routecap"
 	"lina-core/pkg/plugin/capability/sessioncap"
+	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/capability/usercap"
 )
@@ -33,7 +34,7 @@ import (
 // through a stable service set. Implementations are runtime-owned and may return
 // nil for plugin-scoped read capabilities until ServicesForPlugin binds a
 // plugin identity. Services methods must not expose database query builders,
-// HTTP request objects, write seams, or host-internal governance services.
+// HTTP request objects, write seams, or ungoverned host-internal services.
 type Services interface {
 	// APIDoc returns the API-documentation localization service.
 	APIDoc() apidoccap.Service
@@ -59,18 +60,22 @@ type Services interface {
 	Infra() infracap.Service
 	// Jobs returns the scheduled-job domain ordinary capability service.
 	Jobs() jobcap.Service
+	// Lock returns the plugin-scoped distributed lock service.
+	Lock() lockcap.Service
 	// Manifest returns the plugin-scoped manifest resource service.
 	Manifest() manifestcap.Service
 	// Notifications returns the notification-domain ordinary capability service.
 	Notifications() notifycap.Service
 	// Org returns the organization capability consumer.
 	Org() orgcap.Service
-	// Plugins returns the plugin-governance ordinary capability service.
+	// Plugins returns the governed plugin-domain capability service.
 	Plugins() plugincap.Service
 	// Route returns the dynamic-route metadata service.
 	Route() routecap.Service
 	// Sessions returns the online-session domain ordinary capability service.
 	Sessions() sessioncap.Service
+	// Storage returns the plugin-scoped object storage service.
+	Storage() storagecap.Service
 	// Tenant returns the tenant capability consumer.
 	Tenant() tenantcap.Service
 }
@@ -92,8 +97,8 @@ type AdminServices interface {
 	Files() filecap.AdminService
 	// Sessions returns online-session management commands.
 	Sessions() sessioncap.AdminService
-	// Config returns runtime configuration management commands.
-	Config() configcap.AdminService
+	// HostConfig returns runtime host-configuration management commands.
+	HostConfig() hostconfigcap.AdminService
 	// Notifications returns notification management commands.
 	Notifications() notifycap.AdminService
 	// Plugins returns plugin-governance management commands.

@@ -127,9 +127,9 @@ type (
 	// HostServiceAuthorizationDecision narrows one authorized service snapshot.
 	HostServiceAuthorizationDecision = catalog.HostServiceAuthorizationDecision
 
-	// ManagedCronJob describes one plugin-owned scheduled-job definition that
+	// ManagedJob describes one plugin-owned scheduled-job definition that
 	// the host can project into the unified scheduled-job management table.
-	ManagedCronJob = integration.ManagedCronJob
+	ManagedJob = integration.ManagedJob
 
 	// DependencyFrameworkCheck exposes framework compatibility for management clients.
 	DependencyFrameworkCheck = plugindep.FrameworkProjection
@@ -279,35 +279,35 @@ type SourceIntegrationService interface {
 	) error
 	// ListSourceRouteBindings returns the source-plugin route bindings captured during registration.
 	ListSourceRouteBindings() []pluginhost.SourceRouteBinding
-	// RegisterCrons registers callback-contributed cron jobs for source plugins.
-	RegisterCrons(ctx context.Context) error
+	// RegisterJobs registers callback-contributed scheduled jobs for source plugins.
+	RegisterJobs(ctx context.Context) error
 	// SetCapabilities wires the host-published capability services used by source plugins.
 	SetCapabilities(capabilities capability.Services)
-	// ListExecutableCronJobs returns plugin-owned cron definitions whose
+	// ListExecutableJobs returns plugin-owned job definitions whose
 	// handlers are safe to publish for execution. Dynamic plugins must be in
 	// an enabled business-entry state; disabled, pending-upgrade, abnormal, and
 	// failed-upgrade dynamic plugins are excluded. Use this only for runtime
 	// handler publication, not for authorization previews or task-table
 	// projection.
-	ListExecutableCronJobs(ctx context.Context) ([]ManagedCronJob, error)
-	// ListExecutableCronJobsByPlugin returns executable cron definitions for
+	ListExecutableJobs(ctx context.Context) ([]ManagedJob, error)
+	// ListExecutableJobsByPlugin returns executable job definitions for
 	// one plugin. It applies the same enablement and runtime-state rules as
-	// ListExecutableCronJobs while narrowing discovery to pluginID, so callers
+	// ListExecutableJobs while narrowing discovery to pluginID, so callers
 	// can register handlers during a plugin enable lifecycle without exposing
 	// declarations that are not currently executable.
-	ListExecutableCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error)
-	// ListCronDeclarationsByPlugin returns declared cron metadata for one
+	ListExecutableJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedJob, error)
+	// ListJobDeclarationsByPlugin returns declared job metadata for one
 	// plugin without requiring the plugin business entry to be enabled. This is
 	// intended for management review and host-service authorization previews,
 	// including not-yet-installed dynamic plugins. Callers must not publish the
 	// returned handlers directly because the plugin may not be executable.
-	ListCronDeclarationsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error)
-	// ListInstalledCronDeclarations returns declared cron metadata for
+	ListJobDeclarationsByPlugin(ctx context.Context, pluginID string) ([]ManagedJob, error)
+	// ListInstalledJobDeclarations returns declared job metadata for
 	// installed plugins without requiring their business entries to be enabled.
 	// Scheduled-job projection uses this to create or update task-table rows
 	// for installed plugins while avoiding preview-only declarations from
 	// uninstalled plugins.
-	ListInstalledCronDeclarations(ctx context.Context) ([]ManagedCronJob, error)
+	ListInstalledJobDeclarations(ctx context.Context) ([]ManagedJob, error)
 	// DispatchHookEvent dispatches one named hook event to all enabled plugins.
 	DispatchHookEvent(
 		ctx context.Context,
@@ -613,7 +613,7 @@ func New(
 
 	integrationSvc.SetBizCtxProvider(&bizCtxAdapter{bizCtxProvider})
 	integrationSvc.SetTopologyProvider(&integrationTopologyAdapter{topo})
-	integrationSvc.SetDynamicCronExecutor(runtimeSvc)
+	integrationSvc.SetDynamicJobExecutor(runtimeSvc)
 
 	runtimeSvc.SetTopology(&runtimeTopologyAdapter{topo})
 	runtimeSvc.SetMenuManager(integrationSvc)

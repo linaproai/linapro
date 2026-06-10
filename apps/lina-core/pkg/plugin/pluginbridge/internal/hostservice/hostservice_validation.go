@@ -206,11 +206,15 @@ func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 			return gerror.Newf("host service %s cannot declare keys", spec.Service)
 		}
 
-		if _, ok := hostServicesWithoutResources[spec.Service]; ok {
+		methodResourceKind := hostServiceResourceKindForMethods(spec.Service, spec.Methods)
+		if methodResourceKind == HostServiceResourceNone {
 			if len(spec.Resources) > 0 {
 				return gerror.Newf("host service %s cannot declare resources", spec.Service)
 			}
 			continue
+		}
+		if methodResourceKind != "" && methodResourceKind != HostServiceResourceRef {
+			return gerror.Newf("host service %s uses unsupported resource declaration kind: %s", spec.Service, methodResourceKind)
 		}
 		if len(spec.Resources) == 0 {
 			return gerror.Newf("host service %s must declare at least one resource", spec.Service)
@@ -283,6 +287,34 @@ func defaultHostServiceMethods(service string) []string {
 		return append([]string(nil), methods...)
 	}
 	return nil
+}
+
+// hostServiceResourceKindForMethods returns the resource shape required by the
+// declared methods. Mixed none+resource methods require resource declarations
+// only when at least one resource-bound method is present.
+func hostServiceResourceKindForMethods(service string, methods []string) HostServiceResourceKind {
+	methodResources := hostServiceMethodResourceMap[service]
+	if len(methodResources) == 0 {
+		if _, ok := hostServicesWithoutResources[service]; ok {
+			return HostServiceResourceNone
+		}
+		return ""
+	}
+	requiresResource := false
+	for _, rawMethod := range methods {
+		method := normalizeHostServiceMethod(rawMethod)
+		switch methodResources[method] {
+		case HostServiceResourceRef, HostServiceResourceReserved:
+			requiresResource = true
+		case HostServiceResourceNone, "":
+		default:
+			return methodResources[method]
+		}
+	}
+	if requiresResource {
+		return HostServiceResourceRef
+	}
+	return HostServiceResourceNone
 }
 
 // NormalizeHostServiceSpecs returns deep-cloned and normalized host service declarations.

@@ -4,8 +4,8 @@ package recordstore
 import dataplan "lina-core/pkg/plugin/capability/recordstore/internal/plan"
 
 // HostServiceInvoker dispatches one structured host-service request for record
-// store execution. It lets pluginbridge/guest inject transport without making
-// recordstore import the bridge guest package.
+// store execution. It lets pluginbridge inject transport without making
+// recordstore import the dynamic bridge package.
 type HostServiceInvoker func(service string, method string, resourceRef string, table string, payload []byte) ([]byte, error)
 
 // DB exposes the guest-side governed record store builder entry.

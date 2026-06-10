@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/service/cluster"
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
+	"lina-core/internal/service/hostlock"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/locker"
@@ -34,7 +35,8 @@ func newUserTestService(tenantRuntimes ...tenantcapsvc.ProviderRuntime) Service 
 	cacheCoordSvc := cachecoord.Default(clusterSvc)
 	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cacheCoordSvc)
 	sessionStore := session.NewDBStore()
-	pluginSvc, err := pluginsvc.New(clusterSvc, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, sessionStore, locker.New(), nil)
+	lockerSvc := locker.New()
+	pluginSvc, err := pluginsvc.New(clusterSvc, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, sessionStore, lockerSvc, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -55,6 +57,10 @@ func newUserTestService(tenantRuntimes ...tenantcapsvc.ProviderRuntime) Service 
 		panic("test config service does not support raw host config reads")
 	}
 	hostConfigSvc := capabilityhostconfig.New(hostConfigReader)
+	lockSvc, err := hostlock.New(lockerSvc)
+	if err != nil {
+		panic(err)
+	}
 	capabilities, err := pluginsvc.NewHostServices(
 		apiDocSvc,
 		authSvc,
@@ -71,6 +77,9 @@ func newUserTestService(tenantRuntimes ...tenantcapsvc.ProviderRuntime) Service 
 		tenantSvc,
 		notifySvc,
 		kvCacheSvc,
+		lockSvc,
+		pluginsvc.NewStorageProviderRuntime(configSvc, pluginSvc),
+		pluginsvc.NewLocalStorageProvider(configSvc.GetPluginDynamicStoragePath(context.Background()), false, false),
 	)
 	if err != nil {
 		panic(err)

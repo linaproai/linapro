@@ -1,4 +1,4 @@
-// This file bridges pluginhost callback registrations into host route, cron,
+// This file bridges pluginhost callback registrations into host route, jobs,
 // menu-filter, and permission-filter integration flows.
 
 package integration
@@ -62,8 +62,8 @@ func (s *serviceImpl) RegisterHTTPRoutes(
 	return nil
 }
 
-// RegisterCrons registers callback-contributed cron jobs for source plugins.
-func (s *serviceImpl) RegisterCrons(ctx context.Context) error {
+// RegisterJobs registers callback-contributed scheduled jobs for source plugins.
+func (s *serviceImpl) RegisterJobs(ctx context.Context) error {
 	manifests, err := s.catalogSvc.ScanManifests()
 	if err != nil {
 		return err
@@ -78,13 +78,13 @@ func (s *serviceImpl) RegisterCrons(ctx context.Context) error {
 		if !ok {
 			continue
 		}
-		registrar := pluginhost.NewCronRegistrar(
+		registrar := pluginhost.NewJobsRegistrar(
 			manifest.ID,
 			checker,
 			s.buildPrimaryNodeChecker(),
 			s.sourceServicesForPlugin(manifest.ID),
 		)
-		for _, handler := range sourcePlugin.GetCronRegistrars() {
+		for _, handler := range sourcePlugin.GetJobRegistrars() {
 			if handler == nil || handler.Handler == nil {
 				continue
 			}

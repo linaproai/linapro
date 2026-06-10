@@ -41,7 +41,7 @@ func registerTestSourcePluginI18N(t *testing.T, pluginID string, localeFiles map
 		fileSystem["manifest/i18n/"+normalizedLocale+"/plugin.json"] = &fstest.MapFile{Data: []byte(content)}
 	}
 
-	plugin := pluginhost.NewSourcePlugin(pluginID)
+	plugin := pluginhost.NewDeclarations(pluginID)
 	plugin.Assets().UseEmbeddedFiles(fileSystem)
 	if err := pluginhost.RegisterSourcePlugin(plugin); err != nil {
 		t.Fatalf("failed to register source plugin fixture: %v", err)
@@ -116,7 +116,7 @@ func TestBuildRuntimeMessagesHonorsSourcePluginI18NPolicy(t *testing.T) {
 	t.Cleanup(resetRuntimeBundleCache)
 
 	managedPluginID := nextTestSourcePluginID()
-	managedPlugin := pluginhost.NewSourcePlugin(managedPluginID)
+	managedPlugin := pluginhost.NewDeclarations(managedPluginID)
 	managedPlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte(sourcePluginI18NManifestFixture(managedPluginID, true))},
 		"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(fmt.Sprintf(
@@ -131,7 +131,7 @@ func TestBuildRuntimeMessagesHonorsSourcePluginI18NPolicy(t *testing.T) {
 	t.Cleanup(cleanupManaged)
 
 	optOutPluginID := nextTestSourcePluginID()
-	optOutPlugin := pluginhost.NewSourcePlugin(optOutPluginID)
+	optOutPlugin := pluginhost.NewDeclarations(optOutPluginID)
 	optOutPlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte(sourcePluginI18NManifestFixture(optOutPluginID, false))},
 		"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(fmt.Sprintf(
@@ -146,7 +146,7 @@ func TestBuildRuntimeMessagesHonorsSourcePluginI18NPolicy(t *testing.T) {
 	t.Cleanup(cleanupOptOut)
 
 	missingPolicyPluginID := nextTestSourcePluginID()
-	missingPolicyPlugin := pluginhost.NewSourcePlugin(missingPolicyPluginID)
+	missingPolicyPlugin := pluginhost.NewDeclarations(missingPolicyPluginID)
 	missingPolicyPlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte(fmt.Sprintf(`id: %s
 name: Runtime I18N Missing Policy Test Plugin

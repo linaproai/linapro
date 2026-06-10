@@ -394,7 +394,7 @@ func TestServiceOpenAPIMessageCatalogHonorsSourcePluginI18NPolicy(t *testing.T) 
 		optOutPluginID  = "plugin-dev-apidoc-i18n-opt-out"
 	)
 
-	managedPlugin := pluginhost.NewSourcePlugin(managedPluginID)
+	managedPlugin := pluginhost.NewDeclarations(managedPluginID)
 	managedPlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte("id: " + managedPluginID + "\nname: Managed\nversion: v0.1.0\ntype: source\nscope_nature: platform_only\nsupports_multi_tenant: false\ndefault_install_mode: global\ni18n:\n  enabled: true\n  default: zh-CN\n  locales:\n    - locale: zh-CN\n      nativeName: 简体中文\n")},
 		"manifest/i18n/zh-CN/apidoc/plugin.json": &fstest.MapFile{Data: []byte(`{
@@ -421,7 +421,7 @@ func TestServiceOpenAPIMessageCatalogHonorsSourcePluginI18NPolicy(t *testing.T) 
 	}
 	t.Cleanup(cleanupManaged)
 
-	missingI18nPlugin := pluginhost.NewSourcePlugin(optOutPluginID)
+	missingI18nPlugin := pluginhost.NewDeclarations(optOutPluginID)
 	missingI18nPlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte("id: " + optOutPluginID + "\nname: Opt Out\nversion: v0.1.0\ntype: source\nscope_nature: platform_only\nsupports_multi_tenant: false\ndefault_install_mode: global\n")},
 		"manifest/i18n/zh-CN/apidoc/plugin.json": &fstest.MapFile{Data: []byte(`{

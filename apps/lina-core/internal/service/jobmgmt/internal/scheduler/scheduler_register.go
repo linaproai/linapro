@@ -1,4 +1,4 @@
-// This file keeps gcron registration and concurrency bookkeeping helpers for
+// This file keeps gjob registration and concurrency bookkeeping helpers for
 // the persistent scheduled-job scheduler.
 
 package scheduler

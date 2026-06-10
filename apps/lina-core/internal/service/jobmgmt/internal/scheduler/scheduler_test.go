@@ -189,7 +189,7 @@ func insertTestJob(
 	return int64(insertID)
 }
 
-// cleanupSchedulerJob removes scheduler test jobs, logs, and gcron registrations.
+// cleanupSchedulerJob removes scheduler test jobs, logs, and gjob registrations.
 func cleanupSchedulerJob(t *testing.T, ctx context.Context, jobID int64) {
 	t.Helper()
 	if jobID == 0 {
@@ -484,7 +484,7 @@ func TestRunCronJobSkipsOnNonPrimaryNode(t *testing.T) {
 }
 
 // TestLoadAndRegisterPausesMissingCustomPluginHandlerJobs verifies startup
-// loading downgrades enabled user-defined plugin cron jobs when their handler
+// loading downgrades enabled user-defined plugin jobs when their handler
 // is unavailable while leaving built-in projections to plugin lifecycle sync.
 func TestLoadAndRegisterPausesMissingCustomPluginHandlerJobs(t *testing.T) {
 	var (
@@ -506,7 +506,7 @@ func TestLoadAndRegisterPausesMissingCustomPluginHandlerJobs(t *testing.T) {
 		GroupId:        testDefaultGroupID(t, ctx),
 		Name:           fmt.Sprintf("scheduler-missing-plugin-%d", time.Now().UnixNano()),
 		TaskType:       string(jobmeta.TaskTypeHandler),
-		HandlerRef:     "plugin:test-missing/cron:cleanup",
+		HandlerRef:     "plugin:test-missing/jobs:cleanup",
 		Params:         `{}`,
 		TimeoutSeconds: 30,
 		CronExpr:       "* * * * *",
@@ -549,7 +549,7 @@ func TestLoadAndRegisterPausesMissingCustomPluginHandlerJobs(t *testing.T) {
 		GroupId:        testDefaultGroupID(t, ctx),
 		Name:           fmt.Sprintf("scheduler-missing-builtin-plugin-%d", time.Now().UnixNano()),
 		TaskType:       string(jobmeta.TaskTypeHandler),
-		HandlerRef:     "plugin:test-missing/cron:built-in",
+		HandlerRef:     "plugin:test-missing/jobs:built-in",
 		Params:         `{}`,
 		TimeoutSeconds: 30,
 		CronExpr:       "* * * * *",
@@ -688,8 +688,8 @@ func TestRunCronJobUnlimitedExecutionsStillAccumulatesCount(t *testing.T) {
 	})
 }
 
-// TestRunCronJobHandlerTimeoutMarksLogTimeout verifies handler executions that overrun their timeout persist timeout logs.
-func TestRunCronJobHandlerTimeoutMarksLogTimeout(t *testing.T) {
+// TestRunJobHandlerTimeoutMarksLogTimeout verifies handler executions that overrun their timeout persist timeout logs.
+func TestRunJobHandlerTimeoutMarksLogTimeout(t *testing.T) {
 	var (
 		ctx      = context.Background()
 		registry = newRegistryWithHandler(t, "host:scheduler-timeout", func(ctx context.Context, params json.RawMessage) (any, error) {
@@ -808,7 +808,7 @@ func TestCancelLogCancelsRunningShellExecution(t *testing.T) {
 	}
 }
 
-// TestNormalizeGcronPatternSupportsFiveAndSixFields verifies stored cron expressions are normalized for gcron registration.
+// TestNormalizeGcronPatternSupportsFiveAndSixFields verifies stored cron expressions are normalized for gjob registration.
 func TestNormalizeGcronPatternSupportsFiveAndSixFields(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -385,7 +385,7 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "unknown framework panic is rethrown after known request-size errors are normalized",
 		},
 		{
-			Path:     "apps/lina-core/pkg/plugin/pluginbridge/guest/guest_router.go",
+			Path:     "apps/lina-core/pkg/plugin/pluginbridge/pluginbridge_router.go",
 			Function: "MustNewGuestControllerRouteDispatcher",
 			Count:    1,
 			Category: panicCategoryMustConstructor,

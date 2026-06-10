@@ -17,11 +17,8 @@ import (
 	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/coordination"
-	"lina-core/internal/service/hostlock"
 	i18nsvc "lina-core/internal/service/i18n"
-	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/locker"
-	notifysvc "lina-core/internal/service/notify"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/session"
 	_ "lina-core/pkg/dbdriver"
@@ -33,7 +30,6 @@ import (
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/cachecap"
 	"lina-core/pkg/plugin/capability/capmodel"
-	capabilityconfigcap "lina-core/pkg/plugin/capability/configcap"
 	capabilitydictcap "lina-core/pkg/plugin/capability/dictcap"
 	capabilityfilecap "lina-core/pkg/plugin/capability/filecap"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
@@ -41,6 +37,7 @@ import (
 	"lina-core/pkg/plugin/capability/i18ncap"
 	capabilityinfracap "lina-core/pkg/plugin/capability/infracap"
 	capabilityjobcap "lina-core/pkg/plugin/capability/jobcap"
+	"lina-core/pkg/plugin/capability/lockcap"
 	"lina-core/pkg/plugin/capability/manifestcap"
 	capabilitymanifest "lina-core/pkg/plugin/capability/manifestcap"
 	capabilitynotifycap "lina-core/pkg/plugin/capability/notifycap"
@@ -51,6 +48,7 @@ import (
 	capabilitypluginlifecycle "lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/routecap"
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
+	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
@@ -113,15 +111,7 @@ func configureRootWasmHostServicesForTest(
 	capabilities capability.Services,
 	lockerSvc locker.Service,
 ) {
-	hostLockSvc, err := hostlock.New(lockerSvc)
-	if err != nil {
-		panic(err)
-	}
-	if err = ConfigureWasmHostServices(
-		kvcache.New(),
-		hostLockSvc,
-		notifysvc.New(tenantcapsvc.New(nil, bizCtxProvider)),
-		configProvider,
+	if err := ConfigureWasmHostServices(
 		capabilities,
 		capabilityconfig.NewConfigFactory("", ""),
 		capabilityhostconfig.New(mustHostConfigRawReader(configProvider)),
@@ -156,6 +146,8 @@ type rootTestCapabilities struct {
 	users capabilityusercap.Service
 	// plugins exposes a registration-safe plugin-governance capability for providers.
 	plugins capabilityplugincap.Service
+	// storage exposes a registration-safe no-op storage service for runtime cleanup.
+	storage storagecap.Service
 }
 
 // Ensure rootTestCapabilities satisfies the source-plugin host service directory.
@@ -175,6 +167,7 @@ func newRootTestCapabilities(
 		admin:           rootNoopAdminCapabilities{},
 		users:           rootNoopUsers{},
 		plugins:         rootNoopPlugins{},
+		storage:         rootNoopStorage{},
 	}
 }
 
@@ -219,9 +212,6 @@ func (s *rootTestCapabilities) Cache() cachecap.Service { return nil }
 // PluginConfig returns no plugin configuration service for root plugin facade tests.
 func (s *rootTestCapabilities) PluginConfig() plugincap.ConfigService { return nil }
 
-// Config returns no runtime-config domain service for root plugin facade tests.
-func (s *rootTestCapabilities) Config() capabilityconfigcap.Service { return nil }
-
 // Dict returns no dictionary-domain service for root plugin facade tests.
 func (s *rootTestCapabilities) Dict() capabilitydictcap.Service { return nil }
 
@@ -239,6 +229,7 @@ func (s *rootTestCapabilities) ForPlugin(_ string) capability.Services {
 		admin:           s.admin,
 		users:           s.users,
 		plugins:         s.plugins,
+		storage:         s.storage,
 	}
 }
 
@@ -253,6 +244,9 @@ func (s *rootTestCapabilities) Infra() capabilityinfracap.Service { return nil }
 
 // Jobs returns no scheduled-job domain service for root plugin facade tests.
 func (s *rootTestCapabilities) Jobs() capabilityjobcap.Service { return nil }
+
+// Lock returns no lock service for root plugin facade tests.
+func (s *rootTestCapabilities) Lock() lockcap.Service { return nil }
 
 // Manifest returns no manifest resource service for root plugin facade tests.
 func (s *rootTestCapabilities) Manifest() manifestcap.Service { return nil }
@@ -290,6 +284,14 @@ func (s *rootTestCapabilities) Route() routecap.Service { return nil }
 // Sessions returns no online-session domain service for root plugin facade tests.
 func (s *rootTestCapabilities) Sessions() capabilitysessioncap.Service { return nil }
 
+// Storage returns a no-op object storage service for root plugin facade tests.
+func (s *rootTestCapabilities) Storage() storagecap.Service {
+	if s == nil {
+		return nil
+	}
+	return s.storage
+}
+
 // Tenant returns the default tenant capability fallback service.
 func (s *rootTestCapabilities) Tenant() tenantcapsvc.Service {
 	if s == nil {
@@ -300,6 +302,39 @@ func (s *rootTestCapabilities) Tenant() tenantcapsvc.Service {
 
 // TenantFilter returns no tenant-filter service for root plugin facade tests.
 func (s *rootTestCapabilities) TenantFilter() tenantcap.PluginTableFilterService { return nil }
+
+// rootNoopStorage is a registration-safe object-storage fixture for root facade tests.
+type rootNoopStorage struct{}
+
+// Put returns metadata for the requested object without storing bytes.
+func (rootNoopStorage) Put(_ context.Context, in storagecap.PutInput) (*storagecap.PutOutput, error) {
+	return &storagecap.PutOutput{Object: &storagecap.Object{Path: in.Path, Size: in.Size, ContentType: in.ContentType}}, nil
+}
+
+// Get reports that no root-test object exists.
+func (rootNoopStorage) Get(context.Context, storagecap.GetInput) (*storagecap.GetOutput, error) {
+	return &storagecap.GetOutput{Found: false}, nil
+}
+
+// Delete accepts deletion without touching shared state.
+func (rootNoopStorage) Delete(context.Context, storagecap.DeleteInput) error {
+	return nil
+}
+
+// List returns an empty bounded object list.
+func (rootNoopStorage) List(_ context.Context, in storagecap.ListInput) (*storagecap.ListOutput, error) {
+	return &storagecap.ListOutput{Objects: []*storagecap.Object{}, Limit: in.Limit}, nil
+}
+
+// Stat reports that no root-test object exists.
+func (rootNoopStorage) Stat(context.Context, storagecap.StatInput) (*storagecap.StatOutput, error) {
+	return &storagecap.StatOutput{Found: false}, nil
+}
+
+// ProviderStatuses returns no provider diagnostics for root facade tests.
+func (rootNoopStorage) ProviderStatuses(context.Context) ([]*storagecap.ProviderStatus, error) {
+	return []*storagecap.ProviderStatus{}, nil
+}
 
 // rootNoopAdminCapabilities exposes the admin slices required by provider
 // construction without mutating plugin, user, or authorization state.
@@ -320,8 +355,8 @@ func (rootNoopAdminCapabilities) Files() capabilityfilecap.AdminService { return
 // Sessions returns no online-session management commands for root facade tests.
 func (rootNoopAdminCapabilities) Sessions() capabilitysessioncap.AdminService { return nil }
 
-// Config returns no runtime-config management commands for root facade tests.
-func (rootNoopAdminCapabilities) Config() capabilityconfigcap.AdminService { return nil }
+// HostConfig returns no runtime host-configuration management commands for root facade tests.
+func (rootNoopAdminCapabilities) HostConfig() hostconfigcap.AdminService { return nil }
 
 // Notifications returns no notification management commands for root facade tests.
 func (rootNoopAdminCapabilities) Notifications() capabilitynotifycap.AdminService { return nil }

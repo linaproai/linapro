@@ -226,7 +226,7 @@ function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
   return {
     authorization: {
       services: requestedServices.value
-        .filter((service) => hasServiceTargets(service))
+        .filter((service) => shouldSubmitHostServiceAuthorization(service))
         .map((service) => ({
           methods: service.methods,
           paths:
@@ -267,7 +267,8 @@ async function handleSubmit(action: SubmitAction) {
         const installResult = await pluginInstall(pluginID, payload, {
           silentErrorMessage: true,
         });
-        dependencyCheck.value = installResult?.dependencyCheck ?? dependencyCheck.value;
+        dependencyCheck.value =
+          installResult?.dependencyCheck ?? dependencyCheck.value;
       } catch (error) {
         // Mock-data failure does NOT undo the install: the plugin is fully
         // registered, only the mock data was rolled back. Surface a precise
@@ -437,20 +438,28 @@ function formatPluginType(type: string) {
   return type || '-';
 }
 
-function hasServiceTargets(service: HostServicePermissionItem) {
+function shouldSubmitHostServiceAuthorization(
+  service: HostServicePermissionItem,
+) {
   return (
+    (service.methods ?? []).length > 0 ||
     (service.paths ?? []).length > 0 ||
     (service.tables ?? []).length > 0 ||
-    (service.cronItems ?? []).length > 0 ||
     (service.resources ?? []).length > 0
   );
 }
 
 function resolveDefaultInstallMode(plugin: null | SystemPlugin): InstallMode {
-  if (plugin?.scopeNature === 'platform_only' || plugin?.supportsMultiTenant !== true) {
+  if (
+    plugin?.scopeNature === 'platform_only' ||
+    plugin?.supportsMultiTenant !== true
+  ) {
     return 'global';
   }
-  if (plugin?.installMode === 'global' || plugin?.installMode === 'tenant_scoped') {
+  if (
+    plugin?.installMode === 'global' ||
+    plugin?.installMode === 'tenant_scoped'
+  ) {
     return plugin.installMode;
   }
   return 'tenant_scoped';
@@ -537,11 +546,15 @@ function resolveDefaultInstallMode(plugin: null | SystemPlugin): InstallMode {
               class="inline-flex h-6 w-6 items-center justify-center rounded bg-[var(--ant-color-primary-bg)] text-[var(--ant-color-primary)]"
               aria-hidden="true"
             >
-              <span class="icon-[ant-design--partition-outlined] text-[15px]"></span>
+              <span
+                class="icon-[ant-design--partition-outlined] text-[15px]"
+              ></span>
             </span>
             {{ $t('pages.multiTenant.plugin.installMode') }}
           </div>
-          <div class="grid min-w-0 flex-1 gap-2 md:grid-cols-[280px_minmax(0,1fr)] md:items-center">
+          <div
+            class="grid min-w-0 flex-1 gap-2 md:grid-cols-[280px_minmax(0,1fr)] md:items-center"
+          >
             <Select
               v-model:value="selectedInstallMode"
               class="w-full"

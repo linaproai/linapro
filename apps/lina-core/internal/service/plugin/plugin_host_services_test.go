@@ -3,15 +3,14 @@
 package plugin
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
 	"lina-core/internal/service/bizctx"
 	configsvc "lina-core/internal/service/config"
-	"lina-core/internal/service/hostlock"
-	"lina-core/internal/service/kvcache"
-	"lina-core/internal/service/locker"
 	notifysvc "lina-core/internal/service/notify"
+	"lina-core/pkg/dialect"
 	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	capabilityhostconfig "lina-core/pkg/plugin/capability/hostconfigcap"
@@ -25,14 +24,8 @@ import (
 // wasmHostServiceTestDeps groups explicit dependencies for the root Wasm host
 // service configuration entry.
 type wasmHostServiceTestDeps struct {
-	// kvCacheSvc is the governed cache service shared with dynamic plugins.
-	kvCacheSvc kvcache.Service
-	// lockSvc is the governed host lock service shared with dynamic plugins.
-	lockSvc hostlock.Service
 	// notifySvc is the notification service shared with dynamic plugins.
 	notifySvc notifysvc.Service
-	// configSvc reads dynamic-plugin storage configuration.
-	configSvc configsvc.PluginConfigReader
 	// hostServices provides plugin capability directories for host service dispatch.
 	hostServices capability.Services
 	// configFactory creates plugin-scoped config service views.
@@ -64,44 +57,24 @@ func TestConfigureWasmHostServicesRequiresExplicitDependencies(t *testing.T) {
 		message string
 	}{
 		{
-			name:    "cache",
-			mutate:  func(deps *wasmHostServiceTestDeps) { deps.kvCacheSvc = nil },
-			message: "configure wasm cache host service failed",
-		},
-		{
-			name:    "lock",
-			mutate:  func(deps *wasmHostServiceTestDeps) { deps.lockSvc = nil },
-			message: "configure wasm lock host service failed",
-		},
-		{
-			name:    "notify",
-			mutate:  func(deps *wasmHostServiceTestDeps) { deps.notifySvc = nil },
-			message: "configure wasm notify host service failed",
-		},
-		{
-			name:    "storage",
-			mutate:  func(deps *wasmHostServiceTestDeps) { deps.configSvc = nil },
-			message: "configure wasm storage host service failed",
-		},
-		{
-			name:    "capabilities",
+			name:    "domain-capabilities",
 			mutate:  func(deps *wasmHostServiceTestDeps) { deps.hostServices = nil },
-			message: "configure wasm ai text host service failed",
+			message: "configure wasm host service runtime failed",
 		},
 		{
 			name:    "config",
 			mutate:  func(deps *wasmHostServiceTestDeps) { deps.configFactory = nil },
-			message: "configure wasm config host service failed",
+			message: "configure wasm host service runtime failed",
 		},
 		{
 			name:    "host-config",
 			mutate:  func(deps *wasmHostServiceTestDeps) { deps.hostConfigSvc = nil },
-			message: "configure wasm host config service failed",
+			message: "configure wasm host service runtime failed",
 		},
 		{
 			name:    "manifest",
 			mutate:  func(deps *wasmHostServiceTestDeps) { deps.manifestFactory = nil },
-			message: "configure wasm manifest host service failed",
+			message: "configure wasm host service runtime failed",
 		},
 	}
 
@@ -131,16 +104,8 @@ func newWasmHostServiceTestDeps(t *testing.T) *wasmHostServiceTestDeps {
 
 	configSvc := configsvc.New()
 	bizCtxSvc := bizctx.New()
-	lockSvc, err := hostlock.New(locker.New())
-	if err != nil {
-		t.Fatalf("create host lock service failed: %v", err)
-	}
-
 	return &wasmHostServiceTestDeps{
-		kvCacheSvc:      kvcache.New(),
-		lockSvc:         lockSvc,
 		notifySvc:       notifysvc.New(tenantcapsvc.New(nil, bizCtxSvc)),
-		configSvc:       configSvc,
 		hostServices:    newRootTestCapabilities(bizCtxSvc, nil),
 		configFactory:   capabilityconfig.NewConfigFactory("", ""),
 		hostConfigSvc:   capabilityhostconfig.New(mustHostConfigRawReaderForTest(t, configSvc)),
@@ -164,13 +129,33 @@ func mustHostConfigRawReaderForTest(t *testing.T, configSvc configsvc.Service) c
 // entry with one explicit dependency set.
 func configureWasmHostServicesForTest(deps *wasmHostServiceTestDeps) error {
 	return ConfigureWasmHostServices(
-		deps.kvCacheSvc,
-		deps.lockSvc,
-		deps.notifySvc,
-		deps.configSvc,
 		deps.hostServices,
 		deps.configFactory,
 		deps.hostConfigSvc,
 		deps.manifestFactory,
 	)
+}
+
+// TestNormalizeDataTableNamesTrimsAndDeduplicates verifies metadata lookups
+// query each non-empty table name at most once.
+func TestNormalizeDataTableNamesTrimsAndDeduplicates(t *testing.T) {
+	got := normalizeDataTableNames([]string{" sys_plugin ", "", "sys_user", "sys_plugin", "  "})
+	want := []string{"sys_plugin", "sys_user"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected normalized table names %v, got %v", want, got)
+	}
+}
+
+// TestDataTableCommentsFromMetadataMapsNonBlankComments verifies dialect
+// metadata results are converted into the governance display map.
+func TestDataTableCommentsFromMetadataMapsNonBlankComments(t *testing.T) {
+	got := dataTableCommentsFromMetadata([]dialect.TableMeta{
+		{TableName: " sys_plugin ", TableComment: " Plugin registry "},
+		{TableName: "sys_user", TableComment: ""},
+		{TableName: "", TableComment: "ignored"},
+	})
+	want := map[string]string{"sys_plugin": "Plugin registry"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected metadata comments %v, got %v", want, got)
+	}
 }

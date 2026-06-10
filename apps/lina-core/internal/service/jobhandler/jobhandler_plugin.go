@@ -14,7 +14,7 @@ import (
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-// PluginLifecycleBridge exposes plugin enablement state and plugin-owned cron
+// PluginLifecycleBridge exposes plugin enablement state and plugin-owned scheduled job
 // definitions needed during lifecycle synchronization.
 type PluginLifecycleBridge interface {
 	// IsEnabled reports whether the specified plugin is currently enabled.
@@ -22,15 +22,15 @@ type PluginLifecycleBridge interface {
 	// ListEnabledPluginIDs returns all currently enabled plugin identifiers so
 	// startup sync can restore synthetic handlers after host restart.
 	ListEnabledPluginIDs(ctx context.Context) ([]string, error)
-	// ListExecutableCronJobsByPlugin returns plugin-owned cron definitions that
+	// ListExecutableJobsByPlugin returns plugin-owned job definitions that
 	// can be published as handlers for one enabled plugin.
-	ListExecutableCronJobsByPlugin(ctx context.Context, pluginID string) ([]pluginsvc.ManagedCronJob, error)
+	ListExecutableJobsByPlugin(ctx context.Context, pluginID string) ([]pluginsvc.ManagedJob, error)
 }
 
 // pluginLifecycleObserver maps plugin lifecycle callbacks to registry mutations.
 type pluginLifecycleObserver struct {
 	registry Registry              // registry stores published handler definitions.
-	bridge   PluginLifecycleBridge // bridge resolves plugin enablement and managed cron definitions.
+	bridge   PluginLifecycleBridge // bridge resolves plugin enablement and managed job definitions.
 }
 
 // Ensure pluginLifecycleObserver implements the plugin lifecycle observer contract.
@@ -104,7 +104,7 @@ func (o *pluginLifecycleObserver) syncEnabledPlugins(
 	return nil
 }
 
-// registerPluginHandlers publishes all projected builtin cron handlers declared
+// registerPluginHandlers publishes all projected builtin job handlers declared
 // by one enabled plugin.
 func (o *pluginLifecycleObserver) registerPluginHandlers(ctx context.Context, pluginID string) error {
 	if o == nil || o.registry == nil || pluginID == "" {
@@ -120,7 +120,7 @@ func (o *pluginLifecycleObserver) registerPluginHandlers(ctx context.Context, pl
 		return nil
 	}
 
-	managedJobs, err := o.bridge.ListExecutableCronJobsByPlugin(ctx, pluginID)
+	managedJobs, err := o.bridge.ListExecutableJobsByPlugin(ctx, pluginID)
 	if err != nil {
 		for _, registeredRef := range registeredRefs {
 			o.registry.Unregister(registeredRef)
@@ -128,7 +128,7 @@ func (o *pluginLifecycleObserver) registerPluginHandlers(ctx context.Context, pl
 		return err
 	}
 	for _, item := range managedJobs {
-		ref, refErr := protocol.BuildPluginCronHandlerRef(pluginID, item.Name)
+		ref, refErr := protocol.BuildPluginJobHandlerRef(pluginID, item.Name)
 		if refErr != nil {
 			for _, registeredRef := range registeredRefs {
 				o.registry.Unregister(registeredRef)
@@ -141,8 +141,8 @@ func (o *pluginLifecycleObserver) registerPluginHandlers(ctx context.Context, pl
 		}
 		if err = o.registry.Register(HandlerDef{
 			Ref:          ref,
-			DisplayName:  buildManagedCronDisplayName(item),
-			Description:  buildManagedCronDescription(item),
+			DisplayName:  buildManagedJobDisplayName(item),
+			Description:  buildManagedJobDescription(item),
 			ParamsSchema: `{"type":"object","properties":{}}`,
 			Source:       jobmeta.HandlerSourcePlugin,
 			PluginID:     pluginID,
@@ -177,16 +177,16 @@ func (o *pluginLifecycleObserver) unregisterPluginHandlers(pluginID string) {
 	}
 }
 
-// buildManagedCronDisplayName derives the UI display name for one plugin cron definition.
-func buildManagedCronDisplayName(item pluginsvc.ManagedCronJob) string {
+// buildManagedJobDisplayName derives the UI display name for one plugin job definition.
+func buildManagedJobDisplayName(item pluginsvc.ManagedJob) string {
 	if trimmed := strings.TrimSpace(item.DisplayName); trimmed != "" {
 		return trimmed
 	}
 	return strings.TrimSpace(item.Name)
 }
 
-// buildManagedCronDescription derives the UI description for one plugin cron definition.
-func buildManagedCronDescription(item pluginsvc.ManagedCronJob) string {
+// buildManagedJobDescription derives the UI description for one plugin job definition.
+func buildManagedJobDescription(item pluginsvc.ManagedJob) string {
 	if trimmed := strings.TrimSpace(item.Description); trimmed != "" {
 		return trimmed
 	}

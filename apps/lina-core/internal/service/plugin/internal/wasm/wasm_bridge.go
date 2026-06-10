@@ -60,7 +60,7 @@ func ExecuteBridge(
 		routePath:                 input.RoutePath,
 		requestID:                 input.RequestID,
 		identity:                  input.Identity,
-		cronCollector:             input.CronCollector,
+		jobCollector:              input.JobCollector,
 	})
 
 	var (

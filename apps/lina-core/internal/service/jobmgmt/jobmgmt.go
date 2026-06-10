@@ -67,7 +67,7 @@ type JobService interface {
 	// TriggerJob starts one manual execution and returns the created log ID after
 	// runtime prerequisites and handler/shell constraints are validated.
 	TriggerJob(ctx context.Context, id int64) (int64, error)
-	// PreviewCron returns the next five fire times for one cron expression and
+	// PreviewJobs returns the next five fire times for one cron expression and
 	// timezone without mutating persistent jobs.
 	PreviewCron(ctx context.Context, expr string, timezone string) ([]time.Time, error)
 	// SyncBuiltinJobs upserts code-owned scheduled jobs into sys_job using

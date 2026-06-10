@@ -966,12 +966,7 @@
         "uninstallBlocked": "该插件仍被已安装插件依赖。"
       },
       "hostServices": {
-        "cron": {
-          "pattern": "表达式",
-          "parallelLimit": "{label}（上限 {value}）"
-        },
         "messages": {
-          "cronEmpty": "未声明 Cron 资源",
           "defaultEmpty": "未声明受限资源"
         },
         "scope": {
@@ -980,9 +975,11 @@
           "requested": "申请范围"
         },
         "service": {
-          "cron": "Cron",
           "data": "数据",
+          "jobs": "任务",
           "network": "网络",
+          "notifications": "通知",
+          "plugins": "插件",
           "runtime": "运行时",
           "storage": "存储"
         },

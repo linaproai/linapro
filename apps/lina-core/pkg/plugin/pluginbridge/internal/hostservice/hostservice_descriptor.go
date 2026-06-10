@@ -69,13 +69,6 @@ var hostServiceDescriptors = []HostServiceDescriptor{
 		},
 	},
 	{
-		Service:      HostServiceCron,
-		ResourceKind: HostServiceResourceNone,
-		Methods: []HostServiceMethodDescriptor{
-			hostMethod(HostServiceMethodCronRegister, "HostServiceMethodCronRegister", CapabilityCron, "HostServiceCronRegisterRequest", ""),
-		},
-	},
-	{
 		Service:      HostServiceStorage,
 		ResourceKind: HostServiceResourcePath,
 		Methods: []HostServiceMethodDescriptor{
@@ -147,21 +140,6 @@ var hostServiceDescriptors = []HostServiceDescriptor{
 		},
 	},
 	{
-		Service:      HostServiceNotify,
-		ResourceKind: HostServiceResourceRef,
-		Methods: []HostServiceMethodDescriptor{
-			hostMethod(HostServiceMethodNotifySend, "HostServiceMethodNotifySend", CapabilityNotify, "HostServiceNotifySendRequest", "HostServiceNotifySendResponse"),
-		},
-	},
-	{
-		Service:        HostServiceConfig,
-		ResourceKind:   HostServiceResourceNone,
-		DefaultMethods: []string{HostServiceMethodConfigGet},
-		Methods: []HostServiceMethodDescriptor{
-			hostMethod(HostServiceMethodConfigGet, "HostServiceMethodConfigGet", CapabilityConfig, "HostServiceConfigKeyRequest", "HostServiceConfigValueResponse"),
-		},
-	},
-	{
 		Service:        HostServiceHostConfig,
 		ResourceKind:   HostServiceResourceKey,
 		DefaultMethods: []string{HostServiceMethodHostConfigGet},
@@ -175,6 +153,34 @@ var hostServiceDescriptors = []HostServiceDescriptor{
 		DefaultMethods: []string{HostServiceMethodManifestGet},
 		Methods: []HostServiceMethodDescriptor{
 			hostMethod(HostServiceMethodManifestGet, "HostServiceMethodManifestGet", CapabilityManifest, "HostServiceManifestGetRequest", "HostServiceManifestGetResponse"),
+		},
+	},
+	{
+		Service:      HostServiceAPIDoc,
+		ResourceKind: HostServiceResourceNone,
+		Methods: []HostServiceMethodDescriptor{
+			hostMethod(HostServiceMethodAPIDocResolveRouteText, "HostServiceMethodAPIDocResolveRouteText", CapabilityAPIDoc, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodAPIDocResolveRouteTexts, "HostServiceMethodAPIDocResolveRouteTexts", CapabilityAPIDoc, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodAPIDocFindRouteTitleOperationKeys, "HostServiceMethodAPIDocFindRouteTitleOperationKeys", CapabilityAPIDoc, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+		},
+	},
+	{
+		Service:      HostServiceAuth,
+		ResourceKind: HostServiceResourceNone,
+		Methods: []HostServiceMethodDescriptor{
+			hostMethod(HostServiceMethodAuthSelectTenant, "HostServiceMethodAuthSelectTenant", CapabilityAuthToken, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodAuthSwitchTenant, "HostServiceMethodAuthSwitchTenant", CapabilityAuthToken, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodAuthIssueImpersonationToken, "HostServiceMethodAuthIssueImpersonationToken", CapabilityAuthToken, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodAuthRevokeImpersonationToken, "HostServiceMethodAuthRevokeImpersonationToken", CapabilityAuthToken, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+		},
+	},
+	{
+		Service:      HostServiceAuthz,
+		ResourceKind: HostServiceResourceNone,
+		Methods: []HostServiceMethodDescriptor{
+			hostMethod(HostServiceMethodAuthzBatchGetPermissions, "HostServiceMethodAuthzBatchGetPermissions", CapabilityAuthz, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodAuthzHasPermission, "HostServiceMethodAuthzHasPermission", CapabilityAuthz, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodAuthzIsPlatformAdmin, "HostServiceMethodAuthzIsPlatformAdmin", CapabilityAuthz, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
 		},
 	},
 	{
@@ -196,6 +202,100 @@ var hostServiceDescriptors = []HostServiceDescriptor{
 			hostMethod(HostServiceMethodAIVideoExtend, "HostServiceMethodAIVideoExtend", CapabilityAIVideo, "HostServiceAIVideoExtendRequest", "HostServiceCapabilityJSONResponse"),
 			hostMethod(HostServiceMethodAIVideoOperationGet, "HostServiceMethodAIVideoOperationGet", CapabilityAIVideo, "HostServiceAIVideoOperationGetRequest", "HostServiceCapabilityJSONResponse"),
 			hostMethod(HostServiceMethodAIVideoOperationCancel, "HostServiceMethodAIVideoOperationCancel", CapabilityAIVideo, "HostServiceAIVideoOperationCancelRequest", "HostServiceCapabilityJSONResponse"),
+		},
+	},
+	{
+		Service:      HostServiceUsers,
+		ResourceKind: HostServiceResourceNone,
+		Methods: []HostServiceMethodDescriptor{
+			hostMethod(HostServiceMethodUsersBatchGet, "HostServiceMethodUsersBatchGet", CapabilityUsers, "HostServiceUsersBatchGetRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodUsersSearch, "HostServiceMethodUsersSearch", CapabilityUsers, "HostServiceUsersSearchRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodUsersEnsureVisible, "HostServiceMethodUsersEnsureVisible", CapabilityUsers, "HostServiceUsersEnsureVisibleRequest", "HostServiceCapabilityJSONResponse"),
+		},
+	},
+	{
+		Service:      HostServiceBizCtx,
+		ResourceKind: HostServiceResourceNone,
+		Methods: []HostServiceMethodDescriptor{
+			hostMethod(HostServiceMethodBizCtxCurrent, "HostServiceMethodBizCtxCurrent", CapabilityBizCtx, "", "HostServiceCapabilityJSONResponse"),
+		},
+	},
+	{
+		Service:      HostServiceDict,
+		ResourceKind: HostServiceResourceNone,
+		Methods: []HostServiceMethodDescriptor{
+			hostMethod(HostServiceMethodDictResolveLabels, "HostServiceMethodDictResolveLabels", CapabilityDict, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+		},
+	},
+	{
+		Service:      HostServiceFiles,
+		ResourceKind: HostServiceResourceNone,
+		Methods: []HostServiceMethodDescriptor{
+			hostMethod(HostServiceMethodFilesBatchGet, "HostServiceMethodFilesBatchGet", CapabilityFiles, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodFilesEnsureVisible, "HostServiceMethodFilesEnsureVisible", CapabilityFiles, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+		},
+	},
+	{
+		Service:      HostServiceI18n,
+		ResourceKind: HostServiceResourceNone,
+		Methods: []HostServiceMethodDescriptor{
+			hostMethod(HostServiceMethodI18nGetLocale, "HostServiceMethodI18nGetLocale", CapabilityI18n, "", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodI18nTranslate, "HostServiceMethodI18nTranslate", CapabilityI18n, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodI18nFindMessageKeys, "HostServiceMethodI18nFindMessageKeys", CapabilityI18n, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+		},
+	},
+	{
+		Service:      HostServiceInfra,
+		ResourceKind: HostServiceResourceNone,
+		Methods: []HostServiceMethodDescriptor{
+			hostMethod(HostServiceMethodInfraBatchGetStatus, "HostServiceMethodInfraBatchGetStatus", CapabilityInfra, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+		},
+	},
+	{
+		Service:      HostServiceJobs,
+		ResourceKind: HostServiceResourceNone,
+		Methods: []HostServiceMethodDescriptor{
+			hostMethod(HostServiceMethodJobsBatchGet, "HostServiceMethodJobsBatchGet", CapabilityJobs, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodJobsRegister, "HostServiceMethodJobsRegister", CapabilityJobs, "HostServiceJobsRegisterRequest", ""),
+		},
+	},
+	{
+		Service:      HostServiceNotifications,
+		ResourceKind: HostServiceResourceNone,
+		Methods: []HostServiceMethodDescriptor{
+			hostMethod(HostServiceMethodNotificationsBatchGetMessages, "HostServiceMethodNotificationsBatchGetMessages", CapabilityNotifications, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethodWithResource(HostServiceMethodNotificationsSend, "HostServiceMethodNotificationsSend", CapabilityNotifications, HostServiceResourceRef, "HostServiceNotificationsSendRequest", "HostServiceNotificationsSendResponse"),
+		},
+	},
+	{
+		Service:      HostServicePlugins,
+		ResourceKind: HostServiceResourceNone,
+		Methods: []HostServiceMethodDescriptor{
+			hostMethod(HostServiceMethodPluginsBatchGet, "HostServiceMethodPluginsBatchGet", CapabilityPlugins, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodPluginsListTenant, "HostServiceMethodPluginsListTenant", CapabilityPlugins, "", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodPluginsIsEnabled, "HostServiceMethodPluginsIsEnabled", CapabilityPlugins, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodPluginsIsProviderEnabled, "HostServiceMethodPluginsIsProviderEnabled", CapabilityPlugins, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodPluginsIsEnabledAuthoritative, "HostServiceMethodPluginsIsEnabledAuthoritative", CapabilityPlugins, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodPluginsConfigGet, "HostServiceMethodPluginsConfigGet", CapabilityPlugins, "HostServiceConfigKeyRequest", "HostServiceConfigValueResponse"),
+			hostMethod(HostServiceMethodPluginsLifecycleEnsureTenantPluginDisable, "HostServiceMethodPluginsLifecycleEnsureTenantPluginDisable", CapabilityPlugins, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodPluginsLifecycleNotifyTenantPluginDisabled, "HostServiceMethodPluginsLifecycleNotifyTenantPluginDisabled", CapabilityPlugins, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodPluginsLifecycleEnsureTenantDelete, "HostServiceMethodPluginsLifecycleEnsureTenantDelete", CapabilityPlugins, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodPluginsLifecycleNotifyTenantDeleted, "HostServiceMethodPluginsLifecycleNotifyTenantDeleted", CapabilityPlugins, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+		},
+	},
+	{
+		Service:      HostServiceRoute,
+		ResourceKind: HostServiceResourceNone,
+		Methods: []HostServiceMethodDescriptor{
+			hostMethod(HostServiceMethodRouteMetadataGet, "HostServiceMethodRouteMetadataGet", CapabilityRoute, "", "HostServiceCapabilityJSONResponse"),
+		},
+	},
+	{
+		Service:      HostServiceSessions,
+		ResourceKind: HostServiceResourceNone,
+		Methods: []HostServiceMethodDescriptor{
+			hostMethod(HostServiceMethodSessionsSearch, "HostServiceMethodSessionsSearch", CapabilitySessions, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
+			hostMethod(HostServiceMethodSessionsBatchGet, "HostServiceMethodSessionsBatchGet", CapabilitySessions, "HostServiceCapabilityJSONRequest", "HostServiceCapabilityJSONResponse"),
 		},
 	},
 	{
@@ -285,6 +385,19 @@ func hostMethod(
 	}
 }
 
+func hostMethodWithResource(
+	method string,
+	methodConst string,
+	capability string,
+	resourceKind HostServiceResourceKind,
+	requestPayload string,
+	responsePayload string,
+) HostServiceMethodDescriptor {
+	descriptor := hostMethod(method, methodConst, capability, requestPayload, responsePayload)
+	descriptor.ResourceKind = resourceKind
+	return descriptor
+}
+
 func reservedHostMethod(method string, capability string) HostServiceMethodDescriptor {
 	return HostServiceMethodDescriptor{
 		Method:       method,
@@ -303,6 +416,20 @@ func buildHostServiceMethodCapabilityMap() map[string]map[string]string {
 			result[descriptor.Service] = make(map[string]string)
 		}
 		result[descriptor.Service][descriptor.Method] = descriptor.Capability
+	}
+	return result
+}
+
+func buildHostServiceMethodResourceMap() map[string]map[string]HostServiceResourceKind {
+	result := make(map[string]map[string]HostServiceResourceKind)
+	for _, descriptor := range hostServiceMethodDescriptors() {
+		if descriptor.Service == "" || descriptor.Method == "" {
+			continue
+		}
+		if result[descriptor.Service] == nil {
+			result[descriptor.Service] = make(map[string]HostServiceResourceKind)
+		}
+		result[descriptor.Service][descriptor.Method] = descriptor.ResourceKind
 	}
 	return result
 }

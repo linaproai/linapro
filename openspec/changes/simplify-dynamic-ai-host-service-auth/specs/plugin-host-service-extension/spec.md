@@ -24,6 +24,38 @@
 - **THEN** host service handler MUST 将请求交给类型化`AI`文本能力边界处理
 - **AND** 错误 MUST 保持`AI`能力服务的 DTO 校验和 provider 可用性语义
 
+### Requirement: 动态插件普通领域 host service 必须覆盖源码插件普通领域能力
+
+系统 SHALL 让动态插件通过`hostServices`获得与源码插件`capability.Services`普通消费面等价的领域能力覆盖。动态插件领域 host service MUST 使用语言无关的领域服务名和方法名，MUST 使用`resourceKind: none`表达方法授权，运行时 MUST 从宿主注入的同一个`capability.Services`目录进入对应`*cap.Service`。动态插件协议 MUST NOT 暴露`AdminServices`目录、数据库查询构造器、`DAO/DO/Entity`、HTTP 请求对象或宿主内部 service。
+
+#### Scenario: 动态插件声明普通领域能力
+
+- **WHEN** 动态插件声明`auth`、`authz`、`user`、`dict`、`file`、`session`、`job`、`infra`、`i18n`、`apidoc`、`bizctx`、`route`、`notification`或`plugin`等领域 host service
+- **THEN** 宿主清单校验 MUST 识别对应领域方法已经发布
+- **AND** 声明 MUST 只包含`methods`
+- **AND** 声明 MUST NOT 包含`resources`、`paths`、`tables`或`keys`
+- **AND** 运行时授权快照 MUST 只按`service + method`校验调用
+
+#### Scenario: 动态插件调用普通领域能力
+
+- **WHEN** 动态插件通过已授权领域方法读取用户、权限、字典、文件、会话、任务、基础设施、国际化、API 文档、业务上下文、路由元数据、通知消息或插件治理投影
+- **THEN** `WASM`host service handler MUST 构造`CapabilityContext`
+- **AND** handler MUST 使用`Capability.ServicesForPlugin(..., pluginID)`取得插件绑定的能力目录
+- **AND** 请求 MUST 进入对应`*cap.Service`普通消费面或该普通消费面拥有的子服务
+- **AND** 领域实现 MUST 继续执行租户、数据权限、可见性、批量上限、缓存和`i18n`治理
+
+#### Scenario: 动态插件不能通过普通领域面获得管理能力
+
+- **WHEN** 动态插件声明普通领域 host service
+- **THEN** 宿主 MUST NOT 因该声明暴露创建、更新、删除、状态变更、授权关系变更、执行任务、撤销会话或发送通知等管理动作
+- **AND** 未来如需动态插件管理方法，MUST 通过显式发布的领域管理方法和独立授权语义进入
+
+#### Scenario: 重叠动态能力收敛到领域能力
+
+- **WHEN** 既有动态 host service 与普通领域能力语义重叠
+- **THEN** 宿主实现 MUST 优先复用`capability.Services`中对应领域能力或插件绑定子服务
+- **AND** 不得继续维护一套与领域能力平行且语义漂移的动态专用实现
+
 ## MODIFIED Requirements
 
 ### Requirement: 宿主服务访问同时受宿主服务声明推导的能力分类和资源授权约束

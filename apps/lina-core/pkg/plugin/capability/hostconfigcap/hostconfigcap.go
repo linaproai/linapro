@@ -1,6 +1,7 @@
-// Package hostconfigcap defines the read-only host configuration capability
-// published to plugins. It is separate from plugincap.ConfigService, which only
-// reads the current plugin's own static configuration.
+// Package hostconfigcap defines host configuration capabilities published to
+// plugins. The ordinary Service is read-only host configuration access. The
+// AdminService manages governed runtime configuration projections and remains
+// available only through source-plugin management surfaces.
 package hostconfigcap
 
 import (
@@ -8,6 +9,8 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/container/gvar"
+
+	"lina-core/pkg/plugin/capability/capmodel"
 )
 
 // Service defines read-only host config values that source plugins may read.
@@ -26,4 +29,36 @@ type Service interface {
 	// Duration reads a host config duration value or returns defaultValue when
 	// the key is absent or blank.
 	Duration(ctx context.Context, key string, defaultValue time.Duration) (time.Duration, error)
+}
+
+// RuntimeConfigKey identifies one governed runtime configuration key.
+type RuntimeConfigKey string
+
+// RuntimeConfigProjection describes one runtime configuration value visible to
+// a plugin management caller.
+type RuntimeConfigProjection struct {
+	// Key is the runtime configuration key.
+	Key RuntimeConfigKey
+	// ValueJSON is the JSON-encoded value projection.
+	ValueJSON []byte
+	// LabelKey is the optional i18n label key.
+	LabelKey string
+	// Label is the optional locale-resolved label.
+	Label string
+}
+
+// AdminService defines governed runtime configuration management commands.
+type AdminService interface {
+	// BatchGetRuntimeConfig returns visible runtime configuration projections
+	// and opaque missing keys.
+	BatchGetRuntimeConfig(ctx context.Context, capCtx capmodel.CapabilityContext, keys []RuntimeConfigKey) (*capmodel.BatchResult[*RuntimeConfigProjection, RuntimeConfigKey], error)
+	// SetRuntimeConfigJSON writes one governed runtime configuration value.
+	SetRuntimeConfigJSON(ctx context.Context, capCtx capmodel.CapabilityContext, key RuntimeConfigKey, valueJSON []byte) error
+}
+
+// ScopeService defines host-internal runtime configuration visibility helpers.
+type ScopeService interface {
+	// EnsureRuntimeConfigKeysVisible rejects when any runtime configuration key
+	// is outside caller scope.
+	EnsureRuntimeConfigKeysVisible(ctx context.Context, capCtx capmodel.CapabilityContext, keys []RuntimeConfigKey) error
 }

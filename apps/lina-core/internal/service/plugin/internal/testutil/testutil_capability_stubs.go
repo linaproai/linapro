@@ -19,9 +19,9 @@ import (
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/cachecap"
 	"lina-core/pkg/plugin/capability/capmodel"
-	capabilityconfigcap "lina-core/pkg/plugin/capability/configcap"
 	capabilitydictcap "lina-core/pkg/plugin/capability/dictcap"
 	capabilityfilecap "lina-core/pkg/plugin/capability/filecap"
+	"lina-core/pkg/plugin/capability/hostconfigcap"
 	capabilityinfracap "lina-core/pkg/plugin/capability/infracap"
 	capabilityjobcap "lina-core/pkg/plugin/capability/jobcap"
 	capabilitynotifycap "lina-core/pkg/plugin/capability/notifycap"
@@ -56,7 +56,7 @@ func (testNoopAdminCapabilities) Sessions() capabilitysessioncap.AdminService {
 	return testNoopSessions{}
 }
 
-func (testNoopAdminCapabilities) Config() capabilityconfigcap.AdminService {
+func (testNoopAdminCapabilities) HostConfig() hostconfigcap.AdminService {
 	return testNoopRuntimeConfig{}
 }
 
@@ -302,14 +302,14 @@ func (testNoopFiles) DeleteFiles(context.Context, capmodel.CapabilityContext, []
 
 type testNoopRuntimeConfig struct{}
 
-func (testNoopRuntimeConfig) BatchGetConfig(_ context.Context, _ capmodel.CapabilityContext, keys []capabilityconfigcap.ConfigKey) (*capmodel.BatchResult[*capabilityconfigcap.Projection, capabilityconfigcap.ConfigKey], error) {
-	return &capmodel.BatchResult[*capabilityconfigcap.Projection, capabilityconfigcap.ConfigKey]{
-		Items:      map[capabilityconfigcap.ConfigKey]*capabilityconfigcap.Projection{},
-		MissingIDs: append([]capabilityconfigcap.ConfigKey(nil), keys...),
+func (testNoopRuntimeConfig) BatchGetRuntimeConfig(_ context.Context, _ capmodel.CapabilityContext, keys []hostconfigcap.RuntimeConfigKey) (*capmodel.BatchResult[*hostconfigcap.RuntimeConfigProjection, hostconfigcap.RuntimeConfigKey], error) {
+	return &capmodel.BatchResult[*hostconfigcap.RuntimeConfigProjection, hostconfigcap.RuntimeConfigKey]{
+		Items:      map[hostconfigcap.RuntimeConfigKey]*hostconfigcap.RuntimeConfigProjection{},
+		MissingIDs: append([]hostconfigcap.RuntimeConfigKey(nil), keys...),
 	}, nil
 }
 
-func (testNoopRuntimeConfig) SetConfigJSON(context.Context, capmodel.CapabilityContext, capabilityconfigcap.ConfigKey, []byte) error {
+func (testNoopRuntimeConfig) SetRuntimeConfigJSON(context.Context, capmodel.CapabilityContext, hostconfigcap.RuntimeConfigKey, []byte) error {
 	return nil
 }
 

@@ -411,12 +411,12 @@ function buildPluginRuntimeMain(moduleName: string) {
   return `package main
 
 import (
-	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	dynamicbackend "${moduleName}/backend"
 )
 
-var guestRuntime = bridgeguest.NewGuestRuntime(dynamicbackend.HandleRequest)
+var guestRuntime = bridgeplugin.NewGuestRuntime(dynamicbackend.HandleRequest)
 
 //go:wasmexport lina_dynamic_route_alloc
 func linaDynamicRouteAlloc(size uint32) uint32 {
@@ -458,12 +458,12 @@ function buildBackendPluginFile(moduleName: string) {
 package backend
 
 import (
-	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"${moduleName}/backend/internal/controller/dynamic"
 )
 
-var guestRouteDispatcher = bridgeguest.MustNewGuestControllerRouteDispatcher(dynamic.New())
+var guestRouteDispatcher = bridgeplugin.MustNewGuestControllerRouteDispatcher(dynamic.New())
 
 func HandleRequest(
 	request *protocol.BridgeRequestEnvelopeV1,
@@ -605,7 +605,7 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -616,9 +616,9 @@ const (
 
 func (c *Controller) LowPriorityHostServices(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	var (
-		cacheSvc = bridgeguest.Cache()
-		lockSvc = bridgeguest.Lock()
-		notifySvc = bridgeguest.Notify()
+		cacheSvc = bridgeplugin.Cache()
+		lockSvc = bridgeplugin.Lock()
+		notifySvc = bridgeplugin.Notify()
 	)
 
 	cacheSetValue, err := cacheSvc.Set(cacheNamespace, "profile", request.PluginID, 60)
@@ -810,12 +810,12 @@ func New() *Controller {
 import (
 	"strings"
 
-	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 func (c *Controller) CacheLimit(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := bridgeguest.Cache().Set("limited-cache", "oversized", strings.Repeat("a", 4097), 0)
+	_, err := bridgeplugin.Cache().Set("limited-cache", "oversized", strings.Repeat("a", 4097), 0)
 	if err != nil {
 		return nil, err
 	}
@@ -823,7 +823,7 @@ func (c *Controller) CacheLimit(request *protocol.BridgeRequestEnvelopeV1) (*pro
 }
 
 func (c *Controller) LockDenied(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := bridgeguest.Lock().Acquire("blocked-lock", 1000)
+	_, err := bridgeplugin.Lock().Acquire("blocked-lock", 1000)
 	if err != nil {
 		return nil, err
 	}
@@ -831,7 +831,7 @@ func (c *Controller) LockDenied(request *protocol.BridgeRequestEnvelopeV1) (*pro
 }
 
 func (c *Controller) NotifyDenied(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := bridgeguest.Notify().Send("ops-webhook", &protocol.HostServiceNotifySendRequest{
+	_, err := bridgeplugin.Notify().Send("ops-webhook", &protocol.HostServiceNotifySendRequest{
 		Title: "denied notify",
 		Content: "blocked",
 		RecipientUserIDs: []int64{1},

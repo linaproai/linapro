@@ -1,5 +1,6 @@
 // This file verifies host-service descriptor governance across protocol,
-// guest SDK, non-WASI stubs, and host dispatcher synchronization points.
+// dynamic bridge SDK, non-WASI stubs, and host dispatcher synchronization
+// points.
 
 package hostservice
 
@@ -14,13 +15,14 @@ import (
 )
 
 // TestHostServiceDescriptorsCoverProtocolGuestAndDispatcher verifies the
-// descriptor table remains synchronized with public aliases, guest clients, and
-// host-side dispatchers for all published host-service methods.
+// descriptor table remains synchronized with public aliases, bridge SDK clients,
+// and host-side dispatchers for all published host-service methods.
 func TestHostServiceDescriptorsCoverProtocolGuestAndDispatcher(t *testing.T) {
 	root := repoRootForDescriptorTest(t)
 	protocolDir := filepath.Join(root, "pkg/plugin/pluginbridge/protocol")
 	guestDirs := []string{
-		filepath.Join(root, "pkg/plugin/pluginbridge/guest"),
+		filepath.Join(root, "pkg/plugin/pluginbridge"),
+		filepath.Join(root, "pkg/plugin/pluginbridge/internal/domainhostcall"),
 		filepath.Join(root, "pkg/plugin/capability/recordstore"),
 	}
 	wasmDir := filepath.Join(root, "internal/service/plugin/internal/wasm")
@@ -28,6 +30,9 @@ func TestHostServiceDescriptorsCoverProtocolGuestAndDispatcher(t *testing.T) {
 	protocolConsts := declaredConstNames(t, protocolDir)
 	protocolTypes := declaredTypeNames(t, protocolDir)
 	protocolValues := declaredValueNames(t, protocolDir)
+	for name := range declaredFuncNames(t, protocolDir) {
+		protocolValues[name] = struct{}{}
+	}
 	guestSelectors := selectorNames(t, guestDirs...)
 	dispatcherSelectors := selectorNames(t, wasmDir)
 
@@ -57,11 +62,33 @@ func TestHostServiceDescriptorsCoverProtocolGuestAndDispatcher(t *testing.T) {
 	}
 }
 
+// TestProtocolHostServiceCodecsOwnPayloadImplementation verifies public
+// protocol codec files contain the payload implementation instead of re-aliasing
+// internal hostservice codec owners.
+func TestProtocolHostServiceCodecsOwnPayloadImplementation(t *testing.T) {
+	root := repoRootForDescriptorTest(t)
+	protocolDir := filepath.Join(root, "pkg/plugin/pluginbridge/protocol")
+	for _, filePath := range productionGoFilesInDir(t, protocolDir) {
+		if !strings.HasPrefix(filepath.Base(filePath), "protocol_hostservice_") ||
+			!strings.Contains(filepath.Base(filePath), "_codec.go") {
+			continue
+		}
+		content := string(readFileForDescriptorTest(t, filePath))
+		if strings.Contains(content, "pluginbridge/internal/hostservice") {
+			t.Fatalf("protocol host service codec must own payload implementation, but %s imports internal hostservice", filePath)
+		}
+		if strings.Contains(content, "= hostservice.MarshalHostService") ||
+			strings.Contains(content, "= hostservice.UnmarshalHostService") {
+			t.Fatalf("protocol host service codec must not alias internal codec functions: %s", filePath)
+		}
+	}
+}
+
 // TestHostServiceDescriptorsCoverNonWASIStubs verifies every WASI-only guest
 // service family keeps a host-build unsupported stub.
 func TestHostServiceDescriptorsCoverNonWASIStubs(t *testing.T) {
 	root := repoRootForDescriptorTest(t)
-	guestStubFuncs := declaredFuncNamesForBuildTag(t, filepath.Join(root, "pkg/plugin/pluginbridge/guest"), "!wasip1")
+	guestStubFuncs := declaredFuncNamesForBuildTag(t, filepath.Join(root, "pkg/plugin/pluginbridge"), "!wasip1")
 	dataStubFuncs := declaredFuncNamesForBuildTag(t, filepath.Join(root, "pkg/plugin/capability/recordstore"), "!wasip1")
 	expectedGuestFactories := map[string]string{
 		HostServiceRuntime:    "Runtime",
@@ -69,9 +96,6 @@ func TestHostServiceDescriptorsCoverNonWASIStubs(t *testing.T) {
 		HostServiceNetwork:    "Network",
 		HostServiceCache:      "Cache",
 		HostServiceLock:       "Lock",
-		HostServiceConfig:     "pluginConfig",
-		HostServiceNotify:     "Notify",
-		HostServiceCron:       "Cron",
 		HostServiceHostConfig: "HostConfig",
 		HostServiceManifest:   "Manifest",
 	}
@@ -111,6 +135,66 @@ func TestHostServiceDescriptorCapabilitySource(t *testing.T) {
 	}
 }
 
+// TestDomainCapabilityBoundaryGovernance verifies ordinary domain capabilities
+// keep one contract owner, one Wasm configuration entry, and one guest-domain
+// proxy location.
+func TestDomainCapabilityBoundaryGovernance(t *testing.T) {
+	root := repoRootForDescriptorTest(t)
+	productionDirs := []string{
+		filepath.Join(root, "internal/cmd"),
+		filepath.Join(root, "internal/service/plugin"),
+		filepath.Join(root, "pkg/plugin/pluginbridge"),
+	}
+	forbiddenFragments := []string{
+		"ConfigureAITextHostService",
+		"ConfigureUserHostService",
+		"ConfigureOrgHostService",
+		"ConfigureTenantHostService",
+		"aiTextHostServices",
+		"userHostServices",
+		"orgHostServices",
+		"tenantHostServices",
+		"internal/service/plugin/internal/hostservices",
+	}
+	for _, filePath := range productionGoFilesRecursive(t, productionDirs...) {
+		content := string(readFileForDescriptorTest(t, filePath))
+		for _, fragment := range forbiddenFragments {
+			if strings.Contains(content, fragment) {
+				t.Fatalf("domain capability boundary regression: %s contains %q", filePath, fragment)
+			}
+		}
+	}
+
+	cmdDir := filepath.Join(root, "internal/cmd")
+	for _, filePath := range productionGoFilesRecursive(t, cmdDir) {
+		content := string(readFileForDescriptorTest(t, filePath))
+		if strings.Contains(content, "internal/service/plugin/internal/capabilityhost") {
+			t.Fatalf("startup layer must use plugin facade, but %s imports capabilityhost directly", filePath)
+		}
+	}
+
+	guestDir := filepath.Join(root, "pkg/plugin/pluginbridge")
+	for _, filePath := range productionGoFilesInDir(t, guestDir) {
+		content := string(readFileForDescriptorTest(t, filePath))
+		for _, typeName := range []string{
+			"type AIService interface",
+			"type AITextService interface",
+			"type AIImageService interface",
+			"type AIEmbeddingService interface",
+			"type AIAudioService interface",
+			"type AIVisionService interface",
+			"type AIDocumentService interface",
+			"type AISafetyService interface",
+			"type AIVideoService interface",
+			"type PluginService interface",
+		} {
+			if strings.Contains(content, typeName) {
+				t.Fatalf("pluginbridge public package must return aicap contracts instead of parallel AI interfaces: %s contains %q", filePath, typeName)
+			}
+		}
+	}
+}
+
 func assertPayloadAliases(
 	t *testing.T,
 	protocolTypes map[string]struct{},
@@ -127,7 +211,7 @@ func assertPayloadAliases(
 	}
 	for _, fn := range []string{"Marshal" + payload, "Unmarshal" + payload} {
 		if _, ok := protocolValues[fn]; !ok {
-			t.Fatalf("host service method %s is missing public protocol codec alias %s", methodKey, fn)
+			t.Fatalf("host service method %s is missing public protocol codec %s", methodKey, fn)
 		}
 	}
 }
@@ -148,6 +232,59 @@ func repoRootForDescriptorTest(t *testing.T) string {
 		}
 		dir = parent
 	}
+}
+
+func productionGoFilesRecursive(t *testing.T, dirs ...string) []string {
+	t.Helper()
+	files := make([]string, 0)
+	for _, dir := range dirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("read Go source directory %s failed: %v", dir, err)
+		}
+		for _, entry := range entries {
+			path := filepath.Join(dir, entry.Name())
+			if entry.IsDir() {
+				files = append(files, productionGoFilesRecursive(t, path)...)
+				continue
+			}
+			if isProductionGoFile(entry.Name()) {
+				files = append(files, path)
+			}
+		}
+	}
+	return files
+}
+
+func productionGoFilesInDir(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read Go source directory %s failed: %v", dir, err)
+	}
+	files := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if isProductionGoFile(entry.Name()) {
+			files = append(files, filepath.Join(dir, entry.Name()))
+		}
+	}
+	return files
+}
+
+func isProductionGoFile(name string) bool {
+	return strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go")
+}
+
+func readFileForDescriptorTest(t *testing.T, filePath string) []byte {
+	t.Helper()
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("read Go source %s failed: %v", filePath, err)
+	}
+	return content
 }
 
 func declaredConstNames(t *testing.T, dir string) map[string]struct{} {

@@ -27,13 +27,13 @@ import (
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/cachecap"
 	"lina-core/pkg/plugin/capability/capmodel"
-	capabilityconfigcap "lina-core/pkg/plugin/capability/configcap"
 	capabilitydictcap "lina-core/pkg/plugin/capability/dictcap"
 	capabilityfilecap "lina-core/pkg/plugin/capability/filecap"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/capability/i18ncap"
 	capabilityinfracap "lina-core/pkg/plugin/capability/infracap"
 	capabilityjobcap "lina-core/pkg/plugin/capability/jobcap"
+	"lina-core/pkg/plugin/capability/lockcap"
 	"lina-core/pkg/plugin/capability/manifestcap"
 	capabilitynotifycap "lina-core/pkg/plugin/capability/notifycap"
 	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
@@ -41,6 +41,7 @@ import (
 	capabilityplugincap "lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/routecap"
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
+	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
@@ -120,13 +121,8 @@ func (d *scopedSourceServicesDirectory) Cache() cachecap.Service {
 	return scopedCapabilityCache{}
 }
 
-// PluginConfig returns a defaulting plugin configuration service required by plugin cron registration.
+// PluginConfig returns a defaulting plugin configuration service required by plugin job registration.
 func (d *scopedSourceServicesDirectory) PluginConfig() plugincap.ConfigService {
-	return scopedCapabilityConfig{}
-}
-
-// Config returns a runtime-config domain service for registration-only tests.
-func (d *scopedSourceServicesDirectory) Config() capabilityconfigcap.Service {
 	return scopedCapabilityConfig{}
 }
 
@@ -137,7 +133,7 @@ func (d *scopedSourceServicesDirectory) Dict() capabilitydictcap.Service {
 
 // Notifications returns a no-op notification-domain service required by content-notice route registration.
 func (d *scopedSourceServicesDirectory) Notifications() capabilitynotifycap.Service {
-	return scopedCapabilityNotify{}
+	return scopedNotificationsFixture{}
 }
 
 // Admin returns a minimal management directory required by tenant route registration.
@@ -180,7 +176,7 @@ func (d *scopedSourceServicesDirectory) Users() capabilityusercap.Service {
 	return scopedCapabilityUsers{}
 }
 
-// HostConfig returns a defaulting host-config service required by cleanup cron registration.
+// HostConfig returns a defaulting host-config service required by cleanup job registration.
 func (d *scopedSourceServicesDirectory) HostConfig() hostconfigcap.Service {
 	return scopedCapabilityConfig{}
 }
@@ -311,11 +307,11 @@ func (scopedCapabilityConfig) Duration(_ context.Context, _ string, defaultValue
 	return defaultValue, nil
 }
 
-// BatchGetConfig returns all requested config keys as opaque missing entries.
-func (scopedCapabilityConfig) BatchGetConfig(_ context.Context, _ capmodel.CapabilityContext, keys []capabilityconfigcap.ConfigKey) (*capmodel.BatchResult[*capabilityconfigcap.Projection, capabilityconfigcap.ConfigKey], error) {
-	return &capmodel.BatchResult[*capabilityconfigcap.Projection, capabilityconfigcap.ConfigKey]{
-		Items:      map[capabilityconfigcap.ConfigKey]*capabilityconfigcap.Projection{},
-		MissingIDs: append([]capabilityconfigcap.ConfigKey(nil), keys...),
+// BatchGetRuntimeConfig returns all requested config keys as opaque missing entries.
+func (scopedCapabilityConfig) BatchGetRuntimeConfig(_ context.Context, _ capmodel.CapabilityContext, keys []hostconfigcap.RuntimeConfigKey) (*capmodel.BatchResult[*hostconfigcap.RuntimeConfigProjection, hostconfigcap.RuntimeConfigKey], error) {
+	return &capmodel.BatchResult[*hostconfigcap.RuntimeConfigProjection, hostconfigcap.RuntimeConfigKey]{
+		Items:      map[hostconfigcap.RuntimeConfigKey]*hostconfigcap.RuntimeConfigProjection{},
+		MissingIDs: append([]hostconfigcap.RuntimeConfigKey(nil), keys...),
 	}, nil
 }
 
@@ -342,11 +338,11 @@ func (scopedCapabilityDict) ResolveLabels(_ context.Context, _ capmodel.Capabili
 	return result, nil
 }
 
-// scopedCapabilityNotify is a no-op notification fixture for registration-only tests.
-type scopedCapabilityNotify struct{}
+// scopedNotificationsFixture is a no-op notification fixture for registration-only tests.
+type scopedNotificationsFixture struct{}
 
 // BatchGetMessages returns all requested messages as opaque missing entries.
-func (scopedCapabilityNotify) BatchGetMessages(_ context.Context, _ capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) (*capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID], error) {
+func (scopedNotificationsFixture) BatchGetMessages(_ context.Context, _ capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) (*capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID], error) {
 	return &capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID]{
 		Items:      map[capabilitynotifycap.MessageID]map[string]any{},
 		MissingIDs: append([]capabilitynotifycap.MessageID(nil), ids...),
@@ -354,17 +350,17 @@ func (scopedCapabilityNotify) BatchGetMessages(_ context.Context, _ capmodel.Cap
 }
 
 // Send records no messages in registration-only tests.
-func (scopedCapabilityNotify) Send(context.Context, capmodel.CapabilityContext, capabilitynotifycap.SendInput) (*capabilitynotifycap.SendResult, error) {
+func (scopedNotificationsFixture) Send(context.Context, capmodel.CapabilityContext, capabilitynotifycap.SendInput) (*capabilitynotifycap.SendResult, error) {
 	return &capabilitynotifycap.SendResult{}, nil
 }
 
 // DeleteMessages removes no messages in registration-only tests.
-func (scopedCapabilityNotify) DeleteMessages(context.Context, capmodel.CapabilityContext, []capabilitynotifycap.MessageID) error {
+func (scopedNotificationsFixture) DeleteMessages(context.Context, capmodel.CapabilityContext, []capabilitynotifycap.MessageID) error {
 	return nil
 }
 
 // DeleteBySource removes no messages in registration-only tests.
-func (scopedCapabilityNotify) DeleteBySource(context.Context, capmodel.CapabilityContext, capabilitynotifycap.SourceType, []string) error {
+func (scopedNotificationsFixture) DeleteBySource(context.Context, capmodel.CapabilityContext, capabilitynotifycap.SourceType, []string) error {
 	return nil
 }
 
@@ -562,12 +558,12 @@ func (scopedCapabilityAdminServices) Sessions() capabilitysessioncap.AdminServic
 	return scopedCapabilitySession{}
 }
 
-// Config returns no runtime-config management commands for registration-only tests.
-func (scopedCapabilityAdminServices) Config() capabilityconfigcap.AdminService { return nil }
+// HostConfig returns no runtime host-configuration management commands for registration-only tests.
+func (scopedCapabilityAdminServices) HostConfig() hostconfigcap.AdminService { return nil }
 
 // Notifications returns no-op notification management commands for registration-only tests.
 func (scopedCapabilityAdminServices) Notifications() capabilitynotifycap.AdminService {
-	return scopedCapabilityNotify{}
+	return scopedNotificationsFixture{}
 }
 
 // Plugins returns no-op plugin management commands for tenant route construction.
@@ -631,9 +627,6 @@ func (emptySourceServicesDirectory) Cache() cachecap.Service { return nil }
 // PluginConfig returns no plugin config service for this capability-scope test.
 func (emptySourceServicesDirectory) PluginConfig() plugincap.ConfigService { return nil }
 
-// Config returns no runtime-config domain service for this capability-scope test.
-func (emptySourceServicesDirectory) Config() capabilityconfigcap.Service { return nil }
-
 // Dict returns no dictionary-domain service for this capability-scope test.
 func (emptySourceServicesDirectory) Dict() capabilitydictcap.Service { return nil }
 
@@ -651,6 +644,9 @@ func (emptySourceServicesDirectory) Infra() capabilityinfracap.Service { return 
 
 // Jobs returns no scheduled-job domain service for this capability-scope test.
 func (emptySourceServicesDirectory) Jobs() capabilityjobcap.Service { return nil }
+
+// Lock returns no lock service for this capability-scope test.
+func (emptySourceServicesDirectory) Lock() lockcap.Service { return nil }
 
 // Manifest returns no manifest service for this capability-scope test.
 func (emptySourceServicesDirectory) Manifest() manifestcap.Service { return nil }
@@ -676,6 +672,9 @@ func (emptySourceServicesDirectory) Route() routecap.Service { return nil }
 // Sessions returns no online-session domain service for this capability-scope test.
 func (emptySourceServicesDirectory) Sessions() capabilitysessioncap.Service { return nil }
 
+// Storage returns no storage service for this capability-scope test.
+func (emptySourceServicesDirectory) Storage() storagecap.Service { return nil }
+
 // Tenant returns no tenant capability for this capability-scope test.
 func (emptySourceServicesDirectory) Tenant() tenantcapsvc.Service { return nil }
 
@@ -687,8 +686,8 @@ type scopedCapabilityView interface {
 	scopedPluginID() string
 }
 
-// TestSourcePluginCallbacksUsePluginScopedServices verifies route, cron, hook,
-// and managed-cron integration flows all bind runtime services through
+// TestSourcePluginCallbacksUsePluginScopedServices verifies route, jobs, hook,
+// and managed-job integration flows all bind runtime services through
 // capability.ServicesForPlugin before exposing them to a source plugin.
 func TestSourcePluginCallbacksUsePluginScopedServices(t *testing.T) {
 	const pluginID = "plugin-dev-source-capability-scope"
@@ -714,7 +713,7 @@ func TestSourcePluginCallbacksUsePluginScopedServices(t *testing.T) {
 		return nil
 	}
 
-	sourcePlugin := pluginhost.NewSourcePlugin(pluginID)
+	sourcePlugin := pluginhost.NewDeclarations(pluginID)
 	sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte(
 			"id: " + pluginID + "\n" +
@@ -738,17 +737,17 @@ func TestSourcePluginCallbacksUsePluginScopedServices(t *testing.T) {
 	); err != nil {
 		t.Fatalf("failed to register source route handler: %v", err)
 	}
-	if err := sourcePlugin.Cron().RegisterCron(
-		pluginhost.ExtensionPointCronRegister,
+	if err := sourcePlugin.Jobs().RegisterJobs(
+		pluginhost.ExtensionPointJobsRegister,
 		pluginhost.CallbackExecutionModeBlocking,
-		func(_ context.Context, registrar pluginhost.CronRegistrar) error {
+		func(_ context.Context, registrar pluginhost.JobsRegistrar) error {
 			if currentPhase == "" {
-				return fmt.Errorf("cron registration phase was not set")
+				return fmt.Errorf("job registration phase was not set")
 			}
 			return recordServices(currentPhase, registrar.Services())
 		},
 	); err != nil {
-		t.Fatalf("failed to register source cron handler: %v", err)
+		t.Fatalf("failed to register source job handler: %v", err)
 	}
 	if err := sourcePlugin.Hooks().RegisterHook(
 		pluginhost.ExtensionPointPluginInstalled,
@@ -792,9 +791,9 @@ func TestSourcePluginCallbacksUsePluginScopedServices(t *testing.T) {
 		t.Fatalf("expected route registration to receive scoped services, got error: %v", err)
 	}
 
-	currentPhase = "cron"
-	if err = services.Integration.RegisterCrons(ctx); err != nil {
-		t.Fatalf("expected cron registration to receive scoped services, got error: %v", err)
+	currentPhase = "jobs"
+	if err = services.Integration.RegisterJobs(ctx); err != nil {
+		t.Fatalf("expected job registration to receive scoped services, got error: %v", err)
 	}
 
 	if err = services.Integration.DispatchPluginHookEvent(
@@ -809,12 +808,12 @@ func TestSourcePluginCallbacksUsePluginScopedServices(t *testing.T) {
 		t.Fatalf("expected hook dispatch to receive scoped services, got error: %v", err)
 	}
 
-	currentPhase = "managed-cron"
-	if _, err = services.Integration.ListCronDeclarationsByPlugin(ctx, pluginID); err != nil {
-		t.Fatalf("expected managed cron collection to receive scoped services, got error: %v", err)
+	currentPhase = "managed-job"
+	if _, err = services.Integration.ListJobDeclarationsByPlugin(ctx, pluginID); err != nil {
+		t.Fatalf("expected managed job collection to receive scoped services, got error: %v", err)
 	}
 
-	for _, label := range []string{"route", "cron", "hook", "managed-cron"} {
+	for _, label := range []string{"route", "jobs", "hook", "managed-job"} {
 		if got := observed[label]; got != pluginID {
 			t.Fatalf("expected %s callback to receive plugin-scoped services for %q, got %q", label, pluginID, got)
 		}

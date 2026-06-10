@@ -3,8 +3,13 @@
 package testutil
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/container/gvar"
@@ -13,11 +18,8 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
-	"lina-core/internal/service/hostlock"
 	i18nsvc "lina-core/internal/service/i18n"
-	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/locker"
-	"lina-core/internal/service/notify"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/integration"
@@ -35,7 +37,6 @@ import (
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/cachecap"
 	"lina-core/pkg/plugin/capability/capmodel"
-	capabilityconfigcap "lina-core/pkg/plugin/capability/configcap"
 	capabilitydictcap "lina-core/pkg/plugin/capability/dictcap"
 	capabilityfilecap "lina-core/pkg/plugin/capability/filecap"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
@@ -43,6 +44,7 @@ import (
 	"lina-core/pkg/plugin/capability/i18ncap"
 	capabilityinfracap "lina-core/pkg/plugin/capability/infracap"
 	capabilityjobcap "lina-core/pkg/plugin/capability/jobcap"
+	"lina-core/pkg/plugin/capability/lockcap"
 	"lina-core/pkg/plugin/capability/manifestcap"
 	capabilitymanifest "lina-core/pkg/plugin/capability/manifestcap"
 	capabilitynotifycap "lina-core/pkg/plugin/capability/notifycap"
@@ -52,8 +54,8 @@ import (
 	capabilityplugincap "lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/routecap"
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
+	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/capability/tenantcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -107,13 +109,9 @@ func NewServices() *Services {
 		runtimeSvc     = runtime.New(catalogSvc, lifecycleSvc, frontendSvc, openapiSvc, i18nService, lockerSvc)
 		integrationSvc = integration.New(catalogSvc)
 		topology       = singleNodeTopology{}
-		kvCacheSvc     = kvcache.New()
 		sessionStore   = session.NewDBStore()
-		tenantSvc      = tenantcapsvc.New(nil, bizCtxProvider)
-		notifySvc      = notify.New(tenantSvc)
 		capabilitySvc  = newTestCapabilities(bizCtxProvider)
 	)
-	hostLockSvc := mustNewHostLockServiceForTest(lockerSvc)
 
 	catalogSvc.SetBackendLoader(integrationSvc)
 	catalogSvc.SetArtifactParser(runtimeSvc)
@@ -128,9 +126,9 @@ func NewServices() *Services {
 	lifecycleSvc.SetTopology(topology)
 
 	integrationSvc.SetBizCtxProvider(&bizCtxAdapter{svc: bizCtxProvider})
-	integrationSvc.SetDynamicCronExecutor(runtimeSvc)
 	integrationSvc.SetCapabilities(capabilitySvc)
 	integrationSvc.SetTopologyProvider(topology)
+	integrationSvc.SetDynamicJobExecutor(runtimeSvc)
 
 	runtimeSvc.SetMenuManager(integrationSvc)
 	runtimeSvc.SetHookDispatcher(integrationSvc)
@@ -142,12 +140,9 @@ func NewServices() *Services {
 	runtimeSvc.SetSessionStore(sessionStore)
 	runtimeSvc.SetRuntimeCacheChangeNotifier(runtimeCacheChangeNotifier{})
 	runtimeSvc.SetDependencyValidator(runtimeDependencyValidator{})
+	runtimeSvc.SetStorageCleanupServices(capabilitySvc)
 
 	mustConfigureWasmHostServicesForTest(
-		kvCacheSvc,
-		hostLockSvc,
-		notifySvc,
-		configProvider,
 		capabilitySvc,
 		capabilityconfig.NewConfigFactory("", ""),
 		capabilityhostconfig.New(mustHostConfigRawReader(configProvider)),
@@ -194,23 +189,9 @@ func (runtimeDependencyValidator) ValidateDynamicPluginCandidate(context.Context
 	return nil
 }
 
-// mustNewHostLockServiceForTest creates the host-lock dependency used by wasm
-// bridge tests. A failure means the fixture wiring is invalid.
-func mustNewHostLockServiceForTest(lockerSvc locker.Service) hostlock.Service {
-	service, err := hostlock.New(lockerSvc)
-	if err != nil {
-		panic(fmt.Sprintf("configure test host lock service: %v", err))
-	}
-	return service
-}
-
 // mustConfigureWasmHostServicesForTest mirrors the HTTP startup host-service
 // wiring so runtime package tests are self-contained and order independent.
 func mustConfigureWasmHostServicesForTest(
-	kvCacheSvc kvcache.Service,
-	hostLockSvc hostlock.Service,
-	notifySvc notify.Service,
-	configProvider configsvc.Service,
 	hostServices capability.Services,
 	configFactory plugincap.ConfigServiceFactory,
 	hostConfigSvc hostconfigcap.Service,
@@ -220,14 +201,8 @@ func mustConfigureWasmHostServicesForTest(
 		name string
 		fn   func() error
 	}{
-		{name: "cache", fn: func() error { return wasm.ConfigureCacheHostService(kvCacheSvc) }},
-		{name: "lock", fn: func() error { return wasm.ConfigureLockHostService(hostLockSvc) }},
-		{name: "notify", fn: func() error { return wasm.ConfigureNotifyHostService(notifySvc) }},
-		{name: "storage", fn: func() error { return wasm.ConfigureStorageHostService(configProvider) }},
-		{name: "ai", fn: func() error { return wasm.ConfigureAITextHostService(hostServices) }},
-		{name: "org", fn: func() error { return wasm.ConfigureOrgHostService(hostServices) }},
-		{name: "tenant", fn: func() error { return wasm.ConfigureTenantHostService(hostServices) }},
-		{name: "config", fn: func() error { return wasm.ConfigureConfigHostService(configFactory) }},
+		{name: "domain", fn: func() error { return wasm.ConfigureDomainHostServices(hostServices) }},
+		{name: "config", fn: func() error { return wasm.ConfigurePluginConfigServiceFactory(configFactory) }},
 		{name: "host config", fn: func() error { return wasm.ConfigureHostConfigService(hostConfigSvc) }},
 		{name: "manifest", fn: func() error { return wasm.ConfigureManifestHostService(manifestFactory) }},
 	}
@@ -257,12 +232,16 @@ type testCapabilities struct {
 	bizCtx bizctxcap.Service
 	// cache exposes a registration-safe no-op cache service to source plugins.
 	cache cachecap.Service
+	// lock exposes a registration-safe no-op lock service to source plugins.
+	lock lockcap.Service
 	// hostConfig exposes registration-safe host configuration defaults.
 	hostConfig hostconfigcap.Service
 	// tenantFilter exposes a registration-safe tenant filter.
 	tenantFilter tenantcap.PluginTableFilterService
 	// users exposes a registration-safe user-domain capability.
 	users capabilityusercap.Service
+	// storage exposes a registration-safe no-op storage service to source plugins.
+	storage storagecap.Service
 	// pluginID scopes source-plugin capabilities when non-empty.
 	pluginID string
 }
@@ -284,9 +263,11 @@ func newTestCapabilities(bizCtxSvc bizctxcap.Service) capability.Services {
 		plugins:         testPluginsService{},
 		bizCtx:          bizCtxSvc,
 		cache:           testCacheService{},
+		lock:            testLockService{},
 		hostConfig:      testHostConfigService{},
 		tenantFilter:    testTenantFilterService{},
 		users:           testUsersService{},
+		storage:         newTestStorageService(),
 	}
 }
 
@@ -346,11 +327,6 @@ func (s *testCapabilities) PluginConfig() plugincap.ConfigService {
 	return s.configFactory.ForPlugin(s.pluginID)
 }
 
-// Config returns an empty runtime-config domain service for plugin integration tests.
-func (s *testCapabilities) Config() capabilityconfigcap.Service {
-	return testNoopRuntimeConfig{}
-}
-
 // Dict returns the registration-safe dictionary-domain service.
 func (s *testCapabilities) Dict() capabilitydictcap.Service {
 	if s == nil {
@@ -376,9 +352,11 @@ func (s *testCapabilities) ForPlugin(pluginID string) capability.Services {
 		plugins:         s.plugins,
 		bizCtx:          s.bizCtx,
 		cache:           s.cache,
+		lock:            s.lock,
 		hostConfig:      s.hostConfig,
 		tenantFilter:    s.tenantFilter,
 		users:           s.users,
+		storage:         s.storage,
 		pluginID:        pluginID,
 	}
 }
@@ -399,6 +377,14 @@ func (s *testCapabilities) Infra() capabilityinfracap.Service { return testNoopI
 
 // Jobs returns an empty scheduled-job domain service for plugin integration tests.
 func (s *testCapabilities) Jobs() capabilityjobcap.Service { return testNoopJobs{} }
+
+// Lock returns the registration-safe lock service for plugin integration tests.
+func (s *testCapabilities) Lock() lockcap.Service {
+	if s == nil {
+		return nil
+	}
+	return s.lock
+}
 
 // Manifest returns the plugin-scoped manifest service for plugin integration tests.
 func (s *testCapabilities) Manifest() manifestcap.Service {
@@ -440,6 +426,14 @@ func (s *testCapabilities) Route() routecap.Service { return testNoopRoute{} }
 // Sessions returns an empty online-session domain service for plugin integration tests.
 func (s *testCapabilities) Sessions() capabilitysessioncap.Service { return testNoopSessions{} }
 
+// Storage returns the registration-safe storage service for plugin integration tests.
+func (s *testCapabilities) Storage() storagecap.Service {
+	if s == nil {
+		return nil
+	}
+	return s.storage
+}
+
 // TenantFilter returns the registration-safe tenant filter for plugin integration tests.
 func (s *testCapabilities) TenantFilter() tenantcap.PluginTableFilterService {
 	if s == nil {
@@ -449,8 +443,8 @@ func (s *testCapabilities) TenantFilter() tenantcap.PluginTableFilterService {
 }
 
 // Tenant returns the default tenant capability fallback service.
-func (s *testCapabilities) Tenant() tenantcapsvc.Service {
-	return tenantcapsvc.New(nil, nil)
+func (s *testCapabilities) Tenant() tenantcap.Service {
+	return tenantcap.New(nil, nil)
 }
 
 // testHostConfigService returns deterministic host configuration values needed
@@ -551,6 +545,147 @@ func (testCacheService) Incr(_ context.Context, namespace string, key string, de
 // Expire reports that no cache item existed to expire.
 func (testCacheService) Expire(context.Context, string, string, time.Duration) (bool, *time.Time, error) {
 	return false, nil, nil
+}
+
+// testLockService is a no-op lock fixture for registration-only tests.
+type testLockService struct{}
+
+// Acquire returns a successful isolated ticket without touching shared lock state.
+func (testLockService) Acquire(_ context.Context, in lockcap.AcquireInput) (*lockcap.AcquireOutput, error) {
+	expireAt := time.Now().Add(lockcap.DefaultLease)
+	return &lockcap.AcquireOutput{Acquired: true, Ticket: "test-ticket:" + in.Name, ExpireAt: &expireAt}, nil
+}
+
+// Renew extends the isolated test ticket without touching shared lock state.
+func (testLockService) Renew(context.Context, lockcap.RenewInput) (*lockcap.RenewOutput, error) {
+	expireAt := time.Now().Add(lockcap.DefaultLease)
+	return &lockcap.RenewOutput{ExpireAt: &expireAt}, nil
+}
+
+// Release accepts the isolated test ticket without touching shared lock state.
+func (testLockService) Release(context.Context, lockcap.ReleaseInput) error {
+	return nil
+}
+
+// testStorageService is an in-memory storage fixture used by dynamic runtime tests.
+type testStorageService struct {
+	mu      sync.Mutex
+	objects map[string]*testStorageObject
+}
+
+type testStorageObject struct {
+	body        []byte
+	contentType string
+}
+
+func newTestStorageService() *testStorageService {
+	return &testStorageService{objects: make(map[string]*testStorageObject)}
+}
+
+// Put stores one object in memory and returns plugin-visible metadata.
+func (s *testStorageService) Put(_ context.Context, in storagecap.PutInput) (*storagecap.PutOutput, error) {
+	body, err := io.ReadAll(in.Body)
+	if err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureObjects()
+	s.objects[in.Path] = &testStorageObject{
+		body:        append([]byte(nil), body...),
+		contentType: strings.TrimSpace(in.ContentType),
+	}
+	return &storagecap.PutOutput{Object: s.objectLocked(in.Path)}, nil
+}
+
+// Get reads one object from memory.
+func (s *testStorageService) Get(_ context.Context, in storagecap.GetInput) (*storagecap.GetOutput, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureObjects()
+	object, ok := s.objects[in.Path]
+	if !ok {
+		return &storagecap.GetOutput{Found: false}, nil
+	}
+	return &storagecap.GetOutput{
+		Object: s.objectLocked(in.Path),
+		Body:   io.NopCloser(bytes.NewReader(append([]byte(nil), object.body...))),
+		Found:  true,
+	}, nil
+}
+
+// Delete removes one object from memory.
+func (s *testStorageService) Delete(_ context.Context, in storagecap.DeleteInput) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureObjects()
+	delete(s.objects, in.Path)
+	return nil
+}
+
+// List returns a bounded in-memory object list.
+func (s *testStorageService) List(_ context.Context, in storagecap.ListInput) (*storagecap.ListOutput, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureObjects()
+	limit := in.Limit
+	if limit <= 0 {
+		limit = storagecap.DefaultListLimit
+	}
+	if limit > storagecap.MaxListLimit {
+		limit = storagecap.MaxListLimit
+	}
+	prefix := strings.TrimSuffix(strings.TrimSpace(in.Prefix), "/")
+	keys := make([]string, 0, len(s.objects))
+	for key := range s.objects {
+		if key == prefix || strings.HasPrefix(key, prefix+"/") {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	if len(keys) > limit {
+		keys = keys[:limit]
+	}
+	objects := make([]*storagecap.Object, 0, len(keys))
+	for _, key := range keys {
+		objects = append(objects, s.objectLocked(key))
+	}
+	return &storagecap.ListOutput{Objects: objects, Limit: limit}, nil
+}
+
+// Stat reads one in-memory object metadata snapshot.
+func (s *testStorageService) Stat(_ context.Context, in storagecap.StatInput) (*storagecap.StatOutput, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureObjects()
+	if _, ok := s.objects[in.Path]; !ok {
+		return &storagecap.StatOutput{Found: false}, nil
+	}
+	return &storagecap.StatOutput{Object: s.objectLocked(in.Path), Found: true}, nil
+}
+
+// ProviderStatuses returns no provider diagnostics for registration-only tests.
+func (*testStorageService) ProviderStatuses(context.Context) ([]*storagecap.ProviderStatus, error) {
+	return []*storagecap.ProviderStatus{}, nil
+}
+
+func (s *testStorageService) ensureObjects() {
+	if s.objects == nil {
+		s.objects = make(map[string]*testStorageObject)
+	}
+}
+
+func (s *testStorageService) objectLocked(path string) *storagecap.Object {
+	object := s.objects[path]
+	if object == nil {
+		return nil
+	}
+	return &storagecap.Object{
+		Path:        path,
+		Size:        int64(len(object.body)),
+		ContentType: object.contentType,
+		Visibility:  storagecap.VisibilityPrivate,
+	}
 }
 
 // testDictService is an empty dictionary fixture for registration-only tests.
@@ -688,8 +823,8 @@ func (testAdminServices) Files() capabilityfilecap.AdminService { return testNoo
 // Sessions returns no-op session management commands for registration-only tests.
 func (testAdminServices) Sessions() capabilitysessioncap.AdminService { return testNoopSessions{} }
 
-// Config returns no-op runtime-config management commands for registration-only tests.
-func (testAdminServices) Config() capabilityconfigcap.AdminService { return testNoopRuntimeConfig{} }
+// HostConfig returns no-op runtime host-configuration management commands for registration-only tests.
+func (testAdminServices) HostConfig() hostconfigcap.AdminService { return testNoopRuntimeConfig{} }
 
 // Notifications returns no-op notification management commands for registration-only tests.
 func (testAdminServices) Notifications() capabilitynotifycap.AdminService {

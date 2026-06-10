@@ -12,7 +12,7 @@ type sourcePluginLifecycleCallbackAdapter struct {
 }
 
 // NewSourcePluginLifecycleCallbackAdapter returns an adapter for callbacks
-// registered through SourcePlugin.Lifecycle().
+// registered through Declarations.Lifecycle().
 func NewSourcePluginLifecycleCallbackAdapter(plugin SourcePluginDefinition) any {
 	if plugin == nil {
 		return nil

@@ -3,7 +3,8 @@ name: lina-community-release-changelog
 description: >-
   手动生成 LinaPro 版本更新日志。用户要求生成 changelog、release notes、版本更新日志、发布说明，或提到
   lina-community-release-changelog 时必须使用本技能。技能会基于 Git 历史、源码差异和 OpenSpec 内容整理详尽的双语
-  Markdown 更新日志，支持默认比较范围和用户指定两个版本/标签/提交进行比较，固定写入 localdocs/changelog.md。
+  Markdown 更新日志，涉及数据库变更时必须单独列出，支持默认比较范围和用户指定两个版本/标签/提交进行比较，固定写入
+  localdocs/changelog.md。
 ---
 
 # Lina Release Changelog
@@ -16,7 +17,7 @@ description: >-
 2. **固定输出路径**：生成结果必须写入仓库根目录 `localdocs/changelog.md`。
 3. **固定模板**：英文内容在上，中文内容在下，中间使用模板分割线；不得新增模板外章节。
 4. **证据优先**：必须基于 `Git` 历史、源码差异和 `OpenSpec` 内容整理，不要求也不等待 `PR` 标识、`label` 或发布说明字段。
-5. **详尽覆盖**：输出面向发布人员和用户，不是提交摘要；必须覆盖比较范围内关键功能、修复和工具链体验变化。
+5. **详尽覆盖**：输出面向发布人员和用户，不是提交摘要；必须覆盖比较范围内关键功能、修复、数据库结构或初始化数据变化，以及工具链体验变化。
 6. **双语一致**：英文和中文分别完整成文，事实覆盖一致，不交叉混写。
 7. **表达自然**：英文和中文都必须地道、清晰、流利、易懂；按目标语言重新组织句子，不做生硬直译，不使用少见、拗口或容易误解的词语。
 8. **尊重工作区**：执行前查看 `git status --short`。除 `localdocs/changelog.md` 外，不修改无关文件；不要还原用户已有改动。
@@ -106,8 +107,10 @@ git diff --name-status <from>..<to>
 - `openspec/`
 - `hack/tools/`
 - `hack/makefiles/`
+- `apps/lina-core/manifest/sql/`
 - `apps/lina-core/`
 - `apps/lina-vben/`
+- `apps/lina-plugins/*/manifest/sql/`
 - `apps/lina-plugins/`
 - `README.md` 和 `README.zh-CN.md`
 
@@ -150,7 +153,20 @@ git -C apps/lina-plugins fetch --tags --prune origin
 
 如果`apps/lina-plugins/`的`submodule`内部差异涉及插件内容，必须按`apps/lina-plugins/<plugin-id>/`分组梳理语义，重点确认插件清单、前后端入口、菜单或路由、权限标签、`pluginbridge`路由声明、`hostServices`声明、安装或卸载`SQL`、资源产物、生命周期扫描、宿主能力调用和插件间能力调用边界。每个插件只写对发布读者有价值的用户可见能力、行为修复、运行时契约或开发体验变化；纯内部重排只有在影响发布风险、使用方式或维护方式时才写入。
 
-### 5. 分类规则
+### 5. 识别数据库变更
+
+必须单独判断比较范围是否涉及数据库变更，不能只把它写进功能描述。出现以下任一证据时，应进入`Database Changes`/`数据库变更`章节：
+
+- 新增、修改或删除`apps/lina-core/manifest/sql/**`或`apps/lina-plugins/<plugin-id>/manifest/sql/**`。
+- 新增、修改或删除安装、卸载、迁移、初始化、Seed、Mock 数据等`SQL`文件。
+- 新增、修改或删除由表结构变化引起的`DAO`、`DO`、`Entity`、模型字段或索引相关代码。
+- `OpenSpec`、提交记录或源码差异明确说明新增表、删除表、字段变更、索引变更、软删除字段、时间字段、初始化数据或插件安装卸载数据变更。
+
+写入数据库章节时，必须说明对发布或升级人员有用的信息：受影响模块或插件、表名或资源名、变更类型（新增表、字段调整、索引调整、初始化数据、Mock 数据、安装/卸载`SQL`等）、对应路径或证据来源，以及是否意味着用户除了更新代码外还需要更新数据库结构或重新执行初始化/迁移脚本。
+
+如果某个功能条目同时带来数据库结构变化，可以在`Highlights`或`Improvements`中描述用户价值，同时仍必须在`Database Changes`/`数据库变更`中单独列出升级影响。数据库章节用于识别发布操作风险，不受“不要重复堆叠”的限制。
+
+### 6. 分类规则
 
 将证据归入固定章节：
 
@@ -159,11 +175,12 @@ git -C apps/lina-plugins fetch --tags --prune origin
 | `Highlights` / `主要亮点` | 本次范围最重要、最值得发布人员优先说明的能力或架构变化 |
 | `Improvements` / `功能改进` | 功能增强、产品能力补充、运行时行为改进、治理能力增强 |
 | `Bug Fixes` / `Bug 修复` | 明确修复问题的提交、反馈修复、回归修复、测试修复 |
+| `Database Changes`/`数据库变更` | 表结构、索引、迁移、初始化数据、Seed/Mock 数据、插件安装或卸载`SQL`变化，以及由这些变化引起的升级操作要求 |
 | `Tooling and Experience` / `开发体验与工具链` | `CI`、构建、发布、`OpenSpec`治理、技能、开发命令、测试效率、文档维护体验 |
 
-如果某条变化同时属于多个章节，放入对发布读者最有价值的章节，不要重复堆叠。治理、规范和 `OpenSpec` 流程变化默认放入 `Tooling and Experience`，除非它也是主要发布亮点。
+如果某条变化同时属于多个非数据库章节，放入对发布读者最有价值的章节，不要重复堆叠。治理、规范和`OpenSpec`流程变化默认放入`Tooling and Experience`，除非它也是主要发布亮点。涉及数据库的升级影响必须额外进入数据库章节。
 
-### 6. 生成 Markdown
+### 7. 生成 Markdown
 
 必须使用以下模板：
 
@@ -174,6 +191,8 @@ git -C apps/lina-plugins fetch --tags --prune origin
 
 ## Bug Fixes
 
+## Database Changes
+
 ## Tooling and Experience
 
 ---
@@ -183,6 +202,8 @@ git -C apps/lina-plugins fetch --tags --prune origin
 ## 功能改进
 
 ## Bug 修复
+
+## 数据库变更
 
 ## 开发体验与工具链
 
@@ -198,9 +219,13 @@ git -C apps/lina-plugins fetch --tags --prune origin
 - 英文必须使用自然的发布说明表达，优先使用常见动词和短句，避免中式英语、罕见词、复杂从句和不必要的抽象名词。
 - 中文必须使用自然的产品更新表达，优先选择常用、明确、读者容易理解的说法，避免逐词翻译英文术语。
 - 遇到容易产生生硬译法的技术词时，按上下文翻译含义。例如，不要把软件语境中的 `seam` 写成“接缝”，可改为“扩展点”“衔接点”或直接描述具体边界；不要把测试语境中的 `fixture` 写成“夹具”，可改为“测试数据”“测试准备逻辑”“测试基线”或更具体的事实描述。
+- `Database Changes`/`数据库变更`章节如果有内容，应优先写清楚表结构或初始化数据的升级影响，不要只写“更新了`SQL`文件”。
 - 如果某个章节没有证据，写入：
   - 英文：`No changes identified from the available evidence.`
   - 中文：`根据现有证据未识别到相关变更。`
+- 如果数据库章节没有证据，优先使用更明确的表述：
+  - 英文：`No database schema or seed data changes identified from the available evidence.`
+  - 中文：`根据现有证据未识别到数据库结构或初始化数据变更。`
 
 ### 示例条目
 
@@ -226,7 +251,7 @@ localdocs/changelog.md
 
 `localdocs/` 已被 `.gitignore` 忽略。不要把生成的 `localdocs/changelog.md` 添加到版本控制。
 
-### 7. 自检
+### 8. 自检
 
 写入后必须重新读取 `localdocs/changelog.md`，检查：
 
@@ -237,9 +262,10 @@ localdocs/changelog.md
 5. 英文和中文表达地道、清晰、流利、易懂，没有生硬直译、罕见词或拗口表达。
 6. 没有把软件语境中的 `seam`、`fixture` 等词机械翻译成“接缝”“夹具”等不自然说法。
 7. 每个章节要么有证据支持的内容，要么写明未识别到相关变更。
-8. 若`apps/lina-plugins/`是`submodule`且指针变化，已包含插件仓库内部`old/new commit`、`log`、`diff`证据和按插件 ID 的语义总结；若无法获取历史，已明确保守处理。
-9. `.github/workflows/` 没有被修改。
-10. 没有执行提交、推送、打标签或创建 `GitHub Release`。
+8. 若证据涉及`manifest/sql/`、安装/卸载`SQL`、Seed/Mock 数据、表结构相关`DAO`/模型字段或`OpenSpec`数据库语义，`Database Changes`/`数据库变更`已单独列出受影响表或资源、变更类型、证据路径和升级操作影响；若没有数据库证据，数据库章节已明确写明未识别到数据库结构或初始化数据变更。
+9. 若`apps/lina-plugins/`是`submodule`且指针变化，已包含插件仓库内部`old/new commit`、`log`、`diff`证据和按插件 ID 的语义总结；若无法获取历史，已明确保守处理。
+10. `.github/workflows/` 没有被修改。
+11. 没有执行提交、推送、打标签或创建 `GitHub Release`。
 
 结束时用中文汇报：
 
@@ -247,5 +273,6 @@ localdocs/changelog.md
 - 标题版本。
 - 输出文件路径。
 - 证据来源摘要。
+- 数据库变更摘要，包括是否涉及表结构、索引、初始化/Mock 数据或插件安装卸载`SQL`。
 - 插件`submodule`处理情况。
 - 是否存在无法确认而被保守处理的内容。

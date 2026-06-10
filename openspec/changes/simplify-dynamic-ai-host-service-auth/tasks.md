@@ -19,3 +19,10 @@
 ## Feedback
 
 - [x] **FB-1**: 删除动态插件 README 中`secret.resolve`、`event.publish`和`queue.enqueue`预留治理条目说明
+- [x] **FB-2**: 补齐动态插件`service: user`用户领域读取和可见性校验 host service
+- [x] **FB-3**: 补齐动态插件普通领域 host service，并将重叠动态能力收敛到`capability.Services`领域能力调用路径
+- [x] **FB-4**: 复用`capability/*cap`领域接口，消除动态插件`guest`领域接口重复定义
+- [x] **FB-5**: 将动态插件`guest`领域 hostcall 实现迁移到内部子组件，降低公开`guest`包文件膨胀
+- [x] **FB-6**: 将`guest/internal/domainhostcall`普通领域 hostcall 实现继续按领域能力拆分维护
+- [x] **FB-7**: 移除动态插件`guest`领域服务别名，直接引用`capability/*cap`领域接口类型
+- [x] **FB-8**: 将`WASM`普通领域 host service 分发从单一大文件拆分为按领域职责维护的文件

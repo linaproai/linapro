@@ -233,19 +233,19 @@ func (s *serviceImpl) buildHostBuiltinJobs(ctx context.Context) []jobmgmtsvc.Bui
 	return jobs
 }
 
-// buildPluginBuiltinJobs converts plugin-owned cron definitions into sys_job projections.
+// buildPluginBuiltinJobs converts plugin-owned job definitions into sys_job projections.
 func (s *serviceImpl) buildPluginBuiltinJobs(ctx context.Context) ([]jobmgmtsvc.BuiltinJobDef, error) {
 	if s == nil || s.pluginSvc == nil {
 		return nil, nil
 	}
 
-	items, err := s.pluginSvc.ListInstalledCronDeclarations(ctx)
+	items, err := s.pluginSvc.ListInstalledJobDeclarations(ctx)
 	if err != nil {
 		return nil, err
 	}
 	jobs := make([]jobmgmtsvc.BuiltinJobDef, 0, len(items))
 	for _, item := range items {
-		handlerRef, refErr := protocol.BuildPluginCronHandlerRef(item.PluginID, item.Name)
+		handlerRef, refErr := protocol.BuildPluginJobHandlerRef(item.PluginID, item.Name)
 		if refErr != nil {
 			return nil, refErr
 		}

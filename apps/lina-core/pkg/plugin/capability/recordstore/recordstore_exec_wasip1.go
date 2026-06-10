@@ -343,7 +343,7 @@ func invokeDataHostServiceTransaction(
 }
 
 // invokeRecordStoreHostService dispatches one record store host-service call
-// through the transport injected by pluginbridge/guest.
+// through the transport injected by pluginbridge.
 func invokeRecordStoreHostService(
 	invoker HostServiceInvoker,
 	service string,

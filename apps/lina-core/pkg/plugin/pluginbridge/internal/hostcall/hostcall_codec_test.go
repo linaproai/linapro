@@ -4,6 +4,10 @@ package hostcall
 
 import (
 	"testing"
+
+	"github.com/gogf/gf/v2/errors/gcode"
+
+	"lina-core/pkg/bizerr"
 )
 
 // TestHostCallResponseEnvelopeRoundTrip verifies host call response envelopes
@@ -37,6 +41,42 @@ func TestHostCallSuccessResponseRoundTrip(t *testing.T) {
 	}
 	if decoded.Status != HostCallStatusSuccess {
 		t.Errorf("status: got %d, want %d", decoded.Status, HostCallStatusSuccess)
+	}
+}
+
+// TestHostCallErrorPayloadIsStructured verifies failed host calls expose
+// stable metadata instead of a bare string payload.
+func TestHostCallErrorPayloadIsStructured(t *testing.T) {
+	response := NewHostCallErrorResponse(HostCallStatusCapabilityDenied, "missing host:runtime capability")
+	payload, err := UnmarshalHostCallErrorPayload(response.Payload)
+	if err != nil {
+		t.Fatalf("decode error payload failed: %v", err)
+	}
+	if payload.ErrorCode != hostCallErrorCodeCapabilityDenied {
+		t.Fatalf("expected capability error code, got %#v", payload)
+	}
+	if payload.MessageKey != "error.host_call.capability_denied" || payload.Fallback != "missing host:runtime capability" {
+		t.Fatalf("unexpected structured error payload: %#v", payload)
+	}
+}
+
+// TestHostCallErrorPayloadPreservesBizerrMetadata verifies host-call errors can
+// carry business error localization metadata across the bridge.
+func TestHostCallErrorPayloadPreservesBizerrMetadata(t *testing.T) {
+	code := bizerr.MustDefine("PLUGIN_TARGET_USER_INVISIBLE", "Target user is not visible", gcode.CodeNotAuthorized)
+	response := NewHostCallErrorResponseFromError(
+		HostCallStatusCapabilityDenied,
+		bizerr.NewCode(code, bizerr.P("userId", 42)),
+	)
+	payload, err := UnmarshalHostCallErrorPayload(response.Payload)
+	if err != nil {
+		t.Fatalf("decode error payload failed: %v", err)
+	}
+	if payload.ErrorCode != "PLUGIN_TARGET_USER_INVISIBLE" || payload.MessageKey != "error.plugin.target.user.invisible" {
+		t.Fatalf("unexpected bizerr metadata: %#v", payload)
+	}
+	if payload.MessageParams["userId"] != float64(42) {
+		t.Fatalf("expected userId parameter, got %#v", payload.MessageParams)
 	}
 }
 

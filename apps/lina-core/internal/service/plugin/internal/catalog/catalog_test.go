@@ -407,7 +407,7 @@ func TestScanPluginManifestsReportsInvalidEmbeddedSourceManifest(t *testing.T) {
 	svcs := testutil.NewServices()
 
 	const pluginID = "acme-demo-invalid-embedded"
-	sourcePlugin := pluginhost.NewSourcePlugin(pluginID)
+	sourcePlugin := pluginhost.NewDeclarations(pluginID)
 	sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte("id: acme-demo-invalid-embedded\nname: Invalid Plugin\nversion: invalid\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\n")},
 	})
@@ -1163,7 +1163,7 @@ func TestScanEmbeddedSourcePluginManifestsUsesPluginEmbeddedFiles(t *testing.T) 
 	svcs := testutil.NewServices()
 
 	const pluginID = "acme-demo-embedded-manifest"
-	sourcePlugin := pluginhost.NewSourcePlugin(pluginID)
+	sourcePlugin := pluginhost.NewDeclarations(pluginID)
 	sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml":                                &fstest.MapFile{Data: []byte("id: acme-demo-embedded-manifest\nname: Embedded Manifest Plugin\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n")},
 		"frontend/pages/main-entry.vue":              &fstest.MapFile{Data: []byte("<template><div /></template>\n")},
@@ -1216,7 +1216,7 @@ func TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles(t *testing.T) {
 		Version: "0.1.0",
 		Type:    catalog.TypeSource.String(),
 		SourcePlugin: func() pluginhost.SourcePluginDefinition {
-			sourcePlugin := pluginhost.NewSourcePlugin("acme-demo-embedded-sql-assets")
+			sourcePlugin := pluginhost.NewDeclarations("acme-demo-embedded-sql-assets")
 			sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 				"plugin.yaml": &fstest.MapFile{Data: []byte("id: acme-demo-embedded-sql-assets\nname: Embedded SQL Assets Plugin\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n")},
 				"manifest/sql/001-acme-demo-embedded-sql-assets.sql": &fstest.MapFile{

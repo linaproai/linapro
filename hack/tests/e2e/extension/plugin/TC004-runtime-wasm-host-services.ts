@@ -308,12 +308,12 @@ function buildPluginRuntimeMain(moduleName: string) {
   return `package main
 
 import (
-	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	dynamicbackend "${moduleName}/backend"
 )
 
-var guestRuntime = bridgeguest.NewGuestRuntime(dynamicbackend.HandleRequest)
+var guestRuntime = bridgeplugin.NewGuestRuntime(dynamicbackend.HandleRequest)
 
 //go:wasmexport lina_dynamic_route_alloc
 func linaDynamicRouteAlloc(size uint32) uint32 {
@@ -355,12 +355,12 @@ function buildBackendPluginFile(moduleName: string) {
 package backend
 
 import (
-	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"${moduleName}/backend/internal/controller/dynamic"
 )
 
-var guestRouteDispatcher = bridgeguest.MustNewGuestControllerRouteDispatcher(dynamic.New())
+var guestRouteDispatcher = bridgeplugin.MustNewGuestControllerRouteDispatcher(dynamic.New())
 
 func HandleRequest(
 	request *protocol.BridgeRequestEnvelopeV1,
@@ -518,7 +518,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/pkg/plugin/capability/recordstore"
-	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -529,10 +529,10 @@ const (
 
 func (c *Controller) HostServices(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	var (
-		runtimeSvc = bridgeguest.Runtime()
-		storageSvc = bridgeguest.Storage()
-		httpSvc    = bridgeguest.Network()
-		dataSvc    = bridgeguest.Default().RecordStore()
+		runtimeSvc = bridgeplugin.Runtime()
+		storageSvc = bridgeplugin.Storage()
+		httpSvc    = bridgeplugin.Network()
+		dataSvc    = bridgeplugin.Default().RecordStore()
 	)
 
 	nowValue, err := runtimeSvc.Now()
@@ -805,12 +805,12 @@ func New() *Controller {
     `package dynamic
 
 import (
-	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 func (c *Controller) DeniedMethod(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, _, _, err := bridgeguest.Storage().Get("authorized-files/blocked.txt")
+	_, _, _, err := bridgeplugin.Storage().Get("authorized-files/blocked.txt")
 	if err != nil {
 		return nil, err
 	}
@@ -818,7 +818,7 @@ func (c *Controller) DeniedMethod(request *protocol.BridgeRequestEnvelopeV1) (*p
 }
 
 func (c *Controller) DeniedResource(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := bridgeguest.Storage().PutText("denied-files/blocked.txt", "blocked", "text/plain", true)
+	_, err := bridgeplugin.Storage().PutText("denied-files/blocked.txt", "blocked", "text/plain", true)
 	if err != nil {
 		return nil, err
 	}
@@ -826,7 +826,7 @@ func (c *Controller) DeniedResource(request *protocol.BridgeRequestEnvelopeV1) (
 }
 
 func (c *Controller) DeniedService(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, _, err := bridgeguest.Default().RecordStore().Table("sys_plugin_node_state").Page(1, 1).All()
+	_, _, err := bridgeplugin.Default().RecordStore().Table("sys_plugin_node_state").Page(1, 1).All()
 	if err != nil {
 		return nil, err
 	}

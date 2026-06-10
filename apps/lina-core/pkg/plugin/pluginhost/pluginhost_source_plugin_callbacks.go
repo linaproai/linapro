@@ -28,10 +28,10 @@ type RouteHandlerRegistration struct {
 	Point ExtensionPoint
 }
 
-// CronHandlerRegistration defines one cron-registration callback subscribed by a source plugin.
-type CronHandlerRegistration struct {
-	// Handler is the callback invoked by the host cron registrar.
-	Handler CronRegisterHandler
+// JobHandlerRegistration defines one job-registration callback subscribed by a source plugin.
+type JobHandlerRegistration struct {
+	// Handler is the callback invoked by the host jobs registrar.
+	Handler JobRegisterHandler
 	// Mode is the declared callback execution mode.
 	Mode CallbackExecutionMode
 	// Point is the published backend extension point.
@@ -109,8 +109,8 @@ type SourcePluginUninstallHandler func(ctx context.Context, input SourcePluginUn
 // and global middleware through the published HTTP registrar.
 type RouteRegisterHandler func(ctx context.Context, registrar HTTPRegistrar) error
 
-// CronRegisterHandler defines one callback that registers plugin-owned cron jobs.
-type CronRegisterHandler func(ctx context.Context, registrar CronRegistrar) error
+// JobRegisterHandler defines one callback that registers plugin-owned scheduled jobs.
+type JobRegisterHandler func(ctx context.Context, registrar JobsRegistrar) error
 
 // MenuFilterHandler defines one callback that decides whether a menu should stay visible.
 type MenuFilterHandler func(ctx context.Context, menu MenuDescriptor) (bool, error)

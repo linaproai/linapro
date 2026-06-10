@@ -100,7 +100,7 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "backend", "plugin.go"),
-		"package backend\n\nimport bridgeguest \"lina-core/pkg/plugin/pluginbridge/guest\"\n\nfunc RegisterRoutes(registrar bridgeguest.DynamicRouteRegistrar) error {\n\treturn registrar.Group(\"/api/v1\", \"dynamic/v1\")\n}\n",
+		"package backend\n\nimport bridgeplugin \"lina-core/pkg/plugin/pluginbridge\"\n\nfunc RegisterPlugin(plugin bridgeplugin.Declarations) error {\n\treturn plugin.Routes().Group(\"/api/v1\", \"dynamic/v1\")\n}\n",
 	)
 	mustWriteFile(
 		t,

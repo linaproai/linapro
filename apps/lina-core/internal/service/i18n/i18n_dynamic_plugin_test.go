@@ -108,13 +108,13 @@ func TestTranslateDynamicPluginSourceTextUsesReleaseArtifactBeforeEnable(t *test
 		ctx      = context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: DefaultLocale})
 		svc      = New(bizctx.New(), configsvc.New(), cachecoord.Default(nil))
 		pluginID = "plugin-i18n-dynamic-source-text"
-		key      = "job.handler.plugin.plugin-i18n-dynamic-source-text.cron.heartbeat.name"
+		key      = "plugin.plugin-i18n-dynamic-source-text.preview.name"
 	)
 
 	artifactPath := writeDynamicPluginI18NArtifactForTest(t, pluginID, []*dynamicPluginI18NAsset{
 		{
 			Locale:  DefaultLocale,
-			Content: `{"job":{"handler":{"plugin":{"plugin-i18n-dynamic-source-text":{"cron":{"heartbeat":{"name":"动态插件心跳"}}}}}}}`,
+			Content: `{"plugin":{"plugin-i18n-dynamic-source-text":{"preview":{"name":"动态插件预览"}}}}`,
 		},
 	})
 	releaseID := insertDynamicPluginReleaseForTest(t, ctx, do.SysPluginRelease{
@@ -131,8 +131,8 @@ func TestTranslateDynamicPluginSourceTextUsesReleaseArtifactBeforeEnable(t *test
 		resetRuntimeBundleCache()
 	})
 
-	actual := svc.TranslateDynamicPluginSourceText(ctx, pluginID, key, "Dynamic Plugin Heartbeat")
-	if actual != "动态插件心跳" {
+	actual := svc.TranslateDynamicPluginSourceText(ctx, pluginID, key, "Dynamic Plugin Preview")
+	if actual != "动态插件预览" {
 		t.Fatalf("expected pre-enable dynamic plugin translation, got %q", actual)
 	}
 
@@ -152,13 +152,13 @@ func TestTranslateDynamicPluginSourceTextReloadsLatestRelease(t *testing.T) {
 		ctx      = context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: DefaultLocale})
 		svc      = New(bizctx.New(), configsvc.New(), cachecoord.Default(nil))
 		pluginID = "plugin-i18n-dynamic-source-text-reload"
-		key      = "job.handler.plugin.plugin-i18n-dynamic-source-text-reload.cron.heartbeat.name"
+		key      = "plugin.plugin-i18n-dynamic-source-text-reload.preview.name"
 	)
 
 	firstArtifactPath := writeDynamicPluginI18NArtifactForTest(t, pluginID, []*dynamicPluginI18NAsset{
 		{
 			Locale:  DefaultLocale,
-			Content: `{"job":{"handler":{"plugin":{"plugin-i18n-dynamic-source-text-reload":{"cron":{"heartbeat":{"name":"旧动态插件心跳"}}}}}}}`,
+			Content: `{"plugin":{"plugin-i18n-dynamic-source-text-reload":{"preview":{"name":"旧动态插件预览"}}}}`,
 		},
 	})
 	firstReleaseID := insertDynamicPluginReleaseForTest(t, ctx, do.SysPluginRelease{
@@ -175,15 +175,15 @@ func TestTranslateDynamicPluginSourceTextReloadsLatestRelease(t *testing.T) {
 		resetRuntimeBundleCache()
 	})
 
-	actual := svc.TranslateDynamicPluginSourceText(ctx, pluginID, key, "Dynamic Plugin Heartbeat")
-	if actual != "旧动态插件心跳" {
+	actual := svc.TranslateDynamicPluginSourceText(ctx, pluginID, key, "Dynamic Plugin Preview")
+	if actual != "旧动态插件预览" {
 		t.Fatalf("expected first dynamic plugin translation, got %q", actual)
 	}
 
 	secondArtifactPath := writeDynamicPluginI18NArtifactForTest(t, pluginID, []*dynamicPluginI18NAsset{
 		{
 			Locale:  DefaultLocale,
-			Content: `{"job":{"handler":{"plugin":{"plugin-i18n-dynamic-source-text-reload":{"cron":{"heartbeat":{"name":"新动态插件心跳"}}}}}}}`,
+			Content: `{"plugin":{"plugin-i18n-dynamic-source-text-reload":{"preview":{"name":"新动态插件预览"}}}}`,
 		},
 	})
 	secondReleaseID := insertDynamicPluginReleaseForTest(t, ctx, do.SysPluginRelease{
@@ -199,8 +199,8 @@ func TestTranslateDynamicPluginSourceTextReloadsLatestRelease(t *testing.T) {
 		deleteDynamicPluginReleaseByID(t, ctx, secondReleaseID)
 	})
 
-	actual = svc.TranslateDynamicPluginSourceText(ctx, pluginID, key, "Dynamic Plugin Heartbeat")
-	if actual != "新动态插件心跳" {
+	actual = svc.TranslateDynamicPluginSourceText(ctx, pluginID, key, "Dynamic Plugin Preview")
+	if actual != "新动态插件预览" {
 		t.Fatalf("expected latest dynamic plugin translation, got %q", actual)
 	}
 }

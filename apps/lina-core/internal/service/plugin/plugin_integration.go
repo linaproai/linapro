@@ -1,4 +1,5 @@
-// This file exposes host integration methods on the root plugin facade.
+// This file exposes host integration and hook dispatch methods on the root
+// plugin facade.
 
 package plugin
 
@@ -17,6 +18,22 @@ import (
 	"lina-core/pkg/plugin/pluginhost"
 )
 
+// English fallback messages published with host authentication lifecycle events.
+const (
+	// AuthEventMessageLoginSuccessful is the English fallback for successful login messages.
+	AuthEventMessageLoginSuccessful = "Login successful"
+	// AuthEventMessageLoginFailed is the English fallback for generic failed login messages.
+	AuthEventMessageLoginFailed = "Login failed"
+	// AuthEventMessageLogoutSuccessful is the English fallback for successful logout messages.
+	AuthEventMessageLogoutSuccessful = "Logout successful"
+	// AuthEventMessageInvalidCredentials is the English fallback for invalid credential messages.
+	AuthEventMessageInvalidCredentials = "Invalid username or password"
+	// AuthEventMessageUserDisabled is the English fallback for disabled account messages.
+	AuthEventMessageUserDisabled = "User account is disabled"
+	// AuthEventMessageIPBlacklisted is the English fallback for blocked login IP messages.
+	AuthEventMessageIPBlacklisted = "Login IP is blacklisted"
+)
+
 // RegisterHTTPRoutes registers callback-contributed HTTP routes for source plugins.
 func (s *serviceImpl) RegisterHTTPRoutes(
 	ctx context.Context,
@@ -32,9 +49,42 @@ func (s *serviceImpl) ListSourceRouteBindings() []pluginhost.SourceRouteBinding 
 	return s.integrationSvc.ListSourceRouteBindings()
 }
 
-// RegisterCrons registers callback-contributed cron jobs for source plugins.
-func (s *serviceImpl) RegisterCrons(ctx context.Context) error {
-	return s.integrationSvc.RegisterCrons(ctx)
+// RegisterJobs registers callback-contributed scheduled jobs for source plugins.
+func (s *serviceImpl) RegisterJobs(ctx context.Context) error {
+	return s.integrationSvc.RegisterJobs(ctx)
+}
+
+// HandleAuthLoginSucceeded dispatches a login-succeeded hook to all enabled plugins.
+func (s *serviceImpl) HandleAuthLoginSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
+	return s.dispatchAuthHookEvent(
+		ctx,
+		pluginhost.ExtensionPointAuthLoginSucceeded,
+		input,
+		pluginhost.AuthHookReasonLoginSuccessful,
+		AuthEventMessageLoginSuccessful,
+	)
+}
+
+// HandleAuthLoginFailed dispatches a login-failed hook to all enabled plugins.
+func (s *serviceImpl) HandleAuthLoginFailed(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
+	return s.dispatchAuthHookEvent(
+		ctx,
+		pluginhost.ExtensionPointAuthLoginFailed,
+		input,
+		pluginhost.AuthHookReasonLoginFailed,
+		AuthEventMessageLoginFailed,
+	)
+}
+
+// HandleAuthLogoutSucceeded dispatches a logout-succeeded hook to all enabled plugins.
+func (s *serviceImpl) HandleAuthLogoutSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
+	return s.dispatchAuthHookEvent(
+		ctx,
+		pluginhost.ExtensionPointAuthLogoutSucceeded,
+		input,
+		pluginhost.AuthHookReasonLogoutSuccessful,
+		AuthEventMessageLogoutSuccessful,
+	)
 }
 
 // SetCapabilities wires the host-published capability services used by plugins.
@@ -44,6 +94,9 @@ func (s *serviceImpl) SetCapabilities(capabilities capability.Services) {
 	}
 	s.capabilities = capabilities
 	s.integrationSvc.SetCapabilities(capabilities)
+	if s.runtimeSvc != nil {
+		s.runtimeSvc.SetStorageCleanupServices(capabilities)
+	}
 }
 
 // AITextProviderEnv returns typed, plugin-scoped text AI provider construction inputs.
@@ -108,55 +161,55 @@ func (s *serviceImpl) TenantProviderEnv(pluginID string) tenantcapsvc.ProviderEn
 	return env
 }
 
-// ListExecutableCronJobs returns plugin-owned cron definitions whose handlers
+// ListExecutableJobs returns plugin-owned job definitions whose handlers
 // are safe to publish for execution. Dynamic plugins must be installed, enabled
 // for the current business-entry context, and free of runtime-upgrade blocking
 // states; declarations from disabled or preview-only dynamic plugins are
 // intentionally excluded. Use this method for executable handler publication,
 // not for authorization previews or scheduled-job table projection.
-func (s *serviceImpl) ListExecutableCronJobs(ctx context.Context) ([]ManagedCronJob, error) {
+func (s *serviceImpl) ListExecutableJobs(ctx context.Context) ([]ManagedJob, error) {
 	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
 		return nil, err
 	}
-	return s.integrationSvc.ListExecutableCronJobs(ctx)
+	return s.integrationSvc.ListExecutableJobs(ctx)
 }
 
-// ListExecutableCronJobsByPlugin returns executable plugin-owned cron
+// ListExecutableJobsByPlugin returns executable plugin-owned scheduled job
 // definitions for one plugin. The method applies the same runtime cache
 // freshness, install, enablement, and runtime-state checks as
-// ListExecutableCronJobs while narrowing discovery to pluginID. Job-handler
+// ListExecutableJobs while narrowing discovery to pluginID. Job-handler
 // lifecycle synchronization uses this path when an enabled plugin publishes its
 // concrete handler references.
-func (s *serviceImpl) ListExecutableCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error) {
+func (s *serviceImpl) ListExecutableJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedJob, error) {
 	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
 		return nil, err
 	}
-	return s.integrationSvc.ListExecutableCronJobsByPlugin(ctx, pluginID)
+	return s.integrationSvc.ListExecutableJobsByPlugin(ctx, pluginID)
 }
 
-// ListCronDeclarationsByPlugin returns plugin-owned cron declaration metadata
+// ListJobDeclarationsByPlugin returns plugin-owned job declaration metadata
 // for management review without requiring the plugin business entry to be
 // enabled. This path is used by plugin list and authorization-preview screens,
 // including before a dynamic plugin is installed. Returned items describe what
 // the plugin declares; callers must not treat them as proof that handlers can be
 // executed.
-func (s *serviceImpl) ListCronDeclarationsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error) {
+func (s *serviceImpl) ListJobDeclarationsByPlugin(ctx context.Context, pluginID string) ([]ManagedJob, error) {
 	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
 		return nil, err
 	}
-	return s.integrationSvc.ListCronDeclarationsByPlugin(ctx, pluginID)
+	return s.integrationSvc.ListJobDeclarationsByPlugin(ctx, pluginID)
 }
 
-// ListInstalledCronDeclarations returns declared cron metadata for installed
+// ListInstalledJobDeclarations returns declared job metadata for installed
 // plugins without requiring their business entries to be enabled. Scheduled-job
 // projection uses this path so installed-but-disabled plugins can keep visible
 // task rows, while uninstalled authorization-preview declarations stay out of
 // the persistent task table.
-func (s *serviceImpl) ListInstalledCronDeclarations(ctx context.Context) ([]ManagedCronJob, error) {
+func (s *serviceImpl) ListInstalledJobDeclarations(ctx context.Context) ([]ManagedJob, error) {
 	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
 		return nil, err
 	}
-	return s.integrationSvc.ListInstalledCronDeclarations(ctx)
+	return s.integrationSvc.ListInstalledJobDeclarations(ctx)
 }
 
 // DispatchHookEvent dispatches one named hook event to all enabled plugins.
@@ -173,6 +226,40 @@ func (s *serviceImpl) DispatchHookEvent(
 		return err
 	}
 	return s.integrationSvc.DispatchPluginHookEvent(readCtx, event, values)
+}
+
+// dispatchAuthHookEvent normalizes common auth payload reason and message
+// defaults before forwarding the event to the shared integration hook dispatcher.
+func (s *serviceImpl) dispatchAuthHookEvent(
+	ctx context.Context,
+	event pluginhost.ExtensionPoint,
+	input pluginhost.AuthHookPayloadInput,
+	defaultReason string,
+	defaultMessage string,
+) error {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return err
+	}
+	if input.Reason == "" {
+		input.Reason = defaultReason
+	}
+	if input.Message == "" {
+		input.Message = defaultMessage
+	}
+	return s.integrationSvc.DispatchPluginHookEvent(
+		ctx,
+		event,
+		pluginhost.BuildAuthHookPayloadValues(pluginhost.AuthHookPayloadInput{
+			UserName:   input.UserName,
+			Status:     input.Status,
+			IP:         input.IP,
+			ClientType: input.ClientType,
+			Browser:    input.Browser,
+			OS:         input.OS,
+			Message:    input.Message,
+			Reason:     input.Reason,
+		}),
+	)
 }
 
 // FilterMenus filters disabled plugin menus from the given menu list.

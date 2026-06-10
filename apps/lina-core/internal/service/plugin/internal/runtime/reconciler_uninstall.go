@@ -15,6 +15,8 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/wasm"
+	"lina-core/pkg/plugin/capability"
+	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -65,7 +67,8 @@ func (s *serviceImpl) applyUninstall(ctx context.Context, registry *entity.SysPl
 		if err = s.lifecycleSvc.ExecuteManifestSQLFiles(ctx, manifest, catalog.MigrationDirectionUninstall); err != nil {
 			return s.rollbackReleaseFailure(ctx, registry, 0, err)
 		}
-		if err = wasm.PurgeAuthorizedStoragePaths(ctx, manifest.ID, manifest.HostServices); err != nil {
+		storageSvc := s.storageCleanupServiceForPlugin(manifest.ID)
+		if err = wasm.PurgeAuthorizedStoragePaths(ctx, storageSvc, manifest.HostServices); err != nil {
 			return s.rollbackReleaseFailure(ctx, registry, 0, err)
 		}
 	}
@@ -113,6 +116,19 @@ func (s *serviceImpl) applyUninstall(ctx context.Context, registry *entity.SysPl
 			Version:  manifest.Version,
 		}),
 	)
+}
+
+// storageCleanupServiceForPlugin resolves the plugin-scoped storage service
+// used by dynamic uninstall cleanup.
+func (s *serviceImpl) storageCleanupServiceForPlugin(pluginID string) storagecap.Service {
+	if s == nil || s.storageCleanupServices == nil {
+		return nil
+	}
+	services := capability.ServicesForPlugin(s.storageCleanupServices, pluginID)
+	if services == nil {
+		return nil
+	}
+	return services.Storage()
 }
 
 // repairActiveReleaseBeforeUninstall re-archives the same-version staging

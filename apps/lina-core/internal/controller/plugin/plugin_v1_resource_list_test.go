@@ -16,6 +16,38 @@ import (
 	"lina-core/pkg/plugin/capability/bizctxcap"
 )
 
+// fakePluginI18nTranslator provides deterministic translation values for
+// resource permission controller tests.
+type fakePluginI18nTranslator struct{}
+
+// Translate returns the supplied fallback.
+func (fakePluginI18nTranslator) Translate(_ context.Context, _ string, fallback string) string {
+	return fallback
+}
+
+// TranslateSourceText returns the supplied source text.
+func (fakePluginI18nTranslator) TranslateSourceText(_ context.Context, _ string, sourceText string) string {
+	return sourceText
+}
+
+// TranslateOrKey returns the key itself.
+func (fakePluginI18nTranslator) TranslateOrKey(_ context.Context, key string) string {
+	return key
+}
+
+// TranslateWithDefaultLocale returns the supplied fallback.
+func (fakePluginI18nTranslator) TranslateWithDefaultLocale(_ context.Context, _ string, fallback string) string {
+	return fallback
+}
+
+// LocalizeError returns the error string for fake localizer tests.
+func (fakePluginI18nTranslator) LocalizeError(_ context.Context, err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
 // pluginResourceFakeBizCtx stores one mutable business context for controller tests.
 type pluginResourceFakeBizCtx struct {
 	ctx *model.Context

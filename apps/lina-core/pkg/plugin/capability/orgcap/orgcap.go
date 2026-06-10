@@ -10,7 +10,6 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 
 	"lina-core/pkg/plugin/capability/capmodel"
-	internalregistry "lina-core/pkg/plugin/capability/internal/capabilityregistry"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/capability/usercap"
 )
@@ -248,38 +247,3 @@ type Service interface {
 // ProviderFactory creates one organization provider from an explicit, typed
 // construction environment during lazy capability use.
 type ProviderFactory func(ctx context.Context, env ProviderEnv) (Provider, error)
-
-// serviceImpl delegates organization calls to the active provider and returns
-// neutral fallback values when no provider is usable.
-type serviceImpl struct {
-	runtime ProviderRuntime
-}
-
-// Ensure serviceImpl implements Service.
-var (
-	_ Service           = (*serviceImpl)(nil)
-	_ ScopeService      = (*serviceImpl)(nil)
-	_ AssignmentService = (*serviceImpl)(nil)
-	_ ProjectionService = (*serviceImpl)(nil)
-	_ RuntimeService    = (*serviceImpl)(nil)
-)
-
-// New creates an organization capability service. A nil provider runtime
-// treats the capability as disabled while keeping all fallback calls safe.
-func New(runtime ProviderRuntime) RuntimeService {
-	if runtime == nil {
-		runtime = noopProviderRuntime{}
-	}
-	return &serviceImpl{runtime: runtime}
-}
-
-// Provide declares one plugin-provided organization capability factory.
-func Provide(pluginID string, factory ProviderFactory) error {
-	return registerFactory(pluginID, factory)
-}
-
-// noopProviderRuntime reports all plugins as disabled when orgcap is
-// constructed without an explicit provider runtime.
-type noopProviderRuntime struct{}
-
-var defaultManager = internalregistry.NewManager[ProviderEnv]()

@@ -1,14 +1,9 @@
 import type {
-  HostServicePermissionCronItem,
   HostServicePermissionItem,
   HostServicePermissionResourceItem,
   HostServicePermissionTableItem,
 } from '#/api/system/plugin/model';
 
-import {
-  getJobConcurrencyLabel,
-  getJobScopeLabel,
-} from '#/api/system/job/meta';
 import { $t } from '#/locales';
 
 export interface HostServiceScopeView {
@@ -62,14 +57,17 @@ const hostServiceOrder: Record<string, number> = {
   data: 0,
   storage: 1,
   network: 2,
-  cron: 3,
-  runtime: 4,
+  runtime: 3,
+  jobs: 4,
+  plugins: 5,
+  notifications: 6,
 };
 
 export function sortHostServices(items?: HostServicePermissionItem[]) {
   return [...(items ?? [])].sort((left, right) => {
     const leftOrder = hostServiceOrder[left.service] ?? Number.MAX_SAFE_INTEGER;
-    const rightOrder = hostServiceOrder[right.service] ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder =
+      hostServiceOrder[right.service] ?? Number.MAX_SAFE_INTEGER;
     if (leftOrder !== rightOrder) {
       return leftOrder - rightOrder;
     }
@@ -85,14 +83,20 @@ export function formatServiceLabel(service: string) {
     case 'network': {
       return $t('pages.system.plugin.hostServices.service.network');
     }
-    case 'cron': {
-      return $t('pages.system.plugin.hostServices.service.cron');
-    }
     case 'runtime': {
       return $t('pages.system.plugin.hostServices.service.runtime');
     }
     case 'storage': {
       return $t('pages.system.plugin.hostServices.service.storage');
+    }
+    case 'jobs': {
+      return $t('pages.system.plugin.hostServices.service.jobs');
+    }
+    case 'plugins': {
+      return $t('pages.system.plugin.hostServices.service.plugins');
+    }
+    case 'notifications': {
+      return $t('pages.system.plugin.hostServices.service.notifications');
     }
     default: {
       return service;
@@ -239,7 +243,7 @@ function buildScopeView(input: {
       input.service.service,
       input.scopeKey,
     ),
-    emptyText: resolveScopeEmptyText(input.service),
+    emptyText: resolveScopeEmptyText(),
     hint: input.hint,
     itemTestIdPrefix: input.buildScopeItemTestIdPrefix?.(
       input.service.service,
@@ -249,7 +253,8 @@ function buildScopeView(input: {
     label: input.label,
     methods: normalizeStringList(input.service.methods),
     targetSummaryBadgeColor:
-      input.targetSummaryBadgeColor ?? resolveTargetSummaryBadgeColor(input.kind),
+      input.targetSummaryBadgeColor ??
+      resolveTargetSummaryBadgeColor(input.kind),
     targetSummaryLabel: resolveTargetSummaryLabel(input.service),
     targets: resolveServiceTargets(input.service),
   } satisfies HostServiceScopeView;
@@ -267,9 +272,6 @@ function buildServiceCompareKey(service: HostServicePermissionItem) {
 }
 
 function resolveServiceTargets(service: HostServicePermissionItem) {
-  if (service.service === 'cron') {
-    return resolveCronTargets(service);
-  }
   if (service.service === 'storage') {
     return normalizeStringList(service.paths).map((path) => ({
       label: path,
@@ -295,16 +297,12 @@ function resolveTargetSummaryLabel(service: HostServicePermissionItem) {
   if (
     (service.paths ?? []).length === 0 &&
     (service.tables ?? []).length === 0 &&
-    (service.cronItems ?? []).length === 0 &&
     (service.tableItems ?? []).length === 0 &&
     (service.resources ?? []).length === 0
   ) {
     return undefined;
   }
   switch (service.service) {
-    case 'cron': {
-      return undefined;
-    }
     case 'data': {
       return $t('pages.system.plugin.hostServices.summary.table');
     }
@@ -328,11 +326,11 @@ function resolveDataTableItems(service: HostServicePermissionItem) {
   if ((service.tableItems ?? []).length > 0) {
     return [...(service.tableItems ?? [])];
   }
-  return normalizeStringList(service.tables).map<HostServicePermissionTableItem>(
-    (table) => ({
-      name: table,
-    }),
-  );
+  return normalizeStringList(
+    service.tables,
+  ).map<HostServicePermissionTableItem>((table) => ({
+    name: table,
+  }));
 }
 
 function resolveDataTableNames(service: HostServicePermissionItem) {
@@ -342,71 +340,7 @@ function resolveDataTableNames(service: HostServicePermissionItem) {
   return service.tables ?? [];
 }
 
-function resolveCronTargets(service: HostServicePermissionItem) {
-  return (service.cronItems ?? []).map((item) => ({
-    details: buildCronTargetDetails(item),
-    label: formatCronTargetLabel(item),
-    testIdValue: item.name,
-    variant: 'panel' as const,
-  }));
-}
-
-function formatCronTargetLabel(item: HostServicePermissionCronItem) {
-  const displayName = (item.displayName || '').trim();
-  const name = (item.name || '').trim();
-  if (displayName && name && displayName !== name) {
-    return `${displayName} (${name})`;
-  }
-  return displayName || name || '-';
-}
-
-function buildCronTargetDetails(item: HostServicePermissionCronItem) {
-  const lines: HostServiceTargetDetailView[] = [
-    {
-      label: $t('pages.system.plugin.hostServices.cron.pattern'),
-      value: (item.pattern || '').trim() || '-',
-    },
-    {
-      label: $t('pages.system.job.fields.scope'),
-      value: getJobScopeLabel(item.scope),
-    },
-    {
-      label: $t('pages.system.job.fields.concurrency'),
-      value: formatCronConcurrencySummary(item),
-    },
-  ];
-  const timezone = (item.timezone || '').trim();
-  if (timezone) {
-    lines.push({
-      label: $t('pages.system.job.fields.timezone'),
-      value: timezone,
-    });
-  }
-  const description = (item.description || '').trim();
-  if (description) {
-    lines.push({
-      label: $t('pages.fields.description'),
-      value: description,
-    });
-  }
-  return lines;
-}
-
-function formatCronConcurrencySummary(item: HostServicePermissionCronItem) {
-  const label = getJobConcurrencyLabel(item.concurrency);
-  if (item.concurrency === 'parallel' && Number(item.maxConcurrency || 0) > 0) {
-    return $t('pages.system.plugin.hostServices.cron.parallelLimit', {
-      label,
-      value: item.maxConcurrency,
-    });
-  }
-  return label;
-}
-
-function resolveScopeEmptyText(service: HostServicePermissionItem) {
-  if (service.service === 'cron') {
-    return $t('pages.system.plugin.hostServices.messages.cronEmpty');
-  }
+function resolveScopeEmptyText() {
   return $t('pages.system.plugin.hostServices.messages.defaultEmpty');
 }
 
@@ -423,7 +357,7 @@ function formatResourceLabel(resource: HostServicePermissionResourceItem) {
 }
 
 function normalizeStringList(items?: string[]) {
-  return [...new Set((items ?? []).map((item) => item.trim()).filter(Boolean))].sort(
-    (left, right) => left.localeCompare(right),
-  );
+  return [
+    ...new Set((items ?? []).map((item) => item.trim()).filter(Boolean)),
+  ].sort((left, right) => left.localeCompare(right));
 }

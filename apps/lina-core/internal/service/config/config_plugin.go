@@ -67,6 +67,7 @@ type PluginAutoEnableEntry struct {
 type PluginConfig struct {
 	Dynamic PluginDynamicConfig `json:"dynamic"` // Dynamic contains dynamic plugin storage settings.
 	Runtime PluginDynamicConfig `json:"runtime"` // Runtime keeps legacy config compatibility for older runtime keys.
+	Storage PluginStorageConfig `json:"storage"` // Storage contains plugin object-storage provider settings.
 	// AllowForceUninstall lets platform administrators bypass lifecycle
 	// precondition vetoes after an explicit confirmation path.
 	AllowForceUninstall bool `json:"allowForceUninstall"`
@@ -81,6 +82,14 @@ type PluginConfig struct {
 // PluginDynamicConfig holds dynamic plugin storage configuration.
 type PluginDynamicConfig struct {
 	StoragePath string `json:"storagePath"` // StoragePath is the directory used to discover and store dynamic wasm packages.
+}
+
+// PluginStorageConfig holds plugin object-storage provider configuration.
+type PluginStorageConfig struct {
+	// ActiveProviderPluginID selects a plugin-provided storage provider. Empty uses local.
+	ActiveProviderPluginID string `json:"activeProviderPluginId"`
+	// AllowLocalProviderInCluster explicitly permits the local provider in cluster mode.
+	AllowLocalProviderInCluster bool `json:"allowLocalProviderInCluster"`
 }
 
 // GetPlugin reads plugin config from configuration file. Sub-keys are scanned
@@ -103,8 +112,10 @@ func (s *serviceImpl) GetPlugin(ctx context.Context) *PluginConfig {
 		cfg.AllowForceUninstall = g.Cfg().MustGet(ctx, "plugin.allowForceUninstall", defaultPluginAllowForceUninstall).Bool()
 		mustScanConfig(ctx, "plugin.dynamic", &cfg.Dynamic)
 		mustScanConfig(ctx, "plugin.runtime", &cfg.Runtime)
+		mustScanConfig(ctx, "plugin.storage", &cfg.Storage)
 
 		cfg.Dynamic.StoragePath = strings.TrimSpace(cfg.Dynamic.StoragePath)
+		cfg.Storage.ActiveProviderPluginID = strings.TrimSpace(cfg.Storage.ActiveProviderPluginID)
 		if cfg.Dynamic.StoragePath == "" {
 			cfg.Dynamic.StoragePath = strings.TrimSpace(cfg.Runtime.StoragePath)
 		}
@@ -129,6 +140,15 @@ func (s *serviceImpl) GetPlugin(ctx context.Context) *PluginConfig {
 		cfg.AllowForceUninstall = override
 	}
 	return cfg
+}
+
+// GetPluginStorage returns plugin object-storage provider configuration.
+func (s *serviceImpl) GetPluginStorage(ctx context.Context) PluginStorageConfig {
+	cfg := s.GetPlugin(ctx)
+	if cfg == nil {
+		return PluginStorageConfig{}
+	}
+	return cfg.Storage
 }
 
 // GetPluginAutoEnable returns the configured startup auto-enable plugin IDs

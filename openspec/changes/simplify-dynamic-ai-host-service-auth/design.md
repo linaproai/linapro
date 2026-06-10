@@ -53,6 +53,12 @@ guest SDK 构造`ai` host service envelope 时，`resourceRef`保持为空，`pu
 
 主框架插件 README 需要移除`ai.resources`示例。动态插件示例清单经静态检查未声明`ai`服务，因此不新增未使用授权；若示例插件未来需要调用`AI`，只保留`service: ai`和`methods`。
 
+### 6. 动态插件普通领域能力补齐
+
+动态插件`hostServices`目录补齐源码插件`capability.Services`普通消费面中的领域能力，包括`apidoc`、`auth`、`authz`、`user`、`bizctx`、`dict`、`file`、`i18n`、`infra`、`job`、`notification`、`plugin`、`route`和`session`。这些领域服务均采用方法授权型声明，不接受`resources`、`paths`、`tables`或`keys`，运行时统一从宿主启动期注入的同一个`capability.Services`目录进入对应`*cap.Service`或普通子服务。
+
+已有`AI`、`Users`、`Org`、`Tenant`动态领域服务的解析路径优先使用共享领域目录，避免动态插件和源码插件分别维护平行能力来源。`notify.send`仍保留为资源型发送服务；普通通知读取通过新增`notification.messages.batch_get`进入`notifycap.Service`。插件配置读取继续作为插件作用域配置能力通过`Plugins().Config()`的`guest`入口使用，协议层保留`config.get`的只读 host service。
+
 ## Risks / Trade-offs
 
 - [Risk] 插件安装时无法再从`plugin.yaml`直接看到`AI`调用场景和 token 上限。  
@@ -66,11 +72,11 @@ guest SDK 构造`ai` host service envelope 时，`resourceRef`保持为空，`pu
 
 ## 影响分析
 
-- `i18n`：不新增运行时 UI 文案、菜单、API 文档源文本或语言包；仅调整技术文档和 OpenSpec 文档。确认无运行时`i18n`资源影响。
-- 缓存一致性：不修改缓存、快照、失效或集群协调逻辑。确认无缓存一致性影响。
-- 数据权限：不新增列表、详情、导出、数据查询或数据可见性逻辑。确认无数据权限影响。
+- `i18n`：新增动态`i18n`领域 host service 只透传宿主既有`i18ncap.Service`，不新增运行时 UI 文案、菜单、API 文档源文本或语言包；README 和 OpenSpec 属技术文档变更。确认无运行时`i18n`资源新增影响。
+- 缓存一致性：不新增缓存、快照或失效机制；动态领域调用复用宿主启动期共享`capability.Services`和既有领域缓存/修订号策略。确认无新的缓存一致性机制影响。
+- 数据权限：新增动态领域读取入口会进入现有`*cap.Service`，由领域实现继续执行租户、数据权限、可见性和批量上限；不开放`DAO/DO/Entity`、`gdb.Model`或核心表`data`访问。确认数据权限边界通过领域能力复用。
 - 开发工具跨平台：不修改脚本、Makefile、CI 或`linactl`。确认无开发工具跨平台影响。
-- 测试策略：使用`pluginbridge`和`WASM host service`单元测试覆盖清单校验、授权拒绝和请求参数透传；不涉及用户可观察页面，确认无需新增 E2E。
+- 测试策略：使用`pluginbridge`和`WASM host service`单元测试覆盖清单校验、授权拒绝、共享领域目录解析、`CapabilityContext`传递和请求参数透传；不涉及用户可观察页面，确认无需新增 E2E。
 
 ## Migration Plan
 

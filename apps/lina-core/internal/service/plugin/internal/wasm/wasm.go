@@ -48,9 +48,8 @@ type ExecutionInput struct {
 	RequestID string
 	// Identity carries the sanitized user identity snapshot when available.
 	Identity *bridgecontract.IdentitySnapshotV1
-	// CronCollector receives dynamic-plugin cron registrations during reserved
-	// discovery executions.
-	CronCollector CronRegistrationCollector
+	// JobCollector captures dynamic-plugin job declarations during Jobs discovery.
+	JobCollector JobRegistrationCollector
 }
 
 // wasmCacheEntry stores one compiled module together with the runtime that owns

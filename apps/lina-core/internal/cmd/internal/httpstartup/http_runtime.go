@@ -250,6 +250,18 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		pluginConfigFactory   = pluginserviceconfig.NewConfigFactory("", "")
 		pluginManifestFactory = pluginservicemanifest.NewFactory("")
 	)
+	hostLockSvc, err := hostlock.New(lockerSvc)
+	if err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
+		return nil, err
+	}
+	pluginStorageCfg := configSvc.GetPluginStorage(ctx)
+	storageRuntime := pluginsvc.NewStorageProviderRuntime(configSvc, pluginSvc)
+	localStorageProvider := pluginsvc.NewLocalStorageProvider(
+		configSvc.GetPluginDynamicStoragePath(ctx),
+		clusterSvc != nil && clusterSvc.IsEnabled(),
+		pluginStorageCfg.AllowLocalProviderInCluster,
+	)
 	capabilities, err := pluginsvc.NewHostServices(
 		apiDocSvc,
 		authSvc,
@@ -266,6 +278,9 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		tenantSvc,
 		notifySvc,
 		kvCacheSvc,
+		hostLockSvc,
+		storageRuntime,
+		localStorageProvider,
 	)
 	if err != nil {
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
@@ -277,16 +292,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 	pluginSvc.SetTenantStartupCapability(tenantSvc)
 	pluginSvc.SetTenantProvisioningCapability(tenantSvc)
 	pluginSvc.SetTenantPlatformGovernanceCapability(tenantSvc)
-	hostLockSvc, err := hostlock.New(lockerSvc)
-	if err != nil {
-		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
-		return nil, err
-	}
 	if err = pluginsvc.ConfigureWasmHostServices(
-		kvCacheSvc,
-		hostLockSvc,
-		notifySvc,
-		configSvc,
 		capabilities,
 		pluginConfigFactory,
 		hostConfigSvc,

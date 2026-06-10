@@ -1,315 +1,141 @@
-# 插件包
+# LinaPro 插件公开契约
 
-`apps/lina-core/pkg/plugin`是`Lina Core`插件体系的公开`Go`契约边界。它把插件可见契约集中在一个位置，运行期实现、持久化、生命周期编排和工作台适配仍由宿主侧服务承载。
+`apps/lina-core/pkg/plugin`承载`lina-core`稳定的插件侧契约。源码插件、动态插件 guest、动态插件构建器以及宿主集成代码都应通过这里的公开边界接入。宿主侧编排和持久化实现位于`apps/lina-core/internal/service/plugin`。
 
-该组件主要承担三类工作：
+## 公开组件
 
-- 发布源码插件和动态插件共享的稳定宿主能力接口。
-- 发布源码插件用于注册路由、钩子、定时任务、生命周期回调、嵌入资产和治理过滤器的宿主契约。
-- 发布动态插件用于`Wasm`路由执行、`guest`运行时辅助、产物元数据和`plugin.yaml`中受治理`hostServices`调用的桥接契约。
+| 组件 | 功能职责 |
+| --- | --- |
+| `capability` | 定义统一的`capability.Services`目录以及用户、文件、i18n、任务、AI、租户、组织、存储、缓存、锁等子包契约。源码插件直接接收这些能力；动态插件通过桥接传输访问等价能力。 |
+| `pluginhost` | 定义源码插件的声明期契约、运行期 service 访问、生命周期回调、hook 注册、HTTP 路由贡献、定时任务贡献、菜单过滤、权限过滤和托管静态资源常量。 |
+| `pluginbridge` | 提供动态插件 guest SDK。guest 代码在发现或构建阶段使用`pluginbridge.Declarations`，在运行阶段使用`pluginbridge.Services`。 |
 
-## 边界
+## 领域能力
 
-该包是契约边界，不是业务实现层。它不得向普通插件暴露宿主`DAO`、`DO`、`Entity`、原始`gdb.Model`构造器、具体工作台页面结构或宿主实现包。
+`capability.Services`是宿主持有的领域能力运行期目录。源码插件通过`pluginhost.Services`消费这些入口；动态插件声明匹配的`hostServices`，再通过`pluginbridge.Services`调用。可信源码插件管理命令保留在`capability.AdminServices`中，宿主内部 scope helper 不进入普通插件可见入口。
 
-源码插件通常使用`pluginhost`以及`pluginhost.Services`返回的类型化服务。动态插件通常使用`pluginbridge/guest`中的`guest`侧宿主服务客户端和低层路由执行辅助能力。
+| 领域能力 | 职责边界 | 运行期与校验路径 |
+| --- | --- | --- |
+| `APIDoc` | 解析本地化 API 文档中的路由文本和标题 operation key。 | 通过能力目录或`apidoc`host call 提供；校验关注路由和 operation key 载荷。 |
+| `Auth`/`Authz` | 处理租户 token 选择或切换、代用户 token、权限投影和权限判断。 | 运行期检查当前用户、租户和权限 key；管理命令保留在`AdminServices.Auth()`。 |
+| `AI` | 聚合文本、图片、向量、音频、视觉、文档、安全审核和视频等类型化 AI 子能力。 | 调用按 method 授权，不接受资源声明，并把插件身份注入 provider 请求用于审计和治理。 |
+| `Users` | 提供用户批量读取、用户搜索和可见性确认。 | 宿主实现必须让用户存在性和可见性检查保持在调用方边界内。 |
+| `BizCtx` | 投影当前业务请求上下文。 | 作为只读运行期上下文桥接当前用户、租户、语言和请求元数据。 |
+| `Dict` | 解析字典值标签，并校验类型化值可见性。 | 宿主校验保持在可见字典类型和值范围内。 |
+| `Files` | 提供文件批量读取和可见性确认。 | 宿主校验避免插件探测或使用可见边界之外的文件 ID。 |
+| `HostConfig` | 读取受治理的宿主运行期配置值。 | 动态声明必须列出`resources.keys`；源码插件获得窄化只读 service。 |
+| `I18n` | 读取 locale、翻译消息并查找消息 key。 | 用于运行期本地化流程，不暴露翻译存储内部结构。 |
+| `Infra` | 读取基础设施组件状态投影。 | 校验关注可见组件 ID 和只读状态投影。 |
+| `Jobs` | 读取定时任务元数据并注册动态任务。 | 声明期任务契约先校验，再进入运行期任务发现和执行。 |
+| `Notifications` | 读取通知消息并发送受治理通知。 | 读取调用不需要资源声明；`messages.send`需要`resources[].ref`边界。 |
+| `Plugins` | 暴露插件注册表投影、插件作用域配置、启用状态和租户生命周期 hook。 | 运行期检查插件可见性、provider 启用、权威启用状态和租户生命周期前置条件。 |
+| `Route` | 暴露当前执行的动态路由元数据。 | 用于运行期路由分发，不暴露宿主 router 内部实现。 |
+| `Sessions` | 搜索和批量读取在线会话投影。 | 宿主校验保持会话可见性在调用方边界内。 |
+| `Storage` | 提供插件作用域对象存储操作。 | 动态声明使用`resources.paths`；运行期分发校验路径边界和选中的存储 provider。 |
+| `Cache` | 提供插件作用域缓存读取、写入、删除、自增和过期操作。 | 动态声明使用`resources[].ref`；运行期分发校验 namespace、key 和 TTL 载荷。 |
+| `Lock` | 提供插件可见的分布式锁获取、续租和释放。 | 动态声明使用`resources[].ref`；运行期分发校验锁资源和租约载荷。 |
+| `Manifest` | 读取插件作用域 manifest 或 artifact 资源。 | 动态声明使用`resources.paths`；源码和动态路径都通过插件作用域资源视图解析。 |
+| `RecordStore` | 提供 guest 侧受治理的插件自有表读取、写入和事务构建器。 | 通过`datahost`分发；校验覆盖插件自有表、查询计划、过滤、排序、写入载荷、事务和审计元数据。 |
+| `Org` | 提供可选组织投影，例如部门分配、部门名称和岗位 ID。 | provider 可用性显式暴露；组织 provider 缺失时 fallback service 返回安全中性值。 |
+| `Tenant` | 提供可选租户上下文、可见性确认、成员校验、可访问租户列表和租户切换校验。 | provider 可用性显式暴露；宿主过滤器应用租户范围，但不暴露租户存储内部结构。 |
 
-## 目录结构
+## 宿主领域实现
 
-| 路径 | 职责 |
-|------|------|
-| `capability/` | 源码插件和动态插件共享的稳定宿主能力目录。负责聚合`Services`、`AdminServices`、插件作用域服务绑定和类型化领域契约。 |
-| `pluginbridge/` | 动态插件桥接命名空间。负责公开协议门面、`guest`运行时辅助、桥接契约和`Wasm`宿主调用编解码。 |
-| `pluginhost/` | 源码插件宿主命名空间。负责嵌入式源码插件的编译期注册 facade 和运行期回调契约。 |
+`apps/lina-core/internal/service/plugin`是宿主侧插件领域组件。根包提供统一门面，覆盖插件发现、管理列表、安装、启用、停用、卸载、运行期升级、源码插件升级、运行期路由分发、前端资源托管、依赖检查和能力装配。
 
-## `capability`包
+## 声明期能力与运行期能力
 
-`capability`定义稳定的宿主能力目录。宿主运行时服务实现这些接口，插件代码应依赖这些窄契约。
+### 声明期能力
 
-| 路径 | 职责 |
-|------|------|
-| `capability/` | 聚合`Services`、`AdminServices`和用于插件作用域视图的`ServicesForPlugin`。 |
-| `capability/aicap/` | 根`AI`命名空间，聚合类型化`AI`子能力，并通过`ForPlugin`注入来源插件身份。 |
-| `capability/aicap/aicommon/` | 共享`AI`值对象、能力类型、方法、档位、资产引用、提供方投影、操作引用、用量和不可用状态辅助能力。 |
-| `capability/aicap/aitext/` | 文本生成能力契约、提供方契约、降级行为和来源身份绑定。 |
-| `capability/aicap/aiimage/` | 图片生成和图片编辑能力契约。 |
-| `capability/aicap/aiembedding/` | 向量嵌入创建能力契约。 |
-| `capability/aicap/aiaudio/` | 音频转写和语音合成能力契约。 |
-| `capability/aicap/aivision/` | 图片、截图、图示和帧内容的视觉分析能力契约。 |
-| `capability/aicap/aidocument/` | 文档分析和带引用文档问答能力契约。 |
-| `capability/aicap/aisafety/` | 面向文本和资产输入的安全审核能力契约。 |
-| `capability/aicap/aivideo/` | 视频生成、编辑、延展和提供方操作能力契约。 |
-| `capability/apidoccap/` | 面向源码插件和动态路由的接口文档文本查询与路由操作键辅助能力。 |
-| `capability/authcap/` | 认证与授权命名空间，聚合令牌和授权子能力。 |
-| `capability/authcap/authz/` | 授权领域读取和管理契约，不暴露宿主角色、菜单或权限表。 |
-| `capability/authcap/token/` | 租户令牌选择、租户切换和模拟登录令牌交接契约，不暴露宿主`JWT`内部实现。 |
-| `capability/bizctxcap/` | 只读业务上下文投影，用于用户、租户、模拟登录和平台绕过状态。 |
-| `capability/cachecap/` | 插件作用域运行时缓存契约，提供字符串和整数值原语。 |
-| `capability/capmodel/` | 共享的存储无关领域原语，例如`CapabilityContext`、操作者和来源元数据、批量结果、分页结果和本地化标签。 |
-| `capability/configcap/` | 受治理运行时配置能力契约，用于读取和管理宿主拥有的配置投影。 |
-| `capability/dictcap/` | 字典领域标签解析和刷新契约，不暴露字典表。 |
-| `capability/filecap/` | 受治理文件投影和文件删除契约，不暴露物理路径或存储表。 |
-| `capability/hostconfigcap/` | 面向已授权源码插件和动态`hostconfig`调用的只读宿主配置访问能力。 |
-| `capability/i18ncap/` | 面向源码插件的运行时语言和翻译查询契约。 |
-| `capability/infracap/` | 基础设施状态投影和刷新契约，不泄漏具体运行时后端。 |
-| `capability/jobcap/` | 定时任务投影以及受治理任务执行或状态管理契约。 |
-| `capability/manifestcap/` | 面向源码插件和动态插件的插件作用域`manifest/`资源只读访问能力。 |
-| `capability/notifycap/` | 通知投影和受治理消息发送、删除契约，不暴露通知表。 |
-| `capability/orgcap/` | 可选组织能力、提供方注册、用户部门和岗位投影，以及组织范围接缝。 |
-| `capability/plugincap/` | 插件治理投影，以及插件本地配置、状态、生命周期、注册表和租户默认供给管理契约。 |
-| `capability/recordstore/` | 面向已授权动态插件`data`服务表的`guest`侧受治理类`ORM`门面。 |
-| `capability/routecap/` | 附着在当前请求上的动态路由元数据投影。 |
-| `capability/sessioncap/` | 在线会话搜索、批量读取和吊销契约，不暴露会话存储。 |
-| `capability/tenantcap/` | 可选租户能力、提供方注册、租户解析、可见性校验、租户切换，以及租户范围接缝。 |
-| `capability/usercap/` | 用户领域投影、搜索、可见性校验和受治理状态管理，不暴露`sys_user`。 |
+声明期能力是插件的静态声明和注册输出。宿主在业务执行前使用这些内容构建治理状态。
 
-## `pluginbridge`职责
+源码插件通过`pluginhost.Declarations`表达声明期契约，包括`Assets()`、`Lifecycle()`、`Hooks()`、`HTTP()`、`Jobs()`和`Governance()`。
 
-`pluginbridge`是动态插件协议区域，由宿主运行时、动态插件构建器和`Wasm guest`代码共同使用。
+动态插件通过`plugin.yaml`、WASM 自定义 section、`pluginbridge.Declarations.Routes().Group(...)`、`pluginbridge.Declarations.Jobs().Register(...)`以及嵌入的`protocol`契约表达声明期契约，例如路由、任务、生命周期处理器、后端资源、前端资源、SQL、i18n 资源和`hostServices`。
 
-| 路径 | 职责 |
-|------|------|
-| `pluginbridge/` | 命名空间包，说明桥接协议和`guest`辅助能力位于子包中。 |
-| `pluginbridge/contract/` | 稳定桥接`ABI`常量、路由契约、请求和响应信封、身份快照、执行来源值、生命周期契约、定时任务契约和校验辅助能力。 |
-| `pluginbridge/guest/` | `guest`运行时辅助能力，用于导出的内存分配和执行函数、路由分发、请求绑定、路由匹配、`guest`侧宿主服务客户端和原始宿主调用传输。 |
-| `pluginbridge/protocol/` | 公开低层协议门面，负责桥接信封、产物元数据、宿主调用载荷、`hostServices`载荷、编解码、能力常量和公开`hostServices`目录。 |
+### 运行期能力
 
-工具若需要语言无关的`hostServices`目录，应使用`pluginbridge/protocol.HostServiceDescriptors()`。它是开发者和工具用于服务与方法发现的公开来源。
+运行期能力是在插件业务逻辑执行时可用的 service。
 
-## `pluginhost`职责
+源码插件通过`pluginhost.Services`访问运行期能力；该接口内嵌普通`capability.Services`，并额外提供可信源码插件专用能力，例如`Admin()`和`TenantFilter()`。
 
-`pluginhost`是源码插件契约区域。源码插件随宿主编译，并通过分组 facade 注册自己的后端贡献。
+动态插件通过`pluginbridge.Services`访问运行期能力。调用会通过`pluginbridge/protocol`编码，经由`WASI host call`传输，由派生的`HostCapabilities`和已确认的`HostServices`授权，再由`apps/lina-core/internal/service/plugin/internal/wasm`分发执行。
 
-| 区域 | 职责 |
-|------|------|
-| `SourcePlugin` | 根源码插件分组注册契约。提供`Assets()`、`Lifecycle()`、`Hooks()`、`HTTP()`、`Cron()`和`Governance()`。 |
-| `Services` | 传入源码插件注册和回调流程的运行时服务目录。它嵌入普通`capability.Services`，并增加源码插件专属的`Admin()`和`TenantFilter()`接缝。 |
-| 资产注册 | `UseEmbeddedFiles`绑定插件拥有的嵌入文件，使宿主可以提供`manifest`和公开资产。 |
-| 生命周期注册 | 为安装、升级、禁用、卸载、租户禁用、租户删除和安装模式变更注册前置条件、自定义升级、清理和后置通知回调。 |
-| 钩子注册 | 为已发布后端扩展点注册回调式钩子处理器。 |
-| `HTTP`注册 | 在插件`API`命名空间下注册源码插件路由，并捕获路由绑定供宿主治理使用。 |
-| 定时任务注册 | 注册受保护的定时任务，执行时检查插件启用状态，并提供主节点判断能力。 |
-| 治理注册 | 注册宿主治理流水线使用的菜单和权限过滤器。 |
+## 动态插件 Host Service 声明
 
-已发布后端扩展点包括`auth.login.succeeded`、`auth.login.failed`、`auth.logout.succeeded`、`plugin.installed`、`plugin.enabled`、`plugin.disabled`、`plugin.uninstalled`、`plugin.upgraded`、`system.started`、`http.route.register`、`cron.register`、`menu.filter`和`permission.filter`。
-
-## `plugin.yaml`中的`hostServices`
-
-动态插件通过`plugin.yaml`中的`hostServices`声明宿主访问。每条声明包含服务名、方法名，以及该服务要求的资源声明形态。
-
-示例：
+最小结构：
 
 ```yaml
 hostServices:
   - service: runtime
     methods:
       - log.write
-      - state.get
-      - state.set
-  - service: storage
-    methods:
-      - put
-      - get
-      - list
-    paths:
-      - exports/
-  - service: data
-    methods:
-      - list
-      - get
-    tables:
-      - plugin_demo_reports
-  - service: network
-    methods:
-      - request
-    resources:
-      - ref: https://api.example.com/v1/*
-  - service: ai
-    methods:
-      - text.generate
-      - document.cite
 ```
 
-资源声明形态：
+资源作用域结构：
 
-| 资源类型 | 声明字段 | 服务 |
-|----------|----------|------|
-| `none` | 不声明`paths`、`tables`、`keys`或`resources`。 | `runtime`、`cron`、`config`、`ai`、`org`、`tenant` |
-| `path` | `paths` | `storage`、`manifest` |
-| `table` | `tables` | `data` |
-| `key` | `keys` | `hostconfig` |
-| `resource` | `resources[].ref`以及服务专属治理字段。 | `network`、`cache`、`lock`、`notify` |
+```yaml
+hostServices:
+  - service: storage
+    methods: [get, put]
+    resources:
+      paths:
+        - reports/
+  - service: data
+    methods: [list, get]
+    resources:
+      tables:
+        - plugin_acme_demo_report
+  - service: hostconfig
+    methods: [get]
+    resources:
+      keys:
+        - i18n.default
+  - service: network
+    methods: [request]
+    resources:
+      - url: https://*.example.com/api
+  - service: notifications
+    methods: [messages.send]
+    resources:
+      - ref: inbox
+        attributes:
+          channel: inbox
+```
 
-生产校验会要求`data`服务表属于插件自有命名空间。动态插件不得声明`sys_*`这类宿主核心表。
+## 可声明 Host Services
 
-`network`资源使用已授权的`http`或`https` URL pattern。`ai`只使用方法声明；请求 DTO 中携带`purpose`、`tier`、`maxOutputTokens`、资产引用和其他方法参数，并交由`AI`能力服务与`linapro-ai-core`校验。
+| Service | 资源声明 | 派生能力 | Methods |
+| --- | --- | --- | --- |
+| `runtime` | 无 | `host:runtime` | `log.write`<br/>`state.get`<br/>`state.set`<br/>`state.delete`<br/>`info.now`<br/>`info.uuid`<br/>`info.node` |
+| `storage` | `resources.paths` | `host:storage` | `put`<br/>`get`<br/>`delete`<br/>`list`<br/>`stat` |
+| `network` | `resources[].url` | `host:http:request` | `request` |
+| `data` | `resources.tables` | `host:data:read`<br/>`host:data:mutate`| `list`<br/>`get`<br/>`create`<br/>`update`<br/>`delete`<br/>`transaction` |
+| `cache` | `resources[].ref` | `host:cache` | `get`<br/>`set`<br/>`delete`<br/>`incr`<br/>`expire` |
+| `lock` | `resources[].ref` | `host:lock` | `acquire`<br/>`renew`<br/>`release` |
+| `hostconfig` | `resources.keys` | `host:hostconfig` | `get` |
+| `manifest` | `resources.paths` | `host:manifest` | `get` |
+| `apidoc` | 无 | `host:apidoc` | `route_text.resolve`<br/>`route_texts.resolve`<br/>`route_title_operation_keys.find` |
+| `auth` | 无 | `host:auth:token` | `tenant.select`<br/>`tenant.switch`<br/>`impersonation_token.issue`<br/>`impersonation_token.revoke` |
+| `authz` | 无 | `host:authz` | `permissions.batch_get`<br/>`permissions.has`<br/>`users.platform_admin.check` |
+| `users` | 无 | `host:users` | `users.batch_get`<br/>`users.search`<br/>`users.visible.ensure` |
+| `bizctx` | 无 | `host:bizctx` | `current.get` |
+| `dict` | 无 | `host:dict` | `labels.resolve` |
+| `files` | 无 | `host:files` | `files.batch_get`<br/>`files.visible.ensure` |
+| `i18n` | 无 | `host:i18n` | `locale.get`<br/>`messages.translate`<br/>`messages.keys.find` |
+| `infra` | 无 | `host:infra` | `status.batch_get` |
+| `jobs` | 无 | `host:jobs` | `jobs.batch_get`<br/>`jobs.register` |
+| `notifications` | 读取无资源；`messages.send`使用`resources[].ref` | `host:notifications` | `messages.batch_get`<br/>`messages.send` |
+| `plugins` | 无 | `host:plugins` | `plugins.batch_get`<br/>`plugins.tenant.list`<br/>`plugins.enabled.check`<br/>`plugins.provider_enabled.check`<br/>`plugins.enabled_authoritative.check`<br/>`config.get`<br/>`lifecycle.tenant_plugin_disable.ensure`<br/>`lifecycle.tenant_plugin_disabled.notify`<br/>`lifecycle.tenant_delete.ensure`<br/>`lifecycle.tenant_deleted.notify` |
+| `route` | 无 | `host:route` | `metadata.get` |
+| `sessions` | 无 | `host:sessions` | `sessions.search`<br/>`sessions.batch_get` |
+| `ai` | 无 | `host:ai:text`<br/>`host:ai:image`<br/>`host:ai:embedding`<br/>`host:ai:audio`<br/>`host:ai:vision`<br/>`host:ai:document`<br/>`host:ai:safety`<br/>`host:ai:video` | `text.generate`<br/>`image.generate`<br/>`image.edit`<br/>`embedding.create`<br/>`audio.transcribe`<br/>`audio.synthesize`<br/>`vision.analyze`<br/>`document.analyze`<br/>`document.cite`<br/>`safety.moderate`<br/>`video.generate`<br/>`video.edit`<br/>`video.extend`<br/>`video.operation.get`<br/>`video.operation.cancel` |
+| `org` | 无 | `host:org` | `capability.available`<br/>`capability.status`<br/>`users.dept_assignments.list`<br/>`users.dept_info.get`<br/>`users.dept_name.get`<br/>`users.dept_ids.get`<br/>`users.post_ids.get` |
+| `tenant` | 无 | `host:tenant` | `capability.available`<br/>`capability.status`<br/>`tenants.current`<br/>`tenants.platform_bypass`<br/>`tenants.visible.ensure`<br/>`users.tenant_membership.validate`<br/>`users.tenants.list`<br/>`tenants.switch.validate` |
+| `secret` | `resources[].ref` | `host:secret` | `resolve` reserved |
+| `event` | `resources[].ref` | `host:event:publish` | `publish` reserved |
+| `queue` | `resources[].ref` | `host:queue:enqueue` | `enqueue` reserved |
 
-`config`、`hostconfig`和`manifest`在省略方法时默认使用`get`。动态`guest`配置辅助方法，例如`Exists`、`String`、`Bool`、`Int`和`Duration`，都会映射到`config.get`；`plugin.yaml`中仍应声明`config.get`。
+## 维护说明
 
-## 动态插件`hostServices`目录
-
-本章节列出动态插件可在`plugin.yaml`中声明的`hostServices`服务名、各服务下的方法名，以及每个方法的用途。机器可读的公开来源是`pluginbridge/protocol.HostServiceDescriptors()`。
-
-### 服务总览
-
-| 服务 | 资源类型 | 用途 |
-|------|----------|------|
-| `runtime` | `none` | 运行时日志、插件作用域状态、宿主时间、宿主生成标识和节点身份。 |
-| `cron` | `none` | 宿主侧发现阶段的动态插件定时任务声明。 |
-| `storage` | `path` | 已授权逻辑路径下受治理的插件存储对象操作。 |
-| `network` | `resource` | 面向已授权 URL pattern 的受治理出站`HTTP`请求。 |
-| `data` | `table` | 面向插件自有授权表的受治理读取和变更。 |
-| `cache` | `resource` | 受治理的缓存读取、写入、整数递增和过期策略更新。 |
-| `lock` | `resource` | 受治理的分布式锁获取、续期和释放。 |
-| `notify` | `resource` | 受治理的通知消息发送。 |
-| `config` | `none` | 只读访问当前插件运行时配置。 |
-| `hostconfig` | `key` | 只读访问显式授权的宿主配置键。 |
-| `manifest` | `path` | 只读访问插件作用域`manifest/`资源。 |
-| `ai` | `none` | 通过声明方法授权的受治理类型化`AI`调用；请求 DTO 携带`purpose`、`tier`和方法参数。 |
-| `org` | `none` | 组织能力状态和用户组织投影。 |
-| `tenant` | `none` | 租户能力状态、当前租户、可见性、成员关系和切换校验。 |
-
-### 方法说明
-
-#### `runtime`
-
-| 方法 | 用途 |
-|------|------|
-| `log.write` | 写入一条插件结构化运行时日志。 |
-| `state.get` | 读取一个插件作用域运行时状态值。 |
-| `state.set` | 写入一个插件作用域运行时状态值。 |
-| `state.delete` | 删除一个插件作用域运行时状态值。 |
-| `info.now` | 返回宿主时间信息。 |
-| `info.uuid` | 返回一个宿主生成的唯一标识。 |
-| `info.node` | 返回宿主节点身份信息。 |
-
-#### `cron`
-
-| 方法 | 用途 |
-|------|------|
-| `register` | 向当前宿主侧发现收集器注册一个动态插件定时任务契约。 |
-
-#### `storage`
-
-| 方法 | 用途 |
-|------|------|
-| `put` | 写入一个受治理存储对象。 |
-| `get` | 读取一个受治理存储对象。 |
-| `delete` | 删除一个受治理存储对象。 |
-| `list` | 列出某个已授权前缀下的受治理存储对象。 |
-| `stat` | 读取一个受治理存储对象的元数据。 |
-
-#### `network`
-
-| 方法 | 用途 |
-|------|------|
-| `request` | 执行一次受治理出站`HTTP`请求。 |
-
-#### `data`
-
-| 方法 | 用途 |
-|------|------|
-| `list` | 对已授权插件自有表执行一次受治理分页列表查询。 |
-| `get` | 从已授权插件自有表按键读取一条受治理记录。 |
-| `create` | 在已授权插件自有表中创建一条受治理记录。 |
-| `update` | 更新已授权插件自有表中的一条受治理记录。 |
-| `delete` | 删除已授权插件自有表中的一条受治理记录。 |
-| `transaction` | 对结构化数据变更执行一次受治理事务。 |
-
-#### `cache`
-
-| 方法 | 用途 |
-|------|------|
-| `get` | 读取一个受治理缓存值。 |
-| `set` | 写入一个受治理缓存值。 |
-| `delete` | 移除一个受治理缓存值。 |
-| `incr` | 对一个受治理整数缓存值执行递增。 |
-| `expire` | 更新一个受治理缓存项的过期策略。 |
-
-#### `lock`
-
-| 方法 | 用途 |
-|------|------|
-| `acquire` | 获取一个受治理分布式锁。 |
-| `renew` | 续期一个受治理分布式锁。 |
-| `release` | 释放一个受治理分布式锁。 |
-
-#### `notify`
-
-| 方法 | 用途 |
-|------|------|
-| `send` | 发送一条受治理通知消息。 |
-
-#### `config`
-
-| 方法 | 用途 |
-|------|------|
-| `get` | 以`JSON`形式读取一个当前插件配置值。 |
-
-`config`在`plugin.yaml`中只发布`get`。`Exists`、`String`、`Bool`、`Int`和`Duration`等`guest`辅助方法只是`config.get`之上的便捷适配。
-
-#### `hostconfig`
-
-| 方法 | 用途 |
-|------|------|
-| `get` | 读取一个已授权宿主配置值。 |
-
-#### `manifest`
-
-| 方法 | 用途 |
-|------|------|
-| `get` | 读取一个插件作用域清单资源。 |
-
-#### `ai`
-
-| 方法 | 用途 |
-|------|------|
-| `text.generate` | 执行一次受治理文本生成请求。 |
-| `image.generate` | 执行一次受治理图片生成请求。 |
-| `image.edit` | 执行一次受治理图片编辑请求。 |
-| `embedding.create` | 执行一次受治理向量嵌入请求。 |
-| `audio.transcribe` | 执行一次受治理音频转写请求。 |
-| `audio.synthesize` | 执行一次受治理语音合成请求。 |
-| `vision.analyze` | 执行一次受治理视觉分析请求。 |
-| `document.analyze` | 执行一次受治理文档分析请求。 |
-| `document.cite` | 执行一次受治理带引用文档请求。 |
-| `safety.moderate` | 执行一次受治理安全审核请求。 |
-| `video.generate` | 执行一次受治理视频生成请求。 |
-| `video.edit` | 执行一次受治理视频编辑请求。 |
-| `video.extend` | 执行一次受治理视频延展请求。 |
-| `video.operation.get` | 读取一个受治理提供方操作。 |
-| `video.operation.cancel` | 取消一个受治理提供方操作。 |
-
-#### `org`
-
-| 方法 | 用途 |
-|------|------|
-| `capability.available` | 判断组织能力是否可用。 |
-| `capability.status` | 读取组织能力状态。 |
-| `users.dept_assignments.list` | 批量列出用户部门归属。 |
-| `users.dept_info.get` | 读取单个用户的部门标识和名称。 |
-| `users.dept_name.get` | 读取单个用户的部门名称。 |
-| `users.dept_ids.get` | 读取单个用户的部门标识集合。 |
-| `users.post_ids.get` | 读取单个用户的岗位标识集合。 |
-
-#### `tenant`
-
-| 方法 | 用途 |
-|------|------|
-| `capability.available` | 判断租户能力是否可用。 |
-| `capability.status` | 读取租户能力状态。 |
-| `tenants.current` | 读取当前请求租户。 |
-| `tenants.platform_bypass` | 判断租户过滤是否可以被绕过。 |
-| `tenants.visible.ensure` | 校验当前用户是否可以访问指定租户。 |
-| `users.tenant_membership.validate` | 校验单个用户的租户成员关系。 |
-| `users.tenants.list` | 列出单个用户可见的租户。 |
-| `tenants.switch.validate` | 校验一个租户切换目标。 |
-
-## 开发者指南
-
-- 源码插件或宿主包需要普通读取型插件可见能力时，使用`capability.Services`。
-- 只有可信源码插件管理命令才使用`capability.AdminServices`。依赖应保持窄接口，并通过领域服务传递`CapabilityContext`。
-- 动态插件`guest`代码中使用`pluginbridge/guest.Default()`或`pluginbridge/guest.New()`获取`runtime`、`storage`、`network`、`recordstore`、`cache`、`lock`、`config`、`notify`、`cron`、`hostconfig`、`manifest`、`org`、`tenant`、`plugin`和`AI`客户端。
-- 源码插件 registrar 使用`pluginhost.SourcePlugin`声明嵌入文件、路由、生命周期回调、钩子、定时任务和治理过滤器。
-- 动态路由和产物契约使用`pluginbridge/contract`，`guest`路由执行使用`pluginbridge/guest`，低层载荷或需要公开协议目录的工具使用`pluginbridge/protocol`。
-- 新增能力契约应保持存储无关，高频读取应优先批量化，并明确数据可见性。不得新增要求插件了解宿主表名或宿主缓存键的能力方法。
+当插件公开契约或动态 `host service` 描述符发生变化时，需要同步更新本目录下的`README.md`和`README.zh-CN.md`。

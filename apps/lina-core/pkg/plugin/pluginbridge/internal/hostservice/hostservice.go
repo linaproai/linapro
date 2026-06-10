@@ -1,5 +1,6 @@
 // Package hostservice defines host-service declarations, capability derivation,
-// manifest serialization, and payload codecs for Lina dynamic plugins.
+// manifest serialization, validation, normalization, and descriptor governance
+// for Lina dynamic plugins.
 package hostservice
 
 // Capability constants describe the coarse-grained permissions implied by host
@@ -7,8 +8,6 @@ package hostservice
 const (
 	// CapabilityRuntime grants access to runtime log/state/info host services.
 	CapabilityRuntime = "host:runtime"
-	// CapabilityCron grants access to dynamic-plugin cron registration host services.
-	CapabilityCron = "host:cron"
 	// CapabilityStorage grants access to governed storage host services.
 	CapabilityStorage = "host:storage"
 	// CapabilityHTTPRequest grants access to governed outbound HTTP requests.
@@ -27,14 +26,38 @@ const (
 	CapabilityEventPublish = "host:event:publish"
 	// CapabilityQueueEnqueue grants access to governed queue submission.
 	CapabilityQueueEnqueue = "host:queue:enqueue"
-	// CapabilityNotify grants access to governed notification services.
-	CapabilityNotify = "host:notify"
-	// CapabilityConfig grants access to read-only host configuration services.
-	CapabilityConfig = "host:config"
 	// CapabilityHostConfig grants access to authorized host config keys.
 	CapabilityHostConfig = "host:hostconfig"
 	// CapabilityManifest grants access to plugin-scoped manifest resources.
 	CapabilityManifest = "host:manifest"
+	// CapabilityAPIDoc grants access to API-documentation localization services.
+	CapabilityAPIDoc = "host:apidoc"
+	// CapabilityAuthToken grants access to authentication token handoff services.
+	CapabilityAuthToken = "host:auth:token"
+	// CapabilityAuthz grants access to authorization-domain capability services.
+	CapabilityAuthz = "host:authz"
+	// CapabilityUsers grants access to host-defined user-domain capability services.
+	CapabilityUsers = "host:users"
+	// CapabilityBizCtx grants access to request business-context projections.
+	CapabilityBizCtx = "host:bizctx"
+	// CapabilityDict grants access to dictionary-domain capability services.
+	CapabilityDict = "host:dict"
+	// CapabilityFiles grants access to file-domain capability services.
+	CapabilityFiles = "host:files"
+	// CapabilityI18n grants access to runtime translation capability services.
+	CapabilityI18n = "host:i18n"
+	// CapabilityInfra grants access to infrastructure-domain capability services.
+	CapabilityInfra = "host:infra"
+	// CapabilityJobs grants access to scheduled-job domain capability services.
+	CapabilityJobs = "host:jobs"
+	// CapabilityNotifications grants access to notification-domain capability services.
+	CapabilityNotifications = "host:notifications"
+	// CapabilityPlugins grants access to plugin-governance capability services.
+	CapabilityPlugins = "host:plugins"
+	// CapabilityRoute grants access to current dynamic-route metadata services.
+	CapabilityRoute = "host:route"
+	// CapabilitySessions grants access to online-session domain capability services.
+	CapabilitySessions = "host:sessions"
 	// CapabilityAIText grants access to host-defined text AI capability services.
 	CapabilityAIText = "host:ai:text"
 	// CapabilityAIImage grants access to host-defined image AI capability services.
@@ -62,8 +85,6 @@ const (
 const (
 	// HostServiceRuntime is the runtime host service identifier.
 	HostServiceRuntime = "runtime"
-	// HostServiceCron is the cron host service identifier.
-	HostServiceCron = "cron"
 	// HostServiceStorage is the storage host service identifier.
 	HostServiceStorage = "storage"
 	// HostServiceNetwork is the network host service identifier.
@@ -80,14 +101,38 @@ const (
 	HostServiceEvent = "event"
 	// HostServiceQueue is the queue host service identifier.
 	HostServiceQueue = "queue"
-	// HostServiceNotify is the notify host service identifier.
-	HostServiceNotify = "notify"
-	// HostServiceConfig is the read-only configuration host service identifier.
-	HostServiceConfig = "config"
 	// HostServiceHostConfig is the host config service identifier.
 	HostServiceHostConfig = "hostconfig"
 	// HostServiceManifest is the plugin-scoped manifest resource service identifier.
 	HostServiceManifest = "manifest"
+	// HostServiceAPIDoc is the API-documentation capability host service identifier.
+	HostServiceAPIDoc = "apidoc"
+	// HostServiceAuth is the authentication token capability host service identifier.
+	HostServiceAuth = "auth"
+	// HostServiceAuthz is the authorization-domain capability host service identifier.
+	HostServiceAuthz = "authz"
+	// HostServiceUsers is the user-domain capability host service identifier.
+	HostServiceUsers = "users"
+	// HostServiceBizCtx is the business-context capability host service identifier.
+	HostServiceBizCtx = "bizctx"
+	// HostServiceDict is the dictionary-domain capability host service identifier.
+	HostServiceDict = "dict"
+	// HostServiceFiles is the file-domain capability host service identifier.
+	HostServiceFiles = "files"
+	// HostServiceI18n is the runtime translation capability host service identifier.
+	HostServiceI18n = "i18n"
+	// HostServiceInfra is the infrastructure-domain capability host service identifier.
+	HostServiceInfra = "infra"
+	// HostServiceJobs is the scheduled-job capability host service identifier.
+	HostServiceJobs = "jobs"
+	// HostServiceNotifications is the notification-domain capability host service identifier.
+	HostServiceNotifications = "notifications"
+	// HostServicePlugins is the plugin-governance capability host service identifier.
+	HostServicePlugins = "plugins"
+	// HostServiceRoute is the dynamic-route metadata capability host service identifier.
+	HostServiceRoute = "route"
+	// HostServiceSessions is the online-session capability host service identifier.
+	HostServiceSessions = "sessions"
 	// HostServiceAI is the AI capability host service identifier.
 	HostServiceAI = "ai"
 	// HostServiceOrg is the organization capability host service identifier.
@@ -113,14 +158,6 @@ const (
 	HostServiceMethodRuntimeInfoUUID = "info.uuid"
 	// HostServiceMethodRuntimeInfoNode returns host node identity information.
 	HostServiceMethodRuntimeInfoNode = "info.node"
-)
-
-// Cron host-service methods describe dynamic-plugin cron declaration
-// operations exposed during host-side discovery.
-const (
-	// HostServiceMethodCronRegister registers one dynamic-plugin cron contract
-	// with the current host-side discovery collector.
-	HostServiceMethodCronRegister = "register"
 )
 
 // Storage host-service methods describe governed file operations under the
@@ -185,29 +222,6 @@ const (
 	HostServiceMethodLockRelease = "release"
 )
 
-// Notify host-service methods describe governed notification dispatch
-// operations.
-const (
-	// HostServiceMethodNotifySend sends one governed notification message.
-	HostServiceMethodNotifySend = "send"
-)
-
-// Config host-service methods describe read-only plugin configuration access.
-const (
-	// HostServiceMethodConfigGet reads one configuration value as JSON.
-	HostServiceMethodConfigGet = "get"
-	// HostServiceMethodConfigExists reports whether one configuration key exists.
-	HostServiceMethodConfigExists = "exists"
-	// HostServiceMethodConfigString reads one configuration value as a string.
-	HostServiceMethodConfigString = "string"
-	// HostServiceMethodConfigBool reads one configuration value as a bool.
-	HostServiceMethodConfigBool = "bool"
-	// HostServiceMethodConfigInt reads one configuration value as an int.
-	HostServiceMethodConfigInt = "int"
-	// HostServiceMethodConfigDuration reads one configuration value as a duration string.
-	HostServiceMethodConfigDuration = "duration"
-)
-
 // HostConfig host-service methods describe authorized host config reads.
 const (
 	// HostServiceMethodHostConfigGet reads one authorized host config value.
@@ -218,6 +232,140 @@ const (
 const (
 	// HostServiceMethodManifestGet reads one plugin-scoped manifest resource.
 	HostServiceMethodManifestGet = "get"
+)
+
+// APIDoc host-service methods describe API-documentation localization reads.
+const (
+	// HostServiceMethodAPIDocResolveRouteText resolves one route text projection.
+	HostServiceMethodAPIDocResolveRouteText = "route_text.resolve"
+	// HostServiceMethodAPIDocResolveRouteTexts resolves multiple route text projections.
+	HostServiceMethodAPIDocResolveRouteTexts = "route_texts.resolve"
+	// HostServiceMethodAPIDocFindRouteTitleOperationKeys finds route title operation keys.
+	HostServiceMethodAPIDocFindRouteTitleOperationKeys = "route_title_operation_keys.find"
+)
+
+// Auth host-service methods describe authentication token handoff operations.
+const (
+	// HostServiceMethodAuthSelectTenant issues a tenant token from a pre-login token.
+	HostServiceMethodAuthSelectTenant = "tenant.select"
+	// HostServiceMethodAuthSwitchTenant switches the current bearer token to another tenant.
+	HostServiceMethodAuthSwitchTenant = "tenant.switch"
+	// HostServiceMethodAuthIssueImpersonationToken issues one host-owned impersonation token.
+	HostServiceMethodAuthIssueImpersonationToken = "impersonation_token.issue"
+	// HostServiceMethodAuthRevokeImpersonationToken revokes one host-owned impersonation token.
+	HostServiceMethodAuthRevokeImpersonationToken = "impersonation_token.revoke"
+)
+
+// Authz host-service methods describe authorization-domain ordinary reads.
+const (
+	// HostServiceMethodAuthzBatchGetPermissions reads visible permission projections.
+	HostServiceMethodAuthzBatchGetPermissions = "permissions.batch_get"
+	// HostServiceMethodAuthzHasPermission checks whether the current actor has one permission.
+	HostServiceMethodAuthzHasPermission = "permissions.has"
+	// HostServiceMethodAuthzIsPlatformAdmin checks whether one user has platform-admin scope.
+	HostServiceMethodAuthzIsPlatformAdmin = "users.platform_admin.check"
+)
+
+// Users host-service methods describe the ordinary user-domain capability
+// surface available to authorized dynamic plugins.
+const (
+	// HostServiceMethodUsersBatchGet reads visible user projections in batch.
+	HostServiceMethodUsersBatchGet = "users.batch_get"
+	// HostServiceMethodUsersSearch searches visible user candidates with bounded paging.
+	HostServiceMethodUsersSearch = "users.search"
+	// HostServiceMethodUsersEnsureVisible validates that all requested users are visible.
+	HostServiceMethodUsersEnsureVisible = "users.visible.ensure"
+)
+
+// Business-context host-service methods describe current request projections.
+const (
+	// HostServiceMethodBizCtxCurrent reads the current request business context.
+	HostServiceMethodBizCtxCurrent = "current.get"
+)
+
+// Dictionary host-service methods describe ordinary dictionary reads.
+const (
+	// HostServiceMethodDictResolveLabels resolves dictionary labels for requested values.
+	HostServiceMethodDictResolveLabels = "labels.resolve"
+)
+
+// Files host-service methods describe ordinary file-domain reads and checks.
+const (
+	// HostServiceMethodFilesBatchGet reads visible file projections in batch.
+	HostServiceMethodFilesBatchGet = "files.batch_get"
+	// HostServiceMethodFilesEnsureVisible validates that requested files are visible.
+	HostServiceMethodFilesEnsureVisible = "files.visible.ensure"
+)
+
+// I18n host-service methods describe runtime translation reads.
+const (
+	// HostServiceMethodI18nGetLocale reads the effective request locale.
+	HostServiceMethodI18nGetLocale = "locale.get"
+	// HostServiceMethodI18nTranslate resolves one runtime message key.
+	HostServiceMethodI18nTranslate = "messages.translate"
+	// HostServiceMethodI18nFindMessageKeys finds runtime message keys.
+	HostServiceMethodI18nFindMessageKeys = "messages.keys.find"
+)
+
+// Infrastructure host-service methods describe ordinary infrastructure reads.
+const (
+	// HostServiceMethodInfraBatchGetStatus reads component status projections.
+	HostServiceMethodInfraBatchGetStatus = "status.batch_get"
+)
+
+// Jobs host-service methods describe ordinary scheduled-job reads and
+// discovery-time plugin job declarations.
+const (
+	// HostServiceMethodJobsBatchGet reads visible job projections in batch.
+	HostServiceMethodJobsBatchGet = "jobs.batch_get"
+	// HostServiceMethodJobsRegister registers one dynamic-plugin job declaration during discovery.
+	HostServiceMethodJobsRegister = "jobs.register"
+)
+
+// Notifications host-service methods describe notification reads and sends.
+const (
+	// HostServiceMethodNotificationsBatchGetMessages reads visible notification message projections.
+	HostServiceMethodNotificationsBatchGetMessages = "messages.batch_get"
+	// HostServiceMethodNotificationsSend sends one governed notification message.
+	HostServiceMethodNotificationsSend = "messages.send"
+)
+
+// Plugins host-service methods describe plugin-governance ordinary capability reads.
+const (
+	// HostServiceMethodPluginsBatchGet reads visible plugin projections.
+	HostServiceMethodPluginsBatchGet = "plugins.batch_get"
+	// HostServiceMethodPluginsListTenant lists tenant-controllable plugin projections.
+	HostServiceMethodPluginsListTenant = "plugins.tenant.list"
+	// HostServiceMethodPluginsIsEnabled checks regular plugin enablement.
+	HostServiceMethodPluginsIsEnabled = "plugins.enabled.check"
+	// HostServiceMethodPluginsIsProviderEnabled checks provider enablement.
+	HostServiceMethodPluginsIsProviderEnabled = "plugins.provider_enabled.check"
+	// HostServiceMethodPluginsIsEnabledAuthoritative checks authoritative plugin enablement.
+	HostServiceMethodPluginsIsEnabledAuthoritative = "plugins.enabled_authoritative.check"
+	// HostServiceMethodPluginsConfigGet reads one plugin-scoped config value as JSON.
+	HostServiceMethodPluginsConfigGet = "config.get"
+	// HostServiceMethodPluginsLifecycleEnsureTenantPluginDisable runs tenant-plugin disable preconditions.
+	HostServiceMethodPluginsLifecycleEnsureTenantPluginDisable = "lifecycle.tenant_plugin_disable.ensure"
+	// HostServiceMethodPluginsLifecycleNotifyTenantPluginDisabled runs tenant-plugin disable notifications.
+	HostServiceMethodPluginsLifecycleNotifyTenantPluginDisabled = "lifecycle.tenant_plugin_disabled.notify"
+	// HostServiceMethodPluginsLifecycleEnsureTenantDelete runs tenant-delete preconditions.
+	HostServiceMethodPluginsLifecycleEnsureTenantDelete = "lifecycle.tenant_delete.ensure"
+	// HostServiceMethodPluginsLifecycleNotifyTenantDeleted runs tenant-delete notifications.
+	HostServiceMethodPluginsLifecycleNotifyTenantDeleted = "lifecycle.tenant_deleted.notify"
+)
+
+// Route host-service methods describe current dynamic-route metadata reads.
+const (
+	// HostServiceMethodRouteMetadataGet reads current dynamic-route metadata.
+	HostServiceMethodRouteMetadataGet = "metadata.get"
+)
+
+// Sessions host-service methods describe ordinary online-session reads.
+const (
+	// HostServiceMethodSessionsSearch searches visible online sessions.
+	HostServiceMethodSessionsSearch = "sessions.search"
+	// HostServiceMethodSessionsBatchGet reads visible online sessions in batch.
+	HostServiceMethodSessionsBatchGet = "sessions.batch_get"
 )
 
 // Organization host-service methods describe the ordinary organization
@@ -241,8 +389,8 @@ const (
 )
 
 // Tenant host-service methods describe the ordinary tenant capability surface
-// available to authorized dynamic plugins. Request resolution, query builders,
-// and lifecycle governance stay out of this protocol.
+// available to authorized dynamic plugins. Request resolution and query builders
+// stay out of this protocol; plugin lifecycle governance belongs to plugins.
 const (
 	// HostServiceMethodTenantAvailable reports whether tenant capability is available.
 	HostServiceMethodTenantAvailable = "capability.available"
@@ -310,8 +458,8 @@ const (
 type HostServiceSpec struct {
 	// Service is the logical host service identifier.
 	Service string `json:"service" yaml:"service"`
-	// Methods lists the allowed methods under the host service. Read-only config,
-	// hostConfig, and manifest declarations default to get when methods are omitted.
+	// Methods lists the allowed methods under the host service. Read-only
+	// hostConfig and manifest declarations default to get when methods are omitted.
 	Methods []string `json:"methods" yaml:"methods"`
 	// Paths lists the authorized logical paths for the storage host service.
 	Paths []string `json:"paths,omitempty" yaml:"paths,omitempty"`

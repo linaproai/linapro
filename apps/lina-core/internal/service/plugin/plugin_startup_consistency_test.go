@@ -4,22 +4,169 @@ package plugin
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
+	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/governance"
 	"lina-core/internal/service/plugin/internal/testutil"
+	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 const startupConsistencyMembershipTable = "plugin_linapro_tenant_core_user_membership"
+
+// TestEnsurePlatformGovernanceAllowsSingleTenantMode verifies disabled tenancy
+// keeps plugin governance available in platform-only deployments.
+func TestEnsurePlatformGovernanceAllowsSingleTenantMode(t *testing.T) {
+	err := governance.EnsurePlatformContext(context.Background(), pluginTenantGuard{enabled: false})
+	if err != nil {
+		t.Fatalf("expected disabled tenancy to allow plugin governance, got %v", err)
+	}
+}
+
+// TestEnsurePlatformGovernanceRejectsTenantContext verifies active
+// multi-tenancy requires platform all-data context for lifecycle writes.
+func TestEnsurePlatformGovernanceRejectsTenantContext(t *testing.T) {
+	err := governance.EnsurePlatformContext(context.Background(), pluginTenantGuard{enabled: true, platformBypass: false})
+	if !bizerr.Is(err, tenantcap.CodePlatformPermissionRequired) {
+		t.Fatalf("expected platform permission error, got %v", err)
+	}
+}
+
+// TestEnsurePlatformGovernanceAllowsPlatformBypass verifies platform all-data
+// context can perform plugin governance actions.
+func TestEnsurePlatformGovernanceAllowsPlatformBypass(t *testing.T) {
+	err := governance.EnsurePlatformContext(context.Background(), pluginTenantGuard{enabled: true, platformBypass: true})
+	if err != nil {
+		t.Fatalf("expected platform bypass to allow plugin governance, got %v", err)
+	}
+}
+
+// TestPluginGovernanceMethodsRejectTenantContext verifies public platform
+// plugin-governance methods fail before lifecycle, registry, package, or
+// policy side effects when the caller is in tenant context.
+func TestPluginGovernanceMethodsRejectTenantContext(t *testing.T) {
+	ctx := context.WithValue(context.Background(), bizctx.ContextKey, &model.Context{
+		TenantId:  65001,
+		DataScope: 1,
+	})
+	svc := newTestService()
+	svc.SetTenantPlatformGovernanceCapability(newPluginPlatformGuardTenantService(t))
+	cases := []struct {
+		name string
+		run  func() error
+	}{
+		{name: "sync source plugins", run: func() error {
+			return svc.SyncSourcePlugins(ctx)
+		}},
+		{name: "sync source plugins strict", run: func() error {
+			_, err := svc.SyncSourcePluginsStrict(ctx)
+			return err
+		}},
+		{name: "sync and list", run: func() error {
+			_, err := svc.SyncAndList(ctx)
+			return err
+		}},
+		{name: "install", run: func() error {
+			_, err := svc.Install(ctx, "blocked-plugin", InstallOptions{})
+			return err
+		}},
+		{name: "uninstall", run: func() error {
+			return svc.Uninstall(ctx, "blocked-plugin", UninstallOptions{})
+		}},
+		{name: "update status", run: func() error {
+			return svc.UpdateStatus(ctx, "blocked-plugin", 1, nil)
+		}},
+		{name: "enable", run: func() error {
+			return svc.Enable(ctx, "blocked-plugin")
+		}},
+		{name: "disable", run: func() error {
+			return svc.Disable(ctx, "blocked-plugin")
+		}},
+		{name: "upload dynamic package", run: func() error {
+			_, err := svc.UploadDynamicPackage(ctx, nil)
+			return err
+		}},
+		{name: "upgrade source plugin", run: func() error {
+			_, err := svc.UpgradeSourcePlugin(ctx, "blocked-plugin")
+			return err
+		}},
+		{name: "execute runtime upgrade", run: func() error {
+			_, err := svc.ExecuteRuntimeUpgrade(ctx, "blocked-plugin", RuntimeUpgradeOptions{Confirmed: true})
+			return err
+		}},
+		{name: "tenant provisioning policy", run: func() error {
+			return svc.UpdateTenantProvisioningPolicy(ctx, "blocked-plugin", true)
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.run(); !bizerr.Is(err, tenantcap.CodePlatformPermissionRequired) {
+				t.Fatalf("expected platform permission error, got %v", err)
+			}
+		})
+	}
+}
+
+// TestWithStartupDataSnapshotReusesCatalogAndIntegrationSnapshots verifies one
+// startup context does not rebuild equivalent plugin snapshots repeatedly.
+func TestWithStartupDataSnapshotReusesCatalogAndIntegrationSnapshots(t *testing.T) {
+	ctx := startupstats.WithCollector(context.Background(), startupstats.New())
+	service := newTestService()
+
+	startupCtx, err := service.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		t.Fatalf("build first startup snapshot: %v", err)
+	}
+	startupCtx, err = service.WithStartupDataSnapshot(startupCtx)
+	if err != nil {
+		t.Fatalf("reuse second startup snapshot: %v", err)
+	}
+	if _, err = service.ReadOnlyList(startupCtx); err != nil {
+		t.Fatalf("read plugin list with startup snapshots: %v", err)
+	}
+
+	snapshot := startupstats.FromContext(startupCtx).Snapshot()
+	if got := snapshot.CounterValue(startupstats.CounterCatalogSnapshotBuilds); got != 1 {
+		t.Fatalf("expected one catalog snapshot build, got %d", got)
+	}
+	if got := snapshot.CounterValue(startupstats.CounterIntegrationSnapshotBuilds); got != 1 {
+		t.Fatalf("expected one integration snapshot build, got %d", got)
+	}
+}
+
+// TestReadOnlyListOnlyBuildsCatalogSnapshot verifies management read paths do
+// not load integration snapshots that are only needed by startup sync.
+func TestReadOnlyListOnlyBuildsCatalogSnapshot(t *testing.T) {
+	ctx := startupstats.WithCollector(context.Background(), startupstats.New())
+	service := newTestService()
+
+	if _, err := service.ReadOnlyList(ctx); err != nil {
+		t.Fatalf("read plugin list with catalog startup snapshot: %v", err)
+	}
+
+	snapshot := startupstats.FromContext(ctx).Snapshot()
+	if got := snapshot.CounterValue(startupstats.CounterCatalogSnapshotBuilds); got != 1 {
+		t.Fatalf("expected one catalog snapshot build, got %d", got)
+	}
+	if got := snapshot.CounterValue(startupstats.CounterIntegrationSnapshotBuilds); got != 0 {
+		t.Fatalf("expected no integration snapshot build, got %d", got)
+	}
+}
 
 // TestValidateStartupConsistencyRequiresInjectedTenantCapability verifies
 // startup validation fails fast instead of building an implicit tenant service.
@@ -511,4 +658,75 @@ func assertStartupConsistencyErrorContains(t *testing.T, err error, expectedDeta
 			t.Fatalf("expected startup consistency error to include %q, got %q", detail, message)
 		}
 	}
+}
+
+// pluginTenantGuard is the narrow tenantcap fake needed by plugin platform-guard tests.
+type pluginTenantGuard struct {
+	enabled        bool
+	platformBypass bool
+}
+
+// Enabled returns whether multi-tenancy is active in this test.
+func (g pluginTenantGuard) Available(context.Context) bool {
+	return g.enabled
+}
+
+// PlatformBypass returns whether the test context is platform all-data.
+func (g pluginTenantGuard) PlatformBypass(context.Context) bool {
+	return g.platformBypass
+}
+
+// newPluginPlatformGuardTenantService creates a real tenantcap service with
+// one enabled test provider for plugin facade entry-point tests.
+func newPluginPlatformGuardTenantService(t *testing.T) tenantcap.RuntimeService {
+	t.Helper()
+	providerPluginID := fmt.Sprintf("plugin-test-plugin-tenant-provider-%d", time.Now().UnixNano())
+	if err := tenantcap.Provide(providerPluginID, func(context.Context, tenantcap.ProviderEnv) (tenantcap.Provider, error) {
+		return pluginPlatformGuardProvider{}, nil
+	}); err != nil {
+		t.Fatalf("register plugin tenant provider: %v", err)
+	}
+	return tenantcap.New(pluginPlatformGuardProviderRuntime{pluginID: providerPluginID}, bizctx.New())
+}
+
+// pluginPlatformGuardProviderRuntime marks exactly one test provider plugin enabled.
+type pluginPlatformGuardProviderRuntime struct {
+	pluginID string
+}
+
+// IsProviderEnabled reports whether the given test provider plugin is enabled.
+func (r pluginPlatformGuardProviderRuntime) IsProviderEnabled(_ context.Context, pluginID string) bool {
+	return pluginID == r.pluginID
+}
+
+// TenantProviderEnv returns an empty typed provider environment in plugin facade tests.
+func (pluginPlatformGuardProviderRuntime) TenantProviderEnv(string) tenantcap.ProviderEnv {
+	return tenantcap.ProviderEnv{}
+}
+
+// pluginPlatformGuardProvider satisfies the tenantcap provider contract for
+// tests that only need provider presence.
+type pluginPlatformGuardProvider struct{}
+
+// ResolveTenant is unused by plugin platform-guard tests.
+func (pluginPlatformGuardProvider) ResolveTenant(
+	context.Context,
+	*ghttp.Request,
+) (*tenantcap.ResolverResult, error) {
+	return &tenantcap.ResolverResult{TenantID: tenantcap.PLATFORM, Matched: true}, nil
+}
+
+// ValidateUserInTenant is unused by plugin platform-guard tests.
+func (pluginPlatformGuardProvider) ValidateUserInTenant(context.Context, int, tenantcap.TenantID) error {
+	return nil
+}
+
+// ListUserTenants is unused by plugin platform-guard tests.
+func (pluginPlatformGuardProvider) ListUserTenants(context.Context, int) ([]tenantcap.TenantInfo, error) {
+	return nil, nil
+}
+
+// SwitchTenant is unused by plugin platform-guard tests.
+func (pluginPlatformGuardProvider) SwitchTenant(context.Context, int, tenantcap.TenantID) error {
+	return nil
 }

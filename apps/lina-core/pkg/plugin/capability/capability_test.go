@@ -45,7 +45,7 @@ func TestServicesExposeUniqueDomainEntries(t *testing.T) {
 			t.Fatalf("capability.Services must not expose removed %s entry", removed)
 		}
 	}
-	for _, required := range []string{"HostConfig", "Notifications", "Plugins", "Sessions"} {
+	for _, required := range []string{"HostConfig", "Notifications", "Plugins", "Sessions", "Lock", "Storage"} {
 		if _, ok := servicesType.MethodByName(required); !ok {
 			t.Fatalf("capability.Services must expose %s", required)
 		}
@@ -55,8 +55,14 @@ func TestServicesExposeUniqueDomainEntries(t *testing.T) {
 	if _, ok := adminType.MethodByName("Notify"); ok {
 		t.Fatal("capability.AdminServices must not expose removed Notify entry")
 	}
+	if _, ok := adminType.MethodByName("Config"); ok {
+		t.Fatal("capability.AdminServices must not expose removed Config entry")
+	}
 	if _, ok := adminType.MethodByName("Notifications"); !ok {
 		t.Fatal("capability.AdminServices must expose Notifications")
+	}
+	if _, ok := adminType.MethodByName("HostConfig"); !ok {
+		t.Fatal("capability.AdminServices must expose HostConfig")
 	}
 }
 
@@ -267,42 +273,28 @@ func scanRemovedHostServicesReferences(file parsedCapabilityGovernanceFile) []st
 	return findings
 }
 
-// scanRemovedPluginbridgeBusinessReferences blocks root pluginbridge business
-// clients; dynamic plugin business code must use pluginbridge/guest instead.
+// scanRemovedPluginbridgeBusinessReferences blocks removed legacy
+// pluginbridge business clients from returning as parallel domain entries.
 func scanRemovedPluginbridgeBusinessReferences(file parsedCapabilityGovernanceFile) []string {
 	var findings []string
 	pluginbridgeImports := file.importNamesForPath("lina-core/pkg/plugin/pluginbridge")
 	forbiddenFunctions := map[string]struct{}{
-		"Runtime":    {},
-		"Storage":    {},
-		"HTTP":       {},
-		"Network":    {},
-		"Data":       {},
-		"Cache":      {},
-		"Lock":       {},
-		"Config":     {},
-		"Notify":     {},
-		"Cron":       {},
-		"HostConfig": {},
-		"Manifest":   {},
-		"Org":        {},
-		"Tenant":     {},
+		"HTTP":   {},
+		"Data":   {},
+		"Config": {},
+		"Notify": {},
+		"Cron":   {},
+		"Org":    {},
+		"Tenant": {},
 	}
 	forbiddenTypes := map[string]struct{}{
-		"RuntimeHostService":    {},
-		"StorageHostService":    {},
-		"HTTPHostService":       {},
-		"NetworkHostService":    {},
-		"DataHostService":       {},
-		"CacheHostService":      {},
-		"LockHostService":       {},
-		"ConfigHostService":     {},
-		"NotifyHostService":     {},
-		"CronHostService":       {},
-		"HostConfigHostService": {},
-		"ManifestHostService":   {},
-		"OrgService":            {},
-		"TenantService":         {},
+		"HTTPHostService":   {},
+		"DataHostService":   {},
+		"ConfigHostService": {},
+		"NotifyHostService": {},
+		"CronHostService":   {},
+		"OrgService":        {},
+		"TenantService":     {},
 	}
 	ast.Inspect(file.astFile, func(node ast.Node) bool {
 		switch typed := node.(type) {
@@ -336,7 +328,7 @@ func scanRemovedPluginbridgeBusinessReferences(file parsedCapabilityGovernanceFi
 }
 
 // scanPluginbridgeProtocolOwnership verifies bridge wire contracts are owned by
-// pluginbridge/protocol, while higher-level guest SDK packages keep their
+// pluginbridge/protocol, while the higher-level dynamic bridge SDK keeps its
 // intentional runtime transport seams.
 func scanPluginbridgeProtocolOwnership(t *testing.T, root string) []string {
 	t.Helper()
@@ -350,8 +342,8 @@ func scanPluginbridgeProtocolOwnership(t *testing.T, root string) []string {
 }
 
 // scanRecordStoreGuestImports blocks the record store facade from importing
-// pluginbridge/guest directly. pluginbridge/guest injects a narrow invoker so
-// the guest SDK can own the public directory without creating an import cycle.
+// pluginbridge directly. pluginbridge injects a narrow invoker so the dynamic
+// bridge SDK can own the public directory without creating an import cycle.
 func scanRecordStoreGuestImports(t *testing.T, root string) []string {
 	t.Helper()
 
@@ -359,8 +351,8 @@ func scanRecordStoreGuestImports(t *testing.T, root string) []string {
 	for _, file := range parseGoSources(t, root, true, "apps/lina-core/pkg/plugin/capability/recordstore") {
 		for _, importPath := range file.importPaths {
 			switch importPath {
-			case "lina-core/pkg/plugin/pluginbridge/guest":
-				findings = append(findings, fmt.Sprintf("%s imports pluginbridge/guest instead of using an injected host-service invoker", file.relPath))
+			case "lina-core/pkg/plugin/pluginbridge":
+				findings = append(findings, fmt.Sprintf("%s imports pluginbridge instead of using an injected host-service invoker", file.relPath))
 			case "lina-core/pkg/plugin/pluginbridge/contract":
 				findings = append(findings, fmt.Sprintf("%s imports pluginbridge/contract instead of pluginbridge/protocol", file.relPath))
 			}
@@ -391,7 +383,7 @@ func scanPluginbridgeRootInternalProtocolImports(t *testing.T, root string) []st
 }
 
 // scanPluginbridgeRootFacadeAliases prevents the root pluginbridge package from
-// growing back into a second protocol or guest facade.
+// growing into a second protocol facade through aliases.
 func scanPluginbridgeRootFacadeAliases(t *testing.T, root string) []string {
 	t.Helper()
 
@@ -404,16 +396,16 @@ func scanPluginbridgeRootFacadeAliases(t *testing.T, root string) []string {
 		ast.Inspect(file.astFile, func(node ast.Node) bool {
 			switch typed := node.(type) {
 			case *ast.TypeSpec:
-				if selectorReferencesPackage(typed.Type, "protocol", "guest") {
-					findings = append(findings, fmt.Sprintf("%s aliases protocol or guest type %s from the pluginbridge root", file.position(typed.Name.Pos()), typed.Name.Name))
+				if typed.Assign.IsValid() && selectorReferencesPackage(typed.Type, "protocol") {
+					findings = append(findings, fmt.Sprintf("%s aliases protocol type %s from the pluginbridge root", file.position(typed.Name.Pos()), typed.Name.Name))
 				}
 			case *ast.ValueSpec:
 				for _, value := range typed.Values {
-					if !selectorReferencesPackage(value, "protocol", "guest") {
+					if !selectorReferencesPackage(value, "protocol") {
 						continue
 					}
 					for _, name := range typed.Names {
-						findings = append(findings, fmt.Sprintf("%s aliases protocol or guest value %s from the pluginbridge root", file.position(name.Pos()), name.Name))
+						findings = append(findings, fmt.Sprintf("%s aliases protocol value %s from the pluginbridge root", file.position(name.Pos()), name.Name))
 					}
 				}
 			}
@@ -424,23 +416,23 @@ func scanPluginbridgeRootFacadeAliases(t *testing.T, root string) []string {
 	return []string{targetRelPath + " is missing"}
 }
 
-// scanGuestRuntimeProtocolAliases keeps pluginbridge/guest from becoming a
-// second protocol owner. Guest helpers may use protocol DTOs in method
+// scanGuestRuntimeProtocolAliases keeps pluginbridge from becoming a second
+// protocol owner. Dynamic bridge helpers may use protocol DTOs in method
 // signatures and implementations, but they must not alias protocol symbols back
-// into the guest package.
+// into the pluginbridge package.
 func scanGuestRuntimeProtocolAliases(t *testing.T, root string) []string {
 	t.Helper()
 
 	targetRelPath := filepath.ToSlash(filepath.Join(
 		root,
-		"apps/lina-core/pkg/plugin/pluginbridge/guest/guest_types_aliases.go",
+		"apps/lina-core/pkg/plugin/pluginbridge/guest_types_aliases.go",
 	))
 	if fileExists(targetRelPath) {
-		return []string{"apps/lina-core/pkg/plugin/pluginbridge/guest/guest_types_aliases.go reintroduces a guest protocol alias file"}
+		return []string{"apps/lina-core/pkg/plugin/pluginbridge/guest_types_aliases.go reintroduces a pluginbridge protocol alias file"}
 	}
 
 	var findings []string
-	for _, file := range parseGoSources(t, root, true, "apps/lina-core/pkg/plugin/pluginbridge/guest") {
+	for _, file := range parseGoSources(t, root, true, "apps/lina-core/pkg/plugin/pluginbridge") {
 		protocolImports := file.importNamesForPath("lina-core/pkg/plugin/pluginbridge/protocol")
 		if len(protocolImports) == 0 {
 			continue
@@ -449,7 +441,7 @@ func scanGuestRuntimeProtocolAliases(t *testing.T, root string) []string {
 			switch typed := node.(type) {
 			case *ast.TypeSpec:
 				if typed.Assign.IsValid() && selectorReferencesImport(typed.Type, protocolImports) {
-					findings = append(findings, fmt.Sprintf("%s aliases protocol type %s from pluginbridge/guest", file.position(typed.Name.Pos()), typed.Name.Name))
+					findings = append(findings, fmt.Sprintf("%s aliases protocol type %s from pluginbridge", file.position(typed.Name.Pos()), typed.Name.Name))
 				}
 			case *ast.ValueSpec:
 				for _, value := range typed.Values {
@@ -457,7 +449,7 @@ func scanGuestRuntimeProtocolAliases(t *testing.T, root string) []string {
 						continue
 					}
 					for _, name := range typed.Names {
-						findings = append(findings, fmt.Sprintf("%s aliases protocol value %s from pluginbridge/guest", file.position(name.Pos()), name.Name))
+						findings = append(findings, fmt.Sprintf("%s aliases protocol value %s from pluginbridge", file.position(name.Pos()), name.Name))
 					}
 				}
 			}

@@ -19,12 +19,6 @@ func (s *serviceImpl) SetTopologyProvider(t TopologyProvider) {
 	s.topology = t
 }
 
-// SetDynamicCronExecutor wires the runtime executor used by declared
-// dynamic-plugin cron jobs.
-func (s *serviceImpl) SetDynamicCronExecutor(executor DynamicCronExecutor) {
-	s.dynamicCronExecutor = executor
-}
-
 // SetCapabilities wires the runtime-owned capability services used by source plugins.
 func (s *serviceImpl) SetCapabilities(capabilities capability.Services) {
 	s.capabilities = capabilities
@@ -47,4 +41,9 @@ func (s *serviceImpl) sourceServicesForPlugin(pluginID string) pluginhost.Servic
 // used by plugin resource data-scope filters.
 func (s *serviceImpl) SetOrganizationCapability(service capabilityorgcap.Service) {
 	s.orgSvc = service
+}
+
+// SetDynamicJobExecutor wires the dynamic-plugin Jobs declaration executor.
+func (s *serviceImpl) SetDynamicJobExecutor(executor DynamicJobExecutor) {
+	s.dynamicJobExecutor = executor
 }

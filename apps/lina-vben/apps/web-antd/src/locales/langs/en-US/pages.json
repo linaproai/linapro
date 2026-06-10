@@ -966,12 +966,7 @@
         "uninstallBlocked": "This plugin is required by installed plugins."
       },
       "hostServices": {
-        "cron": {
-          "pattern": "Pattern",
-          "parallelLimit": "{label} (max {value})"
-        },
         "messages": {
-          "cronEmpty": "No cron resources declared",
           "defaultEmpty": "No scoped resources declared"
         },
         "scope": {
@@ -980,9 +975,11 @@
           "requested": "Requested Scope"
         },
         "service": {
-          "cron": "Cron",
           "data": "Data",
+          "jobs": "Jobs",
           "network": "Network",
+          "notifications": "Notifications",
+          "plugins": "Plugins",
           "runtime": "Runtime",
           "storage": "Storage"
         },

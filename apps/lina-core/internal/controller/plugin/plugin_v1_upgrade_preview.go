@@ -91,12 +91,10 @@ func buildPluginManifestSnapshotItem(
 		RequestedHostServices: buildHostServicePermissionItems(
 			snapshot.RequestedHostServices,
 			tableComments,
-			nil,
 		),
 		AuthorizedHostServices: buildHostServicePermissionItems(
 			snapshot.AuthorizedHostServices,
 			tableComments,
-			nil,
 		),
 	}
 }

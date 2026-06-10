@@ -14,17 +14,20 @@ import (
 	"strconv"
 	"strings"
 
-	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 const (
-	// routeRegisterFunctionName is the dynamic backend callback inspected by the
-	// builder to mirror source-plugin route registration.
-	routeRegisterFunctionName = "RegisterRoutes"
+	// pluginRegisterFunctionName is the dynamic backend callback inspected by
+	// the builder to mirror source-plugin startup declarations.
+	pluginRegisterFunctionName = "RegisterPlugin"
 	// routeRegisterGroupMethodName is the registrar method used to bind a route
 	// group prefix to one backend/api-relative package.
 	routeRegisterGroupMethodName = "Group"
+	// routeFacadeMethodName is the Declarations method returning route
+	// declarations.
+	routeFacadeMethodName = "Routes"
 )
 
 func collectHookSpecs(pluginDir string, pluginID string) ([]*hookSpec, error) {
@@ -302,7 +305,7 @@ func isErrorType(expr ast.Expr) bool {
 }
 
 func buildLifecycleInternalPath(operation string) string {
-	return "/__lifecycle" + bridgeguest.BuildGuestControllerInternalPath(operation)
+	return "/__lifecycle" + bridgeplugin.BuildGuestControllerInternalPath(operation)
 }
 
 func mergeLifecycleSpecs(
@@ -541,7 +544,7 @@ func collectRouteGroupBindings(pluginDir string, apiDir string) (map[string]stri
 	prefixes := make(map[string]string)
 	for _, decl := range fileNode.Decls {
 		funcDecl, ok := decl.(*ast.FuncDecl)
-		if !ok || funcDecl == nil || funcDecl.Name == nil || funcDecl.Name.Name != routeRegisterFunctionName {
+		if !ok || funcDecl == nil || funcDecl.Name == nil || funcDecl.Name.Name != pluginRegisterFunctionName {
 			continue
 		}
 		items, extractErr := extractRouteGroupBindingsFromFunc(funcDecl, collectStringConstsFromFile(fileNode))
@@ -562,7 +565,7 @@ func collectRouteGroupBindings(pluginDir string, apiDir string) (map[string]stri
 	return prefixes, nil
 }
 
-// routeGroupBinding records one registrar.Group(prefix, apiPackage) call.
+// routeGroupBinding records one plugin.Routes().Group(prefix, apiPackage) call.
 type routeGroupBinding struct {
 	// prefix is the plugin-owned route group prefix.
 	prefix string
@@ -570,8 +573,8 @@ type routeGroupBinding struct {
 	apiPackage string
 }
 
-// extractRouteGroupBindingsFromFunc extracts registrar.Group calls from one
-// dynamic RegisterRoutes function.
+// extractRouteGroupBindingsFromFunc extracts plugin.Routes().Group calls from
+// one dynamic RegisterPlugin function.
 func extractRouteGroupBindingsFromFunc(
 	funcDecl *ast.FuncDecl,
 	stringConsts map[string]string,
@@ -579,8 +582,9 @@ func extractRouteGroupBindingsFromFunc(
 	if funcDecl.Body == nil {
 		return nil, nil
 	}
-	registrarNames := routeRegistrarParamNames(funcDecl)
-	if len(registrarNames) == 0 {
+	pluginNames := declarationParamNames(funcDecl)
+	registrarNames := routeDeclarationParamNames(funcDecl)
+	if len(pluginNames) == 0 && len(registrarNames) == 0 {
 		return nil, nil
 	}
 	items := make([]routeGroupBinding, 0)
@@ -597,11 +601,7 @@ func extractRouteGroupBindingsFromFunc(
 		if !ok || selector == nil || selector.Sel == nil || selector.Sel.Name != routeRegisterGroupMethodName {
 			return true
 		}
-		receiver, ok := selector.X.(*ast.Ident)
-		if !ok || receiver == nil {
-			return true
-		}
-		if _, allowed := registrarNames[receiver.Name]; !allowed {
+		if !isRouteGroupReceiver(selector.X, pluginNames, registrarNames) {
 			return true
 		}
 		if len(callExpr.Args) != 2 {
@@ -630,15 +630,26 @@ func extractRouteGroupBindingsFromFunc(
 	return items, nil
 }
 
-// routeRegistrarParamNames returns RegisterRoutes parameters that implement
-// the dynamic route registrar contract by type name.
-func routeRegistrarParamNames(funcDecl *ast.FuncDecl) map[string]struct{} {
+// declarationParamNames returns RegisterPlugin parameters with the dynamic
+// plugin declaration contract type name.
+func declarationParamNames(funcDecl *ast.FuncDecl) map[string]struct{} {
+	return parameterNamesByTypeName(funcDecl, "Declarations")
+}
+
+// routeDeclarationParamNames returns direct route facade parameters that
+// implement the route declaration contract by type name.
+func routeDeclarationParamNames(funcDecl *ast.FuncDecl) map[string]struct{} {
+	return parameterNamesByTypeName(funcDecl, "RouteDeclarations")
+}
+
+// parameterNamesByTypeName returns parameters matching one interface type name.
+func parameterNamesByTypeName(funcDecl *ast.FuncDecl, typeName string) map[string]struct{} {
 	names := make(map[string]struct{})
 	if funcDecl == nil || funcDecl.Type == nil || funcDecl.Type.Params == nil {
 		return names
 	}
 	for _, field := range funcDecl.Type.Params.List {
-		if field == nil || astTypeName(field.Type) != "DynamicRouteRegistrar" {
+		if field == nil || astTypeName(field.Type) != typeName {
 			continue
 		}
 		for _, name := range field.Names {
@@ -649,6 +660,36 @@ func routeRegistrarParamNames(funcDecl *ast.FuncDecl) map[string]struct{} {
 		}
 	}
 	return names
+}
+
+// isRouteGroupReceiver reports whether a Group call receiver is either a
+// RouteDeclarations parameter or plugin.Routes() from a Declarations
+// parameter.
+func isRouteGroupReceiver(
+	expr ast.Expr,
+	pluginNames map[string]struct{},
+	registrarNames map[string]struct{},
+) bool {
+	receiver, ok := expr.(*ast.Ident)
+	if ok && receiver != nil {
+		_, allowed := registrarNames[receiver.Name]
+		return allowed
+	}
+
+	callExpr, ok := expr.(*ast.CallExpr)
+	if !ok || callExpr == nil || len(callExpr.Args) != 0 {
+		return false
+	}
+	selector, ok := callExpr.Fun.(*ast.SelectorExpr)
+	if !ok || selector == nil || selector.Sel == nil || selector.Sel.Name != routeFacadeMethodName {
+		return false
+	}
+	pluginIdent, ok := selector.X.(*ast.Ident)
+	if !ok || pluginIdent == nil {
+		return false
+	}
+	_, allowed := pluginNames[pluginIdent.Name]
+	return allowed
 }
 
 // collectStringConstsFromFile collects file-local string constants that route

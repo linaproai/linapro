@@ -84,35 +84,35 @@ func (s *managedJobSchedulerStub) CancelLog(ctx context.Context, logID int64) er
 type managedPluginCronStub struct {
 	listExecutableCalled        bool
 	listInstalledDeclaredCalled bool
-	installedDeclarations       []pluginsvc.ManagedCronJob
+	installedDeclarations       []pluginsvc.ManagedJob
 }
 
-// managedCronConfigStub overrides runtime settings while inheriting the rest
+// managedJobConfigStub overrides runtime settings while inheriting the rest
 // of the host config service contract from a real service instance.
-type managedCronConfigStub struct {
+type managedJobConfigStub struct {
 	hostconfig.Service
 	sessionTimeout  time.Duration
 	logRetentionDay int64
 }
 
 // GetSessionTimeout returns the runtime-effective session timeout for tests.
-func (s managedCronConfigStub) GetSessionTimeout(context.Context) (time.Duration, error) {
+func (s managedJobConfigStub) GetSessionTimeout(context.Context) (time.Duration, error) {
 	return s.sessionTimeout, nil
 }
 
 // GetLogRetentionDays returns the runtime-effective log retention in days for tests.
-func (s managedCronConfigStub) GetLogRetentionDays(context.Context) (int64, error) {
+func (s managedJobConfigStub) GetLogRetentionDays(context.Context) (int64, error) {
 	return s.logRetentionDay, nil
 }
 
-// ListExecutableCronJobs records unexpected executable-list usage.
-func (s *managedPluginCronStub) ListExecutableCronJobs(ctx context.Context) ([]pluginsvc.ManagedCronJob, error) {
+// ListExecutableJobs records unexpected executable-list usage.
+func (s *managedPluginCronStub) ListExecutableJobs(ctx context.Context) ([]pluginsvc.ManagedJob, error) {
 	s.listExecutableCalled = true
 	return nil, nil
 }
 
-// ListInstalledCronDeclarations returns installed plugin declaration snapshots.
-func (s *managedPluginCronStub) ListInstalledCronDeclarations(ctx context.Context) ([]pluginsvc.ManagedCronJob, error) {
+// ListInstalledJobDeclarations returns installed plugin declaration snapshots.
+func (s *managedPluginCronStub) ListInstalledJobDeclarations(ctx context.Context) ([]pluginsvc.ManagedJob, error) {
 	s.listInstalledDeclaredCalled = true
 	return s.installedDeclarations, nil
 }
@@ -155,13 +155,13 @@ func TestSyncBuiltinScheduledJobsRegistersDeclarationSnapshots(t *testing.T) {
 }
 
 // TestBuildPluginBuiltinJobsUsesInstalledDeclarations verifies disabled but
-// installed plugin cron declarations remain visible to scheduled-job management.
+// installed plugin job declarations remain visible to scheduled-job management.
 func TestBuildPluginBuiltinJobsUsesInstalledDeclarations(t *testing.T) {
 	ctx := context.Background()
 	pluginSvc := &managedPluginCronStub{
-		installedDeclarations: []pluginsvc.ManagedCronJob{
+		installedDeclarations: []pluginsvc.ManagedJob{
 			{
-				PluginID:       "plugin-cron-installed",
+				PluginID:       "plugin-jobs-installed",
 				Name:           "heartbeat",
 				DisplayName:    "Plugin Heartbeat",
 				Description:    "Installed plugin heartbeat.",
@@ -191,7 +191,7 @@ func TestBuildPluginBuiltinJobsUsesInstalledDeclarations(t *testing.T) {
 	if len(jobs) != 1 {
 		t.Fatalf("expected one plugin builtin job, got %#v", jobs)
 	}
-	if jobs[0].HandlerRef != "plugin:plugin-cron-installed/cron:heartbeat" {
+	if jobs[0].HandlerRef != "plugin:plugin-jobs-installed/jobs:heartbeat" {
 		t.Fatalf("unexpected plugin handler ref: %s", jobs[0].HandlerRef)
 	}
 }
@@ -201,7 +201,7 @@ func TestBuildPluginBuiltinJobsUsesInstalledDeclarations(t *testing.T) {
 func TestEffectiveSessionCleanupTimeoutUsesRuntimeSessionTimeout(t *testing.T) {
 	svc := &serviceImpl{
 		sessionCfg: &hostconfig.SessionConfig{Timeout: 30 * 24 * time.Hour},
-		configSvc: managedCronConfigStub{
+		configSvc: managedJobConfigStub{
 			Service:         hostconfig.New(),
 			sessionTimeout:  6 * time.Hour,
 			logRetentionDay: 90,
@@ -222,7 +222,7 @@ func TestEffectiveSessionCleanupTimeoutUsesRuntimeSessionTimeout(t *testing.T) {
 func TestEffectiveSessionCleanupTimeoutUsesStricterLogRetention(t *testing.T) {
 	svc := &serviceImpl{
 		sessionCfg: &hostconfig.SessionConfig{Timeout: 30 * 24 * time.Hour},
-		configSvc: managedCronConfigStub{
+		configSvc: managedJobConfigStub{
 			Service:         hostconfig.New(),
 			sessionTimeout:  20 * 24 * time.Hour,
 			logRetentionDay: 7,

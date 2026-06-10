@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -147,8 +147,8 @@ func TestPluginDemoDynamicGeneratedDispatcherIsZeroReflection(t *testing.T) {
 	}
 	generated := string(content)
 	if !strings.Contains(generated, `"lina-core/pkg/plugin/pluginbridge/protocol"`) ||
-		!strings.Contains(generated, `bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"`) {
-		t.Fatalf("generated dispatcher must use protocol and guest imports:\n%s", generated)
+		!strings.Contains(generated, `bridgeplugin "lina-core/pkg/plugin/pluginbridge"`) {
+		t.Fatalf("generated dispatcher must use protocol and dynamic bridge imports:\n%s", generated)
 	}
 	for _, forbidden := range []string{
 		`"reflect"`,
@@ -649,7 +649,7 @@ func assertPluginDemoDynamicLifecycleContracts(t *testing.T, actual []*protocol.
 			t.Fatalf("expected lifecycle operation %s, got %#v", operation, actual)
 		}
 		expectedRequestType := operation.String() + "Req"
-		expectedInternalPath := "/__lifecycle" + bridgeguest.BuildGuestControllerInternalPath(operation.String())
+		expectedInternalPath := "/__lifecycle" + bridgeplugin.BuildGuestControllerInternalPath(operation.String())
 		if contract.RequestType != expectedRequestType || contract.InternalPath != expectedInternalPath {
 			t.Fatalf("unexpected lifecycle contract for %s: %#v", operation, contract)
 		}

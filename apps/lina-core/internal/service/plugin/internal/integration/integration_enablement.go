@@ -146,7 +146,7 @@ func (s *serviceImpl) registryEnabledForTenant(ctx context.Context, registry *en
 }
 
 // registryBusinessEntryEnabledForTenant resolves plugin enablement and runtime
-// upgrade state before allowing plugin-owned routes, menus, cron jobs, or hooks.
+// upgrade state before allowing plugin-owned routes, menus, scheduled jobs, or hooks.
 func (s *serviceImpl) registryBusinessEntryEnabledForTenant(
 	ctx context.Context,
 	registry *entity.SysPlugin,
@@ -423,7 +423,7 @@ func manifestByPluginID(manifests []*catalog.Manifest) map[string]*catalog.Manif
 }
 
 // buildBackgroundEnabledChecker returns a PluginEnabledChecker for use in source plugin
-// route and cron registrars that need to guard runtime access.
+// route and jobs registrars that need to guard runtime access.
 func (s *serviceImpl) buildBackgroundEnabledChecker() pluginhost.PluginEnabledChecker {
 	return func(ctx context.Context, pluginID string) bool {
 		normalizedPluginID := strings.TrimSpace(pluginID)
@@ -444,7 +444,7 @@ func (s *serviceImpl) buildBackgroundEnabledChecker() pluginhost.PluginEnabledCh
 	}
 }
 
-// buildPrimaryNodeChecker returns a PrimaryNodeChecker for use in source plugin cron registrars.
+// buildPrimaryNodeChecker returns a PrimaryNodeChecker for use in source plugin jobs registrars.
 func (s *serviceImpl) buildPrimaryNodeChecker() pluginhost.PrimaryNodeChecker {
 	return func() bool {
 		if s.topology == nil {

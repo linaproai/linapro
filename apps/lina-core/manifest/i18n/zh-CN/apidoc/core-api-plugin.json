@@ -242,39 +242,8 @@
               }
             }
           },
-          "HostServicePermissionCronItem": {
-            "fields": {
-              "concurrency": {
-                "dc": "并发策略：singleton=单例执行 parallel=允许并行执行"
-              },
-              "description": {
-                "dc": "定时任务说明，便于管理员在授权审查页理解任务用途"
-              },
-              "displayName": {
-                "dc": "定时任务显示名称；未提供时使用 name"
-              },
-              "maxConcurrency": {
-                "dc": "最大并发数；仅并行策略下有意义，单例策略通常为 1"
-              },
-              "name": {
-                "dc": "定时任务唯一名称"
-              },
-              "pattern": {
-                "dc": "插件声明的原始调度表达式"
-              },
-              "scope": {
-                "dc": "调度范围：master_only=仅主节点执行 all_node=所有节点执行"
-              },
-              "timezone": {
-                "dc": "任务时区；cron 表达式解析与展示使用的时区标识"
-              }
-            }
-          },
           "HostServicePermissionItem": {
             "fields": {
-              "cronItems": {
-                "dc": "该宿主服务下发现的定时任务声明，仅 cron service 使用；用于在授权审查页展示任务名称、表达式、调度范围与并发策略"
-              },
               "methods": {
                 "dc": "该宿主服务下允许的方法集合"
               },
@@ -288,7 +257,7 @@
                 "dc": "该宿主服务下的治理目标集合；network 使用 URL 模式，低优先级服务继续使用 resourceRef"
               },
               "service": {
-                "dc": "宿主服务标识，如 runtime、cron、storage、network、data、config、hostConfig、manifest"
+                "dc": "宿主服务标识，如 runtime、storage、network、data、hostConfig、manifest、plugins、notifications"
               },
               "tableItems": {
                 "dc": "该宿主服务下的数据表展示项，仅 data service 使用；当宿主可解析表级说明时会同时返回 comment"

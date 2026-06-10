@@ -36,7 +36,7 @@ func (s stubConfigService) GetI18n(_ context.Context) *hostconfig.I18nConfig {
 
 // init registers one minimal source plugin fixture with embedded i18n assets.
 func init() {
-	plugin := pluginhost.NewSourcePlugin(testPluginID)
+	plugin := pluginhost.NewDeclarations(testPluginID)
 	plugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte(sourcePluginI18NManifestFixture(testPluginID, true))},
 		"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(`{
@@ -349,7 +349,7 @@ func TestRegisterSourcePluginInvalidatesRuntimeBundleCache(t *testing.T) {
 		t.Fatalf("expected plugin %q translation to be absent before registration", testCacheInvalidatePluginID)
 	}
 
-	plugin := pluginhost.NewSourcePlugin(testCacheInvalidatePluginID)
+	plugin := pluginhost.NewDeclarations(testCacheInvalidatePluginID)
 	plugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte(sourcePluginI18NManifestFixture(testCacheInvalidatePluginID, true))},
 		"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(`{

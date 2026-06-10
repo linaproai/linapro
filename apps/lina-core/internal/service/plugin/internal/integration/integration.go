@@ -27,9 +27,9 @@ const (
 	pluginTenantDisabledValue = "disabled"
 )
 
-// ManagedCronJob describes one plugin-owned scheduled-job definition that the
+// ManagedJob describes one plugin-owned scheduled-job definition that the
 // host can project into the unified scheduled-job management table.
-type ManagedCronJob struct {
+type ManagedJob struct {
 	// PluginID identifies the owning plugin.
 	PluginID string
 	// Name is the stable plugin-local job name.
@@ -51,25 +51,7 @@ type ManagedCronJob struct {
 	// Timeout bounds each execution.
 	Timeout time.Duration
 	// Handler executes the plugin-owned scheduled job.
-	Handler pluginhost.CronJobHandler
-}
-
-// DynamicCronExecutor executes one dynamic-plugin declared cron job through the
-// active runtime bridge.
-type DynamicCronExecutor interface {
-	// DiscoverCronContracts collects all dynamic-plugin cron declarations from
-	// the plugin runtime's reserved registration entry point.
-	DiscoverCronContracts(
-		ctx context.Context,
-		manifest *catalog.Manifest,
-	) ([]*protocol.CronContract, error)
-	// ExecuteDeclaredCronJob runs one declared dynamic-plugin cron job against
-	// the active manifest/runtime.
-	ExecuteDeclaredCronJob(
-		ctx context.Context,
-		manifest *catalog.Manifest,
-		contract *protocol.CronContract,
-	) error
+	Handler pluginhost.JobHandler
 }
 
 // BizCtxProvider abstracts the business context dependency for data-scope queries.
@@ -112,7 +94,16 @@ type ResourceQueryService interface {
 	ResolveResourcePermission(ctx context.Context, pluginID string, resourceID string) (string, error)
 }
 
-// SourceRegistrationService defines source-plugin route and cron registration operations.
+// DynamicJobExecutor discovers and executes dynamic-plugin built-in Jobs
+// declarations through the active WASM runtime.
+type DynamicJobExecutor interface {
+	// DiscoverJobContracts runs the dynamic plugin Jobs declaration entry point.
+	DiscoverJobContracts(ctx context.Context, manifest *catalog.Manifest) ([]*protocol.JobContract, error)
+	// ExecuteDeclaredJob runs one declared dynamic-plugin job through the active runtime.
+	ExecuteDeclaredJob(ctx context.Context, manifest *catalog.Manifest, contract *protocol.JobContract) error
+}
+
+// SourceRegistrationService defines source-plugin route and job registration operations.
 type SourceRegistrationService interface {
 	// ListSourceRouteBindings returns the source-plugin route bindings captured during registration.
 	ListSourceRouteBindings() []pluginhost.SourceRouteBinding
@@ -123,33 +114,33 @@ type SourceRegistrationService interface {
 		pluginGroup *ghttp.RouterGroup,
 		middlewares pluginhost.RouteMiddlewares,
 	) error
-	// RegisterCrons registers callback-contributed cron jobs for source plugins.
-	RegisterCrons(ctx context.Context) error
-	// ListExecutableCronJobs returns plugin-owned cron definitions whose
+	// RegisterJobs registers callback-contributed scheduled jobs for source plugins.
+	RegisterJobs(ctx context.Context) error
+	// ListExecutableJobs returns plugin-owned job definitions whose
 	// handlers are safe to publish for execution. Dynamic plugins must be in
 	// an enabled business-entry state; disabled, pending-upgrade, abnormal, and
 	// failed-upgrade dynamic plugins are excluded. Use this only for runtime
 	// handler publication, not for authorization previews or task-table
 	// projection.
-	ListExecutableCronJobs(ctx context.Context) ([]ManagedCronJob, error)
-	// ListExecutableCronJobsByPlugin returns executable cron definitions for
+	ListExecutableJobs(ctx context.Context) ([]ManagedJob, error)
+	// ListExecutableJobsByPlugin returns executable job definitions for
 	// one plugin. It applies the same enablement and runtime-state rules as
-	// ListExecutableCronJobs while narrowing discovery to pluginID, so callers
+	// ListExecutableJobs while narrowing discovery to pluginID, so callers
 	// can register handlers during a plugin enable lifecycle without exposing
 	// declarations that are not currently executable.
-	ListExecutableCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error)
-	// ListCronDeclarationsByPlugin returns declared cron metadata for one
+	ListExecutableJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedJob, error)
+	// ListJobDeclarationsByPlugin returns declared job metadata for one
 	// plugin without requiring the plugin business entry to be enabled. This is
 	// intended for management review and host-service authorization previews,
 	// including not-yet-installed dynamic plugins. Callers must not publish the
 	// returned handlers directly because the plugin may not be executable.
-	ListCronDeclarationsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error)
-	// ListInstalledCronDeclarations returns declared cron metadata for
+	ListJobDeclarationsByPlugin(ctx context.Context, pluginID string) ([]ManagedJob, error)
+	// ListInstalledJobDeclarations returns declared job metadata for
 	// installed plugins without requiring their business entries to be enabled.
 	// Scheduled-job projection uses this to create or update task-table rows
 	// for installed plugins while avoiding preview-only declarations from
 	// uninstalled plugins.
-	ListInstalledCronDeclarations(ctx context.Context) ([]ManagedCronJob, error)
+	ListInstalledJobDeclarations(ctx context.Context) ([]ManagedJob, error)
 }
 
 // HookDispatchService defines plugin hook dispatch operations.
@@ -190,13 +181,12 @@ type DependencyWiringService interface {
 	SetBizCtxProvider(p BizCtxProvider)
 	// SetTopologyProvider wires the cluster-topology provider used by plugin integrations.
 	SetTopologyProvider(t TopologyProvider)
-	// SetDynamicCronExecutor wires the runtime executor used by declared
-	// dynamic-plugin cron jobs.
-	SetDynamicCronExecutor(executor DynamicCronExecutor)
 	// SetCapabilities wires the runtime-owned capability services used by source plugins.
 	SetCapabilities(capabilities capability.Services)
 	// SetOrganizationCapability wires the runtime-owned organization capability used by resource scopes.
 	SetOrganizationCapability(service capabilityorgcap.Service)
+	// SetDynamicJobExecutor wires the dynamic-plugin Jobs declaration executor.
+	SetDynamicJobExecutor(executor DynamicJobExecutor)
 }
 
 // PluginStateService defines plugin enablement lookup operations.
@@ -271,11 +261,11 @@ type serviceImpl struct {
 
 	topology TopologyProvider
 
-	dynamicCronExecutor DynamicCronExecutor
-
 	capabilities capability.Services
 
 	orgSvc capabilityorgcap.Service
+
+	dynamicJobExecutor DynamicJobExecutor
 
 	sharedState *sharedState
 }

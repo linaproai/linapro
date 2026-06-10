@@ -12,8 +12,7 @@ import (
 // fakeJobmgmtI18nTranslator provides deterministic source-text translations
 // for scheduled-job metadata localization tests.
 type fakeJobmgmtI18nTranslator struct {
-	dynamicValues map[string]string
-	values        map[string]string
+	values map[string]string
 }
 
 // TranslateSourceText returns a keyed fake translation or sourceText.
@@ -24,40 +23,26 @@ func (f fakeJobmgmtI18nTranslator) TranslateSourceText(_ context.Context, key st
 	return sourceText
 }
 
-// TranslateDynamicPluginSourceText returns artifact-local fake translations.
-func (f fakeJobmgmtI18nTranslator) TranslateDynamicPluginSourceText(
-	_ context.Context,
-	_ string,
-	key string,
-	sourceText string,
-) string {
-	if value := f.dynamicValues[key]; value != "" {
-		return value
-	}
-	return sourceText
-}
-
-// TestTranslateHandlerSourceTextUsesDynamicPluginArtifactFallback verifies
-// plugin-owned built-in jobs can be localized from dynamic plugin artifacts
-// before the plugin has contributed to the enabled runtime bundle.
-func TestTranslateHandlerSourceTextUsesDynamicPluginArtifactFallback(t *testing.T) {
-	handlerRef := "plugin:linapro-demo-dynamic/cron:heartbeat"
+// TestTranslateHandlerSourceTextUsesPluginHandlerKey verifies plugin-owned
+// built-in jobs are localized by their stable Jobs handler i18n key.
+func TestTranslateHandlerSourceTextUsesPluginHandlerKey(t *testing.T) {
+	handlerRef := "plugin:linapro-demo-source/jobs:heartbeat"
 	nameKey := jobmeta.HandlerI18nKey(handlerRef, jobNameI18nField)
 	descriptionKey := jobmeta.HandlerI18nKey(handlerRef, jobDescriptionI18nField)
 
 	svc := &serviceImpl{
 		i18nSvc: fakeJobmgmtI18nTranslator{
-			dynamicValues: map[string]string{
-				nameKey:        "动态插件心跳",
-				descriptionKey: "通过 Wasm bridge 执行动态插件内置定时任务。",
+			values: map[string]string{
+				nameKey:        "源码插件心跳",
+				descriptionKey: "执行源码插件注册的内置定时任务。",
 			},
 		},
 	}
 
-	if actual := svc.localizeBuiltinJobName(context.Background(), handlerRef, "Dynamic Plugin Heartbeat", 1); actual != "动态插件心跳" {
-		t.Fatalf("expected dynamic plugin job name translation, got %q", actual)
+	if actual := svc.localizeBuiltinJobName(context.Background(), handlerRef, "Source Plugin Heartbeat", 1); actual != "源码插件心跳" {
+		t.Fatalf("expected plugin job name translation, got %q", actual)
 	}
-	if actual := svc.localizeBuiltinJobDescription(context.Background(), handlerRef, "Runs the dynamic plugin built-in job.", 1); actual != "通过 Wasm bridge 执行动态插件内置定时任务。" {
-		t.Fatalf("expected dynamic plugin job description translation, got %q", actual)
+	if actual := svc.localizeBuiltinJobDescription(context.Background(), handlerRef, "Runs the plugin built-in job.", 1); actual != "执行源码插件注册的内置定时任务。" {
+		t.Fatalf("expected plugin job description translation, got %q", actual)
 	}
 }

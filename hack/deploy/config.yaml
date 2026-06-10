@@ -80,6 +80,8 @@ plugin:
   dynamic:
     storagePath: "/app/data/wasm"
   autoEnable:
+    - id: "linapro-ai-core"
+      withMockData: false
     - id: "linapro-tenant-core"
       withMockData: true
     - id: "linapro-org-core"

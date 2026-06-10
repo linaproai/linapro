@@ -250,23 +250,23 @@ func (p *sourcePlugin) registerRoutes(
 	return nil
 }
 
-// RegisterCron registers one callback that contributes plugin-owned cron jobs.
-func (p *sourcePlugin) registerCron(
+// RegisterJobs registers one callback that contributes plugin-owned scheduled jobs.
+func (p *sourcePlugin) registerJobs(
 	point ExtensionPoint,
 	mode CallbackExecutionMode,
-	handler CronRegisterHandler,
+	handler JobRegisterHandler,
 ) error {
 	if p == nil {
 		return gerror.New("pluginhost: source plugin is nil")
 	}
 	if handler == nil {
-		return gerror.New("pluginhost: cron registrar is nil")
+		return gerror.New("pluginhost: jobs registrar is nil")
 	}
-	normalizedMode, err := normalizeRegistrationPointMode(point, ExtensionPointCronRegister, mode)
+	normalizedMode, err := normalizeRegistrationPointMode(point, ExtensionPointJobsRegister, mode)
 	if err != nil {
 		return err
 	}
-	p.cronRegistrars = append(p.cronRegistrars, &CronHandlerRegistration{
+	p.jobRegistrars = append(p.jobRegistrars, &JobHandlerRegistration{
 		Handler: handler,
 		Mode:    normalizedMode,
 		Point:   point,

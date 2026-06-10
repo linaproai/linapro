@@ -21,8 +21,6 @@ const (
 	jobNameI18nField = "name"
 	// jobDescriptionI18nField identifies the built-in job description i18n field.
 	jobDescriptionI18nField = "description"
-	// pluginHandlerRefPrefix identifies plugin-owned scheduled-job handler refs.
-	pluginHandlerRefPrefix = "plugin:"
 )
 
 // handlerSourceTextCache stores request-local handler metadata translations.
@@ -32,9 +30,6 @@ type handlerSourceTextCache map[string]string
 type jobmgmtI18nTranslator interface {
 	// TranslateSourceText returns one source-text-backed key with source text fallback.
 	TranslateSourceText(ctx context.Context, key string, sourceText string) string
-	// TranslateDynamicPluginSourceText returns one source-text-backed key from
-	// a dynamic-plugin artifact, falling back to sourceText when unavailable.
-	TranslateDynamicPluginSourceText(ctx context.Context, pluginID string, key string, sourceText string) string
 }
 
 // localizeGroupForDisplay translates the code-owned default group display
@@ -91,7 +86,7 @@ func (s *serviceImpl) localizeBuiltinJobName(
 }
 
 // localizeBuiltinJobNameWithCache translates one built-in job name using a
-// request-local cache to avoid repeated dynamic-plugin artifact lookups.
+// request-local cache to avoid repeated handler metadata lookups.
 func (s *serviceImpl) localizeBuiltinJobNameWithCache(
 	ctx context.Context,
 	handlerRef string,
@@ -184,8 +179,7 @@ func localizedTextMatchesKeyword(name string, description string, normalizedKeyw
 		strings.Contains(strings.ToLower(description), normalizedKeyword)
 }
 
-// translateHandlerSourceText resolves handler-owned display metadata, including
-// dynamic-plugin artifact-local resources before a plugin is enabled.
+// translateHandlerSourceText resolves handler-owned display metadata.
 func (s *serviceImpl) translateHandlerSourceText(ctx context.Context, handlerRef string, field string, sourceText string) string {
 	return s.translateHandlerSourceTextWithCache(ctx, handlerRef, field, sourceText, nil)
 }
@@ -210,15 +204,7 @@ func (s *serviceImpl) translateHandlerSourceTextWithCache(
 	}
 
 	key := jobmeta.HandlerI18nKey(handlerRef, field)
-	translated := s.translateSourceText(ctx, key, sourceText)
-	if translated != sourceText {
-		return translated
-	}
-	pluginID := pluginIDFromHandlerRef(handlerRef)
-	if pluginID == "" || s == nil || s.i18nSvc == nil {
-		return translated
-	}
-	return s.i18nSvc.TranslateDynamicPluginSourceText(ctx, pluginID, key, translated)
+	return s.translateSourceText(ctx, key, sourceText)
 }
 
 // handlerSourceTextCacheKey builds a stable key for request-local handler
@@ -234,19 +220,4 @@ func (s *serviceImpl) translateSourceText(ctx context.Context, key string, sourc
 		return sourceText
 	}
 	return s.i18nSvc.TranslateSourceText(ctx, key, sourceText)
-}
-
-// pluginIDFromHandlerRef extracts the plugin identifier from a plugin-owned
-// handler ref such as plugin:demo-plugin/cron:heartbeat.
-func pluginIDFromHandlerRef(handlerRef string) string {
-	trimmedRef := strings.TrimSpace(handlerRef)
-	if !strings.HasPrefix(trimmedRef, pluginHandlerRefPrefix) {
-		return ""
-	}
-	withoutPrefix := strings.TrimPrefix(trimmedRef, pluginHandlerRefPrefix)
-	separatorIndex := strings.Index(withoutPrefix, "/")
-	if separatorIndex <= 0 {
-		return ""
-	}
-	return strings.TrimSpace(withoutPrefix[:separatorIndex])
 }

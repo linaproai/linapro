@@ -1,4 +1,5 @@
-// This file coordinates plugin runtime cache freshness across cluster nodes.
+// This file coordinates plugin runtime cache freshness, enabled snapshots, and
+// runtime revision publishing across cluster nodes.
 
 package plugin
 
@@ -131,6 +132,55 @@ func (s *serviceImpl) markRuntimeCacheChanged(ctx context.Context, reason string
 		logger.Debugf(ctx, "plugin runtime cache revision bumped reason=%s revision=%d", reason, revision)
 	}
 	return revision, nil
+}
+
+// syncEnabledSnapshotFromRegistry refreshes the in-memory enablement snapshot
+// for one plugin using the latest registry row after a lifecycle transition.
+func (s *serviceImpl) syncEnabledSnapshotFromRegistry(ctx context.Context, pluginID string) error {
+	return s.syncEnabledSnapshotStateFromRegistry(ctx, pluginID)
+}
+
+// syncEnabledSnapshotStateFromRegistry updates only the in-memory enabled
+// snapshot for the same registry state.
+func (s *serviceImpl) syncEnabledSnapshotStateFromRegistry(
+	ctx context.Context,
+	pluginID string,
+) error {
+	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+	if err != nil {
+		return err
+	}
+	if registry == nil || registry.Installed != catalog.InstalledYes {
+		s.integrationSvc.DeletePluginEnabledState(pluginID)
+		return nil
+	}
+	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
+	if err != nil {
+		return err
+	}
+	runtimeState, err := s.catalogSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
+	if err != nil {
+		return err
+	}
+	enabled := registry.Status == catalog.StatusEnabled &&
+		catalog.RuntimeStateAllowsBusinessEntry(runtimeState.State)
+	s.integrationSvc.SetPluginEnabledState(pluginID, enabled)
+	return nil
+}
+
+// syncEnabledSnapshotAndPublishRuntimeChange updates local enablement, publishes
+// the runtime revision, and lets capability providers observe the refreshed
+// platform enabled snapshot at use time.
+func (s *serviceImpl) syncEnabledSnapshotAndPublishRuntimeChange(
+	ctx context.Context,
+	pluginID string,
+	reason string,
+) error {
+	if err := s.syncEnabledSnapshotStateFromRegistry(ctx, pluginID); err != nil {
+		return err
+	}
+	_, err := s.markRuntimeCacheChanged(ctx, reason)
+	return err
 }
 
 // invalidateRuntimeUpgradeCaches clears this node's plugin-scoped derived

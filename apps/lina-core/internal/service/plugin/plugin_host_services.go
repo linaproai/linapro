@@ -1,13 +1,16 @@
 // This file exposes startup facades for source-plugin host service adapters
 // and dynamic-plugin Wasm host service dispatchers while keeping concrete
-// adapter implementations inside plugin internals.
+// adapter implementations inside plugin internals. It also contains host-side
+// helper projections used by host-service authorization review.
 
 package plugin
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-core/internal/service/apidoc"
 	"lina-core/internal/service/auth"
@@ -17,9 +20,11 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/notify"
-	"lina-core/internal/service/plugin/internal/hostservices"
+	"lina-core/internal/service/plugin/internal/capabilityhost"
 	"lina-core/internal/service/plugin/internal/wasm"
 	"lina-core/internal/service/session"
+	"lina-core/pkg/dialect"
+	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/capability"
 	capabilityaitext "lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/bizctxcap"
@@ -27,6 +32,7 @@ import (
 	"lina-core/pkg/plugin/capability/manifestcap"
 	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/plugincap"
+	"lina-core/pkg/plugin/capability/storagecap"
 	capabilitytenantcap "lina-core/pkg/plugin/capability/tenantcap"
 )
 
@@ -89,9 +95,52 @@ type HostNotifyPublisher interface {
 	DeleteBySource(ctx context.Context, sourceType notify.SourceType, sourceIDs []string) error
 }
 
+// HostPluginStorageConfigReader defines plugin object-storage configuration
+// reads needed by the storage provider runtime.
+type HostPluginStorageConfigReader interface {
+	// GetPluginStorage returns plugin object-storage provider configuration.
+	GetPluginStorage(ctx context.Context) configsvc.PluginStorageConfig
+}
+
+// NewLocalStorageProvider creates the host built-in plugin storage provider.
+func NewLocalStorageProvider(rootDir string, clusterEnabled bool, allowCluster bool) storagecap.Provider {
+	return capabilityhost.NewLocalStorageProvider(rootDir, clusterEnabled, allowCluster)
+}
+
+// NewStorageProviderRuntime creates provider selection runtime state from
+// explicit config and plugin enablement dependencies.
+func NewStorageProviderRuntime(
+	configSvc HostPluginStorageConfigReader,
+	pluginStateSvc plugincap.StateService,
+) storagecap.ProviderRuntime {
+	return &storageProviderRuntime{configSvc: configSvc, pluginStateSvc: pluginStateSvc}
+}
+
+// storageProviderRuntime adapts host config and plugin state to storagecap runtime.
+type storageProviderRuntime struct {
+	configSvc      HostPluginStorageConfigReader
+	pluginStateSvc plugincap.StateService
+}
+
+// ActiveProviderPluginID returns the explicitly selected storage provider plugin ID.
+func (r *storageProviderRuntime) ActiveProviderPluginID(ctx context.Context) string {
+	if r == nil || r.configSvc == nil {
+		return ""
+	}
+	return r.configSvc.GetPluginStorage(ctx).ActiveProviderPluginID
+}
+
+// ProviderPluginAvailable reports whether a provider plugin may serve calls.
+func (r *storageProviderRuntime) ProviderPluginAvailable(ctx context.Context, pluginID string) bool {
+	if r == nil || r.pluginStateSvc == nil {
+		return false
+	}
+	return r.pluginStateSvc.IsProviderEnabled(ctx, pluginID)
+}
+
 // NewHostServices creates source-plugin host service adapters from startup-owned
 // shared services and delegates concrete adapter construction to the plugin
-// hostservices subcomponent. Callers must pass the same shared service instances
+// capabilityhost subcomponent. Callers must pass the same shared service instances
 // used by HTTP startup, WASM host services, middleware, and plugin lifecycle
 // orchestration; this facade does not create replacement runtime services.
 func NewHostServices(
@@ -110,8 +159,11 @@ func NewHostServices(
 	tenantSvc capabilitytenantcap.RuntimeService,
 	notifySvc HostNotifyPublisher,
 	kvCacheSvc kvcache.Service,
+	lockSvc hostlock.Service,
+	storageRuntime storagecap.ProviderRuntime,
+	localStorageProvider storagecap.Provider,
 ) (capability.Services, error) {
-	return hostservices.New(
+	return capabilityhost.New(
 		apiDocSvc,
 		authSvc,
 		authTokenIssuer,
@@ -127,50 +179,87 @@ func NewHostServices(
 		tenantSvc,
 		notifySvc,
 		kvCacheSvc,
+		lockSvc,
+		storageRuntime,
+		localStorageProvider,
 	)
 }
 
 // ConfigureWasmHostServices wires dynamic-plugin host-service dispatchers to
 // the same runtime-owned services used by the host HTTP process.
 func ConfigureWasmHostServices(
-	kvCacheSvc kvcache.Service,
-	lockSvc hostlock.Service,
-	notifySvc notify.Service,
-	configSvc configsvc.PluginConfigReader,
 	hostServices capability.Services,
 	configFactory plugincap.ConfigServiceFactory,
 	hostConfigSvc hostconfigcap.Service,
 	manifestFactory manifestcap.ServiceFactory,
 ) error {
-	if err := wasm.ConfigureCacheHostService(kvCacheSvc); err != nil {
-		return gerror.Wrap(err, "configure wasm cache host service failed")
-	}
-	if err := wasm.ConfigureLockHostService(lockSvc); err != nil {
-		return gerror.Wrap(err, "configure wasm lock host service failed")
-	}
-	if err := wasm.ConfigureNotifyHostService(notifySvc); err != nil {
-		return gerror.Wrap(err, "configure wasm notify host service failed")
-	}
-	if err := wasm.ConfigureStorageHostService(configSvc); err != nil {
-		return gerror.Wrap(err, "configure wasm storage host service failed")
-	}
-	if err := wasm.ConfigureAITextHostService(hostServices); err != nil {
-		return gerror.Wrap(err, "configure wasm ai text host service failed")
-	}
-	if err := wasm.ConfigureOrgHostService(hostServices); err != nil {
-		return gerror.Wrap(err, "configure wasm org host service failed")
-	}
-	if err := wasm.ConfigureTenantHostService(hostServices); err != nil {
-		return gerror.Wrap(err, "configure wasm tenant host service failed")
-	}
-	if err := wasm.ConfigureConfigHostService(configFactory); err != nil {
-		return gerror.Wrap(err, "configure wasm config host service failed")
-	}
-	if err := wasm.ConfigureHostConfigService(hostConfigSvc); err != nil {
-		return gerror.Wrap(err, "configure wasm host config service failed")
-	}
-	if err := wasm.ConfigureManifestHostService(manifestFactory); err != nil {
-		return gerror.Wrap(err, "configure wasm manifest host service failed")
+	if err := wasm.ConfigureHostServiceRuntime(hostServices, configFactory, hostConfigSvc, manifestFactory); err != nil {
+		return gerror.Wrap(err, "configure wasm host service runtime failed")
 	}
 	return nil
+}
+
+// dataTableMetadataSchema is the host schema used by PostgreSQL metadata
+// lookups.
+const dataTableMetadataSchema = "public"
+
+// ResolveDataTableComments resolves host-side table comments for the given
+// data-table names. It degrades to an empty map when metadata lookup is
+// unavailable so plugin list APIs are not blocked by optional schema comments.
+func (s *serviceImpl) ResolveDataTableComments(ctx context.Context, tables []string) map[string]string {
+	normalizedTables := normalizeDataTableNames(tables)
+	if len(normalizedTables) == 0 {
+		return map[string]string{}
+	}
+
+	db := g.DB()
+	dbDialect, err := dialect.FromDatabase(db)
+	if err != nil {
+		logger.Warningf(ctx, "resolve plugin data table comments skipped: %v", err)
+		return map[string]string{}
+	}
+
+	metas, err := dbDialect.QueryTableMetadata(ctx, db, dataTableMetadataSchema, normalizedTables)
+	if err != nil {
+		logger.Warningf(ctx, "resolve plugin data table comments failed schema=%s tables=%v err=%v", dataTableMetadataSchema, normalizedTables, err)
+		return map[string]string{}
+	}
+	return dataTableCommentsFromMetadata(metas)
+}
+
+// dataTableCommentsFromMetadata maps dialect table metadata to the comment map
+// consumed by plugin governance projections.
+func dataTableCommentsFromMetadata(metas []dialect.TableMeta) map[string]string {
+	comments := make(map[string]string, len(metas))
+	for _, meta := range metas {
+		tableName := strings.TrimSpace(meta.TableName)
+		tableComment := strings.TrimSpace(meta.TableComment)
+		if tableName == "" || tableComment == "" {
+			continue
+		}
+		comments[tableName] = tableComment
+	}
+	return comments
+}
+
+// normalizeDataTableNames trims blanks and de-duplicates table names before
+// they are used in metadata lookup queries.
+func normalizeDataTableNames(tables []string) []string {
+	if len(tables) == 0 {
+		return []string{}
+	}
+	seen := make(map[string]struct{}, len(tables))
+	normalized := make([]string, 0, len(tables))
+	for _, table := range tables {
+		name := strings.TrimSpace(table)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		normalized = append(normalized, name)
+	}
+	return normalized
 }
