@@ -7,6 +7,7 @@ package wasm
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
@@ -37,7 +38,7 @@ func dispatchUsersHostService(
 	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceUsers, method)
 	switch method {
 	case bridgehostservice.HostServiceMethodUsersBatchGet:
-		request, err := bridgehostservice.UnmarshalHostServiceUsersBatchGetRequest(payload)
+		request, err := decodeUsersHostServiceRequest[usersBatchGetRequest](payload)
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
@@ -47,7 +48,7 @@ func dispatchUsersHostService(
 		}
 		return capabilityJSONResponse(result)
 	case bridgehostservice.HostServiceMethodUsersSearch:
-		request, err := bridgehostservice.UnmarshalHostServiceUsersSearchRequest(payload)
+		request, err := decodeUsersHostServiceRequest[usersSearchRequest](payload)
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
@@ -63,7 +64,7 @@ func dispatchUsersHostService(
 		}
 		return capabilityJSONResponse(result)
 	case bridgehostservice.HostServiceMethodUsersEnsureVisible:
-		request, err := bridgehostservice.UnmarshalHostServiceUsersEnsureVisibleRequest(payload)
+		request, err := decodeUsersHostServiceRequest[usersEnsureVisibleRequest](payload)
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
@@ -77,6 +78,35 @@ func dispatchUsersHostService(
 			"users host service method not implemented: "+method,
 		)
 	}
+}
+
+type usersBatchGetRequest struct {
+	UserIDs []string `json:"userIds"`
+}
+
+type usersSearchRequest struct {
+	Keyword  string `json:"keyword,omitempty"`
+	PageNum  int    `json:"pageNum,omitempty"`
+	PageSize int    `json:"pageSize,omitempty"`
+}
+
+type usersEnsureVisibleRequest struct {
+	UserIDs []string `json:"userIds"`
+}
+
+func decodeUsersHostServiceRequest[T any](payload []byte) (*T, error) {
+	request, err := bridgehostservice.UnmarshalHostServiceJSONRequest(payload)
+	if err != nil {
+		return nil, err
+	}
+	out := new(T)
+	if len(request.Value) == 0 {
+		return out, nil
+	}
+	if err = json.Unmarshal(request.Value, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // usersServiceForHostCall resolves the users service for one host call.

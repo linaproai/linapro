@@ -26,12 +26,10 @@ func (s usersService) BatchGetUsers(_ context.Context, _ capmodel.CapabilityCont
 		Items:      map[usercap.UserID]*usercap.UserProjection{},
 		MissingIDs: []usercap.UserID{},
 	}
-	err := s.call(
+	err := s.callJSONRequest(
 		protocol.HostServiceUsers,
 		protocol.HostServiceMethodUsersBatchGet,
-		protocol.MarshalHostServiceUsersBatchGetRequest(
-			&protocol.HostServiceUsersBatchGetRequest{UserIDs: userIDsToStrings(ids)},
-		),
+		usersBatchGetRequest{UserIDs: userIDsToStrings(ids)},
 		result,
 	)
 	return result, err
@@ -40,16 +38,14 @@ func (s usersService) BatchGetUsers(_ context.Context, _ capmodel.CapabilityCont
 // SearchUsers searches visible user candidates with bounded paging.
 func (s usersService) SearchUsers(_ context.Context, _ capmodel.CapabilityContext, input usercap.SearchInput) (*capmodel.PageResult[*usercap.UserProjection], error) {
 	result := &capmodel.PageResult[*usercap.UserProjection]{Items: []*usercap.UserProjection{}}
-	err := s.call(
+	err := s.callJSONRequest(
 		protocol.HostServiceUsers,
 		protocol.HostServiceMethodUsersSearch,
-		protocol.MarshalHostServiceUsersSearchRequest(
-			&protocol.HostServiceUsersSearchRequest{
-				Keyword:  input.Keyword,
-				PageNum:  input.Page.PageNum,
-				PageSize: input.Page.PageSize,
-			},
-		),
+		usersSearchRequest{
+			Keyword:  input.Keyword,
+			PageNum:  input.Page.PageNum,
+			PageSize: input.Page.PageSize,
+		},
 		result,
 	)
 	return result, err
@@ -57,14 +53,26 @@ func (s usersService) SearchUsers(_ context.Context, _ capmodel.CapabilityContex
 
 // EnsureUsersVisible rejects when any requested user is absent or invisible.
 func (s usersService) EnsureUsersVisible(_ context.Context, _ capmodel.CapabilityContext, ids []usercap.UserID) error {
-	return s.call(
+	return s.callJSONRequest(
 		protocol.HostServiceUsers,
 		protocol.HostServiceMethodUsersEnsureVisible,
-		protocol.MarshalHostServiceUsersEnsureVisibleRequest(
-			&protocol.HostServiceUsersEnsureVisibleRequest{UserIDs: userIDsToStrings(ids)},
-		),
+		usersEnsureVisibleRequest{UserIDs: userIDsToStrings(ids)},
 		nil,
 	)
+}
+
+type usersBatchGetRequest struct {
+	UserIDs []string `json:"userIds"`
+}
+
+type usersSearchRequest struct {
+	Keyword  string `json:"keyword,omitempty"`
+	PageNum  int    `json:"pageNum,omitempty"`
+	PageSize int    `json:"pageSize,omitempty"`
+}
+
+type usersEnsureVisibleRequest struct {
+	UserIDs []string `json:"userIds"`
 }
 
 // userIDsToStrings converts user IDs to transport strings.

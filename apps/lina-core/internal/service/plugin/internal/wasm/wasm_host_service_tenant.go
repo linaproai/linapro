@@ -39,29 +39,29 @@ func dispatchTenantHostService(
 	case bridgehostservice.HostServiceMethodTenantPlatformBypass:
 		return capabilityJSONResponse(service.PlatformBypass(ctx))
 	case bridgehostservice.HostServiceMethodTenantEnsureVisible:
-		request, err := bridgehostservice.UnmarshalHostServiceCapabilityTenantRequest(payload)
-		if err != nil {
+		var request tenantIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		if err = service.EnsureTenantVisible(ctx, tenantcap.TenantID(request.TenantID)); err != nil {
+		if err := service.EnsureTenantVisible(ctx, tenantcap.TenantID(request.TenantID)); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		return capabilityJSONResponse(true)
 	case bridgehostservice.HostServiceMethodTenantValidateUserInTenant:
-		request, err := bridgehostservice.UnmarshalHostServiceCapabilityUserTenantRequest(payload)
-		if err != nil {
+		var request userTenantRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceTenant, method, []int{request.UserID}); response != nil {
 			return response
 		}
-		if err = service.ValidateUserInTenant(ctx, request.UserID, tenantcap.TenantID(request.TenantID)); err != nil {
+		if err := service.ValidateUserInTenant(ctx, request.UserID, tenantcap.TenantID(request.TenantID)); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		return capabilityJSONResponse(true)
 	case bridgehostservice.HostServiceMethodTenantListUserTenants:
-		request, err := bridgehostservice.UnmarshalHostServiceCapabilityUserRequest(payload)
-		if err != nil {
+		var request intUserIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceTenant, method, []int{request.UserID}); response != nil {
@@ -73,14 +73,14 @@ func dispatchTenantHostService(
 		}
 		return capabilityJSONResponse(tenants)
 	case bridgehostservice.HostServiceMethodTenantValidateSwitch:
-		request, err := bridgehostservice.UnmarshalHostServiceCapabilityUserTenantSwitchRequest(payload)
-		if err != nil {
+		var request tenantSwitchRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceTenant, method, []int{request.UserID}); response != nil {
 			return response
 		}
-		if err = service.SwitchTenant(ctx, request.UserID, tenantcap.TenantID(request.TargetTenantID)); err != nil {
+		if err := service.SwitchTenant(ctx, request.UserID, tenantcap.TenantID(request.TargetTenantID)); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		return capabilityJSONResponse(true)
@@ -99,4 +99,26 @@ func tenantServiceForHostCall(hcc *hostCallContext) tenantcap.Service {
 		return nil
 	}
 	return services.Tenant()
+}
+
+// tenantIDRequest carries one tenant identifier.
+type tenantIDRequest struct {
+	// TenantID is the tenant identifier.
+	TenantID int `json:"tenantId"`
+}
+
+// userTenantRequest carries one user and tenant pair.
+type userTenantRequest struct {
+	// UserID is the user identifier.
+	UserID int `json:"userId"`
+	// TenantID is the tenant identifier.
+	TenantID int `json:"tenantId"`
+}
+
+// tenantSwitchRequest carries one tenant switch check.
+type tenantSwitchRequest struct {
+	// UserID is the user identifier.
+	UserID int `json:"userId"`
+	// TargetTenantID is the requested tenant identifier.
+	TargetTenantID int `json:"targetTenantId"`
 }

@@ -9,8 +9,9 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
-// Shared host-service lookup tables are derived from hostServiceDescriptors so
-// capability derivation and resource validation share one governed metadata source.
+// Shared host-service lookup tables are derived from the public host service
+// catalog so capability derivation and resource validation share one governed
+// metadata source.
 var (
 	hostServiceMethodCapabilityMap = buildHostServiceMethodCapabilityMap()
 	hostServiceMethodResourceMap   = buildHostServiceMethodResourceMap()

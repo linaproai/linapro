@@ -36,6 +36,9 @@ apps/lina-plugins/<plugin-id>/
 ├── frontend/
 │   ├── pages/                       # 插件页面
 │   └── slots/                       # 插槽页面，可选
+├── hack/                            # 插件自身脚本和工具
+│   └── tests/                       # 插件测试内容
+│       └── e2e/                     # 插件 e2e 测试内容
 ├── manifest/
 │   ├── config/
 │   │   ├── config.yaml              # 开发期默认配置

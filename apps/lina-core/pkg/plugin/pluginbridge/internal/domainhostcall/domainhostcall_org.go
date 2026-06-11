@@ -51,12 +51,10 @@ func (s orgService) Available(_ context.Context) bool {
 // ListUserDeptAssignments returns user-to-department projections for the provided users.
 func (s orgService) ListUserDeptAssignments(_ context.Context, userIDs []int) (map[int]*orgcap.UserDeptAssignment, error) {
 	assignments := make(map[int]*orgcap.UserDeptAssignment)
-	err := s.call(
+	err := s.callJSONRequest(
 		protocol.HostServiceOrg,
 		protocol.HostServiceMethodOrgListUserDeptAssignments,
-		protocol.MarshalHostServiceCapabilityUsersRequest(
-			&protocol.HostServiceCapabilityUsersRequest{UserIDs: userIDs},
-		),
+		intUserIDsRequest{UserIDs: userIDs},
 		&assignments,
 	)
 	return assignments, err
@@ -65,12 +63,10 @@ func (s orgService) ListUserDeptAssignments(_ context.Context, userIDs []int) (m
 // GetUserDeptInfo returns one user's department identifier and name.
 func (s orgService) GetUserDeptInfo(_ context.Context, userID int) (int, string, error) {
 	var info orgUserDeptInfo
-	err := s.call(
+	err := s.callJSONRequest(
 		protocol.HostServiceOrg,
 		protocol.HostServiceMethodOrgGetUserDeptInfo,
-		protocol.MarshalHostServiceCapabilityUserRequest(
-			&protocol.HostServiceCapabilityUserRequest{UserID: userID},
-		),
+		intUserIDRequest{UserID: userID},
 		&info,
 	)
 	return info.DeptID, info.DeptName, err
@@ -79,12 +75,10 @@ func (s orgService) GetUserDeptInfo(_ context.Context, userID int) (int, string,
 // GetUserDeptName returns one user's department name.
 func (s orgService) GetUserDeptName(_ context.Context, userID int) (string, error) {
 	var name string
-	err := s.call(
+	err := s.callJSONRequest(
 		protocol.HostServiceOrg,
 		protocol.HostServiceMethodOrgGetUserDeptName,
-		protocol.MarshalHostServiceCapabilityUserRequest(
-			&protocol.HostServiceCapabilityUserRequest{UserID: userID},
-		),
+		intUserIDRequest{UserID: userID},
 		&name,
 	)
 	return name, err
@@ -93,12 +87,10 @@ func (s orgService) GetUserDeptName(_ context.Context, userID int) (string, erro
 // GetUserDeptIDs returns one user's department identifiers.
 func (s orgService) GetUserDeptIDs(_ context.Context, userID int) ([]int, error) {
 	var deptIDs []int
-	err := s.call(
+	err := s.callJSONRequest(
 		protocol.HostServiceOrg,
 		protocol.HostServiceMethodOrgGetUserDeptIDs,
-		protocol.MarshalHostServiceCapabilityUserRequest(
-			&protocol.HostServiceCapabilityUserRequest{UserID: userID},
-		),
+		intUserIDRequest{UserID: userID},
 		&deptIDs,
 	)
 	return deptIDs, err
@@ -107,15 +99,25 @@ func (s orgService) GetUserDeptIDs(_ context.Context, userID int) ([]int, error)
 // GetUserPostIDs returns one user's post identifiers.
 func (s orgService) GetUserPostIDs(_ context.Context, userID int) ([]int, error) {
 	var postIDs []int
-	err := s.call(
+	err := s.callJSONRequest(
 		protocol.HostServiceOrg,
 		protocol.HostServiceMethodOrgGetUserPostIDs,
-		protocol.MarshalHostServiceCapabilityUserRequest(
-			&protocol.HostServiceCapabilityUserRequest{UserID: userID},
-		),
+		intUserIDRequest{UserID: userID},
 		&postIDs,
 	)
 	return postIDs, err
+}
+
+// intUserIDRequest carries one integer user identifier.
+type intUserIDRequest struct {
+	// UserID is the user identifier.
+	UserID int `json:"userId"`
+}
+
+// intUserIDsRequest carries multiple integer user identifiers.
+type intUserIDsRequest struct {
+	// UserIDs are the user identifiers.
+	UserIDs []int `json:"userIds"`
 }
 
 // orgUserDeptInfo carries the tuple returned by orgcap.Service.GetUserDeptInfo.

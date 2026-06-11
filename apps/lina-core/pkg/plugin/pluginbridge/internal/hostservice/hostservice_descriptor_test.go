@@ -10,8 +10,11 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"lina-core/pkg/plugin/pluginbridge/protocol/hostservices"
 )
 
 // TestHostServiceDescriptorsCoverProtocolGuestAndDispatcher verifies the
@@ -62,13 +65,13 @@ func TestHostServiceDescriptorsCoverProtocolGuestAndDispatcher(t *testing.T) {
 		}
 		if descriptor.Dispatcher {
 			if _, ok := dispatcherSelectors[descriptor.MethodConst]; !ok {
-				t.Fatalf("published host service method %s is missing wasm dispatcher case for %s", key, descriptor.MethodConst)
+				t.Fatalf("published host service method %s is missing wasm dispatcher usage of %s", key, descriptor.MethodConst)
 			}
 		}
 	}
 	assertNoUnexpectedSelectors(t, "guest client", guestSelectors, expectedGuestSelectors)
 	assertNoUnexpectedSelectors(t, "wasm dispatcher", dispatcherSelectors, expectedDispatcherSelectors)
-	assertHostServiceSwitchMatchesDescriptors(t, wasmDir)
+	assertHostServiceEntryHasNoServiceSwitch(t, wasmDir)
 	assertDispatcherFunctionsMatchDescriptors(t, wasmDir)
 }
 
@@ -167,6 +170,30 @@ func TestHostServiceDescriptorCapabilitySource(t *testing.T) {
 	}
 }
 
+// TestHostServiceDescriptorsUsePublicCatalog verifies internal descriptor
+// governance is derived from the public protocol host-service catalog.
+func TestHostServiceDescriptorsUsePublicCatalog(t *testing.T) {
+	if !reflect.DeepEqual(HostServiceDescriptors(), hostservices.Catalog()) {
+		t.Fatal("internal host service descriptors must be derived from protocol/hostservices catalog")
+	}
+	if !reflect.DeepEqual(HostServiceMethodDescriptors(), hostservices.Methods()) {
+		t.Fatal("internal host service method descriptors must be derived from protocol/hostservices catalog")
+	}
+}
+
+// TestWASMHostServiceDoesNotImportInternalHostservice verifies the host runtime
+// does not cross the pluginbridge internal package boundary for catalog data.
+func TestWASMHostServiceDoesNotImportInternalHostservice(t *testing.T) {
+	root := repoRootForDescriptorTest(t)
+	wasmDir := filepath.Join(root, "internal/service/plugin/internal/wasm")
+	for _, filePath := range productionGoFilesRecursive(t, wasmDir) {
+		content := string(readFileForDescriptorTest(t, filePath))
+		if strings.Contains(content, "pluginbridge/internal/hostservice") {
+			t.Fatalf("wasm host service must use public protocol/hostservices catalog, but %s imports internal hostservice", filePath)
+		}
+	}
+}
+
 // TestDomainCapabilityBoundaryGovernance verifies ordinary domain capabilities
 // keep one contract owner, one Wasm configuration entry, and one guest-domain
 // proxy location.
@@ -224,6 +251,72 @@ func TestDomainCapabilityBoundaryGovernance(t *testing.T) {
 				t.Fatalf("pluginbridge public package must return aicap contracts instead of parallel AI interfaces: %s contains %q", filePath, typeName)
 			}
 		}
+	}
+
+	directoryPath := filepath.Join(guestDir, "pluginbridge_directory.go")
+	directoryContent := string(readFileForDescriptorTest(t, directoryPath))
+	for _, fragment := range []string{
+		"protocol.HostService",
+		"MarshalHostService",
+		"UnmarshalHostService",
+		"callJSONRequest",
+		"callHostService",
+	} {
+		if strings.Contains(directoryContent, fragment) {
+			t.Fatalf("pluginbridge_directory.go must only inject invokers and select typed clients, but contains %q", fragment)
+		}
+	}
+
+	for _, descriptor := range HostServiceDescriptors() {
+		capDir := capabilityContractDirForHostService(root, descriptor.Service)
+		if capDir == "" {
+			continue
+		}
+		if _, err := os.Stat(capDir); err != nil {
+			t.Fatalf("ordinary host service %s must keep capability contract owner under %s: %v", descriptor.Service, capDir, err)
+		}
+	}
+}
+
+func capabilityContractDirForHostService(root string, service string) string {
+	capabilityRoot := filepath.Join(root, "pkg/plugin/capability")
+	switch service {
+	case HostServiceRuntime,
+		HostServiceStorage,
+		HostServiceNetwork,
+		HostServiceData,
+		HostServiceCache,
+		HostServiceLock,
+		HostServiceSecret,
+		HostServiceEvent,
+		HostServiceQueue,
+		HostServiceHostConfig,
+		HostServiceManifest:
+		return ""
+	case HostServiceAPIDoc:
+		return filepath.Join(capabilityRoot, "apidoccap")
+	case HostServiceAuth:
+		return filepath.Join(capabilityRoot, "authcap")
+	case HostServiceAuthz:
+		return filepath.Join(capabilityRoot, "authcap/authz")
+	case HostServiceUsers:
+		return filepath.Join(capabilityRoot, "usercap")
+	case HostServiceBizCtx:
+		return filepath.Join(capabilityRoot, "bizctxcap")
+	case HostServiceFiles:
+		return filepath.Join(capabilityRoot, "filecap")
+	case HostServiceJobs:
+		return filepath.Join(capabilityRoot, "jobcap")
+	case HostServiceNotifications:
+		return filepath.Join(capabilityRoot, "notifycap")
+	case HostServicePlugins:
+		return filepath.Join(capabilityRoot, "plugincap")
+	case HostServiceSessions:
+		return filepath.Join(capabilityRoot, "sessioncap")
+	case HostServiceAI:
+		return filepath.Join(capabilityRoot, "aicap")
+	default:
+		return filepath.Join(capabilityRoot, service+"cap")
 	}
 }
 
@@ -283,21 +376,11 @@ func assertNoUnexpectedSelectors(
 	}
 }
 
-func assertHostServiceSwitchMatchesDescriptors(t *testing.T, wasmDir string) {
+func assertHostServiceEntryHasNoServiceSwitch(t *testing.T, wasmDir string) {
 	t.Helper()
 	actual := hostServiceSwitchSelectors(t, filepath.Join(wasmDir, "wasm_host_service.go"))
-	expected := descriptorDispatcherServices()
-	for service := range expected {
-		constName := hostServiceConstNameForService(t, service)
-		if _, ok := actual[constName]; !ok {
-			t.Fatalf("wasm host service switch is missing descriptor service %s (%s)", service, constName)
-		}
-	}
 	for constName := range actual {
-		service := hostServiceByConstName(t, constName)
-		if _, ok := expected[service]; !ok {
-			t.Fatalf("wasm host service switch contains service %s (%s) not declared by descriptor", service, constName)
-		}
+		t.Fatalf("wasm_host_service.go must use registry dispatch instead of service-level switch case %s", constName)
 	}
 }
 
@@ -536,6 +619,9 @@ func dispatchFunctionNames(t *testing.T, dir string) map[string]struct{} {
 				continue
 			}
 			name := fn.Name.Name
+			if name == "dispatchRegisteredHostService" {
+				continue
+			}
 			if strings.HasPrefix(name, "dispatch") &&
 				(strings.HasSuffix(name, "HostService") || name == "dispatchHostConfigService") {
 				result[name] = struct{}{}

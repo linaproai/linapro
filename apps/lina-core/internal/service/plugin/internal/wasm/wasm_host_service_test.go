@@ -252,9 +252,7 @@ func TestHandleHostServiceInvokeOrgMethods(t *testing.T) {
 		orgTenantHostCallContext(),
 		protocol.HostServiceOrg,
 		protocol.HostServiceMethodOrgListUserDeptAssignments,
-		protocol.MarshalHostServiceCapabilityUsersRequest(
-			&protocol.HostServiceCapabilityUsersRequest{UserIDs: []int{7, 8}},
-		),
+		marshalCapabilityJSONRequest(t, intUserIDsRequest{UserIDs: []int{7, 8}}),
 	)
 	if assignmentsResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected org assignment success, got status=%d payload=%s", assignmentsResponse.Status, string(assignmentsResponse.Payload))
@@ -293,7 +291,7 @@ func TestHandleHostServiceInvokeOrgRejectsInvisibleTargetUser(t *testing.T) {
 		orgTenantHostCallContext(),
 		protocol.HostServiceOrg,
 		protocol.HostServiceMethodOrgGetUserDeptName,
-		protocol.MarshalHostServiceCapabilityUserRequest(&protocol.HostServiceCapabilityUserRequest{UserID: 42}),
+		marshalCapabilityJSONRequest(t, intUserIDRequest{UserID: 42}),
 	)
 	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Fatalf("expected invisible org target user to be denied, got status=%d payload=%s", response.Status, string(response.Payload))
@@ -325,9 +323,9 @@ func TestHandleHostServiceInvokeUserMethods(t *testing.T) {
 		userHostCallContext(),
 		protocol.HostServiceUsers,
 		protocol.HostServiceMethodUsersBatchGet,
-		protocol.MarshalHostServiceUsersBatchGetRequest(
-			&protocol.HostServiceUsersBatchGetRequest{UserIDs: []string{"42", "99"}},
-		),
+		marshalCapabilityJSONRequest(t, struct {
+			UserIDs []string `json:"userIds"`
+		}{UserIDs: []string{"42", "99"}}),
 	)
 	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected user batch success, got status=%d payload=%s", response.Status, string(response.Payload))
@@ -346,9 +344,11 @@ func TestHandleHostServiceInvokeUserMethods(t *testing.T) {
 		userHostCallContext(),
 		protocol.HostServiceUsers,
 		protocol.HostServiceMethodUsersSearch,
-		protocol.MarshalHostServiceUsersSearchRequest(
-			&protocol.HostServiceUsersSearchRequest{Keyword: "adm", PageNum: 1, PageSize: 10},
-		),
+		marshalCapabilityJSONRequest(t, struct {
+			Keyword  string `json:"keyword,omitempty"`
+			PageNum  int    `json:"pageNum,omitempty"`
+			PageSize int    `json:"pageSize,omitempty"`
+		}{Keyword: "adm", PageNum: 1, PageSize: 10}),
 	)
 	if searchResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected user search success, got status=%d payload=%s", searchResponse.Status, string(searchResponse.Payload))
@@ -364,9 +364,9 @@ func TestHandleHostServiceInvokeUserMethods(t *testing.T) {
 		userHostCallContext(),
 		protocol.HostServiceUsers,
 		protocol.HostServiceMethodUsersEnsureVisible,
-		protocol.MarshalHostServiceUsersEnsureVisibleRequest(
-			&protocol.HostServiceUsersEnsureVisibleRequest{UserIDs: []string{"42"}},
-		),
+		marshalCapabilityJSONRequest(t, struct {
+			UserIDs []string `json:"userIds"`
+		}{UserIDs: []string{"42"}}),
 	)
 	if ensureResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected user ensure success, got status=%d payload=%s", ensureResponse.Status, string(ensureResponse.Payload))
@@ -459,7 +459,7 @@ func TestHandleHostServiceInvokeTenantMethods(t *testing.T) {
 		orgTenantHostCallContext(),
 		protocol.HostServiceTenant,
 		protocol.HostServiceMethodTenantListUserTenants,
-		protocol.MarshalHostServiceCapabilityUserRequest(&protocol.HostServiceCapabilityUserRequest{UserID: 42}),
+		marshalCapabilityJSONRequest(t, intUserIDRequest{UserID: 42}),
 	)
 	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected tenant list success, got status=%d payload=%s", response.Status, string(response.Payload))
@@ -475,9 +475,7 @@ func TestHandleHostServiceInvokeTenantMethods(t *testing.T) {
 		orgTenantHostCallContext(),
 		protocol.HostServiceTenant,
 		protocol.HostServiceMethodTenantValidateSwitch,
-		protocol.MarshalHostServiceCapabilityUserTenantSwitchRequest(
-			&protocol.HostServiceCapabilityUserTenantSwitchRequest{UserID: 42, TargetTenantID: 3},
-		),
+		marshalCapabilityJSONRequest(t, tenantSwitchRequest{UserID: 42, TargetTenantID: 3}),
 	)
 	if switchResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected tenant switch success, got status=%d payload=%s", switchResponse.Status, string(switchResponse.Payload))
@@ -505,7 +503,7 @@ func TestHandleHostServiceInvokeTenantRejectsInvisibleTargetUser(t *testing.T) {
 		orgTenantHostCallContext(),
 		protocol.HostServiceTenant,
 		protocol.HostServiceMethodTenantListUserTenants,
-		protocol.MarshalHostServiceCapabilityUserRequest(&protocol.HostServiceCapabilityUserRequest{UserID: 42}),
+		marshalCapabilityJSONRequest(t, intUserIDRequest{UserID: 42}),
 	)
 	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Fatalf("expected invisible tenant target user to be denied, got status=%d payload=%s", response.Status, string(response.Payload))

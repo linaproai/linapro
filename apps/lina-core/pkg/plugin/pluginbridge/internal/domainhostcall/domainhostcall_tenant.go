@@ -79,12 +79,10 @@ func (s tenantService) PlatformBypass(_ context.Context) bool {
 
 // EnsureTenantVisible validates that the current user can access tenantID.
 func (s tenantService) EnsureTenantVisible(_ context.Context, tenantID tenantcap.TenantID) error {
-	return s.call(
+	return s.callJSONRequest(
 		protocol.HostServiceTenant,
 		protocol.HostServiceMethodTenantEnsureVisible,
-		protocol.MarshalHostServiceCapabilityTenantRequest(
-			&protocol.HostServiceCapabilityTenantRequest{TenantID: int(tenantID)},
-		),
+		tenantIDRequest{TenantID: int(tenantID)},
 		nil,
 	)
 }
@@ -93,12 +91,10 @@ var _ tenantcap.Service = (*tenantService)(nil)
 
 // ValidateUserInTenant verifies that a user can access tenantID.
 func (s tenantService) ValidateUserInTenant(_ context.Context, userID int, tenantID tenantcap.TenantID) error {
-	return s.call(
+	return s.callJSONRequest(
 		protocol.HostServiceTenant,
 		protocol.HostServiceMethodTenantValidateUserInTenant,
-		protocol.MarshalHostServiceCapabilityUserTenantRequest(
-			&protocol.HostServiceCapabilityUserTenantRequest{UserID: userID, TenantID: int(tenantID)},
-		),
+		userTenantRequest{UserID: userID, TenantID: int(tenantID)},
 		nil,
 	)
 }
@@ -106,12 +102,10 @@ func (s tenantService) ValidateUserInTenant(_ context.Context, userID int, tenan
 // ListUserTenants returns active tenants visible to one user.
 func (s tenantService) ListUserTenants(_ context.Context, userID int) ([]tenantcap.TenantInfo, error) {
 	var tenants []tenantcap.TenantInfo
-	err := s.call(
+	err := s.callJSONRequest(
 		protocol.HostServiceTenant,
 		protocol.HostServiceMethodTenantListUserTenants,
-		protocol.MarshalHostServiceCapabilityUserRequest(
-			&protocol.HostServiceCapabilityUserRequest{UserID: userID},
-		),
+		intUserIDRequest{UserID: userID},
 		&tenants,
 	)
 	return tenants, err
@@ -119,15 +113,32 @@ func (s tenantService) ListUserTenants(_ context.Context, userID int) ([]tenantc
 
 // SwitchTenant validates a tenant switch before token re-issue.
 func (s tenantService) SwitchTenant(_ context.Context, userID int, target tenantcap.TenantID) error {
-	return s.call(
+	return s.callJSONRequest(
 		protocol.HostServiceTenant,
 		protocol.HostServiceMethodTenantValidateSwitch,
-		protocol.MarshalHostServiceCapabilityUserTenantSwitchRequest(
-			&protocol.HostServiceCapabilityUserTenantSwitchRequest{
-				UserID:         userID,
-				TargetTenantID: int(target),
-			},
-		),
+		tenantSwitchRequest{UserID: userID, TargetTenantID: int(target)},
 		nil,
 	)
+}
+
+// tenantIDRequest carries one tenant identifier.
+type tenantIDRequest struct {
+	// TenantID is the tenant identifier.
+	TenantID int `json:"tenantId"`
+}
+
+// userTenantRequest carries one user and tenant pair.
+type userTenantRequest struct {
+	// UserID is the user identifier.
+	UserID int `json:"userId"`
+	// TenantID is the tenant identifier.
+	TenantID int `json:"tenantId"`
+}
+
+// tenantSwitchRequest carries one tenant switch check.
+type tenantSwitchRequest struct {
+	// UserID is the user identifier.
+	UserID int `json:"userId"`
+	// TargetTenantID is the requested tenant identifier.
+	TargetTenantID int `json:"targetTenantId"`
 }

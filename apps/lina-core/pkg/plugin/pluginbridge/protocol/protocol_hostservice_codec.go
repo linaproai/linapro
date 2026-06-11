@@ -30,6 +30,18 @@ type HostServiceValueResponse struct {
 	Value string `json:"value"`
 }
 
+// HostServiceJSONRequest carries one JSON-encoded ordinary host-service request.
+type HostServiceJSONRequest struct {
+	// Value is the compact JSON request owned by the target capability service.
+	Value []byte `json:"value"`
+}
+
+// HostServiceJSONResponse carries one JSON-encoded ordinary host-service response.
+type HostServiceJSONResponse struct {
+	// Value is the compact JSON projection returned by the target capability service.
+	Value []byte `json:"value"`
+}
+
 // MarshalHostServiceRequestEnvelope encodes one structured host service invocation.
 func MarshalHostServiceRequestEnvelope(req *HostServiceRequestEnvelope) []byte {
 	var content []byte
@@ -145,6 +157,88 @@ func UnmarshalHostServiceValueResponse(data []byte) (*HostServiceValueResponse, 
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
 				return nil, gerror.New("failed to skip unknown host service value response field")
+			}
+			content = content[size:]
+		}
+	}
+	return out, nil
+}
+
+// MarshalHostServiceJSONRequest encodes one JSON value request.
+func MarshalHostServiceJSONRequest(req *HostServiceJSONRequest) []byte {
+	var content []byte
+	if req == nil {
+		return content
+	}
+	if len(req.Value) > 0 {
+		content = appendBytesField(content, 1, req.Value)
+	}
+	return content
+}
+
+// UnmarshalHostServiceJSONRequest decodes one JSON value request.
+func UnmarshalHostServiceJSONRequest(data []byte) (*HostServiceJSONRequest, error) {
+	out := &HostServiceJSONRequest{}
+	content := data
+	for len(content) > 0 {
+		fieldNumber, wireType, length := protowire.ConsumeTag(content)
+		if length < 0 {
+			return nil, gerror.New("failed to decode host service JSON request tag")
+		}
+		content = content[length:]
+		switch fieldNumber {
+		case 1:
+			value, size := protowire.ConsumeBytes(content)
+			if size < 0 {
+				return nil, gerror.New("failed to decode host service JSON request value")
+			}
+			out.Value = append([]byte(nil), value...)
+			content = content[size:]
+		default:
+			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
+			if size < 0 {
+				return nil, gerror.New("failed to skip unknown host service JSON request field")
+			}
+			content = content[size:]
+		}
+	}
+	return out, nil
+}
+
+// MarshalHostServiceJSONResponse encodes one JSON value response.
+func MarshalHostServiceJSONResponse(resp *HostServiceJSONResponse) []byte {
+	var content []byte
+	if resp == nil {
+		return content
+	}
+	if len(resp.Value) > 0 {
+		content = appendBytesField(content, 1, resp.Value)
+	}
+	return content
+}
+
+// UnmarshalHostServiceJSONResponse decodes one JSON value response.
+func UnmarshalHostServiceJSONResponse(data []byte) (*HostServiceJSONResponse, error) {
+	out := &HostServiceJSONResponse{}
+	content := data
+	for len(content) > 0 {
+		fieldNumber, wireType, length := protowire.ConsumeTag(content)
+		if length < 0 {
+			return nil, gerror.New("failed to decode host service JSON response tag")
+		}
+		content = content[length:]
+		switch fieldNumber {
+		case 1:
+			value, size := protowire.ConsumeBytes(content)
+			if size < 0 {
+				return nil, gerror.New("failed to decode host service JSON response value")
+			}
+			out.Value = append([]byte(nil), value...)
+			content = content[size:]
+		default:
+			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
+			if size < 0 {
+				return nil, gerror.New("failed to skip unknown host service JSON response field")
 			}
 			content = content[size:]
 		}

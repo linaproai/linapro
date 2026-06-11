@@ -47,3 +47,25 @@ func TestHostServiceValueResponseRoundTrip(t *testing.T) {
 		t.Errorf("value: got %q, want %q", decoded.Value, original.Value)
 	}
 }
+
+// TestHostServiceJSONEnvelopeRoundTrip verifies ordinary domain JSON payloads
+// can use one transport-only request and response envelope.
+func TestHostServiceJSONEnvelopeRoundTrip(t *testing.T) {
+	request := &HostServiceJSONRequest{Value: []byte(`{"keyword":"admin"}`)}
+	decodedRequest, err := UnmarshalHostServiceJSONRequest(MarshalHostServiceJSONRequest(request))
+	if err != nil {
+		t.Fatalf("decode JSON request failed: %v", err)
+	}
+	if string(decodedRequest.Value) != string(request.Value) {
+		t.Fatalf("unexpected JSON request value: %s", decodedRequest.Value)
+	}
+
+	response := &HostServiceJSONResponse{Value: []byte(`{"items":[{"id":"1"}]}`)}
+	decodedResponse, err := UnmarshalHostServiceJSONResponse(MarshalHostServiceJSONResponse(response))
+	if err != nil {
+		t.Fatalf("decode JSON response failed: %v", err)
+	}
+	if string(decodedResponse.Value) != string(response.Value) {
+		t.Fatalf("unexpected JSON response value: %s", decodedResponse.Value)
+	}
+}

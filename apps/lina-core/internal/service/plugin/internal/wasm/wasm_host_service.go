@@ -209,63 +209,7 @@ func handleHostServiceInvoke(
 		)
 	}
 
-	switch request.Service {
-	case bridgehostservice.HostServiceRuntime:
-		return dispatchRuntimeHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceStorage:
-		return dispatchStorageHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
-	case bridgehostservice.HostServiceNetwork:
-		return dispatchNetworkHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
-	case bridgehostservice.HostServiceData:
-		return dispatchDataHostService(ctx, hcc, request.Table, request.Method, request.Payload)
-	case bridgehostservice.HostServiceCache:
-		return dispatchCacheHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
-	case bridgehostservice.HostServiceLock:
-		return dispatchLockHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
-	case bridgehostservice.HostServiceHostConfig:
-		return dispatchHostConfigService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceManifest:
-		return dispatchManifestHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceAPIDoc:
-		return dispatchAPIDocHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceAuth:
-		return dispatchAuthHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceAuthz:
-		return dispatchAuthzHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceAI:
-		return dispatchAIHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
-	case bridgehostservice.HostServiceUsers:
-		return dispatchUsersHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceBizCtx:
-		return dispatchBizCtxHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceDict:
-		return dispatchDictHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceFiles:
-		return dispatchFilesHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceI18n:
-		return dispatchI18nHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceInfra:
-		return dispatchInfraHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceJobs:
-		return dispatchJobsHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceNotifications:
-		return dispatchNotificationsHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
-	case bridgehostservice.HostServicePlugins:
-		return dispatchPluginsHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceRoute:
-		return dispatchRouteHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceSessions:
-		return dispatchSessionsHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceOrg:
-		return dispatchOrgHostService(ctx, hcc, request.Method, request.Payload)
-	case bridgehostservice.HostServiceTenant:
-		return dispatchTenantHostService(ctx, hcc, request.Method, request.Payload)
-	default:
-		return bridgehostcall.NewHostCallErrorResponse(
-			bridgehostcall.HostCallStatusNotFound,
-			fmt.Sprintf("host service not implemented yet: %s", request.Service),
-		)
-	}
+	return dispatchRegisteredHostService(ctx, hcc, request)
 }
 
 // contextWithHostCallBizContext exposes the dynamic-plugin identity snapshot

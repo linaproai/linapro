@@ -36,8 +36,8 @@ func dispatchOrgHostService(
 	case bridgehostservice.HostServiceMethodOrgStatus:
 		return capabilityJSONResponse(service.Status(ctx))
 	case bridgehostservice.HostServiceMethodOrgListUserDeptAssignments:
-		request, err := bridgehostservice.UnmarshalHostServiceCapabilityUsersRequest(payload)
-		if err != nil {
+		var request intUserIDsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceOrg, method, request.UserIDs); response != nil {
@@ -49,8 +49,8 @@ func dispatchOrgHostService(
 		}
 		return capabilityJSONResponse(assignments)
 	case bridgehostservice.HostServiceMethodOrgGetUserDeptInfo:
-		request, err := bridgehostservice.UnmarshalHostServiceCapabilityUserRequest(payload)
-		if err != nil {
+		var request intUserIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceOrg, method, []int{request.UserID}); response != nil {
@@ -62,8 +62,8 @@ func dispatchOrgHostService(
 		}
 		return capabilityJSONResponse(orgUserDeptInfoResponse{DeptID: deptID, DeptName: deptName})
 	case bridgehostservice.HostServiceMethodOrgGetUserDeptName:
-		request, err := bridgehostservice.UnmarshalHostServiceCapabilityUserRequest(payload)
-		if err != nil {
+		var request intUserIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceOrg, method, []int{request.UserID}); response != nil {
@@ -75,8 +75,8 @@ func dispatchOrgHostService(
 		}
 		return capabilityJSONResponse(name)
 	case bridgehostservice.HostServiceMethodOrgGetUserDeptIDs:
-		request, err := bridgehostservice.UnmarshalHostServiceCapabilityUserRequest(payload)
-		if err != nil {
+		var request intUserIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceOrg, method, []int{request.UserID}); response != nil {
@@ -88,8 +88,8 @@ func dispatchOrgHostService(
 		}
 		return capabilityJSONResponse(deptIDs)
 	case bridgehostservice.HostServiceMethodOrgGetUserPostIDs:
-		request, err := bridgehostservice.UnmarshalHostServiceCapabilityUserRequest(payload)
-		if err != nil {
+		var request intUserIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceOrg, method, []int{request.UserID}); response != nil {
@@ -123,6 +123,18 @@ type orgUserDeptInfoResponse struct {
 	DeptID int `json:"deptId"`
 	// DeptName is the department display name.
 	DeptName string `json:"deptName"`
+}
+
+// intUserIDRequest carries one integer user identifier.
+type intUserIDRequest struct {
+	// UserID is the user identifier.
+	UserID int `json:"userId"`
+}
+
+// intUserIDsRequest carries multiple integer user identifiers.
+type intUserIDsRequest struct {
+	// UserIDs are the user identifiers.
+	UserIDs []int `json:"userIds"`
 }
 
 // capabilityJSONResponse encodes one capability result as a transport-owned
