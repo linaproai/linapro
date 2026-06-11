@@ -14,8 +14,8 @@ import (
 	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
 	rolesvc "lina-core/internal/service/role"
-	"lina-core/pkg/plugin/capability/orgcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // TestSingleNodeModeSkipsDistributedSyncCrons verifies single-node mode keeps
@@ -86,8 +86,8 @@ func newCronRoleTestService() rolesvc.Service {
 	bizCtxSvc := bizctx.New()
 	configSvc := hostconfig.New()
 	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
-	orgCapSvc := orgcap.New(nil)
-	tenantSvc := tenantcapsvc.New(nil, bizCtxSvc)
+	orgCapSvc := orgspi.New(nil, nil)
+	tenantSvc := tenantspi.New(nil, nil, bizCtxSvc)
 	roleSvc := rolesvc.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
 	roleSvc.SetDataScopeService(datascope.New(bizCtxSvc, roleSvc, orgCapSvc))
 	return roleSvc

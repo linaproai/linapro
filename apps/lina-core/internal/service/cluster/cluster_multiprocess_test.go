@@ -125,10 +125,10 @@ func (b *lockedOutputBuffer) WriteString(value string) {
 }
 
 // WriteByte appends one byte to the captured output.
-func (b *lockedOutputBuffer) WriteByte(value byte) {
+func (b *lockedOutputBuffer) WriteByte(value byte) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.buffer.WriteByte(value)
+	return b.buffer.WriteByte(value)
 }
 
 // String returns the captured output snapshot.
@@ -409,7 +409,9 @@ func copyProcessOutput(buffer *lockedOutputBuffer, reader io.Reader) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		buffer.WriteString(scanner.Text())
-		buffer.WriteByte('\n')
+		if err := buffer.WriteByte('\n'); err != nil {
+			buffer.WriteString(fmt.Sprintf("[process-output] write byte error: %v\n", err))
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		buffer.WriteString(fmt.Sprintf("[process-output] scanner error: %v\n", err))

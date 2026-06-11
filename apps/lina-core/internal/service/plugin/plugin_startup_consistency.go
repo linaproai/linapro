@@ -14,7 +14,7 @@ import (
 	"lina-core/pkg/bizerr"
 	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/tenantcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // platformGovernanceTenantCapability is the tenant-capability slice required by
@@ -41,7 +41,7 @@ func (s *serviceImpl) SetTenantStartupCapability(service pluginTenantStartupCapa
 }
 
 // SetTenantProvisioningCapability wires tenant plugin auto-provisioning.
-func (s *serviceImpl) SetTenantProvisioningCapability(service tenantcapsvc.PluginProvisioningService) {
+func (s *serviceImpl) SetTenantProvisioningCapability(service tenantspi.PluginProvisioningService) {
 	if s == nil {
 		return
 	}

@@ -155,7 +155,7 @@ func WithVideo(service aivideo.Service) Option {
 // New creates an AI namespace service from explicit sub capability services.
 func New(text aitext.Service, options ...Option) Service {
 	if text == nil {
-		text = aitext.New(nil)
+		text = aitext.New(nil, nil)
 	}
 	service := &serviceImpl{text: text}
 	for _, option := range options {
@@ -170,7 +170,7 @@ func New(text aitext.Service, options ...Option) Service {
 // Text returns the text AI capability service.
 func (s *serviceImpl) Text() aitext.Service {
 	if s == nil || s.text == nil {
-		return aitext.New(nil)
+		return aitext.New(nil, nil)
 	}
 	return s.text
 }

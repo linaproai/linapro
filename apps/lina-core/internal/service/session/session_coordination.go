@@ -16,7 +16,7 @@ import (
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 var _ SessionConfigurableStore = (*CoordinationStore)(nil)
@@ -158,7 +158,7 @@ func (s *CoordinationStore) BatchGetScoped(
 	ctx context.Context,
 	tokenIds []string,
 	scopeSvc datascope.Service,
-	tenantSvc tenantcapsvc.ScopeService,
+	tenantSvc tenantspi.ScopeService,
 ) ([]*Session, error) {
 	if s == nil || s.projection == nil {
 		return []*Session{}, nil
@@ -224,7 +224,7 @@ func (s *CoordinationStore) ListPageScoped(
 	filter *ListFilter,
 	pageNum, pageSize int,
 	scopeSvc datascope.Service,
-	tenantSvc tenantcapsvc.ScopeService,
+	tenantSvc tenantspi.ScopeService,
 ) (*ListResult, error) {
 	return s.projection.ListPageScoped(ctx, filter, pageNum, pageSize, scopeSvc, tenantSvc)
 }

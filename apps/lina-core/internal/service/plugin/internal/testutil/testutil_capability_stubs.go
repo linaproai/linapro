@@ -9,7 +9,6 @@ import (
 
 	"github.com/gogf/gf/v2/container/gvar"
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/capability/apidoccap"
@@ -28,7 +27,7 @@ import (
 	capabilityplugincap "lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/routecap"
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
-	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 )
 
@@ -214,14 +213,14 @@ func (testNoopPluginState) IsEnabledAuthoritative(context.Context, string) bool 
 
 type testNoopRoute struct{}
 
-func (testNoopRoute) DynamicRouteMetadata(*ghttp.Request) *routecap.DynamicRouteMetadata {
+func (testNoopRoute) DynamicRouteMetadata(context.Context) *routecap.DynamicRouteMetadata {
 	return nil
 }
 
 type testNoopTenantFilter struct{}
 
-func (testNoopTenantFilter) Context(context.Context) tenantcap.TenantFilterContext {
-	return tenantcap.TenantFilterContext{PlatformBypass: true}
+func (testNoopTenantFilter) Context(context.Context) tenantspi.TenantFilterContext {
+	return tenantspi.TenantFilterContext{PlatformBypass: true}
 }
 
 func (testNoopTenantFilter) Apply(_ context.Context, model *gdb.Model, _ string) *gdb.Model {

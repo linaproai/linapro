@@ -2,7 +2,7 @@
 
 package routecap
 
-import "github.com/gogf/gf/v2/net/ghttp"
+import "context"
 
 // DynamicRouteMetadata is the published projection of one matched dynamic route.
 type DynamicRouteMetadata struct {
@@ -27,5 +27,5 @@ type DynamicRouteMetadata struct {
 // Service defines dynamic-route context operations published to source plugins.
 type Service interface {
 	// DynamicRouteMetadata returns metadata attached to the current dynamic-route request.
-	DynamicRouteMetadata(request *ghttp.Request) *DynamicRouteMetadata
+	DynamicRouteMetadata(ctx context.Context) *DynamicRouteMetadata
 }

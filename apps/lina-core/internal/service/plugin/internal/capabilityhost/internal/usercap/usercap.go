@@ -17,7 +17,7 @@ import (
 	"lina-core/internal/service/plugin/internal/capabilityhost/internal/domaincap"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/capmodel"
-	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 )
 
@@ -34,7 +34,7 @@ type Service interface {
 
 // adapter implements usercap.Service with database-side tenant scope.
 type adapter struct {
-	tenantFilter tenantcap.PluginTableFilterService
+	tenantFilter tenantspi.PluginTableFilterService
 	dataScope    datascope.Service
 }
 
@@ -44,7 +44,7 @@ var (
 )
 
 // New creates the host-owned user capability adapter.
-func New(tenantFilter tenantcap.PluginTableFilterService, dataScope datascope.Service) Service {
+func New(tenantFilter tenantspi.PluginTableFilterService, dataScope datascope.Service) Service {
 	return &adapter{tenantFilter: tenantFilter, dataScope: dataScope}
 }
 

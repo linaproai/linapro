@@ -18,6 +18,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 const (
@@ -65,7 +66,7 @@ func TestSendWritesCurrentTenantToMessageAndDelivery(t *testing.T) {
 	recipientID := insertNotifyTenantTestUser(t, ctx, "notify-send-recipient", tenantID, 1)
 	t.Cleanup(func() { cleanupNotifyTenantTestUsers(t, ctx, []int{recipientID}) })
 
-	out, err := New(tenantcap.New(nil, nil)).Send(tenantCtx, SendInput{
+	out, err := New(tenantspi.New(nil, nil, nil)).Send(tenantCtx, SendInput{
 		ChannelKey:       ChannelKeyInbox,
 		SourceType:       SourceTypeSystem,
 		SourceID:         uniqueNotifyTenantTestName("send-source"),
@@ -196,7 +197,7 @@ func TestSendNoticePublicationPlatformUsesPlatformUserBoundary(t *testing.T) {
 }
 
 // activateNotifyTenantProvider returns the narrow tenant scope fake used by notify tests.
-func activateNotifyTenantProvider(t *testing.T) tenantcap.ScopeService {
+func activateNotifyTenantProvider(t *testing.T) tenantspi.ScopeService {
 	t.Helper()
 	return notifyTenantTestScope{}
 }

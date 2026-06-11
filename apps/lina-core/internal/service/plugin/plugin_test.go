@@ -42,6 +42,7 @@ import (
 	capabilitymanifest "lina-core/pkg/plugin/capability/manifestcap"
 	capabilitynotifycap "lina-core/pkg/plugin/capability/notifycap"
 	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/plugincap"
 	capabilityconfig "lina-core/pkg/plugin/capability/plugincap"
 	capabilityplugincap "lina-core/pkg/plugin/capability/plugincap"
@@ -49,8 +50,8 @@ import (
 	"lina-core/pkg/plugin/capability/routecap"
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
 	"lina-core/pkg/plugin/capability/storagecap"
-	"lina-core/pkg/plugin/capability/tenantcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
@@ -79,7 +80,7 @@ func newTestServiceWithTopology(topology Topology) *serviceImpl {
 			panic(err)
 		}
 		serviceImpl := service.(*serviceImpl)
-		tenantSvc := tenantcapsvc.New(serviceImpl, bizCtxProvider)
+		tenantSvc := tenantspi.New(nil, serviceImpl, bizCtxProvider)
 		capabilities := newRootTestCapabilities(bizCtxProvider, serviceImpl)
 		serviceImpl.SetCapabilities(capabilities)
 		serviceImpl.SetTenantStartupCapability(tenantSvc)
@@ -94,7 +95,7 @@ func newTestServiceWithTopology(topology Topology) *serviceImpl {
 		panic(err)
 	}
 	serviceImpl := service.(*serviceImpl)
-	tenantSvc := tenantcapsvc.New(serviceImpl, bizCtxProvider)
+	tenantSvc := tenantspi.New(nil, serviceImpl, bizCtxProvider)
 	capabilities := newRootTestCapabilities(bizCtxProvider, serviceImpl)
 	serviceImpl.SetCapabilities(capabilities)
 	serviceImpl.SetTenantStartupCapability(tenantSvc)
@@ -187,7 +188,7 @@ func (s *rootTestCapabilities) Admin() capability.AdminServices {
 
 // AI returns the default AI capability fallback namespace.
 func (s *rootTestCapabilities) AI() capabilityai.Service {
-	return capabilityai.New(aitextsvc.New(nil))
+	return capabilityai.New(aitextsvc.New(nil, nil))
 }
 
 // Users returns a registration-safe user-domain service for root plugin facade tests.
@@ -256,7 +257,7 @@ func (s *rootTestCapabilities) Notifications() capabilitynotifycap.Service { ret
 
 // Org returns the default organization capability fallback service.
 func (s *rootTestCapabilities) Org() orgcapsvc.Service {
-	return orgcapsvc.New(nil)
+	return orgspi.New(nil, nil)
 }
 
 // Plugins returns a registration-safe plugin-governance service for root plugin facade tests.
@@ -295,13 +296,13 @@ func (s *rootTestCapabilities) Storage() storagecap.Service {
 // Tenant returns the default tenant capability fallback service.
 func (s *rootTestCapabilities) Tenant() tenantcapsvc.Service {
 	if s == nil {
-		return tenantcapsvc.New(nil, nil)
+		return tenantspi.New(nil, nil, nil)
 	}
-	return tenantcapsvc.New(nil, s.bizCtx)
+	return tenantspi.New(nil, nil, s.bizCtx)
 }
 
 // TenantFilter returns no tenant-filter service for root plugin facade tests.
-func (s *rootTestCapabilities) TenantFilter() tenantcap.PluginTableFilterService { return nil }
+func (s *rootTestCapabilities) TenantFilter() tenantspi.PluginTableFilterService { return nil }
 
 // rootNoopStorage is a registration-safe object-storage fixture for root facade tests.
 type rootNoopStorage struct{}

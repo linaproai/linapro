@@ -33,15 +33,15 @@ func (s *serviceImpl) Available(ctx context.Context) bool {
 	if s == nil {
 		return false
 	}
-	return defaultManager.StatusWithProvider(ctx, CapabilityAITextV1, s.runtime, s.providerEnv).Available
+	return s.manager.registry.StatusWithProvider(ctx, CapabilityAITextV1, s.runtime, s.providerEnv).Available
 }
 
 // Status returns the current text AI capability activation state.
 func (s *serviceImpl) Status(ctx context.Context) capmodel.CapabilityStatus {
 	if s == nil {
-		return convertCapabilityStatus(defaultManager.Status(ctx, CapabilityAITextV1, nil))
+		return convertCapabilityStatus(NewManager().registry.Status(ctx, CapabilityAITextV1, nil))
 	}
-	return convertCapabilityStatus(defaultManager.StatusWithProvider(ctx, CapabilityAITextV1, s.runtime, s.providerEnv))
+	return convertCapabilityStatus(s.manager.registry.StatusWithProvider(ctx, CapabilityAITextV1, s.runtime, s.providerEnv))
 }
 
 // GenerateText executes one synchronous text generation request.
@@ -67,7 +67,7 @@ func (s *serviceImpl) currentProvider(ctx context.Context) (Provider, error) {
 	if s == nil {
 		return nil, nil
 	}
-	provider, err := defaultManager.ActiveProviderWithError(ctx, CapabilityAITextV1, s.runtime, s.providerEnv)
+	provider, err := s.manager.registry.ActiveProviderWithError(ctx, CapabilityAITextV1, s.runtime, s.providerEnv)
 	if err != nil || provider == nil {
 		return nil, err
 	}

@@ -202,6 +202,11 @@ func (f *fakeRoleConfigService) GetPluginDynamicStoragePath(_ context.Context) s
 	return ""
 }
 
+// GetPluginStorage returns empty plugin storage settings for tests.
+func (f *fakeRoleConfigService) GetPluginStorage(_ context.Context) hostconfig.PluginStorageConfig {
+	return hostconfig.PluginStorageConfig{}
+}
+
 // GetSession returns a session config assembled from the test service fields.
 func (f *fakeRoleConfigService) GetSession(_ context.Context) (*hostconfig.SessionConfig, error) {
 	timeout, err := f.GetSessionTimeout(context.Background())

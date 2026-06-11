@@ -6,9 +6,7 @@ package pluginbridge
 
 import (
 	"encoding/json"
-	"time"
 
-	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -53,30 +51,4 @@ func invokeCapabilityJSONWithResource(service string, method string, resourceRef
 		return gerror.Wrap(err, "decode capability response failed")
 	}
 	return nil
-}
-
-// parseWireTime parses one optional RFC3339 timestamp from host-service wire
-// payloads. Invalid or empty timestamps degrade to nil because wire-level time
-// strings are diagnostics rather than authority for guest-side writes.
-func parseWireTime(value string) *time.Time {
-	if value == "" {
-		return nil
-	}
-	parsed, err := time.Parse(time.RFC3339Nano, value)
-	if err != nil {
-		return nil
-	}
-	return &parsed
-}
-
-// storageListEffectiveLimit returns the domain list limit applied by the host
-// storage capability for zero, bounded, and oversized guest requests.
-func storageListEffectiveLimit(limit int) int {
-	if limit <= 0 {
-		return storagecap.DefaultListLimit
-	}
-	if limit > storagecap.MaxListLimit {
-		return storagecap.MaxListLimit
-	}
-	return limit
 }

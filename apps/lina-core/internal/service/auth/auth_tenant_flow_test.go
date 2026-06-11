@@ -29,6 +29,7 @@ import (
 	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -1248,12 +1249,13 @@ func registerTenantAuthTestProvider(t *testing.T, tenantsByUser map[int][]tenant
 func registerTenantAuthProviderInstance(t *testing.T, provider *tenantAuthTestProvider) tenantcap.Service {
 	t.Helper()
 	providerPluginID := fmt.Sprintf("plugin-test-auth-tenant-provider-%d", time.Now().UnixNano())
-	if err := tenantcap.Provide(providerPluginID, func(context.Context, tenantcap.ProviderEnv) (tenantcap.Provider, error) {
+	manager := tenantspi.NewManager()
+	if err := manager.RegisterFactory(providerPluginID, func(context.Context, tenantspi.ProviderEnv) (tenantspi.Provider, error) {
 		return provider, nil
 	}); err != nil {
 		t.Fatalf("register auth tenant provider: %v", err)
 	}
-	return tenantcap.New(tenantAuthProviderRuntime{pluginID: providerPluginID}, nil)
+	return tenantspi.New(manager, tenantAuthProviderRuntime{pluginID: providerPluginID}, nil)
 }
 
 // tenantAuthProviderRuntime marks exactly one test provider plugin enabled.
@@ -1267,8 +1269,8 @@ func (r tenantAuthProviderRuntime) IsProviderEnabled(_ context.Context, pluginID
 }
 
 // TenantProviderEnv returns an empty typed provider environment in auth tests.
-func (tenantAuthProviderRuntime) TenantProviderEnv(string) tenantcap.ProviderEnv {
-	return tenantcap.ProviderEnv{}
+func (tenantAuthProviderRuntime) TenantProviderEnv(string) tenantspi.ProviderEnv {
+	return tenantspi.ProviderEnv{}
 }
 
 // insertAuthTestUser inserts one enabled user and cleans it up after the test.
@@ -1493,7 +1495,7 @@ func (s *memorySessionStore) BatchGetScoped(
 	_ context.Context,
 	tokenIDs []string,
 	_ datascope.Service,
-	_ tenantcapsvc.ScopeService,
+	_ tenantspi.ScopeService,
 ) ([]*session.Session, error) {
 	items := make([]*session.Session, 0, len(tokenIDs))
 	for _, tokenID := range tokenIDs {
@@ -1546,7 +1548,7 @@ func (s *memorySessionStore) ListPageScoped(
 	int,
 	int,
 	datascope.Service,
-	tenantcapsvc.ScopeService,
+	tenantspi.ScopeService,
 ) (*session.ListResult, error) {
 	items, err := s.List(context.Background(), nil)
 	if err != nil {
@@ -1586,5 +1588,5 @@ var (
 	_ kvcache.Service      = (*sharedMemoryKVCache)(nil)
 	_ jwt.Claims           = (*Claims)(nil)
 	_ tenantcapsvc.Service = enabledTenantAuthTestService{}
-	_ tenantcap.Provider   = (*tenantAuthTestProvider)(nil)
+	_ tenantspi.Provider   = (*tenantAuthTestProvider)(nil)
 )

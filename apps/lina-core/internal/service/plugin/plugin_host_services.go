@@ -33,7 +33,7 @@ import (
 	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/storagecap"
-	capabilitytenantcap "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // HostAPIDocResolver defines the apidoc route-text slice required by
@@ -156,7 +156,7 @@ func NewHostServices(
 	sessionStore session.Store,
 	aiTextSvc capabilityaitext.Service,
 	orgSvc capabilityorgcap.Service,
-	tenantSvc capabilitytenantcap.RuntimeService,
+	tenantSvc tenantspi.RuntimeService,
 	notifySvc HostNotifyPublisher,
 	kvCacheSvc kvcache.Service,
 	lockSvc hostlock.Service,

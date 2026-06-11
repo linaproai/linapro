@@ -10,7 +10,7 @@ import (
 	"lina-core/internal/service/menu"
 	"lina-core/internal/service/role"
 	usersvc "lina-core/internal/service/user"
-	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 )
 
 // ControllerV1 is the user controller.
@@ -18,7 +18,7 @@ type ControllerV1 struct {
 	userSvc   usersvc.Service // user service
 	roleSvc   role.Service    // role service
 	menuSvc   menu.Service    // menu service
-	orgCapSvc orgcap.ProjectionService
+	orgCapSvc orgspi.ProjectionService
 	i18nSvc   i18n.Translator // runtime translation service
 }
 
@@ -27,7 +27,7 @@ func NewV1(
 	userSvc usersvc.Service,
 	roleSvc role.Service,
 	menuSvc menu.Service,
-	orgCapSvc orgcap.ProjectionService,
+	orgCapSvc orgspi.ProjectionService,
 	i18nSvc i18n.Translator,
 ) userapi.IUserV1 {
 	return &ControllerV1{

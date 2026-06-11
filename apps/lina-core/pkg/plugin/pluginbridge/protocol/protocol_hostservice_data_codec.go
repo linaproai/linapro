@@ -10,7 +10,7 @@ import (
 
 // HostServiceDataListRequest carries one governed paged list request.
 type HostServiceDataListRequest struct {
-	// PlanJSON is the JSON-encoded typed query plan used by capability/recordstore.
+	// PlanJSON is the JSON-encoded typed query plan used by pluginbridge/recordstore.
 	PlanJSON []byte `json:"planJson,omitempty"`
 }
 
@@ -24,7 +24,7 @@ type HostServiceDataListResponse struct {
 
 // HostServiceDataGetRequest carries one governed detail query by key.
 type HostServiceDataGetRequest struct {
-	// PlanJSON is the JSON-encoded typed query plan used by capability/recordstore.
+	// PlanJSON is the JSON-encoded typed query plan used by pluginbridge/recordstore.
 	PlanJSON []byte `json:"planJson,omitempty"`
 }
 

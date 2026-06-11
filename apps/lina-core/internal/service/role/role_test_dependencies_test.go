@@ -10,7 +10,8 @@ import (
 	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/pkg/plugin/capability/orgcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // newRoleTestService constructs a role service with explicit test dependencies,
@@ -20,9 +21,12 @@ func newRoleTestService(permissionFilter PermissionMenuFilter, organizationState
 		bizCtxSvc = bizctx.New()
 		configSvc = hostconfig.New()
 		i18nSvc   = i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
-		orgCapSvc = orgcap.New(nil)
-		tenantSvc = tenantcapsvc.New(nil, nil)
+		orgCapSvc = orgspi.New(nil, nil)
+		tenantSvc = tenantspi.New(nil, nil, nil)
 	)
+	if organizationState == nil {
+		organizationState = orgCapSvc
+	}
 	svc := New(permissionFilter, bizCtxSvc, configSvc, i18nSvc, organizationState, tenantSvc).(*serviceImpl)
 	refreshRoleTestScope(svc, orgCapSvc)
 	return svc
@@ -43,8 +47,8 @@ func setRoleTestBizCtx(svc *serviceImpl, bizCtxSvc bizctx.Service) {
 // refreshRoleTestScope rebuilds the stateless data-scope helper from the
 // current explicit fake dependencies.
 func refreshRoleTestScope(svc *serviceImpl, orgCapSvc orgcap.Service) {
-	var orgScope orgcap.ScopeService
-	if scope, ok := orgCapSvc.(orgcap.ScopeService); ok {
+	var orgScope orgspi.ScopeService
+	if scope, ok := orgCapSvc.(orgspi.ScopeService); ok {
 		orgScope = scope
 	}
 	svc.SetDataScopeService(datascope.New(svc.bizCtxSvc, svc, orgScope))

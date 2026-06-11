@@ -17,7 +17,7 @@ import (
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 )
 
 // TestUploadRejectsFileExceedingRuntimeMaxSize verifies managed upload size
@@ -26,7 +26,7 @@ func TestUploadRejectsFileExceedingRuntimeMaxSize(t *testing.T) {
 	withRuntimeParamValue(t, hostconfig.RuntimeParamKeyUploadMaxSize, "1")
 
 	bizCtxSvc := bizctx.New()
-	orgCapSvc := orgcap.New(nil)
+	orgCapSvc := orgspi.New(nil, nil)
 	svc := New(hostconfig.New(), nil, bizCtxSvc, nil, datascope.New(bizCtxSvc, nil, orgCapSvc))
 	_, err := svc.Upload(context.Background(), &UploadInput{
 		File: &ghttp.UploadFile{

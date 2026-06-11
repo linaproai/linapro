@@ -19,7 +19,7 @@ import (
 	"lina-core/internal/service/notify"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/bizctxcap"
-	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // TestUserMessagesRemainSelfIsolatedForAllDataScope verifies all-data role
@@ -39,7 +39,7 @@ func TestUserMessagesRemainSelfIsolatedForAllDataScope(t *testing.T) {
 	otherDeliveryID := insertUserMsgScopeDelivery(t, ctx, otherUserID, "other-message")
 	t.Cleanup(func() { cleanupUserMsgScopeDeliveries(t, ctx, []int64{currentDeliveryID, otherDeliveryID}) })
 
-	svc := New(nil, notify.New(tenantcap.New(nil, nil)), nil).(*serviceImpl)
+	svc := New(nil, notify.New(tenantspi.New(nil, nil, nil)), nil).(*serviceImpl)
 	svc.bizCtxSvc = userMsgScopeStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
 
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20})

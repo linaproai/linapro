@@ -35,9 +35,32 @@
 | `Cache` | 提供插件作用域缓存读取、写入、删除、自增和过期操作。 | 动态声明使用`resources[].ref`；运行期分发校验 namespace、key 和 TTL 载荷。 |
 | `Lock` | 提供插件可见的分布式锁获取、续租和释放。 | 动态声明使用`resources[].ref`；运行期分发校验锁资源和租约载荷。 |
 | `Manifest` | 读取插件作用域 manifest 或 artifact 资源。 | 动态声明使用`resources.paths`；源码和动态路径都通过插件作用域资源视图解析。 |
-| `RecordStore` | 提供 guest 侧受治理的插件自有表读取、写入和事务构建器。 | 通过`datahost`分发；校验覆盖插件自有表、查询计划、过滤、排序、写入载荷、事务和审计元数据。 |
 | `Org` | 提供可选组织投影，例如部门分配、部门名称和岗位 ID。 | provider 可用性显式暴露；组织 provider 缺失时 fallback service 返回安全中性值。 |
 | `Tenant` | 提供可选租户上下文、可见性确认、成员校验、可访问租户列表和租户切换校验。 | provider 可用性显式暴露；宿主过滤器应用租户范围，但不暴露租户存储内部结构。 |
+
+## 动态插件专属能力
+
+`Runtime`、`Network`和`RecordStore`是`pluginbridge.Services`上的动态插件专属入口。它们不属于`capability.Services`，因为源码插件已经运行在宿主进程内，可以使用宿主原生等价能力，或者使用源码插件数据访问接缝，而不是 guest host-service 包装。
+
+| 能力 | 公开入口 | 边界原因 |
+| --- | --- | --- |
+| `Runtime` | `pluginbridge.Services.Runtime()` | 动态插件需要通过`WASI host-service`客户端写日志、读写状态、读取时间、生成 UUID 和读取节点身份；源码插件直接使用宿主原生日志和运行期上下文。 |
+| `Network` | `pluginbridge.Services.Network()` | 动态插件需要经由 host-service 授权访问受治理的出站 HTTP；源码插件使用宿主原生 HTTP client 或注入的领域 service。 |
+| `RecordStore` | `pluginbridge.Services.RecordStore()`与`pkg/plugin/pluginbridge/recordstore` | 动态插件需要 guest 侧 facade 封装 data host-service 协议和类型化查询计划；源码插件使用自有 DAO 或 provider 接缝。 |
+
+新增能力只有在源码插件和动态插件共享同一个稳定宿主持有领域契约时，才应进入`capability.Services`。仅服务动态插件的 host-service client 和 guest SDK 应留在`pluginbridge`下。
+
+## 普通消费契约、Provider SPI 与 Guest SDK
+
+插件侧包使用三类独立边界，确保每类调用方只导入自己可以安全依赖的契约：
+
+| 边界 | 包形态 | 目标调用方 | 不得包含 |
+| --- | --- | --- | --- |
+| 普通消费契约 | `pkg/plugin/capability/<domain>cap` | 通过`pluginhost.Services`调用的源码插件、通过生成或 bridge-backed client 调用的动态插件，以及宿主 adapter | GoFrame 数据库 builder、GoFrame HTTP request 对象、provider factory 注册入口或宿主私有实现状态 |
+| 源码插件 Provider SPI | `pkg/plugin/capability/<domain>cap/<domain>spi` | 实现宿主领域 provider 的源码插件，以及宿主能力装配代码 | 动态插件 guest SDK import 或 WASM host-service wire 契约 |
+| 动态插件 Guest SDK | `pkg/plugin/pluginbridge`及其动态插件专属子包 | WASM guest 代码和动态插件构建器 | Provider SPI import 或源码插件注册 API |
+
+Provider factory 声明归属`pluginhost.Declarations.Providers()`。源码 provider 插件通过`ProvideTenant`、`ProvideOrg`和`ProvideAIText`等领域方法声明 factory。宿主启动装配负责持有 provider manager 实例，并把共享 manager 注入宿主能力 service；普通`capability`包不保留包级 provider 注册表。
 
 ## 宿主领域实现
 
@@ -105,19 +128,24 @@ hostServices:
 
 ## 可声明 Host Services
 
+<!-- BEGIN generated:host-services -->
 | Service | 资源声明 | 派生能力 | Methods |
 | --- | --- | --- | --- |
 | `runtime` | 无 | `host:runtime` | `log.write`<br/>`state.get`<br/>`state.set`<br/>`state.delete`<br/>`info.now`<br/>`info.uuid`<br/>`info.node` |
 | `storage` | `resources.paths` | `host:storage` | `put`<br/>`get`<br/>`delete`<br/>`list`<br/>`stat` |
 | `network` | `resources[].url` | `host:http:request` | `request` |
-| `data` | `resources.tables` | `host:data:read`<br/>`host:data:mutate`| `list`<br/>`get`<br/>`create`<br/>`update`<br/>`delete`<br/>`transaction` |
+| `data` | `resources.tables` | `host:data:read`<br/>`host:data:mutate` | `list`<br/>`get`<br/>`create`<br/>`update`<br/>`delete`<br/>`transaction` |
 | `cache` | `resources[].ref` | `host:cache` | `get`<br/>`set`<br/>`delete`<br/>`incr`<br/>`expire` |
 | `lock` | `resources[].ref` | `host:lock` | `acquire`<br/>`renew`<br/>`release` |
+| `secret` | `resources[].ref` | `host:secret` | `resolve` reserved |
+| `event` | `resources[].ref` | `host:event:publish` | `publish` reserved |
+| `queue` | `resources[].ref` | `host:queue:enqueue` | `enqueue` reserved |
 | `hostconfig` | `resources.keys` | `host:hostconfig` | `get` |
 | `manifest` | `resources.paths` | `host:manifest` | `get` |
 | `apidoc` | 无 | `host:apidoc` | `route_text.resolve`<br/>`route_texts.resolve`<br/>`route_title_operation_keys.find` |
 | `auth` | 无 | `host:auth:token` | `tenant.select`<br/>`tenant.switch`<br/>`impersonation_token.issue`<br/>`impersonation_token.revoke` |
 | `authz` | 无 | `host:authz` | `permissions.batch_get`<br/>`permissions.has`<br/>`users.platform_admin.check` |
+| `ai` | 无 | `host:ai:text`<br/>`host:ai:image`<br/>`host:ai:embedding`<br/>`host:ai:audio`<br/>`host:ai:vision`<br/>`host:ai:document`<br/>`host:ai:safety`<br/>`host:ai:video` | `text.generate`<br/>`image.generate`<br/>`image.edit`<br/>`embedding.create`<br/>`audio.transcribe`<br/>`audio.synthesize`<br/>`vision.analyze`<br/>`document.analyze`<br/>`document.cite`<br/>`safety.moderate`<br/>`video.generate`<br/>`video.edit`<br/>`video.extend`<br/>`video.operation.get`<br/>`video.operation.cancel` |
 | `users` | 无 | `host:users` | `users.batch_get`<br/>`users.search`<br/>`users.visible.ensure` |
 | `bizctx` | 无 | `host:bizctx` | `current.get` |
 | `dict` | 无 | `host:dict` | `labels.resolve` |
@@ -129,12 +157,9 @@ hostServices:
 | `plugins` | 无 | `host:plugins` | `plugins.batch_get`<br/>`plugins.tenant.list`<br/>`plugins.enabled.check`<br/>`plugins.provider_enabled.check`<br/>`plugins.enabled_authoritative.check`<br/>`config.get`<br/>`lifecycle.tenant_plugin_disable.ensure`<br/>`lifecycle.tenant_plugin_disabled.notify`<br/>`lifecycle.tenant_delete.ensure`<br/>`lifecycle.tenant_deleted.notify` |
 | `route` | 无 | `host:route` | `metadata.get` |
 | `sessions` | 无 | `host:sessions` | `sessions.search`<br/>`sessions.batch_get` |
-| `ai` | 无 | `host:ai:text`<br/>`host:ai:image`<br/>`host:ai:embedding`<br/>`host:ai:audio`<br/>`host:ai:vision`<br/>`host:ai:document`<br/>`host:ai:safety`<br/>`host:ai:video` | `text.generate`<br/>`image.generate`<br/>`image.edit`<br/>`embedding.create`<br/>`audio.transcribe`<br/>`audio.synthesize`<br/>`vision.analyze`<br/>`document.analyze`<br/>`document.cite`<br/>`safety.moderate`<br/>`video.generate`<br/>`video.edit`<br/>`video.extend`<br/>`video.operation.get`<br/>`video.operation.cancel` |
 | `org` | 无 | `host:org` | `capability.available`<br/>`capability.status`<br/>`users.dept_assignments.list`<br/>`users.dept_info.get`<br/>`users.dept_name.get`<br/>`users.dept_ids.get`<br/>`users.post_ids.get` |
 | `tenant` | 无 | `host:tenant` | `capability.available`<br/>`capability.status`<br/>`tenants.current`<br/>`tenants.platform_bypass`<br/>`tenants.visible.ensure`<br/>`users.tenant_membership.validate`<br/>`users.tenants.list`<br/>`tenants.switch.validate` |
-| `secret` | `resources[].ref` | `host:secret` | `resolve` reserved |
-| `event` | `resources[].ref` | `host:event:publish` | `publish` reserved |
-| `queue` | `resources[].ref` | `host:queue:enqueue` | `enqueue` reserved |
+<!-- END generated:host-services -->
 
 ## 维护说明
 

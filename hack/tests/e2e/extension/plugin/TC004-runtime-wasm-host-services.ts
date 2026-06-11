@@ -517,8 +517,8 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/plugin/capability/recordstore"
 	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/recordstore"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 

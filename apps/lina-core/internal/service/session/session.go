@@ -8,7 +8,7 @@ import (
 
 	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/datascope"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // sessionLastActiveUpdateWindow is the minimum interval between two
@@ -61,7 +61,7 @@ type Store interface {
 		ctx context.Context,
 		tokenIds []string,
 		scopeSvc datascope.Service,
-		tenantSvc tenantcapsvc.ScopeService,
+		tenantSvc tenantspi.ScopeService,
 	) ([]*Session, error)
 	// Delete removes one online session by its globally unique token ID.
 	Delete(ctx context.Context, tokenId string) error
@@ -78,7 +78,7 @@ type Store interface {
 		filter *ListFilter,
 		pageNum, pageSize int,
 		scopeSvc datascope.Service,
-		tenantSvc tenantcapsvc.ScopeService,
+		tenantSvc tenantspi.ScopeService,
 	) (*ListResult, error)
 	// Count returns the total number of active online sessions.
 	Count(ctx context.Context) (int, error)

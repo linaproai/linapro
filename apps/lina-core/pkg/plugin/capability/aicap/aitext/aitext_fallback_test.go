@@ -15,7 +15,7 @@ import (
 func TestGenerateTextReturnsUnavailableWithoutProvider(t *testing.T) {
 	t.Parallel()
 
-	service := New(nil)
+	service := New(nil, nil)
 	_, err := service.GenerateText(context.Background(), validGenerateRequest())
 	if !bizerr.Is(err, CodeTextProviderUnavailable) {
 		t.Fatalf("expected provider unavailable error, got %v", err)
@@ -28,7 +28,7 @@ func TestGenerateTextReturnsUnavailableWithoutProvider(t *testing.T) {
 func TestGenerateTextValidatesTierAndThinkingEffort(t *testing.T) {
 	t.Parallel()
 
-	service := New(nil)
+	service := New(nil, nil)
 	request := validGenerateRequest()
 	request.Tier = Tier("custom")
 	_, err := service.GenerateText(context.Background(), request)
@@ -61,13 +61,14 @@ func TestGenerateTextDelegatesToActiveProvider(t *testing.T) {
 	t.Parallel()
 
 	pluginID := fmt.Sprintf("plugin-test-ai-provider-%d", time.Now().UnixNano())
-	if err := Provide(pluginID, func(context.Context, ProviderEnv) (Provider, error) {
+	manager := NewManager()
+	if err := manager.RegisterFactory(pluginID, func(context.Context, ProviderEnv) (Provider, error) {
 		return fakeProvider{}, nil
 	}); err != nil {
 		t.Fatalf("register provider failed: %v", err)
 	}
 
-	service := New(testRuntime{pluginID: pluginID})
+	service := New(manager, testRuntime{pluginID: pluginID})
 	response, err := service.GenerateText(context.Background(), validGenerateRequest())
 	if err != nil {
 		t.Fatalf("expected active provider success, got %v", err)
@@ -86,7 +87,8 @@ func TestForPluginInjectsSourcePluginID(t *testing.T) {
 
 	pluginID := fmt.Sprintf("plugin-test-ai-provider-source-%d", time.Now().UnixNano())
 	var seenSourcePluginID string
-	if err := Provide(pluginID, func(context.Context, ProviderEnv) (Provider, error) {
+	manager := NewManager()
+	if err := manager.RegisterFactory(pluginID, func(context.Context, ProviderEnv) (Provider, error) {
 		return fakeProviderFunc(func(_ context.Context, request ProviderRequest) (*GenerateResponse, error) {
 			seenSourcePluginID = request.SourcePluginID
 			return fakeProvider{}.GenerateText(context.Background(), request)
@@ -95,7 +97,7 @@ func TestForPluginInjectsSourcePluginID(t *testing.T) {
 		t.Fatalf("register provider failed: %v", err)
 	}
 
-	service := ForPlugin(New(testRuntime{pluginID: pluginID}), " source-plugin ")
+	service := ForPlugin(New(manager, testRuntime{pluginID: pluginID}), " source-plugin ")
 	if _, err := service.GenerateText(context.Background(), validGenerateRequest()); err != nil {
 		t.Fatalf("expected active provider success, got %v", err)
 	}
@@ -109,16 +111,17 @@ func TestGenerateTextRejectsProviderConflict(t *testing.T) {
 
 	firstPluginID := fmt.Sprintf("plugin-test-ai-provider-a-%d", time.Now().UnixNano())
 	secondPluginID := fmt.Sprintf("plugin-test-ai-provider-b-%d", time.Now().UnixNano())
+	manager := NewManager()
 	for _, pluginID := range []string{firstPluginID, secondPluginID} {
 		pluginID := pluginID
-		if err := Provide(pluginID, func(context.Context, ProviderEnv) (Provider, error) {
+		if err := manager.RegisterFactory(pluginID, func(context.Context, ProviderEnv) (Provider, error) {
 			return fakeProvider{}, nil
 		}); err != nil {
 			t.Fatalf("register provider %s failed: %v", pluginID, err)
 		}
 	}
 
-	service := New(testRuntime{pluginID: firstPluginID, secondPluginID: secondPluginID})
+	service := New(manager, testRuntime{pluginID: firstPluginID, secondPluginID: secondPluginID})
 	_, err := service.GenerateText(context.Background(), validGenerateRequest())
 	if !bizerr.Is(err, CodeTextProviderUnavailable) {
 		t.Fatalf("expected provider unavailable on conflict, got %v", err)

@@ -15,7 +15,7 @@ import (
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/capmodel"
 	capabilityhostconfigcap "lina-core/pkg/plugin/capability/hostconfigcap"
-	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // Service exposes the runtime-configuration service and management commands.
@@ -25,7 +25,7 @@ type Service interface {
 
 // adapter exposes governed runtime configuration projections.
 type adapter struct {
-	tenantFilter tenantcap.PluginTableFilterService
+	tenantFilter tenantspi.PluginTableFilterService
 }
 
 var (
@@ -33,7 +33,7 @@ var (
 )
 
 // New creates the host-owned runtime configuration capability adapter.
-func New(tenantFilter tenantcap.PluginTableFilterService) Service {
+func New(tenantFilter tenantspi.PluginTableFilterService) Service {
 	return &adapter{tenantFilter: tenantFilter}
 }
 

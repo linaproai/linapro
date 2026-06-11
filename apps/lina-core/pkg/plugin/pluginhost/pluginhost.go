@@ -7,7 +7,9 @@ import (
 	"io/fs"
 
 	"lina-core/pkg/plugin/capability"
-	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 const (
@@ -44,6 +46,8 @@ type Declarations interface {
 	HTTP() HTTPDeclarations
 	// Jobs returns the scheduled-job registration facade.
 	Jobs() JobDeclarations
+	// Providers returns the framework capability provider declaration facade.
+	Providers() ProviderDeclarations
 	// Governance returns the menu and permission governance registration facade.
 	Governance() GovernanceDeclarations
 }
@@ -62,7 +66,7 @@ type Services interface {
 	// TenantFilter returns the source-plugin tenant-filter service for
 	// plugin-owned tables. This method carries a database query builder and is
 	// intentionally kept out of the ordinary capability services.
-	TenantFilter() tenantcap.PluginTableFilterService
+	TenantFilter() tenantspi.PluginTableFilterService
 }
 
 // AssetDeclarations exposes plugin-owned asset declarations grouped under one
@@ -239,6 +243,16 @@ type GovernanceDeclarations interface {
 	RegisterPermissionFilter(point ExtensionPoint, mode CallbackExecutionMode, handler PermissionFilterHandler) error
 }
 
+// ProviderDeclarations exposes framework capability provider factory declarations.
+type ProviderDeclarations interface {
+	// ProvideTenant declares the tenant capability provider factory implemented by this source plugin.
+	ProvideTenant(factory tenantspi.ProviderFactory) error
+	// ProvideOrg declares the organization capability provider factory implemented by this source plugin.
+	ProvideOrg(factory orgspi.ProviderFactory) error
+	// ProvideAIText declares the text AI capability provider factory implemented by this source plugin.
+	ProvideAIText(factory aitext.ProviderFactory) error
+}
+
 // SourcePluginDefinition exposes the host-side read model restored from one
 // grouped source-plugin registration.
 type SourcePluginDefinition interface {
@@ -255,6 +269,12 @@ type SourcePluginDefinition interface {
 	GetMenuFilters() []*MenuFilterHandlerRegistration
 	// GetPermissionFilters returns the registered permission filter callbacks.
 	GetPermissionFilters() []*PermissionFilterHandlerRegistration
+	// GetTenantProviderFactory returns the declared tenant provider factory.
+	GetTenantProviderFactory() tenantspi.ProviderFactory
+	// GetOrgProviderFactory returns the declared organization provider factory.
+	GetOrgProviderFactory() orgspi.ProviderFactory
+	// GetAITextProviderFactory returns the declared text AI provider factory.
+	GetAITextProviderFactory() aitext.ProviderFactory
 	// GetBeforeInstallHandler returns the registered pre-install veto callback.
 	GetBeforeInstallHandler() SourcePluginBeforeLifecycleHandler
 	// GetAfterInstallHandler returns the registered post-install callback.

@@ -14,8 +14,8 @@ import (
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/plugin/capability/orgcap"
-	"lina-core/pkg/plugin/capability/recordstore"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginbridge/recordstore"
 )
 
 // Default pagination limits for governed list operations.

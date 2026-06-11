@@ -11,24 +11,16 @@ import (
 )
 
 // ProviderStatuses returns all text AI provider states.
-func ProviderStatuses(ctx context.Context, runtime ProviderRuntime) []capmodel.ProviderStatus {
-	statuses := defaultManager.Statuses(ctx, runtime)
+func (m *Manager) ProviderStatuses(ctx context.Context, runtime ProviderRuntime) []capmodel.ProviderStatus {
+	if m == nil || m.registry == nil {
+		return nil
+	}
+	statuses := m.registry.Statuses(ctx, runtime)
 	result := make([]capmodel.ProviderStatus, 0, len(statuses))
 	for _, status := range statuses {
 		result = append(result, convertProviderStatus(status))
 	}
 	return result
-}
-
-// registerFactory adapts typed text AI factories to the internal registry.
-func registerFactory(pluginID string, factory ProviderFactory) error {
-	return defaultManager.RegisterFactory(
-		CapabilityAITextV1,
-		pluginID,
-		func(ctx context.Context, env ProviderEnv) (any, error) {
-			return factory(ctx, env)
-		},
-	)
 }
 
 // convertCapabilityStatus copies internal capability state into public DTOs.

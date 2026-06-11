@@ -35,9 +35,38 @@
 | `Cache` | Provides plugin-scoped cache get, set, delete, increment, and expiry operations. | Dynamic declarations use `resources[].ref`; runtime dispatch validates namespace, key, and TTL payloads. |
 | `Lock` | Provides plugin-visible distributed lock acquire, renew, and release operations. | Dynamic declarations use `resources[].ref`; runtime dispatch validates lock resource and lease payloads. |
 | `Manifest` | Reads plugin-scoped manifest or artifact resources. | Dynamic declarations use `resources.paths`; source and dynamic paths are resolved through plugin-scoped resource views. |
-| `RecordStore` | Provides a guest-side governed builder for plugin-owned table reads, mutations, and transactions. | Dispatch goes through `datahost`; validation covers plugin-owned tables, query plans, filters, ordering, mutation payloads, transactions, and audit metadata. |
 | `Org` | Provides optional organization projections such as department assignments, department names, and post IDs. | Provider availability is explicit; fallback services return safe neutral values when the organization provider is absent. |
 | `Tenant` | Provides optional tenant context, visibility checks, membership validation, accessible tenant lists, and tenant switching validation. | Provider availability is explicit; host filters apply tenant scope without exposing tenant storage internals. |
+
+## Dynamic-Plugin-Only Capabilities
+
+`Runtime`, `Network`, and `RecordStore` are dynamic-plugin-only entries on `pluginbridge.Services`. They are not part of `capability.Services` because source plugins either already run inside the host process with native equivalents or use source-plugin data access seams instead of guest host-service wrappers.
+
+| Capability | Public entry | Boundary reason |
+| --- | --- | --- |
+| `Runtime` | `pluginbridge.Services.Runtime()` | Dynamic plugins need a WASI host-service client for logs, state, time, UUIDs, and node identity; source plugins use host-native logging and runtime context directly. |
+| `Network` | `pluginbridge.Services.Network()` | Dynamic plugins need governed outbound HTTP through host-service authorization; source plugins use host-native HTTP clients or injected domain services. |
+| `RecordStore` | `pluginbridge.Services.RecordStore()` and `pkg/plugin/pluginbridge/recordstore` | Dynamic plugins need a guest-side facade over the data host-service protocol and typed query plans; source plugins use their own DAO or provider seams. |
+
+New capabilities should enter `capability.Services` only when source plugins and dynamic plugins share the same stable host-owned domain contract. Dynamic-only host-service clients and guest SDKs stay under `pluginbridge`.
+
+## Consumer Contracts, Provider SPI, and Guest SDK
+
+Plugin-facing packages use three separate boundaries so each caller imports only
+the contract it can safely depend on:
+
+| Boundary | Package shape | Intended callers | Must not contain |
+| --- | --- | --- | --- |
+| Ordinary consumer contract | `pkg/plugin/capability/<domain>cap` | Source plugins through `pluginhost.Services`, dynamic plugins through generated or bridge-backed clients, and host adapters | GoFrame database builders, GoFrame HTTP request objects, provider factory registration, or host-private implementation state |
+| Source-plugin provider SPI | `pkg/plugin/capability/<domain>cap/<domain>spi` | Source plugins that implement a host domain provider, plus host capability assembly code | Dynamic-plugin guest SDK imports or WASM host-service wire contracts |
+| Dynamic-plugin guest SDK | `pkg/plugin/pluginbridge` and its dynamic-only subpackages | WASM guest code and dynamic plugin builders | Provider SPI imports or source-plugin registration APIs |
+
+Provider factory declarations belong to `pluginhost.Declarations.Providers()`.
+Source provider plugins declare factories there with domain-specific methods such
+as `ProvideTenant`, `ProvideOrg`, and `ProvideAIText`. Host startup owns the
+provider manager instances and injects the shared managers into host capability
+services; ordinary `capability` packages do not keep package-level provider
+registries.
 
 ## Host Domain Implementation
 
@@ -105,6 +134,7 @@ hostServices:
 
 ## Declarable Host Services
 
+<!-- BEGIN generated:host-services -->
 | Service | Resource declaration | Derived capability | Methods |
 | --- | --- | --- | --- |
 | `runtime` | None | `host:runtime` | `log.write`<br/>`state.get`<br/>`state.set`<br/>`state.delete`<br/>`info.now`<br/>`info.uuid`<br/>`info.node` |
@@ -113,11 +143,15 @@ hostServices:
 | `data` | `resources.tables` | `host:data:read`<br/>`host:data:mutate` | `list`<br/>`get`<br/>`create`<br/>`update`<br/>`delete`<br/>`transaction` |
 | `cache` | `resources[].ref` | `host:cache` | `get`<br/>`set`<br/>`delete`<br/>`incr`<br/>`expire` |
 | `lock` | `resources[].ref` | `host:lock` | `acquire`<br/>`renew`<br/>`release` |
+| `secret` | `resources[].ref` | `host:secret` | `resolve` reserved |
+| `event` | `resources[].ref` | `host:event:publish` | `publish` reserved |
+| `queue` | `resources[].ref` | `host:queue:enqueue` | `enqueue` reserved |
 | `hostconfig` | `resources.keys` | `host:hostconfig` | `get` |
 | `manifest` | `resources.paths` | `host:manifest` | `get` |
 | `apidoc` | None | `host:apidoc` | `route_text.resolve`<br/>`route_texts.resolve`<br/>`route_title_operation_keys.find` |
 | `auth` | None | `host:auth:token` | `tenant.select`<br/>`tenant.switch`<br/>`impersonation_token.issue`<br/>`impersonation_token.revoke` |
 | `authz` | None | `host:authz` | `permissions.batch_get`<br/>`permissions.has`<br/>`users.platform_admin.check` |
+| `ai` | None | `host:ai:text`<br/>`host:ai:image`<br/>`host:ai:embedding`<br/>`host:ai:audio`<br/>`host:ai:vision`<br/>`host:ai:document`<br/>`host:ai:safety`<br/>`host:ai:video` | `text.generate`<br/>`image.generate`<br/>`image.edit`<br/>`embedding.create`<br/>`audio.transcribe`<br/>`audio.synthesize`<br/>`vision.analyze`<br/>`document.analyze`<br/>`document.cite`<br/>`safety.moderate`<br/>`video.generate`<br/>`video.edit`<br/>`video.extend`<br/>`video.operation.get`<br/>`video.operation.cancel` |
 | `users` | None | `host:users` | `users.batch_get`<br/>`users.search`<br/>`users.visible.ensure` |
 | `bizctx` | None | `host:bizctx` | `current.get` |
 | `dict` | None | `host:dict` | `labels.resolve` |
@@ -125,16 +159,13 @@ hostServices:
 | `i18n` | None | `host:i18n` | `locale.get`<br/>`messages.translate`<br/>`messages.keys.find` |
 | `infra` | None | `host:infra` | `status.batch_get` |
 | `jobs` | None | `host:jobs` | `jobs.batch_get`<br/>`jobs.register` |
-| `notifications` | None for reads; `resources[].ref` for `messages.send` | `host:notifications` | `messages.batch_get`<br/>`messages.send` |
+| `notifications` | None for reads; `messages.send` uses `resources[].ref` | `host:notifications` | `messages.batch_get`<br/>`messages.send` |
 | `plugins` | None | `host:plugins` | `plugins.batch_get`<br/>`plugins.tenant.list`<br/>`plugins.enabled.check`<br/>`plugins.provider_enabled.check`<br/>`plugins.enabled_authoritative.check`<br/>`config.get`<br/>`lifecycle.tenant_plugin_disable.ensure`<br/>`lifecycle.tenant_plugin_disabled.notify`<br/>`lifecycle.tenant_delete.ensure`<br/>`lifecycle.tenant_deleted.notify` |
 | `route` | None | `host:route` | `metadata.get` |
 | `sessions` | None | `host:sessions` | `sessions.search`<br/>`sessions.batch_get` |
-| `ai` | None | `host:ai:text`<br/>`host:ai:image`<br/>`host:ai:embedding`<br/>`host:ai:audio`<br/>`host:ai:vision`<br/>`host:ai:document`<br/>`host:ai:safety`<br/>`host:ai:video` | `text.generate`<br/>`image.generate`<br/>`image.edit`<br/>`embedding.create`<br/>`audio.transcribe`<br/>`audio.synthesize`<br/>`vision.analyze`<br/>`document.analyze`<br/>`document.cite`<br/>`safety.moderate`<br/>`video.generate`<br/>`video.edit`<br/>`video.extend`<br/>`video.operation.get`<br/>`video.operation.cancel` |
 | `org` | None | `host:org` | `capability.available`<br/>`capability.status`<br/>`users.dept_assignments.list`<br/>`users.dept_info.get`<br/>`users.dept_name.get`<br/>`users.dept_ids.get`<br/>`users.post_ids.get` |
 | `tenant` | None | `host:tenant` | `capability.available`<br/>`capability.status`<br/>`tenants.current`<br/>`tenants.platform_bypass`<br/>`tenants.visible.ensure`<br/>`users.tenant_membership.validate`<br/>`users.tenants.list`<br/>`tenants.switch.validate` |
-| `secret` | `resources[].ref` | `host:secret` | `resolve` reserved |
-| `event` | `resources[].ref` | `host:event:publish` | `publish` reserved |
-| `queue` | `resources[].ref` | `host:queue:enqueue` | `enqueue` reserved |
+<!-- END generated:host-services -->
 
 ## Maintenance Notes
 

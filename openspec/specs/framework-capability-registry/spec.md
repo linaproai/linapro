@@ -5,27 +5,29 @@ TBD - created by archiving change refine-plugin-capability-boundaries. Update Pu
 ## Requirements
 ### Requirement: 框架能力必须按领域归属独立 pluginservice 组件
 
-系统 SHALL 通过`pkg/plugin/capability/orgcap`、`pkg/plugin/capability/tenantcap`、`pkg/plugin/capability/aicap`等独立`*cap`组件维护由宿主定义契约且由插件提供实现的框架能力。每个能力组件 MUST 直接维护自身 capability ID、版本、DTO、消费`Service`接口、provider factory 声明 facade、fallback/delegation 和必要错误类型；共享 provider registry、provider factory 声明、懒加载实例缓存、冲突检测和 manager 实现 MUST 放入`pkg/plugin/capability/internal/capabilityregistry`。系统 MUST NOT 再新增或保留`pkg/pluginservice`聚合包、`pkg/frameworkcap`聚合包、旧`pkg/orgcap`/`pkg/tenantcap`兼容包或宿主`internal/service/orgcap`、`internal/service/tenantcap`双重适配层。
+系统 SHALL 通过`pkg/plugin/capability/orgcap`、`pkg/plugin/capability/tenantcap`、`pkg/plugin/capability/aicap`等独立`*cap`组件维护由宿主定义契约且由插件提供实现的框架能力。每个能力组件 MUST 直接维护自身 capability ID、版本、DTO、普通消费`Service`接口、fallback/delegation 和必要错误类型；源码插件 provider SPI、宿主 scope helper、request resolver 和 provider runtime 接缝 MUST 迁入对应能力组件下的`*spi`子包。共享 provider registry、provider factory 声明、懒加载实例缓存、冲突检测和 manager 实现 MUST 放入`pkg/plugin/capability/internal/capabilityregistry`。系统 MUST NOT 再新增或保留`pkg/pluginservice`聚合包、`pkg/frameworkcap`聚合包、旧`pkg/orgcap`/`pkg/tenantcap`兼容包或宿主`internal/service/orgcap`、`internal/service/tenantcap`双重适配层。
 
 #### Scenario: 组织能力由 orgcap 组件维护
 
 - **WHEN** 系统定义`framework.org.v1`能力
-- **THEN** 该能力的 capability ID、DTO、`Service`接口和`Provide(...)`声明 facade 位于`pkg/plugin/capability/orgcap`公开边界下
-- **AND** fallback 和 delegation 位于`pkg/plugin/capability/orgcap`
+- **THEN** 该能力的 capability ID、DTO、普通消费`Service`接口和错误码位于`pkg/plugin/capability/orgcap`公开父包
+- **AND** 组织 provider SPI、provider env、scope helper 和 host provider runtime 位于`pkg/plugin/capability/orgcap/orgspi`
+- **AND** fallback 和 delegation 位于`pkg/plugin/capability/orgcap`或`pkg/plugin/capability/orgcap/orgspi`中与其职责一致的位置
 - **AND** 共享 provider registry、懒加载实例缓存和冲突治理位于`pkg/plugin/capability/internal/capabilityregistry`
 - **AND** 消费方不得依赖提供方插件的 provider adapter 或内部业务 service
 
 #### Scenario: 租户能力由 tenantcap 组件维护
 
 - **WHEN** 系统定义`framework.tenant.v1`能力
-- **THEN** 该能力的 capability ID、DTO、`Service`接口和`Provide(...)`声明 facade 位于`pkg/plugin/capability/tenantcap`公开边界下
-- **AND** 消费方通过显式注入的`tenantcap.Service`或`capability.Services.Tenant()`获取租户能力实例
+- **THEN** 该能力的 capability ID、DTO、普通消费`Service`接口和错误码位于`pkg/plugin/capability/tenantcap`公开父包
+- **AND** 租户 provider SPI、request resolver、scope helper、membership provider、plugin table filter 和 host provider runtime 位于`pkg/plugin/capability/tenantcap/tenantspi`
+- **AND** 消费方通过显式注入的`tenantcap.Service`或`capability.Services.Tenant()`获取租户普通消费能力实例
 - **AND** 系统不得要求消费方 import `pkg/frameworkcap`、`pkg/tenantcap`、`pkg/pluginservice`或宿主`internal/service/tenantcap`
 
-#### Scenario: 源码插件租户过滤子接口由 tenantcap 维护
+#### Scenario: 源码插件租户过滤子接口由 tenantspi 维护
 
 - **WHEN** 源码插件需要对插件自有表按当前租户追加`tenant_id`过滤
-- **THEN** 过滤接口位于`pkg/plugin/capability/tenantcap`公开边界下
+- **THEN** 过滤接口位于`pkg/plugin/capability/tenantcap/tenantspi`
 - **AND** 入口只通过`pluginhost.Services.TenantFilter()`暴露给源码插件
 - **AND** 该接口不得成为`tenantcap.Service`普通租户消费面的一部分
 - **AND** 动态插件 guest SDK 和`hostServices`协议不得暴露该接口
@@ -38,15 +40,29 @@ TBD - created by archiving change refine-plugin-capability-boundaries. Update Pu
 
 ### Requirement: 插件必须通过 Provider Factory 声明框架能力实现
 
-系统 SHALL 要求插件通过 provider factory 声明其对 pluginservice capability 的实现。Provider factory MUST 通过对应能力组件的窄 facade 在插件入口或 registrar 阶段声明，例如`orgcap.Provide(...)`或`tenantcap.Provide(...)`；provider 实例 MUST 由消费 service 在使用时通过`PluginStateService.IsProviderEnabled(ctx, pluginID)`确认提供方插件处于平台级可用状态后懒加载。插件启用状态 MUST 是 provider 可用性的唯一权威状态，系统 MUST NOT 再维护独立的 provider active 状态。插件不得在路由注册、controller 构造或业务请求路径中直接写入全局 provider 注册表。
+系统 SHALL 要求源码插件通过`pluginhost.Declarations`的强类型 provider 声明 facade 声明其对 pluginservice capability 的实现。Provider factory MUST 在源码插件 registrar 阶段声明，例如`plugin.Providers().ProvideOrg(...)`、`plugin.Providers().ProvideTenant(...)`或`plugin.Providers().ProvideAIText(...)`。Provider 实例 MUST 由消费 service 在使用时通过`PluginStateService.IsProviderEnabled(ctx, pluginID)`确认提供方插件处于平台级可用状态后懒加载。插件启用状态 MUST 是 provider 可用性的唯一权威状态，系统 MUST NOT 再维护独立的 provider active 状态。插件不得在路由注册、controller 构造、业务请求路径或能力包级`Provide()`函数中直接写入全局 provider 注册表。
 
 #### Scenario: 源码插件声明组织能力 Provider
 
 - **WHEN** `linapro-org-core`提供`framework.org.v1`实现
-- **THEN** 插件入口通过`orgcap.Provide(...)`声明一个组织能力 provider factory
+- **THEN** 插件入口通过`pluginhost.Declarations`的 provider 声明 facade 声明一个`orgspi.ProviderFactory`
 - **AND** 消费 service 在调用组织能力时通过`PluginStateService.IsProviderEnabled(ctx, "linapro-org-core")`判断 provider 插件是否平台级可用
-- **AND** provider 插件平台级可用时，`pkg/pluginservice/internal/capabilityregistry`中的 manager 使用该插件声明的 factory 懒加载 provider 实例
-- **AND** 路由注册回调不得直接调用全局`RegisterProvider(provider)`完成激活
+- **AND** provider 插件平台级可用时，`pkg/plugin/capability/internal/capabilityregistry`中的 manager 使用该插件声明的 factory 懒加载 provider 实例
+- **AND** 路由注册回调不得直接调用全局`RegisterProvider(provider)`或旧能力包级`Provide()`完成激活
+
+#### Scenario: 源码插件声明租户能力 Provider
+
+- **WHEN** `linapro-tenant-core`提供`framework.tenant.v1`实现
+- **THEN** 插件入口通过`pluginhost.Declarations`的 provider 声明 facade 声明一个`tenantspi.ProviderFactory`
+- **AND** 宿主注册该 factory 时记录声明插件 ID，并在 provider 使用路径继续按插件 enabled snapshot 判断可用性
+- **AND** 租户 scope、membership 和 request resolver 行为保持由 provider 实例实现
+
+#### Scenario: 源码插件声明 AI 文本 Provider
+
+- **WHEN** `linapro-ai-core`提供文本`AI`能力实现
+- **THEN** 插件入口通过`pluginhost.Declarations`的 provider 声明 facade 声明一个`aitext.ProviderFactory`
+- **AND** `aitext`父包不因注册机制收敛新增空 SPI 子包
+- **AND** provider 使用路径继续按插件 enabled snapshot 判断可用性
 
 #### Scenario: 插件禁用后 Provider 不再被使用
 

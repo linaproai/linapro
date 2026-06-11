@@ -14,7 +14,6 @@ import (
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/apitime"
 	"lina-core/pkg/bizerr"
-	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 
@@ -32,23 +31,6 @@ func (s *serviceImpl) SetDataScopeService(scopeSvc datascope.Service) {
 // FilterPermissionMenus returns the original menu slice unchanged.
 func (noopPermissionMenuFilter) FilterPermissionMenus(_ context.Context, menus []*entity.SysMenu) []*entity.SysMenu {
 	return menus
-}
-
-// organizationCapabilityStateFromPermissionFilter reuses the plugin service
-// dependency when it also exposes plugin enablement state.
-func organizationCapabilityStateFromPermissionFilter(permissionFilter PermissionMenuFilter) OrganizationCapabilityState {
-	if state, ok := permissionFilter.(OrganizationCapabilityState); ok {
-		return state
-	}
-	if pluginState, ok := permissionFilter.(pluginEnablementState); ok {
-		return pluginBackedOrganizationCapabilityState{pluginState: pluginState}
-	}
-	return nil
-}
-
-// Available reports whether linapro-org-core is enabled and the orgcap provider exists.
-func (s pluginBackedOrganizationCapabilityState) Available(ctx context.Context) bool {
-	return s.pluginState != nil && orgcapsvc.New(s.pluginState).Available(ctx)
 }
 
 // List queries role list with pagination.

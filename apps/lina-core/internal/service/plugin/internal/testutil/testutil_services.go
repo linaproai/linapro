@@ -49,6 +49,7 @@ import (
 	capabilitymanifest "lina-core/pkg/plugin/capability/manifestcap"
 	capabilitynotifycap "lina-core/pkg/plugin/capability/notifycap"
 	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/plugincap"
 	capabilityconfig "lina-core/pkg/plugin/capability/plugincap"
 	capabilityplugincap "lina-core/pkg/plugin/capability/plugincap"
@@ -56,6 +57,7 @@ import (
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
 	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -237,7 +239,7 @@ type testCapabilities struct {
 	// hostConfig exposes registration-safe host configuration defaults.
 	hostConfig hostconfigcap.Service
 	// tenantFilter exposes a registration-safe tenant filter.
-	tenantFilter tenantcap.PluginTableFilterService
+	tenantFilter tenantspi.PluginTableFilterService
 	// users exposes a registration-safe user-domain capability.
 	users capabilityusercap.Service
 	// storage exposes a registration-safe no-op storage service to source plugins.
@@ -292,7 +294,7 @@ func (s *testCapabilities) Admin() capability.AdminServices {
 
 // AI returns the default AI capability fallback namespace.
 func (s *testCapabilities) AI() capabilityai.Service {
-	return capabilityai.New(capabilityaitext.New(nil))
+	return capabilityai.New(capabilityaitext.New(nil, nil))
 }
 
 // Users returns an empty user-domain service for plugin integration tests.
@@ -401,7 +403,7 @@ func (s *testCapabilities) Notifications() capabilitynotifycap.Service {
 
 // Org returns the default organization capability fallback service.
 func (s *testCapabilities) Org() capabilityorgcap.Service {
-	return capabilityorgcap.New(nil)
+	return orgspi.New(nil, nil)
 }
 
 // Plugins returns the registration-safe plugin-governance domain service.
@@ -435,7 +437,7 @@ func (s *testCapabilities) Storage() storagecap.Service {
 }
 
 // TenantFilter returns the registration-safe tenant filter for plugin integration tests.
-func (s *testCapabilities) TenantFilter() tenantcap.PluginTableFilterService {
+func (s *testCapabilities) TenantFilter() tenantspi.PluginTableFilterService {
 	if s == nil {
 		return nil
 	}
@@ -444,7 +446,7 @@ func (s *testCapabilities) TenantFilter() tenantcap.PluginTableFilterService {
 
 // Tenant returns the default tenant capability fallback service.
 func (s *testCapabilities) Tenant() tenantcap.Service {
-	return tenantcap.New(nil, nil)
+	return tenantspi.New(nil, nil, nil)
 }
 
 // testHostConfigService returns deterministic host configuration values needed
@@ -715,8 +717,8 @@ func (testDictService) ResolveLabels(_ context.Context, _ capmodel.CapabilityCon
 type testTenantFilterService struct{}
 
 // Context returns a platform-bypass tenant context for registration-only tests.
-func (testTenantFilterService) Context(context.Context) tenantcap.TenantFilterContext {
-	return tenantcap.TenantFilterContext{PlatformBypass: true}
+func (testTenantFilterService) Context(context.Context) tenantspi.TenantFilterContext {
+	return tenantspi.TenantFilterContext{PlatformBypass: true}
 }
 
 // Apply returns the model unchanged because registration-only tests never query plugin tables.

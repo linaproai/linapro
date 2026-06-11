@@ -12,6 +12,24 @@ import (
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
+const hostCallsUnavailableMessage = "pluginbridge guest host-call transport is only available for wasip1 builds"
+
+// errHostCallsUnavailable reports that a domain client method is not published
+// through the dynamic-plugin host-service transport.
+var errHostCallsUnavailable error = unavailableError{}
+
+// unavailableError mirrors the public pluginbridge unavailable sentinel without
+// importing the parent package from this internal implementation package.
+type unavailableError struct{}
+
+func (unavailableError) Error() string {
+	return hostCallsUnavailableMessage
+}
+
+func (unavailableError) Is(target error) bool {
+	return target != nil && target.Error() == hostCallsUnavailableMessage
+}
+
 // Invoker dispatches one already-encoded capability host-service request and
 // decodes the host response into out when supplied.
 type Invoker func(service string, method string, request []byte, out any) error

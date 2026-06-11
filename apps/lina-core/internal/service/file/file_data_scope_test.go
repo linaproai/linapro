@@ -27,7 +27,8 @@ import (
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/orgcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // TestFileDataScopeFiltersListDetailDownloadDeleteAndSuffixes verifies file
@@ -49,7 +50,7 @@ func TestFileDataScopeFiltersListDetailDownloadDeleteAndSuffixes(t *testing.T) {
 
 	storage := &fileDataScopeStorage{content: "visible-content"}
 	bizCtxSvc := fileScopeStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
-	orgCapSvc := orgcap.New(nil)
+	orgCapSvc := orgspi.New(nil, nil)
 	roleSvc := newFileDataScopeRoleService(bizCtxSvc, orgCapSvc)
 	svc := &serviceImpl{
 		storage:   storage,
@@ -139,10 +140,10 @@ func TestTenantUploadPersistsCurrentTenantAndListsInTenantScope(t *testing.T) {
 func newFileDataScopeRoleService(bizCtxSvc bizctx.Service, orgCapSvc orgcap.Service) rolesvc.Service {
 	configSvc := hostconfig.New()
 	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
-	tenantSvc := tenantcapsvc.New(nil, bizCtxSvc)
+	tenantSvc := tenantspi.New(nil, nil, bizCtxSvc)
 	roleSvc := rolesvc.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
-	var orgScope orgcap.ScopeService
-	if scope, ok := orgCapSvc.(orgcap.ScopeService); ok {
+	var orgScope orgspi.ScopeService
+	if scope, ok := orgCapSvc.(orgspi.ScopeService); ok {
 		orgScope = scope
 	}
 	roleSvc.SetDataScopeService(datascope.New(bizCtxSvc, roleSvc, orgScope))

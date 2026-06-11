@@ -21,7 +21,7 @@ TBD - created by archiving change refactor-plugin-package-boundaries. Update Pur
 
 ### Requirement: `pluginhost`、`pluginbridge`和`capability`必须职责分离
 
-系统 SHALL 在`pkg/plugin`命名空间下保持三类核心公共组件职责分离：`pluginhost`只负责源码插件贡献 API，`pluginbridge`只负责动态插件 ABI、WASM transport 和公开协议出口，`capability`只负责插件消费宿主能力的稳定目录、公共原语和`*cap`能力契约。`capability`下的具体能力组件 MUST 使用职责明确的`*cap`包；公共原语包不得成为具体能力服务聚合点。
+系统 SHALL 在`pkg/plugin`命名空间下保持三类核心公共组件职责分离：`pluginhost`只负责源码插件贡献 API，`pluginbridge`只负责动态插件 ABI、WASM transport、公开协议出口和动态插件专属 guest SDK，`capability`只负责插件消费宿主能力的稳定目录、公共原语和`*cap`能力契约。`capability`下的具体能力组件 MUST 使用职责明确的`*cap`包；公共原语包不得成为具体能力服务聚合点。仅服务动态插件的 guest SDK（如 record store）MUST 归属`pluginbridge`，不得放入`capability`。
 
 #### Scenario: 源码插件注册贡献
 
@@ -39,7 +39,7 @@ TBD - created by archiving change refactor-plugin-package-boundaries. Update Pur
 
 #### Scenario: 插件消费宿主能力
 
-- **WHEN** 源码插件或动态插件需要访问配置、manifest、缓存、通知、组织、租户、record store 或业务上下文等宿主能力
+- **WHEN** 源码插件或动态插件需要访问配置、manifest、缓存、通知、组织、租户或业务上下文等宿主能力
 - **THEN** 插件使用`pkg/plugin/capability`、对应`pkg/plugin/capability/<domain>cap`能力组件或其 guest client
 - **AND** 能力目录不得被命名为`pluginservice`或动态`hostServices`
 - **AND** 能力 guest client 方法需要的 bridge DTO、常量和 codec 必须直接使用`pkg/plugin/pluginbridge/protocol`，不得在`capability/guest`重复定义公开别名
@@ -47,9 +47,9 @@ TBD - created by archiving change refactor-plugin-package-boundaries. Update Pur
 #### Scenario: 动态插件访问受治理 record store 能力
 
 - **WHEN** 动态插件需要使用 ORM-style record store facade、typed record store plan 或宿主 data governance 适配入口
-- **THEN** 插件使用`pkg/plugin/capability/recordstore`
+- **THEN** 插件使用`pkg/plugin/pluginbridge/recordstore`
 - **AND** Go guest 能力目录通过`RecordStore()`返回该 facade
-- **AND** 不得继续通过顶层`pkg/plugindb`暴露该能力
+- **AND** 不得继续通过`pkg/plugin/capability/recordstore`或顶层`pkg/plugindb`暴露该能力
 
 ### Requirement: 插件可导入契约不得放入`pkg/plugin/internal`
 
@@ -64,8 +64,8 @@ TBD - created by archiving change refactor-plugin-package-boundaries. Update Pur
 #### Scenario: 动态插件导入 record store SDK
 
 - **WHEN** 动态插件 guest 代码需要构造受治理表记录查询、变更或事务
-- **THEN** record store SDK 位于`pkg/plugin/capability/recordstore`
-- **AND** record store SDK 不得位于`pkg/plugin/capability/internal`或`pkg/plugin/internal`
+- **THEN** record store SDK 位于`pkg/plugin/pluginbridge/recordstore`
+- **AND** record store SDK 不得位于`pkg/plugin/pluginbridge/internal`、`pkg/plugin/capability/internal`或`pkg/plugin/internal`
 
 #### Scenario: 源码插件导入业务上下文能力
 
@@ -171,7 +171,7 @@ TBD - created by archiving change refactor-plugin-package-boundaries. Update Pur
 
 ### Requirement: capability 子包命名必须表达能力组件职责
 
-系统 SHALL 要求`apps/lina-core/pkg/plugin/capability`下的插件公开能力组件使用`*cap`命名方式表达领域能力职责。除`guest`、`recordstore`、`internal`和公共原语包等明确非具体能力组件外，公开能力组件 MUST 使用`<domain>cap`包名。
+系统 SHALL 要求`apps/lina-core/pkg/plugin/capability`下的插件公开能力组件使用`*cap`命名方式表达领域能力职责。除`guest`、`internal`和公共原语包等明确非具体能力组件外，公开能力组件 MUST 使用`<domain>cap`包名。
 
 #### Scenario: AI 能力组件命名
 
@@ -224,4 +224,77 @@ TBD - created by archiving change refactor-plugin-package-boundaries. Update Pur
 - **WHEN** 测试替身继续实现旧包路径下的具体服务接口
 - **THEN** Go 编译门禁必须暴露该遗漏
 - **AND** 测试替身必须改为实现新`*cap`接口
+
+### Requirement: `pkg/plugin`顶层组件依赖方向必须固定并受治理验证
+
+系统 SHALL 固定`pkg/plugin`三个公开顶层组件的依赖方向：`capability`是最底层契约层，其非测试代码 MUST NOT import `pkg/plugin/pluginbridge`或`pkg/plugin/pluginhost`的任何子包；`pluginhost`非测试代码 MUST NOT import `pkg/plugin/pluginbridge`的任何子包。`pluginhost`与`pluginbridge`共享的契约类型 MUST 下沉到`capability`公共原语包，不得由其中一方 import 另一方获得。该依赖方向 MUST 由随`go test`执行的治理测试持续验证。
+
+#### Scenario: 治理测试验证 capability 依赖边界
+
+- **WHEN** 执行`pkg/plugin`的 import 边界治理测试
+- **THEN** `capability/**`非测试源文件不存在`lina-core/pkg/plugin/pluginbridge`或`lina-core/pkg/plugin/pluginhost`前缀的 import
+- **AND** 违规时测试失败并指出违规文件和违规 import 路径
+
+#### Scenario: 治理测试验证 pluginhost 依赖边界
+
+- **WHEN** 执行`pkg/plugin`的 import 边界治理测试
+- **THEN** `pluginhost/**`非测试源文件不存在`lina-core/pkg/plugin/pluginbridge`前缀的 import
+- **AND** 违规时测试失败并指出违规文件和违规 import 路径
+
+#### Scenario: 源码插件升级回调使用中立 manifest 快照契约
+
+- **WHEN** `pluginhost`为源码插件升级回调发布 manifest 快照契约
+- **THEN** typed manifest snapshot 类型定义位于`pkg/plugin/capability/capmodel`
+- **AND** `pluginbridge/contract`通过类型别名复用同一定义，动态插件生命周期请求的 JSON wire 格式保持不变
+- **AND** `pluginhost`不因 manifest 快照 import `pluginbridge/contract`
+
+#### Scenario: 测试代码跨边界验证豁免
+
+- **WHEN** `capability`或`pluginhost`的`_test.go`文件为集成验证 import `pluginbridge`
+- **THEN** 治理测试不将其判定为违规
+- **AND** 豁免仅适用于测试代码，不适用于任何生产源文件
+
+### Requirement: capability 普通契约与 SPI 子包边界必须受治理验证
+
+系统 SHALL 要求`pkg/plugin/capability/**`普通生产契约保持无 GoFrame HTTP 和数据库 query builder 依赖。除路径段以`spi`结尾的源码插件 provider SPI 子包外，`capability/**`非测试生产代码 MUST NOT import `github.com/gogf/gf/v2/database/gdb`或`github.com/gogf/gf/v2/net/ghttp`。该约束 MUST 由随`go test`执行的治理测试持续验证。
+
+#### Scenario: 治理测试验证普通 capability 不导入 gdb
+
+- **WHEN** 执行`pkg/plugin`的 import 边界治理测试
+- **THEN** `capability/**`中非`*spi`子包的非测试源文件不存在`github.com/gogf/gf/v2/database/gdb` import
+- **AND** 违规时测试失败并指出违规文件和违规 import 路径
+
+#### Scenario: 治理测试验证普通 capability 不导入 ghttp
+
+- **WHEN** 执行`pkg/plugin`的 import 边界治理测试
+- **THEN** `capability/**`中非`*spi`子包的非测试源文件不存在`github.com/gogf/gf/v2/net/ghttp` import
+- **AND** 违规时测试失败并指出违规文件和违规 import 路径
+
+#### Scenario: SPI 子包允许宿主接缝类型
+
+- **WHEN** `tenantspi`或`orgspi`需要表达数据库 scope helper、request resolver 或 provider runtime
+- **THEN** 对应 SPI 子包可以 import `gdb`或`ghttp`
+- **AND** 该豁免不得扩散到父级`tenantcap`、`orgcap`或其他普通能力包
+
+### Requirement: pluginbridge 不得依赖源码插件 Provider SPI
+
+系统 SHALL 将`pkg/plugin/pluginbridge`限定为动态插件 ABI、transport、公开协议和动态插件专属 guest SDK。`pluginbridge/**`非测试生产代码 MUST NOT import `pkg/plugin/capability/**`下路径段以`spi`结尾的源码插件 provider SPI 子包。该约束 MUST 由随`go test`执行的治理测试持续验证。
+
+#### Scenario: 动态插件 bridge 不导入 tenantspi
+
+- **WHEN** 执行`pkg/plugin`的 import 边界治理测试
+- **THEN** `pluginbridge/**`非测试生产源文件不存在`pkg/plugin/capability/tenantcap/tenantspi` import
+- **AND** 违规时测试失败并指出违规文件和违规 import 路径
+
+#### Scenario: 动态插件 bridge 不导入 orgspi
+
+- **WHEN** 执行`pkg/plugin`的 import 边界治理测试
+- **THEN** `pluginbridge/**`非测试生产源文件不存在`pkg/plugin/capability/orgcap/orgspi` import
+- **AND** 违规时测试失败并指出违规文件和违规 import 路径
+
+#### Scenario: 测试代码跨边界验证豁免
+
+- **WHEN** `capability`、`pluginhost`或`pluginbridge`的`_test.go`文件为治理测试或集成验证 import SPI、`gdb`或`ghttp`
+- **THEN** 治理测试不将其判定为违规
+- **AND** 豁免仅适用于测试代码，不适用于任何生产源文件
 

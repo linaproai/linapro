@@ -47,8 +47,8 @@ import (
 	sysinfosvc "lina-core/internal/service/sysinfo"
 	"lina-core/internal/service/user"
 	"lina-core/internal/service/usermsg"
-	"lina-core/pkg/plugin/capability/orgcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // fakeApiDocService is the apidoc stub used by hosted OpenAPI binding tests.
@@ -989,13 +989,13 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 	if err != nil {
 		panic(err)
 	}
-	orgCapSvc := orgcap.New(pluginSvc)
+	orgCapSvc := orgspi.New(orgspi.NewManager(), pluginSvc)
 	orgProjection := orgCapSvc
-	tenantSvc := tenantcapsvc.New(pluginSvc, bizCtxSvc)
+	tenantSvc := tenantspi.New(tenantspi.NewManager(), pluginSvc, bizCtxSvc)
 	pluginSvc.SetTenantStartupCapability(tenantSvc)
 	pluginSvc.SetTenantProvisioningCapability(tenantSvc)
 	pluginSvc.SetTenantPlatformGovernanceCapability(tenantSvc)
-	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nService, nil, tenantSvc)
+	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nService, orgCapSvc, tenantSvc)
 	kvCacheSvc := kvcache.New()
 	dictSvc := dict.New(i18nService)
 	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)

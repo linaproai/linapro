@@ -18,6 +18,7 @@ import (
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // TestToInternalFilter verifies the published filter contract is converted explicitly.
@@ -216,7 +217,7 @@ func (s *sessionDataScopeStore) BatchGetScoped(
 	ctx context.Context,
 	tokenIDs []string,
 	scopeSvc datascope.Service,
-	tenantSvc tenantcapsvc.ScopeService,
+	tenantSvc tenantspi.ScopeService,
 ) ([]*internalsession.Session, error) {
 	s.batchRequested++
 	requested := make(map[string]struct{}, len(tokenIDs))
@@ -260,7 +261,7 @@ func (s *sessionDataScopeStore) ListPageScoped(
 	filter *internalsession.ListFilter,
 	pageNum, pageSize int,
 	scopeSvc datascope.Service,
-	tenantSvc tenantcapsvc.ScopeService,
+	tenantSvc tenantspi.ScopeService,
 ) (*internalsession.ListResult, error) {
 	items := make([]*internalsession.Session, 0, len(s.sessions))
 	for _, sessionItem := range s.sessions {
@@ -483,5 +484,5 @@ func (s sessionTenantScopeService) ProvisionAutoEnabledTenantPlugins(context.Con
 	return nil
 }
 
-// Interface guard keeps the fake aligned with the tenantcap dependency.
-var _ tenantcapsvc.ScopeService = sessionTenantScopeService{}
+// Interface guard keeps the fake aligned with the tenant SPI dependency.
+var _ tenantspi.ScopeService = sessionTenantScopeService{}

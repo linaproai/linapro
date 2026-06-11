@@ -12,7 +12,9 @@ import (
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/role"
 	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // Status represents user account status.
@@ -78,12 +80,12 @@ type serviceImpl struct {
 	bizCtxSvc     bizctx.Service
 	i18nSvc       userI18nTranslator
 	orgCapSvc     orgcap.Service
-	orgScope      orgcap.ScopeService
-	orgAssignment orgcap.AssignmentService
+	orgScope      orgspi.ScopeService
+	orgAssignment orgspi.AssignmentService
 	roleSvc       role.Service // Role service
 	scopeSvc      datascope.Service
-	tenantScope   tenantcapsvc.ScopeService
-	tenantMembers tenantcapsvc.UserMembershipService
+	tenantScope   tenantspi.ScopeService
+	tenantMembers tenantspi.UserMembershipService
 	tenantAccess  userTenantAccessService
 }
 
@@ -93,12 +95,12 @@ func New(
 	bizCtxSvc bizctx.Service,
 	i18nSvc userI18nTranslator,
 	orgCapSvc orgcap.Service,
-	orgScope orgcap.ScopeService,
-	orgAssignment orgcap.AssignmentService,
+	orgScope orgspi.ScopeService,
+	orgAssignment orgspi.AssignmentService,
 	roleSvc role.Service,
 	scopeSvc datascope.Service,
-	tenantScope tenantcapsvc.ScopeService,
-	tenantMembers tenantcapsvc.UserMembershipService,
+	tenantScope tenantspi.ScopeService,
+	tenantMembers tenantspi.UserMembershipService,
 	tenantAccess userTenantAccessService,
 ) Service {
 	return &serviceImpl{

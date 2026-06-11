@@ -13,7 +13,8 @@ import (
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/capmodel"
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	tenantcap "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // AuthSessionRevoker defines the host auth revocation slice required by the adapter.
@@ -34,7 +35,7 @@ type adapter struct {
 	authSvc      AuthSessionRevoker
 	scopeSvc     datascope.Service
 	sessionStore session.Store
-	tenantSvc    tenantcapsvc.RuntimeService
+	tenantSvc    tenantspi.RuntimeService
 }
 
 var (
@@ -47,7 +48,7 @@ func New(
 	authSvc AuthSessionRevoker,
 	scopeSvc datascope.Service,
 	sessionStore session.Store,
-	tenantSvc tenantcapsvc.RuntimeService,
+	tenantSvc tenantspi.RuntimeService,
 ) Service {
 	return &adapter{
 		authSvc:      authSvc,
@@ -143,7 +144,7 @@ func (a *adapter) RevokeSession(ctx context.Context, _ capmodel.CapabilityContex
 		}
 		if sessionItem != nil {
 			if tenantSvc := a.currentTenantSvc(); tenantSvc != nil {
-				if err = tenantSvc.EnsureTenantVisible(ctx, tenantcapsvc.TenantID(sessionItem.TenantId)); err != nil {
+				if err = tenantSvc.EnsureTenantVisible(ctx, tenantcap.TenantID(sessionItem.TenantId)); err != nil {
 					return err
 				}
 			}
@@ -201,7 +202,7 @@ func (a *adapter) currentScopeSvc() datascope.Service {
 }
 
 // currentTenantSvc returns the shared tenant capability service for session operations.
-func (a *adapter) currentTenantSvc() tenantcapsvc.RuntimeService {
+func (a *adapter) currentTenantSvc() tenantspi.RuntimeService {
 	if a.tenantSvc != nil {
 		return a.tenantSvc
 	}

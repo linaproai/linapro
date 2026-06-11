@@ -25,13 +25,13 @@ import (
 	"lina-core/pkg/plugin/capability/notifycap"
 	"lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/plugincap"
-	"lina-core/pkg/plugin/capability/recordstore"
 	"lina-core/pkg/plugin/capability/routecap"
 	"lina-core/pkg/plugin/capability/sessioncap"
 	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/capability/usercap"
 	"lina-core/pkg/plugin/pluginbridge/internal/domainhostcall"
+	"lina-core/pkg/plugin/pluginbridge/recordstore"
 )
 
 // directory implements the guest-side capability directory.
@@ -47,13 +47,13 @@ func (directory) APIDoc() apidoccap.Service { return domainhostcall.APIDoc(invok
 func (directory) Auth() authcap.Service { return domainhostcall.Auth(invokeCapabilityJSON) }
 
 // Runtime returns the runtime host service guest client.
-func (directory) Runtime() RuntimeHostService { return Runtime() }
+func (directory) Runtime() RuntimeHostService { return runtimeCapability() }
 
 // Storage returns the storage domain guest client.
-func (directory) Storage() storagecap.Service { return Storage() }
+func (directory) Storage() storagecap.Service { return storageCapability() }
 
 // Network returns the outbound network host service guest client.
-func (directory) Network() NetworkHostService { return Network() }
+func (directory) Network() NetworkHostService { return networkCapability() }
 
 // RecordStore returns the governed record store facade for the current dynamic plugin.
 func (directory) RecordStore() *recordstore.DB {
@@ -61,10 +61,10 @@ func (directory) RecordStore() *recordstore.DB {
 }
 
 // Cache returns the cache domain guest client.
-func (directory) Cache() cachecap.Service { return Cache() }
+func (directory) Cache() cachecap.Service { return cacheCapability() }
 
 // Lock returns the distributed lock domain guest client.
-func (directory) Lock() lockcap.Service { return Lock() }
+func (directory) Lock() lockcap.Service { return lockCapability() }
 
 // Plugins returns the plugin-domain guest capability namespace.
 func (directory) Plugins() plugincap.Service { return pluginDirectory{} }
@@ -97,7 +97,7 @@ func (directory) I18n() i18ncap.Service { return domainhostcall.I18n(invokeCapab
 func (directory) Infra() infracap.Service { return domainhostcall.Infra(invokeCapabilityJSON) }
 
 // Jobs returns the scheduled-job domain guest client.
-func (directory) Jobs() jobcap.Service { return jobsCapability() }
+func (directory) Jobs() jobcap.Service { return domainhostcall.Jobs(invokeCapabilityJSON) }
 
 // Notifications returns the notification-domain ordinary read guest client.
 func (directory) Notifications() notifycap.Service {
@@ -123,7 +123,9 @@ func (directory) AI() aicap.Service { return domainhostcall.AI(invokeCapabilityJ
 type pluginDirectory struct{}
 
 // Config returns the plugin-scoped config service exposed by the plugins domain.
-func (pluginDirectory) Config() plugincap.ConfigService { return pluginConfigCapability() }
+func (pluginDirectory) Config() plugincap.ConfigService {
+	return domainhostcall.PluginConfig(invokeGuestHostService)
+}
 
 // Registry returns the plugin-governance projection guest client.
 func (pluginDirectory) Registry() plugincap.RegistryService {

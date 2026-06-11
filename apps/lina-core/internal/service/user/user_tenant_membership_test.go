@@ -18,6 +18,7 @@ import (
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 const (
@@ -61,9 +62,9 @@ func TestUserListUsesMembershipVisibility(t *testing.T) {
 	insertUserTenantMembershipTestUserRole(t, ctx, currentUserID, roleID, 61001)
 	insertUserTenantMembershipTestMembership(t, ctx, currentUserID, 61001, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, ctx, primaryOtherUserID, 61001, userTenantMembershipTestActive)
-	tenantRuntime := activateUserTenantMembershipProvider(t)
+	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 
-	svc := newUserTestService(tenantRuntime).(*serviceImpl)
+	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID, TenantId: 61001}})
 
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20})
@@ -87,9 +88,9 @@ func TestUserListUsesMembershipVisibility(t *testing.T) {
 func TestUserCreateWritesTenantAndMembership(t *testing.T) {
 	ctx := datascope.WithTenantForTest(context.Background(), 61011)
 	ensureUserTenantMembershipTestTables(t, ctx)
-	tenantRuntime := activateUserTenantMembershipProvider(t)
+	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 
-	svc := newUserTestService(tenantRuntime).(*serviceImpl)
+	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	username := fmt.Sprintf("membership-create-%d", time.Now().UnixNano())
 
 	userID, err := svc.Create(ctx, CreateInput{
@@ -126,9 +127,9 @@ func TestPlatformUserCreateWritesSelectedTenantMemberships(t *testing.T) {
 		cleanupUserTenantMembershipTestTenants(t, ctx, []int{tenantAID, tenantBID})
 		cleanupUserDeleteTestRows(t, ctx, []int{operatorID})
 	})
-	tenantRuntime := activateUserTenantMembershipProvider(t)
+	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 
-	svc := newUserTestService(tenantRuntime).(*serviceImpl)
+	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 1}})
 	userID, err := svc.Create(ctx, CreateInput{
 		Username:  username,
@@ -171,12 +172,12 @@ func TestPlatformUserUpdateReplacesTenantMemberships(t *testing.T) {
 		cleanupUserDeleteTestRows(t, ctx, []int{operatorID, userID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
 	})
-	tenantRuntime := activateUserTenantMembershipProvider(t)
+	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 	insertUserDeleteTestUserRole(t, ctx, operatorID, roleID)
 	insertUserTenantMembershipTestMembership(t, ctx, userID, tenantAID, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, ctx, userID, tenantBID, userTenantMembershipTestActive)
 
-	svc := newUserTestService(tenantRuntime).(*serviceImpl)
+	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 1}})
 	if err := svc.Update(ctx, UpdateInput{Id: userID, TenantIds: []int{tenantBID}}); err != nil {
 		t.Fatalf("update platform user memberships: %v", err)
@@ -217,11 +218,11 @@ func TestTenantBoundOperatorCreateAllowsOwnedTenantAssignments(t *testing.T) {
 		cleanupUserTenantMembershipTestTenants(t, ctx, []int{tenantAID, tenantBID})
 		cleanupUserDeleteTestRows(t, ctx, []int{operatorID})
 	})
-	tenantRuntime := activateUserTenantMembershipProvider(t)
+	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 	insertUserTenantMembershipTestMembership(t, ctx, operatorID, tenantAID, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, ctx, operatorID, tenantBID, userTenantMembershipTestActive)
 
-	svc := newUserTestService(tenantRuntime).(*serviceImpl)
+	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}})
 	userID, err := svc.Create(ctx, CreateInput{
 		Username:  username,
@@ -259,10 +260,10 @@ func TestTenantBoundOperatorCreateRejectsForeignTenantAssignments(t *testing.T) 
 		cleanupUserTenantMembershipTestTenants(t, ctx, []int{tenantAID, tenantBID})
 		cleanupUserDeleteTestRows(t, ctx, []int{operatorID})
 	})
-	tenantRuntime := activateUserTenantMembershipProvider(t)
+	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 	insertUserTenantMembershipTestMembership(t, ctx, operatorID, tenantAID, userTenantMembershipTestActive)
 
-	svc := newUserTestService(tenantRuntime).(*serviceImpl)
+	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}})
 	_, err := svc.Create(ctx, CreateInput{
 		Username:  username,
@@ -294,10 +295,10 @@ func TestTenantBoundOperatorCreateRejectsEmptyTenantAssignments(t *testing.T) {
 		cleanupUserTenantMembershipTestTenants(t, ctx, []int{tenantAID})
 		cleanupUserDeleteTestRows(t, ctx, []int{operatorID})
 	})
-	tenantRuntime := activateUserTenantMembershipProvider(t)
+	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 	insertUserTenantMembershipTestMembership(t, ctx, operatorID, tenantAID, userTenantMembershipTestActive)
 
-	svc := newUserTestService(tenantRuntime).(*serviceImpl)
+	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}})
 	_, err := svc.Create(ctx, CreateInput{
 		Username: username,
@@ -328,12 +329,12 @@ func TestTenantBoundOperatorUpdateRejectsForeignTenantAssignments(t *testing.T) 
 		cleanupUserDeleteTestRows(t, ctx, []int{operatorID, userID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
 	})
-	tenantRuntime := activateUserTenantMembershipProvider(t)
+	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 	insertUserDeleteTestUserRole(t, ctx, operatorID, roleID)
 	insertUserTenantMembershipTestMembership(t, ctx, operatorID, tenantAID, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, ctx, userID, tenantAID, userTenantMembershipTestActive)
 
-	svc := newUserTestService(tenantRuntime).(*serviceImpl)
+	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}})
 	err := svc.Update(ctx, UpdateInput{Id: userID, TenantIds: []int{tenantBID}})
 	if err == nil {
@@ -433,12 +434,12 @@ func TestUserListTenantFilterUsesMembershipForPlatformContext(t *testing.T) {
 		cleanupUserDeleteTestRows(t, ctx, []int{userAID, userBID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
 	})
-	tenantRuntime := activateUserTenantMembershipProvider(t)
+	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 	insertUserDeleteTestUserRole(t, ctx, userAID, roleID)
 	insertUserTenantMembershipTestMembership(t, ctx, userAID, tenantAID, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, ctx, userBID, tenantBID, userTenantMembershipTestActive)
 
-	svc := newUserTestService(tenantRuntime).(*serviceImpl)
+	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: userAID, TenantId: 0, DataScope: 1}})
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20, TenantId: &tenantAID})
 	if err != nil {
@@ -470,12 +471,12 @@ func TestTenantBoundOperatorListRejectsForeignTenantFilter(t *testing.T) {
 		cleanupUserDeleteTestRows(t, ctx, []int{operatorID, targetID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
 	})
-	tenantRuntime := activateUserTenantMembershipProvider(t)
+	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 	insertUserDeleteTestUserRole(t, ctx, operatorID, roleID)
 	insertUserTenantMembershipTestMembership(t, ctx, operatorID, tenantAID, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, ctx, targetID, tenantBID, userTenantMembershipTestActive)
 
-	svc := newUserTestService(tenantRuntime).(*serviceImpl)
+	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 2}})
 	_, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20, TenantId: &tenantBID})
 	if err == nil {
@@ -501,11 +502,11 @@ func TestTenantBoundAllScopeOperatorListRejectsForeignTenantFilter(t *testing.T)
 		cleanupUserDeleteTestRows(t, ctx, []int{operatorID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
 	})
-	tenantRuntime := activateUserTenantMembershipProvider(t)
+	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 	insertUserDeleteTestUserRole(t, ctx, operatorID, roleID)
 	insertUserTenantMembershipTestMembership(t, ctx, operatorID, tenantAID, userTenantMembershipTestActive)
 
-	svc := newUserTestService(tenantRuntime).(*serviceImpl)
+	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 1}})
 	_, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20, TenantId: &tenantBID})
 	if err == nil {
@@ -532,13 +533,13 @@ func TestUserListTenantContextIgnoresCrossTenantFilter(t *testing.T) {
 		cleanupUserDeleteTestRows(t, baseCtx, []int{userAID, userBID})
 		cleanupUserDeleteTestRoles(t, baseCtx, []int{roleID})
 	})
-	tenantRuntime := activateUserTenantMembershipProvider(t)
+	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 	insertUserTenantMembershipTestUserRole(t, baseCtx, userAID, roleID, tenantAID)
 	insertUserTenantMembershipTestMembership(t, baseCtx, userAID, tenantAID, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, baseCtx, userBID, tenantBID, userTenantMembershipTestActive)
 
 	ctx := datascope.WithTenantForTest(baseCtx, tenantAID)
-	svc := newUserTestService(tenantRuntime).(*serviceImpl)
+	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: userAID, TenantId: tenantAID}})
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20, TenantId: &tenantBID})
 	if err != nil {
@@ -597,21 +598,22 @@ func (r userTenantMembershipEnablementReader) IsProviderEnabled(_ context.Contex
 }
 
 // TenantProviderEnv returns an empty typed provider environment in user tests.
-func (userTenantMembershipEnablementReader) TenantProviderEnv(string) tenantcap.ProviderEnv {
-	return tenantcap.ProviderEnv{}
+func (userTenantMembershipEnablementReader) TenantProviderEnv(string) tenantspi.ProviderEnv {
+	return tenantspi.ProviderEnv{}
 }
 
 // activateUserTenantMembershipProvider declares the test tenant provider and
 // returns a runtime that enables only that provider plugin.
-func activateUserTenantMembershipProvider(t *testing.T) userTenantMembershipEnablementReader {
+func activateUserTenantMembershipProvider(t *testing.T) (*tenantspi.Manager, userTenantMembershipEnablementReader) {
 	t.Helper()
 	providerPluginID := fmt.Sprintf("plugin-test-user-tenant-provider-%d", time.Now().UnixNano())
-	if err := tenantcap.Provide(providerPluginID, func(context.Context, tenantcap.ProviderEnv) (tenantcap.Provider, error) {
+	manager := tenantspi.NewManager()
+	if err := manager.RegisterFactory(providerPluginID, func(context.Context, tenantspi.ProviderEnv) (tenantspi.Provider, error) {
 		return &userTenantMembershipTestProvider{}, nil
 	}); err != nil {
 		t.Fatalf("register user tenant provider: %v", err)
 	}
-	return userTenantMembershipEnablementReader{pluginID: providerPluginID}
+	return manager, userTenantMembershipEnablementReader{pluginID: providerPluginID}
 }
 
 // userTenantMembershipTestProvider satisfies the tenantcap provider contract for tests.

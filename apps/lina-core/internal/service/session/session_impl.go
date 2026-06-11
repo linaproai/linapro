@@ -14,7 +14,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 
 	"github.com/gogf/gf/v2/database/gdb"
 )
@@ -122,7 +122,7 @@ func (s *DBStore) BatchGetScoped(
 	ctx context.Context,
 	tokenIds []string,
 	scopeSvc datascope.Service,
-	tenantSvc tenantcapsvc.ScopeService,
+	tenantSvc tenantspi.ScopeService,
 ) ([]*Session, error) {
 	requestedTokenIDs := normalizeSessionTokenIDs(tokenIds)
 	if len(requestedTokenIDs) == 0 {
@@ -301,7 +301,7 @@ func (s *DBStore) ListPageScoped(
 	filter *ListFilter,
 	pageNum, pageSize int,
 	scopeSvc datascope.Service,
-	tenantSvc tenantcapsvc.ScopeService,
+	tenantSvc tenantspi.ScopeService,
 ) (*ListResult, error) {
 	m := dao.SysOnlineSession.Ctx(ctx)
 	if filter != nil {

@@ -6,11 +6,16 @@ package pluginbridge
 import (
 	"context"
 	"errors"
+	"go/parser"
+	"go/token"
+	"io/fs"
+	"path/filepath"
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
 
 	"lina-core/pkg/plugin/capability/aicap/aitext"
-	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -20,14 +25,19 @@ import (
 func TestDefaultDirectoryReturnsCapabilityClients(t *testing.T) {
 	services := New()
 
-	assertSameClient(t, services.Runtime(), Runtime(), "runtime")
-	assertSameClient(t, services.Storage(), Storage(), "storage")
-	assertSameClient(t, services.Network(), Network(), "network")
+	assertClientAvailable(t, services.Runtime(), "runtime")
+	assertClientAvailable(t, Runtime(), "runtime package helper")
+	assertClientAvailable(t, services.Storage(), "storage")
+	assertClientAvailable(t, Storage(), "storage package helper")
+	assertClientAvailable(t, services.Network(), "network")
+	assertClientAvailable(t, Network(), "network package helper")
 	if services.RecordStore() == nil {
 		t.Fatal("expected record store facade to come from pluginbridge guest directory")
 	}
-	assertSameClient(t, services.Cache(), Cache(), "cache")
-	assertSameClient(t, services.Lock(), Lock(), "lock")
+	assertClientAvailable(t, services.Cache(), "cache")
+	assertClientAvailable(t, Cache(), "cache package helper")
+	assertClientAvailable(t, services.Lock(), "lock")
+	assertClientAvailable(t, Lock(), "lock package helper")
 	if services.Plugins().Config() == nil {
 		t.Fatal("expected plugin config capability client")
 	}
@@ -115,39 +125,27 @@ func TestGuestRuntimeRoundTrip(t *testing.T) {
 	}
 }
 
-// TestStorageListEffectiveLimit verifies guest storage list responses expose
-// the same bounded limit semantics as storagecap.Service implementations.
-func TestStorageListEffectiveLimit(t *testing.T) {
+// TestPluginBridgeDoesNotImportCapabilitySPI verifies dynamic-plugin guest SDK
+// code does not compile provider SPI-only packages into guest closures.
+func TestPluginBridgeDoesNotImportCapabilitySPI(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		in   int
-		want int
-	}{
-		{name: "default", in: 0, want: storagecap.DefaultListLimit},
-		{name: "negative default", in: -1, want: storagecap.DefaultListLimit},
-		{name: "bounded", in: 10, want: 10},
-		{name: "max", in: storagecap.MaxListLimit + 1, want: storagecap.MaxListLimit},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := storageListEffectiveLimit(c.in); got != c.want {
-				t.Fatalf("storageListEffectiveLimit(%d) = %d, want %d", c.in, got, c.want)
-			}
-		})
+	violations := collectPluginbridgeImportViolations(t, ".", func(importPath string) bool {
+		return isCapabilitySPIImport(importPath)
+	})
+	for _, violation := range violations {
+		t.Errorf("pluginbridge SPI import violation: %s", violation)
 	}
 }
 
-// assertSameClient verifies directory methods return the package default clients.
-func assertSameClient(t *testing.T, got any, want any, name string) {
+// assertClientAvailable verifies directory methods and package helpers return a
+// concrete guest client. Client construction is intentionally per-call so all
+// host service families share the injected invoker shape.
+func assertClientAvailable(t *testing.T, got any, name string) {
 	t.Helper()
 
-	if got != want {
-		t.Fatalf("expected %s client to come from pluginbridge guest package", name)
+	if got == nil {
+		t.Fatalf("expected %s client", name)
 	}
 }
 
@@ -159,4 +157,54 @@ func assertGuestInterfaceType(t *testing.T, value interface{}, name string) {
 	if reflect.TypeOf(value).Elem().Kind() != reflect.Interface {
 		t.Fatalf("expected %s to be declared as interface", name)
 	}
+}
+
+// collectPluginbridgeImportViolations walks production Go files under scanRoot
+// and reports imports rejected by match.
+func collectPluginbridgeImportViolations(t *testing.T, scanRoot string, match func(importPath string) bool) []string {
+	t.Helper()
+
+	var violations []string
+	walkErr := filepath.WalkDir(scanRoot, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		fileSet := token.NewFileSet()
+		parsed, parseErr := parser.ParseFile(fileSet, path, nil, parser.ImportsOnly)
+		if parseErr != nil {
+			return parseErr
+		}
+		for _, importSpec := range parsed.Imports {
+			importPath, unquoteErr := strconv.Unquote(importSpec.Path.Value)
+			if unquoteErr != nil {
+				return unquoteErr
+			}
+			if match(importPath) {
+				violations = append(violations, path+" imports "+importPath)
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("scan %s for forbidden imports: %v", scanRoot, walkErr)
+	}
+	return violations
+}
+
+// isCapabilitySPIImport reports whether one import path targets a capability
+// provider SPI package whose path segment ends with "spi".
+func isCapabilitySPIImport(importPath string) bool {
+	const prefix = "lina-core/pkg/plugin/capability/"
+	if !strings.HasPrefix(importPath, prefix) {
+		return false
+	}
+	for _, segment := range strings.Split(strings.TrimPrefix(importPath, prefix), "/") {
+		if strings.HasSuffix(segment, "spi") {
+			return true
+		}
+	}
+	return false
 }

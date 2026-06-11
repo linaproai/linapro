@@ -2,15 +2,15 @@
 // returned through the public pluginhost upgrade callback contract.
 package manifestview
 
-import bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+import "lina-core/pkg/plugin/capability/capmodel"
 
 // Snapshot is the host-owned immutable manifest snapshot view.
 type Snapshot struct {
-	value bridgecontract.ManifestSnapshotV1
+	value capmodel.ManifestSnapshot
 }
 
 // NewSnapshot creates one immutable manifest snapshot view.
-func NewSnapshot(value *bridgecontract.ManifestSnapshotV1) *Snapshot {
+func NewSnapshot(value *capmodel.ManifestSnapshot) *Snapshot {
 	if value == nil {
 		return nil
 	}
@@ -51,8 +51,8 @@ func (s *Snapshot) Type() string {
 	return s.value.Type
 }
 
-// Values returns a copy of the shared typed manifest snapshot contract.
-func (s *Snapshot) Values() *bridgecontract.ManifestSnapshotV1 {
+// Values returns a copy of the typed manifest snapshot primitive.
+func (s *Snapshot) Values() *capmodel.ManifestSnapshot {
 	if s == nil {
 		return nil
 	}

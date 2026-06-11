@@ -18,7 +18,7 @@ import (
 	capabilitymanifest "lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/capability/plugincap"
 	capabilityconfig "lina-core/pkg/plugin/capability/plugincap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // wasmHostServiceTestDeps groups explicit dependencies for the root Wasm host
@@ -105,7 +105,7 @@ func newWasmHostServiceTestDeps(t *testing.T) *wasmHostServiceTestDeps {
 	configSvc := configsvc.New()
 	bizCtxSvc := bizctx.New()
 	return &wasmHostServiceTestDeps{
-		notifySvc:       notifysvc.New(tenantcapsvc.New(nil, bizCtxSvc)),
+		notifySvc:       notifysvc.New(tenantspi.New(nil, nil, bizCtxSvc)),
 		hostServices:    newRootTestCapabilities(bizCtxSvc, nil),
 		configFactory:   capabilityconfig.NewConfigFactory("", ""),
 		hostConfigSvc:   capabilityhostconfig.New(mustHostConfigRawReaderForTest(t, configSvc)),

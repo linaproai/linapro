@@ -9,7 +9,6 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
-	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
@@ -49,15 +48,6 @@ type PermissionMenuFilter interface {
 type OrganizationCapabilityState interface {
 	// Available reports whether organization capability is currently usable.
 	Available(ctx context.Context) bool
-}
-
-// pluginEnablementState defines the plugin-status reader used to derive
-// organization capability state in production controllers.
-type pluginEnablementState interface {
-	// IsProviderEnabled returns whether the given plugin ID can serve framework provider calls.
-	IsProviderEnabled(ctx context.Context, pluginID string) bool
-	// OrgProviderEnv returns typed, plugin-scoped organization provider construction inputs.
-	OrgProviderEnv(pluginID string) orgcapsvc.ProviderEnv
 }
 
 // RoleQueryService defines read-only role management operations.
@@ -190,12 +180,16 @@ type serviceImpl struct {
 }
 
 // New creates and returns a new role service from explicit runtime-owned dependencies.
-func New(permissionFilter PermissionMenuFilter, bizCtxSvc bizctx.Service, configSvc config.Service, i18nSvc roleI18nTranslator, orgCapabilityState OrganizationCapabilityState, tenantSvc roleTenantGovernanceService) Service {
+func New(
+	permissionFilter PermissionMenuFilter,
+	bizCtxSvc bizctx.Service,
+	configSvc config.Service,
+	i18nSvc roleI18nTranslator,
+	orgCapabilityState OrganizationCapabilityState,
+	tenantSvc roleTenantGovernanceService,
+) Service {
 	if permissionFilter == nil {
 		permissionFilter = noopPermissionMenuFilter{}
-	}
-	if orgCapabilityState == nil {
-		orgCapabilityState = organizationCapabilityStateFromPermissionFilter(permissionFilter)
 	}
 	svc := &serviceImpl{
 		bizCtxSvc:          bizCtxSvc,
@@ -234,12 +228,6 @@ type roleTenantGovernanceService interface {
 // noopPermissionMenuFilter keeps permission menus unchanged when no external
 // plugin-aware filter is injected into the role service.
 type noopPermissionMenuFilter struct{}
-
-// pluginBackedOrganizationCapabilityState derives organization capability from
-// both plugin enablement state and the registered orgcap provider.
-type pluginBackedOrganizationCapabilityState struct {
-	pluginState pluginEnablementState
-}
 
 // ListInput defines filters and pagination for role list queries.
 type ListInput struct {

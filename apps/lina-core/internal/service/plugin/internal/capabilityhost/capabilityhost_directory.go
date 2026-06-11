@@ -23,8 +23,8 @@ import (
 	"lina-core/pkg/plugin/capability/routecap"
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
 	"lina-core/pkg/plugin/capability/storagecap"
-	"lina-core/pkg/plugin/capability/tenantcap"
 	capabilitytenantcap "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 )
 
@@ -181,7 +181,7 @@ func (s *directory) Storage() storagecap.Service {
 }
 
 // TenantFilter returns the host tenant-filter adapter.
-func (s *directory) TenantFilter() tenantcap.PluginTableFilterService {
+func (s *directory) TenantFilter() tenantspi.PluginTableFilterService {
 	if s == nil {
 		return nil
 	}
@@ -368,7 +368,7 @@ func (s *scopedDirectory) Storage() storagecap.Service {
 }
 
 // TenantFilter returns the delegated tenant-filter adapter.
-func (s *scopedDirectory) TenantFilter() tenantcap.PluginTableFilterService {
+func (s *scopedDirectory) TenantFilter() tenantspi.PluginTableFilterService {
 	if s == nil || s.base == nil {
 		return nil
 	}

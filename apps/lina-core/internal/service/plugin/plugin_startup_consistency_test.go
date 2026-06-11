@@ -24,6 +24,7 @@ import (
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 const startupConsistencyMembershipTable = "plugin_linapro_tenant_core_user_membership"
@@ -678,15 +679,16 @@ func (g pluginTenantGuard) PlatformBypass(context.Context) bool {
 
 // newPluginPlatformGuardTenantService creates a real tenantcap service with
 // one enabled test provider for plugin facade entry-point tests.
-func newPluginPlatformGuardTenantService(t *testing.T) tenantcap.RuntimeService {
+func newPluginPlatformGuardTenantService(t *testing.T) tenantspi.RuntimeService {
 	t.Helper()
 	providerPluginID := fmt.Sprintf("plugin-test-plugin-tenant-provider-%d", time.Now().UnixNano())
-	if err := tenantcap.Provide(providerPluginID, func(context.Context, tenantcap.ProviderEnv) (tenantcap.Provider, error) {
+	manager := tenantspi.NewManager()
+	if err := manager.RegisterFactory(providerPluginID, func(context.Context, tenantspi.ProviderEnv) (tenantspi.Provider, error) {
 		return pluginPlatformGuardProvider{}, nil
 	}); err != nil {
 		t.Fatalf("register plugin tenant provider: %v", err)
 	}
-	return tenantcap.New(pluginPlatformGuardProviderRuntime{pluginID: providerPluginID}, bizctx.New())
+	return tenantspi.New(manager, pluginPlatformGuardProviderRuntime{pluginID: providerPluginID}, bizctx.New())
 }
 
 // pluginPlatformGuardProviderRuntime marks exactly one test provider plugin enabled.
@@ -700,8 +702,8 @@ func (r pluginPlatformGuardProviderRuntime) IsProviderEnabled(_ context.Context,
 }
 
 // TenantProviderEnv returns an empty typed provider environment in plugin facade tests.
-func (pluginPlatformGuardProviderRuntime) TenantProviderEnv(string) tenantcap.ProviderEnv {
-	return tenantcap.ProviderEnv{}
+func (pluginPlatformGuardProviderRuntime) TenantProviderEnv(string) tenantspi.ProviderEnv {
+	return tenantspi.ProviderEnv{}
 }
 
 // pluginPlatformGuardProvider satisfies the tenantcap provider contract for

@@ -13,7 +13,7 @@ import (
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/capmodel"
 	capabilityjobcap "lina-core/pkg/plugin/capability/jobcap"
-	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // Service exposes the scheduled-job domain service and management commands.
@@ -24,7 +24,7 @@ type Service interface {
 
 // adapter exposes scheduled-job projections without leaking sys_job entities.
 type adapter struct {
-	tenantFilter tenantcap.PluginTableFilterService
+	tenantFilter tenantspi.PluginTableFilterService
 }
 
 var (
@@ -33,7 +33,7 @@ var (
 )
 
 // New creates the host-owned scheduled-job capability adapter.
-func New(tenantFilter tenantcap.PluginTableFilterService) Service {
+func New(tenantFilter tenantspi.PluginTableFilterService) Service {
 	return &adapter{tenantFilter: tenantFilter}
 }
 

@@ -35,12 +35,14 @@ import (
 	"lina-core/pkg/plugin/capability/manifestcap"
 	capabilitynotifycap "lina-core/pkg/plugin/capability/notifycap"
 	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/plugincap"
 	capabilityplugincap "lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/routecap"
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
 	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
@@ -213,17 +215,18 @@ func configureDomainHostServicesForCapabilityTest(t *testing.T, services capabil
 // calls are routed through capability.Services.Org.
 func TestHandleHostServiceInvokeOrgMethods(t *testing.T) {
 	providerPluginID := fmt.Sprintf("plugin-test-org-provider-%d", time.Now().UnixNano())
-	if err := orgcap.Provide(providerPluginID, func(context.Context, orgcap.ProviderEnv) (orgcap.Provider, error) {
+	orgManager := orgspi.NewManager()
+	if err := orgManager.RegisterFactory(providerPluginID, func(context.Context, orgspi.ProviderEnv) (orgspi.Provider, error) {
 		return capabilityHostServiceOrgProvider{}, nil
 	}); err != nil {
 		t.Fatalf("register org provider failed: %v", err)
 	}
 
 	services := &capabilityHostServiceTestServices{
-		org:           orgcap.New(capabilityHostServiceOrgRuntime{pluginID: providerPluginID}),
-		aiText:        aitext.New(nil),
+		org:           orgspi.New(orgManager, capabilityHostServiceOrgRuntime{pluginID: providerPluginID}),
+		aiText:        aitext.New(nil, nil),
 		users:         &capabilityHostServiceUsersService{},
-		tenant:        tenantcap.New(nil, nil),
+		tenant:        tenantspi.New(nil, nil, nil),
 		scopeRecorder: &capabilityHostServiceScopeRecorder{},
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
@@ -270,17 +273,18 @@ func TestHandleHostServiceInvokeOrgMethods(t *testing.T) {
 // organization host services cannot inspect users outside the actor data scope.
 func TestHandleHostServiceInvokeOrgRejectsInvisibleTargetUser(t *testing.T) {
 	providerPluginID := fmt.Sprintf("plugin-test-org-visible-%d", time.Now().UnixNano())
-	if err := orgcap.Provide(providerPluginID, func(context.Context, orgcap.ProviderEnv) (orgcap.Provider, error) {
+	orgManager := orgspi.NewManager()
+	if err := orgManager.RegisterFactory(providerPluginID, func(context.Context, orgspi.ProviderEnv) (orgspi.Provider, error) {
 		return capabilityHostServiceOrgProvider{}, nil
 	}); err != nil {
 		t.Fatalf("register org provider failed: %v", err)
 	}
 	userSvc := &capabilityHostServiceUsersService{ensureErr: errors.New("target user is outside data scope")}
 	services := &capabilityHostServiceTestServices{
-		org:    orgcap.New(capabilityHostServiceOrgRuntime{pluginID: providerPluginID}),
-		aiText: aitext.New(nil),
+		org:    orgspi.New(orgManager, capabilityHostServiceOrgRuntime{pluginID: providerPluginID}),
+		aiText: aitext.New(nil, nil),
 		users:  userSvc,
-		tenant: tenantcap.New(nil, nil),
+		tenant: tenantspi.New(nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
 
@@ -308,10 +312,10 @@ func TestHandleHostServiceInvokeUserMethods(t *testing.T) {
 		},
 	}
 	services := &capabilityHostServiceTestServices{
-		org:           orgcap.New(nil),
-		aiText:        aitext.New(nil),
+		org:           orgspi.New(nil, nil),
+		aiText:        aitext.New(nil, nil),
 		users:         userSvc,
-		tenant:        tenantcap.New(nil, nil),
+		tenant:        tenantspi.New(nil, nil, nil),
 		scopeRecorder: &capabilityHostServiceScopeRecorder{},
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
@@ -380,10 +384,10 @@ func TestHandleHostServiceInvokeAdditionalDomainMethods(t *testing.T) {
 	dictSvc := &capabilityHostServiceDictService{}
 	services := &capabilityHostServiceTestServices{
 		auth:   authcap.New(nil, authzSvc),
-		org:    orgcap.New(nil),
-		aiText: aitext.New(nil),
+		org:    orgspi.New(nil, nil),
+		aiText: aitext.New(nil, nil),
 		dict:   dictSvc,
-		tenant: tenantcap.New(nil, nil),
+		tenant: tenantspi.New(nil, nil, nil),
 	}
 	previous := currentHostServiceRuntime()
 	if err := ConfigureDomainHostServices(services); err != nil {
@@ -443,8 +447,8 @@ func TestHandleHostServiceInvokeTenantMethods(t *testing.T) {
 		},
 	}
 	services := &capabilityHostServiceTestServices{
-		org:    orgcap.New(nil),
-		aiText: aitext.New(nil),
+		org:    orgspi.New(nil, nil),
+		aiText: aitext.New(nil, nil),
 		users:  &capabilityHostServiceUsersService{},
 		tenant: tenantSvc,
 	}
@@ -489,8 +493,8 @@ func TestHandleHostServiceInvokeTenantRejectsInvisibleTargetUser(t *testing.T) {
 	userSvc := &capabilityHostServiceUsersService{ensureErr: errors.New("target user is outside data scope")}
 	tenantSvc := &capabilityHostServiceTenantService{}
 	services := &capabilityHostServiceTestServices{
-		org:    orgcap.New(nil),
-		aiText: aitext.New(nil),
+		org:    orgspi.New(nil, nil),
+		aiText: aitext.New(nil, nil),
 		users:  userSvc,
 		tenant: tenantSvc,
 	}
@@ -529,9 +533,9 @@ func TestHandleHostServiceInvokeAITextGenerate(t *testing.T) {
 		},
 	}
 	services := &capabilityHostServiceTestServices{
-		org:    orgcap.New(nil),
+		org:    orgspi.New(nil, nil),
 		aiText: aiSvc,
-		tenant: tenantcap.New(nil, nil),
+		tenant: tenantspi.New(nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
 
@@ -572,9 +576,9 @@ func TestHandleHostServiceInvokeAITextGenerate(t *testing.T) {
 func TestHandleHostServiceInvokeAITextRoutesPurposeFromDTO(t *testing.T) {
 	aiSvc := &capabilityHostServiceAITextService{}
 	services := &capabilityHostServiceTestServices{
-		org:    orgcap.New(nil),
+		org:    orgspi.New(nil, nil),
 		aiText: aiSvc,
-		tenant: tenantcap.New(nil, nil),
+		tenant: tenantspi.New(nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
 
@@ -607,9 +611,9 @@ func TestHandleHostServiceInvokeAITextRoutesPurposeFromDTO(t *testing.T) {
 func TestHandleHostServiceInvokeAITextDoesNotEnforceOutputLimit(t *testing.T) {
 	aiSvc := &capabilityHostServiceAITextService{}
 	services := &capabilityHostServiceTestServices{
-		org:    orgcap.New(nil),
+		org:    orgspi.New(nil, nil),
 		aiText: aiSvc,
-		tenant: tenantcap.New(nil, nil),
+		tenant: tenantspi.New(nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
 
@@ -642,9 +646,9 @@ func TestHandleHostServiceInvokeAITextDoesNotEnforceOutputLimit(t *testing.T) {
 func TestHandleHostServiceInvokeAITextDoesNotApplyDefaultOutputLimit(t *testing.T) {
 	aiSvc := &capabilityHostServiceAITextService{}
 	services := &capabilityHostServiceTestServices{
-		org:    orgcap.New(nil),
+		org:    orgspi.New(nil, nil),
 		aiText: aiSvc,
-		tenant: tenantcap.New(nil, nil),
+		tenant: tenantspi.New(nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
 
@@ -676,9 +680,9 @@ func TestHandleHostServiceInvokeAITextDoesNotApplyDefaultOutputLimit(t *testing.
 func TestHandleHostServiceInvokeAIRejectsUnauthorizedMethod(t *testing.T) {
 	aiSvc := &capabilityHostServiceAITextService{}
 	services := &capabilityHostServiceTestServices{
-		org:    orgcap.New(nil),
+		org:    orgspi.New(nil, nil),
 		aiText: aiSvc,
-		tenant: tenantcap.New(nil, nil),
+		tenant: tenantspi.New(nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
 
@@ -706,9 +710,9 @@ func TestHandleHostServiceInvokeAITextRedactsProviderErrors(t *testing.T) {
 		err: errors.New("provider failed authorization bearer sk-secret with full prompt body"),
 	}
 	services := &capabilityHostServiceTestServices{
-		org:    orgcap.New(nil),
+		org:    orgspi.New(nil, nil),
 		aiText: aiSvc,
-		tenant: tenantcap.New(nil, nil),
+		tenant: tenantspi.New(nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
 
@@ -745,10 +749,10 @@ func TestHandleHostServiceInvokeAITextRedactsProviderErrors(t *testing.T) {
 func TestHandleHostServiceInvokePluginLifecycleMethods(t *testing.T) {
 	lifecycle := &capabilityHostServicePluginLifecycle{}
 	services := &capabilityHostServiceTestServices{
-		org:           orgcap.New(nil),
-		aiText:        aitext.New(nil),
+		org:           orgspi.New(nil, nil),
+		aiText:        aitext.New(nil, nil),
 		plugins:       &capabilityHostServicePluginsService{lifecycle: lifecycle},
-		tenant:        tenantcap.New(nil, nil),
+		tenant:        tenantspi.New(nil, nil, nil),
 		scopeRecorder: &capabilityHostServiceScopeRecorder{},
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
@@ -819,10 +823,10 @@ func TestHandleHostServiceInvokePluginLifecycleMethods(t *testing.T) {
 func TestHandleHostServiceInvokePluginLifecycleRequiresMethodAuthorization(t *testing.T) {
 	lifecycle := &capabilityHostServicePluginLifecycle{}
 	services := &capabilityHostServiceTestServices{
-		org:     orgcap.New(nil),
-		aiText:  aitext.New(nil),
+		org:     orgspi.New(nil, nil),
+		aiText:  aitext.New(nil, nil),
 		plugins: &capabilityHostServicePluginsService{lifecycle: lifecycle},
-		tenant:  tenantcap.New(nil, nil),
+		tenant:  tenantspi.New(nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
 
@@ -1429,8 +1433,8 @@ func (r capabilityHostServiceOrgRuntime) IsProviderEnabled(_ context.Context, pl
 }
 
 // OrgProviderEnv returns an empty typed provider environment in host-service tests.
-func (capabilityHostServiceOrgRuntime) OrgProviderEnv(string) orgcap.ProviderEnv {
-	return orgcap.ProviderEnv{}
+func (capabilityHostServiceOrgRuntime) OrgProviderEnv(string) orgspi.ProviderEnv {
+	return orgspi.ProviderEnv{}
 }
 
 // capabilityHostServiceTenantService records tenant method calls for tests.

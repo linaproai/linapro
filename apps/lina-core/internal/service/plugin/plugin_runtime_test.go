@@ -24,6 +24,7 @@ import (
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -180,10 +181,11 @@ func TestSourceProviderAvailabilityFollowsEnabledSnapshot(t *testing.T) {
 	}
 	t.Cleanup(cleanup)
 
-	if err = tenantcap.Provide(pluginID, func(
+	tenantManager := tenantspi.NewManager()
+	if err = tenantManager.RegisterFactory(pluginID, func(
 		context.Context,
-		tenantcap.ProviderEnv,
-	) (tenantcap.Provider, error) {
+		tenantspi.ProviderEnv,
+	) (tenantspi.Provider, error) {
 		return capabilityRevisionProvider{}, nil
 	}); err != nil {
 		t.Fatalf("register tenant provider factory failed: %v", err)
@@ -192,7 +194,7 @@ func TestSourceProviderAvailabilityFollowsEnabledSnapshot(t *testing.T) {
 	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("install source provider plugin failed: %v", err)
 	}
-	tenantSvc := tenantcap.New(capabilityRevisionRuntime{service: service, pluginID: pluginID}, nil)
+	tenantSvc := tenantspi.New(tenantManager, capabilityRevisionRuntime{service: service, pluginID: pluginID}, nil)
 	status := tenantSvc.Status(ctx)
 	if status.Available || status.ActiveProvider == pluginID {
 		t.Fatalf("expected installed-but-disabled provider unavailable, got %#v", status)
@@ -876,8 +878,8 @@ func (r capabilityRevisionRuntime) IsProviderEnabled(ctx context.Context, plugin
 }
 
 // TenantProviderEnv returns the minimal environment required by the no-op test provider.
-func (capabilityRevisionRuntime) TenantProviderEnv(string) tenantcap.ProviderEnv {
-	return tenantcap.ProviderEnv{}
+func (capabilityRevisionRuntime) TenantProviderEnv(string) tenantspi.ProviderEnv {
+	return tenantspi.ProviderEnv{}
 }
 
 // ResolveTenant returns the platform tenant.

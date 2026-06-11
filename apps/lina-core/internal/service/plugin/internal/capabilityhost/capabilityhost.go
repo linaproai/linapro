@@ -48,8 +48,8 @@ import (
 	"lina-core/pkg/plugin/capability/routecap"
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
 	"lina-core/pkg/plugin/capability/storagecap"
-	"lina-core/pkg/plugin/capability/tenantcap"
 	capabilitytenantcap "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -145,7 +145,7 @@ type directory struct {
 	storageRuntime  storagecap.ProviderRuntime // storageRuntime selects the active storage provider.
 	storageProvider storagecap.Provider        // storageProvider is the built-in local provider.
 	tenant          capabilitytenantcap.Service
-	tenantFilter    tenantcap.PluginTableFilterService // tenantFilter exposes plugin table tenant filtering.
+	tenantFilter    tenantspi.PluginTableFilterService // tenantFilter exposes plugin table tenant filtering.
 }
 
 // scopedDirectory wraps a base directory with one plugin-bound cache adapter.
@@ -183,7 +183,7 @@ func New(
 	sessionStore session.Store,
 	aiTextSvc capabilityaitext.Service,
 	orgSvc capabilityorgcap.Service,
-	tenantSvc capabilitytenantcap.RuntimeService,
+	tenantSvc tenantspi.RuntimeService,
 	notifySvc NotifyPublisher,
 	kvCacheSvc kvcache.Service,
 	lockSvc hostlock.Service,
@@ -200,7 +200,7 @@ func New(
 		return nil, gerror.New("create plugin host services failed: local storage provider is nil")
 	}
 	bizCtxAdapter := newBizCtxAdapter(bizCtxSvc)
-	tenantFilterSvc, err := capabilitytenantcap.NewPluginTableFilter(bizCtxAdapter, tenantSvc)
+	tenantFilterSvc, err := tenantspi.NewPluginTableFilter(bizCtxAdapter, tenantSvc)
 	if err != nil {
 		return nil, gerror.Wrap(err, "create plugin tenant filter service failed")
 	}

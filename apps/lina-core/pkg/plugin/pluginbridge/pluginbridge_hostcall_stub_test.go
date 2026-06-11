@@ -43,6 +43,10 @@ func TestHostCallStubsReturnUnavailable(t *testing.T) {
 			})
 			return err
 		}},
+		{name: "storage provider statuses", run: func() error {
+			_, err := Storage().ProviderStatuses(t.Context())
+			return err
+		}},
 		{name: "network", run: func() error {
 			_, err := Network().Request("https://example.com", &protocol.HostServiceNetworkRequest{})
 			return err

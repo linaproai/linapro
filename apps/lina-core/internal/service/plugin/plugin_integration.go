@@ -6,15 +6,15 @@ package plugin
 import (
 	"context"
 
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/pkg/plugin/capability"
 	aitextsvc "lina-core/pkg/plugin/capability/aicap/aitext"
-	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
-	"lina-core/pkg/plugin/capability/tenantcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -115,8 +115,8 @@ func (s *serviceImpl) AITextProviderEnv(pluginID string) aitextsvc.ProviderEnv {
 }
 
 // OrgProviderEnv returns typed, plugin-scoped organization-provider construction inputs.
-func (s *serviceImpl) OrgProviderEnv(pluginID string) orgcapsvc.ProviderEnv {
-	env := orgcapsvc.ProviderEnv{PluginID: pluginID}
+func (s *serviceImpl) OrgProviderEnv(pluginID string) orgspi.ProviderEnv {
+	env := orgspi.ProviderEnv{PluginID: pluginID}
 	if s == nil || s.capabilities == nil {
 		return env
 	}
@@ -125,7 +125,7 @@ func (s *serviceImpl) OrgProviderEnv(pluginID string) orgcapsvc.ProviderEnv {
 		return env
 	}
 	sourceServices, ok := services.(interface {
-		TenantFilter() tenantcap.PluginTableFilterService
+		TenantFilter() tenantspi.PluginTableFilterService
 	})
 	if !ok {
 		return env
@@ -135,9 +135,49 @@ func (s *serviceImpl) OrgProviderEnv(pluginID string) orgcapsvc.ProviderEnv {
 	return env
 }
 
+// RegisterSourcePluginProviderFactories registers compile-time source-plugin
+// provider declarations into the startup-owned shared provider managers.
+func (s *serviceImpl) RegisterSourcePluginProviderFactories(
+	tenantManager *tenantspi.Manager,
+	orgManager *orgspi.Manager,
+	aiTextManager *aitextsvc.Manager,
+) error {
+	for _, definition := range pluginhost.ListSourcePlugins() {
+		if definition == nil {
+			continue
+		}
+		pluginID := definition.ID()
+		if factory := definition.GetTenantProviderFactory(); factory != nil {
+			if tenantManager == nil {
+				return gerror.New("plugin service requires tenant provider manager")
+			}
+			if err := tenantManager.RegisterFactory(pluginID, factory); err != nil {
+				return err
+			}
+		}
+		if factory := definition.GetOrgProviderFactory(); factory != nil {
+			if orgManager == nil {
+				return gerror.New("plugin service requires organization provider manager")
+			}
+			if err := orgManager.RegisterFactory(pluginID, factory); err != nil {
+				return err
+			}
+		}
+		if factory := definition.GetAITextProviderFactory(); factory != nil {
+			if aiTextManager == nil {
+				return gerror.New("plugin service requires text AI provider manager")
+			}
+			if err := aiTextManager.RegisterFactory(pluginID, factory); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // TenantProviderEnv returns typed, plugin-scoped tenant-provider construction inputs.
-func (s *serviceImpl) TenantProviderEnv(pluginID string) tenantcapsvc.ProviderEnv {
-	env := tenantcapsvc.ProviderEnv{PluginID: pluginID}
+func (s *serviceImpl) TenantProviderEnv(pluginID string) tenantspi.ProviderEnv {
+	env := tenantspi.ProviderEnv{PluginID: pluginID}
 	if s == nil || s.capabilities == nil {
 		return env
 	}

@@ -16,8 +16,8 @@ import (
 	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/cachecap"
-	"lina-core/pkg/plugin/capability/orgcap"
-	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // TestCacheAdapterUsesSharedKVCache verifies common cache operations delegate
@@ -187,8 +187,8 @@ func TestServicesForPluginReturnsScopedCache(t *testing.T) {
 // capability helper returns capability-owned consumers.
 func TestServicesExposeCapabilitiesThroughScopedServices(t *testing.T) {
 	services := &directory{
-		org:    orgcap.New(nil),
-		tenant: tenantcap.New(nil, nil),
+		org:    orgspi.New(nil, nil),
+		tenant: tenantspi.New(nil, nil, nil),
 	}
 
 	scoped := capability.ServicesForPlugin(services, "source-plugin-a")

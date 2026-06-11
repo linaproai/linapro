@@ -8,7 +8,7 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 
 	"lina-core/internal/service/bizctx"
-	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 )
 
 // Scope represents the effective data range stored on enabled roles.
@@ -76,11 +76,11 @@ type Service interface {
 type serviceImpl struct {
 	bizCtxSvc bizctx.Service
 	roleSvc   AccessProvider
-	orgScope  orgcap.ScopeService
+	orgScope  orgspi.ScopeService
 }
 
 // New creates one shared data-scope service.
-func New(bizCtxSvc bizctx.Service, roleSvc AccessProvider, orgScope orgcap.ScopeService) Service {
+func New(bizCtxSvc bizctx.Service, roleSvc AccessProvider, orgScope orgspi.ScopeService) Service {
 	return &serviceImpl{
 		bizCtxSvc: bizCtxSvc,
 		roleSvc:   roleSvc,

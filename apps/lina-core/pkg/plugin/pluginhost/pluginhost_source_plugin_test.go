@@ -11,7 +11,10 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // TestExtensionPointExecutionModes verifies hook and registrar points publish
@@ -60,6 +63,7 @@ func TestCallbackInputContractsUseInterfaces(t *testing.T) {
 	assertInterfaceType(t, (*HookDeclarations)(nil), "HookDeclarations")
 	assertInterfaceType(t, (*HTTPDeclarations)(nil), "HTTPDeclarations")
 	assertInterfaceType(t, (*JobDeclarations)(nil), "JobDeclarations")
+	assertInterfaceType(t, (*ProviderDeclarations)(nil), "ProviderDeclarations")
 	assertInterfaceType(t, (*GovernanceDeclarations)(nil), "GovernanceDeclarations")
 	assertInterfaceType(t, (*SourcePluginDefinition)(nil), "SourcePluginDefinition")
 	assertInterfaceType(t, (*HookPayload)(nil), "HookPayload")
@@ -112,6 +116,68 @@ func TestRegisterRoutesRejectsAsyncMode(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatalf("expected async route registration to return an error")
+	}
+}
+
+// TestProviderDeclarationsStoreFactories verifies framework provider factories
+// are declared through the source-plugin facade and rejected when duplicated.
+func TestProviderDeclarationsStoreFactories(t *testing.T) {
+	plugin := NewDeclarations("test-plugin-provider")
+	providers := plugin.Providers()
+	tenantFactory := func(context.Context, tenantspi.ProviderEnv) (tenantspi.Provider, error) {
+		return nil, nil
+	}
+	orgFactory := func(context.Context, orgspi.ProviderEnv) (orgspi.Provider, error) {
+		return nil, nil
+	}
+	aiTextFactory := func(context.Context, aitext.ProviderEnv) (aitext.Provider, error) {
+		return nil, nil
+	}
+
+	if err := providers.ProvideTenant(tenantFactory); err != nil {
+		t.Fatalf("expected tenant provider declaration to succeed, got %v", err)
+	}
+	if err := providers.ProvideOrg(orgFactory); err != nil {
+		t.Fatalf("expected org provider declaration to succeed, got %v", err)
+	}
+	if err := providers.ProvideAIText(aiTextFactory); err != nil {
+		t.Fatalf("expected text AI provider declaration to succeed, got %v", err)
+	}
+
+	definition := mustSourcePluginDefinition(t, plugin)
+	if definition.GetTenantProviderFactory() == nil {
+		t.Fatalf("expected tenant provider factory to be stored")
+	}
+	if definition.GetOrgProviderFactory() == nil {
+		t.Fatalf("expected org provider factory to be stored")
+	}
+	if definition.GetAITextProviderFactory() == nil {
+		t.Fatalf("expected text AI provider factory to be stored")
+	}
+	if err := providers.ProvideTenant(tenantFactory); err == nil {
+		t.Fatalf("expected duplicate tenant provider declaration to fail")
+	}
+	if err := providers.ProvideOrg(orgFactory); err == nil {
+		t.Fatalf("expected duplicate org provider declaration to fail")
+	}
+	if err := providers.ProvideAIText(aiTextFactory); err == nil {
+		t.Fatalf("expected duplicate text AI provider declaration to fail")
+	}
+}
+
+// TestProviderDeclarationsRejectNilFactories verifies provider facade validation
+// reports caller errors instead of storing unusable factories.
+func TestProviderDeclarationsRejectNilFactories(t *testing.T) {
+	providers := NewDeclarations("test-plugin-provider-nil").Providers()
+
+	if err := providers.ProvideTenant(nil); err == nil {
+		t.Fatalf("expected nil tenant provider factory to fail")
+	}
+	if err := providers.ProvideOrg(nil); err == nil {
+		t.Fatalf("expected nil org provider factory to fail")
+	}
+	if err := providers.ProvideAIText(nil); err == nil {
+		t.Fatalf("expected nil text AI provider factory to fail")
 	}
 }
 
@@ -294,13 +360,13 @@ func TestRegisterUpgradeHandlersPublishesManifestSnapshots(t *testing.T) {
 		"test-plugin-upgrade",
 		"v0.1.0",
 		"v0.2.0",
-		NewManifestSnapshot(&bridgecontract.ManifestSnapshotV1{
+		NewManifestSnapshot(&capmodel.ManifestSnapshot{
 			ID:      "test-plugin-upgrade",
 			Name:    "Test Plugin Upgrade",
 			Version: "v0.1.0",
 			Type:    "source",
 		}),
-		NewManifestSnapshot(&bridgecontract.ManifestSnapshotV1{
+		NewManifestSnapshot(&capmodel.ManifestSnapshot{
 			ID:        "test-plugin-upgrade",
 			Name:      "Test Plugin Upgrade",
 			Version:   "v0.2.0",
@@ -316,10 +382,10 @@ func TestRegisterUpgradeHandlersPublishesManifestSnapshots(t *testing.T) {
 	}
 }
 
-// TestNewManifestSnapshotUsesBridgeContract verifies source-plugin snapshots
-// use the shared typed bridge lifecycle contract.
-func TestNewManifestSnapshotUsesBridgeContract(t *testing.T) {
-	input := &bridgecontract.ManifestSnapshotV1{
+// TestNewManifestSnapshotUsesSharedPrimitive verifies source-plugin snapshots
+// use the shared typed capmodel manifest snapshot primitive.
+func TestNewManifestSnapshotUsesSharedPrimitive(t *testing.T) {
+	input := &capmodel.ManifestSnapshot{
 		ID:          "test-plugin-typed-snapshot",
 		Name:        "Test Plugin Typed Snapshot",
 		Version:     "v1.0.0",

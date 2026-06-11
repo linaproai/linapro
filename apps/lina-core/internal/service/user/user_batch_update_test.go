@@ -107,13 +107,13 @@ func TestBatchUpdateReplacesTenantMemberships(t *testing.T) {
 		cleanupUserDeleteTestRows(t, ctx, append([]int{operatorID}, userIDs...))
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
 	})
-	tenantRuntime := activateUserTenantMembershipProvider(t)
+	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 	insertUserDeleteTestUserRole(t, ctx, operatorID, roleID)
 	for _, userID := range userIDs {
 		insertUserTenantMembershipTestMembership(t, ctx, userID, tenantAID, userTenantMembershipTestActive)
 	}
 
-	svc := newUserTestService(tenantRuntime).(*serviceImpl)
+	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 1}})
 	if err := svc.BatchUpdate(ctx, BatchUpdateInput{
 		Ids:          userIDs,

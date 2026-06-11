@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // Service defines the notify service contract.
@@ -36,7 +36,7 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	tenantSvc tenantcapsvc.ScopeService
+	tenantSvc tenantspi.ScopeService
 }
 
 // SendInput defines one unified notification send request.
@@ -132,6 +132,6 @@ type InboxListItem struct {
 }
 
 // New creates a notify service from explicit runtime-owned dependencies.
-func New(tenantSvc tenantcapsvc.ScopeService) Service {
+func New(tenantSvc tenantspi.ScopeService) Service {
 	return &serviceImpl{tenantSvc: tenantSvc}
 }

@@ -203,9 +203,31 @@ type Service interface {
 // construction environment during lazy capability use.
 type ProviderFactory func(ctx context.Context, env ProviderEnv) (Provider, error)
 
+// Manager owns text AI provider declarations and lazy provider instances.
+type Manager struct {
+	registry *internalregistry.Manager[ProviderEnv]
+}
+
+// NewManager creates an empty text AI provider manager.
+func NewManager() *Manager {
+	return &Manager{registry: internalregistry.NewManager[ProviderEnv]()}
+}
+
+// RegisterFactory records one plugin-provided text AI capability factory.
+func (m *Manager) RegisterFactory(pluginID string, factory ProviderFactory) error {
+	return m.registry.RegisterFactory(
+		CapabilityAITextV1,
+		pluginID,
+		func(ctx context.Context, env ProviderEnv) (any, error) {
+			return factory(ctx, env)
+		},
+	)
+}
+
 // serviceImpl delegates text AI calls to the active provider and returns
 // structured fallback errors when no provider is usable.
 type serviceImpl struct {
+	manager        *Manager
 	runtime        ProviderRuntime
 	sourcePluginID string
 }
@@ -214,32 +236,35 @@ type serviceImpl struct {
 var _ Service = (*serviceImpl)(nil)
 
 // New creates an optional text AI capability service from explicit runtime-owned dependencies.
-func New(runtime ProviderRuntime) Service {
+func New(manager *Manager, runtime ProviderRuntime) Service {
+	if manager == nil {
+		manager = NewManager()
+	}
 	if runtime == nil {
 		runtime = noopProviderRuntime{}
 	}
-	return &serviceImpl{runtime: runtime}
+	return &serviceImpl{manager: manager, runtime: runtime}
 }
 
 // ForPlugin returns a text AI service that injects pluginID into provider
 // requests when the supplied service supports host-managed provider dispatch.
 func ForPlugin(service Service, pluginID string) Service {
 	if service == nil {
-		return &serviceImpl{runtime: noopProviderRuntime{}, sourcePluginID: strings.TrimSpace(pluginID)}
+		return &serviceImpl{
+			manager:        NewManager(),
+			runtime:        noopProviderRuntime{},
+			sourcePluginID: strings.TrimSpace(pluginID),
+		}
 	}
 	impl, ok := service.(*serviceImpl)
 	if !ok {
 		return service
 	}
 	return &serviceImpl{
+		manager:        impl.manager,
 		runtime:        impl.runtime,
 		sourcePluginID: strings.TrimSpace(pluginID),
 	}
-}
-
-// Provide declares one plugin-provided text AI capability factory.
-func Provide(pluginID string, factory ProviderFactory) error {
-	return registerFactory(pluginID, factory)
 }
 
 // CapabilityType returns the fixed capability family for text generation.
@@ -294,5 +319,3 @@ func PurposeResourceRef(purpose string) string {
 // noopProviderRuntime reports all plugins as disabled when aitext is
 // constructed without an explicit provider runtime.
 type noopProviderRuntime struct{}
-
-var defaultManager = internalregistry.NewManager[ProviderEnv]()

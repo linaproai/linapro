@@ -42,8 +42,8 @@ import (
 	"lina-core/pkg/plugin/capability/routecap"
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
 	"lina-core/pkg/plugin/capability/storagecap"
-	"lina-core/pkg/plugin/capability/tenantcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -183,7 +183,7 @@ func (d *scopedSourceServicesDirectory) HostConfig() hostconfigcap.Service {
 
 // TenantFilter returns a no-op tenant filter service required by source-plugin
 // registrations that construct tenant-aware services.
-func (d *scopedSourceServicesDirectory) TenantFilter() tenantcap.PluginTableFilterService {
+func (d *scopedSourceServicesDirectory) TenantFilter() tenantspi.PluginTableFilterService {
 	return scopedCapabilityTenantFilter{}
 }
 
@@ -423,7 +423,7 @@ func (scopedCapabilityPluginState) IsEnabledAuthoritative(context.Context, strin
 type scopedCapabilityRoute struct{}
 
 // DynamicRouteMetadata returns no dynamic-route metadata.
-func (scopedCapabilityRoute) DynamicRouteMetadata(*ghttp.Request) *routecap.DynamicRouteMetadata {
+func (scopedCapabilityRoute) DynamicRouteMetadata(context.Context) *routecap.DynamicRouteMetadata {
 	return nil
 }
 
@@ -452,8 +452,8 @@ func (scopedCapabilitySession) RevokeSession(context.Context, capmodel.Capabilit
 type scopedCapabilityTenantFilter struct{}
 
 // Context returns a platform-bypass tenant context for registration-only tests.
-func (scopedCapabilityTenantFilter) Context(context.Context) tenantcap.TenantFilterContext {
-	return tenantcap.TenantFilterContext{PlatformBypass: true}
+func (scopedCapabilityTenantFilter) Context(context.Context) tenantspi.TenantFilterContext {
+	return tenantspi.TenantFilterContext{PlatformBypass: true}
 }
 
 // Apply returns the model unchanged because registration-only tests never query plugin tables.
@@ -679,7 +679,7 @@ func (emptySourceServicesDirectory) Storage() storagecap.Service { return nil }
 func (emptySourceServicesDirectory) Tenant() tenantcapsvc.Service { return nil }
 
 // TenantFilter returns no tenant-filter service for this capability-scope test.
-func (emptySourceServicesDirectory) TenantFilter() tenantcap.PluginTableFilterService { return nil }
+func (emptySourceServicesDirectory) TenantFilter() tenantspi.PluginTableFilterService { return nil }
 
 // scopedCapabilityView is implemented by test doubles returned from ForPlugin.
 type scopedCapabilityView interface {

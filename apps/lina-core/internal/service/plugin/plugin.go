@@ -29,7 +29,8 @@ import (
 	"lina-core/internal/service/plugin/runtimecache"
 	"lina-core/internal/service/session"
 	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 
 	"lina-core/internal/model/entity"
 
@@ -283,6 +284,12 @@ type SourceIntegrationService interface {
 	RegisterJobs(ctx context.Context) error
 	// SetCapabilities wires the host-published capability services used by source plugins.
 	SetCapabilities(capabilities capability.Services)
+	// RegisterSourcePluginProviderFactories registers source-plugin provider declarations into shared managers.
+	RegisterSourcePluginProviderFactories(
+		tenantManager *tenantspi.Manager,
+		orgManager *orgspi.Manager,
+		aiTextManager *aitextsvc.Manager,
+	) error
 	// ListExecutableJobs returns plugin-owned job definitions whose
 	// handlers are safe to publish for execution. Dynamic plugins must be in
 	// an enabled business-entry state; disabled, pending-upgrade, abnormal, and
@@ -376,9 +383,9 @@ type LifecycleManagementService interface {
 	// AITextProviderEnv returns typed, plugin-scoped text AI provider construction inputs.
 	AITextProviderEnv(pluginID string) aitextsvc.ProviderEnv
 	// OrgProviderEnv returns typed, plugin-scoped organization-provider construction inputs.
-	OrgProviderEnv(pluginID string) orgcapsvc.ProviderEnv
+	OrgProviderEnv(pluginID string) orgspi.ProviderEnv
 	// TenantProviderEnv returns typed, plugin-scoped tenant-provider construction inputs.
-	TenantProviderEnv(pluginID string) tenantcapsvc.ProviderEnv
+	TenantProviderEnv(pluginID string) tenantspi.ProviderEnv
 	// IsEnabledAuthoritative returns whether pluginID is installed, enabled, and
 	// allowed to expose business entries after forcing a persisted governance
 	// read instead of reusing process-local platform snapshots. It preserves the
@@ -418,7 +425,7 @@ type SourceUpgradeGovernanceService interface {
 	// SetTenantStartupCapability wires tenant provider availability and startup consistency checks.
 	SetTenantStartupCapability(service pluginTenantStartupCapability)
 	// SetTenantProvisioningCapability wires tenant plugin auto-provisioning.
-	SetTenantProvisioningCapability(service tenantcapsvc.PluginProvisioningService)
+	SetTenantProvisioningCapability(service tenantspi.PluginProvisioningService)
 	// SetTenantPlatformGovernanceCapability wires platform-scope plugin governance checks.
 	SetTenantPlatformGovernanceCapability(service platformGovernanceTenantCapability)
 	// SetOrganizationCapability wires the runtime-owned organization capability used by plugin resource scopes.
@@ -540,7 +547,7 @@ type serviceImpl struct {
 	// tenantStartup validates tenant-governance startup state through a narrow tenant capability.
 	tenantStartup pluginTenantStartupCapability
 	// tenantProvisioning provisions tenant-scoped auto-enabled plugins after startup policy convergence.
-	tenantProvisioning tenantcapsvc.PluginProvisioningService
+	tenantProvisioning tenantspi.PluginProvisioningService
 	// tenantGovernance guards platform plugin-governance writes in HTTP paths.
 	tenantGovernance platformGovernanceTenantCapability
 	// runtimeUpgradeLocksMu protects process-local runtime-upgrade locks.

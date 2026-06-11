@@ -19,7 +19,7 @@ import (
 	"testing"
 
 	"lina-core/pkg/plugin/capability/orgcap"
-	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // transientWasmDispatcherFileName is generated during WASM packaging and removed
@@ -81,9 +81,9 @@ func TestOrgServiceDoesNotExposeWorkspaceProjections(t *testing.T) {
 // TestTenantRuntimeServiceDoesNotExposeFallback verifies unused platform
 // fallback helpers stay out of the broad runtime combination interface.
 func TestTenantRuntimeServiceDoesNotExposeFallback(t *testing.T) {
-	serviceType := reflect.TypeOf((*tenantcap.RuntimeService)(nil)).Elem()
+	serviceType := reflect.TypeOf((*tenantspi.RuntimeService)(nil)).Elem()
 	if _, ok := serviceType.MethodByName("ReadWithPlatformFallback"); ok {
-		t.Fatal("tenantcap.RuntimeService must not expose ReadWithPlatformFallback")
+		t.Fatal("tenantspi.RuntimeService must not expose ReadWithPlatformFallback")
 	}
 }
 
@@ -94,6 +94,8 @@ func TestRepositoryPluginCapabilityBoundaries(t *testing.T) {
 
 	root := findCapabilityGovernanceRepositoryRoot(t)
 	var findings []string
+	findings = append(findings, scanCapabilityDependencyDirection(t, root)...)
+	findings = append(findings, scanCapabilityConsumerHostTypeImports(t, root)...)
 	findings = append(findings, scanCapabilityPackageInternalPluginImports(t, root)...)
 	findings = append(findings, scanPluginCodeHostInternalImports(t, root)...)
 	findings = append(findings, scanRemovedPluginCapabilityProductionReferences(t, root)...)
@@ -131,6 +133,49 @@ func TestCollectGoSourcePathsSkipsTransientWasmDispatcher(t *testing.T) {
 	if paths[0] != stableSourcePath {
 		t.Fatalf("expected stable source %q, got %#v", stableSourcePath, paths)
 	}
+}
+
+// scanCapabilityDependencyDirection verifies the capability contract layer does
+// not import higher-level plugin host or bridge components.
+func scanCapabilityDependencyDirection(t *testing.T, root string) []string {
+	t.Helper()
+
+	var findings []string
+	for _, file := range parseGoSources(t, root, false, "apps/lina-core/pkg/plugin/capability") {
+		for _, importPath := range file.importPaths {
+			if importPath == "lina-core/pkg/plugin/pluginbridge" ||
+				strings.HasPrefix(importPath, "lina-core/pkg/plugin/pluginbridge/") ||
+				importPath == "lina-core/pkg/plugin/pluginhost" ||
+				strings.HasPrefix(importPath, "lina-core/pkg/plugin/pluginhost/") {
+				findings = append(findings, fmt.Sprintf("%s imports higher-level plugin package %q", file.relPath, importPath))
+			}
+		}
+	}
+	return findings
+}
+
+// scanCapabilityConsumerHostTypeImports verifies ordinary capability contracts
+// stay free of GoFrame database and HTTP request host types. Explicit provider
+// SPI packages keep host seams in packages whose path segment ends with "spi".
+func scanCapabilityConsumerHostTypeImports(t *testing.T, root string) []string {
+	t.Helper()
+
+	forbidden := map[string]struct{}{
+		"github.com/gogf/gf/v2/database/gdb": {},
+		"github.com/gogf/gf/v2/net/ghttp":    {},
+	}
+	var findings []string
+	for _, file := range parseGoSources(t, root, false, "apps/lina-core/pkg/plugin/capability") {
+		if isCapabilitySPISource(file.relPath) {
+			continue
+		}
+		for _, importPath := range file.importPaths {
+			if _, ok := forbidden[importPath]; ok {
+				findings = append(findings, fmt.Sprintf("%s imports host-only GoFrame type package %q", file.relPath, importPath))
+			}
+		}
+	}
+	return findings
 }
 
 // scanCapabilityPackageInternalPluginImports verifies public plugin packages do
@@ -348,7 +393,7 @@ func scanRecordStoreGuestImports(t *testing.T, root string) []string {
 	t.Helper()
 
 	var findings []string
-	for _, file := range parseGoSources(t, root, true, "apps/lina-core/pkg/plugin/capability/recordstore") {
+	for _, file := range parseGoSources(t, root, true, "apps/lina-core/pkg/plugin/pluginbridge/recordstore") {
 		for _, importPath := range file.importPaths {
 			switch importPath {
 			case "lina-core/pkg/plugin/pluginbridge":
@@ -569,6 +614,17 @@ func collectGoSourcePaths(t *testing.T, root string, includeTests bool, relRoots
 // to generated build-time artifacts that are not stable repository source.
 func isCapabilityGovernanceTransientSource(name string) bool {
 	return name == transientWasmDispatcherFileName
+}
+
+// isCapabilitySPISource reports whether a capability source file belongs to a
+// provider SPI package whose path segment ends with "spi".
+func isCapabilitySPISource(path string) bool {
+	for _, segment := range strings.Split(filepath.ToSlash(path), "/") {
+		if strings.HasSuffix(segment, "spi") {
+			return true
+		}
+	}
+	return false
 }
 
 // findCapabilityGovernanceRepositoryRoot walks upward until it finds the

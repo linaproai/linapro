@@ -3,7 +3,13 @@
 
 package pluginhost
 
-import "github.com/gogf/gf/v2/errors/gerror"
+import (
+	"github.com/gogf/gf/v2/errors/gerror"
+
+	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
+)
 
 // RegisterBeforeInstallHandler registers one source-plugin pre-install callback.
 func (p *sourcePlugin) registerBeforeInstallHandler(handler SourcePluginBeforeLifecycleHandler) error {
@@ -194,6 +200,51 @@ func (p *sourcePlugin) registerUninstallHandler(handler SourcePluginUninstallHan
 		return gerror.New("pluginhost: uninstall handler is nil")
 	}
 	p.uninstallHandler = handler
+	return nil
+}
+
+// RegisterTenantProvider records the tenant provider factory declared by this source plugin.
+func (p *sourcePlugin) registerTenantProvider(factory tenantspi.ProviderFactory) error {
+	if p == nil {
+		return gerror.New("pluginhost: source plugin is nil")
+	}
+	if factory == nil {
+		return gerror.New("pluginhost: tenant provider factory is nil")
+	}
+	if p.tenantProvider != nil {
+		return gerror.New("pluginhost: tenant provider factory already declared")
+	}
+	p.tenantProvider = factory
+	return nil
+}
+
+// RegisterOrgProvider records the organization provider factory declared by this source plugin.
+func (p *sourcePlugin) registerOrgProvider(factory orgspi.ProviderFactory) error {
+	if p == nil {
+		return gerror.New("pluginhost: source plugin is nil")
+	}
+	if factory == nil {
+		return gerror.New("pluginhost: organization provider factory is nil")
+	}
+	if p.orgProvider != nil {
+		return gerror.New("pluginhost: organization provider factory already declared")
+	}
+	p.orgProvider = factory
+	return nil
+}
+
+// RegisterAITextProvider records the text AI provider factory declared by this source plugin.
+func (p *sourcePlugin) registerAITextProvider(factory aitext.ProviderFactory) error {
+	if p == nil {
+		return gerror.New("pluginhost: source plugin is nil")
+	}
+	if factory == nil {
+		return gerror.New("pluginhost: text AI provider factory is nil")
+	}
+	if p.aiTextProvider != nil {
+		return gerror.New("pluginhost: text AI provider factory already declared")
+	}
+	p.aiTextProvider = factory
 	return nil
 }
 

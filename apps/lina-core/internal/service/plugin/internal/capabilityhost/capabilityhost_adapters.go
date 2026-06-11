@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-core/internal/service/apidoc"
 	"lina-core/internal/service/auth"
@@ -252,7 +252,8 @@ func newRouteAdapter() routecap.Service {
 }
 
 // DynamicRouteMetadata returns metadata attached to the current dynamic-route request.
-func (s *routeAdapter) DynamicRouteMetadata(request *ghttp.Request) *routecap.DynamicRouteMetadata {
+func (s *routeAdapter) DynamicRouteMetadata(ctx context.Context) *routecap.DynamicRouteMetadata {
+	request := g.RequestFromCtx(ctx)
 	metadata := runtime.GetDynamicRouteMetadata(request)
 	if metadata == nil {
 		return nil

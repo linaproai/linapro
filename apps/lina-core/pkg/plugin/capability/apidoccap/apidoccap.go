@@ -5,11 +5,8 @@ package apidoccap
 
 import (
 	"context"
-	"reflect"
 	"regexp"
 	"strings"
-
-	"github.com/gogf/gf/v2/net/ghttp"
 )
 
 // RouteTextInput defines one API-documentation route text lookup request.
@@ -44,15 +41,6 @@ type Service interface {
 	FindRouteTitleOperationKeys(ctx context.Context, keyword string) []string
 }
 
-// BuildOperationKeyFromHandler returns the apidoc operation key base for one
-// GoFrame strict route handler.
-func BuildOperationKeyFromHandler(handler *ghttp.HandlerItemParsed) string {
-	if handler == nil || handler.Handler == nil {
-		return ""
-	}
-	return buildOperationKeyFromHandlerType(handler.Handler.Info.Type)
-}
-
 // BuildOperationKeyFromPath returns the path-derived apidoc operation key base
 // used for dynamic plugin routes and non-DTO fallback routes.
 func BuildOperationKeyFromPath(path string, method string) string {
@@ -67,68 +55,6 @@ func BuildOperationKeyFromPath(path string, method string) string {
 // for one dynamic-plugin route.
 func BuildDynamicOperationKey(path string, method string) string {
 	return BuildOperationKeyFromPath(path, method)
-}
-
-// buildOperationKeyFromHandlerType returns the static-route apidoc key base for a handler function type.
-func buildOperationKeyFromHandlerType(handlerType reflect.Type) string {
-	if handlerType == nil || handlerType.Kind() != reflect.Func || handlerType.NumIn() != 2 {
-		return ""
-	}
-	return buildOperationKeyFromRequestType(handlerType.In(1))
-}
-
-// buildOperationKeyFromRequestType returns the static-route apidoc key base for a request DTO type.
-func buildOperationKeyFromRequestType(reqType reflect.Type) string {
-	if reqType == nil {
-		return ""
-	}
-	if reqType.Kind() == reflect.Pointer {
-		reqType = reqType.Elem()
-	}
-	if reqType.Kind() != reflect.Struct || strings.TrimSpace(reqType.Name()) == "" {
-		return ""
-	}
-	componentName := strings.ReplaceAll(reqType.PkgPath(), "/", ".") + "." + reqType.Name()
-	return normalizeOpenAPIComponentKey(componentName)
-}
-
-// normalizeOpenAPIComponentKey converts GoFrame schema component names into stable apidoc keys.
-func normalizeOpenAPIComponentKey(name string) string {
-	trimmedName := strings.TrimSpace(name)
-	if trimmedName == "" {
-		return ""
-	}
-	if strings.HasPrefix(trimmedName, "lina-plugin-") {
-		return normalizeSourcePluginOpenAPIComponentKey(trimmedName)
-	}
-	replacements := []struct {
-		old string
-		new string
-	}{
-		{old: "lina-core.", new: "core."},
-		{old: "lina-plugins.", new: "plugins."},
-	}
-	for _, replacement := range replacements {
-		if strings.HasPrefix(trimmedName, replacement.old) {
-			trimmedName = replacement.new + strings.TrimPrefix(trimmedName, replacement.old)
-			break
-		}
-	}
-	return sanitizeOpenAPIKey(trimmedName)
-}
-
-// normalizeSourcePluginOpenAPIComponentKey converts source-plugin schema component names into plugin keys.
-func normalizeSourcePluginOpenAPIComponentKey(name string) string {
-	trimmedName := strings.TrimSpace(name)
-	withoutPrefix := strings.TrimPrefix(trimmedName, "lina-plugin-")
-	pluginPart, rest, ok := strings.Cut(withoutPrefix, ".")
-	if !ok || strings.TrimSpace(pluginPart) == "" {
-		return sanitizeOpenAPIKey(trimmedName)
-	}
-	if strings.HasPrefix(rest, "backend.api.") {
-		rest = strings.TrimPrefix(rest, "backend.")
-	}
-	return "plugins." + sanitizeOpenAPIKeyPart(pluginPart) + "." + sanitizeOpenAPIKey(rest)
 }
 
 // normalizeOpenAPIPath canonicalizes an OpenAPI path for stable key comparison.
@@ -212,15 +138,6 @@ func openAPIPathSegments(pathName string) []string {
 		segments = append(segments, sanitizeOpenAPIKeyPart(segment))
 	}
 	return segments
-}
-
-// sanitizeOpenAPIKey normalizes a full key while preserving dots as hierarchy separators.
-func sanitizeOpenAPIKey(key string) string {
-	parts := strings.Split(strings.TrimSpace(key), ".")
-	for index, part := range parts {
-		parts[index] = sanitizeOpenAPIKeyPart(part)
-	}
-	return strings.Join(parts, ".")
 }
 
 // openAPIKeyInvalidCharsPattern matches characters that cannot be used in apidoc keys.

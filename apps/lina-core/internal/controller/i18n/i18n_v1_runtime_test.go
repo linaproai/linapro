@@ -27,8 +27,8 @@ import (
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
-	"lina-core/pkg/plugin/capability/orgcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 
 	_ "lina-core/pkg/dbdriver"
 
@@ -513,9 +513,9 @@ func newRuntimeMessagesTestMiddleware() middlewaresvc.Service {
 	if err != nil {
 		panic(err)
 	}
-	orgCapSvc := orgcap.New(pluginSvc)
-	tenantSvc := tenantcapsvc.New(pluginSvc, nil)
-	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
+	orgCapSvc := orgspi.New(nil, pluginSvc)
+	tenantSvc := tenantspi.New(nil, pluginSvc, nil)
+	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
 	roleSvc.SetDataScopeService(datascope.New(bizCtxSvc, roleSvc, orgCapSvc))
 	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, session.NewDBStore(), kvcache.New())
 	return middlewaresvc.New(authSvc, bizCtxSvc, configSvc, i18nSvc, pluginSvc, roleSvc, tenantSvc)

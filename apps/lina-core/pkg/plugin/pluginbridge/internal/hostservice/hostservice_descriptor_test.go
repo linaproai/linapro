@@ -23,7 +23,7 @@ func TestHostServiceDescriptorsCoverProtocolGuestAndDispatcher(t *testing.T) {
 	guestDirs := []string{
 		filepath.Join(root, "pkg/plugin/pluginbridge"),
 		filepath.Join(root, "pkg/plugin/pluginbridge/internal/domainhostcall"),
-		filepath.Join(root, "pkg/plugin/capability/recordstore"),
+		filepath.Join(root, "pkg/plugin/pluginbridge/recordstore"),
 	}
 	wasmDir := filepath.Join(root, "internal/service/plugin/internal/wasm")
 
@@ -35,6 +35,12 @@ func TestHostServiceDescriptorsCoverProtocolGuestAndDispatcher(t *testing.T) {
 	}
 	guestSelectors := selectorNames(t, guestDirs...)
 	dispatcherSelectors := selectorNames(t, wasmDir)
+	expectedGuestSelectors := descriptorMethodConstSet(func(descriptor HostServiceMethodDescriptor) bool {
+		return descriptor.Published && descriptor.GuestClient
+	})
+	expectedDispatcherSelectors := descriptorMethodConstSet(func(descriptor HostServiceMethodDescriptor) bool {
+		return descriptor.Published && descriptor.Dispatcher
+	})
 
 	for _, descriptor := range HostServiceMethodDescriptors() {
 		if !descriptor.Published {
@@ -60,6 +66,10 @@ func TestHostServiceDescriptorsCoverProtocolGuestAndDispatcher(t *testing.T) {
 			}
 		}
 	}
+	assertNoUnexpectedSelectors(t, "guest client", guestSelectors, expectedGuestSelectors)
+	assertNoUnexpectedSelectors(t, "wasm dispatcher", dispatcherSelectors, expectedDispatcherSelectors)
+	assertHostServiceSwitchMatchesDescriptors(t, wasmDir)
+	assertDispatcherFunctionsMatchDescriptors(t, wasmDir)
 }
 
 // TestProtocolHostServiceCodecsOwnPayloadImplementation verifies public
@@ -84,28 +94,50 @@ func TestProtocolHostServiceCodecsOwnPayloadImplementation(t *testing.T) {
 	}
 }
 
-// TestHostServiceDescriptorsCoverNonWASIStubs verifies every WASI-only guest
-// service family keeps a host-build unsupported stub.
-func TestHostServiceDescriptorsCoverNonWASIStubs(t *testing.T) {
+// TestHostServiceDescriptorsHaveNoPerDomainGuestStubs verifies guest clients
+// use the shared injected transport instead of per-domain WASI singletons or
+// non-WASI mirror stubs. RecordStore keeps its separate executor files because
+// they implement query-plan execution rather than a mirrored host-service client.
+func TestHostServiceDescriptorsHaveNoPerDomainGuestStubs(t *testing.T) {
 	root := repoRootForDescriptorTest(t)
-	guestStubFuncs := declaredFuncNamesForBuildTag(t, filepath.Join(root, "pkg/plugin/pluginbridge"), "!wasip1")
-	dataStubFuncs := declaredFuncNamesForBuildTag(t, filepath.Join(root, "pkg/plugin/capability/recordstore"), "!wasip1")
-	expectedGuestFactories := map[string]string{
-		HostServiceRuntime:    "Runtime",
-		HostServiceStorage:    "Storage",
-		HostServiceNetwork:    "Network",
-		HostServiceCache:      "Cache",
-		HostServiceLock:       "Lock",
-		HostServiceHostConfig: "HostConfig",
-		HostServiceManifest:   "Manifest",
-	}
-	for _, descriptor := range HostServiceDescriptors() {
-		factory, ok := expectedGuestFactories[descriptor.Service]
-		if !ok {
-			continue
+	dataStubFuncs := declaredFuncNamesForBuildTag(t, filepath.Join(root, "pkg/plugin/pluginbridge/recordstore"), "!wasip1")
+	guestDir := filepath.Join(root, "pkg/plugin/pluginbridge")
+	for _, filePath := range productionGoFilesInDir(t, guestDir) {
+		name := filepath.Base(filePath)
+		if strings.HasPrefix(name, "pluginbridge_hostcall_") &&
+			strings.HasSuffix(name, "_wasip1.go") &&
+			name != "pluginbridge_hostcall_wasip1.go" {
+			t.Fatalf("pluginbridge root contains per-domain WASI host-service client residual: %s", filePath)
 		}
-		if _, exists := guestStubFuncs[factory]; !exists {
-			t.Fatalf("host service %s is missing non-WASI guest factory stub %s", descriptor.Service, factory)
+		if strings.HasSuffix(name, "_adapter.go") {
+			t.Fatalf("pluginbridge root contains adapter residual: %s", filePath)
+		}
+		content := string(readFileForDescriptorTest(t, filePath))
+		for _, fragment := range []string{
+			"unsupportedRuntimeHostService",
+			"unsupportedStorageHostService",
+			"unsupportedNetworkHostService",
+			"unsupportedCacheHostService",
+			"unsupportedLockHostService",
+			"unsupportedHostConfigHostService",
+			"unsupportedManifestHostService",
+			"defaultRuntimeHostService",
+			"defaultStorageHostService",
+			"defaultNetworkHostService",
+			"defaultCacheHostService",
+			"defaultLockHostService",
+			"defaultHostConfigHostService",
+			"defaultManifestHostService",
+		} {
+			if strings.Contains(content, fragment) {
+				t.Fatalf("pluginbridge root contains non-WASI mirror stub residual %q in %s", fragment, filePath)
+			}
+		}
+		if name == "pluginbridge_hostcall_stub.go" {
+			stubFuncs := declaredFuncNamesFromFiles(t, parseGoFilesForBuildTag(t, guestDir, "!wasip1"))
+			if _, ok := stubFuncs["InvokeHostService"]; !ok {
+				t.Fatalf("pluginbridge non-WASI transport stub is missing InvokeHostService")
+			}
 		}
 	}
 	for _, fn := range []string{"One", "All", "Count", "Insert", "Update", "Delete", "Transaction"} {
@@ -212,6 +244,78 @@ func assertPayloadAliases(
 	for _, fn := range []string{"Marshal" + payload, "Unmarshal" + payload} {
 		if _, ok := protocolValues[fn]; !ok {
 			t.Fatalf("host service method %s is missing public protocol codec %s", methodKey, fn)
+		}
+	}
+}
+
+func descriptorMethodConstSet(match func(HostServiceMethodDescriptor) bool) map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, descriptor := range HostServiceMethodDescriptors() {
+		if descriptor.MethodConst == "" || !match(descriptor) {
+			continue
+		}
+		result[descriptor.MethodConst] = struct{}{}
+	}
+	return result
+}
+
+func descriptorDispatcherServices() map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, descriptor := range HostServiceMethodDescriptors() {
+		if descriptor.Dispatcher {
+			result[descriptor.Service] = struct{}{}
+		}
+	}
+	return result
+}
+
+func assertNoUnexpectedSelectors(
+	t *testing.T,
+	label string,
+	actual map[string]struct{},
+	expected map[string]struct{},
+) {
+	t.Helper()
+	for selector := range actual {
+		if _, ok := expected[selector]; !ok {
+			t.Fatalf("%s contains host service method selector %s that is not declared by descriptor", label, selector)
+		}
+	}
+}
+
+func assertHostServiceSwitchMatchesDescriptors(t *testing.T, wasmDir string) {
+	t.Helper()
+	actual := hostServiceSwitchSelectors(t, filepath.Join(wasmDir, "wasm_host_service.go"))
+	expected := descriptorDispatcherServices()
+	for service := range expected {
+		constName := hostServiceConstNameForService(t, service)
+		if _, ok := actual[constName]; !ok {
+			t.Fatalf("wasm host service switch is missing descriptor service %s (%s)", service, constName)
+		}
+	}
+	for constName := range actual {
+		service := hostServiceByConstName(t, constName)
+		if _, ok := expected[service]; !ok {
+			t.Fatalf("wasm host service switch contains service %s (%s) not declared by descriptor", service, constName)
+		}
+	}
+}
+
+func assertDispatcherFunctionsMatchDescriptors(t *testing.T, wasmDir string) {
+	t.Helper()
+	actual := dispatchFunctionNames(t, wasmDir)
+	expected := make(map[string]string)
+	for service := range descriptorDispatcherServices() {
+		expected[dispatcherFunctionNameForService(t, service)] = service
+	}
+	for name, service := range expected {
+		if _, ok := actual[name]; !ok {
+			t.Fatalf("wasm dispatcher service %s is missing dispatcher function %s", service, name)
+		}
+	}
+	for name := range actual {
+		if _, ok := expected[name]; !ok {
+			t.Fatalf("wasm dispatcher function %s is not declared by descriptor service set", name)
 		}
 	}
 }
@@ -392,6 +496,108 @@ func selectorNames(t *testing.T, dirs ...string) map[string]struct{} {
 		}
 	}
 	return result
+}
+
+func hostServiceSwitchSelectors(t *testing.T, filePath string) map[string]struct{} {
+	t.Helper()
+	content := readFileForDescriptorTest(t, filePath)
+	file, err := parser.ParseFile(token.NewFileSet(), filePath, content, 0)
+	if err != nil {
+		t.Fatalf("parse Go source %s failed: %v", filePath, err)
+	}
+	result := make(map[string]struct{})
+	ast.Inspect(file, func(node ast.Node) bool {
+		caseClause, ok := node.(*ast.CaseClause)
+		if !ok {
+			return true
+		}
+		for _, expr := range caseClause.List {
+			selector, ok := expr.(*ast.SelectorExpr)
+			if !ok {
+				continue
+			}
+			if strings.HasPrefix(selector.Sel.Name, "HostService") &&
+				!strings.HasPrefix(selector.Sel.Name, "HostServiceMethod") {
+				result[selector.Sel.Name] = struct{}{}
+			}
+		}
+		return true
+	})
+	return result
+}
+
+func dispatchFunctionNames(t *testing.T, dir string) map[string]struct{} {
+	t.Helper()
+	result := make(map[string]struct{})
+	for _, file := range parseGoFiles(t, dir) {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			name := fn.Name.Name
+			if strings.HasPrefix(name, "dispatch") &&
+				(strings.HasSuffix(name, "HostService") || name == "dispatchHostConfigService") {
+				result[name] = struct{}{}
+			}
+		}
+	}
+	return result
+}
+
+func hostServiceConstNameForService(t *testing.T, service string) string {
+	t.Helper()
+	switch service {
+	case HostServiceAPIDoc:
+		return "HostServiceAPIDoc"
+	case HostServiceBizCtx:
+		return "HostServiceBizCtx"
+	case HostServiceHostConfig:
+		return "HostServiceHostConfig"
+	case HostServiceI18n:
+		return "HostServiceI18n"
+	case HostServiceAI:
+		return "HostServiceAI"
+	default:
+		parts := strings.Split(service, "_")
+		for i, part := range parts {
+			if part == "" {
+				continue
+			}
+			parts[i] = strings.ToUpper(part[:1]) + part[1:]
+		}
+		return "HostService" + strings.Join(parts, "")
+	}
+}
+
+func hostServiceByConstName(t *testing.T, constName string) string {
+	t.Helper()
+	for _, descriptor := range HostServiceDescriptors() {
+		if hostServiceConstNameForService(t, descriptor.Service) == constName {
+			return descriptor.Service
+		}
+	}
+	t.Fatalf("unknown host service const selector %s", constName)
+	return ""
+}
+
+func dispatcherFunctionNameForService(t *testing.T, service string) string {
+	t.Helper()
+	switch service {
+	case HostServiceAPIDoc:
+		return "dispatchAPIDocHostService"
+	case HostServiceBizCtx:
+		return "dispatchBizCtxHostService"
+	case HostServiceHostConfig:
+		return "dispatchHostConfigService"
+	case HostServiceI18n:
+		return "dispatchI18nHostService"
+	case HostServiceAI:
+		return "dispatchAIHostService"
+	default:
+		constName := hostServiceConstNameForService(t, service)
+		return "dispatch" + strings.TrimPrefix(constName, "HostService") + "HostService"
+	}
 }
 
 func parseGoFiles(t *testing.T, dir string) []*ast.File {

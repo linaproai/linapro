@@ -16,7 +16,7 @@ import (
 	"lina-core/pkg/plugin/capability/capmodel"
 	capabilitydictcap "lina-core/pkg/plugin/capability/dictcap"
 	"lina-core/pkg/plugin/capability/i18ncap"
-	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // Service exposes the dictionary domain service and management commands.
@@ -27,7 +27,7 @@ type Service interface {
 
 // adapter implements dictionary label projection resolution.
 type adapter struct {
-	tenantFilter tenantcap.PluginTableFilterService
+	tenantFilter tenantspi.PluginTableFilterService
 	i18n         i18ncap.Service
 }
 
@@ -37,7 +37,7 @@ var (
 )
 
 // New creates the host-owned dictionary capability adapter.
-func New(tenantFilter tenantcap.PluginTableFilterService, i18n i18ncap.Service) Service {
+func New(tenantFilter tenantspi.PluginTableFilterService, i18n i18ncap.Service) Service {
 	return &adapter{tenantFilter: tenantFilter, i18n: i18n}
 }
 

@@ -15,6 +15,7 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // TestEnsurePlatformMenuGovernanceAllowsSingleTenantMode verifies disabled
@@ -108,12 +109,13 @@ func (g menuTenantGuard) PlatformBypass(context.Context) bool {
 func newMenuPlatformGuardTenantService(t *testing.T) tenantcap.Service {
 	t.Helper()
 	providerPluginID := fmt.Sprintf("plugin-test-menu-tenant-provider-%d", time.Now().UnixNano())
-	if err := tenantcap.Provide(providerPluginID, func(context.Context, tenantcap.ProviderEnv) (tenantcap.Provider, error) {
+	manager := tenantspi.NewManager()
+	if err := manager.RegisterFactory(providerPluginID, func(context.Context, tenantspi.ProviderEnv) (tenantspi.Provider, error) {
 		return menuPlatformGuardProvider{}, nil
 	}); err != nil {
 		t.Fatalf("register menu tenant provider: %v", err)
 	}
-	return tenantcap.New(menuPlatformGuardProviderRuntime{pluginID: providerPluginID}, bizctx.New())
+	return tenantspi.New(manager, menuPlatformGuardProviderRuntime{pluginID: providerPluginID}, bizctx.New())
 }
 
 // menuPlatformGuardProviderRuntime marks exactly one test provider plugin enabled.
@@ -127,8 +129,8 @@ func (r menuPlatformGuardProviderRuntime) IsProviderEnabled(_ context.Context, p
 }
 
 // TenantProviderEnv returns an empty typed provider environment in menu tests.
-func (menuPlatformGuardProviderRuntime) TenantProviderEnv(string) tenantcap.ProviderEnv {
-	return tenantcap.ProviderEnv{}
+func (menuPlatformGuardProviderRuntime) TenantProviderEnv(string) tenantspi.ProviderEnv {
+	return tenantspi.ProviderEnv{}
 }
 
 // menuPlatformGuardProvider satisfies the tenantcap provider contract for

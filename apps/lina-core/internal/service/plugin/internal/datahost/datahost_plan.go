@@ -11,8 +11,8 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/pkg/plugin/capability/recordstore"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginbridge/recordstore"
 )
 
 // decodeDataListPlan restores a typed record store capability list plan.

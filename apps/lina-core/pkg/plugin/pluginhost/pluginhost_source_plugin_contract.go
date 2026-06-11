@@ -7,6 +7,10 @@ import (
 	"io/fs"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+
+	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // sourcePluginAssets is the asset-registration facade bound to one source
@@ -36,6 +40,11 @@ type sourcePluginHTTP struct {
 // sourcePluginJobs is the scheduled-job registration facade bound to one source plugin
 // definition.
 type sourcePluginJobs struct {
+	plugin *sourcePlugin
+}
+
+// sourcePluginProviders is the framework provider declaration facade bound to one source plugin definition.
+type sourcePluginProviders struct {
 	plugin *sourcePlugin
 }
 
@@ -93,12 +102,44 @@ func (p *sourcePlugin) Jobs() JobDeclarations {
 	return p.jobs
 }
 
+// Providers returns the framework capability provider declaration facade.
+func (p *sourcePlugin) Providers() ProviderDeclarations {
+	if p == nil {
+		return nil
+	}
+	return p.providers
+}
+
 // Governance returns the menu and permission governance registration facade.
 func (p *sourcePlugin) Governance() GovernanceDeclarations {
 	if p == nil {
 		return nil
 	}
 	return p.governance
+}
+
+// ProvideTenant declares one source-plugin tenant provider factory.
+func (r *sourcePluginProviders) ProvideTenant(factory tenantspi.ProviderFactory) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin provider facade is nil")
+	}
+	return r.plugin.registerTenantProvider(factory)
+}
+
+// ProvideOrg declares one source-plugin organization provider factory.
+func (r *sourcePluginProviders) ProvideOrg(factory orgspi.ProviderFactory) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin provider facade is nil")
+	}
+	return r.plugin.registerOrgProvider(factory)
+}
+
+// ProvideAIText declares one source-plugin text AI provider factory.
+func (r *sourcePluginProviders) ProvideAIText(factory aitext.ProviderFactory) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin provider facade is nil")
+	}
+	return r.plugin.registerAITextProvider(factory)
 }
 
 // UseEmbeddedFiles binds one plugin-owned embedded filesystem.

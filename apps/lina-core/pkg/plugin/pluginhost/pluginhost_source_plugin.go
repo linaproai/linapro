@@ -3,7 +3,13 @@
 
 package pluginhost
 
-import "io/fs"
+import (
+	"io/fs"
+
+	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
+)
 
 // sourcePlugin stores one compile-time source plugin definition behind the
 // published grouped Declarations interface.
@@ -20,10 +26,15 @@ type sourcePlugin struct {
 	http HTTPDeclarations
 	// jobs exposes grouped scheduled-job registration helpers.
 	jobs JobDeclarations
+	// providers exposes grouped framework provider declaration helpers.
+	providers ProviderDeclarations
 	// governance exposes grouped menu and permission governance helpers.
 	governance GovernanceDeclarations
 
 	embeddedFiles     fs.FS
+	tenantProvider    tenantspi.ProviderFactory
+	orgProvider       orgspi.ProviderFactory
+	aiTextProvider    aitext.ProviderFactory
 	beforeInstall     SourcePluginBeforeLifecycleHandler
 	afterInstall      SourcePluginAfterLifecycleHandler
 	beforeUpgrade     SourcePluginBeforeUpgradeHandler
@@ -62,6 +73,7 @@ func NewDeclarations(id string) Declarations {
 	plugin.hooks = &sourcePluginHooks{plugin: plugin}
 	plugin.http = &sourcePluginHTTP{plugin: plugin}
 	plugin.jobs = &sourcePluginJobs{plugin: plugin}
+	plugin.providers = &sourcePluginProviders{plugin: plugin}
 	plugin.governance = &sourcePluginGovernance{plugin: plugin}
 	return plugin
 }
@@ -130,6 +142,30 @@ func (p *sourcePlugin) GetPermissionFilters() []*PermissionFilterHandlerRegistra
 	items := make([]*PermissionFilterHandlerRegistration, len(p.permissionFilters))
 	copy(items, p.permissionFilters)
 	return items
+}
+
+// GetTenantProviderFactory returns the declared tenant provider factory.
+func (p *sourcePlugin) GetTenantProviderFactory() tenantspi.ProviderFactory {
+	if p == nil {
+		return nil
+	}
+	return p.tenantProvider
+}
+
+// GetOrgProviderFactory returns the declared organization provider factory.
+func (p *sourcePlugin) GetOrgProviderFactory() orgspi.ProviderFactory {
+	if p == nil {
+		return nil
+	}
+	return p.orgProvider
+}
+
+// GetAITextProviderFactory returns the declared text AI provider factory.
+func (p *sourcePlugin) GetAITextProviderFactory() aitext.ProviderFactory {
+	if p == nil {
+		return nil
+	}
+	return p.aiTextProvider
 }
 
 // GetBeforeInstallHandler returns the registered source-plugin pre-install callback.

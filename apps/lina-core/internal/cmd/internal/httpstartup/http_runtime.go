@@ -46,8 +46,9 @@ import (
 	pluginservicehostconfig "lina-core/pkg/plugin/capability/hostconfigcap"
 	pluginservicemanifest "lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	pluginserviceconfig "lina-core/pkg/plugin/capability/plugincap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // httpRuntime groups long-lived services that must be shared across HTTP
@@ -59,25 +60,25 @@ type httpRuntime struct {
 	pluginSvc       pluginsvc.Service    // pluginSvc owns plugin lifecycle, runtime assets, routes, and hooks.
 	authSvc         auth.Service         // authSvc owns JWT, session, and token-state flows.
 	authTokenIssuer auth.TenantTokenIssuer
-	bizCtxSvc       bizctx.Service              // bizCtxSvc owns request-scoped business context mutation.
-	i18nSvc         i18nsvc.Service             // i18nSvc owns runtime language bundles and localization.
-	aiTextSvc       aitext.Service              // aiTextSvc exposes optional text AI capability.
-	orgCapSvc       orgcap.Service              // orgCapSvc exposes optional organization capability.
-	orgProjection   orgcap.ProjectionService    // orgProjection exposes host user-management organization projections.
-	roleSvc         role.Service                // roleSvc owns permission and access snapshot state.
-	sessionStore    session.Store               // sessionStore owns online-session persistence and hot state.
-	tenantSvc       tenantcapsvc.RuntimeService // tenantSvc exposes optional linapro-tenant-core capability.
-	kvCacheSvc      kvcache.Service             // kvCacheSvc owns runtime-selected KV backend.
-	capabilities    capability.Services         // capabilities publishes runtime-owned adapters to plugins.
-	dictSvc         dict.Service                // dictSvc owns dictionary lookup and maintenance.
-	fileSvc         file.Service                // fileSvc owns file metadata and storage operations.
-	menuSvc         menu.Service                // menuSvc owns menu tree and permission menu lookup.
-	notifySvc       notify.Service              // notifySvc owns unified notification delivery.
-	sysConfigSvc    sysconfig.Service           // sysConfigSvc owns mutable runtime configuration records.
-	sysInfoSvc      sysinfosvc.Service          // sysInfoSvc owns runtime diagnostics projection.
-	userSvc         user.Service                // userSvc owns host user management operations.
-	userMsgSvc      usermsg.Service             // userMsgSvc owns current-user inbox operations.
-	apiDocSvc       apidoc.Service              // apiDocSvc builds the host-managed OpenAPI document.
+	bizCtxSvc       bizctx.Service           // bizCtxSvc owns request-scoped business context mutation.
+	i18nSvc         i18nsvc.Service          // i18nSvc owns runtime language bundles and localization.
+	aiTextSvc       aitext.Service           // aiTextSvc exposes optional text AI capability.
+	orgCapSvc       orgcap.Service           // orgCapSvc exposes optional organization capability.
+	orgProjection   orgspi.ProjectionService // orgProjection exposes host user-management organization projections.
+	roleSvc         role.Service             // roleSvc owns permission and access snapshot state.
+	sessionStore    session.Store            // sessionStore owns online-session persistence and hot state.
+	tenantSvc       tenantspi.RuntimeService // tenantSvc exposes optional linapro-tenant-core capability.
+	kvCacheSvc      kvcache.Service          // kvCacheSvc owns runtime-selected KV backend.
+	capabilities    capability.Services      // capabilities publishes runtime-owned adapters to plugins.
+	dictSvc         dict.Service             // dictSvc owns dictionary lookup and maintenance.
+	fileSvc         file.Service             // fileSvc owns file metadata and storage operations.
+	menuSvc         menu.Service             // menuSvc owns menu tree and permission menu lookup.
+	notifySvc       notify.Service           // notifySvc owns unified notification delivery.
+	sysConfigSvc    sysconfig.Service        // sysConfigSvc owns mutable runtime configuration records.
+	sysInfoSvc      sysinfosvc.Service       // sysInfoSvc owns runtime diagnostics projection.
+	userSvc         user.Service             // userSvc owns host user management operations.
+	userMsgSvc      usermsg.Service          // userMsgSvc owns current-user inbox operations.
+	apiDocSvc       apidoc.Service           // apiDocSvc builds the host-managed OpenAPI document.
 	jobRegistry     jobhandlersvc.Registry
 	jobMgmtSvc      jobmgmtsvc.Service
 	middlewareSvc   middleware.Service
@@ -208,12 +209,25 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		return nil, err
 	}
 	var (
-		orgCapSvc     = orgcap.New(pluginSvc)
-		aiTextSvc     = aitext.New(pluginSvc)
+		tenantProviderManager = tenantspi.NewManager()
+		orgProviderManager    = orgspi.NewManager()
+		aiTextProviderManager = aitext.NewManager()
+	)
+	if err = pluginSvc.RegisterSourcePluginProviderFactories(
+		tenantProviderManager,
+		orgProviderManager,
+		aiTextProviderManager,
+	); err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
+		return nil, err
+	}
+	var (
+		orgCapSvc     = orgspi.New(orgProviderManager, pluginSvc)
+		aiTextSvc     = aitext.New(aiTextProviderManager, pluginSvc)
 		orgProjection = orgCapSvc
-		tenantSvc     = tenantcapsvc.New(pluginSvc, bizCtxSvc)
+		tenantSvc     = tenantspi.New(tenantProviderManager, pluginSvc, bizCtxSvc)
 		kvCacheSvc    = kvcache.New()
-		roleSvc       = role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
+		roleSvc       = role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
 		scopeSvc      = datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
 		dictSvc       = dict.New(i18nSvc)
 		menuSvc       = menu.New(pluginSvc, i18nSvc, roleSvc, tenantSvc)

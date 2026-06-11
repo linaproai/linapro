@@ -4,7 +4,7 @@
 package domainhostcall
 
 import (
-	"github.com/gogf/gf/v2/net/ghttp"
+	"context"
 
 	"lina-core/pkg/plugin/capability/routecap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
@@ -19,7 +19,7 @@ func Route(invoker Invoker) routecap.Service {
 }
 
 // DynamicRouteMetadata returns the current dynamic-route metadata projection.
-func (s routeService) DynamicRouteMetadata(_ *ghttp.Request) *routecap.DynamicRouteMetadata {
+func (s routeService) DynamicRouteMetadata(context.Context) *routecap.DynamicRouteMetadata {
 	var out routecap.DynamicRouteMetadata
 	if err := s.callJSONRequest(protocol.HostServiceRoute, protocol.HostServiceMethodRouteMetadataGet, nil, &out); err != nil {
 		return nil
