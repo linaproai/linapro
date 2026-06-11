@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: 动态插件文本 AI 授权不得授予管理权限
 

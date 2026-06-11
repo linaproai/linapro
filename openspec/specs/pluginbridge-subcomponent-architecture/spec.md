@@ -222,3 +222,221 @@
 - **THEN** 样例必须通过编译
 - **AND** record store guest 执行路径在 wasip1 构建中可用
 
+### Requirement: host service catalog 必须作为公开协议描述源
+
+系统 SHALL 在`pkg/plugin/pluginbridge/protocol/hostservices`维护动态插件 host service 的公开协议 catalog。该 catalog MUST 覆盖 service、method、capability、资源类型、payload 形态、请求响应 payload 名称、guest client 发布状态和 host dispatcher 发布状态。`pluginbridge/internal/hostservice`可以继续提供 manifest validation、capability derivation 和治理测试辅助，但其 descriptor MUST 从公开 catalog 派生，不得维护第二份手写 service/method 表。
+
+#### Scenario: 新增普通领域 host service
+
+- **WHEN** 开发者新增一个普通领域 host service
+- **THEN** service、method、capability、资源类型、payload 形态、guest client 发布状态和 host dispatcher 发布状态必须在`protocol/hostservices`catalog 中声明
+- **AND** `pluginbridge/internal/hostservice`descriptor 从该 catalog 读取或转换元数据
+- **AND** 不得在`pluginbridge/internal/hostservice`新增独立的手写镜像 descriptor 数据
+
+#### Scenario: 宿主 dispatch 需要读取 host service 元数据
+
+- **WHEN** `internal/service/plugin/internal/wasm`需要校验 dispatcher 注册覆盖
+- **THEN** 它可以导入`pkg/plugin/pluginbridge/protocol/hostservices`
+- **AND** 不得导入`pkg/plugin/pluginbridge/internal/hostservice`
+- **AND** Go internal import 边界必须通过编译和静态检索验证
+
+#### Scenario: catalog 与公开 protocol 出口一致
+
+- **WHEN** catalog 声明某个已发布 method 使用公开 payload 类型
+- **THEN** `pkg/plugin/pluginbridge/protocol`必须提供对应 DTO 或 codec 入口
+- **AND** 治理测试必须在缺少公开协议出口时失败
+
+### Requirement: 普通领域 host service payload 必须优先使用 JSON envelope
+
+系统 SHALL 为普通领域 host service 提供统一 JSON request/response envelope。新增普通领域能力默认 MUST 通过该 JSON envelope 承载领域 DTO 或投影，不得为每个领域默认新增专用`protocol_hostservice_<x>_codec.go`和手写`protowire`codec。只有存在明确性能、资源授权、二进制内容、事务计划或 wire 稳定性需求的服务，才 MAY 保留或新增专用 codec，并且该例外 MUST 在 catalog 中标记 payload kind。
+
+#### Scenario: 新增普通领域能力
+
+- **WHEN** 开发者新增`users`、`dict`、`files`、`sessions`同类的普通领域 host service method
+- **THEN** guest client 使用统一 JSON envelope 编码请求和响应
+- **AND** protocol 层不得为了该普通领域新增专用 per-domain `protowire`codec 文件
+- **AND** 测试必须覆盖 JSON envelope round trip 和 typed client 结果映射
+
+#### Scenario: 特殊服务保留专用 codec
+
+- **WHEN** host service 属于`storage`、`cache`、`lock`、`data`、`recordstore`、`network`或经规范确认的性能和资源敏感服务
+- **THEN** 它可以继续使用专用二进制或`protowire`codec
+- **AND** catalog 必须将其 payload kind 标记为专用 codec
+- **AND** 现有 payload round trip、字段默认值和错误 envelope 语义必须保持不变
+
+#### Scenario: 未说明依据的专用 codec 被拒绝
+
+- **WHEN** 新增普通领域 host service 同时新增 per-domain 专用 codec
+- **THEN** 审查必须拒绝该实现
+- **AND** 除非设计或任务记录说明性能、资源或 wire 稳定性依据，否则不得通过治理验证
+
+### Requirement: host service catalog 覆盖治理必须校验 guest、codec 和 dispatch
+
+系统 SHALL 基于`protocol/hostservices`catalog 双向校验 host service 同步点。catalog 中声明发布的 guest client、payload codec 和 host dispatcher 必须存在；实现中出现的 guest client selector、专用 codec 或 dispatcher 注册也必须反向存在于 catalog。新增、删除或重命名 host service method 时，自动化验证 MUST 能发现任一同步点遗漏或孤儿实现。
+
+#### Scenario: catalog 声明 guest client 但实现缺失
+
+- **WHEN** catalog 声明某个 method 发布 guest client
+- **AND** guest typed client 或目录 getter 没有提供对应入口
+- **THEN** 治理测试失败
+- **AND** 失败信息指出缺少 guest client 覆盖
+
+#### Scenario: dispatch 注册出现孤儿 method
+
+- **WHEN** host dispatch registry 注册了某个 service/method
+- **AND** catalog 中不存在该 service/method 或未声明 dispatcher 发布状态
+- **THEN** 治理测试失败
+- **AND** 该 method 不得仅靠运行时未知路径暴露
+
+#### Scenario: 普通领域出现专用 codec 漂移
+
+- **WHEN** 静态检索发现普通领域新增`protocol_hostservice_<x>_codec.go`
+- **AND** catalog 未将该 service 标记为专用 codec
+- **THEN** 治理测试失败
+- **AND** 开发者必须改用 JSON envelope 或补充规范级例外依据
+
+### Requirement: host service README 表格必须由 descriptor 生成
+
+系统 SHALL 使用`pluginbridge/internal/hostservice`的 descriptor 作为`pkg/plugin`双语`README`中 host service 表格的单一事实源。`README.md`与`README.zh-CN.md`中的 host service 表格 MUST 位于稳定生成标记之间，并由 descriptor 渲染器维护。自动化测试 MUST 比对 descriptor 渲染结果与当前文档内容，发现漂移时失败。
+
+#### Scenario: 维护双语 host service 表格
+
+- **WHEN** 开发者维护 host service 文档表格
+- **THEN** 系统基于 descriptor 渲染结果更新`apps/lina-core/pkg/plugin/README.md`与`README.zh-CN.md`中的生成区块
+- **AND** 两份文档保持相同 service/method/capability/resource 事实，仅语言不同
+
+#### Scenario: descriptor 变更但 README 未刷新
+
+- **WHEN** descriptor 中新增、删除或修改 host service 声明
+- **AND** 对应`README`生成区块未同步刷新
+- **THEN** README 漂移测试失败
+- **AND** 失败信息提示从 descriptor 渲染器更新 host service 文档生成区块
+
+#### Scenario: 不保留独立生成入口
+
+- **WHEN** 开发者维护 host service 文档表格
+- **THEN** 仓库不需要提供独立`go run`生成入口、平台脚本或默认开发命令
+- **AND** README 漂移治理不得依赖 Unix-only shell 管道或平台专属命令
+
+### Requirement: host service descriptor 覆盖治理必须双向校验
+
+系统 SHALL 通过自动化测试双向校验 host service descriptor、guest client selector 和宿主 dispatcher 绑定。descriptor 中声明发布的 guest client 或 dispatcher method MUST 有对应实现；实现中出现的 service/method 也 MUST 反向存在于 descriptor 并声明对应发布位。宿主 service 级 switch 与 dispatcher 文件集合 MUST 与 descriptor 中启用 dispatcher 的 service 集合保持一致。
+
+#### Scenario: descriptor method 缺少宿主 dispatcher
+
+- **WHEN** descriptor 声明某个 method 的`Dispatcher=true`
+- **AND** 宿主 dispatcher selector 未处理该 service/method
+- **THEN** 覆盖治理测试失败
+- **AND** 失败信息指出缺少 dispatcher 覆盖的 service/method
+
+#### Scenario: 宿主 dispatcher 存在孤儿 method
+
+- **WHEN** 宿主 dispatcher selector 处理某个 service/method
+- **AND** descriptor 中不存在该 method 或未声明`Dispatcher=true`
+- **THEN** 覆盖治理测试失败
+- **AND** 失败信息指出孤儿 dispatcher service/method
+
+#### Scenario: guest client selector 与 descriptor 不一致
+
+- **WHEN** guest client selector 中出现某个 host service method
+- **AND** descriptor 中不存在该 method 或未声明`GuestClient=true`
+- **THEN** 覆盖治理测试失败
+- **AND** 动态插件 guest client 不得发布未纳入 descriptor 治理的方法
+
+#### Scenario: dispatcher 文件集合与 service 集合不一致
+
+- **WHEN** 宿主存在`dispatchXxxHostService`文件但 descriptor 没有对应 dispatcher service，或 descriptor 有 dispatcher service 但缺少对应文件
+- **THEN** 覆盖治理测试失败
+- **AND** 失败信息指出多余或缺失的 dispatcher 文件
+
+### Requirement: guest host service client 必须使用注入式传输单轨
+
+系统 SHALL 将动态插件 guest host service client 统一为 invoker 注入式结构。除`recordstore`等承载领域执行逻辑的独立 SDK 外，`pluginbridge`根目录 MUST NOT 保留逐域`pluginbridge_hostcall_*_wasip1.go`单例客户端、逐域 adapter 或逐域非 WASI 镜像 stub。`pluginbridge_directory.go`MUST 通过统一 invoker 装配基础能力和领域能力 guest client，wire 格式和 getter 签名 MUST 保持不变。
+
+#### Scenario: 基础能力通过注入式 client 调用
+
+- **WHEN** 动态插件 guest 通过能力目录访问 runtime、storage、cache、lock、host config、manifest 或 plugins config 能力
+- **THEN** 对应 client 由`internal/domainhostcall`或等价内部子组件通过 invoker 构造
+- **AND** 不依赖`pluginbridge`根目录包级 WASI 单例
+
+#### Scenario: 根目录无逐域 host call 镜像残留
+
+- **WHEN** 执行静态检索或治理测试检查`pluginbridge`根目录
+- **THEN** 不存在逐域`pluginbridge_hostcall_*_wasip1.go`客户端文件
+- **AND** 不存在逐域非 WASI mirror stub 或 adapter 文件
+- **AND** 非 WASI 不可用行为收敛到传输层`InvokeHostService`stub
+
+#### Scenario: wire 行为保持不变
+
+- **WHEN** 迁移后的基础能力 client 发起 host service 调用
+- **THEN** service/method 字符串、payload codec、字段编号、默认值和错误 envelope 与迁移前保持一致
+- **AND** 现有`pluginbridge`协议测试和动态插件`wasip1`构建继续通过
+
+#### Scenario: recordstore 执行文件不作为逐域镜像残留
+
+- **WHEN** 检查`pluginbridge/recordstore`的 WASI 或 stub 执行文件
+- **THEN** 这些文件可以保留为 record store 查询计划执行逻辑
+- **AND** 它们不得重新引入`pluginbridge`根目录逐域客户端单例模式
+
+### Requirement: 动态 guest 普通领域代理必须收敛到 domainhostcall
+
+系统 SHALL 将动态插件 guest 侧普通领域能力代理固定在`pkg/plugin/pluginbridge/internal/domainhostcall`或等价 internal 子组件中。`pkg/plugin/pluginbridge`公共包 SHALL 只暴露动态插件开发者使用的能力目录、声明期启动 facade、资源型 host service client 和必要 transport facade；公共包不得为普通领域能力长期维护与`pkg/plugin/capability/*cap`平行的接口集合。
+
+#### Scenario: guest 读取用户领域能力
+
+- **WHEN** 动态插件通过`pluginbridge.Default().Users()`读取用户投影
+- **THEN** 公共方法返回`usercap.Service`
+- **AND** transport 实现位于`pluginbridge/internal/domainhostcall`
+- **AND** 公共`guest`包不重新定义用户领域接口
+
+#### Scenario: guest 调用 AI 能力
+
+- **WHEN** 动态插件通过`pluginbridge.Default().AI()`调用`AI`能力
+- **THEN** 返回值必须复用或实现`aicap.Service`
+- **AND** 文本、图片、向量、音频、视觉、文档、安全和视频子能力代理必须对齐`capability/aicap`子接口
+- **AND** 不得继续维护与`aicap`平行的`pluginbridge.AITextService`、`pluginbridge.AIImageService`或同类领域接口作为长期公共契约
+
+#### Scenario: 协议目录描述动态 host service
+
+- **WHEN** 新增或修改动态插件普通领域`host service method`
+- **THEN** `pluginbridge/internal/hostservice`描述源只维护 service、method、capability、资源类型、payload、guest client 和 dispatcher 同步元数据
+- **AND** 领域业务接口、输入输出语义和降级行为必须继续归属`pkg/plugin/capability`
+
+### Requirement: pluginbridge 协议目录不得成为领域能力实现入口
+
+系统 SHALL 将`pkg/plugin/pluginbridge/protocol`和`pkg/plugin/pluginbridge/internal/hostservice`限定为动态插件协议与授权目录。它们 MUST NOT 构造宿主领域能力实现、保存运行期领域服务实例或定义与源码插件不同的领域业务规则。
+
+#### Scenario: 宿主分发动态领域方法
+
+- **WHEN** `WASM`host dispatcher 收到普通领域`host service`调用
+- **THEN** `pluginbridge`协议目录只提供 service/method 常量、payload 编解码和授权元数据
+- **AND** 实际业务调用必须进入`capability.Services`或其领域`*cap.Service`
+
+#### Scenario: 新增领域能力状态语义
+
+- **WHEN** 领域能力需要新增可用性、状态或降级语义
+- **THEN** 语义必须定义在对应`*cap`组件包
+- **AND** `pluginbridge`只能增加必要的 transport payload 或 descriptor 同步点
+
+### Requirement: 动态 host service payload codec 必须归属 protocol 公共协议目录
+
+系统 SHALL 将动态插件`host service`的 payload DTO、wire payload struct、marshal 和 unmarshal 实现归属到`pkg/plugin/pluginbridge/protocol`公共协议目录。`pkg/plugin/pluginbridge/internal/hostservice` SHALL 只维护 descriptor、capability、资源类型、授权校验、清单规范化和治理同步点，不得作为 payload codec 的实际 owner。
+
+#### Scenario: 新增动态 host service payload
+
+- **WHEN** 开发者新增或修改动态插件`host service`请求或响应 payload
+- **THEN** payload struct 和编解码函数必须定义在`pluginbridge/protocol`
+- **AND** `pluginbridge/internal/hostservice`只能引用`protocol`中的公开协议类型
+
+#### Scenario: 公共协议目录复用 codec
+
+- **WHEN** 动态 guest、`WASM`host dispatcher 或 descriptor 测试需要编解码`host service`payload
+- **THEN** 调用方必须通过`pluginbridge/protocol`获取 codec
+- **AND** `protocol`不得通过类型别名或函数别名重新导出`internal/hostservice`中的 codec 实现
+
+#### Scenario: 内部 hostservice 维护授权治理
+
+- **WHEN** 动态插件清单声明`hostServices`
+- **THEN** `pluginbridge/internal/hostservice`负责校验 service、method、resource kind、capability 和 manifest 规范化规则
+- **AND** 该内部包不得反向拥有或导出 payload wire 格式实现
+
