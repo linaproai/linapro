@@ -15,7 +15,37 @@
 - [x] 性能：插件列表查询保持只读且使用分页摘要；完整治理读模型可预热并按插件生命周期、动态产物和租户供应策略显式失效；列表装配复用快照并避免逐插件重复扫描。
 - [x] 一致性：插件运行时、frontend bundle、runtime i18n、WASM、manifest 资源视图和默认配置视图按插件和资源作用域失效；集群模式通过 coordination revision/event 和 per-plugin 锁收敛。
 
+## 包边界与依赖方向治理
+
+- [x] 修正`pkg/plugin`依赖方向：`capability`成为最底层契约层；`ManifestSnapshotV1`迁入`capmodel`；recordstore SDK 迁移到`pluginbridge/recordstore`；import 边界治理测试持续验证。
+- [x] 将 host service 领域桥接收敛为公开 protocol catalog、JSON envelope 和 registry dispatch 三个接缝；descriptor 从公开 catalog 派生；WASM dispatch 消除 service 级 switch。
+- [x] 收敛领域能力边界：宿主实现重命名为`capabilityhost`；动态领域只保留一个`ConfigureDomainHostServices`入口；集合型领域 service 名统一为复数；插件配置归属`plugins`；通知归属`notifications`；定时任务归属`jobs`。
+- [x] 拆分消费契约与 Provider SPI：`tenantspi`/`orgspi`子包承载 provider 和 scope 接缝；`routecap`/`apidoccap`去除`ghttp`泄漏；provider 声明收敛到`pluginhost.Declarations`；provider manager 由宿主显式持有。
+- [x] 简化动态插件 AI 授权：`ai`从`purpose`资源授权改为`service + method`方法授权；普通领域 host service 覆盖源码插件领域能力。
+- [x] 统一 host service 单一事实源：descriptor 驱动 README 表格生成和双向覆盖治理；guest client 统一为注入式 domainhostcall 单轨。
+- [x] 将 Cache/Lock/Storage 统一为领域能力：源码插件和动态插件共享`cachecap.Service`/`lockcap.Service`/`storagecap.Service`；Storage 新增 provider 扩展机制和默认本地磁盘 provider。
+
 ## Feedback
+
+- [x] **FB-1**: 将`wasm`领域 host service 分发文件按领域能力拆分，评估是否应作为独立组件维护。根因：单文件聚合跨领域分发。修复：拆分为`hostfn_service_<service>.go`。验证：Go 测试通过。不建议提取为子包，因 dispatcher 依赖 wasm 包内可信执行上下文。
+- [x] **FB-2**: 统一`wasm`领域 host service 源文件命名，移除额外`domain`前缀。根因：FB-1 拆分后命名不一致。修复：统一为`hostfn_service_<service>.go`。验证：Go 测试和静态检索通过。
+- [x] **FB-3**: 统一集合型领域协议字符串为复数形式。根因：`capability.Services`使用复数但协议使用单数。修复：service/capability/常量/文件名统一为`users`/`files`/`jobs`/`notifications`/`plugins`/`sessions`。验证：Go 测试、启动装配和 OpenSpec 校验通过。
+- [x] **FB-4**: 将`Plugins().Lifecycle()`作为受治理插件领域能力暴露，收敛`guest.PluginService`特例。根因：`guest.Services.Plugins()`返回公共特例接口。修复：改为返回`plugincap.Service`，删除公共`PluginService`接口。验证：hostservice validation、descriptor、guest stub、WASM dispatcher 测试通过。
+- [x] **FB-5**: 删除无业务入口的`file.Service` Markdown 内容读写方法。根因：编译阻断补齐实现扩大了核心合约。修复：删除未发布方法和错误码。验证：Go 测试和静态检索通过。
+- [x] **FB-6**: 将插件配置读取从独立`config`收敛到`plugins.config.get`。根因：配置属于插件治理领域但独立暴露。修复：删除`HostServiceConfig`，授权收敛为`service: plugins`和`method: config.get`。验证：descriptor、guest、WASM 和动态示例测试通过。
+- [x] **FB-7**: 将通知发送从独立`notify`收敛到`notifications.messages.send`。根因：通知读取和发送分属两个相近领域入口。修复：删除`service: notify`，新增`messages.send`按渠道资源授权。验证：WASM 通知发送测试通过。
+- [x] **FB-8/9**: 删除动态插件独立 cron host service，定时任务统一归属`jobs`领域。根因：动态 cron 和运行时 Jobs 混淆。修复：删除 cron host service、发现期 host-call 和 guest SDK 入口；动态插件内置任务改用`jobs.register`发现期声明。验证：Go 测试、E2E 反向断言通过。
+- [x] **FB-10**: 将源码插件定时任务注册入口从`Cron`迁移到`Jobs`。根因：源码插件仍保留`Cron`公开契约。修复：统一为`pluginhost.Jobs()`和`JobsRegistrar`。验证：源码插件后端测试通过。
+- [x] **FB-11**: 将旧动态插件 cron 声明能力迁移为`Jobs`领域的动态任务声明能力。根因：动态插件声明能力不能丢失。修复：新增`jobs.register`协议方法和 guest adapter；前端授权提交改为包含无资源目标的 service。验证：Go 测试、前端构建和 E2E 通过。
+- [x] **FB-12**: 将受治理运行时配置管理收敛到`hostconfigcap.AdminService`。根因：配置管理独立位于`configcap`。修复：删除`configcap`，迁移到`hostconfigcap`。验证：Go 测试和 OpenSpec 校验通过。
+- [x] **FB-13**: 新增`DynamicPlugin`声明期契约并与运行时领域能力分离。根因：声明期能力与运行时能力混合。修复：统一为`pluginbridge.Declarations`，运行时只保留普通领域能力。验证：guest、WASM builder 和动态示例测试通过。
+- [x] **FB-14**: 将动态插件公开入口从`pluginbridge/guest`收敛到`pluginbridge`。根因：入口命名不对称。修复：迁移 guest SDK 到根包，删除公开 guest 目录。验证：Go 测试和 OpenSpec 校验通过。
+- [x] **FB-15**: 将 host service payload codec 所有权从内部`hostservice`迁移到公共`protocol`。根因：protocol 和 internal hostservice 所有权混在一起。修复：迁移 payload struct 和 codec 实现到`protocol`。验证：Go 测试和 OpenSpec 校验通过。
+- [x] **FB-16/17/18**: 统一声明期入口命名。根因：`DynamicPlugin`和`SourcePlugin`命名模糊。修复：统一为`Declarations`和`*Declarations`子接口。验证：Go 测试和静态检索通过。
+- [x] **FB-19**: 为 WASM `org`和`tenant`用户作用域 host service 补齐目标用户可见性校验。根因：用户作用域方法直接信任 payload 中的任意`userID`。修复：新增`ensureHostCallUsersVisible`前置校验。验证：Go 测试和 race 测试通过。
+- [x] **FB-20**: 将 WASM host-call 错误响应载荷结构化。根因：失败时直接写入裸字符串。修复：新增`HostCallErrorPayload`，保留`bizerr`元数据。验证：协议测试通过。
+- [x] **FB-21**: 将 WASM host service 运行期依赖收敛为并发安全的显式快照读取。根因：领域服务分散在多个可变包级变量中。修复：新增`hostServiceRuntime`不可变快照和`atomic.Pointer`发布机制。验证：Go 测试和 race 测试通过。
+- [x] **FB-22**: 修复 WASM host service race 测试替身的共享状态竞争。根因：测试替身共享父对象写入。修复：改为互斥锁保护的 recorder。验证：race 测试通过。
 
 - [x] FB-1: 收敛`Services`公开领域能力目录，移除通知、会话和配置领域的重复公开入口。根因：`capability.Services`同时公开旧入口和新领域入口。修复：删除旧`contract.NotifyService`与`contract.SessionService`，统一使用`Services.Notifications()`、`Services.Sessions()`、`Services.Plugins().Config()`和`Services.HostConfig()`。验证：Go 编译门禁、静态检索和 OpenSpec 严格校验通过。
 - [x] FB-2: 通用化插件规范检查入口并移除 Go 语法已阻断的宿主`DAO/DO/Entity`扫描。根因：原扫描器将 Go `internal`目录天然阻断的导入也纳入规则。修复：删除重复规则，公开命令改为`linactl plugins.check`。验证：`go test ./hack/tools/linactl/...`通过。
@@ -37,17 +67,19 @@
 
 - [x] `openspec validate`严格校验：所有迭代均通过。
 - [x] Go 编译门禁：覆盖`apps/lina-core/pkg/plugin/capability`、`pluginhost`、`pluginbridge`、受影响宿主领域 service、动态 host service 和所有迁移插件后端包。
-- [x] 后端单元测试：领域能力单元测试、动态协议测试、`data`服务授权测试、缓存一致性测试、治理扫描测试。
+- [x] 后端单元测试：领域能力单元测试、动态协议测试、`data`服务授权测试、缓存一致性测试、治理扫描测试、import 边界治理测试、descriptor 双向覆盖测试、registry dispatch 测试、WASM host service race 测试。
 - [x] 前端验证：TypeScript 类型检查、`pnpm i18n:check`通过。
 - [x] E2E：完整 E2E 合计 582 passed、8 skipped、0 failed。
-- [x] 静态检索：旧`contract.*Service`、旧非`*cap`包、旧`capability/ai`、旧`Metadata`服务、宿主核心表 DAO 生产导入均无残留。
+- [x] 静态检索：旧`contract.*Service`、旧非`*cap`包、旧`capability/ai`、旧`Metadata`服务、宿主核心表 DAO 生产导入、旧`capability/recordstore`路径、旧单数集合型 service 名、旧`Configure*HostService`专用入口、旧`pluginbridge/guest`目录、旧`configcap`公开包、旧`Cron`公开契约、旧`DynamicPlugin`/`SourcePlugin`声明期命名均无残留。
 - [x] `git diff --check`：所有迭代均通过。
+- [x] 动态插件样例构建：`GOWORK=off go test`和`linactl wasm`wasip1 构建均通过。
+- [x] 治理测试正反向验证：临时构造违规 import 确认测试能捕获，验证后删除临时文件。
 
 ## Governance
 
-- [x] i18n：领域能力返回稳定值和`labelKey`；`make i18n.check`通过；插件运行时文案按宿主和插件 i18n 启用边界维护。
-- [x] 缓存一致性：权限、角色关系、租户成员、插件状态、字典、组织树、运行时配置等关键数据使用共享修订号和事务后失效；单机和集群模式均有覆盖。
-- [x] 数据权限：读取、候选、批量、树形、导出和聚合路径均按领域能力边界在查询阶段接入租户与数据权限；批量读取以`MissingIDs`隐藏不存在与不可见差异。
-- [x] DI 来源：缓存敏感服务复用启动期共享实例或共享后端；WASM host service 和 runtime 依赖显式注入；未在业务路径临时`New()`关键服务图。
-- [x] 跨平台：治理扫描和 WASM 构建均使用 Go 工具链或`linactl`内部组件实现；根`Makefile`和`make.cmd`仅作为薄包装入口。
-- [x] 测试覆盖：后端单元测试、前端类型检查、插件管理与动态插件 E2E、host-only/plugin-full 构建测试、WASM 构建、静态扫描、OpenSpec 校验和发布链路验证。
+- [x] i18n：领域能力返回稳定值和`labelKey`；`make i18n.check`通过；插件运行时文案按宿主和插件 i18n 启用边界维护。后续变更仅涉及技术文档和协议标识符，无运行时用户可见文案或语言包新增。
+- [x] 缓存一致性：权限、角色关系、租户成员、插件状态、字典、组织树、运行时配置等关键数据使用共享修订号和事务后失效；单机和集群模式均有覆盖。Cache 继续复用启动期共享后端；Storage 本地 provider 在集群模式下必须提供明确诊断或阻断策略。
+- [x] 数据权限：读取、候选、批量、树形、导出和聚合路径均按领域能力边界在查询阶段接入租户与数据权限；批量读取以`MissingIDs`隐藏不存在与不可见差异。租户与组织 scope 过滤只迁移类型归属和注入路径，过滤语义和拒绝策略不变；WASM org/tenant host service 补齐目标用户可见性校验。
+- [x] DI 来源：缓存敏感服务复用启动期共享实例或共享后端；WASM host service 和 runtime 依赖显式注入；未在业务路径临时`New()`关键服务图。provider manager 从包级单例迁移到宿主共享实例；WASM 运行期依赖收敛为并发安全的`hostServiceRuntime`快照。
+- [x] 跨平台：治理扫描和 WASM 构建均使用 Go 工具链或`linactl`内部组件实现；根`Makefile`和`make.cmd`仅作为薄包装入口。`linactl`动态 WASM builder 继续使用 Go AST 和标准库能力。
+- [x] 测试覆盖：后端单元测试、前端类型检查、插件管理与动态插件 E2E、host-only/plugin-full 构建测试、WASM 构建、静态扫描、OpenSpec 校验、import 边界治理测试、descriptor 双向覆盖测试、WASM host service race 测试和发布链路验证。

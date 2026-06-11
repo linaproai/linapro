@@ -81,9 +81,61 @@ Go 包重命名不得改变动态插件协议。`plugin.yaml hostServices`仍使
 
 ### 包边界和内部实现
 
-插件公共契约统一收敛到`pkg/plugin`命名空间。`pluginhost`只负责源码插件贡献入口，`pluginbridge`只负责动态插件 ABI、transport 和公开协议出口，`capability`只负责插件消费宿主能力。`pluginbridge`子组件按职责拆分，公开协议出口唯一于`pluginbridge/protocol`。host service 协议样板由单一描述源覆盖，新增 method 时自动化验证所有同步点。
+插件公共契约统一收敛到`pkg/plugin`命名空间。`pluginhost`只负责源码插件贡献入口，`pluginbridge`只负责动态插件 ABI、transport 和公开协议出口，`capability`只负责插件消费宿主能力。`capability`是最底层契约层，其非测试代码不得 import `pluginbridge`或`pluginhost`；`pluginhost`非测试代码不得 import `pluginbridge`。依赖方向由随`go test`执行的治理测试持续验证。
 
-宿主插件运行时治理收敛到`apps/lina-core/internal/service/plugin`及其职责明确的子组件。启动层只依赖`plugin`根 facade 或明确允许的受控子包。框架能力 provider 使用窄接口和强类型 provider env。
+`ManifestSnapshotV1`类型定义从`pluginbridge/contract`迁入`capability/capmodel`公共原语包，`pluginbridge/contract`保留类型别名以维持 protocol facade 别名转发惯例。recordstore SDK 从`capability/recordstore`迁移到`pluginbridge/recordstore`，承认其动态插件专属 guest SDK 的事实定位。
+
+`pluginbridge`子组件按职责拆分，公开协议出口唯一于`pluginbridge/protocol`。host service 协议样板由单一描述源覆盖，新增 method 时自动化验证所有同步点。动态插件公开入口从`pluginbridge/guest`收敛到`pluginbridge`根包，与源码插件`pluginhost`入口保持根包对称。声明期入口统一为`Declarations`，与运行期`Services`区分。
+
+宿主插件运行时治理收敛到`apps/lina-core/internal/service/plugin`及其职责明确的子组件。宿主领域能力实现组件从`internal/service/plugin/internal/hostservices`重命名为`capabilityhost`，避免和动态插件`hostServices`协议目录混淆。启动层只依赖`plugin`根 facade 或明确允许的受控子包。框架能力 provider 使用窄接口和强类型 provider env。
+
+### Host Service 协议 Catalog 与 Registry Dispatch
+
+动态插件 host service 的领域桥接边界收敛为公开协议 catalog、guest typed client 和宿主 registry dispatch 三个稳定接缝。`protocol/hostservices`作为公开 catalog 集中维护 service、method、capability、资源类型、payload 形态、guest client 发布状态和 host dispatcher 发布状态。`internal/hostservice`descriptor 从公开 catalog 派生，不再维护第二份手写表。
+
+普通领域 host service 默认使用统一 JSON envelope，减少每个领域新增专用`protowire`codec 的需求。`storage`、`cache`、`lock`、`data/recordstore`、`network`等有明确性能或资源需求的服务保留专用 codec。
+
+宿主 WASM host service dispatch 改为显式注册的 registry 驱动。`wasm_host_service.go`入口只负责 envelope 解码、授权校验、上下文构造、registry lookup 和统一错误响应，不再维护 service 级大 switch。领域 handler 通过父包显式注册适配层接入 registry，避免扩大 WASM 私有执行上下文公开面。registry 注册使用显式装配函数，不得使用`init()`隐式注册。
+
+descriptor 覆盖治理改为双向校验：descriptor 中声明发布的 guest client 和 dispatcher method 必须有对应实现；实现中出现的 service/method 也必须反向存在于 descriptor。README host service 表格由 descriptor 渲染器生成，漂移测试阻断未刷新文档的提交。
+
+### 领域能力边界收敛
+
+宿主侧领域能力实现组件从`hostservices`重命名为`capabilityhost`。动态普通领域能力只保留一个`ConfigureDomainHostServices(capability.Services)`配置入口，删除 AI、User、Org、Tenant 等领域专用`Configure*HostService`全局入口和 fallback 目录。
+
+`pluginbridge/protocol`负责暴露动态`hostServices`公开协议描述并拥有 payload DTO 和 codec；`pluginbridge/internal/hostservice`负责 descriptor、授权推导、资源形态和清单规范化治理。二者都不拥有领域业务契约。
+
+集合型领域的动态协议 service 名必须与`capability.Services`领域目录名称保持一致：`Users()`→`users`、`Files()`→`files`、`Jobs()`→`jobs`、`Notifications()`→`notifications`、`Plugins()`→`plugins`、`Sessions()`→`sessions`。不保留旧单数别名。
+
+插件生命周期编排归属`plugins`领域能力，通过`host:plugins`能力和方法级授权暴露。插件自身配置读取从独立`config`收敛到`plugins.config.get`。通知发送从独立`notify`收敛到`notifications.messages.send`。定时任务统一归属`jobs`领域，动态插件旧 cron 声明能力迁移为`jobs.register`发现期声明能力，源码插件`Cron`入口迁移为`pluginhost.Jobs()`。
+
+### 消费契约与 Provider SPI 分离
+
+普通消费领域能力契约与源码插件 provider SPI、宿主内部 scope 接缝分离。`tenantcap`和`orgcap`父包只暴露普通消费`Service`、领域 DTO、值对象、错误码和常量；provider SPI、scope helper、request resolver 迁入`tenantspi`和`orgspi`子包。子包可以 import 父包复用 DTO；父包不得 import 子包。
+
+`routecap.DynamicRouteMetadata`从`*ghttp.Request`改为`context.Context`；`apidoccap`删除依赖`ghttp`的 handler helper。非`*spi`的`capability/**`生产代码不得 import `gdb`或`ghttp`，`pluginbridge/**`生产代码不得 import 任何`*spi`子包。
+
+provider factory 声明入口从能力包级`Provide()`和包级`defaultManager`迁移到`pluginhost.Declarations`的强类型 provider 声明分组。provider manager 由宿主启动装配层创建、持有并通过构造函数显式注入，不得由包级默认单例持有。
+
+### AI 授权模型简化
+
+动态插件`ai` host service 从`purpose`资源授权模型调整为`service + method`方法授权模型。`plugin.yaml`只声明`service: ai`和允许调用的`methods`，不再使用`resources`声明`purpose`和策略属性。`purpose`、`tier`、`maxOutputTokens`等参数由请求 DTO 提交，由 AI 能力服务及`linapro-ai-core`治理。主框架负责校验`service + method`授权、DTO 编解码、可信`pluginID`来源注入、结构化错误和错误脱敏。
+
+动态插件普通领域 host service 覆盖源码插件`capability.Services`普通消费面中的领域能力。这些领域服务均采用方法授权型声明，运行时统一从宿主注入的同一个`capability.Services`目录进入对应`*cap.Service`。
+
+### Guest 传输单轨化
+
+guest host service client 统一为 invoker 注入式结构。根目录残留的`pluginbridge_hostcall_*_wasip1.go`逐域单例客户端、adapter 和镜像 stub 迁入`internal/domainhostcall`注入式客户端构造。`pluginbridge_directory.go`通过统一 invoker 装配基础能力和领域能力 guest client。非 WASI 不可用行为收敛到传输层`InvokeHostService`统一 stub。`recordstore`保持现有注入式执行文件，因为它承载查询计划执行领域逻辑。
+
+### 资源能力领域能力化
+
+`Cache`、`Lock`和`Storage`统一纳入`pkg/plugin/capability`领域能力目录。源码插件通过`pluginhost.Services`消费`cachecap.Service`、`lockcap.Service`和`storagecap.Service`；动态插件通过`pluginbridge`消费同一组领域接口。动态插件`hostServices`协议继续保留`service: cache`、`service: lock`和`service: storage`作为授权和 transport service 名，但这些协议名不再拥有业务契约。
+
+动态插件分发层在完成`hostServices`授权校验后调用当前插件作用域的领域服务，不得直接调用底层`kvcache`、`hostlock`或本地文件目录实现。源码插件默认全信任，不要求在`plugin.yaml hostServices`中声明资源边界，但领域服务仍按插件 ID 和租户上下文隔离。
+
+`Storage`新增`storagecap.Provider`和`storagecap.ProviderFactory`，允许主框架和源码插件提供对象存储后端。默认使用主框架内置本地磁盘 provider；配置 active provider plugin ID 时，只有该插件启用且 provider 构造成功才使用该 provider，不静默回退本地。本地磁盘 provider 在集群模式下必须提供明确诊断或阻断策略。`Storage.List`必须有明确 limit 上限，provider 实现不得无界遍历。
+
+WASM 配置入口删除`ConfigureCacheHostService`、`ConfigureLockHostService`和`ConfigureStorageHostService`专用入口，统一通过`ConfigureDomainHostServices(capability.Services)`注入领域能力目录。
 
 ### 插件 UI、菜单和管理读模型
 

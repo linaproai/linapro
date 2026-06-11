@@ -1,3 +1,5 @@
+# linapro-ai-core-plugin 规范增量
+
 ## ADDED Requirements
 
 ### Requirement: 动态插件文本 AI 授权不得授予管理权限

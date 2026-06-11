@@ -80,3 +80,53 @@
 ### Requirement: 插件宿主领域能力迁移必须有治理扫描
 
 系统 SHALL 提供静态治理扫描或等价验证，阻断插件生产代码重新生成、导入或查询宿主核心表，阻断旧领域接口、旧动态`host service`方法和动态`data`服务核心表授权。测试、Mock、安装 SQL 和迁移 SQL 例外 MUST 被限定在对应目录和职责内。
+
+### Requirement: 普通领域能力契约必须与 Provider SPI 分离
+
+系统 SHALL 将插件普通消费领域能力契约与源码插件 provider SPI、宿主内部 scope 接缝分离。普通`capability/<domain>cap`父包 MUST 只暴露普通消费`Service`、领域 DTO、值对象、错误码和常量；凡是需要`*gdb.Model`、`*ghttp.Request`、provider factory、provider runtime、provider env 或宿主内部 scope helper 的接口 MUST 放入对应`*spi`子包或宿主内部包。
+
+#### Scenario: 普通插件消费租户能力
+
+- **WHEN** 源码插件或动态插件通过`tenantcap.Service`消费租户能力
+- **THEN** 该父包接口不暴露`*gdb.Model`、`*ghttp.Request`、provider factory 或 provider runtime
+- **AND** 插件只看到租户 DTO、状态、批量投影、候选和普通消费方法
+
+#### Scenario: Provider 插件实现租户能力
+
+- **WHEN** 源码 provider 插件需要实现租户解析、membership、scope 或插件表过滤
+- **THEN** 它 import `pkg/plugin/capability/tenantcap/tenantspi`
+- **AND** 该 SPI 可以使用`*gdb.Model`或`*ghttp.Request`表达宿主内部数据库过滤和请求解析接缝
+- **AND** 这些 SPI 不进入动态插件 guest SDK 或`hostServices`协议
+
+### Requirement: 动态路由和 API 文档能力不得暴露 HTTP 框架对象
+
+系统 SHALL 要求普通领域能力契约使用`context.Context`、路径、方法、DTO 或中立值对象传递请求相关信息，不得在普通`capability/**`父包中暴露`*ghttp.Request`或`*ghttp.HandlerItemParsed`。
+
+### Requirement: 数据权限过滤迁移必须保持数据库侧注入语义
+
+系统 SHALL 将租户与组织 scope 接口迁移视为类型归属重构。租户过滤、组织部门过滤、用户 membership 过滤和插件自有表租户过滤 MUST 继续在数据库查询阶段注入约束，不得因为 SPI 拆分退化为内存过滤、放开全量数据或改变拒绝策略。
+
+### Requirement: 插件资源型基础能力必须收敛为领域能力
+
+系统 SHALL 将插件可消费的`cache`、`lock`和`storage`能力发布为`pkg/plugin/capability`下的领域契约。源码插件 MUST 通过`pluginhost.Services`消费这些领域能力；动态插件 MUST 通过`pluginbridge`消费实现同一领域接口的 guest adapter。`pluginbridge`协议和`hostServices`声明只拥有动态插件 transport、授权和 payload 编解码职责，不得成为`cache`、`lock`或`storage`业务接口 owner。
+
+#### Scenario: 源码插件消费资源型基础能力
+
+- **WHEN** 源码插件在 route、hook、jobs 或生命周期回调中需要缓存、锁或对象存储能力
+- **THEN** 宿主通过`pluginhost.Services`提供`cachecap.Service`、`lockcap.Service`和`storagecap.Service`
+- **AND** 插件业务服务应注入所需的最窄领域接口
+- **AND** 插件不得接收宿主内部`kvcache.Service`、`hostlock.Service`、存储 provider、物理路径或底层客户端
+
+#### Scenario: 动态插件消费资源型基础能力
+
+- **WHEN** 动态插件业务代码调用`guest.Services.Cache()`、`guest.Services.Lock()`或`guest.Services.Storage()`
+- **THEN** guest 侧返回值必须实现对应`cachecap.Service`、`lockcap.Service`或`storagecap.Service`
+- **AND** 公共 guest API 不得向业务代码暴露`protocol.HostServiceCacheValue`、`protocol.HostServiceLockAcquireResponse`、`protocol.HostServiceStorageObject`或等价 transport DTO 作为领域返回值
+
+### Requirement: 源码插件资源能力默认全信任但必须作用域隔离
+
+系统 SHALL 将源码插件视为可信插件形态，源码插件消费`cache`、`lock`和`storage`时不需要在`plugin.yaml hostServices`中声明资源边界。即便源码插件默认全信任，领域服务 MUST 仍按当前插件 ID 和租户上下文隔离内部 cache key、lock name 和 storage object key。
+
+### Requirement: WASM 资源能力配置必须复用领域能力目录
+
+系统 SHALL 要求动态插件`cache`、`lock`和`storage`分发复用启动期注入的同一个`capability.Services`目录。WASM 运行时 MUST NOT 继续发布或使用`ConfigureCacheHostService`、`ConfigureLockHostService`、`ConfigureStorageHostService`或等价的资源能力专用底层配置入口。

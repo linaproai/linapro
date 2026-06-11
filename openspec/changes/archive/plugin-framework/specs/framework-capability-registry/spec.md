@@ -131,3 +131,39 @@ TBD - created by archiving change refine-plugin-capability-boundaries. Update Pu
 - **THEN** 过滤接口位于`pkg/plugin/capability/tenantcap`公开边界下
 - **AND** 入口只通过`pluginhost.Services.TenantFilter()`暴露给源码插件
 - **AND** 动态插件 guest SDK 和`hostServices`协议不得暴露该接口
+
+#### Scenario: 能力契约不泄漏内部模型
+
+- **WHEN** capability service 返回组织、租户、用户或可见范围信息
+- **THEN** 返回值使用该能力契约自有的 DTO、投影或值对象
+- **AND** 返回值不得包含宿主或插件内部`DAO`、`DO`、`Entity`、`*gdb.Model`或私有缓存结构
+
+### Requirement: 插件必须通过 Provider Factory 声明框架能力实现
+
+系统 SHALL 要求源码插件通过`pluginhost.Declarations`的强类型 provider 声明 facade 声明其对 pluginservice capability 的实现。Provider factory MUST 在源码插件 registrar 阶段声明，例如`plugin.Providers().ProvideOrg(...)`、`plugin.Providers().ProvideTenant(...)`或`plugin.Providers().ProvideAIText(...)`。Provider 实例 MUST 由消费 service 在使用时通过`PluginStateService.IsProviderEnabled(ctx, pluginID)`确认提供方插件处于平台级可用状态后懒加载。插件启用状态 MUST 是 provider 可用性的唯一权威状态，系统 MUST NOT 再维护独立的 provider active 状态。插件不得在路由注册、controller 构造、业务请求路径或能力包级`Provide()`函数中直接写入全局 provider 注册表。
+
+#### Scenario: 源码插件声明组织能力 Provider
+
+- **WHEN** `linapro-org-core`提供`framework.org.v1`实现
+- **THEN** 插件入口通过`pluginhost.Declarations`的 provider 声明 facade 声明一个`orgspi.ProviderFactory`
+- **AND** 消费 service 在调用组织能力时通过`PluginStateService.IsProviderEnabled(ctx, "linapro-org-core")`判断 provider 插件是否平台级可用
+- **AND** provider 插件平台级可用时，`pkg/plugin/capability/internal/capabilityregistry`中的 manager 使用该插件声明的 factory 懒加载 provider 实例
+
+#### Scenario: 源码插件声明租户能力 Provider
+
+- **WHEN** `linapro-tenant-core`提供`framework.tenant.v1`实现
+- **THEN** 插件入口通过`pluginhost.Declarations`的 provider 声明 facade 声明一个`tenantspi.ProviderFactory`
+- **AND** 宿主注册该 factory 时记录声明插件 ID，并在 provider 使用路径继续按插件 enabled snapshot 判断可用性
+
+#### Scenario: 源码插件声明 AI 文本 Provider
+
+- **WHEN** `linapro-ai-core`提供文本`AI`能力实现
+- **THEN** 插件入口通过`pluginhost.Declarations`的 provider 声明 facade 声明一个`aitext.ProviderFactory`
+- **AND** provider 使用路径继续按插件 enabled snapshot 判断可用性
+
+#### Scenario: 插件禁用后 Provider 不再被使用
+
+- **WHEN** 提供 pluginservice capability 的插件被禁用、卸载或升级失败
+- **THEN** `PluginStateService.IsProviderEnabled(ctx, pluginID)`返回 false
+- **AND** 消费 service 不再返回或调用该插件声明的 provider
+- **AND** 消费 service 的`Available(ctx)`或等价状态反映该能力不可用或降级状态

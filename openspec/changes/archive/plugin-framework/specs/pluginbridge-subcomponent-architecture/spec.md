@@ -155,3 +155,68 @@
 ### Requirement: 生成代码不得改变 dynamic plugin bridge wire 行为
 
 系统 MAY 使用生成代码维护 host service DTO、codec、alias、guest client、stub 或 dispatcher 绑定。生成代码 MUST 保持现有 service/method 字符串、protobuf wire 字段编号、默认值、错误状态和 guest helper 行为不变，并且 MUST 带有 `Code generated` 标记。生成流程必须有跨平台入口或明确的 Go 测试覆盖。
+
+### Requirement: pluginbridge 必须以公开子组件承载动态插件专属 record store SDK
+
+系统 SHALL 将动态插件 record store guest SDK 作为`pkg/plugin/pluginbridge/recordstore`公开子组件发布。该子组件承载 ORM-style record store facade、typed query plan 契约及其`internal/plan`私有实现；它 MAY import `pluginbridge/protocol`完成 host-service data 协议的请求构造与响应解码，该方向属于`pluginbridge`同层内聚的合法依赖。宿主侧 data governance 适配入口消费的 typed plan 契约 MUST 通过该公开子组件访问，不得直接 import 其`internal/plan`实现。
+
+#### Scenario: 动态插件构造受治理记录操作
+
+- **WHEN** 动态插件 guest 代码需要构造受治理表记录查询、变更或事务
+- **THEN** 插件 import `lina-core/pkg/plugin/pluginbridge/recordstore`
+- **AND** guest 能力目录`Services.RecordStore()`返回该子组件的 facade
+
+#### Scenario: recordstore 依赖 protocol 属于同层合法方向
+
+- **WHEN** 检查`pluginbridge/recordstore`的 import
+- **THEN** 它可以 import `pluginbridge/protocol`与`capability`公共原语
+- **AND** 它不得 import `pluginbridge`根包、guest runtime 或 route helper
+- **AND** `capability/**`非测试代码不得反向 import 该子组件
+
+#### Scenario: 宿主 datahost 消费 typed plan 契约
+
+- **WHEN** 宿主 datahost 需要解码 typed query plan 并执行受治理表操作
+- **THEN** 宿主 import `lina-core/pkg/plugin/pluginbridge/recordstore`公开契约
+- **AND** 不得直接 import `pluginbridge/recordstore/internal/plan`
+
+### Requirement: record store SDK 迁移必须保持协议与计划语义不变
+
+系统 SHALL 将 record store SDK 从`pkg/plugin/capability/recordstore`迁移到`pkg/plugin/pluginbridge/recordstore`视为纯包路径重构。typed query plan 的 JSON 编码、host service data 协议的 service/method 字符串、payload 编解码结果、过滤与排序校验语义、事务操作语义 MUST 保持不变；旧路径 MUST 删除且不保留兼容入口。
+
+### Requirement: host service catalog 必须作为公开协议描述源
+
+系统 SHALL 在`pkg/plugin/pluginbridge/protocol/hostservices`维护动态插件 host service 的公开协议 catalog。该 catalog MUST 覆盖 service、method、capability、资源类型、payload 形态、请求响应 payload 名称、guest client 发布状态和 host dispatcher 发布状态。`pluginbridge/internal/hostservice`可以继续提供 manifest validation、capability derivation 和治理测试辅助，但其 descriptor MUST 从公开 catalog 派生，不得维护第二份手写 service/method 表。
+
+#### Scenario: 新增普通领域 host service
+
+- **WHEN** 开发者新增一个普通领域 host service
+- **THEN** service、method、capability、资源类型、payload 形态、guest client 发布状态和 host dispatcher 发布状态必须在`protocol/hostservices`catalog 中声明
+- **AND** `pluginbridge/internal/hostservice`descriptor 从该 catalog 读取或转换元数据
+- **AND** 不得在`pluginbridge/internal/hostservice`新增独立的手写镜像 descriptor 数据
+
+#### Scenario: 宿主 dispatch 需要读取 host service 元数据
+
+- **WHEN** `internal/service/plugin/internal/wasm`需要校验 dispatcher 注册覆盖
+- **THEN** 它可以导入`pkg/plugin/pluginbridge/protocol/hostservices`
+- **AND** 不得导入`pkg/plugin/pluginbridge/internal/hostservice`
+- **AND** Go internal import 边界必须通过编译和静态检索验证
+
+### Requirement: 普通领域 host service payload 必须优先使用 JSON envelope
+
+系统 SHALL 为普通领域 host service 提供统一 JSON request/response envelope。新增普通领域能力默认 MUST 通过该 JSON envelope 承载领域 DTO 或投影，不得为每个领域默认新增专用`protocol_hostservice_<x>_codec.go`和手写`protowire`codec。只有存在明确性能、资源授权、二进制内容、事务计划或 wire 稳定性需求的服务，才 MAY 保留或新增专用 codec，并且该例外 MUST 在 catalog 中标记 payload kind。
+
+### Requirement: host service catalog 覆盖治理必须校验 guest、codec 和 dispatch
+
+系统 SHALL 基于`protocol/hostservices`catalog 双向校验 host service 同步点。catalog 中声明发布的 guest client、payload codec 和 host dispatcher 必须存在；实现中出现的 guest client selector、专用 codec 或 dispatcher 注册也必须反向存在于 catalog。新增、删除或重命名 host service method 时，自动化验证 MUST 能发现任一同步点遗漏或孤儿实现。
+
+### Requirement: host service README 表格必须由 descriptor 生成
+
+系统 SHALL 使用`pluginbridge/internal/hostservice`的 descriptor 作为`pkg/plugin`双语`README`中 host service 表格的单一事实源。`README.md`与`README.zh-CN.md`中的 host service 表格 MUST 位于稳定生成标记之间，并由 descriptor 渲染器维护。自动化测试 MUST 比对 descriptor 渲染结果与当前文档内容，发现漂移时失败。
+
+### Requirement: host service descriptor 覆盖治理必须双向校验
+
+系统 SHALL 通过自动化测试双向校验 host service descriptor、guest client selector 和宿主 dispatcher 绑定。descriptor 中声明发布的 guest client 或 dispatcher method MUST 有对应实现；实现中出现的 service/method 也 MUST 反向存在于 descriptor 并声明对应发布位。宿主 service 级 switch 与 dispatcher 文件集合 MUST 与 descriptor 中启用 dispatcher 的 service 集合保持一致。
+
+### Requirement: guest host service client 必须使用注入式传输单轨
+
+系统 SHALL 将动态插件 guest host service client 统一为 invoker 注入式结构。除`recordstore`等承载领域执行逻辑的独立 SDK 外，`pluginbridge`根目录 MUST NOT 保留逐域`pluginbridge_hostcall_*_wasip1.go`单例客户端、逐域 adapter 或逐域非 WASI 镜像 stub。`pluginbridge_directory.go`MUST 通过统一 invoker 装配基础能力和领域能力 guest client，wire 格式和 getter 签名 MUST 保持不变。

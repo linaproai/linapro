@@ -194,3 +194,58 @@ TBD - created by archiving change refactor-plugin-package-boundaries. Update Pur
 ### Requirement: 旧非 *cap 能力包不得作为生产入口保留
 
 系统 SHALL 在迁移完成后删除旧非`*cap`公开能力包入口。生产代码、官方插件、动态插件样例和测试替身 MUST 不再导入旧非`*cap`具体能力包。同时不得新增`capability/tenantfiltercap`独立能力组件，也不得通过根`Services.Config()`、`Services.PluginConfig()`、`Services.PluginLifecycle()`或`Services.PluginState()`访问插件相关能力。
+
+### Requirement: `pkg/plugin`顶层组件依赖方向必须固定并受治理验证
+
+系统 SHALL 固定`pkg/plugin`三个公开顶层组件的依赖方向：`capability`是最底层契约层，其非测试代码 MUST NOT import `pkg/plugin/pluginbridge`或`pkg/plugin/pluginhost`的任何子包；`pluginhost`非测试代码 MUST NOT import `pkg/plugin/pluginbridge`的任何子包。`pluginhost`与`pluginbridge`共享的契约类型 MUST 下沉到`capability`公共原语包，不得由其中一方 import 另一方获得。该依赖方向 MUST 由随`go test`执行的治理测试持续验证。
+
+#### Scenario: 治理测试验证 capability 依赖边界
+
+- **WHEN** 执行`pkg/plugin`的 import 边界治理测试
+- **THEN** `capability/**`非测试源文件不存在`lina-core/pkg/plugin/pluginbridge`或`lina-core/pkg/plugin/pluginhost`前缀的 import
+- **AND** 违规时测试失败并指出违规文件和违规 import 路径
+
+#### Scenario: 治理测试验证 pluginhost 依赖边界
+
+- **WHEN** 执行`pkg/plugin`的 import 边界治理测试
+- **THEN** `pluginhost/**`非测试源文件不存在`lina-core/pkg/plugin/pluginbridge`前缀的 import
+- **AND** 违规时测试失败并指出违规文件和违规 import 路径
+
+#### Scenario: 源码插件升级回调使用中立 manifest 快照契约
+
+- **WHEN** `pluginhost`为源码插件升级回调发布 manifest 快照契约
+- **THEN** typed manifest snapshot 类型定义位于`pkg/plugin/capability/capmodel`
+- **AND** `pluginbridge/contract`通过类型别名复用同一定义，动态插件生命周期请求的 JSON wire 格式保持不变
+- **AND** `pluginhost`不因 manifest 快照 import `pluginbridge/contract`
+
+#### Scenario: 测试代码跨边界验证豁免
+
+- **WHEN** `capability`或`pluginhost`的`_test.go`文件为集成验证 import `pluginbridge`
+- **THEN** 治理测试不将其判定为违规
+- **AND** 豁免仅适用于测试代码，不适用于任何生产源文件
+
+### Requirement: capability 普通契约与 SPI 子包边界必须受治理验证
+
+系统 SHALL 要求`pkg/plugin/capability/**`普通生产契约保持无 GoFrame HTTP 和数据库 query builder 依赖。除路径段以`spi`结尾的源码插件 provider SPI 子包外，`capability/**`非测试生产代码 MUST NOT import `github.com/gogf/gf/v2/database/gdb`或`github.com/gogf/gf/v2/net/ghttp`。该约束 MUST 由随`go test`执行的治理测试持续验证。
+
+#### Scenario: 治理测试验证普通 capability 不导入 gdb
+
+- **WHEN** 执行`pkg/plugin`的 import 边界治理测试
+- **THEN** `capability/**`中非`*spi`子包的非测试源文件不存在`github.com/gogf/gf/v2/database/gdb` import
+- **AND** 违规时测试失败并指出违规文件和违规 import 路径
+
+#### Scenario: 治理测试验证普通 capability 不导入 ghttp
+
+- **WHEN** 执行`pkg/plugin`的 import 边界治理测试
+- **THEN** `capability/**`中非`*spi`子包的非测试源文件不存在`github.com/gogf/gf/v2/net/ghttp` import
+- **AND** 违规时测试失败并指出违规文件和违规 import 路径
+
+#### Scenario: SPI 子包允许宿主接缝类型
+
+- **WHEN** `tenantspi`或`orgspi`需要表达数据库 scope helper、request resolver 或 provider runtime
+- **THEN** 对应 SPI 子包可以 import `gdb`或`ghttp`
+- **AND** 该豁免不得扩散到父级`tenantcap`、`orgcap`或其他普通能力包
+
+### Requirement: pluginbridge 不得依赖源码插件 Provider SPI
+
+系统 SHALL 将`pkg/plugin/pluginbridge`限定为动态插件 ABI、transport、公开协议和动态插件专属 guest SDK。`pluginbridge/**`非测试生产代码 MUST NOT import `pkg/plugin/capability/**`下路径段以`spi`结尾的源码插件 provider SPI 子包。该约束 MUST 由随`go test`执行的治理测试持续验证。

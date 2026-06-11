@@ -358,3 +358,67 @@
 ### Requirement: WASM host service 生产依赖必须由启动期显式配置
 
 系统 SHALL 由宿主启动期统一配置 WASM host service dispatcher 所需的 cache、lock、notify、storage config、plugin config、manifest、AI、organization、tenant 和其他 host service 运行期依赖。生产代码中的 WASM host service 包级变量 MUST NOT 默认调用 `New()` 创建关键服务实例。缺失配置 MUST 以显式初始化错误或 host call internal error 暴露。
+
+### Requirement: WASM host service dispatch 必须由显式 registry 驱动
+
+系统 SHALL 将动态插件 WASM host service dispatch 收敛为显式注册的 registry 驱动结构。`wasm_host_service.go`入口 MUST 只负责 envelope 解码、调用上下文构造、授权校验、registry lookup 和统一错误响应；`internal/service/plugin/internal/wasm/hostservicedispatch`MUST 拥有 registry、handler context、注册校验和通用响应辅助。具体 service/method 处理逻辑 MAY 继续保留在`wasm`父包作为显式注册适配层。registry 注册 MUST 使用显式装配函数，不得使用`init()`隐式注册。
+
+#### Scenario: 已注册 method 正常分发
+
+- **WHEN** 动态插件调用一个已在 registry 注册且已授权的 service/method
+- **THEN** `wasm_host_service.go`通过 registry lookup 定位 handler
+- **AND** handler 或父包适配层接收统一 host call context、resource identifier、method 和 payload
+- **AND** handler 返回统一 host call response envelope
+
+#### Scenario: 未知 service 或 method 被拒绝
+
+- **WHEN** 动态插件调用未在 registry 注册的 service/method
+- **THEN** 宿主返回结构化"不支持"或"未找到"错误
+- **AND** 宿主不得进入任何实际领域能力、数据访问、缓存、网络或外部资源调用
+
+#### Scenario: 入口文件不维护 service 级 switch
+
+- **WHEN** 静态检索`internal/service/plugin/internal/wasm/wasm_host_service.go`
+- **THEN** 不得存在按 host service family 分发到`dispatch<X>HostService`的 service 级大 switch
+- **AND** 新增领域 host service 不需要修改该入口文件的分发分支
+
+### Requirement: 领域 dispatch handler 必须保持宿主治理边界
+
+系统 SHALL 要求每个 host service dispatch handler 在 registry 驱动结构下继续保持既有授权、数据权限、租户边界、缓存一致性、审计和错误 envelope 语义。普通领域 handler 只负责 transport DTO 与`capability/<x>cap`领域契约之间的转换，不得直接依赖宿主 DAO、DO、Entity、私有缓存快照或未发布内部 service 实现。
+
+#### Scenario: 数据访问能力通过等价数据权限边界
+
+- **WHEN** 动态插件通过 host service handler 读取列表、详情、批量信息、候选项或执行写操作
+- **THEN** handler 必须保持与宿主 API 等价的数据权限、租户边界和目标可见性校验
+
+#### Scenario: 缓存敏感能力复用共享实例
+
+- **WHEN** handler 访问 cache、session、权限快照、插件状态、运行时配置或其他缓存敏感能力
+- **THEN** handler 必须复用启动期注入的共享服务实例或共享后端
+- **AND** 不得在插件调用路径中创建仅当前节点可见的默认实例
+
+### Requirement: AI host service 调用必须受 service、method 和 DTO 能力边界约束
+
+系统 SHALL 对每一次`ai`host service 调用校验`service: ai`、声明的`method`、调用来源和请求 DTO 边界。`ai`host service MUST NOT 使用`resources`、`resourceRef`或`purpose:<name>`作为运行时授权条件；`purpose`、`tier`、`maxOutputTokens`、资产引用和其他方法参数 MUST 由请求 DTO 承载，并由对应`AI`子能力服务或`linapro-ai-core`治理。
+
+#### Scenario: 方法授权后调用文本能力
+
+- **WHEN** 动态插件已获`ai.text.generate`方法授权
+- **AND** 请求 DTO 中提交`purpose`、`tier`、`messages`和`maxOutputTokens`
+- **THEN** host service handler MUST 将请求转换为`AI().Text().GenerateText(...)`调用
+- **AND** 宿主 MUST 使用 host-call 上下文中的`pluginID`注入来源插件身份
+- **AND** 宿主 MUST NOT 按`purpose:<name>`资源授权或`resources.attributes`限制该请求
+
+#### Scenario: 未授权方法被拒绝
+
+- **WHEN** 动态插件未声明或未获确认`ai.document.cite`对应方法授权
+- **THEN** 宿主 MUST 在执行`AI().Document().Cite(...)`或任何渠道调用前拒绝
+- **AND** 宿主 MUST 返回结构化授权错误
+
+### Requirement: 动态插件普通领域 host service 必须覆盖源码插件普通领域能力
+
+系统 SHALL 让动态插件通过`hostServices`获得与源码插件`capability.Services`普通消费面等价的领域能力覆盖。动态插件领域 host service MUST 使用语言无关的领域服务名和方法名，MUST 使用`resourceKind: none`表达方法授权，运行时 MUST 从宿主注入的同一个`capability.Services`目录进入对应`*cap.Service`。动态插件协议 MUST NOT 暴露`AdminServices`目录、数据库查询构造器、`DAO/DO/Entity`、HTTP 请求对象或宿主内部 service。
+
+### Requirement: 宿主服务访问同时受宿主服务声明推导的能力分类和资源授权约束
+
+系统 SHALL 对每一次宿主服务调用执行由`hostServices`声明自动推导的粗粒度 capability 校验。对于资源型 host service，系统还 SHALL 执行细粒度资源授权校验；对于`ai`这类方法授权型 host service，系统 MUST 只按`service + method`授权快照校验，不得要求插件作者声明或确认额外`resources`。只读读取型服务的`methods`MUST 表达真实 host service 调用动作，SDK typed helper 不得作为独立授权方法进入声明或运行时快照。
