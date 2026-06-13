@@ -120,7 +120,6 @@ func (hcc *hostCallContext) hasHostServiceAccess(service string, method string, 
 			normalizedService == bridgehostservice.HostServiceBizCtx ||
 			normalizedService == bridgehostservice.HostServiceDict ||
 			normalizedService == bridgehostservice.HostServiceFiles ||
-			normalizedService == bridgehostservice.HostServiceI18n ||
 			normalizedService == bridgehostservice.HostServiceInfra ||
 			normalizedService == bridgehostservice.HostServiceJobs ||
 			normalizedService == bridgehostservice.HostServiceNotifications ||

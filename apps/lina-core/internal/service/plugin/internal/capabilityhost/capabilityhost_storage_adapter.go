@@ -1,6 +1,6 @@
 // This file adapts plugin-visible object storage operations to the active
 // storage provider while enforcing logical path, plugin scope, tenant scope,
-// object size, and bounded listing rules.
+// streaming writes, and bounded listing rules.
 
 package capabilityhost
 
@@ -18,6 +18,12 @@ import (
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/capability/tenantcap"
+)
+
+const (
+	// objectContentTypeProbeBytes is the maximum prefix read for MIME sniffing
+	// before the original object stream is passed through to the provider.
+	objectContentTypeProbeBytes = 512
 )
 
 // storageAdapter binds provider-backed object storage to one plugin.
@@ -49,12 +55,9 @@ func (s *storageAdapter) Put(ctx context.Context, in storagecap.PutInput) (*stor
 	if err != nil {
 		return nil, err
 	}
-	body, bodyBytes, size, err := storageBody(in.Body, in.Size)
+	body, probeBytes, err := storageBody(in.Body)
 	if err != nil {
 		return nil, err
-	}
-	if size > storagecap.MaxObjectBytes {
-		return nil, bizerr.NewCode(storagecap.CodeStorageObjectTooLarge, bizerr.P("maxBytes", storagecap.MaxObjectBytes))
 	}
 	providerID, provider, err := storagecap.ResolveProvider(ctx, s.runtime, s.localProvider)
 	if err != nil {
@@ -63,8 +66,8 @@ func (s *storageAdapter) Put(ctx context.Context, in storagecap.PutInput) (*stor
 	object, err := provider.Put(ctx, storagecap.ProviderPutInput{
 		Key:         s.objectKey(ctx, objectPath),
 		Body:        body,
-		Size:        size,
-		ContentType: detectObjectContentType(in.ContentType, bodyBytes, objectPath),
+		Size:        in.Size,
+		ContentType: detectObjectContentType(in.ContentType, probeBytes, objectPath),
 		Overwrite:   in.Overwrite,
 	})
 	if err != nil {
@@ -251,13 +254,17 @@ func (s *storageAdapter) providerObject(
 
 // currentTenantID returns the current plugin storage tenant scope.
 func (s *storageAdapter) currentTenantID(ctx context.Context) int64 {
+	current := bizctxcap.CurrentFromContext(ctx)
+	if current.TenantID > 0 {
+		return int64(current.TenantID)
+	}
+	if current.PlatformBypass {
+		return int64(tenantcap.PLATFORM)
+	}
 	if s != nil && s.bizCtx != nil {
 		if tenantID := s.bizCtx.Current(ctx).TenantID; tenantID > 0 {
 			return int64(tenantID)
 		}
-	}
-	if tenantID := bizctxcap.CurrentFromContext(ctx).TenantID; tenantID > 0 {
-		return int64(tenantID)
 	}
 	return int64(tenantcap.PLATFORM)
 }
@@ -298,24 +305,17 @@ func normalizeStorageListLimit(limit int) int {
 	return limit
 }
 
-// storageBody reads and bounds an object body for provider operations.
-func storageBody(reader io.Reader, declaredSize int64) (*bytes.Reader, []byte, int64, error) {
+// storageBody prepares a streaming body for provider operations while reading
+// only a small prefix for content-type detection.
+func storageBody(reader io.Reader) (io.Reader, []byte, error) {
 	if reader == nil {
 		reader = bytes.NewReader(nil)
 	}
-	limit := int64(storagecap.MaxObjectBytes) + 1
-	content, err := io.ReadAll(io.LimitReader(reader, limit))
+	probe, err := io.ReadAll(io.LimitReader(reader, objectContentTypeProbeBytes))
 	if err != nil {
-		return nil, nil, 0, err
+		return nil, nil, err
 	}
-	size := int64(len(content))
-	if declaredSize >= 0 && declaredSize > size {
-		size = declaredSize
-	}
-	if size > storagecap.MaxObjectBytes || int64(len(content)) > storagecap.MaxObjectBytes {
-		return nil, nil, 0, bizerr.NewCode(storagecap.CodeStorageObjectTooLarge, bizerr.P("maxBytes", storagecap.MaxObjectBytes))
-	}
-	return bytes.NewReader(content), content, int64(len(content)), nil
+	return io.MultiReader(bytes.NewReader(probe), reader), probe, nil
 }
 
 // detectObjectContentType derives the best content type from request, body, or extension.

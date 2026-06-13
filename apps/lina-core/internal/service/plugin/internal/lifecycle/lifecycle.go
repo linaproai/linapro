@@ -114,6 +114,13 @@ type TenantProvisioningService interface {
 	ProvisionAutoEnabledTenantPlugins(ctx context.Context) error
 }
 
+// SourceServicesProvider resolves plugin-scoped source-plugin service
+// directories for lifecycle callbacks that need host capabilities.
+type SourceServicesProvider interface {
+	// SourceServicesForPlugin returns the source-plugin service directory scoped to pluginID.
+	SourceServicesForPlugin(pluginID string) pluginhost.Services
+}
+
 // Service defines the lifecycle service contract.
 type Service interface {
 	// BootstrapAutoEnable ensures configured startup plugins are installed and
@@ -178,6 +185,8 @@ type serviceImpl struct {
 	topology TopologyProvider
 	// tenantProvisioning provisions tenant-scoped auto-enabled plugins after startup convergence.
 	tenantProvisioning TenantProvisioningService
+	// sourceServices resolves plugin-scoped host capabilities for source-plugin callbacks.
+	sourceServices SourceServicesProvider
 	// lifecycleObservers stores synchronous lifecycle observers for this lifecycle instance.
 	lifecycleObservers *lifecycleObserverRegistry
 }
@@ -194,6 +203,7 @@ func New(
 	cachePublisher CachePublisher,
 	topology TopologyProvider,
 	tenantProvisioning TenantProvisioningService,
+	sourceServices SourceServicesProvider,
 ) Service {
 	return &serviceImpl{
 		catalogSvc:         catalogSvc,
@@ -206,6 +216,7 @@ func New(
 		cachePublisher:     cachePublisher,
 		topology:           topology,
 		tenantProvisioning: tenantProvisioning,
+		sourceServices:     sourceServices,
 		lifecycleObservers: newLifecycleObserverRegistry(),
 	}
 }

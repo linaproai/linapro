@@ -33,12 +33,6 @@ var (
 		"Plugin storage path exceeds the limit of {maxBytes} bytes",
 		gcode.CodeInvalidParameter,
 	)
-	// CodeStorageObjectTooLarge reports a body beyond MaxObjectBytes.
-	CodeStorageObjectTooLarge = bizerr.MustDefine(
-		"PLUGIN_STORAGE_OBJECT_TOO_LARGE",
-		"Plugin storage object exceeds the limit of {maxBytes} bytes",
-		gcode.CodeInvalidParameter,
-	)
 	// CodeStorageObjectExists reports a Put without overwrite for an existing object.
 	CodeStorageObjectExists = bizerr.MustDefine(
 		"PLUGIN_STORAGE_OBJECT_EXISTS",

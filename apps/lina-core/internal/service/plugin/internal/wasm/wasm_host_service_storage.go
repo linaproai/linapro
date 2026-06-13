@@ -46,6 +46,14 @@ func dispatchStorageHostService(
 	switch method {
 	case bridgehostservice.HostServiceMethodStoragePut:
 		return handleStoragePut(ctx, service, targetPath, payload)
+	case bridgehostservice.HostServiceMethodStoragePutInit:
+		return handleStoragePutInit(hcc, targetPath, payload)
+	case bridgehostservice.HostServiceMethodStoragePutChunk:
+		return handleStoragePutChunk(hcc, targetPath, payload)
+	case bridgehostservice.HostServiceMethodStoragePutCommit:
+		return handleStoragePutCommit(ctx, hcc, service, targetPath, payload)
+	case bridgehostservice.HostServiceMethodStoragePutAbort:
+		return handleStoragePutAbort(hcc, targetPath, payload)
 	case bridgehostservice.HostServiceMethodStorageGet:
 		return handleStorageGet(ctx, service, targetPath, payload)
 	case bridgehostservice.HostServiceMethodStorageDelete:

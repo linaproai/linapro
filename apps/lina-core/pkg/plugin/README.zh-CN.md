@@ -6,13 +6,19 @@
 
 | 组件 | 功能职责 |
 | --- | --- |
-| `capability` | 定义统一的`capability.Services`目录以及用户、文件、i18n、任务、AI、租户、组织、存储、缓存、锁等子包契约。源码插件直接接收这些能力；动态插件通过桥接传输访问等价能力。 |
+| `capability` | 定义统一的`capability.Services`目录以及用户、文件、i18n、任务、AI、租户、组织、存储、缓存、锁等子包契约。源码插件直接接收完整目录；动态插件只通过桥接传输访问已发布的能力子集。动态插件 i18n 资源由宿主管理，不发布`i18n`host service。 |
 | `pluginhost` | 定义源码插件的声明期契约、运行期 service 访问、生命周期回调、hook 注册、HTTP 路由贡献、定时任务贡献、菜单过滤、权限过滤和托管静态资源常量。 |
 | `pluginbridge` | 提供动态插件 guest SDK。guest 代码在发现或构建阶段使用`pluginbridge.Declarations`，在运行阶段使用`pluginbridge.Services`。 |
 
 ## 领域能力
 
-`capability.Services`是宿主持有的领域能力运行期目录。源码插件通过`pluginhost.Services`消费这些入口；动态插件声明匹配的`hostServices`，再通过`pluginbridge.Services`调用。可信源码插件管理命令保留在`capability.AdminServices`中，宿主内部 scope helper 不进入普通插件可见入口。
+`capability.Services`是宿主持有的领域能力运行期目录。源码插件通过`pluginhost.Services`消费这些入口；动态插件声明已经显式发布为动态`hostServices`的匹配入口，再通过`pluginbridge.Services`调用。`I18n()`保留为源码插件运行期能力；动态插件 i18n 资源由宿主发现、合并、缓存和分发。可信源码插件管理命令保留在`capability.AdminServices`中，宿主内部 scope helper 不进入普通插件可见入口。
+
+### `AdminServices`与动态插件
+
+`capability.AdminServices`只通过`pluginhost.Services.Admin()`暴露给可信源码插件。动态插件的`pluginbridge.Services`没有`Admin()`入口，因此不能直接消费`sessioncap.AdminService`或`notifycap.AdminService`这类领域`AdminService`接口。
+
+动态插件只能使用已经显式发布为动态`hostServices`、由插件清单声明、经宿主授权并注册到`WASM host-service`分发器中的具体方法。例如当前`sessions`动态服务只发布`sessions.search`和`sessions.batch_get`，不发布`sessioncap.AdminService.RevokeSession`。如果确实需要让动态插件使用某个管理命令，应为该动作新增窄化、版本化的`host-service`方法，而不是开放完整`AdminServices`目录。
 
 | 领域能力 | 职责边界 | 运行期与校验路径 |
 | --- | --- | --- |
@@ -22,16 +28,16 @@
 | `Users` | 提供用户批量读取、用户搜索和可见性确认。 | 宿主实现必须让用户存在性和可见性检查保持在调用方边界内。 |
 | `BizCtx` | 投影当前业务请求上下文。 | 作为只读运行期上下文桥接当前用户、租户、语言和请求元数据。 |
 | `Dict` | 解析字典值标签，并校验类型化值可见性。 | 宿主校验保持在可见字典类型和值范围内。 |
-| `Files` | 提供文件批量读取和可见性确认。 | 宿主校验避免插件探测或使用可见边界之外的文件 ID。 |
+| `Files` | 提供已有`sys_file`资源的宿主文件中心投影和可见性确认。 | 宿主校验避免插件探测或使用可见边界之外的文件 ID；该能力不负责写入、读取、删除或列出插件私有对象。 |
 | `HostConfig` | 读取受治理的宿主运行期配置值。 | 动态声明必须列出`resources.keys`；源码插件获得窄化只读 service。 |
-| `I18n` | 读取 locale、翻译消息并查找消息 key。 | 用于运行期本地化流程，不暴露翻译存储内部结构。 |
+| `I18n` | 为源码插件读取 locale、翻译消息并查找消息 key。 | 源码插件通过`pluginhost.Services`接收该能力；动态插件不接收`i18n`host service，因为其 i18n 资源由宿主管理。 |
 | `Infra` | 读取基础设施组件状态投影。 | 校验关注可见组件 ID 和只读状态投影。 |
 | `Jobs` | 读取定时任务元数据并注册动态任务。 | 声明期任务契约先校验，再进入运行期任务发现和执行。 |
 | `Notifications` | 读取通知消息并发送受治理通知。 | 读取调用不需要资源声明；`messages.send`需要`resources[].ref`边界。 |
 | `Plugins` | 暴露插件注册表投影、插件作用域配置、启用状态和租户生命周期 hook。 | 运行期检查插件可见性、provider 启用、权威启用状态和租户生命周期前置条件。 |
 | `Route` | 暴露当前执行的动态路由元数据。 | 用于运行期路由分发，不暴露宿主 router 内部实现。 |
 | `Sessions` | 搜索和批量读取在线会话投影。 | 宿主校验保持会话可见性在调用方边界内。 |
-| `Storage` | 提供插件作用域对象存储操作。 | 动态声明使用`resources.paths`；运行期分发校验路径边界和选中的存储 provider。 |
+| `Storage` | 提供插件私有对象存储操作，用于插件自有附件、业务二进制对象、导入导出临时文件和卸载清理。 | 源码插件通过`pluginhost.Services`获得插件作用域`Storage()`；动态声明使用`service: storage`和`resources.paths`；写入不会创建`sys_file`记录，也不会暴露 provider key 或本地路径。 |
 | `Cache` | 提供插件作用域缓存读取、写入、删除、自增和过期操作。 | 动态声明使用`resources[].ref`；运行期分发校验 namespace、key 和 TTL 载荷。 |
 | `Lock` | 提供插件可见的分布式锁获取、续租和释放。 | 动态声明使用`resources[].ref`；运行期分发校验锁资源和租约载荷。 |
 | `Manifest` | 读取插件作用域 manifest 或 artifact 资源。 | 动态声明使用`resources.paths`；源码和动态路径都通过插件作用域资源视图解析。 |
@@ -49,6 +55,15 @@
 | `RecordStore` | `pluginbridge.Services.RecordStore()`与`pkg/plugin/pluginbridge/recordstore` | 动态插件需要 guest 侧 facade 封装 data host-service 协议和类型化查询计划；源码插件使用自有 DAO 或 provider 接缝。 |
 
 新增能力只有在源码插件和动态插件共享同一个稳定宿主持有领域契约时，才应进入`capability.Services`。仅服务动态插件的 host-service client 和 guest SDK 应留在`pluginbridge`下。
+
+### `Storage()`与`Files()`边界
+
+| 场景 | 使用能力 | 边界 |
+| --- | --- | --- |
+| 插件保存自有附件、生成的导出文件、业务二进制对象或导入临时文件。 | `Storage()` / 动态`service: storage` | 插件传入 logical object path。宿主在委托给当前 storage provider 前按插件 ID 和租户加作用域。对象不会进入宿主文件中心列表，也不会创建`sys_file`元数据。 |
+| 插件在记录删除或卸载清理时删除、列出、读取元数据或清理自有对象。 | `Storage()` / 动态`service: storage` | 清理通过 logical prefix 执行`Delete`或有界`List`后删除。插件不得直接删除宿主上传根目录、provider 根目录或文件中心记录。 |
+| 插件引用用户已经上传到宿主文件中心的文件。 | `Files()` / 动态`service: files` | 插件只获得`filecap.FileProjection`投影和宿主文件 ID 的可见性校验。响应不得暴露`DAO`、`DO`、`Entity`、provider object key 或本地绝对路径。 |
+| 插件命令从请求中接收宿主文件 ID。 | `Files().EnsureFilesVisible` / `files.visible.ensure` | 命令执行写入前必须先校验全部 ID。不存在和不可见使用相同拒绝语义，避免泄露资源存在性。 |
 
 ## 普通消费契约、Provider SPI 与 Guest SDK
 
@@ -82,7 +97,7 @@ Provider factory 声明归属`pluginhost.Declarations.Providers()`。源码 prov
 
 源码插件通过`pluginhost.Services`访问运行期能力；该接口内嵌普通`capability.Services`，并额外提供可信源码插件专用能力，例如`Admin()`和`TenantFilter()`。
 
-动态插件通过`pluginbridge.Services`访问运行期能力。调用会通过`pluginbridge/protocol`编码，经由`WASI host call`传输，由派生的`HostCapabilities`和已确认的`HostServices`授权，再由`apps/lina-core/internal/service/plugin/internal/wasm`分发执行。
+动态插件通过`pluginbridge.Services`访问已发布的运行期能力。调用会通过`pluginbridge/protocol`编码，经由`WASI host call`传输，由派生的`HostCapabilities`和已确认的`HostServices`授权，再由`apps/lina-core/internal/service/plugin/internal/wasm`分发执行。该运行期目录不暴露`Admin()`、`TenantFilter()`或`I18n()`这类源码插件专属入口。
 
 ## 动态插件 Host Service 声明
 
@@ -100,7 +115,7 @@ hostServices:
 ```yaml
 hostServices:
   - service: storage
-    methods: [get, put]
+    methods: [get, put, put.init, put.chunk, put.commit, put.abort]
     resources:
       paths:
         - reports/
@@ -132,7 +147,7 @@ hostServices:
 | Service | 资源声明 | 派生能力 | Methods |
 | --- | --- | --- | --- |
 | `runtime` | 无 | `host:runtime` | `log.write`<br/>`state.get`<br/>`state.set`<br/>`state.delete`<br/>`info.now`<br/>`info.uuid`<br/>`info.node` |
-| `storage` | `resources.paths` | `host:storage` | `put`<br/>`get`<br/>`delete`<br/>`list`<br/>`stat` |
+| `storage` | `resources.paths` | `host:storage` | `put`<br/>`put.init`<br/>`put.chunk`<br/>`put.commit`<br/>`put.abort`<br/>`get`<br/>`delete`<br/>`list`<br/>`stat` |
 | `network` | `resources[].url` | `host:http:request` | `request` |
 | `data` | `resources.tables` | `host:data:read`<br/>`host:data:mutate` | `list`<br/>`get`<br/>`create`<br/>`update`<br/>`delete`<br/>`transaction` |
 | `cache` | `resources[].ref` | `host:cache` | `get`<br/>`set`<br/>`delete`<br/>`incr`<br/>`expire` |
@@ -150,7 +165,6 @@ hostServices:
 | `bizctx` | 无 | `host:bizctx` | `current.get` |
 | `dict` | 无 | `host:dict` | `labels.resolve` |
 | `files` | 无 | `host:files` | `files.batch_get`<br/>`files.visible.ensure` |
-| `i18n` | 无 | `host:i18n` | `locale.get`<br/>`messages.translate`<br/>`messages.keys.find` |
 | `infra` | 无 | `host:infra` | `status.batch_get` |
 | `jobs` | 无 | `host:jobs` | `jobs.batch_get`<br/>`jobs.register` |
 | `notifications` | 读取无资源；`messages.send`使用`resources[].ref` | `host:notifications` | `messages.batch_get`<br/>`messages.send` |

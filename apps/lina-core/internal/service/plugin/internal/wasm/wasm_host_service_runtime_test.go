@@ -281,6 +281,7 @@ func newTestHostServiceRuntime(opts ...testHostServiceRuntimeOption) *hostServic
 		pluginConfigFactory: noopTestConfigFactory{},
 		hostConfigService:   noopTestHostConfigService{},
 		manifestFactory:     noopTestManifestFactory{},
+		storageUploads:      newStorageUploadSessions(),
 	}
 	for _, opt := range opts {
 		if opt != nil {

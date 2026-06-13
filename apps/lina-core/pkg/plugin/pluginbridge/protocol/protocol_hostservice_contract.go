@@ -26,7 +26,6 @@ const (
 	CapabilityBizCtx        = hostservice.CapabilityBizCtx
 	CapabilityDict          = hostservice.CapabilityDict
 	CapabilityFiles         = hostservice.CapabilityFiles
-	CapabilityI18n          = hostservice.CapabilityI18n
 	CapabilityInfra         = hostservice.CapabilityInfra
 	CapabilityJobs          = hostservice.CapabilityJobs
 	CapabilityNotifications = hostservice.CapabilityNotifications
@@ -62,7 +61,6 @@ const (
 	HostServiceBizCtx        = hostservice.HostServiceBizCtx
 	HostServiceDict          = hostservice.HostServiceDict
 	HostServiceFiles         = hostservice.HostServiceFiles
-	HostServiceI18n          = hostservice.HostServiceI18n
 	HostServiceInfra         = hostservice.HostServiceInfra
 	HostServiceJobs          = hostservice.HostServiceJobs
 	HostServiceNotifications = hostservice.HostServiceNotifications
@@ -81,6 +79,10 @@ const (
 	HostServiceMethodRuntimeInfoUUID                            = hostservice.HostServiceMethodRuntimeInfoUUID
 	HostServiceMethodRuntimeInfoNode                            = hostservice.HostServiceMethodRuntimeInfoNode
 	HostServiceMethodStoragePut                                 = hostservice.HostServiceMethodStoragePut
+	HostServiceMethodStoragePutInit                             = hostservice.HostServiceMethodStoragePutInit
+	HostServiceMethodStoragePutChunk                            = hostservice.HostServiceMethodStoragePutChunk
+	HostServiceMethodStoragePutCommit                           = hostservice.HostServiceMethodStoragePutCommit
+	HostServiceMethodStoragePutAbort                            = hostservice.HostServiceMethodStoragePutAbort
 	HostServiceMethodStorageGet                                 = hostservice.HostServiceMethodStorageGet
 	HostServiceMethodStorageDelete                              = hostservice.HostServiceMethodStorageDelete
 	HostServiceMethodStorageList                                = hostservice.HostServiceMethodStorageList
@@ -120,9 +122,6 @@ const (
 	HostServiceMethodDictResolveLabels                          = hostservice.HostServiceMethodDictResolveLabels
 	HostServiceMethodFilesBatchGet                              = hostservice.HostServiceMethodFilesBatchGet
 	HostServiceMethodFilesEnsureVisible                         = hostservice.HostServiceMethodFilesEnsureVisible
-	HostServiceMethodI18nGetLocale                              = hostservice.HostServiceMethodI18nGetLocale
-	HostServiceMethodI18nTranslate                              = hostservice.HostServiceMethodI18nTranslate
-	HostServiceMethodI18nFindMessageKeys                        = hostservice.HostServiceMethodI18nFindMessageKeys
 	HostServiceMethodInfraBatchGetStatus                        = hostservice.HostServiceMethodInfraBatchGetStatus
 	HostServiceMethodJobsBatchGet                               = hostservice.HostServiceMethodJobsBatchGet
 	HostServiceMethodJobsRegister                               = hostservice.HostServiceMethodJobsRegister

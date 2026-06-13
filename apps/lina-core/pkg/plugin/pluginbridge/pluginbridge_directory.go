@@ -17,7 +17,6 @@ import (
 	"lina-core/pkg/plugin/capability/dictcap"
 	"lina-core/pkg/plugin/capability/filecap"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
-	"lina-core/pkg/plugin/capability/i18ncap"
 	"lina-core/pkg/plugin/capability/infracap"
 	"lina-core/pkg/plugin/capability/jobcap"
 	"lina-core/pkg/plugin/capability/lockcap"
@@ -89,9 +88,6 @@ func (directory) Dict() dictcap.Service { return domainhostcall.Dict(invokeCapab
 
 // Files returns the file-domain guest client.
 func (directory) Files() filecap.Service { return domainhostcall.Files(invokeCapabilityJSON) }
-
-// I18n returns the runtime translation guest client.
-func (directory) I18n() i18ncap.Service { return domainhostcall.I18n(invokeCapabilityJSON) }
 
 // Infra returns the infrastructure-domain guest client.
 func (directory) Infra() infracap.Service { return domainhostcall.Infra(invokeCapabilityJSON) }

@@ -651,6 +651,7 @@ func New(
 		cacheChangeNotifier,
 		lifecycleTopology,
 		tenantProvisioning,
+		sourceServices,
 	)
 
 	service := &serviceImpl{

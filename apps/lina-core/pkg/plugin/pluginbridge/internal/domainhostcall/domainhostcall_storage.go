@@ -9,8 +9,17 @@ import (
 	"io"
 	"time"
 
+	"github.com/gogf/gf/v2/errors/gerror"
+
 	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+)
+
+const (
+	// storageSinglePutMaxBytes bounds guest memory used by the direct put path.
+	storageSinglePutMaxBytes int64 = 1 * 1024 * 1024
+	// storagePutChunkBytes bounds each chunk sent through one host-service call.
+	storagePutChunkBytes = 1 * 1024 * 1024
 )
 
 // storageService adapts the storage host service to storagecap.Service.
@@ -23,10 +32,24 @@ func Storage(invoker HostServiceInvoker) storagecap.Service {
 
 // Put writes one governed storage object under the given logical path.
 func (s *storageService) Put(_ context.Context, in storagecap.PutInput) (*storagecap.PutOutput, error) {
-	body, err := io.ReadAll(in.Body)
-	if err != nil {
-		return nil, err
+	body := in.Body
+	if body == nil {
+		body = bytes.NewReader(nil)
 	}
+	if in.Size >= 0 && in.Size <= storageSinglePutMaxBytes {
+		content, tooLarge, err := readStorageDirectBody(body, storageSinglePutMaxBytes)
+		if err != nil {
+			return nil, err
+		}
+		if !tooLarge {
+			return s.putDirect(in, content)
+		}
+		body = io.MultiReader(bytes.NewReader(content), body)
+	}
+	return s.putChunked(in, body)
+}
+
+func (s *storageService) putDirect(in storagecap.PutInput, body []byte) (*storagecap.PutOutput, error) {
 	request := &protocol.HostServiceStoragePutRequest{
 		Path:        in.Path,
 		Body:        body,
@@ -51,6 +74,144 @@ func (s *storageService) Put(_ context.Context, in storagecap.PutInput) (*storag
 		return nil, nil
 	}
 	return &storagecap.PutOutput{Object: storageObjectFromWire(response.Object)}, nil
+}
+
+func (s *storageService) putChunked(in storagecap.PutInput, body io.Reader) (output *storagecap.PutOutput, err error) {
+	initPayload, err := s.callHostService(
+		protocol.HostServiceStorage,
+		protocol.HostServiceMethodStoragePutInit,
+		in.Path,
+		"",
+		protocol.MarshalHostServiceStoragePutInitRequest(&protocol.HostServiceStoragePutInitRequest{
+			Path:        in.Path,
+			ContentType: in.ContentType,
+			Overwrite:   in.Overwrite,
+		}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	initResponse, err := protocol.UnmarshalHostServiceStoragePutInitResponse(initPayload)
+	if err != nil {
+		return nil, err
+	}
+	if initResponse == nil || initResponse.UploadID == "" {
+		return nil, gerror.New("storage upload init response missing upload id")
+	}
+
+	uploadID := initResponse.UploadID
+	abortUpload := true
+	defer func() {
+		if !abortUpload {
+			return
+		}
+		abortErr := s.abortStorageUpload(in.Path, uploadID)
+		if err == nil && abortErr != nil {
+			err = abortErr
+		}
+	}()
+
+	buffer := make([]byte, storagePutChunkBytes)
+	var offset int64
+	for {
+		n, readErr := body.Read(buffer)
+		if n > 0 {
+			nextOffset, chunkErr := s.putChunk(in.Path, uploadID, offset, buffer[:n])
+			if chunkErr != nil {
+				return nil, chunkErr
+			}
+			expectedOffset := offset + int64(n)
+			if nextOffset != expectedOffset {
+				return nil, gerror.Newf("storage upload next offset mismatch: got %d want %d", nextOffset, expectedOffset)
+			}
+			offset = nextOffset
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return nil, readErr
+		}
+		if n == 0 {
+			return nil, io.ErrNoProgress
+		}
+	}
+
+	commitPayload, err := s.callHostService(
+		protocol.HostServiceStorage,
+		protocol.HostServiceMethodStoragePutCommit,
+		in.Path,
+		"",
+		protocol.MarshalHostServiceStoragePutCommitRequest(&protocol.HostServiceStoragePutCommitRequest{
+			Path:     in.Path,
+			UploadID: uploadID,
+			Size:     offset,
+		}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	commitResponse, err := protocol.UnmarshalHostServiceStoragePutCommitResponse(commitPayload)
+	if err != nil {
+		return nil, err
+	}
+	abortUpload = false
+	if commitResponse == nil {
+		return nil, nil
+	}
+	return &storagecap.PutOutput{Object: storageObjectFromWire(commitResponse.Object)}, nil
+}
+
+func (s *storageService) putChunk(path string, uploadID string, offset int64, body []byte) (int64, error) {
+	payload, err := s.callHostService(
+		protocol.HostServiceStorage,
+		protocol.HostServiceMethodStoragePutChunk,
+		path,
+		"",
+		protocol.MarshalHostServiceStoragePutChunkRequest(&protocol.HostServiceStoragePutChunkRequest{
+			Path:     path,
+			UploadID: uploadID,
+			Offset:   offset,
+			Body:     body,
+		}),
+	)
+	if err != nil {
+		return 0, err
+	}
+	response, err := protocol.UnmarshalHostServiceStoragePutChunkResponse(payload)
+	if err != nil {
+		return 0, err
+	}
+	if response == nil {
+		return 0, gerror.New("storage upload chunk response is empty")
+	}
+	return response.NextOffset, nil
+}
+
+func (s *storageService) abortStorageUpload(path string, uploadID string) error {
+	_, err := s.callHostService(
+		protocol.HostServiceStorage,
+		protocol.HostServiceMethodStoragePutAbort,
+		path,
+		"",
+		protocol.MarshalHostServiceStoragePutAbortRequest(&protocol.HostServiceStoragePutAbortRequest{
+			Path:     path,
+			UploadID: uploadID,
+		}),
+	)
+	return err
+}
+
+func readStorageDirectBody(body io.Reader, maxBytes int64) ([]byte, bool, error) {
+	limited := io.LimitReader(body, maxBytes+1)
+	content, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, false, err
+	}
+	if int64(len(content)) > maxBytes {
+		return content, true, nil
+	}
+	return content, false, nil
 }
 
 // Get reads one governed storage object under the given logical path.

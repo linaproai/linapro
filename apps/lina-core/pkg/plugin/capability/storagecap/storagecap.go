@@ -21,8 +21,6 @@ const (
 	MaxListLimit = 1000
 	// MaxLogicalPathBytes bounds plugin logical object path size.
 	MaxLogicalPathBytes = 512
-	// MaxObjectBytes bounds a single Put body.
-	MaxObjectBytes = 32 * 1024 * 1024
 )
 
 // PutInput defines one plugin object write.

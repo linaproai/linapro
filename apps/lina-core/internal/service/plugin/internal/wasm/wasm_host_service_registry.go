@@ -47,7 +47,6 @@ func newHostServiceDispatchRegistry() (*hostservicedispatch.Registry, error) {
 		registerBizCtxHostService,
 		registerDictHostService,
 		registerFilesHostService,
-		registerI18nHostService,
 		registerInfraHostService,
 		registerJobsHostService,
 		registerNotificationsHostService,
@@ -143,6 +142,10 @@ func registerRuntimeHostService(registry *hostservicedispatch.Registry) error {
 func registerStorageHostService(registry *hostservicedispatch.Registry) error {
 	return registerHostServiceMethods(registry, bridgehostservice.HostServiceStorage, []string{
 		bridgehostservice.HostServiceMethodStoragePut,
+		bridgehostservice.HostServiceMethodStoragePutInit,
+		bridgehostservice.HostServiceMethodStoragePutChunk,
+		bridgehostservice.HostServiceMethodStoragePutCommit,
+		bridgehostservice.HostServiceMethodStoragePutAbort,
 		bridgehostservice.HostServiceMethodStorageGet,
 		bridgehostservice.HostServiceMethodStorageDelete,
 		bridgehostservice.HostServiceMethodStorageList,
@@ -291,16 +294,6 @@ func registerFilesHostService(registry *hostservicedispatch.Registry) error {
 		bridgehostservice.HostServiceMethodFilesEnsureVisible,
 	}, func(ctx context.Context, hcc *hostCallContext, input hostservicedispatch.Context) *bridgehostcall.HostCallResponseEnvelope {
 		return dispatchFilesHostService(ctx, hcc, input.Method, input.Payload)
-	})
-}
-
-func registerI18nHostService(registry *hostservicedispatch.Registry) error {
-	return registerHostServiceMethods(registry, bridgehostservice.HostServiceI18n, []string{
-		bridgehostservice.HostServiceMethodI18nGetLocale,
-		bridgehostservice.HostServiceMethodI18nTranslate,
-		bridgehostservice.HostServiceMethodI18nFindMessageKeys,
-	}, func(ctx context.Context, hcc *hostCallContext, input hostservicedispatch.Context) *bridgehostcall.HostCallResponseEnvelope {
-		return dispatchI18nHostService(ctx, hcc, input.Method, input.Payload)
 	})
 }
 

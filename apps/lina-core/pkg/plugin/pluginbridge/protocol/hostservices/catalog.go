@@ -88,6 +88,10 @@ var catalog = []ServiceDescriptor{
 		ResourceKind: ResourceKindPath,
 		Methods: []MethodDescriptor{
 			hostMethod("put", "HostServiceMethodStoragePut", "host:storage", "HostServiceStoragePutRequest", "HostServiceStoragePutResponse"),
+			hostMethod("put.init", "HostServiceMethodStoragePutInit", "host:storage", "HostServiceStoragePutInitRequest", "HostServiceStoragePutInitResponse"),
+			hostMethod("put.chunk", "HostServiceMethodStoragePutChunk", "host:storage", "HostServiceStoragePutChunkRequest", "HostServiceStoragePutChunkResponse"),
+			hostMethod("put.commit", "HostServiceMethodStoragePutCommit", "host:storage", "HostServiceStoragePutCommitRequest", "HostServiceStoragePutCommitResponse"),
+			hostMethod("put.abort", "HostServiceMethodStoragePutAbort", "host:storage", "HostServiceStoragePutAbortRequest", ""),
 			hostMethod("get", "HostServiceMethodStorageGet", "host:storage", "HostServiceStorageGetRequest", "HostServiceStorageGetResponse"),
 			hostMethod("delete", "HostServiceMethodStorageDelete", "host:storage", "HostServiceStorageDeleteRequest", ""),
 			hostMethod("list", "HostServiceMethodStorageList", "host:storage", "HostServiceStorageListRequest", "HostServiceStorageListResponse"),
@@ -248,15 +252,6 @@ var catalog = []ServiceDescriptor{
 		Methods: []MethodDescriptor{
 			hostMethod("files.batch_get", "HostServiceMethodFilesBatchGet", "host:files", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("files.visible.ensure", "HostServiceMethodFilesEnsureVisible", "host:files", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-		},
-	},
-	{
-		Service:      "i18n",
-		ResourceKind: ResourceKindNone,
-		Methods: []MethodDescriptor{
-			hostMethod("locale.get", "HostServiceMethodI18nGetLocale", "host:i18n", "", "HostServiceJSONResponse"),
-			hostMethod("messages.translate", "HostServiceMethodI18nTranslate", "host:i18n", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("messages.keys.find", "HostServiceMethodI18nFindMessageKeys", "host:i18n", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 		},
 	},
 	{

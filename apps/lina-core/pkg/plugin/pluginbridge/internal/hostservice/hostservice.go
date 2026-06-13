@@ -44,8 +44,6 @@ const (
 	CapabilityDict = "host:dict"
 	// CapabilityFiles grants access to file-domain capability services.
 	CapabilityFiles = "host:files"
-	// CapabilityI18n grants access to runtime translation capability services.
-	CapabilityI18n = "host:i18n"
 	// CapabilityInfra grants access to infrastructure-domain capability services.
 	CapabilityInfra = "host:infra"
 	// CapabilityJobs grants access to scheduled-job domain capability services.
@@ -119,8 +117,6 @@ const (
 	HostServiceDict = "dict"
 	// HostServiceFiles is the file-domain capability host service identifier.
 	HostServiceFiles = "files"
-	// HostServiceI18n is the runtime translation capability host service identifier.
-	HostServiceI18n = "i18n"
 	// HostServiceInfra is the infrastructure-domain capability host service identifier.
 	HostServiceInfra = "infra"
 	// HostServiceJobs is the scheduled-job capability host service identifier.
@@ -165,6 +161,14 @@ const (
 const (
 	// HostServiceMethodStoragePut writes one governed storage object.
 	HostServiceMethodStoragePut = "put"
+	// HostServiceMethodStoragePutInit starts one governed storage upload session.
+	HostServiceMethodStoragePutInit = "put.init"
+	// HostServiceMethodStoragePutChunk appends one governed storage upload chunk.
+	HostServiceMethodStoragePutChunk = "put.chunk"
+	// HostServiceMethodStoragePutCommit commits one governed storage upload session.
+	HostServiceMethodStoragePutCommit = "put.commit"
+	// HostServiceMethodStoragePutAbort aborts one governed storage upload session.
+	HostServiceMethodStoragePutAbort = "put.abort"
 	// HostServiceMethodStorageGet reads one governed storage object.
 	HostServiceMethodStorageGet = "get"
 	// HostServiceMethodStorageDelete deletes one governed storage object.
@@ -295,16 +299,6 @@ const (
 	HostServiceMethodFilesBatchGet = "files.batch_get"
 	// HostServiceMethodFilesEnsureVisible validates that requested files are visible.
 	HostServiceMethodFilesEnsureVisible = "files.visible.ensure"
-)
-
-// I18n host-service methods describe runtime translation reads.
-const (
-	// HostServiceMethodI18nGetLocale reads the effective request locale.
-	HostServiceMethodI18nGetLocale = "locale.get"
-	// HostServiceMethodI18nTranslate resolves one runtime message key.
-	HostServiceMethodI18nTranslate = "messages.translate"
-	// HostServiceMethodI18nFindMessageKeys finds runtime message keys.
-	HostServiceMethodI18nFindMessageKeys = "messages.keys.find"
 )
 
 // Infrastructure host-service methods describe ordinary infrastructure reads.

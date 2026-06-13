@@ -370,9 +370,17 @@ func (s *serviceImpl) executeSourcePluginUninstallHandler(
 	if handler == nil {
 		return nil
 	}
+	var services pluginhost.Services
+	if s.sourceServices != nil {
+		services = s.sourceServices.SourceServicesForPlugin(manifest.ID)
+	}
 	return handler(
 		ctx,
-		pluginhost.NewSourcePluginUninstallInput(manifest.ID, options.PurgeStorageData),
+		pluginhost.NewSourcePluginUninstallInputWithServices(
+			manifest.ID,
+			options.PurgeStorageData,
+			services,
+		),
 	)
 }
 

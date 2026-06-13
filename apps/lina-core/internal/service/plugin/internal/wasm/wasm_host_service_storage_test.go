@@ -166,7 +166,7 @@ func TestHandleHostServiceInvokeStorageLifecycle(t *testing.T) {
 	configureStorageDomainServiceForTest(t, storageSvc)
 
 	authorizedPath := "reports/"
-	hcc := newStorageHostCallContext([]string{authorizedPath})
+	hcc := newStorageHostCallContext(t, []string{authorizedPath})
 
 	putResponse := invokeStorageHostService(
 		t,
@@ -269,7 +269,7 @@ func TestHandleHostServiceInvokeStorageLifecycle(t *testing.T) {
 // TestHandleHostServiceInvokeStorageRejectsUnauthorizedPath verifies requests
 // outside the authorized logical path set are denied before storagecap is called.
 func TestHandleHostServiceInvokeStorageRejectsUnauthorizedPath(t *testing.T) {
-	hcc := newStorageHostCallContext([]string{"reports/"})
+	hcc := newStorageHostCallContext(t, []string{"reports/"})
 	response := invokeStorageHostService(
 		t,
 		hcc,
@@ -290,7 +290,7 @@ func TestHandleHostServiceInvokeStorageRejectsUnauthorizedPath(t *testing.T) {
 func TestHandleHostServiceInvokeStorageRejectsTargetMismatch(t *testing.T) {
 	configureStorageDomainServiceForTest(t, &storageDomainTestService{})
 
-	hcc := newStorageHostCallContext([]string{"reports/"})
+	hcc := newStorageHostCallContext(t, []string{"reports/"})
 	response := invokeStorageHostService(
 		t,
 		hcc,
@@ -311,7 +311,7 @@ func TestHandleHostServiceInvokeStorageRejectsTargetMismatch(t *testing.T) {
 func TestHandleHostServiceInvokeStorageRequiresConfiguredService(t *testing.T) {
 	configureDomainHostServicesForCapabilityTest(t, &capabilityHostServiceTestServices{})
 
-	hcc := newStorageHostCallContext([]string{"reports/"})
+	hcc := newStorageHostCallContext(t, []string{"reports/"})
 	response := invokeStorageHostService(
 		t,
 		hcc,
@@ -333,7 +333,7 @@ func TestHandleHostServiceInvokeStorageUsesConfiguredSharedService(t *testing.T)
 	storageSvc := &storageDomainTestService{}
 	configureStorageDomainServiceForTest(t, storageSvc)
 
-	hcc := newStorageHostCallContext([]string{"reports/"})
+	hcc := newStorageHostCallContext(t, []string{"reports/"})
 	response := invokeStorageHostService(
 		t,
 		hcc,
@@ -352,6 +352,212 @@ func TestHandleHostServiceInvokeStorageUsesConfiguredSharedService(t *testing.T)
 	}
 }
 
+// TestHandleHostServiceInvokeStorageChunkedPutCommitsThroughStoragecap verifies
+// chunked upload sessions assemble bytes and commit through storagecap.Service.
+func TestHandleHostServiceInvokeStorageChunkedPutCommitsThroughStoragecap(t *testing.T) {
+	storageSvc := &storageDomainTestService{}
+	configureStorageDomainServiceForTest(t, storageSvc)
+
+	hcc := newStorageHostCallContext(t, []string{"reports/"})
+	objectPath := "reports/chunked.bin"
+	initResponse := invokeStorageHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodStoragePutInit,
+		objectPath,
+		protocol.MarshalHostServiceStoragePutInitRequest(&protocol.HostServiceStoragePutInitRequest{
+			Path:        objectPath,
+			ContentType: "application/octet-stream",
+			Overwrite:   true,
+		}),
+	)
+	if initResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("init: expected success, got status=%d payload=%s", initResponse.Status, string(initResponse.Payload))
+	}
+	initPayload, err := protocol.UnmarshalHostServiceStoragePutInitResponse(initResponse.Payload)
+	if err != nil {
+		t.Fatalf("init payload decode failed: %v", err)
+	}
+	if initPayload.UploadID == "" {
+		t.Fatal("expected upload id")
+	}
+
+	firstChunk := invokeStorageHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodStoragePutChunk,
+		objectPath,
+		protocol.MarshalHostServiceStoragePutChunkRequest(&protocol.HostServiceStoragePutChunkRequest{
+			Path:     objectPath,
+			UploadID: initPayload.UploadID,
+			Offset:   0,
+			Body:     []byte("hello "),
+		}),
+	)
+	if firstChunk.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("first chunk: expected success, got status=%d payload=%s", firstChunk.Status, string(firstChunk.Payload))
+	}
+	firstPayload, err := protocol.UnmarshalHostServiceStoragePutChunkResponse(firstChunk.Payload)
+	if err != nil {
+		t.Fatalf("first chunk payload decode failed: %v", err)
+	}
+	if firstPayload.NextOffset != 6 {
+		t.Fatalf("first chunk next offset: got %d want 6", firstPayload.NextOffset)
+	}
+
+	secondChunk := invokeStorageHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodStoragePutChunk,
+		objectPath,
+		protocol.MarshalHostServiceStoragePutChunkRequest(&protocol.HostServiceStoragePutChunkRequest{
+			Path:     objectPath,
+			UploadID: initPayload.UploadID,
+			Offset:   firstPayload.NextOffset,
+			Body:     []byte("world"),
+		}),
+	)
+	if secondChunk.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("second chunk: expected success, got status=%d payload=%s", secondChunk.Status, string(secondChunk.Payload))
+	}
+
+	commitResponse := invokeStorageHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodStoragePutCommit,
+		objectPath,
+		protocol.MarshalHostServiceStoragePutCommitRequest(&protocol.HostServiceStoragePutCommitRequest{
+			Path:     objectPath,
+			UploadID: initPayload.UploadID,
+			Size:     11,
+		}),
+	)
+	if commitResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("commit: expected success, got status=%d payload=%s", commitResponse.Status, string(commitResponse.Payload))
+	}
+	commitPayload, err := protocol.UnmarshalHostServiceStoragePutCommitResponse(commitResponse.Payload)
+	if err != nil {
+		t.Fatalf("commit payload decode failed: %v", err)
+	}
+	if commitPayload.Object == nil || commitPayload.Object.Path != objectPath || commitPayload.Object.Size != 11 {
+		t.Fatalf("commit object: got %#v", commitPayload.Object)
+	}
+	if storageSvc.putCalls != 1 || storageSvc.lastPath != objectPath {
+		t.Fatalf("expected commit to use storagecap put once, calls=%d path=%q", storageSvc.putCalls, storageSvc.lastPath)
+	}
+	if string(storageSvc.objects[objectPath].body) != "hello world" {
+		t.Fatalf("stored body: got %q want %q", storageSvc.objects[objectPath].body, "hello world")
+	}
+}
+
+// TestHandleHostServiceInvokeStorageChunkedPutRejectsOffsetMismatch verifies
+// out-of-order chunks cannot mutate the upload session.
+func TestHandleHostServiceInvokeStorageChunkedPutRejectsOffsetMismatch(t *testing.T) {
+	configureStorageDomainServiceForTest(t, &storageDomainTestService{})
+
+	hcc := newStorageHostCallContext(t, []string{"reports/"})
+	objectPath := "reports/chunked.bin"
+	initResponse := invokeStorageHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodStoragePutInit,
+		objectPath,
+		protocol.MarshalHostServiceStoragePutInitRequest(&protocol.HostServiceStoragePutInitRequest{Path: objectPath}),
+	)
+	initPayload, err := protocol.UnmarshalHostServiceStoragePutInitResponse(initResponse.Payload)
+	if err != nil {
+		t.Fatalf("init payload decode failed: %v", err)
+	}
+
+	response := invokeStorageHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodStoragePutChunk,
+		objectPath,
+		protocol.MarshalHostServiceStoragePutChunkRequest(&protocol.HostServiceStoragePutChunkRequest{
+			Path:     objectPath,
+			UploadID: initPayload.UploadID,
+			Offset:   3,
+			Body:     []byte("bad"),
+		}),
+	)
+	if response.Status != protocol.HostCallStatusInvalidRequest {
+		t.Fatalf("expected invalid request for offset mismatch, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+}
+
+// TestHandleHostServiceInvokeStorageChunkedPutAbortRemovesSession verifies
+// aborted upload sessions cannot later be committed.
+func TestHandleHostServiceInvokeStorageChunkedPutAbortRemovesSession(t *testing.T) {
+	storageSvc := &storageDomainTestService{}
+	configureStorageDomainServiceForTest(t, storageSvc)
+
+	hcc := newStorageHostCallContext(t, []string{"reports/"})
+	objectPath := "reports/abort.bin"
+	initResponse := invokeStorageHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodStoragePutInit,
+		objectPath,
+		protocol.MarshalHostServiceStoragePutInitRequest(&protocol.HostServiceStoragePutInitRequest{Path: objectPath}),
+	)
+	initPayload, err := protocol.UnmarshalHostServiceStoragePutInitResponse(initResponse.Payload)
+	if err != nil {
+		t.Fatalf("init payload decode failed: %v", err)
+	}
+
+	chunkResponse := invokeStorageHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodStoragePutChunk,
+		objectPath,
+		protocol.MarshalHostServiceStoragePutChunkRequest(&protocol.HostServiceStoragePutChunkRequest{
+			Path:     objectPath,
+			UploadID: initPayload.UploadID,
+			Offset:   0,
+			Body:     []byte("discard"),
+		}),
+	)
+	if chunkResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("chunk: expected success, got status=%d payload=%s", chunkResponse.Status, string(chunkResponse.Payload))
+	}
+
+	abortResponse := invokeStorageHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodStoragePutAbort,
+		objectPath,
+		protocol.MarshalHostServiceStoragePutAbortRequest(&protocol.HostServiceStoragePutAbortRequest{
+			Path:     objectPath,
+			UploadID: initPayload.UploadID,
+		}),
+	)
+	if abortResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("abort: expected success, got status=%d payload=%s", abortResponse.Status, string(abortResponse.Payload))
+	}
+
+	commitResponse := invokeStorageHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodStoragePutCommit,
+		objectPath,
+		protocol.MarshalHostServiceStoragePutCommitRequest(&protocol.HostServiceStoragePutCommitRequest{
+			Path:     objectPath,
+			UploadID: initPayload.UploadID,
+			Size:     7,
+		}),
+	)
+	if commitResponse.Status != protocol.HostCallStatusInvalidRequest {
+		t.Fatalf("expected invalid request after abort, got status=%d payload=%s", commitResponse.Status, string(commitResponse.Payload))
+	}
+	if storageSvc.putCalls != 0 {
+		t.Fatalf("expected aborted session not to call storagecap put, calls=%d", storageSvc.putCalls)
+	}
+	if len(hcc.runtime.storageUploads.sessions) != 0 {
+		t.Fatalf("expected aborted session cleanup, got %d active sessions", len(hcc.runtime.storageUploads.sessions))
+	}
+}
+
 // TestHandleHostServiceInvokeStorageConcurrentDispatchIsRaceSafe verifies
 // concurrent dispatch can reuse the same storagecap service instance.
 func TestHandleHostServiceInvokeStorageConcurrentDispatchIsRaceSafe(t *testing.T) {
@@ -361,7 +567,7 @@ func TestHandleHostServiceInvokeStorageConcurrentDispatchIsRaceSafe(t *testing.T
 	}
 	configureStorageDomainServiceForTest(t, storageSvc)
 
-	hcc := newStorageHostCallContext([]string{"reports/"})
+	hcc := newStorageHostCallContext(t, []string{"reports/"})
 	const (
 		workers    = 8
 		iterations = 50
@@ -373,11 +579,11 @@ func TestHandleHostServiceInvokeStorageConcurrentDispatchIsRaceSafe(t *testing.T
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-				for j := 0; j < iterations; j++ {
-					response := dispatchStorageHostServiceRequest(
-						t,
-						hcc,
-						protocol.HostServiceMethodStorageGet,
+			for j := 0; j < iterations; j++ {
+				response := dispatchStorageHostServiceRequest(
+					t,
+					hcc,
+					protocol.HostServiceMethodStorageGet,
 					"reports/demo.json",
 					protocol.MarshalHostServiceStorageGetRequest(&protocol.HostServiceStorageGetRequest{Path: "reports/demo.json"}),
 				)
@@ -424,8 +630,9 @@ func configureStorageDomainServiceForTest(t *testing.T, service storagecap.Servi
 
 // newStorageHostCallContext constructs a storage-capable host call context for
 // the provided authorized logical paths.
-func newStorageHostCallContext(paths []string) *hostCallContext {
-	return &hostCallContext{
+func newStorageHostCallContext(t *testing.T, paths []string) *hostCallContext {
+	t.Helper()
+	hcc := &hostCallContext{
 		pluginID: "test-plugin-storage",
 		capabilities: map[string]struct{}{
 			protocol.CapabilityStorage: {},
@@ -437,10 +644,41 @@ func newStorageHostCallContext(paths []string) *hostCallContext {
 				protocol.HostServiceMethodStorageGet,
 				protocol.HostServiceMethodStorageList,
 				protocol.HostServiceMethodStoragePut,
+				protocol.HostServiceMethodStoragePutInit,
+				protocol.HostServiceMethodStoragePutChunk,
+				protocol.HostServiceMethodStoragePutCommit,
+				protocol.HostServiceMethodStoragePutAbort,
 				protocol.HostServiceMethodStorageStat,
 			},
 			Paths: paths,
 		}},
+	}
+	t.Cleanup(func() {
+		cleanupStorageUploadSessionsForTest(t, hcc.runtime.storageUploads)
+	})
+	return hcc
+}
+
+// cleanupStorageUploadSessionsForTest removes temporary upload files left by
+// failed storage host-service tests without changing production cleanup paths.
+func cleanupStorageUploadSessionsForTest(t *testing.T, uploads *storageUploadSessions) {
+	t.Helper()
+	if uploads == nil {
+		return
+	}
+	uploads.mu.Lock()
+	sessions := make([]*storageUploadSession, 0, len(uploads.sessions))
+	for uploadID, session := range uploads.sessions {
+		delete(uploads.sessions, uploadID)
+		if session != nil {
+			sessions = append(sessions, session)
+		}
+	}
+	uploads.mu.Unlock()
+	for _, session := range sessions {
+		if err := removeStorageUploadTemp(session.tempPath, session.tempDir); err != nil {
+			t.Fatalf("cleanup storage upload session failed: %v", err)
+		}
 	}
 }
 

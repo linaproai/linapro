@@ -640,8 +640,6 @@ func hostServiceConstNameForService(t *testing.T, service string) string {
 		return "HostServiceBizCtx"
 	case HostServiceHostConfig:
 		return "HostServiceHostConfig"
-	case HostServiceI18n:
-		return "HostServiceI18n"
 	case HostServiceAI:
 		return "HostServiceAI"
 	default:
@@ -676,8 +674,6 @@ func dispatcherFunctionNameForService(t *testing.T, service string) string {
 		return "dispatchBizCtxHostService"
 	case HostServiceHostConfig:
 		return "dispatchHostConfigService"
-	case HostServiceI18n:
-		return "dispatchI18nHostService"
 	case HostServiceAI:
 		return "dispatchAIHostService"
 	default:

@@ -230,6 +230,7 @@ func newServicesWithInjected(
 		runtimeCacheChangeNotifier{},
 		topology,
 		nil,
+		testSourceServicesProvider{capabilities: capabilitySvc},
 	)
 	upgradeSvc, err := upgrade.New(
 		catalogSvc,

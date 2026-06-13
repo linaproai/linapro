@@ -18,6 +18,7 @@ import (
 	"lina-core/internal/service/locker"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/storagecap"
 )
 
@@ -146,6 +147,78 @@ func TestStorageAdapterUsesLocalProviderByDefault(t *testing.T) {
 	}
 }
 
+// TestStorageAdapterStreamsPutWithoutFixedObjectLimit verifies Storage() no
+// longer rejects writes at the adapter layer based on a fixed object-size cap.
+func TestStorageAdapterStreamsPutWithoutFixedObjectLimit(t *testing.T) {
+	ctx := context.Background()
+	localProvider := &storageProviderTestProvider{}
+	storageSvc := newStorageAdapter(nil, localProvider, nil, "reporting")
+	declaredSize := int64(64 * 1024 * 1024)
+
+	output, err := storageSvc.Put(ctx, storagecap.PutInput{
+		Path: "reports/large.bin",
+		Body: strings.NewReader("large body"),
+		Size: declaredSize,
+	})
+	if err != nil {
+		t.Fatalf("put with large declared size: %v", err)
+	}
+	if output == nil || output.Object == nil || output.Object.Size != int64(len("large body")) {
+		t.Fatalf("unexpected object output: %#v", output)
+	}
+	if localProvider.putSize != declaredSize {
+		t.Fatalf("expected provider size %d, got %d", declaredSize, localProvider.putSize)
+	}
+}
+
+// TestStorageAdapterContentTypeProbePreservesBody verifies MIME sniffing reads
+// only a prefix and passes the full object stream to the provider.
+func TestStorageAdapterContentTypeProbePreservesBody(t *testing.T) {
+	ctx := context.Background()
+	localProvider := &storageProviderTestProvider{}
+	storageSvc := newStorageAdapter(nil, localProvider, nil, "reporting")
+	body := strings.Repeat("a", objectContentTypeProbeBytes+32)
+
+	_, err := storageSvc.Put(ctx, storagecap.PutInput{
+		Path: "reports/plain",
+		Body: strings.NewReader(body),
+	})
+	if err != nil {
+		t.Fatalf("put with sniffed body: %v", err)
+	}
+	if got := string(localProvider.objects["plugins/reporting/platform/reports/plain"]); got != body {
+		t.Fatalf("expected preserved body length %d, got length %d", len(body), len(got))
+	}
+	if localProvider.putContentType != "text/plain" {
+		t.Fatalf("expected sniffed text/plain content type, got %q", localProvider.putContentType)
+	}
+}
+
+// TestStorageAdapterPrefersExplicitPluginTenantContext verifies lifecycle and
+// plugin cleanup code can bind the target tenant even when the original host
+// context still carries another tenant.
+func TestStorageAdapterPrefersExplicitPluginTenantContext(t *testing.T) {
+	ctx := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 2002})
+	localProvider := &storageProviderTestProvider{}
+	storageSvc := newStorageAdapter(
+		nil,
+		localProvider,
+		storageAdapterTestBizCtx{current: bizctxcap.CurrentContext{TenantID: 1001}},
+		"reporting",
+	)
+
+	_, err := storageSvc.Put(ctx, storagecap.PutInput{
+		Path: "reports/a.json",
+		Body: strings.NewReader("a"),
+	})
+	if err != nil {
+		t.Fatalf("put with explicit plugin tenant context: %v", err)
+	}
+	if localProvider.putKey != "plugins/reporting/tenant/2002/reports/a.json" {
+		t.Fatalf("expected explicit tenant provider key, got %q", localProvider.putKey)
+	}
+}
+
 func writeProviderObject(
 	t *testing.T,
 	ctx context.Context,
@@ -234,11 +307,21 @@ func (r *storageProviderTestRuntime) ProviderPluginAvailable(_ context.Context, 
 	return r.available[strings.TrimSpace(pluginID)]
 }
 
+type storageAdapterTestBizCtx struct {
+	current bizctxcap.CurrentContext
+}
+
+func (s storageAdapterTestBizCtx) Current(context.Context) bizctxcap.CurrentContext {
+	return s.current
+}
+
 type storageProviderTestProvider struct {
-	mu       sync.Mutex
-	objects  map[string][]byte
-	putKey   string
-	listKeys []string
+	mu             sync.Mutex
+	objects        map[string][]byte
+	putKey         string
+	putSize        int64
+	putContentType string
+	listKeys       []string
 }
 
 func (p *storageProviderTestProvider) Put(_ context.Context, in storagecap.ProviderPutInput) (*storagecap.ProviderObject, error) {
@@ -250,6 +333,8 @@ func (p *storageProviderTestProvider) Put(_ context.Context, in storagecap.Provi
 	defer p.mu.Unlock()
 	p.ensureObjects()
 	p.putKey = in.Key
+	p.putSize = in.Size
+	p.putContentType = strings.TrimSpace(in.ContentType)
 	p.objects[in.Key] = append([]byte(nil), body...)
 	return &storagecap.ProviderObject{
 		Key:         in.Key,

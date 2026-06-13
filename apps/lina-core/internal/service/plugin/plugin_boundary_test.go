@@ -407,8 +407,8 @@ func checkLifecycleConstructorWiring(t *testing.T) {
 		}
 		newArgCount = fn.Type.Params.NumFields()
 	}
-	if newArgCount != 10 {
-		t.Fatalf("internal/lifecycle.New must explicitly receive 10 orchestration dependencies, got %d", newArgCount)
+	if newArgCount != 11 {
+		t.Fatalf("internal/lifecycle.New must explicitly receive 11 orchestration dependencies, got %d", newArgCount)
 	}
 
 	pluginFile, err := parser.ParseFile(fileSet, "plugin.go", nil, 0)
@@ -432,8 +432,8 @@ func checkLifecycleConstructorWiring(t *testing.T) {
 		callArgCount = len(call.Args)
 		return true
 	})
-	if callArgCount != 10 {
-		t.Fatalf("plugin.New must construct lifecycle with 10 explicit dependencies, got %d", callArgCount)
+	if callArgCount != 11 {
+		t.Fatalf("plugin.New must construct lifecycle with 11 explicit dependencies, got %d", callArgCount)
 	}
 }
 

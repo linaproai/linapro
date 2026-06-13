@@ -103,6 +103,18 @@ func TestValidateHostServiceSpecsRejectsCron(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsRejectsI18n verifies runtime translation is not
+// published as a dynamic-plugin host service.
+func TestValidateHostServiceSpecsRejectsI18n(t *testing.T) {
+	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
+		Service: "i18n",
+		Methods: []string{"locale.get"},
+	}})
+	if err == nil {
+		t.Fatal("expected i18n host service declarations to be rejected")
+	}
+}
+
 // TestValidateHostServiceSpecsAcceptsPluginsConfigWithoutResources verifies
 // plugin config read access is authorized as a plugins domain method.
 func TestValidateHostServiceSpecsAcceptsPluginsConfigWithoutResources(t *testing.T) {
@@ -166,7 +178,6 @@ func TestValidateHostServiceSpecsAcceptsDomainServicesWithoutResources(t *testin
 		{Service: HostServiceSessions, Methods: []string{HostServiceMethodSessionsSearch}},
 		{Service: HostServiceJobs, Methods: []string{HostServiceMethodJobsBatchGet, HostServiceMethodJobsRegister}},
 		{Service: HostServiceInfra, Methods: []string{HostServiceMethodInfraBatchGetStatus}},
-		{Service: HostServiceI18n, Methods: []string{HostServiceMethodI18nGetLocale}},
 		{Service: HostServiceAPIDoc, Methods: []string{HostServiceMethodAPIDocFindRouteTitleOperationKeys}},
 		{Service: HostServiceBizCtx, Methods: []string{HostServiceMethodBizCtxCurrent}},
 		{Service: HostServiceRoute, Methods: []string{HostServiceMethodRouteMetadataGet}},
@@ -186,7 +197,6 @@ func TestValidateHostServiceSpecsAcceptsDomainServicesWithoutResources(t *testin
 		CapabilitySessions,
 		CapabilityJobs,
 		CapabilityInfra,
-		CapabilityI18n,
 		CapabilityAPIDoc,
 		CapabilityBizCtx,
 		CapabilityRoute,

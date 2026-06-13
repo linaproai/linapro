@@ -31,6 +31,10 @@ type SourcePluginUninstallInput interface {
 	// PurgeStorageData reports whether the host expects the plugin to clear its
 	// own business data and stored files during uninstall.
 	PurgeStorageData() bool
+	// Services returns the plugin-scoped host service directory available during
+	// uninstall cleanup. It can be nil for tests or legacy direct callback
+	// invocations outside the host lifecycle runner.
+	Services() Services
 }
 
 // SourcePluginLifecycleInput exposes one generic plugin lifecycle operation to
@@ -91,6 +95,7 @@ type SourcePluginUpgradeInput interface {
 type sourcePluginUninstallInput struct {
 	pluginID         string
 	purgeStorageData bool
+	services         Services
 }
 
 // sourcePluginLifecycleInput is the host-owned implementation passed to generic
@@ -152,9 +157,20 @@ func NewSourcePluginUninstallInput(
 	pluginID string,
 	purgeStorageData bool,
 ) SourcePluginUninstallInput {
+	return NewSourcePluginUninstallInputWithServices(pluginID, purgeStorageData, nil)
+}
+
+// NewSourcePluginUninstallInputWithServices creates one source-plugin
+// uninstall input wrapper with a plugin-scoped host service directory.
+func NewSourcePluginUninstallInputWithServices(
+	pluginID string,
+	purgeStorageData bool,
+	services Services,
+) SourcePluginUninstallInput {
 	return &sourcePluginUninstallInput{
 		pluginID:         pluginID,
 		purgeStorageData: purgeStorageData,
+		services:         services,
 	}
 }
 
@@ -289,6 +305,14 @@ func (i *sourcePluginUninstallInput) PurgeStorageData() bool {
 		return false
 	}
 	return i.purgeStorageData
+}
+
+// Services returns the plugin-scoped host services available to uninstall cleanup.
+func (i *sourcePluginUninstallInput) Services() Services {
+	if i == nil {
+		return nil
+	}
+	return i.services
 }
 
 // PluginID returns the source-plugin identifier for a generic lifecycle input.

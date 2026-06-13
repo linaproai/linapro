@@ -32,6 +32,7 @@ type hostServiceRuntime struct {
 	pluginConfigFactory plugincap.ConfigServiceFactory
 	hostConfigService   hostconfigcap.Service
 	manifestFactory     manifestcap.ServiceFactory
+	storageUploads      *storageUploadSessions
 }
 
 // NewRuntime creates a dynamic-plugin WASM runtime from startup-owned shared
@@ -60,6 +61,7 @@ func NewRuntime(
 			pluginConfigFactory: pluginConfigFactory,
 			hostConfigService:   hostConfigService,
 			manifestFactory:     manifestFactory,
+			storageUploads:      newStorageUploadSessions(),
 		},
 		cache: make(map[string]*wasmCacheEntry),
 	}, nil
