@@ -22,7 +22,6 @@ import (
 	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
-	"lina-core/internal/service/locker"
 	middlewaresvc "lina-core/internal/service/middleware"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
@@ -508,15 +507,11 @@ func newRuntimeMessagesTestMiddleware() middlewaresvc.Service {
 	configSvc := hostconfig.New()
 	bizCtxSvc := bizctx.New()
 	i18nSvc := newTestI18nService()
-	cacheCoordSvc := cachecoord.Default(nil)
-	pluginSvc, err := pluginsvc.New(nil, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, session.NewDBStore(), locker.New(), nil)
-	if err != nil {
-		panic(err)
-	}
-	orgCapSvc := orgspi.New(nil, pluginSvc)
-	tenantSvc := tenantspi.New(nil, pluginSvc, nil)
-	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
+	pluginRuntime := pluginsvc.NewRuntimeDelegate()
+	orgCapSvc := orgspi.New(nil, pluginRuntime)
+	tenantSvc := tenantspi.New(nil, pluginRuntime, nil)
+	roleSvc := role.New(pluginRuntime, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
 	roleSvc.SetDataScopeService(datascope.New(bizCtxSvc, roleSvc, orgCapSvc))
-	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, session.NewDBStore(), kvcache.New())
-	return middlewaresvc.New(authSvc, bizCtxSvc, configSvc, i18nSvc, pluginSvc, roleSvc, tenantSvc)
+	authSvc := auth.New(configSvc, pluginRuntime, orgCapSvc, roleSvc, tenantSvc, session.NewDBStore(), kvcache.New())
+	return middlewaresvc.New(authSvc, bizCtxSvc, configSvc, i18nSvc, roleSvc, tenantSvc)
 }

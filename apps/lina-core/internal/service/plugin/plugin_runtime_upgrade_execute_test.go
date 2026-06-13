@@ -6,8 +6,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,8 +15,12 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/plugin/internal/catalog"
-	sourceupgradeinternal "lina-core/internal/service/plugin/internal/sourceupgrade"
+	plugindep "lina-core/internal/service/plugin/internal/dependency"
+	"lina-core/internal/service/plugin/internal/integration"
+	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/internal/service/plugin/internal/testutil"
+	"lina-core/internal/service/plugin/internal/upgrade"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
@@ -170,7 +172,7 @@ func TestExecuteRuntimeUpgradeUpgradesDynamicPlugin(t *testing.T) {
 			ID:      pluginID,
 			Name:    "Dynamic Runtime Upgrade Execute Plugin",
 			Version: oldVersion,
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -201,7 +203,7 @@ func TestExecuteRuntimeUpgradeUpgradesDynamicPlugin(t *testing.T) {
 			ID:      pluginID,
 			Name:    "Dynamic Runtime Upgrade Execute Plugin",
 			Version: newVersion,
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:   protocol.RuntimeKindWasm,
@@ -232,15 +234,17 @@ func TestExecuteRuntimeUpgradeUpgradesDynamicPlugin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected registry lookup before running state mark to succeed, got error: %v", err)
 	}
-	if err = service.markRuntimeUpgradeRunning(ctx, registryBeforeRun); err != nil {
+	if err = service.storeSvc.SetRegistryRuntimeState(ctx, registryBeforeRun.PluginId, store.RuntimeStatePatch{
+		CurrentState: plugintypes.RuntimeUpgradeStateUpgradeRunning.String(),
+	}); err != nil {
 		t.Fatalf("expected running state mark to succeed, got error: %v", err)
 	}
 	runningItem := findPluginItemFromService(t, service, ctx, pluginID)
 	if runningItem.RuntimeState != RuntimeUpgradeStateUpgradeRunning {
 		t.Fatalf("expected running state projection during upgrade, got %#v", runningItem)
 	}
-	if err = service.catalogSvc.SetRegistryRuntimeState(ctx, pluginID, do.SysPlugin{
-		CurrentState: catalog.HostStateInstalled.String(),
+	if err = service.storeSvc.SetRegistryRuntimeState(ctx, pluginID, store.RuntimeStatePatch{
+		CurrentState: plugintypes.HostStateInstalled.String(),
 	}); err != nil {
 		t.Fatalf("expected running state reset to succeed, got error: %v", err)
 	}
@@ -278,8 +282,8 @@ func TestExecuteRuntimeUpgradeUpgradesDynamicPlugin(t *testing.T) {
 	migrationCount, err = dao.SysPluginMigration.Ctx(ctx).
 		Where(do.SysPluginMigration{
 			PluginId: pluginID,
-			Phase:    catalog.MigrationDirectionUpgrade.String(),
-			Status:   catalog.MigrationExecutionStatusSucceeded.String(),
+			Phase:    plugintypes.MigrationDirectionUpgrade.String(),
+			Status:   plugintypes.MigrationExecutionStatusSucceeded.String(),
 		}).
 		Count()
 	if err != nil {
@@ -370,6 +374,180 @@ func TestExecuteRuntimeUpgradeFailureKeepsEffectiveDynamicVersion(t *testing.T) 
 	if item.RuntimeState != RuntimeUpgradeStateUpgradeFailed || item.LastUpgradeFailure == nil {
 		t.Fatalf("expected upgrade_failed projection after failed upgrade, got %#v", item)
 	}
+	if item.LastUpgradeFailure.Phase != plugintypes.RuntimeUpgradeFailurePhaseSQL {
+		t.Fatalf("expected dynamic SQL failure phase, got %#v", item.LastUpgradeFailure)
+	}
+	if item.LastUpgradeFailure.MessageKey != store.RuntimeUpgradeFailureMessageKeyMigrationFailed {
+		t.Fatalf("expected migration failure message key, got %#v", item.LastUpgradeFailure)
+	}
+	failedRelease, err := service.getPluginRelease(ctx, pluginID, newVersion)
+	if err != nil {
+		t.Fatalf("expected failed dynamic release lookup to succeed, got error: %v", err)
+	}
+	if failedRelease == nil {
+		t.Fatal("expected failed dynamic target release")
+	}
+	var failedMigrationCount int
+	failedMigrationCount, err = dao.SysPluginMigration.Ctx(ctx).
+		Where(do.SysPluginMigration{
+			PluginId:     pluginID,
+			ReleaseId:    failedRelease.Id,
+			Phase:        plugintypes.MigrationDirectionUpgrade.String(),
+			MigrationKey: "upgrade-phase-sql",
+			Status:       plugintypes.MigrationExecutionStatusFailed.String(),
+		}).
+		Count()
+	if err != nil {
+		t.Fatalf("expected dynamic upgrade failure migration query to succeed, got error: %v", err)
+	}
+	if failedMigrationCount != 1 {
+		t.Fatalf("expected one dynamic SQL failure migration, got %d", failedMigrationCount)
+	}
+}
+
+// TestExecuteRuntimeUpgradeDynamicCachePublisherFailureReturnsError verifies
+// the unified runtime-upgrade owner surfaces final cache publication failures
+// after the dynamic release switch has completed.
+func TestExecuteRuntimeUpgradeDynamicCachePublisherFailureReturnsError(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-dev-dynamic-runtime-upgrade-cache-failed"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.2.0"
+	)
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
+		t,
+		pluginID,
+		"Dynamic Runtime Upgrade Cache Failed Plugin",
+		oldVersion,
+		nil,
+		nil,
+	)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected initial artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected initial manifest sync to succeed, got error: %v", err)
+	}
+	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected initial dynamic plugin install to succeed, got error: %v", err)
+	}
+
+	testutil.CreateTestRuntimeStorageArtifact(
+		t,
+		pluginID,
+		"Dynamic Runtime Upgrade Cache Failed Plugin",
+		newVersion,
+		nil,
+		nil,
+	)
+	newManifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected target artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, newManifest); err != nil {
+		t.Fatalf("expected target manifest sync to succeed, got error: %v", err)
+	}
+	service.replaceUpgradeServiceForTest(t, service.integrationSvc, failingCachePublisher{
+		syncErr: gerror.New("runtime upgrade cache publication failed"),
+	}, service.runtimeUpgradeLockStore)
+
+	_, err = service.ExecuteRuntimeUpgrade(ctx, pluginID, RuntimeUpgradeOptions{Confirmed: true})
+	if err == nil {
+		t.Fatal("expected dynamic runtime upgrade cache publication failure")
+	}
+	registry, lookupErr := service.getPluginRegistry(ctx, pluginID)
+	if lookupErr != nil {
+		t.Fatalf("expected registry lookup after cache publication failure to succeed, got error: %v", lookupErr)
+	}
+	if registry == nil || registry.Version != newVersion {
+		t.Fatalf("expected dynamic upgrade side effects to complete before cache error, got %#v", registry)
+	}
+	item := findPluginItemFromService(t, service, ctx, pluginID)
+	if item.RuntimeState != RuntimeUpgradeStateNormal || item.UpgradeAvailable {
+		t.Fatalf("expected dynamic plugin to be effective despite cache error, got %#v", item)
+	}
+	newRelease, err := service.getPluginRelease(ctx, pluginID, newVersion)
+	if err != nil {
+		t.Fatalf("expected dynamic target release lookup after cache failure to succeed, got error: %v", err)
+	}
+	if newRelease == nil {
+		t.Fatal("expected dynamic target release after cache failure")
+	}
+	var failedMigrationCount int
+	failedMigrationCount, err = dao.SysPluginMigration.Ctx(ctx).
+		Where(do.SysPluginMigration{
+			PluginId:  pluginID,
+			ReleaseId: newRelease.Id,
+			Phase:     plugintypes.MigrationDirectionUpgrade.String(),
+			Status:    plugintypes.MigrationExecutionStatusFailed.String(),
+		}).
+		Count()
+	if err != nil {
+		t.Fatalf("expected dynamic cache failure migration query to succeed, got error: %v", err)
+	}
+	if failedMigrationCount != 0 {
+		t.Fatalf("expected final cache publisher failure not to create failed release ledger, got %d", failedMigrationCount)
+	}
+}
+
+// TestExecuteRuntimeUpgradeDynamicSameVersionRefreshUnavailable verifies the
+// explicit runtime-upgrade entry does not turn same-version dynamic refreshes
+// into upgrade executions.
+func TestExecuteRuntimeUpgradeDynamicSameVersionRefreshUnavailable(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dev-dynamic-runtime-upgrade-same-version"
+		version  = "v0.1.0"
+	)
+
+	testutil.CreateTestRuntimeStorageArtifact(
+		t,
+		pluginID,
+		"Dynamic Runtime Upgrade Same Version Plugin",
+		version,
+		nil,
+		nil,
+	)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
+	}
+	registryBefore, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup before same-version upgrade request to succeed, got error: %v", err)
+	}
+	if registryBefore == nil {
+		t.Fatal("expected registry row before same-version upgrade request")
+	}
+
+	_, err = service.ExecuteRuntimeUpgrade(ctx, pluginID, RuntimeUpgradeOptions{Confirmed: true})
+	if !bizerr.Is(err, CodePluginRuntimeUpgradeUnavailable) {
+		t.Fatalf("expected same-version runtime upgrade to be unavailable, got %v", err)
+	}
+	registryAfter, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup after same-version upgrade request to succeed, got error: %v", err)
+	}
+	if registryAfter == nil ||
+		registryAfter.Version != registryBefore.Version ||
+		registryAfter.ReleaseId != registryBefore.ReleaseId ||
+		registryAfter.Generation != registryBefore.Generation {
+		t.Fatalf("expected same-version upgrade request not to refresh release, before=%#v after=%#v", registryBefore, registryAfter)
+	}
 }
 
 // TestExecuteRuntimeUpgradeBeforeLifecycleBlocksBeforeRunningState verifies
@@ -422,7 +600,7 @@ func TestExecuteRuntimeUpgradeBeforeLifecycleBlocksBeforeRunningState(t *testing
 			ID:      pluginID,
 			Name:    "Dynamic Before Upgrade Fail Closed Plugin",
 			Version: newVersion,
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -468,7 +646,7 @@ func TestExecuteRuntimeUpgradeBeforeLifecycleBlocksBeforeRunningState(t *testing
 	if registryAfterFailure == nil ||
 		registryAfterFailure.Version != oldVersion ||
 		registryAfterFailure.ReleaseId != oldRegistry.ReleaseId ||
-		registryAfterFailure.CurrentState == catalog.RuntimeUpgradeStateUpgradeRunning.String() {
+		registryAfterFailure.CurrentState == plugintypes.RuntimeUpgradeStateUpgradeRunning.String() {
 		t.Fatalf("expected vetoed upgrade to preserve effective release and avoid running state, got %#v", registryAfterFailure)
 	}
 	item := findPluginItemFromService(t, service, ctx, pluginID)
@@ -526,7 +704,7 @@ func TestExecuteRuntimeUpgradeLifecycleCallbackBlocksBeforeUpgradeSQL(t *testing
 			ID:      pluginID,
 			Name:    "Dynamic Upgrade Lifecycle Fail Closed Plugin",
 			Version: newVersion,
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:   protocol.RuntimeKindWasm,
@@ -584,8 +762,8 @@ func TestExecuteRuntimeUpgradeLifecycleCallbackBlocksBeforeUpgradeSQL(t *testing
 	migrationCount, err := dao.SysPluginMigration.Ctx(ctx).
 		Where(do.SysPluginMigration{
 			PluginId: pluginID,
-			Phase:    catalog.MigrationDirectionUpgrade.String(),
-			Status:   catalog.MigrationExecutionStatusSucceeded.String(),
+			Phase:    plugintypes.MigrationDirectionUpgrade.String(),
+			Status:   plugintypes.MigrationExecutionStatusSucceeded.String(),
 		}).
 		Count()
 	if err != nil {
@@ -593,59 +771,6 @@ func TestExecuteRuntimeUpgradeLifecycleCallbackBlocksBeforeUpgradeSQL(t *testing
 	}
 	if migrationCount != 0 {
 		t.Fatalf("expected Upgrade lifecycle failure to block upgrade SQL, got successful migration count=%d", migrationCount)
-	}
-}
-
-// TestRuntimeUpgradeLockSerializesSamePlugin verifies the explicit upgrade
-// entrypoint serializes side effects for the same plugin inside the current process.
-func TestRuntimeUpgradeLockSerializesSamePlugin(t *testing.T) {
-	service := newTestService()
-	var (
-		started       int32
-		inside        int32
-		maxConcurrent int32
-	)
-	firstEntered := make(chan struct{})
-	releaseFirst := make(chan struct{})
-
-	runLocked := func() {
-		unlock, err := service.lockRuntimeUpgrade(context.Background(), "plugin-runtime-upgrade-lock")
-		if err != nil {
-			t.Errorf("expected local lock to succeed, got %v", err)
-			return
-		}
-		defer unlock()
-		current := atomic.AddInt32(&inside, 1)
-		if current > atomic.LoadInt32(&maxConcurrent) {
-			atomic.StoreInt32(&maxConcurrent, current)
-		}
-		if atomic.AddInt32(&started, 1) == 1 {
-			close(firstEntered)
-			<-releaseFirst
-		}
-		atomic.AddInt32(&inside, -1)
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		runLocked()
-	}()
-	<-firstEntered
-	go func() {
-		defer wg.Done()
-		runLocked()
-	}()
-
-	time.Sleep(20 * time.Millisecond)
-	if atomic.LoadInt32(&started) != 1 {
-		t.Fatalf("expected second same-plugin upgrade to wait, started=%d", atomic.LoadInt32(&started))
-	}
-	close(releaseFirst)
-	wg.Wait()
-	if maxConcurrent != 1 {
-		t.Fatalf("expected same-plugin runtime upgrade lock to serialize calls, maxConcurrent=%d", maxConcurrent)
 	}
 }
 
@@ -657,12 +782,13 @@ func TestRuntimeUpgradeClusterLockRejectsMissingBackend(t *testing.T) {
 		primary: true,
 		nodeID:  "cluster-node-missing-lock",
 	})
-	service.runtimeUpgradeLockStore = nil
+	service.replaceUpgradeServiceForTest(t, service.integrationSvc, upgradeCachePublisher{service: service}, nil)
 
-	unlock, err := service.lockRuntimeUpgrade(context.Background(), "plugin-cluster-missing-lock")
-	if unlock != nil {
-		unlock()
-	}
+	_, err := service.ExecuteRuntimeUpgrade(
+		context.Background(),
+		"plugin-cluster-missing-lock",
+		RuntimeUpgradeOptions{Confirmed: true},
+	)
 	if !bizerr.Is(err, CodePluginRuntimeUpgradeLockUnavailable) {
 		t.Fatalf("expected lock-unavailable bizerr, got %v", err)
 	}
@@ -673,37 +799,38 @@ func TestRuntimeUpgradeClusterLockRejectsMissingBackend(t *testing.T) {
 func TestRuntimeUpgradeClusterLockSerializesAcrossServices(t *testing.T) {
 	ctx := context.Background()
 	coordSvc := coordination.NewMemory(nil)
-	first := newTestServiceWithTopology(&testTopology{
-		enabled: true,
-		primary: true,
-		nodeID:  "cluster-node-a",
-	})
 	second := newTestServiceWithTopology(&testTopology{
 		enabled: true,
 		primary: true,
 		nodeID:  "cluster-node-b",
 	})
-	first.runtimeUpgradeLockStore = coordSvc.Lock()
-	second.runtimeUpgradeLockStore = coordSvc.Lock()
+	sharedLockStore := coordSvc.Lock()
+	second.replaceUpgradeServiceForTest(t, second.integrationSvc, upgradeCachePublisher{service: second}, sharedLockStore)
 
-	unlockFirst, err := first.lockRuntimeUpgrade(ctx, "plugin-cluster-shared-lock")
-	if err != nil {
-		t.Fatalf("expected first cluster lock acquisition to succeed, got %v", err)
+	handle, ok, err := sharedLockStore.Acquire(
+		ctx,
+		"plugin-runtime-upgrade:plugin-cluster-shared-lock",
+		"external-owner",
+		"test",
+		time.Minute,
+	)
+	if err != nil || !ok || handle == nil {
+		t.Fatalf("expected external cluster lock acquisition to succeed, ok=%v err=%v", ok, err)
 	}
-	unlockSecond, err := second.lockRuntimeUpgrade(ctx, "plugin-cluster-shared-lock")
-	if unlockSecond != nil {
-		unlockSecond()
-	}
+	defer func() {
+		if releaseErr := sharedLockStore.Release(ctx, handle); releaseErr != nil {
+			t.Fatalf("expected external cluster lock release to succeed, got %v", releaseErr)
+		}
+	}()
+
+	_, err = second.ExecuteRuntimeUpgrade(
+		ctx,
+		"plugin-cluster-shared-lock",
+		RuntimeUpgradeOptions{Confirmed: true},
+	)
 	if !bizerr.Is(err, CodePluginRuntimeUpgradeAlreadyRunning) {
 		t.Fatalf("expected already-running bizerr for second lock, got %v", err)
 	}
-
-	unlockFirst()
-	unlockSecond, err = second.lockRuntimeUpgrade(ctx, "plugin-cluster-shared-lock")
-	if err != nil {
-		t.Fatalf("expected second cluster lock acquisition after release to succeed, got %v", err)
-	}
-	unlockSecond()
 }
 
 // findPluginItemFromService reads the plugin list and returns the target item.
@@ -798,7 +925,7 @@ func TestSourcePluginDiscoveryKeepsEffectiveVersionAfterHigherSourceVersion(t *t
 	if preparedRelease == nil {
 		t.Fatal("expected prepared source plugin release row after drift")
 	}
-	if preparedRelease.Status != catalog.ReleaseStatusPrepared.String() {
+	if preparedRelease.Status != plugintypes.ReleaseStatusPrepared.String() {
 		t.Fatalf("expected prepared release status, got %s", preparedRelease.Status)
 	}
 
@@ -1011,7 +1138,7 @@ func TestUpgradeSourcePluginAppliesPreparedRelease(t *testing.T) {
 	if registry.Version != newVersion {
 		t.Fatalf("expected upgraded effective version %s, got %s", newVersion, registry.Version)
 	}
-	if registry.Status != catalog.StatusEnabled {
+	if registry.Status != plugintypes.StatusEnabled {
 		t.Fatalf("expected upgraded source plugin to stay enabled, got status=%d", registry.Status)
 	}
 
@@ -1025,7 +1152,7 @@ func TestUpgradeSourcePluginAppliesPreparedRelease(t *testing.T) {
 	if registry.ReleaseId != newRelease.Id {
 		t.Fatalf("expected registry release_id %d, got %d", newRelease.Id, registry.ReleaseId)
 	}
-	if newRelease.Status != catalog.ReleaseStatusActive.String() {
+	if newRelease.Status != plugintypes.ReleaseStatusActive.String() {
 		t.Fatalf("expected new source plugin release to become active, got %s", newRelease.Status)
 	}
 
@@ -1036,7 +1163,7 @@ func TestUpgradeSourcePluginAppliesPreparedRelease(t *testing.T) {
 	if oldRelease == nil {
 		t.Fatal("expected old source plugin release row after upgrade")
 	}
-	if oldRelease.Status != catalog.ReleaseStatusInstalled.String() {
+	if oldRelease.Status != plugintypes.ReleaseStatusInstalled.String() {
 		t.Fatalf("expected old source plugin release to be demoted to installed, got %s", oldRelease.Status)
 	}
 
@@ -1044,7 +1171,7 @@ func TestUpgradeSourcePluginAppliesPreparedRelease(t *testing.T) {
 		Where(do.SysPluginMigration{
 			PluginId:  pluginID,
 			ReleaseId: newRelease.Id,
-			Phase:     catalog.MigrationDirectionUpgrade.String(),
+			Phase:     plugintypes.MigrationDirectionUpgrade.String(),
 		}).
 		Count()
 	if err != nil {
@@ -1165,7 +1292,7 @@ func TestUpgradeSourcePluginBeforeCallbackVetoes(t *testing.T) {
 	}
 
 	_, err := service.UpgradeSourcePlugin(ctx, pluginID)
-	if !bizerr.Is(err, sourceupgradeCodeLifecycleVetoed()) {
+	if !bizerr.Is(err, sourceUpgradeCodeLifecycleVetoed()) {
 		t.Fatalf("expected lifecycle veto bizerr, got %v", err)
 	}
 	registry, err := service.getPluginRegistry(ctx, pluginID)
@@ -1179,7 +1306,7 @@ func TestUpgradeSourcePluginBeforeCallbackVetoes(t *testing.T) {
 	if item.RuntimeState != RuntimeUpgradeStateUpgradeFailed || item.LastUpgradeFailure == nil {
 		t.Fatalf("expected veto to be diagnosable as upgrade_failed, got %#v", item)
 	}
-	if item.LastUpgradeFailure.Phase != catalog.RuntimeUpgradeFailurePhaseBeforeUpgrade {
+	if item.LastUpgradeFailure.Phase != plugintypes.RuntimeUpgradeFailurePhaseBeforeUpgrade {
 		t.Fatalf("expected before_upgrade failure phase, got %#v", item.LastUpgradeFailure)
 	}
 }
@@ -1227,7 +1354,7 @@ func TestUpgradeSourcePluginCallbackFailureIsRetryable(t *testing.T) {
 	if item.RuntimeState != RuntimeUpgradeStateUpgradeFailed || item.LastUpgradeFailure == nil {
 		t.Fatalf("expected callback failure to be upgrade_failed, got %#v", item)
 	}
-	if item.LastUpgradeFailure.Phase != catalog.RuntimeUpgradeFailurePhaseUpgradeCallback {
+	if item.LastUpgradeFailure.Phase != plugintypes.RuntimeUpgradeFailurePhaseUpgradeCallback {
 		t.Fatalf("expected upgrade_callback failure phase, got %#v", item.LastUpgradeFailure)
 	}
 
@@ -1245,6 +1372,190 @@ func TestUpgradeSourcePluginCallbackFailureIsRetryable(t *testing.T) {
 	}
 	if registry == nil || registry.Version != newVersion {
 		t.Fatalf("expected effective version %s after retry, got %#v", newVersion, registry)
+	}
+}
+
+// TestExecuteRuntimeUpgradeSourceSQLFailureKeepsEffectiveRelease verifies the
+// unified runtime-upgrade entry can dispatch directly into the source strategy,
+// preserve the active release, and expose SQL failure diagnostics.
+func TestExecuteRuntimeUpgradeSourceSQLFailureKeepsEffectiveRelease(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-dev-source-upgrade-sql-failed"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.5.0"
+	)
+
+	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
+	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade SQL Failed Plugin", oldVersion, "plugin:plugin-dev-source-upgrade-sql-failed:old-entry")
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
+	}
+	oldRegistry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected source plugin registry lookup to succeed, got error: %v", err)
+	}
+	if oldRegistry == nil {
+		t.Fatal("expected source plugin registry before failed SQL upgrade")
+	}
+
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade SQL Failed Plugin", newVersion, "plugin:plugin-dev-source-upgrade-sql-failed:new-entry")
+	testutil.WriteTestFile(t, filepath.Join(pluginDir, "manifest", "sql", "001-"+pluginID+".sql"), "THIS IS NOT VALID SQL;")
+	if err = service.SyncSourcePlugins(ctx); err != nil {
+		t.Fatalf("expected source plugin rescan to succeed, got error: %v", err)
+	}
+
+	_, err = service.ExecuteRuntimeUpgrade(ctx, pluginID, RuntimeUpgradeOptions{Confirmed: true})
+	if !bizerr.Is(err, CodePluginRuntimeUpgradeExecutionFailed) {
+		t.Fatalf("expected runtime upgrade execution failure, got %v", err)
+	}
+	registryAfterFailure, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup after failed source SQL upgrade to succeed, got error: %v", err)
+	}
+	if registryAfterFailure == nil ||
+		registryAfterFailure.Version != oldVersion ||
+		registryAfterFailure.ReleaseId != oldRegistry.ReleaseId {
+		t.Fatalf("expected effective release to stay %s/%d, got %#v", oldVersion, oldRegistry.ReleaseId, registryAfterFailure)
+	}
+	item := findPluginItemFromService(t, service, ctx, pluginID)
+	if item.RuntimeState != RuntimeUpgradeStateUpgradeFailed || item.LastUpgradeFailure == nil {
+		t.Fatalf("expected source SQL failure to be upgrade_failed, got %#v", item)
+	}
+	if item.LastUpgradeFailure.Phase != plugintypes.RuntimeUpgradeFailurePhaseSQL {
+		t.Fatalf("expected SQL failure phase, got %#v", item.LastUpgradeFailure)
+	}
+	if item.LastUpgradeFailure.MessageKey != store.RuntimeUpgradeFailureMessageKeyMigrationFailed {
+		t.Fatalf("expected migration failure message key, got %#v", item.LastUpgradeFailure)
+	}
+}
+
+// TestUpgradeSourcePluginGovernanceSyncFailureIsDiagnosable verifies source
+// strategy governance failures keep the effective release stable and write a
+// unified governance failure projection.
+func TestUpgradeSourcePluginGovernanceSyncFailureIsDiagnosable(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-dev-source-upgrade-governance-failed"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.5.0"
+	)
+
+	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
+	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Governance Failed Plugin", oldVersion, "plugin:plugin-dev-source-upgrade-governance-failed:old-entry")
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
+	}
+	oldRegistry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected source plugin registry lookup to succeed, got error: %v", err)
+	}
+	if oldRegistry == nil {
+		t.Fatal("expected source plugin registry before governance failure")
+	}
+
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Governance Failed Plugin", newVersion, "plugin:plugin-dev-source-upgrade-governance-failed:new-entry")
+	if err = service.SyncSourcePlugins(ctx); err != nil {
+		t.Fatalf("expected source plugin rescan to succeed, got error: %v", err)
+	}
+	service.replaceUpgradeServiceForTest(t, failingIntegrationService{
+		Service:     service.integrationSvc,
+		resourceErr: gerror.New("resource reference sync failed"),
+	}, upgradeCachePublisher{service: service}, service.runtimeUpgradeLockStore)
+
+	_, err = service.UpgradeSourcePlugin(ctx, pluginID)
+	if err == nil {
+		t.Fatal("expected source plugin governance sync failure")
+	}
+	registryAfterFailure, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup after governance failure to succeed, got error: %v", err)
+	}
+	if registryAfterFailure == nil ||
+		registryAfterFailure.Version != oldVersion ||
+		registryAfterFailure.ReleaseId != oldRegistry.ReleaseId {
+		t.Fatalf("expected effective release to stay %s/%d, got %#v", oldVersion, oldRegistry.ReleaseId, registryAfterFailure)
+	}
+	item := findPluginItemFromService(t, service, ctx, pluginID)
+	if item.RuntimeState != RuntimeUpgradeStateUpgradeFailed || item.LastUpgradeFailure == nil {
+		t.Fatalf("expected governance failure to be upgrade_failed, got %#v", item)
+	}
+	if item.LastUpgradeFailure.Phase != plugintypes.RuntimeUpgradeFailurePhaseGovernance {
+		t.Fatalf("expected governance failure phase, got %#v", item.LastUpgradeFailure)
+	}
+	if item.LastUpgradeFailure.MessageKey != store.RuntimeUpgradeFailureMessageKeyMigrationFailed {
+		t.Fatalf("expected migration failure message key, got %#v", item.LastUpgradeFailure)
+	}
+}
+
+// TestUpgradeSourcePluginCachePublisherFailureReturnsError verifies source
+// upgrade success still reports cache publication failures to the caller after
+// switching the effective release.
+func TestUpgradeSourcePluginCachePublisherFailureReturnsError(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		pluginID   = "plugin-dev-source-upgrade-cache-failed"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.5.0"
+	)
+
+	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
+	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Cache Failed Plugin", oldVersion, "plugin:plugin-dev-source-upgrade-cache-failed:old-entry")
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
+	}
+
+	writeTestSourcePluginManifest(t, manifestPath, pluginID, "Source Upgrade Cache Failed Plugin", newVersion, "plugin:plugin-dev-source-upgrade-cache-failed:new-entry")
+	if err := service.SyncSourcePlugins(ctx); err != nil {
+		t.Fatalf("expected source plugin rescan to succeed, got error: %v", err)
+	}
+	service.replaceUpgradeServiceForTest(t, service.integrationSvc, failingCachePublisher{
+		syncErr: gerror.New("cache publication failed"),
+	}, service.runtimeUpgradeLockStore)
+
+	_, err := service.UpgradeSourcePlugin(ctx, pluginID)
+	if err == nil {
+		t.Fatal("expected source plugin cache publisher failure")
+	}
+	registry, lookupErr := service.getPluginRegistry(ctx, pluginID)
+	if lookupErr != nil {
+		t.Fatalf("expected registry lookup after cache publication failure to succeed, got error: %v", lookupErr)
+	}
+	if registry == nil || registry.Version != newVersion {
+		t.Fatalf("expected source upgrade side effects to complete before cache error, got %#v", registry)
 	}
 }
 
@@ -1367,10 +1678,10 @@ func registerSourceUpgradeCallbacksForTest(
 	t.Cleanup(cleanup)
 }
 
-// sourceupgradeCodeLifecycleVetoed returns the internal source-upgrade code
+// sourceUpgradeCodeLifecycleVetoed returns the internal source upgrade code
 // used by tests without exporting it from the root plugin service package.
-func sourceupgradeCodeLifecycleVetoed() *bizerr.Code {
-	return sourceupgradeinternal.CodePluginSourceUpgradeLifecycleVetoed
+func sourceUpgradeCodeLifecycleVetoed() *bizerr.Code {
+	return CodePluginSourceUpgradeLifecycleVetoed
 }
 
 // sourceUpgradeTestStringSlicesEqual reports whether two ordered string slices are equal.
@@ -1397,4 +1708,74 @@ func findSourceUpgradeStatusByID(
 		}
 	}
 	return nil
+}
+
+// replaceUpgradeServiceForTest rebuilds the unified upgrade owner with one
+// injected integration service and cache publisher.
+func (s *serviceImpl) replaceUpgradeServiceForTest(
+	t *testing.T,
+	integrationSvc integration.Service,
+	cachePublisher upgrade.CachePublisher,
+	lockStore coordination.LockStore,
+) {
+	t.Helper()
+	upgradeSvc, err := upgrade.New(
+		s.catalogSvc,
+		s.storeSvc,
+		s.lifecycleSvc,
+		s.runtimeSvc,
+		integrationSvc,
+		s.migrationSvc,
+		plugindep.New(),
+		s.i18nSvc,
+		lockStore,
+		cachePublisher,
+		upgradeCacheFreshener{service: s},
+		s.topology,
+		s.configSvc,
+	)
+	if err != nil {
+		t.Fatalf("expected replacement upgrade service to build, got error: %v", err)
+	}
+	s.upgradeSvc = upgradeSvc
+}
+
+// failingIntegrationService injects source-upgrade governance failures while
+// delegating every unrelated integration method.
+type failingIntegrationService struct {
+	integration.Service
+	menuErr     error
+	resourceErr error
+}
+
+// SyncPluginMenusAndPermissions optionally fails menu and permission sync.
+func (s failingIntegrationService) SyncPluginMenusAndPermissions(ctx context.Context, manifest *catalog.Manifest) error {
+	if s.menuErr != nil {
+		return s.menuErr
+	}
+	return s.Service.SyncPluginMenusAndPermissions(ctx, manifest)
+}
+
+// SyncPluginResourceReferences optionally fails resource-reference sync.
+func (s failingIntegrationService) SyncPluginResourceReferences(ctx context.Context, manifest *catalog.Manifest) error {
+	if s.resourceErr != nil {
+		return s.resourceErr
+	}
+	return s.Service.SyncPluginResourceReferences(ctx, manifest)
+}
+
+// failingCachePublisher injects source-upgrade cache publication failures.
+type failingCachePublisher struct {
+	publishErr error
+	syncErr    error
+}
+
+// PublishPluginChange optionally fails plugin-scoped mutation publication.
+func (p failingCachePublisher) PublishPluginChange(context.Context, string, string, string) error {
+	return p.publishErr
+}
+
+// SyncEnabledSnapshotAndPublishRuntimeChange optionally fails source upgrade success publication.
+func (p failingCachePublisher) SyncEnabledSnapshotAndPublishRuntimeChange(context.Context, string, string) error {
+	return p.syncErr
 }

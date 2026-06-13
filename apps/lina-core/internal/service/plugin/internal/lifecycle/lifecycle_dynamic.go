@@ -6,32 +6,41 @@ package lifecycle
 import (
 	"context"
 
-	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/pkg/bizerr"
 )
 
-// Install executes the install lifecycle for a discovered dynamic plugin.
+// InstallDynamic executes the install lifecycle for a discovered dynamic plugin.
 // Repeated installs are treated as idempotent unless the same version needs a refresh.
-func (s *serviceImpl) Install(ctx context.Context, pluginID string) error {
+func (s *serviceImpl) InstallDynamic(ctx context.Context, pluginID string) error {
+	return s.installDynamic(ctx, pluginID, runtime.DynamicReconcileOptions{})
+}
+
+func (s *serviceImpl) installDynamic(
+	ctx context.Context,
+	pluginID string,
+	options runtime.DynamicReconcileOptions,
+) error {
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
 		return err
 	}
-	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
+	if plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeSource {
 		return bizerr.NewCode(CodeSourcePluginInstallUnsupported)
 	}
-	if s.reconciler != nil {
-		if err = s.reconciler.EnsureRuntimeArtifactAvailable(manifest, "install"); err != nil {
+	if s.runtimeSvc != nil {
+		if err = s.runtimeSvc.EnsureRuntimeArtifactAvailable(manifest, "install"); err != nil {
 			return err
 		}
 	}
 
-	registry, err := s.catalogSvc.SyncManifest(ctx, manifest)
+	registry, err := s.storeSvc.SyncManifest(ctx, manifest)
 	if err != nil {
 		return err
 	}
-	if registry.Installed == catalog.InstalledYes {
-		compareResult, compareErr := catalog.CompareSemanticVersions(manifest.Version, registry.Version)
+	if registry.Installed == plugintypes.InstalledYes {
+		compareResult, compareErr := plugintypes.CompareSemanticVersions(manifest.Version, registry.Version)
 		if compareErr != nil {
 			return compareErr
 		}
@@ -39,43 +48,44 @@ func (s *serviceImpl) Install(ctx context.Context, pluginID string) error {
 			return bizerr.NewCode(CodeDynamicPluginDowngradeUnsupported)
 		}
 		if compareResult == 0 {
-			if s.reconciler != nil && !s.reconciler.ShouldRefreshInstalledDynamicRelease(ctx, registry, manifest) {
+			if s.runtimeSvc != nil && !s.runtimeSvc.ShouldRefreshInstalledDynamicRelease(ctx, registry, manifest) {
 				return nil
 			}
 		}
 	}
 
-	desiredState := catalog.HostStateInstalled.String()
-	if registry.Installed == catalog.InstalledYes && registry.Status == catalog.StatusEnabled {
-		desiredState = catalog.HostStateEnabled.String()
+	desiredState := plugintypes.HostStateInstalled.String()
+	if registry.Installed == plugintypes.InstalledYes && registry.Status == plugintypes.StatusEnabled {
+		desiredState = plugintypes.HostStateEnabled.String()
 	}
-	if s.reconciler != nil {
-		if err = s.reconciler.ReconcileDynamicPluginRequest(ctx, pluginID, desiredState); err != nil {
+	if s.runtimeSvc != nil {
+		if err = s.runtimeSvc.ReconcileDynamicPluginRequest(ctx, pluginID, desiredState, options); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Uninstall executes the uninstall lifecycle for an installed dynamic plugin.
-func (s *serviceImpl) Uninstall(ctx context.Context, pluginID string) error {
+// UninstallDynamic executes the low-level uninstall lifecycle for an installed
+// dynamic plugin.
+func (s *serviceImpl) UninstallDynamic(ctx context.Context, pluginID string) error {
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
 		return err
 	}
-	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
+	if plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeSource {
 		return bizerr.NewCode(CodeSourcePluginUninstallUnsupported)
 	}
 
-	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+	registry, err := s.storeSvc.GetRegistry(ctx, pluginID)
 	if err != nil {
 		return err
 	}
-	if registry == nil || registry.Installed != catalog.InstalledYes {
+	if registry == nil || registry.Installed != plugintypes.InstalledYes {
 		return nil
 	}
-	if s.reconciler != nil {
-		return s.reconciler.ReconcileDynamicPluginRequest(ctx, pluginID, catalog.HostStateUninstalled.String())
+	if s.runtimeSvc != nil {
+		return s.runtimeSvc.ReconcileDynamicPluginRequest(ctx, pluginID, plugintypes.HostStateUninstalled.String(), runtime.DynamicReconcileOptions{})
 	}
 	return nil
 }

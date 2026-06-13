@@ -11,6 +11,7 @@ import (
 	"github.com/gogf/gf/v2/net/goai"
 
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -29,13 +30,13 @@ func (s *serviceImpl) ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths g
 		return err
 	}
 	for _, manifest := range manifests {
-		if manifest == nil || catalog.NormalizeType(manifest.Type) != catalog.TypeDynamic {
+		if manifest == nil || plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
 			continue
 		}
 		if !runtime.isEnabled(manifest.ID) {
 			continue
 		}
-		activeManifest, manifestErr := s.catalogSvc.GetActiveManifest(ctx, manifest.ID)
+		activeManifest, manifestErr := s.resolveActiveOrDesiredManifest(ctx, manifest.ID)
 		if manifestErr != nil || activeManifest == nil {
 			continue
 		}
@@ -63,6 +64,26 @@ func (s *serviceImpl) ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths g
 		}
 	}
 	return nil
+}
+
+// resolveActiveOrDesiredManifest loads the active release manifest for installed
+// dynamic plugins and falls back to the discovered manifest for inactive rows.
+func (s *serviceImpl) resolveActiveOrDesiredManifest(ctx context.Context, pluginID string) (*catalog.Manifest, error) {
+	registry, err := s.storeSvc.GetRegistry(ctx, pluginID)
+	if err != nil {
+		return nil, err
+	}
+	if registry != nil &&
+		plugintypes.NormalizeType(registry.Type) == plugintypes.TypeDynamic &&
+		registry.Installed == plugintypes.InstalledYes &&
+		registry.ReleaseId > 0 {
+		release, releaseErr := s.storeSvc.GetRegistryRelease(ctx, registry)
+		if releaseErr != nil || release == nil {
+			return nil, releaseErr
+		}
+		return s.storeSvc.LoadReleaseManifest(ctx, release)
+	}
+	return s.catalogSvc.GetDesiredManifest(pluginID)
 }
 
 // buildRouteOpenAPIOperation converts one runtime route contract into a host

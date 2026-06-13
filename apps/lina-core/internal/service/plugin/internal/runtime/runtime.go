@@ -11,13 +11,15 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/cachecoord/revisionctrl"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/locker"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/frontend"
-	"lina-core/internal/service/plugin/internal/lifecycle"
+	"lina-core/internal/service/plugin/internal/migration"
 	"lina-core/internal/service/plugin/internal/openapi"
-	"lina-core/internal/service/plugin/runtimecache"
+	"lina-core/internal/service/plugin/internal/store"
+	"lina-core/internal/service/plugin/internal/wasm"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/plugin/capability"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
@@ -45,6 +47,14 @@ type MenuManager interface {
 	SyncPluginMenus(ctx context.Context, manifest *catalog.Manifest) error
 	// DeletePluginMenusByManifest removes all plugin-owned menu rows for the given manifest.
 	DeletePluginMenusByManifest(ctx context.Context, manifest *catalog.Manifest) error
+}
+
+// ResourceReferenceManager abstracts resource-reference synchronization without
+// importing the integration package into runtime.
+type ResourceReferenceManager interface {
+	// SyncPluginResourceReferences keeps sys_plugin_resource_ref aligned with the
+	// current governance resource index derived from the given manifest.
+	SyncPluginResourceReferences(ctx context.Context, manifest *catalog.Manifest) error
 }
 
 // HookDispatcher abstracts hook event dispatch so the runtime package does not
@@ -102,6 +112,8 @@ type PermissionMenuFilter interface {
 type CacheChangeNotifier interface {
 	// MarkRuntimeCacheChanged records one cache-affecting runtime change.
 	MarkRuntimeCacheChanged(ctx context.Context, reason string) error
+	// PublishPluginChange records one plugin-scoped runtime change.
+	PublishPluginChange(ctx context.Context, pluginID string, pluginType string, reason string) error
 }
 
 // DependencyValidator validates candidate dynamic plugin releases before the
@@ -110,6 +122,13 @@ type DependencyValidator interface {
 	// ValidateDynamicPluginCandidate verifies candidate dependencies and
 	// reverse-dependency version safety for one dynamic lifecycle action.
 	ValidateDynamicPluginCandidate(ctx context.Context, manifest *catalog.Manifest) error
+}
+
+// StorageCleanupServicesProvider returns the startup-owned capability directory
+// used by dynamic uninstall storage cleanup.
+type StorageCleanupServicesProvider interface {
+	// StorageCleanupServices returns the current shared capability directory.
+	StorageCleanupServices() capability.Services
 }
 
 // ArtifactService defines runtime WASM artifact parsing and validation operations.
@@ -164,14 +183,14 @@ type DynamicRouteService interface {
 // LifecycleReconcileService defines runtime lifecycle convergence operations
 // needed by install, enable, disable, and upgrade flows.
 type LifecycleReconcileService interface {
-	// ReconcileDynamicPluginRequest implements lifecycle.ReconcileProvider.
+	// ReconcileDynamicPluginRequest implements lifecycle.RuntimeOrchestrator.
 	// It submits a desired-state transition to the reconciler loop.
-	ReconcileDynamicPluginRequest(ctx context.Context, pluginID string, desiredState string) error
-	// EnsureRuntimeArtifactAvailable implements lifecycle.ReconcileProvider.
+	ReconcileDynamicPluginRequest(ctx context.Context, pluginID string, desiredState string, options DynamicReconcileOptions) error
+	// EnsureRuntimeArtifactAvailable implements lifecycle.RuntimeOrchestrator.
 	// It verifies the WASM artifact is present for the given lifecycle action label.
 	EnsureRuntimeArtifactAvailable(manifest *catalog.Manifest, actionLabel string) error
-	// ShouldRefreshInstalledDynamicRelease implements lifecycle.ReconcileProvider.
-	// It type-asserts registry to *entity.SysPlugin then delegates to the private helper.
+	// ShouldRefreshInstalledDynamicRelease implements lifecycle.RuntimeOrchestrator.
+	// It type-asserts registry to *store.PluginRecord then delegates to the private helper.
 	ShouldRefreshInstalledDynamicRelease(
 		ctx context.Context,
 		registry interface{},
@@ -179,18 +198,25 @@ type LifecycleReconcileService interface {
 	) bool
 }
 
+// DynamicReconcileOptions carries explicit one-shot reconcile decisions from
+// lifecycle into runtime without using context values for business control flow.
+type DynamicReconcileOptions struct {
+	// InstallMockData requests loading optional mock-data SQL during install.
+	InstallMockData bool
+}
+
 // RuntimeRegistryService defines registry-backed dynamic plugin projection and
 // artifact-state query operations.
 type RuntimeRegistryService interface {
 	// BuildPluginItem returns a PluginItem projection for one manifest + registry pair.
 	// Used by the plugin facade SyncAndList coordination method.
-	BuildPluginItem(ctx context.Context, manifest *catalog.Manifest, registry *entity.SysPlugin) *PluginItem
+	BuildPluginItem(ctx context.Context, manifest *catalog.Manifest, registry *store.PluginRecord) *PluginItem
 	// BuildPluginSummaryItem returns the lightweight management-list projection
 	// for one manifest + registry pair.
-	BuildPluginSummaryItem(ctx context.Context, manifest *catalog.Manifest, registry *entity.SysPlugin) *PluginItem
+	BuildPluginSummaryItem(ctx context.Context, manifest *catalog.Manifest, registry *store.PluginRecord) *PluginItem
 	// BuildPluginItemReadOnly returns one detail projection without mutating
 	// governance state when a dynamic artifact is missing from storage.
-	BuildPluginItemReadOnly(ctx context.Context, manifest *catalog.Manifest, registry *entity.SysPlugin) *PluginItem
+	BuildPluginItemReadOnly(ctx context.Context, manifest *catalog.Manifest, registry *store.PluginRecord) *PluginItem
 	// BuildRuntimeItems returns PluginItems for dynamic plugins present in the registry
 	// but absent from the given manifest map. Used by the plugin facade SyncAndList.
 	BuildRuntimeItems(ctx context.Context, covered map[string]struct{}) ([]*PluginItem, error)
@@ -226,7 +252,7 @@ type RuntimeProjectionService interface {
 	CurrentNodeID() string
 	// SyncPluginReleaseRuntimeState implements catalog.ReleaseStateSyncer.
 	// It updates the active release row to reflect current registry state.
-	SyncPluginReleaseRuntimeState(ctx context.Context, registry *entity.SysPlugin) error
+	SyncPluginReleaseRuntimeState(ctx context.Context, registry *store.PluginRecord) error
 }
 
 // RuntimeReconcilerService defines background and on-demand runtime reconciliation operations.
@@ -285,7 +311,7 @@ type RuntimeLifecycleService interface {
 	UninstallWithOptions(ctx context.Context, pluginID string, purgeStorageData bool) error
 	// ForceUninstallMissingArtifact clears host governance for an installed
 	// dynamic plugin whose staging and active release artifacts are unavailable.
-	ForceUninstallMissingArtifact(ctx context.Context, registry *entity.SysPlugin) error
+	ForceUninstallMissingArtifact(ctx context.Context, registry *store.PluginRecord) error
 }
 
 // ActiveManifestService defines active dynamic release manifest loading operations.
@@ -293,36 +319,7 @@ type ActiveManifestService interface {
 	// LoadActiveDynamicPluginManifest implements catalog.DynamicManifestLoader.
 	// It returns the currently active dynamic-plugin manifest reloaded from the stable
 	// release archive so live traffic sees the stable version during staged upgrades.
-	LoadActiveDynamicPluginManifest(ctx context.Context, registry *entity.SysPlugin) (*catalog.Manifest, error)
-}
-
-// DependencyWiringService defines provider wiring operations for runtime integrations.
-type DependencyWiringService interface {
-	// SetTopology wires the cluster topology provider.
-	SetTopology(t TopologyProvider)
-	// SetMenuManager wires the menu synchronization provider.
-	SetMenuManager(m MenuManager)
-	// SetHookDispatcher wires the lifecycle hook dispatcher.
-	SetHookDispatcher(d HookDispatcher)
-	// SetJwtConfigProvider wires the JWT configuration provider for route token validation.
-	SetJwtConfigProvider(p JwtConfigProvider)
-	// SetUploadSizeProvider wires the upload-size provider for dynamic package uploads.
-	SetUploadSizeProvider(p UploadSizeProvider)
-	// SetUserContextSetter wires the user-context injection provider.
-	SetUserContextSetter(p UserContextSetter)
-	// SetSessionStore wires the online-session store used for dynamic route requests.
-	SetSessionStore(store session.Store)
-	// SetPermissionMenuFilter wires the plugin-level permission menu filter.
-	SetPermissionMenuFilter(f PermissionMenuFilter)
-	// SetRuntimeCacheChangeNotifier wires cluster cache revision publication.
-	SetRuntimeCacheChangeNotifier(n CacheChangeNotifier)
-	// SetDependencyValidator wires release dependency validation.
-	SetDependencyValidator(v DependencyValidator)
-	// SetStorageCleanupServices wires plugin-scoped storage capabilities used
-	// by dynamic uninstall cleanup.
-	SetStorageCleanupServices(services capability.Services)
-	// ValidateRequiredDependencies verifies production runtime wiring after all setters run.
-	ValidateRequiredDependencies() error
+	LoadActiveDynamicPluginManifest(ctx context.Context, registry *store.PluginRecord) (*catalog.Manifest, error)
 }
 
 // DynamicPackageService defines runtime WASM package upload and storage operations.
@@ -348,7 +345,6 @@ type Service interface {
 	DynamicJobService
 	RuntimeLifecycleService
 	ActiveManifestService
-	DependencyWiringService
 	DynamicPackageService
 }
 
@@ -357,10 +353,12 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	// catalogSvc provides manifest, registry, and release access.
+	// catalogSvc provides manifest discovery and manifest asset access.
 	catalogSvc catalog.Service
-	// lifecycleSvc provides install/uninstall SQL migration support.
-	lifecycleSvc lifecycle.Service
+	// storeSvc provides plugin governance registry and release projections.
+	storeSvc store.Service
+	// migrationSvc executes install/uninstall SQL migration support.
+	migrationSvc migration.Service
 	// frontendSvc manages in-memory frontend bundles.
 	frontendSvc frontend.Service
 	// openapiSvc projects dynamic routes into the host OpenAPI document.
@@ -369,6 +367,8 @@ type serviceImpl struct {
 	topology TopologyProvider
 	// menuMgr handles plugin menu and permission synchronization.
 	menuMgr MenuManager
+	// resourceRefMgr handles release-scoped governance resource references.
+	resourceRefMgr ResourceReferenceManager
 	// hookDispatcher fires lifecycle hook events.
 	hookDispatcher HookDispatcher
 	// jwtConfig provides the JWT signing secret for route token validation.
@@ -390,11 +390,17 @@ type serviceImpl struct {
 	dependencyValidator DependencyValidator
 	// storageCleanupServices resolves plugin-scoped storage cleanup capability
 	// views for dynamic uninstall resource purging.
-	storageCleanupServices capability.Services
+	storageCleanupServices StorageCleanupServicesProvider
+	// wasmRuntime owns dynamic-plugin WASM execution and host-call dependencies.
+	wasmRuntime wasm.Runtime
 	// reconcilerRevisionObserved records the reconciler revision consumed by this runtime service.
-	reconcilerRevisionObserved *runtimecache.ObservedRevision
+	reconcilerRevisionObserved *revisionctrl.ObservedRevision
 	// reconcilerRevisionCtrl coordinates cluster-wide dynamic-plugin reconciler wake-up.
-	reconcilerRevisionCtrl *runtimecache.Controller
+	reconcilerRevisionCtrl *revisionctrl.Controller
+	// reconcilerOnce starts the background reconciler loop once per runtime service instance.
+	reconcilerOnce sync.Once
+	// reconcileMu serializes convergence passes for this runtime service instance.
+	reconcileMu sync.Mutex
 	// reconcilerSafetyMu protects the last full-sweep timestamp.
 	reconcilerSafetyMu sync.Mutex
 	// lastReconcilerSweepAt records the last successful background full-scan pass.
@@ -416,19 +422,49 @@ type runtimeI18nService interface {
 // New creates a new runtime Service with the given sub-service dependencies.
 func New(
 	catalogSvc catalog.Service,
-	lifecycleSvc lifecycle.Service,
+	storeSvc store.Service,
+	migrationSvc migration.Service,
 	frontendSvc frontend.Service,
 	openapiSvc openapi.Service,
 	i18nSvc runtimeI18nService,
 	reconcilerLockSvc locker.Service,
+	topology TopologyProvider,
+	menuMgr MenuManager,
+	resourceRefMgr ResourceReferenceManager,
+	hookDispatcher HookDispatcher,
+	jwtConfig JwtConfigProvider,
+	uploadSize UploadSizeProvider,
+	userCtx UserContextSetter,
+	sessionStore session.Store,
+	menuFilter PermissionMenuFilter,
+	cacheChangeNotifier CacheChangeNotifier,
+	dependencyValidator DependencyValidator,
+	storageCleanupServices StorageCleanupServicesProvider,
+	wasmRuntime wasm.Runtime,
 ) Service {
-	return &serviceImpl{
+	service := &serviceImpl{
 		catalogSvc:                 catalogSvc,
-		lifecycleSvc:               lifecycleSvc,
+		storeSvc:                   storeSvc,
+		migrationSvc:               migrationSvc,
 		frontendSvc:                frontendSvc,
 		openapiSvc:                 openapiSvc,
+		topology:                   topology,
+		menuMgr:                    menuMgr,
+		resourceRefMgr:             resourceRefMgr,
+		hookDispatcher:             hookDispatcher,
+		jwtConfig:                  jwtConfig,
+		uploadSize:                 uploadSize,
+		userCtx:                    userCtx,
+		sessionStore:               sessionStore,
+		menuFilter:                 menuFilter,
+		cacheChangeNotifier:        cacheChangeNotifier,
 		reconcilerLockSvc:          reconcilerLockSvc,
-		reconcilerRevisionObserved: runtimecache.NewObservedRevision(),
+		dependencyValidator:        dependencyValidator,
+		storageCleanupServices:     storageCleanupServices,
+		wasmRuntime:                wasmRuntime,
+		reconcilerRevisionObserved: revisionctrl.NewObservedRevision(),
 		i18nSvc:                    i18nSvc,
 	}
+	service.configureReconcilerRevisionController()
+	return service
 }

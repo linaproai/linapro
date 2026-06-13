@@ -142,7 +142,7 @@ func TestHandleHostServiceInvokeNotificationsRejectsUnauthorizedChannel(t *testi
 func TestHandleHostServiceInvokeRejectsStandaloneNotifyService(t *testing.T) {
 	response := handleHostServiceInvoke(
 		context.Background(),
-		newNotificationsHostCallContext("test-plugin-old-notify", "inbox", 1),
+		withTestHostCallRuntime(t, newNotificationsHostCallContext("test-plugin-old-notify", "inbox", 1)),
 		protocol.MarshalHostServiceRequestEnvelope(&protocol.HostServiceRequestEnvelope{
 			Service:     "notify",
 			Method:      "send",
@@ -191,7 +191,7 @@ func invokeNotificationsHostService(
 
 	return handleHostServiceInvoke(
 		context.Background(),
-		hcc,
+		withTestHostCallRuntime(t, hcc),
 		protocol.MarshalHostServiceRequestEnvelope(&protocol.HostServiceRequestEnvelope{
 			Service:     protocol.HostServiceNotifications,
 			Method:      protocol.HostServiceMethodNotificationsSend,

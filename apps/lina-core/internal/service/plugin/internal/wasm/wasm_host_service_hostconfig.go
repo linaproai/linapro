@@ -6,29 +6,16 @@ import (
 	"context"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
-	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-// ConfigureHostConfigService replaces the host config reader used by wasm host
-// calls. The service must be non-nil.
-func ConfigureHostConfigService(service hostconfigcap.Service) error {
-	if service == nil {
-		return gerror.New("wasm host config service requires a non-nil adapter")
-	}
-	updateHostServiceRuntimeSnapshot(func(next *hostServiceRuntime) {
-		next.hostConfigService = service
-	})
-	return nil
-}
-
 // dispatchHostConfigService routes hostConfig.get calls to the host config reader.
 func dispatchHostConfigService(
 	ctx context.Context,
-	_ *hostCallContext,
+	hcc *hostCallContext,
 	method string,
 	payload []byte,
 ) *bridgehostcall.HostCallResponseEnvelope {
@@ -36,14 +23,13 @@ func dispatchHostConfigService(
 	if err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 	}
-	runtime := currentHostServiceRuntime()
-	if runtime == nil || runtime.hostConfigService == nil {
+	if hcc == nil || hcc.runtime == nil || hcc.runtime.hostConfigService == nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "host config service is not configured")
 	}
 
 	switch method {
 	case bridgehostservice.HostServiceMethodHostConfigGet:
-		return handleHostConfigGet(ctx, runtime.hostConfigService, request.Key)
+		return handleHostConfigGet(ctx, hcc.runtime.hostConfigService, request.Key)
 	default:
 		return bridgehostcall.NewHostCallErrorResponse(
 			bridgehostcall.HostCallStatusNotFound,

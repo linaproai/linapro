@@ -265,3 +265,49 @@
 - **THEN** 审查结论追溯依赖 owner、创建位置、传递路径和共享实例策略
 - **AND** 标记会创建孤立缓存状态、配置状态、session 状态或锁状态的隐式 `New()` 调用
 
+### Requirement: runtime revision controller 必须属于缓存协调边界
+
+系统 SHALL 将运行时缓存 revision controller 作为缓存协调组件能力维护，而不是作为插件领域包的非 internal 子包暴露。插件 runtime、插件管理读模型、runtime reconciler 和 i18n runtime bundle 等消费方 MUST 从缓存协调边界导入 revision controller，并按各自 domain/scope 创建实例。
+
+#### Scenario: plugin 和 i18n 使用 revision controller
+
+- **WHEN** plugin runtime 缓存和 i18n runtime bundle 缓存需要 observed revision
+- **THEN** 二者从缓存协调组件导入 revision controller
+- **AND** 不导入`internal/service/plugin/runtimecache`
+- **AND** 各自实例化独立 domain/scope controller
+
+#### Scenario: revision controller tenant scope
+
+- **WHEN** 调用方需要设置 tenant scope
+- **THEN** controller API 使用返回副本的`WithTenantScope`或语义明确的构造期 setter
+- **AND** 不得在共享 controller 已被多个调用方使用后通过误导性 fluent API 原地修改作用域
+
+#### Scenario: 审查插件 runtimecache 旧路径
+
+- **WHEN** 生产或测试代码重新导入`internal/service/plugin/runtimecache`
+- **THEN** 静态治理测试失败
+- **AND** 调用方必须改用缓存协调边界下的 revision controller
+
+### Requirement: 插件生命周期缓存失效必须通过单一变化发布入口
+
+系统 SHALL 为插件同步、动态包上传、安装、卸载、启用、禁用、源码升级、动态升级、租户供应策略更新和启动自动启用等插件治理变化提供单一插件变化发布入口。该入口 MUST 复用`plugin-runtime`revision controller，统一失效 runtime 派生缓存、插件管理读模型、frontend bundle、i18n runtime bundle 和 WASM 相关派生状态，不得创建额外仅当前节点可见的缓存域或分散发布路径。
+
+#### Scenario: 生命周期写入后发布变化
+
+- **WHEN** 插件安装、卸载、启用、禁用或状态变更成功写入治理状态
+- **THEN** lifecycle 编排调用统一插件变化发布入口
+- **AND** 入口发布`plugin-runtime`revision 并记录 reason
+- **AND** 插件管理读模型和 runtime 派生缓存均观察同一 revision 失效
+
+#### Scenario: 租户供应策略变化后发布变化
+
+- **WHEN** 平台管理员更新插件新租户供应策略
+- **THEN** 系统通过统一插件变化发布入口失效受影响的插件管理和运行时派生缓存
+- **AND** 不绕过`plugin-runtime`revision controller 创建独立本地失效路径
+
+#### Scenario: 审查缓存失效入口
+
+- **WHEN** 变更新增插件治理写路径或迁移生命周期编排
+- **THEN** 静态治理或审查确认该路径最终调用统一插件变化发布入口
+- **AND** 对无缓存影响路径必须记录无影响判断
+

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -70,10 +71,10 @@ func CreateTestRuntimeStorageArtifactWithFilename(
 			ID:                  pluginID,
 			Name:                pluginName,
 			Version:             version,
-			Type:                catalog.TypeDynamic.String(),
-			ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+			Type:                plugintypes.TypeDynamic.String(),
+			ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &DefaultTestSupportsMultiTenant,
-			DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+			DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
 			PublicAssets:        runtimePublicAssetsForFrontendAssets(DefaultTestRuntimeFrontendAssets()),
 		},
 		&catalog.ArtifactSpec{
@@ -146,10 +147,10 @@ func CreateTestRuntimeStorageArtifactWithMenus(
 			ID:                  pluginID,
 			Name:                pluginName,
 			Version:             version,
-			Type:                catalog.TypeDynamic.String(),
-			ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+			Type:                plugintypes.TypeDynamic.String(),
+			ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &DefaultTestSupportsMultiTenant,
-			DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+			DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
 			Menus:               menus,
 			PublicAssets:        runtimePublicAssetsForFrontendAssets(DefaultTestRuntimeFrontendAssets()),
 		},
@@ -230,10 +231,10 @@ func CreateTestRuntimeStorageArtifactWithHostServices(
 			ID:                  pluginID,
 			Name:                pluginName,
 			Version:             version,
-			Type:                catalog.TypeDynamic.String(),
-			ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+			Type:                plugintypes.TypeDynamic.String(),
+			ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &DefaultTestSupportsMultiTenant,
-			DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+			DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
 			PublicAssets:        runtimePublicAssetsForFrontendAssets(frontendAssets),
 		},
 		&catalog.ArtifactSpec{
@@ -287,10 +288,10 @@ func CreateTestRuntimeStorageArtifactWithFrontendAssetsMenusAndBackendContracts(
 			ID:                  pluginID,
 			Name:                pluginName,
 			Version:             version,
-			Type:                catalog.TypeDynamic.String(),
-			ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+			Type:                plugintypes.TypeDynamic.String(),
+			ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &DefaultTestSupportsMultiTenant,
-			DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+			DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
 			Menus:               menus,
 			PublicAssets:        runtimePublicAssetsForFrontendAssets(frontendAssets),
 		},

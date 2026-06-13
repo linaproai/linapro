@@ -52,6 +52,52 @@
 - **且** 单机部署中后续列表查询必须重建本地读模型
 - **且** 集群部署中其他实例必须通过共享修订号或等价机制观察到失效并刷新本地读模型
 
+### Requirement: 插件清单处理必须与治理副作用分离
+
+系统 SHALL 将插件清单扫描、解析、校验和访问视为清单事实源读取能力。清单处理路径不得隐藏写入`sys_plugin`、`sys_plugin_release`、`sys_plugin_resource_ref`、`sys_menu`、`sys_role_menu`或其他治理表，也不得隐藏触发菜单同步、权限同步、资源引用同步、hook 分发、运行时节点状态同步或缓存失效。需要治理写入或副作用时，调用方 MUST 在显式同步、安装、卸载、启用、禁用、升级或启动同步编排入口中按顺序调用清单、存储和副作用能力。
+
+#### Scenario: 清单扫描仅读取资源
+
+- **WHEN** 系统扫描源码插件或动态插件 manifest 资源
+- **THEN** 系统只解析、校验和返回清单声明
+- **AND** 扫描过程不得写入插件治理表
+- **AND** 扫描过程不得触发菜单、权限、资源引用或 hook 副作用
+
+#### Scenario: 显式同步插件治理资源
+
+- **WHEN** 管理员或宿主启动同步编排确认需要同步插件治理资源
+- **THEN** 编排入口先通过`catalog`读取和校验 manifest
+- **AND** 再通过`store`写入注册表、发布快照、授权快照或治理投影
+- **AND** 最后显式调用菜单同步、资源引用同步、hook 分发或运行时状态同步能力
+
+#### Scenario: 插件列表查询复用清单和治理投影
+
+- **WHEN** 插件列表或详情查询需要展示清单声明和治理状态
+- **THEN** 查询路径可以组合`catalog`清单投影与`store`治理投影
+- **AND** 查询路径不得借由`catalog`扫描隐式修复或写入治理表
+
+### Requirement: 插件治理写入后的副作用调用点必须可追踪
+
+系统 SHALL 在插件显式同步、安装、卸载、启用、禁用、升级、动态包上传和租户供应策略更新等治理路径中保留可追踪的副作用调用点。每个菜单同步、资源引用同步、hook 分发、运行时节点状态同步和缓存失效操作 MUST 由当前编排入口显式触发，且错误处理语义必须与治理写入顺序一致。
+
+#### Scenario: 插件启用触发状态同步
+
+- **WHEN** 插件启用编排成功写入插件治理状态
+- **THEN** 编排入口显式触发必要的菜单、资源引用、运行时状态或 hook 副作用
+- **AND** 副作用调用不得隐藏在`catalog.SetPluginStatus`或等价清单 helper 内
+
+#### Scenario: 插件安装同步资源引用
+
+- **WHEN** 插件安装编排完成 manifest 校验并写入安装治理状态
+- **THEN** 编排入口显式同步插件资源引用投影
+- **AND** 资源引用同步失败时安装流程必须按既有错误处理语义返回失败或执行回滚
+
+#### Scenario: 插件治理变化触发缓存失效
+
+- **WHEN** 插件同步、动态包上传、安装、卸载、启用、禁用、升级或租户供应策略写入成功
+- **THEN** 编排入口必须保留既有插件管理读模型和运行时派生缓存失效语义
+- **AND** 缓存失效不得因为治理写入 owner 从`catalog`迁移到`store`而遗漏
+
 ### Requirement:插件宿主服务元数据查找必须避免模式探测错误
 
 系统 SHALL 通过只读元数据查询读取插件列表宿主服务投影的宿主数据库元数据。该查找不得触发 `information_schema.TABLES` 的错误业务表模式探测；如果数据库不支持元数据查找或查找失败，插件列表 API SHALL 降级返回原始表名。
@@ -381,4 +427,60 @@
 - **WHEN** 目标插件安装成功
 - **THEN** 安装响应包含目标插件 ID
 - **AND** 安装响应不得包含自动安装成功的依赖插件列表
+
+### Requirement: 插件生命周期编排下沉后必须保持治理语义
+
+系统 SHALL 在将插件生命周期编排迁入 lifecycle 子组件后保持现有安装、卸载、启用、禁用、状态变更、源码插件生命周期、启动自动启用和租户生命周期钩子的治理语义。平台上下文守卫、依赖检查、反向依赖阻断、host service authorization、SQL migration、资源引用同步、菜单权限同步、hook 分发、runtime state 同步和缓存失效不得因迁移遗漏或改变顺序。
+
+#### Scenario: 插件安装语义保持
+
+- **WHEN** 管理员安装 source 或 dynamic 插件
+- **THEN** 系统仍执行依赖检查、manifest 校验、host service authorization、SQL migration、registry/release 写入、资源和菜单同步、hook 分发和缓存失效
+- **AND** 任一步骤失败时保持迁移前的回滚或失败返回语义
+
+#### Scenario: 插件卸载语义保持
+
+- **WHEN** 管理员卸载插件
+- **THEN** 系统仍在副作用前检查反向依赖和 lifecycle veto
+- **AND** 保持 runtime 停止、资源引用清理、菜单权限清理、uninstall SQL、storage cleanup 和缓存失效顺序
+- **AND** force 与 purge storage 语义不因 lifecycle 子组件迁移改变
+
+#### Scenario: 启动自动启用语义保持
+
+- **WHEN** 宿主启动并处理`plugin.autoEnable`
+- **THEN** 系统仍只对配置目标插件执行自动安装/启用
+- **AND** 保持 startup auto-enable 的依赖检查、mock-data 策略、租户供应策略和启动统计语义
+
+### Requirement: 插件生命周期业务控制参数必须显式传递
+
+系统 SHALL 将生命周期普通业务控制参数作为方法参数、options 或稳定输入结构显式传递。安装 mock data、startup auto-enable 标记、依赖检查结果和类似控制语义 MUST NOT 通过普通请求 context key 隐式改变生命周期行为。仅用于一次启动编排的只读大快照 MAY 继续通过 context 传递，但不得改变生命周期业务语义。
+
+#### Scenario: 安装 mock data
+
+- **WHEN** 调用方请求安装插件并选择加载 mock-data
+- **THEN** 该选择通过 install options 或等价显式输入传入 lifecycle
+- **AND** lifecycle 不通过 context key 判断是否加载 mock-data
+
+#### Scenario: 启动自动启用
+
+- **WHEN** startup bootstrap 触发插件自动安装或启用
+- **THEN** startup 语义通过显式 options 或内部启动入口传入 lifecycle
+- **AND** 普通 HTTP 安装请求无法通过伪造 context key 获得 startup-only 行为
+
+### Requirement: 租户生命周期钩子必须通过 lifecycle 子组件编排
+
+系统 SHALL 由 lifecycle 子组件编排租户删除、租户插件禁用和新租户供应相关的插件 lifecycle precondition 与 notification。根门面和 tenant capability adapter MUST 只依赖窄接口，不得复制租户生命周期扫描和 veto 汇总逻辑。
+
+#### Scenario: 租户删除前检查插件 veto
+
+- **WHEN** 租户能力在删除租户前请求插件 precondition
+- **THEN** lifecycle 子组件扫描需要参与租户删除 veto 的已启用插件
+- **AND** 使用统一 veto 汇总返回结构化错误
+- **AND** 根门面不复制该扫描逻辑
+
+#### Scenario: 新租户供应插件
+
+- **WHEN** 新租户创建后需要按平台策略供应插件
+- **THEN** lifecycle 子组件读取 auto-enable for new tenants 策略并执行供应编排
+- **AND** 供应完成后通过统一插件变化发布入口失效派生缓存
 

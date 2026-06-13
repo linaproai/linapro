@@ -21,6 +21,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/tenantcap"
@@ -77,9 +78,9 @@ func TestSingleNodeModeSkipsPluginNodeProjection(t *testing.T) {
 		ctx,
 		pluginID,
 		version,
-		catalog.TypeDynamic.String(),
-		catalog.InstalledYes,
-		catalog.StatusEnabled,
+		plugintypes.TypeDynamic.String(),
+		plugintypes.InstalledYes,
+		plugintypes.StatusEnabled,
 	)
 	if err != nil {
 		t.Fatalf("expected governance snapshot build to succeed, got error: %v", err)
@@ -87,7 +88,7 @@ func TestSingleNodeModeSkipsPluginNodeProjection(t *testing.T) {
 	if snapshot == nil {
 		t.Fatal("expected governance snapshot to exist")
 	}
-	if snapshot.NodeState != catalog.NodeStateEnabled.String() {
+	if snapshot.NodeState != plugintypes.NodeStateEnabled.String() {
 		t.Fatalf("expected governance snapshot to derive enabled node state, got %s", snapshot.NodeState)
 	}
 }
@@ -130,7 +131,7 @@ func TestClusterStartupManifestNoopSkipsNodeStateWrite(t *testing.T) {
 	if err := service.catalogSvc.LoadManifestFromYAML(manifestPath, manifest); err != nil {
 		t.Fatalf("expected source manifest load to succeed, got error: %v", err)
 	}
-	if _, err := service.catalogSvc.SyncManifest(ctx, manifest); err != nil {
+	if _, err := service.storeSvc.SyncManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected initial manifest sync to succeed, got error: %v", err)
 	}
 
@@ -139,7 +140,7 @@ func TestClusterStartupManifestNoopSkipsNodeStateWrite(t *testing.T) {
 		t.Fatalf("expected startup snapshot build to succeed, got error: %v", err)
 	}
 	sqls, logs, err := captureSQLDuringStartupTopologyTest(t, startupCtx, func(ctx context.Context) error {
-		_, syncErr := service.catalogSvc.SyncManifest(ctx, manifest)
+		_, syncErr := service.storeSvc.SyncManifest(ctx, manifest)
 		return syncErr
 	})
 	if err != nil {
@@ -321,10 +322,10 @@ func TestDynamicPluginRuntimeUpgradeKeepsPreviousReleaseFrontendAssets(t *testin
 	if err != nil {
 		t.Fatalf("expected new release lookup to succeed, got error: %v", err)
 	}
-	if releaseOne == nil || releaseOne.Status != catalog.ReleaseStatusInstalled.String() {
+	if releaseOne == nil || releaseOne.Status != plugintypes.ReleaseStatusInstalled.String() {
 		t.Fatalf("expected previous release to remain installed for drain/rollback, got %#v", releaseOne)
 	}
-	if releaseTwo == nil || releaseTwo.Status != catalog.ReleaseStatusActive.String() {
+	if releaseTwo == nil || releaseTwo.Status != plugintypes.ReleaseStatusActive.String() {
 		t.Fatalf("expected new release to become active, got %#v", releaseTwo)
 	}
 }
@@ -449,7 +450,7 @@ func TestDynamicPluginRuntimeUpgradeFailureRollsBackStableRelease(t *testing.T) 
 	if registryAfterFailure.Generation != registryBeforeFailure.Generation {
 		t.Fatalf("expected generation to stay unchanged after rollback, before=%d after=%d", registryBeforeFailure.Generation, registryAfterFailure.Generation)
 	}
-	if registryAfterFailure.DesiredState != catalog.HostStateEnabled.String() || registryAfterFailure.CurrentState != catalog.HostStateEnabled.String() {
+	if registryAfterFailure.DesiredState != plugintypes.HostStateEnabled.String() || registryAfterFailure.CurrentState != plugintypes.HostStateEnabled.String() {
 		t.Fatalf("expected registry to restore enabled stable state after rollback, got desired=%s current=%s", registryAfterFailure.DesiredState, registryAfterFailure.CurrentState)
 	}
 
@@ -480,7 +481,7 @@ func TestDynamicPluginRuntimeUpgradeFailureRollsBackStableRelease(t *testing.T) 
 	if err != nil {
 		t.Fatalf("expected failed release lookup to succeed, got error: %v", err)
 	}
-	if failedRelease == nil || failedRelease.Status != catalog.ReleaseStatusFailed.String() {
+	if failedRelease == nil || failedRelease.Status != plugintypes.ReleaseStatusFailed.String() {
 		t.Fatalf("expected failed release status to be marked failed, got %#v", failedRelease)
 	}
 	if _, err = service.ResolveRuntimeFrontendAsset(ctx, pluginID, versionTwo, "index.html"); err == nil {
@@ -553,7 +554,7 @@ func TestDynamicPluginUninstallFailureRestoresStableRegistryFlags(t *testing.T) 
 	if registryAfterFailure.ReleaseId != registryBeforeFailure.ReleaseId {
 		t.Fatalf("expected release id to stay unchanged after uninstall rollback, before=%d after=%d", registryBeforeFailure.ReleaseId, registryAfterFailure.ReleaseId)
 	}
-	if registryAfterFailure.DesiredState != catalog.HostStateEnabled.String() || registryAfterFailure.CurrentState != catalog.HostStateEnabled.String() {
+	if registryAfterFailure.DesiredState != plugintypes.HostStateEnabled.String() || registryAfterFailure.CurrentState != plugintypes.HostStateEnabled.String() {
 		t.Fatalf("expected registry to restore enabled stable state after uninstall rollback, got desired=%s current=%s", registryAfterFailure.DesiredState, registryAfterFailure.CurrentState)
 	}
 }
@@ -599,13 +600,13 @@ func TestDynamicPluginFollowerDefersUntilPrimaryReconciles(t *testing.T) {
 	if registryBeforePrimary == nil {
 		t.Fatal("expected registry row to exist on follower")
 	}
-	if registryBeforePrimary.Installed != catalog.InstalledNo {
+	if registryBeforePrimary.Installed != plugintypes.InstalledNo {
 		t.Fatalf("expected follower request to keep current install state unchanged, got installed=%d", registryBeforePrimary.Installed)
 	}
-	if registryBeforePrimary.DesiredState != catalog.HostStateInstalled.String() {
+	if registryBeforePrimary.DesiredState != plugintypes.HostStateInstalled.String() {
 		t.Fatalf("expected follower request to persist desired installed state, got %s", registryBeforePrimary.DesiredState)
 	}
-	if registryBeforePrimary.CurrentState != catalog.HostStateUninstalled.String() {
+	if registryBeforePrimary.CurrentState != plugintypes.HostStateUninstalled.String() {
 		t.Fatalf("expected follower current state to remain uninstalled before primary reconciliation, got %s", registryBeforePrimary.CurrentState)
 	}
 
@@ -621,10 +622,10 @@ func TestDynamicPluginFollowerDefersUntilPrimaryReconciles(t *testing.T) {
 	if registryAfterPrimary == nil {
 		t.Fatal("expected registry row after primary reconciliation")
 	}
-	if registryAfterPrimary.Installed != catalog.InstalledYes {
+	if registryAfterPrimary.Installed != plugintypes.InstalledYes {
 		t.Fatalf("expected primary reconciliation to install plugin, got installed=%d", registryAfterPrimary.Installed)
 	}
-	if registryAfterPrimary.CurrentState != catalog.HostStateInstalled.String() {
+	if registryAfterPrimary.CurrentState != plugintypes.HostStateInstalled.String() {
 		t.Fatalf("expected current state to converge to installed on primary, got %s", registryAfterPrimary.CurrentState)
 	}
 	if registryAfterPrimary.ReleaseId <= 0 {

@@ -127,7 +127,7 @@ func TestHandleHostServiceInvokeJobsRegisterRejectsInvalidContract(t *testing.T)
 func TestHandleHostServiceInvokeRejectsStandaloneCronService(t *testing.T) {
 	response := handleHostServiceInvoke(
 		context.Background(),
-		newJobsRegisterHostCallContext(protocol.ExecutionSourceJobsDiscovery, &trackingJobCollector{}),
+		withTestHostCallRuntime(t, newJobsRegisterHostCallContext(protocol.ExecutionSourceJobsDiscovery, &trackingJobCollector{})),
 		protocol.MarshalHostServiceRequestEnvelope(&protocol.HostServiceRequestEnvelope{
 			Service: "cron",
 			Method:  "cron.register",
@@ -177,7 +177,7 @@ func invokeJobsRegisterHostService(
 
 	return handleHostServiceInvoke(
 		context.Background(),
-		hcc,
+		withTestHostCallRuntime(t, hcc),
 		protocol.MarshalHostServiceRequestEnvelope(&protocol.HostServiceRequestEnvelope{
 			Service: protocol.HostServiceJobs,
 			Method:  protocol.HostServiceMethodJobsRegister,

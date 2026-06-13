@@ -1,4 +1,4 @@
-// This file tests runtime service dependency validation and explicit wiring.
+// This file tests runtime service explicit constructor wiring.
 
 package runtime
 
@@ -11,23 +11,29 @@ import (
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/locker"
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/lifecycle"
+	"lina-core/internal/service/plugin/internal/migration"
+	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/internal/service/session"
+	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
-// TestValidateRequiredDependencies verifies production runtime wiring fails fast
-// when required shared dependencies are missing.
-func TestValidateRequiredDependencies(t *testing.T) {
+// TestNewRuntimeWiresRequiredDependencies verifies constructor-owned runtime
+// dependencies are available without post-construction setters.
+func TestNewRuntimeWiresRequiredDependencies(t *testing.T) {
 	service := newRuntimeWiringValidationService(t)
-	if err := service.ValidateRequiredDependencies(); err != nil {
-		t.Fatalf("expected complete runtime wiring to validate, got error: %v", err)
-	}
-
-	service.SetSessionStore(nil)
-	service.sessionStore = nil
-	if err := service.ValidateRequiredDependencies(); err == nil {
-		t.Fatal("expected missing session store to fail runtime wiring validation")
+	if service.topology == nil ||
+		service.menuMgr == nil ||
+		service.hookDispatcher == nil ||
+		service.jwtConfig == nil ||
+		service.uploadSize == nil ||
+		service.userCtx == nil ||
+		service.sessionStore == nil ||
+		service.menuFilter == nil ||
+		service.cacheChangeNotifier == nil ||
+		service.dependencyValidator == nil ||
+		service.storageCleanupServices == nil {
+		t.Fatal("expected constructor to wire all required runtime dependencies")
 	}
 }
 
@@ -37,19 +43,31 @@ func newRuntimeWiringValidationService(t *testing.T) *serviceImpl {
 	t.Helper()
 
 	catalogSvc := catalog.New(configsvc.New())
-	lifecycleSvc := lifecycle.New(catalogSvc)
-	service := New(catalogSvc, lifecycleSvc, nil, nil, nil, locker.New()).(*serviceImpl)
-	service.SetTopology(runtimeWiringTopology{})
-	service.SetMenuManager(runtimeWiringMenuManager{})
-	service.SetHookDispatcher(runtimeWiringHookDispatcher{})
-	service.SetJwtConfigProvider(runtimeWiringJWTConfig{})
-	service.SetUploadSizeProvider(runtimeWiringUploadSize{})
-	service.SetUserContextSetter(runtimeWiringUserContext{})
-	service.SetSessionStore(session.NewDBStore())
-	service.SetPermissionMenuFilter(runtimeWiringPermissionFilter{})
-	service.SetRuntimeCacheChangeNotifier(runtimeWiringCacheNotifier{})
-	service.SetDependencyValidator(runtimeWiringDependencyValidator{})
-	return service
+	topology := runtimeWiringTopology{}
+	storeSvc := store.New(catalogSvc, topology)
+	migrationSvc := migration.New(catalogSvc, storeSvc)
+	return New(
+		catalogSvc,
+		storeSvc,
+		migrationSvc,
+		nil,
+		nil,
+		nil,
+		locker.New(),
+		topology,
+		runtimeWiringMenuManager{},
+		runtimeWiringResourceReferenceManager{},
+		runtimeWiringHookDispatcher{},
+		runtimeWiringJWTConfig{},
+		runtimeWiringUploadSize{},
+		runtimeWiringUserContext{},
+		session.NewDBStore(),
+		runtimeWiringPermissionFilter{},
+		runtimeWiringCacheNotifier{},
+		runtimeWiringDependencyValidator{},
+		runtimeWiringStorageCleanupProvider{},
+		nil,
+	).(*serviceImpl)
 }
 
 // runtimeWiringTopology provides deterministic single-node topology metadata.
@@ -79,6 +97,14 @@ func (runtimeWiringMenuManager) SyncPluginMenus(context.Context, *catalog.Manife
 
 // DeletePluginMenusByManifest records no behavior for wiring validation.
 func (runtimeWiringMenuManager) DeletePluginMenusByManifest(context.Context, *catalog.Manifest) error {
+	return nil
+}
+
+// runtimeWiringResourceReferenceManager accepts resource reference sync calls.
+type runtimeWiringResourceReferenceManager struct{}
+
+// SyncPluginResourceReferences records no behavior for wiring validation.
+func (runtimeWiringResourceReferenceManager) SyncPluginResourceReferences(context.Context, *catalog.Manifest) error {
 	return nil
 }
 
@@ -144,10 +170,24 @@ func (runtimeWiringCacheNotifier) MarkRuntimeCacheChanged(context.Context, strin
 	return nil
 }
 
+// PublishPluginChange records no behavior for wiring validation.
+func (runtimeWiringCacheNotifier) PublishPluginChange(context.Context, string, string, string) error {
+	return nil
+}
+
 // runtimeWiringDependencyValidator accepts dynamic plugin candidates.
 type runtimeWiringDependencyValidator struct{}
 
 // ValidateDynamicPluginCandidate records no behavior for wiring validation.
 func (runtimeWiringDependencyValidator) ValidateDynamicPluginCandidate(context.Context, *catalog.Manifest) error {
+	return nil
+}
+
+// runtimeWiringStorageCleanupProvider records no storage cleanup directory for
+// wiring validation.
+type runtimeWiringStorageCleanupProvider struct{}
+
+// StorageCleanupServices returns no capability directory for wiring validation.
+func (runtimeWiringStorageCleanupProvider) StorageCleanupServices() capability.Services {
 	return nil
 }

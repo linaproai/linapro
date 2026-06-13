@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -202,13 +203,13 @@ func normalizeTestArtifactManifest(manifest *catalog.ArtifactManifest) {
 		return
 	}
 	if manifest.ScopeNature == "" {
-		manifest.ScopeNature = catalog.ScopeNatureTenantAware.String()
+		manifest.ScopeNature = plugintypes.ScopeNatureTenantAware.String()
 	}
 	if manifest.SupportsMultiTenant == nil {
 		manifest.SupportsMultiTenant = &DefaultTestSupportsMultiTenant
 	}
 	if manifest.DefaultInstallMode == "" {
-		manifest.DefaultInstallMode = catalog.InstallModeTenantScoped.String()
+		manifest.DefaultInstallMode = plugintypes.InstallModeTenantScoped.String()
 	}
 }
 

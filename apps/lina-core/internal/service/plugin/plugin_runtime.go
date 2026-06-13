@@ -32,7 +32,7 @@ func (s *serviceImpl) ListRuntimeStates(ctx context.Context) (*RuntimeStateListO
 
 // PrewarmRuntimeFrontendBundles preloads frontend bundles for enabled dynamic plugins.
 func (s *serviceImpl) PrewarmRuntimeFrontendBundles(ctx context.Context) error {
-	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	readCtx, err := s.storeSvc.WithStartupDataSnapshot(ctx)
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,11 @@ func (s *serviceImpl) UploadDynamicPackage(ctx context.Context, in *DynamicUploa
 	if err != nil {
 		return nil, err
 	}
-	if _, err = s.markRuntimeCacheChanged(ctx, "dynamic_package_uploaded"); err != nil {
+	if _, err = s.publishPluginChange(ctx, pluginChangePublishInput{
+		pluginID:   out.Id,
+		pluginType: out.Type,
+		reason:     "dynamic_package_uploaded",
+	}); err != nil {
 		return nil, err
 	}
 	return out, nil

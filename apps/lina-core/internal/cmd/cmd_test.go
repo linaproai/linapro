@@ -364,7 +364,7 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "runtime-config cachecoord domain registration is a static consistency contract and failures make protected config freshness undefined",
 		},
 		{
-			Path:     "apps/lina-core/internal/service/plugin/runtimecache/runtimecache_controller.go",
+			Path:     "apps/lina-core/internal/service/cachecoord/revisionctrl/revisionctrl_controller.go",
 			Function: "configureRuntimeCacheDomain",
 			Count:    1,
 			Category: panicCategoryStaticConfig,
@@ -406,7 +406,7 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "Must helper is reserved for compile-time plugin-scoped host service declarations",
 		},
 		{
-			Path:     "apps/lina-core/internal/service/plugin/internal/datahost/internal/host/db.go",
+			Path:     "apps/lina-core/internal/service/plugin/internal/datahost/internal/host/host_db.go",
 			Function: "registerPluginDataDrivers",
 			Count:    1,
 			Category: panicCategoryStartup,

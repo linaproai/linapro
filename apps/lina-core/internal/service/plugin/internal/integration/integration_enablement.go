@@ -11,9 +11,10 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
-	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -47,10 +48,10 @@ func (s *serviceImpl) CanExposeBusinessEntries(ctx context.Context, pluginID str
 	if enabled, ok := s.loadedPlatformEnabledState(ctx, normalizedPluginID); ok {
 		return enabled
 	}
-	if s.catalogSvc == nil {
+	if s.storeSvc == nil {
 		return false
 	}
-	registry, err := s.catalogSvc.GetRegistry(ctx, normalizedPluginID)
+	registry, err := s.storeSvc.GetRegistry(ctx, normalizedPluginID)
 	if err != nil || registry == nil {
 		return false
 	}
@@ -82,10 +83,10 @@ func (s *serviceImpl) IsProviderEnabled(ctx context.Context, pluginID string) bo
 // CanExposeBusinessEntries.
 func (s *serviceImpl) IsInstalledEnabledForTenant(ctx context.Context, pluginID string) bool {
 	normalizedPluginID := strings.TrimSpace(pluginID)
-	if normalizedPluginID == "" || s == nil || s.catalogSvc == nil {
+	if normalizedPluginID == "" || s == nil || s.storeSvc == nil {
 		return false
 	}
-	registry, err := s.catalogSvc.GetRegistry(ctx, normalizedPluginID)
+	registry, err := s.storeSvc.GetRegistry(ctx, normalizedPluginID)
 	if err != nil || registry == nil {
 		return false
 	}
@@ -128,10 +129,10 @@ func (s *serviceImpl) SetTenantPluginEnabledState(ctx context.Context, pluginID 
 
 // registryEnabledForTenant resolves the effective plugin enablement state for
 // the current tenant context.
-func (s *serviceImpl) registryEnabledForTenant(ctx context.Context, registry *entity.SysPlugin) (bool, error) {
+func (s *serviceImpl) registryEnabledForTenant(ctx context.Context, registry *store.PluginRecord) (bool, error) {
 	if registry == nil ||
-		registry.Installed != catalog.InstalledYes ||
-		registry.Status != catalog.StatusEnabled {
+		registry.Installed != plugintypes.InstalledYes ||
+		registry.Status != plugintypes.StatusEnabled {
 		return false, nil
 	}
 	tenantID := datascope.CurrentTenantID(ctx)
@@ -139,7 +140,7 @@ func (s *serviceImpl) registryEnabledForTenant(ctx context.Context, registry *en
 	// availability. Global platform-only plugins such as linapro-tenant-core can still
 	// publish tenant-context APIs and permissions while tenant administrators
 	// remain unable to control them through the tenant plugin list.
-	if catalog.NormalizeInstallMode(registry.InstallMode) != catalog.InstallModeTenantScoped || tenantID == datascope.PlatformTenantID {
+	if plugintypes.NormalizeInstallMode(registry.InstallMode) != plugintypes.InstallModeTenantScoped || tenantID == datascope.PlatformTenantID {
 		return true, nil
 	}
 	return s.tenantPluginEnabled(ctx, registry.PluginId, tenantID)
@@ -149,18 +150,18 @@ func (s *serviceImpl) registryEnabledForTenant(ctx context.Context, registry *en
 // upgrade state before allowing plugin-owned routes, menus, scheduled jobs, or hooks.
 func (s *serviceImpl) registryBusinessEntryEnabledForTenant(
 	ctx context.Context,
-	registry *entity.SysPlugin,
+	registry *store.PluginRecord,
 	manifest *catalog.Manifest,
 ) (bool, error) {
 	enabled, err := s.registryEnabledForTenant(ctx, registry)
 	if err != nil || !enabled {
 		return enabled, err
 	}
-	state, err := s.catalogSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
+	state, err := s.storeSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
 	if err != nil {
 		return false, err
 	}
-	return catalog.RuntimeStateAllowsBusinessEntry(state.State), nil
+	return store.RuntimeStateAllowsBusinessEntry(state.State), nil
 }
 
 // tenantPluginEnabled reads one tenant-scoped plugin enablement row.
@@ -312,11 +313,11 @@ func (s *serviceImpl) buildEnabledPluginMapFromCatalog(
 		return enabledByID, nil
 	}
 
-	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	readCtx, err := s.storeSvc.WithStartupDataSnapshot(ctx)
 	if err != nil {
 		return nil, err
 	}
-	registries, err := s.catalogSvc.ListAllRegistries(readCtx)
+	registries, err := s.storeSvc.ListAllRegistries(readCtx)
 	if err != nil {
 		return nil, err
 	}

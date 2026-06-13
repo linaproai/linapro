@@ -11,7 +11,7 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
-	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/startupstats"
 )
 
@@ -98,7 +98,7 @@ func (s *startupDataSnapshot) pluginMenus(pluginID string) []*entity.SysMenu {
 	if s == nil {
 		return nil
 	}
-	prefix := catalog.MenuKeyPrefix + strings.TrimSpace(pluginID) + ":"
+	prefix := plugintypes.MenuKeyPrefix + strings.TrimSpace(pluginID) + ":"
 	items := make([]*entity.SysMenu, 0)
 	for key, menu := range s.menusByKey {
 		if menu == nil || !strings.HasPrefix(key, prefix) {

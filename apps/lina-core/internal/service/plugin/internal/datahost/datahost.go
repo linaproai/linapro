@@ -13,6 +13,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginbridge/recordstore"
@@ -533,17 +534,17 @@ func validateExecutionAccess(execCtx *executionContext, resource *catalog.Resour
 	// source and identity snapshot so request-bound tables cannot be reused by
 	// anonymous or background execution paths.
 	normalizedSource := protocol.NormalizeExecutionSource(execCtx.executionSource)
-	switch catalog.NormalizeResourceAccessMode(resource.Access) {
-	case catalog.ResourceAccessModeRequest:
+	switch plugintypes.NormalizeResourceAccessMode(resource.Access) {
+	case plugintypes.ResourceAccessModeRequest:
 		if normalizedSource != protocol.ExecutionSourceRoute {
 			return gerror.Newf("data table %s only allows request-bound context", resource.Table)
 		}
 		if execCtx.identity == nil || execCtx.identity.UserID <= 0 {
 			return gerror.Newf("data table %s requires authenticated user context", resource.Table)
 		}
-	case catalog.ResourceAccessModeSystem:
+	case plugintypes.ResourceAccessModeSystem:
 		return nil
-	case catalog.ResourceAccessModeBoth:
+	case plugintypes.ResourceAccessModeBoth:
 		if normalizedSource == protocol.ExecutionSourceRoute && (execCtx.identity == nil || execCtx.identity.UserID <= 0) {
 			return gerror.Newf("data table %s requires authenticated user in request-bound context", resource.Table)
 		}
@@ -579,7 +580,7 @@ func buildResourceOrderBy(resource *catalog.ResourceSpec) string {
 	if orderBy == "" {
 		return ""
 	}
-	if catalog.NormalizeResourceOrderDirection(resource.OrderBy.Direction) == catalog.ResourceOrderDirectionDESC {
+	if plugintypes.NormalizeResourceOrderDirection(resource.OrderBy.Direction) == plugintypes.ResourceOrderDirectionDESC {
 		return orderBy + " DESC"
 	}
 	return orderBy + " ASC"

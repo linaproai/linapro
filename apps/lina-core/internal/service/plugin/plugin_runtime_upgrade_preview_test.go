@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
@@ -53,7 +54,7 @@ func TestPreviewRuntimeUpgradeReturnsPendingDynamicPlan(t *testing.T) {
 			ID:      pluginID,
 			Name:    "Dynamic Runtime Upgrade Preview Plugin",
 			Version: oldVersion,
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -92,7 +93,7 @@ func TestPreviewRuntimeUpgradeReturnsPendingDynamicPlan(t *testing.T) {
 			ID:      pluginID,
 			Name:    "Dynamic Runtime Upgrade Preview Plugin",
 			Version: newVersion,
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,

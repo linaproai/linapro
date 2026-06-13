@@ -575,16 +575,18 @@ func invokeCacheHostService(
 	payload []byte,
 ) *protocol.HostCallResponseEnvelope {
 	t.Helper()
-	return dispatchCacheHostServiceRequest(hcc, method, namespace, payload)
+	return dispatchCacheHostServiceRequest(t, hcc, method, namespace, payload)
 }
 
 // dispatchCacheHostServiceRequest dispatches one cache host service request.
 func dispatchCacheHostServiceRequest(
+	t *testing.T,
 	hcc *hostCallContext,
 	method string,
 	namespace string,
 	payload []byte,
 ) *protocol.HostCallResponseEnvelope {
+	t.Helper()
 	request := &protocol.HostServiceRequestEnvelope{
 		Service:     protocol.HostServiceCache,
 		Method:      method,
@@ -593,7 +595,7 @@ func dispatchCacheHostServiceRequest(
 	}
 	return handleHostServiceInvoke(
 		context.Background(),
-		hcc,
+		withTestHostCallRuntime(t, hcc),
 		protocol.MarshalHostServiceRequestEnvelope(request),
 	)
 }

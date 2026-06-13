@@ -8,9 +8,9 @@ import (
 	"context"
 	"testing"
 
-	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
-	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -18,10 +18,7 @@ import (
 // projections stay aligned even when different callers hold different
 // integration service instances.
 func TestSharedStateCrossInstance(t *testing.T) {
-	shared := &sharedState{
-		sourceRouteBindings: make(map[string][]pluginhost.SourceRouteBinding),
-		enabledSnapshot:     make(map[string]bool),
-	}
+	shared := NewSharedState()
 	first := &serviceImpl{sharedState: shared}
 	second := &serviceImpl{sharedState: shared}
 
@@ -66,10 +63,7 @@ func TestSharedStateCrossInstance(t *testing.T) {
 // TestStoreLoadedEnabledSnapshotBackfillsSharedState verifies a registry read
 // warms the shared enablement snapshot for later filter passes.
 func TestStoreLoadedEnabledSnapshotBackfillsSharedState(t *testing.T) {
-	shared := &sharedState{
-		sourceRouteBindings: make(map[string][]pluginhost.SourceRouteBinding),
-		enabledSnapshot:     make(map[string]bool),
-	}
+	shared := NewSharedState()
 	svc := &serviceImpl{sharedState: shared}
 
 	svc.storeLoadedEnabledSnapshot(context.Background(), map[string]bool{
@@ -99,10 +93,7 @@ func TestStoreLoadedEnabledSnapshotBackfillsSharedState(t *testing.T) {
 // TestTenantSnapshotDoesNotOverwritePlatformSnapshot verifies tenant-scoped
 // visibility checks cannot poison the shared platform menu-filter snapshot.
 func TestTenantSnapshotDoesNotOverwritePlatformSnapshot(t *testing.T) {
-	shared := &sharedState{
-		sourceRouteBindings: make(map[string][]pluginhost.SourceRouteBinding),
-		enabledSnapshot:     make(map[string]bool),
-	}
+	shared := NewSharedState()
 	svc := &serviceImpl{sharedState: shared}
 
 	svc.storeLoadedEnabledSnapshot(context.Background(), map[string]bool{
@@ -128,12 +119,12 @@ func TestPlatformOnlyGlobalPluginRemainsEnabledInTenantContext(t *testing.T) {
 	svc := &serviceImpl{}
 	ctx := datascope.WithTenantForTest(context.Background(), 42)
 
-	enabled, err := svc.registryEnabledForTenant(ctx, &entity.SysPlugin{
+	enabled, err := svc.registryEnabledForTenant(ctx, &store.PluginRecord{
 		PluginId:    "linapro-tenant-core",
-		Installed:   catalog.InstalledYes,
-		Status:      catalog.StatusEnabled,
-		ScopeNature: catalog.ScopeNaturePlatformOnly.String(),
-		InstallMode: catalog.InstallModeGlobal.String(),
+		Installed:   plugintypes.InstalledYes,
+		Status:      plugintypes.StatusEnabled,
+		ScopeNature: plugintypes.ScopeNaturePlatformOnly.String(),
+		InstallMode: plugintypes.InstallModeGlobal.String(),
 	})
 	if err != nil {
 		t.Fatalf("expected platform-only global enablement check to succeed, got error: %v", err)

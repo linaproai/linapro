@@ -10,9 +10,9 @@ import (
 	"lina-core/pkg/plugin/pluginhost"
 )
 
-// sharedState stores process-wide integration caches used by source-plugin
+// SharedState stores process-wide integration caches used by source-plugin
 // route guards and route-binding projections.
-type sharedState struct {
+type SharedState struct {
 	sourceRouteBindingsMu sync.RWMutex
 	sourceRouteBindings   map[string][]pluginhost.SourceRouteBinding
 
@@ -21,9 +21,12 @@ type sharedState struct {
 	enabledSnapshotLoaded bool
 }
 
-// defaultSharedState is reused by all integration service instances so plugin
-// lifecycle API calls and HTTP route guards observe the same enablement state.
-var defaultSharedState = &sharedState{
-	sourceRouteBindings: make(map[string][]pluginhost.SourceRouteBinding),
-	enabledSnapshot:     make(map[string]bool),
+// NewSharedState creates an integration state holder for one host composition
+// root. Pass the same instance to integration services that must share
+// source-plugin route guards and enabled snapshots in the current process.
+func NewSharedState() *SharedState {
+	return &SharedState{
+		sourceRouteBindings: make(map[string][]pluginhost.SourceRouteBinding),
+		enabledSnapshot:     make(map[string]bool),
+	}
 }

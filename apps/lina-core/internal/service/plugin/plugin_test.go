@@ -12,7 +12,6 @@ import (
 
 	"github.com/gogf/gf/v2/container/gvar"
 
-	"lina-core/internal/model/entity"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
@@ -20,6 +19,8 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/locker"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/internal/service/session"
 	_ "lina-core/pkg/dbdriver"
 	"lina-core/pkg/plugin/capability"
@@ -64,62 +65,97 @@ func newTestService() *serviceImpl {
 
 // newTestServiceWithTopology constructs the root plugin facade with one explicit topology.
 func newTestServiceWithTopology(topology Topology) *serviceImpl {
+	service, err := newTestServiceWithTopologyAndTenantDeps(topology, nil, nil, nil)
+	if err != nil {
+		panic(err)
+	}
+	return service
+}
+
+// newTestServiceWithTopologyAndTenantDeps constructs the root plugin facade
+// with explicit tenant governance dependencies for tests that need to replace
+// one startup-owned tenant slice.
+func newTestServiceWithTopologyAndTenantDeps(
+	topology Topology,
+	tenantStartup pluginTenantStartupCapability,
+	tenantProvisioning tenantspi.PluginProvisioningService,
+	tenantGovernance platformGovernanceTenantCapability,
+) (*serviceImpl, error) {
 	var (
 		configProvider = configsvc.New()
 		bizCtxProvider = bizctx.New()
 		cacheCoordSvc  = cachecoord.Default(cachecoord.NewStaticTopology(false))
+		pluginRuntime  = NewRuntimeDelegate()
 	)
+	orgSvc := orgspi.New(nil, pluginRuntime)
+	tenantSvc := tenantspi.New(nil, pluginRuntime, bizCtxProvider)
+	if tenantStartup == nil {
+		tenantStartup = tenantSvc
+	}
+	if tenantProvisioning == nil {
+		tenantProvisioning = tenantSvc
+	}
+	if tenantGovernance == nil {
+		tenantGovernance = tenantSvc
+	}
+	capabilities := newRootTestCapabilities(bizCtxProvider, pluginRuntime)
 	if topology != nil && topology.IsEnabled() {
 		coordSvc := coordination.NewMemory(nil)
 		lockerSvc := locker.New()
 		cachecoord.DefaultWithCoordination(topology, coordSvc)
 		cacheCoordSvc = cachecoord.Default(topology)
 		i18nSvc := i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
-		service, err := New(topology, configProvider, bizCtxProvider, cacheCoordSvc, i18nSvc, session.NewDBStore(), lockerSvc, coordSvc.Lock())
+		service, err := New(
+			topology,
+			configProvider,
+			bizCtxProvider,
+			cacheCoordSvc,
+			i18nSvc,
+			session.NewDBStore(),
+			lockerSvc,
+			coordSvc.Lock(),
+			capabilities,
+			orgSvc,
+			tenantStartup,
+			tenantProvisioning,
+			tenantGovernance,
+			capabilityconfig.NewConfigFactory("", ""),
+			capabilityhostconfig.New(mustHostConfigRawReader(configProvider)),
+			capabilitymanifest.NewFactory(""),
+		)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		serviceImpl := service.(*serviceImpl)
-		tenantSvc := tenantspi.New(nil, serviceImpl, bizCtxProvider)
-		capabilities := newRootTestCapabilities(bizCtxProvider, serviceImpl)
-		serviceImpl.SetCapabilities(capabilities)
-		serviceImpl.SetTenantStartupCapability(tenantSvc)
-		serviceImpl.SetTenantProvisioningCapability(tenantSvc)
-		configureRootWasmHostServicesForTest(configProvider, bizCtxProvider, capabilities, lockerSvc)
-		return serviceImpl
+		pluginRuntime.BindService(service)
+		return serviceImpl, nil
 	}
 	lockerSvc := locker.New()
 	i18nSvc := i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
-	service, err := New(topology, configProvider, bizCtxProvider, cacheCoordSvc, i18nSvc, session.NewDBStore(), lockerSvc, nil)
-	if err != nil {
-		panic(err)
-	}
-	serviceImpl := service.(*serviceImpl)
-	tenantSvc := tenantspi.New(nil, serviceImpl, bizCtxProvider)
-	capabilities := newRootTestCapabilities(bizCtxProvider, serviceImpl)
-	serviceImpl.SetCapabilities(capabilities)
-	serviceImpl.SetTenantStartupCapability(tenantSvc)
-	serviceImpl.SetTenantProvisioningCapability(tenantSvc)
-	configureRootWasmHostServicesForTest(configProvider, bizCtxProvider, capabilities, lockerSvc)
-	return serviceImpl
-}
-
-// configureRootWasmHostServicesForTest mirrors HTTP startup host-service wiring
-// for root plugin facade tests that construct plugin.Service directly.
-func configureRootWasmHostServicesForTest(
-	configProvider configsvc.Service,
-	bizCtxProvider bizctx.Service,
-	capabilities capability.Services,
-	lockerSvc locker.Service,
-) {
-	if err := ConfigureWasmHostServices(
+	service, err := New(
+		topology,
+		configProvider,
+		bizCtxProvider,
+		cacheCoordSvc,
+		i18nSvc,
+		session.NewDBStore(),
+		lockerSvc,
+		nil,
 		capabilities,
+		orgSvc,
+		tenantStartup,
+		tenantProvisioning,
+		tenantGovernance,
 		capabilityconfig.NewConfigFactory("", ""),
 		capabilityhostconfig.New(mustHostConfigRawReader(configProvider)),
 		capabilitymanifest.NewFactory(""),
-	); err != nil {
-		panic(err)
+	)
+	if err != nil {
+		return nil, err
 	}
+	serviceImpl := service.(*serviceImpl)
+	pluginRuntime.BindService(service)
+	return serviceImpl, nil
 }
 
 // mustHostConfigRawReader returns the raw host-config reader implemented by
@@ -478,24 +514,51 @@ func (rootNoopPlugins) ProvisionTenantDefaults(context.Context, capmodel.Capabil
 // TestNewRequiresExplicitRuntimeDependencies verifies the root plugin service
 // returns a construction error when callers omit critical runtime dependencies.
 func TestNewRequiresExplicitRuntimeDependencies(t *testing.T) {
-	if _, err := New(nil, nil, nil, nil, nil, nil, nil, nil); err == nil {
+	if _, err := New(
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	); err == nil {
 		t.Fatal("expected plugin service construction to return an error without explicit dependencies")
 	}
 }
 
 // getPluginRegistry loads one plugin registry row for assertions in root-package tests.
-func (s *serviceImpl) getPluginRegistry(ctx context.Context, pluginID string) (*entity.SysPlugin, error) {
-	return s.catalogSvc.GetRegistry(ctx, pluginID)
+func (s *serviceImpl) getPluginRegistry(ctx context.Context, pluginID string) (*store.PluginRecord, error) {
+	return s.storeSvc.GetRegistry(ctx, pluginID)
 }
 
 // getPluginRelease loads one persisted release row for assertions in root-package tests.
-func (s *serviceImpl) getPluginRelease(ctx context.Context, pluginID string, version string) (*entity.SysPluginRelease, error) {
-	return s.catalogSvc.GetRelease(ctx, pluginID, version)
+func (s *serviceImpl) getPluginRelease(ctx context.Context, pluginID string, version string) (*store.ReleaseRecord, error) {
+	return s.storeSvc.GetRelease(ctx, pluginID, version)
 }
 
 // getActivePluginManifest resolves the currently active manifest for assertions in runtime tests.
 func (s *serviceImpl) getActivePluginManifest(ctx context.Context, pluginID string) (*catalog.Manifest, error) {
-	return s.catalogSvc.GetActiveManifest(ctx, pluginID)
+	registry, err := s.storeSvc.GetRegistry(ctx, pluginID)
+	if err != nil {
+		return nil, err
+	}
+	if registry != nil &&
+		plugintypes.NormalizeType(registry.Type) == plugintypes.TypeDynamic &&
+		registry.Installed == plugintypes.InstalledYes &&
+		registry.ReleaseId > 0 {
+		return s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
+	}
+	return s.catalogSvc.GetDesiredManifest(pluginID)
 }
 
 // buildPluginGovernanceSnapshot delegates snapshot generation so tests can
@@ -507,8 +570,8 @@ func (s *serviceImpl) buildPluginGovernanceSnapshot(
 	pluginType string,
 	installed int,
 	enabled int,
-) (*catalog.GovernanceSnapshot, error) {
-	return s.catalogSvc.BuildGovernanceSnapshot(ctx, pluginID, version, pluginType, installed, enabled)
+) (*store.GovernanceSnapshot, error) {
+	return s.storeSvc.BuildGovernanceSnapshot(ctx, pluginID, version, pluginType, installed, enabled)
 }
 
 // loadRuntimePluginManifestFromArtifact parses one runtime artifact into a manifest for tests.
@@ -517,18 +580,18 @@ func (s *serviceImpl) loadRuntimePluginManifestFromArtifact(artifactPath string)
 }
 
 // syncPluginManifest persists one manifest into plugin governance storage for tests.
-func (s *serviceImpl) syncPluginManifest(ctx context.Context, manifest *catalog.Manifest) (*entity.SysPlugin, error) {
-	return s.catalogSvc.SyncManifest(ctx, manifest)
+func (s *serviceImpl) syncPluginManifest(ctx context.Context, manifest *catalog.Manifest) (*store.PluginRecord, error) {
+	return s.storeSvc.SyncManifest(ctx, manifest)
 }
 
 // setPluginInstalled updates the installed flag directly for test setup helpers.
 func (s *serviceImpl) setPluginInstalled(ctx context.Context, pluginID string, installed int) error {
-	return s.catalogSvc.SetPluginInstalled(ctx, pluginID, installed)
+	return s.storeSvc.SetPluginInstalled(ctx, pluginID, installed)
 }
 
 // setPluginStatus updates the enabled flag directly for test setup helpers.
 func (s *serviceImpl) setPluginStatus(ctx context.Context, pluginID string, status int) error {
-	return s.catalogSvc.SetPluginStatus(ctx, pluginID, status)
+	return s.storeSvc.SetPluginStatus(ctx, pluginID, status)
 }
 
 // executeDynamicRoute forwards one prepared bridge request to the runtime executor for tests.

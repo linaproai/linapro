@@ -22,8 +22,10 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/frontend"
-	"lina-core/internal/service/plugin/internal/lifecycle"
+	"lina-core/internal/service/plugin/internal/migration"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/runtime"
+	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
@@ -52,7 +54,7 @@ func TestWrapMockDataLoadErrorPassesThroughNonMockErrors(t *testing.T) {
 // carrying pluginId / failedFile / rolledBackFiles / cause for i18n rendering.
 func TestWrapMockDataLoadErrorWrapsTypedError(t *testing.T) {
 	cause := errors.New("Duplicate entry 'admin' for key sys_user.idx_username")
-	loadErr := &lifecycle.MockDataLoadError{
+	loadErr := &migration.MockDataLoadError{
 		PluginID:        "linapro-content-notice",
 		FailedFile:      "002-linapro-content-notice-mock-data.sql",
 		RolledBackFiles: []string{"001-linapro-content-notice-mock-data.sql", "002-linapro-content-notice-mock-data.sql"},
@@ -71,31 +73,6 @@ func TestWrapMockDataLoadErrorWrapsTypedError(t *testing.T) {
 	wrappedChain := gerror.Wrap(loadErr, "facade context")
 	if got := wrapMockDataLoadError(wrappedChain); got == nil {
 		t.Fatalf("expected wrapping to traverse error chain via errors.As")
-	}
-}
-
-// TestInstallMockDataContextHelpers verifies the catalog-shared context
-// helpers used to thread the install-mock-data opt-in flag without changing
-// the lifecycle/runtime/reconciler method signatures.
-func TestInstallMockDataContextHelpers(t *testing.T) {
-	if shouldInstallMockData(context.Background()) {
-		t.Fatalf("expected default context to opt out of mock data")
-	}
-	if shouldInstallMockData(nil) {
-		t.Fatalf("expected nil context to opt out of mock data")
-	}
-
-	enabledCtx := withInstallMockData(context.Background(), true)
-	if !shouldInstallMockData(enabledCtx) {
-		t.Fatalf("expected explicit opt-in to be observable")
-	}
-	if !catalog.ShouldInstallMockData(enabledCtx) {
-		t.Fatalf("expected catalog-side helper to read the same value")
-	}
-
-	disabledCtx := withInstallMockData(context.Background(), false)
-	if shouldInstallMockData(disabledCtx) {
-		t.Fatalf("expected explicit opt-out to be observable")
 	}
 }
 
@@ -136,11 +113,11 @@ func TestUpdateStatusEnablesBackendOnlyDynamicPluginWithoutFrontendAssets(t *tes
 	if _, err = service.syncPluginManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected backend-only artifact sync to succeed, got error: %v", err)
 	}
-	if err = service.setPluginInstalled(ctx, pluginID, catalog.InstalledYes); err != nil {
+	if err = service.setPluginInstalled(ctx, pluginID, plugintypes.InstalledYes); err != nil {
 		t.Fatalf("expected backend-only plugin install state to be set, got error: %v", err)
 	}
 
-	if err = service.UpdateStatus(ctx, pluginID, catalog.StatusEnabled, nil); err != nil {
+	if err = service.UpdateStatus(ctx, pluginID, plugintypes.StatusEnabled, nil); err != nil {
 		t.Fatalf("expected backend-only dynamic plugin enable to succeed, got error: %v", err)
 	}
 	if !service.IsEnabled(ctx, pluginID) {
@@ -194,13 +171,13 @@ func TestUpdateStatusPreservesDynamicPluginStorage(t *testing.T) {
 		t.Fatalf("expected install SQL to create one marker row, got %d", count)
 	}
 
-	if err := service.UpdateStatus(ctx, pluginID, catalog.StatusEnabled, nil); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, plugintypes.StatusEnabled, nil); err != nil {
 		t.Fatalf("expected dynamic plugin enable to succeed, got error: %v", err)
 	}
-	if err := service.UpdateStatus(ctx, pluginID, catalog.StatusDisabled, nil); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, plugintypes.StatusDisabled, nil); err != nil {
 		t.Fatalf("expected dynamic plugin disable to succeed, got error: %v", err)
 	}
-	if err := service.UpdateStatus(ctx, pluginID, catalog.StatusEnabled, nil); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, plugintypes.StatusEnabled, nil); err != nil {
 		t.Fatalf("expected dynamic plugin re-enable to succeed, got error: %v", err)
 	}
 	if count := dynamicStatusToggleTableRowCount(t, ctx, tableName); count != 1 {
@@ -226,73 +203,6 @@ func dynamicStatusToggleTableRowCount(t *testing.T, ctx context.Context, tableNa
 		t.Fatalf("expected dynamic status toggle table row count query to succeed, got error: %v", err)
 	}
 	return value.Int()
-}
-
-// TestApplyInstallModeSelectionRejectsInvalidMode verifies service-layer install
-// validation rejects unsupported install-mode values before registry sync.
-func TestApplyInstallModeSelectionRejectsInvalidMode(t *testing.T) {
-	manifest := &catalog.Manifest{
-		ID:                 "plugin-invalid-install-mode",
-		ScopeNature:        catalog.ScopeNatureTenantAware.String(),
-		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
-	}
-
-	err := applyInstallModeSelection(manifest, "per_tenant")
-	if !bizerr.Is(err, CodePluginInstallModeInvalid) {
-		t.Fatalf("expected invalid install mode bizerr, got %v", err)
-	}
-}
-
-// TestApplyInstallModeSelectionRejectsPlatformOnlyTenantScoped verifies
-// platform-only plugins cannot be installed with tenant-scoped enablement.
-func TestApplyInstallModeSelectionRejectsPlatformOnlyTenantScoped(t *testing.T) {
-	manifest := &catalog.Manifest{
-		ID:                 "plugin-platform-only-install-mode",
-		ScopeNature:        catalog.ScopeNaturePlatformOnly.String(),
-		DefaultInstallMode: catalog.InstallModeGlobal.String(),
-	}
-
-	err := applyInstallModeSelection(manifest, catalog.InstallModeTenantScoped.String())
-	if !bizerr.Is(err, CodePluginInstallModeInvalidForScopeNature) {
-		t.Fatalf("expected scope/install-mode mismatch bizerr, got %v", err)
-	}
-}
-
-// TestApplyInstallModeSelectionPersistsExplicitTenantAwareMode verifies an
-// explicit platform selection overrides the manifest default before install.
-func TestApplyInstallModeSelectionPersistsExplicitTenantAwareMode(t *testing.T) {
-	manifest := &catalog.Manifest{
-		ID:                 "plugin-tenant-aware-install-mode",
-		ScopeNature:        catalog.ScopeNatureTenantAware.String(),
-		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
-	}
-
-	if err := applyInstallModeSelection(manifest, catalog.InstallModeGlobal.String()); err != nil {
-		t.Fatalf("expected explicit global install mode to be accepted, got %v", err)
-	}
-	if manifest.DefaultInstallMode != catalog.InstallModeGlobal.String() {
-		t.Fatalf("expected explicit global install mode to be applied, got %s", manifest.DefaultInstallMode)
-	}
-}
-
-// TestApplyInstallModeSelectionRejectsUnsupportedTenantScoped verifies explicit
-// manifest opt-out from tenant governance also rejects tenant-scoped install.
-func TestApplyInstallModeSelectionRejectsUnsupportedTenantScoped(t *testing.T) {
-	supportsMultiTenant := false
-	manifest := &catalog.Manifest{
-		ID:                  "plugin-tenant-unsupported-install-mode",
-		ScopeNature:         catalog.ScopeNatureTenantAware.String(),
-		SupportsMultiTenant: &supportsMultiTenant,
-		DefaultInstallMode:  catalog.InstallModeGlobal.String(),
-	}
-
-	err := applyInstallModeSelection(manifest, catalog.InstallModeTenantScoped.String())
-	if !bizerr.Is(err, CodePluginInstallModeInvalidForScopeNature) {
-		t.Fatalf("expected unsupported tenant-scoped install mode bizerr, got %v", err)
-	}
-	if manifest.DefaultInstallMode != catalog.InstallModeGlobal.String() {
-		t.Fatalf("expected unsupported tenant governance to keep global install mode, got %s", manifest.DefaultInstallMode)
-	}
 }
 
 // TestInstallPersistsExplicitDynamicInstallMode verifies dynamic install does
@@ -322,7 +232,7 @@ func TestInstallPersistsExplicitDynamicInstallMode(t *testing.T) {
 	})
 
 	if _, err := service.Install(ctx, pluginID, InstallOptions{
-		InstallMode: catalog.InstallModeGlobal.String(),
+		InstallMode: plugintypes.InstallModeGlobal.String(),
 	}); err != nil {
 		t.Fatalf("install dynamic plugin with explicit global mode: %v", err)
 	}
@@ -333,106 +243,8 @@ func TestInstallPersistsExplicitDynamicInstallMode(t *testing.T) {
 	if registry == nil {
 		t.Fatal("expected plugin registry after install")
 	}
-	if registry.InstallMode != catalog.InstallModeGlobal.String() {
+	if registry.InstallMode != plugintypes.InstallModeGlobal.String() {
 		t.Fatalf("expected explicit global install_mode to persist, got %s", registry.InstallMode)
-	}
-}
-
-// TestBuildLifecycleAuthorizedHostServicesDropsUnconfirmedResources verifies
-// lifecycle handlers do not receive resource-scoped host services unless the
-// operation carries an explicit host authorization decision.
-func TestBuildLifecycleAuthorizedHostServicesDropsUnconfirmedResources(t *testing.T) {
-	hostServices := []*protocol.HostServiceSpec{
-		{
-			Service: protocol.HostServiceRuntime,
-			Methods: []string{
-				protocol.HostServiceMethodRuntimeLogWrite,
-			},
-		},
-		{
-			Service: protocol.HostServiceStorage,
-			Methods: []string{
-				protocol.HostServiceMethodStorageGet,
-			},
-			Paths: []string{"private-files/"},
-		},
-	}
-
-	withoutAuthorization, err := buildLifecycleAuthorizedHostServices("plugin-test-lifecycle", hostServices, nil)
-	if err != nil {
-		t.Fatalf("expected lifecycle host services to normalize, got error: %v", err)
-	}
-	if len(withoutAuthorization) != 1 || withoutAuthorization[0].Service != protocol.HostServiceRuntime {
-		t.Fatalf("expected only capability host service without authorization, got %#v", withoutAuthorization)
-	}
-
-	withAuthorization, err := buildLifecycleAuthorizedHostServices(
-		"plugin-test-lifecycle",
-		hostServices,
-		&HostServiceAuthorizationInput{
-			Services: []*HostServiceAuthorizationDecision{
-				{
-					Service: protocol.HostServiceStorage,
-					Paths:   []string{"private-files/"},
-				},
-			},
-		},
-	)
-	if err != nil {
-		t.Fatalf("expected lifecycle host service authorization to normalize, got error: %v", err)
-	}
-	if len(withAuthorization) != 2 {
-		t.Fatalf("expected runtime and authorized storage host services, got %#v", withAuthorization)
-	}
-}
-
-// TestApplyTargetReleaseAuthorizedHostServicesFiltersMissingRelease verifies
-// upgrade lifecycle execution does not expose resource-scoped host services
-// when no target release authorization snapshot exists yet.
-func TestApplyTargetReleaseAuthorizedHostServicesFiltersMissingRelease(t *testing.T) {
-	var (
-		service  = newTestService()
-		ctx      = context.Background()
-		pluginID = "plugin-dev-dynamic-lifecycle-missing-release-auth"
-	)
-
-	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	t.Cleanup(func() {
-		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	})
-
-	manifest := &catalog.Manifest{
-		ID:      pluginID,
-		Version: "v0.9.1",
-		HostServices: []*protocol.HostServiceSpec{
-			{
-				Service: protocol.HostServiceRuntime,
-				Methods: []string{
-					protocol.HostServiceMethodRuntimeLogWrite,
-				},
-			},
-			{
-				Service: protocol.HostServiceStorage,
-				Methods: []string{
-					protocol.HostServiceMethodStorageGet,
-				},
-				Paths: []string{"private-files/"},
-			},
-		},
-	}
-
-	filtered, err := service.applyTargetReleaseAuthorizedHostServices(ctx, manifest, nil)
-	if err != nil {
-		t.Fatalf("expected missing release authorization to filter cleanly, got error: %v", err)
-	}
-	if filtered == nil {
-		t.Fatal("expected filtered manifest")
-	}
-	if len(filtered.HostServices) != 1 || filtered.HostServices[0].Service != protocol.HostServiceRuntime {
-		t.Fatalf("expected missing release to keep only capability host services, got %#v", filtered.HostServices)
-	}
-	if _, ok := filtered.HostCapabilities[protocol.CapabilityStorage]; ok {
-		t.Fatalf("expected missing release to remove storage capability, got %#v", filtered.HostCapabilities)
 	}
 }
 
@@ -472,7 +284,7 @@ func TestDynamicLifecycleBeforeInstallFailsClosedBeforeInstall(t *testing.T) {
 	if registry == nil {
 		return
 	}
-	if registry.Installed != catalog.InstalledNo || registry.Status != catalog.StatusDisabled {
+	if registry.Installed != plugintypes.InstalledNo || registry.Status != plugintypes.StatusDisabled {
 		t.Fatalf("expected vetoed dynamic install to keep plugin uninstalled, got installed=%d status=%d", registry.Installed, registry.Status)
 	}
 }
@@ -552,7 +364,7 @@ func TestUninstallDynamicUsesArchivedReleaseWhenStagingArtifactMissing(t *testin
 	if registry == nil {
 		t.Fatalf("expected plugin registry row after uninstall")
 	}
-	if registry.Installed != catalog.InstalledNo || registry.Status != catalog.StatusDisabled || registry.ReleaseId != 0 {
+	if registry.Installed != plugintypes.InstalledNo || registry.Status != plugintypes.StatusDisabled || registry.ReleaseId != 0 {
 		t.Fatalf("expected dynamic plugin to be uninstalled+disabled with release cleared, got installed=%d enabled=%d releaseID=%d", registry.Installed, registry.Status, registry.ReleaseId)
 	}
 	menu, err := testutil.QueryMenuByKey(ctx, menuKey)
@@ -603,7 +415,7 @@ func TestDynamicLifecycleBeforeDisableFailsClosedBeforeStatusChange(t *testing.T
 	if err != nil {
 		t.Fatalf("expected registry lookup after vetoed disable to succeed, got error: %v", err)
 	}
-	if registry == nil || registry.Status != catalog.StatusEnabled {
+	if registry == nil || registry.Status != plugintypes.StatusEnabled {
 		t.Fatalf("expected vetoed dynamic disable to keep plugin enabled, got %#v", registry)
 	}
 }
@@ -653,7 +465,7 @@ func TestDynamicLifecycleBeforeUninstallUsesActiveReleaseWhenStagingMissing(t *t
 	if err != nil {
 		t.Fatalf("expected registry lookup after vetoed uninstall to succeed, got error: %v", err)
 	}
-	if registry == nil || registry.Installed != catalog.InstalledYes {
+	if registry == nil || registry.Installed != plugintypes.InstalledYes {
 		t.Fatalf("expected vetoed dynamic uninstall to keep plugin installed, got %#v", registry)
 	}
 }
@@ -697,7 +509,7 @@ func TestDynamicLifecycleUninstallRunsOnlyWhenPurgeRequested(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected blocking plugin registry lookup to succeed, got error: %v", err)
 	}
-	if blockingRegistry == nil || blockingRegistry.Installed != catalog.InstalledYes {
+	if blockingRegistry == nil || blockingRegistry.Installed != plugintypes.InstalledYes {
 		t.Fatalf("expected failed cleanup lifecycle to keep plugin installed, got %#v", blockingRegistry)
 	}
 	if cleanupErr := os.Remove(blockingArtifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
@@ -721,7 +533,7 @@ func TestDynamicLifecycleUninstallRunsOnlyWhenPurgeRequested(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected skip plugin registry lookup to succeed, got error: %v", err)
 	}
-	if skipRegistry == nil || skipRegistry.Installed != catalog.InstalledNo {
+	if skipRegistry == nil || skipRegistry.Installed != plugintypes.InstalledNo {
 		t.Fatalf("expected keep-data uninstall to complete, got %#v", skipRegistry)
 	}
 	if cleanupErr := os.Remove(skipArtifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
@@ -825,10 +637,10 @@ func TestUninstallForceClearsDynamicOrphanWhenArtifactsMissing(t *testing.T) {
 	if registry == nil {
 		t.Fatalf("expected plugin registry row after force uninstall")
 	}
-	if registry.Installed != catalog.InstalledNo || registry.Status != catalog.StatusDisabled || registry.ReleaseId != 0 {
+	if registry.Installed != plugintypes.InstalledNo || registry.Status != plugintypes.StatusDisabled || registry.ReleaseId != 0 {
 		t.Fatalf("expected force orphan uninstall to clear runtime state, got installed=%d enabled=%d releaseID=%d", registry.Installed, registry.Status, registry.ReleaseId)
 	}
-	if registry.DesiredState != catalog.HostStateUninstalled.String() || registry.CurrentState != catalog.HostStateUninstalled.String() {
+	if registry.DesiredState != plugintypes.HostStateUninstalled.String() || registry.CurrentState != plugintypes.HostStateUninstalled.String() {
 		t.Fatalf("expected force orphan uninstall to mark host states uninstalled, got desired=%s current=%s", registry.DesiredState, registry.CurrentState)
 	}
 
@@ -839,7 +651,7 @@ func TestUninstallForceClearsDynamicOrphanWhenArtifactsMissing(t *testing.T) {
 	if release == nil {
 		t.Fatalf("expected dynamic plugin release row after force uninstall")
 	}
-	if release.Status != catalog.ReleaseStatusUninstalled.String() {
+	if release.Status != plugintypes.ReleaseStatusUninstalled.String() {
 		t.Fatalf("expected release to be marked uninstalled after force orphan uninstall, got %s", release.Status)
 	}
 
@@ -1098,7 +910,7 @@ func TestSourceLifecycleBeforeInstallBlocksInstall(t *testing.T) {
 	if registry == nil {
 		t.Fatalf("expected source plugin registry row after discovery")
 	}
-	if registry.Installed != catalog.InstalledNo {
+	if registry.Installed != plugintypes.InstalledNo {
 		t.Fatalf("expected vetoed install to keep plugin uninstalled, got installed=%d", registry.Installed)
 	}
 }
@@ -1155,7 +967,7 @@ func TestSourceLifecycleBeforeInstallRejectsManualWhenStartupAutoEnableRequired(
 	if lookupErr != nil {
 		t.Fatalf("expected source plugin registry lookup to succeed, got error: %v", lookupErr)
 	}
-	if registry == nil || registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
+	if registry == nil || registry.Installed != plugintypes.InstalledYes || registry.Status != plugintypes.StatusEnabled {
 		t.Fatalf("expected startup auto-enable to install and enable plugin, got %#v", registry)
 	}
 }
@@ -1302,7 +1114,7 @@ func TestSourceLifecycleBeforeDisableBlocksDisable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected source plugin registry lookup to succeed, got error: %v", err)
 	}
-	if registry == nil || registry.Status != catalog.StatusEnabled {
+	if registry == nil || registry.Status != plugintypes.StatusEnabled {
 		t.Fatalf("expected vetoed disable to keep plugin enabled, got %#v", registry)
 	}
 }
@@ -1348,7 +1160,7 @@ func TestSourceLifecycleBeforeUninstallBlocksUninstall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected source plugin registry lookup to succeed, got error: %v", err)
 	}
-	if registry == nil || registry.Installed != catalog.InstalledYes {
+	if registry == nil || registry.Installed != plugintypes.InstalledYes {
 		t.Fatalf("expected vetoed uninstall to keep plugin installed, got %#v", registry)
 	}
 }
@@ -1679,7 +1491,7 @@ func createDynamicLifecyclePreconditionArtifact(
 			ID:      pluginID,
 			Name:    pluginName,
 			Version: version,
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -1729,7 +1541,7 @@ func TestSyncAndListReportsPendingHostServiceAuthorization(t *testing.T) {
 			ID:      pluginID,
 			Name:    "Pending Authorization Plugin",
 			Version: "v0.5.0",
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -1815,7 +1627,7 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 			ID:      pluginID,
 			Name:    "Confirmed Authorization Plugin",
 			Version: "v0.5.1",
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -1869,7 +1681,7 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 	if _, err := service.Install(ctx, pluginID, InstallOptions{Authorization: authorization}); err != nil {
 		t.Fatalf("expected install with authorization to succeed, got error: %v", err)
 	}
-	if err := service.UpdateStatus(ctx, pluginID, catalog.StatusEnabled, authorization); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, plugintypes.StatusEnabled, authorization); err != nil {
 		t.Fatalf("expected enable with authorization to succeed, got error: %v", err)
 	}
 
@@ -1881,7 +1693,7 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 		t.Fatalf("expected release row after enable")
 	}
 
-	snapshot, err := service.catalogSvc.ParseManifestSnapshot(release.ManifestSnapshot)
+	snapshot, err := service.storeSvc.ParseManifestSnapshot(release.ManifestSnapshot)
 	if err != nil {
 		t.Fatalf("expected manifest snapshot parse to succeed, got error: %v", err)
 	}
@@ -1962,14 +1774,14 @@ func TestPersistDynamicAuthorizationRefreshesStaleSameVersionHostServices(t *tes
 		t.Fatalf("expected initial manifest sync to succeed, got error: %v", err)
 	}
 	authorization := &HostServiceAuthorizationInput{
-		Services: []*catalog.HostServiceAuthorizationDecision{
+		Services: []*store.HostServiceAuthorizationDecision{
 			{
 				Service: protocol.HostServiceStorage,
 				Paths:   []string{"private-files/"},
 			},
 		},
 	}
-	if _, err = service.catalogSvc.PersistReleaseHostServiceAuthorization(ctx, initialManifest, authorization); err != nil {
+	if _, err = service.storeSvc.PersistReleaseHostServiceAuthorization(ctx, initialManifest, authorization); err != nil {
 		t.Fatalf("expected initial authorization persistence to succeed, got error: %v", err)
 	}
 
@@ -2007,7 +1819,7 @@ func TestPersistDynamicAuthorizationRefreshesStaleSameVersionHostServices(t *tes
 	if err != nil {
 		t.Fatalf("expected refreshed release lookup to succeed, got error: %v", err)
 	}
-	syncedSnapshot, err := service.catalogSvc.ParseManifestSnapshot(release.ManifestSnapshot)
+	syncedSnapshot, err := service.storeSvc.ParseManifestSnapshot(release.ManifestSnapshot)
 	if err != nil {
 		t.Fatalf("expected refreshed snapshot parse to succeed, got error: %v", err)
 	}
@@ -2025,7 +1837,7 @@ func TestPersistDynamicAuthorizationRefreshesStaleSameVersionHostServices(t *tes
 	if err != nil {
 		t.Fatalf("expected authorized release lookup to succeed, got error: %v", err)
 	}
-	authorizedSnapshot, err := service.catalogSvc.ParseManifestSnapshot(release.ManifestSnapshot)
+	authorizedSnapshot, err := service.storeSvc.ParseManifestSnapshot(release.ManifestSnapshot)
 	if err != nil {
 		t.Fatalf("expected authorized snapshot parse to succeed, got error: %v", err)
 	}
@@ -2035,7 +1847,7 @@ func TestPersistDynamicAuthorizationRefreshesStaleSameVersionHostServices(t *tes
 	if !containsHostService(authorizedSnapshot.AuthorizedHostServices, protocol.HostServiceManifest) {
 		t.Fatalf("expected authorized snapshot to include manifest service, got %#v", authorizedSnapshot.AuthorizedHostServices)
 	}
-	activeManifest, err := service.catalogSvc.LoadReleaseManifest(ctx, release)
+	activeManifest, err := service.storeSvc.LoadReleaseManifest(ctx, release)
 	if err != nil {
 		t.Fatalf("expected release manifest to load, got error: %v", err)
 	}
@@ -2064,7 +1876,7 @@ func writeDynamicAuthorizationRefreshArtifact(
 			ID:      pluginID,
 			Name:    "Same Version Authorization Refresh Plugin",
 			Version: version,
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:  protocol.RuntimeKindWasm,
@@ -2144,7 +1956,7 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 	if registry == nil {
 		t.Fatalf("expected source plugin registry row to exist after discovery")
 	}
-	if registry.Installed != catalog.InstalledNo || registry.Status != catalog.StatusDisabled {
+	if registry.Installed != plugintypes.InstalledNo || registry.Status != plugintypes.StatusDisabled {
 		t.Fatalf("expected source plugin to stay uninstalled+disabled after discovery, got installed=%d enabled=%d", registry.Installed, registry.Status)
 	}
 
@@ -2163,7 +1975,7 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 	if release == nil {
 		t.Fatalf("expected source plugin release row after discovery")
 	}
-	if release.Status != catalog.ReleaseStatusUninstalled.String() {
+	if release.Status != plugintypes.ReleaseStatusUninstalled.String() {
 		t.Fatalf("expected discovered source plugin release to stay uninstalled, got %s", release.Status)
 	}
 
@@ -2178,7 +1990,7 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 	if registry == nil {
 		t.Fatalf("expected source plugin registry row after install")
 	}
-	if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusDisabled {
+	if registry.Installed != plugintypes.InstalledYes || registry.Status != plugintypes.StatusDisabled {
 		t.Fatalf("expected source plugin install to yield installed+disabled, got installed=%d enabled=%d", registry.Installed, registry.Status)
 	}
 	if registry.InstalledAt == nil {
@@ -2200,14 +2012,14 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 	if release == nil {
 		t.Fatalf("expected source plugin release row after install")
 	}
-	if release.Status != catalog.ReleaseStatusInstalled.String() {
+	if release.Status != plugintypes.ReleaseStatusInstalled.String() {
 		t.Fatalf("expected source plugin release to become installed, got %s", release.Status)
 	}
 
 	migrationCount, err := dao.SysPluginMigration.Ctx(ctx).
 		Where(do.SysPluginMigration{
 			PluginId: pluginID,
-			Phase:    catalog.MigrationDirectionInstall.String(),
+			Phase:    plugintypes.MigrationDirectionInstall.String(),
 		}).
 		Count()
 	if err != nil {
@@ -2238,7 +2050,7 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 	if registry == nil {
 		t.Fatalf("expected source plugin registry row after uninstall")
 	}
-	if registry.Installed != catalog.InstalledNo || registry.Status != catalog.StatusDisabled {
+	if registry.Installed != plugintypes.InstalledNo || registry.Status != plugintypes.StatusDisabled {
 		t.Fatalf("expected source plugin uninstall to yield uninstalled+disabled, got installed=%d enabled=%d", registry.Installed, registry.Status)
 	}
 
@@ -2257,7 +2069,7 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 	if release == nil {
 		t.Fatalf("expected source plugin release row after uninstall")
 	}
-	if release.Status != catalog.ReleaseStatusUninstalled.String() {
+	if release.Status != plugintypes.ReleaseStatusUninstalled.String() {
 		t.Fatalf("expected source plugin release to become uninstalled, got %s", release.Status)
 	}
 
@@ -2274,7 +2086,7 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 	migrationCount, err = dao.SysPluginMigration.Ctx(ctx).
 		Where(do.SysPluginMigration{
 			PluginId: pluginID,
-			Phase:    catalog.MigrationDirectionUninstall.String(),
+			Phase:    plugintypes.MigrationDirectionUninstall.String(),
 		}).
 		Count()
 	if err != nil {

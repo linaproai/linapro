@@ -8,22 +8,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync/atomic"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/capability/plugincap"
+	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // hostServiceRuntime carries the startup-owned services used by dynamic-plugin
-// host calls. The pointer stored in hostServiceRuntimeSnapshot is immutable
-// after publication so concurrent host calls always read a consistent set.
+// host calls for one WASM runtime instance.
 type hostServiceRuntime struct {
 	domainServices      capability.Services
 	pluginConfigFactory plugincap.ConfigServiceFactory
@@ -31,78 +34,130 @@ type hostServiceRuntime struct {
 	manifestFactory     manifestcap.ServiceFactory
 }
 
-var hostServiceRuntimeSnapshot atomic.Pointer[hostServiceRuntime]
-
-// ConfigureHostServiceRuntime replaces the complete dynamic-plugin host-service
-// runtime snapshot with startup-owned shared service instances.
-func ConfigureHostServiceRuntime(
+// NewRuntime creates a dynamic-plugin WASM runtime from startup-owned shared
+// service instances.
+func NewRuntime(
 	domainServices capability.Services,
 	pluginConfigFactory plugincap.ConfigServiceFactory,
 	hostConfigService hostconfigcap.Service,
 	manifestFactory manifestcap.ServiceFactory,
-) error {
+) (Runtime, error) {
 	if domainServices == nil {
-		return gerror.New("domain host services directory is nil")
+		return nil, gerror.New("domain host services directory is nil")
 	}
 	if pluginConfigFactory == nil {
-		return gerror.New("wasm plugin config service requires a non-nil config factory")
+		return nil, gerror.New("wasm plugin config service requires a non-nil config factory")
 	}
 	if hostConfigService == nil {
-		return gerror.New("wasm host config service requires a non-nil adapter")
+		return nil, gerror.New("wasm host config service requires a non-nil adapter")
 	}
 	if manifestFactory == nil {
-		return gerror.New("wasm manifest host service requires a non-nil manifest factory")
+		return nil, gerror.New("wasm manifest host service requires a non-nil manifest factory")
 	}
-	setHostServiceRuntimeSnapshot(&hostServiceRuntime{
-		domainServices:      domainServices,
-		pluginConfigFactory: pluginConfigFactory,
-		hostConfigService:   hostConfigService,
-		manifestFactory:     manifestFactory,
-	})
-	return nil
-}
-
-// ConfigureDomainHostServices replaces the shared domain capability directory
-// used by dynamic-plugin host calls.
-func ConfigureDomainHostServices(services capability.Services) error {
-	if services == nil {
-		return gerror.New("domain host services directory is nil")
-	}
-	updateHostServiceRuntimeSnapshot(func(next *hostServiceRuntime) {
-		next.domainServices = services
-	})
-	return nil
+	return &runtimeImpl{
+		hostServices: &hostServiceRuntime{
+			domainServices:      domainServices,
+			pluginConfigFactory: pluginConfigFactory,
+			hostConfigService:   hostConfigService,
+			manifestFactory:     manifestFactory,
+		},
+		cache: make(map[string]*wasmCacheEntry),
+	}, nil
 }
 
 // capabilityServicesForHostCall returns the plugin-bound shared capability view.
 func capabilityServicesForHostCall(hcc *hostCallContext) capability.Services {
-	runtime := currentHostServiceRuntime()
-	if hcc == nil || runtime == nil || runtime.domainServices == nil {
+	if hcc == nil || hcc.runtime == nil || hcc.runtime.domainServices == nil {
 		return nil
 	}
-	return capability.ServicesForPlugin(runtime.domainServices, hcc.pluginID)
+	return capability.ServicesForPlugin(hcc.runtime.domainServices, hcc.pluginID)
 }
 
-func currentHostServiceRuntime() *hostServiceRuntime {
-	return hostServiceRuntimeSnapshot.Load()
-}
-
-func setHostServiceRuntimeSnapshot(runtime *hostServiceRuntime) {
-	hostServiceRuntimeSnapshot.Store(runtime)
-}
-
-func updateHostServiceRuntimeSnapshot(apply func(*hostServiceRuntime)) {
-	for {
-		current := hostServiceRuntimeSnapshot.Load()
-		next := &hostServiceRuntime{}
-		if current != nil {
-			*next = *current
-		}
-		apply(next)
-		if hostServiceRuntimeSnapshot.CompareAndSwap(current, next) {
-			return
+// capabilityContextForHostCall constructs audited domain-call metadata from
+// the trusted host-call context shared by all capability-backed dispatchers.
+func capabilityContextForHostCall(hcc *hostCallContext, service string, method string) capmodel.CapabilityContext {
+	now := time.Now()
+	if hcc == nil {
+		return capmodel.CapabilityContext{
+			Actor:       capmodel.CapabilityActor{Type: capmodel.ActorTypeSystem, SystemReason: "dynamic plugin host service"},
+			Source:      capmodel.CapabilitySourceHost,
+			SystemCall:  true,
+			Resource:    strings.TrimSpace(service) + "." + strings.TrimSpace(method),
+			RequestedAt: now,
 		}
 	}
+
+	actor := capmodel.CapabilityActor{
+		Type:         capmodel.ActorTypeSystem,
+		SystemReason: "dynamic plugin host service",
+	}
+	tenantID := ""
+	if hcc.identity != nil {
+		tenantID = strconv.Itoa(int(hcc.identity.TenantId))
+		if hcc.identity.UserID > 0 {
+			actor = capmodel.CapabilityActor{
+				Type:   capmodel.ActorTypeUser,
+				UserID: int64(hcc.identity.UserID),
+				Name:   hcc.identity.Username,
+			}
+		}
+	}
+	return capmodel.CapabilityContext{
+		PluginID:      strings.TrimSpace(hcc.pluginID),
+		Actor:         actor,
+		TenantID:      capmodel.DomainID(tenantID),
+		Source:        capabilitySourceFromExecution(hcc.executionSource),
+		SystemCall:    actor.Type == capmodel.ActorTypeSystem,
+		Authorization: capabilityAuthorizationFromHostServices(hcc.hostServices),
+		Resource:      strings.TrimSpace(service) + "." + strings.TrimSpace(method),
+		TraceID:       strings.TrimSpace(hcc.requestID),
+		RequestedAt:   now,
+	}
+}
+
+func capabilitySourceFromExecution(source bridgecontract.ExecutionSource) capmodel.CapabilitySource {
+	switch bridgecontract.NormalizeExecutionSource(source) {
+	case bridgecontract.ExecutionSourceRoute:
+		return capmodel.CapabilitySourceHTTP
+	case bridgecontract.ExecutionSourceHook:
+		return capmodel.CapabilitySourceHook
+	case bridgecontract.ExecutionSourceJobs:
+		return capmodel.CapabilitySourceJobs
+	case bridgecontract.ExecutionSourceLifecycle:
+		return capmodel.CapabilitySourceLifecycle
+	default:
+		return capmodel.CapabilitySourceHost
+	}
+}
+
+func capabilityAuthorizationFromHostServices(specs []*bridgehostservice.HostServiceSpec) capmodel.CapabilityAuthorizationSnapshot {
+	authorization := capmodel.CapabilityAuthorizationSnapshot{
+		Services:  map[string][]string{},
+		Resources: map[string][]string{},
+	}
+	for _, spec := range specs {
+		if spec == nil {
+			continue
+		}
+		service := strings.TrimSpace(spec.Service)
+		if service == "" {
+			continue
+		}
+		authorization.Services[service] = append([]string(nil), spec.Methods...)
+		if len(spec.Resources) == 0 {
+			continue
+		}
+		for _, resource := range spec.Resources {
+			if resource == nil || strings.TrimSpace(resource.Ref) == "" {
+				continue
+			}
+			for _, method := range spec.Methods {
+				key := service + "." + method
+				authorization.Resources[key] = append(authorization.Resources[key], strings.TrimSpace(resource.Ref))
+			}
+		}
+	}
+	return authorization
 }
 
 // decodeCapabilityJSONRequest decodes a generic capability JSON payload into
@@ -175,6 +230,12 @@ func handleHostServiceInvoke(
 	hcc *hostCallContext,
 	reqBytes []byte,
 ) *bridgehostcall.HostCallResponseEnvelope {
+	if hcc == nil || hcc.runtime == nil {
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusInternalError,
+			"wasm host service runtime is not configured",
+		)
+	}
 	ctx = contextWithHostCallBizContext(ctx, hcc)
 
 	request, err := bridgehostservice.UnmarshalHostServiceRequestEnvelope(reqBytes)

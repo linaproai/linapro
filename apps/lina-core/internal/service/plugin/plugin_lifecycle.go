@@ -6,64 +6,21 @@ import (
 	"context"
 	"strings"
 
-	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
-	plugindep "lina-core/internal/service/plugin/internal/dependency"
 	"lina-core/internal/service/plugin/internal/integration"
+	"lina-core/internal/service/plugin/internal/lifecycle"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/runtime"
+	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
-// withInstallMockData decorates ctx with the operator's install-mock-data
-// opt-in flag. Backed by catalog.WithInstallMockData so source-plugin and
-// dynamic-plugin install paths share the same key.
-func withInstallMockData(ctx context.Context, enable bool) context.Context {
-	return catalog.WithInstallMockData(ctx, enable)
-}
-
-// shouldInstallMockData reports whether the current request opted into mock
-// data. Backed by catalog.ShouldInstallMockData.
-func shouldInstallMockData(ctx context.Context) bool {
-	return catalog.ShouldInstallMockData(ctx)
-}
-
-// sourceLifecycleInstallOptionsContextKey isolates source-plugin lifecycle
-// metadata attached by the root install facade.
-type sourceLifecycleInstallOptionsContextKey struct{}
-
-// sourceLifecycleInstallOptions carries install metadata that is safe to expose
-// to source-plugin lifecycle callbacks.
-type sourceLifecycleInstallOptions struct {
-	startupAutoEnable bool
-}
-
-// withSourceLifecycleInstallOptions decorates ctx with source lifecycle
-// metadata for the current install request.
-func withSourceLifecycleInstallOptions(ctx context.Context, options InstallOptions) context.Context {
-	return context.WithValue(ctx, sourceLifecycleInstallOptionsContextKey{}, sourceLifecycleInstallOptions{
-		startupAutoEnable: options.startupAutoEnable,
-	})
-}
-
-// sourceLifecycleStartupAutoEnable reports whether the current source-plugin
-// install was initiated by startup plugin.autoEnable.
-func sourceLifecycleStartupAutoEnable(ctx context.Context) bool {
-	if ctx == nil {
-		return false
-	}
-	options, ok := ctx.Value(sourceLifecycleInstallOptionsContextKey{}).(sourceLifecycleInstallOptions)
-	return ok && options.startupAutoEnable
-}
-
 // Install executes the install lifecycle and returns the dependency plan/result
 // generated before target plugin side effects. It optionally persists one
-// host-confirmed host service authorization snapshot when the target is a dynamic
-// plugin. The options.InstallMockData flag is threaded through context so deeply
-// nested runtime/reconciler code can detect mock opt-in without mass signature
-// changes.
+// host-confirmed host service authorization snapshot when the target is a
+// dynamic plugin.
 //
 // On a rolled-back mock-data load the plugin is fully installed (registry, menus,
 // release state) — only the mock data was reverted. Install returns a stable
@@ -87,177 +44,15 @@ func (s *serviceImpl) install(
 	pluginID string,
 	options InstallOptions,
 ) (result *DependencyCheckResult, err error) {
-	ctx = withInstallMockData(ctx, options.InstallMockData)
 	defer func() {
 		err = wrapMockDataLoadError(err)
 	}()
-
-	result, ctx, err = s.prepareInstallDependencies(ctx, pluginID, options)
-	if err != nil {
-		return result, err
-	}
-	options.dependencyResult = result
-
-	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
-	if err != nil {
-		return result, err
-	}
-	if err = applyInstallModeSelection(manifest, options.InstallMode); err != nil {
-		return result, err
-	}
-	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
-		ctx = withSourceLifecycleInstallOptions(ctx, options)
-		if err = s.installSourcePlugin(ctx, manifest); err != nil {
-			if !isMockDataLoadError(err) {
-				return result, err
-			}
-			if syncErr := s.syncEnabledSnapshotAndPublishRuntimeChange(
-				ctx,
-				pluginID,
-				"source_plugin_installed",
-			); syncErr != nil {
-				return result, syncErr
-			}
-			return result, err
-		}
-		if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "source_plugin_installed"); err != nil {
-			return result, err
-		}
-		if err = notifyPluginInstalled(ctx, pluginID); err != nil {
-			return result, err
-		}
-		s.executeSourcePluginAfterLifecycle(ctx, manifest, pluginhost.LifecycleHookAfterInstall, sourceLifecyclePolicy{})
-		return result, nil
-	}
-	if err = s.ensureDynamicPluginInstallLifecyclePreconditionAllowed(ctx, manifest, options.Authorization); err != nil {
-		return result, err
-	}
-	if err = s.persistDynamicPluginAuthorization(ctx, manifest, options.Authorization); err != nil {
-		return result, err
-	}
-	if err = s.lifecycleSvc.Install(ctx, pluginID); err != nil {
-		return result, err
-	}
-	// Dynamic lifecycle reloads the manifest from the runtime artifact. Re-sync
-	// the operator-selected governance fields so installMode cannot be reset to
-	// the artifact default after the request has already been validated.
-	if _, err = s.catalogSvc.SyncManifest(ctx, manifest); err != nil {
-		return result, err
-	}
-	if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "dynamic_plugin_installed"); err != nil {
-		return result, err
-	}
-	if err = notifyPluginInstalled(ctx, pluginID); err != nil {
-		return result, err
-	}
-	s.executeDynamicPluginLifecycleNotification(ctx, manifest, runtime.DynamicLifecycleInput{
-		PluginID:  manifest.ID,
-		Operation: pluginhost.LifecycleHookAfterInstall,
+	return s.lifecycleSvc.Install(ctx, pluginID, lifecycle.InstallOptions{
+		Authorization:    options.Authorization,
+		InstallMode:      options.InstallMode,
+		InstallMockData:  options.InstallMockData,
+		FrameworkVersion: s.frameworkVersion(ctx),
 	})
-	return result, nil
-}
-
-// ensureDynamicPluginInstallLifecyclePreconditionAllowed runs BeforeInstall
-// with the same host-service authorization snapshot that install will persist.
-func (s *serviceImpl) ensureDynamicPluginInstallLifecyclePreconditionAllowed(
-	ctx context.Context,
-	manifest *catalog.Manifest,
-	authorization *HostServiceAuthorizationInput,
-) error {
-	authorizedManifest, err := cloneManifestWithAuthorizedHostServices(manifest, authorization)
-	if err != nil {
-		return err
-	}
-	return s.ensureDynamicPluginLifecyclePreconditionAllowed(
-		ctx,
-		authorizedManifest,
-		pluginhost.LifecycleHookBeforeInstall,
-		UninstallOptions{},
-	)
-}
-
-// cloneManifestWithAuthorizedHostServices applies one operation-local
-// host-service authorization decision to a shallow manifest clone.
-func cloneManifestWithAuthorizedHostServices(
-	manifest *catalog.Manifest,
-	authorization *HostServiceAuthorizationInput,
-) (*catalog.Manifest, error) {
-	if manifest == nil {
-		return nil, nil
-	}
-	hostServices, err := buildLifecycleAuthorizedHostServices(manifest.ID, manifest.HostServices, authorization)
-	if err != nil {
-		return nil, err
-	}
-	clone := *manifest
-	clone.HostServices = hostServices
-	clone.HostCapabilities = protocol.CapabilityMapFromHostServices(hostServices)
-	return &clone, nil
-}
-
-// buildLifecycleAuthorizedHostServices narrows lifecycle bridge execution to
-// operation-confirmed host services. When no confirmation is provided, only
-// capability-only services are exposed.
-func buildLifecycleAuthorizedHostServices(
-	pluginID string,
-	hostServices []*protocol.HostServiceSpec,
-	authorization *HostServiceAuthorizationInput,
-) ([]*protocol.HostServiceSpec, error) {
-	if authorization != nil {
-		return catalog.BuildAuthorizedHostServiceSpecsForPlugin(pluginID, hostServices, authorization)
-	}
-	requested, err := protocol.NormalizeHostServiceSpecsForPlugin(pluginID, hostServices)
-	if err != nil {
-		return nil, err
-	}
-	authorized := make([]*protocol.HostServiceSpec, 0, len(requested))
-	for _, spec := range requested {
-		if spec == nil || len(spec.Paths) > 0 || len(spec.Resources) > 0 || len(spec.Tables) > 0 {
-			continue
-		}
-		authorized = append(authorized, spec)
-	}
-	return protocol.NormalizeHostServiceSpecsForPlugin(pluginID, authorized)
-}
-
-// applyInstallModeSelection validates the explicit install-mode request and
-// applies it to the short-lived desired manifest before registry synchronization.
-func applyInstallModeSelection(manifest *catalog.Manifest, installMode string) error {
-	if manifest == nil {
-		return nil
-	}
-	scopeNature := catalog.NormalizeScopeNature(manifest.ScopeNature)
-	if strings.TrimSpace(installMode) != "" && !catalog.IsSupportedInstallMode(installMode) {
-		return bizerr.NewCode(CodePluginInstallModeInvalid)
-	}
-	if !manifest.SupportsTenantGovernance() {
-		manifest.DefaultInstallMode = catalog.InstallModeGlobal.String()
-		if strings.TrimSpace(installMode) != "" && catalog.NormalizeInstallMode(installMode) != catalog.InstallModeGlobal {
-			return bizerr.NewCode(
-				CodePluginInstallModeInvalidForScopeNature,
-				bizerr.P("scopeNature", scopeNature.String()),
-				bizerr.P("installMode", catalog.NormalizeInstallMode(installMode).String()),
-			)
-		}
-		return nil
-	}
-	if strings.TrimSpace(installMode) == "" {
-		installMode = manifest.DefaultInstallMode
-	}
-	if !catalog.IsSupportedInstallMode(installMode) {
-		return bizerr.NewCode(CodePluginInstallModeInvalid)
-	}
-	mode := catalog.NormalizeInstallMode(installMode)
-	if scopeNature == catalog.ScopeNaturePlatformOnly && mode != catalog.InstallModeGlobal {
-		return bizerr.NewCode(
-			CodePluginInstallModeInvalidForScopeNature,
-			bizerr.P("pluginId", manifest.ID),
-			bizerr.P("scopeNature", scopeNature.String()),
-			bizerr.P("installMode", mode.String()),
-		)
-	}
-	manifest.DefaultInstallMode = mode.String()
-	return nil
 }
 
 // Uninstall executes the uninstall lifecycle for an installed plugin using one explicit policy snapshot.
@@ -269,193 +64,11 @@ func (s *serviceImpl) Uninstall(
 	if err := s.ensurePlatformGovernance(ctx); err != nil {
 		return err
 	}
-	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
-	if err != nil {
-		return s.uninstallWithoutDesiredManifest(ctx, pluginID, options, err)
-	}
-	if err = s.ensureNoReverseDependencies(ctx, pluginID); err != nil {
-		return err
-	}
-	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
-		if err = s.uninstallSourcePlugin(ctx, manifest, options); err != nil {
-			return wrapUninstallExecutionError(err, pluginID)
-		}
-		if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "source_plugin_uninstalled"); err != nil {
-			return err
-		}
-		if err = notifyPluginUninstalled(ctx, pluginID); err != nil {
-			return err
-		}
-		s.executeSourcePluginAfterLifecycle(ctx, manifest, pluginhost.LifecycleHookAfterUninstall, sourceLifecyclePolicy{
-			purgeStorageData: options.PurgeStorageData,
-		})
-		return nil
-	}
-	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
-	if err != nil {
-		return err
-	}
-	if err = s.ensureDynamicPluginActiveLifecyclePreconditionAllowed(
-		ctx,
-		registry,
-		pluginhost.LifecycleHookBeforeUninstall,
-		options,
-	); err != nil {
-		return err
-	}
-	activeManifest := s.loadActiveDynamicLifecycleManifestBestEffort(ctx, pluginID)
-	if err = s.uninstallDynamicPlugin(ctx, pluginID, options); err != nil {
-		return wrapUninstallExecutionError(err, pluginID)
-	}
-	if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "dynamic_plugin_uninstalled"); err != nil {
-		return err
-	}
-	if err = notifyPluginUninstalled(ctx, pluginID); err != nil {
-		return err
-	}
-	s.executeDynamicPluginLifecycleNotification(ctx, activeManifest, runtime.DynamicLifecycleInput{
-		PluginID:         pluginID,
-		Operation:        pluginhost.LifecycleHookAfterUninstall,
-		PurgeStorageData: options.PurgeStorageData,
+	return s.lifecycleSvc.Uninstall(ctx, pluginID, lifecycle.UninstallOptions{
+		PurgeStorageData:    options.PurgeStorageData,
+		Force:               options.Force,
+		AllowForceUninstall: s.configSvc.GetPlugin(ctx).AllowForceUninstall,
 	})
-	return nil
-}
-
-// uninstallWithoutDesiredManifest keeps dynamic-plugin uninstall recoverable
-// when the mutable staging artifact is missing but the registry still carries
-// enough active-release state to complete or force one uninstall.
-func (s *serviceImpl) uninstallWithoutDesiredManifest(
-	ctx context.Context,
-	pluginID string,
-	options UninstallOptions,
-	discoveryErr error,
-) error {
-	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
-	if err != nil {
-		return err
-	}
-	if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
-		return discoveryErr
-	}
-	if err = s.ensureNoReverseDependencies(ctx, pluginID); err != nil {
-		return err
-	}
-	if err = s.ensureDynamicPluginActiveLifecyclePreconditionAllowed(
-		ctx,
-		registry,
-		pluginhost.LifecycleHookBeforeUninstall,
-		options,
-	); err != nil {
-		return err
-	}
-	activeManifest := s.loadActiveDynamicLifecycleManifestBestEffort(ctx, pluginID)
-	if err = s.uninstallDynamicPlugin(ctx, pluginID, options); err != nil {
-		return wrapUninstallExecutionError(err, pluginID)
-	}
-	if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "dynamic_plugin_uninstalled"); err != nil {
-		return err
-	}
-	if err = notifyPluginUninstalled(ctx, pluginID); err != nil {
-		return err
-	}
-	s.executeDynamicPluginLifecycleNotification(ctx, activeManifest, runtime.DynamicLifecycleInput{
-		PluginID:         pluginID,
-		Operation:        pluginhost.LifecycleHookAfterUninstall,
-		PurgeStorageData: options.PurgeStorageData,
-	})
-	return nil
-}
-
-// uninstallDynamicPlugin chooses between the full active-release uninstall and
-// the restricted orphan cleanup path used only when active dynamic artifacts are
-// no longer readable.
-func (s *serviceImpl) uninstallDynamicPlugin(
-	ctx context.Context,
-	pluginID string,
-	options UninstallOptions,
-) error {
-	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
-	if err != nil {
-		return err
-	}
-	if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
-		return s.runtimeSvc.UninstallWithOptions(ctx, pluginID, options.PurgeStorageData)
-	}
-	if registry.Installed != catalog.InstalledYes {
-		if options.Force {
-			return s.forceUninstallMissingDynamicArtifact(ctx, registry)
-		}
-		return s.runtimeSvc.UninstallWithOptions(ctx, pluginID, options.PurgeStorageData)
-	}
-	if s.dynamicFullUninstallRecoverable(ctx, registry) {
-		if err = s.runtimeSvc.UninstallWithOptions(ctx, pluginID, options.PurgeStorageData); err == nil {
-			return nil
-		}
-		refreshed, refreshErr := s.catalogSvc.GetRegistry(ctx, pluginID)
-		if refreshErr != nil {
-			return refreshErr
-		}
-		if !options.Force || s.dynamicFullUninstallRecoverable(ctx, refreshed) {
-			return err
-		}
-		registry = refreshed
-	}
-	if !options.Force {
-		return bizerr.NewCode(
-			CodePluginDynamicArtifactMissingForUninstall,
-			bizerr.P("pluginId", pluginID),
-		)
-	}
-	return s.forceUninstallMissingDynamicArtifact(ctx, registry)
-}
-
-// wrapUninstallExecutionError preserves stable business errors and wraps
-// low-level uninstall side-effect failures before they reach API callers.
-func wrapUninstallExecutionError(err error, pluginID string) error {
-	if err == nil {
-		return nil
-	}
-	if _, ok := bizerr.As(err); ok {
-		return err
-	}
-	return bizerr.WrapCode(
-		err,
-		CodePluginUninstallExecutionFailed,
-		bizerr.P("pluginId", strings.TrimSpace(pluginID)),
-	)
-}
-
-// dynamicFullUninstallRecoverable reports whether the installed dynamic plugin
-// can run full uninstall from its archived active release or repair that archive
-// from the current same-version staging artifact.
-func (s *serviceImpl) dynamicFullUninstallRecoverable(ctx context.Context, registry *entity.SysPlugin) bool {
-	if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
-		return false
-	}
-	manifest, err := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
-	if err == nil && manifest != nil {
-		return true
-	}
-	desiredManifest, err := s.catalogSvc.GetDesiredManifest(registry.PluginId)
-	if err != nil || desiredManifest == nil {
-		return false
-	}
-	if catalog.NormalizeType(desiredManifest.Type) != catalog.TypeDynamic {
-		return false
-	}
-	if strings.TrimSpace(desiredManifest.Version) != strings.TrimSpace(registry.Version) {
-		return false
-	}
-	return desiredManifest.RuntimeArtifact != nil
-}
-
-// forceUninstallMissingDynamicArtifact validates host policy before clearing
-// host-owned orphan governance for a dynamic plugin with unreadable artifacts.
-func (s *serviceImpl) forceUninstallMissingDynamicArtifact(ctx context.Context, registry *entity.SysPlugin) error {
-	if err := s.ensureForceUninstallEnabled(ctx); err != nil {
-		return err
-	}
-	return s.runtimeSvc.ForceUninstallMissingArtifact(ctx, registry)
 }
 
 // UpdateStatus updates plugin status, where status is 1=enabled and 0=disabled,
@@ -481,102 +94,10 @@ func (s *serviceImpl) updateStatus(
 	status int,
 	authorization *HostServiceAuthorizationInput,
 ) error {
-	if status != catalog.StatusDisabled && status != catalog.StatusEnabled {
-		return bizerr.NewCode(CodePluginStatusInvalid)
-	}
-	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
-	if err != nil {
-		return err
-	}
-	if status == catalog.StatusEnabled && catalog.NormalizeType(manifest.Type) == catalog.TypeDynamic {
-		if err = s.runtimeSvc.EnsureRuntimeArtifactAvailable(manifest, "enable"); err != nil {
-			return err
-		}
-	}
-	if _, err = s.syncAndList(ctx); err != nil {
-		return err
-	}
-	installed, err := s.runtimeSvc.CheckIsInstalled(ctx, pluginID)
-	if err != nil {
-		return err
-	}
-	if !installed {
-		return bizerr.NewCode(CodePluginNotInstalled)
-	}
-	if status == catalog.StatusEnabled {
-		check, err := s.resolveInstallDependencies(ctx, pluginID)
-		if err != nil {
-			return err
-		}
-		if plugindep.HasBlockers(check.Blockers) {
-			return s.buildDependencyBlockedError(pluginID, check.Blockers)
-		}
-	}
-	if catalog.NormalizeType(manifest.Type) == catalog.TypeDynamic {
-		if status == catalog.StatusEnabled {
-			if err = s.persistDynamicPluginAuthorization(ctx, manifest, authorization); err != nil {
-				return err
-			}
-		} else {
-			registry, registryErr := s.catalogSvc.GetRegistry(ctx, pluginID)
-			if registryErr != nil {
-				return registryErr
-			}
-			if err = s.ensureDynamicPluginActiveLifecyclePreconditionAllowed(
-				ctx,
-				registry,
-				pluginhost.LifecycleHookBeforeDisable,
-				UninstallOptions{},
-			); err != nil {
-				return err
-			}
-		}
-		var activeManifest *catalog.Manifest
-		if status == catalog.StatusDisabled {
-			activeManifest = s.loadActiveDynamicLifecycleManifestBestEffort(ctx, pluginID)
-		}
-		if err = s.reconcileDynamicPluginStatus(ctx, pluginID, status); err != nil {
-			return err
-		}
-		if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "dynamic_plugin_status_changed"); err != nil {
-			return err
-		}
-		if status == catalog.StatusEnabled {
-			return notifyPluginEnabled(ctx, pluginID)
-		}
-		if err = notifyPluginDisabled(ctx, pluginID); err != nil {
-			return err
-		}
-		s.executeDynamicPluginLifecycleNotification(ctx, activeManifest, runtime.DynamicLifecycleInput{
-			PluginID:  pluginID,
-			Operation: pluginhost.LifecycleHookAfterDisable,
-		})
-		return nil
-	}
-	if status == catalog.StatusDisabled {
-		if err = s.executeSourcePluginBeforeLifecycle(
-			ctx,
-			manifest,
-			pluginhost.LifecycleHookBeforeDisable,
-			sourceLifecyclePolicy{},
-		); err != nil {
-			return err
-		}
-	}
-	if err = s.catalogSvc.SetPluginStatus(ctx, pluginID, status); err != nil {
-		return err
-	}
-	if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "source_plugin_status_changed"); err != nil {
-		return err
-	}
-	if status == catalog.StatusEnabled {
-		return notifyPluginEnabled(ctx, pluginID)
-	}
-	if err = notifyPluginDisabled(ctx, pluginID); err != nil {
-		return err
-	}
-	s.executeSourcePluginAfterLifecycle(ctx, manifest, pluginhost.LifecycleHookAfterDisable, sourceLifecyclePolicy{})
-	return nil
+	return s.lifecycleSvc.UpdateStatus(ctx, pluginID, status, lifecycle.UpdateStatusOptions{
+		Authorization:    authorization,
+		FrameworkVersion: s.frameworkVersion(ctx),
+	})
 }
 
 // Enable enables the specified plugin.
@@ -584,7 +105,7 @@ func (s *serviceImpl) Enable(ctx context.Context, pluginID string) error {
 	if err := s.ensurePlatformGovernance(ctx); err != nil {
 		return err
 	}
-	return s.updateStatus(ctx, pluginID, catalog.StatusEnabled, nil)
+	return s.updateStatus(ctx, pluginID, plugintypes.StatusEnabled, nil)
 }
 
 // Disable disables the specified plugin.
@@ -592,7 +113,7 @@ func (s *serviceImpl) Disable(ctx context.Context, pluginID string) error {
 	if err := s.ensurePlatformGovernance(ctx); err != nil {
 		return err
 	}
-	return s.updateStatus(ctx, pluginID, catalog.StatusDisabled, nil)
+	return s.updateStatus(ctx, pluginID, plugintypes.StatusDisabled, nil)
 }
 
 // persistDynamicPluginAuthorization refreshes the release snapshot for dynamic
@@ -602,26 +123,16 @@ func (s *serviceImpl) persistDynamicPluginAuthorization(
 	manifest *catalog.Manifest,
 	authorization *HostServiceAuthorizationInput,
 ) error {
-	if manifest == nil || catalog.NormalizeType(manifest.Type) != catalog.TypeDynamic {
+	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
 		return nil
 	}
-	if _, err := s.catalogSvc.SyncManifest(ctx, manifest); err != nil {
+	if _, err := s.storeSvc.SyncManifest(ctx, manifest); err != nil {
 		return err
 	}
-	if _, err := s.catalogSvc.PersistReleaseHostServiceAuthorization(ctx, manifest, authorization); err != nil {
+	if _, err := s.storeSvc.PersistReleaseHostServiceAuthorization(ctx, manifest, authorization); err != nil {
 		return err
 	}
 	return nil
-}
-
-// reconcileDynamicPluginStatus converts facade enable/disable requests into the
-// runtime reconciler host state transitions used by dynamic plugins.
-func (s *serviceImpl) reconcileDynamicPluginStatus(ctx context.Context, pluginID string, status int) error {
-	targetState := catalog.HostStateInstalled.String()
-	if status == catalog.StatusEnabled {
-		targetState = catalog.HostStateEnabled.String()
-	}
-	return s.runtimeSvc.ReconcileDynamicPluginRequest(ctx, pluginID, targetState)
 }
 
 // IsInstalled returns whether a plugin is installed.
@@ -655,343 +166,25 @@ func (s *serviceImpl) IsEnabledAuthoritative(ctx context.Context, pluginID strin
 // EnsureTenantPluginDisableAllowed runs source and dynamic lifecycle
 // preconditions before one tenant loses access to a tenant-scoped plugin.
 func (s *serviceImpl) EnsureTenantPluginDisableAllowed(ctx context.Context, pluginID string, tenantID int) error {
-	normalizedPluginID := strings.TrimSpace(pluginID)
-	if normalizedPluginID == "" || tenantID <= 0 {
-		return nil
-	}
-	if err := s.ensureSourceTenantPluginLifecyclePreconditionAllowed(
-		ctx,
-		normalizedPluginID,
-		tenantID,
-		pluginhost.LifecycleHookBeforeTenantDisable,
-	); err != nil {
-		return err
-	}
-	return s.ensureDynamicTenantPluginLifecyclePreconditionAllowed(
-		ctx,
-		normalizedPluginID,
-		tenantID,
-		pluginhost.LifecycleHookBeforeTenantDisable,
-	)
+	return s.lifecycleSvc.EnsureTenantPluginDisableAllowed(ctx, pluginID, tenantID)
 }
 
 // NotifyTenantPluginDisabled runs best-effort source and dynamic lifecycle
 // callbacks after one tenant loses access to a tenant-scoped plugin.
 func (s *serviceImpl) NotifyTenantPluginDisabled(ctx context.Context, pluginID string, tenantID int) {
-	normalizedPluginID := strings.TrimSpace(pluginID)
-	if normalizedPluginID == "" || tenantID <= 0 {
-		return
-	}
-	s.executeSourceTenantPluginLifecycleNotification(
-		ctx,
-		normalizedPluginID,
-		tenantID,
-		pluginhost.LifecycleHookAfterTenantDisable,
-	)
-	s.executeDynamicTenantPluginLifecycleNotification(
-		ctx,
-		normalizedPluginID,
-		tenantID,
-		pluginhost.LifecycleHookAfterTenantDisable,
-	)
+	s.lifecycleSvc.NotifyTenantPluginDisabled(ctx, pluginID, tenantID)
 }
 
 // EnsureTenantDeleteAllowed runs plugin lifecycle preconditions before tenant
 // deletion continues in the tenant capability provider.
 func (s *serviceImpl) EnsureTenantDeleteAllowed(ctx context.Context, tenantID int) error {
-	if err := s.ensureTenantLifecyclePreconditionAllowed(ctx, tenantID, pluginhost.LifecycleHookBeforeTenantDelete); err != nil {
-		return err
-	}
-	return s.ensureDynamicTenantLifecyclePreconditionAllowed(ctx, tenantID, pluginhost.LifecycleHookBeforeTenantDelete)
+	return s.lifecycleSvc.EnsureTenantDeleteAllowed(ctx, tenantID)
 }
 
 // NotifyTenantDeleted runs best-effort source and dynamic lifecycle callbacks
 // after a tenant has been deleted.
 func (s *serviceImpl) NotifyTenantDeleted(ctx context.Context, tenantID int) {
-	if tenantID <= 0 {
-		return
-	}
-	s.executeTenantLifecycleNotification(ctx, tenantID, pluginhost.LifecycleHookAfterTenantDelete)
-	s.executeDynamicTenantLifecycleNotification(ctx, tenantID, pluginhost.LifecycleHookAfterTenantDelete)
-}
-
-// ensureSourceTenantPluginLifecyclePreconditionAllowed runs source-plugin
-// lifecycle preconditions for one plugin and tenant pair.
-func (s *serviceImpl) ensureSourceTenantPluginLifecyclePreconditionAllowed(
-	ctx context.Context,
-	pluginID string,
-	tenantID int,
-	hook pluginhost.LifecycleHook,
-) error {
-	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
-		Hook:         hook,
-		TenantInput:  pluginhost.NewSourcePluginTenantLifecycleInput(hook.String(), tenantID),
-		Participants: pluginhost.ListSourcePluginLifecycleParticipantsForPlugin(pluginID),
-	})
-	if result.OK {
-		return nil
-	}
-	return bizerr.NewCode(
-		CodePluginLifecyclePreconditionVetoed,
-		bizerr.P("operation", hook.String()),
-		bizerr.P("pluginId", pluginID),
-		bizerr.P("reasons", s.summarizeLocalizedLifecycleVetoReasons(ctx, result.Decisions)),
-	)
-}
-
-// ensureTenantLifecyclePreconditionAllowed runs tenant-scoped lifecycle
-// preconditions and converts vetoes to the same stable lifecycle error used by
-// plugin disable and uninstall operations.
-func (s *serviceImpl) ensureTenantLifecyclePreconditionAllowed(
-	ctx context.Context,
-	tenantID int,
-	hook pluginhost.LifecycleHook,
-) error {
-	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
-		Hook:         hook,
-		TenantInput:  pluginhost.NewSourcePluginTenantLifecycleInput(hook.String(), tenantID),
-		Participants: pluginhost.ListSourcePluginLifecycleParticipants(),
-	})
-	if result.OK {
-		return nil
-	}
-
-	return bizerr.NewCode(
-		CodePluginLifecyclePreconditionVetoed,
-		bizerr.P("operation", hook.String()),
-		bizerr.P("pluginId", "tenant"),
-		bizerr.P("reasons", s.summarizeLocalizedLifecycleVetoReasons(ctx, result.Decisions)),
-	)
-}
-
-// ensureDynamicTenantLifecyclePreconditionAllowed runs dynamic-plugin
-// tenant-scoped lifecycle preconditions before tenant deletion continues.
-func (s *serviceImpl) ensureDynamicTenantLifecyclePreconditionAllowed(
-	ctx context.Context,
-	tenantID int,
-	hook pluginhost.LifecycleHook,
-) error {
-	registries, err := s.catalogSvc.ListAllRegistries(ctx)
-	if err != nil {
-		return err
-	}
-	decisions := make([]runtime.DynamicLifecycleDecision, 0)
-	for _, registry := range registries {
-		if registry == nil ||
-			catalog.NormalizeType(registry.Type) != catalog.TypeDynamic ||
-			registry.Installed != catalog.InstalledYes ||
-			registry.Status != catalog.StatusEnabled {
-			continue
-		}
-		activeManifest, activeErr := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
-		if activeErr != nil {
-			return s.dynamicLifecycleError(
-				ctx,
-				hook,
-				registry.PluginId,
-				[]runtime.DynamicLifecycleDecision{
-					dynamicLifecycleFailureDecision(registry.PluginId, hook, activeErr),
-				},
-				false,
-			)
-		}
-		if activeManifest == nil {
-			continue
-		}
-		decision, runErr := s.runtimeSvc.RunDynamicLifecyclePrecondition(ctx, activeManifest, runtime.DynamicLifecycleInput{
-			PluginID:  activeManifest.ID,
-			Operation: hook,
-			TenantID:  tenantID,
-		})
-		if decision != nil {
-			decisions = append(decisions, *decision)
-		}
-		if runErr != nil {
-			return s.dynamicLifecycleError(ctx, hook, activeManifest.ID, decisions, false)
-		}
-	}
-	if dynamicLifecycleDecisionsAllowed(decisions) {
-		return nil
-	}
-	return s.dynamicLifecycleError(ctx, hook, "tenant", decisions, false)
-}
-
-// ensureDynamicTenantPluginLifecyclePreconditionAllowed runs dynamic-plugin
-// tenant-scoped lifecycle preconditions for one plugin and tenant pair.
-func (s *serviceImpl) ensureDynamicTenantPluginLifecyclePreconditionAllowed(
-	ctx context.Context,
-	pluginID string,
-	tenantID int,
-	hook pluginhost.LifecycleHook,
-) error {
-	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
-	if err != nil {
-		return err
-	}
-	if registry == nil ||
-		catalog.NormalizeType(registry.Type) != catalog.TypeDynamic ||
-		registry.Installed != catalog.InstalledYes ||
-		registry.Status != catalog.StatusEnabled {
-		return nil
-	}
-	activeManifest, err := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
-	if err != nil {
-		return s.dynamicLifecycleError(
-			ctx,
-			hook,
-			registry.PluginId,
-			[]runtime.DynamicLifecycleDecision{
-				dynamicLifecycleFailureDecision(registry.PluginId, hook, err),
-			},
-			false,
-		)
-	}
-	if activeManifest == nil {
-		return nil
-	}
-	decision, err := s.runtimeSvc.RunDynamicLifecyclePrecondition(ctx, activeManifest, runtime.DynamicLifecycleInput{
-		PluginID:  activeManifest.ID,
-		Operation: hook,
-		TenantID:  tenantID,
-	})
-	if decision == nil {
-		return nil
-	}
-	decisions := []runtime.DynamicLifecycleDecision{*decision}
-	if err != nil {
-		return s.dynamicLifecycleError(ctx, hook, activeManifest.ID, decisions, false)
-	}
-	if decision.OK {
-		return nil
-	}
-	return s.dynamicLifecycleError(ctx, hook, activeManifest.ID, decisions, false)
-}
-
-// executeTenantLifecycleNotification runs source-plugin tenant lifecycle
-// notifications after tenant-wide lifecycle side effects have succeeded.
-func (s *serviceImpl) executeTenantLifecycleNotification(
-	ctx context.Context,
-	tenantID int,
-	hook pluginhost.LifecycleHook,
-) {
-	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
-		Hook:         hook,
-		TenantInput:  pluginhost.NewSourcePluginTenantLifecycleInput(hook.String(), tenantID),
-		Participants: pluginhost.ListSourcePluginLifecycleParticipants(),
-	})
-	if result.OK {
-		return
-	}
-	logger.Warningf(
-		ctx,
-		"source plugin tenant after lifecycle callback failed operation=%s tenantID=%d reasons=%s",
-		hook,
-		tenantID,
-		summarizeLifecycleVetoReasons(result.Decisions),
-	)
-}
-
-// executeSourceTenantPluginLifecycleNotification runs one source-plugin tenant
-// lifecycle notification after tenant-plugin state changed.
-func (s *serviceImpl) executeSourceTenantPluginLifecycleNotification(
-	ctx context.Context,
-	pluginID string,
-	tenantID int,
-	hook pluginhost.LifecycleHook,
-) {
-	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
-		Hook:         hook,
-		TenantInput:  pluginhost.NewSourcePluginTenantLifecycleInput(hook.String(), tenantID),
-		Participants: pluginhost.ListSourcePluginLifecycleParticipantsForPlugin(pluginID),
-	})
-	if result.OK {
-		return
-	}
-	logger.Warningf(
-		ctx,
-		"source plugin tenant after lifecycle callback failed operation=%s plugin=%s tenantID=%d reasons=%s",
-		hook,
-		pluginID,
-		tenantID,
-		summarizeLifecycleVetoReasons(result.Decisions),
-	)
-}
-
-// executeDynamicTenantLifecycleNotification runs best-effort dynamic-plugin
-// tenant lifecycle callbacks after tenant-wide side effects have succeeded.
-func (s *serviceImpl) executeDynamicTenantLifecycleNotification(
-	ctx context.Context,
-	tenantID int,
-	hook pluginhost.LifecycleHook,
-) {
-	registries, err := s.catalogSvc.ListAllRegistries(ctx)
-	if err != nil {
-		logger.Warningf(ctx, "list dynamic tenant lifecycle registries failed operation=%s tenantID=%d err=%v", hook, tenantID, err)
-		return
-	}
-	for _, registry := range registries {
-		if registry == nil ||
-			catalog.NormalizeType(registry.Type) != catalog.TypeDynamic ||
-			registry.Installed != catalog.InstalledYes ||
-			registry.Status != catalog.StatusEnabled {
-			continue
-		}
-		activeManifest, activeErr := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
-		if activeErr != nil {
-			logger.Warningf(
-				ctx,
-				"load dynamic tenant lifecycle manifest failed operation=%s plugin=%s tenantID=%d err=%v",
-				hook,
-				registry.PluginId,
-				tenantID,
-				activeErr,
-			)
-			continue
-		}
-		s.executeDynamicPluginLifecycleNotification(ctx, activeManifest, runtime.DynamicLifecycleInput{
-			PluginID:  registry.PluginId,
-			Operation: hook,
-			TenantID:  tenantID,
-		})
-	}
-}
-
-// executeDynamicTenantPluginLifecycleNotification runs one dynamic-plugin
-// tenant lifecycle notification after tenant-plugin state changed.
-func (s *serviceImpl) executeDynamicTenantPluginLifecycleNotification(
-	ctx context.Context,
-	pluginID string,
-	tenantID int,
-	hook pluginhost.LifecycleHook,
-) {
-	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
-	if err != nil {
-		logger.Warningf(ctx, "load dynamic tenant plugin lifecycle registry failed operation=%s plugin=%s tenantID=%d err=%v", hook, pluginID, tenantID, err)
-		return
-	}
-	if registry == nil ||
-		catalog.NormalizeType(registry.Type) != catalog.TypeDynamic ||
-		registry.Installed != catalog.InstalledYes ||
-		registry.Status != catalog.StatusEnabled {
-		return
-	}
-	activeManifest, err := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
-	if err != nil {
-		logger.Warningf(
-			ctx,
-			"load dynamic tenant plugin lifecycle manifest failed operation=%s plugin=%s tenantID=%d err=%v",
-			hook,
-			pluginID,
-			tenantID,
-			err,
-		)
-		return
-	}
-	s.executeDynamicPluginLifecycleNotification(ctx, activeManifest, runtime.DynamicLifecycleInput{
-		PluginID:  pluginID,
-		Operation: hook,
-		TenantID:  tenantID,
-	})
+	s.lifecycleSvc.NotifyTenantDeleted(ctx, tenantID)
 }
 
 // ensureDynamicPluginActiveLifecyclePreconditionAllowed runs a dynamic plugin
@@ -999,13 +192,13 @@ func (s *serviceImpl) executeDynamicTenantPluginLifecycleNotification(
 // still readable.
 func (s *serviceImpl) ensureDynamicPluginActiveLifecyclePreconditionAllowed(
 	ctx context.Context,
-	registry *entity.SysPlugin,
+	registry *store.PluginRecord,
 	hook pluginhost.LifecycleHook,
 	options UninstallOptions,
 ) error {
 	if registry == nil ||
-		catalog.NormalizeType(registry.Type) != catalog.TypeDynamic ||
-		registry.Installed != catalog.InstalledYes {
+		plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
+		registry.Installed != plugintypes.InstalledYes {
 		return nil
 	}
 	manifest, err := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
@@ -1034,14 +227,14 @@ func (s *serviceImpl) ensureDynamicPluginActiveLifecyclePreconditionAllowed(
 // only when it is the same version as the active dynamic release. This mirrors
 // runtime uninstall repair, which may rebuild a missing active archive from the
 // same-version staging artifact.
-func (s *serviceImpl) loadSameVersionDesiredDynamicManifestBestEffort(registry *entity.SysPlugin) *catalog.Manifest {
+func (s *serviceImpl) loadSameVersionDesiredDynamicManifestBestEffort(registry *store.PluginRecord) *catalog.Manifest {
 	if registry == nil {
 		return nil
 	}
 	manifest, err := s.catalogSvc.GetDesiredManifest(registry.PluginId)
 	if err != nil ||
 		manifest == nil ||
-		catalog.NormalizeType(manifest.Type) != catalog.TypeDynamic ||
+		plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic ||
 		strings.TrimSpace(manifest.Version) != strings.TrimSpace(registry.Version) {
 		return nil
 	}
@@ -1051,7 +244,7 @@ func (s *serviceImpl) loadSameVersionDesiredDynamicManifestBestEffort(registry *
 // loadActiveDynamicLifecycleManifestBestEffort returns the active dynamic
 // manifest for best-effort post-lifecycle notifications.
 func (s *serviceImpl) loadActiveDynamicLifecycleManifestBestEffort(ctx context.Context, pluginID string) *catalog.Manifest {
-	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+	registry, err := s.storeSvc.GetRegistry(ctx, pluginID)
 	if err != nil || registry == nil {
 		return nil
 	}
@@ -1076,108 +269,6 @@ func dynamicLifecycleFailureDecision(
 		Reason:    "plugin." + strings.TrimSpace(pluginID) + ".lifecycle." + hook.String() + ".failed",
 		Err:       err,
 	}
-}
-
-// ensureDynamicPluginUpgradeLifecyclePreconditionAllowed runs BeforeUpgrade for
-// dynamic plugins before upgrade state markers or release switch side effects.
-func (s *serviceImpl) ensureDynamicPluginUpgradeLifecyclePreconditionAllowed(
-	ctx context.Context,
-	registry *entity.SysPlugin,
-	targetManifest *catalog.Manifest,
-	authorization *HostServiceAuthorizationInput,
-) error {
-	if registry == nil || targetManifest == nil {
-		return nil
-	}
-	manifest, err := s.applyTargetReleaseAuthorizedHostServices(ctx, targetManifest, authorization)
-	if err != nil {
-		return err
-	}
-	decision, err := s.runtimeSvc.RunDynamicLifecyclePrecondition(ctx, manifest, runtime.DynamicLifecycleInput{
-		PluginID:    targetManifest.ID,
-		Operation:   pluginhost.LifecycleHookBeforeUpgrade,
-		FromVersion: strings.TrimSpace(registry.Version),
-		ToVersion:   strings.TrimSpace(targetManifest.Version),
-	})
-	if decision == nil {
-		return nil
-	}
-	decisions := []runtime.DynamicLifecycleDecision{*decision}
-	if err != nil {
-		return s.dynamicLifecycleError(ctx, pluginhost.LifecycleHookBeforeUpgrade, targetManifest.ID, decisions, false)
-	}
-	if decision.OK {
-		return nil
-	}
-	return s.dynamicLifecycleError(ctx, pluginhost.LifecycleHookBeforeUpgrade, targetManifest.ID, decisions, false)
-}
-
-// executeDynamicPluginUpgradeLifecycleNotification runs AfterUpgrade for a
-// dynamic plugin after the target release has become effective.
-func (s *serviceImpl) executeDynamicPluginUpgradeLifecycleNotification(
-	ctx context.Context,
-	registry *entity.SysPlugin,
-	targetManifest *catalog.Manifest,
-	authorization *HostServiceAuthorizationInput,
-) {
-	if registry == nil || targetManifest == nil {
-		return
-	}
-	manifest, err := s.applyTargetReleaseAuthorizedHostServices(ctx, targetManifest, authorization)
-	if err != nil {
-		logger.Warningf(
-			ctx,
-			"dynamic plugin after lifecycle authorization snapshot failed operation=%s plugin=%s err=%v",
-			pluginhost.LifecycleHookAfterUpgrade,
-			targetManifest.ID,
-			err,
-		)
-		return
-	}
-	s.executeDynamicPluginLifecycleNotification(ctx, manifest, runtime.DynamicLifecycleInput{
-		PluginID:    targetManifest.ID,
-		Operation:   pluginhost.LifecycleHookAfterUpgrade,
-		FromVersion: strings.TrimSpace(registry.Version),
-		ToVersion:   strings.TrimSpace(targetManifest.Version),
-	})
-}
-
-// applyTargetReleaseAuthorizedHostServices overlays the target release's
-// already-confirmed host-service snapshot when it exists, keeping BeforeUpgrade
-// execution aligned with the bridge authorization that will become effective.
-func (s *serviceImpl) applyTargetReleaseAuthorizedHostServices(
-	ctx context.Context,
-	manifest *catalog.Manifest,
-	authorization *HostServiceAuthorizationInput,
-) (*catalog.Manifest, error) {
-	if manifest == nil {
-		return nil, nil
-	}
-	if authorization != nil {
-		return cloneManifestWithAuthorizedHostServices(manifest, authorization)
-	}
-	release, err := s.catalogSvc.GetRelease(ctx, manifest.ID, manifest.Version)
-	if err != nil {
-		return nil, err
-	}
-	if release == nil {
-		return cloneManifestWithAuthorizedHostServices(manifest, nil)
-	}
-	snapshot, err := s.catalogSvc.ParseManifestSnapshot(release.ManifestSnapshot)
-	if err != nil {
-		return nil, err
-	}
-	if snapshot == nil || !snapshot.HostServiceAuthRequired || !snapshot.HostServiceAuthConfirmed {
-		return cloneManifestWithAuthorizedHostServices(manifest, nil)
-	}
-	hostServices, err := protocol.NormalizeHostServiceSpecsForPlugin(manifest.ID, snapshot.AuthorizedHostServices)
-	if err != nil {
-		return nil, err
-	}
-	clone := *manifest
-	clone.HostServices = hostServices
-	clone.HostCapabilities = protocol.CapabilityMapFromHostServices(hostServices)
-	return &clone, nil
 }
 
 // ensureDynamicPluginLifecyclePreconditionAllowed runs one dynamic-plugin

@@ -20,10 +20,11 @@ import (
 // executions release their lease.
 func TestInvalidateCacheWaitsForActiveLease(t *testing.T) {
 	ctx := context.Background()
+	runtime := newTestRuntimeImpl()
 	artifactPath := writeMinimalWasmArtifact(t)
-	defer InvalidateAllCache(ctx)
+	defer runtime.InvalidateAllCache(ctx)
 
-	lease, err := getOrCompileWasmModule(ctx, artifactPath)
+	lease, err := runtime.getOrCompileWasmModule(ctx, artifactPath)
 	if err != nil {
 		t.Fatalf("compile wasm module failed: %v", err)
 	}
@@ -31,7 +32,7 @@ func TestInvalidateCacheWaitsForActiveLease(t *testing.T) {
 
 	invalidated := make(chan struct{})
 	go func() {
-		InvalidateCache(ctx, artifactPath)
+		runtime.InvalidateCache(ctx, artifactPath)
 		close(invalidated)
 	}()
 
@@ -40,9 +41,9 @@ func TestInvalidateCacheWaitsForActiveLease(t *testing.T) {
 		t.Fatal("expected cache invalidation to wait for the active lease")
 	default:
 	}
-	waitForCacheEntryRemoval(t, artifactPath)
+	waitForCacheEntryRemoval(t, runtime, artifactPath)
 
-	freshLease, err := getOrCompileWasmModule(ctx, artifactPath)
+	freshLease, err := runtime.getOrCompileWasmModule(ctx, artifactPath)
 	if err != nil {
 		t.Fatalf("compile fresh wasm module after invalidation failed: %v", err)
 	}
@@ -63,10 +64,11 @@ func TestInvalidateCacheWaitsForActiveLease(t *testing.T) {
 // follows the same deferred close contract as path-scoped invalidation.
 func TestInvalidateAllCacheWaitsForActiveLease(t *testing.T) {
 	ctx := context.Background()
+	runtime := newTestRuntimeImpl()
 	artifactPath := writeMinimalWasmArtifact(t)
-	defer InvalidateAllCache(ctx)
+	defer runtime.InvalidateAllCache(ctx)
 
-	lease, err := getOrCompileWasmModule(ctx, artifactPath)
+	lease, err := runtime.getOrCompileWasmModule(ctx, artifactPath)
 	if err != nil {
 		t.Fatalf("compile wasm module failed: %v", err)
 	}
@@ -74,7 +76,7 @@ func TestInvalidateAllCacheWaitsForActiveLease(t *testing.T) {
 
 	invalidated := make(chan struct{})
 	go func() {
-		InvalidateAllCache(ctx)
+		runtime.InvalidateAllCache(ctx)
 		close(invalidated)
 	}()
 
@@ -83,9 +85,9 @@ func TestInvalidateAllCacheWaitsForActiveLease(t *testing.T) {
 		t.Fatal("expected full cache invalidation to wait for the active lease")
 	default:
 	}
-	waitForCacheEntryRemoval(t, artifactPath)
+	waitForCacheEntryRemoval(t, runtime, artifactPath)
 
-	freshLease, err := getOrCompileWasmModule(ctx, artifactPath)
+	freshLease, err := runtime.getOrCompileWasmModule(ctx, artifactPath)
 	if err != nil {
 		t.Fatalf("compile fresh wasm module after full invalidation failed: %v", err)
 	}
@@ -104,19 +106,26 @@ func TestInvalidateAllCacheWaitsForActiveLease(t *testing.T) {
 
 // waitForCacheEntryRemoval waits until invalidation has removed a stale entry
 // from the global map, allowing the caller to compile a replacement entry.
-func waitForCacheEntryRemoval(t *testing.T, artifactPath string) {
+func waitForCacheEntryRemoval(t *testing.T, runtime *runtimeImpl, artifactPath string) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		wasmModuleCacheMu.RLock()
-		_, ok := wasmModuleCache[artifactPath]
-		wasmModuleCacheMu.RUnlock()
+		runtime.cacheMu.RLock()
+		_, ok := runtime.cache[artifactPath]
+		runtime.cacheMu.RUnlock()
 		if !ok {
 			return
 		}
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatal("timed out waiting for cache entry removal")
+}
+
+func newTestRuntimeImpl() *runtimeImpl {
+	return &runtimeImpl{
+		hostServices: newTestHostServiceRuntime(),
+		cache:        make(map[string]*wasmCacheEntry),
+	}
 }
 
 // writeMinimalWasmArtifact writes a tiny module that imports the host bridge
@@ -153,7 +162,7 @@ func TestMinimalWasmBinaryIsValid(t *testing.T) {
 			t.Fatalf("close wasm runtime failed: %v", err)
 		}
 	}()
-	if err := registerHostCallModule(ctx, rt); err != nil {
+	if err := newTestRuntimeImpl().registerHostCallModule(ctx, rt); err != nil {
 		t.Fatalf("register host call module failed: %v", err)
 	}
 	compiled, err := rt.CompileModule(ctx, minimalWasmBinary())

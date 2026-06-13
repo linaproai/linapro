@@ -5,24 +5,10 @@ package wasm
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/pkg/plugin/capability/manifestcap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
-
-// ConfigureManifestHostService replaces the plugin-scoped manifest service
-// factory used by wasm host calls. The factory must be non-nil.
-func ConfigureManifestHostService(factory manifestcap.ServiceFactory) error {
-	if factory == nil {
-		return gerror.New("wasm manifest host service requires a non-nil manifest factory")
-	}
-	updateHostServiceRuntimeSnapshot(func(next *hostServiceRuntime) {
-		next.manifestFactory = factory
-	})
-	return nil
-}
 
 // dispatchManifestHostService routes manifest.get calls to the scoped manifest reader.
 func dispatchManifestHostService(
@@ -35,14 +21,13 @@ func dispatchManifestHostService(
 	if err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 	}
-	runtime := currentHostServiceRuntime()
-	if runtime == nil || runtime.manifestFactory == nil {
+	if hcc == nil || hcc.runtime == nil || hcc.runtime.manifestFactory == nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "manifest host service is not configured")
 	}
 
 	switch method {
 	case bridgehostservice.HostServiceMethodManifestGet:
-		factory := runtime.manifestFactory
+		factory := hcc.runtime.manifestFactory
 		if len(hcc.artifactManifestResources) > 0 {
 			factory = factory.WithArtifactResources(hcc.pluginID, hcc.artifactManifestResources)
 		}

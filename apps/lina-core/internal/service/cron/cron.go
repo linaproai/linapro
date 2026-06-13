@@ -54,6 +54,13 @@ type pluginJobCatalog interface {
 	ListInstalledJobDeclarations(ctx context.Context) ([]pluginsvc.ManagedJob, error)
 }
 
+// pluginLifecycleObserverRegistrar subscribes cron to plugin lifecycle events
+// through the startup-owned plugin service instance.
+type pluginLifecycleObserverRegistrar interface {
+	// RegisterLifecycleObserver subscribes one synchronous plugin lifecycle observer.
+	RegisterLifecycleObserver(observer pluginsvc.LifecycleObserver) func()
+}
+
 // startupJob abstracts warm-up and watcher registration logic selected during
 // service construction for single-node or clustered deployments.
 type startupJob interface {
@@ -74,12 +81,13 @@ type serviceImpl struct {
 	clusterSvc            cluster.Service        // Cluster topology service
 	registry              jobhandlersvc.Registry // registry stores managed host and plugin handlers.
 	pluginSvc             pluginJobCatalog       // pluginSvc exposes installed plugin job declarations.
-	builtinSyncer         builtinJobSyncer       // builtinSyncer persists code-owned job definitions.
-	persistentScheduler   jobmgmtsvc.Scheduler   // persistentScheduler loads and registers persisted jobs.
-	runtimeParamSyncJob   startupJob             // Runtime-parameter sync startup job
-	accessTopologySyncJob startupJob             // Permission-topology sync startup job
-	managedHandlersOnce   sync.Once              // managedHandlersOnce avoids duplicate handler registration.
-	pluginObserverOnce    sync.Once              // pluginObserverOnce avoids duplicate lifecycle subscriptions.
+	pluginObservers       pluginLifecycleObserverRegistrar
+	builtinSyncer         builtinJobSyncer     // builtinSyncer persists code-owned job definitions.
+	persistentScheduler   jobmgmtsvc.Scheduler // persistentScheduler loads and registers persisted jobs.
+	runtimeParamSyncJob   startupJob           // Runtime-parameter sync startup job
+	accessTopologySyncJob startupJob           // Permission-topology sync startup job
+	managedHandlersOnce   sync.Once            // managedHandlersOnce avoids duplicate handler registration.
+	pluginObserverOnce    sync.Once            // pluginObserverOnce avoids duplicate lifecycle subscriptions.
 }
 
 // New creates and returns a new Service instance.
@@ -105,6 +113,7 @@ func New(
 		clusterSvc:          clusterSvc,
 		registry:            registry,
 		pluginSvc:           pluginSvc,
+		pluginObservers:     pluginSvc,
 		builtinSyncer:       builtinSyncer,
 		persistentScheduler: persistentScheduler,
 		runtimeParamSyncJob: newRuntimeParamSnapshotSyncJob(

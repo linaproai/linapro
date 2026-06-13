@@ -34,6 +34,37 @@ const (
 	AuthEventMessageIPBlacklisted = "Login IP is blacklisted"
 )
 
+// sourceServicesProvider stores the startup-owned capability directory and
+// returns plugin-scoped source-plugin service views for integration callbacks.
+type sourceServicesProvider struct {
+	capabilities capability.Services
+}
+
+// SourceServicesForPlugin returns a plugin-scoped source-plugin service view.
+func (p *sourceServicesProvider) SourceServicesForPlugin(pluginID string) pluginhost.Services {
+	if p == nil {
+		return nil
+	}
+	capabilities := p.capabilities
+	if capabilities == nil {
+		return nil
+	}
+	services := capability.ServicesForPlugin(capabilities, pluginID)
+	if sourceServices, ok := services.(pluginhost.Services); ok {
+		return sourceServices
+	}
+	return nil
+}
+
+// StorageCleanupServices returns the startup-owned shared capability directory
+// for runtime dynamic-plugin storage cleanup.
+func (p *sourceServicesProvider) StorageCleanupServices() capability.Services {
+	if p == nil {
+		return nil
+	}
+	return p.capabilities
+}
+
 // RegisterHTTPRoutes registers callback-contributed HTTP routes for source plugins.
 func (s *serviceImpl) RegisterHTTPRoutes(
 	ctx context.Context,
@@ -85,18 +116,6 @@ func (s *serviceImpl) HandleAuthLogoutSucceeded(ctx context.Context, input plugi
 		pluginhost.AuthHookReasonLogoutSuccessful,
 		AuthEventMessageLogoutSuccessful,
 	)
-}
-
-// SetCapabilities wires the host-published capability services used by plugins.
-func (s *serviceImpl) SetCapabilities(capabilities capability.Services) {
-	if s == nil || s.integrationSvc == nil {
-		return
-	}
-	s.capabilities = capabilities
-	s.integrationSvc.SetCapabilities(capabilities)
-	if s.runtimeSvc != nil {
-		s.runtimeSvc.SetStorageCleanupServices(capabilities)
-	}
 }
 
 // AITextProviderEnv returns typed, plugin-scoped text AI provider construction inputs.
@@ -261,7 +280,7 @@ func (s *serviceImpl) DispatchHookEvent(
 	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
 		return err
 	}
-	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	readCtx, err := s.storeSvc.WithStartupDataSnapshot(ctx)
 	if err != nil {
 		return err
 	}

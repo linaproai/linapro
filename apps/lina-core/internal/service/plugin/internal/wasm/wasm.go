@@ -4,6 +4,7 @@
 package wasm
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -52,6 +53,30 @@ type ExecutionInput struct {
 	JobCollector JobRegistrationCollector
 }
 
+// Runtime defines the dynamic-plugin WASM execution runtime owned by a plugin
+// service instance.
+type Runtime interface {
+	// ExecuteBridge executes one bridge request against the archived active WASM
+	// artifact using this runtime instance.
+	ExecuteBridge(
+		ctx context.Context,
+		input ExecutionInput,
+		requestContent []byte,
+	) (*bridgecontract.BridgeResponseEnvelopeV1, error)
+	// InvalidateCache removes the cached compiled module for the given artifact path.
+	InvalidateCache(ctx context.Context, artifactPath string)
+	// InvalidateAllCache removes all cached compiled modules owned by this runtime.
+	InvalidateAllCache(ctx context.Context)
+}
+
+// runtimeImpl owns host-service dependencies and compiled module cache state for
+// one plugin service instance.
+type runtimeImpl struct {
+	hostServices *hostServiceRuntime
+	cacheMu      sync.RWMutex
+	cache        map[string]*wasmCacheEntry
+}
+
 // wasmCacheEntry stores one compiled module together with the runtime that owns
 // it. The entry tracks active execution leases so cache invalidation can remove
 // stale entries immediately without closing a runtime that is still instantiating
@@ -73,11 +98,3 @@ type wasmModuleLease struct {
 	runtime  wazero.Runtime
 	compiled wazero.CompiledModule
 }
-
-// wasmModuleCache caches compiled Wasm modules keyed by the archived active
-// artifact path. Dynamic release archive paths include the release checksum, so
-// same-version refreshes naturally compile a separate module.
-var (
-	wasmModuleCacheMu sync.RWMutex
-	wasmModuleCache   = make(map[string]*wasmCacheEntry)
-)

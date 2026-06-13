@@ -15,6 +15,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/plugin/internal/catalog"
 	recordstorehost "lina-core/internal/service/plugin/internal/datahost/internal/host"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -523,7 +524,7 @@ func TestPluginDataDBDoCommitRejectsUnauthorizedTable(t *testing.T) {
 func buildTestNodeStateResource() *catalog.ResourceSpec {
 	return &catalog.ResourceSpec{
 		Key:   "nodeStates",
-		Type:  catalog.ResourceSpecTypeTableList.String(),
+		Type:  plugintypes.ResourceSpecTypeTableList.String(),
 		Table: "sys_plugin_node_state",
 		Fields: []*catalog.ResourceField{
 			{Name: "id", Column: "id"},
@@ -536,11 +537,11 @@ func buildTestNodeStateResource() *catalog.ResourceSpec {
 			{Name: "errorMessage", Column: "error_message"},
 		},
 		Filters: []*catalog.ResourceQuery{
-			{Param: "pluginId", Column: "plugin_id", Operator: catalog.ResourceFilterOperatorEQ.String()},
+			{Param: "pluginId", Column: "plugin_id", Operator: plugintypes.ResourceFilterOperatorEQ.String()},
 		},
 		OrderBy: catalog.ResourceOrderBySpec{
 			Column:    "id",
-			Direction: catalog.ResourceOrderDirectionASC.String(),
+			Direction: plugintypes.ResourceOrderDirectionASC.String(),
 		},
 		Operations: []string{
 			protocol.HostServiceMethodDataList,
@@ -560,7 +561,7 @@ func buildTestNodeStateResource() *catalog.ResourceSpec {
 			"generation",
 			"errorMessage",
 		},
-		Access: catalog.ResourceAccessModeRequest.String(),
+		Access: plugintypes.ResourceAccessModeRequest.String(),
 	}
 }
 

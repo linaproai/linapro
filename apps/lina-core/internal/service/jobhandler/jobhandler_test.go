@@ -133,6 +133,19 @@ type testPluginStatusChecker struct {
 	managedJobs map[string][]pluginsvc.ManagedJob
 }
 
+// testPluginLifecycleRegistrar captures lifecycle observers for attachment tests.
+type testPluginLifecycleRegistrar struct {
+	observer pluginsvc.LifecycleObserver
+}
+
+// RegisterLifecycleObserver stores the observer and returns an unsubscribe function.
+func (r *testPluginLifecycleRegistrar) RegisterLifecycleObserver(observer pluginsvc.LifecycleObserver) func() {
+	r.observer = observer
+	return func() {
+		r.observer = nil
+	}
+}
+
 // IsEnabled reports whether one plugin is flagged enabled in the test snapshot.
 func (c testPluginStatusChecker) IsEnabled(ctx context.Context, pluginID string) bool {
 	return c.enabled[pluginID]
@@ -165,9 +178,11 @@ func TestAttachPluginLifecycleSyncsEnabledPluginCronHandlers(t *testing.T) {
 	const pluginID = "jobhandler-lifecycle-enabled-sync"
 
 	registry := New()
+	registrar := &testPluginLifecycleRegistrar{}
 	unsubscribe, err := AttachPluginLifecycle(
 		context.Background(),
 		registry,
+		registrar,
 		testPluginStatusChecker{
 			enabled: map[string]bool{pluginID: true},
 			managedJobs: map[string][]pluginsvc.ManagedJob{
@@ -261,9 +276,11 @@ func TestAttachPluginLifecycleSyncsEnabledDynamicPluginCronHandlers(t *testing.T
 	const pluginID = "jobhandler-dynamic-enabled-sync"
 
 	registry := New()
+	registrar := &testPluginLifecycleRegistrar{}
 	unsubscribe, err := AttachPluginLifecycle(
 		context.Background(),
 		registry,
+		registrar,
 		testPluginStatusChecker{
 			enabled: map[string]bool{pluginID: true},
 			managedJobs: map[string][]pluginsvc.ManagedJob{

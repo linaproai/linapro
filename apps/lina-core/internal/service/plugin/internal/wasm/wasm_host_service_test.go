@@ -203,12 +203,10 @@ func (s *capabilityHostServiceTestServices) ForPlugin(pluginID string) capabilit
 // services directory and restores the previous package state after the test.
 func configureDomainHostServicesForCapabilityTest(t *testing.T, services capability.Services) {
 	t.Helper()
-
-	previous := currentHostServiceRuntime()
-	if err := ConfigureDomainHostServices(services); err != nil {
-		t.Fatalf("configure domain host services failed: %v", err)
+	if services == nil {
+		t.Fatal("configure domain host services failed: services is nil")
 	}
-	t.Cleanup(func() { setHostServiceRuntimeSnapshot(previous) })
+	bindTestHostServiceRuntime(t, withTestDomainServices(services))
 }
 
 // TestHandleHostServiceInvokeOrgMethods verifies organization host-service
@@ -389,11 +387,7 @@ func TestHandleHostServiceInvokeAdditionalDomainMethods(t *testing.T) {
 		dict:   dictSvc,
 		tenant: tenantspi.New(nil, nil, nil),
 	}
-	previous := currentHostServiceRuntime()
-	if err := ConfigureDomainHostServices(services); err != nil {
-		t.Fatalf("configure domain host services failed: %v", err)
-	}
-	t.Cleanup(func() { setHostServiceRuntimeSnapshot(previous) })
+	configureDomainHostServicesForCapabilityTest(t, services)
 
 	authzResponse := invokeCapabilityHostService(
 		t,
@@ -846,7 +840,7 @@ func TestHandleHostServiceInvokePluginLifecycleRequiresMethodAuthorization(t *te
 // TestConfigureDomainHostServicesRejectNil verifies nil domain service
 // directories fail during startup wiring.
 func TestConfigureDomainHostServicesRejectNil(t *testing.T) {
-	if err := ConfigureDomainHostServices(nil); err == nil {
+	if _, err := NewRuntime(nil, noopTestConfigFactory{}, noopTestHostConfigService{}, noopTestManifestFactory{}); err == nil {
 		t.Fatal("expected nil domain host service directory to return an error")
 	}
 }
@@ -865,7 +859,7 @@ func invokeCapabilityHostService(
 		Method:  method,
 		Payload: payload,
 	}
-	return handleHostServiceInvoke(context.Background(), hcc, protocol.MarshalHostServiceRequestEnvelope(request))
+	return handleHostServiceInvoke(context.Background(), withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(request))
 }
 
 // invokeCapabilityHostServiceWithResource dispatches one resource-scoped host-service request.
@@ -884,7 +878,7 @@ func invokeCapabilityHostServiceWithResource(
 		ResourceRef: resourceRef,
 		Payload:     payload,
 	}
-	return handleHostServiceInvoke(context.Background(), hcc, protocol.MarshalHostServiceRequestEnvelope(request))
+	return handleHostServiceInvoke(context.Background(), withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(request))
 }
 
 // orgTenantHostCallContext builds an authorized org and tenant host service context.

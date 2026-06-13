@@ -17,16 +17,6 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/notify"
-	hostauthzcap "lina-core/internal/service/plugin/internal/capabilityhost/internal/authzcap"
-	hostdictcap "lina-core/internal/service/plugin/internal/capabilityhost/internal/dictcap"
-	hostfilecap "lina-core/internal/service/plugin/internal/capabilityhost/internal/filecap"
-	hostruntimeconfigcap "lina-core/internal/service/plugin/internal/capabilityhost/internal/hostconfigcap"
-	hostinfracap "lina-core/internal/service/plugin/internal/capabilityhost/internal/infracap"
-	hostjobcap "lina-core/internal/service/plugin/internal/capabilityhost/internal/jobcap"
-	hostnotifycap "lina-core/internal/service/plugin/internal/capabilityhost/internal/notifycap"
-	hostplugincap "lina-core/internal/service/plugin/internal/capabilityhost/internal/plugincap"
-	hostsessioncap "lina-core/internal/service/plugin/internal/capabilityhost/internal/sessioncap"
-	hostusercap "lina-core/internal/service/plugin/internal/capabilityhost/internal/usercap"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/plugin/capability"
 	capabilityai "lina-core/pkg/plugin/capability/aicap"
@@ -139,7 +129,7 @@ type directory struct {
 	notifications   capabilitynotifycap.Service
 	org             capabilityorgcap.Service
 	admin           capability.AdminServices
-	plugins         hostplugincap.Service
+	plugins         pluginCapabilityService
 	route           routecap.Service // route exposes dynamic route metadata lookups.
 	sessions        capabilitysessioncap.Service
 	storageRuntime  storagecap.ProviderRuntime // storageRuntime selects the active storage provider.
@@ -206,20 +196,20 @@ func New(
 	}
 	var (
 		i18nAdapter         = newI18nAdapter(i18nSvc)
-		userDomain          = hostusercap.New(tenantFilterSvc, scopeSvc)
+		userDomain          = newUserCapabilityAdapter(tenantFilterSvc, scopeSvc)
 		tokenDomain         = newAuthAdapter(authTokenIssuer)
-		authzDomain         = hostauthzcap.New()
-		dictDomain          = hostdictcap.New(tenantFilterSvc, i18nAdapter)
-		runtimeConfigDomain = hostruntimeconfigcap.New(tenantFilterSvc)
-		fileDomain          = hostfilecap.New(tenantFilterSvc)
-		sessionDomain       = hostsessioncap.New(authSvc, scopeSvc, sessionStore, tenantSvc)
-		notificationDomain  = hostnotifycap.New(notifySvc)
-		jobDomain           = hostjobcap.New(tenantFilterSvc)
-		infraDomain         = hostinfracap.New()
+		authzDomain         = newAuthzCapabilityAdapter()
+		dictDomain          = newDictCapabilityAdapter(tenantFilterSvc, i18nAdapter)
+		runtimeConfigDomain = newRuntimeConfigCapabilityAdapter(tenantFilterSvc)
+		fileDomain          = newFileCapabilityAdapter(tenantFilterSvc)
+		sessionDomain       = newSessionCapabilityAdapter(authSvc, scopeSvc, sessionStore, tenantSvc)
+		notificationDomain  = newNotificationCapabilityAdapter(notifySvc)
+		jobDomain           = newJobCapabilityAdapter(tenantFilterSvc)
+		infraDomain         = newInfraCapabilityAdapter()
 		pluginConfigFactory = plugincap.NewConfigFactory("", "")
 		pluginLifecycle     = plugincap.NewLifecycle(pluginLifecycleRunner)
 		pluginState         = plugincap.NewState(pluginStateSvc)
-		pluginDomain        = hostplugincap.New(pluginConfigFactory, pluginState, pluginLifecycle)
+		pluginDomain        = newPluginCapabilityAdapter(pluginConfigFactory, pluginState, pluginLifecycle)
 	)
 	return &directory{
 		apiDoc:        newAPIDocAdapter(apiDocSvc),

@@ -23,8 +23,10 @@ import (
 	"lina-core/internal/service/session"
 	"lina-core/pkg/plugin/capability/aicap/aitext"
 	capabilityhostconfig "lina-core/pkg/plugin/capability/hostconfigcap"
+	capabilitymanifest "lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	capabilityconfig "lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
@@ -37,11 +39,8 @@ func newUserTestService(tenantManagersAndRuntimes ...any) Service {
 	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cacheCoordSvc)
 	sessionStore := session.NewDBStore()
 	lockerSvc := locker.New()
-	pluginSvc, err := pluginsvc.New(clusterSvc, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, sessionStore, lockerSvc, nil)
-	if err != nil {
-		panic(err)
-	}
-	orgCapSvc := orgspi.New(nil, pluginSvc)
+	pluginRuntime := pluginsvc.NewRuntimeDelegate()
+	orgCapSvc := orgspi.New(nil, pluginRuntime)
 	tenantSvc := tenantspi.New(nil, nil, nil)
 	if len(tenantManagersAndRuntimes) > 0 {
 		var (
@@ -58,13 +57,13 @@ func newUserTestService(tenantManagersAndRuntimes ...any) Service {
 		}
 		tenantSvc = tenantspi.New(manager, runtime, nil)
 	}
-	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
+	roleSvc := role.New(pluginRuntime, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
 	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
 	roleSvc.SetDataScopeService(scopeSvc)
 	kvCacheSvc := kvcache.New()
-	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
+	authSvc := auth.New(configSvc, pluginRuntime, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
 	notifySvc := notify.New(tenantSvc)
-	apiDocSvc := apidoc.New(configSvc, bizCtxSvc, i18nSvc, pluginSvc)
+	apiDocSvc := apidoc.New(configSvc, bizCtxSvc, i18nSvc, pluginRuntime)
 	hostConfigReader, ok := configSvc.(capabilityhostconfig.RawConfigReader)
 	if !ok {
 		panic("test config service does not support raw host config reads")
@@ -82,22 +81,43 @@ func newUserTestService(tenantManagersAndRuntimes ...any) Service {
 		hostConfigSvc,
 		scopeSvc,
 		i18nSvc,
-		pluginSvc,
-		pluginSvc,
+		pluginRuntime,
+		pluginRuntime,
 		sessionStore,
-		aitext.New(nil, pluginSvc),
+		aitext.New(nil, pluginRuntime),
 		orgCapSvc,
 		tenantSvc,
 		notifySvc,
 		kvCacheSvc,
 		lockSvc,
-		pluginsvc.NewStorageProviderRuntime(configSvc, pluginSvc),
+		pluginsvc.NewStorageProviderRuntime(configSvc, pluginRuntime),
 		pluginsvc.NewLocalStorageProvider(configSvc.GetPluginDynamicStoragePath(context.Background()), false, false),
 	)
 	if err != nil {
 		panic(err)
 	}
-	pluginSvc.SetCapabilities(capabilities)
+	pluginSvc, err := pluginsvc.New(
+		clusterSvc,
+		configSvc,
+		bizCtxSvc,
+		cacheCoordSvc,
+		i18nSvc,
+		sessionStore,
+		lockerSvc,
+		nil,
+		capabilities,
+		orgCapSvc,
+		tenantSvc,
+		tenantSvc,
+		tenantSvc,
+		capabilityconfig.NewConfigFactory("", ""),
+		hostConfigSvc,
+		capabilitymanifest.NewFactory(""),
+	)
+	if err != nil {
+		panic(err)
+	}
+	pluginRuntime.BindService(pluginSvc)
 	return New(authSvc, bizCtxSvc, i18nSvc, orgCapSvc, orgCapSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc, tenantSvc, tenantSvc).(*serviceImpl)
 }
 

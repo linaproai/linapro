@@ -22,7 +22,7 @@ import (
 )
 
 // wasmHostServiceTestDeps groups explicit dependencies for the root Wasm host
-// service configuration entry.
+// service runtime constructor.
 type wasmHostServiceTestDeps struct {
 	// notifySvc is the notification service shared with dynamic plugins.
 	notifySvc notifysvc.Service
@@ -36,19 +36,18 @@ type wasmHostServiceTestDeps struct {
 	manifestFactory manifestcap.ServiceFactory
 }
 
-// TestConfigureWasmHostServicesRequiresExplicitDependencies verifies the root
-// startup entry configures every host service dependency and rejects missing
-// required services before dispatchers can use package defaults.
-func TestConfigureWasmHostServicesRequiresExplicitDependencies(t *testing.T) {
-	t.Cleanup(func() {
-		if err := configureWasmHostServicesForTest(newWasmHostServiceTestDeps(t)); err != nil {
-			t.Fatalf("recover wasm host service configuration failed: %v", err)
-		}
-	})
-
+// TestNewWasmHostServiceRuntimeRequiresExplicitDependencies verifies the root
+// startup runtime constructor rejects missing required services before
+// dispatchers can use package defaults.
+func TestNewWasmHostServiceRuntimeRequiresExplicitDependencies(t *testing.T) {
 	validDeps := newWasmHostServiceTestDeps(t)
-	if err := configureWasmHostServicesForTest(validDeps); err != nil {
-		t.Fatalf("expected complete wasm host service configuration to succeed, got error: %v", err)
+	if _, err := newWasmHostServiceRuntime(
+		validDeps.hostServices,
+		validDeps.configFactory,
+		validDeps.hostConfigSvc,
+		validDeps.manifestFactory,
+	); err != nil {
+		t.Fatalf("expected complete wasm host service runtime construction to succeed, got error: %v", err)
 	}
 
 	cases := []struct {
@@ -59,22 +58,22 @@ func TestConfigureWasmHostServicesRequiresExplicitDependencies(t *testing.T) {
 		{
 			name:    "domain-capabilities",
 			mutate:  func(deps *wasmHostServiceTestDeps) { deps.hostServices = nil },
-			message: "configure wasm host service runtime failed",
+			message: "create wasm host service runtime failed",
 		},
 		{
 			name:    "config",
 			mutate:  func(deps *wasmHostServiceTestDeps) { deps.configFactory = nil },
-			message: "configure wasm host service runtime failed",
+			message: "create wasm host service runtime failed",
 		},
 		{
 			name:    "host-config",
 			mutate:  func(deps *wasmHostServiceTestDeps) { deps.hostConfigSvc = nil },
-			message: "configure wasm host service runtime failed",
+			message: "create wasm host service runtime failed",
 		},
 		{
 			name:    "manifest",
 			mutate:  func(deps *wasmHostServiceTestDeps) { deps.manifestFactory = nil },
-			message: "configure wasm host service runtime failed",
+			message: "create wasm host service runtime failed",
 		},
 	}
 
@@ -82,7 +81,12 @@ func TestConfigureWasmHostServicesRequiresExplicitDependencies(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			deps := newWasmHostServiceTestDeps(t)
 			tc.mutate(deps)
-			err := configureWasmHostServicesForTest(deps)
+			_, err := newWasmHostServiceRuntime(
+				deps.hostServices,
+				deps.configFactory,
+				deps.hostConfigSvc,
+				deps.manifestFactory,
+			)
 			if err == nil {
 				t.Fatalf("expected missing %s dependency to fail", tc.name)
 			}
@@ -92,8 +96,14 @@ func TestConfigureWasmHostServicesRequiresExplicitDependencies(t *testing.T) {
 		})
 	}
 
-	if err := configureWasmHostServicesForTest(newWasmHostServiceTestDeps(t)); err != nil {
-		t.Fatalf("expected complete wasm host service configuration to recover after nil cases, got error: %v", err)
+	recoveredDeps := newWasmHostServiceTestDeps(t)
+	if _, err := newWasmHostServiceRuntime(
+		recoveredDeps.hostServices,
+		recoveredDeps.configFactory,
+		recoveredDeps.hostConfigSvc,
+		recoveredDeps.manifestFactory,
+	); err != nil {
+		t.Fatalf("expected complete wasm host service runtime construction after nil cases, got error: %v", err)
 	}
 }
 
@@ -123,17 +133,6 @@ func mustHostConfigRawReaderForTest(t *testing.T, configSvc configsvc.Service) c
 		t.Fatal("test config service does not support raw host config reads")
 	}
 	return reader
-}
-
-// configureWasmHostServicesForTest calls the production root configuration
-// entry with one explicit dependency set.
-func configureWasmHostServicesForTest(deps *wasmHostServiceTestDeps) error {
-	return ConfigureWasmHostServices(
-		deps.hostServices,
-		deps.configFactory,
-		deps.hostConfigSvc,
-		deps.manifestFactory,
-	)
 }
 
 // TestNormalizeDataTableNamesTrimsAndDeduplicates verifies metadata lookups

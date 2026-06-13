@@ -185,18 +185,19 @@ func NewHostServices(
 	)
 }
 
-// ConfigureWasmHostServices wires dynamic-plugin host-service dispatchers to
-// the same runtime-owned services used by the host HTTP process.
-func ConfigureWasmHostServices(
+// newWasmHostServiceRuntime creates the dynamic-plugin host-service dispatcher
+// runtime from startup-owned shared services.
+func newWasmHostServiceRuntime(
 	hostServices capability.Services,
 	configFactory plugincap.ConfigServiceFactory,
 	hostConfigSvc hostconfigcap.Service,
 	manifestFactory manifestcap.ServiceFactory,
-) error {
-	if err := wasm.ConfigureHostServiceRuntime(hostServices, configFactory, hostConfigSvc, manifestFactory); err != nil {
-		return gerror.Wrap(err, "configure wasm host service runtime failed")
+) (wasm.Runtime, error) {
+	runtime, err := wasm.NewRuntime(hostServices, configFactory, hostConfigSvc, manifestFactory)
+	if err != nil {
+		return nil, gerror.Wrap(err, "create wasm host service runtime failed")
 	}
-	return nil
+	return runtime, nil
 }
 
 // dataTableMetadataSchema is the host schema used by PostgreSQL metadata

@@ -9,24 +9,11 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
-	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/pkg/plugin/capability/plugincap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
-
-// ConfigurePluginConfigServiceFactory replaces the plugin-scoped configuration
-// factory used by plugins.config.get host calls. The factory must be non-nil.
-func ConfigurePluginConfigServiceFactory(factory plugincap.ConfigServiceFactory) error {
-	if factory == nil {
-		return gerror.New("wasm plugin config service requires a non-nil config factory")
-	}
-	updateHostServiceRuntimeSnapshot(func(next *hostServiceRuntime) {
-		next.pluginConfigFactory = factory
-	})
-	return nil
-}
 
 // dispatchPluginsHostService routes plugin-governance domain host-service calls.
 func dispatchPluginsHostService(
@@ -153,11 +140,10 @@ func dispatchPluginsConfigGet(
 	if err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 	}
-	runtime := currentHostServiceRuntime()
-	if runtime == nil || runtime.pluginConfigFactory == nil {
+	if hcc == nil || hcc.runtime == nil || hcc.runtime.pluginConfigFactory == nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "plugin config service is not configured")
 	}
-	factory := runtime.pluginConfigFactory
+	factory := hcc.runtime.pluginConfigFactory
 	if len(hcc.artifactDefaultConfig) > 0 {
 		factory = factory.WithArtifactConfig(hcc.pluginID, hcc.artifactDefaultConfig)
 	}

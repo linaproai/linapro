@@ -7,14 +7,20 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/gogf/gf/v2/container/gvar"
 	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/pkg/dialect"
+	"lina-core/pkg/plugin/capability"
+	"lina-core/pkg/plugin/capability/hostconfigcap"
+	"lina-core/pkg/plugin/capability/manifestcap"
+	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -204,7 +210,7 @@ func invokeRuntimeHostService(
 		Method:  method,
 		Payload: payload,
 	}
-	return handleHostServiceInvoke(context.Background(), hcc, protocol.MarshalHostServiceRequestEnvelope(request))
+	return handleHostServiceInvoke(context.Background(), withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(request))
 }
 
 // cleanupRuntimeStateKey deletes one plugin runtime state row so lifecycle
@@ -217,3 +223,126 @@ func cleanupRuntimeStateKey(t *testing.T, ctx context.Context, pluginID string, 
 		t.Fatalf("failed to cleanup runtime state key %s/%s: %v", pluginID, key, err)
 	}
 }
+
+var testHostServiceRuntimes sync.Map
+
+type testHostServiceRuntimeOption func(*hostServiceRuntime)
+
+func withTestDomainServices(services capability.Services) testHostServiceRuntimeOption {
+	return func(runtime *hostServiceRuntime) {
+		runtime.domainServices = services
+	}
+}
+
+func withTestConfigFactory(factory plugincap.ConfigServiceFactory) testHostServiceRuntimeOption {
+	return func(runtime *hostServiceRuntime) {
+		runtime.pluginConfigFactory = factory
+	}
+}
+
+func withTestHostConfigService(service hostconfigcap.Service) testHostServiceRuntimeOption {
+	return func(runtime *hostServiceRuntime) {
+		runtime.hostConfigService = service
+	}
+}
+
+func withTestManifestFactory(factory manifestcap.ServiceFactory) testHostServiceRuntimeOption {
+	return func(runtime *hostServiceRuntime) {
+		runtime.manifestFactory = factory
+	}
+}
+
+func bindTestHostServiceRuntime(t *testing.T, opts ...testHostServiceRuntimeOption) *hostServiceRuntime {
+	t.Helper()
+	runtime := newTestHostServiceRuntime(opts...)
+	testHostServiceRuntimes.Store(t.Name(), runtime)
+	t.Cleanup(func() {
+		testHostServiceRuntimes.Delete(t.Name())
+	})
+	return runtime
+}
+
+func withTestHostCallRuntime(t *testing.T, hcc *hostCallContext) *hostCallContext {
+	t.Helper()
+	if hcc == nil || hcc.runtime != nil {
+		return hcc
+	}
+	if runtime, ok := testHostServiceRuntimes.Load(t.Name()); ok {
+		hcc.runtime = runtime.(*hostServiceRuntime)
+		return hcc
+	}
+	hcc.runtime = bindTestHostServiceRuntime(t)
+	return hcc
+}
+
+func newTestHostServiceRuntime(opts ...testHostServiceRuntimeOption) *hostServiceRuntime {
+	runtime := &hostServiceRuntime{
+		domainServices:      &capabilityHostServiceTestServices{},
+		pluginConfigFactory: noopTestConfigFactory{},
+		hostConfigService:   noopTestHostConfigService{},
+		manifestFactory:     noopTestManifestFactory{},
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(runtime)
+		}
+	}
+	return runtime
+}
+
+type noopTestConfigFactory struct{}
+
+func (noopTestConfigFactory) ForPlugin(string) plugincap.ConfigService {
+	return noopTestConfigService{}
+}
+
+func (f noopTestConfigFactory) WithArtifactConfig(string, []byte) plugincap.ConfigServiceFactory {
+	return f
+}
+
+type noopTestConfigService struct{}
+
+func (noopTestConfigService) Get(context.Context, string) (*gvar.Var, error) { return nil, nil }
+func (noopTestConfigService) Exists(context.Context, string) (bool, error)   { return false, nil }
+func (noopTestConfigService) Scan(context.Context, string, any) error        { return nil }
+func (noopTestConfigService) String(context.Context, string, string) (string, error) {
+	return "", nil
+}
+func (noopTestConfigService) Bool(context.Context, string, bool) (bool, error) { return false, nil }
+func (noopTestConfigService) Int(context.Context, string, int) (int, error)    { return 0, nil }
+func (noopTestConfigService) Duration(context.Context, string, time.Duration) (time.Duration, error) {
+	return 0, nil
+}
+
+type noopTestHostConfigService struct{}
+
+func (noopTestHostConfigService) Get(context.Context, string) (*gvar.Var, error) { return nil, nil }
+func (noopTestHostConfigService) Exists(context.Context, string) (bool, error)   { return false, nil }
+func (noopTestHostConfigService) String(context.Context, string, string) (string, error) {
+	return "", nil
+}
+func (noopTestHostConfigService) Bool(context.Context, string, bool) (bool, error) {
+	return false, nil
+}
+func (noopTestHostConfigService) Int(context.Context, string, int) (int, error) { return 0, nil }
+func (noopTestHostConfigService) Duration(context.Context, string, time.Duration) (time.Duration, error) {
+	return 0, nil
+}
+
+type noopTestManifestFactory struct{}
+
+func (noopTestManifestFactory) ForPlugin(string) manifestcap.Service {
+	return noopTestManifestService{}
+}
+
+func (f noopTestManifestFactory) WithArtifactResources(string, map[string][]byte) manifestcap.ServiceFactory {
+	return f
+}
+
+type noopTestManifestService struct{}
+
+func (noopTestManifestService) Get(context.Context, string) ([]byte, error) { return nil, nil }
+func (noopTestManifestService) Exists(context.Context, string) (bool, error) {
+	return false, nil
+}
+func (noopTestManifestService) Scan(context.Context, string, string, any) error { return nil }

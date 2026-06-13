@@ -10,8 +10,8 @@ import (
 
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/cachecoord/revisionctrl"
 	"lina-core/internal/service/config"
-	"lina-core/internal/service/plugin/runtimecache"
 )
 
 const (
@@ -179,7 +179,7 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	bizCtxSvc               bizctx.Service
 	configSvc               config.Service
-	runtimeCacheRevisionCtl *runtimecache.Controller
+	runtimeCacheRevisionCtl *revisionctrl.Controller
 }
 
 // New creates an i18n service from explicit runtime-owned dependencies.
@@ -188,7 +188,7 @@ func New(bizCtxSvc bizctx.Service, configSvc config.Service, cacheCoordSvc cache
 		bizCtxSvc: bizCtxSvc,
 		configSvc: configSvc,
 	}
-	service.runtimeCacheRevisionCtl = runtimecache.NewControllerWithCoordinator(
+	service.runtimeCacheRevisionCtl = revisionctrl.NewControllerWithCoordinator(
 		configSvc.IsClusterEnabled(context.Background()),
 		cacheCoordSvc,
 		runtimeI18nCacheObservedRevision,
@@ -207,7 +207,7 @@ func New(bizCtxSvc bizctx.Service, configSvc config.Service, cacheCoordSvc cache
 
 // runtimeI18nCacheObservedRevision records the shared revision consumed by the
 // runtime i18n cache domain inside this process.
-var runtimeI18nCacheObservedRevision = runtimecache.NewObservedRevision()
+var runtimeI18nCacheObservedRevision = revisionctrl.NewObservedRevision()
 
 // normalizeAcceptLanguage converts an Accept-Language header into the first valid locale tag.
 func normalizeAcceptLanguage(header string) string {

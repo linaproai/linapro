@@ -19,7 +19,10 @@ import (
 // InvalidateCache removes the cached compiled module for the given artifact path.
 // This must be called when a plugin's active release changes (upgrade, rollback,
 // uninstall) so subsequent requests recompile from the new artifact.
-func InvalidateCache(ctx context.Context, artifactPath string) {
+func (r *runtimeImpl) InvalidateCache(ctx context.Context, artifactPath string) {
+	if r == nil {
+		return
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -29,28 +32,31 @@ func InvalidateCache(ctx context.Context, artifactPath string) {
 	}
 
 	var entry *wasmCacheEntry
-	wasmModuleCacheMu.Lock()
-	if cached, ok := wasmModuleCache[artifactPath]; ok {
+	r.cacheMu.Lock()
+	if cached, ok := r.cache[artifactPath]; ok {
 		entry = cached
-		delete(wasmModuleCache, artifactPath)
+		delete(r.cache, artifactPath)
 	}
-	wasmModuleCacheMu.Unlock()
+	r.cacheMu.Unlock()
 	closeInvalidatedWasmCacheEntry(ctx, artifactPath, entry)
 }
 
 // InvalidateAllCache removes all cached compiled modules. This is useful during
 // full reconciliation passes or shutdown.
-func InvalidateAllCache(ctx context.Context) {
+func (r *runtimeImpl) InvalidateAllCache(ctx context.Context) {
+	if r == nil {
+		return
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	wasmModuleCacheMu.Lock()
-	entries := make(map[string]*wasmCacheEntry, len(wasmModuleCache))
-	for path, entry := range wasmModuleCache {
+	r.cacheMu.Lock()
+	entries := make(map[string]*wasmCacheEntry, len(r.cache))
+	for path, entry := range r.cache {
 		entries[path] = entry
-		delete(wasmModuleCache, path)
+		delete(r.cache, path)
 	}
-	wasmModuleCacheMu.Unlock()
+	r.cacheMu.Unlock()
 	for path, entry := range entries {
 		closeInvalidatedWasmCacheEntry(ctx, path, entry)
 	}
@@ -58,26 +64,29 @@ func InvalidateAllCache(ctx context.Context) {
 
 // getOrCompileWasmModule returns a lease for the cached compiled module or
 // compiles it from disk.
-func getOrCompileWasmModule(ctx context.Context, artifactPath string) (*wasmModuleLease, error) {
-	wasmModuleCacheMu.RLock()
-	if entry, ok := wasmModuleCache[artifactPath]; ok {
-		wasmModuleCacheMu.RUnlock()
+func (r *runtimeImpl) getOrCompileWasmModule(ctx context.Context, artifactPath string) (*wasmModuleLease, error) {
+	if r == nil {
+		return nil, gerror.New("wasm runtime is not configured")
+	}
+	r.cacheMu.RLock()
+	if entry, ok := r.cache[artifactPath]; ok {
+		r.cacheMu.RUnlock()
 		if lease := entry.acquireLease(); lease != nil {
 			return lease, nil
 		}
 	} else {
-		wasmModuleCacheMu.RUnlock()
+		r.cacheMu.RUnlock()
 	}
 
-	wasmModuleCacheMu.Lock()
-	defer wasmModuleCacheMu.Unlock()
+	r.cacheMu.Lock()
+	defer r.cacheMu.Unlock()
 
 	// Double-check after acquiring write lock.
-	if entry, ok := wasmModuleCache[artifactPath]; ok {
+	if entry, ok := r.cache[artifactPath]; ok {
 		if lease := entry.acquireLease(); lease != nil {
 			return lease, nil
 		}
-		delete(wasmModuleCache, artifactPath)
+		delete(r.cache, artifactPath)
 	}
 
 	rt := newWasmRuntime(ctx)
@@ -89,7 +98,7 @@ func getOrCompileWasmModule(ctx context.Context, artifactPath string) (*wasmModu
 	}
 
 	// Register host call module so guest imports are satisfied at compile time.
-	if err := registerHostCallModule(ctx, rt); err != nil {
+	if err := r.registerHostCallModule(ctx, rt); err != nil {
 		if closeErr := rt.Close(ctx); closeErr != nil {
 			logger.Warningf(ctx, "close wasm runtime after host-call registration failure failed err=%v", closeErr)
 		}
@@ -116,10 +125,10 @@ func getOrCompileWasmModule(ctx context.Context, artifactPath string) (*wasmModu
 		compiled: compiled,
 	}
 	entry.idle = sync.NewCond(&entry.mu)
-	wasmModuleCache[artifactPath] = entry
+	r.cache[artifactPath] = entry
 	lease := entry.acquireLease()
 	if lease == nil {
-		delete(wasmModuleCache, artifactPath)
+		delete(r.cache, artifactPath)
 		return nil, gerror.New("compiled dynamic plugin Wasm cache entry is not available")
 	}
 	return lease, nil

@@ -1,129 +1,16 @@
-// This file contains runtime service dependency wiring and nil-safe provider
-// adapters used by lifecycle and reconciliation flows.
+// This file contains nil-safe runtime provider adapters used by lifecycle and
+// reconciliation flows.
 
 package runtime
 
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/wasm"
-	"lina-core/internal/service/session"
-	"lina-core/pkg/plugin/capability"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/plugin/pluginhost"
 )
-
-// SetTopology wires the cluster topology provider.
-func (s *serviceImpl) SetTopology(t TopologyProvider) {
-	s.topology = t
-	s.configureReconcilerRevisionController()
-}
-
-// SetMenuManager wires the menu synchronization provider.
-func (s *serviceImpl) SetMenuManager(m MenuManager) {
-	s.menuMgr = m
-}
-
-// SetHookDispatcher wires the lifecycle hook dispatcher.
-func (s *serviceImpl) SetHookDispatcher(d HookDispatcher) {
-	s.hookDispatcher = d
-}
-
-// SetJwtConfigProvider wires the JWT configuration provider for route token validation.
-func (s *serviceImpl) SetJwtConfigProvider(p JwtConfigProvider) {
-	s.jwtConfig = p
-}
-
-// SetUploadSizeProvider wires the upload-size provider for dynamic package uploads.
-func (s *serviceImpl) SetUploadSizeProvider(p UploadSizeProvider) {
-	s.uploadSize = p
-}
-
-// SetUserContextSetter wires the user-context injection provider.
-func (s *serviceImpl) SetUserContextSetter(p UserContextSetter) {
-	s.userCtx = p
-}
-
-// SetSessionStore wires the online-session store used for dynamic route requests.
-func (s *serviceImpl) SetSessionStore(store session.Store) {
-	if store != nil {
-		s.sessionStore = store
-	}
-}
-
-// SetPermissionMenuFilter wires the plugin-level permission menu filter.
-func (s *serviceImpl) SetPermissionMenuFilter(f PermissionMenuFilter) {
-	s.menuFilter = f
-}
-
-// SetRuntimeCacheChangeNotifier wires cluster cache revision publication.
-func (s *serviceImpl) SetRuntimeCacheChangeNotifier(n CacheChangeNotifier) {
-	s.cacheChangeNotifier = n
-}
-
-// SetDependencyValidator wires release dependency validation.
-func (s *serviceImpl) SetDependencyValidator(v DependencyValidator) {
-	s.dependencyValidator = v
-}
-
-// SetStorageCleanupServices wires storage cleanup capabilities for dynamic
-// uninstall flows.
-func (s *serviceImpl) SetStorageCleanupServices(services capability.Services) {
-	s.storageCleanupServices = services
-}
-
-// ValidateRequiredDependencies verifies production runtime wiring after all
-// setters run. Unit tests may still construct partial runtime services for
-// isolated helpers, but host startup must call this before exposing dynamic
-// plugin routes, lifecycle reconciliation, or host service dispatch.
-func (s *serviceImpl) ValidateRequiredDependencies() error {
-	if s == nil {
-		return gerror.New("plugin runtime service is not initialized")
-	}
-	if s.catalogSvc == nil {
-		return gerror.New("plugin runtime requires a non-nil catalog service")
-	}
-	if s.lifecycleSvc == nil {
-		return gerror.New("plugin runtime requires a non-nil lifecycle service")
-	}
-	if s.reconcilerLockSvc == nil {
-		return gerror.New("plugin runtime requires a non-nil reconciler lock service")
-	}
-	if s.topology == nil {
-		return gerror.New("plugin runtime requires a non-nil topology provider")
-	}
-	if s.menuMgr == nil {
-		return gerror.New("plugin runtime requires a non-nil menu manager")
-	}
-	if s.hookDispatcher == nil {
-		return gerror.New("plugin runtime requires a non-nil hook dispatcher")
-	}
-	if s.jwtConfig == nil {
-		return gerror.New("plugin runtime requires a non-nil JWT config provider")
-	}
-	if s.uploadSize == nil {
-		return gerror.New("plugin runtime requires a non-nil upload size provider")
-	}
-	if s.userCtx == nil {
-		return gerror.New("plugin runtime requires a non-nil user context setter")
-	}
-	if s.sessionStore == nil {
-		return gerror.New("plugin runtime requires a non-nil session store")
-	}
-	if s.menuFilter == nil {
-		return gerror.New("plugin runtime requires a non-nil permission menu filter")
-	}
-	if s.cacheChangeNotifier == nil {
-		return gerror.New("plugin runtime requires a non-nil cache change notifier")
-	}
-	if s.dependencyValidator == nil {
-		return gerror.New("plugin runtime requires a non-nil dependency validator")
-	}
-	return nil
-}
 
 // isClusterModeEnabled is a nil-safe wrapper around the topology provider.
 func (s *serviceImpl) isClusterModeEnabled() bool {
@@ -169,6 +56,14 @@ func (s *serviceImpl) syncPluginMenusAndPermissions(ctx context.Context, manifes
 	return s.menuMgr.SyncPluginMenusAndPermissions(ctx, manifest)
 }
 
+// syncPluginResourceReferences is a nil-safe wrapper for governance resource references.
+func (s *serviceImpl) syncPluginResourceReferences(ctx context.Context, manifest *catalog.Manifest) error {
+	if s.resourceRefMgr == nil {
+		return nil
+	}
+	return s.resourceRefMgr.SyncPluginResourceReferences(ctx, manifest)
+}
+
 // syncPluginMenus is a nil-safe wrapper for partial menu synchronization (rollback path).
 func (s *serviceImpl) syncPluginMenus(ctx context.Context, manifest *catalog.Manifest) error {
 	if s.menuMgr == nil {
@@ -209,8 +104,8 @@ func (s *serviceImpl) invalidateRuntimeCaches(ctx context.Context, manifest *cat
 	var pluginID string
 	if manifest != nil {
 		pluginID = manifest.ID
-		if manifest.RuntimeArtifact != nil {
-			wasm.InvalidateCache(ctx, manifest.RuntimeArtifact.Path)
+		if manifest.RuntimeArtifact != nil && s.wasmRuntime != nil {
+			s.wasmRuntime.InvalidateCache(ctx, manifest.RuntimeArtifact.Path)
 		}
 	}
 	if s.frontendSvc != nil {
@@ -224,11 +119,19 @@ func (s *serviceImpl) invalidateRuntimeCaches(ctx context.Context, manifest *cat
 	}
 }
 
-// notifyRuntimeCacheChanged publishes a successful dynamic runtime mutation to
-// other cluster nodes through the root plugin facade.
-func (s *serviceImpl) notifyRuntimeCacheChanged(ctx context.Context, reason runtimeChangeReason) error {
+// notifyRuntimeCacheChanged publishes a successful dynamic runtime mutation for
+// one plugin to other cluster nodes through the root plugin facade.
+func (s *serviceImpl) notifyRuntimeCacheChanged(
+	ctx context.Context,
+	manifest *catalog.Manifest,
+	reason runtimeChangeReason,
+) error {
 	if s.cacheChangeNotifier == nil {
 		return nil
 	}
-	return s.cacheChangeNotifier.MarkRuntimeCacheChanged(ctx, string(reason))
+	pluginID := ""
+	if manifest != nil {
+		pluginID = manifest.ID
+	}
+	return s.cacheChangeNotifier.PublishPluginChange(ctx, pluginID, plugintypes.TypeDynamic.String(), string(reason))
 }

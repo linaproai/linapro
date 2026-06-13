@@ -1,0 +1,469 @@
+// This file provides registry-level helpers used by the reconciler and dynamic
+// state projections: listing runtime registries, checking artifact file existence,
+// and reconciling registry rows when artifacts are missing from storage.
+
+package runtime
+
+import (
+	"context"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/gogf/gf/v2/os/gfile"
+
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
+	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/internal/service/plugin/internal/store"
+	"lina-core/pkg/logger"
+	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
+)
+
+// PluginItem is a flattened, display-ready projection of one plugin entry combining
+// manifest fields with the live registry row for management API responses.
+type PluginItem struct {
+	// Id is the stable plugin identifier.
+	Id string
+	// Name is the human-readable display name.
+	Name string
+	// Version is the currently active version string.
+	Version string
+	// RuntimeState reports whether the effective and discovered plugin metadata are aligned.
+	RuntimeState RuntimeUpgradeState
+	// EffectiveVersion is the database-effective plugin version.
+	EffectiveVersion string
+	// DiscoveredVersion is the plugin version currently discovered from files.
+	DiscoveredVersion string
+	// UpgradeAvailable reports whether the plugin can be upgraded by runtime management.
+	UpgradeAvailable bool
+	// AbnormalReason stores a stable diagnostic reason when RuntimeState is abnormal.
+	AbnormalReason RuntimeUpgradeAbnormalReason
+	// LastUpgradeFailure stores the latest observable runtime-upgrade failure details.
+	LastUpgradeFailure *RuntimeUpgradeFailure
+	// Type is the normalized plugin type (source or dynamic).
+	Type string
+	// Description is the short plugin description.
+	Description string
+	// Installed reports whether the plugin has been installed.
+	Installed int
+	// InstalledAt is the first installation time as a Unix timestamp in milliseconds.
+	InstalledAt *int64
+	// Enabled reports whether the plugin is currently enabled.
+	Enabled int
+	// AutoEnableForNewTenants reports the platform-owned new-tenant provisioning policy.
+	AutoEnableForNewTenants bool
+	// SupportsMultiTenant reports whether the manifest supports tenant-level plugin governance.
+	SupportsMultiTenant bool
+	// ScopeNature is the plugin scope nature persisted in the host registry.
+	ScopeNature string
+	// InstallMode is the plugin install mode persisted in the host registry.
+	InstallMode string
+	// StatusKey is the host config key used by the public shell.
+	StatusKey string
+	// UpdatedAt is the last registry update time as a Unix timestamp in milliseconds.
+	UpdatedAt *int64
+	// AuthorizationRequired reports whether any resource-scoped host services need confirmation.
+	AuthorizationRequired bool
+	// AuthorizationStatus identifies whether host-service authorization is pending or already confirmed.
+	AuthorizationStatus AuthorizationStatus
+	// RequestedHostServices is the current requested host service snapshot.
+	RequestedHostServices []*bridgehostservice.HostServiceSpec
+	// AuthorizedHostServices is the host-confirmed host service snapshot.
+	AuthorizedHostServices []*bridgehostservice.HostServiceSpec
+	// DeclaredRoutes is the current release route-declaration snapshot used by
+	// install and enable review UIs for dynamic plugins.
+	DeclaredRoutes []*bridgecontract.RouteContract
+	// HasMockData reports whether the plugin ships any mock-data SQL files
+	// under manifest/sql/mock-data/. Used by the management UI to decide
+	// whether to render the optional Install mock data checkbox.
+	HasMockData bool
+}
+
+// listRuntimeRegistries returns all dynamic-type plugin registry rows.
+func (s *serviceImpl) listRuntimeRegistries(ctx context.Context) ([]*store.PluginRecord, error) {
+	registries, err := s.storeSvc.ListAllRegistries(ctx)
+	if err != nil {
+		return nil, err
+	}
+	list := make([]*store.PluginRecord, 0)
+	for _, registry := range registries {
+		if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+			continue
+		}
+		list = append(list, registry)
+	}
+	return list, nil
+}
+
+// pluginItemOptions controls whether the projection includes detail-only
+// governance payloads used by management dialogs.
+type pluginItemOptions struct {
+	includeGovernanceDetails bool
+}
+
+// buildPluginItem returns a PluginItem projection combining manifest and registry data.
+func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Manifest, registry *store.PluginRecord) *PluginItem {
+	return s.buildPluginItemWithOptions(ctx, manifest, registry, pluginItemOptions{
+		includeGovernanceDetails: true,
+	})
+}
+
+// buildPluginSummaryItem returns the lightweight list projection without
+// dependency, host-service detail, or declared-route payloads.
+func (s *serviceImpl) buildPluginSummaryItem(ctx context.Context, manifest *catalog.Manifest, registry *store.PluginRecord) *PluginItem {
+	return s.buildPluginItemWithOptions(ctx, manifest, registry, pluginItemOptions{})
+}
+
+// buildPluginItemWithOptions returns a PluginItem projection combining manifest
+// and registry data while keeping list and detail payload boundaries explicit.
+func (s *serviceImpl) buildPluginItemWithOptions(
+	ctx context.Context,
+	manifest *catalog.Manifest,
+	registry *store.PluginRecord,
+	options pluginItemOptions,
+) *PluginItem {
+	if manifest == nil && registry == nil {
+		return nil
+	}
+
+	var (
+		id                      string
+		name                    string
+		version                 string
+		pluginType              string
+		description             string
+		installed               int
+		enabled                 int
+		installedAt             *int64
+		updatedAt               *int64
+		scopeNature             string
+		installMode             string
+		autoEnableForNewTenants bool
+		supportsMultiTenant     bool
+		release                 *store.ReleaseRecord
+		snapshot                *store.ManifestSnapshot
+		err                     error
+	)
+
+	if manifest != nil {
+		id = manifest.ID
+		name = manifest.Name
+		version = manifest.Version
+		pluginType = manifest.Type
+		description = manifest.Description
+	}
+	if registry != nil {
+		if registry.PluginId != "" {
+			id = registry.PluginId
+		}
+		if registry.Name != "" {
+			name = registry.Name
+		}
+		if registry.Version != "" {
+			version = registry.Version
+		}
+		if registry.Type != "" {
+			pluginType = registry.Type
+		}
+		if registry.Remark != "" {
+			description = registry.Remark
+		}
+		installed = registry.Installed
+		enabled = registry.Status
+		scopeNature = registry.ScopeNature
+		installMode = registry.InstallMode
+		autoEnableForNewTenants = registry.AutoEnableForNewTenants
+		if registry.InstalledAt != nil {
+			millis := registry.InstalledAt.UnixMilli()
+			installedAt = &millis
+		}
+		if registry.UpdatedAt != nil {
+			millis := registry.UpdatedAt.UnixMilli()
+			updatedAt = &millis
+		}
+		if ctx != nil {
+			release, err = s.storeSvc.GetRegistryRelease(ctx, registry)
+			if err != nil {
+				logger.Warningf(ctx, "load registry release failed plugin=%s err=%v", registry.PluginId, err)
+			}
+		}
+	}
+	if release == nil && manifest != nil && ctx != nil {
+		release, err = s.storeSvc.GetRelease(ctx, manifest.ID, manifest.Version)
+		if err != nil {
+			logger.Warningf(ctx, "load plugin release failed plugin=%s version=%s err=%v", manifest.ID, manifest.Version, err)
+		}
+	}
+	if release != nil {
+		snapshot, err = s.storeSvc.ParseManifestSnapshot(release.ManifestSnapshot)
+		if err != nil {
+			logger.Warningf(ctx, "parse plugin release manifest snapshot failed plugin=%s releaseID=%d err=%v", id, release.Id, err)
+		}
+	}
+	if manifest != nil {
+		supportsMultiTenant = manifest.SupportsTenantGovernance()
+		if scopeNature == "" {
+			scopeNature = plugintypes.NormalizeScopeNature(manifest.ScopeNature).String()
+		}
+		if installMode == "" {
+			installMode = plugintypes.NormalizeInstallMode(manifest.DefaultInstallMode).String()
+		}
+	} else if snapshot != nil {
+		supportsMultiTenant = snapshot.SupportsMultiTenant
+	}
+
+	normalizeHostServices := func(source string, specs []*bridgehostservice.HostServiceSpec) []*bridgehostservice.HostServiceSpec {
+		normalized, normalizeErr := bridgehostservice.NormalizeHostServiceSpecsForPlugin(id, specs)
+		if normalizeErr != nil {
+			logger.Warningf(ctx, "normalize plugin host services failed plugin=%s source=%s err=%v", id, source, normalizeErr)
+			return []*bridgehostservice.HostServiceSpec{}
+		}
+		return normalized
+	}
+
+	var (
+		requestedHostServices  = []*bridgehostservice.HostServiceSpec{}
+		authorizedHostServices = []*bridgehostservice.HostServiceSpec{}
+		authorizationRequired  bool
+		authorizationStatus    = AuthorizationStatusNotRequired
+		declaredRoutes         []*bridgecontract.RouteContract
+	)
+
+	if snapshot != nil {
+		authorizationRequired = snapshot.HostServiceAuthRequired
+		authorizationStatus = buildAuthorizationStatus(snapshot.HostServiceAuthRequired, snapshot.HostServiceAuthConfirmed)
+		if options.includeGovernanceDetails {
+			requestedHostServices = normalizeHostServices("snapshot.requested", snapshot.RequestedHostServices)
+			authorizedHostServices = normalizeHostServices("snapshot.authorized", snapshot.AuthorizedHostServices)
+		}
+	} else if manifest != nil {
+		authorizationRequired = store.HasResourceScopedHostServices(manifest.HostServices)
+		if authorizationRequired {
+			authorizationStatus = AuthorizationStatusPending
+		} else {
+			authorizationStatus = AuthorizationStatusNotRequired
+		}
+		if options.includeGovernanceDetails {
+			requestedHostServices = normalizeHostServices("manifest.requested", manifest.HostServices)
+			if !authorizationRequired {
+				authorizedHostServices = normalizeHostServices("manifest.authorized", manifest.HostServices)
+			}
+		}
+	}
+	if manifest != nil && options.includeGovernanceDetails {
+		declaredRoutes = cloneRouteContracts(manifest.Routes)
+	} else if snapshot != nil && options.includeGovernanceDetails {
+		declaredRoutes = cloneRouteContracts(snapshot.Routes)
+	}
+	name, description = s.localizePluginMetadata(ctx, id, pluginType, name, description)
+
+	upgradeProjection := plugintypes.RuntimeUpgradeProjection{State: plugintypes.RuntimeUpgradeStateNormal}
+	if ctx != nil {
+		upgradeProjection, err = s.storeSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
+		if err != nil {
+			logger.Warningf(ctx, "build plugin runtime upgrade state failed plugin=%s err=%v", id, err)
+			upgradeProjection = plugintypes.RuntimeUpgradeProjection{State: plugintypes.RuntimeUpgradeStateNormal}
+		}
+	}
+
+	hasMockData := false
+	if manifest != nil {
+		hasMockData = s.catalogSvc.HasMockSQLData(manifest)
+	} else if snapshot != nil {
+		hasMockData = snapshot.MockSQLCount > 0
+	}
+
+	return &PluginItem{
+		Id:                      id,
+		Name:                    name,
+		Version:                 version,
+		RuntimeState:            upgradeProjection.State,
+		EffectiveVersion:        upgradeProjection.EffectiveVersion,
+		DiscoveredVersion:       upgradeProjection.DiscoveredVersion,
+		UpgradeAvailable:        upgradeProjection.UpgradeAvailable,
+		AbnormalReason:          upgradeProjection.AbnormalReason,
+		LastUpgradeFailure:      upgradeProjection.LastFailure,
+		Type:                    pluginType,
+		Description:             description,
+		Installed:               installed,
+		InstalledAt:             installedAt,
+		Enabled:                 enabled,
+		AutoEnableForNewTenants: autoEnableForNewTenants,
+		SupportsMultiTenant:     supportsMultiTenant,
+		ScopeNature:             scopeNature,
+		InstallMode:             installMode,
+		StatusKey:               s.storeSvc.BuildPluginStatusKey(id),
+		UpdatedAt:               updatedAt,
+		AuthorizationRequired:   authorizationRequired,
+		AuthorizationStatus:     authorizationStatus,
+		RequestedHostServices:   requestedHostServices,
+		AuthorizedHostServices:  authorizedHostServices,
+		DeclaredRoutes:          declaredRoutes,
+		HasMockData:             hasMockData,
+	}
+}
+
+// hasArtifactStorageFile reports whether the runtime artifact for pluginID exists
+// in the configured storage directory.
+func (s *serviceImpl) hasArtifactStorageFile(ctx context.Context, pluginID string) (bool, string, error) {
+	storageDir, err := s.catalogSvc.RuntimeStorageDir(ctx)
+	if err != nil {
+		return false, "", err
+	}
+
+	targetPath := filepath.Join(storageDir, buildArtifactFileName(pluginID))
+	if gfile.Exists(targetPath) {
+		return true, targetPath, nil
+	}
+
+	conflictPath, err := s.findDuplicateArtifactPath(storageDir, pluginID, targetPath)
+	if err != nil {
+		return false, "", err
+	}
+	if conflictPath != "" {
+		return true, conflictPath, nil
+	}
+	return false, targetPath, nil
+}
+
+// HasArtifactStorageFile is the exported form of hasArtifactStorageFile for cross-package access.
+func (s *serviceImpl) HasArtifactStorageFile(ctx context.Context, pluginID string) (bool, string, error) {
+	return s.hasArtifactStorageFile(ctx, pluginID)
+}
+
+// reconcileRegistryArtifactState resets a dynamic plugin registry row to
+// uninstalled only when neither the mutable staging artifact nor the active
+// release artifact can be loaded.
+func (s *serviceImpl) reconcileRegistryArtifactState(ctx context.Context, registry *store.PluginRecord) (*store.PluginRecord, error) {
+	if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+		return registry, nil
+	}
+	if strings.TrimSpace(registry.PluginId) == "" {
+		return registry, nil
+	}
+
+	exists, _, err := s.hasArtifactStorageFile(ctx, registry.PluginId)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return registry, nil
+	}
+	if registry.Installed != plugintypes.InstalledYes && registry.Status != plugintypes.StatusEnabled {
+		return registry, nil
+	}
+	if manifest, loadErr := s.loadActiveManifest(ctx, registry); loadErr == nil && manifest != nil {
+		return registry, nil
+	}
+
+	data := do.SysPlugin{
+		Installed:    plugintypes.InstalledNo,
+		Status:       plugintypes.StatusDisabled,
+		DesiredState: plugintypes.HostStateUninstalled.String(),
+		CurrentState: plugintypes.HostStateUninstalled.String(),
+		ReleaseId:    0,
+		Generation:   store.NextGeneration(registry),
+		DisabledAt:   timePtr(time.Now()),
+	}
+	if _, err = dao.SysPlugin.Ctx(ctx).
+		Where(do.SysPlugin{PluginId: registry.PluginId}).
+		Data(data).
+		Update(); err != nil {
+		return nil, err
+	}
+
+	s.invalidateRuntimeCaches(ctx, &catalog.Manifest{ID: registry.PluginId}, runtimeChangeReasonRuntimeArtifactMissing)
+	if err = s.notifyRuntimeCacheChanged(ctx, &catalog.Manifest{ID: registry.PluginId}, runtimeChangeReasonRuntimeArtifactMissing); err != nil {
+		return nil, err
+	}
+	if err = s.notifyReconcilerChanged(ctx, runtimeChangeReasonRuntimeArtifactMissing); err != nil {
+		return nil, err
+	}
+
+	updated, err := s.storeSvc.RefreshStartupRegistry(ctx, registry.PluginId)
+	if err != nil {
+		return nil, err
+	}
+	if updated == nil {
+		return nil, nil
+	}
+	if err = s.SyncPluginReleaseRuntimeState(ctx, updated); err != nil {
+		return nil, err
+	}
+	if err = s.SyncPluginNodeState(
+		ctx,
+		updated.PluginId,
+		updated.Version,
+		updated.Installed,
+		updated.Status,
+		"Runtime plugin artifact missing from storage path; host registry reconciled to uninstalled.",
+	); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+// timePtr returns a pointer to value for generated DO time fields that preserve
+// database NULL semantics with *time.Time.
+func timePtr(value time.Time) *time.Time {
+	return &value
+}
+
+// projectRegistryArtifactState returns a read-only projection of a dynamic
+// registry row when its runtime artifact is missing from storage.
+func (s *serviceImpl) projectRegistryArtifactState(ctx context.Context, registry *store.PluginRecord) *store.PluginRecord {
+	if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+		return registry
+	}
+	if strings.TrimSpace(registry.PluginId) == "" {
+		return registry
+	}
+
+	exists, _, err := s.hasArtifactStorageFile(ctx, registry.PluginId)
+	if err != nil || exists {
+		return registry
+	}
+	if registry.Installed != plugintypes.InstalledYes && registry.Status != plugintypes.StatusEnabled {
+		return registry
+	}
+	if manifest, loadErr := s.loadActiveManifest(ctx, registry); loadErr == nil && manifest != nil {
+		return registry
+	}
+
+	projected := *registry
+	projected.Installed = plugintypes.InstalledNo
+	projected.Status = plugintypes.StatusDisabled
+	projected.DesiredState = plugintypes.HostStateUninstalled.String()
+	projected.CurrentState = plugintypes.HostStateUninstalled.String()
+	projected.ReleaseId = 0
+	return &projected
+}
+
+// SortPluginItems sorts a PluginItem slice by plugin ID ascending.
+func SortPluginItems(items []*PluginItem) {
+	sort.Slice(items, func(i int, j int) bool {
+		if items[i] == nil {
+			return false
+		}
+		if items[j] == nil {
+			return true
+		}
+		return items[i].Id < items[j].Id
+	})
+}
+
+// buildAuthorizationStatus maps manifest snapshot flags into one list-facing
+// authorization review state.
+func buildAuthorizationStatus(required bool, confirmed bool) AuthorizationStatus {
+	if !required {
+		return AuthorizationStatusNotRequired
+	}
+	if confirmed {
+		return AuthorizationStatusConfirmed
+	}
+	return AuthorizationStatusPending
+}

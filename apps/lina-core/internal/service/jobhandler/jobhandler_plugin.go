@@ -27,6 +27,13 @@ type PluginLifecycleBridge interface {
 	ListExecutableJobsByPlugin(ctx context.Context, pluginID string) ([]pluginsvc.ManagedJob, error)
 }
 
+// PluginLifecycleObserverRegistrar subscribes job handlers to plugin lifecycle
+// events through the startup-owned plugin service instance.
+type PluginLifecycleObserverRegistrar interface {
+	// RegisterLifecycleObserver subscribes one synchronous plugin lifecycle observer.
+	RegisterLifecycleObserver(observer pluginsvc.LifecycleObserver) func()
+}
+
 // pluginLifecycleObserver maps plugin lifecycle callbacks to registry mutations.
 type pluginLifecycleObserver struct {
 	registry Registry              // registry stores published handler definitions.
@@ -42,17 +49,21 @@ var _ pluginsvc.LifecycleObserver = (*pluginLifecycleObserver)(nil)
 func AttachPluginLifecycle(
 	ctx context.Context,
 	registry Registry,
+	observerRegistrar PluginLifecycleObserverRegistrar,
 	bridge PluginLifecycleBridge,
 ) (func(), error) {
 	if registry == nil {
 		return nil, bizerr.NewCode(CodeJobHandlerRegistryRequired)
+	}
+	if observerRegistrar == nil {
+		return nil, bizerr.NewCode(CodeJobHandlerLifecycleBridgeRequired)
 	}
 	if bridge == nil {
 		return nil, bizerr.NewCode(CodeJobHandlerLifecycleBridgeRequired)
 	}
 
 	observer := &pluginLifecycleObserver{registry: registry, bridge: bridge}
-	unsubscribe := pluginsvc.RegisterLifecycleObserver(observer)
+	unsubscribe := observerRegistrar.RegisterLifecycleObserver(observer)
 	if err := observer.syncEnabledPlugins(ctx, bridge); err != nil {
 		unsubscribe()
 		return nil, err

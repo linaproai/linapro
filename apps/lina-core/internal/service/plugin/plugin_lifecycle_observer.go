@@ -7,61 +7,96 @@ import (
 	"context"
 	"sort"
 	"sync"
+
+	"lina-core/internal/service/plugin/internal/lifecycle"
 )
 
-// LifecycleObserver receives synchronous plugin lifecycle callbacks from the
-// host plugin service.
-type LifecycleObserver interface {
-	// OnPluginInstalled handles one successful plugin install transition.
-	OnPluginInstalled(ctx context.Context, pluginID string) error
-	// OnPluginEnabled handles one successful plugin enable transition.
-	OnPluginEnabled(ctx context.Context, pluginID string) error
-	// OnPluginDisabled handles one successful plugin disable transition.
-	OnPluginDisabled(ctx context.Context, pluginID string) error
-	// OnPluginUninstalled handles one successful plugin uninstall transition.
-	OnPluginUninstalled(ctx context.Context, pluginID string) error
+// LifecycleObserver receives synchronous plugin lifecycle callbacks from the host plugin service.
+type LifecycleObserver = lifecycle.LifecycleObserver
+
+// LifecycleObserverRegistrar subscribes synchronous lifecycle observers to one
+// plugin service instance.
+type LifecycleObserverRegistrar interface {
+	// RegisterLifecycleObserver subscribes one synchronous lifecycle observer and
+	// returns its unsubscribe function.
+	RegisterLifecycleObserver(observer LifecycleObserver) func()
 }
 
-var (
-	lifecycleObserverMu   sync.RWMutex
-	lifecycleObserverID   int
-	lifecycleObserverByID = make(map[int]LifecycleObserver)
-)
+// lifecycleObserverRegistry stores lifecycle observers for one plugin service
+// instance.
+type lifecycleObserverRegistry struct {
+	mu           sync.RWMutex
+	nextID       int
+	observerByID map[int]LifecycleObserver
+}
+
+// newLifecycleObserverRegistry creates an empty lifecycle observer registry.
+func newLifecycleObserverRegistry() *lifecycleObserverRegistry {
+	return &lifecycleObserverRegistry{
+		observerByID: make(map[int]LifecycleObserver),
+	}
+}
 
 // RegisterLifecycleObserver subscribes one synchronous lifecycle observer and
 // returns its unsubscribe function.
-func RegisterLifecycleObserver(observer LifecycleObserver) func() {
+func (s *serviceImpl) RegisterLifecycleObserver(observer LifecycleObserver) func() {
+	if s == nil {
+		return func() {}
+	}
+	lifecycleUnsubscribe := func() {}
+	if s.lifecycleSvc != nil {
+		lifecycleUnsubscribe = s.lifecycleSvc.RegisterLifecycleObserver(observer)
+	}
+	if s.lifecycleObservers == nil {
+		s.lifecycleObservers = newLifecycleObserverRegistry()
+	}
+	rootUnsubscribe := s.lifecycleObservers.register(observer)
+	return func() {
+		lifecycleUnsubscribe()
+		rootUnsubscribe()
+	}
+}
+
+// register subscribes one synchronous lifecycle observer and returns its
+// unsubscribe function.
+func (r *lifecycleObserverRegistry) register(observer LifecycleObserver) func() {
 	if observer == nil {
 		return func() {}
 	}
+	if r == nil {
+		return func() {}
+	}
 
-	lifecycleObserverMu.Lock()
-	lifecycleObserverID++
-	currentID := lifecycleObserverID
-	lifecycleObserverByID[currentID] = observer
-	lifecycleObserverMu.Unlock()
+	r.mu.Lock()
+	r.nextID++
+	currentID := r.nextID
+	r.observerByID[currentID] = observer
+	r.mu.Unlock()
 
 	return func() {
-		lifecycleObserverMu.Lock()
-		delete(lifecycleObserverByID, currentID)
-		lifecycleObserverMu.Unlock()
+		r.mu.Lock()
+		delete(r.observerByID, currentID)
+		r.mu.Unlock()
 	}
 }
 
 // snapshotLifecycleObservers clones all registered observers for one callback dispatch.
-func snapshotLifecycleObservers() []LifecycleObserver {
-	lifecycleObserverMu.RLock()
-	defer lifecycleObserverMu.RUnlock()
+func (r *lifecycleObserverRegistry) snapshot() []LifecycleObserver {
+	if r == nil {
+		return nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
-	ids := make([]int, 0, len(lifecycleObserverByID))
-	for id := range lifecycleObserverByID {
+	ids := make([]int, 0, len(r.observerByID))
+	for id := range r.observerByID {
 		ids = append(ids, id)
 	}
 	sort.Ints(ids)
 
 	observers := make([]LifecycleObserver, 0, len(ids))
 	for _, id := range ids {
-		observer := lifecycleObserverByID[id]
+		observer := r.observerByID[id]
 		if observer == nil {
 			continue
 		}
@@ -71,8 +106,11 @@ func snapshotLifecycleObservers() []LifecycleObserver {
 }
 
 // notifyPluginInstalled dispatches one successful install transition to all observers.
-func notifyPluginInstalled(ctx context.Context, pluginID string) error {
-	for _, observer := range snapshotLifecycleObservers() {
+func (s *serviceImpl) notifyPluginInstalled(ctx context.Context, pluginID string) error {
+	if s == nil || s.lifecycleObservers == nil {
+		return nil
+	}
+	for _, observer := range s.lifecycleObservers.snapshot() {
 		if err := observer.OnPluginInstalled(ctx, pluginID); err != nil {
 			return err
 		}
@@ -81,8 +119,11 @@ func notifyPluginInstalled(ctx context.Context, pluginID string) error {
 }
 
 // notifyPluginEnabled dispatches one successful enable transition to all observers.
-func notifyPluginEnabled(ctx context.Context, pluginID string) error {
-	for _, observer := range snapshotLifecycleObservers() {
+func (s *serviceImpl) notifyPluginEnabled(ctx context.Context, pluginID string) error {
+	if s == nil || s.lifecycleObservers == nil {
+		return nil
+	}
+	for _, observer := range s.lifecycleObservers.snapshot() {
 		if err := observer.OnPluginEnabled(ctx, pluginID); err != nil {
 			return err
 		}
@@ -91,8 +132,11 @@ func notifyPluginEnabled(ctx context.Context, pluginID string) error {
 }
 
 // notifyPluginDisabled dispatches one successful disable transition to all observers.
-func notifyPluginDisabled(ctx context.Context, pluginID string) error {
-	for _, observer := range snapshotLifecycleObservers() {
+func (s *serviceImpl) notifyPluginDisabled(ctx context.Context, pluginID string) error {
+	if s == nil || s.lifecycleObservers == nil {
+		return nil
+	}
+	for _, observer := range s.lifecycleObservers.snapshot() {
 		if err := observer.OnPluginDisabled(ctx, pluginID); err != nil {
 			return err
 		}
@@ -101,8 +145,11 @@ func notifyPluginDisabled(ctx context.Context, pluginID string) error {
 }
 
 // notifyPluginUninstalled dispatches one successful uninstall transition to all observers.
-func notifyPluginUninstalled(ctx context.Context, pluginID string) error {
-	for _, observer := range snapshotLifecycleObservers() {
+func (s *serviceImpl) notifyPluginUninstalled(ctx context.Context, pluginID string) error {
+	if s == nil || s.lifecycleObservers == nil {
+		return nil
+	}
+	for _, observer := range s.lifecycleObservers.snapshot() {
 		if err := observer.OnPluginUninstalled(ctx, pluginID); err != nil {
 			return err
 		}

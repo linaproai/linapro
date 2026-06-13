@@ -39,25 +39,26 @@ func (r *lifecycleObserverRecorder) OnPluginUninstalled(ctx context.Context, plu
 // TestRegisterLifecycleObserverDispatchesCallbacks verifies lifecycle events
 // are delivered synchronously and unsubscribe stops future deliveries.
 func TestRegisterLifecycleObserverDispatchesCallbacks(t *testing.T) {
+	service := newTestService()
 	observer := &lifecycleObserverRecorder{}
-	unsubscribe := RegisterLifecycleObserver(observer)
+	unsubscribe := service.RegisterLifecycleObserver(observer)
 
-	if err := notifyPluginInstalled(context.Background(), "plugin-demo"); err != nil {
+	if err := service.notifyPluginInstalled(context.Background(), "plugin-demo"); err != nil {
 		t.Fatalf("expected install notification to succeed, got error: %v", err)
 	}
-	if err := notifyPluginEnabled(context.Background(), "plugin-demo"); err != nil {
+	if err := service.notifyPluginEnabled(context.Background(), "plugin-demo"); err != nil {
 		t.Fatalf("expected enabled notification to succeed, got error: %v", err)
 	}
-	if err := notifyPluginDisabled(context.Background(), "plugin-demo"); err != nil {
+	if err := service.notifyPluginDisabled(context.Background(), "plugin-demo"); err != nil {
 		t.Fatalf("expected disabled notification to succeed, got error: %v", err)
 	}
-	if err := notifyPluginUninstalled(context.Background(), "plugin-demo"); err != nil {
+	if err := service.notifyPluginUninstalled(context.Background(), "plugin-demo"); err != nil {
 		t.Fatalf("expected uninstall notification to succeed, got error: %v", err)
 	}
 
 	unsubscribe()
 
-	if err := notifyPluginEnabled(context.Background(), "plugin-after-unsubscribe"); err != nil {
+	if err := service.notifyPluginEnabled(context.Background(), "plugin-after-unsubscribe"); err != nil {
 		t.Fatalf("expected post-unsubscribe notification to succeed, got error: %v", err)
 	}
 
@@ -80,6 +81,7 @@ func TestRegisterLifecycleObserverDispatchesCallbacks(t *testing.T) {
 // TestLifecycleObserverDispatchPreservesRegistrationOrder verifies later
 // observers receive callbacks after earlier registrations.
 func TestLifecycleObserverDispatchPreservesRegistrationOrder(t *testing.T) {
+	service := newTestService()
 	events := make([]string, 0, 2)
 
 	first := &orderedLifecycleObserverRecorder{
@@ -90,12 +92,12 @@ func TestLifecycleObserverDispatchPreservesRegistrationOrder(t *testing.T) {
 		name:   "second",
 		events: &events,
 	}
-	unsubscribeFirst := RegisterLifecycleObserver(first)
+	unsubscribeFirst := service.RegisterLifecycleObserver(first)
 	defer unsubscribeFirst()
-	unsubscribeSecond := RegisterLifecycleObserver(second)
+	unsubscribeSecond := service.RegisterLifecycleObserver(second)
 	defer unsubscribeSecond()
 
-	if err := notifyPluginEnabled(context.Background(), "plugin-ordered"); err != nil {
+	if err := service.notifyPluginEnabled(context.Background(), "plugin-ordered"); err != nil {
 		t.Fatalf("expected ordered notification to succeed, got error: %v", err)
 	}
 

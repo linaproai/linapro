@@ -1,10 +1,5 @@
 # 接口契约规则
 
-## 适用范围
-
-本规则约束 HTTP API、RESTful 语义、路由、请求响应 DTO、OpenAPI/Swagger 元数据、接口权限标签、接口响应时间字段、接口性能契约和接口层文件组织。
-
-
 ## RESTful 设计要求
 
 所有前后端 API 必须严格遵循 RESTful 设计规范，HTTP 方法与操作语义必须一一对应。

@@ -15,11 +15,14 @@ import (
 
 // ExecuteBridge executes one bridge request against the archived active wasm
 // artifact using the alloc/write/execute/read ABI sequence.
-func ExecuteBridge(
+func (r *runtimeImpl) ExecuteBridge(
 	ctx context.Context,
 	input ExecutionInput,
 	requestContent []byte,
 ) (response *bridgecontract.BridgeResponseEnvelopeV1, err error) {
+	if r == nil || r.hostServices == nil {
+		return nil, gerror.New("wasm runtime is not configured")
+	}
 	ctx, cancel := bridgeExecutionContext(ctx)
 	if cancel != nil {
 		defer cancel()
@@ -29,7 +32,7 @@ func ExecuteBridge(
 		return nil, gerror.New("dynamic plugin is missing Wasm bridge metadata")
 	}
 
-	lease, err := getOrCompileWasmModule(ctx, input.ArtifactPath)
+	lease, err := r.getOrCompileWasmModule(ctx, input.ArtifactPath)
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +54,7 @@ func ExecuteBridge(
 	// Inject host call context so that host function callbacks can access
 	// plugin identity and capabilities.
 	ctx = withHostCallContext(ctx, &hostCallContext{
+		runtime:                   r.hostServices,
 		pluginID:                  input.PluginID,
 		capabilities:              input.Capabilities,
 		hostServices:              input.HostServices,

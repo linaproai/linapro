@@ -32,6 +32,7 @@ import (
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/dict"
 	filesvc "lina-core/internal/service/file"
+	"lina-core/internal/service/hostlock"
 	i18nsvc "lina-core/internal/service/i18n"
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
@@ -47,7 +48,11 @@ import (
 	sysinfosvc "lina-core/internal/service/sysinfo"
 	"lina-core/internal/service/user"
 	"lina-core/internal/service/usermsg"
+	"lina-core/pkg/plugin/capability/aicap/aitext"
+	pluginservicehostconfig "lina-core/pkg/plugin/capability/hostconfigcap"
+	pluginservicemanifest "lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	pluginserviceconfig "lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
@@ -985,24 +990,19 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 	sessionStore := session.NewDBStore()
 	cacheCoordSvc := cachecoord.Default(clusterSvc)
 	i18nService := i18nsvc.New(bizCtxSvc, configSvc, cacheCoordSvc)
-	pluginSvc, err := pluginsvc.New(clusterSvc, configSvc, bizCtxSvc, cacheCoordSvc, i18nService, sessionStore, locker.New(), nil)
-	if err != nil {
-		panic(err)
-	}
-	orgCapSvc := orgspi.New(orgspi.NewManager(), pluginSvc)
+	lockerSvc := locker.New()
+	pluginRuntime := pluginsvc.NewRuntimeDelegate()
+	orgCapSvc := orgspi.New(orgspi.NewManager(), pluginRuntime)
 	orgProjection := orgCapSvc
-	tenantSvc := tenantspi.New(tenantspi.NewManager(), pluginSvc, bizCtxSvc)
-	pluginSvc.SetTenantStartupCapability(tenantSvc)
-	pluginSvc.SetTenantProvisioningCapability(tenantSvc)
-	pluginSvc.SetTenantPlatformGovernanceCapability(tenantSvc)
-	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nService, orgCapSvc, tenantSvc)
+	tenantSvc := tenantspi.New(tenantspi.NewManager(), pluginRuntime, bizCtxSvc)
+	roleSvc := role.New(pluginRuntime, bizCtxSvc, configSvc, i18nService, orgCapSvc, tenantSvc)
 	kvCacheSvc := kvcache.New()
 	dictSvc := dict.New(i18nService)
 	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
 	roleSvc.SetDataScopeService(scopeSvc)
-	menuSvc := menu.New(pluginSvc, i18nService, roleSvc, tenantSvc)
+	menuSvc := menu.New(pluginRuntime, i18nService, roleSvc, tenantSvc)
 	notifySvc := notify.New(tenantSvc)
-	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
+	authSvc := auth.New(configSvc, pluginRuntime, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
 	fileSvc := filesvc.New(configSvc, filesvc.NewLocalStorage(configSvc.GetUploadPath(ctx)), bizCtxSvc, dictSvc, scopeSvc)
 	sysConfigSvc := sysconfig.New(configSvc, i18nService)
 	sysInfoSvc, err := sysinfosvc.New(configSvc, clusterSvc, nil, cacheCoordSvc)
@@ -1012,6 +1012,60 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 	userSvc := user.New(authSvc, bizCtxSvc, i18nService, orgCapSvc, orgCapSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc, tenantSvc, tenantSvc)
 	userMsgSvc := usermsg.New(bizCtxSvc, notifySvc, i18nService)
 	jobRegistry := jobhandlersvc.New()
+	hostConfigReader, ok := configSvc.(pluginservicehostconfig.RawConfigReader)
+	if !ok {
+		panic("test config service does not support raw host config reads")
+	}
+	hostConfigSvc := pluginservicehostconfig.New(hostConfigReader)
+	hostLockSvc, err := hostlock.New(lockerSvc)
+	if err != nil {
+		panic(err)
+	}
+	capabilities, err := pluginsvc.NewHostServices(
+		apidoc.New(configSvc, bizCtxSvc, i18nService, pluginRuntime),
+		authSvc,
+		authSvc.(auth.TenantTokenIssuer),
+		bizCtxSvc,
+		hostConfigSvc,
+		scopeSvc,
+		i18nService,
+		pluginRuntime,
+		pluginRuntime,
+		sessionStore,
+		aitext.New(nil, pluginRuntime),
+		orgCapSvc,
+		tenantSvc,
+		notifySvc,
+		kvCacheSvc,
+		hostLockSvc,
+		pluginsvc.NewStorageProviderRuntime(configSvc, pluginRuntime),
+		pluginsvc.NewLocalStorageProvider(configSvc.GetPluginDynamicStoragePath(ctx), false, false),
+	)
+	if err != nil {
+		panic(err)
+	}
+	pluginSvc, err := pluginsvc.New(
+		clusterSvc,
+		configSvc,
+		bizCtxSvc,
+		cacheCoordSvc,
+		i18nService,
+		sessionStore,
+		lockerSvc,
+		nil,
+		capabilities,
+		orgCapSvc,
+		tenantSvc,
+		tenantSvc,
+		tenantSvc,
+		pluginserviceconfig.NewConfigFactory("", ""),
+		hostConfigSvc,
+		pluginservicemanifest.NewFactory(""),
+	)
+	if err != nil {
+		panic(err)
+	}
+	pluginRuntime.BindService(pluginSvc)
 	return &httpRuntime{
 		configSvc:       configSvc,
 		clusterSvc:      clusterSvc,
@@ -1036,7 +1090,7 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 		userMsgSvc:      userMsgSvc,
 		jobRegistry:     jobRegistry,
 		jobMgmtSvc:      jobmgmtsvc.New(bizCtxSvc, configSvc, i18nService, jobRegistry, nil, scopeSvc),
-		middlewareSvc:   middleware.New(authSvc, bizCtxSvc, configSvc, i18nService, pluginSvc, roleSvc, tenantSvc),
+		middlewareSvc:   middleware.New(authSvc, bizCtxSvc, configSvc, i18nService, roleSvc, tenantSvc),
 	}
 }
 

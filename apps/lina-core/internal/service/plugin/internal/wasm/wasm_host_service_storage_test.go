@@ -373,10 +373,11 @@ func TestHandleHostServiceInvokeStorageConcurrentDispatchIsRaceSafe(t *testing.T
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
-				response := dispatchStorageHostServiceRequest(
-					hcc,
-					protocol.HostServiceMethodStorageGet,
+				for j := 0; j < iterations; j++ {
+					response := dispatchStorageHostServiceRequest(
+						t,
+						hcc,
+						protocol.HostServiceMethodStorageGet,
 					"reports/demo.json",
 					protocol.MarshalHostServiceStorageGetRequest(&protocol.HostServiceStorageGetRequest{Path: "reports/demo.json"}),
 				)
@@ -453,16 +454,18 @@ func invokeStorageHostService(
 	payload []byte,
 ) *protocol.HostCallResponseEnvelope {
 	t.Helper()
-	return dispatchStorageHostServiceRequest(hcc, method, targetPath, payload)
+	return dispatchStorageHostServiceRequest(t, hcc, method, targetPath, payload)
 }
 
 // dispatchStorageHostServiceRequest dispatches one storage host-service request.
 func dispatchStorageHostServiceRequest(
+	t *testing.T,
 	hcc *hostCallContext,
 	method string,
 	targetPath string,
 	payload []byte,
 ) *protocol.HostCallResponseEnvelope {
+	t.Helper()
 	request := &protocol.HostServiceRequestEnvelope{
 		Service:     protocol.HostServiceStorage,
 		Method:      method,
@@ -471,7 +474,7 @@ func dispatchStorageHostServiceRequest(
 	}
 	return handleHostServiceInvoke(
 		context.Background(),
-		hcc,
+		withTestHostCallRuntime(t, hcc),
 		protocol.MarshalHostServiceRequestEnvelope(request),
 	)
 }

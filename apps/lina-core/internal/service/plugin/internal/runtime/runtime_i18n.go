@@ -5,9 +5,8 @@ package runtime
 
 import (
 	"context"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"strings"
-
-	"lina-core/internal/service/plugin/internal/catalog"
 )
 
 // localizePluginMetadata returns localized plugin name and description values.
@@ -27,7 +26,7 @@ func (s *serviceImpl) localizePluginMetadata(
 	}
 	nameKey := "plugin." + trimmedID + ".name"
 	descriptionKey := "plugin." + trimmedID + ".description"
-	if catalog.NormalizeType(pluginType) == catalog.TypeDynamic {
+	if plugintypes.NormalizeType(pluginType) == plugintypes.TypeDynamic {
 		localizedName := s.i18nSvc.TranslateDynamicPluginSourceText(ctx, trimmedID, nameKey, name)
 		localizedDescription := s.i18nSvc.TranslateDynamicPluginSourceText(ctx, trimmedID, descriptionKey, description)
 		return localizedName, localizedDescription

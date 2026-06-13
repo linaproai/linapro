@@ -19,6 +19,8 @@ type hostCallContextKey struct{}
 
 // hostCallContext carries per-request plugin identity and authorization state.
 type hostCallContext struct {
+	// runtime stores host-service dependencies for the current WASM runtime instance.
+	runtime *hostServiceRuntime
 	// pluginID identifies the calling plugin.
 	pluginID string
 	// capabilities is the set of granted host capabilities for this plugin.

@@ -10,11 +10,9 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
-	"time"
 
 	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/usercap"
-	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -116,93 +114,6 @@ func usersServiceForHostCall(hcc *hostCallContext) usercap.Service {
 		return nil
 	}
 	return services.Users()
-}
-
-// capabilityContextForHostCall constructs audited domain-call metadata from
-// the trusted host-call context.
-func capabilityContextForHostCall(hcc *hostCallContext, service string, method string) capmodel.CapabilityContext {
-	now := time.Now()
-	if hcc == nil {
-		return capmodel.CapabilityContext{
-			Actor:       capmodel.CapabilityActor{Type: capmodel.ActorTypeSystem, SystemReason: "dynamic plugin host service"},
-			Source:      capmodel.CapabilitySourceHost,
-			SystemCall:  true,
-			Resource:    strings.TrimSpace(service) + "." + strings.TrimSpace(method),
-			RequestedAt: now,
-		}
-	}
-
-	actor := capmodel.CapabilityActor{
-		Type:         capmodel.ActorTypeSystem,
-		SystemReason: "dynamic plugin host service",
-	}
-	tenantID := ""
-	if hcc.identity != nil {
-		tenantID = strconv.Itoa(int(hcc.identity.TenantId))
-		if hcc.identity.UserID > 0 {
-			actor = capmodel.CapabilityActor{
-				Type:   capmodel.ActorTypeUser,
-				UserID: int64(hcc.identity.UserID),
-				Name:   hcc.identity.Username,
-			}
-		}
-	}
-	return capmodel.CapabilityContext{
-		PluginID:      strings.TrimSpace(hcc.pluginID),
-		Actor:         actor,
-		TenantID:      capmodel.DomainID(tenantID),
-		Source:        capabilitySourceFromExecution(hcc.executionSource),
-		SystemCall:    actor.Type == capmodel.ActorTypeSystem,
-		Authorization: capabilityAuthorizationFromHostServices(hcc.hostServices),
-		Resource:      strings.TrimSpace(service) + "." + strings.TrimSpace(method),
-		TraceID:       strings.TrimSpace(hcc.requestID),
-		RequestedAt:   now,
-	}
-}
-
-func capabilitySourceFromExecution(source bridgecontract.ExecutionSource) capmodel.CapabilitySource {
-	switch bridgecontract.NormalizeExecutionSource(source) {
-	case bridgecontract.ExecutionSourceRoute:
-		return capmodel.CapabilitySourceHTTP
-	case bridgecontract.ExecutionSourceHook:
-		return capmodel.CapabilitySourceHook
-	case bridgecontract.ExecutionSourceJobs:
-		return capmodel.CapabilitySourceJobs
-	case bridgecontract.ExecutionSourceLifecycle:
-		return capmodel.CapabilitySourceLifecycle
-	default:
-		return capmodel.CapabilitySourceHost
-	}
-}
-
-func capabilityAuthorizationFromHostServices(specs []*bridgehostservice.HostServiceSpec) capmodel.CapabilityAuthorizationSnapshot {
-	authorization := capmodel.CapabilityAuthorizationSnapshot{
-		Services:  map[string][]string{},
-		Resources: map[string][]string{},
-	}
-	for _, spec := range specs {
-		if spec == nil {
-			continue
-		}
-		service := strings.TrimSpace(spec.Service)
-		if service == "" {
-			continue
-		}
-		authorization.Services[service] = append([]string(nil), spec.Methods...)
-		if len(spec.Resources) == 0 {
-			continue
-		}
-		for _, resource := range spec.Resources {
-			if resource == nil || strings.TrimSpace(resource.Ref) == "" {
-				continue
-			}
-			for _, method := range spec.Methods {
-				key := service + "." + method
-				authorization.Resources[key] = append(authorization.Resources[key], strings.TrimSpace(resource.Ref))
-			}
-		}
-	}
-	return authorization
 }
 
 func userIDsFromStrings(ids []string) []usercap.UserID {

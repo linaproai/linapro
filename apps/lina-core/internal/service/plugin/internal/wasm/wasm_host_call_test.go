@@ -224,7 +224,7 @@ func TestHandleHostServiceInvokeRejectsUnsupportedMethod(t *testing.T) {
 		Service: protocol.HostServiceRuntime,
 		Method:  "info.unknown",
 	}
-	response := handleHostServiceInvoke(nil, hcc, protocol.MarshalHostServiceRequestEnvelope(request))
+	response := handleHostServiceInvoke(nil, withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(request))
 	if response.Status != protocol.HostCallStatusNotFound {
 		t.Errorf("expected not_found, got status %d", response.Status)
 	}
@@ -249,7 +249,7 @@ func TestHandleHostServiceInvokeRejectsUnauthorizedMethod(t *testing.T) {
 		Service: protocol.HostServiceRuntime,
 		Method:  protocol.HostServiceMethodRuntimeInfoNode,
 	}
-	response := handleHostServiceInvoke(nil, hcc, protocol.MarshalHostServiceRequestEnvelope(request))
+	response := handleHostServiceInvoke(nil, withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(request))
 	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Errorf("expected capability_denied, got status %d", response.Status)
 	}
@@ -279,7 +279,7 @@ func TestHandleHostServiceInvokeRejectsUnauthorizedResourceRef(t *testing.T) {
 			Path: "denied-files/demo.txt",
 		}),
 	}
-	response := handleHostServiceInvoke(nil, hcc, protocol.MarshalHostServiceRequestEnvelope(request))
+	response := handleHostServiceInvoke(nil, withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(request))
 	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Errorf("expected capability_denied, got status %d", response.Status)
 	}
@@ -304,7 +304,7 @@ func TestHandleHostServiceInvokeReturnsRuntimeUUID(t *testing.T) {
 		Service: protocol.HostServiceRuntime,
 		Method:  protocol.HostServiceMethodRuntimeInfoUUID,
 	}
-	response := handleHostServiceInvoke(nil, hcc, protocol.MarshalHostServiceRequestEnvelope(request))
+	response := handleHostServiceInvoke(nil, withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(request))
 	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected success, got status %d payload=%s", response.Status, string(response.Payload))
 	}

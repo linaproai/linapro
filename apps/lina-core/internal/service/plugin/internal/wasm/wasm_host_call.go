@@ -17,11 +17,11 @@ import (
 // function on the given wazero runtime. This must be called after WASI
 // instantiation and before module compilation, because the guest module imports
 // from lina_env and wazero validates imports at compile time.
-func registerHostCallModule(ctx context.Context, rt wazero.Runtime) error {
+func (r *runtimeImpl) registerHostCallModule(ctx context.Context, rt wazero.Runtime) error {
 	_, err := rt.NewHostModuleBuilder(bridgehostcall.HostModuleName).
 		NewFunctionBuilder().
 		WithGoModuleFunction(
-			api.GoModuleFunc(hostCallHandler),
+			api.GoModuleFunc(r.hostCallHandler),
 			[]api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32},
 			[]api.ValueType{api.ValueTypeI64},
 		).
@@ -35,7 +35,7 @@ func registerHostCallModule(ctx context.Context, rt wazero.Runtime) error {
 // dispatches to the appropriate capability handler, writes the response into
 // guest memory via the lina_host_call_alloc export, and returns the packed
 // (pointer << 32 | length) result.
-func hostCallHandler(ctx context.Context, mod api.Module, stack []uint64) {
+func (r *runtimeImpl) hostCallHandler(ctx context.Context, mod api.Module, stack []uint64) {
 	var (
 		opcode = uint32(stack[0])
 		reqPtr = uint32(stack[1])
@@ -71,7 +71,7 @@ func hostCallHandler(ctx context.Context, mod api.Module, stack []uint64) {
 	}
 
 	// Dispatch to structured host service handler.
-	respEnvelope := dispatchHostCall(ctx, hcc, opcode, reqBytes)
+	respEnvelope := r.dispatchHostCall(ctx, hcc, opcode, reqBytes)
 
 	// Encode and write response to guest memory.
 	respBytes := bridgehostcall.MarshalHostCallResponse(respEnvelope)
@@ -79,9 +79,12 @@ func hostCallHandler(ctx context.Context, mod api.Module, stack []uint64) {
 }
 
 // dispatchHostCall routes the opcode to the correct structured host service handler.
-func dispatchHostCall(ctx context.Context, hcc *hostCallContext, opcode uint32, reqBytes []byte) *bridgehostcall.HostCallResponseEnvelope {
+func (r *runtimeImpl) dispatchHostCall(ctx context.Context, hcc *hostCallContext, opcode uint32, reqBytes []byte) *bridgehostcall.HostCallResponseEnvelope {
 	switch opcode {
 	case bridgehostcall.OpcodeServiceInvoke:
+		if hcc != nil && hcc.runtime == nil {
+			hcc.runtime = r.hostServices
+		}
 		return handleHostServiceInvoke(ctx, hcc, reqBytes)
 	default:
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusNotFound,

@@ -1,7 +1,7 @@
 // middleware_impl.go implements request middleware for sessions, CORS,
-// localization, and plugin route filtering. It relies on the injected auth,
-// tenant, i18n, and plugin services so request paths share runtime state and
-// do not create independent service graphs while handling HTTP traffic.
+// localization, and route-publication helpers. It relies on the injected auth,
+// tenant, i18n, and role services so request paths share runtime state and do
+// not create independent service graphs while handling HTTP traffic.
 
 package middleware
 

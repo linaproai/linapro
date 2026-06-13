@@ -103,7 +103,7 @@ func TestHandleHostServiceInvokeHostConfigRejectsUnauthorizedKey(t *testing.T) {
 
 // TestConfigureHostConfigServiceRejectsNil verifies nil hostConfig injection fails explicitly.
 func TestConfigureHostConfigServiceRejectsNil(t *testing.T) {
-	if err := ConfigureHostConfigService(nil); err == nil {
+	if _, err := NewRuntime(&capabilityHostServiceTestServices{}, noopTestConfigFactory{}, nil, noopTestManifestFactory{}); err == nil {
 		t.Fatal("expected nil host config service to return an error")
 	}
 }
@@ -135,18 +135,12 @@ func invokeHostConfigService(t *testing.T, hcc *hostCallContext, key string) *pr
 			Key: key,
 		}),
 	}
-	return handleHostServiceInvoke(context.Background(), hcc, protocol.MarshalHostServiceRequestEnvelope(request))
+	return handleHostServiceInvoke(context.Background(), withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(request))
 }
 
 // configureTrackingHostConfigService swaps the process hostConfig adapter for one test case.
 func configureTrackingHostConfigService(t *testing.T, service *trackingHostConfigService) {
 	t.Helper()
 
-	previousRuntime := currentHostServiceRuntime()
-	if err := ConfigureHostConfigService(service); err != nil {
-		t.Fatalf("configure hostConfig service failed: %v", err)
-	}
-	t.Cleanup(func() {
-		setHostServiceRuntimeSnapshot(previousRuntime)
-	})
+	bindTestHostServiceRuntime(t, withTestHostConfigService(service))
 }

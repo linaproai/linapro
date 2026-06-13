@@ -10,25 +10,17 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	plugindep "lina-core/internal/service/plugin/internal/dependency"
 	"lina-core/internal/service/plugin/internal/management"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/bizerr"
 )
 
 type (
-	// dependencyInstallContext records automatic install state for one request.
-	dependencyInstallContext struct {
-		// active marks target IDs already being installed in this request.
-		active map[string]bool
-	}
-
 	// dependencySnapshotCache stores request-local dependency snapshots for
 	// repeated read-only dependency checks during one plugin list projection.
 	dependencySnapshotCache struct {
 		snapshots []*plugindep.PluginSnapshot
 	}
 )
-
-// dependencyInstallContextKey stores request-local dependency orchestration state.
-type dependencyInstallContextKey struct{}
 
 // dependencySnapshotCacheContextKey stores request-local dependency snapshots.
 type dependencySnapshotCacheContextKey struct{}
@@ -59,36 +51,6 @@ func (s *serviceImpl) CheckPluginDependencies(ctx context.Context, pluginID stri
 	result.ReverseDependents = plugindep.ToReverseDependentProjections(reverseResult.Dependents)
 	result.ReverseBlockers = plugindep.ToBlockerProjections(reverseResult.Blockers)
 	return result, nil
-}
-
-// prepareInstallDependencies verifies a target before lifecycle side effects.
-func (s *serviceImpl) prepareInstallDependencies(
-	ctx context.Context,
-	pluginID string,
-	options InstallOptions,
-) (*DependencyCheckResult, context.Context, error) {
-	depCtx := dependencyContextFrom(ctx)
-	normalizedID := strings.TrimSpace(pluginID)
-	if normalizedID == "" {
-		return nil, ctx, nil
-	}
-	if depCtx.active[normalizedID] {
-		return nil, ctx, nil
-	}
-
-	depCtx.active[normalizedID] = true
-	defer delete(depCtx.active, normalizedID)
-
-	nextCtx := context.WithValue(ctx, dependencyInstallContextKey{}, depCtx)
-	check, err := s.resolveInstallDependencies(nextCtx, normalizedID)
-	if err != nil {
-		return nil, nextCtx, err
-	}
-	result := plugindep.ToCheckProjection(check)
-	if plugindep.HasBlockers(check.Blockers) {
-		return result, nextCtx, s.buildDependencyBlockedError(normalizedID, check.Blockers)
-	}
-	return result, nextCtx, nil
 }
 
 // ensureNoReverseDependencies blocks uninstall when installed downstream plugins depend on target.
@@ -197,6 +159,22 @@ func (s *serviceImpl) buildDependencySnapshots(
 			return plugindep.ClonePluginSnapshots(cache.snapshots), nil
 		}
 	}
+	out, err := s.buildPluginProjection(ctx, pluginProjectionInput{
+		mode:      projectionModeDependencySnapshot,
+		candidate: candidate,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return plugindep.ClonePluginSnapshots(out.dependencySnapshots), nil
+}
+
+// buildDependencySnapshotsForProjection combines discovered manifests with
+// installed registry release snapshots for the unified projection builder.
+func (s *serviceImpl) buildDependencySnapshotsForProjection(
+	ctx context.Context,
+	candidate *catalog.Manifest,
+) ([]*plugindep.PluginSnapshot, error) {
 	manifests := management.ManifestSnapshotFromContext(ctx)
 	if manifests == nil {
 		var err error
@@ -215,7 +193,7 @@ func (s *serviceImpl) buildDependencySnapshots(
 			Name:         strings.TrimSpace(manifest.Name),
 			Version:      strings.TrimSpace(manifest.Version),
 			Manifest:     manifest,
-			Dependencies: catalog.CloneDependencySpec(manifest.Dependencies),
+			Dependencies: plugintypes.CloneDependencySpec(manifest.Dependencies),
 		}
 	}
 	if candidate != nil && strings.TrimSpace(candidate.ID) != "" {
@@ -224,15 +202,15 @@ func (s *serviceImpl) buildDependencySnapshots(
 			Name:         strings.TrimSpace(candidate.Name),
 			Version:      strings.TrimSpace(candidate.Version),
 			Manifest:     candidate,
-			Dependencies: catalog.CloneDependencySpec(candidate.Dependencies),
+			Dependencies: plugintypes.CloneDependencySpec(candidate.Dependencies),
 		}
 	}
 
-	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	readCtx, err := s.storeSvc.WithStartupDataSnapshot(ctx)
 	if err != nil {
 		return nil, err
 	}
-	registries, err := s.catalogSvc.ListAllRegistries(readCtx)
+	registries, err := s.storeSvc.ListAllRegistries(readCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -257,10 +235,10 @@ func (s *serviceImpl) buildDependencySnapshots(
 			snapshotByID[registryPluginID] = snapshot
 		}
 		if registryPluginID == candidateID {
-			snapshot.Installed = registry.Installed == catalog.InstalledYes
+			snapshot.Installed = registry.Installed == plugintypes.InstalledYes
 			continue
 		}
-		plugindep.ApplyRegistrySnapshot(readCtx, s.catalogSvc, snapshot, registry)
+		plugindep.ApplyRegistrySnapshot(readCtx, s.storeSvc, snapshot, registry)
 	}
 
 	out := make([]*plugindep.PluginSnapshot, 0, len(snapshotByID))
@@ -287,19 +265,6 @@ func (s *serviceImpl) frameworkVersion(ctx context.Context) string {
 	return strings.TrimSpace(metadata.Framework.Version)
 }
 
-// dependencyContextFrom returns one request-local dependency orchestration context.
-func dependencyContextFrom(ctx context.Context) *dependencyInstallContext {
-	if ctx != nil {
-		if value, ok := ctx.Value(dependencyInstallContextKey{}).(*dependencyInstallContext); ok && value != nil {
-			if value.active == nil {
-				value.active = make(map[string]bool)
-			}
-			return value
-		}
-	}
-	return &dependencyInstallContext{active: make(map[string]bool)}
-}
-
 // dependencySnapshotCacheFromContext returns the request-local dependency
 // snapshot cache, if the current read path enabled one.
 func dependencySnapshotCacheFromContext(ctx context.Context) *dependencySnapshotCache {
@@ -315,11 +280,11 @@ func dependencySnapshotCacheFromContext(ctx context.Context) *dependencySnapshot
 
 // dependencyTargetAlreadyInstalled reports whether the target is already installed.
 func (s *serviceImpl) dependencyTargetAlreadyInstalled(ctx context.Context, pluginID string) bool {
-	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+	registry, err := s.storeSvc.GetRegistry(ctx, pluginID)
 	if err != nil || registry == nil {
 		return false
 	}
-	return registry.Installed == catalog.InstalledYes
+	return registry.Installed == plugintypes.InstalledYes
 }
 
 // buildDependencyBlockedError converts resolver blockers into one structured business error.

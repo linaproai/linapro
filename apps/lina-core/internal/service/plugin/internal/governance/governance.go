@@ -6,8 +6,9 @@ import (
 	"context"
 	"strings"
 
-	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/tenantcap"
 )
@@ -24,8 +25,8 @@ type TenantCapability interface {
 type ManifestResolver interface {
 	// LoadManifestFromYAML parses a plugin.yaml file at the given path into a Manifest.
 	LoadManifestFromYAML(filePath string, manifest *catalog.Manifest) error
-	// GetActiveManifest returns the manifest currently in use by the host for serving.
-	GetActiveManifest(ctx context.Context, pluginID string) (*catalog.Manifest, error)
+	// GetDesiredManifest returns the latest discovered manifest for one plugin ID.
+	GetDesiredManifest(pluginID string) (*catalog.Manifest, error)
 }
 
 // EnsurePlatformContext verifies the current request can mutate platform plugin governance state.
@@ -38,7 +39,7 @@ func EnsurePlatformContext(ctx context.Context, tenantSvc TenantCapability) erro
 
 // ValidatePluginRegistryRows verifies sys_plugin governance enum combinations
 // for all synchronized plugin rows.
-func ValidatePluginRegistryRows(registries []*entity.SysPlugin) []string {
+func ValidatePluginRegistryRows(registries []*store.PluginRecord) []string {
 	details := make([]string, 0)
 	for _, registry := range registries {
 		if registry == nil {
@@ -46,14 +47,14 @@ func ValidatePluginRegistryRows(registries []*entity.SysPlugin) []string {
 		}
 		scope := strings.TrimSpace(strings.ToLower(registry.ScopeNature))
 		mode := strings.TrimSpace(strings.ToLower(registry.InstallMode))
-		if !catalog.IsSupportedScopeNature(scope) {
+		if !plugintypes.IsSupportedScopeNature(scope) {
 			details = append(details, "plugin "+registry.PluginId+" has invalid scope_nature "+registry.ScopeNature)
 		}
-		if !catalog.IsSupportedInstallMode(mode) {
+		if !plugintypes.IsSupportedInstallMode(mode) {
 			details = append(details, "plugin "+registry.PluginId+" has invalid install_mode "+registry.InstallMode)
 		}
-		if catalog.NormalizeScopeNature(scope) == catalog.ScopeNaturePlatformOnly &&
-			catalog.NormalizeInstallMode(mode) != catalog.InstallModeGlobal {
+		if plugintypes.NormalizeScopeNature(scope) == plugintypes.ScopeNaturePlatformOnly &&
+			plugintypes.NormalizeInstallMode(mode) != plugintypes.InstallModeGlobal {
 			details = append(details, "platform_only plugin "+registry.PluginId+" must use global install_mode")
 		}
 	}
@@ -64,9 +65,8 @@ func ValidatePluginRegistryRows(registries []*entity.SysPlugin) []string {
 // for one registry and falls back to the persisted scope if the manifest is
 // unavailable to keep registry-only tests and startup projections deterministic.
 func RegistrySupportsTenantGovernance(
-	ctx context.Context,
 	resolver ManifestResolver,
-	registry *entity.SysPlugin,
+	registry *store.PluginRecord,
 ) bool {
 	if registry == nil {
 		return false
@@ -75,14 +75,14 @@ func RegistrySupportsTenantGovernance(
 		manifest := &catalog.Manifest{}
 		if loadErr := resolver.LoadManifestFromYAML(registry.ManifestPath, manifest); loadErr == nil {
 			if manifest.SupportsMultiTenant == nil {
-				return catalog.NormalizeScopeNature(manifest.ScopeNature) == catalog.ScopeNatureTenantAware
+				return plugintypes.NormalizeScopeNature(manifest.ScopeNature) == plugintypes.ScopeNatureTenantAware
 			}
 			return manifest.SupportsTenantGovernance()
 		}
 	}
-	manifest, err := resolver.GetActiveManifest(ctx, registry.PluginId)
+	manifest, err := resolver.GetDesiredManifest(registry.PluginId)
 	if err == nil && manifest != nil {
 		return manifest.SupportsTenantGovernance()
 	}
-	return catalog.NormalizeScopeNature(registry.ScopeNature) == catalog.ScopeNatureTenantAware
+	return plugintypes.NormalizeScopeNature(registry.ScopeNature) == plugintypes.ScopeNatureTenantAware
 }

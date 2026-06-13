@@ -1,15 +1,11 @@
 # 后端 Go 规则
 
-## 适用范围
-
-本规则约束宿主和源码插件的 Go 后端代码、Controller、Middleware、Service、插件宿主服务适配器、WASM host service、公共组件、运行时依赖、错误处理、日志、注释、测试、接口性能、数据库访问频次和 Go 编译门禁。
-
 ## 技能和生成代码要求
 
 - 必须使用`goframe-v2`技能开发后端代码。
-- 不能修改通过脚手架工具维护的代码文件，例如`api`层的接口方法定义生成文件、`dao`、`do`、`entity`层代码文件。
-- `DAO/DO/Entity`源码文件由`make dao`自动生成，不要手动创建或修改。
-- `Controller`源码文件由`make ctrl`生成骨架，在生成的文件中填写业务逻辑。
+- 在所有Go后端代码实现中，包括但不限于`lina-core`主框架和`lina-plugins`目录下的业务插件后端代码：
+  - `dao`、`do`、`entity`层源码文件必须通过`make dao`指令自动生成，禁止手动创建或修改。
+  - `Controller`源码文件由`make ctrl`指令根据`api`目录下的接口定义生成骨架，在生成的文件中填写业务逻辑。
 
 ## 注释要求
 

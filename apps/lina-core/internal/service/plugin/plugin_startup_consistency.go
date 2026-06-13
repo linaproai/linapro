@@ -7,14 +7,13 @@ import (
 	"context"
 	"strings"
 
-	"lina-core/internal/model/entity"
-	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/governance"
 	"lina-core/internal/service/plugin/internal/integration"
+	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/bizerr"
 	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/tenantcap"
-	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // platformGovernanceTenantCapability is the tenant-capability slice required by
@@ -31,44 +30,28 @@ type pluginTenantStartupCapability interface {
 	ValidateUserMembershipStartupConsistency(ctx context.Context) ([]string, error)
 }
 
-// SetTenantStartupCapability wires tenant provider availability and startup
-// consistency checks.
-func (s *serviceImpl) SetTenantStartupCapability(service pluginTenantStartupCapability) {
-	if s == nil {
-		return
-	}
-	s.tenantStartup = service
+// organizationDeptProvider stores the startup-owned organization capability and
+// exposes only the department lookup needed by plugin resource data scopes.
+type organizationDeptProvider struct {
+	service orgcapsvc.Service
 }
 
-// SetTenantProvisioningCapability wires tenant plugin auto-provisioning.
-func (s *serviceImpl) SetTenantProvisioningCapability(service tenantspi.PluginProvisioningService) {
-	if s == nil {
-		return
+// GetUserDeptIDs returns one user's department IDs through the current organization capability.
+func (p *organizationDeptProvider) GetUserDeptIDs(ctx context.Context, userID int) ([]int, error) {
+	if p == nil {
+		return []int{}, nil
 	}
-	s.tenantProvisioning = service
-}
-
-// SetOrganizationCapability wires the runtime-owned organization capability
-// used by plugin-owned resource data-scope filtering.
-func (s *serviceImpl) SetOrganizationCapability(service orgcapsvc.Service) {
-	if s == nil || s.integrationSvc == nil {
-		return
+	service := p.service
+	if service == nil {
+		return []int{}, nil
 	}
-	s.integrationSvc.SetOrganizationCapability(service)
-}
-
-// SetTenantPlatformGovernanceCapability wires platform plugin-governance checks.
-func (s *serviceImpl) SetTenantPlatformGovernanceCapability(service platformGovernanceTenantCapability) {
-	if s == nil {
-		return
-	}
-	s.tenantGovernance = service
+	return service.GetUserDeptIDs(ctx, userID)
 }
 
 // WithStartupDataSnapshot returns a child context carrying catalog and
 // integration startup snapshots for one host startup orchestration.
 func (s *serviceImpl) WithStartupDataSnapshot(ctx context.Context) (context.Context, error) {
-	startupCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	startupCtx, err := s.storeSvc.WithStartupDataSnapshot(ctx)
 	if err != nil {
 		return ctx, err
 	}
@@ -114,7 +97,7 @@ func (s *serviceImpl) ValidateStartupConsistency(ctx context.Context) error {
 // validatePluginStartupConsistency verifies sys_plugin governance enum
 // combinations for all synchronized plugin rows.
 func (s *serviceImpl) validatePluginStartupConsistency(ctx context.Context) ([]string, error) {
-	registries, err := s.catalogSvc.ListAllRegistries(ctx)
+	registries, err := s.storeSvc.ListAllRegistries(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +154,7 @@ func (s *serviceImpl) UpdateTenantProvisioningPolicy(
 	if normalizedPluginID == "" {
 		return bizerr.NewCode(CodePluginSourceRegistryNotFound, bizerr.P("pluginId", pluginID))
 	}
-	registry, err := s.catalogSvc.GetRegistry(ctx, normalizedPluginID)
+	registry, err := s.storeSvc.GetRegistry(ctx, normalizedPluginID)
 	if err != nil {
 		return err
 	}
@@ -179,19 +162,23 @@ func (s *serviceImpl) UpdateTenantProvisioningPolicy(
 		return bizerr.NewCode(CodePluginSourceRegistryNotFound, bizerr.P("pluginId", normalizedPluginID))
 	}
 	if !s.registrySupportsTenantGovernance(ctx, registry) ||
-		catalog.NormalizeInstallMode(registry.InstallMode) != catalog.InstallModeTenantScoped {
+		plugintypes.NormalizeInstallMode(registry.InstallMode) != plugintypes.InstallModeTenantScoped {
 		return bizerr.NewCode(CodePluginTenantProvisioningPolicyInvalid, bizerr.P("pluginId", normalizedPluginID))
 	}
-	if err = s.catalogSvc.SetAutoEnableForNewTenants(ctx, normalizedPluginID, autoEnableForNewTenants); err != nil {
+	if err = s.storeSvc.SetAutoEnableForNewTenants(ctx, normalizedPluginID, autoEnableForNewTenants); err != nil {
 		return err
 	}
-	_, err = s.markRuntimeCacheChanged(ctx, "plugin_tenant_provisioning_policy_updated")
+	_, err = s.publishPluginChange(ctx, pluginChangePublishInput{
+		pluginID:   normalizedPluginID,
+		pluginType: registry.Type,
+		reason:     "plugin_tenant_provisioning_policy_updated",
+	})
 	return err
 }
 
 // registrySupportsTenantGovernance resolves the current manifest declaration
 // for one registry and falls back to the persisted scope if the manifest is
 // unavailable to keep registry-only tests and startup projections deterministic.
-func (s *serviceImpl) registrySupportsTenantGovernance(ctx context.Context, registry *entity.SysPlugin) bool {
-	return governance.RegistrySupportsTenantGovernance(ctx, s.catalogSvc, registry)
+func (s *serviceImpl) registrySupportsTenantGovernance(ctx context.Context, registry *store.PluginRecord) bool {
+	return governance.RegistrySupportsTenantGovernance(s.catalogSvc, registry)
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 )
 
 // BuildAuthorizedTableContract synthesizes one internal resource contract for a
@@ -73,7 +74,7 @@ func BuildAuthorizedTableContract(
 		filters = append(filters, &catalog.ResourceQuery{
 			Param:    fieldName,
 			Column:   columnName,
-			Operator: catalog.ResourceFilterOperatorEQ.String(),
+			Operator: plugintypes.ResourceFilterOperatorEQ.String(),
 		})
 		if strings.EqualFold(strings.TrimSpace(field.Key), "PRI") && keyField == "" {
 			keyField = fieldName
@@ -100,17 +101,17 @@ func BuildAuthorizedTableContract(
 
 	return &catalog.ResourceSpec{
 		Key:            normalizedTable,
-		Type:           catalog.ResourceSpecTypeTableList.String(),
+		Type:           plugintypes.ResourceSpecTypeTableList.String(),
 		Table:          normalizedTable,
 		Fields:         fields,
 		Filters:        filters,
 		Operations:     normalizeAuthorizedTableMethods(methods),
 		KeyField:       keyField,
 		WritableFields: writableFields,
-		Access:         catalog.ResourceAccessModeBoth.String(),
+		Access:         plugintypes.ResourceAccessModeBoth.String(),
 		OrderBy: catalog.ResourceOrderBySpec{
 			Column:    orderByColumn,
-			Direction: catalog.ResourceOrderDirectionASC.String(),
+			Direction: plugintypes.ResourceOrderDirectionASC.String(),
 		},
 	}, nil
 }

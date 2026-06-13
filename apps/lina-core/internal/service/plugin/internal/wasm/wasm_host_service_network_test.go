@@ -231,7 +231,7 @@ func invokeNetworkHostService(
 	}
 	return handleHostServiceInvoke(
 		ctx,
-		hcc,
+		withTestHostCallRuntime(t, hcc),
 		protocol.MarshalHostServiceRequestEnvelope(envelope),
 	)
 }

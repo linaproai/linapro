@@ -3,11 +3,14 @@
 package runtime_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
@@ -89,6 +92,39 @@ func TestBuildRuntimeWasmArtifactEmbedsBackendContracts(t *testing.T) {
 	}
 	if len(artifact.ResourceSpecs[0].WritableFields) != 1 || artifact.ResourceSpecs[0].WritableFields[0] != "status" {
 		t.Fatalf("expected embedded writableFields to contain status, got %#v", artifact.ResourceSpecs[0].WritableFields)
+	}
+}
+
+// TestRunBundledDynamicSampleBeforeInstallLifecycleAllowsRuntimeLog verifies
+// the bundled dynamic sample can run its BeforeInstall callback, including the
+// runtime.log.write host service used by the callback implementation.
+func TestRunBundledDynamicSampleBeforeInstallLifecycleAllowsRuntimeLog(t *testing.T) {
+	testutil.EnsureBundledRuntimeSampleArtifactForTests(t)
+
+	services := testutil.NewServices()
+	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), runtime.BuildArtifactFileName("linapro-demo-dynamic"))
+	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+	if err != nil {
+		t.Fatalf("expected bundled dynamic manifest to load, got error: %v", err)
+	}
+	for _, contract := range manifest.LifecycleHandlers {
+		if contract != nil && contract.Operation.String() == pluginhost.LifecycleHookBeforeInstall.String() {
+			// CI runs this package with -race, so the real bundled sample gets a
+			// wider test-only cold-start budget without changing production defaults.
+			contract.TimeoutMs = int((2 * time.Minute) / time.Millisecond)
+			break
+		}
+	}
+
+	decision, err := services.Runtime.RunDynamicLifecyclePrecondition(context.Background(), manifest, runtime.DynamicLifecycleInput{
+		PluginID:  manifest.ID,
+		Operation: pluginhost.LifecycleHookBeforeInstall,
+	})
+	if err != nil {
+		t.Fatalf("expected bundled BeforeInstall lifecycle to succeed, got error: %v decision=%#v", err, decision)
+	}
+	if decision == nil || !decision.OK {
+		t.Fatalf("expected bundled BeforeInstall lifecycle to allow install, got %#v", decision)
 	}
 }
 

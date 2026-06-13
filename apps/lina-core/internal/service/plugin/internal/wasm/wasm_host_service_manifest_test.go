@@ -141,7 +141,7 @@ func TestHandleHostServiceInvokeManifestBindsArtifactResources(t *testing.T) {
 
 // TestConfigureManifestHostServiceRejectsNil verifies nil manifest injection fails explicitly.
 func TestConfigureManifestHostServiceRejectsNil(t *testing.T) {
-	if err := ConfigureManifestHostService(nil); err == nil {
+	if _, err := NewRuntime(&capabilityHostServiceTestServices{}, noopTestConfigFactory{}, noopTestHostConfigService{}, nil); err == nil {
 		t.Fatal("expected nil manifest host service factory to return an error")
 	}
 }
@@ -173,7 +173,7 @@ func invokeManifestHostService(t *testing.T, hcc *hostCallContext, path string) 
 			Path: path,
 		}),
 	}
-	return handleHostServiceInvoke(context.Background(), hcc, protocol.MarshalHostServiceRequestEnvelope(request))
+	return handleHostServiceInvoke(context.Background(), withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(request))
 }
 
 // decodeManifestResponse verifies success and decodes one manifest response.
@@ -198,12 +198,6 @@ func configureTrackingManifestFactory(t *testing.T, service *trackingManifestSer
 	t.Helper()
 
 	factory := &trackingManifestFactory{service: service}
-	previousRuntime := currentHostServiceRuntime()
-	if err := ConfigureManifestHostService(factory); err != nil {
-		t.Fatalf("configure manifest host service failed: %v", err)
-	}
-	t.Cleanup(func() {
-		setHostServiceRuntimeSnapshot(previousRuntime)
-	})
+	bindTestHostServiceRuntime(t, withTestManifestFactory(factory))
 	return factory
 }

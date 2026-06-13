@@ -16,10 +16,9 @@ import (
 
 	_ "lina-core/pkg/dbdriver"
 
-	"lina-core/internal/dao"
-	"lina-core/internal/model/do"
 	menusvc "lina-core/internal/service/menu"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/bizerr"
@@ -38,7 +37,7 @@ func TestValidatePluginManifestAcceptsMinimalSourcePlugin(t *testing.T) {
 		ID:          "acme-demo-manifest-valid",
 		Name:        "Manifest Validation Plugin",
 		Version:     "0.1.0",
-		Type:        catalog.TypeSource.String(),
+		Type:        plugintypes.TypeSource.String(),
 		Description: "A valid source plugin manifest used by unit tests.",
 		Author:      "test-suite",
 		License:     "Apache-2.0",
@@ -131,7 +130,7 @@ func TestLoadManifestFromYAMLReadsI18NPolicy(t *testing.T) {
 // suggested author, domain, and capability parts without making that structure
 // a runtime acceptance requirement.
 func TestParsePluginIDReturnsSuggestedIdentityParts(t *testing.T) {
-	parts, err := catalog.ParsePluginID("linapro-content-notice")
+	parts, err := plugintypes.ParsePluginID("linapro-content-notice")
 	if err != nil {
 		t.Fatalf("expected structured plugin ID to parse, got %v", err)
 	}
@@ -139,7 +138,7 @@ func TestParsePluginIDReturnsSuggestedIdentityParts(t *testing.T) {
 		t.Fatalf("unexpected plugin ID parts: %#v", parts)
 	}
 
-	parts, err = catalog.ParsePluginID("linapro-ops-demo-guard")
+	parts, err = plugintypes.ParsePluginID("linapro-ops-demo-guard")
 	if err != nil {
 		t.Fatalf("expected multi-word capability to parse, got %v", err)
 	}
@@ -147,7 +146,7 @@ func TestParsePluginIDReturnsSuggestedIdentityParts(t *testing.T) {
 		t.Fatalf("unexpected multi-word capability parts: %#v", parts)
 	}
 
-	parts, err = catalog.ParsePluginID("demo-control")
+	parts, err = plugintypes.ParsePluginID("demo-control")
 	if err != nil {
 		t.Fatalf("expected non-three-segment plugin ID to parse, got %v", err)
 	}
@@ -165,7 +164,7 @@ func TestValidatePluginIDEnforcesOnlyRuntimeSafetyBoundary(t *testing.T) {
 		"acme-org-core",
 		"plugin-demo-source",
 	} {
-		if err := catalog.ValidatePluginID(pluginID); err != nil {
+		if err := plugintypes.ValidatePluginID(pluginID); err != nil {
 			t.Fatalf("expected runtime-safe plugin ID %s to validate, got %v", pluginID, err)
 		}
 	}
@@ -176,16 +175,16 @@ func TestValidatePluginIDEnforcesOnlyRuntimeSafetyBoundary(t *testing.T) {
 		want     string
 	}{
 		{name: "uppercase", pluginID: "Acme-linapro-org-core", want: "kebab-case"},
-		{name: "overlong", pluginID: "acme-demo-" + strings.Repeat("x", catalog.MaxPluginIDLength), want: "length"},
+		{name: "overlong", pluginID: "acme-demo-" + strings.Repeat("x", plugintypes.MaxPluginIDLength), want: "length"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := catalog.ValidatePluginID(tt.pluginID)
+			err := plugintypes.ValidatePluginID(tt.pluginID)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("expected plugin ID error containing %q, got %v", tt.want, err)
 			}
-			if !bizerr.Is(err, catalog.CodePluginIDInvalid) {
+			if !bizerr.Is(err, plugintypes.CodePluginIDInvalid) {
 				t.Fatalf("expected stable plugin ID bizerr, got %v", err)
 			}
 			messageErr, ok := bizerr.As(err)
@@ -210,10 +209,10 @@ func TestValidatePluginManifestNormalizesDependencyDefaults(t *testing.T) {
 		ID:      "acme-demo-dependency-valid",
 		Name:    "Plugin Dependency Valid",
 		Version: "0.1.0",
-		Type:    catalog.TypeSource.String(),
-		Dependencies: &catalog.DependencySpec{
-			Framework: &catalog.FrameworkDependencySpec{Version: " >=0.1.0 <1.0.0 "},
-			Plugins: []*catalog.PluginDependencySpec{
+		Type:    plugintypes.TypeSource.String(),
+		Dependencies: &plugintypes.DependencySpec{
+			Framework: &plugintypes.FrameworkDependencySpec{Version: " >=0.1.0 <1.0.0 "},
+			Plugins: []*plugintypes.PluginDependencySpec{
 				{
 					ID:      " linapro-tenant-core ",
 					Version: " >=0.1.0 ",
@@ -246,34 +245,34 @@ func TestValidatePluginManifestNormalizesDependencyDefaults(t *testing.T) {
 func TestValidatePluginManifestRejectsInvalidDependencies(t *testing.T) {
 	tests := []struct {
 		name         string
-		dependencies *catalog.DependencySpec
+		dependencies *plugintypes.DependencySpec
 		want         string
 	}{
 		{
 			name: "empty dependency id",
-			dependencies: &catalog.DependencySpec{
-				Plugins: []*catalog.PluginDependencySpec{{ID: ""}},
+			dependencies: &plugintypes.DependencySpec{
+				Plugins: []*plugintypes.PluginDependencySpec{{ID: ""}},
 			},
 			want: "missing id",
 		},
 		{
 			name: "invalid dependency id",
-			dependencies: &catalog.DependencySpec{
-				Plugins: []*catalog.PluginDependencySpec{{ID: "Bad_ID"}},
+			dependencies: &plugintypes.DependencySpec{
+				Plugins: []*plugintypes.PluginDependencySpec{{ID: "Bad_ID"}},
 			},
 			want: "kebab-case",
 		},
 		{
 			name: "self dependency",
-			dependencies: &catalog.DependencySpec{
-				Plugins: []*catalog.PluginDependencySpec{{ID: "acme-demo-dependency-invalid"}},
+			dependencies: &plugintypes.DependencySpec{
+				Plugins: []*plugintypes.PluginDependencySpec{{ID: "acme-demo-dependency-invalid"}},
 			},
 			want: "cannot depend on itself",
 		},
 		{
 			name: "duplicate dependency",
-			dependencies: &catalog.DependencySpec{
-				Plugins: []*catalog.PluginDependencySpec{
+			dependencies: &plugintypes.DependencySpec{
+				Plugins: []*plugintypes.PluginDependencySpec{
 					{ID: "linapro-tenant-core"},
 					{ID: "linapro-tenant-core"},
 				},
@@ -282,15 +281,15 @@ func TestValidatePluginManifestRejectsInvalidDependencies(t *testing.T) {
 		},
 		{
 			name: "invalid dependency version range",
-			dependencies: &catalog.DependencySpec{
-				Plugins: []*catalog.PluginDependencySpec{{ID: "linapro-tenant-core", Version: ">= v0.1.0"}},
+			dependencies: &plugintypes.DependencySpec{
+				Plugins: []*plugintypes.PluginDependencySpec{{ID: "linapro-tenant-core", Version: ">= v0.1.0"}},
 			},
 			want: "version",
 		},
 		{
 			name: "invalid framework version range",
-			dependencies: &catalog.DependencySpec{
-				Framework: &catalog.FrameworkDependencySpec{Version: "0.1"},
+			dependencies: &plugintypes.DependencySpec{
+				Framework: &plugintypes.FrameworkDependencySpec{Version: "0.1"},
 			},
 			want: "framework",
 		},
@@ -304,7 +303,7 @@ func TestValidatePluginManifestRejectsInvalidDependencies(t *testing.T) {
 				ID:           "acme-demo-dependency-invalid",
 				Name:         "Plugin Dependency Invalid",
 				Version:      "0.1.0",
-				Type:         catalog.TypeSource.String(),
+				Type:         plugintypes.TypeSource.String(),
 				Dependencies: tt.dependencies,
 			}
 
@@ -361,7 +360,7 @@ func TestLoadManifestFromYAMLRejectsUnsupportedDependencyPolicyFields(t *testing
 // TestMatchesSemanticVersionRange verifies dependency version constraints use
 // deterministic semver comparison semantics.
 func TestMatchesSemanticVersionRange(t *testing.T) {
-	matches, err := catalog.MatchesSemanticVersionRange("v0.6.1", ">=0.6.0 <0.7.0")
+	matches, err := plugintypes.MatchesSemanticVersionRange("v0.6.1", ">=0.6.0 <0.7.0")
 	if err != nil {
 		t.Fatalf("expected range match to parse, got %v", err)
 	}
@@ -369,7 +368,7 @@ func TestMatchesSemanticVersionRange(t *testing.T) {
 		t.Fatal("expected v0.6.1 to satisfy >=0.6.0 <0.7.0")
 	}
 
-	matches, err = catalog.MatchesSemanticVersionRange("v0.7.0", ">=0.6.0 <0.7.0")
+	matches, err = plugintypes.MatchesSemanticVersionRange("v0.7.0", ">=0.6.0 <0.7.0")
 	if err != nil {
 		t.Fatalf("expected range mismatch to parse, got %v", err)
 	}
@@ -392,7 +391,7 @@ func TestValidatePluginManifestRejectsMissingBackendEntryForSourcePlugin(t *test
 		ID:      "acme-demo-missing-backend",
 		Name:    "Missing Backend Plugin",
 		Version: "0.1.0",
-		Type:    catalog.TypeSource.String(),
+		Type:    plugintypes.TypeSource.String(),
 	}
 
 	err := svcs.Catalog.ValidateManifest(manifest, manifestFile)
@@ -435,7 +434,7 @@ func TestValidateManifestUsesManifestRootDir(t *testing.T) {
 		ID:      "acme-demo-manifest-rootdir",
 		Name:    "Manifest RootDir Plugin",
 		Version: "0.1.0",
-		Type:    catalog.TypeSource.String(),
+		Type:    plugintypes.TypeSource.String(),
 	}
 	if err := os.Remove(filepath.Join(pluginDir, "manifest", "sql", "001-acme-demo-manifest-rootdir.sql")); err != nil {
 		t.Fatalf("failed to remove plugin install sql: %v", err)
@@ -481,10 +480,10 @@ func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedWasmMetadata(t *t
 		ID:                  "acme-demo-dynamic-valid",
 		Name:                "Runtime Validation Plugin",
 		Version:             "v0.2.0",
-		Type:                catalog.TypeDynamic.String(),
-		ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+		Type:                plugintypes.TypeDynamic.String(),
+		ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
 		SupportsMultiTenant: &supportsMultiTenant,
-		DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+		DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
 		Description:         "A valid dynamic plugin manifest used by unit tests.",
 	}
 
@@ -503,7 +502,7 @@ func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedWasmMetadata(t *t
 	if !manifest.SupportsTenantGovernance() {
 		t.Fatalf("expected dynamic manifest to keep supports_multi_tenant=true")
 	}
-	if manifest.ScopeNature != catalog.ScopeNatureTenantAware.String() || manifest.DefaultInstallMode != catalog.InstallModeTenantScoped.String() {
+	if manifest.ScopeNature != plugintypes.ScopeNatureTenantAware.String() || manifest.DefaultInstallMode != plugintypes.InstallModeTenantScoped.String() {
 		t.Fatalf("unexpected dynamic tenant governance: scope=%s mode=%s", manifest.ScopeNature, manifest.DefaultInstallMode)
 	}
 }
@@ -538,7 +537,7 @@ func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedFrontendAssets(t 
 		ID:           "acme-demo-dynamic-frontend",
 		Name:         "Runtime Frontend Plugin",
 		Version:      "v0.2.1",
-		Type:         catalog.TypeDynamic.String(),
+		Type:         plugintypes.TypeDynamic.String(),
 		PublicAssets: []*catalog.PublicAssetSpec{{Source: "frontend/pages", Mount: "/"}},
 	}
 
@@ -582,7 +581,7 @@ func TestValidatePluginManifestTreatsPublicAssetSourceAsPublicationBoundary(t *t
 				ID:           "acme-demo-public-assets-invalid",
 				Name:         "Invalid Public Assets Plugin",
 				Version:      "0.1.0",
-				Type:         catalog.TypeSource.String(),
+				Type:         plugintypes.TypeSource.String(),
 				PublicAssets: []*catalog.PublicAssetSpec{{Source: tt.source, Mount: "/"}},
 			}
 
@@ -600,7 +599,7 @@ func TestValidatePluginManifestTreatsPublicAssetSourceAsPublicationBoundary(t *t
 		ID:      "acme-demo-public-assets-authorized",
 		Name:    "Authorized Public Assets Plugin",
 		Version: "0.1.0",
-		Type:    catalog.TypeSource.String(),
+		Type:    plugintypes.TypeSource.String(),
 		PublicAssets: []*catalog.PublicAssetSpec{
 			{Source: "backend", Mount: "backend"},
 			{Source: "manifest/i18n", Mount: "i18n"},
@@ -625,7 +624,7 @@ func TestValidatePluginManifestRejectsSymlinkedPublicAssetSource(t *testing.T) {
 		ID:           "acme-demo-public-assets-symlink",
 		Name:         "Symlink Public Assets Plugin",
 		Version:      "0.1.0",
-		Type:         catalog.TypeSource.String(),
+		Type:         plugintypes.TypeSource.String(),
 		PublicAssets: []*catalog.PublicAssetSpec{{Source: "frontend/linked-public", Mount: "/"}},
 	}
 
@@ -659,7 +658,7 @@ func TestValidatePluginManifestRejectsUnsafePublicAssetIndex(t *testing.T) {
 				ID:      "acme-demo-public-assets-index-invalid",
 				Name:    "Invalid Public Assets Index Plugin",
 				Version: "0.1.0",
-				Type:    catalog.TypeSource.String(),
+				Type:    plugintypes.TypeSource.String(),
 				PublicAssets: []*catalog.PublicAssetSpec{
 					{Source: "frontend/public", Mount: "/", Index: tt.index},
 				},
@@ -685,7 +684,7 @@ func TestValidatePluginManifestRejectsOverlappingPublicAssetMounts(t *testing.T)
 		ID:      "acme-demo-public-assets-overlap",
 		Name:    "Overlapping Public Assets Plugin",
 		Version: "0.1.0",
-		Type:    catalog.TypeSource.String(),
+		Type:    plugintypes.TypeSource.String(),
 		PublicAssets: []*catalog.PublicAssetSpec{
 			{Source: "frontend/public", Mount: "assets"},
 			{Source: "frontend/pages", Mount: "assets/pages"},
@@ -720,7 +719,7 @@ func TestValidatePluginManifestRejectsMismatchedRuntimeWasmManifest(t *testing.T
 			ID:      "acme-demo-dynamic-other",
 			Name:    "Runtime Mismatch Plugin",
 			Version: "v0.3.0",
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:   protocol.RuntimeKindWasm,
@@ -742,7 +741,7 @@ func TestValidatePluginManifestRejectsMismatchedRuntimeWasmManifest(t *testing.T
 		ID:      "acme-demo-dynamic-mismatch",
 		Name:    "Runtime Mismatch Plugin",
 		Version: "v0.3.0",
-		Type:    catalog.TypeDynamic.String(),
+		Type:    plugintypes.TypeDynamic.String(),
 	}
 
 	err := svcs.Catalog.ValidateManifest(manifest, manifestFile)
@@ -809,7 +808,7 @@ func TestStoreUploadedRuntimePackageWritesCanonicalWasmIntoRuntimeStorage(t *tes
 			ID:      pluginID,
 			Name:    "Runtime Upload Storage Plugin",
 			Version: "v0.5.0",
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:        protocol.RuntimeKindWasm,
@@ -908,11 +907,11 @@ func TestBuildPluginManifestSnapshotIncludesDirectoryDiscoveredAssets(t *testing
 	}
 	testutil.WriteTestFile(t, filepath.Join(slotDir, "workspace-card.vue"), "<template><div /></template>\n")
 
-	snapshot, err := svcs.Catalog.BuildManifestSnapshot(&catalog.Manifest{
+	snapshot, err := svcs.Store.BuildManifestSnapshot(&catalog.Manifest{
 		ID:          "acme-demo-snapshot",
 		Name:        "Snapshot Plugin",
 		Version:     "0.1.0",
-		Type:        catalog.TypeSource.String(),
+		Type:        plugintypes.TypeSource.String(),
 		Description: "Snapshot test plugin",
 		Menus: []*catalog.MenuSpec{
 			{
@@ -959,7 +958,7 @@ func TestBuildPluginManifestSnapshotIncludesRuntimeArtifactMetadata(t *testing.T
 		ID:           "acme-demo-dynamic-snapshot",
 		Name:         "Runtime Snapshot Plugin",
 		Version:      "v0.4.0",
-		Type:         catalog.TypeDynamic.String(),
+		Type:         plugintypes.TypeDynamic.String(),
 		Description:  "Runtime snapshot test plugin",
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		RootDir:      pluginDir,
@@ -969,7 +968,7 @@ func TestBuildPluginManifestSnapshotIncludesRuntimeArtifactMetadata(t *testing.T
 		t.Fatalf("expected dynamic artifact to be valid, got error: %v", err)
 	}
 
-	snapshot, err := svcs.Catalog.BuildManifestSnapshot(manifest)
+	snapshot, err := svcs.Store.BuildManifestSnapshot(manifest)
 	if err != nil {
 		t.Fatalf("expected snapshot to build, got error: %v", err)
 	}
@@ -1002,7 +1001,7 @@ func TestBuildPluginResourceRefDescriptorsDoNotPersistConcreteFilePaths(t *testi
 		ID:      "acme-demo-resource-summary",
 		Name:    "Resource Summary Plugin",
 		Version: "0.1.0",
-		Type:    catalog.TypeSource.String(),
+		Type:    plugintypes.TypeSource.String(),
 		Menus: []*catalog.MenuSpec{
 			{
 				Key:  "plugin:acme-demo-resource-summary:sidebar-entry",
@@ -1022,7 +1021,7 @@ func TestBuildPluginResourceRefDescriptorsDoNotPersistConcreteFilePaths(t *testi
 		if descriptor == nil {
 			continue
 		}
-		if descriptor.Kind == catalog.ResourceKindMenu {
+		if descriptor.Kind == plugintypes.ResourceKindMenu {
 			foundMenuDescriptor = true
 		}
 		if strings.Contains(descriptor.Key, "/") || strings.Contains(descriptor.OwnerKey, "/") {
@@ -1058,7 +1057,7 @@ func TestBuildPluginResourceRefDescriptorsSummarizeRuntimeArtifact(t *testing.T)
 		ID:           "acme-demo-dynamic-resource-summary",
 		Name:         "Runtime Resource Summary Plugin",
 		Version:      "v0.5.0",
-		Type:         catalog.TypeDynamic.String(),
+		Type:         plugintypes.TypeDynamic.String(),
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		RootDir:      pluginDir,
 		PublicAssets: []*catalog.PublicAssetSpec{{Source: "frontend/pages", Mount: "/"}},
@@ -1073,7 +1072,7 @@ func TestBuildPluginResourceRefDescriptorsSummarizeRuntimeArtifact(t *testing.T)
 		if descriptor == nil {
 			continue
 		}
-		if descriptor.Kind == catalog.ResourceKindRuntimeWasm {
+		if descriptor.Kind == plugintypes.ResourceKindRuntimeWasm {
 			foundRuntimeArtifact = true
 			if !strings.Contains(descriptor.Remark, "ABI v1") {
 				t.Fatalf("expected dynamic artifact remark to mention ABI version, got %#v", descriptor)
@@ -1107,7 +1106,7 @@ func TestResolvePluginSQLAssetsPrefersEmbeddedRuntimeSQL(t *testing.T) {
 		ID:           "acme-demo-dynamic-sql-assets",
 		Name:         "Runtime SQL Assets Plugin",
 		Version:      "v0.6.0",
-		Type:         catalog.TypeDynamic.String(),
+		Type:         plugintypes.TypeDynamic.String(),
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		RootDir:      pluginDir,
 		PublicAssets: []*catalog.PublicAssetSpec{{Source: "frontend/pages", Mount: "/"}},
@@ -1116,7 +1115,7 @@ func TestResolvePluginSQLAssetsPrefersEmbeddedRuntimeSQL(t *testing.T) {
 		t.Fatalf("expected dynamic artifact to be valid, got error: %v", err)
 	}
 
-	installAssets, err := svcs.Lifecycle.ResolvePluginSQLAssets(manifest, catalog.MigrationDirectionInstall)
+	installAssets, err := svcs.Migration.ResolvePluginSQLAssets(manifest, plugintypes.MigrationDirectionInstall)
 	if err != nil {
 		t.Fatalf("expected install sql assets, got error: %v", err)
 	}
@@ -1124,7 +1123,7 @@ func TestResolvePluginSQLAssetsPrefersEmbeddedRuntimeSQL(t *testing.T) {
 		t.Fatalf("unexpected install assets: %#v", installAssets)
 	}
 
-	uninstallAssets, err := svcs.Lifecycle.ResolvePluginSQLAssets(manifest, catalog.MigrationDirectionUninstall)
+	uninstallAssets, err := svcs.Migration.ResolvePluginSQLAssets(manifest, plugintypes.MigrationDirectionUninstall)
 	if err != nil {
 		t.Fatalf("expected uninstall sql assets, got error: %v", err)
 	}
@@ -1143,12 +1142,12 @@ func TestResolvePluginSQLAssetsFallsBackToDirectoryConvention(t *testing.T) {
 		ID:           "acme-demo-directory-sql-assets",
 		Name:         "Directory SQL Assets Plugin",
 		Version:      "0.1.0",
-		Type:         catalog.TypeSource.String(),
+		Type:         plugintypes.TypeSource.String(),
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		RootDir:      pluginDir,
 	}
 
-	installAssets, err := svcs.Lifecycle.ResolvePluginSQLAssets(manifest, catalog.MigrationDirectionInstall)
+	installAssets, err := svcs.Migration.ResolvePluginSQLAssets(manifest, plugintypes.MigrationDirectionInstall)
 	if err != nil {
 		t.Fatalf("expected directory install sql assets, got error: %v", err)
 	}
@@ -1214,7 +1213,7 @@ func TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles(t *testing.T) {
 		ID:      "acme-demo-embedded-sql-assets",
 		Name:    "Embedded SQL Assets Plugin",
 		Version: "0.1.0",
-		Type:    catalog.TypeSource.String(),
+		Type:    plugintypes.TypeSource.String(),
 		SourcePlugin: func() pluginhost.SourcePluginDefinition {
 			sourcePlugin := pluginhost.NewDeclarations("acme-demo-embedded-sql-assets")
 			sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
@@ -1234,7 +1233,7 @@ func TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles(t *testing.T) {
 		}(),
 	}
 
-	installAssets, err := svcs.Lifecycle.ResolvePluginSQLAssets(manifest, catalog.MigrationDirectionInstall)
+	installAssets, err := svcs.Migration.ResolvePluginSQLAssets(manifest, plugintypes.MigrationDirectionInstall)
 	if err != nil {
 		t.Fatalf("expected embedded install sql assets, got error: %v", err)
 	}
@@ -1242,7 +1241,7 @@ func TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles(t *testing.T) {
 		t.Fatalf("unexpected embedded install assets: %#v", installAssets)
 	}
 
-	uninstallAssets, err := svcs.Lifecycle.ResolvePluginSQLAssets(manifest, catalog.MigrationDirectionUninstall)
+	uninstallAssets, err := svcs.Migration.ResolvePluginSQLAssets(manifest, plugintypes.MigrationDirectionUninstall)
 	if err != nil {
 		t.Fatalf("expected embedded uninstall sql assets, got error: %v", err)
 	}
@@ -1251,399 +1250,19 @@ func TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles(t *testing.T) {
 	}
 }
 
-// TestGetRegistryReleaseFallsBackWhenReleasePointerIsDangling verifies that
-// catalog reads tolerate registry rows whose release_id no longer points to an
-// existing release row.
-func TestGetRegistryReleaseFallsBackWhenReleasePointerIsDangling(t *testing.T) {
-	var (
-		ctx      = context.Background()
-		svcs     = testutil.NewServices()
-		pluginID = "acme-demo-dangling-release-pointer"
-		version  = "9.9.9"
-	)
-
-	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	t.Cleanup(func() {
-		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	})
-
-	if _, err := dao.SysPlugin.Ctx(ctx).Data(do.SysPlugin{
-		PluginId:     pluginID,
-		Name:         "Dangling Release Pointer Plugin",
-		Version:      version,
-		Type:         catalog.TypeDynamic.String(),
-		Installed:    catalog.InstalledYes,
-		Status:       catalog.StatusEnabled,
-		DesiredState: catalog.LifecycleStateRuntimeEnabled.String(),
-		CurrentState: catalog.LifecycleStateRuntimeEnabled.String(),
-		Generation:   int64(1),
-		ReleaseId:    987654321,
-		ScopeNature:  catalog.ScopeNatureTenantAware.String(),
-		InstallMode:  catalog.InstallModeTenantScoped.String(),
-		ManifestPath: "runtime/acme-demo-dangling-release-pointer/plugin.yaml",
-		Checksum:     "dangling-release-pointer",
-		Remark:       "Dangling release pointer test plugin",
-	}).InsertAndGetId(); err != nil {
-		t.Fatalf("failed to insert plugin registry row: %v", err)
-	}
-	insertID, err := dao.SysPluginRelease.Ctx(ctx).Data(do.SysPluginRelease{
-		PluginId:       pluginID,
-		ReleaseVersion: version,
-		Type:           catalog.TypeDynamic.String(),
-		RuntimeKind:    protocol.RuntimeKindWasm,
-		Status:         catalog.ReleaseStatusActive.String(),
-		ManifestPath:   "runtime/acme-demo-dangling-release-pointer/plugin.yaml",
-		PackagePath:    "runtime/acme-demo-dangling-release-pointer.wasm",
-		Checksum:       "dangling-release-pointer",
-	}).InsertAndGetId()
-	if err != nil {
-		t.Fatalf("failed to insert fallback plugin release row: %v", err)
-	}
-
-	registry, err := svcs.Catalog.GetRegistry(ctx, pluginID)
-	if err != nil {
-		t.Fatalf("expected registry lookup to succeed, got error: %v", err)
-	}
-	release, err := svcs.Catalog.GetRegistryRelease(ctx, registry)
-	if err != nil {
-		t.Fatalf("expected dangling release pointer to fall back to plugin version, got error: %v", err)
-	}
-	if release == nil {
-		t.Fatalf("expected fallback release to be returned")
-	}
-	if release.Id != int(insertID) {
-		t.Fatalf("expected fallback release id %d, got %d", insertID, release.Id)
-	}
-}
-
-// TestStartupDataSnapshotReusesReleaseByIDAndVersion verifies one catalog
-// snapshot backs both release lookup shapes and can be explicitly refreshed
-// after the authority database row changes.
-func TestStartupDataSnapshotReusesReleaseByIDAndVersion(t *testing.T) {
-	var (
-		ctx      = context.Background()
-		svcs     = testutil.NewServices()
-		pluginID = "acme-demo-release-snapshot-reuse"
-		version  = "v0.1.0"
-	)
-
-	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	t.Cleanup(func() {
-		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	})
-
-	manifest := &catalog.Manifest{
-		ID:                 pluginID,
-		Name:               "Release Snapshot Reuse",
-		Version:            version,
-		Type:               catalog.TypeDynamic.String(),
-		ScopeNature:        catalog.ScopeNatureTenantAware.String(),
-		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
-	}
-	registry, err := svcs.Catalog.SyncManifest(ctx, manifest)
-	if err != nil {
-		t.Fatalf("expected manifest sync to create registry and release, got error: %v", err)
-	}
-	if err = svcs.Catalog.SetPluginInstalled(ctx, pluginID, catalog.InstalledYes); err != nil {
-		t.Fatalf("expected installed marker update to succeed, got error: %v", err)
-	}
-	registry, err = svcs.Catalog.GetRegistry(ctx, pluginID)
-	if err != nil {
-		t.Fatalf("expected registry lookup to succeed, got error: %v", err)
-	}
-	registry, err = svcs.Catalog.SyncRegistryReleaseReference(ctx, registry, manifest)
-	if err != nil {
-		t.Fatalf("expected release reference sync to succeed, got error: %v", err)
-	}
-	if registry == nil || registry.ReleaseId <= 0 {
-		t.Fatalf("expected registry to point at release, got %#v", registry)
-	}
-
-	snapshotCtx, err := svcs.Catalog.WithStartupDataSnapshot(ctx)
-	if err != nil {
-		t.Fatalf("expected catalog snapshot to build, got error: %v", err)
-	}
-	byID, err := svcs.Catalog.GetReleaseByID(snapshotCtx, registry.ReleaseId)
-	if err != nil {
-		t.Fatalf("expected release lookup by id to succeed, got error: %v", err)
-	}
-	byVersion, err := svcs.Catalog.GetRelease(snapshotCtx, pluginID, version)
-	if err != nil {
-		t.Fatalf("expected release lookup by plugin version to succeed, got error: %v", err)
-	}
-	if byID == nil || byVersion == nil || byID.Id != byVersion.Id {
-		t.Fatalf("expected both lookup shapes to return the same release, got byID=%#v byVersion=%#v", byID, byVersion)
-	}
-
-	const refreshedChecksum = "release-snapshot-refreshed"
-	if _, err = dao.SysPluginRelease.Ctx(ctx).
-		Where(do.SysPluginRelease{Id: registry.ReleaseId}).
-		Data(do.SysPluginRelease{Checksum: refreshedChecksum}).
-		Update(); err != nil {
-		t.Fatalf("expected release checksum update to succeed, got error: %v", err)
-	}
-	staleByVersion, err := svcs.Catalog.GetRelease(snapshotCtx, pluginID, version)
-	if err != nil {
-		t.Fatalf("expected stale snapshot lookup to succeed, got error: %v", err)
-	}
-	if staleByVersion == nil || staleByVersion.Checksum == refreshedChecksum {
-		t.Fatalf("expected request snapshot to remain stable before explicit refresh, got %#v", staleByVersion)
-	}
-
-	refreshed, err := svcs.Catalog.RefreshStartupReleaseByID(snapshotCtx, registry.ReleaseId)
-	if err != nil {
-		t.Fatalf("expected snapshot refresh to succeed, got error: %v", err)
-	}
-	if refreshed == nil || refreshed.Checksum != refreshedChecksum {
-		t.Fatalf("expected refreshed release checksum %s, got %#v", refreshedChecksum, refreshed)
-	}
-	refreshedByVersion, err := svcs.Catalog.GetRelease(snapshotCtx, pluginID, version)
-	if err != nil {
-		t.Fatalf("expected refreshed version lookup to succeed, got error: %v", err)
-	}
-	if refreshedByVersion == nil || refreshedByVersion.Checksum != refreshedChecksum {
-		t.Fatalf("expected version index to use refreshed release checksum %s, got %#v", refreshedChecksum, refreshedByVersion)
-	}
-}
-
-// TestSyncManifestMigratesLegacyHostRuntimeSnapshot verifies startup manifest
-// synchronization can repair the old persisted hostruntime name while keeping
-// strict validation for fresh manifests and WASM artifacts.
-func TestSyncManifestMigratesLegacyHostRuntimeSnapshot(t *testing.T) {
-	var (
-		ctx      = context.Background()
-		svcs     = testutil.NewServices()
-		pluginID = "acme-demo-legacy-host-config-snapshot"
-		version  = "v0.1.0"
-	)
-
-	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	t.Cleanup(func() {
-		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	})
-
-	manifest := &catalog.Manifest{
-		ID:                 pluginID,
-		Name:               "Legacy HostRuntime Snapshot",
-		Version:            version,
-		Type:               catalog.TypeDynamic.String(),
-		ScopeNature:        catalog.ScopeNatureTenantAware.String(),
-		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
-		HostServices: []*protocol.HostServiceSpec{{
-			Service: protocol.HostServiceHostConfig,
-			Methods: []string{protocol.HostServiceMethodHostConfigGet},
-			Keys:    []string{"workspace.basePath"},
-		}},
-	}
-
-	if _, err := svcs.Catalog.SyncManifest(ctx, manifest); err != nil {
-		t.Fatalf("expected initial manifest sync to succeed, got error: %v", err)
-	}
-	release, err := svcs.Catalog.GetRelease(ctx, pluginID, version)
-	if err != nil {
-		t.Fatalf("expected release lookup to succeed, got error: %v", err)
-	}
-	if release == nil {
-		t.Fatal("expected release row after initial sync")
-	}
-
-	legacySnapshot := strings.ReplaceAll(release.ManifestSnapshot, protocol.HostServiceHostConfig, "hostruntime")
-	if !strings.Contains(legacySnapshot, "hostruntime") {
-		t.Fatalf("expected test fixture to contain legacy hostruntime snapshot, got %s", legacySnapshot)
-	}
-	if _, err = dao.SysPluginRelease.Ctx(ctx).
-		Where(do.SysPluginRelease{Id: release.Id}).
-		Data(do.SysPluginRelease{ManifestSnapshot: legacySnapshot}).
-		Update(); err != nil {
-		t.Fatalf("expected legacy snapshot update to succeed, got error: %v", err)
-	}
-
-	legacyRelease, err := svcs.Catalog.RefreshStartupReleaseByID(ctx, release.Id)
-	if err != nil {
-		t.Fatalf("expected release refresh to succeed, got error: %v", err)
-	}
-	parsedLegacy, err := svcs.Catalog.ParseManifestSnapshot(legacyRelease.ManifestSnapshot)
-	if err != nil {
-		t.Fatalf("expected legacy manifest snapshot to parse through migration, got error: %v", err)
-	}
-	if len(parsedLegacy.RequestedHostServices) != 1 ||
-		parsedLegacy.RequestedHostServices[0].Service != protocol.HostServiceHostConfig {
-		t.Fatalf("expected legacy hostruntime snapshot to normalize to hostconfig, got %#v", parsedLegacy.RequestedHostServices)
-	}
-
-	if _, err = svcs.Catalog.SyncManifest(ctx, manifest); err != nil {
-		t.Fatalf("expected manifest sync to rewrite migrated snapshot, got error: %v", err)
-	}
-	repairedRelease, err := svcs.Catalog.GetRelease(ctx, pluginID, version)
-	if err != nil {
-		t.Fatalf("expected repaired release lookup to succeed, got error: %v", err)
-	}
-	if strings.Contains(repairedRelease.ManifestSnapshot, "hostruntime") {
-		t.Fatalf("expected sync to rewrite legacy hostruntime snapshot, got %s", repairedRelease.ManifestSnapshot)
-	}
-	if !strings.Contains(repairedRelease.ManifestSnapshot, protocol.HostServiceHostConfig) {
-		t.Fatalf("expected repaired snapshot to contain hostconfig, got %s", repairedRelease.ManifestSnapshot)
-	}
-}
-
-// TestRuntimeUpgradeStateReportsExplicitRunningMarker verifies management
-// projections expose upgrade_running while an explicit runtime upgrade is in progress.
-func TestRuntimeUpgradeStateReportsExplicitRunningMarker(t *testing.T) {
-	var (
-		ctx        = context.Background()
-		svcs       = testutil.NewServices()
-		pluginID   = "acme-demo-runtime-upgrade-running-marker"
-		oldVersion = "v0.1.0"
-		newVersion = "v0.2.0"
-	)
-
-	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	t.Cleanup(func() {
-		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	})
-
-	oldManifest := &catalog.Manifest{
-		ID:                 pluginID,
-		Name:               "Runtime Upgrade Running Marker",
-		Version:            oldVersion,
-		Type:               catalog.TypeDynamic.String(),
-		ScopeNature:        catalog.ScopeNatureTenantAware.String(),
-		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
-	}
-	registry, err := svcs.Catalog.SyncManifest(ctx, oldManifest)
-	if err != nil {
-		t.Fatalf("expected old manifest sync to succeed, got error: %v", err)
-	}
-	oldRelease, err := svcs.Catalog.GetRelease(ctx, pluginID, oldVersion)
-	if err != nil {
-		t.Fatalf("expected old release lookup to succeed, got error: %v", err)
-	}
-	if oldRelease == nil {
-		t.Fatal("expected old release row")
-	}
-	if err = svcs.Catalog.SetPluginInstalled(ctx, pluginID, catalog.InstalledYes); err != nil {
-		t.Fatalf("expected installed state update to succeed, got error: %v", err)
-	}
-	registry, err = svcs.Catalog.GetRegistry(ctx, pluginID)
-	if err != nil {
-		t.Fatalf("expected registry lookup after install marker to succeed, got error: %v", err)
-	}
-	registry, err = svcs.Catalog.SyncRegistryReleaseReference(ctx, registry, oldManifest)
-	if err != nil {
-		t.Fatalf("expected registry release reference sync to succeed, got error: %v", err)
-	}
-	if err = svcs.Catalog.UpdateReleaseState(ctx, oldRelease.Id, catalog.ReleaseStatusInstalled, ""); err != nil {
-		t.Fatalf("expected old release state update to succeed, got error: %v", err)
-	}
-
-	newManifest := &catalog.Manifest{
-		ID:                 pluginID,
-		Name:               "Runtime Upgrade Running Marker",
-		Version:            newVersion,
-		Type:               catalog.TypeDynamic.String(),
-		ScopeNature:        catalog.ScopeNatureTenantAware.String(),
-		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
-	}
-	if _, err = svcs.Catalog.SyncManifest(ctx, newManifest); err != nil {
-		t.Fatalf("expected new manifest sync to succeed, got error: %v", err)
-	}
-	if err = svcs.Catalog.SetRegistryRuntimeState(ctx, pluginID, do.SysPlugin{
-		CurrentState: catalog.RuntimeUpgradeStateUpgradeRunning.String(),
-	}); err != nil {
-		t.Fatalf("expected running marker update to succeed, got error: %v", err)
-	}
-
-	registry, err = svcs.Catalog.GetRegistry(ctx, pluginID)
-	if err != nil {
-		t.Fatalf("expected registry lookup to succeed, got error: %v", err)
-	}
-	projection, err := svcs.Catalog.BuildRuntimeUpgradeState(ctx, registry, newManifest)
-	if err != nil {
-		t.Fatalf("expected runtime state projection to succeed, got error: %v", err)
-	}
-	if projection.State != catalog.RuntimeUpgradeStateUpgradeRunning {
-		t.Fatalf("expected upgrade_running projection, got %#v", projection)
-	}
-}
-
-// TestRuntimeUpgradeStateBlocksFailedTargetRelease verifies failed releases do
-// not project as normal runtime state even when their semantic version matches
-// the current effective registry version.
-func TestRuntimeUpgradeStateBlocksFailedTargetRelease(t *testing.T) {
-	var (
-		ctx      = context.Background()
-		svcs     = testutil.NewServices()
-		pluginID = "acme-demo-runtime-upgrade-failed-target"
-		version  = "v0.1.0"
-	)
-
-	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	t.Cleanup(func() {
-		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	})
-
-	manifest := &catalog.Manifest{
-		ID:                 pluginID,
-		Name:               "Runtime Upgrade Failed Target",
-		Version:            version,
-		Type:               catalog.TypeDynamic.String(),
-		ScopeNature:        catalog.ScopeNatureTenantAware.String(),
-		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
-	}
-	registry, err := svcs.Catalog.SyncManifest(ctx, manifest)
-	if err != nil {
-		t.Fatalf("expected manifest sync to succeed, got error: %v", err)
-	}
-	if err = svcs.Catalog.SetPluginInstalled(ctx, pluginID, catalog.InstalledYes); err != nil {
-		t.Fatalf("expected installed marker update to succeed, got error: %v", err)
-	}
-	if err = svcs.Catalog.SetPluginStatus(ctx, pluginID, catalog.StatusEnabled); err != nil {
-		t.Fatalf("expected enabled marker update to succeed, got error: %v", err)
-	}
-	registry, err = svcs.Catalog.GetRegistry(ctx, pluginID)
-	if err != nil {
-		t.Fatalf("expected registry lookup to succeed, got error: %v", err)
-	}
-	registry, err = svcs.Catalog.SyncRegistryReleaseReference(ctx, registry, manifest)
-	if err != nil {
-		t.Fatalf("expected registry release reference sync to succeed, got error: %v", err)
-	}
-	if registry == nil || registry.ReleaseId <= 0 {
-		t.Fatalf("expected registry to point at release, got %#v", registry)
-	}
-	if err = svcs.Catalog.UpdateReleaseState(ctx, registry.ReleaseId, catalog.ReleaseStatusFailed, ""); err != nil {
-		t.Fatalf("expected failed release state update to succeed, got error: %v", err)
-	}
-
-	release, err := svcs.Catalog.GetReleaseByID(ctx, registry.ReleaseId)
-	if err != nil {
-		t.Fatalf("expected release lookup to succeed, got error: %v", err)
-	}
-	projection, err := svcs.Catalog.BuildRuntimeUpgradeState(ctx, registry, manifest)
-	if err != nil {
-		t.Fatalf("expected runtime state projection to succeed, got error: %v", err)
-	}
-	if projection.State != catalog.RuntimeUpgradeStateUpgradeFailed {
-		t.Fatalf("expected failed target release to block runtime state, got %#v", projection)
-	}
-	if projection.LastFailure == nil || projection.LastFailure.ReleaseID != release.Id {
-		t.Fatalf("expected failed release diagnostic for release %d, got %#v", release.Id, projection.LastFailure)
-	}
-}
-
 // TestNormalizePluginStatusEnums verifies raw database flags are normalized
 // into the new strongly typed plugin status enums before state derivation runs.
 func TestNormalizePluginStatusEnums(t *testing.T) {
-	if status := catalog.NormalizeStatus(1); status != catalog.PluginStatusEnabled {
+	if status := plugintypes.NormalizeStatus(1); status != plugintypes.PluginStatusEnabled {
 		t.Fatalf("expected enabled status enum, got %#v", status)
 	}
-	if status := catalog.NormalizeStatus(99); status != catalog.PluginStatusDisabled {
+	if status := plugintypes.NormalizeStatus(99); status != plugintypes.PluginStatusDisabled {
 		t.Fatalf("expected unknown status to normalize to disabled, got %#v", status)
 	}
-	if installed := catalog.NormalizeInstalledStatus(1); installed != catalog.PluginInstalledYes {
+	if installed := plugintypes.NormalizeInstalledStatus(1); installed != plugintypes.PluginInstalledYes {
 		t.Fatalf("expected installed status enum, got %#v", installed)
 	}
-	if installed := catalog.NormalizeInstalledStatus(-1); installed != catalog.PluginInstalledNo {
+	if installed := plugintypes.NormalizeInstalledStatus(-1); installed != plugintypes.PluginInstalledNo {
 		t.Fatalf("expected unknown install flag to normalize to uninstalled, got %#v", installed)
 	}
 }
@@ -1660,44 +1279,44 @@ func TestDerivePluginLifecycleState(t *testing.T) {
 	}{
 		{
 			name:       "source enabled",
-			pluginType: catalog.TypeSource.String(),
-			installed:  catalog.InstalledYes,
-			enabled:    catalog.StatusEnabled,
-			expected:   catalog.LifecycleStateSourceEnabled.String(),
+			pluginType: plugintypes.TypeSource.String(),
+			installed:  plugintypes.InstalledYes,
+			enabled:    plugintypes.StatusEnabled,
+			expected:   plugintypes.LifecycleStateSourceEnabled.String(),
 		},
 		{
 			name:       "source disabled",
-			pluginType: catalog.TypeSource.String(),
-			installed:  catalog.InstalledYes,
-			enabled:    catalog.StatusDisabled,
-			expected:   catalog.LifecycleStateSourceDisabled.String(),
+			pluginType: plugintypes.TypeSource.String(),
+			installed:  plugintypes.InstalledYes,
+			enabled:    plugintypes.StatusDisabled,
+			expected:   plugintypes.LifecycleStateSourceDisabled.String(),
 		},
 		{
 			name:       "runtime uninstalled",
-			pluginType: catalog.TypeDynamic.String(),
-			installed:  catalog.InstalledNo,
-			enabled:    catalog.StatusDisabled,
-			expected:   catalog.LifecycleStateRuntimeUninstalled.String(),
+			pluginType: plugintypes.TypeDynamic.String(),
+			installed:  plugintypes.InstalledNo,
+			enabled:    plugintypes.StatusDisabled,
+			expected:   plugintypes.LifecycleStateRuntimeUninstalled.String(),
 		},
 		{
 			name:       "runtime installed disabled",
-			pluginType: catalog.TypeDynamic.String(),
-			installed:  catalog.InstalledYes,
-			enabled:    catalog.StatusDisabled,
-			expected:   catalog.LifecycleStateRuntimeInstalled.String(),
+			pluginType: plugintypes.TypeDynamic.String(),
+			installed:  plugintypes.InstalledYes,
+			enabled:    plugintypes.StatusDisabled,
+			expected:   plugintypes.LifecycleStateRuntimeInstalled.String(),
 		},
 		{
 			name:       "runtime enabled",
-			pluginType: catalog.TypeDynamic.String(),
-			installed:  catalog.InstalledYes,
-			enabled:    catalog.StatusEnabled,
-			expected:   catalog.LifecycleStateRuntimeEnabled.String(),
+			pluginType: plugintypes.TypeDynamic.String(),
+			installed:  plugintypes.InstalledYes,
+			enabled:    plugintypes.StatusEnabled,
+			expected:   plugintypes.LifecycleStateRuntimeEnabled.String(),
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			actual := catalog.DeriveLifecycleState(testCase.pluginType, testCase.installed, testCase.enabled)
+			actual := plugintypes.DeriveLifecycleState(testCase.pluginType, testCase.installed, testCase.enabled)
 			if actual != testCase.expected {
 				t.Fatalf("expected lifecycle state %s, got %s", testCase.expected, actual)
 			}
@@ -1716,27 +1335,27 @@ func TestDerivePluginNodeState(t *testing.T) {
 	}{
 		{
 			name:      "node uninstalled",
-			installed: catalog.InstalledNo,
-			enabled:   catalog.StatusDisabled,
-			expected:  catalog.NodeStateUninstalled.String(),
+			installed: plugintypes.InstalledNo,
+			enabled:   plugintypes.StatusDisabled,
+			expected:  plugintypes.NodeStateUninstalled.String(),
 		},
 		{
 			name:      "node installed",
-			installed: catalog.InstalledYes,
-			enabled:   catalog.StatusDisabled,
-			expected:  catalog.NodeStateInstalled.String(),
+			installed: plugintypes.InstalledYes,
+			enabled:   plugintypes.StatusDisabled,
+			expected:  plugintypes.NodeStateInstalled.String(),
 		},
 		{
 			name:      "node enabled",
-			installed: catalog.InstalledYes,
-			enabled:   catalog.StatusEnabled,
-			expected:  catalog.NodeStateEnabled.String(),
+			installed: plugintypes.InstalledYes,
+			enabled:   plugintypes.StatusEnabled,
+			expected:  plugintypes.NodeStateEnabled.String(),
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			actual := catalog.DeriveNodeState(testCase.installed, testCase.enabled)
+			actual := plugintypes.DeriveNodeState(testCase.installed, testCase.enabled)
 			if actual != testCase.expected {
 				t.Fatalf("expected node state %s, got %s", testCase.expected, actual)
 			}
@@ -1848,19 +1467,19 @@ func TestValidateManifestNormalizesTenantGovernance(t *testing.T) {
 		ID:                  "acme-demo-tenant-governance",
 		Name:                "Tenant Governance Plugin",
 		Version:             "0.1.0",
-		Type:                catalog.TypeSource.String(),
-		ScopeNature:         catalog.ScopeNaturePlatformOnly.String(),
+		Type:                plugintypes.TypeSource.String(),
+		ScopeNature:         plugintypes.ScopeNaturePlatformOnly.String(),
 		SupportsMultiTenant: &supportsMultiTenant,
-		DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+		DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
 	}
 
 	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
 		t.Fatalf("expected manifest to validate, got %v", err)
 	}
-	if manifest.ScopeNature != catalog.ScopeNaturePlatformOnly.String() {
+	if manifest.ScopeNature != plugintypes.ScopeNaturePlatformOnly.String() {
 		t.Fatalf("expected platform-only scope, got %s", manifest.ScopeNature)
 	}
-	if manifest.DefaultInstallMode != catalog.InstallModeGlobal.String() {
+	if manifest.DefaultInstallMode != plugintypes.InstallModeGlobal.String() {
 		t.Fatalf("expected platform-only plugin to force global install mode, got %s", manifest.DefaultInstallMode)
 	}
 	if manifest.SupportsTenantGovernance() {
@@ -1884,7 +1503,7 @@ func TestValidateManifestRequiresMultiTenantSupportDeclaration(t *testing.T) {
 		ID:      "acme-demo-tenant-governance-missing-support",
 		Name:    "Tenant Governance Missing Support Plugin",
 		Version: "0.1.0",
-		Type:    catalog.TypeSource.String(),
+		Type:    plugintypes.TypeSource.String(),
 	}
 
 	err := svcs.Catalog.ValidateManifest(manifest, manifestFile)
@@ -1905,16 +1524,16 @@ func TestValidateManifestForcesGlobalWhenTenantGovernanceUnsupported(t *testing.
 		ID:                  "acme-demo-tenant-governance-unsupported",
 		Name:                "Tenant Governance Unsupported Plugin",
 		Version:             "0.1.0",
-		Type:                catalog.TypeSource.String(),
-		ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+		Type:                plugintypes.TypeSource.String(),
+		ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
 		SupportsMultiTenant: &supportsMultiTenant,
-		DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+		DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
 	}
 
 	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
 		t.Fatalf("expected manifest to validate, got %v", err)
 	}
-	if manifest.DefaultInstallMode != catalog.InstallModeGlobal.String() {
+	if manifest.DefaultInstallMode != plugintypes.InstallModeGlobal.String() {
 		t.Fatalf("expected unsupported tenant governance to force global install mode, got %s", manifest.DefaultInstallMode)
 	}
 	if manifest.SupportsTenantGovernance() {

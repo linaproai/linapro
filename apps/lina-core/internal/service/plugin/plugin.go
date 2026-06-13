@@ -4,7 +4,6 @@ package plugin
 
 import (
 	"context"
-	"sync"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -12,6 +11,7 @@ import (
 
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/cachecoord/revisionctrl"
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/coordination"
 	i18nsvc "lina-core/internal/service/i18n"
@@ -22,11 +22,11 @@ import (
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/management"
+	"lina-core/internal/service/plugin/internal/migration"
 	"lina-core/internal/service/plugin/internal/openapi"
 	"lina-core/internal/service/plugin/internal/runtime"
-	"lina-core/internal/service/plugin/internal/runtimeupgrade"
-	sourceupgradeinternal "lina-core/internal/service/plugin/internal/sourceupgrade"
-	"lina-core/internal/service/plugin/runtimecache"
+	"lina-core/internal/service/plugin/internal/store"
+	"lina-core/internal/service/plugin/internal/upgrade"
 	"lina-core/internal/service/session"
 	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
@@ -36,6 +36,9 @@ import (
 
 	"lina-core/pkg/plugin/capability"
 	aitextsvc "lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/hostconfigcap"
+	"lina-core/pkg/plugin/capability/manifestcap"
+	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -57,22 +60,39 @@ type (
 	RuntimeUpgradeFailure = runtime.RuntimeUpgradeFailure
 
 	// RuntimeUpgradeManifestSnapshot aliases the review-friendly manifest snapshot model.
-	RuntimeUpgradeManifestSnapshot = catalog.ManifestSnapshot
+	RuntimeUpgradeManifestSnapshot = upgrade.RuntimeUpgradeManifestSnapshot
 
 	// RuntimeUpgradeSQLSummary summarizes manifest SQL assets visible to preview.
-	RuntimeUpgradeSQLSummary = runtimeupgrade.SQLSummary
+	RuntimeUpgradeSQLSummary = upgrade.RuntimeUpgradeSQLSummary
 
 	// RuntimeUpgradeHostServicesDiff summarizes service-level hostServices drift.
-	RuntimeUpgradeHostServicesDiff = runtimeupgrade.HostServicesDiff
+	RuntimeUpgradeHostServicesDiff = upgrade.RuntimeUpgradeHostServicesDiff
 
 	// RuntimeUpgradeHostServiceChange summarizes one service-level hostServices change.
-	RuntimeUpgradeHostServiceChange = runtimeupgrade.HostServiceChange
+	RuntimeUpgradeHostServiceChange = upgrade.RuntimeUpgradeHostServiceChange
 
 	// RuntimeUpgradeState aliases the plugin runtime-upgrade state enum.
-	RuntimeUpgradeState = runtime.RuntimeUpgradeState
+	RuntimeUpgradeState = upgrade.RuntimeUpgradeState
 
 	// RuntimeUpgradeAbnormalReason aliases the plugin runtime-upgrade abnormal reason enum.
-	RuntimeUpgradeAbnormalReason = runtime.RuntimeUpgradeAbnormalReason
+	RuntimeUpgradeAbnormalReason = upgrade.RuntimeUpgradeAbnormalReason
+
+	// RuntimeUpgradePreview describes the side-effect-free plan shown before a
+	// runtime plugin upgrade is confirmed.
+	RuntimeUpgradePreview = upgrade.RuntimeUpgradePreview
+
+	// RuntimeUpgradeOptions captures explicit management confirmations for a
+	// runtime plugin upgrade request.
+	RuntimeUpgradeOptions = upgrade.RuntimeUpgradeOptions
+
+	// RuntimeUpgradeResult describes one completed explicit runtime upgrade action.
+	RuntimeUpgradeResult = upgrade.RuntimeUpgradeResult
+
+	// SourceUpgradeStatus aliases the unified upgrade source-plugin upgrade status contract.
+	SourceUpgradeStatus = upgrade.SourceUpgradeStatus
+
+	// SourceUpgradeResult aliases the unified upgrade explicit source-plugin upgrade result contract.
+	SourceUpgradeResult = upgrade.SourceUpgradeResult
 
 	// ResourceListInput defines input for querying a plugin-owned backend resource.
 	ResourceListInput = integration.ResourceListInput
@@ -90,11 +110,11 @@ type (
 	PluginDynamicStateItem = runtime.PluginDynamicStateItem
 
 	// HostServiceAuthorizationInput defines one install/enable authorization confirmation payload.
-	HostServiceAuthorizationInput = catalog.HostServiceAuthorizationInput
+	HostServiceAuthorizationInput = store.HostServiceAuthorizationInput
 
 	// InstallOptions captures the per-request install decoration that callers can opt into.
 	// All fields default to the zero value, which preserves the original install behavior
-	// (no mock data, no host-service authorization snapshot, no startup context).
+	// (no mock data and no host-service authorization snapshot).
 	InstallOptions struct {
 		// Authorization optionally carries a host-service authorization snapshot for
 		// dynamic plugins that require explicit confirmation before install.
@@ -107,26 +127,10 @@ type (
 		// database transaction; any failure rolls back only the mock load and leaves
 		// the install SQL phase results intact.
 		InstallMockData bool
-		// startupAutoEnable marks install requests initiated by plugin.autoEnable
-		// startup bootstrap for the explicitly configured target plugin.
-		startupAutoEnable bool
-		// dependencyResult records the server-side dependency check produced
-		// during this install request.
-		dependencyResult *DependencyCheckResult
-	}
-
-	// RuntimeUpgradeOptions captures explicit management confirmations for a
-	// runtime plugin upgrade request.
-	RuntimeUpgradeOptions struct {
-		// Confirmed must be true before the host performs upgrade side effects.
-		Confirmed bool
-		// Authorization optionally carries the hostServices authorization snapshot
-		// confirmed for the target dynamic release before it becomes effective.
-		Authorization *HostServiceAuthorizationInput
 	}
 
 	// HostServiceAuthorizationDecision narrows one authorized service snapshot.
-	HostServiceAuthorizationDecision = catalog.HostServiceAuthorizationDecision
+	HostServiceAuthorizationDecision = store.HostServiceAuthorizationDecision
 
 	// ManagedJob describes one plugin-owned scheduled-job definition that
 	// the host can project into the unified scheduled-job management table.
@@ -159,63 +163,20 @@ type (
 
 const (
 	// RuntimeUpgradeStateNormal means the effective and discovered metadata are aligned.
-	RuntimeUpgradeStateNormal = runtime.RuntimeUpgradeStateNormal
+	RuntimeUpgradeStateNormal = upgrade.RuntimeUpgradeStateNormal
 	// RuntimeUpgradeStatePendingUpgrade means discovered plugin files are newer than the effective version.
-	RuntimeUpgradeStatePendingUpgrade = runtime.RuntimeUpgradeStatePendingUpgrade
+	RuntimeUpgradeStatePendingUpgrade = upgrade.RuntimeUpgradeStatePendingUpgrade
 	// RuntimeUpgradeStateAbnormal means discovered plugin files are older or cannot be safely compared.
-	RuntimeUpgradeStateAbnormal = runtime.RuntimeUpgradeStateAbnormal
+	RuntimeUpgradeStateAbnormal = upgrade.RuntimeUpgradeStateAbnormal
 	// RuntimeUpgradeStateUpgradeRunning means a runtime upgrade transition is currently reconciling.
-	RuntimeUpgradeStateUpgradeRunning = runtime.RuntimeUpgradeStateUpgradeRunning
+	RuntimeUpgradeStateUpgradeRunning = upgrade.RuntimeUpgradeStateUpgradeRunning
 	// RuntimeUpgradeStateUpgradeFailed means the latest target release failed before becoming effective.
-	RuntimeUpgradeStateUpgradeFailed = runtime.RuntimeUpgradeStateUpgradeFailed
+	RuntimeUpgradeStateUpgradeFailed = upgrade.RuntimeUpgradeStateUpgradeFailed
 	// RuntimeUpgradeAbnormalReasonDiscoveredVersionLowerThanEffective means the file version is lower than the DB version.
-	RuntimeUpgradeAbnormalReasonDiscoveredVersionLowerThanEffective = runtime.RuntimeUpgradeAbnormalReasonDiscoveredVersionLowerThanEffective
+	RuntimeUpgradeAbnormalReasonDiscoveredVersionLowerThanEffective = upgrade.RuntimeUpgradeAbnormalReasonDiscoveredVersionLowerThanEffective
 	// RuntimeUpgradeAbnormalReasonVersionCompareFailed means at least one version string is not semver-compatible.
-	RuntimeUpgradeAbnormalReasonVersionCompareFailed = runtime.RuntimeUpgradeAbnormalReasonVersionCompareFailed
+	RuntimeUpgradeAbnormalReasonVersionCompareFailed = upgrade.RuntimeUpgradeAbnormalReasonVersionCompareFailed
 )
-
-// RuntimeUpgradePreview describes the side-effect-free plan shown before a
-// runtime plugin upgrade is confirmed.
-type RuntimeUpgradePreview struct {
-	// PluginID is the target plugin identifier.
-	PluginID string
-	// RuntimeState is the current runtime-upgrade state re-read by the host.
-	RuntimeState RuntimeUpgradeState
-	// EffectiveVersion is the database-effective version before upgrade.
-	EffectiveVersion string
-	// DiscoveredVersion is the file-discovered target version.
-	DiscoveredVersion string
-	// FromManifest is the current effective manifest snapshot.
-	FromManifest *RuntimeUpgradeManifestSnapshot
-	// ToManifest is the target manifest snapshot discovered from files.
-	ToManifest *RuntimeUpgradeManifestSnapshot
-	// DependencyCheck contains install and reverse-dependency precheck results.
-	DependencyCheck *DependencyCheckResult
-	// SQLSummary summarizes target manifest SQL assets without executing them.
-	SQLSummary RuntimeUpgradeSQLSummary
-	// HostServicesDiff summarizes requested host service changes.
-	HostServicesDiff RuntimeUpgradeHostServicesDiff
-	// RiskHints lists stable operator-facing risk hint keys.
-	RiskHints []string
-}
-
-// RuntimeUpgradeResult describes one completed explicit runtime upgrade action.
-type RuntimeUpgradeResult struct {
-	// PluginID is the upgraded plugin identifier.
-	PluginID string
-	// RuntimeState is the post-upgrade runtime state.
-	RuntimeState RuntimeUpgradeState
-	// EffectiveVersion is the database-effective version after the request.
-	EffectiveVersion string
-	// DiscoveredVersion is the currently discovered version after the request.
-	DiscoveredVersion string
-	// FromVersion is the effective version observed before upgrade side effects.
-	FromVersion string
-	// ToVersion is the target discovered version requested by the operator.
-	ToVersion string
-	// Executed reports whether the service performed upgrade side effects.
-	Executed bool
-}
 
 // UninstallOptions defines one plugin uninstall policy snapshot.
 type UninstallOptions struct {
@@ -282,8 +243,6 @@ type SourceIntegrationService interface {
 	ListSourceRouteBindings() []pluginhost.SourceRouteBinding
 	// RegisterJobs registers callback-contributed scheduled jobs for source plugins.
 	RegisterJobs(ctx context.Context) error
-	// SetCapabilities wires the host-published capability services used by source plugins.
-	SetCapabilities(capabilities capability.Services)
 	// RegisterSourcePluginProviderFactories registers source-plugin provider declarations into shared managers.
 	RegisterSourcePluginProviderFactories(
 		tenantManager *tenantspi.Manager,
@@ -422,14 +381,6 @@ type SourceUpgradeGovernanceService interface {
 	// ValidateStartupConsistency fails fast when persisted plugin and tenant
 	// governance state is incoherent before routes are served.
 	ValidateStartupConsistency(ctx context.Context) error
-	// SetTenantStartupCapability wires tenant provider availability and startup consistency checks.
-	SetTenantStartupCapability(service pluginTenantStartupCapability)
-	// SetTenantProvisioningCapability wires tenant plugin auto-provisioning.
-	SetTenantProvisioningCapability(service tenantspi.PluginProvisioningService)
-	// SetTenantPlatformGovernanceCapability wires platform-scope plugin governance checks.
-	SetTenantPlatformGovernanceCapability(service platformGovernanceTenantCapability)
-	// SetOrganizationCapability wires the runtime-owned organization capability used by plugin resource scopes.
-	SetOrganizationCapability(service orgcapsvc.Service)
 }
 
 // RegistryQueryService defines manifest synchronization and plugin list query operations.
@@ -507,6 +458,7 @@ type Service interface {
 	RuntimeManagementService
 	DynamicPackageService
 	DynamicRouteService
+	LifecycleObserverRegistrar
 }
 
 // Ensure serviceImpl satisfies the composed plugin facade contract.
@@ -519,27 +471,39 @@ type serviceImpl struct {
 	// topology reports whether the current host instance should execute shared
 	// lifecycle actions or wait for another primary node to converge them.
 	topology Topology
-	// catalogSvc provides manifest discovery, registry, and release governance.
+	// catalogSvc provides manifest discovery, validation, and manifest asset access.
 	catalogSvc catalog.Service
+	// storeSvc owns plugin governance persistence and stable projections.
+	storeSvc store.Service
 	// lifecycleSvc provides install/uninstall lifecycle orchestration.
 	lifecycleSvc lifecycle.Service
+	// migrationSvc executes plugin SQL lifecycle phases and migration ledger writes.
+	migrationSvc migration.Service
 	// runtimeSvc provides dynamic plugin reconciliation and route dispatch.
 	runtimeSvc runtime.Service
 	// integrationSvc provides host extension, menu, hook, and resource integration.
 	integrationSvc integration.Service
-	// sourceUpgradeSvc provides source-plugin upgrade discovery, execution, and startup validation.
-	sourceUpgradeSvc sourceupgradeinternal.Service
+	// upgradeSvc provides unified source and dynamic upgrade planning and execution.
+	upgradeSvc upgrade.Service
 	// frontendSvc manages in-memory frontend bundles for dynamic plugins.
 	frontendSvc frontend.Service
 	// openapiSvc projects dynamic routes into the host OpenAPI document.
 	openapiSvc openapi.Service
 	// capabilities exposes runtime-owned adapters for lazy provider construction.
 	capabilities capability.Services
+	// sourceServices resolves plugin-scoped source-plugin services for integration callbacks.
+	sourceServices *sourceServicesProvider
+	// orgDeptProvider resolves organization departments for plugin resource data-scope filters.
+	orgDeptProvider *organizationDeptProvider
 	// i18nSvc localizes plugin lifecycle messages and invalidates runtime
 	// translation bundles after plugin lifecycle mutations.
 	i18nSvc pluginI18nService
 	// runtimeCacheRevisionCtrl coordinates process-local runtime caches in cluster deployments.
-	runtimeCacheRevisionCtrl *runtimecache.Controller
+	runtimeCacheRevisionCtrl *revisionctrl.Controller
+	// wasmRuntime owns dynamic-plugin WASM execution and host-call dependencies.
+	wasmRuntime *wasmRuntimeProvider
+	// lifecycleObservers stores transitional root-level observers for flows not yet migrated to lifecycle.
+	lifecycleObservers *lifecycleObserverRegistry
 	// runtimeUpgradeLockStore coordinates explicit runtime upgrades across cluster nodes.
 	runtimeUpgradeLockStore coordination.LockStore
 	// managementListCache stores the plugin-management summary read model.
@@ -550,10 +514,6 @@ type serviceImpl struct {
 	tenantProvisioning tenantspi.PluginProvisioningService
 	// tenantGovernance guards platform plugin-governance writes in HTTP paths.
 	tenantGovernance platformGovernanceTenantCapability
-	// runtimeUpgradeLocksMu protects process-local runtime-upgrade locks.
-	runtimeUpgradeLocksMu sync.Mutex
-	// runtimeUpgradeLocks serializes explicit runtime upgrades per plugin in the current process.
-	runtimeUpgradeLocks map[string]*sync.Mutex
 }
 
 // New creates and returns a new plugin Service.
@@ -561,6 +521,10 @@ type serviceImpl struct {
 // default single-node topology implementation.
 // reconcilerLockSvc must be created by the startup composition root and shared
 // with host-lock services that use the same deployment-selected locker backend.
+// capabilityServices, tenant/org governance services, and WASM host-service
+// factories must also be startup-owned shared instances; callers that need to
+// break the host-service construction cycle should use RuntimeDelegate and bind
+// it to the returned service before serving requests.
 func New(
 	topology Topology,
 	configProvider configsvc.Service,
@@ -570,6 +534,14 @@ func New(
 	sessionStore session.Store,
 	reconcilerLockSvc locker.Service,
 	runtimeUpgradeLockStore coordination.LockStore,
+	capabilityServices capability.Services,
+	organizationSvc orgcapsvc.Service,
+	tenantStartup pluginTenantStartupCapability,
+	tenantProvisioning tenantspi.PluginProvisioningService,
+	tenantGovernance platformGovernanceTenantCapability,
+	pluginConfigFactory plugincap.ConfigServiceFactory,
+	hostConfigSvc hostconfigcap.Service,
+	pluginManifestFactory manifestcap.ServiceFactory,
 ) (Service, error) {
 	if configProvider == nil {
 		return nil, gerror.New("plugin service requires a non-nil config service")
@@ -589,6 +561,30 @@ func New(
 	if reconcilerLockSvc == nil {
 		return nil, gerror.New("plugin service requires a non-nil reconciler lock service")
 	}
+	if capabilityServices == nil {
+		return nil, gerror.New("plugin service requires non-nil capability services")
+	}
+	if organizationSvc == nil {
+		return nil, gerror.New("plugin service requires a non-nil organization capability service")
+	}
+	if tenantStartup == nil {
+		return nil, gerror.New("plugin service requires a non-nil tenant startup capability")
+	}
+	if tenantProvisioning == nil {
+		return nil, gerror.New("plugin service requires a non-nil tenant provisioning capability")
+	}
+	if tenantGovernance == nil {
+		return nil, gerror.New("plugin service requires a non-nil tenant platform governance capability")
+	}
+	wasmRuntimeInstance, err := newWasmHostServiceRuntime(
+		capabilityServices,
+		pluginConfigFactory,
+		hostConfigSvc,
+		pluginManifestFactory,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	var topo Topology = singleNodeTopology{}
 	if topology != nil {
@@ -596,55 +592,91 @@ func New(
 	}
 
 	var (
-		catalogSvc     = catalog.New(configProvider)
-		lifecycleSvc   = lifecycle.New(catalogSvc)
-		frontendSvc    = frontend.New(catalogSvc)
-		openapiSvc     = openapi.New(catalogSvc)
-		runtimeSvc     = runtime.New(catalogSvc, lifecycleSvc, frontendSvc, openapiSvc, i18nSvc, reconcilerLockSvc)
-		integrationSvc = integration.New(catalogSvc)
+		catalogSvc           = catalog.New(configProvider)
+		topologyProvider     = &runtimeTopologyAdapter{topo}
+		storeSvc             = store.New(catalogSvc, topologyProvider)
+		migrationSvc         = migration.New(catalogSvc, storeSvc)
+		frontendSvc          = frontend.New(catalogSvc, storeSvc)
+		openapiSvc           = openapi.New(catalogSvc, storeSvc)
+		sourceServices       = &sourceServicesProvider{capabilities: capabilityServices}
+		orgDeptProvider      = &organizationDeptProvider{service: organizationSvc}
+		integrationDelegates = &integrationDelegateProvider{}
+		cacheChangeNotifier  = &runtimeCacheChangeNotifierProvider{}
+		dependencyValidator  = &dependencyValidatorProvider{}
+		wasmRuntime          = &wasmRuntimeProvider{runtime: wasmRuntimeInstance}
+		lifecycleTopology    = &lifecycleTopologyAdapter{topo}
 	)
-
-	// Wire cross-package dependencies via setter injection so each sub-package
-	// can be constructed independently without circular imports.
-	catalogSvc.SetBackendLoader(integrationSvc)
-	catalogSvc.SetArtifactParser(runtimeSvc)
-	catalogSvc.SetDynamicManifestLoader(runtimeSvc)
-	catalogSvc.SetNodeStateSyncer(runtimeSvc)
-	catalogSvc.SetMenuSyncer(integrationSvc)
-	catalogSvc.SetResourceRefSyncer(integrationSvc)
-	catalogSvc.SetReleaseStateSyncer(runtimeSvc)
-	catalogSvc.SetHookDispatcher(integrationSvc)
-
-	lifecycleSvc.SetReconciler(runtimeSvc)
-	lifecycleSvc.SetTopology(&lifecycleTopologyAdapter{topo})
-
-	integrationSvc.SetBizCtxProvider(&bizCtxAdapter{bizCtxProvider})
-	integrationSvc.SetTopologyProvider(&integrationTopologyAdapter{topo})
-	integrationSvc.SetDynamicJobExecutor(runtimeSvc)
-
-	runtimeSvc.SetTopology(&runtimeTopologyAdapter{topo})
-	runtimeSvc.SetMenuManager(integrationSvc)
-	runtimeSvc.SetHookDispatcher(integrationSvc)
-	runtimeSvc.SetPermissionMenuFilter(integrationSvc)
-	runtimeSvc.SetJwtConfigProvider(&jwtConfigAdapter{configProvider})
-	runtimeSvc.SetUploadSizeProvider(&uploadSizeAdapter{configProvider})
-	runtimeSvc.SetUserContextSetter(&userCtxAdapter{bizCtxProvider})
-	runtimeSvc.SetSessionStore(sessionStore)
+	runtimeSvc := runtime.New(
+		catalogSvc,
+		storeSvc,
+		migrationSvc,
+		frontendSvc,
+		openapiSvc,
+		i18nSvc,
+		reconcilerLockSvc,
+		topologyProvider,
+		integrationDelegates,
+		integrationDelegates,
+		integrationDelegates,
+		&jwtConfigAdapter{configProvider},
+		&uploadSizeAdapter{configProvider},
+		&userCtxAdapter{bizCtxProvider},
+		sessionStore,
+		integrationDelegates,
+		cacheChangeNotifier,
+		dependencyValidator,
+		sourceServices,
+		wasmRuntime,
+	)
+	integrationSvc := integration.New(
+		catalogSvc,
+		storeSvc,
+		&bizCtxAdapter{bizCtxProvider},
+		&integrationTopologyAdapter{topo},
+		sourceServices,
+		orgDeptProvider,
+		runtimeSvc,
+		integration.NewSharedState(),
+	)
+	integrationDelegates.BindService(integrationSvc)
+	dependencyResolver := plugindep.New()
+	lifecycleSvc := lifecycle.New(
+		catalogSvc,
+		storeSvc,
+		runtimeSvc,
+		integrationSvc,
+		migrationSvc,
+		dependencyResolver,
+		i18nSvc,
+		cacheChangeNotifier,
+		lifecycleTopology,
+		tenantProvisioning,
+	)
 
 	service := &serviceImpl{
 		configSvc:               configProvider,
 		topology:                topo,
 		catalogSvc:              catalogSvc,
+		storeSvc:                storeSvc,
 		lifecycleSvc:            lifecycleSvc,
+		migrationSvc:            migrationSvc,
 		runtimeSvc:              runtimeSvc,
 		integrationSvc:          integrationSvc,
 		frontendSvc:             frontendSvc,
 		openapiSvc:              openapiSvc,
+		capabilities:            capabilityServices,
+		sourceServices:          sourceServices,
+		orgDeptProvider:         orgDeptProvider,
 		i18nSvc:                 i18nSvc,
+		wasmRuntime:             wasmRuntime,
 		runtimeUpgradeLockStore: runtimeUpgradeLockStore,
 		managementListCache:     management.NewListCache(),
-		runtimeUpgradeLocks:     make(map[string]*sync.Mutex),
+		tenantStartup:           tenantStartup,
+		tenantProvisioning:      tenantProvisioning,
+		tenantGovernance:        tenantGovernance,
 	}
+	cacheChangeNotifier.BindService(service)
+	dependencyValidator.BindService(service)
 	service.runtimeCacheRevisionCtrl = newRuntimeCacheRevisionController(
 		topo,
 		cacheCoordSvc,
@@ -652,12 +684,26 @@ func New(
 		frontendSvc,
 		i18nSvc,
 		service,
+		wasmRuntime,
 	)
-	runtimeSvc.SetRuntimeCacheChangeNotifier(service)
-	runtimeSvc.SetDependencyValidator(service)
-	if err := runtimeSvc.ValidateRequiredDependencies(); err != nil {
-		return nil, gerror.Wrap(err, "plugin runtime wiring validation failed")
+	upgradeSvc, err := upgrade.New(
+		catalogSvc,
+		storeSvc,
+		lifecycleSvc,
+		runtimeSvc,
+		integrationSvc,
+		migrationSvc,
+		dependencyResolver,
+		i18nSvc,
+		runtimeUpgradeLockStore,
+		upgradeCachePublisher{service: service},
+		upgradeCacheFreshener{service: service},
+		topo,
+		configProvider,
+	)
+	if err != nil {
+		return nil, err
 	}
-	service.sourceUpgradeSvc = sourceupgradeinternal.New(catalogSvc, lifecycleSvc, runtimeSvc, integrationSvc, i18nSvc, service)
+	service.upgradeSvc = upgradeSvc
 	return service, nil
 }

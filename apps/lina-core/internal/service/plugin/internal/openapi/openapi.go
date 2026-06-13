@@ -8,6 +8,7 @@ import (
 	"github.com/gogf/gf/v2/net/goai"
 
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/store"
 )
 
 // Service defines the openapi service contract.
@@ -23,9 +24,11 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	// catalogSvc provides manifest scanning and active manifest lookup.
 	catalogSvc catalog.Service
+	// storeSvc provides active release projections for dynamic route docs.
+	storeSvc store.Service
 }
 
-// New creates a new openapi Service backed by the given catalog service.
-func New(catalogSvc catalog.Service) Service {
-	return &serviceImpl{catalogSvc: catalogSvc}
+// New creates a new openapi Service backed by shared catalog and store services.
+func New(catalogSvc catalog.Service, storeSvc store.Service) Service {
+	return &serviceImpl{catalogSvc: catalogSvc, storeSvc: storeSvc}
 }

@@ -1,0 +1,359 @@
+// This file loads plugin backend declarations and dispatches generic plugin
+// resource queries.
+
+package integration
+
+import (
+	"context"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gfile"
+	"gopkg.in/yaml.v3"
+
+	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
+)
+
+// pluginHookEventFieldExprPrefix is the prefix for event-field expressions in hook specs.
+const pluginHookEventFieldExprPrefix = "event."
+
+// ResourceListInput defines input for querying a plugin-owned backend resource.
+type ResourceListInput struct {
+	// PluginID is the plugin identifier.
+	PluginID string
+	// ResourceID is the plugin-declared resource key.
+	ResourceID string
+	// Filters contains query-string filter values.
+	Filters map[string]string
+	// PageNum is the requested page number.
+	PageNum int
+	// PageSize is the requested page size.
+	PageSize int
+}
+
+// ResourceListOutput defines output for querying a plugin-owned backend resource.
+type ResourceListOutput struct {
+	// List contains the queried resource rows.
+	List []map[string]interface{}
+	// Total is the total row count.
+	Total int
+}
+
+// ResolveResourcePermission resolves the plugin-scoped permission for one
+// plugin-owned backend resource exposed by the generic resource endpoint.
+func (s *serviceImpl) ResolveResourcePermission(
+	ctx context.Context,
+	pluginID string,
+	resourceID string,
+) (string, error) {
+	manifest, err := s.resolveActiveOrDesiredManifest(ctx, pluginID)
+	if err != nil {
+		return "", err
+	}
+	resource, ok := manifest.BackendResources[resourceID]
+	if !ok {
+		return "", gerror.New("plugin resource does not exist")
+	}
+	if permission := strings.TrimSpace(resource.Permission); permission != "" {
+		return permission, nil
+	}
+	return buildDefaultResourcePermission(pluginID, resourceID), nil
+}
+
+// resolveActiveOrDesiredManifest loads the active release manifest for installed
+// dynamic plugins and falls back to discovery for source or inactive plugins.
+func (s *serviceImpl) resolveActiveOrDesiredManifest(ctx context.Context, pluginID string) (*catalog.Manifest, error) {
+	registry, err := s.storeSvc.GetRegistry(ctx, pluginID)
+	if err != nil {
+		return nil, err
+	}
+	if registry != nil &&
+		plugintypes.NormalizeType(registry.Type) == plugintypes.TypeDynamic &&
+		registry.Installed == plugintypes.InstalledYes &&
+		registry.ReleaseId > 0 {
+		release, releaseErr := s.storeSvc.GetRegistryRelease(ctx, registry)
+		if releaseErr != nil || release == nil {
+			return nil, releaseErr
+		}
+		return s.storeSvc.LoadReleaseManifest(ctx, release)
+	}
+	return s.catalogSvc.GetDesiredManifest(pluginID)
+}
+
+// LoadPluginBackendConfig loads plugin-owned hook and resource declarations into the manifest.
+// It implements catalog.BackendConfigLoader.
+func (s *serviceImpl) LoadPluginBackendConfig(manifest *catalog.Manifest) error {
+	manifest.Hooks = make([]*catalog.HookSpec, 0)
+	manifest.BackendResources = make(map[string]*catalog.ResourceSpec)
+
+	if manifest.SourcePlugin != nil {
+		return nil
+	}
+
+	if manifest.RuntimeArtifact != nil {
+		manifest.Hooks = catalog.CloneHookSpecs(manifest.RuntimeArtifact.HookSpecs)
+		manifest.BackendResources = catalog.CloneResourceSpecsToMap(manifest.RuntimeArtifact.ResourceSpecs)
+		return nil
+	}
+
+	hookFiles, err := gfile.ScanDirFile(filepath.Join(manifest.RootDir, "backend", "hooks"), "*.yaml", false)
+	if err != nil && !gfile.Exists(filepath.Join(manifest.RootDir, "backend", "hooks")) {
+		err = nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, hookFile := range hookFiles {
+		spec := &catalog.HookSpec{}
+		if err = loadPluginYAMLFile(hookFile, spec); err != nil {
+			return err
+		}
+		if err = catalog.ValidateHookSpec(manifest.ID, spec, hookFile); err != nil {
+			return err
+		}
+		manifest.Hooks = append(manifest.Hooks, spec)
+	}
+
+	resourceFiles, err := gfile.ScanDirFile(filepath.Join(manifest.RootDir, "backend", "resources"), "*.yaml", false)
+	if err != nil && !gfile.Exists(filepath.Join(manifest.RootDir, "backend", "resources")) {
+		err = nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, resourceFile := range resourceFiles {
+		spec := &catalog.ResourceSpec{}
+		if err = loadPluginYAMLFile(resourceFile, spec); err != nil {
+			return err
+		}
+		if err = catalog.ValidateResourceSpec(manifest.ID, spec, resourceFile); err != nil {
+			return err
+		}
+		manifest.BackendResources[spec.Key] = spec
+	}
+	return nil
+}
+
+// loadPluginYAMLFile reads a YAML file at filePath and unmarshals it into target.
+func loadPluginYAMLFile(filePath string, target interface{}) error {
+	content := gfile.GetBytes(filePath)
+	if len(content) == 0 {
+		return gerror.Newf("plugin configuration file is empty: %s", filePath)
+	}
+	if err := yaml.Unmarshal(content, target); err != nil {
+		return gerror.Wrapf(err, "parse plugin configuration file failed: %s", filePath)
+	}
+	return nil
+}
+
+// ListResourceRecords queries plugin-owned backend resource rows using the
+// generic plugin resource contract.
+func (s *serviceImpl) ListResourceRecords(ctx context.Context, in ResourceListInput) (*ResourceListOutput, error) {
+	manifest, err := s.resolveActiveOrDesiredManifest(ctx, in.PluginID)
+	if err != nil {
+		return nil, err
+	}
+	if !s.CanExposeBusinessEntries(ctx, in.PluginID) {
+		return nil, gerror.New("plugin is not enabled")
+	}
+
+	resource, ok := manifest.BackendResources[in.ResourceID]
+	if !ok {
+		return nil, gerror.New("plugin resource does not exist")
+	}
+	if in.PageNum <= 0 {
+		in.PageNum = 1
+	}
+	if in.PageSize <= 0 {
+		in.PageSize = 10
+	}
+	if in.PageSize > 100 {
+		in.PageSize = 100
+	}
+
+	m := g.DB().Model(resource.Table).Safe().Ctx(ctx)
+	for _, filter := range resource.Filters {
+		value := strings.TrimSpace(in.Filters[filter.Param])
+		if value == "" {
+			continue
+		}
+		switch plugintypes.NormalizeResourceFilterOperator(filter.Operator) {
+		case plugintypes.ResourceFilterOperatorEQ:
+			m = m.Where(filter.Column, value)
+		case plugintypes.ResourceFilterOperatorLike:
+			m = m.WhereLike(filter.Column, "%"+value+"%")
+		case plugintypes.ResourceFilterOperatorGTEDate:
+			m = m.WhereGTE(filter.Column, value+" 00:00:00")
+		case plugintypes.ResourceFilterOperatorLTEDate:
+			m = m.WhereLTE(filter.Column, value+" 23:59:59")
+		default:
+			return nil, gerror.Newf("plugin resource filter operator is not supported: %s", filter.Operator)
+		}
+	}
+	m, err = s.applyPluginResourceDataScope(ctx, m, resource)
+	if err != nil {
+		return nil, err
+	}
+
+	total, err := m.Count()
+	if err != nil {
+		return nil, err
+	}
+
+	fields := make([]string, 0, len(resource.Fields))
+	for _, field := range resource.Fields {
+		fields = append(fields, fmt.Sprintf("%s AS %s", field.Column, quotePluginResourceAlias(field.Name)))
+	}
+	fieldArgs := make([]interface{}, 0, len(fields))
+	for _, field := range fields {
+		fieldArgs = append(fieldArgs, field)
+	}
+
+	queryModel := m.Fields(fieldArgs...).Page(in.PageNum, in.PageSize)
+	if plugintypes.NormalizeResourceOrderDirection(resource.OrderBy.Direction) == plugintypes.ResourceOrderDirectionDESC {
+		queryModel = queryModel.OrderDesc(resource.OrderBy.Column)
+	} else {
+		queryModel = queryModel.OrderAsc(resource.OrderBy.Column)
+	}
+	records, err := queryModel.All()
+	if err != nil {
+		return nil, err
+	}
+	items := make([]map[string]interface{}, 0, len(records))
+	for _, record := range records {
+		recordMap := record.Map()
+		row := make(map[string]interface{}, len(resource.Fields))
+		for _, field := range resource.Fields {
+			row[field.Name] = normalizePluginResourceValue(resolvePluginResourceRecordValue(recordMap, field))
+		}
+		items = append(items, row)
+	}
+	return &ResourceListOutput{List: items, Total: total}, nil
+}
+
+// quotePluginResourceAlias preserves logical camelCase aliases across database
+// engines that fold unquoted select aliases.
+func quotePluginResourceAlias(alias string) string {
+	return `"` + strings.ReplaceAll(alias, `"`, `""`) + `"`
+}
+
+// resolvePluginResourceRecordValue reads a projected row by logical alias first
+// and by physical column name as a fallback.
+func resolvePluginResourceRecordValue(recordMap map[string]interface{}, field *catalog.ResourceField) interface{} {
+	if recordMap == nil || field == nil {
+		return nil
+	}
+	if value, ok := recordMap[field.Name]; ok {
+		return value
+	}
+	if value, ok := recordMap[field.Column]; ok {
+		return value
+	}
+	return nil
+}
+
+// normalizePluginResourceValue converts time values to JSON-safe strings.
+func normalizePluginResourceValue(value interface{}) interface{} {
+	switch typedValue := value.(type) {
+	case *time.Time:
+		if typedValue == nil {
+			return ""
+		}
+		return typedValue.Format(time.RFC3339Nano)
+	case time.Time:
+		return typedValue.Format(time.RFC3339Nano)
+	case interface{ String() string }:
+		return typedValue.String()
+	default:
+		return value
+	}
+}
+
+// buildDefaultResourcePermission derives the fallback permission when a plugin
+// resource does not declare one explicitly.
+func buildDefaultResourcePermission(pluginID string, resourceID string) string {
+	return strings.TrimSpace(pluginID) + ":" + strings.TrimSpace(resourceID) + ":list"
+}
+
+// executePluginInsertHook executes a generic insert hook declared by a source plugin.
+func (s *serviceImpl) executePluginInsertHook(ctx context.Context, pluginID string, hook *catalog.HookSpec, payload map[string]interface{}) error {
+	columns := make([]string, 0, len(hook.Fields))
+	for column := range hook.Fields {
+		columns = append(columns, column)
+	}
+	// Sort for deterministic SQL generation.
+	sortStrings(columns)
+
+	values := make([]interface{}, 0, len(columns))
+	placeholders := make([]string, 0, len(columns))
+	for _, column := range columns {
+		expr := hook.Fields[column]
+		value, err := resolvePluginHookValue(expr, payload)
+		if err != nil {
+			return gerror.Wrapf(err, "resolve plugin %s hook field failed: %s", pluginID, column)
+		}
+		values = append(values, value)
+		placeholders = append(placeholders, "?")
+	}
+
+	sql := fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES (%s)",
+		hook.Table,
+		strings.Join(columns, ", "),
+		strings.Join(placeholders, ", "),
+	)
+	_, err := g.DB().Exec(ctx, sql, values...)
+	return err
+}
+
+// executePluginSleepHook sleeps for the duration specified in the hook spec.
+func executePluginSleepHook(ctx context.Context, hook *catalog.HookSpec) error {
+	if hook == nil || hook.SleepMs <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(time.Duration(hook.SleepMs) * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+// executePluginErrorHook returns the configured error message.
+func executePluginErrorHook(hook *catalog.HookSpec) error {
+	if hook == nil {
+		return nil
+	}
+	return gerror.New(strings.TrimSpace(hook.ErrorMessage))
+}
+
+// resolvePluginHookValue evaluates one hook field expression against the hook payload.
+func resolvePluginHookValue(expr string, payload map[string]interface{}) (interface{}, error) {
+	if expr == "now" {
+		return time.Now(), nil
+	}
+	if strings.HasPrefix(expr, pluginHookEventFieldExprPrefix) {
+		fieldName := strings.TrimPrefix(expr, pluginHookEventFieldExprPrefix)
+		if value, ok := payload[fieldName]; ok {
+			return value, nil
+		}
+		return nil, gerror.Newf("hook event field does not exist: %s", fieldName)
+	}
+	return nil, gerror.Newf("unsupported hook field expression: %s", expr)
+}
+
+// sortStrings sorts a string slice in place.
+func sortStrings(items []string) {
+	for i := 1; i < len(items); i++ {
+		for j := i; j > 0 && items[j] < items[j-1]; j-- {
+			items[j], items[j-1] = items[j-1], items[j]
+		}
+	}
+}

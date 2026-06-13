@@ -53,6 +53,10 @@ func (a *runtimeTopologyAdapter) CurrentNodeID() string { return a.t.NodeID() }
 // lifecycleTopologyAdapter adapts plugin.Topology to lifecycle.TopologyProvider.
 type lifecycleTopologyAdapter struct{ t Topology }
 
+// IsClusterModeEnabled reports whether lifecycle startup waits should use
+// primary-node coordination.
+func (a *lifecycleTopologyAdapter) IsClusterModeEnabled() bool { return a.t.IsEnabled() }
+
 // IsPrimaryNode reports whether lifecycle mutations may run on this node.
 func (a *lifecycleTopologyAdapter) IsPrimaryNode() bool { return a.t.IsPrimary() }
 

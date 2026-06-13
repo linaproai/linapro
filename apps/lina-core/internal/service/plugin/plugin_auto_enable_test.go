@@ -18,6 +18,7 @@ import (
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	runtimepkg "lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/plugin/capability/tenantcap"
@@ -65,10 +66,10 @@ func TestBootstrapAutoEnableInstallsAndEnablesSourcePlugin(t *testing.T) {
 	if registry == nil {
 		t.Fatal("expected source plugin registry row after startup bootstrap")
 	}
-	if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
+	if registry.Installed != plugintypes.InstalledYes || registry.Status != plugintypes.StatusEnabled {
 		t.Fatalf("expected source plugin to be installed and enabled, got %#v", registry)
 	}
-	if registry.CurrentState != catalog.HostStateEnabled.String() {
+	if registry.CurrentState != plugintypes.HostStateEnabled.String() {
 		t.Fatalf("expected source plugin current state enabled, got %s", registry.CurrentState)
 	}
 
@@ -127,10 +128,10 @@ func TestBootstrapAutoEnableSourcePluginUpdatesStartupSnapshot(t *testing.T) {
 	if registry == nil {
 		t.Fatal("expected source plugin registry row after startup bootstrap")
 	}
-	if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
+	if registry.Installed != plugintypes.InstalledYes || registry.Status != plugintypes.StatusEnabled {
 		t.Fatalf("expected source plugin to be installed and enabled, got %#v", registry)
 	}
-	if registry.CurrentState != catalog.HostStateEnabled.String() {
+	if registry.CurrentState != plugintypes.HostStateEnabled.String() {
 		t.Fatalf("expected source plugin current state enabled, got %s", registry.CurrentState)
 	}
 }
@@ -154,7 +155,7 @@ func TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot(t *testing.T) {
 			ID:      pluginID,
 			Name:    "Dynamic Auto Enable Authorization Plugin",
 			Version: version,
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -200,7 +201,7 @@ func TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot(t *testing.T) {
 	if _, err := service.Install(ctx, pluginID, InstallOptions{Authorization: authorization}); err != nil {
 		t.Fatalf("expected initial dynamic plugin install to succeed, got error: %v", err)
 	}
-	if err := service.UpdateStatus(ctx, pluginID, catalog.StatusEnabled, authorization); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, plugintypes.StatusEnabled, authorization); err != nil {
 		t.Fatalf("expected initial dynamic plugin enable to succeed, got error: %v", err)
 	}
 	if err := service.Uninstall(ctx, pluginID, UninstallOptions{PurgeStorageData: true}); err != nil {
@@ -221,10 +222,10 @@ func TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot(t *testing.T) {
 	if registry == nil {
 		t.Fatal("expected dynamic plugin registry row after startup bootstrap")
 	}
-	if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
+	if registry.Installed != plugintypes.InstalledYes || registry.Status != plugintypes.StatusEnabled {
 		t.Fatalf("expected dynamic plugin to be installed and enabled, got %#v", registry)
 	}
-	if registry.CurrentState != catalog.HostStateEnabled.String() {
+	if registry.CurrentState != plugintypes.HostStateEnabled.String() {
 		t.Fatalf("expected dynamic plugin current state enabled, got %s", registry.CurrentState)
 	}
 
@@ -235,7 +236,7 @@ func TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot(t *testing.T) {
 	if release == nil {
 		t.Fatal("expected dynamic plugin release row after startup bootstrap")
 	}
-	snapshot, err := bootstrapService.catalogSvc.ParseManifestSnapshot(release.ManifestSnapshot)
+	snapshot, err := bootstrapService.storeSvc.ParseManifestSnapshot(release.ManifestSnapshot)
 	if err != nil {
 		t.Fatalf("expected manifest snapshot parse to succeed, got error: %v", err)
 	}
@@ -262,7 +263,7 @@ func TestBootstrapAutoEnableRejectsDynamicPluginWithoutAuthorizationSnapshot(t *
 			ID:      pluginID,
 			Name:    "Dynamic Auto Enable Missing Authorization Plugin",
 			Version: "v0.6.1",
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -357,10 +358,10 @@ func TestBootstrapAutoEnableWaitsUntilCurrentNodeBecomesPrimary(t *testing.T) {
 	if registry == nil {
 		t.Fatal("expected cluster bootstrap registry row after startup bootstrap")
 	}
-	if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
+	if registry.Installed != plugintypes.InstalledYes || registry.Status != plugintypes.StatusEnabled {
 		t.Fatalf("expected cluster bootstrap plugin to be installed and enabled, got %#v", registry)
 	}
-	if registry.CurrentState != catalog.HostStateEnabled.String() {
+	if registry.CurrentState != plugintypes.HostStateEnabled.String() {
 		t.Fatalf("expected cluster bootstrap plugin current state enabled, got %s", registry.CurrentState)
 	}
 }
@@ -404,7 +405,7 @@ func mockMigrationRowCount(t *testing.T, ctx context.Context, pluginID string) i
 		ctx,
 		"SELECT COUNT(1) FROM sys_plugin_migration WHERE plugin_id = ? AND phase = ?;",
 		pluginID,
-		catalog.MigrationDirectionMock.String(),
+		plugintypes.MigrationDirectionMock.String(),
 	)
 	if err != nil {
 		t.Fatalf("expected mock migration row count query to succeed, got error: %v", err)
@@ -501,11 +502,16 @@ func TestBootstrapAutoEnableHonorsPerEntryMockDataOptIn(t *testing.T) {
 func TestReconcileAutoEnabledTenantPluginsProvisionsTenantScopedEntries(t *testing.T) {
 	var (
 		ctx      = context.Background()
-		service  = newTestService()
 		pluginID = autoEnableTenantProvisioningPluginID
 		version  = "v0.1.0"
 		tenantID = tenantcap.TenantID(50101)
 	)
+	tenantSvc := &autoEnableTenantProvisioningService{enabled: true, tenantID: tenantID}
+	service, err := newTestServiceWithTopologyAndTenantDeps(nil, nil, tenantSvc, nil)
+	if err != nil {
+		t.Fatalf("construct plugin service: %v", err)
+	}
+	tenantSvc.pluginSvc = service
 
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
 	testutil.WriteTestFile(
@@ -538,8 +544,6 @@ func TestReconcileAutoEnabledTenantPluginsProvisionsTenantScopedEntries(t *testi
 		t.Fatalf("expected bootstrap to leave tenant provisioning policy unset before provider reconciliation, got %#v", registry)
 	}
 
-	tenantSvc := &autoEnableTenantProvisioningService{enabled: true, pluginSvc: service, tenantID: tenantID}
-	service.SetTenantProvisioningCapability(tenantSvc)
 	if err = service.ReconcileAutoEnabledTenantPlugins(ctx); err != nil {
 		t.Fatalf("expected tenant provisioning reconciliation to succeed, got error: %v", err)
 	}
@@ -580,7 +584,7 @@ func TestBootstrapAutoEnableRefreshesLegacyHostRuntimeArchive(t *testing.T) {
 			ID:      pluginID,
 			Name:    name,
 			Version: version,
-			Type:    catalog.TypeDynamic.String(),
+			Type:    plugintypes.TypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -618,7 +622,7 @@ func TestBootstrapAutoEnableRefreshesLegacyHostRuntimeArchive(t *testing.T) {
 	if _, err := service.Install(ctx, pluginID, InstallOptions{Authorization: authorization}); err != nil {
 		t.Fatalf("expected initial install to succeed, got error: %v", err)
 	}
-	if err := service.UpdateStatus(ctx, pluginID, catalog.StatusEnabled, authorization); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, plugintypes.StatusEnabled, authorization); err != nil {
 		t.Fatalf("expected initial enable to succeed, got error: %v", err)
 	}
 
@@ -649,14 +653,14 @@ func TestBootstrapAutoEnableRefreshesLegacyHostRuntimeArchive(t *testing.T) {
 		t.Fatalf("expected release row to accept legacy archive fixture, got error: %v", err)
 	}
 
-	staleRegistry, err := service.catalogSvc.RefreshStartupRegistry(ctx, pluginID)
+	staleRegistry, err := service.storeSvc.RefreshStartupRegistry(ctx, pluginID)
 	if err != nil {
 		t.Fatalf("expected registry refresh to succeed, got error: %v", err)
 	}
 	if staleRegistry == nil {
 		t.Fatal("expected registry row before startup bootstrap")
 	}
-	if _, err = service.catalogSvc.RefreshStartupReleaseByID(ctx, release.Id); err != nil {
+	if _, err = service.storeSvc.RefreshStartupReleaseByID(ctx, release.Id); err != nil {
 		t.Fatalf("expected release refresh to succeed, got error: %v", err)
 	}
 	if _, err = service.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, staleRegistry); err == nil {
@@ -683,7 +687,7 @@ func TestBootstrapAutoEnableRefreshesLegacyHostRuntimeArchive(t *testing.T) {
 		repairedManifest.HostServices[0].Service != protocol.HostServiceHostConfig {
 		t.Fatalf("expected repaired active manifest to use hostconfig, got %#v", repairedManifest.HostServices)
 	}
-	repairedRelease, err := service.catalogSvc.GetRelease(ctx, pluginID, version)
+	repairedRelease, err := service.storeSvc.GetRelease(ctx, pluginID, version)
 	if err != nil {
 		t.Fatalf("expected repaired release lookup to succeed, got error: %v", err)
 	}
@@ -704,10 +708,10 @@ func writeLegacyHostRuntimeArtifact(t *testing.T, filePath string, pluginID stri
 		ID:                  pluginID,
 		Name:                name,
 		Version:             version,
-		Type:                catalog.TypeDynamic.String(),
-		ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+		Type:                plugintypes.TypeDynamic.String(),
+		ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
 		SupportsMultiTenant: &testutil.DefaultTestSupportsMultiTenant,
-		DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+		DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
 	}
 	runtimeMetadata := &catalog.ArtifactSpec{
 		RuntimeKind: protocol.RuntimeKindWasm,

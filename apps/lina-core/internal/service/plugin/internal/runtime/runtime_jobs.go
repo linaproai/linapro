@@ -103,7 +103,10 @@ func (s *serviceImpl) DiscoverJobContracts(
 		return nil, err
 	}
 
-	response, err := wasm.ExecuteBridge(ctx, wasm.ExecutionInput{
+	if s.wasmRuntime == nil {
+		return nil, gerror.New("dynamic wasm runtime is not configured")
+	}
+	response, err := s.wasmRuntime.ExecuteBridge(ctx, wasm.ExecutionInput{
 		PluginID:                  manifest.ID,
 		ArtifactPath:              manifest.RuntimeArtifact.Path,
 		BridgeSpec:                manifest.BridgeSpec,
@@ -157,7 +160,10 @@ func (s *serviceImpl) ExecuteDeclaredJob(
 		return err
 	}
 
-	response, err := wasm.ExecuteBridge(ctx, wasm.ExecutionInput{
+	if s.wasmRuntime == nil {
+		return gerror.New("dynamic wasm runtime is not configured")
+	}
+	response, err := s.wasmRuntime.ExecuteBridge(ctx, wasm.ExecutionInput{
 		PluginID:                  manifest.ID,
 		ArtifactPath:              manifest.RuntimeArtifact.Path,
 		BridgeSpec:                manifest.BridgeSpec,

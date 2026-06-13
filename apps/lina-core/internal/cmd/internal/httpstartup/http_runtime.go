@@ -196,51 +196,40 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 	// ========================================================================
 
 	var (
-		bizCtxSvc     = bizctx.New()
-		sessionStore  = session.NewDBStore()
-		cacheCoordSvc = cachecoord.Default(clusterSvc)
-		i18nSvc       = i18nsvc.New(bizCtxSvc, configSvc, cacheCoordSvc)
-		lockerSvc     = locker.New()
-		lockStore     = runtimeUpgradeLockStore(coordinationSvc)
+		bizCtxSvc        = bizctx.New()
+		sessionStore     = session.NewDBStore()
+		cacheCoordSvc    = cachecoord.Default(clusterSvc)
+		i18nSvc          = i18nsvc.New(bizCtxSvc, configSvc, cacheCoordSvc)
+		lockerSvc        = locker.New()
+		lockStore        = runtimeUpgradeLockStore(coordinationSvc)
+		pluginRuntime    = pluginsvc.NewRuntimeDelegate()
+		kvCacheSvc       = kvcache.New()
+		fileStorage      = file.NewLocalStorage(configSvc.GetUploadPath(ctx))
+		jobRegistry      = jobhandlersvc.New()
+		hostConfigReader pluginservicehostconfig.RawConfigReader
 	)
-	pluginSvc, err := pluginsvc.New(clusterSvc, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, sessionStore, lockerSvc, lockStore)
-	if err != nil {
-		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
-		return nil, err
-	}
 	var (
 		tenantProviderManager = tenantspi.NewManager()
 		orgProviderManager    = orgspi.NewManager()
 		aiTextProviderManager = aitext.NewManager()
 	)
-	if err = pluginSvc.RegisterSourcePluginProviderFactories(
-		tenantProviderManager,
-		orgProviderManager,
-		aiTextProviderManager,
-	); err != nil {
-		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
-		return nil, err
-	}
 	var (
-		orgCapSvc     = orgspi.New(orgProviderManager, pluginSvc)
-		aiTextSvc     = aitext.New(aiTextProviderManager, pluginSvc)
+		orgCapSvc     = orgspi.New(orgProviderManager, pluginRuntime)
+		aiTextSvc     = aitext.New(aiTextProviderManager, pluginRuntime)
 		orgProjection = orgCapSvc
-		tenantSvc     = tenantspi.New(tenantProviderManager, pluginSvc, bizCtxSvc)
-		kvCacheSvc    = kvcache.New()
-		roleSvc       = role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
+		tenantSvc     = tenantspi.New(tenantProviderManager, pluginRuntime, bizCtxSvc)
+		roleSvc       = role.New(pluginRuntime, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
 		scopeSvc      = datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
 		dictSvc       = dict.New(i18nSvc)
-		menuSvc       = menu.New(pluginSvc, i18nSvc, roleSvc, tenantSvc)
+		menuSvc       = menu.New(pluginRuntime, i18nSvc, roleSvc, tenantSvc)
 		notifySvc     = notify.New(tenantSvc)
-		authSvc       = auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
-		fileStorage   = file.NewLocalStorage(configSvc.GetUploadPath(ctx))
+		authSvc       = auth.New(configSvc, pluginRuntime, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
 		fileSvc       = file.New(configSvc, fileStorage, bizCtxSvc, dictSvc, scopeSvc)
 		sysConfigSvc  = sysconfig.New(configSvc, i18nSvc)
 		userSvc       = user.New(authSvc, bizCtxSvc, i18nSvc, orgCapSvc, orgCapSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc, tenantSvc, tenantSvc)
 		userMsgSvc    = usermsg.New(bizCtxSvc, notifySvc, i18nSvc)
-		apiDocSvc     = apidoc.New(configSvc, bizCtxSvc, i18nSvc, pluginSvc)
+		apiDocSvc     = apidoc.New(configSvc, bizCtxSvc, i18nSvc, pluginRuntime)
 		authTokenSvc  = authSvc.(auth.TenantTokenIssuer)
-		jobRegistry   = jobhandlersvc.New()
 	)
 	sysInfoSvc, err := sysinfosvc.New(configSvc, clusterSvc, coordinationSvc, cacheCoordSvc)
 	if err != nil {
@@ -252,14 +241,15 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, err
 	}
-	hostConfigReader, ok := configSvc.(pluginservicehostconfig.RawConfigReader)
+	var ok bool
+	hostConfigReader, ok = configSvc.(pluginservicehostconfig.RawConfigReader)
 	if !ok {
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, gerror.New("host config service does not support raw reads")
 	}
 	var (
 		jobMgmtSvc            = jobmgmtsvc.New(bizCtxSvc, configSvc, i18nSvc, jobRegistry, jobScheduler, scopeSvc)
-		middlewareSvc         = middleware.New(authSvc, bizCtxSvc, configSvc, i18nSvc, pluginSvc, roleSvc, tenantSvc)
+		middlewareSvc         = middleware.New(authSvc, bizCtxSvc, configSvc, i18nSvc, roleSvc, tenantSvc)
 		hostConfigSvc         = pluginservicehostconfig.New(hostConfigReader)
 		pluginConfigFactory   = pluginserviceconfig.NewConfigFactory("", "")
 		pluginManifestFactory = pluginservicemanifest.NewFactory("")
@@ -270,7 +260,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		return nil, err
 	}
 	pluginStorageCfg := configSvc.GetPluginStorage(ctx)
-	storageRuntime := pluginsvc.NewStorageProviderRuntime(configSvc, pluginSvc)
+	storageRuntime := pluginsvc.NewStorageProviderRuntime(configSvc, pluginRuntime)
 	localStorageProvider := pluginsvc.NewLocalStorageProvider(
 		configSvc.GetPluginDynamicStoragePath(ctx),
 		clusterSvc != nil && clusterSvc.IsEnabled(),
@@ -284,8 +274,8 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		hostConfigSvc,
 		scopeSvc,
 		i18nSvc,
-		pluginSvc,
-		pluginSvc,
+		pluginRuntime,
+		pluginRuntime,
 		sessionStore,
 		aiTextSvc,
 		orgCapSvc,
@@ -301,16 +291,33 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		return nil, err
 	}
 	roleSvc.SetDataScopeService(scopeSvc)
-	pluginSvc.SetCapabilities(capabilities)
-	pluginSvc.SetOrganizationCapability(orgCapSvc)
-	pluginSvc.SetTenantStartupCapability(tenantSvc)
-	pluginSvc.SetTenantProvisioningCapability(tenantSvc)
-	pluginSvc.SetTenantPlatformGovernanceCapability(tenantSvc)
-	if err = pluginsvc.ConfigureWasmHostServices(
+	pluginSvc, err := pluginsvc.New(
+		clusterSvc,
+		configSvc,
+		bizCtxSvc,
+		cacheCoordSvc,
+		i18nSvc,
+		sessionStore,
+		lockerSvc,
+		lockStore,
 		capabilities,
+		orgCapSvc,
+		tenantSvc,
+		tenantSvc,
+		tenantSvc,
 		pluginConfigFactory,
 		hostConfigSvc,
 		pluginManifestFactory,
+	)
+	if err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
+		return nil, err
+	}
+	pluginRuntime.BindService(pluginSvc)
+	if err = pluginSvc.RegisterSourcePluginProviderFactories(
+		tenantProviderManager,
+		orgProviderManager,
+		aiTextProviderManager,
 	); err != nil {
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, err
@@ -469,6 +476,7 @@ func finishHTTPRuntimeAfterSourceRoutes(ctx context.Context, runtime *httpRuntim
 		_, attachErr := jobhandlersvc.AttachPluginLifecycle(
 			ctx,
 			runtime.jobRegistry,
+			runtime.pluginSvc,
 			runtime.pluginSvc,
 		)
 		return attachErr

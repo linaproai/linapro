@@ -262,7 +262,7 @@ func TestHandleHostServiceInvokeConfigRejectsUnsupportedMethod(t *testing.T) {
 // TestConfigurePluginConfigServiceFactoryRejectsNil verifies missing runtime config
 // factory injection returns an error instead of silently constructing an isolated adapter.
 func TestConfigurePluginConfigServiceFactoryRejectsNil(t *testing.T) {
-	if err := ConfigurePluginConfigServiceFactory(nil); err == nil {
+	if _, err := NewRuntime(&capabilityHostServiceTestServices{}, nil, noopTestHostConfigService{}, noopTestManifestFactory{}); err == nil {
 		t.Fatal("expected nil plugin config service factory to return an error")
 	}
 }
@@ -301,7 +301,7 @@ func invokeConfigHostService(
 			Key: key,
 		}),
 	}
-	return handleHostServiceInvoke(context.Background(), hcc, protocol.MarshalHostServiceRequestEnvelope(request))
+	return handleHostServiceInvoke(context.Background(), withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(request))
 }
 
 // decodeConfigResponse verifies success and decodes one plugin config response.
@@ -326,12 +326,6 @@ func configureTrackingConfigFactory(t *testing.T, service *trackingConfigService
 	t.Helper()
 
 	factory := &trackingConfigFactory{service: service}
-	previousRuntime := currentHostServiceRuntime()
-	if err := ConfigurePluginConfigServiceFactory(factory); err != nil {
-		t.Fatalf("configure plugin config service failed: %v", err)
-	}
-	t.Cleanup(func() {
-		setHostServiceRuntimeSnapshot(previousRuntime)
-	})
+	bindTestHostServiceRuntime(t, withTestConfigFactory(factory))
 	return factory
 }

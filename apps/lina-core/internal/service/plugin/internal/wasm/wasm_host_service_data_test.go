@@ -181,7 +181,7 @@ func invokeDataHostService(
 		Table:   table,
 		Payload: payload,
 	}
-	return handleHostServiceInvoke(context.Background(), hcc, protocol.MarshalHostServiceRequestEnvelope(envelope))
+	return handleHostServiceInvoke(context.Background(), withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(envelope))
 }
 
 // cleanupWasmTestNodeStates removes sys_plugin_node_state rows created by wasm data tests.

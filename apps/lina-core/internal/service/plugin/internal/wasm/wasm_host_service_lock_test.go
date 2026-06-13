@@ -522,7 +522,7 @@ func invokeLockHostService(
 	}
 	return handleHostServiceInvoke(
 		context.Background(),
-		hcc,
+		withTestHostCallRuntime(t, hcc),
 		protocol.MarshalHostServiceRequestEnvelope(request),
 	)
 }

@@ -5,18 +5,16 @@ package plugin
 
 import (
 	"context"
+	"strings"
 
 	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/cachecoord/revisionctrl"
 	i18nsvc "lina-core/internal/service/i18n"
-	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/internal/service/plugin/internal/wasm"
-	"lina-core/internal/service/plugin/runtimecache"
 	"lina-core/pkg/logger"
 )
-
-// pluginRuntimeCacheObservedRevision records the revision consumed by the root
-// plugin facade cache domain inside this process.
-var pluginRuntimeCacheObservedRevision = runtimecache.NewObservedRevision()
 
 // pluginI18nService defines the i18n methods needed by plugin lifecycle,
 // runtime cache refresh, and source-plugin reason rendering paths.
@@ -31,6 +29,14 @@ type pluginI18nService interface {
 	Translate(ctx context.Context, key string, fallback string) string
 }
 
+// pluginChangePublishInput identifies one successful plugin governance change
+// and the derived runtime caches that must observe it.
+type pluginChangePublishInput struct {
+	pluginID   string
+	pluginType string
+	reason     string
+}
+
 // newRuntimeCacheRevisionController creates the cluster-aware revision
 // controller used by the root plugin service.
 func newRuntimeCacheRevisionController(
@@ -40,15 +46,16 @@ func newRuntimeCacheRevisionController(
 	frontendSvc pluginRuntimeFrontendInvalidator,
 	i18nSvc pluginI18nService,
 	managementListInvalidator pluginManagementListInvalidator,
-) *runtimecache.Controller {
+	wasmRuntime wasm.Runtime,
+) *revisionctrl.Controller {
 	clusterEnabled := false
 	if topology != nil {
 		clusterEnabled = topology.IsEnabled()
 	}
-	return runtimecache.NewControllerWithCoordinator(
+	return revisionctrl.NewControllerWithCoordinator(
 		clusterEnabled,
 		cacheCoordSvc,
-		pluginRuntimeCacheObservedRevision,
+		revisionctrl.NewObservedRevision(),
 		func(ctx context.Context, revision int64) error {
 			if integrationSvc != nil {
 				if err := integrationSvc.RefreshEnabledSnapshot(ctx); err != nil {
@@ -61,7 +68,9 @@ func newRuntimeCacheRevisionController(
 			if managementListInvalidator != nil {
 				managementListInvalidator.InvalidateManagementListCache(ctx, "cluster_runtime_revision_changed")
 			}
-			wasm.InvalidateAllCache(ctx)
+			if wasmRuntime != nil {
+				wasmRuntime.InvalidateAllCache(ctx)
+			}
 			if i18nSvc != nil {
 				i18nSvc.InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
 					Sectors: []i18nsvc.Sector{
@@ -113,17 +122,46 @@ func (s *serviceImpl) ensureRuntimeCacheFreshBestEffort(ctx context.Context, ope
 // MarkRuntimeCacheChanged publishes one successful runtime cache mutation to
 // other cluster nodes. It implements the dynamic runtime cache-change notifier.
 func (s *serviceImpl) MarkRuntimeCacheChanged(ctx context.Context, reason string) error {
-	_, err := s.markRuntimeCacheChanged(ctx, reason)
+	_, err := s.publishPluginChange(ctx, pluginChangePublishInput{reason: reason})
+	return err
+}
+
+// PublishPluginChange publishes one successful plugin-scoped mutation to other
+// cluster nodes. It implements the lifecycle and runtime cache-change notifier.
+func (s *serviceImpl) PublishPluginChange(
+	ctx context.Context,
+	pluginID string,
+	pluginType string,
+	reason string,
+) error {
+	_, err := s.publishPluginChange(ctx, pluginChangePublishInput{
+		pluginID:   pluginID,
+		pluginType: pluginType,
+		reason:     reason,
+	})
 	return err
 }
 
 // markRuntimeCacheChanged bumps the shared plugin runtime cache revision in
 // cluster mode and is a no-op in single-node deployments.
 func (s *serviceImpl) markRuntimeCacheChanged(ctx context.Context, reason string) (int64, error) {
-	if s == nil || s.runtimeCacheRevisionCtrl == nil {
+	return s.publishPluginChange(ctx, pluginChangePublishInput{reason: reason})
+}
+
+// publishPluginChange is the single root-facade publication path for plugin
+// governance mutations. It invalidates local derived caches, clears the
+// management read model, and publishes the shared plugin-runtime revision so
+// cluster peers observe the same change.
+func (s *serviceImpl) publishPluginChange(ctx context.Context, input pluginChangePublishInput) (int64, error) {
+	if s == nil {
 		return 0, nil
 	}
+	reason := input.reason
+	s.invalidateRuntimeUpgradeCaches(ctx, input.pluginID, input.pluginType, reason)
 	s.InvalidateManagementListCache(ctx, reason)
+	if s.runtimeCacheRevisionCtrl == nil {
+		return 0, nil
+	}
 	revision, err := s.runtimeCacheRevisionCtrl.MarkChanged(ctx)
 	if err != nil {
 		return 0, err
@@ -146,11 +184,11 @@ func (s *serviceImpl) syncEnabledSnapshotStateFromRegistry(
 	ctx context.Context,
 	pluginID string,
 ) error {
-	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+	registry, err := s.storeSvc.GetRegistry(ctx, pluginID)
 	if err != nil {
 		return err
 	}
-	if registry == nil || registry.Installed != catalog.InstalledYes {
+	if registry == nil || registry.Installed != plugintypes.InstalledYes {
 		s.integrationSvc.DeletePluginEnabledState(pluginID)
 		return nil
 	}
@@ -158,12 +196,12 @@ func (s *serviceImpl) syncEnabledSnapshotStateFromRegistry(
 	if err != nil {
 		return err
 	}
-	runtimeState, err := s.catalogSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
+	runtimeState, err := s.storeSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
 	if err != nil {
 		return err
 	}
-	enabled := registry.Status == catalog.StatusEnabled &&
-		catalog.RuntimeStateAllowsBusinessEntry(runtimeState.State)
+	enabled := registry.Status == plugintypes.StatusEnabled &&
+		store.RuntimeStateAllowsBusinessEntry(runtimeState.State)
 	s.integrationSvc.SetPluginEnabledState(pluginID, enabled)
 	return nil
 }
@@ -179,7 +217,19 @@ func (s *serviceImpl) syncEnabledSnapshotAndPublishRuntimeChange(
 	if err := s.syncEnabledSnapshotStateFromRegistry(ctx, pluginID); err != nil {
 		return err
 	}
-	_, err := s.markRuntimeCacheChanged(ctx, reason)
+	registry, err := s.storeSvc.GetRegistry(ctx, pluginID)
+	if err != nil {
+		return err
+	}
+	pluginType := ""
+	if registry != nil {
+		pluginType = registry.Type
+	}
+	_, err = s.publishPluginChange(ctx, pluginChangePublishInput{
+		pluginID:   pluginID,
+		pluginType: pluginType,
+		reason:     reason,
+	})
 	return err
 }
 
@@ -190,25 +240,44 @@ func (s *serviceImpl) invalidateRuntimeUpgradeCaches(ctx context.Context, plugin
 	if s == nil {
 		return
 	}
-	if s.frontendSvc != nil {
-		s.frontendSvc.InvalidateBundle(ctx, pluginID, reason)
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	normalizedType := plugintypes.NormalizeType(pluginType)
+	if normalizedPluginID == "" {
+		if s.frontendSvc != nil {
+			s.frontendSvc.InvalidateAllBundles(ctx, reason)
+		}
+		if s.wasmRuntime != nil {
+			s.wasmRuntime.InvalidateAllCache(ctx)
+		}
+		if s.i18nSvc != nil {
+			s.i18nSvc.InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
+				Sectors: []i18nsvc.Sector{
+					i18nsvc.SectorSourcePlugin,
+					i18nsvc.SectorDynamicPlugin,
+				},
+			})
+		}
+		return
 	}
-	if catalog.NormalizeType(pluginType) == catalog.TypeDynamic {
-		wasm.InvalidateAllCache(ctx)
+	if s.frontendSvc != nil {
+		s.frontendSvc.InvalidateBundle(ctx, normalizedPluginID, reason)
+	}
+	if normalizedType == plugintypes.TypeDynamic && s.wasmRuntime != nil {
+		s.wasmRuntime.InvalidateAllCache(ctx)
 	}
 	if s.i18nSvc == nil {
 		return
 	}
-	switch catalog.NormalizeType(pluginType) {
-	case catalog.TypeSource:
+	switch normalizedType {
+	case plugintypes.TypeSource:
 		s.i18nSvc.InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
 			Sectors:        []i18nsvc.Sector{i18nsvc.SectorSourcePlugin},
-			SourcePluginID: pluginID,
+			SourcePluginID: normalizedPluginID,
 		})
-	case catalog.TypeDynamic:
+	case plugintypes.TypeDynamic:
 		s.i18nSvc.InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
 			Sectors:         []i18nsvc.Sector{i18nsvc.SectorDynamicPlugin},
-			DynamicPluginID: pluginID,
+			DynamicPluginID: normalizedPluginID,
 		})
 	default:
 		s.i18nSvc.InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{

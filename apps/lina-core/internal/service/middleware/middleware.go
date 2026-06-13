@@ -11,7 +11,6 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
-	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
@@ -69,7 +68,6 @@ type serviceImpl struct {
 	bizCtxSvc bizctx.Service        // Business context service
 	configSvc config.Service        // Runtime configuration service
 	i18nSvc   middlewareI18nService // i18nSvc resolves request locale and translation context.
-	pluginSvc pluginsvc.Service     // Plugin service
 	roleSvc   role.Service          // Role and permission service
 	tenantSvc tenantMiddlewareService
 }
@@ -93,13 +91,12 @@ type tenantMiddlewareService interface {
 }
 
 // New creates a middleware service from explicit runtime-owned dependencies.
-func New(authSvc auth.Service, bizCtxSvc bizctx.Service, configSvc config.Service, i18nSvc middlewareI18nService, pluginSvc pluginsvc.Service, roleSvc role.Service, tenantSvc tenantMiddlewareService) Service {
+func New(authSvc auth.Service, bizCtxSvc bizctx.Service, configSvc config.Service, i18nSvc middlewareI18nService, roleSvc role.Service, tenantSvc tenantMiddlewareService) Service {
 	return &serviceImpl{
 		authSvc:   authSvc,
 		bizCtxSvc: bizCtxSvc,
 		configSvc: configSvc,
 		i18nSvc:   i18nSvc,
-		pluginSvc: pluginSvc,
 		roleSvc:   roleSvc,
 		tenantSvc: tenantSvc,
 	}
