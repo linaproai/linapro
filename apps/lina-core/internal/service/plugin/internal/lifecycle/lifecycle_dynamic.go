@@ -6,6 +6,7 @@ package lifecycle
 import (
 	"context"
 
+	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/pkg/bizerr"
@@ -14,17 +15,22 @@ import (
 // InstallDynamic executes the install lifecycle for a discovered dynamic plugin.
 // Repeated installs are treated as idempotent unless the same version needs a refresh.
 func (s *serviceImpl) InstallDynamic(ctx context.Context, pluginID string) error {
-	return s.installDynamic(ctx, pluginID, runtime.DynamicReconcileOptions{})
+	return s.installDynamic(ctx, pluginID, nil, runtime.DynamicReconcileOptions{})
 }
 
 func (s *serviceImpl) installDynamic(
 	ctx context.Context,
 	pluginID string,
+	desiredManifest *catalog.Manifest,
 	options runtime.DynamicReconcileOptions,
 ) error {
-	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
-	if err != nil {
-		return err
+	manifest := catalog.CloneManifest(desiredManifest)
+	var err error
+	if manifest == nil {
+		manifest, err = s.catalogSvc.GetDesiredManifest(pluginID)
+		if err != nil {
+			return err
+		}
 	}
 	if plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeSource {
 		return bizerr.NewCode(CodeSourcePluginInstallUnsupported)
@@ -59,6 +65,7 @@ func (s *serviceImpl) installDynamic(
 		desiredState = plugintypes.HostStateEnabled.String()
 	}
 	if s.runtimeSvc != nil {
+		options.DesiredManifest = catalog.CloneManifest(manifest)
 		if err = s.runtimeSvc.ReconcileDynamicPluginRequest(ctx, pluginID, desiredState, options); err != nil {
 			return err
 		}

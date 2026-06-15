@@ -37,6 +37,10 @@ func (s *serviceImpl) ScanEmbeddedSourceManifests() ([]*Manifest, error) {
 		if embeddedFiles == nil {
 			return nil, gerror.Newf("source plugin is missing embedded resource declaration: %s", sourcePlugin.ID())
 		}
+		if cached, ok := s.getCachedSourceManifest(sourcePlugin.ID(), sourcePlugin, embeddedFiles); ok {
+			manifests = append(manifests, cached)
+			continue
+		}
 
 		manifestContent, err := fs.ReadFile(embeddedFiles, resourcefs.EmbeddedManifestPath)
 		if err != nil {
@@ -60,6 +64,7 @@ func (s *serviceImpl) ScanEmbeddedSourceManifests() ([]*Manifest, error) {
 			return nil, err
 		}
 
+		s.storeCachedSourceManifest(sourcePlugin.ID(), sourcePlugin, embeddedFiles, manifest)
 		manifests = append(manifests, manifest)
 	}
 	return manifests, nil

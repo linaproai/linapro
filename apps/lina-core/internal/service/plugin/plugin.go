@@ -4,6 +4,7 @@ package plugin
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -500,6 +501,10 @@ type serviceImpl struct {
 	i18nSvc pluginI18nService
 	// runtimeCacheRevisionCtrl coordinates process-local runtime caches in cluster deployments.
 	runtimeCacheRevisionCtrl *revisionctrl.Controller
+	// activeDynamicArtifactSnapshotMu protects activeDynamicArtifactSnapshot.
+	activeDynamicArtifactSnapshotMu sync.Mutex
+	// activeDynamicArtifactSnapshot stores the last reconciled active dynamic artifact path by plugin ID.
+	activeDynamicArtifactSnapshot map[string]string
 	// wasmRuntime owns dynamic-plugin WASM execution and host-call dependencies.
 	wasmRuntime *wasmRuntimeProvider
 	// lifecycleObservers stores transitional root-level observers for flows not yet migrated to lifecycle.
@@ -597,7 +602,8 @@ func New(
 		storeSvc             = store.New(catalogSvc, topologyProvider)
 		migrationSvc         = migration.New(catalogSvc, storeSvc)
 		frontendSvc          = frontend.New(catalogSvc, storeSvc)
-		openapiSvc           = openapi.New(catalogSvc, storeSvc)
+		openapiRevision      = openapi.NewDeferredRevisionReader()
+		openapiSvc           = openapi.New(catalogSvc, storeSvc, openapiRevision, i18nSvc)
 		sourceServices       = &sourceServicesProvider{capabilities: capabilityServices}
 		orgDeptProvider      = &organizationDeptProvider{service: organizationSvc}
 		integrationDelegates = &integrationDelegateProvider{}
@@ -655,26 +661,27 @@ func New(
 	)
 
 	service := &serviceImpl{
-		configSvc:               configProvider,
-		topology:                topo,
-		catalogSvc:              catalogSvc,
-		storeSvc:                storeSvc,
-		lifecycleSvc:            lifecycleSvc,
-		migrationSvc:            migrationSvc,
-		runtimeSvc:              runtimeSvc,
-		integrationSvc:          integrationSvc,
-		frontendSvc:             frontendSvc,
-		openapiSvc:              openapiSvc,
-		capabilities:            capabilityServices,
-		sourceServices:          sourceServices,
-		orgDeptProvider:         orgDeptProvider,
-		i18nSvc:                 i18nSvc,
-		wasmRuntime:             wasmRuntime,
-		runtimeUpgradeLockStore: runtimeUpgradeLockStore,
-		managementListCache:     management.NewListCache(),
-		tenantStartup:           tenantStartup,
-		tenantProvisioning:      tenantProvisioning,
-		tenantGovernance:        tenantGovernance,
+		configSvc:                     configProvider,
+		topology:                      topo,
+		catalogSvc:                    catalogSvc,
+		storeSvc:                      storeSvc,
+		lifecycleSvc:                  lifecycleSvc,
+		migrationSvc:                  migrationSvc,
+		runtimeSvc:                    runtimeSvc,
+		integrationSvc:                integrationSvc,
+		frontendSvc:                   frontendSvc,
+		openapiSvc:                    openapiSvc,
+		capabilities:                  capabilityServices,
+		sourceServices:                sourceServices,
+		orgDeptProvider:               orgDeptProvider,
+		i18nSvc:                       i18nSvc,
+		activeDynamicArtifactSnapshot: make(map[string]string),
+		wasmRuntime:                   wasmRuntime,
+		runtimeUpgradeLockStore:       runtimeUpgradeLockStore,
+		managementListCache:           management.NewListCache(),
+		tenantStartup:                 tenantStartup,
+		tenantProvisioning:            tenantProvisioning,
+		tenantGovernance:              tenantGovernance,
 	}
 	cacheChangeNotifier.BindService(service)
 	dependencyValidator.BindService(service)
@@ -685,8 +692,13 @@ func New(
 		frontendSvc,
 		i18nSvc,
 		service,
+		openapiSvc,
 		wasmRuntime,
+		catalogSvc,
+		storeSvc,
+		service,
 	)
+	openapiRevision.Bind(service)
 	upgradeSvc, err := upgrade.New(
 		catalogSvc,
 		storeSvc,

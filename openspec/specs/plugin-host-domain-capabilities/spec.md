@@ -278,7 +278,7 @@ TBD - created by archiving change add-plugin-host-domain-capabilities. Update Pu
 - **WHEN** 源码插件需要声明嵌入文件、生命周期回调、后端钩子、HTTP 路由、内置 Jobs 或治理过滤器
 - **THEN** 插件必须通过`pluginhost.NewDeclarations()`创建声明期 facade
 - **AND** 通过`RegisterSourcePlugin(plugin pluginhost.Declarations)`注册声明结果
-- **AND** 源码插件声明期子 facade 必须使用`*Declarations`命名，例如`AssetDeclarations`、`LifecycleDeclarations`、`HookDeclarations`、`HTTPDeclarations`、`JobDeclarations`和`GovernanceDeclarations`
+- **AND** 源码插件声明期子 facade 必须使用`*Declarations`命名，例如`AssetDeclarations`、`LifecycleDeclarations`、`HookDeclarations`、`HTTPDeclarations`、`JobDeclarations`和`AccessDeclarations`
 - **AND** `SourcePlugin*`前缀只用于源码插件读模型、生命周期输入、回调处理器或其他非声明期 facade 契约
 - **AND** `pluginhost.Declarations`不得作为运行时领域能力挂载到`pluginhost.Services`
 
@@ -366,4 +366,3 @@ TBD - created by archiving change add-plugin-host-domain-capabilities. Update Pu
 - **WHEN** 生产代码新增`ConfigureCacheHostService`、`ConfigureLockHostService`、`ConfigureStorageHostService`或等价专用入口
 - **THEN** 治理验证必须失败
 - **AND** 变更必须改为通过领域能力目录配置资源能力
-

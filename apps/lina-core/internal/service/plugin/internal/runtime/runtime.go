@@ -201,6 +201,10 @@ type LifecycleReconcileService interface {
 // DynamicReconcileOptions carries explicit one-shot reconcile decisions from
 // lifecycle into runtime without using context values for business control flow.
 type DynamicReconcileOptions struct {
+	// DesiredManifest optionally carries a caller-validated desired manifest for
+	// the addressed plugin. It is used by targeted management requests that have
+	// already applied one-shot request decisions such as install mode.
+	DesiredManifest *catalog.Manifest
 	// InstallMockData requests loading optional mock-data SQL during install.
 	InstallMockData bool
 }

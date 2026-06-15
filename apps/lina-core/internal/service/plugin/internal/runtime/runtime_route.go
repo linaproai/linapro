@@ -156,9 +156,13 @@ func (s *serviceImpl) prepareDynamicRouteRuntime(
 		return nil, bridgecodec.NewNotFoundResponse("Dynamic route not found"), nil
 	}
 
-	manifest, err := s.resolveActiveOrDesiredManifest(ctx, match.PluginID)
-	if err != nil {
-		return nil, bridgecodec.NewNotFoundResponse(err.Error()), nil
+	manifest := match.Manifest
+	if manifest == nil {
+		var err error
+		manifest, err = s.resolveActiveOrDesiredManifest(ctx, match.PluginID)
+		if err != nil {
+			return nil, bridgecodec.NewNotFoundResponse(err.Error()), nil
+		}
 	}
 	registry, err := s.storeSvc.GetRegistry(ctx, match.PluginID)
 	if err != nil {

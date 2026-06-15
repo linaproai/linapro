@@ -39,6 +39,13 @@ func (s *serviceImpl) LoadReleaseManifest(ctx context.Context, release *ReleaseR
 	if s.catalogSvc == nil {
 		return nil, gerror.New("plugin manifest catalog is not configured")
 	}
+	cacheKey := releaseManifestCacheKey(release, absolutePath)
+	if cached := s.getCachedReleaseManifest(cacheKey, absolutePath); cached != nil {
+		if err = s.applyReleaseAuthorizedHostServices(cached, release); err != nil {
+			return nil, err
+		}
+		return cached, nil
+	}
 	manifest, err := s.catalogSvc.LoadManifestFromArtifactPath(absolutePath)
 	if err != nil {
 		return nil, err
@@ -46,6 +53,7 @@ func (s *serviceImpl) LoadReleaseManifest(ctx context.Context, release *ReleaseR
 	if err = s.applyReleaseAuthorizedHostServices(manifest, release); err != nil {
 		return nil, err
 	}
+	s.storeCachedReleaseManifest(cacheKey, absolutePath, manifest)
 	return manifest, nil
 }
 
@@ -143,6 +151,9 @@ func (s *serviceImpl) UpdateReleaseState(ctx context.Context, releaseID int, sta
 		return err
 	}
 	_, err = s.RefreshStartupReleaseByID(ctx, releaseID)
+	if err == nil {
+		s.invalidateReleaseManifestCacheForPlugin("")
+	}
 	return err
 }
 
@@ -151,6 +162,7 @@ func (s *serviceImpl) syncReleaseMetadata(ctx context.Context, manifest *catalog
 	if manifest == nil || registry == nil {
 		return nil
 	}
+	s.invalidateReleaseManifestCacheForPlugin(manifest.ID)
 
 	existing, err := s.GetRelease(ctx, manifest.ID, manifest.Version)
 	if err != nil {
@@ -419,6 +431,7 @@ func (s *serviceImpl) PersistReleaseUninstallPurgePolicy(
 		Update(); err != nil {
 		return nil, err
 	}
+	s.invalidateReleaseManifestCacheForPlugin(release.PluginId)
 	if _, err = s.RefreshStartupReleaseByID(ctx, release.Id); err != nil {
 		return nil, err
 	}

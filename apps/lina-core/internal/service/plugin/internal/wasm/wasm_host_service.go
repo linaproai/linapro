@@ -63,7 +63,8 @@ func NewRuntime(
 			manifestFactory:     manifestFactory,
 			storageUploads:      newStorageUploadSessions(),
 		},
-		cache: make(map[string]*wasmCacheEntry),
+		cache:    make(map[string]*wasmCacheEntry),
+		inflight: make(map[string]*wasmCompileInflight),
 	}, nil
 }
 

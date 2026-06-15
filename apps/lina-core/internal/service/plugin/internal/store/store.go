@@ -5,6 +5,7 @@ package store
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"lina-core/internal/service/plugin/internal/catalog"
@@ -147,11 +148,22 @@ type serviceImpl struct {
 	catalogSvc ManifestCatalog
 	// nodeIDProvider supplies the current node identity for governance projections.
 	nodeIDProvider NodeIDProvider
+	// cacheMu protects release and YAML snapshot read-model caches.
+	cacheMu sync.RWMutex
+	// releaseManifestCache stores parsed dynamic release manifests by immutable release identity.
+	releaseManifestCache map[string]*releaseManifestCacheEntry
+	// manifestSnapshotCache stores parsed YAML snapshots by content hash.
+	manifestSnapshotCache map[string]*ManifestSnapshot
 }
 
 // New creates a plugin governance store with the given manifest catalog helper.
 func New(catalogSvc ManifestCatalog, nodeIDProvider NodeIDProvider) Service {
-	return &serviceImpl{catalogSvc: catalogSvc, nodeIDProvider: nodeIDProvider}
+	return &serviceImpl{
+		catalogSvc:            catalogSvc,
+		nodeIDProvider:        nodeIDProvider,
+		releaseManifestCache:  make(map[string]*releaseManifestCacheEntry),
+		manifestSnapshotCache: make(map[string]*ManifestSnapshot),
+	}
 }
 
 // timePtr returns a pointer to value for generated DO time fields that preserve

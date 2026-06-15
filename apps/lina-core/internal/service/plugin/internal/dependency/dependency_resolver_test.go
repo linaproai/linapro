@@ -3,6 +3,9 @@
 package dependency_test
 
 import (
+	"reflect"
+	"sort"
+	"strings"
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
@@ -284,6 +287,92 @@ func TestCheckReverseBlocksUnknownSnapshotWithDiscoveredTargetDependency(t *test
 	}
 }
 
+// TestCheckReverseMatchesLegacyTraversal verifies the indexed reverse check
+// keeps the same externally visible result shape as the former full-scan logic.
+func TestCheckReverseMatchesLegacyTraversal(t *testing.T) {
+	input := plugindep.ReverseCheckInput{
+		TargetID:         "base",
+		CandidateVersion: "v0.3.0",
+		Plugins: []*plugindep.PluginSnapshot{
+			pluginSnapshot("base", "v0.3.0", true, nil),
+			pluginSnapshot("consumer-a", "v0.1.0", true, dependenciesWithPlugins(
+				pluginDependency("base", "<0.3.0"),
+			)),
+			pluginSnapshot("consumer-b", "v0.1.0", true, dependenciesWithPlugins(
+				pluginDependency("unrelated", ">=0.1.0"),
+			)),
+			{
+				ID:                        "consumer-c",
+				Name:                      "consumer-c",
+				Version:                   "v0.1.0",
+				Installed:                 true,
+				Dependencies:              dependenciesWithPlugins(pluginDependency("base", ">=0.1.0")),
+				DependencySnapshotUnknown: true,
+			},
+			{
+				ID:                        "unknown-with-manifest",
+				Name:                      "unknown-with-manifest",
+				Version:                   "v0.1.0",
+				Installed:                 true,
+				Manifest:                  &catalog.Manifest{ID: "unknown-with-manifest"},
+				DependencySnapshotUnknown: true,
+			},
+			{
+				ID:                        "unknown-without-manifest",
+				Name:                      "unknown-without-manifest",
+				Version:                   "v0.1.0",
+				Installed:                 true,
+				DependencySnapshotUnknown: true,
+			},
+		},
+	}
+
+	actual := plugindep.New().CheckReverse(input)
+	expected := legacyCheckReverseForTest(input)
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("expected indexed reverse check to match legacy traversal\nactual:   %#v\nexpected: %#v", actual, expected)
+	}
+}
+
+// TestCheckReverseThirtyPluginFixtureReturnsOnlyTargetDependents verifies a
+// target lookup is bounded to indexed downstream edges rather than reporting
+// unrelated plugins from a larger snapshot set.
+func TestCheckReverseThirtyPluginFixtureReturnsOnlyTargetDependents(t *testing.T) {
+	plugins := make([]*plugindep.PluginSnapshot, 0, 31)
+	plugins = append(plugins, pluginSnapshot("target-07", "v0.1.0", true, nil))
+	for i := 0; i < 30; i++ {
+		pluginID := "consumer-" + twoDigit(i)
+		dependencyID := "unrelated-" + twoDigit(i)
+		if i == 3 || i == 17 || i == 29 {
+			dependencyID = "target-07"
+		}
+		plugins = append(plugins, pluginSnapshot(pluginID, "v0.1.0", true, dependenciesWithPlugins(
+			pluginDependency(dependencyID, ">=0.1.0"),
+		)))
+	}
+
+	result := plugindep.New().CheckReverse(plugindep.ReverseCheckInput{
+		TargetID: "target-07",
+		Plugins:  plugins,
+	})
+
+	if len(result.Dependents) != 3 {
+		t.Fatalf("expected three target dependents, got %#v", result.Dependents)
+	}
+	dependentIDs := []string{
+		result.Dependents[0].PluginID,
+		result.Dependents[1].PluginID,
+		result.Dependents[2].PluginID,
+	}
+	expectedIDs := []string{"consumer-03", "consumer-17", "consumer-29"}
+	if !reflect.DeepEqual(dependentIDs, expectedIDs) {
+		t.Fatalf("expected target dependents %v, got %v", expectedIDs, dependentIDs)
+	}
+	if len(result.Blockers) != 3 {
+		t.Fatalf("expected uninstall blockers for target dependents, got %#v", result.Blockers)
+	}
+}
+
 func pluginSnapshot(id string, version string, installed bool, dependencies *plugintypes.DependencySpec) *plugindep.PluginSnapshot {
 	return &plugindep.PluginSnapshot{
 		ID:           id,
@@ -327,4 +416,120 @@ func hasDependency(dependencies []*plugindep.PluginDependencyCheck, dependencyID
 		}
 	}
 	return false
+}
+
+func legacyCheckReverseForTest(input plugindep.ReverseCheckInput) *plugindep.ReverseCheckResult {
+	targetID := strings.TrimSpace(input.TargetID)
+	result := &plugindep.ReverseCheckResult{
+		TargetID:         targetID,
+		CandidateVersion: strings.TrimSpace(input.CandidateVersion),
+	}
+	for _, plugin := range legacySortedSnapshotsForTest(input.Plugins) {
+		if plugin == nil || !plugin.Installed || strings.TrimSpace(plugin.ID) == targetID {
+			continue
+		}
+		if plugin.DependencySnapshotUnknown {
+			if legacyUnknownSnapshotRequiresReverseBlockForTest(plugin, targetID, result.CandidateVersion == "") {
+				result.Blockers = append(result.Blockers, &plugindep.Blocker{
+					Code:     plugindep.BlockerDependencySnapshotUnknown,
+					PluginID: strings.TrimSpace(plugin.ID),
+					Detail:   "installed plugin dependency snapshot is unavailable",
+				})
+			}
+			continue
+		}
+		for _, declaredDependency := range legacyNormalizedPluginDependenciesForTest(plugin.Dependencies) {
+			if declaredDependency == nil || strings.TrimSpace(declaredDependency.ID) != targetID {
+				continue
+			}
+			dependent := &plugindep.ReverseDependent{
+				PluginID:        strings.TrimSpace(plugin.ID),
+				Name:            strings.TrimSpace(plugin.Name),
+				Version:         strings.TrimSpace(plugin.Version),
+				RequiredVersion: strings.TrimSpace(declaredDependency.Version),
+			}
+			result.Dependents = append(result.Dependents, dependent)
+
+			if result.CandidateVersion == "" {
+				result.Blockers = append(result.Blockers, &plugindep.Blocker{
+					Code:            plugindep.BlockerReverseDependency,
+					PluginID:        dependent.PluginID,
+					DependencyID:    targetID,
+					RequiredVersion: dependent.RequiredVersion,
+					CurrentVersion:  result.CandidateVersion,
+					Chain:           []string{dependent.PluginID, targetID},
+					Detail:          "installed plugin depends on target plugin",
+				})
+				continue
+			}
+			if dependent.RequiredVersion == "" {
+				continue
+			}
+			matches, err := plugintypes.MatchesSemanticVersionRange(result.CandidateVersion, dependent.RequiredVersion)
+			if err != nil || !matches {
+				result.Blockers = append(result.Blockers, &plugindep.Blocker{
+					Code:            plugindep.BlockerReverseDependencyVersion,
+					PluginID:        dependent.PluginID,
+					DependencyID:    targetID,
+					RequiredVersion: dependent.RequiredVersion,
+					CurrentVersion:  result.CandidateVersion,
+					Chain:           []string{dependent.PluginID, targetID},
+					Detail:          "candidate version does not satisfy downstream dependency range",
+				})
+			}
+		}
+	}
+	return result
+}
+
+func legacyUnknownSnapshotRequiresReverseBlockForTest(plugin *plugindep.PluginSnapshot, targetID string, uninstall bool) bool {
+	dependencies := legacyNormalizedPluginDependenciesForTest(plugin.Dependencies)
+	if len(dependencies) == 0 {
+		return uninstall && plugin.Manifest == nil
+	}
+	for _, declaredDependency := range dependencies {
+		if declaredDependency == nil || strings.TrimSpace(declaredDependency.ID) != targetID {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func legacyNormalizedPluginDependenciesForTest(spec *plugintypes.DependencySpec) []*plugintypes.PluginDependencySpec {
+	if spec == nil || len(spec.Plugins) == 0 {
+		return nil
+	}
+	normalized := plugintypes.CloneDependencySpec(spec)
+	plugintypes.NormalizeDependencySpec(normalized)
+	dependencies := make([]*plugintypes.PluginDependencySpec, 0, len(normalized.Plugins))
+	for _, dependency := range normalized.Plugins {
+		if dependency != nil {
+			dependencies = append(dependencies, dependency)
+		}
+	}
+	sort.Slice(dependencies, func(i, j int) bool {
+		return strings.TrimSpace(dependencies[i].ID) < strings.TrimSpace(dependencies[j].ID)
+	})
+	return dependencies
+}
+
+func legacySortedSnapshotsForTest(plugins []*plugindep.PluginSnapshot) []*plugindep.PluginSnapshot {
+	sorted := make([]*plugindep.PluginSnapshot, 0, len(plugins))
+	for _, plugin := range plugins {
+		if plugin != nil {
+			sorted = append(sorted, plugin)
+		}
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return strings.TrimSpace(sorted[i].ID) < strings.TrimSpace(sorted[j].ID)
+	})
+	return sorted
+}
+
+func twoDigit(value int) string {
+	if value < 10 {
+		return "0" + string(rune('0'+value))
+	}
+	return string(rune('0'+value/10)) + string(rune('0'+value%10))
 }

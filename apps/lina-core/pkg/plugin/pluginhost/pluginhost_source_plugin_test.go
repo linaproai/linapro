@@ -64,7 +64,7 @@ func TestCallbackInputContractsUseInterfaces(t *testing.T) {
 	assertInterfaceType(t, (*HTTPDeclarations)(nil), "HTTPDeclarations")
 	assertInterfaceType(t, (*JobDeclarations)(nil), "JobDeclarations")
 	assertInterfaceType(t, (*ProviderDeclarations)(nil), "ProviderDeclarations")
-	assertInterfaceType(t, (*GovernanceDeclarations)(nil), "GovernanceDeclarations")
+	assertInterfaceType(t, (*AccessDeclarations)(nil), "AccessDeclarations")
 	assertInterfaceType(t, (*SourcePluginDefinition)(nil), "SourcePluginDefinition")
 	assertInterfaceType(t, (*HookPayload)(nil), "HookPayload")
 	assertInterfaceType(t, (*SourcePluginLifecycleInput)(nil), "SourcePluginLifecycleInput")

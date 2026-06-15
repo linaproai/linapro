@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -104,6 +106,132 @@ func TestInvalidateAllCacheWaitsForActiveLease(t *testing.T) {
 	}
 }
 
+// TestConcurrentSameArtifactCompilesOnce verifies the per-artifact single-flight
+// path shares one compile among concurrent callers.
+func TestConcurrentSameArtifactCompilesOnce(t *testing.T) {
+	ctx := context.Background()
+	runtime := newTestRuntimeImpl()
+	artifactPath := writeMinimalWasmArtifact(t)
+	defer runtime.InvalidateAllCache(ctx)
+
+	var compileCount atomic.Int32
+	runtime.compileHook = func(string) {
+		compileCount.Add(1)
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	const callers = 8
+	var wg sync.WaitGroup
+	errs := make(chan error, callers)
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			lease, err := runtime.getOrCompileWasmModule(ctx, artifactPath)
+			if err != nil {
+				errs <- err
+				return
+			}
+			lease.Release()
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent compile failed: %v", err)
+		}
+	}
+	if got := compileCount.Load(); got != 1 {
+		t.Fatalf("expected one compile for concurrent same artifact, got %d", got)
+	}
+}
+
+// TestCompileFailureRetries verifies failed compilation is not cached and a
+// later valid artifact at the same path can compile successfully.
+func TestCompileFailureRetries(t *testing.T) {
+	ctx := context.Background()
+	runtime := newTestRuntimeImpl()
+	artifactPath := filepath.Join(t.TempDir(), "retry.wasm")
+	if err := os.WriteFile(artifactPath, []byte("not-wasm"), 0o600); err != nil {
+		t.Fatalf("write invalid wasm failed: %v", err)
+	}
+	defer runtime.InvalidateAllCache(ctx)
+
+	var compileCount atomic.Int32
+	runtime.compileHook = func(string) {
+		compileCount.Add(1)
+	}
+	if _, err := runtime.getOrCompileWasmModule(ctx, artifactPath); err == nil {
+		t.Fatal("expected invalid wasm compile to fail")
+	}
+	if err := os.WriteFile(artifactPath, minimalWasmBinary(), 0o600); err != nil {
+		t.Fatalf("write valid wasm failed: %v", err)
+	}
+	lease, err := runtime.getOrCompileWasmModule(ctx, artifactPath)
+	if err != nil {
+		t.Fatalf("expected compile retry to succeed: %v", err)
+	}
+	lease.Release()
+	if got := compileCount.Load(); got != 2 {
+		t.Fatalf("expected failed compile plus retry, got %d", got)
+	}
+}
+
+// TestDifferentArtifactsCompileIndependently verifies one artifact's in-flight
+// compile does not make another artifact wait on the same single-flight entry.
+func TestDifferentArtifactsCompileIndependently(t *testing.T) {
+	ctx := context.Background()
+	runtime := newTestRuntimeImpl()
+	firstPath := writeMinimalWasmArtifactNamed(t, "first.wasm")
+	secondPath := writeMinimalWasmArtifactNamed(t, "second.wasm")
+	defer runtime.InvalidateAllCache(ctx)
+
+	firstStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	var firstHookOnce sync.Once
+	runtime.compileHook = func(artifactPath string) {
+		if artifactPath != firstPath {
+			return
+		}
+		firstHookOnce.Do(func() {
+			close(firstStarted)
+			<-releaseFirst
+		})
+	}
+
+	firstErr := make(chan error, 1)
+	go func() {
+		lease, err := runtime.getOrCompileWasmModule(ctx, firstPath)
+		if err == nil {
+			lease.Release()
+		}
+		firstErr <- err
+	}()
+	<-firstStarted
+
+	secondDone := make(chan error, 1)
+	go func() {
+		lease, err := runtime.getOrCompileWasmModule(ctx, secondPath)
+		if err == nil {
+			lease.Release()
+		}
+		secondDone <- err
+	}()
+	select {
+	case err := <-secondDone:
+		if err != nil {
+			t.Fatalf("second artifact compile failed: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("different artifact compile was blocked by first artifact")
+	}
+	close(releaseFirst)
+	if err := <-firstErr; err != nil {
+		t.Fatalf("first artifact compile failed: %v", err)
+	}
+}
+
 // waitForCacheEntryRemoval waits until invalidation has removed a stale entry
 // from the global map, allowing the caller to compile a replacement entry.
 func waitForCacheEntryRemoval(t *testing.T, runtime *runtimeImpl, artifactPath string) {
@@ -125,6 +253,7 @@ func newTestRuntimeImpl() *runtimeImpl {
 	return &runtimeImpl{
 		hostServices: newTestHostServiceRuntime(),
 		cache:        make(map[string]*wasmCacheEntry),
+		inflight:     make(map[string]*wasmCompileInflight),
 	}
 }
 
@@ -132,7 +261,13 @@ func newTestRuntimeImpl() *runtimeImpl {
 // function, matching the dynamic plugin compile-time import contract.
 func writeMinimalWasmArtifact(t *testing.T) string {
 	t.Helper()
-	artifactPath := filepath.Join(t.TempDir(), "minimal.wasm")
+	return writeMinimalWasmArtifactNamed(t, "minimal.wasm")
+}
+
+// writeMinimalWasmArtifactNamed writes a minimal module with the given file name.
+func writeMinimalWasmArtifactNamed(t *testing.T, name string) string {
+	t.Helper()
+	artifactPath := filepath.Join(t.TempDir(), name)
 	if err := os.WriteFile(artifactPath, minimalWasmBinary(), 0o600); err != nil {
 		t.Fatalf("write wasm artifact failed: %v", err)
 	}

@@ -200,6 +200,7 @@ func (s *serviceImpl) storeUploadedPackage(
 	if err = gfile.PutBytes(targetPath, content); err != nil {
 		return nil, gerror.Wrap(err, "write dynamic plugin artifact failed")
 	}
+	s.catalogSvc.InvalidateManifestCache(manifest.ID)
 	reloadedManifest, err := s.catalogSvc.LoadManifestFromArtifactPath(targetPath)
 	if err != nil {
 		if restoreErr := restoreArtifactBackup(targetPath, targetExisted, backupContent); restoreErr != nil {

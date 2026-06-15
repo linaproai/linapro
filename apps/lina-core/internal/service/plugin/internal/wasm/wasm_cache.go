@@ -68,6 +68,9 @@ func (r *runtimeImpl) getOrCompileWasmModule(ctx context.Context, artifactPath s
 	if r == nil {
 		return nil, gerror.New("wasm runtime is not configured")
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	r.cacheMu.RLock()
 	if entry, ok := r.cache[artifactPath]; ok {
 		r.cacheMu.RUnlock()
@@ -78,17 +81,68 @@ func (r *runtimeImpl) getOrCompileWasmModule(ctx context.Context, artifactPath s
 		r.cacheMu.RUnlock()
 	}
 
+	for {
+		inflight, owner := r.getOrCreateCompileInflight(artifactPath)
+		if owner {
+			entry, err := r.compileWasmCacheEntry(ctx, artifactPath)
+			r.finishCompileInflight(artifactPath, inflight, entry, err)
+			if err != nil {
+				return nil, err
+			}
+			if lease := entry.acquireLease(); lease != nil {
+				return lease, nil
+			}
+			return nil, gerror.New("compiled dynamic plugin Wasm cache entry is not available")
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-inflight.done:
+		}
+		if inflight.err != nil {
+			return nil, inflight.err
+		}
+		if inflight.entry != nil {
+			if lease := inflight.entry.acquireLease(); lease != nil {
+				return lease, nil
+			}
+		}
+	}
+}
+
+// getOrCreateCompileInflight returns the in-flight compilation for artifactPath.
+// The owner return value identifies the caller responsible for performing the
+// compile outside the global cache lock.
+func (r *runtimeImpl) getOrCreateCompileInflight(artifactPath string) (*wasmCompileInflight, bool) {
 	r.cacheMu.Lock()
 	defer r.cacheMu.Unlock()
-
-	// Double-check after acquiring write lock.
+	if r.cache == nil {
+		r.cache = make(map[string]*wasmCacheEntry)
+	}
 	if entry, ok := r.cache[artifactPath]; ok {
 		if lease := entry.acquireLease(); lease != nil {
-			return lease, nil
+			lease.Release()
+			return &wasmCompileInflight{done: closedCompileInflightDone(), entry: entry}, false
 		}
 		delete(r.cache, artifactPath)
 	}
+	if r.inflight == nil {
+		r.inflight = make(map[string]*wasmCompileInflight)
+	}
+	if inflight, ok := r.inflight[artifactPath]; ok {
+		return inflight, false
+	}
+	inflight := &wasmCompileInflight{done: make(chan struct{})}
+	r.inflight[artifactPath] = inflight
+	return inflight, true
+}
 
+// compileWasmCacheEntry reads and compiles one artifact without holding
+// runtimeImpl.cacheMu.
+func (r *runtimeImpl) compileWasmCacheEntry(ctx context.Context, artifactPath string) (*wasmCacheEntry, error) {
+	if r.compileHook != nil {
+		r.compileHook(artifactPath)
+	}
 	rt := newWasmRuntime(ctx)
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, rt); err != nil {
 		if closeErr := rt.Close(ctx); closeErr != nil {
@@ -125,13 +179,37 @@ func (r *runtimeImpl) getOrCompileWasmModule(ctx context.Context, artifactPath s
 		compiled: compiled,
 	}
 	entry.idle = sync.NewCond(&entry.mu)
-	r.cache[artifactPath] = entry
-	lease := entry.acquireLease()
-	if lease == nil {
-		delete(r.cache, artifactPath)
-		return nil, gerror.New("compiled dynamic plugin Wasm cache entry is not available")
+	return entry, nil
+}
+
+// finishCompileInflight stores a successful compile result and wakes waiters.
+func (r *runtimeImpl) finishCompileInflight(
+	artifactPath string,
+	inflight *wasmCompileInflight,
+	entry *wasmCacheEntry,
+	err error,
+) {
+	r.cacheMu.Lock()
+	if r.cache == nil {
+		r.cache = make(map[string]*wasmCacheEntry)
 	}
-	return lease, nil
+	if err == nil && entry != nil {
+		r.cache[artifactPath] = entry
+	}
+	if inflight != nil {
+		inflight.entry = entry
+		inflight.err = err
+		close(inflight.done)
+	}
+	delete(r.inflight, artifactPath)
+	r.cacheMu.Unlock()
+}
+
+// closedCompileInflightDone returns a closed channel for already-cached entries.
+func closedCompileInflightDone() chan struct{} {
+	done := make(chan struct{})
+	close(done)
+	return done
 }
 
 // newWasmRuntime creates one host-governed runtime for dynamic plugin modules.

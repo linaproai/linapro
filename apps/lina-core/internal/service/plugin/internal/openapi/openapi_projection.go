@@ -17,18 +17,40 @@ import (
 
 // ProjectDynamicRoutesToOpenAPI projects currently enabled dynamic plugin routes into the host OpenAPI paths.
 func (s *serviceImpl) ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths goai.Paths) error {
-	manifests, err := s.catalogSvc.ScanManifests()
+	cacheKey, err := s.openAPIProjectionCacheKey(ctx)
 	if err != nil {
 		return err
 	}
-	if paths == nil {
+	if cached, ok := s.cache.get(cacheKey); ok {
+		mergeProjectedPaths(paths, cached)
 		return nil
 	}
-
-	runtime, err := buildFilterRuntime(ctx, manifests)
+	projected, err := s.buildDynamicRouteProjection(ctx)
 	if err != nil {
 		return err
 	}
+	s.cache.store(cacheKey, projected)
+	mergeProjectedPaths(paths, projected)
+	return nil
+}
+
+// buildDynamicRouteProjection builds the dynamic-plugin path subset from one
+// manifest scan and one store snapshot context.
+func (s *serviceImpl) buildDynamicRouteProjection(ctx context.Context) (goai.Paths, error) {
+	manifests, err := s.catalogSvc.ScanManifests()
+	if err != nil {
+		return nil, err
+	}
+	readCtx, err := s.storeSvc.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	runtime, err := s.buildFilterRuntime(readCtx, manifests)
+	if err != nil {
+		return nil, err
+	}
+	projected := make(goai.Paths)
 	for _, manifest := range manifests {
 		if manifest == nil || plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
 			continue
@@ -36,7 +58,7 @@ func (s *serviceImpl) ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths g
 		if !runtime.isEnabled(manifest.ID) {
 			continue
 		}
-		activeManifest, manifestErr := s.resolveActiveOrDesiredManifest(ctx, manifest.ID)
+		activeManifest, manifestErr := s.resolveActiveOrDesiredManifest(readCtx, manifest.ID)
 		if manifestErr != nil || activeManifest == nil {
 			continue
 		}
@@ -45,7 +67,7 @@ func (s *serviceImpl) ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths g
 				continue
 			}
 			publicPath := BuildRoutePublicPath(activeManifest.ID, route.Path)
-			pathItem, ok := paths[publicPath]
+			pathItem, ok := projected[publicPath]
 			if !ok {
 				pathItem = goai.Path{}
 			}
@@ -60,10 +82,10 @@ func (s *serviceImpl) ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths g
 			case http.MethodDelete:
 				pathItem.Delete = operation
 			}
-			paths[publicPath] = pathItem
+			projected[publicPath] = pathItem
 		}
 	}
-	return nil
+	return projected, nil
 }
 
 // resolveActiveOrDesiredManifest loads the active release manifest for installed
@@ -84,6 +106,16 @@ func (s *serviceImpl) resolveActiveOrDesiredManifest(ctx context.Context, plugin
 		return s.storeSvc.LoadReleaseManifest(ctx, release)
 	}
 	return s.catalogSvc.GetDesiredManifest(pluginID)
+}
+
+// mergeProjectedPaths copies dynamic route paths into the caller-owned OpenAPI map.
+func mergeProjectedPaths(paths goai.Paths, projected goai.Paths) {
+	if paths == nil {
+		return
+	}
+	for publicPath, pathItem := range projected {
+		paths[publicPath] = clonePath(pathItem)
+	}
 }
 
 // buildRouteOpenAPIOperation converts one runtime route contract into a host

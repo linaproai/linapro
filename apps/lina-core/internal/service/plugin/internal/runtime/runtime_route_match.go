@@ -10,6 +10,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
 
+	"lina-core/internal/service/plugin/internal/catalog"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -21,6 +22,7 @@ type dynamicRouteMatch struct {
 	InternalPath string
 	Route        *bridgecontract.RouteContract
 	PathParams   map[string]string
+	Manifest     *catalog.Manifest
 }
 
 // DynamicRouteMatch is the exported form of dynamicRouteMatch for cross-package access.
@@ -73,6 +75,7 @@ func (s *serviceImpl) matchDynamicRoute(ctx context.Context, request *ghttp.Requ
 			InternalPath: internalPath,
 			Route:        route,
 			PathParams:   params,
+			Manifest:     manifest,
 		}, nil
 	}
 	return nil, nil

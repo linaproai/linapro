@@ -329,6 +329,10 @@ func (s *serviceImpl) reconcilePluginIfNeeded(
 	if err != nil {
 		return err
 	}
+	if options.DesiredManifest != nil &&
+		strings.TrimSpace(options.DesiredManifest.ID) == strings.TrimSpace(registry.PluginId) {
+		desiredManifest = catalog.CloneManifest(options.DesiredManifest)
+	}
 	if desiredManifest == nil || plugintypes.NormalizeType(desiredManifest.Type) != plugintypes.TypeDynamic {
 		return gerror.New("dynamic plugin desired manifest does not exist")
 	}

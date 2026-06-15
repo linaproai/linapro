@@ -5,11 +5,13 @@ package plugin
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 
 	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/cachecoord/revisionctrl"
 	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/internal/service/plugin/internal/wasm"
@@ -46,7 +48,11 @@ func newRuntimeCacheRevisionController(
 	frontendSvc pluginRuntimeFrontendInvalidator,
 	i18nSvc pluginI18nService,
 	managementListInvalidator pluginManagementListInvalidator,
+	openapiInvalidator pluginOpenAPIProjectionInvalidator,
 	wasmRuntime wasm.Runtime,
+	catalogSvc catalog.Service,
+	storeSvc store.Service,
+	runtimeArtifactReconciler pluginRuntimeArtifactReconciler,
 ) *revisionctrl.Controller {
 	clusterEnabled := false
 	if topology != nil {
@@ -68,8 +74,15 @@ func newRuntimeCacheRevisionController(
 			if managementListInvalidator != nil {
 				managementListInvalidator.InvalidateManagementListCache(ctx, "cluster_runtime_revision_changed")
 			}
+			if openapiInvalidator != nil {
+				openapiInvalidator.InvalidateProjectionCache(ctx, "cluster_runtime_revision_changed")
+			}
 			if wasmRuntime != nil {
-				wasmRuntime.InvalidateAllCache(ctx)
+				if runtimeArtifactReconciler != nil {
+					runtimeArtifactReconciler.ReconcileActiveDynamicArtifactCaches(ctx, "cluster_runtime_revision_changed")
+				} else {
+					invalidateActiveDynamicWasmCaches(ctx, wasmRuntime, catalogSvc, storeSvc, "cluster_runtime_revision_changed")
+				}
 			}
 			if i18nSvc != nil {
 				i18nSvc.InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
@@ -100,6 +113,20 @@ type pluginRuntimeFrontendInvalidator interface {
 type pluginManagementListInvalidator interface {
 	// InvalidateManagementListCache clears the plugin management read model.
 	InvalidateManagementListCache(ctx context.Context, reason string)
+}
+
+// pluginOpenAPIProjectionInvalidator narrows dynamic route OpenAPI cache invalidation.
+type pluginOpenAPIProjectionInvalidator interface {
+	// InvalidateProjectionCache clears cached dynamic route OpenAPI projections.
+	InvalidateProjectionCache(ctx context.Context, reason string)
+}
+
+// pluginRuntimeArtifactReconciler reconciles dynamic artifact-derived caches
+// after a peer runtime revision change.
+type pluginRuntimeArtifactReconciler interface {
+	// ReconcileActiveDynamicArtifactCaches invalidates only active dynamic artifacts
+	// whose path changed or disappeared since the previous reconciliation.
+	ReconcileActiveDynamicArtifactCaches(ctx context.Context, reason string)
 }
 
 // ensureRuntimeCacheFresh synchronizes plugin runtime caches with the shared
@@ -159,6 +186,9 @@ func (s *serviceImpl) publishPluginChange(ctx context.Context, input pluginChang
 	reason := input.reason
 	s.invalidateRuntimeUpgradeCaches(ctx, input.pluginID, input.pluginType, reason)
 	s.InvalidateManagementListCache(ctx, reason)
+	if s.openapiSvc != nil {
+		s.openapiSvc.InvalidateProjectionCache(ctx, reason)
+	}
 	if s.runtimeCacheRevisionCtrl == nil {
 		return 0, nil
 	}
@@ -263,7 +293,7 @@ func (s *serviceImpl) invalidateRuntimeUpgradeCaches(ctx context.Context, plugin
 		s.frontendSvc.InvalidateBundle(ctx, normalizedPluginID, reason)
 	}
 	if normalizedType == plugintypes.TypeDynamic && s.wasmRuntime != nil {
-		s.wasmRuntime.InvalidateAllCache(ctx)
+		s.invalidateDynamicWasmCacheForPlugin(ctx, normalizedPluginID, reason)
 	}
 	if s.i18nSvc == nil {
 		return
@@ -287,4 +317,170 @@ func (s *serviceImpl) invalidateRuntimeUpgradeCaches(ctx context.Context, plugin
 			},
 		})
 	}
+}
+
+// invalidateDynamicWasmCacheForPlugin removes compiled WASM modules for one
+// dynamic plugin's active artifact. Unknown paths fall back to a full invalidation
+// because executing stale code is less safe than recompiling unrelated plugins.
+func (s *serviceImpl) invalidateDynamicWasmCacheForPlugin(ctx context.Context, pluginID string, reason string) {
+	if s == nil || s.wasmRuntime == nil {
+		return
+	}
+	artifactPath, err := activeDynamicArtifactPath(ctx, s.catalogSvc, s.storeSvc, pluginID)
+	if err != nil {
+		logger.Warningf(ctx, "resolve dynamic plugin artifact for cache invalidation failed plugin=%s reason=%s err=%v", pluginID, reason, err)
+		s.wasmRuntime.InvalidateAllCache(ctx)
+		return
+	}
+	if strings.TrimSpace(artifactPath) == "" {
+		return
+	}
+	s.wasmRuntime.InvalidateCache(ctx, artifactPath)
+}
+
+// invalidateActiveDynamicWasmCaches reconciles peer-observed runtime revision
+// changes by invalidating currently active dynamic artifact paths. This keeps
+// the operation bounded by installed dynamic plugin count instead of dropping
+// all compiled modules unconditionally on every peer revision.
+func invalidateActiveDynamicWasmCaches(
+	ctx context.Context,
+	wasmRuntime wasm.Runtime,
+	catalogSvc catalog.Service,
+	storeSvc store.Service,
+	reason string,
+) {
+	if wasmRuntime == nil || storeSvc == nil {
+		return
+	}
+	registries, err := storeSvc.ListAllRegistries(ctx)
+	if err != nil {
+		logger.Warningf(ctx, "list registries for dynamic wasm cache reconciliation failed reason=%s err=%v", reason, err)
+		wasmRuntime.InvalidateAllCache(ctx)
+		return
+	}
+	for _, registry := range registries {
+		if registry == nil ||
+			plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
+			registry.Installed != plugintypes.InstalledYes ||
+			registry.ReleaseId <= 0 {
+			continue
+		}
+		artifactPath, pathErr := activeDynamicArtifactPath(ctx, catalogSvc, storeSvc, registry.PluginId)
+		if pathErr != nil {
+			logger.Warningf(ctx, "resolve active dynamic artifact during cache reconciliation failed plugin=%s reason=%s err=%v", registry.PluginId, reason, pathErr)
+			continue
+		}
+		if strings.TrimSpace(artifactPath) != "" {
+			wasmRuntime.InvalidateCache(ctx, artifactPath)
+		}
+	}
+}
+
+// ReconcileActiveDynamicArtifactCaches invalidates dynamic artifact-derived
+// caches whose active artifact path changed or disappeared since the previous
+// peer revision observation.
+func (s *serviceImpl) ReconcileActiveDynamicArtifactCaches(ctx context.Context, reason string) {
+	if s == nil || s.wasmRuntime == nil {
+		return
+	}
+	current, err := buildActiveDynamicArtifactSnapshot(ctx, s.catalogSvc, s.storeSvc)
+	if err != nil {
+		logger.Warningf(ctx, "build active dynamic artifact snapshot failed reason=%s err=%v", reason, err)
+		s.wasmRuntime.InvalidateAllCache(ctx)
+		return
+	}
+	s.activeDynamicArtifactSnapshotMu.Lock()
+	previous := s.activeDynamicArtifactSnapshot
+	if previous == nil {
+		previous = map[string]string{}
+	}
+	for pluginID, oldPath := range previous {
+		newPath := current[pluginID]
+		if oldPath != "" && oldPath != newPath {
+			s.wasmRuntime.InvalidateCache(ctx, oldPath)
+		}
+	}
+	for pluginID, newPath := range current {
+		if newPath == "" || previous[pluginID] == newPath {
+			continue
+		}
+		s.wasmRuntime.InvalidateCache(ctx, newPath)
+	}
+	s.activeDynamicArtifactSnapshot = current
+	s.activeDynamicArtifactSnapshotMu.Unlock()
+}
+
+// buildActiveDynamicArtifactSnapshot returns active dynamic artifact paths by
+// plugin ID without parsing artifact content.
+func buildActiveDynamicArtifactSnapshot(
+	ctx context.Context,
+	catalogSvc catalog.Service,
+	storeSvc store.Service,
+) (map[string]string, error) {
+	out := make(map[string]string)
+	if storeSvc == nil {
+		return out, nil
+	}
+	registries, err := storeSvc.ListAllRegistries(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, registry := range registries {
+		if registry == nil ||
+			plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
+			registry.Installed != plugintypes.InstalledYes ||
+			registry.ReleaseId <= 0 {
+			continue
+		}
+		artifactPath, pathErr := activeDynamicArtifactPath(ctx, catalogSvc, storeSvc, registry.PluginId)
+		if pathErr != nil {
+			return nil, pathErr
+		}
+		if strings.TrimSpace(artifactPath) != "" {
+			out[strings.TrimSpace(registry.PluginId)] = artifactPath
+		}
+	}
+	return out, nil
+}
+
+// activeDynamicArtifactPath resolves the active dynamic release package path to
+// an absolute filesystem path without parsing the WASM artifact.
+func activeDynamicArtifactPath(
+	ctx context.Context,
+	catalogSvc catalog.Service,
+	storeSvc store.Service,
+	pluginID string,
+) (string, error) {
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" || storeSvc == nil {
+		return "", nil
+	}
+	registry, err := storeSvc.GetRegistry(ctx, normalizedPluginID)
+	if err != nil {
+		return "", err
+	}
+	if registry == nil ||
+		plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
+		registry.ReleaseId <= 0 {
+		return "", nil
+	}
+	release, err := storeSvc.GetRegistryRelease(ctx, registry)
+	if err != nil || release == nil {
+		return "", err
+	}
+	packagePath := strings.TrimSpace(release.PackagePath)
+	if packagePath == "" {
+		return "", nil
+	}
+	if filepath.IsAbs(packagePath) {
+		return filepath.Clean(packagePath), nil
+	}
+	if catalogSvc == nil {
+		return "", nil
+	}
+	storageDir, err := catalogSvc.RuntimeStorageDir(ctx)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Clean(filepath.Join(storageDir, filepath.FromSlash(packagePath))), nil
 }

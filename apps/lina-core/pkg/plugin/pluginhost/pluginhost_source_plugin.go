@@ -28,8 +28,8 @@ type sourcePlugin struct {
 	jobs JobDeclarations
 	// providers exposes grouped framework provider declaration helpers.
 	providers ProviderDeclarations
-	// governance exposes grouped menu and permission governance helpers.
-	governance GovernanceDeclarations
+	// access exposes grouped menu and permission access-control helpers.
+	access AccessDeclarations
 
 	embeddedFiles     fs.FS
 	tenantProvider    tenantspi.ProviderFactory
@@ -74,7 +74,7 @@ func NewDeclarations(id string) Declarations {
 	plugin.http = &sourcePluginHTTP{plugin: plugin}
 	plugin.jobs = &sourcePluginJobs{plugin: plugin}
 	plugin.providers = &sourcePluginProviders{plugin: plugin}
-	plugin.governance = &sourcePluginGovernance{plugin: plugin}
+	plugin.access = &sourcePluginAccess{plugin: plugin}
 	return plugin
 }
 

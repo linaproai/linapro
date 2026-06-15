@@ -130,6 +130,10 @@ func (s *serviceImpl) ParseManifestSnapshot(content string) (*ManifestSnapshot, 
 	if trimmed == "" {
 		return nil, nil
 	}
+	cacheKey := manifestSnapshotCacheKey(trimmed)
+	if cached := s.getCachedManifestSnapshot(cacheKey); cached != nil {
+		return cached, nil
+	}
 	snapshot := &ManifestSnapshot{}
 	root := &yaml.Node{}
 	if err := yaml.Unmarshal([]byte(trimmed), root); err != nil {
@@ -151,7 +155,8 @@ func (s *serviceImpl) ParseManifestSnapshot(content string) (*ManifestSnapshot, 
 	}
 	snapshot.RequestedHostServices = requestedHostServices
 	snapshot.AuthorizedHostServices = authorizedHostServices
-	return snapshot, nil
+	s.storeCachedManifestSnapshot(cacheKey, snapshot)
+	return cloneManifestSnapshot(snapshot), nil
 }
 
 // applyExistingHostServiceAuthorization carries forward an existing release
@@ -269,6 +274,7 @@ func (s *serviceImpl) PersistReleaseHostServiceAuthorization(
 		Update(); err != nil {
 		return nil, err
 	}
+	s.invalidateReleaseManifestCacheForPlugin(release.PluginId)
 	if _, err = s.RefreshStartupReleaseByID(ctx, release.Id); err != nil {
 		return nil, err
 	}

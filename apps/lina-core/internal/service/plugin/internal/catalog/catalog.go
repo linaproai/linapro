@@ -4,6 +4,7 @@ package catalog
 
 import (
 	"context"
+	"sync"
 )
 
 // ConfigProvider abstracts the configuration dependency needed for manifest scanning.
@@ -35,6 +36,9 @@ type ManifestReader interface {
 	// LoadManifestFromArtifactPath loads and validates a dynamic plugin manifest from
 	// the given absolute WASM artifact file path.
 	LoadManifestFromArtifactPath(artifactPath string) (*Manifest, error)
+	// InvalidateManifestCache removes cached manifest projections for one plugin
+	// ID. Empty pluginID clears all dynamic manifest cache entries.
+	InvalidateManifestCache(pluginID string)
 	// GetDesiredManifest returns the latest discovered manifest for the given plugin ID.
 	// For dynamic plugins this is the mutable staging artifact stored at the configured
 	// runtime storage path. Changes here do not take effect until the reconciler archives
@@ -111,9 +115,25 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	// configSvc provides plugin configuration values.
 	configSvc ConfigProvider
+	// cacheMu protects immutable manifest read-model entries.
+	cacheMu sync.RWMutex
+	// sourceManifestCache stores source manifests by plugin ID with manifest-file stat guards.
+	sourceManifestCache map[string]*sourceManifestCacheEntry
+	// runtimeArtifactCache stores dynamic manifest projections by absolute artifact path.
+	runtimeArtifactCache map[string]*runtimeArtifactCacheEntry
+	// runtimePluginArtifactIndex maps plugin ID to its latest discovered artifact path.
+	runtimePluginArtifactIndex map[string]string
+	// parseCounts tracks runtime artifact parse counts for cache-boundary tests.
+	parseCounts map[string]int
 }
 
 // New creates a new catalog Service with the given configuration provider.
 func New(configSvc ConfigProvider) Service {
-	return &serviceImpl{configSvc: configSvc}
+	return &serviceImpl{
+		configSvc:                  configSvc,
+		sourceManifestCache:        make(map[string]*sourceManifestCacheEntry),
+		runtimeArtifactCache:       make(map[string]*runtimeArtifactCacheEntry),
+		runtimePluginArtifactIndex: make(map[string]string),
+		parseCounts:                make(map[string]int),
+	}
 }

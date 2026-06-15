@@ -70,79 +70,164 @@ func (r *Resolver) CheckReverse(input ReverseCheckInput) *ReverseCheckResult {
 		TargetID:         targetID,
 		CandidateVersion: strings.TrimSpace(input.CandidateVersion),
 	}
-	for _, plugin := range sortedSnapshots(input.Plugins) {
-		if plugin == nil || !plugin.Installed || strings.TrimSpace(plugin.ID) == targetID {
+	index := input.ReverseIndex
+	if index == nil {
+		index = NewReverseDependencyIndex(input.Plugins)
+	}
+	entries := append([]*reverseDependencyEntry(nil), index.entriesByTarget[targetID]...)
+	if result.CandidateVersion == "" && targetID != "" {
+		entries = append(entries, index.wildcardUnknown...)
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		return reverseDependencyEntrySortKey(entries[i]) < reverseDependencyEntrySortKey(entries[j])
+	})
+	for _, entry := range entries {
+		if entry == nil || entry.dependent == nil {
 			continue
 		}
-		if plugin.DependencySnapshotUnknown {
-			if unknownSnapshotRequiresReverseBlock(plugin, targetID, result.CandidateVersion == "") {
-				result.Blockers = append(result.Blockers, &Blocker{
-					Code:     BlockerDependencySnapshotUnknown,
-					PluginID: strings.TrimSpace(plugin.ID),
-					Detail:   "installed plugin dependency snapshot is unavailable",
-				})
-			}
+		dependentID := strings.TrimSpace(entry.dependent.ID)
+		if dependentID == targetID {
 			continue
 		}
-		for _, declaredDependency := range normalizedPluginDependencies(plugin.Dependencies) {
-			if declaredDependency == nil || strings.TrimSpace(declaredDependency.ID) != targetID {
-				continue
-			}
-			dependent := &ReverseDependent{
-				PluginID:        strings.TrimSpace(plugin.ID),
-				Name:            strings.TrimSpace(plugin.Name),
-				Version:         strings.TrimSpace(plugin.Version),
-				RequiredVersion: strings.TrimSpace(declaredDependency.Version),
-			}
-			result.Dependents = append(result.Dependents, dependent)
+		if entry.unknown {
+			result.Blockers = append(result.Blockers, &Blocker{
+				Code:     BlockerDependencySnapshotUnknown,
+				PluginID: dependentID,
+				Detail:   "installed plugin dependency snapshot is unavailable",
+			})
+			continue
+		}
+		dependent := &ReverseDependent{
+			PluginID:        dependentID,
+			Name:            strings.TrimSpace(entry.dependent.Name),
+			Version:         strings.TrimSpace(entry.dependent.Version),
+			RequiredVersion: strings.TrimSpace(entry.requiredVersion),
+		}
+		result.Dependents = append(result.Dependents, dependent)
 
-			if result.CandidateVersion == "" {
-				result.Blockers = append(result.Blockers, &Blocker{
-					Code:            BlockerReverseDependency,
-					PluginID:        dependent.PluginID,
-					DependencyID:    targetID,
-					RequiredVersion: dependent.RequiredVersion,
-					CurrentVersion:  result.CandidateVersion,
-					Chain:           []string{dependent.PluginID, targetID},
-					Detail:          "installed plugin depends on target plugin",
-				})
-				continue
-			}
-			if dependent.RequiredVersion == "" {
-				continue
-			}
-			matches, err := plugintypes.MatchesSemanticVersionRange(result.CandidateVersion, dependent.RequiredVersion)
-			if err != nil || !matches {
-				result.Blockers = append(result.Blockers, &Blocker{
-					Code:            BlockerReverseDependencyVersion,
-					PluginID:        dependent.PluginID,
-					DependencyID:    targetID,
-					RequiredVersion: dependent.RequiredVersion,
-					CurrentVersion:  result.CandidateVersion,
-					Chain:           []string{dependent.PluginID, targetID},
-					Detail:          "candidate version does not satisfy downstream dependency range",
-				})
-			}
+		if result.CandidateVersion == "" {
+			result.Blockers = append(result.Blockers, &Blocker{
+				Code:            BlockerReverseDependency,
+				PluginID:        dependent.PluginID,
+				DependencyID:    targetID,
+				RequiredVersion: dependent.RequiredVersion,
+				CurrentVersion:  result.CandidateVersion,
+				Chain:           []string{dependent.PluginID, targetID},
+				Detail:          "installed plugin depends on target plugin",
+			})
+			continue
+		}
+		if dependent.RequiredVersion == "" {
+			continue
+		}
+		matches, err := plugintypes.MatchesSemanticVersionRange(result.CandidateVersion, dependent.RequiredVersion)
+		if err != nil || !matches {
+			result.Blockers = append(result.Blockers, &Blocker{
+				Code:            BlockerReverseDependencyVersion,
+				PluginID:        dependent.PluginID,
+				DependencyID:    targetID,
+				RequiredVersion: dependent.RequiredVersion,
+				CurrentVersion:  result.CandidateVersion,
+				Chain:           []string{dependent.PluginID, targetID},
+				Detail:          "candidate version does not satisfy downstream dependency range",
+			})
 		}
 	}
 	return result
 }
 
-// unknownSnapshotRequiresReverseBlock keeps destructive lifecycle checks
-// conservative while allowing unrelated installed plugins with a current
-// discovered manifest to avoid blocking every target plugin operation.
-func unknownSnapshotRequiresReverseBlock(plugin *PluginSnapshot, targetID string, uninstall bool) bool {
-	dependencies := normalizedPluginDependencies(plugin.Dependencies)
-	if len(dependencies) == 0 {
-		return uninstall && plugin.Manifest == nil
+// ReverseDependencyIndex stores installed downstream dependencies by target ID.
+// It is built once from the current snapshot set so each reverse check can look
+// up the requested target without scanning all plugin dependency declarations.
+type ReverseDependencyIndex struct {
+	entriesByTarget map[string][]*reverseDependencyEntry
+	wildcardUnknown []*reverseDependencyEntry
+}
+
+// reverseDependencyEntry identifies one installed plugin dependency declaration
+// or one conservative unknown-snapshot blocker relevant to a target plugin.
+type reverseDependencyEntry struct {
+	dependent       *PluginSnapshot
+	requiredVersion string
+	unknown         bool
+}
+
+// NewReverseDependencyIndex indexes installed plugin dependency declarations
+// and conservative unknown-snapshot blockers in deterministic plugin-ID order.
+func NewReverseDependencyIndex(plugins []*PluginSnapshot) *ReverseDependencyIndex {
+	index := &ReverseDependencyIndex{
+		entriesByTarget: make(map[string][]*reverseDependencyEntry),
 	}
-	for _, declaredDependency := range dependencies {
-		if declaredDependency == nil || strings.TrimSpace(declaredDependency.ID) != targetID {
+	for _, plugin := range sortedSnapshots(plugins) {
+		if plugin == nil {
 			continue
 		}
-		return true
+		pluginID := strings.TrimSpace(plugin.ID)
+		if !plugin.Installed || pluginID == "" {
+			continue
+		}
+		if plugin.DependencySnapshotUnknown {
+			indexUnknownReverseDependencies(index, plugin)
+			continue
+		}
+		for _, declaredDependency := range normalizedPluginDependencies(plugin.Dependencies) {
+			if declaredDependency == nil {
+				continue
+			}
+			dependencyID := strings.TrimSpace(declaredDependency.ID)
+			if dependencyID == "" || dependencyID == pluginID {
+				continue
+			}
+			index.entriesByTarget[dependencyID] = append(index.entriesByTarget[dependencyID], &reverseDependencyEntry{
+				dependent:       plugin,
+				requiredVersion: strings.TrimSpace(declaredDependency.Version),
+			})
+		}
 	}
-	return false
+	return index
+}
+
+// indexUnknownReverseDependencies preserves the previous fail-closed behavior
+// for installed plugins whose effective dependency snapshot is unavailable.
+func indexUnknownReverseDependencies(index *ReverseDependencyIndex, plugin *PluginSnapshot) {
+	if index == nil || plugin == nil {
+		return
+	}
+	dependencies := normalizedPluginDependencies(plugin.Dependencies)
+	if len(dependencies) == 0 {
+		if plugin.Manifest == nil {
+			index.wildcardUnknown = append(index.wildcardUnknown, &reverseDependencyEntry{
+				dependent: plugin,
+				unknown:   true,
+			})
+		}
+		return
+	}
+	for _, declaredDependency := range dependencies {
+		if declaredDependency == nil {
+			continue
+		}
+		dependencyID := strings.TrimSpace(declaredDependency.ID)
+		if dependencyID == "" {
+			continue
+		}
+		index.entriesByTarget[dependencyID] = append(index.entriesByTarget[dependencyID], &reverseDependencyEntry{
+			dependent: plugin,
+			unknown:   true,
+		})
+	}
+}
+
+// reverseDependencyEntrySortKey matches the previous all-snapshot traversal
+// ordering without requiring each query to inspect unrelated dependencies.
+func reverseDependencyEntrySortKey(entry *reverseDependencyEntry) string {
+	if entry == nil || entry.dependent == nil {
+		return ""
+	}
+	return strings.Join([]string{
+		strings.TrimSpace(entry.dependent.ID),
+		strings.TrimSpace(entry.requiredVersion),
+	}, "|")
 }
 
 // walkState carries mutable traversal state for install dependency resolution.

@@ -48,9 +48,9 @@ type sourcePluginProviders struct {
 	plugin *sourcePlugin
 }
 
-// sourcePluginGovernance is the governance-registration facade bound to one
+// sourcePluginAccess is the access-control registration facade bound to one
 // source plugin definition.
-type sourcePluginGovernance struct {
+type sourcePluginAccess struct {
 	plugin *sourcePlugin
 }
 
@@ -110,12 +110,12 @@ func (p *sourcePlugin) Providers() ProviderDeclarations {
 	return p.providers
 }
 
-// Governance returns the menu and permission governance registration facade.
-func (p *sourcePlugin) Governance() GovernanceDeclarations {
+// Access returns the menu and permission access-control registration facade.
+func (p *sourcePlugin) Access() AccessDeclarations {
 	if p == nil {
 		return nil
 	}
-	return p.governance
+	return p.access
 }
 
 // ProvideTenant declares one source-plugin tenant provider factory.
@@ -315,25 +315,25 @@ func (r *sourcePluginJobs) RegisterJobs(
 }
 
 // RegisterMenuFilter registers one callback that filters host menus.
-func (r *sourcePluginGovernance) RegisterMenuFilter(
+func (r *sourcePluginAccess) RegisterMenuFilter(
 	point ExtensionPoint,
 	mode CallbackExecutionMode,
 	handler MenuFilterHandler,
 ) error {
 	if r == nil || r.plugin == nil {
-		return gerror.New("pluginhost: source plugin governance facade is nil")
+		return gerror.New("pluginhost: source plugin access facade is nil")
 	}
 	return r.plugin.registerMenuFilter(point, mode, handler)
 }
 
 // RegisterPermissionFilter registers one callback that filters host permissions.
-func (r *sourcePluginGovernance) RegisterPermissionFilter(
+func (r *sourcePluginAccess) RegisterPermissionFilter(
 	point ExtensionPoint,
 	mode CallbackExecutionMode,
 	handler PermissionFilterHandler,
 ) error {
 	if r == nil || r.plugin == nil {
-		return gerror.New("pluginhost: source plugin governance facade is nil")
+		return gerror.New("pluginhost: source plugin access facade is nil")
 	}
 	return r.plugin.registerPermissionFilter(point, mode, handler)
 }

@@ -18,7 +18,8 @@ type (
 	// dependencySnapshotCache stores request-local dependency snapshots for
 	// repeated read-only dependency checks during one plugin list projection.
 	dependencySnapshotCache struct {
-		snapshots []*plugindep.PluginSnapshot
+		snapshots    []*plugindep.PluginSnapshot
+		reverseIndex *plugindep.ReverseDependencyIndex
 	}
 )
 
@@ -39,14 +40,40 @@ func (s *serviceImpl) WithDependencySnapshotCache(ctx context.Context) context.C
 
 // CheckPluginDependencies evaluates install and uninstall dependency status for one plugin.
 func (s *serviceImpl) CheckPluginDependencies(ctx context.Context, pluginID string) (*DependencyCheckResult, error) {
-	installResult, err := s.resolveInstallDependencies(ctx, pluginID)
+	ctx = s.WithDependencySnapshotCache(ctx)
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	var (
+		snapshots []*plugindep.PluginSnapshot
+		err       error
+	)
+	if management.ManifestByIDFromContext(ctx, normalizedPluginID) != nil {
+		snapshots, err = s.buildDependencySnapshots(ctx, nil)
+	} else {
+		manifest, manifestErr := s.catalogSvc.GetDesiredManifest(normalizedPluginID)
+		if manifestErr != nil {
+			return nil, manifestErr
+		}
+		snapshots, err = s.buildDependencySnapshots(ctx, manifest)
+	}
 	if err != nil {
 		return nil, err
 	}
-	reverseResult, err := s.resolveReverseDependencies(ctx, pluginID, "")
-	if err != nil {
-		return nil, err
+
+	resolver := plugindep.New()
+	reverseIndex := dependencyReverseIndexFromContext(ctx)
+	if reverseIndex == nil {
+		reverseIndex = plugindep.NewReverseDependencyIndex(snapshots)
 	}
+	installResult := resolver.CheckInstall(plugindep.InstallCheckInput{
+		TargetID:         normalizedPluginID,
+		FrameworkVersion: s.frameworkVersion(ctx),
+		Plugins:          snapshots,
+	})
+	reverseResult := resolver.CheckReverse(plugindep.ReverseCheckInput{
+		TargetID:     normalizedPluginID,
+		Plugins:      snapshots,
+		ReverseIndex: reverseIndex,
+	})
 	result := plugindep.ToCheckProjection(installResult)
 	result.ReverseDependents = plugindep.ToReverseDependentProjections(reverseResult.Dependents)
 	result.ReverseBlockers = plugindep.ToBlockerProjections(reverseResult.Blockers)
@@ -146,6 +173,7 @@ func (s *serviceImpl) resolveReverseDependencies(
 		TargetID:         strings.TrimSpace(pluginID),
 		CandidateVersion: strings.TrimSpace(candidateVersion),
 		Plugins:          snapshots,
+		ReverseIndex:     dependencyReverseIndexFromContext(ctx),
 	}), nil
 }
 
@@ -248,9 +276,20 @@ func (s *serviceImpl) buildDependencySnapshotsForProjection(
 	if candidate == nil {
 		if cache := dependencySnapshotCacheFromContext(ctx); cache != nil {
 			cache.snapshots = plugindep.ClonePluginSnapshots(out)
+			cache.reverseIndex = plugindep.NewReverseDependencyIndex(out)
 		}
 	}
 	return out, nil
+}
+
+// dependencyReverseIndexFromContext returns the request-local reverse
+// dependency index that was built with the cached dependency snapshots.
+func dependencyReverseIndexFromContext(ctx context.Context) *plugindep.ReverseDependencyIndex {
+	cache := dependencySnapshotCacheFromContext(ctx)
+	if cache == nil {
+		return nil
+	}
+	return cache.reverseIndex
 }
 
 // frameworkVersion returns the current LinaPro framework version authority.

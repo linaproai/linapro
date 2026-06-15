@@ -59,16 +59,16 @@ func (s *serviceImpl) Install(
 	pluginID string,
 	options InstallOptions,
 ) (result *plugindep.CheckProjection, err error) {
-	result, err = s.prepareInstallDependencies(ctx, pluginID, options.FrameworkVersion)
-	if err != nil {
-		return result, err
-	}
-
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
 		return result, err
 	}
 	if err = applyInstallModeSelection(manifest, options.InstallMode); err != nil {
+		return result, err
+	}
+
+	result, err = s.prepareInstallDependencies(ctx, manifest, options.FrameworkVersion)
+	if err != nil {
 		return result, err
 	}
 
@@ -101,12 +101,9 @@ func (s *serviceImpl) Install(
 	if err = s.persistDynamicPluginAuthorization(ctx, manifest, options.Authorization); err != nil {
 		return result, err
 	}
-	if err = s.installDynamic(ctx, pluginID, runtime.DynamicReconcileOptions{
+	if err = s.installDynamic(ctx, pluginID, manifest, runtime.DynamicReconcileOptions{
 		InstallMockData: options.InstallMockData,
 	}); err != nil {
-		return result, err
-	}
-	if _, err = s.storeSvc.SyncManifest(ctx, manifest); err != nil {
 		return result, err
 	}
 	if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "dynamic_plugin_installed"); err != nil {
@@ -165,14 +162,17 @@ func applyInstallModeSelection(manifest *catalog.Manifest, installMode string) e
 // prepareInstallDependencies verifies a target before lifecycle side effects.
 func (s *serviceImpl) prepareInstallDependencies(
 	ctx context.Context,
-	pluginID string,
+	manifest *catalog.Manifest,
 	frameworkVersion string,
 ) (*plugindep.CheckProjection, error) {
-	normalizedID := strings.TrimSpace(pluginID)
+	if manifest == nil {
+		return nil, nil
+	}
+	normalizedID := strings.TrimSpace(manifest.ID)
 	if normalizedID == "" {
 		return nil, nil
 	}
-	check, err := s.resolveInstallDependencies(ctx, normalizedID, frameworkVersion)
+	check, err := s.resolveInstallDependenciesForManifest(ctx, manifest, frameworkVersion)
 	if err != nil {
 		return nil, err
 	}

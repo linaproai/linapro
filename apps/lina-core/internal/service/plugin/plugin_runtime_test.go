@@ -732,6 +732,7 @@ func TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact(t *test
 		refreshedRoutes,
 		initialBridge,
 	)
+	service.catalogSvc.InvalidateManifestCache(pluginID)
 
 	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected same-version refresh install to succeed, got error: %v", err)
@@ -771,6 +772,9 @@ func TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact(t *test
 	}
 	if activeManifest == nil || activeManifest.RuntimeArtifact == nil {
 		t.Fatalf("expected active manifest runtime artifact after refresh, got %#v", activeManifest)
+	}
+	if !strings.Contains(refreshedPackagePath, activeManifest.RuntimeArtifact.Checksum) {
+		t.Fatalf("expected refreshed package path %q to include active checksum %q", refreshedPackagePath, activeManifest.RuntimeArtifact.Checksum)
 	}
 	if activeManifest.RuntimeArtifact.Checksum != releaseAfterRefresh.Checksum {
 		t.Fatalf("expected active manifest checksum %s to match release checksum %s", activeManifest.RuntimeArtifact.Checksum, releaseAfterRefresh.Checksum)

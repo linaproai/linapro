@@ -74,6 +74,15 @@ func (s *serviceImpl) ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths g
 	return s.openapiSvc.ProjectDynamicRoutesToOpenAPI(ctx, paths)
 }
 
+// CurrentRevision returns the plugin-runtime cache revision used by derived
+// read-model caches that are constructed below the root facade.
+func (s *serviceImpl) CurrentRevision(ctx context.Context) (int64, error) {
+	if s == nil || s.runtimeCacheRevisionCtrl == nil {
+		return 0, nil
+	}
+	return s.runtimeCacheRevisionCtrl.CurrentRevision(ctx)
+}
+
 // BuildDynamicRoutePublicPath returns the host-visible public path for one
 // dynamic plugin route contract.
 func BuildDynamicRoutePublicPath(pluginID string, routePath string) string {

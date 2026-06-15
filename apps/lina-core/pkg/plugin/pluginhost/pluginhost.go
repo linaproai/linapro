@@ -1,6 +1,6 @@
 // Package pluginhost defines the public backend extension contracts that source
-// plugins use to register routes, hooks, scheduled jobs, and governance callbacks
-// through grouped facade interfaces.
+// plugins use to register routes, hooks, scheduled jobs, and access-control
+// callbacks through grouped facade interfaces.
 package pluginhost
 
 import (
@@ -48,8 +48,8 @@ type Declarations interface {
 	Jobs() JobDeclarations
 	// Providers returns the framework capability provider declaration facade.
 	Providers() ProviderDeclarations
-	// Governance returns the menu and permission governance registration facade.
-	Governance() GovernanceDeclarations
+	// Access returns the menu and permission access-control registration facade.
+	Access() AccessDeclarations
 }
 
 // Services is the source-plugin runtime service directory used by registrar and
@@ -234,9 +234,9 @@ type JobDeclarations interface {
 	RegisterJobs(point ExtensionPoint, mode CallbackExecutionMode, handler JobRegisterHandler) error
 }
 
-// GovernanceDeclarations exposes governance callback registrations grouped
-// under one dedicated facade.
-type GovernanceDeclarations interface {
+// AccessDeclarations exposes menu and permission access-control callback
+// registrations grouped under one dedicated facade.
+type AccessDeclarations interface {
 	// RegisterMenuFilter registers one callback that filters host menus.
 	RegisterMenuFilter(point ExtensionPoint, mode CallbackExecutionMode, handler MenuFilterHandler) error
 	// RegisterPermissionFilter registers one callback that filters host permissions.

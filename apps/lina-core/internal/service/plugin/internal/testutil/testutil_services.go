@@ -159,7 +159,7 @@ func newServicesWithInjected(
 		storeSvc        = store.New(catalogSvc, topology)
 		migrationSvc    = migration.New(catalogSvc, storeSvc)
 		frontendSvc     = frontend.New(catalogSvc, storeSvc)
-		openapiSvc      = openapi.New(catalogSvc, storeSvc)
+		openapiSvc      = openapi.New(catalogSvc, storeSvc, nil, openapi.DefaultLocaleBundleReader{})
 		lockerSvc       = locker.New()
 		sessionStore    = session.NewDBStore()
 		capabilitySvc   = injectedCapabilities

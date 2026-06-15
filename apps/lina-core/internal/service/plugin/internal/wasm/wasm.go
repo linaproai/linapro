@@ -75,6 +75,8 @@ type runtimeImpl struct {
 	hostServices *hostServiceRuntime
 	cacheMu      sync.RWMutex
 	cache        map[string]*wasmCacheEntry
+	inflight     map[string]*wasmCompileInflight
+	compileHook  func(string)
 }
 
 // wasmCacheEntry stores one compiled module together with the runtime that owns
@@ -89,6 +91,14 @@ type wasmCacheEntry struct {
 	active      int
 	invalidated bool
 	closed      bool
+}
+
+// wasmCompileInflight coordinates one artifact compilation outside the global
+// cache lock so concurrent requests share the same result.
+type wasmCompileInflight struct {
+	done  chan struct{}
+	entry *wasmCacheEntry
+	err   error
 }
 
 // wasmModuleLease pins a cached module entry while a bridge execution uses its

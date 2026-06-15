@@ -60,6 +60,9 @@ func (s *serviceImpl) ScanManifests() ([]*Manifest, error) {
 
 // scanSourceManifests scans source plugins registered into the host binary.
 func (s *serviceImpl) scanSourceManifests() ([]*Manifest, error) {
+	if s == nil {
+		return []*Manifest{}, nil
+	}
 	return s.ScanEmbeddedSourceManifests()
 }
 
@@ -84,7 +87,7 @@ func (s *serviceImpl) scanRuntimeManifests(ctx context.Context) ([]*Manifest, er
 	manifests := make([]*Manifest, 0, len(artifactFiles))
 	seenIDs := make(map[string]string, len(artifactFiles))
 	for _, artifactPath := range artifactFiles {
-		manifest, loadErr := s.loadRuntimeManifestFromArtifact(artifactPath)
+		manifest, loadErr := s.LoadManifestFromArtifactPath(artifactPath)
 		if loadErr != nil {
 			return nil, gerror.Wrapf(loadErr, "parse dynamic plugin artifact failed: %s", artifactPath)
 		}
@@ -120,6 +123,7 @@ func buildDiscoveryLocation(manifest *Manifest) string {
 // loadRuntimeManifestFromArtifact reads and validates a WASM artifact file and
 // returns its embedded plugin manifest with fully-hydrated hook/resource specs.
 func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Manifest, error) {
+	s.recordRuntimeArtifactParse(artifactPath)
 	artifact, err := ParseRuntimeWasmArtifact(artifactPath)
 	if err != nil {
 		return nil, err
@@ -270,7 +274,17 @@ func (s *serviceImpl) RuntimeStorageDir(ctx context.Context) (string, error) {
 // LoadManifestFromArtifactPath loads and validates a dynamic plugin manifest from
 // the given absolute WASM artifact file path.
 func (s *serviceImpl) LoadManifestFromArtifactPath(artifactPath string) (*Manifest, error) {
-	return s.loadRuntimeManifestFromArtifact(artifactPath)
+	if manifest, ok, err := s.loadRuntimeManifestFromArtifactCache(artifactPath); err != nil || ok {
+		return manifest, err
+	}
+	manifest, err := s.loadRuntimeManifestFromArtifact(artifactPath)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.storeRuntimeManifestArtifactCache(artifactPath, manifest); err != nil {
+		return nil, err
+	}
+	return CloneManifest(manifest), nil
 }
 
 // DiscoverSQLPaths discovers plugin SQL files by directory convention.

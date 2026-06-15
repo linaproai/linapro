@@ -92,6 +92,8 @@ type ReverseCheckInput struct {
 	CandidateVersion string
 	// Plugins contains installed plugin dependency snapshots.
 	Plugins []*PluginSnapshot
+	// ReverseIndex optionally supplies a prebuilt reverse-dependency index for Plugins.
+	ReverseIndex *ReverseDependencyIndex
 }
 
 // InstallCheckResult is the side-effect-free dependency decision for one target.

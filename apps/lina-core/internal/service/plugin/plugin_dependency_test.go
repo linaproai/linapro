@@ -381,6 +381,7 @@ func TestDynamicPluginRefreshBlocksUnsatisfiedDependency(t *testing.T) {
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	})
 	writeTestDynamicStorageArtifactWithDependencies(t, pluginID, "Dynamic Refresh Dependency Block", version, nil, buildVersionedRuntimeFrontendAssets("stable"))
+	service.catalogSvc.InvalidateManifestCache(pluginID)
 	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected initial dynamic install to succeed, got error: %v", err)
 	}
@@ -402,6 +403,7 @@ func TestDynamicPluginRefreshBlocksUnsatisfiedDependency(t *testing.T) {
 		}},
 		buildVersionedRuntimeFrontendAssets("blocked"),
 	)
+	service.catalogSvc.InvalidateManifestCache(pluginID)
 
 	_, err = service.Install(ctx, pluginID, InstallOptions{})
 	if !bizerr.Is(err, CodePluginDependencyBlocked) {
@@ -454,6 +456,27 @@ func TestDependencySnapshotCacheReusesCatalogSnapshot(t *testing.T) {
 	snapshot := startupstats.FromContext(ctx).Snapshot()
 	if got := snapshot.CounterValue(startupstats.CounterCatalogSnapshotBuilds); got != 1 {
 		t.Fatalf("expected one catalog snapshot build with dependency cache, got %d", got)
+	}
+}
+
+// TestCheckPluginDependenciesUsesOneRequestSnapshot verifies the public
+// dependency preflight reuses one request-local snapshot for install and reverse checks.
+func TestCheckPluginDependenciesUsesOneRequestSnapshot(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = startupstats.WithCollector(context.Background(), startupstats.New())
+		pluginID = "plugin-dev-source-dependency-check-cache"
+	)
+
+	createTestSourceDependencyPlugin(t, pluginID, "Source Dependency Check Cache", "v0.1.0", "")
+	cleanupTestPluginIDs(t, context.Background(), pluginID)
+
+	if _, err := service.CheckPluginDependencies(ctx, pluginID); err != nil {
+		t.Fatalf("expected dependency check to succeed, got error: %v", err)
+	}
+	snapshot := startupstats.FromContext(ctx).Snapshot()
+	if got := snapshot.CounterValue(startupstats.CounterCatalogSnapshotBuilds); got != 1 {
+		t.Fatalf("expected dependency check to build one shared snapshot, got %d", got)
 	}
 }
 

@@ -7,8 +7,6 @@ import (
 	"context"
 	"strings"
 
-	"lina-core/internal/dao"
-	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 )
@@ -20,12 +18,11 @@ type filterRuntime struct {
 
 // buildFilterRuntime builds a filter runtime by querying the registry table for the
 // installed and enabled status of every plugin in the manifest list.
-func buildFilterRuntime(
+func (s *serviceImpl) buildFilterRuntime(
 	ctx context.Context,
 	manifests []*catalog.Manifest,
 ) (*filterRuntime, error) {
 	enabledByID := make(map[string]bool, len(manifests))
-	pluginIDs := make([]string, 0, len(manifests))
 	for _, manifest := range manifests {
 		if manifest == nil {
 			continue
@@ -38,25 +35,23 @@ func buildFilterRuntime(
 			continue
 		}
 		enabledByID[pluginID] = false
-		pluginIDs = append(pluginIDs, pluginID)
 	}
-	if len(pluginIDs) == 0 {
+	if len(enabledByID) == 0 {
 		return &filterRuntime{enabledByID: enabledByID}, nil
 	}
 
-	var registries []*entity.SysPlugin
-	err := dao.SysPlugin.Ctx(ctx).
-		WhereIn(dao.SysPlugin.Columns().PluginId, pluginIDs).
-		Scan(&registries)
+	registries, err := s.storeSvc.ListAllRegistries(ctx)
 	if err != nil {
 		return nil, err
 	}
-
 	for _, registry := range registries {
 		if registry == nil {
 			continue
 		}
 		pluginID := strings.TrimSpace(registry.PluginId)
+		if _, ok := enabledByID[pluginID]; !ok {
+			continue
+		}
 		enabledByID[pluginID] = registry.Installed == plugintypes.InstalledYes &&
 			registry.Status == plugintypes.StatusEnabled
 	}
