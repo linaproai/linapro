@@ -33,8 +33,8 @@ func newFileCapabilityAdapter(tenantFilter tenantspi.PluginTableFilterService) f
 	return &fileCapabilityAdapter{tenantFilter: tenantFilter}
 }
 
-// BatchGetFiles returns visible file projections and opaque missing IDs.
-func (a *fileCapabilityAdapter) BatchGetFiles(ctx context.Context, _ capmodel.CapabilityContext, ids []capabilityfilecap.FileID) (*capmodel.BatchResult[*capabilityfilecap.FileProjection, capabilityfilecap.FileID], error) {
+// BatchGet returns visible file projections and opaque missing IDs.
+func (a *fileCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.CapabilityContext, ids []capabilityfilecap.FileID) (*capmodel.BatchResult[*capabilityfilecap.FileProjection, capabilityfilecap.FileID], error) {
 	result := &capmodel.BatchResult[*capabilityfilecap.FileProjection, capabilityfilecap.FileID]{
 		Items:      make(map[capabilityfilecap.FileID]*capabilityfilecap.FileProjection, len(ids)),
 		MissingIDs: []capabilityfilecap.FileID{},
@@ -87,9 +87,9 @@ func (a *fileCapabilityAdapter) BatchGetFiles(ctx context.Context, _ capmodel.Ca
 	return result, nil
 }
 
-// EnsureFilesVisible rejects when any requested file is absent or invisible.
-func (a *fileCapabilityAdapter) EnsureFilesVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilityfilecap.FileID) error {
-	result, err := a.BatchGetFiles(ctx, capCtx, ids)
+// EnsureVisible rejects when any requested file is absent or invisible.
+func (a *fileCapabilityAdapter) EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilityfilecap.FileID) error {
+	result, err := a.BatchGet(ctx, capCtx, ids)
 	if err != nil {
 		return err
 	}
@@ -99,9 +99,9 @@ func (a *fileCapabilityAdapter) EnsureFilesVisible(ctx context.Context, capCtx c
 	return nil
 }
 
-// DeleteFiles soft-deletes visible file metadata rows.
-func (a *fileCapabilityAdapter) DeleteFiles(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilityfilecap.FileID) error {
-	if err := a.EnsureFilesVisible(ctx, capCtx, ids); err != nil {
+// Delete soft-deletes visible file metadata rows.
+func (a *fileCapabilityAdapter) Delete(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilityfilecap.FileID) error {
+	if err := a.EnsureVisible(ctx, capCtx, ids); err != nil {
 		return err
 	}
 	parsedIDs, _ := ParseInt64IDs(ids, nil)

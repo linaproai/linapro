@@ -6,6 +6,7 @@ package integration_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"testing"
@@ -181,6 +182,11 @@ func (d *scopedSourceServicesDirectory) HostConfig() hostconfigcap.Service {
 	return scopedCapabilityConfig{}
 }
 
+// Storage returns a no-op storage service required by source-plugin route registration.
+func (d *scopedSourceServicesDirectory) Storage() storagecap.Service {
+	return scopedCapabilityStorage{}
+}
+
 // TenantFilter returns a no-op tenant filter service required by source-plugin
 // registrations that construct tenant-aware services.
 func (d *scopedSourceServicesDirectory) TenantFilter() tenantspi.PluginTableFilterService {
@@ -341,8 +347,8 @@ func (scopedCapabilityDict) ResolveLabels(_ context.Context, _ capmodel.Capabili
 // scopedNotificationsFixture is a no-op notification fixture for registration-only tests.
 type scopedNotificationsFixture struct{}
 
-// BatchGetMessages returns all requested messages as opaque missing entries.
-func (scopedNotificationsFixture) BatchGetMessages(_ context.Context, _ capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) (*capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID], error) {
+// BatchGet returns all requested messages as opaque missing entries.
+func (scopedNotificationsFixture) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) (*capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID], error) {
 	return &capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID]{
 		Items:      map[capabilitynotifycap.MessageID]map[string]any{},
 		MissingIDs: append([]capabilitynotifycap.MessageID(nil), ids...),
@@ -354,14 +360,63 @@ func (scopedNotificationsFixture) Send(context.Context, capmodel.CapabilityConte
 	return &capabilitynotifycap.SendResult{}, nil
 }
 
-// DeleteMessages removes no messages in registration-only tests.
-func (scopedNotificationsFixture) DeleteMessages(context.Context, capmodel.CapabilityContext, []capabilitynotifycap.MessageID) error {
+// Delete removes no messages in registration-only tests.
+func (scopedNotificationsFixture) Delete(context.Context, capmodel.CapabilityContext, []capabilitynotifycap.MessageID) error {
 	return nil
 }
 
 // DeleteBySource removes no messages in registration-only tests.
 func (scopedNotificationsFixture) DeleteBySource(context.Context, capmodel.CapabilityContext, capabilitynotifycap.SourceType, []string) error {
 	return nil
+}
+
+// scopedCapabilityStorage is a no-op object storage fixture for registration-only tests.
+type scopedCapabilityStorage struct{}
+
+// Put drains the supplied body and returns metadata without persisting content.
+func (scopedCapabilityStorage) Put(_ context.Context, in storagecap.PutInput) (*storagecap.PutOutput, error) {
+	if in.Body != nil {
+		if _, err := io.Copy(io.Discard, in.Body); err != nil {
+			return nil, err
+		}
+	}
+	return &storagecap.PutOutput{
+		Object: &storagecap.Object{
+			Path:        in.Path,
+			Size:        in.Size,
+			ContentType: in.ContentType,
+			Visibility:  storagecap.VisibilityPrivate,
+		},
+	}, nil
+}
+
+// Get reports a miss because registration-only tests do not persist objects.
+func (scopedCapabilityStorage) Get(context.Context, storagecap.GetInput) (*storagecap.GetOutput, error) {
+	return &storagecap.GetOutput{Found: false}, nil
+}
+
+// Delete accepts deletion without touching persistent state.
+func (scopedCapabilityStorage) Delete(context.Context, storagecap.DeleteInput) error {
+	return nil
+}
+
+// List returns an empty bounded object list.
+func (scopedCapabilityStorage) List(_ context.Context, in storagecap.ListInput) (*storagecap.ListOutput, error) {
+	return &storagecap.ListOutput{Objects: []*storagecap.Object{}, Limit: in.Limit}, nil
+}
+
+// Stat reports a miss because registration-only tests do not persist objects.
+func (scopedCapabilityStorage) Stat(context.Context, storagecap.StatInput) (*storagecap.StatOutput, error) {
+	return &storagecap.StatOutput{Found: false}, nil
+}
+
+// ProviderStatuses returns one available local provider for registration-only tests.
+func (scopedCapabilityStorage) ProviderStatuses(context.Context) ([]*storagecap.ProviderStatus, error) {
+	return []*storagecap.ProviderStatus{{
+		ProviderID: storagecap.LocalProviderID,
+		Active:     true,
+		Available:  true,
+	}}, nil
 }
 
 // scopedCapabilityI18n is a fallback translator fixture for registration-only tests.
@@ -430,21 +485,21 @@ func (scopedCapabilityRoute) DynamicRouteMetadata(context.Context) *routecap.Dyn
 // scopedCapabilitySession is an empty session fixture for registration-only tests.
 type scopedCapabilitySession struct{}
 
-// SearchSessions returns an empty session page.
-func (scopedCapabilitySession) SearchSessions(context.Context, capmodel.CapabilityContext, capabilitysessioncap.SearchInput) (*capmodel.PageResult[*capabilitysessioncap.Projection], error) {
+// Search returns an empty session page.
+func (scopedCapabilitySession) Search(context.Context, capmodel.CapabilityContext, capabilitysessioncap.SearchInput) (*capmodel.PageResult[*capabilitysessioncap.Projection], error) {
 	return &capmodel.PageResult[*capabilitysessioncap.Projection]{Items: []*capabilitysessioncap.Projection{}, Total: 0}, nil
 }
 
-// BatchGetSessions returns all requested sessions as opaque missing entries.
-func (scopedCapabilitySession) BatchGetSessions(_ context.Context, _ capmodel.CapabilityContext, ids []capabilitysessioncap.SessionID) (*capmodel.BatchResult[*capabilitysessioncap.Projection, capabilitysessioncap.SessionID], error) {
+// BatchGet returns all requested sessions as opaque missing entries.
+func (scopedCapabilitySession) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilitysessioncap.SessionID) (*capmodel.BatchResult[*capabilitysessioncap.Projection, capabilitysessioncap.SessionID], error) {
 	return &capmodel.BatchResult[*capabilitysessioncap.Projection, capabilitysessioncap.SessionID]{
 		Items:      map[capabilitysessioncap.SessionID]*capabilitysessioncap.Projection{},
 		MissingIDs: append([]capabilitysessioncap.SessionID(nil), ids...),
 	}, nil
 }
 
-// RevokeSession records no revocation in registration-only tests.
-func (scopedCapabilitySession) RevokeSession(context.Context, capmodel.CapabilityContext, capabilitysessioncap.SessionID) error {
+// Revoke records no revocation in registration-only tests.
+func (scopedCapabilitySession) Revoke(context.Context, capmodel.CapabilityContext, capabilitysessioncap.SessionID) error {
 	return nil
 }
 
@@ -492,8 +547,8 @@ func (scopedCapabilityCache) Expire(context.Context, string, string, time.Durati
 // scopedCapabilityPlugins is an empty plugin-governance fixture for registration-only tests.
 type scopedCapabilityPlugins struct{}
 
-// BatchGetPlugins returns all requested plugin IDs as opaque missing records.
-func (scopedCapabilityPlugins) BatchGetPlugins(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityplugincap.PluginID) (*capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID], error) {
+// BatchGet returns all requested plugin IDs as opaque missing records.
+func (scopedCapabilityPlugins) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityplugincap.PluginID) (*capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID], error) {
 	return &capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID]{
 		Items:      map[capabilityplugincap.PluginID]*capabilityplugincap.Projection{},
 		MissingIDs: append([]capabilityplugincap.PluginID(nil), ids...),
@@ -528,8 +583,8 @@ func (s scopedCapabilityPlugins) Registry() capabilityplugincap.RegistryService 
 // scopedCapabilityPluginAdmin is a no-op plugin-governance admin fixture.
 type scopedCapabilityPluginAdmin struct{}
 
-// SetPluginEnabled accepts enablement changes without mutating test state.
-func (scopedCapabilityPluginAdmin) SetPluginEnabled(context.Context, capmodel.CapabilityContext, capabilityplugincap.PluginID, bool) error {
+// SetEnabled accepts enablement changes without mutating test state.
+func (scopedCapabilityPluginAdmin) SetEnabled(context.Context, capmodel.CapabilityContext, capabilityplugincap.PluginID, bool) error {
 	return nil
 }
 
@@ -580,21 +635,21 @@ func (scopedCapabilityAdminServices) Infra() capabilityinfracap.AdminService { r
 // scopedCapabilityUsers is an empty user-domain fixture for registration-only tests.
 type scopedCapabilityUsers struct{}
 
-// BatchGetUsers returns all requested user IDs as opaque missing records.
-func (scopedCapabilityUsers) BatchGetUsers(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
+// BatchGet returns all requested user IDs as opaque missing records.
+func (scopedCapabilityUsers) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
 	return &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID]{
 		Items:      map[capabilityusercap.UserID]*capabilityusercap.UserProjection{},
 		MissingIDs: append([]capabilityusercap.UserID(nil), ids...),
 	}, nil
 }
 
-// SearchUsers returns an empty page because registration-only tests never query users.
-func (scopedCapabilityUsers) SearchUsers(context.Context, capmodel.CapabilityContext, capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
+// Search returns an empty page because registration-only tests never query users.
+func (scopedCapabilityUsers) Search(context.Context, capmodel.CapabilityContext, capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
 	return &capmodel.PageResult[*capabilityusercap.UserProjection]{Items: []*capabilityusercap.UserProjection{}}, nil
 }
 
-// EnsureUsersVisible accepts all users because registration-only tests never execute route handlers.
-func (scopedCapabilityUsers) EnsureUsersVisible(context.Context, capmodel.CapabilityContext, []capabilityusercap.UserID) error {
+// EnsureVisible accepts all users because registration-only tests never execute route handlers.
+func (scopedCapabilityUsers) EnsureVisible(context.Context, capmodel.CapabilityContext, []capabilityusercap.UserID) error {
 	return nil
 }
 

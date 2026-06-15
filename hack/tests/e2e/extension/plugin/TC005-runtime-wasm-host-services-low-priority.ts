@@ -567,9 +567,9 @@ hostServices:
       - release
     resources:
       - ref: e2e-lock
-  - service: notify
+  - service: notifications
     methods:
-      - send
+      - messages.send
     resources:
       - ref: inbox
 `,
@@ -581,7 +581,7 @@ hostServices:
 import "github.com/gogf/gf/v2/frame/g"
 
 type LowPriorityHostServicesReq struct {
-	g.Meta \`path:"/api/v1/low-priority-host-services" method:"get" tags:"动态插件 E2E" summary:"低优先级 host service 演示" dc:"验证 cache、lock、notify 三类低优先级宿主服务在动态插件路由内的成功调用" access:"login" permission:"${successPluginID}:host:view" operLog:"other"\`
+	g.Meta \`path:"/api/v1/low-priority-host-services" method:"get" tags:"动态插件 E2E" summary:"低优先级 host service 演示" dc:"验证 cache、lock、notifications 三类低优先级宿主服务在动态插件路由内的成功调用" access:"login" permission:"${successPluginID}:host:view" operLog:"other"\`
 }
 `,
   );
@@ -605,6 +605,8 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
+	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/notifycap"
 	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -616,9 +618,10 @@ const (
 
 func (c *Controller) LowPriorityHostServices(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	var (
+		ctx = bridgeplugin.NewGuestControllerContext(request)
 		cacheSvc = bridgeplugin.Cache()
 		lockSvc = bridgeplugin.Lock()
-		notifySvc = bridgeplugin.Notify()
+		notifySvc = bridgeplugin.New().Notifications()
 	)
 
 	cacheSetValue, err := cacheSvc.Set(cacheNamespace, "profile", request.PluginID, 60)
@@ -660,20 +663,17 @@ func (c *Controller) LowPriorityHostServices(request *protocol.BridgeRequestEnve
 		return nil, err
 	}
 
-	payloadJSON, err := json.Marshal(map[string]string{
-		"requestId": request.RequestID,
-	})
-	if err != nil {
-		return nil, gerror.Wrap(err, "marshal notify payload failed")
-	}
-	notifyResult, err := notifySvc.Send("inbox", &protocol.HostServiceNotifySendRequest{
+	notifyResult, err := notifySvc.Send(ctx, capmodel.CapabilityContext{}, notifycap.SendInput{
+		ChannelKey: "inbox",
 		Title: "低优先级宿主服务测试通知",
-		Content: "cache/lock/notify success",
-		SourceType: "plugin",
+		Content: "cache/lock/notifications success",
+		SourceType: notifycap.SourceTypePlugin,
 		SourceID: request.RequestID,
-		CategoryCode: "other",
-		RecipientUserIDs: []int64{1},
-		PayloadJSON: payloadJSON,
+		Category: notifycap.CategoryCodeOther,
+		Recipients: []string{"1"},
+		Payload: map[string]any{
+			"requestId": request.RequestID,
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -766,9 +766,9 @@ hostServices:
       - acquire
     resources:
       - ref: authorized-lock
-  - service: notify
+  - service: notifications
     methods:
-      - send
+      - messages.send
     resources:
       - ref: inbox
 `,
@@ -788,7 +788,7 @@ type LockDeniedReq struct {
 }
 
 type NotifyDeniedReq struct {
-	g.Meta \`path:"/api/v1/notify-denied" method:"get" tags:"动态插件 E2E" summary:"未授权通知通道" dc:"验证 notify host service 调用未授权通知通道时会被宿主拒绝" access:"login" permission:"${deniedPluginID}:host:view" operLog:"other"\`
+	g.Meta \`path:"/api/v1/notify-denied" method:"get" tags:"动态插件 E2E" summary:"未授权通知通道" dc:"验证 notifications host service 调用未授权通知通道时会被宿主拒绝" access:"login" permission:"${deniedPluginID}:host:view" operLog:"other"\`
 }
 `,
   );
@@ -810,6 +810,8 @@ func New() *Controller {
 import (
 	"strings"
 
+	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/notifycap"
 	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -831,11 +833,16 @@ func (c *Controller) LockDenied(request *protocol.BridgeRequestEnvelopeV1) (*pro
 }
 
 func (c *Controller) NotifyDenied(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := bridgeplugin.Notify().Send("ops-webhook", &protocol.HostServiceNotifySendRequest{
-		Title: "denied notify",
-		Content: "blocked",
-		RecipientUserIDs: []int64{1},
-	})
+	_, err := bridgeplugin.New().Notifications().Send(
+		bridgeplugin.NewGuestControllerContext(request),
+		capmodel.CapabilityContext{},
+		notifycap.SendInput{
+			ChannelKey: "ops-webhook",
+			Title: "denied notify",
+			Content: "blocked",
+			Recipients: []string{"1"},
+		},
+	)
 	if err != nil {
 		return nil, err
 	}

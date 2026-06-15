@@ -48,8 +48,8 @@ func newNotificationCapabilityAdapter(publisher notificationPublisher) notificat
 	return &notificationCapabilityAdapter{publisher: publisher}
 }
 
-// BatchGetMessages returns visible notification message projections.
-func (a *notificationCapabilityAdapter) BatchGetMessages(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) (*capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID], error) {
+// BatchGet returns visible notification message projections.
+func (a *notificationCapabilityAdapter) BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) (*capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID], error) {
 	result := &capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID]{
 		Items:      make(map[capabilitynotifycap.MessageID]map[string]any, len(ids)),
 		MissingIDs: []capabilitynotifycap.MessageID{},
@@ -157,9 +157,9 @@ func (a *notificationCapabilityAdapter) Send(ctx context.Context, capCtx capmode
 	}, nil
 }
 
-// DeleteMessages removes visible notification messages.
-func (a *notificationCapabilityAdapter) DeleteMessages(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) error {
-	result, err := a.BatchGetMessages(ctx, capCtx, ids)
+// Delete removes visible notification messages.
+func (a *notificationCapabilityAdapter) Delete(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) error {
+	result, err := a.BatchGet(ctx, capCtx, ids)
 	if err != nil {
 		return err
 	}

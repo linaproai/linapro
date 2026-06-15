@@ -18,15 +18,15 @@ func Files(invoker Invoker) filecap.Service {
 	return filesService{baseService: newBaseService(invoker)}
 }
 
-// BatchGetFiles returns visible file projections and opaque missing IDs.
-func (s filesService) BatchGetFiles(_ context.Context, _ capmodel.CapabilityContext, ids []filecap.FileID) (*capmodel.BatchResult[*filecap.FileProjection, filecap.FileID], error) {
+// BatchGet returns visible file projections and opaque missing IDs.
+func (s filesService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []filecap.FileID) (*capmodel.BatchResult[*filecap.FileProjection, filecap.FileID], error) {
 	out := &capmodel.BatchResult[*filecap.FileProjection, filecap.FileID]{Items: map[filecap.FileID]*filecap.FileProjection{}}
 	err := s.callJSONRequest(protocol.HostServiceFiles, protocol.HostServiceMethodFilesBatchGet, idsRequest{IDs: fileIDsToStrings(ids)}, out)
 	return out, err
 }
 
-// EnsureFilesVisible rejects when any requested file is absent or invisible.
-func (s filesService) EnsureFilesVisible(_ context.Context, _ capmodel.CapabilityContext, ids []filecap.FileID) error {
+// EnsureVisible rejects when any requested file is absent or invisible.
+func (s filesService) EnsureVisible(_ context.Context, _ capmodel.CapabilityContext, ids []filecap.FileID) error {
 	return s.callJSONRequest(protocol.HostServiceFiles, protocol.HostServiceMethodFilesEnsureVisible, idsRequest{IDs: fileIDsToStrings(ids)}, nil)
 }
 

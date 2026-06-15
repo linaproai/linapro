@@ -57,8 +57,8 @@ func newSessionCapabilityAdapter(
 	}
 }
 
-// SearchSessions returns one bounded visible session page.
-func (a *sessionCapabilityAdapter) SearchSessions(ctx context.Context, _ capmodel.CapabilityContext, input capabilitysessioncap.SearchInput) (*capmodel.PageResult[*capabilitysessioncap.Projection], error) {
+// Search returns one bounded visible session page.
+func (a *sessionCapabilityAdapter) Search(ctx context.Context, _ capmodel.CapabilityContext, input capabilitysessioncap.SearchInput) (*capmodel.PageResult[*capabilitysessioncap.Projection], error) {
 	if a == nil || a.sessionStore == nil {
 		return &capmodel.PageResult[*capabilitysessioncap.Projection]{Items: []*capabilitysessioncap.Projection{}, Total: 0}, nil
 	}
@@ -77,8 +77,8 @@ func (a *sessionCapabilityAdapter) SearchSessions(ctx context.Context, _ capmode
 	return fromInternalListResult(result), nil
 }
 
-// BatchGetSessions returns visible sessions and opaque missing IDs.
-func (a *sessionCapabilityAdapter) BatchGetSessions(ctx context.Context, _ capmodel.CapabilityContext, ids []capabilitysessioncap.SessionID) (*capmodel.BatchResult[*capabilitysessioncap.Projection, capabilitysessioncap.SessionID], error) {
+// BatchGet returns visible sessions and opaque missing IDs.
+func (a *sessionCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.CapabilityContext, ids []capabilitysessioncap.SessionID) (*capmodel.BatchResult[*capabilitysessioncap.Projection, capabilitysessioncap.SessionID], error) {
 	result := &capmodel.BatchResult[*capabilitysessioncap.Projection, capabilitysessioncap.SessionID]{
 		Items:      make(map[capabilitysessioncap.SessionID]*capabilitysessioncap.Projection, len(ids)),
 		MissingIDs: []capabilitysessioncap.SessionID{},
@@ -127,8 +127,8 @@ func (a *sessionCapabilityAdapter) BatchGetSessions(ctx context.Context, _ capmo
 	return result, nil
 }
 
-// RevokeSession invalidates one visible online session.
-func (a *sessionCapabilityAdapter) RevokeSession(ctx context.Context, _ capmodel.CapabilityContext, id capabilitysessioncap.SessionID) error {
+// Revoke invalidates one visible online session.
+func (a *sessionCapabilityAdapter) Revoke(ctx context.Context, _ capmodel.CapabilityContext, id capabilitysessioncap.SessionID) error {
 	if a == nil {
 		return bizerr.NewCode(capmodel.CodeCapabilityUnavailable, bizerr.P("capability", "session"))
 	}

@@ -567,7 +567,7 @@ func TestHandleHostServiceInvokeStorageConcurrentDispatchIsRaceSafe(t *testing.T
 	}
 	configureStorageDomainServiceForTest(t, storageSvc)
 
-	hcc := newStorageHostCallContext(t, []string{"reports/"})
+	hcc := withTestHostCallRuntime(t, newStorageHostCallContext(t, []string{"reports/"}))
 	const (
 		workers    = 8
 		iterations = 50

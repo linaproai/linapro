@@ -33,7 +33,7 @@ func dispatchNotificationsHostService(
 			return invalidCapabilityRequest(err)
 		}
 		capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceNotifications, method)
-		result, err := service.BatchGetMessages(ctx, capCtx, messageIDs(request.IDs))
+		result, err := service.BatchGet(ctx, capCtx, messageIDs(request.IDs))
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodNotificationsSend:
 		return handleNotificationsSend(ctx, hcc, service, resourceRef, method, payload)

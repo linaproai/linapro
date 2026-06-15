@@ -410,34 +410,34 @@ func (rootNoopAdminCapabilities) Infra() capabilityinfracap.AdminService { retur
 // rootNoopUsers is a registration-safe user-domain fixture for root facade tests.
 type rootNoopUsers struct{}
 
-// BatchGetUsers reports all requested IDs as missing without querying storage.
-func (rootNoopUsers) BatchGetUsers(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
+// BatchGet reports all requested IDs as missing without querying storage.
+func (rootNoopUsers) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
 	return &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID]{
 		Items:      map[capabilityusercap.UserID]*capabilityusercap.UserProjection{},
 		MissingIDs: append([]capabilityusercap.UserID(nil), ids...),
 	}, nil
 }
 
-// SearchUsers returns an empty bounded page for provider-construction paths.
-func (rootNoopUsers) SearchUsers(context.Context, capmodel.CapabilityContext, capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
+// Search returns an empty bounded page for provider-construction paths.
+func (rootNoopUsers) Search(context.Context, capmodel.CapabilityContext, capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
 	return &capmodel.PageResult[*capabilityusercap.UserProjection]{Items: []*capabilityusercap.UserProjection{}}, nil
 }
 
-// EnsureUsersVisible accepts checks because root facade tests do not execute user business paths.
-func (rootNoopUsers) EnsureUsersVisible(context.Context, capmodel.CapabilityContext, []capabilityusercap.UserID) error {
+// EnsureVisible accepts checks because root facade tests do not execute user business paths.
+func (rootNoopUsers) EnsureVisible(context.Context, capmodel.CapabilityContext, []capabilityusercap.UserID) error {
 	return nil
 }
 
-// SetUserStatus accepts status changes without mutating shared test state.
-func (rootNoopUsers) SetUserStatus(context.Context, capmodel.CapabilityContext, capabilityusercap.UserID, string) error {
+// SetStatus accepts status changes without mutating shared test state.
+func (rootNoopUsers) SetStatus(context.Context, capmodel.CapabilityContext, capabilityusercap.UserID, string) error {
 	return nil
 }
 
 // rootNoopPlugins is a registration-safe plugin-governance fixture for root facade tests.
 type rootNoopPlugins struct{}
 
-// BatchGetPlugins reports all requested plugin IDs as missing projections.
-func (rootNoopPlugins) BatchGetPlugins(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityplugincap.PluginID) (*capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID], error) {
+// BatchGet reports all requested plugin IDs as missing projections.
+func (rootNoopPlugins) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityplugincap.PluginID) (*capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID], error) {
 	return &capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID]{
 		Items:      map[capabilityplugincap.PluginID]*capabilityplugincap.Projection{},
 		MissingIDs: append([]capabilityplugincap.PluginID(nil), ids...),
@@ -501,8 +501,8 @@ func (rootNoopPluginConfig) Duration(_ context.Context, _ string, defaultValue t
 	return defaultValue, nil
 }
 
-// SetPluginEnabled accepts enablement changes without mutating shared test state.
-func (rootNoopPlugins) SetPluginEnabled(context.Context, capmodel.CapabilityContext, capabilityplugincap.PluginID, bool) error {
+// SetEnabled accepts enablement changes without mutating shared test state.
+func (rootNoopPlugins) SetEnabled(context.Context, capmodel.CapabilityContext, capabilityplugincap.PluginID, bool) error {
 	return nil
 }
 

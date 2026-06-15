@@ -512,11 +512,14 @@ func New() *Controller {
     `package dynamic
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
+	"lina-core/pkg/plugin/capability/storagecap"
 	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/recordstore"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
@@ -529,6 +532,7 @@ const (
 
 func (c *Controller) HostServices(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	var (
+		ctx        = bridgeplugin.NewGuestControllerContext(request)
 		runtimeSvc = bridgeplugin.Runtime()
 		storageSvc = bridgeplugin.Storage()
 		httpSvc    = bridgeplugin.Network()
@@ -585,28 +589,62 @@ func (c *Controller) HostServices(request *protocol.BridgeRequestEnvelopeV1) (*p
 	if err != nil {
 		return nil, gerror.Wrap(err, "marshal storage body failed")
 	}
-	objectMeta, err := storageSvc.Put(objectPath, storageBody, "application/json", true)
+	objectMeta, err := storageSvc.Put(ctx, storagecap.PutInput{
+		Path:        objectPath,
+		Body:        bytes.NewReader(storageBody),
+		Size:        int64(len(storageBody)),
+		ContentType: "application/json",
+		Overwrite:   true,
+	})
 	if err != nil {
 		return nil, err
 	}
-	readBody, _, storageFound, err := storageSvc.Get(objectPath)
+	if objectMeta == nil || objectMeta.Object == nil {
+		return nil, gerror.New("storage put response missing object metadata")
+	}
+	readOutput, err := storageSvc.Get(ctx, storagecap.GetInput{Path: objectPath})
 	if err != nil {
 		return nil, err
 	}
-	statObject, statFound, err := storageSvc.Stat(objectPath)
+	var readBody []byte
+	if readOutput != nil && readOutput.Found && readOutput.Body != nil {
+		readBody, err = io.ReadAll(readOutput.Body)
+		closeErr := readOutput.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+	}
+	statOutput, err := storageSvc.Stat(ctx, storagecap.StatInput{Path: objectPath})
 	if err != nil {
 		return nil, err
 	}
-	listObjects, err := storageSvc.List("e2e", 10)
+	if statOutput != nil && statOutput.Found && statOutput.Object == nil {
+		return nil, gerror.New("storage stat response missing object metadata")
+	}
+	listOutput, err := storageSvc.List(ctx, storagecap.ListInput{Prefix: "e2e", Limit: 10})
 	if err != nil {
 		return nil, err
 	}
-	if err = storageSvc.Delete(objectPath); err != nil {
+	if err = storageSvc.Delete(ctx, storagecap.DeleteInput{Path: objectPath}); err != nil {
 		return nil, err
 	}
-	_, deletedFound, err := storageSvc.Stat(objectPath)
+	deletedOutput, err := storageSvc.Stat(ctx, storagecap.StatInput{Path: objectPath})
 	if err != nil {
 		return nil, err
+	}
+	storageFound := readOutput != nil && readOutput.Found
+	statFound := statOutput != nil && statOutput.Found
+	deletedFound := deletedOutput != nil && deletedOutput.Found
+	listedCount := 0
+	if listOutput != nil {
+		listedCount = len(listOutput.Objects)
+	}
+	statPath := ""
+	if statOutput != nil && statOutput.Object != nil {
+		statPath = statOutput.Object.Path
 	}
 
 	networkResponse, err := httpSvc.Request(networkURL+"/ping?plugin="+request.PluginID, &protocol.HostServiceNetworkRequest{
@@ -684,11 +722,11 @@ func (c *Controller) HostServices(request *protocol.BridgeRequestEnvelopeV1) (*p
 		"storage": map[string]any{
 			"objectPath": objectPath,
 			"stored": storageFound && string(readBody) == string(storageBody),
-			"listedCount": len(listObjects),
+			"listedCount": listedCount,
 			"statFound": statFound,
 			"deleted": !deletedFound,
-			"writtenPath": objectMeta.Path,
-			"statPath": statObject.Path,
+			"writtenPath": objectMeta.Object.Path,
+			"statPath": statPath,
 		},
 		"network": map[string]any{
 			"statusCode": networkResponse.StatusCode,
@@ -805,12 +843,18 @@ func New() *Controller {
     `package dynamic
 
 import (
+	"bytes"
+
+	"lina-core/pkg/plugin/capability/storagecap"
 	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 func (c *Controller) DeniedMethod(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, _, _, err := bridgeplugin.Storage().Get("authorized-files/blocked.txt")
+	_, err := bridgeplugin.Storage().Get(
+		bridgeplugin.NewGuestControllerContext(request),
+		storagecap.GetInput{Path: "authorized-files/blocked.txt"},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -818,7 +862,16 @@ func (c *Controller) DeniedMethod(request *protocol.BridgeRequestEnvelopeV1) (*p
 }
 
 func (c *Controller) DeniedResource(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := bridgeplugin.Storage().PutText("denied-files/blocked.txt", "blocked", "text/plain", true)
+	_, err := bridgeplugin.Storage().Put(
+		bridgeplugin.NewGuestControllerContext(request),
+		storagecap.PutInput{
+			Path:        "denied-files/blocked.txt",
+			Body:        bytes.NewReader([]byte("blocked")),
+			Size:        7,
+			ContentType: "text/plain",
+			Overwrite:   true,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}

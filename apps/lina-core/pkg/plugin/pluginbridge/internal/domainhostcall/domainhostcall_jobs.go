@@ -18,8 +18,8 @@ func Jobs(invoker Invoker) jobcap.Service {
 	return jobsService{baseService: newBaseService(invoker)}
 }
 
-// BatchGetJobs returns visible job projections and opaque missing IDs.
-func (s jobsService) BatchGetJobs(_ context.Context, _ capmodel.CapabilityContext, ids []jobcap.JobID) (*capmodel.BatchResult[*jobcap.Projection, jobcap.JobID], error) {
+// BatchGet returns visible job projections and opaque missing IDs.
+func (s jobsService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []jobcap.JobID) (*capmodel.BatchResult[*jobcap.Projection, jobcap.JobID], error) {
 	out := &capmodel.BatchResult[*jobcap.Projection, jobcap.JobID]{Items: map[jobcap.JobID]*jobcap.Projection{}}
 	err := s.callJSONRequest(protocol.HostServiceJobs, protocol.HostServiceMethodJobsBatchGet, idsRequest{IDs: jobIDsToStrings(ids)}, out)
 	return out, err

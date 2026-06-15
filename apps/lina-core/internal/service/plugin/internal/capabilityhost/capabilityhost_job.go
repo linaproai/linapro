@@ -36,8 +36,8 @@ func newJobCapabilityAdapter(tenantFilter tenantspi.PluginTableFilterService) jo
 	return &jobCapabilityAdapter{tenantFilter: tenantFilter}
 }
 
-// BatchGetJobs returns visible scheduled-job projections and opaque missing IDs.
-func (a *jobCapabilityAdapter) BatchGetJobs(ctx context.Context, _ capmodel.CapabilityContext, ids []capabilityjobcap.JobID) (*capmodel.BatchResult[*capabilityjobcap.Projection, capabilityjobcap.JobID], error) {
+// BatchGet returns visible scheduled-job projections and opaque missing IDs.
+func (a *jobCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.CapabilityContext, ids []capabilityjobcap.JobID) (*capmodel.BatchResult[*capabilityjobcap.Projection, capabilityjobcap.JobID], error) {
 	result := &capmodel.BatchResult[*capabilityjobcap.Projection, capabilityjobcap.JobID]{
 		Items:      make(map[capabilityjobcap.JobID]*capabilityjobcap.Projection, len(ids)),
 		MissingIDs: []capabilityjobcap.JobID{},
@@ -87,16 +87,16 @@ func (a *jobCapabilityAdapter) BatchGetJobs(ctx context.Context, _ capmodel.Capa
 	return result, nil
 }
 
-// RunJob reports unavailable because executing a scheduled job requires the
+// Run reports unavailable because executing a scheduled job requires the
 // scheduler owner service, which is not part of the current source-plugin
 // directory construction path.
-func (a *jobCapabilityAdapter) RunJob(context.Context, capmodel.CapabilityContext, capabilityjobcap.JobID) error {
+func (a *jobCapabilityAdapter) Run(context.Context, capmodel.CapabilityContext, capabilityjobcap.JobID) error {
 	return bizerr.NewCode(capmodel.CodeCapabilityUnavailable, bizerr.P("capability", "job-run"))
 }
 
-// SetJobStatus changes a visible scheduled job status.
-func (a *jobCapabilityAdapter) SetJobStatus(ctx context.Context, capCtx capmodel.CapabilityContext, id capabilityjobcap.JobID, status string) error {
-	result, err := a.BatchGetJobs(ctx, capCtx, []capabilityjobcap.JobID{id})
+// SetStatus changes a visible scheduled job status.
+func (a *jobCapabilityAdapter) SetStatus(ctx context.Context, capCtx capmodel.CapabilityContext, id capabilityjobcap.JobID, status string) error {
+	result, err := a.BatchGet(ctx, capCtx, []capabilityjobcap.JobID{id})
 	if err != nil {
 		return err
 	}

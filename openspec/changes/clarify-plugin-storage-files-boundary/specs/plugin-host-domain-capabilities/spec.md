@@ -7,14 +7,14 @@
 #### Scenario: 插件读取宿主文件投影
 
 - **WHEN** 源码插件或动态插件需要展示用户已上传到宿主文件中心的文件名称、MIME、大小或业务场景
-- **THEN** 插件必须调用`Files().BatchGetFiles`读取当前上下文可见的文件投影
+- **THEN** 插件必须调用`Files().BatchGet`读取当前上下文可见的文件投影
 - **AND** 响应必须使用`filecap.FileProjection`等领域 DTO
 - **AND** 响应不得向插件暴露宿主文件中心`DAO`、`DO`、`Entity`、本地绝对路径或存储 provider 私有 key
 
 #### Scenario: 插件校验宿主文件可见性
 
 - **WHEN** 插件业务命令引用一批宿主文件中心文件 ID
-- **THEN** 插件必须在命令执行前调用`Files().EnsureFilesVisible`或等价领域校验
+- **THEN** 插件必须在命令执行前调用`Files().EnsureVisible`或等价领域校验
 - **AND** 任一文件不存在、不可见或越过租户和数据权限边界时，命令必须整体拒绝
 - **AND** 错误不得区分目标文件是真实不存在还是当前调用方不可见
 

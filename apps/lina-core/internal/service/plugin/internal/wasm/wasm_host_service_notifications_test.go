@@ -20,8 +20,8 @@ type trackingNotificationsService struct {
 	lastInput  notifycap.SendInput
 }
 
-// BatchGetMessages is unused by notification send tests.
-func (*trackingNotificationsService) BatchGetMessages(context.Context, capmodel.CapabilityContext, []notifycap.MessageID) (*capmodel.BatchResult[map[string]any, notifycap.MessageID], error) {
+// BatchGet is unused by notification send tests.
+func (*trackingNotificationsService) BatchGet(context.Context, capmodel.CapabilityContext, []notifycap.MessageID) (*capmodel.BatchResult[map[string]any, notifycap.MessageID], error) {
 	return &capmodel.BatchResult[map[string]any, notifycap.MessageID]{Items: map[notifycap.MessageID]map[string]any{}}, nil
 }
 

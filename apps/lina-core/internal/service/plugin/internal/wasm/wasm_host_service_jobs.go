@@ -42,7 +42,7 @@ func dispatchJobsHostService(
 		return invalidCapabilityRequest(err)
 	}
 	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceJobs, method)
-	result, err := service.BatchGetJobs(ctx, capCtx, jobIDs(request.IDs))
+	result, err := service.BatchGet(ctx, capCtx, jobIDs(request.IDs))
 	return domainCapabilityResult(result, err)
 }
 

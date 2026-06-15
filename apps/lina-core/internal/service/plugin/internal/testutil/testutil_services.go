@@ -923,8 +923,8 @@ func (testTenantFilterService) Apply(_ context.Context, model *gdb.Model, _ stri
 // testPluginsService is an empty plugin-governance fixture for registration-only tests.
 type testPluginsService struct{}
 
-// BatchGetPlugins returns all requested plugin IDs as opaque missing records.
-func (testPluginsService) BatchGetPlugins(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityplugincap.PluginID) (*capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID], error) {
+// BatchGet returns all requested plugin IDs as opaque missing records.
+func (testPluginsService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityplugincap.PluginID) (*capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID], error) {
 	return &capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID]{
 		Items:      map[capabilityplugincap.PluginID]*capabilityplugincap.Projection{},
 		MissingIDs: append([]capabilityplugincap.PluginID(nil), ids...),
@@ -991,8 +991,8 @@ func (testPluginConfigService) Duration(_ context.Context, _ string, defaultValu
 // testPluginAdminService is a no-op plugin-governance admin fixture.
 type testPluginAdminService struct{}
 
-// SetPluginEnabled accepts enablement changes without mutating test state.
-func (testPluginAdminService) SetPluginEnabled(context.Context, capmodel.CapabilityContext, capabilityplugincap.PluginID, bool) error {
+// SetEnabled accepts enablement changes without mutating test state.
+func (testPluginAdminService) SetEnabled(context.Context, capmodel.CapabilityContext, capabilityplugincap.PluginID, bool) error {
 	return nil
 }
 
@@ -1041,21 +1041,21 @@ func (testAdminServices) Infra() capabilityinfracap.AdminService { return testNo
 // testUsersService is an empty user-domain fixture for registration-only tests.
 type testUsersService struct{}
 
-// BatchGetUsers returns all requested user IDs as opaque missing records.
-func (testUsersService) BatchGetUsers(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
+// BatchGet returns all requested user IDs as opaque missing records.
+func (testUsersService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
 	return &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID]{
 		Items:      map[capabilityusercap.UserID]*capabilityusercap.UserProjection{},
 		MissingIDs: append([]capabilityusercap.UserID(nil), ids...),
 	}, nil
 }
 
-// SearchUsers returns an empty page because registration-only tests never query users.
-func (testUsersService) SearchUsers(context.Context, capmodel.CapabilityContext, capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
+// Search returns an empty page because registration-only tests never query users.
+func (testUsersService) Search(context.Context, capmodel.CapabilityContext, capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
 	return &capmodel.PageResult[*capabilityusercap.UserProjection]{Items: []*capabilityusercap.UserProjection{}}, nil
 }
 
-// EnsureUsersVisible accepts all users because registration-only tests never execute route handlers.
-func (testUsersService) EnsureUsersVisible(context.Context, capmodel.CapabilityContext, []capabilityusercap.UserID) error {
+// EnsureVisible accepts all users because registration-only tests never execute route handlers.
+func (testUsersService) EnsureVisible(context.Context, capmodel.CapabilityContext, []capabilityusercap.UserID) error {
 	return nil
 }
 

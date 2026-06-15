@@ -20,8 +20,8 @@ func Notifications(invoker Invoker, hostInvoker HostServiceInvoker) notifycap.Se
 	return notificationsService{baseService: newBaseServiceWithHostService(invoker, hostInvoker)}
 }
 
-// BatchGetMessages returns visible message projections and opaque missing IDs.
-func (s notificationsService) BatchGetMessages(_ context.Context, _ capmodel.CapabilityContext, ids []notifycap.MessageID) (*capmodel.BatchResult[map[string]any, notifycap.MessageID], error) {
+// BatchGet returns visible message projections and opaque missing IDs.
+func (s notificationsService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []notifycap.MessageID) (*capmodel.BatchResult[map[string]any, notifycap.MessageID], error) {
 	out := &capmodel.BatchResult[map[string]any, notifycap.MessageID]{Items: map[notifycap.MessageID]map[string]any{}}
 	err := s.callJSONRequest(protocol.HostServiceNotifications, protocol.HostServiceMethodNotificationsBatchGetMessages, idsRequest{IDs: messageIDsToStrings(ids)}, out)
 	return out, err

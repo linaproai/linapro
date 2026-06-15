@@ -15,13 +15,13 @@ import (
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 )
 
-// TestSearchUsersCountsWithoutProjectionFields verifies the search count query
+// TestSearchCountsWithoutProjectionFields verifies the search count query
 // does not reuse projection columns, which keeps PostgreSQL count SQL valid.
-func TestSearchUsersCountsWithoutProjectionFields(t *testing.T) {
+func TestSearchCountsWithoutProjectionFields(t *testing.T) {
 	ctx := context.Background()
 
 	sqls, err := gdb.CatchSQL(ctx, func(sqlCtx context.Context) error {
-		_, searchErr := newUserCapabilityAdapter(nil, nil).SearchUsers(sqlCtx, capmodel.CapabilityContext{}, capabilityusercap.SearchInput{
+		_, searchErr := newUserCapabilityAdapter(nil, nil).Search(sqlCtx, capmodel.CapabilityContext{}, capabilityusercap.SearchInput{
 			Page: capmodel.PageRequest{PageNum: 1, PageSize: 10},
 		})
 		return searchErr
@@ -40,13 +40,13 @@ func TestSearchUsersCountsWithoutProjectionFields(t *testing.T) {
 	}
 }
 
-// TestBatchGetUsersAppliesDataScope verifies user projections are constrained
+// TestBatchGetAppliesDataScope verifies user projections are constrained
 // by the shared data-scope service before rows are scanned.
-func TestBatchGetUsersAppliesDataScope(t *testing.T) {
+func TestBatchGetAppliesDataScope(t *testing.T) {
 	ctx := context.Background()
 	scopeSvc := &recordingDataScope{empty: true}
 
-	result, err := newUserCapabilityAdapter(nil, scopeSvc).BatchGetUsers(ctx, capmodel.CapabilityContext{}, []capabilityusercap.UserID{"7", "8"})
+	result, err := newUserCapabilityAdapter(nil, scopeSvc).BatchGet(ctx, capmodel.CapabilityContext{}, []capabilityusercap.UserID{"7", "8"})
 	if err != nil {
 		t.Fatalf("batch get users failed: %v", err)
 	}

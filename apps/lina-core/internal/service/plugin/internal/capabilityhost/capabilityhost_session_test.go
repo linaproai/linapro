@@ -127,7 +127,7 @@ func TestSessionListPageAndRevokeApplyDataScope(t *testing.T) {
 		sessionTenantScopeService{visibleTenantIDs: map[int]bool{22: true}},
 	)
 
-	out, err := svc.SearchSessions(ctx, capmodel.CapabilityContext{}, capabilitysessioncap.SearchInput{Page: capmodel.PageRequest{PageNum: 1, PageSize: 20}})
+	out, err := svc.Search(ctx, capmodel.CapabilityContext{}, capabilitysessioncap.SearchInput{Page: capmodel.PageRequest{PageNum: 1, PageSize: 20}})
 	if err != nil {
 		t.Fatalf("list scoped sessions: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestSessionListPageAndRevokeApplyDataScope(t *testing.T) {
 		t.Fatalf("expected visible session tenant projection 22, got %s", out.Items[0].TenantID)
 	}
 
-	batch, err := svc.BatchGetSessions(ctx, capmodel.CapabilityContext{}, []capabilitysessioncap.SessionID{"visible-token", "hidden-token", "missing-token"})
+	batch, err := svc.BatchGet(ctx, capmodel.CapabilityContext{}, []capabilitysessioncap.SessionID{"visible-token", "hidden-token", "missing-token"})
 	if err != nil {
 		t.Fatalf("batch get scoped sessions: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestSessionListPageAndRevokeApplyDataScope(t *testing.T) {
 		t.Fatal("expected batch query path to be used")
 	}
 
-	if err = svc.RevokeSession(ctx, capmodel.CapabilityContext{}, "hidden-token"); err == nil {
+	if err = svc.Revoke(ctx, capmodel.CapabilityContext{}, "hidden-token"); err == nil {
 		t.Fatal("expected hidden session revoke to be denied")
 	}
 	if store.deletedTokenID != "" {
@@ -170,14 +170,14 @@ func TestSessionListPageAndRevokeApplyDataScope(t *testing.T) {
 		LoginTime:      &now,
 		LastActiveTime: &now,
 	})
-	if err = svc.RevokeSession(ctx, capmodel.CapabilityContext{}, "hidden-tenant-token"); err == nil {
+	if err = svc.Revoke(ctx, capmodel.CapabilityContext{}, "hidden-tenant-token"); err == nil {
 		t.Fatal("expected hidden tenant session revoke to be denied")
 	}
 	if store.deletedTokenID != "" {
 		t.Fatalf("expected hidden tenant session not to be deleted, got token %q", store.deletedTokenID)
 	}
 
-	if err = svc.RevokeSession(ctx, capmodel.CapabilityContext{}, "visible-token"); err != nil {
+	if err = svc.Revoke(ctx, capmodel.CapabilityContext{}, "visible-token"); err != nil {
 		t.Fatalf("expected visible non-platform session revoke, got %v", err)
 	}
 	if store.deletedTokenID != "" {

@@ -20,8 +20,8 @@ func Users(invoker Invoker) usercap.Service {
 	return usersService{baseService: newBaseService(invoker)}
 }
 
-// BatchGetUsers returns visible user projections and opaque missing IDs.
-func (s usersService) BatchGetUsers(_ context.Context, _ capmodel.CapabilityContext, ids []usercap.UserID) (*capmodel.BatchResult[*usercap.UserProjection, usercap.UserID], error) {
+// BatchGet returns visible user projections and opaque missing IDs.
+func (s usersService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []usercap.UserID) (*capmodel.BatchResult[*usercap.UserProjection, usercap.UserID], error) {
 	result := &capmodel.BatchResult[*usercap.UserProjection, usercap.UserID]{
 		Items:      map[usercap.UserID]*usercap.UserProjection{},
 		MissingIDs: []usercap.UserID{},
@@ -35,8 +35,8 @@ func (s usersService) BatchGetUsers(_ context.Context, _ capmodel.CapabilityCont
 	return result, err
 }
 
-// SearchUsers searches visible user candidates with bounded paging.
-func (s usersService) SearchUsers(_ context.Context, _ capmodel.CapabilityContext, input usercap.SearchInput) (*capmodel.PageResult[*usercap.UserProjection], error) {
+// Search searches visible user candidates with bounded paging.
+func (s usersService) Search(_ context.Context, _ capmodel.CapabilityContext, input usercap.SearchInput) (*capmodel.PageResult[*usercap.UserProjection], error) {
 	result := &capmodel.PageResult[*usercap.UserProjection]{Items: []*usercap.UserProjection{}}
 	err := s.callJSONRequest(
 		protocol.HostServiceUsers,
@@ -51,8 +51,8 @@ func (s usersService) SearchUsers(_ context.Context, _ capmodel.CapabilityContex
 	return result, err
 }
 
-// EnsureUsersVisible rejects when any requested user is absent or invisible.
-func (s usersService) EnsureUsersVisible(_ context.Context, _ capmodel.CapabilityContext, ids []usercap.UserID) error {
+// EnsureVisible rejects when any requested user is absent or invisible.
+func (s usersService) EnsureVisible(_ context.Context, _ capmodel.CapabilityContext, ids []usercap.UserID) error {
 	return s.callJSONRequest(
 		protocol.HostServiceUsers,
 		protocol.HostServiceMethodUsersEnsureVisible,

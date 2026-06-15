@@ -353,6 +353,42 @@ func TestCollectLifecycleSpecsAutoDiscoversBackendHandlers(t *testing.T) {
 	}
 }
 
+func TestCollectLifecycleSpecsReadsCodeOwnedTimeout(t *testing.T) {
+	pluginDir := t.TempDir()
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "controller.go"),
+		`package backend
+
+import "context"
+
+const BeforeInstallTimeoutMs = 120000
+
+type Controller struct{}
+
+type LifecycleDecisionRes struct {
+	OK bool `+"`json:\"ok\"`"+`
+}
+
+type BeforeInstallReq struct{}
+
+func (c *Controller) BeforeInstall(_ context.Context, _ *BeforeInstallReq) (*LifecycleDecisionRes, error) {
+	return &LifecycleDecisionRes{OK: true}, nil
+}
+`,
+	)
+
+	items, err := collectLifecycleSpecs(pluginDir, "plugin-dev-dynamic-lifecycle")
+	if err != nil {
+		t.Fatalf("expected lifecycle code timeout discovery to succeed, got error: %v", err)
+	}
+	if len(items) != 1 ||
+		items[0].Operation != protocol.LifecycleOperationBeforeInstall ||
+		items[0].TimeoutMs != 120000 {
+		t.Fatalf("unexpected lifecycle code timeout result: %#v", items)
+	}
+}
+
 func TestCollectLifecycleSpecsAppliesOverride(t *testing.T) {
 	pluginDir := t.TempDir()
 	mustWriteFile(

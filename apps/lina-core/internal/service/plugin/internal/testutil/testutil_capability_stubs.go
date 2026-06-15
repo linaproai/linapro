@@ -229,22 +229,22 @@ func (testNoopTenantFilter) Apply(_ context.Context, model *gdb.Model, _ string)
 
 type testNoopUsers struct{}
 
-func (testNoopUsers) BatchGetUsers(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
+func (testNoopUsers) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
 	return &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID]{
 		Items:      map[capabilityusercap.UserID]*capabilityusercap.UserProjection{},
 		MissingIDs: append([]capabilityusercap.UserID(nil), ids...),
 	}, nil
 }
 
-func (testNoopUsers) SearchUsers(context.Context, capmodel.CapabilityContext, capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
+func (testNoopUsers) Search(context.Context, capmodel.CapabilityContext, capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
 	return &capmodel.PageResult[*capabilityusercap.UserProjection]{Items: []*capabilityusercap.UserProjection{}}, nil
 }
 
-func (testNoopUsers) EnsureUsersVisible(context.Context, capmodel.CapabilityContext, []capabilityusercap.UserID) error {
+func (testNoopUsers) EnsureVisible(context.Context, capmodel.CapabilityContext, []capabilityusercap.UserID) error {
 	return nil
 }
 
-func (testNoopUsers) SetUserStatus(context.Context, capmodel.CapabilityContext, capabilityusercap.UserID, string) error {
+func (testNoopUsers) SetStatus(context.Context, capmodel.CapabilityContext, capabilityusercap.UserID, string) error {
 	return nil
 }
 
@@ -284,18 +284,18 @@ func (testNoopDict) Refresh(context.Context, capmodel.CapabilityContext, capabil
 
 type testNoopFiles struct{}
 
-func (testNoopFiles) BatchGetFiles(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityfilecap.FileID) (*capmodel.BatchResult[*capabilityfilecap.FileProjection, capabilityfilecap.FileID], error) {
+func (testNoopFiles) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityfilecap.FileID) (*capmodel.BatchResult[*capabilityfilecap.FileProjection, capabilityfilecap.FileID], error) {
 	return &capmodel.BatchResult[*capabilityfilecap.FileProjection, capabilityfilecap.FileID]{
 		Items:      map[capabilityfilecap.FileID]*capabilityfilecap.FileProjection{},
 		MissingIDs: append([]capabilityfilecap.FileID(nil), ids...),
 	}, nil
 }
 
-func (testNoopFiles) EnsureFilesVisible(context.Context, capmodel.CapabilityContext, []capabilityfilecap.FileID) error {
+func (testNoopFiles) EnsureVisible(context.Context, capmodel.CapabilityContext, []capabilityfilecap.FileID) error {
 	return nil
 }
 
-func (testNoopFiles) DeleteFiles(context.Context, capmodel.CapabilityContext, []capabilityfilecap.FileID) error {
+func (testNoopFiles) Delete(context.Context, capmodel.CapabilityContext, []capabilityfilecap.FileID) error {
 	return nil
 }
 
@@ -314,7 +314,7 @@ func (testNoopRuntimeConfig) SetRuntimeConfigJSON(context.Context, capmodel.Capa
 
 type testNoopNotifications struct{}
 
-func (testNoopNotifications) BatchGetMessages(_ context.Context, _ capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) (*capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID], error) {
+func (testNoopNotifications) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) (*capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID], error) {
 	return &capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID]{
 		Items:      map[capabilitynotifycap.MessageID]map[string]any{},
 		MissingIDs: append([]capabilitynotifycap.MessageID(nil), ids...),
@@ -325,7 +325,7 @@ func (testNoopNotifications) Send(context.Context, capmodel.CapabilityContext, c
 	return &capabilitynotifycap.SendResult{}, nil
 }
 
-func (testNoopNotifications) DeleteMessages(context.Context, capmodel.CapabilityContext, []capabilitynotifycap.MessageID) error {
+func (testNoopNotifications) Delete(context.Context, capmodel.CapabilityContext, []capabilitynotifycap.MessageID) error {
 	return nil
 }
 
@@ -335,7 +335,7 @@ func (testNoopNotifications) DeleteBySource(context.Context, capmodel.Capability
 
 type testNoopPlugins struct{}
 
-func (testNoopPlugins) BatchGetPlugins(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityplugincap.PluginID) (*capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID], error) {
+func (testNoopPlugins) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityplugincap.PluginID) (*capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID], error) {
 	return &capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID]{
 		Items:      map[capabilityplugincap.PluginID]*capabilityplugincap.Projection{},
 		MissingIDs: append([]capabilityplugincap.PluginID(nil), ids...),
@@ -346,7 +346,7 @@ func (testNoopPlugins) ListTenantPlugins(context.Context, capmodel.CapabilityCon
 	return &capmodel.PageResult[*capabilityplugincap.TenantProjection]{Items: []*capabilityplugincap.TenantProjection{}}, nil
 }
 
-func (testNoopPlugins) SetPluginEnabled(context.Context, capmodel.CapabilityContext, capabilityplugincap.PluginID, bool) error {
+func (testNoopPlugins) SetEnabled(context.Context, capmodel.CapabilityContext, capabilityplugincap.PluginID, bool) error {
 	return nil
 }
 
@@ -356,35 +356,35 @@ func (testNoopPlugins) ProvisionTenantDefaults(context.Context, capmodel.Capabil
 
 type testNoopSessions struct{}
 
-func (testNoopSessions) SearchSessions(context.Context, capmodel.CapabilityContext, capabilitysessioncap.SearchInput) (*capmodel.PageResult[*capabilitysessioncap.Projection], error) {
+func (testNoopSessions) Search(context.Context, capmodel.CapabilityContext, capabilitysessioncap.SearchInput) (*capmodel.PageResult[*capabilitysessioncap.Projection], error) {
 	return &capmodel.PageResult[*capabilitysessioncap.Projection]{Items: []*capabilitysessioncap.Projection{}}, nil
 }
 
-func (testNoopSessions) BatchGetSessions(_ context.Context, _ capmodel.CapabilityContext, ids []capabilitysessioncap.SessionID) (*capmodel.BatchResult[*capabilitysessioncap.Projection, capabilitysessioncap.SessionID], error) {
+func (testNoopSessions) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilitysessioncap.SessionID) (*capmodel.BatchResult[*capabilitysessioncap.Projection, capabilitysessioncap.SessionID], error) {
 	return &capmodel.BatchResult[*capabilitysessioncap.Projection, capabilitysessioncap.SessionID]{
 		Items:      map[capabilitysessioncap.SessionID]*capabilitysessioncap.Projection{},
 		MissingIDs: append([]capabilitysessioncap.SessionID(nil), ids...),
 	}, nil
 }
 
-func (testNoopSessions) RevokeSession(context.Context, capmodel.CapabilityContext, capabilitysessioncap.SessionID) error {
+func (testNoopSessions) Revoke(context.Context, capmodel.CapabilityContext, capabilitysessioncap.SessionID) error {
 	return nil
 }
 
 type testNoopJobs struct{}
 
-func (testNoopJobs) BatchGetJobs(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityjobcap.JobID) (*capmodel.BatchResult[*capabilityjobcap.Projection, capabilityjobcap.JobID], error) {
+func (testNoopJobs) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityjobcap.JobID) (*capmodel.BatchResult[*capabilityjobcap.Projection, capabilityjobcap.JobID], error) {
 	return &capmodel.BatchResult[*capabilityjobcap.Projection, capabilityjobcap.JobID]{
 		Items:      map[capabilityjobcap.JobID]*capabilityjobcap.Projection{},
 		MissingIDs: append([]capabilityjobcap.JobID(nil), ids...),
 	}, nil
 }
 
-func (testNoopJobs) RunJob(context.Context, capmodel.CapabilityContext, capabilityjobcap.JobID) error {
+func (testNoopJobs) Run(context.Context, capmodel.CapabilityContext, capabilityjobcap.JobID) error {
 	return nil
 }
 
-func (testNoopJobs) SetJobStatus(context.Context, capmodel.CapabilityContext, capabilityjobcap.JobID, string) error {
+func (testNoopJobs) SetStatus(context.Context, capmodel.CapabilityContext, capabilityjobcap.JobID, string) error {
 	return nil
 }
 

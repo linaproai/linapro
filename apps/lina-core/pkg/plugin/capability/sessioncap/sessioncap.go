@@ -49,20 +49,20 @@ type SearchInput struct {
 
 // Service defines read-oriented online-session capability methods.
 type Service interface {
-	// SearchSessions returns one bounded visible session page.
-	SearchSessions(ctx context.Context, capCtx capmodel.CapabilityContext, input SearchInput) (*capmodel.PageResult[*Projection], error)
-	// BatchGetSessions returns visible sessions and opaque missing IDs.
-	BatchGetSessions(ctx context.Context, capCtx capmodel.CapabilityContext, ids []SessionID) (*capmodel.BatchResult[*Projection, SessionID], error)
+	// Search returns one bounded visible session page.
+	Search(ctx context.Context, capCtx capmodel.CapabilityContext, input SearchInput) (*capmodel.PageResult[*Projection], error)
+	// BatchGet returns visible sessions and opaque missing IDs.
+	BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []SessionID) (*capmodel.BatchResult[*Projection, SessionID], error)
 }
 
 // AdminService defines session management commands.
 type AdminService interface {
-	// RevokeSession invalidates one visible online session.
-	RevokeSession(ctx context.Context, capCtx capmodel.CapabilityContext, id SessionID) error
+	// Revoke invalidates one visible online session.
+	Revoke(ctx context.Context, capCtx capmodel.CapabilityContext, id SessionID) error
 }
 
 // ScopeService defines host-internal session visibility helpers.
 type ScopeService interface {
-	// EnsureSessionsVisible rejects when any session is outside caller scope.
-	EnsureSessionsVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []SessionID) error
+	// EnsureVisible rejects when any session is outside caller scope.
+	EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []SessionID) error
 }

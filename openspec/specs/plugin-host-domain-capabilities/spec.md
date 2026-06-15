@@ -122,7 +122,7 @@ TBD - created by archiving change add-plugin-host-domain-capabilities. Update Pu
 
 #### Scenario: 命令校验包含不可见目标
 
-- **WHEN** 插件调用`EnsureUsersVisible`或等价命令前置校验
+- **WHEN** 插件调用`EnsureVisible`或等价命令前置校验
 - **THEN** 任一不可见目标导致整体失败
 - **AND** 错误使用结构化业务错误和审计摘要表达
 
@@ -134,7 +134,7 @@ TBD - created by archiving change add-plugin-host-domain-capabilities. Update Pu
 
 - **WHEN** 插件列表需要展示当前页记录的创建人标签
 - **THEN** 插件先收集当前页创建人领域`ID`
-- **AND** 调用`usercap.BatchGetUsers`一次性获取可见投影
+- **AND** 调用`usercap.BatchGet`一次性获取可见投影
 - **AND** 不得循环调用单项用户详情方法
 
 #### Scenario: 插件读取树形候选

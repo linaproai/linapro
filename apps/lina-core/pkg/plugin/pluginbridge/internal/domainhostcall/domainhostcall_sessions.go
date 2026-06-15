@@ -19,8 +19,8 @@ func Sessions(invoker Invoker) sessioncap.Service {
 	return sessionsService{baseService: newBaseService(invoker)}
 }
 
-// SearchSessions returns one bounded visible session page.
-func (s sessionsService) SearchSessions(_ context.Context, _ capmodel.CapabilityContext, input sessioncap.SearchInput) (*capmodel.PageResult[*sessioncap.Projection], error) {
+// Search returns one bounded visible session page.
+func (s sessionsService) Search(_ context.Context, _ capmodel.CapabilityContext, input sessioncap.SearchInput) (*capmodel.PageResult[*sessioncap.Projection], error) {
 	out := &capmodel.PageResult[*sessioncap.Projection]{Items: []*sessioncap.Projection{}}
 	err := s.callJSONRequest(protocol.HostServiceSessions, protocol.HostServiceMethodSessionsSearch, sessionSearchRequest{
 		Username: input.Username,
@@ -31,8 +31,8 @@ func (s sessionsService) SearchSessions(_ context.Context, _ capmodel.Capability
 	return out, err
 }
 
-// BatchGetSessions returns visible sessions and opaque missing IDs.
-func (s sessionsService) BatchGetSessions(_ context.Context, _ capmodel.CapabilityContext, ids []sessioncap.SessionID) (*capmodel.BatchResult[*sessioncap.Projection, sessioncap.SessionID], error) {
+// BatchGet returns visible sessions and opaque missing IDs.
+func (s sessionsService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []sessioncap.SessionID) (*capmodel.BatchResult[*sessioncap.Projection, sessioncap.SessionID], error) {
 	out := &capmodel.BatchResult[*sessioncap.Projection, sessioncap.SessionID]{Items: map[sessioncap.SessionID]*sessioncap.Projection{}}
 	err := s.callJSONRequest(protocol.HostServiceSessions, protocol.HostServiceMethodSessionsBatchGet, idsRequest{IDs: sessionIDsToStrings(ids)}, out)
 	return out, err

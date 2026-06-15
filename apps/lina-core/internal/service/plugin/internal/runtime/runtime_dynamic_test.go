@@ -13,9 +13,13 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 
+	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
+	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestListRuntimeStatesProjectsMissingRuntimeArtifactWithoutMutatingRegistry verifies
@@ -292,6 +296,84 @@ func TestInstallRepairsEmptyReleaseArchive(t *testing.T) {
 	}
 	if err = services.Lifecycle.UninstallDynamic(ctx, pluginID); err != nil {
 		t.Fatalf("expected uninstall to load repaired archive, got error: %v", err)
+	}
+}
+
+// TestInstallDynamicRejectsLowerVersionBeforeRegistrySync verifies the install
+// path rejects discovered downgrade artifacts before SyncManifest can overwrite
+// the effective installed version.
+func TestInstallDynamicRejectsLowerVersionBeforeRegistrySync(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		pluginID      = "plugin-dev-dynamic-install-downgrade"
+		higherVersion = "v0.9.9"
+		lowerVersion  = "v0.9.8"
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	higherArtifactPath := testutil.CreateTestRuntimeStorageArtifact(
+		t,
+		pluginID,
+		"Runtime Install Downgrade Plugin",
+		higherVersion,
+		nil,
+		nil,
+	)
+	if _, err := services.Catalog.LoadManifestFromArtifactPath(higherArtifactPath); err != nil {
+		t.Fatalf("expected higher-version artifact manifest to load, got error: %v", err)
+	}
+	if err := services.Lifecycle.InstallDynamic(ctx, pluginID); err != nil {
+		t.Fatalf("expected higher-version install to succeed, got error: %v", err)
+	}
+
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		higherArtifactPath,
+		&catalog.ArtifactManifest{
+			ID:                  pluginID,
+			Name:                "Runtime Install Downgrade Plugin",
+			Version:             lowerVersion,
+			Type:                plugintypes.TypeDynamic.String(),
+			ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
+			SupportsMultiTenant: &testutil.DefaultTestSupportsMultiTenant,
+			DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	services.Catalog.InvalidateManifestCache(pluginID)
+
+	err := services.Lifecycle.InstallDynamic(ctx, pluginID)
+	if !bizerr.Is(err, lifecycle.CodeDynamicPluginDowngradeUnsupported) {
+		t.Fatalf("expected downgrade install to return structured downgrade error, got %v", err)
+	}
+
+	registry, err := services.Store.GetRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup to succeed, got error: %v", err)
+	}
+	if registry == nil {
+		t.Fatal("expected registry row after rejected downgrade")
+	}
+	if registry.Version != higherVersion {
+		t.Fatalf("expected rejected downgrade not to overwrite registry version, got %q want %q", registry.Version, higherVersion)
+	}
+	if registry.Installed != plugintypes.InstalledYes {
+		t.Fatalf("expected plugin to remain installed after rejected downgrade, got %d", registry.Installed)
 	}
 }
 

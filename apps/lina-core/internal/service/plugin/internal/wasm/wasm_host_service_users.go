@@ -40,7 +40,7 @@ func dispatchUsersHostService(
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		result, err := service.BatchGetUsers(ctx, capCtx, userIDsFromStrings(request.UserIDs))
+		result, err := service.BatchGet(ctx, capCtx, userIDsFromStrings(request.UserIDs))
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
@@ -50,7 +50,7 @@ func dispatchUsersHostService(
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		result, err := service.SearchUsers(ctx, capCtx, usercap.SearchInput{
+		result, err := service.Search(ctx, capCtx, usercap.SearchInput{
 			Keyword: strings.TrimSpace(request.Keyword),
 			Page: capmodel.PageRequest{
 				PageNum:  request.PageNum,
@@ -66,7 +66,7 @@ func dispatchUsersHostService(
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		if err = service.EnsureUsersVisible(ctx, capCtx, userIDsFromStrings(request.UserIDs)); err != nil {
+		if err = service.EnsureVisible(ctx, capCtx, userIDsFromStrings(request.UserIDs)); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		return capabilityJSONResponse(true)
@@ -149,7 +149,7 @@ func ensureHostCallUsersVisible(
 		)
 	}
 	capCtx := capabilityContextForHostCall(hcc, serviceName, method)
-	if err := service.EnsureUsersVisible(ctx, capCtx, userIDsFromInts(userIDs)); err != nil {
+	if err := service.EnsureVisible(ctx, capCtx, userIDsFromInts(userIDs)); err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusCapabilityDenied, err)
 	}
 	return nil

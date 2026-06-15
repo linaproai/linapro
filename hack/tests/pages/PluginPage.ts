@@ -656,8 +656,7 @@ export class PluginPage {
     await expect(installButton).toBeVisible();
     await installButton.click();
     await expect(this.hostServiceAuthDialog()).toBeVisible();
-    await this.hostServiceAuthConfirmButton().click();
-    await expect(this.hostServiceAuthDialog()).toHaveCount(0);
+    await this.confirmHostServiceAuthorization();
     await expect(
       await this.pluginActionButton(pluginId, /卸\s*载/),
     ).toBeVisible();
@@ -767,8 +766,7 @@ export class PluginPage {
         await expect(checkbox).not.toBeChecked();
       }
     }
-    await this.hostServiceAuthConfirmButton().click();
-    await expect(this.hostServiceAuthDialog()).toHaveCount(0);
+    await this.confirmHostServiceAuthorization();
     await expect(
       await this.pluginActionButton(pluginId, /卸\s*载/),
     ).toBeVisible();
@@ -1054,15 +1052,37 @@ export class PluginPage {
   }
 
   async confirmHostServiceAuthorization() {
+    const confirmResponse = this.waitForLifecycleActionResponse();
     await this.hostServiceAuthConfirmButton().click();
+    await confirmResponse;
     await expect(this.hostServiceAuthDialog()).toHaveCount(0);
   }
 
   async confirmInstallAndEnable() {
     await expect(this.hostServiceAuthDialog()).toBeVisible();
     await expect(this.hostServiceAuthInstallAndEnableButton()).toBeVisible();
+    const confirmResponse = this.waitForLifecycleActionResponse();
     await this.hostServiceAuthInstallAndEnableButton().click();
+    await confirmResponse;
     await expect(this.hostServiceAuthDialog()).toHaveCount(0);
+  }
+
+  private waitForLifecycleActionResponse() {
+    return this.page
+      .waitForResponse(
+        (response) => {
+          const request = response.request();
+          const method = request.method();
+          const pathname = new URL(response.url()).pathname;
+          return (
+            (method === "POST" || method === "PUT") &&
+            (/\/plugins\/[^/]+\/(install|enable)$/.test(pathname) ||
+              /\/plugins\/install$/.test(pathname))
+          );
+        },
+        { timeout: pluginLifecycleActionTimeout },
+      )
+      .catch(() => null);
   }
 
   private async pluginActionButton(pluginId: string, name: RegExp) {

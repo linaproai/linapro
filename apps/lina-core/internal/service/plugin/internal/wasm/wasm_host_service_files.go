@@ -30,10 +30,10 @@ func dispatchFilesHostService(
 	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceFiles, method)
 	switch method {
 	case bridgehostservice.HostServiceMethodFilesBatchGet:
-		result, err := service.BatchGetFiles(ctx, capCtx, fileIDs(request.IDs))
+		result, err := service.BatchGet(ctx, capCtx, fileIDs(request.IDs))
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodFilesEnsureVisible:
-		err := service.EnsureFilesVisible(ctx, capCtx, fileIDs(request.IDs))
+		err := service.EnsureVisible(ctx, capCtx, fileIDs(request.IDs))
 		return domainCapabilityResult(true, err)
 	default:
 		return domainMethodNotFound("files", method)

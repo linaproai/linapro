@@ -138,9 +138,9 @@ func (pluginDirectory) Lifecycle() plugincap.LifecycleService {
 	return domainhostcall.PluginLifecycle(invokeCapabilityJSON)
 }
 
-// BatchGetPlugins returns visible plugin projections and opaque missing IDs.
-func (pluginDirectory) BatchGetPlugins(ctx context.Context, capCtx capmodel.CapabilityContext, ids []plugincap.PluginID) (*capmodel.BatchResult[*plugincap.Projection, plugincap.PluginID], error) {
-	return domainhostcall.PluginRegistry(invokeCapabilityJSON).BatchGetPlugins(ctx, capCtx, ids)
+// BatchGet returns visible plugin projections and opaque missing IDs.
+func (pluginDirectory) BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []plugincap.PluginID) (*capmodel.BatchResult[*plugincap.Projection, plugincap.PluginID], error) {
+	return domainhostcall.PluginRegistry(invokeCapabilityJSON).BatchGet(ctx, capCtx, ids)
 }
 
 // ListTenantPlugins returns tenant-controllable plugins with tenant enablement.

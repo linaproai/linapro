@@ -24,20 +24,20 @@ type Projection struct {
 
 // Service defines read-oriented job capability methods.
 type Service interface {
-	// BatchGetJobs returns visible job projections and opaque missing IDs.
-	BatchGetJobs(ctx context.Context, capCtx capmodel.CapabilityContext, ids []JobID) (*capmodel.BatchResult[*Projection, JobID], error)
+	// BatchGet returns visible job projections and opaque missing IDs.
+	BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []JobID) (*capmodel.BatchResult[*Projection, JobID], error)
 }
 
 // AdminService defines governed job execution commands.
 type AdminService interface {
-	// RunJob triggers one visible job after state and target checks.
-	RunJob(ctx context.Context, capCtx capmodel.CapabilityContext, id JobID) error
-	// SetJobStatus changes one job lifecycle status.
-	SetJobStatus(ctx context.Context, capCtx capmodel.CapabilityContext, id JobID, status string) error
+	// Run triggers one visible job after state and target checks.
+	Run(ctx context.Context, capCtx capmodel.CapabilityContext, id JobID) error
+	// SetStatus changes one job lifecycle status.
+	SetStatus(ctx context.Context, capCtx capmodel.CapabilityContext, id JobID, status string) error
 }
 
 // ScopeService defines host-internal job visibility helpers.
 type ScopeService interface {
-	// EnsureJobsVisible rejects when any job is outside caller scope.
-	EnsureJobsVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []JobID) error
+	// EnsureVisible rejects when any job is outside caller scope.
+	EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []JobID) error
 }

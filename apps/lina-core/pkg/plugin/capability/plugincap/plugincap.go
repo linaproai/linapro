@@ -50,8 +50,8 @@ type TenantProjection struct {
 
 // RegistryService defines read-oriented plugin governance capability methods.
 type RegistryService interface {
-	// BatchGetPlugins returns visible plugin projections and opaque missing IDs.
-	BatchGetPlugins(ctx context.Context, capCtx capmodel.CapabilityContext, ids []PluginID) (*capmodel.BatchResult[*Projection, PluginID], error)
+	// BatchGet returns visible plugin projections and opaque missing IDs.
+	BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []PluginID) (*capmodel.BatchResult[*Projection, PluginID], error)
 	// ListTenantPlugins returns tenant-controllable plugins with tenant enablement.
 	ListTenantPlugins(ctx context.Context, capCtx capmodel.CapabilityContext) (*capmodel.PageResult[*TenantProjection], error)
 }
@@ -71,14 +71,14 @@ type Service interface {
 
 // AdminService defines governed plugin lifecycle management commands.
 type AdminService interface {
-	// SetPluginEnabled changes plugin enablement after tenant and lifecycle checks.
-	SetPluginEnabled(ctx context.Context, capCtx capmodel.CapabilityContext, id PluginID, enabled bool) error
+	// SetEnabled changes plugin enablement after tenant and lifecycle checks.
+	SetEnabled(ctx context.Context, capCtx capmodel.CapabilityContext, id PluginID, enabled bool) error
 	// ProvisionTenantDefaults creates missing default tenant plugin states.
 	ProvisionTenantDefaults(ctx context.Context, capCtx capmodel.CapabilityContext, tenantID capmodel.DomainID) error
 }
 
 // ScopeService defines host-internal plugin governance helpers.
 type ScopeService interface {
-	// EnsurePluginsVisible rejects when any plugin is outside caller scope.
-	EnsurePluginsVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []PluginID) error
+	// EnsureVisible rejects when any plugin is outside caller scope.
+	EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []PluginID) error
 }

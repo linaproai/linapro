@@ -26,20 +26,20 @@ type FileProjection struct {
 
 // Service defines read-oriented file capability methods.
 type Service interface {
-	// BatchGetFiles returns visible file projections and opaque missing IDs.
-	BatchGetFiles(ctx context.Context, capCtx capmodel.CapabilityContext, ids []FileID) (*capmodel.BatchResult[*FileProjection, FileID], error)
-	// EnsureFilesVisible rejects when any requested file is absent or invisible.
-	EnsureFilesVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []FileID) error
+	// BatchGet returns visible file projections and opaque missing IDs.
+	BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []FileID) (*capmodel.BatchResult[*FileProjection, FileID], error)
+	// EnsureVisible rejects when any requested file is absent or invisible.
+	EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []FileID) error
 }
 
 // AdminService defines governed file management commands.
 type AdminService interface {
-	// DeleteFiles deletes visible files after target and scene checks.
-	DeleteFiles(ctx context.Context, capCtx capmodel.CapabilityContext, ids []FileID) error
+	// Delete deletes visible files after target and scene checks.
+	Delete(ctx context.Context, capCtx capmodel.CapabilityContext, ids []FileID) error
 }
 
 // ScopeService defines host-internal file visibility helpers.
 type ScopeService interface {
-	// EnsureFilesVisible rejects when any file is outside caller scope.
-	EnsureFilesVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []FileID) error
+	// EnsureVisible rejects when any file is outside caller scope.
+	EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []FileID) error
 }

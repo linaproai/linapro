@@ -1076,8 +1076,8 @@ func (s *capabilityHostServicePluginsService) Registry() capabilityplugincap.Reg
 	return s
 }
 
-// BatchGetPlugins returns an empty fake plugin projection batch.
-func (*capabilityHostServicePluginsService) BatchGetPlugins(
+// BatchGet returns an empty fake plugin projection batch.
+func (*capabilityHostServicePluginsService) BatchGet(
 	context.Context,
 	capmodel.CapabilityContext,
 	[]capabilityplugincap.PluginID,
@@ -1201,8 +1201,8 @@ type capabilityHostServiceUsersService struct {
 	lastEnsureIDs []capabilityusercap.UserID
 }
 
-// BatchGetUsers returns configured user projections and opaque missing IDs.
-func (s *capabilityHostServiceUsersService) BatchGetUsers(
+// BatchGet returns configured user projections and opaque missing IDs.
+func (s *capabilityHostServiceUsersService) BatchGet(
 	_ context.Context,
 	capCtx capmodel.CapabilityContext,
 	ids []capabilityusercap.UserID,
@@ -1222,8 +1222,8 @@ func (s *capabilityHostServiceUsersService) BatchGetUsers(
 	return result, nil
 }
 
-// SearchUsers returns configured users as a deterministic bounded page.
-func (s *capabilityHostServiceUsersService) SearchUsers(
+// Search returns configured users as a deterministic bounded page.
+func (s *capabilityHostServiceUsersService) Search(
 	_ context.Context,
 	capCtx capmodel.CapabilityContext,
 	input capabilityusercap.SearchInput,
@@ -1237,8 +1237,8 @@ func (s *capabilityHostServiceUsersService) SearchUsers(
 	return &capmodel.PageResult[*capabilityusercap.UserProjection]{Items: items, Total: len(items)}, nil
 }
 
-// EnsureUsersVisible records visibility-check user IDs.
-func (s *capabilityHostServiceUsersService) EnsureUsersVisible(
+// EnsureVisible records visibility-check user IDs.
+func (s *capabilityHostServiceUsersService) EnsureVisible(
 	_ context.Context,
 	capCtx capmodel.CapabilityContext,
 	ids []capabilityusercap.UserID,

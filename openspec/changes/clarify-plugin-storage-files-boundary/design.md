@@ -35,7 +35,7 @@
 
 ### 2. `Files()`只代表宿主文件中心投影与可见性校验
 
-`Files()`继续通过`filecap.Service`提供`BatchGetFiles`和`EnsureFilesVisible`等能力。它用于插件引用已有宿主文件资源时读取名称、大小、MIME、业务场景等投影，并按租户和数据权限保持不可见资源不泄露。
+`Files()`继续通过`filecap.Service`提供`BatchGet`和`EnsureVisible`等能力。它用于插件引用已有宿主文件资源时读取名称、大小、MIME、业务场景等投影，并按租户和数据权限保持不可见资源不泄露。
 
 备选方案是让`Files()`也承担上传下载。该方案会把两个不同生命周期的对象混在一个接口里：宿主文件中心资源由`sys_file`和文件管理数据权限治理，插件私有对象由插件 ID、租户和 storage provider 治理；混合后调用方难以判断数据边界，因此不采用。
 

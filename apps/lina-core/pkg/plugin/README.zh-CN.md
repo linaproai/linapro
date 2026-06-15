@@ -18,7 +18,7 @@
 
 `capability.AdminServices`只通过`pluginhost.Services.Admin()`暴露给可信源码插件。动态插件的`pluginbridge.Services`没有`Admin()`入口，因此不能直接消费`sessioncap.AdminService`或`notifycap.AdminService`这类领域`AdminService`接口。
 
-动态插件只能使用已经显式发布为动态`hostServices`、由插件清单声明、经宿主授权并注册到`WASM host-service`分发器中的具体方法。例如当前`sessions`动态服务只发布`sessions.search`和`sessions.batch_get`，不发布`sessioncap.AdminService.RevokeSession`。如果确实需要让动态插件使用某个管理命令，应为该动作新增窄化、版本化的`host-service`方法，而不是开放完整`AdminServices`目录。
+动态插件只能使用已经显式发布为动态`hostServices`、由插件清单声明、经宿主授权并注册到`WASM host-service`分发器中的具体方法。例如当前`sessions`动态服务只发布`sessions.search`和`sessions.batch_get`，不发布`sessioncap.AdminService.Revoke`。如果确实需要让动态插件使用某个管理命令，应为该动作新增窄化、版本化的`host-service`方法，而不是开放完整`AdminServices`目录。
 
 | 领域能力 | 职责边界 | 运行期与校验路径 |
 | --- | --- | --- |
@@ -63,7 +63,7 @@
 | 插件保存自有附件、生成的导出文件、业务二进制对象或导入临时文件。 | `Storage()` / 动态`service: storage` | 插件传入 logical object path。宿主在委托给当前 storage provider 前按插件 ID 和租户加作用域。对象不会进入宿主文件中心列表，也不会创建`sys_file`元数据。 |
 | 插件在记录删除或卸载清理时删除、列出、读取元数据或清理自有对象。 | `Storage()` / 动态`service: storage` | 清理通过 logical prefix 执行`Delete`或有界`List`后删除。插件不得直接删除宿主上传根目录、provider 根目录或文件中心记录。 |
 | 插件引用用户已经上传到宿主文件中心的文件。 | `Files()` / 动态`service: files` | 插件只获得`filecap.FileProjection`投影和宿主文件 ID 的可见性校验。响应不得暴露`DAO`、`DO`、`Entity`、provider object key 或本地绝对路径。 |
-| 插件命令从请求中接收宿主文件 ID。 | `Files().EnsureFilesVisible` / `files.visible.ensure` | 命令执行写入前必须先校验全部 ID。不存在和不可见使用相同拒绝语义，避免泄露资源存在性。 |
+| 插件命令从请求中接收宿主文件 ID。 | `Files().EnsureVisible` / `files.visible.ensure` | 命令执行写入前必须先校验全部 ID。不存在和不可见使用相同拒绝语义，避免泄露资源存在性。 |
 
 ## 普通消费契约、Provider SPI 与 Guest SDK
 

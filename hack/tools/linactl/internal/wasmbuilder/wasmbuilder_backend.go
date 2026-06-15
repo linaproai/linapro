@@ -158,6 +158,10 @@ func discoverLifecycleSpecs(pluginDir string, pluginID string) ([]*protocol.Life
 		if parseErr != nil {
 			return fmt.Errorf("failed to parse backend file %s: %w", path, parseErr)
 		}
+		lifecycleTimeouts, timeoutErr := collectLifecycleTimeoutsFromFile(pluginID, fileNode)
+		if timeoutErr != nil {
+			return fmt.Errorf("failed to inspect lifecycle timeout in %s: %w", path, timeoutErr)
+		}
 		for _, decl := range fileNode.Decls {
 			funcDecl, ok := decl.(*ast.FuncDecl)
 			if !ok || funcDecl == nil || funcDecl.Recv == nil || funcDecl.Name == nil {
@@ -173,6 +177,9 @@ func discoverLifecycleSpecs(pluginDir string, pluginID string) ([]*protocol.Life
 			if previousPath, exists := seen[spec.Operation]; exists {
 				return fmt.Errorf("plugin lifecycle handler operation is duplicated for plugin %s: %s in %s and %s", pluginID, spec.Operation, previousPath, path)
 			}
+			if timeoutMs, exists := lifecycleTimeouts[spec.Operation]; exists {
+				spec.TimeoutMs = timeoutMs
+			}
 			seen[spec.Operation] = path
 			items = append(items, spec)
 		}
@@ -183,6 +190,91 @@ func discoverLifecycleSpecs(pluginDir string, pluginID string) ([]*protocol.Life
 	}
 	sortLifecycleSpecs(items)
 	return items, nil
+}
+
+func collectLifecycleTimeoutsFromFile(
+	pluginID string,
+	fileNode *ast.File,
+) (map[protocol.LifecycleOperation]int, error) {
+	timeouts := make(map[protocol.LifecycleOperation]int)
+	if fileNode == nil {
+		return timeouts, nil
+	}
+	for _, decl := range fileNode.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl == nil || genDecl.Tok != token.CONST {
+			continue
+		}
+		for _, item := range genDecl.Specs {
+			valueSpec, ok := item.(*ast.ValueSpec)
+			if !ok || valueSpec == nil {
+				continue
+			}
+			if err := collectLifecycleTimeoutsFromValueSpec(pluginID, valueSpec, timeouts); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return timeouts, nil
+}
+
+func collectLifecycleTimeoutsFromValueSpec(
+	pluginID string,
+	valueSpec *ast.ValueSpec,
+	timeouts map[protocol.LifecycleOperation]int,
+) error {
+	for index, name := range valueSpec.Names {
+		if name == nil {
+			continue
+		}
+		operation, ok := lifecycleOperationFromTimeoutConst(name.Name)
+		if !ok {
+			continue
+		}
+		if _, exists := timeouts[operation]; exists {
+			return fmt.Errorf("plugin lifecycle timeout constant is duplicated for plugin %s operation %s", pluginID, operation)
+		}
+		if index >= len(valueSpec.Values) {
+			return fmt.Errorf("plugin lifecycle timeout constant requires an explicit integer value for plugin %s operation %s", pluginID, operation)
+		}
+		timeoutMs, err := lifecycleTimeoutConstValue(pluginID, operation, valueSpec.Values[index])
+		if err != nil {
+			return err
+		}
+		timeouts[operation] = timeoutMs
+	}
+	return nil
+}
+
+func lifecycleOperationFromTimeoutConst(name string) (protocol.LifecycleOperation, bool) {
+	trimmed := strings.TrimSpace(name)
+	if !strings.HasSuffix(trimmed, "TimeoutMs") {
+		return "", false
+	}
+	operationName := strings.TrimSuffix(trimmed, "TimeoutMs")
+	if !protocol.IsSupportedLifecycleOperation(operationName) {
+		return "", false
+	}
+	return protocol.LifecycleOperation(operationName), true
+}
+
+func lifecycleTimeoutConstValue(
+	pluginID string,
+	operation protocol.LifecycleOperation,
+	expr ast.Expr,
+) (int, error) {
+	basicLit, ok := expr.(*ast.BasicLit)
+	if !ok || basicLit.Kind != token.INT {
+		return 0, fmt.Errorf("plugin lifecycle timeout constant must be an integer literal for plugin %s operation %s", pluginID, operation)
+	}
+	timeoutMs, err := strconv.Atoi(strings.TrimSpace(basicLit.Value))
+	if err != nil {
+		return 0, fmt.Errorf("plugin lifecycle timeout constant is invalid for plugin %s operation %s: %w", pluginID, operation, err)
+	}
+	if timeoutMs < 0 {
+		return 0, fmt.Errorf("plugin lifecycle timeout constant cannot be negative for plugin %s operation %s", pluginID, operation)
+	}
+	return timeoutMs, nil
 }
 
 func isLifecycleControllerSourceFile(backendDir string, filePath string) bool {

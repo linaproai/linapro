@@ -41,6 +41,20 @@ func (s *serviceImpl) installDynamic(
 		}
 	}
 
+	existingRegistry, err := s.storeSvc.GetRegistry(ctx, manifest.ID)
+	if err != nil {
+		return err
+	}
+	if existingRegistry != nil && existingRegistry.Installed == plugintypes.InstalledYes {
+		compareResult, compareErr := plugintypes.CompareSemanticVersions(manifest.Version, existingRegistry.Version)
+		if compareErr != nil {
+			return compareErr
+		}
+		if compareResult < 0 {
+			return bizerr.NewCode(CodeDynamicPluginDowngradeUnsupported)
+		}
+	}
+
 	registry, err := s.storeSvc.SyncManifest(ctx, manifest)
 	if err != nil {
 		return err
@@ -49,9 +63,6 @@ func (s *serviceImpl) installDynamic(
 		compareResult, compareErr := plugintypes.CompareSemanticVersions(manifest.Version, registry.Version)
 		if compareErr != nil {
 			return compareErr
-		}
-		if compareResult < 0 {
-			return bizerr.NewCode(CodeDynamicPluginDowngradeUnsupported)
 		}
 		if compareResult == 0 {
 			if s.runtimeSvc != nil && !s.runtimeSvc.ShouldRefreshInstalledDynamicRelease(ctx, registry, manifest) {

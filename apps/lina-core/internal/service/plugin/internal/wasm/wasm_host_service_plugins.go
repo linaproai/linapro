@@ -36,7 +36,7 @@ func dispatchPluginsHostService(
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		result, err := service.BatchGetPlugins(ctx, capCtx, pluginIDs(request.IDs))
+		result, err := service.BatchGet(ctx, capCtx, pluginIDs(request.IDs))
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodPluginsListTenant:
 		result, err := service.ListTenantPlugins(ctx, capCtx)

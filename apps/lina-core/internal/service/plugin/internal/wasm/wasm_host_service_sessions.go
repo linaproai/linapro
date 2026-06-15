@@ -31,7 +31,7 @@ func dispatchSessionsHostService(
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		result, err := service.SearchSessions(ctx, capCtx, sessioncap.SearchInput{
+		result, err := service.Search(ctx, capCtx, sessioncap.SearchInput{
 			Username: request.Username,
 			IP:       request.IP,
 			Page: capmodel.PageRequest{
@@ -45,7 +45,7 @@ func dispatchSessionsHostService(
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		result, err := service.BatchGetSessions(ctx, capCtx, sessionIDs(request.IDs))
+		result, err := service.BatchGet(ctx, capCtx, sessionIDs(request.IDs))
 		return domainCapabilityResult(result, err)
 	default:
 		return domainMethodNotFound("sessions", method)

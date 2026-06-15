@@ -98,8 +98,8 @@ func (a *pluginCapabilityAdapter) Registry() capabilityplugincap.RegistryService
 	return a
 }
 
-// BatchGetPlugins returns visible plugin projections and opaque missing IDs.
-func (a *pluginCapabilityAdapter) BatchGetPlugins(ctx context.Context, _ capmodel.CapabilityContext, ids []capabilityplugincap.PluginID) (*capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID], error) {
+// BatchGet returns visible plugin projections and opaque missing IDs.
+func (a *pluginCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.CapabilityContext, ids []capabilityplugincap.PluginID) (*capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID], error) {
 	result := &capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID]{
 		Items:      make(map[capabilityplugincap.PluginID]*capabilityplugincap.Projection, len(ids)),
 		MissingIDs: []capabilityplugincap.PluginID{},
@@ -189,8 +189,8 @@ func (a *pluginCapabilityAdapter) ListTenantPlugins(ctx context.Context, capCtx 
 	return &capmodel.PageResult[*capabilityplugincap.TenantProjection]{Items: items, Total: len(items)}, nil
 }
 
-// SetPluginEnabled changes tenant plugin enablement after target checks.
-func (a *pluginCapabilityAdapter) SetPluginEnabled(ctx context.Context, capCtx capmodel.CapabilityContext, id capabilityplugincap.PluginID, enabled bool) error {
+// SetEnabled changes tenant plugin enablement after target checks.
+func (a *pluginCapabilityAdapter) SetEnabled(ctx context.Context, capCtx capmodel.CapabilityContext, id capabilityplugincap.PluginID, enabled bool) error {
 	tenantID, err := TenantID(capCtx.TenantID)
 	if err != nil || tenantID <= PlatformTenantID {
 		return bizerr.NewCode(capmodel.CodeCapabilityDenied)

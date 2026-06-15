@@ -47,8 +47,8 @@ func newUserCapabilityAdapter(tenantFilter tenantspi.PluginTableFilterService, d
 	return &userCapabilityAdapter{tenantFilter: tenantFilter, dataScope: dataScope}
 }
 
-// BatchGetUsers returns visible user projections and opaque missing IDs.
-func (a *userCapabilityAdapter) BatchGetUsers(ctx context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
+// BatchGet returns visible user projections and opaque missing IDs.
+func (a *userCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
 	result := &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID]{
 		Items:      make(map[capabilityusercap.UserID]*capabilityusercap.UserProjection, len(ids)),
 		MissingIDs: []capabilityusercap.UserID{},
@@ -121,8 +121,8 @@ func (a *userCapabilityAdapter) BatchGetUsers(ctx context.Context, _ capmodel.Ca
 	return result, nil
 }
 
-// SearchUsers searches visible user candidates with bounded paging.
-func (a *userCapabilityAdapter) SearchUsers(ctx context.Context, _ capmodel.CapabilityContext, input capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
+// Search searches visible user candidates with bounded paging.
+func (a *userCapabilityAdapter) Search(ctx context.Context, _ capmodel.CapabilityContext, input capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
 	pageNum, pageSize := NormalizePage(input.Page)
 	cols := dao.SysUser.Columns()
 	model := dao.SysUser.Ctx(ctx)
@@ -176,9 +176,9 @@ func (a *userCapabilityAdapter) applyDataScope(ctx context.Context, model *gdb.M
 	return a.dataScope.ApplyUserScope(ctx, model, qualifiedSysUserIDColumn())
 }
 
-// EnsureUsersVisible rejects when any requested user is absent or invisible.
-func (a *userCapabilityAdapter) EnsureUsersVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilityusercap.UserID) error {
-	result, err := a.BatchGetUsers(ctx, capCtx, ids)
+// EnsureVisible rejects when any requested user is absent or invisible.
+func (a *userCapabilityAdapter) EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilityusercap.UserID) error {
+	result, err := a.BatchGet(ctx, capCtx, ids)
 	if err != nil {
 		return err
 	}
@@ -188,9 +188,9 @@ func (a *userCapabilityAdapter) EnsureUsersVisible(ctx context.Context, capCtx c
 	return nil
 }
 
-// SetUserStatus changes one visible user's lifecycle status and advances the
+// SetStatus changes one visible user's lifecycle status and advances the
 // authorization revision after the transaction commits successfully.
-func (a *userCapabilityAdapter) SetUserStatus(ctx context.Context, capCtx capmodel.CapabilityContext, id capabilityusercap.UserID, status string) error {
+func (a *userCapabilityAdapter) SetStatus(ctx context.Context, capCtx capmodel.CapabilityContext, id capabilityusercap.UserID, status string) error {
 	normalizedStatus := strings.TrimSpace(status)
 	if normalizedStatus != statusDisabled && normalizedStatus != statusEnabled {
 		return bizerr.NewCode(capmodel.CodeCapabilityDenied)
@@ -199,7 +199,7 @@ func (a *userCapabilityAdapter) SetUserStatus(ctx context.Context, capCtx capmod
 	if err != nil || parsedID <= 0 {
 		return bizerr.NewCode(capmodel.CodeCapabilityDenied)
 	}
-	if err = a.EnsureUsersVisible(ctx, capCtx, []capabilityusercap.UserID{id}); err != nil {
+	if err = a.EnsureVisible(ctx, capCtx, []capabilityusercap.UserID{id}); err != nil {
 		return err
 	}
 	return dao.SysUser.Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {

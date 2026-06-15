@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -480,7 +481,9 @@ func TestExecuteDynamicWasmBridgeReturnsGuestResponse(t *testing.T) {
 		t.Fatalf("expected bundled runtime artifact to load, got error: %v", err)
 	}
 
-	response, err := services.Runtime.ExecuteDynamicRoute(context.Background(), manifest, &protocol.BridgeRequestEnvelopeV1{
+	ctx, cancel := context.WithTimeout(context.Background(), dynamicWasmBridgeTestTimeout)
+	defer cancel()
+	response, err := services.Runtime.ExecuteDynamicRoute(ctx, manifest, &protocol.BridgeRequestEnvelopeV1{
 		PluginID: "linapro-demo-dynamic",
 		Route: &protocol.RouteMatchSnapshotV1{
 			InternalPath: "/api/v1/backend-summary",
@@ -539,7 +542,9 @@ func TestExecuteDynamicWasmBridgeHostCallDemoUsesStructuredHostServices(t *testi
 		t.Fatalf("expected bundled runtime artifact to load, got error: %v", err)
 	}
 
-	response, err := services.Runtime.ExecuteDynamicRoute(context.Background(), manifest, &protocol.BridgeRequestEnvelopeV1{
+	ctx, cancel := context.WithTimeout(context.Background(), dynamicWasmBridgeTestTimeout)
+	defer cancel()
+	response, err := services.Runtime.ExecuteDynamicRoute(ctx, manifest, &protocol.BridgeRequestEnvelopeV1{
 		PluginID:  "linapro-demo-dynamic",
 		RequestID: "req-host-call-demo",
 		Route: &protocol.RouteMatchSnapshotV1{
@@ -657,7 +662,9 @@ func TestExecuteDynamicWasmBridgeCreatesDemoRecord(t *testing.T) {
 		t.Fatalf("expected bundled runtime artifact to load, got error: %v", err)
 	}
 
-	response, err := services.Runtime.ExecuteDynamicRoute(context.Background(), manifest, &protocol.BridgeRequestEnvelopeV1{
+	ctx, cancel := context.WithTimeout(context.Background(), dynamicWasmBridgeTestTimeout)
+	defer cancel()
+	response, err := services.Runtime.ExecuteDynamicRoute(ctx, manifest, &protocol.BridgeRequestEnvelopeV1{
 		PluginID:  "linapro-demo-dynamic",
 		RequestID: "req-demo-record-create",
 		Route: &protocol.RouteMatchSnapshotV1{
@@ -745,3 +752,5 @@ func responseBodyForTest(response *protocol.BridgeResponseEnvelopeV1) []byte {
 	}
 	return response.Body
 }
+
+const dynamicWasmBridgeTestTimeout = 2 * time.Minute

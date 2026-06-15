@@ -40,24 +40,24 @@ type SearchInput struct {
 
 // Service defines read-oriented user capability methods for plugins.
 type Service interface {
-	// BatchGetUsers returns visible user projections and opaque missing IDs.
-	BatchGetUsers(ctx context.Context, capCtx capmodel.CapabilityContext, ids []UserID) (*capmodel.BatchResult[*UserProjection, UserID], error)
-	// SearchUsers searches visible user candidates with bounded paging.
-	SearchUsers(ctx context.Context, capCtx capmodel.CapabilityContext, input SearchInput) (*capmodel.PageResult[*UserProjection], error)
-	// EnsureUsersVisible rejects when any requested user is absent or invisible.
-	EnsureUsersVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []UserID) error
+	// BatchGet returns visible user projections and opaque missing IDs.
+	BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []UserID) (*capmodel.BatchResult[*UserProjection, UserID], error)
+	// Search searches visible user candidates with bounded paging.
+	Search(ctx context.Context, capCtx capmodel.CapabilityContext, input SearchInput) (*capmodel.PageResult[*UserProjection], error)
+	// EnsureVisible rejects when any requested user is absent or invisible.
+	EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []UserID) error
 }
 
 // AdminService defines user management commands exposed through governed
 // source-plugin AdminServices or authorized dynamic host service methods.
 type AdminService interface {
-	// SetUserStatus changes one user's lifecycle status after target visibility checks.
-	SetUserStatus(ctx context.Context, capCtx capmodel.CapabilityContext, id UserID, status string) error
+	// SetStatus changes one user's lifecycle status after target visibility checks.
+	SetStatus(ctx context.Context, capCtx capmodel.CapabilityContext, id UserID, status string) error
 }
 
 // ScopeService defines host-internal user scope helpers and must not be exposed
 // through ordinary plugin service directories.
 type ScopeService interface {
-	// EnsureUsersVisible rejects when any user is outside the caller data scope.
-	EnsureUsersVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []UserID) error
+	// EnsureVisible rejects when any user is outside the caller data scope.
+	EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []UserID) error
 }

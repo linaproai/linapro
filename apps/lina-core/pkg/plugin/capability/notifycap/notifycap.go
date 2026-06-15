@@ -62,8 +62,8 @@ type SendResult struct {
 
 // Service defines notification capability methods available to plugins.
 type Service interface {
-	// BatchGetMessages returns visible message projections and opaque missing IDs.
-	BatchGetMessages(ctx context.Context, capCtx capmodel.CapabilityContext, ids []MessageID) (*capmodel.BatchResult[map[string]any, MessageID], error)
+	// BatchGet returns visible message projections and opaque missing IDs.
+	BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []MessageID) (*capmodel.BatchResult[map[string]any, MessageID], error)
 	// Send sends one governed notification message.
 	Send(ctx context.Context, capCtx capmodel.CapabilityContext, input SendInput) (*SendResult, error)
 }
@@ -71,14 +71,14 @@ type Service interface {
 // AdminService defines governed notification commands.
 type AdminService interface {
 	Service
-	// DeleteMessages removes visible notification messages.
-	DeleteMessages(ctx context.Context, capCtx capmodel.CapabilityContext, ids []MessageID) error
+	// Delete removes visible notification messages.
+	Delete(ctx context.Context, capCtx capmodel.CapabilityContext, ids []MessageID) error
 	// DeleteBySource removes visible notifications for business source IDs.
 	DeleteBySource(ctx context.Context, capCtx capmodel.CapabilityContext, sourceType SourceType, sourceIDs []string) error
 }
 
 // ScopeService defines host-internal notification visibility helpers.
 type ScopeService interface {
-	// EnsureMessagesVisible rejects when any message is outside caller scope.
-	EnsureMessagesVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []MessageID) error
+	// EnsureVisible rejects when any message is outside caller scope.
+	EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []MessageID) error
 }

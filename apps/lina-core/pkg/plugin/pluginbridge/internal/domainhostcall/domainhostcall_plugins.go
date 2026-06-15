@@ -36,8 +36,8 @@ func PluginLifecycle(invoker Invoker) plugincap.LifecycleService {
 	return pluginLifecycleService{baseService: newBaseService(invoker)}
 }
 
-// BatchGetPlugins returns visible plugin projections and opaque missing IDs.
-func (s pluginRegistryService) BatchGetPlugins(_ context.Context, _ capmodel.CapabilityContext, ids []plugincap.PluginID) (*capmodel.BatchResult[*plugincap.Projection, plugincap.PluginID], error) {
+// BatchGet returns visible plugin projections and opaque missing IDs.
+func (s pluginRegistryService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []plugincap.PluginID) (*capmodel.BatchResult[*plugincap.Projection, plugincap.PluginID], error) {
 	out := &capmodel.BatchResult[*plugincap.Projection, plugincap.PluginID]{Items: map[plugincap.PluginID]*plugincap.Projection{}}
 	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsBatchGet, idsRequest{IDs: pluginIDsToStrings(ids)}, out)
 	return out, err

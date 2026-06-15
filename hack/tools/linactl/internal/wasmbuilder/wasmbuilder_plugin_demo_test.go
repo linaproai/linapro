@@ -617,6 +617,8 @@ func assertSQLAssetsMatchSource(t *testing.T, expected []*sqlAsset, actual []*sq
 func assertPluginDemoDynamicLifecycleContracts(t *testing.T, actual []*protocol.LifecycleContract) {
 	t.Helper()
 
+	const beforeInstallTimeoutMs = 120000
+
 	expected := []protocol.LifecycleOperation{
 		protocol.LifecycleOperationBeforeInstall,
 		protocol.LifecycleOperationAfterInstall,
@@ -652,6 +654,18 @@ func assertPluginDemoDynamicLifecycleContracts(t *testing.T, actual []*protocol.
 		expectedInternalPath := "/__lifecycle" + bridgeplugin.BuildGuestControllerInternalPath(operation.String())
 		if contract.RequestType != expectedRequestType || contract.InternalPath != expectedInternalPath {
 			t.Fatalf("unexpected lifecycle contract for %s: %#v", operation, contract)
+		}
+		expectedTimeoutMs := 0
+		if operation == protocol.LifecycleOperationBeforeInstall {
+			expectedTimeoutMs = beforeInstallTimeoutMs
+		}
+		if contract.TimeoutMs != expectedTimeoutMs {
+			t.Fatalf(
+				"unexpected lifecycle timeout for %s: got %d want %d",
+				operation,
+				contract.TimeoutMs,
+				expectedTimeoutMs,
+			)
 		}
 	}
 }

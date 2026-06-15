@@ -18,7 +18,7 @@
 
 `capability.AdminServices` is intentionally exposed only through `pluginhost.Services.Admin()` for trusted source plugins. Dynamic plugins do not have an `Admin()` entry in `pluginbridge.Services`, so they cannot directly consume domain `AdminService` interfaces such as `sessioncap.AdminService` or `notifycap.AdminService`.
 
-Dynamic plugins may use only the concrete methods that are explicitly published as dynamic `hostServices`, declared by the plugin manifest, authorized by the host, and registered in the `WASM host-service` dispatcher. For example, the current `sessions` dynamic service publishes `sessions.search` and `sessions.batch_get`; it does not publish `sessioncap.AdminService.RevokeSession`. If a management command must become available to dynamic plugins, add a narrow, versioned `host-service` method for that command instead of exposing the full `AdminServices` directory.
+Dynamic plugins may use only the concrete methods that are explicitly published as dynamic `hostServices`, declared by the plugin manifest, authorized by the host, and registered in the `WASM host-service` dispatcher. For example, the current `sessions` dynamic service publishes `sessions.search` and `sessions.batch_get`; it does not publish `sessioncap.AdminService.Revoke`. If a management command must become available to dynamic plugins, add a narrow, versioned `host-service` method for that command instead of exposing the full `AdminServices` directory.
 
 | Domain capability | Responsibility boundary | Runtime and validation path |
 | --- | --- | --- |
@@ -63,7 +63,7 @@ New capabilities should enter `capability.Services` only when source plugins and
 | A plugin stores its own attachment, generated export, binary object, or temporary import file. | `Storage()` / dynamic `service: storage` | The plugin passes a logical object path. The host scopes it by plugin ID and tenant before delegating to the active storage provider. The object stays outside host file-center lists and does not create `sys_file` metadata. |
 | A plugin deletes, lists, stats, or purges objects it owns during record deletion or uninstall cleanup. | `Storage()` / dynamic `service: storage` | Cleanup uses `Delete` or bounded `List` by logical prefix. Plugins must not delete host upload roots, provider roots, or file-center rows directly. |
 | A plugin references files that users already uploaded into the host file center. | `Files()` / dynamic `service: files` | The plugin receives `filecap.FileProjection` values and visibility checks for host-owned file IDs. The response must not expose DAO, DO, Entity, provider object keys, or local absolute paths. |
-| A plugin command accepts host file IDs from a request. | `Files().EnsureFilesVisible` / `files.visible.ensure` | The command checks all IDs before mutation. Missing and invisible files share the same rejection semantics to avoid existence probing. |
+| A plugin command accepts host file IDs from a request. | `Files().EnsureVisible` / `files.visible.ensure` | The command checks all IDs before mutation. Missing and invisible files share the same rejection semantics to avoid existence probing. |
 
 ## Consumer Contracts, Provider SPI, and Guest SDK
 
