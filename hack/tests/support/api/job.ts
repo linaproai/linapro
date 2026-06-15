@@ -386,9 +386,9 @@ export async function ensurePluginBuiltinJobEnabled(
     )
     .toBe("true:false");
 
-  const jobs = await listJobs(api, options.jobName);
+  const jobs = await listAllJobs(api);
   const currentJob = jobs.list.find(
-    (item) => item.name === options.jobName && item.isBuiltin === 1,
+    (item) => item.handlerRef === options.handlerRef && item.isBuiltin === 1,
   );
   if (currentJob?.status.startsWith("paused_by_plugin")) {
     await disablePlugin(api, options.pluginId);
@@ -399,9 +399,9 @@ export async function ensurePluginBuiltinJobEnabled(
   await expect
     .poll(
       async () => {
-        const result = await listJobs(api, options.jobName);
+        const result = await listAllJobs(api);
         const builtinJob = result.list.find(
-          (item) => item.name === options.jobName && item.isBuiltin === 1,
+          (item) => item.handlerRef === options.handlerRef && item.isBuiltin === 1,
         );
         jobId = builtinJob?.id ?? 0;
         return builtinJob
@@ -492,6 +492,27 @@ export async function listJobs(api: APIRequestContext, keyword = "") {
       `job?pageNum=1&pageSize=100&keyword=${encodeURIComponent(keyword)}`,
     ),
   );
+}
+
+async function listAllJobs(api: APIRequestContext) {
+  const pageSize = 100;
+  const firstPage = await expectSuccess<{ list: JobDetail[]; total: number }>(
+    await api.get(`job?pageNum=1&pageSize=${pageSize}`),
+  );
+  const list = [...firstPage.list];
+  const pageCount = Math.ceil(firstPage.total / pageSize);
+
+  for (let pageNum = 2; pageNum <= pageCount; pageNum += 1) {
+    const page = await expectSuccess<{ list: JobDetail[]; total: number }>(
+      await api.get(`job?pageNum=${pageNum}&pageSize=${pageSize}`),
+    );
+    list.push(...page.list);
+  }
+
+  return {
+    list,
+    total: firstPage.total,
+  };
 }
 
 export async function updateJobStatus(

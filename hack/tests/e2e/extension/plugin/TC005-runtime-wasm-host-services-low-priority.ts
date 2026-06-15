@@ -602,10 +602,12 @@ func New() *Controller {
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/lockcap"
 	"lina-core/pkg/plugin/capability/notifycap"
 	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
@@ -624,42 +626,42 @@ func (c *Controller) LowPriorityHostServices(request *protocol.BridgeRequestEnve
 		notifySvc = bridgeplugin.New().Notifications()
 	)
 
-	cacheSetValue, err := cacheSvc.Set(cacheNamespace, "profile", request.PluginID, 60)
+	cacheSetValue, err := cacheSvc.Set(ctx, cacheNamespace, "profile", request.PluginID, 60*time.Second)
 	if err != nil {
 		return nil, err
 	}
-	cacheGetValue, cacheFound, err := cacheSvc.Get(cacheNamespace, "profile")
+	cacheGetValue, cacheFound, err := cacheSvc.Get(ctx, cacheNamespace, "profile")
 	if err != nil {
 		return nil, err
 	}
-	counterValue, err := cacheSvc.Incr(cacheNamespace, "counter", 2, 60)
+	counterValue, err := cacheSvc.Incr(ctx, cacheNamespace, "counter", 2, 60*time.Second)
 	if err != nil {
 		return nil, err
 	}
-	expireFound, expireAt, err := cacheSvc.Expire(cacheNamespace, "profile", 120)
+	expireFound, expireAt, err := cacheSvc.Expire(ctx, cacheNamespace, "profile", 120*time.Second)
 	if err != nil {
 		return nil, err
 	}
-	if err = cacheSvc.Delete(cacheNamespace, "profile"); err != nil {
+	if err = cacheSvc.Delete(ctx, cacheNamespace, "profile"); err != nil {
 		return nil, err
 	}
-	_, cacheFoundAfterDelete, err := cacheSvc.Get(cacheNamespace, "profile")
+	_, cacheFoundAfterDelete, err := cacheSvc.Get(ctx, cacheNamespace, "profile")
 	if err != nil {
 		return nil, err
 	}
 
-	lockAcquire, err := lockSvc.Acquire(lockName, 5000)
+	lockAcquire, err := lockSvc.Acquire(ctx, lockcap.AcquireInput{Name: lockName, Lease: 5 * time.Second})
 	if err != nil {
 		return nil, err
 	}
 	if lockAcquire == nil || !lockAcquire.Acquired || lockAcquire.Ticket == "" {
 		return nil, gerror.New("lock acquire failed")
 	}
-	lockRenew, err := lockSvc.Renew(lockName, lockAcquire.Ticket)
+	lockRenew, err := lockSvc.Renew(ctx, lockcap.RenewInput{Name: lockName, Ticket: lockAcquire.Ticket})
 	if err != nil {
 		return nil, err
 	}
-	if err = lockSvc.Release(lockName, lockAcquire.Ticket); err != nil {
+	if err = lockSvc.Release(ctx, lockcap.ReleaseInput{Name: lockName, Ticket: lockAcquire.Ticket}); err != nil {
 		return nil, err
 	}
 
@@ -809,15 +811,18 @@ func New() *Controller {
 
 import (
 	"strings"
+	"time"
 
 	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/lockcap"
 	"lina-core/pkg/plugin/capability/notifycap"
 	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 func (c *Controller) CacheLimit(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := bridgeplugin.Cache().Set("limited-cache", "oversized", strings.Repeat("a", 4097), 0)
+	ctx := bridgeplugin.NewGuestControllerContext(request)
+	_, err := bridgeplugin.Cache().Set(ctx, "limited-cache", "oversized", strings.Repeat("a", 4097), 0)
 	if err != nil {
 		return nil, err
 	}
@@ -825,7 +830,8 @@ func (c *Controller) CacheLimit(request *protocol.BridgeRequestEnvelopeV1) (*pro
 }
 
 func (c *Controller) LockDenied(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := bridgeplugin.Lock().Acquire("blocked-lock", 1000)
+	ctx := bridgeplugin.NewGuestControllerContext(request)
+	_, err := bridgeplugin.Lock().Acquire(ctx, lockcap.AcquireInput{Name: "blocked-lock", Lease: time.Second})
 	if err != nil {
 		return nil, err
 	}
