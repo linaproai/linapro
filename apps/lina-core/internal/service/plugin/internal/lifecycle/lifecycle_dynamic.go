@@ -27,6 +27,9 @@ func (s *serviceImpl) installDynamic(
 	manifest := catalog.CloneManifest(desiredManifest)
 	var err error
 	if manifest == nil {
+		if s.catalogSvc != nil {
+			s.catalogSvc.InvalidateManifestCache(pluginID)
+		}
 		manifest, err = s.catalogSvc.GetDesiredManifest(pluginID)
 		if err != nil {
 			return err

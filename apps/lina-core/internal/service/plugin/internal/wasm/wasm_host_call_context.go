@@ -9,6 +9,7 @@ import (
 	"errors"
 	"path"
 	"strings"
+	"sync"
 
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
@@ -29,6 +30,9 @@ type hostCallContext struct {
 	hostServices []*bridgehostservice.HostServiceSpec
 	// hostServiceSnapshot indexes hostServices once for the current guest execution.
 	hostServiceSnapshot *hostServiceAccessSnapshot
+	// hostServiceSnapshotOnce guards lazy snapshot construction for tests and
+	// direct host-call contexts that do not prebuild the snapshot.
+	hostServiceSnapshotOnce sync.Once
 	// artifactDefaultConfig is the active-release default config content.
 	artifactDefaultConfig []byte
 	// artifactManifestResources contains active-release manifest resources
@@ -177,9 +181,11 @@ func (hcc *hostCallContext) accessSnapshot() *hostServiceAccessSnapshot {
 	if hcc == nil {
 		return nil
 	}
-	if hcc.hostServiceSnapshot == nil {
-		hcc.hostServiceSnapshot = newHostServiceAccessSnapshot(hcc.hostServices)
-	}
+	hcc.hostServiceSnapshotOnce.Do(func() {
+		if hcc.hostServiceSnapshot == nil {
+			hcc.hostServiceSnapshot = newHostServiceAccessSnapshot(hcc.hostServices)
+		}
+	})
 	return hcc.hostServiceSnapshot
 }
 

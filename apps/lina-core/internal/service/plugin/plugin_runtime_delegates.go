@@ -38,20 +38,30 @@ func NewRuntimeDelegate() *RuntimeDelegate {
 
 // BindService connects the completed root plugin service to this startup
 // delegate. The caller must bind during process startup before serving traffic.
-func (d *RuntimeDelegate) BindService(service Service) {
+func (d *RuntimeDelegate) BindService(service Service) error {
 	if d == nil {
-		return
+		return gerror.New("plugin runtime delegate cannot bind through nil receiver")
+	}
+	if service == nil {
+		return gerror.New("plugin runtime delegate cannot bind nil service")
 	}
 	d.mu.Lock()
 	d.service = service
 	d.mu.Unlock()
+	return nil
+}
+
+// Bound reports whether the delegate has been connected to the root plugin
+// service. It is intended for startup and test diagnostics only.
+func (d *RuntimeDelegate) Bound() bool {
+	return d.serviceSnapshot() != nil
 }
 
 // HandleAuthLoginSucceeded dispatches login-succeeded hooks after binding.
 func (d *RuntimeDelegate) HandleAuthLoginSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
 	service := d.serviceSnapshot()
 	if service == nil {
-		return nil
+		return pluginRuntimeDelegateUnboundError()
 	}
 	return service.HandleAuthLoginSucceeded(ctx, input)
 }
@@ -60,7 +70,7 @@ func (d *RuntimeDelegate) HandleAuthLoginSucceeded(ctx context.Context, input pl
 func (d *RuntimeDelegate) HandleAuthLoginFailed(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
 	service := d.serviceSnapshot()
 	if service == nil {
-		return nil
+		return pluginRuntimeDelegateUnboundError()
 	}
 	return service.HandleAuthLoginFailed(ctx, input)
 }
@@ -69,7 +79,7 @@ func (d *RuntimeDelegate) HandleAuthLoginFailed(ctx context.Context, input plugi
 func (d *RuntimeDelegate) HandleAuthLogoutSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
 	service := d.serviceSnapshot()
 	if service == nil {
-		return nil
+		return pluginRuntimeDelegateUnboundError()
 	}
 	return service.HandleAuthLogoutSucceeded(ctx, input)
 }
@@ -105,7 +115,7 @@ func (d *RuntimeDelegate) ListSourceRouteBindings() []pluginhost.SourceRouteBind
 func (d *RuntimeDelegate) ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths goai.Paths) error {
 	service := d.serviceSnapshot()
 	if service == nil {
-		return nil
+		return pluginRuntimeDelegateUnboundError()
 	}
 	return service.ProjectDynamicRoutesToOpenAPI(ctx, paths)
 }
@@ -159,7 +169,7 @@ func (d *RuntimeDelegate) TenantProviderEnv(pluginID string) tenantspi.ProviderE
 func (d *RuntimeDelegate) EnsureTenantPluginDisableAllowed(ctx context.Context, pluginID string, tenantID int) error {
 	service := d.serviceSnapshot()
 	if service == nil {
-		return nil
+		return pluginRuntimeDelegateUnboundError()
 	}
 	return service.EnsureTenantPluginDisableAllowed(ctx, pluginID, tenantID)
 }
@@ -177,9 +187,14 @@ func (d *RuntimeDelegate) NotifyTenantPluginDisabled(ctx context.Context, plugin
 func (d *RuntimeDelegate) EnsureTenantDeleteAllowed(ctx context.Context, tenantID int) error {
 	service := d.serviceSnapshot()
 	if service == nil {
-		return nil
+		return pluginRuntimeDelegateUnboundError()
 	}
 	return service.EnsureTenantDeleteAllowed(ctx, tenantID)
+}
+
+// pluginRuntimeDelegateUnboundError reports missing root plugin service binding.
+func pluginRuntimeDelegateUnboundError() error {
+	return gerror.New("plugin runtime delegate is not bound")
 }
 
 // NotifyTenantDeleted delegates tenant deletion notifications after binding.
@@ -232,7 +247,7 @@ func (p *integrationDelegateProvider) BindService(service interface {
 func (p *integrationDelegateProvider) SyncPluginMenusAndPermissions(ctx context.Context, manifest *catalog.Manifest) error {
 	service := p.serviceSnapshot()
 	if service == nil {
-		return nil
+		return pluginIntegrationDelegateUnboundError()
 	}
 	return service.SyncPluginMenusAndPermissions(ctx, manifest)
 }
@@ -241,7 +256,7 @@ func (p *integrationDelegateProvider) SyncPluginMenusAndPermissions(ctx context.
 func (p *integrationDelegateProvider) SyncPluginMenus(ctx context.Context, manifest *catalog.Manifest) error {
 	service := p.serviceSnapshot()
 	if service == nil {
-		return nil
+		return pluginIntegrationDelegateUnboundError()
 	}
 	return service.SyncPluginMenus(ctx, manifest)
 }
@@ -250,7 +265,7 @@ func (p *integrationDelegateProvider) SyncPluginMenus(ctx context.Context, manif
 func (p *integrationDelegateProvider) DeletePluginMenusByManifest(ctx context.Context, manifest *catalog.Manifest) error {
 	service := p.serviceSnapshot()
 	if service == nil {
-		return nil
+		return pluginIntegrationDelegateUnboundError()
 	}
 	return service.DeletePluginMenusByManifest(ctx, manifest)
 }
@@ -259,7 +274,7 @@ func (p *integrationDelegateProvider) DeletePluginMenusByManifest(ctx context.Co
 func (p *integrationDelegateProvider) SyncPluginResourceReferences(ctx context.Context, manifest *catalog.Manifest) error {
 	service := p.serviceSnapshot()
 	if service == nil {
-		return nil
+		return pluginIntegrationDelegateUnboundError()
 	}
 	return service.SyncPluginResourceReferences(ctx, manifest)
 }
@@ -272,9 +287,14 @@ func (p *integrationDelegateProvider) DispatchPluginHookEvent(
 ) error {
 	service := p.serviceSnapshot()
 	if service == nil {
-		return nil
+		return pluginIntegrationDelegateUnboundError()
 	}
 	return service.DispatchPluginHookEvent(ctx, event, values)
+}
+
+// pluginIntegrationDelegateUnboundError reports missing integration service binding.
+func pluginIntegrationDelegateUnboundError() error {
+	return gerror.New("plugin integration delegate is not bound")
 }
 
 // FilterPermissionMenus filters permission menus through plugin enablement.
@@ -328,7 +348,7 @@ func (p *runtimeCacheChangeNotifierProvider) BindService(service runtime.CacheCh
 func (p *runtimeCacheChangeNotifierProvider) MarkRuntimeCacheChanged(ctx context.Context, reason string) error {
 	service := p.serviceSnapshot()
 	if service == nil {
-		return nil
+		return gerror.New("plugin runtime cache notifier is not bound")
 	}
 	return service.MarkRuntimeCacheChanged(ctx, reason)
 }
@@ -342,7 +362,7 @@ func (p *runtimeCacheChangeNotifierProvider) PublishPluginChange(
 ) error {
 	service := p.serviceSnapshot()
 	if service == nil {
-		return nil
+		return gerror.New("plugin runtime cache notifier is not bound")
 	}
 	return service.PublishPluginChange(ctx, pluginID, pluginType, reason)
 }
@@ -384,7 +404,7 @@ func (p *dependencyValidatorProvider) BindService(service dependencyValidatorSer
 func (p *dependencyValidatorProvider) ValidateDynamicPluginCandidate(ctx context.Context, manifest *catalog.Manifest) error {
 	service := p.serviceSnapshot()
 	if service == nil {
-		return nil
+		return gerror.New("plugin dependency validator is not bound")
 	}
 	return service.ValidateDynamicPluginCandidate(ctx, manifest)
 }
@@ -394,7 +414,7 @@ func (p *dependencyValidatorProvider) ValidateDynamicPluginCandidate(ctx context
 func (p *dependencyValidatorProvider) ValidateSourcePluginUpgradeCandidate(ctx context.Context, manifest *catalog.Manifest) error {
 	service := p.serviceSnapshot()
 	if service == nil {
-		return nil
+		return gerror.New("plugin dependency validator is not bound")
 	}
 	return service.ValidateSourcePluginUpgradeCandidate(ctx, manifest)
 }

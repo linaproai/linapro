@@ -4,6 +4,7 @@
 package wasm
 
 import (
+	"sync"
 	"testing"
 
 	"lina-core/pkg/plugin/pluginbridge/protocol"
@@ -275,6 +276,55 @@ func TestHostCallContextReusesRequestAuthorizationSnapshot(t *testing.T) {
 	specs[0].Methods = []string{protocol.HostServiceMethodRuntimeInfoUUID}
 	if !hcc.hasHostServiceAccess(protocol.HostServiceRuntime, protocol.HostServiceMethodRuntimeLogWrite, "", "") {
 		t.Fatal("expected current request to keep using its original authorization snapshot")
+	}
+}
+
+// TestHostCallContextAccessSnapshotConcurrent verifies lazy authorization
+// snapshot construction remains safe when one request dispatches concurrent
+// host-service calls through a shared context.
+func TestHostCallContextAccessSnapshotConcurrent(t *testing.T) {
+	hcc := &hostCallContext{
+		pluginID: "test-plugin",
+		hostServices: []*protocol.HostServiceSpec{
+			{
+				Service: protocol.HostServiceRuntime,
+				Methods: []string{
+					protocol.HostServiceMethodRuntimeInfoUUID,
+				},
+			},
+		},
+	}
+
+	const (
+		workers    = 8
+		iterations = 50
+	)
+	snapshots := make(chan *hostServiceAccessSnapshot, workers*iterations)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				snapshots <- hcc.accessSnapshot()
+			}
+		}()
+	}
+	wg.Wait()
+	close(snapshots)
+
+	var first *hostServiceAccessSnapshot
+	for snapshot := range snapshots {
+		if snapshot == nil {
+			t.Fatal("expected host-service authorization snapshot")
+		}
+		if first == nil {
+			first = snapshot
+			continue
+		}
+		if snapshot != first {
+			t.Fatal("expected concurrent access to reuse one request-local authorization snapshot")
+		}
 	}
 }
 

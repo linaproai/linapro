@@ -158,6 +158,9 @@ func TestHandleHostServiceInvokeLockLifecycle(t *testing.T) {
 	if !acquirePayload.Acquired || strings.TrimSpace(acquirePayload.Ticket) == "" {
 		t.Fatalf("acquire payload: got %#v", acquirePayload)
 	}
+	if _, err := time.Parse(time.RFC3339Nano, acquirePayload.ExpireAt); err != nil {
+		t.Fatalf("acquire expireAt should use RFC3339Nano wire format, got %q: %v", acquirePayload.ExpireAt, err)
+	}
 
 	duplicateAcquireResponse := invokeLockHostService(
 		t,
@@ -193,6 +196,9 @@ func TestHandleHostServiceInvokeLockLifecycle(t *testing.T) {
 	}
 	if strings.TrimSpace(renewPayload.ExpireAt) == "" {
 		t.Fatalf("renew payload: got %#v", renewPayload)
+	}
+	if _, err := time.Parse(time.RFC3339Nano, renewPayload.ExpireAt); err != nil {
+		t.Fatalf("renew expireAt should use RFC3339Nano wire format, got %q: %v", renewPayload.ExpireAt, err)
 	}
 
 	releaseResponse := invokeLockHostService(

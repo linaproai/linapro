@@ -3,7 +3,11 @@
 
 package plugin
 
-import "context"
+import (
+	"context"
+
+	"github.com/gogf/gf/v2/errors/gerror"
+)
 
 // upgradeCachePublisher publishes upgrade cache changes through the root
 // facade's single plugin-change path.
@@ -19,7 +23,7 @@ func (p upgradeCachePublisher) PublishPluginChange(
 	reason string,
 ) error {
 	if p.service == nil {
-		return nil
+		return gerror.New("plugin upgrade cache publisher is not configured")
 	}
 	return p.service.PublishPluginChange(ctx, pluginID, pluginType, reason)
 }
@@ -32,7 +36,7 @@ func (p upgradeCachePublisher) SyncEnabledSnapshotAndPublishRuntimeChange(
 	reason string,
 ) error {
 	if p.service == nil {
-		return nil
+		return gerror.New("plugin upgrade cache publisher is not configured")
 	}
 	return p.service.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, reason)
 }
@@ -45,7 +49,7 @@ type upgradeCacheFreshener struct {
 // EnsureRuntimeCacheFresh synchronizes local runtime caches with the shared revision.
 func (f upgradeCacheFreshener) EnsureRuntimeCacheFresh(ctx context.Context) error {
 	if f.service == nil {
-		return nil
+		return gerror.New("plugin upgrade cache freshener is not configured")
 	}
 	return f.service.ensureRuntimeCacheFresh(ctx)
 }

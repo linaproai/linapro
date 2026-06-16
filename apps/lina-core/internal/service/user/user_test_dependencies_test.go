@@ -118,7 +118,9 @@ func newUserTestService(tenantManagersAndRuntimes ...any) Service {
 	if err != nil {
 		panic(err)
 	}
-	pluginRuntime.BindService(pluginSvc)
+	if err = pluginRuntime.BindService(pluginSvc); err != nil {
+		panic(err)
+	}
 	return New(authSvc, bizCtxSvc, i18nSvc, orgCapSvc, orgCapSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc, tenantSvc, tenantSvc).(*serviceImpl)
 }
 

@@ -57,8 +57,8 @@ type serviceConfig struct {
 	backend  Backend
 }
 
-// processDefaultProvider stores the process-wide default kvcache backend
-// provider selected during startup.
+// processDefaultProvider stores the process-wide fallback backend provider used
+// only when callers do not inject a backend explicitly.
 var processDefaultProvider = struct {
 	sync.RWMutex
 	provider Provider
@@ -106,7 +106,7 @@ func NewSQLTableProvider() Provider {
 	return sqlTableProvider{}
 }
 
-// DefaultProvider returns the process-wide default backend provider.
+// DefaultProvider returns the process-wide fallback backend provider.
 func DefaultProvider() Provider {
 	processDefaultProvider.RLock()
 	provider := processDefaultProvider.provider
@@ -117,8 +117,8 @@ func DefaultProvider() Provider {
 	return provider
 }
 
-// SetDefaultProvider selects the process-wide default backend provider used by
-// kvcache.New when callers do not inject a backend explicitly.
+// SetDefaultProvider selects the process-wide fallback backend provider used by
+// kvcache.New only when callers do not inject a backend explicitly.
 func SetDefaultProvider(provider Provider) {
 	processDefaultProvider.Lock()
 	if provider == nil {

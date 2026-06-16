@@ -1066,7 +1066,9 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 	if err != nil {
 		panic(err)
 	}
-	pluginRuntime.BindService(pluginSvc)
+	if err = pluginRuntime.BindService(pluginSvc); err != nil {
+		panic(err)
+	}
 	return &httpRuntime{
 		configSvc:       configSvc,
 		clusterSvc:      clusterSvc,

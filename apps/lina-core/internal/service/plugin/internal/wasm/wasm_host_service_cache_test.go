@@ -252,6 +252,9 @@ func TestHandleHostServiceInvokeCacheLifecycle(t *testing.T) {
 	if setPayload.Value == nil || setPayload.Value.Value != `{"enabled":true}` {
 		t.Fatalf("set payload: got %#v", setPayload.Value)
 	}
+	if _, err := time.Parse(time.RFC3339Nano, setPayload.Value.ExpireAt); err != nil {
+		t.Fatalf("set expireAt should use RFC3339Nano wire format, got %q: %v", setPayload.Value.ExpireAt, err)
+	}
 
 	getResponse := invokeCacheHostService(
 		t,
@@ -292,6 +295,9 @@ func TestHandleHostServiceInvokeCacheLifecycle(t *testing.T) {
 	if incrPayload.Value == nil || incrPayload.Value.IntValue != 2 || incrPayload.Value.ValueKind != protocol.HostServiceCacheValueKindInt {
 		t.Fatalf("incr payload: got %#v", incrPayload.Value)
 	}
+	if _, err := time.Parse(time.RFC3339Nano, incrPayload.Value.ExpireAt); err != nil {
+		t.Fatalf("incr expireAt should use RFC3339Nano wire format, got %q: %v", incrPayload.Value.ExpireAt, err)
+	}
 
 	expireResponse := invokeCacheHostService(
 		t,
@@ -312,6 +318,9 @@ func TestHandleHostServiceInvokeCacheLifecycle(t *testing.T) {
 	}
 	if !expirePayload.Found || strings.TrimSpace(expirePayload.ExpireAt) == "" {
 		t.Fatalf("expire payload: got %#v", expirePayload)
+	}
+	if _, err := time.Parse(time.RFC3339Nano, expirePayload.ExpireAt); err != nil {
+		t.Fatalf("expire expireAt should use RFC3339Nano wire format, got %q: %v", expirePayload.ExpireAt, err)
 	}
 
 	deleteResponse := invokeCacheHostService(

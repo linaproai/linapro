@@ -130,7 +130,9 @@ func newTestServiceWithTopologyAndTenantDeps(
 			return nil, err
 		}
 		serviceImpl := service.(*serviceImpl)
-		pluginRuntime.BindService(service)
+		if err = pluginRuntime.BindService(service); err != nil {
+			return nil, err
+		}
 		return serviceImpl, nil
 	}
 	lockerSvc := locker.New()
@@ -159,7 +161,9 @@ func newTestServiceWithTopologyAndTenantDeps(
 		return nil, err
 	}
 	serviceImpl := service.(*serviceImpl)
-	pluginRuntime.BindService(service)
+	if err = pluginRuntime.BindService(service); err != nil {
+		return nil, err
+	}
 	return serviceImpl, nil
 }
 

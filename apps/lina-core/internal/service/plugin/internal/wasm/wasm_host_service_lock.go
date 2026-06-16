@@ -49,7 +49,7 @@ func dispatchLockHostService(
 		}
 		response := &bridgehostservice.HostServiceLockAcquireResponse{Acquired: output.Acquired, Ticket: output.Ticket}
 		if output.ExpireAt != nil {
-			response.ExpireAt = output.ExpireAt.String()
+			response.ExpireAt = output.ExpireAt.UTC().Format(time.RFC3339Nano)
 		}
 		return bridgehostcall.NewHostCallSuccessResponse(bridgehostservice.MarshalHostServiceLockAcquireResponse(response))
 	case bridgehostservice.HostServiceMethodLockRenew:
@@ -63,7 +63,7 @@ func dispatchLockHostService(
 		}
 		response := &bridgehostservice.HostServiceLockRenewResponse{}
 		if output != nil && output.ExpireAt != nil {
-			response.ExpireAt = output.ExpireAt.String()
+			response.ExpireAt = output.ExpireAt.UTC().Format(time.RFC3339Nano)
 		}
 		return bridgehostcall.NewHostCallSuccessResponse(bridgehostservice.MarshalHostServiceLockRenewResponse(response))
 	case bridgehostservice.HostServiceMethodLockRelease:

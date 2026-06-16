@@ -182,13 +182,16 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 	clusterSvc := cluster.NewWithCoordination(clusterCfg, coordinationSvc)
 	if clusterCfg != nil && clusterCfg.Enabled {
 		cachecoord.DefaultWithCoordination(clusterSvc, coordinationSvc)
-		configureDistributedKVCache(coordinationSvc)
 		locker.ConfigureCoordination(coordinationSvc)
 		session.ConfigureCoordination(coordinationSvc)
 	} else {
-		configureLocalKVCache()
 		locker.ConfigureCoordination(nil)
 		session.ConfigureCoordination(nil)
+	}
+	kvCacheProvider, err := newHTTPKVCacheProvider(clusterCfg, coordinationSvc)
+	if err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
+		return nil, err
 	}
 
 	// ========================================================================
@@ -203,7 +206,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		lockerSvc        = locker.New()
 		lockStore        = runtimeUpgradeLockStore(coordinationSvc)
 		pluginRuntime    = pluginsvc.NewRuntimeDelegate()
-		kvCacheSvc       = kvcache.New()
+		kvCacheSvc       = kvcache.New(kvcache.WithProvider(kvCacheProvider))
 		fileStorage      = file.NewLocalStorage(configSvc.GetUploadPath(ctx))
 		jobRegistry      = jobhandlersvc.New()
 		hostConfigReader pluginservicehostconfig.RawConfigReader
@@ -314,7 +317,10 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, err
 	}
-	pluginRuntime.BindService(pluginSvc)
+	if err = pluginRuntime.BindService(pluginSvc); err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
+		return nil, err
+	}
 	if err = pluginSvc.RegisterSourcePluginProviderFactories(
 		tenantProviderManager,
 		orgProviderManager,
@@ -375,16 +381,19 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 	}, nil
 }
 
-// configureDistributedKVCache switches process-default short-lived KV cache
-// state to the shared coordination KV backend.
-func configureDistributedKVCache(coordinationSvc coordination.Service) {
-	kvcache.SetDefaultProvider(kvcache.NewCoordinationKVProvider(coordinationSvc))
-}
-
-// configureLocalKVCache restores the SQL table backend used by single-node
-// deployments and tests.
-func configureLocalKVCache() {
-	kvcache.SetDefaultProvider(kvcache.NewSQLTableProvider())
+// newHTTPKVCacheProvider selects the shared KV cache backend for the current
+// HTTP runtime topology without mutating process-wide defaults.
+func newHTTPKVCacheProvider(
+	clusterCfg *config.ClusterConfig,
+	coordinationSvc coordination.Service,
+) (kvcache.Provider, error) {
+	if clusterCfg != nil && clusterCfg.Enabled {
+		if coordinationSvc == nil {
+			return nil, gerror.New("cluster kvcache backend requires coordination service")
+		}
+		return kvcache.NewCoordinationKVProvider(coordinationSvc), nil
+	}
+	return kvcache.NewSQLTableProvider(), nil
 }
 
 // newHTTPCoordinationService creates the distributed coordination provider for

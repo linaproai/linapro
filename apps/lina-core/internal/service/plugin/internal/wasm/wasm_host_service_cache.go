@@ -93,7 +93,7 @@ func dispatchCacheHostService(
 		}
 		response := &bridgehostservice.HostServiceCacheExpireResponse{Found: found}
 		if expireAt != nil {
-			response.ExpireAt = expireAt.String()
+			response.ExpireAt = expireAt.UTC().Format(time.RFC3339Nano)
 		}
 		return bridgehostcall.NewHostCallSuccessResponse(bridgehostservice.MarshalHostServiceCacheExpireResponse(response))
 	default:
@@ -124,7 +124,7 @@ func buildCacheValueResponse(item *cachecap.CacheItem) *bridgehostservice.HostSe
 		IntValue:  item.IntValue,
 	}
 	if item.ExpireAt != nil {
-		value.ExpireAt = item.ExpireAt.String()
+		value.ExpireAt = item.ExpireAt.UTC().Format(time.RFC3339Nano)
 	}
 	return value
 }

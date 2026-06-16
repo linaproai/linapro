@@ -355,7 +355,6 @@ func TestInstallDynamicRejectsLowerVersionBeforeRegistrySync(t *testing.T) {
 		nil,
 		nil,
 	)
-	services.Catalog.InvalidateManifestCache(pluginID)
 
 	err := services.Lifecycle.InstallDynamic(ctx, pluginID)
 	if !bizerr.Is(err, lifecycle.CodeDynamicPluginDowngradeUnsupported) {
