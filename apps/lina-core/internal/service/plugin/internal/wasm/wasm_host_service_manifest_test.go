@@ -141,7 +141,12 @@ func TestHandleHostServiceInvokeManifestBindsArtifactResources(t *testing.T) {
 
 // TestConfigureManifestHostServiceRejectsNil verifies nil manifest injection fails explicitly.
 func TestConfigureManifestHostServiceRejectsNil(t *testing.T) {
-	if _, err := NewRuntime(&capabilityHostServiceTestServices{}, noopTestConfigFactory{}, noopTestHostConfigService{}, nil); err == nil {
+	if _, err := NewRuntime(
+		&capabilityHostServiceTestServices{},
+		noopTestConfigFactory{},
+		noopTestHostConfigService{},
+		nil,
+	); err == nil {
 		t.Fatal("expected nil manifest host service factory to return an error")
 	}
 }

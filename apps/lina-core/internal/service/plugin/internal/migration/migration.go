@@ -18,6 +18,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/datahost"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/dialect"
@@ -117,7 +118,7 @@ func (s *serviceImpl) ExecuteManifestSQLFiles(
 		return gerror.Newf("plugin release record does not exist: %s@%s", manifest.ID, manifest.Version)
 	}
 
-	return dao.SysPluginMigration.Transaction(ctx, func(txCtx context.Context, _ gdb.TX) error {
+	err = dao.SysPluginMigration.Transaction(ctx, func(txCtx context.Context, _ gdb.TX) error {
 		for index, asset := range sqlAssets {
 			if asset == nil {
 				return gerror.New("plugin SQL asset cannot be nil")
@@ -137,6 +138,11 @@ func (s *serviceImpl) ExecuteManifestSQLFiles(
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	datahost.InvalidateTableContractCache(ctx, manifest.ID, "plugin_sql_"+direction.String())
+	return nil
 }
 
 // ResolveSQLAssets extracts lifecycle SQL either from embedded runtime artifact sections

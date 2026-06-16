@@ -105,6 +105,8 @@ Source plugins access runtime capabilities through `pluginhost.Services`; this i
 
 Dynamic plugins access published runtime capabilities through `pluginbridge.Services`. Calls are encoded through `pluginbridge/protocol`, transported through `WASI host call`, authorized by derived `HostCapabilities` and confirmed `HostServices`, then dispatched by `apps/lina-core/internal/service/plugin/internal/wasm`. This runtime directory does not expose source-plugin-only entries such as `Admin()`, `TenantFilter()`, or `I18n()`.
 
+For each guest execution, the host builds a request-local `HostServices` authorization snapshot and every host call still checks `service`, `method`, and resource identity against that snapshot.
+
 ## Dynamic Plugin Host Service Declarations
 
 Minimal shape:

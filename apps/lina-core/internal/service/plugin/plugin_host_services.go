@@ -193,7 +193,12 @@ func newWasmHostServiceRuntime(
 	hostConfigSvc hostconfigcap.Service,
 	manifestFactory manifestcap.ServiceFactory,
 ) (wasm.Runtime, error) {
-	runtime, err := wasm.NewRuntime(hostServices, configFactory, hostConfigSvc, manifestFactory)
+	runtime, err := wasm.NewRuntime(
+		hostServices,
+		configFactory,
+		hostConfigSvc,
+		manifestFactory,
+	)
 	if err != nil {
 		return nil, gerror.Wrap(err, "create wasm host service runtime failed")
 	}

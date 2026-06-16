@@ -23,7 +23,6 @@ func TestRuntimeParamSpecsReturnsCopy(t *testing.T) {
 	if uploadSpec.DefaultValue != "100" {
 		t.Fatalf("expected upload-size runtime default to be 100, got %q", uploadSpec.DefaultValue)
 	}
-
 	original := runtimeParamSpecs[0].DefaultValue
 	specs[0].DefaultValue = "mutated"
 	if runtimeParamSpecs[0].DefaultValue != original {

@@ -400,6 +400,7 @@ func newRuntimeSafetyServices() *runtimeSafetyServices {
 		nil,
 		nil,
 		session.NewDBStore(),
+		testRoleAccessProjector{},
 		nil,
 		nil,
 		nil,

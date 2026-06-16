@@ -48,9 +48,6 @@ func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 		}
 		seenServices[spec.Service] = struct{}{}
 
-		if len(spec.Methods) == 0 {
-			spec.Methods = defaultHostServiceMethods(spec.Service)
-		}
 		methodSeen := make(map[string]struct{}, len(spec.Methods))
 		methods := make([]string, 0, len(spec.Methods))
 		for _, rawMethod := range spec.Methods {
@@ -279,14 +276,6 @@ func normalizePluginIDForTableNamespace(pluginID string) string {
 	}
 	replacer := strings.NewReplacer("-", "_", ".", "_")
 	return replacer.Replace(trimmed)
-}
-
-// defaultHostServiceMethods returns service-specific default method grants.
-func defaultHostServiceMethods(service string) []string {
-	if methods := hostServiceDefaultMethods[service]; len(methods) > 0 {
-		return append([]string(nil), methods...)
-	}
-	return nil
 }
 
 // hostServiceResourceKindForMethods returns the resource shape required by the

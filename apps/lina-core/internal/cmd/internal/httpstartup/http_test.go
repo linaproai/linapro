@@ -1051,6 +1051,7 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 		cacheCoordSvc,
 		i18nService,
 		sessionStore,
+		roleSvc,
 		lockerSvc,
 		nil,
 		capabilities,

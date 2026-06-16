@@ -298,6 +298,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		cacheCoordSvc,
 		i18nSvc,
 		sessionStore,
+		roleSvc,
 		lockerSvc,
 		lockStore,
 		capabilities,

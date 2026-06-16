@@ -12,11 +12,7 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/golang-jwt/jwt/v5"
 
-	"lina-core/internal/dao"
-	"lina-core/internal/model/do"
-	"lina-core/internal/model/entity"
-	"lina-core/internal/service/datascope"
-	"lina-core/internal/service/plugin/internal/catalog"
+	rolesvc "lina-core/internal/service/role"
 	tokencap "lina-core/pkg/plugin/capability/authcap/token"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 	bridgecodec "lina-core/pkg/plugin/pluginbridge/protocol"
@@ -35,16 +31,6 @@ type dynamicRouteClaims struct {
 	ActingAsTenant  bool   `json:"actingAsTenant"`
 	IsImpersonation bool   `json:"isImpersonation"`
 	jwt.RegisteredClaims
-}
-
-// dynamicRouteAccessContext stores role-derived access data used by permission checks.
-type dynamicRouteAccessContext struct {
-	Permissions          []string
-	RoleNames            []string
-	DataScope            int
-	DataScopeUnsupported bool
-	UnsupportedDataScope int
-	IsSuperAdmin         bool
 }
 
 // authorizeDynamicRouteRequest applies host-side login and permission checks
@@ -105,7 +91,7 @@ func (s *serviceImpl) buildDynamicRouteIdentitySnapshot(
 			}
 		}
 	}
-	accessContext, err := s.getDynamicRouteAccessContext(ctx, claims.UserId, claims.TenantId)
+	accessContext, err := s.buildDynamicRouteAccessProjection(ctx, claims)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -115,7 +101,7 @@ func (s *serviceImpl) buildDynamicRouteIdentitySnapshot(
 	if s.userCtx != nil {
 		s.userCtx.SetUserAccess(
 			ctx,
-			accessContext.DataScope,
+			int(accessContext.DataScope),
 			accessContext.DataScopeUnsupported,
 			accessContext.UnsupportedDataScope,
 		)
@@ -184,176 +170,29 @@ func (s *serviceImpl) touchDynamicRouteSession(ctx context.Context, tenantID int
 	return s.sessionStore.TouchOrValidate(ctx, tenantID, tokenID, timeout)
 }
 
-// getDynamicRouteAccessContext loads permissions and role names for one user ID
-// within the tenant carried by the current dynamic-route token.
-func (s *serviceImpl) getDynamicRouteAccessContext(
+// buildDynamicRouteAccessProjection delegates permission and data-scope
+// projection to the role module that owns token access snapshots.
+func (s *serviceImpl) buildDynamicRouteAccessProjection(
 	ctx context.Context,
-	userID int,
-	tenantID int,
-) (*dynamicRouteAccessContext, error) {
-	roleIDs, err := s.getDynamicRouteUserRoleIDs(ctx, userID, tenantID)
-	if err != nil {
-		return nil, err
+	claims *dynamicRouteClaims,
+) (*rolesvc.DynamicRouteAccessProjection, error) {
+	if s == nil || s.roleAccess == nil {
+		return nil, gerror.New("dynamic route role access projector is not configured")
 	}
-	roles, err := s.getDynamicRouteRoles(ctx, roleIDs, tenantID)
-	if err != nil {
-		return nil, err
+	if claims == nil {
+		return nil, gerror.New("dynamic route token claims are missing")
 	}
-	roleNames := dynamicRouteRoleNames(roles)
-	dataScope, unsupported, unsupportedValue := dynamicRouteDataScope(roles)
-	permissions, err := s.getDynamicRoutePermissionsByRoleIDs(ctx, roleIDs, tenantID)
-	if err != nil {
-		return nil, err
-	}
-	return &dynamicRouteAccessContext{
-		Permissions:          permissions,
-		RoleNames:            roleNames,
-		DataScope:            dataScope,
-		DataScopeUnsupported: unsupported,
-		UnsupportedDataScope: unsupportedValue,
-		IsSuperAdmin:         containsInt(roleIDs, 1),
-	}, nil
-}
-
-// getDynamicRouteUserRoleIDs returns the deduplicated tenant-local role IDs
-// assigned to the user.
-func (s *serviceImpl) getDynamicRouteUserRoleIDs(ctx context.Context, userID int, tenantID int) ([]int, error) {
-	items := make([]*entity.SysUserRole, 0)
-	if err := dao.SysUserRole.Ctx(ctx).
-		Where(do.SysUserRole{UserId: userID, TenantId: tenantID}).
-		Scan(&items); err != nil {
-		return nil, err
-	}
-	roleIDs := make([]int, 0, len(items))
-	seen := make(map[int]struct{}, len(items))
-	for _, item := range items {
-		if item == nil {
-			continue
-		}
-		if _, ok := seen[item.RoleId]; ok {
-			continue
-		}
-		seen[item.RoleId] = struct{}{}
-		roleIDs = append(roleIDs, item.RoleId)
-	}
-	return roleIDs, nil
-}
-
-// getDynamicRouteRoles loads active tenant-local roles for the given role IDs.
-func (s *serviceImpl) getDynamicRouteRoles(ctx context.Context, roleIDs []int, tenantID int) ([]*entity.SysRole, error) {
-	if len(roleIDs) == 0 {
-		return []*entity.SysRole{}, nil
-	}
-	items := make([]*entity.SysRole, 0)
-	if err := dao.SysRole.Ctx(ctx).
-		WhereIn(dao.SysRole.Columns().Id, intsToInterfaces(roleIDs)).
-		Where(do.SysRole{Status: statusNormal, TenantId: tenantID}).
-		Scan(&items); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-// dynamicRouteRoleNames projects active role rows into the identity snapshot.
-func dynamicRouteRoleNames(roles []*entity.SysRole) []string {
-	roleNames := make([]string, 0, len(roles))
-	for _, item := range roles {
-		if item == nil {
-			continue
-		}
-		roleNames = append(roleNames, item.Name)
-	}
-	return roleNames
-}
-
-// dynamicRouteDataScope resolves one user's effective role data-scope from the
-// role rows already used to build the dynamic-route identity snapshot.
-func dynamicRouteDataScope(roles []*entity.SysRole) (int, bool, int) {
-	scope := datascope.ScopeNone
-	for _, item := range roles {
-		if item == nil {
-			continue
-		}
-		switch datascope.Scope(item.DataScope) {
-		case datascope.ScopeAll:
-			return int(datascope.ScopeAll), false, 0
-		case datascope.ScopeTenant:
-			if scope != datascope.ScopeAll {
-				scope = datascope.ScopeTenant
-			}
-		case datascope.ScopeDept:
-			if scope == datascope.ScopeNone || scope == datascope.ScopeSelf {
-				scope = datascope.ScopeDept
-			}
-		case datascope.ScopeSelf:
-			if scope == datascope.ScopeNone {
-				scope = datascope.ScopeSelf
-			}
-		default:
-			return int(datascope.ScopeNone), true, item.DataScope
-		}
-	}
-	return int(scope), false, 0
-}
-
-// getDynamicRoutePermissionsByRoleIDs merges the role-menu and menu-permission
-// lookups into a single pass: it fetches menu IDs bound to the given roles, then
-// loads only button-type permission menus in one query (3 DB queries total for
-// the full access context instead of 5).
-func (s *serviceImpl) getDynamicRoutePermissionsByRoleIDs(
-	ctx context.Context,
-	roleIDs []int,
-	tenantID int,
-) ([]string, error) {
-	if len(roleIDs) == 0 {
-		return []string{}, nil
-	}
-	roleMenuItems := make([]*entity.SysRoleMenu, 0)
-	if err := dao.SysRoleMenu.Ctx(ctx).
-		WhereIn(dao.SysRoleMenu.Columns().RoleId, intsToInterfaces(roleIDs)).
-		Where(do.SysRoleMenu{TenantId: tenantID}).
-		Scan(&roleMenuItems); err != nil {
-		return nil, err
-	}
-	menuIDs := make([]int, 0, len(roleMenuItems))
-	seen := make(map[int]struct{}, len(roleMenuItems))
-	for _, item := range roleMenuItems {
-		if item == nil {
-			continue
-		}
-		if _, ok := seen[item.MenuId]; ok {
-			continue
-		}
-		seen[item.MenuId] = struct{}{}
-		menuIDs = append(menuIDs, item.MenuId)
-	}
-	if len(menuIDs) == 0 {
-		return []string{}, nil
-	}
-	menuItems := make([]*entity.SysMenu, 0)
-	if err := dao.SysMenu.Ctx(ctx).
-		WhereIn(dao.SysMenu.Columns().Id, intsToInterfaces(menuIDs)).
-		Where(dao.SysMenu.Columns().Type, catalog.MenuTypeButton.String()).
-		Where(dao.SysMenu.Columns().Status, statusNormal).
-		Scan(&menuItems); err != nil {
-		return nil, err
-	}
-	if s.menuFilter != nil {
-		menuItems = s.menuFilter.FilterPermissionMenus(ctx, menuItems)
-	}
-	permissions := make([]string, 0, len(menuItems))
-	for _, item := range menuItems {
-		if item == nil || strings.TrimSpace(item.Perms) == "" {
-			continue
-		}
-		permissions = append(permissions, item.Perms)
-	}
-	return permissions, nil
+	return s.roleAccess.BuildDynamicRouteAccessProjection(
+		ctx,
+		claims.TokenId,
+		claims.UserId,
+		claims.TenantId,
+	)
 }
 
 // hasDynamicRoutePermission reports whether the access context satisfies the
 // route permission, with super-admin bypass support.
-func hasDynamicRoutePermission(accessContext *dynamicRouteAccessContext, permission string) bool {
+func hasDynamicRoutePermission(accessContext *rolesvc.DynamicRouteAccessProjection, permission string) bool {
 	if accessContext == nil {
 		return false
 	}
@@ -366,23 +205,4 @@ func hasDynamicRoutePermission(accessContext *dynamicRouteAccessContext, permiss
 		}
 	}
 	return false
-}
-
-// containsInt reports whether target appears in the slice.
-func containsInt(values []int, target int) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
-}
-
-// intsToInterfaces converts role or menu IDs into interface values for WhereIn.
-func intsToInterfaces(values []int) []interface{} {
-	items := make([]interface{}, 0, len(values))
-	for _, value := range values {
-		items = append(items, value)
-	}
-	return items
 }

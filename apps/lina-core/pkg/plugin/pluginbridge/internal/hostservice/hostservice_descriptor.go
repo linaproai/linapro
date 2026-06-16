@@ -79,17 +79,6 @@ func buildHostServiceCapabilitySet() map[string]struct{} {
 	return result
 }
 
-func buildHostServiceDefaultMethods() map[string][]string {
-	result := make(map[string][]string)
-	for _, descriptor := range HostServiceDescriptors() {
-		if len(descriptor.DefaultMethods) == 0 {
-			continue
-		}
-		result[descriptor.Service] = append([]string(nil), descriptor.DefaultMethods...)
-	}
-	return result
-}
-
 func buildHostServiceResourceKindSet(kind HostServiceResourceKind) map[string]struct{} {
 	result := make(map[string]struct{})
 	for _, descriptor := range HostServiceDescriptors() {

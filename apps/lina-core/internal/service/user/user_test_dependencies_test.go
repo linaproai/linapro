@@ -103,6 +103,7 @@ func newUserTestService(tenantManagersAndRuntimes ...any) Service {
 		cacheCoordSvc,
 		i18nSvc,
 		sessionStore,
+		roleSvc,
 		lockerSvc,
 		nil,
 		capabilities,

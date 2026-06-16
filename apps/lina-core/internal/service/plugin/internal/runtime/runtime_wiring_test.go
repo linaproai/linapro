@@ -29,6 +29,7 @@ func TestNewRuntimeWiresRequiredDependencies(t *testing.T) {
 		service.uploadSize == nil ||
 		service.userCtx == nil ||
 		service.sessionStore == nil ||
+		service.roleAccess == nil ||
 		service.menuFilter == nil ||
 		service.cacheChangeNotifier == nil ||
 		service.dependencyValidator == nil ||
@@ -62,6 +63,7 @@ func newRuntimeWiringValidationService(t *testing.T) *serviceImpl {
 		runtimeWiringUploadSize{},
 		runtimeWiringUserContext{},
 		session.NewDBStore(),
+		testRoleAccessProjector{},
 		runtimeWiringPermissionFilter{},
 		runtimeWiringCacheNotifier{},
 		runtimeWiringDependencyValidator{},

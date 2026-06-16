@@ -33,6 +33,7 @@ import (
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/internal/service/plugin/internal/upgrade"
 	"lina-core/internal/service/plugin/internal/wasm"
+	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/plugin/capability"
 	capabilityai "lina-core/pkg/plugin/capability/aicap"
@@ -166,6 +167,9 @@ func newServicesWithInjected(
 		integrationHook = &testIntegrationDelegateProvider{}
 		dependencySvc   = plugindep.New()
 	)
+	orgSvc := orgspi.New(nil, nil)
+	tenantSvc := tenantspi.New(nil, nil, bizCtxProvider)
+	roleSvc := role.New(integrationHook, bizCtxProvider, configProvider, i18nService, orgSvc, tenantSvc)
 	if capabilitySvc == nil {
 		capabilitySvc = newTestCapabilities(bizCtxProvider)
 	}
@@ -198,6 +202,7 @@ func newServicesWithInjected(
 		uploadSize,
 		&userCtxAdapter{svc: bizCtxProvider},
 		sessionStore,
+		roleSvc,
 		integrationHook,
 		runtimeCacheChangeNotifier{},
 		runtimeDependencyValidator{},

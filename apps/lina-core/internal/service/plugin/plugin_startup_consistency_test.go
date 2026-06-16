@@ -26,6 +26,7 @@ import (
 	"lina-core/internal/service/plugin/internal/governance"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/testutil"
+	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/bizerr"
@@ -191,6 +192,7 @@ func TestNewRequiresInjectedTenantCapability(t *testing.T) {
 		i18nSvc        = i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
 		pluginRuntime  = NewRuntimeDelegate()
 		orgSvc         = orgspi.New(nil, pluginRuntime)
+		roleSvc        = role.New(pluginRuntime, bizCtxProvider, configProvider, i18nSvc, orgSvc, tenantspi.New(nil, pluginRuntime, bizCtxProvider))
 		capabilities   = newRootTestCapabilities(bizCtxProvider, pluginRuntime)
 	)
 	_, err := New(
@@ -200,6 +202,7 @@ func TestNewRequiresInjectedTenantCapability(t *testing.T) {
 		cacheCoordSvc,
 		i18nSvc,
 		session.NewDBStore(),
+		roleSvc,
 		locker.New(),
 		nil,
 		capabilities,

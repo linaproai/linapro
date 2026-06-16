@@ -184,6 +184,51 @@ func TestHostCallContextHasManifestPathAccess(t *testing.T) {
 	}
 }
 
+// TestHostCallContextRequiresExplicitReadServiceMethods verifies read services
+// are not authorized from service and resource declarations alone.
+func TestHostCallContextRequiresExplicitReadServiceMethods(t *testing.T) {
+	cases := []struct {
+		name        string
+		service     string
+		method      string
+		resourceRef string
+		spec        *protocol.HostServiceSpec
+	}{
+		{
+			name:        "host config",
+			service:     protocol.HostServiceHostConfig,
+			method:      protocol.HostServiceMethodHostConfigGet,
+			resourceRef: "workspace.basePath",
+			spec: &protocol.HostServiceSpec{
+				Service: protocol.HostServiceHostConfig,
+				Keys:    []string{"workspace.basePath"},
+			},
+		},
+		{
+			name:        "manifest",
+			service:     protocol.HostServiceManifest,
+			method:      protocol.HostServiceMethodManifestGet,
+			resourceRef: "metadata.yaml",
+			spec: &protocol.HostServiceSpec{
+				Service: protocol.HostServiceManifest,
+				Paths:   []string{"metadata.yaml"},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			hcc := &hostCallContext{
+				pluginID:     "test-plugin",
+				hostServices: []*protocol.HostServiceSpec{tc.spec},
+			}
+			if hcc.hasHostServiceAccess(tc.service, tc.method, tc.resourceRef, "") {
+				t.Fatal("expected host service access to require an explicit method grant")
+			}
+		})
+	}
+}
+
 // TestHostCallContextHasDataTableAccess verifies data-table authorization is
 // limited to explicitly granted tables.
 func TestHostCallContextHasDataTableAccess(t *testing.T) {
@@ -202,6 +247,56 @@ func TestHostCallContextHasDataTableAccess(t *testing.T) {
 	}
 	if hcc.hasHostServiceAccess(protocol.HostServiceData, protocol.HostServiceMethodDataList, "", "sys_user") {
 		t.Error("expected data list on unauthorized table to be denied")
+	}
+}
+
+// TestHostCallContextReusesRequestAuthorizationSnapshot verifies one request
+// builds the host-service authorization index once and keeps it detached from
+// later mutations to the caller-owned declaration slice.
+func TestHostCallContextReusesRequestAuthorizationSnapshot(t *testing.T) {
+	specs := []*protocol.HostServiceSpec{
+		{
+			Service: protocol.HostServiceRuntime,
+			Methods: []string{
+				protocol.HostServiceMethodRuntimeLogWrite,
+				protocol.HostServiceMethodRuntimeInfoUUID,
+			},
+		},
+	}
+	hcc := &hostCallContext{
+		pluginID:     "test-plugin",
+		hostServices: specs,
+	}
+	firstSnapshot := hcc.accessSnapshot()
+	secondSnapshot := hcc.accessSnapshot()
+	if firstSnapshot == nil || firstSnapshot != secondSnapshot {
+		t.Fatal("expected host call context to reuse one request-local authorization snapshot")
+	}
+	specs[0].Methods = []string{protocol.HostServiceMethodRuntimeInfoUUID}
+	if !hcc.hasHostServiceAccess(protocol.HostServiceRuntime, protocol.HostServiceMethodRuntimeLogWrite, "", "") {
+		t.Fatal("expected current request to keep using its original authorization snapshot")
+	}
+}
+
+// TestHostCallContextAuthorizationShrinkUsesNewSnapshot verifies the next
+// request observes a shrunken active-release host-service snapshot.
+func TestHostCallContextAuthorizationShrinkUsesNewSnapshot(t *testing.T) {
+	hcc := &hostCallContext{
+		pluginID: "test-plugin",
+		hostServices: []*protocol.HostServiceSpec{
+			{
+				Service: protocol.HostServiceRuntime,
+				Methods: []string{
+					protocol.HostServiceMethodRuntimeInfoUUID,
+				},
+			},
+		},
+	}
+	if hcc.hasHostServiceAccess(protocol.HostServiceRuntime, protocol.HostServiceMethodRuntimeLogWrite, "", "") {
+		t.Fatal("expected shrunken request snapshot to reject removed runtime log.write method")
+	}
+	if !hcc.hasHostServiceAccess(protocol.HostServiceRuntime, protocol.HostServiceMethodRuntimeInfoUUID, "", "") {
+		t.Fatal("expected remaining runtime info.uuid method to stay authorized")
 	}
 }
 

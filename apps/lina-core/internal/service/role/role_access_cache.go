@@ -453,6 +453,9 @@ func clearLocalAccessRevision() {
 // resolveAccessTokenID extracts the current login token ID from the business
 // context so access snapshots can be cached per issued session.
 func (s *serviceImpl) resolveAccessTokenID(ctx context.Context) string {
+	if tokenID, ok := ctx.Value(dynamicRouteAccessTokenContextKey{}).(string); ok {
+		return tokenID
+	}
 	if s == nil || s.bizCtxSvc == nil {
 		return ""
 	}

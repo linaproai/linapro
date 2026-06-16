@@ -20,6 +20,7 @@ import (
 	"lina-core/internal/service/plugin/internal/openapi"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/internal/service/plugin/internal/wasm"
+	rolesvc "lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/plugin/capability"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
@@ -90,6 +91,19 @@ type UserContextSetter interface {
 	SetTenant(ctx context.Context, tenantID int)
 	// SetUserAccess populates cached access-snapshot fields for downstream plugin integrations.
 	SetUserAccess(ctx context.Context, dataScope int, dataScopeUnsupported bool, unsupportedDataScope int)
+}
+
+// RoleAccessProjector exposes the role-owned token access projection used by
+// dynamic route authentication before requests enter guest code.
+type RoleAccessProjector interface {
+	// BuildDynamicRouteAccessProjection returns a token-bound permission and
+	// data-scope projection using role module cache and freshness semantics.
+	BuildDynamicRouteAccessProjection(
+		ctx context.Context,
+		tokenID string,
+		userID int,
+		tenantID int,
+	) (*rolesvc.DynamicRouteAccessProjection, error)
 }
 
 // userImpersonationSetter is optionally implemented by user context adapters
@@ -383,6 +397,8 @@ type serviceImpl struct {
 	userCtx UserContextSetter
 	// sessionStore validates online-session hot state for dynamic route requests.
 	sessionStore session.Store
+	// roleAccess projects role-owned token permissions for dynamic route requests.
+	roleAccess RoleAccessProjector
 	// menuFilter filters button-type permission menus by plugin enablement.
 	menuFilter PermissionMenuFilter
 	// cacheChangeNotifier publishes runtime cache changes after successful convergence.
@@ -440,6 +456,7 @@ func New(
 	uploadSize UploadSizeProvider,
 	userCtx UserContextSetter,
 	sessionStore session.Store,
+	roleAccess RoleAccessProjector,
 	menuFilter PermissionMenuFilter,
 	cacheChangeNotifier CacheChangeNotifier,
 	dependencyValidator DependencyValidator,
@@ -460,6 +477,7 @@ func New(
 		uploadSize:                 uploadSize,
 		userCtx:                    userCtx,
 		sessionStore:               sessionStore,
+		roleAccess:                 roleAccess,
 		menuFilter:                 menuFilter,
 		cacheChangeNotifier:        cacheChangeNotifier,
 		reconcilerLockSvc:          reconcilerLockSvc,

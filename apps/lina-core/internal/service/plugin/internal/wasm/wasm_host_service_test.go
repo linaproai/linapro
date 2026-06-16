@@ -840,7 +840,12 @@ func TestHandleHostServiceInvokePluginLifecycleRequiresMethodAuthorization(t *te
 // TestConfigureDomainHostServicesRejectNil verifies nil domain service
 // directories fail during startup wiring.
 func TestConfigureDomainHostServicesRejectNil(t *testing.T) {
-	if _, err := NewRuntime(nil, noopTestConfigFactory{}, noopTestHostConfigService{}, noopTestManifestFactory{}); err == nil {
+	if _, err := NewRuntime(
+		nil,
+		noopTestConfigFactory{},
+		noopTestHostConfigService{},
+		noopTestManifestFactory{},
+	); err == nil {
 		t.Fatal("expected nil domain host service directory to return an error")
 	}
 }

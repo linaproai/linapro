@@ -262,7 +262,12 @@ func TestHandleHostServiceInvokeConfigRejectsUnsupportedMethod(t *testing.T) {
 // TestConfigurePluginConfigServiceFactoryRejectsNil verifies missing runtime config
 // factory injection returns an error instead of silently constructing an isolated adapter.
 func TestConfigurePluginConfigServiceFactoryRejectsNil(t *testing.T) {
-	if _, err := NewRuntime(&capabilityHostServiceTestServices{}, nil, noopTestHostConfigService{}, noopTestManifestFactory{}); err == nil {
+	if _, err := NewRuntime(
+		&capabilityHostServiceTestServices{},
+		nil,
+		noopTestHostConfigService{},
+		noopTestManifestFactory{},
+	); err == nil {
 		t.Fatal("expected nil plugin config service factory to return an error")
 	}
 }

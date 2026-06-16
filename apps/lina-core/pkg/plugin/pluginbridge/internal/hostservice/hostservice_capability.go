@@ -16,7 +16,6 @@ var (
 	hostServiceMethodCapabilityMap = buildHostServiceMethodCapabilityMap()
 	hostServiceMethodResourceMap   = buildHostServiceMethodResourceMap()
 	allCapabilities                = buildHostServiceCapabilitySet()
-	hostServiceDefaultMethods      = buildHostServiceDefaultMethods()
 	hostServicesWithoutResources   = buildHostServiceResourceKindSet(HostServiceResourceNone)
 	hostServicesWithKeys           = buildHostServiceResourceKindSet(HostServiceResourceKey)
 	hostServicesWithTables         = buildHostServiceResourceKindSet(HostServiceResourceTable)
@@ -56,9 +55,6 @@ func CapabilityMapFromHostServices(specs []*HostServiceSpec) map[string]struct{}
 		}
 		service := normalizeHostServiceName(spec.Service)
 		methods := spec.Methods
-		if len(methods) == 0 {
-			methods = defaultHostServiceMethods(service)
-		}
 		for _, rawMethod := range methods {
 			method := normalizeHostServiceMethod(rawMethod)
 			capability := RequiredCapabilityForHostServiceMethod(service, method)

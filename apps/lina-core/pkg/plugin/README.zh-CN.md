@@ -99,6 +99,8 @@ Provider factory 声明归属`pluginhost.Declarations.Providers()`。源码 prov
 
 动态插件通过`pluginbridge.Services`访问已发布的运行期能力。调用会通过`pluginbridge/protocol`编码，经由`WASI host call`传输，由派生的`HostCapabilities`和已确认的`HostServices`授权，再由`apps/lina-core/internal/service/plugin/internal/wasm`分发执行。该运行期目录不暴露`Admin()`、`TenantFilter()`或`I18n()`这类源码插件专属入口。
 
+每次 guest 执行时，宿主会构建请求级`HostServices`授权快照，每次 host call 仍按该快照校验`service`、`method`和资源身份。
+
 ## 动态插件 Host Service 声明
 
 最小结构：

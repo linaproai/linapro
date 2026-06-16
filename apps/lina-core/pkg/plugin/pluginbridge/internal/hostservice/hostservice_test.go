@@ -115,6 +115,22 @@ func TestValidateHostServiceSpecsRejectsI18n(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsRejectsMissingMethods verifies host service
+// declarations must grant concrete methods explicitly.
+func TestValidateHostServiceSpecsRejectsMissingMethods(t *testing.T) {
+	specs := []*HostServiceSpec{{
+		Service: HostServiceHostConfig,
+		Keys:    []string{"workspace.basePath"},
+	}}
+
+	if err := ValidateHostServiceSpecs(specs); err == nil {
+		t.Fatal("expected host service without methods to be rejected")
+	}
+	if capabilities := CapabilityMapFromHostServices(specs); len(capabilities) != 0 {
+		t.Fatalf("expected host service without methods to derive no capabilities, got %#v", capabilities)
+	}
+}
+
 // TestValidateHostServiceSpecsAcceptsPluginsConfigWithoutResources verifies
 // plugin config read access is authorized as a plugins domain method.
 func TestValidateHostServiceSpecsAcceptsPluginsConfigWithoutResources(t *testing.T) {

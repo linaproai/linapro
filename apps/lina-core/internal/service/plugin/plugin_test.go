@@ -21,6 +21,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
+	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	_ "lina-core/pkg/dbdriver"
 	"lina-core/pkg/plugin/capability"
@@ -105,6 +106,7 @@ func newTestServiceWithTopologyAndTenantDeps(
 		cachecoord.DefaultWithCoordination(topology, coordSvc)
 		cacheCoordSvc = cachecoord.Default(topology)
 		i18nSvc := i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
+		roleSvc := role.New(pluginRuntime, bizCtxProvider, configProvider, i18nSvc, orgSvc, tenantSvc)
 		service, err := New(
 			topology,
 			configProvider,
@@ -112,6 +114,7 @@ func newTestServiceWithTopologyAndTenantDeps(
 			cacheCoordSvc,
 			i18nSvc,
 			session.NewDBStore(),
+			roleSvc,
 			lockerSvc,
 			coordSvc.Lock(),
 			capabilities,
@@ -132,6 +135,7 @@ func newTestServiceWithTopologyAndTenantDeps(
 	}
 	lockerSvc := locker.New()
 	i18nSvc := i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
+	roleSvc := role.New(pluginRuntime, bizCtxProvider, configProvider, i18nSvc, orgSvc, tenantSvc)
 	service, err := New(
 		topology,
 		configProvider,
@@ -139,6 +143,7 @@ func newTestServiceWithTopologyAndTenantDeps(
 		cacheCoordSvc,
 		i18nSvc,
 		session.NewDBStore(),
+		roleSvc,
 		lockerSvc,
 		nil,
 		capabilities,
@@ -515,6 +520,7 @@ func (rootNoopPlugins) ProvisionTenantDefaults(context.Context, capmodel.Capabil
 // returns a construction error when callers omit critical runtime dependencies.
 func TestNewRequiresExplicitRuntimeDependencies(t *testing.T) {
 	if _, err := New(
+		nil,
 		nil,
 		nil,
 		nil,

@@ -452,8 +452,7 @@ const (
 type HostServiceSpec struct {
 	// Service is the logical host service identifier.
 	Service string `json:"service" yaml:"service"`
-	// Methods lists the allowed methods under the host service. Read-only
-	// hostConfig and manifest declarations default to get when methods are omitted.
+	// Methods lists the allowed methods under the host service.
 	Methods []string `json:"methods" yaml:"methods"`
 	// Paths lists the authorized logical paths for the storage host service.
 	Paths []string `json:"paths,omitempty" yaml:"paths,omitempty"`

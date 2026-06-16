@@ -103,7 +103,12 @@ func TestHandleHostServiceInvokeHostConfigRejectsUnauthorizedKey(t *testing.T) {
 
 // TestConfigureHostConfigServiceRejectsNil verifies nil hostConfig injection fails explicitly.
 func TestConfigureHostConfigServiceRejectsNil(t *testing.T) {
-	if _, err := NewRuntime(&capabilityHostServiceTestServices{}, noopTestConfigFactory{}, nil, noopTestManifestFactory{}); err == nil {
+	if _, err := NewRuntime(
+		&capabilityHostServiceTestServices{},
+		noopTestConfigFactory{},
+		nil,
+		noopTestManifestFactory{},
+	); err == nil {
 		t.Fatal("expected nil host config service to return an error")
 	}
 }

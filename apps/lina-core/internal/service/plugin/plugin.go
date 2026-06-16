@@ -537,6 +537,7 @@ func New(
 	cacheCoordSvc cachecoord.Service,
 	i18nSvc i18nsvc.Service,
 	sessionStore session.Store,
+	roleAccess runtime.RoleAccessProjector,
 	reconcilerLockSvc locker.Service,
 	runtimeUpgradeLockStore coordination.LockStore,
 	capabilityServices capability.Services,
@@ -562,6 +563,9 @@ func New(
 	}
 	if sessionStore == nil {
 		return nil, gerror.New("plugin service requires a non-nil session store")
+	}
+	if roleAccess == nil {
+		return nil, gerror.New("plugin service requires a non-nil role access projector")
 	}
 	if reconcilerLockSvc == nil {
 		return nil, gerror.New("plugin service requires a non-nil reconciler lock service")
@@ -628,6 +632,7 @@ func New(
 		&uploadSizeAdapter{configProvider},
 		&userCtxAdapter{bizCtxProvider},
 		sessionStore,
+		roleAccess,
 		integrationDelegates,
 		cacheChangeNotifier,
 		dependencyValidator,

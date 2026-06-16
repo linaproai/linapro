@@ -149,6 +149,17 @@ type RoleAccessSnapshotService interface {
 	GetUserAccessContext(ctx context.Context, userId int) (*UserAccessContext, error)
 	// GetUserDataScopeSnapshot returns the user's effective role data-scope from the cached access snapshot.
 	GetUserDataScopeSnapshot(ctx context.Context, userId int) (*datascope.AccessSnapshot, error)
+	// BuildDynamicRouteAccessProjection returns a token-bound dynamic route access
+	// projection for the supplied user and tenant. The projection reuses the same
+	// permission topology revision, token access cache, tenant scope, and
+	// fail-closed freshness checks as protected host APIs. Returned slices are
+	// detached from shared cache entries and safe for request-local mutation.
+	BuildDynamicRouteAccessProjection(
+		ctx context.Context,
+		tokenID string,
+		userID int,
+		tenantID int,
+	) (*DynamicRouteAccessProjection, error)
 	// SetDataScopeService wires the shared data-scope service used by role user operations.
 	SetDataScopeService(scopeSvc datascope.Service)
 }

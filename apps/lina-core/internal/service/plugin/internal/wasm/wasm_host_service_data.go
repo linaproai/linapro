@@ -31,7 +31,11 @@ func dispatchDataHostService(
 			"data host service authorization snapshot not found",
 		)
 	}
-	resource, err := datahost.BuildAuthorizedTableContract(ctx, table, serviceSpec.Methods)
+	resource, err := datahost.BuildCachedAuthorizedTableContract(ctx, datahost.AuthorizedTableContractInput{
+		PluginID: hcc.pluginID,
+		Table:    table,
+		Methods:  serviceSpec.Methods,
+	})
 	if err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 	}

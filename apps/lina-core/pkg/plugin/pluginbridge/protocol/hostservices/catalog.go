@@ -37,8 +37,6 @@ type ServiceDescriptor struct {
 	Service string
 	// ResourceKind describes the manifest resource declaration shape.
 	ResourceKind ResourceKind
-	// DefaultMethods are applied when a manifest declares the service without methods.
-	DefaultMethods []string
 	// Methods lists governed methods under this service.
 	Methods []MethodDescriptor
 }
@@ -159,17 +157,15 @@ var catalog = []ServiceDescriptor{
 		},
 	},
 	{
-		Service:        "hostconfig",
-		ResourceKind:   ResourceKindKey,
-		DefaultMethods: []string{"get"},
+		Service:      "hostconfig",
+		ResourceKind: ResourceKindKey,
 		Methods: []MethodDescriptor{
 			hostMethod("get", "HostServiceMethodHostConfigGet", "host:hostconfig", "HostServiceConfigKeyRequest", "HostServiceConfigValueResponse"),
 		},
 	},
 	{
-		Service:        "manifest",
-		ResourceKind:   ResourceKindPath,
-		DefaultMethods: []string{"get"},
+		Service:      "manifest",
+		ResourceKind: ResourceKindPath,
 		Methods: []MethodDescriptor{
 			hostMethod("get", "HostServiceMethodManifestGet", "host:manifest", "HostServiceManifestGetRequest", "HostServiceManifestGetResponse"),
 		},
@@ -342,7 +338,6 @@ func Catalog() []ServiceDescriptor {
 	result := make([]ServiceDescriptor, 0, len(catalog))
 	for _, descriptor := range catalog {
 		item := descriptor
-		item.DefaultMethods = append([]string(nil), descriptor.DefaultMethods...)
 		item.Methods = make([]MethodDescriptor, 0, len(descriptor.Methods))
 		for _, method := range descriptor.Methods {
 			method.Service = descriptor.Service

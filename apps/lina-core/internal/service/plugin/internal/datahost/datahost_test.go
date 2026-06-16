@@ -5,6 +5,7 @@ package datahost
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -282,6 +283,134 @@ CREATE TABLE test_datahost_identity_contract (
 	}
 	if !containsFieldName(resource.WritableFields, "title") {
 		t.Fatalf("expected title to remain writable, got writableFields=%#v", resource.WritableFields)
+	}
+}
+
+// TestBuildCachedAuthorizedTableContractUsesMigrationFingerprint verifies schema
+// metadata is reused until the plugin migration ledger changes.
+func TestBuildCachedAuthorizedTableContractUsesMigrationFingerprint(t *testing.T) {
+	ctx := context.Background()
+	pluginID := "test-plugin-datahost-contract-cache-migration"
+	tableName := "test_datahost_contract_cache_migration"
+	dropIdentityContractTable(t, ctx, tableName)
+	cleanupTableContractMigrations(t, ctx, pluginID)
+	t.Cleanup(func() {
+		dropIdentityContractTable(t, ctx, tableName)
+		cleanupTableContractMigrations(t, ctx, pluginID)
+		InvalidateTableContractCache(ctx, pluginID, "test_cleanup")
+	})
+
+	createTableContractCacheTable(t, ctx, tableName, "title VARCHAR(64) NOT NULL DEFAULT ''")
+	insertTableContractMigration(t, ctx, pluginID, plugintypes.MigrationDirectionInstall, "install-step-001", "v1")
+
+	input := AuthorizedTableContractInput{
+		PluginID: pluginID,
+		Table:    tableName,
+		Methods:  []string{protocol.HostServiceMethodDataList, protocol.HostServiceMethodDataUpdate},
+	}
+	resource, err := BuildCachedAuthorizedTableContract(ctx, input)
+	if err != nil {
+		t.Fatalf("build cached table contract failed: %v", err)
+	}
+	if !contractContainsField(resource, "title") {
+		t.Fatalf("expected initial contract to include title, got %#v", resource.Fields)
+	}
+
+	alterTableContractCacheTable(t, ctx, tableName, "body VARCHAR(64) NOT NULL DEFAULT ''")
+	cached, err := BuildCachedAuthorizedTableContract(ctx, input)
+	if err != nil {
+		t.Fatalf("build cached table contract after ddl failed: %v", err)
+	}
+	if contractContainsField(cached, "body") {
+		t.Fatalf("expected unchanged migration fingerprint to reuse cached contract, got %#v", cached.Fields)
+	}
+
+	insertTableContractMigration(t, ctx, pluginID, plugintypes.MigrationDirectionUpgrade, "upgrade-step-001", "v2")
+	refreshed, err := BuildCachedAuthorizedTableContract(ctx, input)
+	if err != nil {
+		t.Fatalf("build refreshed table contract failed: %v", err)
+	}
+	if !contractContainsField(refreshed, "body") {
+		t.Fatalf("expected migration fingerprint change to refresh contract, got %#v", refreshed.Fields)
+	}
+}
+
+// TestInvalidateTableContractCacheRefreshesLiveSchema verifies plugin-scoped
+// invalidation refreshes cached contracts even when the migration key is stable.
+func TestInvalidateTableContractCacheRefreshesLiveSchema(t *testing.T) {
+	ctx := context.Background()
+	pluginID := "test-plugin-datahost-contract-cache-invalidate"
+	tableName := "test_datahost_contract_cache_invalidate"
+	dropIdentityContractTable(t, ctx, tableName)
+	cleanupTableContractMigrations(t, ctx, pluginID)
+	t.Cleanup(func() {
+		dropIdentityContractTable(t, ctx, tableName)
+		cleanupTableContractMigrations(t, ctx, pluginID)
+		InvalidateTableContractCache(ctx, pluginID, "test_cleanup")
+	})
+
+	createTableContractCacheTable(t, ctx, tableName, "title VARCHAR(64) NOT NULL DEFAULT ''")
+	insertTableContractMigration(t, ctx, pluginID, plugintypes.MigrationDirectionInstall, "install-step-001", "v1")
+
+	input := AuthorizedTableContractInput{
+		PluginID: pluginID,
+		Table:    tableName,
+		Methods:  []string{protocol.HostServiceMethodDataList},
+	}
+	if _, err := BuildCachedAuthorizedTableContract(ctx, input); err != nil {
+		t.Fatalf("build initial cached table contract failed: %v", err)
+	}
+	alterTableContractCacheTable(t, ctx, tableName, "body VARCHAR(64) NOT NULL DEFAULT ''")
+	InvalidateTableContractCache(ctx, pluginID, "test_schema_changed")
+
+	refreshed, err := BuildCachedAuthorizedTableContract(ctx, input)
+	if err != nil {
+		t.Fatalf("build invalidated table contract failed: %v", err)
+	}
+	if !contractContainsField(refreshed, "body") {
+		t.Fatalf("expected explicit invalidation to refresh live schema, got %#v", refreshed.Fields)
+	}
+}
+
+// TestBuildCachedAuthorizedTableContractUsesAuthorizationFingerprint verifies
+// method authorization shrinkage does not reuse a broader cached contract.
+func TestBuildCachedAuthorizedTableContractUsesAuthorizationFingerprint(t *testing.T) {
+	ctx := context.Background()
+	pluginID := "test-plugin-datahost-contract-cache-auth"
+	tableName := "test_datahost_contract_cache_auth"
+	dropIdentityContractTable(t, ctx, tableName)
+	cleanupTableContractMigrations(t, ctx, pluginID)
+	t.Cleanup(func() {
+		dropIdentityContractTable(t, ctx, tableName)
+		cleanupTableContractMigrations(t, ctx, pluginID)
+		InvalidateTableContractCache(ctx, pluginID, "test_cleanup")
+	})
+
+	createTableContractCacheTable(t, ctx, tableName, "title VARCHAR(64) NOT NULL DEFAULT ''")
+	insertTableContractMigration(t, ctx, pluginID, plugintypes.MigrationDirectionInstall, "install-step-001", "v1")
+
+	full, err := BuildCachedAuthorizedTableContract(ctx, AuthorizedTableContractInput{
+		PluginID: pluginID,
+		Table:    tableName,
+		Methods:  []string{protocol.HostServiceMethodDataList, protocol.HostServiceMethodDataUpdate},
+	})
+	if err != nil {
+		t.Fatalf("build broad cached table contract failed: %v", err)
+	}
+	if !resourceAllowsOperation(full, protocol.HostServiceMethodDataUpdate) {
+		t.Fatalf("expected broad contract to allow update, got %#v", full.Operations)
+	}
+
+	shrunk, err := BuildCachedAuthorizedTableContract(ctx, AuthorizedTableContractInput{
+		PluginID: pluginID,
+		Table:    tableName,
+		Methods:  []string{protocol.HostServiceMethodDataList},
+	})
+	if err != nil {
+		t.Fatalf("build shrunk cached table contract failed: %v", err)
+	}
+	if resourceAllowsOperation(shrunk, protocol.HostServiceMethodDataUpdate) {
+		t.Fatalf("expected authorization shrink to reject old update method, got %#v", shrunk.Operations)
 	}
 }
 
@@ -592,6 +721,80 @@ func dropIdentityContractTable(t *testing.T, ctx context.Context, tableName stri
 	if _, err := g.DB().Exec(ctx, "DROP TABLE IF EXISTS "+tableName); err != nil {
 		t.Fatalf("failed to drop identity contract table %s: %v", tableName, err)
 	}
+}
+
+// createTableContractCacheTable creates a temporary plugin-owned table for
+// contract-cache tests.
+func createTableContractCacheTable(t *testing.T, ctx context.Context, tableName string, columns string) {
+	t.Helper()
+	if !testTableIdentifierPattern.MatchString(tableName) {
+		t.Fatalf("unsafe contract cache table name: %s", tableName)
+	}
+	if _, err := g.DB().Exec(ctx, fmt.Sprintf(`
+CREATE TABLE %s (
+    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    %s
+)`, tableName, columns)); err != nil {
+		t.Fatalf("failed to create contract cache table %s: %v", tableName, err)
+	}
+}
+
+// alterTableContractCacheTable adds one column to a temporary cache test table.
+func alterTableContractCacheTable(t *testing.T, ctx context.Context, tableName string, columnDDL string) {
+	t.Helper()
+	if !testTableIdentifierPattern.MatchString(tableName) {
+		t.Fatalf("unsafe contract cache table name: %s", tableName)
+	}
+	if _, err := g.DB().Exec(ctx, fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", tableName, columnDDL)); err != nil {
+		t.Fatalf("failed to alter contract cache table %s: %v", tableName, err)
+	}
+}
+
+// insertTableContractMigration writes one lifecycle migration row used by the
+// table-contract cache key.
+func insertTableContractMigration(
+	t *testing.T,
+	ctx context.Context,
+	pluginID string,
+	phase plugintypes.MigrationDirection,
+	migrationKey string,
+	checksum string,
+) {
+	t.Helper()
+	if _, err := dao.SysPluginMigration.Ctx(ctx).Data(do.SysPluginMigration{
+		PluginId:       pluginID,
+		ReleaseId:      1,
+		Phase:          phase.String(),
+		MigrationKey:   migrationKey,
+		Checksum:       checksum,
+		ExecutionOrder: 1,
+		Status:         plugintypes.MigrationExecutionStatusSucceeded.String(),
+	}).Insert(); err != nil {
+		t.Fatalf("failed to insert migration row for %s: %v", pluginID, err)
+	}
+}
+
+// cleanupTableContractMigrations removes test migration rows for one plugin ID.
+func cleanupTableContractMigrations(t *testing.T, ctx context.Context, pluginID string) {
+	t.Helper()
+	if _, err := dao.SysPluginMigration.Ctx(ctx).
+		Where(do.SysPluginMigration{PluginId: pluginID}).
+		Delete(); err != nil {
+		t.Fatalf("failed to cleanup table contract migrations for %s: %v", pluginID, err)
+	}
+}
+
+// contractContainsField reports whether a synthesized contract exposes a field.
+func contractContainsField(resource *catalog.ResourceSpec, fieldName string) bool {
+	if resource == nil {
+		return false
+	}
+	for _, field := range resource.Fields {
+		if field != nil && field.Name == fieldName {
+			return true
+		}
+	}
+	return false
 }
 
 // testTableIdentifierPattern restricts temporary test table names before they

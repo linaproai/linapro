@@ -15,9 +15,63 @@ import (
 	"lina-core/internal/service/plugin/internal/plugintypes"
 )
 
+// AuthorizedTableContractInput carries cache-scoped table contract inputs.
+type AuthorizedTableContractInput struct {
+	PluginID string   // PluginID identifies the dynamic plugin that owns the data table.
+	Table    string   // Table is the authorized table name from the host service snapshot.
+	Methods  []string // Methods are the authorized data service methods for the table.
+}
+
 // BuildAuthorizedTableContract synthesizes one internal resource contract for a
 // directly authorized data table.
 func BuildAuthorizedTableContract(
+	ctx context.Context,
+	table string,
+	methods []string,
+) (*catalog.ResourceSpec, error) {
+	return buildAuthorizedTableContractFromLiveSchema(ctx, table, methods)
+}
+
+// BuildCachedAuthorizedTableContract returns a plugin-scoped authorized table
+// contract using migration-ledger and authorization fingerprints as the cache key.
+func BuildCachedAuthorizedTableContract(
+	ctx context.Context,
+	input AuthorizedTableContractInput,
+) (*catalog.ResourceSpec, error) {
+	normalizedPluginID := strings.TrimSpace(input.PluginID)
+	normalizedTable := strings.TrimSpace(input.Table)
+	if normalizedPluginID == "" {
+		return buildAuthorizedTableContractFromLiveSchema(ctx, normalizedTable, input.Methods)
+	}
+	if normalizedTable == "" {
+		return nil, gerror.New("data service table cannot be empty")
+	}
+
+	migrationFingerprint, err := buildTableContractMigrationFingerprint(ctx, normalizedPluginID)
+	if err != nil {
+		return buildAuthorizedTableContractFromLiveSchema(ctx, normalizedTable, input.Methods)
+	}
+	key := tableContractCacheKey{
+		pluginID:                 normalizedPluginID,
+		table:                    normalizedTable,
+		migrationFingerprint:     migrationFingerprint,
+		authorizationFingerprint: buildTableContractAuthorizationFingerprint(input.Methods),
+	}
+	if cached := tableContractCache.get(key); cached != nil {
+		return cached, nil
+	}
+	resource, err := buildAuthorizedTableContractFromLiveSchema(ctx, normalizedTable, input.Methods)
+	if err != nil {
+		return nil, err
+	}
+	tableContractCache.set(key, resource)
+	return catalog.CloneResourceSpec(resource), nil
+}
+
+// buildAuthorizedTableContractFromLiveSchema rebuilds one table contract from
+// current database metadata. Callers using the cache should go through
+// BuildCachedAuthorizedTableContract instead.
+func buildAuthorizedTableContractFromLiveSchema(
 	ctx context.Context,
 	table string,
 	methods []string,

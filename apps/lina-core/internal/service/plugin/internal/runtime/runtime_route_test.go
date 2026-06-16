@@ -22,6 +22,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
+	rolesvc "lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	_ "lina-core/pkg/dbdriver"
 	tokencap "lina-core/pkg/plugin/capability/authcap/token"
@@ -140,35 +141,22 @@ func TestDynamicRouteIdentitySnapshotFiltersRolesByTokenTenant(t *testing.T) {
 		ctx          = context.Background()
 		service      = &serviceImpl{jwtConfig: routeTestJwtConfig{secret: "route-tenant-secret"}, sessionStore: session.NewDBStore()}
 		tenantAID    = 61001
-		tenantBID    = 61002
 		actingUserID = 9001
 		tokenID      = fmt.Sprintf("plugin-dev-dynamic-route-tenant-token-%d", time.Now().UnixNano())
 		tenantAPerm  = fmt.Sprintf("plugin-dev-dynamic-route:tenant-a:%d", time.Now().UnixNano())
 		tenantBPerm  = fmt.Sprintf("plugin-dev-dynamic-route:tenant-b:%d", time.Now().UnixNano())
 		platformPerm = fmt.Sprintf("plugin-dev-dynamic-route:platform:%d", time.Now().UnixNano())
 	)
-	var (
-		userID  int
-		roleIDs []int
-		menuIDs []int
-	)
+	userID := insertDynamicRouteAccessTestUser(t, ctx, tenantAID)
 	t.Cleanup(func() {
-		cleanupDynamicRouteAccessTestRows(t, ctx, tokenID, userID, roleIDs, menuIDs)
+		cleanupDynamicRouteAccessTestRows(t, ctx, tokenID, userID, nil, nil)
 	})
 
-	userID = insertDynamicRouteAccessTestUser(t, ctx, tenantAID)
-	tenantARoleID := insertDynamicRouteAccessTestRole(t, ctx, tenantAID, "tenant-a", int(datascope.ScopeSelf))
-	tenantBRoleID := insertDynamicRouteAccessTestRole(t, ctx, tenantBID, "tenant-b", int(datascope.ScopeTenant))
-	platformRoleID := insertDynamicRouteAccessTestRole(t, ctx, datascope.PlatformTenantID, "platform", int(datascope.ScopeAll))
-	tenantAMenuID := insertDynamicRouteAccessTestMenu(t, ctx, "tenant-a", tenantAPerm)
-	tenantBMenuID := insertDynamicRouteAccessTestMenu(t, ctx, "tenant-b", tenantBPerm)
-	platformMenuID := insertDynamicRouteAccessTestMenu(t, ctx, "platform", platformPerm)
-	roleIDs = []int{tenantARoleID, tenantBRoleID, platformRoleID}
-	menuIDs = []int{tenantAMenuID, tenantBMenuID, platformMenuID}
-
-	insertDynamicRouteAccessTestGrant(t, ctx, tenantAID, userID, tenantARoleID, tenantAMenuID)
-	insertDynamicRouteAccessTestGrant(t, ctx, tenantBID, userID, tenantBRoleID, tenantBMenuID)
-	insertDynamicRouteAccessTestGrant(t, ctx, datascope.PlatformTenantID, userID, platformRoleID, platformMenuID)
+	service.roleAccess = testRoleAccessProjector{projection: &rolesvc.DynamicRouteAccessProjection{
+		Permissions: []string{tenantAPerm},
+		RoleNames:   []string{"tenant-a"},
+		DataScope:   datascope.ScopeSelf,
+	}}
 	insertDynamicRouteAccessTestSession(t, ctx, tenantAID, tokenID, userID)
 
 	tokenString := signDynamicRouteImpersonationTestToken(t, service.jwtConfig, tokenID, tenantAID, userID, actingUserID)
@@ -202,8 +190,8 @@ func TestDynamicRouteIdentitySnapshotFiltersRolesByTokenTenant(t *testing.T) {
 	if containsString(identity.Permissions, platformPerm) {
 		t.Fatalf("expected platform permission to be filtered out, got %#v", identity.Permissions)
 	}
-	if identity.IsSuperAdmin {
-		t.Fatal("expected tenant-local role IDs not to inherit platform super-admin semantics")
+	if identity.DataScope != int32(datascope.ScopeSelf) {
+		t.Fatalf("expected role projection data scope %d, got %d", datascope.ScopeSelf, identity.DataScope)
 	}
 
 	identity, failure, err = service.buildDynamicRouteIdentitySnapshot(
@@ -559,6 +547,15 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+// intsToInterfaces converts test IDs into interface values for WhereIn.
+func intsToInterfaces(values []int) []interface{} {
+	items := make([]interface{}, 0, len(values))
+	for _, value := range values {
+		items = append(items, value)
+	}
+	return items
 }
 
 func runtimePackageDir(t *testing.T) string {
