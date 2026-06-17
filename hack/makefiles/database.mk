@@ -31,20 +31,20 @@ db.upgrade:
 db.mock:
 	@$(LINACTL) db.mock confirm=$(confirm)
 
-# Generate GoFrame controller scaffolding. Defaults to the host backend; use
-# p=<plugin-id> for an official plugin or dir=<backend-dir> for an explicit target.
-# 生成 GoFrame 控制器骨架。默认面向宿主后端；可通过 p=<plugin-id> 指定官方插件，
-# 或通过 dir=<backend-dir> 指定显式目标。
+# Generate GoFrame controller scaffolding. Defaults to the host backend; pass
+# dir=<backend-dir> to target another backend explicitly.
+# 生成 GoFrame 控制器骨架。默认面向宿主后端；通过 dir=<backend-dir>
+# 显式指定其他后端目标。
 ## ctrl: Generate GoFrame controller scaffolding
 .PHONY: ctrl
 ctrl:
-	@$(LINACTL) ctrl $(if $(p),p="$(p)",) $(if $(dir),dir="$(dir)",)
+	@$(LINACTL) ctrl $(if $(dir),dir="$(dir)",)
 
-# Generate DAO/DO/Entity files. Defaults to the host backend; use p=<plugin-id>
-# for an official plugin or dir=<backend-dir> for an explicit target.
-# 生成 DAO/DO/Entity 文件。默认面向宿主后端；可通过 p=<plugin-id> 指定官方插件，
-# 或通过 dir=<backend-dir> 指定显式目标。
+# Generate DAO/DO/Entity files. Defaults to the host backend; pass
+# dir=<backend-dir> to target another backend explicitly.
+# 生成 DAO/DO/Entity 文件。默认面向宿主后端；通过 dir=<backend-dir>
+# 显式指定其他后端目标。
 ## dao: Generate GoFrame DAO/DO/Entity files
 .PHONY: dao
 dao:
-	@$(LINACTL) dao $(if $(p),p="$(p)",) $(if $(dir),dir="$(dir)",)
+	@$(LINACTL) dao $(if $(dir),dir="$(dir)",)

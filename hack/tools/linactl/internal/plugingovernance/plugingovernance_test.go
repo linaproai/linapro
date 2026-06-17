@@ -37,7 +37,7 @@ hostServices:
     methods:
       - status
 `)
-	writePluginGovernanceFile(t, filepath.Join(pluginRoot, "backend", "hack", "config.yaml"), `
+	writePluginGovernanceFile(t, filepath.Join(pluginRoot, "hack", "config.yaml"), `
 gfcli:
   gen:
     dao:
@@ -80,6 +80,52 @@ func direct() {
 		if report.Summary.ByRule[rule] == 0 {
 			t.Fatalf("expected rule %s in findings, got %#v", rule, report.Summary.ByRule)
 		}
+	}
+}
+
+// TestScanRejectsLegacyBackendConfig verifies backend/hack/config.yaml is no
+// longer an accepted plugin DAO config path.
+func TestScanRejectsLegacyBackendConfig(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	pluginRoot := filepath.Join(root, "apps", "lina-plugins", "linapro-demo-dynamic")
+	writePluginGovernanceFile(t, filepath.Join(pluginRoot, "plugin.yaml"), "id: linapro-demo-dynamic\n")
+	writePluginGovernanceFile(t, filepath.Join(pluginRoot, "backend", "hack", "config.yaml"), `
+gfcli:
+  gen:
+    dao:
+      - tables: plugin_linapro_demo_dynamic_record
+`)
+
+	report, err := Scan(root)
+	if err != nil {
+		t.Fatalf("Scan returned error: %v", err)
+	}
+	if report.Summary.ByRule[ruleConfigLegacyBackendPath] != 1 {
+		t.Fatalf("expected legacy config path finding, got %#v", report.Summary.ByRule)
+	}
+	if report.Summary.ConfigFiles != 0 {
+		t.Fatalf("legacy backend config must not count as valid config file, got %d", report.Summary.ConfigFiles)
+	}
+}
+
+// TestScanRejectsGeneratedDAOWithoutRootConfig verifies generated DAO artifacts
+// remain reproducible from plugin-root hack/config.yaml.
+func TestScanRejectsGeneratedDAOWithoutRootConfig(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	pluginRoot := filepath.Join(root, "apps", "lina-plugins", "linapro-demo-dynamic")
+	writePluginGovernanceFile(t, filepath.Join(pluginRoot, "plugin.yaml"), "id: linapro-demo-dynamic\n")
+	writePluginGovernanceFile(t, filepath.Join(pluginRoot, "backend", "internal", "dao", "demo.go"), "package dao\n")
+
+	report, err := Scan(root)
+	if err != nil {
+		t.Fatalf("Scan returned error: %v", err)
+	}
+	if report.Summary.ByRule[ruleConfigMissingRootConfig] != 1 {
+		t.Fatalf("expected missing root config finding, got %#v", report.Summary.ByRule)
 	}
 }
 
@@ -143,7 +189,7 @@ hostServices:
       tables:
         - plugin_linapro_demo_dynamic_record
 `)
-	writePluginGovernanceFile(t, filepath.Join(pluginRoot, "backend", "hack", "config.yaml"), `
+	writePluginGovernanceFile(t, filepath.Join(pluginRoot, "hack", "config.yaml"), `
 gfcli:
   gen:
     dao:

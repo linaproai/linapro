@@ -94,11 +94,11 @@ Use `plugin_dir=<path>` when a test or local fixture needs to package a dynamic 
 ```bash
 go run . ctrl
 go run . dao
-go run . ctrl p=linapro-content-notice
+go run . ctrl dir=apps/lina-plugins/linapro-content-notice/backend
 go run . dao dir=apps/lina-plugins/linapro-content-notice/backend
 ```
 
-Without a target parameter, generated code uses the `apps/lina-core` GoFrame project layout and reads `apps/lina-core/hack/config.yaml`. Use `p=<plugin-id>` or `dir=<backend-dir>` to target a plugin backend and read that plugin's `backend/hack/config.yaml`. `dao` generation still requires the configured database to be reachable and initialized, so run the repository initialization flow or provide an equivalent database before using it.
+Without a target parameter, generated code uses the `apps/lina-core` GoFrame project layout and reads `apps/lina-core/hack/config.yaml`. Use `dir=<backend-dir>` to target another backend. Standard plugin backend targets keep the GoFrame working directory at `apps/lina-plugins/<plugin-id>/backend` and read code generation config from the plugin root `apps/lina-plugins/<plugin-id>/hack/config.yaml`; non-plugin targets continue to read `<backend-dir>/hack/config.yaml`. `dao` generation still requires the configured database to be reachable and initialized, so run the repository initialization flow or provide an equivalent database before using it.
 
 ## Runtime I18n Checks
 

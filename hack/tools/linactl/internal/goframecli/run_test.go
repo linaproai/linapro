@@ -18,6 +18,8 @@ func TestRunDispatchesHiddenCommandInTargetDir(t *testing.T) {
 	root := t.TempDir()
 	binary := filepath.Join(root, "bin", "linactl")
 	targetDir := filepath.Join(root, "apps", "lina-plugins", "demo", "backend")
+	configDir := filepath.Join(root, "apps", "lina-plugins", "demo", "hack")
+	target := Target{WorkDir: targetDir, ConfigDir: configDir}
 
 	for _, tc := range []struct {
 		name string
@@ -41,7 +43,7 @@ func TestRunDispatchesHiddenCommandInTargetDir(t *testing.T) {
 				return nil
 			}
 
-			err := Run(context.Background(), targetDir, func() (string, error) {
+			err := Run(context.Background(), target, func() (string, error) {
 				return binary, nil
 			}, runner, tc.args...)
 			if err != nil {
@@ -53,7 +55,7 @@ func TestRunDispatchesHiddenCommandInTargetDir(t *testing.T) {
 			if gotName != binary {
 				t.Fatalf("runner name mismatch: got %q want %q", gotName, binary)
 			}
-			expectedArgs := append([]string{hiddenCommand}, tc.args...)
+			expectedArgs := append([]string{hiddenCommand, "--config-dir=" + configDir}, tc.args...)
 			if !reflect.DeepEqual(gotArgs, expectedArgs) {
 				t.Fatalf("runner args mismatch: got %#v want %#v", gotArgs, expectedArgs)
 			}
@@ -64,35 +66,77 @@ func TestRunDispatchesHiddenCommandInTargetDir(t *testing.T) {
 	}
 }
 
-func TestResolveTargetDirAllowsControllerTargetWithoutHackConfig(t *testing.T) {
+func TestResolveTargetAllowsControllerTargetWithoutConfig(t *testing.T) {
 	root := t.TempDir()
-	targetDir := filepath.Join(root, "apps", "lina-plugins", "demo", "backend")
+	pluginRoot := filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
+	targetDir := filepath.Join(pluginRoot, "backend")
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		t.Fatalf("mkdir target dir: %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(pluginRoot, "plugin.yaml"), []byte("id: demo-plugin\n"), 0o644); err != nil {
+		t.Fatalf("write plugin manifest: %v", err)
+	}
 
-	resolved, err := ResolveTargetDir(root, TargetOptions{PluginID: "demo", PluginIDSet: true})
+	resolved, err := ResolveTarget(root, TargetOptions{Dir: "apps/lina-plugins/demo-plugin/backend", DirSet: true})
 	if err != nil {
-		t.Fatalf("ResolveTargetDir returned error: %v", err)
+		t.Fatalf("ResolveTarget returned error: %v", err)
 	}
-	if resolved != targetDir {
-		t.Fatalf("target mismatch: got %q want %q", resolved, targetDir)
+	if resolved.WorkDir != targetDir {
+		t.Fatalf("work dir mismatch: got %q want %q", resolved.WorkDir, targetDir)
+	}
+	expectedConfigDir := filepath.Join(pluginRoot, "hack")
+	if resolved.ConfigDir != expectedConfigDir {
+		t.Fatalf("config dir mismatch: got %q want %q", resolved.ConfigDir, expectedConfigDir)
 	}
 
-	_, err = ResolveTargetDir(root, TargetOptions{PluginID: "demo", PluginIDSet: true, RequireConfig: true})
-	if err == nil || !strings.Contains(err.Error(), "missing hack/config.yaml") {
+	_, err = ResolveTarget(root, TargetOptions{Dir: "apps/lina-plugins/demo-plugin/backend", DirSet: true, RequireConfig: true})
+	if err == nil || !strings.Contains(err.Error(), "missing config.yaml") {
 		t.Fatalf("expected missing config error, got %v", err)
 	}
 
-	configPath := filepath.Join(targetDir, "hack", "config.yaml")
+	configPath := filepath.Join(expectedConfigDir, "config.yaml")
 	if err = os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
 		t.Fatalf("mkdir config dir: %v", err)
 	}
 	if err = os.WriteFile(configPath, []byte("gfcli: {}\n"), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
-	if err = ValidateTargetConfig(targetDir); err != nil {
-		t.Fatalf("ValidateTargetConfig returned error: %v", err)
+	if err = ValidateConfigDir(expectedConfigDir); err != nil {
+		t.Fatalf("ValidateConfigDir returned error: %v", err)
+	}
+}
+
+func TestResolveTargetUsesCoreAndNonPluginConfigDirs(t *testing.T) {
+	root := t.TempDir()
+	coreDir := filepath.Join(root, "apps", "lina-core")
+	if err := os.MkdirAll(coreDir, 0o755); err != nil {
+		t.Fatalf("mkdir core dir: %v", err)
+	}
+
+	resolved, err := ResolveTarget(root, TargetOptions{})
+	if err != nil {
+		t.Fatalf("ResolveTarget default returned error: %v", err)
+	}
+	if resolved.WorkDir != coreDir {
+		t.Fatalf("default work dir mismatch: got %q want %q", resolved.WorkDir, coreDir)
+	}
+	if resolved.ConfigDir != filepath.Join(coreDir, "hack") {
+		t.Fatalf("default config dir mismatch: got %q", resolved.ConfigDir)
+	}
+
+	externalDir := filepath.Join(root, "temp", "external", "backend")
+	if err = os.MkdirAll(externalDir, 0o755); err != nil {
+		t.Fatalf("mkdir external dir: %v", err)
+	}
+	resolved, err = ResolveTarget(root, TargetOptions{Dir: externalDir, DirSet: true})
+	if err != nil {
+		t.Fatalf("ResolveTarget external returned error: %v", err)
+	}
+	if resolved.WorkDir != externalDir {
+		t.Fatalf("external work dir mismatch: got %q want %q", resolved.WorkDir, externalDir)
+	}
+	if resolved.ConfigDir != filepath.Join(externalDir, "hack") {
+		t.Fatalf("external config dir mismatch: got %q", resolved.ConfigDir)
 	}
 }
 
@@ -132,7 +176,7 @@ func TestRunRejectsUnsupportedCommandsBeforeExecution(t *testing.T) {
 		{"dao"},
 	} {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
-			err := Run(context.Background(), t.TempDir(), func() (string, error) {
+			err := Run(context.Background(), Target{WorkDir: t.TempDir(), ConfigDir: t.TempDir()}, func() (string, error) {
 				t.Fatalf("executable resolver should not run for invalid args")
 				return "", nil
 			}, func(context.Context, toolrun.Options, string, ...string) error {
@@ -148,7 +192,7 @@ func TestRunRejectsUnsupportedCommandsBeforeExecution(t *testing.T) {
 
 func TestRunReportsExecutableResolutionFailure(t *testing.T) {
 	expectedErr := errors.New("no executable")
-	err := Run(context.Background(), t.TempDir(), func() (string, error) {
+	err := Run(context.Background(), Target{WorkDir: t.TempDir(), ConfigDir: t.TempDir()}, func() (string, error) {
 		return "", expectedErr
 	}, func(context.Context, toolrun.Options, string, ...string) error {
 		t.Fatalf("runner should not run when executable resolution fails")
@@ -167,7 +211,7 @@ func TestRunEmbeddedRejectsUnsupportedCommandsBeforeChangingDirectory(t *testing
 	if err != nil {
 		t.Fatalf("resolve current directory: %v", err)
 	}
-	err = RunEmbedded(context.Background(), filepath.Join(t.TempDir(), "missing-root"), "install")
+	err = RunEmbedded(context.Background(), filepath.Join(t.TempDir(), "missing-config"), "install")
 	if err == nil || !strings.Contains(err.Error(), "embedded GoFrame only supports gen ctrl or gen dao") {
 		t.Fatalf("expected whitelist error, got %v", err)
 	}
@@ -195,14 +239,15 @@ func TestConfigureGoFrameCLIAllowsCtrlWithoutHackConfig(t *testing.T) {
 		}
 	})
 
-	cleanup, err := configureGoFrameCLI(false)
+	configDir := filepath.Join(t.TempDir(), "hack")
+	cleanup, err := configureGoFrameCLI(configDir, false)
 	if err != nil {
 		t.Fatalf("configureGoFrameCLI for ctrl returned error: %v", err)
 	}
 	cleanup()
 
-	_, err = configureGoFrameCLI(true)
-	if err == nil || !strings.Contains(err.Error(), "missing hack/config.yaml") {
+	_, err = configureGoFrameCLI(configDir, true)
+	if err == nil || !strings.Contains(err.Error(), "missing config.yaml") {
 		t.Fatalf("expected dao config error, got %v", err)
 	}
 }

@@ -89,7 +89,7 @@ TBD - created by archiving change refine-plugin-capability-boundaries. Update Pu
 
 #### Scenario: 源码插件生成宿主核心表 DAO
 
-- **WHEN** 插件`backend/hack/config.yaml`声明生成`sys_user`、`sys_role`、`sys_dict_data`、`sys_online_session`、`sys_plugin`或其他宿主核心表
+- **WHEN** 插件根`hack/config.yaml`声明生成`sys_user`、`sys_role`、`sys_dict_data`、`sys_online_session`、`sys_plugin`或其他宿主核心表
 - **THEN** 治理验证失败
 - **AND** 插件必须改为依赖对应领域能力契约
 
@@ -104,6 +104,18 @@ TBD - created by archiving change refine-plugin-capability-boundaries. Update Pu
 - **WHEN** 开发者执行`make plugins.check`
 - **THEN** 系统扫描`apps/lina-plugins`下所有包含`plugin.yaml`的插件目录
 - **AND** 输出插件规范检查结果，发现违规时以非零状态退出
+
+#### Scenario: 旧插件代码生成配置路径被拒绝
+
+- **WHEN** 插件目录存在`backend/hack/config.yaml`
+- **THEN** `make plugins.check`失败
+- **AND** 错误消息提示将代码生成配置迁移到插件根`hack/config.yaml`
+
+#### Scenario: 已有 DAO 生成物但缺少根配置被拒绝
+
+- **WHEN** 插件目录存在`backend/internal/dao`生成物但缺少插件根`hack/config.yaml`
+- **THEN** `make plugins.check`失败
+- **AND** 错误消息提示补齐可重生成的代码生成配置
 
 ### Requirement: 源码插件和动态插件必须共享领域能力语义
 
@@ -321,4 +333,3 @@ TBD - created by archiving change refine-plugin-capability-boundaries. Update Pu
 - **WHEN** 变更迁移宿主领域能力实现目录、动态领域分发入口或 guest 领域代理位置
 - **THEN** 任务必须检查`apps/lina-core/pkg/plugin/README.md`和`README.zh-CN.md`是否需要同步
 - **AND** 若需要更新，文档必须说明协议目录不是领域契约 owner
-

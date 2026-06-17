@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/gogf/gf/cmd/gf/v2/gfcmd"
 	"github.com/gogf/gf/v2/frame/g"
@@ -15,11 +17,11 @@ import (
 // RunEmbedded executes a whitelisted GoFrame code generation command in the
 // current process. Callers should use it only from linactl's hidden child
 // command so GoFrame CLI exits cannot terminate the parent linactl process.
-func RunEmbedded(ctx context.Context, root string, args ...string) error {
+func RunEmbedded(ctx context.Context, configDir string, args ...string) error {
 	if err := validateArgs(args); err != nil {
 		return err
 	}
-	cleanup, err := configureGoFrameCLI(args[1] == "dao")
+	cleanup, err := configureGoFrameCLI(configDir, args[1] == "dao")
 	if err != nil {
 		return err
 	}
@@ -38,9 +40,10 @@ func RunEmbedded(ctx context.Context, root string, args ...string) error {
 	return nil
 }
 
-// configureGoFrameCLI mirrors the gf CLI's hack/config.yaml lookup without
-// calling gfcmd.Command.Run, whose error path can exit the process.
-func configureGoFrameCLI(requireConfig bool) (func(), error) {
+// configureGoFrameCLI sets the gf CLI config directory without calling
+// gfcmd.Command.Run, whose default lookup path can override the explicit
+// plugin-root config directory and whose error path can exit the process.
+func configureGoFrameCLI(configDir string, requireConfig bool) (func(), error) {
 	adapter, ok := g.Cfg().GetAdapter().(*gcfg.AdapterFile)
 	if !ok {
 		return func() {}, nil
@@ -52,15 +55,19 @@ func configureGoFrameCLI(requireConfig bool) (func(), error) {
 	if err := ValidateProjectDir(workingDir); err != nil {
 		return nil, err
 	}
+	configDir = strings.TrimSpace(configDir)
+	if configDir == "" {
+		return nil, fmt.Errorf("embedded GoFrame config directory is empty")
+	}
 	if requireConfig {
-		if err := ValidateTargetConfig(workingDir); err != nil {
+		if err := ValidateConfigDir(configDir); err != nil {
 			return nil, err
 		}
 	}
-	configPath := "hack"
+	configPath := configDir
 	cleanup := func() {}
 	if !requireConfig {
-		if _, err := os.Stat("hack/config.yaml"); err != nil {
+		if _, err := os.Stat(filepath.Join(configDir, "config.yaml")); err != nil {
 			if os.IsNotExist(err) {
 				tempDir, mkErr := os.MkdirTemp("", "linactl-goframe-config-*")
 				if mkErr != nil {

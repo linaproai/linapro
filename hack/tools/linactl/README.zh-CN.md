@@ -94,11 +94,11 @@ make wasm p=linapro-demo-dynamic
 ```bash
 go run . ctrl
 go run . dao
-go run . ctrl p=linapro-content-notice
+go run . ctrl dir=apps/lina-plugins/linapro-content-notice/backend
 go run . dao dir=apps/lina-plugins/linapro-content-notice/backend
 ```
 
-未传入目标参数时，生成流程使用`apps/lina-core`的`GoFrame`项目布局，并读取`apps/lina-core/hack/config.yaml`。使用`p=<plugin-id>`或`dir=<backend-dir>`可以定向插件后端，并读取该插件的`backend/hack/config.yaml`。`dao`生成仍要求配置的数据库可连接且已初始化，因此执行前需要先运行仓库初始化流程或准备等价数据库。
+未传入目标参数时，生成流程使用`apps/lina-core`的`GoFrame`项目布局，并读取`apps/lina-core/hack/config.yaml`。使用`dir=<backend-dir>`可以定向其他后端。标准插件后端目标会保持`GoFrame`工作目录为`apps/lina-plugins/<plugin-id>/backend`，并从插件根`apps/lina-plugins/<plugin-id>/hack/config.yaml`读取代码生成配置；非插件目标继续读取`<backend-dir>/hack/config.yaml`。`dao`生成仍要求配置的数据库可连接且已初始化，因此执行前需要先运行仓库初始化流程或准备等价数据库。
 
 ## 运行时 I18n 检查
 

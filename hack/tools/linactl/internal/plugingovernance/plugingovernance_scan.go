@@ -25,6 +25,8 @@ const (
 	categoryLegacy      = "LegacyBoundary"
 
 	ruleConfigCoreTable          = "plugin-dao-config-core-table"
+	ruleConfigLegacyBackendPath  = "plugin-dao-config-legacy-backend-path"
+	ruleConfigMissingRootConfig  = "plugin-dao-config-missing-root-config"
 	ruleGeneratedCoreTableFile   = "plugin-generated-core-table-file"
 	ruleGoSharedCoreTable        = "plugin-go-shared-core-table"
 	ruleGoModelCoreTable         = "plugin-go-model-core-table"
@@ -185,11 +187,46 @@ func discoverPluginRoots(repoRoot string) ([]string, error) {
 	return roots, nil
 }
 
-// scanPluginDAOConfig blocks plugin DAO generation for host sys_* tables.
+// scanPluginDAOConfig blocks legacy config locations, missing reproducible DAO
+// configs, and plugin DAO generation for host sys_* tables.
 func scanPluginDAOConfig(repoRoot string, pluginRoot string, report *Report) error {
-	configPath := filepath.Join(pluginRoot, "backend", "hack", "config.yaml")
+	legacyConfigPath := filepath.Join(pluginRoot, "backend", "hack", "config.yaml")
+	if _, err := os.Stat(legacyConfigPath); err == nil {
+		relPath, relErr := relSlash(repoRoot, legacyConfigPath)
+		if relErr != nil {
+			return relErr
+		}
+		addFinding(
+			report,
+			relPath,
+			1,
+			ruleConfigLegacyBackendPath,
+			categoryConfig,
+			"plugin DAO config must move from backend/hack/config.yaml to plugin-root hack/config.yaml",
+			relPath,
+		)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("stat plugin legacy DAO config %s: %w", legacyConfigPath, err)
+	}
+
+	configPath := filepath.Join(pluginRoot, "hack", "config.yaml")
 	if _, err := os.Stat(configPath); err != nil {
 		if os.IsNotExist(err) {
+			if hasGeneratedDAO(pluginRoot) {
+				relPath, relErr := relSlash(repoRoot, filepath.Join(pluginRoot, "backend", "internal", "dao"))
+				if relErr != nil {
+					return relErr
+				}
+				addFinding(
+					report,
+					relPath,
+					1,
+					ruleConfigMissingRootConfig,
+					categoryConfig,
+					"plugin generated DAO files require plugin-root hack/config.yaml for reproducible generation",
+					relPath,
+				)
+			}
 			return nil
 		}
 		return fmt.Errorf("stat plugin DAO config %s: %w", configPath, err)
@@ -213,12 +250,17 @@ func scanPluginDAOConfig(repoRoot string, pluginRoot string, report *Report) err
 				item.Line,
 				ruleConfigCoreTable,
 				categoryConfig,
-				"plugin backend/hack/config.yaml must not generate host sys_* tables",
+				"plugin root hack/config.yaml must not generate host sys_* tables",
 				item.Table,
 			)
 		}
 	}
 	return nil
+}
+
+func hasGeneratedDAO(pluginRoot string) bool {
+	info, err := os.Stat(filepath.Join(pluginRoot, "backend", "internal", "dao"))
+	return err == nil && info.IsDir()
 }
 
 // scanPluginManifest validates dynamic hostServices data table ownership and

@@ -290,7 +290,7 @@ func TestRunCtrlDispatchesEmbeddedGoFrame(t *testing.T) {
 		t.Fatalf("runCtrl returned error: %v", err)
 	}
 
-	requireSingleGoFrameDispatch(t, calls, filepath.Join(root, "apps", "lina-core"), filepath.Join(root, "linactl-test"), []string{"__goframe", "gen", "ctrl"})
+	requireSingleGoFrameDispatch(t, calls, filepath.Join(root, "apps", "lina-core"), filepath.Join(root, "linactl-test"), []string{"__goframe", "--config-dir=" + filepath.Join(root, "apps", "lina-core", "hack"), "gen", "ctrl"})
 }
 
 // TestRunDaoDispatchesEmbeddedGoFrame verifies linactl dao starts the hidden
@@ -304,55 +304,92 @@ func TestRunDaoDispatchesEmbeddedGoFrame(t *testing.T) {
 		t.Fatalf("runDao returned error: %v", err)
 	}
 
-	requireSingleGoFrameDispatch(t, calls, filepath.Join(root, "apps", "lina-core"), filepath.Join(root, "linactl-test"), []string{"__goframe", "gen", "dao"})
+	requireSingleGoFrameDispatch(t, calls, filepath.Join(root, "apps", "lina-core"), filepath.Join(root, "linactl-test"), []string{"__goframe", "--config-dir=" + filepath.Join(root, "apps", "lina-core", "hack"), "gen", "dao"})
 }
 
-// TestRunCtrlDispatchesToPluginBackend verifies plugin ID targeting resolves
-// to the plugin backend GoFrame project directory.
+// TestRunCtrlDispatchesToPluginBackend verifies explicit dir targeting resolves
+// to the plugin backend work directory and plugin-root config directory.
 func TestRunCtrlDispatchesToPluginBackend(t *testing.T) {
 	root := t.TempDir()
-	pluginBackend := filepath.Join(root, "apps", "lina-plugins", "demo-plugin", "backend")
-	writeFile(t, filepath.Join(pluginBackend, "hack", "config.yaml"), "gfcli: {}\n")
+	pluginRoot := filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
+	pluginBackend := filepath.Join(pluginRoot, "backend")
+	if err := os.MkdirAll(pluginBackend, 0o755); err != nil {
+		t.Fatalf("mkdir plugin backend: %v", err)
+	}
+	writeFile(t, filepath.Join(pluginRoot, "plugin.yaml"), "id: demo-plugin\n")
+	writeFile(t, filepath.Join(pluginRoot, "hack", "config.yaml"), "gfcli: {}\n")
 	application, calls := newGoFrameDispatchTestApp(t, root, filepath.Join(root, "linactl-test"))
 
-	if err := runCtrl(context.Background(), application, commandInput{Params: map[string]string{"p": "demo-plugin"}}); err != nil {
+	if err := runCtrl(context.Background(), application, commandInput{Params: map[string]string{"dir": "apps/lina-plugins/demo-plugin/backend"}}); err != nil {
 		t.Fatalf("runCtrl returned error: %v", err)
 	}
 
-	requireSingleGoFrameDispatch(t, calls, pluginBackend, filepath.Join(root, "linactl-test"), []string{"__goframe", "gen", "ctrl"})
+	requireSingleGoFrameDispatch(t, calls, pluginBackend, filepath.Join(root, "linactl-test"), []string{"__goframe", "--config-dir=" + filepath.Join(pluginRoot, "hack"), "gen", "ctrl"})
 }
 
 // TestRunDaoDispatchesToExplicitBackendDir verifies Makefile wrappers can pass
 // a relative backend directory directly.
 func TestRunDaoDispatchesToExplicitBackendDir(t *testing.T) {
 	root := t.TempDir()
-	pluginBackend := filepath.Join(root, "apps", "lina-plugins", "demo-plugin", "backend")
-	writeFile(t, filepath.Join(pluginBackend, "hack", "config.yaml"), "gfcli: {}\n")
+	pluginRoot := filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
+	pluginBackend := filepath.Join(pluginRoot, "backend")
+	if err := os.MkdirAll(pluginBackend, 0o755); err != nil {
+		t.Fatalf("mkdir plugin backend: %v", err)
+	}
+	writeFile(t, filepath.Join(pluginRoot, "plugin.yaml"), "id: demo-plugin\n")
+	writeFile(t, filepath.Join(pluginRoot, "hack", "config.yaml"), "gfcli: {}\n")
 	application, calls := newGoFrameDispatchTestApp(t, root, filepath.Join(root, "linactl-test"))
 
 	if err := runDao(context.Background(), application, commandInput{Params: map[string]string{"dir": "apps/lina-plugins/demo-plugin/backend"}}); err != nil {
 		t.Fatalf("runDao returned error: %v", err)
 	}
 
-	requireSingleGoFrameDispatch(t, calls, pluginBackend, filepath.Join(root, "linactl-test"), []string{"__goframe", "gen", "dao"})
+	requireSingleGoFrameDispatch(t, calls, pluginBackend, filepath.Join(root, "linactl-test"), []string{"__goframe", "--config-dir=" + filepath.Join(pluginRoot, "hack"), "gen", "dao"})
 }
 
 // TestRunDaoRejectsTargetWithoutGoFrameConfig keeps failures actionable before
 // the hidden GoFrame subprocess is started.
 func TestRunDaoRejectsTargetWithoutGoFrameConfig(t *testing.T) {
 	root := t.TempDir()
-	pluginBackend := filepath.Join(root, "apps", "lina-plugins", "demo-plugin", "backend")
+	pluginRoot := filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
+	pluginBackend := filepath.Join(pluginRoot, "backend")
 	if err := os.MkdirAll(pluginBackend, 0o755); err != nil {
 		t.Fatalf("mkdir plugin backend: %v", err)
 	}
+	writeFile(t, filepath.Join(pluginRoot, "plugin.yaml"), "id: demo-plugin\n")
 	application, calls := newGoFrameDispatchTestApp(t, root, filepath.Join(root, "linactl-test"))
 
-	err := runDao(context.Background(), application, commandInput{Params: map[string]string{"p": "demo-plugin"}})
-	if err == nil || !strings.Contains(err.Error(), "missing hack/config.yaml") {
+	err := runDao(context.Background(), application, commandInput{Params: map[string]string{"dir": "apps/lina-plugins/demo-plugin/backend"}})
+	if err == nil || !strings.Contains(err.Error(), "missing config.yaml") {
 		t.Fatalf("expected missing config error, got %v", err)
 	}
 	if len(*calls) != 0 {
 		t.Fatalf("hidden GoFrame child should not run for invalid target: %#v", *calls)
+	}
+}
+
+// TestRunGoFrameRejectsLegacyTargetParams verifies code generation target
+// selection has one explicit surface: dir=<path>.
+func TestRunGoFrameRejectsLegacyTargetParams(t *testing.T) {
+	application, calls := newGoFrameDispatchTestApp(t, t.TempDir(), filepath.Join(t.TempDir(), "linactl-test"))
+
+	for _, tc := range []struct {
+		name   string
+		params map[string]string
+	}{
+		{name: "p", params: map[string]string{"p": "demo-plugin"}},
+		{name: "plugin", params: map[string]string{"plugin": "demo-plugin"}},
+		{name: "target", params: map[string]string{"target": "apps/lina-core"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := runDao(context.Background(), application, commandInput{Params: tc.params})
+			if err == nil || !strings.Contains(err.Error(), "is not supported; use dir=<path>") {
+				t.Fatalf("expected legacy parameter error, got %v", err)
+			}
+		})
+	}
+	if len(*calls) != 0 {
+		t.Fatalf("hidden GoFrame child should not run for legacy target params: %#v", *calls)
 	}
 }
 
@@ -366,7 +403,7 @@ func TestRunEmbeddedGoFrameRejectsParameters(t *testing.T) {
 		Args:   []string{"gen", "ctrl"},
 		Params: map[string]string{"path": "api"},
 	})
-	if err == nil || !strings.Contains(err.Error(), "only supports positional commands") {
+	if err == nil || !strings.Contains(err.Error(), "only supports config-dir plus positional commands") {
 		t.Fatalf("expected hidden command parameter error, got %v", err)
 	}
 }
@@ -2839,7 +2876,10 @@ func TestHelperEmbeddedGoFrameCtrl(t *testing.T) {
 	}
 	application := newApp(os.Stdout, os.Stderr, strings.NewReader(""))
 	application.root = os.Args[len(os.Args)-1]
-	if err := runEmbeddedGoFrame(context.Background(), application, commandInput{Args: []string{"gen", "ctrl"}}); err != nil {
+	if err := runEmbeddedGoFrame(context.Background(), application, commandInput{
+		Args:   []string{"gen", "ctrl"},
+		Params: map[string]string{"config_dir": filepath.Join(application.root, "apps", "lina-core", "hack")},
+	}); err != nil {
 		t.Fatalf("run embedded GoFrame ctrl: %v", err)
 	}
 	os.Exit(0)

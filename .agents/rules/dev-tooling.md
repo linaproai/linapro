@@ -23,9 +23,6 @@
 
 - `hack/tools/linactl/`下承载具体`make`或`linactl`命令实现的源码文件，必须按对应命令名称命名为`command_<command>.go`。
 - `<command>`保持命令的点分段语义。例如`make dev`对应`command_dev.go`，`make build`对应`command_build.go`，`make env.setup`对应`command_env.setup.go`。
-- 同一文件只应承载该命令的主实现及其紧密私有辅助逻辑。
-- 跨命令复用能力应提取到职责明确的非命令文件或内部组件。
-- 禁止继续把多个无直接归属的命令混放到`command_ops.go`这类兜底文件中。
 - 若命令名与 Go 工具链文件后缀规则冲突，必须使用明确的命令专属后缀并记录原因，例如`test`命令使用`command_testcmd.go`，`wasm`命令使用`command_wasmcmd.go`。
 
 ## linactl 子组件组织要求

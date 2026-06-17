@@ -16,8 +16,6 @@ apps/lina-plugins/<plugin-id>/
 ├── Makefile                         # 插件make指令入口
 ├── backend/
 │   ├── api/                         # API DTO与路由契约
-│   ├── hack/
-│   │   └── config.yaml              # make dao等插件开发配置
 │   ├── internal/
 │   │   ├── controller/              # HTTP控制器
 │   │   ├── service/                 # 业务服务层
@@ -28,6 +26,7 @@ apps/lina-plugins/<plugin-id>/
 │   ├── pages/                       # 插件页面
 │   └── slots/                       # 插槽页面，可选
 ├── hack/                            # 插件自身脚本和工具
+│   ├── config.yaml                  # make dao等插件开发期代码生成配置
 │   └── tests/                       # 插件测试内容
 │       └── e2e/                     # 插件 e2e 测试内容
 ├── manifest/
@@ -69,7 +68,7 @@ apps/lina-plugins/<plugin-id>/
 
 ## 插件数据库访问要求
 
-- 插件的后端代码生成工具配置维护在`backend/hack/config.yaml`。
+- 插件的后端代码生成工具配置维护在插件根`hack/config.yaml`，GoFrame 生成工作目录仍为插件`backend/`。
 - 禁止插件重新依赖宿主的`dao/do/entity`生成工件。
 - 动态插件涉及宿主数据访问时，必须通过`plugin.yaml`的`hostServices`资源边界和宿主授权的 host service 协议。
 
