@@ -26,7 +26,7 @@ apps/lina-plugins/<plugin-id>/
 │   ├── pages/                       # 插件页面
 │   └── slots/                       # 插槽页面，可选
 ├── hack/                            # 插件自身脚本和工具
-│   ├── config.yaml                  # make dao等插件开发期代码生成配置
+│   ├── config.yaml                  # make dao等插件开发期代码生成配置和自定义构建指令
 │   └── tests/                       # 插件测试内容
 │       └── e2e/                     # 插件 e2e 测试内容
 ├── manifest/
@@ -56,6 +56,7 @@ apps/lina-plugins/<plugin-id>/
 - 插件多语言资源放在`manifest/i18n/<locale>/`，API 文档翻译资源放在`manifest/i18n/<locale>/apidoc/`。
 - 插件 SQL 必须遵守`.agents/rules/database.md`。
 - 插件 i18n 资源必须遵守`.agents/rules/i18n.md`。
+- 插件自定义构建指令统一放在插件根`hack/config.yaml`的`build.commands`下，由仓库根`make build`或`linactl build`读取执行。
 
 ## 插件后端同构开发结构要求
 

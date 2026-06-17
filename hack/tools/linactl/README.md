@@ -18,6 +18,7 @@ go run . db.upgrade confirm=upgrade
 go run . db.mock confirm=mock
 go run . tidy
 go run . build platforms=linux/amd64,linux/arm64
+go run . build dir=apps/lina-plugins/john-ai-agentbox
 go run . image tag=v0.2.0 push=0
 go run . version to=v0.2.0
 go run . release.tag.check tag=v0.2.0
@@ -61,6 +62,7 @@ In PowerShell, run it with an explicit current-directory prefix:
 | --- | --- | --- |
 | `confirm` | `confirm=upgrade` | Confirms sensitive database maintenance commands. |
 | `rebuild` | `rebuild=true` | Rebuilds the configured database during `db.init`. |
+| `dir` | `dir=apps/lina-plugins/john-ai-agentbox` | Selects one build target directory for `build`. Omit it to build the host framework, default workspace, and every enabled plugin. |
 | `platforms` | `platforms=linux/amd64,linux/arm64` | Selects build target platforms. |
 | `plugins` | `plugins=0` | Overrides automatic plugin-full detection for build, dev, image, and Go test commands. |
 | `to` | `to=v0.2.0` | Selects the framework version written by `version`. |
@@ -74,6 +76,18 @@ In PowerShell, run it with an explicit current-directory prefix:
 | `verbose` | `verbose=1` | Shows child command output for build tasks. |
 
 When `plugins` is omitted, build and dev commands enable plugin-full mode if `apps/lina-plugins` contains plugin manifests. Plugin-full mode generates or refreshes ignored `temp/go.work.plugins` from the host-only root `go.work`, then resolves source-plugin Go modules through `GOWORK`.
+
+`linactl build` without `dir` builds the host framework backend, the default admin workspace frontend, host manifest assets, and all enabled official plugins. Use `dir=<path>` for a cross-platform targeted build from the repository root or through `make.cmd`, for example `dir=apps/lina-vben`, `dir=apps/lina-core`, or `dir=apps/lina-plugins/<plugin-id>`.
+
+Plugins keep custom build commands in the plugin root `hack/config.yaml` under `build.commands`. `linactl build` executes those commands from the plugin root; `$(PLUGIN_ROOT)` expands to the plugin directory and `$(REPO_ROOT)` expands to the repository root:
+
+```yaml
+build:
+  commands:
+    - pnpm --dir "$(PLUGIN_ROOT)/frontend" run build
+```
+
+When `dir=apps/lina-plugins/<plugin-id>` is passed, `linactl build` runs only that plugin's configured commands.
 
 ## Build Tool Commands
 

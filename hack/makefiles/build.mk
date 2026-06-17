@@ -28,6 +28,9 @@ endif
 ifneq ($(origin plugins), undefined)
 BUILD_CONFIG_ARGS += plugins=$(plugins)
 endif
+ifneq ($(origin dir), undefined)
+BUILD_CONFIG_ARGS += dir=$(dir)
+endif
 
 WASM_ARGS := p="$(p)" out="$(abspath $(OUTPUT_DIR))" verbose=$(verbose)
 ifneq ($(origin dry_run), undefined)

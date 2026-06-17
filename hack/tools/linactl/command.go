@@ -102,7 +102,7 @@ func commandRegistry() map[string]commandSpec {
 		{Name: "plugins.install", Description: "Install configured source plugins into apps/lina-plugins.", Usage: "linactl plugins.install [p=<plugin-id>] [source=<name>] [force=1]", Run: runPluginsInstall},
 		{Name: "plugins.update", Description: "Update configured source plugins in apps/lina-plugins.", Usage: "linactl plugins.update [p=<plugin-id>] [source=<name>] [force=1]", Run: runPluginsUpdate},
 		{Name: "plugins.status", Description: "Show configured source-plugin workspace status.", Usage: "linactl plugins.status [p=<plugin-id>] [source=<name>]", Run: runPluginsStatus},
-		{Name: "build", Description: "Build frontend assets, plugin artifacts, and host binaries.", Usage: "linactl build [plugins=auto|0|1] [platforms=linux/amd64] [verbose=1]", Run: runBuild},
+		{Name: "build", Description: "Build frontend assets, plugin artifacts, and host binaries.", Usage: "linactl build [dir=apps/lina-plugins/<plugin-id>] [plugins=auto|0|1] [platforms=linux/amd64] [verbose=1]", Run: runBuild},
 		{Name: "image", Description: "Build the production Docker image.", Usage: "linactl image [tag=v0.6.0] [push=1]", Run: runImage},
 		{Name: "image.build", Description: "Stage image build artifacts without invoking Docker build.", Usage: "linactl image.build [tag=v0.6.0]", Run: runImageBuild},
 		{Name: "version", Description: "Update framework.version metadata and README image cache keys.", Usage: "linactl version to=v0.6.0", Run: runVersion},

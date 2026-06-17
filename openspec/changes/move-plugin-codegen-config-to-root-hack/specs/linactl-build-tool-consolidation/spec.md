@@ -74,3 +74,26 @@
 - **WHEN** 开发者运行`linactl dao target=<path>`
 - **THEN** 命令失败
 - **AND** 错误消息说明`target=`不再受支持，必须使用`dir=`
+
+### Requirement: 插件自定义构建指令必须从插件根配置读取
+
+系统 SHALL 允许源码插件和动态插件在插件根`hack/config.yaml`中通过`build.commands`声明自定义构建指令。仓库根目录执行`make build`或`linactl build`且未指定`dir=`时，系统 MUST 遍历`apps/lina-plugins`下所有包含`plugin.yaml`的直接插件目录并执行对应插件的自定义构建指令；指定`dir=apps/lina-plugins/<plugin-id>`时，系统 MUST 只执行该插件的构建。插件自定义构建指令 MUST 在插件根目录中执行，并支持`$(PLUGIN_ROOT)`和`$(REPO_ROOT)`变量展开。
+
+#### Scenario: 根目录构建遍历所有插件
+
+- **WHEN** 开发者在仓库根目录运行`make build`且未指定`dir=`
+- **THEN** 系统构建宿主前端、宿主打包资源和宿主后端
+- **AND** 遍历`apps/lina-plugins`下所有直接插件目录
+- **AND** 对每个包含`plugin.yaml`的插件执行其`hack/config.yaml`中的`build.commands`
+
+#### Scenario: 定向构建只执行指定插件
+
+- **WHEN** 开发者运行`make build dir=apps/lina-plugins/<plugin-id>`
+- **THEN** 系统只执行该插件`hack/config.yaml`中的`build.commands`
+- **AND** 不执行其他插件的构建指令
+
+#### Scenario: 插件未声明自定义构建指令
+
+- **WHEN** 插件根`hack/config.yaml`不存在或未声明`build.commands`
+- **THEN** 系统跳过该插件的自定义构建指令
+- **AND** 不将缺少自定义构建指令视为错误

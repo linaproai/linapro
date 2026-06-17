@@ -146,11 +146,11 @@ jobs:
 
           make -C "$smoke_root" dev plugins=0 BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port"
           make -C "$smoke_root" status BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port" | tee "$RUNNER_TEMP/dev-status.txt"
-          grep -q "Backend" "$RUNNER_TEMP/dev-status.txt"
-          grep -q "Frontend" "$RUNNER_TEMP/dev-status.txt"
+          grep -q "Lina Core" "$RUNNER_TEMP/dev-status.txt"
+          grep -q "Lina Vben" "$RUNNER_TEMP/dev-status.txt"
           make -C "$smoke_root" stop BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port"
-          test ! -f "$smoke_root/temp/pids/backend.pid"
-          test ! -f "$smoke_root/temp/pids/frontend.pid"
+          test ! -f "$smoke_root/temp/pids/lina-core.pid"
+          test ! -f "$smoke_root/temp/pids/lina-vben.pid"
 
       # Verify wasm through a real isolated dynamic plugin build and artifact assertion.
       # 通过真实隔离动态插件构建和产物断言验证 wasm 指令。

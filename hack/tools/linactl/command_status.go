@@ -63,7 +63,7 @@ func runStatus(_ context.Context, a *app, input commandInput) error {
 			pidText = strconv.Itoa(pid)
 		}
 		rows = append(rows, devservice.StatusRow{
-			Service: service.Name,
+			Entry:   devservice.EntryName(service),
 			Status:  status,
 			URL:     service.URL,
 			PID:     pidText,

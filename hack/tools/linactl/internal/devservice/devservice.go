@@ -30,15 +30,16 @@ const readinessLogTailLines = 30
 
 // Config stores development service paths and ports.
 type Config struct {
-	Name      string
-	URL       string
-	Port      int
-	PIDPath   string
-	LogPath   string
-	WorkDir   string
-	StartName string
-	StartArgs []string
-	Env       []string
+	Name        string
+	DisplayName string
+	URL         string
+	Port        int
+	PIDPath     string
+	LogPath     string
+	WorkDir     string
+	StartName   string
+	StartArgs   []string
+	Env         []string
 }
 
 // RunnerContextServiceEnvKey carries service-level environment additions to
@@ -47,7 +48,7 @@ const RunnerContextServiceEnvKey = "LINACTL_SERVICE_ENV"
 
 // StatusRow stores one printable development service status row.
 type StatusRow struct {
-	Service string
+	Entry   string
 	Status  string
 	URL     string
 	PID     string
@@ -80,26 +81,36 @@ func Services(root string, backendPort int, frontendPort int) []Config {
 	pidDir := filepath.Join(tempDir, "pids")
 	return []Config{
 		{
-			Name:    "Backend",
-			URL:     fmt.Sprintf("http://127.0.0.1:%d/", backendPort),
-			Port:    backendPort,
-			PIDPath: filepath.Join(pidDir, "backend.pid"),
-			LogPath: filepath.Join(tempDir, "lina-core.log"),
-			WorkDir: filepath.Join(root, "apps", "lina-core"),
+			Name:        "Backend",
+			DisplayName: "Lina Core",
+			URL:         fmt.Sprintf("http://127.0.0.1:%d/", backendPort),
+			Port:        backendPort,
+			PIDPath:     filepath.Join(pidDir, "lina-core.pid"),
+			LogPath:     filepath.Join(tempDir, "lina-core.log"),
+			WorkDir:     filepath.Join(root, "apps", "lina-core"),
 			Env: []string{
 				fmt.Sprintf("LINAPRO_FRONTEND_DEV_SERVER_URL=http://127.0.0.1:%d", frontendPort),
 			},
 		},
 		{
-			Name:      "Frontend",
-			URL:       fmt.Sprintf("http://127.0.0.1:%d/", frontendPort),
-			Port:      frontendPort,
-			PIDPath:   filepath.Join(pidDir, "frontend.pid"),
-			LogPath:   filepath.Join(tempDir, "lina-vben.log"),
-			WorkDir:   filepath.Join(root, "apps", "lina-vben", "apps", "web-antd"),
-			StartArgs: []string{"--mode", "development", "--host", "127.0.0.1", "--port", strconv.Itoa(frontendPort), "--strictPort"},
+			Name:        "Frontend",
+			DisplayName: "Lina Vben",
+			URL:         fmt.Sprintf("http://127.0.0.1:%d/", frontendPort),
+			Port:        frontendPort,
+			PIDPath:     filepath.Join(pidDir, "lina-vben.pid"),
+			LogPath:     filepath.Join(tempDir, "lina-vben.log"),
+			WorkDir:     filepath.Join(root, "apps", "lina-vben", "apps", "web-antd"),
+			StartArgs:   []string{"--mode", "development", "--host", "127.0.0.1", "--port", strconv.Itoa(frontendPort), "--strictPort"},
 		},
 	}
+}
+
+// EntryName returns the user-facing development entry name for terminal output.
+func EntryName(service Config) string {
+	if strings.TrimSpace(service.DisplayName) != "" {
+		return service.DisplayName
+	}
+	return service.Name
 }
 
 // ReadinessURL returns the URL that WaitHTTP should probe for the given
@@ -117,7 +128,7 @@ func ReadinessURL(service Config) string {
 
 // PrintStatusTable renders development service status without terminal-specific dependencies.
 func PrintStatusTable(out io.Writer, rows []StatusRow) error {
-	headers := []string{"Service", "Status", "URL", "PID", "PID File", "Log File"}
+	headers := []string{"Entry", "Status", "URL", "PID", "PID File", "Log File"}
 	widths := make([]int, len(headers))
 	for i, header := range headers {
 		widths[i] = len(header)
@@ -153,7 +164,7 @@ func PrintStatusTable(out io.Writer, rows []StatusRow) error {
 
 // values returns the printable table cells for one service status row.
 func (r StatusRow) values() []string {
-	return []string{r.Service, r.Status, r.URL, r.PID, r.PIDFile, r.LogFile}
+	return []string{r.Entry, r.Status, r.URL, r.PID, r.PIDFile, r.LogFile}
 }
 
 // printTableBorder prints one ASCII border line for a table.
