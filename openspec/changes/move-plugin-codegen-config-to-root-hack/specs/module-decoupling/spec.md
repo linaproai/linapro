@@ -2,7 +2,7 @@
 
 ### Requirement:源码插件后端数据库访问在插件内闭环
 
-系统 SHALL 要求官方源码插件在各自插件根目录维护独立的 GoFrame ORM 代码生成配置，并通过插件本地的`dao/do/entity`完成数据库访问，避免重新依赖宿主`dao/model`包或长期保留散落的`g.DB().Model(...)`直连实现。插件代码生成配置 MUST 位于插件根`hack/config.yaml`；插件自定义构建指令 MUST 位于同一文件的`build.commands`下；GoFrame 生成工作目录 MUST 保持为插件`backend/`目录。
+系统 SHALL 要求官方源码插件在各自插件根目录维护独立的插件本地工具配置，并通过插件本地的`dao/do/entity`完成数据库访问，避免重新依赖宿主`dao/model`包或长期保留散落的`g.DB().Model(...)`直连实现。插件根`hack/config.yaml`MUST 作为插件本地工具配置入口；其中`gfcli.gen.dao`承载 GoFrame ORM 代码生成配置，`build.commands`承载插件自定义构建指令；GoFrame 生成工作目录 MUST 保持为插件`backend/`目录。
 
 #### Scenario:插件后端维护独立的代码生成配置
 

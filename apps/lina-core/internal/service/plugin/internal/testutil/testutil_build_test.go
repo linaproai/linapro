@@ -9,9 +9,9 @@ import (
 	"testing"
 )
 
-// TestEnsureBuildWasmPluginWorkspaceReusesOfficialPluginRootModule verifies
-// test helpers keep the official plugin root module as the lina-plugins bridge.
-func TestEnsureBuildWasmPluginWorkspaceReusesOfficialPluginRootModule(t *testing.T) {
+// TestEnsureBuildWasmPluginWorkspaceGeneratesAggregateModule verifies test
+// helpers use the generated bridge module even if a stale root module exists.
+func TestEnsureBuildWasmPluginWorkspaceGeneratesAggregateModule(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeBuildWorkspaceTestFile(t, filepath.Join(repoRoot, "go.work"), `go 1.25.0
 
@@ -33,14 +33,17 @@ use (
 		t.Fatalf("read generated plugin workspace: %v", err)
 	}
 	text := string(content)
-	if strings.Contains(text, "./official-plugins") {
-		t.Fatalf("expected official plugin root module to replace fallback aggregate, got:\n%s", text)
+	if !strings.Contains(text, "./official-plugins") {
+		t.Fatalf("expected generated workspace to include official plugin aggregate, got:\n%s", text)
 	}
-	if !strings.Contains(text, "../apps/lina-plugins\n") {
-		t.Fatalf("expected generated workspace to include official plugin root module, got:\n%s", text)
+	if strings.Contains(text, "../apps/lina-plugins\n") {
+		t.Fatalf("expected generated workspace to skip official plugin root module, got:\n%s", text)
 	}
 	if !strings.Contains(text, "../apps/lina-plugins/linapro-demo-dynamic\n") {
 		t.Fatalf("expected generated workspace to include dynamic plugin module, got:\n%s", text)
+	}
+	if _, err = os.Stat(filepath.Join(repoRoot, "temp", "official-plugins", "go.mod")); err != nil {
+		t.Fatalf("expected generated aggregate go.mod: %v", err)
 	}
 }
 

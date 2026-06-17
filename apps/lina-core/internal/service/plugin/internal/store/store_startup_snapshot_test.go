@@ -254,6 +254,173 @@ func TestSyncManifestMigratesLegacyHostRuntimeSnapshot(t *testing.T) {
 	}
 }
 
+// TestSyncManifestMigratesLegacyStandaloneConfigSnapshot verifies startup
+// synchronization can repair old release snapshots that used service: config
+// before plugin config reads moved under plugins.config.get.
+func TestSyncManifestMigratesLegacyStandaloneConfigSnapshot(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		svcs     = testutil.NewServices()
+		pluginID = "acme-demo-legacy-config-snapshot"
+		version  = "v0.1.0"
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest := &catalog.Manifest{
+		ID:                 pluginID,
+		Name:               "Legacy Config Snapshot",
+		Version:            version,
+		Type:               plugintypes.TypeDynamic.String(),
+		ScopeNature:        plugintypes.ScopeNatureTenantAware.String(),
+		DefaultInstallMode: plugintypes.InstallModeTenantScoped.String(),
+		HostServices: []*protocol.HostServiceSpec{{
+			Service: protocol.HostServicePlugins,
+			Methods: []string{protocol.HostServiceMethodPluginsConfigGet},
+		}},
+	}
+
+	if _, err := svcs.Store.SyncManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected initial manifest sync to succeed, got error: %v", err)
+	}
+	release, err := svcs.Store.GetRelease(ctx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected release lookup to succeed, got error: %v", err)
+	}
+	if release == nil {
+		t.Fatal("expected release row after initial sync")
+	}
+
+	legacySnapshot := strings.ReplaceAll(release.ManifestSnapshot, "service: "+protocol.HostServicePlugins, "service: config")
+	legacySnapshot = strings.ReplaceAll(legacySnapshot, protocol.HostServiceMethodPluginsConfigGet, "get")
+	if !strings.Contains(legacySnapshot, "service: config") || !strings.Contains(legacySnapshot, "- get") {
+		t.Fatalf("expected test fixture to contain legacy config snapshot, got %s", legacySnapshot)
+	}
+	if _, err = dao.SysPluginRelease.Ctx(ctx).
+		Where(do.SysPluginRelease{Id: release.Id}).
+		Data(do.SysPluginRelease{ManifestSnapshot: legacySnapshot}).
+		Update(); err != nil {
+		t.Fatalf("expected legacy snapshot update to succeed, got error: %v", err)
+	}
+
+	legacyRelease, err := svcs.Store.RefreshStartupReleaseByID(ctx, release.Id)
+	if err != nil {
+		t.Fatalf("expected release refresh to succeed, got error: %v", err)
+	}
+	parsedLegacy, err := svcs.Store.ParseManifestSnapshot(legacyRelease.ManifestSnapshot)
+	if err != nil {
+		t.Fatalf("expected legacy manifest snapshot to parse through migration, got error: %v", err)
+	}
+	if len(parsedLegacy.RequestedHostServices) != 1 ||
+		parsedLegacy.RequestedHostServices[0].Service != protocol.HostServicePlugins ||
+		len(parsedLegacy.RequestedHostServices[0].Methods) != 1 ||
+		parsedLegacy.RequestedHostServices[0].Methods[0] != protocol.HostServiceMethodPluginsConfigGet {
+		t.Fatalf("expected legacy config snapshot to normalize to plugins.config.get, got %#v", parsedLegacy.RequestedHostServices)
+	}
+
+	if _, err = svcs.Store.SyncManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected manifest sync to rewrite migrated config snapshot, got error: %v", err)
+	}
+	repairedRelease, err := svcs.Store.GetRelease(ctx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected repaired release lookup to succeed, got error: %v", err)
+	}
+	if strings.Contains(repairedRelease.ManifestSnapshot, "service: config") {
+		t.Fatalf("expected sync to rewrite legacy config snapshot, got %s", repairedRelease.ManifestSnapshot)
+	}
+	if !strings.Contains(repairedRelease.ManifestSnapshot, "service: "+protocol.HostServicePlugins) ||
+		!strings.Contains(repairedRelease.ManifestSnapshot, protocol.HostServiceMethodPluginsConfigGet) {
+		t.Fatalf("expected repaired snapshot to contain plugins.config.get, got %s", repairedRelease.ManifestSnapshot)
+	}
+}
+
+// TestSyncManifestMigratesLegacyCronSnapshot verifies startup synchronization
+// can repair old release snapshots that used service: cron before scheduled-job
+// declarations moved under jobs.jobs.register.
+func TestSyncManifestMigratesLegacyCronSnapshot(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		svcs     = testutil.NewServices()
+		pluginID = "acme-demo-legacy-cron-snapshot"
+		version  = "v0.1.0"
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest := &catalog.Manifest{
+		ID:                 pluginID,
+		Name:               "Legacy Cron Snapshot",
+		Version:            version,
+		Type:               plugintypes.TypeDynamic.String(),
+		ScopeNature:        plugintypes.ScopeNatureTenantAware.String(),
+		DefaultInstallMode: plugintypes.InstallModeTenantScoped.String(),
+		HostServices: []*protocol.HostServiceSpec{{
+			Service: protocol.HostServiceJobs,
+			Methods: []string{protocol.HostServiceMethodJobsRegister},
+		}},
+	}
+
+	if _, err := svcs.Store.SyncManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected initial manifest sync to succeed, got error: %v", err)
+	}
+	release, err := svcs.Store.GetRelease(ctx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected release lookup to succeed, got error: %v", err)
+	}
+	if release == nil {
+		t.Fatal("expected release row after initial sync")
+	}
+
+	legacySnapshot := strings.ReplaceAll(release.ManifestSnapshot, "service: "+protocol.HostServiceJobs, "service: cron")
+	legacySnapshot = strings.ReplaceAll(legacySnapshot, protocol.HostServiceMethodJobsRegister, "cron.register")
+	if !strings.Contains(legacySnapshot, "service: cron") || !strings.Contains(legacySnapshot, "- cron.register") {
+		t.Fatalf("expected test fixture to contain legacy cron snapshot, got %s", legacySnapshot)
+	}
+	if _, err = dao.SysPluginRelease.Ctx(ctx).
+		Where(do.SysPluginRelease{Id: release.Id}).
+		Data(do.SysPluginRelease{ManifestSnapshot: legacySnapshot}).
+		Update(); err != nil {
+		t.Fatalf("expected legacy snapshot update to succeed, got error: %v", err)
+	}
+
+	legacyRelease, err := svcs.Store.RefreshStartupReleaseByID(ctx, release.Id)
+	if err != nil {
+		t.Fatalf("expected release refresh to succeed, got error: %v", err)
+	}
+	parsedLegacy, err := svcs.Store.ParseManifestSnapshot(legacyRelease.ManifestSnapshot)
+	if err != nil {
+		t.Fatalf("expected legacy manifest snapshot to parse through migration, got error: %v", err)
+	}
+	if len(parsedLegacy.RequestedHostServices) != 1 ||
+		parsedLegacy.RequestedHostServices[0].Service != protocol.HostServiceJobs ||
+		len(parsedLegacy.RequestedHostServices[0].Methods) != 1 ||
+		parsedLegacy.RequestedHostServices[0].Methods[0] != protocol.HostServiceMethodJobsRegister {
+		t.Fatalf("expected legacy cron snapshot to normalize to jobs.register, got %#v", parsedLegacy.RequestedHostServices)
+	}
+
+	if _, err = svcs.Store.SyncManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected manifest sync to rewrite migrated cron snapshot, got error: %v", err)
+	}
+	repairedRelease, err := svcs.Store.GetRelease(ctx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected repaired release lookup to succeed, got error: %v", err)
+	}
+	if strings.Contains(repairedRelease.ManifestSnapshot, "service: cron") ||
+		strings.Contains(repairedRelease.ManifestSnapshot, "cron.register") {
+		t.Fatalf("expected sync to rewrite legacy cron snapshot, got %s", repairedRelease.ManifestSnapshot)
+	}
+	if !strings.Contains(repairedRelease.ManifestSnapshot, "service: "+protocol.HostServiceJobs) ||
+		!strings.Contains(repairedRelease.ManifestSnapshot, protocol.HostServiceMethodJobsRegister) {
+		t.Fatalf("expected repaired snapshot to contain jobs.register, got %s", repairedRelease.ManifestSnapshot)
+	}
+}
+
 // TestRuntimeUpgradeStateReportsExplicitRunningMarker verifies management
 // projections expose upgrade_running while an explicit runtime upgrade is in progress.
 func TestRuntimeUpgradeStateReportsExplicitRunningMarker(t *testing.T) {

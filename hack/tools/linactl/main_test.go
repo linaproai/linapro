@@ -1786,9 +1786,9 @@ func TestOfficialPluginGoWorkUsesDiscoversPluginModules(t *testing.T) {
 	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
 	writeFile(t, filepath.Join(pluginRoot, "go.mod"), "module lina-plugins\n")
 	writeFile(t, filepath.Join(pluginRoot, "plugin-b", "go.mod"), "module plugin-b\n")
-	writeFile(t, filepath.Join(pluginRoot, "plugin-b", "plugin.yaml"), "id: plugin-b\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-b", "plugin.yaml"), "id: plugin-b\ntype: source\n")
 	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "go.mod"), "module plugin-a\n")
-	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "plugin.yaml"), "id: plugin-a\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "plugin.yaml"), "id: plugin-a\ntype: source\n")
 
 	workspace, err := plugins.InspectOfficialWorkspace(root)
 	if err != nil {
@@ -1799,7 +1799,7 @@ func TestOfficialPluginGoWorkUsesDiscoversPluginModules(t *testing.T) {
 		t.Fatalf("plugins.GoWorkUses returned error: %v", err)
 	}
 	got := strings.Join(uses, ",")
-	expected := "./apps/lina-plugins,./apps/lina-plugins/plugin-a,./apps/lina-plugins/plugin-b"
+	expected := "./apps/lina-plugins/plugin-a,./apps/lina-plugins/plugin-b"
 	if got != expected {
 		t.Fatalf("unexpected plugin go.work uses: got %s expected %s", got, expected)
 	}
@@ -2097,11 +2097,12 @@ use (
 `
 	writeFile(t, filepath.Join(root, "go.work"), content)
 	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
-	writeFile(t, filepath.Join(pluginRoot, "go.mod"), "module lina-plugins\n")
 	writeFile(t, filepath.Join(pluginRoot, "plugin-b", "go.mod"), "module plugin-b\n")
-	writeFile(t, filepath.Join(pluginRoot, "plugin-b", "plugin.yaml"), "id: plugin-b\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-b", "plugin.yaml"), "id: plugin-b\ntype: source\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-b", "backend", "plugin.go"), "package backend\n")
 	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "go.mod"), "module plugin-a\n")
-	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "plugin.yaml"), "id: plugin-a\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "plugin.yaml"), "id: plugin-a\ntype: source\n")
+	writeFile(t, filepath.Join(pluginRoot, "plugin-a", "backend", "plugin.go"), "package backend\n")
 
 	workspace, err := plugins.InspectOfficialWorkspace(root)
 	if err != nil {
@@ -2130,7 +2131,7 @@ use (
 use (
 	../apps/lina-core
 	../hack/tools/linactl
-	../apps/lina-plugins
+	./official-plugins
 	../apps/lina-plugins/plugin-a
 	../apps/lina-plugins/plugin-b
 )
@@ -2138,8 +2139,15 @@ use (
 	if string(pluginContent) != expected {
 		t.Fatalf("unexpected temporary plugin go.work:\n%s", string(pluginContent))
 	}
-	if fileutil.DirExists(filepath.Join(root, "temp", "official-plugins")) {
-		t.Fatalf("expected existing official plugin root module to be reused without generated fallback")
+	aggregateGo, err := os.ReadFile(filepath.Join(root, "temp", "official-plugins", "plugins.go"))
+	if err != nil {
+		t.Fatalf("read aggregate plugins.go: %v", err)
+	}
+	aggregateText := string(aggregateGo)
+	for _, expectedImport := range []string{`_ "plugin-a/backend"`, `_ "plugin-b/backend"`} {
+		if !strings.Contains(aggregateText, expectedImport) {
+			t.Fatalf("expected aggregate imports to contain %s, got:\n%s", expectedImport, aggregateText)
+		}
 	}
 }
 

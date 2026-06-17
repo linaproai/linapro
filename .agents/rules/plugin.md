@@ -26,7 +26,7 @@ apps/lina-plugins/<plugin-id>/
 │   ├── pages/                       # 插件页面
 │   └── slots/                       # 插槽页面，可选
 ├── hack/                            # 插件自身脚本和工具
-│   ├── config.yaml                  # make dao等插件开发期代码生成配置和自定义构建指令
+│   ├── config.yaml                  # 插件开发期工具配置入口，包含代码生成、自定义构建等配置
 │   └── tests/                       # 插件测试内容
 │       └── e2e/                     # 插件 e2e 测试内容
 ├── manifest/
@@ -56,6 +56,7 @@ apps/lina-plugins/<plugin-id>/
 - 插件多语言资源放在`manifest/i18n/<locale>/`，API 文档翻译资源放在`manifest/i18n/<locale>/apidoc/`。
 - 插件 SQL 必须遵守`.agents/rules/database.md`。
 - 插件 i18n 资源必须遵守`.agents/rules/i18n.md`。
+- 插件开发期工具配置统一维护在插件根`hack/config.yaml`，包括代码生成、自定义构建等插件本地工具配置。
 - 插件自定义构建指令统一放在插件根`hack/config.yaml`的`build.commands`下，由仓库根`make build`或`linactl build`读取执行。
 
 ## 插件后端同构开发结构要求
@@ -69,7 +70,7 @@ apps/lina-plugins/<plugin-id>/
 
 ## 插件数据库访问要求
 
-- 插件的后端代码生成工具配置维护在插件根`hack/config.yaml`，GoFrame 生成工作目录仍为插件`backend/`。
+- 涉及数据库访问的插件应在插件根`hack/config.yaml`中维护`gfcli.gen.dao`等代码生成工具配置，GoFrame 生成工作目录仍为插件`backend/`。
 - 禁止插件重新依赖宿主的`dao/do/entity`生成工件。
 - 动态插件涉及宿主数据访问时，必须通过`plugin.yaml`的`hostServices`资源边界和宿主授权的 host service 协议。
 

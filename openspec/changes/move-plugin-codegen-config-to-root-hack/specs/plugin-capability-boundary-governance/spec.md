@@ -33,3 +33,16 @@
 - **WHEN** 插件目录存在`backend/internal/dao`生成物但缺少插件根`hack/config.yaml`
 - **THEN** `make plugins.check`失败
 - **AND** 错误消息提示补齐可重生成的代码生成配置
+
+## ADDED Requirements
+
+### Requirement: 源码插件编译接入必须由工具自动聚合
+
+系统 SHALL 通过构建工具扫描官方插件工作区并自动生成源码插件后端聚合模块。插件作者 MUST 只维护插件自身`plugin.yaml`、插件 Go module 和`backend/plugin.go`等插件内资源，不得在`apps/lina-plugins`根目录维护手写`lina-plugins.go`、根`go.mod`或根`go.sum`来接入宿主编译。
+
+#### Scenario: 源码插件通过自动聚合接入宿主编译
+
+- **WHEN** 源码插件需要随宿主编译
+- **THEN** 插件作者维护该插件目录内的`plugin.yaml`、`go.mod`和`backend/plugin.go`
+- **AND** 构建工具在插件完整模式下自动生成`lina-plugins`聚合模块
+- **AND** 插件作者不需要修改`apps/lina-plugins`根目录的 Go 文件或 Go module 文件

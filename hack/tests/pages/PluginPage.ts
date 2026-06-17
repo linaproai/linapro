@@ -380,8 +380,45 @@ export class PluginPage {
     return this.page.getByTestId(`plugin-version-${pluginId}`).first();
   }
 
-  pluginManualRepairTag(pluginId: string): Locator {
-    return this.page.getByTestId(`plugin-abnormal-repair-${pluginId}`).first();
+  pluginDetailAction(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-detail-button-${pluginId}`).last();
+  }
+
+  pluginManualRepairAction(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-abnormal-repair-${pluginId}`).last();
+  }
+
+  async expectManualRepairActionMatchesDetailStyle(pluginId: string) {
+    const detailAction = this.pluginDetailAction(pluginId);
+    const manualRepairAction = this.pluginManualRepairAction(pluginId);
+
+    await expect(detailAction).toBeVisible();
+    await expect(manualRepairAction).toBeVisible();
+    await expect(manualRepairAction).toHaveClass(/ant-btn/u);
+
+    const [detailMetrics, manualRepairMetrics] = await Promise.all([
+      detailAction.evaluate((node) => {
+        const style = getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return {
+          fontSize: style.fontSize,
+          height: rect.height,
+        };
+      }),
+      manualRepairAction.evaluate((node) => {
+        const style = getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return {
+          fontSize: style.fontSize,
+          height: rect.height,
+        };
+      }),
+    ]);
+
+    expect(manualRepairMetrics.fontSize).toBe(detailMetrics.fontSize);
+    expect(
+      Math.abs(manualRepairMetrics.height - detailMetrics.height),
+    ).toBeLessThanOrEqual(1);
   }
 
   pluginUpgradeModal(): Locator {
@@ -1332,6 +1369,43 @@ export class PluginPage {
         `${widerTitle} 列宽应大于 ${narrowerTitle}`,
       ).toBeGreaterThan(narrowerWidth);
     }
+  }
+
+  async expectTableColumnWidthAtMost(title: string, maxWidth: number) {
+    const cell = this.tableHeaderCell(title);
+    await expect(cell, `未找到列表列: ${title}`).toBeVisible();
+    const width = await cell.evaluate(
+      (element) => element.getBoundingClientRect().width,
+    );
+    expect(width, `${title} 列宽不应超过 ${maxWidth}px`).toBeLessThanOrEqual(
+      maxWidth,
+    );
+  }
+
+  async expectPluginVersionNotClipped(pluginId: string) {
+    const version = this.pluginVersionValue(pluginId);
+    await expect(version).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          await version.evaluate((element) => {
+            const cell = element.closest(".vxe-body--column");
+            if (!cell) {
+              return false;
+            }
+            const elementRect = element.getBoundingClientRect();
+            const cellRect = cell.getBoundingClientRect();
+            const horizontalPadding = 2;
+            const contentFits = element.scrollWidth <= element.clientWidth + 1;
+            return (
+              contentFits &&
+              elementRect.left >= cellRect.left - horizontalPadding &&
+              elementRect.right <= cellRect.right + horizontalPadding
+            );
+          }),
+        { message: `插件 ${pluginId} 的版本号内容不应被单元格裁剪` },
+      )
+      .toBe(true);
   }
 
   async expectBooleanTableCell(

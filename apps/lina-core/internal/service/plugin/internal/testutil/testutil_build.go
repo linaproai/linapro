@@ -246,15 +246,6 @@ func ensureBuildWasmPluginWorkspace(repoRoot string, pluginDir string) error {
 // ensureBuildWasmAggregateModule resolves the module that satisfies the
 // host's official source-plugin import bridge for plugin test builds.
 func ensureBuildWasmAggregateModule(repoRoot string, officialRoot string) (string, error) {
-	if moduleName, err := readBuildWasmGoModuleName(filepath.Join(officialRoot, "go.mod")); err == nil && moduleName == "lina-plugins" {
-		if err = os.RemoveAll(filepath.Join(repoRoot, "temp", "official-plugins")); err != nil {
-			return "", fmt.Errorf("clean stale test aggregate module: %w", err)
-		}
-		return filepath.ToSlash(filepath.Join("apps", "lina-plugins")), nil
-	} else if err != nil && !os.IsNotExist(err) {
-		return "", err
-	}
-
 	moduleDir := filepath.Join(repoRoot, "temp", "official-plugins")
 	if err := os.RemoveAll(moduleDir); err != nil {
 		return "", fmt.Errorf("clean test aggregate module: %w", err)
@@ -271,21 +262,6 @@ func ensureBuildWasmAggregateModule(repoRoot string, officialRoot string) (strin
 	return filepath.ToSlash(filepath.Join("temp", "official-plugins")), nil
 }
 
-// readBuildWasmGoModuleName reads the module directive from a go.mod file.
-func readBuildWasmGoModuleName(path string) (string, error) {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	for _, line := range strings.Split(string(content), "\n") {
-		fields := strings.Fields(stripBuildWasmGoWorkComment(line))
-		if len(fields) >= 2 && fields[0] == "module" {
-			return fields[1], nil
-		}
-	}
-	return "", fmt.Errorf("%s is missing a module directive", path)
-}
-
 // buildWasmPluginGoWorkUses discovers Go modules under the official plugin workspace.
 func buildWasmPluginGoWorkUses(repoRoot string, officialRoot string) ([]string, error) {
 	var uses []string
@@ -294,6 +270,9 @@ func buildWasmPluginGoWorkUses(repoRoot string, officialRoot string) ([]string, 
 			return walkErr
 		}
 		if entry.IsDir() || entry.Name() != "go.mod" {
+			return nil
+		}
+		if filepath.Clean(filepath.Dir(path)) == filepath.Clean(officialRoot) {
 			return nil
 		}
 		relativePath, relErr := filepath.Rel(repoRoot, filepath.Dir(path))

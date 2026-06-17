@@ -266,7 +266,7 @@ test.describe("TC-7 插件运行时升级", () => {
       /待升级|Pending Upgrade/iu,
     );
     await expect(pluginPage.pluginVersionValue(upgradePluginID)).toContainText(
-      "v0.1.0 -> v0.2.0",
+      /v0\.1\.0\s*->\s*v0\.2\.0/u,
     );
 
     await pluginPage.openRuntimeUpgradeDialog(upgradePluginID);
@@ -301,10 +301,13 @@ test.describe("TC-7 插件运行时升级", () => {
       /异常|Abnormal/iu,
     );
     await expect(
-      pluginPage.pluginManualRepairTag(abnormalPluginID),
+      pluginPage.pluginManualRepairAction(abnormalPluginID),
     ).toContainText(/人工修复|Manual Repair/iu);
+    await pluginPage.expectManualRepairActionMatchesDetailStyle(
+      abnormalPluginID,
+    );
     await expect(pluginPage.pluginVersionValue(abnormalPluginID)).toContainText(
-      "v0.2.0 -> v0.1.0",
+      /v0\.2\.0\s*->\s*v0\.1\.0/u,
     );
   });
 });

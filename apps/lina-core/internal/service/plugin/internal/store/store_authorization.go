@@ -56,21 +56,29 @@ func HasResourceScopedHostServices(specs []*protocol.HostServiceSpec) bool {
 }
 
 // migrateLegacyManifestSnapshotHostServices normalizes persisted release
-// snapshots that predate the hostConfig service rename. Runtime artifacts and
+// snapshots that predate host-service naming changes. Runtime artifacts and
 // fresh manifests still use the strict pluginbridge validator.
 func migrateLegacyManifestSnapshotHostServices(specs []*protocol.HostServiceSpec) {
 	for _, spec := range specs {
 		if spec == nil {
 			continue
 		}
-		if strings.EqualFold(strings.TrimSpace(spec.Service), "hostruntime") {
+		switch normalizeLegacyHostServiceName(spec.Service) {
+		case "hostruntime":
 			spec.Service = protocol.HostServiceHostConfig
+		case "config":
+			spec.Service = protocol.HostServicePlugins
+			spec.Methods = migrateLegacyStandaloneConfigMethods(spec.Methods)
+		case "cron":
+			spec.Service = protocol.HostServiceJobs
+			spec.Methods = migrateLegacyCronMethods(spec.Methods)
 		}
 	}
 }
 
 // migrateLegacyManifestSnapshotNode rewrites legacy persisted host-service
-// names before decoding so the current codec can still hydrate resources.keys.
+// names before decoding so the current codec can still hydrate resources.keys
+// and legacy standalone config reads.
 func migrateLegacyManifestSnapshotNode(node *yaml.Node) {
 	if node == nil {
 		return
@@ -107,19 +115,112 @@ func migrateLegacyManifestSnapshotHostServiceSequence(node *yaml.Node) {
 }
 
 // migrateLegacyManifestSnapshotHostService rewrites the legacy hostRuntime
-// service identifier on one persisted host-service mapping.
+// and standalone config service identifiers on one persisted host-service mapping.
 func migrateLegacyManifestSnapshotHostService(node *yaml.Node) {
 	if node == nil || node.Kind != yaml.MappingNode {
 		return
 	}
+	var (
+		serviceNode *yaml.Node
+		methodsNode *yaml.Node
+	)
 	for index := 0; index+1 < len(node.Content); index += 2 {
 		key := node.Content[index]
 		value := node.Content[index+1]
-		if key == nil || value == nil || key.Value != "service" {
+		if key == nil || value == nil {
 			continue
 		}
-		if strings.EqualFold(strings.TrimSpace(value.Value), "hostruntime") {
-			value.Value = protocol.HostServiceHostConfig
+		switch key.Value {
+		case "service":
+			serviceNode = value
+		case "methods":
+			methodsNode = value
+		}
+	}
+	if serviceNode == nil {
+		return
+	}
+	switch normalizeLegacyHostServiceName(serviceNode.Value) {
+	case "hostruntime":
+		serviceNode.Value = protocol.HostServiceHostConfig
+	case "config":
+		serviceNode.Value = protocol.HostServicePlugins
+		migrateLegacyStandaloneConfigMethodNodes(methodsNode)
+	case "cron":
+		serviceNode.Value = protocol.HostServiceJobs
+		migrateLegacyCronMethodNodes(methodsNode)
+	}
+}
+
+// normalizeLegacyHostServiceName normalizes persisted historical service names.
+func normalizeLegacyHostServiceName(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+// migrateLegacyStandaloneConfigMethods maps the old standalone config.get
+// declaration to the current plugins.config.get host-service method.
+func migrateLegacyStandaloneConfigMethods(methods []string) []string {
+	if len(methods) == 0 {
+		return methods
+	}
+	next := make([]string, 0, len(methods))
+	for _, method := range methods {
+		if normalizeLegacyHostServiceName(method) == "get" {
+			next = append(next, protocol.HostServiceMethodPluginsConfigGet)
+			continue
+		}
+		next = append(next, method)
+	}
+	return next
+}
+
+// migrateLegacyStandaloneConfigMethodNodes rewrites method YAML nodes for
+// standalone config snapshots before host-service decoding.
+func migrateLegacyStandaloneConfigMethodNodes(node *yaml.Node) {
+	if node == nil || node.Kind != yaml.SequenceNode {
+		return
+	}
+	for _, item := range node.Content {
+		if item == nil {
+			continue
+		}
+		if normalizeLegacyHostServiceName(item.Value) == "get" {
+			item.Value = protocol.HostServiceMethodPluginsConfigGet
+		}
+	}
+}
+
+// migrateLegacyCronMethods maps old cron registration declarations to the
+// current Jobs-domain registration method.
+func migrateLegacyCronMethods(methods []string) []string {
+	if len(methods) == 0 {
+		return methods
+	}
+	next := make([]string, 0, len(methods))
+	for _, method := range methods {
+		switch normalizeLegacyHostServiceName(method) {
+		case "register", "cron.register":
+			next = append(next, protocol.HostServiceMethodJobsRegister)
+		default:
+			next = append(next, method)
+		}
+	}
+	return next
+}
+
+// migrateLegacyCronMethodNodes rewrites method YAML nodes for old cron
+// snapshots before host-service decoding.
+func migrateLegacyCronMethodNodes(node *yaml.Node) {
+	if node == nil || node.Kind != yaml.SequenceNode {
+		return
+	}
+	for _, item := range node.Content {
+		if item == nil {
+			continue
+		}
+		switch normalizeLegacyHostServiceName(item.Value) {
+		case "register", "cron.register":
+			item.Value = protocol.HostServiceMethodJobsRegister
 		}
 	}
 }

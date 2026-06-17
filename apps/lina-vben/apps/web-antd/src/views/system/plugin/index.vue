@@ -181,33 +181,34 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
       {
         field: 'version',
+        showOverflow: false,
         slots: { default: 'version' },
         title: $t('pages.system.plugin.fields.version'),
-        width: 110,
+        width: 148,
       },
       {
         field: 'type',
         slots: { default: 'type', header: 'typeHeader' },
         title: $t('pages.system.plugin.fields.type'),
-        width: 120,
+        width: 108,
       },
       {
         field: 'enabled',
         slots: { default: 'enabled' },
         title: $t('pages.common.status'),
-        width: 130,
+        width: 96,
       },
       {
         field: 'runtimeState',
         slots: { default: 'runtimeState', header: 'runtimeStateHeader' },
         title: $t('pages.system.plugin.fields.runtimeState'),
-        width: 120,
+        width: 112,
       },
       {
         field: 'hasMockData',
         slots: { default: 'hasMockData', header: 'hasMockDataHeader' },
         title: $t('pages.system.plugin.fields.hasMockData'),
-        width: 120,
+        width: 104,
       },
       {
         field: 'supportsMultiTenant',
@@ -216,7 +217,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
           header: 'supportsMultiTenantHeader',
         },
         title: $t('pages.system.plugin.fields.supportsMultiTenant'),
-        width: 140,
+        width: 122,
       },
       {
         field: 'autoEnableForNewTenants',
@@ -225,7 +226,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
           header: 'tenantProvisioningHeader',
         },
         title: $t('pages.system.plugin.fields.tenantProvisioning'),
-        width: 160,
+        width: 126,
       },
       {
         field: 'installedAt',
@@ -303,12 +304,21 @@ function supportsPluginMultiTenant(row: PluginListItem) {
 }
 
 function formatPluginVersion(row: PluginListItem) {
-  if (row.effectiveVersion || row.discoveredVersion) {
-    const effective = row.effectiveVersion || row.version || '-';
-    const discovered = row.discoveredVersion || row.version || '-';
-    return effective === discovered ? effective : `${effective} -> ${discovered}`;
-  }
-  return row.version || '-';
+  const effective = getPluginEffectiveVersion(row);
+  const discovered = getPluginDiscoveredVersion(row);
+  return effective === discovered ? effective : `${effective} -> ${discovered}`;
+}
+
+function getPluginEffectiveVersion(row: PluginListItem) {
+  return row.effectiveVersion || row.version || '-';
+}
+
+function getPluginDiscoveredVersion(row: PluginListItem) {
+  return row.discoveredVersion || row.version || '-';
+}
+
+function hasPluginVersionDiff(row: PluginListItem) {
+  return getPluginEffectiveVersion(row) !== getPluginDiscoveredVersion(row);
 }
 
 function isRuntimeUpgradeAvailable(row: PluginListItem) {
@@ -785,8 +795,21 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
       </template>
 
       <template #version="{ row }">
-        <span :data-testid="`plugin-version-${row.id}`">
-          {{ formatPluginVersion(row) }}
+        <span
+          :data-testid="`plugin-version-${row.id}`"
+          :title="formatPluginVersion(row)"
+          class="inline-flex max-w-full items-center gap-1 whitespace-nowrap font-mono text-xs tabular-nums"
+        >
+          <span class="shrink-0">{{ getPluginEffectiveVersion(row) }}</span>
+          <span
+            v-if="hasPluginVersionDiff(row)"
+            class="inline-flex shrink-0 items-center gap-1"
+          >
+            <span class="text-[var(--ant-color-text-quaternary)]">-&gt;</span>
+            <span class="text-[var(--ant-color-primary)]">
+              {{ getPluginDiscoveredVersion(row) }}
+            </span>
+          </span>
         </span>
       </template>
 
@@ -929,12 +952,19 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
             v-else-if="isRuntimeAbnormal(row)"
             :title="$t('pages.system.plugin.messages.abnormalManualRepair')"
           >
-            <Tag
-              color="red"
-              :data-testid="`plugin-abnormal-repair-${row.id}`"
+            <span
+              class="inline-flex"
+              :data-testid="`plugin-abnormal-repair-wrapper-${row.id}`"
+              @click.stop
             >
-              {{ $t('pages.system.plugin.actions.manualRepair') }}
-            </Tag>
+              <ghost-button
+                danger
+                disabled
+                :data-testid="`plugin-abnormal-repair-${row.id}`"
+              >
+                {{ $t('pages.system.plugin.actions.manualRepair') }}
+              </ghost-button>
+            </span>
           </Tooltip>
           <ghost-button
             v-else-if="row.installed !== 1 && canInstallPlugin()"
