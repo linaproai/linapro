@@ -325,3 +325,97 @@ TBD - created by archiving change refactor-plugin-service-layout. Update Purpose
 - **WHEN** 开发者修改插件根门面升级文件
 - **THEN** 静态边界测试检查根门面不导入旧升级包、不再通过公开 source upgrade 方法再入、不直接拼装 runtime upgrade preview 纯函数
 
+### Requirement: 插件治理读投影必须共享清单快照和依赖索引
+
+系统 SHALL 为插件管理列表、详情、依赖检查、OpenAPI 文档投影和 hook 分发复用同一批 manifest、store、runtime 和 dependency 快照。读取路径 MUST 避免为每个插件、每个依赖检查或每个文档请求重复全量扫描和重复 artifact 解析。
+
+#### Scenario: 管理列表和详情复用统一投影入口
+
+- **WHEN** 系统构建插件管理摘要列表或单插件详情
+- **THEN** 系统通过统一投影构建入口读取清单和治理投影
+- **AND** 单插件详情不得通过全量扫描全部插件来定位目标插件
+
+#### Scenario: 反向依赖检查使用索引
+
+- **WHEN** 系统为插件列表或卸载校验计算反向依赖
+- **THEN** 系统基于当前快照集一次性构建`pluginID`到下游依赖方的索引
+- **AND** 单次反向依赖查询不得遍历全部插件快照
+
+#### Scenario: DependencyCheck 请求共享一次快照
+
+- **WHEN** 调用方请求插件依赖检查
+- **THEN** 依赖解析、安装快照投影和反向依赖投影共享同一个 request 级 manifest 快照
+- **AND** 单次请求不得触发多次完整`ScanManifests`
+
+### Requirement: OpenAPI 插件投影缓存必须绑定运行时和语言版本
+
+系统 SHALL 将动态插件 OpenAPI 文档投影视为插件运行时展示派生缓存。缓存键 MUST 包含`plugin-runtime`修订号、当前 locale 和运行时翻译包版本。插件启停、升级、动态 artifact 刷新或翻译包变化后，后续 OpenAPI 请求 MUST 重建受影响投影。
+
+#### Scenario: Runtime revision 变化后重建 OpenAPI 投影
+
+- **WHEN** 插件`P`升级或禁用并发布新的`plugin-runtime`修订号
+- **THEN** 后续 OpenAPI 文档请求不得继续返回旧修订号下的插件`P`路由投影
+- **AND** 系统重建或失效对应缓存条目
+
+#### Scenario: Locale 隔离 OpenAPI 投影
+
+- **WHEN** 两个请求使用不同 locale 访问 OpenAPI 文档
+- **THEN** 系统使用不同缓存键读取或构建文档投影
+- **AND** 不得把旧语言版本的插件文档投影返回给当前请求
+
+### Requirement: 插件运行时组合 delegate 不得静默伪装成功
+
+系统 SHALL 将插件服务内部用于打破启动构造循环的 delegate 限定为最小组合接缝。delegate MUST 提供可诊断的绑定状态；当运行期写入、副作用发布、缓存刷新、依赖校验或认证事件回调在未绑定状态下被调用时，系统 MUST 返回明确错误，不得静默返回成功。只读投影方法在接口无法返回错误时 MAY fail-closed 或返回输入投影，但不得让调用方误以为副作用已经执行。
+
+#### Scenario: 未绑定 runtime delegate 处理认证事件
+
+- **WHEN** `RuntimeDelegate` 尚未绑定插件根服务
+- **AND** 调用方触发登录成功、登录失败或登出回调
+- **THEN** delegate 返回明确错误
+- **AND** 不报告认证事件副作用已经成功执行
+
+#### Scenario: 插件根服务构造后绑定 delegate
+
+- **WHEN** 宿主启动构造插件根服务
+- **THEN** 启动装配在插件根服务创建完成后显式绑定 runtime delegate
+- **AND** 测试或审查可以确认运行期使用前 delegate 已处于绑定状态
+
+### Requirement: 插件内部 cache 和升级 adapter 必须暴露缺失依赖
+
+系统 SHALL 要求插件内部 cache notifier、dependency validator、source upgrade cache publisher 和 cache freshener 等窄 adapter 在依赖缺失时返回明确错误。生产构造路径 MUST 传入根插件服务或对应窄接口实例；adapter 不得因为 service 为 nil 而返回 nil。
+
+#### Scenario: upgrade cache publisher 缺少根服务
+
+- **WHEN** source upgrade 流程调用未绑定根服务的 cache publisher
+- **THEN** publisher 返回明确错误
+- **AND** 不发布插件运行时缓存已失效的假成功结果
+
+#### Scenario: dependency validator 缺少根服务
+
+- **WHEN** 生命周期或升级流程调用未绑定根服务的 dependency validator
+- **THEN** validator 返回明确错误
+- **AND** 不把依赖校验视为通过
+
+### Requirement: 动态插件 route 分发必须按职责拆分
+
+系统 SHALL 将动态插件 route 分发实现按入口编排、路由匹配、鉴权权限、请求 envelope 和响应写回拆分到职责明确的`route*.go`文件。`apps/lina-core/internal/service/plugin/internal/runtime/route.go`MUST 保持为入口和核心 dispatcher 编排文件，行数 MUST 不超过`400`行。拆分不得改变动态插件公开 API 路径、内部 route contract、访问级别、权限查询、数据权限边界、缓存 freshness 检查或响应 envelope 语义。
+
+#### Scenario: route 入口文件保持瘦身
+
+- **WHEN** 静态测试读取`apps/lina-core/internal/service/plugin/internal/runtime/route.go`
+- **THEN** 文件行数不得超过`400`行
+- **AND** 文件不得重新承载 JWT 解析、角色菜单查询、path pattern 编译、请求 envelope 构造和响应写回的完整实现
+
+#### Scenario: 动态路由公开契约不变
+
+- **WHEN** 动态插件 route contract 声明`path: /api/v1/reports/{id}`、`method: GET`和受保护访问级别
+- **THEN** 宿主仍按既有`/x/{plugin-id}/api/v1/...`公开路径匹配和分发
+- **AND** 鉴权、权限菜单查询和 session touch 语义与拆分前保持一致
+- **AND** 请求传递给动态插件的 route snapshot、路径参数、header、cookie、query、body 和响应写回语义保持一致
+
+#### Scenario: route 拆分不新增运行期依赖
+
+- **WHEN** 系统构造插件 runtime service
+- **THEN** route 分发仍使用既有构造函数传入的 executor、registry、session、auth、权限过滤和缓存 freshness 能力
+- **AND** 拆分文件不得通过包级变量、service locator 或临时`New()`创建运行期依赖
+

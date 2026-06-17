@@ -756,7 +756,7 @@
 
 ### Requirement: 动态普通领域 host service 协议名必须与领域目录一致
 
-系统 SHALL 要求动态插件普通领域`hostServices.service`协议名与`pkg/plugin/capability.Services`领域目录名称保持一致。集合型领域 MUST 使用复数领域名：`users`、`files`、`jobs`、`notifications`、`plugins`和`sessions`。对应能力字符串 MUST 分别使用`host:users`、`host:files`、`host:jobs`、`host:notifications`、`host:plugins`和`host:sessions`。项目不保留旧单数 service 别名。
+系统 SHALL 要求动态插件普通领域`hostServices.service`协议名与已发布的动态领域目录名称保持一致。集合型领域 MUST 使用复数领域名：`users`、`files`、`jobs`、`notifications`、`plugins`和`sessions`。对应能力字符串 MUST 分别使用`host:users`、`host:files`、`host:jobs`、`host:notifications`、`host:plugins`和`host:sessions`。`i18n`不属于动态插件可声明的普通领域 host service；动态插件多语言资源由宿主统一管理。项目不保留旧单数 service 别名。
 
 #### Scenario: 动态插件声明集合型领域服务
 
@@ -773,9 +773,15 @@
 
 #### Scenario: 动态插件声明单一命名空间领域服务
 
-- **WHEN** 动态插件声明`auth`、`authz`、`apidoc`、`bizctx`、`dict`、`i18n`、`infra`、`route`、`ai`、`org`或`tenant`
+- **WHEN** 动态插件声明`auth`、`authz`、`apidoc`、`bizctx`、`dict`、`infra`、`route`、`ai`、`org`或`tenant`
 - **THEN** service 继续使用该领域命名空间名称
 - **AND** 不得为了形式统一将其机械复数化
+
+#### Scenario: 动态插件声明 i18n host service
+
+- **WHEN** 动态插件在`plugin.yaml`中声明`service: i18n`
+- **THEN** host service 校验必须拒绝该声明
+- **AND** public protocol alias、guest 公共目录和`WASM`dispatcher 不得暴露`i18n`服务
 
 ### Requirement: 插件自身配置读取必须归属 plugins 领域
 
@@ -886,11 +892,11 @@
 
 ### Requirement: 动态插件普通领域 host service 必须覆盖源码插件普通领域能力
 
-系统 SHALL 让动态插件通过`hostServices`获得与源码插件`capability.Services`普通消费面等价的领域能力覆盖。动态插件领域 host service MUST 使用语言无关的领域服务名和方法名，MUST 使用`resourceKind: none`表达方法授权，运行时 MUST 从宿主注入的同一个`capability.Services`目录进入对应`*cap.Service`。动态插件协议 MUST NOT 暴露`AdminServices`目录、数据库查询构造器、`DAO/DO/Entity`、HTTP 请求对象或宿主内部 service。
+系统 SHALL 让动态插件通过`hostServices`获得已发布动态普通领域能力的覆盖。动态插件领域 host service MUST 使用语言无关的领域服务名和方法名，MUST 使用`resourceKind: none`表达方法授权，运行时 MUST 从宿主注入的同一个`capability.Services`目录进入对应`*cap.Service`。动态插件协议 MUST NOT 暴露`AdminServices`目录、数据库查询构造器、`DAO/DO/Entity`、HTTP 请求对象、宿主内部 service 或`i18n`运行时翻译服务。
 
 #### Scenario: 动态插件声明普通领域能力
 
-- **WHEN** 动态插件声明`auth`、`authz`、`user`、`dict`、`file`、`session`、`job`、`infra`、`i18n`、`apidoc`、`bizctx`、`route`、`notification`或`plugin`等领域 host service
+- **WHEN** 动态插件声明`auth`、`authz`、`users`、`dict`、`files`、`sessions`、`jobs`、`infra`、`apidoc`、`bizctx`、`route`、`notifications`、`plugins`、`ai`、`org`或`tenant`等领域 host service
 - **THEN** 宿主清单校验 MUST 识别对应领域方法已经发布
 - **AND** 声明 MUST 只包含`methods`
 - **AND** 声明 MUST NOT 包含`resources`、`paths`、`tables`或`keys`
@@ -898,7 +904,7 @@
 
 #### Scenario: 动态插件调用普通领域能力
 
-- **WHEN** 动态插件通过已授权领域方法读取用户、权限、字典、文件、会话、任务、基础设施、国际化、API 文档、业务上下文、路由元数据、通知消息或插件治理投影
+- **WHEN** 动态插件通过已授权领域方法读取用户、权限、字典、文件、会话、任务、基础设施、API 文档、业务上下文、路由元数据、通知消息、插件治理、AI、组织或租户投影
 - **THEN** `WASM`host service handler MUST 构造`CapabilityContext`
 - **AND** handler MUST 使用`Capability.ServicesForPlugin(..., pluginID)`取得插件绑定的能力目录
 - **AND** 请求 MUST 进入对应`*cap.Service`普通消费面或该普通消费面拥有的子服务
@@ -940,4 +946,65 @@
 - **THEN** 构造函数返回错误
 - **AND** 错误在启动装配阶段暴露
 - **AND** 不允许请求路径首次 host call 时才因包级配置缺失失败
+
+### Requirement: Host call 授权快照可以请求内复用但不得改变治理语义
+
+系统 SHALL 允许`WASM`host service handler 在同一次 guest 执行中复用已构建的 host service 授权快照。复用 MUST 仅降低快照装配成本，不得改变当前 active release 授权来源、service/method/resource 校验、数据权限、租户边界、审计字段或错误 envelope。
+
+#### Scenario: 同一次 guest 执行复用授权快照
+
+- **WHEN** 动态插件在一次路由请求中连续调用多个 host service
+- **THEN** 宿主可以复用本次`ExecuteBridge`入口构建的授权快照
+- **AND** 每次 host call 仍校验 service、method 和资源标识是否已授权
+
+#### Scenario: 授权收缩后新请求使用新快照
+
+- **WHEN** 插件 active release 的 host service 授权被收缩并发布`plugin-runtime`修订号
+- **THEN** 后续 guest 执行不得继续使用旧请求中的授权快照
+- **AND** 未授权 service、method 或资源调用必须被拒绝
+
+#### Scenario: 系统型调用不伪造用户上下文
+
+- **WHEN** 动态插件在生命周期、hook 或 cron 中调用需要用户上下文的 host service
+- **THEN** 即使授权快照命中，handler 也必须按领域契约拒绝或按系统调用边界处理
+- **AND** 不得伪造请求型用户身份来绕过数据权限
+
+### Requirement: WASM host service 公共 helper 必须归属公共层
+
+系统 SHALL 将跨领域复用的 WASM host service helper 归属到`wasm`公共 host service 文件或`hostservicedispatch`公共层。具体领域文件 MUST 只承载该领域 service/method 的 transport 适配、授权前置和领域能力调用，不得承载`CapabilityContext`构造、统一 envelope 辅助或 registry 公共响应逻辑。
+
+#### Scenario: 公共 capability context helper 不在用户领域文件
+
+- **WHEN** 静态检索`apps/lina-core/internal/service/plugin/internal/wasm/wasm_host_service_users.go`
+- **THEN** 文件中不得定义`capabilityContextForHostCall`
+- **AND** 用户领域 handler 仍通过同包公共 helper 构造`CapabilityContext`
+
+#### Scenario: 新增普通领域 host service 不修改统一入口分发分支
+
+- **WHEN** 开发者新增一个普通领域 host service 或 method
+- **THEN** 开发者只需要新增或修改领域文件中的 handler 实现
+- **AND** 开发者通过显式 registry 注册条目接入该 service/method
+- **AND** `wasm_host_service.go`不得新增按 service family 直接分发的 switch 分支
+
+#### Scenario: 公共 helper 不扩大运行期依赖来源
+
+- **WHEN** 公共 helper 被迁移到公共层
+- **THEN** helper 继续使用调用路径已有的`hostCallContext`和启动期注入能力
+- **AND** 不得通过包级默认实例、`init()`或临时`New()`创建`auth`、`session`、`i18n`、`cache`或插件 runtime 依赖
+
+### Requirement: 动态插件 i18n 资源必须由宿主管理
+
+系统 SHALL 允许动态插件继续通过`manifest/i18n`交付多语言资源，但运行时资源发现、合并、缓存、失效和前端语言包分发 MUST 由宿主统一管理。动态插件后端 MUST NOT 通过 host service 读取 locale、翻译消息或检索 message key，也 MUST NOT 自行读取`manifest/i18n`资源完成运行时翻译。
+
+#### Scenario: 动态插件交付多语言资源
+
+- **WHEN** 动态插件 artifact 包含`manifest/i18n/<locale>/*.json`资源
+- **THEN** 宿主资源扫描和多语言聚合流程负责发现并合并这些资源
+- **AND** 动态插件不需要声明`service: i18n`
+
+#### Scenario: 动态插件返回可本地化业务结果
+
+- **WHEN** 动态插件后端需要返回用户可见状态、错误或提示
+- **THEN** 响应应返回稳定 message key、message params、英文 fallback 或原始业务数据
+- **AND** 最终展示本地化由宿主错误治理、前端运行时语言包或宿主统一展示层完成
 
