@@ -22,6 +22,7 @@ import {
 } from '#/api/system/plugin';
 import { $t } from '#/locales';
 import { notifyPluginRegistryChanged } from '#/plugins/slot-registry';
+import { closePluginTabs } from '#/plugins/tabbar-cleanup';
 import { formatTimestamp } from '#/utils/time';
 
 const PluginDetailModal = defineAsyncComponent(
@@ -504,6 +505,9 @@ async function handleStatusChange(row: PluginListItem, checked: boolean) {
   row.enabled = nextEnabled;
   try {
     await (checked ? pluginEnable : pluginDisable)(row.id);
+    if (!checked) {
+      await closePluginTabs(row.id);
+    }
     await notifyPluginRegistryChanged();
     message.success(
       checked
@@ -601,7 +605,10 @@ async function handleHostServiceAuthReload() {
   await gridApi.query();
 }
 
-async function handleUninstallReload() {
+async function handleUninstallReload(payload?: { pluginId?: string }) {
+  if (payload?.pluginId) {
+    await closePluginTabs(payload.pluginId);
+  }
   await notifyPluginRegistryChanged();
   await gridApi.query();
 }
