@@ -1012,7 +1012,7 @@ test.describe("TC-1 Runtime Wasm Low Priority Host Services", () => {
     expect(payload.lock.expireAt).toBeTruthy();
     expect(payload.lock.renewExpireAt).toBeTruthy();
 
-    expect(payload.notify.messageId).toBeGreaterThan(0);
+    expect(Number.parseInt(String(payload.notify.messageId), 10)).toBeGreaterThan(0);
     expect(payload.notify.deliveryCount).toBe(1);
 
     const unreadAfter = await apiUnreadCount(adminToken);

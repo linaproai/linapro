@@ -299,9 +299,9 @@ func TestInstallRepairsEmptyReleaseArchive(t *testing.T) {
 	}
 }
 
-// TestInstallDynamicRejectsLowerVersionBeforeRegistrySync verifies the install
-// path rejects discovered downgrade artifacts before SyncManifest can overwrite
-// the effective installed version.
+// TestInstallRejectsLowerVersionAfterStagingArtifactReplacement verifies the
+// public install path refreshes the staged artifact manifest before comparing
+// versions, even when an earlier desired manifest was already cached.
 func TestInstallDynamicRejectsLowerVersionBeforeRegistrySync(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
@@ -328,8 +328,11 @@ func TestInstallDynamicRejectsLowerVersionBeforeRegistrySync(t *testing.T) {
 	if _, err := services.Catalog.LoadManifestFromArtifactPath(higherArtifactPath); err != nil {
 		t.Fatalf("expected higher-version artifact manifest to load, got error: %v", err)
 	}
-	if err := services.Lifecycle.InstallDynamic(ctx, pluginID); err != nil {
+	if _, err := services.Lifecycle.Install(ctx, pluginID, lifecycle.InstallOptions{}); err != nil {
 		t.Fatalf("expected higher-version install to succeed, got error: %v", err)
+	}
+	if _, err := services.Catalog.GetDesiredManifest(pluginID); err != nil {
+		t.Fatalf("expected desired manifest to be cached before replacement, got error: %v", err)
 	}
 
 	testutil.WriteRuntimeWasmArtifact(
@@ -356,7 +359,7 @@ func TestInstallDynamicRejectsLowerVersionBeforeRegistrySync(t *testing.T) {
 		nil,
 	)
 
-	err := services.Lifecycle.InstallDynamic(ctx, pluginID)
+	_, err := services.Lifecycle.Install(ctx, pluginID, lifecycle.InstallOptions{})
 	if !bizerr.Is(err, lifecycle.CodeDynamicPluginDowngradeUnsupported) {
 		t.Fatalf("expected downgrade install to return structured downgrade error, got %v", err)
 	}

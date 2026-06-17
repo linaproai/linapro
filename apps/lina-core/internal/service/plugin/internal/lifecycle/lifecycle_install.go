@@ -59,6 +59,7 @@ func (s *serviceImpl) Install(
 	pluginID string,
 	options InstallOptions,
 ) (result *plugindep.CheckProjection, err error) {
+	s.catalogSvc.InvalidateManifestCache(pluginID)
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
 		return result, err
