@@ -483,6 +483,11 @@ func (rootNoopUsers) SetStatus(context.Context, capmodel.CapabilityContext, capa
 // rootNoopPlugins is a registration-safe plugin-governance fixture for root facade tests.
 type rootNoopPlugins struct{}
 
+// Current returns no current plugin projection for construction-only tests.
+func (rootNoopPlugins) Current(context.Context, capmodel.CapabilityContext) (*capabilityplugincap.Projection, error) {
+	return nil, nil
+}
+
 // BatchGet reports all requested plugin IDs as missing projections.
 func (rootNoopPlugins) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityplugincap.PluginID) (*capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID], error) {
 	return &capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID]{
@@ -491,9 +496,26 @@ func (rootNoopPlugins) BatchGet(_ context.Context, _ capmodel.CapabilityContext,
 	}, nil
 }
 
+// Search returns an empty plugin-governance page for construction-only tests.
+func (rootNoopPlugins) Search(context.Context, capmodel.CapabilityContext, capabilityplugincap.SearchInput) (*capmodel.PageResult[*capabilityplugincap.Projection], error) {
+	return &capmodel.PageResult[*capabilityplugincap.Projection]{Items: []*capabilityplugincap.Projection{}}, nil
+}
+
 // ListTenantPlugins returns an empty tenant plugin page for construction-only tests.
-func (rootNoopPlugins) ListTenantPlugins(context.Context, capmodel.CapabilityContext) (*capmodel.PageResult[*capabilityplugincap.TenantProjection], error) {
+func (rootNoopPlugins) ListTenantPlugins(context.Context, capmodel.CapabilityContext, capabilityplugincap.TenantListInput) (*capmodel.PageResult[*capabilityplugincap.TenantProjection], error) {
 	return &capmodel.PageResult[*capabilityplugincap.TenantProjection]{Items: []*capabilityplugincap.TenantProjection{}}, nil
+}
+
+// BatchGetCapabilityStatus returns unavailable status for requested capability keys.
+func (rootNoopPlugins) BatchGetCapabilityStatus(_ context.Context, _ capmodel.CapabilityContext, keys []capabilityplugincap.CapabilityKey) (*capmodel.BatchResult[*capmodel.CapabilityStatus, capabilityplugincap.CapabilityKey], error) {
+	result := &capmodel.BatchResult[*capmodel.CapabilityStatus, capabilityplugincap.CapabilityKey]{
+		Items:      make(map[capabilityplugincap.CapabilityKey]*capmodel.CapabilityStatus, len(keys)),
+		MissingIDs: []capabilityplugincap.CapabilityKey{},
+	}
+	for _, key := range keys {
+		result.Items[key] = &capmodel.CapabilityStatus{Available: false, Reason: "test_no_provider"}
+	}
+	return result, nil
 }
 
 // Config returns a no-op plugin configuration reader for construction-only tests.

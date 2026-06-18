@@ -48,7 +48,7 @@ func newUserCapabilityAdapter(tenantFilter tenantspi.PluginTableFilterService, d
 }
 
 // BatchGet returns visible user projections and opaque missing IDs.
-func (a *userCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
+func (a *userCapabilityAdapter) BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
 	result := &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID]{
 		Items:      make(map[capabilityusercap.UserID]*capabilityusercap.UserProjection, len(ids)),
 		MissingIDs: []capabilityusercap.UserID{},
@@ -88,7 +88,7 @@ func (a *userCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.Capabil
 		empty bool
 		err   error
 	)
-	model, empty, err = a.applyDataScope(ctx, model)
+	model, empty, err = a.applyDataScope(ctx, capCtx, model)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +140,7 @@ func (a *userCapabilityAdapter) Current(ctx context.Context, capCtx capmodel.Cap
 // BatchResolve resolves visible users by IDs, usernames, email addresses, or phone numbers.
 func (a *userCapabilityAdapter) BatchResolve(
 	ctx context.Context,
-	_ capmodel.CapabilityContext,
+	capCtx capmodel.CapabilityContext,
 	input capabilityusercap.BatchResolveInput,
 ) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.ResolveKey], error) {
 	result := &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.ResolveKey]{
@@ -182,7 +182,7 @@ func (a *userCapabilityAdapter) BatchResolve(
 		empty bool
 		err   error
 	)
-	model, empty, err = a.applyDataScope(ctx, model)
+	model, empty, err = a.applyDataScope(ctx, capCtx, model)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +213,7 @@ func (a *userCapabilityAdapter) BatchResolve(
 }
 
 // Search searches visible user candidates with bounded paging.
-func (a *userCapabilityAdapter) Search(ctx context.Context, _ capmodel.CapabilityContext, input capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
+func (a *userCapabilityAdapter) Search(ctx context.Context, capCtx capmodel.CapabilityContext, input capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
 	pageNum, pageSize := NormalizePage(input.Page)
 	cols := dao.SysUser.Columns()
 	model := dao.SysUser.Ctx(ctx)
@@ -224,7 +224,7 @@ func (a *userCapabilityAdapter) Search(ctx context.Context, _ capmodel.Capabilit
 		empty bool
 		err   error
 	)
-	model, empty, err = a.applyDataScope(ctx, model)
+	model, empty, err = a.applyDataScope(ctx, capCtx, model)
 	if err != nil {
 		return nil, err
 	}
@@ -276,11 +276,22 @@ func (a *userCapabilityAdapter) Search(ctx context.Context, _ capmodel.Capabilit
 }
 
 // applyDataScope constrains sys_user reads by the current role data scope.
-func (a *userCapabilityAdapter) applyDataScope(ctx context.Context, model *gdb.Model) (*gdb.Model, bool, error) {
+func (a *userCapabilityAdapter) applyDataScope(ctx context.Context, capCtx capmodel.CapabilityContext, model *gdb.Model) (*gdb.Model, bool, error) {
 	if a == nil || a.dataScope == nil {
 		return model, false, nil
 	}
+	if bypassUserDataScope(capCtx) {
+		return model, false, nil
+	}
 	return a.dataScope.ApplyUserScope(ctx, model, qualifiedSysUserIDColumn())
+}
+
+// bypassUserDataScope reports whether a host-owned system orchestration call can
+// read stable user projections without an HTTP request data-scope snapshot.
+func bypassUserDataScope(capCtx capmodel.CapabilityContext) bool {
+	return capCtx.SystemCall &&
+		capCtx.Actor.Type == capmodel.ActorTypeSystem &&
+		capCtx.Source == capmodel.CapabilitySourceHost
 }
 
 // EnsureVisible rejects when any requested user is absent or invisible.

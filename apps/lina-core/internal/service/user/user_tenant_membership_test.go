@@ -634,13 +634,36 @@ func (*userTenantMembershipTestProvider) ListUserTenants(
 	ctx context.Context,
 	userID int,
 ) ([]tenantcap.TenantInfo, error) {
-	result := make([]tenantcap.TenantInfo, 0)
+	items, err := batchListUserTenantMembershipTestTenants(ctx, []int{userID})
+	if err != nil {
+		return nil, err
+	}
+	return items[userID], nil
+}
+
+// BatchListUserTenants returns active tenant memberships for the requested users.
+func (*userTenantMembershipTestProvider) BatchListUserTenants(
+	ctx context.Context,
+	userIDs []int,
+) (map[int][]tenantcap.TenantInfo, error) {
+	return batchListUserTenantMembershipTestTenants(ctx, userIDs)
+}
+
+// batchListUserTenantMembershipTestTenants returns the users' active tenant memberships.
+func batchListUserTenantMembershipTestTenants(
+	ctx context.Context,
+	userIDs []int,
+) (map[int][]tenantcap.TenantInfo, error) {
+	result := make(map[int][]tenantcap.TenantInfo, len(userIDs))
+	if len(userIDs) == 0 {
+		return result, nil
+	}
 	var rows []*userTenantMembershipTestRow
 	err := g.DB().Model(userTenantMembershipTestMembershipTable).Safe().Ctx(ctx).
 		As("m").
 		InnerJoin(userTenantMembershipTestTenantTable+" t", "t.id = m.tenant_id AND t.deleted_at IS NULL").
 		Fields("m.user_id, m.tenant_id, t.name AS tenant_name").
-		Where("m.user_id", userID).
+		WhereIn("m.user_id", userIDs).
 		Where("m.status", userTenantMembershipTestActive).
 		OrderAsc("m.id").
 		Scan(&rows)
@@ -651,7 +674,7 @@ func (*userTenantMembershipTestProvider) ListUserTenants(
 		if row == nil {
 			continue
 		}
-		result = append(result, tenantcap.TenantInfo{
+		result[row.UserID] = append(result[row.UserID], tenantcap.TenantInfo{
 			ID:   tenantcap.TenantID(row.TenantID),
 			Name: row.TenantName,
 		})

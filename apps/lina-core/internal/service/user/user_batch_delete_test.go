@@ -319,6 +319,14 @@ func (f userDeleteFailingOrgCap) ListUserDeptAssignments(context.Context, []int)
 	return map[int]*orgcap.UserDeptAssignment{}, nil
 }
 
+// BatchGetUserOrgProfiles returns no organization profiles.
+func (f userDeleteFailingOrgCap) BatchGetUserOrgProfiles(_ context.Context, userIDs []int) (*capmodel.BatchResult[*orgcap.UserOrgProfile, int], error) {
+	return &capmodel.BatchResult[*orgcap.UserOrgProfile, int]{
+		Items:      map[int]*orgcap.UserOrgProfile{},
+		MissingIDs: append([]int(nil), userIDs...),
+	}, nil
+}
+
 // GetUserDeptInfo returns an empty department projection.
 func (f userDeleteFailingOrgCap) GetUserDeptInfo(context.Context, int) (int, string, error) {
 	return 0, "", nil
@@ -357,6 +365,31 @@ func (f userDeleteFailingOrgCap) ApplyUserDeptUnassignedFilter(_ context.Context
 // GetUserPostIDs returns no post IDs.
 func (f userDeleteFailingOrgCap) GetUserPostIDs(context.Context, int) ([]int, error) {
 	return []int{}, nil
+}
+
+// ListDeptTree returns no department tree nodes.
+func (f userDeleteFailingOrgCap) ListDeptTree(context.Context, orgcap.DeptTreeInput) (*orgcap.DeptTreeResult, error) {
+	return &orgcap.DeptTreeResult{Items: []*orgcap.DeptTreeNode{}}, nil
+}
+
+// SearchDepartments returns no department candidates.
+func (f userDeleteFailingOrgCap) SearchDepartments(context.Context, orgcap.DeptSearchInput) (*capmodel.PageResult[*orgcap.DeptProjection], error) {
+	return &capmodel.PageResult[*orgcap.DeptProjection]{Items: []*orgcap.DeptProjection{}}, nil
+}
+
+// ListPostOptionsPage returns no post candidates.
+func (f userDeleteFailingOrgCap) ListPostOptionsPage(context.Context, orgcap.PostOptionsInput) (*capmodel.PageResult[*orgcap.PostOption], error) {
+	return &capmodel.PageResult[*orgcap.PostOption]{Items: []*orgcap.PostOption{}}, nil
+}
+
+// EnsureDepartmentsVisible accepts visibility checks in delete tests.
+func (f userDeleteFailingOrgCap) EnsureDepartmentsVisible(context.Context, []int) error {
+	return nil
+}
+
+// EnsurePostsVisible accepts visibility checks in delete tests.
+func (f userDeleteFailingOrgCap) EnsurePostsVisible(context.Context, []int) error {
+	return nil
 }
 
 // ReplaceUserAssignments accepts assignment replacement without doing work.

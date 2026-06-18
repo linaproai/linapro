@@ -1103,6 +1103,11 @@ func (enabledTenantAuthTestService) Current(context.Context) tenantcapsvc.Tenant
 	return tenantcap.PLATFORM
 }
 
+// CurrentTenantInfo returns the platform tenant projection for auth tests.
+func (enabledTenantAuthTestService) CurrentTenantInfo(context.Context) (*tenantcap.TenantInfo, error) {
+	return &tenantcap.TenantInfo{ID: tenantcap.PLATFORM}, nil
+}
+
 // Apply returns the model unchanged in auth tests.
 func (enabledTenantAuthTestService) Apply(_ context.Context, model *gdb.Model, _ string) (*gdb.Model, error) {
 	return model, nil
@@ -1131,6 +1136,29 @@ func (enabledTenantAuthTestService) ResolveTenant(context.Context, *ghttp.Reques
 // ListUserTenants returns no tenants in auth tests unless provider lookup is used directly.
 func (enabledTenantAuthTestService) ListUserTenants(context.Context, int) ([]tenantcap.TenantInfo, error) {
 	return []tenantcap.TenantInfo{}, nil
+}
+
+// BatchGetTenants reports requested tenants as missing in auth tests.
+func (enabledTenantAuthTestService) BatchGetTenants(_ context.Context, tenantIDs []tenantcap.TenantID) (*capmodel.BatchResult[*tenantcap.TenantInfo, tenantcap.TenantID], error) {
+	return &capmodel.BatchResult[*tenantcap.TenantInfo, tenantcap.TenantID]{
+		Items:      map[tenantcap.TenantID]*tenantcap.TenantInfo{},
+		MissingIDs: append([]tenantcap.TenantID(nil), tenantIDs...),
+	}, nil
+}
+
+// SearchTenants returns an empty tenant page in auth tests.
+func (enabledTenantAuthTestService) SearchTenants(context.Context, tenantcap.SearchInput) (*capmodel.PageResult[*tenantcap.TenantInfo], error) {
+	return &capmodel.PageResult[*tenantcap.TenantInfo]{Items: []*tenantcap.TenantInfo{}}, nil
+}
+
+// BatchListUserTenants returns no user-tenant projections in auth tests.
+func (enabledTenantAuthTestService) BatchListUserTenants(context.Context, []int) (map[int][]tenantcap.TenantInfo, error) {
+	return map[int][]tenantcap.TenantInfo{}, nil
+}
+
+// EnsureTenantsVisible accepts all tenant batches in auth tests.
+func (enabledTenantAuthTestService) EnsureTenantsVisible(context.Context, []tenantcap.TenantID) error {
+	return nil
 }
 
 // SwitchTenant accepts tenant switches in auth tests.
@@ -1504,6 +1532,29 @@ func (s *memorySessionStore) BatchGetScoped(
 		}
 	}
 	return items, nil
+}
+
+// BatchGetUserOnlineStatusScoped returns in-memory session counts per user.
+func (s *memorySessionStore) BatchGetUserOnlineStatusScoped(
+	_ context.Context,
+	userIDs []int,
+	_ datascope.Service,
+	_ tenantspi.ScopeService,
+) ([]*session.UserOnlineStatus, error) {
+	counts := make(map[int]int, len(userIDs))
+	for _, item := range s.items {
+		if item != nil {
+			counts[item.UserId]++
+		}
+	}
+	statuses := make([]*session.UserOnlineStatus, 0, len(userIDs))
+	for _, userID := range userIDs {
+		statuses = append(statuses, &session.UserOnlineStatus{
+			UserId:       userID,
+			SessionCount: counts[userID],
+		})
+	}
+	return statuses, nil
 }
 
 // Delete records and removes one token.

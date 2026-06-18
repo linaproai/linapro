@@ -59,6 +59,42 @@ func TestBatchGetAppliesDataScope(t *testing.T) {
 	}
 }
 
+// TestBatchGetAllowsHostSystemOrchestrationWithoutDataScope verifies startup
+// and lifecycle orchestrations can read stable user projections without an HTTP
+// request data-scope snapshot.
+func TestBatchGetAllowsHostSystemOrchestrationWithoutDataScope(t *testing.T) {
+	ctx := context.Background()
+	scopeSvc := &recordingDataScope{empty: true}
+
+	result, err := newUserCapabilityAdapter(nil, scopeSvc).BatchGet(ctx, hostSystemCapabilityContext("startup"), []capabilityusercap.UserID{"7"})
+	if err != nil {
+		t.Fatalf("batch get users failed: %v", err)
+	}
+	if scopeSvc.applyCalls != 0 {
+		t.Fatalf("expected host system orchestration to bypass request data scope, calls=%d", scopeSvc.applyCalls)
+	}
+	if !containsUserID(result.MissingIDs, "7") {
+		t.Fatalf("expected missing row to stay opaque, got %#v", result)
+	}
+}
+
+// TestBatchGetScopesHTTPSystemCalls verifies public system actors created for
+// HTTP requests do not bypass request data-scope rules.
+func TestBatchGetScopesHTTPSystemCalls(t *testing.T) {
+	ctx := context.Background()
+	scopeSvc := &recordingDataScope{empty: true}
+	capCtx := hostSystemCapabilityContext("http")
+	capCtx.Source = capmodel.CapabilitySourceHTTP
+
+	_, err := newUserCapabilityAdapter(nil, scopeSvc).BatchGet(ctx, capCtx, []capabilityusercap.UserID{"7"})
+	if err != nil {
+		t.Fatalf("batch get users failed: %v", err)
+	}
+	if scopeSvc.applyCalls != 1 || scopeSvc.lastColumn != "sys_user.id" {
+		t.Fatalf("expected HTTP system call to apply data scope, calls=%d column=%q", scopeSvc.applyCalls, scopeSvc.lastColumn)
+	}
+}
+
 // TestCurrentRequiresUserActor verifies current user projection calls fail closed without a user actor.
 func TestCurrentRequiresUserActor(t *testing.T) {
 	_, err := newUserCapabilityAdapter(nil, nil).Current(context.Background(), capmodel.CapabilityContext{})
@@ -153,6 +189,20 @@ func (*recordingDataScope) EnsureUsersVisible(context.Context, []int) error { re
 // EnsureRowsVisible accepts all rows in this fixture.
 func (*recordingDataScope) EnsureRowsVisible(context.Context, *gdb.Model, string, int) error {
 	return nil
+}
+
+func hostSystemCapabilityContext(resource string) capmodel.CapabilityContext {
+	return capmodel.CapabilityContext{
+		PluginID: "linapro-tenant-core",
+		Actor: capmodel.CapabilityActor{
+			Type:         capmodel.ActorTypeSystem,
+			Name:         "linapro-tenant-core",
+			SystemReason: "test host orchestration",
+		},
+		Source:     capmodel.CapabilitySourceHost,
+		SystemCall: true,
+		Resource:   resource,
+	}
 }
 
 func containsUserID(ids []capabilityusercap.UserID, target capabilityusercap.UserID) bool {
