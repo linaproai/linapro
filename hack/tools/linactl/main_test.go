@@ -840,22 +840,7 @@ func TestRunBuildRunsPluginConfigCommandsBeforeBackendCompile(t *testing.T) {
 	root := t.TempDir()
 	writeBuildFixture(t, root)
 
-	var calls []capturedCommand
-	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
-	application.root = root
-	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
-		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
-		calls = append(calls, capturedCommand{
-			name: name,
-			args: append([]string(nil), args...),
-			cmd:  cmd,
-		})
-		return cmd
-	}
-
-	if err := runBuild(context.Background(), application, commandInput{Params: map[string]string{"plugins": "1"}}); err != nil {
-		t.Fatalf("runBuild returned error: %v", err)
-	}
+	calls := runBuildWithCapturedCommands(t, root, nil, commandInput{Params: map[string]string{"plugins": "1"}})
 
 	pluginBuildIndex := -1
 	backendBuildIndex := -1
@@ -3218,6 +3203,9 @@ func runBuildWithCapturedCommands(t *testing.T, root string, env []string, input
 	application.root = root
 	if env != nil {
 		application.env = env
+	}
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
 	}
 	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
 		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
