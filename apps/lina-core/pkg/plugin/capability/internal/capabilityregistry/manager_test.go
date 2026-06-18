@@ -7,6 +7,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/capmodel"
 )
 
 func TestStatusWithProviderReportsFactoryErrorAsUnavailable(t *testing.T) {
@@ -77,6 +80,19 @@ func TestActiveProviderWithErrorRejectsMultipleEnabledProviders(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("expected conflict error")
+	}
+	if !bizerr.Is(err, capmodel.CodeCapabilityProviderConflict) {
+		t.Fatalf("expected capability provider conflict error, got %v", err)
+	}
+	bizErr, ok := bizerr.As(err)
+	if !ok {
+		t.Fatalf("expected structured conflict error, got %v", err)
+	}
+	if bizErr.Params()["capability"] != "cap.test" {
+		t.Fatalf("expected capability param cap.test, got %#v", bizErr.Params())
+	}
+	if bizErr.Params()["providerIds"] != "provider-a,provider-b" {
+		t.Fatalf("expected deterministic provider IDs, got %#v", bizErr.Params())
 	}
 	if provider != nil {
 		t.Fatalf("expected no provider on conflict, got %#v", provider)

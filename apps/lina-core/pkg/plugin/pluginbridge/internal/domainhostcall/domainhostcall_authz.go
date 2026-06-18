@@ -26,6 +26,13 @@ func (s authzService) BatchGetPermissions(_ context.Context, _ capmodel.Capabili
 	return out, err
 }
 
+// BatchHasPermissions reports whether the actor has each permission in the current scope.
+func (s authzService) BatchHasPermissions(_ context.Context, _ capmodel.CapabilityContext, keys []authz.PermissionKey) (map[authz.PermissionKey]bool, error) {
+	out := map[authz.PermissionKey]bool{}
+	err := s.callJSONRequest(protocol.HostServiceAuthz, protocol.HostServiceMethodAuthzBatchHasPermissions, idsRequest{IDs: permissionKeysToStrings(keys)}, &out)
+	return out, err
+}
+
 // HasPermission reports whether the actor has one permission in the current scope.
 func (s authzService) HasPermission(_ context.Context, _ capmodel.CapabilityContext, key authz.PermissionKey) (bool, error) {
 	var out bool

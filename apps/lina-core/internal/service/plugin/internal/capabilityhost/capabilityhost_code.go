@@ -38,4 +38,10 @@ var (
 		"Source plugin cache service requires a plugin ID",
 		gcode.CodeInvalidParameter,
 	)
+	// CodePluginSourceCacheKeyRequired reports an empty plugin cache key.
+	CodePluginSourceCacheKeyRequired = bizerr.MustDefine(
+		"PLUGIN_SOURCE_CACHE_KEY_REQUIRED",
+		"Source plugin cache key cannot be empty",
+		gcode.CodeInvalidParameter,
+	)
 )

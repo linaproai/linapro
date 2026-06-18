@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/filecap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
@@ -23,16 +24,35 @@ func dispatchFilesHostService(
 	if service == nil {
 		return domainServiceNotScoped("files")
 	}
-	var request idsRequest
-	if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
-		return invalidCapabilityRequest(err)
-	}
 	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceFiles, method)
 	switch method {
 	case bridgehostservice.HostServiceMethodFilesBatchGet:
+		var request idsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
 		result, err := service.BatchGet(ctx, capCtx, fileIDs(request.IDs))
 		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodFilesSearch:
+		var request filesSearchRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.Search(ctx, capCtx, filecap.SearchInput{
+			BusinessScene: strings.TrimSpace(request.BusinessScene),
+			Keyword:       strings.TrimSpace(request.Keyword),
+			MimeType:      strings.TrimSpace(request.MimeType),
+			Page: capmodel.PageRequest{
+				PageNum:  request.PageNum,
+				PageSize: request.PageSize,
+			},
+		})
+		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodFilesEnsureVisible:
+		var request idsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
 		err := service.EnsureVisible(ctx, capCtx, fileIDs(request.IDs))
 		return domainCapabilityResult(true, err)
 	default:
@@ -58,4 +78,13 @@ func fileIDs(ids []string) []filecap.FileID {
 		}
 	}
 	return out
+}
+
+// filesSearchRequest carries governed file search parameters.
+type filesSearchRequest struct {
+	BusinessScene string `json:"businessScene,omitempty"`
+	Keyword       string `json:"keyword,omitempty"`
+	MimeType      string `json:"mimeType,omitempty"`
+	PageNum       int    `json:"pageNum,omitempty"`
+	PageSize      int    `json:"pageSize,omitempty"`
 }

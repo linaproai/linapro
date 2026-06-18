@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/aicap/aicommon"
 	"lina-core/pkg/plugin/capability/capmodel"
 )
 
@@ -44,6 +45,18 @@ func (s *serviceImpl) Status(ctx context.Context) capmodel.CapabilityStatus {
 	return convertCapabilityStatus(s.manager.registry.StatusWithProvider(ctx, CapabilityAITextV1, s.runtime, s.providerEnv))
 }
 
+// MethodStatus returns the current text AI method activation state.
+func (s *serviceImpl) MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus {
+	status := s.Status(ctx)
+	return aicommon.MethodStatus{
+		CapabilityType:   aicommon.CapabilityTypeText,
+		CapabilityMethod: method,
+		Available:        status.Available && method == aicommon.CapabilityMethodTextGenerate,
+		Reason:           textMethodStatusReason(status, method),
+		CapabilityStatus: status,
+	}
+}
+
 // GenerateText executes one synchronous text generation request.
 func (s *serviceImpl) GenerateText(ctx context.Context, request GenerateRequest) (*GenerateResponse, error) {
 	if err := validateGenerateRequest(request); err != nil {
@@ -51,6 +64,9 @@ func (s *serviceImpl) GenerateText(ctx context.Context, request GenerateRequest)
 	}
 	provider, err := s.currentProvider(ctx)
 	if err != nil {
+		if bizerr.Is(err, capmodel.CodeCapabilityProviderConflict) {
+			return nil, err
+		}
 		return nil, bizerr.WrapCode(err, CodeTextProviderUnavailable)
 	}
 	if provider == nil {
@@ -60,6 +76,20 @@ func (s *serviceImpl) GenerateText(ctx context.Context, request GenerateRequest)
 		GenerateRequest: request,
 		SourcePluginID:  s.sourcePluginID,
 	})
+}
+
+// textMethodStatusReason returns a compact unavailable reason for method status.
+func textMethodStatusReason(status capmodel.CapabilityStatus, method aicommon.CapabilityMethod) string {
+	if method != aicommon.CapabilityMethodTextGenerate {
+		return "method_unsupported"
+	}
+	if status.Available {
+		return ""
+	}
+	if strings.TrimSpace(status.Reason) != "" {
+		return status.Reason
+	}
+	return "no_provider"
 }
 
 // currentProvider returns the currently registered text AI capability provider.

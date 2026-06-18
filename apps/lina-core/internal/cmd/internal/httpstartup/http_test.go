@@ -1038,8 +1038,8 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 		notifySvc,
 		kvCacheSvc,
 		hostLockSvc,
-		pluginsvc.NewStorageProviderRuntime(configSvc, pluginRuntime),
-		pluginsvc.NewLocalStorageProvider(configSvc.GetPluginDynamicStoragePath(ctx), false, false),
+		pluginsvc.NewStorageProviderRuntime(pluginRuntime),
+		pluginsvc.NewLocalStorageProvider(configSvc.GetPluginDynamicStoragePath(ctx)),
 	)
 	if err != nil {
 		panic(err)

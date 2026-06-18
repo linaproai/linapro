@@ -4,6 +4,7 @@ package wasm
 
 import (
 	"context"
+	"strings"
 
 	"lina-core/internal/service/plugin/internal/datahost"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
@@ -29,6 +30,12 @@ func dispatchDataHostService(
 		return bridgehostcall.NewHostCallErrorResponse(
 			bridgehostcall.HostCallStatusCapabilityDenied,
 			"data host service authorization snapshot not found",
+		)
+	}
+	if !dataHostServiceTableOwnedByPlugin(hcc.pluginID, table) {
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusCapabilityDenied,
+			"data host service table is outside plugin namespace",
 		)
 	}
 	resource, err := datahost.BuildCachedAuthorizedTableContract(ctx, datahost.AuthorizedTableContractInput{
@@ -86,6 +93,26 @@ func dispatchDataHostService(
 			break
 		}
 		responsePayload = bridgehostservice.MarshalHostServiceDataGetResponse(response)
+	case bridgehostservice.HostServiceMethodDataBatchGet:
+		request, decodeErr := bridgehostservice.UnmarshalHostServiceDataBatchGetRequest(payload)
+		if decodeErr != nil {
+			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, decodeErr)
+		}
+		response, callErr := datahost.ExecuteBatchGet(
+			ctx,
+			hcc.pluginID,
+			table,
+			hcc.executionSource,
+			hcc.identity,
+			orgSvc,
+			resource,
+			request,
+		)
+		if callErr != nil {
+			execErr = callErr
+			break
+		}
+		responsePayload = bridgehostservice.MarshalHostServiceDataBatchGetResponse(response)
 	case bridgehostservice.HostServiceMethodDataCreate:
 		request, decodeErr := bridgehostservice.UnmarshalHostServiceDataMutationRequest(payload)
 		if decodeErr != nil {
@@ -176,4 +203,14 @@ func dispatchDataHostService(
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, execErr)
 	}
 	return bridgehostcall.NewHostCallSuccessResponse(responsePayload)
+}
+
+func dataHostServiceTableOwnedByPlugin(pluginID string, table string) bool {
+	normalizedPluginID := strings.NewReplacer("-", "_", ".", "_").Replace(strings.ToLower(strings.TrimSpace(pluginID)))
+	normalizedTable := strings.ToLower(strings.TrimSpace(table))
+	if normalizedPluginID == "" || normalizedTable == "" || strings.HasPrefix(normalizedTable, "sys_") {
+		return false
+	}
+	ownedTable := "plugin_" + normalizedPluginID
+	return normalizedTable == ownedTable || strings.HasPrefix(normalizedTable, ownedTable+"_")
 }

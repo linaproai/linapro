@@ -5,6 +5,7 @@
 package hostservice
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -178,6 +179,41 @@ func TestHostServiceDescriptorsUsePublicCatalog(t *testing.T) {
 	}
 	if !reflect.DeepEqual(HostServiceMethodDescriptors(), hostservices.Methods()) {
 		t.Fatal("internal host service method descriptors must be derived from protocol/hostservices catalog")
+	}
+}
+
+// TestHostServiceReadmeGeneratedBlocksMatchCatalog verifies the public README
+// host-service tables are kept in sync with the catalog-owned descriptor table.
+func TestHostServiceReadmeGeneratedBlocksMatchCatalog(t *testing.T) {
+	root := repoRootForDescriptorTest(t)
+	readmeDir := filepath.Join(root, "pkg/plugin")
+	for _, tc := range []struct {
+		file          string
+		noneLabel     string
+		header        string
+		notifications string
+	}{
+		{
+			file:          "README.md",
+			noneLabel:     "None",
+			header:        "| Service | Resource declaration | Derived capability | Methods |",
+			notifications: "None for reads; `messages.send` uses `resources[].ref`",
+		},
+		{
+			file:          "README.zh-CN.md",
+			noneLabel:     "无",
+			header:        "| Service | 资源声明 | 派生能力 | Methods |",
+			notifications: "读取无资源；`messages.send`使用`resources[].ref`",
+		},
+	} {
+		t.Run(tc.file, func(t *testing.T) {
+			path := filepath.Join(readmeDir, tc.file)
+			actual := extractGeneratedHostServicesBlock(t, path)
+			expected := renderReadmeHostServicesBlock(tc.noneLabel, tc.header, tc.notifications)
+			if actual != expected {
+				t.Fatalf("%s generated host-services block is stale\nexpected:\n%s\nactual:\n%s", path, expected, actual)
+			}
+		})
 	}
 }
 
@@ -679,6 +715,84 @@ func dispatcherFunctionNameForService(t *testing.T, service string) string {
 	default:
 		constName := hostServiceConstNameForService(t, service)
 		return "dispatch" + strings.TrimPrefix(constName, "HostService") + "HostService"
+	}
+}
+
+func extractGeneratedHostServicesBlock(t *testing.T, path string) string {
+	t.Helper()
+	content := string(readFileForDescriptorTest(t, path))
+	startMarker := "<!-- BEGIN generated:host-services -->"
+	endMarker := "<!-- END generated:host-services -->"
+	start := strings.Index(content, startMarker)
+	if start < 0 {
+		t.Fatalf("%s is missing %s", path, startMarker)
+	}
+	end := strings.Index(content[start:], endMarker)
+	if end < 0 {
+		t.Fatalf("%s is missing %s", path, endMarker)
+	}
+	return strings.TrimSpace(content[start : start+end+len(endMarker)])
+}
+
+func renderReadmeHostServicesBlock(noneLabel string, header string, notificationsResource string) string {
+	var builder strings.Builder
+	builder.WriteString("<!-- BEGIN generated:host-services -->\n")
+	builder.WriteString(header)
+	builder.WriteString("\n")
+	builder.WriteString("| --- | --- | --- | --- |\n")
+	for _, descriptor := range HostServiceDescriptors() {
+		methods := make([]string, 0, len(descriptor.Methods))
+		capabilities := make([]string, 0, len(descriptor.Methods))
+		seenCapabilities := make(map[string]struct{})
+		for _, method := range descriptor.Methods {
+			methodName := "`" + method.Method + "`"
+			if !method.Published {
+				methodName += " reserved"
+			}
+			methods = append(methods, methodName)
+			if _, ok := seenCapabilities[method.Capability]; ok {
+				continue
+			}
+			seenCapabilities[method.Capability] = struct{}{}
+			capabilities = append(capabilities, "`"+method.Capability+"`")
+		}
+		resource := readmeResourceDeclaration(descriptor, noneLabel, notificationsResource)
+		builder.WriteString(fmt.Sprintf(
+			"| `%s` | %s | %s | %s |\n",
+			descriptor.Service,
+			resource,
+			strings.Join(capabilities, "<br/>"),
+			strings.Join(methods, "<br/>"),
+		))
+	}
+	builder.WriteString("<!-- END generated:host-services -->")
+	return strings.TrimSpace(builder.String())
+}
+
+func readmeResourceDeclaration(
+	descriptor HostServiceDescriptor,
+	noneLabel string,
+	notificationsResource string,
+) string {
+	if descriptor.Service == HostServiceNotifications {
+		return notificationsResource
+	}
+	switch descriptor.ResourceKind {
+	case HostServiceResourceNone:
+		return noneLabel
+	case HostServiceResourcePath:
+		return "`resources.paths`"
+	case HostServiceResourceTable:
+		return "`resources.tables`"
+	case HostServiceResourceKey:
+		return "`resources.keys`"
+	case HostServiceResourceRef:
+		if descriptor.Service == HostServiceNetwork {
+			return "`resources[].url`"
+		}
+		return "`resources[].ref`"
+	default:
+		return "`" + string(descriptor.ResourceKind) + "`"
 	}
 }
 

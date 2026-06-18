@@ -42,6 +42,16 @@ func (s *cleanupStorageService) Delete(_ context.Context, in storagecap.DeleteIn
 	return nil
 }
 
+// DeleteMany records deleted logical paths.
+func (s *cleanupStorageService) DeleteMany(ctx context.Context, in storagecap.DeleteManyInput) error {
+	for _, path := range in.Paths {
+		if err := s.Delete(ctx, storagecap.DeleteInput{Path: path}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // List returns the configured cleanup objects.
 func (s *cleanupStorageService) List(_ context.Context, in storagecap.ListInput) (*storagecap.ListOutput, error) {
 	limit := in.Limit
@@ -54,9 +64,23 @@ func (s *cleanupStorageService) List(_ context.Context, in storagecap.ListInput)
 	return &storagecap.ListOutput{Objects: append([]*storagecap.Object(nil), s.objects[:limit]...), Limit: limit}, nil
 }
 
+// ListCursor returns cleanup objects with the same bounded behavior as List.
+func (s *cleanupStorageService) ListCursor(ctx context.Context, in storagecap.ListCursorInput) (*storagecap.ListCursorOutput, error) {
+	output, err := s.List(ctx, storagecap.ListInput{Prefix: in.Prefix, Limit: in.Limit})
+	if err != nil {
+		return nil, err
+	}
+	return &storagecap.ListCursorOutput{Objects: output.Objects, Limit: output.Limit}, nil
+}
+
 // Stat is unused by cleanup tests.
 func (*cleanupStorageService) Stat(context.Context, storagecap.StatInput) (*storagecap.StatOutput, error) {
 	return nil, nil
+}
+
+// BatchStat is unused by cleanup tests.
+func (*cleanupStorageService) BatchStat(context.Context, storagecap.BatchStatInput) (*storagecap.BatchStatOutput, error) {
+	return &storagecap.BatchStatOutput{}, nil
 }
 
 // ProviderStatuses is unused by cleanup tests.

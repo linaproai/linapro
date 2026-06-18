@@ -34,6 +34,12 @@ var (
 		"Capability {capability} is unavailable",
 		gcode.CodeInternalError,
 	)
+	// CodeCapabilityProviderConflict reports that multiple provider plugins can serve one singleton capability.
+	CodeCapabilityProviderConflict = bizerr.MustDefine(
+		"CAPABILITY_PROVIDER_CONFLICT",
+		"Multiple providers are available for capability {capability}: {providerIds}",
+		gcode.CodeInvalidOperation,
+	)
 	// CodeCapabilityLimitExceeded reports a request that exceeds a domain limit.
 	CodeCapabilityLimitExceeded = bizerr.MustDefine(
 		"CAPABILITY_LIMIT_EXCEEDED",

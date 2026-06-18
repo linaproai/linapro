@@ -10,10 +10,12 @@ import (
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/capmodel"
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
 	tenantcap "lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
+	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 )
 
 // AuthSessionRevoker defines the host auth revocation slice required by the adapter.
@@ -32,6 +34,8 @@ type sessionCapabilityService interface {
 // capability contract.
 type sessionCapabilityAdapter struct {
 	authSvc      sessionAuthRevoker
+	bizCtx       bizctxcap.Service
+	users        capabilityusercap.Service
 	scopeSvc     datascope.Service
 	sessionStore session.Store
 	tenantSvc    tenantspi.RuntimeService
@@ -45,16 +49,46 @@ var (
 // New creates the host-owned online-session capability adapter.
 func newSessionCapabilityAdapter(
 	authSvc AuthSessionRevoker,
+	bizCtx bizctxcap.Service,
+	users capabilityusercap.Service,
 	scopeSvc datascope.Service,
 	sessionStore session.Store,
 	tenantSvc tenantspi.RuntimeService,
 ) sessionCapabilityService {
 	return &sessionCapabilityAdapter{
 		authSvc:      authSvc,
+		bizCtx:       bizCtx,
+		users:        users,
 		scopeSvc:     scopeSvc,
 		sessionStore: sessionStore,
 		tenantSvc:    tenantSvc,
 	}
+}
+
+// Current returns the visible session projection for the current token.
+func (a *sessionCapabilityAdapter) Current(ctx context.Context, capCtx capmodel.CapabilityContext) (*capabilitysessioncap.Projection, error) {
+	if a == nil || a.sessionStore == nil {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityUnavailable, bizerr.P("capability", "session"))
+	}
+	tokenID := ""
+	if a.bizCtx != nil {
+		tokenID = strings.TrimSpace(a.bizCtx.Current(ctx).TokenID)
+	}
+	if tokenID == "" {
+		tokenID = strings.TrimSpace(bizctxcap.CurrentFromContext(ctx).TokenID)
+	}
+	if tokenID == "" {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityContextRequired)
+	}
+	result, err := a.BatchGet(ctx, capCtx, []capabilitysessioncap.SessionID{capabilitysessioncap.SessionID(tokenID)})
+	if err != nil {
+		return nil, err
+	}
+	sessionItem := result.Items[capabilitysessioncap.SessionID(tokenID)]
+	if sessionItem == nil || len(result.MissingIDs) > 0 {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityDenied)
+	}
+	return sessionItem, nil
 }
 
 // Search returns one bounded visible session page.
@@ -125,6 +159,147 @@ func (a *sessionCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.Capa
 		}
 	}
 	return result, nil
+}
+
+// BatchGetUserOnlineStatus returns visible users' online status in one bounded call.
+func (a *sessionCapabilityAdapter) BatchGetUserOnlineStatus(
+	ctx context.Context,
+	capCtx capmodel.CapabilityContext,
+	userIDs []string,
+) (*capmodel.BatchResult[*capabilitysessioncap.UserOnlineStatusProjection, string], error) {
+	result := &capmodel.BatchResult[*capabilitysessioncap.UserOnlineStatusProjection, string]{
+		Items:      make(map[string]*capabilitysessioncap.UserOnlineStatusProjection, len(userIDs)),
+		MissingIDs: []string{},
+	}
+	if len(userIDs) > capabilitysessioncap.MaxBatchGetUserOnlineStatus {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", capabilitysessioncap.MaxBatchGetUserOnlineStatus))
+	}
+	if len(userIDs) == 0 {
+		return result, nil
+	}
+	requested := make(map[int]string, len(userIDs))
+	parsedIDs := make([]int, 0, len(userIDs))
+	for _, id := range userIDs {
+		normalizedID := strings.TrimSpace(id)
+		parsedID, err := strconv.Atoi(normalizedID)
+		if err != nil || parsedID <= 0 {
+			if !Contains(result.MissingIDs, id) {
+				result.MissingIDs = append(result.MissingIDs, id)
+			}
+			continue
+		}
+		if _, exists := requested[parsedID]; exists {
+			continue
+		}
+		requested[parsedID] = id
+		parsedIDs = append(parsedIDs, parsedID)
+	}
+	if len(parsedIDs) == 0 {
+		return result, nil
+	}
+	if a == nil || a.users == nil {
+		for _, id := range userIDs {
+			if !Contains(result.MissingIDs, id) {
+				result.MissingIDs = append(result.MissingIDs, id)
+			}
+		}
+		return result, nil
+	}
+	visibleUsers, err := a.users.BatchGet(ctx, capCtx, sessionUserIDs(parsedIDs))
+	if err != nil {
+		return nil, err
+	}
+	visibleParsedIDs := make([]int, 0, len(visibleUsers.Items))
+	for _, parsedID := range parsedIDs {
+		requestID := requested[parsedID]
+		if _, ok := visibleUsers.Items[capabilityusercap.UserID(strconv.Itoa(parsedID))]; !ok {
+			if !Contains(result.MissingIDs, requestID) {
+				result.MissingIDs = append(result.MissingIDs, requestID)
+			}
+			continue
+		}
+		visibleParsedIDs = append(visibleParsedIDs, parsedID)
+	}
+	if len(visibleParsedIDs) == 0 {
+		return result, nil
+	}
+	if a == nil || a.sessionStore == nil {
+		for _, id := range userIDs {
+			if !Contains(result.MissingIDs, id) {
+				result.MissingIDs = append(result.MissingIDs, id)
+			}
+		}
+		return result, nil
+	}
+	statuses, err := a.sessionStore.BatchGetUserOnlineStatusScoped(
+		ctx,
+		visibleParsedIDs,
+		a.currentScopeSvc(),
+		a.currentTenantSvc(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	for _, status := range statuses {
+		if status == nil {
+			continue
+		}
+		requestID, ok := requested[status.UserId]
+		if !ok {
+			continue
+		}
+		result.Items[requestID] = &capabilitysessioncap.UserOnlineStatusProjection{
+			UserID:       requestID,
+			Online:       status.SessionCount > 0,
+			SessionCount: status.SessionCount,
+		}
+	}
+	for _, id := range userIDs {
+		normalizedID := strings.TrimSpace(id)
+		parsedID, err := strconv.Atoi(normalizedID)
+		if err != nil || parsedID <= 0 {
+			continue
+		}
+		if _, ok := result.Items[id]; ok {
+			continue
+		}
+		if _, requestedVisible := requested[parsedID]; !requestedVisible {
+			if !Contains(result.MissingIDs, id) {
+				result.MissingIDs = append(result.MissingIDs, id)
+			}
+			continue
+		}
+		result.Items[id] = &capabilitysessioncap.UserOnlineStatusProjection{
+			UserID:       id,
+			Online:       false,
+			SessionCount: 0,
+		}
+	}
+	return result, nil
+}
+
+// sessionUserIDs converts parsed user IDs to user capability IDs.
+func sessionUserIDs(ids []int) []capabilityusercap.UserID {
+	out := make([]capabilityusercap.UserID, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, capabilityusercap.UserID(strconv.Itoa(id)))
+	}
+	return out
+}
+
+// EnsureVisible rejects when any requested online session is absent or invisible.
+func (a *sessionCapabilityAdapter) EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilitysessioncap.SessionID) error {
+	if len(ids) > capabilitysessioncap.MaxEnsureVisible {
+		return bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", capabilitysessioncap.MaxEnsureVisible))
+	}
+	result, err := a.BatchGet(ctx, capCtx, ids)
+	if err != nil {
+		return err
+	}
+	if result == nil || len(result.MissingIDs) > 0 {
+		return bizerr.NewCode(capmodel.CodeCapabilityDenied)
+	}
+	return nil
 }
 
 // Revoke invalidates one visible online session.

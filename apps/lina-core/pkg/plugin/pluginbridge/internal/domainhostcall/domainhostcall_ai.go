@@ -6,6 +6,7 @@ package domainhostcall
 
 import (
 	"context"
+	"encoding/json"
 
 	"lina-core/pkg/plugin/capability/aicap"
 	"lina-core/pkg/plugin/capability/aicap/aiaudio"
@@ -93,12 +94,51 @@ func (s aiService) Safety() aisafety.Service { return aiSafetyService{baseServic
 // Video returns the governed video AI guest client.
 func (s aiService) Video() aivideo.Service { return aiVideoService{baseService: s.baseService} }
 
+// MethodStatuses reads AI method availability across sub-capabilities.
+func (s aiService) MethodStatuses(_ context.Context, input aicap.MethodStatusesInput) (*aicap.MethodStatusesResult, error) {
+	var response aicap.MethodStatusesResult
+	payload, err := marshalAIJSONRequest(input)
+	if err != nil {
+		return nil, err
+	}
+	err = s.invokeAIJSON(
+		protocol.HostServiceMethodAIMethodStatuses,
+		payload,
+		&response,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
 // Available reports that guest transport does not expose text provider status.
 func (aiTextService) Available(context.Context) bool { return false }
 
 // Status returns a safe text AI unavailable projection for guest-side status checks.
 func (aiTextService) Status(context.Context) capmodel.CapabilityStatus {
 	return aicommon.UnavailableStatus(aitext.CapabilityAITextV1)
+}
+
+// MethodStatus reads one text AI method availability projection through host transport.
+func (s aiTextService) MethodStatus(_ context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus {
+	var response aicommon.MethodStatus
+	payload, err := marshalAIJSONRequest(aicap.MethodStatusQuery{
+		CapabilityType:   aicommon.CapabilityTypeText,
+		CapabilityMethod: method,
+	})
+	if err != nil {
+		return aicommon.UnavailableMethodStatus(aitext.CapabilityAITextV1, aicommon.CapabilityTypeText, method)
+	}
+	err = s.invokeAIJSON(
+		protocol.HostServiceMethodAITextMethodStatus,
+		payload,
+		&response,
+	)
+	if err != nil {
+		return aicommon.UnavailableMethodStatus(aitext.CapabilityAITextV1, aicommon.CapabilityTypeText, method)
+	}
+	return response
 }
 
 // Available reports that guest transport does not expose image provider status.
@@ -416,4 +456,12 @@ func (s aiVideoService) OperationCancel(_ context.Context, request aivideo.Opera
 // invokeAIJSON dispatches one AI host-service request through the injected invoker.
 func (s baseService) invokeAIJSON(method string, payload []byte, out any) error {
 	return s.call(protocol.HostServiceAI, method, payload, out)
+}
+
+func marshalAIJSONRequest(value any) ([]byte, error) {
+	content, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	return protocol.MarshalHostServiceJSONRequest(&protocol.HostServiceJSONRequest{Value: content}), nil
 }

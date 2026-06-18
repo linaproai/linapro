@@ -35,6 +35,22 @@ func dispatchNotificationsHostService(
 		capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceNotifications, method)
 		result, err := service.BatchGet(ctx, capCtx, messageIDs(request.IDs))
 		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodNotificationsBatchGetBySource:
+		var request notifycap.BatchGetBySourceInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceNotifications, method)
+		result, err := service.BatchGetBySource(ctx, capCtx, request)
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodNotificationsEnsureVisible:
+		var request idsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceNotifications, method)
+		err := service.EnsureVisible(ctx, capCtx, messageIDs(request.IDs))
+		return domainCapabilityResult(struct{}{}, err)
 	case bridgehostservice.HostServiceMethodNotificationsSend:
 		return handleNotificationsSend(ctx, hcc, service, resourceRef, method, payload)
 	default:

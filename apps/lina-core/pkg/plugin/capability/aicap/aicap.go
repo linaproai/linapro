@@ -5,6 +5,9 @@
 package aicap
 
 import (
+	"context"
+
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/aicap/aiaudio"
 	"lina-core/pkg/plugin/capability/aicap/aicommon"
 	"lina-core/pkg/plugin/capability/aicap/aidocument"
@@ -14,6 +17,7 @@ import (
 	"lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/aicap/aivideo"
 	"lina-core/pkg/plugin/capability/aicap/aivision"
+	"lina-core/pkg/plugin/capability/capmodel"
 )
 
 type (
@@ -61,10 +65,39 @@ const (
 	TierAdvanced = aicommon.TierAdvanced
 )
 
+const (
+	// MaxMethodStatusBatchSize limits cross-sub-capability AI status reads.
+	MaxMethodStatusBatchSize = 100
+)
+
+// MethodStatusQuery identifies one AI sub-capability method status to read.
+type MethodStatusQuery struct {
+	// CapabilityType identifies the AI capability family.
+	CapabilityType CapabilityType `json:"capabilityType"`
+	// CapabilityMethod identifies the method inside the capability family.
+	CapabilityMethod CapabilityMethod `json:"capabilityMethod"`
+}
+
+// MethodStatusesInput carries one bounded AI method status batch request.
+type MethodStatusesInput struct {
+	// Methods contains AI method status queries.
+	Methods []MethodStatusQuery `json:"methods"`
+}
+
+// MethodStatusesResult carries AI method statuses in request order.
+type MethodStatusesResult struct {
+	// Items contains one status per requested method.
+	Items []MethodStatus `json:"items"`
+}
+
 // Service aggregates typed AI sub capabilities under one stable namespace.
 //
 // Service 聚合宿主发布的 AI 子能力，适用于源码插件、动态插件和宿主模块通过统一入口访问文本等能力，同时避免在根能力目录继续追加 AI 子能力方法。
 type Service interface {
+	// MethodStatuses returns method-level availability for AI sub capabilities.
+	//
+	// MethodStatuses 批量返回 AI 子能力方法状态，用于插件降级判断；结果只包含能力、方法、可用性和状态原因，不暴露 provider 配置。
+	MethodStatuses(ctx context.Context, input MethodStatusesInput) (*MethodStatusesResult, error)
 	// Text returns the text AI capability service.
 	//
 	// Text 返回文本 AI 子能力服务；未配置 provider 时也必须返回可降级服务，由子能力自身返回结构化不可用错误。
@@ -113,6 +146,43 @@ type serviceImpl struct {
 
 // Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
+
+// MethodStatuses returns method-level availability for AI sub capabilities.
+func (s *serviceImpl) MethodStatuses(ctx context.Context, input MethodStatusesInput) (*MethodStatusesResult, error) {
+	if len(input.Methods) > MaxMethodStatusBatchSize {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", MaxMethodStatusBatchSize))
+	}
+	result := &MethodStatusesResult{Items: make([]MethodStatus, 0, len(input.Methods))}
+	for _, query := range input.Methods {
+		result.Items = append(result.Items, s.methodStatus(ctx, query))
+	}
+	return result, nil
+}
+
+// methodStatus returns one sub-capability status without exposing provider internals.
+func (s *serviceImpl) methodStatus(ctx context.Context, query MethodStatusQuery) MethodStatus {
+	method := aicommon.CapabilityMethod(query.CapabilityMethod)
+	switch aicommon.CapabilityType(query.CapabilityType) {
+	case aicommon.CapabilityTypeText:
+		return s.Text().MethodStatus(ctx, method)
+	case aicommon.CapabilityTypeImage:
+		return s.Image().MethodStatus(ctx, method)
+	case aicommon.CapabilityTypeEmbedding:
+		return s.Embedding().MethodStatus(ctx, method)
+	case aicommon.CapabilityTypeAudio:
+		return s.Audio().MethodStatus(ctx, method)
+	case aicommon.CapabilityTypeVision:
+		return s.Vision().MethodStatus(ctx, method)
+	case aicommon.CapabilityTypeDocument:
+		return s.Document().MethodStatus(ctx, method)
+	case aicommon.CapabilityTypeSafety:
+		return s.Safety().MethodStatus(ctx, method)
+	case aicommon.CapabilityTypeVideo:
+		return s.Video().MethodStatus(ctx, method)
+	default:
+		return aicommon.UnavailableMethodStatus("", aicommon.CapabilityType(query.CapabilityType), method)
+	}
+}
 
 // Option customizes optional non-text AI sub capability services.
 type Option func(*serviceImpl)

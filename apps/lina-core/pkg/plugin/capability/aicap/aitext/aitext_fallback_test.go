@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/capmodel"
 )
 
 func TestGenerateTextReturnsUnavailableWithoutProvider(t *testing.T) {
@@ -123,8 +124,8 @@ func TestGenerateTextRejectsProviderConflict(t *testing.T) {
 
 	service := New(manager, testRuntime{pluginID: firstPluginID, secondPluginID: secondPluginID})
 	_, err := service.GenerateText(context.Background(), validGenerateRequest())
-	if !bizerr.Is(err, CodeTextProviderUnavailable) {
-		t.Fatalf("expected provider unavailable on conflict, got %v", err)
+	if !bizerr.Is(err, capmodel.CodeCapabilityProviderConflict) {
+		t.Fatalf("expected provider conflict error, got %v", err)
 	}
 	status := service.Status(context.Background())
 	if status.Available || status.Reason == "" {

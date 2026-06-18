@@ -1,6 +1,7 @@
 // This file implements the host built-in local disk storage provider used as
-// the single-node default for plugin object storage. The provider receives only
-// scoped provider object keys and never plugin authorization snapshots.
+// the zero-configuration fallback for plugin object storage. The provider
+// receives only scoped provider object keys and never plugin authorization
+// snapshots.
 
 package capabilityhost
 
@@ -29,17 +30,13 @@ const (
 
 // localStorageProvider stores plugin objects in a local directory tree.
 type localStorageProvider struct {
-	rootDir        string
-	clusterEnabled bool
-	allowCluster   bool
+	rootDir string
 }
 
 // NewLocalStorageProvider creates the host built-in local storage provider.
-func NewLocalStorageProvider(rootDir string, clusterEnabled bool, allowCluster bool) storagecap.Provider {
+func NewLocalStorageProvider(rootDir string) storagecap.Provider {
 	return &localStorageProvider{
-		rootDir:        strings.TrimSpace(rootDir),
-		clusterEnabled: clusterEnabled,
-		allowCluster:   allowCluster,
+		rootDir: strings.TrimSpace(rootDir),
 	}
 }
 
@@ -126,6 +123,16 @@ func (p *localStorageProvider) Delete(ctx context.Context, in storagecap.Provide
 	return nil
 }
 
+// DeleteMany removes explicit scoped object keys.
+func (p *localStorageProvider) DeleteMany(ctx context.Context, in storagecap.ProviderDeleteManyInput) error {
+	for _, key := range in.Keys {
+		if err := p.Delete(ctx, storagecap.ProviderDeleteInput{Key: key}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // List lists scoped object keys under one prefix.
 func (p *localStorageProvider) List(ctx context.Context, in storagecap.ProviderListInput) (*storagecap.ProviderListOutput, error) {
 	if err := p.ensureAvailable(); err != nil {
@@ -192,6 +199,79 @@ func (p *localStorageProvider) List(ctx context.Context, in storagecap.ProviderL
 	return &storagecap.ProviderListOutput{Objects: objects}, nil
 }
 
+// ListCursor lists scoped object keys under one prefix using deterministic key order.
+func (p *localStorageProvider) ListCursor(ctx context.Context, in storagecap.ProviderListCursorInput) (*storagecap.ProviderListCursorOutput, error) {
+	if err := p.ensureAvailable(); err != nil {
+		return nil, err
+	}
+	rootDir, err := p.rootPath()
+	if err != nil {
+		return nil, err
+	}
+	prefix, err := normalizePluginStoragePath(in.Prefix, false)
+	if err != nil {
+		return nil, err
+	}
+	limit := normalizeStorageListLimit(in.Limit)
+	prefixPath, err := p.resolveKey(prefix)
+	if err != nil {
+		return nil, err
+	}
+	fileInfo, exists, err := localStoragePathInfo(prefixPath)
+	if err != nil || !exists {
+		return &storagecap.ProviderListCursorOutput{Objects: []*storagecap.ProviderObject{}}, nil
+	}
+	if !fileInfo.IsDir() {
+		if strings.TrimSpace(prefix) <= strings.TrimSpace(in.Cursor) {
+			return &storagecap.ProviderListCursorOutput{Objects: []*storagecap.ProviderObject{}}, nil
+		}
+		return &storagecap.ProviderListCursorOutput{Objects: []*storagecap.ProviderObject{
+			p.providerObject(prefix, fileInfo, ""),
+		}}, nil
+	}
+
+	cursor := strings.TrimSpace(in.Cursor)
+	page := make([]*storagecap.ProviderObject, 0, limit+1)
+	nextCursor := ""
+	err = filepath.WalkDir(prefixPath, func(absolutePath string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			if os.IsNotExist(walkErr) {
+				return nil
+			}
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		fileInfo, statErr := entry.Info()
+		if statErr != nil {
+			if os.IsNotExist(statErr) {
+				return nil
+			}
+			return statErr
+		}
+		relativePath, relErr := filepath.Rel(rootDir, absolutePath)
+		if relErr != nil {
+			return relErr
+		}
+		key := filepath.ToSlash(relativePath)
+		if cursor != "" && key <= cursor {
+			return nil
+		}
+		page = append(page, p.providerObject(key, fileInfo, ""))
+		if len(page) > limit {
+			nextCursor = strings.TrimSpace(page[limit-1].Key)
+			page = page[:limit]
+			return errLocalStorageListLimitReached
+		}
+		return nil
+	})
+	if err != nil && !errors.Is(err, errLocalStorageListLimitReached) {
+		return nil, err
+	}
+	return &storagecap.ProviderListCursorOutput{Objects: page, NextCursor: nextCursor}, nil
+}
+
 // Stat reads scoped object metadata.
 func (p *localStorageProvider) Stat(ctx context.Context, in storagecap.ProviderStatInput) (*storagecap.ProviderStatOutput, error) {
 	if err := p.ensureAvailable(); err != nil {
@@ -208,13 +288,27 @@ func (p *localStorageProvider) Stat(ctx context.Context, in storagecap.ProviderS
 	return &storagecap.ProviderStatOutput{Object: p.providerObject(in.Key, fileInfo, ""), Found: true}, nil
 }
 
-// ensureAvailable enforces explicit local-provider semantics in cluster mode.
+// BatchStat reads metadata for explicit scoped object keys.
+func (p *localStorageProvider) BatchStat(ctx context.Context, in storagecap.ProviderBatchStatInput) (*storagecap.ProviderBatchStatOutput, error) {
+	output := &storagecap.ProviderBatchStatOutput{Objects: []*storagecap.ProviderObject{}}
+	for _, key := range in.Keys {
+		statOutput, err := p.Stat(ctx, storagecap.ProviderStatInput{Key: key})
+		if err != nil {
+			return nil, err
+		}
+		if statOutput == nil || !statOutput.Found {
+			output.MissingKeys = append(output.MissingKeys, key)
+			continue
+		}
+		output.Objects = append(output.Objects, statOutput.Object)
+	}
+	return output, nil
+}
+
+// ensureAvailable verifies the local provider has a configured storage root.
 func (p *localStorageProvider) ensureAvailable() error {
 	if p == nil || strings.TrimSpace(p.rootDir) == "" {
 		return bizerr.NewCode(storagecap.CodeStorageProviderUnavailable)
-	}
-	if p.clusterEnabled && !p.allowCluster {
-		return bizerr.NewCode(storagecap.CodeStorageProviderUnavailable, bizerr.P("providerId", storagecap.LocalProviderID))
 	}
 	return nil
 }

@@ -35,6 +35,15 @@ const (
 	ALL_TENANTS = AllTenantsID
 )
 
+const (
+	// MaxTenantBatchSize is the maximum tenant identifiers accepted by batch tenant reads.
+	MaxTenantBatchSize = 200
+	// MaxTenantSearchPageSize is the maximum tenant candidate page size.
+	MaxTenantSearchPageSize = 200
+	// MaxUserTenantBatchSize is the maximum user count accepted by batch membership reads.
+	MaxUserTenantBatchSize = 200
+)
+
 // TenantInfo describes one host-facing tenant projection.
 type TenantInfo struct {
 	ID     TenantID // ID is the numeric tenant identifier.
@@ -47,6 +56,15 @@ type TenantInfo struct {
 type UserTenantProjection struct {
 	TenantIDs   []TenantID // TenantIDs are active tenant identifiers.
 	TenantNames []string   // TenantNames are active tenant display names.
+}
+
+// SearchInput describes bounded tenant candidate search.
+type SearchInput struct {
+	Keyword string               // Keyword matches stable tenant code or name.
+	Code    string               // Code filters by tenant code fragment.
+	Name    string               // Name filters by tenant name fragment.
+	Status  string               // Status optionally filters by tenant lifecycle status.
+	Page    capmodel.PageRequest // Page constrains page number, page size and optional limit.
 }
 
 // UserTenantAssignmentPlan carries a validated replacement plan for one user.
@@ -92,6 +110,10 @@ type Service interface {
 	//
 	// Current 返回当前请求租户，适用于业务查询、缓存键和权限判断；当上下文缺失或租户能力不可用时返回平台租户。
 	Current(ctx context.Context) TenantID
+	// CurrentTenantInfo returns the current request tenant projection.
+	//
+	// CurrentTenantInfo 返回当前请求租户投影，适用于插件上下文展示和租户感知业务分支；租户能力不可用时返回平台租户中性投影。
+	CurrentTenantInfo(ctx context.Context) (*TenantInfo, error)
 	// PlatformBypass reports whether the current request may bypass tenant filtering.
 	//
 	// PlatformBypass 判断当前请求是否允许绕过租户过滤，适用于平台管理员、启动治理和平台级数据读取路径。
@@ -108,6 +130,22 @@ type Service interface {
 	//
 	// ListUserTenants 返回指定用户可见的活跃租户列表，适用于登录响应、租户切换候选和用户上下文展示。
 	ListUserTenants(ctx context.Context, userID int) ([]TenantInfo, error)
+	// BatchGetTenants returns visible tenant projections and opaque missing IDs.
+	//
+	// BatchGetTenants 批量返回当前 actor 可见租户投影，不存在、不可见和租户外目标统一进入缺失集合。
+	BatchGetTenants(ctx context.Context, tenantIDs []TenantID) (*capmodel.BatchResult[*TenantInfo, TenantID], error)
+	// SearchTenants returns bounded tenant candidates visible to the caller.
+	//
+	// SearchTenants 返回分页租户候选投影，适用于插件筛选和关系选择；provider 缺失时返回空页。
+	SearchTenants(ctx context.Context, input SearchInput) (*capmodel.PageResult[*TenantInfo], error)
+	// BatchListUserTenants returns active tenant memberships for visible users.
+	//
+	// BatchListUserTenants 批量返回用户可访问租户列表，适用于列表和批量详情装配，避免逐用户查询 provider。
+	BatchListUserTenants(ctx context.Context, userIDs []int) (map[int][]TenantInfo, error)
+	// EnsureTenantsVisible validates that the current user can access every tenant.
+	//
+	// EnsureTenantsVisible 批量校验当前用户可访问指定租户，任一目标不可见时整体拒绝。
+	EnsureTenantsVisible(ctx context.Context, tenantIDs []TenantID) error
 	// SwitchTenant validates a tenant switch before token re-issue.
 	//
 	// SwitchTenant 校验指定用户切换到目标租户是否合法，适用于租户切换接口在重新签发令牌前执行准入检查。

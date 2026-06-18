@@ -393,9 +393,16 @@ func matchAuthorizedManifestPath(patterns []string, target string) bool {
 		return false
 	}
 	for _, rawPattern := range patterns {
+		trimmedPattern := strings.ReplaceAll(strings.TrimSpace(rawPattern), "\\", "/")
 		normalizedPattern, patternErr := normalizeManifestAuthorizedPath(rawPattern)
 		if patternErr != nil {
 			continue
+		}
+		if strings.HasSuffix(trimmedPattern, "/") {
+			base := strings.TrimSuffix(normalizedPattern, "/")
+			if normalizedTarget == base || strings.HasPrefix(normalizedTarget, base+"/") {
+				return true
+			}
 		}
 		if matched, matchErr := path.Match(normalizedPattern, normalizedTarget); matchErr == nil && matched {
 			return true

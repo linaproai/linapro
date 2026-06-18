@@ -61,6 +61,8 @@ type CapabilityAuthorizationSnapshot struct {
 	Services map[string][]string
 	// Resources maps service.method to authorized resource or projection keys.
 	Resources map[string][]string
+	// Permissions contains the caller's permission keys from the current identity snapshot.
+	Permissions []string
 	// Revision is the authorization snapshot revision used for diagnostics.
 	Revision string
 }
@@ -94,7 +96,7 @@ type CapabilityContext struct {
 
 // BatchResult is the standard domain batch-read result. MissingIDs must not
 // distinguish absent records from records hidden by tenant or data permissions.
-type BatchResult[T any, ID ~string] struct {
+type BatchResult[T any, ID comparable] struct {
 	// Items contains visible projections keyed by their requested domain ID.
 	Items map[ID]T
 	// MissingIDs contains requested IDs that were absent, invisible, or denied.

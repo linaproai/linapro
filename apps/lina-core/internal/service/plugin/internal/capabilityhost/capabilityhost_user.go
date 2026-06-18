@@ -121,6 +121,97 @@ func (a *userCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.Capabil
 	return result, nil
 }
 
+// Current returns the current actor's visible user projection.
+func (a *userCapabilityAdapter) Current(ctx context.Context, capCtx capmodel.CapabilityContext) (*capabilityusercap.UserProjection, error) {
+	if capCtx.Actor.Type != capmodel.ActorTypeUser || capCtx.Actor.UserID <= 0 {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityActorRequired)
+	}
+	userID := capabilityusercap.UserID(strconv.FormatInt(capCtx.Actor.UserID, 10))
+	result, err := a.BatchGet(ctx, capCtx, []capabilityusercap.UserID{userID})
+	if err != nil {
+		return nil, err
+	}
+	if result == nil || result.Items[userID] == nil || len(result.MissingIDs) > 0 {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityDenied)
+	}
+	return result.Items[userID], nil
+}
+
+// BatchResolve resolves visible users by IDs, usernames, email addresses, or phone numbers.
+func (a *userCapabilityAdapter) BatchResolve(
+	ctx context.Context,
+	_ capmodel.CapabilityContext,
+	input capabilityusercap.BatchResolveInput,
+) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.ResolveKey], error) {
+	result := &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.ResolveKey]{
+		Items:      make(map[capabilityusercap.ResolveKey]*capabilityusercap.UserProjection),
+		MissingIDs: []capabilityusercap.ResolveKey{},
+	}
+	if len(input.IDs) > capabilityusercap.MaxBatchResolveIDs ||
+		len(input.Usernames) > capabilityusercap.MaxBatchResolveUsernames ||
+		len(input.Contacts) > capabilityusercap.MaxBatchResolveContacts {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", capabilityusercap.MaxBatchResolveKeys))
+	}
+
+	resolve := normalizeUserResolveInput(input)
+	if len(resolve.keys) > capabilityusercap.MaxBatchResolveKeys {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", capabilityusercap.MaxBatchResolveKeys))
+	}
+	if len(resolve.keys) == 0 {
+		return result, nil
+	}
+	if len(resolve.ids) == 0 && len(resolve.usernames) == 0 && len(resolve.contacts) == 0 {
+		result.MissingIDs = append(result.MissingIDs, resolve.keys...)
+		return result, nil
+	}
+
+	rows := make([]*entity.SysUser, 0, len(resolve.keys))
+	cols := dao.SysUser.Columns()
+	model := dao.SysUser.Ctx(ctx).
+		Fields(cols.Id, cols.TenantId, cols.Username, cols.Nickname, cols.Avatar, cols.Status, cols.Email, cols.Phone)
+	model = model.Where(userResolveFilter(model, userResolveColumns{
+		id:       cols.Id,
+		username: cols.Username,
+		email:    cols.Email,
+		phone:    cols.Phone,
+	}, resolve))
+	if a != nil && a.tenantFilter != nil {
+		model = a.tenantFilter.Apply(ctx, model, "")
+	}
+	var (
+		empty bool
+		err   error
+	)
+	model, empty, err = a.applyDataScope(ctx, model)
+	if err != nil {
+		return nil, err
+	}
+	if empty {
+		result.MissingIDs = append(result.MissingIDs, resolve.keys...)
+		return result, nil
+	}
+	if err = model.OrderAsc(cols.Id).Scan(&rows); err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		projection := projectUser(row)
+		if projection == nil {
+			continue
+		}
+		for _, key := range resolveKeysForUser(row, resolve) {
+			if _, exists := result.Items[key]; !exists {
+				result.Items[key] = projection
+			}
+		}
+	}
+	for _, key := range resolve.keys {
+		if _, ok := result.Items[key]; !ok && !Contains(result.MissingIDs, key) {
+			result.MissingIDs = append(result.MissingIDs, key)
+		}
+	}
+	return result, nil
+}
+
 // Search searches visible user candidates with bounded paging.
 func (a *userCapabilityAdapter) Search(ctx context.Context, _ capmodel.CapabilityContext, input capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
 	pageNum, pageSize := NormalizePage(input.Page)
@@ -148,6 +239,22 @@ func (a *userCapabilityAdapter) Search(ctx context.Context, _ capmodel.Capabilit
 			like,
 			like,
 		)
+	}
+	if input.EnabledOnly {
+		model = model.Where(do.SysUser{Status: 1})
+	} else if strings.TrimSpace(string(input.Status)) != "" {
+		status, parseErr := strconv.Atoi(strings.TrimSpace(string(input.Status)))
+		if parseErr != nil {
+			return nil, bizerr.NewCode(capmodel.CodeCapabilityDenied)
+		}
+		model = model.Where(do.SysUser{Status: status})
+	}
+	if strings.TrimSpace(string(input.TenantID)) != "" {
+		tenantID, parseErr := TenantID(input.TenantID)
+		if parseErr != nil || tenantID < 0 {
+			return nil, bizerr.NewCode(capmodel.CodeCapabilityDenied)
+		}
+		model = model.Where(do.SysUser{TenantId: tenantID})
 	}
 	total, err := model.Clone().Count()
 	if err != nil {
@@ -247,4 +354,129 @@ func projectUser(row *entity.SysUser) *capabilityusercap.UserProjection {
 // qualifiedSysUserIDColumn returns the user table's fully qualified ID column.
 func qualifiedSysUserIDColumn() string {
 	return dao.SysUser.Table() + "." + dao.SysUser.Columns().Id
+}
+
+type userResolveInput struct {
+	keys              []capabilityusercap.ResolveKey
+	ids               []int
+	usernames         []string
+	contacts          []string
+	keyByID           map[int]capabilityusercap.ResolveKey
+	keyByUsername     map[string]capabilityusercap.ResolveKey
+	keyByContact      map[string]capabilityusercap.ResolveKey
+	normalizedKeySeen map[capabilityusercap.ResolveKey]struct{}
+}
+
+type userResolveColumns struct {
+	id       string
+	username string
+	email    string
+	phone    string
+}
+
+func normalizeUserResolveInput(input capabilityusercap.BatchResolveInput) userResolveInput {
+	out := userResolveInput{
+		keys:              []capabilityusercap.ResolveKey{},
+		ids:               []int{},
+		usernames:         []string{},
+		contacts:          []string{},
+		keyByID:           map[int]capabilityusercap.ResolveKey{},
+		keyByUsername:     map[string]capabilityusercap.ResolveKey{},
+		keyByContact:      map[string]capabilityusercap.ResolveKey{},
+		normalizedKeySeen: map[capabilityusercap.ResolveKey]struct{}{},
+	}
+	for _, id := range input.IDs {
+		rawID := strings.TrimSpace(string(id))
+		key := capabilityusercap.ResolveKey("id:" + rawID)
+		out.appendKey(key)
+		parsedID, err := strconv.Atoi(rawID)
+		if err != nil || parsedID <= 0 {
+			continue
+		}
+		if _, exists := out.keyByID[parsedID]; exists {
+			continue
+		}
+		out.keyByID[parsedID] = key
+		out.ids = append(out.ids, parsedID)
+	}
+	for _, username := range input.Usernames {
+		normalizedUsername := strings.TrimSpace(username)
+		key := capabilityusercap.ResolveKey("username:" + normalizedUsername)
+		out.appendKey(key)
+		if normalizedUsername == "" {
+			continue
+		}
+		if _, exists := out.keyByUsername[normalizedUsername]; exists {
+			continue
+		}
+		out.keyByUsername[normalizedUsername] = key
+		out.usernames = append(out.usernames, normalizedUsername)
+	}
+	for _, contact := range input.Contacts {
+		normalizedContact := strings.TrimSpace(contact)
+		key := capabilityusercap.ResolveKey("contact:" + normalizedContact)
+		out.appendKey(key)
+		if normalizedContact == "" {
+			continue
+		}
+		if _, exists := out.keyByContact[normalizedContact]; exists {
+			continue
+		}
+		out.keyByContact[normalizedContact] = key
+		out.contacts = append(out.contacts, normalizedContact)
+	}
+	return out
+}
+
+func (in *userResolveInput) appendKey(key capabilityusercap.ResolveKey) {
+	if _, exists := in.normalizedKeySeen[key]; exists {
+		return
+	}
+	in.normalizedKeySeen[key] = struct{}{}
+	in.keys = append(in.keys, key)
+}
+
+func userResolveFilter(model *gdb.Model, cols userResolveColumns, resolve userResolveInput) *gdb.WhereBuilder {
+	filter := model.Builder()
+	hasCondition := false
+	if len(resolve.ids) > 0 {
+		filter = filter.WhereIn(cols.id, resolve.ids)
+		hasCondition = true
+	}
+	if len(resolve.usernames) > 0 {
+		if hasCondition {
+			filter = filter.WhereOrIn(cols.username, resolve.usernames)
+		} else {
+			filter = filter.WhereIn(cols.username, resolve.usernames)
+			hasCondition = true
+		}
+	}
+	if len(resolve.contacts) > 0 {
+		if hasCondition {
+			filter = filter.WhereOrIn(cols.email, resolve.contacts).WhereOrIn(cols.phone, resolve.contacts)
+		} else {
+			filter = filter.WhereIn(cols.email, resolve.contacts).WhereOrIn(cols.phone, resolve.contacts)
+		}
+	}
+	return filter
+}
+
+func resolveKeysForUser(row *entity.SysUser, resolve userResolveInput) []capabilityusercap.ResolveKey {
+	if row == nil {
+		return nil
+	}
+	keys := make([]capabilityusercap.ResolveKey, 0, 4)
+	if key, ok := resolve.keyByID[row.Id]; ok {
+		keys = append(keys, key)
+	}
+	if key, ok := resolve.keyByUsername[strings.TrimSpace(row.Username)]; ok {
+		keys = append(keys, key)
+	}
+	if key, ok := resolve.keyByContact[strings.TrimSpace(row.Email)]; ok {
+		keys = append(keys, key)
+	}
+	if key, ok := resolve.keyByContact[strings.TrimSpace(row.Phone)]; ok {
+		keys = append(keys, key)
+	}
+	return keys
 }

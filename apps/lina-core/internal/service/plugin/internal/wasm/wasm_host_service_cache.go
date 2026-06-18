@@ -49,6 +49,19 @@ func dispatchCacheHostService(
 			response.Value = buildCacheValueResponse(item)
 		}
 		return bridgehostcall.NewHostCallSuccessResponse(bridgehostservice.MarshalHostServiceCacheGetResponse(response))
+	case bridgehostservice.HostServiceMethodCacheGetMany:
+		var request cacheGetManyRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		output, callErr := service.GetMany(ctx, cachecap.GetManyInput{
+			Namespace: namespace,
+			Keys:      request.Keys,
+		})
+		if callErr != nil {
+			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, callErr)
+		}
+		return capabilityJSONResponse(cacheGetManyResponseFromDomain(output))
 	case bridgehostservice.HostServiceMethodCacheSet:
 		request, err := bridgehostservice.UnmarshalHostServiceCacheSetRequest(payload)
 		if err != nil {
@@ -61,12 +74,39 @@ func dispatchCacheHostService(
 		return bridgehostcall.NewHostCallSuccessResponse(bridgehostservice.MarshalHostServiceCacheSetResponse(&bridgehostservice.HostServiceCacheSetResponse{
 			Value: buildCacheValueResponse(item),
 		}))
+	case bridgehostservice.HostServiceMethodCacheSetMany:
+		var request cacheSetManyRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		input := cachecap.SetManyInput{Namespace: namespace, Items: make([]cachecap.SetManyItem, 0, len(request.Items))}
+		for _, item := range request.Items {
+			input.Items = append(input.Items, cachecap.SetManyItem{
+				Key:   item.Key,
+				Value: item.Value,
+				TTL:   ttlFromSeconds(item.ExpireSeconds),
+			})
+		}
+		output, callErr := service.SetMany(ctx, input)
+		if callErr != nil {
+			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, callErr)
+		}
+		return capabilityJSONResponse(cacheSetManyResponseFromDomain(output))
 	case bridgehostservice.HostServiceMethodCacheDelete:
 		request, err := bridgehostservice.UnmarshalHostServiceCacheDeleteRequest(payload)
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		if callErr := service.Delete(ctx, namespace, request.Key); callErr != nil {
+			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, callErr)
+		}
+		return bridgehostcall.NewHostCallEmptySuccessResponse()
+	case bridgehostservice.HostServiceMethodCacheDeleteMany:
+		var request cacheDeleteManyRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		if callErr := service.DeleteMany(ctx, cachecap.DeleteManyInput{Namespace: namespace, Keys: request.Keys}); callErr != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, callErr)
 		}
 		return bridgehostcall.NewHostCallEmptySuccessResponse()
@@ -127,4 +167,54 @@ func buildCacheValueResponse(item *cachecap.CacheItem) *bridgehostservice.HostSe
 		value.ExpireAt = item.ExpireAt.UTC().Format(time.RFC3339Nano)
 	}
 	return value
+}
+
+type cacheGetManyRequest struct {
+	Keys []string `json:"keys"`
+}
+
+type cacheGetManyResponse struct {
+	Items       map[string]*bridgehostservice.HostServiceCacheValue `json:"items"`
+	MissingKeys []string                                             `json:"missingKeys,omitempty"`
+}
+
+type cacheSetManyRequest struct {
+	Items []cacheSetManyItemRequest `json:"items"`
+}
+
+type cacheSetManyItemRequest struct {
+	Key           string `json:"key"`
+	Value         string `json:"value"`
+	ExpireSeconds int64  `json:"expireSeconds,omitempty"`
+}
+
+type cacheSetManyResponse struct {
+	Items map[string]*bridgehostservice.HostServiceCacheValue `json:"items"`
+}
+
+type cacheDeleteManyRequest struct {
+	Keys []string `json:"keys"`
+}
+
+func cacheGetManyResponseFromDomain(output *cachecap.GetManyOutput) cacheGetManyResponse {
+	response := cacheGetManyResponse{Items: map[string]*bridgehostservice.HostServiceCacheValue{}}
+	if output == nil {
+		return response
+	}
+	response.MissingKeys = append([]string(nil), output.MissingKeys...)
+	for key, item := range output.Items {
+		response.Items[key] = buildCacheValueResponse(item)
+	}
+	return response
+}
+
+func cacheSetManyResponseFromDomain(output *cachecap.SetManyOutput) cacheSetManyResponse {
+	response := cacheSetManyResponse{Items: map[string]*bridgehostservice.HostServiceCacheValue{}}
+	if output == nil {
+		return response
+	}
+	for key, item := range output.Items {
+		response.Items[key] = buildCacheValueResponse(item)
+	}
+	return response
 }

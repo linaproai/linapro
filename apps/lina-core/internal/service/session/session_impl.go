@@ -171,6 +171,62 @@ func (s *DBStore) BatchGetScoped(
 	return sessionsFromEntities(entities), nil
 }
 
+// BatchGetUserOnlineStatusScoped returns visible online-session counts grouped
+// by requested user IDs in one query.
+func (s *DBStore) BatchGetUserOnlineStatusScoped(
+	ctx context.Context,
+	userIds []int,
+	scopeSvc datascope.Service,
+	tenantSvc tenantspi.ScopeService,
+) ([]*UserOnlineStatus, error) {
+	requestedUserIDs := normalizeSessionUserIDs(userIds)
+	if len(requestedUserIDs) == 0 {
+		return []*UserOnlineStatus{}, nil
+	}
+
+	cols := dao.SysOnlineSession.Columns()
+	model := dao.SysOnlineSession.Ctx(ctx).
+		Fields(cols.UserId, "COUNT(1) AS session_count").
+		WhereIn(cols.UserId, requestedUserIDs)
+	if tenantSvc != nil {
+		var err error
+		model, err = tenantSvc.Apply(ctx, model, qualifiedOnlineSessionTenantIDColumn())
+		if err != nil {
+			return nil, err
+		}
+	}
+	if scopeSvc != nil {
+		var err error
+		var empty bool
+		model, empty, err = scopeSvc.ApplyUserScope(ctx, model, qualifiedOnlineSessionUserIDColumn())
+		if err != nil {
+			return nil, err
+		}
+		if empty {
+			return []*UserOnlineStatus{}, nil
+		}
+	}
+
+	rows := make([]*struct {
+		UserId       int `orm:"user_id"`
+		SessionCount int `orm:"session_count"`
+	}, 0, len(requestedUserIDs))
+	if err := model.Group(cols.UserId).Scan(&rows); err != nil {
+		return nil, err
+	}
+	statuses := make([]*UserOnlineStatus, 0, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		statuses = append(statuses, &UserOnlineStatus{
+			UserId:       row.UserId,
+			SessionCount: row.SessionCount,
+		})
+	}
+	return statuses, nil
+}
+
 // normalizeSessionTokenIDs trims and de-duplicates non-empty session token IDs.
 func normalizeSessionTokenIDs(tokenIds []string) []string {
 	requestedTokenIDs := make([]string, 0, len(tokenIds))
@@ -187,6 +243,23 @@ func normalizeSessionTokenIDs(tokenIds []string) []string {
 		requestedTokenIDs = append(requestedTokenIDs, normalizedTokenID)
 	}
 	return requestedTokenIDs
+}
+
+// normalizeSessionUserIDs de-duplicates positive user IDs.
+func normalizeSessionUserIDs(userIds []int) []int {
+	requestedUserIDs := make([]int, 0, len(userIds))
+	seen := make(map[int]struct{}, len(userIds))
+	for _, userID := range userIds {
+		if userID <= 0 {
+			continue
+		}
+		if _, exists := seen[userID]; exists {
+			continue
+		}
+		seen[userID] = struct{}{}
+		requestedUserIDs = append(requestedUserIDs, userID)
+	}
+	return requestedUserIDs
 }
 
 // Delete removes a session by globally unique token ID.

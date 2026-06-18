@@ -75,6 +75,39 @@ func (q *Query) One() (map[string]any, bool, error) {
 	return records[0], true, nil
 }
 
+// BatchGet executes one governed multi-record lookup by primary keys.
+func (q *Query) BatchGet(keys []any) ([]map[string]any, [][]byte, error) {
+	if q == nil {
+		return nil, nil, gerror.New("record store capability query is nil")
+	}
+	if q.err != nil {
+		return nil, nil, q.err
+	}
+	if strings.TrimSpace(q.table) == "" {
+		return nil, nil, gerror.New("record store capability table cannot be empty")
+	}
+	keyJSON := make([][]byte, 0, len(keys))
+	for _, key := range keys {
+		encodedKey, err := marshalJSONValue(key)
+		if err != nil {
+			return nil, nil, err
+		}
+		keyJSON = append(keyJSON, encodedKey)
+	}
+	responsePayload, err := invokeDataHostServiceBatchGet(q.invoker, q.table, &protocol.HostServiceDataBatchGetRequest{
+		KeyJSON: keyJSON,
+		Fields:  append([]string(nil), q.plan.Fields...),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	records, err := decodeJSONRecordList(responsePayload.Records)
+	if err != nil {
+		return nil, nil, err
+	}
+	return records, responsePayload.MissingKeyJSON, nil
+}
+
 // All executes one governed paged list query.
 func (q *Query) All() ([]map[string]any, int32, error) {
 	if err := q.ensureExecutionReady(dataplan.PlanActionList); err != nil {
@@ -285,6 +318,27 @@ func invokeDataHostServiceGet(
 		return nil, err
 	}
 	return protocol.UnmarshalHostServiceDataGetResponse(payload)
+}
+
+// invokeDataHostServiceBatchGet dispatches one governed record store batch_get
+// request through the structured data host-service protocol.
+func invokeDataHostServiceBatchGet(
+	invoker HostServiceInvoker,
+	table string,
+	request *protocol.HostServiceDataBatchGetRequest,
+) (*protocol.HostServiceDataBatchGetResponse, error) {
+	payload, err := invokeRecordStoreHostService(
+		invoker,
+		protocol.HostServiceData,
+		protocol.HostServiceMethodDataBatchGet,
+		"",
+		table,
+		protocol.MarshalHostServiceDataBatchGetRequest(request),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return protocol.UnmarshalHostServiceDataBatchGetResponse(payload)
 }
 
 // invokeDataHostServiceMutation dispatches one governed record store mutation

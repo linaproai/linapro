@@ -111,7 +111,7 @@ func capabilityContextForHostCall(hcc *hostCallContext, service string, method s
 		TenantID:      capmodel.DomainID(tenantID),
 		Source:        capabilitySourceFromExecution(hcc.executionSource),
 		SystemCall:    actor.Type == capmodel.ActorTypeSystem,
-		Authorization: capabilityAuthorizationFromHostServices(hcc.hostServices),
+		Authorization: capabilityAuthorizationForHostCall(hcc),
 		Resource:      strings.TrimSpace(service) + "." + strings.TrimSpace(method),
 		TraceID:       strings.TrimSpace(hcc.requestID),
 		RequestedAt:   now,
@@ -159,6 +159,17 @@ func capabilityAuthorizationFromHostServices(specs []*bridgehostservice.HostServ
 				authorization.Resources[key] = append(authorization.Resources[key], strings.TrimSpace(resource.Ref))
 			}
 		}
+	}
+	return authorization
+}
+
+func capabilityAuthorizationForHostCall(hcc *hostCallContext) capmodel.CapabilityAuthorizationSnapshot {
+	if hcc == nil {
+		return capabilityAuthorizationFromHostServices(nil)
+	}
+	authorization := capabilityAuthorizationFromHostServices(hcc.hostServices)
+	if hcc.identity != nil {
+		authorization.Permissions = append([]string(nil), hcc.identity.Permissions...)
 	}
 	return authorization
 }
@@ -284,6 +295,7 @@ func contextWithHostCallBizContext(ctx context.Context, hcc *hostCallContext) co
 	}
 	identity := hcc.identity
 	return bizctxcap.WithCurrentContext(ctx, bizctxcap.CurrentContext{
+		TokenID:         identity.TokenID,
 		UserID:          int(identity.UserID),
 		Username:        identity.Username,
 		TenantID:        int(identity.TenantId),

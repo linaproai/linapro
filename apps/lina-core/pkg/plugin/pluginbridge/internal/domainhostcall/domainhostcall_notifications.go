@@ -21,10 +21,22 @@ func Notifications(invoker Invoker, hostInvoker HostServiceInvoker) notifycap.Se
 }
 
 // BatchGet returns visible message projections and opaque missing IDs.
-func (s notificationsService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []notifycap.MessageID) (*capmodel.BatchResult[map[string]any, notifycap.MessageID], error) {
-	out := &capmodel.BatchResult[map[string]any, notifycap.MessageID]{Items: map[notifycap.MessageID]map[string]any{}}
+func (s notificationsService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []notifycap.MessageID) (*capmodel.BatchResult[*notifycap.MessageProjection, notifycap.MessageID], error) {
+	out := &capmodel.BatchResult[*notifycap.MessageProjection, notifycap.MessageID]{Items: map[notifycap.MessageID]*notifycap.MessageProjection{}}
 	err := s.callJSONRequest(protocol.HostServiceNotifications, protocol.HostServiceMethodNotificationsBatchGetMessages, idsRequest{IDs: messageIDsToStrings(ids)}, out)
 	return out, err
+}
+
+// BatchGetBySource returns visible message projections grouped by source ID.
+func (s notificationsService) BatchGetBySource(_ context.Context, _ capmodel.CapabilityContext, input notifycap.BatchGetBySourceInput) (*notifycap.BatchGetBySourceResult, error) {
+	out := &notifycap.BatchGetBySourceResult{Items: map[string][]*notifycap.MessageProjection{}}
+	err := s.callJSONRequest(protocol.HostServiceNotifications, protocol.HostServiceMethodNotificationsBatchGetBySource, input, out)
+	return out, err
+}
+
+// EnsureVisible rejects when any requested message is absent or outside caller scope.
+func (s notificationsService) EnsureVisible(_ context.Context, _ capmodel.CapabilityContext, ids []notifycap.MessageID) error {
+	return s.callJSONRequest(protocol.HostServiceNotifications, protocol.HostServiceMethodNotificationsEnsureVisible, idsRequest{IDs: messageIDsToStrings(ids)}, nil)
 }
 
 // Send sends one governed notification message.

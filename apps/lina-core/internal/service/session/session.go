@@ -48,6 +48,12 @@ type ListResult struct {
 	Total int        // Total count
 }
 
+// UserOnlineStatus reports projected online-session counts for one visible user.
+type UserOnlineStatus struct {
+	UserId       int // User ID
+	SessionCount int // Number of visible online sessions
+}
+
 // Store defines the session storage interface for persistent online-session
 // records.
 type Store interface {
@@ -63,6 +69,14 @@ type Store interface {
 		scopeSvc datascope.Service,
 		tenantSvc tenantspi.ScopeService,
 	) ([]*Session, error)
+	// BatchGetUserOnlineStatusScoped returns online-session counts for the
+	// requested users after applying tenant ownership and data-scope constraints.
+	BatchGetUserOnlineStatusScoped(
+		ctx context.Context,
+		userIds []int,
+		scopeSvc datascope.Service,
+		tenantSvc tenantspi.ScopeService,
+	) ([]*UserOnlineStatus, error)
 	// Delete removes one online session by its globally unique token ID.
 	Delete(ctx context.Context, tokenId string) error
 	// DeleteByUserId removes all online sessions that belong to one user in one tenant.

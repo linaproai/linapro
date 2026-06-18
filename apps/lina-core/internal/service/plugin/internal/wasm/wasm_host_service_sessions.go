@@ -26,6 +26,9 @@ func dispatchSessionsHostService(
 	}
 	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceSessions, method)
 	switch method {
+	case bridgehostservice.HostServiceMethodSessionsCurrent:
+		result, err := service.Current(ctx, capCtx)
+		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodSessionsSearch:
 		var request sessionSearchRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
@@ -47,6 +50,20 @@ func dispatchSessionsHostService(
 		}
 		result, err := service.BatchGet(ctx, capCtx, sessionIDs(request.IDs))
 		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodSessionsBatchGetUserOnlineStatus:
+		var request sessionUserOnlineStatusRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.BatchGetUserOnlineStatus(ctx, capCtx, append([]string(nil), request.UserIDs...))
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodSessionsEnsureVisible:
+		var request idsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.EnsureVisible(ctx, capCtx, sessionIDs(request.IDs))
+		return domainCapabilityResult(true, err)
 	default:
 		return domainMethodNotFound("sessions", method)
 	}
@@ -67,6 +84,11 @@ type sessionSearchRequest struct {
 	IP       string `json:"ip"`
 	PageNum  int    `json:"pageNum"`
 	PageSize int    `json:"pageSize"`
+}
+
+// sessionUserOnlineStatusRequest carries bounded user online status parameters.
+type sessionUserOnlineStatusRequest struct {
+	UserIDs []string `json:"userIds"`
 }
 
 // sessionIDs converts transport string identifiers into typed session IDs.

@@ -12,8 +12,12 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/pkg/bizerr"
+	capabilityai "lina-core/pkg/plugin/capability/aicap"
+	"lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/capmodel"
+	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
 	capabilityplugincap "lina-core/pkg/plugin/capability/plugincap"
+	capabilitytenantcap "lina-core/pkg/plugin/capability/tenantcap"
 )
 
 const (
@@ -40,6 +44,9 @@ type pluginCapabilityAdapter struct {
 	configFactory capabilityplugincap.ConfigServiceFactory
 	state         capabilityplugincap.StateService
 	lifecycle     capabilityplugincap.LifecycleService
+	org           capabilityorgcap.Service
+	tenant        capabilitytenantcap.Service
+	ai            capabilityai.Service
 }
 
 var (
@@ -52,8 +59,18 @@ func newPluginCapabilityAdapter(
 	configFactory capabilityplugincap.ConfigServiceFactory,
 	state capabilityplugincap.StateService,
 	lifecycle capabilityplugincap.LifecycleService,
+	org capabilityorgcap.Service,
+	tenant capabilitytenantcap.Service,
+	ai capabilityai.Service,
 ) pluginCapabilityService {
-	return &pluginCapabilityAdapter{configFactory: configFactory, state: state, lifecycle: lifecycle}
+	return &pluginCapabilityAdapter{
+		configFactory: configFactory,
+		state:         state,
+		lifecycle:     lifecycle,
+		org:           org,
+		tenant:        tenant,
+		ai:            ai,
+	}
 }
 
 // ForPlugin returns a plugin-bound plugin-domain namespace.
@@ -96,6 +113,28 @@ func (a *pluginCapabilityAdapter) Registry() capabilityplugincap.RegistryService
 		return nil
 	}
 	return a
+}
+
+// Current returns the projection for the current caller plugin.
+func (a *pluginCapabilityAdapter) Current(ctx context.Context, capCtx capmodel.CapabilityContext) (*capabilityplugincap.Projection, error) {
+	pluginID := strings.TrimSpace(capCtx.PluginID)
+	if pluginID == "" {
+		pluginID = strings.TrimSpace(a.pluginID)
+	}
+	if pluginID == "" {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityContextRequired)
+	}
+	result, err := a.BatchGet(ctx, capCtx, []capabilityplugincap.PluginID{capabilityplugincap.PluginID(pluginID)})
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityDenied)
+	}
+	if projection := result.Items[capabilityplugincap.PluginID(pluginID)]; projection != nil {
+		return projection, nil
+	}
+	return nil, bizerr.NewCode(capmodel.CodeCapabilityDenied)
 }
 
 // BatchGet returns visible plugin projections and opaque missing IDs.
@@ -157,21 +196,95 @@ func (a *pluginCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.Capab
 	return result, nil
 }
 
+// Search returns bounded plugin governance projections.
+func (a *pluginCapabilityAdapter) Search(ctx context.Context, _ capmodel.CapabilityContext, input capabilityplugincap.SearchInput) (*capmodel.PageResult[*capabilityplugincap.Projection], error) {
+	pageNum, pageSize := NormalizePage(input.Page)
+	if pageSize > capabilityplugincap.MaxPluginSearchPageSize {
+		pageSize = capabilityplugincap.MaxPluginSearchPageSize
+	}
+	cols := dao.SysPlugin.Columns()
+	model := dao.SysPlugin.Ctx(ctx)
+	if keyword := strings.TrimSpace(input.Keyword); keyword != "" {
+		like := "%" + keyword + "%"
+		model = model.Where(model.Builder().
+			WhereLike(cols.PluginId, like).
+			WhereOrLike(cols.Name, like).
+			WhereOrLike(cols.Remark, like))
+	}
+	if pluginID := strings.TrimSpace(input.PluginID); pluginID != "" {
+		model = model.WhereLike(cols.PluginId, "%"+pluginID+"%")
+	}
+	if name := strings.TrimSpace(input.Name); name != "" {
+		model = model.WhereLike(cols.Name, "%"+name+"%")
+	}
+	if pluginType := strings.TrimSpace(input.Type); pluginType != "" {
+		model = model.Where(cols.Type, pluginType)
+	}
+	if input.Enabled != nil {
+		status := 0
+		if *input.Enabled {
+			status = pluginStatusEnabled
+		}
+		model = model.Where(cols.Status, status)
+	}
+	total, err := model.Clone().Count()
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]*entity.SysPlugin, 0, pageSize)
+	if err = model.Clone().
+		Fields(cols.PluginId, cols.Version, cols.Installed, cols.Status, cols.CurrentState).
+		OrderAsc(cols.PluginId).
+		Page(pageNum, pageSize).
+		Scan(&rows); err != nil {
+		return nil, err
+	}
+	items := make([]*capabilityplugincap.Projection, 0, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		items = append(items, pluginProjection(row))
+	}
+	return &capmodel.PageResult[*capabilityplugincap.Projection]{Items: items, Total: total}, nil
+}
+
 // ListTenantPlugins returns tenant-controllable plugins with current tenant enablement.
-func (a *pluginCapabilityAdapter) ListTenantPlugins(ctx context.Context, capCtx capmodel.CapabilityContext) (*capmodel.PageResult[*capabilityplugincap.TenantProjection], error) {
+func (a *pluginCapabilityAdapter) ListTenantPlugins(ctx context.Context, capCtx capmodel.CapabilityContext, input capabilityplugincap.TenantListInput) (*capmodel.PageResult[*capabilityplugincap.TenantProjection], error) {
 	tenantID, err := TenantID(capCtx.TenantID)
 	if err != nil || tenantID <= PlatformTenantID {
 		return nil, bizerr.NewCode(capmodel.CodeCapabilityDenied)
 	}
-	rows := make([]*entity.SysPlugin, 0)
-	if err = dao.SysPlugin.Ctx(ctx).
+	pageNum, pageSize := NormalizePage(input.Page)
+	if pageSize > capabilityplugincap.MaxPluginSearchPageSize {
+		pageSize = capabilityplugincap.MaxPluginSearchPageSize
+	}
+	cols := dao.SysPlugin.Columns()
+	model := dao.SysPlugin.Ctx(ctx).
 		Where(do.SysPlugin{
 			Installed:   pluginInstalledYes,
 			Status:      pluginStatusEnabled,
 			ScopeNature: pluginScopeNatureTenantAware,
 			InstallMode: pluginInstallModeTenantScoped,
-		}).
-		OrderAsc(dao.SysPlugin.Columns().PluginId).
+		})
+	if keyword := strings.TrimSpace(input.Keyword); keyword != "" {
+		like := "%" + keyword + "%"
+		model = model.Where(model.Builder().
+			WhereLike(cols.PluginId, like).
+			WhereOrLike(cols.Name, like).
+			WhereOrLike(cols.Remark, like))
+	}
+	if pluginType := strings.TrimSpace(input.Type); pluginType != "" {
+		model = model.Where(cols.Type, pluginType)
+	}
+	total, err := model.Clone().Count()
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]*entity.SysPlugin, 0)
+	if err = model.Clone().
+		OrderAsc(cols.PluginId).
+		Page(pageNum, pageSize).
 		Scan(&rows); err != nil {
 		return nil, err
 	}
@@ -184,9 +297,47 @@ func (a *pluginCapabilityAdapter) ListTenantPlugins(ctx context.Context, capCtx 
 		if row == nil {
 			continue
 		}
-		items = append(items, tenantPluginProjection(row, states[row.PluginId]))
+		tenantEnabled := states[row.PluginId]
+		if input.TenantEnabled != nil && tenantEnabled != *input.TenantEnabled {
+			continue
+		}
+		items = append(items, tenantPluginProjection(row, tenantEnabled))
 	}
-	return &capmodel.PageResult[*capabilityplugincap.TenantProjection]{Items: items, Total: len(items)}, nil
+	if input.TenantEnabled != nil {
+		total = len(items)
+	}
+	return &capmodel.PageResult[*capabilityplugincap.TenantProjection]{Items: items, Total: total}, nil
+}
+
+// BatchGetCapabilityStatus returns framework capability status projections by stable key.
+func (a *pluginCapabilityAdapter) BatchGetCapabilityStatus(ctx context.Context, _ capmodel.CapabilityContext, keys []capabilityplugincap.CapabilityKey) (*capmodel.BatchResult[*capmodel.CapabilityStatus, capabilityplugincap.CapabilityKey], error) {
+	result := &capmodel.BatchResult[*capmodel.CapabilityStatus, capabilityplugincap.CapabilityKey]{
+		Items:      make(map[capabilityplugincap.CapabilityKey]*capmodel.CapabilityStatus, len(keys)),
+		MissingIDs: []capabilityplugincap.CapabilityKey{},
+	}
+	if len(keys) > capabilityplugincap.MaxCapabilityStatusBatchSize {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", capabilityplugincap.MaxCapabilityStatusBatchSize))
+	}
+	seen := make(map[capabilityplugincap.CapabilityKey]struct{}, len(keys))
+	for _, key := range keys {
+		normalized := capabilityplugincap.CapabilityKey(strings.TrimSpace(string(key)))
+		if normalized == "" {
+			result.MissingIDs = append(result.MissingIDs, key)
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		status, ok := a.capabilityStatus(ctx, normalized)
+		if !ok {
+			result.MissingIDs = append(result.MissingIDs, normalized)
+			continue
+		}
+		copied := status
+		result.Items[normalized] = &copied
+	}
+	return result, nil
 }
 
 // SetEnabled changes tenant plugin enablement after target checks.
@@ -253,6 +404,29 @@ func (a *pluginCapabilityAdapter) tenantEnabledStates(ctx context.Context, tenan
 		}
 	}
 	return result, nil
+}
+
+// capabilityStatus resolves one stable framework capability status key.
+func (a *pluginCapabilityAdapter) capabilityStatus(ctx context.Context, key capabilityplugincap.CapabilityKey) (capmodel.CapabilityStatus, bool) {
+	switch key {
+	case capabilityplugincap.CapabilityKeyOrg:
+		if a == nil || a.org == nil {
+			return capmodel.CapabilityStatus{CapabilityID: capabilityorgcap.CapabilityOrgV1, Available: false, Reason: "capability_not_configured"}, true
+		}
+		return a.org.Status(ctx), true
+	case capabilityplugincap.CapabilityKeyTenant:
+		if a == nil || a.tenant == nil {
+			return capmodel.CapabilityStatus{CapabilityID: capabilitytenantcap.CapabilityTenantV1, Available: false, Reason: "capability_not_configured"}, true
+		}
+		return a.tenant.Status(ctx), true
+	case capabilityplugincap.CapabilityKeyAIText:
+		if a == nil || a.ai == nil || a.ai.Text() == nil {
+			return capmodel.CapabilityStatus{CapabilityID: aitext.CapabilityAITextV1, Available: false, Reason: "capability_not_configured"}, true
+		}
+		return a.ai.Text().Status(ctx), true
+	default:
+		return capmodel.CapabilityStatus{}, false
+	}
 }
 
 // ensureTenantScopedPlugin verifies the plugin can be controlled per tenant.
@@ -338,6 +512,17 @@ func pluginIDsFromRows(rows []*entity.SysPlugin) []string {
 		result = append(result, row.PluginId)
 	}
 	return result
+}
+
+// pluginProjection converts one host plugin registry row into a stable projection.
+func pluginProjection(row *entity.SysPlugin) *capabilityplugincap.Projection {
+	return &capabilityplugincap.Projection{
+		ID:        capabilityplugincap.PluginID(row.PluginId),
+		Version:   row.Version,
+		Installed: row.Installed == pluginInstalledYes,
+		Enabled:   row.Status == pluginStatusEnabled,
+		Status:    row.CurrentState,
+	}
 }
 
 // tenantPluginProjection converts a host plugin registry row into a stable projection.

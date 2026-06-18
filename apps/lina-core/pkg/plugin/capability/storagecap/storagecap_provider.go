@@ -61,28 +61,29 @@ func RegisteredProviderIDs() []string {
 	return ids
 }
 
-// ResolveProvider selects and constructs the active provider. Empty active
-// provider ID always selects localProvider. Non-empty active provider IDs must
-// refer to an available registered plugin provider; failures do not fall back to
-// local storage.
+// ResolveProvider selects and constructs the active provider. A unique available
+// registered provider plugin wins. When no provider plugin is available, storage
+// falls back to the built-in local provider. Multiple available provider plugins
+// are rejected so durable storage never silently moves to an arbitrary backend.
 func ResolveProvider(
 	ctx context.Context,
 	runtime ProviderRuntime,
 	localProvider Provider,
 ) (string, Provider, error) {
-	activeID := ""
-	if runtime != nil {
-		activeID = strings.TrimSpace(runtime.ActiveProviderPluginID(ctx))
-	}
-	if activeID == "" {
+	activeIDs := activeProviderPluginIDs(ctx, runtime)
+	if len(activeIDs) == 0 {
 		if localProvider == nil {
 			return "", nil, bizerr.NewCode(CodeStorageProviderUnavailable)
 		}
 		return LocalProviderID, localProvider, nil
 	}
-	if runtime != nil && !runtime.ProviderPluginAvailable(ctx, activeID) {
-		return activeID, nil, bizerr.NewCode(CodeStorageProviderUnavailable, bizerr.P("providerId", activeID))
+	if len(activeIDs) > 1 {
+		return "", nil, bizerr.NewCode(
+			CodeStorageProviderConflict,
+			bizerr.P("providerIds", strings.Join(activeIDs, ",")),
+		)
 	}
+	activeID := activeIDs[0]
 	factory, ok := ProviderFactoryFor(activeID)
 	if !ok {
 		return activeID, nil, bizerr.NewCode(CodeStorageProviderUnavailable, bizerr.P("providerId", activeID))
@@ -100,11 +101,12 @@ func ResolveProvider(
 // ProviderStatuses returns active and availability snapshots for the built-in
 // local provider plus plugin-registered providers.
 func ProviderStatuses(ctx context.Context, runtime ProviderRuntime, localProvider Provider) []*ProviderStatus {
+	activeIDs := activeProviderPluginIDs(ctx, runtime)
 	activeID := ""
-	if runtime != nil {
-		activeID = strings.TrimSpace(runtime.ActiveProviderPluginID(ctx))
-	}
-	if activeID == "" {
+	conflict := len(activeIDs) > 1
+	if len(activeIDs) == 1 {
+		activeID = activeIDs[0]
+	} else if len(activeIDs) == 0 && localProvider != nil {
 		activeID = LocalProviderID
 	}
 	statuses := []*ProviderStatus{{
@@ -116,16 +118,36 @@ func ProviderStatuses(ctx context.Context, runtime ProviderRuntime, localProvide
 		statuses[0].Message = "local provider is not configured"
 	}
 	for _, id := range RegisteredProviderIDs() {
-		available := runtime == nil || runtime.ProviderPluginAvailable(ctx, id)
+		available := providerPluginAvailable(ctx, runtime, id)
 		status := &ProviderStatus{
 			ProviderID: id,
-			Active:     activeID == id,
+			Active:     !conflict && activeID == id,
 			Available:  available,
 		}
-		if !available {
+		if conflict && available {
+			status.Message = "multiple storage provider plugins are available"
+		} else if !available {
 			status.Message = "provider plugin is not available"
 		}
 		statuses = append(statuses, status)
 	}
 	return statuses
+}
+
+func activeProviderPluginIDs(ctx context.Context, runtime ProviderRuntime) []string {
+	if runtime == nil {
+		return nil
+	}
+	ids := RegisteredProviderIDs()
+	activeIDs := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if providerPluginAvailable(ctx, runtime, id) {
+			activeIDs = append(activeIDs, id)
+		}
+	}
+	return activeIDs
+}
+
+func providerPluginAvailable(ctx context.Context, runtime ProviderRuntime, pluginID string) bool {
+	return runtime != nil && runtime.ProviderPluginAvailable(ctx, strings.TrimSpace(pluginID))
 }

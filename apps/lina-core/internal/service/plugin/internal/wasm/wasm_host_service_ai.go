@@ -26,6 +26,10 @@ func dispatchAIHostService(
 	switch method {
 	case bridgehostservice.HostServiceMethodAITextGenerate:
 		return dispatchAITextGenerate(ctx, hcc, payload)
+	case bridgehostservice.HostServiceMethodAITextMethodStatus:
+		return dispatchAITextMethodStatus(ctx, hcc, payload)
+	case bridgehostservice.HostServiceMethodAIMethodStatuses:
+		return dispatchAIMethodStatuses(ctx, hcc, payload)
 	case bridgehostservice.HostServiceMethodAIImageGenerate:
 		return dispatchAIImageGenerate(ctx, hcc, payload)
 	case bridgehostservice.HostServiceMethodAIImageEdit:
@@ -95,6 +99,41 @@ func dispatchAITextGenerate(
 		)
 	}
 	return capabilityJSONResponse(response)
+}
+
+// dispatchAITextMethodStatus decodes and returns one text AI method status.
+func dispatchAITextMethodStatus(
+	ctx context.Context,
+	hcc *hostCallContext,
+	payload []byte,
+) *bridgehostcall.HostCallResponseEnvelope {
+	service := aiTextServiceForHostCall(hcc)
+	if service == nil {
+		return aiServiceNotScoped()
+	}
+	var request aicap.MethodStatusQuery
+	if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+		return invalidCapabilityRequest(err)
+	}
+	return capabilityJSONResponse(service.MethodStatus(ctx, request.CapabilityMethod))
+}
+
+// dispatchAIMethodStatuses decodes and returns cross-capability AI method statuses.
+func dispatchAIMethodStatuses(
+	ctx context.Context,
+	hcc *hostCallContext,
+	payload []byte,
+) *bridgehostcall.HostCallResponseEnvelope {
+	service := aiServiceForHostCall(hcc)
+	if service == nil {
+		return aiServiceNotScoped()
+	}
+	var request aicap.MethodStatusesInput
+	if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+		return invalidCapabilityRequest(err)
+	}
+	response, err := service.MethodStatuses(ctx, request)
+	return aiCapabilityResponse(response, err)
 }
 
 // dispatchAIImageGenerate decodes, validates, and executes one image generation request.

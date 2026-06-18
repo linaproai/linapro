@@ -56,6 +56,8 @@ const (
 	CapabilityRoute = "host:route"
 	// CapabilitySessions grants access to online-session domain capability services.
 	CapabilitySessions = "host:sessions"
+	// CapabilityAI grants access to cross-sub-capability AI status projections.
+	CapabilityAI = "host:ai"
 	// CapabilityAIText grants access to host-defined text AI capability services.
 	CapabilityAIText = "host:ai:text"
 	// CapabilityAIImage grants access to host-defined image AI capability services.
@@ -144,10 +146,16 @@ const (
 	HostServiceMethodRuntimeLogWrite = "log.write"
 	// HostServiceMethodRuntimeStateGet reads one plugin-scoped runtime state value.
 	HostServiceMethodRuntimeStateGet = "state.get"
+	// HostServiceMethodRuntimeStateGetMany reads plugin-scoped runtime state values.
+	HostServiceMethodRuntimeStateGetMany = "state.get_many"
 	// HostServiceMethodRuntimeStateSet writes one plugin-scoped runtime state value.
 	HostServiceMethodRuntimeStateSet = "state.set"
+	// HostServiceMethodRuntimeStateSetMany writes plugin-scoped runtime state values.
+	HostServiceMethodRuntimeStateSetMany = "state.set_many"
 	// HostServiceMethodRuntimeStateDelete deletes one plugin-scoped runtime state value.
 	HostServiceMethodRuntimeStateDelete = "state.delete"
+	// HostServiceMethodRuntimeStateDeleteMany deletes plugin-scoped runtime state values.
+	HostServiceMethodRuntimeStateDeleteMany = "state.delete_many"
 	// HostServiceMethodRuntimeInfoNow returns host time information.
 	HostServiceMethodRuntimeInfoNow = "info.now"
 	// HostServiceMethodRuntimeInfoUUID returns one host-generated unique identifier.
@@ -173,10 +181,16 @@ const (
 	HostServiceMethodStorageGet = "get"
 	// HostServiceMethodStorageDelete deletes one governed storage object.
 	HostServiceMethodStorageDelete = "delete"
+	// HostServiceMethodStorageDeleteBatch deletes governed storage objects by explicit paths.
+	HostServiceMethodStorageDeleteBatch = "delete.batch"
 	// HostServiceMethodStorageList lists governed storage objects under one prefix.
 	HostServiceMethodStorageList = "list"
+	// HostServiceMethodStorageListCursor lists governed storage objects under one prefix with cursor pagination.
+	HostServiceMethodStorageListCursor = "list.cursor"
 	// HostServiceMethodStorageStat reads metadata for one governed storage object.
 	HostServiceMethodStorageStat = "stat"
+	// HostServiceMethodStorageStatBatch reads metadata for governed storage objects by explicit paths.
+	HostServiceMethodStorageStatBatch = "stat.batch"
 )
 
 // Network host-service methods describe governed outbound HTTP operations.
@@ -192,6 +206,8 @@ const (
 	HostServiceMethodDataList = "list"
 	// HostServiceMethodDataGet reads one governed record by key from an authorized data table.
 	HostServiceMethodDataGet = "get"
+	// HostServiceMethodDataBatchGet reads governed records by keys from an authorized data table.
+	HostServiceMethodDataBatchGet = "batch_get"
 	// HostServiceMethodDataCreate creates one governed record in an authorized data table.
 	HostServiceMethodDataCreate = "create"
 	// HostServiceMethodDataUpdate updates one governed record in an authorized data table.
@@ -206,10 +222,16 @@ const (
 const (
 	// HostServiceMethodCacheGet reads one governed cache value.
 	HostServiceMethodCacheGet = "get"
+	// HostServiceMethodCacheGetMany reads governed cache values by explicit keys.
+	HostServiceMethodCacheGetMany = "get_many"
 	// HostServiceMethodCacheSet writes one governed cache value.
 	HostServiceMethodCacheSet = "set"
+	// HostServiceMethodCacheSetMany writes governed cache values by explicit keys.
+	HostServiceMethodCacheSetMany = "set_many"
 	// HostServiceMethodCacheDelete removes one governed cache value.
 	HostServiceMethodCacheDelete = "delete"
+	// HostServiceMethodCacheDeleteMany removes governed cache values by explicit keys.
+	HostServiceMethodCacheDeleteMany = "delete_many"
 	// HostServiceMethodCacheIncr increments one governed cache integer value.
 	HostServiceMethodCacheIncr = "incr"
 	// HostServiceMethodCacheExpire updates one governed cache expiration policy.
@@ -236,6 +258,10 @@ const (
 const (
 	// HostServiceMethodManifestGet reads one plugin-scoped manifest resource.
 	HostServiceMethodManifestGet = "get"
+	// HostServiceMethodManifestGetMany reads plugin-scoped manifest resources by explicit paths.
+	HostServiceMethodManifestGetMany = "get_many"
+	// HostServiceMethodManifestList lists plugin-scoped manifest resource metadata.
+	HostServiceMethodManifestList = "list"
 )
 
 // APIDoc host-service methods describe API-documentation localization reads.
@@ -264,6 +290,8 @@ const (
 const (
 	// HostServiceMethodAuthzBatchGetPermissions reads visible permission projections.
 	HostServiceMethodAuthzBatchGetPermissions = "permissions.batch_get"
+	// HostServiceMethodAuthzBatchHasPermissions checks multiple permissions in one call.
+	HostServiceMethodAuthzBatchHasPermissions = "permissions.batch_has"
 	// HostServiceMethodAuthzHasPermission checks whether the current actor has one permission.
 	HostServiceMethodAuthzHasPermission = "permissions.has"
 	// HostServiceMethodAuthzIsPlatformAdmin checks whether one user has platform-admin scope.
@@ -273,8 +301,12 @@ const (
 // Users host-service methods describe the ordinary user-domain capability
 // surface available to authorized dynamic plugins.
 const (
+	// HostServiceMethodUsersCurrent reads the current actor user projection.
+	HostServiceMethodUsersCurrent = "users.current.get"
 	// HostServiceMethodUsersBatchGet reads visible user projections in batch.
 	HostServiceMethodUsersBatchGet = "users.batch_get"
+	// HostServiceMethodUsersBatchResolve resolves visible users by stable identifiers.
+	HostServiceMethodUsersBatchResolve = "users.resolve.batch"
 	// HostServiceMethodUsersSearch searches visible user candidates with bounded paging.
 	HostServiceMethodUsersSearch = "users.search"
 	// HostServiceMethodUsersEnsureVisible validates that all requested users are visible.
@@ -291,12 +323,18 @@ const (
 const (
 	// HostServiceMethodDictResolveLabels resolves dictionary labels for requested values.
 	HostServiceMethodDictResolveLabels = "labels.resolve"
+	// HostServiceMethodDictListValues lists visible dictionary value candidates.
+	HostServiceMethodDictListValues = "dict.values.list"
+	// HostServiceMethodDictEnsureValuesVisible validates visible dictionary values.
+	HostServiceMethodDictEnsureValuesVisible = "values.visible.ensure"
 )
 
 // Files host-service methods describe ordinary file-domain reads and checks.
 const (
 	// HostServiceMethodFilesBatchGet reads visible file projections in batch.
 	HostServiceMethodFilesBatchGet = "files.batch_get"
+	// HostServiceMethodFilesSearch searches visible file candidates.
+	HostServiceMethodFilesSearch = "files.search"
 	// HostServiceMethodFilesEnsureVisible validates that requested files are visible.
 	HostServiceMethodFilesEnsureVisible = "files.visible.ensure"
 )
@@ -312,6 +350,10 @@ const (
 const (
 	// HostServiceMethodJobsBatchGet reads visible job projections in batch.
 	HostServiceMethodJobsBatchGet = "jobs.batch_get"
+	// HostServiceMethodJobsSearch searches visible scheduled-job candidates.
+	HostServiceMethodJobsSearch = "jobs.search"
+	// HostServiceMethodJobsEnsureVisible validates that requested jobs are visible.
+	HostServiceMethodJobsEnsureVisible = "jobs.visible.ensure"
 	// HostServiceMethodJobsRegister registers one dynamic-plugin job declaration during discovery.
 	HostServiceMethodJobsRegister = "jobs.register"
 )
@@ -320,16 +362,26 @@ const (
 const (
 	// HostServiceMethodNotificationsBatchGetMessages reads visible notification message projections.
 	HostServiceMethodNotificationsBatchGetMessages = "messages.batch_get"
+	// HostServiceMethodNotificationsBatchGetBySource reads visible messages by source IDs.
+	HostServiceMethodNotificationsBatchGetBySource = "messages.by_source.batch_get"
+	// HostServiceMethodNotificationsEnsureVisible validates notification message visibility.
+	HostServiceMethodNotificationsEnsureVisible = "messages.visible.ensure"
 	// HostServiceMethodNotificationsSend sends one governed notification message.
 	HostServiceMethodNotificationsSend = "messages.send"
 )
 
 // Plugins host-service methods describe plugin-governance ordinary capability reads.
 const (
+	// HostServiceMethodPluginsCurrent reads the current caller plugin projection.
+	HostServiceMethodPluginsCurrent = "plugins.current.get"
 	// HostServiceMethodPluginsBatchGet reads visible plugin projections.
 	HostServiceMethodPluginsBatchGet = "plugins.batch_get"
+	// HostServiceMethodPluginsSearch searches visible plugin projections.
+	HostServiceMethodPluginsSearch = "plugins.search"
 	// HostServiceMethodPluginsListTenant lists tenant-controllable plugin projections.
 	HostServiceMethodPluginsListTenant = "plugins.tenant.list"
+	// HostServiceMethodPluginsBatchGetCapabilityStatus reads framework capability statuses.
+	HostServiceMethodPluginsBatchGetCapabilityStatus = "plugins.capabilities.status.batch_get"
 	// HostServiceMethodPluginsIsEnabled checks regular plugin enablement.
 	HostServiceMethodPluginsIsEnabled = "plugins.enabled.check"
 	// HostServiceMethodPluginsIsProviderEnabled checks provider enablement.
@@ -356,10 +408,16 @@ const (
 
 // Sessions host-service methods describe ordinary online-session reads.
 const (
+	// HostServiceMethodSessionsCurrent reads the current online-session projection.
+	HostServiceMethodSessionsCurrent = "sessions.current.get"
 	// HostServiceMethodSessionsSearch searches visible online sessions.
 	HostServiceMethodSessionsSearch = "sessions.search"
 	// HostServiceMethodSessionsBatchGet reads visible online sessions in batch.
 	HostServiceMethodSessionsBatchGet = "sessions.batch_get"
+	// HostServiceMethodSessionsBatchGetUserOnlineStatus reads visible user online states.
+	HostServiceMethodSessionsBatchGetUserOnlineStatus = "sessions.users.online.batch_get"
+	// HostServiceMethodSessionsEnsureVisible validates that requested sessions are visible.
+	HostServiceMethodSessionsEnsureVisible = "sessions.visible.ensure"
 )
 
 // Organization host-service methods describe the ordinary organization
@@ -372,6 +430,8 @@ const (
 	HostServiceMethodOrgStatus = "capability.status"
 	// HostServiceMethodOrgListUserDeptAssignments lists user department assignments in batch.
 	HostServiceMethodOrgListUserDeptAssignments = "users.dept_assignments.list"
+	// HostServiceMethodOrgBatchGetUserOrgProfiles reads user organization profiles in batch.
+	HostServiceMethodOrgBatchGetUserOrgProfiles = "users.org_profiles.batch_get"
 	// HostServiceMethodOrgGetUserDeptInfo reads one user's department identifier and name.
 	HostServiceMethodOrgGetUserDeptInfo = "users.dept_info.get"
 	// HostServiceMethodOrgGetUserDeptName reads one user's department name.
@@ -380,6 +440,16 @@ const (
 	HostServiceMethodOrgGetUserDeptIDs = "users.dept_ids.get"
 	// HostServiceMethodOrgGetUserPostIDs reads one user's post identifiers.
 	HostServiceMethodOrgGetUserPostIDs = "users.post_ids.get"
+	// HostServiceMethodOrgListDeptTree reads one bounded department tree projection.
+	HostServiceMethodOrgListDeptTree = "depts.tree.list"
+	// HostServiceMethodOrgSearchDepartments searches visible department projections.
+	HostServiceMethodOrgSearchDepartments = "depts.search"
+	// HostServiceMethodOrgListPostOptions lists bounded visible post candidates.
+	HostServiceMethodOrgListPostOptions = "posts.options.list"
+	// HostServiceMethodOrgEnsureDepartmentsVisible validates department visibility.
+	HostServiceMethodOrgEnsureDepartmentsVisible = "depts.visible.ensure"
+	// HostServiceMethodOrgEnsurePostsVisible validates post visibility.
+	HostServiceMethodOrgEnsurePostsVisible = "posts.visible.ensure"
 )
 
 // Tenant host-service methods describe the ordinary tenant capability surface
@@ -392,14 +462,24 @@ const (
 	HostServiceMethodTenantStatus = "capability.status"
 	// HostServiceMethodTenantCurrent reads the current request tenant.
 	HostServiceMethodTenantCurrent = "tenants.current"
+	// HostServiceMethodTenantCurrentInfo reads the current request tenant projection.
+	HostServiceMethodTenantCurrentInfo = "tenants.current_info.get"
 	// HostServiceMethodTenantPlatformBypass reports whether tenant filtering may be bypassed.
 	HostServiceMethodTenantPlatformBypass = "tenants.platform_bypass"
 	// HostServiceMethodTenantEnsureVisible validates that the current user can access one tenant.
 	HostServiceMethodTenantEnsureVisible = "tenants.visible.ensure"
+	// HostServiceMethodTenantBatchGet reads visible tenant projections in batch.
+	HostServiceMethodTenantBatchGet = "tenants.batch_get"
+	// HostServiceMethodTenantSearch searches visible tenant candidates.
+	HostServiceMethodTenantSearch = "tenants.search"
 	// HostServiceMethodTenantValidateUserInTenant validates one user's tenant membership.
 	HostServiceMethodTenantValidateUserInTenant = "users.tenant_membership.validate"
 	// HostServiceMethodTenantListUserTenants lists tenants visible to one user.
 	HostServiceMethodTenantListUserTenants = "users.tenants.list"
+	// HostServiceMethodTenantBatchListUserTenants lists visible tenants for users in batch.
+	HostServiceMethodTenantBatchListUserTenants = "users.tenants.batch_list"
+	// HostServiceMethodTenantBatchEnsureVisible validates tenant visibility in batch.
+	HostServiceMethodTenantBatchEnsureVisible = "tenants.visible.batch_ensure"
 	// HostServiceMethodTenantValidateSwitch validates one tenant switch target.
 	HostServiceMethodTenantValidateSwitch = "tenants.switch.validate"
 )
@@ -409,6 +489,10 @@ const (
 const (
 	// HostServiceMethodAITextGenerate executes one governed text generation request.
 	HostServiceMethodAITextGenerate = "text.generate"
+	// HostServiceMethodAITextMethodStatus reads one text AI method availability projection.
+	HostServiceMethodAITextMethodStatus = "text.method_status.get"
+	// HostServiceMethodAIMethodStatuses reads AI method availability projections across sub-capabilities.
+	HostServiceMethodAIMethodStatuses = "ai.methods.status.batch_get"
 	// HostServiceMethodAIImageGenerate executes one governed image generation request.
 	HostServiceMethodAIImageGenerate = "image.generate"
 	// HostServiceMethodAIImageEdit executes one governed image editing request.

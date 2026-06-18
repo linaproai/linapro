@@ -8,6 +8,13 @@ import (
 	"time"
 )
 
+const (
+	// MaxBatchGetUserOnlineStatus limits one user online-status batch call.
+	MaxBatchGetUserOnlineStatus = 200
+	// MaxEnsureVisible limits one online-session visibility check.
+	MaxEnsureVisible = 200
+)
+
 // SessionID identifies one online session token at domain boundaries.
 type SessionID string
 
@@ -37,6 +44,16 @@ type Projection struct {
 	LastActiveAt *time.Time
 }
 
+// UserOnlineStatusProjection reports whether one visible user has an online session.
+type UserOnlineStatusProjection struct {
+	// UserID is the requested user identifier.
+	UserID string
+	// Online reports whether the user currently has at least one visible session.
+	Online bool
+	// SessionCount is the number of visible online sessions for the user.
+	SessionCount int
+}
+
 // SearchInput constrains online-session queries.
 type SearchInput struct {
 	// Username filters by username.
@@ -49,10 +66,16 @@ type SearchInput struct {
 
 // Service defines read-oriented online-session capability methods.
 type Service interface {
+	// Current returns the visible session projection for the current token.
+	Current(ctx context.Context, capCtx capmodel.CapabilityContext) (*Projection, error)
 	// Search returns one bounded visible session page.
 	Search(ctx context.Context, capCtx capmodel.CapabilityContext, input SearchInput) (*capmodel.PageResult[*Projection], error)
 	// BatchGet returns visible sessions and opaque missing IDs.
 	BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []SessionID) (*capmodel.BatchResult[*Projection, SessionID], error)
+	// BatchGetUserOnlineStatus returns visible users' online status in one bounded call.
+	BatchGetUserOnlineStatus(ctx context.Context, capCtx capmodel.CapabilityContext, userIDs []string) (*capmodel.BatchResult[*UserOnlineStatusProjection, string], error)
+	// EnsureVisible rejects when any requested online session is absent or invisible.
+	EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []SessionID) error
 }
 
 // AdminService defines session management commands.

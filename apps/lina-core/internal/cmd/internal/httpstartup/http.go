@@ -51,5 +51,5 @@ func Run(ctx context.Context) error {
 	dispatchSystemStartedHook(ctx, runtime.pluginSvc)
 
 	server.Run()
-	return shutdownHTTPRuntime(ctx, runtime, configSvc)
+	return shutdownHTTPRuntime(ctx, runtime, server)
 }

@@ -90,8 +90,8 @@ func newUserTestService(tenantManagersAndRuntimes ...any) Service {
 		notifySvc,
 		kvCacheSvc,
 		lockSvc,
-		pluginsvc.NewStorageProviderRuntime(configSvc, pluginRuntime),
-		pluginsvc.NewLocalStorageProvider(configSvc.GetPluginDynamicStoragePath(context.Background()), false, false),
+		pluginsvc.NewStorageProviderRuntime(pluginRuntime),
+		pluginsvc.NewLocalStorageProvider(configSvc.GetPluginDynamicStoragePath(context.Background())),
 	)
 	if err != nil {
 		panic(err)

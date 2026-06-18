@@ -7,6 +7,13 @@ import (
 	"lina-core/pkg/plugin/capability/capmodel"
 )
 
+const (
+	// MaxSearchPageSize limits one scheduled-job candidate search page.
+	MaxSearchPageSize = 200
+	// MaxEnsureVisible limits one scheduled-job visibility check.
+	MaxEnsureVisible = 200
+)
+
 // JobID identifies one governed job.
 type JobID string
 
@@ -22,10 +29,26 @@ type Projection struct {
 	Status string
 }
 
+// SearchInput constrains scheduled-job candidate search.
+type SearchInput struct {
+	// Keyword filters by job name or handler reference.
+	Keyword string
+	// Group filters by job group identifier.
+	Group string
+	// Status filters by job lifecycle status.
+	Status string
+	// Page constrains result size and stable sorting.
+	Page capmodel.PageRequest
+}
+
 // Service defines read-oriented job capability methods.
 type Service interface {
 	// BatchGet returns visible job projections and opaque missing IDs.
 	BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []JobID) (*capmodel.BatchResult[*Projection, JobID], error)
+	// Search returns one bounded page of visible scheduled-job projections.
+	Search(ctx context.Context, capCtx capmodel.CapabilityContext, input SearchInput) (*capmodel.PageResult[*Projection], error)
+	// EnsureVisible rejects when any requested job is absent or invisible.
+	EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []JobID) error
 }
 
 // AdminService defines governed job execution commands.

@@ -311,6 +311,46 @@ func (s *manifestClient) Get(path string) ([]byte, bool, error) {
 	return response.Body, true, nil
 }
 
+// GetMany reads authorized manifest resources by explicit path.
+func (s *manifestClient) GetMany(paths []string) (*manifestcap.GetManyOutput, error) {
+	response := &manifestcap.GetManyOutput{}
+	err := s.callHostServiceJSONRequest(
+		protocol.HostServiceManifest,
+		protocol.HostServiceMethodManifestGetMany,
+		manifestBatchResourceRef(paths),
+		"",
+		manifestcap.GetManyInput{Paths: paths},
+		response,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if response.Resources == nil {
+		response.Resources = []*manifestcap.ResourceContent{}
+	}
+	return response, nil
+}
+
+// List lists authorized manifest resource metadata under one prefix.
+func (s *manifestClient) List(prefix string, limit int) (*manifestcap.ListOutput, error) {
+	response := &manifestcap.ListOutput{}
+	err := s.callHostServiceJSONRequest(
+		protocol.HostServiceManifest,
+		protocol.HostServiceMethodManifestList,
+		manifestListResourceRef(prefix),
+		"",
+		manifestcap.ListInput{Prefix: prefix, Limit: limit},
+		response,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if response.Resources == nil {
+		response.Resources = []*manifestcap.Resource{}
+	}
+	return response, nil
+}
+
 // GetText reads one manifest resource as UTF-8 text.
 func (s *manifestClient) GetText(path string) (string, bool, error) {
 	body, found, err := s.Get(path)
@@ -349,6 +389,16 @@ func (s *manifestClient) Scan(path string, key string, target any) (bool, error)
 func (s *manifestCapabilityService) Get(_ context.Context, path string) ([]byte, error) {
 	content, _, err := s.client.Get(path)
 	return content, err
+}
+
+// GetMany returns raw resources for explicit authorized manifest-relative paths.
+func (s *manifestCapabilityService) GetMany(_ context.Context, input manifestcap.GetManyInput) (*manifestcap.GetManyOutput, error) {
+	return s.client.GetMany(input.Paths)
+}
+
+// List returns authorized manifest resource metadata under one bounded prefix.
+func (s *manifestCapabilityService) List(_ context.Context, input manifestcap.ListInput) (*manifestcap.ListOutput, error) {
+	return s.client.List(input.Prefix, input.Limit)
 }
 
 // Exists reports whether one allowed manifest resource exists.
@@ -390,6 +440,72 @@ func gvarFromJSONValue(value string) *gvar.Var {
 		return gvar.New(decoded)
 	}
 	return gvar.New(value)
+}
+
+func manifestBatchResourceRef(paths []string) string {
+	return batchResourceRef(paths)
+}
+
+func manifestListResourceRef(prefix string) string {
+	trimmed := strings.Trim(strings.ReplaceAll(strings.TrimSpace(prefix), "\\", "/"), "/")
+	if trimmed == "" {
+		return ".manifest-list-probe"
+	}
+	return trimmed + "/.manifest-list-probe"
+}
+
+func batchResourceRef(paths []string) string {
+	first := ""
+	for _, rawPath := range paths {
+		trimmed := strings.ReplaceAll(strings.TrimSpace(rawPath), "\\", "/")
+		if trimmed == "" {
+			continue
+		}
+		if first == "" {
+			first = trimmed
+			continue
+		}
+		return commonDirectoryResourceRef(paths)
+	}
+	return first
+}
+
+func commonDirectoryResourceRef(paths []string) string {
+	prefix := ""
+	for _, rawPath := range paths {
+		trimmed := strings.Trim(strings.ReplaceAll(strings.TrimSpace(rawPath), "\\", "/"), "/")
+		if trimmed == "" {
+			continue
+		}
+		dir := pathDirectoryPrefix(trimmed)
+		if prefix == "" {
+			prefix = dir
+			continue
+		}
+		for prefix != "" && !strings.HasPrefix(trimmed, prefix) {
+			prefix = parentDirectoryPrefix(strings.TrimSuffix(prefix, "/"))
+		}
+	}
+	return prefix
+}
+
+func pathDirectoryPrefix(path string) string {
+	if strings.HasSuffix(path, "/") {
+		return path
+	}
+	index := strings.LastIndex(path, "/")
+	if index < 0 {
+		return ""
+	}
+	return path[:index+1]
+}
+
+func parentDirectoryPrefix(path string) string {
+	index := strings.LastIndex(path, "/")
+	if index < 0 {
+		return ""
+	}
+	return path[:index+1]
 }
 
 var _ plugincap.ConfigService = (*pluginConfigService)(nil)

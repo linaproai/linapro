@@ -367,14 +367,29 @@ func (rootNoopStorage) Delete(context.Context, storagecap.DeleteInput) error {
 	return nil
 }
 
+// DeleteMany accepts batch deletion without touching shared state.
+func (rootNoopStorage) DeleteMany(context.Context, storagecap.DeleteManyInput) error {
+	return nil
+}
+
 // List returns an empty bounded object list.
 func (rootNoopStorage) List(_ context.Context, in storagecap.ListInput) (*storagecap.ListOutput, error) {
 	return &storagecap.ListOutput{Objects: []*storagecap.Object{}, Limit: in.Limit}, nil
 }
 
+// ListCursor returns an empty bounded cursor object list.
+func (rootNoopStorage) ListCursor(_ context.Context, in storagecap.ListCursorInput) (*storagecap.ListCursorOutput, error) {
+	return &storagecap.ListCursorOutput{Objects: []*storagecap.Object{}, Limit: in.Limit}, nil
+}
+
 // Stat reports that no root-test object exists.
 func (rootNoopStorage) Stat(context.Context, storagecap.StatInput) (*storagecap.StatOutput, error) {
 	return &storagecap.StatOutput{Found: false}, nil
+}
+
+// BatchStat reports all root-test objects as missing.
+func (rootNoopStorage) BatchStat(_ context.Context, in storagecap.BatchStatInput) (*storagecap.BatchStatOutput, error) {
+	return &storagecap.BatchStatOutput{MissingPaths: append([]string(nil), in.Paths...)}, nil
 }
 
 // ProviderStatuses returns no provider diagnostics for root facade tests.
@@ -419,12 +434,35 @@ func (rootNoopAdminCapabilities) Infra() capabilityinfracap.AdminService { retur
 // rootNoopUsers is a registration-safe user-domain fixture for root facade tests.
 type rootNoopUsers struct{}
 
+// Current returns no current user for provider-construction paths.
+func (rootNoopUsers) Current(context.Context, capmodel.CapabilityContext) (*capabilityusercap.UserProjection, error) {
+	return nil, nil
+}
+
 // BatchGet reports all requested IDs as missing without querying storage.
 func (rootNoopUsers) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
 	return &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID]{
 		Items:      map[capabilityusercap.UserID]*capabilityusercap.UserProjection{},
 		MissingIDs: append([]capabilityusercap.UserID(nil), ids...),
 	}, nil
+}
+
+// BatchResolve reports all requested identifiers as missing without querying storage.
+func (rootNoopUsers) BatchResolve(_ context.Context, _ capmodel.CapabilityContext, input capabilityusercap.BatchResolveInput) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.ResolveKey], error) {
+	result := &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.ResolveKey]{
+		Items:      map[capabilityusercap.ResolveKey]*capabilityusercap.UserProjection{},
+		MissingIDs: []capabilityusercap.ResolveKey{},
+	}
+	for _, id := range input.IDs {
+		result.MissingIDs = append(result.MissingIDs, capabilityusercap.ResolveKey("id:"+string(id)))
+	}
+	for _, username := range input.Usernames {
+		result.MissingIDs = append(result.MissingIDs, capabilityusercap.ResolveKey("username:"+username))
+	}
+	for _, contact := range input.Contacts {
+		result.MissingIDs = append(result.MissingIDs, capabilityusercap.ResolveKey("contact:"+contact))
+	}
+	return result, nil
 }
 
 // Search returns an empty bounded page for provider-construction paths.

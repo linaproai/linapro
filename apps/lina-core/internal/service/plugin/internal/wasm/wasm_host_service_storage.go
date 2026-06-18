@@ -58,10 +58,16 @@ func dispatchStorageHostService(
 		return handleStorageGet(ctx, service, targetPath, payload)
 	case bridgehostservice.HostServiceMethodStorageDelete:
 		return handleStorageDelete(ctx, service, targetPath, payload)
+	case bridgehostservice.HostServiceMethodStorageDeleteBatch:
+		return handleStorageDeleteBatch(ctx, service, targetPath, payload)
 	case bridgehostservice.HostServiceMethodStorageList:
 		return handleStorageList(ctx, service, targetPath, payload)
+	case bridgehostservice.HostServiceMethodStorageListCursor:
+		return handleStorageListCursor(ctx, service, targetPath, payload)
 	case bridgehostservice.HostServiceMethodStorageStat:
 		return handleStorageStat(ctx, service, targetPath, payload)
+	case bridgehostservice.HostServiceMethodStorageStatBatch:
+		return handleStorageStatBatch(ctx, service, targetPath, payload)
 	default:
 		return bridgehostcall.NewHostCallErrorResponse(
 			bridgehostcall.HostCallStatusNotFound,
@@ -169,6 +175,32 @@ func handleStorageDelete(
 	return bridgehostcall.NewHostCallEmptySuccessResponse()
 }
 
+// handleStorageDeleteBatch deletes governed storage objects through storagecap.
+func handleStorageDeleteBatch(
+	ctx context.Context,
+	service storagecap.Service,
+	targetPath string,
+	payload []byte,
+) *bridgehostcall.HostCallResponseEnvelope {
+	var request storageBatchPathsRequest
+	if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+		return invalidCapabilityRequest(err)
+	}
+	paths, err := normalizeStorageBatchObjectPaths(request.Paths)
+	if err != nil {
+		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+	}
+	for _, objectPath := range paths {
+		if err = validateStorageRequestTarget(targetPath, objectPath); err != nil {
+			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+		}
+	}
+	if err = service.DeleteMany(ctx, storagecap.DeleteManyInput{Paths: paths}); err != nil {
+		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+	}
+	return bridgehostcall.NewHostCallEmptySuccessResponse()
+}
+
 // handleStorageList lists governed storage objects through storagecap.
 func handleStorageList(
 	ctx context.Context,
@@ -201,6 +233,53 @@ func handleStorageList(
 	return bridgehostcall.NewHostCallSuccessResponse(
 		bridgehostservice.MarshalHostServiceStorageListResponse(&bridgehostservice.HostServiceStorageListResponse{Objects: objects}),
 	)
+}
+
+// handleStorageListCursor lists governed storage objects with cursor pagination.
+func handleStorageListCursor(
+	ctx context.Context,
+	service storagecap.Service,
+	targetPath string,
+	payload []byte,
+) *bridgehostcall.HostCallResponseEnvelope {
+	var request storageListCursorRequest
+	if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+		return invalidCapabilityRequest(err)
+	}
+	prefix, err := normalizeStorageListPrefix(request.Prefix)
+	if err != nil {
+		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+	}
+	if err = validateStorageRequestTarget(targetPath, prefix); err != nil {
+		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+	}
+	cursor := ""
+	if strings.TrimSpace(request.Cursor) != "" {
+		cursor, err = normalizeStorageObjectPath(request.Cursor)
+		if err != nil {
+			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+		}
+		if err = validateStorageRequestTarget(targetPath, cursor); err != nil {
+			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+		}
+	}
+	output, err := service.ListCursor(ctx, storagecap.ListCursorInput{
+		Prefix: prefix,
+		Cursor: cursor,
+		Limit:  request.Limit,
+	})
+	if err != nil {
+		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+	}
+	response := storageListCursorResponse{Objects: []*bridgehostservice.HostServiceStorageObject{}}
+	if output != nil {
+		response.NextCursor = output.NextCursor
+		response.Limit = output.Limit
+		for _, object := range output.Objects {
+			response.Objects = append(response.Objects, storageObjectResponse(object))
+		}
+	}
+	return capabilityJSONResponse(response)
 }
 
 // handleStorageStat reads governed storage metadata through storagecap.
@@ -238,6 +317,40 @@ func handleStorageStat(
 	)
 }
 
+// handleStorageStatBatch reads governed storage metadata through storagecap.
+func handleStorageStatBatch(
+	ctx context.Context,
+	service storagecap.Service,
+	targetPath string,
+	payload []byte,
+) *bridgehostcall.HostCallResponseEnvelope {
+	var request storageBatchPathsRequest
+	if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+		return invalidCapabilityRequest(err)
+	}
+	paths, err := normalizeStorageBatchObjectPaths(request.Paths)
+	if err != nil {
+		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+	}
+	for _, objectPath := range paths {
+		if err = validateStorageRequestTarget(targetPath, objectPath); err != nil {
+			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+		}
+	}
+	output, err := service.BatchStat(ctx, storagecap.BatchStatInput{Paths: paths})
+	if err != nil {
+		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+	}
+	response := storageBatchStatResponse{Objects: []*bridgehostservice.HostServiceStorageObject{}}
+	if output != nil {
+		response.MissingPaths = append([]string(nil), output.MissingPaths...)
+		for _, object := range output.Objects {
+			response.Objects = append(response.Objects, storageObjectResponse(object))
+		}
+	}
+	return capabilityJSONResponse(response)
+}
+
 // normalizeStorageObjectPath canonicalizes one logical object path.
 func normalizeStorageObjectPath(rawPath string) (string, error) {
 	normalized, err := normalizeStorageAuthorizedPath(rawPath)
@@ -257,6 +370,24 @@ func normalizeStorageListPrefix(rawPrefix string) (string, error) {
 		return "", gerror.New("storage list prefix is required")
 	}
 	return normalizeStorageAuthorizedPath(trimmed)
+}
+
+// normalizeStorageBatchObjectPaths canonicalizes explicit batch object paths.
+func normalizeStorageBatchObjectPaths(rawPaths []string) ([]string, error) {
+	paths := make([]string, 0, len(rawPaths))
+	seen := make(map[string]struct{}, len(rawPaths))
+	for _, rawPath := range rawPaths {
+		normalized, err := normalizeStorageObjectPath(rawPath)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		paths = append(paths, normalized)
+	}
+	return paths, nil
 }
 
 // normalizeStorageAuthorizedPath canonicalizes one authorized storage target or prefix.
@@ -384,4 +515,25 @@ func readAndCloseStorageBody(body io.ReadCloser) ([]byte, error) {
 		return nil, closeErr
 	}
 	return content, nil
+}
+
+type storageBatchPathsRequest struct {
+	Paths []string `json:"paths"`
+}
+
+type storageBatchStatResponse struct {
+	Objects      []*bridgehostservice.HostServiceStorageObject `json:"objects"`
+	MissingPaths []string                                      `json:"missingPaths,omitempty"`
+}
+
+type storageListCursorRequest struct {
+	Prefix string `json:"prefix"`
+	Cursor string `json:"cursor,omitempty"`
+	Limit  int    `json:"limit,omitempty"`
+}
+
+type storageListCursorResponse struct {
+	Objects    []*bridgehostservice.HostServiceStorageObject `json:"objects"`
+	NextCursor string                                        `json:"nextCursor,omitempty"`
+	Limit      int                                           `json:"limit,omitempty"`
 }

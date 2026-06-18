@@ -16,6 +16,7 @@ import (
 
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 )
@@ -113,6 +114,23 @@ func (s *storageAdapter) Delete(ctx context.Context, in storagecap.DeleteInput) 
 	return provider.Delete(ctx, storagecap.ProviderDeleteInput{Key: s.objectKey(ctx, objectPath)})
 }
 
+// DeleteMany removes an explicit bounded set of plugin objects.
+func (s *storageAdapter) DeleteMany(ctx context.Context, in storagecap.DeleteManyInput) error {
+	paths, err := s.normalizeBatchObjectPaths(in.Paths)
+	if err != nil {
+		return err
+	}
+	_, provider, err := storagecap.ResolveProvider(ctx, s.runtime, s.localProvider)
+	if err != nil {
+		return err
+	}
+	keys := make([]string, 0, len(paths))
+	for _, objectPath := range paths {
+		keys = append(keys, s.objectKey(ctx, objectPath))
+	}
+	return provider.DeleteMany(ctx, storagecap.ProviderDeleteManyInput{Keys: keys})
+}
+
 // List returns bounded plugin object metadata under one logical prefix.
 func (s *storageAdapter) List(ctx context.Context, in storagecap.ListInput) (*storagecap.ListOutput, error) {
 	prefix, err := s.normalizeListPrefix(in.Prefix)
@@ -145,6 +163,54 @@ func (s *storageAdapter) List(ctx context.Context, in storagecap.ListInput) (*st
 	return &storagecap.ListOutput{Objects: objects, Limit: limit}, nil
 }
 
+// ListCursor returns bounded plugin object metadata under one logical prefix.
+func (s *storageAdapter) ListCursor(ctx context.Context, in storagecap.ListCursorInput) (*storagecap.ListCursorOutput, error) {
+	prefix, err := s.normalizeListPrefix(in.Prefix)
+	if err != nil {
+		return nil, err
+	}
+	cursor := ""
+	if strings.TrimSpace(in.Cursor) != "" {
+		cursor, err = s.normalizeObjectPath(in.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		if cursor != prefix && !strings.HasPrefix(cursor, strings.TrimSuffix(prefix, "/")+"/") {
+			return nil, bizerr.NewCode(storagecap.CodeStoragePathInvalid)
+		}
+	}
+	limit := normalizeStorageListLimit(in.Limit)
+	providerID, provider, err := storagecap.ResolveProvider(ctx, s.runtime, s.localProvider)
+	if err != nil {
+		return nil, err
+	}
+	providerCursor := ""
+	if cursor != "" {
+		providerCursor = s.objectKey(ctx, cursor)
+	}
+	providerOutput, err := provider.ListCursor(ctx, storagecap.ProviderListCursorInput{
+		Prefix: s.objectKey(ctx, prefix),
+		Cursor: providerCursor,
+		Limit:  limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	output := &storagecap.ListCursorOutput{Objects: []*storagecap.Object{}, Limit: limit}
+	if providerOutput == nil {
+		return output, nil
+	}
+	for _, object := range providerOutput.Objects {
+		logicalPath := s.logicalPathFromKey(ctx, object)
+		if logicalPath == "" {
+			continue
+		}
+		output.Objects = append(output.Objects, s.providerObject(logicalPath, providerID, object))
+	}
+	output.NextCursor = s.logicalPathFromKey(ctx, &storagecap.ProviderObject{Key: providerOutput.NextCursor})
+	return output, nil
+}
+
 // Stat reads plugin object metadata.
 func (s *storageAdapter) Stat(ctx context.Context, in storagecap.StatInput) (*storagecap.StatOutput, error) {
 	objectPath, err := s.normalizeObjectPath(in.Path)
@@ -163,6 +229,47 @@ func (s *storageAdapter) Stat(ctx context.Context, in storagecap.StatInput) (*st
 		return &storagecap.StatOutput{Found: false}, nil
 	}
 	return &storagecap.StatOutput{Object: s.providerObject(objectPath, providerID, output.Object), Found: true}, nil
+}
+
+// BatchStat reads plugin object metadata for an explicit bounded path set.
+func (s *storageAdapter) BatchStat(ctx context.Context, in storagecap.BatchStatInput) (*storagecap.BatchStatOutput, error) {
+	paths, err := s.normalizeBatchObjectPaths(in.Paths)
+	if err != nil {
+		return nil, err
+	}
+	providerID, provider, err := storagecap.ResolveProvider(ctx, s.runtime, s.localProvider)
+	if err != nil {
+		return nil, err
+	}
+	pathByKey := make(map[string]string, len(paths))
+	keys := make([]string, 0, len(paths))
+	for _, objectPath := range paths {
+		key := s.objectKey(ctx, objectPath)
+		pathByKey[key] = objectPath
+		keys = append(keys, key)
+	}
+	providerOutput, err := provider.BatchStat(ctx, storagecap.ProviderBatchStatInput{Keys: keys})
+	if err != nil {
+		return nil, err
+	}
+	found := make(map[string]struct{}, len(paths))
+	output := &storagecap.BatchStatOutput{Objects: []*storagecap.Object{}}
+	if providerOutput != nil {
+		for _, object := range providerOutput.Objects {
+			logicalPath := pathByKey[strings.TrimSpace(object.Key)]
+			if logicalPath == "" {
+				continue
+			}
+			found[logicalPath] = struct{}{}
+			output.Objects = append(output.Objects, s.providerObject(logicalPath, providerID, object))
+		}
+	}
+	for _, objectPath := range paths {
+		if _, ok := found[objectPath]; !ok {
+			output.MissingPaths = append(output.MissingPaths, objectPath)
+		}
+	}
+	return output, nil
 }
 
 // ProviderStatuses returns registered provider status snapshots.
@@ -188,6 +295,32 @@ func (s *storageAdapter) normalizeListPrefix(rawPrefix string) (string, error) {
 		return "", err
 	}
 	return normalizePluginStoragePath(rawPrefix, false)
+}
+
+// normalizeBatchObjectPaths validates, deduplicates, and bounds explicit object paths.
+func (s *storageAdapter) normalizeBatchObjectPaths(rawPaths []string) ([]string, error) {
+	if err := s.validateServiceScope(); err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{}, len(rawPaths))
+	paths := make([]string, 0, len(rawPaths))
+	totalBytes := 0
+	for _, rawPath := range rawPaths {
+		normalized, err := normalizePluginStoragePath(rawPath, false)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		paths = append(paths, normalized)
+		totalBytes += len([]byte(normalized))
+		if len(paths) > storagecap.MaxBatchPathCount || totalBytes > storagecap.MaxBatchPathBytes {
+			return nil, bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", storagecap.MaxBatchPathCount))
+		}
+	}
+	return paths, nil
 }
 
 // validateServiceScope verifies storage calls are plugin-bound and provider-backed.

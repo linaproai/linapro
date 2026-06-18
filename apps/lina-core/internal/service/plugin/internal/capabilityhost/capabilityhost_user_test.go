@@ -10,6 +10,7 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 
 	"lina-core/internal/service/datascope"
+	"lina-core/pkg/bizerr"
 	_ "lina-core/pkg/dbdriver"
 	"lina-core/pkg/plugin/capability/capmodel"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
@@ -58,6 +59,64 @@ func TestBatchGetAppliesDataScope(t *testing.T) {
 	}
 }
 
+// TestCurrentRequiresUserActor verifies current user projection calls fail closed without a user actor.
+func TestCurrentRequiresUserActor(t *testing.T) {
+	_, err := newUserCapabilityAdapter(nil, nil).Current(context.Background(), capmodel.CapabilityContext{})
+	if !bizerr.Is(err, capmodel.CodeCapabilityActorRequired) {
+		t.Fatalf("expected actor required error, got %v", err)
+	}
+}
+
+// TestBatchResolveAppliesDataScope verifies user resolution is scoped before rows are scanned.
+func TestBatchResolveAppliesDataScope(t *testing.T) {
+	ctx := context.Background()
+	scopeSvc := &recordingDataScope{empty: true}
+
+	result, err := newUserCapabilityAdapter(nil, scopeSvc).BatchResolve(ctx, capmodel.CapabilityContext{}, capabilityusercap.BatchResolveInput{
+		IDs:       []capabilityusercap.UserID{"7"},
+		Usernames: []string{"alice"},
+		Contacts:  []string{"alice@example.test"},
+	})
+	if err != nil {
+		t.Fatalf("batch resolve users failed: %v", err)
+	}
+	if scopeSvc.applyCalls != 1 || scopeSvc.lastColumn != "sys_user.id" {
+		t.Fatalf("expected data scope to apply once to sys_user.id, calls=%d column=%q", scopeSvc.applyCalls, scopeSvc.lastColumn)
+	}
+	for _, key := range []capabilityusercap.ResolveKey{"id:7", "username:alice", "contact:alice@example.test"} {
+		if !containsResolveKey(result.MissingIDs, key) {
+			t.Fatalf("expected %s to be opaque missing, got %#v", key, result.MissingIDs)
+		}
+	}
+}
+
+// TestBatchResolveRejectsLimit verifies user resolution input is bounded before SQL assembly.
+func TestBatchResolveRejectsLimit(t *testing.T) {
+	ids := make([]capabilityusercap.UserID, capabilityusercap.MaxBatchResolveIDs+1)
+	_, err := newUserCapabilityAdapter(nil, nil).BatchResolve(context.Background(), capmodel.CapabilityContext{}, capabilityusercap.BatchResolveInput{IDs: ids})
+	if !bizerr.Is(err, capmodel.CodeCapabilityLimitExceeded) {
+		t.Fatalf("expected limit error, got %v", err)
+	}
+}
+
+// TestNormalizeUserResolveInputDeduplicates verifies repeated resolve keys do
+// not inflate database lookup dimensions.
+func TestNormalizeUserResolveInputDeduplicates(t *testing.T) {
+	result := normalizeUserResolveInput(capabilityusercap.BatchResolveInput{
+		IDs:       []capabilityusercap.UserID{"7", " 7 "},
+		Usernames: []string{"alice", "alice"},
+		Contacts:  []string{"alice@example.test", "alice@example.test"},
+	})
+	if len(result.ids) != 1 || len(result.usernames) != 1 || len(result.contacts) != 1 {
+		t.Fatalf("expected lookup dimensions to be deduplicated, got ids=%#v usernames=%#v contacts=%#v", result.ids, result.usernames, result.contacts)
+	}
+	for _, key := range []capabilityusercap.ResolveKey{"id:7", "username:alice", "contact:alice@example.test"} {
+		if !containsResolveKey(result.keys, key) {
+			t.Fatalf("expected normalized key %s in %#v", key, result.keys)
+		}
+	}
+}
+
 // recordingDataScope records data-scope application in usercap tests.
 type recordingDataScope struct {
 	empty      bool
@@ -97,6 +156,15 @@ func (*recordingDataScope) EnsureRowsVisible(context.Context, *gdb.Model, string
 }
 
 func containsUserID(ids []capabilityusercap.UserID, target capabilityusercap.UserID) bool {
+	for _, id := range ids {
+		if id == target {
+			return true
+		}
+	}
+	return false
+}
+
+func containsResolveKey(ids []capabilityusercap.ResolveKey, target capabilityusercap.ResolveKey) bool {
 	for _, id := range ids {
 		if id == target {
 			return true

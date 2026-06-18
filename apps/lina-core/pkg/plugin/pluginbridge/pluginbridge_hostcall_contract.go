@@ -15,10 +15,16 @@ type RuntimeHostService interface {
 	Log(level int, message string, fields map[string]string) error
 	// StateGet reads one plugin-scoped runtime state value by key.
 	StateGet(key string) (string, bool, error)
+	// StateGetMany reads plugin-scoped runtime state values by key.
+	StateGetMany(keys []string) (map[string]string, []string, error)
 	// StateSet writes one plugin-scoped runtime state value.
 	StateSet(key string, value string) error
+	// StateSetMany writes plugin-scoped runtime state values.
+	StateSetMany(values map[string]string) error
 	// StateDelete removes one plugin-scoped runtime state value.
 	StateDelete(key string) error
+	// StateDeleteMany removes plugin-scoped runtime state values.
+	StateDeleteMany(keys []string) error
 	// StateGetInt reads one integer runtime state value.
 	StateGetInt(key string) (int, bool, error)
 	// StateSetInt writes one integer runtime state value.

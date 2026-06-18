@@ -162,11 +162,6 @@ func (f *fakeRoleConfigService) GetHealth(_ context.Context) *hostconfig.HealthC
 	return &hostconfig.HealthConfig{}
 }
 
-// GetShutdown returns an empty shutdown config for tests.
-func (f *fakeRoleConfigService) GetShutdown(_ context.Context) *hostconfig.ShutdownConfig {
-	return &hostconfig.ShutdownConfig{}
-}
-
 // GetScheduler returns an empty scheduler config for tests.
 func (f *fakeRoleConfigService) GetScheduler(_ context.Context) *hostconfig.SchedulerConfig {
 	return &hostconfig.SchedulerConfig{DefaultTimezone: "UTC"}
@@ -200,11 +195,6 @@ func (f *fakeRoleConfigService) GetPluginAutoEnableEntries(_ context.Context) []
 // GetPluginDynamicStoragePath returns an empty dynamic storage path for tests.
 func (f *fakeRoleConfigService) GetPluginDynamicStoragePath(_ context.Context) string {
 	return ""
-}
-
-// GetPluginStorage returns empty plugin storage settings for tests.
-func (f *fakeRoleConfigService) GetPluginStorage(_ context.Context) hostconfig.PluginStorageConfig {
-	return hostconfig.PluginStorageConfig{}
 }
 
 // GetSession returns a session config assembled from the test service fields.

@@ -60,6 +60,26 @@ func (s *runtimeService) StateGet(key string) (string, bool, error) {
 	return response.Value, response.Found, nil
 }
 
+// StateGetMany reads plugin-scoped runtime state values by key.
+func (s *runtimeService) StateGetMany(keys []string) (map[string]string, []string, error) {
+	response := &runtimeStateGetManyResponse{}
+	err := s.callHostServiceJSONRequest(
+		protocol.HostServiceRuntime,
+		protocol.HostServiceMethodRuntimeStateGetMany,
+		"",
+		"",
+		runtimeStateGetManyRequest{Keys: keys},
+		response,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	if response.Values == nil {
+		response.Values = map[string]string{}
+	}
+	return response.Values, response.MissingKeys, nil
+}
+
 // StateSet writes one plugin-scoped runtime state value.
 func (s *runtimeService) StateSet(key string, value string) error {
 	request := &protocol.HostCallStateSetRequest{Key: key, Value: value}
@@ -73,6 +93,18 @@ func (s *runtimeService) StateSet(key string, value string) error {
 	return err
 }
 
+// StateSetMany writes plugin-scoped runtime state values.
+func (s *runtimeService) StateSetMany(values map[string]string) error {
+	return s.callHostServiceJSONRequest(
+		protocol.HostServiceRuntime,
+		protocol.HostServiceMethodRuntimeStateSetMany,
+		"",
+		"",
+		runtimeStateSetManyRequest{Values: values},
+		nil,
+	)
+}
+
 // StateDelete removes one plugin-scoped runtime state value.
 func (s *runtimeService) StateDelete(key string) error {
 	request := &protocol.HostCallStateDeleteRequest{Key: key}
@@ -84,6 +116,18 @@ func (s *runtimeService) StateDelete(key string) error {
 		protocol.MarshalHostCallStateDeleteRequest(request),
 	)
 	return err
+}
+
+// StateDeleteMany removes plugin-scoped runtime state values.
+func (s *runtimeService) StateDeleteMany(keys []string) error {
+	return s.callHostServiceJSONRequest(
+		protocol.HostServiceRuntime,
+		protocol.HostServiceMethodRuntimeStateDeleteMany,
+		"",
+		"",
+		runtimeStateDeleteManyRequest{Keys: keys},
+		nil,
+	)
 }
 
 // StateGetInt reads one integer runtime state value.
@@ -132,4 +176,21 @@ func (s *runtimeService) runtimeInfoValue(method string) (string, error) {
 		return "", err
 	}
 	return response.Value, nil
+}
+
+type runtimeStateGetManyRequest struct {
+	Keys []string `json:"keys"`
+}
+
+type runtimeStateGetManyResponse struct {
+	Values      map[string]string `json:"values"`
+	MissingKeys []string          `json:"missingKeys,omitempty"`
+}
+
+type runtimeStateSetManyRequest struct {
+	Values map[string]string `json:"values"`
+}
+
+type runtimeStateDeleteManyRequest struct {
+	Keys []string `json:"keys"`
 }

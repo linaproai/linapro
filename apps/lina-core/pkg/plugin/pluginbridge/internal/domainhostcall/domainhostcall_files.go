@@ -25,6 +25,19 @@ func (s filesService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, 
 	return out, err
 }
 
+// Search returns one bounded page of visible file projections.
+func (s filesService) Search(_ context.Context, _ capmodel.CapabilityContext, input filecap.SearchInput) (*capmodel.PageResult[*filecap.FileProjection], error) {
+	out := &capmodel.PageResult[*filecap.FileProjection]{Items: []*filecap.FileProjection{}}
+	err := s.callJSONRequest(protocol.HostServiceFiles, protocol.HostServiceMethodFilesSearch, filesSearchRequest{
+		BusinessScene: input.BusinessScene,
+		Keyword:       input.Keyword,
+		MimeType:      input.MimeType,
+		PageNum:       input.Page.PageNum,
+		PageSize:      input.Page.PageSize,
+	}, out)
+	return out, err
+}
+
 // EnsureVisible rejects when any requested file is absent or invisible.
 func (s filesService) EnsureVisible(_ context.Context, _ capmodel.CapabilityContext, ids []filecap.FileID) error {
 	return s.callJSONRequest(protocol.HostServiceFiles, protocol.HostServiceMethodFilesEnsureVisible, idsRequest{IDs: fileIDsToStrings(ids)}, nil)
@@ -37,6 +50,15 @@ func fileIDsToStrings(ids []filecap.FileID) []string {
 		out = append(out, string(id))
 	}
 	return out
+}
+
+// filesSearchRequest carries governed file search parameters.
+type filesSearchRequest struct {
+	BusinessScene string `json:"businessScene,omitempty"`
+	Keyword       string `json:"keyword,omitempty"`
+	MimeType      string `json:"mimeType,omitempty"`
+	PageNum       int    `json:"pageNum,omitempty"`
+	PageSize      int    `json:"pageSize,omitempty"`
 }
 
 var _ filecap.Service = (*filesService)(nil)

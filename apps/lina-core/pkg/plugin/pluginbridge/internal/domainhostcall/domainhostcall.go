@@ -95,6 +95,31 @@ func (s baseService) callHostService(service string, method string, resourceRef 
 	return s.invokeHost(service, method, resourceRef, table, request)
 }
 
+// callHostServiceJSONRequest encodes a JSON input envelope for raw host-service
+// methods and decodes a JSON response envelope when out is supplied.
+func (s baseService) callHostServiceJSONRequest(service string, method string, resourceRef string, table string, input any, out any) error {
+	var payload []byte
+	if input != nil {
+		content, err := json.Marshal(input)
+		if err != nil {
+			return err
+		}
+		payload = protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: content})
+	}
+	responsePayload, err := s.callHostService(service, method, resourceRef, table, payload)
+	if err != nil || out == nil {
+		return err
+	}
+	response, err := protocol.UnmarshalHostServiceCapabilityJSONResponse(responsePayload)
+	if err != nil {
+		return err
+	}
+	if response == nil || len(response.Value) == 0 {
+		return nil
+	}
+	return json.Unmarshal(response.Value, out)
+}
+
 // callJSONRequest encodes one JSON input envelope and dispatches it.
 func (s baseService) callJSONRequest(service string, method string, input any, out any) error {
 	var payload []byte

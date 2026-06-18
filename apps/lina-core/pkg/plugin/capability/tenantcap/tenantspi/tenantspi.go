@@ -88,6 +88,28 @@ type Provider interface {
 	SwitchTenant(ctx context.Context, userID int, target tenantcap.TenantID) error
 }
 
+// TenantProjectionProvider optionally exposes read-only tenant projections.
+//
+// TenantProjectionProvider 定义租户 provider 可选实现的租户只读投影能力，适用于普通插件读取租户候选、批量租户详情和当前租户详情。
+type TenantProjectionProvider interface {
+	// CurrentTenantInfo returns one tenant projection visible in the current context.
+	//
+	// CurrentTenantInfo 返回指定租户投影，适用于当前租户详情和批量租户详情装配。
+	CurrentTenantInfo(ctx context.Context, tenantID tenantcap.TenantID) (*tenantcap.TenantInfo, error)
+	// BatchGetTenants returns visible tenant projections and opaque missing IDs.
+	//
+	// BatchGetTenants 批量返回可见租户投影，不存在、不可见和租户外目标进入缺失集合。
+	BatchGetTenants(ctx context.Context, tenantIDs []tenantcap.TenantID) (*capmodel.BatchResult[*tenantcap.TenantInfo, tenantcap.TenantID], error)
+	// SearchTenants returns bounded tenant candidates visible to the caller.
+	//
+	// SearchTenants 返回分页租户候选投影，适用于插件筛选和关系选择。
+	SearchTenants(ctx context.Context, input tenantcap.SearchInput) (*capmodel.PageResult[*tenantcap.TenantInfo], error)
+	// EnsureTenantsVisible validates that every tenant identifier is visible.
+	//
+	// EnsureTenantsVisible 批量校验租户可见性，任一目标不可见时整体拒绝。
+	EnsureTenantsVisible(ctx context.Context, tenantIDs []tenantcap.TenantID) error
+}
+
 // RequestResolver defines host-internal HTTP tenant resolution. It is kept out
 // of tenantcap.Service because ordinary plugin consumers must not receive
 // request-object based resolver hooks through capability services.
@@ -176,6 +198,10 @@ type UserMembershipProvider interface {
 	//
 	// ListUserTenants 返回指定用户可见的活跃租户列表，适用于普通租户能力读取和用户上下文装配。
 	ListUserTenants(ctx context.Context, userID int) ([]tenantcap.TenantInfo, error)
+	// BatchListUserTenants returns active tenant memberships for visible users.
+	//
+	// BatchListUserTenants 批量返回用户可访问租户列表，适用于列表和批量详情装配，避免逐用户 provider 查询。
+	BatchListUserTenants(ctx context.Context, userIDs []int) (map[int][]tenantcap.TenantInfo, error)
 	// ApplyUserTenantScope constrains user-owned rows to the current request tenant.
 	//
 	// ApplyUserTenantScope 将用户相关查询限制到当前请求租户成员范围，适用于用户列表和用户关联资源查询。

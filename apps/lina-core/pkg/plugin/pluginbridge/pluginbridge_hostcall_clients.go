@@ -59,14 +59,29 @@ func HostStateGet(key string) (string, bool, error) {
 	return Runtime().StateGet(key)
 }
 
+// HostStateGetMany reads plugin-scoped runtime state values.
+func HostStateGetMany(keys []string) (map[string]string, []string, error) {
+	return Runtime().StateGetMany(keys)
+}
+
 // HostStateSet writes one plugin-scoped runtime state value.
 func HostStateSet(key string, value string) error {
 	return Runtime().StateSet(key, value)
 }
 
+// HostStateSetMany writes plugin-scoped runtime state values.
+func HostStateSetMany(values map[string]string) error {
+	return Runtime().StateSetMany(values)
+}
+
 // HostStateDelete removes one plugin-scoped runtime state value.
 func HostStateDelete(key string) error {
 	return Runtime().StateDelete(key)
+}
+
+// HostStateDeleteMany removes plugin-scoped runtime state values.
+func HostStateDeleteMany(keys []string) error {
+	return Runtime().StateDeleteMany(keys)
 }
 
 // HostStateGetInt reads one integer plugin-scoped runtime state value.

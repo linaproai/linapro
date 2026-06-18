@@ -36,6 +36,22 @@ type HostServiceDataGetResponse struct {
 	RecordJSON []byte `json:"recordJson,omitempty"`
 }
 
+// HostServiceDataBatchGetRequest carries one governed detail query by key set.
+type HostServiceDataBatchGetRequest struct {
+	// KeyJSON contains JSON-encoded key values.
+	KeyJSON [][]byte `json:"keyJson,omitempty"`
+	// Fields contains an optional logical field projection.
+	Fields []string `json:"fields,omitempty"`
+}
+
+// HostServiceDataBatchGetResponse carries one governed detail batch response.
+type HostServiceDataBatchGetResponse struct {
+	// Records contains one JSON document per found row.
+	Records [][]byte `json:"records,omitempty"`
+	// MissingKeyJSON contains requested keys with no visible returned record.
+	MissingKeyJSON [][]byte `json:"missingKeyJson,omitempty"`
+}
+
 // HostServiceDataMutationRequest carries one governed create/update/delete request.
 type HostServiceDataMutationRequest struct {
 	// KeyJSON is the JSON-encoded key value for update/delete.
@@ -263,6 +279,128 @@ func UnmarshalHostServiceDataGetResponse(data []byte) (*HostServiceDataGetRespon
 			}
 			content = content[size:]
 		}
+	}
+	return out, nil
+}
+
+// MarshalHostServiceDataBatchGetRequest encodes one data batch_get request.
+func MarshalHostServiceDataBatchGetRequest(req *HostServiceDataBatchGetRequest) []byte {
+	var content []byte
+	if req == nil {
+		return content
+	}
+	for _, keyJSON := range req.KeyJSON {
+		if len(keyJSON) > 0 {
+			content = appendBytesField(content, 1, keyJSON)
+		}
+	}
+	for _, field := range req.Fields {
+		if field != "" {
+			content = appendStringField(content, 2, field)
+		}
+	}
+	return content
+}
+
+// UnmarshalHostServiceDataBatchGetRequest decodes one data batch_get request.
+func UnmarshalHostServiceDataBatchGetRequest(data []byte) (*HostServiceDataBatchGetRequest, error) {
+	out := &HostServiceDataBatchGetRequest{}
+	content := data
+	for len(content) > 0 {
+		fieldNumber, wireType, length := protowire.ConsumeTag(content)
+		if length < 0 {
+			return nil, gerror.New("failed to decode data batch_get request tag")
+		}
+		content = content[length:]
+		switch fieldNumber {
+		case 1:
+			value, size := protowire.ConsumeBytes(content)
+			if size < 0 {
+				return nil, gerror.New("failed to decode data batch_get request keyJson")
+			}
+			out.KeyJSON = append(out.KeyJSON, append([]byte(nil), value...))
+			content = content[size:]
+		case 2:
+			value, size := protowire.ConsumeString(content)
+			if size < 0 {
+				return nil, gerror.New("failed to decode data batch_get request field")
+			}
+			out.Fields = append(out.Fields, value)
+			content = content[size:]
+		default:
+			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
+			if size < 0 {
+				return nil, gerror.New("failed to skip unknown data batch_get request field")
+			}
+			content = content[size:]
+		}
+	}
+	if len(out.KeyJSON) == 0 {
+		out.KeyJSON = nil
+	}
+	if len(out.Fields) == 0 {
+		out.Fields = nil
+	}
+	return out, nil
+}
+
+// MarshalHostServiceDataBatchGetResponse encodes one data batch_get response.
+func MarshalHostServiceDataBatchGetResponse(resp *HostServiceDataBatchGetResponse) []byte {
+	var content []byte
+	if resp == nil {
+		return content
+	}
+	for _, record := range resp.Records {
+		if len(record) > 0 {
+			content = appendBytesField(content, 1, record)
+		}
+	}
+	for _, keyJSON := range resp.MissingKeyJSON {
+		if len(keyJSON) > 0 {
+			content = appendBytesField(content, 2, keyJSON)
+		}
+	}
+	return content
+}
+
+// UnmarshalHostServiceDataBatchGetResponse decodes one data batch_get response.
+func UnmarshalHostServiceDataBatchGetResponse(data []byte) (*HostServiceDataBatchGetResponse, error) {
+	out := &HostServiceDataBatchGetResponse{}
+	content := data
+	for len(content) > 0 {
+		fieldNumber, wireType, length := protowire.ConsumeTag(content)
+		if length < 0 {
+			return nil, gerror.New("failed to decode data batch_get response tag")
+		}
+		content = content[length:]
+		switch fieldNumber {
+		case 1:
+			value, size := protowire.ConsumeBytes(content)
+			if size < 0 {
+				return nil, gerror.New("failed to decode data batch_get response record")
+			}
+			out.Records = append(out.Records, append([]byte(nil), value...))
+			content = content[size:]
+		case 2:
+			value, size := protowire.ConsumeBytes(content)
+			if size < 0 {
+				return nil, gerror.New("failed to decode data batch_get response missing key")
+			}
+			out.MissingKeyJSON = append(out.MissingKeyJSON, append([]byte(nil), value...))
+			content = content[size:]
+		default:
+			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
+			if size < 0 {
+				return nil, gerror.New("failed to skip unknown data batch_get response field")
+			}
+			content = content[size:]
+		}
+	}
+	if len(out.Records) == 0 {
+		out.Records = nil
+	}
+	if len(out.MissingKeyJSON) == 0 {
+		out.MissingKeyJSON = nil
 	}
 	return out, nil
 }

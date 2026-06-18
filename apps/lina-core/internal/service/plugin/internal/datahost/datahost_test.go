@@ -627,6 +627,75 @@ func TestExecuteGetSupportsDataCapabilityFieldSelection(t *testing.T) {
 	}
 }
 
+// TestExecuteBatchGetSupportsFieldSelectionAndMissingKeys verifies batch_get
+// uses one key-set query and keeps invisible or absent records opaque.
+func TestExecuteBatchGetSupportsFieldSelectionAndMissingKeys(t *testing.T) {
+	ctx := context.Background()
+	resource := buildTestNodeStateResource()
+	identity := &protocol.IdentitySnapshotV1{
+		UserID:       1,
+		Username:     "admin",
+		DataScope:    1,
+		IsSuperAdmin: true,
+	}
+	pluginMarker := "test-datahost-plan-batch-get"
+	cleanupNodeStates(t, ctx, pluginMarker)
+	t.Cleanup(func() {
+		cleanupNodeStates(t, ctx, pluginMarker)
+	})
+
+	createResponse, err := ExecuteCreate(
+		ctx,
+		"test-plugin-data",
+		resource.Table,
+		protocol.ExecutionSourceRoute,
+		identity,
+		nil,
+		resource,
+		&protocol.HostServiceDataMutationRequest{
+			RecordJSON: mustMarshalJSON(t, map[string]any{
+				"pluginId":     pluginMarker,
+				"releaseId":    1,
+				"nodeKey":      "batch-get-1",
+				"desiredState": "running",
+				"currentState": "pending",
+				"generation":   1,
+				"errorMessage": "",
+			}),
+		},
+	)
+	if err != nil {
+		t.Fatalf("ExecuteCreate failed: %v", err)
+	}
+
+	response, err := ExecuteBatchGet(
+		ctx,
+		"test-plugin-data",
+		resource.Table,
+		protocol.ExecutionSourceRoute,
+		identity,
+		nil,
+		resource,
+		&protocol.HostServiceDataBatchGetRequest{
+			KeyJSON: [][]byte{append([]byte(nil), createResponse.KeyJSON...), mustMarshalJSON(t, 999999)},
+			Fields:  []string{"currentState"},
+		},
+	)
+	if err != nil {
+		t.Fatalf("ExecuteBatchGet failed: %v", err)
+	}
+	if len(response.Records) != 1 || len(response.MissingKeyJSON) != 1 {
+		t.Fatalf("unexpected batch_get response: %#v", response)
+	}
+	record := mustUnmarshalJSONRecord(t, response.Records[0])
+	if len(record) != 1 || record["currentState"] != "pending" {
+		t.Fatalf("unexpected selected batch_get record: %#v", record)
+	}
+	if string(response.MissingKeyJSON[0]) != "999999" {
+		t.Fatalf("unexpected missing key JSON: %s", string(response.MissingKeyJSON[0]))
+	}
+}
+
 // TestPluginDataDBDoCommitRejectsUnauthorizedTable verifies unauthorized table
 // writes are rejected by the governed host database wrapper.
 func TestPluginDataDBDoCommitRejectsUnauthorizedTable(t *testing.T) {
@@ -675,6 +744,7 @@ func buildTestNodeStateResource() *catalog.ResourceSpec {
 		Operations: []string{
 			protocol.HostServiceMethodDataList,
 			protocol.HostServiceMethodDataGet,
+			protocol.HostServiceMethodDataBatchGet,
 			protocol.HostServiceMethodDataCreate,
 			protocol.HostServiceMethodDataUpdate,
 			protocol.HostServiceMethodDataDelete,

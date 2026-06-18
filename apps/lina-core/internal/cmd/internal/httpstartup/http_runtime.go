@@ -145,13 +145,6 @@ func configureHTTPServer(
 		return err
 	}
 
-	shutdownCfg := configSvc.GetShutdown(ctx)
-	if shutdownCfg != nil && shutdownCfg.Timeout > 0 {
-		timeoutSeconds := durationSeconds(shutdownCfg.Timeout)
-		server.SetGracefulTimeout(timeoutSeconds)
-		server.SetGracefulShutdownTimeout(timeoutSeconds)
-	}
-
 	// Request-size limits are enforced by host middleware so multipart uploads
 	// can follow the runtime-effective sys.upload.maxSize value per request
 	// instead of being clipped by GoFrame's static 8MB default at server entry.
@@ -262,13 +255,8 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, err
 	}
-	pluginStorageCfg := configSvc.GetPluginStorage(ctx)
-	storageRuntime := pluginsvc.NewStorageProviderRuntime(configSvc, pluginRuntime)
-	localStorageProvider := pluginsvc.NewLocalStorageProvider(
-		configSvc.GetPluginDynamicStoragePath(ctx),
-		clusterSvc != nil && clusterSvc.IsEnabled(),
-		pluginStorageCfg.AllowLocalProviderInCluster,
-	)
+	storageRuntime := pluginsvc.NewStorageProviderRuntime(pluginRuntime)
+	localStorageProvider := pluginsvc.NewLocalStorageProvider(configSvc.GetPluginDynamicStoragePath(ctx))
 	capabilities, err := pluginsvc.NewHostServices(
 		apiDocSvc,
 		authSvc,
@@ -590,9 +578,9 @@ func logHTTPStartupSummary(ctx context.Context, collector *startupstats.Collecto
 
 // shutdownHTTPRuntime stops non-HTTP runtime components after GoFrame Server.Run
 // has handled signal listening and HTTP graceful shutdown.
-func shutdownHTTPRuntime(ctx context.Context, runtime *httpRuntime, configSvc config.Service) error {
+func shutdownHTTPRuntime(ctx context.Context, runtime *httpRuntime, server *ghttp.Server) error {
 	shutdownBaseCtx := context.WithoutCancel(ctx)
-	shutdownTimeout := resolveShutdownTimeout(shutdownBaseCtx, configSvc)
+	shutdownTimeout := resolveRuntimeShutdownTimeout(server)
 	logger.Infof(shutdownBaseCtx, "runtime shutdown requested, timeout=%s", shutdownTimeout)
 
 	shutdownCtx, cancel := context.WithTimeout(shutdownBaseCtx, shutdownTimeout)
@@ -661,24 +649,11 @@ func shutdownStep(ctx context.Context, name string, fn func(context.Context) err
 	}
 }
 
-// resolveShutdownTimeout returns the configured full runtime-shutdown budget.
-func resolveShutdownTimeout(ctx context.Context, configSvc config.Service) time.Duration {
-	if configSvc == nil {
-		return 30 * time.Second
+// resolveRuntimeShutdownTimeout returns the host-owned cleanup budget from the
+// GoFrame HTTP server graceful shutdown configuration already active at startup.
+func resolveRuntimeShutdownTimeout(server *ghttp.Server) time.Duration {
+	if server == nil {
+		return time.Duration(ghttp.NewConfig().GracefulShutdownTimeout) * time.Second
 	}
-	cfg := configSvc.GetShutdown(ctx)
-	if cfg == nil || cfg.Timeout <= 0 {
-		return 30 * time.Second
-	}
-	return cfg.Timeout
-}
-
-// durationSeconds converts a validated duration into whole seconds for
-// GoFrame server configuration.
-func durationSeconds(value time.Duration) int {
-	seconds := int(value / time.Second)
-	if seconds < 1 {
-		return 1
-	}
-	return seconds
+	return time.Duration(server.GetGracefulShutdownTimeout()) * time.Second
 }

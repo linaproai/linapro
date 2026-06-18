@@ -28,10 +28,16 @@ func dispatchRuntimeHostService(
 		return handleHostLog(ctx, hcc, payload)
 	case bridgehostservice.HostServiceMethodRuntimeStateGet:
 		return handleHostStateGet(ctx, hcc, payload)
+	case bridgehostservice.HostServiceMethodRuntimeStateGetMany:
+		return handleHostStateGetMany(ctx, hcc, payload)
 	case bridgehostservice.HostServiceMethodRuntimeStateSet:
 		return handleHostStateSet(ctx, hcc, payload)
+	case bridgehostservice.HostServiceMethodRuntimeStateSetMany:
+		return handleHostStateSetMany(ctx, hcc, payload)
 	case bridgehostservice.HostServiceMethodRuntimeStateDelete:
 		return handleHostStateDelete(ctx, hcc, payload)
+	case bridgehostservice.HostServiceMethodRuntimeStateDeleteMany:
+		return handleHostStateDeleteMany(ctx, hcc, payload)
 	case bridgehostservice.HostServiceMethodRuntimeInfoNow:
 		return buildRuntimeInfoValueResponse(strconv.FormatInt(gtime.Now().Time.UnixMilli(), 10))
 	case bridgehostservice.HostServiceMethodRuntimeInfoUUID:

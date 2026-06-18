@@ -20,6 +20,18 @@ func Users(invoker Invoker) usercap.Service {
 	return usersService{baseService: newBaseService(invoker)}
 }
 
+// Current returns the current actor's visible user projection.
+func (s usersService) Current(_ context.Context, _ capmodel.CapabilityContext) (*usercap.UserProjection, error) {
+	var result *usercap.UserProjection
+	err := s.callJSONRequest(
+		protocol.HostServiceUsers,
+		protocol.HostServiceMethodUsersCurrent,
+		nil,
+		&result,
+	)
+	return result, err
+}
+
 // BatchGet returns visible user projections and opaque missing IDs.
 func (s usersService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []usercap.UserID) (*capmodel.BatchResult[*usercap.UserProjection, usercap.UserID], error) {
 	result := &capmodel.BatchResult[*usercap.UserProjection, usercap.UserID]{
@@ -35,6 +47,25 @@ func (s usersService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, 
 	return result, err
 }
 
+// BatchResolve resolves visible users by IDs, usernames, email addresses, or phone numbers.
+func (s usersService) BatchResolve(_ context.Context, _ capmodel.CapabilityContext, input usercap.BatchResolveInput) (*capmodel.BatchResult[*usercap.UserProjection, usercap.ResolveKey], error) {
+	result := &capmodel.BatchResult[*usercap.UserProjection, usercap.ResolveKey]{
+		Items:      map[usercap.ResolveKey]*usercap.UserProjection{},
+		MissingIDs: []usercap.ResolveKey{},
+	}
+	err := s.callJSONRequest(
+		protocol.HostServiceUsers,
+		protocol.HostServiceMethodUsersBatchResolve,
+		usersBatchResolveRequest{
+			UserIDs:   userIDsToStrings(input.IDs),
+			Usernames: append([]string(nil), input.Usernames...),
+			Contacts:  append([]string(nil), input.Contacts...),
+		},
+		result,
+	)
+	return result, err
+}
+
 // Search searches visible user candidates with bounded paging.
 func (s usersService) Search(_ context.Context, _ capmodel.CapabilityContext, input usercap.SearchInput) (*capmodel.PageResult[*usercap.UserProjection], error) {
 	result := &capmodel.PageResult[*usercap.UserProjection]{Items: []*usercap.UserProjection{}}
@@ -42,9 +73,12 @@ func (s usersService) Search(_ context.Context, _ capmodel.CapabilityContext, in
 		protocol.HostServiceUsers,
 		protocol.HostServiceMethodUsersSearch,
 		usersSearchRequest{
-			Keyword:  input.Keyword,
-			PageNum:  input.Page.PageNum,
-			PageSize: input.Page.PageSize,
+			Keyword:     input.Keyword,
+			Status:      string(input.Status),
+			TenantID:    string(input.TenantID),
+			EnabledOnly: input.EnabledOnly,
+			PageNum:     input.Page.PageNum,
+			PageSize:    input.Page.PageSize,
 		},
 		result,
 	)
@@ -65,10 +99,19 @@ type usersBatchGetRequest struct {
 	UserIDs []string `json:"userIds"`
 }
 
+type usersBatchResolveRequest struct {
+	UserIDs   []string `json:"userIds,omitempty"`
+	Usernames []string `json:"usernames,omitempty"`
+	Contacts  []string `json:"contacts,omitempty"`
+}
+
 type usersSearchRequest struct {
-	Keyword  string `json:"keyword,omitempty"`
-	PageNum  int    `json:"pageNum,omitempty"`
-	PageSize int    `json:"pageSize,omitempty"`
+	Keyword     string `json:"keyword,omitempty"`
+	Status      string `json:"status,omitempty"`
+	TenantID    string `json:"tenantId,omitempty"`
+	EnabledOnly bool   `json:"enabledOnly,omitempty"`
+	PageNum     int    `json:"pageNum,omitempty"`
+	PageSize    int    `json:"pageSize,omitempty"`
 }
 
 type usersEnsureVisibleRequest struct {

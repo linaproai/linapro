@@ -18,31 +18,31 @@
 
 `capability.AdminServices` is intentionally exposed only through `pluginhost.Services.Admin()` for trusted source plugins. Dynamic plugins do not have an `Admin()` entry in `pluginbridge.Services`, so they cannot directly consume domain `AdminService` interfaces such as `sessioncap.AdminService` or `notifycap.AdminService`.
 
-Dynamic plugins may use only the concrete methods that are explicitly published as dynamic `hostServices`, declared by the plugin manifest, authorized by the host, and registered in the `WASM host-service` dispatcher. For example, the current `sessions` dynamic service publishes `sessions.search` and `sessions.batch_get`; it does not publish `sessioncap.AdminService.Revoke`. If a management command must become available to dynamic plugins, add a narrow, versioned `host-service` method for that command instead of exposing the full `AdminServices` directory.
+Dynamic plugins may use only the concrete methods that are explicitly published as dynamic `hostServices`, declared by the plugin manifest, authorized by the host, and registered in the `WASM host-service` dispatcher. For example, the current `sessions` dynamic service publishes read, search, batch, user-online-status, and visibility methods; it does not publish `sessioncap.AdminService.Revoke`. If a management command must become available to dynamic plugins, add a narrow, versioned `host-service` method for that command instead of exposing the full `AdminServices` directory.
 
 | Domain capability | Responsibility boundary | Runtime and validation path |
 | --- | --- | --- |
 | `APIDoc` | Resolves route text and title operation keys in localized API documentation. | Served through the capability directory or `apidoc` host calls; validation focuses on route and operation-key payloads. |
-| `Auth`/`Authz` | Handles tenant token selection or switching, impersonation tokens, permission projections, and permission checks. | Runtime checks use current user, tenant, and permission keys; management commands remain in `AdminServices.Auth()`. |
-| `AI` | Aggregates typed AI sub-capabilities for text, image, embedding, audio, vision, document, safety, and video. | Calls are authorized by method, not resources, and plugin identity is injected into provider requests for audit and governance. |
-| `Users` | Provides user batch lookup, user search, and visibility enforcement. | Host implementations must keep user existence and visibility checks scoped to the caller. |
+| `Auth`/`Authz` | Handles tenant token selection or switching, impersonation tokens, permission projections, single permission checks, and batch permission checks. | Runtime checks use current user, tenant, and permission keys; management commands remain in `AdminServices.Auth()`. |
+| `AI` | Aggregates typed AI sub-capabilities for text, image, embedding, audio, vision, document, safety, and video, including method-level status projections. | Calls are authorized by method, not resources, and plugin identity is injected into provider requests for audit and governance. Status reads expose only availability, reason, and public provider identity. |
+| `Users` | Provides current user projection, user batch lookup, batch user resolution, user search, and visibility enforcement. | Host implementations must keep user existence and visibility checks scoped to the caller. |
 | `BizCtx` | Projects the current business request context. | Used as a read-only runtime context bridge for request user, tenant, locale, and request metadata. |
-| `Dict` | Resolves dictionary value labels and validates typed value visibility. | Host validation stays within visible dictionary types and values. |
-| `Files` | Provides host file-center projections and visibility enforcement for existing `sys_file` resources. | Host validation prevents plugins from probing or using file IDs outside their visible boundary; it does not write, read, delete, or list plugin-private objects. |
+| `Dict` | Resolves dictionary value labels, lists bounded value candidates, and validates typed value visibility. | Host validation stays within visible dictionary types and values. |
+| `Files` | Provides host file-center projections, bounded search, and visibility enforcement for existing `sys_file` resources. | Host validation prevents plugins from probing or using file IDs outside their visible boundary; it does not write, read, delete, or list plugin-private objects. |
 | `HostConfig` | Reads governed host runtime configuration values. | Dynamic declarations must list `resources.keys`; source plugins receive a narrow read-only service. |
 | `I18n` | Reads locale, translates messages, and finds message keys for source plugins. | Source plugins receive this through `pluginhost.Services`; dynamic plugins do not receive an `i18n` host service because their i18n resources are host-managed. |
 | `Infra` | Reads infrastructure component status projections. | Validation focuses on visible component IDs and read-only status projection. |
-| `Jobs` | Reads scheduled-job metadata and registers dynamic jobs. | Declaration-time job contracts are validated before runtime job discovery and execution. |
-| `Notifications` | Reads notification messages and sends governed notifications. | Read calls do not require resource declarations; `messages.send` requires a `resources[].ref` boundary. |
-| `Plugins` | Exposes plugin registry projections, plugin-scoped config, enablement state, and tenant lifecycle hooks. | Runtime checks cover plugin visibility, provider enablement, authoritative state, and tenant lifecycle preconditions. |
+| `Jobs` | Reads scheduled-job metadata, searches bounded job candidates, validates job visibility, and registers dynamic jobs. | Declaration-time job contracts are validated before runtime job discovery and execution; runtime search and visibility checks stay read-only. |
+| `Notifications` | Reads typed notification message projections, batch-loads messages by business source, validates message visibility, and sends governed notifications. | Read calls do not require resource declarations and stay actor-visible; `messages.send` requires a `resources[].ref` boundary. |
+| `Plugins` | Exposes current plugin projection, plugin registry projections, tenant plugin pages, capability status, plugin-scoped config, enablement state, and tenant lifecycle hooks. | Runtime checks cover plugin visibility, provider enablement, authoritative state, and tenant lifecycle preconditions. |
 | `Route` | Exposes dynamic-route metadata for the current execution. | Used by runtime route dispatch without exposing host router internals. |
-| `Sessions` | Searches and batch-loads online session projections. | Host validation keeps session visibility scoped to the caller. |
-| `Storage` | Provides plugin-private object storage operations for plugin-owned attachments, binary objects, import/export temporaries, and uninstall cleanup. | Source plugins receive plugin-scoped `Storage()` through `pluginhost.Services`; dynamic declarations use `service: storage` with `resources.paths`; writes do not create `sys_file` rows or expose provider keys or local paths. |
-| `Cache` | Provides plugin-scoped cache get, set, delete, increment, and expiry operations. | Dynamic declarations use `resources[].ref`; runtime dispatch validates namespace, key, and TTL payloads. |
+| `Sessions` | Reads the current online-session projection, searches sessions, batch-loads session projections, validates session visibility, and batch-reads user online status. | Host validation keeps session and user visibility scoped to the caller. |
+| `Storage` | Provides plugin-private object storage operations for plugin-owned attachments, binary objects, import/export temporaries, and uninstall cleanup, including explicit batch stat, cursor list, and batch delete. | Source plugins receive plugin-scoped `Storage()` through `pluginhost.Services`; dynamic declarations use `service: storage` with `resources.paths`; writes do not create `sys_file` rows or expose provider keys or local paths. |
+| `Cache` | Provides plugin-scoped cache get, set, delete, multi-key get/set/delete, increment, and expiry operations. | Dynamic declarations use `resources[].ref`; runtime dispatch validates namespace, key, value size, and TTL payloads. Cache remains non-authoritative plugin runtime data. |
 | `Lock` | Provides plugin-visible distributed lock acquire, renew, and release operations. | Dynamic declarations use `resources[].ref`; runtime dispatch validates lock resource and lease payloads. |
-| `Manifest` | Reads plugin-scoped manifest or artifact resources. | Dynamic declarations use `resources.paths`; source and dynamic paths are resolved through plugin-scoped resource views. |
-| `Org` | Provides optional organization projections such as department assignments, department names, and post IDs. | Provider availability is explicit; fallback services return safe neutral values when the organization provider is absent. |
-| `Tenant` | Provides optional tenant context, visibility checks, membership validation, accessible tenant lists, and tenant switching validation. | Provider availability is explicit; host filters apply tenant scope without exposing tenant storage internals. |
+| `Manifest` | Reads plugin-scoped manifest or artifact resources, including bounded multi-get and path listing. | Dynamic declarations use `resources.paths`; source and dynamic paths are resolved through plugin-scoped resource views. |
+| `Org` | Provides optional organization projections such as user organization profiles, bounded department trees, department search, post options, visibility checks, department assignments, department names, and post IDs. | Provider availability is explicit; fallback services return safe neutral values when the organization provider is absent. |
+| `Tenant` | Provides optional tenant context, tenant info, tenant batch/search projections, visibility checks, membership validation, accessible tenant lists, batch user tenant lists, and tenant switching validation. | Provider availability is explicit; host filters apply tenant scope without exposing tenant storage internals. |
 
 ## Dynamic-Plugin-Only Capabilities
 
@@ -64,6 +64,11 @@ New capabilities should enter `capability.Services` only when source plugins and
 | A plugin deletes, lists, stats, or purges objects it owns during record deletion or uninstall cleanup. | `Storage()` / dynamic `service: storage` | Cleanup uses `Delete` or bounded `List` by logical prefix. Plugins must not delete host upload roots, provider roots, or file-center rows directly. |
 | A plugin references files that users already uploaded into the host file center. | `Files()` / dynamic `service: files` | The plugin receives `filecap.FileProjection` values and visibility checks for host-owned file IDs. The response must not expose DAO, DO, Entity, provider object keys, or local absolute paths. |
 | A plugin command accepts host file IDs from a request. | `Files().EnsureVisible` / `files.visible.ensure` | The command checks all IDs before mutation. Missing and invisible files share the same rejection semantics to avoid existence probing. |
+
+`Storage()` provider selection is configuration-free. The host uses the only
+enabled storage provider plugin when exactly one is serviceable, falls back to
+the built-in local provider when none is serviceable, and rejects storage calls
+when multiple provider plugins are serviceable.
 
 ## Consumer Contracts, Provider SPI, and Guest SDK
 
@@ -154,33 +159,33 @@ hostServices:
 <!-- BEGIN generated:host-services -->
 | Service | Resource declaration | Derived capability | Methods |
 | --- | --- | --- | --- |
-| `runtime` | None | `host:runtime` | `log.write`<br/>`state.get`<br/>`state.set`<br/>`state.delete`<br/>`info.now`<br/>`info.uuid`<br/>`info.node` |
-| `storage` | `resources.paths` | `host:storage` | `put`<br/>`put.init`<br/>`put.chunk`<br/>`put.commit`<br/>`put.abort`<br/>`get`<br/>`delete`<br/>`list`<br/>`stat` |
+| `runtime` | None | `host:runtime` | `log.write`<br/>`state.get`<br/>`state.get_many`<br/>`state.set`<br/>`state.set_many`<br/>`state.delete`<br/>`state.delete_many`<br/>`info.now`<br/>`info.uuid`<br/>`info.node` |
+| `storage` | `resources.paths` | `host:storage` | `put`<br/>`put.init`<br/>`put.chunk`<br/>`put.commit`<br/>`put.abort`<br/>`get`<br/>`delete`<br/>`delete.batch`<br/>`list`<br/>`list.cursor`<br/>`stat`<br/>`stat.batch` |
 | `network` | `resources[].url` | `host:http:request` | `request` |
-| `data` | `resources.tables` | `host:data:read`<br/>`host:data:mutate` | `list`<br/>`get`<br/>`create`<br/>`update`<br/>`delete`<br/>`transaction` |
-| `cache` | `resources[].ref` | `host:cache` | `get`<br/>`set`<br/>`delete`<br/>`incr`<br/>`expire` |
+| `data` | `resources.tables` | `host:data:read`<br/>`host:data:mutate` | `list`<br/>`get`<br/>`batch_get`<br/>`create`<br/>`update`<br/>`delete`<br/>`transaction` |
+| `cache` | `resources[].ref` | `host:cache` | `get`<br/>`get_many`<br/>`set`<br/>`set_many`<br/>`delete`<br/>`delete_many`<br/>`incr`<br/>`expire` |
 | `lock` | `resources[].ref` | `host:lock` | `acquire`<br/>`renew`<br/>`release` |
 | `secret` | `resources[].ref` | `host:secret` | `resolve` reserved |
 | `event` | `resources[].ref` | `host:event:publish` | `publish` reserved |
 | `queue` | `resources[].ref` | `host:queue:enqueue` | `enqueue` reserved |
 | `hostconfig` | `resources.keys` | `host:hostconfig` | `get` |
-| `manifest` | `resources.paths` | `host:manifest` | `get` |
+| `manifest` | `resources.paths` | `host:manifest` | `get`<br/>`get_many`<br/>`list` |
 | `apidoc` | None | `host:apidoc` | `route_text.resolve`<br/>`route_texts.resolve`<br/>`route_title_operation_keys.find` |
 | `auth` | None | `host:auth:token` | `tenant.select`<br/>`tenant.switch`<br/>`impersonation_token.issue`<br/>`impersonation_token.revoke` |
-| `authz` | None | `host:authz` | `permissions.batch_get`<br/>`permissions.has`<br/>`users.platform_admin.check` |
-| `ai` | None | `host:ai:text`<br/>`host:ai:image`<br/>`host:ai:embedding`<br/>`host:ai:audio`<br/>`host:ai:vision`<br/>`host:ai:document`<br/>`host:ai:safety`<br/>`host:ai:video` | `text.generate`<br/>`image.generate`<br/>`image.edit`<br/>`embedding.create`<br/>`audio.transcribe`<br/>`audio.synthesize`<br/>`vision.analyze`<br/>`document.analyze`<br/>`document.cite`<br/>`safety.moderate`<br/>`video.generate`<br/>`video.edit`<br/>`video.extend`<br/>`video.operation.get`<br/>`video.operation.cancel` |
-| `users` | None | `host:users` | `users.batch_get`<br/>`users.search`<br/>`users.visible.ensure` |
+| `authz` | None | `host:authz` | `permissions.batch_get`<br/>`permissions.batch_has`<br/>`permissions.has`<br/>`users.platform_admin.check` |
+| `ai` | None | `host:ai:text`<br/>`host:ai`<br/>`host:ai:image`<br/>`host:ai:embedding`<br/>`host:ai:audio`<br/>`host:ai:vision`<br/>`host:ai:document`<br/>`host:ai:safety`<br/>`host:ai:video` | `text.generate`<br/>`text.method_status.get`<br/>`ai.methods.status.batch_get`<br/>`image.generate`<br/>`image.edit`<br/>`embedding.create`<br/>`audio.transcribe`<br/>`audio.synthesize`<br/>`vision.analyze`<br/>`document.analyze`<br/>`document.cite`<br/>`safety.moderate`<br/>`video.generate`<br/>`video.edit`<br/>`video.extend`<br/>`video.operation.get`<br/>`video.operation.cancel` |
+| `users` | None | `host:users` | `users.current.get`<br/>`users.batch_get`<br/>`users.resolve.batch`<br/>`users.search`<br/>`users.visible.ensure` |
 | `bizctx` | None | `host:bizctx` | `current.get` |
-| `dict` | None | `host:dict` | `labels.resolve` |
-| `files` | None | `host:files` | `files.batch_get`<br/>`files.visible.ensure` |
+| `dict` | None | `host:dict` | `labels.resolve`<br/>`dict.values.list`<br/>`values.visible.ensure` |
+| `files` | None | `host:files` | `files.batch_get`<br/>`files.search`<br/>`files.visible.ensure` |
 | `infra` | None | `host:infra` | `status.batch_get` |
-| `jobs` | None | `host:jobs` | `jobs.batch_get`<br/>`jobs.register` |
-| `notifications` | None for reads; `messages.send` uses `resources[].ref` | `host:notifications` | `messages.batch_get`<br/>`messages.send` |
-| `plugins` | None | `host:plugins` | `plugins.batch_get`<br/>`plugins.tenant.list`<br/>`plugins.enabled.check`<br/>`plugins.provider_enabled.check`<br/>`plugins.enabled_authoritative.check`<br/>`config.get`<br/>`lifecycle.tenant_plugin_disable.ensure`<br/>`lifecycle.tenant_plugin_disabled.notify`<br/>`lifecycle.tenant_delete.ensure`<br/>`lifecycle.tenant_deleted.notify` |
+| `jobs` | None | `host:jobs` | `jobs.batch_get`<br/>`jobs.search`<br/>`jobs.visible.ensure`<br/>`jobs.register` |
+| `notifications` | None for reads; `messages.send` uses `resources[].ref` | `host:notifications` | `messages.batch_get`<br/>`messages.by_source.batch_get`<br/>`messages.visible.ensure`<br/>`messages.send` |
+| `plugins` | None | `host:plugins` | `plugins.current.get`<br/>`plugins.batch_get`<br/>`plugins.search`<br/>`plugins.tenant.list`<br/>`plugins.capabilities.status.batch_get`<br/>`plugins.enabled.check`<br/>`plugins.provider_enabled.check`<br/>`plugins.enabled_authoritative.check`<br/>`config.get`<br/>`lifecycle.tenant_plugin_disable.ensure`<br/>`lifecycle.tenant_plugin_disabled.notify`<br/>`lifecycle.tenant_delete.ensure`<br/>`lifecycle.tenant_deleted.notify` |
 | `route` | None | `host:route` | `metadata.get` |
-| `sessions` | None | `host:sessions` | `sessions.search`<br/>`sessions.batch_get` |
-| `org` | None | `host:org` | `capability.available`<br/>`capability.status`<br/>`users.dept_assignments.list`<br/>`users.dept_info.get`<br/>`users.dept_name.get`<br/>`users.dept_ids.get`<br/>`users.post_ids.get` |
-| `tenant` | None | `host:tenant` | `capability.available`<br/>`capability.status`<br/>`tenants.current`<br/>`tenants.platform_bypass`<br/>`tenants.visible.ensure`<br/>`users.tenant_membership.validate`<br/>`users.tenants.list`<br/>`tenants.switch.validate` |
+| `sessions` | None | `host:sessions` | `sessions.current.get`<br/>`sessions.search`<br/>`sessions.batch_get`<br/>`sessions.users.online.batch_get`<br/>`sessions.visible.ensure` |
+| `org` | None | `host:org` | `capability.available`<br/>`capability.status`<br/>`users.dept_assignments.list`<br/>`users.org_profiles.batch_get`<br/>`users.dept_info.get`<br/>`users.dept_name.get`<br/>`users.dept_ids.get`<br/>`users.post_ids.get`<br/>`depts.tree.list`<br/>`depts.search`<br/>`posts.options.list`<br/>`depts.visible.ensure`<br/>`posts.visible.ensure` |
+| `tenant` | None | `host:tenant` | `capability.available`<br/>`capability.status`<br/>`tenants.current`<br/>`tenants.current_info.get`<br/>`tenants.platform_bypass`<br/>`tenants.visible.ensure`<br/>`tenants.batch_get`<br/>`tenants.search`<br/>`users.tenant_membership.validate`<br/>`users.tenants.list`<br/>`users.tenants.batch_list`<br/>`tenants.visible.batch_ensure`<br/>`tenants.switch.validate` |
 <!-- END generated:host-services -->
 
 ## Maintenance Notes

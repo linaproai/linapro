@@ -166,6 +166,20 @@ func (s *CoordinationStore) BatchGetScoped(
 	return s.projection.BatchGetScoped(ctx, tokenIds, scopeSvc, tenantSvc)
 }
 
+// BatchGetUserOnlineStatusScoped returns projected online-session counts from
+// PostgreSQL after applying tenant ownership and data-scope constraints.
+func (s *CoordinationStore) BatchGetUserOnlineStatusScoped(
+	ctx context.Context,
+	userIds []int,
+	scopeSvc datascope.Service,
+	tenantSvc tenantspi.ScopeService,
+) ([]*UserOnlineStatus, error) {
+	if s == nil || s.projection == nil {
+		return []*UserOnlineStatus{}, nil
+	}
+	return s.projection.BatchGetUserOnlineStatusScoped(ctx, userIds, scopeSvc, tenantSvc)
+}
+
 // Delete removes one session from coordination KV and PostgreSQL projection.
 func (s *CoordinationStore) Delete(ctx context.Context, tokenId string) error {
 	if s == nil {

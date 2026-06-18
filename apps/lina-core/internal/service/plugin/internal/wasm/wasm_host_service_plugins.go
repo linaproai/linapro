@@ -31,6 +31,9 @@ func dispatchPluginsHostService(
 	}
 	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServicePlugins, method)
 	switch method {
+	case bridgehostservice.HostServiceMethodPluginsCurrent:
+		result, err := service.Current(ctx, capCtx)
+		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodPluginsBatchGet:
 		var request idsRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
@@ -38,8 +41,28 @@ func dispatchPluginsHostService(
 		}
 		result, err := service.BatchGet(ctx, capCtx, pluginIDs(request.IDs))
 		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodPluginsSearch:
+		var request plugincap.SearchInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.Search(ctx, capCtx, request)
+		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodPluginsListTenant:
-		result, err := service.ListTenantPlugins(ctx, capCtx)
+		var request plugincap.TenantListInput
+		if len(payload) > 0 {
+			if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+				return invalidCapabilityRequest(err)
+			}
+		}
+		result, err := service.ListTenantPlugins(ctx, capCtx, request)
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodPluginsBatchGetCapabilityStatus:
+		var request capabilityKeysRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.BatchGetCapabilityStatus(ctx, capCtx, capabilityKeys(request.Keys))
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodPluginsIsEnabled:
 		state := service.State()
@@ -127,6 +150,21 @@ func pluginsServiceForHostCall(hcc *hostCallContext) plugincap.Service {
 		return nil
 	}
 	return services.Plugins()
+}
+
+// capabilityKeysRequest carries framework capability status keys.
+type capabilityKeysRequest struct {
+	// Keys are stable framework capability identifiers.
+	Keys []string `json:"keys"`
+}
+
+// capabilityKeys converts transport keys to plugin capability keys.
+func capabilityKeys(keys []string) []plugincap.CapabilityKey {
+	out := make([]plugincap.CapabilityKey, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, plugincap.CapabilityKey(key))
+	}
+	return out
 }
 
 // dispatchPluginsConfigGet routes plugins.config.get calls to the generic

@@ -36,6 +36,7 @@ func (s *serviceImpl) Get(ctx context.Context) *model.Context {
 func (s *serviceImpl) Current(ctx context.Context) bizctxcap.CurrentContext {
 	if c := s.Get(ctx); c != nil {
 		return bizctxcap.CurrentContext{
+			TokenID:         c.TokenId,
 			UserID:          c.UserId,
 			Username:        c.Username,
 			TenantID:        c.TenantId,

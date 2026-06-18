@@ -84,6 +84,19 @@ func (s *storageDomainTestService) Delete(_ context.Context, in storagecap.Delet
 	return nil
 }
 
+// DeleteMany removes explicit plugin-visible objects.
+func (s *storageDomainTestService) DeleteMany(_ context.Context, in storagecap.DeleteManyInput) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureObjects()
+	for _, path := range in.Paths {
+		s.deleteCalls++
+		s.lastPath = path
+		delete(s.objects, path)
+	}
+	return nil
+}
+
 // List lists plugin-visible objects under a bounded prefix.
 func (s *storageDomainTestService) List(_ context.Context, in storagecap.ListInput) (*storagecap.ListOutput, error) {
 	s.mu.Lock()
@@ -118,6 +131,47 @@ func (s *storageDomainTestService) List(_ context.Context, in storagecap.ListInp
 	return &storagecap.ListOutput{Objects: objects, Limit: limit}, nil
 }
 
+// ListCursor lists plugin-visible objects under a bounded prefix with cursor pagination.
+func (s *storageDomainTestService) ListCursor(_ context.Context, in storagecap.ListCursorInput) (*storagecap.ListCursorOutput, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureObjects()
+	s.listCalls++
+	s.lastPrefix = in.Prefix
+	limit := in.Limit
+	if limit <= 0 {
+		limit = storagecap.DefaultListLimit
+	}
+	if limit > storagecap.MaxListLimit {
+		limit = storagecap.MaxListLimit
+	}
+	s.lastLimit = limit
+
+	prefix := strings.TrimSuffix(strings.TrimSpace(in.Prefix), "/")
+	keys := make([]string, 0, len(s.objects))
+	for key := range s.objects {
+		if key == prefix || strings.HasPrefix(key, prefix+"/") {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	cursor := strings.TrimSpace(in.Cursor)
+	filtered := keys[:0]
+	for _, key := range keys {
+		if cursor == "" || key > cursor {
+			filtered = append(filtered, key)
+		}
+	}
+	if len(filtered) > limit {
+		filtered = filtered[:limit]
+	}
+	objects := make([]*storagecap.Object, 0, len(filtered))
+	for _, key := range filtered {
+		objects = append(objects, s.objectMetadataLocked(key))
+	}
+	return &storagecap.ListCursorOutput{Objects: objects, Limit: limit}, nil
+}
+
 // Stat reads plugin-visible object metadata.
 func (s *storageDomainTestService) Stat(_ context.Context, in storagecap.StatInput) (*storagecap.StatOutput, error) {
 	s.mu.Lock()
@@ -129,6 +183,24 @@ func (s *storageDomainTestService) Stat(_ context.Context, in storagecap.StatInp
 		return &storagecap.StatOutput{Found: false}, nil
 	}
 	return &storagecap.StatOutput{Object: s.objectMetadataLocked(in.Path), Found: true}, nil
+}
+
+// BatchStat reads plugin-visible object metadata for explicit paths.
+func (s *storageDomainTestService) BatchStat(_ context.Context, in storagecap.BatchStatInput) (*storagecap.BatchStatOutput, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureObjects()
+	output := &storagecap.BatchStatOutput{Objects: []*storagecap.Object{}}
+	for _, path := range in.Paths {
+		s.statCalls++
+		s.lastPath = path
+		if _, ok := s.objects[path]; !ok {
+			output.MissingPaths = append(output.MissingPaths, path)
+			continue
+		}
+		output.Objects = append(output.Objects, s.objectMetadataLocked(path))
+	}
+	return output, nil
 }
 
 // ProviderStatuses returns a deterministic local-provider status snapshot.
@@ -263,6 +335,59 @@ func TestHandleHostServiceInvokeStorageLifecycle(t *testing.T) {
 	}
 	if statPayload.Found {
 		t.Fatalf("stat: expected object to be deleted, got %#v", statPayload.Object)
+	}
+}
+
+// TestHandleHostServiceInvokeStorageBatchMethods verifies new storage batch
+// methods keep path authorization in the dispatcher and use JSON envelopes.
+func TestHandleHostServiceInvokeStorageBatchMethods(t *testing.T) {
+	storageSvc := &storageDomainTestService{}
+	storageSvc.objects = map[string]*storageDomainTestObject{
+		"reports/a.json": {body: []byte("a"), contentType: "application/json"},
+		"reports/b.json": {body: []byte("b"), contentType: "application/json"},
+	}
+	configureStorageDomainServiceForTest(t, storageSvc)
+	hcc := newStorageHostCallContext(t, []string{"reports/"})
+
+	statResponse := invokeStorageHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodStorageStatBatch,
+		"reports/",
+		protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: []byte(`{"paths":["reports/a.json","reports/missing.json"]}`)}),
+	)
+	if statResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("stat.batch: expected success, got status=%d payload=%s", statResponse.Status, string(statResponse.Payload))
+	}
+	jsonPayload, err := protocol.UnmarshalHostServiceCapabilityJSONResponse(statResponse.Payload)
+	if err != nil {
+		t.Fatalf("decode stat.batch JSON envelope: %v", err)
+	}
+	if !strings.Contains(string(jsonPayload.Value), `"path":"reports/a.json"`) ||
+		!strings.Contains(string(jsonPayload.Value), `"missingPaths":["reports/missing.json"]`) {
+		t.Fatalf("unexpected stat.batch JSON response: %s", string(jsonPayload.Value))
+	}
+
+	listResponse := invokeStorageHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodStorageListCursor,
+		"reports/",
+		protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: []byte(`{"prefix":"reports/","limit":1}`)}),
+	)
+	if listResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("list.cursor: expected success, got status=%d payload=%s", listResponse.Status, string(listResponse.Payload))
+	}
+
+	deleteResponse := invokeStorageHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodStorageDeleteBatch,
+		"reports/",
+		protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: []byte(`{"paths":["reports/a.json","../outside.json"]}`)}),
+	)
+	if deleteResponse.Status != protocol.HostCallStatusInvalidRequest {
+		t.Fatalf("expected invalid request for escaped batch path, got status=%d payload=%s", deleteResponse.Status, string(deleteResponse.Payload))
 	}
 }
 
@@ -641,14 +766,17 @@ func newStorageHostCallContext(t *testing.T, paths []string) *hostCallContext {
 			Service: protocol.HostServiceStorage,
 			Methods: []string{
 				protocol.HostServiceMethodStorageDelete,
+				protocol.HostServiceMethodStorageDeleteBatch,
 				protocol.HostServiceMethodStorageGet,
 				protocol.HostServiceMethodStorageList,
+				protocol.HostServiceMethodStorageListCursor,
 				protocol.HostServiceMethodStoragePut,
 				protocol.HostServiceMethodStoragePutInit,
 				protocol.HostServiceMethodStoragePutChunk,
 				protocol.HostServiceMethodStoragePutCommit,
 				protocol.HostServiceMethodStoragePutAbort,
 				protocol.HostServiceMethodStorageStat,
+				protocol.HostServiceMethodStorageStatBatch,
 			},
 			Paths: paths,
 		}},

@@ -48,12 +48,65 @@ type TenantProjection struct {
 	TenantEnabled bool
 }
 
+// SearchInput describes bounded plugin-governance projection search.
+type SearchInput struct {
+	// Keyword matches plugin ID, name or description.
+	Keyword string
+	// PluginID filters by plugin ID fragment.
+	PluginID string
+	// Name filters by plugin display name fragment.
+	Name string
+	// Type filters by top-level plugin type.
+	Type string
+	// Enabled optionally filters by global enablement status.
+	Enabled *bool
+	// Page constrains page number, page size and optional limit.
+	Page capmodel.PageRequest
+}
+
+// TenantListInput describes bounded tenant plugin projection search.
+type TenantListInput struct {
+	// Keyword matches plugin ID, name or description.
+	Keyword string
+	// Type filters by top-level plugin type.
+	Type string
+	// TenantEnabled optionally filters by tenant enablement.
+	TenantEnabled *bool
+	// Page constrains page number, page size and optional limit.
+	Page capmodel.PageRequest
+}
+
+// CapabilityKey identifies a framework capability status projection.
+type CapabilityKey string
+
+const (
+	// CapabilityKeyOrg identifies the organization framework capability.
+	CapabilityKeyOrg CapabilityKey = "org"
+	// CapabilityKeyTenant identifies the tenant framework capability.
+	CapabilityKeyTenant CapabilityKey = "tenant"
+	// CapabilityKeyAIText identifies the text AI framework capability.
+	CapabilityKeyAIText CapabilityKey = "ai.text"
+)
+
+const (
+	// MaxPluginSearchPageSize is the maximum plugin search page size.
+	MaxPluginSearchPageSize = 200
+	// MaxCapabilityStatusBatchSize is the maximum framework capability status identifiers per request.
+	MaxCapabilityStatusBatchSize = 50
+)
+
 // RegistryService defines read-oriented plugin governance capability methods.
 type RegistryService interface {
+	// Current returns the projection for the current caller plugin.
+	Current(ctx context.Context, capCtx capmodel.CapabilityContext) (*Projection, error)
 	// BatchGet returns visible plugin projections and opaque missing IDs.
 	BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []PluginID) (*capmodel.BatchResult[*Projection, PluginID], error)
+	// Search returns bounded plugin governance projections.
+	Search(ctx context.Context, capCtx capmodel.CapabilityContext, input SearchInput) (*capmodel.PageResult[*Projection], error)
 	// ListTenantPlugins returns tenant-controllable plugins with tenant enablement.
-	ListTenantPlugins(ctx context.Context, capCtx capmodel.CapabilityContext) (*capmodel.PageResult[*TenantProjection], error)
+	ListTenantPlugins(ctx context.Context, capCtx capmodel.CapabilityContext, input TenantListInput) (*capmodel.PageResult[*TenantProjection], error)
+	// BatchGetCapabilityStatus returns framework capability status projections by stable key.
+	BatchGetCapabilityStatus(ctx context.Context, capCtx capmodel.CapabilityContext, keys []CapabilityKey) (*capmodel.BatchResult[*capmodel.CapabilityStatus, CapabilityKey], error)
 }
 
 // Service defines the plugin-domain namespace exposed from capability.Services.

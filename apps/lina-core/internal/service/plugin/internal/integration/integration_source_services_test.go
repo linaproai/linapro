@@ -257,6 +257,15 @@ func (scopedCapabilityAuthz) BatchGetPermissions(_ context.Context, _ capmodel.C
 	return result, nil
 }
 
+// BatchHasPermissions reports false because registration-only tests never authorize requests.
+func (scopedCapabilityAuthz) BatchHasPermissions(_ context.Context, _ capmodel.CapabilityContext, keys []capabilityauthz.PermissionKey) (map[capabilityauthz.PermissionKey]bool, error) {
+	result := make(map[capabilityauthz.PermissionKey]bool, len(keys))
+	for _, key := range keys {
+		result[key] = false
+	}
+	return result, nil
+}
+
 // HasPermission reports false because registration-only tests never authorize requests.
 func (scopedCapabilityAuthz) HasPermission(context.Context, capmodel.CapabilityContext, capabilityauthz.PermissionKey) (bool, error) {
 	return false, nil
@@ -344,15 +353,38 @@ func (scopedCapabilityDict) ResolveLabels(_ context.Context, _ capmodel.Capabili
 	return result, nil
 }
 
+// ListValues returns an empty dictionary page for registration-only tests.
+func (scopedCapabilityDict) ListValues(context.Context, capmodel.CapabilityContext, capabilitydictcap.ListValuesInput) (*capmodel.PageResult[*capabilitydictcap.LabelProjection], error) {
+	return &capmodel.PageResult[*capabilitydictcap.LabelProjection]{Items: []*capabilitydictcap.LabelProjection{}}, nil
+}
+
+// EnsureValuesVisible accepts values in registration-only tests.
+func (scopedCapabilityDict) EnsureValuesVisible(context.Context, capmodel.CapabilityContext, capabilitydictcap.ResolveInput) error {
+	return nil
+}
+
 // scopedNotificationsFixture is a no-op notification fixture for registration-only tests.
 type scopedNotificationsFixture struct{}
 
 // BatchGet returns all requested messages as opaque missing entries.
-func (scopedNotificationsFixture) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) (*capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID], error) {
-	return &capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID]{
-		Items:      map[capabilitynotifycap.MessageID]map[string]any{},
+func (scopedNotificationsFixture) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) (*capmodel.BatchResult[*capabilitynotifycap.MessageProjection, capabilitynotifycap.MessageID], error) {
+	return &capmodel.BatchResult[*capabilitynotifycap.MessageProjection, capabilitynotifycap.MessageID]{
+		Items:      map[capabilitynotifycap.MessageID]*capabilitynotifycap.MessageProjection{},
 		MissingIDs: append([]capabilitynotifycap.MessageID(nil), ids...),
 	}, nil
+}
+
+// BatchGetBySource returns all requested source IDs as opaque missing entries.
+func (scopedNotificationsFixture) BatchGetBySource(_ context.Context, _ capmodel.CapabilityContext, input capabilitynotifycap.BatchGetBySourceInput) (*capabilitynotifycap.BatchGetBySourceResult, error) {
+	return &capabilitynotifycap.BatchGetBySourceResult{
+		Items:      map[string][]*capabilitynotifycap.MessageProjection{},
+		MissingIDs: append([]string(nil), input.SourceIDs...),
+	}, nil
+}
+
+// EnsureVisible accepts all message IDs in registration-only tests.
+func (scopedNotificationsFixture) EnsureVisible(context.Context, capmodel.CapabilityContext, []capabilitynotifycap.MessageID) error {
+	return nil
 }
 
 // Send records no messages in registration-only tests.
@@ -400,14 +432,29 @@ func (scopedCapabilityStorage) Delete(context.Context, storagecap.DeleteInput) e
 	return nil
 }
 
+// DeleteMany accepts batch deletion without touching persistent state.
+func (scopedCapabilityStorage) DeleteMany(context.Context, storagecap.DeleteManyInput) error {
+	return nil
+}
+
 // List returns an empty bounded object list.
 func (scopedCapabilityStorage) List(_ context.Context, in storagecap.ListInput) (*storagecap.ListOutput, error) {
 	return &storagecap.ListOutput{Objects: []*storagecap.Object{}, Limit: in.Limit}, nil
 }
 
+// ListCursor returns an empty bounded cursor object list.
+func (scopedCapabilityStorage) ListCursor(_ context.Context, in storagecap.ListCursorInput) (*storagecap.ListCursorOutput, error) {
+	return &storagecap.ListCursorOutput{Objects: []*storagecap.Object{}, Limit: in.Limit}, nil
+}
+
 // Stat reports a miss because registration-only tests do not persist objects.
 func (scopedCapabilityStorage) Stat(context.Context, storagecap.StatInput) (*storagecap.StatOutput, error) {
 	return &storagecap.StatOutput{Found: false}, nil
+}
+
+// BatchStat reports all registration-only objects as missing.
+func (scopedCapabilityStorage) BatchStat(_ context.Context, in storagecap.BatchStatInput) (*storagecap.BatchStatOutput, error) {
+	return &storagecap.BatchStatOutput{MissingPaths: append([]string(nil), in.Paths...)}, nil
 }
 
 // ProviderStatuses returns one available local provider for registration-only tests.
@@ -485,6 +532,11 @@ func (scopedCapabilityRoute) DynamicRouteMetadata(context.Context) *routecap.Dyn
 // scopedCapabilitySession is an empty session fixture for registration-only tests.
 type scopedCapabilitySession struct{}
 
+// Current returns no session in registration-only tests.
+func (scopedCapabilitySession) Current(context.Context, capmodel.CapabilityContext) (*capabilitysessioncap.Projection, error) {
+	return nil, nil
+}
+
 // Search returns an empty session page.
 func (scopedCapabilitySession) Search(context.Context, capmodel.CapabilityContext, capabilitysessioncap.SearchInput) (*capmodel.PageResult[*capabilitysessioncap.Projection], error) {
 	return &capmodel.PageResult[*capabilitysessioncap.Projection]{Items: []*capabilitysessioncap.Projection{}, Total: 0}, nil
@@ -496,6 +548,19 @@ func (scopedCapabilitySession) BatchGet(_ context.Context, _ capmodel.Capability
 		Items:      map[capabilitysessioncap.SessionID]*capabilitysessioncap.Projection{},
 		MissingIDs: append([]capabilitysessioncap.SessionID(nil), ids...),
 	}, nil
+}
+
+// BatchGetUserOnlineStatus returns all requested users as opaque missing entries.
+func (scopedCapabilitySession) BatchGetUserOnlineStatus(_ context.Context, _ capmodel.CapabilityContext, userIDs []string) (*capmodel.BatchResult[*capabilitysessioncap.UserOnlineStatusProjection, string], error) {
+	return &capmodel.BatchResult[*capabilitysessioncap.UserOnlineStatusProjection, string]{
+		Items:      map[string]*capabilitysessioncap.UserOnlineStatusProjection{},
+		MissingIDs: append([]string(nil), userIDs...),
+	}, nil
+}
+
+// EnsureVisible accepts all session IDs in registration-only tests.
+func (scopedCapabilitySession) EnsureVisible(context.Context, capmodel.CapabilityContext, []capabilitysessioncap.SessionID) error {
+	return nil
 }
 
 // Revoke records no revocation in registration-only tests.
@@ -524,13 +589,35 @@ func (scopedCapabilityCache) Get(context.Context, string, string) (*cachecap.Cac
 	return nil, false, nil
 }
 
+// GetMany reports all cache keys as missing.
+func (scopedCapabilityCache) GetMany(_ context.Context, in cachecap.GetManyInput) (*cachecap.GetManyOutput, error) {
+	return &cachecap.GetManyOutput{
+		Items:       map[string]*cachecap.CacheItem{},
+		MissingKeys: append([]string(nil), in.Keys...),
+	}, nil
+}
+
 // Set returns the stored projection without touching shared cache state.
 func (scopedCapabilityCache) Set(_ context.Context, namespace string, key string, value string, _ time.Duration) (*cachecap.CacheItem, error) {
 	return &cachecap.CacheItem{Key: namespace + ":" + key, ValueKind: cachecap.CacheValueKindString, Value: value}, nil
 }
 
+// SetMany returns stored projections without touching shared cache state.
+func (scopedCapabilityCache) SetMany(_ context.Context, in cachecap.SetManyInput) (*cachecap.SetManyOutput, error) {
+	output := &cachecap.SetManyOutput{Items: map[string]*cachecap.CacheItem{}}
+	for _, item := range in.Items {
+		output.Items[item.Key] = &cachecap.CacheItem{Key: in.Namespace + ":" + item.Key, ValueKind: cachecap.CacheValueKindString, Value: item.Value}
+	}
+	return output, nil
+}
+
 // Delete is a successful no-op for registration-only tests.
 func (scopedCapabilityCache) Delete(context.Context, string, string) error {
+	return nil
+}
+
+// DeleteMany is a successful no-op for registration-only tests.
+func (scopedCapabilityCache) DeleteMany(context.Context, cachecap.DeleteManyInput) error {
 	return nil
 }
 
@@ -555,9 +642,31 @@ func (scopedCapabilityPlugins) BatchGet(_ context.Context, _ capmodel.Capability
 	}, nil
 }
 
+// Current returns no current plugin projection for registration-only tests.
+func (scopedCapabilityPlugins) Current(context.Context, capmodel.CapabilityContext) (*capabilityplugincap.Projection, error) {
+	return nil, nil
+}
+
+// Search returns an empty plugin-governance page for registration-only tests.
+func (scopedCapabilityPlugins) Search(context.Context, capmodel.CapabilityContext, capabilityplugincap.SearchInput) (*capmodel.PageResult[*capabilityplugincap.Projection], error) {
+	return &capmodel.PageResult[*capabilityplugincap.Projection]{Items: []*capabilityplugincap.Projection{}}, nil
+}
+
 // ListTenantPlugins returns an empty page for registration-only tests.
-func (scopedCapabilityPlugins) ListTenantPlugins(context.Context, capmodel.CapabilityContext) (*capmodel.PageResult[*capabilityplugincap.TenantProjection], error) {
+func (scopedCapabilityPlugins) ListTenantPlugins(context.Context, capmodel.CapabilityContext, capabilityplugincap.TenantListInput) (*capmodel.PageResult[*capabilityplugincap.TenantProjection], error) {
 	return &capmodel.PageResult[*capabilityplugincap.TenantProjection]{Items: []*capabilityplugincap.TenantProjection{}}, nil
+}
+
+// BatchGetCapabilityStatus returns all requested capability keys as unavailable.
+func (scopedCapabilityPlugins) BatchGetCapabilityStatus(_ context.Context, _ capmodel.CapabilityContext, keys []capabilityplugincap.CapabilityKey) (*capmodel.BatchResult[*capmodel.CapabilityStatus, capabilityplugincap.CapabilityKey], error) {
+	result := &capmodel.BatchResult[*capmodel.CapabilityStatus, capabilityplugincap.CapabilityKey]{
+		Items:      make(map[capabilityplugincap.CapabilityKey]*capmodel.CapabilityStatus, len(keys)),
+		MissingIDs: []capabilityplugincap.CapabilityKey{},
+	}
+	for _, key := range keys {
+		result.Items[key] = &capmodel.CapabilityStatus{Available: false, Reason: "test_no_provider"}
+	}
+	return result, nil
 }
 
 // Config returns a blank plugin configuration reader for registration-only tests.
@@ -635,12 +744,35 @@ func (scopedCapabilityAdminServices) Infra() capabilityinfracap.AdminService { r
 // scopedCapabilityUsers is an empty user-domain fixture for registration-only tests.
 type scopedCapabilityUsers struct{}
 
+// Current returns no current user in registration-only tests.
+func (scopedCapabilityUsers) Current(context.Context, capmodel.CapabilityContext) (*capabilityusercap.UserProjection, error) {
+	return nil, nil
+}
+
 // BatchGet returns all requested user IDs as opaque missing records.
 func (scopedCapabilityUsers) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
 	return &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID]{
 		Items:      map[capabilityusercap.UserID]*capabilityusercap.UserProjection{},
 		MissingIDs: append([]capabilityusercap.UserID(nil), ids...),
 	}, nil
+}
+
+// BatchResolve returns all requested identifiers as opaque missing records.
+func (scopedCapabilityUsers) BatchResolve(_ context.Context, _ capmodel.CapabilityContext, input capabilityusercap.BatchResolveInput) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.ResolveKey], error) {
+	result := &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.ResolveKey]{
+		Items:      map[capabilityusercap.ResolveKey]*capabilityusercap.UserProjection{},
+		MissingIDs: []capabilityusercap.ResolveKey{},
+	}
+	for _, id := range input.IDs {
+		result.MissingIDs = append(result.MissingIDs, capabilityusercap.ResolveKey("id:"+string(id)))
+	}
+	for _, username := range input.Usernames {
+		result.MissingIDs = append(result.MissingIDs, capabilityusercap.ResolveKey("username:"+username))
+	}
+	for _, contact := range input.Contacts {
+		result.MissingIDs = append(result.MissingIDs, capabilityusercap.ResolveKey("contact:"+contact))
+	}
+	return result, nil
 }
 
 // Search returns an empty page because registration-only tests never query users.

@@ -79,6 +79,30 @@ type Provider interface {
 	//
 	// GetUserPostIDs 返回单个用户关联的岗位标识集合，适用于用户详情、编辑回显和组织关系维护场景。
 	GetUserPostIDs(ctx context.Context, userID int) ([]int, error)
+	// BatchGetUserOrgProfiles returns stable organization profiles for provided users.
+	//
+	// BatchGetUserOrgProfiles 批量返回用户组织档案，适用于普通插件批量装配部门和岗位投影，不暴露 provider 内部表结构。
+	BatchGetUserOrgProfiles(ctx context.Context, userIDs []int) (*capmodel.BatchResult[*orgcap.UserOrgProfile, int], error)
+	// ListDeptTree returns a bounded ordinary department tree projection.
+	//
+	// ListDeptTree 返回有界部门树投影，适用于跨插件候选展示，不返回工作台专用扩展字段或查询构造器。
+	ListDeptTree(ctx context.Context, input orgcap.DeptTreeInput) (*orgcap.DeptTreeResult, error)
+	// SearchDepartments returns bounded department candidates.
+	//
+	// SearchDepartments 返回分页部门候选投影，适用于插件表单和筛选候选。
+	SearchDepartments(ctx context.Context, input orgcap.DeptSearchInput) (*capmodel.PageResult[*orgcap.DeptProjection], error)
+	// ListPostOptionsPage returns bounded post candidates.
+	//
+	// ListPostOptionsPage 返回分页岗位候选投影，适用于插件表单和筛选候选。
+	ListPostOptionsPage(ctx context.Context, input orgcap.PostOptionsInput) (*capmodel.PageResult[*orgcap.PostOption], error)
+	// EnsureDepartmentsVisible verifies all department identifiers are visible.
+	//
+	// EnsureDepartmentsVisible 校验部门引用可见性，任一目标不可见时整体拒绝。
+	EnsureDepartmentsVisible(ctx context.Context, deptIDs []int) error
+	// EnsurePostsVisible verifies all post identifiers are visible.
+	//
+	// EnsurePostsVisible 校验岗位引用可见性，任一目标不可见时整体拒绝。
+	EnsurePostsVisible(ctx context.Context, postIDs []int) error
 	// ReplaceUserAssignments rewrites one user's department and post associations.
 	//
 	// ReplaceUserAssignments 重写单个用户的部门和岗位关系，适用于用户创建、用户更新等需要同步组织归属的写入场景。

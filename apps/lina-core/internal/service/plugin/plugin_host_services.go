@@ -14,7 +14,6 @@ import (
 
 	"lina-core/internal/service/apidoc"
 	"lina-core/internal/service/auth"
-	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/hostlock"
 	i18nsvc "lina-core/internal/service/i18n"
@@ -95,39 +94,20 @@ type HostNotifyPublisher interface {
 	DeleteBySource(ctx context.Context, sourceType notify.SourceType, sourceIDs []string) error
 }
 
-// HostPluginStorageConfigReader defines plugin object-storage configuration
-// reads needed by the storage provider runtime.
-type HostPluginStorageConfigReader interface {
-	// GetPluginStorage returns plugin object-storage provider configuration.
-	GetPluginStorage(ctx context.Context) configsvc.PluginStorageConfig
-}
-
 // NewLocalStorageProvider creates the host built-in plugin storage provider.
-func NewLocalStorageProvider(rootDir string, clusterEnabled bool, allowCluster bool) storagecap.Provider {
-	return capabilityhost.NewLocalStorageProvider(rootDir, clusterEnabled, allowCluster)
+func NewLocalStorageProvider(rootDir string) storagecap.Provider {
+	return capabilityhost.NewLocalStorageProvider(rootDir)
 }
 
-// NewStorageProviderRuntime creates provider selection runtime state from
-// explicit config and plugin enablement dependencies.
-func NewStorageProviderRuntime(
-	configSvc HostPluginStorageConfigReader,
-	pluginStateSvc plugincap.StateService,
-) storagecap.ProviderRuntime {
-	return &storageProviderRuntime{configSvc: configSvc, pluginStateSvc: pluginStateSvc}
+// NewStorageProviderRuntime creates provider selection runtime state from plugin
+// enablement dependencies.
+func NewStorageProviderRuntime(pluginStateSvc plugincap.StateService) storagecap.ProviderRuntime {
+	return &storageProviderRuntime{pluginStateSvc: pluginStateSvc}
 }
 
-// storageProviderRuntime adapts host config and plugin state to storagecap runtime.
+// storageProviderRuntime adapts plugin state to storagecap runtime.
 type storageProviderRuntime struct {
-	configSvc      HostPluginStorageConfigReader
 	pluginStateSvc plugincap.StateService
-}
-
-// ActiveProviderPluginID returns the explicitly selected storage provider plugin ID.
-func (r *storageProviderRuntime) ActiveProviderPluginID(ctx context.Context) string {
-	if r == nil || r.configSvc == nil {
-		return ""
-	}
-	return r.configSvc.GetPluginStorage(ctx).ActiveProviderPluginID
 }
 
 // ProviderPluginAvailable reports whether a provider plugin may serve calls.

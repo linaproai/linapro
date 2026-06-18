@@ -8,19 +8,18 @@ import (
 	"strings"
 	"testing"
 
-	"lina-core/internal/dao"
-	"lina-core/internal/model/do"
+	"github.com/gogf/gf/v2/frame/g"
+
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // TestHandleHostServiceInvokeDataLifecycle verifies governed data CRUD host calls.
 func TestHandleHostServiceInvokeDataLifecycle(t *testing.T) {
 	ctx := context.Background()
-	table := "sys_plugin_node_state"
-	pluginMarker := "test-wasm-data-lifecycle"
-	cleanupWasmTestNodeStates(t, ctx, pluginMarker)
+	table := "plugin_test_plugin_wasm_data_records"
+	createWasmDataRecordsTable(t, ctx, table)
 	t.Cleanup(func() {
-		cleanupWasmTestNodeStates(t, ctx, pluginMarker)
+		dropWasmDataRecordsTable(t, ctx, table)
 	})
 
 	hcc := &hostCallContext{
@@ -35,6 +34,7 @@ func TestHandleHostServiceInvokeDataLifecycle(t *testing.T) {
 				Methods: []string{
 					protocol.HostServiceMethodDataList,
 					protocol.HostServiceMethodDataGet,
+					protocol.HostServiceMethodDataBatchGet,
 					protocol.HostServiceMethodDataCreate,
 					protocol.HostServiceMethodDataUpdate,
 					protocol.HostServiceMethodDataDelete,
@@ -59,13 +59,9 @@ func TestHandleHostServiceInvokeDataLifecycle(t *testing.T) {
 		table,
 		&protocol.HostServiceDataMutationRequest{
 			RecordJSON: mustMarshalWasmJSON(t, map[string]any{
-				"pluginId":     pluginMarker,
-				"releaseId":    1,
+				"pluginMarker": "test-wasm-data-lifecycle",
 				"nodeKey":      "node-wasm-1",
-				"desiredState": "running",
 				"currentState": "pending",
-				"generation":   1,
-				"errorMessage": "",
 			}),
 		},
 	)
@@ -90,7 +86,7 @@ func TestHandleHostServiceInvokeDataLifecycle(t *testing.T) {
 				"table":  table,
 				"action": "list",
 				"filters": []map[string]any{
-					{"field": "pluginId", "operator": "eq", "valueJson": mustMarshalWasmJSON(t, pluginMarker)},
+					{"field": "pluginMarker", "operator": "eq", "valueJson": mustMarshalWasmJSON(t, "test-wasm-data-lifecycle")},
 				},
 				"page": map[string]any{"pageNum": 1, "pageSize": 10},
 			}),
@@ -107,14 +103,45 @@ func TestHandleHostServiceInvokeDataLifecycle(t *testing.T) {
 		t.Fatalf("unexpected list payload: %#v", listPayload)
 	}
 	record := mustUnmarshalWasmRecord(t, listPayload.Records[0])
-	if record["pluginId"] != pluginMarker {
+	if record["pluginMarker"] != "test-wasm-data-lifecycle" {
 		t.Fatalf("unexpected list record: %#v", record)
+	}
+
+	batchGetResponse := invokeDataHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodDataBatchGet,
+		table,
+		&protocol.HostServiceDataBatchGetRequest{
+			KeyJSON: [][]byte{append([]byte(nil), createPayload.KeyJSON...), mustMarshalWasmJSON(t, 999999)},
+			Fields:  []string{"currentState"},
+		},
+	)
+	if batchGetResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("batch_get expected success, got status=%d payload=%s", batchGetResponse.Status, string(batchGetResponse.Payload))
+	}
+	batchGetPayload, err := protocol.UnmarshalHostServiceDataBatchGetResponse(batchGetResponse.Payload)
+	if err != nil {
+		t.Fatalf("decode batch_get payload failed: %v", err)
+	}
+	if len(batchGetPayload.Records) != 1 || len(batchGetPayload.MissingKeyJSON) != 1 {
+		t.Fatalf("unexpected batch_get payload: %#v", batchGetPayload)
+	}
+	batchRecord := mustUnmarshalWasmRecord(t, batchGetPayload.Records[0])
+	if len(batchRecord) != 1 || batchRecord["currentState"] != "pending" {
+		t.Fatalf("unexpected batch_get record projection: %#v", batchRecord)
 	}
 }
 
 // TestHandleHostServiceInvokeDataRejectsAnonymousRequestAccess verifies request-only data access needs identity.
 func TestHandleHostServiceInvokeDataRejectsAnonymousRequestAccess(t *testing.T) {
-	table := "sys_plugin_node_state"
+	ctx := context.Background()
+	table := "plugin_test_plugin_wasm_data_records"
+	createWasmDataRecordsTable(t, ctx, table)
+	t.Cleanup(func() {
+		dropWasmDataRecordsTable(t, ctx, table)
+	})
+
 	hcc := &hostCallContext{
 		pluginID: "test-plugin-wasm-data",
 		capabilities: map[string]struct{}{
@@ -169,6 +196,8 @@ func invokeDataHostService(
 		payload = protocol.MarshalHostServiceDataMutationRequest(typedRequest)
 	case *protocol.HostServiceDataGetRequest:
 		payload = protocol.MarshalHostServiceDataGetRequest(typedRequest)
+	case *protocol.HostServiceDataBatchGetRequest:
+		payload = protocol.MarshalHostServiceDataBatchGetRequest(typedRequest)
 	case *protocol.HostServiceDataTransactionRequest:
 		payload = protocol.MarshalHostServiceDataTransactionRequest(typedRequest)
 	default:
@@ -184,13 +213,27 @@ func invokeDataHostService(
 	return handleHostServiceInvoke(context.Background(), withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(envelope))
 }
 
-// cleanupWasmTestNodeStates removes sys_plugin_node_state rows created by wasm data tests.
-func cleanupWasmTestNodeStates(t *testing.T, ctx context.Context, pluginID string) {
+func createWasmDataRecordsTable(t *testing.T, ctx context.Context, table string) {
 	t.Helper()
-	if _, err := dao.SysPluginNodeState.Ctx(ctx).
-		Where(do.SysPluginNodeState{PluginId: pluginID}).
-		Delete(); err != nil {
-		t.Fatalf("failed to cleanup wasm test node states for %s: %v", pluginID, err)
+	dropWasmDataRecordsTable(t, ctx, table)
+	if _, err := g.DB().Exec(ctx, `
+CREATE TABLE plugin_test_plugin_wasm_data_records (
+    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    plugin_marker VARCHAR(64) NOT NULL DEFAULT '',
+    node_key VARCHAR(64) NOT NULL DEFAULT '',
+    current_state VARCHAR(32) NOT NULL DEFAULT ''
+)`); err != nil {
+		t.Fatalf("failed to create wasm data records table %s: %v", table, err)
+	}
+}
+
+func dropWasmDataRecordsTable(t *testing.T, ctx context.Context, table string) {
+	t.Helper()
+	if table != "plugin_test_plugin_wasm_data_records" {
+		t.Fatalf("unsafe wasm data records table name: %s", table)
+	}
+	if _, err := g.DB().Exec(ctx, "DROP TABLE IF EXISTS plugin_test_plugin_wasm_data_records"); err != nil {
+		t.Fatalf("failed to drop wasm data records table %s: %v", table, err)
 	}
 }
 

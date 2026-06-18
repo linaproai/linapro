@@ -106,8 +106,6 @@ type HostOperationsConfigReader interface {
 	GetLogger(ctx context.Context) *LoggerConfig
 	// GetHealth reads health probe config from configuration file.
 	GetHealth(ctx context.Context) *HealthConfig
-	// GetShutdown reads graceful-shutdown config from configuration file.
-	GetShutdown(ctx context.Context) *ShutdownConfig
 	// GetScheduler reads scheduler config from configuration file.
 	GetScheduler(ctx context.Context) *SchedulerConfig
 	// GetSchedulerDefaultTimezone returns the configured default timezone for managed scheduled jobs.
@@ -138,8 +136,6 @@ type PluginConfigReader interface {
 	GetPluginAutoEnableEntries(ctx context.Context) []PluginAutoEnableEntry
 	// GetPluginDynamicStoragePath returns the runtime-resolved dynamic wasm storage directory.
 	GetPluginDynamicStoragePath(ctx context.Context) string
-	// GetPluginStorage returns plugin object-storage provider configuration.
-	GetPluginStorage(ctx context.Context) PluginStorageConfig
 }
 
 // UploadConfigReader reads upload storage and size-limit settings.

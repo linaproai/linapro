@@ -8,6 +8,7 @@ import (
 	"context"
 	"strings"
 
+	"lina-core/pkg/plugin/capability/aicap/aicommon"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/cachecap"
 	"lina-core/pkg/plugin/capability/capmodel"
@@ -26,7 +27,7 @@ type CapabilityType string
 
 const (
 	// CapabilityTypeText is the first supported AI capability family.
-	CapabilityTypeText CapabilityType = "text"
+	CapabilityTypeText CapabilityType = CapabilityType(aicommon.CapabilityTypeText)
 )
 
 // CapabilityMethod identifies one AI method inside a capability family.
@@ -34,7 +35,7 @@ type CapabilityMethod string
 
 const (
 	// CapabilityMethodGenerate identifies synchronous text generation.
-	CapabilityMethodGenerate CapabilityMethod = "generate"
+	CapabilityMethodGenerate CapabilityMethod = CapabilityMethod(aicommon.CapabilityMethodTextGenerate)
 )
 
 // Tier identifies the platform text AI service level requested by callers.
@@ -193,6 +194,10 @@ type Service interface {
 	//
 	// Status 返回文本 AI 能力激活状态，适用于诊断、治理检查和插件能力状态展示。
 	Status(ctx context.Context) capmodel.CapabilityStatus
+	// MethodStatus returns method-level text AI availability without exposing provider internals.
+	//
+	// MethodStatus 返回文本 AI 子能力单个方法的可用状态，适用于插件按方法降级；结果不得包含 provider 私有配置。
+	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
 	// GenerateText executes one synchronous text generation request.
 	//
 	// GenerateText 按 purpose 和档位执行同步文本生成；请求无效、provider 不可用或插件配置缺失时返回结构化业务错误。

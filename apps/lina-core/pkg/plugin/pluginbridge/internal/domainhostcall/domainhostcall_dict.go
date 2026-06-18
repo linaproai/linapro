@@ -29,11 +29,42 @@ func (s dictService) ResolveLabels(_ context.Context, _ capmodel.CapabilityConte
 	return out, err
 }
 
+// ListValues returns one bounded page of visible dictionary value candidates.
+func (s dictService) ListValues(_ context.Context, _ capmodel.CapabilityContext, input dictcap.ListValuesInput) (*capmodel.PageResult[*dictcap.LabelProjection], error) {
+	out := &capmodel.PageResult[*dictcap.LabelProjection]{Items: []*dictcap.LabelProjection{}}
+	err := s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictListValues, dictListValuesRequest{
+		Type:         string(input.Type),
+		Status:       input.Status,
+		IncludeLabel: input.IncludeLabel,
+		PageNum:      input.Page.PageNum,
+		PageSize:     input.Page.PageSize,
+	}, out)
+	return out, err
+}
+
+// EnsureValuesVisible rejects when any requested dictionary value is absent or invisible.
+func (s dictService) EnsureValuesVisible(_ context.Context, _ capmodel.CapabilityContext, input dictcap.ResolveInput) error {
+	return s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictEnsureValuesVisible, dictResolveRequest{
+		Type:         string(input.Type),
+		Values:       dictValuesToStrings(input.Values),
+		IncludeLabel: input.IncludeLabel,
+	}, nil)
+}
+
 // dictResolveRequest carries dictionary label resolution parameters.
 type dictResolveRequest struct {
 	Type         string   `json:"type"`
 	Values       []string `json:"values"`
 	IncludeLabel bool     `json:"includeLabel"`
+}
+
+// dictListValuesRequest carries dictionary candidate listing parameters.
+type dictListValuesRequest struct {
+	Type         string `json:"type"`
+	Status       *int   `json:"status,omitempty"`
+	IncludeLabel bool   `json:"includeLabel"`
+	PageNum      int    `json:"pageNum,omitempty"`
+	PageSize     int    `json:"pageSize,omitempty"`
 }
 
 // dictValuesToStrings converts dictionary values to transport strings.

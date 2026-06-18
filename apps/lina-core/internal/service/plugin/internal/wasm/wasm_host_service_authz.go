@@ -32,6 +32,13 @@ func dispatchAuthzHostService(
 		}
 		result, err := service.BatchGetPermissions(ctx, capCtx, permissionKeys(request.IDs))
 		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodAuthzBatchHasPermissions:
+		var request idsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.BatchHasPermissions(ctx, capCtx, permissionKeys(request.IDs))
+		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodAuthzHasPermission:
 		var request keyRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {

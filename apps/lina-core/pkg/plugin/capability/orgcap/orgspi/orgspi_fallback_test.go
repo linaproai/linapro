@@ -7,6 +7,10 @@ package orgspi
 import (
 	"context"
 	"testing"
+
+	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/orgcap"
 )
 
 func TestDisabledOrganizationCapabilityReturnsNeutralValues(t *testing.T) {
@@ -108,4 +112,45 @@ func TestDisabledOrganizationCapabilityKeepsHostInternalOperationsSafe(t *testin
 	if posts, err := svc.ListPostOptions(ctx, nil); err != nil || len(posts) != 0 {
 		t.Fatalf("expected empty post options without error, got posts=%#v err=%v", posts, err)
 	}
+}
+
+func TestOrganizationCapabilityRejectsMultipleEnabledProviders(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	manager := NewManager()
+	enabled := map[string]bool{
+		"org-provider-conflict-a": true,
+		"org-provider-conflict-b": true,
+	}
+	for pluginID := range enabled {
+		pluginID := pluginID
+		if err := manager.RegisterFactory(pluginID, func(context.Context, ProviderEnv) (Provider, error) {
+			return nil, nil
+		}); err != nil {
+			t.Fatalf("register organization provider %s: %v", pluginID, err)
+		}
+	}
+
+	svc := New(manager, orgConflictRuntime{enabled: enabled})
+	_, err := svc.ListDeptTree(ctx, orgcap.DeptTreeInput{MaxNodes: 10})
+	if !bizerr.Is(err, capmodel.CodeCapabilityProviderConflict) {
+		t.Fatalf("expected provider conflict error, got %v", err)
+	}
+	status := svc.Status(ctx)
+	if status.Available || status.Reason != "provider_conflict" {
+		t.Fatalf("expected unavailable provider conflict status, got %#v", status)
+	}
+}
+
+type orgConflictRuntime struct {
+	enabled map[string]bool
+}
+
+func (s orgConflictRuntime) IsProviderEnabled(_ context.Context, pluginID string) bool {
+	return s.enabled[pluginID]
+}
+
+func (s orgConflictRuntime) OrgProviderEnv(pluginID string) ProviderEnv {
+	return ProviderEnv{PluginID: pluginID}
 }

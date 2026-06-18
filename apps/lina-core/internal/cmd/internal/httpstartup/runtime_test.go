@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/glog"
+	"github.com/gogf/gf/v2/util/guid"
 
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/logger"
@@ -59,6 +61,18 @@ func TestLogHTTPStartupSummaryEmitsFieldsWithoutSQL(t *testing.T) {
 		if strings.Contains(strings.ToUpper(joined), forbidden) {
 			t.Fatalf("expected startup summary to omit SQL text %q, got %q", forbidden, joined)
 		}
+	}
+}
+
+// TestResolveRuntimeShutdownTimeoutUsesGoFrameServerConfig verifies host-owned
+// cleanup reuses the GoFrame server graceful shutdown timeout.
+func TestResolveRuntimeShutdownTimeoutUsesGoFrameServerConfig(t *testing.T) {
+	server := g.Server("runtime-shutdown-timeout-" + guid.S())
+	server.SetGracefulShutdownTimeout(17)
+
+	timeout := resolveRuntimeShutdownTimeout(server)
+	if timeout != 17*time.Second {
+		t.Fatalf("expected runtime shutdown timeout to reuse GoFrame server config, got %s", timeout)
 	}
 }
 

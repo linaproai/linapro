@@ -6,6 +6,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
 
@@ -49,9 +50,15 @@ func newNotificationCapabilityAdapter(publisher notificationPublisher) notificat
 }
 
 // BatchGet returns visible notification message projections.
-func (a *notificationCapabilityAdapter) BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) (*capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID], error) {
-	result := &capmodel.BatchResult[map[string]any, capabilitynotifycap.MessageID]{
-		Items:      make(map[capabilitynotifycap.MessageID]map[string]any, len(ids)),
+func (a *notificationCapabilityAdapter) BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) (*capmodel.BatchResult[*capabilitynotifycap.MessageProjection, capabilitynotifycap.MessageID], error) {
+	if len(ids) > capabilitynotifycap.MaxBatchGetMessages {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", capabilitynotifycap.MaxBatchGetMessages))
+	}
+	if capCtx.Actor.UserID <= 0 {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityActorRequired)
+	}
+	result := &capmodel.BatchResult[*capabilitynotifycap.MessageProjection, capabilitynotifycap.MessageID]{
+		Items:      make(map[capabilitynotifycap.MessageID]*capabilitynotifycap.MessageProjection, len(ids)),
 		MissingIDs: []capabilitynotifycap.MessageID{},
 	}
 	parsedIDs, requested := ParseInt64IDs(ids, func(id capabilitynotifycap.MessageID) {
@@ -61,13 +68,29 @@ func (a *notificationCapabilityAdapter) BatchGet(ctx context.Context, capCtx cap
 		return result, nil
 	}
 	rows := make([]*entity.SysNotifyMessage, 0, len(parsedIDs))
-	cols := dao.SysNotifyMessage.Columns()
+	var (
+		messageCols  = dao.SysNotifyMessage.Columns()
+		deliveryCols = dao.SysNotifyDelivery.Columns()
+		messageTbl   = dao.SysNotifyMessage.Table()
+		deliveryTbl  = dao.SysNotifyDelivery.Table()
+	)
 	model := dao.SysNotifyMessage.Ctx(ctx).
-		Fields(cols.Id, cols.TenantId, cols.PluginId, cols.SourceType, cols.SourceId, cols.CategoryCode, cols.Title, cols.CreatedAt).
-		WhereIn(cols.Id, parsedIDs)
+		InnerJoin(deliveryTbl, deliveryTbl+"."+deliveryCols.MessageId+"="+messageTbl+"."+messageCols.Id).
+		Fields(
+			messageTbl+"."+messageCols.Id+" AS id",
+			messageTbl+"."+messageCols.TenantId+" AS tenant_id",
+			messageTbl+"."+messageCols.PluginId+" AS plugin_id",
+			messageTbl+"."+messageCols.SourceType+" AS source_type",
+			messageTbl+"."+messageCols.SourceId+" AS source_id",
+			messageTbl+"."+messageCols.CategoryCode+" AS category_code",
+			messageTbl+"."+messageCols.Title+" AS title",
+			messageTbl+"."+messageCols.CreatedAt+" AS created_at",
+		).
+		WhereIn(messageTbl+"."+messageCols.Id, parsedIDs).
+		Where(deliveryTbl+"."+deliveryCols.UserId, capCtx.Actor.UserID)
 	tenantID, _ := TenantID(capCtx.TenantID)
 	if tenantID > PlatformTenantID {
-		model = model.WhereIn(cols.TenantId, []int{PlatformTenantID, tenantID})
+		model = model.WhereIn(messageTbl+"."+messageCols.TenantId, []int{PlatformTenantID, tenantID})
 	}
 	if err := model.Scan(&rows); err != nil {
 		return nil, err
@@ -80,16 +103,7 @@ func (a *notificationCapabilityAdapter) BatchGet(ctx context.Context, capCtx cap
 		if !ok {
 			continue
 		}
-		result.Items[requestID] = map[string]any{
-			"id":           requestID,
-			"tenantId":     row.TenantId,
-			"pluginId":     row.PluginId,
-			"sourceType":   row.SourceType,
-			"sourceId":     row.SourceId,
-			"categoryCode": row.CategoryCode,
-			"title":        row.Title,
-			"createdAt":    row.CreatedAt,
-		}
+		result.Items[requestID] = projectNotifyMessage(row, requestID)
 	}
 	for _, id := range ids {
 		if _, ok := result.Items[id]; !ok && !Contains(result.MissingIDs, id) {
@@ -97,6 +111,97 @@ func (a *notificationCapabilityAdapter) BatchGet(ctx context.Context, capCtx cap
 		}
 	}
 	return result, nil
+}
+
+// BatchGetBySource returns visible notification message projections grouped by source ID.
+func (a *notificationCapabilityAdapter) BatchGetBySource(
+	ctx context.Context,
+	capCtx capmodel.CapabilityContext,
+	input capabilitynotifycap.BatchGetBySourceInput,
+) (*capabilitynotifycap.BatchGetBySourceResult, error) {
+	sourceType := strings.TrimSpace(string(input.SourceType))
+	sourceIDs := normalizeNotifySourceIDs(input.SourceIDs)
+	if len(sourceIDs) > capabilitynotifycap.MaxBatchGetBySourceIDs {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", capabilitynotifycap.MaxBatchGetBySourceIDs))
+	}
+	if capCtx.Actor.UserID <= 0 {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityActorRequired)
+	}
+	result := &capabilitynotifycap.BatchGetBySourceResult{
+		Items:      map[string][]*capabilitynotifycap.MessageProjection{},
+		MissingIDs: []string{},
+	}
+	if sourceType == "" || len(sourceIDs) == 0 {
+		result.MissingIDs = append(result.MissingIDs, sourceIDs...)
+		return result, nil
+	}
+	var (
+		messageCols  = dao.SysNotifyMessage.Columns()
+		deliveryCols = dao.SysNotifyDelivery.Columns()
+		messageTbl   = dao.SysNotifyMessage.Table()
+		deliveryTbl  = dao.SysNotifyDelivery.Table()
+	)
+	rows := make([]*entity.SysNotifyMessage, 0, len(sourceIDs))
+	model := dao.SysNotifyMessage.Ctx(ctx).
+		InnerJoin(deliveryTbl, deliveryTbl+"."+deliveryCols.MessageId+"="+messageTbl+"."+messageCols.Id).
+		Fields(
+			messageTbl+"."+messageCols.Id+" AS id",
+			messageTbl+"."+messageCols.TenantId+" AS tenant_id",
+			messageTbl+"."+messageCols.PluginId+" AS plugin_id",
+			messageTbl+"."+messageCols.SourceType+" AS source_type",
+			messageTbl+"."+messageCols.SourceId+" AS source_id",
+			messageTbl+"."+messageCols.CategoryCode+" AS category_code",
+			messageTbl+"."+messageCols.Title+" AS title",
+			messageTbl+"."+messageCols.CreatedAt+" AS created_at",
+		).
+		Where(messageTbl+"."+messageCols.SourceType, sourceType).
+		WhereIn(messageTbl+"."+messageCols.SourceId, sourceIDs).
+		Where(deliveryTbl+"."+deliveryCols.UserId, capCtx.Actor.UserID).
+		OrderDesc(messageTbl + "." + messageCols.Id).
+		Limit(capabilitynotifycap.MaxBatchGetBySourceMessages + 1)
+	tenantID, _ := TenantID(capCtx.TenantID)
+	if tenantID > PlatformTenantID {
+		model = model.WhereIn(messageTbl+"."+messageCols.TenantId, []int{PlatformTenantID, tenantID})
+	}
+	if err := model.Scan(&rows); err != nil {
+		return nil, err
+	}
+	if len(rows) > capabilitynotifycap.MaxBatchGetBySourceMessages {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", capabilitynotifycap.MaxBatchGetBySourceMessages))
+	}
+	visibleSources := make(map[string]struct{}, len(sourceIDs))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		sourceID := strings.TrimSpace(row.SourceId)
+		if sourceID == "" {
+			continue
+		}
+		visibleSources[sourceID] = struct{}{}
+		result.Items[sourceID] = append(result.Items[sourceID], projectNotifyMessage(row, capabilitynotifycap.MessageID(strconv.FormatInt(row.Id, 10))))
+	}
+	for _, sourceID := range sourceIDs {
+		if _, ok := visibleSources[sourceID]; !ok {
+			result.MissingIDs = append(result.MissingIDs, sourceID)
+		}
+	}
+	return result, nil
+}
+
+// EnsureVisible rejects when any requested notification message is absent or invisible.
+func (a *notificationCapabilityAdapter) EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) error {
+	if len(ids) > capabilitynotifycap.MaxEnsureVisibleMessages {
+		return bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", capabilitynotifycap.MaxEnsureVisibleMessages))
+	}
+	result, err := a.BatchGet(ctx, capCtx, ids)
+	if err != nil {
+		return err
+	}
+	if len(result.MissingIDs) > 0 || len(result.Items) != len(parseUniqueNotifyMessageIDs(ids)) {
+		return bizerr.NewCode(capmodel.CodeCapabilityDenied)
+	}
+	return nil
 }
 
 // Send sends one governed notification message through the shared notification service.
@@ -159,24 +264,20 @@ func (a *notificationCapabilityAdapter) Send(ctx context.Context, capCtx capmode
 
 // Delete removes visible notification messages.
 func (a *notificationCapabilityAdapter) Delete(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilitynotifycap.MessageID) error {
-	result, err := a.BatchGet(ctx, capCtx, ids)
-	if err != nil {
+	if err := a.EnsureVisible(ctx, capCtx, ids); err != nil {
 		return err
-	}
-	if len(result.MissingIDs) > 0 {
-		return bizerr.NewCode(capmodel.CodeCapabilityDenied)
 	}
 	parsedIDs, _ := ParseInt64IDs(ids, nil)
 	if len(parsedIDs) == 0 {
 		return bizerr.NewCode(capmodel.CodeCapabilityDenied)
 	}
 	return dao.SysNotifyMessage.Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
-		if _, err = tx.Model(dao.SysNotifyDelivery.Table()).Safe().Ctx(ctx).
+		if _, err := tx.Model(dao.SysNotifyDelivery.Table()).Safe().Ctx(ctx).
 			WhereIn(dao.SysNotifyDelivery.Columns().MessageId, parsedIDs).
 			Delete(); err != nil {
 			return err
 		}
-		_, err = tx.Model(dao.SysNotifyMessage.Table()).Safe().Ctx(ctx).
+		_, err := tx.Model(dao.SysNotifyMessage.Table()).Safe().Ctx(ctx).
 			WhereIn(dao.SysNotifyMessage.Columns().Id, parsedIDs).
 			Delete()
 		return err
@@ -189,4 +290,53 @@ func (a *notificationCapabilityAdapter) DeleteBySource(ctx context.Context, _ ca
 		return bizerr.NewCode(capmodel.CodeCapabilityUnavailable, bizerr.P("capability", "notification"))
 	}
 	return a.publisher.DeleteBySource(ctx, notifysvc.SourceType(sourceType), sourceIDs)
+}
+
+// projectNotifyMessage converts one host notify row into the stable plugin projection.
+func projectNotifyMessage(row *entity.SysNotifyMessage, id capabilitynotifycap.MessageID) *capabilitynotifycap.MessageProjection {
+	if row == nil {
+		return nil
+	}
+	return &capabilitynotifycap.MessageProjection{
+		ID:           id,
+		TenantID:     row.TenantId,
+		PluginID:     row.PluginId,
+		SourceType:   capabilitynotifycap.SourceType(row.SourceType),
+		SourceID:     row.SourceId,
+		CategoryCode: capabilitynotifycap.CategoryCode(row.CategoryCode),
+		Title:        row.Title,
+		CreatedAt:    unixMilli(row.CreatedAt),
+	}
+}
+
+// normalizeNotifySourceIDs trims, de-duplicates, and preserves source ID order.
+func normalizeNotifySourceIDs(ids []string) []string {
+	seen := make(map[string]struct{}, len(ids))
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		value := strings.TrimSpace(id)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+// parseUniqueNotifyMessageIDs returns distinct positive numeric message IDs.
+func parseUniqueNotifyMessageIDs(ids []capabilitynotifycap.MessageID) []int64 {
+	parsedIDs, _ := ParseInt64IDs(ids, nil)
+	return parsedIDs
+}
+
+// unixMilli converts nullable database timestamps into Unix milliseconds.
+func unixMilli(value *time.Time) int64 {
+	if value == nil {
+		return 0
+	}
+	return value.UnixMilli()
 }

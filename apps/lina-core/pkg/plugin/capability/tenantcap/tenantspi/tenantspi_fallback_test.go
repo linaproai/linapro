@@ -12,6 +12,7 @@ import (
 
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
@@ -161,6 +162,35 @@ func TestTenantPlatformBypassAllowsVisibilityWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestTenantCapabilityRejectsMultipleEnabledProviders(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	manager := NewManager()
+	enabled := map[string]bool{
+		"tenant-provider-conflict-a": true,
+		"tenant-provider-conflict-b": true,
+	}
+	for pluginID := range enabled {
+		pluginID := pluginID
+		if err := manager.RegisterFactory(pluginID, func(context.Context, ProviderEnv) (Provider, error) {
+			return nil, nil
+		}); err != nil {
+			t.Fatalf("register tenant provider %s: %v", pluginID, err)
+		}
+	}
+
+	svc := New(manager, tenantConflictRuntime{enabled: enabled}, nil)
+	_, err := svc.BatchGetTenants(ctx, []tenantcap.TenantID{tenantcap.PLATFORM})
+	if !bizerr.Is(err, capmodel.CodeCapabilityProviderConflict) {
+		t.Fatalf("expected provider conflict error, got %v", err)
+	}
+	status := svc.Status(ctx)
+	if status.Available || status.Reason != "provider_conflict" {
+		t.Fatalf("expected unavailable provider conflict status, got %#v", status)
+	}
+}
+
 type tenantFallbackBizCtx struct {
 	current bizctxcap.CurrentContext
 }
@@ -178,6 +208,18 @@ func (s tenantFallbackRuntime) IsProviderEnabled(_ context.Context, pluginID str
 }
 
 func (s tenantFallbackRuntime) TenantProviderEnv(pluginID string) ProviderEnv {
+	return ProviderEnv{PluginID: pluginID}
+}
+
+type tenantConflictRuntime struct {
+	enabled map[string]bool
+}
+
+func (s tenantConflictRuntime) IsProviderEnabled(_ context.Context, pluginID string) bool {
+	return s.enabled[pluginID]
+}
+
+func (s tenantConflictRuntime) TenantProviderEnv(pluginID string) ProviderEnv {
 	return ProviderEnv{PluginID: pluginID}
 }
 

@@ -16,6 +16,19 @@ const (
 	ProviderPluginID = "linapro-org-core"
 )
 
+const (
+	// MaxUserOrgProfileBatchSize is the maximum user count accepted by batch profile reads.
+	MaxUserOrgProfileBatchSize = 200
+	// MaxDeptTreeNodes is the maximum department node count returned through the ordinary tree contract.
+	MaxDeptTreeNodes = 500
+	// MaxDeptSearchPageSize is the maximum department candidate page size.
+	MaxDeptSearchPageSize = 200
+	// MaxPostOptionsPageSize is the maximum post candidate page size.
+	MaxPostOptionsPageSize = 200
+	// MaxVisibilityCheckSize is the maximum department or post identifiers checked in one call.
+	MaxVisibilityCheckSize = 200
+)
+
 // UserDeptAssignment describes one optional department projection for a user.
 type UserDeptAssignment struct {
 	// DeptID is the associated department identifier.
@@ -46,6 +59,72 @@ type PostOption struct {
 	PostName string
 }
 
+// UserOrgProfile describes one user's stable organization projection.
+type UserOrgProfile struct {
+	// UserID is the host user identifier this profile belongs to.
+	UserID int `json:"userId"`
+	// DeptID is the user's primary department identifier when assigned.
+	DeptID int `json:"deptId"`
+	// DeptName is the user's primary department display name when assigned.
+	DeptName string `json:"deptName"`
+	// PostIDs are visible post identifiers assigned to the user.
+	PostIDs []int `json:"postIds"`
+	// PostNames are visible post display names assigned to the user.
+	PostNames []string `json:"postNames"`
+}
+
+// DeptProjection describes one stable department candidate projection.
+type DeptProjection struct {
+	// DeptID is the department identifier.
+	DeptID int `json:"deptId"`
+	// ParentID is the parent department identifier.
+	ParentID int `json:"parentId"`
+	// DeptName is the department display name.
+	DeptName string `json:"deptName"`
+	// DeptCode is the stable department code.
+	DeptCode string `json:"deptCode"`
+	// Status is the provider-owned department status.
+	Status int `json:"status"`
+}
+
+// DeptTreeInput constrains ordinary department tree reads.
+type DeptTreeInput struct {
+	// MaxNodes caps the number of returned nodes; zero uses MaxDeptTreeNodes.
+	MaxNodes int `json:"maxNodes,omitempty"`
+}
+
+// DeptTreeResult contains one bounded department tree projection.
+type DeptTreeResult struct {
+	// Items contains root department nodes.
+	Items []*DeptTreeNode `json:"items"`
+	// Total is the number of nodes before any max-node truncation.
+	Total int `json:"total"`
+	// Truncated reports whether the node list was truncated by MaxNodes.
+	Truncated bool `json:"truncated"`
+}
+
+// DeptSearchInput describes bounded department candidate search.
+type DeptSearchInput struct {
+	// Keyword matches stable department name or code fields.
+	Keyword string `json:"keyword,omitempty"`
+	// Status optionally filters by provider-owned status.
+	Status *int `json:"status,omitempty"`
+	// Page constrains page number, page size and optional limit.
+	Page capmodel.PageRequest `json:"page"`
+}
+
+// PostOptionsInput describes bounded post candidate reads.
+type PostOptionsInput struct {
+	// DeptID optionally restricts posts to one department subtree.
+	DeptID *int `json:"deptId,omitempty"`
+	// Keyword matches stable post name or code fields.
+	Keyword string `json:"keyword,omitempty"`
+	// Status optionally filters by provider-owned status.
+	Status *int `json:"status,omitempty"`
+	// Page constrains page number, page size and optional limit.
+	Page capmodel.PageRequest `json:"page"`
+}
+
 // Service defines the optional organization capability consumed by host core
 // services and plugins without depending on a concrete provider implementation.
 //
@@ -63,6 +142,10 @@ type Service interface {
 	//
 	// ListUserDeptAssignments 批量返回用户部门归属投影，适用于列表、详情批量和导出等需要集合化装配部门信息的场景。
 	ListUserDeptAssignments(ctx context.Context, userIDs []int) (map[int]*UserDeptAssignment, error)
+	// BatchGetUserOrgProfiles returns stable organization profiles for visible users.
+	//
+	// BatchGetUserOrgProfiles 批量返回用户组织档案，适用于插件列表、详情批量和导出装配部门与岗位投影；provider 缺失时返回空档案。
+	BatchGetUserOrgProfiles(ctx context.Context, userIDs []int) (*capmodel.BatchResult[*UserOrgProfile, int], error)
 	// GetUserDeptInfo returns one user's department projection.
 	//
 	// GetUserDeptInfo 返回单个用户的部门标识和名称，适用于详情读取、会话补充和低频单用户查询场景。
@@ -79,4 +162,24 @@ type Service interface {
 	//
 	// GetUserPostIDs 返回单个用户关联岗位标识集合，适用于用户详情、编辑回显和组织关系读取场景。
 	GetUserPostIDs(ctx context.Context, userID int) ([]int, error)
+	// ListDeptTree returns a bounded department tree projection for ordinary plugins.
+	//
+	// ListDeptTree 返回有节点上限的部门树投影，适用于跨插件组织候选展示；provider 缺失时返回空树。
+	ListDeptTree(ctx context.Context, input DeptTreeInput) (*DeptTreeResult, error)
+	// SearchDepartments returns bounded department candidates.
+	//
+	// SearchDepartments 返回分页部门候选投影，适用于插件表单、筛选和关系选择；provider 缺失时返回空页。
+	SearchDepartments(ctx context.Context, input DeptSearchInput) (*capmodel.PageResult[*DeptProjection], error)
+	// ListPostOptionsPage returns bounded post candidates.
+	//
+	// ListPostOptionsPage 返回分页岗位候选投影，适用于插件表单、筛选和关系选择；provider 缺失时返回空页。
+	ListPostOptionsPage(ctx context.Context, input PostOptionsInput) (*capmodel.PageResult[*PostOption], error)
+	// EnsureDepartmentsVisible verifies every department identifier is visible to the caller.
+	//
+	// EnsureDepartmentsVisible 校验部门引用在当前租户和组织 provider 边界内可见，任一目标不可见时整体拒绝。
+	EnsureDepartmentsVisible(ctx context.Context, deptIDs []int) error
+	// EnsurePostsVisible verifies every post identifier is visible to the caller.
+	//
+	// EnsurePostsVisible 校验岗位引用在当前租户和组织 provider 边界内可见，任一目标不可见时整体拒绝。
+	EnsurePostsVisible(ctx context.Context, postIDs []int) error
 }

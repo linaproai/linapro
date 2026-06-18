@@ -144,6 +144,26 @@ func (s *cacheDomainTestService) Get(ctx context.Context, namespace string, key 
 	return cacheItemFromKV(item, key), found, err
 }
 
+// GetMany returns explicit cache items from the plugin-scoped cache key set.
+func (s *cacheDomainTestService) GetMany(ctx context.Context, in cachecap.GetManyInput) (*cachecap.GetManyOutput, error) {
+	output := &cachecap.GetManyOutput{
+		Items:       make(map[string]*cachecap.CacheItem, len(in.Keys)),
+		MissingKeys: []string{},
+	}
+	for _, key := range in.Keys {
+		item, found, err := s.Get(ctx, in.Namespace, key)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			output.MissingKeys = append(output.MissingKeys, key)
+			continue
+		}
+		output.Items[key] = item
+	}
+	return output, nil
+}
+
 // Set writes one cache item to the plugin-scoped cache key.
 func (s *cacheDomainTestService) Set(ctx context.Context, namespace string, key string, value string, ttl time.Duration) (*cachecap.CacheItem, error) {
 	cacheKey := s.cacheKey(ctx, namespace, key)
@@ -151,9 +171,32 @@ func (s *cacheDomainTestService) Set(ctx context.Context, namespace string, key 
 	return cacheItemFromKV(item, key), err
 }
 
+// SetMany writes explicit cache items to the plugin-scoped cache key set.
+func (s *cacheDomainTestService) SetMany(ctx context.Context, in cachecap.SetManyInput) (*cachecap.SetManyOutput, error) {
+	output := &cachecap.SetManyOutput{Items: make(map[string]*cachecap.CacheItem, len(in.Items))}
+	for _, item := range in.Items {
+		written, err := s.Set(ctx, in.Namespace, item.Key, item.Value, item.TTL)
+		if err != nil {
+			return nil, err
+		}
+		output.Items[item.Key] = written
+	}
+	return output, nil
+}
+
 // Delete removes one cache item from the plugin-scoped cache key.
 func (s *cacheDomainTestService) Delete(ctx context.Context, namespace string, key string) error {
 	return s.service.Delete(ctx, kvcache.OwnerTypePlugin, s.cacheKey(ctx, namespace, key))
+}
+
+// DeleteMany removes explicit cache items from the plugin-scoped cache key set.
+func (s *cacheDomainTestService) DeleteMany(ctx context.Context, in cachecap.DeleteManyInput) error {
+	for _, key := range in.Keys {
+		if err := s.Delete(ctx, in.Namespace, key); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Incr increments one integer cache item at the plugin-scoped cache key.
@@ -375,6 +418,63 @@ func TestHandleHostServiceInvokeCacheRejectsOversizedValue(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeCacheBatchMethods verifies cache multi-key
+// operations use the shared domain service and JSON envelopes.
+func TestHandleHostServiceInvokeCacheBatchMethods(t *testing.T) {
+	ctx := context.Background()
+	ensurePluginKVCacheTable(t, ctx)
+	configureCacheDomainServiceForTest(t, kvcache.New())
+
+	pluginID := "test-plugin-cache-batch"
+	namespace := "orders-cache-batch"
+	cleanupPluginCacheNamespace(t, ctx, pluginID, namespace)
+	t.Cleanup(func() {
+		cleanupPluginCacheNamespace(t, ctx, pluginID, namespace)
+	})
+	hcc := newCacheHostCallContext(pluginID, namespace)
+
+	setResponse := invokeCacheHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodCacheSetMany,
+		namespace,
+		protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: []byte(`{"items":[{"key":"profile","value":"enabled","expireSeconds":60},{"key":"theme","value":"dark"}]}`)}),
+	)
+	if setResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("set_many: expected success, got status=%d payload=%s", setResponse.Status, string(setResponse.Payload))
+	}
+
+	getResponse := invokeCacheHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodCacheGetMany,
+		namespace,
+		protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: []byte(`{"keys":["profile","missing"]}`)}),
+	)
+	if getResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("get_many: expected success, got status=%d payload=%s", getResponse.Status, string(getResponse.Payload))
+	}
+	payload, err := protocol.UnmarshalHostServiceCapabilityJSONResponse(getResponse.Payload)
+	if err != nil {
+		t.Fatalf("decode get_many JSON envelope: %v", err)
+	}
+	if !strings.Contains(string(payload.Value), `"profile"`) ||
+		!strings.Contains(string(payload.Value), `"missingKeys":["missing"]`) {
+		t.Fatalf("unexpected get_many JSON response: %s", string(payload.Value))
+	}
+
+	deleteResponse := invokeCacheHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodCacheDeleteMany,
+		namespace,
+		protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: []byte(`{"keys":["profile","theme"]}`)}),
+	)
+	if deleteResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("delete_many: expected success, got status=%d payload=%s", deleteResponse.Status, string(deleteResponse.Payload))
+	}
+}
+
 // TestHandleHostServiceInvokeCacheRejectsUnauthorizedNamespace verifies unauthorized namespaces are rejected.
 func TestHandleHostServiceInvokeCacheRejectsUnauthorizedNamespace(t *testing.T) {
 	hcc := newCacheHostCallContext("test-plugin-cache-denied", "orders-cache")
@@ -516,10 +616,13 @@ func newCacheHostCallContext(pluginID string, namespace string) *hostCallContext
 			Service: protocol.HostServiceCache,
 			Methods: []string{
 				protocol.HostServiceMethodCacheDelete,
+				protocol.HostServiceMethodCacheDeleteMany,
 				protocol.HostServiceMethodCacheExpire,
 				protocol.HostServiceMethodCacheGet,
+				protocol.HostServiceMethodCacheGetMany,
 				protocol.HostServiceMethodCacheIncr,
 				protocol.HostServiceMethodCacheSet,
+				protocol.HostServiceMethodCacheSetMany,
 			},
 			Resources: []*protocol.HostServiceResourceSpec{
 				{Ref: namespace},

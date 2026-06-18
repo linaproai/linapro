@@ -254,6 +254,18 @@ func (s *storageService) Delete(_ context.Context, in storagecap.DeleteInput) er
 	return err
 }
 
+// DeleteMany removes governed storage objects under explicit logical paths.
+func (s *storageService) DeleteMany(_ context.Context, in storagecap.DeleteManyInput) error {
+	return s.callHostServiceJSONRequest(
+		protocol.HostServiceStorage,
+		protocol.HostServiceMethodStorageDeleteBatch,
+		storageBatchResourceRef(in.Paths),
+		"",
+		storageBatchPathsRequest{Paths: in.Paths},
+		nil,
+	)
+}
+
 // List lists governed storage objects under one logical path prefix.
 func (s *storageService) List(_ context.Context, in storagecap.ListInput) (*storagecap.ListOutput, error) {
 	request := &protocol.HostServiceStorageListRequest{
@@ -287,6 +299,38 @@ func (s *storageService) List(_ context.Context, in storagecap.ListInput) (*stor
 	return output, nil
 }
 
+// ListCursor lists governed storage objects under one logical path prefix with cursor pagination.
+func (s *storageService) ListCursor(_ context.Context, in storagecap.ListCursorInput) (*storagecap.ListCursorOutput, error) {
+	response := &storageListCursorResponse{}
+	err := s.callHostServiceJSONRequest(
+		protocol.HostServiceStorage,
+		protocol.HostServiceMethodStorageListCursor,
+		in.Prefix,
+		"",
+		storageListCursorRequest{
+			Prefix: in.Prefix,
+			Cursor: in.Cursor,
+			Limit:  in.Limit,
+		},
+		response,
+	)
+	if err != nil {
+		return nil, err
+	}
+	output := &storagecap.ListCursorOutput{
+		Objects:    []*storagecap.Object{},
+		NextCursor: response.NextCursor,
+		Limit:      response.Limit,
+	}
+	if output.Limit <= 0 {
+		output.Limit = storageListEffectiveLimit(in.Limit)
+	}
+	for _, object := range response.Objects {
+		output.Objects = append(output.Objects, storageObjectFromWire(object))
+	}
+	return output, nil
+}
+
 // Stat reads metadata for one governed storage object under the given logical path.
 func (s *storageService) Stat(_ context.Context, in storagecap.StatInput) (*storagecap.StatOutput, error) {
 	request := &protocol.HostServiceStorageStatRequest{Path: in.Path}
@@ -308,6 +352,30 @@ func (s *storageService) Stat(_ context.Context, in storagecap.StatInput) (*stor
 		return &storagecap.StatOutput{Found: false}, nil
 	}
 	return &storagecap.StatOutput{Object: storageObjectFromWire(response.Object), Found: true}, nil
+}
+
+// BatchStat reads governed storage metadata for explicit logical paths.
+func (s *storageService) BatchStat(_ context.Context, in storagecap.BatchStatInput) (*storagecap.BatchStatOutput, error) {
+	response := &storageBatchStatResponse{}
+	err := s.callHostServiceJSONRequest(
+		protocol.HostServiceStorage,
+		protocol.HostServiceMethodStorageStatBatch,
+		storageBatchResourceRef(in.Paths),
+		"",
+		storageBatchPathsRequest{Paths: in.Paths},
+		response,
+	)
+	if err != nil {
+		return nil, err
+	}
+	output := &storagecap.BatchStatOutput{
+		Objects:      []*storagecap.Object{},
+		MissingPaths: append([]string(nil), response.MissingPaths...),
+	}
+	for _, object := range response.Objects {
+		output.Objects = append(output.Objects, storageObjectFromWire(object))
+	}
+	return output, nil
 }
 
 // ProviderStatuses is not exposed through the dynamic storage host-service
@@ -339,6 +407,10 @@ func storageListEffectiveLimit(limit int) int {
 	return limit
 }
 
+func storageBatchResourceRef(paths []string) string {
+	return batchResourceRef(paths)
+}
+
 func parseWireTime(value string) *time.Time {
 	if value == "" {
 		return nil
@@ -348,4 +420,25 @@ func parseWireTime(value string) *time.Time {
 		return nil
 	}
 	return &parsed
+}
+
+type storageBatchPathsRequest struct {
+	Paths []string `json:"paths"`
+}
+
+type storageBatchStatResponse struct {
+	Objects      []*protocol.HostServiceStorageObject `json:"objects"`
+	MissingPaths []string                             `json:"missingPaths,omitempty"`
+}
+
+type storageListCursorRequest struct {
+	Prefix string `json:"prefix"`
+	Cursor string `json:"cursor,omitempty"`
+	Limit  int    `json:"limit,omitempty"`
+}
+
+type storageListCursorResponse struct {
+	Objects    []*protocol.HostServiceStorageObject `json:"objects"`
+	NextCursor string                               `json:"nextCursor,omitempty"`
+	Limit      int                                  `json:"limit,omitempty"`
 }

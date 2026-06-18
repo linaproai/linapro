@@ -10,6 +10,7 @@ import (
 
 	"github.com/gogf/gf/v2/database/gdb"
 
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/orgcap"
 )
@@ -195,6 +196,121 @@ func (s *serviceImpl) GetUserPostIDs(ctx context.Context, userID int) ([]int, er
 	return provider.GetUserPostIDs(ctx, userID)
 }
 
+// BatchGetUserOrgProfiles returns stable organization profiles for provided users.
+func (s *serviceImpl) BatchGetUserOrgProfiles(
+	ctx context.Context,
+	userIDs []int,
+) (*capmodel.BatchResult[*orgcap.UserOrgProfile, int], error) {
+	result := &capmodel.BatchResult[*orgcap.UserOrgProfile, int]{
+		Items:      make(map[int]*orgcap.UserOrgProfile),
+		MissingIDs: make([]int, 0),
+	}
+	normalized := normalizePositiveIDs(userIDs, orgcap.MaxUserOrgProfileBatchSize)
+	if len(normalized) == 0 {
+		return result, nil
+	}
+	if len(userIDs) > orgcap.MaxUserOrgProfileBatchSize {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", orgcap.MaxUserOrgProfileBatchSize))
+	}
+	provider, err := s.currentProvider(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if provider == nil {
+		for _, userID := range normalized {
+			result.Items[userID] = &orgcap.UserOrgProfile{UserID: userID}
+		}
+		return result, nil
+	}
+	return provider.BatchGetUserOrgProfiles(ctx, normalized)
+}
+
+// ListDeptTree returns a bounded ordinary department tree projection.
+func (s *serviceImpl) ListDeptTree(ctx context.Context, input orgcap.DeptTreeInput) (*orgcap.DeptTreeResult, error) {
+	maxNodes := input.MaxNodes
+	if maxNodes <= 0 || maxNodes > orgcap.MaxDeptTreeNodes {
+		maxNodes = orgcap.MaxDeptTreeNodes
+	}
+	provider, err := s.currentProvider(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if provider == nil {
+		return &orgcap.DeptTreeResult{Items: []*orgcap.DeptTreeNode{}}, nil
+	}
+	return provider.ListDeptTree(ctx, orgcap.DeptTreeInput{MaxNodes: maxNodes})
+}
+
+// SearchDepartments returns bounded department candidates.
+func (s *serviceImpl) SearchDepartments(
+	ctx context.Context,
+	input orgcap.DeptSearchInput,
+) (*capmodel.PageResult[*orgcap.DeptProjection], error) {
+	provider, err := s.currentProvider(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if provider == nil {
+		return &capmodel.PageResult[*orgcap.DeptProjection]{Items: []*orgcap.DeptProjection{}}, nil
+	}
+	input.Page = normalizePage(input.Page, orgcap.MaxDeptSearchPageSize)
+	return provider.SearchDepartments(ctx, input)
+}
+
+// ListPostOptionsPage returns bounded post candidates.
+func (s *serviceImpl) ListPostOptionsPage(
+	ctx context.Context,
+	input orgcap.PostOptionsInput,
+) (*capmodel.PageResult[*orgcap.PostOption], error) {
+	provider, err := s.currentProvider(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if provider == nil {
+		return &capmodel.PageResult[*orgcap.PostOption]{Items: []*orgcap.PostOption{}}, nil
+	}
+	input.Page = normalizePage(input.Page, orgcap.MaxPostOptionsPageSize)
+	return provider.ListPostOptionsPage(ctx, input)
+}
+
+// EnsureDepartmentsVisible verifies all department identifiers are visible.
+func (s *serviceImpl) EnsureDepartmentsVisible(ctx context.Context, deptIDs []int) error {
+	normalized := normalizePositiveIDs(deptIDs, orgcap.MaxVisibilityCheckSize)
+	if len(deptIDs) > orgcap.MaxVisibilityCheckSize {
+		return bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", orgcap.MaxVisibilityCheckSize))
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	provider, err := s.currentProvider(ctx)
+	if err != nil {
+		return err
+	}
+	if provider == nil {
+		return bizerr.NewCode(capmodel.CodeCapabilityUnavailable, bizerr.P("capability", orgcap.CapabilityOrgV1))
+	}
+	return provider.EnsureDepartmentsVisible(ctx, normalized)
+}
+
+// EnsurePostsVisible verifies all post identifiers are visible.
+func (s *serviceImpl) EnsurePostsVisible(ctx context.Context, postIDs []int) error {
+	normalized := normalizePositiveIDs(postIDs, orgcap.MaxVisibilityCheckSize)
+	if len(postIDs) > orgcap.MaxVisibilityCheckSize {
+		return bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", orgcap.MaxVisibilityCheckSize))
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	provider, err := s.currentProvider(ctx)
+	if err != nil {
+		return err
+	}
+	if provider == nil {
+		return bizerr.NewCode(capmodel.CodeCapabilityUnavailable, bizerr.P("capability", orgcap.CapabilityOrgV1))
+	}
+	return provider.EnsurePostsVisible(ctx, normalized)
+}
+
 // ReplaceUserAssignments rewrites one user's department and post associations.
 func (s *serviceImpl) ReplaceUserAssignments(ctx context.Context, userID int, deptID *int, postIDs []int) error {
 	provider, err := s.currentProvider(ctx)
@@ -241,4 +357,46 @@ func (s *serviceImpl) ListPostOptions(ctx context.Context, deptID *int) ([]*orgc
 		return []*orgcap.PostOption{}, nil
 	}
 	return provider.ListPostOptions(ctx, deptID)
+}
+
+// normalizePage applies conservative defaults with a method-specific maximum.
+func normalizePage(page capmodel.PageRequest, maxPageSize int) capmodel.PageRequest {
+	if page.PageNum <= 0 {
+		page.PageNum = 1
+	}
+	pageSize := page.PageSize
+	if pageSize <= 0 {
+		pageSize = page.Limit
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if maxPageSize > 0 && pageSize > maxPageSize {
+		pageSize = maxPageSize
+	}
+	page.PageSize = pageSize
+	return page
+}
+
+// normalizePositiveIDs removes invalid and duplicate positive integer identifiers.
+func normalizePositiveIDs(ids []int, limit int) []int {
+	if len(ids) == 0 {
+		return nil
+	}
+	result := make([]int, 0, len(ids))
+	seen := make(map[int]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+		if limit > 0 && len(result) >= limit {
+			break
+		}
+	}
+	return result
 }

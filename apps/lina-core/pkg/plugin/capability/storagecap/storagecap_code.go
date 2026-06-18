@@ -51,6 +51,12 @@ var (
 		"Plugin storage provider is unavailable",
 		gcode.CodeInvalidOperation,
 	)
+	// CodeStorageProviderConflict reports that multiple provider plugins can serve requests.
+	CodeStorageProviderConflict = bizerr.MustDefine(
+		"PLUGIN_STORAGE_PROVIDER_CONFLICT",
+		"Multiple plugin storage providers are available: {providerIds}",
+		gcode.CodeInvalidOperation,
+	)
 	// CodeStorageProviderAlreadyRegistered reports duplicate provider registration.
 	CodeStorageProviderAlreadyRegistered = bizerr.MustDefine(
 		"PLUGIN_STORAGE_PROVIDER_ALREADY_REGISTERED",

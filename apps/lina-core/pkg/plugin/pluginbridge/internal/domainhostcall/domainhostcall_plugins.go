@@ -43,10 +43,31 @@ func (s pluginRegistryService) BatchGet(_ context.Context, _ capmodel.Capability
 	return out, err
 }
 
+// Current returns the projection for the current caller plugin.
+func (s pluginRegistryService) Current(_ context.Context, _ capmodel.CapabilityContext) (*plugincap.Projection, error) {
+	out := &plugincap.Projection{}
+	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsCurrent, nil, out)
+	return out, err
+}
+
+// Search returns bounded plugin governance projections.
+func (s pluginRegistryService) Search(_ context.Context, _ capmodel.CapabilityContext, input plugincap.SearchInput) (*capmodel.PageResult[*plugincap.Projection], error) {
+	out := &capmodel.PageResult[*plugincap.Projection]{Items: []*plugincap.Projection{}}
+	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsSearch, input, out)
+	return out, err
+}
+
 // ListTenantPlugins returns tenant-controllable plugins with tenant enablement.
-func (s pluginRegistryService) ListTenantPlugins(_ context.Context, _ capmodel.CapabilityContext) (*capmodel.PageResult[*plugincap.TenantProjection], error) {
+func (s pluginRegistryService) ListTenantPlugins(_ context.Context, _ capmodel.CapabilityContext, input plugincap.TenantListInput) (*capmodel.PageResult[*plugincap.TenantProjection], error) {
 	out := &capmodel.PageResult[*plugincap.TenantProjection]{Items: []*plugincap.TenantProjection{}}
-	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsListTenant, nil, out)
+	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsListTenant, input, out)
+	return out, err
+}
+
+// BatchGetCapabilityStatus returns framework capability status projections by stable key.
+func (s pluginRegistryService) BatchGetCapabilityStatus(_ context.Context, _ capmodel.CapabilityContext, keys []plugincap.CapabilityKey) (*capmodel.BatchResult[*capmodel.CapabilityStatus, plugincap.CapabilityKey], error) {
+	out := &capmodel.BatchResult[*capmodel.CapabilityStatus, plugincap.CapabilityKey]{Items: map[plugincap.CapabilityKey]*capmodel.CapabilityStatus{}}
+	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsBatchGetCapabilityStatus, capabilityKeysRequest{Keys: capabilityKeysToStrings(keys)}, out)
 	return out, err
 }
 
@@ -137,11 +158,25 @@ type tenantLifecycleRequest struct {
 	TenantID int `json:"tenantId"`
 }
 
+// capabilityKeysRequest carries framework capability status keys.
+type capabilityKeysRequest struct {
+	Keys []string `json:"keys"`
+}
+
 // pluginIDsToStrings converts plugin IDs to transport strings.
 func pluginIDsToStrings(ids []plugincap.PluginID) []string {
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
 		out = append(out, string(id))
+	}
+	return out
+}
+
+// capabilityKeysToStrings converts capability keys to transport strings.
+func capabilityKeysToStrings(keys []plugincap.CapabilityKey) []string {
+	out := make([]string, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, string(key))
 	}
 	return out
 }

@@ -45,11 +45,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_plugin_state_plugin_tenant_key ON sys_p
 // get/set/delete calls persist and remove plugin-scoped values correctly.
 func TestHandleHostServiceInvokeRuntimeStateLifecycle(t *testing.T) {
 	ctx := context.Background()
-	for _, statement := range dialect.SplitSQLStatements(createPluginStateTableSQL) {
-		if _, err := g.DB().Exec(ctx, statement); err != nil {
-			t.Fatalf("expected plugin state table to be created, got error: %v\nSQL:\n%s", err, statement)
-		}
-	}
+	ensureRuntimeStateTable(t, ctx)
 
 	hcc := &hostCallContext{
 		pluginID: "test-plugin-runtime-state",
@@ -195,6 +191,94 @@ func TestHandleHostServiceInvokeRuntimeInfoNowAndNode(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeRuntimeStateBatchLifecycle verifies runtime state
+// batch methods persist, read, and delete plugin-scoped values.
+func TestHandleHostServiceInvokeRuntimeStateBatchLifecycle(t *testing.T) {
+	ctx := context.Background()
+	ensureRuntimeStateTable(t, ctx)
+
+	hcc := &hostCallContext{
+		pluginID: "test-plugin-runtime-state-batch",
+		capabilities: map[string]struct{}{
+			protocol.CapabilityRuntime: {},
+		},
+		hostServices: []*protocol.HostServiceSpec{
+			{
+				Service: protocol.HostServiceRuntime,
+				Methods: []string{
+					protocol.HostServiceMethodRuntimeStateGetMany,
+					protocol.HostServiceMethodRuntimeStateSetMany,
+					protocol.HostServiceMethodRuntimeStateDeleteMany,
+				},
+			},
+		},
+	}
+	for _, key := range []string{"one", "two", "missing"} {
+		cleanupRuntimeStateKey(t, ctx, hcc.pluginID, key)
+	}
+	t.Cleanup(func() {
+		for _, key := range []string{"one", "two", "missing"} {
+			cleanupRuntimeStateKey(t, ctx, hcc.pluginID, key)
+		}
+	})
+
+	setResponse := invokeRuntimeHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodRuntimeStateSetMany,
+		marshalCapabilityJSONRequest(t, runtimeStateSetManyRequest{Values: map[string]string{
+			"one": "1",
+			"two": "2",
+		}}),
+	)
+	if setResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("state.set_many: expected success, got status=%d payload=%s", setResponse.Status, string(setResponse.Payload))
+	}
+
+	getResponse := invokeRuntimeHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodRuntimeStateGetMany,
+		marshalCapabilityJSONRequest(t, runtimeStateGetManyRequest{Keys: []string{"one", "two", "missing"}}),
+	)
+	if getResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("state.get_many: expected success, got status=%d payload=%s", getResponse.Status, string(getResponse.Payload))
+	}
+	var getPayload runtimeStateGetManyResponse
+	decodeCapabilityJSONResponse(t, getResponse.Payload, &getPayload)
+	if getPayload.Values["one"] != "1" || getPayload.Values["two"] != "2" {
+		t.Fatalf("unexpected state.get_many values: %#v", getPayload.Values)
+	}
+	if len(getPayload.MissingKeys) != 1 || getPayload.MissingKeys[0] != "missing" {
+		t.Fatalf("unexpected missing keys: %#v", getPayload.MissingKeys)
+	}
+
+	deleteResponse := invokeRuntimeHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodRuntimeStateDeleteMany,
+		marshalCapabilityJSONRequest(t, runtimeStateDeleteManyRequest{Keys: []string{"one", "missing"}}),
+	)
+	if deleteResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("state.delete_many: expected success, got status=%d payload=%s", deleteResponse.Status, string(deleteResponse.Payload))
+	}
+
+	getAfterDelete := invokeRuntimeHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodRuntimeStateGetMany,
+		marshalCapabilityJSONRequest(t, runtimeStateGetManyRequest{Keys: []string{"one", "two"}}),
+	)
+	if getAfterDelete.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("state.get_many after delete: expected success, got status=%d payload=%s", getAfterDelete.Status, string(getAfterDelete.Payload))
+	}
+	var afterDelete runtimeStateGetManyResponse
+	decodeCapabilityJSONResponse(t, getAfterDelete.Payload, &afterDelete)
+	if _, exists := afterDelete.Values["one"]; exists || afterDelete.Values["two"] != "2" {
+		t.Fatalf("unexpected values after delete: %#v", afterDelete.Values)
+	}
+}
+
 // invokeRuntimeHostService dispatches one runtime host-service request and
 // returns the raw response envelope for assertions.
 func invokeRuntimeHostService(
@@ -211,6 +295,15 @@ func invokeRuntimeHostService(
 		Payload: payload,
 	}
 	return handleHostServiceInvoke(context.Background(), withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(request))
+}
+
+func ensureRuntimeStateTable(t *testing.T, ctx context.Context) {
+	t.Helper()
+	for _, statement := range dialect.SplitSQLStatements(createPluginStateTableSQL) {
+		if _, err := g.DB().Exec(ctx, statement); err != nil {
+			t.Fatalf("expected plugin state table to be created, got error: %v\nSQL:\n%s", err, statement)
+		}
+	}
 }
 
 // cleanupRuntimeStateKey deletes one plugin runtime state row so lifecycle
@@ -343,6 +436,12 @@ func (f noopTestManifestFactory) WithArtifactResources(string, map[string][]byte
 type noopTestManifestService struct{}
 
 func (noopTestManifestService) Get(context.Context, string) ([]byte, error) { return nil, nil }
+func (noopTestManifestService) GetMany(context.Context, manifestcap.GetManyInput) (*manifestcap.GetManyOutput, error) {
+	return &manifestcap.GetManyOutput{}, nil
+}
+func (noopTestManifestService) List(context.Context, manifestcap.ListInput) (*manifestcap.ListOutput, error) {
+	return &manifestcap.ListOutput{}, nil
+}
 func (noopTestManifestService) Exists(context.Context, string) (bool, error) {
 	return false, nil
 }

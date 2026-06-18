@@ -710,6 +710,15 @@ func (testAuthzService) BatchGetPermissions(_ context.Context, _ capmodel.Capabi
 	return result, nil
 }
 
+// BatchHasPermissions reports false for all permissions in registration-only tests.
+func (testAuthzService) BatchHasPermissions(_ context.Context, _ capmodel.CapabilityContext, keys []capabilityauthz.PermissionKey) (map[capabilityauthz.PermissionKey]bool, error) {
+	result := make(map[capabilityauthz.PermissionKey]bool, len(keys))
+	for _, key := range keys {
+		result[key] = false
+	}
+	return result, nil
+}
+
 // HasPermission reports false because registration-only tests never authorize requests.
 func (testAuthzService) HasPermission(context.Context, capmodel.CapabilityContext, capabilityauthz.PermissionKey) (bool, error) {
 	return false, nil
@@ -728,13 +737,35 @@ func (testCacheService) Get(context.Context, string, string) (*cachecap.CacheIte
 	return nil, false, nil
 }
 
+// GetMany reports all cache keys as missing.
+func (testCacheService) GetMany(_ context.Context, in cachecap.GetManyInput) (*cachecap.GetManyOutput, error) {
+	return &cachecap.GetManyOutput{
+		Items:       map[string]*cachecap.CacheItem{},
+		MissingKeys: append([]string(nil), in.Keys...),
+	}, nil
+}
+
 // Set returns the stored projection without mutating shared cache state.
 func (testCacheService) Set(_ context.Context, namespace string, key string, value string, _ time.Duration) (*cachecap.CacheItem, error) {
 	return &cachecap.CacheItem{Key: namespace + ":" + key, ValueKind: cachecap.CacheValueKindString, Value: value}, nil
 }
 
+// SetMany returns stored projections without mutating shared cache state.
+func (testCacheService) SetMany(_ context.Context, in cachecap.SetManyInput) (*cachecap.SetManyOutput, error) {
+	output := &cachecap.SetManyOutput{Items: map[string]*cachecap.CacheItem{}}
+	for _, item := range in.Items {
+		output.Items[item.Key] = &cachecap.CacheItem{Key: in.Namespace + ":" + item.Key, ValueKind: cachecap.CacheValueKindString, Value: item.Value}
+	}
+	return output, nil
+}
+
 // Delete accepts cache deletion without touching shared state.
 func (testCacheService) Delete(context.Context, string, string) error {
+	return nil
+}
+
+// DeleteMany accepts cache deletion without touching shared state.
+func (testCacheService) DeleteMany(context.Context, cachecap.DeleteManyInput) error {
 	return nil
 }
 
@@ -824,6 +855,16 @@ func (s *testStorageService) Delete(_ context.Context, in storagecap.DeleteInput
 	return nil
 }
 
+// DeleteMany removes explicit objects from memory.
+func (s *testStorageService) DeleteMany(ctx context.Context, in storagecap.DeleteManyInput) error {
+	for _, path := range in.Paths {
+		if err := s.Delete(ctx, storagecap.DeleteInput{Path: path}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // List returns a bounded in-memory object list.
 func (s *testStorageService) List(_ context.Context, in storagecap.ListInput) (*storagecap.ListOutput, error) {
 	s.mu.Lock()
@@ -854,6 +895,45 @@ func (s *testStorageService) List(_ context.Context, in storagecap.ListInput) (*
 	return &storagecap.ListOutput{Objects: objects, Limit: limit}, nil
 }
 
+// ListCursor returns a bounded in-memory object list with cursor pagination.
+func (s *testStorageService) ListCursor(_ context.Context, in storagecap.ListCursorInput) (*storagecap.ListCursorOutput, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureObjects()
+	limit := in.Limit
+	if limit <= 0 {
+		limit = storagecap.DefaultListLimit
+	}
+	if limit > storagecap.MaxListLimit {
+		limit = storagecap.MaxListLimit
+	}
+	prefix := strings.TrimSuffix(strings.TrimSpace(in.Prefix), "/")
+	keys := make([]string, 0, len(s.objects))
+	for key := range s.objects {
+		if key == prefix || strings.HasPrefix(key, prefix+"/") {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	cursor := strings.TrimSpace(in.Cursor)
+	filtered := keys[:0]
+	for _, key := range keys {
+		if cursor == "" || key > cursor {
+			filtered = append(filtered, key)
+		}
+	}
+	nextCursor := ""
+	if len(filtered) > limit {
+		nextCursor = filtered[limit-1]
+		filtered = filtered[:limit]
+	}
+	objects := make([]*storagecap.Object, 0, len(filtered))
+	for _, key := range filtered {
+		objects = append(objects, s.objectLocked(key))
+	}
+	return &storagecap.ListCursorOutput{Objects: objects, NextCursor: nextCursor, Limit: limit}, nil
+}
+
 // Stat reads one in-memory object metadata snapshot.
 func (s *testStorageService) Stat(_ context.Context, in storagecap.StatInput) (*storagecap.StatOutput, error) {
 	s.mu.Lock()
@@ -863,6 +943,22 @@ func (s *testStorageService) Stat(_ context.Context, in storagecap.StatInput) (*
 		return &storagecap.StatOutput{Found: false}, nil
 	}
 	return &storagecap.StatOutput{Object: s.objectLocked(in.Path), Found: true}, nil
+}
+
+// BatchStat reads in-memory object metadata for explicit paths.
+func (s *testStorageService) BatchStat(_ context.Context, in storagecap.BatchStatInput) (*storagecap.BatchStatOutput, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureObjects()
+	output := &storagecap.BatchStatOutput{Objects: []*storagecap.Object{}}
+	for _, path := range in.Paths {
+		if _, ok := s.objects[path]; !ok {
+			output.MissingPaths = append(output.MissingPaths, path)
+			continue
+		}
+		output.Objects = append(output.Objects, s.objectLocked(path))
+	}
+	return output, nil
 }
 
 // ProviderStatuses returns no provider diagnostics for registration-only tests.
@@ -912,6 +1008,16 @@ func (testDictService) ResolveLabels(_ context.Context, _ capmodel.CapabilityCon
 	return result, nil
 }
 
+// ListValues returns an empty dictionary page for registration-only tests.
+func (testDictService) ListValues(context.Context, capmodel.CapabilityContext, capabilitydictcap.ListValuesInput) (*capmodel.PageResult[*capabilitydictcap.LabelProjection], error) {
+	return &capmodel.PageResult[*capabilitydictcap.LabelProjection]{Items: []*capabilitydictcap.LabelProjection{}}, nil
+}
+
+// EnsureValuesVisible accepts values because registration-only tests never persist dictionary data.
+func (testDictService) EnsureValuesVisible(context.Context, capmodel.CapabilityContext, capabilitydictcap.ResolveInput) error {
+	return nil
+}
+
 // testTenantFilterService is a no-op tenant filter for registration-only tests.
 type testTenantFilterService struct{}
 
@@ -936,9 +1042,31 @@ func (testPluginsService) BatchGet(_ context.Context, _ capmodel.CapabilityConte
 	}, nil
 }
 
+// Current returns no current plugin projection for registration-only tests.
+func (testPluginsService) Current(context.Context, capmodel.CapabilityContext) (*capabilityplugincap.Projection, error) {
+	return nil, nil
+}
+
+// Search returns an empty plugin-governance page for registration-only tests.
+func (testPluginsService) Search(context.Context, capmodel.CapabilityContext, capabilityplugincap.SearchInput) (*capmodel.PageResult[*capabilityplugincap.Projection], error) {
+	return &capmodel.PageResult[*capabilityplugincap.Projection]{Items: []*capabilityplugincap.Projection{}}, nil
+}
+
 // ListTenantPlugins returns an empty page for registration-only tests.
-func (testPluginsService) ListTenantPlugins(context.Context, capmodel.CapabilityContext) (*capmodel.PageResult[*capabilityplugincap.TenantProjection], error) {
+func (testPluginsService) ListTenantPlugins(context.Context, capmodel.CapabilityContext, capabilityplugincap.TenantListInput) (*capmodel.PageResult[*capabilityplugincap.TenantProjection], error) {
 	return &capmodel.PageResult[*capabilityplugincap.TenantProjection]{Items: []*capabilityplugincap.TenantProjection{}}, nil
+}
+
+// BatchGetCapabilityStatus returns all requested capability keys as unavailable.
+func (testPluginsService) BatchGetCapabilityStatus(_ context.Context, _ capmodel.CapabilityContext, keys []capabilityplugincap.CapabilityKey) (*capmodel.BatchResult[*capmodel.CapabilityStatus, capabilityplugincap.CapabilityKey], error) {
+	result := &capmodel.BatchResult[*capmodel.CapabilityStatus, capabilityplugincap.CapabilityKey]{
+		Items:      make(map[capabilityplugincap.CapabilityKey]*capmodel.CapabilityStatus, len(keys)),
+		MissingIDs: []capabilityplugincap.CapabilityKey{},
+	}
+	for _, key := range keys {
+		result.Items[key] = &capmodel.CapabilityStatus{Available: false, Reason: "test_no_provider"}
+	}
+	return result, nil
 }
 
 // Config returns a blank plugin configuration reader for registration-only tests.
@@ -1046,12 +1174,35 @@ func (testAdminServices) Infra() capabilityinfracap.AdminService { return testNo
 // testUsersService is an empty user-domain fixture for registration-only tests.
 type testUsersService struct{}
 
+// Current returns no user because registration-only tests never authenticate.
+func (testUsersService) Current(context.Context, capmodel.CapabilityContext) (*capabilityusercap.UserProjection, error) {
+	return nil, nil
+}
+
 // BatchGet returns all requested user IDs as opaque missing records.
 func (testUsersService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
 	return &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID]{
 		Items:      map[capabilityusercap.UserID]*capabilityusercap.UserProjection{},
 		MissingIDs: append([]capabilityusercap.UserID(nil), ids...),
 	}, nil
+}
+
+// BatchResolve returns all requested user identifiers as opaque missing records.
+func (testUsersService) BatchResolve(_ context.Context, _ capmodel.CapabilityContext, input capabilityusercap.BatchResolveInput) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.ResolveKey], error) {
+	result := &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.ResolveKey]{
+		Items:      map[capabilityusercap.ResolveKey]*capabilityusercap.UserProjection{},
+		MissingIDs: []capabilityusercap.ResolveKey{},
+	}
+	for _, id := range input.IDs {
+		result.MissingIDs = append(result.MissingIDs, capabilityusercap.ResolveKey("id:"+string(id)))
+	}
+	for _, username := range input.Usernames {
+		result.MissingIDs = append(result.MissingIDs, capabilityusercap.ResolveKey("username:"+username))
+	}
+	for _, contact := range input.Contacts {
+		result.MissingIDs = append(result.MissingIDs, capabilityusercap.ResolveKey("contact:"+contact))
+	}
+	return result, nil
 }
 
 // Search returns an empty page because registration-only tests never query users.

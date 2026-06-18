@@ -7,6 +7,13 @@ import (
 	"lina-core/pkg/plugin/capability/capmodel"
 )
 
+const (
+	// MaxEnsureValuesVisible limits one dictionary value visibility check.
+	MaxEnsureValuesVisible = 200
+	// MaxListValuesPageSize limits one dictionary candidate page.
+	MaxListValuesPageSize = 200
+)
+
 // Type identifies one dictionary type.
 type Type string
 
@@ -35,10 +42,26 @@ type ResolveInput struct {
 	IncludeLabel bool
 }
 
+// ListValuesInput constrains dictionary value candidate listing.
+type ListValuesInput struct {
+	// Type is the dictionary type to list.
+	Type Type
+	// Status optionally filters dictionary data by lifecycle status.
+	Status *int
+	// IncludeLabel asks the domain to resolve labels in the current locale.
+	IncludeLabel bool
+	// Page constrains candidate size and sorting.
+	Page capmodel.PageRequest
+}
+
 // Service defines read-oriented dictionary capability methods.
 type Service interface {
 	// ResolveLabels resolves visible dictionary labels with opaque missing values.
 	ResolveLabels(ctx context.Context, capCtx capmodel.CapabilityContext, input ResolveInput) (*capmodel.BatchResult[*LabelProjection, Value], error)
+	// ListValues returns one bounded page of visible dictionary value candidates.
+	ListValues(ctx context.Context, capCtx capmodel.CapabilityContext, input ListValuesInput) (*capmodel.PageResult[*LabelProjection], error)
+	// EnsureValuesVisible rejects when any requested dictionary value is absent or invisible.
+	EnsureValuesVisible(ctx context.Context, capCtx capmodel.CapabilityContext, input ResolveInput) error
 }
 
 // AdminService defines dictionary management commands.

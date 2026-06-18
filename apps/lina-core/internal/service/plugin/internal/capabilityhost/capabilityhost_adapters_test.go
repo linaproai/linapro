@@ -313,7 +313,7 @@ func TestNewWiresCompleteAdminDirectory(t *testing.T) {
 		kvcache.New(),
 		lockSvc,
 		nil,
-		NewLocalStorageProvider(t.TempDir(), false, false),
+		NewLocalStorageProvider(t.TempDir()),
 	)
 	if err != nil {
 		t.Fatalf("create host services: %v", err)

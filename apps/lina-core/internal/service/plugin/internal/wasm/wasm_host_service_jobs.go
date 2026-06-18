@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/jobcap"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
@@ -34,16 +35,40 @@ func dispatchJobsHostService(
 	if service == nil {
 		return domainServiceNotScoped("jobs")
 	}
-	if method != bridgehostservice.HostServiceMethodJobsBatchGet {
+	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceJobs, method)
+	switch method {
+	case bridgehostservice.HostServiceMethodJobsBatchGet:
+		var request idsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.BatchGet(ctx, capCtx, jobIDs(request.IDs))
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodJobsSearch:
+		var request jobsSearchRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.Search(ctx, capCtx, jobcap.SearchInput{
+			Keyword: strings.TrimSpace(request.Keyword),
+			Group:   strings.TrimSpace(request.Group),
+			Status:  strings.TrimSpace(request.Status),
+			Page: capmodel.PageRequest{
+				PageNum:  request.PageNum,
+				PageSize: request.PageSize,
+			},
+		})
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodJobsEnsureVisible:
+		var request idsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.EnsureVisible(ctx, capCtx, jobIDs(request.IDs))
+		return domainCapabilityResult(true, err)
+	default:
 		return domainMethodNotFound("jobs", method)
 	}
-	var request idsRequest
-	if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
-		return invalidCapabilityRequest(err)
-	}
-	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceJobs, method)
-	result, err := service.BatchGet(ctx, capCtx, jobIDs(request.IDs))
-	return domainCapabilityResult(result, err)
 }
 
 // handleHostJobsRegister validates one dynamic-plugin Jobs declaration request
@@ -103,4 +128,13 @@ func jobIDs(ids []string) []jobcap.JobID {
 		}
 	}
 	return out
+}
+
+// jobsSearchRequest carries governed scheduled-job search parameters.
+type jobsSearchRequest struct {
+	Keyword  string `json:"keyword,omitempty"`
+	Group    string `json:"group,omitempty"`
+	Status   string `json:"status,omitempty"`
+	PageNum  int    `json:"pageNum,omitempty"`
+	PageSize int    `json:"pageSize,omitempty"`
 }

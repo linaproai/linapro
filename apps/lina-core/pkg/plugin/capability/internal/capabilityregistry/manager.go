@@ -9,6 +9,9 @@ import (
 	"sync"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+
+	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/capmodel"
 )
 
 const (
@@ -129,7 +132,11 @@ func (m *Manager[Env]) ActiveProviderWithError(
 		return nil, nil
 	}
 	if len(enabledIDs) > 1 {
-		return nil, gerror.Newf("multiple capability providers enabled: capability=%s providers=%s", capabilityID, strings.Join(enabledIDs, ","))
+		return nil, bizerr.NewCode(
+			capmodel.CodeCapabilityProviderConflict,
+			bizerr.P("capability", capabilityID),
+			bizerr.P("providerIds", strings.Join(enabledIDs, ",")),
+		)
 	}
 	return m.providerForPlugin(ctx, capabilityID, enabledIDs[0], envFactory)
 }

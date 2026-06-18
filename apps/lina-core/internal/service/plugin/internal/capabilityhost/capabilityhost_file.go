@@ -4,6 +4,8 @@ package capabilityhost
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"lina-core/internal/dao"
 	"lina-core/pkg/bizerr"
@@ -87,6 +89,70 @@ func (a *fileCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.Capabil
 	return result, nil
 }
 
+// Search returns one bounded page of visible file projections.
+func (a *fileCapabilityAdapter) Search(ctx context.Context, _ capmodel.CapabilityContext, input capabilityfilecap.SearchInput) (*capmodel.PageResult[*capabilityfilecap.FileProjection], error) {
+	pageNum, pageSize := NormalizePage(input.Page)
+	if pageSize > capabilityfilecap.MaxSearchPageSize {
+		pageSize = capabilityfilecap.MaxSearchPageSize
+	}
+	cols := dao.SysFile.Columns()
+	model := dao.SysFile.Ctx(ctx)
+	if a != nil && a.tenantFilter != nil {
+		model = a.tenantFilter.Apply(ctx, model, "")
+	}
+	if scene := strings.TrimSpace(input.BusinessScene); scene != "" {
+		model = model.Where(cols.Scene, scene)
+	}
+	if keyword := strings.TrimSpace(input.Keyword); keyword != "" {
+		like := "%" + keyword + "%"
+		model = model.Where(
+			fmt.Sprintf("(%s LIKE ? OR %s LIKE ?)", cols.Original, cols.Name),
+			like,
+			like,
+		)
+	}
+	if mimeType := strings.TrimSpace(input.MimeType); mimeType != "" {
+		suffixes := suffixesForMimeType(mimeType)
+		if len(suffixes) == 0 {
+			return &capmodel.PageResult[*capabilityfilecap.FileProjection]{Items: []*capabilityfilecap.FileProjection{}, Total: 0}, nil
+		}
+		model = model.WhereIn(cols.Suffix, suffixes)
+	}
+	total, err := model.Clone().Count()
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]*struct {
+		Id       int64
+		Original string
+		Name     string
+		Suffix   string
+		Size     int64
+		Scene    string
+	}, 0, pageSize)
+	if err = model.Clone().
+		Fields(cols.Id, cols.Original, cols.Name, cols.Suffix, cols.Size, cols.Scene).
+		Page(pageNum, pageSize).
+		OrderDesc(cols.Id).
+		Scan(&rows); err != nil {
+		return nil, err
+	}
+	items := make([]*capabilityfilecap.FileProjection, 0, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		items = append(items, &capabilityfilecap.FileProjection{
+			ID:            capabilityfilecap.FileID(fmt.Sprintf("%d", row.Id)),
+			Name:          FirstNonEmpty(row.Original, row.Name),
+			MimeType:      MimeTypeFromSuffix(row.Suffix),
+			SizeBytes:     row.Size,
+			BusinessScene: row.Scene,
+		})
+	}
+	return &capmodel.PageResult[*capabilityfilecap.FileProjection]{Items: items, Total: total}, nil
+}
+
 // EnsureVisible rejects when any requested file is absent or invisible.
 func (a *fileCapabilityAdapter) EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilityfilecap.FileID) error {
 	result, err := a.BatchGet(ctx, capCtx, ids)
@@ -97,6 +163,26 @@ func (a *fileCapabilityAdapter) EnsureVisible(ctx context.Context, capCtx capmod
 		return bizerr.NewCode(capmodel.CodeCapabilityDenied)
 	}
 	return nil
+}
+
+// suffixesForMimeType maps stable coarse MIME filters to file suffixes.
+func suffixesForMimeType(mimeType string) []string {
+	switch strings.ToLower(strings.TrimSpace(mimeType)) {
+	case "image/jpeg":
+		return []string{"jpg", "jpeg"}
+	case "image/png":
+		return []string{"png"}
+	case "image/gif":
+		return []string{"gif"}
+	case "application/pdf":
+		return []string{"pdf"}
+	case "text/plain":
+		return []string{"txt", "log"}
+	case "application/json":
+		return []string{"json"}
+	default:
+		return nil
+	}
 }
 
 // Delete soft-deletes visible file metadata rows.

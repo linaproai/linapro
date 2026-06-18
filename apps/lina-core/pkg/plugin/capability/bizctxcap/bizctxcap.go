@@ -12,6 +12,8 @@ type Service interface {
 
 // CurrentContext is the plugin-visible read-only business context snapshot.
 type CurrentContext struct {
+	// TokenID is the authenticated token or online-session identifier bound to the request context.
+	TokenID string
 	// UserID is the authenticated user identifier bound to the request context.
 	UserID int
 	// Username is the authenticated username bound to the request context.

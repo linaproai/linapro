@@ -188,11 +188,11 @@ func TestValidateHostServiceSpecsAcceptsOrgTenantWithoutResources(t *testing.T) 
 // ordinary domain host services are authorized by service and method only.
 func TestValidateHostServiceSpecsAcceptsDomainServicesWithoutResources(t *testing.T) {
 	specs := []*HostServiceSpec{
-		{Service: HostServiceAuthz, Methods: []string{HostServiceMethodAuthzBatchGetPermissions}},
-		{Service: HostServiceDict, Methods: []string{HostServiceMethodDictResolveLabels}},
-		{Service: HostServiceFiles, Methods: []string{HostServiceMethodFilesBatchGet}},
-		{Service: HostServiceSessions, Methods: []string{HostServiceMethodSessionsSearch}},
-		{Service: HostServiceJobs, Methods: []string{HostServiceMethodJobsBatchGet, HostServiceMethodJobsRegister}},
+		{Service: HostServiceAuthz, Methods: []string{HostServiceMethodAuthzBatchGetPermissions, HostServiceMethodAuthzBatchHasPermissions}},
+		{Service: HostServiceDict, Methods: []string{HostServiceMethodDictResolveLabels, HostServiceMethodDictListValues, HostServiceMethodDictEnsureValuesVisible}},
+		{Service: HostServiceFiles, Methods: []string{HostServiceMethodFilesBatchGet, HostServiceMethodFilesSearch}},
+		{Service: HostServiceSessions, Methods: []string{HostServiceMethodSessionsCurrent, HostServiceMethodSessionsSearch, HostServiceMethodSessionsBatchGetUserOnlineStatus, HostServiceMethodSessionsEnsureVisible}},
+		{Service: HostServiceJobs, Methods: []string{HostServiceMethodJobsBatchGet, HostServiceMethodJobsSearch, HostServiceMethodJobsEnsureVisible, HostServiceMethodJobsRegister}},
 		{Service: HostServiceInfra, Methods: []string{HostServiceMethodInfraBatchGetStatus}},
 		{Service: HostServiceAPIDoc, Methods: []string{HostServiceMethodAPIDocFindRouteTitleOperationKeys}},
 		{Service: HostServiceBizCtx, Methods: []string{HostServiceMethodBizCtxCurrent}},

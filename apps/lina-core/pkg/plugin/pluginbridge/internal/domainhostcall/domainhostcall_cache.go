@@ -40,6 +40,30 @@ func (s *cacheService) Get(_ context.Context, namespace string, key string) (*ca
 	return cacheItemFromWire(key, response.Value), true, nil
 }
 
+// GetMany reads governed cache values from the authorized namespace.
+func (s *cacheService) GetMany(_ context.Context, in cachecap.GetManyInput) (*cachecap.GetManyOutput, error) {
+	response := &cacheGetManyResponse{}
+	err := s.callHostServiceJSONRequest(
+		protocol.HostServiceCache,
+		protocol.HostServiceMethodCacheGetMany,
+		in.Namespace,
+		"",
+		cacheGetManyRequest{Keys: in.Keys},
+		response,
+	)
+	if err != nil {
+		return nil, err
+	}
+	output := &cachecap.GetManyOutput{
+		Items:       make(map[string]*cachecap.CacheItem, len(response.Items)),
+		MissingKeys: append([]string(nil), response.MissingKeys...),
+	}
+	for key, value := range response.Items {
+		output.Items[key] = cacheItemFromWire(key, value)
+	}
+	return output, nil
+}
+
 // Set writes one governed cache value into the authorized namespace.
 func (s *cacheService) Set(
 	_ context.Context,
@@ -72,6 +96,35 @@ func (s *cacheService) Set(
 	return cacheItemFromWire(key, response.Value), nil
 }
 
+// SetMany writes governed cache values into the authorized namespace.
+func (s *cacheService) SetMany(_ context.Context, in cachecap.SetManyInput) (*cachecap.SetManyOutput, error) {
+	request := cacheSetManyRequest{Items: make([]cacheSetManyItemRequest, 0, len(in.Items))}
+	for _, item := range in.Items {
+		request.Items = append(request.Items, cacheSetManyItemRequest{
+			Key:           item.Key,
+			Value:         item.Value,
+			ExpireSeconds: durationSeconds(item.TTL),
+		})
+	}
+	response := &cacheSetManyResponse{}
+	err := s.callHostServiceJSONRequest(
+		protocol.HostServiceCache,
+		protocol.HostServiceMethodCacheSetMany,
+		in.Namespace,
+		"",
+		request,
+		response,
+	)
+	if err != nil {
+		return nil, err
+	}
+	output := &cachecap.SetManyOutput{Items: make(map[string]*cachecap.CacheItem, len(response.Items))}
+	for key, value := range response.Items {
+		output.Items[key] = cacheItemFromWire(key, value)
+	}
+	return output, nil
+}
+
 // Delete removes one governed cache value from the authorized namespace.
 func (s *cacheService) Delete(_ context.Context, namespace string, key string) error {
 	_, err := s.callHostService(
@@ -82,6 +135,18 @@ func (s *cacheService) Delete(_ context.Context, namespace string, key string) e
 		protocol.MarshalHostServiceCacheDeleteRequest(&protocol.HostServiceCacheDeleteRequest{Key: key}),
 	)
 	return err
+}
+
+// DeleteMany removes governed cache values from the authorized namespace.
+func (s *cacheService) DeleteMany(_ context.Context, in cachecap.DeleteManyInput) error {
+	return s.callHostServiceJSONRequest(
+		protocol.HostServiceCache,
+		protocol.HostServiceMethodCacheDeleteMany,
+		in.Namespace,
+		"",
+		cacheDeleteManyRequest{Keys: in.Keys},
+		nil,
+	)
 }
 
 // Incr increments one governed cache integer value inside the authorized namespace.
@@ -159,4 +224,31 @@ func durationSeconds(duration time.Duration) int64 {
 		return 0
 	}
 	return int64((duration + time.Second - 1) / time.Second)
+}
+
+type cacheGetManyRequest struct {
+	Keys []string `json:"keys"`
+}
+
+type cacheGetManyResponse struct {
+	Items       map[string]*protocol.HostServiceCacheValue `json:"items"`
+	MissingKeys []string                                    `json:"missingKeys,omitempty"`
+}
+
+type cacheSetManyRequest struct {
+	Items []cacheSetManyItemRequest `json:"items"`
+}
+
+type cacheSetManyItemRequest struct {
+	Key           string `json:"key"`
+	Value         string `json:"value"`
+	ExpireSeconds int64  `json:"expireSeconds,omitempty"`
+}
+
+type cacheSetManyResponse struct {
+	Items map[string]*protocol.HostServiceCacheValue `json:"items"`
+}
+
+type cacheDeleteManyRequest struct {
+	Keys []string `json:"keys"`
 }

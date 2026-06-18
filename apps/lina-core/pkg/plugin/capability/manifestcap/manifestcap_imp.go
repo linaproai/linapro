@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
@@ -124,6 +125,55 @@ func (s *serviceAdapter) Get(_ context.Context, resourcePath string) ([]byte, er
 	return nil, nil
 }
 
+// GetMany returns raw resources for explicit manifest-relative paths.
+func (s *serviceAdapter) GetMany(ctx context.Context, input GetManyInput) (*GetManyOutput, error) {
+	paths, err := normalizeManifestResourcePaths(input.Paths)
+	if err != nil {
+		return nil, err
+	}
+	output := &GetManyOutput{Resources: []*ResourceContent{}}
+	totalBytes := 0
+	for _, resourcePath := range paths {
+		content, err := s.Get(ctx, resourcePath)
+		if err != nil {
+			return nil, err
+		}
+		if len(content) == 0 {
+			output.MissingPaths = append(output.MissingPaths, resourcePath)
+			continue
+		}
+		if len(content) > MaxResourceBytes {
+			return nil, gerror.Newf("manifest resource exceeds limit path=%s maxBytes=%d", resourcePath, MaxResourceBytes)
+		}
+		totalBytes += len(content)
+		if totalBytes > MaxTotalBytes {
+			return nil, gerror.Newf("manifest resources exceed total limit maxBytes=%d", MaxTotalBytes)
+		}
+		output.Resources = append(output.Resources, &ResourceContent{
+			Path: resourcePath,
+			Body: content,
+		})
+	}
+	return output, nil
+}
+
+// List returns metadata for resources under one manifest-relative prefix.
+func (s *serviceAdapter) List(_ context.Context, input ListInput) (*ListOutput, error) {
+	prefix, err := normalizeManifestListPrefix(input.Prefix)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(s.pluginID) == "" {
+		return nil, gerror.New("manifest service requires plugin scope")
+	}
+	limit := normalizeManifestListLimit(input.Limit)
+	resources, err := s.listResources(prefix, limit)
+	if err != nil {
+		return nil, err
+	}
+	return &ListOutput{Resources: resources, Limit: limit}, nil
+}
+
 // Exists reports whether one allowed manifest resource exists.
 func (s *serviceAdapter) Exists(ctx context.Context, resourcePath string) (bool, error) {
 	content, err := s.Get(ctx, resourcePath)
@@ -173,6 +223,97 @@ func (s *serviceAdapter) artifactResourceContent(resourcePath string) []byte {
 	return append([]byte(nil), content...)
 }
 
+// listResources returns deterministic manifest resource metadata.
+func (s *serviceAdapter) listResources(prefix string, limit int) ([]*Resource, error) {
+	resourcesByPath := map[string]*Resource{}
+	for resourcePath, content := range s.artifactResourceContentsForPlugin() {
+		addManifestListResource(resourcesByPath, prefix, resourcePath, int64(len(content)))
+	}
+	if s.embeddedFiles != nil {
+		err := fs.WalkDir(s.embeddedFiles, "manifest", func(resourcePath string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				if isFSNotExist(walkErr) {
+					return nil
+				}
+				return walkErr
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			relativePath := strings.TrimPrefix(path.Clean(resourcePath), "manifest/")
+			info, err := entry.Info()
+			if err != nil {
+				if isFSNotExist(err) {
+					return nil
+				}
+				return err
+			}
+			addManifestListResource(resourcesByPath, prefix, relativePath, info.Size())
+			return nil
+		})
+		if err != nil && !isFSNotExist(err) {
+			return nil, err
+		}
+	}
+	if root := resolveManifestDevelopmentRoot(s.developmentRoot); root != "" {
+		manifestRoot := filepath.Join(root, "apps", "lina-plugins", s.pluginID, "manifest")
+		_ = filepath.WalkDir(manifestRoot, func(filePath string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return nil
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			relativePath, err := filepath.Rel(manifestRoot, filePath)
+			if err != nil {
+				return nil
+			}
+			info, err := entry.Info()
+			if err != nil {
+				return nil
+			}
+			addManifestListResource(resourcesByPath, prefix, filepath.ToSlash(relativePath), info.Size())
+			return nil
+		})
+	}
+	paths := make([]string, 0, len(resourcesByPath))
+	for resourcePath := range resourcesByPath {
+		paths = append(paths, resourcePath)
+	}
+	sort.Strings(paths)
+	if len(paths) > limit {
+		paths = paths[:limit]
+	}
+	resources := make([]*Resource, 0, len(paths))
+	for _, resourcePath := range paths {
+		resources = append(resources, resourcesByPath[resourcePath])
+	}
+	return resources, nil
+}
+
+// artifactResourceContentsForPlugin returns release-bound resources for the scoped plugin.
+func (s *serviceAdapter) artifactResourceContentsForPlugin() map[string][]byte {
+	resources := map[string][]byte{}
+	if s == nil || len(s.artifactResources) == 0 {
+		return resources
+	}
+	prefix := strings.TrimSpace(s.pluginID) + "\x00"
+	for key, content := range s.artifactResources {
+		if strings.HasPrefix(key, prefix) {
+			resources[strings.TrimPrefix(key, prefix)] = content
+		}
+	}
+	return resources
+}
+
+func addManifestListResource(resources map[string]*Resource, prefix string, resourcePath string, size int64) {
+	normalized, err := normalizeManifestResourcePath(resourcePath)
+	if err != nil || (prefix != "" && !strings.HasPrefix(normalized, prefix)) {
+		return
+	}
+	resources[normalized] = &Resource{Path: normalized, Size: size}
+}
+
 // normalizeManifestResourcePath validates one manifest-relative resource path.
 func normalizeManifestResourcePath(resourcePath string) (string, error) {
 	raw := strings.ReplaceAll(strings.TrimSpace(resourcePath), "\\", "/")
@@ -199,6 +340,50 @@ func normalizeManifestResourcePath(resourcePath string) (string, error) {
 		return "", gerror.Newf("manifest resource path must be relative to manifest root: %s", resourcePath)
 	}
 	return normalized, nil
+}
+
+// normalizeManifestResourcePaths validates and deduplicates manifest resource paths.
+func normalizeManifestResourcePaths(rawPaths []string) ([]string, error) {
+	paths := make([]string, 0, len(rawPaths))
+	seen := make(map[string]struct{}, len(rawPaths))
+	for _, rawPath := range rawPaths {
+		normalized, err := normalizeManifestResourcePath(rawPath)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		paths = append(paths, normalized)
+		if len(paths) > MaxBatchPaths {
+			return nil, gerror.Newf("manifest resource path count exceeds limit %d", MaxBatchPaths)
+		}
+	}
+	return paths, nil
+}
+
+// normalizeManifestListPrefix validates one manifest-relative list prefix.
+func normalizeManifestListPrefix(prefix string) (string, error) {
+	trimmed := strings.ReplaceAll(strings.TrimSpace(prefix), "\\", "/")
+	if trimmed == "" || trimmed == "." {
+		return "", nil
+	}
+	normalized, err := normalizeManifestResourcePath(strings.TrimSuffix(trimmed, "/"))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(normalized, "/") + "/", nil
+}
+
+func normalizeManifestListLimit(limit int) int {
+	if limit <= 0 {
+		return DefaultListLimit
+	}
+	if limit > MaxListLimit {
+		return MaxListLimit
+	}
+	return limit
 }
 
 // readContainedFile reads filePath only when it remains under rootDir.

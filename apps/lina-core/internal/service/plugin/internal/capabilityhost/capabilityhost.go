@@ -202,19 +202,20 @@ func New(
 		dictDomain          = newDictCapabilityAdapter(tenantFilterSvc, i18nAdapter)
 		runtimeConfigDomain = newRuntimeConfigCapabilityAdapter(tenantFilterSvc)
 		fileDomain          = newFileCapabilityAdapter(tenantFilterSvc)
-		sessionDomain       = newSessionCapabilityAdapter(authSvc, scopeSvc, sessionStore, tenantSvc)
+		sessionDomain       = newSessionCapabilityAdapter(authSvc, bizCtxAdapter, userDomain, scopeSvc, sessionStore, tenantSvc)
 		notificationDomain  = newNotificationCapabilityAdapter(notifySvc)
 		jobDomain           = newJobCapabilityAdapter(tenantFilterSvc)
 		infraDomain         = newInfraCapabilityAdapter()
 		pluginConfigFactory = plugincap.NewConfigFactory("", "")
 		pluginLifecycle     = plugincap.NewLifecycle(pluginLifecycleRunner)
 		pluginState         = plugincap.NewState(pluginStateSvc)
-		pluginDomain        = newPluginCapabilityAdapter(pluginConfigFactory, pluginState, pluginLifecycle)
+		aiDomain            = capabilityai.New(aiTextSvc)
+		pluginDomain        = newPluginCapabilityAdapter(pluginConfigFactory, pluginState, pluginLifecycle, orgSvc, tenantSvc, aiDomain)
 	)
 	return &directory{
 		apiDoc:        newAPIDocAdapter(apiDocSvc),
 		auth:          authcap.New(tokenDomain, authzDomain),
-		ai:            capabilityai.New(aiTextSvc),
+		ai:            aiDomain,
 		users:         userDomain,
 		bizCtx:        bizCtxAdapter,
 		cache:         kvCacheSvc,

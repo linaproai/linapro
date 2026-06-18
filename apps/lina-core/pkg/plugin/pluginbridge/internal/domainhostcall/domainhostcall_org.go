@@ -60,6 +60,18 @@ func (s orgService) ListUserDeptAssignments(_ context.Context, userIDs []int) (m
 	return assignments, err
 }
 
+// BatchGetUserOrgProfiles returns stable organization profiles for provided users.
+func (s orgService) BatchGetUserOrgProfiles(_ context.Context, userIDs []int) (*capmodel.BatchResult[*orgcap.UserOrgProfile, int], error) {
+	out := &capmodel.BatchResult[*orgcap.UserOrgProfile, int]{Items: map[int]*orgcap.UserOrgProfile{}}
+	err := s.callJSONRequest(
+		protocol.HostServiceOrg,
+		protocol.HostServiceMethodOrgBatchGetUserOrgProfiles,
+		intUserIDsRequest{UserIDs: userIDs},
+		out,
+	)
+	return out, err
+}
+
 // GetUserDeptInfo returns one user's department identifier and name.
 func (s orgService) GetUserDeptInfo(_ context.Context, userID int) (int, string, error) {
 	var info orgUserDeptInfo
@@ -108,6 +120,62 @@ func (s orgService) GetUserPostIDs(_ context.Context, userID int) ([]int, error)
 	return postIDs, err
 }
 
+// ListDeptTree returns a bounded department tree projection.
+func (s orgService) ListDeptTree(_ context.Context, input orgcap.DeptTreeInput) (*orgcap.DeptTreeResult, error) {
+	out := &orgcap.DeptTreeResult{Items: []*orgcap.DeptTreeNode{}}
+	err := s.callJSONRequest(
+		protocol.HostServiceOrg,
+		protocol.HostServiceMethodOrgListDeptTree,
+		input,
+		out,
+	)
+	return out, err
+}
+
+// SearchDepartments returns bounded department candidates.
+func (s orgService) SearchDepartments(_ context.Context, input orgcap.DeptSearchInput) (*capmodel.PageResult[*orgcap.DeptProjection], error) {
+	out := &capmodel.PageResult[*orgcap.DeptProjection]{Items: []*orgcap.DeptProjection{}}
+	err := s.callJSONRequest(
+		protocol.HostServiceOrg,
+		protocol.HostServiceMethodOrgSearchDepartments,
+		input,
+		out,
+	)
+	return out, err
+}
+
+// ListPostOptionsPage returns bounded post candidates.
+func (s orgService) ListPostOptionsPage(_ context.Context, input orgcap.PostOptionsInput) (*capmodel.PageResult[*orgcap.PostOption], error) {
+	out := &capmodel.PageResult[*orgcap.PostOption]{Items: []*orgcap.PostOption{}}
+	err := s.callJSONRequest(
+		protocol.HostServiceOrg,
+		protocol.HostServiceMethodOrgListPostOptions,
+		input,
+		out,
+	)
+	return out, err
+}
+
+// EnsureDepartmentsVisible verifies all department identifiers are visible.
+func (s orgService) EnsureDepartmentsVisible(_ context.Context, deptIDs []int) error {
+	return s.callJSONRequest(
+		protocol.HostServiceOrg,
+		protocol.HostServiceMethodOrgEnsureDepartmentsVisible,
+		intDeptIDsRequest{DeptIDs: deptIDs},
+		nil,
+	)
+}
+
+// EnsurePostsVisible verifies all post identifiers are visible.
+func (s orgService) EnsurePostsVisible(_ context.Context, postIDs []int) error {
+	return s.callJSONRequest(
+		protocol.HostServiceOrg,
+		protocol.HostServiceMethodOrgEnsurePostsVisible,
+		intPostIDsRequest{PostIDs: postIDs},
+		nil,
+	)
+}
+
 // intUserIDRequest carries one integer user identifier.
 type intUserIDRequest struct {
 	// UserID is the user identifier.
@@ -118,6 +186,18 @@ type intUserIDRequest struct {
 type intUserIDsRequest struct {
 	// UserIDs are the user identifiers.
 	UserIDs []int `json:"userIds"`
+}
+
+// intDeptIDsRequest carries department identifiers.
+type intDeptIDsRequest struct {
+	// DeptIDs are the department identifiers.
+	DeptIDs []int `json:"deptIds"`
+}
+
+// intPostIDsRequest carries post identifiers.
+type intPostIDsRequest struct {
+	// PostIDs are the post identifiers.
+	PostIDs []int `json:"postIds"`
 }
 
 // orgUserDeptInfo carries the tuple returned by orgcap.Service.GetUserDeptInfo.

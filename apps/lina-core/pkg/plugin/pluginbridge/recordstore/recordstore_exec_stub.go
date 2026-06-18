@@ -15,6 +15,11 @@ func (q *Query) One() (map[string]any, bool, error) {
 	return nil, false, gerror.New("record store capability guest execution is only available for wasip1 builds")
 }
 
+// BatchGet is unavailable outside wasip1 builds.
+func (q *Query) BatchGet(keys []any) ([]map[string]any, [][]byte, error) {
+	return nil, nil, gerror.New("record store capability guest execution is only available for wasip1 builds")
+}
+
 // All is unavailable outside wasip1 builds.
 func (q *Query) All() ([]map[string]any, int32, error) {
 	return nil, 0, gerror.New("record store capability guest execution is only available for wasip1 builds")

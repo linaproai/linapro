@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/dictcap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
@@ -23,20 +24,48 @@ func dispatchDictHostService(
 	if service == nil {
 		return domainServiceNotScoped("dict")
 	}
-	if method != bridgehostservice.HostServiceMethodDictResolveLabels {
+	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceDict, method)
+	switch method {
+	case bridgehostservice.HostServiceMethodDictResolveLabels:
+		var request dictResolveRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.ResolveLabels(ctx, capCtx, dictcap.ResolveInput{
+			Type:         dictcap.Type(request.Type),
+			Values:       dictValues(request.Values),
+			IncludeLabel: request.IncludeLabel,
+		})
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodDictListValues:
+		var request dictListValuesRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.ListValues(ctx, capCtx, dictcap.ListValuesInput{
+			Type:         dictcap.Type(request.Type),
+			Status:       request.Status,
+			IncludeLabel: request.IncludeLabel,
+			Page: capmodel.PageRequest{
+				PageNum:  request.PageNum,
+				PageSize: request.PageSize,
+			},
+		})
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodDictEnsureValuesVisible:
+		var request dictResolveRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.EnsureValuesVisible(ctx, capCtx, dictcap.ResolveInput{
+			Type:         dictcap.Type(request.Type),
+			Values:       dictValues(request.Values),
+			IncludeLabel: request.IncludeLabel,
+		})
+		return domainCapabilityResult(true, err)
+	default:
 		return domainMethodNotFound("dict", method)
 	}
-	var request dictResolveRequest
-	if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
-		return invalidCapabilityRequest(err)
-	}
-	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceDict, method)
-	result, err := service.ResolveLabels(ctx, capCtx, dictcap.ResolveInput{
-		Type:         dictcap.Type(request.Type),
-		Values:       dictValues(request.Values),
-		IncludeLabel: request.IncludeLabel,
-	})
-	return domainCapabilityResult(result, err)
 }
 
 // dictServiceForHostCall resolves the dictionary service for one host call.
@@ -55,13 +84,20 @@ type dictResolveRequest struct {
 	IncludeLabel bool     `json:"includeLabel"`
 }
 
+// dictListValuesRequest carries dictionary candidate listing input.
+type dictListValuesRequest struct {
+	Type         string `json:"type"`
+	Status       *int   `json:"status,omitempty"`
+	IncludeLabel bool   `json:"includeLabel"`
+	PageNum      int    `json:"pageNum,omitempty"`
+	PageSize     int    `json:"pageSize,omitempty"`
+}
+
 // dictValues converts transport strings into typed dictionary values.
 func dictValues(values []string) []dictcap.Value {
 	out := make([]dictcap.Value, 0, len(values))
 	for _, value := range values {
-		if normalized := strings.TrimSpace(value); normalized != "" {
-			out = append(out, dictcap.Value(normalized))
-		}
+		out = append(out, dictcap.Value(strings.TrimSpace(value)))
 	}
 	return out
 }

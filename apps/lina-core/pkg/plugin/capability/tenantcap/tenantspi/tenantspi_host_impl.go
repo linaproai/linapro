@@ -69,6 +69,22 @@ func (s *serviceImpl) Current(ctx context.Context) tenantcap.TenantID {
 	return tenantcap.TenantID(current.TenantID)
 }
 
+// CurrentTenantInfo returns the current request tenant projection.
+func (s *serviceImpl) CurrentTenantInfo(ctx context.Context) (*tenantcap.TenantInfo, error) {
+	current := s.Current(ctx)
+	if current <= tenantcap.PLATFORM {
+		return platformTenantInfo(), nil
+	}
+	provider, err := s.tenantProjectionProvider(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if provider == nil {
+		return &tenantcap.TenantInfo{ID: current}, nil
+	}
+	return provider.CurrentTenantInfo(ctx, current)
+}
+
 // Apply injects tenant filtering into a model when multi-tenancy is enabled.
 func (s *serviceImpl) Apply(ctx context.Context, model *gdb.Model, tenantColumn string) (*gdb.Model, error) {
 	if model == nil || s.PlatformBypass(ctx) {
@@ -193,6 +209,108 @@ func (s *serviceImpl) ListUserTenants(ctx context.Context, userID int) ([]tenant
 	return provider.ListUserTenants(ctx, userID)
 }
 
+// BatchGetTenants returns visible tenant projections and opaque missing IDs.
+func (s *serviceImpl) BatchGetTenants(
+	ctx context.Context,
+	tenantIDs []tenantcap.TenantID,
+) (*capmodel.BatchResult[*tenantcap.TenantInfo, tenantcap.TenantID], error) {
+	result := &capmodel.BatchResult[*tenantcap.TenantInfo, tenantcap.TenantID]{
+		Items:      make(map[tenantcap.TenantID]*tenantcap.TenantInfo),
+		MissingIDs: make([]tenantcap.TenantID, 0),
+	}
+	if len(tenantIDs) == 0 {
+		return result, nil
+	}
+	if len(tenantIDs) > tenantcap.MaxTenantBatchSize {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", tenantcap.MaxTenantBatchSize))
+	}
+	normalized := normalizeTenantIDs(tenantIDs)
+	if len(normalized) == 0 {
+		return result, nil
+	}
+	provider, err := s.tenantProjectionProvider(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if provider == nil {
+		for _, tenantID := range normalized {
+			if tenantID == tenantcap.PLATFORM {
+				result.Items[tenantID] = platformTenantInfo()
+				continue
+			}
+			result.MissingIDs = append(result.MissingIDs, tenantID)
+		}
+		return result, nil
+	}
+	return provider.BatchGetTenants(ctx, normalized)
+}
+
+// SearchTenants returns bounded tenant candidates visible to the caller.
+func (s *serviceImpl) SearchTenants(
+	ctx context.Context,
+	input tenantcap.SearchInput,
+) (*capmodel.PageResult[*tenantcap.TenantInfo], error) {
+	provider, err := s.tenantProjectionProvider(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if provider == nil {
+		return &capmodel.PageResult[*tenantcap.TenantInfo]{Items: []*tenantcap.TenantInfo{}}, nil
+	}
+	input.Page = normalizeTenantPage(input.Page)
+	return provider.SearchTenants(ctx, input)
+}
+
+// BatchListUserTenants returns active tenant memberships for visible users.
+func (s *serviceImpl) BatchListUserTenants(ctx context.Context, userIDs []int) (map[int][]tenantcap.TenantInfo, error) {
+	result := make(map[int][]tenantcap.TenantInfo)
+	if len(userIDs) == 0 {
+		return result, nil
+	}
+	if len(userIDs) > tenantcap.MaxUserTenantBatchSize {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", tenantcap.MaxUserTenantBatchSize))
+	}
+	normalized := normalizePositiveUserIDs(userIDs)
+	if len(normalized) == 0 {
+		return result, nil
+	}
+	provider, err := s.userMembershipProvider(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if provider == nil {
+		return result, nil
+	}
+	return provider.BatchListUserTenants(ctx, normalized)
+}
+
+// EnsureTenantsVisible validates that the current user can access every tenant.
+func (s *serviceImpl) EnsureTenantsVisible(ctx context.Context, tenantIDs []tenantcap.TenantID) error {
+	if len(tenantIDs) == 0 {
+		return nil
+	}
+	if len(tenantIDs) > tenantcap.MaxTenantBatchSize {
+		return bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", tenantcap.MaxTenantBatchSize))
+	}
+	normalized := normalizeTenantIDs(tenantIDs)
+	if len(normalized) == 0 {
+		return nil
+	}
+	provider, err := s.tenantProjectionProvider(ctx)
+	if err != nil {
+		return err
+	}
+	if provider == nil {
+		for _, tenantID := range normalized {
+			if tenantID != tenantcap.PLATFORM {
+				return bizerr.NewCode(tenantcap.CodeTenantForbidden, bizerr.P("tenantId", int(tenantID)))
+			}
+		}
+		return nil
+	}
+	return provider.EnsureTenantsVisible(ctx, normalized)
+}
+
 // ApplyUserTenantFilter constrains platform user-list rows to a requested tenant.
 func (s *serviceImpl) ApplyUserTenantFilter(
 	ctx context.Context,
@@ -208,6 +326,82 @@ func (s *serviceImpl) ApplyUserTenantFilter(
 		return model, false, nil
 	}
 	return provider.ApplyUserTenantFilter(ctx, model, userIDColumn, tenantID)
+}
+
+// tenantProjectionProvider returns the optional tenant projection capability facet.
+func (s *serviceImpl) tenantProjectionProvider(ctx context.Context) (TenantProjectionProvider, error) {
+	provider, err := s.currentProvider(ctx)
+	if err != nil || provider == nil {
+		return nil, err
+	}
+	projectionProvider, ok := provider.(TenantProjectionProvider)
+	if !ok {
+		return nil, nil
+	}
+	return projectionProvider, nil
+}
+
+// platformTenantInfo returns the neutral platform tenant projection.
+func platformTenantInfo() *tenantcap.TenantInfo {
+	return &tenantcap.TenantInfo{
+		ID:     tenantcap.PLATFORM,
+		Code:   "platform",
+		Name:   "Platform",
+		Status: "active",
+	}
+}
+
+// normalizeTenantPage applies tenant search page defaults and max page size.
+func normalizeTenantPage(page capmodel.PageRequest) capmodel.PageRequest {
+	if page.PageNum <= 0 {
+		page.PageNum = 1
+	}
+	pageSize := page.PageSize
+	if pageSize <= 0 {
+		pageSize = page.Limit
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > tenantcap.MaxTenantSearchPageSize {
+		pageSize = tenantcap.MaxTenantSearchPageSize
+	}
+	page.PageSize = pageSize
+	return page
+}
+
+// normalizeTenantIDs removes duplicates while preserving valid tenant IDs.
+func normalizeTenantIDs(ids []tenantcap.TenantID) []tenantcap.TenantID {
+	result := make([]tenantcap.TenantID, 0, len(ids))
+	seen := make(map[tenantcap.TenantID]struct{}, len(ids))
+	for _, id := range ids {
+		if id < tenantcap.PLATFORM {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	return result
+}
+
+// normalizePositiveUserIDs removes duplicate positive user identifiers.
+func normalizePositiveUserIDs(ids []int) []int {
+	result := make([]int, 0, len(ids))
+	seen := make(map[int]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	return result
 }
 
 // ListUserTenantProjections returns tenant ownership labels for visible users.

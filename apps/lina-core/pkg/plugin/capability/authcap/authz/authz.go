@@ -7,6 +7,11 @@ import (
 	"lina-core/pkg/plugin/capability/capmodel"
 )
 
+const (
+	// MaxBatchHasPermissions limits one authorization batch-boolean request.
+	MaxBatchHasPermissions = 200
+)
+
 // RoleID identifies one role in plugin-visible domain boundaries.
 type RoleID string
 
@@ -30,6 +35,8 @@ type PermissionProjection struct {
 type Service interface {
 	// BatchGetPermissions returns visible permission projections and opaque missing keys.
 	BatchGetPermissions(ctx context.Context, capCtx capmodel.CapabilityContext, keys []PermissionKey) (*capmodel.BatchResult[*PermissionProjection, PermissionKey], error)
+	// BatchHasPermissions reports whether the actor has each permission key in the current scope.
+	BatchHasPermissions(ctx context.Context, capCtx capmodel.CapabilityContext, keys []PermissionKey) (map[PermissionKey]bool, error)
 	// HasPermission reports whether the actor has one permission in the current scope.
 	HasPermission(ctx context.Context, capCtx capmodel.CapabilityContext, key PermissionKey) (bool, error)
 	// IsPlatformAdmin reports whether the user has a platform all-data role.

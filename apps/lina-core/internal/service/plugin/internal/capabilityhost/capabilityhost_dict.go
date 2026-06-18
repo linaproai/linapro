@@ -115,6 +115,102 @@ func (a *dictCapabilityAdapter) ResolveLabels(ctx context.Context, _ capmodel.Ca
 	return result, nil
 }
 
+// ListValues returns one bounded page of visible dictionary value candidates.
+func (a *dictCapabilityAdapter) ListValues(ctx context.Context, _ capmodel.CapabilityContext, input capabilitydictcap.ListValuesInput) (*capmodel.PageResult[*capabilitydictcap.LabelProjection], error) {
+	pageNum, pageSize := NormalizePage(input.Page)
+	if pageSize > capabilitydictcap.MaxListValuesPageSize {
+		pageSize = capabilitydictcap.MaxListValuesPageSize
+	}
+	dictType := strings.TrimSpace(string(input.Type))
+	if dictType == "" {
+		return &capmodel.PageResult[*capabilitydictcap.LabelProjection]{Items: []*capabilitydictcap.LabelProjection{}, Total: 0}, nil
+	}
+
+	cols := dao.SysDictData.Columns()
+	model := dao.SysDictData.Ctx(ctx).
+		Fields(cols.TenantId, cols.DictType, cols.Value, cols.Label, cols.Sort).
+		Where(do.SysDictData{DictType: dictType})
+	if input.Status != nil {
+		model = model.Where(do.SysDictData{Status: *input.Status})
+	}
+	if a != nil && a.tenantFilter != nil {
+		tenantID := a.tenantFilter.Context(ctx).TenantID
+		if tenantID > PlatformTenantID {
+			model = model.WhereIn(cols.TenantId, []int{PlatformTenantID, tenantID})
+		} else {
+			model = model.Where(cols.TenantId, PlatformTenantID)
+		}
+	}
+	total, err := model.Clone().Fields(cols.Value).Group(cols.Value).Count()
+	if err != nil {
+		return nil, err
+	}
+	valueRows := make([]*struct {
+		Value string `orm:"value"`
+	}, 0, pageSize)
+	if err = model.Clone().
+		Fields(cols.Value, "MIN("+cols.Sort+") AS min_sort").
+		Group(cols.Value).
+		OrderAsc("min_sort").
+		OrderAsc(cols.Value).
+		Page(pageNum, pageSize).
+		Scan(&valueRows); err != nil {
+		return nil, err
+	}
+	pageValues := make([]string, 0, len(valueRows))
+	for _, row := range valueRows {
+		if row != nil && strings.TrimSpace(row.Value) != "" {
+			pageValues = append(pageValues, row.Value)
+		}
+	}
+	if len(pageValues) == 0 {
+		return &capmodel.PageResult[*capabilitydictcap.LabelProjection]{Items: []*capabilitydictcap.LabelProjection{}, Total: total}, nil
+	}
+
+	rows := make([]*entity.SysDictData, 0, len(pageValues)*2)
+	if err = model.Clone().
+		Fields(cols.TenantId, cols.DictType, cols.Value, cols.Label, cols.Sort).
+		WhereIn(cols.Value, pageValues).
+		OrderAsc(cols.Sort).
+		OrderAsc(cols.Value).
+		Scan(&rows); err != nil {
+		return nil, err
+	}
+	visibleRows := chooseVisibleDictRows(rows, a.currentTenantID(ctx))
+	items := make([]*capabilitydictcap.LabelProjection, 0, len(pageValues))
+	for _, value := range pageValues {
+		row := visibleRows[value]
+		if row == nil {
+			continue
+		}
+		projection := &capabilitydictcap.LabelProjection{
+			Type:     input.Type,
+			Value:    capabilitydictcap.Value(row.Value),
+			LabelKey: dictLabelKey(dictType, row.Value),
+		}
+		if input.IncludeLabel {
+			projection.Label = a.translate(ctx, projection.LabelKey, row.Label)
+		}
+		items = append(items, projection)
+	}
+	return &capmodel.PageResult[*capabilitydictcap.LabelProjection]{Items: items, Total: total}, nil
+}
+
+// EnsureValuesVisible rejects when any requested dictionary value is absent or invisible.
+func (a *dictCapabilityAdapter) EnsureValuesVisible(ctx context.Context, capCtx capmodel.CapabilityContext, input capabilitydictcap.ResolveInput) error {
+	if len(input.Values) > capabilitydictcap.MaxEnsureValuesVisible {
+		return bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", capabilitydictcap.MaxEnsureValuesVisible))
+	}
+	result, err := a.ResolveLabels(ctx, capCtx, input)
+	if err != nil {
+		return err
+	}
+	if result == nil || len(result.MissingIDs) > 0 {
+		return bizerr.NewCode(capmodel.CodeCapabilityDenied)
+	}
+	return nil
+}
+
 // Refresh advances the dictionary cache revision for one visible dictionary type.
 func (a *dictCapabilityAdapter) Refresh(ctx context.Context, _ capmodel.CapabilityContext, dictType capabilitydictcap.Type) error {
 	normalizedType := strings.TrimSpace(string(dictType))

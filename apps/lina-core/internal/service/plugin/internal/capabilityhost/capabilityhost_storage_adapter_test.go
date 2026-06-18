@@ -27,7 +27,7 @@ import (
 // unrelated plugin object roots.
 func TestLocalStorageProviderListsFromPrefixWithLimit(t *testing.T) {
 	ctx := context.Background()
-	provider := NewLocalStorageProvider(t.TempDir(), false, false)
+	provider := NewLocalStorageProvider(t.TempDir())
 
 	writeProviderObject(t, ctx, provider, "plugins/reporting/platform/reports/a.json", "a")
 	writeProviderObject(t, ctx, provider, "plugins/reporting/platform/reports/b.json", "b")
@@ -53,21 +53,8 @@ func TestLocalStorageProviderListsFromPrefixWithLimit(t *testing.T) {
 	}
 }
 
-// TestLocalStorageProviderRejectsClusterWithoutExplicitAllowance verifies the
-// built-in local provider is single-node by default.
-func TestLocalStorageProviderRejectsClusterWithoutExplicitAllowance(t *testing.T) {
-	provider := NewLocalStorageProvider(t.TempDir(), true, false)
-	_, err := provider.Put(context.Background(), storagecap.ProviderPutInput{
-		Key:  "plugins/reporting/platform/reports/a.json",
-		Body: strings.NewReader("a"),
-	})
-	if !bizerr.Is(err, storagecap.CodeStorageProviderUnavailable) {
-		t.Fatalf("expected local provider unavailable in cluster mode, got %v", err)
-	}
-}
-
 // TestStorageAdapterSelectsActivePluginProvider verifies scoped Storage()
-// delegates to the configured active plugin provider.
+// delegates to the unique enabled plugin provider.
 func TestStorageAdapterSelectsActivePluginProvider(t *testing.T) {
 	ctx := context.Background()
 	providerID := fmt.Sprintf("storage-provider-test-%d", storageProviderTestSequence())
@@ -75,9 +62,8 @@ func TestStorageAdapterSelectsActivePluginProvider(t *testing.T) {
 	registerStorageProviderForTest(t, providerID, provider)
 
 	services := newStorageAdapterTestDirectory(t, &storageProviderTestRuntime{
-		activeProviderID: providerID,
-		available:        map[string]bool{providerID: true},
-	}, NewLocalStorageProvider(t.TempDir(), false, false))
+		available: map[string]bool{providerID: true},
+	}, NewLocalStorageProvider(t.TempDir()))
 	storageSvc := capability.ServicesForPlugin(services, "reporting").Storage()
 
 	_, err := storageSvc.Put(ctx, storagecap.PutInput{
@@ -102,25 +88,28 @@ func TestStorageAdapterSelectsActivePluginProvider(t *testing.T) {
 	}
 }
 
-// TestStorageAdapterDoesNotFallbackWhenActiveProviderUnavailable verifies an
-// explicitly selected provider must be usable and never silently falls back to local.
-func TestStorageAdapterDoesNotFallbackWhenActiveProviderUnavailable(t *testing.T) {
+// TestStorageAdapterFallsBackToLocalWhenProviderUnavailable verifies disabled
+// provider plugins do not override the built-in local fallback.
+func TestStorageAdapterFallsBackToLocalWhenProviderUnavailable(t *testing.T) {
 	ctx := context.Background()
 	providerID := fmt.Sprintf("storage-provider-unavailable-test-%d", storageProviderTestSequence())
 	registerStorageProviderForTest(t, providerID, &storageProviderTestProvider{})
+	localProvider := &storageProviderTestProvider{}
 
 	services := newStorageAdapterTestDirectory(t, &storageProviderTestRuntime{
-		activeProviderID: providerID,
-		available:        map[string]bool{providerID: false},
-	}, NewLocalStorageProvider(t.TempDir(), false, false))
+		available: map[string]bool{providerID: false},
+	}, localProvider)
 	storageSvc := capability.ServicesForPlugin(services, "reporting").Storage()
 
 	_, err := storageSvc.Put(ctx, storagecap.PutInput{
 		Path: "reports/a.json",
 		Body: strings.NewReader("a"),
 	})
-	if !bizerr.Is(err, storagecap.CodeStorageProviderUnavailable) {
-		t.Fatalf("expected unavailable active provider error, got %v", err)
+	if err != nil {
+		t.Fatalf("put through local provider fallback: %v", err)
+	}
+	if localProvider.putKey != "plugins/reporting/platform/reports/a.json" {
+		t.Fatalf("expected local provider key, got %q", localProvider.putKey)
 	}
 }
 
@@ -144,6 +133,43 @@ func TestStorageAdapterUsesLocalProviderByDefault(t *testing.T) {
 	}
 	if localProvider.putKey != "plugins/reporting/platform/reports/a.json" {
 		t.Fatalf("expected local provider key, got %q", localProvider.putKey)
+	}
+}
+
+// TestStorageAdapterRejectsMultipleEnabledProviders verifies provider selection
+// fails when more than one storage provider plugin is serviceable.
+func TestStorageAdapterRejectsMultipleEnabledProviders(t *testing.T) {
+	ctx := context.Background()
+	providerAID := fmt.Sprintf("storage-provider-conflict-a-%d", storageProviderTestSequence())
+	providerBID := fmt.Sprintf("storage-provider-conflict-b-%d", storageProviderTestSequence())
+	registerStorageProviderForTest(t, providerAID, &storageProviderTestProvider{})
+	registerStorageProviderForTest(t, providerBID, &storageProviderTestProvider{})
+
+	services := newStorageAdapterTestDirectory(t, &storageProviderTestRuntime{
+		available: map[string]bool{
+			providerAID: true,
+			providerBID: true,
+		},
+	}, &storageProviderTestProvider{})
+	storageSvc := capability.ServicesForPlugin(services, "reporting").Storage()
+
+	_, err := storageSvc.Put(ctx, storagecap.PutInput{
+		Path: "reports/a.json",
+		Body: strings.NewReader("a"),
+	})
+	if !bizerr.Is(err, storagecap.CodeStorageProviderConflict) {
+		t.Fatalf("expected multiple provider conflict error, got %v", err)
+	}
+
+	statuses, err := storageSvc.ProviderStatuses(ctx)
+	if err != nil {
+		t.Fatalf("provider statuses: %v", err)
+	}
+	for _, providerID := range []string{providerAID, providerBID} {
+		status := storageProviderStatusByID(statuses, providerID)
+		if status == nil || status.Active || !status.Available || status.Message == "" {
+			t.Fatalf("expected conflicting provider status for %s, got %#v in %#v", providerID, status, statuses)
+		}
 	}
 }
 
@@ -191,6 +217,43 @@ func TestStorageAdapterContentTypeProbePreservesBody(t *testing.T) {
 	}
 	if localProvider.putContentType != "text/plain" {
 		t.Fatalf("expected sniffed text/plain content type, got %q", localProvider.putContentType)
+	}
+}
+
+// TestStorageAdapterBatchMethodsUseScopedProviderKeys verifies batch storage
+// operations keep provider keys inside the plugin and tenant scope.
+func TestStorageAdapterBatchMethodsUseScopedProviderKeys(t *testing.T) {
+	ctx := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 42})
+	localProvider := &storageProviderTestProvider{}
+	storageSvc := newStorageAdapter(nil, localProvider, nil, "reporting")
+
+	_, err := storageSvc.Put(ctx, storagecap.PutInput{Path: "reports/a.json", Body: strings.NewReader("a")})
+	if err != nil {
+		t.Fatalf("put a: %v", err)
+	}
+	_, err = storageSvc.Put(ctx, storagecap.PutInput{Path: "reports/b.json", Body: strings.NewReader("b")})
+	if err != nil {
+		t.Fatalf("put b: %v", err)
+	}
+
+	statOutput, err := storageSvc.BatchStat(ctx, storagecap.BatchStatInput{
+		Paths: []string{"reports/a.json", "reports/missing.json"},
+	})
+	if err != nil {
+		t.Fatalf("batch stat: %v", err)
+	}
+	if len(statOutput.Objects) != 1 || statOutput.Objects[0].Path != "reports/a.json" {
+		t.Fatalf("unexpected batch stat objects: %#v", statOutput.Objects)
+	}
+	if strings.Join(statOutput.MissingPaths, ",") != "reports/missing.json" {
+		t.Fatalf("unexpected missing paths: %#v", statOutput.MissingPaths)
+	}
+
+	if err = storageSvc.DeleteMany(ctx, storagecap.DeleteManyInput{Paths: []string{"reports/a.json", "reports/b.json"}}); err != nil {
+		t.Fatalf("delete many: %v", err)
+	}
+	if len(localProvider.objects) != 0 {
+		t.Fatalf("expected scoped objects deleted, got %#v", localProvider.objects)
 	}
 }
 
@@ -289,20 +352,12 @@ func newStorageAdapterTestLockService(t *testing.T) hostlock.Service {
 }
 
 type storageProviderTestRuntime struct {
-	activeProviderID string
-	available        map[string]bool
-}
-
-func (r *storageProviderTestRuntime) ActiveProviderPluginID(context.Context) string {
-	if r == nil {
-		return ""
-	}
-	return strings.TrimSpace(r.activeProviderID)
+	available map[string]bool
 }
 
 func (r *storageProviderTestRuntime) ProviderPluginAvailable(_ context.Context, pluginID string) bool {
-	if r == nil || len(r.available) == 0 {
-		return true
+	if r == nil {
+		return false
 	}
 	return r.available[strings.TrimSpace(pluginID)]
 }
@@ -371,6 +426,16 @@ func (p *storageProviderTestProvider) Delete(_ context.Context, in storagecap.Pr
 	return nil
 }
 
+func (p *storageProviderTestProvider) DeleteMany(_ context.Context, in storagecap.ProviderDeleteManyInput) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.ensureObjects()
+	for _, key := range in.Keys {
+		delete(p.objects, key)
+	}
+	return nil
+}
+
 func (p *storageProviderTestProvider) List(_ context.Context, in storagecap.ProviderListInput) (*storagecap.ProviderListOutput, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -400,6 +465,45 @@ func (p *storageProviderTestProvider) List(_ context.Context, in storagecap.Prov
 	return &storagecap.ProviderListOutput{Objects: objects}, nil
 }
 
+func (p *storageProviderTestProvider) ListCursor(_ context.Context, in storagecap.ProviderListCursorInput) (*storagecap.ProviderListCursorOutput, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.ensureObjects()
+	keys := make([]string, 0, len(p.objects))
+	prefix := strings.TrimSuffix(in.Prefix, "/")
+	for key := range p.objects {
+		if key == prefix || strings.HasPrefix(key, prefix+"/") {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	cursor := strings.TrimSpace(in.Cursor)
+	filtered := keys[:0]
+	for _, key := range keys {
+		if cursor == "" || key > cursor {
+			filtered = append(filtered, key)
+		}
+	}
+	limit := in.Limit
+	if limit <= 0 || limit > len(filtered) {
+		limit = len(filtered)
+	}
+	page := filtered[:limit]
+	nextCursor := ""
+	if limit < len(filtered) && len(page) > 0 {
+		nextCursor = page[len(page)-1]
+	}
+	objects := make([]*storagecap.ProviderObject, 0, len(page))
+	for _, key := range page {
+		objects = append(objects, &storagecap.ProviderObject{
+			Key:        key,
+			Size:       int64(len(p.objects[key])),
+			Visibility: storagecap.VisibilityPrivate,
+		})
+	}
+	return &storagecap.ProviderListCursorOutput{Objects: objects, NextCursor: nextCursor}, nil
+}
+
 func (p *storageProviderTestProvider) Stat(_ context.Context, in storagecap.ProviderStatInput) (*storagecap.ProviderStatOutput, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -416,6 +520,26 @@ func (p *storageProviderTestProvider) Stat(_ context.Context, in storagecap.Prov
 		},
 		Found: true,
 	}, nil
+}
+
+func (p *storageProviderTestProvider) BatchStat(_ context.Context, in storagecap.ProviderBatchStatInput) (*storagecap.ProviderBatchStatOutput, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.ensureObjects()
+	output := &storagecap.ProviderBatchStatOutput{Objects: []*storagecap.ProviderObject{}}
+	for _, key := range in.Keys {
+		body, ok := p.objects[key]
+		if !ok {
+			output.MissingKeys = append(output.MissingKeys, key)
+			continue
+		}
+		output.Objects = append(output.Objects, &storagecap.ProviderObject{
+			Key:        key,
+			Size:       int64(len(body)),
+			Visibility: storagecap.VisibilityPrivate,
+		})
+	}
+	return output, nil
 }
 
 func (p *storageProviderTestProvider) ensureObjects() {

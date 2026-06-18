@@ -9,6 +9,9 @@ server:
   # Whether to dump the route table at startup
   # 是否在启动时输出路由表
   dumpRouterMap: false
+  # GoFrame graceful HTTP shutdown timeout in seconds
+  # GoFrame HTTP 优雅关停超时时间（秒）
+  gracefulShutdownTimeout: 30
   # LinaPro extension configuration for the GoFrame server component
   # LinaPro 对 GoFrame server 组件的扩展配置
   extensions:
@@ -83,13 +86,6 @@ health:
   # Database probe timeout as a duration string
   # 数据库探活超时时间（duration 字符串）
   timeout: 5s
-
-# Graceful shutdown configuration
-# 优雅关停配置
-shutdown:
-  # Full process shutdown timeout as a duration string
-  # 进程关停完整流程超时时间（duration 字符串）
-  timeout: 30s
 
 # Scheduler configuration
 # 调度器配置

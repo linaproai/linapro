@@ -143,7 +143,22 @@ func (pluginDirectory) BatchGet(ctx context.Context, capCtx capmodel.CapabilityC
 	return domainhostcall.PluginRegistry(invokeCapabilityJSON).BatchGet(ctx, capCtx, ids)
 }
 
+// Current returns the projection for the current caller plugin.
+func (pluginDirectory) Current(ctx context.Context, capCtx capmodel.CapabilityContext) (*plugincap.Projection, error) {
+	return domainhostcall.PluginRegistry(invokeCapabilityJSON).Current(ctx, capCtx)
+}
+
+// Search returns bounded plugin governance projections.
+func (pluginDirectory) Search(ctx context.Context, capCtx capmodel.CapabilityContext, input plugincap.SearchInput) (*capmodel.PageResult[*plugincap.Projection], error) {
+	return domainhostcall.PluginRegistry(invokeCapabilityJSON).Search(ctx, capCtx, input)
+}
+
 // ListTenantPlugins returns tenant-controllable plugins with tenant enablement.
-func (pluginDirectory) ListTenantPlugins(ctx context.Context, capCtx capmodel.CapabilityContext) (*capmodel.PageResult[*plugincap.TenantProjection], error) {
-	return domainhostcall.PluginRegistry(invokeCapabilityJSON).ListTenantPlugins(ctx, capCtx)
+func (pluginDirectory) ListTenantPlugins(ctx context.Context, capCtx capmodel.CapabilityContext, input plugincap.TenantListInput) (*capmodel.PageResult[*plugincap.TenantProjection], error) {
+	return domainhostcall.PluginRegistry(invokeCapabilityJSON).ListTenantPlugins(ctx, capCtx, input)
+}
+
+// BatchGetCapabilityStatus returns framework capability status projections by stable key.
+func (pluginDirectory) BatchGetCapabilityStatus(ctx context.Context, capCtx capmodel.CapabilityContext, keys []plugincap.CapabilityKey) (*capmodel.BatchResult[*capmodel.CapabilityStatus, plugincap.CapabilityKey], error) {
+	return domainhostcall.PluginRegistry(invokeCapabilityJSON).BatchGetCapabilityStatus(ctx, capCtx, keys)
 }

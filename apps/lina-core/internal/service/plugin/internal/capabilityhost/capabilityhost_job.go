@@ -4,6 +4,7 @@ package capabilityhost
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -85,6 +86,82 @@ func (a *jobCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.Capabili
 		}
 	}
 	return result, nil
+}
+
+// Search returns one bounded page of visible scheduled-job projections.
+func (a *jobCapabilityAdapter) Search(ctx context.Context, _ capmodel.CapabilityContext, input capabilityjobcap.SearchInput) (*capmodel.PageResult[*capabilityjobcap.Projection], error) {
+	pageNum, pageSize := NormalizePage(input.Page)
+	if pageSize > capabilityjobcap.MaxSearchPageSize {
+		pageSize = capabilityjobcap.MaxSearchPageSize
+	}
+	cols := dao.SysJob.Columns()
+	model := dao.SysJob.Ctx(ctx)
+	if a != nil && a.tenantFilter != nil {
+		model = a.tenantFilter.Apply(ctx, model, "")
+	}
+	if keyword := strings.TrimSpace(input.Keyword); keyword != "" {
+		like := "%" + keyword + "%"
+		model = model.Where(
+			fmt.Sprintf("(%s LIKE ? OR %s LIKE ?)", cols.Name, cols.HandlerRef),
+			like,
+			like,
+		)
+	}
+	if group := strings.TrimSpace(input.Group); group != "" {
+		groupID, err := strconv.ParseInt(group, 10, 64)
+		if err != nil || groupID <= 0 {
+			return &capmodel.PageResult[*capabilityjobcap.Projection]{Items: []*capabilityjobcap.Projection{}, Total: 0}, nil
+		}
+		model = model.Where(do.SysJob{GroupId: groupID})
+	}
+	if status := strings.TrimSpace(input.Status); status != "" {
+		model = model.Where(do.SysJob{Status: status})
+	}
+	total, err := model.Clone().Count()
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]*struct {
+		Id      int64
+		Name    string
+		GroupId int64
+		Status  string
+	}, 0, pageSize)
+	if err = model.Clone().
+		Fields(cols.Id, cols.Name, cols.GroupId, cols.Status).
+		Page(pageNum, pageSize).
+		OrderDesc(cols.Id).
+		Scan(&rows); err != nil {
+		return nil, err
+	}
+	items := make([]*capabilityjobcap.Projection, 0, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		items = append(items, &capabilityjobcap.Projection{
+			ID:     capabilityjobcap.JobID(strconv.FormatInt(row.Id, 10)),
+			Name:   row.Name,
+			Group:  strconv.FormatInt(row.GroupId, 10),
+			Status: row.Status,
+		})
+	}
+	return &capmodel.PageResult[*capabilityjobcap.Projection]{Items: items, Total: total}, nil
+}
+
+// EnsureVisible rejects when any requested scheduled job is absent or invisible.
+func (a *jobCapabilityAdapter) EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilityjobcap.JobID) error {
+	if len(ids) > capabilityjobcap.MaxEnsureVisible {
+		return bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", capabilityjobcap.MaxEnsureVisible))
+	}
+	result, err := a.BatchGet(ctx, capCtx, ids)
+	if err != nil {
+		return err
+	}
+	if result == nil || len(result.MissingIDs) > 0 {
+		return bizerr.NewCode(capmodel.CodeCapabilityDenied)
+	}
+	return nil
 }
 
 // Run reports unavailable because executing a scheduled job requires the

@@ -35,6 +35,12 @@ func dispatchUsersHostService(
 
 	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceUsers, method)
 	switch method {
+	case bridgehostservice.HostServiceMethodUsersCurrent:
+		result, err := service.Current(ctx, capCtx)
+		if err != nil {
+			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+		}
+		return capabilityJSONResponse(result)
 	case bridgehostservice.HostServiceMethodUsersBatchGet:
 		request, err := decodeUsersHostServiceRequest[usersBatchGetRequest](payload)
 		if err != nil {
@@ -45,13 +51,30 @@ func dispatchUsersHostService(
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		return capabilityJSONResponse(result)
+	case bridgehostservice.HostServiceMethodUsersBatchResolve:
+		request, err := decodeUsersHostServiceRequest[usersBatchResolveRequest](payload)
+		if err != nil {
+			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+		}
+		result, err := service.BatchResolve(ctx, capCtx, usercap.BatchResolveInput{
+			IDs:       userIDsFromStrings(request.UserIDs),
+			Usernames: append([]string(nil), request.Usernames...),
+			Contacts:  append([]string(nil), request.Contacts...),
+		})
+		if err != nil {
+			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+		}
+		return capabilityJSONResponse(result)
 	case bridgehostservice.HostServiceMethodUsersSearch:
 		request, err := decodeUsersHostServiceRequest[usersSearchRequest](payload)
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		result, err := service.Search(ctx, capCtx, usercap.SearchInput{
-			Keyword: strings.TrimSpace(request.Keyword),
+			Keyword:     strings.TrimSpace(request.Keyword),
+			Status:      usercap.Status(strings.TrimSpace(request.Status)),
+			TenantID:    capmodel.DomainID(strings.TrimSpace(request.TenantID)),
+			EnabledOnly: request.EnabledOnly,
 			Page: capmodel.PageRequest{
 				PageNum:  request.PageNum,
 				PageSize: request.PageSize,
@@ -82,10 +105,19 @@ type usersBatchGetRequest struct {
 	UserIDs []string `json:"userIds"`
 }
 
+type usersBatchResolveRequest struct {
+	UserIDs   []string `json:"userIds,omitempty"`
+	Usernames []string `json:"usernames,omitempty"`
+	Contacts  []string `json:"contacts,omitempty"`
+}
+
 type usersSearchRequest struct {
-	Keyword  string `json:"keyword,omitempty"`
-	PageNum  int    `json:"pageNum,omitempty"`
-	PageSize int    `json:"pageSize,omitempty"`
+	Keyword     string `json:"keyword,omitempty"`
+	Status      string `json:"status,omitempty"`
+	TenantID    string `json:"tenantId,omitempty"`
+	EnabledOnly bool   `json:"enabledOnly,omitempty"`
+	PageNum     int    `json:"pageNum,omitempty"`
+	PageSize    int    `json:"pageSize,omitempty"`
 }
 
 type usersEnsureVisibleRequest struct {

@@ -4,9 +4,11 @@ package capabilityhost
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	notifysvc "lina-core/internal/service/notify"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/capmodel"
 	capabilitynotifycap "lina-core/pkg/plugin/capability/notifycap"
 )
@@ -45,6 +47,24 @@ func TestSendConvertsNoticeDTOs(t *testing.T) {
 		len(publisher.deletedSourceIDs) != 1 ||
 		publisher.deletedSourceIDs[0] != "1001" {
 		t.Fatalf("expected host notify delete input to be recorded, got %q %#v", publisher.deletedSourceType, publisher.deletedSourceIDs)
+	}
+}
+
+// TestBatchGetBySourceRejectsSourceIDLimit verifies source-based notification
+// reads have a bounded input set before any storage query is built.
+func TestBatchGetBySourceRejectsSourceIDLimit(t *testing.T) {
+	ids := make([]string, capabilitynotifycap.MaxBatchGetBySourceIDs+1)
+	for i := range ids {
+		ids[i] = "source-" + strconv.Itoa(i)
+	}
+	_, err := newNotificationCapabilityAdapter(nil).BatchGetBySource(context.Background(), capmodel.CapabilityContext{
+		Actor: capmodel.CapabilityActor{UserID: 1},
+	}, capabilitynotifycap.BatchGetBySourceInput{
+		SourceType: capabilitynotifycap.SourceTypePlugin,
+		SourceIDs:  ids,
+	})
+	if !bizerr.Is(err, capmodel.CodeCapabilityLimitExceeded) {
+		t.Fatalf("expected limit error, got %v", err)
 	}
 }
 

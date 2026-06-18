@@ -54,10 +54,39 @@ func (a *authzCapabilityAdapter) BatchGetPermissions(_ context.Context, _ capmod
 	return result, nil
 }
 
-// HasPermission reports false because plugin-facing permission checks are
-// governed by installed host-service authorization snapshots.
-func (a *authzCapabilityAdapter) HasPermission(context.Context, capmodel.CapabilityContext, authz.PermissionKey) (bool, error) {
-	return false, nil
+// BatchHasPermissions reports whether the current actor snapshot grants each permission key.
+func (a *authzCapabilityAdapter) BatchHasPermissions(_ context.Context, capCtx capmodel.CapabilityContext, keys []authz.PermissionKey) (map[authz.PermissionKey]bool, error) {
+	if len(keys) > authz.MaxBatchHasPermissions {
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", authz.MaxBatchHasPermissions))
+	}
+	result := make(map[authz.PermissionKey]bool, len(keys))
+	granted := make(map[string]struct{}, len(capCtx.Authorization.Permissions))
+	for _, permission := range capCtx.Authorization.Permissions {
+		normalizedPermission := strings.TrimSpace(permission)
+		if normalizedPermission == "" {
+			continue
+		}
+		granted[normalizedPermission] = struct{}{}
+	}
+	for _, key := range keys {
+		normalizedKey := strings.TrimSpace(string(key))
+		if normalizedKey == "" {
+			result[key] = false
+			continue
+		}
+		_, ok := granted[normalizedKey]
+		result[key] = ok
+	}
+	return result, nil
+}
+
+// HasPermission reports whether the actor has one permission in the current scope.
+func (a *authzCapabilityAdapter) HasPermission(ctx context.Context, capCtx capmodel.CapabilityContext, key authz.PermissionKey) (bool, error) {
+	result, err := a.BatchHasPermissions(ctx, capCtx, []authz.PermissionKey{key})
+	if err != nil {
+		return false, err
+	}
+	return result[key], nil
 }
 
 // IsPlatformAdmin reports whether one user has a platform all-data role.
