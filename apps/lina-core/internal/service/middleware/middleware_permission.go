@@ -16,9 +16,8 @@ import (
 // Permission middleware constants define metadata tag names, wildcard grants,
 // and the normalized JSON error envelope code.
 const (
-	staticPermissionMetaTag      = "permission"
-	staticPermissionMetaTagAlias = "perms"
-	staticPermissionWildcard     = "*:*:*"
+	staticPermissionMetaTag  = "permission"
+	staticPermissionWildcard = "*:*:*"
 )
 
 // staticPermissionContextKey stores manually declared permissions for routes
@@ -106,11 +105,7 @@ func extractDeclaredPermissions(r *ghttp.Request) []string {
 	}
 	handler := r.GetServeHandler()
 	if handler != nil {
-		permissions := resolveDeclaredPermissions(
-			handler.GetMetaTag(staticPermissionMetaTag),
-			handler.GetMetaTag(staticPermissionMetaTagAlias),
-		)
-		if len(permissions) > 0 {
+		if permissions := resolveDeclaredPermissions(handler.GetMetaTag(staticPermissionMetaTag)); len(permissions) > 0 {
 			return permissions
 		}
 	}
@@ -120,14 +115,9 @@ func extractDeclaredPermissions(r *ghttp.Request) []string {
 	return nil
 }
 
-// resolveDeclaredPermissions prefers the canonical permission tag and falls
-// back to the legacy alias so older declarations remain compatible.
-func resolveDeclaredPermissions(permissionTag string, aliasTag string) []string {
-	permissions := normalizePermissionList(permissionTag)
-	if len(permissions) > 0 {
-		return permissions
-	}
-	return normalizePermissionList(aliasTag)
+// resolveDeclaredPermissions normalizes the canonical permission metadata tag.
+func resolveDeclaredPermissions(permissionTag string) []string {
+	return normalizePermissionList(permissionTag)
 }
 
 // normalizePermissionList trims, deduplicates, and preserves order for the

@@ -56,7 +56,7 @@ func runAgentsPromptsLink(_ context.Context, a *app, input commandInput) error {
 }
 
 // runAgentsPromptsLinkInteractive walks the user through a numbered
-// selection of link-class agents and optionally enables FORCE for
+// selection of link-class agents and optionally enables force for
 // mismatched rebuilds.
 func runAgentsPromptsLinkInteractive(a *app, force bool) error {
 	candidates := prompts.LinkCandidates(a.root)
@@ -84,7 +84,7 @@ func runAgentsPromptsLinkInteractive(a *app, force bool) error {
 		}
 		if hasMismatch {
 			confirmed, confirmErr := common.PromptYesNo(a.stdin, a.stdout,
-				"One or more selected agents have mismatched links. Rebuild with FORCE=1?", false)
+				"One or more selected agents have mismatched links. Rebuild with force=1?", false)
 			if confirmErr != nil {
 				return confirmErr
 			}

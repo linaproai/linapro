@@ -166,8 +166,8 @@ func TestUserDataScopeRejectsInvisibleStatusUpdate(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected invisible status update to be rejected")
 	}
-	if !bizerr.Is(err, CodeUserDataScopeDenied) {
-		t.Fatalf("expected CodeUserDataScopeDenied, got %v", err)
+	if !bizerr.Is(err, datascope.CodeDataScopeDenied) {
+		t.Fatalf("expected CodeDataScopeDenied, got %v", err)
 	}
 	if status := mustQueryUserStatus(t, ctx, targetUserID); status != int(StatusNormal) {
 		t.Fatalf("expected target user status to remain normal, got %d", status)
@@ -200,8 +200,8 @@ func TestUserDataScopeBatchDeleteRejectsInvisibleTarget(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected invisible batch delete target to be rejected")
 	}
-	if !bizerr.Is(err, CodeUserDataScopeDenied) {
-		t.Fatalf("expected CodeUserDataScopeDenied, got %v", err)
+	if !bizerr.Is(err, datascope.CodeDataScopeDenied) {
+		t.Fatalf("expected CodeDataScopeDenied, got %v", err)
 	}
 	if count := mustCountUser(t, ctx, deptMateUserID); count != 1 {
 		t.Fatalf("expected visible target to remain after rejected batch, count=%d", count)

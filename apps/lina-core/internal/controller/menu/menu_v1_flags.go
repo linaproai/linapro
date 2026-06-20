@@ -1,5 +1,5 @@
 // This file centralizes conversions between typed API flag contracts and the
-// menu service's legacy integer input model.
+// menu service's integer flag input model.
 
 package menu
 

@@ -123,7 +123,7 @@ func EmitHints(out io.Writer, results []Result) error {
 		}
 	}
 	if hasMismatch {
-		if _, err := fmt.Fprintln(out, "Hint: rerun with FORCE=1 to rebuild mismatched links."); err != nil {
+		if _, err := fmt.Fprintln(out, "Hint: rerun with force=1 to rebuild mismatched links."); err != nil {
 			return fmt.Errorf("write hint: %w", err)
 		}
 	}
@@ -133,7 +133,7 @@ func EmitHints(out io.Writer, results []Result) error {
 		}
 	}
 	if hasRootCollision {
-		if _, err := fmt.Fprintln(out, "Hint: rootCollision agents (e.g. openclaw) require explicit AGENT=<name> FORCE=1."); err != nil {
+		if _, err := fmt.Fprintln(out, "Hint: rootCollision agents (e.g. openclaw) require explicit agent=<name> force=1."); err != nil {
 			return fmt.Errorf("write hint: %w", err)
 		}
 	}

@@ -31,8 +31,7 @@ const (
 // sys_user model. The empty flag lets callers return an empty result when a
 // scope resolves to no visible rows.
 func (s *serviceImpl) applyUserDataScope(ctx context.Context, m *gdb.Model) (*gdb.Model, bool, error) {
-	scopedModel, empty, err := s.currentScopeSvc().ApplyUserScope(ctx, m, qualifiedSysUserIDColumn())
-	return scopedModel, empty, mapDataScopeError(err)
+	return s.currentScopeSvc().ApplyUserScope(ctx, m, qualifiedSysUserIDColumn())
 }
 
 // ensureUserVisible rejects detail and mutation operations for rows outside
@@ -47,7 +46,7 @@ func (s *serviceImpl) ensureUsersVisible(ctx context.Context, userIDs []int) err
 	if err := s.ensureUsersVisibleByTenantMembership(ctx, userIDs); err != nil {
 		return err
 	}
-	return mapDataScopeError(s.currentScopeSvc().EnsureUsersVisible(ctx, userIDs))
+	return s.currentScopeSvc().EnsureUsersVisible(ctx, userIDs)
 }
 
 // ensureUsersVisibleByTenantMembership rejects tenant-scoped detail and write
@@ -91,7 +90,7 @@ func qualifiedSysUserIDColumn() string {
 func (s *serviceImpl) currentUserDataScope(ctx context.Context) (userDataScope, int, error) {
 	currentScope, err := s.currentScopeSvc().Current(ctx)
 	if err != nil {
-		return userDataScopeNone, 0, mapDataScopeError(err)
+		return userDataScopeNone, 0, err
 	}
 	return currentScope.Scope, currentScope.UserID, nil
 }
@@ -104,27 +103,6 @@ func (s *serviceImpl) currentScopeSvc() datascope.Service {
 	return nil
 }
 
-// mapDataScopeError preserves user-management legacy business error codes at
-// the module boundary while reusing shared data-scope internals.
-func mapDataScopeError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case bizerr.Is(err, datascope.CodeDataScopeDenied):
-		return bizerr.NewCode(CodeUserDataScopeDenied)
-	case bizerr.Is(err, datascope.CodeDataScopeNotAuthenticated):
-		return bizerr.NewCode(CodeUserNotAuthenticated)
-	case bizerr.Is(err, datascope.CodeDataScopeUnsupported):
-		messageErr, ok := bizerr.As(err)
-		if !ok {
-			return bizerr.NewCode(CodeUserDataScopeUnsupported)
-		}
-		return bizerr.NewCode(CodeUserDataScopeUnsupported, bizerr.P("scope", messageErr.Params()["scope"]))
-	default:
-		return err
-	}
-}
-
 // mapTenantMembershipVisibilityError preserves user-management authorization
 // semantics while delegating membership details to tenantcap providers.
 func mapTenantMembershipVisibilityError(err error) error {
@@ -132,7 +110,7 @@ func mapTenantMembershipVisibilityError(err error) error {
 		return nil
 	}
 	if bizerr.Is(err, tenantcap.CodeTenantForbidden) {
-		return bizerr.NewCode(CodeUserDataScopeDenied)
+		return bizerr.NewCode(datascope.CodeDataScopeDenied)
 	}
 	return err
 }

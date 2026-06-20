@@ -31,7 +31,7 @@ func Inspect(repoRoot string, spec SpecLike) Result {
 	info, lstatErr := os.Lstat(target)
 	if errors.Is(lstatErr, os.ErrNotExist) {
 		if spec.SpecCategory() == CategoryRootCollision {
-			return Result{Spec: spec, Status: StatusSkippedRootCollision, Detail: "use FORCE=1 to create"}
+			return Result{Spec: spec, Status: StatusSkippedRootCollision, Detail: "use force=1 to create"}
 		}
 		return Result{Spec: spec, Status: StatusAbsent}
 	}
@@ -61,7 +61,7 @@ func ApplyOneLink(repoRoot string, spec SpecLike, force bool) Result {
 		return Result{Spec: spec, Status: StatusNative}
 	}
 	if spec.SpecCategory() == CategoryRootCollision && !force {
-		return Result{Spec: spec, Status: StatusSkippedRootCollision, Detail: "use FORCE=1 to create"}
+		return Result{Spec: spec, Status: StatusSkippedRootCollision, Detail: "use force=1 to create"}
 	}
 	target := filepath.Join(repoRoot, filepath.FromSlash(spec.SpecProjectPath()))
 	info, lstatErr := os.Lstat(target)
@@ -94,7 +94,7 @@ func ApplyOneLink(repoRoot string, spec SpecLike, force bool) Result {
 		return Result{Spec: spec, Status: StatusOK}
 	}
 	if !force {
-		return Result{Spec: spec, Status: StatusMismatch, Detail: "-> " + currentTarget + "; use FORCE=1 to rebuild"}
+		return Result{Spec: spec, Status: StatusMismatch, Detail: "-> " + currentTarget + "; use force=1 to rebuild"}
 	}
 	if removeErr := os.Remove(target); removeErr != nil {
 		return Result{Spec: spec, Status: StatusError, Detail: "remove existing link: " + removeErr.Error()}

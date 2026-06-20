@@ -17,5 +17,5 @@
 //   - rootCollision is not used: AGENTS.md itself lives at the repo root
 //     and there is no symmetric collision case to guard against.
 //
-// Real files are never automatically removed, even with FORCE=1.
+// Real files are never automatically removed, even with force=1.
 package md

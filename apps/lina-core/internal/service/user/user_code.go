@@ -82,18 +82,6 @@ var (
 		"Not signed in",
 		gcode.CodeNotAuthorized,
 	)
-	// CodeUserDataScopeDenied reports that the requested user row is outside the current data scope.
-	CodeUserDataScopeDenied = bizerr.MustDefine(
-		"USER_DATA_SCOPE_DENIED",
-		"User data is outside the current data permission scope",
-		gcode.CodeNotAuthorized,
-	)
-	// CodeUserDataScopeUnsupported reports that an enabled role has an unsupported data scope.
-	CodeUserDataScopeUnsupported = bizerr.MustDefine(
-		"USER_DATA_SCOPE_UNSUPPORTED",
-		"Unsupported user data permission scope: {scope}",
-		gcode.CodeInvalidParameter,
-	)
 	// CodeUserTenantMembershipQueryFailed reports failure while checking tenant membership visibility.
 	CodeUserTenantMembershipQueryFailed = bizerr.MustDefine(
 		"USER_TENANT_MEMBERSHIP_QUERY_FAILED",

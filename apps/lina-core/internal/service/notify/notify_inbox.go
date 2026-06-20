@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -102,7 +101,7 @@ func (s *serviceImpl) InboxList(ctx context.Context, in InboxListInput) (*InboxL
 			Title:        row.Title,
 			CategoryCode: row.CategoryCode,
 			SourceType:   row.SourceType,
-			SourceID:     gconv.Int64(row.SourceId),
+			SourceID:     row.SourceId,
 			IsRead:       row.IsRead,
 			ReadAt:       row.ReadAt,
 			CreatedAt:    row.CreatedAt,

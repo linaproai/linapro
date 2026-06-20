@@ -10,6 +10,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
+	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/menutype"
@@ -194,6 +195,22 @@ func TestPlatformContextKeepsPlatformOnlyMenuAssignment(t *testing.T) {
 	}
 }
 
+// TestRoleMenuPluginIDUsesMenuKeyOnly verifies plugin ownership classification
+// does not read marker-like text from menu remarks.
+func TestRoleMenuPluginIDUsesMenuKeyOnly(t *testing.T) {
+	t.Parallel()
+
+	if got := roleMenuPluginID(&entity.SysMenu{Remark: "plugin:remark-owner:entry"}); got != "" {
+		t.Fatalf("expected remark-only plugin marker to be ignored, got %q", got)
+	}
+	if got := roleMenuPluginID(&entity.SysMenu{
+		MenuKey: "plugin:current-owner:entry",
+		Remark:  "plugin:remark-owner:entry",
+	}); got != "current-owner" {
+		t.Fatalf("expected menu_key plugin owner, got %q", got)
+	}
+}
+
 // roleAssignableMenuSeed carries the menu fields relevant to assignability
 // tests.
 type roleAssignableMenuSeed struct {
@@ -257,7 +274,7 @@ func cleanupRoleAssignablePlugin(t *testing.T, ctx context.Context, pluginID str
 
 // enableRoleAssignableTenantCapability activates the real tenantcap service so
 // role assignability tests exercise tenant/platform context decisions instead
-// of the single-tenant compatibility branch.
+// of the single-tenant branch.
 func enableRoleAssignableTenantCapability(t *testing.T, svc *serviceImpl) {
 	t.Helper()
 	svc.tenantSvc = activateRoleTenantBoundaryProvider(t)

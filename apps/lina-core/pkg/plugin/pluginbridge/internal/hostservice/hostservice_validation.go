@@ -12,8 +12,8 @@ import (
 )
 
 // ValidateHostServiceSpecs validates and normalizes host service declarations
-// in-place without plugin ownership checks. Production manifest paths should
-// prefer ValidateHostServiceSpecsForPlugin so data tables stay plugin-owned.
+// in-place. Data host-service declarations require ValidateHostServiceSpecsForPlugin
+// so table ownership is always checked against a concrete plugin ID.
 func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 	return validateHostServiceSpecs(specs, "")
 }
@@ -172,6 +172,9 @@ func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 				return gerror.Newf("host service %s must declare at least one table", spec.Service)
 			}
 			if spec.Service == HostServiceData {
+				if strings.TrimSpace(pluginID) == "" {
+					return gerror.New("host service data requires plugin-aware validation")
+				}
 				if err := validateDataServiceTablesForPlugin(pluginID, spec.Tables); err != nil {
 					return err
 				}
@@ -238,12 +241,11 @@ func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 }
 
 // validateDataServiceTablesForPlugin restricts dynamic data-service access to
-// the current plugin namespace. Blank pluginID keeps legacy structural tests
-// usable while production manifest paths pass the concrete plugin ID.
+// the current plugin namespace.
 func validateDataServiceTablesForPlugin(pluginID string, tables []string) error {
 	normalizedPluginID := normalizePluginIDForTableNamespace(pluginID)
 	if normalizedPluginID == "" {
-		return nil
+		return gerror.New("host service data requires plugin ID")
 	}
 	ownedTable := "plugin_" + normalizedPluginID
 	ownedPrefix := ownedTable + "_"
@@ -306,7 +308,8 @@ func hostServiceResourceKindForMethods(service string, methods []string) HostSer
 	return HostServiceResourceNone
 }
 
-// NormalizeHostServiceSpecs returns deep-cloned and normalized host service declarations.
+// NormalizeHostServiceSpecs returns deep-cloned and normalized host service
+// declarations. Data declarations must use NormalizeHostServiceSpecsForPlugin.
 func NormalizeHostServiceSpecs(specs []*HostServiceSpec) ([]*HostServiceSpec, error) {
 	return normalizeHostServiceSpecs(specs, "")
 }

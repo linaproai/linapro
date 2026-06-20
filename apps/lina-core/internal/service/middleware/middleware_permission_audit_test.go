@@ -212,9 +212,6 @@ func collectStaticPermissionAuditRoutes(
 			}
 
 			permissionValue := strings.TrimSpace(tag.Get(staticPermissionMetaTag))
-			if permissionValue == "" {
-				permissionValue = strings.TrimSpace(tag.Get(staticPermissionMetaTagAlias))
-			}
 			routes = append(routes, staticPermissionAuditRoute{
 				File:       path,
 				Line:       fset.Position(metaField.Pos()).Line,

@@ -44,7 +44,7 @@ type MessageItem struct {
 	TypeLabel    string               `json:"typeLabel" dc:"Localized category label resolved by the host according to the request locale" eg:"Notice"`
 	TypeColor    string               `json:"typeColor" dc:"Localized category tag color resolved by the host so the inbox UI can render badges without hardcoding category-specific colors" eg:"blue"`
 	SourceType   SourceType           `json:"sourceType" dc:"Source type: notice=notification announcement plugin=dynamic plugin system=system" eg:"notice"`
-	SourceId     int64                `json:"sourceId" dc:"Source ID, this field is used for the current notification announcement preview" eg:"1001"`
+	SourceId     string               `json:"sourceId" dc:"Original sender-declared source record ID" eg:"notice-1001"`
 	IsRead       statusflag.ReadState `json:"isRead" dc:"Whether it has been read: 0=unread 1=read" eg:"0"`
 	ReadAt       *int64               `json:"readAt" dc:"Read time as Unix timestamp in milliseconds, empty when unread" eg:"1776240000000"`
 	CreatedAt    *int64               `json:"createdAt" dc:"Message creation time as Unix timestamp in milliseconds" eg:"1776238200000"`

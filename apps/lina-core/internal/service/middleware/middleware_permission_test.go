@@ -10,28 +10,20 @@ import (
 	"lina-core/internal/service/role"
 )
 
-// TestResolveDeclaredPermissions verifies primary and legacy permission tags
-// normalize into one ordered permission slice.
+// TestResolveDeclaredPermissions verifies the canonical permission tag
+// normalizes into one ordered permission slice.
 func TestResolveDeclaredPermissions(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name          string
 		permissionTag string
-		aliasTag      string
 		expected      []string
 	}{
 		{
 			name:          "prefer primary permission tag",
 			permissionTag: "plugin:install, plugin:enable",
-			aliasTag:      "plugin:disable",
 			expected:      []string{"plugin:install", "plugin:enable"},
-		},
-		{
-			name:          "fallback to perms alias",
-			permissionTag: "",
-			aliasTag:      "plugin:query",
-			expected:      []string{"plugin:query"},
 		},
 		{
 			name:          "trim empty and duplicate values",
@@ -49,7 +41,7 @@ func TestResolveDeclaredPermissions(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			actual := resolveDeclaredPermissions(testCase.permissionTag, testCase.aliasTag)
+			actual := resolveDeclaredPermissions(testCase.permissionTag)
 			if !reflect.DeepEqual(actual, testCase.expected) {
 				t.Fatalf("expected permissions %#v, got %#v", testCase.expected, actual)
 			}

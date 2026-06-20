@@ -458,16 +458,16 @@ func TestValidateHostServiceSpecsRejectsCoreServiceWithoutResource(t *testing.T)
 	}
 }
 
-// TestValidateHostServiceSpecsAcceptsDataTables verifies data service
-// declarations normalize and accept authorized table lists.
-func TestValidateHostServiceSpecsAcceptsDataTables(t *testing.T) {
+// TestValidateHostServiceSpecsRejectsDataTablesWithoutPlugin verifies data
+// service declarations require plugin-aware table ownership validation.
+func TestValidateHostServiceSpecsRejectsDataTablesWithoutPlugin(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
 		Service: HostServiceData,
 		Methods: []string{HostServiceMethodDataList, HostServiceMethodDataUpdate},
 		Tables:  []string{" sys_plugin_node_state ", "sys_user"},
 	}})
-	if err != nil {
-		t.Fatalf("expected data host service tables to validate, got %v", err)
+	if err == nil {
+		t.Fatal("expected data host service tables without plugin ID to be rejected")
 	}
 }
 

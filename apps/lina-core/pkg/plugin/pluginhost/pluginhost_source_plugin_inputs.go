@@ -32,8 +32,8 @@ type SourcePluginUninstallInput interface {
 	// own business data and stored files during uninstall.
 	PurgeStorageData() bool
 	// Services returns the plugin-scoped host service directory available during
-	// uninstall cleanup. It can be nil for tests or legacy direct callback
-	// invocations outside the host lifecycle runner.
+	// uninstall cleanup. It can be nil for tests that construct callbacks
+	// outside the host lifecycle runner.
 	Services() Services
 }
 

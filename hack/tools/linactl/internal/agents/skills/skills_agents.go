@@ -17,20 +17,6 @@ import (
 // repository root. All managed symlinks point at this directory.
 const SourceDir = ".agents/skills"
 
-// Category aliases the resource-agnostic category enum defined in the
-// common subpackage so existing call sites keep using skills.CategoryLink
-// etc. without churn.
-type Category = common.Category
-
-// Re-exported category constants. New code should prefer common.Category*
-// directly; these aliases exist so the skills subpackage's external surface
-// keeps working during the multi-resource refactor.
-const (
-	CategoryNative        = common.CategoryNative
-	CategoryLink          = common.CategoryLink
-	CategoryRootCollision = common.CategoryRootCollision
-)
-
 // AgentSpec describes one supported agent's project-level skill location.
 // It implements common.SpecLike so the resource-agnostic engine in the
 // common subpackage can operate on it uniformly.

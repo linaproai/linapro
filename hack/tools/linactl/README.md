@@ -162,7 +162,7 @@ make agents agent=claude-code force=1            # rebuild mismatched links duri
 make agents agent=claude-code action=unlink      # remove every managed symlink for claude-code
 ```
 
-`agent` must name a single supported agent: `agent=all` and comma-separated lists are explicitly rejected by the aggregate command (use the per-resource subcommands below for batch flows). Agent names are normalized to canonical kebab-case, so `ClaudeCode`, `Claude Code`, `claude_code`, and `claude-code` all resolve to `claude-code`. `action` defaults to `link`. Without `agent`, non-TTY invocations print a usage hint instead of blocking on input. The upper-case Make variables `AGENT`, `ACTION`, and `FORCE` remain accepted as compatibility aliases, but new examples should prefer the lower-case names because they match `linactl`'s `key=value` parameters.
+`agent` must name a single supported agent: `agent=all` and comma-separated lists are explicitly rejected by the aggregate command (use the per-resource subcommands below for batch flows). Agent names are normalized to canonical kebab-case, so `ClaudeCode`, `Claude Code`, `claude_code`, and `claude-code` all resolve to `claude-code`. `action` defaults to `link`. Without `agent`, non-TTY invocations print a usage hint instead of blocking on input. Parameter keys are case-sensitive and use lower-case `linactl` `key=value` names.
 
 ### Per-resource subcommands (advanced)
 
@@ -226,10 +226,10 @@ The old `make skills` / `make skills.link` / `make skills.unlink` targets and th
 | --- | --- |
 | `make skills` | `make agents` |
 | `make skills.link` | `make agents.skills.link` |
-| `make skills.link AGENT=<name>` | `make agents.skills.link agent=<name>` |
-| `make skills.link AGENT=all FORCE=1` | `make agents.skills.link agent=all force=1` |
+| `make skills.link agent=<name>` | `make agents.skills.link agent=<name>` |
+| `make skills.link agent=all force=1` | `make agents.skills.link agent=all force=1` |
 | `make skills.unlink` | `make agents.skills.unlink` |
-| `make skills.unlink AGENT=<name>` | `make agents.skills.unlink agent=<name>` |
+| `make skills.unlink agent=<name>` | `make agents.skills.unlink agent=<name>` |
 | `linactl skills` | `linactl agents` |
 | `linactl skills.link` | `linactl agents.skills.link` |
 | `linactl skills.unlink` | `linactl agents.skills.unlink` |

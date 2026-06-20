@@ -121,8 +121,8 @@ type InboxListItem struct {
 	CategoryCode string
 	// SourceType is the originating business source type.
 	SourceType string
-	// SourceID is the legacy numeric source identifier used by current previews.
-	SourceID int64
+	// SourceID is the originating business record identifier.
+	SourceID string
 	// IsRead reports whether the inbox row has been marked as read.
 	IsRead int
 	// ReadAt is the optional read timestamp.

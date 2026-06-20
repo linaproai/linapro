@@ -51,9 +51,9 @@ const (
 	// MigrationDirectionMock identifies the optional install-time mock data load phase.
 	MigrationDirectionMock MigrationDirection = "mock"
 
-	// MigrationStatusFailed is the legacy integer failed marker.
+	// MigrationStatusFailed is the persisted integer failed marker.
 	MigrationStatusFailed = 0
-	// MigrationStatusSucceeded is the legacy integer succeeded marker.
+	// MigrationStatusSucceeded is the persisted integer succeeded marker.
 	MigrationStatusSucceeded = 1
 
 	// ReleaseStatusPrepared marks a staged release.

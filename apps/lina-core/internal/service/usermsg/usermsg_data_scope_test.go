@@ -35,8 +35,8 @@ func TestUserMessagesRemainSelfIsolatedForAllDataScope(t *testing.T) {
 	})
 	insertUserMsgScopeUserRole(t, ctx, currentUserID, roleID)
 
-	currentDeliveryID := insertUserMsgScopeDelivery(t, ctx, currentUserID, "current-message")
-	otherDeliveryID := insertUserMsgScopeDelivery(t, ctx, otherUserID, "other-message")
+	currentDeliveryID, currentSourceID := insertUserMsgScopeDelivery(t, ctx, currentUserID, "current-message")
+	otherDeliveryID, _ := insertUserMsgScopeDelivery(t, ctx, otherUserID, "other-message")
 	t.Cleanup(func() { cleanupUserMsgScopeDeliveries(t, ctx, []int64{currentDeliveryID, otherDeliveryID}) })
 
 	svc := New(nil, notify.New(tenantspi.New(nil, nil, nil)), nil).(*serviceImpl)
@@ -48,6 +48,17 @@ func TestUserMessagesRemainSelfIsolatedForAllDataScope(t *testing.T) {
 	}
 	if out.Total != 1 || len(out.List) != 1 || out.List[0].Id != currentDeliveryID {
 		t.Fatalf("expected only current user's message, got total=%d list=%#v", out.Total, out.List)
+	}
+	if out.List[0].SourceId != currentSourceID {
+		t.Fatalf("expected source ID %q in list projection, got %q", currentSourceID, out.List[0].SourceId)
+	}
+
+	detail, err := svc.Get(ctx, currentDeliveryID)
+	if err != nil {
+		t.Fatalf("get current message: %v", err)
+	}
+	if detail.SourceId != currentSourceID {
+		t.Fatalf("expected source ID %q in detail projection, got %q", currentSourceID, detail.SourceId)
 	}
 
 	if _, err = svc.Get(ctx, otherDeliveryID); !bizerr.Is(err, CodeUserMsgNotFound) {
@@ -154,11 +165,12 @@ func insertUserMsgScopeUserRole(t *testing.T, ctx context.Context, userID int, r
 }
 
 // insertUserMsgScopeDelivery inserts one message and one inbox delivery.
-func insertUserMsgScopeDelivery(t *testing.T, ctx context.Context, userID int, title string) int64 {
+func insertUserMsgScopeDelivery(t *testing.T, ctx context.Context, userID int, title string) (int64, string) {
 	t.Helper()
+	sourceID := uniqueUserMsgScopeName("source")
 	messageID, err := dao.SysNotifyMessage.Ctx(ctx).Data(do.SysNotifyMessage{
 		SourceType:   notify.SourceTypeSystem.String(),
-		SourceId:     uniqueUserMsgScopeName("source"),
+		SourceId:     sourceID,
 		CategoryCode: notify.CategoryCodeSystem.String(),
 		Title:        title,
 		Content:      title + " content",
@@ -181,7 +193,7 @@ func insertUserMsgScopeDelivery(t *testing.T, ctx context.Context, userID int, t
 	if err != nil {
 		t.Fatalf("insert usermsg-scope delivery: %v", err)
 	}
-	return deliveryID
+	return deliveryID, sourceID
 }
 
 // cleanupUserMsgScopeUsers removes temporary users.

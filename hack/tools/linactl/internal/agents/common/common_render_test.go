@@ -64,7 +64,7 @@ func TestEmitHintsReflectsStatuses(t *testing.T) {
 		t.Fatalf("emit: %v", err)
 	}
 	hint := buffer.String()
-	for _, fragment := range []string{"FORCE=1", "Resolve listed paths", "rootCollision", "DETAIL"} {
+	for _, fragment := range []string{"force=1", "Resolve listed paths", "rootCollision", "DETAIL"} {
 		if !strings.Contains(hint, fragment) {
 			t.Fatalf("missing hint fragment %q in %q", fragment, hint)
 		}

@@ -105,7 +105,7 @@ type MessageItem struct {
 	TypeLabel    string     // Localized category label resolved at the host
 	TypeColor    string     // Localized category tag color resolved at the host
 	SourceType   string     // Message source type
-	SourceId     int64      // Message source ID
+	SourceId     string     // Original sender-declared source record ID
 	IsRead       int        // Whether the message has been read
 	ReadAt       *time.Time // Read time
 	CreatedAt    *time.Time // Creation time
@@ -120,7 +120,7 @@ type MessageDetail struct {
 	TypeLabel     string     // Localized category label resolved at the host
 	TypeColor     string     // Localized category tag color resolved at the host
 	SourceType    string     // Message source type
-	SourceId      int64      // Message source ID
+	SourceId      string     // Original sender-declared source record ID
 	Content       string     // Renderable message body content
 	CreatedByName string     // Sender display name
 	CreatedAt     *time.Time // Message creation time

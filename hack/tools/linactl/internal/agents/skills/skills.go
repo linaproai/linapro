@@ -10,5 +10,5 @@
 // Implementation uses Go standard library symlink primitives (os.Symlink,
 // os.Readlink, os.Lstat, os.Remove, os.MkdirAll) combined with filepath.Rel
 // to keep generated symlinks portable across Windows, Linux and macOS. Real
-// directories and files are never automatically removed, even with FORCE=1.
+// directories and files are never automatically removed, even with force=1.
 package skills

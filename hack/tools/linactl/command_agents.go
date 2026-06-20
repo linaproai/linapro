@@ -172,7 +172,6 @@ func printAgentsUsage(out io.Writer) error {
 		"  make agents agent=<name> [action=link|unlink] [force=1]",
 		"  - agent must name a single supported agent (no 'all', no csv).",
 		"  - action defaults to 'link'.",
-		"  - Upper-case AGENT/ACTION/FORCE aliases remain accepted for compatibility.",
 		"  - The selected action runs against every resource type the agent supports.",
 		"",
 		"Interactive mode (TTY only):",

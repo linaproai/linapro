@@ -6,7 +6,7 @@ export interface UserMessage {
   typeLabel: string;
   typeColor: string;
   sourceType: string;
-  sourceId: number;
+  sourceId: string;
   isRead: number;
   readAt: number | null;
   createdAt: number | null;
@@ -19,7 +19,7 @@ export interface UserMessageDetail {
   typeLabel: string;
   typeColor: string;
   sourceType: string;
-  sourceId: number;
+  sourceId: string;
   content: string;
   createdByName: string;
   createdAt: number | null;

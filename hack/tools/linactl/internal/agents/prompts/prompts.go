@@ -10,5 +10,5 @@
 //
 // All bindings are directory-kind symlinks managed via the resource-
 // agnostic engine in linactl/internal/agents/common. Real directories and
-// files are never automatically removed, even with FORCE=1.
+// files are never automatically removed, even with force=1.
 package prompts
