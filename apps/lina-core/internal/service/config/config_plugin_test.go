@@ -1,4 +1,4 @@
-// This file verifies plugin configuration defaults, legacy fallback handling,
+// This file verifies plugin configuration defaults, strict storage-path loading,
 // and test-time dynamic storage-path overrides.
 
 package config
@@ -59,15 +59,15 @@ plugin:
 	}
 }
 
-// TestGetPluginFallsBackToLegacyRuntimeStoragePath verifies the legacy runtime
-// field still provides the effective storage path when the new field is empty.
-func TestGetPluginFallsBackToLegacyRuntimeStoragePath(t *testing.T) {
+// TestGetPluginIgnoresRuntimeStoragePath verifies only plugin.dynamic.storagePath
+// can configure the dynamic plugin storage directory.
+func TestGetPluginIgnoresRuntimeStoragePath(t *testing.T) {
 	setTestConfigContent(t, `
 plugin:
   dynamic:
     storagePath: "   "
   runtime:
-    storagePath: legacy/runtime/plugins
+    storagePath: ignored/runtime/plugins
 `)
 	SetPluginDynamicStoragePathOverride("")
 	t.Cleanup(func() {
@@ -76,11 +76,11 @@ plugin:
 
 	svc := New()
 	cfg := svc.GetPlugin(context.Background())
-	if cfg.Dynamic.StoragePath != "legacy/runtime/plugins" {
-		t.Fatalf("expected legacy runtime storage path fallback, got %q", cfg.Dynamic.StoragePath)
+	if cfg.Dynamic.StoragePath != "temp/output" {
+		t.Fatalf("expected unsupported runtime storage path to be ignored, got %q", cfg.Dynamic.StoragePath)
 	}
-	if path := svc.GetPluginDynamicStoragePath(context.Background()); path != resolveRuntimePath("legacy/runtime/plugins") {
-		t.Fatalf("expected cleaned legacy runtime storage path, got %q", path)
+	if path := svc.GetPluginDynamicStoragePath(context.Background()); path != resolveRuntimePath("temp/output") {
+		t.Fatalf("expected default dynamic storage path, got %q", path)
 	}
 }
 
@@ -120,10 +120,9 @@ func TestGetPluginDynamicStoragePathOverrideIgnoresBlankValues(t *testing.T) {
 // TestGetPluginAutoEnableNormalizesListAndAppliesOverrides verifies startup
 // auto-enable IDs are trimmed, de-duplicated, cloned, and overrideable in tests.
 func TestGetPluginAutoEnableNormalizesListAndAppliesOverrides(t *testing.T) {
-	// plugin.autoEnable accepts only the structured object form. The previous
-	// bare-string form has been removed for schema uniformity, so duplicate
-	// detection now exercises duplicate ids in the structured form together
-	// with whitespace-trimming and order preservation.
+	// plugin.autoEnable accepts only the structured object form, so duplicate
+	// detection exercises duplicate ids together with whitespace-trimming and
+	// order preservation.
 	setTestConfigContent(t, `
 plugin:
   autoEnable:
@@ -148,7 +147,7 @@ plugin:
 	}
 	for index, entry := range cfg.AutoEnable {
 		if entry.WithMockData {
-			t.Fatalf("expected bare-string YAML entries to default WithMockData=false at index %d, got %#v", index, entry)
+			t.Fatalf("expected omitted WithMockData to default false at index %d, got %#v", index, entry)
 		}
 	}
 

@@ -73,9 +73,9 @@ cluster:
 	}
 }
 
-// TestGetClusterIgnoresLegacyElectionConfig verifies the deprecated root-level
-// election section no longer affects cluster defaults.
-func TestGetClusterIgnoresLegacyElectionConfig(t *testing.T) {
+// TestGetClusterIgnoresRootElectionConfig verifies only cluster.election
+// affects cluster election defaults.
+func TestGetClusterIgnoresRootElectionConfig(t *testing.T) {
 	setTestConfigContent(t, `
 election:
   lease: 50s

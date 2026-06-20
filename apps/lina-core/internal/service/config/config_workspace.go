@@ -113,7 +113,6 @@ func workspaceReservedBasePathPrefixes() []string {
 		"/api/v1",
 		"/x",
 		"/x-assets",
-		"/plugin-assets",
 	}
 }
 
