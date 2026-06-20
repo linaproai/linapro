@@ -177,9 +177,13 @@ func New(
 	notifySvc NotifyPublisher,
 	kvCacheSvc kvcache.Service,
 	lockSvc hostlock.Service,
+	pluginConfigFactory plugincap.ConfigServiceFactory,
 	storageRuntime storagecap.ProviderRuntime,
 	localStorageProvider storagecap.Provider,
 ) (capability.Services, error) {
+	if pluginConfigFactory == nil {
+		return nil, gerror.New("create plugin host services failed: plugin config factory is nil")
+	}
 	if kvCacheSvc == nil {
 		return nil, gerror.New("create plugin host services failed: cache service is nil")
 	}
@@ -206,7 +210,6 @@ func New(
 		notificationDomain  = newNotificationCapabilityAdapter(notifySvc)
 		jobDomain           = newJobCapabilityAdapter(tenantFilterSvc)
 		infraDomain         = newInfraCapabilityAdapter()
-		pluginConfigFactory = plugincap.NewConfigFactory("", "")
 		pluginLifecycle     = plugincap.NewLifecycle(pluginLifecycleRunner)
 		pluginState         = plugincap.NewState(pluginStateSvc)
 		aiDomain            = capabilityai.New(aiTextSvc)

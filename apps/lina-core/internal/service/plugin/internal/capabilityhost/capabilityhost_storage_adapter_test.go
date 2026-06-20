@@ -19,6 +19,7 @@ import (
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/storagecap"
 )
 
@@ -333,6 +334,7 @@ func newStorageAdapterTestDirectory(
 		nil,
 		kvcache.New(),
 		newStorageAdapterTestLockService(t),
+		plugincap.NewConfigFactory("", ""),
 		runtime,
 		localProvider,
 	)

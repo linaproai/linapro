@@ -69,6 +69,7 @@ func newUserTestService(tenantManagersAndRuntimes ...any) Service {
 		panic("test config service does not support raw host config reads")
 	}
 	hostConfigSvc := capabilityhostconfig.New(hostConfigReader)
+	pluginConfigFactory := capabilityconfig.NewConfigFactoryWithHostStaticConfig("", "", hostConfigReader)
 	lockSvc, err := hostlock.New(lockerSvc)
 	if err != nil {
 		panic(err)
@@ -90,6 +91,7 @@ func newUserTestService(tenantManagersAndRuntimes ...any) Service {
 		notifySvc,
 		kvCacheSvc,
 		lockSvc,
+		pluginConfigFactory,
 		pluginsvc.NewStorageProviderRuntime(pluginRuntime),
 		pluginsvc.NewLocalStorageProvider(configSvc.GetPluginDynamicStoragePath(context.Background())),
 	)
@@ -111,7 +113,7 @@ func newUserTestService(tenantManagersAndRuntimes ...any) Service {
 		tenantSvc,
 		tenantSvc,
 		tenantSvc,
-		capabilityconfig.NewConfigFactory("", ""),
+		pluginConfigFactory,
 		hostConfigSvc,
 		capabilitymanifest.NewFactory(""),
 	)

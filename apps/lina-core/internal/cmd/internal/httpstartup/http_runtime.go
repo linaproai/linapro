@@ -247,7 +247,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		jobMgmtSvc            = jobmgmtsvc.New(bizCtxSvc, configSvc, i18nSvc, jobRegistry, jobScheduler, scopeSvc)
 		middlewareSvc         = middleware.New(authSvc, bizCtxSvc, configSvc, i18nSvc, roleSvc, tenantSvc)
 		hostConfigSvc         = pluginservicehostconfig.New(hostConfigReader)
-		pluginConfigFactory   = pluginserviceconfig.NewConfigFactory("", "")
+		pluginConfigFactory   = pluginserviceconfig.NewConfigFactoryWithHostStaticConfig("", "", hostConfigReader)
 		pluginManifestFactory = pluginservicemanifest.NewFactory("")
 	)
 	hostLockSvc, err := hostlock.New(lockerSvc)
@@ -274,6 +274,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		notifySvc,
 		kvCacheSvc,
 		hostLockSvc,
+		pluginConfigFactory,
 		storageRuntime,
 		localStorageProvider,
 	)

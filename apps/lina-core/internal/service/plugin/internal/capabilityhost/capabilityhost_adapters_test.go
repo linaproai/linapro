@@ -19,6 +19,7 @@ import (
 	"lina-core/internal/service/locker"
 	"lina-core/pkg/plugin/capability/apidoccap"
 	"lina-core/pkg/plugin/capability/authcap/token"
+	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -312,6 +313,7 @@ func TestNewWiresCompleteAdminDirectory(t *testing.T) {
 		nil,
 		kvcache.New(),
 		lockSvc,
+		plugincap.NewConfigFactory("", ""),
 		nil,
 		NewLocalStorageProvider(t.TempDir()),
 	)

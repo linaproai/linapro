@@ -215,6 +215,61 @@ func TestHandleHostServiceInvokeConfigBindsArtifactDefaultConfig(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeConfigPrefersHostStaticConfig verifies dynamic
+// plugins.config.get uses plugin.<plugin-id> from host static config before
+// release-bound artifact defaults.
+func TestHandleHostServiceInvokeConfigPrefersHostStaticConfig(t *testing.T) {
+	factory := plugincap.NewConfigFactoryWithHostStaticConfig(
+		t.TempDir(),
+		t.TempDir(),
+		wasmTestHostStaticConfigReader{values: map[string]any{
+			"plugin.test-plugin-config": map[string]any{
+				"feature": map[string]any{
+					"name": "host",
+				},
+			},
+		}},
+	)
+	bindTestHostServiceRuntime(t, withTestConfigFactory(factory))
+	hcc := configHostCallContext()
+	hcc.artifactDefaultConfig = []byte("feature:\n  name: artifact\n")
+
+	response := invokeConfigHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodPluginsConfigGet,
+		"feature.name",
+	)
+	payload := decodeConfigResponse(t, response)
+	if !payload.Found || payload.Value != `"host"` {
+		t.Fatalf("expected host static config response, got %#v", payload)
+	}
+}
+
+// TestHandleHostServiceInvokeConfigUsesArtifactDefaultConfig verifies
+// release-bound artifact default config remains scoped to the host-call context.
+func TestHandleHostServiceInvokeConfigUsesArtifactDefaultConfig(t *testing.T) {
+	factory := plugincap.NewConfigFactoryWithHostStaticConfig(
+		t.TempDir(),
+		t.TempDir(),
+		wasmTestHostStaticConfigReader{},
+	)
+	bindTestHostServiceRuntime(t, withTestConfigFactory(factory))
+	hcc := configHostCallContext()
+	hcc.artifactDefaultConfig = []byte("feature:\n  name: artifact\n")
+
+	response := invokeConfigHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodPluginsConfigGet,
+		"feature.name",
+	)
+	payload := decodeConfigResponse(t, response)
+	if !payload.Found || payload.Value != `"artifact"` {
+		t.Fatalf("expected artifact default config response, got %#v", payload)
+	}
+}
+
 // TestHandleHostServiceInvokeConfigRejectsTypedMethod verifies dynamic config
 // calls reject SDK helper names at authorization time.
 func TestHandleHostServiceInvokeConfigRejectsTypedMethod(t *testing.T) {
@@ -333,4 +388,22 @@ func configureTrackingConfigFactory(t *testing.T, service *trackingConfigService
 	factory := &trackingConfigFactory{service: service}
 	bindTestHostServiceRuntime(t, withTestConfigFactory(factory))
 	return factory
+}
+
+// wasmTestHostStaticConfigReader returns deterministic host static sections
+// for dynamic config host-service tests.
+type wasmTestHostStaticConfigReader struct {
+	values map[string]any
+}
+
+// GetRaw returns one configured host static test value.
+func (r wasmTestHostStaticConfigReader) GetRaw(_ context.Context, key string) (*gvar.Var, error) {
+	if r.values == nil {
+		return nil, nil
+	}
+	value, ok := r.values[key]
+	if !ok {
+		return nil, nil
+	}
+	return gvar.New(value), nil
 }

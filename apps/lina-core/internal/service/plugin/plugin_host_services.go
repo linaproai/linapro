@@ -140,6 +140,7 @@ func NewHostServices(
 	notifySvc HostNotifyPublisher,
 	kvCacheSvc kvcache.Service,
 	lockSvc hostlock.Service,
+	pluginConfigFactory plugincap.ConfigServiceFactory,
 	storageRuntime storagecap.ProviderRuntime,
 	localStorageProvider storagecap.Provider,
 ) (capability.Services, error) {
@@ -160,6 +161,7 @@ func NewHostServices(
 		notifySvc,
 		kvCacheSvc,
 		lockSvc,
+		pluginConfigFactory,
 		storageRuntime,
 		localStorageProvider,
 	)

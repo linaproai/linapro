@@ -12,10 +12,17 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/container/gvar"
+	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/gfile"
 )
+
+// configReader is the narrow internal read shape shared by file, artifact, and
+// host-static plugin config sources.
+type configReader interface {
+	// Get returns one plugin-local config value for key.
+	Get(ctx context.Context, key string, def ...any) (*gvar.Var, error)
+}
 
 // Get returns the raw configuration value for the given key.
 func (s *serviceAdapter) Get(ctx context.Context, key string) (*gvar.Var, error) {
@@ -145,9 +152,14 @@ func normalizeConfigKey(key string) (string, error) {
 }
 
 // resolveConfig returns the first configured plugin-scoped config source.
-func (s *serviceAdapter) resolveConfig(ctx context.Context) (*gcfg.Config, string, error) {
+func (s *serviceAdapter) resolveConfig(ctx context.Context) (configReader, string, error) {
 	if s == nil || strings.TrimSpace(s.pluginID) == "" {
 		return nil, "", gerror.New("plugin config service requires plugin scope")
+	}
+	if reader, err := s.hostStaticConfig(ctx); err != nil {
+		return nil, "", err
+	} else if reader != nil {
+		return reader, "host-static", nil
 	}
 	for _, candidate := range s.fileCandidates() {
 		if strings.TrimSpace(candidate.path) == "" || !gfile.Exists(candidate.path) {
@@ -167,6 +179,28 @@ func (s *serviceAdapter) resolveConfig(ctx context.Context) (*gcfg.Config, strin
 		return cfg, "artifact", nil
 	}
 	return nil, "", nil
+}
+
+// hostStaticConfig returns the host main-config plugin.<plugin-id> section when
+// configured. The whole section wins as one source; missing subkeys do not fall
+// back to file-backed sources.
+func (s *serviceAdapter) hostStaticConfig(ctx context.Context) (configReader, error) {
+	if s == nil || s.hostStatic == nil {
+		return nil, nil
+	}
+	sectionKey := "plugin." + strings.TrimSpace(s.pluginID)
+	value, err := s.hostStatic.GetRaw(ctx, sectionKey)
+	if err != nil {
+		return nil, gerror.Wrapf(err, "read host static plugin config section failed plugin=%s key=%s", s.pluginID, sectionKey)
+	}
+	if isMissing(value) {
+		return nil, nil
+	}
+	doc := gjson.New(value.Val())
+	if doc == nil || doc.IsNil() {
+		return nil, nil
+	}
+	return &jsonConfigReader{doc: doc}, nil
 }
 
 // configFileCandidate records one scoped runtime config file candidate.

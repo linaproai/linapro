@@ -1017,6 +1017,7 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 		panic("test config service does not support raw host config reads")
 	}
 	hostConfigSvc := pluginservicehostconfig.New(hostConfigReader)
+	pluginConfigFactory := pluginserviceconfig.NewConfigFactoryWithHostStaticConfig("", "", hostConfigReader)
 	hostLockSvc, err := hostlock.New(lockerSvc)
 	if err != nil {
 		panic(err)
@@ -1038,6 +1039,7 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 		notifySvc,
 		kvCacheSvc,
 		hostLockSvc,
+		pluginConfigFactory,
 		pluginsvc.NewStorageProviderRuntime(pluginRuntime),
 		pluginsvc.NewLocalStorageProvider(configSvc.GetPluginDynamicStoragePath(ctx)),
 	)
@@ -1059,7 +1061,7 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 		tenantSvc,
 		tenantSvc,
 		tenantSvc,
-		pluginserviceconfig.NewConfigFactory("", ""),
+		pluginConfigFactory,
 		hostConfigSvc,
 		pluginservicemanifest.NewFactory(""),
 	)

@@ -29,12 +29,12 @@
 | `BizCtx` | 投影当前业务请求上下文。 | 作为只读运行期上下文桥接当前用户、租户、语言和请求元数据。 |
 | `Dict` | 解析字典值标签、列出有界字典候选，并校验类型化值可见性。 | 宿主校验保持在可见字典类型和值范围内。 |
 | `Files` | 提供已有`sys_file`资源的宿主文件中心投影、有界搜索和可见性确认。 | 宿主校验避免插件探测或使用可见边界之外的文件 ID；该能力不负责写入、读取、删除或列出插件私有对象。 |
-| `HostConfig` | 读取受治理的宿主运行期配置值。 | 动态声明必须列出`resources.keys`；源码插件获得窄化只读 service。 |
+| `HostConfig` | 读取受治理的宿主运行期配置值。 | 动态声明必须列出`resources.keys`；源码插件获得窄化只读 service。该能力独立于插件作用域业务配置。 |
 | `I18n` | 为源码插件读取 locale、翻译消息并查找消息 key。 | 源码插件通过`pluginhost.Services`接收该能力；动态插件不接收`i18n`host service，因为其 i18n 资源由宿主管理。 |
 | `Infra` | 读取基础设施组件状态投影。 | 校验关注可见组件 ID 和只读状态投影。 |
 | `Jobs` | 读取定时任务元数据、搜索有界任务候选、校验任务可见性并注册动态任务。 | 声明期任务契约先校验，再进入运行期任务发现和执行；运行期搜索和可见性校验保持只读。 |
 | `Notifications` | 读取类型化通知消息投影、按业务来源批量读取消息、校验消息可见性并发送受治理通知。 | 读取调用不需要资源声明且保持 actor 可见；`messages.send`需要`resources[].ref`边界。 |
-| `Plugins` | 暴露当前插件投影、插件注册表投影、租户插件分页、能力状态、插件作用域配置、启用状态和租户生命周期 hook。 | 运行期检查插件可见性、provider 启用、权威启用状态和租户生命周期前置条件。 |
+| `Plugins` | 暴露当前插件投影、插件注册表投影、租户插件分页、能力状态、插件作用域配置、启用状态和租户生命周期 hook。 | 运行期检查插件可见性、provider 启用、权威启用状态、租户生命周期前置条件和插件作用域配置来源隔离。 |
 | `Route` | 暴露当前执行的动态路由元数据。 | 用于运行期路由分发，不暴露宿主 router 内部实现。 |
 | `Sessions` | 读取当前在线会话投影、搜索在线会话、批量读取在线会话投影、校验会话可见性，并批量读取用户在线状态。 | 宿主校验保持会话和用户可见性在调用方边界内。 |
 | `Storage` | 提供插件私有对象存储操作，用于插件自有附件、业务二进制对象、导入导出临时文件和卸载清理，并支持显式批量元数据、游标列表和批量删除。 | 源码插件通过`pluginhost.Services`获得插件作用域`Storage()`；动态声明使用`service: storage`和`resources.paths`；写入不会创建`sys_file`记录，也不会暴露 provider key 或本地路径。 |
@@ -66,6 +66,21 @@
 | 插件命令从请求中接收宿主文件 ID。 | `Files().EnsureVisible` / `files.visible.ensure` | 命令执行写入前必须先校验全部 ID。不存在和不可见使用相同拒绝语义，避免泄露资源存在性。 |
 
 `Storage()`provider 选择不依赖主配置项。宿主在恰好一个 storage provider 插件可服务时使用该插件，没有可服务 provider 时回退到内置本地 provider，多个 provider 插件同时可服务时拒绝 storage 调用。
+
+## 插件配置来源
+
+源码插件通过`Services.Plugins().Config()`读取当前插件业务配置，动态插件通过`plugins.config.get`读取当前插件业务配置。这些入口都限定在插件作用域内，不暴露任意宿主配置 key，也不会读取兄弟插件配置。
+
+配置来源优先级按配置段生效：
+
+| 优先级 | 来源 | 运行期行为 |
+| --- | --- | --- |
+| 1 | 宿主主静态配置段`plugin.<plugin-id>` | 整个配置段作为该插件的有效配置来源。段内缺失的子 key 返回不存在或调用方默认值，不再回退到文件来源。 |
+| 2 | 宿主配置根下的生产文件`plugins/<plugin-id>/config.yaml` | 仅在`plugin.<plugin-id>`不存在时使用。 |
+| 3 | 开发期文件`apps/lina-plugins/<plugin-id>/manifest/config/config.yaml` | 仅在宿主静态配置和生产文件来源都不存在时使用。 |
+| 4 | 动态 artifact 默认配置`manifest/config/config.yaml` | 作为当前动态插件执行上下文的最终回退来源。 |
+
+`manifest/config/config.example.yaml`只作为模板，不会作为运行期默认值加载。`HostConfig()`仍然是独立的宿主配置能力；动态`hostconfig.get`调用仍必须在`hostServices`中声明`resources.keys`授权。
 
 ## 普通消费契约、Provider SPI 与 Guest SDK
 

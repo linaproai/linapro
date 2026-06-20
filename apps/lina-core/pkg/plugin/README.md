@@ -29,12 +29,12 @@ Dynamic plugins may use only the concrete methods that are explicitly published 
 | `BizCtx` | Projects the current business request context. | Used as a read-only runtime context bridge for request user, tenant, locale, and request metadata. |
 | `Dict` | Resolves dictionary value labels, lists bounded value candidates, and validates typed value visibility. | Host validation stays within visible dictionary types and values. |
 | `Files` | Provides host file-center projections, bounded search, and visibility enforcement for existing `sys_file` resources. | Host validation prevents plugins from probing or using file IDs outside their visible boundary; it does not write, read, delete, or list plugin-private objects. |
-| `HostConfig` | Reads governed host runtime configuration values. | Dynamic declarations must list `resources.keys`; source plugins receive a narrow read-only service. |
+| `HostConfig` | Reads governed host runtime configuration values. | Dynamic declarations must list `resources.keys`; source plugins receive a narrow read-only service. It is separate from plugin-scoped business config. |
 | `I18n` | Reads locale, translates messages, and finds message keys for source plugins. | Source plugins receive this through `pluginhost.Services`; dynamic plugins do not receive an `i18n` host service because their i18n resources are host-managed. |
 | `Infra` | Reads infrastructure component status projections. | Validation focuses on visible component IDs and read-only status projection. |
 | `Jobs` | Reads scheduled-job metadata, searches bounded job candidates, validates job visibility, and registers dynamic jobs. | Declaration-time job contracts are validated before runtime job discovery and execution; runtime search and visibility checks stay read-only. |
 | `Notifications` | Reads typed notification message projections, batch-loads messages by business source, validates message visibility, and sends governed notifications. | Read calls do not require resource declarations and stay actor-visible; `messages.send` requires a `resources[].ref` boundary. |
-| `Plugins` | Exposes current plugin projection, plugin registry projections, tenant plugin pages, capability status, plugin-scoped config, enablement state, and tenant lifecycle hooks. | Runtime checks cover plugin visibility, provider enablement, authoritative state, and tenant lifecycle preconditions. |
+| `Plugins` | Exposes current plugin projection, plugin registry projections, tenant plugin pages, capability status, plugin-scoped config, enablement state, and tenant lifecycle hooks. | Runtime checks cover plugin visibility, provider enablement, authoritative state, tenant lifecycle preconditions, and plugin-scoped config source isolation. |
 | `Route` | Exposes dynamic-route metadata for the current execution. | Used by runtime route dispatch without exposing host router internals. |
 | `Sessions` | Reads the current online-session projection, searches sessions, batch-loads session projections, validates session visibility, and batch-reads user online status. | Host validation keeps session and user visibility scoped to the caller. |
 | `Storage` | Provides plugin-private object storage operations for plugin-owned attachments, binary objects, import/export temporaries, and uninstall cleanup, including explicit batch stat, cursor list, and batch delete. | Source plugins receive plugin-scoped `Storage()` through `pluginhost.Services`; dynamic declarations use `service: storage` with `resources.paths`; writes do not create `sys_file` rows or expose provider keys or local paths. |
@@ -69,6 +69,27 @@ New capabilities should enter `capability.Services` only when source plugins and
 enabled storage provider plugin when exactly one is serviceable, falls back to
 the built-in local provider when none is serviceable, and rejects storage calls
 when multiple provider plugins are serviceable.
+
+## Plugin Configuration Sources
+
+Source plugins use `Services.Plugins().Config()` and dynamic plugins use
+`plugins.config.get` to read the current plugin's business configuration. These
+entries are plugin-scoped and do not expose arbitrary host configuration keys or
+sibling plugin configuration.
+
+Configuration source priority is section-level:
+
+| Priority | Source | Runtime behavior |
+| --- | --- | --- |
+| 1 | Host main static config section `plugin.<plugin-id>` | The whole section becomes the effective plugin config source. Missing subkeys return absent or caller defaults and do not fall back to file sources. |
+| 2 | Production file `plugins/<plugin-id>/config.yaml` under the host config root | Used only when `plugin.<plugin-id>` is absent. |
+| 3 | Development file `apps/lina-plugins/<plugin-id>/manifest/config/config.yaml` | Used only when host static and production file sources are absent. |
+| 4 | Dynamic artifact default `manifest/config/config.yaml` | Used as the final fallback for the active dynamic plugin execution context. |
+
+`manifest/config/config.example.yaml` is a template only and is never loaded as
+runtime defaults. `HostConfig()` remains the separate host configuration
+capability; dynamic `hostconfig.get` calls still require `resources.keys`
+authorization in `hostServices`.
 
 ## Consumer Contracts, Provider SPI, and Guest SDK
 
