@@ -357,7 +357,7 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "invalid static workspace basePath would make frontend fallback route binding ambiguous, so startup must fail before serving HTTP traffic",
 		},
 		{
-			Path:     "apps/lina-core/internal/service/config/config_runtime_params_revision.go",
+			Path:     "apps/lina-core/internal/service/config/config_raw.go",
 			Function: "configureRuntimeParamCacheDomain",
 			Count:    1,
 			Category: panicCategoryStaticConfig,

@@ -605,7 +605,7 @@ func checkForbiddenHTTPStartupPluginSetterCalls(t *testing.T) {
 		"ConfigureWasmHostServices":             "WASM host service runtime must be constructed during plugin.New",
 	}
 	fileSet := token.NewFileSet()
-	path := filepath.Join("..", "..", "cmd", "internal", "httpstartup", "http_runtime.go")
+	path := filepath.Join("..", "..", "cmd", "internal", "httpstartup", "httpstartup_runtime.go")
 	file, err := parser.ParseFile(fileSet, path, nil, 0)
 	if err != nil {
 		t.Fatalf("parse %s: %v", path, err)
