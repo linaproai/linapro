@@ -20,6 +20,7 @@
 - [x] **FB-2**: 按反馈将`config_runtime_params.go`、`config_runtime_params_cache.go`和`config_runtime_params_revision.go`合并到`config_raw.go`，并将相关单元测试合并到合适的测试文件。
 - [x] **FB-3**: 审查并修正`apps/lina-core/internal/service/config`目录下不符合源码关联命名规范的单元测试文件。
 - [x] **FB-4**: 将调度模块内置运行时参数`cron.shell.enabled`和`cron.log.retention`统一修正为`sys.cron.shell.enabled`和`sys.cron.log.retention`。
+- [x] **FB-5**: 为`hostconfigcap.Service.Get`增加缺失值默认参数，保持`hostconfig.get`协议最小化。
 
 ## 验证记录
 
@@ -43,6 +44,16 @@
 - FB-4 开发工具跨平台：无 Makefile、脚本、CI、代码生成入口或跨平台工具变更。
 - FB-4 DI 来源检查：无新增运行期依赖、构造函数参数、服务装配或独立服务图；继续复用启动期注入的`config.Service`实例。
 - FB-4 验证：`cd apps/lina-core && go test ./internal/service/config ./internal/service/sysconfig ./internal/service/jobmgmt ./internal/packed ./api/job/v1 ./internal/cmd -count=1`通过；`cd apps/lina-vben && pnpm vitest run apps/web-antd/src/runtime/public-frontend.test.ts --dom`通过；`cd hack/tests && pnpm test:validate && pnpm exec tsc --noEmit -p tsconfig.json`通过；`openspec validate generalize-hostconfig-sysconfig-cache --strict`通过；`git diff --check`通过；静态检索确认非归档源码、SQL、测试和当前规格中不再引用旧 key。
+- FB-5 根因：`hostconfigcap.Service.Get`原始返回值虽然是`*gvar.Var`，但缺失 key 时没有统一的调用侧默认值入口；仅保留`String`、`Bool`、`Int`和`Duration`typed helper 会导致其他可由`gvar.Var`转换的类型缺少同等默认值能力。
+- FB-5 实现：将`hostconfigcap.Service.Get`签名固定为`Get(ctx, key, defaultValue any)`，缺失或`nil`值且`defaultValue`非`nil`时返回默认值的`gvar.Var`包装；传入`nil`保持缺失返回`nil`。同步更新源码插件调用点、测试替身、`pluginbridge`适配器、WASM host service 调用和`pkg/plugin`中英文 README。`pluginbridge`适配器同时覆盖 host call 返回 JSON`null`时的默认值语义。动态`hostconfig.get`协议仍不接收默认值，授权继续由`hostServices.resources.keys`控制。
+- FB-5 影响分析：修改`apps/lina-core/pkg/plugin/capability/hostconfigcap`、`apps/lina-core/pkg/plugin/pluginbridge/internal/domainhostcall`、`apps/lina-core/internal/service/plugin/internal/wasm`、宿主插件测试替身、`linapro-monitor-loginlog`、`linapro-ai-core`和`linapro-demo-dynamic`的 HostConfig 调用点，以及当前 OpenSpec 规格和插件 README；新增`domainhostcall_config_test.go`覆盖 bridge-backed 默认值语义；不新增 HTTP API、SQL、前端页面、脚本或代码生成入口。
+- FB-5 i18n：无运行时用户可见文案、菜单、按钮、表单、表格、API 文档源文本、插件清单、语言包或翻译缓存变更；仅同步技术 README 和 OpenSpec 文档。
+- FB-5 缓存一致性：无缓存权威数据源、revision、失效触发点、跨实例同步、TTL 或故障降级变更；默认值只在既有 HostConfig 读取结果缺失后于调用层包装返回。
+- FB-5 数据权限：无新增数据操作接口、列表、详情、导出、聚合、下载、写操作或租户可见性变更；动态插件读取仍按`hostconfig.get`授权 key 拦截，源码插件仍通过稳定`HostConfig()`能力读取。
+- FB-5 开发工具跨平台：无 Makefile、脚本、CI、代码生成、资源打包、服务启停或跨平台工具变更。
+- FB-5 DI 来源检查：无新增运行期依赖、构造函数参数、服务装配或独立服务图；继续复用启动期注入的`hostconfigcap.Service`、`pluginbridge`适配器和 WASM runtime 的`hostConfigService`。
+- FB-5 外部规则加载：已按`AGENTS.md`读取`.agents/rules/openspec.md`、`.agents/rules/backend-go.md`、`.agents/rules/architecture.md`、`.agents/rules/plugin.md`、`.agents/rules/testing.md`、`.agents/rules/documentation.md`、`.agents/rules/cache-consistency.md`、`.agents/rules/data-permission.md`、`.agents/rules/i18n.md`和`.agents/rules/api-contract.md`；API 契约规则确认无 HTTP API、DTO、OpenAPI 元数据或前端调用契约影响。
+- FB-5 验证：`cd apps/lina-core && go test ./pkg/plugin/capability/hostconfigcap ./pkg/plugin/pluginbridge/internal/domainhostcall ./internal/service/plugin/internal/wasm -count=1`通过；`cd apps/lina-core && go test ./internal/cmd -count=1`通过；`cd apps/lina-plugins/linapro-monitor-loginlog && GOWORK=off go test ./backend -count=1`通过；`cd apps/lina-plugins/linapro-ai-core && GOWORK=off go test ./backend -count=1`通过；`cd apps/lina-plugins/linapro-demo-dynamic && GOWORK=off go test ./backend/internal/service/dynamic -count=1`通过；插件测试使用`GOWORK=off`是因为根`go.work`未包含这些独立插件模块；`openspec validate generalize-hostconfig-sysconfig-cache --strict`通过；静态检索确认未残留旧的`hostconfigcap.Service.Get(ctx, key)`签名或可变默认值参数。
 - 缓存一致性：权威数据源为`sys_config`；快照复用 runtime-config revision、本地`gcache`和`cachecoord`单机/集群分支；缓存 key 增加 tenant scope；创建、更新、导入和删除任意`sys_config`有效值后推进 revision；写入节点立即清理当前 scope 快照，其他节点沿用共享 revision 和 watcher 刷新。
 - 数据权限/租户边界：读取按当前 tenant scope 加载平台行或平台+租户行，租户行覆盖平台行；动态插件仍由`hostconfig.get`的`resources.keys`授权拦截；源码插件通过稳定`HostConfig()`读取，不直接访问 DAO/Entity。
 - i18n：无运行时用户可见文案、API 文档源文本、语言包或翻译缓存变更。

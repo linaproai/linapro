@@ -30,7 +30,7 @@ func New(configSvc RawConfigReader) Service {
 }
 
 // Get returns the raw host config value for the requested key or root snapshot.
-func (s *serviceAdapter) Get(ctx context.Context, key string) (*gvar.Var, error) {
+func (s *serviceAdapter) Get(ctx context.Context, key string, defaultValue any) (*gvar.Var, error) {
 	normalizedKey, err := normalizeHostConfigKey(key)
 	if err != nil {
 		return nil, err
@@ -39,7 +39,10 @@ func (s *serviceAdapter) Get(ctx context.Context, key string) (*gvar.Var, error)
 	if err != nil {
 		return nil, err
 	}
-	if value == nil {
+	if value == nil || value.IsNil() {
+		if defaultValue != nil {
+			return gvar.New(defaultValue), nil
+		}
 		return nil, nil
 	}
 	return value, nil
@@ -47,7 +50,7 @@ func (s *serviceAdapter) Get(ctx context.Context, key string) (*gvar.Var, error)
 
 // Exists reports whether a host config key is available.
 func (s *serviceAdapter) Exists(ctx context.Context, key string) (bool, error) {
-	value, err := s.Get(ctx, key)
+	value, err := s.Get(ctx, key, nil)
 	if err != nil {
 		return false, err
 	}
@@ -56,7 +59,7 @@ func (s *serviceAdapter) Exists(ctx context.Context, key string) (bool, error) {
 
 // String reads a host config string value or returns defaultValue when the key is absent or blank.
 func (s *serviceAdapter) String(ctx context.Context, key string, defaultValue string) (string, error) {
-	value, err := s.Get(ctx, key)
+	value, err := s.Get(ctx, key, nil)
 	if err != nil {
 		return "", err
 	}
@@ -68,7 +71,7 @@ func (s *serviceAdapter) String(ctx context.Context, key string, defaultValue st
 
 // Bool reads a host config bool value or returns defaultValue when the key is absent.
 func (s *serviceAdapter) Bool(ctx context.Context, key string, defaultValue bool) (bool, error) {
-	value, err := s.Get(ctx, key)
+	value, err := s.Get(ctx, key, nil)
 	if err != nil {
 		return false, err
 	}
@@ -80,7 +83,7 @@ func (s *serviceAdapter) Bool(ctx context.Context, key string, defaultValue bool
 
 // Int reads a host config int value or returns defaultValue when the key is absent.
 func (s *serviceAdapter) Int(ctx context.Context, key string, defaultValue int) (int, error) {
-	value, err := s.Get(ctx, key)
+	value, err := s.Get(ctx, key, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -92,7 +95,7 @@ func (s *serviceAdapter) Int(ctx context.Context, key string, defaultValue int) 
 
 // Duration reads a host config duration value or returns defaultValue when the key is absent or blank.
 func (s *serviceAdapter) Duration(ctx context.Context, key string, defaultValue time.Duration) (time.Duration, error) {
-	value, err := s.Get(ctx, key)
+	value, err := s.Get(ctx, key, nil)
 	if err != nil {
 		return 0, err
 	}

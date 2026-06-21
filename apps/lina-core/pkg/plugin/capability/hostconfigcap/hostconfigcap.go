@@ -15,8 +15,12 @@ import (
 
 // Service defines read-only host config values that source plugins may read.
 type Service interface {
-	// Get returns the raw host config value for the requested key or root snapshot.
-	Get(ctx context.Context, key string) (*gvar.Var, error)
+	// Get returns the raw host config value for the requested key or root
+	// snapshot. When the key is absent or nil, Get returns defaultValue wrapped
+	// as *gvar.Var. Passing nil preserves absent-key nil return semantics. Empty
+	// strings remain present values; typed helpers own blank-value fallback
+	// semantics.
+	Get(ctx context.Context, key string, defaultValue any) (*gvar.Var, error)
 	// Exists reports whether a host config key is available.
 	Exists(ctx context.Context, key string) (bool, error)
 	// String reads a host config string value or returns defaultValue when

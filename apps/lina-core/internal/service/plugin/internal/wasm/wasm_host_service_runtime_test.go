@@ -410,8 +410,10 @@ func (noopTestConfigService) Duration(context.Context, string, time.Duration) (t
 
 type noopTestHostConfigService struct{}
 
-func (noopTestHostConfigService) Get(context.Context, string) (*gvar.Var, error) { return nil, nil }
-func (noopTestHostConfigService) Exists(context.Context, string) (bool, error)   { return false, nil }
+func (noopTestHostConfigService) Get(context.Context, string, any) (*gvar.Var, error) {
+	return nil, nil
+}
+func (noopTestHostConfigService) Exists(context.Context, string) (bool, error) { return false, nil }
 func (noopTestHostConfigService) String(context.Context, string, string) (string, error) {
 	return "", nil
 }

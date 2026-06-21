@@ -63,6 +63,32 @@ workspace:
 	}
 }
 
+// TestHostConfigMissingKeyUsesRawGetDefault verifies raw Get can provide a
+// caller default without changing the typed helper fallback contract.
+func TestHostConfigMissingKeyUsesRawGetDefault(t *testing.T) {
+	setTestHostConfigAdapter(t, `
+workspace:
+  basePath: "/admin"
+`)
+
+	svc := New(testRawHostConfigReader{})
+	value, err := svc.Get(context.Background(), "custom.feature.limit", 10)
+	if err != nil {
+		t.Fatalf("read missing host config key with default: %v", err)
+	}
+	if value == nil || value.Int() != 10 {
+		t.Fatalf("expected default host config value 10, got %#v", value)
+	}
+
+	existing, err := svc.Get(context.Background(), "workspace.basePath", "fallback")
+	if err != nil {
+		t.Fatalf("read existing host config key with default: %v", err)
+	}
+	if existing.String() != "/admin" {
+		t.Fatalf("expected existing host config value to win, got %q", existing.String())
+	}
+}
+
 // TestHostConfigAllowsRootReads verifies source plugins can read the host
 // config root when they explicitly ask for it.
 func TestHostConfigAllowsRootReads(t *testing.T) {
@@ -72,7 +98,7 @@ workspace:
 `)
 
 	svc := New(testRawHostConfigReader{})
-	value, err := svc.Get(context.Background(), ".")
+	value, err := svc.Get(context.Background(), ".", nil)
 	if err != nil {
 		t.Fatalf("read host config root: %v", err)
 	}
@@ -95,7 +121,7 @@ workspace:
 func TestHostConfigRequiresInjectedRawReader(t *testing.T) {
 	svc := New(nil)
 
-	if _, err := svc.Get(context.Background(), "workspace.basePath"); err == nil ||
+	if _, err := svc.Get(context.Background(), "workspace.basePath", nil); err == nil ||
 		!strings.Contains(err.Error(), "not configured") {
 		t.Fatalf("expected missing host config service to fail explicitly, got %v", err)
 	}

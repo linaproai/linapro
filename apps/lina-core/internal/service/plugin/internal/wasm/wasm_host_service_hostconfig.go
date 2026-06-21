@@ -48,7 +48,7 @@ func handleHostConfigGet(ctx context.Context, reader hostconfigcap.Service, key 
 		return configValueResponse("", false)
 	}
 
-	value, err := reader.Get(ctx, key)
+	value, err := reader.Get(ctx, key, nil)
 	if err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInternalError, err)
 	}

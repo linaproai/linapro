@@ -653,9 +653,12 @@ func (s *testCapabilities) Tenant() tenantcap.Service {
 type testHostConfigService struct{}
 
 // Get returns a test log-retention value and nil for unrelated host keys.
-func (testHostConfigService) Get(_ context.Context, key string) (*gvar.Var, error) {
+func (testHostConfigService) Get(_ context.Context, key string, defaultValue any) (*gvar.Var, error) {
 	if key == configsvc.RuntimeParamKeyLogRetentionDays {
 		return gvar.New("30"), nil
+	}
+	if defaultValue != nil {
+		return gvar.New(defaultValue), nil
 	}
 	return nil, nil
 }

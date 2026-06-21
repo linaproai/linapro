@@ -94,6 +94,8 @@ Configuration source priority is section-level:
 runtime defaults. `HostConfig()` remains the separate host configuration
 capability; dynamic `hostconfig.get` calls still require `resources.keys`
 authorization in `hostServices`.
+Source plugins call `HostConfig().Get(ctx, key, defaultValue)` with an explicit
+default value; pass `nil` to preserve the absent-key nil result.
 
 ## Consumer Contracts, Provider SPI, and Guest SDK
 

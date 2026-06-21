@@ -6,12 +6,21 @@
 
 `Services.HostConfig()`对于源码插件 SHALL 读取当前上下文可见的宿主配置，包括`sys_config`中的有效 key 和静态宿主配置 key。源码插件使用该能力时不需要声明逐 key manifest 白名单，但 MUST 通过稳定`HostConfig()`能力访问，不得直接访问宿主`dao.SysConfig`、`entity.SysConfig`、`internal/service/sysconfig`或其他内部实现。动态插件通过`hostconfig.get`读取宿主配置时 MUST 继续声明并获得对应 key 授权。
 
+`Services.HostConfig().Get(ctx, key, defaultValue)` SHALL 接收固定的`defaultValue any`参数；当目标 key 缺失或返回`nil`且`defaultValue`不为`nil`时，系统 SHALL 返回该默认值的`gvar.Var`包装值。调用方传入`nil`时 SHALL 保持缺失 key 返回`nil`的原始语义。默认值参数只属于 Go 能力接口的调用方便利语义，MUST NOT 新增动态插件`hostconfig.get`协议方法或绕过`hostServices.resources.keys`授权。`Get()`不得把空字符串自动视为缺失，字符串、布尔、整数和时间长度的空白默认值语义继续由对应 typed helper 负责。
+
 #### Scenario: 源码插件读取自定义系统配置
 
 - **WHEN** 源码插件通过`Services.HostConfig()`读取`custom.feature.limit`
 - **AND** 当前上下文可见的`sys_config`中存在`custom.feature.limit`
 - **THEN** 系统返回`sys_config`中的有效值
 - **AND** 源码插件不需要为该 key 声明 manifest 授权
+
+#### Scenario: 源码插件读取缺失配置时使用默认值
+
+- **WHEN** 源码插件通过`Services.HostConfig().Get()`读取缺失的`custom.feature.limit`
+- **AND** 调用方提供默认值`10`
+- **THEN** 系统返回默认值`10`的`gvar.Var`包装值
+- **AND** 不要求该 key 预先登记到公开白名单
 
 #### Scenario: 动态插件读取自定义系统配置必须授权
 
@@ -39,4 +48,3 @@
 - **AND** 宿主主静态配置中存在`plugin.plugin-a`
 - **THEN** 插件通过`Services.Plugins().Config()`访问该配置段内的子 key
 - **AND** 插件调用方不需要通过`Services.HostConfig()`读取`plugin.plugin-a.*`
-

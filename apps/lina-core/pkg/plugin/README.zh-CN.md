@@ -84,7 +84,7 @@
 | 3 | 开发期文件`apps/lina-plugins/<plugin-id>/manifest/config/config.yaml` | 仅在宿主静态配置和生产文件来源都不存在时使用。 |
 | 4 | 动态 artifact 默认配置`manifest/config/config.yaml` | 作为当前动态插件执行上下文的最终回退来源。 |
 
-`manifest/config/config.example.yaml`只作为模板，不会作为运行期默认值加载。`HostConfig()`仍然是独立的宿主配置能力；动态`hostconfig.get`调用仍必须在`hostServices`中声明`resources.keys`授权。
+`manifest/config/config.example.yaml`只作为模板，不会作为运行期默认值加载。`HostConfig()`仍然是独立的宿主配置能力；动态`hostconfig.get`调用仍必须在`hostServices`中声明`resources.keys`授权。源码插件调用`HostConfig().Get(ctx, key, defaultValue)`时必须显式传入默认值；传入`nil`表示保持缺失 key 返回`nil`的原始语义。
 
 ## 普通消费契约、Provider SPI 与 Guest SDK
 

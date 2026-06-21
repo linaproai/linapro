@@ -27,11 +27,14 @@ type trackingHostConfigService struct {
 }
 
 // Get records one host config read.
-func (s *trackingHostConfigService) Get(_ context.Context, key string) (*gvar.Var, error) {
+func (s *trackingHostConfigService) Get(_ context.Context, key string, defaultValue any) (*gvar.Var, error) {
 	s.getCalls++
 	s.lastKey = key
 	if value, ok := s.values[key]; ok {
 		return gvar.New(value), nil
+	}
+	if defaultValue != nil {
+		return gvar.New(defaultValue), nil
 	}
 	return nil, nil
 }
@@ -46,7 +49,7 @@ func (s *trackingHostConfigService) Exists(_ context.Context, key string) (bool,
 
 // String reads a deterministic string value.
 func (s *trackingHostConfigService) String(ctx context.Context, key string, defaultValue string) (string, error) {
-	value, err := s.Get(ctx, key)
+	value, err := s.Get(ctx, key, nil)
 	if err != nil || value == nil || value.IsNil() {
 		return defaultValue, err
 	}
@@ -55,7 +58,7 @@ func (s *trackingHostConfigService) String(ctx context.Context, key string, defa
 
 // Bool reads a deterministic bool value.
 func (s *trackingHostConfigService) Bool(ctx context.Context, key string, defaultValue bool) (bool, error) {
-	value, err := s.Get(ctx, key)
+	value, err := s.Get(ctx, key, nil)
 	if err != nil || value == nil || value.IsNil() {
 		return defaultValue, err
 	}
@@ -64,7 +67,7 @@ func (s *trackingHostConfigService) Bool(ctx context.Context, key string, defaul
 
 // Int reads a deterministic int value.
 func (s *trackingHostConfigService) Int(ctx context.Context, key string, defaultValue int) (int, error) {
-	value, err := s.Get(ctx, key)
+	value, err := s.Get(ctx, key, nil)
 	if err != nil || value == nil || value.IsNil() {
 		return defaultValue, err
 	}

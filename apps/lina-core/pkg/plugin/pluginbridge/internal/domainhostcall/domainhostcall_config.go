@@ -135,12 +135,25 @@ func (s *hostConfigClient) Duration(key string) (time.Duration, bool, error) {
 }
 
 // Get returns the raw host config value for the requested key.
-func (s *hostConfigCapabilityService) Get(_ context.Context, key string) (*gvar.Var, error) {
+func (s *hostConfigCapabilityService) Get(_ context.Context, key string, defaultValue any) (*gvar.Var, error) {
 	value, found, err := s.client.Get(key)
-	if err != nil || !found {
+	if err != nil {
 		return nil, err
 	}
-	return gvarFromJSONValue(value), nil
+	if !found {
+		if defaultValue != nil {
+			return gvar.New(defaultValue), nil
+		}
+		return nil, nil
+	}
+	result := gvarFromJSONValue(value)
+	if result == nil || result.IsNil() {
+		if defaultValue != nil {
+			return gvar.New(defaultValue), nil
+		}
+		return nil, nil
+	}
+	return result, nil
 }
 
 // Exists reports whether a host config key is available.
