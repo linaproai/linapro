@@ -154,6 +154,30 @@ func TestSyncBuiltinScheduledJobsRegistersDeclarationSnapshots(t *testing.T) {
 	}
 }
 
+// TestManagedHostJobsDoNotProjectKVCacheCleanup verifies built-in scheduled
+// jobs no longer expose SQL table cache cleanup now that supported backends
+// expire keys natively.
+func TestManagedHostJobsDoNotProjectKVCacheCleanup(t *testing.T) {
+	ctx := context.Background()
+	registry := jobhandler.New()
+	svc := &serviceImpl{
+		configSvc: hostconfig.New(),
+		registry:  registry,
+	}
+
+	if err := svc.ensureManagedHandlersRegistered(); err != nil {
+		t.Fatalf("register managed handlers: %v", err)
+	}
+	if _, ok := registry.Lookup("host:kvcache-cleanup-expired"); ok {
+		t.Fatal("expected KV cache cleanup handler to be absent")
+	}
+	for _, job := range svc.buildHostBuiltinJobs(ctx) {
+		if job.HandlerRef == "host:kvcache-cleanup-expired" {
+			t.Fatalf("expected no KV cache cleanup job projection, got %#v", job)
+		}
+	}
+}
+
 // TestBuildPluginBuiltinJobsUsesInstalledDeclarations verifies disabled but
 // installed plugin job declarations remain visible to scheduled-job management.
 func TestBuildPluginBuiltinJobsUsesInstalledDeclarations(t *testing.T) {

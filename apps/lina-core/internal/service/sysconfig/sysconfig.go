@@ -23,13 +23,13 @@ type Service interface {
 	GetById(ctx context.Context, id int) (*entity.SysConfig, error)
 	// Create creates a new config record in the current tenant scope. Protected
 	// runtime/public frontend keys are validated through the host config service,
-	// duplicate keys return business errors, and runtime-parameter cache
-	// snapshots are refreshed when affected.
+	// duplicate keys return business errors, and sys_config runtime snapshots
+	// are refreshed after successful creation.
 	Create(ctx context.Context, in CreateInput) (int, error)
 	// Update updates an existing config record in the current tenant scope.
 	// Built-in protected keys cannot be renamed, duplicate keys are rejected,
-	// protected values are validated, and runtime-parameter cache snapshots are
-	// refreshed when affected.
+	// protected values are validated, and sys_config runtime snapshots are
+	// refreshed after effective key or value changes.
 	Update(ctx context.Context, in UpdateInput) error
 	// Delete soft-deletes a config record using GoFrame's auto soft-delete
 	// feature after tenant-scope visibility and built-in protection checks.
@@ -46,7 +46,7 @@ type Service interface {
 	// Import reads an Excel file and creates configs from it.
 	// If updateSupport is true, existing tenant-visible records matched by key
 	// are updated; otherwise, they are skipped. Protected values and runtime
-	// parameter refresh constraints match Create and Update.
+	// snapshot refresh constraints match Create and Update.
 	Import(ctx context.Context, fileReader io.Reader, updateSupport bool) (result *ImportResult, err error)
 	// GenerateImportTemplate creates a localized Excel template for config
 	// import. The template has no side effects and returns Excel generation

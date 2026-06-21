@@ -102,7 +102,6 @@
 - 每个 service 组件的`Service`接口、`var _ Service = (*serviceImpl)(nil)`断言、`serviceImpl`主结构体和`New()`构造函数，必须统一放在组件主文件中。
 - 主文件必须作为组件契约入口，只保留组件级说明、核心类型定义、接口定义、默认实现结构体、编译期接口断言和构造函数。具体实现逻辑必须迁移到同包其他文件中。
 - `internal/service/`目录下每个组件源文件必须以组件名作为前缀，使用下划线分割子模块，例如`internal/service/config/config_session.go`。
-- 同一 service 组件下不同子模块的业务逻辑必须拆分到独立 Go 文件。
 - 第一个参数始终传入`ctx context.Context`。
 - 数据库交互必须使用 DO 对象，不使用`g.Map`传递`Data`参数。
 - 事务管理使用`dao.Xxx.Transaction()`闭包处理多步操作。

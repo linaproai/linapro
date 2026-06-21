@@ -148,14 +148,14 @@ type UploadConfigReader interface {
 	GetUploadMaxSize(ctx context.Context) (int64, error)
 }
 
-// RuntimeParamSyncer synchronizes protected runtime-parameter snapshots.
+// RuntimeParamSyncer synchronizes tenant-visible sys_config snapshots.
 type RuntimeParamSyncer interface {
-	// MarkRuntimeParamsChanged bumps the shared runtime-parameter revision and clears
-	// the current process snapshot after one protected runtime parameter mutation.
+	// MarkRuntimeParamsChanged bumps the shared sys_config revision and clears
+	// the current process snapshot after one system-configuration mutation.
 	MarkRuntimeParamsChanged(ctx context.Context) error
-	// NotifyRuntimeParamsChanged best-effort refreshes the shared runtime-parameter revision.
+	// NotifyRuntimeParamsChanged best-effort refreshes the shared sys_config revision.
 	NotifyRuntimeParamsChanged(ctx context.Context)
-	// SyncRuntimeParamSnapshot synchronizes the process-local runtime-parameter
+	// SyncRuntimeParamSnapshot synchronizes the process-local sys_config
 	// snapshot cache with the shared revision visible to the current node.
 	SyncRuntimeParamSnapshot(ctx context.Context) error
 }

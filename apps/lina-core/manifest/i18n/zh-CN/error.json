@@ -1154,7 +1154,8 @@
         },
         "expire": {
           "seconds": {
-            "negative": "缓存过期秒数不能为负数"
+            "negative": "缓存过期秒数不能为负数",
+            "required": "缓存过期秒数必须大于 0"
           }
         },
         "field": {

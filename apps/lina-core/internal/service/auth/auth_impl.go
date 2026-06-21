@@ -200,6 +200,11 @@ func (s *serviceImpl) ReissueTenantToken(ctx context.Context, in TenantTokenReis
 	if in.CurrentClaims == nil {
 		return nil, bizerr.NewCode(CodeAuthTokenInvalid)
 	}
+	if !in.SkipSessionValidation {
+		if err := s.validateAccessSession(ctx, in.CurrentClaims); err != nil {
+			return nil, err
+		}
+	}
 	if err := s.validateSwitchTenant(ctx, in.CurrentClaims.UserId, in.TenantID); err != nil {
 		return nil, err
 	}
@@ -227,13 +232,14 @@ func (s *serviceImpl) ReissueTenantToken(ctx context.Context, in TenantTokenReis
 
 // ReissueTenantTokenFromBearer parses the current token and reissues it for another tenant.
 func (s *serviceImpl) ReissueTenantTokenFromBearer(ctx context.Context, tokenString string, tenantID int) (*TenantTokenOutput, error) {
-	claims, err := s.ParseToken(ctx, tokenString)
+	claims, err := s.AuthenticateAccessToken(ctx, tokenString)
 	if err != nil {
 		return nil, err
 	}
 	return s.ReissueTenantToken(ctx, TenantTokenReissueInput{
-		CurrentClaims: claims,
-		TenantID:      tenantID,
+		CurrentClaims:         claims,
+		SkipSessionValidation: true,
+		TenantID:              tenantID,
 	})
 }
 
@@ -282,7 +288,7 @@ func (s *serviceImpl) IssueImpersonationToken(ctx context.Context, in Impersonat
 
 // RevokeImpersonationToken validates and revokes one host impersonation token.
 func (s *serviceImpl) RevokeImpersonationToken(ctx context.Context, tokenString string, tenantID int) error {
-	claims, err := s.ParseToken(ctx, strings.TrimSpace(strings.TrimPrefix(tokenString, "Bearer ")))
+	claims, err := s.parseToken(ctx, strings.TrimSpace(strings.TrimPrefix(tokenString, "Bearer ")), tokenKindAccess)
 	if err != nil {
 		return err
 	}
@@ -292,6 +298,9 @@ func (s *serviceImpl) RevokeImpersonationToken(ctx context.Context, tokenString 
 	if tenantID > 0 && claims.TenantId != tenantID {
 		return bizerr.NewCode(CodeAuthTokenInvalid)
 	}
+	if err = s.validateAccessSession(ctx, claims); err != nil {
+		return err
+	}
 	expiresAt := time.Time{}
 	if claims.ExpiresAt != nil {
 		expiresAt = claims.ExpiresAt.Time
@@ -299,9 +308,27 @@ func (s *serviceImpl) RevokeImpersonationToken(ctx context.Context, tokenString 
 	return s.revokeSession(ctx, claims.TokenId, expiresAt)
 }
 
-// ParseToken parses and validates JWT token, returns claims.
-func (s *serviceImpl) ParseToken(ctx context.Context, tokenString string) (*Claims, error) {
-	return s.parseToken(ctx, tokenString, tokenKindAccess)
+// AuthenticateAccessToken parses an access token and validates its online session.
+func (s *serviceImpl) AuthenticateAccessToken(ctx context.Context, tokenString string) (*Claims, error) {
+	claims, err := s.parseToken(ctx, normalizeBearerToken(tokenString), tokenKindAccess)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.validateAccessSession(ctx, claims); err != nil {
+		return nil, err
+	}
+	return claims, nil
+}
+
+// normalizeBearerToken accepts either an Authorization header value or a raw
+// access-token string and returns the token segment consumed by JWT parsing.
+func normalizeBearerToken(tokenString string) string {
+	token := strings.TrimSpace(tokenString)
+	const bearerPrefix = "Bearer "
+	if strings.HasPrefix(token, bearerPrefix) {
+		return strings.TrimSpace(strings.TrimPrefix(token, bearerPrefix))
+	}
+	return token
 }
 
 // Refresh validates a refresh token and issues a fresh access token for the
@@ -421,6 +448,33 @@ func (s *serviceImpl) parseToken(ctx context.Context, tokenString string, expect
 		return claims, nil
 	}
 	return nil, bizerr.NewCode(CodeAuthTokenInvalid)
+}
+
+// validateAccessSession confirms the parsed access token still has a valid
+// sys_online_session row. This is the complete login-state authority used by
+// middleware, tenant switching, and impersonation revocation.
+func (s *serviceImpl) validateAccessSession(ctx context.Context, claims *Claims) error {
+	if claims == nil || claims.TokenId == "" {
+		return bizerr.NewCode(CodeAuthTokenInvalid)
+	}
+	if s == nil || s.sessionStore == nil || s.configSvc == nil {
+		return bizerr.NewCode(CodeAuthTokenInvalid)
+	}
+	sessionTimeout, err := s.configSvc.GetSessionTimeout(ctx)
+	if err != nil {
+		return err
+	}
+	active, err := s.sessionStore.TouchOrValidate(ctx, claims.TenantId, claims.TokenId, sessionTimeout)
+	if err != nil {
+		return err
+	}
+	if !active {
+		if s.roleSvc != nil {
+			s.roleSvc.InvalidateTokenAccessContext(ctx, claims.TokenId)
+		}
+		return bizerr.NewCode(CodeAuthTokenInvalid)
+	}
+	return nil
 }
 
 // HashPassword hashes password using bcrypt.

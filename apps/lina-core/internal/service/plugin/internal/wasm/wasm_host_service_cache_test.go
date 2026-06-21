@@ -8,13 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/frame/g"
-
-	"lina-core/internal/dao"
-	"lina-core/internal/model/do"
 	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/kvcache"
-	"lina-core/pkg/dialect"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/cachecap"
 	"lina-core/pkg/plugin/capability/tenantcap"
@@ -239,39 +234,12 @@ func cacheItemFromKV(item *kvcache.Item, logicalKey string) *cachecap.CacheItem 
 	}
 }
 
-// createPluginKVCacheTableSQL prepares the governed plugin cache table for tests.
-const createPluginKVCacheTableSQL = `
-CREATE TABLE IF NOT EXISTS sys_kv_cache (
-    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    owner_type  VARCHAR(16) NOT NULL DEFAULT '',
-    owner_key   VARCHAR(64) NOT NULL DEFAULT '',
-    namespace   VARCHAR(64) NOT NULL DEFAULT '',
-    cache_key   VARCHAR(128) NOT NULL DEFAULT '',
-    value_kind  SMALLINT NOT NULL DEFAULT 1,
-    value_bytes BYTEA NOT NULL,
-    value_int   BIGINT NOT NULL DEFAULT 0,
-    expire_at   TIMESTAMP NULL DEFAULT NULL,
-    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_kv_cache_owner_namespace_key ON sys_kv_cache (owner_type, owner_key, namespace, cache_key);
-CREATE INDEX IF NOT EXISTS idx_sys_kv_cache_expire_at ON sys_kv_cache (expire_at);
-`
-
 // TestHandleHostServiceInvokeCacheLifecycle verifies cache get/set/incr/expire/delete flows.
 func TestHandleHostServiceInvokeCacheLifecycle(t *testing.T) {
-	ctx := context.Background()
-	ensurePluginKVCacheTable(t, ctx)
 	configureCacheDomainServiceForTest(t, kvcache.New())
 
 	pluginID := "test-plugin-cache"
 	namespace := "orders-cache"
-	cleanupPluginCacheNamespace(t, ctx, pluginID, namespace)
-	t.Cleanup(func() {
-		cleanupPluginCacheNamespace(t, ctx, pluginID, namespace)
-	})
-
 	hcc := newCacheHostCallContext(pluginID, namespace)
 
 	setResponse := invokeCacheHostService(
@@ -398,8 +366,6 @@ func TestHandleHostServiceInvokeCacheLifecycle(t *testing.T) {
 
 // TestHandleHostServiceInvokeCacheRejectsOversizedValue verifies platform cache limits are enforced.
 func TestHandleHostServiceInvokeCacheRejectsOversizedValue(t *testing.T) {
-	ctx := context.Background()
-	ensurePluginKVCacheTable(t, ctx)
 	configureCacheDomainServiceForTest(t, kvcache.New())
 
 	hcc := newCacheHostCallContext("test-plugin-cache-limit", "orders-cache")
@@ -409,8 +375,9 @@ func TestHandleHostServiceInvokeCacheRejectsOversizedValue(t *testing.T) {
 		protocol.HostServiceMethodCacheSet,
 		"orders-cache",
 		protocol.MarshalHostServiceCacheSetRequest(&protocol.HostServiceCacheSetRequest{
-			Key:   "oversized",
-			Value: strings.Repeat("a", 4097),
+			Key:           "oversized",
+			Value:         strings.Repeat("a", 4097),
+			ExpireSeconds: 60,
 		}),
 	)
 	if response.Status != protocol.HostCallStatusInvalidRequest {
@@ -418,19 +385,63 @@ func TestHandleHostServiceInvokeCacheRejectsOversizedValue(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeCacheRejectsMissingTTL verifies cache writes do
+// not accept host-service payloads without a positive TTL.
+func TestHandleHostServiceInvokeCacheRejectsMissingTTL(t *testing.T) {
+	configureCacheDomainServiceForTest(t, kvcache.New())
+
+	hcc := newCacheHostCallContext("test-plugin-cache-ttl", "orders-cache")
+	response := invokeCacheHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodCacheSet,
+		"orders-cache",
+		protocol.MarshalHostServiceCacheSetRequest(&protocol.HostServiceCacheSetRequest{
+			Key:   "missing-ttl",
+			Value: "value",
+		}),
+	)
+	if response.Status != protocol.HostCallStatusInvalidRequest {
+		t.Fatalf("expected invalid request for missing TTL, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	payload, err := protocol.UnmarshalHostCallErrorPayload(response.Payload)
+	if err != nil {
+		t.Fatalf("decode missing TTL error payload: %v", err)
+	}
+	if payload.ErrorCode != "KV_CACHE_EXPIRE_SECONDS_REQUIRED" {
+		t.Fatalf("expected required TTL error code, got %#v", payload)
+	}
+
+	negativeResponse := invokeCacheHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodCacheSet,
+		"orders-cache",
+		protocol.MarshalHostServiceCacheSetRequest(&protocol.HostServiceCacheSetRequest{
+			Key:           "negative-ttl",
+			Value:         "value",
+			ExpireSeconds: -1,
+		}),
+	)
+	if negativeResponse.Status != protocol.HostCallStatusInvalidRequest {
+		t.Fatalf("expected invalid request for negative TTL, got status=%d payload=%s", negativeResponse.Status, string(negativeResponse.Payload))
+	}
+	payload, err = protocol.UnmarshalHostCallErrorPayload(negativeResponse.Payload)
+	if err != nil {
+		t.Fatalf("decode negative TTL error payload: %v", err)
+	}
+	if payload.ErrorCode != "KV_CACHE_EXPIRE_SECONDS_NEGATIVE" {
+		t.Fatalf("expected negative TTL error code, got %#v", payload)
+	}
+}
+
 // TestHandleHostServiceInvokeCacheBatchMethods verifies cache multi-key
 // operations use the shared domain service and JSON envelopes.
 func TestHandleHostServiceInvokeCacheBatchMethods(t *testing.T) {
-	ctx := context.Background()
-	ensurePluginKVCacheTable(t, ctx)
 	configureCacheDomainServiceForTest(t, kvcache.New())
 
 	pluginID := "test-plugin-cache-batch"
 	namespace := "orders-cache-batch"
-	cleanupPluginCacheNamespace(t, ctx, pluginID, namespace)
-	t.Cleanup(func() {
-		cleanupPluginCacheNamespace(t, ctx, pluginID, namespace)
-	})
 	hcc := newCacheHostCallContext(pluginID, namespace)
 
 	setResponse := invokeCacheHostService(
@@ -438,7 +449,7 @@ func TestHandleHostServiceInvokeCacheBatchMethods(t *testing.T) {
 		hcc,
 		protocol.HostServiceMethodCacheSetMany,
 		namespace,
-		protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: []byte(`{"items":[{"key":"profile","value":"enabled","expireSeconds":60},{"key":"theme","value":"dark"}]}`)}),
+		protocol.MarshalHostServiceCapabilityJSONRequest(&protocol.HostServiceCapabilityJSONRequest{Value: []byte(`{"items":[{"key":"profile","value":"enabled","expireSeconds":60},{"key":"theme","value":"dark","expireSeconds":60}]}`)}),
 	)
 	if setResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("set_many: expected success, got status=%d payload=%s", setResponse.Status, string(setResponse.Payload))
@@ -520,8 +531,9 @@ func TestHandleHostServiceInvokeCacheUsesConfiguredSharedService(t *testing.T) {
 		protocol.HostServiceMethodCacheSet,
 		"orders-cache",
 		protocol.MarshalHostServiceCacheSetRequest(&protocol.HostServiceCacheSetRequest{
-			Key:   "profile",
-			Value: "shared",
+			Key:           "profile",
+			Value:         "shared",
+			ExpireSeconds: 60,
 		}),
 	)
 	if setResponse.Status != protocol.HostCallStatusSuccess {
@@ -583,28 +595,6 @@ func cacheDomainForKV(service kvcache.Service) cachecap.Service {
 	return &cacheDomainTestService{service: service}
 }
 
-// ensurePluginKVCacheTable creates the plugin cache table needed by cache host call tests.
-func ensurePluginKVCacheTable(t *testing.T, ctx context.Context) {
-	t.Helper()
-	for _, statement := range dialect.SplitSQLStatements(createPluginKVCacheTableSQL) {
-		if _, err := g.DB().Exec(ctx, statement); err != nil {
-			t.Fatalf("expected sys_kv_cache table to be created, got error: %v\nSQL:\n%s", err, statement)
-		}
-	}
-}
-
-// cleanupPluginCacheNamespace removes cache rows for the plugin namespace used in tests.
-func cleanupPluginCacheNamespace(t *testing.T, ctx context.Context, pluginID string, namespace string) {
-	t.Helper()
-	if _, err := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
-		OwnerType: kvcache.OwnerTypePlugin.String(),
-		OwnerKey:  pluginID,
-		Namespace: namespace,
-	}).Delete(); err != nil {
-		t.Fatalf("failed to cleanup plugin cache namespace %s/%s: %v", pluginID, namespace, err)
-	}
-}
-
 // newCacheHostCallContext builds a host call context authorized for one cache namespace.
 func newCacheHostCallContext(pluginID string, namespace string) *hostCallContext {
 	return &hostCallContext{
@@ -647,8 +637,9 @@ func setTenantCacheValue(t *testing.T, hcc *hostCallContext, namespace string, k
 		protocol.HostServiceMethodCacheSet,
 		namespace,
 		protocol.MarshalHostServiceCacheSetRequest(&protocol.HostServiceCacheSetRequest{
-			Key:   key,
-			Value: value,
+			Key:           key,
+			Value:         value,
+			ExpireSeconds: 60,
 		}),
 	)
 	if response.Status != protocol.HostCallStatusSuccess {

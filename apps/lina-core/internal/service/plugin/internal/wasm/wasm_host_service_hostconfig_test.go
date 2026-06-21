@@ -4,11 +4,17 @@ package wasm
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/gogf/gf/v2/container/gvar"
 
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
+	hostconfig "lina-core/internal/service/config"
+	"lina-core/internal/service/datascope"
+	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -101,6 +107,29 @@ func TestHandleHostServiceInvokeHostConfigRejectsUnauthorizedKey(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeHostConfigReadsAuthorizedCustomSysConfig verifies
+// dynamic plugins can read custom sys_config keys only after key authorization.
+func TestHandleHostServiceInvokeHostConfigReadsAuthorizedCustomSysConfig(t *testing.T) {
+	ctx := context.Background()
+	key := fmt.Sprintf("custom.dynamic.limit.%d", time.Now().UnixNano())
+	insertDynamicHostConfigSysConfig(t, ctx, key, "64")
+	if err := hostconfig.New().MarkRuntimeParamsChanged(ctx); err != nil {
+		t.Fatalf("mark runtime params changed: %v", err)
+	}
+	bindTestHostServiceRuntime(t, withTestHostConfigService(hostconfigcap.New(hostconfig.New().(hostconfigcap.RawConfigReader))))
+
+	response := invokeHostConfigService(t, hostConfigHostCallContext([]string{key}), key)
+	payload := decodeConfigResponse(t, response)
+	if !payload.Found || payload.Value != `"64"` {
+		t.Fatalf("expected custom sys_config JSON value, got %#v", payload)
+	}
+
+	denied := invokeHostConfigService(t, hostConfigHostCallContext([]string{"workspace.basePath"}), key)
+	if denied.Status != protocol.HostCallStatusCapabilityDenied {
+		t.Fatalf("expected unauthorized custom sys_config key to be denied, got status=%d", denied.Status)
+	}
+}
+
 // TestConfigureHostConfigServiceRejectsNil verifies nil hostConfig injection fails explicitly.
 func TestConfigureHostConfigServiceRejectsNil(t *testing.T) {
 	if _, err := NewRuntime(
@@ -148,4 +177,28 @@ func configureTrackingHostConfigService(t *testing.T, service *trackingHostConfi
 	t.Helper()
 
 	bindTestHostServiceRuntime(t, withTestHostConfigService(service))
+}
+
+// insertDynamicHostConfigSysConfig inserts one platform sys_config row for
+// dynamic hostConfig dispatch tests.
+func insertDynamicHostConfigSysConfig(t *testing.T, ctx context.Context, key string, value string) {
+	t.Helper()
+	id, err := dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
+		TenantId: datascope.PlatformTenantID,
+		Name:     key,
+		Key:      key,
+		Value:    value,
+		Remark:   "dynamic hostConfig test",
+	}).InsertAndGetId()
+	if err != nil {
+		t.Fatalf("insert dynamic hostConfig sys_config %s: %v", key, err)
+	}
+	t.Cleanup(func() {
+		if _, cleanupErr := dao.SysConfig.Ctx(ctx).Unscoped().Where(do.SysConfig{Id: id}).Delete(); cleanupErr != nil {
+			t.Fatalf("cleanup dynamic hostConfig sys_config %s: %v", key, cleanupErr)
+		}
+		if markErr := hostconfig.New().MarkRuntimeParamsChanged(ctx); markErr != nil {
+			t.Fatalf("mark runtime params changed after dynamic hostConfig cleanup: %v", markErr)
+		}
+	})
 }

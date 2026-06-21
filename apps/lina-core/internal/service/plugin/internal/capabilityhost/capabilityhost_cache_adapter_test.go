@@ -75,10 +75,10 @@ func TestCacheAdapterScopesByPluginID(t *testing.T) {
 	pluginA := newCacheAdapter(cacheSvc, nil, "source-plugin-a")
 	pluginB := newCacheAdapter(cacheSvc, nil, "source-plugin-b")
 
-	if _, err := pluginA.Set(ctx, "profiles", "current", "a", 0); err != nil {
+	if _, err := pluginA.Set(ctx, "profiles", "current", "a", time.Minute); err != nil {
 		t.Fatalf("set plugin a cache: %v", err)
 	}
-	if _, err := pluginB.Set(ctx, "profiles", "current", "b", 0); err != nil {
+	if _, err := pluginB.Set(ctx, "profiles", "current", "b", time.Minute); err != nil {
 		t.Fatalf("set plugin b cache: %v", err)
 	}
 
@@ -100,10 +100,10 @@ func TestCacheAdapterScopesByTenantContext(t *testing.T) {
 	tenantOne := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 1001})
 	tenantTwo := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 1002})
 
-	if _, err := adapter.Set(tenantOne, "profiles", "current", "tenant-one", 0); err != nil {
+	if _, err := adapter.Set(tenantOne, "profiles", "current", "tenant-one", time.Minute); err != nil {
 		t.Fatalf("set tenant one cache: %v", err)
 	}
-	if _, err := adapter.Set(tenantTwo, "profiles", "current", "tenant-two", 0); err != nil {
+	if _, err := adapter.Set(tenantTwo, "profiles", "current", "tenant-two", time.Minute); err != nil {
 		t.Fatalf("set tenant two cache: %v", err)
 	}
 
@@ -127,10 +127,13 @@ func TestCacheAdapterRejectsInvalidTTLAndStringIncrement(t *testing.T) {
 	if _, err := adapter.Set(ctx, "profiles", "invalid-ttl", "value", -time.Second); !bizerr.Is(err, kvcache.CodeKVCacheExpireSecondsNegative) {
 		t.Fatalf("expected negative TTL error, got %v", err)
 	}
-	if _, err := adapter.Set(ctx, "profiles", "typed", "not-int", 0); err != nil {
+	if _, err := adapter.Set(ctx, "profiles", "missing-ttl", "value", 0); !bizerr.Is(err, kvcache.CodeKVCacheExpireSecondsRequired) {
+		t.Fatalf("expected required TTL error, got %v", err)
+	}
+	if _, err := adapter.Set(ctx, "profiles", "typed", "not-int", time.Minute); err != nil {
 		t.Fatalf("seed string cache: %v", err)
 	}
-	if _, err := adapter.Incr(ctx, "profiles", "typed", 1, 0); !bizerr.Is(err, kvcache.CodeKVCacheIncrementValueNotInteger) {
+	if _, err := adapter.Incr(ctx, "profiles", "typed", 1, time.Minute); !bizerr.Is(err, kvcache.CodeKVCacheIncrementValueNotInteger) {
 		t.Fatalf("expected string increment error, got %v", err)
 	}
 }
@@ -145,7 +148,7 @@ func TestCacheAdapterReturnsBackendErrors(t *testing.T) {
 	if _, _, err := adapter.Get(context.Background(), "profiles", "current"); !errors.Is(err, expectedErr) {
 		t.Fatalf("expected get backend error, got %v", err)
 	}
-	if _, err := adapter.Set(context.Background(), "profiles", "current", "value", 0); !errors.Is(err, expectedErr) {
+	if _, err := adapter.Set(context.Background(), "profiles", "current", "value", time.Minute); !errors.Is(err, expectedErr) {
 		t.Fatalf("expected set backend error, got %v", err)
 	}
 }

@@ -25,7 +25,7 @@ type HostServiceCacheValue struct {
 	Value string `json:"value"`
 	// IntValue is the integer payload when ValueKind is integer.
 	IntValue int64 `json:"intValue,omitempty"`
-	// ExpireAt is the optional expiration time.
+	// ExpireAt is the expiration time when the backend can report it.
 	ExpireAt string `json:"expireAt,omitempty"`
 }
 
@@ -49,7 +49,7 @@ type HostServiceCacheSetRequest struct {
 	Key string `json:"key"`
 	// Value is the string payload to store.
 	Value string `json:"value"`
-	// ExpireSeconds is the optional expiration duration in seconds. Zero means no expiration.
+	// ExpireSeconds is the positive expiration duration in seconds.
 	ExpireSeconds int64 `json:"expireSeconds,omitempty"`
 }
 
@@ -71,7 +71,7 @@ type HostServiceCacheIncrRequest struct {
 	Key string `json:"key"`
 	// Delta is the increment delta applied to the current integer value.
 	Delta int64 `json:"delta,omitempty"`
-	// ExpireSeconds is the optional expiration duration in seconds. Zero means keep the existing policy.
+	// ExpireSeconds is the positive expiration duration in seconds.
 	ExpireSeconds int64 `json:"expireSeconds,omitempty"`
 }
 
@@ -85,7 +85,7 @@ type HostServiceCacheIncrResponse struct {
 type HostServiceCacheExpireRequest struct {
 	// Key is the logical cache key inside the authorized namespace.
 	Key string `json:"key"`
-	// ExpireSeconds is the new expiration duration in seconds. Zero clears the expiration.
+	// ExpireSeconds is the positive new expiration duration in seconds.
 	ExpireSeconds int64 `json:"expireSeconds,omitempty"`
 }
 
@@ -93,7 +93,7 @@ type HostServiceCacheExpireRequest struct {
 type HostServiceCacheExpireResponse struct {
 	// Found reports whether the cache entry exists.
 	Found bool `json:"found"`
-	// ExpireAt is the optional updated expiration time.
+	// ExpireAt is the updated expiration time when the entry exists.
 	ExpireAt string `json:"expireAt,omitempty"`
 }
 

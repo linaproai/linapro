@@ -220,8 +220,15 @@ func cacheItemFromWire(key string, value *protocol.HostServiceCacheValue) *cache
 }
 
 func durationSeconds(duration time.Duration) int64 {
-	if duration <= 0 {
+	if duration == 0 {
 		return 0
+	}
+	if duration < 0 {
+		seconds := int64(duration / time.Second)
+		if duration%time.Second != 0 {
+			seconds--
+		}
+		return seconds
 	}
 	return int64((duration + time.Second - 1) / time.Second)
 }
@@ -232,7 +239,7 @@ type cacheGetManyRequest struct {
 
 type cacheGetManyResponse struct {
 	Items       map[string]*protocol.HostServiceCacheValue `json:"items"`
-	MissingKeys []string                                    `json:"missingKeys,omitempty"`
+	MissingKeys []string                                   `json:"missingKeys,omitempty"`
 }
 
 type cacheSetManyRequest struct {

@@ -37,7 +37,7 @@ type CacheItem struct {
 	Value string
 	// IntValue is the integer payload when ValueKind is CacheValueKindInt.
 	IntValue int64
-	// ExpireAt is the optional absolute expiration time; nil means no expiration.
+	// ExpireAt is the absolute expiration time when the backend can report it.
 	ExpireAt *time.Time
 }
 
@@ -63,7 +63,7 @@ type SetManyItem struct {
 	Key string
 	// Value is the string payload to store.
 	Value string
-	// TTL is the optional expiration duration. Zero means no expiration.
+	// TTL is the positive expiration duration required for the write.
 	TTL time.Duration
 }
 
@@ -97,17 +97,17 @@ type Service interface {
 	Get(ctx context.Context, namespace string, key string) (*CacheItem, bool, error)
 	// GetMany returns unexpired cache items for an explicit bounded key set.
 	GetMany(ctx context.Context, in GetManyInput) (*GetManyOutput, error)
-	// Set stores a string value in the plugin namespace. ttl=0 means no expiration.
+	// Set stores a string value in the plugin namespace. ttl must be positive.
 	Set(ctx context.Context, namespace string, key string, value string, ttl time.Duration) (*CacheItem, error)
-	// SetMany stores string values in the plugin namespace. Per-item ttl=0 means no expiration.
+	// SetMany stores string values in the plugin namespace. Per-item ttl must be positive.
 	SetMany(ctx context.Context, in SetManyInput) (*SetManyOutput, error)
 	// Delete removes one cache item. Deleting a missing item is a successful no-op.
 	Delete(ctx context.Context, namespace string, key string) error
 	// DeleteMany removes explicit cache keys. Deleting missing items is a successful no-op.
 	DeleteMany(ctx context.Context, in DeleteManyInput) error
-	// Incr increments one integer cache item by delta. ttl applies to new items
-	// and preserves backend-specific existing expiration semantics otherwise.
+	// Incr increments one integer cache item by delta. ttl must be positive and
+	// applies to the resulting cache item.
 	Incr(ctx context.Context, namespace string, key string, delta int64, ttl time.Duration) (*CacheItem, error)
-	// Expire updates one cache item's expiration policy. ttl=0 clears expiration.
+	// Expire updates one cache item's expiration policy. ttl must be positive.
 	Expire(ctx context.Context, namespace string, key string, ttl time.Duration) (bool, *time.Time, error)
 }

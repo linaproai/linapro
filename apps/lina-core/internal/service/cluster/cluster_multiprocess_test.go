@@ -34,10 +34,6 @@ const (
 	multiProcessElectionLease     = "2s"
 	multiProcessElectionRenew     = "300ms"
 	multiProcessSessionToken      = "cluster-multiprocess-session"
-	multiProcessKVOwnerType       = "module"
-	multiProcessKVOwnerKey        = "cluster-multiprocess"
-	multiProcessKVNamespace       = "e2e"
-	multiProcessKVKey             = "shared"
 	multiProcessSentinelLockName  = "cluster-multiprocess-sentinel"
 	multiProcessBackendBinaryName = "lina-multiprocess-test"
 	multiProcessHealthModeMaster  = "master"
@@ -287,21 +283,6 @@ func seedVolatileSentinels(ctx context.Context, link string) (err error) {
 	); err != nil {
 		return fmt.Errorf("insert locker sentinel failed: %w", err)
 	}
-	if _, err = db.Exec(
-		ctx,
-		`INSERT INTO sys_kv_cache (owner_type, owner_key, namespace, cache_key, value_kind, value_bytes, expire_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
-		 ON CONFLICT DO NOTHING`,
-		multiProcessKVOwnerType,
-		multiProcessKVOwnerKey,
-		multiProcessKVNamespace,
-		multiProcessKVKey,
-		1,
-		[]byte("value"),
-		future,
-	); err != nil {
-		return fmt.Errorf("insert kv cache sentinel failed: %w", err)
-	}
 	return nil
 }
 
@@ -335,14 +316,6 @@ func assertVolatileSentinelsExist(t *testing.T, link string) {
 	}
 	assertCount("online session", "SELECT COUNT(*) FROM sys_online_session WHERE token_id=$1", multiProcessSessionToken)
 	assertCount("locker", "SELECT COUNT(*) FROM sys_locker WHERE name=$1", multiProcessSentinelLockName)
-	assertCount(
-		"kv cache",
-		"SELECT COUNT(*) FROM sys_kv_cache WHERE owner_type=$1 AND owner_key=$2 AND namespace=$3 AND cache_key=$4",
-		multiProcessKVOwnerType,
-		multiProcessKVOwnerKey,
-		multiProcessKVNamespace,
-		multiProcessKVKey,
-	)
 }
 
 // buildClusterHostBinary builds the host binary once for both process starts.

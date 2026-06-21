@@ -55,7 +55,7 @@ func TestSelectTenantConsumesPreTokenOnce(t *testing.T) {
 	if out.RefreshToken == "" {
 		t.Fatal("expected selected tenant refresh token")
 	}
-	claims, err := svc.ParseToken(ctx, out.AccessToken)
+	claims, err := svc.parseAccessTokenForTest(ctx, out.AccessToken)
 	if err != nil {
 		t.Fatalf("parse selected token: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestIssueImpersonationTokenUsesHostSignerAndTenantScopedPrime(t *testing.T)
 	if out.AccessToken == "" || out.TokenID == "" || out.TenantID != 42 || out.ActingUserID != userID {
 		t.Fatalf("unexpected impersonation output: %#v", out)
 	}
-	claims, err := svc.ParseToken(ctx, out.AccessToken)
+	claims, err := svc.parseAccessTokenForTest(ctx, out.AccessToken)
 	if err != nil {
 		t.Fatalf("parse impersonation token: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestIssueImpersonationTokenUsesHostSignerAndTenantScopedPrime(t *testing.T)
 	if err = svc.RevokeImpersonationToken(ctx, "Bearer "+out.AccessToken, 42); err != nil {
 		t.Fatalf("revoke impersonation token: %v", err)
 	}
-	if _, err = svc.ParseToken(ctx, out.AccessToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
+	if _, err = svc.parseAccessTokenForTest(ctx, out.AccessToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
 		t.Fatalf("expected revoked impersonation token to be invalid, got %v", err)
 	}
 }
@@ -164,6 +164,27 @@ func TestRevokeImpersonationTokenRejectsNonImpersonationToken(t *testing.T) {
 	}
 	if err = svc.RevokeImpersonationToken(ctx, accessToken, 42); !bizerr.Is(err, CodeAuthTokenInvalid) {
 		t.Fatalf("expected non-impersonation revoke to be rejected, got %v", err)
+	}
+}
+
+// TestRevokeImpersonationTokenRequiresOnlineSession verifies impersonation
+// revocation does not accept a valid JWT after the authoritative session row is
+// gone.
+func TestRevokeImpersonationTokenRequiresOnlineSession(t *testing.T) {
+	ctx := context.WithValue(context.Background(), bizctx.ContextKey, &model.Context{ClientType: tokencap.ClientTypeWeb.String()})
+	svc := newTenantAuthTestService()
+	username := fmt.Sprintf("impersonation-session-%d", time.Now().UnixNano())
+	userID := insertAuthTestUser(t, ctx, username, "admin123")
+
+	out, err := svc.IssueImpersonationToken(ctx, ImpersonationTokenIssueInput{ActingUserID: userID, TenantID: 42})
+	if err != nil {
+		t.Fatalf("issue impersonation token: %v", err)
+	}
+	if err = svc.sessionStore.Delete(ctx, out.TokenID); err != nil {
+		t.Fatalf("delete impersonation session: %v", err)
+	}
+	if err = svc.RevokeImpersonationToken(ctx, "Bearer "+out.AccessToken, 42); !bizerr.Is(err, CodeAuthTokenInvalid) {
+		t.Fatalf("expected missing impersonation session to reject revoke, got %v", err)
 	}
 }
 
@@ -262,7 +283,7 @@ func TestSwitchTenantRevokesOldToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate old token: %v", err)
 	}
-	oldClaims, err := svc.ParseToken(ctx, oldToken)
+	oldClaims, err := svc.parseAccessTokenForTest(ctx, oldToken)
 	if err != nil {
 		t.Fatalf("parse old token: %v", err)
 	}
@@ -274,10 +295,10 @@ func TestSwitchTenantRevokesOldToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("switch tenant: %v", err)
 	}
-	if _, err = svc.ParseToken(ctx, oldToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
+	if _, err = svc.parseAccessTokenForTest(ctx, oldToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
 		t.Fatalf("expected old token to be revoked, got %v", err)
 	}
-	newClaims, err := svc.ParseToken(ctx, out.AccessToken)
+	newClaims, err := svc.parseAccessTokenForTest(ctx, out.AccessToken)
 	if err != nil {
 		t.Fatalf("parse new token: %v", err)
 	}
@@ -289,6 +310,37 @@ func TestSwitchTenantRevokesOldToken(t *testing.T) {
 	}
 	if out.RefreshToken == "" {
 		t.Fatal("expected switched tenant refresh token")
+	}
+}
+
+// TestSwitchTenantFromBearerAcceptsAuthorizationHeader verifies the bearer
+// helper accepts an Authorization header value and still validates the current
+// session before issuing a replacement token.
+func TestSwitchTenantFromBearerAcceptsAuthorizationHeader(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	oldToken, oldTokenID, err := svc.generateToken(ctx, user, 11, tokencap.ClientTypeWeb)
+	if err != nil {
+		t.Fatalf("generate old token: %v", err)
+	}
+	if err = svc.sessionStore.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeWeb.String(), TokenId: oldTokenID, TenantId: 11, UserId: 101, Username: "tenant-user"}); err != nil {
+		t.Fatalf("set old session: %v", err)
+	}
+
+	out, err := svc.ReissueTenantTokenFromBearer(ctx, "Bearer "+oldToken, 22)
+	if err != nil {
+		t.Fatalf("switch tenant from bearer header: %v", err)
+	}
+	claims, err := svc.parseAccessTokenForTest(ctx, out.AccessToken)
+	if err != nil {
+		t.Fatalf("parse reissued token: %v", err)
+	}
+	if claims.TenantId != 22 || claims.UserId != 101 {
+		t.Fatalf("expected tenant 22 user 101 claims, got tenant=%d user=%d", claims.TenantId, claims.UserId)
+	}
+	if _, err = svc.parseAccessTokenForTest(ctx, oldToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
+		t.Fatalf("expected old token to be revoked, got %v", err)
 	}
 }
 
@@ -328,7 +380,7 @@ func TestLoginSelectTenantSwitchTenantLogoutFlow(t *testing.T) {
 	if selectOut.RefreshToken == "" {
 		t.Fatal("expected selected tenant refresh token")
 	}
-	selectedClaims, err := svc.ParseToken(ctx, selectOut.AccessToken)
+	selectedClaims, err := svc.parseAccessTokenForTest(ctx, selectOut.AccessToken)
 	if err != nil {
 		t.Fatalf("parse selected token: %v", err)
 	}
@@ -352,10 +404,10 @@ func TestLoginSelectTenantSwitchTenantLogoutFlow(t *testing.T) {
 	if switchOut.RefreshToken == "" {
 		t.Fatal("expected switched tenant refresh token")
 	}
-	if _, err = svc.ParseToken(ctx, selectOut.AccessToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
+	if _, err = svc.parseAccessTokenForTest(ctx, selectOut.AccessToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
 		t.Fatalf("expected selected token revoked after switch, got %v", err)
 	}
-	switchedClaims, err := svc.ParseToken(ctx, switchOut.AccessToken)
+	switchedClaims, err := svc.parseAccessTokenForTest(ctx, switchOut.AccessToken)
 	if err != nil {
 		t.Fatalf("parse switched token: %v", err)
 	}
@@ -469,7 +521,7 @@ func TestRefreshTokenIssuesFreshAccessToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate token pair: %v", err)
 	}
-	if _, err = svc.ParseToken(ctx, accessToken); err != nil {
+	if _, err = svc.parseAccessTokenForTest(ctx, accessToken); err != nil {
 		t.Fatalf("parse access token: %v", err)
 	}
 	if err = svc.sessionStore.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeCLI.String(), TokenId: tokenID, TenantId: 11, UserId: userID, Username: username}); err != nil {
@@ -483,7 +535,7 @@ func TestRefreshTokenIssuesFreshAccessToken(t *testing.T) {
 	if out.RefreshToken != refreshToken {
 		t.Fatalf("expected refresh token to remain stable")
 	}
-	claims, err := svc.ParseToken(ctx, out.AccessToken)
+	claims, err := svc.parseAccessTokenForTest(ctx, out.AccessToken)
 	if err != nil {
 		t.Fatalf("parse refreshed access token: %v", err)
 	}
@@ -533,7 +585,7 @@ func TestRefreshTokenCannotBeUsedAsAccessToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate token pair: %v", err)
 	}
-	if _, err = svc.ParseToken(ctx, refreshToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
+	if _, err = svc.parseAccessTokenForTest(ctx, refreshToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
 		t.Fatalf("expected refresh token to be rejected as access token, got %v", err)
 	}
 }
@@ -686,7 +738,7 @@ func TestRevokeSharedStoreInvalidatesAcrossInstances(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate shared revoke token: %v", err)
 	}
-	claims, err := firstSvc.ParseToken(ctx, token)
+	claims, err := firstSvc.parseAccessTokenForTest(ctx, token)
 	if err != nil {
 		t.Fatalf("parse shared revoke token before revoke: %v", err)
 	}
@@ -699,14 +751,14 @@ func TestRevokeSharedStoreInvalidatesAcrossInstances(t *testing.T) {
 	if err = firstSvc.revoked.Add(ctx, claims.TokenId, claims.ExpiresAt.Time); err != nil {
 		t.Fatalf("add shared revoke state: %v", err)
 	}
-	if _, err = secondSvc.ParseToken(ctx, token); !bizerr.Is(err, CodeAuthTokenInvalid) {
+	if _, err = secondSvc.parseAccessTokenForTest(ctx, token); !bizerr.Is(err, CodeAuthTokenInvalid) {
 		t.Fatalf("expected second instance to reject revoked token, got %v", err)
 	}
 }
 
-// TestParseTokenRevokeReadFailureFailClosed verifies a valid JWT is rejected
+// TestAccessTokenParseRevokeReadFailureFailClosed verifies a valid JWT is rejected
 // when the shared token-state store cannot confirm whether it has been revoked.
-func TestParseTokenRevokeReadFailureFailClosed(t *testing.T) {
+func TestAccessTokenParseRevokeReadFailureFailClosed(t *testing.T) {
 	ctx := context.Background()
 	svc := newTenantAuthTestService()
 	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
@@ -716,8 +768,37 @@ func TestParseTokenRevokeReadFailureFailClosed(t *testing.T) {
 	}
 
 	svc.revoked = &failingRevokeStore{revokedErr: errors.New("simulated redis revoke read failure")}
-	if _, err = svc.ParseToken(ctx, token); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
+	if _, err = svc.parseAccessTokenForTest(ctx, token); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
 		t.Fatalf("expected revoke read failure to fail closed, got %v", err)
+	}
+}
+
+// TestAuthenticateAccessTokenUsesOnlineSessionAuthority verifies complete
+// access-token authentication rejects a valid JWT when the authoritative
+// sys_online_session-equivalent store has no matching session.
+func TestAuthenticateAccessTokenUsesOnlineSessionAuthority(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	token, tokenID, err := svc.generateToken(ctx, user, 11, tokencap.ClientTypeWeb)
+	if err != nil {
+		t.Fatalf("generate token: %v", err)
+	}
+	if _, err = svc.parseAccessTokenForTest(ctx, token); err != nil {
+		t.Fatalf("low-level access-token parsing should only validate JWT and revoke state: %v", err)
+	}
+	if _, err = svc.AuthenticateAccessToken(ctx, token); !bizerr.Is(err, CodeAuthTokenInvalid) {
+		t.Fatalf("expected missing online session to reject complete auth, got %v", err)
+	}
+	if err = svc.sessionStore.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeWeb.String(), TokenId: tokenID, TenantId: 11, UserId: 101, Username: "tenant-user"}); err != nil {
+		t.Fatalf("set online session: %v", err)
+	}
+	claims, err := svc.AuthenticateAccessToken(ctx, token)
+	if err != nil {
+		t.Fatalf("expected valid session to authenticate: %v", err)
+	}
+	if claims.TokenId != tokenID || claims.TenantId != 11 {
+		t.Fatalf("unexpected authenticated claims: %#v", claims)
 	}
 }
 
@@ -755,7 +836,7 @@ func TestLogoutRevokesCurrentToken(t *testing.T) {
 	if _, ok, err := sharedCache.Get(ctx, kvcache.OwnerTypeModule, revokeCacheKey(tokenID)); err != nil || !ok {
 		t.Fatalf("expected logout shared revoke state, ok=%v err=%v", ok, err)
 	}
-	if _, err = svc.ParseToken(ctx, token); !bizerr.Is(err, CodeAuthTokenInvalid) {
+	if _, err = svc.parseAccessTokenForTest(ctx, token); !bizerr.Is(err, CodeAuthTokenInvalid) {
 		t.Fatalf("expected logged-out token to be rejected, got %v", err)
 	}
 	if len(hooks.logoutSucceeded) != 1 || hooks.logoutSucceeded[0].ClientType != tokencap.ClientTypeWeb.String() {
@@ -836,7 +917,7 @@ func TestSwitchTenantRevokeWriteFailureReturnsStructuredError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate old token: %v", err)
 	}
-	oldClaims, err := svc.ParseToken(ctx, oldToken)
+	oldClaims, err := svc.parseAccessTokenForTest(ctx, oldToken)
 	if err != nil {
 		t.Fatalf("parse old token: %v", err)
 	}
@@ -847,6 +928,27 @@ func TestSwitchTenantRevokeWriteFailureReturnsStructuredError(t *testing.T) {
 	svc.revoked = &failingRevokeStore{addErr: errors.New("simulated redis revoke write failure")}
 	if _, err = svc.ReissueTenantToken(ctx, TenantTokenReissueInput{CurrentClaims: oldClaims, TenantID: 22}); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
 		t.Fatalf("expected switch tenant revoke write failure to be structured, got %v", err)
+	}
+}
+
+// TestSwitchTenantRequiresOnlineSession verifies tenant switching validates the
+// current token against the authoritative online session store before revoking
+// it and issuing a new session.
+func TestSwitchTenantRequiresOnlineSession(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	oldToken, _, err := svc.generateToken(ctx, user, 11, tokencap.ClientTypeWeb)
+	if err != nil {
+		t.Fatalf("generate old token: %v", err)
+	}
+	oldClaims, err := svc.parseAccessTokenForTest(ctx, oldToken)
+	if err != nil {
+		t.Fatalf("parse old token: %v", err)
+	}
+
+	if _, err = svc.ReissueTenantToken(ctx, TenantTokenReissueInput{CurrentClaims: oldClaims, TenantID: 22}); !bizerr.Is(err, CodeAuthTokenInvalid) {
+		t.Fatalf("expected missing online session to reject tenant switch, got %v", err)
 	}
 }
 
@@ -887,6 +989,12 @@ func newTenantAuthTestService() *serviceImpl {
 		preTokens:    newMemoryPreTokenStore(),
 		revoked:      newMemoryRevokeStore(),
 	}
+}
+
+// parseAccessTokenForTest exposes low-level access-token parsing to same-package
+// tests without adding it to the production Service contract.
+func (s *serviceImpl) parseAccessTokenForTest(ctx context.Context, tokenString string) (*Claims, error) {
+	return s.parseToken(ctx, tokenString, tokenKindAccess)
 }
 
 // configTestService provides JWT settings used by auth unit tests.

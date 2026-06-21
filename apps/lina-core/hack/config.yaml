@@ -26,7 +26,6 @@ gfcli:
           sys_job,
           sys_job_group,
           sys_job_log,
-          sys_kv_cache,
           sys_locker,
           sys_menu,
           sys_notify_channel,

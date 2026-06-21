@@ -72,9 +72,10 @@ type Service interface {
 	// tenant membership are still valid, primes role access cache, and returns a
 	// fresh access token while preserving the refresh token.
 	Refresh(ctx context.Context, in RefreshInput) (*RefreshOutput, error)
-	// ParseToken parses an access token, validates its token kind and revoke
-	// marker, and returns claims for middleware context injection.
-	ParseToken(ctx context.Context, tokenString string) (*Claims, error)
+	// AuthenticateAccessToken validates an access token and confirms the
+	// corresponding sys_online_session row is present, tenant-bound, and not
+	// timed out. It returns claims only after the complete login state is valid.
+	AuthenticateAccessToken(ctx context.Context, tokenString string) (*Claims, error)
 	// HashPassword hashes a plaintext password with bcrypt for user-account
 	// writes; it does not persist the result.
 	HashPassword(password string) (string, error)
@@ -273,8 +274,9 @@ type TenantTokenIssueInput struct {
 
 // TenantTokenReissueInput defines input for reissuing the current formal token for a tenant.
 type TenantTokenReissueInput struct {
-	CurrentClaims *Claims // Current token claims
-	TenantID      int     // Target tenant ID
+	CurrentClaims         *Claims // Current token claims
+	SkipSessionValidation bool    // Skip session validation when the caller already completed it in the same request.
+	TenantID              int     // Target tenant ID
 }
 
 // TenantTokenOutput defines a tenant-bound JWT response.

@@ -70,30 +70,8 @@ func (s *serviceImpl) Auth(r *ghttp.Request) {
 		return
 	}
 
-	claims, err := s.authSvc.ParseToken(r.Context(), tokenString)
+	claims, err := s.authSvc.AuthenticateAccessToken(r.Context(), tokenString)
 	if err != nil {
-		r.Response.WriteStatus(http.StatusUnauthorized)
-		return
-	}
-
-	sessionTimeout, err := s.configSvc.GetSessionTimeout(r.Context())
-	if err != nil {
-		r.SetError(err)
-		return
-	}
-
-	// Update last active time and validate session exists (supports forced logout and timeout cleanup)
-	exists, err := s.authSvc.SessionStore().TouchOrValidate(
-		r.Context(),
-		claims.TenantId,
-		claims.TokenId,
-		sessionTimeout,
-	)
-	if err != nil || !exists {
-		s.roleSvc.InvalidateTokenAccessContext(r.Context(), claims.TokenId)
-		if err != nil {
-			r.SetError(err)
-		}
 		r.Response.WriteStatus(http.StatusUnauthorized)
 		return
 	}

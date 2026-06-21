@@ -146,7 +146,7 @@ func dispatchCacheHostService(
 
 // ttlFromSeconds converts bridge payload seconds to the domain time.Duration contract.
 func ttlFromSeconds(seconds int64) time.Duration {
-	if seconds <= 0 {
+	if seconds == 0 {
 		return 0
 	}
 	return time.Duration(seconds) * time.Second
@@ -175,7 +175,7 @@ type cacheGetManyRequest struct {
 
 type cacheGetManyResponse struct {
 	Items       map[string]*bridgehostservice.HostServiceCacheValue `json:"items"`
-	MissingKeys []string                                             `json:"missingKeys,omitempty"`
+	MissingKeys []string                                            `json:"missingKeys,omitempty"`
 }
 
 type cacheSetManyRequest struct {

@@ -16,6 +16,7 @@ import (
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/excelutil"
 )
 
 // ImportResult defines the result of config import operation.
@@ -29,6 +30,17 @@ type ImportResult struct {
 type ImportFailItem struct {
 	Row    int    // Row number
 	Reason string // Failure reason
+}
+
+// closeExcelFile closes the workbook and folds any close failure into the
+// caller-managed error pointer.
+func closeExcelFile(ctx context.Context, file *excelize.File, errPtr *error) {
+	excelutil.CloseFile(ctx, file, errPtr)
+}
+
+// setCellValue writes one value by row and column coordinates.
+func setCellValue(file *excelize.File, sheet string, col int, row int, value any) error {
+	return excelutil.SetCellValue(file, sheet, col, row, value)
 }
 
 // Import reads an Excel file and creates configs from it.
@@ -92,6 +104,10 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 			remark = row[3]
 		}
 
+		var (
+			previousValue string
+			created       bool
+		)
 		err = s.withConfigMutation(ctx, func(ctx context.Context) error {
 			// Check if key exists (GoFrame auto-adds deleted_at IS NULL)
 			var existing *entity.SysConfig
@@ -109,6 +125,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 				if !updateSupport {
 					return bizerr.NewCode(CodeSysConfigKeyExists, bizerr.P("key", key))
 				}
+				previousValue = existing.Value
 				// Overwrite mode: update existing record (GoFrame auto-fills updated_at)
 				data := do.SysConfig{
 					Name:   name,
@@ -125,7 +142,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 				if updateErr != nil {
 					return bizerr.WrapCode(updateErr, CodeSysConfigImportUpdateFailed)
 				}
-				return s.refreshRuntimeParamSnapshotIfNeeded(ctx, key, existing.Value, value, false)
+				return nil
 			}
 
 			// Create new record (GoFrame auto-fills created_at and updated_at)
@@ -139,9 +156,18 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 			if insertErr != nil {
 				return bizerr.WrapCode(insertErr, CodeSysConfigImportInsertFailed)
 			}
-			return s.refreshRuntimeParamSnapshotIfNeeded(ctx, key, "", value, true)
+			created = true
+			return nil
 		})
 		if err != nil {
+			result.Fail++
+			result.FailList = append(result.FailList, ImportFailItem{
+				Row:    rowNum,
+				Reason: s.localizedConfigImportError(ctx, err),
+			})
+			continue
+		}
+		if err = s.refreshRuntimeParamSnapshotIfNeeded(ctx, key, previousValue, value, created); err != nil {
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Row:    rowNum,

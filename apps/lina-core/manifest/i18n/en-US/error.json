@@ -1154,7 +1154,8 @@
         },
         "expire": {
           "seconds": {
-            "negative": "Cache expiration seconds cannot be negative"
+            "negative": "Cache expiration seconds cannot be negative",
+            "required": "Cache expiration seconds must be greater than 0"
           }
         },
         "field": {
