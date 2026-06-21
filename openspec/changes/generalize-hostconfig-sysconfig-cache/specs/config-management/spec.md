@@ -33,3 +33,9 @@
 - **WHEN** `sys_config`中`custom.feature.limit`被删除
 - **THEN** 系统推进 runtime-config revision
 - **AND** 后续宿主配置读取不再返回被删除值
+
+#### Scenario: 内置运行时参数使用系统命名空间
+
+- **WHEN** 主框架新增或维护内置运行时参数
+- **THEN** 参数 key MUST 使用`sys.`前缀
+- **AND** 调度模块内置运行时参数 MUST 使用`sys.cron.shell.enabled`和`sys.cron.log.retention`

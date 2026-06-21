@@ -372,6 +372,10 @@ export class PluginPage {
       .first();
   }
 
+  pluginTenantProvisioningSwitches(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-tenant-provisioning-${pluginId}`);
+  }
+
   pluginRuntimeState(pluginId: string): Locator {
     return this.page.getByTestId(`plugin-runtime-state-${pluginId}`).first();
   }
@@ -577,6 +581,13 @@ export class PluginPage {
 
   pluginEnabledSwitch(pluginId: string): Locator {
     return this.pluginLifecycleSwitch(this.pluginRow(pluginId));
+  }
+
+  pluginEnabledSwitches(pluginId: string): Locator {
+    const row = this.pluginRow(pluginId);
+    return row.locator(
+      '.ant-switch:not(.ant-switch-small):not([data-testid^="plugin-tenant-provisioning-"])',
+    );
   }
 
   pluginDescriptionCell(pluginId: string): Locator {
@@ -1060,6 +1071,12 @@ export class PluginPage {
   async expectInstallActionHidden(pluginId: string) {
     await expect(
       await this.pluginActionButton(pluginId, pluginInstallActionPattern),
+    ).toHaveCount(0);
+  }
+
+  async expectUpgradeActionHidden(pluginId: string) {
+    await expect(
+      await this.pluginActionButton(pluginId, pluginUpgradeActionPattern),
     ).toHaveCount(0);
   }
 

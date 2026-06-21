@@ -17,6 +17,9 @@ func (s *serviceImpl) UpgradeSourcePlugin(ctx context.Context, pluginID string) 
 	if err := s.ensurePlatformGovernance(ctx); err != nil {
 		return nil, err
 	}
+	if err := s.ensureBuiltinManagementActionAllowed(ctx, pluginID); err != nil {
+		return nil, err
+	}
 	return s.upgradeSvc.UpgradeSourcePlugin(ctx, pluginID)
 }
 
@@ -33,6 +36,9 @@ func (s *serviceImpl) ExecuteRuntimeUpgrade(
 	options RuntimeUpgradeOptions,
 ) (*RuntimeUpgradeResult, error) {
 	if err := s.ensurePlatformGovernance(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.ensureBuiltinManagementActionAllowed(ctx, pluginID); err != nil {
 		return nil, err
 	}
 	return s.upgradeSvc.ExecuteRuntimeUpgrade(ctx, pluginID, options)

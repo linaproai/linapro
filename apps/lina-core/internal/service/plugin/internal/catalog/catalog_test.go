@@ -46,6 +46,94 @@ func TestValidatePluginManifestAcceptsMinimalSourcePlugin(t *testing.T) {
 	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
 		t.Fatalf("expected manifest to be valid, got error: %v", err)
 	}
+	if manifest.Distribution != plugintypes.DistributionMarketplace.String() {
+		t.Fatalf("expected default distribution marketplace, got %q", manifest.Distribution)
+	}
+}
+
+// TestLoadManifestFromYAMLReadsDistribution verifies plugin.yaml distribution
+// is parsed as a first-class manifest field before validation normalizes it.
+func TestLoadManifestFromYAMLReadsDistribution(t *testing.T) {
+	manifestPath := filepath.Join(t.TempDir(), "plugin.yaml")
+	if err := os.WriteFile(manifestPath, []byte("id: demo\nname: Demo\nversion: 0.1.0\ntype: source\ndistribution: builtin\n"), 0o644); err != nil {
+		t.Fatalf("write manifest fixture failed: %v", err)
+	}
+
+	manifest := &catalog.Manifest{}
+	if err := testutil.NewServices().Catalog.LoadManifestFromYAML(manifestPath, manifest); err != nil {
+		t.Fatalf("expected manifest to load, got error: %v", err)
+	}
+	if manifest.Distribution != plugintypes.DistributionBuiltin.String() {
+		t.Fatalf("expected distribution to load, got %q", manifest.Distribution)
+	}
+}
+
+// TestValidateManifestNormalizesDistribution verifies legal distribution values
+// are normalized and invalid values are rejected during manifest validation.
+func TestValidateManifestNormalizesDistribution(t *testing.T) {
+	svcs := testutil.NewServices()
+	pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-distribution-valid")
+	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
+
+	manifest := &catalog.Manifest{
+		ID:           "acme-demo-distribution-valid",
+		Name:         "Distribution Valid Plugin",
+		Version:      "0.1.0",
+		Type:         plugintypes.TypeSource.String(),
+		Distribution: " MARKETPLACE ",
+	}
+	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
+		t.Fatalf("expected marketplace distribution to validate, got error: %v", err)
+	}
+	if manifest.Distribution != plugintypes.DistributionMarketplace.String() {
+		t.Fatalf("expected normalized marketplace, got %q", manifest.Distribution)
+	}
+
+	manifest.Distribution = "managed"
+	err := svcs.Catalog.ValidateManifest(manifest, manifestFile)
+	if err == nil || !strings.Contains(err.Error(), "distribution") {
+		t.Fatalf("expected invalid distribution error, got: %v", err)
+	}
+}
+
+// TestValidateManifestRequiresBuiltinSourceRegistration verifies builtin is a
+// source-plugin-only governance type and requires a compile-time registration.
+func TestValidateManifestRequiresBuiltinSourceRegistration(t *testing.T) {
+	svcs := testutil.NewServices()
+	pluginDir := testutil.CreateTestPluginDir(t, "acme-demo-builtin-unregistered")
+	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
+
+	manifest := &catalog.Manifest{
+		ID:           "acme-demo-builtin-unregistered",
+		Name:         "Builtin Unregistered Plugin",
+		Version:      "0.1.0",
+		Type:         plugintypes.TypeSource.String(),
+		Distribution: plugintypes.DistributionBuiltin.String(),
+	}
+	err := svcs.Catalog.ValidateManifest(manifest, manifestFile)
+	if err == nil || !strings.Contains(err.Error(), "source plugin registry") {
+		t.Fatalf("expected builtin registration error, got: %v", err)
+	}
+
+	sourcePlugin := pluginhost.NewDeclarations("acme-demo-builtin-registered")
+	definition, ok := sourcePlugin.(pluginhost.SourcePluginDefinition)
+	if !ok {
+		t.Fatalf("expected source plugin definition")
+	}
+	registeredManifest := &catalog.Manifest{
+		ID:           "acme-demo-builtin-registered",
+		Name:         "Builtin Registered Plugin",
+		Version:      "0.1.0",
+		Type:         plugintypes.TypeSource.String(),
+		Distribution: plugintypes.DistributionBuiltin.String(),
+		SourcePlugin: definition,
+	}
+	if err = svcs.Catalog.ValidateManifest(registeredManifest, manifestFile); err != nil {
+		t.Fatalf("expected registered builtin source plugin to validate, got error: %v", err)
+	}
+	if registeredManifest.Distribution != plugintypes.DistributionBuiltin.String() {
+		t.Fatalf("expected builtin distribution to remain normalized, got %q", registeredManifest.Distribution)
+	}
 }
 
 // TestLoadManifestFromYAMLReadsI18NPolicy verifies plugin.yaml i18n policy is

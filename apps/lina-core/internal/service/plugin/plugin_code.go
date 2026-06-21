@@ -61,6 +61,13 @@ var (
 		"Plugin {pluginId} must support linapro-tenant-core governance and be installed in tenant_scoped mode before it can be auto-enabled for new tenants",
 		gcode.CodeInvalidParameter,
 	)
+	// CodePluginBuiltinManagementActionDenied reports that ordinary plugin
+	// management attempted to mutate a project built-in plugin.
+	CodePluginBuiltinManagementActionDenied = bizerr.MustDefine(
+		"PLUGIN_BUILTIN_MANAGEMENT_ACTION_DENIED",
+		"Built-in plugin {pluginId} is managed by host startup and cannot be changed through ordinary plugin management",
+		gcode.CodeInvalidOperation,
+	)
 	// CodePluginSourceManifestRequired reports that a source-plugin manifest is required.
 	CodePluginSourceManifestRequired = lifecycle.CodePluginSourceManifestRequired
 	// CodePluginSourceRegistryRequired reports that a source-plugin registry row is required.

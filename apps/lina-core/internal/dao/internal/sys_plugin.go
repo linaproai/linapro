@@ -44,6 +44,7 @@ type SysPluginColumns struct {
 	CreatedAt               string // Creation time
 	UpdatedAt               string // Update time
 	DeletedAt               string // Deletion time
+	Distribution            string // Plugin distribution governance: marketplace or builtin
 }
 
 // sysPluginColumns holds the columns for the table sys_plugin.
@@ -71,6 +72,7 @@ var sysPluginColumns = SysPluginColumns{
 	CreatedAt:               "created_at",
 	UpdatedAt:               "updated_at",
 	DeletedAt:               "deleted_at",
+	Distribution:            "distribution",
 }
 
 // NewSysPluginDao creates and returns a new DAO object for table data access.

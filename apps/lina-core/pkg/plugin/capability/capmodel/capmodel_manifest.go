@@ -16,6 +16,8 @@ type ManifestSnapshot struct {
 	Version string `json:"version"`
 	// Type is the plugin type recorded in the manifest snapshot.
 	Type string `json:"type"`
+	// Distribution is the plugin distribution governance type recorded in the manifest snapshot.
+	Distribution string `json:"distribution"`
 	// ScopeNature is the plugin tenant-scope nature recorded in the manifest snapshot.
 	ScopeNature string `json:"scopeNature"`
 	// SupportsMultiTenant reports whether the plugin declares linapro-tenant-core support.

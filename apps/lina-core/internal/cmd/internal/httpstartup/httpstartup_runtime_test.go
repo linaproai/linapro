@@ -32,6 +32,7 @@ func TestLogHTTPStartupSummaryEmitsFieldsWithoutSQL(t *testing.T) {
 	collector.Add(startupstats.CounterPluginScans, 1)
 	collector.Add(startupstats.CounterPluginSyncChanged, 2)
 	collector.Add(startupstats.CounterPluginSyncNoop, 3)
+	collector.RecordPhase(startupstats.PhasePluginBootstrapBuiltin, 9)
 	collector.RecordPhase(startupstats.PhasePluginBootstrapAutoEnable, 12)
 	collector.RecordPhase(startupstats.PhasePluginStartupConsistency, 4)
 

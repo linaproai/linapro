@@ -56,6 +56,7 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *catalog.Manife
 			Name:         manifest.Name,
 			Version:      manifest.Version,
 			Type:         manifest.Type,
+			Distribution: plugintypes.NormalizeDistribution(manifest.Distribution).String(),
 			Installed:    installedState,
 			Status:       plugintypes.StatusDisabled,
 			DesiredState: stableState,
@@ -104,11 +105,12 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *catalog.Manife
 
 existingRegistry:
 	data := do.SysPlugin{
-		Name:        manifest.Name,
-		Type:        manifest.Type,
-		Remark:      manifest.Description,
-		ScopeNature: plugintypes.NormalizeScopeNature(manifest.ScopeNature).String(),
-		InstallMode: plugintypes.NormalizeInstallMode(manifest.DefaultInstallMode).String(),
+		Name:         manifest.Name,
+		Type:         manifest.Type,
+		Distribution: plugintypes.NormalizeDistribution(manifest.Distribution).String(),
+		Remark:       manifest.Description,
+		ScopeNature:  plugintypes.NormalizeScopeNature(manifest.ScopeNature).String(),
+		InstallMode:  plugintypes.NormalizeInstallMode(manifest.DefaultInstallMode).String(),
 	}
 	if plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeSource {
 		data.ManifestPath = manifest.ManifestPath
@@ -201,6 +203,7 @@ func pluginRegistryDataMatches(existing *PluginRecord, data do.SysPlugin) bool {
 	return pluginRegistryFieldMatches(existing.Name, data.Name) &&
 		pluginRegistryFieldMatches(existing.Version, data.Version) &&
 		pluginRegistryFieldMatches(existing.Type, data.Type) &&
+		pluginRegistryFieldMatches(existing.Distribution, data.Distribution) &&
 		pluginRegistryFieldMatches(existing.Installed, data.Installed) &&
 		pluginRegistryFieldMatches(existing.Status, data.Status) &&
 		pluginRegistryFieldMatches(existing.DesiredState, data.DesiredState) &&

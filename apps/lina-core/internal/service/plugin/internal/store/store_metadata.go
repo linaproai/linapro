@@ -15,6 +15,7 @@ type ManifestSnapshot struct {
 	Name                      string                      `yaml:"name"`
 	Version                   string                      `yaml:"version"`
 	Type                      string                      `yaml:"type"`
+	Distribution              string                      `yaml:"distribution"`
 	ScopeNature               string                      `yaml:"scopeNature,omitempty"`
 	SupportsMultiTenant       bool                        `yaml:"supportsMultiTenant,omitempty"`
 	DefaultInstallMode        string                      `yaml:"defaultInstallMode,omitempty"`
@@ -61,6 +62,7 @@ func PublishedManifestSnapshot(snapshot *ManifestSnapshot) *protocol.ManifestSna
 		Name:                    snapshot.Name,
 		Version:                 snapshot.Version,
 		Type:                    snapshot.Type,
+		Distribution:            snapshot.Distribution,
 		ScopeNature:             snapshot.ScopeNature,
 		SupportsMultiTenant:     snapshot.SupportsMultiTenant,
 		DefaultInstallMode:      snapshot.DefaultInstallMode,

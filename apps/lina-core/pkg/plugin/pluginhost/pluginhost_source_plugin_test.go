@@ -360,19 +360,21 @@ func TestRegisterUpgradeHandlersPublishesManifestSnapshots(t *testing.T) {
 		"test-plugin-upgrade",
 		"v0.1.0",
 		"v0.2.0",
-		NewManifestSnapshot(&capmodel.ManifestSnapshot{
-			ID:      "test-plugin-upgrade",
-			Name:    "Test Plugin Upgrade",
-			Version: "v0.1.0",
-			Type:    "source",
-		}),
-		NewManifestSnapshot(&capmodel.ManifestSnapshot{
-			ID:        "test-plugin-upgrade",
-			Name:      "Test Plugin Upgrade",
-			Version:   "v0.2.0",
-			Type:      "source",
-			MenuCount: 2,
-		}),
+			NewManifestSnapshot(&capmodel.ManifestSnapshot{
+				ID:           "test-plugin-upgrade",
+				Name:         "Test Plugin Upgrade",
+				Version:      "v0.1.0",
+				Type:         "source",
+				Distribution: "marketplace",
+			}),
+			NewManifestSnapshot(&capmodel.ManifestSnapshot{
+				ID:           "test-plugin-upgrade",
+				Name:         "Test Plugin Upgrade",
+				Version:      "v0.2.0",
+				Type:         "source",
+				Distribution: "marketplace",
+				MenuCount:    2,
+			}),
 	)
 	if err := handler(context.Background(), input); err != nil {
 		t.Fatalf("expected upgrade handler to execute without error, got %v", err)
@@ -386,11 +388,12 @@ func TestRegisterUpgradeHandlersPublishesManifestSnapshots(t *testing.T) {
 // use the shared typed capmodel manifest snapshot primitive.
 func TestNewManifestSnapshotUsesSharedPrimitive(t *testing.T) {
 	input := &capmodel.ManifestSnapshot{
-		ID:          "test-plugin-typed-snapshot",
-		Name:        "Test Plugin Typed Snapshot",
-		Version:     "v1.0.0",
-		Type:        "source",
-		Description: "typed contract",
+		ID:           "test-plugin-typed-snapshot",
+		Name:         "Test Plugin Typed Snapshot",
+		Version:      "v1.0.0",
+		Type:         "source",
+		Distribution: "marketplace",
+		Description:  "typed contract",
 	}
 	snapshot := NewManifestSnapshot(input)
 	input.Description = "mutated"

@@ -298,6 +298,11 @@ type ResourceQueryService interface {
 
 // LifecycleManagementService defines plugin lifecycle and status management operations.
 type LifecycleManagementService interface {
+	// BootstrapBuiltinPlugins synchronizes manifests and ensures project built-in
+	// source plugins are installed, upgraded when needed, and enabled before
+	// ordinary plugin.autoEnable startup reconciliation runs. The method is a
+	// startup-only governance path and bypasses ordinary management write guards.
+	BootstrapBuiltinPlugins(ctx context.Context) error
 	// BootstrapAutoEnable synchronizes manifests and ensures every plugin listed
 	// in plugin.autoEnable is installed and enabled before later host wiring runs.
 	BootstrapAutoEnable(ctx context.Context) error

@@ -103,6 +103,9 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		if in.Installed != nil && item.Installed != *in.Installed {
 			continue
 		}
+		if !in.IncludeBuiltin && item.Distribution == plugintypes.DistributionBuiltin.String() {
+			continue
+		}
 		filtered = append(filtered, item)
 	}
 	page, total := paginatePluginItems(filtered, in.PageNum, in.PageSize)

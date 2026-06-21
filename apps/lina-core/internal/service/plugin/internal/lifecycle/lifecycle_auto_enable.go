@@ -215,6 +215,30 @@ func (s *serviceImpl) ensurePluginStateDuringStartup(
 	stateSatisfied func(*store.PluginRecord) bool,
 	executeShared func() error,
 ) error {
+	return s.ensurePluginStateDuringStartupWithPolicy(ctx, pluginID, stateSatisfied, executeShared, true)
+}
+
+// ensurePluginStateDuringStartupUnwrapped waits like ensurePluginStateDuringStartup
+// but returns the shared executor error directly. Builtin startup reconciliation
+// uses it so runtime-upgrade diagnostics are not hidden behind auto-enable codes.
+func (s *serviceImpl) ensurePluginStateDuringStartupUnwrapped(
+	ctx context.Context,
+	pluginID string,
+	stateSatisfied func(*store.PluginRecord) bool,
+	executeShared func() error,
+) error {
+	return s.ensurePluginStateDuringStartupWithPolicy(ctx, pluginID, stateSatisfied, executeShared, false)
+}
+
+// ensurePluginStateDuringStartupWithPolicy implements shared startup waiting
+// and primary-only execution for plugin bootstrap flows.
+func (s *serviceImpl) ensurePluginStateDuringStartupWithPolicy(
+	ctx context.Context,
+	pluginID string,
+	stateSatisfied func(*store.PluginRecord) bool,
+	executeShared func() error,
+	wrapSharedError bool,
+) error {
 	var (
 		deadline = time.Now().Add(startupAutoEnableWaitTimeout)
 		ticker   = time.NewTicker(startupAutoEnablePollInterval)
@@ -238,6 +262,9 @@ func (s *serviceImpl) ensurePluginStateDuringStartup(
 				return bizerr.NewCode(CodePluginAutoEnableSharedExecutorMissing, bizerr.P("pluginId", pluginID))
 			}
 			if err := executeShared(); err != nil {
+				if !wrapSharedError {
+					return err
+				}
 				return bizerr.WrapCode(err, CodePluginAutoEnableFailed, bizerr.P("pluginId", pluginID))
 			}
 			continue

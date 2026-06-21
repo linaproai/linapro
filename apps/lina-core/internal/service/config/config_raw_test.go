@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -234,6 +235,16 @@ func TestRuntimeParamSpecsReturnsCopy(t *testing.T) {
 	specs[0].DefaultValue = "mutated"
 	if runtimeParamSpecs[0].DefaultValue != original {
 		t.Fatal("expected RuntimeParamSpecs to return a detached copy")
+	}
+}
+
+// TestRuntimeParamSpecsUseSystemNamespace verifies all built-in runtime
+// parameters managed through sys_config stay under the host system namespace.
+func TestRuntimeParamSpecsUseSystemNamespace(t *testing.T) {
+	for _, spec := range RuntimeParamSpecs() {
+		if !strings.HasPrefix(spec.Key, "sys.") {
+			t.Fatalf("expected built-in runtime parameter %q to use sys. prefix", spec.Key)
+		}
 	}
 }
 

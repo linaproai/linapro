@@ -637,7 +637,7 @@ export async function setCronShellEnabled(
   api: APIRequestContext,
   enabled: boolean,
 ) {
-  const item = await getConfigByKey(api, "cron.shell.enabled");
+  const item = await getConfigByKey(api, "sys.cron.shell.enabled");
   const targetValue = enabled ? "true" : "false";
   if (item.value !== targetValue) {
     await updateConfigValue(api, item.id, targetValue);
@@ -649,17 +649,17 @@ export async function restoreCronShellEnabled(
   api: APIRequestContext,
   original?: Pick<ConfigItem, "value"> | null,
 ) {
-  const item = await getConfigByKey(api, "cron.shell.enabled");
+  const item = await getConfigByKey(api, "sys.cron.shell.enabled");
   const targetValue = normalizeCronShellEnabledValue(original?.value);
   if (item.value !== targetValue) {
     await updateConfigValue(api, item.id, targetValue);
   }
   await expect
     .poll(
-      async () => (await getConfigByKey(api, "cron.shell.enabled")).value,
+      async () => (await getConfigByKey(api, "sys.cron.shell.enabled")).value,
       {
         timeout: 10000,
-        message: "cron.shell.enabled should be restored",
+        message: "sys.cron.shell.enabled should be restored",
       },
     )
     .toBe(targetValue);

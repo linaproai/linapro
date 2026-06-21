@@ -126,6 +126,9 @@ type Service interface {
 	// BootstrapAutoEnable ensures configured startup plugins are installed and
 	// enabled after the root facade has synchronized discovered manifests.
 	BootstrapAutoEnable(ctx context.Context, options BootstrapAutoEnableOptions) error
+	// BootstrapBuiltinPlugins ensures discovered built-in source plugins are
+	// installed and enabled during startup without using plugin.autoEnable.
+	BootstrapBuiltinPlugins(ctx context.Context, options BootstrapBuiltinOptions) error
 	// ReconcileAutoEnabledTenantPlugins reconciles auto-enabled tenant-scoped
 	// plugins into platform new-tenant provisioning policy.
 	ReconcileAutoEnabledTenantPlugins(ctx context.Context, entries []AutoEnableEntry) error

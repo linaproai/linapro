@@ -43,6 +43,8 @@ type ListInput struct {
 	Status *int
 	// Installed filters by installed flag.
 	Installed *int
+	// IncludeBuiltin includes project built-in source plugins for read-only diagnostics.
+	IncludeBuiltin bool
 }
 
 // ListCache stores one complete unfiltered plugin management summary read model.

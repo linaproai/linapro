@@ -36,4 +36,5 @@ type SysPlugin struct {
 	CreatedAt               *time.Time // Creation time
 	UpdatedAt               *time.Time // Update time
 	DeletedAt               *time.Time // Deletion time
+	Distribution            any        // Plugin distribution governance: marketplace or builtin
 }

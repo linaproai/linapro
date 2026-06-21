@@ -78,6 +78,7 @@ id: store-cache-snapshot
 name: Store Cache Snapshot
 version: 0.1.0
 type: dynamic
+distribution: marketplace
 manifestDeclared: true
 dependencies:
   plugins:

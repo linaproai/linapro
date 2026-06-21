@@ -348,6 +348,7 @@ func (s *serviceImpl) buildManifestSnapshotModel(manifest *catalog.Manifest) (*M
 		Name:                      manifest.Name,
 		Version:                   manifest.Version,
 		Type:                      manifest.Type,
+		Distribution:              plugintypes.NormalizeDistribution(manifest.Distribution).String(),
 		ScopeNature:               manifest.ScopeNature,
 		SupportsMultiTenant:       manifest.SupportsTenantGovernance(),
 		DefaultInstallMode:        manifest.DefaultInstallMode,

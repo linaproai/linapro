@@ -70,6 +70,10 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 	if !plugintypes.IsSupportedType(manifest.Type) {
 		return gerror.Newf("plugin type only supports source/dynamic: %s", fileLabel)
 	}
+	manifest.Distribution = plugintypes.NormalizeDistribution(manifest.Distribution).String()
+	if !plugintypes.IsSupportedDistribution(manifest.Distribution) {
+		return gerror.Newf("plugin distribution only supports marketplace/builtin: %s", fileLabel)
+	}
 	if err := s.hydrateManifestTenantGovernanceFromFile(manifest, filePath); err != nil {
 		return gerror.Wrapf(err, "plugin tenant governance metadata cannot be loaded: %s", fileLabel)
 	}
@@ -99,6 +103,9 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 				return gerror.Newf("source plugin embedded manifest ID does not match registered plugin ID: %s != %s", manifest.ID, registeredPluginID)
 			}
 		}
+		if plugintypes.NormalizeDistribution(manifest.Distribution) == plugintypes.DistributionBuiltin && manifest.SourcePlugin == nil {
+			return gerror.Newf("builtin source plugin must be registered in source plugin registry: %s", manifest.ID)
+		}
 		goModPath := filepath.Join(rootDir, "go.mod")
 		if !HasSourcePluginEmbeddedFiles(manifest) && !gfile.Exists(goModPath) {
 			return gerror.Newf("source plugin directory is missing go.mod: %s", rootDir)
@@ -107,6 +114,8 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 		if !HasSourcePluginEmbeddedFiles(manifest) && !gfile.Exists(backendEntryPath) {
 			return gerror.Newf("source plugin directory is missing backend/plugin.go: %s", rootDir)
 		}
+	} else if plugintypes.NormalizeDistribution(manifest.Distribution) == plugintypes.DistributionBuiltin {
+		return gerror.Newf("builtin plugin distribution only supports source plugins: %s", fileLabel)
 	} else if err := ValidateRuntimeArtifact(manifest, rootDir); err != nil {
 		// Tolerate a missing artifact during local development/scan so dynamic
 		// plugins remain visible even before make wasm is run.
@@ -155,6 +164,13 @@ func (s *serviceImpl) ValidateUploadedRuntimeManifest(manifest *Manifest) error 
 	manifest.Type = plugintypes.NormalizeType(manifest.Type).String()
 	if manifest.Type != plugintypes.TypeDynamic.String() {
 		return gerror.New("dynamic plugin type must be dynamic")
+	}
+	manifest.Distribution = plugintypes.NormalizeDistribution(manifest.Distribution).String()
+	if !plugintypes.IsSupportedDistribution(manifest.Distribution) {
+		return gerror.New("dynamic plugin distribution only supports marketplace or builtin")
+	}
+	if plugintypes.NormalizeDistribution(manifest.Distribution) == plugintypes.DistributionBuiltin {
+		return gerror.New("dynamic plugin cannot declare builtin distribution")
 	}
 	if err := normalizeManifestTenantGovernance(manifest); err != nil {
 		return err

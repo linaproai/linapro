@@ -35,7 +35,7 @@ TBD - created by archiving change add-log-retention-cleanup-policy. Update Purpo
 
 - **WHEN** 任务调度执行日志清理任务触发
 - **THEN** 系统 MUST 删除 `start_at` 早于当前时间减去 `sys.log.retentionDays` 的执行日志
-- **AND** 系统 MUST 再应用既有 `cron.log.retention` 和任务级 `log_retention_override` 的额外清理策略
+- **AND** 系统 MUST 再应用既有 `sys.cron.log.retention` 和任务级 `log_retention_override` 的额外清理策略
 - **AND** 任务级 `none` 策略 MUST NOT 使执行日志超过全局最长保留天数
 
 #### Scenario: 在线会话投影清理不误删有效会话

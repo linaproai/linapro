@@ -174,6 +174,84 @@ func TestStartupDataSnapshotReusesReleaseByIDAndVersion(t *testing.T) {
 	}
 }
 
+// TestSyncManifestPersistsBuiltinDistribution verifies registry and release
+// snapshots keep builtin governance metadata from discovered manifests.
+func TestSyncManifestPersistsBuiltinDistribution(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		svcs     = testutil.NewServices()
+		pluginID = "acme-demo-builtin-distribution-sync"
+		version  = "v0.1.0"
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest := &catalog.Manifest{
+		ID:           pluginID,
+		Name:         "Builtin Distribution Sync",
+		Version:      version,
+		Type:         plugintypes.TypeSource.String(),
+		Distribution: plugintypes.DistributionBuiltin.String(),
+	}
+	registry, err := svcs.Store.SyncManifest(ctx, manifest)
+	if err != nil {
+		t.Fatalf("expected manifest sync to succeed, got error: %v", err)
+	}
+	if registry == nil || registry.Distribution != plugintypes.DistributionBuiltin.String() {
+		t.Fatalf("expected builtin registry distribution, got %#v", registry)
+	}
+
+	release, err := svcs.Store.GetRelease(ctx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected release lookup to succeed, got error: %v", err)
+	}
+	if release == nil {
+		t.Fatalf("expected release metadata to be synchronized")
+	}
+	snapshot, err := svcs.Store.ParseManifestSnapshot(release.ManifestSnapshot)
+	if err != nil {
+		t.Fatalf("expected release manifest snapshot to parse, got error: %v", err)
+	}
+	if snapshot == nil || snapshot.Distribution != plugintypes.DistributionBuiltin.String() {
+		t.Fatalf("expected builtin release snapshot distribution, got %#v", snapshot)
+	}
+}
+
+// TestParseManifestSnapshotRequiresDistribution verifies fresh release snapshots
+// must carry explicit distribution governance metadata.
+func TestParseManifestSnapshotRequiresDistribution(t *testing.T) {
+	svcs := testutil.NewServices()
+	if _, err := svcs.Store.ParseManifestSnapshot(`
+id: acme-demo-missing-distribution
+name: Missing Distribution
+version: v0.1.0
+type: source
+`); err == nil {
+		t.Fatalf("expected missing distribution snapshot to be rejected")
+	}
+	if _, err := svcs.Store.ParseManifestSnapshot(`
+id: acme-demo-invalid-distribution
+name: Invalid Distribution
+version: v0.1.0
+type: source
+distribution: managed
+`); err == nil {
+		t.Fatalf("expected invalid distribution snapshot to be rejected")
+	}
+	if _, err := svcs.Store.ParseManifestSnapshot(`
+id: acme-demo-non-canonical-distribution
+name: Non Canonical Distribution
+version: v0.1.0
+type: source
+distribution: MARKETPLACE
+`); err == nil {
+		t.Fatalf("expected non-canonical distribution snapshot to be rejected")
+	}
+}
+
 // TestParseManifestSnapshotRejectsUnsupportedHostServiceSnapshots verifies
 // persisted snapshots use the same strict host-service names as fresh manifests.
 func TestParseManifestSnapshotRejectsUnsupportedHostServiceSnapshots(t *testing.T) {
@@ -198,6 +276,7 @@ requestedHostServices:
 			name: "standalone config",
 			snapshot: `
 id: acme-demo-reject-config-snapshot
+distribution: marketplace
 requestedHostServices:
   - service: config
     methods:
@@ -208,6 +287,7 @@ requestedHostServices:
 			name: "standalone cron",
 			snapshot: `
 id: acme-demo-reject-cron-snapshot
+distribution: marketplace
 requestedHostServices:
   - service: cron
     methods:

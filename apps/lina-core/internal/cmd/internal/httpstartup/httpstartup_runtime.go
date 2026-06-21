@@ -447,8 +447,14 @@ func startHTTPRuntime(ctx context.Context, runtime *httpRuntime) error {
 func startHTTPRuntimeBeforeSourceRoutes(ctx context.Context, runtime *httpRuntime) error {
 	runtime.clusterSvc.Start(ctx)
 
-	// Auto-enable and source-upgrade drift scanning run before plugin routes and
-	// cron jobs are registered so plugin management can surface runtime state.
+	// Builtin reconciliation, auto-enable, and source-upgrade drift scanning run
+	// before plugin routes and cron jobs are registered so plugin management can
+	// surface runtime state.
+	if err := startupstats.Observe(ctx, startupstats.PhasePluginBootstrapBuiltin, func() error {
+		return runtime.pluginSvc.BootstrapBuiltinPlugins(ctx)
+	}); err != nil {
+		return err
+	}
 	if err := startupstats.Observe(ctx, startupstats.PhasePluginBootstrapAutoEnable, func() error {
 		return runtime.pluginSvc.BootstrapAutoEnable(ctx)
 	}); err != nil {

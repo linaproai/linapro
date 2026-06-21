@@ -216,6 +216,59 @@ func TestManagementListCacheIsLocaleScoped(t *testing.T) {
 	}
 }
 
+// TestListHidesBuiltinByDefaultAndIncludesForDiagnostics verifies ordinary
+// management list reads filter builtin plugins without rebuilding or mutating
+// the underlying read model.
+func TestListHidesBuiltinByDefaultAndIncludesForDiagnostics(t *testing.T) {
+	var (
+		service       = newTestService()
+		ctx           = startupstats.WithCollector(context.Background(), startupstats.New())
+		marketplaceID = "plugin-dev-list-marketplace-distribution"
+		builtinID     = "plugin-dev-list-builtin-distribution"
+	)
+
+	createTestSourceDependencyPlugin(t, marketplaceID, "Marketplace Distribution", "v0.1.0", "")
+	createTestSourceDependencyPlugin(
+		t,
+		builtinID,
+		"Builtin Distribution",
+		"v0.1.0",
+		"distribution: builtin\n",
+	)
+	cleanupTestPluginIDs(t, context.Background(), marketplaceID, builtinID)
+
+	defaultOut, err := service.List(ctx, ListInput{ID: "plugin-dev-list-"})
+	if err != nil {
+		t.Fatalf("expected default list to succeed, got error: %v", err)
+	}
+	if findPluginItem(defaultOut, marketplaceID) == nil {
+		t.Fatalf("expected marketplace plugin in default list")
+	}
+	if findPluginItem(defaultOut, builtinID) != nil {
+		t.Fatalf("expected builtin plugin to be hidden by default")
+	}
+
+	diagnosticOut, err := service.List(ctx, ListInput{
+		ID:             "plugin-dev-list-",
+		IncludeBuiltin: true,
+	})
+	if err != nil {
+		t.Fatalf("expected include-builtin list to succeed, got error: %v", err)
+	}
+	builtin := findPluginItem(diagnosticOut, builtinID)
+	if builtin == nil {
+		t.Fatalf("expected builtin plugin in diagnostic list")
+	}
+	if builtin.Distribution != plugintypes.DistributionBuiltin.String() {
+		t.Fatalf("expected builtin distribution, got %#v", builtin)
+	}
+
+	snapshot := startupstats.FromContext(ctx).Snapshot()
+	if got := snapshot.CounterValue(startupstats.CounterPluginScans); got != 1 {
+		t.Fatalf("expected diagnostic filtering to reuse cached read model, got %d scans", got)
+	}
+}
+
 // TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState verifies that
 // missing runtime artifacts reconcile registry state without hiding the plugin.
 func TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState(t *testing.T) {

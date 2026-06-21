@@ -14,6 +14,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -72,6 +73,13 @@ func (s *serviceImpl) ParseManifestSnapshot(content string) (*ManifestSnapshot, 
 	}
 	if err := root.Decode(snapshot); err != nil {
 		return nil, gerror.Wrap(err, "decode plugin release manifest_snapshot failed")
+	}
+	if strings.TrimSpace(snapshot.Distribution) == "" {
+		return nil, gerror.Newf("plugin release manifest_snapshot distribution is required: %s", snapshot.ID)
+	}
+	if snapshot.Distribution != plugintypes.DistributionMarketplace.String() &&
+		snapshot.Distribution != plugintypes.DistributionBuiltin.String() {
+		return nil, gerror.Newf("plugin release manifest_snapshot distribution only supports marketplace/builtin: %s", snapshot.ID)
 	}
 	requestedHostServices, err := protocol.NormalizeHostServiceSpecsForPlugin(snapshot.ID, snapshot.RequestedHostServices)
 	if err != nil {

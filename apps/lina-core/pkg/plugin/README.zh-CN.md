@@ -44,6 +44,10 @@
 | `Org` | 提供可选组织投影，例如用户组织档案、有界部门树、部门搜索、岗位选项、可见性校验、部门分配、部门名称和岗位 ID。 | provider 可用性显式暴露；组织 provider 缺失时 fallback service 返回安全中性值。 |
 | `Tenant` | 提供可选租户上下文、租户信息、租户批量/搜索投影、可见性确认、成员校验、可访问租户列表、批量用户租户列表和租户切换校验。 | provider 可用性显式暴露；宿主过滤器应用租户范围，但不暴露租户存储内部结构。 |
 
+### 插件分发治理
+
+插件 manifest 和生命周期回调快照包含`distribution`，宿主会将其归一化为`marketplace`或`builtin`。省略时视为`marketplace`。`builtin`是仅适用于源码插件的治理模式，用于随宿主编译交付的项目组成能力：宿主会在启动时自动安装、启用和安全升级，普通插件管理写操作会被拒绝。动态插件必须保持`marketplace`语义，不能自声明内建治理。
+
 ## 动态插件专属能力
 
 `Runtime`、`Network`和`RecordStore`是`pluginbridge.Services`上的动态插件专属入口。它们不属于`capability.Services`，因为源码插件已经运行在宿主进程内，可以使用宿主原生等价能力，或者使用源码插件数据访问接缝，而不是 guest host-service 包装。

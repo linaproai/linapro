@@ -6,34 +6,34 @@
 ## Requirements
 ### Requirement:Shell 任务全局开关
 
-系统 SHALL 通过系统参数 `cron.shell.enabled` 控制是否允许 Shell 类型任务的创建、修改与执行，默认关闭。
+系统 SHALL 通过系统参数 `sys.cron.shell.enabled` 控制是否允许 Shell 类型任务的创建、修改与执行，默认关闭。
 
 #### Scenario:开关关闭时拒绝创建
 
-- **当** `cron.shell.enabled=false` 且用户尝试创建 `task_type=shell` 任务时
+- **当** `sys.cron.shell.enabled=false` 且用户尝试创建 `task_type=shell` 任务时
 - **则** 系统 SHALL 拒绝创建并返回明确错误
 
 #### Scenario:开关关闭时拒绝修改
 
-- **当** `cron.shell.enabled=false` 且用户尝试修改已存在 Shell 任务的任一字段时
+- **当** `sys.cron.shell.enabled=false` 且用户尝试修改已存在 Shell 任务的任一字段时
 - **则** 系统 SHALL 拒绝修改
 
 #### Scenario:开关关闭时拒绝执行
 
-- **当** `cron.shell.enabled=false` 且 Shell 任务到达 tick 或被手动触发时
+- **当** `sys.cron.shell.enabled=false` 且 Shell 任务到达 tick 或被手动触发时
 - **则** 系统 SHALL 拒绝本次执行
 - **且** 日志 `status=failed`、`err_msg` 指明 shell 开关已关闭
 
 #### Scenario:UI 隐藏 shell 选项
 
-- **当** 前端从系统参数接口读取到 `cron.shell.enabled=false` 时
+- **当** 前端从系统参数接口读取到 `sys.cron.shell.enabled=false` 时
 - **则** UI SHALL 在任务类型选择中隐藏 `shell` 选项
 - **且** 对已存在的 shell 任务仅允许只读查看
 
 #### Scenario:Windows 运行时强制关闭
 
 - **当** 宿主运行在 Windows 平台时
-- **则** 系统 SHALL 视 `cron.shell.enabled` 为 false
+- **则** 系统 SHALL 视 `sys.cron.shell.enabled` 为 false
 - **且** UI 在页面上显示"当前平台不支持 shell 模式"
 
 ### Requirement:Shell 任务独立权限点

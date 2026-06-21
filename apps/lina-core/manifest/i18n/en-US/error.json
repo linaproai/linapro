@@ -723,6 +723,13 @@
           }
         }
       },
+      "builtin": {
+        "management": {
+          "action": {
+            "denied": "Built-in plugin {pluginId} is managed by host startup and cannot be changed through ordinary plugin management"
+          }
+        }
+      },
       "dynamic": {
         "artifact": {
           "missing": "Dynamic plugin is missing {artifactPath} and cannot {action}. Run make wasm p={pluginId} first",

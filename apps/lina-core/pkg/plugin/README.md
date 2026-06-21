@@ -44,6 +44,10 @@ Dynamic plugins may use only the concrete methods that are explicitly published 
 | `Org` | Provides optional organization projections such as user organization profiles, bounded department trees, department search, post options, visibility checks, department assignments, department names, and post IDs. | Provider availability is explicit; fallback services return safe neutral values when the organization provider is absent. |
 | `Tenant` | Provides optional tenant context, tenant info, tenant batch/search projections, visibility checks, membership validation, accessible tenant lists, batch user tenant lists, and tenant switching validation. | Provider availability is explicit; host filters apply tenant scope without exposing tenant storage internals. |
 
+### Plugin Distribution
+
+Plugin manifests and lifecycle callback snapshots include `distribution`, which is normalized by the host to `marketplace` or `builtin`. Omitted values are treated as `marketplace`. `builtin` is a source-plugin-only governance mode for project components compiled with the host: the host installs, enables, and safely upgrades them during startup, and ordinary plugin-management write actions are rejected. Dynamic plugins must remain `marketplace` and cannot self-declare built-in governance.
+
 ## Dynamic-Plugin-Only Capabilities
 
 `Runtime`, `Network`, and `RecordStore` are dynamic-plugin-only entries on `pluginbridge.Services`. They are not part of `capability.Services` because source plugins either already run inside the host process with native equivalents or use source-plugin data access seams instead of guest host-service wrappers.

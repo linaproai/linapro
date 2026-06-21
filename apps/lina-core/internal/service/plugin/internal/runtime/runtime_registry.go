@@ -46,6 +46,8 @@ type PluginItem struct {
 	LastUpgradeFailure *RuntimeUpgradeFailure
 	// Type is the normalized plugin type (source or dynamic).
 	Type string
+	// Distribution is the plugin distribution governance type.
+	Distribution string
 	// Description is the short plugin description.
 	Description string
 	// Installed reports whether the plugin has been installed.
@@ -136,6 +138,7 @@ func (s *serviceImpl) buildPluginItemWithOptions(
 		version                 string
 		pluginType              string
 		description             string
+		distribution            string
 		installed               int
 		enabled                 int
 		installedAt             *int64
@@ -154,6 +157,7 @@ func (s *serviceImpl) buildPluginItemWithOptions(
 		name = manifest.Name
 		version = manifest.Version
 		pluginType = manifest.Type
+		distribution = plugintypes.NormalizeDistribution(manifest.Distribution).String()
 		description = manifest.Description
 	}
 	if registry != nil {
@@ -169,6 +173,7 @@ func (s *serviceImpl) buildPluginItemWithOptions(
 		if registry.Type != "" {
 			pluginType = registry.Type
 		}
+		distribution = registry.Distribution
 		if registry.Remark != "" {
 			description = registry.Remark
 		}
@@ -214,6 +219,7 @@ func (s *serviceImpl) buildPluginItemWithOptions(
 		}
 	} else if snapshot != nil {
 		supportsMultiTenant = snapshot.SupportsMultiTenant
+		distribution = snapshot.Distribution
 	}
 
 	normalizeHostServices := func(source string, specs []*bridgehostservice.HostServiceSpec) []*bridgehostservice.HostServiceSpec {
@@ -288,6 +294,7 @@ func (s *serviceImpl) buildPluginItemWithOptions(
 		AbnormalReason:          upgradeProjection.AbnormalReason,
 		LastUpgradeFailure:      upgradeProjection.LastFailure,
 		Type:                    pluginType,
+		Distribution:            distribution,
 		Description:             description,
 		Installed:               installed,
 		InstalledAt:             installedAt,

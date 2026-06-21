@@ -40,6 +40,7 @@ type pluginProjectionInput struct {
 // snapshots built while projecting it.
 type pluginProjectionOutput struct {
 	ctx                 context.Context
+	manifests           []*catalog.Manifest
 	list                *ListOutput
 	item                *PluginItem
 	dependencySnapshots []*plugindep.PluginSnapshot
@@ -63,7 +64,7 @@ func (s *serviceImpl) buildPluginProjection(
 	if err != nil {
 		return nil, err
 	}
-	out := &pluginProjectionOutput{ctx: readCtx}
+	out := &pluginProjectionOutput{ctx: readCtx, manifests: manifests}
 	if input.mode == projectionModeDependencySnapshot {
 		out.dependencySnapshots, err = s.buildDependencySnapshotsForProjection(readCtx, input.candidate)
 		return out, err

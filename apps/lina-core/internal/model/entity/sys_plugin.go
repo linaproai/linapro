@@ -33,4 +33,5 @@ type SysPlugin struct {
 	CreatedAt               *time.Time `json:"createdAt"               orm:"created_at"                  description:"Creation time"`
 	UpdatedAt               *time.Time `json:"updatedAt"               orm:"updated_at"                  description:"Update time"`
 	DeletedAt               *time.Time `json:"deletedAt"               orm:"deleted_at"                  description:"Deletion time"`
+	Distribution            string     `json:"distribution"            orm:"distribution"                description:"Plugin distribution governance: marketplace or builtin"`
 }

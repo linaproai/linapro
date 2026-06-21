@@ -723,6 +723,13 @@
           }
         }
       },
+      "builtin": {
+        "management": {
+          "action": {
+            "denied": "内建插件 {pluginId} 由宿主启动流程自动治理，不能通过普通插件管理入口变更"
+          }
+        }
+      },
       "dynamic": {
         "artifact": {
           "missing": "动态插件缺少 {artifactPath}，无法执行 {action}；请先执行 make wasm p={pluginId} 生成产物",

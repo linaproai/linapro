@@ -72,9 +72,9 @@ const (
 	// RuntimeParamKeyLogRetentionDays stores the maximum log retention period in days.
 	RuntimeParamKeyLogRetentionDays = "sys.log.retentionDays"
 	// RuntimeParamKeyCronShellEnabled stores the global shell-job enable switch.
-	RuntimeParamKeyCronShellEnabled = "cron.shell.enabled"
+	RuntimeParamKeyCronShellEnabled = "sys.cron.shell.enabled"
 	// RuntimeParamKeyCronLogRetention stores the default cron-log retention policy.
-	RuntimeParamKeyCronLogRetention = "cron.log.retention"
+	RuntimeParamKeyCronLogRetention = "sys.cron.log.retention"
 )
 
 // RuntimeParamSpec describes one built-in runtime parameter managed through

@@ -25,7 +25,7 @@
                 "dc": "Handler 唯一引用；公共创建/编辑接口固定留空"
               },
               "logRetentionOverride": {
-                "dc": "任务级日志保留策略；不传则跟随系统参数 cron.log.retention"
+                "dc": "任务级日志保留策略；不传则跟随系统参数 sys.cron.log.retention"
               },
               "maxConcurrency": {
                 "dc": "最大并发数；concurrency=parallel 时生效"
@@ -374,7 +374,7 @@
                 "dc": "Handler 唯一引用；公共创建/编辑接口固定留空"
               },
               "logRetentionOverride": {
-                "dc": "任务级日志保留策略；不传则跟随系统参数 cron.log.retention"
+                "dc": "任务级日志保留策略；不传则跟随系统参数 sys.cron.log.retention"
               },
               "maxConcurrency": {
                 "dc": "最大并发数；concurrency=parallel 时生效"
@@ -646,7 +646,7 @@
                 "dc": "任务ID"
               },
               "logRetentionOverride": {
-                "dc": "任务级日志保留策略；不传则跟随系统参数 cron.log.retention"
+                "dc": "任务级日志保留策略；不传则跟随系统参数 sys.cron.log.retention"
               },
               "maxConcurrency": {
                 "dc": "最大并发数；concurrency=parallel 时生效"
@@ -714,7 +714,7 @@
                       "dc": "Handler 唯一引用；公共创建/编辑接口固定留空"
                     },
                     "logRetentionOverride": {
-                      "dc": "任务级日志保留策略；不传则跟随系统参数 cron.log.retention"
+                      "dc": "任务级日志保留策略；不传则跟随系统参数 sys.cron.log.retention"
                     },
                     "maxConcurrency": {
                       "dc": "最大并发数；concurrency=parallel 时生效"

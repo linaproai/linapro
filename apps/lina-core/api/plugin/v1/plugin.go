@@ -9,6 +9,15 @@ const (
 	PluginTypeDynamic PluginType = "dynamic"
 )
 
+// PluginDistribution identifies the host governance model for plugin delivery.
+type PluginDistribution string
+
+// Supported plugin distribution governance values.
+const (
+	PluginDistributionMarketplace PluginDistribution = "marketplace"
+	PluginDistributionBuiltin     PluginDistribution = "builtin"
+)
+
 // RuntimeState identifies whether discovered plugin files match effective state.
 type RuntimeState string
 

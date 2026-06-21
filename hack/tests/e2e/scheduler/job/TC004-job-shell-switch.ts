@@ -18,7 +18,7 @@ test.describe('TC-4 Shell 全局开关关闭时拒绝写入', () => {
 
   test.beforeAll(async () => {
     api = await createAdminApiContext();
-    originalShellSwitch = await getConfigByKey(api, 'cron.shell.enabled');
+    originalShellSwitch = await getConfigByKey(api, 'sys.cron.shell.enabled');
   });
 
   test.afterAll(async () => {
@@ -31,7 +31,7 @@ test.describe('TC-4 Shell 全局开关关闭时拒绝写入', () => {
   test('TC-4a~b: 当 shell 开关关闭时，前端隐藏 Shell 类型选项且后端拒绝创建 Shell 任务', async ({ adminPage }) => {
     await setCronShellEnabled(api, false);
     await expect
-      .poll(async () => (await getConfigByKey(api, 'cron.shell.enabled')).value)
+      .poll(async () => (await getConfigByKey(api, 'sys.cron.shell.enabled')).value)
       .toBe('false');
 
     const jobPage = new JobPage(adminPage);

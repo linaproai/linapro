@@ -34,6 +34,9 @@ func (s *serviceImpl) Install(
 	if err = s.ensurePlatformGovernance(ctx); err != nil {
 		return nil, err
 	}
+	if err = s.ensureBuiltinManagementActionAllowed(ctx, pluginID); err != nil {
+		return nil, err
+	}
 	return s.install(ctx, pluginID, options)
 }
 
@@ -64,6 +67,9 @@ func (s *serviceImpl) Uninstall(
 	if err := s.ensurePlatformGovernance(ctx); err != nil {
 		return err
 	}
+	if err := s.ensureBuiltinManagementActionAllowed(ctx, pluginID); err != nil {
+		return err
+	}
 	return s.lifecycleSvc.Uninstall(ctx, pluginID, lifecycle.UninstallOptions{
 		PurgeStorageData:    options.PurgeStorageData,
 		Force:               options.Force,
@@ -81,6 +87,9 @@ func (s *serviceImpl) UpdateStatus(
 	authorization *HostServiceAuthorizationInput,
 ) error {
 	if err := s.ensurePlatformGovernance(ctx); err != nil {
+		return err
+	}
+	if err := s.ensureBuiltinManagementActionAllowed(ctx, pluginID); err != nil {
 		return err
 	}
 	return s.updateStatus(ctx, pluginID, status, authorization)
@@ -105,12 +114,18 @@ func (s *serviceImpl) Enable(ctx context.Context, pluginID string) error {
 	if err := s.ensurePlatformGovernance(ctx); err != nil {
 		return err
 	}
+	if err := s.ensureBuiltinManagementActionAllowed(ctx, pluginID); err != nil {
+		return err
+	}
 	return s.updateStatus(ctx, pluginID, plugintypes.StatusEnabled, nil)
 }
 
 // Disable disables the specified plugin.
 func (s *serviceImpl) Disable(ctx context.Context, pluginID string) error {
 	if err := s.ensurePlatformGovernance(ctx); err != nil {
+		return err
+	}
+	if err := s.ensureBuiltinManagementActionAllowed(ctx, pluginID); err != nil {
 		return err
 	}
 	return s.updateStatus(ctx, pluginID, plugintypes.StatusDisabled, nil)

@@ -2096,3 +2096,59 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 		t.Fatalf("expected one source plugin uninstall migration row, got count=%d", migrationCount)
 	}
 }
+
+// TestBuiltinPluginManagementActionsAreDenied verifies public management write
+// paths cannot mutate project built-in source plugins.
+func TestBuiltinPluginManagementActionsAreDenied(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dev-builtin-management-denied"
+	)
+
+	createTestSourceDependencyPlugin(
+		t,
+		pluginID,
+		"Builtin Management Denied",
+		"v0.1.0",
+		"distribution: builtin\n",
+	)
+	cleanupTestPluginIDs(t, ctx, pluginID)
+
+	if _, err := service.SyncSourcePluginsStrict(ctx); err != nil {
+		t.Fatalf("expected builtin manifest sync to succeed, got error: %v", err)
+	}
+
+	assertDenied := func(name string, err error) {
+		t.Helper()
+		if !bizerr.Is(err, CodePluginBuiltinManagementActionDenied) {
+			t.Fatalf("%s expected builtin management denial, got %v", name, err)
+		}
+	}
+
+	_, err := service.Install(ctx, pluginID, InstallOptions{})
+	assertDenied("install", err)
+	assertDenied("enable", service.Enable(ctx, pluginID))
+	assertDenied("disable", service.Disable(ctx, pluginID))
+	assertDenied("update status", service.UpdateStatus(ctx, pluginID, plugintypes.StatusEnabled, nil))
+	assertDenied("uninstall", service.Uninstall(ctx, pluginID, UninstallOptions{PurgeStorageData: true}))
+	assertDenied("tenant provisioning", service.UpdateTenantProvisioningPolicy(ctx, pluginID, true))
+	_, err = service.UpgradeSourcePlugin(ctx, pluginID)
+	assertDenied("source upgrade", err)
+	_, err = service.ExecuteRuntimeUpgrade(ctx, pluginID, RuntimeUpgradeOptions{Confirmed: true})
+	assertDenied("runtime upgrade", err)
+
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected builtin registry lookup to succeed, got error: %v", err)
+	}
+	if registry == nil {
+		t.Fatalf("expected synced builtin registry row")
+	}
+	if registry.Installed != plugintypes.InstalledNo || registry.Status != plugintypes.StatusDisabled {
+		t.Fatalf("expected denied actions to leave builtin uninstalled+disabled, got installed=%d status=%d", registry.Installed, registry.Status)
+	}
+	if registry.AutoEnableForNewTenants {
+		t.Fatalf("expected denied tenant provisioning update not to change policy")
+	}
+}
