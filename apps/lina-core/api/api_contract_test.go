@@ -2,6 +2,7 @@
 package api_test
 
 import (
+	"context"
 	"go/parser"
 	"go/token"
 	"os"
@@ -9,6 +10,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/gogf/gf/v2/util/gvalid"
 
 	configv1 "lina-core/api/config/v1"
 	dictv1 "lina-core/api/dict/v1"
@@ -91,6 +94,28 @@ func TestResponseDTOsDoNotExposeInternalJSONFields(t *testing.T) {
 			"engine":    {},
 			"hash":      {},
 		})
+	}
+}
+
+// TestUpdateProfileAllowsPasswordOnlyPatch verifies current-user profile
+// updates keep field-level patch semantics at the API validation boundary.
+func TestUpdateProfileAllowsPasswordOnlyPatch(t *testing.T) {
+	password := "newpass123"
+	req := userv1.UpdateProfileReq{Password: &password}
+	if err := gvalid.New().Data(req).Run(context.Background()); err != nil {
+		t.Fatalf("expected password-only profile update to pass validation, got %v", err)
+	}
+}
+
+// TestCreateUserStillRequiresNickname verifies the profile patch relaxation
+// does not weaken administrator-created user validation.
+func TestCreateUserStillRequiresNickname(t *testing.T) {
+	req := userv1.CreateReq{
+		Username: "zhangsan",
+		Password: "123456",
+	}
+	if err := gvalid.New().Data(req).Run(context.Background()); err == nil {
+		t.Fatal("expected user creation without nickname to fail validation")
 	}
 }
 

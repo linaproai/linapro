@@ -17,6 +17,7 @@ import (
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
 	hostconfigadapter "lina-core/internal/service/plugin/internal/hostconfig"
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -24,6 +25,7 @@ import (
 // trackingHostConfigService records host config reads.
 type trackingHostConfigService struct {
 	values      map[string]any
+	sysConfig   *trackingSysConfigService
 	getCalls    int
 	existsCalls int
 	lastKey     string
@@ -82,9 +84,63 @@ func (s *trackingHostConfigService) Duration(context.Context, string, time.Durat
 	return 15 * time.Second, nil
 }
 
-// SysConfig returns unused sys_config methods for dynamic hostConfig dispatch tests.
+// SysConfig returns tracking sys_config methods for dynamic hostConfig dispatch tests.
 func (s *trackingHostConfigService) SysConfig() hostconfigcap.SysConfigService {
+	if s.sysConfig != nil {
+		return s.sysConfig
+	}
 	return noopTestSysConfigService{}
+}
+
+type trackingSysConfigService struct {
+	values       map[hostconfigcap.SysConfigKey]string
+	lastGetKey   hostconfigcap.SysConfigKey
+	lastSetKey   hostconfigcap.SysConfigKey
+	lastSetValue string
+	lastResetKey hostconfigcap.SysConfigKey
+}
+
+func (s *trackingSysConfigService) Get(_ context.Context, key hostconfigcap.SysConfigKey) (*hostconfigcap.SysConfigInfo, error) {
+	s.lastGetKey = key
+	if value, ok := s.values[key]; ok {
+		return &hostconfigcap.SysConfigInfo{Key: key, Value: value}, nil
+	}
+	return nil, nil
+}
+
+func (s *trackingSysConfigService) BatchGet(ctx context.Context, keys []hostconfigcap.SysConfigKey) (*capmodel.BatchResult[*hostconfigcap.SysConfigInfo, hostconfigcap.SysConfigKey], error) {
+	result := &capmodel.BatchResult[*hostconfigcap.SysConfigInfo, hostconfigcap.SysConfigKey]{
+		Items:      map[hostconfigcap.SysConfigKey]*hostconfigcap.SysConfigInfo{},
+		MissingIDs: []hostconfigcap.SysConfigKey{},
+	}
+	for _, key := range keys {
+		item, _ := s.Get(ctx, key)
+		if item == nil {
+			result.MissingIDs = append(result.MissingIDs, key)
+			continue
+		}
+		result.Items[key] = item
+	}
+	return result, nil
+}
+
+func (s *trackingSysConfigService) List(context.Context, hostconfigcap.ListSysConfigInput) (*capmodel.PageResult[*hostconfigcap.SysConfigInfo], error) {
+	return &capmodel.PageResult[*hostconfigcap.SysConfigInfo]{Items: []*hostconfigcap.SysConfigInfo{}}, nil
+}
+
+func (s *trackingSysConfigService) SetValue(_ context.Context, key hostconfigcap.SysConfigKey, value string) error {
+	s.lastSetKey = key
+	s.lastSetValue = value
+	return nil
+}
+
+func (s *trackingSysConfigService) Reset(_ context.Context, key hostconfigcap.SysConfigKey) error {
+	s.lastResetKey = key
+	return nil
+}
+
+func (s *trackingSysConfigService) EnsureVisible(context.Context, []hostconfigcap.SysConfigKey) error {
+	return nil
 }
 
 // TestHandleHostServiceInvokeHostConfigReadsAuthorizedKey verifies dynamic
@@ -115,6 +171,29 @@ func TestHandleHostServiceInvokeHostConfigRejectsUnauthorizedKey(t *testing.T) {
 	response := invokeHostConfigService(t, hostConfigHostCallContext([]string{"workspace.basePath"}), "database.default.link")
 	if response.Status != protocol.HostCallStatusCapabilityDenied {
 		t.Fatalf("expected unauthorized hostConfig key to be denied, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+}
+
+// TestHandleHostServiceInvokeHostConfigRejectsMismatchedPayloadKey verifies
+// guests cannot authorize one hostConfig key and read a different payload key.
+func TestHandleHostServiceInvokeHostConfigRejectsMismatchedPayloadKey(t *testing.T) {
+	hostConfigSvc := &trackingHostConfigService{values: map[string]any{
+		"workspace.basePath":    "/admin",
+		"database.default.link": "hidden",
+	}}
+	configureTrackingHostConfigService(t, hostConfigSvc)
+
+	response := invokeHostConfigServiceWithPayloadKey(
+		t,
+		hostConfigHostCallContext([]string{"workspace.basePath"}),
+		"workspace.basePath",
+		"database.default.link",
+	)
+	if response.Status != protocol.HostCallStatusCapabilityDenied {
+		t.Fatalf("expected mismatched hostConfig key to be denied, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	if hostConfigSvc.existsCalls != 0 || hostConfigSvc.getCalls != 0 {
+		t.Fatalf("expected mismatched hostConfig key to be rejected before service calls, got exists=%d get=%d", hostConfigSvc.existsCalls, hostConfigSvc.getCalls)
 	}
 }
 
@@ -169,6 +248,95 @@ custom:
 	}
 }
 
+// TestHandleHostServiceInvokeHostConfigSysConfigSingleKeyMethods verifies
+// sys_config dynamic methods stay bound to resources.keys through resourceRef.
+func TestHandleHostServiceInvokeHostConfigSysConfigSingleKeyMethods(t *testing.T) {
+	sysConfigSvc := &trackingSysConfigService{
+		values: map[hostconfigcap.SysConfigKey]string{
+			"custom.dynamic.limit": "64",
+		},
+	}
+	domainServices := &capabilityHostServiceTestServices{
+		hostConfig: &trackingHostConfigService{sysConfig: sysConfigSvc},
+	}
+	bindTestHostServiceRuntime(t, withTestDomainServices(domainServices))
+
+	hcc := hostConfigHostCallContext([]string{"custom.dynamic.limit"})
+	getResponse := invokeCapabilityHostService(
+		t,
+		hcc,
+		protocol.HostServiceHostConfig,
+		protocol.HostServiceMethodHostConfigSysConfigGet,
+		marshalCapabilityJSONRequest(t, hostConfigSysConfigKeyRequest{Key: "custom.dynamic.limit"}),
+	)
+	if getResponse.Status != protocol.HostCallStatusCapabilityDenied {
+		t.Fatalf("expected missing resourceRef to be denied, got status=%d payload=%s", getResponse.Status, string(getResponse.Payload))
+	}
+
+	getResponse = invokeHostConfigSysConfigService(t, hcc, protocol.HostServiceMethodHostConfigSysConfigGet, "custom.dynamic.limit", hostConfigSysConfigKeyRequest{Key: "custom.dynamic.limit"})
+	if getResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected sys_config get success, got status=%d payload=%s", getResponse.Status, string(getResponse.Payload))
+	}
+	var info *hostconfigcap.SysConfigInfo
+	decodeCapabilityJSONResponse(t, getResponse.Payload, &info)
+	if info == nil || info.Value != "64" || sysConfigSvc.lastGetKey != "custom.dynamic.limit" {
+		t.Fatalf("unexpected sys_config get info=%#v lastKey=%q", info, sysConfigSvc.lastGetKey)
+	}
+
+	setResponse := invokeHostConfigSysConfigService(
+		t,
+		hcc,
+		protocol.HostServiceMethodHostConfigSysConfigSetValue,
+		"custom.dynamic.limit",
+		hostConfigSysConfigSetValueRequest{Key: "custom.dynamic.limit", Value: "128"},
+	)
+	if setResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected sys_config set success, got status=%d payload=%s", setResponse.Status, string(setResponse.Payload))
+	}
+	if sysConfigSvc.lastSetKey != "custom.dynamic.limit" || sysConfigSvc.lastSetValue != "128" {
+		t.Fatalf("unexpected sys_config set key=%q value=%q", sysConfigSvc.lastSetKey, sysConfigSvc.lastSetValue)
+	}
+
+	resetResponse := invokeHostConfigSysConfigService(
+		t,
+		hcc,
+		protocol.HostServiceMethodHostConfigSysConfigReset,
+		"custom.dynamic.limit",
+		hostConfigSysConfigKeyRequest{Key: "custom.dynamic.limit"},
+	)
+	if resetResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected sys_config reset success, got status=%d payload=%s", resetResponse.Status, string(resetResponse.Payload))
+	}
+	if sysConfigSvc.lastResetKey != "custom.dynamic.limit" {
+		t.Fatalf("unexpected sys_config reset key=%q", sysConfigSvc.lastResetKey)
+	}
+
+	denied := invokeHostConfigSysConfigService(
+		t,
+		hcc,
+		protocol.HostServiceMethodHostConfigSysConfigGet,
+		"custom.dynamic.denied",
+		hostConfigSysConfigKeyRequest{Key: "custom.dynamic.denied"},
+	)
+	if denied.Status != protocol.HostCallStatusCapabilityDenied {
+		t.Fatalf("expected unauthorized sys_config key to be denied, got status=%d payload=%s", denied.Status, string(denied.Payload))
+	}
+
+	mismatched := invokeHostConfigSysConfigService(
+		t,
+		hcc,
+		protocol.HostServiceMethodHostConfigSysConfigSetValue,
+		"custom.dynamic.limit",
+		hostConfigSysConfigSetValueRequest{Key: "custom.dynamic.denied", Value: "256"},
+	)
+	if mismatched.Status != protocol.HostCallStatusCapabilityDenied {
+		t.Fatalf("expected mismatched sys_config key to be denied, got status=%d payload=%s", mismatched.Status, string(mismatched.Payload))
+	}
+	if sysConfigSvc.lastSetValue == "256" {
+		t.Fatal("expected mismatched sys_config set to be rejected before owner service call")
+	}
+}
+
 // TestConfigureHostConfigServiceRejectsNil verifies nil hostConfig injection fails explicitly.
 func TestConfigureHostConfigServiceRejectsNil(t *testing.T) {
 	if _, err := NewRuntime(
@@ -190,8 +358,13 @@ func hostConfigHostCallContext(keys []string) *hostCallContext {
 		},
 		hostServices: []*protocol.HostServiceSpec{{
 			Service: protocol.HostServiceHostConfig,
-			Methods: []string{protocol.HostServiceMethodHostConfigGet},
-			Keys:    append([]string(nil), keys...),
+			Methods: []string{
+				protocol.HostServiceMethodHostConfigGet,
+				protocol.HostServiceMethodHostConfigSysConfigGet,
+				protocol.HostServiceMethodHostConfigSysConfigSetValue,
+				protocol.HostServiceMethodHostConfigSysConfigReset,
+			},
+			Keys: append([]string(nil), keys...),
 		}},
 	}
 }
@@ -199,14 +372,33 @@ func hostConfigHostCallContext(keys []string) *hostCallContext {
 // invokeHostConfigService dispatches one hostConfig.get request.
 func invokeHostConfigService(t *testing.T, hcc *hostCallContext, key string) *protocol.HostCallResponseEnvelope {
 	t.Helper()
+	return invokeHostConfigServiceWithPayloadKey(t, hcc, key, key)
+}
+
+// invokeHostConfigServiceWithPayloadKey dispatches one hostConfig.get request
+// and allows tests to verify resourceRef/payload key mismatch handling.
+func invokeHostConfigServiceWithPayloadKey(t *testing.T, hcc *hostCallContext, resourceRef string, payloadKey string) *protocol.HostCallResponseEnvelope {
+	t.Helper()
 
 	request := &protocol.HostServiceRequestEnvelope{
 		Service:     protocol.HostServiceHostConfig,
 		Method:      protocol.HostServiceMethodHostConfigGet,
-		ResourceRef: key,
+		ResourceRef: resourceRef,
 		Payload: protocol.MarshalHostServiceConfigKeyRequest(&protocol.HostServiceConfigKeyRequest{
-			Key: key,
+			Key: payloadKey,
 		}),
+	}
+	return handleHostServiceInvoke(context.Background(), withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(request))
+}
+
+// invokeHostConfigSysConfigService dispatches one JSON sys_config request.
+func invokeHostConfigSysConfigService(t *testing.T, hcc *hostCallContext, method string, resourceRef string, input any) *protocol.HostCallResponseEnvelope {
+	t.Helper()
+	request := &protocol.HostServiceRequestEnvelope{
+		Service:     protocol.HostServiceHostConfig,
+		Method:      method,
+		ResourceRef: resourceRef,
+		Payload:     marshalCapabilityJSONRequest(t, input),
 	}
 	return handleHostServiceInvoke(context.Background(), withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(request))
 }

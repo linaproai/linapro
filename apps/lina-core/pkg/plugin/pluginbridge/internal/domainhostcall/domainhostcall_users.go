@@ -116,29 +116,37 @@ func (s usersService) EnsureVisible(_ context.Context, ids []usercap.UserID) err
 	)
 }
 
-// Create is not published as a dynamic users host-service method.
-func (s usersService) Create(context.Context, usercap.CreateInput) (usercap.UserID, error) {
-	return "", unsupportedDynamicMethodError("users.create")
+// Create creates one governed user through the dynamic users host service.
+func (s usersService) Create(_ context.Context, input usercap.CreateInput) (usercap.UserID, error) {
+	var out usercap.UserID
+	err := s.callJSONRequest(protocol.HostServiceUsers, protocol.HostServiceMethodUsersCreate, input, &out)
+	return out, err
 }
 
-// Update is not published as a dynamic users host-service method.
-func (s usersService) Update(context.Context, usercap.UpdateInput) error {
-	return unsupportedDynamicMethodError("users.update")
+// Update updates one visible user through the dynamic users host service.
+func (s usersService) Update(_ context.Context, input usercap.UpdateInput) error {
+	return s.callJSONRequest(protocol.HostServiceUsers, protocol.HostServiceMethodUsersUpdate, input, nil)
 }
 
-// Delete is not published as a dynamic users host-service method.
-func (s usersService) Delete(context.Context, usercap.UserID) error {
-	return unsupportedDynamicMethodError("users.delete")
+// Delete deletes one visible user through the dynamic users host service.
+func (s usersService) Delete(_ context.Context, id usercap.UserID) error {
+	return s.callJSONRequest(protocol.HostServiceUsers, protocol.HostServiceMethodUsersDelete, userIDRequest{UserID: string(id)}, nil)
 }
 
-// SetStatus is not published as a dynamic users host-service method.
-func (s usersService) SetStatus(context.Context, usercap.UserID, statusflag.Enabled) error {
-	return unsupportedDynamicMethodError("users.set_status")
+// SetStatus changes one visible user's lifecycle status.
+func (s usersService) SetStatus(_ context.Context, id usercap.UserID, status statusflag.Enabled) error {
+	return s.callJSONRequest(protocol.HostServiceUsers, protocol.HostServiceMethodUsersSetStatus, usersSetStatusRequest{
+		UserID: string(id),
+		Status: int(status),
+	}, nil)
 }
 
-// ResetPassword is not published as a dynamic users host-service method.
-func (s usersService) ResetPassword(context.Context, usercap.UserID, string) error {
-	return unsupportedDynamicMethodError("users.password.reset")
+// ResetPassword resets one visible user's password.
+func (s usersService) ResetPassword(_ context.Context, id usercap.UserID, password string) error {
+	return s.callJSONRequest(protocol.HostServiceUsers, protocol.HostServiceMethodUsersResetPassword, usersResetPasswordRequest{
+		UserID:   string(id),
+		Password: password,
+	}, nil)
 }
 
 // Assignment returns user role assignment operations.
@@ -146,9 +154,12 @@ func (s usersService) Assignment() usercap.AssignmentService {
 	return usersAssignmentService{baseService: s.baseService}
 }
 
-// ReplaceRoles is not published as a dynamic users host-service method.
-func (s usersAssignmentService) ReplaceRoles(context.Context, usercap.UserID, []int) error {
-	return unsupportedDynamicMethodError("users.assignment.roles.replace")
+// ReplaceRoles replaces one visible user's role assignments.
+func (s usersAssignmentService) ReplaceRoles(_ context.Context, id usercap.UserID, roleIDs []int) error {
+	return s.callJSONRequest(protocol.HostServiceUsers, protocol.HostServiceMethodUsersReplaceRoles, usersReplaceRolesRequest{
+		UserID:  string(id),
+		RoleIDs: append([]int(nil), roleIDs...),
+	}, nil)
 }
 
 type usersBatchGetRequest struct {
@@ -172,6 +183,21 @@ type usersListRequest struct {
 
 type usersEnsureVisibleRequest struct {
 	UserIDs []string `json:"userIds"`
+}
+
+type usersSetStatusRequest struct {
+	UserID string `json:"userId"`
+	Status int    `json:"status"`
+}
+
+type usersResetPasswordRequest struct {
+	UserID   string `json:"userId"`
+	Password string `json:"password"`
+}
+
+type usersReplaceRolesRequest struct {
+	UserID  string `json:"userId"`
+	RoleIDs []int  `json:"roleIds"`
 }
 
 // userIDsToStrings converts user IDs to transport strings.

@@ -110,19 +110,19 @@ func (s filesService) CreateFromStorage(_ context.Context, input filecap.CreateF
 	return out, err
 }
 
-// UpdateMetadata is not published as a dynamic files host-service method.
-func (s filesService) UpdateMetadata(context.Context, filecap.UpdateMetadataInput) error {
-	return unsupportedDynamicMethodError("files.metadata.update")
+// UpdateMetadata mutates visible file metadata.
+func (s filesService) UpdateMetadata(_ context.Context, input filecap.UpdateMetadataInput) error {
+	return s.callJSONRequest(protocol.HostServiceFiles, protocol.HostServiceMethodFilesUpdateMetadata, input, nil)
 }
 
-// Delete is not published as a dynamic files host-service method.
-func (s filesService) Delete(context.Context, filecap.FileID) error {
-	return unsupportedDynamicMethodError("files.delete")
+// Delete deletes one visible file.
+func (s filesService) Delete(_ context.Context, id filecap.FileID) error {
+	return s.callJSONRequest(protocol.HostServiceFiles, protocol.HostServiceMethodFilesDelete, fileIDRequest{FileID: string(id)}, nil)
 }
 
-// DeleteMany is not published as a dynamic files host-service method.
-func (s filesService) DeleteMany(context.Context, []filecap.FileID) error {
-	return unsupportedDynamicMethodError("files.delete_many")
+// DeleteMany deletes visible files.
+func (s filesService) DeleteMany(_ context.Context, ids []filecap.FileID) error {
+	return s.callJSONRequest(protocol.HostServiceFiles, protocol.HostServiceMethodFilesDeleteMany, idsRequest{IDs: fileIDsToStrings(ids)}, nil)
 }
 
 // fileIDsToStrings converts file IDs to transport strings.
@@ -157,6 +157,10 @@ type filesCreateFromStorageRequest struct {
 	Filename      string `json:"filename,omitempty"`
 	BusinessScene string `json:"businessScene,omitempty"`
 	SizeBytes     int64  `json:"sizeBytes,omitempty"`
+}
+
+type fileIDRequest struct {
+	FileID string `json:"fileId"`
 }
 
 // readDirectFileUploadBody reads one bounded direct-upload request body.

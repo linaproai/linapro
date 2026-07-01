@@ -57,7 +57,7 @@
 - [x] 7.4 迁移`Runtime`动态专属服务，覆盖日志、状态读写、时间、UUID 和节点信息方法，并验证插件作用域、授权和数据隔离。
 - [x] 7.5 迁移`Network`动态专属服务，覆盖`Request`，并验证 URL 白名单、方法、header、body 大小、超时和错误映射策略。
 - [x] 7.6 迁移`Data.RecordStore`动态专属服务，覆盖`Get`、`BatchGet`、`List`、`Count`、`Create`、`Update`、`Delete`和`DeleteMany`，并验证表授权、租户隔离、分页和批量写入整体拒绝语义。
-- [x] 7.7 明确`Secret`、`Event`和`Queue`仅为预留服务，本次不进入`capability.Services`，不注册动态 dispatcher。
+- [x] 7.7 删除预留动态`Secret`、`Event`和`Queue`服务能力，不进入`capability.Services`、动态 dispatcher、catalog、README 或可声明能力白名单。
 - [x] 7.8 从动态 registry、guest SDK 和 dispatcher 中移除`Plugins.Lifecycle()`、租户生命周期钩子和插件治理生命周期动作。
 - [x] 7.9 补充动态 host service 单元测试，覆盖已注册已授权、未注册、未声明、未授权和资源越界场景。
 
@@ -113,7 +113,7 @@
 - [x] **FB-2**: 标准化动态`host service`wire method、catalog、dispatcher和 guest client 命名，对齐领域子资源方法。
 - [x] **FB-3**: 补齐领域 owner adapter、测试替身和源码插件调用点，确保新增方法复用真实 owner 或安全降级，不回流`capabilityhost`业务实现。
 - [x] **FB-4**: 更新 README、OpenSpec 记录和验证证据，运行编译、静态检索、`openspec validate`和`lina-review`。
-- [x] **FB-5**: 修复预留动态`Secret`、`Event`和`Queue`host service 仍可被`plugin.yaml hostServices`声明的问题，确保预留项仅保留为 catalog/README 占位，不进入运行时可声明方法、capability 派生或 capability 白名单。
+- [x] **FB-5**: 修复预留动态`Secret`、`Event`和`Queue`host service 仍可被`plugin.yaml hostServices`声明的问题，并从 catalog/README/protocol 派生面移除这些预留项，确保不进入运行时可声明方法、capability 派生或 capability 白名单。
 - [x] **FB-6**: 调整`pkg/plugin/capability`主契约文件组织顺序，将组件关键接口定义置于主文件开头，支撑 DTO、输入输出和投影类型放在其后。
 - [x] **FB-7**: 将插件领域能力的显式能力上下文参数收敛为`ctx`承载的调用上下文。
 - [x] **FB-8**: 删除额外能力调用上下文模型，让领域能力仅依赖标准业务`ctx`和动态 dispatcher 授权结果。
@@ -134,6 +134,7 @@
 - [x] **FB-23**: 为`plugincap.ConfigService.Get`补齐`defaultValue`参数，并同步实现、动态适配器和测试替身。
 - [x] **FB-24**: 将插件配置宿主 factory 和读取实现迁移到插件服务内部组件，保持`plugincap`仅暴露插件可见`ConfigService`契约。
 - [x] **FB-25**: 将`ScopedServicesFactory`和`ServicesForPlugin`迁移到插件服务内部`scoping`组件，并删除`pkg/plugin/capability`公开绑定辅助。
+- [x] **FB-59**: 审查并补齐源码插件已具备写入或执行契约、但动态插件只开放读取方法的领域能力，同时删除预留动态`Secret`、`Event`和`Queue`服务能力。
 
 ### FB-25 实施记录
 
@@ -1222,3 +1223,30 @@
 - ``rg -n '^\| `Auth` ' apps/lina-core/pkg/plugin/README.md apps/lina-core/pkg/plugin/README.zh-CN.md``确认中英文 README 均只保留`Auth`领域行，并在职责说明中保留`Token()`和`Authz()`子能力边界。
 - `openspec validate standardize-plugin-domain-services --strict`通过。
 - `git diff --check -- apps/lina-core/pkg/plugin/README.md apps/lina-core/pkg/plugin/README.zh-CN.md openspec/changes/standardize-plugin-domain-services/tasks.md`通过。
+
+### FB-59 实施记录
+
+- 根因：源码插件侧已经通过`capability.Services`暴露了用户、授权、字典、文件、任务、会话、组织和系统配置等领域的写入或执行契约，但动态插件`hostServices`目录、协议常量、guest client 和`WASM host service`dispatcher 仍主要停留在读取能力；同时`Secret`、`Event`和`Queue`仅作为预留动态服务保留在目录和协议表面，容易让插件作者误以为这些能力已可用。
+- 删除动态预留服务：移除`Secret`、`Event`和`Queue`对应的 host service 常量、capability 白名单、catalog 条目、协议别名、资源类型映射、声明校验入口、README 表述和 integration resource ref 映射；保留负向测试中的字符串字面量，用于确认这些预留服务不能通过动态插件声明。
+- 补齐动态写入和执行能力：`Auth.Authz()`新增`authz.role_permissions.replace`；`Users`新增创建、更新、删除、状态设置、重置密码和角色分配替换；`Dict`新增缓存刷新、字典类型和值的创建、更新、删除、可见性确认和按类型删除；`Files`新增元数据更新、删除和批量删除；`Jobs`新增创建、更新、删除、执行和状态设置；`Sessions`新增单个和批量踢出；`Org`新增部门、岗位和组织分配写入能力。
+- 系统配置动态能力按资源授权收敛为单 key 方法：仅发布`hostconfig.sys_config.get`、`hostconfig.sys_config.value.set`和`hostconfig.sys_config.reset`，均要求`ResourceRef`等于`resources.keys`中的目标 key；`BatchGet`和`EnsureVisible`在 guest client 侧通过单 key`Get`组合实现，`List`继续返回不支持，避免批量和列表方法绕过单个 key 的授权边界。
+- 补充 HostConfig key 防护：`WASM host service`在`hostconfig.get`和`hostconfig.sys_config.*`执行前校验 payload key 必须与授权`ResourceRef`一致，防止插件用已授权 key 通过 envelope 校验后在 payload 中访问或写入另一个未授权 key。
+- 保持未发布能力边界：`files.open`返回`io.ReadCloser`，不适合当前 JSON envelope 动态传输；`files.detail`、`files.scenes.list`和`files.suffixes.list`当前没有动态插件必需的稳定写入或执行缺口，本轮不发布；`plugins.lifecycle.*`和租户治理方法属于已注册的真实治理能力，不按预留`Event`或`Queue`删除。
+- README 同步：已更新`apps/lina-core/pkg/plugin/README.md`和`README.zh-CN.md`，删除预留动态服务，并在`HostConfig`行说明动态`sys_config`只开放单 key 方法且依赖`resources.keys`授权。
+- 规则读取与技能：本轮已读取`lina-feedback`、`lina-review`、`karpathy-guidelines`、`goframe-v2`、`AGENTS.md`、`.agents/rules/openspec.md`、`architecture.md`、`plugin.md`、`backend-go.md`、`data-permission.md`、`testing.md`、`documentation.md`、`i18n.md`、`cache-consistency.md`和`.agents/instructions/markdown-format.instructions.md`；未修改 HTTP API、SQL、前端 UI、开发工具脚本或代码生成入口，确认`api-contract`、`database`、`frontend-ui`和`dev-tooling`规则域无直接变更影响。
+- `i18n`影响：仅修改插件技术文档和 OpenSpec 记录，不新增运行时 UI 文案、API 文档源文本、错误消息、插件清单文案或语言包资源；动态方法名属于协议标识，不进入翻译资源，确认无运行时`i18n`资源影响。
+- 缓存一致性影响：本次不新增缓存实现、不改变权限快照、字典缓存、系统配置缓存或跨实例同步机制；新增动态方法均委托现有 owner service 执行，继续复用既有事务后失效、修订号或缓存刷新语义。
+- 数据权限影响：动态 dispatcher 只负责`hostServices`声明、资源引用和协议授权校验；目标记录可见性、租户边界和批量拒绝语义继续由用户、授权、字典、文件、任务、会话、组织和系统配置 owner service 处理，动态插件访问边界与宿主发布服务保持一致。
+- 开发工具跨平台影响：未修改`Makefile`、`make.cmd`、CI、Shell/Node 脚本、代码生成脚本或`linactl`入口，确认无开发工具跨平台影响。
+- DI 来源检查：未新增运行期依赖 owner、启动装配依赖或共享后端；`WASM host service`继续使用既有`capability.Services`注入，新增 dispatcher 分支只复用已注入的领域 service，没有在调用路径中临时`New()`独立服务图。
+- 测试策略：本次为后端 Go 动态插件 bridge、guest SDK、host service catalog、WASM dispatcher 和文档治理变更，不涉及前端用户可观察行为，未触发新增 E2E；通过 Go 包测试覆盖 guest 侧资源引用、catalog/声明校验、reserved service 拒绝和各领域写入/执行 dispatcher 调用。
+
+### FB-59 验证
+
+- `cd apps/lina-core && go test ./pkg/plugin/pluginbridge/internal/hostservice ./pkg/plugin/pluginbridge/protocol/hostservices ./pkg/plugin/pluginbridge/internal/domainhostcall ./internal/service/plugin/internal/wasm -count=1`通过。
+- `cd apps/lina-core && go test ./internal/service/plugin/internal/wasm -run 'TestHandleHostServiceInvokeHostConfig' -count=1`通过。
+- `cd apps/lina-core && go test ./pkg/plugin/pluginbridge/... ./internal/service/plugin/internal/wasm ./internal/service/plugin/internal/integration -count=1`通过。
+- `cd apps/lina-core && go test ./internal/cmd -count=1`通过。
+- `rg -n "HostServiceMethodHostConfigSysConfig(BatchGet|List|EnsureVisible)|sys_config\\.batch_get|sys_config\\.list|sys_config\\.keys\\.visible\\.ensure|HostService(Secret|Event|Queue)|Capability(Secret|EventPublish|QueueEnqueue)|reservedHostMethod|ResourceKindReserved|PayloadKindReserved|hostServiceResourceReserved|host:secret|host:event|host:queue" apps/lina-core openspec/changes/standardize-plugin-domain-services -g '*.go' -g '*.md'`仅命中负向测试、OpenSpec 历史验证说明和`hostconfig.sys_config.list`不支持错误。
+- `openspec validate standardize-plugin-domain-services --strict`通过。
+- `git diff --check`通过。

@@ -29,7 +29,7 @@
 | `BizCtx` | 投影当前业务请求上下文。 | 作为只读运行期上下文桥接当前用户、租户、语言和请求元数据。 |
 | `Dict` | 解析字典值标签、列出有界字典候选，并校验类型化值可见性。 | 宿主校验保持在可见字典类型和值范围内。 |
 | `Files` | 提供宿主文件中心投影、有界搜索、可见性确认、内容读取、受治理上传，以及从插件存储创建`sys_file`记录。 | 宿主校验避免插件探测或使用可见边界之外的文件 ID。上传会创建宿主文件中心元数据，插件私有对象仍由`Storage()`持有。 |
-| `HostConfig` | 按宿主优先级链读取宿主配置值，并通过`SysConfig()`为源码插件提供受治理的`sys_config`投影和写入方法。 | 动态`get`声明必须列出`resources.keys`；`SysConfig()`写入保持方法级治理并默认仅限源码插件，除非单独发布动态方法。该能力独立于插件作用域业务配置。 |
+| `HostConfig` | 按宿主优先级链读取宿主配置值，并通过`SysConfig()`提供受治理的`sys_config`投影和写入方法。 | 动态`get`和单 key `sys_config`方法声明必须列出`resources.keys`。该能力独立于插件作用域业务配置。 |
 | `I18n` | 为源码插件读取`locale`并翻译消息。 | 源码插件通过`pluginhost`输入中的`capability.Services`接收该能力；动态插件不接收`i18n`host service，因为其 i18n 资源由宿主管理。 |
 | `Jobs` | 读取定时任务元数据、搜索有界任务候选、校验任务可见性，并执行受治理的运行期任务动作。 | 声明期任务契约通过`pluginbridge.Declarations.Jobs().Register(...)`提交；运行期服务不暴露`Register`。 |
 | `Notifications` | 列表和读取类型化通知消息投影、按业务来源批量读取消息、校验可见性、删除消息、更新已读状态并发送受治理通知。 | actor 作用域的读取、删除和已读状态调用不需要资源声明；`messages.send`需要`resources[].ref`边界。 |
@@ -176,24 +176,21 @@ hostServices:
 | `data` | `resources.tables` | `host:data:read`<br/>`host:data:mutate` | `list`<br/>`get`<br/>`batch_get`<br/>`create`<br/>`update`<br/>`delete`<br/>`transaction` |
 | `cache` | `resources[].ref` | `host:cache` | `get`<br/>`get_many`<br/>`set`<br/>`set_many`<br/>`delete`<br/>`delete_many`<br/>`incr`<br/>`expire` |
 | `lock` | `resources[].ref` | `host:lock` | `acquire`<br/>`renew`<br/>`release` |
-| `secret` | `resources[].ref` | `host:secret` | `resolve` reserved |
-| `event` | `resources[].ref` | `host:event:publish` | `publish` reserved |
-| `queue` | `resources[].ref` | `host:queue:enqueue` | `enqueue` reserved |
-| `hostconfig` | `resources.keys` | `host:hostconfig` | `get` |
+| `hostconfig` | `resources.keys` | `host:hostconfig` | `get`<br/>`sys_config.get`<br/>`sys_config.value.set`<br/>`sys_config.reset` |
 | `manifest` | `resources.paths` | `host:manifest` | `get`<br/>`get_many`<br/>`list` |
 | `apidoc` | 无 | `host:apidoc` | `route_text.resolve`<br/>`route_texts.resolve`<br/>`route_title_operation_keys.find` |
-| `auth` | 无 | `host:auth:token`<br/>`host:auth:authz` | `token.tenant.select`<br/>`token.tenant.switch`<br/>`token.impersonation_token.issue`<br/>`token.impersonation_token.revoke`<br/>`authz.permissions.batch_get`<br/>`authz.permissions.batch_has`<br/>`authz.permissions.has`<br/>`authz.users.platform_admin.check` |
+| `auth` | 无 | `host:auth:token`<br/>`host:auth:authz` | `token.tenant.select`<br/>`token.tenant.switch`<br/>`token.impersonation_token.issue`<br/>`token.impersonation_token.revoke`<br/>`authz.permissions.batch_get`<br/>`authz.permissions.batch_has`<br/>`authz.permissions.has`<br/>`authz.users.platform_admin.check`<br/>`authz.role_permissions.replace` |
 | `ai` | 无 | `host:ai:text`<br/>`host:ai`<br/>`host:ai:image`<br/>`host:ai:embedding`<br/>`host:ai:audio`<br/>`host:ai:vision`<br/>`host:ai:document`<br/>`host:ai:safety`<br/>`host:ai:video` | `text.generate`<br/>`text.method_status.get`<br/>`ai.methods.status.batch_get`<br/>`image.generate`<br/>`image.edit`<br/>`embedding.create`<br/>`audio.transcribe`<br/>`audio.synthesize`<br/>`vision.analyze`<br/>`document.analyze`<br/>`document.cite`<br/>`safety.moderate`<br/>`video.generate`<br/>`video.edit`<br/>`video.extend`<br/>`video.operation.get`<br/>`video.operation.cancel` |
-| `users` | 无 | `host:users` | `users.current.get`<br/>`users.batch_get`<br/>`users.resolve.batch`<br/>`users.list`<br/>`users.visible.ensure` |
+| `users` | 无 | `host:users` | `users.current.get`<br/>`users.batch_get`<br/>`users.resolve.batch`<br/>`users.list`<br/>`users.visible.ensure`<br/>`users.create`<br/>`users.update`<br/>`users.delete`<br/>`users.status.set`<br/>`users.password.reset`<br/>`users.assignment.roles.replace` |
 | `bizctx` | 无 | `host:bizctx` | `current.get` |
-| `dict` | 无 | `host:dict` | `dict.value.labels.resolve`<br/>`dict.value.list`<br/>`dict.value.values.visible.ensure` |
-| `files` | 无 | `host:files` | `files.batch_get`<br/>`files.list`<br/>`files.visible.ensure`<br/>`files.upload`<br/>`files.create_from_storage` |
-| `jobs` | 无 | `host:jobs` | `jobs.batch_get`<br/>`jobs.list`<br/>`jobs.visible.ensure`<br/>`jobs.register` |
+| `dict` | 无 | `host:dict` | `dict.refresh`<br/>`dict.type.get`<br/>`dict.type.batch_get`<br/>`dict.type.list`<br/>`dict.type.visible.ensure`<br/>`dict.type.keys.visible.ensure`<br/>`dict.type.create`<br/>`dict.type.update`<br/>`dict.type.delete`<br/>`dict.value.get`<br/>`dict.value.batch_get`<br/>`dict.value.labels.resolve`<br/>`dict.value.list`<br/>`dict.value.visible.ensure`<br/>`dict.value.values.visible.ensure`<br/>`dict.value.create`<br/>`dict.value.update`<br/>`dict.value.delete`<br/>`dict.value.by_type.delete` |
+| `files` | 无 | `host:files` | `files.batch_get`<br/>`files.list`<br/>`files.visible.ensure`<br/>`files.upload`<br/>`files.create_from_storage`<br/>`files.metadata.update`<br/>`files.delete`<br/>`files.delete_many` |
+| `jobs` | 无 | `host:jobs` | `jobs.batch_get`<br/>`jobs.list`<br/>`jobs.visible.ensure`<br/>`jobs.create`<br/>`jobs.update`<br/>`jobs.delete`<br/>`jobs.run`<br/>`jobs.status.set`<br/>`jobs.register` |
 | `notifications` | 除`messages.send`使用`resources[].ref`外无需资源声明 | `host:notifications` | `messages.batch_get`<br/>`messages.list`<br/>`messages.by_source.batch_get`<br/>`messages.visible.ensure`<br/>`messages.send`<br/>`messages.delete`<br/>`messages.by_source.delete`<br/>`messages.mark_read`<br/>`messages.mark_unread` |
 | `plugins` | 无 | `host:plugins` | `plugins.current.get`<br/>`plugins.batch_get`<br/>`plugins.registry.list`<br/>`plugins.tenant.list`<br/>`config.get`<br/>`plugins.state.enabled.check`<br/>`plugins.state.provider_enabled.check`<br/>`plugins.state.enabled_authoritative.check`<br/>`plugins.lifecycle.tenant_plugin_disable.ensure`<br/>`plugins.lifecycle.tenant_plugin_disabled.notify`<br/>`plugins.lifecycle.tenant_delete.ensure`<br/>`plugins.lifecycle.tenant_deleted.notify` |
 | `route` | 无 | `host:route` | `metadata.get` |
-| `sessions` | 无 | `host:sessions` | `sessions.current.get`<br/>`sessions.list`<br/>`sessions.batch_get`<br/>`sessions.users.online.batch_get`<br/>`sessions.visible.ensure` |
-| `org` | 无 | `host:org` | `capability.available`<br/>`capability.status`<br/>`org.assignment.user_profiles.batch_get`<br/>`org.department.tree.list`<br/>`org.department.batch_get`<br/>`org.department.list`<br/>`org.post.batch_get`<br/>`org.post.options.list`<br/>`org.department.visible.ensure_many`<br/>`org.post.visible.ensure_many` |
+| `sessions` | 无 | `host:sessions` | `sessions.current.get`<br/>`sessions.list`<br/>`sessions.batch_get`<br/>`sessions.users.online.batch_get`<br/>`sessions.visible.ensure`<br/>`sessions.revoke`<br/>`sessions.revoke_many` |
+| `org` | 无 | `host:org` | `capability.available`<br/>`capability.status`<br/>`org.assignment.user_profiles.batch_get`<br/>`org.department.tree.list`<br/>`org.department.batch_get`<br/>`org.department.list`<br/>`org.post.batch_get`<br/>`org.post.options.list`<br/>`org.department.visible.ensure_many`<br/>`org.post.visible.ensure_many`<br/>`org.department.create`<br/>`org.department.update`<br/>`org.department.delete`<br/>`org.post.create`<br/>`org.post.update`<br/>`org.post.delete`<br/>`org.assignment.by_user.replace`<br/>`org.assignment.by_user.cleanup` |
 | `tenant` | 无 | `host:tenant` | `capability.available`<br/>`capability.status`<br/>`tenant.context.current`<br/>`tenant.context.info`<br/>`tenant.context.platform_bypass`<br/>`tenant.directory.batch_get`<br/>`tenant.directory.list`<br/>`tenant.membership.validate`<br/>`tenant.membership.list_by_user`<br/>`tenant.directory.visible.ensure_many`<br/>`tenant.plugins.enabled.set`<br/>`tenant.plugins.defaults.provision`<br/>`tenant.filter.context` |
 <!-- END generated:host-services -->
 

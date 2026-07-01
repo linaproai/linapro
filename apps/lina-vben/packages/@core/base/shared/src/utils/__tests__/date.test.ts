@@ -76,6 +76,13 @@ describe('dateUtils', () => {
       const result = formatDateTime(sampleISO);
       expect(result).toMatch(/2024-10-30 \d{2}:\d{2}:\d{2}/);
     });
+
+    it('should display unix milliseconds in the selected timezone', () => {
+      setCurrentTimezone('Asia/Shanghai');
+      const result = formatDateTime(Date.UTC(2026, 5, 29, 9, 30, 8));
+
+      expect(result).toBe('2026-06-29 17:30:08');
+    });
   });
 
   // ===============================

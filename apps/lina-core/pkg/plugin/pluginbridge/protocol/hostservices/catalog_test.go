@@ -35,9 +35,6 @@ func TestCatalogPayloadKinds(t *testing.T) {
 			if method.PayloadKind == "" {
 				t.Fatalf("catalog method %s is missing payload kind", key)
 			}
-			if method.PayloadKind == PayloadKindReserved {
-				continue
-			}
 			if method.PayloadKind == PayloadKindDedicated {
 				if _, ok := dedicatedServices[method.Service]; !ok {
 					t.Fatalf("ordinary host service %s uses dedicated codec without whitelist", key)

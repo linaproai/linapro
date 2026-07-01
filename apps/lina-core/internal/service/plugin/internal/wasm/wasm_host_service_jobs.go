@@ -66,6 +66,41 @@ func dispatchJobsHostService(
 		}
 		err := service.EnsureVisible(ctx, jobIDs(request.IDs))
 		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodJobsCreate:
+		var request jobcap.SaveInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.Create(ctx, request)
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodJobsUpdate:
+		var request jobcap.UpdateInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Update(ctx, request)
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodJobsDelete:
+		var request jobIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Delete(ctx, jobcap.JobID(strings.TrimSpace(request.JobID)))
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodJobsRun:
+		var request jobIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Run(ctx, jobcap.JobID(strings.TrimSpace(request.JobID)))
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodJobsSetStatus:
+		var request jobsSetStatusRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.SetStatus(ctx, jobcap.JobID(strings.TrimSpace(request.JobID)), jobv1.Status(strings.TrimSpace(request.Status)))
+		return domainCapabilityResult(true, err)
 	default:
 		return domainMethodNotFound("jobs", method)
 	}
@@ -137,4 +172,13 @@ type jobsListRequest struct {
 	Status   string `json:"status,omitempty"`
 	PageNum  int    `json:"pageNum,omitempty"`
 	PageSize int    `json:"pageSize,omitempty"`
+}
+
+type jobIDRequest struct {
+	JobID string `json:"jobId"`
+}
+
+type jobsSetStatusRequest struct {
+	JobID  string `json:"jobId"`
+	Status string `json:"status"`
 }

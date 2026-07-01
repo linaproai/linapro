@@ -13,12 +13,11 @@ type hostServiceResourceKind = hostservices.ResourceKind
 
 // Host-service resource kinds used by manifest validation and governance tests.
 const (
-	hostServiceResourceNone     = hostservices.ResourceKindNone
-	hostServiceResourcePath     = hostservices.ResourceKindPath
-	hostServiceResourceTable    = hostservices.ResourceKindTable
-	hostServiceResourceKey      = hostservices.ResourceKindKey
-	hostServiceResourceRef      = hostservices.ResourceKindRef
-	hostServiceResourceReserved = hostservices.ResourceKindReserved
+	hostServiceResourceNone  = hostservices.ResourceKindNone
+	hostServiceResourcePath  = hostservices.ResourceKindPath
+	hostServiceResourceTable = hostservices.ResourceKindTable
+	hostServiceResourceKey   = hostservices.ResourceKindKey
+	hostServiceResourceRef   = hostservices.ResourceKindRef
 )
 
 // hostServiceDescriptor describes one logical host service family.

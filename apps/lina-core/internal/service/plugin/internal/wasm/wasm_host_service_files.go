@@ -95,6 +95,27 @@ func dispatchFilesHostService(
 			SizeBytes:     request.SizeBytes,
 		})
 		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodFilesUpdateMetadata:
+		var request filecap.UpdateMetadataInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.UpdateMetadata(ctx, request)
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodFilesDelete:
+		var request fileIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Delete(ctx, filecap.FileID(strings.TrimSpace(request.FileID)))
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodFilesDeleteMany:
+		var request idsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.DeleteMany(ctx, fileIDs(request.IDs))
+		return domainCapabilityResult(true, err)
 	default:
 		return domainMethodNotFound("files", method)
 	}
@@ -143,4 +164,8 @@ type filesCreateFromStorageRequest struct {
 	Filename      string `json:"filename,omitempty"`
 	BusinessScene string `json:"businessScene,omitempty"`
 	SizeBytes     int64  `json:"sizeBytes,omitempty"`
+}
+
+type fileIDRequest struct {
+	FileID string `json:"fileId"`
 }

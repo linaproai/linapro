@@ -295,10 +295,14 @@ func registerLockHostService(registry *hostServiceDispatchRegistry) error {
 }
 
 func registerHostConfigHostService(registry *hostServiceDispatchRegistry) error {
-	return registerHostServiceMethod(registry, bridgehostservice.HostServiceHostConfig, bridgehostservice.HostServiceMethodHostConfigGet,
-		func(ctx context.Context, hcc *hostCallContext, input hostServiceDispatchContext) *bridgehostcall.HostCallResponseEnvelope {
-			return dispatchHostConfigService(ctx, hcc, input.method, input.payload)
-		})
+	return registerHostServiceMethods(registry, bridgehostservice.HostServiceHostConfig, []string{
+		bridgehostservice.HostServiceMethodHostConfigGet,
+		bridgehostservice.HostServiceMethodHostConfigSysConfigGet,
+		bridgehostservice.HostServiceMethodHostConfigSysConfigSetValue,
+		bridgehostservice.HostServiceMethodHostConfigSysConfigReset,
+	}, func(ctx context.Context, hcc *hostCallContext, input hostServiceDispatchContext) *bridgehostcall.HostCallResponseEnvelope {
+		return dispatchHostConfigService(ctx, hcc, input.resourceRef, input.method, input.payload)
+	})
 }
 
 func registerManifestHostService(registry *hostServiceDispatchRegistry) error {
@@ -331,6 +335,7 @@ func registerAuthHostService(registry *hostServiceDispatchRegistry) error {
 		bridgehostservice.HostServiceMethodAuthzBatchHasPermissions,
 		bridgehostservice.HostServiceMethodAuthzHasPermission,
 		bridgehostservice.HostServiceMethodAuthzIsPlatformAdmin,
+		bridgehostservice.HostServiceMethodAuthzReplaceRolePermissions,
 	}, func(ctx context.Context, hcc *hostCallContext, input hostServiceDispatchContext) *bridgehostcall.HostCallResponseEnvelope {
 		return dispatchAuthHostService(ctx, hcc, input.method, input.payload)
 	})
@@ -367,6 +372,12 @@ func registerUsersHostService(registry *hostServiceDispatchRegistry) error {
 		bridgehostservice.HostServiceMethodUsersBatchResolve,
 		bridgehostservice.HostServiceMethodUsersList,
 		bridgehostservice.HostServiceMethodUsersEnsureVisible,
+		bridgehostservice.HostServiceMethodUsersCreate,
+		bridgehostservice.HostServiceMethodUsersUpdate,
+		bridgehostservice.HostServiceMethodUsersDelete,
+		bridgehostservice.HostServiceMethodUsersSetStatus,
+		bridgehostservice.HostServiceMethodUsersResetPassword,
+		bridgehostservice.HostServiceMethodUsersReplaceRoles,
 	}, func(ctx context.Context, hcc *hostCallContext, input hostServiceDispatchContext) *bridgehostcall.HostCallResponseEnvelope {
 		return dispatchUsersHostService(ctx, hcc, input.method, input.payload)
 	})
@@ -381,9 +392,25 @@ func registerBizCtxHostService(registry *hostServiceDispatchRegistry) error {
 
 func registerDictHostService(registry *hostServiceDispatchRegistry) error {
 	return registerHostServiceMethods(registry, bridgehostservice.HostServiceDict, []string{
+		bridgehostservice.HostServiceMethodDictRefresh,
+		bridgehostservice.HostServiceMethodDictTypeGet,
+		bridgehostservice.HostServiceMethodDictTypeBatchGet,
+		bridgehostservice.HostServiceMethodDictTypeList,
+		bridgehostservice.HostServiceMethodDictTypeEnsureVisible,
+		bridgehostservice.HostServiceMethodDictTypeEnsureKeysVisible,
+		bridgehostservice.HostServiceMethodDictTypeCreate,
+		bridgehostservice.HostServiceMethodDictTypeUpdate,
+		bridgehostservice.HostServiceMethodDictTypeDelete,
+		bridgehostservice.HostServiceMethodDictValueGet,
+		bridgehostservice.HostServiceMethodDictValueBatchGet,
 		bridgehostservice.HostServiceMethodDictValueResolveLabels,
 		bridgehostservice.HostServiceMethodDictListValues,
+		bridgehostservice.HostServiceMethodDictValueEnsureVisible,
 		bridgehostservice.HostServiceMethodDictValueEnsureValuesVisible,
+		bridgehostservice.HostServiceMethodDictValueCreate,
+		bridgehostservice.HostServiceMethodDictValueUpdate,
+		bridgehostservice.HostServiceMethodDictValueDelete,
+		bridgehostservice.HostServiceMethodDictValueDeleteByType,
 	}, func(ctx context.Context, hcc *hostCallContext, input hostServiceDispatchContext) *bridgehostcall.HostCallResponseEnvelope {
 		return dispatchDictHostService(ctx, hcc, input.method, input.payload)
 	})
@@ -396,6 +423,9 @@ func registerFilesHostService(registry *hostServiceDispatchRegistry) error {
 		bridgehostservice.HostServiceMethodFilesEnsureVisible,
 		bridgehostservice.HostServiceMethodFilesUpload,
 		bridgehostservice.HostServiceMethodFilesCreateFromStorage,
+		bridgehostservice.HostServiceMethodFilesUpdateMetadata,
+		bridgehostservice.HostServiceMethodFilesDelete,
+		bridgehostservice.HostServiceMethodFilesDeleteMany,
 	}, func(ctx context.Context, hcc *hostCallContext, input hostServiceDispatchContext) *bridgehostcall.HostCallResponseEnvelope {
 		return dispatchFilesHostService(ctx, hcc, input.method, input.payload)
 	})
@@ -406,6 +436,11 @@ func registerJobsHostService(registry *hostServiceDispatchRegistry) error {
 		bridgehostservice.HostServiceMethodJobsBatchGet,
 		bridgehostservice.HostServiceMethodJobsList,
 		bridgehostservice.HostServiceMethodJobsEnsureVisible,
+		bridgehostservice.HostServiceMethodJobsCreate,
+		bridgehostservice.HostServiceMethodJobsUpdate,
+		bridgehostservice.HostServiceMethodJobsDelete,
+		bridgehostservice.HostServiceMethodJobsRun,
+		bridgehostservice.HostServiceMethodJobsSetStatus,
 		bridgehostservice.HostServiceMethodJobsRegister,
 	}, func(ctx context.Context, hcc *hostCallContext, input hostServiceDispatchContext) *bridgehostcall.HostCallResponseEnvelope {
 		return dispatchJobsHostService(ctx, hcc, input.method, input.payload)
@@ -461,6 +496,8 @@ func registerSessionsHostService(registry *hostServiceDispatchRegistry) error {
 		bridgehostservice.HostServiceMethodSessionsBatchGet,
 		bridgehostservice.HostServiceMethodSessionsBatchGetUserOnlineStatus,
 		bridgehostservice.HostServiceMethodSessionsEnsureVisible,
+		bridgehostservice.HostServiceMethodSessionsRevoke,
+		bridgehostservice.HostServiceMethodSessionsRevokeMany,
 	}, func(ctx context.Context, hcc *hostCallContext, input hostServiceDispatchContext) *bridgehostcall.HostCallResponseEnvelope {
 		return dispatchSessionsHostService(ctx, hcc, input.method, input.payload)
 	})
@@ -478,6 +515,14 @@ func registerOrgHostService(registry *hostServiceDispatchRegistry) error {
 		bridgehostservice.HostServiceMethodOrgListPostOptions,
 		bridgehostservice.HostServiceMethodOrgEnsureDepartmentsVisible,
 		bridgehostservice.HostServiceMethodOrgEnsurePostsVisible,
+		bridgehostservice.HostServiceMethodOrgDepartmentCreate,
+		bridgehostservice.HostServiceMethodOrgDepartmentUpdate,
+		bridgehostservice.HostServiceMethodOrgDepartmentDelete,
+		bridgehostservice.HostServiceMethodOrgPostCreate,
+		bridgehostservice.HostServiceMethodOrgPostUpdate,
+		bridgehostservice.HostServiceMethodOrgPostDelete,
+		bridgehostservice.HostServiceMethodOrgAssignmentReplaceByUser,
+		bridgehostservice.HostServiceMethodOrgAssignmentCleanupByUser,
 	}, func(ctx context.Context, hcc *hostCallContext, input hostServiceDispatchContext) *bridgehostcall.HostCallResponseEnvelope {
 		return dispatchOrgHostService(ctx, hcc, input.method, input.payload)
 	})

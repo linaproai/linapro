@@ -69,14 +69,14 @@ func (s sessionsService) EnsureVisible(_ context.Context, ids []sessioncap.Sessi
 	return s.callJSONRequest(protocol.HostServiceSessions, protocol.HostServiceMethodSessionsEnsureVisible, idsRequest{IDs: sessionIDsToStrings(ids)}, nil)
 }
 
-// Revoke is not published as a dynamic sessions host-service method.
-func (s sessionsService) Revoke(context.Context, sessioncap.SessionID) error {
-	return unsupportedDynamicMethodError("sessions.revoke")
+// Revoke revokes one visible online session.
+func (s sessionsService) Revoke(_ context.Context, id sessioncap.SessionID) error {
+	return s.callJSONRequest(protocol.HostServiceSessions, protocol.HostServiceMethodSessionsRevoke, sessionIDRequest{SessionID: string(id)}, nil)
 }
 
-// RevokeMany is not published as a dynamic sessions host-service method.
-func (s sessionsService) RevokeMany(context.Context, []sessioncap.SessionID) error {
-	return unsupportedDynamicMethodError("sessions.revoke_many")
+// RevokeMany revokes visible online sessions.
+func (s sessionsService) RevokeMany(_ context.Context, ids []sessioncap.SessionID) error {
+	return s.callJSONRequest(protocol.HostServiceSessions, protocol.HostServiceMethodSessionsRevokeMany, idsRequest{IDs: sessionIDsToStrings(ids)}, nil)
 }
 
 // sessionListRequest carries bounded online-session list parameters.
@@ -90,6 +90,10 @@ type sessionListRequest struct {
 // sessionUserOnlineStatusRequest carries bounded user online status parameters.
 type sessionUserOnlineStatusRequest struct {
 	UserIDs []string `json:"userIds"`
+}
+
+type sessionIDRequest struct {
+	SessionID string `json:"sessionId"`
 }
 
 // sessionIDsToStrings converts online-session IDs to transport strings.

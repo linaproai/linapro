@@ -3,8 +3,10 @@
 package domainhostcall
 
 import (
+	"encoding/json"
 	"testing"
 
+	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -22,20 +24,33 @@ type configHostCallRecorder struct {
 }
 
 func (r *configHostCallRecorder) invoke(service string, method string, resourceRef string, _ string, request []byte) ([]byte, error) {
-	decoded, err := protocol.UnmarshalHostServiceConfigKeyRequest(request)
-	if err != nil {
-		return nil, err
-	}
-	r.record = configHostCallRecord{
+	record := configHostCallRecord{
 		service:     service,
 		method:      method,
 		resourceRef: resourceRef,
-		requestKey:  decoded.Key,
 	}
-	return protocol.MarshalHostServiceConfigValueResponse(&protocol.HostServiceConfigValueResponse{
-		Value: r.value,
-		Found: r.found,
-	}), nil
+	if method == protocol.HostServiceMethodHostConfigGet {
+		decoded, err := protocol.UnmarshalHostServiceConfigKeyRequest(request)
+		if err != nil {
+			return nil, err
+		}
+		record.requestKey = decoded.Key
+	}
+	r.record = record
+	if method == protocol.HostServiceMethodHostConfigGet {
+		return protocol.MarshalHostServiceConfigValueResponse(&protocol.HostServiceConfigValueResponse{
+			Value: r.value,
+			Found: r.found,
+		}), nil
+	}
+	if method == protocol.HostServiceMethodHostConfigSysConfigGet {
+		content, err := json.Marshal(&hostconfigcap.SysConfigInfo{Key: hostconfigcap.SysConfigKey(resourceRef), Value: r.value})
+		if err != nil {
+			return nil, err
+		}
+		return protocol.MarshalHostServiceCapabilityJSONResponse(&protocol.HostServiceCapabilityJSONResponse{Value: content}), nil
+	}
+	return protocol.MarshalHostServiceCapabilityJSONResponse(&protocol.HostServiceCapabilityJSONResponse{Value: []byte(`true`)}), nil
 }
 
 // TestHostConfigCapabilityGetUsesDefaultForMissingOrNilValues verifies the
@@ -117,5 +132,41 @@ func TestHostConfigCapabilityGetPreservesNilWhenNoDefault(t *testing.T) {
 				t.Fatalf("expected nil host config value, got %#v", value)
 			}
 		})
+	}
+}
+
+// TestHostConfigSysConfigUsesKeyResourceRef verifies dynamic sys_config calls
+// bind single-key methods to hostconfig resources.keys authorization.
+func TestHostConfigSysConfigUsesKeyResourceRef(t *testing.T) {
+	recorder := &configHostCallRecorder{value: "64", found: true}
+	service := HostConfigCapability(recorder.invoke).SysConfig()
+
+	value, err := service.Get(t.Context(), "custom.feature.limit")
+	if err != nil {
+		t.Fatalf("get sys_config value: %v", err)
+	}
+	if value == nil || value.Value != "64" {
+		t.Fatalf("unexpected sys_config value: %#v", value)
+	}
+	if recorder.record.service != protocol.HostServiceHostConfig ||
+		recorder.record.method != protocol.HostServiceMethodHostConfigSysConfigGet ||
+		recorder.record.resourceRef != "custom.feature.limit" {
+		t.Fatalf("unexpected sys_config get record: %#v", recorder.record)
+	}
+
+	if err = service.SetValue(t.Context(), "custom.feature.limit", "128"); err != nil {
+		t.Fatalf("set sys_config value: %v", err)
+	}
+	if recorder.record.method != protocol.HostServiceMethodHostConfigSysConfigSetValue ||
+		recorder.record.resourceRef != "custom.feature.limit" {
+		t.Fatalf("unexpected sys_config set record: %#v", recorder.record)
+	}
+
+	if err = service.Reset(t.Context(), "custom.feature.limit"); err != nil {
+		t.Fatalf("reset sys_config value: %v", err)
+	}
+	if recorder.record.method != protocol.HostServiceMethodHostConfigSysConfigReset ||
+		recorder.record.resourceRef != "custom.feature.limit" {
+		t.Fatalf("unexpected sys_config reset record: %#v", recorder.record)
 	}
 }

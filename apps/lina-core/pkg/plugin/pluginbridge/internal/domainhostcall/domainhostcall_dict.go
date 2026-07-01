@@ -35,82 +35,71 @@ func (s dictService) Value() dictcap.ValueService {
 	return dictValueService{baseService: s.baseService}
 }
 
-// Refresh is not published as a dynamic dict host-service method.
-func (s dictService) Refresh(context.Context, dictcap.Type) error {
-	return unsupportedDynamicMethodError("dict.refresh")
+// Refresh refreshes one governed dictionary type.
+func (s dictService) Refresh(_ context.Context, dictType dictcap.Type) error {
+	return s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictRefresh, dictTypeRequest{Type: string(dictType)}, nil)
 }
 
-// Get is not published as a dynamic dictionary type host-service method.
-func (s dictTypeService) Get(context.Context, int) (*dictcap.TypeInfo, error) {
-	return nil, unsupportedDynamicMethodError("dict.type.get")
+// Get returns one visible dictionary type.
+func (s dictTypeService) Get(_ context.Context, id int) (*dictcap.TypeInfo, error) {
+	var out *dictcap.TypeInfo
+	err := s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictTypeGet, dictIDRequest{ID: id}, &out)
+	return out, err
 }
 
-// BatchGet is not published as a dynamic dictionary type host-service method.
-func (s dictTypeService) BatchGet(context.Context, []int) (*capmodel.BatchResult[*dictcap.TypeInfo, int], error) {
-	return nil, unsupportedDynamicMethodError("dict.type.batch_get")
+// BatchGet returns visible dictionary types.
+func (s dictTypeService) BatchGet(_ context.Context, ids []int) (*capmodel.BatchResult[*dictcap.TypeInfo, int], error) {
+	out := &capmodel.BatchResult[*dictcap.TypeInfo, int]{Items: map[int]*dictcap.TypeInfo{}}
+	err := s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictTypeBatchGet, dictIDsRequest{IDs: append([]int(nil), ids...)}, out)
+	return out, err
 }
 
-// List is not published as a dynamic dictionary type host-service method.
-func (s dictTypeService) List(context.Context, dictcap.ListTypesInput) (*capmodel.PageResult[*dictcap.TypeInfo], error) {
-	return nil, unsupportedDynamicMethodError("dict.type.list")
+// List returns visible dictionary type candidates.
+func (s dictTypeService) List(_ context.Context, input dictcap.ListTypesInput) (*capmodel.PageResult[*dictcap.TypeInfo], error) {
+	out := &capmodel.PageResult[*dictcap.TypeInfo]{Items: []*dictcap.TypeInfo{}}
+	err := s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictTypeList, input, out)
+	return out, err
 }
 
-// EnsureVisible is not published as a dynamic dictionary type host-service method.
-func (s dictTypeService) EnsureVisible(context.Context, []int) error {
-	return unsupportedDynamicMethodError("dict.type.visible.ensure")
+// EnsureVisible rejects when any dictionary type ID is absent or invisible.
+func (s dictTypeService) EnsureVisible(_ context.Context, ids []int) error {
+	return s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictTypeEnsureVisible, dictIDsRequest{IDs: append([]int(nil), ids...)}, nil)
 }
 
-// EnsureKeysVisible is not published as a dynamic dictionary type host-service method.
-func (s dictTypeService) EnsureKeysVisible(context.Context, []dictcap.Type) error {
-	return unsupportedDynamicMethodError("dict.type.keys.visible.ensure")
+// EnsureKeysVisible rejects when any dictionary type key is absent or invisible.
+func (s dictTypeService) EnsureKeysVisible(_ context.Context, keys []dictcap.Type) error {
+	return s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictTypeEnsureKeysVisible, dictTypeKeysRequest{Keys: dictTypesToStrings(keys)}, nil)
 }
 
-// Create is not published as a dynamic dictionary type host-service method.
-func (s dictTypeService) Create(context.Context, dictcap.CreateTypeInput) (int, error) {
-	return 0, unsupportedDynamicMethodError("dict.type.create")
+// Create creates one dictionary type.
+func (s dictTypeService) Create(_ context.Context, input dictcap.CreateTypeInput) (int, error) {
+	var out int
+	err := s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictTypeCreate, input, &out)
+	return out, err
 }
 
-// Update is not published as a dynamic dictionary type host-service method.
-func (s dictTypeService) Update(context.Context, dictcap.UpdateTypeInput) error {
-	return unsupportedDynamicMethodError("dict.type.update")
+// Update updates one visible dictionary type.
+func (s dictTypeService) Update(_ context.Context, input dictcap.UpdateTypeInput) error {
+	return s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictTypeUpdate, input, nil)
 }
 
-// Delete is not published as a dynamic dictionary type host-service method.
-func (s dictTypeService) Delete(context.Context, int) error {
-	return unsupportedDynamicMethodError("dict.type.delete")
+// Delete deletes one visible dictionary type.
+func (s dictTypeService) Delete(_ context.Context, id int) error {
+	return s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictTypeDelete, dictIDRequest{ID: id}, nil)
 }
 
-// Get is not published as a dynamic dictionary value host-service method.
-func (s dictValueService) Get(context.Context, int) (*dictcap.ValueInfo, error) {
-	return nil, unsupportedDynamicMethodError("dict.value.get")
+// Get returns one visible dictionary value row.
+func (s dictValueService) Get(_ context.Context, id int) (*dictcap.ValueInfo, error) {
+	var out *dictcap.ValueInfo
+	err := s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictValueGet, dictIDRequest{ID: id}, &out)
+	return out, err
 }
 
-// BatchGet delegates visible value resolution to the registered label resolver.
-func (s dictValueService) BatchGet(ctx context.Context, input dictcap.BatchGetValuesInput) (*capmodel.BatchResult[*dictcap.ValueInfo, dictcap.Value], error) {
-	labels, err := s.ResolveLabels(ctx, dictcap.ResolveInput{
-		Type:         input.Type,
-		Values:       input.Values,
-		IncludeLabel: input.IncludeLabel,
-	})
-	if err != nil || labels == nil {
-		return nil, err
-	}
-	out := &capmodel.BatchResult[*dictcap.ValueInfo, dictcap.Value]{
-		Items:      map[dictcap.Value]*dictcap.ValueInfo{},
-		MissingIDs: append([]dictcap.Value(nil), labels.MissingIDs...),
-	}
-	for value, label := range labels.Items {
-		if label == nil {
-			continue
-		}
-		out.Items[value] = &dictcap.ValueInfo{
-			Type:     label.Type,
-			Value:    label.Value,
-			LabelKey: label.LabelKey,
-			Label:    label.Label,
-		}
-	}
-	return out, nil
+// BatchGet returns visible dictionary values.
+func (s dictValueService) BatchGet(_ context.Context, input dictcap.BatchGetValuesInput) (*capmodel.BatchResult[*dictcap.ValueInfo, dictcap.Value], error) {
+	out := &capmodel.BatchResult[*dictcap.ValueInfo, dictcap.Value]{Items: map[dictcap.Value]*dictcap.ValueInfo{}}
+	err := s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictValueBatchGet, input, out)
+	return out, err
 }
 
 // ResolveLabels resolves visible dictionary labels with opaque missing values.
@@ -146,9 +135,9 @@ func dictStatusIntPtr(status *statusflag.Enabled) *int {
 	return &value
 }
 
-// EnsureVisible is not published as a dynamic dictionary value row host-service method.
-func (s dictValueService) EnsureVisible(context.Context, []int) error {
-	return unsupportedDynamicMethodError("dict.value.visible.ensure")
+// EnsureVisible rejects when any dictionary value row is absent or invisible.
+func (s dictValueService) EnsureVisible(_ context.Context, ids []int) error {
+	return s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictValueEnsureVisible, dictIDsRequest{IDs: append([]int(nil), ids...)}, nil)
 }
 
 // EnsureValuesVisible rejects when any requested dictionary value is absent or invisible.
@@ -160,24 +149,26 @@ func (s dictValueService) EnsureValuesVisible(_ context.Context, input dictcap.R
 	}, nil)
 }
 
-// Create is not published as a dynamic dictionary value host-service method.
-func (s dictValueService) Create(context.Context, dictcap.CreateValueInput) (int, error) {
-	return 0, unsupportedDynamicMethodError("dict.value.create")
+// Create creates one dictionary value.
+func (s dictValueService) Create(_ context.Context, input dictcap.CreateValueInput) (int, error) {
+	var out int
+	err := s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictValueCreate, input, &out)
+	return out, err
 }
 
-// Update is not published as a dynamic dictionary value host-service method.
-func (s dictValueService) Update(context.Context, dictcap.UpdateValueInput) error {
-	return unsupportedDynamicMethodError("dict.value.update")
+// Update updates one visible dictionary value.
+func (s dictValueService) Update(_ context.Context, input dictcap.UpdateValueInput) error {
+	return s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictValueUpdate, input, nil)
 }
 
-// Delete is not published as a dynamic dictionary value host-service method.
-func (s dictValueService) Delete(context.Context, int) error {
-	return unsupportedDynamicMethodError("dict.value.delete")
+// Delete deletes one visible dictionary value.
+func (s dictValueService) Delete(_ context.Context, id int) error {
+	return s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictValueDelete, dictIDRequest{ID: id}, nil)
 }
 
-// DeleteByType is not published as a dynamic dictionary value host-service method.
-func (s dictValueService) DeleteByType(context.Context, dictcap.Type) error {
-	return unsupportedDynamicMethodError("dict.value.delete_by_type")
+// DeleteByType deletes visible dictionary values under one type.
+func (s dictValueService) DeleteByType(_ context.Context, dictType dictcap.Type) error {
+	return s.callJSONRequest(protocol.HostServiceDict, protocol.HostServiceMethodDictValueDeleteByType, dictTypeRequest{Type: string(dictType)}, nil)
 }
 
 // dictResolveRequest carries dictionary label resolution parameters.
@@ -196,8 +187,33 @@ type dictListValuesRequest struct {
 	PageSize     int    `json:"pageSize,omitempty"`
 }
 
+type dictIDRequest struct {
+	ID int `json:"id"`
+}
+
+type dictIDsRequest struct {
+	IDs []int `json:"ids"`
+}
+
+type dictTypeRequest struct {
+	Type string `json:"type"`
+}
+
+type dictTypeKeysRequest struct {
+	Keys []string `json:"keys"`
+}
+
 // dictValuesToStrings converts dictionary values to transport strings.
 func dictValuesToStrings(values []dictcap.Value) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		out = append(out, string(value))
+	}
+	return out
+}
+
+// dictTypesToStrings converts dictionary types to transport strings.
+func dictTypesToStrings(values []dictcap.Type) []string {
 	out := make([]string, 0, len(values))
 	for _, value := range values {
 		out = append(out, string(value))

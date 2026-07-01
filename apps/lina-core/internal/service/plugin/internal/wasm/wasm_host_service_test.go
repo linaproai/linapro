@@ -17,6 +17,7 @@ import (
 
 	"github.com/gogf/gf/v2/database/gdb"
 
+	jobv1 "lina-core/api/job/v1"
 	"lina-core/internal/service/plugin/internal/capabilityowner"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability"
@@ -56,8 +57,10 @@ import (
 type capabilityHostServiceTestServices struct {
 	auth          authcap.Service
 	cache         cachecap.Service
+	hostConfig    hostconfigcap.Service
 	org           orgcap.Service
 	aiText        aitext.Service
+	jobs          capabilityjobcap.Service
 	users         capabilityusercap.Service
 	dict          capabilitydictcap.Service
 	files         capabilityfilecap.Service
@@ -132,14 +135,14 @@ func (s *capabilityHostServiceTestServices) Dict() capabilitydictcap.Service { r
 // Files returns the configured file-domain service.
 func (s *capabilityHostServiceTestServices) Files() capabilityfilecap.Service { return s.files }
 
-// HostConfig returns no adapter for capability host-service tests.
-func (*capabilityHostServiceTestServices) HostConfig() hostconfigcap.Service { return nil }
+// HostConfig returns the configured host-config capability namespace.
+func (s *capabilityHostServiceTestServices) HostConfig() hostconfigcap.Service { return s.hostConfig }
 
 // I18n returns no adapter for capability host-service tests.
 func (*capabilityHostServiceTestServices) I18n() i18ncap.Service { return nil }
 
-// Jobs returns no scheduled-job domain service for capability host-service tests.
-func (*capabilityHostServiceTestServices) Jobs() capabilityjobcap.Service { return nil }
+// Jobs returns the configured scheduled-job domain service.
+func (s *capabilityHostServiceTestServices) Jobs() capabilityjobcap.Service { return s.jobs }
 
 // Lock returns the configured lock-domain service.
 func (s *capabilityHostServiceTestServices) Lock() lockcap.Service { return s.lock }
@@ -206,9 +209,10 @@ func configureDomainHostServicesForCapabilityTest(t *testing.T, services capabil
 // calls are routed through capability.Services.Org.
 func TestHandleHostServiceInvokeOrgMethods(t *testing.T) {
 	providerPluginID := fmt.Sprintf("plugin-test-org-provider-%d", time.Now().UnixNano())
+	provider := &capabilityHostServiceOrgProvider{}
 	orgManager := orgspi.NewManager()
 	if err := orgManager.RegisterFactory(providerPluginID, func(context.Context, orgspi.ProviderEnv) (orgspi.Provider, error) {
-		return capabilityHostServiceOrgProvider{}, nil
+		return provider, nil
 	}); err != nil {
 		t.Fatalf("register org provider failed: %v", err)
 	}
@@ -283,6 +287,131 @@ func TestHandleHostServiceInvokeOrgMethods(t *testing.T) {
 	if posts.Items[107] == nil || posts.Items[107].PostName != "Post-107" {
 		t.Fatalf("unexpected post batch payload: %#v", posts.Items)
 	}
+
+	deptCreateResponse := invokeCapabilityHostService(
+		t,
+		orgTenantHostCallContext(),
+		protocol.HostServiceOrg,
+		protocol.HostServiceMethodOrgDepartmentCreate,
+		marshalCapabilityJSONRequest(t, orgcap.DeptCreateInput{DeptName: "Engineering", DeptCode: "ENG"}),
+	)
+	if deptCreateResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected org department create success, got status=%d payload=%s", deptCreateResponse.Status, string(deptCreateResponse.Payload))
+	}
+	var deptID int
+	decodeCapabilityJSONResponse(t, deptCreateResponse.Payload, &deptID)
+	if deptID != 301 || provider.lastDeptCreate.DeptName != "Engineering" {
+		t.Fatalf("unexpected org department create result=%d input=%#v", deptID, provider.lastDeptCreate)
+	}
+
+	deptName := "Platform"
+	deptUpdateResponse := invokeCapabilityHostService(
+		t,
+		orgTenantHostCallContext(),
+		protocol.HostServiceOrg,
+		protocol.HostServiceMethodOrgDepartmentUpdate,
+		marshalCapabilityJSONRequest(t, orgcap.DeptUpdateInput{DeptID: 301, DeptName: &deptName}),
+	)
+	if deptUpdateResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected org department update success, got status=%d payload=%s", deptUpdateResponse.Status, string(deptUpdateResponse.Payload))
+	}
+	if provider.lastDeptUpdate.DeptID != 301 || provider.lastDeptUpdate.DeptName == nil || *provider.lastDeptUpdate.DeptName != deptName {
+		t.Fatalf("unexpected org department update input: %#v", provider.lastDeptUpdate)
+	}
+
+	deptDeleteResponse := invokeCapabilityHostService(
+		t,
+		orgTenantHostCallContext(),
+		protocol.HostServiceOrg,
+		protocol.HostServiceMethodOrgDepartmentDelete,
+		marshalCapabilityJSONRequest(t, orgDeptIDRequest{DeptID: 301}),
+	)
+	if deptDeleteResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected org department delete success, got status=%d payload=%s", deptDeleteResponse.Status, string(deptDeleteResponse.Payload))
+	}
+	if provider.lastDeptDeleteID != 301 {
+		t.Fatalf("unexpected org department delete ID: %d", provider.lastDeptDeleteID)
+	}
+
+	postCreateResponse := invokeCapabilityHostService(
+		t,
+		orgTenantHostCallContext(),
+		protocol.HostServiceOrg,
+		protocol.HostServiceMethodOrgPostCreate,
+		marshalCapabilityJSONRequest(t, orgcap.PostCreateInput{DeptID: 301, PostCode: "DEV", PostName: "Developer"}),
+	)
+	if postCreateResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected org post create success, got status=%d payload=%s", postCreateResponse.Status, string(postCreateResponse.Payload))
+	}
+	var postID int
+	decodeCapabilityJSONResponse(t, postCreateResponse.Payload, &postID)
+	if postID != 401 || provider.lastPostCreate.PostName != "Developer" {
+		t.Fatalf("unexpected org post create result=%d input=%#v", postID, provider.lastPostCreate)
+	}
+
+	postName := "Senior Developer"
+	postUpdateResponse := invokeCapabilityHostService(
+		t,
+		orgTenantHostCallContext(),
+		protocol.HostServiceOrg,
+		protocol.HostServiceMethodOrgPostUpdate,
+		marshalCapabilityJSONRequest(t, orgcap.PostUpdateInput{PostID: 401, PostName: &postName}),
+	)
+	if postUpdateResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected org post update success, got status=%d payload=%s", postUpdateResponse.Status, string(postUpdateResponse.Payload))
+	}
+	if provider.lastPostUpdate.PostID != 401 || provider.lastPostUpdate.PostName == nil || *provider.lastPostUpdate.PostName != postName {
+		t.Fatalf("unexpected org post update input: %#v", provider.lastPostUpdate)
+	}
+
+	postDeleteResponse := invokeCapabilityHostService(
+		t,
+		orgTenantHostCallContext(),
+		protocol.HostServiceOrg,
+		protocol.HostServiceMethodOrgPostDelete,
+		marshalCapabilityJSONRequest(t, orgPostIDRequest{PostID: 401}),
+	)
+	if postDeleteResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected org post delete success, got status=%d payload=%s", postDeleteResponse.Status, string(postDeleteResponse.Payload))
+	}
+	if provider.lastPostDeleteID != 401 {
+		t.Fatalf("unexpected org post delete ID: %d", provider.lastPostDeleteID)
+	}
+
+	assignDeptID := 301
+	assignResponse := invokeCapabilityHostService(
+		t,
+		orgTenantHostCallContext(),
+		protocol.HostServiceOrg,
+		protocol.HostServiceMethodOrgAssignmentReplaceByUser,
+		marshalCapabilityJSONRequest(t, orgAssignmentReplaceByUserRequest{
+			UserID:  42,
+			DeptID:  &assignDeptID,
+			PostIDs: []int{401, 402},
+		}),
+	)
+	if assignResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected org assignment replace success, got status=%d payload=%s", assignResponse.Status, string(assignResponse.Payload))
+	}
+	if provider.lastAssignmentUserID != 42 || provider.lastAssignmentDeptID == nil || *provider.lastAssignmentDeptID != 301 ||
+		!reflect.DeepEqual(provider.lastAssignmentPostIDs, []int{401, 402}) {
+		t.Fatalf("unexpected org assignment replace request user=%d dept=%v posts=%#v", provider.lastAssignmentUserID, provider.lastAssignmentDeptID, provider.lastAssignmentPostIDs)
+	}
+
+	cleanupResponse := invokeCapabilityHostService(
+		t,
+		orgTenantHostCallContext(),
+		protocol.HostServiceOrg,
+		protocol.HostServiceMethodOrgAssignmentCleanupByUser,
+		marshalCapabilityJSONRequest(t, intUserIDRequest{UserID: 42}),
+	)
+	if cleanupResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected org assignment cleanup success, got status=%d payload=%s", cleanupResponse.Status, string(cleanupResponse.Payload))
+	}
+	if provider.lastCleanupUserID != 42 {
+		t.Fatalf("unexpected org assignment cleanup user: %d", provider.lastCleanupUserID)
+	}
+
 	if services.scopeRecorder.last() != "test-capability-plugin" {
 		t.Fatalf("expected plugin-scoped services, got %q", services.scopeRecorder.last())
 	}
@@ -294,7 +423,7 @@ func TestHandleHostServiceInvokeOrgRejectsInvisibleTargetUser(t *testing.T) {
 	providerPluginID := fmt.Sprintf("plugin-test-org-visible-%d", time.Now().UnixNano())
 	orgManager := orgspi.NewManager()
 	if err := orgManager.RegisterFactory(providerPluginID, func(context.Context, orgspi.ProviderEnv) (orgspi.Provider, error) {
-		return capabilityHostServiceOrgProvider{}, nil
+		return &capabilityHostServiceOrgProvider{}, nil
 	}); err != nil {
 		t.Fatalf("register org provider failed: %v", err)
 	}
@@ -432,6 +561,97 @@ func TestHandleHostServiceInvokeUserMethods(t *testing.T) {
 	if !reflect.DeepEqual(userSvc.lastEnsureIDs, []capabilityusercap.UserID{"42"}) {
 		t.Fatalf("unexpected ensure user IDs: %#v", userSvc.lastEnsureIDs)
 	}
+
+	createResponse := invokeCapabilityHostService(
+		t,
+		userHostCallContext(),
+		protocol.HostServiceUsers,
+		protocol.HostServiceMethodUsersCreate,
+		marshalCapabilityJSONRequest(t, capabilityusercap.CreateInput{
+			Username: "created",
+			Password: "secret",
+			Nickname: "Created User",
+		}),
+	)
+	if createResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected user create success, got status=%d payload=%s", createResponse.Status, string(createResponse.Payload))
+	}
+	var createdID capabilityusercap.UserID
+	decodeCapabilityJSONResponse(t, createResponse.Payload, &createdID)
+	if createdID != "created-user" || userSvc.lastCreate.Username != "created" || userSvc.lastCurrent.UserID != 12 {
+		t.Fatalf("unexpected user create result=%q input=%#v bizctx=%#v", createdID, userSvc.lastCreate, userSvc.lastCurrent)
+	}
+
+	nickname := "Updated User"
+	updateResponse := invokeCapabilityHostService(
+		t,
+		userHostCallContext(),
+		protocol.HostServiceUsers,
+		protocol.HostServiceMethodUsersUpdate,
+		marshalCapabilityJSONRequest(t, capabilityusercap.UpdateInput{ID: "42", Nickname: &nickname}),
+	)
+	if updateResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected user update success, got status=%d payload=%s", updateResponse.Status, string(updateResponse.Payload))
+	}
+	if userSvc.lastUpdate.ID != "42" || userSvc.lastUpdate.Nickname == nil || *userSvc.lastUpdate.Nickname != nickname {
+		t.Fatalf("unexpected user update input: %#v", userSvc.lastUpdate)
+	}
+
+	deleteResponse := invokeCapabilityHostService(
+		t,
+		userHostCallContext(),
+		protocol.HostServiceUsers,
+		protocol.HostServiceMethodUsersDelete,
+		marshalCapabilityJSONRequest(t, userIDRequest{UserID: "42"}),
+	)
+	if deleteResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected user delete success, got status=%d payload=%s", deleteResponse.Status, string(deleteResponse.Payload))
+	}
+	if userSvc.lastDeleteID != "42" {
+		t.Fatalf("unexpected user delete ID: %q", userSvc.lastDeleteID)
+	}
+
+	statusResponse := invokeCapabilityHostService(
+		t,
+		userHostCallContext(),
+		protocol.HostServiceUsers,
+		protocol.HostServiceMethodUsersSetStatus,
+		marshalCapabilityJSONRequest(t, usersSetStatusRequest{UserID: "42", Status: int(statusflag.Disabled)}),
+	)
+	if statusResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected user status success, got status=%d payload=%s", statusResponse.Status, string(statusResponse.Payload))
+	}
+	if userSvc.lastStatusID != "42" || userSvc.lastStatus != statusflag.Disabled {
+		t.Fatalf("unexpected user status request id=%q status=%d", userSvc.lastStatusID, userSvc.lastStatus)
+	}
+
+	resetResponse := invokeCapabilityHostService(
+		t,
+		userHostCallContext(),
+		protocol.HostServiceUsers,
+		protocol.HostServiceMethodUsersResetPassword,
+		marshalCapabilityJSONRequest(t, usersResetPasswordRequest{UserID: "42", Password: "new-secret"}),
+	)
+	if resetResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected user password reset success, got status=%d payload=%s", resetResponse.Status, string(resetResponse.Payload))
+	}
+	if userSvc.lastResetID != "42" || userSvc.lastPassword != "new-secret" {
+		t.Fatalf("unexpected user password reset id=%q password=%q", userSvc.lastResetID, userSvc.lastPassword)
+	}
+
+	rolesResponse := invokeCapabilityHostService(
+		t,
+		userHostCallContext(),
+		protocol.HostServiceUsers,
+		protocol.HostServiceMethodUsersReplaceRoles,
+		marshalCapabilityJSONRequest(t, usersReplaceRolesRequest{UserID: "42", RoleIDs: []int{1, 2}}),
+	)
+	if rolesResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected user role replacement success, got status=%d payload=%s", rolesResponse.Status, string(rolesResponse.Payload))
+	}
+	if userSvc.assignments == nil || userSvc.assignments.lastUserID != "42" || !reflect.DeepEqual(userSvc.assignments.lastRoleIDs, []int{1, 2}) {
+		t.Fatalf("unexpected role replacement request: %#v", userSvc.assignments)
+	}
 }
 
 // TestHandleHostServiceInvokeAdditionalDomainMethods verifies newly published
@@ -482,6 +702,23 @@ func TestHandleHostServiceInvokeAdditionalDomainMethods(t *testing.T) {
 	decodeCapabilityJSONResponse(t, authzHasResponse.Payload, &permissionChecks)
 	if !permissionChecks["system:user:list"] || permissionChecks["system:user:delete"] {
 		t.Fatalf("unexpected authz batch-has payload: %#v", permissionChecks)
+	}
+
+	authzReplaceResponse := invokeCapabilityHostService(
+		t,
+		additionalDomainHostCallContext(),
+		protocol.HostServiceAuth,
+		protocol.HostServiceMethodAuthzReplaceRolePermissions,
+		marshalCapabilityJSONRequest(t, authzReplaceRolePermissionsRequest{
+			RoleID: "role-1",
+			Keys:   []string{"system:user:list", "system:user:create"},
+		}),
+	)
+	if authzReplaceResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected authz replace success, got status=%d payload=%s", authzReplaceResponse.Status, string(authzReplaceResponse.Payload))
+	}
+	if authzSvc.lastRoleID != "role-1" || !reflect.DeepEqual(authzSvc.lastPermissionKeys, []capabilityauthz.PermissionKey{"system:user:list", "system:user:create"}) {
+		t.Fatalf("unexpected authz role replacement role=%q keys=%#v", authzSvc.lastRoleID, authzSvc.lastPermissionKeys)
 	}
 
 	dictResponse := invokeCapabilityHostService(
@@ -543,6 +780,131 @@ func TestHandleHostServiceInvokeAdditionalDomainMethods(t *testing.T) {
 	decodeCapabilityJSONResponse(t, dictListResponse.Payload, &dictList)
 	if dictList.Total != 1 || dictSvc.lastListInput.Type != "sys_common_status" || dictSvc.lastListInput.Page.PageSize != 10 {
 		t.Fatalf("unexpected dict list payload=%#v input=%#v", dictList, dictSvc.lastListInput)
+	}
+
+	dictRefreshResponse := invokeCapabilityHostService(
+		t,
+		additionalDomainHostCallContext(),
+		protocol.HostServiceDict,
+		protocol.HostServiceMethodDictRefresh,
+		marshalCapabilityJSONRequest(t, dictTypeRequest{Type: "sys_common_status"}),
+	)
+	if dictRefreshResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected dict refresh success, got status=%d payload=%s", dictRefreshResponse.Status, string(dictRefreshResponse.Payload))
+	}
+	if dictSvc.lastRefreshType != "sys_common_status" {
+		t.Fatalf("unexpected dict refresh type: %q", dictSvc.lastRefreshType)
+	}
+
+	dictTypeCreateResponse := invokeCapabilityHostService(
+		t,
+		additionalDomainHostCallContext(),
+		protocol.HostServiceDict,
+		protocol.HostServiceMethodDictTypeCreate,
+		marshalCapabilityJSONRequest(t, capabilitydictcap.CreateTypeInput{
+			Type:   "plugin_state",
+			Name:   "Plugin State",
+			Status: statusflag.EnabledValue,
+		}),
+	)
+	if dictTypeCreateResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected dict type create success, got status=%d payload=%s", dictTypeCreateResponse.Status, string(dictTypeCreateResponse.Payload))
+	}
+	var dictTypeID int
+	decodeCapabilityJSONResponse(t, dictTypeCreateResponse.Payload, &dictTypeID)
+	if dictTypeID != 101 || dictSvc.lastTypeCreate.Type != "plugin_state" {
+		t.Fatalf("unexpected dict type create result=%d input=%#v", dictTypeID, dictSvc.lastTypeCreate)
+	}
+
+	dictTypeUpdateResponse := invokeCapabilityHostService(
+		t,
+		additionalDomainHostCallContext(),
+		protocol.HostServiceDict,
+		protocol.HostServiceMethodDictTypeUpdate,
+		marshalCapabilityJSONRequest(t, capabilitydictcap.UpdateTypeInput{ID: 101}),
+	)
+	if dictTypeUpdateResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected dict type update success, got status=%d payload=%s", dictTypeUpdateResponse.Status, string(dictTypeUpdateResponse.Payload))
+	}
+	if dictSvc.lastTypeUpdate.ID != 101 {
+		t.Fatalf("unexpected dict type update input: %#v", dictSvc.lastTypeUpdate)
+	}
+
+	dictTypeDeleteResponse := invokeCapabilityHostService(
+		t,
+		additionalDomainHostCallContext(),
+		protocol.HostServiceDict,
+		protocol.HostServiceMethodDictTypeDelete,
+		marshalCapabilityJSONRequest(t, dictIDRequest{ID: 101}),
+	)
+	if dictTypeDeleteResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected dict type delete success, got status=%d payload=%s", dictTypeDeleteResponse.Status, string(dictTypeDeleteResponse.Payload))
+	}
+	if dictSvc.lastTypeDelete != 101 {
+		t.Fatalf("unexpected dict type delete ID: %d", dictSvc.lastTypeDelete)
+	}
+
+	dictValueCreateResponse := invokeCapabilityHostService(
+		t,
+		additionalDomainHostCallContext(),
+		protocol.HostServiceDict,
+		protocol.HostServiceMethodDictValueCreate,
+		marshalCapabilityJSONRequest(t, capabilitydictcap.CreateValueInput{
+			Type:   "plugin_state",
+			Value:  "enabled",
+			Label:  "Enabled",
+			Status: statusflag.EnabledValue,
+		}),
+	)
+	if dictValueCreateResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected dict value create success, got status=%d payload=%s", dictValueCreateResponse.Status, string(dictValueCreateResponse.Payload))
+	}
+	var dictValueID int
+	decodeCapabilityJSONResponse(t, dictValueCreateResponse.Payload, &dictValueID)
+	if dictValueID != 202 || dictSvc.lastValueCreate.Value != "enabled" {
+		t.Fatalf("unexpected dict value create result=%d input=%#v", dictValueID, dictSvc.lastValueCreate)
+	}
+
+	dictValueUpdateResponse := invokeCapabilityHostService(
+		t,
+		additionalDomainHostCallContext(),
+		protocol.HostServiceDict,
+		protocol.HostServiceMethodDictValueUpdate,
+		marshalCapabilityJSONRequest(t, capabilitydictcap.UpdateValueInput{ID: 202}),
+	)
+	if dictValueUpdateResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected dict value update success, got status=%d payload=%s", dictValueUpdateResponse.Status, string(dictValueUpdateResponse.Payload))
+	}
+	if dictSvc.lastValueUpdate.ID != 202 {
+		t.Fatalf("unexpected dict value update input: %#v", dictSvc.lastValueUpdate)
+	}
+
+	dictValueDeleteResponse := invokeCapabilityHostService(
+		t,
+		additionalDomainHostCallContext(),
+		protocol.HostServiceDict,
+		protocol.HostServiceMethodDictValueDelete,
+		marshalCapabilityJSONRequest(t, dictIDRequest{ID: 202}),
+	)
+	if dictValueDeleteResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected dict value delete success, got status=%d payload=%s", dictValueDeleteResponse.Status, string(dictValueDeleteResponse.Payload))
+	}
+	if dictSvc.lastValueDelete != 202 {
+		t.Fatalf("unexpected dict value delete ID: %d", dictSvc.lastValueDelete)
+	}
+
+	dictDeleteByTypeResponse := invokeCapabilityHostService(
+		t,
+		additionalDomainHostCallContext(),
+		protocol.HostServiceDict,
+		protocol.HostServiceMethodDictValueDeleteByType,
+		marshalCapabilityJSONRequest(t, dictTypeRequest{Type: "plugin_state"}),
+	)
+	if dictDeleteByTypeResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected dict values delete-by-type success, got status=%d payload=%s", dictDeleteByTypeResponse.Status, string(dictDeleteByTypeResponse.Payload))
+	}
+	if dictSvc.lastDeleteType != "plugin_state" {
+		t.Fatalf("unexpected dict delete-by-type key: %q", dictSvc.lastDeleteType)
 	}
 }
 
@@ -632,6 +994,52 @@ func TestHandleHostServiceInvokeFilesWriteMethods(t *testing.T) {
 	decodeCapabilityJSONResponse(t, storageResponse.Payload, &created)
 	if created.ID != "file-from-storage" || filesSvc.lastStorageInput.StoragePath != "exports/source.txt" || filesSvc.lastStorageInput.Filename != "source.txt" {
 		t.Fatalf("unexpected files create-from-storage result=%#v input=%#v", created, filesSvc.lastStorageInput)
+	}
+
+	renamed := "renamed.txt"
+	metadataResponse := invokeCapabilityHostService(
+		t,
+		filesHostCallContext(),
+		protocol.HostServiceFiles,
+		protocol.HostServiceMethodFilesUpdateMetadata,
+		marshalCapabilityJSONRequest(t, capabilityfilecap.UpdateMetadataInput{
+			ID:   "file-from-storage",
+			Name: &renamed,
+		}),
+	)
+	if metadataResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected files metadata update success, got status=%d payload=%s", metadataResponse.Status, string(metadataResponse.Payload))
+	}
+	if filesSvc.lastMetadataInput.ID != "file-from-storage" || filesSvc.lastMetadataInput.Name == nil || *filesSvc.lastMetadataInput.Name != renamed {
+		t.Fatalf("unexpected files metadata update input: %#v", filesSvc.lastMetadataInput)
+	}
+
+	deleteResponse := invokeCapabilityHostService(
+		t,
+		filesHostCallContext(),
+		protocol.HostServiceFiles,
+		protocol.HostServiceMethodFilesDelete,
+		marshalCapabilityJSONRequest(t, fileIDRequest{FileID: "file-from-storage"}),
+	)
+	if deleteResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected files delete success, got status=%d payload=%s", deleteResponse.Status, string(deleteResponse.Payload))
+	}
+	if filesSvc.lastDeleteID != "file-from-storage" {
+		t.Fatalf("unexpected files delete ID: %q", filesSvc.lastDeleteID)
+	}
+
+	deleteManyResponse := invokeCapabilityHostService(
+		t,
+		filesHostCallContext(),
+		protocol.HostServiceFiles,
+		protocol.HostServiceMethodFilesDeleteMany,
+		marshalCapabilityJSONRequest(t, idsRequest{IDs: []string{"file-a", "file-b"}}),
+	)
+	if deleteManyResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected files delete_many success, got status=%d payload=%s", deleteManyResponse.Status, string(deleteManyResponse.Payload))
+	}
+	if !reflect.DeepEqual(filesSvc.lastDeleteManyIDs, []capabilityfilecap.FileID{"file-a", "file-b"}) {
+		t.Fatalf("unexpected files delete_many IDs: %#v", filesSvc.lastDeleteManyIDs)
 	}
 }
 
@@ -759,6 +1167,128 @@ func TestHandleHostServiceInvokeSessionMethods(t *testing.T) {
 	}
 	if !reflect.DeepEqual(sessionSvc.lastEnsureIDs, []capabilitysessioncap.SessionID{"token-1"}) {
 		t.Fatalf("unexpected session ensure IDs: %#v", sessionSvc.lastEnsureIDs)
+	}
+
+	revokeResponse := invokeCapabilityHostService(
+		t,
+		hcc,
+		protocol.HostServiceSessions,
+		protocol.HostServiceMethodSessionsRevoke,
+		marshalCapabilityJSONRequest(t, sessionIDRequest{SessionID: "token-1"}),
+	)
+	if revokeResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected session revoke success, got status=%d payload=%s", revokeResponse.Status, string(revokeResponse.Payload))
+	}
+	if sessionSvc.lastRevokeID != "token-1" {
+		t.Fatalf("unexpected session revoke ID: %q", sessionSvc.lastRevokeID)
+	}
+
+	revokeManyResponse := invokeCapabilityHostService(
+		t,
+		hcc,
+		protocol.HostServiceSessions,
+		protocol.HostServiceMethodSessionsRevokeMany,
+		marshalCapabilityJSONRequest(t, idsRequest{IDs: []string{"token-1", "token-2"}}),
+	)
+	if revokeManyResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected session revoke_many success, got status=%d payload=%s", revokeManyResponse.Status, string(revokeManyResponse.Payload))
+	}
+	if !reflect.DeepEqual(sessionSvc.lastRevokeManyIDs, []capabilitysessioncap.SessionID{"token-1", "token-2"}) {
+		t.Fatalf("unexpected session revoke_many IDs: %#v", sessionSvc.lastRevokeManyIDs)
+	}
+}
+
+// TestHandleHostServiceInvokeJobsRuntimeMethods verifies runtime scheduled-job
+// commands dispatch to the shared job capability service.
+func TestHandleHostServiceInvokeJobsRuntimeMethods(t *testing.T) {
+	jobsSvc := &capabilityHostServiceJobsService{}
+	services := &capabilityHostServiceTestServices{
+		org:    orgspi.New(nil, nil, nil),
+		aiText: aitext.New(nil, nil, nil),
+		jobs:   jobsSvc,
+		tenant: tenantspi.New(nil, nil, nil, nil),
+	}
+	configureDomainHostServicesForCapabilityTest(t, services)
+
+	hcc := jobsHostCallContext()
+	createResponse := invokeCapabilityHostService(
+		t,
+		hcc,
+		protocol.HostServiceJobs,
+		protocol.HostServiceMethodJobsCreate,
+		marshalCapabilityJSONRequest(t, capabilityjobcap.SaveInput{
+			GroupID:  "default",
+			Name:     "Heartbeat",
+			CronExpr: "*/5 * * * *",
+			Status:   jobv1.StatusEnabled,
+		}),
+	)
+	if createResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected jobs create success, got status=%d payload=%s", createResponse.Status, string(createResponse.Payload))
+	}
+	var createdID capabilityjobcap.JobID
+	decodeCapabilityJSONResponse(t, createResponse.Payload, &createdID)
+	if createdID != "job-created" || jobsSvc.lastCreate.Name != "Heartbeat" || jobsSvc.lastCurrent.UserID != 21 {
+		t.Fatalf("unexpected jobs create result=%q input=%#v bizctx=%#v", createdID, jobsSvc.lastCreate, jobsSvc.lastCurrent)
+	}
+
+	updateResponse := invokeCapabilityHostService(
+		t,
+		hcc,
+		protocol.HostServiceJobs,
+		protocol.HostServiceMethodJobsUpdate,
+		marshalCapabilityJSONRequest(t, capabilityjobcap.UpdateInput{
+			ID:        "job-created",
+			SaveInput: capabilityjobcap.SaveInput{Name: "Updated Heartbeat"},
+		}),
+	)
+	if updateResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected jobs update success, got status=%d payload=%s", updateResponse.Status, string(updateResponse.Payload))
+	}
+	if jobsSvc.lastUpdate.ID != "job-created" || jobsSvc.lastUpdate.Name != "Updated Heartbeat" {
+		t.Fatalf("unexpected jobs update input: %#v", jobsSvc.lastUpdate)
+	}
+
+	deleteResponse := invokeCapabilityHostService(
+		t,
+		hcc,
+		protocol.HostServiceJobs,
+		protocol.HostServiceMethodJobsDelete,
+		marshalCapabilityJSONRequest(t, jobIDRequest{JobID: "job-created"}),
+	)
+	if deleteResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected jobs delete success, got status=%d payload=%s", deleteResponse.Status, string(deleteResponse.Payload))
+	}
+	if jobsSvc.lastDeleteID != "job-created" {
+		t.Fatalf("unexpected jobs delete ID: %q", jobsSvc.lastDeleteID)
+	}
+
+	runResponse := invokeCapabilityHostService(
+		t,
+		hcc,
+		protocol.HostServiceJobs,
+		protocol.HostServiceMethodJobsRun,
+		marshalCapabilityJSONRequest(t, jobIDRequest{JobID: "job-created"}),
+	)
+	if runResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected jobs run success, got status=%d payload=%s", runResponse.Status, string(runResponse.Payload))
+	}
+	if jobsSvc.lastRunID != "job-created" {
+		t.Fatalf("unexpected jobs run ID: %q", jobsSvc.lastRunID)
+	}
+
+	statusResponse := invokeCapabilityHostService(
+		t,
+		hcc,
+		protocol.HostServiceJobs,
+		protocol.HostServiceMethodJobsSetStatus,
+		marshalCapabilityJSONRequest(t, jobsSetStatusRequest{JobID: "job-created", Status: string(jobv1.StatusDisabled)}),
+	)
+	if statusResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected jobs status success, got status=%d payload=%s", statusResponse.Status, string(statusResponse.Payload))
+	}
+	if jobsSvc.lastStatusID != "job-created" || jobsSvc.lastStatus != jobv1.StatusDisabled {
+		t.Fatalf("unexpected jobs status id=%q status=%q", jobsSvc.lastStatusID, jobsSvc.lastStatus)
 	}
 }
 
@@ -1316,6 +1846,14 @@ func orgTenantHostCallContext() *hostCallContext {
 					protocol.HostServiceMethodOrgBatchGetUserOrgProfiles,
 					protocol.HostServiceMethodOrgDepartmentBatchGet,
 					protocol.HostServiceMethodOrgPostBatchGet,
+					protocol.HostServiceMethodOrgDepartmentCreate,
+					protocol.HostServiceMethodOrgDepartmentUpdate,
+					protocol.HostServiceMethodOrgDepartmentDelete,
+					protocol.HostServiceMethodOrgPostCreate,
+					protocol.HostServiceMethodOrgPostUpdate,
+					protocol.HostServiceMethodOrgPostDelete,
+					protocol.HostServiceMethodOrgAssignmentReplaceByUser,
+					protocol.HostServiceMethodOrgAssignmentCleanupByUser,
 				},
 			},
 			{
@@ -1381,6 +1919,12 @@ func userHostCallContext() *hostCallContext {
 					protocol.HostServiceMethodUsersBatchResolve,
 					protocol.HostServiceMethodUsersList,
 					protocol.HostServiceMethodUsersEnsureVisible,
+					protocol.HostServiceMethodUsersCreate,
+					protocol.HostServiceMethodUsersUpdate,
+					protocol.HostServiceMethodUsersDelete,
+					protocol.HostServiceMethodUsersSetStatus,
+					protocol.HostServiceMethodUsersResetPassword,
+					protocol.HostServiceMethodUsersReplaceRoles,
 				},
 			},
 		},
@@ -1428,14 +1972,23 @@ func additionalDomainHostCallContext() *hostCallContext {
 				Methods: []string{
 					protocol.HostServiceMethodAuthzBatchGetPermissions,
 					protocol.HostServiceMethodAuthzBatchHasPermissions,
+					protocol.HostServiceMethodAuthzReplaceRolePermissions,
 				},
 			},
 			{
 				Service: protocol.HostServiceDict,
 				Methods: []string{
+					protocol.HostServiceMethodDictRefresh,
+					protocol.HostServiceMethodDictTypeCreate,
+					protocol.HostServiceMethodDictTypeUpdate,
+					protocol.HostServiceMethodDictTypeDelete,
 					protocol.HostServiceMethodDictValueResolveLabels,
 					protocol.HostServiceMethodDictListValues,
 					protocol.HostServiceMethodDictValueEnsureValuesVisible,
+					protocol.HostServiceMethodDictValueCreate,
+					protocol.HostServiceMethodDictValueUpdate,
+					protocol.HostServiceMethodDictValueDelete,
+					protocol.HostServiceMethodDictValueDeleteByType,
 				},
 			},
 		},
@@ -1463,6 +2016,9 @@ func filesHostCallContext() *hostCallContext {
 				Methods: []string{
 					protocol.HostServiceMethodFilesUpload,
 					protocol.HostServiceMethodFilesCreateFromStorage,
+					protocol.HostServiceMethodFilesUpdateMetadata,
+					protocol.HostServiceMethodFilesDelete,
+					protocol.HostServiceMethodFilesDeleteMany,
 				},
 			},
 			{
@@ -1498,6 +2054,8 @@ func sessionHostCallContext() *hostCallContext {
 					protocol.HostServiceMethodSessionsBatchGet,
 					protocol.HostServiceMethodSessionsBatchGetUserOnlineStatus,
 					protocol.HostServiceMethodSessionsEnsureVisible,
+					protocol.HostServiceMethodSessionsRevoke,
+					protocol.HostServiceMethodSessionsRevokeMany,
 				},
 			},
 		},
@@ -1508,6 +2066,34 @@ func sessionHostCallContext() *hostCallContext {
 			Username: "operator",
 		},
 		requestID: "trace-session",
+	}
+}
+
+// jobsHostCallContext builds an authorized scheduled-job host service context.
+func jobsHostCallContext() *hostCallContext {
+	return &hostCallContext{
+		pluginID: "test-jobs-plugin",
+		capabilities: map[string]struct{}{
+			protocol.CapabilityJobs: {},
+		},
+		hostServices: []*protocol.HostServiceSpec{
+			{
+				Service: protocol.HostServiceJobs,
+				Methods: []string{
+					protocol.HostServiceMethodJobsCreate,
+					protocol.HostServiceMethodJobsUpdate,
+					protocol.HostServiceMethodJobsDelete,
+					protocol.HostServiceMethodJobsRun,
+					protocol.HostServiceMethodJobsSetStatus,
+				},
+			},
+		},
+		identity: &bridgecontract.IdentitySnapshotV1{
+			TenantId: 9,
+			UserID:   21,
+			Username: "jobs-user",
+		},
+		requestID: "trace-jobs",
 	}
 }
 
@@ -1735,6 +2321,14 @@ type capabilityHostServiceUsersService struct {
 	lastList      capabilityusercap.ListInput
 	lastEnsureIDs []capabilityusercap.UserID
 	lastResolve   capabilityusercap.BatchResolveInput
+	lastCreate    capabilityusercap.CreateInput
+	lastUpdate    capabilityusercap.UpdateInput
+	lastDeleteID  capabilityusercap.UserID
+	lastStatusID  capabilityusercap.UserID
+	lastStatus    statusflag.Enabled
+	lastResetID   capabilityusercap.UserID
+	lastPassword  string
+	assignments   *capabilityHostServiceUserAssignments
 }
 
 // Current returns the projection for the current actor user.
@@ -1836,41 +2430,61 @@ func (s *capabilityHostServiceUsersService) EnsureVisible(
 	return s.ensureErr
 }
 
-// Create is unused by host-service dispatch tests.
-func (s *capabilityHostServiceUsersService) Create(context.Context, capabilityusercap.CreateInput) (capabilityusercap.UserID, error) {
-	return "", nil
+// Create records one user create request.
+func (s *capabilityHostServiceUsersService) Create(ctx context.Context, input capabilityusercap.CreateInput) (capabilityusercap.UserID, error) {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastCreate = input
+	return capabilityusercap.UserID("created-user"), nil
 }
 
-// Update is unused by host-service dispatch tests.
-func (s *capabilityHostServiceUsersService) Update(context.Context, capabilityusercap.UpdateInput) error {
+// Update records one user update request.
+func (s *capabilityHostServiceUsersService) Update(ctx context.Context, input capabilityusercap.UpdateInput) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastUpdate = input
 	return nil
 }
 
-// Delete is unused by host-service dispatch tests.
-func (s *capabilityHostServiceUsersService) Delete(context.Context, capabilityusercap.UserID) error {
+// Delete records one user delete request.
+func (s *capabilityHostServiceUsersService) Delete(ctx context.Context, id capabilityusercap.UserID) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastDeleteID = id
 	return nil
 }
 
-// SetStatus is unused by host-service dispatch tests.
-func (s *capabilityHostServiceUsersService) SetStatus(context.Context, capabilityusercap.UserID, statusflag.Enabled) error {
+// SetStatus records one user status update request.
+func (s *capabilityHostServiceUsersService) SetStatus(ctx context.Context, id capabilityusercap.UserID, status statusflag.Enabled) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastStatusID = id
+	s.lastStatus = status
 	return nil
 }
 
-// ResetPassword is unused by host-service dispatch tests.
-func (s *capabilityHostServiceUsersService) ResetPassword(context.Context, capabilityusercap.UserID, string) error {
+// ResetPassword records one password reset request.
+func (s *capabilityHostServiceUsersService) ResetPassword(ctx context.Context, id capabilityusercap.UserID, password string) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastResetID = id
+	s.lastPassword = password
 	return nil
 }
 
-// Assignment returns user-role assignment operations unused by host-service dispatch tests.
+// Assignment returns user-role assignment operations.
 func (s *capabilityHostServiceUsersService) Assignment() capabilityusercap.AssignmentService {
-	return capabilityHostServiceUserAssignments{}
+	if s.assignments == nil {
+		s.assignments = &capabilityHostServiceUserAssignments{}
+	}
+	return s.assignments
 }
 
-// capabilityHostServiceUserAssignments accepts unused role replacements.
-type capabilityHostServiceUserAssignments struct{}
+// capabilityHostServiceUserAssignments records role replacements.
+type capabilityHostServiceUserAssignments struct {
+	lastUserID  capabilityusercap.UserID
+	lastRoleIDs []int
+}
 
-// ReplaceRoles is unused by host-service dispatch tests.
-func (capabilityHostServiceUserAssignments) ReplaceRoles(context.Context, capabilityusercap.UserID, []int) error {
+// ReplaceRoles records one role replacement request.
+func (s *capabilityHostServiceUserAssignments) ReplaceRoles(_ context.Context, id capabilityusercap.UserID, roleIDs []int) error {
+	s.lastUserID = id
+	s.lastRoleIDs = append([]int(nil), roleIDs...)
 	return nil
 }
 
@@ -1881,6 +2495,8 @@ type capabilityHostServiceSessionsService struct {
 	lastList          capabilitysessioncap.ListInput
 	lastOnlineUserIDs []string
 	lastEnsureIDs     []capabilitysessioncap.SessionID
+	lastRevokeID      capabilitysessioncap.SessionID
+	lastRevokeManyIDs []capabilitysessioncap.SessionID
 }
 
 // Current returns the session projection matching the current identity token.
@@ -1973,19 +2589,25 @@ func (s *capabilityHostServiceSessionsService) EnsureVisible(
 	return nil
 }
 
-// Revoke is unused by host-service dispatch tests.
-func (s *capabilityHostServiceSessionsService) Revoke(context.Context, capabilitysessioncap.SessionID) error {
+// Revoke records one session revoke request.
+func (s *capabilityHostServiceSessionsService) Revoke(ctx context.Context, id capabilitysessioncap.SessionID) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastRevokeID = id
 	return nil
 }
 
-// RevokeMany is unused by host-service dispatch tests.
-func (s *capabilityHostServiceSessionsService) RevokeMany(context.Context, []capabilitysessioncap.SessionID) error {
+// RevokeMany records one batch session revoke request.
+func (s *capabilityHostServiceSessionsService) RevokeMany(ctx context.Context, ids []capabilitysessioncap.SessionID) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastRevokeManyIDs = append([]capabilitysessioncap.SessionID(nil), ids...)
 	return nil
 }
 
 // capabilityHostServiceAuthzService records authz-domain requests in tests.
 type capabilityHostServiceAuthzService struct {
-	lastCurrent bizctxcap.CurrentContext
+	lastCurrent        bizctxcap.CurrentContext
+	lastRoleID         capabilityauthz.RoleID
+	lastPermissionKeys []capabilityauthz.PermissionKey
 }
 
 // BatchGetPermissions returns deterministic permission projections.
@@ -2049,8 +2671,11 @@ func (s *capabilityHostServiceAuthzService) IsPlatformAdmin(
 	return false, nil
 }
 
-// ReplaceRolePermissions is unused by host-service dispatch tests.
-func (s *capabilityHostServiceAuthzService) ReplaceRolePermissions(context.Context, capabilityauthz.RoleID, []capabilityauthz.PermissionKey) error {
+// ReplaceRolePermissions records one role permission replacement.
+func (s *capabilityHostServiceAuthzService) ReplaceRolePermissions(ctx context.Context, roleID capabilityauthz.RoleID, keys []capabilityauthz.PermissionKey) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastRoleID = roleID
+	s.lastPermissionKeys = append([]capabilityauthz.PermissionKey(nil), keys...)
 	return nil
 }
 
@@ -2059,6 +2684,14 @@ type capabilityHostServiceDictService struct {
 	lastCurrent     bizctxcap.CurrentContext
 	lastInput       capabilitydictcap.ResolveInput
 	lastListInput   capabilitydictcap.ListValuesInput
+	lastRefreshType capabilitydictcap.Type
+	lastTypeCreate  capabilitydictcap.CreateTypeInput
+	lastTypeUpdate  capabilitydictcap.UpdateTypeInput
+	lastTypeDelete  int
+	lastValueCreate capabilitydictcap.CreateValueInput
+	lastValueUpdate capabilitydictcap.UpdateValueInput
+	lastValueDelete int
+	lastDeleteType  capabilitydictcap.Type
 	denyBlankValues bool
 }
 
@@ -2107,18 +2740,24 @@ func (s capabilityHostServiceDictTypeService) EnsureKeysVisible(context.Context,
 	return nil
 }
 
-// Create is unused by dictionary type dispatcher tests.
-func (s capabilityHostServiceDictTypeService) Create(context.Context, capabilitydictcap.CreateTypeInput) (int, error) {
-	return 0, nil
+// Create records one dictionary type create request.
+func (s capabilityHostServiceDictTypeService) Create(ctx context.Context, input capabilitydictcap.CreateTypeInput) (int, error) {
+	s.parent.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.parent.lastTypeCreate = input
+	return 101, nil
 }
 
-// Update is unused by dictionary type dispatcher tests.
-func (s capabilityHostServiceDictTypeService) Update(context.Context, capabilitydictcap.UpdateTypeInput) error {
+// Update records one dictionary type update request.
+func (s capabilityHostServiceDictTypeService) Update(ctx context.Context, input capabilitydictcap.UpdateTypeInput) error {
+	s.parent.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.parent.lastTypeUpdate = input
 	return nil
 }
 
-// Delete is unused by dictionary type dispatcher tests.
-func (s capabilityHostServiceDictTypeService) Delete(context.Context, int) error {
+// Delete records one dictionary type delete request.
+func (s capabilityHostServiceDictTypeService) Delete(ctx context.Context, id int) error {
+	s.parent.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.parent.lastTypeDelete = id
 	return nil
 }
 
@@ -2194,38 +2833,51 @@ func (s capabilityHostServiceDictValueService) EnsureValuesVisible(
 	return nil
 }
 
-// Create is unused by dictionary value dispatcher tests.
-func (s capabilityHostServiceDictValueService) Create(context.Context, capabilitydictcap.CreateValueInput) (int, error) {
-	return 0, nil
+// Create records one dictionary value create request.
+func (s capabilityHostServiceDictValueService) Create(ctx context.Context, input capabilitydictcap.CreateValueInput) (int, error) {
+	s.parent.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.parent.lastValueCreate = input
+	return 202, nil
 }
 
-// Update is unused by dictionary value dispatcher tests.
-func (s capabilityHostServiceDictValueService) Update(context.Context, capabilitydictcap.UpdateValueInput) error {
+// Update records one dictionary value update request.
+func (s capabilityHostServiceDictValueService) Update(ctx context.Context, input capabilitydictcap.UpdateValueInput) error {
+	s.parent.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.parent.lastValueUpdate = input
 	return nil
 }
 
-// Delete is unused by dictionary value dispatcher tests.
-func (s capabilityHostServiceDictValueService) Delete(context.Context, int) error {
+// Delete records one dictionary value delete request.
+func (s capabilityHostServiceDictValueService) Delete(ctx context.Context, id int) error {
+	s.parent.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.parent.lastValueDelete = id
 	return nil
 }
 
-// DeleteByType is unused by dictionary value dispatcher tests.
-func (s capabilityHostServiceDictValueService) DeleteByType(context.Context, capabilitydictcap.Type) error {
+// DeleteByType records one dictionary type-wide value delete request.
+func (s capabilityHostServiceDictValueService) DeleteByType(ctx context.Context, dictType capabilitydictcap.Type) error {
+	s.parent.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.parent.lastDeleteType = dictType
 	return nil
 }
 
-// Refresh is unused by host-service dispatch tests.
-func (s *capabilityHostServiceDictService) Refresh(context.Context, capabilitydictcap.Type) error {
+// Refresh records one dictionary refresh request.
+func (s *capabilityHostServiceDictService) Refresh(ctx context.Context, dictType capabilitydictcap.Type) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastRefreshType = dictType
 	return nil
 }
 
 // capabilityHostServiceFilesService records dynamic file write calls.
 type capabilityHostServiceFilesService struct {
 	capabilityfilecap.Service
-	lastUpload       capabilityfilecap.UploadInput
-	lastUploadBody   string
-	lastStorageInput capabilityfilecap.CreateFromStorageInput
-	lastCurrent      bizctxcap.CurrentContext
+	lastUpload        capabilityfilecap.UploadInput
+	lastUploadBody    string
+	lastStorageInput  capabilityfilecap.CreateFromStorageInput
+	lastMetadataInput capabilityfilecap.UpdateMetadataInput
+	lastDeleteID      capabilityfilecap.FileID
+	lastDeleteManyIDs []capabilityfilecap.FileID
+	lastCurrent       bizctxcap.CurrentContext
 }
 
 // Upload records one decoded dynamic file upload request.
@@ -2263,8 +2915,117 @@ func (s *capabilityHostServiceFilesService) CreateFromStorage(
 	}, nil
 }
 
+// UpdateMetadata records one visible file metadata update.
+func (s *capabilityHostServiceFilesService) UpdateMetadata(
+	ctx context.Context,
+	input capabilityfilecap.UpdateMetadataInput,
+) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastMetadataInput = input
+	return nil
+}
+
+// Delete records one visible file delete.
+func (s *capabilityHostServiceFilesService) Delete(ctx context.Context, id capabilityfilecap.FileID) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastDeleteID = id
+	return nil
+}
+
+// DeleteMany records one visible file batch delete.
+func (s *capabilityHostServiceFilesService) DeleteMany(ctx context.Context, ids []capabilityfilecap.FileID) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastDeleteManyIDs = append([]capabilityfilecap.FileID(nil), ids...)
+	return nil
+}
+
+// capabilityHostServiceJobsService records scheduled-job requests in tests.
+type capabilityHostServiceJobsService struct {
+	lastCurrent  bizctxcap.CurrentContext
+	lastCreate   capabilityjobcap.SaveInput
+	lastUpdate   capabilityjobcap.UpdateInput
+	lastDeleteID capabilityjobcap.JobID
+	lastRunID    capabilityjobcap.JobID
+	lastStatusID capabilityjobcap.JobID
+	lastStatus   jobv1.Status
+}
+
+// Get returns no job projection for dispatcher tests.
+func (s *capabilityHostServiceJobsService) Get(ctx context.Context, id capabilityjobcap.JobID) (*capabilityjobcap.JobInfo, error) {
+	result, err := s.BatchGet(ctx, []capabilityjobcap.JobID{id})
+	if err != nil || result == nil {
+		return nil, err
+	}
+	return result.Items[id], nil
+}
+
+// BatchGet returns empty visible job projections.
+func (s *capabilityHostServiceJobsService) BatchGet(ctx context.Context, _ []capabilityjobcap.JobID) (*capmodel.BatchResult[*capabilityjobcap.JobInfo, capabilityjobcap.JobID], error) {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	return &capmodel.BatchResult[*capabilityjobcap.JobInfo, capabilityjobcap.JobID]{Items: map[capabilityjobcap.JobID]*capabilityjobcap.JobInfo{}}, nil
+}
+
+// List returns an empty job page.
+func (s *capabilityHostServiceJobsService) List(ctx context.Context, _ capabilityjobcap.ListInput) (*capmodel.PageResult[*capabilityjobcap.JobInfo], error) {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	return &capmodel.PageResult[*capabilityjobcap.JobInfo]{Items: []*capabilityjobcap.JobInfo{}}, nil
+}
+
+// EnsureVisible accepts all requested jobs.
+func (s *capabilityHostServiceJobsService) EnsureVisible(ctx context.Context, _ []capabilityjobcap.JobID) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	return nil
+}
+
+// Create records one scheduled-job create request.
+func (s *capabilityHostServiceJobsService) Create(ctx context.Context, input capabilityjobcap.SaveInput) (capabilityjobcap.JobID, error) {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastCreate = input
+	return capabilityjobcap.JobID("job-created"), nil
+}
+
+// Update records one scheduled-job update request.
+func (s *capabilityHostServiceJobsService) Update(ctx context.Context, input capabilityjobcap.UpdateInput) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastUpdate = input
+	return nil
+}
+
+// Delete records one scheduled-job delete request.
+func (s *capabilityHostServiceJobsService) Delete(ctx context.Context, id capabilityjobcap.JobID) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastDeleteID = id
+	return nil
+}
+
+// Run records one scheduled-job execution request.
+func (s *capabilityHostServiceJobsService) Run(ctx context.Context, id capabilityjobcap.JobID) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastRunID = id
+	return nil
+}
+
+// SetStatus records one scheduled-job lifecycle status update.
+func (s *capabilityHostServiceJobsService) SetStatus(ctx context.Context, id capabilityjobcap.JobID, status jobv1.Status) error {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastStatusID = id
+	s.lastStatus = status
+	return nil
+}
+
 // capabilityHostServiceOrgProvider is a deterministic organization provider for tests.
-type capabilityHostServiceOrgProvider struct{}
+type capabilityHostServiceOrgProvider struct {
+	lastDeptCreate        orgcap.DeptCreateInput
+	lastDeptUpdate        orgcap.DeptUpdateInput
+	lastDeptDeleteID      int
+	lastPostCreate        orgcap.PostCreateInput
+	lastPostUpdate        orgcap.PostUpdateInput
+	lastPostDeleteID      int
+	lastAssignmentUserID  int
+	lastAssignmentDeptID  *int
+	lastAssignmentPostIDs []int
+	lastCleanupUserID     int
+}
 
 // ListUserDeptAssignments returns deterministic department assignments.
 func (capabilityHostServiceOrgProvider) ListUserDeptAssignments(
@@ -2376,18 +3137,21 @@ func (capabilityHostServiceOrgProvider) BatchGetDepartments(
 	return result, nil
 }
 
-// CreateDepartment returns a deterministic department identifier.
-func (capabilityHostServiceOrgProvider) CreateDepartment(context.Context, orgcap.DeptCreateInput) (int, error) {
-	return 0, nil
+// CreateDepartment records one department create request.
+func (p *capabilityHostServiceOrgProvider) CreateDepartment(_ context.Context, input orgcap.DeptCreateInput) (int, error) {
+	p.lastDeptCreate = input
+	return 301, nil
 }
 
-// UpdateDepartment accepts department updates.
-func (capabilityHostServiceOrgProvider) UpdateDepartment(context.Context, orgcap.DeptUpdateInput) error {
+// UpdateDepartment records one department update request.
+func (p *capabilityHostServiceOrgProvider) UpdateDepartment(_ context.Context, input orgcap.DeptUpdateInput) error {
+	p.lastDeptUpdate = input
 	return nil
 }
 
-// DeleteDepartment accepts department deletes.
-func (capabilityHostServiceOrgProvider) DeleteDepartment(context.Context, int) error {
+// DeleteDepartment records one department delete request.
+func (p *capabilityHostServiceOrgProvider) DeleteDepartment(_ context.Context, deptID int) error {
+	p.lastDeptDeleteID = deptID
 	return nil
 }
 
@@ -2421,18 +3185,21 @@ func (capabilityHostServiceOrgProvider) ListPosts(context.Context, orgcap.PostLi
 	return &capmodel.PageResult[*orgcap.PostInfo]{Items: []*orgcap.PostInfo{}}, nil
 }
 
-// CreatePost returns a deterministic post identifier.
-func (capabilityHostServiceOrgProvider) CreatePost(context.Context, orgcap.PostCreateInput) (int, error) {
-	return 0, nil
+// CreatePost records one post create request.
+func (p *capabilityHostServiceOrgProvider) CreatePost(_ context.Context, input orgcap.PostCreateInput) (int, error) {
+	p.lastPostCreate = input
+	return 401, nil
 }
 
-// UpdatePost accepts post updates.
-func (capabilityHostServiceOrgProvider) UpdatePost(context.Context, orgcap.PostUpdateInput) error {
+// UpdatePost records one post update request.
+func (p *capabilityHostServiceOrgProvider) UpdatePost(_ context.Context, input orgcap.PostUpdateInput) error {
+	p.lastPostUpdate = input
 	return nil
 }
 
-// DeletePost accepts post deletes.
-func (capabilityHostServiceOrgProvider) DeletePost(context.Context, int) error {
+// DeletePost records one post delete request.
+func (p *capabilityHostServiceOrgProvider) DeletePost(_ context.Context, postID int) error {
+	p.lastPostDeleteID = postID
 	return nil
 }
 
@@ -2446,13 +3213,22 @@ func (capabilityHostServiceOrgProvider) EnsurePostsVisible(context.Context, []in
 	return nil
 }
 
-// ReplaceUserAssignments ignores assignment writes.
-func (capabilityHostServiceOrgProvider) ReplaceUserAssignments(context.Context, int, *int, []int) error {
+// ReplaceUserAssignments records one organization assignment rewrite.
+func (p *capabilityHostServiceOrgProvider) ReplaceUserAssignments(_ context.Context, userID int, deptID *int, postIDs []int) error {
+	p.lastAssignmentUserID = userID
+	if deptID != nil {
+		value := *deptID
+		p.lastAssignmentDeptID = &value
+	} else {
+		p.lastAssignmentDeptID = nil
+	}
+	p.lastAssignmentPostIDs = append([]int(nil), postIDs...)
 	return nil
 }
 
-// CleanupUserAssignments ignores cleanup writes.
-func (capabilityHostServiceOrgProvider) CleanupUserAssignments(context.Context, int) error {
+// CleanupUserAssignments records one organization assignment cleanup.
+func (p *capabilityHostServiceOrgProvider) CleanupUserAssignments(_ context.Context, userID int) error {
+	p.lastCleanupUserID = userID
 	return nil
 }
 

@@ -33,8 +33,10 @@ type hostConfigCapabilityService struct {
 	client *hostConfigClient
 }
 
-// hostConfigSysConfigService reports that sys_config methods are not published dynamically.
-type hostConfigSysConfigService struct{}
+// hostConfigSysConfigService adapts governed sys_config methods to host services.
+type hostConfigSysConfigService struct {
+	client *hostConfigClient
+}
 
 // manifestClient adapts manifest.get transport calls to simple helper methods.
 type manifestClient struct{ baseService }
@@ -202,39 +204,92 @@ func (s *hostConfigCapabilityService) Duration(_ context.Context, key string, de
 	return value, nil
 }
 
-// SysConfig returns the unpublished dynamic sys_config subresource adapter.
+// SysConfig returns the dynamic single-key sys_config subresource adapter.
 func (s *hostConfigCapabilityService) SysConfig() hostconfigcap.SysConfigService {
-	return hostConfigSysConfigService{}
+	return hostConfigSysConfigService{client: s.client}
 }
 
-// Get is not published as a dynamic hostconfig host-service method.
-func (hostConfigSysConfigService) Get(context.Context, hostconfigcap.SysConfigKey) (*hostconfigcap.SysConfigInfo, error) {
-	return nil, unsupportedDynamicMethodError("hostconfig.sys_config.get")
+// Get reads one governed sys_config projection.
+func (s hostConfigSysConfigService) Get(_ context.Context, key hostconfigcap.SysConfigKey) (*hostconfigcap.SysConfigInfo, error) {
+	var out *hostconfigcap.SysConfigInfo
+	err := s.client.callHostServiceJSONRequest(
+		protocol.HostServiceHostConfig,
+		protocol.HostServiceMethodHostConfigSysConfigGet,
+		string(key),
+		"",
+		hostConfigSysConfigKeyRequest{Key: string(key)},
+		&out,
+	)
+	return out, err
 }
 
-// BatchGet is not published as a dynamic hostconfig host-service method.
-func (hostConfigSysConfigService) BatchGet(context.Context, []hostconfigcap.SysConfigKey) (*capmodel.BatchResult[*hostconfigcap.SysConfigInfo, hostconfigcap.SysConfigKey], error) {
-	return nil, unsupportedDynamicMethodError("hostconfig.sys_config.batch_get")
+// BatchGet reads governed sys_config projections.
+func (s hostConfigSysConfigService) BatchGet(ctx context.Context, keys []hostconfigcap.SysConfigKey) (*capmodel.BatchResult[*hostconfigcap.SysConfigInfo, hostconfigcap.SysConfigKey], error) {
+	out := &capmodel.BatchResult[*hostconfigcap.SysConfigInfo, hostconfigcap.SysConfigKey]{
+		Items:      map[hostconfigcap.SysConfigKey]*hostconfigcap.SysConfigInfo{},
+		MissingIDs: []hostconfigcap.SysConfigKey{},
+	}
+	for _, key := range keys {
+		item, err := s.Get(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		if item == nil {
+			out.MissingIDs = append(out.MissingIDs, key)
+			continue
+		}
+		out.Items[key] = item
+	}
+	return out, nil
 }
 
-// List is not published as a dynamic hostconfig host-service method.
-func (hostConfigSysConfigService) List(context.Context, hostconfigcap.ListSysConfigInput) (*capmodel.PageResult[*hostconfigcap.SysConfigInfo], error) {
+// List is not published as a dynamic hostconfig host-service method because
+// list authorization cannot be represented by one `resources.keys` resourceRef.
+func (hostConfigSysConfigService) List(_ context.Context, _ hostconfigcap.ListSysConfigInput) (*capmodel.PageResult[*hostconfigcap.SysConfigInfo], error) {
 	return nil, unsupportedDynamicMethodError("hostconfig.sys_config.list")
 }
 
-// SetValue is not published as a dynamic hostconfig host-service method.
-func (hostConfigSysConfigService) SetValue(context.Context, hostconfigcap.SysConfigKey, string) error {
-	return unsupportedDynamicMethodError("hostconfig.sys_config.set")
+// SetValue writes one governed sys_config value.
+func (s hostConfigSysConfigService) SetValue(_ context.Context, key hostconfigcap.SysConfigKey, value string) error {
+	return s.client.callHostServiceJSONRequest(
+		protocol.HostServiceHostConfig,
+		protocol.HostServiceMethodHostConfigSysConfigSetValue,
+		string(key),
+		"",
+		hostConfigSysConfigSetValueRequest{Key: string(key), Value: value},
+		nil,
+	)
 }
 
-// Reset is not published as a dynamic hostconfig host-service method.
-func (hostConfigSysConfigService) Reset(context.Context, hostconfigcap.SysConfigKey) error {
-	return unsupportedDynamicMethodError("hostconfig.sys_config.reset")
+// Reset resets one governed sys_config value.
+func (s hostConfigSysConfigService) Reset(_ context.Context, key hostconfigcap.SysConfigKey) error {
+	return s.client.callHostServiceJSONRequest(
+		protocol.HostServiceHostConfig,
+		protocol.HostServiceMethodHostConfigSysConfigReset,
+		string(key),
+		"",
+		hostConfigSysConfigKeyRequest{Key: string(key)},
+		nil,
+	)
 }
 
-// EnsureVisible is not published as a dynamic hostconfig host-service method.
-func (hostConfigSysConfigService) EnsureVisible(context.Context, []hostconfigcap.SysConfigKey) error {
-	return unsupportedDynamicMethodError("hostconfig.sys_config.keys.visible.ensure")
+// EnsureVisible rejects when any sys_config key is outside caller scope.
+func (s hostConfigSysConfigService) EnsureVisible(ctx context.Context, keys []hostconfigcap.SysConfigKey) error {
+	for _, key := range keys {
+		if _, err := s.Get(ctx, key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type hostConfigSysConfigKeyRequest struct {
+	Key string `json:"key"`
+}
+
+type hostConfigSysConfigSetValueRequest struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 // Get returns the raw plugin configuration value for the given key.

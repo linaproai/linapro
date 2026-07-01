@@ -227,18 +227,20 @@ func (s orgDepartmentService) EnsureVisible(_ context.Context, deptIDs []int) er
 }
 
 // Create creates one department.
-func (s orgDepartmentService) Create(context.Context, orgcap.DeptCreateInput) (int, error) {
-	return 0, unsupportedDynamicMethodError(orgcap.CapabilityOrgV1)
+func (s orgDepartmentService) Create(_ context.Context, input orgcap.DeptCreateInput) (int, error) {
+	var out int
+	err := s.callJSONRequest(protocol.HostServiceOrg, protocol.HostServiceMethodOrgDepartmentCreate, input, &out)
+	return out, err
 }
 
 // Update updates one department.
-func (s orgDepartmentService) Update(context.Context, orgcap.DeptUpdateInput) error {
-	return unsupportedDynamicMethodError(orgcap.CapabilityOrgV1)
+func (s orgDepartmentService) Update(_ context.Context, input orgcap.DeptUpdateInput) error {
+	return s.callJSONRequest(protocol.HostServiceOrg, protocol.HostServiceMethodOrgDepartmentUpdate, input, nil)
 }
 
 // Delete deletes one department.
-func (s orgDepartmentService) Delete(context.Context, int) error {
-	return unsupportedDynamicMethodError(orgcap.CapabilityOrgV1)
+func (s orgDepartmentService) Delete(_ context.Context, deptID int) error {
+	return s.callJSONRequest(protocol.HostServiceOrg, protocol.HostServiceMethodOrgDepartmentDelete, orgDeptIDRequest{DeptID: deptID}, nil)
 }
 
 // Get returns one visible post projection.
@@ -281,28 +283,34 @@ func (s orgPostService) EnsureVisible(_ context.Context, postIDs []int) error {
 }
 
 // Create creates one post.
-func (s orgPostService) Create(context.Context, orgcap.PostCreateInput) (int, error) {
-	return 0, unsupportedDynamicMethodError(orgcap.CapabilityOrgV1)
+func (s orgPostService) Create(_ context.Context, input orgcap.PostCreateInput) (int, error) {
+	var out int
+	err := s.callJSONRequest(protocol.HostServiceOrg, protocol.HostServiceMethodOrgPostCreate, input, &out)
+	return out, err
 }
 
 // Update updates one post.
-func (s orgPostService) Update(context.Context, orgcap.PostUpdateInput) error {
-	return unsupportedDynamicMethodError(orgcap.CapabilityOrgV1)
+func (s orgPostService) Update(_ context.Context, input orgcap.PostUpdateInput) error {
+	return s.callJSONRequest(protocol.HostServiceOrg, protocol.HostServiceMethodOrgPostUpdate, input, nil)
 }
 
 // Delete deletes one post.
-func (s orgPostService) Delete(context.Context, int) error {
-	return unsupportedDynamicMethodError(orgcap.CapabilityOrgV1)
+func (s orgPostService) Delete(_ context.Context, postID int) error {
+	return s.callJSONRequest(protocol.HostServiceOrg, protocol.HostServiceMethodOrgPostDelete, orgPostIDRequest{PostID: postID}, nil)
 }
 
 // ReplaceByUser rewrites one user's department and post associations.
-func (s orgAssignmentService) ReplaceByUser(context.Context, int, *int, []int) error {
-	return unsupportedDynamicMethodError(orgcap.CapabilityOrgV1)
+func (s orgAssignmentService) ReplaceByUser(_ context.Context, userID int, deptID *int, postIDs []int) error {
+	return s.callJSONRequest(protocol.HostServiceOrg, protocol.HostServiceMethodOrgAssignmentReplaceByUser, orgAssignmentReplaceByUserRequest{
+		UserID:  userID,
+		DeptID:  deptID,
+		PostIDs: append([]int(nil), postIDs...),
+	}, nil)
 }
 
 // CleanupByUser deletes one user's optional organization associations.
-func (s orgAssignmentService) CleanupByUser(context.Context, int) error {
-	return unsupportedDynamicMethodError(orgcap.CapabilityOrgV1)
+func (s orgAssignmentService) CleanupByUser(_ context.Context, userID int) error {
+	return s.callJSONRequest(protocol.HostServiceOrg, protocol.HostServiceMethodOrgAssignmentCleanupByUser, intUserIDRequest{UserID: userID}, nil)
 }
 
 // intUserIDsRequest carries multiple integer user identifiers.
@@ -320,6 +328,20 @@ type intDeptIDsRequest struct {
 // intPostIDsRequest carries post identifiers.
 type intPostIDsRequest struct {
 	// PostIDs are the post identifiers.
+	PostIDs []int `json:"postIds"`
+}
+
+type orgDeptIDRequest struct {
+	DeptID int `json:"deptId"`
+}
+
+type orgPostIDRequest struct {
+	PostID int `json:"postId"`
+}
+
+type orgAssignmentReplaceByUserRequest struct {
+	UserID  int   `json:"userId"`
+	DeptID  *int  `json:"deptId,omitempty"`
 	PostIDs []int `json:"postIds"`
 }
 

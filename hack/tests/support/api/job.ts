@@ -54,6 +54,8 @@ export type JobDetail = {
   seedVersion?: number;
   groupCode: string;
   groupName: string;
+  createdAt?: number;
+  updatedAt?: number;
 };
 
 export type LogDetail = {
@@ -119,7 +121,9 @@ function flattenMenus(list: MenuNode[]): MenuNode[] {
 function menuTreeHasPermission(node: MenuNode, permission: string): boolean {
   return (
     node.perms === permission ||
-    Boolean(node.children?.some((child) => menuTreeHasPermission(child, permission)))
+    Boolean(
+      node.children?.some((child) => menuTreeHasPermission(child, permission)),
+    )
   );
 }
 
@@ -401,7 +405,8 @@ export async function ensurePluginBuiltinJobEnabled(
       async () => {
         const result = await listAllJobs(api);
         const builtinJob = result.list.find(
-          (item) => item.handlerRef === options.handlerRef && item.isBuiltin === 1,
+          (item) =>
+            item.handlerRef === options.handlerRef && item.isBuiltin === 1,
         );
         jobId = builtinJob?.id ?? 0;
         return builtinJob

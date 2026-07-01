@@ -335,9 +335,6 @@ func capabilityContractDirForHostService(root string, service string) string {
 		HostServiceData,
 		HostServiceCache,
 		HostServiceLock,
-		HostServiceSecret,
-		HostServiceEvent,
-		HostServiceQueue,
 		HostServiceHostConfig,
 		HostServiceManifest:
 		return ""

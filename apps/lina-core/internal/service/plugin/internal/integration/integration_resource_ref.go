@@ -586,12 +586,6 @@ func mapHostServiceResourceKind(service string) plugintypes.ResourceKind {
 		return plugintypes.ResourceKindHostCache
 	case protocol.HostServiceLock:
 		return plugintypes.ResourceKindHostLock
-	case protocol.HostServiceSecret:
-		return plugintypes.ResourceKindHostSecret
-	case protocol.HostServiceEvent:
-		return plugintypes.ResourceKindHostEventTopic
-	case protocol.HostServiceQueue:
-		return plugintypes.ResourceKindHostQueue
 	case protocol.HostServiceNotifications:
 		return plugintypes.ResourceKindHostNotify
 	default:

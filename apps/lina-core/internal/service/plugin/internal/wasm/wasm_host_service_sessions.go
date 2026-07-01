@@ -63,6 +63,20 @@ func dispatchSessionsHostService(
 		}
 		err := service.EnsureVisible(ctx, sessionIDs(request.IDs))
 		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodSessionsRevoke:
+		var request sessionIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Revoke(ctx, sessioncap.SessionID(strings.TrimSpace(request.SessionID)))
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodSessionsRevokeMany:
+		var request idsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.RevokeMany(ctx, sessionIDs(request.IDs))
+		return domainCapabilityResult(true, err)
 	default:
 		return domainMethodNotFound("sessions", method)
 	}
@@ -88,6 +102,10 @@ type sessionListRequest struct {
 // sessionUserOnlineStatusRequest carries bounded user online status parameters.
 type sessionUserOnlineStatusRequest struct {
 	UserIDs []string `json:"userIds"`
+}
+
+type sessionIDRequest struct {
+	SessionID string `json:"sessionId"`
 }
 
 // sessionIDs converts transport string identifiers into typed session IDs.

@@ -91,9 +91,12 @@ func (s authzService) IsPlatformAdmin(_ context.Context, userID authz.UserID) (b
 	return out, err
 }
 
-// ReplaceRolePermissions is not published as a dynamic authz host-service method.
-func (s authzService) ReplaceRolePermissions(context.Context, authz.RoleID, []authz.PermissionKey) error {
-	return unsupportedDynamicMethodError("auth.authz.role_permissions.replace")
+// ReplaceRolePermissions replaces one role's visible permission assignments.
+func (s authzService) ReplaceRolePermissions(_ context.Context, roleID authz.RoleID, keys []authz.PermissionKey) error {
+	return s.callJSONRequest(protocol.HostServiceAuth, protocol.HostServiceMethodAuthzReplaceRolePermissions, authzReplaceRolePermissionsRequest{
+		RoleID: string(roleID),
+		Keys:   permissionKeysToStrings(keys),
+	}, nil)
 }
 
 // keyRequest carries one string key for JSON capability methods.
@@ -104,6 +107,11 @@ type keyRequest struct {
 // userIDRequest carries one user identifier for JSON capability methods.
 type userIDRequest struct {
 	UserID string `json:"userId"`
+}
+
+type authzReplaceRolePermissionsRequest struct {
+	RoleID string   `json:"roleId"`
+	Keys   []string `json:"keys"`
 }
 
 // permissionKeysToStrings converts permission keys to transport strings.

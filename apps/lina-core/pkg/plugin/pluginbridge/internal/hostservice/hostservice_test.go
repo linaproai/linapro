@@ -127,17 +127,16 @@ func TestValidateHostServiceSpecsRejectsStandaloneAuthz(t *testing.T) {
 	}
 }
 
-// TestValidateHostServiceSpecsRejectsReservedServices verifies future host
-// services remain catalog-documented only until a dedicated OpenSpec publishes
-// their runtime contract.
-func TestValidateHostServiceSpecsRejectsReservedServices(t *testing.T) {
+// TestValidateHostServiceSpecsRejectsRemovedServices verifies removed future
+// placeholders are treated as unknown dynamic host services.
+func TestValidateHostServiceSpecsRejectsRemovedServices(t *testing.T) {
 	for _, tc := range []struct {
 		service string
 		method  string
 	}{
-		{service: HostServiceSecret, method: "resolve"},
-		{service: HostServiceEvent, method: "publish"},
-		{service: HostServiceQueue, method: "enqueue"},
+		{service: "secret", method: "resolve"},
+		{service: "event", method: "publish"},
+		{service: "queue", method: "enqueue"},
 	} {
 		tc := tc
 		t.Run(tc.service, func(t *testing.T) {
@@ -149,24 +148,24 @@ func TestValidateHostServiceSpecsRejectsReservedServices(t *testing.T) {
 				}},
 			}})
 			if err == nil {
-				t.Fatalf("expected reserved host service %s.%s to be rejected", tc.service, tc.method)
+				t.Fatalf("expected removed host service %s.%s to be rejected", tc.service, tc.method)
 			}
 		})
 	}
 }
 
-// TestValidateCapabilitiesRejectsReservedCapabilities verifies reserved future
+// TestValidateCapabilitiesRejectsRemovedCapabilities verifies removed future
 // host-service capabilities are not treated as current dynamic-plugin grants.
-func TestValidateCapabilitiesRejectsReservedCapabilities(t *testing.T) {
+func TestValidateCapabilitiesRejectsRemovedCapabilities(t *testing.T) {
 	for _, capability := range []string{
-		CapabilitySecret,
-		CapabilityEventPublish,
-		CapabilityQueueEnqueue,
+		"host:secret",
+		"host:event:publish",
+		"host:queue:enqueue",
 	} {
 		capability := capability
 		t.Run(capability, func(t *testing.T) {
 			if err := ValidateCapabilities([]string{capability}); err == nil {
-				t.Fatalf("expected reserved capability %s to be rejected", capability)
+				t.Fatalf("expected removed capability %s to be rejected", capability)
 			}
 		})
 	}

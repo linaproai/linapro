@@ -56,29 +56,34 @@ func (s jobsService) EnsureVisible(_ context.Context, ids []jobcap.JobID) error 
 	return s.callJSONRequest(protocol.HostServiceJobs, protocol.HostServiceMethodJobsEnsureVisible, idsRequest{IDs: jobIDsToStrings(ids)}, nil)
 }
 
-// Create is not published as a dynamic jobs host-service method.
-func (s jobsService) Create(context.Context, jobcap.SaveInput) (jobcap.JobID, error) {
-	return "", unsupportedDynamicMethodError("jobs.create")
+// Create creates one governed scheduled job.
+func (s jobsService) Create(_ context.Context, input jobcap.SaveInput) (jobcap.JobID, error) {
+	var out jobcap.JobID
+	err := s.callJSONRequest(protocol.HostServiceJobs, protocol.HostServiceMethodJobsCreate, input, &out)
+	return out, err
 }
 
-// Update is not published as a dynamic jobs host-service method.
-func (s jobsService) Update(context.Context, jobcap.UpdateInput) error {
-	return unsupportedDynamicMethodError("jobs.update")
+// Update mutates one visible scheduled job.
+func (s jobsService) Update(_ context.Context, input jobcap.UpdateInput) error {
+	return s.callJSONRequest(protocol.HostServiceJobs, protocol.HostServiceMethodJobsUpdate, input, nil)
 }
 
-// Delete is not published as a dynamic jobs host-service method.
-func (s jobsService) Delete(context.Context, jobcap.JobID) error {
-	return unsupportedDynamicMethodError("jobs.delete")
+// Delete deletes one visible scheduled job.
+func (s jobsService) Delete(_ context.Context, id jobcap.JobID) error {
+	return s.callJSONRequest(protocol.HostServiceJobs, protocol.HostServiceMethodJobsDelete, jobIDRequest{JobID: string(id)}, nil)
 }
 
-// Run is not published as a dynamic jobs host-service method.
-func (s jobsService) Run(context.Context, jobcap.JobID) error {
-	return unsupportedDynamicMethodError("jobs.run")
+// Run triggers one visible scheduled job.
+func (s jobsService) Run(_ context.Context, id jobcap.JobID) error {
+	return s.callJSONRequest(protocol.HostServiceJobs, protocol.HostServiceMethodJobsRun, jobIDRequest{JobID: string(id)}, nil)
 }
 
-// SetStatus is not published as a dynamic jobs host-service method.
-func (s jobsService) SetStatus(context.Context, jobcap.JobID, jobv1.Status) error {
-	return unsupportedDynamicMethodError("jobs.set_status")
+// SetStatus changes one visible scheduled-job lifecycle status.
+func (s jobsService) SetStatus(_ context.Context, id jobcap.JobID, status jobv1.Status) error {
+	return s.callJSONRequest(protocol.HostServiceJobs, protocol.HostServiceMethodJobsSetStatus, jobsSetStatusRequest{
+		JobID:  string(id),
+		Status: string(status),
+	}, nil)
 }
 
 // jobIDsToStrings converts scheduled-job IDs to transport strings.
@@ -97,6 +102,15 @@ type jobsListRequest struct {
 	Status   string `json:"status,omitempty"`
 	PageNum  int    `json:"pageNum,omitempty"`
 	PageSize int    `json:"pageSize,omitempty"`
+}
+
+type jobIDRequest struct {
+	JobID string `json:"jobId"`
+}
+
+type jobsSetStatusRequest struct {
+	JobID  string `json:"jobId"`
+	Status string `json:"status"`
 }
 
 var _ jobcap.Service = (*jobsService)(nil)

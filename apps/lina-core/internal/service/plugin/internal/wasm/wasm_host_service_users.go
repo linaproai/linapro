@@ -92,6 +92,52 @@ func dispatchUsersHostService(
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		return capabilityJSONResponse(true)
+	case bridgehostservice.HostServiceMethodUsersCreate:
+		var request usercap.CreateInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.Create(ctx, request)
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodUsersUpdate:
+		var request usercap.UpdateInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Update(ctx, request)
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodUsersDelete:
+		var request userIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Delete(ctx, usercap.UserID(strings.TrimSpace(request.UserID)))
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodUsersSetStatus:
+		var request usersSetStatusRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.SetStatus(ctx, usercap.UserID(strings.TrimSpace(request.UserID)), statusflag.Enabled(request.Status))
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodUsersResetPassword:
+		var request usersResetPasswordRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.ResetPassword(ctx, usercap.UserID(strings.TrimSpace(request.UserID)), request.Password)
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodUsersReplaceRoles:
+		var request usersReplaceRolesRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		assignment := service.Assignment()
+		if assignment == nil {
+			return domainServiceNotScoped("users.assignment")
+		}
+		err := assignment.ReplaceRoles(ctx, usercap.UserID(strings.TrimSpace(request.UserID)), append([]int(nil), request.RoleIDs...))
+		return domainCapabilityResult(true, err)
 	default:
 		return bridgehostcall.NewHostCallErrorResponse(
 			bridgehostcall.HostCallStatusNotFound,
@@ -121,6 +167,21 @@ type usersListRequest struct {
 
 type usersEnsureVisibleRequest struct {
 	UserIDs []string `json:"userIds"`
+}
+
+type usersSetStatusRequest struct {
+	UserID string `json:"userId"`
+	Status int    `json:"status"`
+}
+
+type usersResetPasswordRequest struct {
+	UserID   string `json:"userId"`
+	Password string `json:"password"`
+}
+
+type usersReplaceRolesRequest struct {
+	UserID  string `json:"userId"`
+	RoleIDs []int  `json:"roleIds"`
 }
 
 func decodeUsersHostServiceRequest[T any](payload []byte) (*T, error) {

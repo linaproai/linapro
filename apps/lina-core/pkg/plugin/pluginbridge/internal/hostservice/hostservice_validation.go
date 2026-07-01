@@ -295,7 +295,7 @@ func hostServiceResourceKindForMethods(service string, methods []string) hostSer
 	for _, rawMethod := range methods {
 		method := normalizeHostServiceMethod(rawMethod)
 		switch methodResources[method] {
-		case hostServiceResourceRef, hostServiceResourceReserved:
+		case hostServiceResourceRef:
 			requiresResource = true
 		case hostServiceResourceNone, "":
 		default:

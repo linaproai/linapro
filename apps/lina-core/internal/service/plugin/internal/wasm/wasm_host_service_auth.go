@@ -24,7 +24,8 @@ func dispatchAuthHostService(
 	case bridgehostservice.HostServiceMethodAuthzBatchGetPermissions,
 		bridgehostservice.HostServiceMethodAuthzBatchHasPermissions,
 		bridgehostservice.HostServiceMethodAuthzHasPermission,
-		bridgehostservice.HostServiceMethodAuthzIsPlatformAdmin:
+		bridgehostservice.HostServiceMethodAuthzIsPlatformAdmin,
+		bridgehostservice.HostServiceMethodAuthzReplaceRolePermissions:
 		return dispatchAuthAuthorizationMethods(ctx, hcc, method, payload)
 	}
 
@@ -107,6 +108,13 @@ func dispatchAuthAuthorizationMethods(
 		}
 		result, err := service.IsPlatformAdmin(ctx, authz.UserID(request.UserID))
 		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodAuthzReplaceRolePermissions:
+		var request authzReplaceRolePermissionsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.ReplaceRolePermissions(ctx, authz.RoleID(strings.TrimSpace(request.RoleID)), permissionKeys(request.Keys))
+		return domainCapabilityResult(true, err)
 	default:
 		return domainMethodNotFound("auth", method)
 	}
@@ -129,6 +137,11 @@ type keyRequest struct {
 // userIDRequest carries one user identifier.
 type userIDRequest struct {
 	UserID string `json:"userId"`
+}
+
+type authzReplaceRolePermissionsRequest struct {
+	RoleID string   `json:"roleId"`
+	Keys   []string `json:"keys"`
 }
 
 // permissionKeys converts transport string identifiers into typed permission keys.

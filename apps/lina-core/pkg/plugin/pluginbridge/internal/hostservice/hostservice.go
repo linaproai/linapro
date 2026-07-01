@@ -20,12 +20,6 @@ const (
 	CapabilityCache = "host:cache"
 	// CapabilityLock grants access to governed lock host services.
 	CapabilityLock = "host:lock"
-	// CapabilitySecret grants access to governed secret resolution services.
-	CapabilitySecret = "host:secret"
-	// CapabilityEventPublish grants access to governed event publishing.
-	CapabilityEventPublish = "host:event:publish"
-	// CapabilityQueueEnqueue grants access to governed queue submission.
-	CapabilityQueueEnqueue = "host:queue:enqueue"
 	// CapabilityHostConfig grants access to authorized host config keys.
 	CapabilityHostConfig = "host:hostconfig"
 	// CapabilityManifest grants access to plugin-scoped manifest resources.
@@ -93,12 +87,6 @@ const (
 	HostServiceCache = "cache"
 	// HostServiceLock is the lock host service identifier.
 	HostServiceLock = "lock"
-	// HostServiceSecret is the secret host service identifier.
-	HostServiceSecret = "secret"
-	// HostServiceEvent is the event host service identifier.
-	HostServiceEvent = "event"
-	// HostServiceQueue is the queue host service identifier.
-	HostServiceQueue = "queue"
 	// HostServiceHostConfig is the host config service identifier.
 	HostServiceHostConfig = "hostconfig"
 	// HostServiceManifest is the plugin-scoped manifest resource service identifier.
@@ -242,10 +230,16 @@ const (
 	HostServiceMethodLockRelease = "release"
 )
 
-// HostConfig host-service methods describe authorized host config reads.
+// HostConfig host-service methods describe authorized host config and sys_config operations.
 const (
 	// HostServiceMethodHostConfigGet reads one authorized host config value.
 	HostServiceMethodHostConfigGet = "get"
+	// HostServiceMethodHostConfigSysConfigGet reads one authorized sys_config value.
+	HostServiceMethodHostConfigSysConfigGet = "sys_config.get"
+	// HostServiceMethodHostConfigSysConfigSetValue updates one authorized sys_config value.
+	HostServiceMethodHostConfigSysConfigSetValue = "sys_config.value.set"
+	// HostServiceMethodHostConfigSysConfigReset resets one authorized sys_config value.
+	HostServiceMethodHostConfigSysConfigReset = "sys_config.reset"
 )
 
 // Manifest host-service methods describe plugin-scoped manifest resource reads.
@@ -287,6 +281,8 @@ const (
 	HostServiceMethodAuthzHasPermission = "authz.permissions.has"
 	// HostServiceMethodAuthzIsPlatformAdmin checks whether one user has platform-admin scope.
 	HostServiceMethodAuthzIsPlatformAdmin = "authz.users.platform_admin.check"
+	// HostServiceMethodAuthzReplaceRolePermissions replaces one visible role's permissions.
+	HostServiceMethodAuthzReplaceRolePermissions = "authz.role_permissions.replace"
 )
 
 // Users host-service methods describe the ordinary user-domain capability
@@ -302,6 +298,18 @@ const (
 	HostServiceMethodUsersList = "users.list"
 	// HostServiceMethodUsersEnsureVisible validates that all requested users are visible.
 	HostServiceMethodUsersEnsureVisible = "users.visible.ensure"
+	// HostServiceMethodUsersCreate creates one governed user.
+	HostServiceMethodUsersCreate = "users.create"
+	// HostServiceMethodUsersUpdate updates one visible user.
+	HostServiceMethodUsersUpdate = "users.update"
+	// HostServiceMethodUsersDelete deletes one visible user.
+	HostServiceMethodUsersDelete = "users.delete"
+	// HostServiceMethodUsersSetStatus changes one visible user's lifecycle status.
+	HostServiceMethodUsersSetStatus = "users.status.set"
+	// HostServiceMethodUsersResetPassword resets one visible user's password.
+	HostServiceMethodUsersResetPassword = "users.password.reset"
+	// HostServiceMethodUsersReplaceRoles replaces one visible user's role assignments.
+	HostServiceMethodUsersReplaceRoles = "users.assignment.roles.replace"
 )
 
 // Business-context host-service methods describe current request projections.
@@ -310,17 +318,49 @@ const (
 	HostServiceMethodBizCtxCurrent = "current.get"
 )
 
-// Dictionary host-service methods describe ordinary dictionary reads.
+// Dictionary host-service methods describe ordinary dictionary reads and writes.
 const (
+	// HostServiceMethodDictRefresh refreshes one governed dictionary type cache.
+	HostServiceMethodDictRefresh = "dict.refresh"
+	// HostServiceMethodDictTypeGet reads one visible dictionary type.
+	HostServiceMethodDictTypeGet = "dict.type.get"
+	// HostServiceMethodDictTypeBatchGet reads visible dictionary types.
+	HostServiceMethodDictTypeBatchGet = "dict.type.batch_get"
+	// HostServiceMethodDictTypeList lists visible dictionary types.
+	HostServiceMethodDictTypeList = "dict.type.list"
+	// HostServiceMethodDictTypeEnsureVisible validates visible dictionary type IDs.
+	HostServiceMethodDictTypeEnsureVisible = "dict.type.visible.ensure"
+	// HostServiceMethodDictTypeEnsureKeysVisible validates visible dictionary type keys.
+	HostServiceMethodDictTypeEnsureKeysVisible = "dict.type.keys.visible.ensure"
+	// HostServiceMethodDictTypeCreate creates one dictionary type.
+	HostServiceMethodDictTypeCreate = "dict.type.create"
+	// HostServiceMethodDictTypeUpdate updates one dictionary type.
+	HostServiceMethodDictTypeUpdate = "dict.type.update"
+	// HostServiceMethodDictTypeDelete deletes one dictionary type.
+	HostServiceMethodDictTypeDelete = "dict.type.delete"
+	// HostServiceMethodDictValueGet reads one visible dictionary value row.
+	HostServiceMethodDictValueGet = "dict.value.get"
+	// HostServiceMethodDictValueBatchGet reads visible dictionary values by type and value.
+	HostServiceMethodDictValueBatchGet = "dict.value.batch_get"
 	// HostServiceMethodDictValueResolveLabels resolves dictionary labels for requested values.
 	HostServiceMethodDictValueResolveLabels = "dict.value.labels.resolve"
 	// HostServiceMethodDictListValues lists visible dictionary value candidates.
 	HostServiceMethodDictListValues = "dict.value.list"
+	// HostServiceMethodDictValueEnsureVisible validates visible dictionary value row IDs.
+	HostServiceMethodDictValueEnsureVisible = "dict.value.visible.ensure"
 	// HostServiceMethodDictValueEnsureValuesVisible validates visible dictionary values.
 	HostServiceMethodDictValueEnsureValuesVisible = "dict.value.values.visible.ensure"
+	// HostServiceMethodDictValueCreate creates one dictionary value.
+	HostServiceMethodDictValueCreate = "dict.value.create"
+	// HostServiceMethodDictValueUpdate updates one dictionary value.
+	HostServiceMethodDictValueUpdate = "dict.value.update"
+	// HostServiceMethodDictValueDelete deletes one dictionary value.
+	HostServiceMethodDictValueDelete = "dict.value.delete"
+	// HostServiceMethodDictValueDeleteByType deletes values under one dictionary type.
+	HostServiceMethodDictValueDeleteByType = "dict.value.by_type.delete"
 )
 
-// Files host-service methods describe ordinary file-domain reads and checks.
+// Files host-service methods describe ordinary file-domain reads, writes, and checks.
 const (
 	// HostServiceMethodFilesBatchGet reads visible file projections in batch.
 	HostServiceMethodFilesBatchGet = "files.batch_get"
@@ -332,6 +372,12 @@ const (
 	HostServiceMethodFilesUpload = "files.upload"
 	// HostServiceMethodFilesCreateFromStorage creates one host file-center record from plugin storage.
 	HostServiceMethodFilesCreateFromStorage = "files.create_from_storage"
+	// HostServiceMethodFilesUpdateMetadata updates visible file metadata.
+	HostServiceMethodFilesUpdateMetadata = "files.metadata.update"
+	// HostServiceMethodFilesDelete deletes one visible file.
+	HostServiceMethodFilesDelete = "files.delete"
+	// HostServiceMethodFilesDeleteMany deletes visible files.
+	HostServiceMethodFilesDeleteMany = "files.delete_many"
 )
 
 // Jobs host-service methods describe ordinary scheduled-job reads and
@@ -343,6 +389,16 @@ const (
 	HostServiceMethodJobsList = "jobs.list"
 	// HostServiceMethodJobsEnsureVisible validates that requested jobs are visible.
 	HostServiceMethodJobsEnsureVisible = "jobs.visible.ensure"
+	// HostServiceMethodJobsCreate creates one governed scheduled job.
+	HostServiceMethodJobsCreate = "jobs.create"
+	// HostServiceMethodJobsUpdate updates one visible scheduled job.
+	HostServiceMethodJobsUpdate = "jobs.update"
+	// HostServiceMethodJobsDelete deletes one visible scheduled job.
+	HostServiceMethodJobsDelete = "jobs.delete"
+	// HostServiceMethodJobsRun triggers one visible scheduled job.
+	HostServiceMethodJobsRun = "jobs.run"
+	// HostServiceMethodJobsSetStatus changes one visible scheduled-job status.
+	HostServiceMethodJobsSetStatus = "jobs.status.set"
 	// HostServiceMethodJobsRegister registers one dynamic-plugin job declaration during discovery.
 	HostServiceMethodJobsRegister = "jobs.register"
 )
@@ -415,6 +471,10 @@ const (
 	HostServiceMethodSessionsBatchGetUserOnlineStatus = "sessions.users.online.batch_get"
 	// HostServiceMethodSessionsEnsureVisible validates that requested sessions are visible.
 	HostServiceMethodSessionsEnsureVisible = "sessions.visible.ensure"
+	// HostServiceMethodSessionsRevoke revokes one visible online session.
+	HostServiceMethodSessionsRevoke = "sessions.revoke"
+	// HostServiceMethodSessionsRevokeMany revokes visible online sessions.
+	HostServiceMethodSessionsRevokeMany = "sessions.revoke_many"
 )
 
 // Organization host-service methods describe the ordinary organization
@@ -441,6 +501,22 @@ const (
 	HostServiceMethodOrgEnsureDepartmentsVisible = "org.department.visible.ensure_many"
 	// HostServiceMethodOrgEnsurePostsVisible validates post visibility.
 	HostServiceMethodOrgEnsurePostsVisible = "org.post.visible.ensure_many"
+	// HostServiceMethodOrgDepartmentCreate creates one visible-governed department.
+	HostServiceMethodOrgDepartmentCreate = "org.department.create"
+	// HostServiceMethodOrgDepartmentUpdate updates one visible department.
+	HostServiceMethodOrgDepartmentUpdate = "org.department.update"
+	// HostServiceMethodOrgDepartmentDelete deletes one visible department.
+	HostServiceMethodOrgDepartmentDelete = "org.department.delete"
+	// HostServiceMethodOrgPostCreate creates one visible-governed post.
+	HostServiceMethodOrgPostCreate = "org.post.create"
+	// HostServiceMethodOrgPostUpdate updates one visible post.
+	HostServiceMethodOrgPostUpdate = "org.post.update"
+	// HostServiceMethodOrgPostDelete deletes one visible post.
+	HostServiceMethodOrgPostDelete = "org.post.delete"
+	// HostServiceMethodOrgAssignmentReplaceByUser rewrites one visible user's organization associations.
+	HostServiceMethodOrgAssignmentReplaceByUser = "org.assignment.by_user.replace"
+	// HostServiceMethodOrgAssignmentCleanupByUser removes one visible user's organization associations.
+	HostServiceMethodOrgAssignmentCleanupByUser = "org.assignment.by_user.cleanup"
 )
 
 // Tenant host-service methods describe the ordinary tenant capability surface
