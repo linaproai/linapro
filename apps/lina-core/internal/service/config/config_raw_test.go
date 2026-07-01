@@ -7,15 +7,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	_ "lina-core/pkg/dbdriver"
-
-	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gcfg"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -111,18 +111,11 @@ func TestGetRawReloadsCustomSysConfigAfterRevisionChange(t *testing.T) {
 // TestGetRawFallsBackToStaticConfigWhenSysConfigMissing verifies static host
 // configuration remains available when no sys_config row exists.
 func TestGetRawFallsBackToStaticConfigWhenSysConfigMissing(t *testing.T) {
-	adapter, err := gcfg.NewAdapterContent(`
+	withCachedRuntimeParamSnapshot(t, &runtimeParamSnapshot{})
+	setTestServerConfigAdapter(t, `
 workspace:
   basePath: "/ops"
 `)
-	if err != nil {
-		t.Fatalf("create static config adapter: %v", err)
-	}
-	originalAdapter := g.Cfg().GetAdapter()
-	g.Cfg().SetAdapter(adapter)
-	t.Cleanup(func() {
-		g.Cfg().SetAdapter(originalAdapter)
-	})
 
 	value, err := New().(*serviceImpl).GetRaw(context.Background(), "workspace.basePath")
 	if err != nil {
@@ -131,6 +124,217 @@ workspace:
 	if value == nil || value.String() != "/ops" {
 		t.Fatalf("expected static workspace.basePath /ops, got %#v", value)
 	}
+}
+
+// TestGetRawPrefersSysConfigOverStaticConfigAndDefault verifies the first
+// source in the generic HostConfig pipeline wins for any non-root key.
+func TestGetRawPrefersSysConfigOverStaticConfigAndDefault(t *testing.T) {
+	withCachedRuntimeParamSnapshot(t, &runtimeParamSnapshot{
+		values: map[string]string{"workspace.basePath": "/runtime"},
+	})
+	setTestServerConfigAdapter(t, `
+workspace:
+  basePath: "/ops"
+`)
+
+	value, err := New().(*serviceImpl).GetRaw(context.Background(), "workspace.basePath")
+	if err != nil {
+		t.Fatalf("get raw host config value: %v", err)
+	}
+	if value == nil || value.String() != "/runtime" {
+		t.Fatalf("expected sys_config value /runtime, got %#v", value)
+	}
+}
+
+// TestGetRawFallsBackToHostDefaultWhenDynamicAndStaticMissing verifies raw
+// HostConfig uses centralized default metadata after runtime and static misses.
+func TestGetRawFallsBackToHostDefaultWhenDynamicAndStaticMissing(t *testing.T) {
+	withCachedRuntimeParamSnapshot(t, &runtimeParamSnapshot{})
+	setTestServerConfigAdapter(t, ``)
+
+	value, err := New().(*serviceImpl).GetRaw(context.Background(), "workspace.basePath")
+	if err != nil {
+		t.Fatalf("get default host config value: %v", err)
+	}
+	if value == nil || value.String() != defaultWorkspaceBasePath {
+		t.Fatalf("expected workspace default %q, got %#v", defaultWorkspaceBasePath, value)
+	}
+}
+
+// TestGetRawReturnsNilWhenEverySourceMisses verifies unknown host config keys
+// remain absent after the runtime, static, and default sources all miss.
+func TestGetRawReturnsNilWhenEverySourceMisses(t *testing.T) {
+	withCachedRuntimeParamSnapshot(t, &runtimeParamSnapshot{})
+	setTestServerConfigAdapter(t, ``)
+
+	value, err := New().(*serviceImpl).GetRaw(context.Background(), "custom.missing.key")
+	if err != nil {
+		t.Fatalf("get missing host config value: %v", err)
+	}
+	if value != nil && !value.IsNil() {
+		t.Fatalf("expected missing host config key to return nil, got %#v", value)
+	}
+}
+
+// TestGetRawKeepsExplicitEmptyStaticValue verifies raw reads treat an explicit
+// empty static config value as present instead of falling through by IsEmpty.
+func TestGetRawKeepsExplicitEmptyStaticValue(t *testing.T) {
+	withCachedRuntimeParamSnapshot(t, &runtimeParamSnapshot{})
+	setTestServerConfigAdapter(t, `
+custom:
+  empty: ""
+`)
+
+	value, err := New().(*serviceImpl).GetRaw(context.Background(), "custom.empty")
+	if err != nil {
+		t.Fatalf("get explicit empty static value: %v", err)
+	}
+	if value == nil || value.IsNil() {
+		t.Fatal("expected explicit empty static value to be present")
+	}
+	if value.String() != "" {
+		t.Fatalf("expected explicit empty static value, got %q", value.String())
+	}
+}
+
+// TestGetRawReturnsFreshnessErrorWithoutFallback verifies runtime snapshot
+// freshness failures are visible and do not fall through to static or defaults.
+func TestGetRawReturnsFreshnessErrorWithoutFallback(t *testing.T) {
+	setTestServerConfigAdapter(t, `
+workspace:
+  basePath: "/ops"
+`)
+	expectedErr := errors.New("runtime snapshot freshness failed")
+	svc := New().(*serviceImpl)
+	svc.runtimeParamRevisionCtrl = &fakeRuntimeParamRevisionController{currentErr: expectedErr}
+
+	value, err := svc.GetRaw(context.Background(), "workspace.basePath")
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected freshness error %v, got value=%#v err=%v", expectedErr, value, err)
+	}
+	if value != nil {
+		t.Fatalf("expected no fallback value on freshness error, got %#v", value)
+	}
+}
+
+// TestHostConfigDefaultResolverCoversExistingDefaults verifies the centralized
+// metadata aggregates runtime, public frontend, and static host defaults.
+func TestHostConfigDefaultResolverCoversExistingDefaults(t *testing.T) {
+	testCases := []struct {
+		key  string
+		want any
+	}{
+		{key: RuntimeParamKeyJWTExpire, want: "24h"},
+		{key: PublicFrontendSettingKeyAppName, want: "LinaPro.AI"},
+		{key: "workspace.basePath", want: defaultWorkspaceBasePath},
+		{key: "logger.stdout", want: true},
+		{key: "plugin.dynamic.storagePath", want: defaultPluginDynamicStoragePath},
+		{key: "server.extensions.apiDocPath", want: defaultServerApiDocPath},
+	}
+
+	for _, testCase := range testCases {
+		value, ok := lookupHostConfigDefaultValue(testCase.key)
+		if !ok {
+			t.Fatalf("expected host config default for %s", testCase.key)
+		}
+		if fmt.Sprint(value) != fmt.Sprint(testCase.want) {
+			t.Fatalf("expected default %s=%v, got %v", testCase.key, testCase.want, value)
+		}
+	}
+}
+
+// TestHostConfigDefaultSpecsCopyDetached verifies tests and callers cannot
+// mutate the shared static default metadata slice.
+func TestHostConfigDefaultSpecsCopyDetached(t *testing.T) {
+	specs := hostConfigDefaultSpecsCopy()
+	if len(specs) == 0 {
+		t.Fatal("expected static host config default specs")
+	}
+	original := staticHostConfigDefaultSpecs[0].Value
+	specs[0].Value = "mutated"
+	if staticHostConfigDefaultSpecs[0].Value != original {
+		t.Fatal("expected hostConfigDefaultSpecsCopy to return a detached copy")
+	}
+}
+
+// TestGetRawUsesGenericDefaultResolver verifies future defaults do not require
+// adding key-specific branches inside the raw HostConfig read method.
+func TestGetRawUsesGenericDefaultResolver(t *testing.T) {
+	fileSet := token.NewFileSet()
+	fileNode, err := parser.ParseFile(fileSet, "config_raw.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse config_raw.go: %v", err)
+	}
+
+	var getRaw *ast.FuncDecl
+	for _, decl := range fileNode.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if ok && fn.Name.Name == "GetRaw" {
+			getRaw = fn
+			break
+		}
+	}
+	if getRaw == nil || getRaw.Body == nil {
+		t.Fatal("expected GetRaw function body to be present")
+	}
+
+	var foundDefaultResolver bool
+	ast.Inspect(getRaw.Body, func(node ast.Node) bool {
+		ident, ok := node.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		switch ident.Name {
+		case "IsManagedSysConfigKey", "RuntimeParamKeyLogRetentionDays":
+			t.Fatalf("GetRaw must not branch on %s", ident.Name)
+		case "lookupHostConfigDefaultValue":
+			foundDefaultResolver = true
+		}
+		return true
+	})
+	if !foundDefaultResolver {
+		t.Fatal("expected GetRaw to use the generic host config default resolver")
+	}
+}
+
+// TestRuntimeParamHandlersUseMetadata verifies validation and snapshot parsing
+// dispatch through config metadata instead of hard-coded runtime keys.
+func TestRuntimeParamHandlersUseMetadata(t *testing.T) {
+	fileSet := token.NewFileSet()
+	fileNode, err := parser.ParseFile(fileSet, "config_raw.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse config_raw.go: %v", err)
+	}
+
+	for _, functionName := range []string{"validateRuntimeParamValue", "loadRuntimeParamSnapshot"} {
+		fn := findFunctionDecl(fileNode, functionName)
+		if fn == nil || fn.Body == nil {
+			t.Fatalf("expected %s function body to be present", functionName)
+		}
+
+		ast.Inspect(fn.Body, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.Ident:
+				if strings.HasPrefix(typed.Name, "RuntimeParamKey") {
+					t.Fatalf("%s must not branch on concrete runtime key %s", functionName, typed.Name)
+				}
+			case *ast.SwitchStmt:
+				t.Fatalf("%s must use metadata dispatch instead of switch statements", functionName)
+			}
+			return true
+		})
+	}
+}
+
+// findFunctionDecl returns one function declaration by name from the parsed file.
+func findFunctionDecl(fileNode *ast.File, name string) *ast.FuncDecl {
+	for _, decl := range fileNode.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if ok && fn.Name.Name == name {
+			return fn
+		}
+	}
+	return nil
 }
 
 // uniqueRawConfigKey returns a key that avoids collisions across repeated test runs.
@@ -615,21 +819,8 @@ func withCachedRuntimeParamValue(t *testing.T, key string, value string) {
 		int64Values:    make(map[string]int64),
 		parseErrors:    make(map[string]error),
 	}
-	switch key {
-	case RuntimeParamKeyJWTExpire, RuntimeParamKeySessionTimeout:
-		parsed, err := validatePositiveDurationValue(key, value)
-		if err != nil {
-			snapshot.parseErrors[key] = err
-		} else {
-			snapshot.durationValues[key] = parsed
-		}
-	case RuntimeParamKeyUploadMaxSize, RuntimeParamKeyLogRetentionDays:
-		parsed, err := validatePositiveInt64Value(key, value)
-		if err != nil {
-			snapshot.parseErrors[key] = err
-		} else {
-			snapshot.int64Values[key] = parsed
-		}
+	if spec, ok := lookupRuntimeParamSpec(key); ok && spec.snapshotLoader != nil {
+		spec.snapshotLoader(snapshot, key, value)
 	}
 
 	withCachedRuntimeParamSnapshot(t, snapshot)

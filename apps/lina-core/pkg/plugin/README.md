@@ -29,7 +29,7 @@ Dynamic plugins may use only the concrete methods that are registered in the dyn
 | `BizCtx` | Projects the current business request context. | Used as a read-only runtime context bridge for request user, tenant, locale, and request metadata. |
 | `Dict` | Resolves dictionary value labels, lists bounded value candidates, and validates typed value visibility. | Host validation stays within visible dictionary types and values. |
 | `Files` | Provides host file-center projections, bounded search, visibility enforcement, content reads, governed uploads, and creation from plugin storage into `sys_file`. | Host validation prevents plugins from probing or using file IDs outside their visible boundary. Uploads create host file-center metadata while plugin-private objects remain owned by `Storage()`. |
-| `HostConfig` | Reads static host configuration values and exposes governed `SysConfig()` projections and writes for `sys_config` rows. | Dynamic declarations must list `resources.keys` for `get`; `SysConfig()` writes stay method-governed and source-only unless separately published. This capability is separate from plugin-scoped business config. |
+| `HostConfig` | Reads host configuration values through the host priority chain and exposes governed `SysConfig()` projections and writes for `sys_config` rows. | Dynamic declarations must list `resources.keys` for `get`; `SysConfig()` writes stay method-governed and source-only unless separately published. This capability is separate from plugin-scoped business config. |
 | `I18n` | Reads locale and translates messages for source plugins. | Source plugins receive this through `capability.Services` from `pluginhost` inputs; dynamic plugins do not receive an `i18n` host service because their i18n resources are host-managed. |
 | `Jobs` | Reads scheduled-job metadata, searches bounded job candidates, validates job visibility, and performs governed runtime job actions. | Declaration-time job contracts are submitted through `pluginbridge.Declarations.Jobs().Register(...)`; runtime services do not expose `Register`. |
 | `Notifications` | Lists and reads typed notification message projections, batch-loads messages by business source, validates visibility, deletes messages, updates read state, and sends governed notifications. | Actor-scoped read, delete, and read-state calls do not require resource declarations; `messages.send` requires a `resources[].ref` boundary. |
@@ -93,10 +93,12 @@ Configuration source priority is section-level:
 
 `manifest/config/config.example.yaml` is a template only and is never loaded as
 runtime defaults. `HostConfig()` remains the separate host configuration
-capability; dynamic `hostconfig.get` calls still require `resources.keys`
-authorization in `hostServices`.
+capability; non-root host keys read the current `sys_config` snapshot, active
+static host config, host defaults, then absent `nil`. Dynamic `hostconfig.get`
+calls still require `resources.keys` authorization in `hostServices`.
 Source plugins call `HostConfig().Get(ctx, key, defaultValue)` with an explicit
-default value; pass `nil` to preserve the absent-key nil result.
+default value; pass `nil` to preserve the absent-key `nil` result after the host
+priority chain.
 
 ## Consumer Contracts, Provider SPI, and Guest SDK
 

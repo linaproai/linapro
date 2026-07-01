@@ -27,32 +27,54 @@ import (
 
 // GetRaw returns the raw host configuration value for key. Empty key and "."
 // follow GoFrame semantics and return the full static configuration snapshot.
-// Tenant-visible sys_config keys return their runtime-effective values.
+// Non-root keys use the shared sys_config snapshot before static config and
+// host-owned default metadata.
 func (s *serviceImpl) GetRaw(ctx context.Context, key string) (*gvar.Var, error) {
 	normalizedKey := strings.TrimSpace(key)
-	if normalizedKey == RuntimeParamKeyLogRetentionDays {
-		value, err := s.getRequiredLogRetentionDaysValue(ctx)
-		if err != nil {
-			return nil, err
-		}
+	if normalizedKey == "" || normalizedKey == "." {
+		return readStaticHostConfigValue(ctx, normalizedKey)
+	}
+
+	value, ok, err := s.lookupRuntimeParamValue(ctx, normalizedKey)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
 		return gvar.New(value), nil
 	}
-	if normalizedKey != "" && normalizedKey != "." {
-		value, ok, err := s.lookupRuntimeParamValue(ctx, normalizedKey)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			return gvar.New(value), nil
-		}
+
+	staticValue, ok, err := lookupStaticHostConfigValue(ctx, normalizedKey)
+	if err != nil {
+		return nil, err
 	}
-	if IsManagedSysConfigKey(normalizedKey) {
-		value, err := s.getProtectedConfigValueOrDefault(ctx, normalizedKey)
-		if err != nil {
-			return nil, err
-		}
-		return gvar.New(value), nil
+	if ok {
+		return staticValue, nil
 	}
+
+	defaultValue, ok := lookupHostConfigDefaultValue(normalizedKey)
+	if ok {
+		return gvar.New(defaultValue), nil
+	}
+
+	return nil, nil
+}
+
+// lookupStaticHostConfigValue reads one non-root key from the active GoFrame
+// config source and reports whether the key was explicitly present.
+func lookupStaticHostConfigValue(ctx context.Context, key string) (*gvar.Var, bool, error) {
+	value, err := readStaticHostConfigValue(ctx, key)
+	if err != nil {
+		return nil, false, err
+	}
+	if value == nil || value.IsNil() {
+		return nil, false, nil
+	}
+	return value, true, nil
+}
+
+// readStaticHostConfigValue reads the active GoFrame static config source while
+// preserving its raw value semantics for root and leaf reads.
+func readStaticHostConfigValue(ctx context.Context, key string) (*gvar.Var, error) {
 	value, err := g.Cfg().Get(ctx, key)
 	if err != nil {
 		return nil, gerror.Wrapf(err, "read host config key failed key=%s", key)
@@ -78,42 +100,63 @@ const (
 	RuntimeParamKeyCronLogRetention = "sys.cron.log.retention"
 )
 
+// protectedConfigValidator validates one protected sys_config value.
+type protectedConfigValidator func(key string, value string) error
+
+// runtimeParamSnapshotLoader stores a parsed representation for one sys_config
+// value while rebuilding the immutable runtime snapshot.
+type runtimeParamSnapshotLoader func(snapshot *runtimeParamSnapshot, key string, value string)
+
 // RuntimeParamSpec describes one built-in runtime parameter managed through
 // sys_config.
 type RuntimeParamSpec struct {
-	Key          string // Key is the sys_config key consumed by host runtime paths.
-	DefaultValue string // DefaultValue is the host fallback value.
+	Key            string                     // Key is the sys_config key consumed by host runtime paths.
+	DefaultValue   string                     // DefaultValue is the host fallback value.
+	validator      protectedConfigValidator   // validator owns protected value checks for this key.
+	snapshotLoader runtimeParamSnapshotLoader // snapshotLoader owns optional typed snapshot parsing.
 }
 
 // runtimeParamSpecs lists all built-in runtime parameters backed by sys_config.
 var runtimeParamSpecs = []RuntimeParamSpec{
 	{
-		Key:          RuntimeParamKeyJWTExpire,
-		DefaultValue: "24h",
+		Key:            RuntimeParamKeyJWTExpire,
+		DefaultValue:   "24h",
+		validator:      validatePositiveDurationConfigValue,
+		snapshotLoader: loadRuntimeParamDurationSnapshotValue,
 	},
 	{
-		Key:          RuntimeParamKeySessionTimeout,
-		DefaultValue: "24h",
+		Key:            RuntimeParamKeySessionTimeout,
+		DefaultValue:   "24h",
+		validator:      validatePositiveDurationConfigValue,
+		snapshotLoader: loadRuntimeParamDurationSnapshotValue,
 	},
 	{
-		Key:          RuntimeParamKeyUploadMaxSize,
-		DefaultValue: "100",
+		Key:            RuntimeParamKeyUploadMaxSize,
+		DefaultValue:   "100",
+		validator:      validatePositiveInt64ConfigValue,
+		snapshotLoader: loadRuntimeParamInt64SnapshotValue,
 	},
 	{
-		Key:          RuntimeParamKeyLoginBlackIPList,
-		DefaultValue: "",
+		Key:            RuntimeParamKeyLoginBlackIPList,
+		DefaultValue:   "",
+		validator:      validateIPBlacklistValue,
+		snapshotLoader: loadRuntimeParamLoginBlacklistSnapshotValue,
 	},
 	{
-		Key:          RuntimeParamKeyLogRetentionDays,
-		DefaultValue: "90",
+		Key:            RuntimeParamKeyLogRetentionDays,
+		DefaultValue:   "90",
+		validator:      validatePositiveInt64ConfigValue,
+		snapshotLoader: loadRuntimeParamInt64SnapshotValue,
 	},
 	{
 		Key:          RuntimeParamKeyCronShellEnabled,
 		DefaultValue: "true",
+		validator:    validateStrictBoolConfigValue,
 	},
 	{
 		Key:          RuntimeParamKeyCronLogRetention,
 		DefaultValue: `{"mode":"days","value":30}`,
+		validator:    validateCronLogRetentionValue,
 	},
 }
 
@@ -147,36 +190,22 @@ func isManagedRuntimeParamKey(key string) bool {
 	return ok
 }
 
+// validateConfigSpecValue dispatches validation through the owner metadata for
+// one protected config key.
+func validateConfigSpecValue(spec RuntimeParamSpec, key string, value string) error {
+	if spec.validator == nil {
+		return nil
+	}
+	return spec.validator(key, value)
+}
+
 // validateRuntimeParamValue validates one built-in runtime parameter value.
 func validateRuntimeParamValue(key string, value string) error {
-	switch strings.TrimSpace(key) {
-	case RuntimeParamKeyJWTExpire:
-		_, err := validatePositiveDurationValue(key, value)
-		return err
-
-	case RuntimeParamKeySessionTimeout:
-		_, err := validatePositiveDurationValue(key, value)
-		return err
-
-	case RuntimeParamKeyUploadMaxSize:
-		_, err := validatePositiveInt64Value(key, value)
-		return err
-
-	case RuntimeParamKeyLoginBlackIPList:
-		return validateIPBlacklistValue(key, value)
-
-	case RuntimeParamKeyLogRetentionDays:
-		_, err := validatePositiveInt64Value(key, value)
-		return err
-
-	case RuntimeParamKeyCronShellEnabled:
-		_, err := parseStrictBoolValue(key, value)
-		return err
-
-	case RuntimeParamKeyCronLogRetention:
-		return validateCronLogRetentionValue(key, value)
+	spec, ok := lookupRuntimeParamSpec(key)
+	if !ok {
+		return nil
 	}
-	return nil
+	return validateConfigSpecValue(spec, strings.TrimSpace(key), value)
 }
 
 // lookupRuntimeParamValue reads one sys_config value from the current immutable
@@ -272,6 +301,13 @@ func validatePositiveDurationValue(key string, value string) (time.Duration, err
 	return duration, nil
 }
 
+// validatePositiveDurationConfigValue adapts duration parsing to protected
+// config metadata validation.
+func validatePositiveDurationConfigValue(key string, value string) error {
+	_, err := validatePositiveDurationValue(key, value)
+	return err
+}
+
 // validatePositiveInt64Value validates one positive integer runtime parameter.
 func validatePositiveInt64Value(key string, value string) (int64, error) {
 	trimmed := strings.TrimSpace(value)
@@ -286,6 +322,20 @@ func validatePositiveInt64Value(key string, value string) (int64, error) {
 		return 0, bizerr.NewCode(CodeConfigParamPositiveRequired, bizerr.P("key", key))
 	}
 	return parsed, nil
+}
+
+// validatePositiveInt64ConfigValue adapts integer parsing to protected config
+// metadata validation.
+func validatePositiveInt64ConfigValue(key string, value string) error {
+	_, err := validatePositiveInt64Value(key, value)
+	return err
+}
+
+// validateStrictBoolConfigValue adapts strict boolean parsing to protected
+// config metadata validation.
+func validateStrictBoolConfigValue(key string, value string) error {
+	_, err := parseStrictBoolValue(key, value)
+	return err
 }
 
 // validateIPBlacklistValue validates one semicolon-delimited IP blacklist made
@@ -305,6 +355,44 @@ func validateIPBlacklistValue(key string, value string) error {
 		)
 	}
 	return nil
+}
+
+// loadRuntimeParamDurationSnapshotValue parses one duration runtime parameter
+// into the snapshot's typed duration cache.
+func loadRuntimeParamDurationSnapshotValue(snapshot *runtimeParamSnapshot, key string, value string) {
+	if snapshot == nil || strings.TrimSpace(value) == "" {
+		return
+	}
+	duration, parseErr := validatePositiveDurationValue(key, value)
+	if parseErr != nil {
+		snapshot.parseErrors[key] = parseErr
+		return
+	}
+	snapshot.durationValues[key] = duration
+}
+
+// loadRuntimeParamInt64SnapshotValue parses one integer runtime parameter into
+// the snapshot's typed integer cache.
+func loadRuntimeParamInt64SnapshotValue(snapshot *runtimeParamSnapshot, key string, value string) {
+	if snapshot == nil || strings.TrimSpace(value) == "" {
+		return
+	}
+	parsed, parseErr := validatePositiveInt64Value(key, value)
+	if parseErr != nil {
+		snapshot.parseErrors[key] = parseErr
+		return
+	}
+	snapshot.int64Values[key] = parsed
+}
+
+// loadRuntimeParamLoginBlacklistSnapshotValue pre-parses blacklist rules while
+// rebuilding the snapshot so login requests only parse the caller IP itself.
+func loadRuntimeParamLoginBlacklistSnapshotValue(snapshot *runtimeParamSnapshot, _ string, value string) {
+	if snapshot == nil {
+		return
+	}
+	snapshot.loginBlackIPList = splitSemicolonValues(value)
+	snapshot.loginBlacklistMatcher = newLoginBlacklistMatcher(snapshot.loginBlackIPList)
 }
 
 // Runtime-configuration cache coordination reasons.
@@ -646,9 +734,9 @@ func (s *serviceImpl) loadRuntimeParamSnapshot(ctx context.Context) (*runtimePar
 	effectiveRows := effectiveRuntimeParamRows(rows, tenantID)
 	snapshot := &runtimeParamSnapshot{
 		values:           make(map[string]string, len(effectiveRows)),
-		durationValues:   make(map[string]time.Duration, 2),
-		int64Values:      make(map[string]int64, 2),
-		parseErrors:      make(map[string]error, 3),
+		durationValues:   make(map[string]time.Duration),
+		int64Values:      make(map[string]int64),
+		parseErrors:      make(map[string]error),
 		loginBlackIPList: nil,
 	}
 	for _, row := range effectiveRows {
@@ -658,34 +746,9 @@ func (s *serviceImpl) loadRuntimeParamSnapshot(ctx context.Context) (*runtimePar
 
 		key := strings.TrimSpace(row.Key)
 		snapshot.values[key] = row.Value
-		switch key {
-		case RuntimeParamKeyJWTExpire, RuntimeParamKeySessionTimeout:
-			if strings.TrimSpace(row.Value) == "" {
-				continue
-			}
-			duration, parseErr := validatePositiveDurationValue(key, row.Value)
-			if parseErr != nil {
-				snapshot.parseErrors[key] = parseErr
-				continue
-			}
-			snapshot.durationValues[key] = duration
-
-		case RuntimeParamKeyUploadMaxSize, RuntimeParamKeyLogRetentionDays:
-			if strings.TrimSpace(row.Value) == "" {
-				continue
-			}
-			value, parseErr := validatePositiveInt64Value(key, row.Value)
-			if parseErr != nil {
-				snapshot.parseErrors[key] = parseErr
-				continue
-			}
-			snapshot.int64Values[key] = value
-
-		case RuntimeParamKeyLoginBlackIPList:
-			// Pre-parse blacklist rules once while rebuilding the snapshot so
-			// login requests only need to parse the caller IP itself.
-			snapshot.loginBlackIPList = splitSemicolonValues(row.Value)
-			snapshot.loginBlacklistMatcher = newLoginBlacklistMatcher(snapshot.loginBlackIPList)
+		spec, ok := lookupRuntimeParamSpec(key)
+		if ok && spec.snapshotLoader != nil {
+			spec.snapshotLoader(snapshot, key, row.Value)
 		}
 	}
 

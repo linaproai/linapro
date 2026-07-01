@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/container/gvar"
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gcfg"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -141,6 +143,32 @@ func TestHandleHostServiceInvokeHostConfigReadsAuthorizedCustomSysConfig(t *test
 	}
 }
 
+// TestHandleHostServiceInvokeHostConfigAuthorizedKeyUsesUnifiedPriority
+// verifies authorized dynamic hostConfig reads use the host GetRaw pipeline.
+func TestHandleHostServiceInvokeHostConfigAuthorizedKeyUsesUnifiedPriority(t *testing.T) {
+	ctx := context.Background()
+	suffix := fmt.Sprintf("priority%d", time.Now().UnixNano())
+	key := "custom.dynamic." + suffix
+	setWasmHostConfigAdapter(t, fmt.Sprintf(`
+custom:
+  dynamic:
+    %s: "/static-dynamic"
+`, suffix))
+	insertDynamicHostConfigSysConfig(t, ctx, key, "/runtime-dynamic")
+	if err := hostconfig.New().MarkRuntimeParamsChanged(ctx); err != nil {
+		t.Fatalf("mark runtime params changed: %v", err)
+	}
+	bindTestHostServiceRuntime(t, withTestHostConfigService(
+		hostconfigadapter.NewStaticCapabilityAdapter(hostconfig.New()),
+	))
+
+	response := invokeHostConfigService(t, hostConfigHostCallContext([]string{key}), key)
+	payload := decodeConfigResponse(t, response)
+	if !payload.Found || payload.Value != `"/runtime-dynamic"` {
+		t.Fatalf("expected runtime sys_config value to win, got %#v", payload)
+	}
+}
+
 // TestConfigureHostConfigServiceRejectsNil verifies nil hostConfig injection fails explicitly.
 func TestConfigureHostConfigServiceRejectsNil(t *testing.T) {
 	if _, err := NewRuntime(
@@ -188,6 +216,22 @@ func configureTrackingHostConfigService(t *testing.T, service *trackingHostConfi
 	t.Helper()
 
 	bindTestHostServiceRuntime(t, withTestHostConfigService(service))
+}
+
+// setWasmHostConfigAdapter swaps the GoFrame config adapter for dynamic
+// hostConfig priority tests.
+func setWasmHostConfigAdapter(t *testing.T, content string) {
+	t.Helper()
+
+	adapter, err := gcfg.NewAdapterContent(content)
+	if err != nil {
+		t.Fatalf("create wasm host config adapter: %v", err)
+	}
+	originalAdapter := g.Cfg().GetAdapter()
+	g.Cfg().SetAdapter(adapter)
+	t.Cleanup(func() {
+		g.Cfg().SetAdapter(originalAdapter)
+	})
 }
 
 // insertDynamicHostConfigSysConfig inserts one platform sys_config row for
