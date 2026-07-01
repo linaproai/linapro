@@ -2262,6 +2262,7 @@ func TestPluginCommandSmokeFixtureIncludesLinactlLocalReplaceDeps(t *testing.T) 
 	for _, expected := range []string{
 		`cp apps/lina-core/go.mod "$smoke_root/apps/lina-core/go.mod"`,
 		`cp apps/lina-core/go.sum "$smoke_root/apps/lina-core/go.sum"`,
+		`cp -R apps/lina-core/api "$smoke_root/apps/lina-core/api"`,
 		`cp -R apps/lina-core/pkg "$smoke_root/apps/lina-core/pkg"`,
 		`./apps/lina-core`,
 	} {
@@ -2287,6 +2288,7 @@ func TestMakeCommandSmokeDevFixtureIncludesLinactlLocalReplaceDeps(t *testing.T)
 	for _, expected := range []string{
 		`cp apps/lina-core/go.mod "$smoke_root/apps/lina-core/go.mod"`,
 		`cp apps/lina-core/go.sum "$smoke_root/apps/lina-core/go.sum"`,
+		`cp -R apps/lina-core/api "$smoke_root/apps/lina-core/api"`,
 		`cp -R apps/lina-core/pkg "$smoke_root/apps/lina-core/pkg"`,
 		`./apps/lina-core`,
 	} {
@@ -2318,6 +2320,32 @@ func TestReusableSmokeWorkflowsDoNotCopyRemovedPluginCapabilityData(t *testing.T
 		if strings.Contains(string(content), "apps/lina-core/pkg/plugin/capability/data") {
 			t.Fatalf("workflow %s must not copy removed plugin capability/data package", workflow)
 		}
+	}
+}
+
+// TestHostOnlyArtifactSmokeUsesSystemInfoReadiness guards the host-only
+// artifact smoke action after the anonymous health endpoint was removed.
+func TestHostOnlyArtifactSmokeUsesSystemInfoReadiness(t *testing.T) {
+	root, err := fileutil.DiscoverRepoRoot()
+	if err != nil {
+		t.Fatalf("discover repo root: %v", err)
+	}
+	content, err := os.ReadFile(filepath.Join(root, ".github", "actions", "host-only-artifact-smoke", "action.yml"))
+	if err != nil {
+		t.Fatalf("read host-only artifact smoke action: %v", err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`/api/v1/auth/login`,
+		`/api/v1/system/info`,
+		`clusterEnabled`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("host-only artifact smoke action missing %q", expected)
+		}
+	}
+	if strings.Contains(text, "/api/v1/health") {
+		t.Fatal("host-only artifact smoke action must not poll the removed health endpoint")
 	}
 }
 
