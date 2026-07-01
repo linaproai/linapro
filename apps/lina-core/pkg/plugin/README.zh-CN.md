@@ -182,8 +182,7 @@ hostServices:
 | `hostconfig` | `resources.keys` | `host:hostconfig` | `get` |
 | `manifest` | `resources.paths` | `host:manifest` | `get`<br/>`get_many`<br/>`list` |
 | `apidoc` | 无 | `host:apidoc` | `route_text.resolve`<br/>`route_texts.resolve`<br/>`route_title_operation_keys.find` |
-| `auth` | 无 | `host:auth:token` | `tenant.select`<br/>`tenant.switch`<br/>`impersonation_token.issue`<br/>`impersonation_token.revoke` |
-| `authz` | 无 | `host:authz` | `permissions.batch_get`<br/>`permissions.batch_has`<br/>`permissions.has`<br/>`users.platform_admin.check` |
+| `auth` | 无 | `host:auth:token`<br/>`host:auth:authz` | `token.tenant.select`<br/>`token.tenant.switch`<br/>`token.impersonation_token.issue`<br/>`token.impersonation_token.revoke`<br/>`authz.permissions.batch_get`<br/>`authz.permissions.batch_has`<br/>`authz.permissions.has`<br/>`authz.users.platform_admin.check` |
 | `ai` | 无 | `host:ai:text`<br/>`host:ai`<br/>`host:ai:image`<br/>`host:ai:embedding`<br/>`host:ai:audio`<br/>`host:ai:vision`<br/>`host:ai:document`<br/>`host:ai:safety`<br/>`host:ai:video` | `text.generate`<br/>`text.method_status.get`<br/>`ai.methods.status.batch_get`<br/>`image.generate`<br/>`image.edit`<br/>`embedding.create`<br/>`audio.transcribe`<br/>`audio.synthesize`<br/>`vision.analyze`<br/>`document.analyze`<br/>`document.cite`<br/>`safety.moderate`<br/>`video.generate`<br/>`video.edit`<br/>`video.extend`<br/>`video.operation.get`<br/>`video.operation.cancel` |
 | `users` | 无 | `host:users` | `users.current.get`<br/>`users.batch_get`<br/>`users.resolve.batch`<br/>`users.list`<br/>`users.visible.ensure` |
 | `bizctx` | 无 | `host:bizctx` | `current.get` |

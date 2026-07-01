@@ -452,7 +452,7 @@ func TestHandleHostServiceInvokeAdditionalDomainMethods(t *testing.T) {
 	authzResponse := invokeCapabilityHostService(
 		t,
 		additionalDomainHostCallContext(),
-		protocol.HostServiceAuthz,
+		protocol.HostServiceAuth,
 		protocol.HostServiceMethodAuthzBatchGetPermissions,
 		marshalCapabilityJSONRequest(t, map[string]any{"ids": []string{"system:user:list", "missing"}}),
 	)
@@ -471,7 +471,7 @@ func TestHandleHostServiceInvokeAdditionalDomainMethods(t *testing.T) {
 	authzHasResponse := invokeCapabilityHostService(
 		t,
 		additionalDomainHostCallContext(),
-		protocol.HostServiceAuthz,
+		protocol.HostServiceAuth,
 		protocol.HostServiceMethodAuthzBatchHasPermissions,
 		marshalCapabilityJSONRequest(t, map[string]any{"ids": []string{"system:user:list", "system:user:delete"}}),
 	)
@@ -1424,7 +1424,7 @@ func additionalDomainHostCallContext() *hostCallContext {
 		},
 		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: protocol.HostServiceAuthz,
+				Service: protocol.HostServiceAuth,
 				Methods: []string{
 					protocol.HostServiceMethodAuthzBatchGetPermissions,
 					protocol.HostServiceMethodAuthzBatchHasPermissions,

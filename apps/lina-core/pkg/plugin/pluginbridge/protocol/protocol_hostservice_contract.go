@@ -56,7 +56,6 @@ const (
 	HostServiceManifest      = hostservice.HostServiceManifest
 	HostServiceAPIDoc        = hostservice.HostServiceAPIDoc
 	HostServiceAuth          = hostservice.HostServiceAuth
-	HostServiceAuthz         = hostservice.HostServiceAuthz
 	HostServiceUsers         = hostservice.HostServiceUsers
 	HostServiceBizCtx        = hostservice.HostServiceBizCtx
 	HostServiceDict          = hostservice.HostServiceDict

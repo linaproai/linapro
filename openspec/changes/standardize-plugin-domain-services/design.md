@@ -72,6 +72,12 @@
 
 项目没有历史兼容负担，保留别名会制造长期测试矩阵和治理扫描复杂度。实现阶段必须同步更新 protocol、guest client、dispatcher、catalog、示例插件和 README。
 
+### Auth 领域动态命名保持全局一致
+
+认证授权能力在源码插件目录中以`Services.Auth()`聚合入口发布，`Token()`和`Authz()`只是`authcap.Service`下的子能力。动态插件协议必须保持同样的顶层领域边界，使用`service: auth`声明认证和授权方法，不再把授权子能力拆成独立顶层`service: authz`。
+
+动态授权粒度通过方法名和派生能力区分：token 方法使用`token.*`前缀并派生`host:auth:token`，授权方法使用`authz.*`前缀并派生`host:auth:authz`。这样安装授权和运行时授权仍然可以区分 token 与 authz 风险，但插件开发者看到的顶层领域目录与源码插件`Services.Auth().Token()`、`Services.Auth().Authz()`保持一致。
+
 ### 治理能力内聚到对应领域`Service`
 
 `PluginLifecycle()`、`PluginState()`、`TenantPluginGovernance()`和`TenantFilter()`不再挂在`pluginhost.Services`顶层，因为这些名称会把领域治理能力伪装成源码插件目录能力。治理能力必须按领域职责内聚：插件生命周期归属`Plugins().Lifecycle()`，插件启用状态读取归属`Plugins().State()`；租户插件启停和默认供给归属`Tenant().Plugins()`，租户过滤上下文归属`Tenant().Filter()`。`pluginhost.Services`镜像普通`capability.Services`，不再定义独立`TenantService`或表过滤顶层入口；同进程源码插件和宿主 adapter 如需改写 GoFrame 查询，必须显式调用`tenantspi.ApplyPluginTableFilter(ctx, filter, model, qualifier)`。

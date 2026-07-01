@@ -115,6 +115,18 @@ func TestValidateHostServiceSpecsRejectsI18n(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsRejectsStandaloneAuthz verifies authorization is
+// an auth-domain method family instead of a top-level dynamic host service.
+func TestValidateHostServiceSpecsRejectsStandaloneAuthz(t *testing.T) {
+	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
+		Service: "authz",
+		Methods: []string{"permissions.has"},
+	}})
+	if err == nil {
+		t.Fatal("expected standalone authz host service declarations to be rejected")
+	}
+}
+
 // TestValidateHostServiceSpecsRejectsReservedServices verifies future host
 // services remain catalog-documented only until a dedicated OpenSpec publishes
 // their runtime contract.
@@ -233,7 +245,7 @@ func TestValidateHostServiceSpecsAcceptsOrgTenantWithoutResources(t *testing.T) 
 // ordinary domain host services are authorized by service and method only.
 func TestValidateHostServiceSpecsAcceptsDomainServicesWithoutResources(t *testing.T) {
 	specs := []*HostServiceSpec{
-		{Service: HostServiceAuthz, Methods: []string{HostServiceMethodAuthzBatchGetPermissions, HostServiceMethodAuthzBatchHasPermissions}},
+		{Service: HostServiceAuth, Methods: []string{HostServiceMethodAuthzBatchGetPermissions, HostServiceMethodAuthzBatchHasPermissions}},
 		{Service: HostServiceDict, Methods: []string{HostServiceMethodDictValueResolveLabels, HostServiceMethodDictListValues, HostServiceMethodDictValueEnsureValuesVisible}},
 		{Service: HostServiceFiles, Methods: []string{HostServiceMethodFilesBatchGet, HostServiceMethodFilesList}},
 		{Service: HostServiceSessions, Methods: []string{HostServiceMethodSessionsCurrent, HostServiceMethodSessionsList, HostServiceMethodSessionsBatchGetUserOnlineStatus, HostServiceMethodSessionsEnsureVisible}},

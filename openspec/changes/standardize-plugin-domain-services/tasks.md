@@ -107,6 +107,8 @@
 - [x] **FB-52**: 修正插件服务根包与子包单元测试文件命名，恢复测试文件与源码文件的同名关联。
 - [x] **FB-53**: 修正业务事务闭包中直接使用`tx.Model`和传递`gdb.TX`的问题，统一通过`dao.Ctx(ctx)`继承事务上下文。
 - [x] **FB-54**: 修正插件领域写入绕过统一`cachecoord`修订号发布的问题，并合并`cachecoord`过细小文件。
+- [x] **FB-56**: 将动态插件授权子能力从顶层`authz` service 收敛到`auth`领域方法族，保持源码插件和动态插件领域目录一致。
+- [x] **FB-57**: 合并动态插件侧`authz`实现文件到`auth`领域能力相关源文件，避免文件组织继续暗示存在顶层`authz`动态领域。
 - [x] **FB-2**: 标准化动态`host service`wire method、catalog、dispatcher和 guest client 命名，对齐领域子资源方法。
 - [x] **FB-3**: 补齐领域 owner adapter、测试替身和源码插件调用点，确保新增方法复用真实 owner 或安全降级，不回流`capabilityhost`业务实现。
 - [x] **FB-4**: 更新 README、OpenSpec 记录和验证证据，运行编译、静态检索、`openspec validate`和`lina-review`。
@@ -1150,3 +1152,54 @@
 - `cd apps/lina-plugins/linapro-org-core && GOWORK=off go test ./backend/internal/provider/orgcapadapter -count=1`通过。
 - `cd apps/lina-plugins/linapro-demo-dynamic && GOWORK=off go test ./backend/internal/service/dynamic ./backend/internal/controller/dynamic ./backend/api/... -count=1`通过。
 - `openspec validate standardize-plugin-domain-services --strict`通过。
+
+### FB-56 实施记录
+
+- 根因：当前 OpenSpec 虽要求动态`host service`顶层 service 与`capability.Services`领域目录一致，但同时允许`authz`作为独立顶层 service；代码也跟随暴露了`protocol.HostServiceAuthz`、`pluginbridge.Services.Authz()`和 WASM registry 中的独立`authz`注册路径，导致源码插件看到`Services.Auth().Authz()`，动态插件却看到`service: authz`，破坏全局领域一致性。
+- 将动态顶层 service 收敛为`auth`：token 方法统一改为`token.tenant.select`、`token.tenant.switch`、`token.impersonation_token.issue`和`token.impersonation_token.revoke`；授权方法统一改为`authz.permissions.batch_get`、`authz.permissions.batch_has`、`authz.permissions.has`和`authz.users.platform_admin.check`。
+- 授权粒度仍通过派生 capability 区分：token 方法派生`host:auth:token`，授权方法派生`host:auth:authz`；动态插件清单声明必须使用`service: auth`，宿主会拒绝顶层`service: authz`。
+- 删除公开动态插件根入口`Services.Authz()`和`directory.Authz()`；动态 guest 授权调用继续通过`Services.Auth().Authz()`进入`authcap.Service`子能力，WASM dispatcher 由`auth`服务分派到`authz.*`方法族。
+- 合并`protocol/hostservices`catalog 中的`authz`服务描述到`auth`服务描述，移除`HostServiceAuthz`公开 alias；保留`HostServiceMethodAuthz*`方法常量，作为`auth`服务下的授权方法前缀。
+- 更新`apps/lina-core/pkg/plugin/README.md`和`README.zh-CN.md`的动态`hostServices`表，中英文均只保留一个`auth`行，并同步列出`host:auth:token`、`host:auth:authz`与新的方法名。
+- 同步更新`standardize-plugin-domain-services`增量规范和设计，明确`authz`只是`auth`领域内的方法前缀/子能力，不得作为顶层动态 service；同时修正`expand-plugin-domain-capabilities`中仍引用旧授权方法名的规范残留，避免活跃变更之间出现矛盾。
+- 规则读取与技能：本轮已读取`lina-feedback`、`openspec-apply-change`、`lina-review`、`goframe-v2`、`karpathy-guidelines`、`AGENTS.md`、`.agents/rules/openspec.md`、`architecture.md`、`plugin.md`、`backend-go.md`、`documentation.md`、`testing.md`、`data-permission.md`、`i18n.md`、`cache-consistency.md`、`dev-tooling.md`和`.agents/instructions/markdown-format.instructions.md`；未修改 HTTP API、SQL、前端 UI、运行时用户文案、语言包或开发工具脚本，确认`api-contract`、`database`和`frontend-ui`规则域无影响。
+- `i18n`影响：未新增或修改运行时 UI 文案、菜单、按钮、错误消息、API 文档源文本、插件清单文案或语言包资源；仅修改协议标识符、README 和 OpenSpec 文档，确认无运行时`i18n`资源影响。
+- 缓存一致性影响：未新增缓存、权限快照失效、配置失效、插件状态快照或跨实例同步路径；本次只调整动态 host-service service/method 命名与授权 capability 派生，确认无缓存一致性影响。
+- 数据权限影响：未新增数据读取、写入、聚合、下载或存在性探测；授权方法仍委托既有`Auth().Authz()`领域 owner 和 dispatcher 授权校验，未扩大权限、租户或组织数据边界。
+- 开发工具跨平台影响：未修改`Makefile`、`make.cmd`、CI、构建脚本、代码生成脚本、Shell/Node 工具或`linactl`入口，确认无跨平台工具影响。
+- DI 来源检查：未新增运行期依赖、构造参数、服务实例或共享后端；WASM registry 只把既有`auth`服务注册面覆盖到 token 和 authz 方法族，仍通过启动期共享的`capability.Services.Auth()`获取子能力，没有请求路径临时`New()`或独立服务图。
+- 测试策略：本次为后端 Go 动态插件协议、guest SDK、WASM dispatcher 和文档治理变更，不涉及前端用户可观察行为，未触发新增 E2E；通过 Go 单元测试、OpenSpec 严格校验、静态检索、gofmt 和`git diff --check`验证。
+
+### FB-56 验证
+
+- `rg -n 'HostServiceAuthz|host:authz|service:[[:space:]]*authz|Services\.Authz\(' apps/lina-core apps/lina-plugins openspec/changes/standardize-plugin-domain-services openspec/changes/expand-plugin-domain-capabilities openspec/changes/complete-plugin-domain-capability-expansion -g '*.go' -g '*.md' -g '*.yaml'`仅命中拒绝顶层`service: authz`的规范说明和源码插件正常的`Services.Auth().Authz()`子能力命名，未发现旧顶层动态`authz`入口。
+- `rg -n 'permissions\.batch_get|permissions\.batch_has|permissions\.has|users\.platform_admin\.check|tenant\.select|tenant\.switch|impersonation_token\.issue|impersonation_token\.revoke' apps/lina-core apps/lina-plugins openspec/changes/standardize-plugin-domain-services openspec/changes/expand-plugin-domain-capabilities openspec/changes/complete-plugin-domain-capability-expansion -g '*.go' -g '*.md' -g '*.yaml'`确认旧方法名已迁移为`token.*`或`authz.*`前缀；唯一`permissions.has`残留位于拒绝顶层`authz`的负向测试输入。
+- `cd apps/lina-core && go test ./pkg/plugin/pluginbridge/internal/hostservice ./pkg/plugin/pluginbridge/protocol/hostservices ./pkg/plugin/pluginbridge/internal/domainhostcall -count=1`通过。
+- `cd apps/lina-core && go test ./pkg/plugin/pluginbridge ./internal/service/plugin/internal/wasm -count=1`通过。
+- `cd apps/lina-core && go test ./pkg/plugin/pluginbridge/... ./internal/service/plugin/internal/wasm -count=1`通过。
+- `openspec validate standardize-plugin-domain-services --strict`通过。
+- `openspec validate expand-plugin-domain-capabilities --strict`通过。
+- `git diff --check`通过。
+
+### FB-57 实施记录
+
+- 根因：`FB-56`已经移除动态插件顶层`authz` service，但动态 guest client 和 WASM dispatcher 仍分别保留`domainhostcall_authz.go`与`wasm_host_service_authz.go`，文件组织会继续暗示存在独立动态`authz`领域，与`service: auth`的协议边界不一致。
+- 将`domainhostcall_authz.go`内容合并进`domainhostcall_auth.go`，让动态 guest 的 token 与授权子能力都集中在`Auth()`领域命名空间实现中；保留`authzService`类型，因为它实现的是`Services.Auth().Authz()`子能力契约。
+- 将`wasm_host_service_authz.go`内容合并进`wasm_host_service_auth.go`，并把内部 dispatcher helper 从`dispatchAuthzHostService`改为`dispatchAuthAuthorizationMethods`，避免函数名继续表现为顶层 host service。
+- 删除动态插件侧两个独立`authz`实现文件：`apps/lina-core/pkg/plugin/pluginbridge/internal/domainhostcall/domainhostcall_authz.go`和`apps/lina-core/internal/service/plugin/internal/wasm/wasm_host_service_authz.go`。
+- 保留`apps/lina-core/pkg/plugin/capability/authcap/authz/authz.go`，因为它是`Auth`领域下的授权子能力公开契约，不属于动态插件顶层 service 拆分残留。
+- `README.md`和`README.zh-CN.md`已审查：动态`hostServices`表在`FB-56`已统一为`auth`，本次仅调整 Go 文件组织，无需再次修改 README。
+- 规则读取与技能：本轮已读取`lina-feedback`、`lina-review`、`goframe-v2`、`karpathy-guidelines`、`AGENTS.md`、`.agents/rules/openspec.md`、`architecture.md`、`plugin.md`、`backend-go.md`、`testing.md`、`documentation.md`、`data-permission.md`、`i18n.md`、`cache-consistency.md`、`dev-tooling.md`和`.agents/instructions/markdown-format.instructions.md`；未修改 HTTP API、SQL、前端 UI、运行时用户文案、语言包或开发工具脚本，确认`api-contract`、`database`和`frontend-ui`规则域无影响。
+- `i18n`影响：未新增或修改运行时 UI 文案、API 文档源文本、错误消息、插件清单文案或语言包资源；仅调整 Go 文件组织和 OpenSpec 任务记录，确认无运行时`i18n`资源影响。
+- 缓存一致性影响：未新增缓存、权限快照失效、配置失效、插件状态快照或跨实例同步路径；本次不改变授权方法调用语义，确认无缓存一致性影响。
+- 数据权限影响：未新增数据读取、写入、聚合、下载或存在性探测；授权方法仍委托既有`Services.Auth().Authz()`子能力和动态 dispatcher 授权校验，确认无数据权限边界变化。
+- 开发工具跨平台影响：未修改`Makefile`、`make.cmd`、CI、构建脚本、代码生成脚本、Shell/Node 工具或`linactl`入口，确认无跨平台工具影响。
+- DI 来源检查：未新增运行期依赖、构造参数、服务实例或共享后端；仅移动同包私有函数和类型位置，没有请求路径临时`New()`或独立服务图。
+- 测试策略：本次为后端 Go 动态插件 bridge/WASM 文件组织治理，不涉及前端用户可观察行为，未触发新增 E2E；通过 Go 单元测试、静态检索、OpenSpec 严格校验、gofmt 和`git diff --check`验证。
+
+### FB-57 验证
+
+- `find apps/lina-core apps/lina-plugins -name '*authz*.go' -type f | sort`仅输出`apps/lina-core/pkg/plugin/capability/authcap/authz/authz.go`，确认动态插件侧`authz`实现文件已合并。
+- `rg -n 'dispatchAuthzHostService|wasm_host_service_authz|domainhostcall_authz' apps/lina-core openspec/changes/standardize-plugin-domain-services -g '*.go' -g '*.md'`无输出。
+- `cd apps/lina-core && go test ./pkg/plugin/pluginbridge/internal/domainhostcall ./pkg/plugin/pluginbridge/internal/hostservice ./internal/service/plugin/internal/wasm -count=1`通过。
+- `cd apps/lina-core && go test ./pkg/plugin/pluginbridge/... ./internal/service/plugin/internal/wasm -count=1`通过。

@@ -345,8 +345,6 @@ func capabilityContractDirForHostService(root string, service string) string {
 		return filepath.Join(capabilityRoot, "apidoccap")
 	case HostServiceAuth:
 		return filepath.Join(capabilityRoot, "authcap")
-	case HostServiceAuthz:
-		return filepath.Join(capabilityRoot, "authcap/authz")
 	case HostServiceUsers:
 		return filepath.Join(capabilityRoot, "usercap")
 	case HostServiceBizCtx:

@@ -11,7 +11,6 @@ import (
 	"lina-core/pkg/plugin/capability/aicap"
 	"lina-core/pkg/plugin/capability/apidoccap"
 	"lina-core/pkg/plugin/capability/authcap"
-	"lina-core/pkg/plugin/capability/authcap/authz"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/cachecap"
 	"lina-core/pkg/plugin/capability/dictcap"
@@ -62,8 +61,6 @@ type Services interface {
 	HostConfig() hostconfigcap.Service
 	// Manifest returns the plugin-scoped manifest-resource capability client.
 	Manifest() manifestcap.Service
-	// Authz returns the authorization-domain guest client.
-	Authz() authz.Service
 	// Users returns the user-domain capability guest client. The returned client
 	// exposes visible projections, candidate search, and visibility checks only.
 	Users() usercap.Service

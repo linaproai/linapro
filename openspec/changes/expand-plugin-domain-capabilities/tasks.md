@@ -12,7 +12,7 @@
 
 ## 3. 动态 Host Service 同步
 
-- [x] 3.1 更新`protocol/hostservices` catalog、protocol 常量和公开 alias，声明`users.current.get`、`users.resolve.batch`、`permissions.batch_has`、`values.visible.ensure`和`sessions.current.get`。
+- [x] 3.1 更新`protocol/hostservices` catalog、protocol 常量和公开 alias，声明`users.current.get`、`users.resolve.batch`、`authz.permissions.batch_has`、`values.visible.ensure`和`sessions.current.get`。
 - [x] 3.2 更新`pluginbridge/internal/domainhostcall`动态 guest client，使动态插件消费新增方法时仍通过领域接口语义和 JSON envelope。
 - [x] 3.3 更新`internal/service/plugin/internal/wasm`dispatcher，只做授权、解码、委托和错误映射，并覆盖系统上下文、未授权和 service 缺失路径。
 - [x] 3.4 更新 catalog、guest client、dispatcher 和 JSON envelope 覆盖测试，确保新增动态方法任一同步点遗漏会失败。
@@ -58,7 +58,7 @@
 
 | 任务 | 实现与验证记录 |
 |------|----------------|
-| 3.1 | `pluginbridge/internal/hostservice`、`protocol_hostservice_contract.go`和`protocol/hostservices/catalog.go`已声明`users.current.get`、`users.resolve.batch`、`permissions.batch_has`、`values.visible.ensure`和`sessions.current.get`，并保持资源授权为`host:users`、`host:authz`、`host:dict`、`host:sessions`。 |
+| 3.1 | `pluginbridge/internal/hostservice`、`protocol_hostservice_contract.go`和`protocol/hostservices/catalog.go`已声明`users.current.get`、`users.resolve.batch`、`authz.permissions.batch_has`、`values.visible.ensure`和`sessions.current.get`，并保持资源授权为`host:users`、`host:auth:authz`、`host:dict`、`host:sessions`。 |
 | 3.2 | `pluginbridge/internal/domainhostcall`已为`Users.Current`、`Users.BatchResolve`、`Authz.BatchHasPermissions`、`Dict.EnsureValuesVisible`和`Sessions.Current`补齐动态 guest client，全部继续使用统一`HostServiceJSONRequest`/`HostServiceJSONResponse` envelope。 |
 | 3.3 | `internal/service/plugin/internal/wasm`已在 users、authz、dict、sessions dispatcher 和 registry 中注册新增方法；dispatcher 只做授权后解码、构造`CapabilityContext`、委托领域服务和错误映射。`contextWithHostCallBizContext`同步透传动态 identity 的`TokenID`，`CapabilityAuthorizationSnapshot`同步透传动态 identity 的`Permissions`。 |
 | 3.4 | 已新增/更新 WASM dispatcher 测试覆盖 user current/resolve、authz batch_has、dict ensure、session current/search/batch，以及 catalog/descriptor 同步和普通 JSON service 无专用 codec 测试；`go test ./pkg/plugin/pluginbridge/... -count=1`和目标范围 Go 测试均已通过。 |
@@ -67,7 +67,7 @@
 
 | 项目 | 记录 |
 |------|------|
-| README 同步 | 已更新`apps/lina-core/pkg/plugin/README.md`和`README.zh-CN.md`中普通领域能力描述与动态`hostServices`表。中英文均同步列出`permissions.batch_has`、`users.current.get`、`users.resolve.batch`、`values.visible.ensure`、`sessions.current.get`。 |
+| README 同步 | 已更新`apps/lina-core/pkg/plugin/README.md`和`README.zh-CN.md`中普通领域能力描述与动态`hostServices`表。中英文均同步列出`authz.permissions.batch_has`、`users.current.get`、`users.resolve.batch`、`values.visible.ensure`、`sessions.current.get`。 |
 | 影响分析 | 无静态 HTTP API、前端 UI、SQL schema、插件清单、语言包、运行时用户可见文案或 E2E 变化；不新增`.sh`、`.ps1`、`.cmd`、Node 脚本或开发工具入口。本变更有后端 Go、动态协议 catalog/alias/guest/dispatcher、数据权限、缓存复用和 README/OpenSpec 文档影响。`i18n`影响判断：未新增 UI 文案、API 文档源文本、语言包或插件清单文案；README 文档双语同步维护，无运行时`i18n`资源变更。E2E 影响判断：无前端可观察行为或页面工作流变化，使用 Go 单元测试和协议测试覆盖。 |
 | 数据权限与性能 | 用户解析和当前用户复用`tenantFilter`与`datascope.Service.ApplyUserScope`数据库侧过滤；会话当前投影复用`session.Store.BatchGetScoped`；字典校验复用`ResolveLabels`的租户可见路径；权限批量判断复用当前动态 route 身份权限快照，集合化 map 判断，无数据库循环和无逐项`HasPermission`常规调用。 |
 | 缓存一致性 | 不新增本地缓存或失效机制。权限判断复用请求身份权限快照；字典读取复用现有字典表和既有 refresh revision 机制；会话读取复用启动期共享`session.Store`；用户投影直接读取宿主权威表并经过租户/数据权限过滤。 |

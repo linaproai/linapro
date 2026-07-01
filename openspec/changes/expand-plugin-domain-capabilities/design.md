@@ -9,7 +9,7 @@
 | 领域 | 当前已有能力 | 本次处理 |
 | --- | --- | --- |
 | `Users` | `BatchGet`、`Search`、`EnsureVisible`，动态协议已有`users.batch_get`、`users.search`、`users.visible.ensure` catalog 声明，但 dispatcher 仅覆盖`users.batch_get`。 | 新增`Current`和`BatchResolve`，并补齐对应动态发布路径。 |
-| `Authz` | `BatchGetPermissions`、`HasPermission`、`IsPlatformAdmin`，动态 dispatcher 已覆盖`permissions.batch_get`和`permissions.has`。 | 新增`BatchHasPermissions`，避免插件循环调用`HasPermission`。 |
+| `Authz` | `BatchGetPermissions`、`HasPermission`、`IsPlatformAdmin`，动态 dispatcher 已在`auth`领域下覆盖`authz.permissions.batch_get`和`authz.permissions.has`。 | 新增`BatchHasPermissions`，避免插件循环调用`HasPermission`。 |
 | `Dict` | `ResolveLabels`普通消费面，`EnsureValuesVisible`目前只在`ScopeService`中。动态协议已有`labels.resolve`。 | 将`EnsureValuesVisible`提升到普通消费面，并同步动态发布为`values.visible.ensure`。 |
 | `Sessions` | `Search`、`BatchGet`，动态协议 catalog 有`search`和`batch_get`，dispatcher 仅覆盖`sessions.batch_get`。 | 新增`Current`，返回当前 token 在线会话投影。 |
 
@@ -53,7 +53,7 @@
 | --- | --- | --- | --- | --- |
 | `Users.Current` | `users` | `users.current.get` | 同步动态发布 | `host:users` |
 | `Users.BatchResolve` | `users` | `users.resolve.batch` | 同步动态发布 | `host:users` |
-| `Authz.BatchHasPermissions` | `authz` | `permissions.batch_has` | 同步动态发布 | `host:authz` |
+| `Authz.BatchHasPermissions` | `auth` | `authz.permissions.batch_has` | 同步动态发布 | `host:auth:authz` |
 | `Dict.EnsureValuesVisible` | `dict` | `values.visible.ensure` | 同步动态发布 | `host:dict` |
 | `Sessions.Current` | `sessions` | `sessions.current.get` | 同步动态发布 | `host:sessions` |
 | `Users.Search`扩展、`Dict.ListValues`、`Files.Search`、`Jobs.Search`、`Sessions.BatchGetUserOnlineStatus` | 多个 | 多个 | 延后发布 | 后续冻结 |

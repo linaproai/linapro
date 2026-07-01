@@ -131,7 +131,6 @@ func newHostServiceDispatchRegistry() (*hostServiceDispatchRegistry, error) {
 		registerManifestHostService,
 		registerAPIDocHostService,
 		registerAuthHostService,
-		registerAuthzHostService,
 		registerAIHostService,
 		registerUsersHostService,
 		registerBizCtxHostService,
@@ -328,19 +327,12 @@ func registerAuthHostService(registry *hostServiceDispatchRegistry) error {
 		bridgehostservice.HostServiceMethodAuthSwitchTenant,
 		bridgehostservice.HostServiceMethodAuthIssueImpersonationToken,
 		bridgehostservice.HostServiceMethodAuthRevokeImpersonationToken,
-	}, func(ctx context.Context, hcc *hostCallContext, input hostServiceDispatchContext) *bridgehostcall.HostCallResponseEnvelope {
-		return dispatchAuthHostService(ctx, hcc, input.method, input.payload)
-	})
-}
-
-func registerAuthzHostService(registry *hostServiceDispatchRegistry) error {
-	return registerHostServiceMethods(registry, bridgehostservice.HostServiceAuthz, []string{
 		bridgehostservice.HostServiceMethodAuthzBatchGetPermissions,
 		bridgehostservice.HostServiceMethodAuthzBatchHasPermissions,
 		bridgehostservice.HostServiceMethodAuthzHasPermission,
 		bridgehostservice.HostServiceMethodAuthzIsPlatformAdmin,
 	}, func(ctx context.Context, hcc *hostCallContext, input hostServiceDispatchContext) *bridgehostcall.HostCallResponseEnvelope {
-		return dispatchAuthzHostService(ctx, hcc, input.method, input.payload)
+		return dispatchAuthHostService(ctx, hcc, input.method, input.payload)
 	})
 }
 

@@ -195,20 +195,14 @@ var catalog = []ServiceDescriptor{
 		Service:      "auth",
 		ResourceKind: ResourceKindNone,
 		Methods: []MethodDescriptor{
-			hostMethod("tenant.select", "HostServiceMethodAuthSelectTenant", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("tenant.switch", "HostServiceMethodAuthSwitchTenant", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("impersonation_token.issue", "HostServiceMethodAuthIssueImpersonationToken", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("impersonation_token.revoke", "HostServiceMethodAuthRevokeImpersonationToken", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-		},
-	},
-	{
-		Service:      "authz",
-		ResourceKind: ResourceKindNone,
-		Methods: []MethodDescriptor{
-			hostMethod("permissions.batch_get", "HostServiceMethodAuthzBatchGetPermissions", "host:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("permissions.batch_has", "HostServiceMethodAuthzBatchHasPermissions", "host:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("permissions.has", "HostServiceMethodAuthzHasPermission", "host:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("users.platform_admin.check", "HostServiceMethodAuthzIsPlatformAdmin", "host:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("token.tenant.select", "HostServiceMethodAuthSelectTenant", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("token.tenant.switch", "HostServiceMethodAuthSwitchTenant", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("token.impersonation_token.issue", "HostServiceMethodAuthIssueImpersonationToken", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("token.impersonation_token.revoke", "HostServiceMethodAuthRevokeImpersonationToken", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("authz.permissions.batch_get", "HostServiceMethodAuthzBatchGetPermissions", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("authz.permissions.batch_has", "HostServiceMethodAuthzBatchHasPermissions", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("authz.permissions.has", "HostServiceMethodAuthzHasPermission", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("authz.users.platform_admin.check", "HostServiceMethodAuthzIsPlatformAdmin", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 		},
 	},
 	{

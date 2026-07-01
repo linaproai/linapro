@@ -34,8 +34,8 @@ const (
 	CapabilityAPIDoc = "host:apidoc"
 	// CapabilityAuthToken grants access to authentication token handoff services.
 	CapabilityAuthToken = "host:auth:token"
-	// CapabilityAuthz grants access to authorization-domain capability services.
-	CapabilityAuthz = "host:authz"
+	// CapabilityAuthz grants access to authorization-domain methods under auth.
+	CapabilityAuthz = "host:auth:authz"
 	// CapabilityUsers grants access to host-defined user-domain capability services.
 	CapabilityUsers = "host:users"
 	// CapabilityBizCtx grants access to request business-context projections.
@@ -105,10 +105,8 @@ const (
 	HostServiceManifest = "manifest"
 	// HostServiceAPIDoc is the API-documentation capability host service identifier.
 	HostServiceAPIDoc = "apidoc"
-	// HostServiceAuth is the authentication token capability host service identifier.
+	// HostServiceAuth is the authentication and authorization capability host service identifier.
 	HostServiceAuth = "auth"
-	// HostServiceAuthz is the authorization-domain capability host service identifier.
-	HostServiceAuthz = "authz"
 	// HostServiceUsers is the user-domain capability host service identifier.
 	HostServiceUsers = "users"
 	// HostServiceBizCtx is the business-context capability host service identifier.
@@ -270,28 +268,25 @@ const (
 	HostServiceMethodAPIDocFindRouteTitleOperationKeys = "route_title_operation_keys.find"
 )
 
-// Auth host-service methods describe authentication token handoff operations.
+// Auth host-service methods describe authentication token and authorization
+// sub-capability operations under one auth domain.
 const (
 	// HostServiceMethodAuthSelectTenant issues a tenant token from a pre-login token.
-	HostServiceMethodAuthSelectTenant = "tenant.select"
+	HostServiceMethodAuthSelectTenant = "token.tenant.select"
 	// HostServiceMethodAuthSwitchTenant switches the current bearer token to another tenant.
-	HostServiceMethodAuthSwitchTenant = "tenant.switch"
+	HostServiceMethodAuthSwitchTenant = "token.tenant.switch"
 	// HostServiceMethodAuthIssueImpersonationToken issues one host-owned impersonation token.
-	HostServiceMethodAuthIssueImpersonationToken = "impersonation_token.issue"
+	HostServiceMethodAuthIssueImpersonationToken = "token.impersonation_token.issue"
 	// HostServiceMethodAuthRevokeImpersonationToken revokes one host-owned impersonation token.
-	HostServiceMethodAuthRevokeImpersonationToken = "impersonation_token.revoke"
-)
-
-// Authz host-service methods describe authorization-domain ordinary reads.
-const (
+	HostServiceMethodAuthRevokeImpersonationToken = "token.impersonation_token.revoke"
 	// HostServiceMethodAuthzBatchGetPermissions reads visible permission projections.
-	HostServiceMethodAuthzBatchGetPermissions = "permissions.batch_get"
+	HostServiceMethodAuthzBatchGetPermissions = "authz.permissions.batch_get"
 	// HostServiceMethodAuthzBatchHasPermissions checks multiple permissions in one call.
-	HostServiceMethodAuthzBatchHasPermissions = "permissions.batch_has"
+	HostServiceMethodAuthzBatchHasPermissions = "authz.permissions.batch_has"
 	// HostServiceMethodAuthzHasPermission checks whether the current actor has one permission.
-	HostServiceMethodAuthzHasPermission = "permissions.has"
+	HostServiceMethodAuthzHasPermission = "authz.permissions.has"
 	// HostServiceMethodAuthzIsPlatformAdmin checks whether one user has platform-admin scope.
-	HostServiceMethodAuthzIsPlatformAdmin = "users.platform_admin.check"
+	HostServiceMethodAuthzIsPlatformAdmin = "authz.users.platform_admin.check"
 )
 
 // Users host-service methods describe the ordinary user-domain capability

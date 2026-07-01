@@ -10,7 +10,6 @@ import (
 	"lina-core/pkg/plugin/capability/aicap"
 	"lina-core/pkg/plugin/capability/apidoccap"
 	"lina-core/pkg/plugin/capability/authcap"
-	"lina-core/pkg/plugin/capability/authcap/authz"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/cachecap"
 	"lina-core/pkg/plugin/capability/capmodel"
@@ -72,9 +71,6 @@ func (directory) HostConfig() hostconfigcap.Service { return hostConfigCapabilit
 
 // Manifest returns the plugin manifest-resource capability guest client.
 func (directory) Manifest() manifestcap.Service { return manifestCapability() }
-
-// Authz returns the authorization-domain guest client.
-func (directory) Authz() authz.Service { return domainhostcall.Authz(invokeCapabilityJSON) }
 
 // Users returns the user-domain capability guest client.
 func (directory) Users() usercap.Service { return domainhostcall.Users(invokeCapabilityJSON) }

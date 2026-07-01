@@ -104,7 +104,7 @@
 
 ### Requirement: hostServices 必须支持领域服务和领域方法
 
-系统 SHALL 允许动态插件通过`hostServices`声明宿主注册到动态`host service registry`的领域服务和领域方法。领域协议服务名 MUST 使用语言无关的领域名，并且普通领域 service 名 MUST 与`pkg/plugin/capability.Services`领域目录名称保持一致；集合型领域使用`users`、`files`、`jobs`、`notifications`、`plugins`和`sessions`，命名空间型领域继续使用`authz`、`dict`、`org`、`tenant`、`ai`等领域名。领域协议名不得使用 Go 包名或宿主内部实现名。每个已注册领域方法 MUST 映射到统一领域`Service`或受控领域适配器。
+系统 SHALL 允许动态插件通过`hostServices`声明宿主注册到动态`host service registry`的领域服务和领域方法。领域协议服务名 MUST 使用语言无关的领域名，并且普通领域 service 名 MUST 与`pkg/plugin/capability.Services`领域目录名称保持一致；集合型领域使用`users`、`files`、`jobs`、`notifications`、`plugins`和`sessions`，命名空间型领域使用`auth`、`dict`、`org`、`tenant`、`ai`等领域名。`authz`只作为`auth`领域下的授权子能力和 method 前缀存在，不得作为动态插件顶层`service`声明。领域协议名不得使用 Go 包名或宿主内部实现名。每个已注册领域方法 MUST 映射到统一领域`Service`或受控领域适配器。
 
 #### Scenario: 动态插件声明用户领域读取
 
@@ -117,6 +117,13 @@
 - **WHEN** 动态插件调用未注册、未声明或未授权的领域方法
 - **THEN** 宿主返回能力拒绝或能力不可用错误
 - **AND** 不进入任何领域业务逻辑
+
+#### Scenario: 动态插件声明授权子能力
+
+- **WHEN** 动态插件需要声明授权权限读取或权限判断能力
+- **THEN** 插件清单 MUST 使用`service: auth`
+- **AND** 授权方法 MUST 使用`authz.permissions.batch_get`、`authz.permissions.batch_has`、`authz.permissions.has`或`authz.users.platform_admin.check`等`authz.*`方法名
+- **AND** 宿主 MUST 拒绝`service: authz`这类顶层授权领域声明
 
 ### Requirement: 动态领域管理方法使用安装授权模型
 

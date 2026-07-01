@@ -13,7 +13,7 @@
   - `Auth().Authz().BatchHasPermissions`：一次判断多个权限 key。
   - `Dict.EnsureValuesVisible`：从内部 scope 能力提升到普通消费面，保持现有实现语义。
   - `Sessions.Current`：返回当前 token 对应在线会话投影。
-- 校准已有动态`hostServices`能力，避免重复新增已存在的`dict.labels.resolve`、`authz.permissions.batch_get`、`users.batch_get`等语义。
+- 校准已有动态`hostServices`能力，避免重复新增已存在的`dict.labels.resolve`、`auth.authz.permissions.batch_get`、`users.batch_get`等语义。
 - 同步扩展动态插件 host service catalog、guest client、WASM dispatcher、治理测试和`apps/lina-core/pkg/plugin`中英文 README。
 - 明确候选搜索、组织/租户投影、插件治理搜索、私有资源批量、通知和`AI`状态等能力仍属于后续阶段，不进入本次实现批次。
 - 不新增 HTTP API、前端页面、SQL schema、插件清单或运行时用户可见文案。

@@ -18,7 +18,7 @@
 
 ### Requirement: 阶段一普通领域动态方法必须使用 JSON envelope
 
-系统 SHALL 要求阶段一新增的`users.current.get`、`users.resolve.batch`、`permissions.batch_has`、`values.visible.ensure`和`sessions.current.get`使用普通领域 JSON request/response envelope。除非 OpenSpec 另行声明性能或 wire 稳定性例外，系统 MUST NOT 为这些方法新增专用 per-domain protowire codec。
+系统 SHALL 要求阶段一新增的`users.current.get`、`users.resolve.batch`、`authz.permissions.batch_has`、`values.visible.ensure`和`sessions.current.get`使用普通领域 JSON request/response envelope。除非 OpenSpec 另行声明性能或 wire 稳定性例外，系统 MUST NOT 为这些方法新增专用 per-domain protowire codec。
 
 #### Scenario: JSON envelope round trip
 
