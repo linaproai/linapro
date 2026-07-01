@@ -252,6 +252,13 @@ func lifecycleOperationFromTimeoutConst(name string) (protocol.LifecycleOperatio
 		return "", false
 	}
 	operationName := strings.TrimSuffix(trimmed, "TimeoutMs")
+	if protocol.IsSupportedLifecycleOperation(operationName) {
+		return protocol.LifecycleOperation(operationName), true
+	}
+	if operationName == "" {
+		return "", false
+	}
+	operationName = strings.ToUpper(operationName[:1]) + operationName[1:]
 	if !protocol.IsSupportedLifecycleOperation(operationName) {
 		return "", false
 	}

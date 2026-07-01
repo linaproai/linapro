@@ -389,6 +389,42 @@ func (c *Controller) BeforeInstall(_ context.Context, _ *BeforeInstallReq) (*Lif
 	}
 }
 
+func TestCollectLifecycleSpecsReadsUnexportedCodeOwnedTimeout(t *testing.T) {
+	pluginDir := t.TempDir()
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "controller.go"),
+		`package backend
+
+import "context"
+
+const beforeInstallTimeoutMs = 120000
+
+type Controller struct{}
+
+type LifecycleDecisionRes struct {
+	OK bool `+"`json:\"ok\"`"+`
+}
+
+type BeforeInstallReq struct{}
+
+func (c *Controller) BeforeInstall(_ context.Context, _ *BeforeInstallReq) (*LifecycleDecisionRes, error) {
+	return &LifecycleDecisionRes{OK: true}, nil
+}
+`,
+	)
+
+	items, err := collectLifecycleSpecs(pluginDir, "plugin-dev-dynamic-lifecycle")
+	if err != nil {
+		t.Fatalf("expected unexported lifecycle code timeout discovery to succeed, got error: %v", err)
+	}
+	if len(items) != 1 ||
+		items[0].Operation != protocol.LifecycleOperationBeforeInstall ||
+		items[0].TimeoutMs != 120000 {
+		t.Fatalf("unexpected unexported lifecycle code timeout result: %#v", items)
+	}
+}
+
 func TestCollectLifecycleSpecsAppliesOverride(t *testing.T) {
 	pluginDir := t.TempDir()
 	mustWriteFile(
