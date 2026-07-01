@@ -2,7 +2,7 @@
 
 - [x] 1.1 读取并记录本次实现命中的`.agents/rules/openspec.md`、`documentation.md`、`architecture.md`、`plugin.md`、`backend-go.md`、`api-contract.md`、`data-permission.md`、`cache-consistency.md`、`i18n.md`和`testing.md`规则。
 - [x] 1.2 更新`pkg/plugin/capability`根服务目录，删除`AdminServices`和各领域插件可见`AdminService`入口。
-- [x] 1.3 建立领域迁移对账表，逐项覆盖`Users`、`Auth.Token`、`Authz`、`AI`、`APIDoc`、`BizCtx`、`Cache`、`Dict`、`Files`、`HostConfig`、`I18n`、`Infra`、`Jobs`、`Lock`、`Manifest`、`Notifications`、`Plugins`、`Org`、`Route`、`Sessions`、`Storage`和`Tenant`。
+- [x] 1.3 建立领域迁移对账表，逐项覆盖`Users`、`Auth.Token`、`Auth.Authz`、`AI`、`APIDoc`、`BizCtx`、`Cache`、`Dict`、`Files`、`HostConfig`、`I18n`、`Infra`、`Jobs`、`Lock`、`Manifest`、`Notifications`、`Plugins`、`Org`、`Route`、`Sessions`、`Storage`和`Tenant`。
 - [x] 1.4 将原`AdminService`方法并入对应领域统一`Service`接口，并补齐方法注释中的风险、授权资源、上下文、数据权限、性能和缓存影响说明。
 - [x] 1.5 删除`pluginhost.Services.Admin()`和源码插件管理目录相关测试替身。
 - [x] 1.6 静态检索确认生产代码、官方插件、测试替身和文档不再引用旧`AdminServices`、领域`AdminService`或`Services.Admin()`。
@@ -18,7 +18,7 @@
 
 - [x] 3.1 迁移`Users`领域统一`Service`，覆盖`Current`、`Get`、`BatchGet`、`BatchResolve`、`List`、`EnsureVisible`、`Create`、`Update`、`Delete`、`SetStatus`、`ResetPassword`和`Assignment().ReplaceRoles`，并验证用户数据权限、租户边界和批量投影。
 - [x] 3.2 迁移`Auth.Token`领域统一`Service`，覆盖`SelectTenant`、`SwitchTenant`、`IssueImpersonationToken`和`RevokeImpersonationToken`，并验证 token/session 状态、系统调用和租户边界。
-- [x] 3.3 迁移`Authz`领域统一`Service`，覆盖`BatchGetPermissions`、`HasPermission`、`BatchHasPermissions`、`IsPlatformAdmin`、`EnsurePermissionsVisible`和`ReplaceRolePermissions`，并验证权限快照复用和事务后缓存修订号。
+- [x] 3.3 迁移`Auth`领域下的`Authz()`授权子能力统一`Service`，覆盖`BatchGetPermissions`、`HasPermission`、`BatchHasPermissions`、`IsPlatformAdmin`、`EnsurePermissionsVisible`和`ReplaceRolePermissions`，并验证权限快照复用和事务后缓存修订号。
 - [x] 3.4 迁移`Sessions`领域统一`Service`，覆盖`Current`、`Get`、`BatchGet`、`List`、`BatchGetUserOnlineStatus`、`EnsureVisible`、`Revoke`和`RevokeMany`，并验证不存在与不可见不泄露。
 
 ## 4. 配置、上下文与框架支撑领域
@@ -109,6 +109,7 @@
 - [x] **FB-54**: 修正插件领域写入绕过统一`cachecoord`修订号发布的问题，并合并`cachecoord`过细小文件。
 - [x] **FB-56**: 将动态插件授权子能力从顶层`authz` service 收敛到`auth`领域方法族，保持源码插件和动态插件领域目录一致。
 - [x] **FB-57**: 合并动态插件侧`authz`实现文件到`auth`领域能力相关源文件，避免文件组织继续暗示存在顶层`authz`动态领域。
+- [x] **FB-58**: 修正插件 README 和任务标题中仍将`Authz`展示为顶层领域能力的残留表述，统一为`Auth`领域下的授权子能力。
 - [x] **FB-2**: 标准化动态`host service`wire method、catalog、dispatcher和 guest client 命名，对齐领域子资源方法。
 - [x] **FB-3**: 补齐领域 owner adapter、测试替身和源码插件调用点，确保新增方法复用真实 owner 或安全降级，不回流`capabilityhost`业务实现。
 - [x] **FB-4**: 更新 README、OpenSpec 记录和验证证据，运行编译、静态检索、`openspec validate`和`lina-review`。
@@ -1203,3 +1204,21 @@
 - `rg -n 'dispatchAuthzHostService|wasm_host_service_authz|domainhostcall_authz' apps/lina-core openspec/changes/standardize-plugin-domain-services -g '*.go' -g '*.md'`无输出。
 - `cd apps/lina-core && go test ./pkg/plugin/pluginbridge/internal/domainhostcall ./pkg/plugin/pluginbridge/internal/hostservice ./internal/service/plugin/internal/wasm -count=1`通过。
 - `cd apps/lina-core && go test ./pkg/plugin/pluginbridge/... ./internal/service/plugin/internal/wasm -count=1`通过。
+
+### FB-58 实施记录
+
+- 根因：`FB-56`和`FB-57`已经将动态插件顶层授权服务收敛到`service: auth`，但`apps/lina-core/pkg/plugin/README.md`和`README.zh-CN.md`的领域能力表仍使用`Auth`/`Authz`作为领域标题，`tasks.md`顶部任务标题也仍把`Authz`写成迁移领域，容易让后续审查继续把`Authz`误判为顶层领域能力。
+- 将中英文 README 的领域能力表标题统一为`Auth`，并在职责说明中明确`Token()`和`Authz()`只是`Auth`领域下的子能力。
+- 将`tasks.md`顶部领域迁移任务标题中的`Authz`改为`Auth.Authz`或`Auth`领域下的`Authz()`授权子能力，保留既有历史实施记录中对旧顶层`authz`迁移原因和拒绝规则的描述。
+- 规则读取与技能：本轮已读取`lina-feedback`、`lina-review`、`AGENTS.md`、`.agents/rules/openspec.md`、`documentation.md`、`architecture.md`、`plugin.md`、`i18n.md`、`testing.md`和`.agents/instructions/markdown-format.instructions.md`；未修改 Go 生产代码、HTTP API、SQL、前端 UI、运行时用户文案、语言包、缓存、数据权限逻辑或开发工具脚本，确认`backend-go`、`api-contract`、`database`、`frontend-ui`、`cache-consistency`、`data-permission`和`dev-tooling`规则域无运行时影响。
+- `i18n`影响：仅修改中英文技术文档和 OpenSpec 任务记录，不修改运行时 UI 文案、API 文档源文本、错误消息、插件清单文案或语言包资源，确认无运行时`i18n`资源影响。
+- 数据权限和缓存一致性影响：本次不改变授权方法、派生 capability、dispatcher、权限快照、缓存失效或跨实例同步路径，确认无数据权限和缓存一致性影响。
+- 测试策略：本次为项目治理文档修正，不涉及可执行行为或用户可观察前端流程，未触发新增单元测试或 E2E；使用静态检索、OpenSpec strict 校验和`git diff --check`验证。
+
+### FB-58 验证
+
+- ``rg -n 'Auth`/`Authz|Auth/Authz|\| `Auth`/`Authz`' apps/lina-core/pkg/plugin/README.md apps/lina-core/pkg/plugin/README.zh-CN.md``无输出，确认中英文 README 不再把`Auth`/`Authz`展示为并列领域。
+- ``sed -n '1,135p' openspec/changes/standardize-plugin-domain-services/tasks.md | rg -n 'Auth`/`Authz|Auth/Authz|`Authz`领域'``无输出，确认顶部任务标题不再把`Authz`写成独立领域。
+- ``rg -n '^\| `Auth` ' apps/lina-core/pkg/plugin/README.md apps/lina-core/pkg/plugin/README.zh-CN.md``确认中英文 README 均只保留`Auth`领域行，并在职责说明中保留`Token()`和`Authz()`子能力边界。
+- `openspec validate standardize-plugin-domain-services --strict`通过。
+- `git diff --check -- apps/lina-core/pkg/plugin/README.md apps/lina-core/pkg/plugin/README.zh-CN.md openspec/changes/standardize-plugin-domain-services/tasks.md`通过。
