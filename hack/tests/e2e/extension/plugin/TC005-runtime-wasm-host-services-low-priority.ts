@@ -606,7 +606,7 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/plugin/capability/capmodel"
+	usermsgv1 "lina-core/api/usermsg/v1"
 	"lina-core/pkg/plugin/capability/lockcap"
 	"lina-core/pkg/plugin/capability/notifycap"
 	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
@@ -621,9 +621,10 @@ const (
 func (c *Controller) LowPriorityHostServices(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	var (
 		ctx = bridgeplugin.NewGuestControllerContext(request)
-		cacheSvc = bridgeplugin.Cache()
-		lockSvc = bridgeplugin.Lock()
-		notifySvc = bridgeplugin.New().Notifications()
+		services = bridgeplugin.Default()
+		cacheSvc = services.Cache()
+		lockSvc = services.Lock()
+		notifySvc = services.Notifications()
 	)
 
 	cacheSetValue, err := cacheSvc.Set(ctx, cacheNamespace, "profile", request.PluginID, 60*time.Second)
@@ -665,11 +666,11 @@ func (c *Controller) LowPriorityHostServices(request *protocol.BridgeRequestEnve
 		return nil, err
 	}
 
-	notifyResult, err := notifySvc.Send(ctx, capmodel.CapabilityContext{}, notifycap.SendInput{
+	notifyResult, err := notifySvc.Send(ctx, notifycap.SendInput{
 		ChannelKey: "inbox",
 		Title: "低优先级宿主服务测试通知",
 		Content: "cache/lock/notifications success",
-		SourceType: notifycap.SourceTypePlugin,
+		SourceType: usermsgv1.SourceTypePlugin,
 		SourceID: request.RequestID,
 		Category: notifycap.CategoryCodeOther,
 		Recipients: []string{"1"},
@@ -813,7 +814,6 @@ import (
 	"strings"
 	"time"
 
-	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/lockcap"
 	"lina-core/pkg/plugin/capability/notifycap"
 	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
@@ -822,7 +822,7 @@ import (
 
 func (c *Controller) CacheLimit(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	ctx := bridgeplugin.NewGuestControllerContext(request)
-	_, err := bridgeplugin.Cache().Set(ctx, "limited-cache", "oversized", strings.Repeat("a", 4097), 0)
+	_, err := bridgeplugin.Default().Cache().Set(ctx, "limited-cache", "oversized", strings.Repeat("a", 4097), 60*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -831,7 +831,7 @@ func (c *Controller) CacheLimit(request *protocol.BridgeRequestEnvelopeV1) (*pro
 
 func (c *Controller) LockDenied(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	ctx := bridgeplugin.NewGuestControllerContext(request)
-	_, err := bridgeplugin.Lock().Acquire(ctx, lockcap.AcquireInput{Name: "blocked-lock", Lease: time.Second})
+	_, err := bridgeplugin.Default().Lock().Acquire(ctx, lockcap.AcquireInput{Name: "blocked-lock", Lease: time.Second})
 	if err != nil {
 		return nil, err
 	}
@@ -841,7 +841,6 @@ func (c *Controller) LockDenied(request *protocol.BridgeRequestEnvelopeV1) (*pro
 func (c *Controller) NotifyDenied(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	_, err := bridgeplugin.New().Notifications().Send(
 		bridgeplugin.NewGuestControllerContext(request),
-		capmodel.CapabilityContext{},
 		notifycap.SendInput{
 			ChannelKey: "ops-webhook",
 			Title: "denied notify",

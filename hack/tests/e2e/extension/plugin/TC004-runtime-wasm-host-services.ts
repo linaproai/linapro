@@ -533,10 +533,11 @@ const (
 func (c *Controller) HostServices(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	var (
 		ctx        = bridgeplugin.NewGuestControllerContext(request)
-		runtimeSvc = bridgeplugin.Runtime()
-		storageSvc = bridgeplugin.Storage()
-		httpSvc    = bridgeplugin.Network()
-		dataSvc    = bridgeplugin.Default().RecordStore()
+		services   = bridgeplugin.Default()
+		runtimeSvc = services.Runtime()
+		storageSvc = services.Storage()
+		httpSvc    = services.Network()
+		dataSvc    = services.RecordStore()
 	)
 
 	nowValue, err := runtimeSvc.Now()
@@ -851,7 +852,7 @@ import (
 )
 
 func (c *Controller) DeniedMethod(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := bridgeplugin.Storage().Get(
+	_, err := bridgeplugin.Default().Storage().Get(
 		bridgeplugin.NewGuestControllerContext(request),
 		storagecap.GetInput{Path: "authorized-files/blocked.txt"},
 	)
@@ -862,7 +863,7 @@ func (c *Controller) DeniedMethod(request *protocol.BridgeRequestEnvelopeV1) (*p
 }
 
 func (c *Controller) DeniedResource(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := bridgeplugin.Storage().Put(
+	_, err := bridgeplugin.Default().Storage().Put(
 		bridgeplugin.NewGuestControllerContext(request),
 		storagecap.PutInput{
 			Path:        "denied-files/blocked.txt",
