@@ -15,20 +15,23 @@ import (
 	"lina-core/internal/model/entity"
 
 	"github.com/gogf/gf/v2/container/gvar"
-	"github.com/gogf/gf/v2/database/gdb"
 
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/locker"
+	"lina-core/internal/service/plugin/internal/capabilityowner"
 	"lina-core/internal/service/plugin/internal/catalog"
 	plugindep "lina-core/internal/service/plugin/internal/dependency"
 	"lina-core/internal/service/plugin/internal/frontend"
+	hostconfigadapter "lina-core/internal/service/plugin/internal/hostconfig"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/lifecycle"
+	"lina-core/internal/service/plugin/internal/manifestresource"
 	"lina-core/internal/service/plugin/internal/migration"
 	"lina-core/internal/service/plugin/internal/openapi"
+	"lina-core/internal/service/plugin/internal/pluginconfig"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/internal/service/plugin/internal/upgrade"
@@ -47,18 +50,13 @@ import (
 	capabilitydictcap "lina-core/pkg/plugin/capability/dictcap"
 	capabilityfilecap "lina-core/pkg/plugin/capability/filecap"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
-	capabilityhostconfig "lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/capability/i18ncap"
-	capabilityinfracap "lina-core/pkg/plugin/capability/infracap"
 	capabilityjobcap "lina-core/pkg/plugin/capability/jobcap"
 	"lina-core/pkg/plugin/capability/lockcap"
 	"lina-core/pkg/plugin/capability/manifestcap"
-	capabilitymanifest "lina-core/pkg/plugin/capability/manifestcap"
 	capabilitynotifycap "lina-core/pkg/plugin/capability/notifycap"
 	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
-	"lina-core/pkg/plugin/capability/plugincap"
-	capabilityconfig "lina-core/pkg/plugin/capability/plugincap"
 	capabilityplugincap "lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/routecap"
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
@@ -67,6 +65,7 @@ import (
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // Services groups the wired plugin sub-services used by package-level tests.
@@ -94,34 +93,55 @@ type Services struct {
 // singleNodeTopology provides the default non-clustered topology for plugin tests.
 type singleNodeTopology struct{}
 
-// IsClusterModeEnabled reports that package tests run in single-node mode.
-func (singleNodeTopology) IsClusterModeEnabled() bool {
+// testConfigService wraps the real config service while routing dynamic plugin
+// artifact discovery into the process-local test storage directory.
+type testConfigService struct {
+	configsvc.Service
+	dynamicStoragePath string
+}
+
+// newTestConfigService creates the default plugin test config provider.
+func newTestConfigService() configsvc.Service {
+	return testConfigService{
+		Service:            configsvc.New(),
+		dynamicStoragePath: testDynamicStorageDir,
+	}
+}
+
+// GetPlugin returns plugin config with the isolated dynamic storage path.
+func (s testConfigService) GetPlugin(ctx context.Context) *configsvc.PluginConfig {
+	cfg := s.Service.GetPlugin(ctx)
+	if cfg == nil {
+		cfg = &configsvc.PluginConfig{}
+	}
+	cfg.Dynamic.StoragePath = s.dynamicStoragePath
+	return cfg
+}
+
+// GetPluginDynamicStoragePath returns the isolated dynamic storage path.
+func (s testConfigService) GetPluginDynamicStoragePath(context.Context) string {
+	return s.dynamicStoragePath
+}
+
+// Start accepts cluster startup calls without spawning coordination workers.
+func (singleNodeTopology) Start(context.Context) {}
+
+// Stop accepts cluster shutdown calls without owning external resources.
+func (singleNodeTopology) Stop(context.Context) {}
+
+// IsEnabled reports that package tests run in single-node mode.
+func (singleNodeTopology) IsEnabled() bool {
 	return false
 }
 
-// IsPrimaryNode reports that the local test node owns primary-only work.
-func (singleNodeTopology) IsPrimaryNode() bool {
+// IsPrimary reports that the local test node owns primary-only work.
+func (singleNodeTopology) IsPrimary() bool {
 	return true
 }
 
-// CurrentNodeID returns the fixed node identifier used by package tests.
-func (singleNodeTopology) CurrentNodeID() string {
+// NodeID returns the fixed node identifier used by package tests.
+func (singleNodeTopology) NodeID() string {
 	return "test-node"
-}
-
-// upgradeTopologyAdapter adapts test topology naming to upgrade.Topology.
-type upgradeTopologyAdapter struct {
-	topology singleNodeTopology
-}
-
-// IsEnabled reports whether clustered coordination is enabled for tests.
-func (a upgradeTopologyAdapter) IsEnabled() bool {
-	return a.topology.IsClusterModeEnabled()
-}
-
-// NodeID returns the stable test node identifier.
-func (a upgradeTopologyAdapter) NodeID() string {
-	return a.topology.CurrentNodeID()
 }
 
 // NewServices creates a fully wired plugin sub-service set for tests.
@@ -134,24 +154,26 @@ func NewServicesWithCapabilities(capabilities capability.Services) *Services {
 	return newServicesWithInjected(capabilities, nil, nil)
 }
 
-// NewServicesWithDynamicJobExecutor creates a test service graph with an explicit dynamic job executor.
-func NewServicesWithDynamicJobExecutor(executor integration.DynamicJobExecutor) *Services {
-	return newServicesWithInjected(nil, executor, nil)
+// NewServicesWithRuntimeService creates a test service graph with an explicit dynamic runtime service.
+func NewServicesWithRuntimeService(runtimeSvc runtime.Service) *Services {
+	return newServicesWithInjected(nil, runtimeSvc, nil)
 }
 
-// NewServicesWithUploadSizeProvider creates a test graph with an explicit
-// runtime upload-size provider.
-func NewServicesWithUploadSizeProvider(uploadSize runtime.UploadSizeProvider) *Services {
-	return newServicesWithInjected(nil, nil, uploadSize)
+// NewServicesWithConfigService creates a test graph with an explicit runtime config service.
+func NewServicesWithConfigService(configProvider configsvc.Service) *Services {
+	return newServicesWithInjected(nil, nil, configProvider)
 }
 
 func newServicesWithInjected(
 	injectedCapabilities capability.Services,
-	injectedDynamicJobExecutor integration.DynamicJobExecutor,
-	injectedUploadSize runtime.UploadSizeProvider,
+	injectedRuntimeSvc runtime.Service,
+	injectedConfig configsvc.Service,
 ) *Services {
+	configProvider := injectedConfig
+	if configProvider == nil {
+		configProvider = newTestConfigService()
+	}
 	var (
-		configProvider  = configsvc.New()
 		bizCtxProvider  = bizctx.New()
 		cacheCoordSvc   = cachecoord.Default(cachecoord.NewStaticTopology(false))
 		i18nService     = i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
@@ -160,28 +182,26 @@ func newServicesWithInjected(
 		storeSvc        = store.New(catalogSvc, topology)
 		migrationSvc    = migration.New(catalogSvc, storeSvc)
 		frontendSvc     = frontend.New(catalogSvc, storeSvc)
-		openapiSvc      = openapi.New(catalogSvc, storeSvc, nil, openapi.DefaultLocaleBundleReader{})
+		openapiSvc      = openapi.New(catalogSvc, storeSvc, nil, i18nService)
 		lockerSvc       = locker.New()
 		sessionStore    = session.NewDBStore()
 		capabilitySvc   = injectedCapabilities
 		integrationHook = &testIntegrationDelegateProvider{}
 		dependencySvc   = plugindep.New()
 	)
-	orgSvc := orgspi.New(nil, nil)
-	tenantSvc := tenantspi.New(nil, nil, bizCtxProvider)
-	roleSvc := role.New(integrationHook, bizCtxProvider, configProvider, i18nService, orgSvc, tenantSvc)
+	var (
+		orgSvc    = orgspi.New(nil, nil, nil)
+		tenantSvc = tenantspi.New(nil, nil, nil, bizCtxProvider)
+		roleSvc   = role.New(integrationHook, bizCtxProvider, configProvider, i18nService, orgSvc, tenantSvc)
+	)
 	if capabilitySvc == nil {
 		capabilitySvc = newTestCapabilities(bizCtxProvider)
 	}
-	uploadSize := injectedUploadSize
-	if uploadSize == nil {
-		uploadSize = &uploadSizeAdapter{svc: configProvider}
-	}
 	wasmRuntime, err := wasm.NewRuntime(
 		capabilitySvc,
-		capabilityconfig.NewConfigFactory("", ""),
-		capabilityhostconfig.New(mustHostConfigRawReader(configProvider)),
-		capabilitymanifest.NewFactory(""),
+		pluginconfig.NewFactory("", ""),
+		hostconfigadapter.NewStaticCapabilityAdapter(configProvider),
+		manifestresource.NewFactory(""),
 	)
 	if err != nil {
 		panic(fmt.Sprintf("create test wasm runtime: %v", err))
@@ -191,37 +211,31 @@ func newServicesWithInjected(
 		storeSvc,
 		migrationSvc,
 		frontendSvc,
-		openapiSvc,
 		i18nService,
 		lockerSvc,
 		topology,
 		integrationHook,
-		integrationHook,
-		integrationHook,
-		&jwtConfigAdapter{svc: configProvider},
-		uploadSize,
-		&userCtxAdapter{svc: bizCtxProvider},
+		configProvider,
+		bizCtxProvider,
 		sessionStore,
 		roleSvc,
-		integrationHook,
 		runtimeCacheChangeNotifier{},
 		runtimeDependencyValidator{},
-		testStorageCleanupProvider{capabilities: capabilitySvc},
+		capabilitySvc,
 		wasmRuntime,
 	)
-	dynamicJobExecutor := injectedDynamicJobExecutor
-	if dynamicJobExecutor == nil {
-		dynamicJobExecutor = runtimeSvc
+	integrationRuntimeSvc := injectedRuntimeSvc
+	if integrationRuntimeSvc == nil {
+		integrationRuntimeSvc = runtimeSvc
 	}
 	integrationSvc := integration.New(
 		catalogSvc,
 		storeSvc,
-		&bizCtxAdapter{svc: bizCtxProvider},
+		bizCtxProvider,
 		topology,
-		testSourceServicesProvider{capabilities: capabilitySvc},
-		capabilitySvc.Org(),
-		dynamicJobExecutor,
-		integration.NewSharedState(),
+		capabilitySvc,
+		orgServiceForTestCapabilities(capabilitySvc, orgSvc),
+		integrationRuntimeSvc,
 	)
 	integrationHook.service = integrationSvc
 	lifecycleSvc := lifecycle.New(
@@ -235,12 +249,11 @@ func newServicesWithInjected(
 		runtimeCacheChangeNotifier{},
 		topology,
 		nil,
-		testSourceServicesProvider{capabilities: capabilitySvc},
+		capabilitySvc,
 	)
 	upgradeSvc, err := upgrade.New(
 		catalogSvc,
 		storeSvc,
-		lifecycleSvc,
 		runtimeSvc,
 		integrationSvc,
 		migrationSvc,
@@ -249,7 +262,7 @@ func newServicesWithInjected(
 		nil,
 		runtimeCacheChangeNotifier{},
 		runtimeCacheFreshener{},
-		upgradeTopologyAdapter{topology: topology},
+		topology,
 		configProvider,
 	)
 	if err != nil {
@@ -267,31 +280,6 @@ func newServicesWithInjected(
 		OpenAPI:     openapiSvc,
 		Upgrade:     upgradeSvc,
 	}
-}
-
-// testSourceServicesProvider returns source-plugin service directories scoped by plugin ID.
-type testSourceServicesProvider struct {
-	capabilities capability.Services
-}
-
-// SourceServicesForPlugin returns plugin-scoped services for source-plugin callbacks.
-func (p testSourceServicesProvider) SourceServicesForPlugin(pluginID string) pluginhost.Services {
-	if p.capabilities == nil {
-		return nil
-	}
-	services := capability.ServicesForPlugin(p.capabilities, pluginID)
-	sourceServices, _ := services.(pluginhost.Services)
-	return sourceServices
-}
-
-// mustHostConfigRawReader returns the raw host-config reader implemented by
-// the shared test config service and panics if fixture wiring regresses.
-func mustHostConfigRawReader(configProvider configsvc.Service) capabilityhostconfig.RawConfigReader {
-	reader, ok := configProvider.(capabilityhostconfig.RawConfigReader)
-	if !ok {
-		panic("test config service does not support raw host config reads")
-	}
-	return reader
 }
 
 // runtimeCacheChangeNotifier is a no-op cache revision publisher for isolated
@@ -403,30 +391,37 @@ func (p *testIntegrationDelegateProvider) CanExposeBusinessEntries(ctx context.C
 	return p == nil || p.service == nil || p.service.CanExposeBusinessEntries(ctx, pluginID)
 }
 
-// testStorageCleanupProvider returns the capability directory used by storage
-// cleanup in runtime uninstall tests.
-type testStorageCleanupProvider struct {
-	capabilities capability.Services
-}
-
-// StorageCleanupServices returns the test capability directory.
-func (p testStorageCleanupProvider) StorageCleanupServices() capability.Services {
-	return p.capabilities
+// orgServiceForTestCapabilities returns the organization service used by plugin
+// resource data-scope tests while preserving fallback behavior for capability
+// directories that intentionally omit Org().
+func orgServiceForTestCapabilities(
+	capabilities capability.Services,
+	fallback capabilityorgcap.Service,
+) capabilityorgcap.Service {
+	var orgSvc capabilityorgcap.Service
+	if capabilities != nil {
+		orgSvc = capabilities.Org()
+	}
+	if orgSvc == nil {
+		orgSvc = fallback
+	}
+	if orgSvc == nil {
+		return nil
+	}
+	return orgSvc
 }
 
 // testCapabilities publishes the minimal capability services needed by
 // source-plugin callbacks exercised in plugin service tests.
 type testCapabilities struct {
-	// admin exposes registration-safe management capability slices.
-	admin capability.AdminServices
 	// authz exposes registration-safe authorization projections.
 	authz capabilityauthz.Service
 	// configFactory creates plugin-scoped configuration views.
-	configFactory plugincap.ConfigServiceFactory
+	configFactory pluginconfig.Factory
 	// dict exposes registration-safe dictionary projections.
 	dict capabilitydictcap.Service
 	// manifestFactory creates plugin-scoped manifest resource views.
-	manifestFactory manifestcap.ServiceFactory
+	manifestFactory manifestresource.Factory
 	// plugins exposes registration-safe plugin-governance projections.
 	plugins capabilityplugincap.Service
 	// bizCtx exposes request business-context projection to source plugins.
@@ -438,7 +433,7 @@ type testCapabilities struct {
 	// hostConfig exposes registration-safe host configuration defaults.
 	hostConfig hostconfigcap.Service
 	// tenantFilter exposes a registration-safe tenant filter.
-	tenantFilter tenantspi.PluginTableFilterService
+	tenantFilter tenantcap.FilterService
 	// users exposes a registration-safe user-domain capability.
 	users capabilityusercap.Service
 	// storage exposes a registration-safe no-op storage service to source plugins.
@@ -447,20 +442,19 @@ type testCapabilities struct {
 	pluginID string
 }
 
-// Ensure testCapabilities satisfies the source-plugin capability services.
-var _ pluginhost.Services = (*testCapabilities)(nil)
+// Ensure testCapabilities satisfies the ordinary capability services.
+var _ capability.Services = (*testCapabilities)(nil)
 
 // Ensure testCapabilities can return plugin-scoped capability views.
-var _ capability.ScopedServicesFactory = (*testCapabilities)(nil)
+var _ capabilityowner.ScopedServicesFactory = (*testCapabilities)(nil)
 
 // newTestCapabilities creates capability services for integration tests.
 func newTestCapabilities(bizCtxSvc bizctxcap.Service) capability.Services {
 	return &testCapabilities{
-		admin:           testAdminServices{},
 		authz:           testAuthzService{},
-		configFactory:   capabilityconfig.NewConfigFactory("", ""),
+		configFactory:   pluginconfig.NewFactory("", ""),
 		dict:            testDictService{},
-		manifestFactory: capabilitymanifest.NewFactory(""),
+		manifestFactory: manifestresource.NewFactory(""),
 		plugins:         testPluginsService{},
 		bizCtx:          bizCtxSvc,
 		cache:           testCacheService{},
@@ -483,17 +477,9 @@ func (s *testCapabilities) Auth() authcap.Service {
 	return authcap.New(testNoopAuth{}, s.authz)
 }
 
-// Admin returns the registration-safe management directory for plugin integration tests.
-func (s *testCapabilities) Admin() capability.AdminServices {
-	if s == nil {
-		return nil
-	}
-	return s.admin
-}
-
 // AI returns the default AI capability fallback namespace.
 func (s *testCapabilities) AI() capabilityai.Service {
-	return capabilityai.New(capabilityaitext.New(nil, nil))
+	return capabilityai.New(capabilityaitext.New(nil, nil, nil))
 }
 
 // Users returns an empty user-domain service for plugin integration tests.
@@ -520,14 +506,6 @@ func (s *testCapabilities) Cache() cachecap.Service {
 	return s.cache
 }
 
-// PluginConfig returns the plugin-scoped test host configuration service.
-func (s *testCapabilities) PluginConfig() plugincap.ConfigService {
-	if s == nil || s.configFactory == nil {
-		return nil
-	}
-	return s.configFactory.ForPlugin(s.pluginID)
-}
-
 // Dict returns the registration-safe dictionary-domain service.
 func (s *testCapabilities) Dict() capabilitydictcap.Service {
 	if s == nil {
@@ -545,7 +523,6 @@ func (s *testCapabilities) ForPlugin(pluginID string) capability.Services {
 		return nil
 	}
 	return &testCapabilities{
-		admin:           s.admin,
 		authz:           s.authz,
 		configFactory:   s.configFactory,
 		dict:            s.dict,
@@ -573,9 +550,6 @@ func (s *testCapabilities) HostConfig() hostconfigcap.Service {
 // I18n returns a fallback i18n service for plugin integration tests.
 func (s *testCapabilities) I18n() i18ncap.Service { return testNoopI18n{} }
 
-// Infra returns an empty infrastructure-domain service for plugin integration tests.
-func (s *testCapabilities) Infra() capabilityinfracap.Service { return testNoopInfra{} }
-
 // Jobs returns an empty scheduled-job domain service for plugin integration tests.
 func (s *testCapabilities) Jobs() capabilityjobcap.Service { return testNoopJobs{} }
 
@@ -602,7 +576,7 @@ func (s *testCapabilities) Notifications() capabilitynotifycap.Service {
 
 // Org returns the default organization capability fallback service.
 func (s *testCapabilities) Org() capabilityorgcap.Service {
-	return orgspi.New(nil, nil)
+	return orgspi.New(nil, nil, nil)
 }
 
 // Plugins returns the registration-safe plugin-governance domain service.
@@ -612,14 +586,6 @@ func (s *testCapabilities) Plugins() capabilityplugincap.Service {
 	}
 	return s.plugins
 }
-
-// PluginLifecycle returns no-op lifecycle operations for plugin integration tests.
-func (s *testCapabilities) PluginLifecycle() plugincap.LifecycleService {
-	return testNoopPluginLifecycle{}
-}
-
-// PluginState returns a disabled-state service for plugin integration tests.
-func (s *testCapabilities) PluginState() plugincap.StateService { return testNoopPluginState{} }
 
 // Route returns an empty dynamic-route metadata service for plugin integration tests.
 func (s *testCapabilities) Route() routecap.Service { return testNoopRoute{} }
@@ -635,17 +601,36 @@ func (s *testCapabilities) Storage() storagecap.Service {
 	return s.storage
 }
 
-// TenantFilter returns the registration-safe tenant filter for plugin integration tests.
-func (s *testCapabilities) TenantFilter() tenantspi.PluginTableFilterService {
-	if s == nil {
-		return nil
-	}
-	return s.tenantFilter
-}
-
 // Tenant returns the default tenant capability fallback service.
 func (s *testCapabilities) Tenant() tenantcap.Service {
-	return tenantspi.New(nil, nil, nil)
+	if s == nil {
+		return tenantspi.New(nil, nil, nil, nil)
+	}
+	return testTenantService{
+		Service: tenantspi.New(nil, nil, nil, nil),
+		plugins: s.plugins,
+		filter:  s.tenantFilter,
+	}
+}
+
+// testTenantService attaches test tenant sub-capabilities to the fallback tenant service.
+type testTenantService struct {
+	tenantcap.Service
+	plugins capabilityplugincap.Service
+	filter  tenantcap.FilterService
+}
+
+// Plugins returns tenant-plugin governance through the plugin-domain fixture.
+func (s testTenantService) Plugins() tenantcap.PluginService {
+	if governance, ok := s.plugins.(tenantcap.PluginService); ok {
+		return governance
+	}
+	return nil
+}
+
+// Filter returns the registration-safe tenant filter fixture.
+func (s testTenantService) Filter() tenantcap.FilterService {
+	return s.filter
 }
 
 // testHostConfigService returns deterministic host configuration values needed
@@ -694,13 +679,18 @@ func (testHostConfigService) Duration(_ context.Context, _ string, defaultValue 
 	return defaultValue, nil
 }
 
+// SysConfig returns a registration-only sys_config subresource.
+func (testHostConfigService) SysConfig() hostconfigcap.SysConfigService {
+	return testNoopSysConfig{}
+}
+
 // testAuthzService is an empty authorization fixture for registration-only tests.
 type testAuthzService struct{}
 
 // BatchGetPermissions returns label projections for non-empty permission keys.
-func (testAuthzService) BatchGetPermissions(_ context.Context, _ capmodel.CapabilityContext, keys []capabilityauthz.PermissionKey) (*capmodel.BatchResult[*capabilityauthz.PermissionProjection, capabilityauthz.PermissionKey], error) {
-	result := &capmodel.BatchResult[*capabilityauthz.PermissionProjection, capabilityauthz.PermissionKey]{
-		Items:      make(map[capabilityauthz.PermissionKey]*capabilityauthz.PermissionProjection, len(keys)),
+func (testAuthzService) BatchGetPermissions(_ context.Context, keys []capabilityauthz.PermissionKey) (*capmodel.BatchResult[*capabilityauthz.PermissionInfo, capabilityauthz.PermissionKey], error) {
+	result := &capmodel.BatchResult[*capabilityauthz.PermissionInfo, capabilityauthz.PermissionKey]{
+		Items:      make(map[capabilityauthz.PermissionKey]*capabilityauthz.PermissionInfo, len(keys)),
 		MissingIDs: []capabilityauthz.PermissionKey{},
 	}
 	for _, key := range keys {
@@ -708,13 +698,13 @@ func (testAuthzService) BatchGetPermissions(_ context.Context, _ capmodel.Capabi
 			result.MissingIDs = append(result.MissingIDs, key)
 			continue
 		}
-		result.Items[key] = &capabilityauthz.PermissionProjection{Key: key}
+		result.Items[key] = &capabilityauthz.PermissionInfo{Key: key}
 	}
 	return result, nil
 }
 
 // BatchHasPermissions reports false for all permissions in registration-only tests.
-func (testAuthzService) BatchHasPermissions(_ context.Context, _ capmodel.CapabilityContext, keys []capabilityauthz.PermissionKey) (map[capabilityauthz.PermissionKey]bool, error) {
+func (testAuthzService) BatchHasPermissions(_ context.Context, keys []capabilityauthz.PermissionKey) (map[capabilityauthz.PermissionKey]bool, error) {
 	result := make(map[capabilityauthz.PermissionKey]bool, len(keys))
 	for _, key := range keys {
 		result[key] = false
@@ -723,13 +713,18 @@ func (testAuthzService) BatchHasPermissions(_ context.Context, _ capmodel.Capabi
 }
 
 // HasPermission reports false because registration-only tests never authorize requests.
-func (testAuthzService) HasPermission(context.Context, capmodel.CapabilityContext, capabilityauthz.PermissionKey) (bool, error) {
+func (testAuthzService) HasPermission(context.Context, capabilityauthz.PermissionKey) (bool, error) {
 	return false, nil
 }
 
 // IsPlatformAdmin reports false because registration-only tests never check admin status.
-func (testAuthzService) IsPlatformAdmin(context.Context, capmodel.CapabilityContext, capabilityauthz.UserID) (bool, error) {
+func (testAuthzService) IsPlatformAdmin(context.Context, capabilityauthz.UserID) (bool, error) {
 	return false, nil
+}
+
+// ReplaceRolePermissions accepts permission replacement without mutating test state.
+func (testAuthzService) ReplaceRolePermissions(context.Context, capabilityauthz.RoleID, []capabilityauthz.PermissionKey) error {
+	return nil
 }
 
 // testCacheService is a no-op cache fixture for registration-only tests.
@@ -991,10 +986,63 @@ func (s *testStorageService) objectLocked(path string) *storagecap.Object {
 // testDictService is an empty dictionary fixture for registration-only tests.
 type testDictService struct{}
 
+// Type returns dictionary type methods for registration-only tests.
+func (s testDictService) Type() capabilitydictcap.TypeService { return testDictTypeService{} }
+
+// Value returns dictionary value methods for registration-only tests.
+func (s testDictService) Value() capabilitydictcap.ValueService { return testDictValueService{} }
+
+// Refresh accepts dictionary refresh requests without mutating cache state.
+func (testDictService) Refresh(context.Context, capabilitydictcap.Type) error {
+	return nil
+}
+
+type testDictTypeService struct{}
+
+func (testDictTypeService) Get(context.Context, int) (*capabilitydictcap.TypeInfo, error) {
+	return nil, nil
+}
+
+func (testDictTypeService) BatchGet(context.Context, []int) (*capmodel.BatchResult[*capabilitydictcap.TypeInfo, int], error) {
+	return &capmodel.BatchResult[*capabilitydictcap.TypeInfo, int]{Items: map[int]*capabilitydictcap.TypeInfo{}}, nil
+}
+
+func (testDictTypeService) List(context.Context, capabilitydictcap.ListTypesInput) (*capmodel.PageResult[*capabilitydictcap.TypeInfo], error) {
+	return &capmodel.PageResult[*capabilitydictcap.TypeInfo]{Items: []*capabilitydictcap.TypeInfo{}}, nil
+}
+
+func (testDictTypeService) EnsureVisible(context.Context, []int) error {
+	return nil
+}
+
+func (testDictTypeService) EnsureKeysVisible(context.Context, []capabilitydictcap.Type) error {
+	return nil
+}
+
+func (testDictTypeService) Create(context.Context, capabilitydictcap.CreateTypeInput) (int, error) {
+	return 0, nil
+}
+
+func (testDictTypeService) Update(context.Context, capabilitydictcap.UpdateTypeInput) error {
+	return nil
+}
+
+func (testDictTypeService) Delete(context.Context, int) error { return nil }
+
+type testDictValueService struct{}
+
+func (testDictValueService) Get(context.Context, int) (*capabilitydictcap.ValueInfo, error) {
+	return nil, nil
+}
+
+func (testDictValueService) BatchGet(context.Context, capabilitydictcap.BatchGetValuesInput) (*capmodel.BatchResult[*capabilitydictcap.ValueInfo, capabilitydictcap.Value], error) {
+	return &capmodel.BatchResult[*capabilitydictcap.ValueInfo, capabilitydictcap.Value]{Items: map[capabilitydictcap.Value]*capabilitydictcap.ValueInfo{}}, nil
+}
+
 // ResolveLabels returns deterministic label projections for requested values.
-func (testDictService) ResolveLabels(_ context.Context, _ capmodel.CapabilityContext, input capabilitydictcap.ResolveInput) (*capmodel.BatchResult[*capabilitydictcap.LabelProjection, capabilitydictcap.Value], error) {
-	result := &capmodel.BatchResult[*capabilitydictcap.LabelProjection, capabilitydictcap.Value]{
-		Items:      make(map[capabilitydictcap.Value]*capabilitydictcap.LabelProjection, len(input.Values)),
+func (testDictValueService) ResolveLabels(_ context.Context, input capabilitydictcap.ResolveInput) (*capmodel.BatchResult[*capabilitydictcap.LabelInfo, capabilitydictcap.Value], error) {
+	result := &capmodel.BatchResult[*capabilitydictcap.LabelInfo, capabilitydictcap.Value]{
+		Items:      make(map[capabilitydictcap.Value]*capabilitydictcap.LabelInfo, len(input.Values)),
 		MissingIDs: []capabilitydictcap.Value{},
 	}
 	for _, value := range input.Values {
@@ -1002,7 +1050,7 @@ func (testDictService) ResolveLabels(_ context.Context, _ capmodel.CapabilityCon
 			result.MissingIDs = append(result.MissingIDs, value)
 			continue
 		}
-		result.Items[value] = &capabilitydictcap.LabelProjection{
+		result.Items[value] = &capabilitydictcap.LabelInfo{
 			Type:  input.Type,
 			Value: value,
 			Label: string(value),
@@ -1011,13 +1059,33 @@ func (testDictService) ResolveLabels(_ context.Context, _ capmodel.CapabilityCon
 	return result, nil
 }
 
-// ListValues returns an empty dictionary page for registration-only tests.
-func (testDictService) ListValues(context.Context, capmodel.CapabilityContext, capabilitydictcap.ListValuesInput) (*capmodel.PageResult[*capabilitydictcap.LabelProjection], error) {
-	return &capmodel.PageResult[*capabilitydictcap.LabelProjection]{Items: []*capabilitydictcap.LabelProjection{}}, nil
+// List returns an empty dictionary page for registration-only tests.
+func (testDictValueService) List(context.Context, capabilitydictcap.ListValuesInput) (*capmodel.PageResult[*capabilitydictcap.ValueInfo], error) {
+	return &capmodel.PageResult[*capabilitydictcap.ValueInfo]{Items: []*capabilitydictcap.ValueInfo{}}, nil
+}
+
+func (testDictValueService) EnsureVisible(context.Context, []int) error {
+	return nil
 }
 
 // EnsureValuesVisible accepts values because registration-only tests never persist dictionary data.
-func (testDictService) EnsureValuesVisible(context.Context, capmodel.CapabilityContext, capabilitydictcap.ResolveInput) error {
+func (testDictValueService) EnsureValuesVisible(context.Context, capabilitydictcap.ResolveInput) error {
+	return nil
+}
+
+func (testDictValueService) Create(context.Context, capabilitydictcap.CreateValueInput) (int, error) {
+	return 0, nil
+}
+
+func (testDictValueService) Update(context.Context, capabilitydictcap.UpdateValueInput) error {
+	return nil
+}
+
+func (testDictValueService) Delete(context.Context, int) error {
+	return nil
+}
+
+func (testDictValueService) DeleteByType(context.Context, capabilitydictcap.Type) error {
 	return nil
 }
 
@@ -1029,47 +1097,54 @@ func (testTenantFilterService) Context(context.Context) tenantspi.TenantFilterCo
 	return tenantspi.TenantFilterContext{PlatformBypass: true}
 }
 
-// Apply returns the model unchanged because registration-only tests never query plugin tables.
-func (testTenantFilterService) Apply(_ context.Context, model *gdb.Model, _ string) *gdb.Model {
-	return model
-}
-
 // testPluginsService is an empty plugin-governance fixture for registration-only tests.
 type testPluginsService struct{}
 
 // BatchGet returns all requested plugin IDs as opaque missing records.
-func (testPluginsService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityplugincap.PluginID) (*capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID], error) {
-	return &capmodel.BatchResult[*capabilityplugincap.Projection, capabilityplugincap.PluginID]{
-		Items:      map[capabilityplugincap.PluginID]*capabilityplugincap.Projection{},
+func (testPluginsService) BatchGet(_ context.Context, ids []capabilityplugincap.PluginID) (*capmodel.BatchResult[*capabilityplugincap.PluginInfo, capabilityplugincap.PluginID], error) {
+	return &capmodel.BatchResult[*capabilityplugincap.PluginInfo, capabilityplugincap.PluginID]{
+		Items:      map[capabilityplugincap.PluginID]*capabilityplugincap.PluginInfo{},
 		MissingIDs: append([]capabilityplugincap.PluginID(nil), ids...),
 	}, nil
 }
 
 // Current returns no current plugin projection for registration-only tests.
-func (testPluginsService) Current(context.Context, capmodel.CapabilityContext) (*capabilityplugincap.Projection, error) {
+func (testPluginsService) Current(context.Context) (*capabilityplugincap.PluginInfo, error) {
 	return nil, nil
 }
 
-// Search returns an empty plugin-governance page for registration-only tests.
-func (testPluginsService) Search(context.Context, capmodel.CapabilityContext, capabilityplugincap.SearchInput) (*capmodel.PageResult[*capabilityplugincap.Projection], error) {
-	return &capmodel.PageResult[*capabilityplugincap.Projection]{Items: []*capabilityplugincap.Projection{}}, nil
+// Get returns no plugin projection for registration-only tests.
+func (s testPluginsService) Get(ctx context.Context, id capabilityplugincap.PluginID) (*capabilityplugincap.PluginInfo, error) {
+	result, err := s.BatchGet(ctx, []capabilityplugincap.PluginID{id})
+	if err != nil || result == nil {
+		return nil, err
+	}
+	return result.Items[id], nil
+}
+
+// List returns an empty plugin-governance page for registration-only tests.
+func (testPluginsService) List(context.Context, capabilityplugincap.ListInput) (*capmodel.PageResult[*capabilityplugincap.PluginInfo], error) {
+	return &capmodel.PageResult[*capabilityplugincap.PluginInfo]{Items: []*capabilityplugincap.PluginInfo{}}, nil
 }
 
 // ListTenantPlugins returns an empty page for registration-only tests.
-func (testPluginsService) ListTenantPlugins(context.Context, capmodel.CapabilityContext, capabilityplugincap.TenantListInput) (*capmodel.PageResult[*capabilityplugincap.TenantProjection], error) {
-	return &capmodel.PageResult[*capabilityplugincap.TenantProjection]{Items: []*capabilityplugincap.TenantProjection{}}, nil
+func (testPluginsService) ListTenantPlugins(context.Context, capabilityplugincap.TenantListInput) (*capmodel.PageResult[*capabilityplugincap.TenantPluginInfo], error) {
+	return &capmodel.PageResult[*capabilityplugincap.TenantPluginInfo]{Items: []*capabilityplugincap.TenantPluginInfo{}}, nil
 }
 
-// BatchGetCapabilityStatus returns all requested capability keys as unavailable.
-func (testPluginsService) BatchGetCapabilityStatus(_ context.Context, _ capmodel.CapabilityContext, keys []capabilityplugincap.CapabilityKey) (*capmodel.BatchResult[*capmodel.CapabilityStatus, capabilityplugincap.CapabilityKey], error) {
-	result := &capmodel.BatchResult[*capmodel.CapabilityStatus, capabilityplugincap.CapabilityKey]{
-		Items:      make(map[capabilityplugincap.CapabilityKey]*capmodel.CapabilityStatus, len(keys)),
-		MissingIDs: []capabilityplugincap.CapabilityKey{},
-	}
-	for _, key := range keys {
-		result.Items[key] = &capmodel.CapabilityStatus{Available: false, Reason: "test_no_provider"}
-	}
-	return result, nil
+// IsEnabled reports disabled plugin state for registration-only tests.
+func (testPluginsService) IsEnabled(context.Context, capabilityplugincap.PluginID) (bool, error) {
+	return false, nil
+}
+
+// IsProviderEnabled reports disabled provider state for registration-only tests.
+func (testPluginsService) IsProviderEnabled(context.Context, capabilityplugincap.PluginID) (bool, error) {
+	return false, nil
+}
+
+// IsEnabledAuthoritative reports disabled authoritative state for registration-only tests.
+func (testPluginsService) IsEnabledAuthoritative(context.Context, capabilityplugincap.PluginID) (bool, error) {
+	return false, nil
 }
 
 // Config returns a blank plugin configuration reader for registration-only tests.
@@ -1077,26 +1152,31 @@ func (testPluginsService) Config() capabilityplugincap.ConfigService {
 	return testPluginConfigService{}
 }
 
-// State returns a nil-backed plugin state reader for registration-only tests.
-func (testPluginsService) State() capabilityplugincap.StateService {
-	return capabilityplugincap.NewState(nil)
-}
-
-// Lifecycle returns a nil-backed lifecycle service for registration-only tests.
-func (testPluginsService) Lifecycle() capabilityplugincap.LifecycleService {
-	return capabilityplugincap.NewLifecycle(nil)
-}
-
 // Registry returns the test registry projection service.
 func (s testPluginsService) Registry() capabilityplugincap.RegistryService {
 	return s
+}
+
+// State returns the test plugin enablement lookup projection.
+func (s testPluginsService) State() capabilityplugincap.StateService {
+	return s
+}
+
+// Lifecycle returns no-op lifecycle operations for registration-only tests.
+func (testPluginsService) Lifecycle() capabilityplugincap.LifecycleService {
+	return testNoopPluginLifecycle{}
 }
 
 // testPluginConfigService is a no-op plugin configuration reader for registration-only tests.
 type testPluginConfigService struct{}
 
 // Get reports that the requested plugin config key does not exist.
-func (testPluginConfigService) Get(context.Context, string) (*gvar.Var, error) { return nil, nil }
+func (testPluginConfigService) Get(_ context.Context, _ string, defaultValue any) (*gvar.Var, error) {
+	if defaultValue != nil {
+		return gvar.New(defaultValue), nil
+	}
+	return nil, nil
+}
 
 // Exists reports that no plugin config keys exist.
 func (testPluginConfigService) Exists(context.Context, string) (bool, error) { return false, nil }
@@ -1124,76 +1204,45 @@ func (testPluginConfigService) Duration(_ context.Context, _ string, defaultValu
 	return defaultValue, nil
 }
 
-// testPluginAdminService is a no-op plugin-governance admin fixture.
-type testPluginAdminService struct{}
-
-// SetEnabled accepts enablement changes without mutating test state.
-func (testPluginAdminService) SetEnabled(context.Context, capmodel.CapabilityContext, capabilityplugincap.PluginID, bool) error {
+// SetTenantPluginEnabled accepts enablement changes without mutating test state.
+func (testPluginsService) SetTenantPluginEnabled(context.Context, capabilityplugincap.PluginID, bool) error {
 	return nil
 }
 
-// ProvisionTenantDefaults accepts tenant default provisioning without mutating test state.
-func (testPluginAdminService) ProvisionTenantDefaults(context.Context, capmodel.CapabilityContext, capmodel.DomainID) error {
+// ProvisionTenantPluginDefaults accepts tenant default provisioning without mutating test state.
+func (testPluginsService) ProvisionTenantPluginDefaults(context.Context, capmodel.DomainID) error {
 	return nil
 }
-
-// testAdminServices exposes only the admin slices needed by registration tests.
-type testAdminServices struct{}
-
-// Users returns no-op user management commands for registration-only tests.
-func (testAdminServices) Users() capabilityusercap.AdminService { return testNoopUsers{} }
-
-// Auth returns no-op authentication and authorization management commands for registration-only tests.
-func (testAdminServices) Auth() authcap.AdminService { return authcap.NewAdmin(testNoopAuthz{}) }
-
-// Dict returns no-op dictionary management commands for registration-only tests.
-func (testAdminServices) Dict() capabilitydictcap.AdminService { return testNoopDict{} }
-
-// Files returns no-op file management commands for registration-only tests.
-func (testAdminServices) Files() capabilityfilecap.AdminService { return testNoopFiles{} }
-
-// Sessions returns no-op session management commands for registration-only tests.
-func (testAdminServices) Sessions() capabilitysessioncap.AdminService { return testNoopSessions{} }
-
-// HostConfig returns no-op runtime host-configuration management commands for registration-only tests.
-func (testAdminServices) HostConfig() hostconfigcap.AdminService { return testNoopRuntimeConfig{} }
-
-// Notifications returns no-op notification management commands for registration-only tests.
-func (testAdminServices) Notifications() capabilitynotifycap.AdminService {
-	return testNoopNotifications{}
-}
-
-// Plugins returns no-op plugin management commands for tenant route construction.
-func (testAdminServices) Plugins() capabilityplugincap.AdminService {
-	return testPluginAdminService{}
-}
-
-// Jobs returns no-op scheduled-job management commands for registration-only tests.
-func (testAdminServices) Jobs() capabilityjobcap.AdminService { return testNoopJobs{} }
-
-// Infra returns no-op infrastructure management commands for registration-only tests.
-func (testAdminServices) Infra() capabilityinfracap.AdminService { return testNoopInfra{} }
 
 // testUsersService is an empty user-domain fixture for registration-only tests.
 type testUsersService struct{}
 
 // Current returns no user because registration-only tests never authenticate.
-func (testUsersService) Current(context.Context, capmodel.CapabilityContext) (*capabilityusercap.UserProjection, error) {
+func (testUsersService) Current(context.Context) (*capabilityusercap.UserInfo, error) {
 	return nil, nil
 }
 
 // BatchGet returns all requested user IDs as opaque missing records.
-func (testUsersService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
-	return &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID]{
-		Items:      map[capabilityusercap.UserID]*capabilityusercap.UserProjection{},
+func (testUsersService) BatchGet(_ context.Context, ids []capabilityusercap.UserID) (*capmodel.BatchResult[*capabilityusercap.UserInfo, capabilityusercap.UserID], error) {
+	return &capmodel.BatchResult[*capabilityusercap.UserInfo, capabilityusercap.UserID]{
+		Items:      map[capabilityusercap.UserID]*capabilityusercap.UserInfo{},
 		MissingIDs: append([]capabilityusercap.UserID(nil), ids...),
 	}, nil
 }
 
+// Get returns no user projection for registration-only tests.
+func (s testUsersService) Get(ctx context.Context, id capabilityusercap.UserID) (*capabilityusercap.UserInfo, error) {
+	result, err := s.BatchGet(ctx, []capabilityusercap.UserID{id})
+	if err != nil || result == nil {
+		return nil, err
+	}
+	return result.Items[id], nil
+}
+
 // BatchResolve returns all requested user identifiers as opaque missing records.
-func (testUsersService) BatchResolve(_ context.Context, _ capmodel.CapabilityContext, input capabilityusercap.BatchResolveInput) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.ResolveKey], error) {
-	result := &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.ResolveKey]{
-		Items:      map[capabilityusercap.ResolveKey]*capabilityusercap.UserProjection{},
+func (testUsersService) BatchResolve(_ context.Context, input capabilityusercap.BatchResolveInput) (*capmodel.BatchResult[*capabilityusercap.UserInfo, capabilityusercap.ResolveKey], error) {
+	result := &capmodel.BatchResult[*capabilityusercap.UserInfo, capabilityusercap.ResolveKey]{
+		Items:      map[capabilityusercap.ResolveKey]*capabilityusercap.UserInfo{},
 		MissingIDs: []capabilityusercap.ResolveKey{},
 	}
 	for _, id := range input.IDs {
@@ -1208,62 +1257,52 @@ func (testUsersService) BatchResolve(_ context.Context, _ capmodel.CapabilityCon
 	return result, nil
 }
 
-// Search returns an empty page because registration-only tests never query users.
-func (testUsersService) Search(context.Context, capmodel.CapabilityContext, capabilityusercap.SearchInput) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
-	return &capmodel.PageResult[*capabilityusercap.UserProjection]{Items: []*capabilityusercap.UserProjection{}}, nil
+// List returns an empty page because registration-only tests never query users.
+func (testUsersService) List(context.Context, capabilityusercap.ListInput) (*capmodel.PageResult[*capabilityusercap.UserInfo], error) {
+	return &capmodel.PageResult[*capabilityusercap.UserInfo]{Items: []*capabilityusercap.UserInfo{}}, nil
 }
 
 // EnsureVisible accepts all users because registration-only tests never execute route handlers.
-func (testUsersService) EnsureVisible(context.Context, capmodel.CapabilityContext, []capabilityusercap.UserID) error {
+func (testUsersService) EnsureVisible(context.Context, []capabilityusercap.UserID) error {
 	return nil
 }
 
-// jwtConfigAdapter exposes config service JWT settings through the runtime test seam.
-type jwtConfigAdapter struct {
-	// svc provides JWT runtime configuration.
-	svc configsvc.Service
+// Create accepts user creation without mutating test state.
+func (testUsersService) Create(context.Context, capabilityusercap.CreateInput) (capabilityusercap.UserID, error) {
+	return "", nil
 }
 
-// GetJwtSecret returns the configured JWT signing secret for test wiring.
-func (a *jwtConfigAdapter) GetJwtSecret(ctx context.Context) string {
-	return a.svc.GetJwtSecret(ctx)
+// Update accepts user updates without mutating test state.
+func (testUsersService) Update(context.Context, capabilityusercap.UpdateInput) error {
+	return nil
 }
 
-// GetSessionTimeout returns the runtime-effective session timeout for test wiring.
-func (a *jwtConfigAdapter) GetSessionTimeout(ctx context.Context) (time.Duration, error) {
-	return a.svc.GetSessionTimeout(ctx)
+// Delete accepts user deletion without mutating test state.
+func (testUsersService) Delete(context.Context, capabilityusercap.UserID) error {
+	return nil
 }
 
-// uploadSizeAdapter exposes upload-size config through the runtime test seam.
-type uploadSizeAdapter struct {
-	// svc provides upload-size runtime configuration.
-	svc configsvc.Service
+// SetStatus accepts user status changes without mutating test state.
+func (testUsersService) SetStatus(context.Context, capabilityusercap.UserID, statusflag.Enabled) error {
+	return nil
 }
 
-// GetUploadMaxSize returns the runtime-effective upload limit used in tests.
-func (a *uploadSizeAdapter) GetUploadMaxSize(ctx context.Context) (int64, error) {
-	return a.svc.GetUploadMaxSize(ctx)
+// ResetPassword accepts password reset without mutating test state.
+func (testUsersService) ResetPassword(context.Context, capabilityusercap.UserID, string) error {
+	return nil
 }
 
-// userCtxAdapter forwards authenticated user injection to the shared bizctx service.
-type userCtxAdapter struct {
-	// svc stores request-local user context.
-	svc bizctx.Service
+// Assignment returns user-role assignment operations.
+func (testUsersService) Assignment() capabilityusercap.AssignmentService {
+	return testUserAssignments{}
 }
 
-// SetUser injects authenticated user identity into the test request context.
-func (a *userCtxAdapter) SetUser(ctx context.Context, tokenID string, userID int, username string, status int, clientType string) {
-	a.svc.SetUser(ctx, tokenID, userID, username, status, clientType)
-}
+// testUserAssignments accepts role replacement without mutating test state.
+type testUserAssignments struct{}
 
-// SetTenant injects the resolved tenant into the test request context.
-func (a *userCtxAdapter) SetTenant(ctx context.Context, tenantID int) {
-	a.svc.SetTenant(ctx, tenantID)
-}
-
-// SetUserAccess injects cached access-snapshot fields into the test request context.
-func (a *userCtxAdapter) SetUserAccess(ctx context.Context, dataScope int, dataScopeUnsupported bool, unsupportedDataScope int) {
-	a.svc.SetUserAccess(ctx, dataScope, dataScopeUnsupported, unsupportedDataScope)
+// ReplaceRoles accepts role replacement without mutating test state.
+func (testUserAssignments) ReplaceRoles(context.Context, capabilityusercap.UserID, []int) error {
+	return nil
 }
 
 // bizCtxAdapter exposes the current request user ID to integration-layer tests.

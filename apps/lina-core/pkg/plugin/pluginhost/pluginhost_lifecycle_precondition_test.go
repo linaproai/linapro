@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// lifecycleCallbackTestHook provides configurable BeforeUninstall behavior.
+// lifecycleCallbackTestHook provides configurable lifecycle callback behavior.
 type lifecycleCallbackTestHook struct {
 	ok     bool
 	reason string
@@ -18,8 +18,7 @@ type lifecycleCallbackTestHook struct {
 	panic  bool
 }
 
-// BeforeUninstall returns the configured test hook result.
-func (h lifecycleCallbackTestHook) BeforeUninstall(ctx context.Context, input SourcePluginLifecycleInput) (bool, string, error) {
+func (h lifecycleCallbackTestHook) callback(ctx context.Context) (bool, string, error) {
 	if h.delay > 0 {
 		select {
 		case <-time.After(h.delay):
@@ -33,20 +32,12 @@ func (h lifecycleCallbackTestHook) BeforeUninstall(ctx context.Context, input So
 	return h.ok, h.reason, h.err
 }
 
-// BeforeTenantDelete returns the configured tenant lifecycle result.
-func (h lifecycleCallbackTestHook) BeforeTenantDelete(
-	ctx context.Context,
-	input SourcePluginTenantLifecycleInput,
-) (bool, string, error) {
-	return h.ok, h.reason, h.err
-}
-
-// BeforeInstallModeChange returns the configured install-mode lifecycle result.
-func (h lifecycleCallbackTestHook) BeforeInstallModeChange(
-	ctx context.Context,
-	input SourcePluginInstallModeChangeInput,
-) (bool, string, error) {
-	return h.ok, h.reason, h.err
+func lifecycleTestCallbacks(hook LifecycleHook, h lifecycleCallbackTestHook) LifecycleCallbacks {
+	var callbacks LifecycleCallbacks
+	callbacks.set(hook, func(ctx context.Context, req LifecycleRequest) (bool, string, error) {
+		return h.callback(ctx)
+	})
+	return callbacks
 }
 
 // TestRunLifecycleCallbacksAggregatesVetoes verifies all veto reasons are collected.
@@ -54,8 +45,14 @@ func TestRunLifecycleCallbacksAggregatesVetoes(t *testing.T) {
 	result := RunLifecycleCallbacks(context.Background(), LifecycleRequest{
 		Hook: LifecycleHookBeforeUninstall,
 		Participants: []LifecycleParticipant{
-			{PluginID: "a", Callback: lifecycleCallbackTestHook{ok: false, reason: "plugin.a.reason"}},
-			{PluginID: "b", Callback: lifecycleCallbackTestHook{ok: false, reason: "plugin.b.reason"}},
+			{
+				PluginID:  "a",
+				Callbacks: lifecycleTestCallbacks(LifecycleHookBeforeUninstall, lifecycleCallbackTestHook{ok: false, reason: "plugin.a.reason"}),
+			},
+			{
+				PluginID:  "b",
+				Callbacks: lifecycleTestCallbacks(LifecycleHookBeforeUninstall, lifecycleCallbackTestHook{ok: false, reason: "plugin.b.reason"}),
+			},
 		},
 	})
 	if result.OK || len(result.Decisions) != 2 {
@@ -69,7 +66,10 @@ func TestRunLifecycleCallbacksTreatsTimeoutAsVeto(t *testing.T) {
 		Hook:        LifecycleHookBeforeUninstall,
 		HookTimeout: time.Millisecond,
 		Participants: []LifecycleParticipant{
-			{PluginID: "slow", Callback: lifecycleCallbackTestHook{ok: true, delay: 5 * time.Millisecond}},
+			{
+				PluginID:  "slow",
+				Callbacks: lifecycleTestCallbacks(LifecycleHookBeforeUninstall, lifecycleCallbackTestHook{ok: true, delay: 5 * time.Millisecond}),
+			},
 		},
 	})
 	if result.OK || len(result.Decisions) != 1 || !result.Decisions[0].TimedOut {
@@ -82,7 +82,10 @@ func TestRunLifecycleCallbacksRecoversPanic(t *testing.T) {
 	result := RunLifecycleCallbacks(context.Background(), LifecycleRequest{
 		Hook: LifecycleHookBeforeUninstall,
 		Participants: []LifecycleParticipant{
-			{PluginID: "panic", Callback: lifecycleCallbackTestHook{ok: true, panic: true}},
+			{
+				PluginID:  "panic",
+				Callbacks: lifecycleTestCallbacks(LifecycleHookBeforeUninstall, lifecycleCallbackTestHook{ok: true, panic: true}),
+			},
 		},
 	})
 	if result.OK || len(result.Decisions) != 1 || !result.Decisions[0].Panicked {
@@ -96,7 +99,10 @@ func TestRunLifecycleCallbacksTreatsErrorsAsVeto(t *testing.T) {
 	result := RunLifecycleCallbacks(context.Background(), LifecycleRequest{
 		Hook: LifecycleHookBeforeUninstall,
 		Participants: []LifecycleParticipant{
-			{PluginID: "err", Callback: lifecycleCallbackTestHook{ok: true, err: hookErr}},
+			{
+				PluginID:  "err",
+				Callbacks: lifecycleTestCallbacks(LifecycleHookBeforeUninstall, lifecycleCallbackTestHook{ok: true, err: hookErr}),
+			},
 		},
 	})
 	if result.OK || len(result.Decisions) != 1 || !errors.Is(result.Decisions[0].Err, hookErr) {
@@ -111,7 +117,13 @@ func TestRunLifecycleCallbacksRunsTenantDelete(t *testing.T) {
 		Hook:        LifecycleHookBeforeTenantDelete,
 		TenantInput: NewSourcePluginTenantLifecycleInput(LifecycleHookBeforeTenantDelete.String(), 1001),
 		Participants: []LifecycleParticipant{
-			{PluginID: "tenant-aware", Callback: lifecycleCallbackTestHook{ok: false, reason: "plugin.tenant.delete.blocked"}},
+			{
+				PluginID: "tenant-aware",
+				Callbacks: lifecycleTestCallbacks(
+					LifecycleHookBeforeTenantDelete,
+					lifecycleCallbackTestHook{ok: false, reason: "plugin.tenant.delete.blocked"},
+				),
+			},
 		},
 	})
 	if result.OK || len(result.Decisions) != 1 || result.Decisions[0].Reason != "plugin.tenant.delete.blocked" {
@@ -131,7 +143,13 @@ func TestRunLifecycleCallbacksRunsInstallModeChange(t *testing.T) {
 			"tenant_scoped",
 		),
 		Participants: []LifecycleParticipant{
-			{PluginID: "install-mode-aware", Callback: lifecycleCallbackTestHook{ok: false, reason: "plugin.install.mode.blocked"}},
+			{
+				PluginID: "install-mode-aware",
+				Callbacks: lifecycleTestCallbacks(
+					LifecycleHookBeforeInstallModeChange,
+					lifecycleCallbackTestHook{ok: false, reason: "plugin.install.mode.blocked"},
+				),
+			},
 		},
 	})
 	if result.OK || len(result.Decisions) != 1 || result.Decisions[0].Reason != "plugin.install.mode.blocked" {

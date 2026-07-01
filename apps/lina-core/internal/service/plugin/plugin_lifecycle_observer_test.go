@@ -39,9 +39,11 @@ func (r *lifecycleObserverRecorder) OnPluginUninstalled(ctx context.Context, plu
 // TestRegisterLifecycleObserverDispatchesCallbacks verifies lifecycle events
 // are delivered synchronously and unsubscribe stops future deliveries.
 func TestRegisterLifecycleObserverDispatchesCallbacks(t *testing.T) {
-	service := newTestService()
-	observer := &lifecycleObserverRecorder{}
-	unsubscribe := service.RegisterLifecycleObserver(observer)
+	var (
+		service     = newTestService()
+		observer    = &lifecycleObserverRecorder{}
+		unsubscribe = service.RegisterLifecycleObserver(observer)
+	)
 
 	if err := service.notifyPluginInstalled(context.Background(), "plugin-demo"); err != nil {
 		t.Fatalf("expected install notification to succeed, got error: %v", err)

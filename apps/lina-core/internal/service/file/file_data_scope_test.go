@@ -24,6 +24,7 @@ import (
 	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
 	rolesvc "lina-core/internal/service/role"
+	storagesvc "lina-core/internal/service/storage"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/orgcap"
@@ -34,10 +35,12 @@ import (
 // TestFileDataScopeFiltersListDetailDownloadDeleteAndSuffixes verifies file
 // metadata, binary access, deletion, and aggregation all respect uploader scope.
 func TestFileDataScopeFiltersListDetailDownloadDeleteAndSuffixes(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertFileScopeUser(t, ctx, "file-scope-current")
-	otherUserID := insertFileScopeUser(t, ctx, "file-scope-other")
-	roleID := insertFileScopeRole(t, ctx, "file-scope-self", 3)
+	var (
+		ctx           = context.Background()
+		currentUserID = insertFileScopeUser(t, ctx, "file-scope-current")
+		otherUserID   = insertFileScopeUser(t, ctx, "file-scope-other")
+		roleID        = insertFileScopeRole(t, ctx, "file-scope-self", 3)
+	)
 	t.Cleanup(func() {
 		cleanupFileScopeUsers(t, ctx, []int{currentUserID, otherUserID})
 		cleanupFileScopeRoles(t, ctx, []int{roleID})
@@ -48,15 +51,17 @@ func TestFileDataScopeFiltersListDetailDownloadDeleteAndSuffixes(t *testing.T) {
 	hiddenID := insertFileScopeRecord(t, ctx, otherUserID, "hidden", "pdf")
 	t.Cleanup(func() { cleanupFileScopeRecords(t, ctx, []int64{visibleID, hiddenID}) })
 
-	storage := &fileDataScopeStorage{content: "visible-content"}
-	bizCtxSvc := fileScopeStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
-	orgCapSvc := orgspi.New(nil, nil)
-	roleSvc := newFileDataScopeRoleService(bizCtxSvc, orgCapSvc)
+	var (
+		storage   = &fileDataScopeStorage{content: "visible-content"}
+		bizCtxSvc = fileScopeStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
+		orgCapSvc = orgspi.New(nil, nil, nil)
+		roleSvc   = newFileDataScopeRoleService(bizCtxSvc, orgCapSvc)
+	)
 	svc := &serviceImpl{
 		storage:   storage,
 		bizCtxSvc: bizCtxSvc,
 		dictSvc:   nil,
-		scopeSvc:  datascope.New(bizCtxSvc, roleSvc, orgCapSvc),
+		scopeSvc:  datascope.New(bizCtxSvc, roleSvc, orgCapSvc.Scope()),
 	}
 
 	out, err := svc.List(ctx, &ListInput{PageNum: 1, PageSize: 20})
@@ -92,15 +97,19 @@ func TestFileDataScopeFiltersListDetailDownloadDeleteAndSuffixes(t *testing.T) {
 // TestTenantUploadPersistsCurrentTenantAndListsInTenantScope verifies uploaded
 // file metadata uses the current tenant so tenant list filters can find it.
 func TestTenantUploadPersistsCurrentTenantAndListsInTenantScope(t *testing.T) {
-	ctx := context.Background()
-	tenantID := 77
-	tenantCtx := datascope.WithTenantForTest(ctx, tenantID)
-	currentUserID := insertFileScopeUser(t, ctx, "file-tenant-upload-current")
+	var (
+		ctx           = context.Background()
+		tenantID      = 77
+		tenantCtx     = datascope.WithTenantScope(ctx, tenantID)
+		currentUserID = insertFileScopeUser(t, ctx, "file-tenant-upload-current")
+	)
 	t.Cleanup(func() { cleanupFileScopeUsers(t, ctx, []int{currentUserID}) })
 
-	bizCtxSvc := fileScopeStaticBizCtx{ctx: &model.Context{TenantId: tenantID, UserId: currentUserID}}
-	storage := &fileTenantUploadStorage{}
-	scopeSvc := datascope.New(bizCtxSvc, fileTenantUploadAccessProvider{userID: currentUserID}, nil)
+	var (
+		bizCtxSvc = fileScopeStaticBizCtx{ctx: &model.Context{TenantId: tenantID, UserId: currentUserID}}
+		storage   = &fileTenantUploadStorage{}
+		scopeSvc  = datascope.New(bizCtxSvc, fileTenantUploadAccessProvider{userID: currentUserID}, nil)
+	)
 	svc := &serviceImpl{
 		configSvc: hostconfig.New(),
 		storage:   storage,
@@ -138,10 +147,12 @@ func TestTenantUploadPersistsCurrentTenantAndListsInTenantScope(t *testing.T) {
 // newFileDataScopeRoleService builds the explicit role dependency used by
 // file data-scope tests.
 func newFileDataScopeRoleService(bizCtxSvc bizctx.Service, orgCapSvc orgcap.Service) rolesvc.Service {
-	configSvc := hostconfig.New()
-	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
-	tenantSvc := tenantspi.New(nil, nil, bizCtxSvc)
-	roleSvc := rolesvc.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
+	var (
+		configSvc = hostconfig.New()
+		i18nSvc   = i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
+		tenantSvc = tenantspi.New(nil, nil, nil, bizCtxSvc)
+		roleSvc   = rolesvc.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
+	)
 	var orgScope orgspi.ScopeService
 	if scope, ok := orgCapSvc.(orgspi.ScopeService); ok {
 		orgScope = scope
@@ -152,49 +163,30 @@ func newFileDataScopeRoleService(bizCtxSvc bizctx.Service, orgCapSvc orgcap.Serv
 
 // fileDataScopeStorage is a deterministic storage fake for data-scope tests.
 type fileDataScopeStorage struct {
+	storagesvc.Service
 	content string
 }
 
-// Put is unused by file data-scope tests.
-func (s *fileDataScopeStorage) Put(context.Context, string, io.Reader) (string, error) {
-	return "", nil
-}
-
 // Get returns deterministic content.
-func (s *fileDataScopeStorage) Get(context.Context, string) (io.ReadCloser, error) {
-	return io.NopCloser(strings.NewReader(s.content)), nil
-}
-
-// Delete performs no storage mutation.
-func (s *fileDataScopeStorage) Delete(context.Context, string) error { return nil }
-
-// Url returns one deterministic URL path.
-func (s *fileDataScopeStorage) Url(_ context.Context, path string) string {
-	return "/api/v1/uploads/" + path
+func (s *fileDataScopeStorage) Get(_ context.Context, in storagesvc.GetInput) (*storagesvc.GetOutput, error) {
+	return &storagesvc.GetOutput{
+		Object: &storagesvc.Object{Key: in.Key, Size: int64(len(s.content))},
+		Body:   io.NopCloser(strings.NewReader(s.content)),
+		Found:  true,
+	}, nil
 }
 
 // fileTenantUploadStorage records file upload writes without touching disk.
-type fileTenantUploadStorage struct{}
+type fileTenantUploadStorage struct {
+	storagesvc.Service
+}
 
 // Put drains the uploaded stream and returns a deterministic storage path.
-func (s *fileTenantUploadStorage) Put(_ context.Context, filename string, data io.Reader) (string, error) {
-	if _, err := io.Copy(io.Discard, data); err != nil {
-		return "", err
+func (s *fileTenantUploadStorage) Put(_ context.Context, in storagesvc.PutInput) (*storagesvc.PutOutput, error) {
+	if _, err := io.Copy(io.Discard, in.Body); err != nil {
+		return nil, err
 	}
-	return "tenant-upload/" + filename, nil
-}
-
-// Get is unused by the upload tenant test.
-func (s *fileTenantUploadStorage) Get(context.Context, string) (io.ReadCloser, error) {
-	return io.NopCloser(strings.NewReader("")), nil
-}
-
-// Delete is unused by the upload tenant test.
-func (s *fileTenantUploadStorage) Delete(context.Context, string) error { return nil }
-
-// Url returns the upload URL shape for the stored path.
-func (s *fileTenantUploadStorage) Url(_ context.Context, path string) string {
-	return "/api/v1/uploads/" + path
+	return &storagesvc.PutOutput{Object: &storagesvc.Object{Key: in.Key}}, nil
 }
 
 // fileTenantUploadAccessProvider grants tenant-wide visibility for the upload

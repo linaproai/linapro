@@ -21,9 +21,11 @@ import (
 // stale entries for new callers while deferring runtime close until in-flight
 // executions release their lease.
 func TestInvalidateCacheWaitsForActiveLease(t *testing.T) {
-	ctx := context.Background()
-	runtime := newTestRuntimeImpl()
-	artifactPath := writeMinimalWasmArtifact(t)
+	var (
+		ctx          = context.Background()
+		runtime      = newTestRuntimeImpl()
+		artifactPath = writeMinimalWasmArtifact(t)
+	)
 	defer runtime.InvalidateAllCache(ctx)
 
 	lease, err := runtime.getOrCompileWasmModule(ctx, artifactPath)
@@ -65,9 +67,11 @@ func TestInvalidateCacheWaitsForActiveLease(t *testing.T) {
 // TestInvalidateAllCacheWaitsForActiveLease verifies full cache invalidation
 // follows the same deferred close contract as path-scoped invalidation.
 func TestInvalidateAllCacheWaitsForActiveLease(t *testing.T) {
-	ctx := context.Background()
-	runtime := newTestRuntimeImpl()
-	artifactPath := writeMinimalWasmArtifact(t)
+	var (
+		ctx          = context.Background()
+		runtime      = newTestRuntimeImpl()
+		artifactPath = writeMinimalWasmArtifact(t)
+	)
 	defer runtime.InvalidateAllCache(ctx)
 
 	lease, err := runtime.getOrCompileWasmModule(ctx, artifactPath)
@@ -109,9 +113,11 @@ func TestInvalidateAllCacheWaitsForActiveLease(t *testing.T) {
 // TestConcurrentSameArtifactCompilesOnce verifies the per-artifact single-flight
 // path shares one compile among concurrent callers.
 func TestConcurrentSameArtifactCompilesOnce(t *testing.T) {
-	ctx := context.Background()
-	runtime := newTestRuntimeImpl()
-	artifactPath := writeMinimalWasmArtifact(t)
+	var (
+		ctx          = context.Background()
+		runtime      = newTestRuntimeImpl()
+		artifactPath = writeMinimalWasmArtifact(t)
+	)
 	defer runtime.InvalidateAllCache(ctx)
 
 	var compileCount atomic.Int32
@@ -150,9 +156,11 @@ func TestConcurrentSameArtifactCompilesOnce(t *testing.T) {
 // TestCompileFailureRetries verifies failed compilation is not cached and a
 // later valid artifact at the same path can compile successfully.
 func TestCompileFailureRetries(t *testing.T) {
-	ctx := context.Background()
-	runtime := newTestRuntimeImpl()
-	artifactPath := filepath.Join(t.TempDir(), "retry.wasm")
+	var (
+		ctx          = context.Background()
+		runtime      = newTestRuntimeImpl()
+		artifactPath = filepath.Join(t.TempDir(), "retry.wasm")
+	)
 	if err := os.WriteFile(artifactPath, []byte("not-wasm"), 0o600); err != nil {
 		t.Fatalf("write invalid wasm failed: %v", err)
 	}
@@ -181,10 +189,12 @@ func TestCompileFailureRetries(t *testing.T) {
 // TestDifferentArtifactsCompileIndependently verifies one artifact's in-flight
 // compile does not make another artifact wait on the same single-flight entry.
 func TestDifferentArtifactsCompileIndependently(t *testing.T) {
-	ctx := context.Background()
-	runtime := newTestRuntimeImpl()
-	firstPath := writeMinimalWasmArtifactNamed(t, "first.wasm")
-	secondPath := writeMinimalWasmArtifactNamed(t, "second.wasm")
+	var (
+		ctx        = context.Background()
+		runtime    = newTestRuntimeImpl()
+		firstPath  = writeMinimalWasmArtifactNamed(t, "first.wasm")
+		secondPath = writeMinimalWasmArtifactNamed(t, "second.wasm")
+	)
 	defer runtime.InvalidateAllCache(ctx)
 
 	firstStarted := make(chan struct{})

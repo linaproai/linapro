@@ -1,7 +1,7 @@
 // Package hostconfigcap defines host configuration capabilities published to
-// plugins. The ordinary Service is read-only host configuration access. The
-// AdminService manages governed runtime configuration projections and remains
-// available only through source-plugin management surfaces.
+// plugins. Service covers static host configuration reads and governed
+// sys_config values through explicit method-level authorization and cache
+// governance.
 package hostconfigcap
 
 import (
@@ -13,7 +13,10 @@ import (
 	"lina-core/pkg/plugin/capability/capmodel"
 )
 
-// Service defines read-only host config values that source plugins may read.
+// Service defines governed host config values that source plugins may read.
+// Static reads are read-only; mutable sys_config rows are exposed through the
+// SysConfig subresource so callers do not confuse persisted system settings
+// with static GoFrame host configuration.
 type Service interface {
 	// Get returns the raw host config value for the requested key or root
 	// snapshot. When the key is absent or nil, Get returns defaultValue wrapped
@@ -33,36 +36,56 @@ type Service interface {
 	// Duration reads a host config duration value or returns defaultValue when
 	// the key is absent or blank.
 	Duration(ctx context.Context, key string, defaultValue time.Duration) (time.Duration, error)
+	// SysConfig returns governed sys_config row operations.
+	SysConfig() SysConfigService
 }
 
-// RuntimeConfigKey identifies one governed runtime configuration key.
-type RuntimeConfigKey string
+// SysConfigService defines governed sys_config methods. Reads and writes must
+// validate key visibility, tenant fallback semantics, audit source, transaction
+// boundaries, and cross-node sys_config cache revision impact.
+type SysConfigService interface {
+	// Get returns one visible sys_config value or a denied error when the
+	// key is absent or outside caller scope.
+	Get(ctx context.Context, key SysConfigKey) (*SysConfigInfo, error)
+	// BatchGet returns visible sys_config values and opaque missing keys
+	// with bounded batch semantics and key-level authorization.
+	BatchGet(ctx context.Context, keys []SysConfigKey) (*capmodel.BatchResult[*SysConfigInfo, SysConfigKey], error)
+	// List returns one bounded page of visible sys_config values. Risk:
+	// read; resource: config keys; context:
+	// actor and tenant; data permission: key-level visibility; performance:
+	// bounded page; audit/cache: read-only.
+	List(ctx context.Context, input ListSysConfigInput) (*capmodel.PageResult[*SysConfigInfo], error)
+	// SetValue writes one governed sys_config value after key authorization,
+	// tenant fallback, audit, transaction, and sys_config cache revision
+	// checks.
+	SetValue(ctx context.Context, key SysConfigKey, value string) error
+	// Reset resets one governed sys_config value to its owner default after key
+	// authorization and transaction-after cache revision.
+	Reset(ctx context.Context, key SysConfigKey) error
+	// EnsureVisible rejects when any sys_config key is outside caller scope.
+	EnsureVisible(ctx context.Context, keys []SysConfigKey) error
+}
 
-// RuntimeConfigProjection describes one runtime configuration value visible to
-// a plugin management caller.
-type RuntimeConfigProjection struct {
-	// Key is the runtime configuration key.
-	Key RuntimeConfigKey
-	// ValueJSON is the JSON-encoded value projection.
-	ValueJSON []byte
+// SysConfigKey identifies one governed sys_config key.
+type SysConfigKey string
+
+// ListSysConfigInput constrains sys_config listing.
+type ListSysConfigInput struct {
+	// Keyword filters by key or label.
+	Keyword string
+	// Page constrains result size and stable sorting.
+	Page capmodel.PageRequest
+}
+
+// SysConfigInfo describes one sys_config value visible to a plugin
+// management caller.
+type SysConfigInfo struct {
+	// Key is the sys_config key.
+	Key SysConfigKey
+	// Value is the raw sys_config.value string.
+	Value string
 	// LabelKey is the optional i18n label key.
 	LabelKey string
 	// Label is the optional locale-resolved label.
 	Label string
-}
-
-// AdminService defines governed runtime configuration management commands.
-type AdminService interface {
-	// BatchGetRuntimeConfig returns visible runtime configuration projections
-	// and opaque missing keys.
-	BatchGetRuntimeConfig(ctx context.Context, capCtx capmodel.CapabilityContext, keys []RuntimeConfigKey) (*capmodel.BatchResult[*RuntimeConfigProjection, RuntimeConfigKey], error)
-	// SetRuntimeConfigJSON writes one governed runtime configuration value.
-	SetRuntimeConfigJSON(ctx context.Context, capCtx capmodel.CapabilityContext, key RuntimeConfigKey, valueJSON []byte) error
-}
-
-// ScopeService defines host-internal runtime configuration visibility helpers.
-type ScopeService interface {
-	// EnsureRuntimeConfigKeysVisible rejects when any runtime configuration key
-	// is outside caller scope.
-	EnsureRuntimeConfigKeysVisible(ctx context.Context, capCtx capmodel.CapabilityContext, keys []RuntimeConfigKey) error
 }

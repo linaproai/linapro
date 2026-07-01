@@ -3,7 +3,10 @@
 
 package pluginhost
 
-import "lina-core/pkg/plugin/pluginhost/internal/valuecopy"
+import (
+	"lina-core/pkg/plugin/capability"
+	"lina-core/pkg/plugin/pluginhost/internal/valuecopy"
+)
 
 // HookPayload exposes one published host hook payload.
 type HookPayload interface {
@@ -14,14 +17,14 @@ type HookPayload interface {
 	// Values returns a copy of all published payload fields.
 	Values() map[string]interface{}
 	// Services returns the host-published runtime services for hook handlers.
-	Services() Services
+	Services() capability.Services
 }
 
 // hookPayload is the host-owned implementation of the published HookPayload view.
 type hookPayload struct {
 	point    ExtensionPoint
 	values   map[string]interface{}
-	services Services
+	services capability.Services
 }
 
 // SourcePluginUninstallInput exposes one host-confirmed uninstall policy snapshot to a source plugin.
@@ -34,7 +37,7 @@ type SourcePluginUninstallInput interface {
 	// Services returns the plugin-scoped host service directory available during
 	// uninstall cleanup. It can be nil for tests that construct callbacks
 	// outside the host lifecycle runner.
-	Services() Services
+	Services() capability.Services
 }
 
 // SourcePluginLifecycleInput exposes one generic plugin lifecycle operation to
@@ -95,7 +98,7 @@ type SourcePluginUpgradeInput interface {
 type sourcePluginUninstallInput struct {
 	pluginID         string
 	purgeStorageData bool
-	services         Services
+	services         capability.Services
 }
 
 // sourcePluginLifecycleInput is the host-owned implementation passed to generic
@@ -143,7 +146,7 @@ func NewHookPayload(point ExtensionPoint, values map[string]interface{}) HookPay
 func NewHookPayloadWithServices(
 	point ExtensionPoint,
 	values map[string]interface{},
-	services Services,
+	services capability.Services,
 ) HookPayload {
 	return &hookPayload{
 		point:    point,
@@ -165,7 +168,7 @@ func NewSourcePluginUninstallInput(
 func NewSourcePluginUninstallInputWithServices(
 	pluginID string,
 	purgeStorageData bool,
-	services Services,
+	services capability.Services,
 ) SourcePluginUninstallInput {
 	return &sourcePluginUninstallInput{
 		pluginID:         pluginID,
@@ -284,7 +287,7 @@ func (p *hookPayload) Values() map[string]interface{} {
 }
 
 // Services returns the host-published runtime services for hook handlers.
-func (p *hookPayload) Services() Services {
+func (p *hookPayload) Services() capability.Services {
 	if p == nil {
 		return nil
 	}
@@ -308,7 +311,7 @@ func (i *sourcePluginUninstallInput) PurgeStorageData() bool {
 }
 
 // Services returns the plugin-scoped host services available to uninstall cleanup.
-func (i *sourcePluginUninstallInput) Services() Services {
+func (i *sourcePluginUninstallInput) Services() capability.Services {
 	if i == nil {
 		return nil
 	}

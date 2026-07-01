@@ -5,19 +5,20 @@ package plugin
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
-	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/plugin/internal/catalog"
 	plugindep "lina-core/internal/service/plugin/internal/dependency"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/statusflag"
 )
 
 // TestInstallBlocksUninstalledSourceDependency verifies the management install
@@ -58,8 +59,8 @@ func TestInstallBlocksUninstalledSourceDependency(t *testing.T) {
 	if result == nil || len(result.Blockers) != 0 {
 		t.Fatalf("expected successful dependency check without blockers, got %#v", result)
 	}
-	assertPluginInstalledState(t, ctx, service, dependencyID, plugintypes.InstalledYes, plugintypes.StatusDisabled)
-	assertPluginInstalledState(t, ctx, service, targetID, plugintypes.InstalledYes, plugintypes.StatusDisabled)
+	assertPluginInstalledState(t, ctx, service, dependencyID, statusflag.Installed.Int(), statusflag.Disabled.Int())
+	assertPluginInstalledState(t, ctx, service, targetID, statusflag.Installed.Int(), statusflag.Disabled.Int())
 }
 
 // TestInstallBlocksDependencyViolationBeforeSideEffects verifies hard
@@ -130,7 +131,7 @@ func TestUninstallBlocksInstalledReverseHardDependency(t *testing.T) {
 	if !bizerr.Is(err, CodePluginReverseDependencyBlocked) {
 		t.Fatalf("expected reverse dependency blocked bizerr, got %v", err)
 	}
-	assertPluginInstalledState(t, ctx, service, baseID, plugintypes.InstalledYes, plugintypes.StatusDisabled)
+	assertPluginInstalledState(t, ctx, service, baseID, statusflag.Installed.Int(), statusflag.Disabled.Int())
 }
 
 // TestCheckPluginDependenciesKeepsReverseBlockersOutOfInstallBlockers verifies
@@ -255,9 +256,9 @@ func TestCheckPluginDependenciesIgnoresStaleRegistryRowsWithoutRelease(t *testin
 		PluginId:     stalePluginID,
 		Name:         "Stale Plugin Row",
 		Version:      "v0.1.0",
-		Type:         plugintypes.TypeSource.String(),
-		Installed:    plugintypes.InstalledYes,
-		Status:       plugintypes.StatusEnabled,
+		Type:         pluginv1.PluginTypeSource.String(),
+		Installed:    statusflag.Installed.Int(),
+		Status:       statusflag.EnabledValue.Int(),
 		DesiredState: plugintypes.HostStateEnabled.String(),
 		CurrentState: plugintypes.HostStateEnabled.String(),
 		Generation:   int64(1),
@@ -295,17 +296,17 @@ func TestBootstrapAutoEnableBlocksUninstalledDependency(t *testing.T) {
 			"    - id: "+dependencyID+"\n"+
 			"      version: \">=0.1.0\"\n",
 	)
-	configsvc.SetPluginAutoEnableOverride([]string{targetID})
+	setTestPluginAutoEnableOverride([]string{targetID})
 	cleanupTestPluginIDs(t, ctx, dependencyID, targetID)
 	t.Cleanup(func() {
-		configsvc.SetPluginAutoEnableOverride(nil)
+		setTestPluginAutoEnableOverride(nil)
 	})
 
 	err := service.BootstrapAutoEnable(ctx)
 	if !bizerr.Is(err, CodePluginDependencyBlocked) {
 		t.Fatalf("expected startup auto-enable to block on uninstalled dependency, got error: %v", err)
 	}
-	assertPluginInstalledState(t, ctx, service, targetID, plugintypes.InstalledNo, plugintypes.StatusDisabled)
+	assertPluginInstalledState(t, ctx, service, targetID, statusflag.Uninstalled.Int(), statusflag.Disabled.Int())
 }
 
 // TestSourcePluginUpgradeBlocksUnsatisfiedDependency verifies explicit source
@@ -348,7 +349,7 @@ func TestSourcePluginUpgradeBlocksUnsatisfiedDependency(t *testing.T) {
 			"    - id: plugin-dev-source-upgrade-missing\n"+
 			"      version: \">=0.1.0\"\n",
 	)
-	if err := service.SyncSourcePlugins(ctx); err != nil {
+	if _, err := service.SyncSourcePluginsStrict(ctx); err != nil {
 		t.Fatalf("expected source rescan to prepare candidate release, got error: %v", err)
 	}
 
@@ -641,10 +642,10 @@ func writeTestDynamicStorageArtifactWithDependencies(
 			ID:                  pluginID,
 			Name:                pluginName,
 			Version:             version,
-			Type:                plugintypes.TypeDynamic.String(),
-			ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
+			Type:                pluginv1.PluginTypeDynamic.String(),
+			ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &supportsMultiTenant,
-			DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
+			DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
 			Dependencies:        dependencies,
 		},
 		&catalog.ArtifactSpec{

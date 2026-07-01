@@ -16,11 +16,13 @@ func TestHTTPStartupRegistersSourceRoutesBeforeConsistencyValidation(t *testing.
 	if err != nil {
 		t.Fatalf("read HTTP startup source: %v", err)
 	}
-	text := string(content)
-	beforeRoutesIndex := strings.Index(text, "startHTTPRuntimeBeforeSourceRoutes")
-	registerRoutesIndex := strings.Index(text, "registerSourcePluginHTTPRoutes")
-	finishRuntimeIndex := strings.Index(text, "finishHTTPRuntimeAfterSourceRoutes")
-	completeRoutesIndex := strings.Index(text, "completeSourcePluginHTTPRoutes")
+	var (
+		text                = string(content)
+		beforeRoutesIndex   = strings.Index(text, "startHTTPRuntimeBeforeSourceRoutes")
+		registerRoutesIndex = strings.Index(text, "registerSourcePluginHTTPRoutes")
+		finishRuntimeIndex  = strings.Index(text, "finishHTTPRuntimeAfterSourceRoutes")
+		completeRoutesIndex = strings.Index(text, "completeSourcePluginHTTPRoutes")
+	)
 	if beforeRoutesIndex < 0 || registerRoutesIndex < 0 || finishRuntimeIndex < 0 || completeRoutesIndex < 0 {
 		t.Fatalf("expected split HTTP startup phases to be present")
 	}

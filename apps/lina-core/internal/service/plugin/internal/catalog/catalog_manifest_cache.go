@@ -25,7 +25,6 @@ import (
 // sourceManifestCacheEntry stores one parsed source manifest with the manifest
 // file identity used to detect development-time source-plugin changes.
 type sourceManifestCacheEntry struct {
-	pluginID  string
 	sourceKey string
 	size      int64
 	modTime   time.Time
@@ -35,7 +34,6 @@ type sourceManifestCacheEntry struct {
 // runtimeArtifactCacheEntry stores one parsed runtime artifact manifest and the
 // filesystem identity used to decide whether it can be reused.
 type runtimeArtifactCacheEntry struct {
-	path     string
 	fileInfo os.FileInfo
 	size     int64
 	modTime  time.Time
@@ -111,7 +109,6 @@ func (s *serviceImpl) storeCachedSourceManifest(pluginID string, sourcePlugin an
 		s.sourceManifestCache = make(map[string]*sourceManifestCacheEntry)
 	}
 	s.sourceManifestCache[strings.TrimSpace(pluginID)] = &sourceManifestCacheEntry{
-		pluginID:  strings.TrimSpace(pluginID),
 		sourceKey: sourceManifestCacheSourceKey(sourcePlugin),
 		size:      info.Size(),
 		modTime:   info.ModTime(),
@@ -167,7 +164,6 @@ func (s *serviceImpl) storeRuntimeManifestArtifactCache(artifactPath string, man
 	cachedManifest := CloneManifest(manifest)
 	s.cacheMu.Lock()
 	s.runtimeArtifactCache[key] = &runtimeArtifactCacheEntry{
-		path:     key,
 		fileInfo: info,
 		size:     info.Size(),
 		modTime:  info.ModTime(),
@@ -271,8 +267,8 @@ func CloneManifest(manifest *Manifest) *Manifest {
 	return &out
 }
 
-// CloneManifests returns detached copies of all non-nil manifests.
-func CloneManifests(items []*Manifest) []*Manifest {
+// cloneManifests returns detached copies of all non-nil manifests.
+func cloneManifests(items []*Manifest) []*Manifest {
 	if len(items) == 0 {
 		return []*Manifest{}
 	}

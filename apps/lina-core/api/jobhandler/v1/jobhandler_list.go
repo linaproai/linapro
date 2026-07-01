@@ -13,6 +13,15 @@ const (
 	SourcePlugin Source = "plugin"
 )
 
+// IsValid reports whether the handler source is supported.
+func (s Source) IsValid() bool {
+	switch s {
+	case SourceHost, SourcePlugin:
+		return true
+	}
+	return false
+}
+
 // ListReq defines the request for querying registered job handlers.
 type ListReq struct {
 	g.Meta  `path:"/job/handler" method:"get" tags:"Job Scheduling / Plugin Handlers" summary:"Get processor list" dc:"Query the registered task processor definitions of the current host and plugin for dropdown selection in the task form." permission:"system:job:list"`

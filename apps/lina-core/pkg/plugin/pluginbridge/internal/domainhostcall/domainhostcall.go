@@ -9,6 +9,8 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
+	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -28,6 +30,12 @@ func (unavailableError) Error() string {
 
 func (unavailableError) Is(target error) bool {
 	return target != nil && target.Error() == hostCallsUnavailableMessage
+}
+
+// unsupportedDynamicMethodError reports a unified domain method that is not
+// registered as a dynamic host-service method.
+func unsupportedDynamicMethodError(capability string) error {
+	return bizerr.NewCode(capmodel.CodeCapabilityUnavailable, bizerr.P("capability", capability))
 }
 
 // Invoker dispatches one already-encoded capability host-service request and
@@ -54,12 +62,6 @@ func newBaseService(invoker Invoker) baseService {
 	return baseService{invoke: invoker}
 }
 
-// newBaseServiceWithResource wraps the injected resource-aware hostcall
-// invoker for concrete clients that require method-level resource references.
-func newBaseServiceWithResource(invoker ResourceInvoker) baseService {
-	return baseService{invokeResource: invoker}
-}
-
 // newBaseServiceWithHostService wraps both JSON and raw host-service invokers.
 func newBaseServiceWithHostService(invoker Invoker, hostInvoker HostServiceInvoker) baseService {
 	return baseService{invoke: invoker, invokeHost: hostInvoker}
@@ -74,17 +76,6 @@ func (s baseService) call(service string, method string, request []byte, out any
 		return gerror.New("domain hostcall invoker is nil")
 	}
 	return s.invoke(service, method, request, out)
-}
-
-// callResource dispatches one resource-scoped encoded request.
-func (s baseService) callResource(service string, method string, resourceRef string, request []byte, out any) error {
-	if s.invokeResource == nil {
-		if s.invoke != nil && resourceRef == "" {
-			return s.invoke(service, method, request, out)
-		}
-		return gerror.New("domain hostcall resource invoker is nil")
-	}
-	return s.invokeResource(service, method, resourceRef, request, out)
 }
 
 // callHostService dispatches one raw host-service request.

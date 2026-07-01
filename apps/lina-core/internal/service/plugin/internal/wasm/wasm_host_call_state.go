@@ -7,11 +7,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/gogf/gf/v2/database/gdb"
-
-	"lina-core/internal/dao"
-	"lina-core/internal/model/do"
-	"lina-core/internal/service/datascope"
+	"lina-core/internal/service/plugin/internal/capabilityowner"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/capmodel"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
@@ -22,6 +18,10 @@ const (
 	runtimeStateMaxKeyBytes        = 255
 	runtimeStateMaxBatchValueBytes = 1 * 1024 * 1024
 )
+
+// defaultRuntimeStateStore is the plugin-owned persistence adapter used by the
+// dynamic WASM host-call dispatcher.
+var defaultRuntimeStateStore = capabilityowner.NewRuntimeStateStore()
 
 // handleHostStateGet processes OpcodeStateGet requests.
 // handleHostStateGet loads one plugin-scoped runtime state value.
@@ -35,17 +35,14 @@ func handleHostStateGet(ctx context.Context, hcc *hostCallContext, reqBytes []by
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 	}
 
-	cols := dao.SysPluginState.Columns()
-	value, err := dao.SysPluginState.Ctx(ctx).
-		Where(pluginStateIdentity(ctx, hcc.pluginID, key)).
-		Value(cols.StateValue)
+	value, found, err := defaultRuntimeStateStore.Get(ctx, hcc.pluginID, key)
 	if err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInternalError, err)
 	}
 
 	resp := &bridgehostcall.HostCallStateGetResponse{}
-	if !value.IsNil() && !value.IsEmpty() {
-		resp.Value = value.String()
+	if found {
+		resp.Value = value
 		resp.Found = true
 	}
 	return bridgehostcall.NewHostCallSuccessResponse(bridgehostcall.MarshalHostCallStateGetResponse(resp))
@@ -62,7 +59,7 @@ func handleHostStateGetMany(ctx context.Context, hcc *hostCallContext, reqBytes 
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 	}
 
-	values, err := getHostStateValues(ctx, hcc.pluginID, keys)
+	values, err := defaultRuntimeStateStore.GetMany(ctx, hcc.pluginID, keys)
 	if err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInternalError, err)
 	}
@@ -90,7 +87,7 @@ func handleHostStateSet(ctx context.Context, hcc *hostCallContext, reqBytes []by
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 	}
 
-	err = upsertHostStateValue(ctx, hcc.pluginID, key, req.Value)
+	err = defaultRuntimeStateStore.Set(ctx, hcc.pluginID, key, req.Value)
 	if err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInternalError, err)
 	}
@@ -107,46 +104,10 @@ func handleHostStateSetMany(ctx context.Context, hcc *hostCallContext, reqBytes 
 	if err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 	}
-	if err = upsertHostStateValues(ctx, hcc.pluginID, items); err != nil {
+	if err = defaultRuntimeStateStore.SetMany(ctx, hcc.pluginID, items); err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInternalError, err)
 	}
 	return bridgehostcall.NewHostCallEmptySuccessResponse()
-}
-
-// upsertHostStateValue writes one plugin state value using a dialect-neutral
-// insert-ignore plus update sequence inside a transaction.
-func upsertHostStateValue(ctx context.Context, pluginID string, key string, value string) error {
-	return upsertHostStateValues(ctx, pluginID, map[string]string{key: value})
-}
-
-// upsertHostStateValues writes plugin state values using a dialect-neutral
-// insert-ignore plus update sequence inside one transaction.
-func upsertHostStateValues(ctx context.Context, pluginID string, values map[string]string) error {
-	return dao.SysPluginState.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
-		for key, value := range values {
-			identity := pluginStateIdentity(ctx, pluginID, key)
-			_, err := dao.SysPluginState.Ctx(ctx).Data(do.SysPluginState{
-				PluginId:   identity.PluginId,
-				TenantId:   identity.TenantId,
-				StateKey:   identity.StateKey,
-				StateValue: value,
-			}).InsertIgnore()
-			if err != nil {
-				return err
-			}
-
-			_, err = dao.SysPluginState.Ctx(ctx).
-				Where(identity).
-				Data(do.SysPluginState{
-					StateValue: value,
-				}).
-				Update()
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
 }
 
 // handleHostStateDelete processes OpcodeStateDelete requests.
@@ -161,9 +122,7 @@ func handleHostStateDelete(ctx context.Context, hcc *hostCallContext, reqBytes [
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 	}
 
-	_, err = dao.SysPluginState.Ctx(ctx).
-		Where(pluginStateIdentity(ctx, hcc.pluginID, key)).
-		Delete()
+	err = defaultRuntimeStateStore.Delete(ctx, hcc.pluginID, key)
 	if err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInternalError, err)
 	}
@@ -180,53 +139,11 @@ func handleHostStateDeleteMany(ctx context.Context, hcc *hostCallContext, reqByt
 	if err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 	}
-	identity := pluginStateIdentity(ctx, hcc.pluginID, "")
-	_, err = dao.SysPluginState.Ctx(ctx).
-		Where(do.SysPluginState{PluginId: identity.PluginId, TenantId: identity.TenantId}).
-		WhereIn(dao.SysPluginState.Columns().StateKey, keys).
-		Delete()
+	err = defaultRuntimeStateStore.DeleteMany(ctx, hcc.pluginID, keys)
 	if err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInternalError, err)
 	}
 	return bridgehostcall.NewHostCallEmptySuccessResponse()
-}
-
-// pluginStateIdentity builds the tenant-scoped plugin state identity used by
-// dynamic host state operations.
-func pluginStateIdentity(ctx context.Context, pluginID string, key string) do.SysPluginState {
-	return do.SysPluginState{
-		PluginId: strings.TrimSpace(pluginID),
-		TenantId: datascope.CurrentTenantID(ctx),
-		StateKey: strings.TrimSpace(key),
-	}
-}
-
-func getHostStateValues(ctx context.Context, pluginID string, keys []string) (map[string]string, error) {
-	values := make(map[string]string, len(keys))
-	if len(keys) == 0 {
-		return values, nil
-	}
-	identity := pluginStateIdentity(ctx, pluginID, "")
-	cols := dao.SysPluginState.Columns()
-	rows, err := dao.SysPluginState.Ctx(ctx).
-		Fields(cols.StateKey, cols.StateValue).
-		Where(do.SysPluginState{PluginId: identity.PluginId, TenantId: identity.TenantId}).
-		WhereIn(cols.StateKey, keys).
-		All()
-	if err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		if row == nil {
-			continue
-		}
-		key := strings.TrimSpace(row[cols.StateKey].String())
-		if key == "" {
-			continue
-		}
-		values[key] = row[cols.StateValue].String()
-	}
-	return values, nil
 }
 
 func normalizeRuntimeStateKey(raw string) (string, error) {

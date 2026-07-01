@@ -4,8 +4,14 @@ package routecap
 
 import "context"
 
-// DynamicRouteMetadata is the published projection of one matched dynamic route.
-type DynamicRouteMetadata struct {
+// Service defines dynamic-route metadata operations published to source plugins.
+type Service interface {
+	// GetMetadata returns metadata attached to the current dynamic-route request.
+	GetMetadata(ctx context.Context) *Metadata
+}
+
+// Metadata is the published metadata of one matched dynamic route.
+type Metadata struct {
 	// PluginID is the dynamic plugin that owns the matched route.
 	PluginID string
 	// Method is the declared dynamic route HTTP method.
@@ -22,10 +28,4 @@ type DynamicRouteMetadata struct {
 	ResponseBody string
 	// ResponseContentType stores the resolved content type of the bridge response.
 	ResponseContentType string
-}
-
-// Service defines dynamic-route context operations published to source plugins.
-type Service interface {
-	// DynamicRouteMetadata returns metadata attached to the current dynamic-route request.
-	DynamicRouteMetadata(ctx context.Context) *DynamicRouteMetadata
 }

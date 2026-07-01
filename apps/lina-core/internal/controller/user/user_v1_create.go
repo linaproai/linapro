@@ -5,11 +5,12 @@ import (
 
 	v1 "lina-core/api/user/v1"
 	usersvc "lina-core/internal/service/user"
+	"lina-core/pkg/statusflag"
 )
 
 // Create creates a user
 func (c *ControllerV1) Create(ctx context.Context, req *v1.CreateReq) (res *v1.CreateRes, err error) {
-	status := usersvc.StatusNormal
+	status := statusflag.EnabledValue
 	if req.Status != nil {
 		status = usersvc.Status(*req.Status)
 	}

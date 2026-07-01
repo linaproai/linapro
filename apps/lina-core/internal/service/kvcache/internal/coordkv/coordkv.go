@@ -27,9 +27,8 @@ type coordKVProvider struct {
 
 // coordKVBackend adapts coordination KVStore to kvcache Backend.
 type coordKVBackend struct {
-	coordinationSvc coordination.Service
-	kvStore         coordination.KVStore
-	keyBuilder      *coordination.KeyBuilder
+	kvStore    coordination.KVStore
+	keyBuilder *coordination.KeyBuilder
 }
 
 // coordKVValue stores one typed kvcache payload in coordination KV.
@@ -50,9 +49,8 @@ func (p *coordKVProvider) NewBackend() contract.Backend {
 		return nil
 	}
 	return &coordKVBackend{
-		coordinationSvc: p.coordinationSvc,
-		kvStore:         p.coordinationSvc.KV(),
-		keyBuilder:      p.coordinationSvc.KeyBuilder(),
+		kvStore:    p.coordinationSvc.KV(),
+		keyBuilder: p.coordinationSvc.KeyBuilder(),
 	}
 }
 

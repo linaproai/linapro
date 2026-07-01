@@ -12,6 +12,7 @@ import (
 	"github.com/gogf/gf/v2/container/gvar"
 	"github.com/gogf/gf/v2/errors/gerror"
 
+	"lina-core/internal/service/plugin/internal/pluginconfig"
 	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -31,7 +32,7 @@ func (f *trackingConfigFactory) ForPlugin(pluginID string) plugincap.ConfigServi
 }
 
 // WithArtifactConfig records release-bound default config passed by the execution context.
-func (f *trackingConfigFactory) WithArtifactConfig(pluginID string, content []byte) plugincap.ConfigServiceFactory {
+func (f *trackingConfigFactory) WithArtifactConfig(pluginID string, content []byte) pluginconfig.Factory {
 	f.lastArtifactPlugin = pluginID
 	f.lastArtifactContent = string(content)
 	return f
@@ -46,7 +47,7 @@ type trackingConfigService struct {
 }
 
 // Get records one raw config read.
-func (s *trackingConfigService) Get(_ context.Context, key string) (*gvar.Var, error) {
+func (s *trackingConfigService) Get(_ context.Context, key string, defaultValue any) (*gvar.Var, error) {
 	if strings.TrimSpace(key) == "" || strings.TrimSpace(key) == "." {
 		return nil, gerror.New("plugin config key cannot be empty or root")
 	}
@@ -54,6 +55,9 @@ func (s *trackingConfigService) Get(_ context.Context, key string) (*gvar.Var, e
 	s.lastKey = key
 	if value, ok := s.values[key]; ok {
 		return gvar.New(value), nil
+	}
+	if defaultValue != nil {
+		return gvar.New(defaultValue), nil
 	}
 	return nil, nil
 }
@@ -74,7 +78,7 @@ func (s *trackingConfigService) Scan(context.Context, string, any) error { retur
 
 // String reads a deterministic string value.
 func (s *trackingConfigService) String(ctx context.Context, key string, defaultValue string) (string, error) {
-	value, err := s.Get(ctx, key)
+	value, err := s.Get(ctx, key, nil)
 	if err != nil || value == nil || value.IsNil() {
 		return defaultValue, err
 	}
@@ -83,7 +87,7 @@ func (s *trackingConfigService) String(ctx context.Context, key string, defaultV
 
 // Bool reads a deterministic bool value.
 func (s *trackingConfigService) Bool(ctx context.Context, key string, defaultValue bool) (bool, error) {
-	value, err := s.Get(ctx, key)
+	value, err := s.Get(ctx, key, nil)
 	if err != nil || value == nil || value.IsNil() {
 		return defaultValue, err
 	}
@@ -92,7 +96,7 @@ func (s *trackingConfigService) Bool(ctx context.Context, key string, defaultVal
 
 // Int reads a deterministic int value.
 func (s *trackingConfigService) Int(ctx context.Context, key string, defaultValue int) (int, error) {
-	value, err := s.Get(ctx, key)
+	value, err := s.Get(ctx, key, nil)
 	if err != nil || value == nil || value.IsNil() {
 		return defaultValue, err
 	}
@@ -219,7 +223,7 @@ func TestHandleHostServiceInvokeConfigBindsArtifactDefaultConfig(t *testing.T) {
 // plugins.config.get uses plugin.<plugin-id> from host static config before
 // release-bound artifact defaults.
 func TestHandleHostServiceInvokeConfigPrefersHostStaticConfig(t *testing.T) {
-	factory := plugincap.NewConfigFactoryWithHostStaticConfig(
+	factory := pluginconfig.NewFactoryWithHostStaticConfig(
 		t.TempDir(),
 		t.TempDir(),
 		wasmTestHostStaticConfigReader{values: map[string]any{
@@ -249,7 +253,7 @@ func TestHandleHostServiceInvokeConfigPrefersHostStaticConfig(t *testing.T) {
 // TestHandleHostServiceInvokeConfigUsesArtifactDefaultConfig verifies
 // release-bound artifact default config remains scoped to the host-call context.
 func TestHandleHostServiceInvokeConfigUsesArtifactDefaultConfig(t *testing.T) {
-	factory := plugincap.NewConfigFactoryWithHostStaticConfig(
+	factory := pluginconfig.NewFactoryWithHostStaticConfig(
 		t.TempDir(),
 		t.TempDir(),
 		wasmTestHostStaticConfigReader{},
@@ -267,6 +271,70 @@ func TestHandleHostServiceInvokeConfigUsesArtifactDefaultConfig(t *testing.T) {
 	payload := decodeConfigResponse(t, response)
 	if !payload.Found || payload.Value != `"artifact"` {
 		t.Fatalf("expected artifact default config response, got %#v", payload)
+	}
+}
+
+// TestHandleHostServiceInvokePluginStateGovernanceMethods verifies dynamic
+// plugin governance reads dispatch through Plugins().State().
+func TestHandleHostServiceInvokePluginStateGovernanceMethods(t *testing.T) {
+	stateSvc := &trackingPluginStateService{enabled: true}
+	services := &capabilityHostServiceTestServices{
+		plugins: &capabilityHostServicePluginsService{state: stateSvc},
+	}
+	configureDomainHostServicesForCapabilityTest(t, services)
+
+	response := invokeCapabilityHostService(
+		t,
+		pluginGovernanceHostCallContext(protocol.HostServiceMethodPluginsStateIsEnabled),
+		protocol.HostServicePlugins,
+		protocol.HostServiceMethodPluginsStateIsEnabled,
+		marshalCapabilityJSONRequest(t, pluginIDRequest{PluginID: "linapro-tenant-core"}),
+	)
+	if response.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected plugin capability success, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	var enabled bool
+	decodeCapabilityJSONResponse(t, response.Payload, &enabled)
+	if !enabled || stateSvc.lastPluginID != "linapro-tenant-core" {
+		t.Fatalf("unexpected plugin capability result enabled=%v plugin=%q", enabled, stateSvc.lastPluginID)
+	}
+}
+
+// TestHandleHostServiceInvokePluginLifecycleGovernanceMethods verifies dynamic
+// lifecycle governance dispatches through Plugins().Lifecycle().
+func TestHandleHostServiceInvokePluginLifecycleGovernanceMethods(t *testing.T) {
+	lifecycleSvc := &trackingPluginLifecycleService{}
+	services := &capabilityHostServiceTestServices{
+		plugins: &capabilityHostServicePluginsService{lifecycle: lifecycleSvc},
+	}
+	configureDomainHostServicesForCapabilityTest(t, services)
+
+	ensureResponse := invokeCapabilityHostService(
+		t,
+		pluginGovernanceHostCallContext(protocol.HostServiceMethodPluginsLifecycleEnsureTenantPluginDisableAllowed),
+		protocol.HostServicePlugins,
+		protocol.HostServiceMethodPluginsLifecycleEnsureTenantPluginDisableAllowed,
+		marshalCapabilityJSONRequest(t, tenantPluginLifecycleRequest{PluginID: "linapro-demo-dynamic", TenantID: 9}),
+	)
+	if ensureResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected plugin lifecycle ensure success, got status=%d payload=%s", ensureResponse.Status, string(ensureResponse.Payload))
+	}
+	if lifecycleSvc.disablePluginID != "linapro-demo-dynamic" || lifecycleSvc.disableTenantID != 9 {
+		t.Fatalf("unexpected disable lifecycle call plugin=%q tenant=%d", lifecycleSvc.disablePluginID, lifecycleSvc.disableTenantID)
+	}
+
+	notifyResponse := invokeCapabilityHostService(
+		t,
+		pluginGovernanceHostCallContext(protocol.HostServiceMethodPluginsLifecycleNotifyTenantDeleted),
+		protocol.HostServicePlugins,
+		protocol.HostServiceMethodPluginsLifecycleNotifyTenantDeleted,
+		marshalCapabilityJSONRequest(t, tenantIDRequest{TenantID: 9}),
+	)
+	if notifyResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected plugin lifecycle notify success, got status=%d payload=%s", notifyResponse.Status, string(notifyResponse.Payload))
+	}
+	if lifecycleSvc.deletedTenantID != 9 {
+		t.Fatalf("unexpected tenant deleted lifecycle call tenant=%d", lifecycleSvc.deletedTenantID)
 	}
 }
 
@@ -314,9 +382,9 @@ func TestHandleHostServiceInvokeConfigRejectsUnsupportedMethod(t *testing.T) {
 	}
 }
 
-// TestConfigurePluginConfigServiceFactoryRejectsNil verifies missing runtime config
+// TestConfigurePluginConfigFactoryRejectsNil verifies missing runtime config
 // factory injection returns an error instead of silently constructing an isolated adapter.
-func TestConfigurePluginConfigServiceFactoryRejectsNil(t *testing.T) {
+func TestConfigurePluginConfigFactoryRejectsNil(t *testing.T) {
 	if _, err := NewRuntime(
 		&capabilityHostServiceTestServices{},
 		nil,
@@ -342,6 +410,23 @@ func configHostCallContext() *hostCallContext {
 				},
 			},
 		},
+	}
+}
+
+// pluginGovernanceHostCallContext builds an authorized plugins host-service context.
+func pluginGovernanceHostCallContext(methods ...string) *hostCallContext {
+	return &hostCallContext{
+		pluginID: "test-plugin-governance",
+		capabilities: map[string]struct{}{
+			protocol.CapabilityPlugins: {},
+		},
+		hostServices: []*protocol.HostServiceSpec{
+			{
+				Service: protocol.HostServicePlugins,
+				Methods: methods,
+			},
+		},
+		requestID: "trace-plugin-governance",
 	}
 }
 
@@ -388,6 +473,63 @@ func configureTrackingConfigFactory(t *testing.T, service *trackingConfigService
 	factory := &trackingConfigFactory{service: service}
 	bindTestHostServiceRuntime(t, withTestConfigFactory(factory))
 	return factory
+}
+
+// trackingPluginStateService records plugin enablement lookups.
+type trackingPluginStateService struct {
+	enabled       bool
+	provider      bool
+	authoritative bool
+	lastPluginID  plugincap.PluginID
+}
+
+// IsEnabled records a regular plugin enablement lookup.
+func (s *trackingPluginStateService) IsEnabled(_ context.Context, pluginID plugincap.PluginID) (bool, error) {
+	s.lastPluginID = pluginID
+	return s.enabled, nil
+}
+
+// IsProviderEnabled records a provider-level plugin enablement lookup.
+func (s *trackingPluginStateService) IsProviderEnabled(_ context.Context, pluginID plugincap.PluginID) (bool, error) {
+	s.lastPluginID = pluginID
+	return s.provider, nil
+}
+
+// IsEnabledAuthoritative records an authoritative plugin enablement lookup.
+func (s *trackingPluginStateService) IsEnabledAuthoritative(_ context.Context, pluginID plugincap.PluginID) (bool, error) {
+	s.lastPluginID = pluginID
+	return s.authoritative, nil
+}
+
+// trackingPluginLifecycleService records plugin lifecycle governance calls.
+type trackingPluginLifecycleService struct {
+	disablePluginID string
+	disableTenantID int
+	deletedTenantID int
+}
+
+// EnsureTenantPluginDisableAllowed records one tenant-plugin disable precondition call.
+func (s *trackingPluginLifecycleService) EnsureTenantPluginDisableAllowed(
+	_ context.Context,
+	pluginID string,
+	tenantID int,
+) error {
+	s.disablePluginID = pluginID
+	s.disableTenantID = tenantID
+	return nil
+}
+
+// NotifyTenantPluginDisabled records no behavior for this test fake.
+func (*trackingPluginLifecycleService) NotifyTenantPluginDisabled(context.Context, string, int) {}
+
+// EnsureTenantDeleteAllowed records no behavior for this test fake.
+func (*trackingPluginLifecycleService) EnsureTenantDeleteAllowed(context.Context, int) error {
+	return nil
+}
+
+// NotifyTenantDeleted records one tenant deletion notification.
+func (s *trackingPluginLifecycleService) NotifyTenantDeleted(_ context.Context, tenantID int) {
+	s.deletedTenantID = tenantID
 }
 
 // wasmTestHostStaticConfigReader returns deterministic host static sections

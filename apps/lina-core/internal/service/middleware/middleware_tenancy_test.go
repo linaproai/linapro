@@ -22,10 +22,13 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/pkg/bizerr"
 	tenantcap "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // tenancyTestTenantService provides deterministic tenantcap outcomes for middleware tests.
 type tenancyTestTenantService struct {
+	tenantspi.Service
+
 	enabled       bool
 	resolveResult *tenantcap.ResolverResult
 	resolveErr    error
@@ -135,7 +138,7 @@ func TestTenancyResolverForbiddenErrorUsesForbidden(t *testing.T) {
 
 // runTenancyMiddlewareRequest serves one request through Ctx and Tenancy and
 // returns the observed response status and body.
-func runTenancyMiddlewareRequest(t *testing.T, tenantSvc tenantMiddlewareService) (int, string) {
+func runTenancyMiddlewareRequest(t *testing.T, tenantSvc tenantspi.Service) (int, string) {
 	t.Helper()
 
 	svc := &serviceImpl{

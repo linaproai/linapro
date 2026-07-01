@@ -5,10 +5,10 @@ package runtime
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -17,7 +17,7 @@ func (s *serviceImpl) isClusterModeEnabled() bool {
 	if s.topology == nil {
 		return false
 	}
-	return s.topology.IsClusterModeEnabled()
+	return s.topology.IsEnabled()
 }
 
 // isPrimaryNode is a nil-safe wrapper around the topology provider.
@@ -25,7 +25,7 @@ func (s *serviceImpl) isPrimaryNode() bool {
 	if s.topology == nil {
 		return false
 	}
-	return s.topology.IsPrimaryNode()
+	return s.topology.IsPrimary()
 }
 
 // currentNodeID is a nil-safe wrapper around the topology provider.
@@ -33,7 +33,7 @@ func (s *serviceImpl) currentNodeID() string {
 	if s.topology == nil {
 		return ""
 	}
-	return s.topology.CurrentNodeID()
+	return s.topology.NodeID()
 }
 
 // dispatchHookEvent is a nil-safe wrapper for hook event dispatch.
@@ -42,42 +42,34 @@ func (s *serviceImpl) dispatchHookEvent(
 	event pluginhost.ExtensionPoint,
 	values map[string]interface{},
 ) error {
-	if s.hookDispatcher == nil {
+	if s.integrationSvc == nil {
 		return nil
 	}
-	return s.hookDispatcher.DispatchPluginHookEvent(ctx, event, values)
+	return s.integrationSvc.DispatchPluginHookEvent(ctx, event, values)
 }
 
 // syncPluginMenusAndPermissions is a nil-safe wrapper for menu synchronization.
 func (s *serviceImpl) syncPluginMenusAndPermissions(ctx context.Context, manifest *catalog.Manifest) error {
-	if s.menuMgr == nil {
+	if s.integrationSvc == nil {
 		return nil
 	}
-	return s.menuMgr.SyncPluginMenusAndPermissions(ctx, manifest)
+	return s.integrationSvc.SyncPluginMenusAndPermissions(ctx, manifest)
 }
 
 // syncPluginResourceReferences is a nil-safe wrapper for governance resource references.
 func (s *serviceImpl) syncPluginResourceReferences(ctx context.Context, manifest *catalog.Manifest) error {
-	if s.resourceRefMgr == nil {
+	if s.integrationSvc == nil {
 		return nil
 	}
-	return s.resourceRefMgr.SyncPluginResourceReferences(ctx, manifest)
-}
-
-// syncPluginMenus is a nil-safe wrapper for partial menu synchronization (rollback path).
-func (s *serviceImpl) syncPluginMenus(ctx context.Context, manifest *catalog.Manifest) error {
-	if s.menuMgr == nil {
-		return nil
-	}
-	return s.menuMgr.SyncPluginMenus(ctx, manifest)
+	return s.integrationSvc.SyncPluginResourceReferences(ctx, manifest)
 }
 
 // deletePluginMenusByManifest is a nil-safe wrapper for menu deletion.
 func (s *serviceImpl) deletePluginMenusByManifest(ctx context.Context, manifest *catalog.Manifest) error {
-	if s.menuMgr == nil {
+	if s.integrationSvc == nil {
 		return nil
 	}
-	return s.menuMgr.DeletePluginMenusByManifest(ctx, manifest)
+	return s.integrationSvc.DeletePluginMenusByManifest(ctx, manifest)
 }
 
 // ensureFrontendBundle delegates to frontendSvc to guarantee an in-memory bundle exists.
@@ -133,5 +125,5 @@ func (s *serviceImpl) notifyRuntimeCacheChanged(
 	if manifest != nil {
 		pluginID = manifest.ID
 	}
-	return s.cacheChangeNotifier.PublishPluginChange(ctx, pluginID, plugintypes.TypeDynamic.String(), string(reason))
+	return s.cacheChangeNotifier.PublishPluginChange(ctx, pluginID, pluginv1.PluginTypeDynamic.String(), string(reason))
 }

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/pkg/statusflag"
 )
 
 // filterRuntime holds a snapshot of which plugins are currently enabled.
@@ -52,8 +52,8 @@ func (s *serviceImpl) buildFilterRuntime(
 		if _, ok := enabledByID[pluginID]; !ok {
 			continue
 		}
-		enabledByID[pluginID] = registry.Installed == plugintypes.InstalledYes &&
-			registry.Status == plugintypes.StatusEnabled
+		enabledByID[pluginID] = registry.Installed == statusflag.Installed.Int() &&
+			registry.Status == statusflag.EnabledValue.Int()
 	}
 	return &filterRuntime{enabledByID: enabledByID}, nil
 }

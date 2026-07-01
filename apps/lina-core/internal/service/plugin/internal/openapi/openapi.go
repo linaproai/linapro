@@ -13,43 +13,11 @@ import (
 	"lina-core/internal/service/plugin/internal/store"
 )
 
-// projectionCatalog narrows manifest discovery to the OpenAPI projection reads.
-type projectionCatalog interface {
-	// ScanManifests returns discovered plugin manifests.
-	ScanManifests() ([]*catalog.Manifest, error)
-	// GetDesiredManifest returns one discovered manifest.
-	GetDesiredManifest(pluginID string) (*catalog.Manifest, error)
-}
-
-// projectionStore narrows the store dependency to the read-only projections
-// needed for dynamic route documentation.
-type projectionStore interface {
-	// WithStartupDataSnapshot returns a context carrying a reusable store snapshot.
-	WithStartupDataSnapshot(ctx context.Context) (context.Context, error)
-	// ListAllRegistries returns current plugin registry projections.
-	ListAllRegistries(ctx context.Context) ([]*store.PluginRecord, error)
-	// GetRegistry returns one plugin registry projection.
-	GetRegistry(ctx context.Context, pluginID string) (*store.PluginRecord, error)
-	// GetRegistryRelease returns the active release projection for a registry row.
-	GetRegistryRelease(ctx context.Context, registry *store.PluginRecord) (*store.ReleaseRecord, error)
-	// LoadReleaseManifest loads one release manifest.
-	LoadReleaseManifest(ctx context.Context, release *store.ReleaseRecord) (*catalog.Manifest, error)
-}
-
-// RevisionReader exposes the plugin-runtime cache revision used to partition
+// revisionReader exposes the plugin-runtime cache revision used to partition
 // dynamic route documentation projections.
-type RevisionReader interface {
+type revisionReader interface {
 	// CurrentRevision returns the plugin-runtime revision visible to this process.
 	CurrentRevision(ctx context.Context) (int64, error)
-}
-
-// LocaleBundleReader exposes the locale and runtime bundle version used to
-// isolate OpenAPI plugin projections by request language.
-type LocaleBundleReader interface {
-	// GetLocale returns the effective request locale.
-	GetLocale(ctx context.Context) string
-	// BundleVersion returns the runtime translation bundle version for locale.
-	BundleVersion(locale string) uint64
 }
 
 // Service defines the openapi service contract.
@@ -66,29 +34,29 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	// catalogSvc provides manifest scanning and active manifest lookup.
-	catalogSvc projectionCatalog
+	catalogSvc catalog.Service
 	// storeSvc provides active release projections for dynamic route docs.
-	storeSvc projectionStore
+	storeSvc store.Service
 	// revisionReader provides the current plugin-runtime revision for cache keys.
-	revisionReader RevisionReader
-	// localeReader provides locale and bundle-version partitions for cache keys.
-	localeReader LocaleBundleReader
+	revisionReader revisionReader
+	// i18nSvc provides locale and bundle-version partitions for cache keys.
+	i18nSvc i18nsvc.Service
 	// cache stores dynamic-route OpenAPI path projections by runtime and locale.
 	cache *projectionCache
 }
 
 // New creates a new openapi Service backed by shared catalog and store services.
 func New(
-	catalogSvc projectionCatalog,
-	storeSvc projectionStore,
-	revisionReader RevisionReader,
-	localeReader LocaleBundleReader,
+	catalogSvc catalog.Service,
+	storeSvc store.Service,
+	revisionReader revisionReader,
+	i18nSvc i18nsvc.Service,
 ) Service {
 	return &serviceImpl{
 		catalogSvc:     catalogSvc,
 		storeSvc:       storeSvc,
 		revisionReader: revisionReader,
-		localeReader:   localeReader,
+		i18nSvc:        i18nSvc,
 		cache:          newProjectionCache(),
 	}
 }
@@ -97,7 +65,7 @@ func New(
 // services that own the runtime revision controller after sub-services exist.
 type DeferredRevisionReader struct {
 	mu      sync.RWMutex
-	service RevisionReader
+	service revisionReader
 }
 
 // NewDeferredRevisionReader creates an unbound revision reader.
@@ -106,7 +74,7 @@ func NewDeferredRevisionReader() *DeferredRevisionReader {
 }
 
 // Bind connects the runtime revision authority after root service creation.
-func (r *DeferredRevisionReader) Bind(service RevisionReader) {
+func (r *DeferredRevisionReader) Bind(service revisionReader) {
 	if r == nil {
 		return
 	}
@@ -127,18 +95,4 @@ func (r *DeferredRevisionReader) CurrentRevision(ctx context.Context) (int64, er
 		return 0, nil
 	}
 	return service.CurrentRevision(ctx)
-}
-
-// DefaultLocaleBundleReader provides a stable fallback for tests or callers
-// that do not need request-language partitioning.
-type DefaultLocaleBundleReader struct{}
-
-// GetLocale returns the host default locale.
-func (DefaultLocaleBundleReader) GetLocale(context.Context) string {
-	return i18nsvc.DefaultLocale
-}
-
-// BundleVersion returns zero because no runtime i18n service is configured.
-func (DefaultLocaleBundleReader) BundleVersion(string) uint64 {
-	return 0
 }

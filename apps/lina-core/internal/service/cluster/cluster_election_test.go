@@ -8,12 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"lina-core/internal/service/config"
 	"lina-core/internal/service/coordination"
 )
 
 // testElectionCfg is the default election config used in tests.
-var testElectionCfg = &config.ElectionConfig{
+var testElectionCfg = &ElectionConfig{
 	Lease:         30 * time.Second,
 	RenewInterval: 1 * time.Second,
 }
@@ -144,7 +143,7 @@ func TestElectionServiceStepDown(t *testing.T) {
 // share one persistent lock and fail over without clearing volatile tables.
 func TestElectionServiceTwoNodesFailOver(t *testing.T) {
 	var (
-		cfg = &config.ElectionConfig{
+		cfg = &ElectionConfig{
 			Lease:         2 * time.Second,
 			RenewInterval: 100 * time.Millisecond,
 		}
@@ -192,7 +191,7 @@ func TestElectionServiceStopWithoutStart(t *testing.T) {
 func TestElectionServiceNonLeaderRetry(t *testing.T) {
 	var (
 		coordSvc = coordination.NewMemory(nil)
-		retryCfg = &config.ElectionConfig{
+		retryCfg = &ElectionConfig{
 			Lease:         30 * time.Second,
 			RenewInterval: 200 * time.Millisecond,
 		}

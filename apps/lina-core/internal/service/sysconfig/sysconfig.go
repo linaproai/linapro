@@ -8,6 +8,7 @@ import (
 
 	"lina-core/internal/model/entity"
 	hostconfig "lina-core/internal/service/config"
+	i18nsvc "lina-core/internal/service/i18n"
 )
 
 // Service defines the sysconfig service contract.
@@ -61,11 +62,11 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	configSvc hostconfig.Service
-	i18nSvc   sysconfigI18nTranslator
+	i18nSvc   i18nsvc.Service
 }
 
 // New creates a sysconfig service from explicit runtime-owned dependencies.
-func New(configSvc hostconfig.Service, i18nSvc sysconfigI18nTranslator) Service {
+func New(configSvc hostconfig.Service, i18nSvc i18nsvc.Service) Service {
 	return &serviceImpl{
 		configSvc: configSvc,
 		i18nSvc:   i18nSvc,

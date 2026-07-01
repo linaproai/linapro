@@ -15,6 +15,25 @@ import (
 	internalregistry "lina-core/pkg/plugin/capability/internal/capabilityregistry"
 )
 
+// Service defines the optional text AI capability consumed by host core
+// services and plugins without depending on a concrete provider implementation.
+type Service interface {
+	// Available reports whether an active text AI provider is available.
+	Available(ctx context.Context) bool
+	// Status returns the current text AI capability activation state.
+	Status(ctx context.Context) capmodel.CapabilityStatus
+	// MethodStatus returns method-level text AI availability without exposing provider internals.
+	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
+	// GenerateText executes one synchronous text generation request.
+	GenerateText(ctx context.Context, request GenerateRequest) (*GenerateResponse, error)
+}
+
+// Provider defines the text AI capability implemented by provider plugins.
+type Provider interface {
+	// GenerateText executes one synchronous text generation request.
+	GenerateText(ctx context.Context, request ProviderRequest) (*GenerateResponse, error)
+}
+
 const (
 	// CapabilityAITextV1 identifies the versioned text AI framework capability.
 	CapabilityAITextV1 = "framework.ai.text.v1"
@@ -148,60 +167,11 @@ type ProviderEnv struct {
 	// PluginID is the provider plugin being constructed.
 	PluginID string
 	// BizCtx exposes the current request business context for provider-side
-	// audit projection without leaking host-internal context models.
+	// audit metadata without leaking host-internal context models.
 	BizCtx bizctxcap.Service
 	// Cache exposes the plugin-scoped shared cache backend for non-authoritative
 	// revision markers and other runtime acceleration metadata.
 	Cache cachecap.Service
-}
-
-// ProviderRuntime defines the narrow plugin state and environment capability
-// required by aitext to use declared providers.
-//
-// ProviderRuntime 定义 aitext 在延迟创建文本 AI 提供方时所需的最小宿主运行时入口，适用于判断官方插件是否处于可服务状态，
-// 并为 provider 工厂构造受治理的宿主环境。
-type ProviderRuntime interface {
-	// IsProviderEnabled reports whether pluginID may serve framework provider calls.
-	//
-	// IsProviderEnabled 判断指定插件是否允许承接框架文本 AI 能力调用，通常用于能力服务在调用 provider 前确认插件已启用且处于可服务状态。
-	IsProviderEnabled(ctx context.Context, pluginID string) bool
-	// AITextProviderEnv returns typed, plugin-scoped construction inputs for one provider plugin.
-	//
-	// AITextProviderEnv 返回指定文本 AI 插件的类型化构造环境，适用于 provider 工厂获取受治理宿主输入，同时避免宿主消费方依赖插件内部实现。
-	AITextProviderEnv(pluginID string) ProviderEnv
-}
-
-// Provider defines the text AI capability implemented by provider plugins.
-//
-// Provider 定义文本 AI 能力插件必须实现的提供方契约，适用于 linapro-ai-core 等插件向宿主提供按 purpose 和档位治理的同步文本生成能力。
-type Provider interface {
-	// GenerateText executes one synchronous text generation request.
-	//
-	// GenerateText 根据已校验的 purpose、档位、消息、生成参数和可选 thinkingEffort 执行文本生成；实现必须脱敏日志并返回结构化业务错误。
-	GenerateText(ctx context.Context, request ProviderRequest) (*GenerateResponse, error)
-}
-
-// Service defines the optional text AI capability consumed by host core
-// services and plugins without depending on a concrete provider implementation.
-//
-// Service 定义宿主核心服务、源码插件和动态插件可消费的文本 AI 能力，适用于按稳定档位执行同步文本生成，并在官方插件缺失时获得安全降级错误。
-type Service interface {
-	// Available reports whether an active text AI provider is available.
-	//
-	// Available 判断当前是否存在可用文本 AI 提供方，适用于调用方决定展示、降级或提示缺少智能中心配置。
-	Available(ctx context.Context) bool
-	// Status returns the current text AI capability activation state.
-	//
-	// Status 返回文本 AI 能力激活状态，适用于诊断、治理检查和插件能力状态展示。
-	Status(ctx context.Context) capmodel.CapabilityStatus
-	// MethodStatus returns method-level text AI availability without exposing provider internals.
-	//
-	// MethodStatus 返回文本 AI 子能力单个方法的可用状态，适用于插件按方法降级；结果不得包含 provider 私有配置。
-	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
-	// GenerateText executes one synchronous text generation request.
-	//
-	// GenerateText 按 purpose 和档位执行同步文本生成；请求无效、provider 不可用或插件配置缺失时返回结构化业务错误。
-	GenerateText(ctx context.Context, request GenerateRequest) (*GenerateResponse, error)
 }
 
 // ProviderFactory creates one text AI provider from an explicit typed
@@ -233,7 +203,8 @@ func (m *Manager) RegisterFactory(pluginID string, factory ProviderFactory) erro
 // structured fallback errors when no provider is usable.
 type serviceImpl struct {
 	manager        *Manager
-	runtime        ProviderRuntime
+	enablement     internalregistry.EnablementReader
+	envFactory     internalregistry.ProviderEnvFactory[ProviderEnv]
 	sourcePluginID string
 }
 
@@ -241,14 +212,21 @@ type serviceImpl struct {
 var _ Service = (*serviceImpl)(nil)
 
 // New creates an optional text AI capability service from explicit runtime-owned dependencies.
-func New(manager *Manager, runtime ProviderRuntime) Service {
+func New(
+	manager *Manager,
+	enablement internalregistry.EnablementReader,
+	envFactory internalregistry.ProviderEnvFactory[ProviderEnv],
+) Service {
 	if manager == nil {
 		manager = NewManager()
 	}
-	if runtime == nil {
-		runtime = noopProviderRuntime{}
+	if enablement == nil {
+		enablement = noopEnablementReader{}
 	}
-	return &serviceImpl{manager: manager, runtime: runtime}
+	if envFactory == nil {
+		envFactory = defaultProviderEnv
+	}
+	return &serviceImpl{manager: manager, enablement: enablement, envFactory: envFactory}
 }
 
 // ForPlugin returns a text AI service that injects pluginID into provider
@@ -257,7 +235,8 @@ func ForPlugin(service Service, pluginID string) Service {
 	if service == nil {
 		return &serviceImpl{
 			manager:        NewManager(),
-			runtime:        noopProviderRuntime{},
+			enablement:     noopEnablementReader{},
+			envFactory:     defaultProviderEnv,
 			sourcePluginID: strings.TrimSpace(pluginID),
 		}
 	}
@@ -267,7 +246,8 @@ func ForPlugin(service Service, pluginID string) Service {
 	}
 	return &serviceImpl{
 		manager:        impl.manager,
-		runtime:        impl.runtime,
+		enablement:     impl.enablement,
+		envFactory:     impl.envFactory,
 		sourcePluginID: strings.TrimSpace(pluginID),
 	}
 }
@@ -321,6 +301,5 @@ func PurposeResourceRef(purpose string) string {
 	return "purpose:" + trimmed
 }
 
-// noopProviderRuntime reports all plugins as disabled when aitext is
-// constructed without an explicit provider runtime.
-type noopProviderRuntime struct{}
+// noopEnablementReader reports all provider plugins as disabled.
+type noopEnablementReader struct{}

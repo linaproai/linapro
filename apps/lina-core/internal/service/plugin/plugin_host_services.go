@@ -14,100 +14,87 @@ import (
 
 	"lina-core/internal/service/apidoc"
 	"lina-core/internal/service/auth"
+	"lina-core/internal/service/cachecoord"
+	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
+	filesvc "lina-core/internal/service/file"
 	"lina-core/internal/service/hostlock"
 	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/notify"
 	"lina-core/internal/service/plugin/internal/capabilityhost"
+	hostconfigadapter "lina-core/internal/service/plugin/internal/hostconfig"
+	"lina-core/internal/service/plugin/internal/manifestresource"
+	"lina-core/internal/service/plugin/internal/pluginconfig"
 	"lina-core/internal/service/plugin/internal/wasm"
-	"lina-core/internal/service/session"
+	"lina-core/internal/service/role"
+	storagesvc "lina-core/internal/service/storage"
+	usersvc "lina-core/internal/service/user"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/capability"
 	capabilityaitext "lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
-	"lina-core/pkg/plugin/capability/manifestcap"
 	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
-// HostAPIDocResolver defines the apidoc route-text slice required by
-// source-plugin host service adapters.
-type HostAPIDocResolver interface {
-	// ResolveRouteText resolves one route's localized module tag and operation summary.
-	ResolveRouteText(ctx context.Context, input apidoc.RouteTextInput) apidoc.RouteTextOutput
-	// ResolveRouteTexts resolves multiple route texts with a single apidoc catalog load.
-	ResolveRouteTexts(ctx context.Context, inputs []apidoc.RouteTextInput) []apidoc.RouteTextOutput
-	// FindRouteTitleOperationKeys finds operation key bases whose localized module tag matches keyword.
-	FindRouteTitleOperationKeys(ctx context.Context, keyword string) []string
+// NewHostConfigService creates the plugin-visible HostConfig capability from
+// the startup-owned host configuration reader.
+func NewHostConfigService(reader configsvc.Service) hostconfigcap.Service {
+	return hostconfigadapter.NewStaticCapabilityAdapter(reader)
 }
 
-// HostAuthSessionRevoker defines the session revocation slice required by
-// source-plugin session adapters.
-type HostAuthSessionRevoker interface {
-	// RevokeSession writes a shared revoke marker and removes one online session by token ID.
-	RevokeSession(ctx context.Context, tokenID string) error
+// PluginConfigFactory creates plugin-scoped configuration service views for
+// source-plugin capability directories and dynamic-plugin WASM host services.
+type PluginConfigFactory = pluginconfig.Factory
+
+// pluginStateLookup narrows the root plugin service to the enablement lookups
+// needed by host-service adapters and provider runtime guards.
+type pluginStateLookup interface {
+	// IsEnabled reports whether one plugin is enabled in the current scope.
+	IsEnabled(ctx context.Context, pluginID string) bool
+	// IsProviderEnabled reports whether one plugin may serve provider calls.
+	IsProviderEnabled(ctx context.Context, pluginID string) bool
+	// IsEnabledAuthoritative reports persisted plugin enablement bypassing local snapshots.
+	IsEnabledAuthoritative(ctx context.Context, pluginID string) bool
 }
 
-// HostTenantTokenIssuer defines the tenant-token handoff slice required by
-// source-plugin auth adapters.
-type HostTenantTokenIssuer interface {
-	// IssueTenantToken consumes a pre-login token and issues a tenant-bound token pair.
-	IssueTenantToken(ctx context.Context, in auth.TenantTokenIssueInput) (*auth.TenantTokenOutput, error)
-	// ReissueTenantTokenFromBearer parses the current bearer token and issues a new tenant-bound token pair.
-	ReissueTenantTokenFromBearer(ctx context.Context, tokenString string, tenantID int) (*auth.TenantTokenOutput, error)
-	// IssueImpersonationToken signs and registers one host-owned impersonation token.
-	IssueImpersonationToken(ctx context.Context, in auth.ImpersonationTokenIssueInput) (*auth.ImpersonationTokenOutput, error)
-	// RevokeImpersonationToken validates and revokes one host impersonation token.
-	RevokeImpersonationToken(ctx context.Context, tokenString string, tenantID int) error
+// NewPluginConfigFactory creates a plugin configuration factory with optional
+// root overrides.
+func NewPluginConfigFactory(productionRoot string, developmentRoot string) PluginConfigFactory {
+	return pluginconfig.NewFactory(productionRoot, developmentRoot)
 }
 
-// HostBizContextProvider defines the read-only request context projection
-// required by source-plugin adapters.
-type HostBizContextProvider interface {
-	// Current returns the plugin-visible read-only projection of the current business context.
-	Current(ctx context.Context) bizctxcap.CurrentContext
-}
-
-// HostRuntimeI18nService defines the runtime translation slice required by
-// source-plugin host service adapters.
-type HostRuntimeI18nService interface {
-	// GetLocale returns the effective request locale.
-	GetLocale(ctx context.Context) string
-	// Translate resolves one runtime message key in the current request locale.
-	Translate(ctx context.Context, key string, fallback string) string
-	// ExportMessages exports flat runtime messages for one locale.
-	ExportMessages(ctx context.Context, locale string) i18nsvc.MessageExportOutput
-}
-
-// HostNotifyPublisher defines the notification slice required by source-plugin adapters.
-type HostNotifyPublisher interface {
-	// Send validates the notify channel and creates unified notify message and delivery records.
-	Send(ctx context.Context, in notify.SendInput) (*notify.SendOutput, error)
-	// SendNoticePublication sends one published notice through the built-in inbox channel.
-	SendNoticePublication(ctx context.Context, in notify.NoticePublishInput) (*notify.SendOutput, error)
-	// DeleteBySource removes notify records for the given business source identifiers.
-	DeleteBySource(ctx context.Context, sourceType notify.SourceType, sourceIDs []string) error
+// NewPluginConfigFactoryWithHostStaticConfig creates a plugin configuration
+// factory that checks host static plugin.<plugin-id> sections before file and
+// artifact sources.
+func NewPluginConfigFactoryWithHostStaticConfig(
+	productionRoot string,
+	developmentRoot string,
+	hostStatic configsvc.Service,
+) PluginConfigFactory {
+	return pluginconfig.NewFactoryWithHostStaticConfig(productionRoot, developmentRoot, hostStatic)
 }
 
 // NewLocalStorageProvider creates the host built-in plugin storage provider.
-func NewLocalStorageProvider(rootDir string) storagecap.Provider {
-	return capabilityhost.NewLocalStorageProvider(rootDir)
+func NewLocalStorageProvider(storageSvc storagesvc.Service) storagecap.Provider {
+	return capabilityhost.NewLocalStorageProvider(storageSvc)
 }
 
 // NewStorageProviderRuntime creates provider selection runtime state from plugin
 // enablement dependencies.
-func NewStorageProviderRuntime(pluginStateSvc plugincap.StateService) storagecap.ProviderRuntime {
+func NewStorageProviderRuntime(pluginStateSvc pluginStateLookup) storagecap.ProviderRuntime {
 	return &storageProviderRuntime{pluginStateSvc: pluginStateSvc}
 }
 
 // storageProviderRuntime adapts plugin state to storagecap runtime.
 type storageProviderRuntime struct {
-	pluginStateSvc plugincap.StateService
+	pluginStateSvc pluginStateLookup
 }
 
 // ProviderPluginAvailable reports whether a provider plugin may serve calls.
@@ -124,38 +111,44 @@ func (r *storageProviderRuntime) ProviderPluginAvailable(ctx context.Context, pl
 // used by HTTP startup, WASM host services, middleware, and plugin lifecycle
 // orchestration; this facade does not create replacement runtime services.
 func NewHostServices(
-	apiDocSvc HostAPIDocResolver,
-	authSvc HostAuthSessionRevoker,
-	authTokenIssuer HostTenantTokenIssuer,
-	bizCtxSvc HostBizContextProvider,
+	apiDocSvc apidoc.Service,
+	authSvc auth.Service,
+	bizCtxSvc bizctxcap.Service,
+	roleAccessSvc role.Service,
 	hostConfigSvc hostconfigcap.Service,
 	scopeSvc datascope.Service,
-	i18nSvc HostRuntimeI18nService,
-	pluginStateSvc plugincap.StateService,
-	pluginLifecycleRunner plugincap.LifecycleRunner,
-	sessionStore session.Store,
+	cacheCoordSvc cachecoord.Service,
+	i18nSvc i18nsvc.Service,
+	pluginStateSvc pluginStateLookup,
+	pluginLifecycleSvc plugincap.LifecycleService,
 	aiTextSvc capabilityaitext.Service,
+	userSvc usersvc.Service,
+	fileSvc filesvc.Service,
+	jobSvc jobmeta.Owner,
 	orgSvc capabilityorgcap.Service,
-	tenantSvc tenantspi.RuntimeService,
-	notifySvc HostNotifyPublisher,
+	tenantSvc tenantspi.Service,
+	notifySvc notify.Service,
 	kvCacheSvc kvcache.Service,
 	lockSvc hostlock.Service,
-	pluginConfigFactory plugincap.ConfigServiceFactory,
+	pluginConfigFactory PluginConfigFactory,
 	storageRuntime storagecap.ProviderRuntime,
 	localStorageProvider storagecap.Provider,
 ) (capability.Services, error) {
 	return capabilityhost.New(
 		apiDocSvc,
 		authSvc,
-		authTokenIssuer,
 		bizCtxSvc,
+		roleAccessSvc,
 		hostConfigSvc,
 		scopeSvc,
+		cacheCoordSvc,
 		i18nSvc,
 		pluginStateSvc,
-		pluginLifecycleRunner,
-		sessionStore,
+		pluginLifecycleSvc,
 		aiTextSvc,
+		userSvc,
+		fileSvc,
+		jobSvc,
 		orgSvc,
 		tenantSvc,
 		notifySvc,
@@ -171,9 +164,9 @@ func NewHostServices(
 // runtime from startup-owned shared services.
 func newWasmHostServiceRuntime(
 	hostServices capability.Services,
-	configFactory plugincap.ConfigServiceFactory,
+	configFactory PluginConfigFactory,
 	hostConfigSvc hostconfigcap.Service,
-	manifestFactory manifestcap.ServiceFactory,
+	manifestFactory manifestresource.Factory,
 ) (wasm.Runtime, error) {
 	runtime, err := wasm.NewRuntime(
 		hostServices,

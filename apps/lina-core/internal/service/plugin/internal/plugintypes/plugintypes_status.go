@@ -3,64 +3,35 @@
 
 package plugintypes
 
-import "strings"
+import (
+	"strings"
 
-// Status defines the typed plugin enablement enum used by state derivation logic.
-type Status int
-
-// InstalledStatus defines the typed plugin installation enum used by state derivation logic.
-type InstalledStatus int
-
-const (
-	// PluginStatusDisabled means the plugin is currently disabled.
-	PluginStatusDisabled Status = 0
-	// PluginStatusEnabled means the plugin is currently enabled.
-	PluginStatusEnabled Status = 1
-
-	// PluginInstalledNo means the plugin is currently not installed.
-	PluginInstalledNo InstalledStatus = 0
-	// PluginInstalledYes means the plugin is currently installed.
-	PluginInstalledYes InstalledStatus = 1
+	"lina-core/pkg/statusflag"
 )
 
-// Int returns the database-compatible integer code for one plugin enablement status.
-func (value Status) Int() int {
-	return int(value)
-}
+// Status reuses the shared API enabled flag type for plugin enablement.
+type Status = statusflag.Enabled
 
-// Int returns the database-compatible integer code for one plugin installation status.
-func (value InstalledStatus) Int() int {
-	return int(value)
-}
+// InstalledStatus reuses the shared API installation flag type.
+type InstalledStatus = statusflag.Installation
 
 // NormalizeStatus converts one raw database/entity integer into the typed
 // plugin enablement enum used by state derivation helpers.
 func NormalizeStatus(value int) Status {
-	if value == PluginStatusEnabled.Int() {
-		return PluginStatusEnabled
+	if value == statusflag.EnabledValue.Int() {
+		return statusflag.EnabledValue
 	}
-	return PluginStatusDisabled
+	return statusflag.Disabled
 }
 
 // NormalizeInstalledStatus converts one raw database/entity integer into the
 // typed plugin installation enum used by state derivation helpers.
 func NormalizeInstalledStatus(value int) InstalledStatus {
-	if value == PluginInstalledYes.Int() {
-		return PluginInstalledYes
+	if value == statusflag.Installed.Int() {
+		return statusflag.Installed
 	}
-	return PluginInstalledNo
+	return statusflag.Uninstalled
 }
-
-const (
-	// StatusDisabled marks a plugin as disabled (enabled=0 in DB).
-	StatusDisabled = 0
-	// StatusEnabled marks a plugin as enabled (enabled=1 in DB).
-	StatusEnabled = 1
-	// InstalledNo marks a plugin as not installed (installed=0 in DB).
-	InstalledNo = 0
-	// InstalledYes marks a plugin as installed (installed=1 in DB).
-	InstalledYes = 1
-)
 
 const (
 	// MenuKeyPrefix is the common prefix for plugin-owned menu keys in sys_menu.menu_key.
@@ -80,10 +51,10 @@ const (
 // BuildReleaseStatus builds the composite release status string from installation
 // and enablement flags.
 func BuildReleaseStatus(installed int, enabled int) ReleaseStatus {
-	if NormalizeInstalledStatus(installed) != PluginInstalledYes {
+	if NormalizeInstalledStatus(installed) != statusflag.Installed {
 		return ReleaseStatusUninstalled
 	}
-	if NormalizeStatus(enabled) == PluginStatusEnabled {
+	if NormalizeStatus(enabled) == statusflag.EnabledValue {
 		return ReleaseStatusActive
 	}
 	return ReleaseStatusInstalled

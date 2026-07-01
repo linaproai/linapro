@@ -9,17 +9,21 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/os/gfile"
+	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/text/gstr"
+	"github.com/gogf/gf/v2/util/grand"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
+	storagesvc "lina-core/internal/service/storage"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/closeutil"
 )
@@ -27,16 +31,15 @@ import (
 // Upload handles file upload: computes SHA-256 hash, checks for duplicates, saves file via storage backend and records metadata in DB.
 // If a file with the same hash already exists, a new record is still created (with different scene), reusing the physical file.
 func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *UploadOutput, err error) {
-	file := in.File
-	if file == nil {
+	if in == nil || in.File == nil {
 		return nil, bizerr.NewCode(CodeFileUploadRequired)
 	}
-	sanitizedFilename := sanitizeFilename(file.Filename)
+	file := in.File
 	uploadMaxSize, err := s.configSvc.GetUploadMaxSize(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if file.Size > uploadMaxSize*1024*1024 {
+	if file.Size > uploadLimitBytes(uploadMaxSize) {
 		return nil, bizerr.NewCode(CodeFileTooLarge, bizerr.P("maxSizeMB", uploadMaxSize))
 	}
 	src, err := file.Open()
@@ -44,21 +47,53 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 		return nil, bizerr.WrapCode(err, CodeFileOpenFailed)
 	}
 	defer closeutil.Close(ctx, src, &err, "close uploaded file failed")
+	return s.createFromReader(ctx, &CreateFromReaderInput{
+		Filename:  file.Filename,
+		Scene:     in.Scene,
+		Reader:    src,
+		SizeBytes: file.Size,
+	}, uploadMaxSize)
+}
 
-	hasher := sha256.New()
-	if _, err = io.Copy(hasher, src); err != nil {
-		return nil, bizerr.WrapCode(err, CodeFileHashFailed)
+// CreateFromReader creates a file-center metadata record from a generic stream.
+func (s *serviceImpl) CreateFromReader(ctx context.Context, in *CreateFromReaderInput) (output *UploadOutput, err error) {
+	uploadMaxSize, err := s.configSvc.GetUploadMaxSize(ctx)
+	if err != nil {
+		return nil, err
 	}
-	fileHash := hex.EncodeToString(hasher.Sum(nil))
+	return s.createFromReader(ctx, in, uploadMaxSize)
+}
+
+// createFromReader owns shared file-center write semantics for HTTP uploads and plugin capabilities.
+func (s *serviceImpl) createFromReader(ctx context.Context, in *CreateFromReaderInput, uploadMaxSize int64) (output *UploadOutput, err error) {
+	if in == nil || in.Reader == nil {
+		return nil, bizerr.NewCode(CodeFileUploadRequired)
+	}
+	sanitizedFilename := sanitizeFilename(in.Filename)
+	if sanitizedFilename == "" || sanitizedFilename == "." {
+		return nil, bizerr.NewCode(CodeFileUploadRequired)
+	}
+	if in.SizeBytes > uploadLimitBytes(uploadMaxSize) {
+		return nil, bizerr.NewCode(CodeFileTooLarge, bizerr.P("maxSizeMB", uploadMaxSize))
+	}
+	spooled, actualSize, fileHash, err := spoolUploadReader(in.Reader, uploadMaxSize)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanupSpooledUpload(spooled, &err)
 
 	var userId int64
-	if bizCtx := s.bizCtxSvc.Get(ctx); bizCtx != nil {
-		userId = int64(bizCtx.UserId)
+	if s.bizCtxSvc != nil {
+		if bizCtx := s.bizCtxSvc.Get(ctx); bizCtx != nil {
+			userId = int64(bizCtx.UserId)
+		} else {
+			userId = int64(s.bizCtxSvc.Current(ctx).UserID)
+		}
 	}
 	tenantID := datascope.CurrentTenantID(ctx)
 	scene := in.Scene
 	if scene == "" {
-		scene = "other"
+		scene = DefaultFileSceneOther
 	}
 	suffix := gstr.ToLower(gfile.ExtName(sanitizedFilename))
 
@@ -78,7 +113,7 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 				Original:  sanitizedFilename,
 				Suffix:    suffix,
 				Scene:     scene,
-				Size:      file.Size,
+				Size:      actualSize,
 				Hash:      fileHash,
 				Url:       existing.Url,
 				Path:      existing.Path,
@@ -98,26 +133,31 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 				Original: sanitizedFilename,
 				Url:      s.getBaseUrl(ctx) + existing.Url,
 				Suffix:   suffix,
-				Size:     file.Size,
+				Size:     actualSize,
 			}
 			return nil
 		}
-		if _, err = src.Seek(0, io.SeekStart); err != nil {
+		if _, err = spooled.Seek(0, io.SeekStart); err != nil {
 			return bizerr.WrapCode(err, CodeFileReadResetFailed)
 		}
-		storagePath, err := s.storage.Put(ctx, sanitizedFilename, src)
+		storagePath := buildStorageKey(ctx, sanitizedFilename)
+		_, err = s.storage.Put(ctx, storagesvc.PutInput{
+			Namespace: storagesvc.NamespaceFiles,
+			Key:       storagePath,
+			Body:      spooled,
+		})
 		if err != nil {
 			return bizerr.WrapCode(err, CodeFileStoreFailed)
 		}
 		storedName := gfile.Basename(storagePath)
-		url := s.storage.Url(ctx, storagePath)
+		url := storageURL(storagePath)
 		result, err := dao.SysFile.Ctx(ctx).Data(do.SysFile{
 			TenantId:  tenantID,
 			Name:      storedName,
 			Original:  sanitizedFilename,
 			Suffix:    suffix,
 			Scene:     scene,
-			Size:      file.Size,
+			Size:      actualSize,
 			Hash:      fileHash,
 			Url:       url,
 			Path:      storagePath,
@@ -125,7 +165,7 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 			CreatedBy: userId,
 		}).Insert()
 		if err != nil {
-			if cleanupErr := s.storage.Delete(ctx, storagePath); cleanupErr != nil {
+			if cleanupErr := s.storage.Delete(ctx, storagesvc.DeleteInput{Namespace: storagesvc.NamespaceFiles, Key: storagePath}); cleanupErr != nil {
 				return bizerr.WrapCode(
 					fmt.Errorf("cleanup stored file after record save failure: %w; cleanup error: %v", err, cleanupErr),
 					CodeFileRecordSaveCleanupFailed,
@@ -143,7 +183,7 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 			Original: sanitizedFilename,
 			Url:      s.getBaseUrl(ctx) + url,
 			Suffix:   suffix,
-			Size:     file.Size,
+			Size:     actualSize,
 		}
 		return nil
 	})
@@ -151,6 +191,80 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 		return nil, err
 	}
 	return output, nil
+}
+
+// buildStorageKey returns the file-center object key persisted in sys_file.path.
+func buildStorageKey(ctx context.Context, filename string) string {
+	var (
+		now        = gtime.Now()
+		dir        = fmt.Sprintf("%d/%s/%s", datascope.CurrentTenantID(ctx), now.Format("Y"), now.Format("m"))
+		ext        = gfile.ExtName(filename)
+		storedName = fmt.Sprintf("%s_%s", now.Format("Ymd_His"), grand.S(8))
+	)
+	if ext != "" {
+		storedName += "." + gstr.ToLower(ext)
+	}
+	return gfile.Join(dir, storedName)
+}
+
+// storageURL returns the public file-center access URL for one object key.
+func storageURL(storagePath string) string {
+	return "/api/v1/uploads/" + storagePath
+}
+
+// uploadLimitBytes converts the configured MiB ceiling into bytes.
+func uploadLimitBytes(maxSizeMB int64) int64 {
+	return maxSizeMB * 1024 * 1024
+}
+
+// spoolUploadReader hashes a stream while copying it to a temporary seekable file.
+func spoolUploadReader(reader io.Reader, uploadMaxSize int64) (*os.File, int64, string, error) {
+	spooled, err := os.CreateTemp("", "lina-file-upload-*")
+	if err != nil {
+		return nil, 0, "", bizerr.WrapCode(err, CodeFileOpenFailed)
+	}
+	hasher := sha256.New()
+	maxBytes := uploadLimitBytes(uploadMaxSize)
+	written, err := io.Copy(io.MultiWriter(spooled, hasher), io.LimitReader(reader, maxBytes+1))
+	if err != nil {
+		return nil, 0, "", cleanupSpooledUploadError(spooled, bizerr.WrapCode(err, CodeFileHashFailed))
+	}
+	if written > maxBytes {
+		return nil, 0, "", cleanupSpooledUploadError(spooled, bizerr.NewCode(CodeFileTooLarge, bizerr.P("maxSizeMB", uploadMaxSize)))
+	}
+	if _, err = spooled.Seek(0, io.SeekStart); err != nil {
+		return nil, 0, "", cleanupSpooledUploadError(spooled, bizerr.WrapCode(err, CodeFileReadResetFailed))
+	}
+	return spooled, written, hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+// cleanupSpooledUpload closes and removes the temporary upload file.
+func cleanupSpooledUpload(spooled *os.File, errp *error) {
+	if spooled == nil {
+		return
+	}
+	name := spooled.Name()
+	if closeErr := spooled.Close(); closeErr != nil && *errp == nil {
+		*errp = bizerr.WrapCode(closeErr, CodeFileReadResetFailed)
+	}
+	if removeErr := os.Remove(name); removeErr != nil && *errp == nil {
+		*errp = bizerr.WrapCode(removeErr, CodeFileStoreFailed)
+	}
+}
+
+// cleanupSpooledUploadError adds temporary-file cleanup failures to the primary error.
+func cleanupSpooledUploadError(spooled *os.File, primary error) error {
+	if spooled == nil {
+		return primary
+	}
+	name := spooled.Name()
+	if closeErr := spooled.Close(); closeErr != nil {
+		return bizerr.WrapCode(fmt.Errorf("%w; cleanup close error: %v", primary, closeErr), CodeFileRecordSaveCleanupFailed)
+	}
+	if removeErr := os.Remove(name); removeErr != nil {
+		return bizerr.WrapCode(fmt.Errorf("%w; cleanup remove error: %v", primary, removeErr), CodeFileRecordSaveCleanupFailed)
+	}
+	return primary
 }
 
 // sanitizeFilename removes path traversal characters and dangerous patterns from filename.

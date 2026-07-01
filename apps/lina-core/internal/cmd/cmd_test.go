@@ -198,9 +198,11 @@ func TestSourcePluginProtectedRoutesIncludeTenancy(t *testing.T) {
 			if !strings.Contains(text, "middlewares.Auth()") {
 				return
 			}
-			authIndex := strings.Index(text, "middlewares.Auth()")
-			tenancyIndex := strings.Index(text, "middlewares.Tenancy()")
-			permissionIndex := strings.Index(text, "middlewares.Permission()")
+			var (
+				authIndex       = strings.Index(text, "middlewares.Auth()")
+				tenancyIndex    = strings.Index(text, "middlewares.Tenancy()")
+				permissionIndex = strings.Index(text, "middlewares.Permission()")
+			)
 			if tenancyIndex < 0 {
 				t.Fatalf("protected source plugin route must include Tenancy middleware: %s", file)
 			}
@@ -337,14 +339,14 @@ var productionPanicPolicy = panicAuditPolicy{
 		},
 		{
 			Path:     "apps/lina-core/internal/service/config/config_plugin.go",
-			Function: "SetPluginAutoEnableOverride",
+			Function: "setPluginAutoEnableOverride",
 			Count:    1,
 			Category: panicCategoryStaticConfig,
 			Reason:   "test override helpers receive already-validated IDs; a normalization failure indicates broken test fixtures and must surface immediately",
 		},
 		{
 			Path:     "apps/lina-core/internal/service/config/config_plugin.go",
-			Function: "SetPluginAutoEnableEntriesOverride",
+			Function: "setPluginAutoEnableEntriesOverride",
 			Count:    1,
 			Category: panicCategoryStaticConfig,
 			Reason:   "test override helpers receive already-validated entries; a normalization failure indicates broken test fixtures and must surface immediately",

@@ -1,5 +1,6 @@
 // This file exposes raw host configuration reads for trusted internal
-// adapters that need business-neutral access without expanding Service.
+// adapters that need business-neutral access while preserving GoFrame value
+// semantics.
 
 package config
 
@@ -126,39 +127,28 @@ var runtimeParamSpecByKey = func() map[string]RuntimeParamSpec {
 	return specByKey
 }()
 
-// runtimeParamKeys preserves the deterministic built-in runtime-parameter key order.
-var runtimeParamKeys = []string{
-	RuntimeParamKeyJWTExpire,
-	RuntimeParamKeySessionTimeout,
-	RuntimeParamKeyUploadMaxSize,
-	RuntimeParamKeyLoginBlackIPList,
-	RuntimeParamKeyLogRetentionDays,
-	RuntimeParamKeyCronShellEnabled,
-	RuntimeParamKeyCronLogRetention,
-}
-
-// RuntimeParamSpecs returns all built-in runtime parameter specs.
-func RuntimeParamSpecs() []RuntimeParamSpec {
+// runtimeParamSpecsCopy returns all built-in runtime parameter specs.
+func runtimeParamSpecsCopy() []RuntimeParamSpec {
 	specs := make([]RuntimeParamSpec, len(runtimeParamSpecs))
 	copy(specs, runtimeParamSpecs)
 	return specs
 }
 
-// LookupRuntimeParamSpec returns one built-in runtime parameter spec by key.
-func LookupRuntimeParamSpec(key string) (RuntimeParamSpec, bool) {
+// lookupRuntimeParamSpec returns one built-in runtime parameter spec by key.
+func lookupRuntimeParamSpec(key string) (RuntimeParamSpec, bool) {
 	spec, ok := runtimeParamSpecByKey[strings.TrimSpace(key)]
 	return spec, ok
 }
 
-// IsManagedRuntimeParamKey reports whether the key belongs to one built-in
+// isManagedRuntimeParamKey reports whether the key belongs to one built-in
 // runtime parameter managed through sys_config by the host runtime.
-func IsManagedRuntimeParamKey(key string) bool {
-	_, ok := LookupRuntimeParamSpec(key)
+func isManagedRuntimeParamKey(key string) bool {
+	_, ok := lookupRuntimeParamSpec(key)
 	return ok
 }
 
-// ValidateRuntimeParamValue validates one built-in runtime parameter value.
-func ValidateRuntimeParamValue(key string, value string) error {
+// validateRuntimeParamValue validates one built-in runtime parameter value.
+func validateRuntimeParamValue(key string, value string) error {
 	switch strings.TrimSpace(key) {
 	case RuntimeParamKeyJWTExpire:
 		_, err := validatePositiveDurationValue(key, value)
@@ -462,7 +452,6 @@ const (
 // runtimeParamSnapshot stores one immutable parsed view of all sys_config
 // values visible to one tenant scope for a single effective revision.
 type runtimeParamSnapshot struct {
-	revision              int64
 	values                map[string]string
 	durationValues        map[string]time.Duration
 	int64Values           map[string]int64
@@ -492,9 +481,9 @@ var runtimeParamRevisionState = struct {
 	initialized bool
 }{}
 
-// RuntimeParamSnapshotSyncInterval returns the runtime-parameter watcher
+// runtimeParamSnapshotSyncIntervalForTest returns the runtime-parameter watcher
 // interval used when multi-node sync is enabled.
-func RuntimeParamSnapshotSyncInterval() time.Duration {
+func runtimeParamSnapshotSyncIntervalForTest() time.Duration {
 	return runtimeParamRevisionSyncInterval
 }
 
@@ -625,7 +614,7 @@ func (s *serviceImpl) loadCachedRuntimeParamSnapshot(
 	ctx context.Context,
 	revision int64,
 ) (*cachedRuntimeParamSnapshot, error) {
-	loaded, err := s.loadRuntimeParamSnapshot(ctx, revision)
+	loaded, err := s.loadRuntimeParamSnapshot(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -637,8 +626,8 @@ func (s *serviceImpl) loadCachedRuntimeParamSnapshot(
 }
 
 // loadRuntimeParamSnapshot rebuilds one immutable sys_config snapshot from all
-// rows visible to the current tenant scope for the specified effective revision.
-func (s *serviceImpl) loadRuntimeParamSnapshot(ctx context.Context, revision int64) (*runtimeParamSnapshot, error) {
+// rows visible to the current tenant scope.
+func (s *serviceImpl) loadRuntimeParamSnapshot(ctx context.Context) (*runtimeParamSnapshot, error) {
 	cols := dao.SysConfig.Columns()
 	tenantID := datascope.CurrentTenantID(ctx)
 
@@ -656,7 +645,6 @@ func (s *serviceImpl) loadRuntimeParamSnapshot(ctx context.Context, revision int
 
 	effectiveRows := effectiveRuntimeParamRows(rows, tenantID)
 	snapshot := &runtimeParamSnapshot{
-		revision:         revision,
 		values:           make(map[string]string, len(effectiveRows)),
 		durationValues:   make(map[string]time.Duration, 2),
 		int64Values:      make(map[string]int64, 2),

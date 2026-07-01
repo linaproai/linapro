@@ -186,9 +186,11 @@ func ensureBuildWasmPluginWorkspace(repoRoot string, pluginDir string) error {
 		return fmt.Errorf("root go.work is missing a go version directive")
 	}
 
-	workspacePath := filepath.Join(repoRoot, "temp", "go.work.plugins")
-	uses := make([]string, 0)
-	seen := make(map[string]struct{})
+	var (
+		workspacePath = filepath.Join(repoRoot, "temp", "go.work.plugins")
+		uses          = make([]string, 0)
+		seen          = make(map[string]struct{})
+	)
 	addUse := func(use string) {
 		normalized := normalizeBuildWasmGoWorkUse(use)
 		if normalized == "" || normalized == "apps/lina-plugins" || strings.HasPrefix(normalized, "apps/lina-plugins/") {

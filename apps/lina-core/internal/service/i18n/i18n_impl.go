@@ -71,35 +71,15 @@ func (s *serviceImpl) Translate(ctx context.Context, key string, fallback string
 	return s.translateForLocale(ctx, s.GetLocale(ctx), key, fallback)
 }
 
-// TranslateSourceText returns the current-locale value or source text. For
-// example, a code-owned cron handler can omit en-US JSON and fall back to its
-// registered English display name.
-func (s *serviceImpl) TranslateSourceText(ctx context.Context, key string, sourceText string) string {
-	return s.translateForLocale(ctx, s.GetLocale(ctx), key, sourceText)
-}
-
-// TranslateOrKey returns the current-locale value or the key itself. For
-// example, missing key menu.unknown.title renders as menu.unknown.title.
-func (s *serviceImpl) TranslateOrKey(ctx context.Context, key string) string {
-	trimmedKey := strings.TrimSpace(key)
-	if trimmedKey == "" {
-		return ""
-	}
-	return s.translateForLocale(ctx, s.GetLocale(ctx), trimmedKey, trimmedKey)
-}
-
-// TranslateWithDefaultLocale returns the current-locale value, default-locale
-// value, or fallback literal. For example, en-US missing and zh-CN present
-// returns zh-CN; use this only when mixed-language fallback is intentional.
-func (s *serviceImpl) TranslateWithDefaultLocale(ctx context.Context, key string, fallback string) string {
-	return s.translateWithDefaultLocaleForLocale(ctx, s.GetLocale(ctx), key, fallback)
-}
-
-// ListRuntimeLocales returns the runtime locales supported by the host.
-func (s *serviceImpl) ListRuntimeLocales(ctx context.Context, locale string) []LocaleDescriptor {
-	displayLocale := s.ResolveLocale(ctx, locale)
-	records := s.loadEnabledRuntimeLocales(ctx)
-	items := make([]LocaleDescriptor, 0, len(records))
+// RuntimeLocales returns the runtime locale-switching state and descriptors
+// supported by the host.
+func (s *serviceImpl) RuntimeLocales(ctx context.Context, locale string) RuntimeLocalesOutput {
+	var (
+		displayLocale = s.ResolveLocale(ctx, locale)
+		enabled       = s.loadRuntimeI18nConfig(ctx).Enabled
+		records       = s.loadEnabledRuntimeLocales(ctx)
+		items         = make([]LocaleDescriptor, 0, len(records))
+	)
 	for _, supportedLocale := range records {
 		nameFallback := strings.TrimSpace(supportedLocale.Name)
 		if nameFallback == "" {
@@ -117,7 +97,10 @@ func (s *serviceImpl) ListRuntimeLocales(ctx context.Context, locale string) []L
 			IsDefault:  supportedLocale.IsDefault,
 		})
 	}
-	return items
+	return RuntimeLocalesOutput{
+		Enabled: enabled,
+		Items:   items,
+	}
 }
 
 // BuildRuntimeMessages returns the current-locale runtime translation bundle for
@@ -147,27 +130,6 @@ func (s *serviceImpl) translateForLocale(ctx context.Context, locale string, key
 	}
 	if value, ok := s.lookupBundleKey(ctx, locale, trimmedKey); ok {
 		return value
-	}
-	return fallback
-}
-
-// translateWithDefaultLocaleForLocale resolves one translation key and
-// explicitly allows cross-language default-locale fallback. Caller-provided
-// `locale` is the previously-resolved request locale; the default locale
-// fallback is only consulted when the key is absent in the request locale.
-func (s *serviceImpl) translateWithDefaultLocaleForLocale(ctx context.Context, locale string, key string, fallback string) string {
-	trimmedKey := strings.TrimSpace(key)
-	if trimmedKey == "" {
-		return fallback
-	}
-	if value, ok := s.lookupBundleKey(ctx, locale, trimmedKey); ok {
-		return value
-	}
-	defaultLocale := s.getDefaultRuntimeLocale(ctx)
-	if locale != defaultLocale {
-		if value, ok := s.lookupBundleKey(ctx, defaultLocale, trimmedKey); ok {
-			return value
-		}
 	}
 	return fallback
 }
@@ -234,28 +196,20 @@ func (s *serviceImpl) rebuildMergedCatalog(ctx context.Context, lc *localeCache,
 		lc.dynamicDirty = nil
 	}
 
-	merged, sources := mergeLocaleSectors(lc, locale)
+	merged := mergeLocaleSectors(lc)
 	lc.merged = merged
-	lc.sources = sources
 	lc.fingerprint = runtimeBundleFingerprint(merged)
 	lc.version++
 	return merged
 }
 
-// mergeLocaleSectors composes the merged catalog and source descriptor map for
-// one locale entry. Higher-priority sectors overwrite lower ones; per-key
-// origin is recorded for diagnostics.
-func mergeLocaleSectors(lc *localeCache, locale string) (map[string]string, map[string]MessageSourceDescriptor) {
+// mergeLocaleSectors composes the merged catalog for one locale entry.
+// Higher-priority sectors overwrite lower ones.
+func mergeLocaleSectors(lc *localeCache) map[string]string {
 	merged := make(map[string]string, len(lc.host))
-	sources := make(map[string]MessageSourceDescriptor, len(lc.host))
 
 	for key, value := range lc.host {
 		merged[key] = value
-		sources[key] = MessageSourceDescriptor{
-			Type:      string(messageOriginTypeHostFile),
-			ScopeType: string(messageScopeTypeHost),
-			ScopeKey:  hostMessageScopeKey,
-		}
 	}
 
 	pluginIDs := make([]string, 0, len(lc.plugins))
@@ -266,11 +220,6 @@ func mergeLocaleSectors(lc *localeCache, locale string) (map[string]string, map[
 	for _, pluginID := range pluginIDs {
 		for key, value := range lc.plugins[pluginID] {
 			merged[key] = value
-			sources[key] = MessageSourceDescriptor{
-				Type:      string(messageOriginTypePluginFile),
-				ScopeType: string(messageScopeTypePlugin),
-				ScopeKey:  pluginID,
-			}
 		}
 	}
 
@@ -282,15 +231,10 @@ func mergeLocaleSectors(lc *localeCache, locale string) (map[string]string, map[
 	for _, pluginID := range dynamicIDs {
 		for key, value := range lc.dynamic[pluginID] {
 			merged[key] = value
-			sources[key] = MessageSourceDescriptor{
-				Type:      string(messageOriginTypePluginFile),
-				ScopeType: string(messageScopeTypePlugin),
-				ScopeKey:  pluginID,
-			}
 		}
 	}
 
-	return merged, sources
+	return merged
 }
 
 // loadSourcePluginLocaleBundles loads source-plugin translation resources from

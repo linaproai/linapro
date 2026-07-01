@@ -147,7 +147,7 @@ func hasPluginResourcePermission(accessContext *role.UserAccessContext, required
 // error response onto the current request context and aborts processing.
 func writePluginResourcePermissionError(
 	ctx context.Context,
-	i18nSvc i18nsvc.Translator,
+	i18nSvc i18nsvc.Service,
 	status int,
 	err error,
 ) {

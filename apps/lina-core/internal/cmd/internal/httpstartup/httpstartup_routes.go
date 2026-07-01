@@ -13,7 +13,6 @@ import (
 	configctrl "lina-core/internal/controller/config"
 	"lina-core/internal/controller/dict"
 	filectrl "lina-core/internal/controller/file"
-	healthctrl "lina-core/internal/controller/health"
 	i18nctrl "lina-core/internal/controller/i18n"
 	jobctrl "lina-core/internal/controller/job"
 	jobgroupctrl "lina-core/internal/controller/jobgroup"
@@ -46,13 +45,12 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 		configCtrl     = configctrl.NewV1(runtime.sysConfigSvc)
 		dictCtrl       = dict.NewV1(runtime.dictSvc)
 		fileCtrl       = filectrl.NewV1(runtime.fileSvc)
-		healthCtrl     = healthctrl.NewV1(runtime.configSvc, runtime.clusterSvc)
 		i18nCtrl       = i18nctrl.NewV1(runtime.i18nSvc)
 		pluginCtrl     = pluginctrl.NewV1(runtime.pluginSvc, runtime.bizCtxSvc, runtime.configSvc, runtime.i18nSvc, runtime.roleSvc)
 		publicCfgCtrl  = publicconfigctrl.NewV1(runtime.configSvc, runtime.i18nSvc)
 		menuCtrl       = menu.NewV1(runtime.menuSvc, runtime.roleSvc, runtime.bizCtxSvc)
 		roleCtrl       = role.NewV1(runtime.roleSvc)
-		userCtrl       = user.NewV1(runtime.userSvc, runtime.roleSvc, runtime.menuSvc, runtime.orgProjection, runtime.i18nSvc)
+		userCtrl       = user.NewV1(runtime.userSvc, runtime.roleSvc, runtime.menuSvc, runtime.orgSvc, runtime.i18nSvc)
 		userMsgCtrl    = usermsg.NewV1(runtime.userMsgSvc)
 		jobCtrl        = jobctrl.NewV1(runtime.jobMgmtSvc)
 		jobGroupCtrl   = jobgroupctrl.NewV1(runtime.jobMgmtSvc)
@@ -67,7 +65,6 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 
 		bindPublicStaticAPIRoutes(
 			group,
-			healthCtrl.Get,
 			authCtrl.Login,
 			authCtrl.Refresh,
 			i18nCtrl.RuntimeLocales,
@@ -80,9 +77,6 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 			group,
 			middlewareSvc,
 			authCtrl.Logout,
-			i18nCtrl.ExportMessages,
-			i18nCtrl.MissingMessages,
-			i18nCtrl.DiagnoseMessages,
 			userCtrl,
 			dictCtrl,
 			menuCtrl,

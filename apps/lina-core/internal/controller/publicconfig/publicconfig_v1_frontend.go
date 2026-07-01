@@ -86,5 +86,5 @@ func (c *ControllerV1) localizePublicFrontendText(ctx context.Context, configKey
 // used by SQL seed data. It deliberately uses a root context so the comparison
 // does not depend on the request locale currently being projected.
 func (c *ControllerV1) defaultPublicFrontendText(messageKey string, fallback string) string {
-	return strings.TrimSpace(c.i18nSvc.TranslateWithDefaultLocale(context.Background(), messageKey, fallback))
+	return strings.TrimSpace(c.i18nSvc.Translate(context.Background(), messageKey, fallback))
 }

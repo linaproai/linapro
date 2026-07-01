@@ -13,15 +13,18 @@ import (
 	"lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
 	dictsvc "lina-core/internal/service/dict"
+	storagesvc "lina-core/internal/service/storage"
 )
 
 // File storage engine and export limit constants.
 const (
 	EngineLocal   = "local" // Local storage engine identifier
 	MaxExportRows = 10000   // Maximum rows for export
+	// DefaultFileSceneOther is the dictionary value used when callers omit a file scene.
+	DefaultFileSceneOther = "other"
 )
 
-// Dict type used in file management
+// DictTypeFileScene is dict type used in file management
 const DictTypeFileScene = "sys_file_scene"
 
 // Service defines the file service contract.
@@ -32,6 +35,12 @@ type Service interface {
 	// and storage failures are wrapped as file business errors, and cleanup is
 	// attempted when record creation fails after storage writes.
 	Upload(ctx context.Context, in *UploadInput) (output *UploadOutput, err error)
+	// CreateFromReader creates one host file-center record from a caller-owned
+	// stream after the same size validation, filename sanitization, hash-based
+	// deduplication, storage write, tenant attribution, and rollback cleanup used
+	// by HTTP uploads. The reader is consumed during the call; nil readers or
+	// filenames return file upload business errors.
+	CreateFromReader(ctx context.Context, in *CreateFromReaderInput) (output *UploadOutput, err error)
 	// List returns paginated file records visible to the current data scope,
 	// with optional metadata filters, validated ordering, full URL projection,
 	// and uploader display names.
@@ -72,15 +81,15 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	configSvc config.Service  // Configuration service
-	storage   Storage         // Storage backend
+	configSvc config.Service // Configuration service
+	storage   storagesvc.Service
 	bizCtxSvc bizctx.Service  // Business context service
 	dictSvc   dictsvc.Service // Dictionary service for scene labels
 	scopeSvc  datascope.Service
 }
 
 // New creates and returns a new file service from explicit runtime-owned dependencies.
-func New(configSvc config.Service, storage Storage, bizCtxSvc bizctx.Service, dictSvc dictsvc.Service, scopeSvc datascope.Service) Service {
+func New(configSvc config.Service, storage storagesvc.Service, bizCtxSvc bizctx.Service, dictSvc dictsvc.Service, scopeSvc datascope.Service) Service {
 	return &serviceImpl{
 		configSvc: configSvc,
 		storage:   storage,
@@ -94,6 +103,14 @@ func New(configSvc config.Service, storage Storage, bizCtxSvc bizctx.Service, di
 type UploadInput struct {
 	File  *ghttp.UploadFile // Uploaded file
 	Scene string            // Usage scene
+}
+
+// CreateFromReaderInput defines input for creating a file from a stream.
+type CreateFromReaderInput struct {
+	Filename  string    // Original filename
+	Scene     string    // Usage scene
+	Reader    io.Reader // File content stream consumed during the call
+	SizeBytes int64     // Optional known size in bytes; negative means unknown
 }
 
 // UploadOutput defines output for file upload.

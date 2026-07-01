@@ -17,7 +17,6 @@ import (
 	"lina-core/pkg/plugin/capability/dictcap"
 	"lina-core/pkg/plugin/capability/filecap"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
-	"lina-core/pkg/plugin/capability/infracap"
 	"lina-core/pkg/plugin/capability/jobcap"
 	"lina-core/pkg/plugin/capability/lockcap"
 	"lina-core/pkg/plugin/capability/manifestcap"
@@ -74,8 +73,6 @@ type Services interface {
 	Dict() dictcap.Service
 	// Files returns the file-domain guest client.
 	Files() filecap.Service
-	// Infra returns the infrastructure-domain guest client.
-	Infra() infracap.Service
 	// Jobs returns the scheduled-job domain guest client.
 	Jobs() jobcap.Service
 	// Notifications returns the notification-domain ordinary read guest client.

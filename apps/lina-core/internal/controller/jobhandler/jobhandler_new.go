@@ -11,11 +11,11 @@ import (
 // ControllerV1 defines the v1 scheduled job handler controller.
 type ControllerV1 struct {
 	registry jobhandlersvc.Registry // registry exposes registered handler metadata.
-	i18nSvc  i18nsvc.Translator     // i18nSvc localizes handler display metadata.
+	i18nSvc  i18nsvc.Service        // i18nSvc localizes handler display metadata.
 }
 
 // NewV1 creates and returns the v1 scheduled job handler controller.
-func NewV1(registry jobhandlersvc.Registry, i18nSvc i18nsvc.Translator) jobhandler.IJobhandlerV1 {
+func NewV1(registry jobhandlersvc.Registry, i18nSvc i18nsvc.Service) jobhandler.IJobhandlerV1 {
 	return &ControllerV1{
 		registry: registry,
 		i18nSvc:  i18nSvc,

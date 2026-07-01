@@ -15,8 +15,10 @@ import (
 func TestBuildPermissionTreeGroupsRootDynamicNodesAfterHostDirectories(t *testing.T) {
 	svc := &serviceImpl{
 		i18nSvc: menuTestTranslator{
-			"menu.dynamic-permissions.title":                   "动态权限",
-			"menu.dynamic-permissions.route-permissions.title": "运行时路由权限",
+			values: map[string]string{
+				"menu.dynamic-permissions.title":                   "动态权限",
+				"menu.dynamic-permissions.route-permissions.title": "运行时路由权限",
+			},
 		},
 	}
 	list := []*entity.SysMenu{

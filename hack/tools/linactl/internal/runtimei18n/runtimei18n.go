@@ -25,9 +25,11 @@ const (
 // RunCheck runs the scanner and message coverage checks, preserving the
 // previous behavior of attempting message validation even when scanning fails.
 func RunCheck(repoRoot string, out io.Writer) error {
-	scanErr := runAsError(repoRoot, []string{commandScan}, out)
-	messageErr := runAsError(repoRoot, []string{commandMessages}, out)
-	frontendKeyErr := runAsError(repoRoot, []string{commandFrontendKeys}, out)
+	var (
+		scanErr        = runAsError(repoRoot, []string{commandScan}, out)
+		messageErr     = runAsError(repoRoot, []string{commandMessages}, out)
+		frontendKeyErr = runAsError(repoRoot, []string{commandFrontendKeys}, out)
+	)
 	return errors.Join(scanErr, messageErr, frontendKeyErr)
 }
 

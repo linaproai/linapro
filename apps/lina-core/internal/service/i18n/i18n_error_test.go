@@ -105,9 +105,11 @@ func TestLocalizeErrorUsesRuntimeBundleCache(t *testing.T) {
 	}
 	resetRuntimeBundleCache()
 
-	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
-	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
-	err := bizerr.NewCode(code, bizerr.P("value", "message"))
+	var (
+		svc = New(bizctx.New(), config.New(), cachecoord.Default(nil))
+		ctx = context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
+		err = bizerr.NewCode(code, bizerr.P("value", "message"))
+	)
 	if actual := svc.LocalizeError(ctx, err); actual != "Cached message" {
 		t.Fatalf("expected cached runtime bundle translation %q, got %q", "Cached message", actual)
 	}

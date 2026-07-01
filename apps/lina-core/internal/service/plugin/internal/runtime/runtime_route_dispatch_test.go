@@ -5,6 +5,7 @@ package runtime_test
 import (
 	"context"
 	"encoding/json"
+	pluginv1 "lina-core/api/plugin/v1"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -19,11 +20,13 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // TestMatchDynamicRoutePathSupportsParams verifies parameter placeholders are
@@ -38,10 +41,10 @@ func TestMatchDynamicRoutePathSupportsParams(t *testing.T) {
 	}
 }
 
-// TestBuildDynamicRouteMetadataMapsRouteGovernance verifies that matched route
+// TestBuildMetadataMapsRouteGovernance verifies that matched route
 // metadata is projected into a generic dynamic-route context.
-func TestBuildDynamicRouteMetadataMapsRouteGovernance(t *testing.T) {
-	metadata := runtime.BuildDynamicRouteMetadata(&runtime.DynamicRouteRuntimeState{
+func TestBuildMetadataMapsRouteGovernance(t *testing.T) {
+	metadata := runtime.BuildMetadata(&runtime.DynamicRouteRuntimeState{
 		Match: &runtime.DynamicRouteMatch{
 			PluginID:   "linapro-demo-dynamic",
 			PublicPath: "/x/linapro-demo-dynamic/api/v1/review",
@@ -84,7 +87,7 @@ func TestBuildDynamicRouteMetadataMapsRouteGovernance(t *testing.T) {
 func TestDispatchDynamicRouteReturnsNotFoundWhenTenantPluginDisabled(t *testing.T) {
 	var (
 		services = testutil.NewServices()
-		ctx      = datascope.WithTenantForTest(context.Background(), 7001)
+		ctx      = datascope.WithTenantScope(context.Background(), 7001)
 		pluginID = "plugin-dev-dynamic-route-tenant-disabled"
 	)
 
@@ -133,22 +136,22 @@ func TestDispatchDynamicRouteReturnsNotFoundWhenTenantPluginDisabled(t *testing.
 	if err != nil {
 		t.Fatalf("load dynamic route manifest failed: %v", err)
 	}
-	manifest.ScopeNature = plugintypes.ScopeNatureTenantAware.String()
-	manifest.DefaultInstallMode = plugintypes.InstallModeTenantScoped.String()
+	manifest.ScopeNature = pluginv1.ScopeNatureTenantAware.String()
+	manifest.DefaultInstallMode = pluginv1.InstallModeTenantScoped.String()
 	if _, err = services.Store.SyncManifest(context.Background(), manifest); err != nil {
 		t.Fatalf("sync dynamic route manifest failed: %v", err)
 	}
-	if err = services.Store.SetPluginInstalled(context.Background(), pluginID, plugintypes.InstalledYes); err != nil {
+	if err = services.Store.SetPluginInstalled(context.Background(), pluginID, statusflag.Installed.Int()); err != nil {
 		t.Fatalf("set dynamic route plugin installed failed: %v", err)
 	}
-	if err = services.Store.SetPluginStatus(context.Background(), pluginID, plugintypes.StatusEnabled); err != nil {
+	if err = services.Store.SetPluginStatus(context.Background(), pluginID, statusflag.EnabledValue.Int()); err != nil {
 		t.Fatalf("set dynamic route plugin enabled failed: %v", err)
 	}
 	if _, err = dao.SysPlugin.Ctx(context.Background()).
 		Where(do.SysPlugin{PluginId: pluginID}).
 		Data(do.SysPlugin{
-			ScopeNature: plugintypes.ScopeNatureTenantAware.String(),
-			InstallMode: plugintypes.InstallModeTenantScoped.String(),
+			ScopeNature: pluginv1.ScopeNatureTenantAware.String(),
+			InstallMode: pluginv1.InstallModeTenantScoped.String(),
 		}).
 		Update(); err != nil {
 		t.Fatalf("set dynamic route plugin tenant governance failed: %v", err)
@@ -221,15 +224,15 @@ func TestDispatchDynamicRouteReturnsUpgradeRequiredWhenPendingUpgrade(t *testing
 	if err != nil {
 		t.Fatalf("expected dynamic route manifest to load, got error: %v", err)
 	}
-	manifest.ScopeNature = plugintypes.ScopeNaturePlatformOnly.String()
-	manifest.DefaultInstallMode = plugintypes.InstallModeGlobal.String()
+	manifest.ScopeNature = pluginv1.ScopeNaturePlatformOnly.String()
+	manifest.DefaultInstallMode = pluginv1.InstallModeGlobal.String()
 	if _, err = services.Store.SyncManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected dynamic route manifest sync to succeed, got error: %v", err)
 	}
-	if err = services.Store.SetPluginInstalled(ctx, pluginID, plugintypes.InstalledYes); err != nil {
+	if err = services.Store.SetPluginInstalled(ctx, pluginID, statusflag.Installed.Int()); err != nil {
 		t.Fatalf("expected dynamic route plugin install state to be set, got error: %v", err)
 	}
-	if err = services.Store.SetPluginStatus(ctx, pluginID, plugintypes.StatusEnabled); err != nil {
+	if err = services.Store.SetPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 		t.Fatalf("expected dynamic route plugin enable state to be set, got error: %v", err)
 	}
 
@@ -274,7 +277,7 @@ func TestDispatchDynamicRouteReturnsUpgradeRequiredWhenPendingUpgrade(t *testing
 	if response == nil || response.StatusCode != http.StatusConflict {
 		t.Fatalf("expected pending-upgrade dynamic route to return 409, got %#v", response)
 	}
-	if response.Failure == nil || response.Failure.Code != runtime.CodePluginRuntimeUpgradeRequired.RuntimeCode() {
+	if response.Failure == nil || response.Failure.Code != "PLUGIN_RUNTIME_UPGRADE_REQUIRED" {
 		t.Fatalf("expected stable upgrade-required failure code, got %#v", response)
 	}
 }
@@ -323,10 +326,10 @@ func TestDispatchDynamicRouteBlocksFailedActiveRelease(t *testing.T) {
 	if _, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath); err != nil {
 		t.Fatalf("expected dynamic route manifest to load, got error: %v", err)
 	}
-	if err := services.Lifecycle.InstallDynamic(ctx, pluginID); err != nil {
+	if _, err := services.Lifecycle.Install(ctx, pluginID, lifecycle.InstallOptions{}); err != nil {
 		t.Fatalf("expected dynamic route plugin install to succeed, got error: %v", err)
 	}
-	if err := services.Store.SetPluginStatus(ctx, pluginID, plugintypes.StatusEnabled); err != nil {
+	if err := services.Store.SetPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 		t.Fatalf("expected dynamic route plugin enable state to be set, got error: %v", err)
 	}
 	registry, err := services.Store.GetRegistry(ctx, pluginID)
@@ -349,7 +352,7 @@ func TestDispatchDynamicRouteBlocksFailedActiveRelease(t *testing.T) {
 	if response == nil || response.StatusCode != http.StatusConflict {
 		t.Fatalf("expected failed-release dynamic route to return 409, got %#v", response)
 	}
-	if response.Failure == nil || response.Failure.Code != runtime.CodePluginRuntimeUpgradeRequired.RuntimeCode() {
+	if response.Failure == nil || response.Failure.Code != "PLUGIN_RUNTIME_UPGRADE_REQUIRED" {
 		t.Fatalf("expected stable upgrade-required failure code, got %#v", response)
 	}
 }
@@ -413,15 +416,15 @@ func TestDispatchDynamicRouteAllowsPluginOwnedPathShapes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load dynamic route manifest failed: %v", err)
 	}
-	manifest.ScopeNature = plugintypes.ScopeNaturePlatformOnly.String()
-	manifest.DefaultInstallMode = plugintypes.InstallModeGlobal.String()
+	manifest.ScopeNature = pluginv1.ScopeNaturePlatformOnly.String()
+	manifest.DefaultInstallMode = pluginv1.InstallModeGlobal.String()
 	if _, err = services.Store.SyncManifest(ctx, manifest); err != nil {
 		t.Fatalf("sync dynamic route manifest failed: %v", err)
 	}
-	if err = services.Store.SetPluginInstalled(ctx, pluginID, plugintypes.InstalledYes); err != nil {
+	if err = services.Store.SetPluginInstalled(ctx, pluginID, statusflag.Installed.Int()); err != nil {
 		t.Fatalf("set dynamic route plugin installed failed: %v", err)
 	}
-	if err = services.Store.SetPluginStatus(ctx, pluginID, plugintypes.StatusEnabled); err != nil {
+	if err = services.Store.SetPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 		t.Fatalf("set dynamic route plugin enabled failed: %v", err)
 	}
 	services.Integration.SetPluginEnabledState(pluginID, true)
@@ -714,7 +717,7 @@ func TestExecuteDynamicWasmBridgeCreatesDemoRecord(t *testing.T) {
 func loadBundledDynamicSampleManifest(t *testing.T, services *testutil.Services) (*catalog.Manifest, error) {
 	t.Helper()
 
-	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), runtime.BuildArtifactFileName("linapro-demo-dynamic"))
+	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), testutil.RuntimeArtifactFileName("linapro-demo-dynamic"))
 	return services.Catalog.LoadManifestFromArtifactPath(artifactPath)
 }
 

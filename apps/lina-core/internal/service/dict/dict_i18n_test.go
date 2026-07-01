@@ -10,8 +10,10 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 )
 
-// dictTestTranslator stubs the narrow dictionary translation dependency.
+// dictTestTranslator stubs the dictionary translation dependency.
 type dictTestTranslator struct {
+	i18nsvc.Service
+
 	locale       string
 	translations map[string]string
 }

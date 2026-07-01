@@ -5,10 +5,12 @@ package store_test
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 	"testing"
 
 	_ "lina-core/pkg/dbdriver"
+	"lina-core/pkg/statusflag"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -39,15 +41,15 @@ func TestGetRegistryReleaseFallsBackWhenReleasePointerIsDangling(t *testing.T) {
 		PluginId:     pluginID,
 		Name:         "Dangling Release Pointer Plugin",
 		Version:      version,
-		Type:         plugintypes.TypeDynamic.String(),
-		Installed:    plugintypes.InstalledYes,
-		Status:       plugintypes.StatusEnabled,
+		Type:         pluginv1.PluginTypeDynamic.String(),
+		Installed:    statusflag.Installed.Int(),
+		Status:       statusflag.EnabledValue.Int(),
 		DesiredState: plugintypes.LifecycleStateRuntimeEnabled.String(),
 		CurrentState: plugintypes.LifecycleStateRuntimeEnabled.String(),
 		Generation:   int64(1),
 		ReleaseId:    987654321,
-		ScopeNature:  plugintypes.ScopeNatureTenantAware.String(),
-		InstallMode:  plugintypes.InstallModeTenantScoped.String(),
+		ScopeNature:  pluginv1.ScopeNatureTenantAware.String(),
+		InstallMode:  pluginv1.InstallModeTenantScoped.String(),
 		ManifestPath: "runtime/acme-demo-dangling-release-pointer/plugin.yaml",
 		Checksum:     "dangling-release-pointer",
 		Remark:       "Dangling release pointer test plugin",
@@ -57,7 +59,7 @@ func TestGetRegistryReleaseFallsBackWhenReleasePointerIsDangling(t *testing.T) {
 	insertID, err := dao.SysPluginRelease.Ctx(ctx).Data(do.SysPluginRelease{
 		PluginId:       pluginID,
 		ReleaseVersion: version,
-		Type:           plugintypes.TypeDynamic.String(),
+		Type:           pluginv1.PluginTypeDynamic.String(),
 		RuntimeKind:    protocol.RuntimeKindWasm,
 		Status:         plugintypes.ReleaseStatusActive.String(),
 		ManifestPath:   "runtime/acme-demo-dangling-release-pointer/plugin.yaml",
@@ -104,15 +106,15 @@ func TestStartupDataSnapshotReusesReleaseByIDAndVersion(t *testing.T) {
 		ID:                 pluginID,
 		Name:               "Release Snapshot Reuse",
 		Version:            version,
-		Type:               plugintypes.TypeDynamic.String(),
-		ScopeNature:        plugintypes.ScopeNatureTenantAware.String(),
-		DefaultInstallMode: plugintypes.InstallModeTenantScoped.String(),
+		Type:               pluginv1.PluginTypeDynamic.String(),
+		ScopeNature:        pluginv1.ScopeNatureTenantAware.String(),
+		DefaultInstallMode: pluginv1.InstallModeTenantScoped.String(),
 	}
 	registry, err := svcs.Store.SyncManifest(ctx, manifest)
 	if err != nil {
 		t.Fatalf("expected manifest sync to create registry and release, got error: %v", err)
 	}
-	if err = svcs.Store.SetPluginInstalled(ctx, pluginID, plugintypes.InstalledYes); err != nil {
+	if err = svcs.Store.SetPluginInstalled(ctx, pluginID, statusflag.Installed.Int()); err != nil {
 		t.Fatalf("expected installed marker update to succeed, got error: %v", err)
 	}
 	registry, err = svcs.Store.GetRegistry(ctx, pluginID)
@@ -193,14 +195,14 @@ func TestSyncManifestPersistsBuiltinDistribution(t *testing.T) {
 		ID:           pluginID,
 		Name:         "Builtin Distribution Sync",
 		Version:      version,
-		Type:         plugintypes.TypeSource.String(),
-		Distribution: plugintypes.DistributionBuiltin.String(),
+		Type:         pluginv1.PluginTypeSource.String(),
+		Distribution: pluginv1.PluginDistributionBuiltin.String(),
 	}
 	registry, err := svcs.Store.SyncManifest(ctx, manifest)
 	if err != nil {
 		t.Fatalf("expected manifest sync to succeed, got error: %v", err)
 	}
-	if registry == nil || registry.Distribution != plugintypes.DistributionBuiltin.String() {
+	if registry == nil || registry.Distribution != pluginv1.PluginDistributionBuiltin.String() {
 		t.Fatalf("expected builtin registry distribution, got %#v", registry)
 	}
 
@@ -215,7 +217,7 @@ func TestSyncManifestPersistsBuiltinDistribution(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected release manifest snapshot to parse, got error: %v", err)
 	}
-	if snapshot == nil || snapshot.Distribution != plugintypes.DistributionBuiltin.String() {
+	if snapshot == nil || snapshot.Distribution != pluginv1.PluginDistributionBuiltin.String() {
 		t.Fatalf("expected builtin release snapshot distribution, got %#v", snapshot)
 	}
 }
@@ -326,9 +328,9 @@ func TestRuntimeUpgradeStateReportsExplicitRunningMarker(t *testing.T) {
 		ID:                 pluginID,
 		Name:               "Runtime Upgrade Running Marker",
 		Version:            oldVersion,
-		Type:               plugintypes.TypeDynamic.String(),
-		ScopeNature:        plugintypes.ScopeNatureTenantAware.String(),
-		DefaultInstallMode: plugintypes.InstallModeTenantScoped.String(),
+		Type:               pluginv1.PluginTypeDynamic.String(),
+		ScopeNature:        pluginv1.ScopeNatureTenantAware.String(),
+		DefaultInstallMode: pluginv1.InstallModeTenantScoped.String(),
 	}
 	registry, err := svcs.Store.SyncManifest(ctx, oldManifest)
 	if err != nil {
@@ -341,7 +343,7 @@ func TestRuntimeUpgradeStateReportsExplicitRunningMarker(t *testing.T) {
 	if oldRelease == nil {
 		t.Fatal("expected old release row")
 	}
-	if err = svcs.Store.SetPluginInstalled(ctx, pluginID, plugintypes.InstalledYes); err != nil {
+	if err = svcs.Store.SetPluginInstalled(ctx, pluginID, statusflag.Installed.Int()); err != nil {
 		t.Fatalf("expected installed state update to succeed, got error: %v", err)
 	}
 	registry, err = svcs.Store.GetRegistry(ctx, pluginID)
@@ -360,9 +362,9 @@ func TestRuntimeUpgradeStateReportsExplicitRunningMarker(t *testing.T) {
 		ID:                 pluginID,
 		Name:               "Runtime Upgrade Running Marker",
 		Version:            newVersion,
-		Type:               plugintypes.TypeDynamic.String(),
-		ScopeNature:        plugintypes.ScopeNatureTenantAware.String(),
-		DefaultInstallMode: plugintypes.InstallModeTenantScoped.String(),
+		Type:               pluginv1.PluginTypeDynamic.String(),
+		ScopeNature:        pluginv1.ScopeNatureTenantAware.String(),
+		DefaultInstallMode: pluginv1.InstallModeTenantScoped.String(),
 	}
 	if _, err = svcs.Store.SyncManifest(ctx, newManifest); err != nil {
 		t.Fatalf("expected new manifest sync to succeed, got error: %v", err)
@@ -406,18 +408,18 @@ func TestRuntimeUpgradeStateBlocksFailedTargetRelease(t *testing.T) {
 		ID:                 pluginID,
 		Name:               "Runtime Upgrade Failed Target",
 		Version:            version,
-		Type:               plugintypes.TypeDynamic.String(),
-		ScopeNature:        plugintypes.ScopeNatureTenantAware.String(),
-		DefaultInstallMode: plugintypes.InstallModeTenantScoped.String(),
+		Type:               pluginv1.PluginTypeDynamic.String(),
+		ScopeNature:        pluginv1.ScopeNatureTenantAware.String(),
+		DefaultInstallMode: pluginv1.InstallModeTenantScoped.String(),
 	}
 	registry, err := svcs.Store.SyncManifest(ctx, manifest)
 	if err != nil {
 		t.Fatalf("expected manifest sync to succeed, got error: %v", err)
 	}
-	if err = svcs.Store.SetPluginInstalled(ctx, pluginID, plugintypes.InstalledYes); err != nil {
+	if err = svcs.Store.SetPluginInstalled(ctx, pluginID, statusflag.Installed.Int()); err != nil {
 		t.Fatalf("expected installed marker update to succeed, got error: %v", err)
 	}
-	if err = svcs.Store.SetPluginStatus(ctx, pluginID, plugintypes.StatusEnabled); err != nil {
+	if err = svcs.Store.SetPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 		t.Fatalf("expected enabled marker update to succeed, got error: %v", err)
 	}
 	registry, err = svcs.Store.GetRegistry(ctx, pluginID)
@@ -490,18 +492,18 @@ func TestRuntimeUpgradeStateMapsUnifiedFailurePhaseLedger(t *testing.T) {
 				ID:                 pluginID,
 				Name:               "Runtime Upgrade Failed Phase",
 				Version:            version,
-				Type:               plugintypes.TypeDynamic.String(),
-				ScopeNature:        plugintypes.ScopeNatureTenantAware.String(),
-				DefaultInstallMode: plugintypes.InstallModeTenantScoped.String(),
+				Type:               pluginv1.PluginTypeDynamic.String(),
+				ScopeNature:        pluginv1.ScopeNatureTenantAware.String(),
+				DefaultInstallMode: pluginv1.InstallModeTenantScoped.String(),
 			}
 			registry, err := svcs.Store.SyncManifest(ctx, manifest)
 			if err != nil {
 				t.Fatalf("expected manifest sync to succeed, got error: %v", err)
 			}
-			if err = svcs.Store.SetPluginInstalled(ctx, pluginID, plugintypes.InstalledYes); err != nil {
+			if err = svcs.Store.SetPluginInstalled(ctx, pluginID, statusflag.Installed.Int()); err != nil {
 				t.Fatalf("expected installed marker update to succeed, got error: %v", err)
 			}
-			if err = svcs.Store.SetPluginStatus(ctx, pluginID, plugintypes.StatusEnabled); err != nil {
+			if err = svcs.Store.SetPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 				t.Fatalf("expected enabled marker update to succeed, got error: %v", err)
 			}
 			registry, err = svcs.Store.GetRegistry(ctx, pluginID)

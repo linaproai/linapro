@@ -4,9 +4,11 @@ package capabilityhost
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 
+	authsvc "lina-core/internal/service/auth"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/bizerr"
@@ -18,43 +20,31 @@ import (
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 )
 
-// AuthSessionRevoker defines the host auth revocation slice required by the adapter.
-type sessionAuthRevoker interface {
-	// RevokeSession writes a shared revoke marker and removes one online session by token ID.
-	RevokeSession(ctx context.Context, tokenID string) error
-}
-
-// Service exposes the online-session domain service and management commands.
-type sessionCapabilityService interface {
-	capabilitysessioncap.Service
-	capabilitysessioncap.AdminService
-}
-
 // adapter bridges host auth/session services into the published session domain
 // capability contract.
 type sessionCapabilityAdapter struct {
-	authSvc      sessionAuthRevoker
+	authSvc      authsvc.Service
 	bizCtx       bizctxcap.Service
 	users        capabilityusercap.Service
 	scopeSvc     datascope.Service
 	sessionStore session.Store
-	tenantSvc    tenantspi.RuntimeService
+	tenantSvc    tenantspi.Service
 }
 
-var (
-	_ capabilitysessioncap.Service      = (*sessionCapabilityAdapter)(nil)
-	_ capabilitysessioncap.AdminService = (*sessionCapabilityAdapter)(nil)
-)
+var _ capabilitysessioncap.Service = (*sessionCapabilityAdapter)(nil)
 
 // New creates the host-owned online-session capability adapter.
 func newSessionCapabilityAdapter(
-	authSvc AuthSessionRevoker,
+	authSvc authsvc.Service,
 	bizCtx bizctxcap.Service,
 	users capabilityusercap.Service,
 	scopeSvc datascope.Service,
-	sessionStore session.Store,
-	tenantSvc tenantspi.RuntimeService,
-) sessionCapabilityService {
+	tenantSvc tenantspi.Service,
+) capabilitysessioncap.Service {
+	var sessionStore session.Store
+	if authSvc != nil {
+		sessionStore = authSvc.SessionStore()
+	}
 	return &sessionCapabilityAdapter{
 		authSvc:      authSvc,
 		bizCtx:       bizCtx,
@@ -66,7 +56,7 @@ func newSessionCapabilityAdapter(
 }
 
 // Current returns the visible session projection for the current token.
-func (a *sessionCapabilityAdapter) Current(ctx context.Context, capCtx capmodel.CapabilityContext) (*capabilitysessioncap.Projection, error) {
+func (a *sessionCapabilityAdapter) Current(ctx context.Context) (*capabilitysessioncap.SessionInfo, error) {
 	if a == nil || a.sessionStore == nil {
 		return nil, bizerr.NewCode(capmodel.CodeCapabilityUnavailable, bizerr.P("capability", "session"))
 	}
@@ -78,9 +68,9 @@ func (a *sessionCapabilityAdapter) Current(ctx context.Context, capCtx capmodel.
 		tokenID = strings.TrimSpace(bizctxcap.CurrentFromContext(ctx).TokenID)
 	}
 	if tokenID == "" {
-		return nil, bizerr.NewCode(capmodel.CodeCapabilityContextRequired)
+		return nil, bizerr.NewCode(capmodel.CodeCapabilityCurrentUserRequired)
 	}
-	result, err := a.BatchGet(ctx, capCtx, []capabilitysessioncap.SessionID{capabilitysessioncap.SessionID(tokenID)})
+	result, err := a.BatchGet(ctx, []capabilitysessioncap.SessionID{capabilitysessioncap.SessionID(tokenID)})
 	if err != nil {
 		return nil, err
 	}
@@ -91,12 +81,24 @@ func (a *sessionCapabilityAdapter) Current(ctx context.Context, capCtx capmodel.
 	return sessionItem, nil
 }
 
-// Search returns one bounded visible session page.
-func (a *sessionCapabilityAdapter) Search(ctx context.Context, _ capmodel.CapabilityContext, input capabilitysessioncap.SearchInput) (*capmodel.PageResult[*capabilitysessioncap.Projection], error) {
-	if a == nil || a.sessionStore == nil {
-		return &capmodel.PageResult[*capabilitysessioncap.Projection]{Items: []*capabilitysessioncap.Projection{}, Total: 0}, nil
+// Get returns one visible session projection.
+func (a *sessionCapabilityAdapter) Get(ctx context.Context, id capabilitysessioncap.SessionID) (*capabilitysessioncap.SessionInfo, error) {
+	result, err := a.BatchGet(ctx, []capabilitysessioncap.SessionID{id})
+	if err != nil || result == nil {
+		return nil, err
 	}
-	pageNum, pageSize := NormalizePage(input.Page)
+	if item := result.Items[id]; item != nil {
+		return item, nil
+	}
+	return nil, bizerr.NewCode(capmodel.CodeCapabilityDenied)
+}
+
+// List returns one bounded visible session page.
+func (a *sessionCapabilityAdapter) List(ctx context.Context, input capabilitysessioncap.ListInput) (*capmodel.PageResult[*capabilitysessioncap.SessionInfo], error) {
+	if a == nil || a.sessionStore == nil {
+		return &capmodel.PageResult[*capabilitysessioncap.SessionInfo]{Items: []*capabilitysessioncap.SessionInfo{}, Total: 0}, nil
+	}
+	pageNum, pageSize := input.Page.Normalize()
 	result, err := a.sessionStore.ListPageScoped(
 		ctx,
 		toInternalFilter(input),
@@ -112,9 +114,9 @@ func (a *sessionCapabilityAdapter) Search(ctx context.Context, _ capmodel.Capabi
 }
 
 // BatchGet returns visible sessions and opaque missing IDs.
-func (a *sessionCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.CapabilityContext, ids []capabilitysessioncap.SessionID) (*capmodel.BatchResult[*capabilitysessioncap.Projection, capabilitysessioncap.SessionID], error) {
-	result := &capmodel.BatchResult[*capabilitysessioncap.Projection, capabilitysessioncap.SessionID]{
-		Items:      make(map[capabilitysessioncap.SessionID]*capabilitysessioncap.Projection, len(ids)),
+func (a *sessionCapabilityAdapter) BatchGet(ctx context.Context, ids []capabilitysessioncap.SessionID) (*capmodel.BatchResult[*capabilitysessioncap.SessionInfo, capabilitysessioncap.SessionID], error) {
+	result := &capmodel.BatchResult[*capabilitysessioncap.SessionInfo, capabilitysessioncap.SessionID]{
+		Items:      make(map[capabilitysessioncap.SessionID]*capabilitysessioncap.SessionInfo, len(ids)),
 		MissingIDs: []capabilitysessioncap.SessionID{},
 	}
 	if len(ids) == 0 {
@@ -134,7 +136,7 @@ func (a *sessionCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.Capa
 	}
 	if a == nil || a.sessionStore == nil {
 		for _, id := range ids {
-			if _, ok := result.Items[id]; !ok && !Contains(result.MissingIDs, id) {
+			if _, ok := result.Items[id]; !ok && !slices.Contains(result.MissingIDs, id) {
 				result.MissingIDs = append(result.MissingIDs, id)
 			}
 		}
@@ -154,7 +156,7 @@ func (a *sessionCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.Capa
 		}
 	}
 	for _, id := range ids {
-		if _, ok := result.Items[id]; !ok && !Contains(result.MissingIDs, id) {
+		if _, ok := result.Items[id]; !ok && !slices.Contains(result.MissingIDs, id) {
 			result.MissingIDs = append(result.MissingIDs, id)
 		}
 	}
@@ -164,11 +166,10 @@ func (a *sessionCapabilityAdapter) BatchGet(ctx context.Context, _ capmodel.Capa
 // BatchGetUserOnlineStatus returns visible users' online status in one bounded call.
 func (a *sessionCapabilityAdapter) BatchGetUserOnlineStatus(
 	ctx context.Context,
-	capCtx capmodel.CapabilityContext,
 	userIDs []string,
-) (*capmodel.BatchResult[*capabilitysessioncap.UserOnlineStatusProjection, string], error) {
-	result := &capmodel.BatchResult[*capabilitysessioncap.UserOnlineStatusProjection, string]{
-		Items:      make(map[string]*capabilitysessioncap.UserOnlineStatusProjection, len(userIDs)),
+) (*capmodel.BatchResult[*capabilitysessioncap.UserOnlineStatus, string], error) {
+	result := &capmodel.BatchResult[*capabilitysessioncap.UserOnlineStatus, string]{
+		Items:      make(map[string]*capabilitysessioncap.UserOnlineStatus, len(userIDs)),
 		MissingIDs: []string{},
 	}
 	if len(userIDs) > capabilitysessioncap.MaxBatchGetUserOnlineStatus {
@@ -183,7 +184,7 @@ func (a *sessionCapabilityAdapter) BatchGetUserOnlineStatus(
 		normalizedID := strings.TrimSpace(id)
 		parsedID, err := strconv.Atoi(normalizedID)
 		if err != nil || parsedID <= 0 {
-			if !Contains(result.MissingIDs, id) {
+			if !slices.Contains(result.MissingIDs, id) {
 				result.MissingIDs = append(result.MissingIDs, id)
 			}
 			continue
@@ -199,13 +200,13 @@ func (a *sessionCapabilityAdapter) BatchGetUserOnlineStatus(
 	}
 	if a == nil || a.users == nil {
 		for _, id := range userIDs {
-			if !Contains(result.MissingIDs, id) {
+			if !slices.Contains(result.MissingIDs, id) {
 				result.MissingIDs = append(result.MissingIDs, id)
 			}
 		}
 		return result, nil
 	}
-	visibleUsers, err := a.users.BatchGet(ctx, capCtx, sessionUserIDs(parsedIDs))
+	visibleUsers, err := a.users.BatchGet(ctx, sessionUserIDs(parsedIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +214,7 @@ func (a *sessionCapabilityAdapter) BatchGetUserOnlineStatus(
 	for _, parsedID := range parsedIDs {
 		requestID := requested[parsedID]
 		if _, ok := visibleUsers.Items[capabilityusercap.UserID(strconv.Itoa(parsedID))]; !ok {
-			if !Contains(result.MissingIDs, requestID) {
+			if !slices.Contains(result.MissingIDs, requestID) {
 				result.MissingIDs = append(result.MissingIDs, requestID)
 			}
 			continue
@@ -225,7 +226,7 @@ func (a *sessionCapabilityAdapter) BatchGetUserOnlineStatus(
 	}
 	if a == nil || a.sessionStore == nil {
 		for _, id := range userIDs {
-			if !Contains(result.MissingIDs, id) {
+			if !slices.Contains(result.MissingIDs, id) {
 				result.MissingIDs = append(result.MissingIDs, id)
 			}
 		}
@@ -248,7 +249,7 @@ func (a *sessionCapabilityAdapter) BatchGetUserOnlineStatus(
 		if !ok {
 			continue
 		}
-		result.Items[requestID] = &capabilitysessioncap.UserOnlineStatusProjection{
+		result.Items[requestID] = &capabilitysessioncap.UserOnlineStatus{
 			UserID:       requestID,
 			Online:       status.SessionCount > 0,
 			SessionCount: status.SessionCount,
@@ -264,12 +265,12 @@ func (a *sessionCapabilityAdapter) BatchGetUserOnlineStatus(
 			continue
 		}
 		if _, requestedVisible := requested[parsedID]; !requestedVisible {
-			if !Contains(result.MissingIDs, id) {
+			if !slices.Contains(result.MissingIDs, id) {
 				result.MissingIDs = append(result.MissingIDs, id)
 			}
 			continue
 		}
-		result.Items[id] = &capabilitysessioncap.UserOnlineStatusProjection{
+		result.Items[id] = &capabilitysessioncap.UserOnlineStatus{
 			UserID:       id,
 			Online:       false,
 			SessionCount: 0,
@@ -288,11 +289,11 @@ func sessionUserIDs(ids []int) []capabilityusercap.UserID {
 }
 
 // EnsureVisible rejects when any requested online session is absent or invisible.
-func (a *sessionCapabilityAdapter) EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []capabilitysessioncap.SessionID) error {
+func (a *sessionCapabilityAdapter) EnsureVisible(ctx context.Context, ids []capabilitysessioncap.SessionID) error {
 	if len(ids) > capabilitysessioncap.MaxEnsureVisible {
 		return bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", capabilitysessioncap.MaxEnsureVisible))
 	}
-	result, err := a.BatchGet(ctx, capCtx, ids)
+	result, err := a.BatchGet(ctx, ids)
 	if err != nil {
 		return err
 	}
@@ -303,7 +304,7 @@ func (a *sessionCapabilityAdapter) EnsureVisible(ctx context.Context, capCtx cap
 }
 
 // Revoke invalidates one visible online session.
-func (a *sessionCapabilityAdapter) Revoke(ctx context.Context, _ capmodel.CapabilityContext, id capabilitysessioncap.SessionID) error {
+func (a *sessionCapabilityAdapter) Revoke(ctx context.Context, id capabilitysessioncap.SessionID) error {
 	if a == nil {
 		return bizerr.NewCode(capmodel.CodeCapabilityUnavailable, bizerr.P("capability", "session"))
 	}
@@ -318,8 +319,11 @@ func (a *sessionCapabilityAdapter) Revoke(ctx context.Context, _ capmodel.Capabi
 		}
 		if sessionItem != nil {
 			if tenantSvc := a.currentTenantSvc(); tenantSvc != nil {
-				if err = tenantSvc.EnsureTenantVisible(ctx, tenantcap.TenantID(sessionItem.TenantId)); err != nil {
-					return err
+				directory := tenantSvc.Directory()
+				if directory != nil {
+					if err = directory.EnsureVisible(ctx, []tenantcap.TenantID{tenantcap.TenantID(sessionItem.TenantId)}); err != nil {
+						return err
+					}
 				}
 			}
 			if scopeSvc := a.currentScopeSvc(); scopeSvc != nil {
@@ -335,10 +339,26 @@ func (a *sessionCapabilityAdapter) Revoke(ctx context.Context, _ capmodel.Capabi
 	return a.authSvc.RevokeSession(ctx, tokenID)
 }
 
+// RevokeMany invalidates visible online sessions with all-or-nothing visibility checks.
+func (a *sessionCapabilityAdapter) RevokeMany(ctx context.Context, ids []capabilitysessioncap.SessionID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	if err := a.EnsureVisible(ctx, ids); err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if err := a.Revoke(ctx, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // batchGetInternalSessions returns requested visible sessions without paging unrelated rows.
-func (a *sessionCapabilityAdapter) batchGetInternalSessions(ctx context.Context, ids []capabilitysessioncap.SessionID) ([]*capabilitysessioncap.Projection, error) {
+func (a *sessionCapabilityAdapter) batchGetInternalSessions(ctx context.Context, ids []capabilitysessioncap.SessionID) ([]*capabilitysessioncap.SessionInfo, error) {
 	if a == nil || a.sessionStore == nil {
-		return []*capabilitysessioncap.Projection{}, nil
+		return []*capabilitysessioncap.SessionInfo{}, nil
 	}
 	tokenIDs := make([]string, 0, len(ids))
 	seen := make(map[string]struct{}, len(ids))
@@ -354,13 +374,13 @@ func (a *sessionCapabilityAdapter) batchGetInternalSessions(ctx context.Context,
 		tokenIDs = append(tokenIDs, tokenID)
 	}
 	if len(tokenIDs) == 0 {
-		return []*capabilitysessioncap.Projection{}, nil
+		return []*capabilitysessioncap.SessionInfo{}, nil
 	}
 	sessions, err := a.sessionStore.BatchGetScoped(ctx, tokenIDs, a.currentScopeSvc(), a.currentTenantSvc())
 	if err != nil {
 		return nil, err
 	}
-	items := make([]*capabilitysessioncap.Projection, 0, len(sessions))
+	items := make([]*capabilitysessioncap.SessionInfo, 0, len(sessions))
 	for _, sessionItem := range sessions {
 		items = append(items, fromInternalSession(sessionItem))
 	}
@@ -376,7 +396,7 @@ func (a *sessionCapabilityAdapter) currentScopeSvc() datascope.Service {
 }
 
 // currentTenantSvc returns the shared tenant capability service for session operations.
-func (a *sessionCapabilityAdapter) currentTenantSvc() tenantspi.RuntimeService {
+func (a *sessionCapabilityAdapter) currentTenantSvc() tenantspi.Service {
 	if a.tenantSvc != nil {
 		return a.tenantSvc
 	}
@@ -384,7 +404,7 @@ func (a *sessionCapabilityAdapter) currentTenantSvc() tenantspi.RuntimeService {
 }
 
 // toInternalFilter converts the session domain filter into the host-internal filter.
-func toInternalFilter(input capabilitysessioncap.SearchInput) *session.ListFilter {
+func toInternalFilter(input capabilitysessioncap.ListInput) *session.ListFilter {
 	if strings.TrimSpace(input.Username) == "" && strings.TrimSpace(input.IP) == "" {
 		return nil
 	}
@@ -392,23 +412,23 @@ func toInternalFilter(input capabilitysessioncap.SearchInput) *session.ListFilte
 }
 
 // fromInternalListResult projects the host-internal paged session result into the session domain contract.
-func fromInternalListResult(result *session.ListResult) *capmodel.PageResult[*capabilitysessioncap.Projection] {
+func fromInternalListResult(result *session.ListResult) *capmodel.PageResult[*capabilitysessioncap.SessionInfo] {
 	if result == nil {
-		return &capmodel.PageResult[*capabilitysessioncap.Projection]{Items: []*capabilitysessioncap.Projection{}, Total: 0}
+		return &capmodel.PageResult[*capabilitysessioncap.SessionInfo]{Items: []*capabilitysessioncap.SessionInfo{}, Total: 0}
 	}
-	items := make([]*capabilitysessioncap.Projection, 0, len(result.Items))
+	items := make([]*capabilitysessioncap.SessionInfo, 0, len(result.Items))
 	for _, item := range result.Items {
 		items = append(items, fromInternalSession(item))
 	}
-	return &capmodel.PageResult[*capabilitysessioncap.Projection]{Items: items, Total: result.Total}
+	return &capmodel.PageResult[*capabilitysessioncap.SessionInfo]{Items: items, Total: result.Total}
 }
 
 // fromInternalSession copies one host-internal session projection into the plugin-facing DTO.
-func fromInternalSession(sessionItem *session.Session) *capabilitysessioncap.Projection {
+func fromInternalSession(sessionItem *session.Session) *capabilitysessioncap.SessionInfo {
 	if sessionItem == nil {
 		return nil
 	}
-	return &capabilitysessioncap.Projection{
+	return &capabilitysessioncap.SessionInfo{
 		ID:           capabilitysessioncap.SessionID(sessionItem.TokenId),
 		TenantID:     capmodel.DomainID(strconv.Itoa(sessionItem.TenantId)),
 		UserID:       strconv.Itoa(sessionItem.UserId),

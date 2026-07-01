@@ -221,8 +221,9 @@ TBD - created by archiving change add-plugin-host-domain-capabilities. Update Pu
 
 #### Scenario: 动态路由元数据读取
 
-- **WHEN** 插件通过`routecap.Service.DynamicRouteMetadata`读取当前动态路由元数据
+- **WHEN** 插件通过`routecap.Service.GetMetadata`读取当前动态路由元数据
 - **THEN** 方法签名接收`context.Context`
+- **AND** 返回值使用`routecap.Metadata`
 - **AND** 宿主适配器在内部从上下文恢复 HTTP 请求并读取元数据
 - **AND** `routecap`父包不 import `ghttp`
 
@@ -309,6 +310,7 @@ TBD - created by archiving change add-plugin-host-domain-capabilities. Update Pu
 - **WHEN** 动态插件通过`pluginbridge.Services.Plugins()`获取插件领域能力
 - **THEN** 返回值必须实现`plugincap.Service`
 - **AND** `Config()`、`Registry()`、`State()`和`Lifecycle()`必须归属同一个`plugins`领域对象
+- **AND** 源码插件状态读取必须通过`Plugins().State()`领域入口，不得通过`PluginState()`顶层兼容入口
 - **AND** 公共`guest`包不得再声明与`plugincap.Service`平行的`PluginService`接口
 
 ### Requirement: 插件资源型基础能力必须收敛为领域能力
@@ -375,7 +377,7 @@ TBD - created by archiving change add-plugin-host-domain-capabilities. Update Pu
 
 - **WHEN** 源码插件或动态插件需要展示用户已上传到宿主文件中心的文件名称、MIME、大小或业务场景
 - **THEN** 插件必须调用`Files().BatchGet`读取当前上下文可见的文件投影
-- **AND** 响应必须使用`filecap.FileProjection`等领域 DTO
+- **AND** 响应必须使用`filecap.FileInfo`等领域 DTO
 - **AND** 响应不得向插件暴露宿主文件中心`DAO`、`DO`、`Entity`、本地绝对路径或存储 provider 私有 key
 
 #### Scenario: 插件校验宿主文件可见性
@@ -419,4 +421,3 @@ TBD - created by archiving change add-plugin-host-domain-capabilities. Update Pu
 - **WHEN** 动态插件通过 `pluginbridge` 或 WASM host service 调用宿主领域能力
 - **THEN** wire method 名称 SHOULD 继续保持显式资源名，例如 `users.batch_get`、`messages.batch_get`
 - **AND** 该 wire 命名不要求与 typed Go 方法名完全一致
-

@@ -5,6 +5,7 @@ package jobmgmt
 
 import (
 	"context"
+	jobv1 "lina-core/api/job/v1"
 	"strings"
 
 	"lina-core/internal/dao"
@@ -34,7 +35,7 @@ func (s *serviceImpl) syncHandlerAvailability(
 // their handler disappears. Built-in plugin jobs are projected and scheduled by
 // the plugin lifecycle synchronization path.
 func (s *serviceImpl) pauseJobsForHandler(ctx context.Context, ref string) error {
-	jobIDs, err := s.matchingJobIDs(ctx, ref, jobmeta.JobStatusEnabled, "")
+	jobIDs, err := s.matchingJobIDs(ctx, ref, jobv1.StatusEnabled, "")
 	if err != nil {
 		return err
 	}
@@ -45,12 +46,12 @@ func (s *serviceImpl) pauseJobsForHandler(ctx context.Context, ref string) error
 	_, err = dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{
 			IsBuiltin: 0,
-			TaskType:  string(jobmeta.TaskTypeHandler),
-			Status:    string(jobmeta.JobStatusEnabled),
+			TaskType:  string(jobv1.TaskTypeHandler),
+			Status:    string(jobv1.StatusEnabled),
 		}).
 		Where(dao.SysJob.Columns().HandlerRef, ref).
 		Data(do.SysJob{
-			Status:     string(jobmeta.JobStatusPausedByPlugin),
+			Status:     string(jobv1.StatusPausedByPlugin),
 			StopReason: string(jobmeta.StopReasonPluginUnavailable),
 		}).
 		Update()
@@ -73,7 +74,7 @@ func (s *serviceImpl) resumeJobsForHandler(ctx context.Context, ref string) erro
 	jobIDs, err := s.matchingJobIDs(
 		ctx,
 		ref,
-		jobmeta.JobStatusPausedByPlugin,
+		jobv1.StatusPausedByPlugin,
 		string(jobmeta.StopReasonPluginUnavailable),
 	)
 	if err != nil {
@@ -86,13 +87,13 @@ func (s *serviceImpl) resumeJobsForHandler(ctx context.Context, ref string) erro
 	_, err = dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{
 			IsBuiltin:  0,
-			TaskType:   string(jobmeta.TaskTypeHandler),
-			Status:     string(jobmeta.JobStatusPausedByPlugin),
+			TaskType:   string(jobv1.TaskTypeHandler),
+			Status:     string(jobv1.StatusPausedByPlugin),
 			StopReason: string(jobmeta.StopReasonPluginUnavailable),
 		}).
 		Where(dao.SysJob.Columns().HandlerRef, ref).
 		Data(do.SysJob{
-			Status:     string(jobmeta.JobStatusEnabled),
+			Status:     string(jobv1.StatusEnabled),
 			StopReason: "",
 		}).
 		Update()
@@ -114,26 +115,27 @@ func (s *serviceImpl) resumeJobsForHandler(ctx context.Context, ref string) erro
 func (s *serviceImpl) matchingJobIDs(
 	ctx context.Context,
 	ref string,
-	status jobmeta.JobStatus,
+	status jobv1.Status,
 	stopReason string,
 ) ([]int64, error) {
 	if !status.IsValid() {
 		return nil, bizerr.NewCode(CodeJobStatusInvalid)
 	}
 
+	cols := dao.SysJob.Columns()
 	model := dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{
 			IsBuiltin: 0,
-			TaskType:  string(jobmeta.TaskTypeHandler),
+			TaskType:  string(jobv1.TaskTypeHandler),
 			Status:    string(status),
 		}).
-		Where(dao.SysJob.Columns().HandlerRef, ref)
+		Where(cols.HandlerRef, ref)
 	if strings.TrimSpace(stopReason) != "" {
-		model = model.Where(dao.SysJob.Columns().StopReason, strings.TrimSpace(stopReason))
+		model = model.Where(cols.StopReason, strings.TrimSpace(stopReason))
 	}
 
 	var jobs []*entity.SysJob
-	if err := model.Fields(dao.SysJob.Columns().Id).Scan(&jobs); err != nil {
+	if err := model.Fields(cols.Id).Scan(&jobs); err != nil {
 		return nil, err
 	}
 

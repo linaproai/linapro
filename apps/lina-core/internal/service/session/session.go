@@ -107,9 +107,9 @@ type Store interface {
 // DBStore implements Store using the persistent online-session table.
 type DBStore struct{}
 
-// SessionConfigurableStore extends Store with runtime session-timeout
+// sessionConfigurableStore extends Store with runtime session-timeout
 // propagation for hot-state implementations.
-type SessionConfigurableStore interface {
+type sessionConfigurableStore interface {
 	Store
 	// SetDefaultTTL updates the hot-state TTL used for login-time writes.
 	SetDefaultTTL(ttl time.Duration)

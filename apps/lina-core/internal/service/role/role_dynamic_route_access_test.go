@@ -30,7 +30,7 @@ func TestBuildDynamicRouteAccessProjectionReturnsDetachedSnapshot(t *testing.T) 
 		IsSuperAdmin:         true,
 	}
 	if err := svc.cacheTokenAccessContext(
-		datascope.WithTenantForTest(ctx, 51),
+		datascope.WithTenantScope(ctx, 51),
 		"detached-token",
 		11,
 		7,
@@ -74,7 +74,7 @@ func TestBuildDynamicRouteAccessProjectionUsesTenantScopedTokenBucket(t *testing
 
 	tokenID := "shared-dynamic-token"
 	if err := svc.cacheTokenAccessContext(
-		datascope.WithTenantForTest(ctx, 61),
+		datascope.WithTenantScope(ctx, 61),
 		tokenID,
 		21,
 		8,
@@ -87,7 +87,7 @@ func TestBuildDynamicRouteAccessProjectionUsesTenantScopedTokenBucket(t *testing
 		t.Fatalf("seed tenant A access context: %v", err)
 	}
 	if err := svc.cacheTokenAccessContext(
-		datascope.WithTenantForTest(ctx, 62),
+		datascope.WithTenantScope(ctx, 62),
 		tokenID,
 		22,
 		8,

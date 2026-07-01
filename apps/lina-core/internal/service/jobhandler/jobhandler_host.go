@@ -7,19 +7,19 @@ import (
 	"encoding/json"
 	"time"
 
-	"lina-core/internal/service/jobmeta"
+	jobhandlerv1 "lina-core/api/jobhandler/v1"
 	"lina-core/pkg/bizerr"
 )
 
-// LogCleaner defines the host cleanup capability used by the built-in
+// logCleaner defines the host cleanup capability used by the built-in
 // cleanup-job-logs handler.
-type LogCleaner interface {
+type logCleaner interface {
 	// CleanupDueLogs removes logs that exceed the effective retention policy.
 	CleanupDueLogs(ctx context.Context) (int64, error)
 }
 
 // RegisterHostHandlers installs host-provided handlers required by the current iteration.
-func RegisterHostHandlers(registry Registry, cleaner LogCleaner) error {
+func RegisterHostHandlers(registry Registry, cleaner logCleaner) error {
 	if registry == nil {
 		return bizerr.NewCode(CodeJobHandlerRegistryRequired)
 	}
@@ -34,13 +34,13 @@ func RegisterHostHandlers(registry Registry, cleaner LogCleaner) error {
 }
 
 // registerCleanupLogsHandler installs the built-in cleanup-job-logs handler.
-func registerCleanupLogsHandler(registry Registry, cleaner LogCleaner) error {
+func registerCleanupLogsHandler(registry Registry, cleaner logCleaner) error {
 	return registry.Register(HandlerDef{
 		Ref:          "host:cleanup-job-logs",
 		DisplayName:  "Job Log Cleanup",
 		Description:  "Cleans up scheduled-job execution logs according to global and job-level retention policies.",
 		ParamsSchema: `{"type":"object","properties":{}}`,
-		Source:       jobmeta.HandlerSourceHost,
+		Source:       jobhandlerv1.SourceHost,
 		Invoke: func(ctx context.Context, _ json.RawMessage) (result any, err error) {
 			deleted, cleanupErr := cleaner.CleanupDueLogs(ctx)
 			if cleanupErr != nil {
@@ -66,7 +66,7 @@ func registerWaitHandler(registry Registry) error {
 		DisplayName:  "Wait for Duration",
 		Description:  "Waits for the requested number of seconds to verify scheduling, timeout, and cancellation flows.",
 		ParamsSchema: `{"type":"object","properties":{"seconds":{"type":"integer","description":"Wait seconds"}},"required":["seconds"]}`,
-		Source:       jobmeta.HandlerSourceHost,
+		Source:       jobhandlerv1.SourceHost,
 		Invoke:       invokeWaitHandler,
 	})
 }

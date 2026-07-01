@@ -5,15 +5,17 @@ package integration_test
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 	"testing"
 	"time"
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
-	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
 // TestListExecutableJobsIncludesSourcePluginDefinitions verifies source
@@ -40,7 +42,7 @@ func TestListExecutableJobsIncludesSourcePluginDefinitions(t *testing.T) {
 func TestListJobDeclarationsIncludesDynamicJobsRegisterDefinitions(t *testing.T) {
 	ctx := context.Background()
 	const pluginID = "plugin-dev-dynamic-jobs-register"
-	executor := &fakeDynamicJobExecutor{
+	executor := &fakeDynamicJobRuntime{
 		contracts: []*protocol.JobContract{{
 			Name:           "heartbeat",
 			DisplayName:    "Dynamic Plugin Heartbeat",
@@ -55,7 +57,7 @@ func TestListJobDeclarationsIncludesDynamicJobsRegisterDefinitions(t *testing.T)
 			InternalPath:   "/job-heartbeat",
 		}},
 	}
-	services := testutil.NewServicesWithDynamicJobExecutor(executor)
+	services := testutil.NewServicesWithRuntimeService(executor)
 
 	hostServices := []*protocol.HostServiceSpec{{
 		Service: protocol.HostServiceJobs,
@@ -81,15 +83,15 @@ func TestListJobDeclarationsIncludesDynamicJobsRegisterDefinitions(t *testing.T)
 	if err != nil {
 		t.Fatalf("expected dynamic manifest to load, got error: %v", err)
 	}
-	manifest.ScopeNature = plugintypes.ScopeNaturePlatformOnly.String()
-	manifest.DefaultInstallMode = plugintypes.InstallModeGlobal.String()
+	manifest.ScopeNature = pluginv1.ScopeNaturePlatformOnly.String()
+	manifest.DefaultInstallMode = pluginv1.InstallModeGlobal.String()
 	if _, err = services.Store.SyncManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected dynamic manifest sync to succeed, got error: %v", err)
 	}
-	if err = services.Store.SetPluginInstalled(ctx, pluginID, plugintypes.InstalledYes); err != nil {
+	if err = services.Store.SetPluginInstalled(ctx, pluginID, statusflag.Installed.Int()); err != nil {
 		t.Fatalf("expected dynamic plugin install state to be set, got error: %v", err)
 	}
-	if err = services.Store.SetPluginStatus(ctx, pluginID, plugintypes.StatusEnabled); err != nil {
+	if err = services.Store.SetPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 		t.Fatalf("expected dynamic plugin enabled state to be set, got error: %v", err)
 	}
 	services.Integration.SetPluginEnabledState(pluginID, true)
@@ -181,9 +183,11 @@ func assertDynamicJobProjection(t *testing.T, item integration.ManagedJob, plugi
 	}
 }
 
-// fakeDynamicJobExecutor supplies deterministic dynamic Jobs declarations for
+// fakeDynamicJobRuntime supplies deterministic dynamic Jobs declarations for
 // integration tests without executing a real Wasm artifact.
-type fakeDynamicJobExecutor struct {
+type fakeDynamicJobRuntime struct {
+	runtime.Service
+
 	contracts     []*protocol.JobContract
 	discoverCalls int
 	executeCalls  int
@@ -191,7 +195,7 @@ type fakeDynamicJobExecutor struct {
 }
 
 // DiscoverJobContracts returns detached declared job contracts for one plugin.
-func (f *fakeDynamicJobExecutor) DiscoverJobContracts(
+func (f *fakeDynamicJobRuntime) DiscoverJobContracts(
 	_ context.Context,
 	manifest *catalog.Manifest,
 ) ([]*protocol.JobContract, error) {
@@ -208,7 +212,7 @@ func (f *fakeDynamicJobExecutor) DiscoverJobContracts(
 }
 
 // ExecuteDeclaredJob records one dynamic job execution request.
-func (f *fakeDynamicJobExecutor) ExecuteDeclaredJob(
+func (f *fakeDynamicJobRuntime) ExecuteDeclaredJob(
 	_ context.Context,
 	_ *catalog.Manifest,
 	contract *protocol.JobContract,

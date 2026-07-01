@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+
+	"lina-core/internal/service/cluster"
 )
 
 // Supported cluster coordination backend names.
@@ -17,29 +19,14 @@ const (
 	ClusterCoordinationRedis = "redis"
 )
 
-// ClusterConfig holds cluster topology configuration.
-type ClusterConfig struct {
-	Enabled      bool               `json:"enabled"`      // Enabled reports whether clustered deployment is enabled.
-	Coordination string             `json:"coordination"` // Coordination names the cluster coordination backend.
-	Election     ElectionConfig     `json:"election"`     // Election contains primary-election settings for clustered mode.
-	Redis        ClusterRedisConfig `json:"redis"`        // Redis stores Redis coordination connection settings.
-}
+// ClusterConfig aliases the cluster-owned topology configuration value.
+type ClusterConfig = cluster.ClusterConfig
 
-// ElectionConfig holds leader election configuration.
-type ElectionConfig struct {
-	Lease         time.Duration `json:"lease"`         // Lock lease duration
-	RenewInterval time.Duration `json:"renewInterval"` // Lease renewal interval
-}
+// ElectionConfig aliases the cluster-owned leader election configuration value.
+type ElectionConfig = cluster.ElectionConfig
 
-// ClusterRedisConfig holds Redis coordination settings for clustered mode.
-type ClusterRedisConfig struct {
-	Address        string        `json:"address"`        // Address is the host:port endpoint for Redis.
-	DB             int           `json:"db"`             // DB selects the Redis logical database.
-	Password       string        `json:"password"`       // Password authenticates to Redis when configured.
-	ConnectTimeout time.Duration `json:"connectTimeout"` // ConnectTimeout bounds Redis connection establishment.
-	ReadTimeout    time.Duration `json:"readTimeout"`    // ReadTimeout bounds Redis read operations.
-	WriteTimeout   time.Duration `json:"writeTimeout"`   // WriteTimeout bounds Redis write operations.
-}
+// ClusterRedisConfig aliases the cluster-owned Redis coordination settings.
+type ClusterRedisConfig = cluster.ClusterRedisConfig
 
 // defaultElectionConfig returns the host defaults for leader-election timing.
 func defaultElectionConfig() *ElectionConfig {

@@ -13,7 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"lina-core/internal/service/plugin/internal/plugintypes"
+	pluginv1 "lina-core/api/plugin/v1"
+	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/plugin/internal/resourcefs"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
@@ -72,9 +73,11 @@ func TestGetDesiredManifestUsesRuntimeIndex(t *testing.T) {
 // TestRuntimeManifestCacheDetectsFileReplacement verifies file stat changes
 // force a fresh parse even when the artifact path stays the same.
 func TestRuntimeManifestCacheDetectsFileReplacement(t *testing.T) {
-	service := newCacheTestCatalogService(t)
-	pluginID := "cache-test-replace"
-	artifactPath := writeCacheTestRuntimeArtifact(t, service.runtimeStorageDir, pluginID, "0.1.0")
+	var (
+		service      = newCacheTestCatalogService(t)
+		pluginID     = "cache-test-replace"
+		artifactPath = writeCacheTestRuntimeArtifact(t, service.runtimeStorageDir, pluginID, "0.1.0")
+	)
 	manifest, err := service.LoadManifestFromArtifactPath(artifactPath)
 	if err != nil {
 		t.Fatalf("initial load failed: %v", err)
@@ -101,9 +104,11 @@ func TestRuntimeManifestCacheDetectsFileReplacement(t *testing.T) {
 // same-path package replacement cannot reuse stale manifests when coarse
 // filesystems report the same size and mtime.
 func TestRuntimeManifestCacheDetectsAtomicReplacementWithSameStat(t *testing.T) {
-	service := newCacheTestCatalogService(t)
-	pluginID := "cache-test-same-stat"
-	artifactPath := writeCacheTestRuntimeArtifact(t, service.runtimeStorageDir, pluginID, "0.1.0")
+	var (
+		service      = newCacheTestCatalogService(t)
+		pluginID     = "cache-test-same-stat"
+		artifactPath = writeCacheTestRuntimeArtifact(t, service.runtimeStorageDir, pluginID, "0.1.0")
+	)
 	manifest, err := service.LoadManifestFromArtifactPath(artifactPath)
 	if err != nil {
 		t.Fatalf("initial load failed: %v", err)
@@ -142,9 +147,11 @@ func TestRuntimeManifestCacheDetectsAtomicReplacementWithSameStat(t *testing.T) 
 // TestRuntimeManifestCacheInvalidatesByPlugin verifies explicit plugin-scoped
 // invalidation forces only the target artifact to be reparsed.
 func TestRuntimeManifestCacheInvalidatesByPlugin(t *testing.T) {
-	service := newCacheTestCatalogService(t)
-	firstPath := writeCacheTestRuntimeArtifact(t, service.runtimeStorageDir, "cache-test-invalidate-a", "0.1.0")
-	secondPath := writeCacheTestRuntimeArtifact(t, service.runtimeStorageDir, "cache-test-invalidate-b", "0.1.0")
+	var (
+		service    = newCacheTestCatalogService(t)
+		firstPath  = writeCacheTestRuntimeArtifact(t, service.runtimeStorageDir, "cache-test-invalidate-a", "0.1.0")
+		secondPath = writeCacheTestRuntimeArtifact(t, service.runtimeStorageDir, "cache-test-invalidate-b", "0.1.0")
+	)
 	if _, err := service.ScanManifests(); err != nil {
 		t.Fatalf("initial scan failed: %v", err)
 	}
@@ -346,10 +353,10 @@ func writeCacheTestRuntimeArtifactAtPath(t *testing.T, artifactPath string, plug
 		ID:                  pluginID,
 		Name:                "Cache Test " + pluginID,
 		Version:             version,
-		Type:                plugintypes.TypeDynamic.String(),
-		ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
+		Type:                pluginv1.PluginTypeDynamic.String(),
+		ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 		SupportsMultiTenant: &supportsMultiTenant,
-		DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
+		DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
 	})
 	if err != nil {
 		t.Fatalf("failed to marshal manifest: %v", err)
@@ -430,6 +437,7 @@ func newCacheTestCatalogService(t *testing.T) *cacheTestCatalogService {
 
 // cacheTestConfigProvider supplies the runtime storage path to catalog tests.
 type cacheTestConfigProvider struct {
+	configsvc.Service
 	storageDir string
 }
 

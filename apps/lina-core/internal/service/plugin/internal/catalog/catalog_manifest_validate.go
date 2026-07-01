@@ -15,6 +15,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gfile"
 
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/resourcefs"
 )
@@ -63,7 +64,7 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 		return gerror.Newf("plugin manifest is missing version: %s", fileLabel)
 	}
 	if manifest.Type == "" {
-		manifest.Type = plugintypes.TypeSource.String()
+		manifest.Type = pluginv1.PluginTypeSource.String()
 	} else {
 		manifest.Type = plugintypes.NormalizeType(manifest.Type).String()
 	}
@@ -93,7 +94,7 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 	if err := plugintypes.ValidateDependencySpec(manifest.ID, manifest.Dependencies); err != nil {
 		return gerror.Wrapf(err, "plugin dependency metadata is invalid: %s", fileLabel)
 	}
-	if plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeSource {
+	if plugintypes.NormalizeType(manifest.Type) == pluginv1.PluginTypeSource {
 		if manifest.SourcePlugin != nil && strings.TrimSpace(manifest.SourcePlugin.ID()) != "" {
 			registeredPluginID := strings.TrimSpace(manifest.SourcePlugin.ID())
 			if err := plugintypes.ValidatePluginID(registeredPluginID); err != nil {
@@ -103,7 +104,7 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 				return gerror.Newf("source plugin embedded manifest ID does not match registered plugin ID: %s != %s", manifest.ID, registeredPluginID)
 			}
 		}
-		if plugintypes.NormalizeDistribution(manifest.Distribution) == plugintypes.DistributionBuiltin && manifest.SourcePlugin == nil {
+		if plugintypes.NormalizeDistribution(manifest.Distribution) == pluginv1.PluginDistributionBuiltin && manifest.SourcePlugin == nil {
 			return gerror.Newf("builtin source plugin must be registered in source plugin registry: %s", manifest.ID)
 		}
 		goModPath := filepath.Join(rootDir, "go.mod")
@@ -114,12 +115,12 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 		if !HasSourcePluginEmbeddedFiles(manifest) && !gfile.Exists(backendEntryPath) {
 			return gerror.Newf("source plugin directory is missing backend/plugin.go: %s", rootDir)
 		}
-	} else if plugintypes.NormalizeDistribution(manifest.Distribution) == plugintypes.DistributionBuiltin {
+	} else if plugintypes.NormalizeDistribution(manifest.Distribution) == pluginv1.PluginDistributionBuiltin {
 		return gerror.Newf("builtin plugin distribution only supports source plugins: %s", fileLabel)
-	} else if err := ValidateRuntimeArtifact(manifest, rootDir); err != nil {
+	} else if err := validateRuntimeArtifact(manifest, rootDir); err != nil {
 		// Tolerate a missing artifact during local development/scan so dynamic
 		// plugins remain visible even before make wasm is run.
-		if !IsMissingArtifactError(err) {
+		if !isMissingArtifactError(err) {
 			return gerror.Wrapf(err, "dynamic plugin artifact validation failed: %s", filePath)
 		}
 	}
@@ -162,14 +163,14 @@ func (s *serviceImpl) ValidateUploadedRuntimeManifest(manifest *Manifest) error 
 		return gerror.New("dynamic plugin manifest cannot be nil")
 	}
 	manifest.Type = plugintypes.NormalizeType(manifest.Type).String()
-	if manifest.Type != plugintypes.TypeDynamic.String() {
+	if manifest.Type != pluginv1.PluginTypeDynamic.String() {
 		return gerror.New("dynamic plugin type must be dynamic")
 	}
 	manifest.Distribution = plugintypes.NormalizeDistribution(manifest.Distribution).String()
 	if !plugintypes.IsSupportedDistribution(manifest.Distribution) {
 		return gerror.New("dynamic plugin distribution only supports marketplace or builtin")
 	}
-	if plugintypes.NormalizeDistribution(manifest.Distribution) == plugintypes.DistributionBuiltin {
+	if plugintypes.NormalizeDistribution(manifest.Distribution) == pluginv1.PluginDistributionBuiltin {
 		return gerror.New("dynamic plugin cannot declare builtin distribution")
 	}
 	if err := normalizeManifestTenantGovernance(manifest); err != nil {
@@ -442,7 +443,7 @@ func normalizeManifestTenantGovernance(manifest *Manifest) error {
 	}
 	scope := strings.TrimSpace(manifest.ScopeNature)
 	if scope == "" {
-		scope = plugintypes.ScopeNatureTenantAware.String()
+		scope = pluginv1.ScopeNatureTenantAware.String()
 	} else if !plugintypes.IsSupportedScopeNature(scope) {
 		return gerror.Newf("scope_nature only supports platform_only/tenant_aware: %s", manifest.ScopeNature)
 	}
@@ -451,21 +452,21 @@ func normalizeManifestTenantGovernance(manifest *Manifest) error {
 	if manifest.SupportsMultiTenant == nil {
 		return gerror.New("supports_multi_tenant is required")
 	}
-	if manifest.ScopeNature == plugintypes.ScopeNaturePlatformOnly.String() && *manifest.SupportsMultiTenant {
+	if manifest.ScopeNature == pluginv1.ScopeNaturePlatformOnly.String() && *manifest.SupportsMultiTenant {
 		return gerror.New("supports_multi_tenant cannot be true when scope_nature is platform_only")
 	}
 
 	mode := strings.TrimSpace(manifest.DefaultInstallMode)
-	if manifest.ScopeNature == plugintypes.ScopeNaturePlatformOnly.String() {
-		manifest.DefaultInstallMode = plugintypes.InstallModeGlobal.String()
+	if manifest.ScopeNature == pluginv1.ScopeNaturePlatformOnly.String() {
+		manifest.DefaultInstallMode = pluginv1.InstallModeGlobal.String()
 		return nil
 	}
 	if !*manifest.SupportsMultiTenant {
-		manifest.DefaultInstallMode = plugintypes.InstallModeGlobal.String()
+		manifest.DefaultInstallMode = pluginv1.InstallModeGlobal.String()
 		return nil
 	}
 	if mode == "" {
-		mode = plugintypes.InstallModeTenantScoped.String()
+		mode = pluginv1.InstallModeTenantScoped.String()
 	} else if !plugintypes.IsSupportedInstallMode(mode) {
 		return gerror.Newf("default_install_mode only supports global/tenant_scoped: %s", manifest.DefaultInstallMode)
 	}

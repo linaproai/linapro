@@ -6,6 +6,7 @@ package pluginbridge
 import (
 	"context"
 	"errors"
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -26,23 +27,18 @@ func TestDefaultDirectoryReturnsCapabilityClients(t *testing.T) {
 	services := New()
 
 	assertClientAvailable(t, services.Runtime(), "runtime")
-	assertClientAvailable(t, Runtime(), "runtime package helper")
 	assertClientAvailable(t, services.Storage(), "storage")
-	assertClientAvailable(t, Storage(), "storage package helper")
 	assertClientAvailable(t, services.Network(), "network")
-	assertClientAvailable(t, Network(), "network package helper")
 	if services.RecordStore() == nil {
 		t.Fatal("expected record store facade to come from pluginbridge guest directory")
 	}
 	assertClientAvailable(t, services.Cache(), "cache")
-	assertClientAvailable(t, Cache(), "cache package helper")
 	assertClientAvailable(t, services.Lock(), "lock")
-	assertClientAvailable(t, Lock(), "lock package helper")
 	if services.Plugins().Config() == nil {
 		t.Fatal("expected plugin config capability client")
 	}
-	if services.Plugins().Lifecycle() == nil {
-		t.Fatal("expected plugin lifecycle capability client")
+	if services.Plugins().State() == nil {
+		t.Fatal("expected plugin enablement capability client")
 	}
 	if services.Jobs() == nil {
 		t.Fatal("expected jobs capability client")
@@ -59,11 +55,11 @@ func TestDefaultDirectoryReturnsCapabilityClients(t *testing.T) {
 // clients use independent structured host services and surface unsupported
 // stubs in ordinary Go builds.
 func TestSharedCapabilityServicesUseBridgeTransport(t *testing.T) {
-	_, err := New().Org().GetUserDeptIDs(context.Background(), 1)
+	_, err := New().Org().Assignment().GetUserDeptIDs(context.Background(), 1)
 	if !errors.Is(err, ErrHostCallsUnavailable) {
 		t.Fatalf("expected non-WASI org capability to use host-call stub, got %v", err)
 	}
-	_, err = New().Tenant().ListUserTenants(context.Background(), 1)
+	_, err = New().Tenant().Membership().ListByUser(context.Background(), 1)
 	if !errors.Is(err, ErrHostCallsUnavailable) {
 		t.Fatalf("expected non-WASI tenant capability to use host-call stub, got %v", err)
 	}
@@ -84,8 +80,71 @@ func TestGuestCapabilityContractsUseInterfaces(t *testing.T) {
 	assertGuestInterfaceType(t, (*GuestControllerRouteDispatcher)(nil), "GuestControllerRouteDispatcher")
 	assertGuestInterfaceType(t, (*RuntimeHostService)(nil), "RuntimeHostService")
 	assertGuestInterfaceType(t, (*NetworkHostService)(nil), "NetworkHostService")
-	assertGuestInterfaceType(t, (*HostConfigHostService)(nil), "HostConfigHostService")
-	assertGuestInterfaceType(t, (*ManifestHostService)(nil), "ManifestHostService")
+}
+
+// TestPluginBridgeDoesNotExposeRootAbilityClientFacades verifies ordinary
+// capability clients stay behind the Services directory instead of root package
+// functions that bypass the directory boundary.
+func TestPluginBridgeDoesNotExposeRootAbilityClientFacades(t *testing.T) {
+	t.Parallel()
+
+	forbidden := map[string]struct{}{
+		"Runtime":             {},
+		"Storage":             {},
+		"Network":             {},
+		"Cache":               {},
+		"Lock":                {},
+		"HostConfig":          {},
+		"Manifest":            {},
+		"Data":                {},
+		"RecordStore":         {},
+		"Cron":                {},
+		"HostLog":             {},
+		"HostStateGet":        {},
+		"HostStateGetMany":    {},
+		"HostStateSet":        {},
+		"HostStateSetMany":    {},
+		"HostStateDelete":     {},
+		"HostStateDeleteMany": {},
+		"HostStateGetInt":     {},
+		"HostStateSetInt":     {},
+	}
+	var violations []string
+	walkErr := filepath.WalkDir(".", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if path != "." {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		fileSet := token.NewFileSet()
+		parsed, parseErr := parser.ParseFile(fileSet, path, nil, 0)
+		if parseErr != nil {
+			return parseErr
+		}
+		for _, decl := range parsed.Decls {
+			funcDecl, ok := decl.(*ast.FuncDecl)
+			if !ok || funcDecl.Recv != nil {
+				continue
+			}
+			if _, exists := forbidden[funcDecl.Name.Name]; exists {
+				violations = append(violations, path+" exposes "+funcDecl.Name.Name)
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("scan pluginbridge root facades: %v", walkErr)
+	}
+	for _, violation := range violations {
+		t.Errorf("pluginbridge root ability facade violation: %s", violation)
+	}
 }
 
 // TestGuestRuntimeRoundTrip verifies the guest runtime allocator and execute

@@ -8,14 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"lina-core/internal/service/config"
 	"lina-core/internal/service/coordination"
 )
 
 // TestServiceDisabledTreatsCurrentNodeAsPrimary verifies single-node mode keeps
 // the local node primary without starting election infrastructure.
 func TestServiceDisabledTreatsCurrentNodeAsPrimary(t *testing.T) {
-	service := New(&config.ClusterConfig{Enabled: false})
+	service := New(&ClusterConfig{Enabled: false})
 	ctx := context.Background()
 
 	if service.IsEnabled() {
@@ -34,9 +33,9 @@ func TestServiceDisabledTreatsCurrentNodeAsPrimary(t *testing.T) {
 func TestServiceEnabledStartsPrimaryElection(t *testing.T) {
 	ctx := context.Background()
 
-	service := NewWithCoordination(&config.ClusterConfig{
+	service := NewWithCoordination(&ClusterConfig{
 		Enabled: true,
-		Election: config.ElectionConfig{
+		Election: ElectionConfig{
 			Lease:         30 * time.Second,
 			RenewInterval: 1 * time.Second,
 		},

@@ -18,9 +18,11 @@ import (
 // TestCoordKVBackendStoresStringWithNativeTTL verifies coordination KV-backed
 // string values honor TTL and do not require external cleanup.
 func TestCoordKVBackendStoresStringWithNativeTTL(t *testing.T) {
-	ctx := context.Background()
-	service := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
-	cacheKey := kvcache.BuildCacheKey("unit-owner", "coordkv", "string")
+	var (
+		ctx      = context.Background()
+		service  = kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
+		cacheKey = kvcache.BuildCacheKey("unit-owner", "coordkv", "string")
+	)
 
 	if service.BackendName() != kvcache.BackendCoordinationKV {
 		t.Fatalf("expected coordination KV backend, got %q", service.BackendName())
@@ -49,10 +51,12 @@ func TestCoordKVBackendStoresStringWithNativeTTL(t *testing.T) {
 // TestCoordKVBackendUsesPlainRedisKeys verifies business cache keys are
 // directly visible in the coordination backend.
 func TestCoordKVBackendUsesPlainRedisKeys(t *testing.T) {
-	ctx := context.Background()
-	coordSvc := coordination.NewMemory(nil)
-	service := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordSvc)))
-	cacheKey := kvcache.BuildCacheKey("media", "route-memory", "route_data:device-1:channel-2")
+	var (
+		ctx      = context.Background()
+		coordSvc = coordination.NewMemory(nil)
+		service  = kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordSvc)))
+		cacheKey = kvcache.BuildCacheKey("media", "route-memory", "route_data:device-1:channel-2")
+	)
 
 	if _, err := service.Set(ctx, kvcache.OwnerTypePlugin, cacheKey, "value", time.Minute); err != nil {
 		t.Fatalf("set plain coordination KV value: %v", err)
@@ -79,9 +83,11 @@ func TestCoordKVBackendUsesPlainRedisKeys(t *testing.T) {
 // TestCoordKVBackendIncrIsAtomic verifies increments use coordination KV
 // atomic integer operations.
 func TestCoordKVBackendIncrIsAtomic(t *testing.T) {
-	ctx := context.Background()
-	service := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
-	cacheKey := kvcache.BuildCacheKey("unit-owner", "coordkv", "counter")
+	var (
+		ctx      = context.Background()
+		service  = kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
+		cacheKey = kvcache.BuildCacheKey("unit-owner", "coordkv", "counter")
+	)
 
 	const workers = 16
 	values := make(chan int64, workers)
@@ -124,9 +130,11 @@ func TestCoordKVBackendIncrIsAtomic(t *testing.T) {
 // TestCoordKVBackendRejectsInvalidTTLAndStringIncrement verifies TTL and type
 // validation stay backend-neutral.
 func TestCoordKVBackendRejectsInvalidTTLAndStringIncrement(t *testing.T) {
-	ctx := context.Background()
-	service := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
-	cacheKey := kvcache.BuildCacheKey("unit-owner", "coordkv", "typed")
+	var (
+		ctx      = context.Background()
+		service  = kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
+		cacheKey = kvcache.BuildCacheKey("unit-owner", "coordkv", "typed")
+	)
 
 	if _, err := service.Set(ctx, kvcache.OwnerTypePlugin, cacheKey, "value", 0); !bizerr.Is(err, kvcache.CodeKVCacheExpireSecondsRequired) {
 		t.Fatalf("expected required TTL error, got %v", err)
@@ -145,10 +153,12 @@ func TestCoordKVBackendRejectsInvalidTTLAndStringIncrement(t *testing.T) {
 // TestCoordKVBackendTenantKeysAreIsolated verifies tenant-aware public keys
 // map to isolated coordination keys.
 func TestCoordKVBackendTenantKeysAreIsolated(t *testing.T) {
-	ctx := context.Background()
-	service := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
-	tenantOne := kvcache.BuildTenantCacheKey(1, "auth", "owner", "coordkv", "tenant")
-	tenantTwo := kvcache.BuildTenantCacheKey(2, "auth", "owner", "coordkv", "tenant")
+	var (
+		ctx       = context.Background()
+		service   = kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
+		tenantOne = kvcache.BuildTenantCacheKey(1, "auth", "owner", "coordkv", "tenant")
+		tenantTwo = kvcache.BuildTenantCacheKey(2, "auth", "owner", "coordkv", "tenant")
+	)
 
 	if _, err := service.Set(ctx, kvcache.OwnerTypeModule, tenantOne, "one", time.Minute); err != nil {
 		t.Fatalf("set tenant one: %v", err)

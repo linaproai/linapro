@@ -18,9 +18,11 @@ import (
 // key lookups and lists prefer tenant records while falling back to platform
 // defaults.
 func TestTenantSysconfigReadPrefersTenantOverrideWithPlatformFallback(t *testing.T) {
-	ctx := context.Background()
-	tenantCtx := datascope.WithTenantForTest(ctx, 93)
-	key := fmt.Sprintf("tenant.fallback.%d", time.Now().UnixNano())
+	var (
+		ctx       = context.Background()
+		tenantCtx = datascope.WithTenantScope(ctx, 93)
+		key       = fmt.Sprintf("tenant.fallback.%d", time.Now().UnixNano())
+	)
 	insertTenantFallbackConfig(t, ctx, datascope.PlatformTenantID, key, "platform-value")
 	insertTenantFallbackConfig(t, ctx, 93, key, "tenant-value")
 	insertTenantFallbackConfig(t, ctx, datascope.PlatformTenantID, key+".platform", "platform-only")
@@ -64,9 +66,11 @@ func TestTenantSysconfigReadPrefersTenantOverrideWithPlatformFallback(t *testing
 // TestTenantSysconfigCreatePersistsCurrentTenant verifies tenant writes use the
 // current tenant id instead of platform.
 func TestTenantSysconfigCreatePersistsCurrentTenant(t *testing.T) {
-	ctx := context.Background()
-	tenantCtx := datascope.WithTenantForTest(ctx, 94)
-	key := fmt.Sprintf("tenant.create.%d", time.Now().UnixNano())
+	var (
+		ctx       = context.Background()
+		tenantCtx = datascope.WithTenantScope(ctx, 94)
+		key       = fmt.Sprintf("tenant.create.%d", time.Now().UnixNano())
+	)
 
 	createdID, err := New(nil, nil).Create(tenantCtx, CreateInput{
 		Name:  "Tenant create",
@@ -98,11 +102,13 @@ func TestTenantSysconfigCreatePersistsCurrentTenant(t *testing.T) {
 // TestTenantSysconfigImportPersistsCurrentTenant verifies imported config rows
 // are tenant-owned instead of being written to the platform fallback scope.
 func TestTenantSysconfigImportPersistsCurrentTenant(t *testing.T) {
-	ctx := context.Background()
-	tenantID := 95
-	tenantCtx := datascope.WithTenantForTest(ctx, tenantID)
-	key := fmt.Sprintf("tenant.import.%d", time.Now().UnixNano())
-	importData := buildConfigImportFile(t, []string{"Tenant import", key, "tenant-imported", "tenant import test"})
+	var (
+		ctx        = context.Background()
+		tenantID   = 95
+		tenantCtx  = datascope.WithTenantScope(ctx, tenantID)
+		key        = fmt.Sprintf("tenant.import.%d", time.Now().UnixNano())
+		importData = buildConfigImportFile(t, []string{"Tenant import", key, "tenant-imported", "tenant import test"})
+	)
 
 	result, err := New(nil, nil).Import(tenantCtx, bytes.NewReader(importData), false)
 	if err != nil {
@@ -126,10 +132,12 @@ func TestTenantSysconfigImportPersistsCurrentTenant(t *testing.T) {
 // TestTenantSysconfigImportCreatesOverrideInsteadOfUpdatingPlatformFallback
 // verifies tenant imports do not mutate inherited platform defaults.
 func TestTenantSysconfigImportCreatesOverrideInsteadOfUpdatingPlatformFallback(t *testing.T) {
-	ctx := context.Background()
-	tenantID := 96
-	tenantCtx := datascope.WithTenantForTest(ctx, tenantID)
-	key := fmt.Sprintf("tenant.import.override.%d", time.Now().UnixNano())
+	var (
+		ctx       = context.Background()
+		tenantID  = 96
+		tenantCtx = datascope.WithTenantScope(ctx, tenantID)
+		key       = fmt.Sprintf("tenant.import.override.%d", time.Now().UnixNano())
+	)
 	insertTenantFallbackConfig(t, ctx, datascope.PlatformTenantID, key, "platform-value")
 	importData := buildConfigImportFile(t, []string{"Tenant override", key, "tenant-value", "tenant import override"})
 

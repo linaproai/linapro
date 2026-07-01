@@ -8,36 +8,16 @@ import (
 	"encoding/json"
 	"strings"
 
-	"lina-core/internal/service/jobmeta"
+	jobhandlerv1 "lina-core/api/jobhandler/v1"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-// PluginLifecycleBridge exposes plugin enablement state and plugin-owned scheduled job
-// definitions needed during lifecycle synchronization.
-type PluginLifecycleBridge interface {
-	// IsEnabled reports whether the specified plugin is currently enabled.
-	IsEnabled(ctx context.Context, pluginID string) bool
-	// ListEnabledPluginIDs returns all currently enabled plugin identifiers so
-	// startup sync can restore synthetic handlers after host restart.
-	ListEnabledPluginIDs(ctx context.Context) ([]string, error)
-	// ListExecutableJobsByPlugin returns plugin-owned job definitions that
-	// can be published as handlers for one enabled plugin.
-	ListExecutableJobsByPlugin(ctx context.Context, pluginID string) ([]pluginsvc.ManagedJob, error)
-}
-
-// PluginLifecycleObserverRegistrar subscribes job handlers to plugin lifecycle
-// events through the startup-owned plugin service instance.
-type PluginLifecycleObserverRegistrar interface {
-	// RegisterLifecycleObserver subscribes one synchronous plugin lifecycle observer.
-	RegisterLifecycleObserver(observer pluginsvc.LifecycleObserver) func()
-}
-
 // pluginLifecycleObserver maps plugin lifecycle callbacks to registry mutations.
 type pluginLifecycleObserver struct {
-	registry Registry              // registry stores published handler definitions.
-	bridge   PluginLifecycleBridge // bridge resolves plugin enablement and managed job definitions.
+	registry  Registry          // registry stores published handler definitions.
+	pluginSvc pluginsvc.Service // pluginSvc resolves plugin lifecycle and managed job definitions.
 }
 
 // Ensure pluginLifecycleObserver implements the plugin lifecycle observer contract.
@@ -49,22 +29,18 @@ var _ pluginsvc.LifecycleObserver = (*pluginLifecycleObserver)(nil)
 func AttachPluginLifecycle(
 	ctx context.Context,
 	registry Registry,
-	observerRegistrar PluginLifecycleObserverRegistrar,
-	bridge PluginLifecycleBridge,
+	pluginSvc pluginsvc.Service,
 ) (func(), error) {
 	if registry == nil {
 		return nil, bizerr.NewCode(CodeJobHandlerRegistryRequired)
 	}
-	if observerRegistrar == nil {
-		return nil, bizerr.NewCode(CodeJobHandlerLifecycleBridgeRequired)
-	}
-	if bridge == nil {
+	if pluginSvc == nil {
 		return nil, bizerr.NewCode(CodeJobHandlerLifecycleBridgeRequired)
 	}
 
-	observer := &pluginLifecycleObserver{registry: registry, bridge: bridge}
-	unsubscribe := observerRegistrar.RegisterLifecycleObserver(observer)
-	if err := observer.syncEnabledPlugins(ctx, bridge); err != nil {
+	observer := &pluginLifecycleObserver{registry: registry, pluginSvc: pluginSvc}
+	unsubscribe := pluginSvc.RegisterLifecycleObserver(observer)
+	if err := observer.syncEnabledPlugins(ctx, pluginSvc); err != nil {
 		unsubscribe()
 		return nil, err
 	}
@@ -98,12 +74,12 @@ func (o *pluginLifecycleObserver) OnPluginUninstalled(ctx context.Context, plugi
 // enabled when the host starts.
 func (o *pluginLifecycleObserver) syncEnabledPlugins(
 	ctx context.Context,
-	bridge PluginLifecycleBridge,
+	pluginSvc pluginsvc.Service,
 ) error {
-	if bridge == nil {
+	if pluginSvc == nil {
 		return nil
 	}
-	pluginIDs, err := bridge.ListEnabledPluginIDs(ctx)
+	pluginIDs, err := pluginSvc.ListEnabledPluginIDs(ctx)
 	if err != nil {
 		return err
 	}
@@ -127,11 +103,15 @@ func (o *pluginLifecycleObserver) registerPluginHandlers(ctx context.Context, pl
 
 	registeredRefs := make([]string, 0)
 
-	if o.bridge == nil {
+	if o.pluginSvc == nil {
 		return nil
 	}
 
-	managedJobs, err := o.bridge.ListExecutableJobsByPlugin(ctx, pluginID)
+	managedJobs, err := o.pluginSvc.ListManagedJobs(ctx, pluginsvc.ManagedJobQuery{
+		PluginID:        pluginID,
+		ExecutableOnly:  true,
+		IncludeHandlers: true,
+	})
 	if err != nil {
 		for _, registeredRef := range registeredRefs {
 			o.registry.Unregister(registeredRef)
@@ -155,7 +135,7 @@ func (o *pluginLifecycleObserver) registerPluginHandlers(ctx context.Context, pl
 			DisplayName:  buildManagedJobDisplayName(item),
 			Description:  buildManagedJobDescription(item),
 			ParamsSchema: `{"type":"object","properties":{}}`,
-			Source:       jobmeta.HandlerSourcePlugin,
+			Source:       jobhandlerv1.SourcePlugin,
 			PluginID:     pluginID,
 			Invoke: func(ctx context.Context, _ json.RawMessage) (result any, err error) {
 				if runErr := handler(ctx); runErr != nil {
@@ -181,7 +161,7 @@ func (o *pluginLifecycleObserver) unregisterPluginHandlers(pluginID string) {
 	}
 
 	for _, item := range o.registry.List() {
-		if item.Source != jobmeta.HandlerSourcePlugin || item.PluginID != pluginID {
+		if item.Source != jobhandlerv1.SourcePlugin || item.PluginID != pluginID {
 			continue
 		}
 		o.registry.Unregister(item.Ref)

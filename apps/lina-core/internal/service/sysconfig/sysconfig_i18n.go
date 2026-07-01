@@ -10,17 +10,6 @@ import (
 	hostconfig "lina-core/internal/service/config"
 )
 
-// sysconfigI18nTranslator defines the narrow translation capability sysconfig needs.
-type sysconfigI18nTranslator interface {
-	// Translate returns one runtime translation key with caller-provided fallback text.
-	Translate(ctx context.Context, key string, fallback string) string
-	// TranslateWithDefaultLocale returns one runtime translation key with an
-	// explicit default-locale fallback before the caller fallback.
-	TranslateWithDefaultLocale(ctx context.Context, key string, fallback string) string
-	// LocalizeError renders one structured error in the current request locale.
-	LocalizeError(ctx context.Context, err error) string
-}
-
 // publicFrontendConfigValueMessageKeys maps protected sys_config keys to the
 // runtime public-frontend message key used for read-only value projection.
 var publicFrontendConfigValueMessageKeys = map[string]string{
@@ -97,7 +86,7 @@ func (s *serviceImpl) localizedConfigDisplayValue(ctx context.Context, key strin
 		return current
 	}
 	defaultLocaleValue := strings.TrimSpace(
-		s.i18nSvc.TranslateWithDefaultLocale(context.Background(), messageKey, spec.DefaultValue),
+		s.i18nSvc.Translate(context.Background(), messageKey, spec.DefaultValue),
 	)
 	if trimmedCurrent != strings.TrimSpace(spec.DefaultValue) && trimmedCurrent != defaultLocaleValue {
 		return current

@@ -19,7 +19,7 @@ import (
 	"testing"
 
 	"lina-core/pkg/plugin/capability/orgcap"
-	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // transientWasmDispatcherFileName is generated during WASM packaging and removed
@@ -51,19 +51,6 @@ func TestServicesExposeUniqueDomainEntries(t *testing.T) {
 		}
 	}
 
-	adminType := reflect.TypeOf((*AdminServices)(nil)).Elem()
-	if _, ok := adminType.MethodByName("Notify"); ok {
-		t.Fatal("capability.AdminServices must not expose removed Notify entry")
-	}
-	if _, ok := adminType.MethodByName("Config"); ok {
-		t.Fatal("capability.AdminServices must not expose removed Config entry")
-	}
-	if _, ok := adminType.MethodByName("Notifications"); !ok {
-		t.Fatal("capability.AdminServices must expose Notifications")
-	}
-	if _, ok := adminType.MethodByName("HostConfig"); !ok {
-		t.Fatal("capability.AdminServices must expose HostConfig")
-	}
 }
 
 // TestOrgServiceDoesNotExposeWorkspaceProjections verifies ordinary
@@ -78,18 +65,18 @@ func TestOrgServiceDoesNotExposeWorkspaceProjections(t *testing.T) {
 	}
 }
 
-// TestTenantRuntimeServiceDoesNotExposeFallback verifies unused platform
-// fallback helpers stay out of the broad runtime combination interface.
-func TestTenantRuntimeServiceDoesNotExposeFallback(t *testing.T) {
-	serviceType := reflect.TypeOf((*tenantspi.RuntimeService)(nil)).Elem()
+// TestTenantServiceDoesNotExposeFallback verifies unused platform fallback
+// helpers stay out of the ordinary tenant capability contract.
+func TestTenantServiceDoesNotExposeFallback(t *testing.T) {
+	serviceType := reflect.TypeOf((*tenantcap.Service)(nil)).Elem()
 	if _, ok := serviceType.MethodByName("ReadWithPlatformFallback"); ok {
-		t.Fatal("tenantspi.RuntimeService must not expose ReadWithPlatformFallback")
+		t.Fatal("tenantcap.Service must not expose ReadWithPlatformFallback")
 	}
 }
 
-// TestRepositoryPluginCapabilityBoundaries scans production Go code for removed
+// TestRepositoryPluginStateBoundaries scans production Go code for removed
 // plugin capability access paths that would bypass the public capability seams.
-func TestRepositoryPluginCapabilityBoundaries(t *testing.T) {
+func TestRepositoryPluginStateBoundaries(t *testing.T) {
 	t.Parallel()
 
 	root := findCapabilityGovernanceRepositoryRoot(t)
@@ -97,8 +84,9 @@ func TestRepositoryPluginCapabilityBoundaries(t *testing.T) {
 	findings = append(findings, scanCapabilityDependencyDirection(t, root)...)
 	findings = append(findings, scanCapabilityConsumerHostTypeImports(t, root)...)
 	findings = append(findings, scanCapabilityPackageInternalPluginImports(t, root)...)
+	findings = append(findings, scanOrdinaryCapabilityImplementationBackflow(t, root)...)
 	findings = append(findings, scanPluginCodeHostInternalImports(t, root)...)
-	findings = append(findings, scanRemovedPluginCapabilityProductionReferences(t, root)...)
+	findings = append(findings, scanRemovedPluginStateProductionReferences(t, root)...)
 	findings = append(findings, scanPluginbridgeProtocolOwnership(t, root)...)
 	if len(findings) == 0 {
 		return
@@ -155,8 +143,9 @@ func scanCapabilityDependencyDirection(t *testing.T, root string) []string {
 }
 
 // scanCapabilityConsumerHostTypeImports verifies ordinary capability contracts
-// stay free of GoFrame database and HTTP request host types. Explicit provider
-// SPI packages keep host seams in packages whose path segment ends with "spi".
+// stay free of GoFrame HTTP request host types and broad database-builder
+// exposure. Explicit provider SPI packages keep host seams in packages whose
+// path segment ends with "spi".
 func scanCapabilityConsumerHostTypeImports(t *testing.T, root string) []string {
 	t.Helper()
 
@@ -194,6 +183,85 @@ func scanCapabilityPackageInternalPluginImports(t *testing.T, root string) []str
 	return findings
 }
 
+// scanOrdinaryCapabilityImplementationBackflow verifies ordinary consumer
+// capability packages stay as public contracts instead of owning host-side
+// adapter implementations. Provider SPI, AI provider dispatch, and storage
+// provider registration are intentional published seams and are excluded from
+// this consumer-contract scan.
+func scanOrdinaryCapabilityImplementationBackflow(t *testing.T, root string) []string {
+	t.Helper()
+
+	var findings []string
+	findings = append(findings, scanContractOnlyCapabilityPackages(t, root)...)
+	for _, file := range parseGoSources(t, root, false, "apps/lina-core/pkg/plugin/capability") {
+		if isCapabilitySPISource(file.relPath) ||
+			strings.Contains(file.relPath, "/aicap/") ||
+			isAllowedCapabilityImplementationFile(file.relPath) {
+			continue
+		}
+		if capabilityImplementationBackflowFileName(filepath.Base(file.relPath)) {
+			findings = append(findings, fmt.Sprintf("%s looks like a host-side capability implementation; move adapters to the owning internal service package", file.relPath))
+		}
+	}
+	return findings
+}
+
+// scanContractOnlyCapabilityPackages blocks extra production source files in
+// capability packages whose owner implementation belongs to internal/service.
+func scanContractOnlyCapabilityPackages(t *testing.T, root string) []string {
+	t.Helper()
+
+	allowedFiles := map[string]map[string]struct{}{
+		"apps/lina-core/pkg/plugin/capability/hostconfigcap": {
+			"hostconfigcap.go": {},
+		},
+		"apps/lina-core/pkg/plugin/capability/bizctxcap": {
+			"bizctxcap.go": {},
+		},
+		"apps/lina-core/pkg/plugin/capability/manifestcap": {
+			"manifestcap.go": {},
+		},
+	}
+	var findings []string
+	for packagePath, allowed := range allowedFiles {
+		for _, file := range parseGoSources(t, root, false, packagePath) {
+			if _, ok := allowed[filepath.Base(file.relPath)]; ok {
+				continue
+			}
+			findings = append(findings, fmt.Sprintf("%s must stay in the owner internal service package; %s is contract-only", file.relPath, packagePath))
+		}
+	}
+	return findings
+}
+
+// isAllowedCapabilityImplementationFile documents implementation-bearing
+// public capability seams that are intentionally not domain owner adapters.
+func isAllowedCapabilityImplementationFile(relPath string) bool {
+	switch relPath {
+	case "apps/lina-core/pkg/plugin/capability/storagecap/storagecap_provider.go":
+		return true
+	default:
+		return false
+	}
+}
+
+// capabilityImplementationBackflowFileName reports implementation-style file
+// names that are not expected in ordinary consumer capability contract packages.
+func capabilityImplementationBackflowFileName(name string) bool {
+	for _, suffix := range []string{
+		"_imp.go",
+		"_host_impl.go",
+		"_manager.go",
+		"_services.go",
+		"_access.go",
+	} {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
 // scanPluginCodeHostInternalImports verifies official plugin code only depends
 // on published host contracts.
 func scanPluginCodeHostInternalImports(t *testing.T, root string) []string {
@@ -210,14 +278,14 @@ func scanPluginCodeHostInternalImports(t *testing.T, root string) []string {
 	return findings
 }
 
-// scanRemovedPluginCapabilityProductionReferences verifies production code does
+// scanRemovedPluginStateProductionReferences verifies production code does
 // not reintroduce removed plugin host-service or bridge business-client entries.
-func scanRemovedPluginCapabilityProductionReferences(t *testing.T, root string) []string {
+func scanRemovedPluginStateProductionReferences(t *testing.T, root string) []string {
 	t.Helper()
 
 	var findings []string
 	for _, file := range parseGoSources(t, root, false, "apps/lina-core", "apps/lina-plugins", "hack/tools/linactl") {
-		findings = append(findings, scanRemovedPluginCapabilityImports(file)...)
+		findings = append(findings, scanRemovedPluginStateImports(file)...)
 		findings = append(findings, scanRemovedProviderEnvReferences(file)...)
 		findings = append(findings, scanRemovedHostServicesReferences(file)...)
 		findings = append(findings, scanRemovedPluginbridgeBusinessReferences(file)...)
@@ -225,11 +293,11 @@ func scanRemovedPluginCapabilityProductionReferences(t *testing.T, root string) 
 	return findings
 }
 
-// scanRemovedPluginCapabilityImports blocks deleted pre-boundary package paths.
-func scanRemovedPluginCapabilityImports(file parsedCapabilityGovernanceFile) []string {
+// scanRemovedPluginStateImports blocks deleted pre-boundary package paths.
+func scanRemovedPluginStateImports(file parsedCapabilityGovernanceFile) []string {
 	var findings []string
 	for _, importPath := range file.importPaths {
-		if removedPluginCapabilityImport(importPath) {
+		if removedPluginStateImport(importPath) {
 			findings = append(findings, fmt.Sprintf("%s imports removed plugin package %q", file.relPath, importPath))
 		}
 	}
@@ -740,9 +808,9 @@ func selectorReferencesImport(expr ast.Expr, importNames map[string]struct{}) bo
 	return found
 }
 
-// removedPluginCapabilityImport reports whether importPath points at a removed
+// removedPluginStateImport reports whether importPath points at a removed
 // pre-boundary plugin package.
-func removedPluginCapabilityImport(importPath string) bool {
+func removedPluginStateImport(importPath string) bool {
 	removedRoots := []string{
 		"lina-core/pkg/orgcap",
 		"lina-core/pkg/plugindb",

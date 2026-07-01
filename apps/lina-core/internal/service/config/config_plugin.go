@@ -165,13 +165,13 @@ func (s *serviceImpl) GetPluginDynamicStoragePath(ctx context.Context) string {
 	return resolveRuntimePathWithDefault(s.GetPlugin(ctx).Dynamic.StoragePath, defaultPluginDynamicStoragePath)
 }
 
-// SetPluginDynamicStoragePathOverride overrides the dynamic-plugin storage path.
+// setPluginDynamicStoragePathOverride overrides the dynamic-plugin storage path.
 // Tests use this to isolate runtime artifact discovery from the shared workspace.
-func SetPluginDynamicStoragePathOverride(path string) {
+func setPluginDynamicStoragePathOverride(path string) {
 	pluginDynamicStoragePathOverride.Store(strings.TrimSpace(path))
 }
 
-// SetPluginAutoEnableOverride overrides the startup auto-enable plugin IDs.
+// setPluginAutoEnableOverride overrides the startup auto-enable plugin IDs.
 // Tests use this to isolate startup bootstrap behavior from shared config
 // adapter content. ID-only test overrides default WithMockData=false because
 // callers of this helper only exercise the startup ID list.
@@ -179,7 +179,7 @@ func SetPluginDynamicStoragePathOverride(path string) {
 // Tests pass already-validated IDs, so the underlying normalization should not
 // fail; if it does, the test setup is itself broken and the panic from
 // gerror.Must surfaces the same fail-fast behavior expected of test fixtures.
-func SetPluginAutoEnableOverride(pluginIDs []string) {
+func setPluginAutoEnableOverride(pluginIDs []string) {
 	if len(pluginIDs) == 0 {
 		pluginAutoEnableOverride.Store(pluginAutoEnableOverrideState{})
 		return
@@ -190,7 +190,7 @@ func SetPluginAutoEnableOverride(pluginIDs []string) {
 	}
 	normalized, err := normalizePluginAutoEnableEntries(entries)
 	if err != nil {
-		panic(gerror.Wrap(err, "SetPluginAutoEnableOverride received invalid plugin IDs"))
+		panic(gerror.Wrap(err, "setPluginAutoEnableOverride received invalid plugin IDs"))
 	}
 	pluginAutoEnableOverride.Store(pluginAutoEnableOverrideState{
 		set:   true,
@@ -198,18 +198,18 @@ func SetPluginAutoEnableOverride(pluginIDs []string) {
 	})
 }
 
-// SetPluginAutoEnableEntriesOverride overrides the startup auto-enable plugin
+// setPluginAutoEnableEntriesOverride overrides the startup auto-enable plugin
 // entries with the full per-entry payload. Tests that exercise the mock-data
 // opt-in flow use this variant; tests that only care about ID normalization can
-// keep using SetPluginAutoEnableOverride.
-func SetPluginAutoEnableEntriesOverride(entries []PluginAutoEnableEntry) {
+// keep using setPluginAutoEnableOverride.
+func setPluginAutoEnableEntriesOverride(entries []PluginAutoEnableEntry) {
 	if len(entries) == 0 {
 		pluginAutoEnableOverride.Store(pluginAutoEnableOverrideState{})
 		return
 	}
 	normalized, err := normalizePluginAutoEnableEntries(entries)
 	if err != nil {
-		panic(gerror.Wrap(err, "SetPluginAutoEnableEntriesOverride received invalid entries"))
+		panic(gerror.Wrap(err, "setPluginAutoEnableEntriesOverride received invalid entries"))
 	}
 	pluginAutoEnableOverride.Store(pluginAutoEnableOverrideState{
 		set:   true,
@@ -217,9 +217,9 @@ func SetPluginAutoEnableEntriesOverride(entries []PluginAutoEnableEntry) {
 	})
 }
 
-// SetPluginAllowForceUninstallOverride overrides plugin.allowForceUninstall.
+// setPluginAllowForceUninstallOverride overrides plugin.allowForceUninstall.
 // Tests pass nil to clear the override.
-func SetPluginAllowForceUninstallOverride(value *bool) {
+func setPluginAllowForceUninstallOverride(value *bool) {
 	if value == nil {
 		pluginAllowForceUninstallOverride.Store(pluginAllowForceUninstallOverrideState{})
 		return

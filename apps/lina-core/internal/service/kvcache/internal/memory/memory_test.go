@@ -16,9 +16,11 @@ import (
 // TestMemoryBackendStoresStringWithNativeTTL verifies single-node memory string
 // values honor TTL and do not need external cleanup.
 func TestMemoryBackendStoresStringWithNativeTTL(t *testing.T) {
-	ctx := context.Background()
-	service := kvcache.New(kvcache.WithProvider(kvcache.NewMemoryProvider()))
-	cacheKey := kvcache.BuildCacheKey("unit-owner", "memory", "string")
+	var (
+		ctx      = context.Background()
+		service  = kvcache.New(kvcache.WithProvider(kvcache.NewMemoryProvider()))
+		cacheKey = kvcache.BuildCacheKey("unit-owner", "memory", "string")
+	)
 
 	if service.BackendName() != kvcache.BackendMemory {
 		t.Fatalf("expected memory backend, got %q", service.BackendName())
@@ -47,9 +49,11 @@ func TestMemoryBackendStoresStringWithNativeTTL(t *testing.T) {
 // TestMemoryBackendRejectsMissingTTL verifies cache writes require an explicit
 // positive expiration instead of accepting missing TTL values.
 func TestMemoryBackendRejectsMissingTTL(t *testing.T) {
-	ctx := context.Background()
-	service := kvcache.New(kvcache.WithProvider(kvcache.NewMemoryProvider()))
-	cacheKey := kvcache.BuildCacheKey("unit-owner", "memory", "persistent")
+	var (
+		ctx      = context.Background()
+		service  = kvcache.New(kvcache.WithProvider(kvcache.NewMemoryProvider()))
+		cacheKey = kvcache.BuildCacheKey("unit-owner", "memory", "persistent")
+	)
 
 	if _, err := service.Set(ctx, kvcache.OwnerTypePlugin, cacheKey, "value", 0); !bizerr.Is(err, kvcache.CodeKVCacheExpireSecondsRequired) {
 		t.Fatalf("expected required TTL error for set, got %v", err)
@@ -65,9 +69,11 @@ func TestMemoryBackendRejectsMissingTTL(t *testing.T) {
 // TestMemoryBackendIncrIsAtomicWithinProcess verifies increments are linear
 // within one host process.
 func TestMemoryBackendIncrIsAtomicWithinProcess(t *testing.T) {
-	ctx := context.Background()
-	service := kvcache.New(kvcache.WithProvider(kvcache.NewMemoryProvider()))
-	cacheKey := kvcache.BuildCacheKey("unit-owner", "memory", "counter")
+	var (
+		ctx      = context.Background()
+		service  = kvcache.New(kvcache.WithProvider(kvcache.NewMemoryProvider()))
+		cacheKey = kvcache.BuildCacheKey("unit-owner", "memory", "counter")
+	)
 
 	const workers = 32
 	values := make(chan int64, workers)
@@ -110,9 +116,11 @@ func TestMemoryBackendIncrIsAtomicWithinProcess(t *testing.T) {
 // TestMemoryBackendIncrFirstDeltaAndRefreshesTTL verifies missing counters use
 // delta as the first value and each increment applies an explicit new TTL.
 func TestMemoryBackendIncrFirstDeltaAndRefreshesTTL(t *testing.T) {
-	ctx := context.Background()
-	service := kvcache.New(kvcache.WithProvider(kvcache.NewMemoryProvider()))
-	cacheKey := kvcache.BuildCacheKey("unit-owner", "memory", "ttl-counter")
+	var (
+		ctx      = context.Background()
+		service  = kvcache.New(kvcache.WithProvider(kvcache.NewMemoryProvider()))
+		cacheKey = kvcache.BuildCacheKey("unit-owner", "memory", "ttl-counter")
+	)
 
 	item, err := service.Incr(ctx, kvcache.OwnerTypePlugin, cacheKey, 5, 200*time.Millisecond)
 	if err != nil {
@@ -137,9 +145,11 @@ func TestMemoryBackendIncrFirstDeltaAndRefreshesTTL(t *testing.T) {
 // TestMemoryBackendRejectsInvalidOperations verifies validation mirrors the
 // backend-neutral kvcache contract.
 func TestMemoryBackendRejectsInvalidOperations(t *testing.T) {
-	ctx := context.Background()
-	service := kvcache.New(kvcache.WithProvider(kvcache.NewMemoryProvider()))
-	cacheKey := kvcache.BuildCacheKey("unit-owner", "memory", "string")
+	var (
+		ctx      = context.Background()
+		service  = kvcache.New(kvcache.WithProvider(kvcache.NewMemoryProvider()))
+		cacheKey = kvcache.BuildCacheKey("unit-owner", "memory", "string")
+	)
 
 	if _, err := service.Set(ctx, kvcache.OwnerTypePlugin, cacheKey, strings.Repeat("x", 4097), time.Second); !bizerr.Is(err, kvcache.CodeKVCacheValueTooLong) {
 		t.Fatalf("expected value-too-long error, got %v", err)
@@ -161,9 +171,11 @@ func TestMemoryBackendRejectsInvalidOperations(t *testing.T) {
 // TestMemoryBackendExpireUpdatesPolicy verifies Expire changes cache lifetime
 // without changing the stored value.
 func TestMemoryBackendExpireUpdatesPolicy(t *testing.T) {
-	ctx := context.Background()
-	service := kvcache.New(kvcache.WithProvider(kvcache.NewMemoryProvider()))
-	cacheKey := kvcache.BuildCacheKey("unit-owner", "memory", "expire")
+	var (
+		ctx      = context.Background()
+		service  = kvcache.New(kvcache.WithProvider(kvcache.NewMemoryProvider()))
+		cacheKey = kvcache.BuildCacheKey("unit-owner", "memory", "expire")
+	)
 
 	if _, err := service.Set(ctx, kvcache.OwnerTypePlugin, cacheKey, "value", time.Second); err != nil {
 		t.Fatalf("set value: %v", err)
@@ -185,9 +197,11 @@ func TestMemoryBackendExpireUpdatesPolicy(t *testing.T) {
 // TestMemoryBackendDeleteAndProcessLossAreMisses verifies cache deletion and a
 // fresh backend instance both behave as cache misses.
 func TestMemoryBackendDeleteAndProcessLossAreMisses(t *testing.T) {
-	ctx := context.Background()
-	cacheKey := kvcache.BuildCacheKey("unit-owner", "memory", "lossy")
-	service := kvcache.New(kvcache.WithProvider(kvcache.NewMemoryProvider()))
+	var (
+		ctx      = context.Background()
+		cacheKey = kvcache.BuildCacheKey("unit-owner", "memory", "lossy")
+		service  = kvcache.New(kvcache.WithProvider(kvcache.NewMemoryProvider()))
+	)
 
 	if _, err := service.Set(ctx, kvcache.OwnerTypePlugin, cacheKey, "value", time.Second); err != nil {
 		t.Fatalf("set value: %v", err)

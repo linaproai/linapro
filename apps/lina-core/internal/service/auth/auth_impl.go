@@ -21,6 +21,7 @@ import (
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -53,10 +54,7 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 	}
 
 	dispatchLoginFailed := func(username string, msg string, reason string) {
-		if s.hookSvc == nil {
-			return
-		}
-		if hookErr := s.hookSvc.HandleAuthLoginFailed(ctx, pluginhost.AuthHookPayloadInput{
+		s.dispatchAuthHookEvent(ctx, pluginhost.ExtensionPointAuthLoginFailed, pluginhost.AuthHookPayloadInput{
 			UserName:   username,
 			Status:     authLoginStatusFail,
 			IP:         ip,
@@ -65,9 +63,7 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 			OS:         osName,
 			Message:    msg,
 			Reason:     reason,
-		}); hookErr != nil {
-			logger.Warningf(ctx, "plugin login failed hook failed: %v", hookErr)
-		}
+		}, "plugin login failed hook failed")
 	}
 
 	blacklisted, err := s.configSvc.IsLoginIPBlacklisted(ctx, ip)
@@ -100,7 +96,7 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 	}
 
 	// Check status
-	if user.Status == statusDisabled {
+	if user.Status == statusflag.Disabled.Int() {
 		dispatchLoginFailed(in.Username, authEventMessageUserDisabled, pluginhost.AuthHookReasonUserDisabled)
 		return nil, bizerr.NewCode(CodeAuthUserDisabled)
 	}
@@ -151,20 +147,16 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		logger.Warningf(ctx, "create online session failed tokenId=%s err=%v", tokenId, err)
 	}
 
-	if s.hookSvc != nil {
-		if err := s.hookSvc.HandleAuthLoginSucceeded(ctx, pluginhost.AuthHookPayloadInput{
-			UserName:   in.Username,
-			Status:     authLoginStatusSuccess,
-			IP:         ip,
-			ClientType: clientType.String(),
-			Browser:    browser,
-			OS:         osName,
-			Message:    authEventMessageLoginSuccessful,
-			Reason:     pluginhost.AuthHookReasonLoginSuccessful,
-		}); err != nil {
-			logger.Warningf(ctx, "plugin login succeeded hook failed: %v", err)
-		}
-	}
+	s.dispatchAuthHookEvent(ctx, pluginhost.ExtensionPointAuthLoginSucceeded, pluginhost.AuthHookPayloadInput{
+		UserName:   in.Username,
+		Status:     authLoginStatusSuccess,
+		IP:         ip,
+		ClientType: clientType.String(),
+		Browser:    browser,
+		OS:         osName,
+		Message:    authEventMessageLoginSuccessful,
+		Reason:     pluginhost.AuthHookReasonLoginSuccessful,
+	}, "plugin login succeeded hook failed")
 	return &LoginOutput{AccessToken: accessToken, RefreshToken: refreshToken}, nil
 }
 
@@ -258,7 +250,7 @@ func (s *serviceImpl) IssueImpersonationToken(ctx context.Context, in Impersonat
 	if user == nil {
 		return nil, bizerr.NewCode(CodeAuthTokenInvalid)
 	}
-	if user.Status == statusDisabled {
+	if user.Status == statusflag.Disabled.Int() {
 		return nil, bizerr.NewCode(CodeAuthUserDisabled)
 	}
 	businessCtx, _ := ctx.Value(bizctx.ContextKey).(*model.Context)
@@ -363,7 +355,7 @@ func (s *serviceImpl) Refresh(ctx context.Context, in RefreshInput) (*RefreshOut
 		}
 		return nil, bizerr.NewCode(CodeAuthTokenInvalid)
 	}
-	if user.Status == statusDisabled {
+	if user.Status == statusflag.Disabled.Int() {
 		if revokeErr := s.RevokeSession(ctx, claims.TokenId); revokeErr != nil {
 			logger.Warningf(ctx, "revoke disabled-user refresh session failed tokenId=%s userId=%d err=%v", claims.TokenId, user.Id, revokeErr)
 		}
@@ -507,21 +499,33 @@ func (s *serviceImpl) Logout(ctx context.Context, in LogoutInput) error {
 			return err
 		}
 	}
-	if s.hookSvc != nil {
-		if err := s.hookSvc.HandleAuthLogoutSucceeded(ctx, pluginhost.AuthHookPayloadInput{
-			UserName:   in.Username,
-			Status:     authLoginStatusSuccess,
-			IP:         ip,
-			ClientType: clientType.String(),
-			Browser:    browser,
-			OS:         osName,
-			Message:    authEventMessageLogoutSuccessful,
-			Reason:     pluginhost.AuthHookReasonLogoutSuccessful,
-		}); err != nil {
-			logger.Warningf(ctx, "plugin logout succeeded hook failed: %v", err)
-		}
-	}
+	s.dispatchAuthHookEvent(ctx, pluginhost.ExtensionPointAuthLogoutSucceeded, pluginhost.AuthHookPayloadInput{
+		UserName:   in.Username,
+		Status:     authLoginStatusSuccess,
+		IP:         ip,
+		ClientType: clientType.String(),
+		Browser:    browser,
+		OS:         osName,
+		Message:    authEventMessageLogoutSuccessful,
+		Reason:     pluginhost.AuthHookReasonLogoutSuccessful,
+	}, "plugin logout succeeded hook failed")
 	return nil
+}
+
+// dispatchAuthHookEvent publishes one auth lifecycle hook through the generic
+// plugin hook dispatcher while auth keeps ownership of the auth payload shape.
+func (s *serviceImpl) dispatchAuthHookEvent(
+	ctx context.Context,
+	event pluginhost.ExtensionPoint,
+	input pluginhost.AuthHookPayloadInput,
+	warning string,
+) {
+	if s == nil || s.hookSvc == nil {
+		return
+	}
+	if err := s.hookSvc.DispatchHookEvent(ctx, event, pluginhost.BuildAuthHookPayloadValues(input)); err != nil {
+		logger.Warningf(ctx, "%s: %v", warning, err)
+	}
 }
 
 // RevokeSession removes one online session by token ID and its cached access context.
@@ -672,7 +676,7 @@ func (s *serviceImpl) getUserDeptName(ctx context.Context, userId int) string {
 	if s == nil || s.orgCapSvc == nil {
 		return ""
 	}
-	deptName, err := s.orgCapSvc.GetUserDeptName(ctx, userId)
+	_, deptName, err := s.orgCapSvc.Assignment().GetUserDeptInfo(ctx, userId)
 	if err != nil {
 		return ""
 	}

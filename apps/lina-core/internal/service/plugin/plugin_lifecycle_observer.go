@@ -14,14 +14,6 @@ import (
 // LifecycleObserver receives synchronous plugin lifecycle callbacks from the host plugin service.
 type LifecycleObserver = lifecycle.LifecycleObserver
 
-// LifecycleObserverRegistrar subscribes synchronous lifecycle observers to one
-// plugin service instance.
-type LifecycleObserverRegistrar interface {
-	// RegisterLifecycleObserver subscribes one synchronous lifecycle observer and
-	// returns its unsubscribe function.
-	RegisterLifecycleObserver(observer LifecycleObserver) func()
-}
-
 // lifecycleObserverRegistry stores lifecycle observers for one plugin service
 // instance.
 type lifecycleObserverRegistry struct {

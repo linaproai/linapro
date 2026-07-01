@@ -5,6 +5,8 @@
 
 package capmodel
 
+import pluginv1 "lina-core/api/plugin/v1"
+
 // ManifestSnapshot is the typed manifest snapshot published to plugin
 // lifecycle callbacks.
 type ManifestSnapshot struct {
@@ -15,15 +17,15 @@ type ManifestSnapshot struct {
 	// Version is the plugin version recorded in the manifest snapshot.
 	Version string `json:"version"`
 	// Type is the plugin type recorded in the manifest snapshot.
-	Type string `json:"type"`
+	Type pluginv1.PluginType `json:"type"`
 	// Distribution is the plugin distribution governance type recorded in the manifest snapshot.
-	Distribution string `json:"distribution"`
+	Distribution pluginv1.PluginDistribution `json:"distribution"`
 	// ScopeNature is the plugin tenant-scope nature recorded in the manifest snapshot.
-	ScopeNature string `json:"scopeNature"`
+	ScopeNature pluginv1.ScopeNature `json:"scopeNature"`
 	// SupportsMultiTenant reports whether the plugin declares linapro-tenant-core support.
 	SupportsMultiTenant bool `json:"supportsMultiTenant"`
 	// DefaultInstallMode is the plugin default installation mode.
-	DefaultInstallMode string `json:"defaultInstallMode"`
+	DefaultInstallMode pluginv1.InstallMode `json:"defaultInstallMode"`
 	// Description is the plugin description recorded in the manifest snapshot.
 	Description string `json:"description"`
 	// InstallSQLCount is the number of install SQL assets recorded in the snapshot.

@@ -4,9 +4,35 @@ package sessioncap
 
 import (
 	"context"
-	"lina-core/pkg/plugin/capability/capmodel"
 	"time"
+
+	"lina-core/pkg/plugin/capability/capmodel"
 )
+
+// Service defines governed online-session capability methods. Reads apply
+// tenant and data-scope filtering with bounded batch or page sizes; revocation
+// validates target visibility and delegates token invalidation to the host auth
+// owner.
+type Service interface {
+	// Current returns the visible session info for the current token.
+	Current(ctx context.Context) (*SessionInfo, error)
+	// Get returns one visible session info.
+	Get(ctx context.Context, id SessionID) (*SessionInfo, error)
+	// List returns one bounded visible session page.
+	List(ctx context.Context, input ListInput) (*capmodel.PageResult[*SessionInfo], error)
+	// BatchGet returns visible session info records and opaque missing IDs.
+	BatchGet(ctx context.Context, ids []SessionID) (*capmodel.BatchResult[*SessionInfo, SessionID], error)
+	// BatchGetUserOnlineStatus returns visible users' online status in one bounded call.
+	BatchGetUserOnlineStatus(ctx context.Context, userIDs []string) (*capmodel.BatchResult[*UserOnlineStatus, string], error)
+	// EnsureVisible rejects when any requested online session is absent or invisible.
+	EnsureVisible(ctx context.Context, ids []SessionID) error
+	// Revoke invalidates one visible online session after tenant, data-scope,
+	// target visibility, actor, and audit-boundary checks.
+	Revoke(ctx context.Context, id SessionID) error
+	// RevokeMany invalidates visible online sessions after bounded target
+	// visibility checks. Any invisible target rejects the whole operation.
+	RevokeMany(ctx context.Context, ids []SessionID) error
+}
 
 const (
 	// MaxBatchGetUserOnlineStatus limits one user online-status batch call.
@@ -18,8 +44,8 @@ const (
 // SessionID identifies one online session token at domain boundaries.
 type SessionID string
 
-// Projection describes one online session visible to a plugin.
-type Projection struct {
+// SessionInfo describes one online session visible to a plugin.
+type SessionInfo struct {
 	// ID is the session domain identifier.
 	ID SessionID
 	// TenantID is the current tenant identifier.
@@ -44,8 +70,8 @@ type Projection struct {
 	LastActiveAt *time.Time
 }
 
-// UserOnlineStatusProjection reports whether one visible user has an online session.
-type UserOnlineStatusProjection struct {
+// UserOnlineStatus reports whether one visible user has an online session.
+type UserOnlineStatus struct {
 	// UserID is the requested user identifier.
 	UserID string
 	// Online reports whether the user currently has at least one visible session.
@@ -54,38 +80,12 @@ type UserOnlineStatusProjection struct {
 	SessionCount int
 }
 
-// SearchInput constrains online-session queries.
-type SearchInput struct {
+// ListInput constrains online-session queries.
+type ListInput struct {
 	// Username filters by username.
 	Username string
 	// IP filters by login IP.
 	IP string
 	// Page constrains result size.
 	Page capmodel.PageRequest
-}
-
-// Service defines read-oriented online-session capability methods.
-type Service interface {
-	// Current returns the visible session projection for the current token.
-	Current(ctx context.Context, capCtx capmodel.CapabilityContext) (*Projection, error)
-	// Search returns one bounded visible session page.
-	Search(ctx context.Context, capCtx capmodel.CapabilityContext, input SearchInput) (*capmodel.PageResult[*Projection], error)
-	// BatchGet returns visible sessions and opaque missing IDs.
-	BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []SessionID) (*capmodel.BatchResult[*Projection, SessionID], error)
-	// BatchGetUserOnlineStatus returns visible users' online status in one bounded call.
-	BatchGetUserOnlineStatus(ctx context.Context, capCtx capmodel.CapabilityContext, userIDs []string) (*capmodel.BatchResult[*UserOnlineStatusProjection, string], error)
-	// EnsureVisible rejects when any requested online session is absent or invisible.
-	EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []SessionID) error
-}
-
-// AdminService defines session management commands.
-type AdminService interface {
-	// Revoke invalidates one visible online session.
-	Revoke(ctx context.Context, capCtx capmodel.CapabilityContext, id SessionID) error
-}
-
-// ScopeService defines host-internal session visibility helpers.
-type ScopeService interface {
-	// EnsureVisible rejects when any session is outside caller scope.
-	EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []SessionID) error
 }

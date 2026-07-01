@@ -69,10 +69,12 @@ func TestOpenAPIMetadataUsesEnglishSourceText(t *testing.T) {
 // source metadata directly while non-English API docs keep complete structured
 // apidoc bundle coverage for hand-authored API metadata.
 func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
-	repoRoot := locateRepositoryRoot(t)
-	sourceEn := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/en-US/apidoc"))
-	packedEn := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n/en-US/apidoc"))
-	pluginEn := readOpenAPIPluginJSONBundles(t, repoRoot, "en-US")
+	var (
+		repoRoot = locateRepositoryRoot(t)
+		sourceEn = readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/en-US/apidoc"))
+		packedEn = readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n/en-US/apidoc"))
+		pluginEn = readOpenAPIPluginJSONBundles(t, repoRoot, "en-US")
+	)
 
 	assertOpenAPIBundlesMirror(t, "en-US", sourceEn, packedEn)
 	assertOpenAPIEnglishBundlePlaceholder(t, sourceEn)
@@ -113,10 +115,12 @@ func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
 	for _, locale := range discoverOpenAPINonEnglishLocales(t, repoRoot) {
 		locale := locale
 		t.Run(locale, func(t *testing.T) {
-			sourceBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n", locale, "apidoc"))
-			packedBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n", locale, "apidoc"))
-			pluginBundles := readOpenAPIPluginJSONBundles(t, repoRoot, locale)
-			mergedBundle := cloneOpenAPIMessageCatalog(sourceBundle)
+			var (
+				sourceBundle  = readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n", locale, "apidoc"))
+				packedBundle  = readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n", locale, "apidoc"))
+				pluginBundles = readOpenAPIPluginJSONBundles(t, repoRoot, locale)
+				mergedBundle  = cloneOpenAPIMessageCatalog(sourceBundle)
+			)
 			for _, bundle := range pluginBundles {
 				mergeOpenAPIMessageCatalog(mergedBundle, bundle)
 			}

@@ -7,12 +7,14 @@ package lifecycle
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/statusflag"
 )
 
 // BootstrapBuiltinOptions carries startup inputs for builtin plugin convergence.
@@ -93,7 +95,7 @@ func (s *serviceImpl) installBuiltinPluginIfNeeded(
 	if err != nil {
 		return bizerr.WrapCode(err, CodePluginRegistryReadFailed, bizerr.P("pluginId", manifest.ID))
 	}
-	if registry != nil && registry.Installed == plugintypes.InstalledYes {
+	if registry != nil && registry.Installed == statusflag.Installed.Int() {
 		return nil
 	}
 	if _, err = s.Install(ctx, manifest.ID, InstallOptions{
@@ -141,10 +143,10 @@ func (s *serviceImpl) enableBuiltinPluginIfNeeded(
 	if err != nil {
 		return bizerr.WrapCode(err, CodePluginRegistryReadFailed, bizerr.P("pluginId", manifest.ID))
 	}
-	if registry != nil && registry.Status == plugintypes.StatusEnabled {
+	if registry != nil && registry.Status == statusflag.EnabledValue.Int() {
 		return nil
 	}
-	if err = s.UpdateStatus(ctx, manifest.ID, plugintypes.StatusEnabled, UpdateStatusOptions{
+	if err = s.UpdateStatus(ctx, manifest.ID, statusflag.EnabledValue.Int(), UpdateStatusOptions{
 		FrameworkVersion: frameworkVersion,
 	}); err != nil {
 		return bizerr.WrapCode(err, CodePluginSourceEnableFailed)
@@ -181,10 +183,10 @@ func orderBuiltinManifests(manifests []*catalog.Manifest) ([]*catalog.Manifest, 
 		if manifest == nil || strings.TrimSpace(manifest.ID) == "" {
 			continue
 		}
-		if plugintypes.NormalizeDistribution(manifest.Distribution) != plugintypes.DistributionBuiltin {
+		if plugintypes.NormalizeDistribution(manifest.Distribution) != pluginv1.PluginDistributionBuiltin {
 			continue
 		}
-		if plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeSource {
+		if plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeSource {
 			continue
 		}
 		builtinByID[strings.TrimSpace(manifest.ID)] = manifest

@@ -302,9 +302,11 @@ func (s *storageAdapter) normalizeBatchObjectPaths(rawPaths []string) ([]string,
 	if err := s.validateServiceScope(); err != nil {
 		return nil, err
 	}
-	seen := make(map[string]struct{}, len(rawPaths))
-	paths := make([]string, 0, len(rawPaths))
-	totalBytes := 0
+	var (
+		seen       = make(map[string]struct{}, len(rawPaths))
+		paths      = make([]string, 0, len(rawPaths))
+		totalBytes = 0
+	)
 	for _, rawPath := range rawPaths {
 		normalized, err := normalizePluginStoragePath(rawPath, false)
 		if err != nil {

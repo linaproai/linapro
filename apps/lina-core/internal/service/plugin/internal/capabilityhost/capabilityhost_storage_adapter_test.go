@@ -13,13 +13,16 @@ import (
 	"sync"
 	"testing"
 
+	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/hostlock"
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/locker"
+	"lina-core/internal/service/plugin/internal/capabilityowner"
+	"lina-core/internal/service/plugin/internal/pluginconfig"
+	storagesvc "lina-core/internal/service/storage"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/capability/bizctxcap"
-	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/storagecap"
 )
 
@@ -28,7 +31,7 @@ import (
 // unrelated plugin object roots.
 func TestLocalStorageProviderListsFromPrefixWithLimit(t *testing.T) {
 	ctx := context.Background()
-	provider := NewLocalStorageProvider(t.TempDir())
+	provider := newLocalStorageProviderForTest(t)
 
 	writeProviderObject(t, ctx, provider, "plugins/reporting/platform/reports/a.json", "a")
 	writeProviderObject(t, ctx, provider, "plugins/reporting/platform/reports/b.json", "b")
@@ -57,15 +60,17 @@ func TestLocalStorageProviderListsFromPrefixWithLimit(t *testing.T) {
 // TestStorageAdapterSelectsActivePluginProvider verifies scoped Storage()
 // delegates to the unique enabled plugin provider.
 func TestStorageAdapterSelectsActivePluginProvider(t *testing.T) {
-	ctx := context.Background()
-	providerID := fmt.Sprintf("storage-provider-test-%d", storageProviderTestSequence())
-	provider := &storageProviderTestProvider{}
+	var (
+		ctx        = context.Background()
+		providerID = fmt.Sprintf("storage-provider-test-%d", storageProviderTestSequence())
+		provider   = &storageProviderTestProvider{}
+	)
 	registerStorageProviderForTest(t, providerID, provider)
 
 	services := newStorageAdapterTestDirectory(t, &storageProviderTestRuntime{
 		available: map[string]bool{providerID: true},
-	}, NewLocalStorageProvider(t.TempDir()))
-	storageSvc := capability.ServicesForPlugin(services, "reporting").Storage()
+	}, newLocalStorageProviderForTest(t))
+	storageSvc := capabilityowner.ServicesForPlugin(services, "reporting").Storage()
 
 	_, err := storageSvc.Put(ctx, storagecap.PutInput{
 		Path:        "reports/a.json",
@@ -100,7 +105,7 @@ func TestStorageAdapterFallsBackToLocalWhenProviderUnavailable(t *testing.T) {
 	services := newStorageAdapterTestDirectory(t, &storageProviderTestRuntime{
 		available: map[string]bool{providerID: false},
 	}, localProvider)
-	storageSvc := capability.ServicesForPlugin(services, "reporting").Storage()
+	storageSvc := capabilityowner.ServicesForPlugin(services, "reporting").Storage()
 
 	_, err := storageSvc.Put(ctx, storagecap.PutInput{
 		Path: "reports/a.json",
@@ -117,10 +122,12 @@ func TestStorageAdapterFallsBackToLocalWhenProviderUnavailable(t *testing.T) {
 // TestStorageAdapterUsesLocalProviderByDefault verifies empty active provider
 // configuration selects the built-in local provider.
 func TestStorageAdapterUsesLocalProviderByDefault(t *testing.T) {
-	ctx := context.Background()
-	localProvider := &storageProviderTestProvider{}
-	services := newStorageAdapterTestDirectory(t, &storageProviderTestRuntime{}, localProvider)
-	storageSvc := capability.ServicesForPlugin(services, "reporting").Storage()
+	var (
+		ctx           = context.Background()
+		localProvider = &storageProviderTestProvider{}
+		services      = newStorageAdapterTestDirectory(t, &storageProviderTestRuntime{}, localProvider)
+		storageSvc    = capabilityowner.ServicesForPlugin(services, "reporting").Storage()
+	)
 
 	output, err := storageSvc.Put(ctx, storagecap.PutInput{
 		Path: "reports/a.json",
@@ -140,9 +147,11 @@ func TestStorageAdapterUsesLocalProviderByDefault(t *testing.T) {
 // TestStorageAdapterRejectsMultipleEnabledProviders verifies provider selection
 // fails when more than one storage provider plugin is serviceable.
 func TestStorageAdapterRejectsMultipleEnabledProviders(t *testing.T) {
-	ctx := context.Background()
-	providerAID := fmt.Sprintf("storage-provider-conflict-a-%d", storageProviderTestSequence())
-	providerBID := fmt.Sprintf("storage-provider-conflict-b-%d", storageProviderTestSequence())
+	var (
+		ctx         = context.Background()
+		providerAID = fmt.Sprintf("storage-provider-conflict-a-%d", storageProviderTestSequence())
+		providerBID = fmt.Sprintf("storage-provider-conflict-b-%d", storageProviderTestSequence())
+	)
 	registerStorageProviderForTest(t, providerAID, &storageProviderTestProvider{})
 	registerStorageProviderForTest(t, providerBID, &storageProviderTestProvider{})
 
@@ -152,7 +161,7 @@ func TestStorageAdapterRejectsMultipleEnabledProviders(t *testing.T) {
 			providerBID: true,
 		},
 	}, &storageProviderTestProvider{})
-	storageSvc := capability.ServicesForPlugin(services, "reporting").Storage()
+	storageSvc := capabilityowner.ServicesForPlugin(services, "reporting").Storage()
 
 	_, err := storageSvc.Put(ctx, storagecap.PutInput{
 		Path: "reports/a.json",
@@ -177,10 +186,12 @@ func TestStorageAdapterRejectsMultipleEnabledProviders(t *testing.T) {
 // TestStorageAdapterStreamsPutWithoutFixedObjectLimit verifies Storage() no
 // longer rejects writes at the adapter layer based on a fixed object-size cap.
 func TestStorageAdapterStreamsPutWithoutFixedObjectLimit(t *testing.T) {
-	ctx := context.Background()
-	localProvider := &storageProviderTestProvider{}
-	storageSvc := newStorageAdapter(nil, localProvider, nil, "reporting")
-	declaredSize := int64(64 * 1024 * 1024)
+	var (
+		ctx           = context.Background()
+		localProvider = &storageProviderTestProvider{}
+		storageSvc    = newStorageAdapter(nil, localProvider, nil, "reporting")
+		declaredSize  = int64(64 * 1024 * 1024)
+	)
 
 	output, err := storageSvc.Put(ctx, storagecap.PutInput{
 		Path: "reports/large.bin",
@@ -201,10 +212,12 @@ func TestStorageAdapterStreamsPutWithoutFixedObjectLimit(t *testing.T) {
 // TestStorageAdapterContentTypeProbePreservesBody verifies MIME sniffing reads
 // only a prefix and passes the full object stream to the provider.
 func TestStorageAdapterContentTypeProbePreservesBody(t *testing.T) {
-	ctx := context.Background()
-	localProvider := &storageProviderTestProvider{}
-	storageSvc := newStorageAdapter(nil, localProvider, nil, "reporting")
-	body := strings.Repeat("a", objectContentTypeProbeBytes+32)
+	var (
+		ctx           = context.Background()
+		localProvider = &storageProviderTestProvider{}
+		storageSvc    = newStorageAdapter(nil, localProvider, nil, "reporting")
+		body          = strings.Repeat("a", objectContentTypeProbeBytes+32)
+	)
 
 	_, err := storageSvc.Put(ctx, storagecap.PutInput{
 		Path: "reports/plain",
@@ -224,9 +237,11 @@ func TestStorageAdapterContentTypeProbePreservesBody(t *testing.T) {
 // TestStorageAdapterBatchMethodsUseScopedProviderKeys verifies batch storage
 // operations keep provider keys inside the plugin and tenant scope.
 func TestStorageAdapterBatchMethodsUseScopedProviderKeys(t *testing.T) {
-	ctx := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 42})
-	localProvider := &storageProviderTestProvider{}
-	storageSvc := newStorageAdapter(nil, localProvider, nil, "reporting")
+	var (
+		ctx           = bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 42})
+		localProvider = &storageProviderTestProvider{}
+		storageSvc    = newStorageAdapter(nil, localProvider, nil, "reporting")
+	)
 
 	_, err := storageSvc.Put(ctx, storagecap.PutInput{Path: "reports/a.json", Body: strings.NewReader("a")})
 	if err != nil {
@@ -322,19 +337,22 @@ func newStorageAdapterTestDirectory(
 		nil,
 		nil,
 		nil,
+		testHostConfigService{},
+		nil,
+		cachecoord.New(cachecoord.NewStaticTopology(false)),
 		nil,
 		nil,
 		nil,
 		nil,
 		nil,
 		nil,
+		noopJobOwner{},
 		nil,
-		nil,
-		nil,
+		newCapabilityHostTestTenantService(),
 		nil,
 		kvcache.New(),
 		newStorageAdapterTestLockService(t),
-		plugincap.NewConfigFactory("", ""),
+		pluginconfig.NewFactory("", ""),
 		runtime,
 		localProvider,
 	)
@@ -578,4 +596,11 @@ func registerStorageProviderForTest(t *testing.T, providerID string, provider st
 	}); err != nil {
 		t.Fatalf("register storage provider %s: %v", providerID, err)
 	}
+}
+
+func newLocalStorageProviderForTest(t *testing.T) storagecap.Provider {
+	t.Helper()
+	return NewLocalStorageProvider(storagesvc.New(storagesvc.Config{NamespaceRoots: map[string]string{
+		storagesvc.NamespacePlugins: t.TempDir(),
+	}}))
 }

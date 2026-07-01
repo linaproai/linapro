@@ -20,8 +20,8 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
+	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
-	"lina-core/internal/service/plugin/internal/catalog"
 	rolesvc "lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	_ "lina-core/pkg/dbdriver"
@@ -30,8 +30,8 @@ import (
 	"lina-core/pkg/plugin/pluginhost"
 )
 
-// TestDynamicRouteEntrypointStaysSlim verifies scheme E keeps runtime_route.go as the
-// dispatcher entrypoint instead of regrowing matcher, auth, envelope, or response logic.
+// TestDynamicRouteEntrypointStaysSlim verifies runtime_route.go stays focused on
+// dispatcher entrypoints instead of regrowing matcher, auth, or envelope logic.
 func TestDynamicRouteEntrypointStaysSlim(t *testing.T) {
 	root := runtimePackageDir(t)
 	routeFile := readRuntimeSourceFile(t, root, "runtime_route.go")
@@ -42,7 +42,6 @@ func TestDynamicRouteEntrypointStaysSlim(t *testing.T) {
 		"func (s *serviceImpl) matchDynamicRoute(",
 		"func (s *serviceImpl) authorizeDynamicRouteRequest(",
 		"func (s *serviceImpl) buildDynamicRouteRequestEnvelopeWithIdentity(",
-		"func (s *serviceImpl) writeDynamicRouteResponse(",
 		"func matchDynamicRoutePath(",
 	}
 	for _, snippet := range forbiddenSnippets {
@@ -51,16 +50,19 @@ func TestDynamicRouteEntrypointStaysSlim(t *testing.T) {
 		}
 	}
 
-	expectedOwners := map[string]string{
-		"runtime_route_match.go":    "func (s *serviceImpl) matchDynamicRoute(",
-		"runtime_route_auth.go":     "func (s *serviceImpl) authorizeDynamicRouteRequest(",
-		"runtime_route_envelope.go": "func (s *serviceImpl) buildDynamicRouteRequestEnvelopeWithIdentity(",
-		"runtime_route_response.go": "func (s *serviceImpl) writeDynamicRouteResponse(",
+	expectedOwners := []struct {
+		file    string
+		snippet string
+	}{
+		{file: "runtime_route_match.go", snippet: "func (s *serviceImpl) matchDynamicRoute("},
+		{file: "runtime_route_auth.go", snippet: "func (s *serviceImpl) authorizeDynamicRouteRequest("},
+		{file: "runtime_route_envelope.go", snippet: "func (s *serviceImpl) buildDynamicRouteRequestEnvelopeWithIdentity("},
+		{file: "runtime_route_envelope.go", snippet: "func (s *serviceImpl) writeDynamicRouteResponse("},
 	}
-	for file, snippet := range expectedOwners {
-		content := readRuntimeSourceFile(t, root, file)
-		if !strings.Contains(content, snippet) {
-			t.Fatalf("%s must own split route responsibility %q", file, snippet)
+	for _, expected := range expectedOwners {
+		content := readRuntimeSourceFile(t, root, expected.file)
+		if !strings.Contains(content, expected.snippet) {
+			t.Fatalf("%s must own split route responsibility %q", expected.file, expected.snippet)
 		}
 	}
 }
@@ -139,7 +141,7 @@ func TestTouchDynamicRouteSessionKeepsExistingSessionWhenTimestampDoesNotChange(
 func TestDynamicRouteIdentitySnapshotFiltersRolesByTokenTenant(t *testing.T) {
 	var (
 		ctx          = context.Background()
-		service      = &serviceImpl{jwtConfig: routeTestJwtConfig{secret: "route-tenant-secret"}, sessionStore: session.NewDBStore()}
+		service      = &serviceImpl{configSvc: routeTestJwtConfig{Service: configsvc.New(), secret: "route-tenant-secret"}, sessionStore: session.NewDBStore()}
 		tenantAID    = 61001
 		actingUserID = 9001
 		tokenID      = fmt.Sprintf("plugin-dev-dynamic-route-tenant-token-%d", time.Now().UnixNano())
@@ -159,7 +161,7 @@ func TestDynamicRouteIdentitySnapshotFiltersRolesByTokenTenant(t *testing.T) {
 	}}
 	insertDynamicRouteAccessTestSession(t, ctx, tenantAID, tokenID, userID)
 
-	tokenString := signDynamicRouteImpersonationTestToken(t, service.jwtConfig, tokenID, tenantAID, userID, actingUserID)
+	tokenString := signDynamicRouteImpersonationTestToken(t, service.configSvc, tokenID, tenantAID, userID, actingUserID)
 	request := buildDynamicRouteAccessTestRequest(tokenString)
 	identity, failure, err := service.buildDynamicRouteIdentitySnapshot(
 		ctx,
@@ -214,7 +216,7 @@ func TestDynamicRouteIdentitySnapshotFiltersRolesByTokenTenant(t *testing.T) {
 // only accept access JWTs and cannot be called with refresh tokens.
 func TestParseDynamicRouteTokenRejectsRefreshToken(t *testing.T) {
 	ctx := context.Background()
-	service := &serviceImpl{jwtConfig: routeTestJwtConfig{secret: "route-token-secret"}, sessionStore: session.NewDBStore()}
+	service := &serviceImpl{configSvc: routeTestJwtConfig{Service: configsvc.New(), secret: "route-token-secret"}, sessionStore: session.NewDBStore()}
 
 	testCases := []struct {
 		name       string
@@ -271,6 +273,7 @@ func waitForFreshSecond(t *testing.T) *time.Time {
 // routeTestJwtConfig provides deterministic JWT signing configuration for
 // dynamic route identity tests.
 type routeTestJwtConfig struct {
+	configsvc.Service
 	secret string
 }
 
@@ -303,87 +306,6 @@ func insertDynamicRouteAccessTestUser(t *testing.T, ctx context.Context, tenantI
 	return int(id)
 }
 
-// insertDynamicRouteAccessTestRole inserts one temporary role for a specific
-// tenant boundary.
-func insertDynamicRouteAccessTestRole(
-	t *testing.T,
-	ctx context.Context,
-	tenantID int,
-	label string,
-	dataScope int,
-) int {
-	t.Helper()
-
-	suffix := time.Now().UnixNano()
-	id, err := dao.SysRole.Ctx(ctx).Data(do.SysRole{
-		Name:      fmt.Sprintf("dynamic-route-%s-%d", label, suffix),
-		Key:       fmt.Sprintf("dynamic-route-%s-%d", label, suffix),
-		Sort:      99,
-		DataScope: dataScope,
-		Status:    statusNormal,
-		TenantId:  tenantID,
-	}).InsertAndGetId()
-	if err != nil {
-		t.Fatalf("insert dynamic route access test role: %v", err)
-	}
-	return int(id)
-}
-
-// insertDynamicRouteAccessTestMenu inserts one temporary global button
-// permission menu. Tenant boundaries are represented by role-menu grants.
-func insertDynamicRouteAccessTestMenu(
-	t *testing.T,
-	ctx context.Context,
-	label string,
-	permission string,
-) int {
-	t.Helper()
-
-	menuKey := fmt.Sprintf("dynamic-route:%s:%d", label, time.Now().UnixNano())
-	id, err := dao.SysMenu.Ctx(ctx).Data(do.SysMenu{
-		ParentId: 0,
-		MenuKey:  menuKey,
-		Name:     menuKey,
-		Perms:    permission,
-		Type:     catalog.MenuTypeButton.String(),
-		Sort:     99,
-		Visible:  statusNormal,
-		Status:   statusNormal,
-	}).InsertAndGetId()
-	if err != nil {
-		t.Fatalf("insert dynamic route access test menu: %v", err)
-	}
-	return int(id)
-}
-
-// insertDynamicRouteAccessTestGrant binds one user, role, and permission menu
-// within the same tenant boundary.
-func insertDynamicRouteAccessTestGrant(
-	t *testing.T,
-	ctx context.Context,
-	tenantID int,
-	userID int,
-	roleID int,
-	menuID int,
-) {
-	t.Helper()
-
-	if _, err := dao.SysUserRole.Ctx(ctx).Data(do.SysUserRole{
-		UserId:   userID,
-		RoleId:   roleID,
-		TenantId: tenantID,
-	}).Insert(); err != nil {
-		t.Fatalf("insert dynamic route access test user-role: %v", err)
-	}
-	if _, err := dao.SysRoleMenu.Ctx(ctx).Data(do.SysRoleMenu{
-		RoleId:   roleID,
-		MenuId:   menuID,
-		TenantId: tenantID,
-	}).Insert(); err != nil {
-		t.Fatalf("insert dynamic route access test role-menu: %v", err)
-	}
-}
-
 // insertDynamicRouteAccessTestSession inserts one active session row for a
 // tenant-scoped dynamic route token.
 func insertDynamicRouteAccessTestSession(
@@ -413,38 +335,11 @@ func insertDynamicRouteAccessTestSession(
 	}
 }
 
-// signDynamicRouteAccessTestToken signs a dynamic route token carrying the
-// tenant under test.
-func signDynamicRouteAccessTestToken(
-	t *testing.T,
-	config JwtConfigProvider,
-	tokenID string,
-	tenantID int,
-	userID int,
-) string {
-	t.Helper()
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, dynamicRouteClaims{
-		TokenId:    tokenID,
-		TokenType:  tokencap.KindAccess,
-		ClientType: "web",
-		TenantId:   tenantID,
-		UserId:     userID,
-		Username:   "dynamic-route-access",
-		Status:     statusNormal,
-	})
-	tokenString, err := token.SignedString([]byte(config.GetJwtSecret(context.Background())))
-	if err != nil {
-		t.Fatalf("sign dynamic route access test token: %v", err)
-	}
-	return tokenString
-}
-
 // signDynamicRouteImpersonationTestToken signs a dynamic route token carrying
 // tenant impersonation metadata.
 func signDynamicRouteImpersonationTestToken(
 	t *testing.T,
-	config JwtConfigProvider,
+	config configsvc.Service,
 	tokenID string,
 	tenantID int,
 	userID int,

@@ -48,7 +48,7 @@ func SplitStatements(content string) []string {
 			continue
 		case inSingleQuote:
 			builder.WriteByte(current)
-			if ConsumeQuotedEscape(content, &i, current, '\'') {
+			if consumeQuotedEscape(content, &i, current, '\'') {
 				builder.WriteByte(content[i])
 				continue
 			}
@@ -58,7 +58,7 @@ func SplitStatements(content string) []string {
 			continue
 		case inDoubleQuote:
 			builder.WriteByte(current)
-			if ConsumeQuotedEscape(content, &i, current, '"') {
+			if consumeQuotedEscape(content, &i, current, '"') {
 				builder.WriteByte(content[i])
 				continue
 			}
@@ -115,9 +115,9 @@ func SplitStatements(content string) []string {
 	return statements
 }
 
-// SplitTopLevelComma splits a SQL fragment on commas not nested in parentheses
+// splitTopLevelComma splits a SQL fragment on commas not nested in parentheses
 // and not inside string or identifier quotes.
-func SplitTopLevelComma(content string) []string {
+func splitTopLevelComma(content string) []string {
 	var (
 		parts          []string
 		builder        strings.Builder
@@ -131,7 +131,7 @@ func SplitTopLevelComma(content string) []string {
 		switch {
 		case inSingleQuote:
 			builder.WriteByte(current)
-			if ConsumeQuotedEscape(content, &i, current, '\'') {
+			if consumeQuotedEscape(content, &i, current, '\'') {
 				builder.WriteByte(content[i])
 				continue
 			}
@@ -141,7 +141,7 @@ func SplitTopLevelComma(content string) []string {
 			continue
 		case inDoubleQuote:
 			builder.WriteByte(current)
-			if ConsumeQuotedEscape(content, &i, current, '"') {
+			if consumeQuotedEscape(content, &i, current, '"') {
 				builder.WriteByte(content[i])
 				continue
 			}
@@ -178,8 +178,8 @@ func SplitTopLevelComma(content string) []string {
 	return parts
 }
 
-// FindMatchingParen finds the closing paren for one opening paren index.
-func FindMatchingParen(content string, openIndex int) int {
+// findMatchingParen finds the closing paren for one opening paren index.
+func findMatchingParen(content string, openIndex int) int {
 	if openIndex < 0 || openIndex >= len(content) || content[openIndex] != '(' {
 		return -1
 	}
@@ -193,7 +193,7 @@ func FindMatchingParen(content string, openIndex int) int {
 		current := content[i]
 		switch {
 		case inSingleQuote:
-			if ConsumeQuotedEscape(content, &i, current, '\'') {
+			if consumeQuotedEscape(content, &i, current, '\'') {
 				continue
 			}
 			if current == '\'' {
@@ -201,7 +201,7 @@ func FindMatchingParen(content string, openIndex int) int {
 			}
 			continue
 		case inDoubleQuote:
-			if ConsumeQuotedEscape(content, &i, current, '"') {
+			if consumeQuotedEscape(content, &i, current, '"') {
 				continue
 			}
 			if current == '"' {
@@ -231,9 +231,9 @@ func FindMatchingParen(content string, openIndex int) int {
 	return -1
 }
 
-// ConsumeQuotedEscape advances the parser across one escaped quote or escaped
+// consumeQuotedEscape advances the parser across one escaped quote or escaped
 // character inside a quoted SQL literal.
-func ConsumeQuotedEscape(content string, index *int, current byte, quote byte) bool {
+func consumeQuotedEscape(content string, index *int, current byte, quote byte) bool {
 	if current == '\\' && *index+1 < len(content) {
 		*index = *index + 1
 		return true
@@ -245,11 +245,11 @@ func ConsumeQuotedEscape(content string, index *int, current byte, quote byte) b
 	return false
 }
 
-// ConsumeSQLString returns the index after one single-quoted SQL string.
-func ConsumeSQLString(content string, start int) int {
+// consumeSQLString returns the index after one single-quoted SQL string.
+func consumeSQLString(content string, start int) int {
 	for i := start + 1; i < len(content); i++ {
 		current := content[i]
-		if ConsumeQuotedEscape(content, &i, current, '\'') {
+		if consumeQuotedEscape(content, &i, current, '\'') {
 			continue
 		}
 		if current == '\'' {
@@ -259,8 +259,8 @@ func ConsumeSQLString(content string, start int) int {
 	return -1
 }
 
-// IsSQLWhitespace reports whether one byte should be treated as SQL whitespace.
-func IsSQLWhitespace(value byte) bool {
+// isSQLWhitespace reports whether one byte should be treated as SQL whitespace.
+func isSQLWhitespace(value byte) bool {
 	switch value {
 	case ' ', '\t', '\n', '\r', '\f':
 		return true
@@ -269,14 +269,14 @@ func IsSQLWhitespace(value byte) bool {
 	}
 }
 
-// IsKeywordAt reports whether keyword starts at index on identifier boundaries.
-func IsKeywordAt(content string, index int, keyword string) bool {
-	return KeywordLengthAt(content, index, keyword) > 0
+// isKeywordAt reports whether keyword starts at index on identifier boundaries.
+func isKeywordAt(content string, index int, keyword string) bool {
+	return keywordLengthAt(content, index, keyword) > 0
 }
 
-// KeywordLengthAt returns the matched keyword length when keyword starts at
+// keywordLengthAt returns the matched keyword length when keyword starts at
 // index on identifier boundaries, otherwise 0.
-func KeywordLengthAt(content string, index int, keyword string) int {
+func keywordLengthAt(content string, index int, keyword string) int {
 	if index < 0 || index+len(keyword) > len(content) {
 		return 0
 	}
@@ -293,8 +293,8 @@ func KeywordLengthAt(content string, index int, keyword string) int {
 	return len(keyword)
 }
 
-// LineNumberForStatement estimates a statement's 1-based line number.
-func LineNumberForStatement(content string, statement string) int {
+// lineNumberForStatement estimates a statement's 1-based line number.
+func lineNumberForStatement(content string, statement string) int {
 	index := strings.Index(content, statement)
 	if index < 0 {
 		return 1
@@ -311,7 +311,7 @@ func isLineCommentStart(content string, index int) bool {
 	if index+2 >= len(content) {
 		return true
 	}
-	return IsSQLWhitespace(content[index+2])
+	return isSQLWhitespace(content[index+2])
 }
 
 // readDollarQuoteTag returns a PostgreSQL dollar-quote tag starting at index.

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,18 +19,16 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
-	configsvc "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/migration"
 	"lina-core/internal/service/plugin/internal/plugintypes"
-	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // TestWrapMockDataLoadErrorPassesThroughNonMockErrors verifies that arbitrary
@@ -85,8 +84,10 @@ func TestUpdateStatusEnablesBackendOnlyDynamicPluginWithoutFrontendAssets(t *tes
 		pluginID = "plugin-dev-dynamic-backend-only"
 	)
 
-	frontend.ResetBundleCache()
-	t.Cleanup(frontend.ResetBundleCache)
+	service.frontendSvc.InvalidateAllBundles(ctx, "test_reset")
+	t.Cleanup(func() {
+		service.frontendSvc.InvalidateAllBundles(context.Background(), "test_cleanup")
+	})
 
 	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithFrontendAssets(
 		t,
@@ -113,11 +114,11 @@ func TestUpdateStatusEnablesBackendOnlyDynamicPluginWithoutFrontendAssets(t *tes
 	if _, err = service.syncPluginManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected backend-only artifact sync to succeed, got error: %v", err)
 	}
-	if err = service.setPluginInstalled(ctx, pluginID, plugintypes.InstalledYes); err != nil {
+	if err = service.setPluginInstalled(ctx, pluginID, statusflag.Installed.Int()); err != nil {
 		t.Fatalf("expected backend-only plugin install state to be set, got error: %v", err)
 	}
 
-	if err = service.UpdateStatus(ctx, pluginID, plugintypes.StatusEnabled, nil); err != nil {
+	if err = service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
 		t.Fatalf("expected backend-only dynamic plugin enable to succeed, got error: %v", err)
 	}
 	if !service.IsEnabled(ctx, pluginID) {
@@ -171,13 +172,13 @@ func TestUpdateStatusPreservesDynamicPluginStorage(t *testing.T) {
 		t.Fatalf("expected install SQL to create one marker row, got %d", count)
 	}
 
-	if err := service.UpdateStatus(ctx, pluginID, plugintypes.StatusEnabled, nil); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
 		t.Fatalf("expected dynamic plugin enable to succeed, got error: %v", err)
 	}
-	if err := service.UpdateStatus(ctx, pluginID, plugintypes.StatusDisabled, nil); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.Disabled.Int()}); err != nil {
 		t.Fatalf("expected dynamic plugin disable to succeed, got error: %v", err)
 	}
-	if err := service.UpdateStatus(ctx, pluginID, plugintypes.StatusEnabled, nil); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
 		t.Fatalf("expected dynamic plugin re-enable to succeed, got error: %v", err)
 	}
 	if count := dynamicStatusToggleTableRowCount(t, ctx, tableName); count != 1 {
@@ -232,7 +233,7 @@ func TestInstallPersistsExplicitDynamicInstallMode(t *testing.T) {
 	})
 
 	if _, err := service.Install(ctx, pluginID, InstallOptions{
-		InstallMode: plugintypes.InstallModeGlobal.String(),
+		InstallMode: pluginv1.InstallModeGlobal.String(),
 	}); err != nil {
 		t.Fatalf("install dynamic plugin with explicit global mode: %v", err)
 	}
@@ -243,7 +244,7 @@ func TestInstallPersistsExplicitDynamicInstallMode(t *testing.T) {
 	if registry == nil {
 		t.Fatal("expected plugin registry after install")
 	}
-	if registry.InstallMode != plugintypes.InstallModeGlobal.String() {
+	if registry.InstallMode != pluginv1.InstallModeGlobal.String() {
 		t.Fatalf("expected explicit global install_mode to persist, got %s", registry.InstallMode)
 	}
 }
@@ -284,7 +285,7 @@ func TestDynamicLifecycleBeforeInstallFailsClosedBeforeInstall(t *testing.T) {
 	if registry == nil {
 		return
 	}
-	if registry.Installed != plugintypes.InstalledNo || registry.Status != plugintypes.StatusDisabled {
+	if registry.Installed != statusflag.Uninstalled.Int() || registry.Status != statusflag.Disabled.Int() {
 		t.Fatalf("expected vetoed dynamic install to keep plugin uninstalled, got installed=%d status=%d", registry.Installed, registry.Status)
 	}
 }
@@ -364,7 +365,7 @@ func TestUninstallDynamicUsesArchivedReleaseWhenStagingArtifactMissing(t *testin
 	if registry == nil {
 		t.Fatalf("expected plugin registry row after uninstall")
 	}
-	if registry.Installed != plugintypes.InstalledNo || registry.Status != plugintypes.StatusDisabled || registry.ReleaseId != 0 {
+	if registry.Installed != statusflag.Uninstalled.Int() || registry.Status != statusflag.Disabled.Int() || registry.ReleaseId != 0 {
 		t.Fatalf("expected dynamic plugin to be uninstalled+disabled with release cleared, got installed=%d enabled=%d releaseID=%d", registry.Installed, registry.Status, registry.ReleaseId)
 	}
 	menu, err := testutil.QueryMenuByKey(ctx, menuKey)
@@ -403,11 +404,11 @@ func TestDynamicLifecycleBeforeDisableFailsClosedBeforeStatusChange(t *testing.T
 	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
 	}
-	if err := service.Enable(ctx, pluginID); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
 		t.Fatalf("expected dynamic plugin enable to succeed, got error: %v", err)
 	}
 
-	err := service.Disable(ctx, pluginID)
+	err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.Disabled.Int()})
 	if !bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) {
 		t.Fatalf("expected dynamic BeforeDisable precondition bizerr, got %v", err)
 	}
@@ -415,7 +416,7 @@ func TestDynamicLifecycleBeforeDisableFailsClosedBeforeStatusChange(t *testing.T
 	if err != nil {
 		t.Fatalf("expected registry lookup after vetoed disable to succeed, got error: %v", err)
 	}
-	if registry == nil || registry.Status != plugintypes.StatusEnabled {
+	if registry == nil || registry.Status != statusflag.EnabledValue.Int() {
 		t.Fatalf("expected vetoed dynamic disable to keep plugin enabled, got %#v", registry)
 	}
 }
@@ -465,7 +466,7 @@ func TestDynamicLifecycleBeforeUninstallUsesActiveReleaseWhenStagingMissing(t *t
 	if err != nil {
 		t.Fatalf("expected registry lookup after vetoed uninstall to succeed, got error: %v", err)
 	}
-	if registry == nil || registry.Installed != plugintypes.InstalledYes {
+	if registry == nil || registry.Installed != statusflag.Installed.Int() {
 		t.Fatalf("expected vetoed dynamic uninstall to keep plugin installed, got %#v", registry)
 	}
 }
@@ -509,7 +510,7 @@ func TestDynamicLifecycleUninstallRunsOnlyWhenPurgeRequested(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected blocking plugin registry lookup to succeed, got error: %v", err)
 	}
-	if blockingRegistry == nil || blockingRegistry.Installed != plugintypes.InstalledYes {
+	if blockingRegistry == nil || blockingRegistry.Installed != statusflag.Installed.Int() {
 		t.Fatalf("expected failed cleanup lifecycle to keep plugin installed, got %#v", blockingRegistry)
 	}
 	if cleanupErr := os.Remove(blockingArtifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
@@ -533,7 +534,7 @@ func TestDynamicLifecycleUninstallRunsOnlyWhenPurgeRequested(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected skip plugin registry lookup to succeed, got error: %v", err)
 	}
-	if skipRegistry == nil || skipRegistry.Installed != plugintypes.InstalledNo {
+	if skipRegistry == nil || skipRegistry.Installed != statusflag.Uninstalled.Int() {
 		t.Fatalf("expected keep-data uninstall to complete, got %#v", skipRegistry)
 	}
 	if cleanupErr := os.Remove(skipArtifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
@@ -560,7 +561,7 @@ func TestUninstallForceClearsDynamicOrphanWhenArtifactsMissing(t *testing.T) {
 		t.Fatalf("failed to clear release archive root: %v", err)
 	}
 	t.Cleanup(func() {
-		configsvc.SetPluginAllowForceUninstallOverride(nil)
+		setTestPluginAllowForceUninstallOverride(nil)
 		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 		if err := os.RemoveAll(releaseRoot); err != nil {
@@ -622,7 +623,7 @@ func TestUninstallForceClearsDynamicOrphanWhenArtifactsMissing(t *testing.T) {
 	}
 
 	enabled := true
-	configsvc.SetPluginAllowForceUninstallOverride(&enabled)
+	setTestPluginAllowForceUninstallOverride(&enabled)
 	if err = service.Uninstall(ctx, pluginID, UninstallOptions{
 		PurgeStorageData: true,
 		Force:            true,
@@ -637,7 +638,7 @@ func TestUninstallForceClearsDynamicOrphanWhenArtifactsMissing(t *testing.T) {
 	if registry == nil {
 		t.Fatalf("expected plugin registry row after force uninstall")
 	}
-	if registry.Installed != plugintypes.InstalledNo || registry.Status != plugintypes.StatusDisabled || registry.ReleaseId != 0 {
+	if registry.Installed != statusflag.Uninstalled.Int() || registry.Status != statusflag.Disabled.Int() || registry.ReleaseId != 0 {
 		t.Fatalf("expected force orphan uninstall to clear runtime state, got installed=%d enabled=%d releaseID=%d", registry.Installed, registry.Status, registry.ReleaseId)
 	}
 	if registry.DesiredState != plugintypes.HostStateUninstalled.String() || registry.CurrentState != plugintypes.HostStateUninstalled.String() {
@@ -784,7 +785,7 @@ func TestDynamicLifecycleBeforeTenantDisableFailsClosed(t *testing.T) {
 	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
 	}
-	if err := service.Enable(ctx, pluginID); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
 		t.Fatalf("expected dynamic plugin enable to succeed, got error: %v", err)
 	}
 	err := service.EnsureTenantPluginDisableAllowed(ctx, pluginID, 8102)
@@ -820,7 +821,7 @@ func TestDynamicLifecycleBeforeTenantDeleteFailsClosed(t *testing.T) {
 	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
 	}
-	if err := service.Enable(ctx, pluginID); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
 		t.Fatalf("expected dynamic plugin enable to succeed, got error: %v", err)
 	}
 	err := service.EnsureTenantDeleteAllowed(ctx, 8103)
@@ -838,10 +839,10 @@ func TestUninstallForceRequiresConfig(t *testing.T) {
 		pluginID = "plugin-dev-force-precondition"
 	)
 	registerUninstallLifecycleVetoForTest(t, pluginID)
-	t.Cleanup(func() { configsvc.SetPluginAllowForceUninstallOverride(nil) })
+	t.Cleanup(func() { setTestPluginAllowForceUninstallOverride(nil) })
 
 	disabled := false
-	configsvc.SetPluginAllowForceUninstallOverride(&disabled)
+	setTestPluginAllowForceUninstallOverride(&disabled)
 	err := service.ensureLifecyclePreconditionAllowed(ctx, pluginID, pluginhost.LifecycleHookBeforeUninstall, true)
 	if !bizerr.Is(err, CodePluginForceUninstallDisabled) {
 		t.Fatalf("expected force-disabled bizerr, got %v", err)
@@ -857,10 +858,10 @@ func TestUninstallForceBypassesLifecyclePreconditionWhenConfigured(t *testing.T)
 		pluginID = "plugin-dev-force-missing-after-precondition"
 	)
 	registerUninstallLifecycleVetoForTest(t, pluginID)
-	t.Cleanup(func() { configsvc.SetPluginAllowForceUninstallOverride(nil) })
+	t.Cleanup(func() { setTestPluginAllowForceUninstallOverride(nil) })
 
 	enabled := true
-	configsvc.SetPluginAllowForceUninstallOverride(&enabled)
+	setTestPluginAllowForceUninstallOverride(&enabled)
 	err := service.ensureLifecyclePreconditionAllowed(ctx, pluginID, pluginhost.LifecycleHookBeforeUninstall, true)
 	if bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) || bizerr.Is(err, CodePluginForceUninstallDisabled) {
 		t.Fatalf("expected force to bypass lifecycle errors, got %v", err)
@@ -910,7 +911,7 @@ func TestSourceLifecycleBeforeInstallBlocksInstall(t *testing.T) {
 	if registry == nil {
 		t.Fatalf("expected source plugin registry row after discovery")
 	}
-	if registry.Installed != plugintypes.InstalledNo {
+	if registry.Installed != statusflag.Uninstalled.Int() {
 		t.Fatalf("expected vetoed install to keep plugin uninstalled, got installed=%d", registry.Installed)
 	}
 }
@@ -929,7 +930,7 @@ func TestSourceLifecycleBeforeInstallRejectsManualWhenStartupAutoEnableRequired(
 	testutil.CreateTestPluginDir(t, pluginID)
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
-		configsvc.SetPluginAutoEnableOverride(nil)
+		setTestPluginAutoEnableOverride(nil)
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	})
 
@@ -951,7 +952,7 @@ func TestSourceLifecycleBeforeInstallRejectsManualWhenStartupAutoEnableRequired(
 		t.Fatalf("expected one manual before-install operation, got %#v", operations)
 	}
 
-	configsvc.SetPluginAutoEnableOverride([]string{pluginID})
+	setTestPluginAutoEnableOverride([]string{pluginID})
 	if err = service.BootstrapAutoEnable(ctx); err != nil {
 		t.Fatalf("expected startup auto-enable install to succeed, got error: %v", err)
 	}
@@ -967,7 +968,7 @@ func TestSourceLifecycleBeforeInstallRejectsManualWhenStartupAutoEnableRequired(
 	if lookupErr != nil {
 		t.Fatalf("expected source plugin registry lookup to succeed, got error: %v", lookupErr)
 	}
-	if registry == nil || registry.Installed != plugintypes.InstalledYes || registry.Status != plugintypes.StatusEnabled {
+	if registry == nil || registry.Installed != statusflag.Installed.Int() || registry.Status != statusflag.EnabledValue.Int() {
 		t.Fatalf("expected startup auto-enable to install and enable plugin, got %#v", registry)
 	}
 }
@@ -1048,10 +1049,10 @@ func TestSourceLifecycleBeforeInstallReceivesStartupAutoEnableFlag(t *testing.T)
 	)
 
 	testutil.CreateTestPluginDir(t, pluginID)
-	configsvc.SetPluginAutoEnableOverride([]string{pluginID})
+	setTestPluginAutoEnableOverride([]string{pluginID})
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
-		configsvc.SetPluginAutoEnableOverride(nil)
+		setTestPluginAutoEnableOverride(nil)
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	})
 
@@ -1092,7 +1093,7 @@ func TestSourceLifecycleBeforeDisableBlocksDisable(t *testing.T) {
 	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
-	if err := service.Enable(ctx, pluginID); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
 		t.Fatalf("expected source plugin enable to succeed, got error: %v", err)
 	}
 	registerSourceLifecycleCallbacksForTest(
@@ -1102,7 +1103,7 @@ func TestSourceLifecycleBeforeDisableBlocksDisable(t *testing.T) {
 		sourceLifecycleCallbackOptions{vetoOperation: pluginhost.LifecycleHookBeforeDisable.String()},
 	)
 
-	err := service.Disable(ctx, pluginID)
+	err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.Disabled.Int()})
 	if !bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) {
 		t.Fatalf("expected BeforeDisable veto bizerr, got %v", err)
 	}
@@ -1114,7 +1115,7 @@ func TestSourceLifecycleBeforeDisableBlocksDisable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected source plugin registry lookup to succeed, got error: %v", err)
 	}
-	if registry == nil || registry.Status != plugintypes.StatusEnabled {
+	if registry == nil || registry.Status != statusflag.EnabledValue.Int() {
 		t.Fatalf("expected vetoed disable to keep plugin enabled, got %#v", registry)
 	}
 }
@@ -1160,7 +1161,7 @@ func TestSourceLifecycleBeforeUninstallBlocksUninstall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected source plugin registry lookup to succeed, got error: %v", err)
 	}
-	if registry == nil || registry.Installed != plugintypes.InstalledYes {
+	if registry == nil || registry.Installed != statusflag.Installed.Int() {
 		t.Fatalf("expected vetoed uninstall to keep plugin installed, got %#v", registry)
 	}
 }
@@ -1179,7 +1180,7 @@ func TestSourceLifecycleBeforeUninstallForceBypassesWhenConfigured(t *testing.T)
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-		configsvc.SetPluginAllowForceUninstallOverride(nil)
+		setTestPluginAllowForceUninstallOverride(nil)
 	})
 
 	if _, err := service.SyncAndList(ctx); err != nil {
@@ -1195,7 +1196,7 @@ func TestSourceLifecycleBeforeUninstallForceBypassesWhenConfigured(t *testing.T)
 		sourceLifecycleCallbackOptions{vetoOperation: pluginhost.LifecycleHookBeforeUninstall.String()},
 	)
 	enabled := true
-	configsvc.SetPluginAllowForceUninstallOverride(&enabled)
+	setTestPluginAllowForceUninstallOverride(&enabled)
 
 	if err := service.Uninstall(ctx, pluginID, UninstallOptions{PurgeStorageData: true, Force: true}); err != nil {
 		t.Fatalf("expected force uninstall to bypass BeforeUninstall veto, got error: %v", err)
@@ -1491,7 +1492,7 @@ func createDynamicLifecyclePreconditionArtifact(
 			ID:      pluginID,
 			Name:    pluginName,
 			Version: version,
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -1541,7 +1542,7 @@ func TestSyncAndListReportsPendingHostServiceAuthorization(t *testing.T) {
 			ID:      pluginID,
 			Name:    "Pending Authorization Plugin",
 			Version: "v0.5.0",
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -1596,7 +1597,7 @@ func TestSyncAndListReportsPendingHostServiceAuthorization(t *testing.T) {
 	if !item.AuthorizationRequired {
 		t.Fatalf("expected pending authorization plugin to require review")
 	}
-	if item.AuthorizationStatus != runtime.AuthorizationStatusPending {
+	if item.AuthorizationStatus != pluginv1.AuthorizationStatusPending {
 		t.Fatalf("expected authorization status pending, got %s", item.AuthorizationStatus)
 	}
 	if len(item.RequestedHostServices) != 2 {
@@ -1627,7 +1628,7 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 			ID:      pluginID,
 			Name:    "Confirmed Authorization Plugin",
 			Version: "v0.5.1",
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -1681,7 +1682,7 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 	if _, err := service.Install(ctx, pluginID, InstallOptions{Authorization: authorization}); err != nil {
 		t.Fatalf("expected install with authorization to succeed, got error: %v", err)
 	}
-	if err := service.UpdateStatus(ctx, pluginID, plugintypes.StatusEnabled, authorization); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int(), Authorization: authorization}); err != nil {
 		t.Fatalf("expected enable with authorization to succeed, got error: %v", err)
 	}
 
@@ -1876,7 +1877,7 @@ func writeDynamicAuthorizationRefreshArtifact(
 			ID:      pluginID,
 			Name:    "Same Version Authorization Refresh Plugin",
 			Version: version,
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:  protocol.RuntimeKindWasm,
@@ -1956,7 +1957,7 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 	if registry == nil {
 		t.Fatalf("expected source plugin registry row to exist after discovery")
 	}
-	if registry.Installed != plugintypes.InstalledNo || registry.Status != plugintypes.StatusDisabled {
+	if registry.Installed != statusflag.Uninstalled.Int() || registry.Status != statusflag.Disabled.Int() {
 		t.Fatalf("expected source plugin to stay uninstalled+disabled after discovery, got installed=%d enabled=%d", registry.Installed, registry.Status)
 	}
 
@@ -1990,7 +1991,7 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 	if registry == nil {
 		t.Fatalf("expected source plugin registry row after install")
 	}
-	if registry.Installed != plugintypes.InstalledYes || registry.Status != plugintypes.StatusDisabled {
+	if registry.Installed != statusflag.Installed.Int() || registry.Status != statusflag.Disabled.Int() {
 		t.Fatalf("expected source plugin install to yield installed+disabled, got installed=%d enabled=%d", registry.Installed, registry.Status)
 	}
 	if registry.InstalledAt == nil {
@@ -2050,7 +2051,7 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 	if registry == nil {
 		t.Fatalf("expected source plugin registry row after uninstall")
 	}
-	if registry.Installed != plugintypes.InstalledNo || registry.Status != plugintypes.StatusDisabled {
+	if registry.Installed != statusflag.Uninstalled.Int() || registry.Status != statusflag.Disabled.Int() {
 		t.Fatalf("expected source plugin uninstall to yield uninstalled+disabled, got installed=%d enabled=%d", registry.Installed, registry.Status)
 	}
 
@@ -2128,9 +2129,9 @@ func TestBuiltinPluginManagementActionsAreDenied(t *testing.T) {
 
 	_, err := service.Install(ctx, pluginID, InstallOptions{})
 	assertDenied("install", err)
-	assertDenied("enable", service.Enable(ctx, pluginID))
-	assertDenied("disable", service.Disable(ctx, pluginID))
-	assertDenied("update status", service.UpdateStatus(ctx, pluginID, plugintypes.StatusEnabled, nil))
+	assertDenied("enable", service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}))
+	assertDenied("disable", service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.Disabled.Int()}))
+	assertDenied("update status", service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}))
 	assertDenied("uninstall", service.Uninstall(ctx, pluginID, UninstallOptions{PurgeStorageData: true}))
 	assertDenied("tenant provisioning", service.UpdateTenantProvisioningPolicy(ctx, pluginID, true))
 	_, err = service.UpgradeSourcePlugin(ctx, pluginID)
@@ -2145,7 +2146,7 @@ func TestBuiltinPluginManagementActionsAreDenied(t *testing.T) {
 	if registry == nil {
 		t.Fatalf("expected synced builtin registry row")
 	}
-	if registry.Installed != plugintypes.InstalledNo || registry.Status != plugintypes.StatusDisabled {
+	if registry.Installed != statusflag.Uninstalled.Int() || registry.Status != statusflag.Disabled.Int() {
 		t.Fatalf("expected denied actions to leave builtin uninstalled+disabled, got installed=%d status=%d", registry.Installed, registry.Status)
 	}
 	if registry.AutoEnableForNewTenants {

@@ -4,14 +4,15 @@ package plugin
 
 import (
 	"context"
+	"errors"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/lifecycle"
+	"lina-core/internal/service/plugin/internal/migration"
 	"lina-core/internal/service/plugin/internal/plugintypes"
-	"lina-core/internal/service/plugin/internal/runtime"
-	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/pluginhost"
@@ -58,6 +59,31 @@ func (s *serviceImpl) install(
 	})
 }
 
+// wrapMockDataLoadError converts a migration.MockDataLoadError into the stable
+// user-facing bizerr that carries all parameters into i18n templates. Returns
+// the original err unchanged when the chain does not contain a mock-data load
+// error so callers can pass through arbitrary install errors safely.
+func wrapMockDataLoadError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var mockErr *migration.MockDataLoadError
+	if !errors.As(err, &mockErr) {
+		return err
+	}
+	causeText := ""
+	if mockErr.Cause != nil {
+		causeText = mockErr.Cause.Error()
+	}
+	return bizerr.NewCode(
+		CodePluginInstallMockDataFailed,
+		bizerr.P("pluginId", mockErr.PluginID),
+		bizerr.P("failedFile", mockErr.FailedFile),
+		bizerr.P("rolledBackFiles", mockErr.RolledBackFiles),
+		bizerr.P("cause", causeText),
+	)
+}
+
 // Uninstall executes the uninstall lifecycle for an installed plugin using one explicit policy snapshot.
 func (s *serviceImpl) Uninstall(
 	ctx context.Context,
@@ -78,13 +104,12 @@ func (s *serviceImpl) Uninstall(
 }
 
 // UpdateStatus updates plugin status, where status is 1=enabled and 0=disabled,
-// and optionally persists one host-confirmed host service authorization snapshot
-// before enabling a dynamic plugin.
+// and optionally persists one host-confirmed host service authorization
+// snapshot before enabling a dynamic plugin.
 func (s *serviceImpl) UpdateStatus(
 	ctx context.Context,
 	pluginID string,
-	status int,
-	authorization *HostServiceAuthorizationInput,
+	options UpdateStatusOptions,
 ) error {
 	if err := s.ensurePlatformGovernance(ctx); err != nil {
 		return err
@@ -92,7 +117,7 @@ func (s *serviceImpl) UpdateStatus(
 	if err := s.ensureBuiltinManagementActionAllowed(ctx, pluginID); err != nil {
 		return err
 	}
-	return s.updateStatus(ctx, pluginID, status, authorization)
+	return s.updateStatus(ctx, pluginID, options.Status, options.Authorization)
 }
 
 // updateStatus centralizes enable/disable validation so source and dynamic
@@ -109,28 +134,6 @@ func (s *serviceImpl) updateStatus(
 	})
 }
 
-// Enable enables the specified plugin.
-func (s *serviceImpl) Enable(ctx context.Context, pluginID string) error {
-	if err := s.ensurePlatformGovernance(ctx); err != nil {
-		return err
-	}
-	if err := s.ensureBuiltinManagementActionAllowed(ctx, pluginID); err != nil {
-		return err
-	}
-	return s.updateStatus(ctx, pluginID, plugintypes.StatusEnabled, nil)
-}
-
-// Disable disables the specified plugin.
-func (s *serviceImpl) Disable(ctx context.Context, pluginID string) error {
-	if err := s.ensurePlatformGovernance(ctx); err != nil {
-		return err
-	}
-	if err := s.ensureBuiltinManagementActionAllowed(ctx, pluginID); err != nil {
-		return err
-	}
-	return s.updateStatus(ctx, pluginID, plugintypes.StatusDisabled, nil)
-}
-
 // persistDynamicPluginAuthorization refreshes the release snapshot for dynamic
 // plugins so install/enable flows can reuse one governance preparation path.
 func (s *serviceImpl) persistDynamicPluginAuthorization(
@@ -138,7 +141,7 @@ func (s *serviceImpl) persistDynamicPluginAuthorization(
 	manifest *catalog.Manifest,
 	authorization *HostServiceAuthorizationInput,
 ) error {
-	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
+	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic {
 		return nil
 	}
 	if _, err := s.storeSvc.SyncManifest(ctx, manifest); err != nil {
@@ -202,157 +205,6 @@ func (s *serviceImpl) NotifyTenantDeleted(ctx context.Context, tenantID int) {
 	s.lifecycleSvc.NotifyTenantDeleted(ctx, tenantID)
 }
 
-// ensureDynamicPluginActiveLifecyclePreconditionAllowed runs a dynamic plugin
-// lifecycle precondition from the archived active release when that release is
-// still readable.
-func (s *serviceImpl) ensureDynamicPluginActiveLifecyclePreconditionAllowed(
-	ctx context.Context,
-	registry *store.PluginRecord,
-	hook pluginhost.LifecycleHook,
-	options UninstallOptions,
-) error {
-	if registry == nil ||
-		plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
-		registry.Installed != plugintypes.InstalledYes {
-		return nil
-	}
-	manifest, err := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
-	if err != nil {
-		if hook == pluginhost.LifecycleHookBeforeUninstall {
-			manifest = s.loadSameVersionDesiredDynamicManifestBestEffort(registry)
-			if manifest == nil {
-				return nil
-			}
-			return s.ensureDynamicPluginLifecyclePreconditionAllowed(ctx, manifest, hook, options)
-		}
-		return s.dynamicLifecycleError(
-			ctx,
-			hook,
-			registry.PluginId,
-			[]runtime.DynamicLifecycleDecision{
-				dynamicLifecycleFailureDecision(registry.PluginId, hook, err),
-			},
-			options.Force,
-		)
-	}
-	return s.ensureDynamicPluginLifecyclePreconditionAllowed(ctx, manifest, hook, options)
-}
-
-// loadSameVersionDesiredDynamicManifestBestEffort returns the staged manifest
-// only when it is the same version as the active dynamic release. This mirrors
-// runtime uninstall repair, which may rebuild a missing active archive from the
-// same-version staging artifact.
-func (s *serviceImpl) loadSameVersionDesiredDynamicManifestBestEffort(registry *store.PluginRecord) *catalog.Manifest {
-	if registry == nil {
-		return nil
-	}
-	manifest, err := s.catalogSvc.GetDesiredManifest(registry.PluginId)
-	if err != nil ||
-		manifest == nil ||
-		plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic ||
-		strings.TrimSpace(manifest.Version) != strings.TrimSpace(registry.Version) {
-		return nil
-	}
-	return manifest
-}
-
-// loadActiveDynamicLifecycleManifestBestEffort returns the active dynamic
-// manifest for best-effort post-lifecycle notifications.
-func (s *serviceImpl) loadActiveDynamicLifecycleManifestBestEffort(ctx context.Context, pluginID string) *catalog.Manifest {
-	registry, err := s.storeSvc.GetRegistry(ctx, pluginID)
-	if err != nil || registry == nil {
-		return nil
-	}
-	manifest, err := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
-	if err != nil {
-		return nil
-	}
-	return manifest
-}
-
-// dynamicLifecycleFailureDecision creates a synthetic fail-closed decision when
-// the host cannot even load the active dynamic plugin handler contract.
-func dynamicLifecycleFailureDecision(
-	pluginID string,
-	hook pluginhost.LifecycleHook,
-	err error,
-) runtime.DynamicLifecycleDecision {
-	return runtime.DynamicLifecycleDecision{
-		PluginID:  pluginID,
-		Operation: hook,
-		OK:        false,
-		Reason:    "plugin." + strings.TrimSpace(pluginID) + ".lifecycle." + hook.String() + ".failed",
-		Err:       err,
-	}
-}
-
-// ensureDynamicPluginLifecyclePreconditionAllowed runs one dynamic-plugin
-// lifecycle precondition and converts vetoes to the shared lifecycle bizerr.
-func (s *serviceImpl) ensureDynamicPluginLifecyclePreconditionAllowed(
-	ctx context.Context,
-	manifest *catalog.Manifest,
-	hook pluginhost.LifecycleHook,
-	options UninstallOptions,
-) error {
-	if manifest == nil {
-		return nil
-	}
-	decision, err := s.runtimeSvc.RunDynamicLifecyclePrecondition(ctx, manifest, runtime.DynamicLifecycleInput{
-		PluginID:         manifest.ID,
-		Operation:        hook,
-		PurgeStorageData: options.PurgeStorageData,
-	})
-	if decision == nil {
-		return nil
-	}
-	decisions := []runtime.DynamicLifecycleDecision{*decision}
-	if err != nil {
-		return s.dynamicLifecycleError(ctx, hook, manifest.ID, decisions, options.Force)
-	}
-	if decision.OK {
-		return nil
-	}
-	return s.dynamicLifecycleError(ctx, hook, manifest.ID, decisions, options.Force)
-}
-
-// executeDynamicPluginLifecycleNotification runs one dynamic After* lifecycle
-// callback as a best-effort notification after the host transition succeeded.
-func (s *serviceImpl) executeDynamicPluginLifecycleNotification(
-	ctx context.Context,
-	manifest *catalog.Manifest,
-	input runtime.DynamicLifecycleInput,
-) {
-	if manifest == nil {
-		return
-	}
-	if strings.TrimSpace(input.PluginID) == "" {
-		input.PluginID = manifest.ID
-	}
-	if input.Operation == "" {
-		return
-	}
-	decision, err := s.runtimeSvc.RunDynamicLifecycleCallback(ctx, manifest, input)
-	if err == nil && (decision == nil || decision.OK) {
-		return
-	}
-	decisions := make([]runtime.DynamicLifecycleDecision, 0, 1)
-	if decision != nil {
-		decisions = append(decisions, *decision)
-	}
-	if err != nil && len(decisions) == 0 {
-		decisions = append(decisions, dynamicLifecycleFailureDecision(input.PluginID, input.Operation, err))
-	}
-	reasons := summarizeDynamicLifecycleVetoReasons(decisions)
-	logger.Warningf(
-		ctx,
-		"dynamic plugin after lifecycle callback failed operation=%s plugin=%s reasons=%s err=%v",
-		input.Operation,
-		input.PluginID,
-		reasons,
-		err,
-	)
-}
-
 // ensureLifecyclePreconditionAllowed runs source-plugin lifecycle
 // preconditions before a protected plugin action and converts vetoes to stable
 // caller-visible errors.
@@ -395,37 +247,6 @@ func (s *serviceImpl) ensureLifecyclePreconditionAllowed(
 	)
 }
 
-// dynamicLifecycleError converts dynamic lifecycle vetoes to the same shared
-// caller-visible bizerr used by source-plugin lifecycle preconditions.
-func (s *serviceImpl) dynamicLifecycleError(
-	ctx context.Context,
-	hook pluginhost.LifecycleHook,
-	pluginID string,
-	decisions []runtime.DynamicLifecycleDecision,
-	force bool,
-) error {
-	reasons := s.summarizeLocalizedDynamicLifecycleVetoReasons(ctx, decisions)
-	if force && hook == pluginhost.LifecycleHookBeforeUninstall {
-		if err := s.ensureForceUninstallEnabled(ctx); err != nil {
-			return err
-		}
-		logger.Warningf(
-			ctx,
-			"dynamic plugin lifecycle precondition force bypass operation=%s plugin=%s reasons=%s",
-			hook,
-			pluginID,
-			reasons,
-		)
-		return nil
-	}
-	return bizerr.NewCode(
-		CodePluginLifecyclePreconditionVetoed,
-		bizerr.P("operation", hook.String()),
-		bizerr.P("pluginId", pluginID),
-		bizerr.P("reasons", reasons),
-	)
-}
-
 // ensureForceUninstallEnabled verifies that host configuration explicitly
 // permits destructive force-uninstall flows.
 func (s *serviceImpl) ensureForceUninstallEnabled(ctx context.Context) error {
@@ -433,12 +254,6 @@ func (s *serviceImpl) ensureForceUninstallEnabled(ctx context.Context) error {
 		return bizerr.NewCode(CodePluginForceUninstallDisabled)
 	}
 	return nil
-}
-
-// summarizeLifecycleVetoReasons builds one deterministic raw reason string for
-// audit logs and development diagnostics.
-func summarizeLifecycleVetoReasons(decisions []pluginhost.LifecycleDecision) string {
-	return summarizeLifecycleVetoReasonsWithTranslator(decisions, nil)
 }
 
 // summarizeLocalizedLifecycleVetoReasons builds one deterministic localized
@@ -493,63 +308,6 @@ func summarizeLifecycleVetoReasonsWithTranslator(
 	return strings.Join(items, ";")
 }
 
-// summarizeDynamicLifecycleVetoReasons builds one deterministic raw reason
-// string for dynamic lifecycle precondition results.
-func summarizeDynamicLifecycleVetoReasons(decisions []runtime.DynamicLifecycleDecision) string {
-	return summarizeDynamicLifecycleVetoReasonsWithTranslator(decisions, nil)
-}
-
-// summarizeLocalizedDynamicLifecycleVetoReasons builds one deterministic
-// localized reason string for caller-visible dynamic lifecycle errors.
-func (s *serviceImpl) summarizeLocalizedDynamicLifecycleVetoReasons(
-	ctx context.Context,
-	decisions []runtime.DynamicLifecycleDecision,
-) string {
-	return summarizeDynamicLifecycleVetoReasonsWithTranslator(decisions, func(key string) string {
-		if s == nil || s.i18nSvc == nil {
-			return ""
-		}
-		return s.i18nSvc.Translate(ctx, key, "")
-	})
-}
-
-// summarizeDynamicLifecycleVetoReasonsWithTranslator applies an optional
-// translator to dynamic lifecycle reason keys.
-func summarizeDynamicLifecycleVetoReasonsWithTranslator(
-	decisions []runtime.DynamicLifecycleDecision,
-	translate func(key string) string,
-) string {
-	includePluginPrefix := translate == nil || countDynamicLifecycleVetoes(decisions) > 1
-	items := make([]string, 0, len(decisions))
-	for _, decision := range decisions {
-		if decision.OK {
-			continue
-		}
-		reason := strings.TrimSpace(decision.Reason)
-		if reason == "" && decision.Err != nil {
-			reason = decision.Err.Error()
-		}
-		if reason == "" {
-			reason = "plugin." + strings.TrimSpace(decision.PluginID) + ".lifecycle.vetoed"
-		}
-		if translate != nil {
-			if translated := strings.TrimSpace(translate(reason)); translated != "" {
-				reason = translated
-			}
-		}
-		pluginID := strings.TrimSpace(decision.PluginID)
-		if includePluginPrefix && pluginID != "" {
-			items = append(items, pluginID+":"+reason)
-			continue
-		}
-		items = append(items, reason)
-	}
-	if len(items) == 0 {
-		return "unknown"
-	}
-	return strings.Join(items, ";")
-}
-
 // countLifecycleVetoes returns how many source lifecycle decisions blocked the action.
 func countLifecycleVetoes(decisions []pluginhost.LifecycleDecision) int {
 	count := 0
@@ -559,25 +317,4 @@ func countLifecycleVetoes(decisions []pluginhost.LifecycleDecision) int {
 		}
 	}
 	return count
-}
-
-// countDynamicLifecycleVetoes returns how many dynamic lifecycle decisions blocked the action.
-func countDynamicLifecycleVetoes(decisions []runtime.DynamicLifecycleDecision) int {
-	count := 0
-	for _, decision := range decisions {
-		if !decision.OK {
-			count++
-		}
-	}
-	return count
-}
-
-// dynamicLifecycleDecisionsAllowed reports whether all dynamic decisions allowed the action.
-func dynamicLifecycleDecisionsAllowed(decisions []runtime.DynamicLifecycleDecision) bool {
-	for _, decision := range decisions {
-		if !decision.OK {
-			return false
-		}
-	}
-	return true
 }

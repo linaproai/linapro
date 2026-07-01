@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,7 @@ import (
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/logger"
+	"lina-core/pkg/statusflag"
 )
 
 // buildReleaseArtifactRelativePath returns the versioned archive location used by
@@ -291,7 +293,7 @@ func (s *serviceImpl) LoadActiveDynamicPluginManifest(ctx context.Context, regis
 	if registry == nil {
 		return nil, gerror.New("plugin registry record cannot be nil")
 	}
-	if plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return nil, gerror.New("current plugin is not dynamic")
 	}
 
@@ -319,8 +321,8 @@ func (s *serviceImpl) resolveActiveOrDesiredManifest(ctx context.Context, plugin
 		return nil, err
 	}
 	if registry != nil &&
-		plugintypes.NormalizeType(registry.Type) == plugintypes.TypeDynamic &&
-		registry.Installed == plugintypes.InstalledYes &&
+		plugintypes.NormalizeType(registry.Type) == pluginv1.PluginTypeDynamic &&
+		registry.Installed == statusflag.Installed.Int() &&
 		registry.ReleaseId > 0 {
 		return s.LoadActiveDynamicPluginManifest(ctx, registry)
 	}

@@ -4,11 +4,70 @@ package usercap
 
 import (
 	"context"
+
 	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/statusflag"
 )
 
-// Status identifies a plugin-visible user lifecycle state.
-type Status string
+// Service defines governed user capability methods for plugins. Read methods
+// use tenant/data-permission filtering and bounded batch or page sizes; command
+// methods must validate target visibility, tenant boundary, status values,
+// audit source, and cache impact before mutating host user state.
+type Service interface {
+	// Current returns the current actor's visible user info.
+	Current(ctx context.Context) (*UserInfo, error)
+	// Get returns one visible user info record. Risk: read; resource: user ID;
+	// context: actor and tenant; data permission: target visibility check;
+	// performance: delegates to bounded BatchGet; audit/cache: read-only.
+	Get(ctx context.Context, id UserID) (*UserInfo, error)
+	// BatchGet returns visible user info records and opaque missing IDs.
+	BatchGet(ctx context.Context, ids []UserID) (*capmodel.BatchResult[*UserInfo, UserID], error)
+	// BatchResolve resolves visible users by IDs, usernames, email addresses, or phone numbers.
+	BatchResolve(ctx context.Context, input BatchResolveInput) (*capmodel.BatchResult[*UserInfo, ResolveKey], error)
+	// List returns visible user candidates with bounded paging. Risk: read;
+	// resource: user query scope; context: actor and tenant; data permission:
+	// database-side data-scope filtering; performance: bounded page and
+	// info query; audit/cache: read-only.
+	List(ctx context.Context, input ListInput) (*capmodel.PageResult[*UserInfo], error)
+	// EnsureVisible rejects when any requested user is absent or invisible.
+	EnsureVisible(ctx context.Context, ids []UserID) error
+	// Create creates one governed user through the host user owner. Risk:
+	// mutate; resource: tenant, role and organization references; context:
+	// actor and tenant; data permission: create boundary validation;
+	// performance: one transaction; audit/cache: authorization revision impact.
+	Create(ctx context.Context, input CreateInput) (UserID, error)
+	// Update mutates one visible user through the host user owner. Risk:
+	// mutate; resource: target user and relation references; context: actor and
+	// tenant; data permission: target visibility check; performance: one
+	// transaction; audit/cache: authorization revision impact.
+	Update(ctx context.Context, input UpdateInput) error
+	// Delete deletes one visible user through the host user owner. Risk:
+	// mutate; resource: target user; context: actor and tenant; data
+	// permission: target visibility check; performance: one transaction;
+	// audit/cache: authorization revision impact.
+	Delete(ctx context.Context, id UserID) error
+	// SetStatus changes one visible user's lifecycle status after validating
+	// tenant scope, data permission, allowed status values, audit source, and
+	// authorization-cache revision impact.
+	SetStatus(ctx context.Context, id UserID, status statusflag.Enabled) error
+	// ResetPassword resets one visible user's password through the host auth
+	// owner. Risk: manage; resource: target user; context: actor and tenant;
+	// data permission: target visibility check; performance: one owner write;
+	// audit/cache: credential/session side effects remain host-owned.
+	ResetPassword(ctx context.Context, id UserID, password string) error
+	// Assignment returns user role assignment operations.
+	Assignment() AssignmentService
+}
+
+// AssignmentService defines user-role assignment operations exposed under the
+// user domain subresource.
+type AssignmentService interface {
+	// ReplaceRoles replaces one visible user's role assignments. Risk: manage;
+	// resource: target user and role IDs; context: actor and tenant; data
+	// permission: user and role visibility checks; performance: one owner
+	// transaction; audit/cache: authorization revision impact.
+	ReplaceRoles(ctx context.Context, id UserID, roleIDs []int) error
+}
 
 const (
 	// MaxBatchResolveIDs limits one user batch-resolve call by user ID count.
@@ -19,11 +78,6 @@ const (
 	MaxBatchResolveContacts = 100
 	// MaxBatchResolveKeys limits the normalized key count across all resolve dimensions.
 	MaxBatchResolveKeys = 300
-
-	// StatusDisabled identifies disabled users.
-	StatusDisabled Status = "0"
-	// StatusEnabled identifies enabled users.
-	StatusEnabled Status = "1"
 )
 
 // UserID identifies a user at plugin-visible domain boundaries.
@@ -33,8 +87,8 @@ type UserID string
 // lookup dimension matched a visible user.
 type ResolveKey string
 
-// UserProjection is the minimal user display projection exposed to plugins.
-type UserProjection struct {
+// UserInfo is the minimal user display information exposed to plugins.
+type UserInfo struct {
 	// ID is the user domain identifier.
 	ID UserID
 	// Username is the stable login name.
@@ -44,7 +98,7 @@ type UserProjection struct {
 	// Avatar is an optional avatar URL or governed file reference.
 	Avatar string
 	// Status is the stable user lifecycle status.
-	Status string
+	Status statusflag.Enabled
 	// TenantID is the owning tenant domain identifier.
 	TenantID capmodel.DomainID
 	// LabelKey is the optional i18n key for synthetic labels.
@@ -53,12 +107,12 @@ type UserProjection struct {
 	Label string
 }
 
-// SearchInput constrains user candidate searches.
-type SearchInput struct {
+// ListInput constrains bounded user candidate listing.
+type ListInput struct {
 	// Keyword filters visible users by username, nickname, or phone/email owner fields.
 	Keyword string
 	// Status filters by user lifecycle state. Empty includes all visible states.
-	Status Status
+	Status *statusflag.Enabled
 	// TenantID optionally narrows results to one visible tenant.
 	TenantID capmodel.DomainID
 	// EnabledOnly is a convenience filter for enabled user candidates.
@@ -79,30 +133,60 @@ type BatchResolveInput struct {
 	Contacts []string
 }
 
-// Service defines read-oriented user capability methods for plugins.
-type Service interface {
-	// Current returns the current actor's visible user projection.
-	Current(ctx context.Context, capCtx capmodel.CapabilityContext) (*UserProjection, error)
-	// BatchGet returns visible user projections and opaque missing IDs.
-	BatchGet(ctx context.Context, capCtx capmodel.CapabilityContext, ids []UserID) (*capmodel.BatchResult[*UserProjection, UserID], error)
-	// BatchResolve resolves visible users by IDs, usernames, email addresses, or phone numbers.
-	BatchResolve(ctx context.Context, capCtx capmodel.CapabilityContext, input BatchResolveInput) (*capmodel.BatchResult[*UserProjection, ResolveKey], error)
-	// Search searches visible user candidates with bounded paging.
-	Search(ctx context.Context, capCtx capmodel.CapabilityContext, input SearchInput) (*capmodel.PageResult[*UserProjection], error)
-	// EnsureVisible rejects when any requested user is absent or invisible.
-	EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []UserID) error
+// CreateInput describes one governed user create request.
+type CreateInput struct {
+	// Username is the stable login name.
+	Username string
+	// Password is the initial password that the host auth owner hashes.
+	Password string
+	// Nickname is the display name. Empty lets the owner apply defaults.
+	Nickname string
+	// Email is the optional email address.
+	Email string
+	// Phone is the optional phone number.
+	Phone string
+	// Sex is the host user gender code.
+	Sex int
+	// Status is the initial lifecycle status.
+	Status *statusflag.Enabled
+	// Remark stores optional operator notes.
+	Remark string
+	// DeptID is the optional primary organization department identifier.
+	DeptID *int
+	// PostIDs are optional organization post identifiers.
+	PostIDs []int
+	// RoleIDs are role identifiers assigned to the user.
+	RoleIDs []int
+	// TenantIDs are active tenant memberships requested for the user.
+	TenantIDs []int
 }
 
-// AdminService defines user management commands exposed through governed
-// source-plugin AdminServices or authorized dynamic host service methods.
-type AdminService interface {
-	// SetStatus changes one user's lifecycle status after target visibility checks.
-	SetStatus(ctx context.Context, capCtx capmodel.CapabilityContext, id UserID, status string) error
-}
-
-// ScopeService defines host-internal user scope helpers and must not be exposed
-// through ordinary plugin service directories.
-type ScopeService interface {
-	// EnsureVisible rejects when any user is outside the caller data scope.
-	EnsureVisible(ctx context.Context, capCtx capmodel.CapabilityContext, ids []UserID) error
+// UpdateInput describes one governed user update request.
+type UpdateInput struct {
+	// ID identifies the target user.
+	ID UserID
+	// Username optionally updates the stable login name.
+	Username *string
+	// Password optionally updates the password through the host auth owner.
+	Password *string
+	// Nickname optionally updates the display name.
+	Nickname *string
+	// Email optionally updates the email address.
+	Email *string
+	// Phone optionally updates the phone number.
+	Phone *string
+	// Sex optionally updates the host gender code.
+	Sex *int
+	// Status optionally updates the lifecycle status.
+	Status *statusflag.Enabled
+	// Remark optionally updates operator notes.
+	Remark *string
+	// DeptID optionally replaces the primary organization department.
+	DeptID *int
+	// PostIDs optionally replaces organization post assignments when non-nil.
+	PostIDs []int
+	// RoleIDs optionally replaces role assignments when non-nil.
+	RoleIDs []int
+	// TenantIDs optionally replaces tenant memberships when non-nil.
+	TenantIDs []int
 }

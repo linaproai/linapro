@@ -11,10 +11,10 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"gopkg.in/yaml.v3"
 
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -77,8 +77,8 @@ func (s *serviceImpl) ParseManifestSnapshot(content string) (*ManifestSnapshot, 
 	if strings.TrimSpace(snapshot.Distribution) == "" {
 		return nil, gerror.Newf("plugin release manifest_snapshot distribution is required: %s", snapshot.ID)
 	}
-	if snapshot.Distribution != plugintypes.DistributionMarketplace.String() &&
-		snapshot.Distribution != plugintypes.DistributionBuiltin.String() {
+	if snapshot.Distribution != pluginv1.PluginDistributionMarketplace.String() &&
+		snapshot.Distribution != pluginv1.PluginDistributionBuiltin.String() {
 		return nil, gerror.Newf("plugin release manifest_snapshot distribution only supports marketplace/builtin: %s", snapshot.ID)
 	}
 	requestedHostServices, err := protocol.NormalizeHostServiceSpecsForPlugin(snapshot.ID, snapshot.RequestedHostServices)

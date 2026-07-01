@@ -7,18 +7,11 @@ import (
 	"io"
 
 	"lina-core/internal/model/entity"
+	i18nsvc "lina-core/internal/service/i18n"
 )
 
 // Service defines the complete dict service contract.
 type Service interface {
-	TypeService
-	DataService
-	ImportExportService
-	LookupService
-}
-
-// TypeService defines dictionary type management operations.
-type TypeService interface {
 	// List queries dictionary types with pagination, filters, and fallback
 	// action metadata.
 	List(ctx context.Context, in ListInput) (*ListOutput, error)
@@ -32,10 +25,7 @@ type TypeService interface {
 	Delete(ctx context.Context, id int) error
 	// Options returns enabled dictionary type options for selectors.
 	Options(ctx context.Context) ([]*OptionItem, error)
-}
 
-// DataService defines dictionary data management operations.
-type DataService interface {
 	// DataList queries dictionary data entries with pagination, filters, and
 	// fallback action metadata.
 	DataList(ctx context.Context, in DataListInput) (*DataListOutput, error)
@@ -50,10 +40,7 @@ type DataService interface {
 	// DataByType lists enabled dictionary data entries for one dictionary type
 	// with fallback action metadata.
 	DataByType(ctx context.Context, dictType string) ([]*DictDataProjection, error)
-}
 
-// ImportExportService defines dictionary workbook import and export operations.
-type ImportExportService interface {
 	// Export exports dictionary types to an Excel file.
 	Export(ctx context.Context, in ExportInput) (data []byte, err error)
 	// DataExport exports dictionary data entries to an Excel file.
@@ -72,10 +59,7 @@ type ImportExportService interface {
 	GenerateTypeImportTemplate(ctx context.Context) (data []byte, err error)
 	// GenerateDataImportTemplate generates the dictionary data import template.
 	GenerateDataImportTemplate(ctx context.Context) (data []byte, err error)
-}
 
-// LookupService defines dictionary label lookup and map building operations.
-type LookupService interface {
 	// GetLabelByValue returns a dictionary label by dictionary type and string value.
 	GetLabelByValue(ctx context.Context, in GetLabelByValueInput) string
 	// GetLabelByIntValue returns a dictionary label by dictionary type and integer value.
@@ -91,11 +75,11 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	i18nSvc dictI18nTranslator
+	i18nSvc i18nsvc.Service
 }
 
 // New creates a dict service from explicit runtime-owned dependencies.
-func New(i18nSvc dictI18nTranslator) Service {
+func New(i18nSvc i18nsvc.Service) Service {
 	return &serviceImpl{
 		i18nSvc: i18nSvc,
 	}

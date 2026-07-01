@@ -10,6 +10,23 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 )
 
+// Service defines tenant token operations published to source plugins.
+type Service interface {
+	// SelectTenant consumes a pre-login token and issues a tenant-bound token.
+	SelectTenant(ctx context.Context, in SelectTenantInput) (*TenantTokenOutput, error)
+	// SwitchTenant validates membership, revokes the current token, and issues a new token.
+	SwitchTenant(ctx context.Context, in SwitchTenantInput) (*TenantTokenOutput, error)
+	// IssueImpersonationToken asks the host auth service to sign and register a
+	// tenant impersonation access token for the current platform administrator.
+	// Plugins remain responsible for their own business authorization and audit
+	// checks before calling this method; the host owns JWT signing, token IDs,
+	// online-session state, and permission-cache priming.
+	IssueImpersonationToken(ctx context.Context, in ImpersonationTokenIssueInput) (*ImpersonationTokenOutput, error)
+	// RevokeImpersonationToken validates that bearerToken is an impersonation
+	// access token for the optional tenant boundary and revokes the host session.
+	RevokeImpersonationToken(ctx context.Context, in ImpersonationTokenRevokeInput) error
+}
+
 // Kind names the intended use of one signed JWT carried in the tokenType claim.
 // Use these constants instead of hard-coding claim string literals.
 const (
@@ -48,23 +65,6 @@ func ParseClientType(value string) (ClientType, bool) {
 // String returns the wire value for one client type.
 func (t ClientType) String() string {
 	return string(t)
-}
-
-// Service defines tenant token operations published to source plugins.
-type Service interface {
-	// SelectTenant consumes a pre-login token and issues a tenant-bound token.
-	SelectTenant(ctx context.Context, in SelectTenantInput) (*TenantTokenOutput, error)
-	// SwitchTenant validates membership, revokes the current token, and issues a new token.
-	SwitchTenant(ctx context.Context, in SwitchTenantInput) (*TenantTokenOutput, error)
-	// IssueImpersonationToken asks the host auth service to sign and register a
-	// tenant impersonation access token for the current platform administrator.
-	// Plugins remain responsible for their own business authorization and audit
-	// checks before calling this method; the host owns JWT signing, token IDs,
-	// online-session state, and permission-cache priming.
-	IssueImpersonationToken(ctx context.Context, in ImpersonationTokenIssueInput) (*ImpersonationTokenOutput, error)
-	// RevokeImpersonationToken validates that bearerToken is an impersonation
-	// access token for the optional tenant boundary and revokes the host session.
-	RevokeImpersonationToken(ctx context.Context, in ImpersonationTokenRevokeInput) error
 }
 
 // SelectTenantInput defines input for a pre-token tenant selection.

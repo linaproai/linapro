@@ -115,6 +115,51 @@ func TestValidateHostServiceSpecsRejectsI18n(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsRejectsReservedServices verifies future host
+// services remain catalog-documented only until a dedicated OpenSpec publishes
+// their runtime contract.
+func TestValidateHostServiceSpecsRejectsReservedServices(t *testing.T) {
+	for _, tc := range []struct {
+		service string
+		method  string
+	}{
+		{service: HostServiceSecret, method: "resolve"},
+		{service: HostServiceEvent, method: "publish"},
+		{service: HostServiceQueue, method: "enqueue"},
+	} {
+		tc := tc
+		t.Run(tc.service, func(t *testing.T) {
+			err := ValidateHostServiceSpecs([]*HostServiceSpec{{
+				Service: tc.service,
+				Methods: []string{tc.method},
+				Resources: []*HostServiceResourceSpec{{
+					Ref: tc.service + ".default",
+				}},
+			}})
+			if err == nil {
+				t.Fatalf("expected reserved host service %s.%s to be rejected", tc.service, tc.method)
+			}
+		})
+	}
+}
+
+// TestValidateCapabilitiesRejectsReservedCapabilities verifies reserved future
+// host-service capabilities are not treated as current dynamic-plugin grants.
+func TestValidateCapabilitiesRejectsReservedCapabilities(t *testing.T) {
+	for _, capability := range []string{
+		CapabilitySecret,
+		CapabilityEventPublish,
+		CapabilityQueueEnqueue,
+	} {
+		capability := capability
+		t.Run(capability, func(t *testing.T) {
+			if err := ValidateCapabilities([]string{capability}); err == nil {
+				t.Fatalf("expected reserved capability %s to be rejected", capability)
+			}
+		})
+	}
+}
+
 // TestValidateHostServiceSpecsRejectsMissingMethods verifies host service
 // declarations must grant concrete methods explicitly.
 func TestValidateHostServiceSpecsRejectsMissingMethods(t *testing.T) {
@@ -157,8 +202,9 @@ func TestValidateHostServiceSpecsAcceptsOrgTenantWithoutResources(t *testing.T) 
 			Service: HostServiceOrg,
 			Methods: []string{
 				HostServiceMethodOrgStatus,
-				HostServiceMethodOrgListUserDeptAssignments,
-				HostServiceMethodOrgGetUserDeptIDs,
+				HostServiceMethodOrgBatchGetUserOrgProfiles,
+				HostServiceMethodOrgDepartmentBatchGet,
+				HostServiceMethodOrgPostBatchGet,
 			},
 		},
 		{
@@ -166,7 +212,6 @@ func TestValidateHostServiceSpecsAcceptsOrgTenantWithoutResources(t *testing.T) 
 			Methods: []string{
 				HostServiceMethodTenantStatus,
 				HostServiceMethodTenantListUserTenants,
-				HostServiceMethodTenantValidateSwitch,
 			},
 		},
 	}
@@ -189,16 +234,15 @@ func TestValidateHostServiceSpecsAcceptsOrgTenantWithoutResources(t *testing.T) 
 func TestValidateHostServiceSpecsAcceptsDomainServicesWithoutResources(t *testing.T) {
 	specs := []*HostServiceSpec{
 		{Service: HostServiceAuthz, Methods: []string{HostServiceMethodAuthzBatchGetPermissions, HostServiceMethodAuthzBatchHasPermissions}},
-		{Service: HostServiceDict, Methods: []string{HostServiceMethodDictResolveLabels, HostServiceMethodDictListValues, HostServiceMethodDictEnsureValuesVisible}},
-		{Service: HostServiceFiles, Methods: []string{HostServiceMethodFilesBatchGet, HostServiceMethodFilesSearch}},
-		{Service: HostServiceSessions, Methods: []string{HostServiceMethodSessionsCurrent, HostServiceMethodSessionsSearch, HostServiceMethodSessionsBatchGetUserOnlineStatus, HostServiceMethodSessionsEnsureVisible}},
-		{Service: HostServiceJobs, Methods: []string{HostServiceMethodJobsBatchGet, HostServiceMethodJobsSearch, HostServiceMethodJobsEnsureVisible, HostServiceMethodJobsRegister}},
-		{Service: HostServiceInfra, Methods: []string{HostServiceMethodInfraBatchGetStatus}},
+		{Service: HostServiceDict, Methods: []string{HostServiceMethodDictValueResolveLabels, HostServiceMethodDictListValues, HostServiceMethodDictValueEnsureValuesVisible}},
+		{Service: HostServiceFiles, Methods: []string{HostServiceMethodFilesBatchGet, HostServiceMethodFilesList}},
+		{Service: HostServiceSessions, Methods: []string{HostServiceMethodSessionsCurrent, HostServiceMethodSessionsList, HostServiceMethodSessionsBatchGetUserOnlineStatus, HostServiceMethodSessionsEnsureVisible}},
+		{Service: HostServiceJobs, Methods: []string{HostServiceMethodJobsBatchGet, HostServiceMethodJobsList, HostServiceMethodJobsEnsureVisible, HostServiceMethodJobsRegister}},
 		{Service: HostServiceAPIDoc, Methods: []string{HostServiceMethodAPIDocFindRouteTitleOperationKeys}},
 		{Service: HostServiceBizCtx, Methods: []string{HostServiceMethodBizCtxCurrent}},
 		{Service: HostServiceRoute, Methods: []string{HostServiceMethodRouteMetadataGet}},
-		{Service: HostServiceNotifications, Methods: []string{HostServiceMethodNotificationsBatchGetMessages}},
-		{Service: HostServicePlugins, Methods: []string{HostServiceMethodPluginsIsEnabled}},
+		{Service: HostServiceNotifications, Methods: []string{HostServiceMethodNotificationsBatchGetMessages, HostServiceMethodNotificationsList, HostServiceMethodNotificationsDelete, HostServiceMethodNotificationsMarkRead}},
+		{Service: HostServicePlugins, Methods: []string{HostServiceMethodPluginsCurrent}},
 	}
 
 	if err := ValidateHostServiceSpecs(specs); err != nil {
@@ -212,7 +256,6 @@ func TestValidateHostServiceSpecsAcceptsDomainServicesWithoutResources(t *testin
 		CapabilityFiles,
 		CapabilitySessions,
 		CapabilityJobs,
-		CapabilityInfra,
 		CapabilityAPIDoc,
 		CapabilityBizCtx,
 		CapabilityRoute,
@@ -225,25 +268,28 @@ func TestValidateHostServiceSpecsAcceptsDomainServicesWithoutResources(t *testin
 	}
 }
 
-// TestValidateHostServiceSpecsAcceptsPluginLifecycleMethods verifies dynamic
-// plugin-domain lifecycle governance access is explicit method-level
-// authorization under the plugins service.
-func TestValidateHostServiceSpecsAcceptsPluginLifecycleMethods(t *testing.T) {
-	specs := []*HostServiceSpec{{
-		Service: HostServicePlugins,
-		Methods: []string{
-			HostServiceMethodPluginsLifecycleEnsureTenantPluginDisable,
-			HostServiceMethodPluginsLifecycleNotifyTenantPluginDisabled,
-			HostServiceMethodPluginsLifecycleEnsureTenantDelete,
-			HostServiceMethodPluginsLifecycleNotifyTenantDeleted,
-		},
-	}}
-	if err := ValidateHostServiceSpecs(specs); err != nil {
-		t.Fatalf("expected plugin lifecycle host service methods to validate, got %v", err)
-	}
-	capabilities := CapabilityMapFromHostServices(specs)
-	if _, ok := capabilities[CapabilityPlugins]; !ok {
-		t.Fatalf("expected lifecycle declarations to derive %s capability, got %#v", CapabilityPlugins, capabilities)
+// TestValidateHostServiceSpecsRejectsPluginGovernanceLifecycleMethods verifies
+// legacy unscoped plugin governance method names are no longer published.
+func TestValidateHostServiceSpecsRejectsPluginGovernanceLifecycleMethods(t *testing.T) {
+	for _, method := range []string{
+		"plugins.enabled.check",
+		"plugins.provider_enabled.check",
+		"plugins.enabled_authoritative.check",
+		"lifecycle.tenant_plugin_disable.ensure",
+		"lifecycle.tenant_plugin_disabled.notify",
+		"lifecycle.tenant_delete.ensure",
+		"lifecycle.tenant_deleted.notify",
+	} {
+		method := method
+		t.Run(method, func(t *testing.T) {
+			err := ValidateHostServiceSpecs([]*HostServiceSpec{{
+				Service: HostServicePlugins,
+				Methods: []string{method},
+			}})
+			if err == nil {
+				t.Fatalf("expected removed plugin governance method %s to be rejected", method)
+			}
+		})
 	}
 }
 

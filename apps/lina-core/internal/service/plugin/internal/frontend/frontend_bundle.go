@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"io/fs"
+	pluginv1 "lina-core/api/plugin/v1"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -273,7 +274,7 @@ func (s *serviceImpl) ensureBundle(ctx context.Context, manifest *catalog.Manife
 	if manifest == nil {
 		return nil, gerror.New("plugin manifest cannot be nil")
 	}
-	if plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic {
 		return nil, gerror.New("current plugin is not dynamic")
 	}
 	if manifest.RuntimeArtifact == nil {
@@ -372,22 +373,15 @@ func invalidateAllBundles(ctx context.Context, reason string) {
 	logger.Debugf(ctx, "runtime frontend bundle cache clear skipped reason=%s cache=empty", strings.TrimSpace(reason))
 }
 
-// ResetBundleCache clears all in-memory frontend bundles. Intended for use in tests.
-func ResetBundleCache() {
-	frontendBundleCache.mu.Lock()
-	defer frontendBundleCache.mu.Unlock()
-	frontendBundleCache.items = map[string]*bundle{}
-}
-
-// BundleReader provides read access to a plugin's in-memory frontend asset bundle.
-type BundleReader interface {
+// bundleReader provides read access to a plugin's in-memory frontend asset bundle.
+type bundleReader interface {
 	// HasAsset reports whether the bundle contains an asset at the given relative path.
 	HasAsset(relativePath string) bool
 	// ReadAsset reads the asset at the given relative path and returns its content and content type.
 	ReadAsset(relativePath string) ([]byte, string, error)
 }
 
-// EnsureBundleReader returns a BundleReader for the manifest, building and caching the bundle if needed.
-func (s *serviceImpl) EnsureBundleReader(ctx context.Context, manifest *catalog.Manifest) (BundleReader, error) {
+// EnsureBundleReader returns a bundleReader for the manifest, building and caching the bundle if needed.
+func (s *serviceImpl) EnsureBundleReader(ctx context.Context, manifest *catalog.Manifest) (bundleReader, error) {
 	return s.ensureBundle(ctx, manifest)
 }

@@ -11,6 +11,8 @@ import (
 	"sync"
 
 	"github.com/gogf/gf/v2/net/goai"
+
+	i18nsvc "lina-core/internal/service/i18n"
 )
 
 // projectionCacheKey partitions dynamic route docs by runtime and language state.
@@ -42,9 +44,13 @@ func (s *serviceImpl) openAPIProjectionCacheKey(ctx context.Context) (projection
 		key.runtimeRevision = revision
 	}
 	key.locale = normalizeProjectionLocale("")
-	if s != nil && s.localeReader != nil {
-		key.locale = normalizeProjectionLocale(s.localeReader.GetLocale(ctx))
-		key.runtimeBundleVersion = s.localeReader.BundleVersion(key.locale)
+	if s != nil && s.i18nSvc != nil {
+		key.locale = normalizeProjectionLocale(s.i18nSvc.GetLocale(ctx))
+		revision, err := s.i18nSvc.BundleRevision(ctx, key.locale)
+		if err != nil {
+			return projectionCacheKey{}, err
+		}
+		key.runtimeBundleVersion = revision.Version
 	}
 	return key, nil
 }
@@ -109,7 +115,7 @@ func (s *serviceImpl) InvalidateProjectionCache(_ context.Context, _ string) {
 func normalizeProjectionLocale(locale string) string {
 	trimmed := strings.TrimSpace(locale)
 	if trimmed == "" {
-		return DefaultLocaleBundleReader{}.GetLocale(context.Background())
+		return i18nsvc.DefaultLocale
 	}
 	return trimmed
 }

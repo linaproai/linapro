@@ -35,8 +35,8 @@ type AccessSnapshot struct {
 	IsSuperAdmin bool  // IsSuperAdmin reports whether the user bypasses role data-scope checks.
 }
 
-// AccessProvider is the narrow role dependency needed to resolve cached data scopes.
-type AccessProvider interface {
+// accessProvider is the narrow role dependency needed to resolve cached data scopes.
+type accessProvider interface {
 	// GetUserDataScopeSnapshot returns the user's effective role data-scope snapshot.
 	GetUserDataScopeSnapshot(ctx context.Context, userID int) (*AccessSnapshot, error)
 }
@@ -75,12 +75,12 @@ type Service interface {
 // serviceImpl implements Service.
 type serviceImpl struct {
 	bizCtxSvc bizctx.Service
-	roleSvc   AccessProvider
+	roleSvc   accessProvider
 	orgScope  orgspi.ScopeService
 }
 
 // New creates one shared data-scope service.
-func New(bizCtxSvc bizctx.Service, roleSvc AccessProvider, orgScope orgspi.ScopeService) Service {
+func New(bizCtxSvc bizctx.Service, roleSvc accessProvider, orgScope orgspi.ScopeService) Service {
 	return &serviceImpl{
 		bizCtxSvc: bizCtxSvc,
 		roleSvc:   roleSvc,

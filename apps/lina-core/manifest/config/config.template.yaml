@@ -80,13 +80,6 @@ session:
   # 会话清理任务执行间隔（duration 字符串）
   cleanupInterval: 5m
 
-# Health probe configuration
-# 健康探针配置
-health:
-  # Database probe timeout as a duration string
-  # 数据库探活超时时间（duration 字符串）
-  timeout: 5s
-
 # Scheduler configuration
 # 调度器配置
 scheduler:

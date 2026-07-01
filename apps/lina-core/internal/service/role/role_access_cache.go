@@ -459,11 +459,7 @@ func (s *serviceImpl) resolveAccessTokenID(ctx context.Context) string {
 	if s == nil || s.bizCtxSvc == nil {
 		return ""
 	}
-	businessCtx := s.bizCtxSvc.Get(ctx)
-	if businessCtx == nil {
-		return ""
-	}
-	return businessCtx.TokenId
+	return s.bizCtxSvc.Current(ctx).TokenID
 }
 
 // resolveAccessCacheTTL keeps token snapshots no longer than either the JWT or

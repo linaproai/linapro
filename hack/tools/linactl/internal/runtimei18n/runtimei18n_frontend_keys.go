@@ -32,9 +32,11 @@ func validateFrontendI18NKeyReferences(repoRoot string) ([]string, error) {
 		return nil, err
 	}
 
-	pluginRoot := filepath.Join(repoRoot, "apps", "lina-plugins")
-	errors := make([]string, 0)
-	hostSourceRoot := filepath.Join(repoRoot, "apps", "lina-vben", "apps", "web-antd", "src")
+	var (
+		pluginRoot     = filepath.Join(repoRoot, "apps", "lina-plugins")
+		errors         = make([]string, 0)
+		hostSourceRoot = filepath.Join(repoRoot, "apps", "lina-vben", "apps", "web-antd", "src")
+	)
 	hostFiles, err := iterFrontendKeySourceFiles(repoRoot, hostSourceRoot)
 	if err != nil {
 		return nil, err
@@ -61,9 +63,11 @@ func validateFrontendI18NKeyReferences(repoRoot string) ([]string, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		pluginID := entry.Name()
-		pluginDir := filepath.Join(pluginRoot, pluginID)
-		pluginSourceRoot := filepath.Join(pluginDir, "frontend")
+		var (
+			pluginID         = entry.Name()
+			pluginDir        = filepath.Join(pluginRoot, pluginID)
+			pluginSourceRoot = filepath.Join(pluginDir, "frontend")
+		)
 		pluginFiles, fileErr := iterFrontendKeySourceFiles(repoRoot, pluginSourceRoot)
 		if fileErr != nil {
 			return nil, fileErr
@@ -154,9 +158,11 @@ func sourcePluginRuntimeI18NEnabled(pluginDir string) (bool, error) {
 		return false, fmt.Errorf("read plugin manifest %s: %w", manifestPath, err)
 	}
 
-	lines := strings.Split(string(content), "\n")
-	inI18N := false
-	i18nIndent := 0
+	var (
+		lines      = strings.Split(string(content), "\n")
+		inI18N     = false
+		i18nIndent = 0
+	)
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
@@ -490,9 +496,11 @@ func validateModuleLevelFrontendI18NCalls(repoRoot string) ([]string, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		pluginID := entry.Name()
-		pluginDir := filepath.Join(pluginRoot, pluginID)
-		pluginSourceRoot := filepath.Join(pluginDir, "frontend")
+		var (
+			pluginID         = entry.Name()
+			pluginDir        = filepath.Join(pluginRoot, pluginID)
+			pluginSourceRoot = filepath.Join(pluginDir, "frontend")
+		)
 		pluginFiles, fileErr := iterFrontendKeySourceFiles(repoRoot, pluginSourceRoot)
 		if fileErr != nil {
 			return nil, fileErr
@@ -536,9 +544,11 @@ func extractModuleLevelCalls(repoRoot string, scope string, catalogs map[string]
 		}
 		displayPath = filepath.ToSlash(displayPath)
 
-		isVue := isVueScriptFile(path)
-		inScriptBlock := !isVue // non-Vue files are always "in script"
-		braceDepth := 0
+		var (
+			isVue         = isVueScriptFile(path)
+			inScriptBlock = !isVue // non-Vue files are always "in script"
+			braceDepth    = 0
+		)
 
 		for index, line := range strings.Split(string(content), "\n") {
 			trimmed := strings.TrimSpace(line)

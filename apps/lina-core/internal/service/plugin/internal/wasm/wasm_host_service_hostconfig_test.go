@@ -14,6 +14,7 @@ import (
 	"lina-core/internal/model/do"
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
+	hostconfigadapter "lina-core/internal/service/plugin/internal/hostconfig"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -79,6 +80,11 @@ func (s *trackingHostConfigService) Duration(context.Context, string, time.Durat
 	return 15 * time.Second, nil
 }
 
+// SysConfig returns unused sys_config methods for dynamic hostConfig dispatch tests.
+func (s *trackingHostConfigService) SysConfig() hostconfigcap.SysConfigService {
+	return noopTestSysConfigService{}
+}
+
 // TestHandleHostServiceInvokeHostConfigReadsAuthorizedKey verifies dynamic
 // plugins can read a hostConfig key only when it is authorized.
 func TestHandleHostServiceInvokeHostConfigReadsAuthorizedKey(t *testing.T) {
@@ -119,7 +125,9 @@ func TestHandleHostServiceInvokeHostConfigReadsAuthorizedCustomSysConfig(t *test
 	if err := hostconfig.New().MarkRuntimeParamsChanged(ctx); err != nil {
 		t.Fatalf("mark runtime params changed: %v", err)
 	}
-	bindTestHostServiceRuntime(t, withTestHostConfigService(hostconfigcap.New(hostconfig.New().(hostconfigcap.RawConfigReader))))
+	bindTestHostServiceRuntime(t, withTestHostConfigService(
+		hostconfigadapter.NewStaticCapabilityAdapter(hostconfig.New()),
+	))
 
 	response := invokeHostConfigService(t, hostConfigHostCallContext([]string{key}), key)
 	payload := decodeConfigResponse(t, response)

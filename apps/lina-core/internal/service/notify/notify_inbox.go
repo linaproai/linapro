@@ -201,7 +201,7 @@ func (s *serviceImpl) DeleteBySource(ctx context.Context, sourceType SourceType,
 	}
 	model := dao.SysNotifyMessage.Ctx(ctx).
 		Fields(messageCols.Id).
-		Where(messageCols.SourceType, sourceType.String()).
+		Where(messageCols.SourceType, string(sourceType)).
 		WhereIn(messageCols.SourceId, normalizedSourceIDs)
 	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
 	err := model.Scan(&rows)
@@ -223,7 +223,7 @@ func (s *serviceImpl) DeleteBySource(ctx context.Context, sourceType SourceType,
 	}
 
 	deliveryCols := dao.SysNotifyDelivery.Columns()
-	return dao.SysNotifyDelivery.Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+	return dao.SysNotifyDelivery.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
 		if _, err = dao.SysNotifyDelivery.Ctx(ctx).WhereIn(deliveryCols.MessageId, messageIDs).Delete(); err != nil {
 			return err
 		}

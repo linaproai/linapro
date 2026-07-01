@@ -10,10 +10,12 @@ import (
 
 // RuntimeLocales returns the runtime locale descriptors exposed by the host.
 func (c *ControllerV1) RuntimeLocales(ctx context.Context, req *v1.RuntimeLocalesReq) (res *v1.RuntimeLocalesRes, err error) {
-	locale := c.localeResolver.ResolveLocale(ctx, req.Lang)
-	descriptors := c.bundleProvider.ListRuntimeLocales(ctx, locale)
-	items := make([]v1.RuntimeLocaleItem, 0, len(descriptors))
-	for _, descriptor := range descriptors {
+	var (
+		locale = c.i18nSvc.ResolveLocale(ctx, req.Lang)
+		output = c.i18nSvc.RuntimeLocales(ctx, locale)
+		items  = make([]v1.RuntimeLocaleItem, 0, len(output.Items))
+	)
+	for _, descriptor := range output.Items {
 		items = append(items, v1.RuntimeLocaleItem{
 			Locale:     descriptor.Locale,
 			Name:       descriptor.Name,
@@ -25,7 +27,7 @@ func (c *ControllerV1) RuntimeLocales(ctx context.Context, req *v1.RuntimeLocale
 
 	return &v1.RuntimeLocalesRes{
 		Locale:  locale,
-		Enabled: c.bundleProvider.IsMultiLanguageEnabled(ctx),
+		Enabled: output.Enabled,
 		Items:   items,
 	}, nil
 }

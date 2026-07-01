@@ -6,6 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	jobv1 "lina-core/api/job/v1"
+	jobhandlerv1 "lina-core/api/jobhandler/v1"
+	joblogv1 "lina-core/api/joblog/v1"
 	"strings"
 	"sync"
 	"testing"
@@ -101,7 +104,7 @@ func newRegistryWithHandler(
 		Ref:          ref,
 		DisplayName:  "Scheduler Test Handler",
 		ParamsSchema: `{"type":"object","properties":{}}`,
-		Source:       jobmeta.HandlerSourceHost,
+		Source:       jobhandlerv1.SourceHost,
 		Invoke:       callback,
 	}); err != nil {
 		t.Fatalf("expected test handler registration to succeed, got error: %v", err)
@@ -122,7 +125,7 @@ func registerEnabledHostHandlersAsNoop(
 	var jobs []*entity.SysJob
 	err := dao.SysJob.Ctx(ctx).
 		Fields(dao.SysJob.Columns().HandlerRef).
-		Where(do.SysJob{Status: string(jobmeta.JobStatusEnabled)}).
+		Where(do.SysJob{Status: string(jobv1.StatusEnabled)}).
 		Distinct().
 		Scan(&jobs)
 	if err != nil {
@@ -145,7 +148,7 @@ func registerEnabledHostHandlersAsNoop(
 			DisplayName:  handlerRef,
 			Description:  "scheduler test no-op host handler",
 			ParamsSchema: `{"type":"object","properties":{}}`,
-			Source:       jobmeta.HandlerSourceHost,
+			Source:       jobhandlerv1.SourceHost,
 			Invoke: func(ctx context.Context, params json.RawMessage) (any, error) {
 				return nil, nil
 			},
@@ -171,7 +174,7 @@ func insertTestJob(
 	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
 		GroupId:        testDefaultGroupID(t, ctx),
 		Name:           fmt.Sprintf("scheduler-test-%d", time.Now().UnixNano()),
-		TaskType:       string(jobmeta.TaskTypeHandler),
+		TaskType:       string(jobv1.TaskTypeHandler),
 		HandlerRef:     handlerRef,
 		Params:         `{}`,
 		TimeoutSeconds: 30,
@@ -181,7 +184,7 @@ func insertTestJob(
 		Concurrency:    string(concurrency),
 		MaxConcurrency: maxConcurrency,
 		MaxExecutions:  maxExecutions,
-		Status:         string(jobmeta.JobStatusEnabled),
+		Status:         string(jobv1.StatusEnabled),
 	}).InsertAndGetId()
 	if err != nil {
 		t.Fatalf("expected scheduler test job insert to succeed, got error: %v", err)
@@ -314,19 +317,19 @@ func TestExecutionLogsInheritJobTenant(t *testing.T) {
 		Id:             time.Now().UnixNano(),
 		TenantId:       tenantID,
 		Name:           "scheduler-tenant-log",
-		TaskType:       string(jobmeta.TaskTypeHandler),
+		TaskType:       string(jobv1.TaskTypeHandler),
 		HandlerRef:     "host:scheduler-tenant-log",
 		Params:         `{}`,
 		TimeoutSeconds: 30,
-		Scope:          string(jobmeta.JobScopeMasterOnly),
-		Concurrency:    string(jobmeta.JobConcurrencySingleton),
-		Status:         string(jobmeta.JobStatusEnabled),
+		Scope:          string(jobv1.ScopeMasterOnly),
+		Concurrency:    string(jobv1.ConcurrencySingleton),
+		Status:         string(jobv1.StatusEnabled),
 	}
 	svc := &serviceImpl{
 		clusterSvc: fakeClusterService{nodeID: "tenant-log-node"},
 	}
 
-	runningLogID, err := svc.createRunningLog(ctx, job, jobmeta.TriggerTypeManual, time.Now())
+	runningLogID, err := svc.createRunningLog(ctx, job, joblogv1.TriggerManual, time.Now())
 	if err != nil {
 		t.Fatalf("create tenant running log: %v", err)
 	}
@@ -337,7 +340,7 @@ func TestExecutionLogsInheritJobTenant(t *testing.T) {
 		t.Fatalf("expected running log tenant_id=%d, got %d", tenantID, runningLog.TenantId)
 	}
 
-	if err = svc.createTerminalLog(ctx, job, jobmeta.TriggerTypeCron, jobmeta.LogStatusSkippedNotPrimary, "not primary"); err != nil {
+	if err = svc.createTerminalLog(ctx, job, joblogv1.TriggerCron, joblogv1.StatusSkippedNotPrimary, "not primary"); err != nil {
 		t.Fatalf("create tenant terminal log: %v", err)
 	}
 	terminalLog := latestSchedulerLogForJob(t, ctx, job.Id)
@@ -355,7 +358,7 @@ func TestRefreshRegistersAndRemoveUnregistersJob(t *testing.T) {
 			return nil, nil
 		})
 		svc   = New(fakeClusterService{primary: true}, registry, nil).(*serviceImpl)
-		jobID = insertTestJob(t, ctx, "host:scheduler-register", jobmeta.JobScopeMasterOnly, jobmeta.JobConcurrencySingleton, 1, 0)
+		jobID = insertTestJob(t, ctx, "host:scheduler-register", jobv1.ScopeMasterOnly, jobv1.ConcurrencySingleton, 1, 0)
 	)
 	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, jobID) })
 
@@ -381,23 +384,23 @@ func TestRegisterJobSnapshotReplacesExistingEntry(t *testing.T) {
 			return nil, nil
 		})
 		svc   = New(fakeClusterService{primary: true}, registry, nil).(*serviceImpl)
-		jobID = insertTestJob(t, ctx, "host:scheduler-replace", jobmeta.JobScopeMasterOnly, jobmeta.JobConcurrencySingleton, 1, 0)
+		jobID = insertTestJob(t, ctx, "host:scheduler-replace", jobv1.ScopeMasterOnly, jobv1.ConcurrencySingleton, 1, 0)
 	)
 	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, jobID) })
 
 	job := &entity.SysJob{
 		Id:             jobID,
-		TaskType:       string(jobmeta.TaskTypeHandler),
+		TaskType:       string(jobv1.TaskTypeHandler),
 		HandlerRef:     "host:scheduler-replace",
 		Params:         `{}`,
 		TimeoutSeconds: 30,
 		CronExpr:       "* * * * *",
 		Timezone:       "Asia/Shanghai",
-		Scope:          string(jobmeta.JobScopeMasterOnly),
-		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		Scope:          string(jobv1.ScopeMasterOnly),
+		Concurrency:    string(jobv1.ConcurrencySingleton),
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
-		Status:         string(jobmeta.JobStatusEnabled),
+		Status:         string(jobv1.StatusEnabled),
 	}
 
 	if err := svc.RegisterJobSnapshot(ctx, job); err != nil {
@@ -425,7 +428,7 @@ func TestLoadAndRegisterSkipsBuiltinJobs(t *testing.T) {
 				return &shellexec.ExecuteOutput{}, nil
 			},
 		}).(*serviceImpl)
-		customJobID  = insertTestJob(t, ctx, "host:scheduler-load-custom", jobmeta.JobScopeMasterOnly, jobmeta.JobConcurrencySingleton, 1, 0)
+		customJobID  = insertTestJob(t, ctx, "host:scheduler-load-custom", jobv1.ScopeMasterOnly, jobv1.ConcurrencySingleton, 1, 0)
 		builtinJobID int64
 	)
 	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, customJobID) })
@@ -434,17 +437,17 @@ func TestLoadAndRegisterSkipsBuiltinJobs(t *testing.T) {
 	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
 		GroupId:        testDefaultGroupID(t, ctx),
 		Name:           fmt.Sprintf("scheduler-load-builtin-%d", time.Now().UnixNano()),
-		TaskType:       string(jobmeta.TaskTypeHandler),
+		TaskType:       string(jobv1.TaskTypeHandler),
 		HandlerRef:     "host:scheduler-load-custom",
 		Params:         `{}`,
 		TimeoutSeconds: 30,
 		CronExpr:       "* * * * *",
 		Timezone:       "Asia/Shanghai",
-		Scope:          string(jobmeta.JobScopeMasterOnly),
-		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		Scope:          string(jobv1.ScopeMasterOnly),
+		Concurrency:    string(jobv1.ConcurrencySingleton),
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
-		Status:         string(jobmeta.JobStatusEnabled),
+		Status:         string(jobv1.StatusEnabled),
 		IsBuiltin:      1,
 	}).InsertAndGetId()
 	if err != nil {
@@ -472,14 +475,14 @@ func TestRunCronJobSkipsOnNonPrimaryNode(t *testing.T) {
 			return nil, nil
 		})
 		svc   = New(fakeClusterService{enabled: true, primary: false}, registry, nil).(*serviceImpl)
-		jobID = insertTestJob(t, ctx, "host:scheduler-skip", jobmeta.JobScopeMasterOnly, jobmeta.JobConcurrencySingleton, 1, 0)
+		jobID = insertTestJob(t, ctx, "host:scheduler-skip", jobv1.ScopeMasterOnly, jobv1.ConcurrencySingleton, 1, 0)
 	)
 	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, jobID) })
 
 	svc.runCronJob(ctx, jobID)
 	waitForCondition(t, 2*time.Second, func() bool {
 		statuses := latestLogStatuses(t, ctx, jobID)
-		return len(statuses) == 1 && statuses[0] == string(jobmeta.LogStatusSkippedNotPrimary)
+		return len(statuses) == 1 && statuses[0] == string(joblogv1.StatusSkippedNotPrimary)
 	})
 }
 
@@ -505,17 +508,17 @@ func TestLoadAndRegisterPausesMissingCustomPluginHandlerJobs(t *testing.T) {
 	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
 		GroupId:        testDefaultGroupID(t, ctx),
 		Name:           fmt.Sprintf("scheduler-missing-plugin-%d", time.Now().UnixNano()),
-		TaskType:       string(jobmeta.TaskTypeHandler),
+		TaskType:       string(jobv1.TaskTypeHandler),
 		HandlerRef:     "plugin:test-missing/jobs:cleanup",
 		Params:         `{}`,
 		TimeoutSeconds: 30,
 		CronExpr:       "* * * * *",
 		Timezone:       "Asia/Shanghai",
-		Scope:          string(jobmeta.JobScopeMasterOnly),
-		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		Scope:          string(jobv1.ScopeMasterOnly),
+		Concurrency:    string(jobv1.ConcurrencySingleton),
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
-		Status:         string(jobmeta.JobStatusEnabled),
+		Status:         string(jobv1.StatusEnabled),
 		IsBuiltin:      0,
 	}).InsertAndGetId()
 	if err != nil {
@@ -535,7 +538,7 @@ func TestLoadAndRegisterPausesMissingCustomPluginHandlerJobs(t *testing.T) {
 	if jobRow == nil {
 		t.Fatal("expected downgraded job to remain present")
 	}
-	if got := jobmeta.NormalizeJobStatus(jobRow.Status); got != jobmeta.JobStatusPausedByPlugin {
+	if got := jobmeta.NormalizeJobStatus(jobRow.Status); got != jobv1.StatusPausedByPlugin {
 		t.Fatalf("expected missing plugin handler job status paused_by_plugin, got %s", got)
 	}
 	if jobRow.StopReason != string(jobmeta.StopReasonPluginUnavailable) {
@@ -548,17 +551,17 @@ func TestLoadAndRegisterPausesMissingCustomPluginHandlerJobs(t *testing.T) {
 	insertID, err = dao.SysJob.Ctx(ctx).Data(do.SysJob{
 		GroupId:        testDefaultGroupID(t, ctx),
 		Name:           fmt.Sprintf("scheduler-missing-builtin-plugin-%d", time.Now().UnixNano()),
-		TaskType:       string(jobmeta.TaskTypeHandler),
+		TaskType:       string(jobv1.TaskTypeHandler),
 		HandlerRef:     "plugin:test-missing/jobs:built-in",
 		Params:         `{}`,
 		TimeoutSeconds: 30,
 		CronExpr:       "* * * * *",
 		Timezone:       "Asia/Shanghai",
-		Scope:          string(jobmeta.JobScopeMasterOnly),
-		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		Scope:          string(jobv1.ScopeMasterOnly),
+		Concurrency:    string(jobv1.ConcurrencySingleton),
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
-		Status:         string(jobmeta.JobStatusEnabled),
+		Status:         string(jobv1.StatusEnabled),
 		IsBuiltin:      1,
 	}).InsertAndGetId()
 	if err != nil {
@@ -577,7 +580,7 @@ func TestLoadAndRegisterPausesMissingCustomPluginHandlerJobs(t *testing.T) {
 	if builtinRow == nil {
 		t.Fatal("expected builtin plugin job to remain present")
 	}
-	if got := jobmeta.NormalizeJobStatus(builtinRow.Status); got != jobmeta.JobStatusEnabled {
+	if got := jobmeta.NormalizeJobStatus(builtinRow.Status); got != jobv1.StatusEnabled {
 		t.Fatalf("expected persistent load to leave builtin plugin job status unchanged, got %s", got)
 	}
 	if entry := gcron.Search(jobEntryName(builtinJobID)); entry != nil {
@@ -596,7 +599,7 @@ func TestRunCronJobSingletonSkipsOverlap(t *testing.T) {
 			return map[string]any{"ok": true}, nil
 		})
 		svc   = New(fakeClusterService{primary: true}, registry, nil).(*serviceImpl)
-		jobID = insertTestJob(t, ctx, "host:scheduler-singleton", jobmeta.JobScopeMasterOnly, jobmeta.JobConcurrencySingleton, 1, 0)
+		jobID = insertTestJob(t, ctx, "host:scheduler-singleton", jobv1.ScopeMasterOnly, jobv1.ConcurrencySingleton, 1, 0)
 	)
 	t.Cleanup(func() {
 		releaseOnce.Do(func() { close(releaseCh) })
@@ -618,7 +621,7 @@ func TestRunCronJobSingletonSkipsOverlap(t *testing.T) {
 		if len(statuses) != 2 {
 			return false
 		}
-		return statuses[0] == string(jobmeta.LogStatusRunning) || statuses[1] == string(jobmeta.LogStatusSkippedSingleton)
+		return statuses[0] == string(joblogv1.StatusRunning) || statuses[1] == string(joblogv1.StatusSkippedSingleton)
 	})
 	waitForCondition(t, 3*time.Second, func() bool {
 		statuses := latestLogStatuses(t, ctx, jobID)
@@ -628,10 +631,10 @@ func TestRunCronJobSingletonSkipsOverlap(t *testing.T) {
 		foundSuccess := false
 		foundSkip := false
 		for _, status := range statuses {
-			if status == string(jobmeta.LogStatusSuccess) {
+			if status == string(joblogv1.StatusSuccess) {
 				foundSuccess = true
 			}
-			if status == string(jobmeta.LogStatusSkippedSingleton) {
+			if status == string(joblogv1.StatusSkippedSingleton) {
 				foundSkip = true
 			}
 		}
@@ -647,7 +650,7 @@ func TestRunCronJobMaxExecutionsDisablesJob(t *testing.T) {
 			return map[string]any{"ok": true}, nil
 		})
 		svc   = New(fakeClusterService{primary: true}, registry, nil).(*serviceImpl)
-		jobID = insertTestJob(t, ctx, "host:scheduler-max", jobmeta.JobScopeMasterOnly, jobmeta.JobConcurrencySingleton, 1, 1)
+		jobID = insertTestJob(t, ctx, "host:scheduler-max", jobv1.ScopeMasterOnly, jobv1.ConcurrencySingleton, 1, 1)
 	)
 	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, jobID) })
 
@@ -657,7 +660,7 @@ func TestRunCronJobMaxExecutionsDisablesJob(t *testing.T) {
 		if err := dao.SysJob.Ctx(ctx).Where(do.SysJob{Id: jobID}).Scan(&jobRow); err != nil || jobRow == nil {
 			return false
 		}
-		return jobRow.Status == string(jobmeta.JobStatusDisabled) &&
+		return jobRow.Status == string(jobv1.StatusDisabled) &&
 			jobRow.StopReason == string(jobmeta.StopReasonMaxExecutionsReached) &&
 			jobRow.ExecutedCount == 1
 	})
@@ -672,7 +675,7 @@ func TestRunCronJobUnlimitedExecutionsStillAccumulatesCount(t *testing.T) {
 			return map[string]any{"ok": true}, nil
 		})
 		svc   = New(fakeClusterService{primary: true}, registry, nil).(*serviceImpl)
-		jobID = insertTestJob(t, ctx, "host:scheduler-unlimited", jobmeta.JobScopeMasterOnly, jobmeta.JobConcurrencySingleton, 1, 0)
+		jobID = insertTestJob(t, ctx, "host:scheduler-unlimited", jobv1.ScopeMasterOnly, jobv1.ConcurrencySingleton, 1, 0)
 	)
 	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, jobID) })
 
@@ -682,7 +685,7 @@ func TestRunCronJobUnlimitedExecutionsStillAccumulatesCount(t *testing.T) {
 		if err := dao.SysJob.Ctx(ctx).Where(do.SysJob{Id: jobID}).Scan(&jobRow); err != nil || jobRow == nil {
 			return false
 		}
-		return jobRow.Status == string(jobmeta.JobStatusEnabled) &&
+		return jobRow.Status == string(jobv1.StatusEnabled) &&
 			jobRow.StopReason == "" &&
 			jobRow.ExecutedCount == 1
 	})
@@ -702,17 +705,17 @@ func TestRunJobHandlerTimeoutMarksLogTimeout(t *testing.T) {
 	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
 		GroupId:        testDefaultGroupID(t, ctx),
 		Name:           fmt.Sprintf("scheduler-timeout-%d", time.Now().UnixNano()),
-		TaskType:       string(jobmeta.TaskTypeHandler),
+		TaskType:       string(jobv1.TaskTypeHandler),
 		HandlerRef:     "host:scheduler-timeout",
 		Params:         `{}`,
 		TimeoutSeconds: 1,
 		CronExpr:       "* * * * *",
 		Timezone:       "Asia/Shanghai",
-		Scope:          string(jobmeta.JobScopeMasterOnly),
-		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		Scope:          string(jobv1.ScopeMasterOnly),
+		Concurrency:    string(jobv1.ConcurrencySingleton),
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
-		Status:         string(jobmeta.JobStatusEnabled),
+		Status:         string(jobv1.StatusEnabled),
 	}).InsertAndGetId()
 	if err != nil {
 		t.Fatalf("expected timeout test job insert to succeed, got error: %v", err)
@@ -723,7 +726,7 @@ func TestRunJobHandlerTimeoutMarksLogTimeout(t *testing.T) {
 	svc.runCronJob(ctx, jobID)
 	waitForCondition(t, 3*time.Second, func() bool {
 		logs := latestLogs(t, ctx, jobID)
-		return len(logs) == 1 && logs[0] != nil && logs[0].Status == string(jobmeta.LogStatusTimeout)
+		return len(logs) == 1 && logs[0] != nil && logs[0].Status == string(joblogv1.StatusTimeout)
 	})
 
 	logs := latestLogs(t, ctx, jobID)
@@ -761,16 +764,16 @@ func TestCancelLogCancelsRunningShellExecution(t *testing.T) {
 	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
 		GroupId:        testDefaultGroupID(t, ctx),
 		Name:           fmt.Sprintf("scheduler-cancel-%d", time.Now().UnixNano()),
-		TaskType:       string(jobmeta.TaskTypeShell),
+		TaskType:       string(jobv1.TaskTypeShell),
 		TimeoutSeconds: 60,
 		ShellCmd:       "sleep 30",
 		CronExpr:       "* * * * *",
 		Timezone:       "Asia/Shanghai",
-		Scope:          string(jobmeta.JobScopeMasterOnly),
-		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		Scope:          string(jobv1.ScopeMasterOnly),
+		Concurrency:    string(jobv1.ConcurrencySingleton),
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
-		Status:         string(jobmeta.JobStatusEnabled),
+		Status:         string(jobv1.StatusEnabled),
 	}).InsertAndGetId()
 	if err != nil {
 		t.Fatalf("expected shell cancel test job insert to succeed, got error: %v", err)
@@ -783,7 +786,7 @@ func TestCancelLogCancelsRunningShellExecution(t *testing.T) {
 	var logID int64
 	waitForCondition(t, 2*time.Second, func() bool {
 		logs := latestLogs(t, ctx, jobID)
-		if len(logs) != 1 || logs[0] == nil || logs[0].Status != string(jobmeta.LogStatusRunning) {
+		if len(logs) != 1 || logs[0] == nil || logs[0].Status != string(joblogv1.StatusRunning) {
 			return false
 		}
 		logID = logs[0].Id
@@ -796,7 +799,7 @@ func TestCancelLogCancelsRunningShellExecution(t *testing.T) {
 
 	waitForCondition(t, 3*time.Second, func() bool {
 		logs := latestLogs(t, ctx, jobID)
-		return len(logs) == 1 && logs[0] != nil && logs[0].Status == string(jobmeta.LogStatusCancelled)
+		return len(logs) == 1 && logs[0] != nil && logs[0].Status == string(joblogv1.StatusCancelled)
 	})
 
 	logs := latestLogs(t, ctx, jobID)

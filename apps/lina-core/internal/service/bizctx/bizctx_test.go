@@ -11,9 +11,11 @@ import (
 
 // TestSetTenantAndImpersonationMutateBusinessContext verifies tenant fields are request-scoped.
 func TestSetTenantAndImpersonationMutateBusinessContext(t *testing.T) {
-	service := New()
-	businessCtx := &model.Context{}
-	ctx := context.WithValue(context.Background(), ContextKey, businessCtx)
+	var (
+		service     = New()
+		businessCtx = &model.Context{}
+		ctx         = context.WithValue(context.Background(), ContextKey, businessCtx)
+	)
 
 	service.SetTenant(ctx, 12)
 	service.SetImpersonation(ctx, 1, 12, true, true)

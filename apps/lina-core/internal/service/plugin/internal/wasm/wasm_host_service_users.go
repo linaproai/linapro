@@ -15,6 +15,7 @@ import (
 	"lina-core/pkg/plugin/capability/usercap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
 // dispatchUsersHostService routes one users-domain host-service method to the same
@@ -32,11 +33,9 @@ func dispatchUsersHostService(
 			"users host service is not scoped",
 		)
 	}
-
-	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceUsers, method)
 	switch method {
 	case bridgehostservice.HostServiceMethodUsersCurrent:
-		result, err := service.Current(ctx, capCtx)
+		result, err := service.Current(ctx)
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
@@ -46,7 +45,7 @@ func dispatchUsersHostService(
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		result, err := service.BatchGet(ctx, capCtx, userIDsFromStrings(request.UserIDs))
+		result, err := service.BatchGet(ctx, userIDsFromStrings(request.UserIDs))
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
@@ -56,7 +55,7 @@ func dispatchUsersHostService(
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		result, err := service.BatchResolve(ctx, capCtx, usercap.BatchResolveInput{
+		result, err := service.BatchResolve(ctx, usercap.BatchResolveInput{
 			IDs:       userIDsFromStrings(request.UserIDs),
 			Usernames: append([]string(nil), request.Usernames...),
 			Contacts:  append([]string(nil), request.Contacts...),
@@ -65,14 +64,14 @@ func dispatchUsersHostService(
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		return capabilityJSONResponse(result)
-	case bridgehostservice.HostServiceMethodUsersSearch:
-		request, err := decodeUsersHostServiceRequest[usersSearchRequest](payload)
+	case bridgehostservice.HostServiceMethodUsersList:
+		request, err := decodeUsersHostServiceRequest[usersListRequest](payload)
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		result, err := service.Search(ctx, capCtx, usercap.SearchInput{
+		result, err := service.List(ctx, usercap.ListInput{
 			Keyword:     strings.TrimSpace(request.Keyword),
-			Status:      usercap.Status(strings.TrimSpace(request.Status)),
+			Status:      userStatusFlag(request.Status),
 			TenantID:    capmodel.DomainID(strings.TrimSpace(request.TenantID)),
 			EnabledOnly: request.EnabledOnly,
 			Page: capmodel.PageRequest{
@@ -89,7 +88,7 @@ func dispatchUsersHostService(
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		if err = service.EnsureVisible(ctx, capCtx, userIDsFromStrings(request.UserIDs)); err != nil {
+		if err = service.EnsureVisible(ctx, userIDsFromStrings(request.UserIDs)); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		return capabilityJSONResponse(true)
@@ -111,7 +110,7 @@ type usersBatchResolveRequest struct {
 	Contacts  []string `json:"contacts,omitempty"`
 }
 
-type usersSearchRequest struct {
+type usersListRequest struct {
 	Keyword     string `json:"keyword,omitempty"`
 	Status      string `json:"status,omitempty"`
 	TenantID    string `json:"tenantId,omitempty"`
@@ -148,6 +147,21 @@ func usersServiceForHostCall(hcc *hostCallContext) usercap.Service {
 	return services.Users()
 }
 
+// userStatusFlag converts the wire string status into the shared optional status flag.
+func userStatusFlag(status string) *statusflag.Enabled {
+	trimmed := strings.TrimSpace(status)
+	if trimmed == "" {
+		return nil
+	}
+	parsed, err := strconv.Atoi(trimmed)
+	if err != nil {
+		value := statusflag.Enabled(-1)
+		return &value
+	}
+	value := statusflag.Enabled(parsed)
+	return &value
+}
+
 func userIDsFromStrings(ids []string) []usercap.UserID {
 	out := make([]usercap.UserID, 0, len(ids))
 	for _, id := range ids {
@@ -180,8 +194,7 @@ func ensureHostCallUsersVisible(
 			"users host service is not scoped",
 		)
 	}
-	capCtx := capabilityContextForHostCall(hcc, serviceName, method)
-	if err := service.EnsureVisible(ctx, capCtx, userIDsFromInts(userIDs)); err != nil {
+	if err := service.EnsureVisible(ctx, userIDsFromInts(userIDs)); err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusCapabilityDenied, err)
 	}
 	return nil

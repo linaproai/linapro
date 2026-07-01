@@ -14,13 +14,14 @@ import (
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/menutype"
+	"lina-core/pkg/statusflag"
 )
 
 // TestTenantRoleRejectsPlatformOnlyMenuAssignment verifies role creation fails
 // before any role or role-menu row is written when tenant context submits a
 // platform-control-plane menu ID.
 func TestTenantRoleRejectsPlatformOnlyMenuAssignment(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), 62101)
+	ctx := datascope.WithTenantScope(context.Background(), 62101)
 	svc := newDefaultRoleTestService()
 	setRoleTestBizCtx(svc, roleScopeStaticBizCtx{ctx: &model.Context{TenantId: 62101}})
 	enableRoleAssignableTenantCapability(t, svc)
@@ -39,7 +40,7 @@ func TestTenantRoleRejectsPlatformOnlyMenuAssignment(t *testing.T) {
 		Key:       uniqueRoleTenantBoundaryName("tenant-deny-platform-menu-key"),
 		Sort:      1,
 		DataScope: roleDataScopeSelf,
-		Status:    roleTenantBoundaryStatusNormal,
+		Status:    statusflag.EnabledValue.Int(),
 		MenuIds:   []int{platformMenuID},
 	})
 
@@ -57,7 +58,7 @@ func TestTenantRoleRejectsPlatformOnlyMenuAssignment(t *testing.T) {
 // TestTenantRoleUpdateRejectsPlatformOnlyMenuAssignment verifies update keeps
 // the existing role-menu grants when a tenant submits platform-only menu IDs.
 func TestTenantRoleUpdateRejectsPlatformOnlyMenuAssignment(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), 62102)
+	ctx := datascope.WithTenantScope(context.Background(), 62102)
 	svc := newDefaultRoleTestService()
 	setRoleTestBizCtx(svc, roleScopeStaticBizCtx{ctx: &model.Context{TenantId: 62102}})
 	enableRoleAssignableTenantCapability(t, svc)
@@ -78,10 +79,12 @@ func TestTenantRoleUpdateRejectsPlatformOnlyMenuAssignment(t *testing.T) {
 		cleanupRoleTestRows(t, ctx, []int{roleID}, nil, []int{allowedMenuID, platformMenuID})
 	})
 	insertRoleTenantBoundaryRoleMenu(t, ctx, roleID, allowedMenuID, 62102)
-	sortValue := 2
-	dataScope := roleDataScopeSelf
-	statusValue := roleTenantBoundaryStatusNormal
-	remark := "deny platform menu update"
+	var (
+		sortValue   = 2
+		dataScope   = roleDataScopeSelf
+		statusValue = statusflag.EnabledValue.Int()
+		remark      = "deny platform menu update"
+	)
 
 	err := svc.Update(ctx, UpdateInput{
 		Id:        roleID,
@@ -107,7 +110,7 @@ func TestTenantRoleUpdateRejectsPlatformOnlyMenuAssignment(t *testing.T) {
 // governance, and platform-only plugin menus while preserving tenant plugin
 // self-service permissions.
 func TestTenantAssignableMenusFiltersPlatformOnlyNodes(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), 62103)
+	ctx := datascope.WithTenantScope(context.Background(), 62103)
 	svc := newDefaultRoleTestService()
 	setRoleTestBizCtx(svc, roleScopeStaticBizCtx{ctx: &model.Context{TenantId: 62103}})
 	enableRoleAssignableTenantCapability(t, svc)
@@ -173,7 +176,7 @@ func TestTenantAssignableMenusFiltersPlatformOnlyNodes(t *testing.T) {
 // TestPlatformContextKeepsPlatformOnlyMenuAssignment verifies platform context
 // can still assign platform governance permissions.
 func TestPlatformContextKeepsPlatformOnlyMenuAssignment(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), datascope.PlatformTenantID)
+	ctx := datascope.WithTenantScope(context.Background(), datascope.PlatformTenantID)
 	svc := newDefaultRoleTestService()
 	setRoleTestBizCtx(svc, roleScopeStaticBizCtx{ctx: &model.Context{
 		TenantId:  datascope.PlatformTenantID,
@@ -235,8 +238,8 @@ func insertRoleAssignableMenu(t *testing.T, ctx context.Context, seed roleAssign
 		Perms:    seed.Perms,
 		Type:     menuType,
 		Sort:     99,
-		Visible:  roleTenantBoundaryStatusNormal,
-		Status:   roleTenantBoundaryStatusNormal,
+		Visible:  statusflag.Visible.Int(),
+		Status:   statusflag.EnabledValue.Int(),
 	}).InsertAndGetId()
 	if err != nil {
 		t.Fatalf("insert role assignable menu: %v", err)

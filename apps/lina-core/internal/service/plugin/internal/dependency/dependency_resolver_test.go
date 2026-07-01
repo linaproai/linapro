@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/internal/service/plugin/internal/catalog"
 	plugindep "lina-core/internal/service/plugin/internal/dependency"
 	"lina-core/internal/service/plugin/internal/plugintypes"
@@ -29,7 +30,7 @@ func TestCheckInstallBlocksUnsatisfiedFrameworkVersion(t *testing.T) {
 	if len(result.Blockers) != 1 {
 		t.Fatalf("expected one blocker, got %#v", result.Blockers)
 	}
-	if result.Blockers[0].Code != plugindep.BlockerFrameworkVersionUnsatisfied {
+	if result.Blockers[0].Code != pluginv1.BlockerCodeFrameworkVersionUnsatisfied {
 		t.Fatalf("expected framework blocker, got %#v", result.Blockers[0])
 	}
 	if result.Framework.CurrentVersion != "v0.1.0" || result.Framework.RequiredVersion != ">=0.2.0" {
@@ -56,7 +57,7 @@ func TestCheckInstallBlocksUninstalledDependencies(t *testing.T) {
 		},
 	})
 
-	if len(result.Blockers) != 1 || !hasBlocker(result.Blockers, plugindep.BlockerDependencyMissing, "dep-a") {
+	if len(result.Blockers) != 1 || !hasBlocker(result.Blockers, pluginv1.BlockerCodeDependencyMissing, "dep-a") {
 		t.Fatalf("expected uninstalled dependency blocker, got %#v", result.Blockers)
 	}
 	if hasDependency(result.Dependencies, "dep-c") {
@@ -83,7 +84,7 @@ func TestCheckInstallChecksTransitiveDependenciesWhenParentIsInstalled(t *testin
 		},
 	})
 
-	if !hasBlocker(result.Blockers, plugindep.BlockerDependencyMissing, "dep-c") {
+	if !hasBlocker(result.Blockers, pluginv1.BlockerCodeDependencyMissing, "dep-c") {
 		t.Fatalf("expected transitive dependency blocker, got %#v", result.Blockers)
 	}
 }
@@ -108,10 +109,10 @@ func TestCheckInstallReportsMissingAndVersionUnsatisfied(t *testing.T) {
 	if len(result.Blockers) != 2 {
 		t.Fatalf("expected two blockers, got %#v", result.Blockers)
 	}
-	if !hasBlocker(result.Blockers, plugindep.BlockerDependencyMissing, "dep-missing") {
+	if !hasBlocker(result.Blockers, pluginv1.BlockerCodeDependencyMissing, "dep-missing") {
 		t.Fatalf("expected missing dependency blocker, got %#v", result.Blockers)
 	}
-	if !hasBlocker(result.Blockers, plugindep.BlockerDependencyVersionUnsatisfied, "dep-old") {
+	if !hasBlocker(result.Blockers, pluginv1.BlockerCodeDependencyVersionUnsatisfied, "dep-old") {
 		t.Fatalf("expected version dependency blocker, got %#v", result.Blockers)
 	}
 }
@@ -131,7 +132,7 @@ func TestCheckInstallTreatsDeclaredDependenciesAsHard(t *testing.T) {
 		},
 	})
 
-	if len(result.Blockers) != 1 || !hasBlocker(result.Blockers, plugindep.BlockerDependencyMissing, "analytics") {
+	if len(result.Blockers) != 1 || !hasBlocker(result.Blockers, pluginv1.BlockerCodeDependencyMissing, "analytics") {
 		t.Fatalf("expected hard dependency blocker, got %#v", result.Blockers)
 	}
 }
@@ -160,7 +161,7 @@ func TestCheckInstallBlocksDependencyCycle(t *testing.T) {
 	if len(result.Cycle) == 0 {
 		t.Fatalf("expected cycle chain, got %#v", result)
 	}
-	if !hasBlocker(result.Blockers, plugindep.BlockerDependencyCycle, "a") {
+	if !hasBlocker(result.Blockers, pluginv1.BlockerCodeDependencyCycle, "a") {
 		t.Fatalf("expected cycle blocker, got %#v", result.Blockers)
 	}
 }
@@ -183,7 +184,7 @@ func TestCheckReverseBlocksInstalledDependents(t *testing.T) {
 	if len(result.Dependents) != 1 || result.Dependents[0].PluginID != "consumer" {
 		t.Fatalf("expected consumer dependent, got %#v", result.Dependents)
 	}
-	if len(result.Blockers) != 1 || result.Blockers[0].Code != plugindep.BlockerReverseDependency {
+	if len(result.Blockers) != 1 || result.Blockers[0].Code != pluginv1.BlockerCodeReverseDependency {
 		t.Fatalf("expected reverse dependency blocker, got %#v", result.Blockers)
 	}
 }
@@ -204,7 +205,7 @@ func TestCheckReverseBlocksCandidateVersionBreakage(t *testing.T) {
 		},
 	})
 
-	if len(result.Blockers) != 1 || result.Blockers[0].Code != plugindep.BlockerReverseDependencyVersion {
+	if len(result.Blockers) != 1 || result.Blockers[0].Code != pluginv1.BlockerCodeReverseDependencyVersion {
 		t.Fatalf("expected reverse dependency version blocker, got %#v", result.Blockers)
 	}
 }
@@ -229,7 +230,7 @@ func TestCheckReverseBlocksUnknownSnapshotWithoutDiscoveredManifest(t *testing.T
 		},
 	})
 
-	if len(result.Blockers) != 1 || result.Blockers[0].Code != plugindep.BlockerDependencySnapshotUnknown {
+	if len(result.Blockers) != 1 || result.Blockers[0].Code != pluginv1.BlockerCodeDependencySnapshotUnknown {
 		t.Fatalf("expected unknown snapshot blocker, got %#v", result.Blockers)
 	}
 }
@@ -282,7 +283,7 @@ func TestCheckReverseBlocksUnknownSnapshotWithDiscoveredTargetDependency(t *test
 		},
 	})
 
-	if len(result.Blockers) != 1 || result.Blockers[0].Code != plugindep.BlockerDependencySnapshotUnknown {
+	if len(result.Blockers) != 1 || result.Blockers[0].Code != pluginv1.BlockerCodeDependencySnapshotUnknown {
 		t.Fatalf("expected discovered hard dependency with unknown snapshot to block, got %#v", result.Blockers)
 	}
 }
@@ -431,7 +432,7 @@ func legacyCheckReverseForTest(input plugindep.ReverseCheckInput) *plugindep.Rev
 		if plugin.DependencySnapshotUnknown {
 			if legacyUnknownSnapshotRequiresReverseBlockForTest(plugin, targetID, result.CandidateVersion == "") {
 				result.Blockers = append(result.Blockers, &plugindep.Blocker{
-					Code:     plugindep.BlockerDependencySnapshotUnknown,
+					Code:     pluginv1.BlockerCodeDependencySnapshotUnknown,
 					PluginID: strings.TrimSpace(plugin.ID),
 					Detail:   "installed plugin dependency snapshot is unavailable",
 				})
@@ -452,7 +453,7 @@ func legacyCheckReverseForTest(input plugindep.ReverseCheckInput) *plugindep.Rev
 
 			if result.CandidateVersion == "" {
 				result.Blockers = append(result.Blockers, &plugindep.Blocker{
-					Code:            plugindep.BlockerReverseDependency,
+					Code:            pluginv1.BlockerCodeReverseDependency,
 					PluginID:        dependent.PluginID,
 					DependencyID:    targetID,
 					RequiredVersion: dependent.RequiredVersion,
@@ -468,7 +469,7 @@ func legacyCheckReverseForTest(input plugindep.ReverseCheckInput) *plugindep.Rev
 			matches, err := plugintypes.MatchesSemanticVersionRange(result.CandidateVersion, dependent.RequiredVersion)
 			if err != nil || !matches {
 				result.Blockers = append(result.Blockers, &plugindep.Blocker{
-					Code:            plugindep.BlockerReverseDependencyVersion,
+					Code:            pluginv1.BlockerCodeReverseDependencyVersion,
 					PluginID:        dependent.PluginID,
 					DependencyID:    targetID,
 					RequiredVersion: dependent.RequiredVersion,

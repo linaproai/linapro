@@ -92,9 +92,6 @@ Recommendations:
 5. Start the host and fetch `GET /api/v1/i18n/runtime/locales?lang=<locale>` to confirm the locale list and metadata.
 6. Fetch `GET /api/v1/i18n/runtime/messages?lang=<locale>` to confirm the merged runtime result.
 7. Fetch `/api.json?lang=<locale>` to confirm API-documentation localization.
-8. Use `GET /api/v1/i18n/messages/missing?locale=<locale>` to detect keys that are still missing compared with the default locale.
-9. Use `GET /api/v1/i18n/messages/diagnostics?locale=<locale>` to confirm whether the effective value comes from the host file or plugin file.
-10. Use `GET /api/v1/i18n/messages/export?locale=<locale>` when a merged flat-key catalog is needed for offline review or resource-file maintenance.
 
 ## Runtime API Caching
 
@@ -103,12 +100,6 @@ Recommendations:
 Clients should persist `{etag, messages, savedAt}` per locale and send `If-None-Match` on the next request. When the server returns `304 Not Modified`, the response body is empty and the client should reuse the persisted bundle.
 
 Runtime bundle invalidation must always be scoped. Host file, source plugin, and dynamic plugin changes should invalidate only the affected locale, sector, or plugin. Full cache resets are reserved for process-level reloads and tests.
-
-## Source-Text Namespaces
-
-Some runtime keys are owned by code source text, such as built-in scheduler labels. The owning business package must register those prefixes through `i18n.RegisterSourceTextNamespace(prefix, reason)`.
-
-The i18n foundation must not hard-code business prefixes. Missing-message checks only skip source-text-backed keys whose namespace has been registered by the owning module.
 
 ## Runtime Message Governance
 

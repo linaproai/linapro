@@ -5,12 +5,14 @@ package upgrade
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/statusflag"
 )
 
 // SourceUpgradeStatus describes one source plugin's effective version,
@@ -92,7 +94,7 @@ func (s *serviceImpl) listSourceUpgradeCandidates(
 
 	items := make([]*sourceUpgradeCandidate, 0)
 	for _, manifest := range manifests {
-		if manifest == nil || plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeSource {
+		if manifest == nil || plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeSource {
 			continue
 		}
 
@@ -180,7 +182,7 @@ func buildSourceUpgradeStatus(
 		status.Installed = registry.Installed
 		status.Enabled = registry.Status
 	}
-	if status.Installed != plugintypes.InstalledYes {
+	if status.Installed != statusflag.Installed.Int() {
 		return status, nil
 	}
 

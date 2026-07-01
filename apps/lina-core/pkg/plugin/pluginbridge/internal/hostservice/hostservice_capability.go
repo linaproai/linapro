@@ -16,10 +16,10 @@ var (
 	hostServiceMethodCapabilityMap = buildHostServiceMethodCapabilityMap()
 	hostServiceMethodResourceMap   = buildHostServiceMethodResourceMap()
 	allCapabilities                = buildHostServiceCapabilitySet()
-	hostServicesWithoutResources   = buildHostServiceResourceKindSet(HostServiceResourceNone)
-	hostServicesWithKeys           = buildHostServiceResourceKindSet(HostServiceResourceKey)
-	hostServicesWithTables         = buildHostServiceResourceKindSet(HostServiceResourceTable)
-	hostServicesWithPaths          = buildHostServiceResourceKindSet(HostServiceResourcePath)
+	hostServicesWithoutResources   = buildHostServiceResourceKindSet(hostServiceResourceNone)
+	hostServicesWithKeys           = buildHostServiceResourceKindSet(hostServiceResourceKey)
+	hostServicesWithTables         = buildHostServiceResourceKindSet(hostServiceResourceTable)
+	hostServicesWithPaths          = buildHostServiceResourceKindSet(hostServiceResourcePath)
 )
 
 // RequiredCapabilityForHostServiceMethod returns the capability required by one host service method.

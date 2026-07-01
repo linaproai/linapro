@@ -36,7 +36,6 @@ type Tx struct {
 	table      string
 	operations []*dataplan.MutationPlan
 	err        error
-	invoker    HostServiceInvoker
 }
 
 // TxQuery represents one transaction-scoped table mutation builder.

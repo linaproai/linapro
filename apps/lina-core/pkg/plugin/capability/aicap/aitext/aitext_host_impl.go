@@ -20,13 +20,8 @@ const (
 )
 
 // IsProviderEnabled always returns false.
-func (noopProviderRuntime) IsProviderEnabled(_ context.Context, _ string) bool {
+func (noopEnablementReader) IsProviderEnabled(_ context.Context, _ string) bool {
 	return false
-}
-
-// AITextProviderEnv returns an empty typed provider environment.
-func (noopProviderRuntime) AITextProviderEnv(pluginID string) ProviderEnv {
-	return ProviderEnv{PluginID: pluginID}
 }
 
 // Available reports whether an active text AI provider is available.
@@ -34,7 +29,7 @@ func (s *serviceImpl) Available(ctx context.Context) bool {
 	if s == nil {
 		return false
 	}
-	return s.manager.registry.StatusWithProvider(ctx, CapabilityAITextV1, s.runtime, s.providerEnv).Available
+	return s.manager.registry.StatusWithProvider(ctx, CapabilityAITextV1, s.enablement, s.providerEnv).Available
 }
 
 // Status returns the current text AI capability activation state.
@@ -42,7 +37,7 @@ func (s *serviceImpl) Status(ctx context.Context) capmodel.CapabilityStatus {
 	if s == nil {
 		return convertCapabilityStatus(NewManager().registry.Status(ctx, CapabilityAITextV1, nil))
 	}
-	return convertCapabilityStatus(s.manager.registry.StatusWithProvider(ctx, CapabilityAITextV1, s.runtime, s.providerEnv))
+	return convertCapabilityStatus(s.manager.registry.StatusWithProvider(ctx, CapabilityAITextV1, s.enablement, s.providerEnv))
 }
 
 // MethodStatus returns the current text AI method activation state.
@@ -97,7 +92,7 @@ func (s *serviceImpl) currentProvider(ctx context.Context) (Provider, error) {
 	if s == nil {
 		return nil, nil
 	}
-	provider, err := s.manager.registry.ActiveProviderWithError(ctx, CapabilityAITextV1, s.runtime, s.providerEnv)
+	provider, err := s.manager.registry.ActiveProviderWithError(ctx, CapabilityAITextV1, s.enablement, s.providerEnv)
 	if err != nil || provider == nil {
 		return nil, err
 	}
@@ -109,15 +104,21 @@ func (s *serviceImpl) currentProvider(ctx context.Context) (Provider, error) {
 }
 
 // providerEnv builds lazy construction inputs for one text AI provider.
-func (s *serviceImpl) providerEnv(_ context.Context, pluginID string) ProviderEnv {
-	env := ProviderEnv{PluginID: pluginID}
-	if s != nil && s.runtime != nil {
-		env = s.runtime.AITextProviderEnv(pluginID)
+func (s *serviceImpl) providerEnv(ctx context.Context, pluginID string) ProviderEnv {
+	env := defaultProviderEnv(ctx, pluginID)
+	if s != nil && s.envFactory != nil {
+		env = s.envFactory(ctx, pluginID)
 	}
 	if env.PluginID == "" {
 		env.PluginID = pluginID
 	}
 	return env
+}
+
+// defaultProviderEnv creates a minimal provider environment when no host
+// plugin runtime has been bound.
+func defaultProviderEnv(_ context.Context, pluginID string) ProviderEnv {
+	return ProviderEnv{PluginID: pluginID}
 }
 
 // validateGenerateRequest checks provider-independent request boundaries.

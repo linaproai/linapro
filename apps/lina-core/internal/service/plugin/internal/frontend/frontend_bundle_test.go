@@ -5,6 +5,7 @@ package frontend_test
 import (
 	"context"
 	"encoding/base64"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,9 +13,18 @@ import (
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	pluginfrontend "lina-core/internal/service/plugin/internal/frontend"
-	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/testutil"
 )
+
+// resetBundleCache clears the package-level runtime bundle cache through the
+// public frontend service contract used by production invalidation paths.
+func resetBundleCache(t *testing.T, service pluginfrontend.Service) {
+	t.Helper()
+	service.InvalidateAllBundles(context.Background(), "test_reset")
+	t.Cleanup(func() {
+		service.InvalidateAllBundles(context.Background(), "test_cleanup")
+	})
+}
 
 // TestEnsureBundleReaderReadsEmbeddedAssetsWithoutExtraction verifies that
 // runtime assets stay in memory and are not extracted to the plugin workspace.
@@ -22,8 +32,7 @@ func TestEnsureBundleReaderReadsEmbeddedAssetsWithoutExtraction(t *testing.T) {
 	services := testutil.NewServices()
 	service := services.Frontend
 
-	pluginfrontend.ResetBundleCache()
-	t.Cleanup(pluginfrontend.ResetBundleCache)
+	resetBundleCache(t, service)
 
 	pluginDir := testutil.CreateTestRuntimePluginDirWithFrontendAssets(
 		t,
@@ -50,7 +59,7 @@ func TestEnsureBundleReaderReadsEmbeddedAssetsWithoutExtraction(t *testing.T) {
 		ID:           "plugin-dev-dynamic-bundle",
 		Name:         "Runtime Bundle Plugin",
 		Version:      "v0.4.0",
-		Type:         plugintypes.TypeDynamic.String(),
+		Type:         pluginv1.PluginTypeDynamic.String(),
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		RootDir:      pluginDir,
 	}

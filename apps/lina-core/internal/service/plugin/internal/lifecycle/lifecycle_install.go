@@ -7,6 +7,7 @@ package lifecycle
 import (
 	"context"
 	"errors"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"lina-core/internal/service/plugin/internal/catalog"
@@ -20,6 +21,7 @@ import (
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // InstallOptions captures per-request install decisions needed by lifecycle.
@@ -73,7 +75,7 @@ func (s *serviceImpl) Install(
 		return result, err
 	}
 
-	if plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeSource {
+	if plugintypes.NormalizeType(manifest.Type) == pluginv1.PluginTypeSource {
 		if err = s.installSourcePlugin(ctx, manifest, SourceInstallOptions{
 			StartupAutoEnable: options.StartupAutoEnable,
 			InstallMockData:   options.InstallMockData,
@@ -131,8 +133,8 @@ func applyInstallModeSelection(manifest *catalog.Manifest, installMode string) e
 		return bizerr.NewCode(CodePluginInstallModeInvalid)
 	}
 	if !manifest.SupportsTenantGovernance() {
-		manifest.DefaultInstallMode = plugintypes.InstallModeGlobal.String()
-		if strings.TrimSpace(installMode) != "" && plugintypes.NormalizeInstallMode(installMode) != plugintypes.InstallModeGlobal {
+		manifest.DefaultInstallMode = pluginv1.InstallModeGlobal.String()
+		if strings.TrimSpace(installMode) != "" && plugintypes.NormalizeInstallMode(installMode) != pluginv1.InstallModeGlobal {
 			return bizerr.NewCode(
 				CodePluginInstallModeInvalidForScopeNature,
 				bizerr.P("scopeNature", scopeNature.String()),
@@ -148,7 +150,7 @@ func applyInstallModeSelection(manifest *catalog.Manifest, installMode string) e
 		return bizerr.NewCode(CodePluginInstallModeInvalid)
 	}
 	mode := plugintypes.NormalizeInstallMode(installMode)
-	if scopeNature == plugintypes.ScopeNaturePlatformOnly && mode != plugintypes.InstallModeGlobal {
+	if scopeNature == pluginv1.ScopeNaturePlatformOnly && mode != pluginv1.InstallModeGlobal {
 		return bizerr.NewCode(
 			CodePluginInstallModeInvalidForScopeNature,
 			bizerr.P("pluginId", manifest.ID),
@@ -289,7 +291,7 @@ func (s *serviceImpl) buildDependencySnapshots(
 			snapshotByID[registryPluginID] = snapshot
 		}
 		if registryPluginID == candidateID {
-			snapshot.Installed = registry.Installed == plugintypes.InstalledYes
+			snapshot.Installed = registry.Installed == statusflag.Installed.Int()
 			continue
 		}
 		plugindep.ApplyRegistrySnapshot(readCtx, s.storeSvc, snapshot, registry)
@@ -386,7 +388,7 @@ func (s *serviceImpl) persistDynamicPluginAuthorization(
 	manifest *catalog.Manifest,
 	authorization *store.HostServiceAuthorizationInput,
 ) error {
-	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
+	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic {
 		return nil
 	}
 	if _, err := s.storeSvc.SyncManifest(ctx, manifest); err != nil {

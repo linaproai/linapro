@@ -68,9 +68,11 @@ func buildGuestRuntimeWasm(
 			}
 		}
 	}()
-	buildDir := pluginDir
-	buildTarget := "."
-	buildEnv := append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm")
+	var (
+		buildDir    = pluginDir
+		buildTarget = "."
+		buildEnv    = append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm")
+	)
 	if workMode := selectGuestRuntimeGoWork(pluginDir); workMode != "" {
 		buildEnv = append(buildEnv, "GOWORK="+workMode)
 	}
@@ -120,9 +122,11 @@ func acquireGuestRuntimeBuildLock(pluginDir string) (func() error, error) {
 	if err != nil {
 		return nil, err
 	}
-	normalizedPluginDir := filepath.Clean(absPluginDir)
-	lockHash := sha256.Sum256([]byte(normalizedPluginDir))
-	lockRoot := filepath.Join(os.TempDir(), "linapro-wasm-build-locks")
+	var (
+		normalizedPluginDir = filepath.Clean(absPluginDir)
+		lockHash            = sha256.Sum256([]byte(normalizedPluginDir))
+		lockRoot            = filepath.Join(os.TempDir(), "linapro-wasm-build-locks")
+	)
 	if err = os.MkdirAll(lockRoot, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create wasm build lock root: %w", err)
 	}

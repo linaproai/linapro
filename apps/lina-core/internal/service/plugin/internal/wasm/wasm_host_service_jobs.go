@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 
+	jobv1 "lina-core/api/job/v1"
 	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/jobcap"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
@@ -35,24 +36,23 @@ func dispatchJobsHostService(
 	if service == nil {
 		return domainServiceNotScoped("jobs")
 	}
-	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceJobs, method)
 	switch method {
 	case bridgehostservice.HostServiceMethodJobsBatchGet:
 		var request idsRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		result, err := service.BatchGet(ctx, capCtx, jobIDs(request.IDs))
+		result, err := service.BatchGet(ctx, jobIDs(request.IDs))
 		return domainCapabilityResult(result, err)
-	case bridgehostservice.HostServiceMethodJobsSearch:
-		var request jobsSearchRequest
+	case bridgehostservice.HostServiceMethodJobsList:
+		var request jobsListRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		result, err := service.Search(ctx, capCtx, jobcap.SearchInput{
+		result, err := service.List(ctx, jobcap.ListInput{
 			Keyword: strings.TrimSpace(request.Keyword),
 			Group:   strings.TrimSpace(request.Group),
-			Status:  strings.TrimSpace(request.Status),
+			Status:  jobv1.Status(strings.TrimSpace(request.Status)),
 			Page: capmodel.PageRequest{
 				PageNum:  request.PageNum,
 				PageSize: request.PageSize,
@@ -64,7 +64,7 @@ func dispatchJobsHostService(
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		err := service.EnsureVisible(ctx, capCtx, jobIDs(request.IDs))
+		err := service.EnsureVisible(ctx, jobIDs(request.IDs))
 		return domainCapabilityResult(true, err)
 	default:
 		return domainMethodNotFound("jobs", method)
@@ -130,8 +130,8 @@ func jobIDs(ids []string) []jobcap.JobID {
 	return out
 }
 
-// jobsSearchRequest carries governed scheduled-job search parameters.
-type jobsSearchRequest struct {
+// jobsListRequest carries governed scheduled-job search parameters.
+type jobsListRequest struct {
 	Keyword  string `json:"keyword,omitempty"`
 	Group    string `json:"group,omitempty"`
 	Status   string `json:"status,omitempty"`

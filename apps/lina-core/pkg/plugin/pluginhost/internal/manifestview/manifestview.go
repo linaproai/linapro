@@ -2,7 +2,10 @@
 // returned through the public pluginhost upgrade callback contract.
 package manifestview
 
-import "lina-core/pkg/plugin/capability/capmodel"
+import (
+	pluginv1 "lina-core/api/plugin/v1"
+	"lina-core/pkg/plugin/capability/capmodel"
+)
 
 // Snapshot is the host-owned immutable manifest snapshot view.
 type Snapshot struct {
@@ -44,7 +47,7 @@ func (s *Snapshot) Version() string {
 }
 
 // Type returns the plugin type recorded in the manifest snapshot.
-func (s *Snapshot) Type() string {
+func (s *Snapshot) Type() pluginv1.PluginType {
 	if s == nil {
 		return ""
 	}

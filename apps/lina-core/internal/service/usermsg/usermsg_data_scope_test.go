@@ -13,6 +13,7 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/util/gconv"
 
+	usermsgv1 "lina-core/api/usermsg/v1"
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
@@ -25,10 +26,12 @@ import (
 // TestUserMessagesRemainSelfIsolatedForAllDataScope verifies all-data role
 // scope never broadens inbox message reads, marks, or deletes to other users.
 func TestUserMessagesRemainSelfIsolatedForAllDataScope(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertUserMsgScopeUser(t, ctx, "usermsg-current")
-	otherUserID := insertUserMsgScopeUser(t, ctx, "usermsg-other")
-	roleID := insertUserMsgScopeRole(t, ctx, "usermsg-all", 1)
+	var (
+		ctx           = context.Background()
+		currentUserID = insertUserMsgScopeUser(t, ctx, "usermsg-current")
+		otherUserID   = insertUserMsgScopeUser(t, ctx, "usermsg-other")
+		roleID        = insertUserMsgScopeRole(t, ctx, "usermsg-all", 1)
+	)
 	t.Cleanup(func() {
 		cleanupUserMsgScopeUsers(t, ctx, []int{currentUserID, otherUserID})
 		cleanupUserMsgScopeRoles(t, ctx, []int{roleID})
@@ -39,7 +42,7 @@ func TestUserMessagesRemainSelfIsolatedForAllDataScope(t *testing.T) {
 	otherDeliveryID, _ := insertUserMsgScopeDelivery(t, ctx, otherUserID, "other-message")
 	t.Cleanup(func() { cleanupUserMsgScopeDeliveries(t, ctx, []int64{currentDeliveryID, otherDeliveryID}) })
 
-	svc := New(nil, notify.New(tenantspi.New(nil, nil, nil)), nil).(*serviceImpl)
+	svc := New(nil, notify.New(tenantspi.New(nil, nil, nil, nil)), nil).(*serviceImpl)
 	svc.bizCtxSvc = userMsgScopeStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
 
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20})
@@ -169,7 +172,7 @@ func insertUserMsgScopeDelivery(t *testing.T, ctx context.Context, userID int, t
 	t.Helper()
 	sourceID := uniqueUserMsgScopeName("source")
 	messageID, err := dao.SysNotifyMessage.Ctx(ctx).Data(do.SysNotifyMessage{
-		SourceType:   notify.SourceTypeSystem.String(),
+		SourceType:   string(usermsgv1.SourceTypeSystem),
 		SourceId:     sourceID,
 		CategoryCode: notify.CategoryCodeSystem.String(),
 		Title:        title,

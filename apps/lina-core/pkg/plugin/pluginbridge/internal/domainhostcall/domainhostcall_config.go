@@ -15,6 +15,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"gopkg.in/yaml.v3"
 
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/capability/plugincap"
@@ -31,6 +32,9 @@ type hostConfigClient struct{ baseService }
 type hostConfigCapabilityService struct {
 	client *hostConfigClient
 }
+
+// hostConfigSysConfigService reports that sys_config methods are not published dynamically.
+type hostConfigSysConfigService struct{}
 
 // manifestClient adapts manifest.get transport calls to simple helper methods.
 type manifestClient struct{ baseService }
@@ -198,11 +202,52 @@ func (s *hostConfigCapabilityService) Duration(_ context.Context, key string, de
 	return value, nil
 }
 
+// SysConfig returns the unpublished dynamic sys_config subresource adapter.
+func (s *hostConfigCapabilityService) SysConfig() hostconfigcap.SysConfigService {
+	return hostConfigSysConfigService{}
+}
+
+// Get is not published as a dynamic hostconfig host-service method.
+func (hostConfigSysConfigService) Get(context.Context, hostconfigcap.SysConfigKey) (*hostconfigcap.SysConfigInfo, error) {
+	return nil, unsupportedDynamicMethodError("hostconfig.sys_config.get")
+}
+
+// BatchGet is not published as a dynamic hostconfig host-service method.
+func (hostConfigSysConfigService) BatchGet(context.Context, []hostconfigcap.SysConfigKey) (*capmodel.BatchResult[*hostconfigcap.SysConfigInfo, hostconfigcap.SysConfigKey], error) {
+	return nil, unsupportedDynamicMethodError("hostconfig.sys_config.batch_get")
+}
+
+// List is not published as a dynamic hostconfig host-service method.
+func (hostConfigSysConfigService) List(context.Context, hostconfigcap.ListSysConfigInput) (*capmodel.PageResult[*hostconfigcap.SysConfigInfo], error) {
+	return nil, unsupportedDynamicMethodError("hostconfig.sys_config.list")
+}
+
+// SetValue is not published as a dynamic hostconfig host-service method.
+func (hostConfigSysConfigService) SetValue(context.Context, hostconfigcap.SysConfigKey, string) error {
+	return unsupportedDynamicMethodError("hostconfig.sys_config.set")
+}
+
+// Reset is not published as a dynamic hostconfig host-service method.
+func (hostConfigSysConfigService) Reset(context.Context, hostconfigcap.SysConfigKey) error {
+	return unsupportedDynamicMethodError("hostconfig.sys_config.reset")
+}
+
+// EnsureVisible is not published as a dynamic hostconfig host-service method.
+func (hostConfigSysConfigService) EnsureVisible(context.Context, []hostconfigcap.SysConfigKey) error {
+	return unsupportedDynamicMethodError("hostconfig.sys_config.keys.visible.ensure")
+}
+
 // Get returns the raw plugin configuration value for the given key.
-func (s *pluginConfigService) Get(_ context.Context, key string) (*gvar.Var, error) {
+func (s *pluginConfigService) Get(_ context.Context, key string, defaultValue any) (*gvar.Var, error) {
 	value, found, err := s.configValue(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsConfigGet, "", key)
-	if err != nil || !found {
+	if err != nil {
 		return nil, err
+	}
+	if !found {
+		if defaultValue != nil {
+			return gvar.New(defaultValue), nil
+		}
+		return nil, nil
 	}
 	return gvarFromJSONValue(value), nil
 }
@@ -218,7 +263,7 @@ func (s *pluginConfigService) Scan(ctx context.Context, key string, target any) 
 	if target == nil {
 		return gerror.New("plugin config scan target cannot be nil")
 	}
-	value, err := s.Get(ctx, key)
+	value, err := s.Get(ctx, key, nil)
 	if err != nil || value == nil || value.IsNil() {
 		return err
 	}
@@ -521,6 +566,8 @@ func parentDirectoryPrefix(path string) string {
 	return path[:index+1]
 }
 
-var _ plugincap.ConfigService = (*pluginConfigService)(nil)
-var _ hostconfigcap.Service = (*hostConfigCapabilityService)(nil)
-var _ manifestcap.Service = (*manifestCapabilityService)(nil)
+var (
+	_ plugincap.ConfigService = (*pluginConfigService)(nil)
+	_ hostconfigcap.Service   = (*hostConfigCapabilityService)(nil)
+	_ manifestcap.Service     = (*manifestCapabilityService)(nil)
+)

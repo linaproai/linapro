@@ -3,6 +3,8 @@
 package capabilityhost
 
 import (
+	filesvc "lina-core/internal/service/file"
+	"lina-core/internal/service/notify"
 	"lina-core/pkg/plugin/capability"
 	capabilityai "lina-core/pkg/plugin/capability/aicap"
 	"lina-core/pkg/plugin/capability/apidoccap"
@@ -13,7 +15,6 @@ import (
 	capabilityfilecap "lina-core/pkg/plugin/capability/filecap"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/capability/i18ncap"
-	capabilityinfracap "lina-core/pkg/plugin/capability/infracap"
 	capabilityjobcap "lina-core/pkg/plugin/capability/jobcap"
 	"lina-core/pkg/plugin/capability/lockcap"
 	"lina-core/pkg/plugin/capability/manifestcap"
@@ -24,7 +25,6 @@ import (
 	capabilitysessioncap "lina-core/pkg/plugin/capability/sessioncap"
 	"lina-core/pkg/plugin/capability/storagecap"
 	capabilitytenantcap "lina-core/pkg/plugin/capability/tenantcap"
-	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
 )
 
@@ -106,14 +106,6 @@ func (s *directory) I18n() i18ncap.Service {
 	return s.i18n
 }
 
-// Infra returns the infrastructure-domain ordinary capability service.
-func (s *directory) Infra() capabilityinfracap.Service {
-	if s == nil {
-		return nil
-	}
-	return s.infra
-}
-
 // Jobs returns the scheduled-job domain ordinary capability service.
 func (s *directory) Jobs() capabilityjobcap.Service {
 	if s == nil {
@@ -178,14 +170,6 @@ func (s *directory) Sessions() capabilitysessioncap.Service {
 // operations require a plugin-bound service view.
 func (s *directory) Storage() storagecap.Service {
 	return nil
-}
-
-// TenantFilter returns the host tenant-filter adapter.
-func (s *directory) TenantFilter() tenantspi.PluginTableFilterService {
-	if s == nil {
-		return nil
-	}
-	return s.tenantFilter
 }
 
 // Tenant returns the tenant capability service.
@@ -260,12 +244,16 @@ func (s *scopedDirectory) Dict() capabilitydictcap.Service {
 	return s.base.Dict()
 }
 
-// Files returns the delegated file-domain ordinary capability service.
+// Files returns the plugin-scoped file-domain ordinary capability service.
 func (s *scopedDirectory) Files() capabilityfilecap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
-	return s.base.Files()
+	files := s.base.Files()
+	if scoped, ok := files.(filesvc.CapabilityService); ok {
+		return scoped.WithStorage(s.Storage())
+	}
+	return files
 }
 
 // HostConfig returns the delegated host config adapter.
@@ -282,14 +270,6 @@ func (s *scopedDirectory) I18n() i18ncap.Service {
 		return nil
 	}
 	return s.base.I18n()
-}
-
-// Infra returns the delegated infrastructure-domain ordinary capability service.
-func (s *scopedDirectory) Infra() capabilityinfracap.Service {
-	if s == nil || s.base == nil {
-		return nil
-	}
-	return s.base.Infra()
 }
 
 // Jobs returns the delegated scheduled-job domain ordinary capability service.
@@ -324,7 +304,11 @@ func (s *scopedDirectory) Notifications() capabilitynotifycap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
-	return s.base.Notifications()
+	notifications := s.base.Notifications()
+	if scoped, ok := notifications.(notify.CapabilityService); ok {
+		return scoped.ForPlugin(s.pluginID)
+	}
+	return notifications
 }
 
 // Org returns the delegated organization capability service.
@@ -365,14 +349,6 @@ func (s *scopedDirectory) Storage() storagecap.Service {
 		return nil
 	}
 	return newStorageAdapter(s.base.storageRuntime, s.base.storageProvider, s.base.bizCtx, s.pluginID)
-}
-
-// TenantFilter returns the delegated tenant-filter adapter.
-func (s *scopedDirectory) TenantFilter() tenantspi.PluginTableFilterService {
-	if s == nil || s.base == nil {
-		return nil
-	}
-	return s.base.TenantFilter()
 }
 
 // Tenant returns the delegated tenant capability service.

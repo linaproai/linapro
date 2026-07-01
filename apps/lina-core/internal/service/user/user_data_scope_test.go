@@ -21,15 +21,18 @@ import (
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/statusflag"
 )
 
 // TestUserDataScopeListSelfShowsOnlyCurrentUser verifies self-scope list
 // queries return only the current authenticated user.
 func TestUserDataScopeListSelfShowsOnlyCurrentUser(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertUserDeleteTestUser(t, ctx, "scope-self-current")
-	otherUserID := insertUserDeleteTestUser(t, ctx, "scope-self-other")
-	roleID := insertUserDataScopeTestRole(t, ctx, "scope-self-role", userDataScopeSelf, 1)
+	var (
+		ctx           = context.Background()
+		currentUserID = insertUserDeleteTestUser(t, ctx, "scope-self-current")
+		otherUserID   = insertUserDeleteTestUser(t, ctx, "scope-self-other")
+		roleID        = insertUserDataScopeTestRole(t, ctx, "scope-self-role", userDataScopeSelf, 1)
+	)
 	t.Cleanup(func() {
 		cleanupUserDeleteTestRows(t, ctx, []int{currentUserID, otherUserID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
@@ -51,11 +54,13 @@ func TestUserDataScopeListSelfShowsOnlyCurrentUser(t *testing.T) {
 // TestUserDataScopeListDeptUsesOrgCap verifies department-scope list queries
 // use orgcap to inject a scoped database constraint.
 func TestUserDataScopeListDeptUsesOrgCap(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertUserDeleteTestUser(t, ctx, "scope-dept-current")
-	deptMateUserID := insertUserDeleteTestUser(t, ctx, "scope-dept-mate")
-	otherUserID := insertUserDeleteTestUser(t, ctx, "scope-dept-other")
-	roleID := insertUserDataScopeTestRole(t, ctx, "scope-dept-role", userDataScopeDept, 1)
+	var (
+		ctx            = context.Background()
+		currentUserID  = insertUserDeleteTestUser(t, ctx, "scope-dept-current")
+		deptMateUserID = insertUserDeleteTestUser(t, ctx, "scope-dept-mate")
+		otherUserID    = insertUserDeleteTestUser(t, ctx, "scope-dept-other")
+		roleID         = insertUserDataScopeTestRole(t, ctx, "scope-dept-role", userDataScopeDept, 1)
+	)
 	t.Cleanup(func() {
 		cleanupUserDeleteTestRows(t, ctx, []int{currentUserID, deptMateUserID, otherUserID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
@@ -92,10 +97,12 @@ func TestUserDataScopeListDeptUsesOrgCap(t *testing.T) {
 // TestUserDataScopeDeptUnavailableFallsBackToSelf verifies department scope
 // falls back to self scope when organization capability is unavailable.
 func TestUserDataScopeDeptUnavailableFallsBackToSelf(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertUserDeleteTestUser(t, ctx, "scope-dept-disabled-current")
-	otherUserID := insertUserDeleteTestUser(t, ctx, "scope-dept-disabled-other")
-	roleID := insertUserDataScopeTestRole(t, ctx, "scope-dept-disabled-role", userDataScopeDept, 1)
+	var (
+		ctx           = context.Background()
+		currentUserID = insertUserDeleteTestUser(t, ctx, "scope-dept-disabled-current")
+		otherUserID   = insertUserDeleteTestUser(t, ctx, "scope-dept-disabled-other")
+		roleID        = insertUserDataScopeTestRole(t, ctx, "scope-dept-disabled-role", userDataScopeDept, 1)
+	)
 	t.Cleanup(func() {
 		cleanupUserDeleteTestRows(t, ctx, []int{currentUserID, otherUserID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
@@ -118,11 +125,13 @@ func TestUserDataScopeDeptUnavailableFallsBackToSelf(t *testing.T) {
 // TestUserDataScopeResolvesWidestEnabledRole verifies enabled role scopes are
 // merged by the widest-scope-wins rule and disabled roles are ignored.
 func TestUserDataScopeResolvesWidestEnabledRole(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertUserDeleteTestUser(t, ctx, "scope-widest-current")
-	selfRoleID := insertUserDataScopeTestRole(t, ctx, "scope-widest-self", userDataScopeSelf, 1)
-	deptRoleID := insertUserDataScopeTestRole(t, ctx, "scope-widest-dept", userDataScopeDept, 1)
-	disabledAllRoleID := insertUserDataScopeTestRole(t, ctx, "scope-widest-disabled-all", userDataScopeAll, 0)
+	var (
+		ctx               = context.Background()
+		currentUserID     = insertUserDeleteTestUser(t, ctx, "scope-widest-current")
+		selfRoleID        = insertUserDataScopeTestRole(t, ctx, "scope-widest-self", userDataScopeSelf, 1)
+		deptRoleID        = insertUserDataScopeTestRole(t, ctx, "scope-widest-dept", userDataScopeDept, 1)
+		disabledAllRoleID = insertUserDataScopeTestRole(t, ctx, "scope-widest-disabled-all", userDataScopeAll, 0)
+	)
 	t.Cleanup(func() {
 		cleanupUserDeleteTestRows(t, ctx, []int{currentUserID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{selfRoleID, deptRoleID, disabledAllRoleID})
@@ -149,10 +158,12 @@ func TestUserDataScopeResolvesWidestEnabledRole(t *testing.T) {
 // TestUserDataScopeRejectsInvisibleStatusUpdate verifies write operations fail
 // before mutating target users outside the current data scope.
 func TestUserDataScopeRejectsInvisibleStatusUpdate(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertUserDeleteTestUser(t, ctx, "scope-update-current")
-	targetUserID := insertUserDeleteTestUser(t, ctx, "scope-update-target")
-	roleID := insertUserDataScopeTestRole(t, ctx, "scope-update-role", userDataScopeSelf, 1)
+	var (
+		ctx           = context.Background()
+		currentUserID = insertUserDeleteTestUser(t, ctx, "scope-update-current")
+		targetUserID  = insertUserDeleteTestUser(t, ctx, "scope-update-target")
+		roleID        = insertUserDataScopeTestRole(t, ctx, "scope-update-role", userDataScopeSelf, 1)
+	)
 	t.Cleanup(func() {
 		cleanupUserDeleteTestRows(t, ctx, []int{currentUserID, targetUserID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
@@ -162,14 +173,14 @@ func TestUserDataScopeRejectsInvisibleStatusUpdate(t *testing.T) {
 	svc := newUserTestService().(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}})
 
-	err := svc.UpdateStatus(ctx, targetUserID, StatusDisabled)
+	err := svc.UpdateStatus(ctx, targetUserID, statusflag.Disabled)
 	if err == nil {
 		t.Fatal("expected invisible status update to be rejected")
 	}
 	if !bizerr.Is(err, datascope.CodeDataScopeDenied) {
 		t.Fatalf("expected CodeDataScopeDenied, got %v", err)
 	}
-	if status := mustQueryUserStatus(t, ctx, targetUserID); status != int(StatusNormal) {
+	if status := mustQueryUserStatus(t, ctx, targetUserID); status != int(statusflag.EnabledValue) {
 		t.Fatalf("expected target user status to remain normal, got %d", status)
 	}
 }
@@ -177,11 +188,13 @@ func TestUserDataScopeRejectsInvisibleStatusUpdate(t *testing.T) {
 // TestUserDataScopeBatchDeleteRejectsInvisibleTarget verifies batch delete is
 // rejected atomically when any target user is outside the data scope.
 func TestUserDataScopeBatchDeleteRejectsInvisibleTarget(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertUserDeleteTestUser(t, ctx, "scope-delete-current")
-	deptMateUserID := insertUserDeleteTestUser(t, ctx, "scope-delete-mate")
-	invisibleUserID := insertUserDeleteTestUser(t, ctx, "scope-delete-invisible")
-	roleID := insertUserDataScopeTestRole(t, ctx, "scope-delete-role", userDataScopeDept, 1)
+	var (
+		ctx             = context.Background()
+		currentUserID   = insertUserDeleteTestUser(t, ctx, "scope-delete-current")
+		deptMateUserID  = insertUserDeleteTestUser(t, ctx, "scope-delete-mate")
+		invisibleUserID = insertUserDeleteTestUser(t, ctx, "scope-delete-invisible")
+		roleID          = insertUserDataScopeTestRole(t, ctx, "scope-delete-role", userDataScopeDept, 1)
+	)
 	t.Cleanup(func() {
 		cleanupUserDeleteTestRows(t, ctx, []int{currentUserID, deptMateUserID, invisibleUserID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
@@ -214,10 +227,12 @@ func TestUserDataScopeBatchDeleteRejectsInvisibleTarget(t *testing.T) {
 // TestUserDataScopeExportAllAppliesSelfScope verifies full export uses the same
 // self-scope filter as user list queries.
 func TestUserDataScopeExportAllAppliesSelfScope(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertUserDeleteTestUser(t, ctx, "scope-export-current")
-	otherUserID := insertUserDeleteTestUser(t, ctx, "scope-export-other")
-	roleID := insertUserDataScopeTestRole(t, ctx, "scope-export-role", userDataScopeSelf, 1)
+	var (
+		ctx           = context.Background()
+		currentUserID = insertUserDeleteTestUser(t, ctx, "scope-export-current")
+		otherUserID   = insertUserDeleteTestUser(t, ctx, "scope-export-other")
+		roleID        = insertUserDataScopeTestRole(t, ctx, "scope-export-role", userDataScopeSelf, 1)
+	)
 	t.Cleanup(func() {
 		cleanupUserDeleteTestRows(t, ctx, []int{currentUserID, otherUserID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
@@ -249,11 +264,13 @@ func TestUserDataScopeExportAllAppliesSelfScope(t *testing.T) {
 // TestTenantUserImportPersistsCurrentTenant verifies imported users created in
 // tenant context are not written to the platform tenant.
 func TestTenantUserImportPersistsCurrentTenant(t *testing.T) {
-	ctx := context.Background()
-	tenantID := 99
-	tenantCtx := datascope.WithTenantForTest(ctx, tenantID)
-	username := fmt.Sprintf("tenant-import-user-%d", time.Now().UnixNano())
-	importData := buildUserImportWorkbook(t, []string{username, "P@ssw0rd123", "Tenant Import User", "", "", "0", "1", "tenant import"})
+	var (
+		ctx        = context.Background()
+		tenantID   = 99
+		tenantCtx  = datascope.WithTenantScope(ctx, tenantID)
+		username   = fmt.Sprintf("tenant-import-user-%d", time.Now().UnixNano())
+		importData = buildUserImportWorkbook(t, []string{username, "P@ssw0rd123", "Tenant Import User", "", "", "0", "1", "tenant import"})
+	)
 
 	result, err := newUserTestService().Import(tenantCtx, bytes.NewReader(importData))
 	if err != nil {
@@ -349,9 +366,11 @@ func readUserDataScopeExportRows(data []byte) (rows [][]string, err error) {
 func buildUserImportWorkbook(t *testing.T, row []string) []byte {
 	t.Helper()
 
-	f := excelize.NewFile()
-	sheet := "Sheet1"
-	headers := []string{"Username", "Password", "Nickname", "Mobile Number", "Email", "Gender", "Status", "Remark"}
+	var (
+		f       = excelize.NewFile()
+		sheet   = "Sheet1"
+		headers = []string{"Username", "Password", "Nickname", "Mobile Number", "Email", "Gender", "Status", "Remark"}
+	)
 	for i, header := range headers {
 		cell, err := excelize.CoordinatesToCellName(i+1, 1)
 		if err != nil {
@@ -534,8 +553,8 @@ func (f userDataScopeStaticOrgCap) ListDeptTree(context.Context, orgcap.DeptTree
 }
 
 // SearchDepartments returns no department candidates.
-func (f userDataScopeStaticOrgCap) SearchDepartments(context.Context, orgcap.DeptSearchInput) (*capmodel.PageResult[*orgcap.DeptProjection], error) {
-	return &capmodel.PageResult[*orgcap.DeptProjection]{Items: []*orgcap.DeptProjection{}}, nil
+func (f userDataScopeStaticOrgCap) SearchDepartments(context.Context, orgcap.DeptListInput) (*capmodel.PageResult[*orgcap.DeptInfo], error) {
+	return &capmodel.PageResult[*orgcap.DeptInfo]{Items: []*orgcap.DeptInfo{}}, nil
 }
 
 // ListPostOptionsPage returns no post candidates.

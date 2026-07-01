@@ -29,114 +29,125 @@ func dispatchPluginsHostService(
 	if service == nil {
 		return domainServiceNotScoped("plugins")
 	}
-	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServicePlugins, method)
 	switch method {
 	case bridgehostservice.HostServiceMethodPluginsCurrent:
-		result, err := service.Current(ctx, capCtx)
+		registry := service.Registry()
+		if registry == nil {
+			return domainServiceNotScoped("plugins.registry")
+		}
+		result, err := registry.Current(ctx)
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodPluginsBatchGet:
+		registry := service.Registry()
+		if registry == nil {
+			return domainServiceNotScoped("plugins.registry")
+		}
 		var request idsRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		result, err := service.BatchGet(ctx, capCtx, pluginIDs(request.IDs))
+		result, err := registry.BatchGet(ctx, pluginIDs(request.IDs))
 		return domainCapabilityResult(result, err)
-	case bridgehostservice.HostServiceMethodPluginsSearch:
-		var request plugincap.SearchInput
+	case bridgehostservice.HostServiceMethodPluginsList:
+		registry := service.Registry()
+		if registry == nil {
+			return domainServiceNotScoped("plugins.registry")
+		}
+		var request plugincap.ListInput
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		result, err := service.Search(ctx, capCtx, request)
+		result, err := registry.List(ctx, request)
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodPluginsListTenant:
+		registry := service.Registry()
+		if registry == nil {
+			return domainServiceNotScoped("plugins.registry")
+		}
 		var request plugincap.TenantListInput
 		if len(payload) > 0 {
 			if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 				return invalidCapabilityRequest(err)
 			}
 		}
-		result, err := service.ListTenantPlugins(ctx, capCtx, request)
+		result, err := registry.ListTenantPlugins(ctx, request)
 		return domainCapabilityResult(result, err)
-	case bridgehostservice.HostServiceMethodPluginsBatchGetCapabilityStatus:
-		var request capabilityKeysRequest
+	case bridgehostservice.HostServiceMethodPluginsStateIsEnabled:
+		stateSvc := service.State()
+		if stateSvc == nil {
+			return domainServiceNotScoped("plugins.state")
+		}
+		var request pluginIDRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		result, err := service.BatchGetCapabilityStatus(ctx, capCtx, capabilityKeys(request.Keys))
+		result, err := stateSvc.IsEnabled(ctx, plugincap.PluginID(request.PluginID))
 		return domainCapabilityResult(result, err)
-	case bridgehostservice.HostServiceMethodPluginsIsEnabled:
-		state := service.State()
-		if state == nil {
+	case bridgehostservice.HostServiceMethodPluginsStateIsProviderEnabled:
+		stateSvc := service.State()
+		if stateSvc == nil {
 			return domainServiceNotScoped("plugins.state")
 		}
 		var request pluginIDRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		return capabilityJSONResponse(state.IsEnabled(ctx, request.PluginID))
-	case bridgehostservice.HostServiceMethodPluginsIsProviderEnabled:
-		state := service.State()
-		if state == nil {
+		result, err := stateSvc.IsProviderEnabled(ctx, plugincap.PluginID(request.PluginID))
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodPluginsStateIsEnabledAuthoritative:
+		stateSvc := service.State()
+		if stateSvc == nil {
 			return domainServiceNotScoped("plugins.state")
 		}
 		var request pluginIDRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		return capabilityJSONResponse(state.IsProviderEnabled(ctx, request.PluginID))
-	case bridgehostservice.HostServiceMethodPluginsIsEnabledAuthoritative:
-		state := service.State()
-		if state == nil {
-			return domainServiceNotScoped("plugins.state")
-		}
-		var request pluginIDRequest
-		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
-			return invalidCapabilityRequest(err)
-		}
-		return capabilityJSONResponse(state.IsEnabledAuthoritative(ctx, request.PluginID))
-	case bridgehostservice.HostServiceMethodPluginsLifecycleEnsureTenantPluginDisable:
-		lifecycle := service.Lifecycle()
-		if lifecycle == nil {
+		result, err := stateSvc.IsEnabledAuthoritative(ctx, plugincap.PluginID(request.PluginID))
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodPluginsLifecycleEnsureTenantPluginDisableAllowed:
+		lifecycleSvc := service.Lifecycle()
+		if lifecycleSvc == nil {
 			return domainServiceNotScoped("plugins.lifecycle")
 		}
-		var request pluginTenantLifecycleRequest
+		var request tenantPluginLifecycleRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		err := lifecycle.EnsureTenantPluginDisableAllowed(ctx, request.PluginID, request.TenantID)
+		err := lifecycleSvc.EnsureTenantPluginDisableAllowed(ctx, request.PluginID, request.TenantID)
 		return domainCapabilityResult(true, err)
 	case bridgehostservice.HostServiceMethodPluginsLifecycleNotifyTenantPluginDisabled:
-		lifecycle := service.Lifecycle()
-		if lifecycle == nil {
+		lifecycleSvc := service.Lifecycle()
+		if lifecycleSvc == nil {
 			return domainServiceNotScoped("plugins.lifecycle")
 		}
-		var request pluginTenantLifecycleRequest
+		var request tenantPluginLifecycleRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		lifecycle.NotifyTenantPluginDisabled(ctx, request.PluginID, request.TenantID)
+		lifecycleSvc.NotifyTenantPluginDisabled(ctx, request.PluginID, request.TenantID)
 		return capabilityJSONResponse(true)
-	case bridgehostservice.HostServiceMethodPluginsLifecycleEnsureTenantDelete:
-		lifecycle := service.Lifecycle()
-		if lifecycle == nil {
+	case bridgehostservice.HostServiceMethodPluginsLifecycleEnsureTenantDeleteAllowed:
+		lifecycleSvc := service.Lifecycle()
+		if lifecycleSvc == nil {
 			return domainServiceNotScoped("plugins.lifecycle")
 		}
-		var request tenantLifecycleRequest
+		var request tenantIDRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		err := lifecycle.EnsureTenantDeleteAllowed(ctx, request.TenantID)
+		err := lifecycleSvc.EnsureTenantDeleteAllowed(ctx, request.TenantID)
 		return domainCapabilityResult(true, err)
 	case bridgehostservice.HostServiceMethodPluginsLifecycleNotifyTenantDeleted:
-		lifecycle := service.Lifecycle()
-		if lifecycle == nil {
+		lifecycleSvc := service.Lifecycle()
+		if lifecycleSvc == nil {
 			return domainServiceNotScoped("plugins.lifecycle")
 		}
-		var request tenantLifecycleRequest
+		var request tenantIDRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		lifecycle.NotifyTenantDeleted(ctx, request.TenantID)
+		lifecycleSvc.NotifyTenantDeleted(ctx, request.TenantID)
 		return capabilityJSONResponse(true)
 	default:
 		return domainMethodNotFound("plugins", method)
@@ -150,21 +161,6 @@ func pluginsServiceForHostCall(hcc *hostCallContext) plugincap.Service {
 		return nil
 	}
 	return services.Plugins()
-}
-
-// capabilityKeysRequest carries framework capability status keys.
-type capabilityKeysRequest struct {
-	// Keys are stable framework capability identifiers.
-	Keys []string `json:"keys"`
-}
-
-// capabilityKeys converts transport keys to plugin capability keys.
-func capabilityKeys(keys []string) []plugincap.CapabilityKey {
-	out := make([]plugincap.CapabilityKey, 0, len(keys))
-	for _, key := range keys {
-		out = append(out, plugincap.CapabilityKey(key))
-	}
-	return out
 }
 
 // dispatchPluginsConfigGet routes plugins.config.get calls to the generic
@@ -206,7 +202,7 @@ func handlePluginConfigGet(
 		return configValueResponse("", false)
 	}
 
-	value, err := reader.Get(ctx, key)
+	value, err := reader.Get(ctx, key, nil)
 	if err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInternalError, err)
 	}
@@ -229,17 +225,21 @@ func configValueResponse(value string, found bool) *bridgehostcall.HostCallRespo
 
 // pluginIDRequest carries one plugin identifier.
 type pluginIDRequest struct {
+	// PluginID is the plugin identifier.
 	PluginID string `json:"pluginId"`
 }
 
-// pluginTenantLifecycleRequest carries one tenant-scoped plugin lifecycle target.
-type pluginTenantLifecycleRequest struct {
+// tenantPluginLifecycleRequest carries one plugin and tenant pair.
+type tenantPluginLifecycleRequest struct {
+	// PluginID is the plugin identifier.
 	PluginID string `json:"pluginId"`
-	TenantID int    `json:"tenantId"`
+	// TenantID is the tenant identifier.
+	TenantID int `json:"tenantId"`
 }
 
-// tenantLifecycleRequest carries one tenant lifecycle target.
-type tenantLifecycleRequest struct {
+// tenantIDRequest carries one tenant identifier.
+type tenantIDRequest struct {
+	// TenantID is the tenant identifier.
 	TenantID int `json:"tenantId"`
 }
 

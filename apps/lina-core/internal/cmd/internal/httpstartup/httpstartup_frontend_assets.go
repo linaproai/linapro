@@ -52,9 +52,11 @@ func bindFrontendAssetRoutesWithFS(
 	if err != nil {
 		return err
 	}
-	normalizedWorkspaceBasePath := normalizeWorkspaceRequestBasePath(workspaceBasePath)
-	assetHandler := newFrontendAssetHandler(frontendFS, pluginSvc, devProxy, normalizedWorkspaceBasePath)
-	hostedAssetURLPrefix := strings.TrimRight(pluginhost.HostedAssetURLPrefix, "/")
+	var (
+		normalizedWorkspaceBasePath = normalizeWorkspaceRequestBasePath(workspaceBasePath)
+		assetHandler                = newFrontendAssetHandler(frontendFS, pluginSvc, devProxy, normalizedWorkspaceBasePath)
+		hostedAssetURLPrefix        = strings.TrimRight(pluginhost.HostedAssetURLPrefix, "/")
+	)
 	server.BindHandler(hostedAssetURLPrefix, assetHandler)
 	server.BindHandler(hostedAssetURLPrefix+"/*any", assetHandler)
 	if normalizedWorkspaceBasePath == "/" {

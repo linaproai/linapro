@@ -9,6 +9,59 @@ import (
 	"time"
 )
 
+// Service defines plugin-scoped object storage operations. Implementations must
+// scope every logical path by plugin ID and tenant context before delegating to
+// a provider.
+type Service interface {
+	// Put writes one plugin object and returns metadata for the written object.
+	Put(ctx context.Context, in PutInput) (*PutOutput, error)
+	// Get reads one plugin object. A missing object returns Found=false.
+	Get(ctx context.Context, in GetInput) (*GetOutput, error)
+	// Delete removes one plugin object. Deleting a missing object is a no-op.
+	Delete(ctx context.Context, in DeleteInput) error
+	// DeleteMany removes an explicit bounded set of plugin objects. Missing objects are no-ops.
+	DeleteMany(ctx context.Context, in DeleteManyInput) error
+	// List lists plugin objects under one bounded logical prefix.
+	List(ctx context.Context, in ListInput) (*ListOutput, error)
+	// ListCursor lists plugin objects under one bounded logical prefix with cursor pagination.
+	ListCursor(ctx context.Context, in ListCursorInput) (*ListCursorOutput, error)
+	// Stat reads plugin object metadata. A missing object returns Found=false.
+	Stat(ctx context.Context, in StatInput) (*StatOutput, error)
+	// BatchStat reads plugin object metadata for an explicit bounded path set.
+	BatchStat(ctx context.Context, in BatchStatInput) (*BatchStatOutput, error)
+	// ProviderStatuses returns registered provider status snapshots.
+	ProviderStatuses(ctx context.Context) ([]*ProviderStatus, error)
+}
+
+// ProviderRuntime supplies provider factories with host runtime state needed to
+// decide whether plugin-provided providers may serve requests.
+type ProviderRuntime interface {
+	// ProviderPluginAvailable reports whether a provider plugin is enabled and serviceable.
+	ProviderPluginAvailable(ctx context.Context, pluginID string) bool
+}
+
+// Provider defines the object-storage backend contract. Providers receive
+// scoped object keys only and must not interpret plugin host-service
+// authorization snapshots.
+type Provider interface {
+	// Put writes one object key and returns provider metadata.
+	Put(ctx context.Context, in ProviderPutInput) (*ProviderObject, error)
+	// Get reads one object key. A missing object returns Found=false.
+	Get(ctx context.Context, in ProviderGetInput) (*ProviderGetOutput, error)
+	// Delete removes one object key. Deleting a missing object is a no-op.
+	Delete(ctx context.Context, in ProviderDeleteInput) error
+	// DeleteMany removes explicit object keys. Deleting missing keys is a no-op.
+	DeleteMany(ctx context.Context, in ProviderDeleteManyInput) error
+	// List lists object keys under one bounded prefix.
+	List(ctx context.Context, in ProviderListInput) (*ProviderListOutput, error)
+	// ListCursor lists object keys under one bounded prefix with cursor pagination.
+	ListCursor(ctx context.Context, in ProviderListCursorInput) (*ProviderListCursorOutput, error)
+	// Stat reads one object key metadata. A missing object returns Found=false.
+	Stat(ctx context.Context, in ProviderStatInput) (*ProviderStatOutput, error)
+	// BatchStat reads object metadata for explicit object keys.
+	BatchStat(ctx context.Context, in ProviderBatchStatInput) (*ProviderBatchStatOutput, error)
+}
+
 // Storage capability limits and stable provider identifiers.
 const (
 	// LocalProviderID identifies the host built-in local disk provider.
@@ -159,37 +212,6 @@ type Object struct {
 	Visibility string
 }
 
-// Service defines plugin-scoped object storage operations. Implementations must
-// scope every logical path by plugin ID and tenant context before delegating to
-// a provider.
-type Service interface {
-	// Put writes one plugin object and returns metadata for the written object.
-	Put(ctx context.Context, in PutInput) (*PutOutput, error)
-	// Get reads one plugin object. A missing object returns Found=false.
-	Get(ctx context.Context, in GetInput) (*GetOutput, error)
-	// Delete removes one plugin object. Deleting a missing object is a no-op.
-	Delete(ctx context.Context, in DeleteInput) error
-	// DeleteMany removes an explicit bounded set of plugin objects. Missing objects are no-ops.
-	DeleteMany(ctx context.Context, in DeleteManyInput) error
-	// List lists plugin objects under one bounded logical prefix.
-	List(ctx context.Context, in ListInput) (*ListOutput, error)
-	// ListCursor lists plugin objects under one bounded logical prefix with cursor pagination.
-	ListCursor(ctx context.Context, in ListCursorInput) (*ListCursorOutput, error)
-	// Stat reads plugin object metadata. A missing object returns Found=false.
-	Stat(ctx context.Context, in StatInput) (*StatOutput, error)
-	// BatchStat reads plugin object metadata for an explicit bounded path set.
-	BatchStat(ctx context.Context, in BatchStatInput) (*BatchStatOutput, error)
-	// ProviderStatuses returns registered provider status snapshots.
-	ProviderStatuses(ctx context.Context) ([]*ProviderStatus, error)
-}
-
-// ProviderRuntime supplies provider factories with host runtime state needed to
-// decide whether plugin-provided providers may serve requests.
-type ProviderRuntime interface {
-	// ProviderPluginAvailable reports whether a provider plugin is enabled and serviceable.
-	ProviderPluginAvailable(ctx context.Context, pluginID string) bool
-}
-
 // ProviderEnv describes the environment passed to a provider factory.
 type ProviderEnv struct {
 	// ProviderID is the stable provider identifier being constructed.
@@ -200,28 +222,6 @@ type ProviderEnv struct {
 
 // ProviderFactory constructs one provider instance for the current host runtime.
 type ProviderFactory func(ctx context.Context, env ProviderEnv) (Provider, error)
-
-// Provider defines the object-storage backend contract. Providers receive
-// scoped object keys only and must not interpret plugin host-service
-// authorization snapshots.
-type Provider interface {
-	// Put writes one object key and returns provider metadata.
-	Put(ctx context.Context, in ProviderPutInput) (*ProviderObject, error)
-	// Get reads one object key. A missing object returns Found=false.
-	Get(ctx context.Context, in ProviderGetInput) (*ProviderGetOutput, error)
-	// Delete removes one object key. Deleting a missing object is a no-op.
-	Delete(ctx context.Context, in ProviderDeleteInput) error
-	// DeleteMany removes explicit object keys. Deleting missing keys is a no-op.
-	DeleteMany(ctx context.Context, in ProviderDeleteManyInput) error
-	// List lists object keys under one bounded prefix.
-	List(ctx context.Context, in ProviderListInput) (*ProviderListOutput, error)
-	// ListCursor lists object keys under one bounded prefix with cursor pagination.
-	ListCursor(ctx context.Context, in ProviderListCursorInput) (*ProviderListCursorOutput, error)
-	// Stat reads one object key metadata. A missing object returns Found=false.
-	Stat(ctx context.Context, in ProviderStatInput) (*ProviderStatOutput, error)
-	// BatchStat reads object metadata for explicit object keys.
-	BatchStat(ctx context.Context, in ProviderBatchStatInput) (*ProviderBatchStatOutput, error)
-}
 
 // ProviderPutInput defines one provider object write.
 type ProviderPutInput struct {

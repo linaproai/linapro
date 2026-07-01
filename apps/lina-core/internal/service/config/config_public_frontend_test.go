@@ -9,10 +9,10 @@ import (
 	"testing"
 )
 
-// TestPublicFrontendSettingSpecsReturnsCopy verifies callers cannot mutate the
+// TestPublicFrontendSettingSpecCopiesAreDetached verifies callers cannot mutate the
 // shared public-frontend setting specification slice.
-func TestPublicFrontendSettingSpecsReturnsCopy(t *testing.T) {
-	specs := PublicFrontendSettingSpecs()
+func TestPublicFrontendSettingSpecCopiesAreDetached(t *testing.T) {
+	specs := publicFrontendSettingSpecsCopy()
 	if len(specs) == 0 {
 		t.Fatal("expected public frontend setting specs to be present")
 	}
@@ -20,13 +20,13 @@ func TestPublicFrontendSettingSpecsReturnsCopy(t *testing.T) {
 	original := publicFrontendSettingSpecs[0].DefaultValue
 	specs[0].DefaultValue = "mutated"
 	if publicFrontendSettingSpecs[0].DefaultValue != original {
-		t.Fatal("expected PublicFrontendSettingSpecs to return a detached copy")
+		t.Fatal("expected publicFrontendSettingSpecsCopy to return a detached copy")
 	}
 }
 
-// TestPublicFrontendSettingSpecsExposeUpdatedLoginDefaults verifies the host
+// TestPublicFrontendSettingSpecDefaultsExposeUpdatedLoginCopy verifies the host
 // exposes the latest login copy and layout defaults through spec lookup.
-func TestPublicFrontendSettingSpecsExposeUpdatedLoginDefaults(t *testing.T) {
+func TestPublicFrontendSettingSpecDefaultsExposeUpdatedLoginCopy(t *testing.T) {
 	descSpec, ok := LookupPublicFrontendSettingSpec(PublicFrontendSettingKeyAuthPageDesc)
 	if !ok {
 		t.Fatal("expected login page description spec to be present")
@@ -91,9 +91,9 @@ func TestValidateProtectedConfigValueRoutesToFamilyValidators(t *testing.T) {
 	}
 }
 
-// TestValidatePublicFrontendSettingValue verifies protected public frontend
+// TestPublicFrontendSettingValueValidation verifies protected public frontend
 // settings enforce their supported value formats.
-func TestValidatePublicFrontendSettingValue(t *testing.T) {
+func TestPublicFrontendSettingValueValidation(t *testing.T) {
 	testCases := []struct {
 		key       string
 		value     string
@@ -114,7 +114,7 @@ func TestValidatePublicFrontendSettingValue(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		err := ValidatePublicFrontendSettingValue(testCase.key, testCase.value)
+		err := validatePublicFrontendSettingValue(testCase.key, testCase.value)
 		if testCase.shouldErr && err == nil {
 			t.Fatalf("expected validation error for %s=%q", testCase.key, testCase.value)
 		}
@@ -124,19 +124,19 @@ func TestValidatePublicFrontendSettingValue(t *testing.T) {
 	}
 }
 
-// TestValidatePublicFrontendSettingValueAllowsFiveHundredCharacterLoginDescription
+// TestPublicFrontendSettingValueAllowsFiveHundredCharacterLoginDescription
 // verifies the login-page description accepts up to 500 characters and rejects
 // longer protected text values.
-func TestValidatePublicFrontendSettingValueAllowsFiveHundredCharacterLoginDescription(
+func TestPublicFrontendSettingValueAllowsFiveHundredCharacterLoginDescription(
 	t *testing.T,
 ) {
 	validDesc := strings.Repeat("能力", 250)
-	if err := ValidatePublicFrontendSettingValue(PublicFrontendSettingKeyAuthPageDesc, validDesc); err != nil {
+	if err := validatePublicFrontendSettingValue(PublicFrontendSettingKeyAuthPageDesc, validDesc); err != nil {
 		t.Fatalf("expected 500-character login description to pass validation, got %v", err)
 	}
 
 	tooLongDesc := validDesc + "扩"
-	if err := ValidatePublicFrontendSettingValue(PublicFrontendSettingKeyAuthPageDesc, tooLongDesc); err == nil {
+	if err := validatePublicFrontendSettingValue(PublicFrontendSettingKeyAuthPageDesc, tooLongDesc); err == nil {
 		t.Fatal("expected login description longer than 500 characters to fail validation")
 	}
 }

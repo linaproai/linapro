@@ -62,112 +62,45 @@ const (
 	LifecycleHookAfterInstallModeChange LifecycleHook = "AfterInstallModeChange"
 )
 
-// BeforeInstaller optionally vetoes plugin install.
-type BeforeInstaller interface {
-	// BeforeInstall returns whether install may continue and an i18n reason when vetoed.
-	BeforeInstall(ctx context.Context, input SourcePluginLifecycleInput) (ok bool, reason string, err error)
+type lifecycleCallback func(ctx context.Context, req LifecycleRequest) (ok bool, reason string, err error)
+
+// LifecycleCallbacks groups the lifecycle hooks implemented by one plugin.
+type LifecycleCallbacks struct {
+	hooks map[LifecycleHook]lifecycleCallback
 }
 
-// AfterInstaller optionally observes successful plugin install.
-type AfterInstaller interface {
-	// AfterInstall performs best-effort follow-up after install succeeds.
-	AfterInstall(ctx context.Context, input SourcePluginLifecycleInput) error
+func (callbacks *LifecycleCallbacks) set(hook LifecycleHook, callback lifecycleCallback) {
+	if callback == nil {
+		return
+	}
+	if callbacks.hooks == nil {
+		callbacks.hooks = make(map[LifecycleHook]lifecycleCallback)
+	}
+	callbacks.hooks[hook] = callback
 }
 
-// BeforeUpgrader optionally vetoes plugin runtime upgrade.
-type BeforeUpgrader interface {
-	// BeforeUpgrade returns whether upgrade may continue and an i18n reason when vetoed.
-	BeforeUpgrade(ctx context.Context, input SourcePluginUpgradeInput) (ok bool, reason string, err error)
+func (callbacks LifecycleCallbacks) has(hook LifecycleHook) bool {
+	if callbacks.hooks == nil {
+		return false
+	}
+	return callbacks.hooks[hook] != nil
 }
 
-// AfterUpgrader optionally observes successful plugin runtime upgrade.
-type AfterUpgrader interface {
-	// AfterUpgrade performs best-effort follow-up after upgrade succeeds.
-	AfterUpgrade(ctx context.Context, input SourcePluginUpgradeInput) error
+func (callbacks LifecycleCallbacks) call(ctx context.Context, req LifecycleRequest) (bool, string, error) {
+	if callbacks.hooks == nil || callbacks.hooks[req.Hook] == nil {
+		return true, "", nil
+	}
+	return callbacks.hooks[req.Hook](ctx, req)
 }
 
-// Upgrader optionally performs plugin-owned upgrade work.
-type Upgrader interface {
-	// Upgrade performs plugin-owned upgrade work before host upgrade SQL runs.
-	Upgrade(ctx context.Context, input SourcePluginUpgradeInput) error
-}
-
-// BeforeDisabler optionally vetoes global plugin disable.
-type BeforeDisabler interface {
-	// BeforeDisable returns whether disable may continue and an i18n reason when vetoed.
-	BeforeDisable(ctx context.Context, input SourcePluginLifecycleInput) (ok bool, reason string, err error)
-}
-
-// AfterDisabler optionally observes successful global plugin disable.
-type AfterDisabler interface {
-	// AfterDisable performs best-effort follow-up after disable succeeds.
-	AfterDisable(ctx context.Context, input SourcePluginLifecycleInput) error
-}
-
-// BeforeUninstaller optionally vetoes plugin uninstall.
-type BeforeUninstaller interface {
-	// BeforeUninstall returns whether uninstall may continue and an i18n reason when vetoed.
-	BeforeUninstall(ctx context.Context, input SourcePluginLifecycleInput) (ok bool, reason string, err error)
-}
-
-// AfterUninstaller optionally observes successful plugin uninstall.
-type AfterUninstaller interface {
-	// AfterUninstall performs best-effort follow-up after uninstall succeeds.
-	AfterUninstall(ctx context.Context, input SourcePluginLifecycleInput) error
-}
-
-// Uninstaller optionally performs plugin-owned uninstall cleanup work.
-type Uninstaller interface {
-	// Uninstall performs plugin-owned cleanup before host uninstall SQL runs.
-	Uninstall(ctx context.Context, input SourcePluginUninstallInput) error
-}
-
-// BeforeTenantDisabler optionally vetoes tenant-scoped plugin disable.
-type BeforeTenantDisabler interface {
-	// BeforeTenantDisable returns whether tenant disable may continue and an i18n reason when vetoed.
-	BeforeTenantDisable(ctx context.Context, input SourcePluginTenantLifecycleInput) (ok bool, reason string, err error)
-}
-
-// AfterTenantDisabler optionally observes successful tenant-scoped plugin disable.
-type AfterTenantDisabler interface {
-	// AfterTenantDisable performs best-effort follow-up after tenant disable succeeds.
-	AfterTenantDisable(ctx context.Context, input SourcePluginTenantLifecycleInput) error
-}
-
-// BeforeTenantDeleter optionally vetoes tenant deletion.
-type BeforeTenantDeleter interface {
-	// BeforeTenantDelete returns whether tenant deletion may continue and an i18n reason when vetoed.
-	BeforeTenantDelete(ctx context.Context, input SourcePluginTenantLifecycleInput) (ok bool, reason string, err error)
-}
-
-// AfterTenantDeleter optionally observes successful tenant deletion.
-type AfterTenantDeleter interface {
-	// AfterTenantDelete performs best-effort follow-up after tenant deletion succeeds.
-	AfterTenantDelete(ctx context.Context, input SourcePluginTenantLifecycleInput) error
-}
-
-// BeforeInstallModeChanger optionally vetoes plugin install-mode changes.
-type BeforeInstallModeChanger interface {
-	// BeforeInstallModeChange returns whether the install-mode transition may continue.
-	BeforeInstallModeChange(
-		ctx context.Context,
-		input SourcePluginInstallModeChangeInput,
-	) (ok bool, reason string, err error)
-}
-
-// AfterInstallModeChanger optionally observes successful plugin install-mode changes.
-type AfterInstallModeChanger interface {
-	// AfterInstallModeChange performs best-effort follow-up after the install-mode transition succeeds.
-	AfterInstallModeChange(
-		ctx context.Context,
-		input SourcePluginInstallModeChangeInput,
-	) error
+func (callbacks LifecycleCallbacks) empty() bool {
+	return len(callbacks.hooks) == 0
 }
 
 // LifecycleParticipant binds a plugin ID to optional lifecycle callbacks.
 type LifecycleParticipant struct {
-	PluginID string // PluginID is the callback owner.
-	Callback any    // Callback is the optional lifecycle callback implementation.
+	PluginID  string             // PluginID is the callback owner.
+	Callbacks LifecycleCallbacks // Callbacks contains the participant hook functions.
 }
 
 // ListSourcePluginLifecycleParticipants returns callback participants for all
@@ -179,13 +112,13 @@ func ListSourcePluginLifecycleParticipants() []LifecycleParticipant {
 		if plugin == nil || plugin.ID() == "" {
 			continue
 		}
-		callback := NewSourcePluginLifecycleCallbackAdapter(plugin)
-		if callback == nil {
+		callbacks := NewSourcePluginLifecycleCallbackAdapter(plugin)
+		if callbacks.empty() {
 			continue
 		}
 		items = append(items, LifecycleParticipant{
-			PluginID: plugin.ID(),
-			Callback: callback,
+			PluginID:  plugin.ID(),
+			Callbacks: callbacks,
 		})
 	}
 	return items
@@ -198,19 +131,19 @@ func ListSourcePluginLifecycleParticipantsForPlugin(pluginID string) []Lifecycle
 	if !ok || plugin == nil {
 		return nil
 	}
-	callback := NewSourcePluginLifecycleCallbackAdapter(plugin)
-	if callback == nil {
+	callbacks := NewSourcePluginLifecycleCallbackAdapter(plugin)
+	if callbacks.empty() {
 		return nil
 	}
 	return []LifecycleParticipant{{
-		PluginID: plugin.ID(),
-		Callback: callback,
+		PluginID:  plugin.ID(),
+		Callbacks: callbacks,
 	}}
 }
 
 // LifecycleRequest describes one lifecycle callback aggregation run.
 type LifecycleRequest struct {
-	Hook             LifecycleHook // Hook selects which callback interface to invoke.
+	Hook             LifecycleHook // Hook selects which callback function to invoke.
 	PluginInput      SourcePluginLifecycleInput
 	UninstallInput   SourcePluginUninstallInput
 	UpgradeInput     SourcePluginUpgradeInput
@@ -250,7 +183,7 @@ func RunLifecycleCallbacks(ctx context.Context, req LifecycleRequest) LifecycleR
 	results := make(chan LifecycleDecision, len(req.Participants))
 	var wg sync.WaitGroup
 	for _, participant := range req.Participants {
-		if !participantSupportsLifecycleHook(participant.Callback, req.Hook) {
+		if !participant.Callbacks.has(req.Hook) {
 			continue
 		}
 		wg.Add(1)
@@ -285,63 +218,6 @@ func normalizeLifecycleRequest(req LifecycleRequest) LifecycleRequest {
 	return req
 }
 
-// participantSupportsLifecycleHook reports whether one participant implements
-// the requested hook.
-func participantSupportsLifecycleHook(callback any, hook LifecycleHook) bool {
-	switch hook {
-	case LifecycleHookBeforeInstall:
-		_, ok := callback.(BeforeInstaller)
-		return ok
-	case LifecycleHookAfterInstall:
-		_, ok := callback.(AfterInstaller)
-		return ok
-	case LifecycleHookBeforeUpgrade:
-		_, ok := callback.(BeforeUpgrader)
-		return ok
-	case LifecycleHookUpgrade:
-		_, ok := callback.(Upgrader)
-		return ok
-	case LifecycleHookAfterUpgrade:
-		_, ok := callback.(AfterUpgrader)
-		return ok
-	case LifecycleHookBeforeDisable:
-		_, ok := callback.(BeforeDisabler)
-		return ok
-	case LifecycleHookAfterDisable:
-		_, ok := callback.(AfterDisabler)
-		return ok
-	case LifecycleHookBeforeUninstall:
-		_, ok := callback.(BeforeUninstaller)
-		return ok
-	case LifecycleHookUninstall:
-		_, ok := callback.(Uninstaller)
-		return ok
-	case LifecycleHookAfterUninstall:
-		_, ok := callback.(AfterUninstaller)
-		return ok
-	case LifecycleHookBeforeTenantDisable:
-		_, ok := callback.(BeforeTenantDisabler)
-		return ok
-	case LifecycleHookAfterTenantDisable:
-		_, ok := callback.(AfterTenantDisabler)
-		return ok
-	case LifecycleHookBeforeTenantDelete:
-		_, ok := callback.(BeforeTenantDeleter)
-		return ok
-	case LifecycleHookAfterTenantDelete:
-		_, ok := callback.(AfterTenantDeleter)
-		return ok
-	case LifecycleHookBeforeInstallModeChange:
-		_, ok := callback.(BeforeInstallModeChanger)
-		return ok
-	case LifecycleHookAfterInstallModeChange:
-		_, ok := callback.(AfterInstallModeChanger)
-		return ok
-	default:
-		return false
-	}
-}
-
 // runOneLifecycleCallback runs one hook with panic recovery and timeout conversion.
 func runOneLifecycleCallback(
 	ctx context.Context,
@@ -366,7 +242,7 @@ func runOneLifecycleCallback(
 			decision.Elapsed = time.Since(startedAt)
 			done <- decision
 		}()
-		decision.OK, decision.Reason, decision.Err = callLifecycleCallback(hookCtx, req, participant.Callback)
+		decision.OK, decision.Reason, decision.Err = participant.Callbacks.call(hookCtx, req)
 		if decision.Err != nil {
 			decision.OK = false
 		}
@@ -385,46 +261,6 @@ func runOneLifecycleCallback(
 			TimedOut: true,
 			Err:      hookCtx.Err(),
 		}
-	}
-}
-
-// callLifecycleCallback dispatches to the selected hook interface.
-func callLifecycleCallback(ctx context.Context, req LifecycleRequest, callback any) (bool, string, error) {
-	switch req.Hook {
-	case LifecycleHookBeforeInstall:
-		return callback.(BeforeInstaller).BeforeInstall(ctx, req.PluginInput)
-	case LifecycleHookAfterInstall:
-		return true, "", callback.(AfterInstaller).AfterInstall(ctx, req.PluginInput)
-	case LifecycleHookBeforeUpgrade:
-		return callback.(BeforeUpgrader).BeforeUpgrade(ctx, req.UpgradeInput)
-	case LifecycleHookUpgrade:
-		return true, "", callback.(Upgrader).Upgrade(ctx, req.UpgradeInput)
-	case LifecycleHookAfterUpgrade:
-		return true, "", callback.(AfterUpgrader).AfterUpgrade(ctx, req.UpgradeInput)
-	case LifecycleHookBeforeDisable:
-		return callback.(BeforeDisabler).BeforeDisable(ctx, req.PluginInput)
-	case LifecycleHookAfterDisable:
-		return true, "", callback.(AfterDisabler).AfterDisable(ctx, req.PluginInput)
-	case LifecycleHookBeforeUninstall:
-		return callback.(BeforeUninstaller).BeforeUninstall(ctx, req.PluginInput)
-	case LifecycleHookUninstall:
-		return true, "", callback.(Uninstaller).Uninstall(ctx, req.UninstallInput)
-	case LifecycleHookAfterUninstall:
-		return true, "", callback.(AfterUninstaller).AfterUninstall(ctx, req.PluginInput)
-	case LifecycleHookBeforeTenantDisable:
-		return callback.(BeforeTenantDisabler).BeforeTenantDisable(ctx, req.TenantInput)
-	case LifecycleHookAfterTenantDisable:
-		return true, "", callback.(AfterTenantDisabler).AfterTenantDisable(ctx, req.TenantInput)
-	case LifecycleHookBeforeTenantDelete:
-		return callback.(BeforeTenantDeleter).BeforeTenantDelete(ctx, req.TenantInput)
-	case LifecycleHookAfterTenantDelete:
-		return true, "", callback.(AfterTenantDeleter).AfterTenantDelete(ctx, req.TenantInput)
-	case LifecycleHookBeforeInstallModeChange:
-		return callback.(BeforeInstallModeChanger).BeforeInstallModeChange(ctx, req.InstallModeInput)
-	case LifecycleHookAfterInstallModeChange:
-		return true, "", callback.(AfterInstallModeChanger).AfterInstallModeChange(ctx, req.InstallModeInput)
-	default:
-		return true, "", nil
 	}
 }
 

@@ -13,7 +13,6 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/lockcap"
 	"lina-core/pkg/plugin/capability/notifycap"
 	"lina-core/pkg/plugin/capability/storagecap"
@@ -25,16 +24,17 @@ import (
 func TestHostCallStubsReturnUnavailable(t *testing.T) {
 	t.Parallel()
 
+	services := New()
 	cases := []struct {
 		name string
 		run  func() error
 	}{
 		{name: "runtime", run: func() error {
-			_, err := Runtime().Now()
+			_, err := services.Runtime().Now()
 			return err
 		}},
 		{name: "storage", run: func() error {
-			_, err := Storage().Put(t.Context(), storagecap.PutInput{
+			_, err := services.Storage().Put(t.Context(), storagecap.PutInput{
 				Path:        "demo.txt",
 				Body:        bytes.NewReader([]byte("demo")),
 				Size:        4,
@@ -44,19 +44,19 @@ func TestHostCallStubsReturnUnavailable(t *testing.T) {
 			return err
 		}},
 		{name: "storage provider statuses", run: func() error {
-			_, err := Storage().ProviderStatuses(t.Context())
+			_, err := services.Storage().ProviderStatuses(t.Context())
 			return err
 		}},
 		{name: "network", run: func() error {
-			_, err := Network().Request("https://example.com", &protocol.HostServiceNetworkRequest{})
+			_, err := services.Network().Request("https://example.com", &protocol.HostServiceNetworkRequest{})
 			return err
 		}},
 		{name: "cache", run: func() error {
-			_, _, err := Cache().Get(t.Context(), "demo", "key")
+			_, _, err := services.Cache().Get(t.Context(), "demo", "key")
 			return err
 		}},
 		{name: "lock", run: func() error {
-			_, err := Lock().Acquire(t.Context(), lockcap.AcquireInput{Name: "demo", Lease: time.Second})
+			_, err := services.Lock().Acquire(t.Context(), lockcap.AcquireInput{Name: "demo", Lease: time.Second})
 			return err
 		}},
 		{name: "config", run: func() error {
@@ -67,15 +67,15 @@ func TestHostCallStubsReturnUnavailable(t *testing.T) {
 			return NewDeclarations().Jobs().Register(&protocol.JobContract{Name: "demo", Pattern: "@every 1m", RequestType: "DemoJobReq"})
 		}},
 		{name: "notify", run: func() error {
-			_, err := New().Notifications().Send(t.Context(), capmodel.CapabilityContext{}, notifycap.SendInput{ChannelKey: "demo"})
+			_, err := New().Notifications().Send(t.Context(), notifycap.SendInput{ChannelKey: "demo"})
 			return err
 		}},
 		{name: "host runtime", run: func() error {
-			_, _, err := HostConfig().Bool("i18n.enabled")
+			_, err := services.HostConfig().Bool(t.Context(), "i18n.enabled", false)
 			return err
 		}},
 		{name: "manifest", run: func() error {
-			_, _, err := Manifest().GetText("metadata.yaml")
+			_, err := services.Manifest().Get(t.Context(), "metadata.yaml")
 			return err
 		}},
 	}

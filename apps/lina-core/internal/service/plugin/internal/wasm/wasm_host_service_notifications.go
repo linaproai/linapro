@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	usermsgv1 "lina-core/api/usermsg/v1"
 	"lina-core/pkg/plugin/capability/notifycap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
@@ -32,27 +33,59 @@ func dispatchNotificationsHostService(
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceNotifications, method)
-		result, err := service.BatchGet(ctx, capCtx, messageIDs(request.IDs))
+		result, err := service.BatchGet(ctx, messageIDs(request.IDs))
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodNotificationsList:
+		var request notifycap.ListInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.List(ctx, request)
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodNotificationsBatchGetBySource:
 		var request notifycap.BatchGetBySourceInput
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceNotifications, method)
-		result, err := service.BatchGetBySource(ctx, capCtx, request)
+		result, err := service.BatchGetBySource(ctx, request)
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodNotificationsEnsureVisible:
 		var request idsRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceNotifications, method)
-		err := service.EnsureVisible(ctx, capCtx, messageIDs(request.IDs))
+		err := service.EnsureVisible(ctx, messageIDs(request.IDs))
 		return domainCapabilityResult(struct{}{}, err)
 	case bridgehostservice.HostServiceMethodNotificationsSend:
 		return handleNotificationsSend(ctx, hcc, service, resourceRef, method, payload)
+	case bridgehostservice.HostServiceMethodNotificationsDelete:
+		var request idsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Delete(ctx, messageIDs(request.IDs))
+		return domainCapabilityResult(struct{}{}, err)
+	case bridgehostservice.HostServiceMethodNotificationsDeleteBySource:
+		var request notifycap.BatchGetBySourceInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.DeleteBySource(ctx, request.SourceType, request.SourceIDs)
+		return domainCapabilityResult(struct{}{}, err)
+	case bridgehostservice.HostServiceMethodNotificationsMarkRead:
+		var request idsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.MarkRead(ctx, messageIDs(request.IDs))
+		return domainCapabilityResult(struct{}{}, err)
+	case bridgehostservice.HostServiceMethodNotificationsMarkUnread:
+		var request idsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.MarkUnread(ctx, messageIDs(request.IDs))
+		return domainCapabilityResult(struct{}{}, err)
 	default:
 		return domainMethodNotFound("notifications", method)
 	}
@@ -104,11 +137,10 @@ func handleNotificationsSend(
 	if len(recipients) == 0 && hcc != nil && hcc.identity != nil && hcc.identity.UserID > 0 {
 		recipients = []string{strconv.FormatInt(int64(hcc.identity.UserID), 10)}
 	}
-	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceNotifications, method)
-	output, callErr := service.Send(ctx, capCtx, notifycap.SendInput{
+	output, callErr := service.Send(ctx, notifycap.SendInput{
 		ChannelKey: channelKey,
 		Recipients: recipients,
-		SourceType: notifycap.SourceType(request.SourceType),
+		SourceType: usermsgv1.SourceType(request.SourceType),
 		SourceID:   request.SourceID,
 		Title:      request.Title,
 		Content:    request.Content,

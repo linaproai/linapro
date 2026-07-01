@@ -9,12 +9,15 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
+	"lina-core/internal/service/plugin/internal/capabilityowner"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
+	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // SourceInstallOptions carries source-plugin install metadata.
@@ -88,7 +91,7 @@ func (s *serviceImpl) prepareSourcePluginInstall(
 	if registry == nil {
 		return nil, nil, false, bizerr.NewCode(CodePluginSourceRegistryNotFound, bizerr.P("pluginId", manifest.ID))
 	}
-	if registry.Installed == plugintypes.InstalledYes {
+	if registry.Installed == statusflag.Installed.Int() {
 		return registry, nil, false, nil
 	}
 
@@ -117,7 +120,7 @@ func (s *serviceImpl) applySourcePluginInstallGovernance(
 	if err := s.integrationSvc.SyncPluginMenusAndPermissions(ctx, manifest); err != nil {
 		return err
 	}
-	if err := s.applySourcePluginStableState(ctx, registry, plugintypes.InstalledYes, plugintypes.StatusDisabled); err != nil {
+	if err := s.applySourcePluginStableState(ctx, registry, statusflag.Installed.Int(), statusflag.Disabled.Int()); err != nil {
 		return err
 	}
 
@@ -198,8 +201,8 @@ func (s *serviceImpl) executeSourcePluginBeforeLifecycle(
 		),
 		Participants: []pluginhost.LifecycleParticipant{
 			{
-				PluginID: manifest.ID,
-				Callback: pluginhost.NewSourcePluginLifecycleCallbackAdapter(manifest.SourcePlugin),
+				PluginID:  manifest.ID,
+				Callbacks: pluginhost.NewSourcePluginLifecycleCallbackAdapter(manifest.SourcePlugin),
 			},
 		},
 	})
@@ -271,7 +274,7 @@ func (s *serviceImpl) prepareSourcePluginUninstall(
 	if err != nil {
 		return nil, nil, false, err
 	}
-	if registry == nil || registry.Installed != plugintypes.InstalledYes {
+	if registry == nil || registry.Installed != statusflag.Installed.Int() {
 		return registry, nil, false, nil
 	}
 
@@ -314,7 +317,7 @@ func (s *serviceImpl) applySourcePluginUninstallGovernance(
 	if err := s.deleteSourcePluginResourceRefs(ctx, manifest, release); err != nil {
 		return err
 	}
-	if err := s.applySourcePluginStableState(ctx, registry, plugintypes.InstalledNo, plugintypes.StatusDisabled); err != nil {
+	if err := s.applySourcePluginStableState(ctx, registry, statusflag.Uninstalled.Int(), statusflag.Disabled.Int()); err != nil {
 		return err
 	}
 
@@ -370,9 +373,9 @@ func (s *serviceImpl) executeSourcePluginUninstallHandler(
 	if handler == nil {
 		return nil
 	}
-	var services pluginhost.Services
-	if s.sourceServices != nil {
-		services = s.sourceServices.SourceServicesForPlugin(manifest.ID)
+	var services capability.Services
+	if s.capabilities != nil {
+		services = capabilityowner.ServicesForPlugin(s.capabilities, manifest.ID)
 	}
 	return handler(
 		ctx,
@@ -407,8 +410,8 @@ func (s *serviceImpl) executeSourcePluginAfterLifecycle(
 		),
 		Participants: []pluginhost.LifecycleParticipant{
 			{
-				PluginID: manifest.ID,
-				Callback: pluginhost.NewSourcePluginLifecycleCallbackAdapter(manifest.SourcePlugin),
+				PluginID:  manifest.ID,
+				Callbacks: pluginhost.NewSourcePluginLifecycleCallbackAdapter(manifest.SourcePlugin),
 			},
 		},
 	})
@@ -445,17 +448,17 @@ func (s *serviceImpl) applySourcePluginStableState(
 	if registry.Generation <= 0 {
 		data.Generation = int64(1)
 	}
-	if installed == plugintypes.InstalledYes {
-		if registry.Installed != plugintypes.InstalledYes {
+	if installed == statusflag.Installed.Int() {
+		if registry.Installed != statusflag.Installed.Int() {
 			data.InstalledAt = timePtr(time.Now())
 		}
-		if enabled == plugintypes.StatusEnabled {
+		if enabled == statusflag.EnabledValue.Int() {
 			data.EnabledAt = timePtr(time.Now())
 		} else {
 			data.DisabledAt = timePtr(time.Now())
 		}
 	} else {
-		data.Status = plugintypes.StatusDisabled
+		data.Status = statusflag.Disabled.Int()
 		data.DisabledAt = timePtr(time.Now())
 	}
 
@@ -512,7 +515,7 @@ func (s *serviceImpl) rollbackSourcePluginInstall(
 	if err != nil {
 		logger.Warningf(ctx, "rollback source plugin registry lookup failed plugin=%s err=%v", manifest.ID, err)
 	} else if registry != nil {
-		if err = s.applySourcePluginStableState(ctx, registry, plugintypes.InstalledNo, plugintypes.StatusDisabled); err != nil {
+		if err = s.applySourcePluginStableState(ctx, registry, statusflag.Uninstalled.Int(), statusflag.Disabled.Int()); err != nil {
 			logger.Warningf(ctx, "rollback source plugin stable state failed plugin=%s err=%v", manifest.ID, err)
 		}
 	}

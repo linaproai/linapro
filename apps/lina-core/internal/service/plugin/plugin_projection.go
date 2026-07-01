@@ -135,9 +135,11 @@ func (s *serviceImpl) buildListProjection(
 	if err != nil {
 		return nil, err
 	}
-	registryByPluginID := registryByPluginID(registries)
-	covered := make(map[string]struct{}, len(manifests))
-	items := make([]*PluginItem, 0, len(manifests))
+	var (
+		registryByPluginID = registryByPluginID(registries)
+		covered            = make(map[string]struct{}, len(manifests))
+		items              = make([]*PluginItem, 0, len(manifests))
+	)
 	for _, manifest := range manifests {
 		if manifest == nil {
 			continue

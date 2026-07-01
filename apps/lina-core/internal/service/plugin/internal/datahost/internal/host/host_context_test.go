@@ -9,9 +9,11 @@ import (
 
 // TestWithAuditRoundTrip verifies audit metadata survives one context round trip.
 func TestWithAuditRoundTrip(t *testing.T) {
-	metadata := &AuditMetadata{PluginID: "plugin-demo", Table: "sys_plugin_node_state", Method: "list"}
-	ctx := WithAudit(context.Background(), metadata)
-	decoded := AuditFromContext(ctx)
+	var (
+		metadata = &AuditMetadata{PluginID: "plugin-demo", Table: "sys_plugin_node_state", Method: "list"}
+		ctx      = WithAudit(context.Background(), metadata)
+		decoded  = AuditFromContext(ctx)
+	)
 	if decoded == nil {
 		t.Fatal("expected audit metadata in context")
 	}

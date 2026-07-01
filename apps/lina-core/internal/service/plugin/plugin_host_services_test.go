@@ -3,6 +3,7 @@
 package plugin
 
 import (
+	"context"
 	"reflect"
 	"strings"
 	"testing"
@@ -10,16 +11,43 @@ import (
 	"lina-core/internal/service/bizctx"
 	configsvc "lina-core/internal/service/config"
 	notifysvc "lina-core/internal/service/notify"
+	"lina-core/internal/service/plugin/internal/manifestresource"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
-	capabilityhostconfig "lina-core/pkg/plugin/capability/hostconfigcap"
-	"lina-core/pkg/plugin/capability/manifestcap"
-	capabilitymanifest "lina-core/pkg/plugin/capability/manifestcap"
-	"lina-core/pkg/plugin/capability/plugincap"
-	capabilityconfig "lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
+
+// TestStorageProviderRuntimeUsesInternalStateReader verifies provider storage
+// gating still uses the host-internal bool plugin state contract.
+func TestStorageProviderRuntimeUsesInternalStateReader(t *testing.T) {
+	runtime := NewStorageProviderRuntime(testPluginStateReader{
+		providers: map[string]bool{" provider-a ": true},
+	})
+
+	if !runtime.ProviderPluginAvailable(context.Background(), " provider-a ") {
+		t.Fatal("expected provider-a to be available through internal state reader")
+	}
+	if runtime.ProviderPluginAvailable(context.Background(), "provider-b") {
+		t.Fatal("expected missing provider to be unavailable")
+	}
+}
+
+type testPluginStateReader struct {
+	providers map[string]bool
+}
+
+func (r testPluginStateReader) IsEnabled(context.Context, string) bool {
+	return false
+}
+
+func (r testPluginStateReader) IsProviderEnabled(_ context.Context, pluginID string) bool {
+	return r.providers[pluginID]
+}
+
+func (r testPluginStateReader) IsEnabledAuthoritative(context.Context, string) bool {
+	return false
+}
 
 // wasmHostServiceTestDeps groups explicit dependencies for the root Wasm host
 // service runtime constructor.
@@ -29,11 +57,11 @@ type wasmHostServiceTestDeps struct {
 	// hostServices provides plugin capability directories for host service dispatch.
 	hostServices capability.Services
 	// configFactory creates plugin-scoped config service views.
-	configFactory plugincap.ConfigServiceFactory
+	configFactory PluginConfigFactory
 	// hostConfigSvc exposes authorized host configuration reads.
 	hostConfigSvc hostconfigcap.Service
 	// manifestFactory creates plugin-scoped manifest service views.
-	manifestFactory manifestcap.ServiceFactory
+	manifestFactory manifestresource.Factory
 }
 
 // TestNewWasmHostServiceRuntimeRequiresExplicitDependencies verifies the root
@@ -115,24 +143,12 @@ func newWasmHostServiceTestDeps(t *testing.T) *wasmHostServiceTestDeps {
 	configSvc := configsvc.New()
 	bizCtxSvc := bizctx.New()
 	return &wasmHostServiceTestDeps{
-		notifySvc:       notifysvc.New(tenantspi.New(nil, nil, bizCtxSvc)),
+		notifySvc:       notifysvc.New(tenantspi.New(nil, nil, nil, bizCtxSvc)),
 		hostServices:    newRootTestCapabilities(bizCtxSvc, nil),
-		configFactory:   capabilityconfig.NewConfigFactory("", ""),
-		hostConfigSvc:   capabilityhostconfig.New(mustHostConfigRawReaderForTest(t, configSvc)),
-		manifestFactory: capabilitymanifest.NewFactory(""),
+		configFactory:   NewPluginConfigFactory("", ""),
+		hostConfigSvc:   NewHostConfigService(configSvc),
+		manifestFactory: manifestresource.NewFactory(""),
 	}
-}
-
-// mustHostConfigRawReaderForTest returns the raw host-config reader implemented
-// by the test config service or fails the current test during fixture wiring.
-func mustHostConfigRawReaderForTest(t *testing.T, configSvc configsvc.Service) capabilityhostconfig.RawConfigReader {
-	t.Helper()
-
-	reader, ok := configSvc.(capabilityhostconfig.RawConfigReader)
-	if !ok {
-		t.Fatal("test config service does not support raw host config reads")
-	}
-	return reader
 }
 
 // TestNormalizeDataTableNamesTrimsAndDeduplicates verifies metadata lookups

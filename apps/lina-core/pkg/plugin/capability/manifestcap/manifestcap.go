@@ -4,29 +4,6 @@ package manifestcap
 
 import "context"
 
-const (
-	// MaxBatchPaths bounds one manifest multi-resource request.
-	MaxBatchPaths = 100
-	// DefaultListLimit bounds manifest list calls when no limit is provided.
-	DefaultListLimit = 100
-	// MaxListLimit bounds one manifest list response.
-	MaxListLimit = 500
-	// MaxResourceBytes bounds one returned manifest resource body.
-	MaxResourceBytes = 1 * 1024 * 1024
-	// MaxTotalBytes bounds total resource bytes in one multi-resource response.
-	MaxTotalBytes = 4 * 1024 * 1024
-)
-
-// ServiceFactory creates plugin-scoped manifest resource service views.
-type ServiceFactory interface {
-	// ForPlugin returns a manifest resource service scoped to pluginID. Blank
-	// plugin IDs return a service that rejects reads.
-	ForPlugin(pluginID string) Service
-	// WithArtifactResources returns a new factory view that can use release-bound
-	// artifact resources for pluginID. Paths are relative to manifest/.
-	WithArtifactResources(pluginID string, resources map[string][]byte) ServiceFactory
-}
-
 // Service defines read-only access to one plugin's manifest resources.
 type Service interface {
 	// Get returns one raw resource under the current plugin manifest
@@ -44,6 +21,19 @@ type Service interface {
 	// into target. Missing resources leave target unchanged.
 	Scan(ctx context.Context, path string, key string, target any) error
 }
+
+const (
+	// MaxBatchPaths bounds one manifest multi-resource request.
+	MaxBatchPaths = 100
+	// DefaultListLimit bounds manifest list calls when no limit is provided.
+	DefaultListLimit = 100
+	// MaxListLimit bounds one manifest list response.
+	MaxListLimit = 500
+	// MaxResourceBytes bounds one returned manifest resource body.
+	MaxResourceBytes = 1 * 1024 * 1024
+	// MaxTotalBytes bounds total resource bytes in one multi-resource response.
+	MaxTotalBytes = 4 * 1024 * 1024
+)
 
 // Resource describes one plugin-visible manifest resource snapshot.
 type Resource struct {

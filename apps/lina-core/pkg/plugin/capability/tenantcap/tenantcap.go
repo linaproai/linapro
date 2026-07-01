@@ -9,7 +9,71 @@ import (
 	"strings"
 
 	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/plugincap"
 )
+
+// Service defines the optional tenant capability consumed by host core services
+// and plugins without hard-linking them to a concrete provider implementation.
+type Service interface {
+	// Available reports whether an active tenant provider is available.
+	Available(ctx context.Context) bool
+	// Status returns the current tenant capability activation state.
+	Status(ctx context.Context) capmodel.CapabilityStatus
+	// Context returns current-tenant context operations.
+	Context() ContextService
+	// Directory returns tenant directory operations.
+	Directory() DirectoryService
+	// Membership returns user-to-tenant membership operations.
+	Membership() MembershipService
+	// Plugins returns tenant-plugin governance operations.
+	Plugins() PluginService
+	// Filter returns plugin-visible tenant filter context operations.
+	Filter() FilterService
+}
+
+// ContextService defines current-tenant context reads.
+type ContextService interface {
+	// Current returns the current request tenant, defaulting to platform when context is unavailable.
+	Current(ctx context.Context) TenantID
+	// Info returns the current request tenant information.
+	Info(ctx context.Context) (*TenantInfo, error)
+	// PlatformBypass reports whether the current request may bypass tenant filtering.
+	PlatformBypass(ctx context.Context) bool
+}
+
+// DirectoryService defines plugin-visible tenant directory operations.
+type DirectoryService interface {
+	// Get returns one visible tenant info record.
+	Get(ctx context.Context, tenantID TenantID) (*TenantInfo, error)
+	// BatchGet returns visible tenant info records and opaque missing IDs.
+	BatchGet(ctx context.Context, tenantIDs []TenantID) (*capmodel.BatchResult[*TenantInfo, TenantID], error)
+	// List returns bounded tenant candidates visible to the caller.
+	List(ctx context.Context, input ListInput) (*capmodel.PageResult[*TenantInfo], error)
+	// EnsureVisible validates that the current user can access tenant identifiers.
+	EnsureVisible(ctx context.Context, tenantIDs []TenantID) error
+}
+
+// MembershipService defines plugin-visible user-to-tenant membership operations.
+type MembershipService interface {
+	// ListByUser returns active tenant memberships visible to one user.
+	ListByUser(ctx context.Context, userID int) ([]TenantInfo, error)
+	// Validate verifies that a user can access a tenant.
+	Validate(ctx context.Context, userID int, tenantID TenantID) error
+}
+
+// PluginService defines tenant-plugin governance operations under the tenant domain.
+type PluginService interface {
+	// SetTenantPluginEnabled updates one tenant plugin enablement row after caller and tenant policy checks.
+	SetTenantPluginEnabled(ctx context.Context, pluginID plugincap.PluginID, enabled bool) error
+	// ProvisionTenantPluginDefaults creates missing default plugin rows for one tenant.
+	ProvisionTenantPluginDefaults(ctx context.Context, tenantID capmodel.DomainID) error
+}
+
+// FilterService defines plugin-visible tenant filter context reads.
+type FilterService interface {
+	// Context returns tenant, actor, impersonation, and platform-bypass metadata for the current request.
+	Context(ctx context.Context) TenantFilterContext
+}
 
 const (
 	// CapabilityTenantV1 identifies the versioned tenant framework capability.
@@ -40,11 +104,9 @@ const (
 	MaxTenantBatchSize = 200
 	// MaxTenantSearchPageSize is the maximum tenant candidate page size.
 	MaxTenantSearchPageSize = 200
-	// MaxUserTenantBatchSize is the maximum user count accepted by batch membership reads.
-	MaxUserTenantBatchSize = 200
 )
 
-// TenantInfo describes one host-facing tenant projection.
+// TenantInfo describes one host-facing tenant information record.
 type TenantInfo struct {
 	ID     TenantID // ID is the numeric tenant identifier.
 	Code   string   // Code is the stable tenant code.
@@ -52,14 +114,25 @@ type TenantInfo struct {
 	Status string   // Status is the provider-owned tenant lifecycle status.
 }
 
-// UserTenantProjection describes the host-facing tenant ownership projection for one user row.
-type UserTenantProjection struct {
+// TenantMembershipInfo describes the host-facing tenant membership for one user row.
+type TenantMembershipInfo struct {
 	TenantIDs   []TenantID // TenantIDs are active tenant identifiers.
 	TenantNames []string   // TenantNames are active tenant display names.
 }
 
-// SearchInput describes bounded tenant candidate search.
-type SearchInput struct {
+// TenantFilterContext carries plugin-visible tenant and audit identity metadata.
+type TenantFilterContext struct {
+	UserID             int  // UserID is the authenticated user bound to the current request.
+	TenantID           int  // TenantID is the current request tenant.
+	ActingUserID       int  // ActingUserID is the real actor to persist in audit records.
+	OnBehalfOfTenantID int  // OnBehalfOfTenantID is set only when the request acts on behalf of a tenant.
+	ActingAsTenant     bool // ActingAsTenant reports whether the request acts through a tenant view.
+	IsImpersonation    bool // IsImpersonation marks platform impersonation.
+	PlatformBypass     bool // PlatformBypass reports whether the request runs in platform scope.
+}
+
+// ListInput describes bounded tenant candidate listing.
+type ListInput struct {
 	Keyword string               // Keyword matches stable tenant code or name.
 	Code    string               // Code filters by tenant code fragment.
 	Name    string               // Name filters by tenant name fragment.
@@ -91,65 +164,6 @@ type ResolverResult struct {
 	ActingAsTenant  bool     // ActingAsTenant marks platform impersonation of a tenant.
 	ActingUserID    int      // ActingUserID is the real user when impersonation is active.
 	IsImpersonation bool     // IsImpersonation marks an impersonation token or override.
-}
-
-// Service defines the optional tenant capability consumed by host core services
-// and plugins without hard-linking them to a concrete provider implementation.
-//
-// Service 定义宿主核心服务和普通插件可消费的租户能力，适用于读取当前租户、判断平台绕过、校验租户可见性和列出用户可访问租户。
-type Service interface {
-	// Available reports whether an active tenant provider is available.
-	//
-	// Available 判断当前是否存在可用租户能力提供方，适用于调用方决定启用多租户逻辑或降级到平台租户。
-	Available(ctx context.Context) bool
-	// Status returns the current tenant capability activation state.
-	//
-	// Status 返回租户能力激活状态，适用于运行时诊断、治理检查和插件能力状态展示。
-	Status(ctx context.Context) capmodel.CapabilityStatus
-	// Current returns the current request tenant, defaulting to platform when context is unavailable.
-	//
-	// Current 返回当前请求租户，适用于业务查询、缓存键和权限判断；当上下文缺失或租户能力不可用时返回平台租户。
-	Current(ctx context.Context) TenantID
-	// CurrentTenantInfo returns the current request tenant projection.
-	//
-	// CurrentTenantInfo 返回当前请求租户投影，适用于插件上下文展示和租户感知业务分支；租户能力不可用时返回平台租户中性投影。
-	CurrentTenantInfo(ctx context.Context) (*TenantInfo, error)
-	// PlatformBypass reports whether the current request may bypass tenant filtering.
-	//
-	// PlatformBypass 判断当前请求是否允许绕过租户过滤，适用于平台管理员、启动治理和平台级数据读取路径。
-	PlatformBypass(ctx context.Context) bool
-	// EnsureTenantVisible validates that the current user can access tenantID.
-	//
-	// EnsureTenantVisible 校验当前用户是否可访问指定租户，适用于写入、查询参数校验和跨租户资源访问防护。
-	EnsureTenantVisible(ctx context.Context, tenantID TenantID) error
-	// ValidateUserInTenant verifies that a user can access a tenant.
-	//
-	// ValidateUserInTenant 校验指定用户是否可访问指定租户，适用于认证、租户切换和后台治理流程。
-	ValidateUserInTenant(ctx context.Context, userID int, tenantID TenantID) error
-	// ListUserTenants returns active tenant memberships visible to one user.
-	//
-	// ListUserTenants 返回指定用户可见的活跃租户列表，适用于登录响应、租户切换候选和用户上下文展示。
-	ListUserTenants(ctx context.Context, userID int) ([]TenantInfo, error)
-	// BatchGetTenants returns visible tenant projections and opaque missing IDs.
-	//
-	// BatchGetTenants 批量返回当前 actor 可见租户投影，不存在、不可见和租户外目标统一进入缺失集合。
-	BatchGetTenants(ctx context.Context, tenantIDs []TenantID) (*capmodel.BatchResult[*TenantInfo, TenantID], error)
-	// SearchTenants returns bounded tenant candidates visible to the caller.
-	//
-	// SearchTenants 返回分页租户候选投影，适用于插件筛选和关系选择；provider 缺失时返回空页。
-	SearchTenants(ctx context.Context, input SearchInput) (*capmodel.PageResult[*TenantInfo], error)
-	// BatchListUserTenants returns active tenant memberships for visible users.
-	//
-	// BatchListUserTenants 批量返回用户可访问租户列表，适用于列表和批量详情装配，避免逐用户查询 provider。
-	BatchListUserTenants(ctx context.Context, userIDs []int) (map[int][]TenantInfo, error)
-	// EnsureTenantsVisible validates that the current user can access every tenant.
-	//
-	// EnsureTenantsVisible 批量校验当前用户可访问指定租户，任一目标不可见时整体拒绝。
-	EnsureTenantsVisible(ctx context.Context, tenantIDs []TenantID) error
-	// SwitchTenant validates a tenant switch before token re-issue.
-	//
-	// SwitchTenant 校验指定用户切换到目标租户是否合法，适用于租户切换接口在重新签发令牌前执行准入检查。
-	SwitchTenant(ctx context.Context, userID int, target TenantID) error
 }
 
 // CacheKey builds the canonical tenant-aware cache key for runtime caches.

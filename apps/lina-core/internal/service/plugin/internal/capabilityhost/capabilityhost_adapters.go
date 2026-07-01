@@ -5,13 +5,13 @@ package capabilityhost
 
 import (
 	"context"
-	"sort"
 	"strings"
 
 	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-core/internal/service/apidoc"
 	"lina-core/internal/service/auth"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/apidoccap"
@@ -23,11 +23,11 @@ import (
 
 // apiDocAdapter bridges the internal apidoc service into the published plugin contract.
 type apiDocAdapter struct {
-	service APIDocResolver
+	service apidoc.Service
 }
 
 // newAPIDocAdapter creates the source-plugin apidoc service adapter.
-func newAPIDocAdapter(service APIDocResolver) apidoccap.Service {
+func newAPIDocAdapter(service apidoc.Service) apidoccap.Service {
 	return &apiDocAdapter{service: service}
 }
 
@@ -81,20 +81,20 @@ func (s *apiDocAdapter) FindRouteTitleOperationKeys(ctx context.Context, keyword
 
 // authAdapter bridges the internal auth service into the published plugin contract.
 type authAdapter struct {
-	tokenIssuer TenantTokenIssuer
+	authSvc auth.Service
 }
 
 // newAuthAdapter creates the source-plugin auth service adapter.
-func newAuthAdapter(tokenIssuer TenantTokenIssuer) token.Service {
-	return &authAdapter{tokenIssuer: tokenIssuer}
+func newAuthAdapter(authSvc auth.Service) token.Service {
+	return &authAdapter{authSvc: authSvc}
 }
 
 // SelectTenant consumes a pre-login token and issues a tenant-bound token.
 func (s *authAdapter) SelectTenant(ctx context.Context, in token.SelectTenantInput) (*token.TenantTokenOutput, error) {
-	if s == nil || s.tokenIssuer == nil {
+	if s == nil || s.authSvc == nil {
 		return nil, bizerr.NewCode(CodePluginHostAuthTokenStateUnavailable)
 	}
-	out, err := s.tokenIssuer.IssueTenantToken(ctx, auth.TenantTokenIssueInput{
+	out, err := s.authSvc.IssueTenantToken(ctx, auth.TenantTokenIssueInput{
 		PreToken: in.PreToken,
 		TenantID: in.TenantID,
 	})
@@ -109,13 +109,13 @@ func (s *authAdapter) SelectTenant(ctx context.Context, in token.SelectTenantInp
 
 // SwitchTenant validates membership, revokes the current token, and issues a new token.
 func (s *authAdapter) SwitchTenant(ctx context.Context, in token.SwitchTenantInput) (*token.TenantTokenOutput, error) {
-	if s == nil || s.tokenIssuer == nil {
+	if s == nil || s.authSvc == nil {
 		return nil, bizerr.NewCode(CodePluginHostAuthTokenStateUnavailable)
 	}
 	if strings.TrimSpace(in.BearerToken) == "" {
 		return nil, bizerr.NewCode(CodePluginHostAuthTokenInvalid)
 	}
-	out, err := s.tokenIssuer.ReissueTenantTokenFromBearer(ctx, in.BearerToken, in.TenantID)
+	out, err := s.authSvc.ReissueTenantTokenFromBearer(ctx, in.BearerToken, in.TenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -131,10 +131,10 @@ func (s *authAdapter) IssueImpersonationToken(
 	ctx context.Context,
 	in token.ImpersonationTokenIssueInput,
 ) (*token.ImpersonationTokenOutput, error) {
-	if s == nil || s.tokenIssuer == nil {
+	if s == nil || s.authSvc == nil {
 		return nil, bizerr.NewCode(CodePluginHostAuthTokenStateUnavailable)
 	}
-	out, err := s.tokenIssuer.IssueImpersonationToken(ctx, auth.ImpersonationTokenIssueInput{
+	out, err := s.authSvc.IssueImpersonationToken(ctx, auth.ImpersonationTokenIssueInput{
 		ActingUserID: in.ActingUserID,
 		TenantID:     in.TenantID,
 	})
@@ -155,13 +155,13 @@ func (s *authAdapter) IssueImpersonationToken(
 // RevokeImpersonationToken delegates impersonation-token validation and
 // session revocation to the host auth service.
 func (s *authAdapter) RevokeImpersonationToken(ctx context.Context, in token.ImpersonationTokenRevokeInput) error {
-	if s == nil || s.tokenIssuer == nil {
+	if s == nil || s.authSvc == nil {
 		return bizerr.NewCode(CodePluginHostAuthTokenStateUnavailable)
 	}
 	if strings.TrimSpace(in.BearerToken) == "" {
 		return bizerr.NewCode(CodePluginHostAuthTokenInvalid)
 	}
-	return s.tokenIssuer.RevokeImpersonationToken(ctx, in.BearerToken, in.TenantID)
+	return s.authSvc.RevokeImpersonationToken(ctx, in.BearerToken, in.TenantID)
 }
 
 // tenantTokenOutput maps host auth token output into the published plugin contract.
@@ -174,11 +174,11 @@ func tenantTokenOutput(out *auth.TenantTokenOutput) *token.TenantTokenOutput {
 
 // bizCtxAdapter bridges the internal bizctx service into the published plugin contract.
 type bizCtxAdapter struct {
-	service BizContextProvider
+	service bizctxcap.Service
 }
 
 // newBizCtxAdapter creates the source-plugin business-context service adapter.
-func newBizCtxAdapter(service BizContextProvider) bizctxcap.Service {
+func newBizCtxAdapter(service bizctxcap.Service) bizctxcap.Service {
 	return &bizCtxAdapter{service: service}
 }
 
@@ -192,11 +192,11 @@ func (s *bizCtxAdapter) Current(ctx context.Context) bizctxcap.CurrentContext {
 
 // i18nAdapter bridges the internal i18n service into the published plugin contract.
 type i18nAdapter struct {
-	service RuntimeI18nService
+	service i18nsvc.Service
 }
 
 // newI18nAdapter creates the source-plugin i18n service adapter.
-func newI18nAdapter(service RuntimeI18nService) i18ncap.Service {
+func newI18nAdapter(service i18nsvc.Service) i18ncap.Service {
 	return &i18nAdapter{service: service}
 }
 
@@ -216,33 +216,6 @@ func (s *i18nAdapter) Translate(ctx context.Context, key string, fallback string
 	return s.service.Translate(ctx, key, fallback)
 }
 
-// FindMessageKeys returns runtime i18n keys under prefix whose localized value matches keyword.
-func (s *i18nAdapter) FindMessageKeys(ctx context.Context, prefix string, keyword string) []string {
-	if s == nil || s.service == nil {
-		return []string{}
-	}
-
-	trimmedKeyword := strings.TrimSpace(keyword)
-	if trimmedKeyword == "" {
-		return []string{}
-	}
-	normalizedKeyword := strings.ToLower(trimmedKeyword)
-	trimmedPrefix := strings.TrimSpace(prefix)
-
-	messages := s.service.ExportMessages(ctx, s.service.GetLocale(ctx)).Messages
-	keys := make([]string, 0)
-	for key, value := range messages {
-		if trimmedPrefix != "" && !strings.HasPrefix(key, trimmedPrefix) {
-			continue
-		}
-		if strings.Contains(strings.ToLower(value), normalizedKeyword) {
-			keys = append(keys, key)
-		}
-	}
-	sort.Strings(keys)
-	return keys
-}
-
 // routeAdapter bridges internal dynamic-route helpers into the published contract.
 type routeAdapter struct{}
 
@@ -251,14 +224,14 @@ func newRouteAdapter() routecap.Service {
 	return &routeAdapter{}
 }
 
-// DynamicRouteMetadata returns metadata attached to the current dynamic-route request.
-func (s *routeAdapter) DynamicRouteMetadata(ctx context.Context) *routecap.DynamicRouteMetadata {
+// GetMetadata returns metadata attached to the current dynamic-route request.
+func (s *routeAdapter) GetMetadata(ctx context.Context) *routecap.Metadata {
 	request := g.RequestFromCtx(ctx)
-	metadata := runtime.GetDynamicRouteMetadata(request)
+	metadata := runtime.GetMetadata(request)
 	if metadata == nil {
 		return nil
 	}
-	return &routecap.DynamicRouteMetadata{
+	return &routecap.Metadata{
 		PluginID:            metadata.PluginID,
 		Method:              metadata.Method,
 		PublicPath:          metadata.PublicPath,

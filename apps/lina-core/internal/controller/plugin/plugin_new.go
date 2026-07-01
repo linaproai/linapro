@@ -1,3 +1,6 @@
+// This file declares the plugin controller constructor and its explicit
+// service dependencies.
+
 package plugin
 
 import (
@@ -11,15 +14,15 @@ import (
 
 // ControllerV1 is the plugin controller.
 type ControllerV1 struct {
-	pluginSvc pluginsvc.Service  // plugin service
-	bizCtxSvc bizctx.Service     // business context service
-	configSvc configsvc.Service  // config service
-	i18nSvc   i18nsvc.Translator // i18n translation service
-	roleSvc   role.Service       // role service
+	pluginSvc pluginsvc.Service // unified plugin service
+	bizCtxSvc bizctx.Service    // business context service
+	configSvc configsvc.Service // config service
+	i18nSvc   i18nsvc.Service   // i18n error localization service
+	roleSvc   role.Service      // role service
 }
 
 // NewV1 creates and returns a new plugin controller instance.
-func NewV1(pluginSvc pluginsvc.Service, bizCtxSvc bizctx.Service, configSvc configsvc.Service, i18nSvc i18nsvc.Translator, roleSvc role.Service) pluginapi.IPluginV1 {
+func NewV1(pluginSvc pluginsvc.Service, bizCtxSvc bizctx.Service, configSvc configsvc.Service, i18nSvc i18nsvc.Service, roleSvc role.Service) pluginapi.IPluginV1 {
 	return &ControllerV1{
 		pluginSvc: pluginSvc,
 		bizCtxSvc: bizCtxSvc,

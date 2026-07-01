@@ -6,7 +6,6 @@ package pluginhost
 import (
 	"io/fs"
 
-	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
@@ -50,23 +49,6 @@ type Declarations interface {
 	Providers() ProviderDeclarations
 	// Access returns the menu and permission access-control registration facade.
 	Access() AccessDeclarations
-}
-
-// Services is the source-plugin runtime service directory used by registrar and
-// callback flows. It embeds the ordinary capability services and adds
-// source-plugin-only governed seams that are not part of
-// capability.Services.
-type Services interface {
-	capability.Services
-	// Admin returns the source-plugin management service directory. Admin
-	// methods are governed by domain owners through CapabilityContext, tenant
-	// boundaries, target data visibility, state-machine checks, limits, and
-	// audit records rather than by source-plugin string capability declarations.
-	Admin() capability.AdminServices
-	// TenantFilter returns the source-plugin tenant-filter service for
-	// plugin-owned tables. This method carries a database query builder and is
-	// intentionally kept out of the ordinary capability services.
-	TenantFilter() tenantspi.PluginTableFilterService
 }
 
 // AssetDeclarations exposes plugin-owned asset declarations grouped under one

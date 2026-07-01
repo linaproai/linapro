@@ -6,14 +6,19 @@ package domainhostcall
 
 import (
 	"context"
+	"strconv"
 
 	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/usercap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
 // usersService adapts user projection reads to host services.
 type usersService struct{ baseService }
+
+// usersAssignmentService adapts user-role assignment operations to host services.
+type usersAssignmentService struct{ baseService }
 
 // Users creates the user-domain capability guest client.
 func Users(invoker Invoker) usercap.Service {
@@ -21,8 +26,8 @@ func Users(invoker Invoker) usercap.Service {
 }
 
 // Current returns the current actor's visible user projection.
-func (s usersService) Current(_ context.Context, _ capmodel.CapabilityContext) (*usercap.UserProjection, error) {
-	var result *usercap.UserProjection
+func (s usersService) Current(_ context.Context) (*usercap.UserInfo, error) {
+	var result *usercap.UserInfo
 	err := s.callJSONRequest(
 		protocol.HostServiceUsers,
 		protocol.HostServiceMethodUsersCurrent,
@@ -33,9 +38,9 @@ func (s usersService) Current(_ context.Context, _ capmodel.CapabilityContext) (
 }
 
 // BatchGet returns visible user projections and opaque missing IDs.
-func (s usersService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []usercap.UserID) (*capmodel.BatchResult[*usercap.UserProjection, usercap.UserID], error) {
-	result := &capmodel.BatchResult[*usercap.UserProjection, usercap.UserID]{
-		Items:      map[usercap.UserID]*usercap.UserProjection{},
+func (s usersService) BatchGet(_ context.Context, ids []usercap.UserID) (*capmodel.BatchResult[*usercap.UserInfo, usercap.UserID], error) {
+	result := &capmodel.BatchResult[*usercap.UserInfo, usercap.UserID]{
+		Items:      map[usercap.UserID]*usercap.UserInfo{},
 		MissingIDs: []usercap.UserID{},
 	}
 	err := s.callJSONRequest(
@@ -48,9 +53,9 @@ func (s usersService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, 
 }
 
 // BatchResolve resolves visible users by IDs, usernames, email addresses, or phone numbers.
-func (s usersService) BatchResolve(_ context.Context, _ capmodel.CapabilityContext, input usercap.BatchResolveInput) (*capmodel.BatchResult[*usercap.UserProjection, usercap.ResolveKey], error) {
-	result := &capmodel.BatchResult[*usercap.UserProjection, usercap.ResolveKey]{
-		Items:      map[usercap.ResolveKey]*usercap.UserProjection{},
+func (s usersService) BatchResolve(_ context.Context, input usercap.BatchResolveInput) (*capmodel.BatchResult[*usercap.UserInfo, usercap.ResolveKey], error) {
+	result := &capmodel.BatchResult[*usercap.UserInfo, usercap.ResolveKey]{
+		Items:      map[usercap.ResolveKey]*usercap.UserInfo{},
 		MissingIDs: []usercap.ResolveKey{},
 	}
 	err := s.callJSONRequest(
@@ -66,15 +71,31 @@ func (s usersService) BatchResolve(_ context.Context, _ capmodel.CapabilityConte
 	return result, err
 }
 
-// Search searches visible user candidates with bounded paging.
-func (s usersService) Search(_ context.Context, _ capmodel.CapabilityContext, input usercap.SearchInput) (*capmodel.PageResult[*usercap.UserProjection], error) {
-	result := &capmodel.PageResult[*usercap.UserProjection]{Items: []*usercap.UserProjection{}}
+// Get returns one visible user projection through the registered batch-read method.
+func (s usersService) Get(ctx context.Context, id usercap.UserID) (*usercap.UserInfo, error) {
+	result, err := s.BatchGet(ctx, []usercap.UserID{id})
+	if err != nil || result == nil {
+		return nil, err
+	}
+	if item, ok := result.Items[id]; ok {
+		return item, nil
+	}
+	return nil, nil
+}
+
+// List lists visible user candidates with bounded paging.
+func (s usersService) List(_ context.Context, input usercap.ListInput) (*capmodel.PageResult[*usercap.UserInfo], error) {
+	result := &capmodel.PageResult[*usercap.UserInfo]{Items: []*usercap.UserInfo{}}
+	status := ""
+	if input.Status != nil {
+		status = strconv.Itoa(int(*input.Status))
+	}
 	err := s.callJSONRequest(
 		protocol.HostServiceUsers,
-		protocol.HostServiceMethodUsersSearch,
-		usersSearchRequest{
+		protocol.HostServiceMethodUsersList,
+		usersListRequest{
 			Keyword:     input.Keyword,
-			Status:      string(input.Status),
+			Status:      status,
 			TenantID:    string(input.TenantID),
 			EnabledOnly: input.EnabledOnly,
 			PageNum:     input.Page.PageNum,
@@ -86,13 +107,48 @@ func (s usersService) Search(_ context.Context, _ capmodel.CapabilityContext, in
 }
 
 // EnsureVisible rejects when any requested user is absent or invisible.
-func (s usersService) EnsureVisible(_ context.Context, _ capmodel.CapabilityContext, ids []usercap.UserID) error {
+func (s usersService) EnsureVisible(_ context.Context, ids []usercap.UserID) error {
 	return s.callJSONRequest(
 		protocol.HostServiceUsers,
 		protocol.HostServiceMethodUsersEnsureVisible,
 		usersEnsureVisibleRequest{UserIDs: userIDsToStrings(ids)},
 		nil,
 	)
+}
+
+// Create is not published as a dynamic users host-service method.
+func (s usersService) Create(context.Context, usercap.CreateInput) (usercap.UserID, error) {
+	return "", unsupportedDynamicMethodError("users.create")
+}
+
+// Update is not published as a dynamic users host-service method.
+func (s usersService) Update(context.Context, usercap.UpdateInput) error {
+	return unsupportedDynamicMethodError("users.update")
+}
+
+// Delete is not published as a dynamic users host-service method.
+func (s usersService) Delete(context.Context, usercap.UserID) error {
+	return unsupportedDynamicMethodError("users.delete")
+}
+
+// SetStatus is not published as a dynamic users host-service method.
+func (s usersService) SetStatus(context.Context, usercap.UserID, statusflag.Enabled) error {
+	return unsupportedDynamicMethodError("users.set_status")
+}
+
+// ResetPassword is not published as a dynamic users host-service method.
+func (s usersService) ResetPassword(context.Context, usercap.UserID, string) error {
+	return unsupportedDynamicMethodError("users.password.reset")
+}
+
+// Assignment returns user role assignment operations.
+func (s usersService) Assignment() usercap.AssignmentService {
+	return usersAssignmentService{baseService: s.baseService}
+}
+
+// ReplaceRoles is not published as a dynamic users host-service method.
+func (s usersAssignmentService) ReplaceRoles(context.Context, usercap.UserID, []int) error {
+	return unsupportedDynamicMethodError("users.assignment.roles.replace")
 }
 
 type usersBatchGetRequest struct {
@@ -105,7 +161,7 @@ type usersBatchResolveRequest struct {
 	Contacts  []string `json:"contacts,omitempty"`
 }
 
-type usersSearchRequest struct {
+type usersListRequest struct {
 	Keyword     string `json:"keyword,omitempty"`
 	Status      string `json:"status,omitempty"`
 	TenantID    string `json:"tenantId,omitempty"`
@@ -128,3 +184,4 @@ func userIDsToStrings(ids []usercap.UserID) []string {
 }
 
 var _ usercap.Service = (*usersService)(nil)
+var _ usercap.AssignmentService = (*usersAssignmentService)(nil)

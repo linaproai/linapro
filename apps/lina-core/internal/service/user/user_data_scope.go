@@ -52,11 +52,11 @@ func (s *serviceImpl) ensureUsersVisible(ctx context.Context, userIDs []int) err
 // ensureUsersVisibleByTenantMembership rejects tenant-scoped detail and write
 // operations unless every target has active membership in the current tenant.
 func (s *serviceImpl) ensureUsersVisibleByTenantMembership(ctx context.Context, userIDs []int) error {
-	if len(userIDs) == 0 || currentTenantID(ctx) == datascope.PlatformTenantID || s == nil || s.tenantMembers == nil {
+	if len(userIDs) == 0 || currentTenantID(ctx) == datascope.PlatformTenantID || s == nil || s.tenantSvc == nil {
 		return nil
 	}
 	return mapTenantMembershipVisibilityError(
-		s.tenantMembers.EnsureUsersInTenant(
+		s.tenantSvc.EnsureUsersInTenant(
 			ctx,
 			uniqueTenantMembershipUserIDs(userIDs),
 			tenantcapsvc.TenantID(currentTenantID(ctx)),

@@ -289,9 +289,11 @@ CREATE TABLE test_datahost_identity_contract (
 // TestBuildCachedAuthorizedTableContractUsesMigrationFingerprint verifies schema
 // metadata is reused until the plugin migration ledger changes.
 func TestBuildCachedAuthorizedTableContractUsesMigrationFingerprint(t *testing.T) {
-	ctx := context.Background()
-	pluginID := "test-plugin-datahost-contract-cache-migration"
-	tableName := "test_datahost_contract_cache_migration"
+	var (
+		ctx       = context.Background()
+		pluginID  = "test-plugin-datahost-contract-cache-migration"
+		tableName = "test_datahost_contract_cache_migration"
+	)
 	dropIdentityContractTable(t, ctx, tableName)
 	cleanupTableContractMigrations(t, ctx, pluginID)
 	t.Cleanup(func() {
@@ -338,9 +340,11 @@ func TestBuildCachedAuthorizedTableContractUsesMigrationFingerprint(t *testing.T
 // TestInvalidateTableContractCacheRefreshesLiveSchema verifies plugin-scoped
 // invalidation refreshes cached contracts even when the migration key is stable.
 func TestInvalidateTableContractCacheRefreshesLiveSchema(t *testing.T) {
-	ctx := context.Background()
-	pluginID := "test-plugin-datahost-contract-cache-invalidate"
-	tableName := "test_datahost_contract_cache_invalidate"
+	var (
+		ctx       = context.Background()
+		pluginID  = "test-plugin-datahost-contract-cache-invalidate"
+		tableName = "test_datahost_contract_cache_invalidate"
+	)
 	dropIdentityContractTable(t, ctx, tableName)
 	cleanupTableContractMigrations(t, ctx, pluginID)
 	t.Cleanup(func() {
@@ -375,9 +379,11 @@ func TestInvalidateTableContractCacheRefreshesLiveSchema(t *testing.T) {
 // TestBuildCachedAuthorizedTableContractUsesAuthorizationFingerprint verifies
 // method authorization shrinkage does not reuse a broader cached contract.
 func TestBuildCachedAuthorizedTableContractUsesAuthorizationFingerprint(t *testing.T) {
-	ctx := context.Background()
-	pluginID := "test-plugin-datahost-contract-cache-auth"
-	tableName := "test_datahost_contract_cache_auth"
+	var (
+		ctx       = context.Background()
+		pluginID  = "test-plugin-datahost-contract-cache-auth"
+		tableName = "test_datahost_contract_cache_auth"
+	)
 	dropIdentityContractTable(t, ctx, tableName)
 	cleanupTableContractMigrations(t, ctx, pluginID)
 	t.Cleanup(func() {

@@ -74,9 +74,11 @@ func recordRuntimeUpgradeFailureMigration(
 	if normalizedPhase == "" {
 		normalizedPhase = "unknown"
 	}
-	errorMessage := strings.TrimSpace(upgradeErr.Error())
-	checksum := fmt.Sprintf("%x", sha256.Sum256([]byte(normalizedPhase+":"+errorMessage)))
-	executedAt := time.Now()
+	var (
+		errorMessage = strings.TrimSpace(upgradeErr.Error())
+		checksum     = fmt.Sprintf("%x", sha256.Sum256([]byte(normalizedPhase+":"+errorMessage)))
+		executedAt   = time.Now()
+	)
 	data := do.SysPluginMigration{
 		PluginId:       strings.TrimSpace(pluginID),
 		ReleaseId:      releaseID,

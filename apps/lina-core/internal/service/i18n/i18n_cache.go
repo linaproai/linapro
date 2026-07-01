@@ -5,6 +5,7 @@
 package i18n
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 
@@ -51,10 +52,6 @@ type localeCache struct {
 	// already loaded without it, so deleting the old entry alone is not enough.
 	sourceDirty  map[string]struct{}
 	dynamicDirty map[string]struct{}
-
-	// sources records the effective origin of every key seen during merge so
-	// admin diagnostics can report where a translation actually came from.
-	sources map[string]MessageSourceDescriptor
 
 	// merged is the derived flat view; nil after invalidation, lazily rebuilt
 	// on the next read. Once built it is never mutated; invalidation replaces
@@ -104,30 +101,26 @@ func (s *serviceImpl) InvalidateRuntimeBundleCache(scope InvalidateScope) {
 	resetRuntimeLocaleCache()
 }
 
-// BundleRevision returns the per-locale runtime translation bundle revision.
-// The fingerprint is populated after the merged view has been built.
-func (s *serviceImpl) BundleRevision(locale string) RuntimeBundleRevision {
+// BundleRevision returns the per-locale runtime translation bundle revision
+// after synchronizing clustered runtime i18n cache freshness.
+func (s *serviceImpl) BundleRevision(ctx context.Context, locale string) (RuntimeBundleRevision, error) {
+	if err := s.ensureRuntimeBundleCacheFresh(ctx); err != nil {
+		return RuntimeBundleRevision{}, err
+	}
 	normalizedLocale := normalizeLocale(locale)
 	if normalizedLocale == "" {
-		return RuntimeBundleRevision{}
+		return RuntimeBundleRevision{}, nil
 	}
 	lc := runtimeBundleCache.lookup(normalizedLocale)
 	if lc == nil {
-		return RuntimeBundleRevision{}
+		return RuntimeBundleRevision{}, nil
 	}
 	lc.mu.RLock()
 	defer lc.mu.RUnlock()
 	return RuntimeBundleRevision{
 		Version:     lc.version,
 		Fingerprint: lc.fingerprint,
-	}
-}
-
-// BundleVersion returns the per-locale runtime translation bundle version. The
-// value increases monotonically across the process lifetime whenever any
-// sector that contributes to the locale's merged view is invalidated.
-func (s *serviceImpl) BundleVersion(locale string) uint64 {
-	return s.BundleRevision(locale).Version
+	}, nil
 }
 
 // lookup returns the cached locale entry without creating it.
@@ -242,7 +235,6 @@ func (lc *localeCache) invalidateSectors(scope InvalidateScope) {
 		}
 	}
 	lc.merged = nil
-	lc.sources = nil
 	lc.fingerprint = ""
 	lc.version++
 }

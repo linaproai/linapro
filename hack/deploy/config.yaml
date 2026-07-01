@@ -40,10 +40,6 @@ session:
 monitor:
   interval: 1m
 
-# Health probe configuration.
-health:
-  timeout: 5s
-
 # Scheduler configuration.
 scheduler:
   defaultTimezone: "UTC"

@@ -5,6 +5,7 @@ package plugin
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/plugin/internal/lifecycle"
@@ -103,7 +104,7 @@ func (s *serviceImpl) warnAutoEnableBuiltinOverlap(ctx context.Context, manifest
 		if manifest == nil {
 			continue
 		}
-		if plugintypes.NormalizeDistribution(manifest.Distribution) == plugintypes.DistributionBuiltin {
+		if plugintypes.NormalizeDistribution(manifest.Distribution) == pluginv1.PluginDistributionBuiltin {
 			builtinIDs[manifest.ID] = struct{}{}
 		}
 	}

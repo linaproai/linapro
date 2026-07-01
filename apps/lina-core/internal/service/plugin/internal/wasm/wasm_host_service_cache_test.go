@@ -80,51 +80,6 @@ func (s *trackingCacheService) Expire(_ context.Context, _ kvcache.OwnerType, ca
 // CleanupExpired records no behavior for the fake backend.
 func (s *trackingCacheService) CleanupExpired(context.Context) error { return nil }
 
-// staticCacheService is stateless so concurrent wiring tests can exercise the
-// host-service reference without introducing fake-service data races.
-type staticCacheService struct{}
-
-// BackendName returns a deterministic backend name for assertions.
-func (staticCacheService) BackendName() kvcache.BackendName {
-	return kvcache.BackendName("static")
-}
-
-// RequiresExpiredCleanup reports no cleanup requirement for the fake backend.
-func (staticCacheService) RequiresExpiredCleanup() bool { return false }
-
-// Get returns one deterministic cache item.
-func (staticCacheService) Get(_ context.Context, _ kvcache.OwnerType, cacheKey string) (*kvcache.Item, bool, error) {
-	return &kvcache.Item{Key: cacheKey, ValueKind: kvcache.ValueKindString, Value: "race-safe"}, true, nil
-}
-
-// GetInt returns no dedicated integer value because host service dispatch uses Get.
-func (staticCacheService) GetInt(context.Context, kvcache.OwnerType, string) (int64, bool, error) {
-	return 0, false, nil
-}
-
-// Set returns one deterministic string cache item.
-func (staticCacheService) Set(_ context.Context, _ kvcache.OwnerType, cacheKey string, value string, _ time.Duration) (*kvcache.Item, error) {
-	return &kvcache.Item{Key: cacheKey, ValueKind: kvcache.ValueKindString, Value: value}, nil
-}
-
-// Delete accepts one cache delete.
-func (staticCacheService) Delete(context.Context, kvcache.OwnerType, string) error {
-	return nil
-}
-
-// Incr returns one deterministic integer cache item.
-func (staticCacheService) Incr(_ context.Context, _ kvcache.OwnerType, cacheKey string, delta int64, _ time.Duration) (*kvcache.Item, error) {
-	return &kvcache.Item{Key: cacheKey, ValueKind: kvcache.ValueKindInt, IntValue: delta}, nil
-}
-
-// Expire accepts one expiration update.
-func (staticCacheService) Expire(context.Context, kvcache.OwnerType, string, time.Duration) (bool, *time.Time, error) {
-	return true, nil, nil
-}
-
-// CleanupExpired records no behavior for the fake backend.
-func (staticCacheService) CleanupExpired(context.Context) error { return nil }
-
 // cacheDomainTestService adapts a shared kvcache.Service to cachecap.Service
 // for WASM dispatcher tests without expanding capabilityhost's production API.
 type cacheDomainTestService struct {
@@ -238,9 +193,11 @@ func cacheItemFromKV(item *kvcache.Item, logicalKey string) *cachecap.CacheItem 
 func TestHandleHostServiceInvokeCacheLifecycle(t *testing.T) {
 	configureCacheDomainServiceForTest(t, kvcache.New())
 
-	pluginID := "test-plugin-cache"
-	namespace := "orders-cache"
-	hcc := newCacheHostCallContext(pluginID, namespace)
+	var (
+		pluginID  = "test-plugin-cache"
+		namespace = "orders-cache"
+		hcc       = newCacheHostCallContext(pluginID, namespace)
+	)
 
 	setResponse := invokeCacheHostService(
 		t,
@@ -440,9 +397,11 @@ func TestHandleHostServiceInvokeCacheRejectsMissingTTL(t *testing.T) {
 func TestHandleHostServiceInvokeCacheBatchMethods(t *testing.T) {
 	configureCacheDomainServiceForTest(t, kvcache.New())
 
-	pluginID := "test-plugin-cache-batch"
-	namespace := "orders-cache-batch"
-	hcc := newCacheHostCallContext(pluginID, namespace)
+	var (
+		pluginID  = "test-plugin-cache-batch"
+		namespace = "orders-cache-batch"
+		hcc       = newCacheHostCallContext(pluginID, namespace)
+	)
 
 	setResponse := invokeCacheHostService(
 		t,
@@ -568,10 +527,12 @@ func TestHandleHostServiceInvokeCacheUsesCoordinationKVAndTenantIsolation(t *tes
 		t.Fatalf("expected coordination KV backend, got %q", cacheSvc.BackendName())
 	}
 
-	pluginID := "test-plugin-cache-tenant"
-	namespace := "orders-cache"
-	tenantOne := newTenantCacheHostCallContext(pluginID, namespace, 11)
-	tenantTwo := newTenantCacheHostCallContext(pluginID, namespace, 22)
+	var (
+		pluginID  = "test-plugin-cache-tenant"
+		namespace = "orders-cache"
+		tenantOne = newTenantCacheHostCallContext(pluginID, namespace, 11)
+		tenantTwo = newTenantCacheHostCallContext(pluginID, namespace, 22)
+	)
 
 	setTenantCacheValue(t, tenantOne, namespace, "profile", "tenant-one")
 	setTenantCacheValue(t, tenantTwo, namespace, "profile", "tenant-two")

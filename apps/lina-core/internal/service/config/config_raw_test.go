@@ -52,7 +52,7 @@ func TestGetRawPrefersTenantSysConfigOverride(t *testing.T) {
 	insertRawSysConfig(t, ctx, 87, key, "tenant")
 	markRuntimeParamChanged(t, ctx)
 
-	value, err := New().(*serviceImpl).GetRaw(datascope.WithTenantForTest(ctx, 87), key)
+	value, err := New().(*serviceImpl).GetRaw(datascope.WithTenantScope(ctx, 87), key)
 	if err != nil {
 		t.Fatalf("get tenant custom sys_config raw value: %v", err)
 	}
@@ -64,9 +64,11 @@ func TestGetRawPrefersTenantSysConfigOverride(t *testing.T) {
 // TestGetRawReloadsCustomSysConfigAfterRevisionChange verifies revision bumps
 // refresh custom sys_config keys, including deletion fallback behavior.
 func TestGetRawReloadsCustomSysConfigAfterRevisionChange(t *testing.T) {
-	ctx := context.Background()
-	key := uniqueRawConfigKey(t, "custom.feature.reload")
-	insertedID := insertRawSysConfig(t, ctx, datascope.PlatformTenantID, key, "100")
+	var (
+		ctx        = context.Background()
+		key        = uniqueRawConfigKey(t, "custom.feature.reload")
+		insertedID = insertRawSysConfig(t, ctx, datascope.PlatformTenantID, key, "100")
+	)
 	markRuntimeParamChanged(t, ctx)
 
 	svc := New().(*serviceImpl)
@@ -175,9 +177,9 @@ func TestNewCacheCoordRuntimeParamRevisionControllerSelectsByClusterMode(t *test
 	}
 }
 
-// TestValidateRuntimeParamValue verifies built-in runtime parameter validators
+// TestRuntimeParamValueValidation verifies built-in runtime parameter validators
 // accept valid values and reject malformed ones.
-func TestValidateRuntimeParamValue(t *testing.T) {
+func TestRuntimeParamValueValidation(t *testing.T) {
 	testCases := []struct {
 		key       string
 		value     string
@@ -206,7 +208,7 @@ func TestValidateRuntimeParamValue(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		err := ValidateRuntimeParamValue(testCase.key, testCase.value)
+		err := validateRuntimeParamValue(testCase.key, testCase.value)
 		if testCase.shouldErr && err == nil {
 			t.Fatalf("expected validation error for %s=%q", testCase.key, testCase.value)
 		}
@@ -216,15 +218,15 @@ func TestValidateRuntimeParamValue(t *testing.T) {
 	}
 }
 
-// TestRuntimeParamSpecsReturnsCopy verifies callers cannot mutate the shared
+// TestRuntimeParamSpecCopiesAreDetached verifies callers cannot mutate the shared
 // built-in runtime-parameter specification slice.
-func TestRuntimeParamSpecsReturnsCopy(t *testing.T) {
-	specs := RuntimeParamSpecs()
+func TestRuntimeParamSpecCopiesAreDetached(t *testing.T) {
+	specs := runtimeParamSpecsCopy()
 	if len(specs) == 0 {
 		t.Fatal("expected runtime param specs to be present")
 	}
 
-	uploadSpec, ok := LookupRuntimeParamSpec(RuntimeParamKeyUploadMaxSize)
+	uploadSpec, ok := lookupRuntimeParamSpec(RuntimeParamKeyUploadMaxSize)
 	if !ok {
 		t.Fatal("expected upload-size runtime param spec to be present")
 	}
@@ -234,27 +236,27 @@ func TestRuntimeParamSpecsReturnsCopy(t *testing.T) {
 	original := runtimeParamSpecs[0].DefaultValue
 	specs[0].DefaultValue = "mutated"
 	if runtimeParamSpecs[0].DefaultValue != original {
-		t.Fatal("expected RuntimeParamSpecs to return a detached copy")
+		t.Fatal("expected runtimeParamSpecsCopy to return a detached copy")
 	}
 }
 
-// TestRuntimeParamSpecsUseSystemNamespace verifies all built-in runtime
+// TestRuntimeParamSpecKeysUseSystemNamespace verifies all built-in runtime
 // parameters managed through sys_config stay under the host system namespace.
-func TestRuntimeParamSpecsUseSystemNamespace(t *testing.T) {
-	for _, spec := range RuntimeParamSpecs() {
+func TestRuntimeParamSpecKeysUseSystemNamespace(t *testing.T) {
+	for _, spec := range runtimeParamSpecsCopy() {
 		if !strings.HasPrefix(spec.Key, "sys.") {
 			t.Fatalf("expected built-in runtime parameter %q to use sys. prefix", spec.Key)
 		}
 	}
 }
 
-// TestRuntimeParamSpecsExcludeLoggerTraceIDSwitch verifies the TraceID switch
+// TestRuntimeParamSpecKeysExcludeLoggerTraceIDSwitch verifies the TraceID switch
 // is no longer exposed as one managed sys_config runtime parameter.
-func TestRuntimeParamSpecsExcludeLoggerTraceIDSwitch(t *testing.T) {
-	if _, ok := LookupRuntimeParamSpec("sys.logger.traceID.enabled"); ok {
+func TestRuntimeParamSpecKeysExcludeLoggerTraceIDSwitch(t *testing.T) {
+	if _, ok := lookupRuntimeParamSpec("sys.logger.traceID.enabled"); ok {
 		t.Fatal("expected logger TraceID switch to be removed from managed runtime params")
 	}
-	if IsManagedRuntimeParamKey("sys.logger.traceID.enabled") {
+	if isManagedRuntimeParamKey("sys.logger.traceID.enabled") {
 		t.Fatal("expected logger TraceID switch not to be treated as managed")
 	}
 }
@@ -663,7 +665,6 @@ func withCachedRuntimeParamSnapshot(t *testing.T, snapshot *runtimeParamSnapshot
 	if cached.Snapshot == nil {
 		cached.Snapshot = &runtimeParamSnapshot{}
 	}
-	cached.Snapshot.revision = 1
 	if err := runtimeParamSnapshotCache.Set(
 		ctx,
 		scopedRuntimeParamSnapshotCacheKey(ctx),
@@ -920,9 +921,11 @@ func TestClusterRuntimeParamRevisionControllerPropagatesCacheCoordErrors(t *test
 	clearLocalRuntimeParamRevision()
 	t.Cleanup(clearLocalRuntimeParamRevision)
 
-	readErr := errors.New("read revision failed")
-	readCoord := &fakeClusterRevisionCacheCoordService{currentErr: readErr}
-	readController := &clusterRuntimeParamRevisionController{cacheCoordSvc: readCoord}
+	var (
+		readErr        = errors.New("read revision failed")
+		readCoord      = &fakeClusterRevisionCacheCoordService{currentErr: readErr}
+		readController = &clusterRuntimeParamRevisionController{cacheCoordSvc: readCoord}
+	)
 	if _, err := readController.CurrentRevision(context.Background()); !errors.Is(err, readErr) {
 		t.Fatalf("expected CurrentRevision error %v, got %v", readErr, err)
 	}
@@ -930,9 +933,11 @@ func TestClusterRuntimeParamRevisionControllerPropagatesCacheCoordErrors(t *test
 		t.Fatalf("expected SyncRevision error %v, got %v", readErr, err)
 	}
 
-	writeErr := errors.New("increment revision failed")
-	writeCoord := &fakeClusterRevisionCacheCoordService{markErr: writeErr}
-	writeController := &clusterRuntimeParamRevisionController{cacheCoordSvc: writeCoord}
+	var (
+		writeErr        = errors.New("increment revision failed")
+		writeCoord      = &fakeClusterRevisionCacheCoordService{markErr: writeErr}
+		writeController = &clusterRuntimeParamRevisionController{cacheCoordSvc: writeCoord}
+	)
 	if _, err := writeController.MarkChanged(context.Background()); !errors.Is(err, writeErr) {
 		t.Fatalf("expected MarkChanged error %v, got %v", writeErr, err)
 	}
@@ -1014,7 +1019,6 @@ func TestRuntimeParamSnapshotPropagatesRevisionErrorWithCachedSnapshot(t *testin
 		Revision:    3,
 		RefreshedAt: time.Now(),
 		Snapshot: &runtimeParamSnapshot{
-			revision:       3,
 			values:         map[string]string{RuntimeParamKeyJWTExpire: "12h"},
 			durationValues: map[string]time.Duration{RuntimeParamKeyJWTExpire: 12 * time.Hour},
 			int64Values:    map[string]int64{},
@@ -1039,27 +1043,10 @@ func TestRuntimeParamSnapshotPropagatesRevisionErrorWithCachedSnapshot(t *testin
 	}
 }
 
-// cleanupRuntimeConfigRevision removes the shared runtime-config revision row
-// used by cross-instance tests.
-func cleanupRuntimeConfigRevision(t *testing.T, ctx context.Context) {
-	t.Helper()
-
-	cleanup := func() {
-		if _, err := dao.SysCacheRevision.Ctx(ctx).Where(do.SysCacheRevision{
-			Domain: runtimeParamCacheDomain,
-			Scope:  cachecoord.ScopeGlobal,
-		}).Delete(); err != nil {
-			t.Fatalf("cleanup runtime-config revision failed: %v", err)
-		}
-	}
-	cleanup()
-	t.Cleanup(cleanup)
-}
-
-// TestRuntimeParamSnapshotSyncIntervalExposesWatcherInterval verifies the
-// public helper returns the configured synchronization interval constant.
-func TestRuntimeParamSnapshotSyncIntervalExposesWatcherInterval(t *testing.T) {
-	if interval := RuntimeParamSnapshotSyncInterval(); interval != 10*time.Second {
+// TestRuntimeParamSnapshotWatcherInterval verifies the package helper returns
+// the configured synchronization interval constant.
+func TestRuntimeParamSnapshotWatcherInterval(t *testing.T) {
+	if interval := runtimeParamSnapshotSyncIntervalForTest(); interval != 10*time.Second {
 		t.Fatalf("expected runtime snapshot sync interval 10s, got %s", interval)
 	}
 }
@@ -1087,7 +1074,6 @@ func TestGetCachedRuntimeParamSnapshotRemovesInvalidEntries(t *testing.T) {
 		Revision:    2,
 		RefreshedAt: time.Now(),
 		Snapshot: &runtimeParamSnapshot{
-			revision:       2,
 			values:         map[string]string{},
 			durationValues: map[string]time.Duration{},
 			int64Values:    map[string]int64{},

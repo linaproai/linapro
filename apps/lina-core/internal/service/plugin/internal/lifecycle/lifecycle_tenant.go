@@ -5,6 +5,7 @@ package lifecycle
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"lina-core/internal/service/plugin/internal/governance"
@@ -14,6 +15,7 @@ import (
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // ReconcileAutoEnabledTenantPlugins applies plugin.autoEnable entries to
@@ -37,8 +39,8 @@ func (s *serviceImpl) ReconcileAutoEnabledTenantPlugins(ctx context.Context, ent
 	if !requiresProvisioning {
 		return nil
 	}
-	if s.tenantProvisioning != nil {
-		if err := s.tenantProvisioning.ProvisionAutoEnabledTenantPlugins(ctx); err != nil {
+	if s.tenantSvc != nil {
+		if err := s.tenantSvc.ProvisionAutoEnabledTenantPlugins(ctx); err != nil {
 			return bizerr.WrapCode(err, CodePluginAutoEnableTenantProvisioningFailed, bizerr.P("pluginId", "all"))
 		}
 	}
@@ -78,9 +80,9 @@ func (s *serviceImpl) reconcileAutoEnabledTenantPluginPolicy(
 // provisioned for existing and future tenants.
 func (s *serviceImpl) isAutoEnabledTenantPluginCandidate(ctx context.Context, registry *store.PluginRecord) bool {
 	if registry == nil ||
-		registry.Installed != plugintypes.InstalledYes ||
-		registry.Status != plugintypes.StatusEnabled ||
-		plugintypes.NormalizeInstallMode(registry.InstallMode) != plugintypes.InstallModeTenantScoped {
+		registry.Installed != statusflag.Installed.Int() ||
+		registry.Status != statusflag.EnabledValue.Int() ||
+		plugintypes.NormalizeInstallMode(registry.InstallMode) != pluginv1.InstallModeTenantScoped {
 		return false
 	}
 	return governance.RegistrySupportsTenantGovernance(s.catalogSvc, registry)
@@ -210,9 +212,9 @@ func (s *serviceImpl) ensureDynamicTenantLifecyclePreconditionAllowed(
 	decisions := make([]runtime.DynamicLifecycleDecision, 0)
 	for _, registry := range registries {
 		if registry == nil ||
-			plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
-			registry.Installed != plugintypes.InstalledYes ||
-			registry.Status != plugintypes.StatusEnabled {
+			plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic ||
+			registry.Installed != statusflag.Installed.Int() ||
+			registry.Status != statusflag.EnabledValue.Int() {
 			continue
 		}
 		activeManifest, activeErr := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
@@ -261,9 +263,9 @@ func (s *serviceImpl) ensureDynamicTenantPluginLifecyclePreconditionAllowed(
 		return err
 	}
 	if registry == nil ||
-		plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
-		registry.Installed != plugintypes.InstalledYes ||
-		registry.Status != plugintypes.StatusEnabled {
+		plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic ||
+		registry.Installed != statusflag.Installed.Int() ||
+		registry.Status != statusflag.EnabledValue.Int() {
 		return nil
 	}
 	activeManifest, err := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
@@ -374,9 +376,9 @@ func (s *serviceImpl) executeDynamicTenantLifecycleNotification(
 	}
 	for _, registry := range registries {
 		if registry == nil ||
-			plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
-			registry.Installed != plugintypes.InstalledYes ||
-			registry.Status != plugintypes.StatusEnabled {
+			plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic ||
+			registry.Installed != statusflag.Installed.Int() ||
+			registry.Status != statusflag.EnabledValue.Int() {
 			continue
 		}
 		activeManifest, activeErr := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
@@ -413,9 +415,9 @@ func (s *serviceImpl) executeDynamicTenantPluginLifecycleNotification(
 		return
 	}
 	if registry == nil ||
-		plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
-		registry.Installed != plugintypes.InstalledYes ||
-		registry.Status != plugintypes.StatusEnabled {
+		plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic ||
+		registry.Installed != statusflag.Installed.Int() ||
+		registry.Status != statusflag.EnabledValue.Int() {
 		return
 	}
 	activeManifest, err := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)

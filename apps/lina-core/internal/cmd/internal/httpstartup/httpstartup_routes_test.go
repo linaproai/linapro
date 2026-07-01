@@ -34,15 +34,13 @@ import (
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
+	storagesvc "lina-core/internal/service/storage"
 	"lina-core/internal/service/sysconfig"
 	sysinfosvc "lina-core/internal/service/sysinfo"
 	"lina-core/internal/service/user"
 	"lina-core/internal/service/usermsg"
 	"lina-core/pkg/plugin/capability/aicap/aitext"
-	pluginservicehostconfig "lina-core/pkg/plugin/capability/hostconfigcap"
-	pluginservicemanifest "lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
-	pluginserviceconfig "lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
@@ -188,40 +186,46 @@ func TestDynamicPluginRootRoutesPrecedeSPAFallback(t *testing.T) {
 // newRouteBindingTestRuntime creates the shared service graph required by
 // route-binding tests without starting cluster, plugin, or cron lifecycles.
 func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
-	configSvc := config.New()
-	clusterSvc := cluster.New(configSvc.GetCluster(ctx))
-	bizCtxSvc := bizctx.New()
-	sessionStore := session.NewDBStore()
-	cacheCoordSvc := cachecoord.Default(clusterSvc)
-	i18nService := i18nsvc.New(bizCtxSvc, configSvc, cacheCoordSvc)
-	lockerSvc := locker.New()
-	pluginRuntime := pluginsvc.NewRuntimeDelegate()
-	orgCapSvc := orgspi.New(orgspi.NewManager(), pluginRuntime)
-	orgProjection := orgCapSvc
-	tenantSvc := tenantspi.New(tenantspi.NewManager(), pluginRuntime, bizCtxSvc)
-	roleSvc := role.New(pluginRuntime, bizCtxSvc, configSvc, i18nService, orgCapSvc, tenantSvc)
-	kvCacheSvc := kvcache.New()
-	dictSvc := dict.New(i18nService)
-	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
+	var (
+		configSvc     = config.New()
+		clusterSvc    = cluster.New(configSvc.GetCluster(ctx))
+		bizCtxSvc     = bizctx.New()
+		sessionStore  = session.NewDBStore()
+		cacheCoordSvc = cachecoord.Default(clusterSvc)
+		i18nService   = i18nsvc.New(bizCtxSvc, configSvc, cacheCoordSvc)
+		lockerSvc     = locker.New()
+		pluginRuntime = pluginsvc.NewRuntimeDelegate()
+		orgCapSvc     = orgspi.New(orgspi.NewManager(), pluginRuntime, pluginRuntime.OrgProviderEnv)
+		tenantSvc     = tenantspi.New(tenantspi.NewManager(), pluginRuntime, pluginRuntime.TenantProviderEnv, bizCtxSvc)
+		roleSvc       = role.New(pluginRuntime, bizCtxSvc, configSvc, i18nService, orgCapSvc, tenantSvc)
+		kvCacheSvc    = kvcache.New()
+		dictSvc       = dict.New(i18nService)
+		scopeSvc      = datascope.New(bizCtxSvc, roleSvc, orgCapSvc.Scope())
+	)
 	roleSvc.SetDataScopeService(scopeSvc)
-	menuSvc := menu.New(pluginRuntime, i18nService, roleSvc, tenantSvc)
-	notifySvc := notify.New(tenantSvc)
-	authSvc := auth.New(configSvc, pluginRuntime, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
-	fileSvc := filesvc.New(configSvc, filesvc.NewLocalStorage(configSvc.GetUploadPath(ctx)), bizCtxSvc, dictSvc, scopeSvc)
+	var (
+		menuSvc   = menu.New(pluginRuntime, i18nService, roleSvc, tenantSvc)
+		notifySvc = notify.New(tenantSvc)
+		authSvc   = auth.New(configSvc, pluginRuntime, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
+	)
+	objectStorage := storagesvc.New(storagesvc.Config{NamespaceRoots: map[string]string{
+		storagesvc.NamespaceFiles:   configSvc.GetUploadPath(ctx),
+		storagesvc.NamespacePlugins: configSvc.GetPluginDynamicStoragePath(ctx),
+	}})
+	fileSvc := filesvc.New(configSvc, objectStorage, bizCtxSvc, dictSvc, scopeSvc)
 	sysConfigSvc := sysconfig.New(configSvc, i18nService)
 	sysInfoSvc, err := sysinfosvc.New(configSvc, clusterSvc, nil, cacheCoordSvc)
 	if err != nil {
 		panic(err)
 	}
-	userSvc := user.New(authSvc, bizCtxSvc, i18nService, orgCapSvc, orgCapSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc, tenantSvc, tenantSvc)
-	userMsgSvc := usermsg.New(bizCtxSvc, notifySvc, i18nService)
-	jobRegistry := jobhandlersvc.New()
-	hostConfigReader, ok := configSvc.(pluginservicehostconfig.RawConfigReader)
-	if !ok {
-		panic("test config service does not support raw host config reads")
-	}
-	hostConfigSvc := pluginservicehostconfig.New(hostConfigReader)
-	pluginConfigFactory := pluginserviceconfig.NewConfigFactoryWithHostStaticConfig("", "", hostConfigReader)
+	var (
+		userSvc             = user.New(authSvc, bizCtxSvc, i18nService, orgCapSvc, roleSvc, scopeSvc, tenantSvc)
+		userMsgSvc          = usermsg.New(bizCtxSvc, notifySvc, i18nService)
+		jobRegistry         = jobhandlersvc.New()
+		jobMgmtSvc          = jobmgmtsvc.New(bizCtxSvc, configSvc, i18nService, jobRegistry, nil, scopeSvc)
+		hostConfigSvc       = pluginsvc.NewHostConfigService(configSvc)
+		pluginConfigFactory = pluginsvc.NewPluginConfigFactoryWithHostStaticConfig("", "", configSvc)
+	)
 	hostLockSvc, err := hostlock.New(lockerSvc)
 	if err != nil {
 		panic(err)
@@ -229,15 +233,18 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 	capabilities, err := pluginsvc.NewHostServices(
 		apidoc.New(configSvc, bizCtxSvc, i18nService, pluginRuntime),
 		authSvc,
-		authSvc.(auth.TenantTokenIssuer),
 		bizCtxSvc,
+		roleSvc,
 		hostConfigSvc,
 		scopeSvc,
+		cacheCoordSvc,
 		i18nService,
 		pluginRuntime,
 		pluginRuntime,
-		sessionStore,
-		aitext.New(nil, pluginRuntime),
+		aitext.New(nil, pluginRuntime, pluginRuntime.AITextProviderEnv),
+		userSvc,
+		fileSvc,
+		jobMgmtSvc,
 		orgCapSvc,
 		tenantSvc,
 		notifySvc,
@@ -245,7 +252,7 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 		hostLockSvc,
 		pluginConfigFactory,
 		pluginsvc.NewStorageProviderRuntime(pluginRuntime),
-		pluginsvc.NewLocalStorageProvider(configSvc.GetPluginDynamicStoragePath(ctx)),
+		pluginsvc.NewLocalStorageProvider(objectStorage),
 	)
 	if err != nil {
 		panic(err)
@@ -263,11 +270,8 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 		capabilities,
 		orgCapSvc,
 		tenantSvc,
-		tenantSvc,
-		tenantSvc,
 		pluginConfigFactory,
 		hostConfigSvc,
-		pluginservicemanifest.NewFactory(""),
 	)
 	if err != nil {
 		panic(err)
@@ -276,30 +280,24 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 		panic(err)
 	}
 	return &httpRuntime{
-		configSvc:       configSvc,
-		clusterSvc:      clusterSvc,
-		pluginSvc:       pluginSvc,
-		authSvc:         authSvc,
-		authTokenIssuer: authSvc.(auth.TenantTokenIssuer),
-		bizCtxSvc:       bizCtxSvc,
-		i18nSvc:         i18nService,
-		orgCapSvc:       orgCapSvc,
-		orgProjection:   orgProjection,
-		roleSvc:         roleSvc,
-		sessionStore:    sessionStore,
-		tenantSvc:       tenantSvc,
-		kvCacheSvc:      kvCacheSvc,
-		dictSvc:         dictSvc,
-		fileSvc:         fileSvc,
-		menuSvc:         menuSvc,
-		notifySvc:       notifySvc,
-		sysConfigSvc:    sysConfigSvc,
-		sysInfoSvc:      sysInfoSvc,
-		userSvc:         userSvc,
-		userMsgSvc:      userMsgSvc,
-		jobRegistry:     jobRegistry,
-		jobMgmtSvc:      jobmgmtsvc.New(bizCtxSvc, configSvc, i18nService, jobRegistry, nil, scopeSvc),
-		middlewareSvc:   middleware.New(authSvc, bizCtxSvc, configSvc, i18nService, roleSvc, tenantSvc),
+		configSvc:     configSvc,
+		clusterSvc:    clusterSvc,
+		pluginSvc:     pluginSvc,
+		authSvc:       authSvc,
+		bizCtxSvc:     bizCtxSvc,
+		i18nSvc:       i18nService,
+		orgSvc:        orgCapSvc,
+		roleSvc:       roleSvc,
+		dictSvc:       dictSvc,
+		fileSvc:       fileSvc,
+		menuSvc:       menuSvc,
+		sysConfigSvc:  sysConfigSvc,
+		sysInfoSvc:    sysInfoSvc,
+		userSvc:       userSvc,
+		userMsgSvc:    userMsgSvc,
+		jobRegistry:   jobRegistry,
+		jobMgmtSvc:    jobMgmtSvc,
+		middlewareSvc: middleware.New(authSvc, bizCtxSvc, configSvc, i18nService, roleSvc, tenantSvc),
 	}
 }
 

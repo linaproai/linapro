@@ -5,30 +5,30 @@ package wasmsection
 import "github.com/gogf/gf/v2/errors/gerror"
 
 const (
-	// CustomSectionID identifies custom sections in a WASM module.
-	CustomSectionID byte = 0
-	// HeaderLength is the fixed byte length of the WASM magic and version header.
-	HeaderLength = 8
-	// Magic stores the canonical WASM binary magic prefix.
-	Magic = "\x00asm"
-	// Version1 stores the canonical version bytes supported by LinaPro plugin artifacts.
-	Version1 = "\x01\x00\x00\x00"
+	// customSectionID identifies custom sections in a WASM module.
+	customSectionID byte = 0
+	// headerLength is the fixed byte length of the WASM magic and version header.
+	headerLength = 8
+	// magic stores the canonical WASM binary magic prefix.
+	magic = "\x00asm"
+	// version1 stores the canonical version bytes supported by LinaPro plugin artifacts.
+	version1 = "\x01\x00\x00\x00"
 )
 
 // ListCustomSections extracts all WASM custom section payloads by section name.
 func ListCustomSections(content []byte) (map[string][]byte, error) {
-	if len(content) < HeaderLength {
+	if len(content) < headerLength {
 		return nil, gerror.New("wasm file is too short")
 	}
-	if string(content[:4]) != Magic {
+	if string(content[:4]) != magic {
 		return nil, gerror.New("invalid wasm header")
 	}
-	if string(content[4:HeaderLength]) != Version1 {
+	if string(content[4:headerLength]) != version1 {
 		return nil, gerror.New("invalid wasm version")
 	}
 
 	sections := make(map[string][]byte)
-	cursor := HeaderLength
+	cursor := headerLength
 	for cursor < len(content) {
 		sectionID := content[cursor]
 		cursor++
@@ -43,7 +43,7 @@ func ListCustomSections(content []byte) (map[string][]byte, error) {
 		if end > len(content) {
 			return nil, gerror.New("wasm section length exceeds content")
 		}
-		if sectionID == CustomSectionID {
+		if sectionID == customSectionID {
 			nameLength, nameCursor, err := readULEB128(content, cursor)
 			if err != nil {
 				return nil, err

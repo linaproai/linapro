@@ -10,24 +10,29 @@ import (
 
 	"github.com/gogf/gf/v2/net/ghttp"
 
+	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
 )
 
-// fixedUploadSizeProvider lets tests override the runtime upload ceiling.
-type fixedUploadSizeProvider struct {
+// fixedUploadConfig lets tests override the runtime upload ceiling.
+type fixedUploadConfig struct {
+	configsvc.Service
 	maxSizeMB int64
 }
 
 // GetUploadMaxSize returns the configured upload ceiling used by the test runtime.
-func (p fixedUploadSizeProvider) GetUploadMaxSize(_ context.Context) (int64, error) {
+func (p fixedUploadConfig) GetUploadMaxSize(_ context.Context) (int64, error) {
 	return p.maxSizeMB, nil
 }
 
 // TestUploadDynamicPackageRejectsFileExceedingRuntimeMaxSize verifies that the
 // runtime upload ceiling is enforced before parsing the artifact payload.
 func TestUploadDynamicPackageRejectsFileExceedingRuntimeMaxSize(t *testing.T) {
-	services := testutil.NewServicesWithUploadSizeProvider(fixedUploadSizeProvider{maxSizeMB: 1})
+	services := testutil.NewServicesWithConfigService(fixedUploadConfig{
+		Service:   configsvc.New(),
+		maxSizeMB: 1,
+	})
 
 	_, err := services.Runtime.UploadDynamicPackage(context.Background(), &runtime.DynamicUploadInput{
 		File: &ghttp.UploadFile{

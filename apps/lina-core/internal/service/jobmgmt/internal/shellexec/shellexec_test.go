@@ -9,10 +9,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	configsvc "lina-core/internal/service/config"
 )
 
 // fakeShellGate returns one fixed shell enablement state for tests.
 type fakeShellGate struct {
+	configsvc.Service
 	enabled bool
 	err     error
 }

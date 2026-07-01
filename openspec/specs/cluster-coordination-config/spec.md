@@ -67,7 +67,7 @@ TBD - created by archiving change redis-cluster-coordination. Update Purpose aft
 - **AND** `cluster.coordination=redis`
 - **AND** Redis ping 成功
 - **THEN** 宿主继续初始化 cluster、coordination、cron 和插件运行时组件
-- **AND** 健康诊断中显示 coordination backend 为 `redis`
+- **AND** 系统信息诊断中显示 coordination backend 为 `redis`
 
 ### Requirement: 非 PostgreSQL 数据库链接必须在 coordination 启动前失败
 系统仅支持 PostgreSQL 运行时数据库。`sqlite:`、`mysql:` 或未知数据库链接 MUST 在方言解析阶段失败，不得进入 Redis coordination 探活、集群配置覆盖或业务启动流程。
@@ -94,4 +94,3 @@ TBD - created by archiving change redis-cluster-coordination. Update Purpose aft
 - **THEN** 文件包含 `cluster.coordination: redis` 示例
 - **AND** 文件包含 `cluster.redis.address`、`db`、`password`、`connectTimeout`、`readTimeout`、`writeTimeout` 字段说明
 - **AND** 注释说明 `cluster.enabled=false` 时不需要 Redis
-

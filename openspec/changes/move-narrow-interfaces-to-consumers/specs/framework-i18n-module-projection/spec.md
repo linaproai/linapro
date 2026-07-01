@@ -1,0 +1,17 @@
+## MODIFIED Requirements
+
+### Requirement:业务模块必须拥有自己的本地化投影规则
+
+宿主系统 SHALL 让菜单、字典、配置、定时任务、角色和插件运行时等业务模块在自己的模块边界内维护本地化投影规则。`internal/service/i18n` SHALL 仅提供语言解析、翻译查找、资源加载和缓存等基础能力，不得引用业务实体、业务保护规则或业务翻译键派生逻辑。业务模块可通过 `ResolveLocale` 和 `Translate` 等底层能力表达自身投影语义；源码文案兜底通过调用 `Translate(ctx, key, sourceText)` 完成，不要求 i18n 基础服务提供业务语义包装方法，也不得要求 i18n 基础服务反向了解业务模块。
+
+#### Scenario:业务模块在自己的边界内完成投影
+
+- **当** `menu` / `dict` / `sysconfig` / `jobmgmt` / `role` / `plugin runtime` 等模块需要本地化查询结果用于显示时
+- **则** 模块在自己的 `*_i18n.go` 或等效模块中派生翻译键、判断是否跳过默认语言、判断记录是否为受保护的内置记录
+- **且** `internal/service/i18n` 不导入这些业务模块或业务实体
+
+#### Scenario:i18n 基础服务仅提供底层能力
+
+- **当** 业务模块需要翻译显示字段时
+- **则** 业务模块以自己的键和回退调用 `Translate` 等底层方法
+- **且** i18n 服务不暴露 `ProjectMenu`、`ProjectDictType`、`ProjectBuiltinJob` 或 `TranslateSourceText` 等业务实体命名或语义包装方法

@@ -78,9 +78,11 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 			continue
 		}
 
-		name := row[0]
-		key := row[1]
-		value := row[2]
+		var (
+			name  = row[0]
+			key   = row[1]
+			value = row[2]
+		)
 		if name == "" || key == "" || value == "" {
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{

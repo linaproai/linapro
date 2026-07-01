@@ -14,6 +14,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
 
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/pkg/bizerr"
 )
 
@@ -154,7 +155,7 @@ func applyRequestBodyLimitFriendlyError(r *ghttp.Request, recovered any, uploadM
 // writeRequestBodyLimitError serializes one stable JSON error payload for
 // multipart body-size overflows, ensuring the client sees a business error
 // message even when transport parsing aborted early.
-func writeRequestBodyLimitError(r *ghttp.Request, i18nSvc middlewareI18nService, err error) {
+func writeRequestBodyLimitError(r *ghttp.Request, i18nSvc i18nsvc.Service, err error) {
 	if r == nil || err == nil || r.Response == nil {
 		return
 	}

@@ -346,9 +346,11 @@ func processBelongsToRoot(root string, info process.Info) bool {
 }
 
 func matchesBackendService(root string, info process.Info) bool {
-	command := filepath.ToSlash(info.CommandLine())
-	backendBinary := filepath.ToSlash(filepath.Join(root, "temp", "bin", "lina"))
-	windowsBackendBinary := filepath.ToSlash(filepath.Join(root, "temp", "bin", "lina.exe"))
+	var (
+		command              = filepath.ToSlash(info.CommandLine())
+		backendBinary        = filepath.ToSlash(filepath.Join(root, "temp", "bin", "lina"))
+		windowsBackendBinary = filepath.ToSlash(filepath.Join(root, "temp", "bin", "lina.exe"))
+	)
 	return strings.Contains(command, backendBinary) || strings.Contains(command, windowsBackendBinary)
 }
 

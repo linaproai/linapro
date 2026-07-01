@@ -4,21 +4,23 @@ package openapi
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"net/http"
 	"testing"
 
 	"github.com/gogf/gf/v2/net/goai"
 
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
-// TestBuildRouteOpenAPIOperationUsesBridgeState verifies that projected
+// TestRouteOpenAPIOperationUsesBridgeState verifies that projected
 // responses follow the runtime bridge execution flag.
-func TestBuildRouteOpenAPIOperationUsesBridgeState(t *testing.T) {
-	operation := BuildRouteOpenAPIOperation("linapro-demo-dynamic", &protocol.RouteContract{
+func TestRouteOpenAPIOperationUsesBridgeState(t *testing.T) {
+	operation := buildRouteOpenAPIOperation("linapro-demo-dynamic", &protocol.RouteContract{
 		Path:        "/api/v1/review-summary",
 		Method:      http.MethodGet,
 		Access:      protocol.AccessLogin,
@@ -46,7 +48,7 @@ func TestBuildRouteOpenAPIOperationUsesBridgeState(t *testing.T) {
 		t.Fatalf("expected dynamic OpenAPI operation to omit i18n extensions, got %#v", operation.XExtensions)
 	}
 
-	placeholder := BuildRouteOpenAPIOperation("linapro-demo-dynamic", &protocol.RouteContract{
+	placeholder := buildRouteOpenAPIOperation("linapro-demo-dynamic", &protocol.RouteContract{
 		Path:        "/api/v1/placeholder",
 		Method:      http.MethodGet,
 		Access:      protocol.AccessPublic,
@@ -113,7 +115,7 @@ func TestProjectDynamicRoutesToOpenAPICacheKeys(t *testing.T) {
 		catalogSvc = &fakeProjectionCatalog{manifest: dynamicOpenAPITestManifest("OpenAPI Summary")}
 		storeSvc   = &fakeProjectionStore{manifest: dynamicOpenAPITestManifest("OpenAPI Summary")}
 		revision   = &fakeRevisionReader{revision: 1}
-		locale     = &fakeLocaleBundleReader{locale: "zh-CN", version: 1}
+		locale     = &fakeRuntimeI18nService{locale: "zh-CN", version: 1}
 		service    = New(catalogSvc, storeSvc, revision, locale)
 	)
 
@@ -179,7 +181,7 @@ func dynamicOpenAPITestManifest(summary string) *catalog.Manifest {
 		ID:      "plugin-openapi-cache",
 		Name:    "Plugin OpenAPI Cache",
 		Version: "v0.1.0",
-		Type:    plugintypes.TypeDynamic.String(),
+		Type:    pluginv1.PluginTypeDynamic.String(),
 		Routes: []*protocol.RouteContract{
 			{
 				Path:    "/api/v1/review",
@@ -193,6 +195,7 @@ func dynamicOpenAPITestManifest(summary string) *catalog.Manifest {
 }
 
 type fakeProjectionCatalog struct {
+	catalog.Service
 	manifest  *catalog.Manifest
 	scanCalls int
 }
@@ -210,6 +213,7 @@ func (f *fakeProjectionCatalog) GetDesiredManifest(pluginID string) (*catalog.Ma
 }
 
 type fakeProjectionStore struct {
+	store.Service
 	manifest *catalog.Manifest
 }
 
@@ -221,9 +225,9 @@ func (f *fakeProjectionStore) ListAllRegistries(context.Context) ([]*store.Plugi
 	return []*store.PluginRecord{
 		{
 			PluginId:  f.manifest.ID,
-			Type:      plugintypes.TypeDynamic.String(),
-			Installed: plugintypes.InstalledYes,
-			Status:    plugintypes.StatusEnabled,
+			Type:      pluginv1.PluginTypeDynamic.String(),
+			Installed: statusflag.Installed.Int(),
+			Status:    statusflag.EnabledValue.Int(),
 			ReleaseId: 1,
 		},
 	}, nil
@@ -235,9 +239,9 @@ func (f *fakeProjectionStore) GetRegistry(_ context.Context, pluginID string) (*
 	}
 	return &store.PluginRecord{
 		PluginId:  f.manifest.ID,
-		Type:      plugintypes.TypeDynamic.String(),
-		Installed: plugintypes.InstalledYes,
-		Status:    plugintypes.StatusEnabled,
+		Type:      pluginv1.PluginTypeDynamic.String(),
+		Installed: statusflag.Installed.Int(),
+		Status:    statusflag.EnabledValue.Int(),
 		ReleaseId: 1,
 	}, nil
 }
@@ -258,15 +262,16 @@ func (f *fakeRevisionReader) CurrentRevision(context.Context) (int64, error) {
 	return f.revision, nil
 }
 
-type fakeLocaleBundleReader struct {
+type fakeRuntimeI18nService struct {
+	i18nsvc.Service
 	locale  string
 	version uint64
 }
 
-func (f *fakeLocaleBundleReader) GetLocale(context.Context) string {
+func (f *fakeRuntimeI18nService) GetLocale(context.Context) string {
 	return f.locale
 }
 
-func (f *fakeLocaleBundleReader) BundleVersion(string) uint64 {
-	return f.version
+func (f *fakeRuntimeI18nService) BundleRevision(context.Context, string) (i18nsvc.RuntimeBundleRevision, error) {
+	return i18nsvc.RuntimeBundleRevision{Version: f.version}, nil
 }

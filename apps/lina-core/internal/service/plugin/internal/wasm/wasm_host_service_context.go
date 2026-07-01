@@ -53,11 +53,11 @@ func dispatchRouteHostService(
 }
 
 // routeMetadataFromHostCall projects trusted host-call context into route metadata.
-func routeMetadataFromHostCall(hcc *hostCallContext) *routecap.DynamicRouteMetadata {
+func routeMetadataFromHostCall(hcc *hostCallContext) *routecap.Metadata {
 	if hcc == nil {
 		return nil
 	}
-	return &routecap.DynamicRouteMetadata{
+	return &routecap.Metadata{
 		PluginID:   strings.TrimSpace(hcc.pluginID),
 		PublicPath: strings.TrimSpace(hcc.routePath),
 		Meta: map[string]string{

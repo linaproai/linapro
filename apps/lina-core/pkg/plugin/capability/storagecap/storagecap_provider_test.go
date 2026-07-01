@@ -25,9 +25,11 @@ func TestResolveProviderFallsBackToLocalWhenNoProviderIsAvailable(t *testing.T) 
 }
 
 func TestResolveProviderSelectsUniqueEnabledPluginProvider(t *testing.T) {
-	ctx := context.Background()
-	providerID := fmt.Sprintf("storage-provider-unique-%d", nextStorageProviderTestID())
-	pluginProvider := &testStorageProvider{}
+	var (
+		ctx            = context.Background()
+		providerID     = fmt.Sprintf("storage-provider-unique-%d", nextStorageProviderTestID())
+		pluginProvider = &testStorageProvider{}
+	)
 	registerStorageProviderFactoryForTest(t, providerID, pluginProvider)
 
 	resolvedID, provider, err := ResolveProvider(ctx, testProviderRuntime{
@@ -59,9 +61,11 @@ func TestResolveProviderFallsBackToLocalWhenRegisteredProviderIsDisabled(t *test
 }
 
 func TestResolveProviderRejectsMultipleEnabledPluginProviders(t *testing.T) {
-	ctx := context.Background()
-	providerAID := fmt.Sprintf("storage-provider-conflict-a-%d", nextStorageProviderTestID())
-	providerBID := fmt.Sprintf("storage-provider-conflict-b-%d", nextStorageProviderTestID())
+	var (
+		ctx         = context.Background()
+		providerAID = fmt.Sprintf("storage-provider-conflict-a-%d", nextStorageProviderTestID())
+		providerBID = fmt.Sprintf("storage-provider-conflict-b-%d", nextStorageProviderTestID())
+	)
 	registerStorageProviderFactoryForTest(t, providerAID, &testStorageProvider{})
 	registerStorageProviderFactoryForTest(t, providerBID, &testStorageProvider{})
 

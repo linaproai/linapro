@@ -132,9 +132,9 @@ type AssetResult struct {
 	CreatedAt int64 `json:"createdAt,omitempty"`
 }
 
-// ProviderProjection is the public provider/model identity snapshot returned
+// ProviderInfo is the public provider/model identity snapshot returned
 // by provider-backed AI calls.
-type ProviderProjection struct {
+type ProviderInfo struct {
 	// ProviderName is the public provider display name.
 	ProviderName string `json:"providerName,omitempty"`
 	// ModelName is the public model display name or model identifier.
@@ -143,7 +143,7 @@ type ProviderProjection struct {
 	Protocol string `json:"protocol,omitempty"`
 }
 
-// ProviderOperationRef is an opaque provider protocol operation projection. It
+// ProviderOperationRef is an opaque provider protocol operation reference. It
 // is not a business job identifier and must not leak provider credentials.
 type ProviderOperationRef struct {
 	// OperationRef is the opaque provider operation reference.
@@ -153,7 +153,7 @@ type ProviderOperationRef struct {
 	// CapabilityMethod identifies the operation method.
 	CapabilityMethod CapabilityMethod `json:"capabilityMethod"`
 	// Provider contains public provider/model identity.
-	Provider ProviderProjection `json:"provider"`
+	Provider ProviderInfo `json:"provider"`
 	// Status is the current provider operation status.
 	Status OperationStatus `json:"status"`
 	// NextPollAfterMs is the recommended delay before the next status query.
@@ -184,7 +184,7 @@ type MethodStatus struct {
 	Available bool `json:"available"`
 	// Reason is a stable diagnostic reason for unavailable status.
 	Reason string `json:"reason,omitempty"`
-	// CapabilityStatus is the underlying framework capability status projection.
+	// CapabilityStatus is the underlying framework capability status.
 	CapabilityStatus capmodel.CapabilityStatus `json:"capabilityStatus"`
 }
 
@@ -217,7 +217,7 @@ func PurposeResourceRef(purpose string) string {
 	return "purpose:" + trimmed
 }
 
-// UnavailableStatus returns a common unavailable capability projection.
+// UnavailableStatus returns a common unavailable capability status.
 func UnavailableStatus(capabilityID string) capmodel.CapabilityStatus {
 	return capmodel.CapabilityStatus{
 		CapabilityID: capabilityID,
@@ -226,7 +226,7 @@ func UnavailableStatus(capabilityID string) capmodel.CapabilityStatus {
 	}
 }
 
-// UnavailableMethodStatus returns a common unavailable method projection.
+// UnavailableMethodStatus returns a common unavailable method status.
 func UnavailableMethodStatus(capabilityID string, capabilityType CapabilityType, capabilityMethod CapabilityMethod) MethodStatus {
 	status := UnavailableStatus(capabilityID)
 	return MethodStatus{

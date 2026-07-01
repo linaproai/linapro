@@ -49,10 +49,12 @@ func TestCatalogPayloadKinds(t *testing.T) {
 }
 
 func TestOrdinaryJSONServicesHaveNoDedicatedCapabilityCodecs(t *testing.T) {
-	root := repoRootForCatalogTest(t)
-	protocolDir := filepath.Dir(root)
-	protocolTypes := declaredTypeNames(t, protocolDir)
-	protocolFuncs := declaredFuncNames(t, protocolDir)
+	var (
+		root          = repoRootForCatalogTest(t)
+		protocolDir   = filepath.Dir(root)
+		protocolTypes = declaredTypeNames(t, protocolDir)
+		protocolFuncs = declaredFuncNames(t, protocolDir)
+	)
 	for _, name := range []string{
 		"HostServiceUsersBatchGetRequest",
 		"HostServiceUsersSearchRequest",

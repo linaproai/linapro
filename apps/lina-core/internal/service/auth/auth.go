@@ -8,19 +8,18 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
+	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	tokencap "lina-core/pkg/plugin/capability/authcap/token"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
 // Auth status constants used by login validation.
 const (
-	// statusDisabled represents a disabled user status.
-	// Mirrors user.StatusDisabled; duplicated here to avoid circular import.
-	statusDisabled = 0
 	// authLoginStatusSuccess marks a successful login lifecycle event.
 	authLoginStatusSuccess = 0
 	// authLoginStatusFail marks a failed login lifecycle event.
@@ -76,6 +75,18 @@ type Service interface {
 	// corresponding sys_online_session row is present, tenant-bound, and not
 	// timed out. It returns claims only after the complete login state is valid.
 	AuthenticateAccessToken(ctx context.Context, tokenString string) (*Claims, error)
+	// IssueTenantToken consumes a pre-login token and issues a tenant-bound token
+	// pair while validating tenant membership and creating online-session state.
+	IssueTenantToken(ctx context.Context, in TenantTokenIssueInput) (*TenantTokenOutput, error)
+	// ReissueTenantTokenFromBearer parses the current access token, validates a
+	// tenant switch, revokes the old session, and issues a new tenant token pair.
+	ReissueTenantTokenFromBearer(ctx context.Context, tokenString string, tenantID int) (*TenantTokenOutput, error)
+	// IssueImpersonationToken signs and registers one host-owned impersonation
+	// token using the shared auth/session state.
+	IssueImpersonationToken(ctx context.Context, in ImpersonationTokenIssueInput) (*ImpersonationTokenOutput, error)
+	// RevokeImpersonationToken validates one host impersonation token and revokes
+	// its online-session state when it belongs to the supplied tenant.
+	RevokeImpersonationToken(ctx context.Context, tokenString string, tenantID int) error
 	// HashPassword hashes a plaintext password with bcrypt for user-account
 	// writes; it does not persist the result.
 	HashPassword(password string) (string, error)
@@ -89,42 +100,16 @@ type Service interface {
 	RevokeSession(ctx context.Context, tokenId string) error
 }
 
-// TenantTokenIssuer defines the narrow host-owned token handoff used by
-// tenant-aware auth adapters.
-type TenantTokenIssuer interface {
-	// IssueTenantToken consumes a short-lived pre-login token, validates the
-	// selected tenant membership, and issues a tenant-bound token pair.
-	IssueTenantToken(ctx context.Context, in TenantTokenIssueInput) (*TenantTokenOutput, error)
-	// ReissueTenantToken validates tenant membership, revokes the current token
-	// and cached access context, and issues a new tenant-bound token pair.
-	ReissueTenantToken(ctx context.Context, in TenantTokenReissueInput) (*TenantTokenOutput, error)
-	// ReissueTenantTokenFromBearer parses the current bearer token and delegates
-	// to ReissueTenantToken for tenant-switch validation and revocation.
-	ReissueTenantTokenFromBearer(ctx context.Context, tokenString string, tenantID int) (*TenantTokenOutput, error)
-	// IssueImpersonationToken signs a host-owned impersonation access token for
-	// a platform administrator entering target tenant scope. It creates the
-	// online-session row and primes role access using platform administrator
-	// grants while retaining the target tenant as the request data boundary.
-	IssueImpersonationToken(ctx context.Context, in ImpersonationTokenIssueInput) (*ImpersonationTokenOutput, error)
-	// RevokeImpersonationToken validates that tokenString is an impersonation
-	// access token for tenantID when tenantID is non-zero, then revokes the
-	// session and token access cache through the host auth state store.
-	RevokeImpersonationToken(ctx context.Context, tokenString string, tenantID int) error
-}
-
 // Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
-// Ensure serviceImpl implements TenantTokenIssuer.
-var _ TenantTokenIssuer = (*serviceImpl)(nil)
-
 // serviceImpl implements Service.
 type serviceImpl struct {
-	configSvc    authConfigService // Configuration service
-	orgCapSvc    authOrgProjectionService
+	configSvc    configsvc.Service // Configuration service
+	orgCapSvc    orgcap.Service
 	hookSvc      authHookService // Authentication lifecycle hook dispatcher
-	roleSvc      authRoleService // Role service
-	tenantSvc    authTenantAccessService
+	roleSvc      role.Service    // Role service
+	tenantSvc    tenantspi.Service
 	sessionStore session.Store // Session store
 	preTokens    preTokenStore
 	revoked      revokeStore
@@ -134,70 +119,20 @@ type serviceImpl struct {
 // owns authentication state and publishes hook payloads without depending on
 // the plugin service root package.
 type authHookService interface {
-	// HandleAuthLoginSucceeded dispatches a login-succeeded hook to enabled plugins.
-	HandleAuthLoginSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error
-	// HandleAuthLoginFailed dispatches a login-failed hook to enabled plugins.
-	HandleAuthLoginFailed(ctx context.Context, input pluginhost.AuthHookPayloadInput) error
-	// HandleAuthLogoutSucceeded dispatches a logout-succeeded hook to enabled plugins.
-	HandleAuthLogoutSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error
-}
-
-// authConfigService is the narrow config surface used by auth.
-type authConfigService interface {
-	// GetJwtSecret returns the signing secret used for host access and refresh
-	// tokens. Callers treat an empty value as a configuration error at token
-	// issue or parse time rather than caching it locally.
-	GetJwtSecret(ctx context.Context) string
-	// GetJwtExpire returns the configured token lifetime. It may return a
-	// configuration parsing error when the duration value is invalid.
-	GetJwtExpire(ctx context.Context) (time.Duration, error)
-	// GetSessionTimeout returns the online-session timeout used for session and
-	// token revocation bookkeeping. It returns configuration errors from the
-	// underlying system-config service unchanged.
-	GetSessionTimeout(ctx context.Context) (time.Duration, error)
-	// IsLoginIPBlacklisted reports whether the given client IP is denied by
-	// login policy. It returns lookup or configuration errors so authentication
-	// can fail closed when policy state cannot be trusted.
-	IsLoginIPBlacklisted(ctx context.Context, ip string) (bool, error)
-}
-
-// authRoleService is the narrow role access-cache surface used by auth.
-type authRoleService interface {
-	// PrimeTokenAccessContext builds and caches the role/menu/data-scope access
-	// snapshot for one issued token. It returns permission-data lookup errors so
-	// token issuance can be rolled back when access context cannot be prepared.
-	PrimeTokenAccessContext(ctx context.Context, tokenID string, userID int) (*role.UserAccessContext, error)
-	// InvalidateTokenAccessContext removes the cached access snapshot for one
-	// token. Missing snapshots are treated as success because revocation paths
-	// must remain idempotent.
-	InvalidateTokenAccessContext(ctx context.Context, tokenID string)
-}
-
-// authOrgProjectionService is the organization read slice used by auth session
-// projection. It deliberately excludes organization assignment and data-scope
-// query builder methods.
-type authOrgProjectionService interface {
-	// GetUserDeptName returns one user's department display name for login and
-	// online-session projection. Missing organization capability should degrade
-	// to an empty name.
-	GetUserDeptName(ctx context.Context, userID int) (string, error)
-}
-
-// authTenantAccessService is the tenant membership slice required by auth. It
-// excludes tenant query-scope, provisioning, and startup consistency methods.
-type authTenantAccessService interface {
-	// Available reports whether tenant membership checks should run.
-	Available(ctx context.Context) bool
-	// ListUserTenants returns active tenant candidates visible to one login user.
-	ListUserTenants(ctx context.Context, userID int) ([]tenantcapsvc.TenantInfo, error)
-	// ValidateUserInTenant verifies that userID may issue a token for tenantID.
-	ValidateUserInTenant(ctx context.Context, userID int, tenantID tenantcapsvc.TenantID) error
-	// SwitchTenant validates a tenant switch before token reissue.
-	SwitchTenant(ctx context.Context, userID int, target tenantcapsvc.TenantID) error
+	// DispatchHookEvent dispatches one plugin hook event with already-normalized payload values.
+	DispatchHookEvent(ctx context.Context, event pluginhost.ExtensionPoint, values map[string]interface{}) error
 }
 
 // New creates the concrete auth service from explicit runtime-owned dependencies.
-func New(configSvc authConfigService, hookSvc authHookService, orgCapSvc authOrgProjectionService, roleSvc authRoleService, tenantSvc authTenantAccessService, sessionStore session.Store, kvCacheSvc kvcache.Service) Service {
+func New(
+	configSvc configsvc.Service,
+	hookSvc authHookService,
+	orgCapSvc orgcap.Service,
+	roleSvc role.Service,
+	tenantSvc tenantspi.Service,
+	sessionStore session.Store,
+	kvCacheSvc kvcache.Service,
+) Service {
 	return &serviceImpl{
 		configSvc:    configSvc,
 		orgCapSvc:    orgCapSvc,

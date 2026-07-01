@@ -5,6 +5,7 @@ package runtime_test
 import (
 	"bytes"
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
 // TestListRuntimeStatesProjectsMissingRuntimeArtifactWithoutMutatingRegistry verifies
@@ -51,10 +53,10 @@ func TestListRuntimeStatesProjectsMissingRuntimeArtifactWithoutMutatingRegistry(
 	if _, err = services.Store.SyncManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected dynamic manifest sync to succeed, got error: %v", err)
 	}
-	if err = services.Store.SetPluginInstalled(ctx, pluginID, plugintypes.InstalledYes); err != nil {
+	if err = services.Store.SetPluginInstalled(ctx, pluginID, statusflag.Installed.Int()); err != nil {
 		t.Fatalf("expected dynamic plugin install state to be set, got error: %v", err)
 	}
-	if err = services.Store.SetPluginStatus(ctx, pluginID, plugintypes.StatusEnabled); err != nil {
+	if err = services.Store.SetPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 		t.Fatalf("expected dynamic plugin enable state to be set, got error: %v", err)
 	}
 
@@ -65,7 +67,7 @@ func TestListRuntimeStatesProjectsMissingRuntimeArtifactWithoutMutatingRegistry(
 	if registryBefore == nil {
 		t.Fatalf("expected runtime registry row to exist before artifact removal")
 	}
-	if registryBefore.Installed != plugintypes.InstalledYes || registryBefore.Status != plugintypes.StatusEnabled {
+	if registryBefore.Installed != statusflag.Installed.Int() || registryBefore.Status != statusflag.EnabledValue.Int() {
 		t.Fatalf("expected runtime registry row to remain installed+enabled before projection, got installed=%d enabled=%d", registryBefore.Installed, registryBefore.Status)
 	}
 
@@ -82,7 +84,7 @@ func TestListRuntimeStatesProjectsMissingRuntimeArtifactWithoutMutatingRegistry(
 	if runtimeState == nil {
 		t.Fatalf("expected missing dynamic plugin to remain visible in public runtime states")
 	}
-	if runtimeState.Installed != plugintypes.InstalledNo || runtimeState.Enabled != plugintypes.StatusDisabled {
+	if runtimeState.Installed != statusflag.Uninstalled.Int() || runtimeState.Enabled != statusflag.Disabled.Int() {
 		t.Fatalf("expected public runtime state projection to return uninstalled+disabled, got installed=%d enabled=%d", runtimeState.Installed, runtimeState.Enabled)
 	}
 	if runtimeState.RuntimeState != plugintypes.RuntimeUpgradeStateNormal {
@@ -96,7 +98,7 @@ func TestListRuntimeStatesProjectsMissingRuntimeArtifactWithoutMutatingRegistry(
 	if registryAfter == nil {
 		t.Fatalf("expected runtime registry row to remain after runtime-state projection")
 	}
-	if registryAfter.Installed != plugintypes.InstalledYes || registryAfter.Status != plugintypes.StatusEnabled {
+	if registryAfter.Installed != statusflag.Installed.Int() || registryAfter.Status != statusflag.EnabledValue.Int() {
 		t.Fatalf("expected runtime-state projection to avoid mutating sys_plugin, got installed=%d enabled=%d", registryAfter.Installed, registryAfter.Status)
 	}
 }
@@ -138,7 +140,7 @@ func TestListRuntimeStatesUsesCatalogSnapshotForReleaseLookups(t *testing.T) {
 		if _, err = services.Store.SyncManifest(ctx, manifest); err != nil {
 			t.Fatalf("expected dynamic manifest sync to succeed for %s, got error: %v", pluginID, err)
 		}
-		if err = services.Lifecycle.InstallDynamic(ctx, pluginID); err != nil {
+		if _, err = services.Lifecycle.Install(ctx, pluginID, lifecycle.InstallOptions{}); err != nil {
 			t.Fatalf("expected dynamic plugin install to succeed for %s, got error: %v", pluginID, err)
 		}
 	}
@@ -252,7 +254,7 @@ func TestInstallRepairsEmptyReleaseArchive(t *testing.T) {
 		releaseRoot,
 		version,
 		manifest.RuntimeArtifact.Checksum,
-		runtime.BuildArtifactFileName(pluginID),
+		testutil.RuntimeArtifactFileName(pluginID),
 	)
 	if err = os.MkdirAll(filepath.Dir(archivePath), 0o755); err != nil {
 		t.Fatalf("failed to create empty release archive directory: %v", err)
@@ -261,7 +263,7 @@ func TestInstallRepairsEmptyReleaseArchive(t *testing.T) {
 		t.Fatalf("failed to seed empty release archive: %v", err)
 	}
 
-	if err = services.Lifecycle.InstallDynamic(ctx, pluginID); err != nil {
+	if _, err = services.Lifecycle.Install(ctx, pluginID, lifecycle.InstallOptions{}); err != nil {
 		t.Fatalf("expected install to repair empty release archive, got error: %v", err)
 	}
 
@@ -294,7 +296,7 @@ func TestInstallRepairsEmptyReleaseArchive(t *testing.T) {
 	if activeManifest == nil || activeManifest.ID != pluginID {
 		t.Fatalf("expected repaired active manifest for %s, got %#v", pluginID, activeManifest)
 	}
-	if err = services.Lifecycle.UninstallDynamic(ctx, pluginID); err != nil {
+	if err = services.Lifecycle.Uninstall(ctx, pluginID, lifecycle.UninstallOptions{}); err != nil {
 		t.Fatalf("expected uninstall to load repaired archive, got error: %v", err)
 	}
 }
@@ -302,7 +304,7 @@ func TestInstallRepairsEmptyReleaseArchive(t *testing.T) {
 // TestInstallRejectsLowerVersionAfterStagingArtifactReplacement verifies the
 // public install path refreshes the staged artifact manifest before comparing
 // versions, even when an earlier desired manifest was already cached.
-func TestInstallDynamicRejectsLowerVersionBeforeRegistrySync(t *testing.T) {
+func TestInstallRejectsLowerVersionBeforeRegistrySync(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
 
@@ -342,10 +344,10 @@ func TestInstallDynamicRejectsLowerVersionBeforeRegistrySync(t *testing.T) {
 			ID:                  pluginID,
 			Name:                "Runtime Install Downgrade Plugin",
 			Version:             lowerVersion,
-			Type:                plugintypes.TypeDynamic.String(),
-			ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
+			Type:                pluginv1.PluginTypeDynamic.String(),
+			ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &testutil.DefaultTestSupportsMultiTenant,
-			DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
+			DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -360,7 +362,8 @@ func TestInstallDynamicRejectsLowerVersionBeforeRegistrySync(t *testing.T) {
 	)
 
 	_, err := services.Lifecycle.Install(ctx, pluginID, lifecycle.InstallOptions{})
-	if !bizerr.Is(err, lifecycle.CodeDynamicPluginDowngradeUnsupported) {
+	messageErr, ok := bizerr.As(err)
+	if !ok || messageErr.RuntimeCode() != "PLUGIN_DYNAMIC_VERSION_DOWNGRADE_UNSUPPORTED" {
 		t.Fatalf("expected downgrade install to return structured downgrade error, got %v", err)
 	}
 
@@ -374,7 +377,7 @@ func TestInstallDynamicRejectsLowerVersionBeforeRegistrySync(t *testing.T) {
 	if registry.Version != higherVersion {
 		t.Fatalf("expected rejected downgrade not to overwrite registry version, got %q want %q", registry.Version, higherVersion)
 	}
-	if registry.Installed != plugintypes.InstalledYes {
+	if registry.Installed != statusflag.Installed.Int() {
 		t.Fatalf("expected plugin to remain installed after rejected downgrade, got %d", registry.Installed)
 	}
 }
@@ -413,10 +416,10 @@ func TestUploadDynamicPackageAllowsRecoveryWhenArtifactIsMissing(t *testing.T) {
 	if _, err = services.Store.SyncManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected dynamic manifest sync to succeed, got error: %v", err)
 	}
-	if err = services.Store.SetPluginInstalled(ctx, pluginID, plugintypes.InstalledYes); err != nil {
+	if err = services.Store.SetPluginInstalled(ctx, pluginID, statusflag.Installed.Int()); err != nil {
 		t.Fatalf("expected dynamic plugin install state to be set, got error: %v", err)
 	}
-	if err = services.Store.SetPluginStatus(ctx, pluginID, plugintypes.StatusEnabled); err != nil {
+	if err = services.Store.SetPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 		t.Fatalf("expected dynamic plugin enable state to be set, got error: %v", err)
 	}
 	if err = os.Remove(artifactPath); err != nil {
@@ -425,17 +428,17 @@ func TestUploadDynamicPackageAllowsRecoveryWhenArtifactIsMissing(t *testing.T) {
 
 	out, err := services.Runtime.StoreUploadedPackage(
 		ctx,
-		runtime.BuildArtifactFileName(pluginID),
+		testutil.RuntimeArtifactFileName(pluginID),
 		content,
 		false,
 	)
 	if err != nil {
 		t.Fatalf("expected runtime upload recovery to succeed, got error: %v", err)
 	}
-	if out.Installed != plugintypes.InstalledNo {
+	if out.Installed != statusflag.Uninstalled.Int() {
 		t.Fatalf("expected recovery upload to keep plugin uninstalled, got %d", out.Installed)
 	}
-	if out.Enabled != plugintypes.StatusDisabled {
+	if out.Enabled != statusflag.Disabled.Int() {
 		t.Fatalf("expected recovery upload to keep plugin disabled, got %d", out.Enabled)
 	}
 

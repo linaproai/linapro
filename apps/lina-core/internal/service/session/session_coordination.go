@@ -19,7 +19,7 @@ import (
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
-var _ SessionConfigurableStore = (*CoordinationStore)(nil)
+var _ sessionConfigurableStore = (*CoordinationStore)(nil)
 
 // CoordinationStore stores request-path session state in coordination KV and
 // delegates management-list projections to PostgreSQL.
@@ -86,7 +86,7 @@ func NewCoordinationStoreWithDefaultTTL(
 	ttl time.Duration,
 ) Store {
 	store := NewCoordinationStore(coordinationSvc, projection)
-	if configurable, ok := store.(SessionConfigurableStore); ok {
+	if configurable, ok := store.(sessionConfigurableStore); ok {
 		configurable.SetDefaultTTL(ttl)
 	}
 	return store

@@ -6,6 +6,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"lina-core/internal/dao"
@@ -273,11 +274,13 @@ func (s *serviceImpl) buildPluginResourceRefDescriptors(manifest *catalog.Manife
 		return []*plugintypes.ResourceRefDescriptor{}
 	}
 
-	installSQLCount := s.countPluginInstallSQLAssets(manifest)
-	uninstallSQLCount := s.countPluginUninstallSQLAssets(manifest)
-	mockSQLCount := s.countPluginMockSQLAssets(manifest)
-	frontendPagePaths := s.catalogSvc.ListFrontendPagePaths(manifest)
-	frontendSlotPaths := s.catalogSvc.ListFrontendSlotPaths(manifest)
+	var (
+		installSQLCount   = s.countPluginInstallSQLAssets(manifest)
+		uninstallSQLCount = s.countPluginUninstallSQLAssets(manifest)
+		mockSQLCount      = s.countPluginMockSQLAssets(manifest)
+		frontendPagePaths = s.catalogSvc.ListFrontendPagePaths(manifest)
+		frontendSlotPaths = s.catalogSvc.ListFrontendSlotPaths(manifest)
+	)
 
 	descriptors := []*plugintypes.ResourceRefDescriptor{
 		newResourceRefDescriptor(
@@ -289,7 +292,7 @@ func (s *serviceImpl) buildPluginResourceRefDescriptors(manifest *catalog.Manife
 		),
 	}
 
-	if plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeSource {
+	if plugintypes.NormalizeType(manifest.Type) == pluginv1.PluginTypeSource {
 		descriptors = append(descriptors, newResourceRefDescriptor(
 			plugintypes.ResourceKindBackendEntry,
 			pluginResourceKeyBackendEntry,

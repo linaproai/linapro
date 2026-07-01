@@ -313,9 +313,11 @@ func TestRunDaoDispatchesEmbeddedGoFrame(t *testing.T) {
 // TestRunCtrlDispatchesToPluginBackend verifies explicit dir targeting resolves
 // to the plugin backend work directory and plugin-root config directory.
 func TestRunCtrlDispatchesToPluginBackend(t *testing.T) {
-	root := t.TempDir()
-	pluginRoot := filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
-	pluginBackend := filepath.Join(pluginRoot, "backend")
+	var (
+		root          = t.TempDir()
+		pluginRoot    = filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
+		pluginBackend = filepath.Join(pluginRoot, "backend")
+	)
 	if err := os.MkdirAll(pluginBackend, 0o755); err != nil {
 		t.Fatalf("mkdir plugin backend: %v", err)
 	}
@@ -333,9 +335,11 @@ func TestRunCtrlDispatchesToPluginBackend(t *testing.T) {
 // TestRunDaoDispatchesToExplicitBackendDir verifies Makefile wrappers can pass
 // a relative backend directory directly.
 func TestRunDaoDispatchesToExplicitBackendDir(t *testing.T) {
-	root := t.TempDir()
-	pluginRoot := filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
-	pluginBackend := filepath.Join(pluginRoot, "backend")
+	var (
+		root          = t.TempDir()
+		pluginRoot    = filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
+		pluginBackend = filepath.Join(pluginRoot, "backend")
+	)
 	if err := os.MkdirAll(pluginBackend, 0o755); err != nil {
 		t.Fatalf("mkdir plugin backend: %v", err)
 	}
@@ -353,9 +357,11 @@ func TestRunDaoDispatchesToExplicitBackendDir(t *testing.T) {
 // TestRunDaoRejectsTargetWithoutGoFrameConfig keeps failures actionable before
 // the hidden GoFrame subprocess is started.
 func TestRunDaoRejectsTargetWithoutGoFrameConfig(t *testing.T) {
-	root := t.TempDir()
-	pluginRoot := filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
-	pluginBackend := filepath.Join(pluginRoot, "backend")
+	var (
+		root          = t.TempDir()
+		pluginRoot    = filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
+		pluginBackend = filepath.Join(pluginRoot, "backend")
+	)
 	if err := os.MkdirAll(pluginBackend, 0o755); err != nil {
 		t.Fatalf("mkdir plugin backend: %v", err)
 	}
@@ -972,9 +978,11 @@ func TestRunBuildDirBuildsHostBackendWithPreparedAssets(t *testing.T) {
 }
 
 func TestResolvePluginConfigBuildStepsSkipsPluginsWithoutCommands(t *testing.T) {
-	root := t.TempDir()
-	withBuild := filepath.Join(root, "apps", "lina-plugins", "with-build")
-	withoutBuild := filepath.Join(root, "apps", "lina-plugins", "without-build")
+	var (
+		root         = t.TempDir()
+		withBuild    = filepath.Join(root, "apps", "lina-plugins", "with-build")
+		withoutBuild = filepath.Join(root, "apps", "lina-plugins", "without-build")
+	)
 	writeFile(t, filepath.Join(withBuild, "plugin.yaml"), "id: with-build\n")
 	writeFile(t, filepath.Join(withBuild, "hack", "config.yaml"), "build:\n  commands:\n    - node build.mjs\n    - pnpm --dir \"$(PLUGIN_ROOT)/frontend\" run build\n")
 	writeFile(t, filepath.Join(withoutBuild, "plugin.yaml"), "id: without-build\n")
@@ -1254,9 +1262,11 @@ func TestWaitHTTPFailsFastWhenProcessExits(t *testing.T) {
 		t.Fatalf("write pid file: %v", err)
 	}
 
-	start := time.Now()
-	err := devservice.WaitHTTP("Backend", server.URL+"/api.json", pidFile, "service.log", 10*time.Second, process.Alive)
-	elapsed := time.Since(start)
+	var (
+		start   = time.Now()
+		err     = devservice.WaitHTTP("Backend", server.URL+"/api.json", pidFile, "service.log", 10*time.Second, process.Alive)
+		elapsed = time.Since(start)
+	)
 	if err == nil {
 		t.Fatalf("devservice.WaitHTTP should fail when recorded process is not alive")
 	}
@@ -1830,9 +1840,11 @@ func TestOfficialPluginBackendImportsDiscoversSourcePlugins(t *testing.T) {
 // TestGoWorkspaceModulesSkipsGeneratedOfficialPluginAggregate verifies test.go
 // does not run package tests from the generated bridge module itself.
 func TestGoWorkspaceModulesSkipsGeneratedOfficialPluginAggregate(t *testing.T) {
-	root := t.TempDir()
-	coreDir := filepath.Join(root, "apps", "lina-core")
-	aggregateDir := plugins.AggregateModuleDir(root)
+	var (
+		root         = t.TempDir()
+		coreDir      = filepath.Join(root, "apps", "lina-core")
+		aggregateDir = plugins.AggregateModuleDir(root)
+	)
 	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
 	writeFile(t, filepath.Join(aggregateDir, "go.mod"), "module lina-plugins\n")
 
@@ -1900,9 +1912,11 @@ func TestGoWorkspaceModulesIncludesStdoutDiagnosticInErrors(t *testing.T) {
 // at a time while retaining the requested race and verbose flags for packages
 // that actually contain Go tests.
 func TestRunTestGoSerializesPackageExecution(t *testing.T) {
-	root := t.TempDir()
-	coreDir := filepath.Join(root, "apps", "lina-core")
-	aggregateDir := plugins.AggregateModuleDir(root)
+	var (
+		root         = t.TempDir()
+		coreDir      = filepath.Join(root, "apps", "lina-core")
+		aggregateDir = plugins.AggregateModuleDir(root)
+	)
 	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
 	writeFile(t, filepath.Join(aggregateDir, "go.mod"), "module lina-plugins\n")
 

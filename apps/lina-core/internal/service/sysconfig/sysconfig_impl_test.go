@@ -62,9 +62,11 @@ func TestDeleteRejectsBuiltInFlaggedSystemParameter(t *testing.T) {
 // TestUpdateAllowsBuiltInFlaggedSystemParameter verifies built-in records stay
 // editable even though deletion is blocked.
 func TestUpdateAllowsBuiltInFlaggedSystemParameter(t *testing.T) {
-	ctx := context.Background()
-	record := insertConfigForBuiltInGuard(t, ctx, true)
-	updatedValue := "updated builtin value"
+	var (
+		ctx          = context.Background()
+		record       = insertConfigForBuiltInGuard(t, ctx, true)
+		updatedValue = "updated builtin value"
+	)
 
 	err := New(hostconfig.New(), nil).Update(ctx, UpdateInput{
 		Id:    int(record.Id),
@@ -93,10 +95,12 @@ func TestUpdateAllowsBuiltInFlaggedSystemParameter(t *testing.T) {
 // TestCustomSysConfigMutationsRefreshHostConfigSnapshot verifies non-protected
 // sys_config rows also invalidate HostConfig snapshots after service mutations.
 func TestCustomSysConfigMutationsRefreshHostConfigSnapshot(t *testing.T) {
-	ctx := context.Background()
-	key := fmt.Sprintf("test.custom.snapshot.%d", time.Now().UnixNano())
-	configSvc := hostconfig.New()
-	sysconfigSvc := New(configSvc, nil)
+	var (
+		ctx          = context.Background()
+		key          = fmt.Sprintf("test.custom.snapshot.%d", time.Now().UnixNano())
+		configSvc    = hostconfig.New()
+		sysconfigSvc = New(configSvc, nil)
+	)
 	rawReader := configSvc.(interface {
 		GetRaw(context.Context, string) (*gvar.Var, error)
 	})
@@ -171,9 +175,11 @@ func TestCustomSysConfigMutationsRefreshHostConfigSnapshot(t *testing.T) {
 // TestUpdateRejectsProtectedRuntimeParamRename verifies protected runtime
 // parameter keys cannot be renamed.
 func TestUpdateRejectsProtectedRuntimeParamRename(t *testing.T) {
-	ctx := context.Background()
-	runtimeParam := ensureRuntimeParamRecord(t, ctx, hostconfig.RuntimeParamKeyJWTExpire, "24h")
-	newKey := "sys.jwt.expire.renamed"
+	var (
+		ctx          = context.Background()
+		runtimeParam = ensureRuntimeParamRecord(t, ctx, hostconfig.RuntimeParamKeyJWTExpire, "24h")
+		newKey       = "sys.jwt.expire.renamed"
+	)
 
 	err := New(hostconfig.New(), nil).Update(ctx, UpdateInput{
 		Id:  int(runtimeParam.Id),
@@ -187,9 +193,11 @@ func TestUpdateRejectsProtectedRuntimeParamRename(t *testing.T) {
 // TestUpdateRejectsProtectedPublicFrontendSettingRename verifies protected
 // public frontend setting keys cannot be renamed.
 func TestUpdateRejectsProtectedPublicFrontendSettingRename(t *testing.T) {
-	ctx := context.Background()
-	publicSetting := ensureRuntimeParamRecord(t, ctx, hostconfig.PublicFrontendSettingKeyAppName, "LinaPro")
-	newKey := "sys.app.name.renamed"
+	var (
+		ctx           = context.Background()
+		publicSetting = ensureRuntimeParamRecord(t, ctx, hostconfig.PublicFrontendSettingKeyAppName, "LinaPro")
+		newKey        = "sys.app.name.renamed"
+	)
 
 	err := New(hostconfig.New(), nil).Update(ctx, UpdateInput{
 		Id:  int(publicSetting.Id),

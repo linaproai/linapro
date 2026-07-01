@@ -146,9 +146,9 @@ func TestOverrideClusterEnabledForDialectReselectsRuntimeParamRevisionController
 	}
 }
 
-// TestPostgreSQLDialectOnStartupKeepsConfigServiceClusterEnabled verifies
-// PostgreSQL startup hooks are no-op for cluster mode.
-func TestPostgreSQLDialectOnStartupKeepsConfigServiceClusterEnabled(t *testing.T) {
+// TestPostgreSQLDialectSupportsClusterKeepsConfigServiceClusterEnabled verifies
+// PostgreSQL does not trigger startup cluster compatibility overrides.
+func TestPostgreSQLDialectSupportsClusterKeepsConfigServiceClusterEnabled(t *testing.T) {
 	setTestConfigContent(t, `
 cluster:
   enabled: true
@@ -163,8 +163,8 @@ cluster:
 	if err != nil {
 		t.Fatalf("resolve PostgreSQL dialect failed: %v", err)
 	}
-	if err = dbDialect.OnStartup(context.Background(), svc); err != nil {
-		t.Fatalf("run PostgreSQL startup hook failed: %v", err)
+	if !dbDialect.SupportsCluster() {
+		svc.OverrideClusterEnabledForDialect(false)
 	}
 
 	if !svc.IsClusterEnabled(context.Background()) {

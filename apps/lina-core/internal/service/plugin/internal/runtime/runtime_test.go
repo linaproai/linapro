@@ -102,7 +102,7 @@ func TestRunBundledDynamicSampleBeforeInstallLifecycleAllowsRuntimeLog(t *testin
 	testutil.EnsureBundledRuntimeSampleArtifactForTests(t)
 
 	services := testutil.NewServices()
-	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), runtime.BuildArtifactFileName("linapro-demo-dynamic"))
+	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), testutil.RuntimeArtifactFileName("linapro-demo-dynamic"))
 	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
 	if err != nil {
 		t.Fatalf("expected bundled dynamic manifest to load, got error: %v", err)

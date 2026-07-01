@@ -9,6 +9,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/net/ghttp"
 
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/role"
 	"lina-core/pkg/bizerr"
 )
@@ -180,7 +181,7 @@ func hasRequiredPermissions(accessContext *role.UserAccessContext, required []st
 
 // writePermissionError writes one JSON error payload and binds the error onto
 // the request so upper layers can still observe the failure cause.
-func writePermissionError(r *ghttp.Request, i18nSvc middlewareI18nService, status int, err error) {
+func writePermissionError(r *ghttp.Request, i18nSvc i18nsvc.Service, status int, err error) {
 	if r == nil {
 		return
 	}

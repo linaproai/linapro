@@ -8,6 +8,8 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	jobv1 "lina-core/api/job/v1"
+	joblogv1 "lina-core/api/joblog/v1"
 	"time"
 
 	"github.com/gogf/gf/v2/util/gconv"
@@ -29,18 +31,18 @@ func (s *serviceImpl) Trigger(ctx context.Context, jobID int64) (int64, error) {
 	if job == nil {
 		return 0, bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
-	if jobmeta.NormalizeJobStatus(job.Status) == jobmeta.JobStatusPausedByPlugin {
+	if jobmeta.NormalizeJobStatus(job.Status) == jobv1.StatusPausedByPlugin {
 		return 0, bizerr.NewCode(jobmeta.CodeJobHandlerUnavailable)
 	}
 	if err = s.validateExecutableJob(ctx, job); err != nil {
 		return 0, err
 	}
 
-	logID, execution, err := s.createExecution(ctx, job, jobmeta.TriggerTypeManual)
+	logID, execution, err := s.createExecution(ctx, job, joblogv1.TriggerManual)
 	if err != nil {
 		return 0, err
 	}
-	s.storeRunningExecution(logID, job.Id, execution.cancel, func() {})
+	s.storeRunningExecution(logID, execution.cancel, func() {})
 
 	go s.executeJob(execution, job, logID)
 	return logID, nil
@@ -86,14 +88,14 @@ func (s *serviceImpl) validateExecutableJob(ctx context.Context, job *entity.Sys
 		return bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
 	switch jobmeta.NormalizeTaskType(job.TaskType) {
-	case jobmeta.TaskTypeHandler:
+	case jobv1.TaskTypeHandler:
 		def, ok := s.registry.Lookup(job.HandlerRef)
 		if !ok {
 			return bizerr.NewCode(jobhandler.CodeJobHandlerNotFound)
 		}
 		return jobhandler.ValidateParams(def.ParamsSchema, json.RawMessage(job.Params))
 
-	case jobmeta.TaskTypeShell:
+	case jobv1.TaskTypeShell:
 		if s.shellExecutor == nil {
 			return bizerr.NewCode(jobmeta.CodeJobShellExecutorUninitialized)
 		}
@@ -130,7 +132,7 @@ func (s *serviceImpl) createRunningLog(
 		return 0, bizerr.WrapCode(err, jobmeta.CodeJobSnapshotMarshalFailed)
 	}
 	paramsSnapshot := ""
-	if jobmeta.NormalizeTaskType(job.TaskType) == jobmeta.TaskTypeHandler {
+	if jobmeta.NormalizeTaskType(job.TaskType) == jobv1.TaskTypeHandler {
 		paramsSnapshot = job.Params
 	}
 
@@ -142,7 +144,7 @@ func (s *serviceImpl) createRunningLog(
 		Trigger:        string(trigger),
 		ParamsSnapshot: paramsSnapshot,
 		StartAt:        &startedAt,
-		Status:         string(jobmeta.LogStatusRunning),
+		Status:         string(joblogv1.StatusRunning),
 	}).InsertAndGetId()
 	if err != nil {
 		return 0, err
@@ -164,7 +166,7 @@ func (s *serviceImpl) createTerminalLog(
 		return err
 	}
 	paramsSnapshot := ""
-	if jobmeta.NormalizeTaskType(job.TaskType) == jobmeta.TaskTypeHandler {
+	if jobmeta.NormalizeTaskType(job.TaskType) == jobv1.TaskTypeHandler {
 		paramsSnapshot = job.Params
 	}
 

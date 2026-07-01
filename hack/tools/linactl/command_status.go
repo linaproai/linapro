@@ -52,9 +52,11 @@ func runStatus(_ context.Context, a *app, input commandInput) error {
 
 	rows := make([]devservice.StatusRow, 0, len(services))
 	for _, service := range services {
-		pid := devservice.ReadPID(service.PIDPath)
-		alive := pid > 0 && aliveProbe(pid)
-		status := "stopped"
+		var (
+			pid    = devservice.ReadPID(service.PIDPath)
+			alive  = pid > 0 && aliveProbe(pid)
+			status = "stopped"
+		)
 		if alive && listenProbe(service.Port) {
 			status = "running"
 		}

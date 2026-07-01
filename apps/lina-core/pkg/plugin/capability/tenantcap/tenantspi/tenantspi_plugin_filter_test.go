@@ -12,11 +12,12 @@ import (
 
 	_ "lina-core/pkg/dbdriver"
 	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
 // TestContextReadsTenantIDFromBizContext verifies tenant ID resolution from bizctx.
 func TestContextReadsTenantIDFromBizContext(t *testing.T) {
-	service := newTenantFilterForTest(nil)
+	service := newTenantFilterForTest()
 	ctx := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 42})
 	if got := service.Context(ctx).TenantID; got != 42 {
 		t.Fatalf("expected tenant 42, got %d", got)
@@ -25,7 +26,7 @@ func TestContextReadsTenantIDFromBizContext(t *testing.T) {
 
 // TestContextDefaultsToPlatform verifies missing bizctx remains the platform tenant.
 func TestContextDefaultsToPlatform(t *testing.T) {
-	service := newTenantFilterForTest(nil)
+	service := newTenantFilterForTest()
 	if got := service.Context(context.Background()).TenantID; got != 0 {
 		t.Fatalf("expected platform tenant, got %d", got)
 	}
@@ -34,7 +35,7 @@ func TestContextDefaultsToPlatform(t *testing.T) {
 // TestContextLeavesOnBehalfEmptyForRegularTenant verifies regular tenant
 // requests do not persist impersonation-only audit fields.
 func TestContextLeavesOnBehalfEmptyForRegularTenant(t *testing.T) {
-	service := newTenantFilterForTest(nil)
+	service := newTenantFilterForTest()
 	ctx := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{
 		UserID:   88,
 		TenantID: 7,
@@ -52,7 +53,7 @@ func TestContextLeavesOnBehalfEmptyForRegularTenant(t *testing.T) {
 // TestContextReadsImpersonationFields verifies platform impersonation
 // records the target tenant as the on-behalf-of tenant.
 func TestContextReadsImpersonationFields(t *testing.T) {
-	service := newTenantFilterForTest(nil)
+	service := newTenantFilterForTest()
 	ctx := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{
 		UserID:          88,
 		TenantID:        7,
@@ -73,10 +74,10 @@ func TestContextReadsImpersonationFields(t *testing.T) {
 // TestApplyUsesHostPlatformBypass verifies platform bypass policy can
 // keep plugin-owned table queries unrestricted for platform operators.
 func TestApplyUsesHostPlatformBypass(t *testing.T) {
-	service := newTenantFilterForTest(testPlatformBypassEvaluator{bypass: true})
-	ctx := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 7})
+	service := newTenantFilterForTest()
+	ctx := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 7, PlatformBypass: true})
 
-	sql := buildTenantFilterSQL(t, ctx, service.Apply(ctx, g.DB().Model("plugin_record"), ""))
+	sql := buildTenantFilterSQL(t, ctx, ApplyPluginTableFilter(ctx, service, g.DB().Model("plugin_record"), ""))
 	if strings.Contains(sql, TenantFilterColumn) {
 		t.Fatalf("expected platform bypass to skip tenant predicate, got SQL %q", sql)
 	}
@@ -85,10 +86,10 @@ func TestApplyUsesHostPlatformBypass(t *testing.T) {
 // TestApplyUsesCurrentTenant verifies regular tenant requests constrain
 // plugin-owned table queries by the current tenant discriminator.
 func TestApplyUsesCurrentTenant(t *testing.T) {
-	service := newTenantFilterForTest(testPlatformBypassEvaluator{bypass: false})
+	service := newTenantFilterForTest()
 	ctx := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 7})
 
-	sql := buildTenantFilterSQL(t, ctx, service.Apply(ctx, g.DB().Model("plugin_record"), ""))
+	sql := buildTenantFilterSQL(t, ctx, ApplyPluginTableFilter(ctx, service, g.DB().Model("plugin_record"), ""))
 	if !strings.Contains(sql, TenantFilterColumn) || !strings.Contains(sql, "=7") {
 		t.Fatalf("expected tenant predicate in SQL, got %q", sql)
 	}
@@ -97,22 +98,30 @@ func TestApplyUsesCurrentTenant(t *testing.T) {
 // TestApplyUsesQualifiedTenantColumn verifies joined queries can qualify the
 // conventional tenant discriminator without exposing a custom column name.
 func TestApplyUsesQualifiedTenantColumn(t *testing.T) {
-	service := newTenantFilterForTest(testPlatformBypassEvaluator{bypass: false})
+	service := newTenantFilterForTest()
 	ctx := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 7})
 
-	sql := buildTenantFilterSQL(t, ctx, service.Apply(ctx, g.DB().Model("plugin_record"), "plugin_record"))
+	sql := buildTenantFilterSQL(t, ctx, ApplyPluginTableFilter(ctx, service, g.DB().Model("plugin_record"), "plugin_record"))
 	if !strings.Contains(sql, "plugin_record") || !strings.Contains(sql, TenantFilterColumn) {
 		t.Fatalf("expected qualified tenant predicate in SQL, got %q", sql)
 	}
 }
 
 // newTenantFilterForTest creates an explicitly injected tenant filter service.
-func newTenantFilterForTest(bypassEvaluator PlatformBypassEvaluator) PluginTableFilterService {
-	service, err := NewPluginTableFilter(bizctxcap.New(nil), bypassEvaluator)
+func newTenantFilterForTest() tenantcap.FilterService {
+	service, err := NewPluginTableFilter(testBizCtxService{})
 	if err != nil {
 		panic(err)
 	}
 	return service
+}
+
+// testBizCtxService reads plugin-visible context snapshots from the test context.
+type testBizCtxService struct{}
+
+// Current returns the context snapshot injected with bizctxcap.WithCurrentContext.
+func (testBizCtxService) Current(ctx context.Context) bizctxcap.CurrentContext {
+	return bizctxcap.CurrentFromContext(ctx)
 }
 
 // buildTenantFilterSQL renders one model query into SQL for predicate assertions.
@@ -127,14 +136,4 @@ func buildTenantFilterSQL(t *testing.T, ctx context.Context, model *gdb.Model) s
 		t.Fatalf("build tenant filter SQL failed: %v", err)
 	}
 	return sql
-}
-
-// testPlatformBypassEvaluator returns a fixed host platform-bypass decision.
-type testPlatformBypassEvaluator struct {
-	bypass bool
-}
-
-// PlatformBypass returns the configured test bypass decision.
-func (e testPlatformBypassEvaluator) PlatformBypass(context.Context) bool {
-	return e.bypass
 }

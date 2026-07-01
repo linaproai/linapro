@@ -10,13 +10,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gfile"
 	"gopkg.in/yaml.v3"
 
+	pluginv1 "lina-core/api/plugin/v1"
+	"lina-core/internal/model"
+	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/pkg/bizerr"
+	"lina-core/pkg/statusflag"
 )
 
 // pluginHookEventFieldExprPrefix is the prefix for event-field expressions in hook specs.
@@ -43,6 +49,21 @@ type ResourceListOutput struct {
 	// Total is the total row count.
 	Total int
 }
+
+// pluginResourceDataScopeMode classifies host role scopes for generic plugin resource filtering.
+type pluginResourceDataScopeMode int
+
+// Internal plugin resource data-scope filter modes derived from sys_role.data_scope.
+const (
+	// pluginResourceDataScopeDeny denies access to governed plugin resource rows.
+	pluginResourceDataScopeDeny pluginResourceDataScopeMode = iota
+	// pluginResourceDataScopeAll grants all rows visible in the current tenant boundary.
+	pluginResourceDataScopeAll
+	// pluginResourceDataScopeDept restricts rows by the resource department-owner column.
+	pluginResourceDataScopeDept
+	// pluginResourceDataScopeSelf restricts rows by the resource user-owner column.
+	pluginResourceDataScopeSelf
+)
 
 // ResolveResourcePermission resolves the plugin-scoped permission for one
 // plugin-owned backend resource exposed by the generic resource endpoint.
@@ -73,8 +94,8 @@ func (s *serviceImpl) resolveActiveOrDesiredManifest(ctx context.Context, plugin
 		return nil, err
 	}
 	if registry != nil &&
-		plugintypes.NormalizeType(registry.Type) == plugintypes.TypeDynamic &&
-		registry.Installed == plugintypes.InstalledYes &&
+		plugintypes.NormalizeType(registry.Type) == pluginv1.PluginTypeDynamic &&
+		registry.Installed == statusflag.Installed.Int() &&
 		registry.ReleaseId > 0 {
 		release, releaseErr := s.storeSvc.GetRegistryRelease(ctx, registry)
 		if releaseErr != nil || release == nil {
@@ -234,6 +255,103 @@ func (s *serviceImpl) ListResourceRecords(ctx context.Context, in ResourceListIn
 		items = append(items, row)
 	}
 	return &ResourceListOutput{List: items, Total: total}, nil
+}
+
+// applyPluginResourceDataScope injects host role data-scope constraints into one plugin resource query.
+func (s *serviceImpl) applyPluginResourceDataScope(
+	ctx context.Context,
+	model *gdb.Model,
+	resource *catalog.ResourceSpec,
+) (*gdb.Model, error) {
+	if model == nil || resource == nil || resource.DataScope == nil {
+		return model, nil
+	}
+
+	currentUserID := s.getCurrentPluginResourceUserID(ctx)
+	if currentUserID <= 0 {
+		return model.Where("1 = 0"), nil
+	}
+
+	bizUser := s.currentPluginResourceBizContext(ctx)
+	if bizUser != nil {
+		if bizUser.DataScopeUnsupported {
+			return nil, bizerr.NewCode(
+				datascope.CodeDataScopeUnsupported,
+				bizerr.P("scope", bizUser.UnsupportedDataScope),
+			)
+		}
+	}
+
+	switch resolvePluginResourceDataScopeMode(currentPluginResourceDataScope(bizUser)) {
+	case pluginResourceDataScopeAll:
+		return model, nil
+	case pluginResourceDataScopeDept:
+		if resource.DataScope.DeptColumn == "" {
+			return model.Where("1 = 0"), nil
+		}
+		deptIDs, deptErr := s.getCurrentPluginResourceDeptIDs(ctx, currentUserID)
+		if deptErr != nil {
+			return nil, deptErr
+		}
+		if len(deptIDs) == 0 {
+			return model.Where("1 = 0"), nil
+		}
+		return model.WhereIn(resource.DataScope.DeptColumn, deptIDs), nil
+	case pluginResourceDataScopeSelf:
+		if resource.DataScope.UserColumn == "" {
+			return model.Where("1 = 0"), nil
+		}
+		return model.Where(resource.DataScope.UserColumn, currentUserID), nil
+	default:
+		return model.Where("1 = 0"), nil
+	}
+}
+
+// resolvePluginResourceDataScopeMode maps host role data-scope values to plugin resource filter modes.
+func resolvePluginResourceDataScopeMode(scope int) pluginResourceDataScopeMode {
+	switch datascope.Scope(scope) {
+	case datascope.ScopeAll, datascope.ScopeTenant:
+		return pluginResourceDataScopeAll
+	case datascope.ScopeDept:
+		return pluginResourceDataScopeDept
+	case datascope.ScopeSelf:
+		return pluginResourceDataScopeSelf
+	default:
+		return pluginResourceDataScopeDeny
+	}
+}
+
+// getCurrentPluginResourceUserID returns the current request user ID from the business context.
+func (s *serviceImpl) getCurrentPluginResourceUserID(ctx context.Context) int {
+	bizUser := s.currentPluginResourceBizContext(ctx)
+	if bizUser == nil {
+		return 0
+	}
+	return bizUser.UserId
+}
+
+// getCurrentPluginResourceDeptIDs returns the deduplicated department IDs for the given user.
+func (s *serviceImpl) getCurrentPluginResourceDeptIDs(ctx context.Context, userID int) ([]int, error) {
+	if s == nil || s.orgSvc == nil || s.orgSvc.Assignment() == nil {
+		return []int{}, nil
+	}
+	return s.orgSvc.Assignment().GetUserDeptIDs(ctx, userID)
+}
+
+// currentPluginResourceBizContext returns the current request business context.
+func (s *serviceImpl) currentPluginResourceBizContext(ctx context.Context) *model.Context {
+	if s == nil || s.bizCtxSvc == nil {
+		return nil
+	}
+	return s.bizCtxSvc.Get(ctx)
+}
+
+// currentPluginResourceDataScope returns the data-scope value from the current request context.
+func currentPluginResourceDataScope(bizUser *model.Context) int {
+	if bizUser == nil {
+		return 0
+	}
+	return bizUser.DataScope
 }
 
 // quotePluginResourceAlias preserves logical camelCase aliases across database

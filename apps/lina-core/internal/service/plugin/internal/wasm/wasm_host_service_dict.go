@@ -11,6 +11,7 @@ import (
 	"lina-core/pkg/plugin/capability/dictcap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
 // dispatchDictHostService routes dictionary-domain host-service calls.
@@ -24,14 +25,17 @@ func dispatchDictHostService(
 	if service == nil {
 		return domainServiceNotScoped("dict")
 	}
-	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceDict, method)
+	valueService := service.Value()
+	if valueService == nil {
+		return domainServiceNotScoped("dict.value")
+	}
 	switch method {
-	case bridgehostservice.HostServiceMethodDictResolveLabels:
+	case bridgehostservice.HostServiceMethodDictValueResolveLabels:
 		var request dictResolveRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		result, err := service.ResolveLabels(ctx, capCtx, dictcap.ResolveInput{
+		result, err := valueService.ResolveLabels(ctx, dictcap.ResolveInput{
 			Type:         dictcap.Type(request.Type),
 			Values:       dictValues(request.Values),
 			IncludeLabel: request.IncludeLabel,
@@ -42,9 +46,9 @@ func dispatchDictHostService(
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		result, err := service.ListValues(ctx, capCtx, dictcap.ListValuesInput{
+		result, err := valueService.List(ctx, dictcap.ListValuesInput{
 			Type:         dictcap.Type(request.Type),
-			Status:       request.Status,
+			Status:       dictStatusFlag(request.Status),
 			IncludeLabel: request.IncludeLabel,
 			Page: capmodel.PageRequest{
 				PageNum:  request.PageNum,
@@ -52,12 +56,12 @@ func dispatchDictHostService(
 			},
 		})
 		return domainCapabilityResult(result, err)
-	case bridgehostservice.HostServiceMethodDictEnsureValuesVisible:
+	case bridgehostservice.HostServiceMethodDictValueEnsureValuesVisible:
 		var request dictResolveRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		err := service.EnsureValuesVisible(ctx, capCtx, dictcap.ResolveInput{
+		err := valueService.EnsureValuesVisible(ctx, dictcap.ResolveInput{
 			Type:         dictcap.Type(request.Type),
 			Values:       dictValues(request.Values),
 			IncludeLabel: request.IncludeLabel,
@@ -100,4 +104,13 @@ func dictValues(values []string) []dictcap.Value {
 		out = append(out, dictcap.Value(strings.TrimSpace(value)))
 	}
 	return out
+}
+
+// dictStatusFlag converts the wire optional integer status into the shared capability status type.
+func dictStatusFlag(status *int) *statusflag.Enabled {
+	if status == nil {
+		return nil
+	}
+	value := statusflag.Enabled(*status)
+	return &value
 }

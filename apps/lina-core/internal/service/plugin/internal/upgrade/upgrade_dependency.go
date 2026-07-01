@@ -10,6 +10,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	plugindep "lina-core/internal/service/plugin/internal/dependency"
 	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/pkg/statusflag"
 )
 
 // resolveInstallDependenciesForManifest evaluates dependency status using a
@@ -108,7 +109,7 @@ func (s *serviceImpl) buildDependencySnapshots(
 			snapshotByID[registryPluginID] = snapshot
 		}
 		if registryPluginID == candidateID {
-			snapshot.Installed = registry.Installed == plugintypes.InstalledYes
+			snapshot.Installed = registry.Installed == statusflag.Installed.Int()
 			continue
 		}
 		plugindep.ApplyRegistrySnapshot(readCtx, s.storeSvc, snapshot, registry)

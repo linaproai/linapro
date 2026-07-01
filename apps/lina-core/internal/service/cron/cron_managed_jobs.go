@@ -7,13 +7,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	jobv1 "lina-core/api/job/v1"
+	jobhandlerv1 "lina-core/api/jobhandler/v1"
 	"strings"
 	"time"
 
 	"lina-core/internal/model/entity"
 	jobhandlersvc "lina-core/internal/service/jobhandler"
-	"lina-core/internal/service/jobmeta"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
+	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -30,7 +32,10 @@ func (s *serviceImpl) syncBuiltinScheduledJobs(ctx context.Context) error {
 		return err
 	}
 
-	jobs := s.buildHostBuiltinJobs(ctx)
+	jobs, err := s.buildHostBuiltinJobs(ctx)
+	if err != nil {
+		return err
+	}
 	pluginJobs, err := s.buildPluginBuiltinJobs(ctx)
 	if err != nil {
 		return err
@@ -61,18 +66,14 @@ func (s *serviceImpl) registerBuiltinJobSnapshots(ctx context.Context, jobs []*e
 	return nil
 }
 
-// ensureManagedHandlersRegistered registers host-owned handlers exactly once so
-// projected sys_job rows always resolve through the shared handler registry.
+// ensureManagedHandlersRegistered publishes host-owned handlers. The registry
+// keeps duplicate refs idempotent while transient registration failures remain
+// retryable on later startup or lifecycle sync passes.
 func (s *serviceImpl) ensureManagedHandlersRegistered() error {
 	if s == nil || s.registry == nil {
 		return nil
 	}
-
-	var registerErr error
-	s.managedHandlersOnce.Do(func() {
-		registerErr = s.registerManagedHandlers()
-	})
-	return registerErr
+	return s.registerManagedHandlers()
 }
 
 // registerManagedHandlers publishes the host-owned built-in scheduled-job callbacks.
@@ -83,7 +84,7 @@ func (s *serviceImpl) registerManagedHandlers() error {
 			DisplayName:  "Online Session Cleanup",
 			Description:  "Cleans up inactive online sessions in the host according to the session-timeout policy.",
 			ParamsSchema: `{"type":"object","properties":{}}`,
-			Source:       jobmeta.HandlerSourceHost,
+			Source:       jobhandlerv1.SourceHost,
 			Invoke:       s.invokeSessionCleanup,
 		},
 	}
@@ -95,7 +96,7 @@ func (s *serviceImpl) registerManagedHandlers() error {
 				DisplayName:  "Access Topology Sync",
 				Description:  "Synchronizes permission-topology revision snapshots across the cluster so authorization caches stay consistent on every node.",
 				ParamsSchema: `{"type":"object","properties":{}}`,
-				Source:       jobmeta.HandlerSourceHost,
+				Source:       jobhandlerv1.SourceHost,
 				Invoke:       s.invokeAccessTopologySync,
 			},
 			jobhandlersvc.HandlerDef{
@@ -103,7 +104,7 @@ func (s *serviceImpl) registerManagedHandlers() error {
 				DisplayName:  "Runtime Parameter Sync",
 				Description:  "Synchronizes protected runtime parameter snapshots across the cluster so each node keeps a fresh local cache.",
 				ParamsSchema: `{"type":"object","properties":{}}`,
-				Source:       jobmeta.HandlerSourceHost,
+				Source:       jobhandlerv1.SourceHost,
 				Invoke:       s.invokeRuntimeParamSync,
 			},
 		)
@@ -119,14 +120,20 @@ func (s *serviceImpl) registerManagedHandlers() error {
 
 // buildHostBuiltinJobs returns host-owned scheduled-job definitions that should
 // always appear in unified scheduled-job management.
-func (s *serviceImpl) buildHostBuiltinJobs(ctx context.Context) []jobmgmtsvc.BuiltinJobDef {
+func (s *serviceImpl) buildHostBuiltinJobs(ctx context.Context) ([]jobmgmtsvc.BuiltinJobDef, error) {
 	if s == nil {
-		return nil
+		return nil, nil
 	}
 
 	sessionCleanupInterval := 5 * time.Minute
-	if s.sessionCfg != nil && s.sessionCfg.CleanupInterval > 0 {
-		sessionCleanupInterval = s.sessionCfg.CleanupInterval
+	if s.configSvc != nil {
+		sessionConfig, err := s.configSvc.GetSession(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if sessionConfig != nil && sessionConfig.CleanupInterval > 0 {
+			sessionCleanupInterval = sessionConfig.CleanupInterval
+		}
 	}
 	defaultTimezone := s.managedJobDefaultTimezone(ctx)
 
@@ -135,33 +142,33 @@ func (s *serviceImpl) buildHostBuiltinJobs(ctx context.Context) []jobmgmtsvc.Bui
 			GroupCode:      "default",
 			Name:           "Job Log Cleanup",
 			Description:    "Cleans up scheduled-job execution logs according to global and job-level retention policies.",
-			TaskType:       jobmeta.TaskTypeHandler,
+			TaskType:       jobv1.TaskTypeHandler,
 			HandlerRef:     "host:cleanup-job-logs",
 			Params:         map[string]any{},
 			Timeout:        defaultManagedJobTimeout,
 			Pattern:        "# 17 3 * * *",
 			Timezone:       defaultTimezone,
-			Scope:          jobmeta.JobScopeMasterOnly,
-			Concurrency:    jobmeta.JobConcurrencySingleton,
+			Scope:          jobv1.ScopeMasterOnly,
+			Concurrency:    jobv1.ConcurrencySingleton,
 			MaxConcurrency: 1,
 			MaxExecutions:  0,
-			Status:         jobmeta.JobStatusEnabled,
+			Status:         jobv1.StatusEnabled,
 		},
 		{
 			GroupCode:      "default",
 			Name:           "Online Session Cleanup",
 			Description:    "Cleans up inactive online sessions in the host according to the session-timeout policy.",
-			TaskType:       jobmeta.TaskTypeHandler,
+			TaskType:       jobv1.TaskTypeHandler,
 			HandlerRef:     "host:session-cleanup",
 			Params:         map[string]any{},
 			Timeout:        defaultManagedJobTimeout,
 			Pattern:        formatEveryPattern(sessionCleanupInterval),
 			Timezone:       defaultTimezone,
-			Scope:          jobmeta.JobScopeMasterOnly,
-			Concurrency:    jobmeta.JobConcurrencySingleton,
+			Scope:          jobv1.ScopeMasterOnly,
+			Concurrency:    jobv1.ConcurrencySingleton,
 			MaxConcurrency: 1,
 			MaxExecutions:  0,
-			Status:         jobmeta.JobStatusEnabled,
+			Status:         jobv1.StatusEnabled,
 		},
 	}
 
@@ -171,38 +178,38 @@ func (s *serviceImpl) buildHostBuiltinJobs(ctx context.Context) []jobmgmtsvc.Bui
 				GroupCode:      "default",
 				Name:           "Access Topology Sync",
 				Description:    "Synchronizes permission-topology revision snapshots across the cluster so authorization caches stay consistent on every node.",
-				TaskType:       jobmeta.TaskTypeHandler,
+				TaskType:       jobv1.TaskTypeHandler,
 				HandlerRef:     "host:access-topology-sync",
 				Params:         map[string]any{},
 				Timeout:        defaultManagedJobTimeout,
 				Pattern:        formatEveryPattern(10 * time.Second),
 				Timezone:       defaultTimezone,
-				Scope:          jobmeta.JobScopeAllNode,
-				Concurrency:    jobmeta.JobConcurrencySingleton,
+				Scope:          jobv1.ScopeAllNode,
+				Concurrency:    jobv1.ConcurrencySingleton,
 				MaxConcurrency: 1,
 				MaxExecutions:  0,
-				Status:         jobmeta.JobStatusEnabled,
+				Status:         jobv1.StatusEnabled,
 			},
 			jobmgmtsvc.BuiltinJobDef{
 				GroupCode:      "default",
 				Name:           "Runtime Parameter Sync",
 				Description:    "Synchronizes protected runtime parameter snapshots across the cluster so each node keeps a fresh local cache.",
-				TaskType:       jobmeta.TaskTypeHandler,
+				TaskType:       jobv1.TaskTypeHandler,
 				HandlerRef:     "host:runtime-param-sync",
 				Params:         map[string]any{},
 				Timeout:        defaultManagedJobTimeout,
 				Pattern:        formatEveryPattern(10 * time.Second),
 				Timezone:       defaultTimezone,
-				Scope:          jobmeta.JobScopeAllNode,
-				Concurrency:    jobmeta.JobConcurrencySingleton,
+				Scope:          jobv1.ScopeAllNode,
+				Concurrency:    jobv1.ConcurrencySingleton,
 				MaxConcurrency: 1,
 				MaxExecutions:  0,
-				Status:         jobmeta.JobStatusEnabled,
+				Status:         jobv1.StatusEnabled,
 			},
 		)
 	}
 
-	return jobs
+	return jobs, nil
 }
 
 // buildPluginBuiltinJobs converts plugin-owned job definitions into sys_job projections.
@@ -211,7 +218,9 @@ func (s *serviceImpl) buildPluginBuiltinJobs(ctx context.Context) ([]jobmgmtsvc.
 		return nil, nil
 	}
 
-	items, err := s.pluginSvc.ListInstalledJobDeclarations(ctx)
+	items, err := s.pluginSvc.ListManagedJobs(ctx, pluginsvc.ManagedJobQuery{
+		InstalledOnly: true,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -224,11 +233,11 @@ func (s *serviceImpl) buildPluginBuiltinJobs(ctx context.Context) ([]jobmgmtsvc.
 
 		scope := item.Scope
 		if !scope.IsValid() {
-			scope = jobmeta.JobScopeAllNode
+			scope = jobv1.ScopeAllNode
 		}
 		concurrency := item.Concurrency
 		if !concurrency.IsValid() {
-			concurrency = jobmeta.JobConcurrencySingleton
+			concurrency = jobv1.ConcurrencySingleton
 		}
 		timeout := item.Timeout
 		if timeout <= 0 {
@@ -251,7 +260,7 @@ func (s *serviceImpl) buildPluginBuiltinJobs(ctx context.Context) ([]jobmgmtsvc.
 			GroupCode:      "default",
 			Name:           name,
 			Description:    description,
-			TaskType:       jobmeta.TaskTypeHandler,
+			TaskType:       jobv1.TaskTypeHandler,
 			HandlerRef:     handlerRef,
 			Params:         map[string]any{},
 			Timeout:        timeout,
@@ -261,7 +270,7 @@ func (s *serviceImpl) buildPluginBuiltinJobs(ctx context.Context) ([]jobmgmtsvc.
 			Concurrency:    concurrency,
 			MaxConcurrency: maxInt(item.MaxConcurrency, 1),
 			MaxExecutions:  0,
-			Status:         jobmeta.JobStatusEnabled,
+			Status:         jobv1.StatusEnabled,
 		})
 	}
 	return jobs, nil
@@ -277,7 +286,7 @@ func (s *serviceImpl) managedJobDefaultTimezone(ctx context.Context) string {
 
 // invokeSessionCleanup runs the session cleanup built-in handler.
 func (s *serviceImpl) invokeSessionCleanup(ctx context.Context, _ json.RawMessage) (any, error) {
-	if s == nil || s.sessionStore == nil || s.sessionCfg == nil {
+	if s == nil || s.sessionStore == nil || s.configSvc == nil {
 		return nil, bizerr.NewCode(CodeCronSessionCleanupDependencyMissing)
 	}
 	timeout, err := s.effectiveSessionCleanupTimeout(ctx)
@@ -294,16 +303,12 @@ func (s *serviceImpl) invokeSessionCleanup(ctx context.Context, _ json.RawMessag
 // effectiveSessionCleanupTimeout returns the stricter boundary between the
 // session inactivity timeout and the global maximum log-retention period.
 func (s *serviceImpl) effectiveSessionCleanupTimeout(ctx context.Context) (time.Duration, error) {
-	timeout := s.sessionCfg.Timeout
-	if s.configSvc == nil {
-		return timeout, nil
+	if s == nil || s.configSvc == nil {
+		return 0, bizerr.NewCode(CodeCronSessionCleanupDependencyMissing)
 	}
-	runtimeTimeout, err := s.configSvc.GetSessionTimeout(ctx)
+	timeout, err := s.configSvc.GetSessionTimeout(ctx)
 	if err != nil {
 		return 0, err
-	}
-	if runtimeTimeout > 0 {
-		timeout = runtimeTimeout
 	}
 	days, err := s.configSvc.GetLogRetentionDays(ctx)
 	if err != nil {

@@ -18,9 +18,11 @@ import (
 // TestExecuteManifestSQLFilesReplaysInstallSQL verifies that install SQL can be
 // replayed after uninstall and still records a clean migration sequence.
 func TestExecuteManifestSQLFilesReplaysInstallSQL(t *testing.T) {
-	services := testutil.NewServices()
-	service := services.Migration
-	ctx := context.Background()
+	var (
+		services = testutil.NewServices()
+		service  = services.Migration
+		ctx      = context.Background()
+	)
 
 	pluginID := "plugin-dev-dynamic-reinstall"
 	tableName := "plugin_runtime_reinstall_log"

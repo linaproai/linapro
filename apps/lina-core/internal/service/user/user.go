@@ -10,24 +10,15 @@ import (
 	"lina-core/internal/service/auth"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/datascope"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/role"
-	"lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
+	"lina-core/pkg/statusflag"
 )
 
-// Status represents user account status.
-type Status int
-
-// User status and default account constants.
-const (
-	// StatusNormal represents a normal user status.
-	StatusNormal Status = 1
-
-	// StatusDisabled represents a disabled user status.
-	StatusDisabled Status = 0
-)
+// Status reuses the shared API enabled flag for user account status.
+type Status = statusflag.Enabled
 
 // Service defines the user service contract.
 type Service interface {
@@ -76,59 +67,34 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	authSvc       auth.Service
-	bizCtxSvc     bizctx.Service
-	i18nSvc       userI18nTranslator
-	orgCapSvc     orgcap.Service
-	orgScope      orgspi.ScopeService
-	orgAssignment orgspi.AssignmentService
-	roleSvc       role.Service // Role service
-	scopeSvc      datascope.Service
-	tenantScope   tenantspi.ScopeService
-	tenantMembers tenantspi.UserMembershipService
-	tenantAccess  userTenantAccessService
+	authSvc   auth.Service
+	bizCtxSvc bizctx.Service
+	i18nSvc   i18nsvc.Service
+	roleSvc   role.Service
+	scopeSvc  datascope.Service
+	orgCapSvc orgspi.Service
+	tenantSvc tenantspi.Service
 }
 
 // New creates and returns a new user service from explicit runtime-owned dependencies.
 func New(
 	authSvc auth.Service,
 	bizCtxSvc bizctx.Service,
-	i18nSvc userI18nTranslator,
-	orgCapSvc orgcap.Service,
-	orgScope orgspi.ScopeService,
-	orgAssignment orgspi.AssignmentService,
+	i18nSvc i18nsvc.Service,
+	orgCapSvc orgspi.Service,
 	roleSvc role.Service,
 	scopeSvc datascope.Service,
-	tenantScope tenantspi.ScopeService,
-	tenantMembers tenantspi.UserMembershipService,
-	tenantAccess userTenantAccessService,
+	tenantSvc tenantspi.Service,
 ) Service {
 	return &serviceImpl{
-		authSvc:       authSvc,
-		bizCtxSvc:     bizCtxSvc,
-		i18nSvc:       i18nSvc,
-		orgCapSvc:     orgCapSvc,
-		orgScope:      orgScope,
-		orgAssignment: orgAssignment,
-		roleSvc:       roleSvc,
-		scopeSvc:      scopeSvc,
-		tenantScope:   tenantScope,
-		tenantMembers: tenantMembers,
-		tenantAccess:  tenantAccess,
+		authSvc:   authSvc,
+		bizCtxSvc: bizCtxSvc,
+		i18nSvc:   i18nSvc,
+		orgCapSvc: orgCapSvc,
+		roleSvc:   roleSvc,
+		scopeSvc:  scopeSvc,
+		tenantSvc: tenantSvc,
 	}
-}
-
-// userTenantAccessService is the read-only tenant governance slice required by
-// user management. Membership writes and database-scope builders are injected
-// separately through their own tenantcap interfaces.
-type userTenantAccessService interface {
-	// Available reports whether tenant-aware user management should run.
-	Available(ctx context.Context) bool
-	// PlatformBypass reports whether current context can administer membership
-	// across tenants from platform scope.
-	PlatformBypass(ctx context.Context) bool
-	// ListUserTenants returns active tenant memberships visible to one user.
-	ListUserTenants(ctx context.Context, userID int) ([]tenantcapsvc.TenantInfo, error)
 }
 
 // ListInput defines input for List function.
@@ -173,7 +139,7 @@ type CreateInput struct {
 	Email     string // Email
 	Phone     string // Phone number
 	Sex       int    // Gender: 0=Unknown 1=Male 2=Female
-	Status    Status // Status: StatusNormal=Normal StatusDisabled=Disabled
+	Status    Status // Status: 1=enabled 0=disabled
 	Remark    string // Remark
 	DeptId    *int   // Department ID
 	PostIds   []int  // Post ID list

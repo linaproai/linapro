@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -15,6 +16,7 @@ import (
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // applyUpgrade moves an installed plugin to a new semantic version. Unlike
@@ -114,12 +116,12 @@ func (s *serviceImpl) applyUpgrade(
 		}
 	}
 
-	enabled := plugintypes.StatusDisabled
+	enabled := statusflag.Disabled.Int()
 	if desiredState == plugintypes.HostStateEnabled.String() {
-		enabled = plugintypes.StatusEnabled
+		enabled = statusflag.EnabledValue.Int()
 	}
 	previousReleaseID := registry.ReleaseId
-	registry, err = s.finalizeState(ctx, registry, manifest, release, plugintypes.InstalledYes, enabled)
+	registry, err = s.finalizeState(ctx, registry, manifest, release, statusflag.Installed.Int(), enabled)
 	if err != nil {
 		return s.rollbackInstallOrUpgrade(
 			ctx,
@@ -135,11 +137,11 @@ func (s *serviceImpl) applyUpgrade(
 			return tagDynamicUpgradeFailure(plugintypes.RuntimeUpgradeFailurePhaseReleaseSwitch, err)
 		}
 	}
-	if err = s.storeSvc.UpdateReleaseState(ctx, release.Id, plugintypes.BuildReleaseStatus(plugintypes.InstalledYes, enabled), archivedPath); err != nil {
+	if err = s.storeSvc.UpdateReleaseState(ctx, release.Id, plugintypes.BuildReleaseStatus(statusflag.Installed.Int(), enabled), archivedPath); err != nil {
 		return tagDynamicUpgradeFailure(plugintypes.RuntimeUpgradeFailurePhaseReleaseSwitch, err)
 	}
 	s.cleanupStaleReleaseArtifacts(ctx, manifest.ID)
-	if enabled == plugintypes.StatusEnabled {
+	if enabled == statusflag.EnabledValue.Int() {
 		s.invalidateRuntimeCaches(ctx, manifest, runtimeChangeReasonPluginUpgraded)
 	}
 	if err = s.storeSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin release upgraded on primary node."); err != nil {
@@ -300,10 +302,10 @@ func (s *serviceImpl) applyStateToggle(
 		return err
 	}
 
-	enabled := plugintypes.StatusDisabled
+	enabled := statusflag.Disabled.Int()
 	eventName := pluginhost.ExtensionPointPluginDisabled
 	if desiredState == plugintypes.HostStateEnabled.String() {
-		enabled = plugintypes.StatusEnabled
+		enabled = statusflag.EnabledValue.Int()
 		eventName = pluginhost.ExtensionPointPluginEnabled
 		if err = s.validateFrontendMenuBindings(ctx, manifest); err != nil {
 			return s.rollbackReleaseFailure(ctx, registry, 0, err)
@@ -315,16 +317,16 @@ func (s *serviceImpl) applyStateToggle(
 		}
 	}
 
-	registry, err = s.finalizeState(ctx, registry, manifest, release, plugintypes.InstalledYes, enabled)
+	registry, err = s.finalizeState(ctx, registry, manifest, release, statusflag.Installed.Int(), enabled)
 	if err != nil {
 		return s.rollbackReleaseFailure(ctx, registry, 0, err)
 	}
 	if release != nil {
-		if err = s.storeSvc.UpdateReleaseState(ctx, release.Id, plugintypes.BuildReleaseStatus(plugintypes.InstalledYes, enabled), ""); err != nil {
+		if err = s.storeSvc.UpdateReleaseState(ctx, release.Id, plugintypes.BuildReleaseStatus(statusflag.Installed.Int(), enabled), ""); err != nil {
 			return err
 		}
 	}
-	if enabled == plugintypes.StatusDisabled {
+	if enabled == statusflag.Disabled.Int() {
 		s.invalidateRuntimeCaches(ctx, manifest, runtimeChangeReasonPluginDisabled)
 	} else {
 		s.invalidateRuntimeCaches(ctx, manifest, runtimeChangeReasonPluginEnabled)
@@ -395,9 +397,9 @@ func (s *serviceImpl) applyRefresh(
 		return s.rollbackReleaseFailure(ctx, registry, release.Id, err)
 	}
 
-	enabled := plugintypes.StatusDisabled
+	enabled := statusflag.Disabled.Int()
 	if desiredState == plugintypes.HostStateEnabled.String() {
-		enabled = plugintypes.StatusEnabled
+		enabled = statusflag.EnabledValue.Int()
 		if err = s.validateFrontendMenuBindings(ctx, manifest); err != nil {
 			return s.rollbackReleaseFailure(ctx, registry, release.Id, err)
 		}
@@ -408,15 +410,15 @@ func (s *serviceImpl) applyRefresh(
 		}
 	}
 
-	registry, err = s.finalizeState(ctx, registry, manifest, release, plugintypes.InstalledYes, enabled)
+	registry, err = s.finalizeState(ctx, registry, manifest, release, statusflag.Installed.Int(), enabled)
 	if err != nil {
 		return s.rollbackReleaseFailure(ctx, registry, release.Id, err)
 	}
-	if err = s.storeSvc.UpdateReleaseState(ctx, release.Id, plugintypes.BuildReleaseStatus(plugintypes.InstalledYes, enabled), archivedPath); err != nil {
+	if err = s.storeSvc.UpdateReleaseState(ctx, release.Id, plugintypes.BuildReleaseStatus(statusflag.Installed.Int(), enabled), archivedPath); err != nil {
 		return err
 	}
 	s.cleanupStaleReleaseArtifacts(ctx, manifest.ID)
-	if enabled == plugintypes.StatusEnabled {
+	if enabled == statusflag.EnabledValue.Int() {
 		s.invalidateRuntimeCaches(ctx, manifest, runtimeChangeReasonPluginRefreshed)
 	}
 	if err = s.storeSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin release refreshed on primary node."); err != nil {
@@ -452,10 +454,10 @@ func (s *serviceImpl) shouldRefreshInstalledRelease(
 	if registry == nil || manifest == nil {
 		return false
 	}
-	if plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic {
 		return false
 	}
-	if registry.Installed != plugintypes.InstalledYes {
+	if registry.Installed != statusflag.Installed.Int() {
 		return false
 	}
 	if strings.TrimSpace(registry.Checksum) == "" {

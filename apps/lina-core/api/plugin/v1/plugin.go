@@ -9,6 +9,9 @@ const (
 	PluginTypeDynamic PluginType = "dynamic"
 )
 
+// String returns the serialized plugin type value.
+func (value PluginType) String() string { return string(value) }
+
 // PluginDistribution identifies the host governance model for plugin delivery.
 type PluginDistribution string
 
@@ -17,6 +20,9 @@ const (
 	PluginDistributionMarketplace PluginDistribution = "marketplace"
 	PluginDistributionBuiltin     PluginDistribution = "builtin"
 )
+
+// String returns the serialized plugin distribution value.
+func (value PluginDistribution) String() string { return string(value) }
 
 // RuntimeState identifies whether discovered plugin files match effective state.
 type RuntimeState string
@@ -30,6 +36,9 @@ const (
 	RuntimeStateUpgradeFailed  RuntimeState = "upgrade_failed"
 )
 
+// String returns the serialized runtime state value.
+func (value RuntimeState) String() string { return string(value) }
+
 // RuntimeAbnormalReason identifies why a plugin cannot be treated as normally upgradeable.
 type RuntimeAbnormalReason string
 
@@ -38,6 +47,9 @@ const (
 	RuntimeAbnormalReasonDiscoveredVersionLowerThanEffective RuntimeAbnormalReason = "discovered_version_lower_than_effective"
 	RuntimeAbnormalReasonVersionCompareFailed                RuntimeAbnormalReason = "version_compare_failed"
 )
+
+// String returns the serialized runtime abnormal reason value.
+func (value RuntimeAbnormalReason) String() string { return string(value) }
 
 // RuntimeFailurePhase identifies the phase associated with the latest failure.
 type RuntimeFailurePhase string
@@ -53,6 +65,9 @@ const (
 	RuntimeFailurePhaseCacheInvalidation RuntimeFailurePhase = "cache_invalidation"
 )
 
+// String returns the serialized runtime failure phase value.
+func (value RuntimeFailurePhase) String() string { return string(value) }
+
 // ScopeNature defines how a plugin participates in tenant governance.
 type ScopeNature string
 
@@ -62,6 +77,9 @@ const (
 	ScopeNatureTenantAware  ScopeNature = "tenant_aware"
 )
 
+// String returns the serialized scope nature value.
+func (value ScopeNature) String() string { return string(value) }
+
 // InstallMode defines how a tenant-aware plugin is enabled across tenants.
 type InstallMode string
 
@@ -70,6 +88,9 @@ const (
 	InstallModeGlobal       InstallMode = "global"
 	InstallModeTenantScoped InstallMode = "tenant_scoped"
 )
+
+// String returns the serialized install mode value.
+func (value InstallMode) String() string { return string(value) }
 
 // AuthorizationStatus identifies host-service authorization review state.
 type AuthorizationStatus string
@@ -81,6 +102,9 @@ const (
 	AuthorizationStatusConfirmed   AuthorizationStatus = "confirmed"
 )
 
+// String returns the serialized authorization status value.
+func (value AuthorizationStatus) String() string { return string(value) }
+
 // DependencyStatus identifies one plugin dependency edge state.
 type DependencyStatus string
 
@@ -91,6 +115,9 @@ const (
 	DependencyStatusVersionUnsatisfied DependencyStatus = "version_unsatisfied"
 )
 
+// String returns the serialized dependency status value.
+func (value DependencyStatus) String() string { return string(value) }
+
 // FrameworkStatus identifies framework-version compatibility.
 type FrameworkStatus string
 
@@ -100,6 +127,9 @@ const (
 	FrameworkStatusSatisfied   FrameworkStatus = "satisfied"
 	FrameworkStatusUnsatisfied FrameworkStatus = "unsatisfied"
 )
+
+// String returns the serialized framework status value.
+func (value FrameworkStatus) String() string { return string(value) }
 
 // BlockerCode identifies one plugin dependency check failure category.
 type BlockerCode string
@@ -114,3 +144,6 @@ const (
 	BlockerCodeReverseDependency            BlockerCode = "reverse_dependency"
 	BlockerCodeReverseDependencyVersion     BlockerCode = "reverse_dependency_version"
 )
+
+// String returns the serialized blocker code value.
+func (value BlockerCode) String() string { return string(value) }

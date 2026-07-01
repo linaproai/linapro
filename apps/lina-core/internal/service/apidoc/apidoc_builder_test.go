@@ -23,7 +23,9 @@ import (
 )
 
 // testConfigProvider provides fixed OpenAPI metadata for builder tests.
-type testConfigProvider struct{}
+type testConfigProvider struct {
+	configsvc.Service
+}
 
 // testPluginRouteProvider provides controllable source and dynamic plugin route
 // projection inputs for builder tests.
@@ -77,6 +79,11 @@ func (p *testConfigProvider) GetOpenApi(ctx context.Context) *configsvc.OpenApiC
 		ServerUrl:         "https://api.example.com",
 		ServerDescription: "Test API Server",
 	}
+}
+
+// GetPluginDynamicStoragePath returns the default dynamic-plugin storage root.
+func (p *testConfigProvider) GetPluginDynamicStoragePath(ctx context.Context) string {
+	return configsvc.New().GetPluginDynamicStoragePath(ctx)
 }
 
 // ListSourceRouteBindings returns the test-controlled source route snapshot.
@@ -382,7 +389,6 @@ func TestLocalizeSchemaTranslatesAlreadySeenDirectMetadata(t *testing.T) {
 func TestEnglishLocalizerPreservesGeneratedSchemaMetadata(t *testing.T) {
 	service := New(&testConfigProvider{}, bizctx.New(), i18nsvc.New(bizctx.New(), configsvc.New(), cachecoord.Default(nil)), &testPluginRouteProvider{}).(*serviceImpl)
 	localizer := &openAPILocalizer{
-		locale:  i18nsvc.EnglishLocale,
 		catalog: map[string]string{},
 	}
 	schema := &goai.Schema{

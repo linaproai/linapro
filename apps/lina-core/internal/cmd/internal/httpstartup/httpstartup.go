@@ -45,7 +45,15 @@ func Run(ctx context.Context) error {
 		return err
 	}
 
-	bindHostedOpenAPIDocs(startupCtx, server, runtime.apiDocSvc, runtime.serverCfg.ApiDocPath, runtime.i18nSvc, runtime.bizCtxSvc)
+	serverExtensions := runtime.configSvc.GetServerExtensions(startupCtx)
+	bindHostedOpenAPIDocs(
+		startupCtx,
+		server,
+		runtime.apiDocSvc,
+		serverExtensions.ApiDocPath,
+		runtime.i18nSvc,
+		runtime.bizCtxSvc,
+	)
 	logHTTPStartupSummary(startupCtx, startupCollector)
 	dispatchSystemStartedHook(ctx, runtime.pluginSvc)
 

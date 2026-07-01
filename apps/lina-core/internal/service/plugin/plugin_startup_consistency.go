@@ -5,6 +5,7 @@ package plugin
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"lina-core/internal/service/plugin/internal/governance"
@@ -12,41 +13,9 @@ import (
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/bizerr"
-	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
-
-// platformGovernanceTenantCapability is the tenant-capability slice required by
-// plugin governance guards.
-type platformGovernanceTenantCapability = governance.TenantCapability
-
-// pluginTenantStartupCapability is the tenant slice needed by plugin startup
-// consistency checks. It excludes request resolution, data-scope, membership
-// writes, and provisioning.
-type pluginTenantStartupCapability interface {
-	// Available reports whether an active tenant provider can serve framework calls.
-	Available(ctx context.Context) bool
-	// ValidateUserMembershipStartupConsistency returns startup consistency failures detected by the provider.
-	ValidateUserMembershipStartupConsistency(ctx context.Context) ([]string, error)
-}
-
-// organizationDeptProvider stores the startup-owned organization capability and
-// exposes only the department lookup needed by plugin resource data scopes.
-type organizationDeptProvider struct {
-	service orgcapsvc.Service
-}
-
-// GetUserDeptIDs returns one user's department IDs through the current organization capability.
-func (p *organizationDeptProvider) GetUserDeptIDs(ctx context.Context, userID int) ([]int, error) {
-	if p == nil {
-		return []int{}, nil
-	}
-	service := p.service
-	if service == nil {
-		return []int{}, nil
-	}
-	return service.GetUserDeptIDs(ctx, userID)
-}
 
 // WithStartupDataSnapshot returns a child context carrying catalog and
 // integration startup snapshots for one host startup orchestration.
@@ -108,7 +77,7 @@ func (s *serviceImpl) validatePluginStartupConsistency(ctx context.Context) ([]s
 // is active when the linapro-tenant-core plugin is enabled.
 func (s *serviceImpl) validateProviderStartupConsistency(ctx context.Context) ([]string, error) {
 	enabled := s.IsEnabled(ctx, tenantcap.ProviderPluginID)
-	if !enabled || (s.tenantStartup != nil && s.tenantStartup.Available(ctx)) {
+	if !enabled || (s.tenantSvc != nil && s.tenantSvc.Available(ctx)) {
 		return nil, nil
 	}
 	return []string{"linapro-tenant-core plugin is enabled but capability tenant provider is not active"}, nil
@@ -117,28 +86,60 @@ func (s *serviceImpl) validateProviderStartupConsistency(ctx context.Context) ([
 // validateTenantMembershipStartupConsistency delegates tenant membership
 // checks to the startup-owned tenant capability instance.
 func (s *serviceImpl) validateTenantMembershipStartupConsistency(ctx context.Context) ([]string, error) {
-	if s == nil || s.tenantStartup == nil {
+	if s == nil || s.tenantSvc == nil {
 		return nil, bizerr.NewCode(
 			CodePluginStartupConsistencyFailed,
 			bizerr.P("details", "plugin startup consistency requires injected tenant capability service"),
 		)
 	}
-	return s.tenantStartup.ValidateUserMembershipStartupConsistency(ctx)
+	return s.tenantSvc.ValidateUserMembershipStartupConsistency(ctx)
 }
 
 // ensurePlatformGovernance verifies the current request can mutate platform
 // plugin governance state.
 func (s *serviceImpl) ensurePlatformGovernance(ctx context.Context) error {
-	return governance.EnsurePlatformContext(ctx, s.platformGovernanceTenantCapability())
+	var tenantSvc tenantspi.Service
+	if s != nil {
+		tenantSvc = s.tenantSvc
+	}
+	return governance.EnsurePlatformContext(ctx, tenantSvc)
 }
 
-// platformGovernanceTenantCapability returns the tenant capability used by the
-// plugin governance guard.
-func (s *serviceImpl) platformGovernanceTenantCapability() platformGovernanceTenantCapability {
+// ensureBuiltinManagementActionAllowed rejects ordinary management mutations
+// for project built-in plugins. It consults both the registry and the desired
+// manifest so uninstalled builtin plugins are guarded before a registry row
+// exists, while registry-only dynamic cleanup paths can continue when the
+// mutable manifest is unavailable.
+func (s *serviceImpl) ensureBuiltinManagementActionAllowed(ctx context.Context, pluginID string) error {
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" {
+		return nil
+	}
 	if s == nil {
 		return nil
 	}
-	return s.tenantGovernance
+
+	if s.storeSvc != nil {
+		registry, err := s.storeSvc.GetRegistry(ctx, normalizedPluginID)
+		if err != nil {
+			return err
+		}
+		if registry != nil && registry.Distribution == pluginv1.PluginDistributionBuiltin.String() {
+			return bizerr.NewCode(CodePluginBuiltinManagementActionDenied, bizerr.P("pluginId", normalizedPluginID))
+		}
+	}
+
+	if s.catalogSvc == nil {
+		return nil
+	}
+	manifest, err := s.catalogSvc.GetDesiredManifest(normalizedPluginID)
+	if err != nil || manifest == nil {
+		return nil
+	}
+	if plugintypes.NormalizeDistribution(manifest.Distribution) == pluginv1.PluginDistributionBuiltin {
+		return bizerr.NewCode(CodePluginBuiltinManagementActionDenied, bizerr.P("pluginId", normalizedPluginID))
+	}
+	return nil
 }
 
 // UpdateTenantProvisioningPolicy updates the platform-owned new-tenant plugin provisioning policy.
@@ -165,7 +166,7 @@ func (s *serviceImpl) UpdateTenantProvisioningPolicy(
 		return bizerr.NewCode(CodePluginSourceRegistryNotFound, bizerr.P("pluginId", normalizedPluginID))
 	}
 	if !s.registrySupportsTenantGovernance(ctx, registry) ||
-		plugintypes.NormalizeInstallMode(registry.InstallMode) != plugintypes.InstallModeTenantScoped {
+		plugintypes.NormalizeInstallMode(registry.InstallMode) != pluginv1.InstallModeTenantScoped {
 		return bizerr.NewCode(CodePluginTenantProvisioningPolicyInvalid, bizerr.P("pluginId", normalizedPluginID))
 	}
 	if err = s.storeSvc.SetAutoEnableForNewTenants(ctx, normalizedPluginID, autoEnableForNewTenants); err != nil {

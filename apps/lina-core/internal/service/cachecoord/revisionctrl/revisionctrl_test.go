@@ -10,8 +10,6 @@ import (
 
 	_ "lina-core/pkg/dbdriver"
 
-	"lina-core/internal/dao"
-	"lina-core/internal/model/do"
 	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/coordination"
 )
@@ -349,9 +347,11 @@ func TestControllerWithTenantScopeReturnsCopy(t *testing.T) {
 // cache controller can observe plugin-runtime changes published by another
 // instance through cachecoord.
 func TestControllerConsumesCrossInstancePluginRuntimeRevision(t *testing.T) {
-	ctx := context.Background()
-	scope := cachecoord.Scope("unit-test-plugin-runtime-dual")
-	coordSvc := coordination.NewMemory(nil)
+	var (
+		ctx      = context.Background()
+		scope    = cachecoord.Scope("unit-test-plugin-runtime-dual")
+		coordSvc = coordination.NewMemory(nil)
+	)
 
 	publisher := NewControllerForScopeWithCoordinator(
 		scope,
@@ -387,21 +387,4 @@ func TestControllerConsumesCrossInstancePluginRuntimeRevision(t *testing.T) {
 	if atomic.LoadInt32(&refreshCalls) != 1 {
 		t.Fatalf("expected one cache refresh after cross-instance revision, got %d", refreshCalls)
 	}
-}
-
-// cleanupPluginRuntimeRevision removes one shared plugin-runtime revision row
-// used by cross-instance tests.
-func cleanupPluginRuntimeRevision(t *testing.T, ctx context.Context, scope cachecoord.Scope) {
-	t.Helper()
-
-	cleanup := func() {
-		if _, err := dao.SysCacheRevision.Ctx(ctx).Where(do.SysCacheRevision{
-			Domain: runtimeCacheDomain,
-			Scope:  scope,
-		}).Delete(); err != nil {
-			t.Fatalf("cleanup plugin-runtime revision failed: %v", err)
-		}
-	}
-	cleanup()
-	t.Cleanup(cleanup)
 }

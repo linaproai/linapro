@@ -11,9 +11,9 @@ import (
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 )
 
-// DynamicRouteMetadata stores generic metadata synthesized from one matched
-// dynamic route for downstream source-plugin middleware.
-type DynamicRouteMetadata struct {
+// Metadata stores generic metadata synthesized from one matched dynamic route
+// for downstream source-plugin middleware.
+type Metadata struct {
 	// PluginID is the dynamic plugin that owns the matched route.
 	PluginID string
 	// Method is the declared dynamic route HTTP method.
@@ -32,9 +32,9 @@ type DynamicRouteMetadata struct {
 	ResponseContentType string
 }
 
-// BuildDynamicRouteMetadata is the exported form of buildDynamicRouteMetadata for cross-package access.
-func BuildDynamicRouteMetadata(runtimeState *DynamicRouteRuntimeState) *DynamicRouteMetadata {
-	return buildDynamicRouteMetadata(runtimeState)
+// BuildMetadata is the exported form of buildMetadata for cross-package access.
+func BuildMetadata(runtimeState *DynamicRouteRuntimeState) *Metadata {
+	return buildMetadata(runtimeState)
 }
 
 // setDynamicRouteRuntimeState stores the resolved runtime state on the request context.
@@ -79,21 +79,21 @@ func getDynamicRouteIdentitySnapshot(request *ghttp.Request) *bridgecontract.Ide
 	return identity
 }
 
-// setDynamicRouteMetadata stores generic dynamic-route metadata on the request context.
-func setDynamicRouteMetadata(request *ghttp.Request, metadata *DynamicRouteMetadata) {
+// setMetadata stores generic dynamic-route metadata on the request context.
+func setMetadata(request *ghttp.Request, metadata *Metadata) {
 	if request == nil || metadata == nil {
 		return
 	}
 	request.SetCtxVar(dynamicRouteCtxVarMetadata, metadata)
 }
 
-// buildDynamicRouteMetadata maps matched route declarations into generic
+// buildMetadata maps matched route declarations into generic
 // request metadata for source-plugin middleware.
-func buildDynamicRouteMetadata(runtimeState *dynamicRouteRuntimeState) *DynamicRouteMetadata {
+func buildMetadata(runtimeState *dynamicRouteRuntimeState) *Metadata {
 	if runtimeState == nil || runtimeState.Match == nil || runtimeState.Match.Route == nil {
 		return nil
 	}
-	metadata := &DynamicRouteMetadata{
+	metadata := &Metadata{
 		PluginID:   strings.TrimSpace(runtimeState.Match.PluginID),
 		Method:     strings.TrimSpace(runtimeState.Match.Route.Method),
 		PublicPath: strings.TrimSpace(runtimeState.Match.PublicPath),
@@ -104,9 +104,9 @@ func buildDynamicRouteMetadata(runtimeState *dynamicRouteRuntimeState) *DynamicR
 	return metadata
 }
 
-// GetDynamicRouteMetadata returns generic dynamic-route metadata attached
+// GetMetadata returns generic dynamic-route metadata attached
 // during the host middleware chain.
-func GetDynamicRouteMetadata(request *ghttp.Request) *DynamicRouteMetadata {
+func GetMetadata(request *ghttp.Request) *Metadata {
 	if request == nil {
 		return nil
 	}
@@ -114,6 +114,6 @@ func GetDynamicRouteMetadata(request *ghttp.Request) *DynamicRouteMetadata {
 	if value == nil {
 		return nil
 	}
-	metadata, _ := value.(*DynamicRouteMetadata)
+	metadata, _ := value.(*Metadata)
 	return metadata
 }

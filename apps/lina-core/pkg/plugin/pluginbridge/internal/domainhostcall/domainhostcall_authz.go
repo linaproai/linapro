@@ -20,31 +20,36 @@ func Authz(invoker Invoker) authz.Service {
 }
 
 // BatchGetPermissions returns visible permission projections and opaque missing keys.
-func (s authzService) BatchGetPermissions(_ context.Context, _ capmodel.CapabilityContext, keys []authz.PermissionKey) (*capmodel.BatchResult[*authz.PermissionProjection, authz.PermissionKey], error) {
-	out := &capmodel.BatchResult[*authz.PermissionProjection, authz.PermissionKey]{Items: map[authz.PermissionKey]*authz.PermissionProjection{}}
+func (s authzService) BatchGetPermissions(_ context.Context, keys []authz.PermissionKey) (*capmodel.BatchResult[*authz.PermissionInfo, authz.PermissionKey], error) {
+	out := &capmodel.BatchResult[*authz.PermissionInfo, authz.PermissionKey]{Items: map[authz.PermissionKey]*authz.PermissionInfo{}}
 	err := s.callJSONRequest(protocol.HostServiceAuthz, protocol.HostServiceMethodAuthzBatchGetPermissions, idsRequest{IDs: permissionKeysToStrings(keys)}, out)
 	return out, err
 }
 
 // BatchHasPermissions reports whether the actor has each permission in the current scope.
-func (s authzService) BatchHasPermissions(_ context.Context, _ capmodel.CapabilityContext, keys []authz.PermissionKey) (map[authz.PermissionKey]bool, error) {
+func (s authzService) BatchHasPermissions(_ context.Context, keys []authz.PermissionKey) (map[authz.PermissionKey]bool, error) {
 	out := map[authz.PermissionKey]bool{}
 	err := s.callJSONRequest(protocol.HostServiceAuthz, protocol.HostServiceMethodAuthzBatchHasPermissions, idsRequest{IDs: permissionKeysToStrings(keys)}, &out)
 	return out, err
 }
 
 // HasPermission reports whether the actor has one permission in the current scope.
-func (s authzService) HasPermission(_ context.Context, _ capmodel.CapabilityContext, key authz.PermissionKey) (bool, error) {
+func (s authzService) HasPermission(_ context.Context, key authz.PermissionKey) (bool, error) {
 	var out bool
 	err := s.callJSONRequest(protocol.HostServiceAuthz, protocol.HostServiceMethodAuthzHasPermission, keyRequest{Key: string(key)}, &out)
 	return out, err
 }
 
 // IsPlatformAdmin reports whether the user has a platform all-data role.
-func (s authzService) IsPlatformAdmin(_ context.Context, _ capmodel.CapabilityContext, userID authz.UserID) (bool, error) {
+func (s authzService) IsPlatformAdmin(_ context.Context, userID authz.UserID) (bool, error) {
 	var out bool
 	err := s.callJSONRequest(protocol.HostServiceAuthz, protocol.HostServiceMethodAuthzIsPlatformAdmin, userIDRequest{UserID: string(userID)}, &out)
 	return out, err
+}
+
+// ReplaceRolePermissions is not published as a dynamic authz host-service method.
+func (s authzService) ReplaceRolePermissions(context.Context, authz.RoleID, []authz.PermissionKey) error {
+	return unsupportedDynamicMethodError("authz.role_permissions.replace")
 }
 
 // keyRequest carries one string key for JSON capability methods.

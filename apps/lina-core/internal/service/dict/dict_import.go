@@ -28,11 +28,6 @@ func isValidDictType(typeStr string) bool {
 	return dictTypeRegex.MatchString(typeStr)
 }
 
-// isValidDictValue checks if the dict value is valid (non-empty, no leading/trailing spaces).
-func isValidDictValue(value string) bool {
-	return len(value) > 0 && value == regexp.MustCompile(`^\s+|\s+$`).ReplaceAllString(value, "")
-}
-
 // CombinedImportResult represents the result of combined import.
 type CombinedImportResult struct {
 	TypeSuccess int
@@ -240,9 +235,11 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 			continue
 		}
 
-		dictType := row[0]
-		label := row[1]
-		value := row[2]
+		var (
+			dictType = row[0]
+			label    = row[1]
+			value    = row[2]
+		)
 
 		// Validate label is not empty
 		if label == "" {
@@ -706,9 +703,11 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 			continue
 		}
 
-		dictType := row[0]
-		label := row[1]
-		value := row[2]
+		var (
+			dictType = row[0]
+			label    = row[1]
+			value    = row[2]
+		)
 
 		// Validate label is not empty
 		if label == "" {

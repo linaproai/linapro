@@ -116,27 +116,6 @@ var publicFrontendSettingSpecByKey = func() map[string]RuntimeParamSpec {
 	return specByKey
 }()
 
-// publicFrontendSettingKeys keeps the deterministic key order for public
-// frontend protected-config queries.
-var publicFrontendSettingKeys = []string{
-	PublicFrontendSettingKeyAppName,
-	PublicFrontendSettingKeyAppLogo,
-	PublicFrontendSettingKeyAppLogoDark,
-	PublicFrontendSettingKeyUserDefaultAvatar,
-	PublicFrontendSettingKeyAuthPageTitle,
-	PublicFrontendSettingKeyAuthPageDesc,
-	PublicFrontendSettingKeyAuthLoginSubtitle,
-	PublicFrontendSettingKeyAuthLoginPanelLayout,
-	PublicFrontendSettingKeyUIThemeMode,
-	PublicFrontendSettingKeyUILayout,
-	PublicFrontendSettingKeyUIWatermarkEnabled,
-	PublicFrontendSettingKeyUIWatermarkContent,
-}
-
-// protectedConfigKeys contains all built-in config keys whose lifecycle is
-// governed by the host and must not be renamed or deleted.
-var protectedConfigKeys = appendProtectedConfigKeys()
-
 // PublicFrontendConfig describes the safe frontend settings exposed by the host.
 type PublicFrontendConfig struct {
 	App       PublicFrontendAppConfig       `json:"app"`       // App groups brand-related settings.
@@ -207,8 +186,8 @@ type PublicFrontendWorkspaceConfig struct {
 	BasePath string `json:"basePath"` // BasePath is the admin workspace entry path.
 }
 
-// PublicFrontendSettingSpecs returns all built-in public frontend setting specs.
-func PublicFrontendSettingSpecs() []RuntimeParamSpec {
+// publicFrontendSettingSpecsCopy returns all built-in public frontend setting specs.
+func publicFrontendSettingSpecsCopy() []RuntimeParamSpec {
 	specs := make([]RuntimeParamSpec, len(publicFrontendSettingSpecs))
 	copy(specs, publicFrontendSettingSpecs)
 	return specs
@@ -223,7 +202,7 @@ func LookupPublicFrontendSettingSpec(key string) (RuntimeParamSpec, bool) {
 // IsManagedSysConfigKey reports whether the key belongs to one built-in
 // sys_config value managed by the host runtime.
 func IsManagedSysConfigKey(key string) bool {
-	if IsManagedRuntimeParamKey(key) {
+	if isManagedRuntimeParamKey(key) {
 		return true
 	}
 	_, ok := LookupPublicFrontendSettingSpec(key)
@@ -233,10 +212,10 @@ func IsManagedSysConfigKey(key string) bool {
 // ValidateProtectedConfigValue validates one built-in protected config value.
 func ValidateProtectedConfigValue(key string, value string) error {
 	trimmedKey := strings.TrimSpace(key)
-	if IsManagedRuntimeParamKey(trimmedKey) {
-		return ValidateRuntimeParamValue(trimmedKey, value)
+	if isManagedRuntimeParamKey(trimmedKey) {
+		return validateRuntimeParamValue(trimmedKey, value)
 	}
-	return ValidatePublicFrontendSettingValue(trimmedKey, value)
+	return validatePublicFrontendSettingValue(trimmedKey, value)
 }
 
 // normalizeProtectedConfigValue trims whitespace and lowercases one protected
@@ -245,8 +224,8 @@ func normalizeProtectedConfigValue(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
-// ValidatePublicFrontendSettingValue validates one built-in public frontend setting value.
-func ValidatePublicFrontendSettingValue(key string, value string) error {
+// validatePublicFrontendSettingValue validates one built-in public frontend setting value.
+func validatePublicFrontendSettingValue(key string, value string) error {
 	switch strings.TrimSpace(key) {
 	case PublicFrontendSettingKeyAppName,
 		PublicFrontendSettingKeyAuthPageTitle,
@@ -406,15 +385,6 @@ func resolveSystemTimezone(envTimezone string, processTimezone string) string {
 	return "Asia/Shanghai"
 }
 
-// appendProtectedConfigKeys returns the full protected-config key list by
-// combining runtime backend settings and public frontend settings.
-func appendProtectedConfigKeys() []string {
-	keys := make([]string, 0, len(runtimeParamKeys)+len(publicFrontendSettingKeys))
-	keys = append(keys, runtimeParamKeys...)
-	keys = append(keys, publicFrontendSettingKeys...)
-	return keys
-}
-
 // getProtectedConfigValueOrDefault returns the runtime override when present or
 // falls back to the built-in default from the protected setting spec.
 func (s *serviceImpl) getProtectedConfigValueOrDefault(ctx context.Context, key string) (string, error) {
@@ -430,7 +400,7 @@ func (s *serviceImpl) getProtectedConfigValueOrDefault(ctx context.Context, key 
 	if ok {
 		return spec.DefaultValue, nil
 	}
-	specRuntime, ok := LookupRuntimeParamSpec(key)
+	specRuntime, ok := lookupRuntimeParamSpec(key)
 	if ok {
 		return specRuntime.DefaultValue, nil
 	}

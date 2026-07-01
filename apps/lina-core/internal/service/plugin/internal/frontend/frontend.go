@@ -21,8 +21,8 @@ type RuntimeFrontendAssetOutput struct {
 
 // Service defines the frontend service contract.
 type Service interface {
-	// EnsureBundleReader returns a BundleReader for the manifest, building and caching the bundle if needed.
-	EnsureBundleReader(ctx context.Context, manifest *catalog.Manifest) (BundleReader, error)
+	// EnsureBundleReader returns a bundleReader for the manifest, building and caching the bundle if needed.
+	EnsureBundleReader(ctx context.Context, manifest *catalog.Manifest) (bundleReader, error)
 	// ValidateRuntimeFrontendMenuBindings verifies that dynamic plugin menus only reference
 	// hosted assets that exist in the plugin's in-memory bundle.
 	ValidateRuntimeFrontendMenuBindings(ctx context.Context, manifest *catalog.Manifest) error

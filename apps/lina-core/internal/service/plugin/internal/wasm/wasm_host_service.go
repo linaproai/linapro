@@ -8,19 +8,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
+	"lina-core/internal/service/plugin/internal/capabilityowner"
+	"lina-core/internal/service/plugin/internal/manifestresource"
+	"lina-core/internal/service/plugin/internal/pluginconfig"
 	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/capability/bizctxcap"
-	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
-	"lina-core/pkg/plugin/capability/manifestcap"
-	"lina-core/pkg/plugin/capability/plugincap"
-	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -29,9 +25,9 @@ import (
 // host calls for one WASM runtime instance.
 type hostServiceRuntime struct {
 	domainServices      capability.Services
-	pluginConfigFactory plugincap.ConfigServiceFactory
+	pluginConfigFactory pluginconfig.Factory
 	hostConfigService   hostconfigcap.Service
-	manifestFactory     manifestcap.ServiceFactory
+	manifestFactory     manifestresource.Factory
 	storageUploads      *storageUploadSessions
 }
 
@@ -39,9 +35,9 @@ type hostServiceRuntime struct {
 // service instances.
 func NewRuntime(
 	domainServices capability.Services,
-	pluginConfigFactory plugincap.ConfigServiceFactory,
+	pluginConfigFactory pluginconfig.Factory,
 	hostConfigService hostconfigcap.Service,
-	manifestFactory manifestcap.ServiceFactory,
+	manifestFactory manifestresource.Factory,
 ) (Runtime, error) {
 	if domainServices == nil {
 		return nil, gerror.New("domain host services directory is nil")
@@ -73,105 +69,7 @@ func capabilityServicesForHostCall(hcc *hostCallContext) capability.Services {
 	if hcc == nil || hcc.runtime == nil || hcc.runtime.domainServices == nil {
 		return nil
 	}
-	return capability.ServicesForPlugin(hcc.runtime.domainServices, hcc.pluginID)
-}
-
-// capabilityContextForHostCall constructs audited domain-call metadata from
-// the trusted host-call context shared by all capability-backed dispatchers.
-func capabilityContextForHostCall(hcc *hostCallContext, service string, method string) capmodel.CapabilityContext {
-	now := time.Now()
-	if hcc == nil {
-		return capmodel.CapabilityContext{
-			Actor:       capmodel.CapabilityActor{Type: capmodel.ActorTypeSystem, SystemReason: "dynamic plugin host service"},
-			Source:      capmodel.CapabilitySourceHost,
-			SystemCall:  true,
-			Resource:    strings.TrimSpace(service) + "." + strings.TrimSpace(method),
-			RequestedAt: now,
-		}
-	}
-
-	actor := capmodel.CapabilityActor{
-		Type:         capmodel.ActorTypeSystem,
-		SystemReason: "dynamic plugin host service",
-	}
-	tenantID := ""
-	if hcc.identity != nil {
-		tenantID = strconv.Itoa(int(hcc.identity.TenantId))
-		if hcc.identity.UserID > 0 {
-			actor = capmodel.CapabilityActor{
-				Type:   capmodel.ActorTypeUser,
-				UserID: int64(hcc.identity.UserID),
-				Name:   hcc.identity.Username,
-			}
-		}
-	}
-	return capmodel.CapabilityContext{
-		PluginID:      strings.TrimSpace(hcc.pluginID),
-		Actor:         actor,
-		TenantID:      capmodel.DomainID(tenantID),
-		Source:        capabilitySourceFromExecution(hcc.executionSource),
-		SystemCall:    actor.Type == capmodel.ActorTypeSystem,
-		Authorization: capabilityAuthorizationForHostCall(hcc),
-		Resource:      strings.TrimSpace(service) + "." + strings.TrimSpace(method),
-		TraceID:       strings.TrimSpace(hcc.requestID),
-		RequestedAt:   now,
-	}
-}
-
-func capabilitySourceFromExecution(source bridgecontract.ExecutionSource) capmodel.CapabilitySource {
-	switch bridgecontract.NormalizeExecutionSource(source) {
-	case bridgecontract.ExecutionSourceRoute:
-		return capmodel.CapabilitySourceHTTP
-	case bridgecontract.ExecutionSourceHook:
-		return capmodel.CapabilitySourceHook
-	case bridgecontract.ExecutionSourceJobs:
-		return capmodel.CapabilitySourceJobs
-	case bridgecontract.ExecutionSourceLifecycle:
-		return capmodel.CapabilitySourceLifecycle
-	default:
-		return capmodel.CapabilitySourceHost
-	}
-}
-
-func capabilityAuthorizationFromHostServices(specs []*bridgehostservice.HostServiceSpec) capmodel.CapabilityAuthorizationSnapshot {
-	authorization := capmodel.CapabilityAuthorizationSnapshot{
-		Services:  map[string][]string{},
-		Resources: map[string][]string{},
-	}
-	for _, spec := range specs {
-		if spec == nil {
-			continue
-		}
-		service := strings.TrimSpace(spec.Service)
-		if service == "" {
-			continue
-		}
-		authorization.Services[service] = append([]string(nil), spec.Methods...)
-		if len(spec.Resources) == 0 {
-			continue
-		}
-		for _, resource := range spec.Resources {
-			if resource == nil || strings.TrimSpace(resource.Ref) == "" {
-				continue
-			}
-			for _, method := range spec.Methods {
-				key := service + "." + method
-				authorization.Resources[key] = append(authorization.Resources[key], strings.TrimSpace(resource.Ref))
-			}
-		}
-	}
-	return authorization
-}
-
-func capabilityAuthorizationForHostCall(hcc *hostCallContext) capmodel.CapabilityAuthorizationSnapshot {
-	if hcc == nil {
-		return capabilityAuthorizationFromHostServices(nil)
-	}
-	authorization := capabilityAuthorizationFromHostServices(hcc.hostServices)
-	if hcc.identity != nil {
-		authorization.Permissions = append([]string(nil), hcc.identity.Permissions...)
-	}
-	return authorization
+	return capabilityowner.ServicesForPlugin(hcc.runtime.domainServices, hcc.pluginID)
 }
 
 // decodeCapabilityJSONRequest decodes a generic capability JSON payload into
@@ -295,12 +193,17 @@ func contextWithHostCallBizContext(ctx context.Context, hcc *hostCallContext) co
 	}
 	identity := hcc.identity
 	return bizctxcap.WithCurrentContext(ctx, bizctxcap.CurrentContext{
-		TokenID:         identity.TokenID,
-		UserID:          int(identity.UserID),
-		Username:        identity.Username,
-		TenantID:        int(identity.TenantId),
-		ActingUserID:    int(identity.ActingUserId),
-		ActingAsTenant:  identity.ActingAsTenant,
-		IsImpersonation: identity.IsImpersonation,
+		TokenID:              identity.TokenID,
+		UserID:               int(identity.UserID),
+		Username:             identity.Username,
+		TenantID:             int(identity.TenantId),
+		ActingUserID:         int(identity.ActingUserId),
+		ActingAsTenant:       identity.ActingAsTenant,
+		IsImpersonation:      identity.IsImpersonation,
+		Permissions:          identity.Permissions,
+		DataScope:            int(identity.DataScope),
+		DataScopeUnsupported: identity.DataScopeUnsupported,
+		UnsupportedDataScope: int(identity.UnsupportedDataScope),
+		IsSuperAdmin:         identity.IsSuperAdmin,
 	})
 }

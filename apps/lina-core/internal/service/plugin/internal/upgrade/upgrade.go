@@ -11,12 +11,13 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
+	"lina-core/internal/service/cluster"
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/coordination"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	plugindep "lina-core/internal/service/plugin/internal/dependency"
 	"lina-core/internal/service/plugin/internal/integration"
-	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/migration"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/runtime"
@@ -116,39 +117,19 @@ type RuntimeUpgradeResult struct {
 	Executed bool
 }
 
-// RuntimeCacheFreshener refreshes process-local plugin runtime caches before
+// runtimeCacheFreshener refreshes process-local plugin runtime caches before
 // read-only upgrade status and preview paths consume derived state.
-type RuntimeCacheFreshener interface {
+type runtimeCacheFreshener interface {
 	// EnsureRuntimeCacheFresh synchronizes local runtime caches with the shared revision.
 	EnsureRuntimeCacheFresh(ctx context.Context) error
 }
 
-// CachePublisher publishes plugin-scoped cache changes after upgrade state changes.
-type CachePublisher interface {
+// cachePublisher publishes plugin-scoped cache changes after upgrade state changes.
+type cachePublisher interface {
 	// PublishPluginChange publishes a plugin-scoped mutation reason.
 	PublishPluginChange(ctx context.Context, pluginID string, pluginType string, reason string) error
 	// SyncEnabledSnapshotAndPublishRuntimeChange refreshes local enablement and publishes a scoped mutation.
 	SyncEnabledSnapshotAndPublishRuntimeChange(ctx context.Context, pluginID string, reason string) error
-}
-
-// MetadataReader reads framework delivery metadata needed by dependency checks.
-type MetadataReader interface {
-	// GetMetadata returns the current framework delivery metadata.
-	GetMetadata(ctx context.Context) *configsvc.MetadataConfig
-}
-
-// I18nService localizes upgrade messages and invalidates runtime bundles.
-type I18nService interface {
-	// Translate returns one runtime translation key with caller-provided fallback text.
-	Translate(ctx context.Context, key string, fallback string) string
-}
-
-// Topology reports cluster mode and node identity for upgrade coordination.
-type Topology interface {
-	// IsEnabled reports whether clustered coordination is enabled.
-	IsEnabled() bool
-	// NodeID returns the stable identifier of the current node.
-	NodeID() string
 }
 
 // Service defines unified plugin upgrade governance operations.
@@ -183,8 +164,6 @@ type serviceImpl struct {
 	catalogSvc catalog.Service
 	// storeSvc owns plugin governance persistence and stable projections.
 	storeSvc store.Service
-	// lifecycleSvc provides install/uninstall and lifecycle precondition orchestration.
-	lifecycleSvc lifecycle.Service
 	// runtimeSvc provides dynamic plugin reconciliation and route dispatch.
 	runtimeSvc runtime.Service
 	// integrationSvc provides host extension, menu, hook, and resource integration.
@@ -194,17 +173,17 @@ type serviceImpl struct {
 	// dependencyResolver evaluates install and reverse-dependency decisions.
 	dependencyResolver *plugindep.Resolver
 	// i18nSvc localizes upgrade result messages.
-	i18nSvc I18nService
+	i18nSvc i18nsvc.Service
 	// runtimeUpgradeLockStore coordinates explicit runtime upgrades across cluster nodes.
 	runtimeUpgradeLockStore coordination.LockStore
 	// cachePublisher publishes upgrade-related plugin cache changes through the root facade.
-	cachePublisher CachePublisher
+	cachePublisher cachePublisher
 	// cacheFreshener refreshes local runtime caches before read-only upgrade paths.
-	cacheFreshener RuntimeCacheFreshener
+	cacheFreshener runtimeCacheFreshener
 	// topology reports cluster mode and node identity.
-	topology Topology
+	topology cluster.Service
 	// metadataSvc reads framework version metadata for dependency checks.
-	metadataSvc MetadataReader
+	metadataSvc configsvc.Service
 	// runtimeUpgradeLocksMu protects process-local runtime-upgrade locks.
 	runtimeUpgradeLocksMu sync.Mutex
 	// runtimeUpgradeLocks serializes explicit runtime upgrades per plugin in the current process.
@@ -218,26 +197,22 @@ type serviceImpl struct {
 func New(
 	catalogSvc catalog.Service,
 	storeSvc store.Service,
-	lifecycleSvc lifecycle.Service,
 	runtimeSvc runtime.Service,
 	integrationSvc integration.Service,
 	migrationSvc migration.Service,
 	dependencyResolver *plugindep.Resolver,
-	i18nSvc I18nService,
+	i18nSvc i18nsvc.Service,
 	runtimeUpgradeLockStore coordination.LockStore,
-	cachePublisher CachePublisher,
-	cacheFreshener RuntimeCacheFreshener,
-	topology Topology,
-	metadataSvc MetadataReader,
+	cachePublisher cachePublisher,
+	cacheFreshener runtimeCacheFreshener,
+	topology cluster.Service,
+	metadataSvc configsvc.Service,
 ) (Service, error) {
 	if catalogSvc == nil {
 		return nil, gerror.New("plugin upgrade service requires a non-nil catalog service")
 	}
 	if storeSvc == nil {
 		return nil, gerror.New("plugin upgrade service requires a non-nil store service")
-	}
-	if lifecycleSvc == nil {
-		return nil, gerror.New("plugin upgrade service requires a non-nil lifecycle service")
 	}
 	if runtimeSvc == nil {
 		return nil, gerror.New("plugin upgrade service requires a non-nil runtime service")
@@ -266,7 +241,6 @@ func New(
 	return &serviceImpl{
 		catalogSvc:              catalogSvc,
 		storeSvc:                storeSvc,
-		lifecycleSvc:            lifecycleSvc,
 		runtimeSvc:              runtimeSvc,
 		integrationSvc:          integrationSvc,
 		migrationSvc:            migrationSvc,

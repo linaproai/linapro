@@ -1,5 +1,5 @@
-// This file exposes public lifecycle provider methods so the lifecycle sub-package
-// can trigger reconciliation and artifact checks without importing the runtime package.
+// This file exposes runtime service methods used by plugin lifecycle orchestration
+// for reconciliation, artifact checks, and registry projections.
 
 package runtime
 
@@ -9,11 +9,11 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
+	"lina-core/pkg/statusflag"
 )
 
-// ReconcileDynamicPluginRequest implements lifecycle.RuntimeOrchestrator. It
-// submits a desired-state transition to the reconciler loop with explicit
-// operation options.
+// ReconcileDynamicPluginRequest submits a desired-state transition to the
+// reconciler loop with explicit operation options.
 func (s *serviceImpl) ReconcileDynamicPluginRequest(
 	ctx context.Context,
 	pluginID string,
@@ -23,14 +23,14 @@ func (s *serviceImpl) ReconcileDynamicPluginRequest(
 	return s.reconcileDynamicPluginRequest(ctx, pluginID, plugintypes.HostState(desiredState), options)
 }
 
-// EnsureRuntimeArtifactAvailable implements lifecycle.RuntimeOrchestrator.
-// It verifies the WASM artifact is present for the given lifecycle action label.
+// EnsureRuntimeArtifactAvailable verifies the WASM artifact is present for the
+// given lifecycle action label.
 func (s *serviceImpl) EnsureRuntimeArtifactAvailable(manifest *catalog.Manifest, actionLabel string) error {
 	return s.ensureArtifactAvailable(manifest, actionLabel)
 }
 
-// ShouldRefreshInstalledDynamicRelease implements lifecycle.RuntimeOrchestrator.
-// It type-asserts registry to *store.PluginRecord then delegates to the private helper.
+// ShouldRefreshInstalledDynamicRelease type-asserts registry to *store.PluginRecord
+// then delegates to the private helper.
 func (s *serviceImpl) ShouldRefreshInstalledDynamicRelease(
 	ctx context.Context,
 	registry interface{},
@@ -153,5 +153,5 @@ func (s *serviceImpl) CheckIsInstalled(ctx context.Context, pluginID string) (bo
 	if registry == nil {
 		return false, nil
 	}
-	return registry.Installed == plugintypes.InstalledYes, nil
+	return registry.Installed == statusflag.Installed.Int(), nil
 }

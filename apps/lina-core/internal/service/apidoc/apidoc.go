@@ -14,14 +14,8 @@ import (
 	"lina-core/pkg/plugin/pluginhost"
 )
 
-// ConfigProvider provides host OpenAPI metadata configuration.
-type ConfigProvider interface {
-	// GetOpenApi returns the current OpenAPI document metadata.
-	GetOpenApi(ctx context.Context) *configsvc.OpenApiConfig
-}
-
-// PluginRouteProvider provides plugin route ownership and OpenAPI projection inputs.
-type PluginRouteProvider interface {
+// pluginRouteProvider provides plugin route ownership and OpenAPI projection inputs.
+type pluginRouteProvider interface {
 	// ListSourceRouteBindings returns source-plugin route bindings captured during registration.
 	ListSourceRouteBindings() []pluginhost.SourceRouteBinding
 	// IsEnabled reports whether the given plugin is currently enabled.
@@ -50,20 +44,14 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	configSvc ConfigProvider
+	configSvc configsvc.Service
 	bizCtxSvc bizctxsvc.Service
-	i18nSvc   apidocI18nService
-	pluginSvc PluginRouteProvider
-}
-
-// apidocI18nService defines the locale and translation capabilities apidoc needs.
-type apidocI18nService interface {
-	i18nsvc.LocaleResolver
-	i18nsvc.Translator
+	i18nSvc   i18nsvc.Service
+	pluginSvc pluginRouteProvider
 }
 
 // New creates and returns a new apidoc service from explicit runtime-owned dependencies.
-func New(configSvc ConfigProvider, bizCtxSvc bizctxsvc.Service, i18nSvc apidocI18nService, pluginSvc PluginRouteProvider) Service {
+func New(configSvc configsvc.Service, bizCtxSvc bizctxsvc.Service, i18nSvc i18nsvc.Service, pluginSvc pluginRouteProvider) Service {
 	return &serviceImpl{
 		configSvc: configSvc,
 		bizCtxSvc: bizCtxSvc,

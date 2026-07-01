@@ -1,12 +1,14 @@
-// Package menu implements menu tree management, permission lookup, and
-// plugin-aware filtering for the Lina core host service.
+// Package menu implements the menu service contract, stable host menu
+// metadata, plugin-aware filtering, and default construction for Lina core.
 package menu
 
 import (
 	"context"
 
 	"lina-core/internal/model/entity"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/role"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // Service defines the menu service contract.
@@ -46,21 +48,28 @@ type Service interface {
 	GetRoleMenuTree(ctx context.Context, roleId int) (*RoleMenuTreeOutput, error)
 }
 
+// menuFilter defines the narrow dependency required by the menu service to hide
+// menus that should not be exposed for the current host state.
+type menuFilter interface {
+	// FilterMenus returns only the menus that should remain visible.
+	FilterMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu
+}
+
 // Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	menuFilter MenuFilter
-	i18nSvc    menuI18nTranslator
+	menuFilter menuFilter
+	i18nSvc    i18nsvc.Service
 	roleSvc    role.Service
-	tenantSvc  platformMenuTenantService
+	tenantSvc  tenantspi.Service
 }
 
 // New creates and returns a new menu service instance.
 // Pass a non-nil menuFilter when menu listing must respect plugin-driven menu
 // visibility; pass nil to use the default no-op filter.
-func New(menuFilter MenuFilter, i18nSvc menuI18nTranslator, roleSvc role.Service, tenantSvc platformMenuTenantService) Service {
+func New(menuFilter menuFilter, i18nSvc i18nsvc.Service, roleSvc role.Service, tenantSvc tenantspi.Service) Service {
 	if menuFilter == nil {
 		menuFilter = noopMenuFilter{}
 	}
@@ -70,6 +79,58 @@ func New(menuFilter MenuFilter, i18nSvc menuI18nTranslator, roleSvc role.Service
 		roleSvc:    roleSvc,
 		tenantSvc:  tenantSvc,
 	}
+}
+
+// noopMenuFilter leaves the menu list unchanged when no external filter is injected.
+type noopMenuFilter struct{}
+
+// FilterMenus returns the original menu list unchanged.
+func (noopMenuFilter) FilterMenus(_ context.Context, menus []*entity.SysMenu) []*entity.SysMenu {
+	return menus
+}
+
+// Stable host catalog menu keys.
+const (
+	// Dashboard is the stable key of the workspace catalog.
+	Dashboard = "dashboard"
+	// IAM is the stable key of the identity-and-access catalog.
+	IAM = "iam"
+	// Org is the stable key of the organization catalog.
+	Org = "org"
+	// Setting is the stable key of the system-settings catalog.
+	Setting = "setting"
+	// Content is the stable key of the content catalog.
+	Content = "content"
+	// Monitor is the stable key of the monitoring catalog.
+	Monitor = "monitor"
+	// Scheduler is the stable key of the scheduled-job catalog.
+	Scheduler = "scheduler"
+	// Extension is the stable key of the extension-governance catalog.
+	Extension = "extension"
+	// Platform is the stable key of the platform-administration catalog.
+	Platform = "platform"
+	// Developer is the stable key of the developer-support catalog.
+	Developer = "developer"
+)
+
+var stableCatalogKeys = map[string]struct{}{
+	Dashboard: {},
+	IAM:       {},
+	Org:       {},
+	Setting:   {},
+	Content:   {},
+	Monitor:   {},
+	Scheduler: {},
+	Extension: {},
+	Platform:  {},
+	Developer: {},
+}
+
+// IsStableCatalogKey reports whether the given menu key belongs to one
+// host-owned top-level catalog.
+func IsStableCatalogKey(menuKey string) bool {
+	_, ok := stableCatalogKeys[menuKey]
+	return ok
 }
 
 // ListInput defines the supported filters for menu list queries.

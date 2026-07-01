@@ -12,6 +12,7 @@ import (
 
 	"lina-core/internal/model"
 	internalbizctx "lina-core/internal/service/bizctx"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 )
 
 const (
@@ -30,12 +31,6 @@ func WithTenantScope(ctx context.Context, tenantID int) context.Context {
 	return context.WithValue(ctx, tenantContextKey{}, tenantID)
 }
 
-// WithTenantForTest injects a tenant into context for service-layer tests until
-// tenancy middleware writes the field into the shared bizctx model.
-func WithTenantForTest(ctx context.Context, tenantID int) context.Context {
-	return WithTenantScope(ctx, tenantID)
-}
-
 // CurrentTenantID resolves the tenant id from test context or future bizctx
 // fields. Missing tenancy data intentionally falls back to PLATFORM so the
 // default single-tenant installation stays unchanged.
@@ -45,6 +40,9 @@ func CurrentTenantID(ctx context.Context) int {
 	}
 	if tenantID, ok := ctx.Value(tenantContextKey{}).(int); ok {
 		return tenantID
+	}
+	if current := bizctxcap.CurrentFromContext(ctx); current.TenantID > 0 {
+		return current.TenantID
 	}
 	return tenantIDFromBizContext(ctx)
 }

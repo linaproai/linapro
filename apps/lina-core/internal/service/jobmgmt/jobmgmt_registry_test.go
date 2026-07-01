@@ -6,6 +6,8 @@ package jobmgmt
 import (
 	"context"
 	"encoding/json"
+	jobv1 "lina-core/api/job/v1"
+	jobhandlerv1 "lina-core/api/jobhandler/v1"
 	"testing"
 
 	"lina-core/internal/dao"
@@ -27,7 +29,7 @@ func TestHandlerUnregisterPausesEnabledJobs(t *testing.T) {
 			DisplayName:  "Plugin Test Wait Handler",
 			Description:  "Used to verify registry cascade behavior.",
 			ParamsSchema: `{"type":"object","properties":{}}`,
-			Source:       jobmeta.HandlerSourcePlugin,
+			Source:       jobhandlerv1.SourcePlugin,
 			PluginID:     "test-job-handler",
 			Invoke: func(ctx context.Context, params json.RawMessage) (result any, err error) {
 				return map[string]any{"ok": true}, nil
@@ -38,7 +40,7 @@ func TestHandlerUnregisterPausesEnabledJobs(t *testing.T) {
 			DisplayName:  "Plugin Disabled Test Handler",
 			Description:  "Used to verify disabled builtin jobs stay untouched.",
 			ParamsSchema: `{"type":"object","properties":{}}`,
-			Source:       jobmeta.HandlerSourcePlugin,
+			Source:       jobhandlerv1.SourcePlugin,
 			PluginID:     "test-job-handler",
 			Invoke: func(ctx context.Context, params json.RawMessage) (result any, err error) {
 				return map[string]any{"ok": true}, nil
@@ -54,17 +56,17 @@ func TestHandlerUnregisterPausesEnabledJobs(t *testing.T) {
 		t.Fatalf("expected disabled plugin handler registration to succeed, got error: %v", err)
 	}
 
-	enabledJobID := insertRegistryHandlerJob(t, ctx, handler.Ref, jobmeta.JobStatusEnabled)
+	enabledJobID := insertRegistryHandlerJob(t, ctx, handler.Ref, jobv1.StatusEnabled)
 	t.Cleanup(func() { cleanupJobHard(t, ctx, enabledJobID) })
 
-	disabledJobID := insertRegistryHandlerJob(t, ctx, disabledHandler.Ref, jobmeta.JobStatusDisabled)
+	disabledJobID := insertRegistryHandlerJob(t, ctx, disabledHandler.Ref, jobv1.StatusDisabled)
 	t.Cleanup(func() { cleanupJobHard(t, ctx, disabledJobID) })
 
 	scheduler.reset()
 	registry.Unregister(handler.Ref)
 
 	enabledJob := mustLoadJobRow(t, ctx, enabledJobID)
-	if got := jobmeta.NormalizeJobStatus(enabledJob.Status); got != jobmeta.JobStatusPausedByPlugin {
+	if got := jobmeta.NormalizeJobStatus(enabledJob.Status); got != jobv1.StatusPausedByPlugin {
 		t.Fatalf("expected enabled job to become paused_by_plugin, got %s", got)
 	}
 	if enabledJob.StopReason != string(jobmeta.StopReasonPluginUnavailable) {
@@ -72,7 +74,7 @@ func TestHandlerUnregisterPausesEnabledJobs(t *testing.T) {
 	}
 
 	disabledJob := mustLoadJobRow(t, ctx, disabledJobID)
-	if got := jobmeta.NormalizeJobStatus(disabledJob.Status); got != jobmeta.JobStatusDisabled {
+	if got := jobmeta.NormalizeJobStatus(disabledJob.Status); got != jobv1.StatusDisabled {
 		t.Fatalf("expected disabled job to stay disabled, got %s", got)
 	}
 
@@ -94,7 +96,7 @@ func TestHandlerRegisterRestoresPausedJobs(t *testing.T) {
 			DisplayName:  "Plugin Restore Handler",
 			Description:  "Used to verify paused job restoration.",
 			ParamsSchema: `{"type":"object","properties":{}}`,
-			Source:       jobmeta.HandlerSourcePlugin,
+			Source:       jobhandlerv1.SourcePlugin,
 			PluginID:     "test-job-handler",
 			Invoke: func(ctx context.Context, params json.RawMessage) (result any, err error) {
 				return map[string]any{"restored": true}, nil
@@ -107,7 +109,7 @@ func TestHandlerRegisterRestoresPausedJobs(t *testing.T) {
 		t.Fatalf("expected plugin handler registration to succeed, got error: %v", err)
 	}
 
-	jobID := insertRegistryHandlerJob(t, ctx, handler.Ref, jobmeta.JobStatusEnabled)
+	jobID := insertRegistryHandlerJob(t, ctx, handler.Ref, jobv1.StatusEnabled)
 	t.Cleanup(func() { cleanupJobHard(t, ctx, jobID) })
 
 	registry.Unregister(handler.Ref)
@@ -118,7 +120,7 @@ func TestHandlerRegisterRestoresPausedJobs(t *testing.T) {
 	}
 
 	jobRow := mustLoadJobRow(t, ctx, jobID)
-	if got := jobmeta.NormalizeJobStatus(jobRow.Status); got != jobmeta.JobStatusEnabled {
+	if got := jobmeta.NormalizeJobStatus(jobRow.Status); got != jobv1.StatusEnabled {
 		t.Fatalf("expected paused job to be restored to enabled, got %s", got)
 	}
 	if jobRow.StopReason != "" {
@@ -151,7 +153,7 @@ func insertRegistryHandlerJob(
 	t *testing.T,
 	ctx context.Context,
 	handlerRef string,
-	status jobmeta.JobStatus,
+	status jobv1.Status,
 ) int64 {
 	t.Helper()
 
@@ -159,14 +161,14 @@ func insertRegistryHandlerJob(
 		GroupId:        defaultGroupID(t, ctx),
 		Name:           uniqueTestName("plugin-handler-job"),
 		Description:    "Plugin handler cascade test job.",
-		TaskType:       string(jobmeta.TaskTypeHandler),
+		TaskType:       string(jobv1.TaskTypeHandler),
 		HandlerRef:     handlerRef,
 		Params:         `{}`,
 		TimeoutSeconds: 30,
 		CronExpr:       "*/5 * * * *",
 		Timezone:       "Asia/Shanghai",
-		Scope:          string(jobmeta.JobScopeMasterOnly),
-		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		Scope:          string(jobv1.ScopeMasterOnly),
+		Concurrency:    string(jobv1.ConcurrencySingleton),
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
 		Status:         string(status),

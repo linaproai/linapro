@@ -4,6 +4,7 @@
 package pluginhost
 
 import (
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/pluginhost/internal/manifestview"
 )
@@ -18,7 +19,7 @@ type ManifestSnapshot interface {
 	// Version returns the plugin version recorded in the manifest snapshot.
 	Version() string
 	// Type returns the plugin type recorded in the manifest snapshot.
-	Type() string
+	Type() pluginv1.PluginType
 	// Values returns the typed manifest snapshot primitive.
 	Values() *capmodel.ManifestSnapshot
 }

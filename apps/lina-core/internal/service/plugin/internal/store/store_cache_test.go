@@ -5,12 +5,12 @@ package store
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/plugintypes"
 )
 
 // TestLoadReleaseManifestUsesReleaseCache verifies repeated release manifest
@@ -47,9 +47,11 @@ func TestLoadReleaseManifestUsesReleaseCache(t *testing.T) {
 // TestLoadReleaseManifestCacheRejectsMissingArchive verifies active release
 // manifest cache entries are not reused after the archive artifact disappears.
 func TestLoadReleaseManifestCacheRejectsMissingArchive(t *testing.T) {
-	catalogSvc := &storeCacheCatalogStub{storageDir: t.TempDir()}
-	artifactPath := writeStoreCacheArtifact(t, catalogSvc.storageDir, "store-cache-plugin.wasm")
-	service := New(catalogSvc, nil).(*serviceImpl)
+	var (
+		catalogSvc   = &storeCacheCatalogStub{storageDir: t.TempDir()}
+		artifactPath = writeStoreCacheArtifact(t, catalogSvc.storageDir, "store-cache-plugin.wasm")
+		service      = New(catalogSvc, nil).(*serviceImpl)
+	)
 	release := &ReleaseRecord{
 		Id:             102,
 		PluginId:       "store-cache-plugin",
@@ -123,6 +125,8 @@ func writeStoreCacheArtifact(t *testing.T, storageDir string, name string) strin
 
 // storeCacheCatalogStub provides the catalog methods required by store tests.
 type storeCacheCatalogStub struct {
+	// Service satisfies catalog methods that are irrelevant to these cache tests.
+	catalog.Service
 	storageDir string
 	loadCount  int
 }
@@ -158,7 +162,7 @@ func (s *storeCacheCatalogStub) LoadManifestFromArtifactPath(artifactPath string
 		ID:      "store-cache-plugin",
 		Name:    "Store Cache Plugin",
 		Version: "0.1.0",
-		Type:    plugintypes.TypeDynamic.String(),
+		Type:    pluginv1.PluginTypeDynamic.String(),
 		RuntimeArtifact: &catalog.ArtifactSpec{
 			Path: artifactPath,
 		},

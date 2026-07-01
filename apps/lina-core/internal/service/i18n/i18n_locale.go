@@ -150,9 +150,11 @@ func buildRuntimeLocalesFromConfig(config *hostconfig.I18nConfig) []LocaleDescri
 		return []LocaleDescriptor{}
 	}
 
-	orderedLocales := make([]LocaleDescriptor, 0, len(config.Locales))
-	seenLocales := make(map[string]struct{}, len(config.Locales))
-	defaultLocale := normalizeLocale(config.Default)
+	var (
+		orderedLocales = make([]LocaleDescriptor, 0, len(config.Locales))
+		seenLocales    = make(map[string]struct{}, len(config.Locales))
+		defaultLocale  = normalizeLocale(config.Default)
+	)
 
 	for _, item := range config.Locales {
 		locale := normalizeLocale(item.Locale)
@@ -196,9 +198,11 @@ func buildConfiguredRuntimeLocales(discoveredLocales []string, config *hostconfi
 		discoveredSet[locale] = struct{}{}
 	}
 
-	metadataByLocale := make(map[string]hostconfig.I18nLocaleConfig, len(config.Locales))
-	orderedLocales := make([]string, 0, len(config.Locales))
-	seenOrderedLocales := make(map[string]struct{}, len(discoveredLocales))
+	var (
+		metadataByLocale   = make(map[string]hostconfig.I18nLocaleConfig, len(config.Locales))
+		orderedLocales     = make([]string, 0, len(config.Locales))
+		seenOrderedLocales = make(map[string]struct{}, len(discoveredLocales))
+	)
 	for _, item := range config.Locales {
 		locale := normalizeLocale(item.Locale)
 		if locale == "" {
@@ -285,11 +289,6 @@ func filterRuntimeLocalesByI18nEnabled(locales []LocaleDescriptor, enabled bool,
 		}
 	}
 	return []LocaleDescriptor{}
-}
-
-// IsMultiLanguageEnabled reports whether config.yaml enables runtime language switching.
-func (s *serviceImpl) IsMultiLanguageEnabled(ctx context.Context) bool {
-	return s.loadRuntimeI18nConfig(ctx).Enabled
 }
 
 // getDefaultRuntimeLocale returns the default runtime locale from the enabled
@@ -381,9 +380,11 @@ func normalizeRuntimeLocales(locales []LocaleDescriptor, defaultLocale string) [
 		return fallbackRuntimeLocales(&hostconfig.I18nConfig{Default: normalizedDefaultLocale})
 	}
 
-	items := make([]LocaleDescriptor, 0, len(locales))
-	seenLocales := make(map[string]struct{}, len(locales))
-	hasDefault := false
+	var (
+		items       = make([]LocaleDescriptor, 0, len(locales))
+		seenLocales = make(map[string]struct{}, len(locales))
+		hasDefault  = false
+	)
 	for _, locale := range locales {
 		normalizedLocale := normalizeLocale(locale.Locale)
 		if normalizedLocale == "" {

@@ -207,13 +207,13 @@ func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 		}
 
 		methodResourceKind := hostServiceResourceKindForMethods(spec.Service, spec.Methods)
-		if methodResourceKind == HostServiceResourceNone {
+		if methodResourceKind == hostServiceResourceNone {
 			if len(spec.Resources) > 0 {
 				return gerror.Newf("host service %s cannot declare resources", spec.Service)
 			}
 			continue
 		}
-		if methodResourceKind != "" && methodResourceKind != HostServiceResourceRef {
+		if methodResourceKind != "" && methodResourceKind != hostServiceResourceRef {
 			return gerror.Newf("host service %s uses unsupported resource declaration kind: %s", spec.Service, methodResourceKind)
 		}
 		if len(spec.Resources) == 0 {
@@ -283,11 +283,11 @@ func normalizePluginIDForTableNamespace(pluginID string) string {
 // hostServiceResourceKindForMethods returns the resource shape required by the
 // declared methods. Mixed none+resource methods require resource declarations
 // only when at least one resource-bound method is present.
-func hostServiceResourceKindForMethods(service string, methods []string) HostServiceResourceKind {
+func hostServiceResourceKindForMethods(service string, methods []string) hostServiceResourceKind {
 	methodResources := hostServiceMethodResourceMap[service]
 	if len(methodResources) == 0 {
 		if _, ok := hostServicesWithoutResources[service]; ok {
-			return HostServiceResourceNone
+			return hostServiceResourceNone
 		}
 		return ""
 	}
@@ -295,17 +295,17 @@ func hostServiceResourceKindForMethods(service string, methods []string) HostSer
 	for _, rawMethod := range methods {
 		method := normalizeHostServiceMethod(rawMethod)
 		switch methodResources[method] {
-		case HostServiceResourceRef, HostServiceResourceReserved:
+		case hostServiceResourceRef, hostServiceResourceReserved:
 			requiresResource = true
-		case HostServiceResourceNone, "":
+		case hostServiceResourceNone, "":
 		default:
 			return methodResources[method]
 		}
 	}
 	if requiresResource {
-		return HostServiceResourceRef
+		return hostServiceResourceRef
 	}
-	return HostServiceResourceNone
+	return hostServiceResourceNone
 }
 
 // NormalizeHostServiceSpecs returns deep-cloned and normalized host service

@@ -357,11 +357,13 @@ func loadAllowlist(path string) (map[allowlistKey]allowlistEntry, error) {
 		return nil, fmt.Errorf("invalid allowlist JSON %s: %w", normalizedPath, err)
 	}
 	for index, entry := range payload.Entries {
-		sourcePath := strings.TrimSpace(entry.Path)
-		rule := strings.TrimSpace(entry.Rule)
-		reason := strings.TrimSpace(entry.Reason)
-		category := strings.TrimSpace(entry.Category)
-		scope := strings.TrimSpace(entry.Scope)
+		var (
+			sourcePath = strings.TrimSpace(entry.Path)
+			rule       = strings.TrimSpace(entry.Rule)
+			reason     = strings.TrimSpace(entry.Reason)
+			category   = strings.TrimSpace(entry.Category)
+			scope      = strings.TrimSpace(entry.Scope)
+		)
 		if sourcePath == "" || rule == "" || reason == "" || category == "" || scope == "" {
 			return nil, fmt.Errorf("invalid allowlist entry #%d: path, rule, category, reason, and scope are required", index+1)
 		}

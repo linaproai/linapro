@@ -35,9 +35,11 @@ func TestPostgreSQLProjectSQLAssetsSmoke(t *testing.T) {
 		t.Skip("official plugin workspace is not initialized")
 	}
 
-	installAssets := collectProjectSQLAssets(t, sqlAssetGroupInstall)
-	mockAssets := collectProjectSQLAssets(t, sqlAssetGroupMock)
-	uninstallAssets := collectProjectSQLAssets(t, sqlAssetGroupUninstall)
+	var (
+		installAssets   = collectProjectSQLAssets(t, sqlAssetGroupInstall)
+		mockAssets      = collectProjectSQLAssets(t, sqlAssetGroupMock)
+		uninstallAssets = collectProjectSQLAssets(t, sqlAssetGroupUninstall)
+	)
 	if len(installAssets) == 0 || len(mockAssets) == 0 || len(uninstallAssets) == 0 {
 		t.Fatal("expected install, mock, and uninstall SQL assets")
 	}

@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 
+	usermsgv1 "lina-core/api/usermsg/v1"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/notifycap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
@@ -15,29 +17,39 @@ import (
 // trackingNotificationsService records notification sends while returning
 // deterministic output for host-service dispatch tests.
 type trackingNotificationsService struct {
-	sendCalls        int
-	ensureCalls      int
-	lastCapCtx       capmodel.CapabilityContext
-	lastInput        notifycap.SendInput
-	lastBatchIDs     []notifycap.MessageID
-	lastSourceInput  notifycap.BatchGetBySourceInput
-	lastEnsureIDs    []notifycap.MessageID
+	sendCalls            int
+	ensureCalls          int
+	deleteCalls          int
+	deleteBySourceCalls  int
+	markReadCalls        int
+	markUnreadCalls      int
+	lastCurrent          bizctxcap.CurrentContext
+	lastInput            notifycap.SendInput
+	lastBatchIDs         []notifycap.MessageID
+	lastListInput        notifycap.ListInput
+	lastSourceInput      notifycap.BatchGetBySourceInput
+	lastEnsureIDs        []notifycap.MessageID
+	lastDeleteIDs        []notifycap.MessageID
+	lastDeleteSourceType usermsgv1.SourceType
+	lastDeleteSourceIDs  []string
+	lastMarkReadIDs      []notifycap.MessageID
+	lastMarkUnreadIDs    []notifycap.MessageID
 }
 
 // BatchGet records requested message IDs and returns typed projections.
-func (s *trackingNotificationsService) BatchGet(_ context.Context, capCtx capmodel.CapabilityContext, ids []notifycap.MessageID) (*capmodel.BatchResult[*notifycap.MessageProjection, notifycap.MessageID], error) {
-	s.lastCapCtx = capCtx
+func (s *trackingNotificationsService) BatchGet(ctx context.Context, ids []notifycap.MessageID) (*capmodel.BatchResult[*notifycap.MessageInfo, notifycap.MessageID], error) {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
 	s.lastBatchIDs = append([]notifycap.MessageID(nil), ids...)
-	result := &capmodel.BatchResult[*notifycap.MessageProjection, notifycap.MessageID]{
-		Items:      map[notifycap.MessageID]*notifycap.MessageProjection{},
+	result := &capmodel.BatchResult[*notifycap.MessageInfo, notifycap.MessageID]{
+		Items:      map[notifycap.MessageID]*notifycap.MessageInfo{},
 		MissingIDs: []notifycap.MessageID{},
 	}
 	for _, id := range ids {
-		result.Items[id] = &notifycap.MessageProjection{
+		result.Items[id] = &notifycap.MessageInfo{
 			ID:           id,
 			TenantID:     41,
-			PluginID:     capCtx.PluginID,
-			SourceType:   notifycap.SourceTypePlugin,
+			PluginID:     "test-plugin-notifications",
+			SourceType:   usermsgv1.SourceTypePlugin,
 			SourceID:     "job-1",
 			CategoryCode: notifycap.CategoryCodeOther,
 			Title:        "sync done",
@@ -47,14 +59,35 @@ func (s *trackingNotificationsService) BatchGet(_ context.Context, capCtx capmod
 	return result, nil
 }
 
+// Get returns one typed message projection.
+func (s *trackingNotificationsService) Get(ctx context.Context, id notifycap.MessageID) (*notifycap.MessageInfo, error) {
+	result, err := s.BatchGet(ctx, []notifycap.MessageID{id})
+	if err != nil || result == nil {
+		return nil, err
+	}
+	return result.Items[id], nil
+}
+
+// List records list input and returns one typed projection.
+func (s *trackingNotificationsService) List(ctx context.Context, input notifycap.ListInput) (*capmodel.PageResult[*notifycap.MessageInfo], error) {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastListInput = input
+	return &capmodel.PageResult[*notifycap.MessageInfo]{
+		Items: []*notifycap.MessageInfo{
+			{ID: "9001", TenantID: 41, PluginID: "test-plugin-notifications", SourceType: input.SourceType, SourceID: input.SourceID, CategoryCode: notifycap.CategoryCodeOther, Title: "sync done"},
+		},
+		Total: 1,
+	}, nil
+}
+
 // BatchGetBySource records source lookup input and returns grouped projections.
-func (s *trackingNotificationsService) BatchGetBySource(_ context.Context, capCtx capmodel.CapabilityContext, input notifycap.BatchGetBySourceInput) (*notifycap.BatchGetBySourceResult, error) {
-	s.lastCapCtx = capCtx
+func (s *trackingNotificationsService) BatchGetBySource(ctx context.Context, input notifycap.BatchGetBySourceInput) (*notifycap.BatchGetBySourceResult, error) {
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
 	s.lastSourceInput = input
 	return &notifycap.BatchGetBySourceResult{
-		Items: map[string][]*notifycap.MessageProjection{
+		Items: map[string][]*notifycap.MessageInfo{
 			"job-1": {
-				{ID: "9001", TenantID: 41, PluginID: capCtx.PluginID, SourceType: input.SourceType, SourceID: "job-1", CategoryCode: notifycap.CategoryCodeOther, Title: "sync done"},
+				{ID: "9001", TenantID: 41, PluginID: "test-plugin-notifications", SourceType: input.SourceType, SourceID: "job-1", CategoryCode: notifycap.CategoryCodeOther, Title: "sync done"},
 			},
 		},
 		MissingIDs: []string{"job-missing"},
@@ -62,22 +95,55 @@ func (s *trackingNotificationsService) BatchGetBySource(_ context.Context, capCt
 }
 
 // EnsureVisible records requested message IDs.
-func (s *trackingNotificationsService) EnsureVisible(_ context.Context, capCtx capmodel.CapabilityContext, ids []notifycap.MessageID) error {
+func (s *trackingNotificationsService) EnsureVisible(ctx context.Context, ids []notifycap.MessageID) error {
 	s.ensureCalls++
-	s.lastCapCtx = capCtx
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
 	s.lastEnsureIDs = append([]notifycap.MessageID(nil), ids...)
 	return nil
 }
 
 // Send records one governed notification send request.
-func (s *trackingNotificationsService) Send(_ context.Context, capCtx capmodel.CapabilityContext, input notifycap.SendInput) (*notifycap.SendResult, error) {
+func (s *trackingNotificationsService) Send(ctx context.Context, input notifycap.SendInput) (*notifycap.SendResult, error) {
 	s.sendCalls++
-	s.lastCapCtx = capCtx
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
 	s.lastInput = input
 	return &notifycap.SendResult{
 		MessageID:     notifycap.MessageID("9001"),
 		DeliveryCount: len(input.Recipients),
 	}, nil
+}
+
+// Delete records requested message IDs.
+func (s *trackingNotificationsService) Delete(ctx context.Context, ids []notifycap.MessageID) error {
+	s.deleteCalls++
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastDeleteIDs = append([]notifycap.MessageID(nil), ids...)
+	return nil
+}
+
+// DeleteBySource records requested business source IDs.
+func (s *trackingNotificationsService) DeleteBySource(ctx context.Context, sourceType usermsgv1.SourceType, sourceIDs []string) error {
+	s.deleteBySourceCalls++
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastDeleteSourceType = sourceType
+	s.lastDeleteSourceIDs = append([]string(nil), sourceIDs...)
+	return nil
+}
+
+// MarkRead records requested read-state changes.
+func (s *trackingNotificationsService) MarkRead(ctx context.Context, ids []notifycap.MessageID) error {
+	s.markReadCalls++
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastMarkReadIDs = append([]notifycap.MessageID(nil), ids...)
+	return nil
+}
+
+// MarkUnread records requested read-state changes.
+func (s *trackingNotificationsService) MarkUnread(ctx context.Context, ids []notifycap.MessageID) error {
+	s.markUnreadCalls++
+	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
+	s.lastMarkUnreadIDs = append([]notifycap.MessageID(nil), ids...)
+	return nil
 }
 
 // TestHandleHostServiceInvokeNotificationsSendDefaultsToCurrentUser verifies
@@ -116,8 +182,8 @@ func TestHandleHostServiceInvokeNotificationsSendDefaultsToCurrentUser(t *testin
 	if notifications.sendCalls != 1 {
 		t.Fatalf("expected one notification send, got %d", notifications.sendCalls)
 	}
-	if notifications.lastCapCtx.PluginID != hcc.pluginID || notifications.lastCapCtx.Actor.UserID != 42 {
-		t.Fatalf("expected plugin-scoped actor context, got %#v", notifications.lastCapCtx)
+	if notifications.lastCurrent.UserID != 42 {
+		t.Fatalf("expected current user context, got %#v", notifications.lastCurrent)
 	}
 	if notifications.lastInput.ChannelKey != "inbox" || notifications.lastInput.SourceID != "job-1" {
 		t.Fatalf("expected channel and source to be forwarded, got %#v", notifications.lastInput)
@@ -182,7 +248,7 @@ func TestHandleHostServiceInvokeNotificationsRejectsUnauthorizedChannel(t *testi
 }
 
 // TestHandleHostServiceInvokeNotificationsBatchGetReturnsTypedProjection verifies
-// dynamic reads return the stable MessageProjection DTO.
+// dynamic reads return the stable MessageInfo DTO.
 func TestHandleHostServiceInvokeNotificationsBatchGetReturnsTypedProjection(t *testing.T) {
 	notifications := &trackingNotificationsService{}
 	configureDomainHostServicesForCapabilityTest(t, &capabilityHostServiceTestServices{
@@ -200,13 +266,46 @@ func TestHandleHostServiceInvokeNotificationsBatchGetReturnsTypedProjection(t *t
 	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("batch_get: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
-	var out capmodel.BatchResult[*notifycap.MessageProjection, notifycap.MessageID]
+	var out capmodel.BatchResult[*notifycap.MessageInfo, notifycap.MessageID]
 	decodeCapabilityJSONResponse(t, response.Payload, &out)
 	if out.Items["9001"] == nil || out.Items["9001"].Title != "sync done" {
 		t.Fatalf("unexpected typed message projection: %#v", out.Items)
 	}
 	if len(notifications.lastBatchIDs) != 1 || notifications.lastBatchIDs[0] != "9001" {
 		t.Fatalf("expected batch IDs to reach service, got %#v", notifications.lastBatchIDs)
+	}
+}
+
+// TestHandleHostServiceInvokeNotificationsList verifies dynamic list calls are
+// routed to the notification capability service with bounded page input.
+func TestHandleHostServiceInvokeNotificationsList(t *testing.T) {
+	notifications := &trackingNotificationsService{}
+	configureDomainHostServicesForCapabilityTest(t, &capabilityHostServiceTestServices{
+		notifications: notifications,
+	})
+
+	hcc := newNotificationsHostCallContext("test-plugin-notifications-list", "inbox", 42)
+	hcc.hostServices[0].Methods = append(hcc.hostServices[0].Methods, protocol.HostServiceMethodNotificationsList)
+	response := invokeNotificationsDomainHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodNotificationsList,
+		marshalCapabilityJSONRequest(t, notifycap.ListInput{
+			SourceType: usermsgv1.SourceTypePlugin,
+			SourceID:   "job-1",
+			Page:       capmodel.PageRequest{PageNum: 2, PageSize: 10},
+		}),
+	)
+	if response.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("messages.list: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	var out capmodel.PageResult[*notifycap.MessageInfo]
+	decodeCapabilityJSONResponse(t, response.Payload, &out)
+	if out.Total != 1 || len(out.Items) != 1 || out.Items[0].SourceID != "job-1" {
+		t.Fatalf("unexpected list response: %#v", out)
+	}
+	if notifications.lastListInput.SourceID != "job-1" || notifications.lastListInput.Page.PageSize != 10 {
+		t.Fatalf("expected list input to reach service, got %#v", notifications.lastListInput)
 	}
 }
 
@@ -225,7 +324,7 @@ func TestHandleHostServiceInvokeNotificationsBatchGetBySource(t *testing.T) {
 		hcc,
 		protocol.HostServiceMethodNotificationsBatchGetBySource,
 		marshalCapabilityJSONRequest(t, notifycap.BatchGetBySourceInput{
-			SourceType: notifycap.SourceTypePlugin,
+			SourceType: usermsgv1.SourceTypePlugin,
 			SourceIDs:  []string{"job-1", "job-missing"},
 		}),
 	)
@@ -237,7 +336,7 @@ func TestHandleHostServiceInvokeNotificationsBatchGetBySource(t *testing.T) {
 	if len(out.Items["job-1"]) != 1 || out.Items["job-1"][0].ID != "9001" || len(out.MissingIDs) != 1 {
 		t.Fatalf("unexpected source batch response: %#v", out)
 	}
-	if notifications.lastSourceInput.SourceType != notifycap.SourceTypePlugin || len(notifications.lastSourceInput.SourceIDs) != 2 {
+	if notifications.lastSourceInput.SourceType != usermsgv1.SourceTypePlugin || len(notifications.lastSourceInput.SourceIDs) != 2 {
 		t.Fatalf("expected source input to reach service, got %#v", notifications.lastSourceInput)
 	}
 }
@@ -263,6 +362,109 @@ func TestHandleHostServiceInvokeNotificationsEnsureVisible(t *testing.T) {
 	}
 	if notifications.ensureCalls != 1 || len(notifications.lastEnsureIDs) != 1 || notifications.lastEnsureIDs[0] != "9001" {
 		t.Fatalf("expected visibility IDs to reach service, got calls=%d ids=%#v", notifications.ensureCalls, notifications.lastEnsureIDs)
+	}
+}
+
+// TestHandleHostServiceInvokeNotificationsDelete verifies dynamic delete calls
+// route through the notification capability service.
+func TestHandleHostServiceInvokeNotificationsDelete(t *testing.T) {
+	notifications := &trackingNotificationsService{}
+	configureDomainHostServicesForCapabilityTest(t, &capabilityHostServiceTestServices{
+		notifications: notifications,
+	})
+
+	hcc := newNotificationsHostCallContext("test-plugin-notifications-delete", "inbox", 42)
+	hcc.hostServices[0].Methods = append(hcc.hostServices[0].Methods, protocol.HostServiceMethodNotificationsDelete)
+	response := invokeNotificationsDomainHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodNotificationsDelete,
+		marshalCapabilityJSONRequest(t, idsRequest{IDs: []string{"9001"}}),
+	)
+	if response.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("messages.delete: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	if notifications.deleteCalls != 1 || len(notifications.lastDeleteIDs) != 1 || notifications.lastDeleteIDs[0] != "9001" {
+		t.Fatalf("expected delete IDs to reach service, got calls=%d ids=%#v", notifications.deleteCalls, notifications.lastDeleteIDs)
+	}
+}
+
+// TestHandleHostServiceInvokeNotificationsDeleteBySource verifies source-based
+// dynamic deletes forward source type and source IDs.
+func TestHandleHostServiceInvokeNotificationsDeleteBySource(t *testing.T) {
+	notifications := &trackingNotificationsService{}
+	configureDomainHostServicesForCapabilityTest(t, &capabilityHostServiceTestServices{
+		notifications: notifications,
+	})
+
+	hcc := newNotificationsHostCallContext("test-plugin-notifications-delete-source", "inbox", 42)
+	hcc.hostServices[0].Methods = append(hcc.hostServices[0].Methods, protocol.HostServiceMethodNotificationsDeleteBySource)
+	response := invokeNotificationsDomainHostService(
+		t,
+		hcc,
+		protocol.HostServiceMethodNotificationsDeleteBySource,
+		marshalCapabilityJSONRequest(t, notifycap.BatchGetBySourceInput{
+			SourceType: usermsgv1.SourceTypePlugin,
+			SourceIDs:  []string{"job-1", "job-2"},
+		}),
+	)
+	if response.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("messages.by_source.delete: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	if notifications.deleteBySourceCalls != 1 || notifications.lastDeleteSourceType != usermsgv1.SourceTypePlugin || len(notifications.lastDeleteSourceIDs) != 2 {
+		t.Fatalf("expected source delete input to reach service, got calls=%d type=%s ids=%#v", notifications.deleteBySourceCalls, notifications.lastDeleteSourceType, notifications.lastDeleteSourceIDs)
+	}
+}
+
+// TestHandleHostServiceInvokeNotificationsReadState verifies dynamic read-state
+// methods route through the notification capability service.
+func TestHandleHostServiceInvokeNotificationsReadState(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		method     string
+		assertCall func(*trackingNotificationsService)
+	}{
+		{
+			name:   "mark_read",
+			method: protocol.HostServiceMethodNotificationsMarkRead,
+			assertCall: func(notifications *trackingNotificationsService) {
+				if notifications.markReadCalls != 1 || len(notifications.lastMarkReadIDs) != 1 || notifications.lastMarkReadIDs[0] != "9001" {
+					t.Fatalf("expected mark read IDs to reach service, got calls=%d ids=%#v", notifications.markReadCalls, notifications.lastMarkReadIDs)
+				}
+			},
+		},
+		{
+			name:   "mark_unread",
+			method: protocol.HostServiceMethodNotificationsMarkUnread,
+			assertCall: func(notifications *trackingNotificationsService) {
+				if notifications.markUnreadCalls != 1 || len(notifications.lastMarkUnreadIDs) != 1 || notifications.lastMarkUnreadIDs[0] != "9002" {
+					t.Fatalf("expected mark unread IDs to reach service, got calls=%d ids=%#v", notifications.markUnreadCalls, notifications.lastMarkUnreadIDs)
+				}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			notifications := &trackingNotificationsService{}
+			configureDomainHostServicesForCapabilityTest(t, &capabilityHostServiceTestServices{
+				notifications: notifications,
+			})
+			hcc := newNotificationsHostCallContext("test-plugin-notifications-"+tc.name, "inbox", 42)
+			hcc.hostServices[0].Methods = append(hcc.hostServices[0].Methods, tc.method)
+			id := "9001"
+			if tc.method == protocol.HostServiceMethodNotificationsMarkUnread {
+				id = "9002"
+			}
+			response := invokeNotificationsDomainHostService(
+				t,
+				hcc,
+				tc.method,
+				marshalCapabilityJSONRequest(t, idsRequest{IDs: []string{id}}),
+			)
+			if response.Status != protocol.HostCallStatusSuccess {
+				t.Fatalf("%s: expected success, got status=%d payload=%s", tc.method, response.Status, string(response.Payload))
+			}
+			tc.assertCall(notifications)
+		})
 	}
 }
 

@@ -53,7 +53,7 @@ func (s *serviceImpl) PreviewRuntimeUpgrade(ctx context.Context, pluginID string
 	if err != nil {
 		return nil, err
 	}
-	if !CanExecute(projection.State) {
+	if !canExecute(projection.State) {
 		return nil, bizerr.NewCode(
 			CodePluginRuntimeUpgradePreviewUnavailable,
 			bizerr.P("pluginId", normalizedPluginID),
@@ -77,7 +77,7 @@ func (s *serviceImpl) PreviewRuntimeUpgrade(ctx context.Context, pluginID string
 	if err != nil {
 		return nil, err
 	}
-	sqlSummary := BuildSQLSummary(toSnapshot)
+	sqlSummary := buildSQLSummary(toSnapshot)
 
 	return &RuntimeUpgradePreview{
 		PluginID:          normalizedPluginID,
@@ -233,7 +233,7 @@ func buildRuntimeUpgradeHostServicesDiff(
 	fromSnapshot *store.ManifestSnapshot,
 	toSnapshot *store.ManifestSnapshot,
 ) (RuntimeUpgradeHostServicesDiff, error) {
-	diff, err := BuildHostServicesDiff(fromSnapshot, toSnapshot)
+	diff, err := buildHostServicesDiff(fromSnapshot, toSnapshot)
 	if err != nil {
 		var snapshotErr *SnapshotInvalidError
 		if errors.As(err, &snapshotErr) {
@@ -255,7 +255,7 @@ func buildRuntimeUpgradeRiskHints(
 	hostServicesDiff RuntimeUpgradeHostServicesDiff,
 	dependencyBlocked bool,
 ) []string {
-	return BuildRiskHints(sqlSummary, hostServicesDiff, dependencyBlocked, RiskHintKeys{
+	return buildRiskHints(sqlSummary, hostServicesDiff, dependencyBlocked, RiskHintKeys{
 		UpgradeSQLRequiresReview:        RuntimeUpgradeRiskHintUpgradeSQLRequiresReview,
 		MockSQLExcluded:                 RuntimeUpgradeRiskHintMockSQLExcluded,
 		HostServiceAuthorizationChanged: RuntimeUpgradeRiskHintHostServiceAuthorizationChanged,

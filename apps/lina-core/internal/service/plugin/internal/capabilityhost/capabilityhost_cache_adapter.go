@@ -212,9 +212,11 @@ func normalizeCacheBatchKeys(rawKeys []string) ([]string, error) {
 
 // normalizeCacheSetManyItems validates and deduplicates explicit cache writes.
 func normalizeCacheSetManyItems(rawItems []cachecap.SetManyItem) ([]cachecap.SetManyItem, error) {
-	keys := make([]string, 0, len(rawItems))
-	byKey := make(map[string]cachecap.SetManyItem, len(rawItems))
-	totalBytes := 0
+	var (
+		keys       = make([]string, 0, len(rawItems))
+		byKey      = make(map[string]cachecap.SetManyItem, len(rawItems))
+		totalBytes = 0
+	)
 	for _, rawItem := range rawItems {
 		key := strings.TrimSpace(rawItem.Key)
 		if key == "" {

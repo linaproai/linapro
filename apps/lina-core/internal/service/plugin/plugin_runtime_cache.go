@@ -5,31 +5,21 @@ package plugin
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"path/filepath"
 	"strings"
 
 	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/cachecoord/revisionctrl"
+	"lina-core/internal/service/cluster"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/internal/service/plugin/internal/wasm"
 	"lina-core/pkg/logger"
+	"lina-core/pkg/statusflag"
 )
-
-// pluginI18nService defines the i18n methods needed by plugin lifecycle,
-// runtime cache refresh, and source-plugin reason rendering paths.
-type pluginI18nService interface {
-	// GetLocale returns the effective request locale stored in business context.
-	GetLocale(ctx context.Context) string
-	// BundleVersion returns the per-locale runtime translation bundle version.
-	BundleVersion(locale string) uint64
-	// InvalidateRuntimeBundleCache clears cached runtime bundles for one explicit scope.
-	InvalidateRuntimeBundleCache(scope i18nsvc.InvalidateScope)
-	// Translate renders one runtime i18n key in the current request locale.
-	Translate(ctx context.Context, key string, fallback string) string
-}
 
 // pluginChangePublishInput identifies one successful plugin governance change
 // and the derived runtime caches that must observe it.
@@ -42,11 +32,11 @@ type pluginChangePublishInput struct {
 // newRuntimeCacheRevisionController creates the cluster-aware revision
 // controller used by the root plugin service.
 func newRuntimeCacheRevisionController(
-	topology Topology,
+	topology cluster.Service,
 	cacheCoordSvc cachecoord.Service,
 	integrationSvc pluginRuntimeIntegrationRefresher,
 	frontendSvc pluginRuntimeFrontendInvalidator,
-	i18nSvc pluginI18nService,
+	i18nSvc i18nsvc.Service,
 	managementListInvalidator pluginManagementListInvalidator,
 	openapiInvalidator pluginOpenAPIProjectionInvalidator,
 	wasmRuntime wasm.Runtime,
@@ -202,12 +192,6 @@ func (s *serviceImpl) publishPluginChange(ctx context.Context, input pluginChang
 	return revision, nil
 }
 
-// syncEnabledSnapshotFromRegistry refreshes the in-memory enablement snapshot
-// for one plugin using the latest registry row after a lifecycle transition.
-func (s *serviceImpl) syncEnabledSnapshotFromRegistry(ctx context.Context, pluginID string) error {
-	return s.syncEnabledSnapshotStateFromRegistry(ctx, pluginID)
-}
-
 // syncEnabledSnapshotStateFromRegistry updates only the in-memory enabled
 // snapshot for the same registry state.
 func (s *serviceImpl) syncEnabledSnapshotStateFromRegistry(
@@ -218,7 +202,7 @@ func (s *serviceImpl) syncEnabledSnapshotStateFromRegistry(
 	if err != nil {
 		return err
 	}
-	if registry == nil || registry.Installed != plugintypes.InstalledYes {
+	if registry == nil || registry.Installed != statusflag.Installed.Int() {
 		s.integrationSvc.DeletePluginEnabledState(pluginID)
 		return nil
 	}
@@ -230,7 +214,7 @@ func (s *serviceImpl) syncEnabledSnapshotStateFromRegistry(
 	if err != nil {
 		return err
 	}
-	enabled := registry.Status == plugintypes.StatusEnabled &&
+	enabled := registry.Status == statusflag.EnabledValue.Int() &&
 		store.RuntimeStateAllowsBusinessEntry(runtimeState.State)
 	s.integrationSvc.SetPluginEnabledState(pluginID, enabled)
 	return nil
@@ -292,19 +276,19 @@ func (s *serviceImpl) invalidateRuntimeUpgradeCaches(ctx context.Context, plugin
 	if s.frontendSvc != nil {
 		s.frontendSvc.InvalidateBundle(ctx, normalizedPluginID, reason)
 	}
-	if normalizedType == plugintypes.TypeDynamic && s.wasmRuntime != nil {
+	if normalizedType == pluginv1.PluginTypeDynamic && s.wasmRuntime != nil {
 		s.invalidateDynamicWasmCacheForPlugin(ctx, normalizedPluginID, reason)
 	}
 	if s.i18nSvc == nil {
 		return
 	}
 	switch normalizedType {
-	case plugintypes.TypeSource:
+	case pluginv1.PluginTypeSource:
 		s.i18nSvc.InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
 			Sectors:        []i18nsvc.Sector{i18nsvc.SectorSourcePlugin},
 			SourcePluginID: normalizedPluginID,
 		})
-	case plugintypes.TypeDynamic:
+	case pluginv1.PluginTypeDynamic:
 		s.i18nSvc.InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
 			Sectors:         []i18nsvc.Sector{i18nsvc.SectorDynamicPlugin},
 			DynamicPluginID: normalizedPluginID,
@@ -360,8 +344,8 @@ func invalidateActiveDynamicWasmCaches(
 	}
 	for _, registry := range registries {
 		if registry == nil ||
-			plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
-			registry.Installed != plugintypes.InstalledYes ||
+			plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic ||
+			registry.Installed != statusflag.Installed.Int() ||
 			registry.ReleaseId <= 0 {
 			continue
 		}
@@ -427,8 +411,8 @@ func buildActiveDynamicArtifactSnapshot(
 	}
 	for _, registry := range registries {
 		if registry == nil ||
-			plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
-			registry.Installed != plugintypes.InstalledYes ||
+			plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic ||
+			registry.Installed != statusflag.Installed.Int() ||
 			registry.ReleaseId <= 0 {
 			continue
 		}
@@ -460,7 +444,7 @@ func activeDynamicArtifactPath(
 		return "", err
 	}
 	if registry == nil ||
-		plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
+		plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic ||
 		registry.ReleaseId <= 0 {
 		return "", nil
 	}

@@ -15,16 +15,20 @@ import (
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/orgcap"
 )
 
 // TestRoleUsersApplyDataScope verifies role authorization pages and assignment
 // mutations only expose or accept users inside the current data scope.
 func TestRoleUsersApplyDataScope(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertRoleScopeUser(t, ctx, "role-scope-current")
-	hiddenUserID := insertRoleScopeUser(t, ctx, "role-scope-hidden")
-	scopeRoleID := insertRoleScopeRole(t, ctx, "role-scope-self", 3)
-	managedRoleID := insertRoleScopeRole(t, ctx, "role-scope-managed", 3)
+	var (
+		ctx           = context.Background()
+		currentUserID = insertRoleScopeUser(t, ctx, "role-scope-current")
+		hiddenUserID  = insertRoleScopeUser(t, ctx, "role-scope-hidden")
+		scopeRoleID   = insertRoleScopeRole(t, ctx, "role-scope-self", 3)
+		managedRoleID = insertRoleScopeRole(t, ctx, "role-scope-managed", 3)
+	)
 	t.Cleanup(func() {
 		cleanupRoleScopeUsers(t, ctx, []int{currentUserID, hiddenUserID})
 		cleanupRoleScopeRoles(t, ctx, []int{scopeRoleID, managedRoleID})
@@ -90,6 +94,20 @@ func (roleScopeEnabledOrgState) FilterPermissionMenus(_ context.Context, menus [
 
 // Available reports organization capability as available.
 func (roleScopeEnabledOrgState) Available(context.Context) bool { return true }
+
+// Status reports organization capability as active for data-scope tests.
+func (roleScopeEnabledOrgState) Status(context.Context) capmodel.CapabilityStatus {
+	return capmodel.CapabilityStatus{Available: true}
+}
+
+// Department is unused by role data-scope tests.
+func (roleScopeEnabledOrgState) Department() orgcap.DepartmentService { return nil }
+
+// Post is unused by role data-scope tests.
+func (roleScopeEnabledOrgState) Post() orgcap.PostService { return nil }
+
+// Assignment is unused by role data-scope tests.
+func (roleScopeEnabledOrgState) Assignment() orgcap.AssignmentService { return nil }
 
 // roleScopeStaticBizCtx returns a fixed business context.
 type roleScopeStaticBizCtx struct {

@@ -29,11 +29,13 @@ func TestPluginDemoDynamicRuntimeArtifactEmbedsReviewedAssets(t *testing.T) {
 	requireOfficialPluginDemoDynamic(t, pluginDir)
 	prepareIgnoredPluginDemoDynamicRuntimeConfigForTest(t, pluginDir)
 	prepareTemporaryPluginGoWorkForTest(t, repoRoot)
-	expectedFrontendAssets := mustCollectSourceFrontendAssets(t, pluginDir)
-	expectedInstallSQLAssets := mustCollectSourceSQLAssets(t, pluginDir, "manifest/sql")
-	expectedUninstallSQLAssets := mustCollectSourceSQLAssets(t, pluginDir, "manifest/sql/uninstall")
-	expectedMockSQLAssets := mustCollectSourceSQLAssets(t, pluginDir, "manifest/sql/mock-data")
-	expectedManifestResourcePaths := mustCollectSourceManifestResourcePaths(t, pluginDir)
+	var (
+		expectedFrontendAssets        = mustCollectSourceFrontendAssets(t, pluginDir)
+		expectedInstallSQLAssets      = mustCollectSourceSQLAssets(t, pluginDir, "manifest/sql")
+		expectedUninstallSQLAssets    = mustCollectSourceSQLAssets(t, pluginDir, "manifest/sql/uninstall")
+		expectedMockSQLAssets         = mustCollectSourceSQLAssets(t, pluginDir, "manifest/sql/mock-data")
+		expectedManifestResourcePaths = mustCollectSourceManifestResourcePaths(t, pluginDir)
+	)
 
 	out, err := buildRuntimeWasmArtifactFromSource(pluginDir, t.TempDir())
 	if err != nil {
@@ -272,9 +274,11 @@ func prepareTemporaryPluginGoWorkForTest(t *testing.T, repoRoot string) {
 		t.Fatal("root go.work is missing a go version directive")
 	}
 
-	workspacePath := filepath.Join(repoRoot, "temp", "go.work.plugins")
-	uses := make([]string, 0)
-	seen := make(map[string]struct{})
+	var (
+		workspacePath = filepath.Join(repoRoot, "temp", "go.work.plugins")
+		uses          = make([]string, 0)
+		seen          = make(map[string]struct{})
+	)
 	addUse := func(use string) {
 		normalized := strings.TrimPrefix(filepath.ToSlash(filepath.Clean(use)), "./")
 		if normalized == "" || normalized == "apps/lina-plugins" || strings.HasPrefix(normalized, "apps/lina-plugins/") {

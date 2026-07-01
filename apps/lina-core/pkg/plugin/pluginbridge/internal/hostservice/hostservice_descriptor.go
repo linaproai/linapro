@@ -7,43 +7,54 @@ package hostservice
 
 import "lina-core/pkg/plugin/pluginbridge/protocol/hostservices"
 
-// HostServiceResourceKind describes which authorization resource shape a host
+// hostServiceResourceKind describes which authorization resource shape a host
 // service declaration uses in plugin manifests.
-type HostServiceResourceKind = hostservices.ResourceKind
+type hostServiceResourceKind = hostservices.ResourceKind
 
 // Host-service resource kinds used by manifest validation and governance tests.
 const (
-	HostServiceResourceNone     = hostservices.ResourceKindNone
-	HostServiceResourcePath     = hostservices.ResourceKindPath
-	HostServiceResourceTable    = hostservices.ResourceKindTable
-	HostServiceResourceKey      = hostservices.ResourceKindKey
-	HostServiceResourceRef      = hostservices.ResourceKindRef
-	HostServiceResourceReserved = hostservices.ResourceKindReserved
+	hostServiceResourceNone     = hostservices.ResourceKindNone
+	hostServiceResourcePath     = hostservices.ResourceKindPath
+	hostServiceResourceTable    = hostservices.ResourceKindTable
+	hostServiceResourceKey      = hostservices.ResourceKindKey
+	hostServiceResourceRef      = hostservices.ResourceKindRef
+	hostServiceResourceReserved = hostservices.ResourceKindReserved
 )
 
-// HostServiceDescriptor describes one logical host service family.
-type HostServiceDescriptor = hostservices.ServiceDescriptor
+// hostServiceDescriptor describes one logical host service family.
+type hostServiceDescriptor = hostservices.ServiceDescriptor
 
-// HostServiceMethodDescriptor describes one governed host service method.
-type HostServiceMethodDescriptor = hostservices.MethodDescriptor
+// hostServiceMethodDescriptor describes one governed host service method.
+type hostServiceMethodDescriptor = hostservices.MethodDescriptor
 
-// HostServiceDescriptors returns a copy of the governed host service descriptor table.
-func HostServiceDescriptors() []HostServiceDescriptor {
+// hostServiceDescriptors returns a copy of the governed host service descriptor table.
+func hostServiceDescriptors() []hostServiceDescriptor {
 	return hostservices.Catalog()
 }
 
-// HostServiceMethodDescriptors returns all governed host-service method descriptors.
-func HostServiceMethodDescriptors() []HostServiceMethodDescriptor {
-	return append([]HostServiceMethodDescriptor(nil), hostServiceMethodDescriptors()...)
+// hostServiceMethodDescriptors returns all governed host-service method descriptors.
+func hostServiceMethodDescriptors() []hostServiceMethodDescriptor {
+	return append([]hostServiceMethodDescriptor(nil), rawHostServiceMethodDescriptors()...)
 }
 
-func hostServiceMethodDescriptors() []HostServiceMethodDescriptor {
+func rawHostServiceMethodDescriptors() []hostServiceMethodDescriptor {
 	return hostservices.Methods()
+}
+
+func publishedHostServiceMethodDescriptors() []hostServiceMethodDescriptor {
+	descriptors := hostServiceMethodDescriptors()
+	result := make([]hostServiceMethodDescriptor, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		if descriptor.Published {
+			result = append(result, descriptor)
+		}
+	}
+	return result
 }
 
 func buildHostServiceMethodCapabilityMap() map[string]map[string]string {
 	result := make(map[string]map[string]string)
-	for _, descriptor := range hostServiceMethodDescriptors() {
+	for _, descriptor := range publishedHostServiceMethodDescriptors() {
 		if descriptor.Service == "" || descriptor.Method == "" || descriptor.Capability == "" {
 			continue
 		}
@@ -55,14 +66,14 @@ func buildHostServiceMethodCapabilityMap() map[string]map[string]string {
 	return result
 }
 
-func buildHostServiceMethodResourceMap() map[string]map[string]HostServiceResourceKind {
-	result := make(map[string]map[string]HostServiceResourceKind)
-	for _, descriptor := range hostServiceMethodDescriptors() {
+func buildHostServiceMethodResourceMap() map[string]map[string]hostServiceResourceKind {
+	result := make(map[string]map[string]hostServiceResourceKind)
+	for _, descriptor := range publishedHostServiceMethodDescriptors() {
 		if descriptor.Service == "" || descriptor.Method == "" {
 			continue
 		}
 		if result[descriptor.Service] == nil {
-			result[descriptor.Service] = make(map[string]HostServiceResourceKind)
+			result[descriptor.Service] = make(map[string]hostServiceResourceKind)
 		}
 		result[descriptor.Service][descriptor.Method] = descriptor.ResourceKind
 	}
@@ -71,7 +82,7 @@ func buildHostServiceMethodResourceMap() map[string]map[string]HostServiceResour
 
 func buildHostServiceCapabilitySet() map[string]struct{} {
 	result := make(map[string]struct{})
-	for _, descriptor := range hostServiceMethodDescriptors() {
+	for _, descriptor := range publishedHostServiceMethodDescriptors() {
 		if descriptor.Capability != "" {
 			result[descriptor.Capability] = struct{}{}
 		}
@@ -79,9 +90,9 @@ func buildHostServiceCapabilitySet() map[string]struct{} {
 	return result
 }
 
-func buildHostServiceResourceKindSet(kind HostServiceResourceKind) map[string]struct{} {
+func buildHostServiceResourceKindSet(kind hostServiceResourceKind) map[string]struct{} {
 	result := make(map[string]struct{})
-	for _, descriptor := range HostServiceDescriptors() {
+	for _, descriptor := range hostServiceDescriptors() {
 		if descriptor.ResourceKind == kind {
 			result[descriptor.Service] = struct{}{}
 		}

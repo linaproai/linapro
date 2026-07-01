@@ -199,30 +199,6 @@ func TestRegisterSourcePluginForTestReturnsGoFrameError(t *testing.T) {
 	}
 }
 
-// TestJobsRegistrarReportsPrimaryNode verifies jobs registrars expose the
-// current primary-node status from the host callback.
-func TestJobsRegistrarReportsPrimaryNode(t *testing.T) {
-	registrar := NewJobsRegistrar(
-		"test-plugin",
-		nil,
-		func() bool { return false },
-		nil,
-	)
-	if registrar.IsPrimaryNode() {
-		t.Fatalf("expected current node to be non-primary")
-	}
-
-	registrar = NewJobsRegistrar(
-		"test-plugin",
-		nil,
-		func() bool { return true },
-		nil,
-	)
-	if !registrar.IsPrimaryNode() {
-		t.Fatalf("expected current node to be primary")
-	}
-}
-
 // TestHookPayloadHelpersBuildPublishedKeys verifies published hook payload maps
 // contain the expected field names and values.
 func TestHookPayloadHelpersBuildPublishedKeys(t *testing.T) {
@@ -360,21 +336,21 @@ func TestRegisterUpgradeHandlersPublishesManifestSnapshots(t *testing.T) {
 		"test-plugin-upgrade",
 		"v0.1.0",
 		"v0.2.0",
-			NewManifestSnapshot(&capmodel.ManifestSnapshot{
-				ID:           "test-plugin-upgrade",
-				Name:         "Test Plugin Upgrade",
-				Version:      "v0.1.0",
-				Type:         "source",
-				Distribution: "marketplace",
-			}),
-			NewManifestSnapshot(&capmodel.ManifestSnapshot{
-				ID:           "test-plugin-upgrade",
-				Name:         "Test Plugin Upgrade",
-				Version:      "v0.2.0",
-				Type:         "source",
-				Distribution: "marketplace",
-				MenuCount:    2,
-			}),
+		NewManifestSnapshot(&capmodel.ManifestSnapshot{
+			ID:           "test-plugin-upgrade",
+			Name:         "Test Plugin Upgrade",
+			Version:      "v0.1.0",
+			Type:         "source",
+			Distribution: "marketplace",
+		}),
+		NewManifestSnapshot(&capmodel.ManifestSnapshot{
+			ID:           "test-plugin-upgrade",
+			Name:         "Test Plugin Upgrade",
+			Version:      "v0.2.0",
+			Type:         "source",
+			Distribution: "marketplace",
+			MenuCount:    2,
+		}),
 	)
 	if err := handler(context.Background(), input); err != nil {
 		t.Fatalf("expected upgrade handler to execute without error, got %v", err)
@@ -441,8 +417,8 @@ func TestSourcePluginLifecycleCallbackAdapterRunsBeforeUpgrade(t *testing.T) {
 		),
 		Participants: []LifecycleParticipant{
 			{
-				PluginID: "test-plugin-before-upgrade",
-				Callback: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
+				PluginID:  "test-plugin-before-upgrade",
+				Callbacks: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
 			},
 		},
 	})
@@ -483,8 +459,8 @@ func TestSourcePluginLifecycleCallbackAdapterRunsUpgrade(t *testing.T) {
 		),
 		Participants: []LifecycleParticipant{
 			{
-				PluginID: "test-plugin-upgrade",
-				Callback: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
+				PluginID:  "test-plugin-upgrade",
+				Callbacks: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
 			},
 		},
 	})
@@ -516,8 +492,8 @@ func TestSourcePluginLifecycleCallbackAdapterRunsAfterInstall(t *testing.T) {
 		PluginInput: NewSourcePluginLifecycleInput("test-plugin-after-install", LifecycleHookAfterInstall.String()),
 		Participants: []LifecycleParticipant{
 			{
-				PluginID: "test-plugin-after-install",
-				Callback: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
+				PluginID:  "test-plugin-after-install",
+				Callbacks: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
 			},
 		},
 	})
@@ -555,8 +531,8 @@ func TestSourcePluginLifecycleCallbackAdapterRunsInstallModeChange(t *testing.T)
 		),
 		Participants: []LifecycleParticipant{
 			{
-				PluginID: "test-plugin-before-install-mode",
-				Callback: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
+				PluginID:  "test-plugin-before-install-mode",
+				Callbacks: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
 			},
 		},
 	})

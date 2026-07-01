@@ -11,6 +11,20 @@ import (
 	"lina-core/pkg/plugin/capability/capmodel"
 )
 
+// Service defines the document AI capability consumed by host services and plugins.
+type Service interface {
+	// Available reports whether an active document provider is available.
+	Available(ctx context.Context) bool
+	// Status returns the current document AI capability activation state.
+	Status(ctx context.Context) capmodel.CapabilityStatus
+	// MethodStatus returns the current activation state for one document method.
+	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
+	// Analyze executes one governed document analysis request.
+	Analyze(ctx context.Context, request AnalyzeRequest) (*Response, error)
+	// Cite executes one governed citation-aware document request.
+	Cite(ctx context.Context, request CiteRequest) (*Response, error)
+}
+
 const (
 	// CapabilityAIDocumentV1 identifies the versioned document AI framework capability.
 	CapabilityAIDocumentV1 = "framework.ai.document.v1"
@@ -64,10 +78,10 @@ type Citation struct {
 type Response struct {
 	// Text is the document analysis result.
 	Text string `json:"text"`
-	// Citations contains citation projections when available.
+	// Citations contains citations when available.
 	Citations []Citation `json:"citations,omitempty"`
 	// Provider contains public provider/model identity.
-	Provider aicommon.ProviderProjection `json:"provider"`
+	Provider aicommon.ProviderInfo `json:"provider"`
 	// Usage contains minimal usage details.
 	Usage aicommon.Usage `json:"usage,omitempty"`
 	// LatencyMs is the provider call latency in milliseconds.
@@ -76,41 +90,7 @@ type Response struct {
 	CreatedAt int64 `json:"createdAt,omitempty"`
 }
 
-// ProviderRequest carries provider-internal document requests with source identity.
-type ProviderRequest struct {
-	// SourcePluginID identifies the dynamic or source plugin that initiated the call.
-	SourcePluginID string `json:"sourcePluginId,omitempty"`
-	// Analyze contains the document analysis request when Method is analyze.
-	Analyze *AnalyzeRequest `json:"analyze,omitempty"`
-	// Cite contains the citation-aware request when Method is cite.
-	Cite *CiteRequest `json:"cite,omitempty"`
-}
-
-// Provider defines document AI capability implemented by provider plugins.
-type Provider interface {
-	// AnalyzeDocument executes one governed document analysis request.
-	AnalyzeDocument(ctx context.Context, request ProviderRequest) (*Response, error)
-	// CiteDocument executes one governed citation-aware document request.
-	CiteDocument(ctx context.Context, request ProviderRequest) (*Response, error)
-}
-
-// Service defines the document AI capability consumed by host services and plugins.
-type Service interface {
-	// Available reports whether an active document provider is available.
-	Available(ctx context.Context) bool
-	// Status returns the current document AI capability activation state.
-	Status(ctx context.Context) capmodel.CapabilityStatus
-	// MethodStatus returns the current activation state for one document method.
-	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
-	// Analyze executes one governed document analysis request.
-	Analyze(ctx context.Context, request AnalyzeRequest) (*Response, error)
-	// Cite executes one governed citation-aware document request.
-	Cite(ctx context.Context, request CiteRequest) (*Response, error)
-}
-
-type serviceImpl struct {
-	sourcePluginID string
-}
+type serviceImpl struct{}
 
 var _ Service = (*serviceImpl)(nil)
 
@@ -118,9 +98,9 @@ var _ Service = (*serviceImpl)(nil)
 func New() Service { return &serviceImpl{} }
 
 // ForPlugin returns a plugin-scoped document service.
-func ForPlugin(service Service, pluginID string) Service {
+func ForPlugin(service Service, _ string) Service {
 	if _, ok := service.(*serviceImpl); service == nil || ok {
-		return &serviceImpl{sourcePluginID: strings.TrimSpace(pluginID)}
+		return &serviceImpl{}
 	}
 	return service
 }

@@ -3,6 +3,11 @@
 
 package plugintypes
 
+import (
+	pluginv1 "lina-core/api/plugin/v1"
+	"lina-core/pkg/statusflag"
+)
+
 // MigrationDirection defines the install or uninstall phase persisted in migration records.
 type MigrationDirection string
 
@@ -286,10 +291,10 @@ type RuntimeUpgradeProjection struct {
 
 // DeriveNodeState converts installation and enablement flags into one stable node-state key.
 func DeriveNodeState(installed int, enabled int) string {
-	if NormalizeInstalledStatus(installed) != PluginInstalledYes {
+	if NormalizeInstalledStatus(installed) != statusflag.Installed {
 		return NodeStateUninstalled.String()
 	}
-	if NormalizeStatus(enabled) == PluginStatusEnabled {
+	if NormalizeStatus(enabled) == statusflag.EnabledValue {
 		return NodeStateEnabled.String()
 	}
 	return NodeStateInstalled.String()
@@ -297,10 +302,10 @@ func DeriveNodeState(installed int, enabled int) string {
 
 // DeriveHostState converts install and enablement flags into the stable host lifecycle state.
 func DeriveHostState(installed int, enabled int) string {
-	if NormalizeInstalledStatus(installed) != PluginInstalledYes {
+	if NormalizeInstalledStatus(installed) != statusflag.Installed {
 		return HostStateUninstalled.String()
 	}
-	if NormalizeStatus(enabled) == PluginStatusEnabled {
+	if NormalizeStatus(enabled) == statusflag.EnabledValue {
 		return HostStateEnabled.String()
 	}
 	return HostStateInstalled.String()
@@ -308,16 +313,16 @@ func DeriveHostState(installed int, enabled int) string {
 
 // DeriveLifecycleState converts plugin type and runtime flags into a lifecycle state.
 func DeriveLifecycleState(pluginType string, installed int, enabled int) string {
-	if NormalizeType(pluginType) == TypeSource {
-		if NormalizeStatus(enabled) == PluginStatusEnabled {
+	if NormalizeType(pluginType) == pluginv1.PluginTypeSource {
+		if NormalizeStatus(enabled) == statusflag.EnabledValue {
 			return LifecycleStateSourceEnabled.String()
 		}
 		return LifecycleStateSourceDisabled.String()
 	}
-	if NormalizeInstalledStatus(installed) != PluginInstalledYes {
+	if NormalizeInstalledStatus(installed) != statusflag.Installed {
 		return LifecycleStateRuntimeUninstalled.String()
 	}
-	if NormalizeStatus(enabled) == PluginStatusEnabled {
+	if NormalizeStatus(enabled) == statusflag.EnabledValue {
 		return LifecycleStateRuntimeEnabled.String()
 	}
 	return LifecycleStateRuntimeInstalled.String()

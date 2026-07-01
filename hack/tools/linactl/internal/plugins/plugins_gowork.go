@@ -94,9 +94,11 @@ func WriteOfficialWorkspace(root string, workspace OfficialWorkspace) (string, e
 		return "", err
 	}
 
-	workspacePath := GoWorkPath(root)
-	normalizedUses := make([]string, 0, len(hostUses)+len(pluginUses))
-	seen := make(map[string]struct{}, len(hostUses)+len(pluginUses))
+	var (
+		workspacePath  = GoWorkPath(root)
+		normalizedUses = make([]string, 0, len(hostUses)+len(pluginUses))
+		seen           = make(map[string]struct{}, len(hostUses)+len(pluginUses))
+	)
 	addUse := func(use string) {
 		normalized := normalizeGoWorkUse(root, use)
 		if normalized == "" || isOfficialPluginGoWorkUse(normalized) {
@@ -186,9 +188,11 @@ func BackendImports(workspace OfficialWorkspace) ([]BackendImport, error) {
 		if entry.Name() != "go.mod" {
 			return nil
 		}
-		moduleDir := filepath.Dir(path)
-		manifestPath := filepath.Join(moduleDir, "plugin.yaml")
-		backendPath := filepath.Join(moduleDir, "backend", "plugin.go")
+		var (
+			moduleDir    = filepath.Dir(path)
+			manifestPath = filepath.Join(moduleDir, "plugin.yaml")
+			backendPath  = filepath.Join(moduleDir, "backend", "plugin.go")
+		)
 		if !fileutil.FileExists(manifestPath) || !fileutil.FileExists(backendPath) {
 			return nil
 		}

@@ -5,6 +5,7 @@ package upgrade
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"lina-core/internal/service/plugin/internal/catalog"
@@ -14,6 +15,7 @@ import (
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // SourceUpgradeResult describes the outcome of one explicit source-plugin upgrade request.
@@ -44,7 +46,7 @@ func (s *serviceImpl) UpgradeSourcePlugin(ctx context.Context, pluginID string) 
 		if markErr := s.cachePublisher.PublishPluginChange(
 			ctx,
 			pluginID,
-			plugintypes.TypeSource.String(),
+			pluginv1.PluginTypeSource.String(),
 			"source_plugin_upgrade_failed",
 		); markErr != nil {
 			logger.Warningf(
@@ -85,7 +87,7 @@ func (s *serviceImpl) ExecuteSourcePluginUpgrade(ctx context.Context, pluginID s
 		FromVersion: candidate.status.EffectiveVersion,
 		ToVersion:   candidate.status.DiscoveredVersion,
 	}
-	if candidate.status.Installed != plugintypes.InstalledYes {
+	if candidate.status.Installed != statusflag.Installed.Int() {
 		setSourceUpgradeResultMessage(
 			ctx,
 			s.i18nSvc,
@@ -325,7 +327,7 @@ func (s *serviceImpl) dependencyTargetAlreadyInstalled(ctx context.Context, plug
 	if err != nil || registry == nil {
 		return false
 	}
-	return registry.Installed == plugintypes.InstalledYes
+	return registry.Installed == statusflag.Installed.Int()
 }
 
 // applySourcePluginUpgradedRelease promotes the discovered release to the
