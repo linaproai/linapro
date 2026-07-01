@@ -102,6 +102,15 @@ func TestDatabaseDebugDefaultsOffInDeliveryConfig(t *testing.T) {
 	assertDatabaseDebugDisabledIfExists(t, localPath)
 }
 
+// TestDatabaseTimezoneDefaultsToProjectTimezone verifies PostgreSQL TIMESTAMP
+// values are decoded with the project runtime timezone instead of driver UTC.
+func TestDatabaseTimezoneDefaultsToProjectTimezone(t *testing.T) {
+	templatePath := filepath.Join("..", "..", "..", "manifest", "config", "config.template.yaml")
+	assertDatabaseTimezoneConfigured(t, templatePath)
+	packedTemplatePath := filepath.Join("..", "..", "..", "internal", "packed", "manifest", "config", "config.template.yaml")
+	assertDatabaseTimezoneConfiguredIfExists(t, packedTemplatePath)
+}
+
 // assertDatabaseDebugDisabled verifies one config file disables ORM SQL debug
 // logging by default.
 func assertDatabaseDebugDisabled(t *testing.T, path string) {
@@ -116,6 +125,20 @@ func assertDatabaseDebugDisabled(t *testing.T, path string) {
 	}
 }
 
+// assertDatabaseTimezoneConfigured verifies one config file pins PostgreSQL
+// timestamp decoding to the project runtime timezone.
+func assertDatabaseTimezoneConfigured(t *testing.T, path string) {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read delivery config %s: %v", path, err)
+	}
+	if !strings.Contains(string(content), `timezone: "Asia/Shanghai"`) {
+		t.Fatalf("expected %s to configure database.default.timezone as Asia/Shanghai", path)
+	}
+}
+
 // assertDatabaseDebugDisabledIfExists verifies ignored local or packed config
 // files only when they are present in the current workspace.
 func assertDatabaseDebugDisabledIfExists(t *testing.T, path string) {
@@ -123,6 +146,18 @@ func assertDatabaseDebugDisabledIfExists(t *testing.T, path string) {
 
 	if _, err := os.Stat(path); err == nil {
 		assertDatabaseDebugDisabled(t, path)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("stat optional config %s: %v", path, err)
+	}
+}
+
+// assertDatabaseTimezoneConfiguredIfExists verifies optional local packed
+// assets when present in the current workspace.
+func assertDatabaseTimezoneConfiguredIfExists(t *testing.T, path string) {
+	t.Helper()
+
+	if _, err := os.Stat(path); err == nil {
+		assertDatabaseTimezoneConfigured(t, path)
 	} else if !os.IsNotExist(err) {
 		t.Fatalf("stat optional config %s: %v", path, err)
 	}
