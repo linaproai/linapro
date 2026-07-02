@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS sys_online_session (
     "ip"               VARCHAR(64) NOT NULL DEFAULT '',
     "browser"          VARCHAR(100) NOT NULL DEFAULT '',
     "os"               VARCHAR(100) NOT NULL DEFAULT '',
-    "login_time"       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "last_active_time" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "login_time"       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "last_active_time" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT pk_sys_online_session_token PRIMARY KEY ("token_id")
 );
 

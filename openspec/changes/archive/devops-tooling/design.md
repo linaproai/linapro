@@ -10,13 +10,27 @@
 
 ## GoFrame Code Generation With Target Directory Support
 
-`linactl ctrl`和`linactl dao`支持以下目标选择参数：`p=<plugin-id>`或`plugin=<plugin-id>`定向到`apps/lina-plugins/<plugin-id>/backend`；`dir=<backend-dir>`或`target=<backend-dir>`定向到指定目录；不传目标时默认宿主`apps/lina-core`。
+`linactl ctrl`和`linactl dao`只接受`dir=`目标参数，删除旧`p=`、`plugin=`和`target=`参数。不传目标时默认宿主`apps/lina-core`。
 
-公开命令负责解析目标目录，隐藏`__goframe`子命令仍只接受`gen ctrl`或`gen dao`，并在父进程指定的工作目录中运行内嵌 GoFrame CLI。`dao`会提前校验目标`hack/config.yaml`，`ctrl`只要求目标后端目录存在，避免把 DAO 配置前置条件错误套到只生成 controller 的插件上。任何目标目录都必须包含`hack/config.yaml`，否则命令拒绝执行并返回清晰错误。
+**插件代码生成配置迁移决策**：将官方插件的 GoFrame 代码生成配置从`backend/hack/config.yaml`迁移到插件根`hack/config.yaml`。`linactl`内部使用`Target{WorkDir, ConfigDir}`表示代码生成目标，插件后端目标为`WorkDir=apps/lina-plugins/<plugin-id>/backend`、`ConfigDir=apps/lina-plugins/<plugin-id>/hack`。标准插件识别只作用于`dir=<plugin>/backend`：当目标目录名为`backend`、父目录存在`plugin.yaml`、父目录位于`apps/lina-plugins/`下且`plugin.yaml`中的`id`与目录名一致时，目标被识别为标准插件后端并读取插件根`hack/`。
 
-根`Makefile`通过`hack/makefiles/database.mk`暴露统一`ctrl`和`dao`目标。`apps/lina-core/Makefile`删除旧`hack/hack-cli.mk`、`hack/hack.mk`依赖和旧`gf`安装/镜像重复入口，只保留宿主相关薄转发。`apps/lina-plugins/Makefile`新增需要`p=<plugin-id>`的聚合`ctrl`和`dao`。
+**插件自定义构建指令迁移决策**：`linactl build`改为读取插件根`hack/config.yaml`中的`build.commands`，支持`$(PLUGIN_ROOT)`和`$(REPO_ROOT)`变量展开。删除`apps/lina-plugins`根`go.mod`、`go.sum`和`lina-plugins.go`，改为由`linactl`在插件完整构建时自动生成源码插件聚合模块和临时`go.work`。
+
+公开命令负责解析目标目录，隐藏`__goframe`子命令仍只接受`gen ctrl`或`gen dao`，并在父进程指定的工作目录中运行内嵌 GoFrame CLI。`dao`会提前校验目标`hack/config.yaml`，`ctrl`只要求目标后端目录存在，避免把 DAO 配置前置条件错误套到只生成 controller 的插件上。`plugins.check`扫描插件根`hack/config.yaml`，并阻断旧路径`backend/hack/config.yaml`。
+
+根`Makefile`通过`hack/makefiles/database.mk`暴露统一`ctrl`和`dao`目标。`apps/lina-core/Makefile`删除旧`hack/hack-cli.mk`、`hack/hack.mk`依赖和旧`gf`安装/镜像重复入口，只保留宿主相关薄转发。
 
 新增根目录共享片段`hack/makefiles/plugin.codegen.mk`，统一维护插件`ctrl`和`dao`目标。所有官方插件根目录`Makefile`改为计算自身`PLUGIN_ROOT`和`REPO_ROOT`后 include 共享片段，通过`$(PLUGIN_ROOT)/backend`推导目标后端目录，不再硬编码具体插件 ID 或`apps/lina-plugins/<plugin-id>/backend`。
+
+## GoFrame Shutdown Config Reuse
+
+**决策**：移除 LinaPro 自定义`shutdown.timeout`配置入口和`config.Service.GetShutdown`读取契约，改用 GoFrame Server 的`server.gracefulShutdownTimeout`作为停机超时唯一来源。宿主运行时资源清理继续在 GoFrame`Server.Run()`返回后执行，清理 deadline 从`Server.GetGracefulShutdownTimeout()`派生。
+
+**关键实现**：
+- 删除`config.Service.GetShutdown`接口及其实现
+- `httpstartup`模块从 GoFrame Server 实例读取停机超时，不再依赖自定义配置键
+- 配置样例将停机超时迁移到`server.gracefulShutdownTimeout`，移除顶层`shutdown`配置段
+- 不新增 HTTP API、前端页面或数据库变更
 
 ## Agent Resource Bridges
 

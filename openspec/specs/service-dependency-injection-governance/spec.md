@@ -239,3 +239,83 @@ TBD - created by archiving change explicit-service-dependency-injection. Update 
 - **THEN** 不得发现通过进程级默认 provider 隐式选择 `kvcache` 后端的生产接线
 - **AND** 测试 helper 若使用默认 provider 必须保存并恢复全局状态
 
+### Requirement: 消费方专用窄接口必须基于复杂度收益定义
+
+系统 SHALL 要求仅服务特定消费场景且不能由既有稳定契约清晰表达的窄依赖接口定义在消费者包内，而不是由生产者组件预先导出。生产者组件 SHOULD 默认只暴露自身完整`Service`契约、稳定产品契约或受治理的公开能力契约。消费方 SHOULD 优先复用目标组件已有`Service`或稳定契约；当该契约已经能满足消费方需要，且不会引入不稳定实现细节或额外运行期依赖时，不应为了单个方法重复定义本地窄接口。
+
+#### Scenario: 插件 host config 只读取原始配置值
+
+- **WHEN** 插件 host config 或 plugin config 适配器只需要读取原始宿主配置值
+- **THEN** 读取接口由该插件消费方包定义
+- **AND** `config`生产者组件不为该消费场景导出额外窄接口
+
+#### Scenario: 插件能力宿主只需要认证或权限子集
+
+- **WHEN** 插件能力宿主适配器只需要认证服务的会话撤销、租户令牌签发或角色服务的访问快照方法
+- **THEN** 该窄接口由插件能力宿主或插件 service facade 包定义
+- **AND** `auth`和`role`生产者组件不为该消费场景导出专用接口类型
+
+#### Scenario: 既有 Service 已能清晰满足消费者
+
+- **WHEN** 控制器或普通 service 只消费目标组件已有`Service`中的方法
+- **AND** 直接依赖该`Service`不会暴露被调用模块的内部实现、缓存快照或私有模型
+- **THEN** 消费方应直接依赖目标组件`Service`
+- **AND** 不应再为同一目标组件方法重复声明只转述方法签名的本地窄接口
+
+#### Scenario: 分类接口只用于生产者 Service 自组合
+
+- **WHEN** 一个导出接口只被同包默认`Service`内嵌，没有独立跨包替换、测试或稳定产品契约用途
+- **THEN** 该接口的方法应直接声明在默认`Service`中
+- **AND** 不应保留仅用于分类命名的导出接口
+
+#### Scenario: 稳定产品契约保留在能力 owner 包
+
+- **WHEN** 一个接口表达稳定运行期产品契约、公共插件协议、共享状态后端或明确的跨组件能力 owner
+- **THEN** 该接口可以继续由能力 owner 包定义
+- **AND** 审查必须确认它不是单一消费者的临时窄依赖
+
+### Requirement: 插件服务消费者必须依赖最小稳定契约
+
+系统 SHALL 要求宿主内部消费者通过构造函数接收启动期共享插件服务实例发布的最小稳定契约。普通消费者只需要启动、运行时、job、状态、provider env 或租户生命周期等部分能力时，MUST 依赖消费者本地私有窄接口；若消费者是插件管理控制器、HTTP 启动上下文、`RuntimeDelegate`或其他必须跨启动阶段传递统一插件服务入口的边界，MUST 只引用导出的`plugin.Service`。消费者 MUST NOT 引用`plugin`包导出的 facet 类型，`plugin`包拆分出来的 facet MUST 保持私有。
+
+#### Scenario: 定时任务组件依赖插件 job 能力
+
+- **WHEN** `cron`或`jobhandler`需要同步插件声明的定时任务
+- **THEN** 它们通过构造函数接收插件 job 和生命周期 observer 所需的最小契约
+- **AND** 测试替身只需要实现这些实际使用的方法
+- **AND** 该最小契约在消费者包内私有声明，不依赖`plugin`包导出的 facet 类型
+
+#### Scenario: API 文档组件依赖插件路由能力
+
+- **WHEN** `apidoc`需要读取源码插件 route binding 或投影动态路由
+- **THEN** 它依赖插件路由和状态读取所需的窄契约
+- **AND** 不得依赖插件安装、卸载、上传或租户 lifecycle 等无关方法
+- **AND** 该窄契约在消费者包内私有声明，不依赖`plugin`包导出的 facet 类型
+
+#### Scenario: Runtime delegate 依赖插件状态和 hook 能力
+
+- **WHEN** 启动期 cycle breaker 在插件服务完成构造前被传入认证、菜单、角色或 capability provider
+- **THEN** delegate 通过`plugin.Service`绑定启动期共享插件服务实例
+- **AND** delegate 绑定后只调用 hook、菜单过滤、状态读取、provider env 和租户生命周期等当前需要的方法
+- **AND** 不得为该单一 cycle breaker 额外保留`runtimeDelegateService`等重复窄接口
+
+#### Scenario: 共享实例语义保持不变
+
+- **WHEN** 消费者从完整`plugin.Service`迁移到 facet 或窄接口
+- **THEN** 注入对象仍然来自启动期构造的同一个插件服务实例
+- **AND** 不得创建新的插件服务实例、缓存快照、route binding 状态或 runtime frontend bundle 缓存
+
+#### Scenario: HTTP 启动上下文保存插件服务
+
+- **WHEN** HTTP 启动装配需要在多个启动阶段、路由绑定 helper 或 controller 构造中复用插件服务
+- **THEN** `httpRuntime`只保存单个`pluginSvc pluginsvc.Service`字段作为统一入口
+- **AND** 不得在`httpRuntime`中为管理、启动、运行时 HTTP、集成或 job facet 增加多个插件服务字段
+- **AND** 路由、frontend asset 和 hook helper 从`httpRuntime`接收插件服务时应继续使用该统一`pluginsvc.Service`入口，不得额外声明插件 runtime HTTP 或 integration 分类接口
+
+#### Scenario: 插件管理控制器使用统一插件服务入口
+
+- **WHEN** 插件管理控制器通过`NewV1`接收插件服务依赖
+- **THEN** 构造函数和控制器字段应直接使用`pluginsvc.Service`统一入口
+- **AND** 不得在 controller 包中额外声明重复的插件 management 分类接口
+- **AND** 单元测试替身可以嵌入`pluginsvc.Service`并只覆盖测试路径实际调用的方法
+

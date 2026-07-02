@@ -26,6 +26,7 @@ type SysPluginColumns struct {
 	Name                    string // Plugin name
 	Version                 string // Plugin version
 	Type                    string // Plugin top-level type: source/dynamic
+	Distribution            string // Plugin distribution governance: marketplace or builtin
 	ScopeNature             string // Plugin scope nature: platform_only or tenant_aware
 	InstallMode             string // Plugin install mode: global or tenant_scoped
 	AutoEnableForNewTenants string // Platform policy: whether installed and enabled tenant-scoped plugins are enabled for new tenants automatically
@@ -44,7 +45,6 @@ type SysPluginColumns struct {
 	CreatedAt               string // Creation time
 	UpdatedAt               string // Update time
 	DeletedAt               string // Deletion time
-	Distribution            string // Plugin distribution governance: marketplace or builtin
 }
 
 // sysPluginColumns holds the columns for the table sys_plugin.
@@ -54,6 +54,7 @@ var sysPluginColumns = SysPluginColumns{
 	Name:                    "name",
 	Version:                 "version",
 	Type:                    "type",
+	Distribution:            "distribution",
 	ScopeNature:             "scope_nature",
 	InstallMode:             "install_mode",
 	AutoEnableForNewTenants: "auto_enable_for_new_tenants",
@@ -72,7 +73,6 @@ var sysPluginColumns = SysPluginColumns{
 	CreatedAt:               "created_at",
 	UpdatedAt:               "updated_at",
 	DeletedAt:               "deleted_at",
-	Distribution:            "distribution",
 }
 
 // NewSysPluginDao creates and returns a new DAO object for table data access.

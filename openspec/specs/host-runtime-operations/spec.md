@@ -3,56 +3,61 @@
 ## Purpose
 
 定义宿主在业务健康边界、优雅关闭、受保护上传访问、HTTP 入口组织、配置服务边界和运行时默认值方面的操作行为。
-
 ## Requirements
-
-### Requirement:宿主不得内建业务健康检查接口
+### Requirement: 宿主不得内建业务健康检查接口
 
 宿主 SHALL NOT 提供内建匿名业务健康检查 HTTP API、健康检查 DTO、健康检查控制器或`health.timeout`等专用配置入口。具体业务应用、交付镜像或业务插件需要健康检查时，必须在自身边界定义业务健康语义和路由，避免`lina-core`将数据库探测、集群角色或业务可用性固化为框架级契约。
 
-#### Scenario:主框架不注册健康检查端点
+#### Scenario: 主框架不注册健康检查端点
 
 - **当** LinaPro 宿主启动并完成静态 API 路由注册时
 - **则** 主框架不得注册`GET /api/v1/health`
 - **且** 主框架不得保留`api/health`或`internal/controller/health`生产代码
 
-#### Scenario:主框架不读取健康检查配置
+#### Scenario: 主框架不读取健康检查配置
 
 - **当** 宿主配置服务初始化时
 - **则** 配置服务不得暴露`GetHealth`或`HealthConfig`
 - **且** 交付配置模板不得声明`health.timeout`
 
-#### Scenario:业务自行定义健康语义
+#### Scenario: 业务自行定义健康语义
 
 - **当** 业务应用需要对外提供健康检查时
 - **则** 业务必须在自身应用、交付层或插件边界实现健康检查
 - **且** 业务健康接口不得依赖主框架内建的`/api/v1/health`
 
-#### Scenario:保留已认证运行诊断
+#### Scenario: 保留已认证运行诊断
 
 - **当** 需要验证集群 coordination 状态时
 - **则** 已认证调用方可以继续通过系统信息能力读取 coordination 诊断
 - **且** 该诊断不得退化为匿名业务健康检查 API
 
-### Requirement:宿主必须复用 GoFrame HTTP 优雅关闭
+### Requirement: 宿主必须复用 GoFrame HTTP 优雅关闭
 
-宿主 SHALL 对 `SIGTERM`、`SIGINT` 和类似关闭信号使用 GoFrame `Server.Run()` 的内置进程信号处理和 HTTP 优雅关闭行为。`internal/cmd/cmd_http.go` 不得再次注册 `os/signal` 或重新实现 HTTP 服务器关闭循环。GoFrame `Server.Run()` 返回后，宿主必须按此顺序清理拥有的运行时资源：停止 cron 调度器、停止集群服务、关闭数据库连接池。宿主拥有的清理必须受 `shutdown.timeout` 约束，默认 `30s`；`shutdown.timeout` 必须使用带单位的字符串配置值，解析为 `time.Duration`。
+宿主 SHALL 对 `SIGTERM`、`SIGINT` 和类似关闭信号使用 GoFrame `Server.Run()` 的内置进程信号处理和 HTTP 优雅关闭行为。`internal/cmd/cmd_http.go` 不得再次注册 `os/signal` 或重新实现 HTTP 服务器关闭循环。GoFrame `Server.Run()` 返回后，宿主必须按此顺序清理拥有的运行时资源：停止 cron 调度器、停止集群服务、停止协调服务、关闭数据库连接池。宿主拥有的运行时清理必须复用 GoFrame Server 已生效的 `server.gracefulShutdownTimeout` 作为超时预算，不得再通过顶层 `shutdown.timeout` 或等价 LinaPro 自定义配置重复维护优雅停止超时。
 
-#### Scenario:SIGTERM 复用 GoFrame HTTP 关闭
+#### Scenario: SIGTERM 复用 GoFrame HTTP 关闭
 
 - **当** 宿主进程收到 `SIGTERM` 时
 - **则** HTTP 服务器关闭必须由 GoFrame `Server.Run()` 内置信号处理触发
 - **且** `cmd_http.go` 不得再注册额外的 `signal.NotifyContext` 或等效的 `os/signal` 监听器
 - **且** Cron 调度器必须在 `Server.Run()` 返回后停止接受新触发并等待进行中的任务
 - **且** 集群服务必须在 Cron 调度器关闭后停止
-- **且** 数据库连接池必须在 Cron 关闭后关闭
-- **且** 宿主拥有的运行时清理必须在 `shutdown.timeout` 内完成
+- **且** 协调服务必须在集群服务关闭后停止
+- **且** 数据库连接池必须在协调服务关闭后关闭
+- **且** 宿主拥有的运行时清理必须在当前 GoFrame Server 的 `server.gracefulShutdownTimeout` 内完成
 
-#### Scenario:拥有的运行时清理超时
+#### Scenario: 拥有的运行时清理超时
 
-- **当** 关闭超过 `shutdown.timeout` 时
+- **当** 关闭超过当前 GoFrame Server 的 `server.gracefulShutdownTimeout` 时
 - **则** 宿主必须记录超时警告并返回错误
 - **且** 进程不得永久挂起
+
+#### Scenario: 停机配置不重复维护
+
+- **当** 交付配置需要调整 HTTP 和宿主资源优雅停止超时时
+- **则** 配置必须使用 GoFrame Server 原生的 `server.gracefulShutdownTimeout`
+- **且** 交付配置不得再声明顶层 `shutdown.timeout`
 
 ### Requirement:上传文件访问端点必须归属文件模块并使用宿主统一授权
 
@@ -120,3 +125,4 @@
 
 - **当** 配置文件设置 `scheduler.defaultTimezone: "Asia/Shanghai"` 时
 - **则** 宿主在注册内置任务时使用 `Asia/Shanghai`
+

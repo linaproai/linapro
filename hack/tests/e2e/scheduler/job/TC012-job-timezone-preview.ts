@@ -38,6 +38,7 @@ test.describe("TC-1 时区持久化与 Cron 预览", () => {
 
   test("TC-1a~e: 时区字段可持久化，Cron 预览支持 5 段表达式并返回对应时区结果", async () => {
     const defaultGroup = await getDefaultGroup(api);
+    const beforeCreate = Date.now();
     const created = await createJob(
       api,
       buildShellJobPayload({
@@ -54,6 +55,9 @@ test.describe("TC-1 时区持久化与 Cron 预览", () => {
     expect(detail.timezone).toBe("UTC");
     expect(detail.cronExpr).toBe("17 3 * * *");
     expect(detail.createdAt).toBeTruthy();
+    expect(detail.createdAt!).toBeGreaterThanOrEqual(
+      beforeCreate - 10 * 60 * 1000,
+    );
     expect(detail.createdAt!).toBeLessThanOrEqual(Date.now() + 10 * 60 * 1000);
 
     const utcPreview = await previewCron(api, "17 3 * * *", "UTC");

@@ -13,3 +13,7 @@
 - [x] FB-8/FB-9/FB-10: Redis CI、cluster smoke、维护注释和单机测试边界不足；处理：新增真实 Redis service 集成测试、nightly cluster smoke、脚本/YAML 注释，并隔离缺少 Redis 时的常规测试；验证：YAML 解析、shell 语法、真实 Redis smoke、OpenSpec 校验和审查通过。
 - [x] 关键验证：`go test`覆盖 config、coordination、cluster、locker、cachecoord、kvcache、auth、session、role、cron、plugin runtime、i18n、sysinfo、middleware、monitor-online 等相关包；真实 Redis 验证通过`LINA_TEST_REDIS_ADDR`显式启用；cluster smoke 验证 Redis 启动、primary、登录和 system info coordination 诊断。
 - [x] 治理：实现阶段同步过新增错误码和 sysinfo apidoc i18n；前端未展示新增 coordination 字段时无需运行时 UI 语言包；数据权限边界保持在 PostgreSQL 投影和既有 tenantcap/datascope；缓存一致性以 Redis KV/revision/event/lock 为集群事实源，单机保持本地或 SQL 分支；本次归档压缩不修改运行时代码、API、数据库、前端、插件源码或 i18n 资源。
+- [x] 替换单机 kvcache 后端：将`cluster.enabled=false`时的宿主共享`kvcache`从 SQL table backend 替换为进程内`memory`后端（基于 GoFrame `gcache`）；删除`sys_kv_cache`表、DAO/DO/Entity、SQL table backend 和 KV 过期清理定时任务。
+- [x] 认证权威源收敛：明确`sys_online_session`为完整登录态权威来源，单机 JWT revoke 仅作为进程内快速拒绝缓存；新增`AuthenticateAccessToken`作为完整认证入口，低层 JWT 解析保持为内部实现。
+- [x] FB-1 至 FB-6：清理旧 SQL 基线、收窄 auth 导出面、移除进程级可变默认 provider、收敛后端命名为`memory`、移除固定 LRU 容量、封装后端为内部子组件。
+- [x] 验证：`make db.init`和`make dao`删除`sys_kv_cache`生成物；`go test`覆盖 kvcache、auth、session、middleware、plugin cache host service、cron、httpstartup 等包；静态检索确认无`sys_kv_cache`、`NewSQLTableProvider`、`BackendSQLTable`残留。

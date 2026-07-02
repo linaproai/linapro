@@ -95,10 +95,10 @@ SELECT
     u."id",
     1,
     0,
-    NULL::TIMESTAMP,
-    TIMESTAMP '2026-04-20 09:00:10',
-    TIMESTAMP '2026-04-20 09:00:10',
-    TIMESTAMP '2026-04-20 09:00:10'
+    NULL::TIMESTAMPTZ,
+    TIMESTAMPTZ '2026-04-20 09:00:10',
+    TIMESTAMPTZ '2026-04-20 09:00:10',
+    TIMESTAMPTZ '2026-04-20 09:00:10'
 FROM sys_notify_message "msg"
 JOIN sys_user u ON u."username" IN ('admin', 'user002', 'user060')
 WHERE "msg"."tenant_id" = 0
@@ -148,10 +148,10 @@ SELECT
     u."id",
     1,
     CASE WHEN u."username" = 'admin' THEN 1 ELSE 0 END,
-    CASE WHEN u."username" = 'admin' THEN TIMESTAMP '2026-04-21 11:00:00' ELSE NULL::TIMESTAMP END,
-    TIMESTAMP '2026-04-21 10:31:00',
-    TIMESTAMP '2026-04-21 10:31:00',
-    TIMESTAMP '2026-04-21 10:31:00'
+    CASE WHEN u."username" = 'admin' THEN TIMESTAMPTZ '2026-04-21 11:00:00' ELSE NULL::TIMESTAMPTZ END,
+    TIMESTAMPTZ '2026-04-21 10:31:00',
+    TIMESTAMPTZ '2026-04-21 10:31:00',
+    TIMESTAMPTZ '2026-04-21 10:31:00'
 FROM sys_notify_message "msg"
 JOIN sys_user u ON u."username" IN ('admin', 'user009', 'user021')
 WHERE "msg"."tenant_id" = 0

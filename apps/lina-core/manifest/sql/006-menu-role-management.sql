@@ -19,9 +19,9 @@ CREATE TABLE IF NOT EXISTS sys_menu (
     "is_cache"    SMALLINT NOT NULL DEFAULT 0,
     "query_param" VARCHAR(255) NOT NULL DEFAULT '',
     "remark"      VARCHAR(512) NOT NULL DEFAULT '',
-    "created_at"  TIMESTAMP,
-    "updated_at"  TIMESTAMP,
-    "deleted_at"  TIMESTAMP
+    "created_at"  TIMESTAMPTZ,
+    "updated_at"  TIMESTAMPTZ,
+    "deleted_at"  TIMESTAMPTZ
 );
 
 COMMENT ON TABLE sys_menu IS 'Menu permission table';
@@ -60,9 +60,9 @@ CREATE TABLE IF NOT EXISTS sys_role (
     "data_scope" SMALLINT NOT NULL DEFAULT 2,
     "status"     SMALLINT NOT NULL DEFAULT 1,
     "remark"     VARCHAR(512) NOT NULL DEFAULT '',
-    "created_at" TIMESTAMP,
-    "updated_at" TIMESTAMP,
-    "deleted_at" TIMESTAMP
+    "created_at" TIMESTAMPTZ,
+    "updated_at" TIMESTAMPTZ,
+    "deleted_at" TIMESTAMPTZ
 );
 
 COMMENT ON TABLE sys_role IS 'Role information table';

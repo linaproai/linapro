@@ -15,9 +15,9 @@ CREATE TABLE IF NOT EXISTS sys_config (
     "value"    VARCHAR(500) NOT NULL DEFAULT '',
     "is_builtin" SMALLINT NOT NULL DEFAULT 0,
     "remark"     VARCHAR(500) NOT NULL DEFAULT '',
-    "created_at" TIMESTAMP DEFAULT NULL,
-    "updated_at" TIMESTAMP DEFAULT NULL,
-    "deleted_at" TIMESTAMP DEFAULT NULL
+    "created_at" TIMESTAMPTZ DEFAULT NULL,
+    "updated_at" TIMESTAMPTZ DEFAULT NULL,
+    "deleted_at" TIMESTAMPTZ DEFAULT NULL
 );
 
 COMMENT ON TABLE sys_config IS 'Config parameter table';

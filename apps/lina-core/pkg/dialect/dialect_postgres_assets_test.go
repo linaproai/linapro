@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -73,6 +74,64 @@ func TestPostgreSQLProjectSQLAssetsSmoke(t *testing.T) {
 	executePostgreSQLSQLAssets(t, ctx, db, installAssets)
 	executePostgreSQLSQLAssets(t, ctx, db, mockAssets)
 	executePostgreSQLSQLAssets(t, ctx, db, uninstallAssets)
+}
+
+// TestPostgreSQLProjectSQLUsesTimestamptzForInstants verifies host and plugin
+// SQL assets create absolute instant columns as TIMESTAMPTZ.
+func TestPostgreSQLProjectSQLUsesTimestamptzForInstants(t *testing.T) {
+	root := repositoryRootForSQLAudit(t)
+	removedMigrationPath := filepath.Join(root, "apps/lina-core/manifest/sql/013-timezone-aware-timestamps.sql")
+	if _, err := os.Stat(removedMigrationPath); err == nil {
+		t.Fatalf("core schema should not rely on standalone timestamp migration %s", removedMigrationPath)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("stat timestamp migration path: %v", err)
+	}
+
+	var files []string
+	for _, group := range []sqlAssetGroup{sqlAssetGroupInstall, sqlAssetGroupMock} {
+		for _, pattern := range sqlAssetPatterns(root, group) {
+			matches, err := filepath.Glob(pattern)
+			if err != nil {
+				t.Fatalf("glob project SQL assets failed: %v", err)
+			}
+			files = append(files, matches...)
+		}
+	}
+	if len(files) == 0 {
+		t.Fatal("expected project install or mock SQL assets")
+	}
+
+	bareTimestampType := regexp.MustCompile(`\bTIMESTAMP\b`)
+	var combined strings.Builder
+	for _, file := range files {
+		content, readErr := os.ReadFile(file)
+		if readErr != nil {
+			t.Fatalf("read project SQL asset %s: %v", file, readErr)
+		}
+		if match := bareTimestampType.FindStringIndex(string(content)); match != nil {
+			t.Fatalf("project SQL asset %s still declares bare TIMESTAMP", file)
+		}
+		combined.Write(content)
+		combined.WriteString("\n")
+	}
+
+	for _, required := range []string{
+		`"created_at"\s+TIMESTAMPTZ`,
+		`"updated_at"\s+TIMESTAMPTZ`,
+		`"start_at"\s+TIMESTAMPTZ`,
+		`"read_at"\s+TIMESTAMPTZ`,
+		`"expire_time"\s+TIMESTAMPTZ`,
+		`"last_heartbeat_at"\s+TIMESTAMPTZ`,
+		`"oper_time"\s+TIMESTAMPTZ`,
+		`"login_time"\s+TIMESTAMPTZ`,
+		`"joined_at"\s+TIMESTAMPTZ`,
+		`"last_test_at"\s+TIMESTAMPTZ`,
+		`"expires_at"\s+TIMESTAMPTZ`,
+	} {
+		if !regexp.MustCompile(required).MatchString(combined.String()) {
+			t.Fatalf("project SQL assets are missing %q", required)
+		}
+	}
 }
 
 // executePostgreSQLSQLAssets executes assets in order on one PostgreSQL DB.

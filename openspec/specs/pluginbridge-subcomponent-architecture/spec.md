@@ -440,3 +440,74 @@
 - **THEN** `pluginbridge/internal/hostservice`负责校验 service、method、resource kind、capability 和 manifest 规范化规则
 - **AND** 该内部包不得反向拥有或导出 payload wire 格式实现
 
+### Requirement: 剩余动态领域方法必须由 catalog 统一覆盖
+系统 SHALL 要求本变更新增的动态普通领域、插件私有资源和 runtime state 方法全部声明在`pkg/plugin/pluginbridge/protocol/hostservices`公开 catalog 中。catalog MUST 覆盖 service、method、capability、资源类型、payload 形态、guest client 发布状态和 host dispatcher 发布状态。
+
+#### Scenario: 新增动态搜索方法
+- **WHEN** 系统发布`files.search`、`jobs.search`或`dict.values.list`
+- **THEN** catalog 必须声明 service、method、资源类型和 payload 类型
+- **AND** guest client 与 host dispatcher 覆盖测试必须能发现遗漏
+
+#### Scenario: 新增 runtime state 多键方法
+- **WHEN** 系统发布`state.get_many`、`state.set_many`或`state.delete_many`
+- **THEN** catalog 必须声明这些方法属于动态 runtime 服务
+- **AND** dispatcher 必须继续校验插件和租户作用域
+
+### Requirement: 普通领域方法必须使用 JSON envelope 或明确复用既有 codec
+系统 SHALL 要求新增普通领域方法默认使用统一 JSON request/response envelope。storage、data、manifest、runtime state、notify 或`AI`若已有专用 payload codec，MUST 复用既有 codec 体系；新增专用 codec 必须先在 OpenSpec 设计中说明性能或 wire 稳定性理由。
+
+#### Scenario: 普通领域 JSON round trip
+- **WHEN** 动态插件调用`tenants.search`或`plugins.search`
+- **THEN** 请求和响应通过统一 JSON envelope 编码解码
+- **AND** protocol 或 typed client 测试覆盖请求响应映射
+
+#### Scenario: 资源型能力复用既有 codec
+- **WHEN** 动态插件调用`storage.stat.batch`或`data.batch_get`
+- **THEN** 系统复用对应资源型 host service codec 或统一 JSON envelope 中已声明的稳定 payload
+- **AND** 不新增未登记的 per-domain codec 文件
+
+### Requirement: 动态 host service 同步测试必须覆盖所有新增方法
+系统 SHALL 更新协议覆盖测试，使新增 method 缺少 public alias、guest client、dispatcher 注册、README 表格或非 WASI stub 时测试失败。
+
+#### Scenario: dispatcher 缺少新增方法
+- **WHEN** catalog 声明一个本变更新增方法
+- **AND** `internal/service/plugin/internal/wasm`没有注册处理该 service/method
+- **THEN** 覆盖测试失败
+
+#### Scenario: README 缺少新增动态方法
+- **WHEN** catalog 声明一个可由动态插件声明的 host service 方法
+- **AND** `apps/lina-core/pkg/plugin/README.md`或`README.zh-CN.md`缺少对应方法
+- **THEN** 文档同步检查或审查必须失败
+
+### Requirement: 阶段一动态领域方法必须由 host service catalog 覆盖
+
+系统 SHALL 要求`expand-plugin-domain-capabilities`新增的动态普通领域方法全部声明在`pkg/plugin/pluginbridge/protocol/hostservices`公开 catalog 中。catalog MUST 覆盖 service、method、capability、资源类型、payload 形态、guest client 发布状态和 host dispatcher 发布状态；内部 descriptor 不得维护第二份手写方法表。
+
+#### Scenario: 新增动态当前用户方法
+
+- **WHEN** 系统发布`users.current.get`
+- **THEN** catalog 必须声明该方法的 service、method、资源类型和 JSON payload 形态
+- **AND** guest client 与 host dispatcher 覆盖测试必须能发现遗漏
+
+#### Scenario: 新增动态字典值校验方法
+
+- **WHEN** 系统发布`values.visible.ensure`
+- **THEN** catalog 必须声明该方法归属`dict`服务和`host:dict`能力资源
+- **AND** dispatcher 必须只做授权、解码、委托和错误映射，不重新实现字典业务规则
+
+### Requirement: 阶段一普通领域动态方法必须使用 JSON envelope
+
+系统 SHALL 要求阶段一新增的`users.current.get`、`users.resolve.batch`、`authz.permissions.batch_has`、`values.visible.ensure`和`sessions.current.get`使用普通领域 JSON request/response envelope。除非 OpenSpec 另行声明性能或 wire 稳定性例外，系统 MUST NOT 为这些方法新增专用 per-domain protowire codec。
+
+#### Scenario: JSON envelope round trip
+
+- **WHEN** 动态插件 guest client 调用阶段一新增普通领域方法
+- **THEN** 请求和响应通过统一 JSON envelope 编码解码
+- **AND** protocol 测试必须覆盖新增请求响应的 round trip 或等价 typed client 映射
+
+#### Scenario: 不新增专用 codec
+
+- **WHEN** 开发者实现阶段一动态普通领域方法
+- **THEN** 不得新增`protocol_hostservice_users_current_codec.go`或同类 per-domain codec 文件
+- **AND** 特殊 codec 例外必须先写入 OpenSpec 设计
+

@@ -94,3 +94,4 @@ TBD - created by archiving change redis-cluster-coordination. Update Purpose aft
 - **THEN** 文件包含 `cluster.coordination: redis` 示例
 - **AND** 文件包含 `cluster.redis.address`、`db`、`password`、`connectTimeout`、`readTimeout`、`writeTimeout` 字段说明
 - **AND** 注释说明 `cluster.enabled=false` 时不需要 Redis
+

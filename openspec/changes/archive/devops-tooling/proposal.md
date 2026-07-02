@@ -9,6 +9,9 @@ LinaPro 的开发与运维工具链需要支撑跨平台协作、可持续交付
 - 以`hack/tools/linactl`作为跨平台开发命令主入口，`Makefile`和 Windows`make.cmd`仅作为薄包装入口，统一`dev`、`stop`、`status`、`build`、`wasm`、`init`、`mock`、`test`、`env.check`、`env.setup`等命令。
 - 将镜像构建、动态插件 Wasm 打包、运行时 i18n 扫描和 GoFrame controller/DAO 生成整合到`linactl/internal/`，移除默认开发路径中的独立工具模块和外部`gf`二进制依赖。
 - 扩展`linactl ctrl`和`linactl dao`，支持显式指定生成目标目录（插件 ID 或后端目录），默认继续指向`apps/lina-core`；根`Makefile`、宿主`Makefile`和插件根目录`Makefile`提供一致的代码生成入口，插件目录通过共享`hack/makefiles/plugin.codegen.mk`统一维护，不再硬编码插件 ID 或后端路径。
+- 将插件代码生成配置从`backend/hack/config.yaml`迁移到插件根`hack/config.yaml`，解耦 GoFrame 工作目录和配置目录；`linactl ctrl`和`linactl dao`只保留`dir=`目标参数，删除旧`p=`、`plugin=`和`target=`参数。
+- 将插件自定义构建指令从插件`Makefile`变量收敛到插件根`hack/config.yaml`的`build.commands`；删除`apps/lina-plugins`根`go.mod`、`go.sum`和`lina-plugins.go`，改为由`linactl`自动生成源码插件聚合模块。
+- 移除 LinaPro 自定义`shutdown.timeout`配置入口，改用 GoFrame Server 的`server.gracefulShutdownTimeout`作为停机超时唯一来源。
 - 提供`agents`多资源命令树，统一管理 Agent 的`skills`、`prompts`和`AGENTS.md`桥接软链，并保持跨平台、安全、不删除真实目录或文件。
 - 建立月度 OpenSpec 自动归档和归档聚合 workflow，支持 Codex、Claude Code 和 GitHub Copilot CLI，使用共享 prompt、运行时凭据注入、阶段性 fail-fast、OpenSpec 校验和 PR 写回。
 - 加强 release 与 nightly 镜像发布治理：release 复用共享测试验证套件，校验 tag 与`framework.version`一致，成功后创建 GitHub Release；manual nightly 可显式跳过测试门禁用于维护重发。

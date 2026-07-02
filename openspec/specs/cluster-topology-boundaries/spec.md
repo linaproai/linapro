@@ -59,3 +59,4 @@
 - **THEN** cluster service 将本节点降级为 follower
 - **AND** `IsPrimary` 返回 false
 - **AND** 主节点专属任务停止执行
+

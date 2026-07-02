@@ -9,3 +9,8 @@
 - [x] 反馈闭环：升级治理、数据库启动、安装脚本、性能审计、跨平台命令、工具整合、环境命令、镜像发布、release 版本治理、monthly archive、代码生成目标目录、插件 Makefile 硬编码路径和 Redis cluster smoke 脚本命令名称共处理`FB-*`系列问题。
 - [x] 验证：覆盖 Go 单元测试、命令 smoke、Windows 基本命令、YAML/shell 语法、Docker/Redis/CI 等价验证、安装脚本 smoke、性能审计 dry-run、OpenSpec 校验、diff 空白检查和`lina-review`审查。
 - [x] 治理：本历史分组主要影响开发工具、CI、文档、OpenSpec 和 Agent skill；运行时代码、HTTP API、数据库 schema、权限、数据权限、插件运行时、前端 UI、运行时 i18n 和业务缓存影响由对应 owner 变更承载。本次压缩不修改运行时资源。
+- [x] 迁移插件代码生成配置：将`backend/hack/config.yaml`迁移到插件根`hack/config.yaml`，解耦`workDir`和`configDir`；`linactl ctrl`和`linactl dao`只保留`dir=`参数；`plugins.check`扫描新路径并阻断旧路径。
+- [x] 迁移插件自定义构建指令：从插件`Makefile`变量收敛到`hack/config.yaml`的`build.commands`；删除`apps/lina-plugins`根`go.mod`/`go.sum`/`lina-plugins.go`，由`linactl`自动生成聚合模块。
+- [x] 复用 GoFrame 停机配置：移除自定义`shutdown.timeout`和`config.Service.GetShutdown`，改用`server.gracefulShutdownTimeout`；资源清理 deadline 从`Server.GetGracefulShutdownTimeout()`派生。
+- [x] FB-1 至 FB-11：收敛`ctrl`/`dao`参数、移除根 Makefile 兼容、删除插件工作区级重复入口、修正`hack/config.yaml`文档定位、删除根`go.mod`/`go.sum`、修复旧版动态插件 release snapshot 兼容。
+- [x] 验证：`go test ./hack/tools/linactl/... -count=1`通过；`make plugins.check`通过；代表性插件`make dao`和`make ctrl`烟测通过；`openspec validate`通过；静态检索确认旧路径无活动配置残留。

@@ -13,9 +13,9 @@ CREATE TABLE IF NOT EXISTS sys_notify_channel (
     "status"       SMALLINT NOT NULL DEFAULT 1,
     "config_json"  TEXT NOT NULL,
     "remark"       VARCHAR(500) NOT NULL DEFAULT '',
-    "created_at"   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at"   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deleted_at"   TIMESTAMP NULL DEFAULT NULL
+    "created_at"   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at"   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at"   TIMESTAMPTZ NULL DEFAULT NULL
 );
 
 COMMENT ON TABLE sys_notify_channel IS 'Notification channel table';
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS sys_notify_message (
     "content"        TEXT NOT NULL,
     "payload_json"   TEXT NOT NULL,
     "sender_user_id" BIGINT NOT NULL DEFAULT 0,
-    "created_at"     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "created_at"     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE sys_notify_message IS 'Notification message table';
@@ -77,12 +77,12 @@ CREATE TABLE IF NOT EXISTS sys_notify_delivery (
     "user_id"         BIGINT NOT NULL DEFAULT 0,
     "delivery_status" SMALLINT NOT NULL DEFAULT 0,
     "is_read"         SMALLINT NOT NULL DEFAULT 0,
-    "read_at"         TIMESTAMP NULL DEFAULT NULL,
+    "read_at"         TIMESTAMPTZ NULL DEFAULT NULL,
     "error_message"   VARCHAR(1000) NOT NULL DEFAULT '',
-    "sent_at"         TIMESTAMP NULL DEFAULT NULL,
-    "created_at"      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at"      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deleted_at"      TIMESTAMP NULL DEFAULT NULL
+    "sent_at"         TIMESTAMPTZ NULL DEFAULT NULL,
+    "created_at"      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at"      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at"      TIMESTAMPTZ NULL DEFAULT NULL
 );
 
 COMMENT ON TABLE sys_notify_delivery IS 'Notification delivery record table';

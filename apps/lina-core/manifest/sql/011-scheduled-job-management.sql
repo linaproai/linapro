@@ -15,9 +15,9 @@ CREATE TABLE IF NOT EXISTS sys_job_group (
     "remark"     VARCHAR(512) NOT NULL DEFAULT '',
     "sort_order" INT NOT NULL DEFAULT 0,
     "is_default" SMALLINT NOT NULL DEFAULT 0,
-    "created_at" TIMESTAMP,
-    "updated_at" TIMESTAMP,
-    "deleted_at" TIMESTAMP
+    "created_at" TIMESTAMPTZ,
+    "updated_at" TIMESTAMPTZ,
+    "deleted_at" TIMESTAMPTZ
 );
 
 COMMENT ON TABLE sys_job_group IS 'Scheduled job group table';
@@ -66,9 +66,9 @@ CREATE TABLE IF NOT EXISTS sys_job (
     "seed_version"           INT NOT NULL DEFAULT 0,
     "created_by"             BIGINT NOT NULL DEFAULT 0,
     "updated_by"             BIGINT NOT NULL DEFAULT 0,
-    "created_at"             TIMESTAMP,
-    "updated_at"             TIMESTAMP,
-    "deleted_at"             TIMESTAMP
+    "created_at"             TIMESTAMPTZ,
+    "updated_at"             TIMESTAMPTZ,
+    "deleted_at"             TIMESTAMPTZ
 );
 
 COMMENT ON TABLE sys_job IS 'Scheduled job table';
@@ -121,13 +121,13 @@ CREATE TABLE IF NOT EXISTS sys_job_log (
     "node_id"         VARCHAR(128) NOT NULL DEFAULT '',
     "trigger"       VARCHAR(32) NOT NULL DEFAULT 'cron',
     "params_snapshot" TEXT,
-    "start_at"        TIMESTAMP,
-    "end_at"          TIMESTAMP,
+    "start_at"        TIMESTAMPTZ,
+    "end_at"          TIMESTAMPTZ,
     "duration_ms"     BIGINT NOT NULL DEFAULT 0,
     "status"          VARCHAR(64) NOT NULL DEFAULT 'running',
     "err_msg"         VARCHAR(1000) NOT NULL DEFAULT '',
     "result_json"     TEXT,
-    "created_at"      TIMESTAMP
+    "created_at"      TIMESTAMPTZ
 );
 
 COMMENT ON TABLE sys_job_log IS 'Scheduled job execution log table';

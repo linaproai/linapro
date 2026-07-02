@@ -15,10 +15,10 @@ CREATE TABLE IF NOT EXISTS sys_user (
     "avatar"     VARCHAR(512) NOT NULL DEFAULT '',
     "status"     SMALLINT NOT NULL DEFAULT 1,
     "remark"     VARCHAR(512) NOT NULL DEFAULT '',
-    "login_date" TIMESTAMP,
-    "created_at" TIMESTAMP,
-    "updated_at" TIMESTAMP,
-    "deleted_at" TIMESTAMP
+    "login_date" TIMESTAMPTZ,
+    "created_at" TIMESTAMPTZ,
+    "updated_at" TIMESTAMPTZ,
+    "deleted_at" TIMESTAMPTZ
 );
 
 -- PostgreSQL stores table and column comments through standalone COMMENT ON

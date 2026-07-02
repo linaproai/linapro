@@ -10,3 +10,5 @@
 - [x] 关键修复：租户上下文不能覆盖平台插件启用快照；文件上传、用户导入、字典/配置导入和任务日志写入补齐租户归属；tenant-user mock 授权排除平台服务监控；有限 API 字段改为命名枚举；租户选择登录增加过渡加载状态；临时`*_enum.go`合并回 API 主 DTO 文件。
 - [x] 验证：历史实现覆盖`make db.init`、`make dao`、`make ctrl`、后端单元测试、前端 typecheck、i18n 检查、E2E TypeScript 校验、Playwright 用例、OpenSpec 严格校验、diff 空白检查和`lina-review`。
 - [x] 治理：本归档压缩不修改运行时代码、HTTP API、数据库、缓存、数据权限、前端 UI、插件源码、运行时文案、语言包、`manifest/i18n`、`apidoc i18n JSON`、开发工具入口或生产构建；非 owner 能力已迁移为`design.md`交叉影响摘要。
+- [x] 修复用户资料局部更新校验：移除`UpdateProfileReq.nickname`必填约束，使个人中心仅提交`password`时能通过校验；管理员创建用户的`nickname`必填约束保持不变。
+- [x] 验证：DTO 校验回归测试覆盖仅含`password`场景；E2E 测试`TC010-profile-password-update`覆盖个人中心修改密码；`go test ./api ./internal/cmd -count=1`通过；`openspec validate`通过。

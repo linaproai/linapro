@@ -102,13 +102,18 @@ func TestDatabaseDebugDefaultsOffInDeliveryConfig(t *testing.T) {
 	assertDatabaseDebugDisabledIfExists(t, localPath)
 }
 
-// TestDatabaseTimezoneDefaultsToProjectTimezone verifies PostgreSQL TIMESTAMP
-// values are decoded with the project runtime timezone instead of driver UTC.
+// TestDatabaseTimezoneDefaultsToProjectTimezone verifies PostgreSQL TIMESTAMPTZ
+// values are displayed and decoded with the project runtime timezone.
 func TestDatabaseTimezoneDefaultsToProjectTimezone(t *testing.T) {
 	templatePath := filepath.Join("..", "..", "..", "manifest", "config", "config.template.yaml")
 	assertDatabaseTimezoneConfigured(t, templatePath)
 	packedTemplatePath := filepath.Join("..", "..", "..", "internal", "packed", "manifest", "config", "config.template.yaml")
 	assertDatabaseTimezoneConfiguredIfExists(t, packedTemplatePath)
+
+	// Local config.yaml is intentionally git-ignored, but when present it should
+	// follow the same default to keep developer API time responses correct.
+	localPath := filepath.Join("..", "..", "..", "manifest", "config", "config.yaml")
+	assertDatabaseTimezoneConfiguredIfExists(t, localPath)
 }
 
 // assertDatabaseDebugDisabled verifies one config file disables ORM SQL debug
@@ -125,8 +130,8 @@ func assertDatabaseDebugDisabled(t *testing.T, path string) {
 	}
 }
 
-// assertDatabaseTimezoneConfigured verifies one config file pins PostgreSQL
-// timestamp decoding to the project runtime timezone.
+// assertDatabaseTimezoneConfigured verifies one config file provides the
+// default PostgreSQL timestamptz display and decoding timezone.
 func assertDatabaseTimezoneConfigured(t *testing.T, path string) {
 	t.Helper()
 

@@ -110,3 +110,4 @@
 - **WHEN** API 响应新增 `coordination.backend` 或 `coordination.redisHealthy`
 - **THEN** 对应 apidoc i18n JSON 包含字段说明
 - **AND** `openspec validate` 和静态检查不发现缺失的 apidoc i18n 资源
+

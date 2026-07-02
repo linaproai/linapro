@@ -1,5 +1,8 @@
-## ADDED Requirements
+# host-object-storage Specification
 
+## Purpose
+TBD - created by archiving change unify-host-object-storage. Update Purpose after archive.
+## Requirements
 ### Requirement: 宿主必须提供中立对象存储服务
 
 系统 SHALL 提供宿主内部 `storage.Service` 作为对象内容读写的唯一通用 owner。该服务 MUST 通过 namespace 和相对 key 表达存储对象位置，并提供 `Put`、`Get`、`Delete`、`Stat` 和有界 `List` 能力。该服务不得依赖文件中心元数据、插件 logical path、动态授权快照、HTTP 请求对象或插件公开 DTO。
@@ -53,3 +56,4 @@
 - **WHEN** 插件通过 `storagecap.Service.Stat` 读取对象元数据
 - **THEN** 插件只看到 logical path 和对象元数据
 - **AND** 插件不得看到内部 `storage.Service` namespace、provider key 或本地绝对路径
+

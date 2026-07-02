@@ -101,3 +101,53 @@ source/dynamic 两套升级骨架分散在 `sourceupgrade`、`runtimeupgrade`、
 - `plugin.RuntimeDelegate` 由 HTTP 组合根创建，先传入 auth/role/menu/apidoc 等消费者，真实 pluginSvc 构造完成后绑定
 - WASM runtime 由 `plugin.New` 内部调用 `wasm.NewRuntime` 创建并持有
 - revision controller 由 `cachecoord` 服务与拓扑 owner 提供共享 revision 后端
+
+## 10. Builtin 插件分发治理
+
+**决策**：在插件 manifest 中新增`distribution`字段，缺省为`marketplace`，支持`builtin`声明项目内建源码插件。`builtin`必须同时满足源码插件和编译期注册，动态插件不能声明`builtin`。
+
+**关键设计**：
+- `sys_plugin`基线表结构新增`distribution varchar(32) not null default 'marketplace'`
+- 普通插件管理列表默认隐藏`builtin`插件，写操作由服务端 guard 统一拒绝
+- 启动期独立执行`BootstrapBuiltinPlugins(ctx)`，在插件路由、cron、前端包预热前自动安装、启用和安全升级 builtin 源码插件
+- 生命周期变化继续复用现有依赖解析、SQL 迁移、资源同步、缓存失效、enabled snapshot 和集群主节点边界
+
+## 11. 插件领域能力扩展
+
+**阶段 0/1 冻结**：冻结插件领域能力扩展的四类矩阵（方法发布、错误语义、规模上限、动态授权资源），实现第一批高频只读能力：`Users.Current`、`Users.BatchResolve`、`Authz.BatchHasPermissions`、`Dict.EnsureValuesVisible`、`Sessions.Current`。
+
+**阶段 1.5-5 完成**：继续完成剩余能力，覆盖候选搜索（`Users.Search`扩展、`Dict.ListValues`、`Files.Search`、`Jobs.Search`等）、组织/租户/插件治理投影、插件私有资源批量（`Storage.BatchStat`、`Cache.GetMany`等）、通知类型化和 AI 状态，共 40+ 个新方法。
+
+**关键决策**：
+- 动态普通领域方法继续使用 JSON envelope，不新增 per-domain 专用 codec
+- 数据权限在 owner 或 provider 批量路径完成，不在 adapter 中内存过滤
+- 缓存和运行时状态只复用现有 owner，不新增权威缓存
+- README 和治理测试作为每批完成门禁
+
+## 12. 插件领域服务统一
+
+**决策**：废除`capability.AdminServices`和各领域`AdminService`，每个领域只保留一个插件可见`Service`入口。动态插件可声明性只由`host service registry`注册事实表达，不新增额外方法可声明性字段。
+
+**关键设计**：
+- 动态 wire method 一次性标准化，不保留旧方法兼容别名
+- Auth 领域动态命名保持全局一致，使用`service: auth`声明认证和授权方法
+- 治理能力内聚到对应领域`Service`，删除`pluginhost.Services.PluginLifecycle()`和`PluginState()`顶层入口
+- 领域实现归属真实 owner，`capabilityhost`和 WASM host service 只保留薄适配职责
+
+## 13. 插件服务契约收敛
+
+**决策**：收敛`plugin.Service`方法集合，删除仅作为语义包装或无生产入口的方法。新增按真实消费场景划分的插件 service 私有 facet 接口，对外只保留统一`Service`入口。
+
+**关键设计**：
+- 插件 job 查询合并为`ListManagedJobs(ctx, ManagedJobQuery)`，用查询参数表达可执行、已安装、插件 ID 和 handler 是否需要返回
+- 插件状态变更合并为`UpdateStatus(ctx, pluginID, UpdateStatusOptions)`，保留目标状态和动态插件授权确认输入
+- Auth hook 的三个包装方法删除，调用方使用已有`DispatchHookEvent`表达具体事件
+
+## 14. 窄接口移动到消费者
+
+**决策**：将生产者包中仅用于自组合的分类接口合并回默认`Service`接口，对确有复杂度收益的跨包窄依赖接口，将定义移动到消费者包。
+
+**关键设计**：
+- 接口按 owner 分为三类：生产者完整契约、稳定产品/运行期契约、消费方窄依赖
+- 消费方优先复用目标组件已有`Service`或稳定契约；仅当完整契约不能清晰表达消费边界时才在消费方包内定义窄依赖接口
+- 收敛`i18n.Service`，删除无业务入口的 i18n 管理诊断 API 和源码插件消息搜索方法
