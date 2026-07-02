@@ -69,23 +69,43 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	)
 	mustWriteFile(
 		t,
-		filepath.Join(pluginDir, "backend", "hooks", "001-login.yaml"),
-		"event: auth.login.succeeded\naction: sleep\ntimeoutMs: 50\nsleepMs: 10\n",
-	)
-	mustWriteFile(
-		t,
-		filepath.Join(pluginDir, "backend", "lifecycle", "001-before-install.yaml"),
-		"operation: BeforeInstall\nrequestType: BeforeInstallReq\ninternalPath: /__lifecycle/before-install\ntimeoutMs: 3000\n",
-	)
-	mustWriteFile(
-		t,
-		filepath.Join(pluginDir, "backend", "resources", "001-records.yaml"),
-		"key: records\ntype: table-list\ntable: plugin_runtime_records\nfields:\n  - name: id\n    column: id\n  - name: status\n    column: status\nfilters:\n  - param: status\n    column: status\n    operator: eq\norderBy:\n  column: id\n  direction: asc\noperations:\n  - query\n  - get\n  - update\nkeyField: id\nwritableFields:\n  - status\naccess: both\ndataScope:\n  userColumn: owner_user_id\n",
-	)
-	mustWriteFile(
-		t,
-		filepath.Join(pluginDir, "backend", "crons", "001-review-summary.yaml"),
-		"name: review-summary-sync\ndisplayName: Review Summary Sync\ndescription: refreshes plugin review summary state\npattern: \"@every 5m\"\nscope: all_node\nconcurrency: singleton\ntimeoutSeconds: 30\nrequestType: ReviewSummaryReq\ninternalPath: /review-summary\n",
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		`wasm:
+  hooks:
+    - event: auth.login.succeeded
+      action: sleep
+      timeout: 50ms
+      sleep: 10ms
+  lifecycle:
+    timeouts:
+      BeforeInstall: 3s
+  resources:
+    - key: records
+      type: table-list
+      table: plugin_runtime_records
+      fields:
+        - name: id
+          column: id
+        - name: status
+          column: status
+      filters:
+        - param: status
+          column: status
+          operator: eq
+      orderBy:
+        column: id
+        direction: asc
+      operations:
+        - query
+        - get
+        - update
+      keyField: id
+      writableFields:
+        - status
+      access: both
+      dataScope:
+        userColumn: owner_user_id
+`,
 	)
 	mustWriteFile(
 		t,
@@ -224,7 +244,10 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	if err = json.Unmarshal(sections[pluginDynamicWasmSectionBackendHooks], &hooks); err != nil {
 		t.Fatalf("expected hook section json to unmarshal, got error: %v", err)
 	}
-	if len(hooks) != 1 || hooks[0].Action != hookActionSleep {
+	if len(hooks) != 1 ||
+		hooks[0].Action != hookActionSleep ||
+		hooks[0].TimeoutMs != 50 ||
+		hooks[0].SleepMs != 10 {
 		t.Fatalf("unexpected embedded hook specs: %#v", hooks)
 	}
 
@@ -235,7 +258,8 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	if len(lifecycle) != 1 ||
 		lifecycle[0].Operation != protocol.LifecycleOperationBeforeInstall ||
 		lifecycle[0].RequestType != "BeforeInstallReq" ||
-		lifecycle[0].InternalPath != "/__lifecycle/before-install" {
+		lifecycle[0].InternalPath != "/__lifecycle/before-install" ||
+		lifecycle[0].TimeoutMs != 3000 {
 		t.Fatalf("unexpected embedded lifecycle specs: %#v", lifecycle)
 	}
 
@@ -326,6 +350,124 @@ func TestCollectManifestResourcesScansDirectoryFallback(t *testing.T) {
 	}
 }
 
+func TestCollectHookSpecsReadsPluginHackConfig(t *testing.T) {
+	pluginDir := t.TempDir()
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		`wasm:
+  hooks:
+    - event: auth.login.succeeded
+      action: sleep
+      mode: async
+      timeout: 50ms
+      sleep: 10ms
+`,
+	)
+
+	items, err := collectHookSpecs(pluginDir, "plugin-dev-dynamic-hooks")
+	if err != nil {
+		t.Fatalf("expected hook config collection to succeed, got error: %v", err)
+	}
+	if len(items) != 1 ||
+		items[0].Event != extensionPointAuthLoginSucceeded ||
+		items[0].Action != hookActionSleep ||
+		items[0].Mode != callbackExecutionModeAsync ||
+		items[0].TimeoutMs != 50 ||
+		items[0].SleepMs != 10 {
+		t.Fatalf("unexpected hook config result: %#v", items)
+	}
+}
+
+func TestCollectHookSpecsRejectsConfigDurationWithoutUnit(t *testing.T) {
+	pluginDir := t.TempDir()
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		`wasm:
+  hooks:
+    - event: auth.login.succeeded
+      action: sleep
+      timeout: "50"
+      sleep: 10ms
+`,
+	)
+
+	_, err := collectHookSpecs(pluginDir, "plugin-dev-dynamic-hooks")
+	if err == nil || !strings.Contains(err.Error(), "duration must include a valid unit") {
+		t.Fatalf("expected invalid hook duration error, got %v", err)
+	}
+}
+
+func TestCollectHookSpecsRejectsUnsupportedConfigField(t *testing.T) {
+	pluginDir := t.TempDir()
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		`wasm:
+  hooks:
+    - event: auth.login.succeeded
+      action: sleep
+      timeoutMs: 50
+      sleep: 10ms
+`,
+	)
+
+	_, err := collectHookSpecs(pluginDir, "plugin-dev-dynamic-hooks")
+	if err == nil || !strings.Contains(err.Error(), "plugin hook config field is not supported: timeoutMs") {
+		t.Fatalf("expected unsupported hook config field error, got %v", err)
+	}
+}
+
+func TestCollectResourceSpecsReadsPluginHackConfig(t *testing.T) {
+	pluginDir := t.TempDir()
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		`wasm:
+  resources:
+    - key: records
+      type: table-list
+      table: plugin_dev_dynamic_records
+      fields:
+        - name: id
+          column: id
+        - name: status
+          column: status
+      filters:
+        - param: status
+          column: status
+          operator: eq
+      orderBy:
+        column: id
+        direction: desc
+      operations:
+        - query
+        - get
+        - update
+      keyField: id
+      writableFields:
+        - status
+      access: both
+      dataScope:
+        userColumn: owner_user_id
+`,
+	)
+
+	items, err := collectResourceSpecs(pluginDir, "plugin-dev-dynamic-resources")
+	if err != nil {
+		t.Fatalf("expected resource config collection to succeed, got error: %v", err)
+	}
+	if len(items) != 1 ||
+		items[0].Key != "records" ||
+		items[0].OrderBy.Direction != "desc" ||
+		items[0].Access != "both" ||
+		items[0].DataScope == nil ||
+		items[0].DataScope.UserColumn != "owner_user_id" {
+		t.Fatalf("unexpected resource config result: %#v", items)
+	}
+}
+
 func TestCollectLifecycleSpecsAutoDiscoversBackendHandlers(t *testing.T) {
 	pluginDir := t.TempDir()
 	mustWriteFile(
@@ -353,79 +495,7 @@ func TestCollectLifecycleSpecsAutoDiscoversBackendHandlers(t *testing.T) {
 	}
 }
 
-func TestCollectLifecycleSpecsReadsCodeOwnedTimeout(t *testing.T) {
-	pluginDir := t.TempDir()
-	mustWriteFile(
-		t,
-		filepath.Join(pluginDir, "backend", "controller.go"),
-		`package backend
-
-import "context"
-
-const BeforeInstallTimeoutMs = 120000
-
-type Controller struct{}
-
-type LifecycleDecisionRes struct {
-	OK bool `+"`json:\"ok\"`"+`
-}
-
-type BeforeInstallReq struct{}
-
-func (c *Controller) BeforeInstall(_ context.Context, _ *BeforeInstallReq) (*LifecycleDecisionRes, error) {
-	return &LifecycleDecisionRes{OK: true}, nil
-}
-`,
-	)
-
-	items, err := collectLifecycleSpecs(pluginDir, "plugin-dev-dynamic-lifecycle")
-	if err != nil {
-		t.Fatalf("expected lifecycle code timeout discovery to succeed, got error: %v", err)
-	}
-	if len(items) != 1 ||
-		items[0].Operation != protocol.LifecycleOperationBeforeInstall ||
-		items[0].TimeoutMs != 120000 {
-		t.Fatalf("unexpected lifecycle code timeout result: %#v", items)
-	}
-}
-
-func TestCollectLifecycleSpecsReadsUnexportedCodeOwnedTimeout(t *testing.T) {
-	pluginDir := t.TempDir()
-	mustWriteFile(
-		t,
-		filepath.Join(pluginDir, "backend", "controller.go"),
-		`package backend
-
-import "context"
-
-const beforeInstallTimeoutMs = 120000
-
-type Controller struct{}
-
-type LifecycleDecisionRes struct {
-	OK bool `+"`json:\"ok\"`"+`
-}
-
-type BeforeInstallReq struct{}
-
-func (c *Controller) BeforeInstall(_ context.Context, _ *BeforeInstallReq) (*LifecycleDecisionRes, error) {
-	return &LifecycleDecisionRes{OK: true}, nil
-}
-`,
-	)
-
-	items, err := collectLifecycleSpecs(pluginDir, "plugin-dev-dynamic-lifecycle")
-	if err != nil {
-		t.Fatalf("expected unexported lifecycle code timeout discovery to succeed, got error: %v", err)
-	}
-	if len(items) != 1 ||
-		items[0].Operation != protocol.LifecycleOperationBeforeInstall ||
-		items[0].TimeoutMs != 120000 {
-		t.Fatalf("unexpected unexported lifecycle code timeout result: %#v", items)
-	}
-}
-
-func TestCollectLifecycleSpecsAppliesOverride(t *testing.T) {
+func TestCollectLifecycleSpecsReadsPluginHackConfigTimeout(t *testing.T) {
 	pluginDir := t.TempDir()
 	mustWriteFile(
 		t,
@@ -434,37 +504,36 @@ func TestCollectLifecycleSpecsAppliesOverride(t *testing.T) {
 	)
 	mustWriteFile(
 		t,
-		filepath.Join(pluginDir, "backend", "lifecycle", "001-before-install.yaml"),
-		"operation: BeforeInstall\nrequestType: BeforeInstallReq\ninternalPath: /before-install\ntimeoutMs: 3000\n",
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		"wasm:\n  lifecycle:\n    timeouts:\n      BeforeInstall: 2m\n",
 	)
 
 	items, err := collectLifecycleSpecs(pluginDir, "plugin-dev-dynamic-lifecycle")
 	if err != nil {
-		t.Fatalf("expected lifecycle override merge to succeed, got error: %v", err)
+		t.Fatalf("expected lifecycle config timeout discovery to succeed, got error: %v", err)
 	}
 	if len(items) != 1 ||
-		items[0].RequestType != "BeforeInstallReq" ||
-		items[0].InternalPath != "/before-install" ||
-		items[0].TimeoutMs != 3000 {
-		t.Fatalf("unexpected lifecycle override result: %#v", items)
+		items[0].Operation != protocol.LifecycleOperationBeforeInstall ||
+		items[0].TimeoutMs != 120000 {
+		t.Fatalf("unexpected lifecycle config timeout result: %#v", items)
 	}
 }
 
-func TestCollectLifecycleSpecsRejectsOverrideWithoutHandler(t *testing.T) {
+func TestCollectLifecycleSpecsRejectsConfigTimeoutWithoutHandler(t *testing.T) {
 	pluginDir := t.TempDir()
 	mustWriteFile(
 		t,
-		filepath.Join(pluginDir, "backend", "lifecycle", "001-before-install.yaml"),
-		"operation: BeforeInstall\nrequestType: BeforeInstallReq\ninternalPath: /__lifecycle/before-install\n",
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		"wasm:\n  lifecycle:\n    timeouts:\n      BeforeInstall: 2m\n",
 	)
 
 	_, err := collectLifecycleSpecs(pluginDir, "plugin-dev-dynamic-lifecycle")
 	if err == nil || !strings.Contains(err.Error(), "has no matching handler") {
-		t.Fatalf("expected missing handler override error, got %v", err)
+		t.Fatalf("expected missing handler config timeout error, got %v", err)
 	}
 }
 
-func TestCollectLifecycleSpecsRejectsDuplicateOverride(t *testing.T) {
+func TestCollectLifecycleSpecsRejectsUnsupportedConfigTimeoutOperation(t *testing.T) {
 	pluginDir := t.TempDir()
 	mustWriteFile(
 		t,
@@ -473,18 +542,32 @@ func TestCollectLifecycleSpecsRejectsDuplicateOverride(t *testing.T) {
 	)
 	mustWriteFile(
 		t,
-		filepath.Join(pluginDir, "backend", "lifecycle", "001-before-install.yaml"),
-		"operation: BeforeInstall\nrequestType: BeforeInstallReq\ninternalPath: /__lifecycle/before-install\n",
-	)
-	mustWriteFile(
-		t,
-		filepath.Join(pluginDir, "backend", "lifecycle", "002-before-install.yaml"),
-		"operation: BeforeInstall\nrequestType: BeforeInstallReq\ninternalPath: /__lifecycle/before-install\n",
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		"wasm:\n  lifecycle:\n    timeouts:\n      CheckInstall: 2m\n",
 	)
 
 	_, err := collectLifecycleSpecs(pluginDir, "plugin-dev-dynamic-lifecycle")
-	if err == nil || !strings.Contains(err.Error(), "operation is duplicated") {
-		t.Fatalf("expected duplicate override error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "operation is unsupported") {
+		t.Fatalf("expected unsupported lifecycle config timeout operation error, got %v", err)
+	}
+}
+
+func TestCollectLifecycleSpecsRejectsInvalidConfigTimeoutDuration(t *testing.T) {
+	pluginDir := t.TempDir()
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "backend", "controller.go"),
+		lifecycleControllerSourceForTest("BeforeInstall"),
+	)
+	mustWriteFile(
+		t,
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		"wasm:\n  lifecycle:\n    timeouts:\n      BeforeInstall: \"120000\"\n",
+	)
+
+	_, err := collectLifecycleSpecs(pluginDir, "plugin-dev-dynamic-lifecycle")
+	if err == nil || !strings.Contains(err.Error(), "timeout duration must include a valid unit") {
+		t.Fatalf("expected invalid lifecycle config timeout duration error, got %v", err)
 	}
 }
 
@@ -502,25 +585,6 @@ func TestCollectLifecycleSpecsIgnoresNonLifecycleHandlerName(t *testing.T) {
 	}
 	if len(items) != 0 {
 		t.Fatalf("expected non-lifecycle handler name to be ignored, got %#v", items)
-	}
-}
-
-func TestCollectLifecycleSpecsRejectsUnreachableOverride(t *testing.T) {
-	pluginDir := t.TempDir()
-	mustWriteFile(
-		t,
-		filepath.Join(pluginDir, "backend", "controller.go"),
-		lifecycleControllerSourceForTest("BeforeInstall"),
-	)
-	mustWriteFile(
-		t,
-		filepath.Join(pluginDir, "backend", "lifecycle", "001-before-install.yaml"),
-		"operation: BeforeInstall\nrequestType: CustomBeforeInstallReq\ninternalPath: /custom/before-install\n",
-	)
-
-	_, err := collectLifecycleSpecs(pluginDir, "plugin-dev-dynamic-lifecycle")
-	if err == nil || !strings.Contains(err.Error(), "not reachable by guest dispatcher") {
-		t.Fatalf("expected unreachable override error, got %v", err)
 	}
 }
 

@@ -13,6 +13,9 @@
       "password": {
         "hashFailed": "Failed to hash password"
       },
+      "tenant": {
+        "unavailable": "Tenant is not available"
+      },
       "token": {
         "invalid": "Invalid token",
         "state": {

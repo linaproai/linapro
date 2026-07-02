@@ -1,5 +1,6 @@
-// This file loads backend hook and resource declarations, extracts dynamic
-// route contracts from API DTOs, and validates the collected contracts.
+// This file loads dynamic backend declarations from plugin tool config,
+// extracts route and lifecycle contracts from Go sources, and validates the
+// collected artifact contracts.
 
 package wasmbuilder
 
@@ -13,9 +14,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -31,32 +35,19 @@ const (
 )
 
 func collectHookSpecs(pluginDir string, pluginID string) ([]*hookSpec, error) {
-	hookDir := filepath.Join(pluginDir, "backend", "hooks")
-	entries, err := os.ReadDir(hookDir)
+	cfg, configPath, err := loadPluginHackConfig(pluginDir)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return []*hookSpec{}, nil
-		}
 		return nil, err
 	}
 
-	fileNames := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
-			continue
+	items := make([]*hookSpec, 0, len(cfg.Wasm.Hooks))
+	for index, rawSpec := range cfg.Wasm.Hooks {
+		specLabel := pluginHackConfigItemLabel(configPath, "wasm.hooks", index)
+		spec, convertErr := buildHookSpecFromPluginHackConfig(pluginID, rawSpec, specLabel)
+		if convertErr != nil {
+			return nil, convertErr
 		}
-		fileNames = append(fileNames, entry.Name())
-	}
-	sortStrings(fileNames)
-
-	items := make([]*hookSpec, 0, len(fileNames))
-	for _, name := range fileNames {
-		filePath := filepath.Join(hookDir, name)
-		spec := &hookSpec{}
-		if err = loadYAMLFile(filePath, spec); err != nil {
-			return nil, err
-		}
-		if err = validateHookSpec(pluginID, spec, filePath); err != nil {
+		if err = validateHookSpec(pluginID, spec, specLabel); err != nil {
 			return nil, err
 		}
 		items = append(items, spec)
@@ -69,56 +60,247 @@ func collectLifecycleSpecs(pluginDir string, pluginID string) ([]*protocol.Lifec
 	if err != nil {
 		return nil, err
 	}
-	overrides, err := collectLifecycleOverrides(pluginDir, pluginID)
+	timeouts, err := collectLifecycleTimeoutsFromConfig(pluginDir, pluginID)
 	if err != nil {
 		return nil, err
 	}
-	items, err := mergeLifecycleSpecs(pluginID, discovered, overrides)
-	if err != nil {
+	if err = applyLifecycleTimeouts(pluginID, discovered, timeouts); err != nil {
 		return nil, err
 	}
-	if err = protocol.ValidateLifecycleContracts(pluginID, items); err != nil {
+	if err = protocol.ValidateLifecycleContracts(pluginID, discovered); err != nil {
 		return nil, fmt.Errorf("plugin lifecycle declaration is invalid: %w", err)
 	}
-	return items, nil
+	return discovered, nil
 }
 
-func collectLifecycleOverrides(pluginDir string, pluginID string) ([]*protocol.LifecycleContract, error) {
-	lifecycleDir := filepath.Join(pluginDir, "backend", "lifecycle")
-	entries, err := os.ReadDir(lifecycleDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []*protocol.LifecycleContract{}, nil
+// pluginHackConfig stores builder-owned plugin tool configuration from
+// plugin-root hack/config.yaml.
+type pluginHackConfig struct {
+	Wasm pluginHackWasmConfig `yaml:"wasm"`
+}
+
+// pluginHackWasmConfig stores dynamic WASM builder configuration.
+type pluginHackWasmConfig struct {
+	Lifecycle pluginHackWasmLifecycleConfig `yaml:"lifecycle"`
+	Hooks     []*pluginHackWasmHookSpec     `yaml:"hooks"`
+	Resources []*resourceSpec               `yaml:"resources"`
+}
+
+// pluginHackWasmLifecycleConfig stores lifecycle artifact metadata overrides.
+type pluginHackWasmLifecycleConfig struct {
+	Timeouts map[string]string `yaml:"timeouts"`
+}
+
+// pluginHackWasmHookSpec stores hook metadata in human-readable config form.
+type pluginHackWasmHookSpec struct {
+	Event        hookExtensionPoint    `yaml:"event"`
+	Action       hookAction            `yaml:"action,omitempty"`
+	Mode         callbackExecutionMode `yaml:"mode,omitempty"`
+	Table        string                `yaml:"table,omitempty"`
+	Fields       map[string]string     `yaml:"fields,omitempty"`
+	Timeout      string                `yaml:"timeout,omitempty"`
+	Sleep        string                `yaml:"sleep,omitempty"`
+	ErrorMessage string                `yaml:"errorMessage,omitempty"`
+}
+
+// UnmarshalYAML keeps the hook config schema explicit so removed millisecond
+// fields cannot be accepted or silently ignored.
+func (spec *pluginHackWasmHookSpec) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil || value.Kind != yaml.MappingNode {
+		return fmt.Errorf("plugin hook config entry must be a mapping")
+	}
+	allowedFields := map[string]struct{}{
+		"event":        {},
+		"action":       {},
+		"mode":         {},
+		"table":        {},
+		"fields":       {},
+		"timeout":      {},
+		"sleep":        {},
+		"errorMessage": {},
+	}
+	for index := 0; index+1 < len(value.Content); index += 2 {
+		key := strings.TrimSpace(value.Content[index].Value)
+		if _, ok := allowedFields[key]; !ok {
+			return fmt.Errorf("plugin hook config field is not supported: %s", key)
 		}
+	}
+
+	type rawPluginHackWasmHookSpec pluginHackWasmHookSpec
+	var raw rawPluginHackWasmHookSpec
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	*spec = pluginHackWasmHookSpec(raw)
+	return nil
+}
+
+// loadPluginHackConfig reads the plugin-root development tool configuration.
+func loadPluginHackConfig(pluginDir string) (*pluginHackConfig, string, error) {
+	configPath := filepath.Join(pluginDir, "hack", "config.yaml")
+	if _, err := os.Stat(configPath); err != nil {
+		if os.IsNotExist(err) {
+			return &pluginHackConfig{}, configPath, nil
+		}
+		return nil, configPath, err
+	}
+
+	cfg := &pluginHackConfig{}
+	if err := loadYAMLFile(configPath, cfg); err != nil {
+		return nil, configPath, err
+	}
+	return cfg, configPath, nil
+}
+
+// collectLifecycleTimeoutsFromConfig reads lifecycle timeout metadata from the
+// plugin-root development tool configuration.
+func collectLifecycleTimeoutsFromConfig(
+	pluginDir string,
+	pluginID string,
+) (map[protocol.LifecycleOperation]int, error) {
+	cfg, configPath, err := loadPluginHackConfig(pluginDir)
+	if err != nil {
 		return nil, err
 	}
 
-	fileNames := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
+	timeouts := make(map[protocol.LifecycleOperation]int, len(cfg.Wasm.Lifecycle.Timeouts))
+	for operationName, timeoutValue := range cfg.Wasm.Lifecycle.Timeouts {
+		operationName = strings.TrimSpace(operationName)
+		if !protocol.IsSupportedLifecycleOperation(operationName) {
+			return nil, fmt.Errorf("plugin lifecycle timeout operation is unsupported for plugin %s: %s", pluginID, operationName)
+		}
+		operation := protocol.LifecycleOperation(operationName)
+		timeoutMs, err := parseLifecycleTimeoutDuration(pluginID, operation, timeoutValue)
+		if err != nil {
+			return nil, fmt.Errorf("plugin lifecycle timeout is invalid in %s: %w", configPath, err)
+		}
+		timeouts[operation] = timeoutMs
+	}
+	return timeouts, nil
+}
+
+// buildHookSpecFromPluginHackConfig converts human-readable hook config into
+// the millisecond-based contract serialized into the runtime artifact.
+func buildHookSpecFromPluginHackConfig(
+	pluginID string,
+	rawSpec *pluginHackWasmHookSpec,
+	specLabel string,
+) (*hookSpec, error) {
+	if rawSpec == nil {
+		return nil, fmt.Errorf("plugin hook cannot be nil: %s", specLabel)
+	}
+
+	spec := &hookSpec{
+		Event:        rawSpec.Event,
+		Action:       rawSpec.Action,
+		Mode:         rawSpec.Mode,
+		Table:        rawSpec.Table,
+		Fields:       rawSpec.Fields,
+		ErrorMessage: rawSpec.ErrorMessage,
+	}
+	var err error
+	spec.TimeoutMs, err = parseOptionalPluginHackDuration(pluginID, specLabel, "timeout", rawSpec.Timeout)
+	if err != nil {
+		return nil, err
+	}
+	spec.SleepMs, err = parseOptionalPluginHackDuration(pluginID, specLabel, "sleep", rawSpec.Sleep)
+	if err != nil {
+		return nil, err
+	}
+	return spec, nil
+}
+
+// parseOptionalPluginHackDuration parses an optional duration string from
+// hack/config.yaml into artifact millisecond precision.
+func parseOptionalPluginHackDuration(
+	pluginID string,
+	specLabel string,
+	fieldName string,
+	value string,
+) (int, error) {
+	trimmedValue := strings.TrimSpace(value)
+	if trimmedValue == "" {
+		return 0, nil
+	}
+	duration, err := time.ParseDuration(trimmedValue)
+	if err != nil {
+		return 0, fmt.Errorf("plugin %s duration must include a valid unit for %s %s: %w", fieldName, pluginID, specLabel, err)
+	}
+	if duration <= 0 {
+		return 0, fmt.Errorf("plugin %s duration must be greater than 0 for %s %s", fieldName, pluginID, specLabel)
+	}
+	if duration%time.Millisecond != 0 {
+		return 0, fmt.Errorf("plugin %s duration must use millisecond precision for %s %s", fieldName, pluginID, specLabel)
+	}
+
+	durationMs := duration.Milliseconds()
+	maxInt := int64(int(^uint(0) >> 1))
+	if durationMs > maxInt {
+		return 0, fmt.Errorf("plugin %s duration is too large for %s %s", fieldName, pluginID, specLabel)
+	}
+	return int(durationMs), nil
+}
+
+func pluginHackConfigItemLabel(configPath string, fieldPath string, index int) string {
+	return fmt.Sprintf("%s %s[%d]", configPath, fieldPath, index)
+}
+
+// parseLifecycleTimeoutDuration converts a configured duration string into the
+// millisecond integer stored in the runtime artifact lifecycle contract.
+func parseLifecycleTimeoutDuration(
+	pluginID string,
+	operation protocol.LifecycleOperation,
+	value string,
+) (int, error) {
+	trimmedValue := strings.TrimSpace(value)
+	if trimmedValue == "" {
+		return 0, fmt.Errorf("timeout duration cannot be empty for plugin %s operation %s", pluginID, operation)
+	}
+	duration, err := time.ParseDuration(trimmedValue)
+	if err != nil {
+		return 0, fmt.Errorf("timeout duration must include a valid unit for plugin %s operation %s: %w", pluginID, operation, err)
+	}
+	if duration <= 0 {
+		return 0, fmt.Errorf("timeout duration must be greater than 0 for plugin %s operation %s", pluginID, operation)
+	}
+	if duration%time.Millisecond != 0 {
+		return 0, fmt.Errorf("timeout duration must use millisecond precision for plugin %s operation %s", pluginID, operation)
+	}
+
+	timeoutMs := duration.Milliseconds()
+	maxInt := int64(int(^uint(0) >> 1))
+	if timeoutMs > maxInt {
+		return 0, fmt.Errorf("timeout duration is too large for plugin %s operation %s", pluginID, operation)
+	}
+	return int(timeoutMs), nil
+}
+
+// applyLifecycleTimeouts applies configured lifecycle timeouts to auto-
+// discovered lifecycle handlers and rejects unreachable operations.
+func applyLifecycleTimeouts(
+	pluginID string,
+	items []*protocol.LifecycleContract,
+	timeouts map[protocol.LifecycleOperation]int,
+) error {
+	if len(timeouts) == 0 {
+		return nil
+	}
+	byOperation := make(map[protocol.LifecycleOperation]*protocol.LifecycleContract, len(items))
+	for _, item := range items {
+		if item == nil {
 			continue
 		}
-		fileNames = append(fileNames, entry.Name())
+		protocol.NormalizeLifecycleContract(item)
+		byOperation[item.Operation] = item
 	}
-	sortStrings(fileNames)
-
-	items := make([]*protocol.LifecycleContract, 0, len(fileNames))
-	for _, name := range fileNames {
-		filePath := filepath.Join(lifecycleDir, name)
-		spec := &protocol.LifecycleContract{}
-		if err = loadYAMLFile(filePath, spec); err != nil {
-			return nil, err
+	for operation, timeoutMs := range timeouts {
+		item, exists := byOperation[operation]
+		if !exists {
+			return fmt.Errorf("plugin lifecycle timeout has no matching handler for plugin %s operation %s", pluginID, operation)
 		}
-		protocol.NormalizeLifecycleContract(spec)
-		if spec.Operation == "" {
-			return nil, fmt.Errorf("plugin lifecycle override operation is unsupported for plugin %s: %s", pluginID, filePath)
-		}
-		if spec.TimeoutMs < 0 {
-			return nil, fmt.Errorf("plugin lifecycle override timeoutMs cannot be negative for plugin %s operation %s: %s", pluginID, spec.Operation, filePath)
-		}
-		items = append(items, spec)
+		item.TimeoutMs = timeoutMs
 	}
-	return items, nil
+	return nil
 }
 
 func discoverLifecycleSpecs(pluginDir string, pluginID string) ([]*protocol.LifecycleContract, error) {
@@ -158,10 +340,6 @@ func discoverLifecycleSpecs(pluginDir string, pluginID string) ([]*protocol.Life
 		if parseErr != nil {
 			return fmt.Errorf("failed to parse backend file %s: %w", path, parseErr)
 		}
-		lifecycleTimeouts, timeoutErr := collectLifecycleTimeoutsFromFile(pluginID, fileNode)
-		if timeoutErr != nil {
-			return fmt.Errorf("failed to inspect lifecycle timeout in %s: %w", path, timeoutErr)
-		}
 		for _, decl := range fileNode.Decls {
 			funcDecl, ok := decl.(*ast.FuncDecl)
 			if !ok || funcDecl == nil || funcDecl.Recv == nil || funcDecl.Name == nil {
@@ -177,9 +355,6 @@ func discoverLifecycleSpecs(pluginDir string, pluginID string) ([]*protocol.Life
 			if previousPath, exists := seen[spec.Operation]; exists {
 				return fmt.Errorf("plugin lifecycle handler operation is duplicated for plugin %s: %s in %s and %s", pluginID, spec.Operation, previousPath, path)
 			}
-			if timeoutMs, exists := lifecycleTimeouts[spec.Operation]; exists {
-				spec.TimeoutMs = timeoutMs
-			}
 			seen[spec.Operation] = path
 			items = append(items, spec)
 		}
@@ -190,98 +365,6 @@ func discoverLifecycleSpecs(pluginDir string, pluginID string) ([]*protocol.Life
 	}
 	sortLifecycleSpecs(items)
 	return items, nil
-}
-
-func collectLifecycleTimeoutsFromFile(
-	pluginID string,
-	fileNode *ast.File,
-) (map[protocol.LifecycleOperation]int, error) {
-	timeouts := make(map[protocol.LifecycleOperation]int)
-	if fileNode == nil {
-		return timeouts, nil
-	}
-	for _, decl := range fileNode.Decls {
-		genDecl, ok := decl.(*ast.GenDecl)
-		if !ok || genDecl == nil || genDecl.Tok != token.CONST {
-			continue
-		}
-		for _, item := range genDecl.Specs {
-			valueSpec, ok := item.(*ast.ValueSpec)
-			if !ok || valueSpec == nil {
-				continue
-			}
-			if err := collectLifecycleTimeoutsFromValueSpec(pluginID, valueSpec, timeouts); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return timeouts, nil
-}
-
-func collectLifecycleTimeoutsFromValueSpec(
-	pluginID string,
-	valueSpec *ast.ValueSpec,
-	timeouts map[protocol.LifecycleOperation]int,
-) error {
-	for index, name := range valueSpec.Names {
-		if name == nil {
-			continue
-		}
-		operation, ok := lifecycleOperationFromTimeoutConst(name.Name)
-		if !ok {
-			continue
-		}
-		if _, exists := timeouts[operation]; exists {
-			return fmt.Errorf("plugin lifecycle timeout constant is duplicated for plugin %s operation %s", pluginID, operation)
-		}
-		if index >= len(valueSpec.Values) {
-			return fmt.Errorf("plugin lifecycle timeout constant requires an explicit integer value for plugin %s operation %s", pluginID, operation)
-		}
-		timeoutMs, err := lifecycleTimeoutConstValue(pluginID, operation, valueSpec.Values[index])
-		if err != nil {
-			return err
-		}
-		timeouts[operation] = timeoutMs
-	}
-	return nil
-}
-
-func lifecycleOperationFromTimeoutConst(name string) (protocol.LifecycleOperation, bool) {
-	trimmed := strings.TrimSpace(name)
-	if !strings.HasSuffix(trimmed, "TimeoutMs") {
-		return "", false
-	}
-	operationName := strings.TrimSuffix(trimmed, "TimeoutMs")
-	if protocol.IsSupportedLifecycleOperation(operationName) {
-		return protocol.LifecycleOperation(operationName), true
-	}
-	if operationName == "" {
-		return "", false
-	}
-	operationName = strings.ToUpper(operationName[:1]) + operationName[1:]
-	if !protocol.IsSupportedLifecycleOperation(operationName) {
-		return "", false
-	}
-	return protocol.LifecycleOperation(operationName), true
-}
-
-func lifecycleTimeoutConstValue(
-	pluginID string,
-	operation protocol.LifecycleOperation,
-	expr ast.Expr,
-) (int, error) {
-	basicLit, ok := expr.(*ast.BasicLit)
-	if !ok || basicLit.Kind != token.INT {
-		return 0, fmt.Errorf("plugin lifecycle timeout constant must be an integer literal for plugin %s operation %s", pluginID, operation)
-	}
-	timeoutMs, err := strconv.Atoi(strings.TrimSpace(basicLit.Value))
-	if err != nil {
-		return 0, fmt.Errorf("plugin lifecycle timeout constant is invalid for plugin %s operation %s: %w", pluginID, operation, err)
-	}
-	if timeoutMs < 0 {
-		return 0, fmt.Errorf("plugin lifecycle timeout constant cannot be negative for plugin %s operation %s", pluginID, operation)
-	}
-	return timeoutMs, nil
 }
 
 func isLifecycleControllerSourceFile(backendDir string, filePath string) bool {
@@ -407,60 +490,6 @@ func buildLifecycleInternalPath(operation string) string {
 	return "/__lifecycle" + bridgeplugin.BuildGuestControllerInternalPath(operation)
 }
 
-func mergeLifecycleSpecs(
-	pluginID string,
-	discovered []*protocol.LifecycleContract,
-	overrides []*protocol.LifecycleContract,
-) ([]*protocol.LifecycleContract, error) {
-	byOperation := make(map[protocol.LifecycleOperation]*protocol.LifecycleContract, len(discovered))
-	for _, item := range discovered {
-		if item == nil {
-			continue
-		}
-		protocol.NormalizeLifecycleContract(item)
-		byOperation[item.Operation] = item
-	}
-	seenOverrides := make(map[protocol.LifecycleOperation]struct{}, len(overrides))
-	for _, override := range overrides {
-		if override == nil {
-			return nil, fmt.Errorf("plugin lifecycle override cannot be nil for plugin %s", pluginID)
-		}
-		if _, exists := seenOverrides[override.Operation]; exists {
-			return nil, fmt.Errorf("plugin lifecycle override operation is duplicated for plugin %s: %s", pluginID, override.Operation)
-		}
-		seenOverrides[override.Operation] = struct{}{}
-		base, exists := byOperation[override.Operation]
-		if !exists {
-			return nil, fmt.Errorf("plugin lifecycle override has no matching handler for plugin %s operation %s", pluginID, override.Operation)
-		}
-		discoveredRequestType := strings.TrimSpace(base.RequestType)
-		if strings.TrimSpace(override.RequestType) != "" {
-			base.RequestType = strings.TrimSpace(override.RequestType)
-		}
-		if strings.TrimSpace(override.InternalPath) != "" {
-			base.InternalPath = strings.TrimSpace(override.InternalPath)
-		}
-		if override.TimeoutMs > 0 {
-			base.TimeoutMs = override.TimeoutMs
-		}
-		protocol.NormalizeLifecycleContract(base)
-		if base.RequestType != discoveredRequestType {
-			return nil, fmt.Errorf(
-				"plugin lifecycle override requestType is not reachable by guest dispatcher for plugin %s operation %s",
-				pluginID,
-				override.Operation,
-			)
-		}
-	}
-
-	items := make([]*protocol.LifecycleContract, 0, len(byOperation))
-	for _, item := range byOperation {
-		items = append(items, item)
-	}
-	sortLifecycleSpecs(items)
-	return items, nil
-}
-
 func sortLifecycleSpecs(items []*protocol.LifecycleContract) {
 	sort.Slice(items, func(left int, right int) bool {
 		return lifecycleOperationOrder(items[left].Operation) < lifecycleOperationOrder(items[right].Operation)
@@ -507,32 +536,15 @@ func lifecycleOperationOrder(operation protocol.LifecycleOperation) int {
 }
 
 func collectResourceSpecs(pluginDir string, pluginID string) ([]*resourceSpec, error) {
-	resourceDir := filepath.Join(pluginDir, "backend", "resources")
-	entries, err := os.ReadDir(resourceDir)
+	cfg, configPath, err := loadPluginHackConfig(pluginDir)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return []*resourceSpec{}, nil
-		}
 		return nil, err
 	}
 
-	fileNames := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
-			continue
-		}
-		fileNames = append(fileNames, entry.Name())
-	}
-	sortStrings(fileNames)
-
-	items := make([]*resourceSpec, 0, len(fileNames))
-	for _, name := range fileNames {
-		filePath := filepath.Join(resourceDir, name)
-		spec := &resourceSpec{}
-		if err = loadYAMLFile(filePath, spec); err != nil {
-			return nil, err
-		}
-		if err = validateResourceSpec(pluginID, spec, filePath); err != nil {
+	items := make([]*resourceSpec, 0, len(cfg.Wasm.Resources))
+	for index, spec := range cfg.Wasm.Resources {
+		specLabel := pluginHackConfigItemLabel(configPath, "wasm.resources", index)
+		if err = validateResourceSpec(pluginID, spec, specLabel); err != nil {
 			return nil, err
 		}
 		items = append(items, spec)
@@ -1493,11 +1505,4 @@ func normalizeResourceFieldNameSlice(items []string) []string {
 	}
 	sort.Strings(result)
 	return result
-}
-
-func sortStrings(items []string) {
-	if len(items) <= 1 {
-		return
-	}
-	sort.Strings(items)
 }

@@ -36,8 +36,12 @@ const (
 	authEventMessageUserDisabled = "User account is disabled"
 	// authEventMessageIPBlacklisted is the English fallback for blocked login IP messages.
 	authEventMessageIPBlacklisted = "Login IP is blacklisted"
+	// authEventMessageTenantUnavailable is the English fallback for tenant-auth rejection messages.
+	authEventMessageTenantUnavailable = "Tenant is not available"
 	// authEventMessageLogoutSuccessful is the English fallback for successful logout messages.
 	authEventMessageLogoutSuccessful = "Logout successful"
+	// authHookReasonTenantUnavailable identifies tenant service or membership failures.
+	authHookReasonTenantUnavailable = "tenant_unavailable"
 )
 
 // tokenKind identifies the intended use of one signed JWT. The underlying

@@ -524,6 +524,56 @@ func TestLoginRejectsTenantUserWithoutActiveTenant(t *testing.T) {
 	}
 }
 
+// TestLoginRejectsTenantUserWhenTenantServiceUnavailable verifies tenant users
+// fail closed when the tenant provider is disabled instead of receiving a
+// platform-scoped token.
+func TestLoginRejectsTenantUserWhenTenantServiceUnavailable(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	hooks := &recordingAuthHookService{}
+	svc.hookSvc = hooks
+
+	username := fmt.Sprintf("tenant-service-disabled-%d", time.Now().UnixNano())
+	userID := insertAuthTestUser(t, ctx, username, "admin123")
+	if _, err := dao.SysUser.Ctx(ctx).
+		Where(do.SysUser{Id: userID}).
+		Data(do.SysUser{TenantId: 11}).
+		Update(); err != nil {
+		t.Fatalf("set tenant id on auth test user: %v", err)
+	}
+
+	providerPluginID := fmt.Sprintf("plugin-test-disabled-auth-tenant-provider-%d", time.Now().UnixNano())
+	manager := tenantspi.NewManager()
+	if err := manager.RegisterFactory(providerPluginID, func(context.Context, tenantspi.ProviderEnv) (tenantspi.Provider, error) {
+		return &tenantAuthTestProvider{tenantsByUser: map[int][]tenantcap.TenantInfo{
+			userID: {{ID: 11, Code: "tenant-a", Name: "Tenant A", Status: "enabled"}},
+		}}, nil
+	}); err != nil {
+		t.Fatalf("register disabled auth tenant provider: %v", err)
+	}
+	svc.tenantSvc = tenantspi.New(manager, tenantAuthProviderRuntime{pluginID: "disabled-provider-not-enabled"}, nil, nil)
+	if svc.tenantSvc.Available(ctx) {
+		t.Fatal("expected test tenant service to be unavailable")
+	}
+
+	out, err := svc.Login(ctx, LoginInput{Username: username, Password: "admin123", ClientType: tokencap.ClientTypeWeb})
+	if !bizerr.Is(err, CodeAuthTenantUnavailable) {
+		t.Fatalf("expected tenant unavailable login error, got out=%#v err=%v", out, err)
+	}
+	if out != nil {
+		t.Fatalf("expected tenant service outage to reject token issuance, got %#v", out)
+	}
+	if len(hooks.loginFailed) != 1 {
+		t.Fatalf("expected one tenant unavailable failure hook, got %#v", hooks.loginFailed)
+	}
+	if hooks.loginFailed[0].Reason != authHookReasonTenantUnavailable {
+		t.Fatalf("expected tenant unavailable reason %q, got %q", authHookReasonTenantUnavailable, hooks.loginFailed[0].Reason)
+	}
+	if len(hooks.loginSucceeded) != 0 {
+		t.Fatalf("expected no login success hook, got %#v", hooks.loginSucceeded)
+	}
+}
+
 // TestRefreshTokenIssuesFreshAccessToken verifies refresh tokens can renew an
 // access token for the same online session without rotating the session ID.
 func TestRefreshTokenIssuesFreshAccessToken(t *testing.T) {

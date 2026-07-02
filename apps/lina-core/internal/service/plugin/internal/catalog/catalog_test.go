@@ -69,6 +69,86 @@ func TestLoadManifestFromYAMLReadsDistribution(t *testing.T) {
 	}
 }
 
+// TestLoadPluginBackendConfigReadsPluginHackConfig verifies that local dynamic
+// plugin directory manifests hydrate backend contracts from plugin-root config.
+func TestLoadPluginBackendConfigReadsPluginHackConfig(t *testing.T) {
+	pluginDir := t.TempDir()
+	writeCatalogTestFile(
+		t,
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		`wasm:
+  hooks:
+    - event: auth.login.succeeded
+      action: sleep
+      mode: async
+      timeout: 50ms
+      sleep: 10ms
+  resources:
+    - key: records
+      type: table-list
+      table: plugin_dev_dynamic_records
+      fields:
+        - name: id
+          column: id
+        - name: status
+          column: status
+      orderBy:
+        column: id
+        direction: asc
+      operations:
+        - query
+        - get
+      keyField: id
+      access: request
+`,
+	)
+	manifest := &catalog.Manifest{
+		ID:      "plugin-dev-dynamic-contract",
+		RootDir: pluginDir,
+	}
+
+	if err := catalog.LoadPluginBackendConfig(manifest); err != nil {
+		t.Fatalf("expected backend config load to succeed, got error: %v", err)
+	}
+	if len(manifest.Hooks) != 1 ||
+		manifest.Hooks[0].Action != pluginhost.HookActionSleep ||
+		manifest.Hooks[0].Mode != pluginhost.CallbackExecutionModeAsync ||
+		manifest.Hooks[0].TimeoutMs != 50 ||
+		manifest.Hooks[0].SleepMs != 10 {
+		t.Fatalf("unexpected hydrated hooks: %#v", manifest.Hooks)
+	}
+	resource, ok := manifest.BackendResources["records"]
+	if !ok || resource.KeyField != "id" || resource.Access != "request" {
+		t.Fatalf("unexpected hydrated resources: %#v", manifest.BackendResources)
+	}
+}
+
+// TestLoadPluginBackendConfigRejectsUnsupportedHookConfigField verifies removed
+// millisecond fields are not accepted as hack/config.yaml hook input.
+func TestLoadPluginBackendConfigRejectsUnsupportedHookConfigField(t *testing.T) {
+	pluginDir := t.TempDir()
+	writeCatalogTestFile(
+		t,
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		`wasm:
+  hooks:
+    - event: auth.login.succeeded
+      action: sleep
+      timeoutMs: 50
+      sleep: 10ms
+`,
+	)
+	manifest := &catalog.Manifest{
+		ID:      "plugin-dev-dynamic-contract",
+		RootDir: pluginDir,
+	}
+
+	err := catalog.LoadPluginBackendConfig(manifest)
+	if err == nil || !strings.Contains(err.Error(), "plugin hook config field is not supported: timeoutMs") {
+		t.Fatalf("expected unsupported hook config field error, got %v", err)
+	}
+}
+
 // TestValidateManifestNormalizesDistribution verifies legal distribution values
 // are normalized and invalid values are rejected during manifest validation.
 func TestValidateManifestNormalizesDistribution(t *testing.T) {
@@ -1643,5 +1723,16 @@ func TestValidateManifestForcesGlobalWhenTenantGovernanceUnsupported(t *testing.
 	}
 	if manifest.SupportsTenantGovernance() {
 		t.Fatalf("expected explicit supports_multi_tenant=false to disable tenant governance")
+	}
+}
+
+func writeCatalogTestFile(t *testing.T, filePath string, content string) {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+		t.Fatalf("create test fixture directory failed: %v", err)
+	}
+	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write test fixture file failed: %v", err)
 	}
 }

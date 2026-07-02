@@ -101,12 +101,13 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		return nil, bizerr.NewCode(CodeAuthUserDisabled)
 	}
 
+	tenantSvcAvailable := s.tenantSvc != nil && s.tenantSvc.Available(ctx)
 	tenants, err := s.loginTenants(ctx, user.Id)
 	if err != nil {
 		return nil, err
 	}
-	if s.tenantSvc != nil && s.tenantSvc.Available(ctx) && user.TenantId != int(tenantcap.PLATFORM) && len(tenants) == 0 {
-		dispatchLoginFailed(in.Username, "Tenant is not available", "tenant_unavailable")
+	if user.TenantId != int(tenantcap.PLATFORM) && (!tenantSvcAvailable || len(tenants) == 0) {
+		dispatchLoginFailed(in.Username, authEventMessageTenantUnavailable, authHookReasonTenantUnavailable)
 		return nil, bizerr.NewCode(CodeAuthTenantUnavailable)
 	}
 	if len(tenants) > 1 {

@@ -6,7 +6,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -29,44 +28,40 @@ func TestBuildRuntimeWasmArtifactEmbedsBackendContracts(t *testing.T) {
 	)
 	testutil.WriteTestFile(
 		t,
-		filepath.Join(pluginDir, "backend", "hooks", "001-login.yaml"),
-		strings.Join([]string{
-			"event: auth.login.succeeded",
-			"action: sleep",
-			"timeoutMs: 50",
-			"sleepMs: 10",
-		}, "\n"),
-	)
-	testutil.WriteTestFile(
-		t,
-		filepath.Join(pluginDir, "backend", "resources", "001-records.yaml"),
-		strings.Join([]string{
-			"key: records",
-			"type: table-list",
-			"table: plugin_runtime_records",
-			"fields:",
-			"  - name: id",
-			"    column: id",
-			"  - name: status",
-			"    column: status",
-			"filters:",
-			"  - param: status",
-			"    column: status",
-			"    operator: eq",
-			"orderBy:",
-			"  column: id",
-			"  direction: asc",
-			"operations:",
-			"  - query",
-			"  - get",
-			"  - update",
-			"keyField: id",
-			"writableFields:",
-			"  - status",
-			"access: both",
-			"dataScope:",
-			"  userColumn: owner_user_id",
-		}, "\n"),
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		`wasm:
+  hooks:
+    - event: auth.login.succeeded
+      action: sleep
+      timeout: 50ms
+      sleep: 10ms
+  resources:
+    - key: records
+      type: table-list
+      table: plugin_runtime_records
+      fields:
+        - name: id
+          column: id
+        - name: status
+          column: status
+      filters:
+        - param: status
+          column: status
+          operator: eq
+      orderBy:
+        column: id
+        direction: asc
+      operations:
+        - query
+        - get
+        - update
+      keyField: id
+      writableFields:
+        - status
+      access: both
+      dataScope:
+        userColumn: owner_user_id
+`,
 	)
 
 	buildOut := testutil.BuildRuntimeArtifactWithHackTool(t, pluginDir)
@@ -141,35 +136,31 @@ func TestLoadRuntimePluginManifestFromArtifactHydratesBackendContracts(t *testin
 	)
 	testutil.WriteTestFile(
 		t,
-		filepath.Join(pluginDir, "backend", "hooks", "001-login.yaml"),
-		strings.Join([]string{
-			"event: auth.login.succeeded",
-			"action: sleep",
-			"timeoutMs: 50",
-			"sleepMs: 10",
-		}, "\n"),
-	)
-	testutil.WriteTestFile(
-		t,
-		filepath.Join(pluginDir, "backend", "resources", "001-records.yaml"),
-		strings.Join([]string{
-			"key: records",
-			"type: table-list",
-			"table: plugin_runtime_records",
-			"fields:",
-			"  - name: id",
-			"    column: id",
-			"  - name: status",
-			"    column: status",
-			"orderBy:",
-			"  column: id",
-			"  direction: asc",
-			"operations:",
-			"  - query",
-			"  - get",
-			"keyField: id",
-			"access: request",
-		}, "\n"),
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		`wasm:
+  hooks:
+    - event: auth.login.succeeded
+      action: sleep
+      timeout: 50ms
+      sleep: 10ms
+  resources:
+    - key: records
+      type: table-list
+      table: plugin_runtime_records
+      fields:
+        - name: id
+          column: id
+        - name: status
+          column: status
+      orderBy:
+        column: id
+        direction: asc
+      operations:
+        - query
+        - get
+      keyField: id
+      access: request
+`,
 	)
 
 	buildOut := testutil.BuildRuntimeArtifactWithHackTool(t, pluginDir)
