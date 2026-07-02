@@ -102,7 +102,10 @@ func TestPostgreSQLProjectSQLUsesTimestamptzForInstants(t *testing.T) {
 	}
 
 	bareTimestampType := regexp.MustCompile(`\bTIMESTAMP\b`)
-	var combined strings.Builder
+	var (
+		hostCombined   strings.Builder
+		pluginCombined strings.Builder
+	)
 	for _, file := range files {
 		content, readErr := os.ReadFile(file)
 		if readErr != nil {
@@ -111,27 +114,32 @@ func TestPostgreSQLProjectSQLUsesTimestamptzForInstants(t *testing.T) {
 		if match := bareTimestampType.FindStringIndex(string(content)); match != nil {
 			t.Fatalf("project SQL asset %s still declares bare TIMESTAMP", file)
 		}
-		combined.Write(content)
-		combined.WriteString("\n")
+		target := &hostCombined
+		if strings.Contains(filepath.ToSlash(file), "/apps/lina-plugins/") {
+			target = &pluginCombined
+		}
+		target.Write(content)
+		target.WriteString("\n")
 	}
 
-	for _, required := range []string{
+	assertRequiredSQLPatterns(t, "host SQL assets", hostCombined.String(), []string{
 		`"created_at"\s+TIMESTAMPTZ`,
 		`"updated_at"\s+TIMESTAMPTZ`,
 		`"start_at"\s+TIMESTAMPTZ`,
 		`"read_at"\s+TIMESTAMPTZ`,
 		`"expire_time"\s+TIMESTAMPTZ`,
 		`"last_heartbeat_at"\s+TIMESTAMPTZ`,
-		`"oper_time"\s+TIMESTAMPTZ`,
 		`"login_time"\s+TIMESTAMPTZ`,
+	})
+	if pluginCombined.Len() == 0 {
+		return
+	}
+	assertRequiredSQLPatterns(t, "plugin SQL assets", pluginCombined.String(), []string{
+		`"oper_time"\s+TIMESTAMPTZ`,
 		`"joined_at"\s+TIMESTAMPTZ`,
 		`"last_test_at"\s+TIMESTAMPTZ`,
 		`"expires_at"\s+TIMESTAMPTZ`,
-	} {
-		if !regexp.MustCompile(required).MatchString(combined.String()) {
-			t.Fatalf("project SQL assets are missing %q", required)
-		}
-	}
+	})
 }
 
 // executePostgreSQLSQLAssets executes assets in order on one PostgreSQL DB.
@@ -146,6 +154,17 @@ func executePostgreSQLSQLAssets(t *testing.T, ctx context.Context, db gdb.DB, as
 				}
 			}
 		})
+	}
+}
+
+// assertRequiredSQLPatterns verifies that one SQL asset group keeps representative
+// instant columns on TIMESTAMPTZ.
+func assertRequiredSQLPatterns(t *testing.T, group string, content string, requiredPatterns []string) {
+	t.Helper()
+	for _, required := range requiredPatterns {
+		if !regexp.MustCompile(required).MatchString(content) {
+			t.Fatalf("%s are missing %q", group, required)
+		}
 	}
 }
 
