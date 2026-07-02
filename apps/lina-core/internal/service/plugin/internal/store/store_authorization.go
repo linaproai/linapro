@@ -229,6 +229,8 @@ func BuildAuthorizedHostServiceSpecs(
 
 // BuildAuthorizedHostServiceSpecsForPlugin applies one host confirmation input
 // and enforces plugin-owned data tables in the final authorization snapshot.
+//
+//nolint:cyclop // Authorization merging keeps requested, confirmed, and denied host-service branches explicit.
 func BuildAuthorizedHostServiceSpecsForPlugin(
 	pluginID string,
 	requested []*protocol.HostServiceSpec,

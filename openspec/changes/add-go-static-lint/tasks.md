@@ -25,12 +25,16 @@
 
 ## 影响判断记录
 
-- 跨平台影响：默认本地入口收敛到`linactl lint.go`，根`Makefile`和`make.cmd`保持薄包装；命令实现使用`Go`路径、环境变量和子进程能力，支持`Windows`、`Linux`和`macOS`。新增`GitHub Actions`安装步骤仅运行在`ubuntu-latest`可复用工作流中，不作为本地开发默认路径。
+- 跨平台影响：默认本地入口收敛到`linactl lint.go`，根`Makefile`和`make.cmd`保持薄包装；命令实现使用`Go`路径、环境变量和子进程能力，支持`Windows`、`Linux`和`macOS`。`golangci-lint`和`staticcheck`由`linactl`按仓库锁定版本自动检测和安装，`CI`与本地复用同一路径。
 - `i18n`影响：本变更只新增开发工具命令、`CI`门禁和技术文档，不新增运行时用户可见文案、菜单、路由、接口文档源文本或翻译资源，确认无运行时`i18n`资源影响。
 - 缓存一致性影响：不新增运行时缓存、缓存失效、订阅状态、权限快照或分布式协调路径，确认无缓存一致性影响。
 - 数据权限影响：不新增或修改列表、详情、导出、下拉、批量接口或数据可见性逻辑，确认无数据权限影响。
 - 运行期服务依赖影响：不新增`Controller`、`Middleware`、`Service`、插件宿主服务适配器或`WASM host service`运行期依赖，确认无需`DI`来源检查。
 - 测试策略影响：本变更属于开发工具与`CI`治理，不改变前端页面、用户交互或端到端业务流程，确认无需新增`E2E`测试；验证聚焦`linactl`单元测试、`golangci-lint`配置检查、宿主/插件模式静态扫描和`OpenSpec`严格校验。
+- FB-1影响：根据`temp/lint.log`审查首批严格`linter`的实际诊断后，关闭`contextcheck`、`dupl`、`tagliatelle`、`intrange`、`perfsprint`、`prealloc`、`mirror`、`gocyclo`、`funlen`、`nestif`和`maintidx`；保留`errorlint`、`noctx`、`ineffassign`、`dupword`、`errname`、`containedctx`和`cyclop`等更接近真实缺陷、错误处理、资源释放或复杂度基线的门禁。已修复`temp/lint.log`中`dupword`、`errname`、`errorlint`、`ineffassign`、`noctx`、`predeclared`和`containedctx`诊断；对既有高复杂度函数保留精准`nolint:cyclop`说明，避免本轮扩大为大型重构。仅修改`.golangci.yml`、后端`Go`源码和本任务记录，不新增运行时`i18n`资源、缓存、数据权限、`HTTP API`、数据库、前端`UI`或运行期服务依赖；开发工具跨平台入口不变。已运行受影响`Go`包测试并通过；已运行`make lint`，`golangci-lint`阶段为`0 issues`，命令随后被独立`staticcheck U1000`死代码门禁中的既有未使用符号阻断，需作为死代码治理任务单独处理。
+- FB-4影响：仅修改`linactl lint.go`开发工具入口、可复用`CI`工作流和工具文档；不新增运行时`i18n`资源、缓存、数据权限、`HTTP API`、数据库或运行期服务依赖。已运行`cd hack/tools/linactl && go test ./... -count=1`和`openspec validate add-go-static-lint --strict`并通过；`make lint.go plugins=0`已验证自动检测到`golangci-lint v2.12.2`，但被现有`FB-1`严格 linter 扩展暴露的既有诊断阻断，需待`FB-1`治理完成后重新执行并勾选本任务。
+- FB-5影响：仅修改`linactl lint.go`开发工具入口、可复用`CI`工作流和工具文档；不新增运行时`i18n`资源、缓存、数据权限、`HTTP API`、数据库、前端`UI`或运行期服务依赖。`staticcheck`安装流程与`golangci-lint`共用跨平台`Go`工具安装路径，使用`GOWORK=off`并移除`GOFLAGS`、`GOOS`、`GOARCH`等构建变量，避免插件完整模式污染工具构建。已运行`cd hack/tools/linactl && go test ./... -count=1`、`openspec validate add-go-static-lint --strict`和`git diff --check`并通过；`make lint.go plugins=0`已验证工具探测阶段自动检测到`staticcheck v0.7.0`并使用二进制路径，不再通过`go run honnef.co/go/tools/cmd/staticcheck@<version>`执行，命令后续在`golangci-lint`扫描`apps/lina-core`时被32条既有源码质量诊断阻断，尚未进入包级`staticcheck`扫描。
+- FB-6影响：仅修改`linactl env.setup`开发工具入口、`make env.setup`帮助文案、`linactl`工具文档和本变更增量规范；不新增运行时`i18n`资源、缓存、数据权限、`HTTP API`、数据库、前端`UI`或运行期服务依赖。`env.setup`在前端依赖和`Playwright`安装前复用`lint.go`同一套`golangci-lint`与`staticcheck`锁定版本检测安装路径，安装环境继续使用`GOWORK=off`并移除构建标签和交叉编译变量，保持`Windows`、`Linux`、`macOS`默认入口跨平台。已运行`go test . -run 'TestRunEnvSetup' -count=1`、`cd hack/tools/linactl && go test ./... -count=1`、`make -n env.setup`、`git diff --check`和`openspec validate add-go-static-lint --strict`并通过；无需新增`E2E`测试。
 
 ## 5. 验证和审查
 
@@ -39,3 +43,12 @@
 - [x] 5.3 在官方插件工作区可用时运行`make lint.go plugins=1`并修复插件完整模式静态检查问题；如环境不可用，记录阻断原因和替代验证。
 - [x] 5.4 运行`openspec validate add-go-static-lint --strict`。
 - [x] 5.5 完成实现后调用`lina-review`进行代码和规范审查，审查通过后再标记全部任务完成。
+
+## Feedback
+
+- [x] **FB-1**: 扩展更严格的`Go`质量类`linters`，在配置中以注释形式保留完整可用`linter`清单，记录新门禁发现的问题，待审查确认后再修复源码。
+- [x] **FB-2**: 修正`unused`门禁对`wasip1` guest 专属代码的误报，改为按宿主与`wasip1/wasm`目标归并死代码检查结果。
+- [x] **FB-3**: 注释独立`unused` linter，统一由固定版本`staticcheck U1000`承担死代码门禁，并保留`wasip1/wasm`矩阵归并。
+- [ ] **FB-4**: 在`linactl lint.go`中按`.golangci-lint-version`自动检测和安装`golangci-lint`，避免本机缺少二进制或版本漂移导致`make lint.go`失败。
+- [x] **FB-5**: 在`linactl lint.go`中按`.staticcheck-version`自动检测和安装`staticcheck`，避免死代码检查依赖`go run honnef.co/go/tools/cmd/staticcheck@<version>`临时执行路径。
+- [x] **FB-6**: 在`linactl env.setup`中优先按仓库锁定版本检测和安装`golangci-lint`与`staticcheck`，使开发环境初始化提前准备`Go`静态检查工具。

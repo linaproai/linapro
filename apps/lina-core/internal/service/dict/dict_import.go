@@ -46,6 +46,8 @@ type ImportFailItem struct {
 
 // CombinedImport imports dictionary types and data from an Excel file.
 // If updateSupport is true, existing records will be updated; otherwise, they will be skipped.
+//
+//nolint:cyclop // Import validation intentionally keeps the CSV/XLSX branch outcomes explicit for operator diagnostics.
 func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updateSupport bool) (result *CombinedImportResult, err error) {
 	result = &CombinedImportResult{
 		FailList: make([]ImportFailItem, 0),

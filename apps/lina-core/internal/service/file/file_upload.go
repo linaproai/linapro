@@ -167,7 +167,7 @@ func (s *serviceImpl) createFromReader(ctx context.Context, in *CreateFromReader
 		if err != nil {
 			if cleanupErr := s.storage.Delete(ctx, storagesvc.DeleteInput{Namespace: storagesvc.NamespaceFiles, Key: storagePath}); cleanupErr != nil {
 				return bizerr.WrapCode(
-					fmt.Errorf("cleanup stored file after record save failure: %w; cleanup error: %v", err, cleanupErr),
+					fmt.Errorf("cleanup stored file after record save failure: %w; cleanup error: %w", err, cleanupErr),
 					CodeFileRecordSaveCleanupFailed,
 				)
 			}
@@ -259,10 +259,10 @@ func cleanupSpooledUploadError(spooled *os.File, primary error) error {
 	}
 	name := spooled.Name()
 	if closeErr := spooled.Close(); closeErr != nil {
-		return bizerr.WrapCode(fmt.Errorf("%w; cleanup close error: %v", primary, closeErr), CodeFileRecordSaveCleanupFailed)
+		return bizerr.WrapCode(fmt.Errorf("%w; cleanup close error: %w", primary, closeErr), CodeFileRecordSaveCleanupFailed)
 	}
 	if removeErr := os.Remove(name); removeErr != nil {
-		return bizerr.WrapCode(fmt.Errorf("%w; cleanup remove error: %v", primary, removeErr), CodeFileRecordSaveCleanupFailed)
+		return bizerr.WrapCode(fmt.Errorf("%w; cleanup remove error: %w", primary, removeErr), CodeFileRecordSaveCleanupFailed)
 	}
 	return primary
 }

@@ -26,6 +26,8 @@ func ValidateHostServiceSpecsForPlugin(pluginID string, specs []*HostServiceSpec
 
 // validateHostServiceSpecs applies structural host-service validation and, when
 // pluginID is present, data-service table ownership validation.
+//
+//nolint:cyclop // Host-service schema validation keeps all protocol-level failure cases in one guarded boundary.
 func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 	if len(specs) == 0 {
 		return nil

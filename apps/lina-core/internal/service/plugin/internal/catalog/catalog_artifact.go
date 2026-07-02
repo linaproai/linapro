@@ -86,6 +86,8 @@ func parseRuntimeWasmArtifact(filePath string) (*ArtifactSpec, error) {
 }
 
 // parseRuntimeWasmArtifactContent parses one WASM artifact from an in-memory byte slice.
+//
+//nolint:cyclop // Artifact decoding validates a compact wire format with explicit field-level failure messages.
 func parseRuntimeWasmArtifactContent(filePath string, content []byte) (*ArtifactSpec, error) {
 	sections, err := bridgeartifact.ListCustomSections(content)
 	if err != nil {

@@ -18,7 +18,7 @@ import (
 var (
 	hostServiceDispatchRegistryOnce sync.Once
 	hostServiceDispatchRegistryMemo *hostServiceDispatchRegistry
-	hostServiceDispatchRegistryErr  error
+	errHostServiceDispatchRegistry  error
 )
 
 // hostServiceDispatchContext carries one authorized host-service invocation
@@ -113,9 +113,9 @@ func hostServiceDispatchRegistryKey(service string, method string) string {
 
 func defaultHostServiceDispatchRegistry() (*hostServiceDispatchRegistry, error) {
 	hostServiceDispatchRegistryOnce.Do(func() {
-		hostServiceDispatchRegistryMemo, hostServiceDispatchRegistryErr = newHostServiceDispatchRegistry()
+		hostServiceDispatchRegistryMemo, errHostServiceDispatchRegistry = newHostServiceDispatchRegistry()
 	})
-	return hostServiceDispatchRegistryMemo, hostServiceDispatchRegistryErr
+	return hostServiceDispatchRegistryMemo, errHostServiceDispatchRegistry
 }
 
 func newHostServiceDispatchRegistry() (*hostServiceDispatchRegistry, error) {

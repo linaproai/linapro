@@ -33,8 +33,8 @@ env:
   TZ: "Asia/Shanghai"
 
 jobs:
-  # Installs the repository-pinned golangci-lint version and runs the public make entrypoint.
-  # 安装仓库锁定的 golangci-lint 版本，并通过公开 make 入口执行检查。
+  # Runs the public make entrypoint; linactl installs pinned Go lint tools as needed.
+  # 通过公开 make 入口执行检查；linactl 会按需安装仓库锁定的 Go lint 工具版本。
   go-lint:
     name: Go static lint
     runs-on: ubuntu-latest
@@ -49,31 +49,13 @@ jobs:
           submodules: ${{ inputs.submodules }}
 
       # Install the Go toolchain used by linactl and the lint tool installation.
-      # 安装 linactl 和 lint 工具安装流程使用的 Go 工具链。
+      # 安装 linactl 和 lint 工具自动安装流程使用的 Go 工具链。
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version: "1.25"
           cache: true
           cache-dependency-path: "**/go.sum"
-
-      # Read the repository-pinned golangci-lint version.
-      # 读取仓库锁定的 golangci-lint 版本。
-      - name: Read golangci-lint Version
-        id: golangci
-        shell: bash
-        run: |
-          version="$(tr -d '\r\n' < .golangci-lint-version)"
-          test -n "$version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      # Install exactly the version recorded by .golangci-lint-version.
-      # 按 .golangci-lint-version 中记录的版本安装工具。
-      - name: Install golangci-lint
-        shell: bash
-        run: |
-          go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ steps.golangci.outputs.version }}"
-          golangci-lint --version
 
       # Run lint through the repository entrypoint so local and CI behavior stay aligned.
       # 通过仓库入口运行静态检查，保持本地和 CI 行为一致。

@@ -41,6 +41,8 @@ const (
 // ValidateManifest validates required fields and structural constraints in a plugin manifest.
 // For source plugins it additionally checks for go.mod and backend/plugin.go.
 // For dynamic plugins it optionally validates the runtime artifact via ArtifactParser.
+//
+//nolint:cyclop // Manifest validation is intentionally explicit so each plugin.yaml field returns a precise error.
 func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) error {
 	rootDir := filepath.Dir(filePath)
 	if strings.TrimSpace(filePath) == "" && strings.TrimSpace(manifest.RootDir) != "" {

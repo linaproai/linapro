@@ -22,6 +22,8 @@ import (
 )
 
 // List queries user list with pagination and filters.
+//
+//nolint:cyclop // User listing combines optional filters and batch projections while keeping one paged query path.
 func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, error) {
 	var (
 		cols = dao.SysUser.Columns()

@@ -91,6 +91,8 @@ func (s *serviceImpl) ParseRuntimeWasmArtifact(filePath string) (*catalog.Artifa
 
 // ParseRuntimeWasmArtifactContent parses one WASM artifact from an in-memory byte slice.
 // It implements the catalog.ArtifactParser interface.
+//
+//nolint:cyclop // Runtime artifact decoding mirrors the catalog wire validation for stable diagnostics.
 func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content []byte) (*catalog.ArtifactSpec, error) {
 	sections, err := bridgeartifact.ListCustomSections(content)
 	if err != nil {

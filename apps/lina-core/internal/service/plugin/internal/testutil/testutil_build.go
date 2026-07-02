@@ -20,8 +20,8 @@ import (
 // bundledRuntimeSampleOnce ensures the bundled dynamic sample is built once per test process.
 var bundledRuntimeSampleOnce sync.Once
 
-// bundledRuntimeSampleErr stores a build failure captured by bundledRuntimeSampleOnce.
-var bundledRuntimeSampleErr error
+// errBundledRuntimeSample stores a build failure captured by bundledRuntimeSampleOnce.
+var errBundledRuntimeSample error
 
 // bundledRuntimeSampleMissing reports whether the bundled sample plugin is absent.
 var bundledRuntimeSampleMissing bool
@@ -73,7 +73,7 @@ func EnsureBundledRuntimeSampleArtifactForTests(t *testing.T) {
 	bundledRuntimeSampleOnce.Do(func() {
 		repoRoot, err := FindRepoRoot(".")
 		if err != nil {
-			bundledRuntimeSampleErr = err
+			errBundledRuntimeSample = err
 			return
 		}
 
@@ -83,15 +83,16 @@ func EnsureBundledRuntimeSampleArtifactForTests(t *testing.T) {
 				bundledRuntimeSampleMissing = true
 				return
 			}
-			bundledRuntimeSampleErr = statErr
+			errBundledRuntimeSample = statErr
 			return
 		}
 
 		if err = ensureBuildWasmPluginWorkspace(repoRoot, pluginDir); err != nil {
-			bundledRuntimeSampleErr = err
+			errBundledRuntimeSample = err
 			return
 		}
-		cmd := exec.Command(
+		cmd := exec.CommandContext(
+			t.Context(),
 			"go",
 			"run",
 			".",
@@ -103,15 +104,15 @@ func EnsureBundledRuntimeSampleArtifactForTests(t *testing.T) {
 		cmd.Env = append(os.Environ(), "GOWORK="+selectBuildWasmGoWork(repoRoot, pluginDir))
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			bundledRuntimeSampleErr = fmt.Errorf("run linactl wasm failed: %w output=%s", err, string(output))
+			errBundledRuntimeSample = fmt.Errorf("run linactl wasm failed: %w output=%s", err, string(output))
 		}
 	})
 
 	if bundledRuntimeSampleMissing {
 		t.Skip("official plugin workspace is not initialized")
 	}
-	if bundledRuntimeSampleErr != nil {
-		t.Fatalf("failed to prepare bundled dynamic sample: %v", bundledRuntimeSampleErr)
+	if errBundledRuntimeSample != nil {
+		t.Fatalf("failed to prepare bundled dynamic sample: %v", errBundledRuntimeSample)
 	}
 }
 
@@ -127,7 +128,7 @@ func BuildRuntimeArtifactWithHackTool(t *testing.T, pluginDir string) *RuntimeBu
 	if err = ensureBuildWasmPluginWorkspace(repoRoot, pluginDir); err != nil {
 		t.Fatalf("failed to prepare temporary plugin workspace: %v", err)
 	}
-	cmd := exec.Command("go", "run", ".", "wasm", "plugin_dir="+pluginDir, "out="+outputDir)
+	cmd := exec.CommandContext(t.Context(), "go", "run", ".", "wasm", "plugin_dir="+pluginDir, "out="+outputDir)
 	cmd.Dir = filepath.Join(repoRoot, "hack", "tools", "linactl")
 	cmd.Env = append(os.Environ(), "GOWORK="+selectBuildWasmGoWork(repoRoot, pluginDir))
 	output, err := cmd.CombinedOutput()

@@ -79,7 +79,7 @@ func (s *serviceImpl) runCronJob(ctx context.Context, jobID int64) {
 		return
 	}
 
-	logID, execution, err := s.createExecution(ctx, job, joblogv1.TriggerCron)
+	logID, execCtx, execution, err := s.createExecution(ctx, job, joblogv1.TriggerCron)
 	if err != nil {
 		release()
 		logger.Warningf(ctx, "create running job log failed job_id=%d err=%v", jobID, err)
@@ -90,7 +90,7 @@ func (s *serviceImpl) runCronJob(ctx context.Context, jobID int64) {
 		s.Remove(jobID)
 	}
 
-	go s.executeJob(execution, job, logID)
+	go s.executeJob(execCtx, execution, job, logID)
 }
 
 // prepareCronQuota increments cron execution counters and disables exhausted jobs.
@@ -169,18 +169,19 @@ func (s *serviceImpl) disableForMaxExecutions(ctx context.Context, jobID int64) 
 
 // executeJob dispatches one running job instance and persists its final log state.
 func (s *serviceImpl) executeJob(
+	ctx context.Context,
 	execution executionState,
 	job *entity.SysJob,
 	logID int64,
 ) {
 	defer s.finishRunningExecution(logID)
 
-	status, errMsg, resultJSON := s.dispatchExecution(execution.ctx, job)
+	status, errMsg, resultJSON := s.dispatchExecution(ctx, job)
 	// Persist the terminal log state with a detached context so timeout or
 	// cancellation does not prevent the final status from being recorded.
-	finishCtx := context.WithoutCancel(execution.ctx)
+	finishCtx := context.WithoutCancel(ctx)
 	if err := s.finishLog(finishCtx, logID, execution.startedAt, status, errMsg, resultJSON); err != nil {
-		logger.Warningf(execution.ctx, "finish scheduled job log failed log_id=%d err=%v", logID, err)
+		logger.Warningf(ctx, "finish scheduled job log failed log_id=%d err=%v", logID, err)
 	}
 }
 

@@ -55,8 +55,10 @@ func (s *serviceImpl) loadUserAccessContext(ctx context.Context, userId int) (*U
 		return nil, err
 	}
 
-	menuIds := []int{}
-	permissions := []string{}
+	var (
+		menuIds     []int
+		permissions []string
+	)
 	if isSuperAdmin {
 		menuIds, permissions, err = s.loadAllEnabledMenuAccess(ctx)
 		if err != nil {

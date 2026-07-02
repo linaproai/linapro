@@ -1,4 +1,4 @@
-// This file implements the env.setup command for frontend and browser setup.
+// This file implements the env.setup command for local development setup.
 
 package main
 
@@ -8,8 +8,15 @@ import (
 	"path/filepath"
 )
 
-// runEnvSetup installs frontend dependencies, Playwright browsers, and OS dependencies.
+// runEnvSetup installs pinned Go lint tools, frontend dependencies,
+// Playwright browsers, and OS dependencies.
 func runEnvSetup(ctx context.Context, a *app, _ commandInput) error {
+	if _, _, err := ensureGoLintBinary(ctx, a); err != nil {
+		return err
+	}
+	if _, _, err := ensureGoLintStaticcheckBinary(ctx, a); err != nil {
+		return err
+	}
 	if err := ensureFrontendDeps(ctx, a); err != nil {
 		return err
 	}

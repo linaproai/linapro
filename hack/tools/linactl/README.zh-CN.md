@@ -98,7 +98,9 @@ build:
 
 ## Go 静态检查
 
-`linactl lint.go`通过`golangci-lint`运行仓库`Go`静态检查门禁。工具版本由仓库根目录`.golangci-lint-version`锁定，规则配置位于仓库根目录`.golangci.yml`。
+`linactl lint.go`通过`golangci-lint`运行仓库`Go`静态检查门禁。主检查工具版本由仓库根目录`.golangci-lint-version`锁定，规则配置位于仓库根目录`.golangci.yml`，死代码检查使用仓库根目录`.staticcheck-version`锁定的`staticcheck`版本。
+
+如果`PATH`中缺少`golangci-lint`或`staticcheck`，或其版本与锁定版本不一致，`linactl lint.go`会通过`go install`安装锁定版本，并使用安装后的精确二进制继续执行。`linactl env.setup`会在前端和浏览器环境安装前执行同一套锁定工具安装流程，使新开发环境能够提前准备`Go`静态检查工具。安装流程使用`GOWORK=off`并移除构建标签或交叉编译变量，避免插件完整模式的 lint 设置影响外部工具构建。首次安装需要正常的`Go`模块网络访问。
 
 ```bash
 make lint.go plugins=0
@@ -108,6 +110,8 @@ go run . lint.go plugins=0
 ```
 
 使用`plugins=0`检查宿主工作区，覆盖`apps/lina-core`和`hack/tools/linactl`。官方插件源码已初始化时，使用`plugins=1`；该模式会准备已忽略的`temp/go.work.plugins`工作区，并检查宿主、工具和官方插件`Go`模块。未传入`plugins`时，`linactl`沿用构建和测试命令的自动探测行为。
+
+`golangci-lint`不启用独立`unused` linter。`linactl lint.go`会对所有包运行`staticcheck U1000`作为死代码检查；非测试文件包含`//go:build wasip1`或`//go:build !wasip1`的包使用宿主目标和`GOOS=wasip1 GOARCH=wasm`矩阵，避免 guest 专属桥接代码在默认宿主构建下被误报为死代码。
 
 `fix=true`是显式开发者操作。它允许`golangci-lint`在支持时改写导入和格式；`CI`不会启用该参数。
 

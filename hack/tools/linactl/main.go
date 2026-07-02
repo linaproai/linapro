@@ -134,7 +134,11 @@ func (a *app) runCommand(ctx context.Context, options commandOptions, name strin
 	} else {
 		cmd.Env = a.env
 	}
-	cmd.Stdin = a.stdin
+	if options.Stdin != nil {
+		cmd.Stdin = options.Stdin
+	} else {
+		cmd.Stdin = a.stdin
+	}
 
 	stdout := options.Stdout
 	stderr := options.Stderr

@@ -16,6 +16,8 @@ import (
 )
 
 // dispatchPluginsHostService routes plugin-governance domain host-service calls.
+//
+//nolint:cyclop // Host-service dispatch is an explicit protocol switch with stable method-level branches.
 func dispatchPluginsHostService(
 	ctx context.Context,
 	hcc *hostCallContext,

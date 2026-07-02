@@ -98,7 +98,9 @@ When `dir=apps/lina-plugins/<plugin-id>` is passed, `linactl build` runs only th
 
 ## Go Static Lint
 
-`linactl lint.go` runs the repository `Go` static lint gate through `golangci-lint`. The tool version is pinned by the repository root `.golangci-lint-version`, and the rules live in the repository root `.golangci.yml`.
+`linactl lint.go` runs the repository `Go` static lint gate through `golangci-lint`. The main lint binary version is pinned by the repository root `.golangci-lint-version`, the rules live in the repository root `.golangci.yml`, and dead-code checks use the pinned `staticcheck` version from the repository root `.staticcheck-version`.
+
+If `golangci-lint` or `staticcheck` is missing from `PATH` or reports a different version, `linactl lint.go` installs the pinned version with `go install` and then runs that exact binary. `linactl env.setup` performs the same pinned-tool installation before frontend and browser setup so new development environments can prepare the Go lint tools up front. The installation uses `GOWORK=off` and strips build-tag or cross-compilation variables so plugin-full lint settings do not affect the external tool build. First-time installation needs normal Go module network access.
 
 ```bash
 make lint.go plugins=0
@@ -108,6 +110,8 @@ go run . lint.go plugins=0
 ```
 
 Use `plugins=0` for the host workspace, covering `apps/lina-core` and `hack/tools/linactl`. Use `plugins=1` when official plugin sources are initialized; this mode prepares the ignored `temp/go.work.plugins` workspace and lints host, tool, and official plugin `Go` modules. If `plugins` is omitted, `linactl` keeps the existing auto-detection behavior used by build and test commands.
+
+`golangci-lint` does not enable the standalone `unused` linter. `linactl lint.go` runs `staticcheck U1000` for dead-code checks across all packages; packages that contain non-test files with `//go:build wasip1` or `//go:build !wasip1` use a host plus `GOOS=wasip1 GOARCH=wasm` matrix so guest-only bridge code is not reported as dead code under the default host build.
 
 `fix=true` is an explicit developer action. It lets `golangci-lint` rewrite imports and formatting where supported; CI never enables it.
 

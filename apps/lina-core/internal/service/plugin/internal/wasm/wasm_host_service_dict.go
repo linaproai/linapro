@@ -15,6 +15,8 @@ import (
 )
 
 // dispatchDictHostService routes dictionary-domain host-service calls.
+//
+//nolint:cyclop // Host-service dispatch is an explicit protocol switch with stable method-level branches.
 func dispatchDictHostService(
 	ctx context.Context,
 	hcc *hostCallContext,

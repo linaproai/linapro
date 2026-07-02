@@ -108,7 +108,7 @@ func commandRegistry() map[string]commandSpec {
 		{Name: "version", Description: "Update framework.version metadata and README image cache keys.", Usage: "linactl version to=v0.6.0", Run: runVersion},
 		{Name: "release.tag.check", Description: "Verify a release tag matches framework.version metadata.", Usage: "linactl release.tag.check [tag=v0.6.0]", Run: runReleaseTagCheck},
 		{Name: "env.check", Description: "Check local development tool versions.", Usage: "linactl env.check", Run: runEnvCheck},
-		{Name: "env.setup", Description: "Install frontend dependencies and Playwright browsers.", Usage: "linactl env.setup", Run: runEnvSetup},
+		{Name: "env.setup", Description: "Install Go lint tools, frontend dependencies, and Playwright browsers.", Usage: "linactl env.setup", Run: runEnvSetup},
 		{Name: "db.init", Description: "Initialize the database with DDL and seed data.", Usage: "linactl db.init confirm=init [rebuild=true]", Run: runInit},
 		{Name: "db.upgrade", Description: "Replay host SQL assets to upgrade the configured database.", Usage: "linactl db.upgrade confirm=upgrade", Run: runUpgrade},
 		{Name: "db.mock", Description: "Load optional mock demo data.", Usage: "linactl db.mock confirm=mock", Run: runMock},

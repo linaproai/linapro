@@ -18,18 +18,18 @@ import (
 // the internal lifecycle and runtime-upgrade services so ordinary management
 // guards do not block host-owned builtin reconciliation.
 func (s *serviceImpl) BootstrapBuiltinPlugins(ctx context.Context) error {
-	out, err := s.buildPluginProjection(ctx, pluginProjectionInput{
+	out, readCtx, err := s.buildPluginProjection(ctx, pluginProjectionInput{
 		mode: projectionModeList,
 		sync: true,
 	})
 	if err != nil {
 		return err
 	}
-	if err = s.integrationSvc.RefreshEnabledSnapshot(out.ctx); err != nil {
+	if err = s.integrationSvc.RefreshEnabledSnapshot(readCtx); err != nil {
 		return err
 	}
 	manifests := out.manifests
-	if err = s.lifecycleSvc.BootstrapBuiltinPlugins(out.ctx, lifecycle.BootstrapBuiltinOptions{
+	if err = s.lifecycleSvc.BootstrapBuiltinPlugins(readCtx, lifecycle.BootstrapBuiltinOptions{
 		Manifests:        manifests,
 		FrameworkVersion: s.frameworkVersion(ctx),
 		Upgrade:          s.bootstrapBuiltinRuntimeUpgrade,

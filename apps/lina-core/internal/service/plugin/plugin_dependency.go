@@ -163,7 +163,7 @@ func (s *serviceImpl) buildDependencySnapshots(
 			return plugindep.ClonePluginSnapshots(cache.snapshots), nil
 		}
 	}
-	out, err := s.buildPluginProjection(ctx, pluginProjectionInput{
+	out, _, err := s.buildPluginProjection(ctx, pluginProjectionInput{
 		mode:      projectionModeDependencySnapshot,
 		candidate: candidate,
 	})

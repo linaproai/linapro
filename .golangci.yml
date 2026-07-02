@@ -10,18 +10,140 @@ run:
 linters:
   default: none
   enable:
+    # Enabled quality gate. Linters below focus on defects, resource handling,
+    # error handling, security, dead code, performance, and maintainability.
+    # 默认启用的质量门禁集合，覆盖缺陷、资源释放、错误处理、安全、死代码、性能和可维护性。
+    - asasalint
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - containedctx
+    - copyloopvar
+    - cyclop
+    - dogsled
+    - dupword
+    - durationcheck
     - errcheck
+    - errname
+    - errorlint
     - errchkjson
+    # - exhaustive
+    - fatcontext
+    - forcetypeassert
+    - gocheckcompilerdirectives
+    - gochecksumtype
+    # - gocognit
     - goconst
     - gocritic
     - govet
+    # - gosec
+    - ineffassign
+    - loggercheck
+    - makezero
     - misspell
+    # - musttag
+    - nakedret
+    # - nilerr
+    - nilnesserr
+    # - nilnil
+    - noctx
+    - nosprintfhostport
     - nolintlint
+    - predeclared
+    - reassign
     - revive
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
     - staticcheck
+    # - unconvert
+    # - unparam
+    - unqueryvet
+    # Dead-code checks are handled by linactl's pinned staticcheck U1000 pass
+    # so wasip1 guest packages can be merged across host and wasm targets.
+    # 死代码检查统一由 linactl 固定版本 staticcheck U1000 处理，以便合并 host 与 wasip1/wasm 目标。
+    # - unused
     - usestdlibvars
+    - usetesting
+    - wastedassign
     - whitespace
+    # - wrapcheck
+    # Disabled after FB-1 triage: useful in some projects, but too noisy for
+    # LinaPro's first blocking gate because they mostly report framework
+    # construction paths, generated-like protocol codecs, schema tag policy,
+    # overlapping complexity metrics, or micro-optimizations.
+    # FB-1 分诊后关闭：这些规则在本项目首批阻断门禁中噪声过高，
+    # 主要命中框架构造路径、协议编解码、契约标签命名、重复复杂度指标或微优化。
+    # - contextcheck
+    # - dupl
+    # - funlen
+    # - gocyclo
+    # - intrange
+    # - mirror
+    # - nestif
+    # - maintidx
+    # - perfsprint
+    # - prealloc
+    # - tagliatelle
+    # Available linters in golangci-lint v2.12.2. Uncomment after rule-specific triage.
+    # golangci-lint v2.12.2 支持的其他 linter；完成专项评估后再取消注释启用。
+    # - arangolint
+    # - asciicheck
+    # - clickhouselint
+    # - decorder
+    # - depguard
+    # - embeddedstructfieldcheck
+    # - err113
+    # - exhaustruct
+    # - exptostd
+    # - forbidigo
+    # - funcorder
+    # - ginkgolinter
+    # - gochecknoglobals
+    # - gochecknoinits
+    # - godoclint
+    # - godot
+    # - godox
+    # - goheader
+    # - gomoddirectives
+    # - gomodguard # deprecated; use gomodguard_v2.
+    # - gomodguard_v2
+    # - goprintffuncname
+    # - gosmopolitan
+    # - grouper
+    # - iface
+    # - importas
+    # - inamedparam
+    # - interfacebloat
+    # - iotamixing
+    # - ireturn
+    # - lll
+    # - mnd
+    # - modernize
+    # - nlreturn
+    # - noinlineerr
+    # - nonamedreturns
+    # - paralleltest
+    # - promlinter
+    # - protogetter
+    # - recvcheck
+    # - tagalign
+    # - testableexamples
+    # - testifylint
+    # - testpackage
+    # - thelper
+    # - tparallel
+    # - varnamelen
+    # - wsl # deprecated; use wsl_v5.
+    # - wsl_v5
+    # - zerologlint
   settings:
+    cyclop:
+      max-complexity: 35
+      package-average: 12.0
+    gocognit:
+      min-complexity: 45
     goconst:
       min-len: 4
       min-occurrences: 30

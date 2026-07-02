@@ -176,7 +176,7 @@ func NewService(
 	revision RevisionStore,
 	events EventBus,
 	health HealthChecker,
-	close func(context.Context) error,
+	closeFunc func(context.Context) error,
 ) Service {
 	if keys == nil {
 		keys = DefaultKeyBuilder()
@@ -189,6 +189,6 @@ func NewService(
 		revision: revision,
 		events:   events,
 		health:   health,
-		close:    close,
+		close:    closeFunc,
 	}
 }

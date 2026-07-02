@@ -16,6 +16,8 @@ import (
 
 // dispatchOrgHostService routes one organization host-service method to the
 // same ordinary orgcap.Service surface exposed to source plugins.
+//
+//nolint:cyclop // Host-service dispatch is an explicit protocol switch with stable method-level branches.
 func dispatchOrgHostService(
 	ctx context.Context,
 	hcc *hostCallContext,

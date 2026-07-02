@@ -209,6 +209,8 @@ func (s *serviceImpl) buildPluginSummaryItem(ctx context.Context, manifest *cata
 
 // buildPluginItemWithOptions returns a PluginItem projection combining manifest
 // and registry data while keeping list and detail payload boundaries explicit.
+//
+//nolint:cyclop // Projection assembly keeps list/detail field boundaries visible for plugin governance reads.
 func (s *serviceImpl) buildPluginItemWithOptions(
 	ctx context.Context,
 	manifest *catalog.Manifest,
