@@ -1,5 +1,5 @@
 export type PluginType = 'dynamic' | 'source' | string;
-export type PluginDistribution = 'builtin' | 'marketplace' | string;
+export type PluginDistribution = 'builtin' | 'managed' | string;
 
 export interface PluginListParams {
   pageNum?: number;

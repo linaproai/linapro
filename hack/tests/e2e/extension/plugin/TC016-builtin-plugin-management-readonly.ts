@@ -7,7 +7,7 @@ import { test, expect } from '../../../fixtures/auth';
 import { PluginPage } from '../../../pages/PluginPage';
 
 const builtinPluginID = 'linapro-builtin-readonly-e2e';
-const marketplacePluginID = 'linapro-marketplace-visible-e2e';
+const managedPluginID = 'linapro-managed-visible-e2e';
 
 function apiEnvelope(data: unknown) {
   return {
@@ -18,7 +18,7 @@ function apiEnvelope(data: unknown) {
 }
 
 function pluginRow(input: {
-  distribution: 'builtin' | 'marketplace';
+  distribution: 'builtin' | 'managed';
   id: string;
   installed: 0 | 1;
   name: string;
@@ -90,11 +90,11 @@ async function expectNoRawPluginI18nKeys(page: Page) {
 }
 
 async function mockPluginApis(page: Page, options: { exposeBuiltinInList: boolean }) {
-  const marketplaceRow = pluginRow({
-    distribution: 'marketplace',
-    id: marketplacePluginID,
+  const managedRow = pluginRow({
+    distribution: 'managed',
+    id: managedPluginID,
     installed: 0,
-    name: 'Marketplace Visible E2E',
+    name: 'Managed Visible E2E',
   });
   const builtinRow = pluginRow({
     distribution: 'builtin',
@@ -105,7 +105,7 @@ async function mockPluginApis(page: Page, options: { exposeBuiltinInList: boolea
   });
   const listRows = options.exposeBuiltinInList
     ? [builtinRow]
-    : [marketplaceRow];
+    : [managedRow];
   const listRequests: string[] = [];
 
   await page.route('**/api/v1/plugins**', async (route: Route) => {
@@ -147,9 +147,9 @@ async function mockPluginApis(page: Page, options: { exposeBuiltinInList: boolea
 
     if (
       request.method() === 'GET' &&
-      requestPath.endsWith(`/plugins/${marketplacePluginID}`)
+      requestPath.endsWith(`/plugins/${managedPluginID}`)
     ) {
-      await route.fulfill({ json: apiEnvelope(marketplaceRow) });
+      await route.fulfill({ json: apiEnvelope(managedRow) });
       return;
     }
 
@@ -172,7 +172,7 @@ test.describe('TC-16 内建插件管理只读治理', () => {
     const pluginPage = new PluginPage(adminPage);
     await pluginPage.gotoManage();
 
-    await expect(pluginPage.pluginRow(marketplacePluginID)).toBeVisible();
+    await expect(pluginPage.pluginRow(managedPluginID)).toBeVisible();
     await expect(pluginPage.pluginRow(builtinPluginID)).toHaveCount(0);
     expect(api.listRequests().length).toBeGreaterThan(0);
     for (const search of api.listRequests()) {

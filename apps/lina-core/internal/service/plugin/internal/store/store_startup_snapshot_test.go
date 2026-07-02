@@ -239,7 +239,7 @@ id: acme-demo-invalid-distribution
 name: Invalid Distribution
 version: v0.1.0
 type: source
-distribution: managed
+distribution: marketplace
 `); err == nil {
 		t.Fatalf("expected invalid distribution snapshot to be rejected")
 	}
@@ -248,7 +248,7 @@ id: acme-demo-non-canonical-distribution
 name: Non Canonical Distribution
 version: v0.1.0
 type: source
-distribution: MARKETPLACE
+distribution: MANAGED
 `); err == nil {
 		t.Fatalf("expected non-canonical distribution snapshot to be rejected")
 	}
@@ -278,7 +278,7 @@ requestedHostServices:
 			name: "standalone config",
 			snapshot: `
 id: acme-demo-reject-config-snapshot
-distribution: marketplace
+distribution: managed
 requestedHostServices:
   - service: config
     methods:
@@ -289,7 +289,7 @@ requestedHostServices:
 			name: "standalone cron",
 			snapshot: `
 id: acme-demo-reject-cron-snapshot
-distribution: marketplace
+distribution: managed
 requestedHostServices:
   - service: cron
     methods:

@@ -341,14 +341,14 @@ func TestRegisterUpgradeHandlersPublishesManifestSnapshots(t *testing.T) {
 			Name:         "Test Plugin Upgrade",
 			Version:      "v0.1.0",
 			Type:         "source",
-			Distribution: "marketplace",
+			Distribution: "managed",
 		}),
 		NewManifestSnapshot(&capmodel.ManifestSnapshot{
 			ID:           "test-plugin-upgrade",
 			Name:         "Test Plugin Upgrade",
 			Version:      "v0.2.0",
 			Type:         "source",
-			Distribution: "marketplace",
+			Distribution: "managed",
 			MenuCount:    2,
 		}),
 	)
@@ -368,7 +368,7 @@ func TestNewManifestSnapshotUsesSharedPrimitive(t *testing.T) {
 		Name:         "Test Plugin Typed Snapshot",
 		Version:      "v1.0.0",
 		Type:         "source",
-		Distribution: "marketplace",
+		Distribution: "managed",
 		Description:  "typed contract",
 	}
 	snapshot := NewManifestSnapshot(input)

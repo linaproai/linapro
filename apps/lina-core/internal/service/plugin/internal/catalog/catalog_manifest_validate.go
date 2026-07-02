@@ -73,7 +73,7 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 	}
 	manifest.Distribution = plugintypes.NormalizeDistribution(manifest.Distribution).String()
 	if !plugintypes.IsSupportedDistribution(manifest.Distribution) {
-		return gerror.Newf("plugin distribution only supports marketplace/builtin: %s", fileLabel)
+		return gerror.Newf("plugin distribution only supports managed/builtin: %s", fileLabel)
 	}
 	if err := s.hydrateManifestTenantGovernanceFromFile(manifest, filePath); err != nil {
 		return gerror.Wrapf(err, "plugin tenant governance metadata cannot be loaded: %s", fileLabel)
@@ -168,7 +168,7 @@ func (s *serviceImpl) ValidateUploadedRuntimeManifest(manifest *Manifest) error 
 	}
 	manifest.Distribution = plugintypes.NormalizeDistribution(manifest.Distribution).String()
 	if !plugintypes.IsSupportedDistribution(manifest.Distribution) {
-		return gerror.New("dynamic plugin distribution only supports marketplace or builtin")
+		return gerror.New("dynamic plugin distribution only supports managed or builtin")
 	}
 	if plugintypes.NormalizeDistribution(manifest.Distribution) == pluginv1.PluginDistributionBuiltin {
 		return gerror.New("dynamic plugin cannot declare builtin distribution")

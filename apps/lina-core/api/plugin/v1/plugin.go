@@ -17,8 +17,8 @@ type PluginDistribution string
 
 // Supported plugin distribution governance values.
 const (
-	PluginDistributionMarketplace PluginDistribution = "marketplace"
-	PluginDistributionBuiltin     PluginDistribution = "builtin"
+	PluginDistributionManaged PluginDistribution = "managed"
+	PluginDistributionBuiltin PluginDistribution = "builtin"
 )
 
 // String returns the serialized plugin distribution value.

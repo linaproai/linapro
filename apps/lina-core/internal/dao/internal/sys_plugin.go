@@ -26,7 +26,7 @@ type SysPluginColumns struct {
 	Name                    string // Plugin name
 	Version                 string // Plugin version
 	Type                    string // Plugin top-level type: source/dynamic
-	Distribution            string // Plugin distribution governance: marketplace or builtin
+	Distribution            string // Plugin distribution governance: managed or builtin
 	ScopeNature             string // Plugin scope nature: platform_only or tenant_aware
 	InstallMode             string // Plugin install mode: global or tenant_scoped
 	AutoEnableForNewTenants string // Platform policy: whether installed and enabled tenant-scoped plugins are enabled for new tenants automatically

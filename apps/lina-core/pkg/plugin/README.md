@@ -45,7 +45,7 @@ Dynamic plugins may use only the concrete methods that are registered in the dyn
 
 ### Plugin Distribution
 
-Plugin manifests and lifecycle callback snapshots include `distribution`, which is normalized by the host to `marketplace` or `builtin`. Omitted values are treated as `marketplace`. `builtin` is a source-plugin-only governance mode for project components compiled with the host: the host installs, enables, and safely upgrades them during startup, and ordinary plugin-management write actions are rejected. Dynamic plugins must remain `marketplace` and cannot self-declare built-in governance.
+Plugin manifests and lifecycle callback snapshots include `distribution`, which is normalized by the host to `managed` or `builtin`. Omitted values are treated as `managed`. `builtin` is a source-plugin-only governance mode for project components compiled with the host: the host installs, enables, and safely upgrades them during startup, and ordinary plugin-management write actions are rejected. Dynamic plugins must remain `managed` and cannot self-declare built-in governance.
 
 ## Dynamic-Plugin-Only Capabilities
 

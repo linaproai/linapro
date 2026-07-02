@@ -64,7 +64,7 @@ func (s AgentSpec) SpecKind() common.Kind { return common.KindFile }
 // curated: an agent only appears here when its public documentation,
 // official source repository or vendor support page provides reliable
 // evidence about how it consumes AGENTS.md. Agents whose AGENTS.md
-// behaviour cannot be confirmed from public sources are deliberately
+// behavior cannot be confirmed from public sources are deliberately
 // omitted, even when they appear in the skills registry — guessing
 // would mislead users into linking the wrong file. Add a new entry
 // only when the source of truth is recorded in the inline comment

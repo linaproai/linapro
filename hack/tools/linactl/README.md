@@ -17,6 +17,9 @@ go run . db.init confirm=init
 go run . db.upgrade confirm=upgrade
 go run . db.mock confirm=mock
 go run . tidy
+go run . lint.go plugins=0
+go run . lint.go plugins=1
+go run . lint.go plugins=0 fix=true
 go run . build platforms=linux/amd64,linux/arm64
 go run . build dir=apps/lina-plugins/john-ai-agentbox
 go run . image tag=v0.2.0 push=0
@@ -39,6 +42,8 @@ make.cmd db.init confirm=init
 make.cmd db.upgrade confirm=upgrade
 make.cmd db.mock confirm=mock
 make.cmd tidy
+make.cmd lint.go plugins=0
+make.cmd lint.go plugins=1
 make.cmd version to=v0.2.0
 make.cmd release.tag.check tag=v0.2.0
 ```
@@ -50,6 +55,7 @@ In PowerShell, run it with an explicit current-directory prefix:
 .\make.cmd status
 .\make.cmd pack.assets
 .\make.cmd i18n.check
+.\make.cmd lint.go plugins=0
 .\make.cmd version to=v0.2.0
 .\make.cmd release.tag.check tag=v0.2.0
 ```
@@ -64,7 +70,8 @@ In PowerShell, run it with an explicit current-directory prefix:
 | `rebuild` | `rebuild=true` | Rebuilds the configured database during `db.init`. |
 | `dir` | `dir=apps/lina-plugins/john-ai-agentbox` | Selects one build target directory for `build`. Omit it to build the host framework, default workspace, and every enabled plugin. |
 | `platforms` | `platforms=linux/amd64,linux/arm64` | Selects build target platforms. |
-| `plugins` | `plugins=0` | Overrides automatic plugin-full detection for build, dev, image, and Go test commands. |
+| `plugins` | `plugins=0` | Overrides automatic plugin-full detection for build, dev, image, Go test, and Go lint commands. |
+| `fix` | `fix=true` | Allows `lint.go` to pass `--fix` to `golangci-lint`; omitted by default so checks do not rewrite files. |
 | `to` | `to=v0.2.0` | Selects the framework version written by `version`. |
 | `tag` | `tag=v0.2.0` | Selects the release tag checked by `release.tag.check`. |
 | `print-version` | `print-version=1` | Prints the validated `framework.version` for release automation. |
@@ -88,6 +95,21 @@ build:
 ```
 
 When `dir=apps/lina-plugins/<plugin-id>` is passed, `linactl build` runs only that plugin's configured commands.
+
+## Go Static Lint
+
+`linactl lint.go` runs the repository `Go` static lint gate through `golangci-lint`. The tool version is pinned by the repository root `.golangci-lint-version`, and the rules live in the repository root `.golangci.yml`.
+
+```bash
+make lint.go plugins=0
+make lint.go plugins=1
+make lint.go plugins=0 fix=true
+go run . lint.go plugins=0
+```
+
+Use `plugins=0` for the host workspace, covering `apps/lina-core` and `hack/tools/linactl`. Use `plugins=1` when official plugin sources are initialized; this mode prepares the ignored `temp/go.work.plugins` workspace and lints host, tool, and official plugin `Go` modules. If `plugins` is omitted, `linactl` keeps the existing auto-detection behavior used by build and test commands.
+
+`fix=true` is an explicit developer action. It lets `golangci-lint` rewrite imports and formatting where supported; CI never enables it.
 
 ## Build Tool Commands
 
@@ -297,5 +319,6 @@ go run . help
 go run . wasm dry-run=true
 go run . plugins.status
 go run . i18n.check
+go run . lint.go plugins=0
 go run . release.tag.check tag=v0.2.0
 ```

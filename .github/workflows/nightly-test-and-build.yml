@@ -35,9 +35,11 @@ jobs:
       include-openspec-completion: false
       include-windows-command-smoke: true
       include-backend-unit-tests: true
+      include-go-lint: true
       include-frontend-unit-tests: true
       include-plugin-windows-command-smoke: true
       include-plugin-backend-unit-tests: true
+      include-plugin-go-lint: true
       include-plugin-frontend-unit-tests: true
       include-plugin-command-smoke: true
       include-make-command-smoke: true

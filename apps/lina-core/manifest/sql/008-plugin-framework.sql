@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS sys_plugin (
     "name"           VARCHAR(128) NOT NULL DEFAULT '',
     "version"        VARCHAR(32) NOT NULL DEFAULT '',
     "type"         VARCHAR(32) NOT NULL DEFAULT 'source',
-    "distribution"   VARCHAR(32) NOT NULL DEFAULT 'marketplace',
+    "distribution"   VARCHAR(32) NOT NULL DEFAULT 'managed',
     "scope_nature"   VARCHAR(32) NOT NULL DEFAULT 'tenant_aware',
     "install_mode"   VARCHAR(32) NOT NULL DEFAULT 'global',
     "auto_enable_for_new_tenants" BOOL NOT NULL DEFAULT FALSE,
@@ -35,7 +35,7 @@ COMMENT ON COLUMN sys_plugin."plugin_id" IS 'Plugin unique identifier (kebab-cas
 COMMENT ON COLUMN sys_plugin."name" IS 'Plugin name';
 COMMENT ON COLUMN sys_plugin."version" IS 'Plugin version';
 COMMENT ON COLUMN sys_plugin."type" IS 'Plugin top-level type: source/dynamic';
-COMMENT ON COLUMN sys_plugin."distribution" IS 'Plugin distribution governance: marketplace or builtin';
+COMMENT ON COLUMN sys_plugin."distribution" IS 'Plugin distribution governance: managed or builtin';
 COMMENT ON COLUMN sys_plugin."scope_nature" IS 'Plugin scope nature: platform_only or tenant_aware';
 COMMENT ON COLUMN sys_plugin."install_mode" IS 'Plugin install mode: global or tenant_scoped';
 COMMENT ON COLUMN sys_plugin."auto_enable_for_new_tenants" IS 'Platform policy: whether installed and enabled tenant-scoped plugins are enabled for new tenants automatically';

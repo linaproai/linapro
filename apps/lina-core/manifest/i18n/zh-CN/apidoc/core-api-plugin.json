@@ -472,7 +472,7 @@
                 "dc": "当前从源码 plugin.yaml 或动态插件产物元数据中发现的插件版本"
               },
               "distribution": {
-                "dc": "插件分发治理类型：marketplace=普通可管理插件，builtin=项目内建源码插件"
+                "dc": "插件分发治理类型：managed=普通可管理插件，builtin=项目内建源码插件"
               },
               "effectiveVersion": {
                 "dc": "宿主当前使用的数据库生效插件版本"
@@ -582,7 +582,7 @@
                 "dc": "当前从源码 plugin.yaml 或动态插件产物元数据中发现的插件版本"
               },
               "distribution": {
-                "dc": "插件分发治理类型：marketplace=普通可管理插件，builtin=项目内建源码插件"
+                "dc": "插件分发治理类型：managed=普通可管理插件，builtin=项目内建源码插件"
               },
               "effectiveVersion": {
                 "dc": "宿主当前使用的数据库生效插件版本"

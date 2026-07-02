@@ -87,6 +87,18 @@ func TestCommandRegistryUsesDottedTestCommands(t *testing.T) {
 	}
 }
 
+// TestCommandRegistryUsesDottedLintGoCommand guards the public Go static lint
+// command name.
+func TestCommandRegistryUsesDottedLintGoCommand(t *testing.T) {
+	registry := commandRegistry()
+	if _, ok := registry["lint.go"]; !ok {
+		t.Fatalf("expected command %q to be registered", "lint.go")
+	}
+	if _, ok := registry["lint-go"]; ok {
+		t.Fatalf("legacy command %q should not be registered", "lint-go")
+	}
+}
+
 // TestCommandRegistryUsesDottedImageBuildCommand guards the public image
 // staging command name.
 func TestCommandRegistryUsesDottedImageBuildCommand(t *testing.T) {
@@ -1866,6 +1878,184 @@ func TestGoWorkspaceModulesSkipsGeneratedOfficialPluginAggregate(t *testing.T) {
 	}
 }
 
+// TestGoLintWorkspaceModulesKeepsGeneratedOfficialPluginAggregate verifies
+// lint.go leaves the generated plugin bridge visible so .golangci.yml remains
+// the single source of generated-code exclusions.
+func TestGoLintWorkspaceModulesKeepsGeneratedOfficialPluginAggregate(t *testing.T) {
+	var (
+		root         = t.TempDir()
+		coreDir      = filepath.Join(root, "apps", "lina-core")
+		aggregateDir = plugins.AggregateModuleDir(root)
+	)
+	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(aggregateDir, "go.mod"), "module lina-plugins\n")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		if name != "go" || strings.Join(args, " ") != "list -m -f {{.Dir}}" {
+			t.Fatalf("unexpected module list command: %s %s", name, strings.Join(args, " "))
+		}
+		return exec.Command(os.Args[0], "-test.run=TestHelperPrintWorkspaceModules", "--", coreDir, aggregateDir)
+	}
+
+	modules, err := goLintWorkspaceModules(context.Background(), application)
+	if err != nil {
+		t.Fatalf("goLintWorkspaceModules returned error: %v", err)
+	}
+	if len(modules) != 2 || !samePath(t, modules[0], coreDir) || !samePath(t, modules[1], aggregateDir) {
+		t.Fatalf("unexpected lint workspace modules: %#v", modules)
+	}
+}
+
+// TestRunLintGoDispatchesHostWorkspaceModules verifies host-only lint runs
+// golangci-lint once per discovered workspace module with the repository config.
+func TestRunLintGoDispatchesHostWorkspaceModules(t *testing.T) {
+	var (
+		root    = t.TempDir()
+		coreDir = filepath.Join(root, "apps", "lina-core")
+		toolDir = filepath.Join(root, "hack", "tools", "linactl")
+	)
+	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(toolDir, "go.mod"), "module linactl\n")
+
+	var calls []capturedCommand
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.env = []string{
+		"GOWORK=" + filepath.Join(root, "stale.work"),
+		"GOFLAGS=-mod=mod -tags=official_plugins,netgo",
+	}
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		if name == "go" {
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintWorkspaceModules", "--", coreDir, toolDir)
+		}
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+
+	input := commandInput{Params: map[string]string{"plugins": "0"}}
+	if err := runLintGo(context.Background(), application, input); err != nil {
+		t.Fatalf("runLintGo returned error: %v", err)
+	}
+
+	expectedConfig := filepath.Join(root, ".golangci.yml")
+	expected := []string{
+		"go list -m -f {{.Dir}}",
+		"golangci-lint run --config " + expectedConfig + " ./...",
+		"golangci-lint run --config " + expectedConfig + " ./...",
+	}
+	if got := commandLines(calls); strings.Join(got, "\n") != strings.Join(expected, "\n") {
+		t.Fatalf("unexpected lint command sequence:\ngot:\n%s\nexpected:\n%s", strings.Join(got, "\n"), strings.Join(expected, "\n"))
+	}
+	if calls[1].cmd.Dir != coreDir || calls[2].cmd.Dir != toolDir {
+		t.Fatalf("unexpected lint command dirs: %q %q", calls[1].cmd.Dir, calls[2].cmd.Dir)
+	}
+	if got := toolutil.EnvValue(calls[1].cmd.Env, "GOWORK"); got != "" {
+		t.Fatalf("expected host-only lint to clear inherited GOWORK, got %q", got)
+	}
+	if got := toolutil.EnvValue(calls[1].cmd.Env, plugins.SourcePluginsEnvKey); got != "0" {
+		t.Fatalf("expected host-only lint to disable source plugin discovery, got %q", got)
+	}
+	if got := toolutil.EnvValue(calls[1].cmd.Env, "GOFLAGS"); strings.Contains(got, plugins.OfficialBuildTag) {
+		t.Fatalf("expected host-only lint to remove official plugin tag, got %q", got)
+	}
+}
+
+// TestRunLintGoFixAppendsFix verifies automatic formatting remains an explicit
+// opt-in flag.
+func TestRunLintGoFixAppendsFix(t *testing.T) {
+	var (
+		root    = t.TempDir()
+		coreDir = filepath.Join(root, "apps", "lina-core")
+		toolDir = filepath.Join(root, "hack", "tools", "linactl")
+	)
+	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(toolDir, "go.mod"), "module linactl\n")
+
+	var calls []capturedCommand
+	application := newLintCommandTestApp(root, coreDir, toolDir, &calls)
+	input := commandInput{Params: map[string]string{"plugins": "0", "fix": "true"}}
+	if err := runLintGo(context.Background(), application, input); err != nil {
+		t.Fatalf("runLintGo returned error: %v", err)
+	}
+
+	expectedArgs := []string{"run", "--config", filepath.Join(root, ".golangci.yml"), "--fix", "./..."}
+	if len(calls) < 2 {
+		t.Fatalf("expected lint child commands, got %#v", calls)
+	}
+	if strings.Join(calls[1].args, "\x00") != strings.Join(expectedArgs, "\x00") {
+		t.Fatalf("unexpected lint args: got %#v want %#v", calls[1].args, expectedArgs)
+	}
+}
+
+// TestRunLintGoPluginFullUsesPreparedWorkspace verifies plugin-full lint reuses
+// the temporary official plugin Go workspace and official build tag.
+func TestRunLintGoPluginFullUsesPreparedWorkspace(t *testing.T) {
+	var (
+		root      = t.TempDir()
+		coreDir   = filepath.Join(root, "apps", "lina-core")
+		pluginDir = filepath.Join(root, "apps", "lina-plugins", "plugin-a")
+	)
+	writeFile(t, filepath.Join(root, "go.work"), "go 1.25.0\n\nuse ./apps/lina-core\n")
+	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(pluginDir, "go.mod"), "module plugin-a\n")
+	writeFile(t, filepath.Join(pluginDir, "plugin.yaml"), "id: plugin-a\ntype: source\n")
+	writeFile(t, filepath.Join(pluginDir, "backend", "plugin.go"), "package backend\n")
+
+	var calls []capturedCommand
+	application := newLintCommandTestApp(root, coreDir, pluginDir, &calls)
+	input := commandInput{Params: map[string]string{"plugins": "1"}}
+	if err := runLintGo(context.Background(), application, input); err != nil {
+		t.Fatalf("runLintGo returned error: %v", err)
+	}
+
+	workspacePath := filepath.Join(root, "temp", "go.work.plugins")
+	if !fileutil.FileExists(workspacePath) {
+		t.Fatalf("expected plugin-full lint to prepare %s", workspacePath)
+	}
+	if got := toolutil.EnvValue(calls[0].cmd.Env, "GOWORK"); got != workspacePath {
+		t.Fatalf("expected go list to use plugin workspace, got %q", got)
+	}
+	if got := toolutil.EnvValue(calls[1].cmd.Env, plugins.SourcePluginsEnvKey); got != "1" {
+		t.Fatalf("expected plugin-full lint to enable source plugin discovery, got %q", got)
+	}
+	if got := toolutil.EnvValue(calls[1].cmd.Env, "GOFLAGS"); !strings.Contains(got, plugins.OfficialBuildTag) {
+		t.Fatalf("expected plugin-full lint to add official plugin tag, got %q", got)
+	}
+}
+
+// TestRunLintGoPluginFullRequiresWorkspace verifies explicit plugin-full lint
+// fails with the same actionable workspace hint as build and test commands.
+func TestRunLintGoPluginFullRequiresWorkspace(t *testing.T) {
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = t.TempDir()
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		t.Fatalf("unexpected child command: %s %s", name, strings.Join(args, " "))
+		return exec.Command(os.Args[0], "-test.run=TestHelperCommandFailure", "--")
+	}
+
+	input := commandInput{Params: map[string]string{"plugins": "1"}}
+	err := runLintGo(context.Background(), application, input)
+	if err == nil {
+		t.Fatalf("expected plugin-full lint to fail without official plugin workspace")
+	}
+	if !strings.Contains(err.Error(), "official plugin workspace") || !strings.Contains(err.Error(), plugins.InitCommand) {
+		t.Fatalf("expected actionable plugin workspace error, got %v", err)
+	}
+}
+
 // TestGoWorkspaceModulesIncludesGoListOutputInErrors verifies CI failures keep
 // the Go command's actionable workspace diagnostic instead of only exit status.
 func TestGoWorkspaceModulesIncludesGoListOutputInErrors(t *testing.T) {
@@ -3225,6 +3415,35 @@ type capturedCommand struct {
 	name string
 	args []string
 	cmd  *exec.Cmd
+}
+
+func commandLines(calls []capturedCommand) []string {
+	lines := make([]string, 0, len(calls))
+	for _, call := range calls {
+		lines = append(lines, call.name+" "+strings.Join(call.args, " "))
+	}
+	return lines
+}
+
+func newLintCommandTestApp(root string, firstModule string, secondModule string, calls *[]capturedCommand) *app {
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		if name == "go" {
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintWorkspaceModules", "--", firstModule, secondModule)
+		}
+		*calls = append(*calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+	return application
 }
 
 func writeBuildFixture(t *testing.T, root string) {

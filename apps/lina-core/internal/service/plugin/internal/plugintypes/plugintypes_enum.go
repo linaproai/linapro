@@ -43,9 +43,9 @@ func IsSupportedType(value string) bool {
 func NormalizeDistribution(value string) PluginDistribution {
 	switch strings.TrimSpace(strings.ToLower(value)) {
 	case "":
-		return pluginv1.PluginDistributionMarketplace
-	case pluginv1.PluginDistributionMarketplace.String():
-		return pluginv1.PluginDistributionMarketplace
+		return pluginv1.PluginDistributionManaged
+	case pluginv1.PluginDistributionManaged.String():
+		return pluginv1.PluginDistributionManaged
 	case pluginv1.PluginDistributionBuiltin.String():
 		return pluginv1.PluginDistributionBuiltin
 	default:
@@ -56,7 +56,7 @@ func NormalizeDistribution(value string) PluginDistribution {
 // IsSupportedDistribution reports whether the distribution value is recognized.
 func IsSupportedDistribution(value string) bool {
 	distribution := NormalizeDistribution(value)
-	return distribution == pluginv1.PluginDistributionMarketplace || distribution == pluginv1.PluginDistributionBuiltin
+	return distribution == pluginv1.PluginDistributionManaged || distribution == pluginv1.PluginDistributionBuiltin
 }
 
 // NormalizeScopeNature converts one raw manifest value to the canonical enum.

@@ -47,8 +47,8 @@ func TestValidatePluginManifestAcceptsMinimalSourcePlugin(t *testing.T) {
 	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
 		t.Fatalf("expected manifest to be valid, got error: %v", err)
 	}
-	if manifest.Distribution != pluginv1.PluginDistributionMarketplace.String() {
-		t.Fatalf("expected default distribution marketplace, got %q", manifest.Distribution)
+	if manifest.Distribution != pluginv1.PluginDistributionManaged.String() {
+		t.Fatalf("expected default distribution managed, got %q", manifest.Distribution)
 	}
 }
 
@@ -83,16 +83,16 @@ func TestValidateManifestNormalizesDistribution(t *testing.T) {
 		Name:         "Distribution Valid Plugin",
 		Version:      "0.1.0",
 		Type:         pluginv1.PluginTypeSource.String(),
-		Distribution: " MARKETPLACE ",
+		Distribution: " MANAGED ",
 	}
 	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
-		t.Fatalf("expected marketplace distribution to validate, got error: %v", err)
+		t.Fatalf("expected managed distribution to validate, got error: %v", err)
 	}
-	if manifest.Distribution != pluginv1.PluginDistributionMarketplace.String() {
-		t.Fatalf("expected normalized marketplace, got %q", manifest.Distribution)
+	if manifest.Distribution != pluginv1.PluginDistributionManaged.String() {
+		t.Fatalf("expected normalized managed, got %q", manifest.Distribution)
 	}
 
-	manifest.Distribution = "managed"
+	manifest.Distribution = "marketplace"
 	err := svcs.Catalog.ValidateManifest(manifest, manifestFile)
 	if err == nil || !strings.Contains(err.Error(), "distribution") {
 		t.Fatalf("expected invalid distribution error, got: %v", err)

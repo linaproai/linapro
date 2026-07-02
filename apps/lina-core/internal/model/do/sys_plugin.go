@@ -18,7 +18,7 @@ type SysPlugin struct {
 	Name                    any        // Plugin name
 	Version                 any        // Plugin version
 	Type                    any        // Plugin top-level type: source/dynamic
-	Distribution            any        // Plugin distribution governance: marketplace or builtin
+	Distribution            any        // Plugin distribution governance: managed or builtin
 	ScopeNature             any        // Plugin scope nature: platform_only or tenant_aware
 	InstallMode             any        // Plugin install mode: global or tenant_scoped
 	AutoEnableForNewTenants any        // Platform policy: whether installed and enabled tenant-scoped plugins are enabled for new tenants automatically

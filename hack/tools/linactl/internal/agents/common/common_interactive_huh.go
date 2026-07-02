@@ -22,7 +22,7 @@
 //     linactl process IO model consistent with the rest of the tool.
 //   - User abort (Esc / Ctrl+C, mapped to huh.ErrUserAborted) is
 //     translated to "cancelled" rather than an error, matching the
-//     historical numbered-grid behaviour where blank/q cancelled.
+//     historical numbered-grid behavior where blank/q cancelled.
 
 package common
 
@@ -70,7 +70,7 @@ func promptIOReady(in io.Reader) (*os.File, bool) {
 // `esc` is reserved for sub-features like filter clear and is mostly
 // disabled at the form level, which means `esc` does nothing in our
 // single-group prompts. Adding `esc` to Quit keeps the documented
-// "Esc / Ctrl+C cancels" behaviour consistent with reality.
+// "Esc / Ctrl+C cancels" behavior consistent with reality.
 func abortKeyMap() *huh.KeyMap {
 	keymap := huh.NewDefaultKeyMap()
 	keymap.Quit = key.NewBinding(key.WithKeys("ctrl+c", "esc"), key.WithHelp("esc", "cancel"))
@@ -192,7 +192,7 @@ func PromptSingleSelection(in io.Reader, out io.Writer, title string, options []
 // PromptYesNo asks a yes/no question with a default answer used when
 // the user presses enter without changing the focus. Esc/Ctrl+C aborts
 // the form and returns the supplied default to match the historical
-// behaviour where blank input meant "use the default".
+// behavior where blank input meant "use the default".
 func PromptYesNo(in io.Reader, out io.Writer, question string, defaultYes bool) (bool, error) {
 	stdin, ok := promptIOReady(in)
 	if !ok {

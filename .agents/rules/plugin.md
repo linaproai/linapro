@@ -6,7 +6,7 @@
 
 - **是否需要多语言支持**：以便确定`plugin.yaml`中是否需要声明`i18n`配置，编码时是否需要考虑`manifest/i18n/<locale>/`目录下的多语言资源维护。
 - **是否需要支持多租户**：以便确定设计数据表的时候是需要增加`tenant_id`字段，编码时是否需要使用到多租户的领域能力。
-- **是否随框架共同编译和发布**：以便确定分发模式`distribution`是`marketplace`还是`builtin`。
+- **是否随框架共同编译和发布**：以便确定分发模式`distribution`是`managed`还是`builtin`。
 
 ## 插件通用资源要求
 
@@ -29,6 +29,7 @@ apps/lina-plugins/<plugin-id>/
 │   │   ├── service/                 # 业务服务层
 │   │   ├── dao/                     # make dao生成
 │   │   └── model/                   # do/entity模型
+│   ├── pkg/                         # 插件对外暴露的能力，仅源码插件可提供
 │   └── plugin.go                    # 插件注册入口
 ├── frontend/                        # 插件前端资源
 │   ├── pages/                       # 插件页面

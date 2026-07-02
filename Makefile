@@ -24,6 +24,7 @@ include hack/makefiles/build.mk
 include hack/makefiles/plugins.mk
 include hack/makefiles/image.mk
 include hack/makefiles/release.mk
+include hack/makefiles/lint.mk
 include hack/makefiles/test.mk
 include hack/makefiles/i18n.mk
 include hack/makefiles/database.mk

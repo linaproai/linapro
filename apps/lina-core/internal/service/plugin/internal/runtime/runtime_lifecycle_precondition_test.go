@@ -57,7 +57,7 @@ func TestBuildDynamicLifecycleRequestPublishesTypedManifestSnapshot(t *testing.T
 				Name:                    "Dynamic Upgrade",
 				Version:                 "v0.1.0",
 				Type:                    "dynamic",
-				Distribution:            pluginv1.PluginDistributionMarketplace.String(),
+				Distribution:            pluginv1.PluginDistributionManaged.String(),
 				ScopeNature:             "tenant_aware",
 				SupportsMultiTenant:     true,
 				DefaultInstallMode:      "tenant_scoped",
@@ -75,7 +75,7 @@ func TestBuildDynamicLifecycleRequestPublishesTypedManifestSnapshot(t *testing.T
 				Name:                    "Dynamic Upgrade",
 				Version:                 "v0.2.0",
 				Type:                    "dynamic",
-				Distribution:            pluginv1.PluginDistributionMarketplace.String(),
+				Distribution:            pluginv1.PluginDistributionManaged.String(),
 				ScopeNature:             "tenant_aware",
 				SupportsMultiTenant:     true,
 				DefaultInstallMode:      "tenant_scoped",
@@ -155,7 +155,7 @@ func TestPublishedManifestSnapshotUsesBridgeContract(t *testing.T) {
 		Name:                    "Dynamic Upgrade",
 		Version:                 "v0.2.0",
 		Type:                    "dynamic",
-		Distribution:            pluginv1.PluginDistributionMarketplace.String(),
+		Distribution:            pluginv1.PluginDistributionManaged.String(),
 		ScopeNature:             "tenant_aware",
 		SupportsMultiTenant:     true,
 		DefaultInstallMode:      "tenant_scoped",
@@ -171,7 +171,7 @@ func TestPublishedManifestSnapshotUsesBridgeContract(t *testing.T) {
 
 	if snapshot.ID != "plugin-dev-dynamic-upgrade" ||
 		snapshot.Version != "v0.2.0" ||
-		snapshot.Distribution != pluginv1.PluginDistributionMarketplace ||
+		snapshot.Distribution != pluginv1.PluginDistributionManaged ||
 		snapshot.SupportsMultiTenant != true ||
 		snapshot.ResourceSpecCount != 6 ||
 		snapshot.HostServiceAuthRequired != true {

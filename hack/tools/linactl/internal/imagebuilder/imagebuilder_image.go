@@ -35,7 +35,7 @@ func validateImageBuildRequest(image imageConfig, build buildConfig) error {
 	}
 	for _, target := range build.Targets {
 		if target.OS != "linux" {
-			return fmt.Errorf("Docker image builds require linux target platforms, got %s", target.String())
+			return fmt.Errorf("docker image builds require linux target platforms, got %s", target.String())
 		}
 	}
 	if build.MultiPlatform() && !image.Push {

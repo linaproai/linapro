@@ -231,13 +231,13 @@ func TestManagementListCacheIsLocaleScoped(t *testing.T) {
 // the underlying read model.
 func TestListHidesBuiltinByDefaultAndIncludesForDiagnostics(t *testing.T) {
 	var (
-		service       = newTestService()
-		ctx           = startupstats.WithCollector(context.Background(), startupstats.New())
-		marketplaceID = "plugin-dev-list-marketplace-distribution"
-		builtinID     = "plugin-dev-list-builtin-distribution"
+		service   = newTestService()
+		ctx       = startupstats.WithCollector(context.Background(), startupstats.New())
+		managedID = "plugin-dev-list-managed-distribution"
+		builtinID = "plugin-dev-list-builtin-distribution"
 	)
 
-	createTestSourceDependencyPlugin(t, marketplaceID, "Marketplace Distribution", "v0.1.0", "")
+	createTestSourceDependencyPlugin(t, managedID, "Managed Distribution", "v0.1.0", "")
 	createTestSourceDependencyPlugin(
 		t,
 		builtinID,
@@ -245,14 +245,14 @@ func TestListHidesBuiltinByDefaultAndIncludesForDiagnostics(t *testing.T) {
 		"v0.1.0",
 		"distribution: builtin\n",
 	)
-	cleanupTestPluginIDs(t, context.Background(), marketplaceID, builtinID)
+	cleanupTestPluginIDs(t, context.Background(), managedID, builtinID)
 
 	defaultOut, err := service.List(ctx, ListInput{ID: "plugin-dev-list-"})
 	if err != nil {
 		t.Fatalf("expected default list to succeed, got error: %v", err)
 	}
-	if findPluginItem(defaultOut, marketplaceID) == nil {
-		t.Fatalf("expected marketplace plugin in default list")
+	if findPluginItem(defaultOut, managedID) == nil {
+		t.Fatalf("expected managed plugin in default list")
 	}
 	if findPluginItem(defaultOut, builtinID) != nil {
 		t.Fatalf("expected builtin plugin to be hidden by default")

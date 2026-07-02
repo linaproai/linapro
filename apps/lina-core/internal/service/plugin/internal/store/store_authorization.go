@@ -77,9 +77,9 @@ func (s *serviceImpl) ParseManifestSnapshot(content string) (*ManifestSnapshot, 
 	if strings.TrimSpace(snapshot.Distribution) == "" {
 		return nil, gerror.Newf("plugin release manifest_snapshot distribution is required: %s", snapshot.ID)
 	}
-	if snapshot.Distribution != pluginv1.PluginDistributionMarketplace.String() &&
+	if snapshot.Distribution != pluginv1.PluginDistributionManaged.String() &&
 		snapshot.Distribution != pluginv1.PluginDistributionBuiltin.String() {
-		return nil, gerror.Newf("plugin release manifest_snapshot distribution only supports marketplace/builtin: %s", snapshot.ID)
+		return nil, gerror.Newf("plugin release manifest_snapshot distribution only supports managed/builtin: %s", snapshot.ID)
 	}
 	requestedHostServices, err := protocol.NormalizeHostServiceSpecsForPlugin(snapshot.ID, snapshot.RequestedHostServices)
 	if err != nil {

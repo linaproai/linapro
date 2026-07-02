@@ -40,7 +40,7 @@ type PluginListItem struct {
 	AbnormalReason          RuntimeAbnormalReason     `json:"abnormalReason,omitempty" dc:"Stable diagnostic reason when runtimeState is abnormal" eg:"discovered_version_lower_than_effective"`
 	LastUpgradeFailure      *PluginUpgradeFailureItem `json:"lastUpgradeFailure,omitempty" dc:"Latest observable runtime upgrade failure summary for list diagnosis" eg:"{}"`
 	Type                    PluginType                `json:"type" dc:"Plugin first-level type: source=source plugin dynamic=dynamic plugin" eg:"source"`
-	Distribution            PluginDistribution        `json:"distribution" dc:"Plugin distribution governance type: marketplace=ordinary managed plugin builtin=project built-in source plugin" eg:"marketplace"`
+	Distribution            PluginDistribution        `json:"distribution" dc:"Plugin distribution governance type: managed=ordinary managed plugin builtin=project built-in source plugin" eg:"managed"`
 	Description             string                    `json:"description" dc:"Plugin description" eg:"Source plugin that provides left-side menu pages and public/protected routing examples"`
 	Installed               statusflag.Installation   `json:"installed" dc:"Installation status: 1=installed 0=not installed; the source plugin can still be in the uninstalled state by default after being discovered by the host" eg:"1"`
 	InstalledAt             *int64                    `json:"installedAt" dc:"Plugin installation time as Unix timestamp in milliseconds, empty if it is not installed" eg:"1767240000000"`
@@ -69,7 +69,7 @@ type PluginItem struct {
 	AbnormalReason          RuntimeAbnormalReason        `json:"abnormalReason,omitempty" dc:"Stable diagnostic reason when runtimeState is abnormal" eg:"discovered_version_lower_than_effective"`
 	LastUpgradeFailure      *PluginUpgradeFailureItem    `json:"lastUpgradeFailure,omitempty" dc:"Latest observable runtime upgrade failure details" eg:"{}"`
 	Type                    PluginType                   `json:"type" dc:"Plugin first-level type: source=source plugin dynamic=dynamic plugin" eg:"source"`
-	Distribution            PluginDistribution           `json:"distribution" dc:"Plugin distribution governance type: marketplace=ordinary managed plugin builtin=project built-in source plugin" eg:"marketplace"`
+	Distribution            PluginDistribution           `json:"distribution" dc:"Plugin distribution governance type: managed=ordinary managed plugin builtin=project built-in source plugin" eg:"managed"`
 	Description             string                       `json:"description" dc:"Plugin description" eg:"Source plugin that provides left-side menu pages and public/protected routing examples"`
 	Installed               statusflag.Installation      `json:"installed" dc:"Installation status: 1=installed 0=not installed; the source plugin can still be in the uninstalled state by default after being discovered by the host" eg:"1"`
 	InstalledAt             *int64                       `json:"installedAt" dc:"Plugin installation time as Unix timestamp in milliseconds, empty if it is not installed" eg:"1767240000000"`
