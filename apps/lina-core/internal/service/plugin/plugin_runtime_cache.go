@@ -159,12 +159,6 @@ func (s *serviceImpl) PublishPluginChange(
 	return err
 }
 
-// markRuntimeCacheChanged bumps the shared plugin runtime cache revision in
-// cluster mode and is a no-op in single-node deployments.
-func (s *serviceImpl) markRuntimeCacheChanged(ctx context.Context, reason string) (int64, error) {
-	return s.publishPluginChange(ctx, pluginChangePublishInput{reason: reason})
-}
-
 // publishPluginChange is the single root-facade publication path for plugin
 // governance mutations. It invalidates local derived caches, clears the
 // management read model, and publishes the shared plugin-runtime revision so

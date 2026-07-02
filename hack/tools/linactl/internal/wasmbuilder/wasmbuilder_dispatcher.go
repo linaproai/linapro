@@ -24,9 +24,6 @@ const (
 	// generatedDispatcherFileName is the temporary backend package file
 	// injected during dynamic guest runtime builds.
 	generatedDispatcherFileName = "zz_generated_wasm_dispatcher.go"
-	// generatedDispatcherPackageName is the package that owns dynamic plugin
-	// route registration and request handling.
-	generatedDispatcherPackageName = "backend"
 )
 
 // prepareGeneratedWasmDispatcher writes the temporary generated dispatcher and
@@ -902,7 +899,7 @@ func writeWasmDispatchByRequestType(builder *strings.Builder, spec *wasmDispatch
 		builder.WriteString("\t\treturn response, err, true\n")
 	}
 	builder.WriteString("\tdefault:\n")
-	builder.WriteString("\t\treturn nil, nil, false\n")
+	builder.WriteString(fmt.Sprintf("\t\treturn %s, %s, false\n", "nil", "nil"))
 	builder.WriteString("\t}\n")
 	builder.WriteString("}\n\n")
 }

@@ -437,7 +437,7 @@ func StartService(root string, stdout io.Writer, stderr io.Writer, env []string,
 	detach(cmd)
 	if err = cmd.Start(); err != nil {
 		if closeErr := logFile.Close(); closeErr != nil {
-			return fmt.Errorf("start %s failed and close log failed: %v: %w", service.Name, closeErr, err)
+			return fmt.Errorf("start %s failed and close log failed: %w: %w", service.Name, closeErr, err)
 		}
 		return fmt.Errorf("start %s: %w", service.Name, err)
 	}
@@ -504,6 +504,9 @@ func WaitHTTP(name string, url string, pidPath string, logPath string, timeout t
 	if alive == nil {
 		alive = func(int) bool { return true }
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
 	deadline := time.Now().Add(timeout)
 	client := newReadinessHTTPClient(2 * time.Second)
 	for time.Now().Before(deadline) {
@@ -514,7 +517,11 @@ func WaitHTTP(name string, url string, pidPath string, logPath string, timeout t
 		if !alive(pid) {
 			return fmt.Errorf("%s startup failed: process %d exited; check log: %s", name, pid, logPath)
 		}
-		resp, err := client.Get(url)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return fmt.Errorf("create %s readiness request: %w", name, err)
+		}
+		resp, err := client.Do(req)
 		if err == nil {
 			if closeErr := resp.Body.Close(); closeErr != nil {
 				return fmt.Errorf("close %s readiness response: %w", name, closeErr)
@@ -523,7 +530,11 @@ func WaitHTTP(name string, url string, pidPath string, logPath string, timeout t
 				return nil
 			}
 		}
-		time.Sleep(time.Second)
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("%s startup timed out (%s): %s; check log: %s", name, timeout, url, logPath)
+		case <-time.After(time.Second):
+		}
 	}
 	return fmt.Errorf("%s startup timed out (%s): %s; check log: %s", name, timeout, url, logPath)
 }
@@ -540,7 +551,11 @@ func newReadinessHTTPClient(timeout time.Duration) http.Client {
 
 // IsTCPListening reports whether localhost accepts TCP connections on a port.
 func IsTCPListening(port int) bool {
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	dialer := net.Dialer{Timeout: time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
 	if err != nil {
 		return false
 	}

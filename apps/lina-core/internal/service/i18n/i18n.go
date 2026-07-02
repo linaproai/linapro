@@ -148,17 +148,6 @@ func New(bizCtxSvc bizctx.Service, configSvc config.Service, cacheCoordSvc cache
 // runtime i18n cache domain inside this process.
 var runtimeI18nCacheObservedRevision = revisionctrl.NewObservedRevision()
 
-// normalizeAcceptLanguage converts an Accept-Language header into the first valid locale tag.
-func normalizeAcceptLanguage(header string) string {
-	for _, part := range strings.Split(header, ",") {
-		languageTag := strings.TrimSpace(strings.Split(part, ";")[0])
-		if locale := normalizeLocale(languageTag); locale != "" {
-			return locale
-		}
-	}
-	return ""
-}
-
 // normalizeLocale canonicalizes one raw locale value into a stable locale code.
 func normalizeLocale(value string) string {
 	normalized := strings.TrimSpace(strings.ReplaceAll(value, "_", "-"))

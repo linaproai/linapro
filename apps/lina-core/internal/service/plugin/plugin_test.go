@@ -1211,7 +1211,6 @@ func checkPluginChangePublisherBoundary(t *testing.T) {
 		}
 	}
 	for _, name := range []string{
-		"markRuntimeCacheChanged",
 		"MarkRuntimeCacheChanged",
 		"PublishPluginChange",
 		"syncEnabledSnapshotAndPublishRuntimeChange",

@@ -5,17 +5,11 @@ package plugin
 import (
 	"context"
 	"errors"
-	pluginv1 "lina-core/api/plugin/v1"
-	"strings"
 
-	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/migration"
-	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/logger"
-	"lina-core/pkg/plugin/pluginhost"
 )
 
 // Install executes the install lifecycle and returns the dependency plan/result
@@ -134,25 +128,6 @@ func (s *serviceImpl) updateStatus(
 	})
 }
 
-// persistDynamicPluginAuthorization refreshes the release snapshot for dynamic
-// plugins so install/enable flows can reuse one governance preparation path.
-func (s *serviceImpl) persistDynamicPluginAuthorization(
-	ctx context.Context,
-	manifest *catalog.Manifest,
-	authorization *HostServiceAuthorizationInput,
-) error {
-	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic {
-		return nil
-	}
-	if _, err := s.storeSvc.SyncManifest(ctx, manifest); err != nil {
-		return err
-	}
-	if _, err := s.storeSvc.PersistReleaseHostServiceAuthorization(ctx, manifest, authorization); err != nil {
-		return err
-	}
-	return nil
-}
-
 // IsInstalled returns whether a plugin is installed.
 func (s *serviceImpl) IsInstalled(ctx context.Context, pluginID string) bool {
 	installed, err := s.runtimeSvc.CheckIsInstalled(ctx, pluginID)
@@ -203,118 +178,4 @@ func (s *serviceImpl) EnsureTenantDeleteAllowed(ctx context.Context, tenantID in
 // after a tenant has been deleted.
 func (s *serviceImpl) NotifyTenantDeleted(ctx context.Context, tenantID int) {
 	s.lifecycleSvc.NotifyTenantDeleted(ctx, tenantID)
-}
-
-// ensureLifecyclePreconditionAllowed runs source-plugin lifecycle
-// preconditions before a protected plugin action and converts vetoes to stable
-// caller-visible errors.
-func (s *serviceImpl) ensureLifecyclePreconditionAllowed(
-	ctx context.Context,
-	pluginID string,
-	hook pluginhost.LifecycleHook,
-	force bool,
-) error {
-	pluginInput := pluginhost.NewSourcePluginLifecycleInput(pluginID, hook.String())
-	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
-		Hook:         hook,
-		PluginInput:  pluginInput,
-		Participants: pluginhost.ListSourcePluginLifecycleParticipantsForPlugin(pluginID),
-	})
-	if result.OK {
-		return nil
-	}
-
-	reasons := s.summarizeLocalizedLifecycleVetoReasons(ctx, result.Decisions)
-	if force && hook == pluginhost.LifecycleHookBeforeUninstall {
-		if err := s.ensureForceUninstallEnabled(ctx); err != nil {
-			return err
-		}
-		logger.Warningf(
-			ctx,
-			"plugin lifecycle precondition force bypass operation=%s plugin=%s reasons=%s",
-			hook,
-			pluginID,
-			reasons,
-		)
-		return nil
-	}
-
-	return bizerr.NewCode(
-		CodePluginLifecyclePreconditionVetoed,
-		bizerr.P("operation", hook.String()),
-		bizerr.P("pluginId", pluginID),
-		bizerr.P("reasons", reasons),
-	)
-}
-
-// ensureForceUninstallEnabled verifies that host configuration explicitly
-// permits destructive force-uninstall flows.
-func (s *serviceImpl) ensureForceUninstallEnabled(ctx context.Context) error {
-	if !s.configSvc.GetPlugin(ctx).AllowForceUninstall {
-		return bizerr.NewCode(CodePluginForceUninstallDisabled)
-	}
-	return nil
-}
-
-// summarizeLocalizedLifecycleVetoReasons builds one deterministic localized
-// reason string for caller-visible lifecycle precondition errors.
-func (s *serviceImpl) summarizeLocalizedLifecycleVetoReasons(
-	ctx context.Context,
-	decisions []pluginhost.LifecycleDecision,
-) string {
-	return summarizeLifecycleVetoReasonsWithTranslator(decisions, func(key string) string {
-		if s == nil || s.i18nSvc == nil {
-			return ""
-		}
-		return s.i18nSvc.Translate(ctx, key, "")
-	})
-}
-
-// summarizeLifecycleVetoReasonsWithTranslator applies an optional translator to
-// reason keys while preserving the existing plugin-prefixed reason format used
-// by lifecycle callers.
-func summarizeLifecycleVetoReasonsWithTranslator(
-	decisions []pluginhost.LifecycleDecision,
-	translate func(key string) string,
-) string {
-	includePluginPrefix := translate == nil || countLifecycleVetoes(decisions) > 1
-	items := make([]string, 0, len(decisions))
-	for _, decision := range decisions {
-		if decision.OK {
-			continue
-		}
-		reason := strings.TrimSpace(decision.Reason)
-		if reason == "" && decision.Err != nil {
-			reason = decision.Err.Error()
-		}
-		if reason == "" {
-			reason = "plugin." + strings.TrimSpace(decision.PluginID) + ".lifecycle.vetoed"
-		}
-		if translate != nil {
-			if translated := strings.TrimSpace(translate(reason)); translated != "" {
-				reason = translated
-			}
-		}
-		pluginID := strings.TrimSpace(decision.PluginID)
-		if includePluginPrefix && pluginID != "" {
-			items = append(items, pluginID+":"+reason)
-			continue
-		}
-		items = append(items, reason)
-	}
-	if len(items) == 0 {
-		return "unknown"
-	}
-	return strings.Join(items, ";")
-}
-
-// countLifecycleVetoes returns how many source lifecycle decisions blocked the action.
-func countLifecycleVetoes(decisions []pluginhost.LifecycleDecision) int {
-	count := 0
-	for _, decision := range decisions {
-		if !decision.OK {
-			count++
-		}
-	}
-	return count
 }

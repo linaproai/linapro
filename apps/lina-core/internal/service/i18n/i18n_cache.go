@@ -139,13 +139,6 @@ func resetRuntimeLocaleCache() {
 	runtimeLocaleCache.Unlock()
 }
 
-// invalidateRuntimeBundleCache is kept as a private convenience for unit tests
-// and historical no-arg listeners that target every locale and every sector.
-func invalidateRuntimeBundleCache() {
-	runtimeBundleCache.invalidate(InvalidateScope{})
-	resetRuntimeLocaleCache()
-}
-
 // invalidate applies one scoped invalidation. A locale entry whose sectors are
 // all touched rebuilds on next read while preserving its monotonic version; a
 // per-sector clear keeps unaffected sectors hot so unrelated locales avoid

@@ -170,13 +170,6 @@ var runtimeParamSpecByKey = func() map[string]RuntimeParamSpec {
 	return specByKey
 }()
 
-// runtimeParamSpecsCopy returns all built-in runtime parameter specs.
-func runtimeParamSpecsCopy() []RuntimeParamSpec {
-	specs := make([]RuntimeParamSpec, len(runtimeParamSpecs))
-	copy(specs, runtimeParamSpecs)
-	return specs
-}
-
 // lookupRuntimeParamSpec returns one built-in runtime parameter spec by key.
 func lookupRuntimeParamSpec(key string) (RuntimeParamSpec, bool) {
 	spec, ok := runtimeParamSpecByKey[strings.TrimSpace(key)]
@@ -569,12 +562,6 @@ var runtimeParamRevisionState = struct {
 	initialized bool
 }{}
 
-// runtimeParamSnapshotSyncIntervalForTest returns the runtime-parameter watcher
-// interval used when multi-node sync is enabled.
-func runtimeParamSnapshotSyncIntervalForTest() time.Duration {
-	return runtimeParamRevisionSyncInterval
-}
-
 // MarkRuntimeParamsChanged bumps the effective sys_config revision and clears
 // the current process snapshot cache after one configuration mutation.
 func (s *serviceImpl) MarkRuntimeParamsChanged(ctx context.Context) error {
@@ -808,14 +795,6 @@ func bumpLocalRuntimeParamRevision() int64 {
 	}
 	runtimeParamRevisionState.value++
 	return runtimeParamRevisionState.value
-}
-
-// clearLocalRuntimeParamRevision removes the process-local revision marker.
-func clearLocalRuntimeParamRevision() {
-	runtimeParamRevisionState.Lock()
-	runtimeParamRevisionState.value = 0
-	runtimeParamRevisionState.initialized = false
-	runtimeParamRevisionState.Unlock()
 }
 
 // extractCachedRuntimeParamSnapshot keeps cache reads defensive so future

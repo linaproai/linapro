@@ -23,15 +23,6 @@ var runtimeLocaleCache = struct {
 	locales []LocaleDescriptor
 }{}
 
-// invalidateRuntimeLocaleCache clears the cached locale descriptors. It is
-// used by tests and development reload flows that change manifest metadata.
-func invalidateRuntimeLocaleCache() {
-	runtimeLocaleCache.Lock()
-	defer runtimeLocaleCache.Unlock()
-	runtimeLocaleCache.loaded = false
-	runtimeLocaleCache.locales = nil
-}
-
 // loadEnabledRuntimeLocales returns the enabled runtime locale descriptors,
 // discovering built-in host locales from manifest resources.
 func (s *serviceImpl) loadEnabledRuntimeLocales(ctx context.Context) []LocaleDescriptor {

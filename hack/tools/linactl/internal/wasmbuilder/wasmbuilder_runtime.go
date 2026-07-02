@@ -4,6 +4,7 @@
 package wasmbuilder
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -107,7 +108,7 @@ func buildGuestRuntimeWasm(
 			}
 		}
 	}()
-	cmd := exec.Command("go", "build", "-buildmode=c-shared", "-o", outputPath, buildTarget)
+	cmd := exec.CommandContext(context.Background(), "go", "build", "-buildmode=c-shared", "-o", outputPath, buildTarget)
 	cmd.Dir = buildDir
 	cmd.Env = buildEnv
 	output, err := cmd.CombinedOutput()
@@ -139,7 +140,7 @@ func acquireGuestRuntimeBuildLock(pluginDir string) (func() error, error) {
 			owner := fmt.Sprintf("pid=%d\npluginDir=%s\n", os.Getpid(), normalizedPluginDir)
 			if writeErr := os.WriteFile(ownerPath, []byte(owner), 0o600); writeErr != nil {
 				if removeErr := os.RemoveAll(lockDir); removeErr != nil {
-					return nil, fmt.Errorf("failed to write wasm build lock owner: %w; cleanup failed: %v", writeErr, removeErr)
+					return nil, fmt.Errorf("failed to write wasm build lock owner: %w; cleanup failed: %w", writeErr, removeErr)
 				}
 				return nil, fmt.Errorf("failed to write wasm build lock owner: %w", writeErr)
 			}

@@ -80,15 +80,6 @@ func (r *hostServiceDispatchRegistry) lookup(service string, method string) (hos
 	return handler, ok
 }
 
-func (r *hostServiceDispatchRegistry) registeredMethods() []hostServiceDispatchMethod {
-	if r == nil || len(r.methods) == 0 {
-		return nil
-	}
-	methods := make([]hostServiceDispatchMethod, len(r.methods))
-	copy(methods, r.methods)
-	return methods
-}
-
 func (r *hostServiceDispatchRegistry) dispatch(
 	ctx context.Context,
 	input hostServiceDispatchContext,

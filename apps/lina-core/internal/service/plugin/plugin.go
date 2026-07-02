@@ -470,8 +470,6 @@ type serviceImpl struct {
 	activeDynamicArtifactSnapshot map[string]string
 	// wasmRuntime owns dynamic-plugin WASM execution and host-call dependencies.
 	wasmRuntime *wasmRuntimeProvider
-	// lifecycleObservers stores transitional root-level observers for flows not yet migrated to lifecycle.
-	lifecycleObservers *lifecycleObserverRegistry
 	// runtimeUpgradeLockStore coordinates explicit runtime upgrades across cluster nodes.
 	runtimeUpgradeLockStore coordination.LockStore
 	// managementListCache stores the plugin-management summary read model.

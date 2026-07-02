@@ -40,12 +40,11 @@ const (
 )
 
 // envProbeKind selects special probe behavior for tools that need more than a
-// simple version command.
+// simple version command. The zero value runs the declared command and parses
+// its version output.
 type envProbeKind string
 
 const (
-	// envProbeKindCommand runs the declared command and parses its version output.
-	envProbeKindCommand envProbeKind = ""
 	// envProbeKindPostgreSQLServer connects to the configured database and reads
 	// the server version instead of reporting a local client version.
 	envProbeKindPostgreSQLServer envProbeKind = "postgresql-server"

@@ -441,15 +441,6 @@ func bumpLocalAccessRevision() int64 {
 	return accessRevisionState.value
 }
 
-// clearLocalAccessRevision drops the process-local revision so the next read
-// must resynchronize after a local topology write.
-func clearLocalAccessRevision() {
-	accessRevisionState.Lock()
-	accessRevisionState.value = 0
-	accessRevisionState.expireAt = time.Time{}
-	accessRevisionState.Unlock()
-}
-
 // resolveAccessTokenID extracts the current login token ID from the business
 // context so access snapshots can be cached per issued session.
 func (s *serviceImpl) resolveAccessTokenID(ctx context.Context) string {

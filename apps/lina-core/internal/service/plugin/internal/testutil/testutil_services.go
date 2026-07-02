@@ -1304,36 +1304,3 @@ type testUserAssignments struct{}
 func (testUserAssignments) ReplaceRoles(context.Context, capabilityusercap.UserID, []int) error {
 	return nil
 }
-
-// bizCtxAdapter exposes the current request user ID to integration-layer tests.
-type bizCtxAdapter struct {
-	// svc reads request-local user context.
-	svc bizctx.Service
-}
-
-// GetUserId returns the current request user ID for integration-layer tests.
-func (a *bizCtxAdapter) GetUserId(ctx context.Context) int {
-	localCtx := a.svc.Get(ctx)
-	if localCtx == nil {
-		return 0
-	}
-	return localCtx.UserId
-}
-
-// GetDataScope returns the current request user's effective role data-scope.
-func (a *bizCtxAdapter) GetDataScope(ctx context.Context) int {
-	localCtx := a.svc.Get(ctx)
-	if localCtx == nil {
-		return 0
-	}
-	return localCtx.DataScope
-}
-
-// GetDataScopeUnsupported returns the unsupported data-scope state from the current request.
-func (a *bizCtxAdapter) GetDataScopeUnsupported(ctx context.Context) (bool, int) {
-	localCtx := a.svc.Get(ctx)
-	if localCtx == nil {
-		return false, 0
-	}
-	return localCtx.DataScopeUnsupported, localCtx.UnsupportedDataScope
-}

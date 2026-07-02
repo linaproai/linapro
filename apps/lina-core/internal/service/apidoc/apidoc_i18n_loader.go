@@ -219,13 +219,6 @@ func loadOpenAPIEmbeddedBundle(ctx context.Context, filesystem fs.FS, dir string
 	}).LoadHostBundle(ctx, locale)
 }
 
-// parseOpenAPIMessageCatalogJSON parses one apidoc bundle. Files may be
-// maintained as nested JSON or flat dotted keys, while the service keeps a flat
-// structured catalog internally.
-func parseOpenAPIMessageCatalogJSON(content []byte) (map[string]string, error) {
-	return i18nresource.ParseCatalog(content, i18nresource.ValueModeStringOnly)
-}
-
 // openAPIResourceLoader applies the common apidoc resource-loader defaults.
 func openAPIResourceLoader(loader i18nresource.ResourceLoader) i18nresource.ResourceLoader {
 	loader.LocaleSubdir = openAPILocaleSubdir

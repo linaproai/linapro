@@ -330,43 +330,6 @@ func loadEmbeddedHostLocaleBundle(ctx context.Context, locale string) map[string
 	}.LoadHostBundle(ctx, locale)
 }
 
-// parseLocaleJSON unmarshals one locale JSON file into a flat message catalog.
-// Flat keys override equivalent nested paths, which keeps mixed-format locale
-// files deterministic during gradual authoring-format migrations.
-func parseLocaleJSON(content []byte) map[string]string {
-	bundle, err := i18nresource.ParseCatalog(content, i18nresource.ValueModeStringifyScalars)
-	if err != nil {
-		return map[string]string{}
-	}
-	return bundle
-}
-
-// lookupMessageString retrieves one string message by dotted key path.
-func lookupMessageString(messages map[string]interface{}, key string) (string, bool) {
-	if len(messages) == 0 {
-		return "", false
-	}
-
-	current := interface{}(messages)
-	for _, segment := range strings.Split(strings.TrimSpace(key), ".") {
-		segment = strings.TrimSpace(segment)
-		if segment == "" {
-			return "", false
-		}
-		currentMap, ok := current.(map[string]interface{})
-		if !ok {
-			return "", false
-		}
-		next, ok := currentMap[segment]
-		if !ok {
-			return "", false
-		}
-		current = next
-	}
-	value, ok := current.(string)
-	return value, ok
-}
-
 // cloneFlatMessageMap clones one flat message map so callers can safely mutate it.
 func cloneFlatMessageMap(src map[string]string) map[string]string {
 	if len(src) == 0 {

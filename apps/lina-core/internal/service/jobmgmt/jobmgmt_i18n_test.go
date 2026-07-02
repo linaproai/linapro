@@ -52,10 +52,10 @@ func TestTranslateHandlerSourceTextUsesPluginHandlerKey(t *testing.T) {
 		},
 	}
 
-	if actual := svc.localizeBuiltinJobName(context.Background(), handlerRef, "Source Plugin Heartbeat", 1); actual != "源码插件心跳" {
+	if actual := svc.localizeBuiltinJobNameWithCache(context.Background(), handlerRef, "Source Plugin Heartbeat", 1, nil); actual != "源码插件心跳" {
 		t.Fatalf("expected plugin job name translation, got %q", actual)
 	}
-	if actual := svc.localizeBuiltinJobDescription(context.Background(), handlerRef, "Runs the plugin built-in job.", 1); actual != "执行源码插件注册的内置定时任务。" {
+	if actual := svc.localizeBuiltinJobDescriptionWithCache(context.Background(), handlerRef, "Runs the plugin built-in job.", 1, nil); actual != "执行源码插件注册的内置定时任务。" {
 		t.Fatalf("expected plugin job description translation, got %q", actual)
 	}
 }

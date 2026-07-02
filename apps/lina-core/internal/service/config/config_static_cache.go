@@ -48,12 +48,6 @@ func newStaticConfigCaches() *staticConfigCaches {
 	return &staticConfigCaches{}
 }
 
-// resetStaticConfigCaches drops all once guards and cached objects. Tests call
-// this after mutating config adapter content so later reads observe new data.
-func resetStaticConfigCaches() {
-	processStaticConfigCaches = newStaticConfigCaches()
-}
-
 // cloneClusterConfig returns a detached copy so callers cannot mutate the
 // shared cached cluster config instance in process memory.
 func cloneClusterConfig(cfg *ClusterConfig) *ClusterConfig {

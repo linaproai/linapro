@@ -205,19 +205,6 @@ func (s *serviceImpl) recordRuntimeArtifactParse(artifactPath string) {
 	s.cacheMu.Unlock()
 }
 
-// RuntimeArtifactParseCount returns how many times this service has fully
-// parsed the given artifact path. It is intentionally unexported to keep cache
-// instrumentation out of the production catalog contract.
-func (s *serviceImpl) runtimeArtifactParseCount(artifactPath string) int {
-	if s == nil {
-		return 0
-	}
-	key := filepath.Clean(strings.TrimSpace(artifactPath))
-	s.cacheMu.RLock()
-	defer s.cacheMu.RUnlock()
-	return s.parseCounts[key]
-}
-
 // runtimeArtifactCacheKey normalizes artifact path identity and returns its
 // current filesystem metadata.
 func runtimeArtifactCacheKey(artifactPath string) (string, os.FileInfo, error) {
@@ -265,21 +252,6 @@ func CloneManifest(manifest *Manifest) *Manifest {
 	out.HostServices = cloneHostServiceSpecs(manifest.HostServices)
 	out.RuntimeArtifact = cloneArtifactSpec(manifest.RuntimeArtifact)
 	return &out
-}
-
-// cloneManifests returns detached copies of all non-nil manifests.
-func cloneManifests(items []*Manifest) []*Manifest {
-	if len(items) == 0 {
-		return []*Manifest{}
-	}
-	out := make([]*Manifest, 0, len(items))
-	for _, item := range items {
-		if item == nil {
-			continue
-		}
-		out = append(out, CloneManifest(item))
-	}
-	return out
 }
 
 // cloneBoolPtr returns a detached copy of one bool pointer.

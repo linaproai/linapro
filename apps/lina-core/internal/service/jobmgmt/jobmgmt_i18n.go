@@ -69,16 +69,6 @@ func (s *serviceImpl) localizeBuiltinJobForDisplayWithCache(
 	job.Description = s.localizeBuiltinJobDescriptionWithCache(ctx, job.HandlerRef, job.Description, job.IsBuiltin, cache)
 }
 
-// localizeBuiltinJobName translates one built-in job name by handler ref.
-func (s *serviceImpl) localizeBuiltinJobName(
-	ctx context.Context,
-	handlerRef string,
-	fallback string,
-	isBuiltin int,
-) string {
-	return s.localizeBuiltinJobNameWithCache(ctx, handlerRef, fallback, isBuiltin, nil)
-}
-
 // localizeBuiltinJobNameWithCache translates one built-in job name using a
 // request-local cache to avoid repeated handler metadata lookups.
 func (s *serviceImpl) localizeBuiltinJobNameWithCache(
@@ -92,16 +82,6 @@ func (s *serviceImpl) localizeBuiltinJobNameWithCache(
 		return fallback
 	}
 	return s.translateHandlerSourceTextWithCache(ctx, handlerRef, jobNameI18nField, fallback, cache)
-}
-
-// localizeBuiltinJobDescription translates one built-in job description by handler ref.
-func (s *serviceImpl) localizeBuiltinJobDescription(
-	ctx context.Context,
-	handlerRef string,
-	fallback string,
-	isBuiltin int,
-) string {
-	return s.localizeBuiltinJobDescriptionWithCache(ctx, handlerRef, fallback, isBuiltin, nil)
 }
 
 // localizeBuiltinJobDescriptionWithCache translates one built-in job

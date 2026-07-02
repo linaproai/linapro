@@ -76,13 +76,6 @@ func lookupHostConfigDefaultValue(key string) (any, bool) {
 	return value, ok
 }
 
-// hostConfigDefaultSpecsCopy returns a detached copy of static default specs.
-func hostConfigDefaultSpecsCopy() []hostConfigDefaultSpec {
-	specs := make([]hostConfigDefaultSpec, len(staticHostConfigDefaultSpecs))
-	copy(specs, staticHostConfigDefaultSpecs)
-	return specs
-}
-
 // hostConfigDefaultValueString formats a metadata default for string-based
 // protected config getters.
 func hostConfigDefaultValueString(value any) string {

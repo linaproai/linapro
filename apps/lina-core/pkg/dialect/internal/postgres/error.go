@@ -45,27 +45,10 @@ func isRetryableSQLState(code string) bool {
 	}
 }
 
-// isConstraintViolation classifies PostgreSQL constraint failures by stable
-// SQLSTATE code.
-func isConstraintViolation(err error) bool {
-	return isConstraintSQLState(sqlState(err))
-}
-
 // IsUniqueConstraintViolation reports whether err is a PostgreSQL unique-key
 // conflict.
 func IsUniqueConstraintViolation(err error) bool {
 	return strings.TrimSpace(sqlState(err)) == errorUniqueViolation
-}
-
-// isConstraintSQLState reports whether a PostgreSQL SQLSTATE represents one of
-// the constraint violations the dialect layer needs to classify.
-func isConstraintSQLState(code string) bool {
-	switch strings.TrimSpace(code) {
-	case errorUniqueViolation, errorCheckViolation, errorForeignKeyViolation, errorNotNullViolation:
-		return true
-	default:
-		return false
-	}
 }
 
 // sqlState extracts one PostgreSQL SQLSTATE code from err when available.

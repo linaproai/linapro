@@ -581,16 +581,6 @@ func (s *serviceImpl) fallbackRevocationExpiresAt(ctx context.Context) (time.Tim
 	return time.Now().Add(ttl), nil
 }
 
-// generateToken generates JWT token for given user, returns token string and tokenId.
-func (s *serviceImpl) generateToken(ctx context.Context, user *entity.SysUser, tenantID int, clientType ClientType) (string, string, error) {
-	tokenID := guid.S()
-	token, err := s.signToken(ctx, user, tenantID, tokenID, tokenKindAccess, clientType, false, 0)
-	if err != nil {
-		return "", "", err
-	}
-	return token, tokenID, nil
-}
-
 // generateTokenPair signs access and refresh JWTs for one online session.
 func (s *serviceImpl) generateTokenPair(ctx context.Context, user *entity.SysUser, tenantID int, clientType ClientType) (string, string, string, error) {
 	tokenID := guid.S()

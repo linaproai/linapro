@@ -15,18 +15,6 @@ import (
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
-// userDataScope represents the role data range used by host user management tests.
-type userDataScope = datascope.Scope
-
-// User data-scope levels follow sys_role.data_scope values.
-const (
-	userDataScopeNone   userDataScope = datascope.ScopeNone
-	userDataScopeAll    userDataScope = datascope.ScopeAll
-	userDataScopeTenant userDataScope = datascope.ScopeTenant
-	userDataScopeDept   userDataScope = datascope.ScopeDept
-	userDataScopeSelf   userDataScope = datascope.ScopeSelf
-)
-
 // applyUserDataScope injects the current user's data-scope filter into a
 // sys_user model. The empty flag lets callers return an empty result when a
 // scope resolves to no visible rows.
@@ -83,16 +71,6 @@ func uniqueTenantMembershipUserIDs(userIDs []int) []int {
 // by correlated orgcap constraints.
 func qualifiedSysUserIDColumn() string {
 	return dao.SysUser.Table() + "." + dao.SysUser.Columns().Id
-}
-
-// currentUserDataScope computes the widest enabled role data-scope for the
-// current request user. The built-in administrator always receives all data.
-func (s *serviceImpl) currentUserDataScope(ctx context.Context) (userDataScope, int, error) {
-	currentScope, err := s.currentScopeSvc().Current(ctx)
-	if err != nil {
-		return userDataScopeNone, 0, err
-	}
-	return currentScope.Scope, currentScope.UserID, nil
 }
 
 // currentScopeSvc returns the injected shared data-scope service.

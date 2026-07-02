@@ -17,10 +17,6 @@ func buildRuntimeArtifactFileName(pluginID string) string {
 	return normalizedID + ".wasm"
 }
 
-func buildRuntimeArtifactRelativePath(pluginID string) string {
-	return filepath.Join("runtime", buildRuntimeArtifactFileName(pluginID))
-}
-
 func buildRuntimeBuildOutputRelativePath(pluginID string) string {
 	return filepath.Join("temp", buildRuntimeArtifactFileName(pluginID))
 }

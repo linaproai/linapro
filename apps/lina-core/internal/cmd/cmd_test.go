@@ -338,20 +338,6 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "static plugin.autoEnable validation surfaces from helpers as errors and is converted to a single fail-fast panic at the cache-load boundary so startup terminates with a clear message before dependent components run",
 		},
 		{
-			Path:     "apps/lina-core/internal/service/config/config_plugin.go",
-			Function: "setPluginAutoEnableOverride",
-			Count:    1,
-			Category: panicCategoryStaticConfig,
-			Reason:   "test override helpers receive already-validated IDs; a normalization failure indicates broken test fixtures and must surface immediately",
-		},
-		{
-			Path:     "apps/lina-core/internal/service/config/config_plugin.go",
-			Function: "setPluginAutoEnableEntriesOverride",
-			Count:    1,
-			Category: panicCategoryStaticConfig,
-			Reason:   "test override helpers receive already-validated entries; a normalization failure indicates broken test fixtures and must surface immediately",
-		},
-		{
 			Path:     "apps/lina-core/internal/service/config/config_workspace.go",
 			Function: "mustNormalizeWorkspaceBasePath",
 			Count:    7,

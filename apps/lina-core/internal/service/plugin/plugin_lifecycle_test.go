@@ -830,47 +830,6 @@ func TestDynamicLifecycleBeforeTenantDeleteFailsClosed(t *testing.T) {
 	}
 }
 
-// TestUninstallForceRequiresConfig verifies force uninstall is gated by
-// plugin.allowForceUninstall before bypassing precondition vetoes.
-func TestUninstallForceRequiresConfig(t *testing.T) {
-	var (
-		service  = newTestService()
-		ctx      = context.Background()
-		pluginID = "plugin-dev-force-precondition"
-	)
-	registerUninstallLifecycleVetoForTest(t, pluginID)
-	t.Cleanup(func() { setTestPluginAllowForceUninstallOverride(nil) })
-
-	disabled := false
-	setTestPluginAllowForceUninstallOverride(&disabled)
-	err := service.ensureLifecyclePreconditionAllowed(ctx, pluginID, pluginhost.LifecycleHookBeforeUninstall, true)
-	if !bizerr.Is(err, CodePluginForceUninstallDisabled) {
-		t.Fatalf("expected force-disabled bizerr, got %v", err)
-	}
-}
-
-// TestUninstallForceBypassesLifecyclePreconditionWhenConfigured verifies force
-// uninstall can bypass precondition vetoes when the host config explicitly allows it.
-func TestUninstallForceBypassesLifecyclePreconditionWhenConfigured(t *testing.T) {
-	var (
-		service  = newTestService()
-		ctx      = context.Background()
-		pluginID = "plugin-dev-force-missing-after-precondition"
-	)
-	registerUninstallLifecycleVetoForTest(t, pluginID)
-	t.Cleanup(func() { setTestPluginAllowForceUninstallOverride(nil) })
-
-	enabled := true
-	setTestPluginAllowForceUninstallOverride(&enabled)
-	err := service.ensureLifecyclePreconditionAllowed(ctx, pluginID, pluginhost.LifecycleHookBeforeUninstall, true)
-	if bizerr.Is(err, CodePluginLifecyclePreconditionVetoed) || bizerr.Is(err, CodePluginForceUninstallDisabled) {
-		t.Fatalf("expected force to bypass lifecycle errors, got %v", err)
-	}
-	if err != nil {
-		t.Fatalf("expected force bypass to continue, got %v", err)
-	}
-}
-
 // TestSourceLifecycleBeforeInstallBlocksInstall verifies source-plugin facade
 // BeforeInstall callbacks run before install SQL or registry state changes.
 func TestSourceLifecycleBeforeInstallBlocksInstall(t *testing.T) {
@@ -1831,7 +1790,7 @@ func TestPersistDynamicAuthorizationRefreshesStaleSameVersionHostServices(t *tes
 		t.Fatalf("expected background sync to avoid silently authorizing new manifest service, got %#v", syncedSnapshot.AuthorizedHostServices)
 	}
 
-	if err = service.persistDynamicPluginAuthorization(ctx, refreshedManifest, nil); err != nil {
+	if _, err = service.storeSvc.PersistReleaseHostServiceAuthorization(ctx, refreshedManifest, nil); err != nil {
 		t.Fatalf("expected nil install/enable authorization to refresh current declaration, got error: %v", err)
 	}
 	release, err = service.getPluginRelease(ctx, pluginID, version)

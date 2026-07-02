@@ -23,9 +23,6 @@ const (
 	dynamicRouteCtxVarState    gctx.StrKey = "plugin_dynamic_route_state"
 	dynamicRouteCtxVarIdentity gctx.StrKey = "plugin_dynamic_route_identity"
 	dynamicRouteCtxVarMetadata gctx.StrKey = "plugin_dynamic_route_metadata"
-
-	// statusNormal represents the normal/enabled status for role and menu queries.
-	statusNormal = 1
 )
 
 // DynamicRouteDispatchInput describes one host-side dynamic route dispatch call.

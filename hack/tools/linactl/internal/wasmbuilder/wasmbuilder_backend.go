@@ -1142,6 +1142,35 @@ func validateHookSpec(pluginID string, spec *hookSpec, filePath string) error {
 }
 
 func validateResourceSpec(pluginID string, spec *resourceSpec, filePath string) error {
+	if err := validateResourceSpecHeader(pluginID, spec, filePath); err != nil {
+		return err
+	}
+	if err := validateResourceSpecFields(pluginID, spec, filePath); err != nil {
+		return err
+	}
+	if err := validateResourceSpecFilters(pluginID, spec, filePath); err != nil {
+		return err
+	}
+	if err := validateResourceSpecOrderBy(pluginID, spec, filePath); err != nil {
+		return err
+	}
+	if err := validateResourceSpecDataScope(pluginID, spec, filePath); err != nil {
+		return err
+	}
+	operationSeen, err := validateResourceSpecOperations(spec, filePath)
+	if err != nil {
+		return err
+	}
+	if err := validateResourceSpecKeyField(pluginID, spec, filePath, operationSeen); err != nil {
+		return err
+	}
+	if err := validateResourceSpecWritableFields(pluginID, spec, filePath, operationSeen); err != nil {
+		return err
+	}
+	return validateResourceSpecAccess(spec, filePath)
+}
+
+func validateResourceSpecHeader(pluginID string, spec *resourceSpec, filePath string) error {
 	if spec == nil {
 		return fmt.Errorf("plugin resource cannot be nil: %s", filePath)
 	}
@@ -1157,6 +1186,10 @@ func validateResourceSpec(pluginID string, spec *resourceSpec, filePath string) 
 	if err := validateIdentifier(spec.Table); err != nil {
 		return fmt.Errorf("plugin %s resource table is invalid: %s: %w", pluginID, filePath, err)
 	}
+	return nil
+}
+
+func validateResourceSpecFields(pluginID string, spec *resourceSpec, filePath string) error {
 	if len(spec.Fields) == 0 {
 		return fmt.Errorf("plugin resource missing fields: %s", filePath)
 	}
@@ -1171,6 +1204,10 @@ func validateResourceSpec(pluginID string, spec *resourceSpec, filePath string) 
 			return fmt.Errorf("plugin %s resource column is invalid: %s: %w", pluginID, filePath, err)
 		}
 	}
+	return nil
+}
+
+func validateResourceSpecFilters(pluginID string, spec *resourceSpec, filePath string) error {
 	for _, filter := range spec.Filters {
 		if filter == nil {
 			return fmt.Errorf("plugin resource filter cannot be nil: %s", filePath)
@@ -1185,6 +1222,10 @@ func validateResourceSpec(pluginID string, spec *resourceSpec, filePath string) 
 			return fmt.Errorf("plugin resource filter operator is not supported: %s", filePath)
 		}
 	}
+	return nil
+}
+
+func validateResourceSpecOrderBy(pluginID string, spec *resourceSpec, filePath string) error {
 	if err := validateIdentifier(spec.OrderBy.Column); err != nil {
 		return fmt.Errorf("plugin %s resource orderBy column is invalid: %s: %w", pluginID, filePath, err)
 	}
@@ -1194,6 +1235,10 @@ func validateResourceSpec(pluginID string, spec *resourceSpec, filePath string) 
 	if normalizeResourceOrderDirection(spec.OrderBy.Direction) == "" {
 		return fmt.Errorf("plugin resource order direction only supports asc/desc: %s", filePath)
 	}
+	return nil
+}
+
+func validateResourceSpecDataScope(pluginID string, spec *resourceSpec, filePath string) error {
 	if spec.DataScope != nil {
 		if spec.DataScope.UserColumn != "" {
 			if err := validateIdentifier(spec.DataScope.UserColumn); err != nil {
@@ -1209,6 +1254,10 @@ func validateResourceSpec(pluginID string, spec *resourceSpec, filePath string) 
 			return fmt.Errorf("plugin resource dataScope requires userColumn or deptColumn: %s", filePath)
 		}
 	}
+	return nil
+}
+
+func validateResourceSpecOperations(spec *resourceSpec, filePath string) (map[string]struct{}, error) {
 	if len(spec.Operations) == 0 {
 		spec.Operations = []string{string(resourceOperationQuery)}
 	}
@@ -1216,12 +1265,20 @@ func validateResourceSpec(pluginID string, spec *resourceSpec, filePath string) 
 	for _, operation := range spec.Operations {
 		normalizedOperation := normalizeResourceOperation(operation)
 		if normalizedOperation == "" {
-			return fmt.Errorf("plugin resource operation is not supported: %s", filePath)
+			return nil, fmt.Errorf("plugin resource operation is not supported: %s", filePath)
 		}
 		operationSeen[string(normalizedOperation)] = struct{}{}
 	}
 	spec.Operations = normalizeResourceEnumStringSlice(spec.Operations)
+	return operationSeen, nil
+}
 
+func validateResourceSpecKeyField(
+	pluginID string,
+	spec *resourceSpec,
+	filePath string,
+	operationSeen map[string]struct{},
+) error {
 	if spec.KeyField != "" {
 		if err := validateIdentifier(spec.KeyField); err != nil {
 			return fmt.Errorf("plugin %s resource keyField is invalid: %s: %w", pluginID, filePath, err)
@@ -1230,16 +1287,24 @@ func validateResourceSpec(pluginID string, spec *resourceSpec, filePath string) 
 			return fmt.Errorf("plugin resource keyField is not declared in fields: %s", filePath)
 		}
 	}
-	if _, ok := operationSeen[string(resourceOperationGet)]; ok && strings.TrimSpace(spec.KeyField) == "" {
-		return fmt.Errorf("plugin resource get operation requires keyField: %s", filePath)
+	for _, operation := range []resourceOperation{
+		resourceOperationGet,
+		resourceOperationUpdate,
+		resourceOperationDelete,
+	} {
+		if _, ok := operationSeen[string(operation)]; ok && strings.TrimSpace(spec.KeyField) == "" {
+			return fmt.Errorf("plugin resource %s operation requires keyField: %s", operation, filePath)
+		}
 	}
-	if _, ok := operationSeen[string(resourceOperationUpdate)]; ok && strings.TrimSpace(spec.KeyField) == "" {
-		return fmt.Errorf("plugin resource update operation requires keyField: %s", filePath)
-	}
-	if _, ok := operationSeen[string(resourceOperationDelete)]; ok && strings.TrimSpace(spec.KeyField) == "" {
-		return fmt.Errorf("plugin resource delete operation requires keyField: %s", filePath)
-	}
+	return nil
+}
 
+func validateResourceSpecWritableFields(
+	pluginID string,
+	spec *resourceSpec,
+	filePath string,
+	operationSeen map[string]struct{},
+) error {
 	if len(spec.WritableFields) > 0 {
 		spec.WritableFields = normalizeResourceFieldNameSlice(spec.WritableFields)
 		for _, writableField := range spec.WritableFields {
@@ -1251,13 +1316,18 @@ func validateResourceSpec(pluginID string, spec *resourceSpec, filePath string) 
 			}
 		}
 	}
-	if _, ok := operationSeen[string(resourceOperationCreate)]; ok && len(spec.WritableFields) == 0 {
-		return fmt.Errorf("plugin resource create operation requires writableFields: %s", filePath)
+	for _, operation := range []resourceOperation{
+		resourceOperationCreate,
+		resourceOperationUpdate,
+	} {
+		if _, ok := operationSeen[string(operation)]; ok && len(spec.WritableFields) == 0 {
+			return fmt.Errorf("plugin resource %s operation requires writableFields: %s", operation, filePath)
+		}
 	}
-	if _, ok := operationSeen[string(resourceOperationUpdate)]; ok && len(spec.WritableFields) == 0 {
-		return fmt.Errorf("plugin resource update operation requires writableFields: %s", filePath)
-	}
+	return nil
+}
 
+func validateResourceSpecAccess(spec *resourceSpec, filePath string) error {
 	if spec.Access == "" {
 		spec.Access = string(resourceAccessModeRequest)
 	}

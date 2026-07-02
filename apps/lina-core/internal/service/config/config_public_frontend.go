@@ -210,13 +210,6 @@ type PublicFrontendWorkspaceConfig struct {
 	BasePath string `json:"basePath"` // BasePath is the admin workspace entry path.
 }
 
-// publicFrontendSettingSpecsCopy returns all built-in public frontend setting specs.
-func publicFrontendSettingSpecsCopy() []RuntimeParamSpec {
-	specs := make([]RuntimeParamSpec, len(publicFrontendSettingSpecs))
-	copy(specs, publicFrontendSettingSpecs)
-	return specs
-}
-
 // LookupPublicFrontendSettingSpec returns one built-in public frontend setting spec by key.
 func LookupPublicFrontendSettingSpec(key string) (RuntimeParamSpec, bool) {
 	spec, ok := publicFrontendSettingSpecByKey[strings.TrimSpace(key)]
@@ -236,13 +229,10 @@ func IsManagedSysConfigKey(key string) bool {
 // ValidateProtectedConfigValue validates one built-in protected config value.
 func ValidateProtectedConfigValue(key string, value string) error {
 	trimmedKey := strings.TrimSpace(key)
-	if spec, ok := lookupRuntimeParamSpec(trimmedKey); ok {
-		return validateConfigSpecValue(spec, trimmedKey, value)
+	if isManagedRuntimeParamKey(trimmedKey) {
+		return validateRuntimeParamValue(trimmedKey, value)
 	}
-	if spec, ok := LookupPublicFrontendSettingSpec(trimmedKey); ok {
-		return validateConfigSpecValue(spec, trimmedKey, value)
-	}
-	return nil
+	return validatePublicFrontendSettingValue(trimmedKey, value)
 }
 
 // normalizeProtectedConfigValue trims whitespace and lowercases one protected
