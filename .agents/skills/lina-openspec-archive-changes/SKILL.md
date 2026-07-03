@@ -2,6 +2,7 @@
 name: lina-openspec-archive-changes
 description: >-
   扫描并归档 LinaPro 仓库中已经完成的所有 OpenSpec 活跃变更；若任务已全部完成但存在可判定的归档异常，先自动修复并复验，再继续归档。
+  必须用户手动触发，禁止自动触发该技能。
 compatibility: 依赖 OpenSpec CLI，要求在 LinaPro 仓库根目录执行。
 ---
 

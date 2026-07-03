@@ -101,6 +101,7 @@ make test                        # 运行完整E2E测试
 make db.init                     # 初始化数据库（DDL + Seed数据）
 make db.mock                     # 加载Mock演示数据（需先执行db.init）
 make image tag=v0.6.0            # 构建生产Docker镜像
+make version to=v0.6.0           # 更新framework.version并刷新根目录README图片缓存键
 make release.tag.check tag=v0.6.0 # 校验发布标签必须等于metadata.yaml中的framework.version
 make up                          # 默认用claude生成commit message并推送
 make up tool=codex               # 使用codex生成commit message并推送
@@ -323,9 +324,12 @@ docs(contributing): add plugin workspace commands
 
 # 发布标签
 
-发布标签名称必须与`apps/lina-core/manifest/config/metadata.yaml`中的`framework.version`完全一致。维护者发布前应在本地检查目标版本：
+发布标签名称必须与`apps/lina-core/manifest/config/metadata.yaml`中的`framework.version`完全一致。准备版本号变更时，使用`make version to=<version>`更新`framework.version`并刷新根目录`README`图片缓存键。版本号格式必须为`vMAJOR.MINOR.PATCH`或`vMAJOR.MINOR.PATCH-prerelease`。
+
+维护者发布前应在本地检查目标版本：
 
 ```bash
+make version to=v0.2.0
 make release.tag.check tag=v0.2.0
 ```
 

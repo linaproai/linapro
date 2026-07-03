@@ -1,7 +1,8 @@
 ---
 name: lina-community-issue-review
 description: >-
-  审查 LinaPro 社区 GitHub Issues，并按项目规范和源码实现分类处理。用户要求审查 LinaPro issue、社区 issue、GitHub issue、question、feature、bug、关闭无效 issue，或提到 lina-community-issue-review 时必须使用本技能。
+  审查 LinaPro 社区 GitHub Issues，并按项目规范和源码实现分类处理。
+  必须用户手动触发，禁止自动触发该技能。
 ---
 
 # Lina Community Issue Review

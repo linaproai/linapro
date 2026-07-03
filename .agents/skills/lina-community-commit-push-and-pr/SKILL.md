@@ -1,6 +1,8 @@
 ---
 name: lina-community-commit-push-and-pr
-description: 为LinaPro以及SubModule仓库自动提交、推送、创建 PR，并在 PR 合并后恢复原始分支和同步 main。必须用户手动触发，禁止自动触发该技能。
+description: >-
+  为LinaPro以及SubModule仓库自动提交、推送、创建 PR，并在 PR 合并后恢复原始分支和同步 main。
+  必须用户手动触发，禁止自动触发该技能。
 ---
 
 # 技能介绍

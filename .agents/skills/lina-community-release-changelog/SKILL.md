@@ -1,10 +1,9 @@
 ---
 name: lina-community-release-changelog
 description: >-
-  手动生成 LinaPro 版本更新日志。用户要求生成 changelog、release notes、版本更新日志、发布说明，或提到
-  lina-community-release-changelog 时必须使用本技能。技能会基于 Git 历史、源码差异和 OpenSpec 内容整理详尽的双语
-  Markdown 更新日志，涉及数据库变更时必须单独列出，支持默认比较范围和用户指定两个版本/标签/提交进行比较，固定写入
-  localdocs/changelog.md。
+  基于 Git 历史、源码差异、OpenSpec 内容和 GitHub bug issue
+  审查整理详尽的双语 Markdown 更新日志，固定写入 localdocs/changelog.md。
+  必须用户手动触发，禁止自动触发该技能。
 ---
 
 # Lina Release Changelog
@@ -16,7 +15,7 @@ description: >-
 1. **只手动执行**：不得自动创建 `GitHub Release`、推送标签、提交文件或修改任何 `.github/workflows/` 文件。
 2. **固定输出路径**：生成结果必须写入仓库根目录 `localdocs/changelog.md`。
 3. **固定模板**：英文内容在上，中文内容在下，中间使用模板分割线；不得新增模板外章节。
-4. **证据优先**：必须基于 `Git` 历史、源码差异和 `OpenSpec` 内容整理，不要求也不等待 `PR` 标识、`label` 或发布说明字段。
+4. **证据优先**：必须基于 `Git` 历史、源码差异、`OpenSpec` 内容和 GitHub `bug` 标签 issue 审查整理；不得依赖 `PR` 标识或发布说明字段作为唯一依据。
 5. **详尽覆盖**：输出面向发布人员和用户，不是提交摘要；必须覆盖比较范围内关键功能、修复、数据库结构或初始化数据变化，以及工具链体验变化。
 6. **双语一致**：英文和中文分别完整成文，事实覆盖一致，不交叉混写。
 7. **表达自然**：英文和中文都必须地道、清晰、流利、易懂；按目标语言重新组织句子，不做生硬直译，不使用少见、拗口或容易误解的词语。
@@ -116,6 +115,31 @@ git diff --name-status <from>..<to>
 
 对于重要提交，使用 `git show --stat <commit>` 和必要的源码片段确认真实行为。提交标题只能作为线索，不能作为关键内容的唯一证据。
 
+#### GitHub bug issue 证据
+
+生成 `Bug Fixes`/`Bug 修复`前，必须审查上一次版本到本次版本之间的 GitHub `bug` 标签 issue，避免只从代码差异推断修复列表。优先使用比较两端提交日期作为查询窗口，分别查询在窗口内创建、更新或关闭的 `bug` issue：
+
+```bash
+git log -1 --format=%cI <from>
+git log -1 --format=%cI <to>
+gh issue list --state all --label bug --search "created:YYYY-MM-DD..YYYY-MM-DD" --json number,title,state,labels,createdAt,updatedAt,closedAt,url
+gh issue list --state all --label bug --search "updated:YYYY-MM-DD..YYYY-MM-DD" --json number,title,state,labels,createdAt,updatedAt,closedAt,url
+gh issue list --state all --label bug --search "closed:YYYY-MM-DD..YYYY-MM-DD" --json number,title,state,labels,createdAt,updatedAt,closedAt,url
+gh issue list --state open --label bug --json number,title,state,labels,createdAt,updatedAt,closedAt,url
+```
+
+将上述结果按 issue 编号合并去重。当前仍打开的 `bug` issue 中，若报告时间早于或落入比较范围，且问题表现与本次源码差异、测试或 `OpenSpec` 语义匹配，也必须纳入候选。如果提交信息引用了 issue 编号，也必须纳入候选：
+
+```bash
+git log --format="%H %s%n%b" <from>..<to> | rg "#[0-9]+"
+```
+
+对每个候选 `bug` issue，使用 `gh issue view <number> --comments` 或 GitHub 页面读取标题、正文和必要评论，确认实际问题表现。判断是否已修复时不得以 issue 是否关闭为准；关闭状态只能作为线索。必须结合比较范围内的提交、源码差异、`OpenSpec`、测试结果或可执行的功能验证判断：
+
+- 如果代码提交或最终实现已经解决 issue 描述的问题，且有测试、源码路径或手动验证依据，即使 issue 仍处于打开状态，也应写入 `Bug Fixes`/`Bug 修复`。
+- 如果 issue 已关闭但代码范围、测试或功能验证无法证明问题已修复，不要把它写成已修复；在保守处理说明中记录无法确认。
+- 如果本地没有 `gh`、没有 GitHub 权限或网络不可用，不能断言没有 bug issue 修复；必须在证据来源摘要和保守处理说明中记录 GitHub `bug` issue 审查受限。
+
 #### 插件 submodule 证据
 
 `apps/lina-plugins/`是父仓库中的`submodule`时，父仓库的`git diff`只能显示`gitlink`指针变化，不能展示插件仓库内部提交和文件差异。只要`git diff --name-status <from>..<to>`包含`apps/lina-plugins`，或`git ls-files -s apps/lina-plugins`显示该路径的`mode`为`160000`，必须解析`submodule`两端`commit`并进入插件仓库收集证据：
@@ -174,7 +198,7 @@ git -C apps/lina-plugins fetch --tags --prune origin
 | --- | --- |
 | `Highlights` / `主要亮点` | 本次范围最重要、最值得发布人员优先说明的能力或架构变化 |
 | `Improvements` / `功能改进` | 功能增强、产品能力补充、运行时行为改进、治理能力增强 |
-| `Bug Fixes` / `Bug 修复` | 明确修复问题的提交、反馈修复、回归修复、测试修复 |
+| `Bug Fixes` / `Bug 修复` | 明确修复问题的提交、反馈修复、回归修复、测试修复，以及经 GitHub `bug` 标签 issue 审查确认已修复的问题 |
 | `Database Changes`/`数据库变更` | 表结构、索引、迁移、初始化数据、Seed/Mock 数据、插件安装或卸载`SQL`变化，以及由这些变化引起的升级操作要求 |
 | `Tooling and Experience` / `开发体验与工具链` | `CI`、构建、发布、`OpenSpec`治理、技能、开发命令、测试效率、文档维护体验 |
 
@@ -262,10 +286,12 @@ localdocs/changelog.md
 5. 英文和中文表达地道、清晰、流利、易懂，没有生硬直译、罕见词或拗口表达。
 6. 没有把软件语境中的 `seam`、`fixture` 等词机械翻译成“接缝”“夹具”等不自然说法。
 7. 每个章节要么有证据支持的内容，要么写明未识别到相关变更。
-8. 若证据涉及`manifest/sql/`、安装/卸载`SQL`、Seed/Mock 数据、表结构相关`DAO`/模型字段或`OpenSpec`数据库语义，`Database Changes`/`数据库变更`已单独列出受影响表或资源、变更类型、证据路径和升级操作影响；若没有数据库证据，数据库章节已明确写明未识别到数据库结构或初始化数据变更。
-9. 若`apps/lina-plugins/`是`submodule`且指针变化，已包含插件仓库内部`old/new commit`、`log`、`diff`证据和按插件 ID 的语义总结；若无法获取历史，已明确保守处理。
-10. `.github/workflows/` 没有被修改。
-11. 没有执行提交、推送、打标签或创建 `GitHub Release`。
+8. 已审查比较范围内 GitHub `bug` 标签 issue；写入 `Bug Fixes`/`Bug 修复`的 issue 都有提交、源码、测试或功能验证依据；没有把 issue 关闭状态当作已修复依据。
+9. 若 GitHub `bug` issue 审查无法执行，或候选 issue 是否修复无法确认，已在证据来源摘要和保守处理说明中记录。
+10. 若证据涉及`manifest/sql/`、安装/卸载`SQL`、Seed/Mock 数据、表结构相关`DAO`/模型字段或`OpenSpec`数据库语义，`Database Changes`/`数据库变更`已单独列出受影响表或资源、变更类型、证据路径和升级操作影响；若没有数据库证据，数据库章节已明确写明未识别到数据库结构或初始化数据变更。
+11. 若`apps/lina-plugins/`是`submodule`且指针变化，已包含插件仓库内部`old/new commit`、`log`、`diff`证据和按插件 ID 的语义总结；若无法获取历史，已明确保守处理。
+12. `.github/workflows/` 没有被修改。
+13. 没有执行提交、推送、打标签或创建 `GitHub Release`。
 
 结束时用中文汇报：
 
@@ -273,6 +299,7 @@ localdocs/changelog.md
 - 标题版本。
 - 输出文件路径。
 - 证据来源摘要。
+- GitHub `bug` issue 审查摘要，包括已确认修复、未修复、无法确认和审查受限的情况。
 - 数据库变更摘要，包括是否涉及表结构、索引、初始化/Mock 数据或插件安装卸载`SQL`。
 - 插件`submodule`处理情况。
 - 是否存在无法确认而被保守处理的内容。

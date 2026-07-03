@@ -1,7 +1,8 @@
 ---
 name: lina-community-pr-review
 description: >-
-  审查 LinaPro 社区 GitHub Pull Request，并按项目规范发表评论。用户要求审查 LinaPro PR、社区 PR、pull request、bot 审批、bot-approved 标签、GitHub PR 治理，或提到 lina-community-pr-review 时必须使用本技能。
+  审查 LinaPro 社区 GitHub Pull Request，并按项目规范发表评论。
+  必须用户手动触发，禁止自动触发该技能。
 compatibility: 需要 GitHub CLI `gh`已登录，且具备读取 PR、读取协作者、发表评论和管理标签权限。需要`git`和`jq`辅助本地检查。
 ---
 
