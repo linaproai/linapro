@@ -124,7 +124,7 @@ func buildDiscoveryLocation(manifest *Manifest) string {
 // returns its embedded plugin manifest with fully-hydrated hook/resource specs.
 func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Manifest, error) {
 	s.recordRuntimeArtifactParse(artifactPath)
-	artifact, err := ParseRuntimeWasmArtifact(artifactPath)
+	artifact, err := parseRuntimeWasmArtifact(artifactPath)
 	if err != nil {
 		return nil, err
 	}
@@ -142,6 +142,7 @@ func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Man
 		Name:                strings.TrimSpace(artifact.Manifest.Name),
 		Version:             strings.TrimSpace(artifact.Manifest.Version),
 		Type:                plugintypes.NormalizeType(artifact.Manifest.Type).String(),
+		Distribution:        plugintypes.NormalizeDistribution(artifact.Manifest.Distribution).String(),
 		ScopeNature:         strings.TrimSpace(artifact.Manifest.ScopeNature),
 		SupportsMultiTenant: artifact.Manifest.SupportsMultiTenant,
 		DefaultInstallMode:  strings.TrimSpace(artifact.Manifest.DefaultInstallMode),

@@ -15,13 +15,14 @@ import (
 // List scans plugins and returns current synchronized status list.
 func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListRes, err error) {
 	out, err := c.pluginSvc.List(ctx, pluginsvc.ListInput{
-		PageNum:   req.PageNum,
-		PageSize:  req.PageSize,
-		ID:        req.Id,
-		Name:      req.Name,
-		Type:      string(req.Type),
-		Status:    enabledPtrToInt(req.Status),
-		Installed: installationPtrToInt(req.Installed),
+		PageNum:        req.PageNum,
+		PageSize:       req.PageSize,
+		ID:             req.Id,
+		Name:           req.Name,
+		Type:           string(req.Type),
+		Status:         enabledPtrToInt(req.Status),
+		Installed:      installationPtrToInt(req.Installed),
+		IncludeBuiltin: req.IncludeBuiltin,
 	})
 	if err != nil {
 		return nil, err
@@ -60,6 +61,7 @@ func (c *ControllerV1) buildPluginListItemResponse(
 		AbnormalReason:          v1.RuntimeAbnormalReason(item.AbnormalReason.String()),
 		LastUpgradeFailure:      buildPluginUpgradeFailureItem(item.LastUpgradeFailure),
 		Type:                    v1.PluginType(item.Type),
+		Distribution:            v1.PluginDistribution(item.Distribution),
 		Description:             item.Description,
 		Installed:               statusflag.Installation(item.Installed),
 		InstalledAt:             item.InstalledAt,
@@ -98,6 +100,7 @@ func (c *ControllerV1) buildPluginItemResponse(
 		AbnormalReason:          v1.RuntimeAbnormalReason(item.AbnormalReason.String()),
 		LastUpgradeFailure:      buildPluginUpgradeFailureItem(item.LastUpgradeFailure),
 		Type:                    v1.PluginType(item.Type),
+		Distribution:            v1.PluginDistribution(item.Distribution),
 		Description:             item.Description,
 		Installed:               statusflag.Installation(item.Installed),
 		InstalledAt:             item.InstalledAt,

@@ -1,6 +1,6 @@
-// This file implements guest-side plugin registry, state, and lifecycle
-// capability hostcall clients. Plugin config remains owned by the public guest
-// package adapter.
+// This file implements guest-side plugin registry and enablement lookup
+// hostcall clients. Plugin config remains owned by the public guest package
+// adapter.
 
 package domainhostcall
 
@@ -18,7 +18,7 @@ type pluginRegistryService struct{ baseService }
 // pluginStateService adapts plugin enablement lookups to host services.
 type pluginStateService struct{ baseService }
 
-// pluginLifecycleService adapts plugin lifecycle governance calls to host services.
+// pluginLifecycleService adapts plugin lifecycle governance operations to host services.
 type pluginLifecycleService struct{ baseService }
 
 // PluginRegistry creates the plugin-governance projection guest client.
@@ -37,130 +37,124 @@ func PluginLifecycle(invoker Invoker) plugincap.LifecycleService {
 }
 
 // BatchGet returns visible plugin projections and opaque missing IDs.
-func (s pluginRegistryService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []plugincap.PluginID) (*capmodel.BatchResult[*plugincap.Projection, plugincap.PluginID], error) {
-	out := &capmodel.BatchResult[*plugincap.Projection, plugincap.PluginID]{Items: map[plugincap.PluginID]*plugincap.Projection{}}
+func (s pluginRegistryService) BatchGet(_ context.Context, ids []plugincap.PluginID) (*capmodel.BatchResult[*plugincap.PluginInfo, plugincap.PluginID], error) {
+	out := &capmodel.BatchResult[*plugincap.PluginInfo, plugincap.PluginID]{Items: map[plugincap.PluginID]*plugincap.PluginInfo{}}
 	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsBatchGet, idsRequest{IDs: pluginIDsToStrings(ids)}, out)
 	return out, err
 }
 
 // Current returns the projection for the current caller plugin.
-func (s pluginRegistryService) Current(_ context.Context, _ capmodel.CapabilityContext) (*plugincap.Projection, error) {
-	out := &plugincap.Projection{}
+func (s pluginRegistryService) Current(_ context.Context) (*plugincap.PluginInfo, error) {
+	out := &plugincap.PluginInfo{}
 	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsCurrent, nil, out)
 	return out, err
 }
 
-// Search returns bounded plugin governance projections.
-func (s pluginRegistryService) Search(_ context.Context, _ capmodel.CapabilityContext, input plugincap.SearchInput) (*capmodel.PageResult[*plugincap.Projection], error) {
-	out := &capmodel.PageResult[*plugincap.Projection]{Items: []*plugincap.Projection{}}
-	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsSearch, input, out)
+// Get returns one visible plugin projection through the registered batch-read method.
+func (s pluginRegistryService) Get(ctx context.Context, id plugincap.PluginID) (*plugincap.PluginInfo, error) {
+	result, err := s.BatchGet(ctx, []plugincap.PluginID{id})
+	if err != nil || result == nil {
+		return nil, err
+	}
+	if item, ok := result.Items[id]; ok {
+		return item, nil
+	}
+	return nil, nil
+}
+
+// List returns bounded plugin governance projections.
+func (s pluginRegistryService) List(_ context.Context, input plugincap.ListInput) (*capmodel.PageResult[*plugincap.PluginInfo], error) {
+	out := &capmodel.PageResult[*plugincap.PluginInfo]{Items: []*plugincap.PluginInfo{}}
+	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsList, input, out)
 	return out, err
 }
 
 // ListTenantPlugins returns tenant-controllable plugins with tenant enablement.
-func (s pluginRegistryService) ListTenantPlugins(_ context.Context, _ capmodel.CapabilityContext, input plugincap.TenantListInput) (*capmodel.PageResult[*plugincap.TenantProjection], error) {
-	out := &capmodel.PageResult[*plugincap.TenantProjection]{Items: []*plugincap.TenantProjection{}}
+func (s pluginRegistryService) ListTenantPlugins(_ context.Context, input plugincap.TenantListInput) (*capmodel.PageResult[*plugincap.TenantPluginInfo], error) {
+	out := &capmodel.PageResult[*plugincap.TenantPluginInfo]{Items: []*plugincap.TenantPluginInfo{}}
 	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsListTenant, input, out)
 	return out, err
 }
 
-// BatchGetCapabilityStatus returns framework capability status projections by stable key.
-func (s pluginRegistryService) BatchGetCapabilityStatus(_ context.Context, _ capmodel.CapabilityContext, keys []plugincap.CapabilityKey) (*capmodel.BatchResult[*capmodel.CapabilityStatus, plugincap.CapabilityKey], error) {
-	out := &capmodel.BatchResult[*capmodel.CapabilityStatus, plugincap.CapabilityKey]{Items: map[plugincap.CapabilityKey]*capmodel.CapabilityStatus{}}
-	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsBatchGetCapabilityStatus, capabilityKeysRequest{Keys: capabilityKeysToStrings(keys)}, out)
+// IsEnabled reports whether the target plugin is enabled in the current scope.
+func (s pluginStateService) IsEnabled(_ context.Context, pluginID plugincap.PluginID) (bool, error) {
+	var out bool
+	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsStateIsEnabled, pluginIDRequest{PluginID: string(pluginID)}, &out)
 	return out, err
 }
 
-// IsEnabled reports whether the plugin is enabled in the current request scope.
-func (s pluginStateService) IsEnabled(_ context.Context, pluginID string) bool {
+// IsProviderEnabled reports whether the target plugin may serve provider calls.
+func (s pluginStateService) IsProviderEnabled(_ context.Context, pluginID plugincap.PluginID) (bool, error) {
 	var out bool
-	if err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsIsEnabled, pluginIDRequest{PluginID: pluginID}, &out); err != nil {
-		return false
-	}
-	return out
+	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsStateIsProviderEnabled, pluginIDRequest{PluginID: string(pluginID)}, &out)
+	return out, err
 }
 
-// IsProviderEnabled reports platform-level provider availability.
-func (s pluginStateService) IsProviderEnabled(_ context.Context, pluginID string) bool {
+// IsEnabledAuthoritative reports persisted plugin enablement bypassing local snapshots.
+func (s pluginStateService) IsEnabledAuthoritative(_ context.Context, pluginID plugincap.PluginID) (bool, error) {
 	var out bool
-	if err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsIsProviderEnabled, pluginIDRequest{PluginID: pluginID}, &out); err != nil {
-		return false
-	}
-	return out
-}
-
-// IsEnabledAuthoritative bypasses process-local snapshots for sensitive checks.
-func (s pluginStateService) IsEnabledAuthoritative(_ context.Context, pluginID string) bool {
-	var out bool
-	if err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsIsEnabledAuthoritative, pluginIDRequest{PluginID: pluginID}, &out); err != nil {
-		return false
-	}
-	return out
+	err := s.callJSONRequest(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsStateIsEnabledAuthoritative, pluginIDRequest{PluginID: string(pluginID)}, &out)
+	return out, err
 }
 
 // EnsureTenantPluginDisableAllowed runs tenant-plugin disable preconditions.
 func (s pluginLifecycleService) EnsureTenantPluginDisableAllowed(_ context.Context, pluginID string, tenantID int) error {
 	return s.callJSONRequest(
 		protocol.HostServicePlugins,
-		protocol.HostServiceMethodPluginsLifecycleEnsureTenantPluginDisable,
-		pluginTenantLifecycleRequest{PluginID: pluginID, TenantID: tenantID},
+		protocol.HostServiceMethodPluginsLifecycleEnsureTenantPluginDisableAllowed,
+		tenantPluginLifecycleRequest{PluginID: pluginID, TenantID: tenantID},
 		nil,
 	)
 }
 
-// NotifyTenantPluginDisabled runs tenant-plugin disable notifications.
+// NotifyTenantPluginDisabled runs tenant-plugin disabled notifications.
 func (s pluginLifecycleService) NotifyTenantPluginDisabled(_ context.Context, pluginID string, tenantID int) {
-	if err := s.callJSONRequest(
+	_ = s.callJSONRequest(
 		protocol.HostServicePlugins,
 		protocol.HostServiceMethodPluginsLifecycleNotifyTenantPluginDisabled,
-		pluginTenantLifecycleRequest{PluginID: pluginID, TenantID: tenantID},
+		tenantPluginLifecycleRequest{PluginID: pluginID, TenantID: tenantID},
 		nil,
-	); err != nil {
-		return
-	}
+	)
 }
 
 // EnsureTenantDeleteAllowed runs tenant-delete preconditions.
 func (s pluginLifecycleService) EnsureTenantDeleteAllowed(_ context.Context, tenantID int) error {
 	return s.callJSONRequest(
 		protocol.HostServicePlugins,
-		protocol.HostServiceMethodPluginsLifecycleEnsureTenantDelete,
-		tenantLifecycleRequest{TenantID: tenantID},
+		protocol.HostServiceMethodPluginsLifecycleEnsureTenantDeleteAllowed,
+		tenantIDRequest{TenantID: tenantID},
 		nil,
 	)
 }
 
-// NotifyTenantDeleted runs tenant-delete notifications.
+// NotifyTenantDeleted runs tenant-deleted notifications.
 func (s pluginLifecycleService) NotifyTenantDeleted(_ context.Context, tenantID int) {
-	if err := s.callJSONRequest(
+	_ = s.callJSONRequest(
 		protocol.HostServicePlugins,
 		protocol.HostServiceMethodPluginsLifecycleNotifyTenantDeleted,
-		tenantLifecycleRequest{TenantID: tenantID},
+		tenantIDRequest{TenantID: tenantID},
 		nil,
-	); err != nil {
-		return
-	}
+	)
 }
 
-// pluginIDRequest carries one plugin identifier for state lookups.
+// pluginIDRequest carries one plugin identifier.
 type pluginIDRequest struct {
+	// PluginID is the plugin identifier.
 	PluginID string `json:"pluginId"`
 }
 
-// pluginTenantLifecycleRequest carries one tenant-scoped plugin lifecycle target.
-type pluginTenantLifecycleRequest struct {
+// tenantPluginLifecycleRequest carries one plugin and tenant pair.
+type tenantPluginLifecycleRequest struct {
+	// PluginID is the plugin identifier.
 	PluginID string `json:"pluginId"`
-	TenantID int    `json:"tenantId"`
-}
-
-// tenantLifecycleRequest carries one tenant lifecycle target.
-type tenantLifecycleRequest struct {
+	// TenantID is the tenant identifier.
 	TenantID int `json:"tenantId"`
 }
 
-// capabilityKeysRequest carries framework capability status keys.
-type capabilityKeysRequest struct {
-	Keys []string `json:"keys"`
+// tenantIDRequest carries one tenant identifier.
+type tenantIDRequest struct {
+	// TenantID is the tenant identifier.
+	TenantID int `json:"tenantId"`
 }
 
 // pluginIDsToStrings converts plugin IDs to transport strings.
@@ -168,15 +162,6 @@ func pluginIDsToStrings(ids []plugincap.PluginID) []string {
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
 		out = append(out, string(id))
-	}
-	return out
-}
-
-// capabilityKeysToStrings converts capability keys to transport strings.
-func capabilityKeysToStrings(keys []plugincap.CapabilityKey) []string {
-	out := make([]string, 0, len(keys))
-	for _, key := range keys {
-		out = append(out, string(key))
 	}
 	return out
 }

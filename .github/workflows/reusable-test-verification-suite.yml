@@ -25,6 +25,12 @@ on:
         description: Whether to run host-only Go unit tests.
         required: true
         type: boolean
+      # Enables the host-only Go static lint job.
+      # 启用宿主模式 Go 静态检查 job。
+      include-go-lint:
+        description: Whether to run host-only Go static lint.
+        required: true
+        type: boolean
       # Enables the host-only frontend unit-test job.
       # 启用宿主模式前端单元测试 job。
       include-frontend-unit-tests:
@@ -41,6 +47,12 @@ on:
       # 启用插件完整模式 Go 单元测试 job。
       include-plugin-backend-unit-tests:
         description: Whether to run plugin-full Go unit tests.
+        required: true
+        type: boolean
+      # Enables the plugin-full Go static lint job.
+      # 启用插件完整模式 Go 静态检查 job。
+      include-plugin-go-lint:
+        description: Whether to run plugin-full Go static lint.
         required: true
         type: boolean
       # Enables the plugin-full frontend unit-test job.
@@ -141,6 +153,15 @@ jobs:
     with:
       plugins: "0"
 
+  # Runs host-only Go static lint checks through the repository lint entrypoint.
+  # 通过仓库 lint 入口运行宿主模式 Go 静态检查。
+  go-lint:
+    name: Go static lint (host-only)
+    if: ${{ inputs.include-go-lint }}
+    uses: ./.github/workflows/reusable-go-lint.yml
+    with:
+      plugins: "0"
+
   # Runs frontend unit tests for the default management workspace.
   # 运行默认管理工作台前端单测。
   frontend-unit-tests:
@@ -164,6 +185,16 @@ jobs:
     name: Go unit tests (plugin-full)
     if: ${{ inputs.include-plugin-backend-unit-tests }}
     uses: ./.github/workflows/reusable-backend-unit-tests.yml
+    with:
+      submodules: recursive
+      plugins: "1"
+
+  # Runs plugin-full Go static lint checks with official plugin sources available.
+  # 在官方插件源码可用时运行插件完整模式 Go 静态检查。
+  plugin-go-lint:
+    name: Go static lint (plugin-full)
+    if: ${{ inputs.include-plugin-go-lint }}
+    uses: ./.github/workflows/reusable-go-lint.yml
     with:
       submodules: recursive
       plugins: "1"

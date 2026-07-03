@@ -5,19 +5,14 @@ package catalog
 import (
 	"context"
 	"sync"
+
+	configsvc "lina-core/internal/service/config"
 )
 
-// ConfigProvider abstracts the configuration dependency needed for manifest scanning.
-type ConfigProvider interface {
-	// GetPluginDynamicStoragePath returns the filesystem path where runtime wasm
-	// artifacts are stored.
-	GetPluginDynamicStoragePath(ctx context.Context) string
-}
-
-// ManifestReader covers manifest discovery, loading, parsing, and validation.
+// manifestReader covers manifest discovery, loading, parsing, and validation.
 // Callers that only need to inspect manifests (without touching the registry,
 // release rows, or asset paths) should depend on this narrower interface.
-type ManifestReader interface {
+type manifestReader interface {
 	// ScanEmbeddedSourceManifests discovers manifests from all registered embedded source plugins.
 	ScanEmbeddedSourceManifests() ([]*Manifest, error)
 	// ScanManifests merges source-plugin discovery and runtime-wasm discovery
@@ -52,10 +47,10 @@ type ManifestReader interface {
 	ValidateUploadedRuntimeManifest(manifest *Manifest) error
 }
 
-// SQLAssetCatalog covers plugin SQL file path listings across the install,
+// sqlAssetCatalog covers plugin SQL file path listings across the install,
 // uninstall, and mock-data directions plus the corresponding low-level
 // directory-scan helpers shared with build tooling.
-type SQLAssetCatalog interface {
+type sqlAssetCatalog interface {
 	// ListInstallSQLPaths returns the ordered install SQL file paths for a source plugin manifest.
 	ListInstallSQLPaths(manifest *Manifest) []string
 	// ListUninstallSQLPaths returns the ordered uninstall SQL file paths for a source plugin manifest.
@@ -73,9 +68,9 @@ type SQLAssetCatalog interface {
 	DiscoverMockSQLPaths(rootDir string) []string
 }
 
-// FrontendAssetCatalog covers plugin frontend asset path listings (pages and
+// frontendAssetCatalog covers plugin frontend asset path listings (pages and
 // slots) plus the corresponding low-level directory-scan helpers.
-type FrontendAssetCatalog interface {
+type frontendAssetCatalog interface {
 	// ListFrontendPagePaths returns the frontend page source paths for a source plugin manifest.
 	ListFrontendPagePaths(manifest *Manifest) []string
 	// ListFrontendSlotPaths returns the frontend slot source paths for a source plugin manifest.
@@ -86,9 +81,9 @@ type FrontendAssetCatalog interface {
 	DiscoverSlotPaths(rootDir string) []string
 }
 
-// ManifestMetadata covers manifest-derived metadata helpers used by the store
+// manifestMetadata covers manifest-derived metadata helpers used by the store
 // when deriving governance projections from already-discovered manifests.
-type ManifestMetadata interface {
+type manifestMetadata interface {
 	// BuildRegistryChecksum returns a review-friendly checksum derived from the manifest source.
 	// For dynamic plugins, the artifact checksum is returned directly. For source plugins the
 	// manifest YAML bytes are hashed using SHA-256.
@@ -102,10 +97,10 @@ type ManifestMetadata interface {
 
 // Service composes catalog-owned manifest and manifest-asset capabilities.
 type Service interface {
-	ManifestReader
-	SQLAssetCatalog
-	FrontendAssetCatalog
-	ManifestMetadata
+	manifestReader
+	sqlAssetCatalog
+	frontendAssetCatalog
+	manifestMetadata
 }
 
 // Ensure serviceImpl satisfies the catalog contract used across plugin sub-packages.
@@ -114,7 +109,7 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	// configSvc provides plugin configuration values.
-	configSvc ConfigProvider
+	configSvc configsvc.Service
 	// cacheMu protects immutable manifest read-model entries.
 	cacheMu sync.RWMutex
 	// sourceManifestCache stores source manifests by plugin ID with manifest-file stat guards.
@@ -128,7 +123,7 @@ type serviceImpl struct {
 }
 
 // New creates a new catalog Service with the given configuration provider.
-func New(configSvc ConfigProvider) Service {
+func New(configSvc configsvc.Service) Service {
 	return &serviceImpl{
 		configSvc:                  configSvc,
 		sourceManifestCache:        make(map[string]*sourceManifestCacheEntry),

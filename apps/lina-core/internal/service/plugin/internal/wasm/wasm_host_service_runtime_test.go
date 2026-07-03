@@ -16,8 +16,11 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
+	"lina-core/internal/service/plugin/internal/manifestresource"
+	"lina-core/internal/service/plugin/internal/pluginconfig"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/plugin/capability"
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/capability/plugincap"
@@ -157,9 +160,11 @@ func TestHandleHostServiceInvokeRuntimeInfoNowAndNode(t *testing.T) {
 		},
 	}
 
-	beforeMillis := time.Now().Add(-1 * time.Second).UnixMilli()
-	nowResponse := invokeRuntimeHostService(t, hcc, protocol.HostServiceMethodRuntimeInfoNow, nil)
-	afterMillis := time.Now().Add(1 * time.Second).UnixMilli()
+	var (
+		beforeMillis = time.Now().Add(-1 * time.Second).UnixMilli()
+		nowResponse  = invokeRuntimeHostService(t, hcc, protocol.HostServiceMethodRuntimeInfoNow, nil)
+		afterMillis  = time.Now().Add(1 * time.Second).UnixMilli()
+	)
 	if nowResponse.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected info.now success, got status=%d payload=%s", nowResponse.Status, string(nowResponse.Payload))
 	}
@@ -327,7 +332,7 @@ func withTestDomainServices(services capability.Services) testHostServiceRuntime
 	}
 }
 
-func withTestConfigFactory(factory plugincap.ConfigServiceFactory) testHostServiceRuntimeOption {
+func withTestConfigFactory(factory pluginconfig.Factory) testHostServiceRuntimeOption {
 	return func(runtime *hostServiceRuntime) {
 		runtime.pluginConfigFactory = factory
 	}
@@ -339,7 +344,7 @@ func withTestHostConfigService(service hostconfigcap.Service) testHostServiceRun
 	}
 }
 
-func withTestManifestFactory(factory manifestcap.ServiceFactory) testHostServiceRuntimeOption {
+func withTestManifestFactory(factory manifestresource.Factory) testHostServiceRuntimeOption {
 	return func(runtime *hostServiceRuntime) {
 		runtime.manifestFactory = factory
 	}
@@ -390,15 +395,20 @@ func (noopTestConfigFactory) ForPlugin(string) plugincap.ConfigService {
 	return noopTestConfigService{}
 }
 
-func (f noopTestConfigFactory) WithArtifactConfig(string, []byte) plugincap.ConfigServiceFactory {
+func (f noopTestConfigFactory) WithArtifactConfig(string, []byte) pluginconfig.Factory {
 	return f
 }
 
 type noopTestConfigService struct{}
 
-func (noopTestConfigService) Get(context.Context, string) (*gvar.Var, error) { return nil, nil }
-func (noopTestConfigService) Exists(context.Context, string) (bool, error)   { return false, nil }
-func (noopTestConfigService) Scan(context.Context, string, any) error        { return nil }
+func (noopTestConfigService) Get(_ context.Context, _ string, defaultValue any) (*gvar.Var, error) {
+	if defaultValue != nil {
+		return gvar.New(defaultValue), nil
+	}
+	return nil, nil
+}
+func (noopTestConfigService) Exists(context.Context, string) (bool, error) { return false, nil }
+func (noopTestConfigService) Scan(context.Context, string, any) error      { return nil }
 func (noopTestConfigService) String(context.Context, string, string) (string, error) {
 	return "", nil
 }
@@ -410,8 +420,10 @@ func (noopTestConfigService) Duration(context.Context, string, time.Duration) (t
 
 type noopTestHostConfigService struct{}
 
-func (noopTestHostConfigService) Get(context.Context, string) (*gvar.Var, error) { return nil, nil }
-func (noopTestHostConfigService) Exists(context.Context, string) (bool, error)   { return false, nil }
+func (noopTestHostConfigService) Get(context.Context, string, any) (*gvar.Var, error) {
+	return nil, nil
+}
+func (noopTestHostConfigService) Exists(context.Context, string) (bool, error) { return false, nil }
 func (noopTestHostConfigService) String(context.Context, string, string) (string, error) {
 	return "", nil
 }
@@ -422,6 +434,39 @@ func (noopTestHostConfigService) Int(context.Context, string, int) (int, error) 
 func (noopTestHostConfigService) Duration(context.Context, string, time.Duration) (time.Duration, error) {
 	return 0, nil
 }
+func (noopTestHostConfigService) SysConfig() hostconfigcap.SysConfigService {
+	return noopTestSysConfigService{}
+}
+
+type noopTestSysConfigService struct{}
+
+func (s noopTestSysConfigService) Get(ctx context.Context, key hostconfigcap.SysConfigKey) (*hostconfigcap.SysConfigInfo, error) {
+	result, err := s.BatchGet(ctx, []hostconfigcap.SysConfigKey{key})
+	if err != nil || result == nil {
+		return nil, err
+	}
+	return result.Items[key], nil
+}
+
+func (noopTestSysConfigService) BatchGet(context.Context, []hostconfigcap.SysConfigKey) (*capmodel.BatchResult[*hostconfigcap.SysConfigInfo, hostconfigcap.SysConfigKey], error) {
+	return &capmodel.BatchResult[*hostconfigcap.SysConfigInfo, hostconfigcap.SysConfigKey]{Items: map[hostconfigcap.SysConfigKey]*hostconfigcap.SysConfigInfo{}}, nil
+}
+
+func (noopTestSysConfigService) List(context.Context, hostconfigcap.ListSysConfigInput) (*capmodel.PageResult[*hostconfigcap.SysConfigInfo], error) {
+	return &capmodel.PageResult[*hostconfigcap.SysConfigInfo]{Items: []*hostconfigcap.SysConfigInfo{}}, nil
+}
+
+func (noopTestSysConfigService) SetValue(context.Context, hostconfigcap.SysConfigKey, string) error {
+	return nil
+}
+
+func (noopTestSysConfigService) Reset(context.Context, hostconfigcap.SysConfigKey) error {
+	return nil
+}
+
+func (noopTestSysConfigService) EnsureVisible(context.Context, []hostconfigcap.SysConfigKey) error {
+	return nil
+}
 
 type noopTestManifestFactory struct{}
 
@@ -429,7 +474,7 @@ func (noopTestManifestFactory) ForPlugin(string) manifestcap.Service {
 	return noopTestManifestService{}
 }
 
-func (f noopTestManifestFactory) WithArtifactResources(string, map[string][]byte) manifestcap.ServiceFactory {
+func (f noopTestManifestFactory) WithArtifactResources(string, map[string][]byte) manifestresource.Factory {
 	return f
 }
 

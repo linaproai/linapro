@@ -5,6 +5,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	pluginv1 "lina-core/api/plugin/v1"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -24,18 +25,15 @@ import (
 	"lina-core/internal/service/locker"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/governance"
-	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/bizerr"
-	capabilityhostconfig "lina-core/pkg/plugin/capability/hostconfigcap"
-	capabilitymanifest "lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
-	capabilityconfig "lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
+	"lina-core/pkg/statusflag"
 )
 
 const startupConsistencyMembershipTable = "plugin_linapro_tenant_core_user_membership"
@@ -75,7 +73,7 @@ func TestPluginGovernanceMethodsRejectTenantContext(t *testing.T) {
 		TenantId:  65001,
 		DataScope: 1,
 	})
-	svc, err := newTestServiceWithTopologyAndTenantDeps(nil, nil, nil, newPluginPlatformGuardTenantService(t))
+	svc, err := newTestServiceWithTopologyAndTenantDeps(nil, newPluginPlatformGuardTenantService(t))
 	if err != nil {
 		t.Fatalf("construct plugin service: %v", err)
 	}
@@ -83,9 +81,6 @@ func TestPluginGovernanceMethodsRejectTenantContext(t *testing.T) {
 		name string
 		run  func() error
 	}{
-		{name: "sync source plugins", run: func() error {
-			return svc.SyncSourcePlugins(ctx)
-		}},
 		{name: "sync source plugins strict", run: func() error {
 			_, err := svc.SyncSourcePluginsStrict(ctx)
 			return err
@@ -102,13 +97,13 @@ func TestPluginGovernanceMethodsRejectTenantContext(t *testing.T) {
 			return svc.Uninstall(ctx, "blocked-plugin", UninstallOptions{})
 		}},
 		{name: "update status", run: func() error {
-			return svc.UpdateStatus(ctx, "blocked-plugin", 1, nil)
+			return svc.UpdateStatus(ctx, "blocked-plugin", UpdateStatusOptions{Status: statusflag.EnabledValue.Int()})
 		}},
 		{name: "enable", run: func() error {
-			return svc.Enable(ctx, "blocked-plugin")
+			return svc.UpdateStatus(ctx, "blocked-plugin", UpdateStatusOptions{Status: statusflag.EnabledValue.Int()})
 		}},
 		{name: "disable", run: func() error {
-			return svc.Disable(ctx, "blocked-plugin")
+			return svc.UpdateStatus(ctx, "blocked-plugin", UpdateStatusOptions{Status: statusflag.Disabled.Int()})
 		}},
 		{name: "upload dynamic package", run: func() error {
 			_, err := svc.UploadDynamicPackage(ctx, nil)
@@ -182,17 +177,17 @@ func TestReadOnlyListOnlyBuildsCatalogSnapshot(t *testing.T) {
 	}
 }
 
-// TestNewRequiresInjectedTenantCapability verifies startup tenant consistency
-// dependencies must be explicit at construction time.
-func TestNewRequiresInjectedTenantCapability(t *testing.T) {
+// TestNewRequiresInjectedTenantService verifies startup tenant dependencies
+// must be explicit at construction time.
+func TestNewRequiresInjectedTenantService(t *testing.T) {
 	var (
 		configProvider = configsvc.New()
 		bizCtxProvider = bizctx.New()
 		cacheCoordSvc  = cachecoord.Default(cachecoord.NewStaticTopology(false))
 		i18nSvc        = i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
 		pluginRuntime  = NewRuntimeDelegate()
-		orgSvc         = orgspi.New(nil, pluginRuntime)
-		roleSvc        = role.New(pluginRuntime, bizCtxProvider, configProvider, i18nSvc, orgSvc, tenantspi.New(nil, pluginRuntime, bizCtxProvider))
+		orgSvc         = orgspi.New(nil, pluginRuntime, pluginRuntime.OrgProviderEnv)
+		roleSvc        = role.New(pluginRuntime, bizCtxProvider, configProvider, i18nSvc, orgSvc, tenantspi.New(nil, pluginRuntime, pluginRuntime.TenantProviderEnv, bizCtxProvider))
 		capabilities   = newRootTestCapabilities(bizCtxProvider, pluginRuntime)
 	)
 	_, err := New(
@@ -208,14 +203,11 @@ func TestNewRequiresInjectedTenantCapability(t *testing.T) {
 		capabilities,
 		orgSvc,
 		nil,
-		tenantspi.New(nil, pluginRuntime, bizCtxProvider),
-		tenantspi.New(nil, pluginRuntime, bizCtxProvider),
-		capabilityconfig.NewConfigFactory("", ""),
-		capabilityhostconfig.New(mustHostConfigRawReader(configProvider)),
-		capabilitymanifest.NewFactory(""),
+		NewPluginConfigFactory("", ""),
+		NewHostConfigService(configProvider),
 	)
-	if err == nil || !strings.Contains(err.Error(), "tenant startup capability") {
-		t.Fatalf("expected tenant startup dependency error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "tenant service") {
+		t.Fatalf("expected tenant service dependency error, got %v", err)
 	}
 }
 
@@ -226,7 +218,7 @@ func TestValidateStartupConsistencyUsesInjectedTenantCapability(t *testing.T) {
 		ctx       = context.Background()
 		tenantSvc = &startupConsistencyTenantCapability{details: []string{"injected tenant capability used"}}
 	)
-	service, err := newTestServiceWithTopologyAndTenantDeps(nil, tenantSvc, nil, nil)
+	service, err := newTestServiceWithTopologyAndTenantDeps(nil, tenantSvc)
 	if err != nil {
 		t.Fatalf("construct plugin service: %v", err)
 	}
@@ -253,11 +245,11 @@ func TestValidateStartupConsistencyRejectsInvalidPluginGovernance(t *testing.T) 
 		PluginId:    pluginID,
 		Name:        "Startup Invalid Governance",
 		Version:     "v0.1.0",
-		Type:        plugintypes.TypeSource.String(),
-		Installed:   plugintypes.InstalledYes,
-		Status:      plugintypes.StatusEnabled,
+		Type:        pluginv1.PluginTypeSource.String(),
+		Installed:   statusflag.Installed.Int(),
+		Status:      statusflag.EnabledValue.Int(),
 		ScopeNature: "invalid_scope",
-		InstallMode: plugintypes.InstallModeTenantScoped.String(),
+		InstallMode: pluginv1.InstallModeTenantScoped.String(),
 	})
 
 	err := service.ValidateStartupConsistency(ctx)
@@ -281,11 +273,11 @@ func TestValidateStartupConsistencyRejectsPlatformOnlyTenantScoped(t *testing.T)
 		PluginId:    pluginID,
 		Name:        "Startup Platform Tenant Scoped",
 		Version:     "v0.1.0",
-		Type:        plugintypes.TypeSource.String(),
-		Installed:   plugintypes.InstalledYes,
-		Status:      plugintypes.StatusEnabled,
-		ScopeNature: plugintypes.ScopeNaturePlatformOnly.String(),
-		InstallMode: plugintypes.InstallModeTenantScoped.String(),
+		Type:        pluginv1.PluginTypeSource.String(),
+		Installed:   statusflag.Installed.Int(),
+		Status:      statusflag.EnabledValue.Int(),
+		ScopeNature: pluginv1.ScopeNaturePlatformOnly.String(),
+		InstallMode: pluginv1.InstallModeTenantScoped.String(),
 	})
 
 	err := service.ValidateStartupConsistency(ctx)
@@ -305,7 +297,7 @@ func TestValidateStartupConsistencyRejectsPlatformUserMembership(t *testing.T) {
 	service, err := newTestServiceWithTopologyAndTenantDeps(nil, &startupConsistencyTenantCapability{
 		available:           true,
 		validateMemberships: true,
-	}, nil, nil)
+	})
 	if err != nil {
 		t.Fatalf("construct plugin service: %v", err)
 	}
@@ -316,11 +308,11 @@ func TestValidateStartupConsistencyRejectsPlatformUserMembership(t *testing.T) {
 		PluginId:    tenantcap.ProviderPluginID,
 		Name:        "Multi Tenant Provider",
 		Version:     "v0.1.0",
-		Type:        plugintypes.TypeSource.String(),
-		Installed:   plugintypes.InstalledYes,
-		Status:      plugintypes.StatusEnabled,
-		ScopeNature: plugintypes.ScopeNaturePlatformOnly.String(),
-		InstallMode: plugintypes.InstallModeGlobal.String(),
+		Type:        pluginv1.PluginTypeSource.String(),
+		Installed:   statusflag.Installed.Int(),
+		Status:      statusflag.EnabledValue.Int(),
+		ScopeNature: pluginv1.ScopeNaturePlatformOnly.String(),
+		InstallMode: pluginv1.InstallModeGlobal.String(),
 	})
 	userID := insertStartupConsistencyUser(t, ctx, username, int(tenantcap.PLATFORM))
 	insertStartupConsistencyTenantMembership(t, ctx, userID, tenantID, 1)
@@ -336,7 +328,7 @@ func TestValidateStartupConsistencyRejectsEnabledTenantPluginWithoutProvider(t *
 		ctx      = context.Background()
 		pluginID = tenantcap.ProviderPluginID
 	)
-	service, err := newTestServiceWithTopologyAndTenantDeps(nil, &startupConsistencyTenantCapability{}, nil, nil)
+	service, err := newTestServiceWithTopologyAndTenantDeps(nil, &startupConsistencyTenantCapability{})
 	if err != nil {
 		t.Fatalf("construct plugin service: %v", err)
 	}
@@ -347,11 +339,11 @@ func TestValidateStartupConsistencyRejectsEnabledTenantPluginWithoutProvider(t *
 		PluginId:    pluginID,
 		Name:        "Multi Tenant Provider",
 		Version:     "v0.1.0",
-		Type:        plugintypes.TypeSource.String(),
-		Installed:   plugintypes.InstalledYes,
-		Status:      plugintypes.StatusEnabled,
-		ScopeNature: plugintypes.ScopeNaturePlatformOnly.String(),
-		InstallMode: plugintypes.InstallModeGlobal.String(),
+		Type:        pluginv1.PluginTypeSource.String(),
+		Installed:   statusflag.Installed.Int(),
+		Status:      statusflag.EnabledValue.Int(),
+		ScopeNature: pluginv1.ScopeNaturePlatformOnly.String(),
+		InstallMode: pluginv1.InstallModeGlobal.String(),
 	})
 
 	err = service.ValidateStartupConsistency(ctx)
@@ -365,7 +357,7 @@ func TestValidateStartupConsistencyAllowsEnabledTenantPluginWithProvider(t *test
 		ctx      = context.Background()
 		pluginID = tenantcap.ProviderPluginID
 	)
-	service, err := newTestServiceWithTopologyAndTenantDeps(nil, &startupConsistencyTenantCapability{available: true}, nil, nil)
+	service, err := newTestServiceWithTopologyAndTenantDeps(nil, &startupConsistencyTenantCapability{available: true})
 	if err != nil {
 		t.Fatalf("construct plugin service: %v", err)
 	}
@@ -376,11 +368,11 @@ func TestValidateStartupConsistencyAllowsEnabledTenantPluginWithProvider(t *test
 		PluginId:    pluginID,
 		Name:        "Multi Tenant Provider",
 		Version:     "v0.1.0",
-		Type:        plugintypes.TypeSource.String(),
-		Installed:   plugintypes.InstalledYes,
-		Status:      plugintypes.StatusEnabled,
-		ScopeNature: plugintypes.ScopeNaturePlatformOnly.String(),
-		InstallMode: plugintypes.InstallModeGlobal.String(),
+		Type:        pluginv1.PluginTypeSource.String(),
+		Installed:   statusflag.Installed.Int(),
+		Status:      statusflag.EnabledValue.Int(),
+		ScopeNature: pluginv1.ScopeNaturePlatformOnly.String(),
+		InstallMode: pluginv1.InstallModeGlobal.String(),
 	})
 
 	if err := service.ValidateStartupConsistency(ctx); err != nil {
@@ -390,6 +382,7 @@ func TestValidateStartupConsistencyAllowsEnabledTenantPluginWithProvider(t *test
 
 // startupConsistencyTenantCapability records startup membership validation calls.
 type startupConsistencyTenantCapability struct {
+	tenantspi.Service
 	available           bool
 	validateMemberships bool
 	calls               int
@@ -399,6 +392,11 @@ type startupConsistencyTenantCapability struct {
 // Available reports an active tenant capability for startup consistency tests.
 func (s *startupConsistencyTenantCapability) Available(context.Context) bool {
 	return s.available
+}
+
+// PlatformBypass keeps platform governance allowed for startup consistency tests.
+func (s *startupConsistencyTenantCapability) PlatformBypass(context.Context) bool {
+	return true
 }
 
 // ValidateUserMembershipStartupConsistency records the injected startup check.
@@ -577,10 +575,10 @@ func TestUpdateTenantProvisioningPolicySurvivesManifestSync(t *testing.T) {
 			ID:                  pluginID,
 			Name:                "Tenant Provisioning Policy",
 			Version:             "v0.1.0",
-			Type:                plugintypes.TypeSource.String(),
-			ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
+			Type:                pluginv1.PluginTypeSource.String(),
+			ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &supports,
-			DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
+			DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
 		}
 	)
 
@@ -620,10 +618,10 @@ func TestUpdateTenantProvisioningPolicyRejectsGlobalPlugin(t *testing.T) {
 			ID:                  pluginID,
 			Name:                "Tenant Provisioning Global",
 			Version:             "v0.1.0",
-			Type:                plugintypes.TypeSource.String(),
-			ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
+			Type:                pluginv1.PluginTypeSource.String(),
+			ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &supports,
-			DefaultInstallMode:  plugintypes.InstallModeGlobal.String(),
+			DefaultInstallMode:  pluginv1.InstallModeGlobal.String(),
 		}
 	)
 
@@ -654,10 +652,10 @@ func TestUpdateTenantProvisioningPolicyRejectsUnsupportedTenantGovernance(t *tes
 			ID:                  pluginID,
 			Name:                "Tenant Provisioning Unsupported",
 			Version:             "v0.1.0",
-			Type:                plugintypes.TypeSource.String(),
-			ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
+			Type:                pluginv1.PluginTypeSource.String(),
+			ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &supports,
-			DefaultInstallMode:  plugintypes.InstallModeGlobal.String(),
+			DefaultInstallMode:  pluginv1.InstallModeGlobal.String(),
 		}
 	)
 
@@ -679,7 +677,7 @@ func TestUpdateTenantProvisioningPolicyRejectsUnsupportedTenantGovernance(t *tes
 	}
 	if _, err := dao.SysPlugin.Ctx(ctx).
 		Where(do.SysPlugin{PluginId: pluginID}).
-		Data(do.SysPlugin{InstallMode: plugintypes.InstallModeTenantScoped.String()}).
+		Data(do.SysPlugin{InstallMode: pluginv1.InstallModeTenantScoped.String()}).
 		Update(); err != nil {
 		t.Fatalf("prepare unsupported tenant-scoped registry failed: %v", err)
 	}
@@ -724,7 +722,7 @@ func (g pluginTenantGuard) PlatformBypass(context.Context) bool {
 
 // newPluginPlatformGuardTenantService creates a real tenantcap service with
 // one enabled test provider for plugin facade entry-point tests.
-func newPluginPlatformGuardTenantService(t *testing.T) tenantspi.RuntimeService {
+func newPluginPlatformGuardTenantService(t *testing.T) tenantspi.Service {
 	t.Helper()
 	providerPluginID := fmt.Sprintf("plugin-test-plugin-tenant-provider-%d", time.Now().UnixNano())
 	manager := tenantspi.NewManager()
@@ -733,7 +731,7 @@ func newPluginPlatformGuardTenantService(t *testing.T) tenantspi.RuntimeService 
 	}); err != nil {
 		t.Fatalf("register plugin tenant provider: %v", err)
 	}
-	return tenantspi.New(manager, pluginPlatformGuardProviderRuntime{pluginID: providerPluginID}, bizctx.New())
+	return tenantspi.New(manager, pluginPlatformGuardProviderRuntime{pluginID: providerPluginID}, nil, bizctx.New())
 }
 
 // pluginPlatformGuardProviderRuntime marks exactly one test provider plugin enabled.
@@ -744,11 +742,6 @@ type pluginPlatformGuardProviderRuntime struct {
 // IsProviderEnabled reports whether the given test provider plugin is enabled.
 func (r pluginPlatformGuardProviderRuntime) IsProviderEnabled(_ context.Context, pluginID string) bool {
 	return pluginID == r.pluginID
-}
-
-// TenantProviderEnv returns an empty typed provider environment in plugin facade tests.
-func (pluginPlatformGuardProviderRuntime) TenantProviderEnv(string) tenantspi.ProviderEnv {
-	return tenantspi.ProviderEnv{}
 }
 
 // pluginPlatformGuardProvider satisfies the tenantcap provider contract for

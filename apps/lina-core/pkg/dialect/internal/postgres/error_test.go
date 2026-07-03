@@ -30,10 +30,10 @@ func TestSQLStateExtractsWrappedDriverState(t *testing.T) {
 	t.Parallel()
 
 	err := gerror.Wrap(fakeSQLStateError{state: " 40001 "}, "write failed")
-	if got := SQLState(err); got != ErrorSerializationFailure {
-		t.Fatalf("expected SQLSTATE %s, got %q", ErrorSerializationFailure, got)
+	if got := sqlState(err); got != errorSerializationFailure {
+		t.Fatalf("expected SQLSTATE %s, got %q", errorSerializationFailure, got)
 	}
-	if got := SQLState(errors.New("plain error")); got != "" {
+	if got := sqlState(errors.New("plain error")); got != "" {
 		t.Fatalf("expected no SQLSTATE for plain error, got %q", got)
 	}
 }
@@ -47,11 +47,11 @@ func TestIsRetryableSQLState(t *testing.T) {
 		code string
 		want bool
 	}{
-		{name: "serialization failure", code: ErrorSerializationFailure, want: true},
-		{name: "deadlock", code: ErrorDeadlockDetected, want: true},
-		{name: "lock not available", code: ErrorLockNotAvailable, want: true},
-		{name: "trimmed", code: " " + ErrorDeadlockDetected + " ", want: true},
-		{name: "unique violation", code: ErrorUniqueViolation, want: false},
+		{name: "serialization failure", code: errorSerializationFailure, want: true},
+		{name: "deadlock", code: errorDeadlockDetected, want: true},
+		{name: "lock not available", code: errorLockNotAvailable, want: true},
+		{name: "trimmed", code: " " + errorDeadlockDetected + " ", want: true},
+		{name: "unique violation", code: errorUniqueViolation, want: false},
 		{name: "empty", code: "", want: false},
 	}
 
@@ -60,7 +60,7 @@ func TestIsRetryableSQLState(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := IsRetryableSQLState(test.code); got != test.want {
+			if got := isRetryableSQLState(test.code); got != test.want {
 				t.Fatalf("expected retryable=%t, got %t", test.want, got)
 			}
 		})
@@ -76,12 +76,12 @@ func TestIsConstraintSQLState(t *testing.T) {
 		code string
 		want bool
 	}{
-		{name: "unique violation", code: ErrorUniqueViolation, want: true},
-		{name: "check violation", code: ErrorCheckViolation, want: true},
-		{name: "foreign key violation", code: ErrorForeignKeyViolation, want: true},
-		{name: "not null violation", code: ErrorNotNullViolation, want: true},
-		{name: "trimmed", code: " " + ErrorUniqueViolation + " ", want: true},
-		{name: "serialization failure", code: ErrorSerializationFailure, want: false},
+		{name: "unique violation", code: errorUniqueViolation, want: true},
+		{name: "check violation", code: errorCheckViolation, want: true},
+		{name: "foreign key violation", code: errorForeignKeyViolation, want: true},
+		{name: "not null violation", code: errorNotNullViolation, want: true},
+		{name: "trimmed", code: " " + errorUniqueViolation + " ", want: true},
+		{name: "serialization failure", code: errorSerializationFailure, want: false},
 		{name: "empty", code: "", want: false},
 	}
 
@@ -90,7 +90,7 @@ func TestIsConstraintSQLState(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := IsConstraintSQLState(test.code); got != test.want {
+			if got := isConstraintSQLState(test.code); got != test.want {
 				t.Fatalf("expected constraint=%t, got %t", test.want, got)
 			}
 		})
@@ -102,19 +102,19 @@ func TestIsConstraintSQLState(t *testing.T) {
 func TestErrorHelpersClassifyWrappedErrors(t *testing.T) {
 	t.Parallel()
 
-	if !IsRetryableWriteConflict(gerror.Wrap(fakeSQLStateError{state: ErrorDeadlockDetected}, "update failed")) {
+	if !IsRetryableWriteConflict(gerror.Wrap(fakeSQLStateError{state: errorDeadlockDetected}, "update failed")) {
 		t.Fatal("expected wrapped deadlock SQLSTATE to be retryable")
 	}
-	if !IsConstraintViolation(gerror.Wrap(fakeSQLStateError{state: ErrorForeignKeyViolation}, "insert failed")) {
+	if !isConstraintViolation(gerror.Wrap(fakeSQLStateError{state: errorForeignKeyViolation}, "insert failed")) {
 		t.Fatal("expected wrapped foreign-key SQLSTATE to be a constraint violation")
 	}
-	if !IsUniqueConstraintViolation(gerror.Wrap(fakeSQLStateError{state: ErrorUniqueViolation}, "insert failed")) {
+	if !IsUniqueConstraintViolation(gerror.Wrap(fakeSQLStateError{state: errorUniqueViolation}, "insert failed")) {
 		t.Fatal("expected wrapped unique SQLSTATE to be a unique constraint violation")
 	}
-	if IsConstraintViolation(gerror.Wrap(fakeSQLStateError{state: ErrorLockNotAvailable}, "lock failed")) {
+	if isConstraintViolation(gerror.Wrap(fakeSQLStateError{state: errorLockNotAvailable}, "lock failed")) {
 		t.Fatal("expected lock-not-available SQLSTATE not to be a constraint violation")
 	}
-	if IsUniqueConstraintViolation(gerror.Wrap(fakeSQLStateError{state: ErrorNotNullViolation}, "insert failed")) {
+	if IsUniqueConstraintViolation(gerror.Wrap(fakeSQLStateError{state: errorNotNullViolation}, "insert failed")) {
 		t.Fatal("expected not-null SQLSTATE not to be a unique constraint violation")
 	}
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gfile"
 
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/resourcefs"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
@@ -24,26 +25,8 @@ import (
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-// DynamicKindWasm is the only supported runtime artifact kind.
-const DynamicKindWasm = "wasm"
-
-// dynamicKindWasm is the package-private alias kept for internal references.
-const dynamicKindWasm = DynamicKindWasm
-
-// IsMissingArtifactError reports whether err signals a missing runtime artifact.
-func IsMissingArtifactError(err error) bool {
-	return isMissingArtifactError(err)
-}
-
-// BuildArtifactFileName returns the canonical wasm filename for a plugin ID.
-func BuildArtifactFileName(pluginID string) string {
-	return buildArtifactFileName(pluginID)
-}
-
-// BuildArtifactRelativePath returns the canonical relative path for a plugin's wasm artifact.
-func BuildArtifactRelativePath(pluginID string) string {
-	return buildArtifactRelativePath(pluginID)
-}
+// dynamicKindWasm is the only supported runtime artifact kind.
+const dynamicKindWasm = "wasm"
 
 // artifactMissingError marks the "wasm not generated yet" state so that discovery
 // can keep dynamic plugins visible while lifecycle actions stay strict.
@@ -93,17 +76,19 @@ func isMissingArtifactError(err error) bool {
 	return errors.As(err, &target)
 }
 
-// ParseRuntimeWasmArtifact reads one WASM artifact file and extracts all embedded custom sections.
-func ParseRuntimeWasmArtifact(filePath string) (*ArtifactSpec, error) {
+// parseRuntimeWasmArtifact reads one WASM artifact file and extracts all embedded custom sections.
+func parseRuntimeWasmArtifact(filePath string) (*ArtifactSpec, error) {
 	content := gfile.GetBytes(filePath)
 	if len(content) == 0 {
 		return nil, gerror.Newf("Dynamic plugin artifact is empty: %s", filePath)
 	}
-	return ParseRuntimeWasmArtifactContent(filePath, content)
+	return parseRuntimeWasmArtifactContent(filePath, content)
 }
 
-// ParseRuntimeWasmArtifactContent parses one WASM artifact from an in-memory byte slice.
-func ParseRuntimeWasmArtifactContent(filePath string, content []byte) (*ArtifactSpec, error) {
+// parseRuntimeWasmArtifactContent parses one WASM artifact from an in-memory byte slice.
+//
+//nolint:cyclop // Artifact decoding validates a compact wire format with explicit field-level failure messages.
+func parseRuntimeWasmArtifactContent(filePath string, content []byte) (*ArtifactSpec, error) {
 	sections, err := bridgeartifact.ListCustomSections(content)
 	if err != nil {
 		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin artifact: %s", filePath)
@@ -313,14 +298,14 @@ func ParseRuntimeWasmArtifactContent(filePath string, content []byte) (*Artifact
 	}, nil
 }
 
-// ValidateRuntimeArtifact loads and validates the WASM artifact for a dynamic plugin source directory.
-func ValidateRuntimeArtifact(manifest *Manifest, rootDir string) error {
+// validateRuntimeArtifact loads and validates the WASM artifact for a dynamic plugin source directory.
+func validateRuntimeArtifact(manifest *Manifest, rootDir string) error {
 	artifactPath, err := resolveArtifactPath(rootDir, manifest.ID)
 	if err != nil {
 		return err
 	}
 
-	artifact, err := ParseRuntimeWasmArtifact(artifactPath)
+	artifact, err := parseRuntimeWasmArtifact(artifactPath)
 	if err != nil {
 		return err
 	}
@@ -329,7 +314,7 @@ func ValidateRuntimeArtifact(manifest *Manifest, rootDir string) error {
 	}
 
 	artifact.Manifest.Type = plugintypes.NormalizeType(artifact.Manifest.Type).String()
-	if plugintypes.NormalizeType(artifact.Manifest.Type) != plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(artifact.Manifest.Type) != pluginv1.PluginTypeDynamic {
 		return gerror.Newf("Dynamic plugin embedded manifest type must be dynamic: %s", artifactPath)
 	}
 	if manifest.ID != artifact.Manifest.ID {

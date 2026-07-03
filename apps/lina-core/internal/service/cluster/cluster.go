@@ -6,7 +6,6 @@ import (
 	"context"
 	"time"
 
-	"lina-core/internal/service/config"
 	"lina-core/internal/service/coordination"
 )
 
@@ -45,19 +44,19 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	cfg         *config.ClusterConfig // cfg stores the normalized cluster settings.
-	nodeID      string                // nodeID is the stable identifier of the current node.
-	electionSvc *electionService      // electionSvc participates in primary election for clustered mode.
+	cfg         *ClusterConfig   // cfg stores the normalized cluster settings.
+	nodeID      string           // nodeID is the stable identifier of the current node.
+	electionSvc *electionService // electionSvc participates in primary election for clustered mode.
 }
 
 // New creates and returns a new cluster Service instance.
-func New(cfg *config.ClusterConfig) Service {
+func New(cfg *ClusterConfig) Service {
 	return NewWithCoordination(cfg, nil)
 }
 
 // NewWithCoordination creates a cluster Service using the provided
 // coordination service for distributed leader election in cluster mode.
-func NewWithCoordination(cfg *config.ClusterConfig, coordinationSvc coordination.Service) Service {
+func NewWithCoordination(cfg *ClusterConfig, coordinationSvc coordination.Service) Service {
 	normalizedCfg := normalizeClusterConfig(cfg)
 	service := &serviceImpl{
 		cfg:    normalizedCfg,
@@ -76,10 +75,10 @@ func NewWithCoordination(cfg *config.ClusterConfig, coordinationSvc coordination
 
 // normalizeClusterConfig applies default election settings while preserving the
 // caller-provided enablement flag and positive timing values.
-func normalizeClusterConfig(cfg *config.ClusterConfig) *config.ClusterConfig {
-	normalizedCfg := &config.ClusterConfig{
+func normalizeClusterConfig(cfg *ClusterConfig) *ClusterConfig {
+	normalizedCfg := &ClusterConfig{
 		Enabled: false,
-		Election: config.ElectionConfig{
+		Election: ElectionConfig{
 			Lease:         defaultElectionLease,
 			RenewInterval: defaultElectionRenewInterval,
 		},

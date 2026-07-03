@@ -5,10 +5,11 @@ package shellexec
 import (
 	"context"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+
+	configsvc "lina-core/internal/service/config"
 )
 
 // maxCapturedOutputBytes bounds each output stream persisted into sys_job_log.
@@ -40,25 +41,18 @@ type ExecuteOutput struct {
 	TimedOut  bool   // TimedOut reports whether timeout interrupted the process.
 }
 
-// shellGate exposes the runtime shell switch needed by the executor.
-type shellGate interface {
-	// IsCronShellEnabled reports whether shell tasks are currently allowed.
-	IsCronShellEnabled(ctx context.Context) (bool, error)
-}
-
 // serviceImpl implements Executor.
 type serviceImpl struct {
-	configSvc         shellGate     // configSvc exposes runtime shell switches.
-	goos              string        // goos stores the current runtime platform.
-	defaultWorkDir    string        // defaultWorkDir stores the host process working directory.
-	cancelGracePeriod time.Duration // cancelGracePeriod bounds SIGTERM-to-SIGKILL escalation.
+	configSvc         configsvc.Service // configSvc exposes runtime shell switches.
+	defaultWorkDir    string            // defaultWorkDir stores the host process working directory.
+	cancelGracePeriod time.Duration     // cancelGracePeriod bounds SIGTERM-to-SIGKILL escalation.
 }
 
 // Ensure serviceImpl implements Executor.
 var _ Executor = (*serviceImpl)(nil)
 
 // New creates and returns one guarded shell executor.
-func New(configSvc shellGate) (Executor, error) {
+func New(configSvc configsvc.Service) (Executor, error) {
 	if configSvc == nil {
 		return nil, gerror.New("shell executor requires a non-nil config service")
 	}
@@ -69,7 +63,6 @@ func New(configSvc shellGate) (Executor, error) {
 	}
 	return &serviceImpl{
 		configSvc:         configSvc,
-		goos:              strings.TrimSpace(os.Getenv("GOOS")),
 		defaultWorkDir:    workDir,
 		cancelGracePeriod: 5 * time.Second,
 	}, nil

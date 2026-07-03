@@ -4,6 +4,7 @@ package governance
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"lina-core/internal/service/plugin/internal/catalog"
@@ -13,16 +14,16 @@ import (
 	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
-// TenantCapability is the tenant-governance slice required by plugin platform guards.
-type TenantCapability interface {
+// tenantCapability is the tenant-governance slice required by plugin platform guards.
+type tenantCapability interface {
 	// Available reports whether multi-tenancy governance is active.
 	Available(ctx context.Context) bool
 	// PlatformBypass reports whether the request is a platform all-data context.
 	PlatformBypass(ctx context.Context) bool
 }
 
-// ManifestResolver is the catalog slice required to resolve tenant governance support.
-type ManifestResolver interface {
+// manifestResolver is the catalog slice required to resolve tenant governance support.
+type manifestResolver interface {
 	// LoadManifestFromYAML parses a plugin.yaml file at the given path into a Manifest.
 	LoadManifestFromYAML(filePath string, manifest *catalog.Manifest) error
 	// GetDesiredManifest returns the latest discovered manifest for one plugin ID.
@@ -30,7 +31,7 @@ type ManifestResolver interface {
 }
 
 // EnsurePlatformContext verifies the current request can mutate platform plugin governance state.
-func EnsurePlatformContext(ctx context.Context, tenantSvc TenantCapability) error {
+func EnsurePlatformContext(ctx context.Context, tenantSvc tenantCapability) error {
 	if tenantSvc == nil || !tenantSvc.Available(ctx) || tenantSvc.PlatformBypass(ctx) {
 		return nil
 	}
@@ -53,8 +54,8 @@ func ValidatePluginRegistryRows(registries []*store.PluginRecord) []string {
 		if !plugintypes.IsSupportedInstallMode(mode) {
 			details = append(details, "plugin "+registry.PluginId+" has invalid install_mode "+registry.InstallMode)
 		}
-		if plugintypes.NormalizeScopeNature(scope) == plugintypes.ScopeNaturePlatformOnly &&
-			plugintypes.NormalizeInstallMode(mode) != plugintypes.InstallModeGlobal {
+		if plugintypes.NormalizeScopeNature(scope) == pluginv1.ScopeNaturePlatformOnly &&
+			plugintypes.NormalizeInstallMode(mode) != pluginv1.InstallModeGlobal {
 			details = append(details, "platform_only plugin "+registry.PluginId+" must use global install_mode")
 		}
 	}
@@ -65,7 +66,7 @@ func ValidatePluginRegistryRows(registries []*store.PluginRecord) []string {
 // for one registry and falls back to the persisted scope if the manifest is
 // unavailable to keep registry-only tests and startup projections deterministic.
 func RegistrySupportsTenantGovernance(
-	resolver ManifestResolver,
+	resolver manifestResolver,
 	registry *store.PluginRecord,
 ) bool {
 	if registry == nil {
@@ -75,7 +76,7 @@ func RegistrySupportsTenantGovernance(
 		manifest := &catalog.Manifest{}
 		if loadErr := resolver.LoadManifestFromYAML(registry.ManifestPath, manifest); loadErr == nil {
 			if manifest.SupportsMultiTenant == nil {
-				return plugintypes.NormalizeScopeNature(manifest.ScopeNature) == plugintypes.ScopeNatureTenantAware
+				return plugintypes.NormalizeScopeNature(manifest.ScopeNature) == pluginv1.ScopeNatureTenantAware
 			}
 			return manifest.SupportsTenantGovernance()
 		}
@@ -84,5 +85,5 @@ func RegistrySupportsTenantGovernance(
 	if err == nil && manifest != nil {
 		return manifest.SupportsTenantGovernance()
 	}
-	return plugintypes.NormalizeScopeNature(registry.ScopeNature) == plugintypes.ScopeNatureTenantAware
+	return plugintypes.NormalizeScopeNature(registry.ScopeNature) == pluginv1.ScopeNatureTenantAware
 }

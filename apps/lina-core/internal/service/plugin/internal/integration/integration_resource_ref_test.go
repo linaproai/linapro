@@ -4,6 +4,7 @@ package integration_test
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,7 +12,6 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/internal/service/startupstats"
 
@@ -23,9 +23,11 @@ import (
 // TestSyncPluginResourceReferencesRevivesSoftDeletedRows verifies that sync can
 // revive previously soft-deleted governance rows instead of colliding on insert.
 func TestSyncPluginResourceReferencesRevivesSoftDeletedRows(t *testing.T) {
-	services := testutil.NewServices()
-	service := services.Integration
-	ctx := context.Background()
+	var (
+		services = testutil.NewServices()
+		service  = services.Integration
+		ctx      = context.Background()
+	)
 
 	pluginID := "plugin-dev-dynamic-ref-revive"
 	pluginDir := testutil.CreateTestRuntimePluginDir(
@@ -43,7 +45,7 @@ func TestSyncPluginResourceReferencesRevivesSoftDeletedRows(t *testing.T) {
 		ID:           pluginID,
 		Name:         "Runtime Ref Revive Plugin",
 		Version:      "v0.9.0",
-		Type:         plugintypes.TypeDynamic.String(),
+		Type:         pluginv1.PluginTypeDynamic.String(),
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		RootDir:      pluginDir,
 	}
@@ -102,9 +104,11 @@ func TestSyncPluginResourceReferencesRevivesSoftDeletedRows(t *testing.T) {
 // TestSyncPluginResourceReferencesNoopSkipsWrites verifies no-op resource
 // projection sync avoids writes when the startup snapshot already matches.
 func TestSyncPluginResourceReferencesNoopSkipsWrites(t *testing.T) {
-	services := testutil.NewServices()
-	service := services.Integration
-	ctx := context.Background()
+	var (
+		services = testutil.NewServices()
+		service  = services.Integration
+		ctx      = context.Background()
+	)
 
 	pluginID := "plugin-dev-resource-ref-noop"
 	pluginDir := testutil.CreateTestRuntimePluginDir(
@@ -122,7 +126,7 @@ func TestSyncPluginResourceReferencesNoopSkipsWrites(t *testing.T) {
 		ID:           pluginID,
 		Name:         "Runtime Ref Noop Plugin",
 		Version:      "v0.9.1",
-		Type:         plugintypes.TypeDynamic.String(),
+		Type:         pluginv1.PluginTypeDynamic.String(),
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		RootDir:      pluginDir,
 	}
@@ -196,10 +200,12 @@ func captureSQLDuring(
 ) ([]string, []string, error) {
 	t.Helper()
 
-	db := g.DB()
-	previousDebug := db.GetDebug()
-	previousLogger := db.GetLogger()
-	captureLogger := glog.New()
+	var (
+		db             = g.DB()
+		previousDebug  = db.GetDebug()
+		previousLogger = db.GetLogger()
+		captureLogger  = glog.New()
+	)
 	captureLogger.SetStdoutPrint(false)
 
 	db.SetDebug(true)

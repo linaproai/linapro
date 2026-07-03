@@ -14,6 +14,7 @@ import (
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gconv"
 
+	jobv1 "lina-core/api/job/v1"
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
@@ -126,13 +127,13 @@ func (s *serviceImpl) validateExecutableJob(ctx context.Context, job *entity.Sys
 		return bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
 	switch jobmeta.NormalizeTaskType(job.TaskType) {
-	case jobmeta.TaskTypeHandler:
+	case jobv1.TaskTypeHandler:
 		def, ok := s.registry.Lookup(job.HandlerRef)
 		if !ok {
 			return bizerr.NewCode(jobhandler.CodeJobHandlerNotFound)
 		}
 		return jobhandler.ValidateParams(def.ParamsSchema, json.RawMessage(job.Params))
-	case jobmeta.TaskTypeShell:
+	case jobv1.TaskTypeShell:
 		enabled, err := s.configSvc.IsCronShellEnabled(ctx)
 		if err != nil {
 			return err

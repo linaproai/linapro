@@ -207,13 +207,15 @@ func newTestServiceWithExplicitDependencies(
 ) *serviceImpl {
 	t.Helper()
 
-	bizCtxSvc := bizctx.New()
-	configSvc := hostconfig.New()
-	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
-	orgCapSvc := orgspi.New(nil, nil)
-	tenantSvc := tenantspi.New(nil, nil, bizCtxSvc)
-	roleSvc := role.New(nil, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
-	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
+	var (
+		bizCtxSvc = bizctx.New()
+		configSvc = hostconfig.New()
+		i18nSvc   = i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
+		orgCapSvc = orgspi.New(nil, nil, nil)
+		tenantSvc = tenantspi.New(nil, nil, nil, bizCtxSvc)
+		roleSvc   = role.New(nil, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
+		scopeSvc  = datascope.New(bizCtxSvc, roleSvc, orgCapSvc.Scope())
+	)
 	roleSvc.SetDataScopeService(scopeSvc)
 	return New(bizCtxSvc, configSvc, i18nSvc, registry, scheduler, scopeSvc).(*serviceImpl)
 }
@@ -226,11 +228,13 @@ func setJobMgmtTestBizCtx(svc *serviceImpl, bizCtxSvc bizctx.Service) {
 	if configSvc == nil {
 		configSvc = hostconfig.New()
 	}
-	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
-	orgCapSvc := orgspi.New(nil, nil)
-	tenantSvc := tenantspi.New(nil, nil, bizCtxSvc)
-	roleSvc := role.New(nil, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
-	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
+	var (
+		i18nSvc   = i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
+		orgCapSvc = orgspi.New(nil, nil, nil)
+		tenantSvc = tenantspi.New(nil, nil, nil, bizCtxSvc)
+		roleSvc   = role.New(nil, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
+		scopeSvc  = datascope.New(bizCtxSvc, roleSvc, orgCapSvc.Scope())
+	)
 	roleSvc.SetDataScopeService(scopeSvc)
 	svc.scopeSvc = scopeSvc
 }

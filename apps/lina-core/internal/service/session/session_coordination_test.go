@@ -16,10 +16,12 @@ import (
 // TestCoordinationStoreWritesHotStateAndProjection verifies login-time session
 // writes are dual-written to coordination KV and the PostgreSQL projection.
 func TestCoordinationStoreWritesHotStateAndProjection(t *testing.T) {
-	ctx := context.Background()
-	coordSvc := coordination.NewMemory(nil)
-	store := NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), 2*time.Hour)
-	tokenID := uniqueSessionTestToken("coord-dual-write")
+	var (
+		ctx      = context.Background()
+		coordSvc = coordination.NewMemory(nil)
+		store    = NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), 2*time.Hour)
+		tokenID  = uniqueSessionTestToken("coord-dual-write")
+	)
 
 	t.Cleanup(func() {
 		cleanupSessionTestToken(t, ctx, tokenID)
@@ -69,10 +71,12 @@ func TestCoordinationStoreWritesHotStateAndProjection(t *testing.T) {
 // TestCoordinationStoreValidatesTenantAndRefreshesTTL verifies request-path
 // validation uses tenant/token hot state and refreshes Redis TTL.
 func TestCoordinationStoreValidatesTenantAndRefreshesTTL(t *testing.T) {
-	ctx := context.Background()
-	coordSvc := coordination.NewMemory(nil)
-	store := NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), time.Hour)
-	tokenID := uniqueSessionTestToken("coord-touch")
+	var (
+		ctx      = context.Background()
+		coordSvc = coordination.NewMemory(nil)
+		store    = NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), time.Hour)
+		tokenID  = uniqueSessionTestToken("coord-touch")
+	)
 
 	t.Cleanup(func() {
 		cleanupSessionTestToken(t, ctx, tokenID)
@@ -103,11 +107,13 @@ func TestCoordinationStoreValidatesTenantAndRefreshesTTL(t *testing.T) {
 // TestCoordinationStoreThrottlesProjectionLastActive verifies Redis hot state is
 // refreshed on every touch while PostgreSQL projection writes stay throttled.
 func TestCoordinationStoreThrottlesProjectionLastActive(t *testing.T) {
-	ctx := context.Background()
-	coordSvc := coordination.NewMemory(nil)
-	store := NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), time.Hour)
-	tokenID := uniqueSessionTestToken("coord-throttle")
-	recent := time.Now().Truncate(time.Second)
+	var (
+		ctx      = context.Background()
+		coordSvc = coordination.NewMemory(nil)
+		store    = NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), time.Hour)
+		tokenID  = uniqueSessionTestToken("coord-throttle")
+		recent   = time.Now().Truncate(time.Second)
+	)
 
 	t.Cleanup(func() {
 		cleanupSessionTestToken(t, ctx, tokenID)
@@ -159,10 +165,12 @@ func TestCoordinationStoreThrottlesProjectionLastActive(t *testing.T) {
 // TestCoordinationStoreDeleteRemovesHotStateAndProjection verifies force-logout
 // style deletion clears both Redis hot state and PostgreSQL projection.
 func TestCoordinationStoreDeleteRemovesHotStateAndProjection(t *testing.T) {
-	ctx := context.Background()
-	coordSvc := coordination.NewMemory(nil)
-	store := NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), time.Hour)
-	tokenID := uniqueSessionTestToken("coord-delete")
+	var (
+		ctx      = context.Background()
+		coordSvc = coordination.NewMemory(nil)
+		store    = NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), time.Hour)
+		tokenID  = uniqueSessionTestToken("coord-delete")
+	)
 
 	t.Cleanup(func() {
 		cleanupSessionTestToken(t, ctx, tokenID)
@@ -188,12 +196,14 @@ func TestCoordinationStoreDeleteRemovesHotStateAndProjection(t *testing.T) {
 // TestCoordinationStoreDeleteByUserIdUsesIndex verifies tenant/user deletion
 // removes only indexed sessions for that tenant and user.
 func TestCoordinationStoreDeleteByUserIdUsesIndex(t *testing.T) {
-	ctx := context.Background()
-	coordSvc := coordination.NewMemory(nil)
-	store := NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), time.Hour)
-	firstToken := uniqueSessionTestToken("coord-user-delete-a")
-	secondToken := uniqueSessionTestToken("coord-user-delete-b")
-	otherTenantToken := uniqueSessionTestToken("coord-user-delete-c")
+	var (
+		ctx              = context.Background()
+		coordSvc         = coordination.NewMemory(nil)
+		store            = NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), time.Hour)
+		firstToken       = uniqueSessionTestToken("coord-user-delete-a")
+		secondToken      = uniqueSessionTestToken("coord-user-delete-b")
+		otherTenantToken = uniqueSessionTestToken("coord-user-delete-c")
+	)
 
 	t.Cleanup(func() {
 		cleanupSessionTestToken(t, ctx, firstToken)
@@ -226,10 +236,12 @@ func TestCoordinationStoreDeleteByUserIdUsesIndex(t *testing.T) {
 // TestCoordinationStoreRedisReadFailureFailClosed verifies request validation
 // returns a structured error when shared hot state cannot be read.
 func TestCoordinationStoreRedisReadFailureFailClosed(t *testing.T) {
-	ctx := context.Background()
-	coordSvc := coordination.NewMemory(nil)
-	writer := NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), time.Hour)
-	tokenID := uniqueSessionTestToken("coord-fail-closed")
+	var (
+		ctx      = context.Background()
+		coordSvc = coordination.NewMemory(nil)
+		writer   = NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), time.Hour)
+		tokenID  = uniqueSessionTestToken("coord-fail-closed")
+	)
 
 	t.Cleanup(func() {
 		cleanupSessionTestToken(t, ctx, tokenID)
@@ -251,11 +263,13 @@ func TestCoordinationStoreRedisReadFailureFailClosed(t *testing.T) {
 // TestCoordinationStoreCleanupInactiveKeepsProjectionCleanup verifies the
 // PostgreSQL projection cleanup path is retained with coordination hot state.
 func TestCoordinationStoreCleanupInactiveKeepsProjectionCleanup(t *testing.T) {
-	ctx := context.Background()
-	coordSvc := coordination.NewMemory(nil)
-	store := NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), time.Hour)
-	tokenID := uniqueSessionTestToken("coord-cleanup")
-	stale := time.Now().Add(-2 * time.Hour)
+	var (
+		ctx      = context.Background()
+		coordSvc = coordination.NewMemory(nil)
+		store    = NewCoordinationStoreWithDefaultTTL(coordSvc, NewDBStore(), time.Hour)
+		tokenID  = uniqueSessionTestToken("coord-cleanup")
+		stale    = time.Now().Add(-2 * time.Hour)
+	)
 
 	t.Cleanup(func() {
 		cleanupSessionTestToken(t, ctx, tokenID)

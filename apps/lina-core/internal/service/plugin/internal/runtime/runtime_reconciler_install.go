@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // applyInstall performs the first activation of a discovered dynamic plugin,
@@ -60,15 +61,15 @@ func (s *serviceImpl) applyInstall(
 		}
 	}
 
-	enabled := plugintypes.StatusDisabled
+	enabled := statusflag.Disabled.Int()
 	if desiredState == plugintypes.HostStateEnabled.String() {
-		enabled = plugintypes.StatusEnabled
+		enabled = statusflag.EnabledValue.Int()
 	}
-	registry, err = s.finalizeState(ctx, registry, manifest, release, plugintypes.InstalledYes, enabled)
+	registry, err = s.finalizeState(ctx, registry, manifest, release, statusflag.Installed.Int(), enabled)
 	if err != nil {
 		return s.rollbackInstallOrUpgrade(ctx, registry, nil, manifest, release.Id, err)
 	}
-	if err = s.storeSvc.UpdateReleaseState(ctx, release.Id, plugintypes.BuildReleaseStatus(plugintypes.InstalledYes, enabled), archivedPath); err != nil {
+	if err = s.storeSvc.UpdateReleaseState(ctx, release.Id, plugintypes.BuildReleaseStatus(statusflag.Installed.Int(), enabled), archivedPath); err != nil {
 		return err
 	}
 	s.cleanupStaleReleaseArtifacts(ctx, manifest.ID)
@@ -78,7 +79,7 @@ func (s *serviceImpl) applyInstall(
 	if err = s.syncPluginResourceReferences(ctx, manifest); err != nil {
 		return err
 	}
-	if enabled == plugintypes.StatusEnabled {
+	if enabled == statusflag.EnabledValue.Int() {
 		s.invalidateRuntimeCaches(ctx, manifest, runtimeChangeReasonPluginInstalled)
 	}
 	if err = s.notifyRuntimeCacheChanged(ctx, manifest, runtimeChangeReasonPluginInstalled); err != nil {
@@ -98,7 +99,7 @@ func (s *serviceImpl) applyInstall(
 	); err != nil {
 		return err
 	}
-	if enabled == plugintypes.StatusEnabled {
+	if enabled == statusflag.EnabledValue.Int() {
 		if err = s.dispatchHookEvent(
 			ctx,
 			pluginhost.ExtensionPointPluginEnabled,

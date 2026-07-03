@@ -27,10 +27,10 @@ func (s *serviceImpl) attachPluginLifecycleObserver() {
 	}
 
 	s.pluginObserverOnce.Do(func() {
-		if s.pluginObservers == nil {
+		if s.pluginSvc == nil {
 			return
 		}
-		s.pluginObservers.RegisterLifecycleObserver(&pluginLifecycleSyncObserver{svc: s})
+		s.pluginSvc.RegisterLifecycleObserver(&pluginLifecycleSyncObserver{svc: s})
 	})
 }
 

@@ -1,0 +1,168 @@
+// This file verifies static HostConfig capability reads are implemented by the
+// plugin host internals and do not require implementation code in hostconfigcap.
+
+package hostconfig
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/gogf/gf/v2/container/gvar"
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gcfg"
+
+	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/capmodel"
+	capabilityhostconfigcap "lina-core/pkg/plugin/capability/hostconfigcap"
+)
+
+// TestHostConfigReadsAnyNonRootHostConfigKey verifies source plugins can read
+// host config keys that are not present in a public-key allowlist.
+func TestHostConfigReadsAnyNonRootHostConfigKey(t *testing.T) {
+	setTestHostConfigAdapter(t, `
+database:
+  default:
+    link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+plugin:
+  dynamic:
+    storagePath: "temp/dynamic"
+`)
+
+	svc := NewStaticCapabilityAdapter(testRawHostConfigReader{})
+	ctx := context.Background()
+
+	link, err := svc.String(ctx, "database.default.link", "")
+	if err != nil {
+		t.Fatalf("read database.default.link: %v", err)
+	}
+	if link != "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable" {
+		t.Fatalf("expected database.default.link to be readable, got %q", link)
+	}
+
+	path, err := svc.String(ctx, "plugin.dynamic.storagePath", "")
+	if err != nil {
+		t.Fatalf("read plugin.dynamic.storagePath: %v", err)
+	}
+	if path != "temp/dynamic" {
+		t.Fatalf("expected plugin.dynamic.storagePath to be readable, got %q", path)
+	}
+}
+
+// TestHostConfigMissingKeyReturnsAbsent verifies unknown keys are treated as
+// absent instead of being rejected as non-public.
+func TestHostConfigMissingKeyReturnsAbsent(t *testing.T) {
+	setTestHostConfigAdapter(t, `
+workspace:
+  basePath: "/admin"
+`)
+
+	svc := NewStaticCapabilityAdapter(testRawHostConfigReader{})
+	found, err := svc.Exists(context.Background(), "database.default.link")
+	if err != nil {
+		t.Fatalf("check missing host config key: %v", err)
+	}
+	if found {
+		t.Fatal("expected missing host config key to report absent")
+	}
+}
+
+// TestHostConfigMissingKeyUsesRawGetDefault verifies raw Get can provide a
+// caller default without changing the typed helper fallback contract.
+func TestHostConfigMissingKeyUsesRawGetDefault(t *testing.T) {
+	setTestHostConfigAdapter(t, `
+workspace:
+  basePath: "/admin"
+`)
+
+	svc := NewStaticCapabilityAdapter(testRawHostConfigReader{})
+	value, err := svc.Get(context.Background(), "custom.feature.limit", 10)
+	if err != nil {
+		t.Fatalf("read missing host config key with default: %v", err)
+	}
+	if value == nil || value.Int() != 10 {
+		t.Fatalf("expected default host config value 10, got %#v", value)
+	}
+
+	existing, err := svc.Get(context.Background(), "workspace.basePath", "fallback")
+	if err != nil {
+		t.Fatalf("read existing host config key with default: %v", err)
+	}
+	if existing.String() != "/admin" {
+		t.Fatalf("expected existing host config value to win, got %q", existing.String())
+	}
+}
+
+// TestHostConfigAllowsRootReads verifies source plugins can read the host
+// config root when they explicitly ask for it.
+func TestHostConfigAllowsRootReads(t *testing.T) {
+	setTestHostConfigAdapter(t, `
+workspace:
+  basePath: "/admin"
+`)
+
+	svc := NewStaticCapabilityAdapter(testRawHostConfigReader{})
+	value, err := svc.Get(context.Background(), ".", nil)
+	if err != nil {
+		t.Fatalf("read host config root: %v", err)
+	}
+	if value == nil || value.IsNil() {
+		t.Fatal("expected host config root to be readable")
+	}
+
+	root := value.MapStrAny()
+	workspace, ok := root["workspace"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected workspace section in root config, got %#v", root["workspace"])
+	}
+	if workspace["basePath"] != "/admin" {
+		t.Fatalf("expected workspace.basePath in root config, got %#v", workspace["basePath"])
+	}
+}
+
+// TestHostConfigRequiresInjectedRawReader verifies HostConfig uses the
+// startup-injected host config service instead of silently constructing one.
+func TestHostConfigRequiresInjectedRawReader(t *testing.T) {
+	svc := NewStaticCapabilityAdapter(nil)
+
+	if _, err := svc.Get(context.Background(), "workspace.basePath", nil); err == nil ||
+		!strings.Contains(err.Error(), "not configured") {
+		t.Fatalf("expected missing host config service to fail explicitly, got %v", err)
+	}
+}
+
+// TestStaticHostConfigSysConfigGetUnavailable verifies the static host-config
+// adapter reports missing sys_config backend consistently for single reads.
+func TestStaticHostConfigSysConfigGetUnavailable(t *testing.T) {
+	svc := NewStaticCapabilityAdapter(testRawHostConfigReader{})
+
+	_, err := svc.SysConfig().Get(context.Background(), capabilityhostconfigcap.SysConfigKey("workspace.basePath"))
+	if !bizerr.Is(err, capmodel.CodeCapabilityUnavailable) {
+		t.Fatalf("expected sys_config unavailable error, got %v", err)
+	}
+}
+
+// setTestHostConfigAdapter swaps the process config adapter for one test case
+// and restores the original adapter afterward.
+func setTestHostConfigAdapter(t *testing.T, content string) {
+	t.Helper()
+
+	adapter, err := gcfg.NewAdapterContent(content)
+	if err != nil {
+		t.Fatalf("create content adapter: %v", err)
+	}
+
+	originalAdapter := g.Cfg().GetAdapter()
+	g.Cfg().SetAdapter(adapter)
+	t.Cleanup(func() {
+		g.Cfg().SetAdapter(originalAdapter)
+	})
+}
+
+// testRawHostConfigReader reads from the test-scoped GoFrame config adapter.
+type testRawHostConfigReader struct{}
+
+// GetRaw returns one raw test config value through the active GoFrame adapter.
+func (testRawHostConfigReader) GetRaw(ctx context.Context, key string) (*gvar.Var, error) {
+	return g.Cfg().Get(ctx, key)
+}

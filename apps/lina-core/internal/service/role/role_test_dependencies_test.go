@@ -16,18 +16,18 @@ import (
 
 // newRoleTestService constructs a role service with explicit test dependencies,
 // including the shared data-scope service required by role user operations.
-func newRoleTestService(permissionFilter PermissionMenuFilter, organizationState OrganizationCapabilityState) *serviceImpl {
+func newRoleTestService(permissionFilter permissionMenuFilter, orgCapSvc orgcap.Service) *serviceImpl {
 	var (
-		bizCtxSvc = bizctx.New()
-		configSvc = hostconfig.New()
-		i18nSvc   = i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
-		orgCapSvc = orgspi.New(nil, nil)
-		tenantSvc = tenantspi.New(nil, nil, nil)
+		bizCtxSvc        = bizctx.New()
+		configSvc        = hostconfig.New()
+		i18nSvc          = i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
+		defaultOrgCapSvc = orgspi.New(nil, nil, nil)
+		tenantSvc        = tenantspi.New(nil, nil, nil, nil)
 	)
-	if organizationState == nil {
-		organizationState = orgCapSvc
+	if orgCapSvc == nil {
+		orgCapSvc = defaultOrgCapSvc
 	}
-	svc := New(permissionFilter, bizCtxSvc, configSvc, i18nSvc, organizationState, tenantSvc).(*serviceImpl)
+	svc := New(permissionFilter, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc).(*serviceImpl)
 	refreshRoleTestScope(svc, orgCapSvc)
 	return svc
 }

@@ -101,9 +101,11 @@ func ResolveProvider(
 // ProviderStatuses returns active and availability snapshots for the built-in
 // local provider plus plugin-registered providers.
 func ProviderStatuses(ctx context.Context, runtime ProviderRuntime, localProvider Provider) []*ProviderStatus {
-	activeIDs := activeProviderPluginIDs(ctx, runtime)
-	activeID := ""
-	conflict := len(activeIDs) > 1
+	var (
+		activeIDs = activeProviderPluginIDs(ctx, runtime)
+		activeID  = ""
+		conflict  = len(activeIDs) > 1
+	)
 	if len(activeIDs) == 1 {
 		activeID = activeIDs[0]
 	} else if len(activeIDs) == 0 && localProvider != nil {

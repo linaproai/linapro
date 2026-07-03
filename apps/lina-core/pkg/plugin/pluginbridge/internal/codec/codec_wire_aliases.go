@@ -3,8 +3,6 @@
 package codec
 
 import (
-	"google.golang.org/protobuf/encoding/protowire"
-
 	"lina-core/pkg/plugin/pluginbridge/internal/wire"
 )
 
@@ -25,7 +23,3 @@ var (
 func EncodeBodyBase64(body []byte) string {
 	return wire.EncodeBodyBase64(body)
 }
-
-// wireFieldNumber keeps protowire imported for documentation tooling in this
-// alias file while concrete codecs continue to use protowire directly.
-type wireFieldNumber = protowire.Number

@@ -31,22 +31,24 @@ func TestHostServiceDescriptorsCoverProtocolGuestAndDispatcher(t *testing.T) {
 	}
 	wasmDir := filepath.Join(root, "internal/service/plugin/internal/wasm")
 
-	protocolConsts := declaredConstNames(t, protocolDir)
-	protocolTypes := declaredTypeNames(t, protocolDir)
-	protocolValues := declaredValueNames(t, protocolDir)
+	var (
+		protocolConsts = declaredConstNames(t, protocolDir)
+		protocolTypes  = declaredTypeNames(t, protocolDir)
+		protocolValues = declaredValueNames(t, protocolDir)
+	)
 	for name := range declaredFuncNames(t, protocolDir) {
 		protocolValues[name] = struct{}{}
 	}
 	guestSelectors := selectorNames(t, guestDirs...)
 	dispatcherSelectors := selectorNames(t, wasmDir)
-	expectedGuestSelectors := descriptorMethodConstSet(func(descriptor HostServiceMethodDescriptor) bool {
+	expectedGuestSelectors := descriptorMethodConstSet(func(descriptor hostServiceMethodDescriptor) bool {
 		return descriptor.Published && descriptor.GuestClient
 	})
-	expectedDispatcherSelectors := descriptorMethodConstSet(func(descriptor HostServiceMethodDescriptor) bool {
+	expectedDispatcherSelectors := descriptorMethodConstSet(func(descriptor hostServiceMethodDescriptor) bool {
 		return descriptor.Published && descriptor.Dispatcher
 	})
 
-	for _, descriptor := range HostServiceMethodDescriptors() {
+	for _, descriptor := range hostServiceMethodDescriptors() {
 		if !descriptor.Published {
 			continue
 		}
@@ -103,9 +105,11 @@ func TestProtocolHostServiceCodecsOwnPayloadImplementation(t *testing.T) {
 // non-WASI mirror stubs. RecordStore keeps its separate executor files because
 // they implement query-plan execution rather than a mirrored host-service client.
 func TestHostServiceDescriptorsHaveNoPerDomainGuestStubs(t *testing.T) {
-	root := repoRootForDescriptorTest(t)
-	dataStubFuncs := declaredFuncNamesForBuildTag(t, filepath.Join(root, "pkg/plugin/pluginbridge/recordstore"), "!wasip1")
-	guestDir := filepath.Join(root, "pkg/plugin/pluginbridge")
+	var (
+		root          = repoRootForDescriptorTest(t)
+		dataStubFuncs = declaredFuncNamesForBuildTag(t, filepath.Join(root, "pkg/plugin/pluginbridge/recordstore"), "!wasip1")
+		guestDir      = filepath.Join(root, "pkg/plugin/pluginbridge")
+	)
 	for _, filePath := range productionGoFilesInDir(t, guestDir) {
 		name := filepath.Base(filePath)
 		if strings.HasPrefix(name, "pluginbridge_hostcall_") &&
@@ -151,12 +155,12 @@ func TestHostServiceDescriptorsHaveNoPerDomainGuestStubs(t *testing.T) {
 	}
 }
 
-// TestHostServiceDescriptorCapabilitySource verifies capability and resource
+// TestHostServiceDescriptorCapabilityMetadata verifies capability and resource
 // metadata are derived from the descriptor table without duplicate service
 // method entries.
-func TestHostServiceDescriptorCapabilitySource(t *testing.T) {
+func TestHostServiceDescriptorCapabilityMetadata(t *testing.T) {
 	seen := make(map[string]struct{})
-	for _, descriptor := range HostServiceMethodDescriptors() {
+	for _, descriptor := range hostServiceMethodDescriptors() {
 		key := descriptor.Service + "." + descriptor.Method
 		if descriptor.Service == "" || descriptor.Method == "" || descriptor.Capability == "" {
 			t.Fatalf("host service descriptor has incomplete identity: %#v", descriptor)
@@ -165,6 +169,12 @@ func TestHostServiceDescriptorCapabilitySource(t *testing.T) {
 			t.Fatalf("host service descriptor is duplicated: %s", key)
 		}
 		seen[key] = struct{}{}
+		if !descriptor.Published {
+			if got := RequiredCapabilityForHostServiceMethod(descriptor.Service, descriptor.Method); got != "" {
+				t.Fatalf("reserved descriptor %s must not be declared at runtime, got capability %s", key, got)
+			}
+			continue
+		}
 		if got := RequiredCapabilityForHostServiceMethod(descriptor.Service, descriptor.Method); got != descriptor.Capability {
 			t.Fatalf("descriptor %s expects capability %s, got %s", key, descriptor.Capability, got)
 		}
@@ -174,10 +184,10 @@ func TestHostServiceDescriptorCapabilitySource(t *testing.T) {
 // TestHostServiceDescriptorsUsePublicCatalog verifies internal descriptor
 // governance is derived from the public protocol host-service catalog.
 func TestHostServiceDescriptorsUsePublicCatalog(t *testing.T) {
-	if !reflect.DeepEqual(HostServiceDescriptors(), hostservices.Catalog()) {
+	if !reflect.DeepEqual(hostServiceDescriptors(), hostservices.Catalog()) {
 		t.Fatal("internal host service descriptors must be derived from protocol/hostservices catalog")
 	}
-	if !reflect.DeepEqual(HostServiceMethodDescriptors(), hostservices.Methods()) {
+	if !reflect.DeepEqual(hostServiceMethodDescriptors(), hostservices.Methods()) {
 		t.Fatal("internal host service method descriptors must be derived from protocol/hostservices catalog")
 	}
 }
@@ -197,19 +207,21 @@ func TestHostServiceReadmeGeneratedBlocksMatchCatalog(t *testing.T) {
 			file:          "README.md",
 			noneLabel:     "None",
 			header:        "| Service | Resource declaration | Derived capability | Methods |",
-			notifications: "None for reads; `messages.send` uses `resources[].ref`",
+			notifications: "None except `messages.send`, which uses `resources[].ref`",
 		},
 		{
 			file:          "README.zh-CN.md",
 			noneLabel:     "无",
 			header:        "| Service | 资源声明 | 派生能力 | Methods |",
-			notifications: "读取无资源；`messages.send`使用`resources[].ref`",
+			notifications: "除`messages.send`使用`resources[].ref`外无需资源声明",
 		},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
-			path := filepath.Join(readmeDir, tc.file)
-			actual := extractGeneratedHostServicesBlock(t, path)
-			expected := renderReadmeHostServicesBlock(tc.noneLabel, tc.header, tc.notifications)
+			var (
+				path     = filepath.Join(readmeDir, tc.file)
+				actual   = extractGeneratedHostServicesBlock(t, path)
+				expected = renderReadmeHostServicesBlock(tc.noneLabel, tc.header, tc.notifications)
+			)
 			if actual != expected {
 				t.Fatalf("%s generated host-services block is stale\nexpected:\n%s\nactual:\n%s", path, expected, actual)
 			}
@@ -303,7 +315,7 @@ func TestDomainCapabilityBoundaryGovernance(t *testing.T) {
 		}
 	}
 
-	for _, descriptor := range HostServiceDescriptors() {
+	for _, descriptor := range hostServiceDescriptors() {
 		capDir := capabilityContractDirForHostService(root, descriptor.Service)
 		if capDir == "" {
 			continue
@@ -323,9 +335,6 @@ func capabilityContractDirForHostService(root string, service string) string {
 		HostServiceData,
 		HostServiceCache,
 		HostServiceLock,
-		HostServiceSecret,
-		HostServiceEvent,
-		HostServiceQueue,
 		HostServiceHostConfig,
 		HostServiceManifest:
 		return ""
@@ -333,8 +342,6 @@ func capabilityContractDirForHostService(root string, service string) string {
 		return filepath.Join(capabilityRoot, "apidoccap")
 	case HostServiceAuth:
 		return filepath.Join(capabilityRoot, "authcap")
-	case HostServiceAuthz:
-		return filepath.Join(capabilityRoot, "authcap/authz")
 	case HostServiceUsers:
 		return filepath.Join(capabilityRoot, "usercap")
 	case HostServiceBizCtx:
@@ -377,9 +384,9 @@ func assertPayloadAliases(
 	}
 }
 
-func descriptorMethodConstSet(match func(HostServiceMethodDescriptor) bool) map[string]struct{} {
+func descriptorMethodConstSet(match func(hostServiceMethodDescriptor) bool) map[string]struct{} {
 	result := make(map[string]struct{})
-	for _, descriptor := range HostServiceMethodDescriptors() {
+	for _, descriptor := range hostServiceMethodDescriptors() {
 		if descriptor.MethodConst == "" || !match(descriptor) {
 			continue
 		}
@@ -390,7 +397,7 @@ func descriptorMethodConstSet(match func(HostServiceMethodDescriptor) bool) map[
 
 func descriptorDispatcherServices() map[string]struct{} {
 	result := make(map[string]struct{})
-	for _, descriptor := range HostServiceMethodDescriptors() {
+	for _, descriptor := range hostServiceMethodDescriptors() {
 		if descriptor.Dispatcher {
 			result[descriptor.Service] = struct{}{}
 		}
@@ -690,17 +697,6 @@ func hostServiceConstNameForService(t *testing.T, service string) string {
 	}
 }
 
-func hostServiceByConstName(t *testing.T, constName string) string {
-	t.Helper()
-	for _, descriptor := range HostServiceDescriptors() {
-		if hostServiceConstNameForService(t, descriptor.Service) == constName {
-			return descriptor.Service
-		}
-	}
-	t.Fatalf("unknown host service const selector %s", constName)
-	return ""
-}
-
 func dispatcherFunctionNameForService(t *testing.T, service string) string {
 	t.Helper()
 	switch service {
@@ -720,10 +716,12 @@ func dispatcherFunctionNameForService(t *testing.T, service string) string {
 
 func extractGeneratedHostServicesBlock(t *testing.T, path string) string {
 	t.Helper()
-	content := string(readFileForDescriptorTest(t, path))
-	startMarker := "<!-- BEGIN generated:host-services -->"
-	endMarker := "<!-- END generated:host-services -->"
-	start := strings.Index(content, startMarker)
+	var (
+		content     = string(readFileForDescriptorTest(t, path))
+		startMarker = "<!-- BEGIN generated:host-services -->"
+		endMarker   = "<!-- END generated:host-services -->"
+		start       = strings.Index(content, startMarker)
+	)
 	if start < 0 {
 		t.Fatalf("%s is missing %s", path, startMarker)
 	}
@@ -740,10 +738,12 @@ func renderReadmeHostServicesBlock(noneLabel string, header string, notification
 	builder.WriteString(header)
 	builder.WriteString("\n")
 	builder.WriteString("| --- | --- | --- | --- |\n")
-	for _, descriptor := range HostServiceDescriptors() {
-		methods := make([]string, 0, len(descriptor.Methods))
-		capabilities := make([]string, 0, len(descriptor.Methods))
-		seenCapabilities := make(map[string]struct{})
+	for _, descriptor := range hostServiceDescriptors() {
+		var (
+			methods          = make([]string, 0, len(descriptor.Methods))
+			capabilities     = make([]string, 0, len(descriptor.Methods))
+			seenCapabilities = make(map[string]struct{})
+		)
 		for _, method := range descriptor.Methods {
 			methodName := "`" + method.Method + "`"
 			if !method.Published {
@@ -770,7 +770,7 @@ func renderReadmeHostServicesBlock(noneLabel string, header string, notification
 }
 
 func readmeResourceDeclaration(
-	descriptor HostServiceDescriptor,
+	descriptor hostServiceDescriptor,
 	noneLabel string,
 	notificationsResource string,
 ) string {
@@ -778,15 +778,15 @@ func readmeResourceDeclaration(
 		return notificationsResource
 	}
 	switch descriptor.ResourceKind {
-	case HostServiceResourceNone:
+	case hostServiceResourceNone:
 		return noneLabel
-	case HostServiceResourcePath:
+	case hostServiceResourcePath:
 		return "`resources.paths`"
-	case HostServiceResourceTable:
+	case hostServiceResourceTable:
 		return "`resources.tables`"
-	case HostServiceResourceKey:
+	case hostServiceResourceKey:
 		return "`resources.keys`"
-	case HostServiceResourceRef:
+	case hostServiceResourceRef:
 		if descriptor.Service == HostServiceNetwork {
 			return "`resources[].url`"
 		}

@@ -429,9 +429,11 @@ func sanitizeAIHostServiceError(err error) string {
 	if err == nil {
 		return ""
 	}
-	message := err.Error()
-	replacements := []string{"authorization", "api-key", "apikey", "bearer", "sk-"}
-	lower := strings.ToLower(message)
+	var (
+		message      = err.Error()
+		replacements = []string{"authorization", "api-key", "apikey", "bearer", "sk-"}
+		lower        = strings.ToLower(message)
+	)
 	for _, marker := range replacements {
 		if strings.Contains(lower, marker) {
 			return "ai text generation failed with a redacted provider or authorization error"

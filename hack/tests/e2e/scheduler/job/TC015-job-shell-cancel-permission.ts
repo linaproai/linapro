@@ -40,10 +40,10 @@ test.describe('TC-15 Shell 终止权限校验', () => {
 
   test.beforeAll(async () => {
     adminApi = await createAdminApiContext();
-    originalShellSwitch = await getConfigByKey(adminApi, 'cron.shell.enabled');
+    originalShellSwitch = await getConfigByKey(adminApi, 'sys.cron.shell.enabled');
     await setCronShellEnabled(adminApi, true);
     await expect
-      .poll(async () => (await getConfigByKey(adminApi, 'cron.shell.enabled')).value)
+      .poll(async () => (await getConfigByKey(adminApi, 'sys.cron.shell.enabled')).value)
       .toBe('true');
 
     const menuIds = await getMenuIdsByPerms(adminApi, ['system:joblog:cancel']);

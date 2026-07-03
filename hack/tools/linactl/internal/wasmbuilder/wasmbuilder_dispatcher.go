@@ -24,9 +24,6 @@ const (
 	// generatedDispatcherFileName is the temporary backend package file
 	// injected during dynamic guest runtime builds.
 	generatedDispatcherFileName = "zz_generated_wasm_dispatcher.go"
-	// generatedDispatcherPackageName is the package that owns dynamic plugin
-	// route registration and request handling.
-	generatedDispatcherPackageName = "backend"
 )
 
 // prepareGeneratedWasmDispatcher writes the temporary generated dispatcher and
@@ -520,9 +517,11 @@ func buildWasmDTOTypeExpr(apiPackage string, requestType string) string {
 
 // buildWasmDTOImportAlias returns the import alias for one DTO package.
 func buildWasmDTOImportAlias(apiPackage string) string {
-	normalizedPackage := normalizeAPIPackagePath(apiPackage)
-	segments := strings.Split(normalizedPackage, "/")
-	alias := "dto"
+	var (
+		normalizedPackage = normalizeAPIPackagePath(apiPackage)
+		segments          = strings.Split(normalizedPackage, "/")
+		alias             = "dto"
+	)
 	if len(segments) > 0 {
 		alias = segments[len(segments)-1]
 	}
@@ -606,9 +605,11 @@ func discoverWasmCallbackDispatcherSpecs(
 	lifecycleHandlers []*wasmLifecycleHandlerSpec,
 	dtoPackages map[string]string,
 ) ([]*wasmCallbackHandlerSpec, error) {
-	backendDir := filepath.Join(pluginDir, "backend")
-	controllerDir := filepath.Join(backendDir, "internal", "controller")
-	knownRequestTypes := make(map[string]struct{})
+	var (
+		backendDir        = filepath.Join(pluginDir, "backend")
+		controllerDir     = filepath.Join(backendDir, "internal", "controller")
+		knownRequestTypes = make(map[string]struct{})
+	)
 	for _, route := range routeHandlers {
 		if route != nil {
 			knownRequestTypes[route.RequestType] = struct{}{}
@@ -898,7 +899,7 @@ func writeWasmDispatchByRequestType(builder *strings.Builder, spec *wasmDispatch
 		builder.WriteString("\t\treturn response, err, true\n")
 	}
 	builder.WriteString("\tdefault:\n")
-	builder.WriteString("\t\treturn nil, nil, false\n")
+	builder.WriteString(fmt.Sprintf("\t\treturn %s, %s, false\n", "nil", "nil"))
 	builder.WriteString("\t}\n")
 	builder.WriteString("}\n\n")
 }
@@ -1113,10 +1114,12 @@ func generatedWasmQueryValues(request *protocol.BridgeRequestEnvelopeV1) map[str
 }
 
 func matchGeneratedWasmRoute(routePath string, actualPath string) bool {
-	normalizedRoute := normalizeGeneratedWasmRoutePath(routePath)
-	normalizedActual := normalizeGeneratedWasmRoutePath(actualPath)
-	routeSegments := strings.Split(strings.TrimPrefix(normalizedRoute, "/"), "/")
-	actualSegments := strings.Split(strings.TrimPrefix(normalizedActual, "/"), "/")
+	var (
+		normalizedRoute = normalizeGeneratedWasmRoutePath(routePath)
+		normalizedActual = normalizeGeneratedWasmRoutePath(actualPath)
+		routeSegments = strings.Split(strings.TrimPrefix(normalizedRoute, "/"), "/")
+		actualSegments = strings.Split(strings.TrimPrefix(normalizedActual, "/"), "/")
+	)
 	if normalizedRoute == "/" || normalizedRoute == "" {
 		routeSegments = []string{}
 	}

@@ -4,12 +4,12 @@ package testutil
 
 import (
 	"encoding/json"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -203,13 +203,13 @@ func normalizeTestArtifactManifest(manifest *catalog.ArtifactManifest) {
 		return
 	}
 	if manifest.ScopeNature == "" {
-		manifest.ScopeNature = plugintypes.ScopeNatureTenantAware.String()
+		manifest.ScopeNature = pluginv1.ScopeNatureTenantAware.String()
 	}
 	if manifest.SupportsMultiTenant == nil {
 		manifest.SupportsMultiTenant = &DefaultTestSupportsMultiTenant
 	}
 	if manifest.DefaultInstallMode == "" {
-		manifest.DefaultInstallMode = plugintypes.InstallModeTenantScoped.String()
+		manifest.DefaultInstallMode = pluginv1.InstallModeTenantScoped.String()
 	}
 }
 

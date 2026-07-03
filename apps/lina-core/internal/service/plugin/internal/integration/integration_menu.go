@@ -33,7 +33,7 @@ const (
 
 // SyncPluginMenusAndPermissions reconciles all manifest menus and dynamic route permission
 // entries into sys_menu.
-// It implements runtime.MenuManager and catalog.MenuSyncer.
+// It implements runtime.IntegrationService and catalog.MenuSyncer.
 func (s *serviceImpl) SyncPluginMenusAndPermissions(ctx context.Context, manifest *catalog.Manifest) error {
 	if manifest == nil {
 		return nil
@@ -57,7 +57,7 @@ func (s *serviceImpl) SyncPluginMenusAndPermissions(ctx context.Context, manifes
 
 // SyncPluginMenus reconciles only the manifest-declared menus, skipping route-permission entries.
 // Used during reconciler rollback to restore the previous menu state without touching permissions.
-// It implements runtime.MenuManager.
+// It implements runtime.IntegrationService.
 func (s *serviceImpl) SyncPluginMenus(ctx context.Context, manifest *catalog.Manifest) error {
 	if manifest == nil {
 		return nil
@@ -77,7 +77,7 @@ func (s *serviceImpl) SyncPluginMenus(ctx context.Context, manifest *catalog.Man
 }
 
 // DeletePluginMenusByManifest removes all plugin-owned menu rows for the given manifest.
-// It implements runtime.MenuManager.
+// It implements runtime.IntegrationService.
 func (s *serviceImpl) DeletePluginMenusByManifest(ctx context.Context, manifest *catalog.Manifest) error {
 	if manifest == nil {
 		return nil
@@ -310,10 +310,12 @@ func (s *serviceImpl) syncDynamicRoutePermissionMenus(ctx context.Context, manif
 		return err
 	}
 
-	resolvedIDs := make(map[string]int, len(permissionMenus))
-	desiredKeys := make(map[string]struct{}, len(permissionMenus))
-	staleKeys := make([]string, 0)
-	existingByKey := make(map[string]*entity.SysMenu, len(existingMenus))
+	var (
+		resolvedIDs   = make(map[string]int, len(permissionMenus))
+		desiredKeys   = make(map[string]struct{}, len(permissionMenus))
+		staleKeys     = make([]string, 0)
+		existingByKey = make(map[string]*entity.SysMenu, len(existingMenus))
+	)
 	for _, menu := range existingMenus {
 		if menu == nil {
 			continue
@@ -350,9 +352,11 @@ func (s *serviceImpl) buildDynamicRoutePermissionMenuSpecs(manifest *catalog.Man
 		return []*catalog.MenuSpec{}
 	}
 
-	items := make([]*catalog.MenuSpec, 0)
-	seen := make(map[string]struct{})
-	parentKey := dynamicRoutePermissionParentKey(manifest)
+	var (
+		items     = make([]*catalog.MenuSpec, 0)
+		seen      = make(map[string]struct{})
+		parentKey = dynamicRoutePermissionParentKey(manifest)
+	)
 	for _, route := range manifest.Routes {
 		if route == nil || strings.TrimSpace(route.Permission) == "" {
 			continue
@@ -461,9 +465,11 @@ func (s *serviceImpl) listDeclaredPluginMenuKeys(manifest *catalog.Manifest) map
 // listPluginMenuExternalParents resolves manifest parent_key values that point
 // at menus owned outside the current plugin.
 func (s *serviceImpl) listPluginMenuExternalParents(ctx context.Context, manifest *catalog.Manifest) (map[string]*entity.SysMenu, error) {
-	declaredKeys := s.listDeclaredPluginMenuKeys(manifest)
-	parentKeys := make([]string, 0)
-	seen := make(map[string]struct{})
+	var (
+		declaredKeys = s.listDeclaredPluginMenuKeys(manifest)
+		parentKeys   = make([]string, 0)
+		seen         = make(map[string]struct{})
+	)
 	for _, spec := range manifest.Menus {
 		if spec == nil || spec.ParentKey == "" {
 			continue
@@ -672,14 +678,16 @@ func (s *serviceImpl) listPluginMenusByPlugin(ctx context.Context, pluginID stri
 		return snapshot.pluginMenus(pluginID), nil
 	}
 
-	pattern := fmt.Sprintf("%s%s:%%", plugintypes.MenuKeyPrefix, strings.TrimSpace(pluginID))
-	cols := dao.SysMenu.Columns()
-	items := make([]*entity.SysMenu, 0)
-	err := dao.SysMenu.Ctx(ctx).
-		Unscoped().
-		WhereLike(cols.MenuKey, pattern).
-		OrderAsc(cols.Id).
-		Scan(&items)
+	var (
+		pattern = fmt.Sprintf("%s%s:%%", plugintypes.MenuKeyPrefix, strings.TrimSpace(pluginID))
+		cols    = dao.SysMenu.Columns()
+		items   = make([]*entity.SysMenu, 0)
+		err     = dao.SysMenu.Ctx(ctx).
+			Unscoped().
+			WhereLike(cols.MenuKey, pattern).
+			OrderAsc(cols.Id).
+			Scan(&items)
+	)
 	return items, err
 }
 

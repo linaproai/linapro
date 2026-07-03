@@ -29,20 +29,20 @@ import (
 
 const (
 	multiProcessTestTimeout       = 90 * time.Second
-	multiProcessHealthWait        = 30 * time.Second
+	multiProcessDiagnosticsWait   = 30 * time.Second
 	multiProcessLeaderWait        = 15 * time.Second
 	multiProcessElectionLease     = "2s"
 	multiProcessElectionRenew     = "300ms"
 	multiProcessSessionToken      = "cluster-multiprocess-session"
-	multiProcessKVOwnerType       = "module"
-	multiProcessKVOwnerKey        = "cluster-multiprocess"
-	multiProcessKVNamespace       = "e2e"
-	multiProcessKVKey             = "shared"
 	multiProcessSentinelLockName  = "cluster-multiprocess-sentinel"
 	multiProcessBackendBinaryName = "lina-multiprocess-test"
-	multiProcessHealthModeMaster  = "master"
-	multiProcessHealthModeSlave   = "slave"
+	multiProcessModeMaster        = "master"
+	multiProcessModeSlave         = "slave"
 )
+
+// multiProcessTokenCache stores per-process admin tokens used only by this
+// integration test while it polls authenticated system diagnostics.
+var multiProcessTokenCache sync.Map
 
 // TestClusterTwoHostProcessesSharePostgreSQL verifies two real Lina host
 // processes coordinate through one PostgreSQL database instead of process-local
@@ -78,27 +78,29 @@ func TestClusterTwoHostProcessesSharePostgreSQL(t *testing.T) {
 		t.Fatalf("seed volatile sentinel rows failed: %v", err)
 	}
 
-	binaryPath := buildClusterHostBinary(t)
-	processA := startClusterHostProcess(t, ctx, binaryPath, configDirA, "cluster-node-a")
-	processB := startClusterHostProcess(t, ctx, binaryPath, configDirB, "cluster-node-b")
+	var (
+		binaryPath = buildClusterHostBinary(t)
+		processA   = startClusterHostProcess(t, ctx, binaryPath, configDirA, "cluster-node-a")
+		processB   = startClusterHostProcess(t, ctx, binaryPath, configDirB, "cluster-node-b")
+	)
 	t.Cleanup(func() {
 		processA.stop(t)
 		processB.stop(t)
 	})
 
-	waitForProcessMode(t, processA, configDirA, multiProcessHealthModeMaster, multiProcessHealthModeSlave)
-	waitForProcessMode(t, processB, configDirB, multiProcessHealthModeMaster, multiProcessHealthModeSlave)
+	waitForProcessMode(t, processA, configDirA, multiProcessModeMaster, multiProcessModeSlave)
+	waitForProcessMode(t, processB, configDirB, multiProcessModeMaster, multiProcessModeSlave)
 	assertExactlyOneLeaderMode(t, configDirA, configDirB)
 	assertVolatileSentinelsExist(t, targetLink)
 
 	leader := processA
 	followerConfig := configDirB
-	if healthMode(t, configDirB) == multiProcessHealthModeMaster {
+	if processMode(t, configDirB) == multiProcessModeMaster {
 		leader = processB
 		followerConfig = configDirA
 	}
 	leader.stop(t)
-	waitForSpecificProcessMode(t, followerConfig, multiProcessHealthModeMaster)
+	waitForSpecificProcessMode(t, followerConfig, multiProcessModeMaster)
 	assertVolatileSentinelsExist(t, targetLink)
 }
 
@@ -287,21 +289,6 @@ func seedVolatileSentinels(ctx context.Context, link string) (err error) {
 	); err != nil {
 		return fmt.Errorf("insert locker sentinel failed: %w", err)
 	}
-	if _, err = db.Exec(
-		ctx,
-		`INSERT INTO sys_kv_cache (owner_type, owner_key, namespace, cache_key, value_kind, value_bytes, expire_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
-		 ON CONFLICT DO NOTHING`,
-		multiProcessKVOwnerType,
-		multiProcessKVOwnerKey,
-		multiProcessKVNamespace,
-		multiProcessKVKey,
-		1,
-		[]byte("value"),
-		future,
-	); err != nil {
-		return fmt.Errorf("insert kv cache sentinel failed: %w", err)
-	}
 	return nil
 }
 
@@ -335,14 +322,6 @@ func assertVolatileSentinelsExist(t *testing.T, link string) {
 	}
 	assertCount("online session", "SELECT COUNT(*) FROM sys_online_session WHERE token_id=$1", multiProcessSessionToken)
 	assertCount("locker", "SELECT COUNT(*) FROM sys_locker WHERE name=$1", multiProcessSentinelLockName)
-	assertCount(
-		"kv cache",
-		"SELECT COUNT(*) FROM sys_kv_cache WHERE owner_type=$1 AND owner_key=$2 AND namespace=$3 AND cache_key=$4",
-		multiProcessKVOwnerType,
-		multiProcessKVOwnerKey,
-		multiProcessKVNamespace,
-		multiProcessKVKey,
-	)
 }
 
 // buildClusterHostBinary builds the host binary once for both process starts.
@@ -422,12 +401,12 @@ func copyProcessOutput(buffer *lockedOutputBuffer, reader io.Reader) {
 func waitForProcessMode(t *testing.T, process *clusterProcess, configDir string, acceptedModes ...string) {
 	t.Helper()
 
-	deadline := time.Now().Add(multiProcessHealthWait)
+	deadline := time.Now().Add(multiProcessDiagnosticsWait)
 	for time.Now().Before(deadline) {
 		if err, exited := processExitError(process); exited {
-			t.Fatalf("process at %s exited before reporting modes %v: %v\n%s", healthURL(t, configDir), acceptedModes, err, process.output.String())
+			t.Fatalf("process at %s exited before reporting modes %v: %v\n%s", processBaseURL(t, configDir), acceptedModes, err, process.output.String())
 		}
-		mode := healthMode(t, configDir)
+		mode := processMode(t, configDir)
 		for _, accepted := range acceptedModes {
 			if mode == accepted {
 				return
@@ -435,25 +414,31 @@ func waitForProcessMode(t *testing.T, process *clusterProcess, configDir string,
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	t.Fatalf("process at %s did not report modes %v before timeout\n%s", healthURL(t, configDir), acceptedModes, process.output.String())
+	t.Fatalf("process at %s did not report modes %v before timeout\n%s", processBaseURL(t, configDir), acceptedModes, process.output.String())
 }
 
 // assertExactlyOneLeaderMode verifies the two processes expose one master and
-// one slave health response.
+// one slave system-info response.
 func assertExactlyOneLeaderMode(t *testing.T, configDirA string, configDirB string) {
 	t.Helper()
 
 	deadline := time.Now().Add(multiProcessLeaderWait)
 	for time.Now().Before(deadline) {
-		modeA := healthMode(t, configDirA)
-		modeB := healthMode(t, configDirB)
-		if (modeA == multiProcessHealthModeMaster && modeB == multiProcessHealthModeSlave) ||
-			(modeA == multiProcessHealthModeSlave && modeB == multiProcessHealthModeMaster) {
+		modeA := processMode(t, configDirA)
+		modeB := processMode(t, configDirB)
+		if (modeA == multiProcessModeMaster && modeB == multiProcessModeSlave) ||
+			(modeA == multiProcessModeSlave && modeB == multiProcessModeMaster) {
 			return
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	t.Fatalf("expected exactly one master, got %s=%s and %s=%s", healthURL(t, configDirA), healthMode(t, configDirA), healthURL(t, configDirB), healthMode(t, configDirB))
+	t.Fatalf(
+		"expected exactly one master, got %s=%s and %s=%s",
+		processBaseURL(t, configDirA),
+		processMode(t, configDirA),
+		processBaseURL(t, configDirB),
+		processMode(t, configDirB),
+	)
 }
 
 // waitForSpecificProcessMode waits until one process reports the expected mode.
@@ -462,12 +447,12 @@ func waitForSpecificProcessMode(t *testing.T, configDir string, expectedMode str
 
 	deadline := time.Now().Add(multiProcessLeaderWait)
 	for time.Now().Before(deadline) {
-		if mode := healthMode(t, configDir); mode == expectedMode {
+		if mode := processMode(t, configDir); mode == expectedMode {
 			return
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	t.Fatalf("process at %s did not report %s before timeout; last mode=%s", healthURL(t, configDir), expectedMode, healthMode(t, configDir))
+	t.Fatalf("process at %s did not report %s before timeout; last mode=%s", processBaseURL(t, configDir), expectedMode, processMode(t, configDir))
 }
 
 // processExitError reports whether the started process already exited.
@@ -486,23 +471,89 @@ func processExitError(process *clusterProcess) (error, bool) {
 	}
 }
 
-// healthMode returns one process public health mode.
-func healthMode(t *testing.T, configDir string) string {
+// processMode returns one process cluster mode from authenticated diagnostics.
+func processMode(t *testing.T, configDir string) string {
 	t.Helper()
+
+	baseURL := processBaseURL(t, configDir)
+	token := processAccessToken(t, baseURL)
+	if token == "" {
+		return ""
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL(t, configDir), nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api/v1/system/info", nil)
 	if err != nil {
-		t.Fatalf("build health request failed: %v", err)
+		t.Fatalf("build system-info request failed: %v", err)
 	}
+	request.Header.Set("Authorization", "Bearer "+token)
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return ""
 	}
 	defer func() {
 		if closeErr := response.Body.Close(); closeErr != nil {
-			t.Errorf("close health response failed: %v", closeErr)
+			t.Errorf("close system-info response failed: %v", closeErr)
+		}
+	}()
+	if response.StatusCode != http.StatusOK {
+		if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+			multiProcessTokenCache.Delete(baseURL)
+		}
+		return ""
+	}
+
+	var envelope struct {
+		Data struct {
+			Coordination struct {
+				ClusterEnabled bool `json:"clusterEnabled"`
+				Primary        bool `json:"primary"`
+			} `json:"coordination"`
+		} `json:"data"`
+	}
+	if err = json.NewDecoder(response.Body).Decode(&envelope); err != nil {
+		t.Fatalf("decode system-info response failed: %v", err)
+	}
+	if !envelope.Data.Coordination.ClusterEnabled {
+		return ""
+	}
+	if envelope.Data.Coordination.Primary {
+		return multiProcessModeMaster
+	}
+	return multiProcessModeSlave
+}
+
+// processAccessToken logs in to one process and caches the token for later diagnostics polling.
+func processAccessToken(t *testing.T, baseURL string) string {
+	t.Helper()
+
+	if cached, ok := multiProcessTokenCache.Load(baseURL); ok {
+		if token, ok := cached.(string); ok && token != "" {
+			return token
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		baseURL+"/api/v1/auth/login",
+		strings.NewReader(`{"username":"admin","password":"admin123","clientType":"web"}`),
+	)
+	if err != nil {
+		t.Fatalf("build login request failed: %v", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return ""
+	}
+	defer func() {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			t.Errorf("close login response failed: %v", closeErr)
 		}
 	}()
 	if response.StatusCode != http.StatusOK {
@@ -510,18 +561,23 @@ func healthMode(t *testing.T, configDir string) string {
 	}
 
 	var envelope struct {
+		Code int `json:"code"`
 		Data struct {
-			Mode string `json:"mode"`
+			AccessToken string `json:"accessToken"`
 		} `json:"data"`
 	}
 	if err = json.NewDecoder(response.Body).Decode(&envelope); err != nil {
-		t.Fatalf("decode health response failed: %v", err)
+		return ""
 	}
-	return envelope.Data.Mode
+	if envelope.Code != 0 || envelope.Data.AccessToken == "" {
+		return ""
+	}
+	multiProcessTokenCache.Store(baseURL, envelope.Data.AccessToken)
+	return envelope.Data.AccessToken
 }
 
-// healthURL builds the anonymous health endpoint URL for a config directory.
-func healthURL(t *testing.T, configDir string) string {
+// processBaseURL builds the process HTTP base URL for a config directory.
+func processBaseURL(t *testing.T, configDir string) string {
 	t.Helper()
 
 	content, err := os.ReadFile(filepath.Join(configDir, "config.yaml"))
@@ -536,7 +592,7 @@ func healthURL(t *testing.T, configDir string) string {
 	if err = yaml.Unmarshal(content, &config); err != nil {
 		t.Fatalf("parse process config failed: %v", err)
 	}
-	return "http://" + strings.TrimPrefix(config.Server.Address, ":") + "/api/v1/health"
+	return "http://" + strings.TrimPrefix(config.Server.Address, ":")
 }
 
 // freeTCPPort returns an available local TCP port.

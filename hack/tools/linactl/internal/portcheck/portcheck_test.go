@@ -71,9 +71,11 @@ func TestVerifyAcceptsAlignedPorts(t *testing.T) {
 // TestVerifyReportsBackendMismatch checks Verify returns an error mentioning
 // the backend source and observed port when only the backend config drifts.
 func TestVerifyReportsBackendMismatch(t *testing.T) {
-	backendYAML := "server:\n  address: \":8080\"\n"
-	viteConfig := `proxy: { '/api': { target: 'http://localhost:9120' } }`
-	root := writeRepoFixture(t, backendYAML, viteConfig)
+	var (
+		backendYAML = "server:\n  address: \":8080\"\n"
+		viteConfig  = `proxy: { '/api': { target: 'http://localhost:9120' } }`
+		root        = writeRepoFixture(t, backendYAML, viteConfig)
+	)
 
 	err := Verify(root, 9120)
 	if err == nil {
@@ -96,9 +98,11 @@ func TestVerifyReportsBackendMismatch(t *testing.T) {
 // TestVerifyReportsFrontendMismatch checks Verify reports the vite proxy
 // source and the drifting port when only the frontend config disagrees.
 func TestVerifyReportsFrontendMismatch(t *testing.T) {
-	backendYAML := "server:\n  address: \":9120\"\n"
-	viteConfig := `proxy: { '/api': { target: 'http://localhost:8080' } }`
-	root := writeRepoFixture(t, backendYAML, viteConfig)
+	var (
+		backendYAML = "server:\n  address: \":9120\"\n"
+		viteConfig  = `proxy: { '/api': { target: 'http://localhost:8080' } }`
+		root        = writeRepoFixture(t, backendYAML, viteConfig)
+	)
 
 	err := Verify(root, 9120)
 	if err == nil {
@@ -166,9 +170,11 @@ func TestVerifyFailsWhenBackendConfigMissing(t *testing.T) {
 // vite.config.mts is not treated as a verification failure, since an operator
 // may legitimately strip the dev proxy section while still using linactl dev.
 func TestVerifyAcceptsMissingFrontendProxyBlock(t *testing.T) {
-	backendYAML := "server:\n  address: \":9120\"\n"
-	viteConfig := `// vite config without a proxy block at all.`
-	root := writeRepoFixture(t, backendYAML, viteConfig)
+	var (
+		backendYAML = "server:\n  address: \":9120\"\n"
+		viteConfig  = `// vite config without a proxy block at all.`
+		root        = writeRepoFixture(t, backendYAML, viteConfig)
+	)
 
 	if err := Verify(root, 9120); err != nil {
 		t.Fatalf("expected verification to pass without a frontend proxy block, got: %v", err)

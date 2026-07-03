@@ -5,10 +5,12 @@ package runtime
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/pkg/statusflag"
 )
 
 // RuntimeStateListOutput defines output for public runtime state queries.
@@ -62,17 +64,19 @@ func (s *serviceImpl) ListRuntimeStates(ctx context.Context) (*RuntimeStateListO
 
 		manifest := manifestByID[pluginID]
 
-		installed := registry.Installed
-		enabled := registry.Status
-		runtimeState := RuntimeUpgradeStateNormal
-		if plugintypes.NormalizeType(registry.Type) == plugintypes.TypeDynamic {
+		var (
+			installed    = registry.Installed
+			enabled      = registry.Status
+			runtimeState = RuntimeUpgradeStateNormal
+		)
+		if plugintypes.NormalizeType(registry.Type) == pluginv1.PluginTypeDynamic {
 			exists, _, err := s.hasArtifactStorageFile(ctx, pluginID)
 			if err != nil {
 				return nil, err
 			}
 			if !exists {
-				installed = plugintypes.InstalledNo
-				enabled = plugintypes.StatusDisabled
+				installed = statusflag.Uninstalled.Int()
+				enabled = statusflag.Disabled.Int()
 			}
 		}
 		if projection, err := s.storeSvc.BuildRuntimeUpgradeState(readCtx, registry, manifest); err == nil {

@@ -13,13 +13,8 @@ import (
 	"lina-core/pkg/plugin/pluginhost"
 )
 
-// sourceUpgradePlan keeps the validated input and persisted snapshots used by
-// source-plugin upgrade callbacks and failure recording.
+// sourceUpgradePlan keeps the published upgrade callback input.
 type sourceUpgradePlan struct {
-	// fromSnapshot is the effective manifest snapshot before upgrade.
-	fromSnapshot *store.ManifestSnapshot
-	// toSnapshot is the discovered target manifest snapshot.
-	toSnapshot *store.ManifestSnapshot
 	// callbackInput is the published upgrade callback input.
 	callbackInput pluginhost.SourcePluginUpgradeInput
 }
@@ -62,8 +57,6 @@ func (s *serviceImpl) buildSourceUpgradePlan(
 		sourceManifestSnapshotView(toSnapshot),
 	)
 	return &sourceUpgradePlan{
-		fromSnapshot:  fromSnapshot,
-		toSnapshot:    toSnapshot,
 		callbackInput: input,
 	}, nil
 }
@@ -79,8 +72,8 @@ func (s *serviceImpl) executeBeforeSourceUpgrade(
 	}
 	participants := []pluginhost.LifecycleParticipant{
 		{
-			PluginID: manifest.ID,
-			Callback: pluginhost.NewSourcePluginLifecycleCallbackAdapter(manifest.SourcePlugin),
+			PluginID:  manifest.ID,
+			Callbacks: pluginhost.NewSourcePluginLifecycleCallbackAdapter(manifest.SourcePlugin),
 		},
 	}
 	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{
@@ -128,8 +121,8 @@ func (s *serviceImpl) executeAfterSourceUpgrade(
 	}
 	participants := []pluginhost.LifecycleParticipant{
 		{
-			PluginID: manifest.ID,
-			Callback: pluginhost.NewSourcePluginLifecycleCallbackAdapter(manifest.SourcePlugin),
+			PluginID:  manifest.ID,
+			Callbacks: pluginhost.NewSourcePluginLifecycleCallbackAdapter(manifest.SourcePlugin),
 		},
 	}
 	result := pluginhost.RunLifecycleCallbacks(ctx, pluginhost.LifecycleRequest{

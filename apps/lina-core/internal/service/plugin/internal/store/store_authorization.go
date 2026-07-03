@@ -11,6 +11,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"gopkg.in/yaml.v3"
 
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/plugin/internal/catalog"
@@ -72,6 +73,13 @@ func (s *serviceImpl) ParseManifestSnapshot(content string) (*ManifestSnapshot, 
 	}
 	if err := root.Decode(snapshot); err != nil {
 		return nil, gerror.Wrap(err, "decode plugin release manifest_snapshot failed")
+	}
+	if strings.TrimSpace(snapshot.Distribution) == "" {
+		return nil, gerror.Newf("plugin release manifest_snapshot distribution is required: %s", snapshot.ID)
+	}
+	if snapshot.Distribution != pluginv1.PluginDistributionManaged.String() &&
+		snapshot.Distribution != pluginv1.PluginDistributionBuiltin.String() {
+		return nil, gerror.Newf("plugin release manifest_snapshot distribution only supports managed/builtin: %s", snapshot.ID)
 	}
 	requestedHostServices, err := protocol.NormalizeHostServiceSpecsForPlugin(snapshot.ID, snapshot.RequestedHostServices)
 	if err != nil {
@@ -221,6 +229,8 @@ func BuildAuthorizedHostServiceSpecs(
 
 // BuildAuthorizedHostServiceSpecsForPlugin applies one host confirmation input
 // and enforces plugin-owned data tables in the final authorization snapshot.
+//
+//nolint:cyclop // Authorization merging keeps requested, confirmed, and denied host-service branches explicit.
 func BuildAuthorizedHostServiceSpecsForPlugin(
 	pluginID string,
 	requested []*protocol.HostServiceSpec,

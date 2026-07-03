@@ -23,9 +23,9 @@ import (
 )
 
 // RuntimeDelegate is a composition-root cycle breaker for host services that
-// must be constructed before the root plugin service can be assembled. It
-// exposes only narrow host-facing plugin contracts and must be bound exactly
-// once before HTTP routes, cron jobs, or plugin callbacks become reachable.
+// must be constructed before the root plugin service can be assembled. It binds
+// the startup-owned root Service while only delegating host-facing plugin
+// contracts needed before regular runtime wiring becomes reachable.
 type RuntimeDelegate struct {
 	mu      sync.RWMutex
 	service Service
@@ -57,31 +57,17 @@ func (d *RuntimeDelegate) Bound() bool {
 	return d.serviceSnapshot() != nil
 }
 
-// HandleAuthLoginSucceeded dispatches login-succeeded hooks after binding.
-func (d *RuntimeDelegate) HandleAuthLoginSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
+// DispatchHookEvent dispatches a plugin hook event after binding.
+func (d *RuntimeDelegate) DispatchHookEvent(
+	ctx context.Context,
+	event pluginhost.ExtensionPoint,
+	values map[string]interface{},
+) error {
 	service := d.serviceSnapshot()
 	if service == nil {
 		return pluginRuntimeDelegateUnboundError()
 	}
-	return service.HandleAuthLoginSucceeded(ctx, input)
-}
-
-// HandleAuthLoginFailed dispatches login-failed hooks after binding.
-func (d *RuntimeDelegate) HandleAuthLoginFailed(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
-	service := d.serviceSnapshot()
-	if service == nil {
-		return pluginRuntimeDelegateUnboundError()
-	}
-	return service.HandleAuthLoginFailed(ctx, input)
-}
-
-// HandleAuthLogoutSucceeded dispatches logout-succeeded hooks after binding.
-func (d *RuntimeDelegate) HandleAuthLogoutSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
-	service := d.serviceSnapshot()
-	if service == nil {
-		return pluginRuntimeDelegateUnboundError()
-	}
-	return service.HandleAuthLogoutSucceeded(ctx, input)
+	return service.DispatchHookEvent(ctx, event, values)
 }
 
 // FilterPermissionMenus filters role permission menus after binding.
@@ -139,30 +125,30 @@ func (d *RuntimeDelegate) IsProviderEnabled(ctx context.Context, pluginID string
 }
 
 // AITextProviderEnv returns text-AI provider construction inputs after binding.
-func (d *RuntimeDelegate) AITextProviderEnv(pluginID string) aitextsvc.ProviderEnv {
+func (d *RuntimeDelegate) AITextProviderEnv(ctx context.Context, pluginID string) aitextsvc.ProviderEnv {
 	service := d.serviceSnapshot()
 	if service == nil {
 		return aitextsvc.ProviderEnv{PluginID: pluginID}
 	}
-	return service.AITextProviderEnv(pluginID)
+	return service.AITextProviderEnv(ctx, pluginID)
 }
 
 // OrgProviderEnv returns organization-provider construction inputs after binding.
-func (d *RuntimeDelegate) OrgProviderEnv(pluginID string) orgspi.ProviderEnv {
+func (d *RuntimeDelegate) OrgProviderEnv(ctx context.Context, pluginID string) orgspi.ProviderEnv {
 	service := d.serviceSnapshot()
 	if service == nil {
 		return orgspi.ProviderEnv{PluginID: pluginID}
 	}
-	return service.OrgProviderEnv(pluginID)
+	return service.OrgProviderEnv(ctx, pluginID)
 }
 
 // TenantProviderEnv returns tenant-provider construction inputs after binding.
-func (d *RuntimeDelegate) TenantProviderEnv(pluginID string) tenantspi.ProviderEnv {
+func (d *RuntimeDelegate) TenantProviderEnv(ctx context.Context, pluginID string) tenantspi.ProviderEnv {
 	service := d.serviceSnapshot()
 	if service == nil {
 		return tenantspi.ProviderEnv{PluginID: pluginID}
 	}
-	return service.TenantProviderEnv(pluginID)
+	return service.TenantProviderEnv(ctx, pluginID)
 }
 
 // EnsureTenantPluginDisableAllowed delegates tenant plugin disable guards after binding.
@@ -219,22 +205,12 @@ func (d *RuntimeDelegate) serviceSnapshot() Service {
 // integration service after root composition completes.
 type integrationDelegateProvider struct {
 	mu      sync.RWMutex
-	service interface {
-		runtime.MenuManager
-		runtime.ResourceReferenceManager
-		runtime.HookDispatcher
-		runtime.PermissionMenuFilter
-	}
+	service runtime.IntegrationService
 }
 
 // BindService connects the integration service owned by the current root
 // composition.
-func (p *integrationDelegateProvider) BindService(service interface {
-	runtime.MenuManager
-	runtime.ResourceReferenceManager
-	runtime.HookDispatcher
-	runtime.PermissionMenuFilter
-}) {
+func (p *integrationDelegateProvider) BindService(service runtime.IntegrationService) {
 	if p == nil {
 		return
 	}
@@ -313,12 +289,7 @@ func (p *integrationDelegateProvider) CanExposeBusinessEntries(ctx context.Conte
 	return service == nil || service.CanExposeBusinessEntries(ctx, pluginID)
 }
 
-func (p *integrationDelegateProvider) serviceSnapshot() interface {
-	runtime.MenuManager
-	runtime.ResourceReferenceManager
-	runtime.HookDispatcher
-	runtime.PermissionMenuFilter
-} {
+func (p *integrationDelegateProvider) serviceSnapshot() runtime.IntegrationService {
 	if p == nil {
 		return nil
 	}

@@ -63,17 +63,11 @@ type serviceImpl struct {
 	// catalogSvc provides manifest asset path discovery and content reads.
 	catalogSvc catalog.Service
 	// storeSvc provides release records used for migration ledger ownership.
-	storeSvc storeReader
-}
-
-// storeReader defines the narrow store capability needed by migration ledger writes.
-type storeReader interface {
-	// GetRelease returns the governance release row for one plugin version.
-	GetRelease(ctx context.Context, pluginID string, version string) (*store.ReleaseRecord, error)
+	storeSvc store.Service
 }
 
 // New creates a plugin SQL migration executor.
-func New(catalogSvc catalog.Service, storeSvc storeReader) Service {
+func New(catalogSvc catalog.Service, storeSvc store.Service) Service {
 	return &serviceImpl{
 		catalogSvc: catalogSvc,
 		storeSvc:   storeSvc,

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"strconv"
 
+	usermsgv1 "lina-core/api/usermsg/v1"
 	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/notifycap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
@@ -21,26 +22,45 @@ func Notifications(invoker Invoker, hostInvoker HostServiceInvoker) notifycap.Se
 }
 
 // BatchGet returns visible message projections and opaque missing IDs.
-func (s notificationsService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []notifycap.MessageID) (*capmodel.BatchResult[*notifycap.MessageProjection, notifycap.MessageID], error) {
-	out := &capmodel.BatchResult[*notifycap.MessageProjection, notifycap.MessageID]{Items: map[notifycap.MessageID]*notifycap.MessageProjection{}}
+func (s notificationsService) BatchGet(_ context.Context, ids []notifycap.MessageID) (*capmodel.BatchResult[*notifycap.MessageInfo, notifycap.MessageID], error) {
+	out := &capmodel.BatchResult[*notifycap.MessageInfo, notifycap.MessageID]{Items: map[notifycap.MessageID]*notifycap.MessageInfo{}}
 	err := s.callJSONRequest(protocol.HostServiceNotifications, protocol.HostServiceMethodNotificationsBatchGetMessages, idsRequest{IDs: messageIDsToStrings(ids)}, out)
 	return out, err
 }
 
+// Get returns one visible message projection through the registered batch-read method.
+func (s notificationsService) Get(ctx context.Context, id notifycap.MessageID) (*notifycap.MessageInfo, error) {
+	result, err := s.BatchGet(ctx, []notifycap.MessageID{id})
+	if err != nil || result == nil {
+		return nil, err
+	}
+	if item, ok := result.Items[id]; ok {
+		return item, nil
+	}
+	return nil, nil
+}
+
+// List returns one bounded page of visible message projections.
+func (s notificationsService) List(_ context.Context, input notifycap.ListInput) (*capmodel.PageResult[*notifycap.MessageInfo], error) {
+	out := &capmodel.PageResult[*notifycap.MessageInfo]{Items: []*notifycap.MessageInfo{}}
+	err := s.callJSONRequest(protocol.HostServiceNotifications, protocol.HostServiceMethodNotificationsList, input, out)
+	return out, err
+}
+
 // BatchGetBySource returns visible message projections grouped by source ID.
-func (s notificationsService) BatchGetBySource(_ context.Context, _ capmodel.CapabilityContext, input notifycap.BatchGetBySourceInput) (*notifycap.BatchGetBySourceResult, error) {
-	out := &notifycap.BatchGetBySourceResult{Items: map[string][]*notifycap.MessageProjection{}}
+func (s notificationsService) BatchGetBySource(_ context.Context, input notifycap.BatchGetBySourceInput) (*notifycap.BatchGetBySourceResult, error) {
+	out := &notifycap.BatchGetBySourceResult{Items: map[string][]*notifycap.MessageInfo{}}
 	err := s.callJSONRequest(protocol.HostServiceNotifications, protocol.HostServiceMethodNotificationsBatchGetBySource, input, out)
 	return out, err
 }
 
 // EnsureVisible rejects when any requested message is absent or outside caller scope.
-func (s notificationsService) EnsureVisible(_ context.Context, _ capmodel.CapabilityContext, ids []notifycap.MessageID) error {
+func (s notificationsService) EnsureVisible(_ context.Context, ids []notifycap.MessageID) error {
 	return s.callJSONRequest(protocol.HostServiceNotifications, protocol.HostServiceMethodNotificationsEnsureVisible, idsRequest{IDs: messageIDsToStrings(ids)}, nil)
 }
 
 // Send sends one governed notification message.
-func (s notificationsService) Send(_ context.Context, _ capmodel.CapabilityContext, input notifycap.SendInput) (*notifycap.SendResult, error) {
+func (s notificationsService) Send(_ context.Context, input notifycap.SendInput) (*notifycap.SendResult, error) {
 	var payloadJSON []byte
 	if len(input.Payload) > 0 {
 		encoded, err := json.Marshal(input.Payload)
@@ -75,6 +95,29 @@ func (s notificationsService) Send(_ context.Context, _ capmodel.CapabilityConte
 		MessageID:     notifycap.MessageID(strconv.FormatInt(response.MessageID, 10)),
 		DeliveryCount: int(response.DeliveryCount),
 	}, nil
+}
+
+// Delete removes visible notification messages.
+func (s notificationsService) Delete(_ context.Context, ids []notifycap.MessageID) error {
+	return s.callJSONRequest(protocol.HostServiceNotifications, protocol.HostServiceMethodNotificationsDelete, idsRequest{IDs: messageIDsToStrings(ids)}, nil)
+}
+
+// DeleteBySource removes visible notification messages by business source IDs.
+func (s notificationsService) DeleteBySource(_ context.Context, sourceType usermsgv1.SourceType, sourceIDs []string) error {
+	return s.callJSONRequest(protocol.HostServiceNotifications, protocol.HostServiceMethodNotificationsDeleteBySource, notifycap.BatchGetBySourceInput{
+		SourceType: sourceType,
+		SourceIDs:  sourceIDs,
+	}, nil)
+}
+
+// MarkRead marks visible notification messages read.
+func (s notificationsService) MarkRead(_ context.Context, ids []notifycap.MessageID) error {
+	return s.callJSONRequest(protocol.HostServiceNotifications, protocol.HostServiceMethodNotificationsMarkRead, idsRequest{IDs: messageIDsToStrings(ids)}, nil)
+}
+
+// MarkUnread marks visible notification messages unread.
+func (s notificationsService) MarkUnread(_ context.Context, ids []notifycap.MessageID) error {
+	return s.callJSONRequest(protocol.HostServiceNotifications, protocol.HostServiceMethodNotificationsMarkUnread, idsRequest{IDs: messageIDsToStrings(ids)}, nil)
 }
 
 // messageIDsToStrings converts notification message IDs to transport strings.

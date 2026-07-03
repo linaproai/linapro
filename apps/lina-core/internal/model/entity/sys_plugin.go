@@ -15,6 +15,7 @@ type SysPlugin struct {
 	Name                    string     `json:"name"                    orm:"name"                        description:"Plugin name"`
 	Version                 string     `json:"version"                 orm:"version"                     description:"Plugin version"`
 	Type                    string     `json:"type"                    orm:"type"                        description:"Plugin top-level type: source/dynamic"`
+	Distribution            string     `json:"distribution"            orm:"distribution"                description:"Plugin distribution governance: managed or builtin"`
 	ScopeNature             string     `json:"scopeNature"             orm:"scope_nature"                description:"Plugin scope nature: platform_only or tenant_aware"`
 	InstallMode             string     `json:"installMode"             orm:"install_mode"                description:"Plugin install mode: global or tenant_scoped"`
 	AutoEnableForNewTenants bool       `json:"autoEnableForNewTenants" orm:"auto_enable_for_new_tenants" description:"Platform policy: whether installed and enabled tenant-scoped plugins are enabled for new tenants automatically"`

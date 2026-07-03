@@ -15,11 +15,13 @@ import (
 )
 
 func TestRunDispatchesHiddenCommandInTargetDir(t *testing.T) {
-	root := t.TempDir()
-	binary := filepath.Join(root, "bin", "linactl")
-	targetDir := filepath.Join(root, "apps", "lina-plugins", "demo", "backend")
-	configDir := filepath.Join(root, "apps", "lina-plugins", "demo", "hack")
-	target := Target{WorkDir: targetDir, ConfigDir: configDir}
+	var (
+		root      = t.TempDir()
+		binary    = filepath.Join(root, "bin", "linactl")
+		targetDir = filepath.Join(root, "apps", "lina-plugins", "demo", "backend")
+		configDir = filepath.Join(root, "apps", "lina-plugins", "demo", "hack")
+		target    = Target{WorkDir: targetDir, ConfigDir: configDir}
+	)
 
 	for _, tc := range []struct {
 		name string
@@ -67,9 +69,11 @@ func TestRunDispatchesHiddenCommandInTargetDir(t *testing.T) {
 }
 
 func TestResolveTargetAllowsControllerTargetWithoutConfig(t *testing.T) {
-	root := t.TempDir()
-	pluginRoot := filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
-	targetDir := filepath.Join(pluginRoot, "backend")
+	var (
+		root       = t.TempDir()
+		pluginRoot = filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
+		targetDir  = filepath.Join(pluginRoot, "backend")
+	)
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		t.Fatalf("mkdir target dir: %v", err)
 	}

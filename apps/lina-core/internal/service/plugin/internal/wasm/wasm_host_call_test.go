@@ -10,23 +10,6 @@ import (
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-// assertPanic verifies the supplied function panics with the expected message.
-func assertPanic(t *testing.T, expected string, fn func()) {
-	t.Helper()
-
-	defer func() {
-		recovered := recover()
-		if recovered == nil {
-			t.Fatalf("expected panic %q", expected)
-		}
-		if recovered != expected {
-			t.Fatalf("expected panic %q, got %#v", expected, recovered)
-		}
-	}()
-
-	fn()
-}
-
 // TestValidateCapabilitiesAcceptsValid verifies known capabilities pass schema
 // validation.
 func TestValidateCapabilitiesAcceptsValid(t *testing.T) {

@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
@@ -16,6 +17,7 @@ import (
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // authoritativeEnablementContextKey stores the opt-in marker for persisted
@@ -131,8 +133,8 @@ func (s *serviceImpl) SetTenantPluginEnabledState(ctx context.Context, pluginID 
 // the current tenant context.
 func (s *serviceImpl) registryEnabledForTenant(ctx context.Context, registry *store.PluginRecord) (bool, error) {
 	if registry == nil ||
-		registry.Installed != plugintypes.InstalledYes ||
-		registry.Status != plugintypes.StatusEnabled {
+		registry.Installed != statusflag.Installed.Int() ||
+		registry.Status != statusflag.EnabledValue.Int() {
 		return false, nil
 	}
 	tenantID := datascope.CurrentTenantID(ctx)
@@ -140,7 +142,7 @@ func (s *serviceImpl) registryEnabledForTenant(ctx context.Context, registry *st
 	// availability. Global platform-only plugins such as linapro-tenant-core can still
 	// publish tenant-context APIs and permissions while tenant administrators
 	// remain unable to control them through the tenant plugin list.
-	if plugintypes.NormalizeInstallMode(registry.InstallMode) != plugintypes.InstallModeTenantScoped || tenantID == datascope.PlatformTenantID {
+	if plugintypes.NormalizeInstallMode(registry.InstallMode) != pluginv1.InstallModeTenantScoped || tenantID == datascope.PlatformTenantID {
 		return true, nil
 	}
 	return s.tenantPluginEnabled(ctx, registry.PluginId, tenantID)
@@ -423,36 +425,33 @@ func manifestByPluginID(manifests []*catalog.Manifest) map[string]*catalog.Manif
 	return result
 }
 
-// buildBackgroundEnabledChecker returns a PluginEnabledChecker for use in source plugin
-// route and jobs registrars that need to guard runtime access.
-func (s *serviceImpl) buildBackgroundEnabledChecker() pluginhost.PluginEnabledChecker {
-	return func(ctx context.Context, pluginID string) bool {
-		normalizedPluginID := strings.TrimSpace(pluginID)
-		if normalizedPluginID == "" {
-			return false
-		}
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		if datascope.CurrentTenantID(ctx) != datascope.PlatformTenantID {
-			return s.CanExposeBusinessEntries(ctx, normalizedPluginID)
-		}
-
-		if enabled, ok := s.loadedPlatformEnabledState(ctx, normalizedPluginID); ok {
-			return enabled
-		}
+// canExposePluginBusinessEntries reports whether plugin runtime surfaces should
+// be available for the supplied context.
+func (s *serviceImpl) canExposePluginBusinessEntries(ctx context.Context, pluginID string) bool {
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" {
+		return false
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if datascope.CurrentTenantID(ctx) != datascope.PlatformTenantID {
 		return s.CanExposeBusinessEntries(ctx, normalizedPluginID)
 	}
+
+	if enabled, ok := s.loadedPlatformEnabledState(ctx, normalizedPluginID); ok {
+		return enabled
+	}
+	return s.CanExposeBusinessEntries(ctx, normalizedPluginID)
 }
 
-// buildPrimaryNodeChecker returns a PrimaryNodeChecker for use in source plugin jobs registrars.
-func (s *serviceImpl) buildPrimaryNodeChecker() pluginhost.PrimaryNodeChecker {
-	return func() bool {
-		if s.topology == nil {
-			return false
-		}
-		return s.topology.IsPrimaryNode()
+// isPrimaryNode reports whether source-plugin registration is running on the
+// current cluster primary node.
+func (s *serviceImpl) isPrimaryNode() bool {
+	if s == nil || s.topology == nil {
+		return false
 	}
+	return s.topology.IsPrimary()
 }
 
 // setSourceRouteBindings stores the latest host-captured route bindings for one

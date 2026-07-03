@@ -1,11 +1,11 @@
 ---
 name: lina-perf-audit
 description: >-
-  仅手动触发。只有当用户明确要求 lina-perf-audit，或确认要运行完整审计时，
-  才执行 LinaPro 后端 API 全量性能审计。该流程会通过 make db.init/mock
+  通过 make db.init/mock
   重置数据库、重启服务、安装并启用所有内置插件、准备压测数据，并启动并发子代理；
   通常需要几十分钟到数小时，且会消耗大量 Token。不得从其他技能、CI、定时任务、
   Git 钩子或模糊的性能请求中触发。
+  必须用户手动触发，禁止自动触发该技能。
 ---
 
 # LinaPro 性能审计

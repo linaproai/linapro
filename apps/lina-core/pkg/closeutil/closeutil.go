@@ -4,21 +4,15 @@ package closeutil
 
 import (
 	"context"
+	"io"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/pkg/logger"
 )
 
-// Closer describes one resource that can be closed.
-type Closer interface {
-	// Close releases the underlying resource and returns any cleanup failure so
-	// callers can fold it into their existing error return path.
-	Close() error
-}
-
 // Close folds one close error into errPtr when the caller already returns an error.
-func Close(ctx context.Context, closer Closer, errPtr *error, action string) {
+func Close(ctx context.Context, closer io.Closer, errPtr *error, action string) {
 	if closer == nil {
 		return
 	}

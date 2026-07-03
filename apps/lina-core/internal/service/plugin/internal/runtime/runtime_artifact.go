@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	pluginv1 "lina-core/api/plugin/v1"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -27,26 +28,8 @@ import (
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-// DynamicKindWasm is the only supported runtime artifact kind.
-const DynamicKindWasm = "wasm"
-
-// dynamicKindWasm is the package-private alias kept for internal references.
-const dynamicKindWasm = DynamicKindWasm
-
-// IsMissingArtifactError reports whether err signals a missing runtime artifact.
-func IsMissingArtifactError(err error) bool {
-	return isMissingArtifactError(err)
-}
-
-// BuildArtifactFileName returns the canonical wasm filename for a plugin ID.
-func BuildArtifactFileName(pluginID string) string {
-	return buildArtifactFileName(pluginID)
-}
-
-// BuildArtifactRelativePath returns the canonical relative path for a plugin's wasm artifact.
-func BuildArtifactRelativePath(pluginID string) string {
-	return buildArtifactRelativePath(pluginID)
-}
+// dynamicKindWasm is the only supported runtime artifact kind.
+const dynamicKindWasm = "wasm"
 
 // artifactMissingError marks the "wasm not generated yet" state so that discovery
 // can keep dynamic plugins visible while lifecycle actions stay strict.
@@ -108,6 +91,8 @@ func (s *serviceImpl) ParseRuntimeWasmArtifact(filePath string) (*catalog.Artifa
 
 // ParseRuntimeWasmArtifactContent parses one WASM artifact from an in-memory byte slice.
 // It implements the catalog.ArtifactParser interface.
+//
+//nolint:cyclop // Runtime artifact decoding mirrors the catalog wire validation for stable diagnostics.
 func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content []byte) (*catalog.ArtifactSpec, error) {
 	sections, err := bridgeartifact.ListCustomSections(content)
 	if err != nil {
@@ -335,7 +320,7 @@ func (s *serviceImpl) ValidateRuntimeArtifact(manifest *catalog.Manifest, rootDi
 	}
 
 	artifact.Manifest.Type = plugintypes.NormalizeType(artifact.Manifest.Type).String()
-	if plugintypes.NormalizeType(artifact.Manifest.Type) != plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(artifact.Manifest.Type) != pluginv1.PluginTypeDynamic {
 		return gerror.Newf("Dynamic plugin embedded manifest type must be dynamic: %s", artifactPath)
 	}
 	if manifest.ID != artifact.Manifest.ID {
@@ -390,7 +375,7 @@ func (s *serviceImpl) ensureArtifactAvailable(manifest *catalog.Manifest, action
 	if manifest == nil {
 		return bizerr.NewCode(CodeDynamicPluginManifestRequired)
 	}
-	if plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic {
 		return nil
 	}
 	if manifest.RuntimeArtifact != nil {
@@ -413,39 +398,6 @@ func (s *serviceImpl) ensureArtifactAvailable(manifest *catalog.Manifest, action
 		)
 	}
 	return nil
-}
-
-// buildPluginRegistryChecksum returns the SHA-256 checksum of the plugin artifact or manifest.
-func (s *serviceImpl) buildPluginRegistryChecksum(manifest *catalog.Manifest) string {
-	if manifest == nil {
-		return ""
-	}
-	if manifest.RuntimeArtifact != nil {
-		return manifest.RuntimeArtifact.Checksum
-	}
-	content, err := s.catalogSvc.ReadSourcePluginManifestContent(manifest)
-	if err != nil || len(content) == 0 {
-		return ""
-	}
-	return fmt.Sprintf("%x", sha256.Sum256(content))
-}
-
-// buildRuntimeArtifactRemark summarizes runtime WASM metadata for governance review.
-func buildRuntimeArtifactRemark(manifest *catalog.Manifest) string {
-	if manifest == nil || manifest.RuntimeArtifact == nil {
-		return ""
-	}
-	return fmt.Sprintf(
-		"The host validated one %s runtime artifact using ABI %s with %d embedded frontend assets, %d manifest resources, %d install SQL assets, %d uninstall SQL assets, %d mock SQL assets, and %d dynamic routes declared.",
-		manifest.RuntimeArtifact.RuntimeKind,
-		manifest.RuntimeArtifact.ABIVersion,
-		manifest.RuntimeArtifact.FrontendAssetCount,
-		manifest.RuntimeArtifact.ManifestResourceCount,
-		len(manifest.RuntimeArtifact.InstallSQLAssets),
-		len(manifest.RuntimeArtifact.UninstallSQLAssets),
-		len(manifest.RuntimeArtifact.MockSQLAssets),
-		len(manifest.RuntimeArtifact.RouteContracts),
-	)
 }
 
 // unmarshalRuntimeArtifactSection decodes one JSON-encoded custom section payload.

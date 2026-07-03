@@ -8,14 +8,8 @@ import (
 	"strings"
 
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/statusflag"
 )
-
-// userI18nTranslator defines the narrow translation capability user service
-// needs for request-scoped runtime copy.
-type userI18nTranslator interface {
-	// Translate returns one runtime translation key with caller-provided fallback text.
-	Translate(ctx context.Context, key string, fallback string) string
-}
 
 // runtimeTextItem defines one source-owned runtime message key and English
 // fallback pair used for batch translation.
@@ -71,7 +65,7 @@ func (s *serviceImpl) userSexText(ctx context.Context, sex int) string {
 
 // userStatusText returns the localized label for one user status value.
 func (s *serviceImpl) userStatusText(ctx context.Context, status Status) string {
-	if status == StatusDisabled {
+	if status == statusflag.Disabled {
 		return s.runtimeText(ctx, "dict.sys_normal_disable.0.label", "Disabled")
 	}
 	return s.runtimeText(ctx, "dict.sys_normal_disable.1.label", "Enabled")
@@ -104,5 +98,5 @@ func userSexNumericValue(sex int) string {
 // disabled user status in the current locale or by stable numeric value.
 func (s *serviceImpl) isUserDisabledStatusInput(ctx context.Context, value string) bool {
 	trimmedValue := strings.TrimSpace(value)
-	return trimmedValue == "0" || strings.EqualFold(trimmedValue, s.userStatusText(ctx, StatusDisabled))
+	return trimmedValue == "0" || strings.EqualFold(trimmedValue, s.userStatusText(ctx, statusflag.Disabled))
 }

@@ -25,7 +25,6 @@ import (
 // sourceManifestCacheEntry stores one parsed source manifest with the manifest
 // file identity used to detect development-time source-plugin changes.
 type sourceManifestCacheEntry struct {
-	pluginID  string
 	sourceKey string
 	size      int64
 	modTime   time.Time
@@ -35,7 +34,6 @@ type sourceManifestCacheEntry struct {
 // runtimeArtifactCacheEntry stores one parsed runtime artifact manifest and the
 // filesystem identity used to decide whether it can be reused.
 type runtimeArtifactCacheEntry struct {
-	path     string
 	fileInfo os.FileInfo
 	size     int64
 	modTime  time.Time
@@ -111,7 +109,6 @@ func (s *serviceImpl) storeCachedSourceManifest(pluginID string, sourcePlugin an
 		s.sourceManifestCache = make(map[string]*sourceManifestCacheEntry)
 	}
 	s.sourceManifestCache[strings.TrimSpace(pluginID)] = &sourceManifestCacheEntry{
-		pluginID:  strings.TrimSpace(pluginID),
 		sourceKey: sourceManifestCacheSourceKey(sourcePlugin),
 		size:      info.Size(),
 		modTime:   info.ModTime(),
@@ -167,7 +164,6 @@ func (s *serviceImpl) storeRuntimeManifestArtifactCache(artifactPath string, man
 	cachedManifest := CloneManifest(manifest)
 	s.cacheMu.Lock()
 	s.runtimeArtifactCache[key] = &runtimeArtifactCacheEntry{
-		path:     key,
 		fileInfo: info,
 		size:     info.Size(),
 		modTime:  info.ModTime(),
@@ -207,19 +203,6 @@ func (s *serviceImpl) recordRuntimeArtifactParse(artifactPath string) {
 	}
 	s.parseCounts[key]++
 	s.cacheMu.Unlock()
-}
-
-// RuntimeArtifactParseCount returns how many times this service has fully
-// parsed the given artifact path. It is intentionally unexported to keep cache
-// instrumentation out of the production catalog contract.
-func (s *serviceImpl) runtimeArtifactParseCount(artifactPath string) int {
-	if s == nil {
-		return 0
-	}
-	key := filepath.Clean(strings.TrimSpace(artifactPath))
-	s.cacheMu.RLock()
-	defer s.cacheMu.RUnlock()
-	return s.parseCounts[key]
 }
 
 // runtimeArtifactCacheKey normalizes artifact path identity and returns its
@@ -269,21 +252,6 @@ func CloneManifest(manifest *Manifest) *Manifest {
 	out.HostServices = cloneHostServiceSpecs(manifest.HostServices)
 	out.RuntimeArtifact = cloneArtifactSpec(manifest.RuntimeArtifact)
 	return &out
-}
-
-// CloneManifests returns detached copies of all non-nil manifests.
-func CloneManifests(items []*Manifest) []*Manifest {
-	if len(items) == 0 {
-		return []*Manifest{}
-	}
-	out := make([]*Manifest, 0, len(items))
-	for _, item := range items {
-		if item == nil {
-			continue
-		}
-		out = append(out, CloneManifest(item))
-	}
-	return out
 }
 
 // cloneBoolPtr returns a detached copy of one bool pointer.

@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"lina-core/internal/service/jobmeta"
+	jobhandlerv1 "lina-core/api/jobhandler/v1"
 	pluginsvc "lina-core/internal/service/plugin"
 )
 
@@ -25,7 +25,7 @@ func TestRegisterRejectsDuplicateRefs(t *testing.T) {
 		Ref:          "host:test",
 		DisplayName:  "Test Handler",
 		ParamsSchema: `{"type":"object","properties":{}}`,
-		Source:       jobmeta.HandlerSourceHost,
+		Source:       jobhandlerv1.SourceHost,
 		Invoke: func(ctx context.Context, params json.RawMessage) (result any, err error) {
 			return nil, nil
 		},
@@ -56,7 +56,7 @@ func TestLookupAndUnregisterNotify(t *testing.T) {
 		Ref:          "host:test-lookup",
 		DisplayName:  "Lookup Handler",
 		ParamsSchema: `{"type":"object","properties":{}}`,
-		Source:       jobmeta.HandlerSourceHost,
+		Source:       jobhandlerv1.SourceHost,
 		Invoke: func(ctx context.Context, params json.RawMessage) (result any, err error) {
 			return map[string]any{"ok": true}, nil
 		},
@@ -127,34 +127,32 @@ func TestRegisterHostHandlersProvidesWaitHandler(t *testing.T) {
 	}
 }
 
-// testPluginStatusChecker exposes enabled-state snapshots for plugin lifecycle tests.
-type testPluginStatusChecker struct {
+// testPluginLifecycleService exposes the plugin service methods used by
+// lifecycle attachment tests.
+type testPluginLifecycleService struct {
+	pluginsvc.Service
+	observer    pluginsvc.LifecycleObserver
 	enabled     map[string]bool
 	managedJobs map[string][]pluginsvc.ManagedJob
 }
 
-// testPluginLifecycleRegistrar captures lifecycle observers for attachment tests.
-type testPluginLifecycleRegistrar struct {
-	observer pluginsvc.LifecycleObserver
-}
-
 // RegisterLifecycleObserver stores the observer and returns an unsubscribe function.
-func (r *testPluginLifecycleRegistrar) RegisterLifecycleObserver(observer pluginsvc.LifecycleObserver) func() {
-	r.observer = observer
+func (s *testPluginLifecycleService) RegisterLifecycleObserver(observer pluginsvc.LifecycleObserver) func() {
+	s.observer = observer
 	return func() {
-		r.observer = nil
+		s.observer = nil
 	}
 }
 
 // IsEnabled reports whether one plugin is flagged enabled in the test snapshot.
-func (c testPluginStatusChecker) IsEnabled(ctx context.Context, pluginID string) bool {
-	return c.enabled[pluginID]
+func (s *testPluginLifecycleService) IsEnabled(ctx context.Context, pluginID string) bool {
+	return s.enabled[pluginID]
 }
 
 // ListEnabledPluginIDs returns the enabled plugin IDs for startup lifecycle tests.
-func (c testPluginStatusChecker) ListEnabledPluginIDs(ctx context.Context) ([]string, error) {
-	items := make([]string, 0, len(c.enabled))
-	for pluginID, enabled := range c.enabled {
+func (s *testPluginLifecycleService) ListEnabledPluginIDs(ctx context.Context) ([]string, error) {
+	items := make([]string, 0, len(s.enabled))
+	for pluginID, enabled := range s.enabled {
 		if !enabled {
 			continue
 		}
@@ -163,13 +161,16 @@ func (c testPluginStatusChecker) ListEnabledPluginIDs(ctx context.Context) ([]st
 	return items, nil
 }
 
-// ListExecutableJobsByPlugin returns no synthetic scheduled jobs for registry tests
-// unless one test overrides the fixture explicitly.
-func (c testPluginStatusChecker) ListExecutableJobsByPlugin(
+// ListManagedJobs returns synthetic scheduled jobs for registry tests when
+// the caller requests executable jobs for a plugin.
+func (s *testPluginLifecycleService) ListManagedJobs(
 	ctx context.Context,
-	pluginID string,
+	query pluginsvc.ManagedJobQuery,
 ) ([]pluginsvc.ManagedJob, error) {
-	return c.managedJobs[pluginID], nil
+	if !query.ExecutableOnly {
+		return nil, nil
+	}
+	return s.managedJobs[query.PluginID], nil
 }
 
 // TestAttachPluginLifecycleSyncsEnabledPluginCronHandlers verifies startup
@@ -178,27 +179,26 @@ func TestAttachPluginLifecycleSyncsEnabledPluginCronHandlers(t *testing.T) {
 	const pluginID = "jobhandler-lifecycle-enabled-sync"
 
 	registry := New()
-	registrar := &testPluginLifecycleRegistrar{}
-	unsubscribe, err := AttachPluginLifecycle(
-		context.Background(),
-		registry,
-		registrar,
-		testPluginStatusChecker{
-			enabled: map[string]bool{pluginID: true},
-			managedJobs: map[string][]pluginsvc.ManagedJob{
-				pluginID: {
-					{
-						PluginID:    pluginID,
-						Name:        "echo",
-						DisplayName: "Echo",
-						Description: "Projected builtin job handler for lifecycle sync tests.",
-						Handler: func(ctx context.Context) error {
-							return nil
-						},
+	pluginSvc := &testPluginLifecycleService{
+		enabled: map[string]bool{pluginID: true},
+		managedJobs: map[string][]pluginsvc.ManagedJob{
+			pluginID: {
+				{
+					PluginID:    pluginID,
+					Name:        "echo",
+					DisplayName: "Echo",
+					Description: "Projected builtin job handler for lifecycle sync tests.",
+					Handler: func(ctx context.Context) error {
+						return nil
 					},
 				},
 			},
 		},
+	}
+	unsubscribe, err := AttachPluginLifecycle(
+		context.Background(),
+		registry,
+		pluginSvc,
 	)
 	if err != nil {
 		t.Fatalf("expected plugin lifecycle attachment to succeed, got error: %v", err)
@@ -209,7 +209,7 @@ func TestAttachPluginLifecycleSyncsEnabledPluginCronHandlers(t *testing.T) {
 	if !ok {
 		t.Fatal("expected enabled plugin job handler to be registered during startup sync")
 	}
-	if definition.Source != jobmeta.HandlerSourcePlugin {
+	if definition.Source != jobhandlerv1.SourcePlugin {
 		t.Fatalf("expected plugin handler source, got %s", definition.Source)
 	}
 	if definition.PluginID != pluginID {
@@ -224,7 +224,7 @@ func TestPluginLifecycleObserverRegistersAndUnregistersPluginCronHandlers(t *tes
 
 	observer := &pluginLifecycleObserver{
 		registry: New(),
-		bridge: testPluginStatusChecker{
+		pluginSvc: &testPluginLifecycleService{
 			enabled: map[string]bool{pluginID: true},
 			managedJobs: map[string][]pluginsvc.ManagedJob{
 				pluginID: {
@@ -276,27 +276,26 @@ func TestAttachPluginLifecycleSyncsEnabledDynamicPluginCronHandlers(t *testing.T
 	const pluginID = "jobhandler-dynamic-enabled-sync"
 
 	registry := New()
-	registrar := &testPluginLifecycleRegistrar{}
-	unsubscribe, err := AttachPluginLifecycle(
-		context.Background(),
-		registry,
-		registrar,
-		testPluginStatusChecker{
-			enabled: map[string]bool{pluginID: true},
-			managedJobs: map[string][]pluginsvc.ManagedJob{
-				pluginID: {
-					{
-						PluginID:    pluginID,
-						Name:        "heartbeat",
-						DisplayName: "Heartbeat",
-						Description: "Dynamic job heartbeat handler.",
-						Handler: func(ctx context.Context) error {
-							return nil
-						},
+	pluginSvc := &testPluginLifecycleService{
+		enabled: map[string]bool{pluginID: true},
+		managedJobs: map[string][]pluginsvc.ManagedJob{
+			pluginID: {
+				{
+					PluginID:    pluginID,
+					Name:        "heartbeat",
+					DisplayName: "Heartbeat",
+					Description: "Dynamic job heartbeat handler.",
+					Handler: func(ctx context.Context) error {
+						return nil
 					},
 				},
 			},
 		},
+	}
+	unsubscribe, err := AttachPluginLifecycle(
+		context.Background(),
+		registry,
+		pluginSvc,
 	)
 	if err != nil {
 		t.Fatalf("expected plugin lifecycle attachment to succeed, got error: %v", err)
@@ -307,7 +306,7 @@ func TestAttachPluginLifecycleSyncsEnabledDynamicPluginCronHandlers(t *testing.T
 	if !ok {
 		t.Fatal("expected enabled dynamic-plugin job handler to be registered during startup sync")
 	}
-	if definition.Source != jobmeta.HandlerSourcePlugin {
+	if definition.Source != jobhandlerv1.SourcePlugin {
 		t.Fatalf("expected plugin handler source, got %s", definition.Source)
 	}
 	if definition.PluginID != pluginID {

@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS sys_cache_revision (
     "scope"      VARCHAR(128) NOT NULL DEFAULT '',
     "revision"   BIGINT NOT NULL DEFAULT 0,
     "reason"     VARCHAR(255) NOT NULL DEFAULT '',
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE sys_cache_revision IS 'Persistent cache revision coordination table';

@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"lina-core/internal/service/plugin/internal/manifestresource"
 	"lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -25,7 +26,7 @@ func (f *trackingManifestFactory) ForPlugin(pluginID string) manifestcap.Service
 }
 
 // WithArtifactResources records release-bound resources passed by the execution context.
-func (f *trackingManifestFactory) WithArtifactResources(pluginID string, resources map[string][]byte) manifestcap.ServiceFactory {
+func (f *trackingManifestFactory) WithArtifactResources(pluginID string, resources map[string][]byte) manifestresource.Factory {
 	f.lastArtifactPlugin = pluginID
 	f.lastArtifactResources = resources
 	return f

@@ -103,3 +103,24 @@ The system MUST provide role dropdown options in the user form.
 - **WHEN** a user selects multiple roles in the role selector
 - **THEN** the selector displays selected roles as tags
 - **AND** the user can remove selected roles
+
+### Requirement: User Profile Partial Update
+
+The system MUST support partial updates to the current user's profile, allowing any subset of fields to be submitted without requiring all fields.
+
+#### Scenario: Update profile with password only
+- **WHEN** a user submits a profile update with only the `password` field
+- **THEN** the system accepts the request without validation errors
+- **AND** the system updates only the password field
+- **AND** other fields (nickname, email, phone, sex) remain unchanged
+
+#### Scenario: Update profile with multiple fields
+- **WHEN** a user submits a profile update with a subset of fields (e.g., nickname and email)
+- **THEN** the system accepts the request
+- **AND** the system updates only the submitted fields
+- **AND** unsubmitted fields remain unchanged
+
+#### Scenario: Admin user creation still requires nickname
+- **WHEN** an admin creates a new user via the admin API
+- **THEN** the `nickname` field is still required
+- **AND** the system rejects the request if nickname is missing

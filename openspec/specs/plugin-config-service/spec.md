@@ -107,32 +107,57 @@
 
 ### Requirement:插件运行时配置文件必须遵循插件作用域目录约定
 
-系统 SHALL 以插件 ID 为作用域解析插件运行时配置。开发阶段实际配置文件位于`apps/lina-plugins/<plugin-id>/manifest/config/config.yaml`；生产阶段推荐实际配置文件位于宿主配置根的`plugins/<plugin-id>/config.yaml`，例如`/opt/linapro/config/plugins/<plugin-id>/config.yaml`。插件配置文件名 MUST 保持为`config.yaml`，并不得回流到`apps/lina-core/manifest/config`。
+系统 SHALL 以插件 ID 为作用域解析插件运行时配置。插件配置服务 MUST 优先读取宿主主静态配置文件中的`plugin.<plugin-id>`配置段；当该配置段不存在时，生产阶段实际配置文件位于宿主配置根的`plugins/<plugin-id>/config.yaml`，例如`/opt/linapro/config/plugins/<plugin-id>/config.yaml`；开发阶段实际配置文件位于`apps/lina-plugins/<plugin-id>/manifest/config/config.yaml`；动态插件 artifact 可提供`manifest/config/config.yaml`作为发布默认配置。插件独立配置文件名 MUST 保持为`config.yaml`。插件业务配置不得通过宿主通用配置服务新增插件专用`GetXxx()`方法，也不得把插件业务默认值维护为宿主治理配置。
 
-#### Scenario:开发阶段读取插件源码目录配置
+#### Scenario: 主框架静态插件配置优先于生产配置文件
 
-- **WHEN** 宿主以开发工作区方式运行源码插件`plugin-a`
-- **AND** `apps/lina-plugins/plugin-a/manifest/config/config.yaml`存在
-- **THEN** `HostServices.Config()`读取该文件作为`plugin-a`的实际运行配置
-- **AND** 宿主不得要求开发者把该配置复制到`apps/lina-core/manifest/config`
+- **WHEN** 宿主主静态配置中存在`plugin.plugin-a.storage.endpoint`
+- **AND** 生产配置根下同时存在`plugins/plugin-a/config.yaml`且包含`storage.endpoint`
+- **THEN** `Services.Plugins().Config()`读取`storage.endpoint`时返回主静态配置中`plugin.plugin-a.storage.endpoint`的值
+- **AND** 系统不从生产配置文件补齐该插件配置段内的单个缺失 key
 
-#### Scenario:生产阶段读取宿主配置根下的插件配置
+#### Scenario: 主框架静态插件配置缺失时读取生产配置文件
 
-- **WHEN** 生产部署配置根为`/opt/linapro/config`
+- **WHEN** 宿主主静态配置中不存在`plugin.plugin-a`
+- **AND** 生产部署配置根为`/opt/linapro/config`
 - **AND** `/opt/linapro/config/plugins/plugin-a/config.yaml`存在
-- **THEN** `HostServices.Config()`优先读取该文件作为`plugin-a`的实际运行配置
+- **THEN** `Services.Plugins().Config()`读取该文件作为`plugin-a`的实际运行配置
 - **AND** 该路径与宿主 GoFrame 配置目录约定保持一致但仍按插件 ID 隔离
 
-#### Scenario:生产配置覆盖发布默认配置
+#### Scenario: 生产配置文件缺失时读取插件源码目录配置
+
+- **WHEN** 宿主以开发工作区方式运行源码插件`plugin-a`
+- **AND** 宿主主静态配置中不存在`plugin.plugin-a`
+- **AND** 生产配置根下不存在`plugins/plugin-a/config.yaml`
+- **AND** `apps/lina-plugins/plugin-a/manifest/config/config.yaml`存在
+- **THEN** `Services.Plugins().Config()`读取该文件作为`plugin-a`的实际运行配置
+- **AND** 宿主不得要求开发者把该配置复制到`apps/lina-core/manifest/config`
+
+#### Scenario: 外部配置覆盖发布默认配置
 
 - **WHEN** 动态插件 artifact 携带`manifest/config/config.yaml`
+- **AND** 宿主主静态配置中存在`plugin.<plugin-id>`
+- **THEN** 系统使用宿主主静态配置中的`plugin.<plugin-id>`作为实际运行配置
+- **AND** artifact 中的配置仅作为发布默认配置来源
+
+#### Scenario: 文件配置覆盖发布默认配置
+
+- **WHEN** 动态插件 artifact 携带`manifest/config/config.yaml`
+- **AND** 宿主主静态配置中不存在`plugin.<plugin-id>`
 - **AND** 生产配置根下同时存在`plugins/<plugin-id>/config.yaml`
 - **THEN** 系统使用生产外部配置作为实际运行配置
-- **AND** artifact 中的配置仅作为发布默认配置或开发示例来源
+- **AND** artifact 中的配置仅作为发布默认配置来源
+
+#### Scenario: 模板配置不参与运行期读取
+
+- **WHEN** 插件仅提供`manifest/config/config.example.yaml`但未提供任何实际运行配置
+- **AND** 宿主主静态配置中不存在`plugin.<plugin-id>`
+- **THEN** 插件配置服务不得自动把模板文件内容作为运行期配置返回
+- **AND** 插件业务默认值由插件代码或读取方法默认值承担
 
 ### Requirement:宿主公开配置必须通过独立服务读取
 
-系统 SHALL 通过 `HostServices.HostConfig()` 向源码插件暴露宿主配置只读读取能力。源码插件通过该服务读取宿主配置时不得受公开 key 白名单限制；空 key 或 `.` MUST 按宿主配置组件语义返回完整配置快照。该服务不得提供写入、保存、热重载或运行时修改宿主配置的方法。动态插件通过 `hostconfig.get` 读取宿主配置时，仍 MUST 先通过 `hostServices` 授权快照校验对应 key，动态插件不得绕过 manifest 授权读取宿主配置。
+系统 SHALL 通过 `HostServices.HostConfig()` 向源码插件暴露宿主配置只读读取能力。源码插件通过该服务读取宿主配置时不得受公开 key 白名单限制；空 key 或 `.` MUST 按宿主配置组件语义返回完整静态配置快照。非 root 配置键的读取顺序 MUST 为当前上下文可见的`sys_config`有效快照、GoFrame 当前静态配置源中的`config.yaml`值、系统已有默认值、`nil`。该服务不得提供写入、保存、热重载或运行时修改宿主配置的方法。动态插件通过 `hostconfig.get` 读取宿主配置时，仍 MUST 先通过 `hostServices` 授权快照校验对应 key，动态插件不得绕过 manifest 授权读取宿主配置。
 
 #### Scenario:源码插件读取任意宿主配置键
 
@@ -140,9 +165,33 @@
 - **THEN** 系统按宿主当前配置源返回该键的配置值
 - **AND** 该读取不要求 key 预先登记到公开白名单
 
+#### Scenario:源码插件优先读取系统配置快照
+
+- **WHEN** 源码插件通过 `HostServices.HostConfig()` 读取 `custom.feature.limit`
+- **AND** 当前上下文可见的`sys_config`中存在`custom.feature.limit`
+- **AND** 静态`config.yaml`中也存在`custom.feature.limit`
+- **THEN** 系统返回`sys_config`中的有效值
+
+#### Scenario:源码插件读取静态配置 fallback
+
+- **WHEN** 源码插件通过 `HostServices.HostConfig()` 读取 `workspace.basePath`
+- **AND** 当前上下文可见的`sys_config`中不存在`workspace.basePath`
+- **AND** 静态`config.yaml`中存在`workspace.basePath`
+- **THEN** 系统返回静态配置值
+
+#### Scenario:源码插件读取系统默认值 fallback
+
+- **WHEN** 源码插件通过 `HostServices.HostConfig()` 读取 `sys.jwt.expire`
+- **AND** 当前上下文可见的`sys_config`中不存在`sys.jwt.expire`
+- **AND** 静态`config.yaml`中不存在`sys.jwt.expire`
+- **AND** 系统默认值元数据存在`sys.jwt.expire`
+- **THEN** 系统返回系统默认值
+- **AND** 该读取不要求 key 预先登记到公开白名单
+
 #### Scenario:源码插件读取缺失宿主配置键
 
 - **WHEN** 源码插件通过 `HostServices.HostConfig()` 读取不存在的宿主配置键
+- **AND** `sys_config`、静态`config.yaml`和系统默认值元数据都没有该 key
 - **THEN** 系统返回未找到语义
 - **AND** 不因 key 未登记到白名单而返回权限错误
 
@@ -157,6 +206,13 @@
 - **WHEN** 动态插件通过 `hostconfig.get` 读取宿主配置键
 - **THEN** 宿主先按当前 release 的 `hostServices` 授权快照校验该 key
 - **AND** 未授权 key 的读取必须被拒绝
+
+#### Scenario:动态插件授权后使用统一读取优先级
+
+- **WHEN** 动态插件通过 `hostconfig.get` 读取已授权的宿主配置键
+- **AND** 该 key 同时存在当前上下文可见的`sys_config`值和静态`config.yaml`值
+- **THEN** 系统返回`sys_config`中的有效值
+- **AND** 授权通过后的读取优先级与源码插件 HostConfig 保持一致
 
 ### Requirement:动态插件通过配置宿主服务读取插件作用域配置
 

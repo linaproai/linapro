@@ -22,15 +22,17 @@ import (
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
-var _ aicap.Service = (*aiService)(nil)
-var _ aitext.Service = (*aiTextService)(nil)
-var _ aiimage.Service = (*aiImageService)(nil)
-var _ aiembedding.Service = (*aiEmbeddingService)(nil)
-var _ aiaudio.Service = (*aiAudioService)(nil)
-var _ aivision.Service = (*aiVisionService)(nil)
-var _ aidocument.Service = (*aiDocumentService)(nil)
-var _ aisafety.Service = (*aiSafetyService)(nil)
-var _ aivideo.Service = (*aiVideoService)(nil)
+var (
+	_ aicap.Service       = (*aiService)(nil)
+	_ aitext.Service      = (*aiTextService)(nil)
+	_ aiimage.Service     = (*aiImageService)(nil)
+	_ aiembedding.Service = (*aiEmbeddingService)(nil)
+	_ aiaudio.Service     = (*aiAudioService)(nil)
+	_ aivision.Service    = (*aiVisionService)(nil)
+	_ aidocument.Service  = (*aiDocumentService)(nil)
+	_ aisafety.Service    = (*aiSafetyService)(nil)
+	_ aivideo.Service     = (*aiVideoService)(nil)
+)
 
 // aiService implements the guest-side AI namespace.
 type aiService struct{ baseService }

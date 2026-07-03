@@ -79,5 +79,5 @@ func getCurrentResourceDeptIDs(ctx context.Context, userID int, orgSvc orgcap.Se
 	if orgSvc == nil {
 		return []int{}, nil
 	}
-	return orgSvc.GetUserDeptIDs(ctx, userID)
+	return orgSvc.Assignment().GetUserDeptIDs(ctx, userID)
 }

@@ -6,6 +6,7 @@ package shellexec
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,10 +47,14 @@ func (s *serviceImpl) Execute(ctx context.Context, in ExecuteInput) (*ExecuteOut
 	execCtx, cancel := context.WithTimeout(ctx, in.Timeout)
 	defer cancel()
 
-	cmd := exec.Command("/bin/sh", "-c", commandText)
+	cmd := exec.CommandContext(execCtx, "/bin/sh", "-c", commandText)
 	cmd.Dir = workDir
 	cmd.Env = mergeEnv(os.Environ(), in.Env)
 	configureCommandProcess(cmd)
+	cmd.Cancel = func() error {
+		return terminateProcessGroupGracefully(cmd.Process)
+	}
+	cmd.WaitDelay = s.cancelGracePeriod
 
 	var (
 		stdoutBuffer = newLimitedBuffer(maxCapturedOutputBytes)
@@ -69,6 +74,9 @@ func (s *serviceImpl) Execute(ctx context.Context, in ExecuteInput) (*ExecuteOut
 
 	select {
 	case waitErr := <-waitCh:
+		if cancelErr := execCtx.Err(); cancelErr != nil {
+			return buildCancelledOutput(stdoutBuffer, stderrBuffer, waitErr, cancelErr), cancelErr
+		}
 		return buildExecuteOutput(stdoutBuffer, stderrBuffer, waitErr), wrapCommandWaitError(waitErr)
 
 	case <-execCtx.Done():
@@ -153,8 +161,8 @@ func buildCancelledOutput(
 	cancelErr error,
 ) *ExecuteOutput {
 	out := buildExecuteOutput(stdoutBuffer, stderrBuffer, waitErr)
-	out.Cancelled = cancelErr == context.Canceled
-	out.TimedOut = cancelErr == context.DeadlineExceeded
+	out.Cancelled = errors.Is(cancelErr, context.Canceled)
+	out.TimedOut = errors.Is(cancelErr, context.DeadlineExceeded)
 	return out
 }
 

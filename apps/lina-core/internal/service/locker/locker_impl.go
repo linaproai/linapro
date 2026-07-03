@@ -93,15 +93,6 @@ func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lea
 	}
 }
 
-// isExpiredLock reports whether one lock row is available for takeover before
-// any holder data is reused.
-func isExpiredLock(expireTime *time.Time, now time.Time) bool {
-	if expireTime == nil {
-		return true
-	}
-	return now.After(*expireTime)
-}
-
 // timePtr returns a pointer to value for generated DO time fields that preserve
 // database NULL semantics with *time.Time.
 func timePtr(value time.Time) *time.Time {

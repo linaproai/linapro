@@ -11,11 +11,13 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/util/gconv"
 
+	usermsgv1 "lina-core/api/usermsg/v1"
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/statusflag"
 )
 
 // Send validates the notify channel and creates unified notify message and delivery records.
@@ -48,7 +50,7 @@ func (s *serviceImpl) SendNoticePublication(ctx context.Context, in NoticePublis
 
 	return s.Send(ctx, SendInput{
 		ChannelKey:       ChannelKeyInbox,
-		SourceType:       SourceTypeNotice,
+		SourceType:       usermsgv1.SourceTypeNotice,
 		SourceID:         gconv.String(in.NoticeID),
 		CategoryCode:     in.CategoryCode,
 		Title:            in.Title,
@@ -93,7 +95,7 @@ func (s *serviceImpl) sendInbox(
 	err = dao.SysNotifyMessage.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
 		messageID, err = dao.SysNotifyMessage.Ctx(ctx).Data(do.SysNotifyMessage{
 			PluginId:     strings.TrimSpace(in.PluginID),
-			SourceType:   sourceType.String(),
+			SourceType:   string(sourceType),
 			SourceId:     strings.TrimSpace(in.SourceID),
 			CategoryCode: categoryCode.String(),
 			Title:        normalizedTitle,
@@ -149,7 +151,7 @@ func (s *serviceImpl) getChannel(ctx context.Context, channelKey string) (*entit
 	var channel *entity.SysNotifyChannel
 	err := dao.SysNotifyChannel.Ctx(ctx).Where(do.SysNotifyChannel{
 		ChannelKey: normalizedChannelKey,
-		Status:     ChannelStatusEnabled,
+		Status:     statusflag.EnabledValue.Int(),
 	}).Scan(&channel)
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeNotifyChannelQueryFailed)
@@ -238,8 +240,8 @@ func uniquePositiveUserIDs(userIDs []int64) []int64 {
 // normalizeSourceType falls back to the system source type when the input is
 // empty.
 func normalizeSourceType(sourceType SourceType) SourceType {
-	if strings.TrimSpace(sourceType.String()) == "" {
-		return SourceTypeSystem
+	if strings.TrimSpace(string(sourceType)) == "" {
+		return usermsgv1.SourceTypeSystem
 	}
 	return sourceType
 }

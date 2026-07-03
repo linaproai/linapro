@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,7 +67,7 @@ func TestResolveSQLAssetsHandlesMockDirection(t *testing.T) {
 		ID:           "plugin-dev-mock-resolver",
 		Name:         "Mock Resolver Plugin",
 		Version:      "0.1.0",
-		Type:         plugintypes.TypeSource.String(),
+		Type:         pluginv1.PluginTypeSource.String(),
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		RootDir:      pluginDir,
 	}

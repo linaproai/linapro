@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/net/ghttp"
 
+	authsvc "lina-core/internal/service/auth"
 	"lina-core/internal/service/datascope"
 	internalsession "lina-core/internal/service/session"
 	"lina-core/pkg/bizerr"
@@ -21,15 +21,16 @@ import (
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	capabilityusercap "lina-core/pkg/plugin/capability/usercap"
+	"lina-core/pkg/statusflag"
 )
 
 // TestToInternalFilter verifies the published filter contract is converted explicitly.
 func TestToInternalFilter(t *testing.T) {
-	if result := toInternalFilter(capabilitysessioncap.SearchInput{}); result != nil {
+	if result := toInternalFilter(capabilitysessioncap.ListInput{}); result != nil {
 		t.Fatalf("expected nil filter, got %#v", result)
 	}
 
-	filter := capabilitysessioncap.SearchInput{
+	filter := capabilitysessioncap.ListInput{
 		Username: "admin",
 		IP:       "127.0.0.1",
 	}
@@ -123,15 +124,14 @@ func TestSessionListPageAndRevokeApplyDataScope(t *testing.T) {
 		},
 	}
 	svc := newSessionCapabilityAdapter(
-		nil,
+		sessionAuthService{store: store},
 		nil,
 		sessionUsersService{visibleUserIDs: map[string]bool{"10": true}},
 		sessionDataScopeService{visibleUserIDs: map[int]bool{10: true}},
-		store,
 		sessionTenantScopeService{visibleTenantIDs: map[int]bool{22: true}},
 	)
 
-	out, err := svc.Search(ctx, capmodel.CapabilityContext{}, capabilitysessioncap.SearchInput{Page: capmodel.PageRequest{PageNum: 1, PageSize: 20}})
+	out, err := svc.List(ctx, capabilitysessioncap.ListInput{Page: capmodel.PageRequest{PageNum: 1, PageSize: 20}})
 	if err != nil {
 		t.Fatalf("list scoped sessions: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestSessionListPageAndRevokeApplyDataScope(t *testing.T) {
 		t.Fatalf("expected visible session tenant projection 22, got %s", out.Items[0].TenantID)
 	}
 
-	batch, err := svc.BatchGet(ctx, capmodel.CapabilityContext{}, []capabilitysessioncap.SessionID{"visible-token", "hidden-token", "missing-token"})
+	batch, err := svc.BatchGet(ctx, []capabilitysessioncap.SessionID{"visible-token", "hidden-token", "missing-token"})
 	if err != nil {
 		t.Fatalf("batch get scoped sessions: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestSessionListPageAndRevokeApplyDataScope(t *testing.T) {
 		t.Fatal("expected batch query path to be used")
 	}
 
-	if err = svc.Revoke(ctx, capmodel.CapabilityContext{}, "hidden-token"); err == nil {
+	if err = svc.Revoke(ctx, "hidden-token"); err == nil {
 		t.Fatal("expected hidden session revoke to be denied")
 	}
 	if store.deletedTokenID != "" {
@@ -174,14 +174,14 @@ func TestSessionListPageAndRevokeApplyDataScope(t *testing.T) {
 		LoginTime:      &now,
 		LastActiveTime: &now,
 	})
-	if err = svc.Revoke(ctx, capmodel.CapabilityContext{}, "hidden-tenant-token"); err == nil {
+	if err = svc.Revoke(ctx, "hidden-tenant-token"); err == nil {
 		t.Fatal("expected hidden tenant session revoke to be denied")
 	}
 	if store.deletedTokenID != "" {
 		t.Fatalf("expected hidden tenant session not to be deleted, got token %q", store.deletedTokenID)
 	}
 
-	if err = svc.Revoke(ctx, capmodel.CapabilityContext{}, "visible-token"); err != nil {
+	if err = svc.Revoke(ctx, "visible-token"); err != nil {
 		t.Fatalf("expected visible non-platform session revoke, got %v", err)
 	}
 	if store.deletedTokenID != "" {
@@ -200,15 +200,14 @@ func TestSessionCurrentUsesBizContextToken(t *testing.T) {
 		},
 	}
 	svc := newSessionCapabilityAdapter(
-		nil,
+		sessionAuthService{store: store},
 		staticBizCtx{current: bizctxcap.CurrentContext{TokenID: "visible-token"}},
 		sessionUsersService{visibleUserIDs: map[string]bool{"10": true}},
 		sessionDataScopeService{visibleUserIDs: map[int]bool{10: true}},
-		store,
 		sessionTenantScopeService{visibleTenantIDs: map[int]bool{22: true}},
 	)
 
-	current, err := svc.Current(ctx, capmodel.CapabilityContext{})
+	current, err := svc.Current(ctx)
 	if err != nil {
 		t.Fatalf("current session failed: %v", err)
 	}
@@ -220,9 +219,9 @@ func TestSessionCurrentUsesBizContextToken(t *testing.T) {
 // TestSessionCurrentRejectsMissingToken verifies current session lookup fails
 // closed when no request token context is available.
 func TestSessionCurrentRejectsMissingToken(t *testing.T) {
-	svc := newSessionCapabilityAdapter(nil, nil, nil, nil, &sessionDataScopeStore{}, nil)
-	_, err := svc.Current(context.Background(), capmodel.CapabilityContext{})
-	if !bizerr.Is(err, capmodel.CodeCapabilityContextRequired) {
+	svc := newSessionCapabilityAdapter(sessionAuthService{store: &sessionDataScopeStore{}}, nil, nil, nil, nil)
+	_, err := svc.Current(context.Background())
+	if !bizerr.Is(err, capmodel.CodeCapabilityCurrentUserRequired) {
 		t.Fatalf("expected context-required error, got %v", err)
 	}
 }
@@ -243,6 +242,24 @@ type staticBizCtx struct {
 
 func (s staticBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	return s.current
+}
+
+// sessionAuthService exposes the shared session store required by the session
+// capability adapter without exercising auth's full token lifecycle.
+type sessionAuthService struct {
+	authsvc.Service
+
+	store internalsession.Store
+}
+
+// SessionStore returns the test-owned session store.
+func (s sessionAuthService) SessionStore() internalsession.Store {
+	return s.store
+}
+
+// RevokeSession accepts visible revocation requests without mutating the fake store.
+func (s sessionAuthService) RevokeSession(context.Context, string) error {
+	return nil
 }
 
 // sessionDataScopeStore is an in-memory session store for capability tests.
@@ -469,38 +486,23 @@ func (s sessionDataScopeService) EnsureRowsVisible(context.Context, *gdb.Model, 
 
 // sessionTenantScopeService allows only configured tenant IDs.
 type sessionTenantScopeService struct {
+	tenantspi.Service
+
 	visibleTenantIDs map[int]bool
 }
 
-// Available reports an active tenant provider for tenant visibility tests.
+// Available reports an active tenant query-scope provider for visibility tests.
 func (s sessionTenantScopeService) Available(context.Context) bool { return true }
 
-// Status returns an available tenant capability status.
-func (s sessionTenantScopeService) Status(context.Context) capmodel.CapabilityStatus {
-	return capmodel.CapabilityStatus{Available: true, ActiveProvider: tenantcap.ProviderPluginID}
-}
-
-// Current returns the first configured tenant ID.
-func (s sessionTenantScopeService) Current(context.Context) tenantcapsvc.TenantID {
-	for tenantID := range s.visibleTenantIDs {
-		return tenantcapsvc.TenantID(tenantID)
-	}
-	return tenantcap.PLATFORM
-}
-
-// CurrentTenantInfo returns a minimal current tenant projection.
-func (s sessionTenantScopeService) CurrentTenantInfo(ctx context.Context) (*tenantcap.TenantInfo, error) {
-	tenantID := s.Current(ctx)
-	return &tenantcap.TenantInfo{ID: tenantID, Code: "tenant", Name: "Tenant", Status: "active"}, nil
+// Directory returns tenant directory operations for tests.
+func (s sessionTenantScopeService) Directory() tenantcap.DirectoryService {
+	return s
 }
 
 // Apply is unused by sessioncap data-scope tests.
 func (s sessionTenantScopeService) Apply(_ context.Context, model *gdb.Model, _ string) (*gdb.Model, error) {
 	return model, nil
 }
-
-// PlatformBypass reports no platform bypass in tenant visibility tests.
-func (s sessionTenantScopeService) PlatformBypass(context.Context) bool { return false }
 
 // EnsureTenantVisible verifies the requested tenant is configured as visible.
 func (s sessionTenantScopeService) EnsureTenantVisible(_ context.Context, tenantID tenantcapsvc.TenantID) error {
@@ -510,14 +512,9 @@ func (s sessionTenantScopeService) EnsureTenantVisible(_ context.Context, tenant
 	return bizerr.NewCode(tenantcap.CodeTenantForbidden, bizerr.P("tenantId", int(tenantID)))
 }
 
-// ValidateUserInTenant is unused by sessioncap data-scope tests.
-func (s sessionTenantScopeService) ValidateUserInTenant(context.Context, int, tenantcapsvc.TenantID) error {
-	return nil
-}
-
-// ResolveTenant is unused by sessioncap data-scope tests.
-func (s sessionTenantScopeService) ResolveTenant(ctx context.Context, _ *ghttp.Request) (*tenantcap.ResolverResult, error) {
-	return &tenantcap.ResolverResult{TenantID: s.Current(ctx), Matched: true}, nil
+// EnsureVisible verifies the requested tenant identifiers are configured as visible.
+func (s sessionTenantScopeService) EnsureVisible(ctx context.Context, tenantIDs []tenantcap.TenantID) error {
+	return s.ensureTenantsVisible(ctx, tenantIDs)
 }
 
 // ApplyUserTenantScope is unused by sessioncap data-scope tests.
@@ -525,13 +522,8 @@ func (s sessionTenantScopeService) ApplyUserTenantScope(_ context.Context, model
 	return model, false, nil
 }
 
-// ListUserTenants is unused by sessioncap data-scope tests.
-func (s sessionTenantScopeService) ListUserTenants(context.Context, int) ([]tenantcap.TenantInfo, error) {
-	return []tenantcap.TenantInfo{}, nil
-}
-
-// BatchGetTenants returns visible tenant projections and opaque missing IDs.
-func (s sessionTenantScopeService) BatchGetTenants(_ context.Context, tenantIDs []tenantcapsvc.TenantID) (*capmodel.BatchResult[*tenantcap.TenantInfo, tenantcapsvc.TenantID], error) {
+// batchGetTenants returns visible tenant projections and opaque missing IDs.
+func (s sessionTenantScopeService) batchGetTenants(_ context.Context, tenantIDs []tenantcapsvc.TenantID) (*capmodel.BatchResult[*tenantcap.TenantInfo, tenantcapsvc.TenantID], error) {
 	result := &capmodel.BatchResult[*tenantcap.TenantInfo, tenantcapsvc.TenantID]{
 		Items:      map[tenantcapsvc.TenantID]*tenantcap.TenantInfo{},
 		MissingIDs: []tenantcapsvc.TenantID{},
@@ -546,28 +538,32 @@ func (s sessionTenantScopeService) BatchGetTenants(_ context.Context, tenantIDs 
 	return result, nil
 }
 
-// SearchTenants returns an empty page for session capability tests.
-func (s sessionTenantScopeService) SearchTenants(context.Context, tenantcap.SearchInput) (*capmodel.PageResult[*tenantcap.TenantInfo], error) {
+// Get returns one visible tenant projection.
+func (s sessionTenantScopeService) Get(ctx context.Context, tenantID tenantcap.TenantID) (*tenantcap.TenantInfo, error) {
+	result, err := s.batchGetTenants(ctx, []tenantcap.TenantID{tenantID})
+	if err != nil || result == nil {
+		return nil, err
+	}
+	return result.Items[tenantID], nil
+}
+
+// BatchGet returns visible tenant projections and opaque missing IDs.
+func (s sessionTenantScopeService) BatchGet(ctx context.Context, tenantIDs []tenantcap.TenantID) (*capmodel.BatchResult[*tenantcap.TenantInfo, tenantcap.TenantID], error) {
+	return s.batchGetTenants(ctx, tenantIDs)
+}
+
+// List returns an empty tenant directory page for session capability tests.
+func (s sessionTenantScopeService) List(context.Context, tenantcap.ListInput) (*capmodel.PageResult[*tenantcap.TenantInfo], error) {
 	return &capmodel.PageResult[*tenantcap.TenantInfo]{Items: []*tenantcap.TenantInfo{}}, nil
 }
 
-// BatchListUserTenants returns empty memberships for session capability tests.
-func (s sessionTenantScopeService) BatchListUserTenants(context.Context, []int) (map[int][]tenantcap.TenantInfo, error) {
-	return map[int][]tenantcap.TenantInfo{}, nil
-}
-
-// EnsureTenantsVisible validates each tenant against the fake visible set.
-func (s sessionTenantScopeService) EnsureTenantsVisible(ctx context.Context, tenantIDs []tenantcapsvc.TenantID) error {
+// ensureTenantsVisible validates each tenant against the fake visible set.
+func (s sessionTenantScopeService) ensureTenantsVisible(ctx context.Context, tenantIDs []tenantcapsvc.TenantID) error {
 	for _, tenantID := range tenantIDs {
 		if err := s.EnsureTenantVisible(ctx, tenantID); err != nil {
 			return err
 		}
 	}
-	return nil
-}
-
-// SwitchTenant is unused by sessioncap data-scope tests.
-func (s sessionTenantScopeService) SwitchTenant(context.Context, int, tenantcapsvc.TenantID) error {
 	return nil
 }
 
@@ -581,73 +577,28 @@ func (s sessionTenantScopeService) ApplyUserTenantFilter(
 	return model, false, nil
 }
 
-// ListUserTenantProjections is unused by sessioncap data-scope tests.
-func (s sessionTenantScopeService) ListUserTenantProjections(
-	context.Context,
-	[]int,
-) (map[int]*tenantcap.UserTenantProjection, error) {
-	return map[int]*tenantcap.UserTenantProjection{}, nil
-}
-
-// ResolveUserTenantAssignment is unused by sessioncap data-scope tests.
-func (s sessionTenantScopeService) ResolveUserTenantAssignment(
-	context.Context,
-	[]tenantcapsvc.TenantID,
-	tenantcap.UserTenantAssignmentMode,
-) (*tenantcap.UserTenantAssignmentPlan, error) {
-	return &tenantcap.UserTenantAssignmentPlan{}, nil
-}
-
-// ReplaceUserTenantAssignments is unused by sessioncap data-scope tests.
-func (s sessionTenantScopeService) ReplaceUserTenantAssignments(
-	context.Context,
-	int,
-	*tenantcap.UserTenantAssignmentPlan,
-) error {
-	return nil
-}
-
-// EnsureUsersInTenant is unused by sessioncap data-scope tests.
-func (s sessionTenantScopeService) EnsureUsersInTenant(context.Context, []int, tenantcapsvc.TenantID) error {
-	return nil
-}
-
-// ValidateUserMembershipStartupConsistency is unused by sessioncap data-scope tests.
-func (s sessionTenantScopeService) ValidateUserMembershipStartupConsistency(context.Context) ([]string, error) {
-	return nil, nil
-}
-
-// ProvisionAutoEnabledTenantPlugins is unused by sessioncap data-scope tests.
-func (s sessionTenantScopeService) ProvisionAutoEnabledTenantPlugins(context.Context) error {
-	return nil
-}
-
-// Interface guard keeps the fake aligned with the tenant SPI dependency.
-var _ tenantspi.ScopeService = sessionTenantScopeService{}
-
 // sessionUsersService exposes visible users for online-status tests.
 type sessionUsersService struct {
 	visibleUserIDs map[string]bool
 }
 
 // Current is unused by sessioncap tests.
-func (s sessionUsersService) Current(context.Context, capmodel.CapabilityContext) (*capabilityusercap.UserProjection, error) {
+func (s sessionUsersService) Current(context.Context) (*capabilityusercap.UserInfo, error) {
 	return nil, nil
 }
 
 // BatchGet returns only configured visible users.
 func (s sessionUsersService) BatchGet(
 	_ context.Context,
-	_ capmodel.CapabilityContext,
 	ids []capabilityusercap.UserID,
-) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID], error) {
-	result := &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.UserID]{
-		Items:      map[capabilityusercap.UserID]*capabilityusercap.UserProjection{},
+) (*capmodel.BatchResult[*capabilityusercap.UserInfo, capabilityusercap.UserID], error) {
+	result := &capmodel.BatchResult[*capabilityusercap.UserInfo, capabilityusercap.UserID]{
+		Items:      map[capabilityusercap.UserID]*capabilityusercap.UserInfo{},
 		MissingIDs: []capabilityusercap.UserID{},
 	}
 	for _, id := range ids {
 		if s.visibleUserIDs[string(id)] {
-			result.Items[id] = &capabilityusercap.UserProjection{ID: id}
+			result.Items[id] = &capabilityusercap.UserInfo{ID: id}
 		} else {
 			result.MissingIDs = append(result.MissingIDs, id)
 		}
@@ -655,26 +606,71 @@ func (s sessionUsersService) BatchGet(
 	return result, nil
 }
 
+// Get returns one visible test user projection.
+func (s sessionUsersService) Get(ctx context.Context, id capabilityusercap.UserID) (*capabilityusercap.UserInfo, error) {
+	result, err := s.BatchGet(ctx, []capabilityusercap.UserID{id})
+	if err != nil || result == nil {
+		return nil, err
+	}
+	return result.Items[id], nil
+}
+
 // BatchResolve is unused by sessioncap tests.
 func (s sessionUsersService) BatchResolve(
 	context.Context,
-	capmodel.CapabilityContext,
 	capabilityusercap.BatchResolveInput,
-) (*capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.ResolveKey], error) {
-	return &capmodel.BatchResult[*capabilityusercap.UserProjection, capabilityusercap.ResolveKey]{Items: map[capabilityusercap.ResolveKey]*capabilityusercap.UserProjection{}}, nil
+) (*capmodel.BatchResult[*capabilityusercap.UserInfo, capabilityusercap.ResolveKey], error) {
+	return &capmodel.BatchResult[*capabilityusercap.UserInfo, capabilityusercap.ResolveKey]{Items: map[capabilityusercap.ResolveKey]*capabilityusercap.UserInfo{}}, nil
 }
 
-// Search is unused by sessioncap tests.
-func (s sessionUsersService) Search(
+// List is unused by sessioncap tests.
+func (s sessionUsersService) List(
 	context.Context,
-	capmodel.CapabilityContext,
-	capabilityusercap.SearchInput,
-) (*capmodel.PageResult[*capabilityusercap.UserProjection], error) {
-	return &capmodel.PageResult[*capabilityusercap.UserProjection]{Items: []*capabilityusercap.UserProjection{}}, nil
+	capabilityusercap.ListInput,
+) (*capmodel.PageResult[*capabilityusercap.UserInfo], error) {
+	return &capmodel.PageResult[*capabilityusercap.UserInfo]{Items: []*capabilityusercap.UserInfo{}}, nil
 }
 
 // EnsureVisible is unused by sessioncap tests.
-func (s sessionUsersService) EnsureVisible(context.Context, capmodel.CapabilityContext, []capabilityusercap.UserID) error {
+func (s sessionUsersService) EnsureVisible(context.Context, []capabilityusercap.UserID) error {
+	return nil
+}
+
+// Create is unused by sessioncap tests.
+func (s sessionUsersService) Create(context.Context, capabilityusercap.CreateInput) (capabilityusercap.UserID, error) {
+	return "", nil
+}
+
+// Update is unused by sessioncap tests.
+func (s sessionUsersService) Update(context.Context, capabilityusercap.UpdateInput) error {
+	return nil
+}
+
+// Delete is unused by sessioncap tests.
+func (s sessionUsersService) Delete(context.Context, capabilityusercap.UserID) error {
+	return nil
+}
+
+// SetStatus is unused by sessioncap tests.
+func (s sessionUsersService) SetStatus(context.Context, capabilityusercap.UserID, statusflag.Enabled) error {
+	return nil
+}
+
+// ResetPassword is unused by sessioncap tests.
+func (s sessionUsersService) ResetPassword(context.Context, capabilityusercap.UserID, string) error {
+	return nil
+}
+
+// Assignment returns user-role assignment operations unused by sessioncap tests.
+func (s sessionUsersService) Assignment() capabilityusercap.AssignmentService {
+	return sessionUserAssignments{}
+}
+
+// sessionUserAssignments accepts unused role replacements.
+type sessionUserAssignments struct{}
+
+// ReplaceRoles is unused by sessioncap tests.
+func (sessionUserAssignments) ReplaceRoles(context.Context, capabilityusercap.UserID, []int) error {
 	return nil
 }
 

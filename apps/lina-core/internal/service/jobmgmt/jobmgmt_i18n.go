@@ -26,12 +26,6 @@ const (
 // handlerSourceTextCache stores request-local handler metadata translations.
 type handlerSourceTextCache map[string]string
 
-// jobmgmtI18nTranslator defines the narrow source-text translation capabilities jobmgmt needs.
-type jobmgmtI18nTranslator interface {
-	// TranslateSourceText returns one source-text-backed key with source text fallback.
-	TranslateSourceText(ctx context.Context, key string, sourceText string) string
-}
-
 // localizeGroupForDisplay translates the code-owned default group display
 // fields while preserving custom group records exactly as stored.
 func (s *serviceImpl) localizeGroupForDisplay(ctx context.Context, group *entity.SysJobGroup) {
@@ -75,16 +69,6 @@ func (s *serviceImpl) localizeBuiltinJobForDisplayWithCache(
 	job.Description = s.localizeBuiltinJobDescriptionWithCache(ctx, job.HandlerRef, job.Description, job.IsBuiltin, cache)
 }
 
-// localizeBuiltinJobName translates one built-in job name by handler ref.
-func (s *serviceImpl) localizeBuiltinJobName(
-	ctx context.Context,
-	handlerRef string,
-	fallback string,
-	isBuiltin int,
-) string {
-	return s.localizeBuiltinJobNameWithCache(ctx, handlerRef, fallback, isBuiltin, nil)
-}
-
 // localizeBuiltinJobNameWithCache translates one built-in job name using a
 // request-local cache to avoid repeated handler metadata lookups.
 func (s *serviceImpl) localizeBuiltinJobNameWithCache(
@@ -98,16 +82,6 @@ func (s *serviceImpl) localizeBuiltinJobNameWithCache(
 		return fallback
 	}
 	return s.translateHandlerSourceTextWithCache(ctx, handlerRef, jobNameI18nField, fallback, cache)
-}
-
-// localizeBuiltinJobDescription translates one built-in job description by handler ref.
-func (s *serviceImpl) localizeBuiltinJobDescription(
-	ctx context.Context,
-	handlerRef string,
-	fallback string,
-	isBuiltin int,
-) string {
-	return s.localizeBuiltinJobDescriptionWithCache(ctx, handlerRef, fallback, isBuiltin, nil)
 }
 
 // localizeBuiltinJobDescriptionWithCache translates one built-in job
@@ -179,11 +153,6 @@ func localizedTextMatchesKeyword(name string, description string, normalizedKeyw
 		strings.Contains(strings.ToLower(description), normalizedKeyword)
 }
 
-// translateHandlerSourceText resolves handler-owned display metadata.
-func (s *serviceImpl) translateHandlerSourceText(ctx context.Context, handlerRef string, field string, sourceText string) string {
-	return s.translateHandlerSourceTextWithCache(ctx, handlerRef, field, sourceText, nil)
-}
-
 // translateHandlerSourceTextWithCache resolves handler metadata and reuses the
 // result for duplicate handler-ref/field/fallback triples in one request.
 func (s *serviceImpl) translateHandlerSourceTextWithCache(
@@ -219,5 +188,5 @@ func (s *serviceImpl) translateSourceText(ctx context.Context, key string, sourc
 	if s == nil || s.i18nSvc == nil || strings.TrimSpace(key) == "" {
 		return sourceText
 	}
-	return s.i18nSvc.TranslateSourceText(ctx, key, sourceText)
+	return s.i18nSvc.Translate(ctx, key, sourceText)
 }

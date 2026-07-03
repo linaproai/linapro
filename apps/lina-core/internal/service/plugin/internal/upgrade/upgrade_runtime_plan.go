@@ -12,17 +12,18 @@ import (
 
 	"github.com/gogf/gf/v2/util/guid"
 
+	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 const (
-	// DistributedLockLease bounds orphaned upgrade locks after a node crash while
+	// distributedLockLease bounds orphaned upgrade locks after a node crash while
 	// remaining longer than normal plugin SQL/governance phases.
-	DistributedLockLease = 30 * time.Minute
-	// DistributedLockReason records the owner purpose in coordination backends.
-	DistributedLockReason = "plugin-runtime-upgrade"
+	distributedLockLease = 30 * time.Minute
+	// distributedLockReason records the owner purpose in coordination backends.
+	distributedLockReason = "plugin-runtime-upgrade"
 )
 
 // SQLSummary summarizes manifest SQL assets visible to preview.
@@ -116,21 +117,21 @@ func (e *SnapshotInvalidError) Unwrap() error {
 	return e.Cause
 }
 
-// CanExecute reports whether the explicit management upgrade endpoint may run
+// canExecute reports whether the explicit management upgrade endpoint may run
 // side effects for a runtime-upgrade state.
-func CanExecute(state plugintypes.RuntimeUpgradeState) bool {
+func canExecute(state plugintypes.RuntimeUpgradeState) bool {
 	return state == plugintypes.RuntimeUpgradeStatePendingUpgrade ||
 		state == plugintypes.RuntimeUpgradeStateUpgradeFailed
 }
 
-// DistributedLockName builds the cluster-wide lock name for one plugin upgrade.
-func DistributedLockName(pluginID string) string {
+// distributedLockName builds the cluster-wide lock name for one plugin upgrade.
+func distributedLockName(pluginID string) string {
 	return "plugin-runtime-upgrade:" + strings.TrimSpace(pluginID)
 }
 
-// DistributedLockOwner builds a unique owner for one acquisition so concurrent
+// distributedLockOwner builds a unique owner for one acquisition so concurrent
 // requests from the same node cannot re-enter the same lock.
-func DistributedLockOwner(topology Topology) string {
+func distributedLockOwner(topology cluster.Service) string {
 	nodeID := "local-node"
 	if topology != nil && strings.TrimSpace(topology.NodeID()) != "" {
 		nodeID = strings.TrimSpace(topology.NodeID())
@@ -138,8 +139,8 @@ func DistributedLockOwner(topology Topology) string {
 	return nodeID + ":" + guid.S()
 }
 
-// BuildSQLSummary derives a count-only SQL preview from the target snapshot.
-func BuildSQLSummary(snapshot *store.ManifestSnapshot) SQLSummary {
+// buildSQLSummary derives a count-only SQL preview from the target snapshot.
+func buildSQLSummary(snapshot *store.ManifestSnapshot) SQLSummary {
 	if snapshot == nil {
 		return SQLSummary{}
 	}
@@ -151,8 +152,8 @@ func BuildSQLSummary(snapshot *store.ManifestSnapshot) SQLSummary {
 	}
 }
 
-// BuildHostServicesDiff compares effective and target requested hostServices at service level.
-func BuildHostServicesDiff(
+// buildHostServicesDiff compares effective and target requested hostServices at service level.
+func buildHostServicesDiff(
 	fromSnapshot *store.ManifestSnapshot,
 	toSnapshot *store.ManifestSnapshot,
 ) (HostServicesDiff, error) {
@@ -181,9 +182,11 @@ func BuildHostServicesDiff(
 	sort.Strings(services)
 
 	for _, service := range services {
-		fromSpec := fromServices[service]
-		toSpec := toServices[service]
-		change := buildHostServiceChange(service, fromSpec, toSpec)
+		var (
+			fromSpec = fromServices[service]
+			toSpec   = toServices[service]
+			change   = buildHostServiceChange(service, fromSpec, toSpec)
+		)
 		switch {
 		case fromSpec == nil && toSpec != nil:
 			diff.Added = append(diff.Added, change)
@@ -197,8 +200,8 @@ func BuildHostServicesDiff(
 	return diff, nil
 }
 
-// BuildRiskHints returns stable i18n keys for operator risk hints.
-func BuildRiskHints(
+// buildRiskHints returns stable i18n keys for operator risk hints.
+func buildRiskHints(
 	sqlSummary SQLSummary,
 	hostServicesDiff HostServicesDiff,
 	dependencyBlocked bool,

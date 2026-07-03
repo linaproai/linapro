@@ -18,6 +18,8 @@ type ListReq struct {
 	Type      PluginType               `json:"type" dc:"Filter by plugin type: source=source plugin dynamic=dynamic plugin, if not passed, all will be queried; the current dynamic plugin implementation only supports WASM" eg:"dynamic"`
 	Status    *statusflag.Enabled      `json:"status" dc:"Filter by enabled status: 1=enabled 0=disabled, if not passed, query all" eg:"1"`
 	Installed *statusflag.Installation `json:"installed" dc:"Filter by installation status: 1=Installed 0=Not installed, if not uploaded, query all" eg:"1"`
+	// IncludeBuiltin includes project built-in source plugins for read-only diagnostics. The default false value hides builtin plugins from ordinary plugin management.
+	IncludeBuiltin bool `json:"includeBuiltin" dc:"Whether to include builtin plugins in this read-only diagnostic list query; default false hides builtin plugins from ordinary plugin management" eg:"false"`
 }
 
 // ListRes is the response for querying plugin list.
@@ -38,6 +40,7 @@ type PluginListItem struct {
 	AbnormalReason          RuntimeAbnormalReason     `json:"abnormalReason,omitempty" dc:"Stable diagnostic reason when runtimeState is abnormal" eg:"discovered_version_lower_than_effective"`
 	LastUpgradeFailure      *PluginUpgradeFailureItem `json:"lastUpgradeFailure,omitempty" dc:"Latest observable runtime upgrade failure summary for list diagnosis" eg:"{}"`
 	Type                    PluginType                `json:"type" dc:"Plugin first-level type: source=source plugin dynamic=dynamic plugin" eg:"source"`
+	Distribution            PluginDistribution        `json:"distribution" dc:"Plugin distribution governance type: managed=ordinary managed plugin builtin=project built-in source plugin" eg:"managed"`
 	Description             string                    `json:"description" dc:"Plugin description" eg:"Source plugin that provides left-side menu pages and public/protected routing examples"`
 	Installed               statusflag.Installation   `json:"installed" dc:"Installation status: 1=installed 0=not installed; the source plugin can still be in the uninstalled state by default after being discovered by the host" eg:"1"`
 	InstalledAt             *int64                    `json:"installedAt" dc:"Plugin installation time as Unix timestamp in milliseconds, empty if it is not installed" eg:"1767240000000"`
@@ -66,6 +69,7 @@ type PluginItem struct {
 	AbnormalReason          RuntimeAbnormalReason        `json:"abnormalReason,omitempty" dc:"Stable diagnostic reason when runtimeState is abnormal" eg:"discovered_version_lower_than_effective"`
 	LastUpgradeFailure      *PluginUpgradeFailureItem    `json:"lastUpgradeFailure,omitempty" dc:"Latest observable runtime upgrade failure details" eg:"{}"`
 	Type                    PluginType                   `json:"type" dc:"Plugin first-level type: source=source plugin dynamic=dynamic plugin" eg:"source"`
+	Distribution            PluginDistribution           `json:"distribution" dc:"Plugin distribution governance type: managed=ordinary managed plugin builtin=project built-in source plugin" eg:"managed"`
 	Description             string                       `json:"description" dc:"Plugin description" eg:"Source plugin that provides left-side menu pages and public/protected routing examples"`
 	Installed               statusflag.Installation      `json:"installed" dc:"Installation status: 1=installed 0=not installed; the source plugin can still be in the uninstalled state by default after being discovered by the host" eg:"1"`
 	InstalledAt             *int64                       `json:"installedAt" dc:"Plugin installation time as Unix timestamp in milliseconds, empty if it is not installed" eg:"1767240000000"`

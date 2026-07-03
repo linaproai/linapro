@@ -96,8 +96,3 @@ func (postgresDialect) ClassifyReadSQL(sql string) ReadSQLClassification {
 		SchemaProbe:    classification.SchemaProbe,
 	}
 }
-
-// OnStartup has no PostgreSQL-specific startup side effects.
-func (postgresDialect) OnStartup(ctx context.Context, runtime RuntimeConfig) error {
-	return internalpostgres.OnStartup(ctx, runtime)
-}

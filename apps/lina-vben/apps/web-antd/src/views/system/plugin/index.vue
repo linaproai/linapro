@@ -295,6 +295,10 @@ function isAutoEnableManaged(row: PluginListItem) {
   return row.autoEnableManaged === 1;
 }
 
+function isBuiltinPlugin(row: PluginListItem) {
+  return row.distribution === 'builtin';
+}
+
 function hasPluginMockData(row: PluginListItem) {
   return row.hasMockData === 1;
 }
@@ -323,6 +327,7 @@ function hasPluginVersionDiff(row: PluginListItem) {
 
 function isRuntimeUpgradeAvailable(row: PluginListItem) {
   return (
+    !isBuiltinPlugin(row) &&
     row.installed === 1 &&
     row.upgradeAvailable === true &&
     (row.runtimeState === 'pending_upgrade' || row.runtimeState === 'upgrade_failed')
@@ -387,6 +392,7 @@ function formatAbnormalReason(reason?: string) {
 
 function isTenantProvisioningPolicySupported(row: PluginListItem) {
   return (
+    !isBuiltinPlugin(row) &&
     supportsPluginMultiTenant(row) &&
     row.scopeNature === 'tenant_aware' &&
     row.installMode === 'tenant_scoped'
@@ -449,6 +455,9 @@ function canUninstallPlugin() {
 }
 
 function canTogglePluginStatus(row: PluginListItem) {
+  if (isBuiltinPlugin(row)) {
+    return false;
+  }
   return row.enabled === 1
     ? hasAccessByCodes([pluginAccessCodes.disable])
     : hasAccessByCodes([pluginAccessCodes.enable]);
@@ -479,6 +488,9 @@ async function handleDetail(row: PluginListItem) {
 }
 
 async function handleStatusChange(row: PluginListItem, checked: boolean) {
+  if (isBuiltinPlugin(row)) {
+    return;
+  }
   if (isPluginStatusChanging(row)) {
     return;
   }
@@ -536,6 +548,9 @@ async function handleTenantProvisioningPolicyChange(
   row: PluginListItem,
   checked: boolean,
 ) {
+  if (isBuiltinPlugin(row)) {
+    return;
+  }
   if (!canEditPluginPolicy()) {
     message.warning($t('pages.system.plugin.messages.noPolicyPermission'));
     return;
@@ -552,6 +567,9 @@ async function handleTenantProvisioningPolicyChange(
 }
 
 async function handleInstall(row: PluginListItem) {
+  if (isBuiltinPlugin(row)) {
+    return;
+  }
   if (!canInstallPlugin()) {
     message.warning($t('pages.system.plugin.messages.noInstallPermission'));
     return;
@@ -566,6 +584,9 @@ async function handleInstall(row: PluginListItem) {
 }
 
 async function handleOpenUninstall(row: PluginListItem) {
+  if (isBuiltinPlugin(row)) {
+    return;
+  }
   if (!canUninstallPlugin()) {
     message.warning($t('pages.system.plugin.messages.noUninstallPermission'));
     return;
@@ -576,6 +597,9 @@ async function handleOpenUninstall(row: PluginListItem) {
 }
 
 async function handleOpenUpgrade(row: PluginListItem) {
+  if (isBuiltinPlugin(row)) {
+    return;
+  }
   if (!canInstallPlugin()) {
     message.warning($t('pages.system.plugin.messages.noUpgradePermission'));
     return;
@@ -859,6 +883,7 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
 
       <template #enabled="{ row }">
         <Tooltip
+          v-if="!isBuiltinPlugin(row)"
           :title="
             isAutoEnableManaged(row)
               ? buildAutoEnableManagedRuntimeHint($t('pages.status.disabled'))
@@ -908,6 +933,7 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
 
       <template #tenantProvisioning="{ row }">
         <Tooltip
+          v-if="!isBuiltinPlugin(row)"
           :title="
             isTenantProvisioningPolicySupported(row)
               ? $t('pages.system.plugin.messages.tenantProvisioningEffective')
@@ -949,7 +975,7 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
             }}
           </ghost-button>
           <Tooltip
-            v-else-if="isRuntimeAbnormal(row)"
+            v-else-if="!isBuiltinPlugin(row) && isRuntimeAbnormal(row)"
             :title="$t('pages.system.plugin.messages.abnormalManualRepair')"
           >
             <span
@@ -967,13 +993,19 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
             </span>
           </Tooltip>
           <ghost-button
-            v-else-if="row.installed !== 1 && canInstallPlugin()"
+            v-else-if="
+              !isBuiltinPlugin(row) && row.installed !== 1 && canInstallPlugin()
+            "
             @click.stop="handleInstall(row)"
           >
             {{ $t('pages.system.plugin.actions.install') }}
           </ghost-button>
           <Tooltip
-            v-else-if="canUninstallPlugin() && isAutoEnableManaged(row)"
+            v-else-if="
+              !isBuiltinPlugin(row) &&
+              canUninstallPlugin() &&
+              isAutoEnableManaged(row)
+            "
             :title="
               buildAutoEnableManagedRuntimeHint(
                 $t('pages.system.plugin.actions.uninstall'),
@@ -985,7 +1017,7 @@ async function handleLifecyclePreconditionForce(payload: { pluginId: string }) {
             </ghost-button>
           </Tooltip>
           <ghost-button
-            v-else-if="canUninstallPlugin()"
+            v-else-if="!isBuiltinPlugin(row) && canUninstallPlugin()"
             danger
             @click.stop="handleOpenUninstall(row)"
           >

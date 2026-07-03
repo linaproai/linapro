@@ -48,6 +48,30 @@
 
 接口性能：所有自动清理均使用数据库侧时间范围删除，并依赖既有时间索引或新增必要索引。`sys_job_log.start_at`、`plugin_linapro_ai_invocation.created_at` 已具备索引；登录日志已有 `(tenant_id, login_time)` 索引，自动清理不按租户过滤时仍需要 `login_time` 单列索引支撑过期数据扫描。
 
+## 宿主健康检查移除
+
+主框架此前提供匿名`GET /api/v1/health`和`health.timeout`配置，把数据库探测、集群主从模式和服务可用性包装为框架级健康语义。实际业务交付中，健康检查通常需要覆盖业务数据库、队列、外部服务、模型服务、插件状态和业务降级策略，宿主通用健康接口无法表达这些差异。
+
+**决策**：删除宿主内建匿名健康检查 API、DTO、控制器、路由绑定和 apidoc 翻译资源。删除`health.timeout`配置段、`config.Service.GetHealth`和相关静态配置缓存。不为旧`/api/v1/health`路径提供兼容或重定向。保留`GET /api/v1/system/info`作为受认证和权限控制的系统诊断入口。
+
+**关键实现**：
+- 删除`apps/lina-core/api/health`、`apps/lina-core/internal/controller/health`
+- 删除`config.Service.GetHealth`、`HealthConfig`、静态健康配置缓存
+- 删除健康端点 E2E，集群验证改用登录后`GET /api/v1/system/info`
+- 保留 PostgreSQL service healthcheck（数据库容器启动依赖）
+
+## 宿主对象存储统一
+
+当前有两套本地磁盘对象读写实现：文件中心的`file.Storage`和插件存储的本地`storagecap.Provider`。它们都负责对象内容的写入、读取、删除和路径安全，但上层职责不同。
+
+**决策**：新增`apps/lina-core/internal/service/storage`作为宿主对象存储 owner，提供中立`Service`和本地 provider 实现。`file`和`storagecap`都作为领域层依赖该组件，而不是彼此依赖。
+
+**关键设计**：
+- `storage.Service`使用 namespace/key 表达隔离边界，不改变已有持久化路径语义
+- URL 仍归文件中心，不进入中立存储
+- 插件`storagecap.Provider`保持公开扩展契约，内置本地 provider 委托宿主`storage.Service`
+- 显式依赖注入从启动装配传递同一个宿主对象存储实例
+
 ## 参数、字典和开发体验交叉能力
 
 参数设置和字典导入导出曾作为系统治理工作的一部分交付。参数管理最终长期归属`system-config`，包括 CRUD、导入导出、运行时配置缓存、内置参数保护和租户 fallback 元数据。字典导入、合并导出导入、模板下载和字典类型级联删除最终长期归属组织结构/字典治理分组。

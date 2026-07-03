@@ -11,14 +11,6 @@ import (
 	"lina-core/pkg/bizerr"
 )
 
-// dictI18nTranslator defines the narrow translation capability dict needs.
-type dictI18nTranslator interface {
-	// ResolveLocale resolves one explicit locale override against the current request locale.
-	ResolveLocale(ctx context.Context, locale string) string
-	// Translate returns one runtime translation key with caller-provided fallback text.
-	Translate(ctx context.Context, key string, fallback string) string
-}
-
 // runtimeTextItem defines one source-owned runtime message key and English
 // fallback pair used for batch translation.
 type runtimeTextItem struct {

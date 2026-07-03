@@ -1,6 +1,8 @@
 ---
 name: lina-community-commit-push-and-pr
-description: 为LinaPro以及SubModule仓库自动提交、推送并创建 PR。必须用户手动触发，禁止自动触发该技能。
+description: >-
+  为LinaPro以及SubModule仓库自动提交、推送、创建 PR，并在 PR 合并后恢复原始分支和同步 main。
+  必须用户手动触发，禁止自动触发该技能。
 ---
 
 # 技能介绍
@@ -18,7 +20,10 @@ description: 为LinaPro以及SubModule仓库自动提交、推送并创建 PR。
 7. 创建任何`PR`前必须确认对应分支已经推送到`origin`。
 8. 创建子模块`PR`后必须停止，并提醒用户先 review 和合并该`PR`。用户回复`已合并`或`继续`之前，不得更新主框架的子模块指针、提交主框架或创建主框架`PR`。
 9. 用户回复`已合并`或`继续`后，必须先通过`gh pr view`或远端`main`提交确认子模块`PR`已经合并；如果尚未合并，停止并提示用户继续 review。
-10. 执行过程中遇到`git`合并、同步或更新分支时，只允许`Git`自动完成无冲突合并；一旦出现内容冲突、子模块指针冲突或需要人工选择的冲突，必须立即停止并交给用户处理，禁止自行编辑冲突文件、删除冲突标记、选择 ours/theirs、暂存冲突结果或提交冲突解决。
+10. 主框架`PR`创建后必须停止，并提醒用户先 review 和合并该`PR`。用户回复主框架`PR`已合并或要求收尾之前，不得执行本地分支恢复和`main`同步。
+11. 用户回复主框架`PR`已合并或要求收尾后，必须先通过`gh pr view`确认主框架`PR`状态为`MERGED`；如果尚未合并，停止并提示用户继续 review。
+12. 子模块和主框架`PR`都已确认合并后，必须将子模块和主框架工作树切回本次流程开始时记录的原始分支，并让这些分支与各自远端`main`保持同步。
+13. 执行过程中遇到`git`合并、同步或更新分支时，只允许`Git`自动完成无冲突合并；一旦出现内容冲突、子模块指针冲突或需要人工选择的冲突，必须立即停止并交给用户处理，禁止自行编辑冲突文件、删除冲突标记、选择 ours/theirs、暂存冲突结果或提交冲突解决。
 
 ## 合并冲突处理
 
@@ -60,6 +65,15 @@ gh auth status
 ```
 
 如果主仓库或子模块处于分离`HEAD`状态，停止并说明原因，除非用户明确要求在分离`HEAD`状态继续。
+
+记录流程开始时的原始分支，后续收尾必须使用这些值恢复工作树：
+
+```bash
+original_main_branch=$(git branch --show-current)
+original_sub_branch=$(git -C apps/lina-plugins branch --show-current)
+```
+
+如果任一原始分支为空，视为分离`HEAD`状态并停止。
 
 ## 阶段一：处理子模块
 
@@ -191,6 +205,95 @@ gh pr view "<framework-pr-number-or-url>" \
 
 若本地确认可自动合并，可以把`origin/main`正常合入当前分支并推送；若出现冲突，停止并报告冲突文件。
 
+阶段二完成后停止当前流程。必须明确提醒用户：
+
+```text
+请先 review 并合并主框架 PR。合并完成后回复“已合并”或“继续收尾”，我再恢复主框架和 submodule 的本地分支并同步 main。
+```
+
+## 阶段三：PR 合并后恢复分支并同步 main
+
+只有在以下条件全部满足时才能进入阶段三：
+
+- 阶段一创建过子模块`PR`时，该子模块`PR`已通过`gh pr view`确认状态为`MERGED`；
+- 阶段二创建过主框架`PR`时，该主框架`PR`已通过`gh pr view`确认状态为`MERGED`；
+- 已记录`original_main_branch`和`original_sub_branch`，且二者都不是空值。
+
+进入阶段三后执行：
+
+1. 确认两个`PR`已经合并：
+
+```bash
+gh pr view "<submodule-pr-number-or-url>" \
+  --repo "<submodule-owner>/<submodule-repo>" \
+  --json number,state,mergeCommit,url,baseRefName,headRefName
+gh pr view "<framework-pr-number-or-url>" \
+  --repo linaproai/linapro \
+  --json number,state,mergeCommit,url,baseRefName,headRefName
+```
+
+如果任一`state`不是`MERGED`，停止并提示用户继续 review 和合并对应`PR`。
+
+2. 拉取两个仓库的远端`main`：
+
+```bash
+git fetch origin main
+git -C apps/lina-plugins fetch origin main
+```
+
+3. 先把子模块切回原始分支，并与子模块远端`main`同步：
+
+```bash
+git -C apps/lina-plugins switch "$original_sub_branch"
+git -C apps/lina-plugins merge --ff-only origin/main
+```
+
+如果`--ff-only`失败，先按“合并冲突处理”规则做只读检查；只读检查确认可自动合并时才允许执行：
+
+```bash
+git -C apps/lina-plugins merge --no-edit origin/main
+```
+
+如果出现冲突或需要人工选择，立即停止并报告冲突文件。
+
+4. 再把主框架切回原始分支，并与主框架远端`main`同步：
+
+```bash
+git switch "$original_main_branch"
+git merge --ff-only origin/main
+```
+
+如果`--ff-only`失败，先按“合并冲突处理”规则做只读检查；只读检查确认可自动合并时才允许执行：
+
+```bash
+git merge --no-edit origin/main
+```
+
+如果出现冲突或需要人工选择，立即停止并报告冲突文件。
+
+5. 确认主框架和子模块当前分支、`main`同步状态和工作区状态：
+
+```bash
+git status --short --branch
+git log --oneline -1
+git -C apps/lina-plugins status --short --branch
+git -C apps/lina-plugins log --oneline -1
+```
+
+如果同步后当前分支相对远端同名分支存在本地领先提交，必须推送对应原始分支；如果远端同名分支不存在，使用`-u`建立上游；如果当前分支相对远端同名分支存在落后或分叉，停止并报告风险：
+
+```bash
+git rev-list --left-right --count "origin/$original_main_branch"...HEAD
+git -C apps/lina-plugins rev-list --left-right --count "origin/$original_sub_branch"...HEAD
+```
+
+需要推送时执行：
+
+```bash
+git push origin "$original_main_branch"
+git -C apps/lina-plugins push origin "$original_sub_branch"
+```
+
 ## PR 正文要求
 
 子模块`PR`正文至少包含：
@@ -220,5 +323,14 @@ gh pr view "<framework-pr-number-or-url>" \
 - 主框架推送目标；
 - 主框架`PR`地址；
 - `PR`当前是否可合并；
+- 本地工作区是否干净；
+- 测试是否运行，未运行时如实说明。
+
+阶段三完成后最终输出：
+
+- 已确认合并的子模块`PR`地址和合并提交；
+- 已确认合并的主框架`PR`地址和合并提交；
+- 子模块当前分支、同步后的提交和是否已推送；
+- 主框架当前分支、同步后的提交和是否已推送；
 - 本地工作区是否干净；
 - 测试是否运行，未运行时如实说明。

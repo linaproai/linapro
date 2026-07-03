@@ -5,8 +5,6 @@ package config
 import (
 	"context"
 	"testing"
-
-	"lina-core/pkg/bizerr"
 )
 
 // TestGetLogRetentionDaysUsesRuntimeOverride verifies the shared log retention
@@ -23,14 +21,17 @@ func TestGetLogRetentionDaysUsesRuntimeOverride(t *testing.T) {
 	}
 }
 
-// TestGetLogRetentionDaysRequiresSeedRow verifies the delivery SQL seed row is
-// required instead of hidden behind a synthetic default.
-func TestGetLogRetentionDaysRequiresSeedRow(t *testing.T) {
+// TestGetLogRetentionDaysUsesDefaultWhenRuntimeMissing verifies the typed
+// getter falls back to host default metadata when sys_config is absent.
+func TestGetLogRetentionDaysUsesDefaultWhenRuntimeMissing(t *testing.T) {
 	withCachedRuntimeParamSnapshot(t, &runtimeParamSnapshot{})
 
-	_, err := New().GetLogRetentionDays(context.Background())
-	if !bizerr.Is(err, CodeConfigParamRequired) {
-		t.Fatalf("expected required config error, got %v", err)
+	days, err := New().GetLogRetentionDays(context.Background())
+	if err != nil {
+		t.Fatalf("get default log retention days: %v", err)
+	}
+	if days != 90 {
+		t.Fatalf("expected default log retention days 90, got %d", days)
 	}
 }
 
@@ -61,13 +62,16 @@ func TestGetRawReturnsRuntimeProtectedParameter(t *testing.T) {
 	}
 }
 
-// TestGetRawRequiresLogRetentionSeedRow verifies plugin-facing host config
-// reads do not synthesize the log-retention value when the seed row is absent.
-func TestGetRawRequiresLogRetentionSeedRow(t *testing.T) {
+// TestGetRawReturnsLogRetentionDefaultWhenRuntimeMissing verifies plugin-facing
+// host config raw reads use the generic default fallback for log retention.
+func TestGetRawReturnsLogRetentionDefaultWhenRuntimeMissing(t *testing.T) {
 	withCachedRuntimeParamSnapshot(t, &runtimeParamSnapshot{})
 
-	_, err := New().(*serviceImpl).GetRaw(context.Background(), RuntimeParamKeyLogRetentionDays)
-	if !bizerr.Is(err, CodeConfigParamRequired) {
-		t.Fatalf("expected required config error, got %v", err)
+	value, err := New().(*serviceImpl).GetRaw(context.Background(), RuntimeParamKeyLogRetentionDays)
+	if err != nil {
+		t.Fatalf("get raw log retention default: %v", err)
+	}
+	if value == nil || value.String() != "90" {
+		t.Fatalf("expected raw log retention default 90, got %#v", value)
 	}
 }

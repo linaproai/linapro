@@ -36,10 +36,9 @@ type pluginProjectionInput struct {
 	sync      bool
 }
 
-// pluginProjectionOutput carries the current read model plus the shared
-// snapshots built while projecting it.
+// pluginProjectionOutput carries the current read model plus the shared snapshots built while projecting it.
 type pluginProjectionOutput struct {
-	ctx                 context.Context
+	manifests           []*catalog.Manifest
 	list                *ListOutput
 	item                *PluginItem
 	dependencySnapshots []*plugindep.PluginSnapshot
@@ -50,40 +49,40 @@ type pluginProjectionOutput struct {
 func (s *serviceImpl) buildPluginProjection(
 	ctx context.Context,
 	input pluginProjectionInput,
-) (*pluginProjectionOutput, error) {
+) (*pluginProjectionOutput, context.Context, error) {
 	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	manifests, err := s.projectionManifests(ctx, input.sync)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	readCtx, err := s.projectionSnapshotContext(ctx, manifests, input.sync)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	out := &pluginProjectionOutput{ctx: readCtx}
+	out := &pluginProjectionOutput{manifests: manifests}
 	if input.mode == projectionModeDependencySnapshot {
 		out.dependencySnapshots, err = s.buildDependencySnapshotsForProjection(readCtx, input.candidate)
-		return out, err
+		return out, readCtx, err
 	}
 	if input.mode == projectionModeDetail {
 		item, err := s.buildDetailProjection(readCtx, manifests, strings.TrimSpace(input.pluginID))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		out.item = item
-		return out, nil
+		return out, readCtx, nil
 	}
 
 	items, err := s.buildListProjection(readCtx, manifests, input)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	sortPluginProjectionItems(items)
 	out.list = &ListOutput{List: items, Total: len(items)}
-	return out, nil
+	return out, readCtx, nil
 }
 
 // projectionManifests returns the current manifest snapshot, scanning only when
@@ -134,9 +133,11 @@ func (s *serviceImpl) buildListProjection(
 	if err != nil {
 		return nil, err
 	}
-	registryByPluginID := registryByPluginID(registries)
-	covered := make(map[string]struct{}, len(manifests))
-	items := make([]*PluginItem, 0, len(manifests))
+	var (
+		registryByPluginID = registryByPluginID(registries)
+		covered            = make(map[string]struct{}, len(manifests))
+		items              = make([]*PluginItem, 0, len(manifests))
+	)
 	for _, manifest := range manifests {
 		if manifest == nil {
 			continue

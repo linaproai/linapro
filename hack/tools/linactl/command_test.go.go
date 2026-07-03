@@ -45,9 +45,11 @@ func runTestGo(ctx context.Context, a *app, input commandInput) error {
 		return errors.New("no Go workspace modules discovered")
 	}
 
-	plans := make([]goTestModulePlan, 0, len(modules))
-	totalTestPackages := 0
-	totalCompilePackages := 0
+	var (
+		plans                = make([]goTestModulePlan, 0, len(modules))
+		totalTestPackages    = 0
+		totalCompilePackages = 0
+	)
 	for _, moduleDir := range modules {
 		plan, planErr := goTestModulePlanForDir(ctx, &workspaceApp, moduleDir)
 		if planErr != nil {

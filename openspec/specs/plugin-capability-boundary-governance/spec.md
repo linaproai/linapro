@@ -200,19 +200,39 @@ TBD - created by archiving change refine-plugin-capability-boundaries. Update Pu
 
 ### Requirement: 配置公开面只能包含插件自身配置和宿主配置
 
-系统 SHALL 将插件公开配置能力限定为两类：`Services.Plugins().Config()`读取当前插件自身配置，`Services.HostConfig()`读取宿主授权开放配置。根`Services.Config()` MUST NOT 作为普通插件公开入口存在。
+系统 SHALL 将插件公开配置能力限定为两类：`Services.Plugins().Config()`读取当前插件自身配置，`Services.HostConfig()`读取宿主开放配置。根`Services.Config()` MUST NOT 作为普通插件公开入口存在。`Services.Plugins().Config()`可以读取宿主主静态配置文件中与当前插件 ID 完整匹配的`plugin.<plugin-id>`配置段，并将其视为当前插件自身配置的最高优先级来源；除此之外，`Services.Plugins().Config()`MUST NOT 读取任意宿主配置树、宿主运行时配置中心数据或其他插件的配置段。
 
 #### Scenario: 插件读取宿主配置
 
-- **WHEN** 插件需要读取宿主授权开放配置项
+- **WHEN** 插件需要读取宿主开放配置项
 - **THEN** 插件通过`Services.HostConfig()`访问
 - **AND** `HostConfig()`不得读取当前插件私有`config.yaml`
 
-#### Scenario: 插件读取自身配置
+#### Scenario: 插件读取自身独立配置文件
 
 - **WHEN** 插件需要读取自身`config.yaml`或 artifact 内配置
+- **AND** 宿主主静态配置中不存在当前插件的`plugin.<plugin-id>`配置段
 - **THEN** 插件通过`Services.Plugins().Config()`访问
-- **AND** `Plugins().Config()`不得读取宿主配置树或运行时配置中心数据
+- **AND** `Plugins().Config()`不得读取任意宿主配置树或运行时配置中心数据
+
+#### Scenario: 插件读取主框架静态配置中的自身配置段
+
+- **WHEN** 插件`plugin-a`需要读取自身业务配置
+- **AND** 宿主主静态配置中存在`plugin.plugin-a`
+- **THEN** 插件通过`Services.Plugins().Config()`访问该配置段内的子 key
+- **AND** 插件调用方不需要通过`Services.HostConfig()`读取`plugin.plugin-a.*`
+
+#### Scenario: 插件不能通过自身配置服务读取其他插件配置
+
+- **WHEN** 插件`plugin-a`通过`Services.Plugins().Config()`读取配置 key
+- **THEN** 系统只在`plugin.plugin-a`、`plugins/plugin-a/config.yaml`、`apps/lina-plugins/plugin-a/manifest/config/config.yaml`或`plugin-a`当前 artifact 默认配置中解析
+- **AND** 系统不得返回`plugin.plugin-b`、`plugins/plugin-b/config.yaml`或其他插件配置来源中的值
+
+#### Scenario: 动态插件宿主配置授权不被插件自身配置替代
+
+- **WHEN** 动态插件需要读取宿主任意配置 key
+- **THEN** 动态插件必须声明并获得`hostconfig.get`对应 key 授权
+- **AND** `plugins.config.get`只能读取当前插件作用域配置，不得绕过`hostconfig`授权读取宿主任意配置
 
 ### Requirement: 租户过滤不得进入普通租户消费面
 
@@ -333,3 +353,76 @@ TBD - created by archiving change refine-plugin-capability-boundaries. Update Pu
 - **WHEN** 变更迁移宿主领域能力实现目录、动态领域分发入口或 guest 领域代理位置
 - **THEN** 任务必须检查`apps/lina-core/pkg/plugin/README.md`和`README.zh-CN.md`是否需要同步
 - **AND** 若需要更新，文档必须说明协议目录不是领域契约 owner
+
+### Requirement: 剩余领域能力不得扩大宿主核心数据边界
+系统 SHALL 要求本变更新增的普通领域能力只返回领域 DTO、值对象、批量结果、分页结果、状态对象或结构化错误。新增方法 MUST NOT 暴露宿主核心表、官方能力插件内部表、`DAO/DO/Entity`、`*gdb.Model`、`*ghttp.Request`、原始 SQL、内部缓存快照、provider SPI 或物理存储路径。
+
+#### Scenario: 插件读取组织档案
+- **WHEN** 插件调用组织档案批量能力
+- **THEN** 系统返回`orgcap`领域投影
+- **AND** 响应不得包含 provider 内部模型、组织插件表实体或数据库查询条件
+
+#### Scenario: 插件读取 storage 元数据
+- **WHEN** 插件调用 storage 批量元数据方法
+- **THEN** 系统返回插件私有对象领域元数据
+- **AND** 响应不得包含宿主物理路径、bucket 密钥或 provider 私有配置
+
+### Requirement: 管理命令和 Provider SPI 不得通过剩余阶段动态发布
+系统 SHALL 禁止将本变更解释为动态插件管理能力授权、Provider SPI 授权或宿主内部治理授权。用户、租户、组织、插件、会话、任务、通知、storage、cache、manifest、`AI`的创建、更新、状态变更、授权关系变更和 provider 配置读取 MUST 继续留在管理面或宿主内部治理面，除非另开设计。
+
+#### Scenario: 动态插件声明管理动作
+- **WHEN** 动态插件试图通过本变更新增方法执行插件安装、用户授权、会话吊销或 provider 配置读取
+- **THEN** 系统不得把这些动作纳入普通动态方法
+- **AND** 如需开放必须另行设计管理授权、审计和失败语义
+
+### Requirement: 动态 data 服务不得访问宿主核心表或官方能力插件内部表
+系统 SHALL 要求本变更的`data.batch_get`只允许访问当前插件自有表和已授权资源表。动态插件声明`data`服务访问`sys_user`、`sys_role`、`sys_dict_data`、`sys_online_session`、`sys_plugin`或官方能力插件内部表时，治理校验 MUST 继续失败。
+
+#### Scenario: data batch_get 声明核心表
+- **WHEN** 动态插件声明`data.batch_get`访问`sys_user`
+- **THEN** 安装、启用或运行时授权校验失败
+- **AND** 插件必须改为使用`users.batch_get`、`users.resolve.batch`或其他领域能力
+
+### Requirement: 领域能力补充不得扩大宿主核心数据边界
+
+系统 SHALL 要求`expand-plugin-domain-capabilities`新增的普通领域能力只返回领域 DTO、值对象、批量结果或结构化错误。新增方法 MUST NOT 暴露宿主核心表、官方能力插件内部表、`DAO/DO/Entity`、`*gdb.Model`、`*ghttp.Request`、原始 SQL、内部缓存快照或 provider SPI。
+
+#### Scenario: 用户批量解析返回领域投影
+
+- **WHEN** 插件调用用户批量解析方法
+- **THEN** 系统返回`usercap.UserProjection`等领域投影和不透明`MissingIDs`
+- **AND** 响应不得包含`sys_user`实体、数据库自增主键模型、数据权限 SQL 或内部缓存字段
+
+#### Scenario: 当前会话返回最小投影
+
+- **WHEN** 插件调用当前会话投影方法
+- **THEN** 系统返回`sessioncap.Projection`或等价领域 DTO
+- **AND** 响应不得暴露 session store 私有缓存结构、token 存储后端或撤销标记内部实现
+
+### Requirement: 阶段一不得开放管理命令或动态数据核心表访问
+
+系统 SHALL 禁止将阶段一领域能力扩展解释为动态插件管理能力授权、Provider SPI 授权或动态`data`服务访问宿主核心表的授权。用户、权限、字典和会话的创建、更新、状态变更、吊销、授权关系变更和 provider 配置读取 MUST 继续留在管理面或宿主内部治理面。
+
+#### Scenario: 动态插件声明管理动作
+
+- **WHEN** 动态插件试图通过本变更新增方法执行用户状态变更、会话吊销、字典刷新或权限授权关系变更
+- **THEN** 系统不得把这些动作纳入阶段一动态普通方法
+- **AND** 如需开放必须另行设计管理授权、审计、数据权限和失败语义
+
+#### Scenario: 动态 data 服务声明核心表
+
+- **WHEN** 动态插件声明`data`服务访问`sys_user`、`sys_role`、`sys_dict_data`、`sys_online_session`或`sys_plugin`
+- **THEN** 治理校验必须继续失败
+- **AND** 插件必须改为依赖本变更发布的普通领域能力或后续正式发布的领域能力
+
+### Requirement: 源码插件编译接入必须由工具自动聚合
+
+系统 SHALL 通过构建工具扫描官方插件工作区并自动生成源码插件后端聚合模块。插件作者 MUST 只维护插件自身`plugin.yaml`、插件 Go module 和`backend/plugin.go`等插件内资源，不得在`apps/lina-plugins`根目录维护手写`lina-plugins.go`、根`go.mod`或根`go.sum`来接入宿主编译。
+
+#### Scenario: 源码插件通过自动聚合接入宿主编译
+
+- **WHEN** 源码插件需要随宿主编译
+- **THEN** 插件作者维护该插件目录内的`plugin.yaml`、`go.mod`和`backend/plugin.go`
+- **AND** 构建工具在插件完整模式下自动生成`lina-plugins`聚合模块
+- **AND** 插件作者不需要修改`apps/lina-plugins`根目录的 Go 文件或 Go module 文件
+

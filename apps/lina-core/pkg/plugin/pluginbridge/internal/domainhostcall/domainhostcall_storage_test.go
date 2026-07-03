@@ -126,9 +126,11 @@ func TestStoragePutUsesDirectHostCallForSmallKnownBodies(t *testing.T) {
 // TestStoragePutUsesChunkedHostCallsForUnknownSizeBodies verifies unknown-size
 // readers are streamed through init/chunk/commit without a full read-ahead.
 func TestStoragePutUsesChunkedHostCallsForUnknownSizeBodies(t *testing.T) {
-	recorder := &storageHostCallRecorder{}
-	service := Storage(recorder.invoke)
-	body := &unknownSizeReader{Reader: bytes.NewReader([]byte("streamed-body"))}
+	var (
+		recorder = &storageHostCallRecorder{}
+		service  = Storage(recorder.invoke)
+		body     = &unknownSizeReader{Reader: bytes.NewReader([]byte("streamed-body"))}
+	)
 
 	output, err := service.Put(t.Context(), storagecap.PutInput{
 		Path:        "reports/stream.bin",

@@ -34,8 +34,3 @@ func DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
 	}
 	return strings.TrimSpace(result.String()), nil
 }
-
-// OnStartup has no PostgreSQL-specific startup side effects.
-func OnStartup(ctx context.Context, runtime any) error {
-	return nil
-}

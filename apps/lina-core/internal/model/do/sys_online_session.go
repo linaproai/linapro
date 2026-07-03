@@ -17,11 +17,11 @@ type SysOnlineSession struct {
 	TokenId        any        // Session token ID (UUID)
 	UserId         any        // User ID
 	Username       any        // Login account
+	ClientType     any        // User session client type: web, mobile, desktop, cli
 	DeptName       any        // Department name
 	Ip             any        // Login IP
 	Browser        any        // Browser
 	Os             any        // Operating system
 	LoginTime      *time.Time // Login time
 	LastActiveTime *time.Time // Last active time
-	ClientType     any        // User session client type: web, mobile, desktop, cli
 }

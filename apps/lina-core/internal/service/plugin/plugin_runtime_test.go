@@ -5,6 +5,7 @@ package plugin
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,6 +29,7 @@ import (
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // TestSingleNodeModeSkipsPluginNodeProjection verifies that single-node mode
@@ -60,7 +62,7 @@ func TestSingleNodeModeSkipsPluginNodeProjection(t *testing.T) {
 	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected single-node install to succeed, got error: %v", err)
 	}
-	if err := service.Enable(ctx, pluginID); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
 		t.Fatalf("expected single-node enable to succeed, got error: %v", err)
 	}
 
@@ -78,9 +80,9 @@ func TestSingleNodeModeSkipsPluginNodeProjection(t *testing.T) {
 		ctx,
 		pluginID,
 		version,
-		plugintypes.TypeDynamic.String(),
-		plugintypes.InstalledYes,
-		plugintypes.StatusEnabled,
+		pluginv1.PluginTypeDynamic.String(),
+		statusflag.Installed.Int(),
+		statusflag.EnabledValue.Int(),
 	)
 	if err != nil {
 		t.Fatalf("expected governance snapshot build to succeed, got error: %v", err)
@@ -195,13 +197,13 @@ func TestSourceProviderAvailabilityFollowsEnabledSnapshot(t *testing.T) {
 	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("install source provider plugin failed: %v", err)
 	}
-	tenantSvc := tenantspi.New(tenantManager, capabilityRevisionRuntime{service: service, pluginID: pluginID}, nil)
+	tenantSvc := tenantspi.New(tenantManager, capabilityRevisionRuntime{service: service, pluginID: pluginID}, nil, nil)
 	status := tenantSvc.Status(ctx)
 	if status.Available || status.ActiveProvider == pluginID {
 		t.Fatalf("expected installed-but-disabled provider unavailable, got %#v", status)
 	}
 
-	if err = service.Enable(ctx, pluginID); err != nil {
+	if err = service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
 		t.Fatalf("enable source provider plugin failed: %v", err)
 	}
 	status = tenantSvc.Status(ctx)
@@ -209,7 +211,7 @@ func TestSourceProviderAvailabilityFollowsEnabledSnapshot(t *testing.T) {
 		t.Fatalf("expected tenant provider active for %s, got %#v", pluginID, status)
 	}
 
-	if err = service.Disable(ctx, pluginID); err != nil {
+	if err = service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.Disabled.Int()}); err != nil {
 		t.Fatalf("disable source provider plugin failed: %v", err)
 	}
 	status = tenantSvc.Status(ctx)
@@ -225,10 +227,12 @@ func TestDynamicPluginRuntimeUpgradeKeepsPreviousReleaseFrontendAssets(t *testin
 	service := newTestService()
 	ctx := context.Background()
 
-	pluginID := "plugin-dev-dynamic-upgrade"
-	pluginName := "Dynamic Upgrade Plugin"
-	versionOne := "v0.1.0"
-	versionTwo := "v0.2.0"
+	var (
+		pluginID   = "plugin-dev-dynamic-upgrade"
+		pluginName = "Dynamic Upgrade Plugin"
+		versionOne = "v0.1.0"
+		versionTwo = "v0.2.0"
+	)
 
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
@@ -248,7 +252,7 @@ func TestDynamicPluginRuntimeUpgradeKeepsPreviousReleaseFrontendAssets(t *testin
 	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected initial install to succeed, got error: %v", err)
 	}
-	if err := service.Enable(ctx, pluginID); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
 		t.Fatalf("expected initial enable to succeed, got error: %v", err)
 	}
 
@@ -337,12 +341,14 @@ func TestDynamicPluginRuntimeUpgradeFailureRollsBackStableRelease(t *testing.T) 
 	service := newTestService()
 	ctx := context.Background()
 
-	pluginID := "plugin-dev-dynamic-upgrade-failed"
-	pluginName := "Dynamic Upgrade Failure Plugin"
-	versionOne := "v0.1.0"
-	versionTwo := "v0.2.0"
-	permissionOne := pluginID + ":review:view"
-	permissionTwo := pluginID + ":review:inspect"
+	var (
+		pluginID      = "plugin-dev-dynamic-upgrade-failed"
+		pluginName    = "Dynamic Upgrade Failure Plugin"
+		versionOne    = "v0.1.0"
+		versionTwo    = "v0.2.0"
+		permissionOne = pluginID + ":review:view"
+		permissionTwo = pluginID + ":review:inspect"
+	)
 
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
@@ -379,7 +385,7 @@ func TestDynamicPluginRuntimeUpgradeFailureRollsBackStableRelease(t *testing.T) 
 	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected initial install to succeed, got error: %v", err)
 	}
-	if err := service.Enable(ctx, pluginID); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
 		t.Fatalf("expected initial enable to succeed, got error: %v", err)
 	}
 
@@ -495,9 +501,11 @@ func TestDynamicPluginUninstallFailureRestoresStableRegistryFlags(t *testing.T) 
 	service := newTestService()
 	ctx := context.Background()
 
-	pluginID := "plugin-dev-dynamic-uninstall-failed"
-	pluginName := "Dynamic Uninstall Failure Plugin"
-	version := "v0.1.0"
+	var (
+		pluginID   = "plugin-dev-dynamic-uninstall-failed"
+		pluginName = "Dynamic Uninstall Failure Plugin"
+		version    = "v0.1.0"
+	)
 
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
@@ -522,7 +530,7 @@ func TestDynamicPluginUninstallFailureRestoresStableRegistryFlags(t *testing.T) 
 	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected initial install to succeed, got error: %v", err)
 	}
-	if err := service.Enable(ctx, pluginID); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
 		t.Fatalf("expected initial enable to succeed, got error: %v", err)
 	}
 
@@ -570,9 +578,11 @@ func TestDynamicPluginFollowerDefersUntilPrimaryReconciles(t *testing.T) {
 	service := newTestServiceWithTopology(topology)
 	ctx := context.Background()
 
-	pluginID := "plugin-dev-dynamic-follower"
-	pluginName := "Dynamic Follower Plugin"
-	versionOne := "v0.1.0"
+	var (
+		pluginID   = "plugin-dev-dynamic-follower"
+		pluginName = "Dynamic Follower Plugin"
+		versionOne = "v0.1.0"
+	)
 
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
@@ -600,7 +610,7 @@ func TestDynamicPluginFollowerDefersUntilPrimaryReconciles(t *testing.T) {
 	if registryBeforePrimary == nil {
 		t.Fatal("expected registry row to exist on follower")
 	}
-	if registryBeforePrimary.Installed != plugintypes.InstalledNo {
+	if registryBeforePrimary.Installed != statusflag.Uninstalled.Int() {
 		t.Fatalf("expected follower request to keep current install state unchanged, got installed=%d", registryBeforePrimary.Installed)
 	}
 	if registryBeforePrimary.DesiredState != plugintypes.HostStateInstalled.String() {
@@ -622,7 +632,7 @@ func TestDynamicPluginFollowerDefersUntilPrimaryReconciles(t *testing.T) {
 	if registryAfterPrimary == nil {
 		t.Fatal("expected registry row after primary reconciliation")
 	}
-	if registryAfterPrimary.Installed != plugintypes.InstalledYes {
+	if registryAfterPrimary.Installed != statusflag.Installed.Int() {
 		t.Fatalf("expected primary reconciliation to install plugin, got installed=%d", registryAfterPrimary.Installed)
 	}
 	if registryAfterPrimary.CurrentState != plugintypes.HostStateInstalled.String() {
@@ -639,9 +649,11 @@ func TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact(t *test
 	service := newTestService()
 	ctx := context.Background()
 
-	pluginID := "plugin-dev-dynamic-same-version-refresh"
-	pluginName := "Dynamic Same Version Refresh Plugin"
-	version := "v0.1.0"
+	var (
+		pluginID   = "plugin-dev-dynamic-same-version-refresh"
+		pluginName = "Dynamic Same Version Refresh Plugin"
+		version    = "v0.1.0"
+	)
 
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
@@ -685,7 +697,7 @@ func TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact(t *test
 	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected initial install to succeed, got error: %v", err)
 	}
-	if err := service.Enable(ctx, pluginID); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
 		t.Fatalf("expected initial enable to succeed, got error: %v", err)
 	}
 
@@ -840,10 +852,12 @@ func captureSQLDuringStartupTopologyTest(
 ) ([]string, []string, error) {
 	t.Helper()
 
-	db := g.DB()
-	previousDebug := db.GetDebug()
-	previousLogger := db.GetLogger()
-	captureLogger := glog.New()
+	var (
+		db             = g.DB()
+		previousDebug  = db.GetDebug()
+		previousLogger = db.GetLogger()
+		captureLogger  = glog.New()
+	)
 	captureLogger.SetStdoutPrint(false)
 
 	db.SetDebug(true)
@@ -880,11 +894,6 @@ func (r capabilityRevisionRuntime) IsProviderEnabled(ctx context.Context, plugin
 	return r.service != nil &&
 		pluginID == r.pluginID &&
 		r.service.IsProviderEnabled(ctx, pluginID)
-}
-
-// TenantProviderEnv returns the minimal environment required by the no-op test provider.
-func (capabilityRevisionRuntime) TenantProviderEnv(string) tenantspi.ProviderEnv {
-	return tenantspi.ProviderEnv{}
 }
 
 // ResolveTenant returns the platform tenant.

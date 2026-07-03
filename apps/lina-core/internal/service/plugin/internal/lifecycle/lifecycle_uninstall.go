@@ -6,6 +6,7 @@ package lifecycle
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"lina-core/internal/service/plugin/internal/catalog"
@@ -16,6 +17,7 @@ import (
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // UninstallOptions defines one plugin uninstall policy snapshot.
@@ -39,7 +41,7 @@ func (s *serviceImpl) Uninstall(ctx context.Context, pluginID string, options Un
 	if err = s.ensureNoReverseDependencies(ctx, pluginID); err != nil {
 		return err
 	}
-	if plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeSource {
+	if plugintypes.NormalizeType(manifest.Type) == pluginv1.PluginTypeSource {
 		return s.uninstallSource(ctx, manifest, options)
 	}
 	return s.uninstallDynamic(ctx, pluginID, options)
@@ -58,7 +60,7 @@ func (s *serviceImpl) uninstallWithoutDesiredManifest(
 	if err != nil {
 		return err
 	}
-	if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if registry == nil || plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return discoveryErr
 	}
 	if err = s.ensureNoReverseDependencies(ctx, pluginID); err != nil {
@@ -162,10 +164,10 @@ func (s *serviceImpl) uninstallDynamicPlugin(
 	if err != nil {
 		return err
 	}
-	if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if registry == nil || plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return s.runtimeSvc.UninstallWithOptions(ctx, pluginID, options.PurgeStorageData)
 	}
-	if registry.Installed != plugintypes.InstalledYes {
+	if registry.Installed != statusflag.Installed.Int() {
 		if options.Force {
 			return s.forceUninstallMissingDynamicArtifact(ctx, registry, options)
 		}
@@ -197,7 +199,7 @@ func (s *serviceImpl) uninstallDynamicPlugin(
 // can run full uninstall from its archived active release or repair that archive
 // from the current same-version staging artifact.
 func (s *serviceImpl) dynamicFullUninstallRecoverable(ctx context.Context, registry *store.PluginRecord) bool {
-	if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if registry == nil || plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return false
 	}
 	manifest, err := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
@@ -208,7 +210,7 @@ func (s *serviceImpl) dynamicFullUninstallRecoverable(ctx context.Context, regis
 	if err != nil || desiredManifest == nil {
 		return false
 	}
-	if plugintypes.NormalizeType(desiredManifest.Type) != plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(desiredManifest.Type) != pluginv1.PluginTypeDynamic {
 		return false
 	}
 	if strings.TrimSpace(desiredManifest.Version) != strings.TrimSpace(registry.Version) {
@@ -240,8 +242,8 @@ func (s *serviceImpl) ensureDynamicPluginActiveLifecyclePreconditionAllowed(
 	options UninstallOptions,
 ) error {
 	if registry == nil ||
-		plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
-		registry.Installed != plugintypes.InstalledYes {
+		plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic ||
+		registry.Installed != statusflag.Installed.Int() {
 		return nil
 	}
 	manifest, err := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
@@ -277,7 +279,7 @@ func (s *serviceImpl) loadSameVersionDesiredDynamicManifestBestEffort(registry *
 	manifest, err := s.catalogSvc.GetDesiredManifest(registry.PluginId)
 	if err != nil ||
 		manifest == nil ||
-		plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic ||
+		plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic ||
 		strings.TrimSpace(manifest.Version) != strings.TrimSpace(registry.Version) {
 		return nil
 	}

@@ -4,6 +4,7 @@ package integration_test
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,18 +17,22 @@ import (
 	menusvc "lina-core/internal/service/menu"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
+	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
 // TestSyncSourcePluginMenusFromManifest verifies source plugin menus are only
 // materialized on explicit sync and are deleted when removed from the manifest.
 func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
-	services := testutil.NewServices()
-	ctx := context.Background()
-	adminRoleID := mustQueryAdminRoleID(t, ctx)
+	var (
+		services    = testutil.NewServices()
+		ctx         = context.Background()
+		adminRoleID = mustQueryAdminRoleID(t, ctx)
+	)
 
 	const (
 		pluginID = "plugin-dev-source-menu-sync"
@@ -61,7 +66,7 @@ func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 		ID:      pluginID,
 		Name:    "Source Menu Sync Plugin",
 		Version: "v0.1.0",
-		Type:    plugintypes.TypeSource.String(),
+		Type:    pluginv1.PluginTypeSource.String(),
 		Menus: []*catalog.MenuSpec{
 			{
 				Key:       menuKey,
@@ -153,9 +158,11 @@ func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 // TestDynamicPluginInstallAndUninstallManageMenusFromManifest verifies dynamic
 // plugin install/uninstall creates and removes manifest-owned menus.
 func TestDynamicPluginInstallAndUninstallManageMenusFromManifest(t *testing.T) {
-	services := testutil.NewServices()
-	ctx := context.Background()
-	adminRoleID := mustQueryAdminRoleID(t, ctx)
+	var (
+		services    = testutil.NewServices()
+		ctx         = context.Background()
+		adminRoleID = mustQueryAdminRoleID(t, ctx)
+	)
 
 	const (
 		pluginID = "plugin-dev-dynamic-menu-metadata"
@@ -199,7 +206,7 @@ func TestDynamicPluginInstallAndUninstallManageMenusFromManifest(t *testing.T) {
 	if _, err = services.Store.SyncManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected runtime plugin manifest sync to succeed, got error: %v", err)
 	}
-	if err = services.Lifecycle.InstallDynamic(ctx, pluginID); err != nil {
+	if _, err = services.Lifecycle.Install(ctx, pluginID, lifecycle.InstallOptions{}); err != nil {
 		t.Fatalf("expected runtime plugin install to succeed, got error: %v", err)
 	}
 
@@ -224,7 +231,7 @@ func TestDynamicPluginInstallAndUninstallManageMenusFromManifest(t *testing.T) {
 		t.Fatalf("expected runtime plugin menu not to be granted to admin role, got count=%d", roleMenuCount)
 	}
 
-	if err = services.Lifecycle.UninstallDynamic(ctx, pluginID); err != nil {
+	if err = services.Lifecycle.Uninstall(ctx, pluginID, lifecycle.UninstallOptions{}); err != nil {
 		t.Fatalf("expected runtime plugin uninstall to succeed, got error: %v", err)
 	}
 
@@ -253,7 +260,7 @@ func TestSyncPluginMenusAndPermissionsNoopSkipsWritesAndTransactions(t *testing.
 		ID:          pluginID,
 		Name:        "Menu Noop Startup Plugin",
 		Version:     "v0.1.0",
-		Type:        plugintypes.TypeDynamic.String(),
+		Type:        pluginv1.PluginTypeDynamic.String(),
 		Description: "Menu no-op startup test plugin",
 		Menus: []*catalog.MenuSpec{
 			{
@@ -370,7 +377,7 @@ func TestDynamicPluginRoutePermissionsMaterializeHiddenMenus(t *testing.T) {
 	if _, err = services.Store.SyncManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected runtime plugin manifest sync to succeed, got error: %v", err)
 	}
-	if err = services.Lifecycle.InstallDynamic(ctx, pluginID); err != nil {
+	if _, err = services.Lifecycle.Install(ctx, pluginID, lifecycle.InstallOptions{}); err != nil {
 		t.Fatalf("expected runtime plugin install to succeed, got error: %v", err)
 	}
 
@@ -395,7 +402,7 @@ func TestDynamicPluginRoutePermissionsMaterializeHiddenMenus(t *testing.T) {
 		t.Fatal("expected synthetic permission menu to be nested under the plugin entry menu")
 	}
 
-	if err = services.Lifecycle.UninstallDynamic(ctx, pluginID); err != nil {
+	if err = services.Lifecycle.Uninstall(ctx, pluginID, lifecycle.UninstallOptions{}); err != nil {
 		t.Fatalf("expected runtime plugin uninstall to succeed, got error: %v", err)
 	}
 
@@ -454,7 +461,7 @@ func TestDynamicPluginRoutePermissionsRequirePluginEntryMenu(t *testing.T) {
 	if _, err = services.Store.SyncManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected runtime plugin manifest sync to succeed, got error: %v", err)
 	}
-	err = services.Lifecycle.InstallDynamic(ctx, pluginID)
+	_, err = services.Lifecycle.Install(ctx, pluginID, lifecycle.InstallOptions{})
 	if err == nil || !strings.Contains(err.Error(), "requires a plugin parent menu") {
 		t.Fatalf("expected missing plugin parent menu to be rejected, got %v", err)
 	}
@@ -519,7 +526,7 @@ func TestDynamicPluginRoutePermissionMenusAttachToPluginMenu(t *testing.T) {
 	if _, err = services.Store.SyncManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected runtime plugin manifest sync to succeed, got error: %v", err)
 	}
-	if err = services.Lifecycle.InstallDynamic(ctx, pluginID); err != nil {
+	if _, err = services.Lifecycle.Install(ctx, pluginID, lifecycle.InstallOptions{}); err != nil {
 		t.Fatalf("expected runtime plugin install to succeed, got error: %v", err)
 	}
 
@@ -613,7 +620,7 @@ func TestDynamicPluginRoutePermissionMenusAttachWhenPluginMenuUsesHostParent(t *
 	if _, err = services.Store.SyncManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected runtime plugin manifest sync to succeed, got error: %v", err)
 	}
-	if err = services.Lifecycle.InstallDynamic(ctx, pluginID); err != nil {
+	if _, err = services.Lifecycle.Install(ctx, pluginID, lifecycle.InstallOptions{}); err != nil {
 		t.Fatalf("expected runtime plugin install to succeed, got error: %v", err)
 	}
 
@@ -687,7 +694,7 @@ func TestDynamicPluginRoutePermissionMenusDeleteStaleEntriesOnRefresh(t *testing
 	if _, err = services.Store.SyncManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected initial manifest sync to succeed, got error: %v", err)
 	}
-	if err = services.Lifecycle.InstallDynamic(ctx, pluginID); err != nil {
+	if _, err = services.Lifecycle.Install(ctx, pluginID, lifecycle.InstallOptions{}); err != nil {
 		t.Fatalf("expected initial install to succeed, got error: %v", err)
 	}
 
@@ -718,7 +725,7 @@ func TestDynamicPluginRoutePermissionMenusDeleteStaleEntriesOnRefresh(t *testing
 	if _, err = services.Store.SyncManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected refreshed manifest sync to succeed, got error: %v", err)
 	}
-	if err = services.Lifecycle.InstallDynamic(ctx, pluginID); err != nil {
+	if _, err = services.Lifecycle.Install(ctx, pluginID, lifecycle.InstallOptions{}); err != nil {
 		t.Fatalf("expected refresh install to succeed, got error: %v", err)
 	}
 	if err = services.Integration.SyncPluginMenusAndPermissions(ctx, manifest); err != nil {
@@ -797,9 +804,9 @@ func TestDynamicPluginRoutePermissionRefreshIgnoresUnrelatedBrokenRegistry(t *te
 		PluginId:     brokenPluginID,
 		Name:         "Broken Dynamic Plugin",
 		Version:      "v0.0.1",
-		Type:         plugintypes.TypeDynamic.String(),
-		Installed:    plugintypes.InstalledNo,
-		Status:       plugintypes.StatusDisabled,
+		Type:         pluginv1.PluginTypeDynamic.String(),
+		Installed:    statusflag.Uninstalled.Int(),
+		Status:       statusflag.Disabled.Int(),
 		DesiredState: plugintypes.HostStateInstalled.String(),
 		CurrentState: plugintypes.HostStateReconciling.String(),
 		Generation:   int64(1),
@@ -809,7 +816,7 @@ func TestDynamicPluginRoutePermissionRefreshIgnoresUnrelatedBrokenRegistry(t *te
 		t.Fatalf("expected broken dynamic registry seed to succeed, got error: %v", err)
 	}
 
-	if err = services.Lifecycle.InstallDynamic(ctx, targetPluginID); err != nil {
+	if _, err = services.Lifecycle.Install(ctx, targetPluginID, lifecycle.InstallOptions{}); err != nil {
 		t.Fatalf("expected target install to ignore unrelated broken registry, got error: %v", err)
 	}
 
@@ -865,10 +872,10 @@ func TestFilterMenusHidesRuntimeMenusWhenArtifactIsMissing(t *testing.T) {
 	if _, err = services.Store.SyncManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected dynamic manifest sync to succeed, got error: %v", err)
 	}
-	if err = services.Store.SetPluginInstalled(ctx, pluginID, plugintypes.InstalledYes); err != nil {
+	if err = services.Store.SetPluginInstalled(ctx, pluginID, statusflag.Installed.Int()); err != nil {
 		t.Fatalf("expected dynamic plugin install state to be set, got error: %v", err)
 	}
-	if err = services.Store.SetPluginStatus(ctx, pluginID, plugintypes.StatusEnabled); err != nil {
+	if err = services.Store.SetPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 		t.Fatalf("expected dynamic plugin enable state to be set, got error: %v", err)
 	}
 	if err = os.Remove(artifactPath); err != nil {
@@ -942,7 +949,7 @@ func writeRuntimeArtifactWithRoutePermissionsOnly(
 			ID:      pluginID,
 			Name:    pluginName,
 			Version: version,
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:        protocol.RuntimeKindWasm,
@@ -1015,7 +1022,7 @@ func writeRuntimeArtifactWithMenusAndRoutePermissions(
 			ID:      pluginID,
 			Name:    pluginName,
 			Version: version,
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 			Menus:   menus,
 		},
 		&catalog.ArtifactSpec{
@@ -1067,7 +1074,7 @@ func TestSyncPluginMenusResolvesStableHostParent(t *testing.T) {
 		ID:      pluginID,
 		Name:    "Stable Parent Sync Plugin",
 		Version: "0.1.0",
-		Type:    plugintypes.TypeSource.String(),
+		Type:    pluginv1.PluginTypeSource.String(),
 		Menus: []*catalog.MenuSpec{
 			{
 				Key:       menuKey,
@@ -1119,7 +1126,7 @@ func TestSyncPluginMenusResolvesChosenExternalParent(t *testing.T) {
 		ID:      pluginID,
 		Name:    "Multi Tenant",
 		Version: "0.1.0",
-		Type:    plugintypes.TypeSource.String(),
+		Type:    pluginv1.PluginTypeSource.String(),
 		Menus: []*catalog.MenuSpec{
 			{
 				Key:       menuKey,
@@ -1146,13 +1153,6 @@ func TestSyncPluginMenusResolvesChosenExternalParent(t *testing.T) {
 	if menu.ParentId != parent.Id {
 		t.Fatalf("expected plugin menu parent_id=%d, got %d", parent.Id, menu.ParentId)
 	}
-}
-
-// ensureTestStableHostMenu ensures a stable host menu exists for integration
-// tests running against databases initialized before the current iteration.
-func ensureTestStableHostMenu(t *testing.T, ctx context.Context, menuKey string) *entity.SysMenu {
-	t.Helper()
-	return ensureTestMenu(t, ctx, menuKey, "integration test stable host menu")
 }
 
 // ensureTestExternalMenu creates a non-stable parent menu used to verify plugin

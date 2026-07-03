@@ -59,50 +59,74 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 	{
 		Key:          PublicFrontendSettingKeyAppName,
 		DefaultValue: "LinaPro.AI",
+		validator:    validateRequiredTextConfigValue(120),
 	},
 	{
 		Key:          PublicFrontendSettingKeyAppLogo,
 		DefaultValue: "/logo.webp",
+		validator:    validateRequiredTextConfigValue(500),
 	},
 	{
 		Key:          PublicFrontendSettingKeyAppLogoDark,
 		DefaultValue: "/logo.webp",
+		validator:    validateRequiredTextConfigValue(500),
 	},
 	{
 		Key:          PublicFrontendSettingKeyUserDefaultAvatar,
 		DefaultValue: "/avatar.webp",
+		validator:    validateRequiredTextConfigValue(500),
 	},
 	{
 		Key:          PublicFrontendSettingKeyAuthPageTitle,
 		DefaultValue: "An AI-native full-stack framework engineered for sustainable delivery",
+		validator:    validateRequiredTextConfigValue(120),
 	},
 	{
 		Key:          PublicFrontendSettingKeyAuthPageDesc,
 		DefaultValue: "Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model",
+		validator:    validateRequiredTextConfigValue(500),
 	},
 	{
 		Key:          PublicFrontendSettingKeyAuthLoginSubtitle,
 		DefaultValue: "Enter your account credentials to start managing your projects",
+		validator:    validateRequiredTextConfigValue(120),
 	},
 	{
 		Key:          PublicFrontendSettingKeyAuthLoginPanelLayout,
 		DefaultValue: string(PublicFrontendAuthPanelLayoutRight),
+		validator: validateAllowedStringConfigValue(
+			string(PublicFrontendAuthPanelLayoutLeft),
+			string(PublicFrontendAuthPanelLayoutCenter),
+			string(PublicFrontendAuthPanelLayoutRight),
+		),
 	},
 	{
 		Key:          PublicFrontendSettingKeyUIThemeMode,
 		DefaultValue: "light",
+		validator:    validateAllowedStringConfigValue("light", "dark", "auto"),
 	},
 	{
 		Key:          PublicFrontendSettingKeyUILayout,
 		DefaultValue: "sidebar-nav",
+		validator: validateAllowedStringConfigValue(
+			"sidebar-nav",
+			"sidebar-mixed-nav",
+			"header-nav",
+			"header-sidebar-nav",
+			"header-mixed-nav",
+			"mixed-nav",
+			"full-content",
+		),
 	},
 	{
 		Key:          PublicFrontendSettingKeyUIWatermarkEnabled,
 		DefaultValue: "false",
+		validator:    validateStrictBoolConfigValue,
 	},
 	{
 		Key:          PublicFrontendSettingKeyUIWatermarkContent,
 		DefaultValue: "LinaPro",
+		validator:    validateRequiredTextConfigValue(120),
 	},
 }
 
@@ -115,27 +139,6 @@ var publicFrontendSettingSpecByKey = func() map[string]RuntimeParamSpec {
 	}
 	return specByKey
 }()
-
-// publicFrontendSettingKeys keeps the deterministic key order for public
-// frontend protected-config queries.
-var publicFrontendSettingKeys = []string{
-	PublicFrontendSettingKeyAppName,
-	PublicFrontendSettingKeyAppLogo,
-	PublicFrontendSettingKeyAppLogoDark,
-	PublicFrontendSettingKeyUserDefaultAvatar,
-	PublicFrontendSettingKeyAuthPageTitle,
-	PublicFrontendSettingKeyAuthPageDesc,
-	PublicFrontendSettingKeyAuthLoginSubtitle,
-	PublicFrontendSettingKeyAuthLoginPanelLayout,
-	PublicFrontendSettingKeyUIThemeMode,
-	PublicFrontendSettingKeyUILayout,
-	PublicFrontendSettingKeyUIWatermarkEnabled,
-	PublicFrontendSettingKeyUIWatermarkContent,
-}
-
-// protectedConfigKeys contains all built-in config keys whose lifecycle is
-// governed by the host and must not be renamed or deleted.
-var protectedConfigKeys = appendProtectedConfigKeys()
 
 // PublicFrontendConfig describes the safe frontend settings exposed by the host.
 type PublicFrontendConfig struct {
@@ -207,13 +210,6 @@ type PublicFrontendWorkspaceConfig struct {
 	BasePath string `json:"basePath"` // BasePath is the admin workspace entry path.
 }
 
-// PublicFrontendSettingSpecs returns all built-in public frontend setting specs.
-func PublicFrontendSettingSpecs() []RuntimeParamSpec {
-	specs := make([]RuntimeParamSpec, len(publicFrontendSettingSpecs))
-	copy(specs, publicFrontendSettingSpecs)
-	return specs
-}
-
 // LookupPublicFrontendSettingSpec returns one built-in public frontend setting spec by key.
 func LookupPublicFrontendSettingSpec(key string) (RuntimeParamSpec, bool) {
 	spec, ok := publicFrontendSettingSpecByKey[strings.TrimSpace(key)]
@@ -223,7 +219,7 @@ func LookupPublicFrontendSettingSpec(key string) (RuntimeParamSpec, bool) {
 // IsManagedSysConfigKey reports whether the key belongs to one built-in
 // sys_config value managed by the host runtime.
 func IsManagedSysConfigKey(key string) bool {
-	if IsManagedRuntimeParamKey(key) {
+	if isManagedRuntimeParamKey(key) {
 		return true
 	}
 	_, ok := LookupPublicFrontendSettingSpec(key)
@@ -233,10 +229,10 @@ func IsManagedSysConfigKey(key string) bool {
 // ValidateProtectedConfigValue validates one built-in protected config value.
 func ValidateProtectedConfigValue(key string, value string) error {
 	trimmedKey := strings.TrimSpace(key)
-	if IsManagedRuntimeParamKey(trimmedKey) {
-		return ValidateRuntimeParamValue(trimmedKey, value)
+	if isManagedRuntimeParamKey(trimmedKey) {
+		return validateRuntimeParamValue(trimmedKey, value)
 	}
-	return ValidatePublicFrontendSettingValue(trimmedKey, value)
+	return validatePublicFrontendSettingValue(trimmedKey, value)
 }
 
 // normalizeProtectedConfigValue trims whitespace and lowercases one protected
@@ -245,47 +241,13 @@ func normalizeProtectedConfigValue(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
-// ValidatePublicFrontendSettingValue validates one built-in public frontend setting value.
-func ValidatePublicFrontendSettingValue(key string, value string) error {
-	switch strings.TrimSpace(key) {
-	case PublicFrontendSettingKeyAppName,
-		PublicFrontendSettingKeyAuthPageTitle,
-		PublicFrontendSettingKeyAuthLoginSubtitle,
-		PublicFrontendSettingKeyUIWatermarkContent:
-		return validateRequiredTextValue(key, value, 120)
-
-	case PublicFrontendSettingKeyAuthLoginPanelLayout:
-		return validateAllowedStringValue(key, value, []string{
-			string(PublicFrontendAuthPanelLayoutLeft),
-			string(PublicFrontendAuthPanelLayoutCenter),
-			string(PublicFrontendAuthPanelLayoutRight),
-		})
-
-	case PublicFrontendSettingKeyAuthPageDesc,
-		PublicFrontendSettingKeyAppLogo,
-		PublicFrontendSettingKeyAppLogoDark,
-		PublicFrontendSettingKeyUserDefaultAvatar:
-		return validateRequiredTextValue(key, value, 500)
-
-	case PublicFrontendSettingKeyUIThemeMode:
-		return validateAllowedStringValue(key, value, []string{"light", "dark", "auto"})
-
-	case PublicFrontendSettingKeyUILayout:
-		return validateAllowedStringValue(key, value, []string{
-			"sidebar-nav",
-			"sidebar-mixed-nav",
-			"header-nav",
-			"header-sidebar-nav",
-			"header-mixed-nav",
-			"mixed-nav",
-			"full-content",
-		})
-
-	case PublicFrontendSettingKeyUIWatermarkEnabled:
-		_, err := parseStrictBoolValue(key, value)
-		return err
+// validatePublicFrontendSettingValue validates one built-in public frontend setting value.
+func validatePublicFrontendSettingValue(key string, value string) error {
+	spec, ok := LookupPublicFrontendSettingSpec(key)
+	if !ok {
+		return nil
 	}
-	return nil
+	return validateConfigSpecValue(spec, strings.TrimSpace(key), value)
 }
 
 // GetPublicFrontend returns the public-safe frontend branding and display
@@ -406,19 +368,11 @@ func resolveSystemTimezone(envTimezone string, processTimezone string) string {
 	return "Asia/Shanghai"
 }
 
-// appendProtectedConfigKeys returns the full protected-config key list by
-// combining runtime backend settings and public frontend settings.
-func appendProtectedConfigKeys() []string {
-	keys := make([]string, 0, len(runtimeParamKeys)+len(publicFrontendSettingKeys))
-	keys = append(keys, runtimeParamKeys...)
-	keys = append(keys, publicFrontendSettingKeys...)
-	return keys
-}
-
-// getProtectedConfigValueOrDefault returns the runtime override when present or
-// falls back to the built-in default from the protected setting spec.
+// getProtectedConfigValueOrDefault returns the runtime override when present,
+// then the active static config value, then built-in host default metadata.
 func (s *serviceImpl) getProtectedConfigValueOrDefault(ctx context.Context, key string) (string, error) {
-	if value, ok, err := s.lookupRuntimeParamValue(ctx, key); err != nil {
+	normalizedKey := strings.TrimSpace(key)
+	if value, ok, err := s.lookupRuntimeParamValue(ctx, normalizedKey); err != nil {
 		return "", err
 	} else if ok {
 		trimmed := strings.TrimSpace(value)
@@ -426,13 +380,19 @@ func (s *serviceImpl) getProtectedConfigValueOrDefault(ctx context.Context, key 
 			return trimmed, nil
 		}
 	}
-	spec, ok := LookupPublicFrontendSettingSpec(key)
-	if ok {
-		return spec.DefaultValue, nil
+
+	if value, ok, err := lookupStaticHostConfigValue(ctx, normalizedKey); err != nil {
+		return "", err
+	} else if ok {
+		trimmed := strings.TrimSpace(value.String())
+		if trimmed != "" {
+			return trimmed, nil
+		}
 	}
-	specRuntime, ok := LookupRuntimeParamSpec(key)
+
+	defaultValue, ok := lookupHostConfigDefaultValue(normalizedKey)
 	if ok {
-		return specRuntime.DefaultValue, nil
+		return strings.TrimSpace(hostConfigDefaultValueString(defaultValue)), nil
 	}
 	return "", nil
 }
@@ -461,6 +421,22 @@ func parseStrictBoolValue(key string, value string) (bool, error) {
 		return false, nil
 	default:
 		return false, bizerr.NewCode(CodeConfigParamBoolInvalid, bizerr.P("key", key))
+	}
+}
+
+// validateRequiredTextConfigValue returns metadata validation for required text
+// protected settings.
+func validateRequiredTextConfigValue(maxLen int) protectedConfigValidator {
+	return func(key string, value string) error {
+		return validateRequiredTextValue(key, value, maxLen)
+	}
+}
+
+// validateAllowedStringConfigValue returns metadata validation for enum-style
+// protected settings.
+func validateAllowedStringConfigValue(allowed ...string) protectedConfigValidator {
+	return func(key string, value string) error {
+		return validateAllowedStringValue(key, value, allowed)
 	}
 }
 

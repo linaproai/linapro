@@ -9,6 +9,7 @@ import (
 	"lina-core/pkg/plugin/capability/authcap"
 	"lina-core/pkg/plugin/capability/authcap/authz"
 	"lina-core/pkg/plugin/capability/authcap/token"
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -17,6 +18,9 @@ type authService struct{ baseService }
 
 // authTokenService adapts token handoff calls to host services.
 type authTokenService struct{ baseService }
+
+// authzService adapts authorization reads to auth-domain host services.
+type authzService struct{ baseService }
 
 // Auth creates the authentication and authorization guest namespace.
 func Auth(invoker Invoker) authcap.Service {
@@ -59,7 +63,68 @@ func (s authTokenService) RevokeImpersonationToken(_ context.Context, in token.I
 	return s.callJSONRequest(protocol.HostServiceAuth, protocol.HostServiceMethodAuthRevokeImpersonationToken, in, nil)
 }
 
+// BatchGetPermissions returns visible permission projections and opaque missing keys.
+func (s authzService) BatchGetPermissions(_ context.Context, keys []authz.PermissionKey) (*capmodel.BatchResult[*authz.PermissionInfo, authz.PermissionKey], error) {
+	out := &capmodel.BatchResult[*authz.PermissionInfo, authz.PermissionKey]{Items: map[authz.PermissionKey]*authz.PermissionInfo{}}
+	err := s.callJSONRequest(protocol.HostServiceAuth, protocol.HostServiceMethodAuthzBatchGetPermissions, idsRequest{IDs: permissionKeysToStrings(keys)}, out)
+	return out, err
+}
+
+// BatchHasPermissions reports whether the actor has each permission in the current scope.
+func (s authzService) BatchHasPermissions(_ context.Context, keys []authz.PermissionKey) (map[authz.PermissionKey]bool, error) {
+	out := map[authz.PermissionKey]bool{}
+	err := s.callJSONRequest(protocol.HostServiceAuth, protocol.HostServiceMethodAuthzBatchHasPermissions, idsRequest{IDs: permissionKeysToStrings(keys)}, &out)
+	return out, err
+}
+
+// HasPermission reports whether the actor has one permission in the current scope.
+func (s authzService) HasPermission(_ context.Context, key authz.PermissionKey) (bool, error) {
+	var out bool
+	err := s.callJSONRequest(protocol.HostServiceAuth, protocol.HostServiceMethodAuthzHasPermission, keyRequest{Key: string(key)}, &out)
+	return out, err
+}
+
+// IsPlatformAdmin reports whether the user has a platform all-data role.
+func (s authzService) IsPlatformAdmin(_ context.Context, userID authz.UserID) (bool, error) {
+	var out bool
+	err := s.callJSONRequest(protocol.HostServiceAuth, protocol.HostServiceMethodAuthzIsPlatformAdmin, userIDRequest{UserID: string(userID)}, &out)
+	return out, err
+}
+
+// ReplaceRolePermissions replaces one role's visible permission assignments.
+func (s authzService) ReplaceRolePermissions(_ context.Context, roleID authz.RoleID, keys []authz.PermissionKey) error {
+	return s.callJSONRequest(protocol.HostServiceAuth, protocol.HostServiceMethodAuthzReplaceRolePermissions, authzReplaceRolePermissionsRequest{
+		RoleID: string(roleID),
+		Keys:   permissionKeysToStrings(keys),
+	}, nil)
+}
+
+// keyRequest carries one string key for JSON capability methods.
+type keyRequest struct {
+	Key string `json:"key"`
+}
+
+// userIDRequest carries one user identifier for JSON capability methods.
+type userIDRequest struct {
+	UserID string `json:"userId"`
+}
+
+type authzReplaceRolePermissionsRequest struct {
+	RoleID string   `json:"roleId"`
+	Keys   []string `json:"keys"`
+}
+
+// permissionKeysToStrings converts permission keys to transport strings.
+func permissionKeysToStrings(ids []authz.PermissionKey) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, string(id))
+	}
+	return out
+}
+
 var (
 	_ authcap.Service = (*authService)(nil)
 	_ token.Service   = (*authTokenService)(nil)
+	_ authz.Service   = (*authzService)(nil)
 )

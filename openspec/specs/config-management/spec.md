@@ -169,3 +169,66 @@
 - **AND** 保存后创建或更新当前租户的参数覆盖记录
 - **AND** 缓存失效范围限定为当前租户和该参数键
 
+### Requirement: HostConfig 原始读取必须使用统一来源优先级
+
+系统 SHALL 将`sys_config`作为宿主运行时系统配置的权威数据源。宿主配置服务 MUST 基于共享 revision 和本地快照缓存读取当前上下文可见的`sys_config`有效 key，而不是仅依赖 Go 代码中的硬编码 key 白名单。`sys_config`创建、更新、导入或删除导致有效配置变化后，系统 MUST 推进 runtime-config revision 并使后续读取重建快照。
+
+#### Scenario: 读取自定义系统配置
+
+- **WHEN** `sys_config`中存在 key 为`custom.feature.limit`的当前上下文可见记录
+- **THEN** 宿主配置服务通过`GetRaw(ctx, "custom.feature.limit")`返回该记录的值
+- **AND** 不需要为该 key 新增 Go 常量或修改硬编码白名单
+
+#### Scenario: 静态配置 fallback
+
+- **WHEN** 当前上下文可见的`sys_config`中不存在`workspace.basePath`
+- **AND** 静态`config.yaml`中存在`workspace.basePath`
+- **THEN** 宿主配置服务通过`GetRaw(ctx, "workspace.basePath")`返回静态配置值
+
+#### Scenario: 租户覆盖优先于平台默认
+
+- **WHEN** 当前上下文为租户`tenant-a`
+- **AND** `sys_config`同时存在平台 key`custom.feature.limit=100`和租户 key`custom.feature.limit=50`
+- **THEN** 宿主配置服务返回`50`
+
+#### Scenario: 配置更新后刷新快照
+
+- **WHEN** `sys_config`中`custom.feature.limit`从`100`更新为`200`
+- **THEN** 系统推进 runtime-config revision
+- **AND** 后续宿主配置读取返回`200`
+
+#### Scenario: 配置删除后刷新快照
+
+- **WHEN** `sys_config`中`custom.feature.limit`被删除
+- **THEN** 系统推进 runtime-config revision
+- **AND** 后续宿主配置读取不再返回被删除值
+
+#### Scenario: 内置运行时参数使用系统命名空间
+
+- **WHEN** 主框架新增或维护内置运行时参数
+- **THEN** 参数 key MUST 使用`sys.`前缀
+- **AND** 调度模块内置运行时参数 MUST 使用`sys.cron.shell.enabled`和`sys.cron.log.retention`
+
+### Requirement: 系统默认值必须由通用元数据提供
+
+系统 SHALL 将宿主已有硬编码默认值维护为可按 key 查询的通用默认值元数据或等价 resolver。`HostConfig`通用读取流程 MUST 只调用默认值查询入口，不得在读取流程中直接判断具体配置键。新增宿主默认值时，系统 MUST 更新默认值元数据和测试，而不是在`GetRaw()`中增加新的 key 分支。
+
+#### Scenario: 新增默认值不修改通用读取分支
+
+- **WHEN** 主框架为新的宿主配置 key 增加系统默认值
+- **THEN** 开发者在默认值元数据或等价 resolver 中登记该 key 和默认值
+- **AND** 不在`GetRaw()`读取流程中增加该 key 的专用判断
+
+#### Scenario: 专用 getter 保留类型校验
+
+- **WHEN** 专用 getter 读取具有系统默认值的配置键
+- **AND** `sys_config`和静态`config.yaml`都没有提供该值
+- **THEN** 专用 getter 使用系统默认值作为输入
+- **AND** 继续执行该 getter 已有的类型解析、归一化和业务校验
+
+#### Scenario: sys_config freshness 错误不被 fallback 掩盖
+
+- **WHEN** 宿主读取非 root 配置键时无法确认`sys_config`快照 freshness
+- **THEN** 系统返回可见错误
+- **AND** 不继续回退到静态配置或系统默认值来掩盖运行时配置一致性故障
+

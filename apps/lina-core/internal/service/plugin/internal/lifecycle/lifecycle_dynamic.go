@@ -1,23 +1,20 @@
-// This file implements dynamic plugin install and uninstall lifecycle entry
-// points that delegate convergence to the runtime reconciler.
+// This file implements dynamic plugin install lifecycle helpers that delegate
+// convergence to the runtime reconciler.
 
 package lifecycle
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/statusflag"
 )
 
-// InstallDynamic executes the install lifecycle for a discovered dynamic plugin.
-// Repeated installs are treated as idempotent unless the same version needs a refresh.
-func (s *serviceImpl) InstallDynamic(ctx context.Context, pluginID string) error {
-	return s.installDynamic(ctx, pluginID, nil, runtime.DynamicReconcileOptions{})
-}
-
+// installDynamic reconciles one discovered dynamic plugin into an installed runtime state.
 func (s *serviceImpl) installDynamic(
 	ctx context.Context,
 	pluginID string,
@@ -35,7 +32,7 @@ func (s *serviceImpl) installDynamic(
 			return err
 		}
 	}
-	if plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeSource {
+	if plugintypes.NormalizeType(manifest.Type) == pluginv1.PluginTypeSource {
 		return bizerr.NewCode(CodeSourcePluginInstallUnsupported)
 	}
 	if s.runtimeSvc != nil {
@@ -48,7 +45,7 @@ func (s *serviceImpl) installDynamic(
 	if err != nil {
 		return err
 	}
-	if existingRegistry != nil && existingRegistry.Installed == plugintypes.InstalledYes {
+	if existingRegistry != nil && existingRegistry.Installed == statusflag.Installed.Int() {
 		compareResult, compareErr := plugintypes.CompareSemanticVersions(manifest.Version, existingRegistry.Version)
 		if compareErr != nil {
 			return compareErr
@@ -62,7 +59,7 @@ func (s *serviceImpl) installDynamic(
 	if err != nil {
 		return err
 	}
-	if registry.Installed == plugintypes.InstalledYes {
+	if registry.Installed == statusflag.Installed.Int() {
 		compareResult, compareErr := plugintypes.CompareSemanticVersions(manifest.Version, registry.Version)
 		if compareErr != nil {
 			return compareErr
@@ -75,7 +72,7 @@ func (s *serviceImpl) installDynamic(
 	}
 
 	desiredState := plugintypes.HostStateInstalled.String()
-	if registry.Installed == plugintypes.InstalledYes && registry.Status == plugintypes.StatusEnabled {
+	if registry.Installed == statusflag.Installed.Int() && registry.Status == statusflag.EnabledValue.Int() {
 		desiredState = plugintypes.HostStateEnabled.String()
 	}
 	if s.runtimeSvc != nil {
@@ -83,30 +80,6 @@ func (s *serviceImpl) installDynamic(
 		if err = s.runtimeSvc.ReconcileDynamicPluginRequest(ctx, pluginID, desiredState, options); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-// UninstallDynamic executes the low-level uninstall lifecycle for an installed
-// dynamic plugin.
-func (s *serviceImpl) UninstallDynamic(ctx context.Context, pluginID string) error {
-	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
-	if err != nil {
-		return err
-	}
-	if plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeSource {
-		return bizerr.NewCode(CodeSourcePluginUninstallUnsupported)
-	}
-
-	registry, err := s.storeSvc.GetRegistry(ctx, pluginID)
-	if err != nil {
-		return err
-	}
-	if registry == nil || registry.Installed != plugintypes.InstalledYes {
-		return nil
-	}
-	if s.runtimeSvc != nil {
-		return s.runtimeSvc.ReconcileDynamicPluginRequest(ctx, pluginID, plugintypes.HostStateUninstalled.String(), runtime.DynamicReconcileOptions{})
 	}
 	return nil
 }

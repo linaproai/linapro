@@ -1,9 +1,11 @@
 export type PluginType = 'dynamic' | 'source' | string;
+export type PluginDistribution = 'builtin' | 'managed' | string;
 
 export interface PluginListParams {
   pageNum?: number;
   pageSize?: number;
   id?: string;
+  includeBuiltin?: boolean;
   installed?: number;
   name?: string;
   status?: number;
@@ -33,6 +35,7 @@ export interface PluginListItem {
   authorizationRequired: number;
   authorizationStatus: 'confirmed' | 'not_required' | 'pending' | string;
   dependencyCheck?: PluginDependencyCheckResult;
+  distribution?: PluginDistribution;
   hasMockData: number;
   installMode?: 'global' | 'tenant_scoped' | string;
   scopeNature?: 'platform_only' | 'tenant_aware' | string;
@@ -187,6 +190,7 @@ export interface PluginManifestSnapshot {
   supportsMultiTenant: boolean;
   defaultInstallMode?: 'global' | 'tenant_scoped' | string;
   description?: string;
+  distribution?: PluginDistribution;
   runtimeKind?: string;
   runtimeAbiVersion?: string;
   manifestDeclared: boolean;

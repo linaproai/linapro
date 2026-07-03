@@ -15,6 +15,7 @@ import (
 	"lina-core/pkg/plugin/capability/usercap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
 // dispatchUsersHostService routes one users-domain host-service method to the same
@@ -32,11 +33,9 @@ func dispatchUsersHostService(
 			"users host service is not scoped",
 		)
 	}
-
-	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceUsers, method)
 	switch method {
 	case bridgehostservice.HostServiceMethodUsersCurrent:
-		result, err := service.Current(ctx, capCtx)
+		result, err := service.Current(ctx)
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
@@ -46,7 +45,7 @@ func dispatchUsersHostService(
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		result, err := service.BatchGet(ctx, capCtx, userIDsFromStrings(request.UserIDs))
+		result, err := service.BatchGet(ctx, userIDsFromStrings(request.UserIDs))
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
@@ -56,7 +55,7 @@ func dispatchUsersHostService(
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		result, err := service.BatchResolve(ctx, capCtx, usercap.BatchResolveInput{
+		result, err := service.BatchResolve(ctx, usercap.BatchResolveInput{
 			IDs:       userIDsFromStrings(request.UserIDs),
 			Usernames: append([]string(nil), request.Usernames...),
 			Contacts:  append([]string(nil), request.Contacts...),
@@ -65,14 +64,14 @@ func dispatchUsersHostService(
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		return capabilityJSONResponse(result)
-	case bridgehostservice.HostServiceMethodUsersSearch:
-		request, err := decodeUsersHostServiceRequest[usersSearchRequest](payload)
+	case bridgehostservice.HostServiceMethodUsersList:
+		request, err := decodeUsersHostServiceRequest[usersListRequest](payload)
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		result, err := service.Search(ctx, capCtx, usercap.SearchInput{
+		result, err := service.List(ctx, usercap.ListInput{
 			Keyword:     strings.TrimSpace(request.Keyword),
-			Status:      usercap.Status(strings.TrimSpace(request.Status)),
+			Status:      userStatusFlag(request.Status),
 			TenantID:    capmodel.DomainID(strings.TrimSpace(request.TenantID)),
 			EnabledOnly: request.EnabledOnly,
 			Page: capmodel.PageRequest{
@@ -89,10 +88,56 @@ func dispatchUsersHostService(
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		if err = service.EnsureVisible(ctx, capCtx, userIDsFromStrings(request.UserIDs)); err != nil {
+		if err = service.EnsureVisible(ctx, userIDsFromStrings(request.UserIDs)); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		return capabilityJSONResponse(true)
+	case bridgehostservice.HostServiceMethodUsersCreate:
+		var request usercap.CreateInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.Create(ctx, request)
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodUsersUpdate:
+		var request usercap.UpdateInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Update(ctx, request)
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodUsersDelete:
+		var request userIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Delete(ctx, usercap.UserID(strings.TrimSpace(request.UserID)))
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodUsersSetStatus:
+		var request usersSetStatusRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.SetStatus(ctx, usercap.UserID(strings.TrimSpace(request.UserID)), statusflag.Enabled(request.Status))
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodUsersResetPassword:
+		var request usersResetPasswordRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.ResetPassword(ctx, usercap.UserID(strings.TrimSpace(request.UserID)), request.Password)
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodUsersReplaceRoles:
+		var request usersReplaceRolesRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		assignment := service.Assignment()
+		if assignment == nil {
+			return domainServiceNotScoped("users.assignment")
+		}
+		err := assignment.ReplaceRoles(ctx, usercap.UserID(strings.TrimSpace(request.UserID)), append([]int(nil), request.RoleIDs...))
+		return domainCapabilityResult(true, err)
 	default:
 		return bridgehostcall.NewHostCallErrorResponse(
 			bridgehostcall.HostCallStatusNotFound,
@@ -111,7 +156,7 @@ type usersBatchResolveRequest struct {
 	Contacts  []string `json:"contacts,omitempty"`
 }
 
-type usersSearchRequest struct {
+type usersListRequest struct {
 	Keyword     string `json:"keyword,omitempty"`
 	Status      string `json:"status,omitempty"`
 	TenantID    string `json:"tenantId,omitempty"`
@@ -122,6 +167,21 @@ type usersSearchRequest struct {
 
 type usersEnsureVisibleRequest struct {
 	UserIDs []string `json:"userIds"`
+}
+
+type usersSetStatusRequest struct {
+	UserID string `json:"userId"`
+	Status int    `json:"status"`
+}
+
+type usersResetPasswordRequest struct {
+	UserID   string `json:"userId"`
+	Password string `json:"password"`
+}
+
+type usersReplaceRolesRequest struct {
+	UserID  string `json:"userId"`
+	RoleIDs []int  `json:"roleIds"`
 }
 
 func decodeUsersHostServiceRequest[T any](payload []byte) (*T, error) {
@@ -146,6 +206,21 @@ func usersServiceForHostCall(hcc *hostCallContext) usercap.Service {
 		return nil
 	}
 	return services.Users()
+}
+
+// userStatusFlag converts the wire string status into the shared optional status flag.
+func userStatusFlag(status string) *statusflag.Enabled {
+	trimmed := strings.TrimSpace(status)
+	if trimmed == "" {
+		return nil
+	}
+	parsed, err := strconv.Atoi(trimmed)
+	if err != nil {
+		value := statusflag.Enabled(-1)
+		return &value
+	}
+	value := statusflag.Enabled(parsed)
+	return &value
 }
 
 func userIDsFromStrings(ids []string) []usercap.UserID {
@@ -180,8 +255,7 @@ func ensureHostCallUsersVisible(
 			"users host service is not scoped",
 		)
 	}
-	capCtx := capabilityContextForHostCall(hcc, serviceName, method)
-	if err := service.EnsureVisible(ctx, capCtx, userIDsFromInts(userIDs)); err != nil {
+	if err := service.EnsureVisible(ctx, userIDsFromInts(userIDs)); err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusCapabilityDenied, err)
 	}
 	return nil

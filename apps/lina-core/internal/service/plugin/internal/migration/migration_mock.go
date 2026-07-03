@@ -115,9 +115,11 @@ func (s *serviceImpl) ExecuteManifestMockSQLFilesInTx(
 			}
 		}
 
-		checksum := fmt.Sprintf("%x", sha256.Sum256([]byte(asset.Content)))
-		migrationKey := buildMigrationKey(plugintypes.MigrationDirectionMock, index+1)
-		executedAt := time.Now()
+		var (
+			checksum     = fmt.Sprintf("%x", sha256.Sum256([]byte(asset.Content)))
+			migrationKey = buildMigrationKey(plugintypes.MigrationDirectionMock, index+1)
+			executedAt   = time.Now()
+		)
 		if execErr := s.executeSQLAsset(ctx, manifest.ID, plugintypes.MigrationDirectionMock, asset); execErr != nil {
 			return MockSQLExecutionResult{
 				ExecutedFiles: executed,

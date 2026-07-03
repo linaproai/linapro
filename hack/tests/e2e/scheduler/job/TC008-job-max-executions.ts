@@ -25,7 +25,7 @@ test.describe('TC-8 最大执行次数自动停用', () => {
 
   test.beforeAll(async () => {
     api = await createAdminApiContext();
-    originalShellSwitch = await getConfigByKey(api, 'cron.shell.enabled');
+    originalShellSwitch = await getConfigByKey(api, 'sys.cron.shell.enabled');
     await setCronShellEnabled(api, true);
   });
 

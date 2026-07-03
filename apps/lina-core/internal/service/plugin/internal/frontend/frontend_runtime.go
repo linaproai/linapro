@@ -6,6 +6,7 @@ package frontend
 import (
 	"context"
 	"io/fs"
+	pluginv1 "lina-core/api/plugin/v1"
 	"mime"
 	"net/http"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // PrewarmRuntimeFrontendBundles rebuilds in-memory frontend bundles for all enabled
@@ -38,10 +40,10 @@ func (s *serviceImpl) PrewarmRuntimeFrontendBundles(ctx context.Context) error {
 		if registry == nil {
 			continue
 		}
-		if plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+		if plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 			continue
 		}
-		if registry.Installed != plugintypes.InstalledYes || registry.Status != plugintypes.StatusEnabled {
+		if registry.Installed != statusflag.Installed.Int() || registry.Status != statusflag.EnabledValue.Int() {
 			s.InvalidateBundle(ctx, registry.PluginId, "plugin_not_enabled_during_prewarm")
 			continue
 		}
@@ -100,7 +102,7 @@ func (s *serviceImpl) ResolveRuntimeFrontendAsset(
 	if len(manifest.PublicAssets) == 0 {
 		return nil, gerror.New("current plugin does not declare public assets")
 	}
-	if plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeSource {
+	if plugintypes.NormalizeType(manifest.Type) == pluginv1.PluginTypeSource {
 		return s.resolveSourcePublicAsset(ctx, manifest, relativePath)
 	}
 	if manifest.RuntimeArtifact == nil || len(manifest.RuntimeArtifact.FrontendAssets) == 0 {
@@ -170,7 +172,7 @@ func (s *serviceImpl) loadActiveDynamicPluginManifest(ctx context.Context, regis
 	if registry == nil {
 		return nil, gerror.New("plugin registry record cannot be nil")
 	}
-	if plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return nil, gerror.New("current plugin is not dynamic")
 	}
 
@@ -193,7 +195,7 @@ func (s *serviceImpl) resolvePublicAssetManifest(ctx context.Context, pluginID s
 	if err != nil {
 		return nil, err
 	}
-	if registry != nil && plugintypes.NormalizeType(registry.Type) == plugintypes.TypeDynamic {
+	if registry != nil && plugintypes.NormalizeType(registry.Type) == pluginv1.PluginTypeDynamic {
 		release, releaseErr := s.storeSvc.GetRelease(ctx, pluginID, version)
 		if releaseErr != nil {
 			return nil, releaseErr

@@ -21,7 +21,7 @@ import (
 // TestResolveRouteTextUsesApidocCatalog verifies route tags and summaries are
 // resolved from the same structured apidoc keys used by OpenAPI localization.
 func TestResolveRouteTextUsesApidocCatalog(t *testing.T) {
-	operationKey := BuildRouteOperationKeyFromRequestType(reflect.TypeOf(testHostListReq{}))
+	operationKey := buildRouteOperationKeyFromRequestType(reflect.TypeOf(testHostListReq{}))
 	if operationKey != "core.internal.service.apidoc.testHostListReq" {
 		t.Fatalf("expected static operation key to match apidoc component key, got %s", operationKey)
 	}
@@ -56,10 +56,12 @@ func TestFindRouteTitleOperationKeys(t *testing.T) {
 	})
 	defer restoreCatalog()
 
-	service := New(&testConfigProvider{}, bizctx.New(), i18nsvc.New(bizctx.New(), configsvc.New(), cachecoord.Default(nil)), &testPluginRouteProvider{}).(*serviceImpl)
-	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: "zh-CN"})
-	keys := service.FindRouteTitleOperationKeys(ctx, "动态")
-	expectedKey := "plugins.linapro_demo_dynamic.paths.get.api.v1.backend_summary"
+	var (
+		service     = New(&testConfigProvider{}, bizctx.New(), i18nsvc.New(bizctx.New(), configsvc.New(), cachecoord.Default(nil)), &testPluginRouteProvider{}).(*serviceImpl)
+		ctx         = context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: "zh-CN"})
+		keys        = service.FindRouteTitleOperationKeys(ctx, "动态")
+		expectedKey = "plugins.linapro_demo_dynamic.paths.get.api.v1.backend_summary"
+	)
 	for _, key := range keys {
 		if key == expectedKey {
 			return
@@ -68,10 +70,10 @@ func TestFindRouteTitleOperationKeys(t *testing.T) {
 	t.Fatalf("expected localized title matches to contain %s, got %#v", expectedKey, keys)
 }
 
-// TestBuildRouteOperationKeyFromPathNormalizesMethod verifies persisted route
+// TestRouteOperationKeyFromPathNormalizesMethod verifies persisted route
 // methods can be uppercase while apidoc path keys remain lowercase.
-func TestBuildRouteOperationKeyFromPathNormalizesMethod(t *testing.T) {
-	key := BuildRouteOperationKeyFromPath("/x/linapro-demo-dynamic/api/v1/backend-summary", "GET")
+func TestRouteOperationKeyFromPathNormalizesMethod(t *testing.T) {
+	key := buildRouteOperationKeyFromPath("/x/linapro-demo-dynamic/api/v1/backend-summary", "GET")
 	if key != "plugins.linapro_demo_dynamic.paths.get.api.v1.backend_summary" {
 		t.Fatalf("expected lower-case dynamic path key, got %s", key)
 	}

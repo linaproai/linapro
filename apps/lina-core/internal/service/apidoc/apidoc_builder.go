@@ -29,9 +29,11 @@ func (s *serviceImpl) Build(ctx context.Context, server *ghttp.Server) (*goai.Op
 		return nil, gerror.New("apidoc: host server is nil")
 	}
 
-	document := s.newDocument(ctx)
-	sourceRouteBindings := s.listSourceRouteBindings()
-	sourceRouteKeySet := buildSourceRouteKeySet(sourceRouteBindings)
+	var (
+		document            = s.newDocument(ctx)
+		sourceRouteBindings = s.listSourceRouteBindings()
+		sourceRouteKeySet   = buildSourceRouteKeySet(sourceRouteBindings)
+	)
 
 	if err := s.addHostStaticRoutes(document, server, sourceRouteKeySet); err != nil {
 		return nil, err
@@ -190,7 +192,7 @@ func addHandlerRouteToOpenAPI(
 	if document == nil {
 		return nil
 	}
-	operationKey := BuildRouteOperationKeyFromHandlerType(reflect.TypeOf(handler))
+	operationKey := buildRouteOperationKeyFromHandlerType(reflect.TypeOf(handler))
 	methods := expandOpenAPIMethods(method)
 	for _, item := range methods {
 		if err := document.Add(goai.AddInput{

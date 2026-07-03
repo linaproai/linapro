@@ -11,13 +11,11 @@ import (
 	"lina-core/pkg/plugin/capability/aicap"
 	"lina-core/pkg/plugin/capability/apidoccap"
 	"lina-core/pkg/plugin/capability/authcap"
-	"lina-core/pkg/plugin/capability/authcap/authz"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/cachecap"
 	"lina-core/pkg/plugin/capability/dictcap"
 	"lina-core/pkg/plugin/capability/filecap"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
-	"lina-core/pkg/plugin/capability/infracap"
 	"lina-core/pkg/plugin/capability/jobcap"
 	"lina-core/pkg/plugin/capability/lockcap"
 	"lina-core/pkg/plugin/capability/manifestcap"
@@ -63,8 +61,6 @@ type Services interface {
 	HostConfig() hostconfigcap.Service
 	// Manifest returns the plugin-scoped manifest-resource capability client.
 	Manifest() manifestcap.Service
-	// Authz returns the authorization-domain guest client.
-	Authz() authz.Service
 	// Users returns the user-domain capability guest client. The returned client
 	// exposes visible projections, candidate search, and visibility checks only.
 	Users() usercap.Service
@@ -74,8 +70,6 @@ type Services interface {
 	Dict() dictcap.Service
 	// Files returns the file-domain guest client.
 	Files() filecap.Service
-	// Infra returns the infrastructure-domain guest client.
-	Infra() infracap.Service
 	// Jobs returns the scheduled-job domain guest client.
 	Jobs() jobcap.Service
 	// Notifications returns the notification-domain ordinary read guest client.

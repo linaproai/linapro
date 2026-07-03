@@ -119,12 +119,10 @@ func (hcc *hostCallContext) hasHostServiceAccess(service string, method string, 
 	}
 	if normalizedService == bridgehostservice.HostServiceAPIDoc ||
 		normalizedService == bridgehostservice.HostServiceAuth ||
-		normalizedService == bridgehostservice.HostServiceAuthz ||
 		normalizedService == bridgehostservice.HostServiceUsers ||
 		normalizedService == bridgehostservice.HostServiceBizCtx ||
 		normalizedService == bridgehostservice.HostServiceDict ||
 		normalizedService == bridgehostservice.HostServiceFiles ||
-		normalizedService == bridgehostservice.HostServiceInfra ||
 		normalizedService == bridgehostservice.HostServiceJobs ||
 		normalizedService == bridgehostservice.HostServiceNotifications ||
 		normalizedService == bridgehostservice.HostServicePlugins ||
@@ -374,16 +372,6 @@ func cloneStringMap(values map[string]string) map[string]string {
 		clone[key] = value
 	}
 	return clone
-}
-
-// containsString reports whether target appears in the slice.
-func containsString(items []string, target string) bool {
-	for _, item := range items {
-		if item == target {
-			return true
-		}
-	}
-	return false
 }
 
 // matchAuthorizedManifestPath reports whether target is covered by one exact or glob path.

@@ -10,12 +10,14 @@ import (
 
 	"github.com/gogf/gf/v2/util/gconv"
 
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/dialect"
+	"lina-core/pkg/statusflag"
 )
 
 // GetRegistry returns the sys_plugin row for the given plugin ID, or nil if not found.
@@ -42,7 +44,7 @@ func (s *serviceImpl) ListAllRegistries(ctx context.Context) ([]*PluginRecord, e
 // SyncManifest creates or updates the registry row for a discovered manifest and
 // then synchronizes the release metadata snapshot and node state record.
 func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *catalog.Manifest) (*PluginRecord, error) {
-	installedState := plugintypes.InstalledNo
+	installedState := statusflag.Uninstalled.Int()
 
 	existing, err := s.GetRegistry(ctx, manifest.ID)
 	if err != nil {
@@ -50,14 +52,15 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *catalog.Manife
 	}
 
 	if existing == nil {
-		stableState := plugintypes.DeriveHostState(installedState, plugintypes.StatusDisabled)
+		stableState := plugintypes.DeriveHostState(installedState, statusflag.Disabled.Int())
 		data := do.SysPlugin{
 			PluginId:     manifest.ID,
 			Name:         manifest.Name,
 			Version:      manifest.Version,
 			Type:         manifest.Type,
+			Distribution: plugintypes.NormalizeDistribution(manifest.Distribution).String(),
 			Installed:    installedState,
-			Status:       plugintypes.StatusDisabled,
+			Status:       statusflag.Disabled.Int(),
 			DesiredState: stableState,
 			CurrentState: stableState,
 			Generation:   int64(1),
@@ -104,17 +107,18 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *catalog.Manife
 
 existingRegistry:
 	data := do.SysPlugin{
-		Name:        manifest.Name,
-		Type:        manifest.Type,
-		Remark:      manifest.Description,
-		ScopeNature: plugintypes.NormalizeScopeNature(manifest.ScopeNature).String(),
-		InstallMode: plugintypes.NormalizeInstallMode(manifest.DefaultInstallMode).String(),
+		Name:         manifest.Name,
+		Type:         manifest.Type,
+		Distribution: plugintypes.NormalizeDistribution(manifest.Distribution).String(),
+		Remark:       manifest.Description,
+		ScopeNature:  plugintypes.NormalizeScopeNature(manifest.ScopeNature).String(),
+		InstallMode:  plugintypes.NormalizeInstallMode(manifest.DefaultInstallMode).String(),
 	}
-	if plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeSource {
+	if plugintypes.NormalizeType(manifest.Type) == pluginv1.PluginTypeSource {
 		data.ManifestPath = manifest.ManifestPath
 		data.Checksum = s.BuildRegistryChecksum(manifest)
 		data.Installed = existing.Installed
-		if existing.Installed == plugintypes.InstalledYes {
+		if existing.Installed == statusflag.Installed.Int() {
 			if strings.TrimSpace(existing.Version) == "" {
 				data.Version = manifest.Version
 			}
@@ -126,9 +130,9 @@ existingRegistry:
 			}
 		} else {
 			data.Version = manifest.Version
-			data.Status = plugintypes.StatusDisabled
-			data.DesiredState = plugintypes.DeriveHostState(plugintypes.InstalledNo, plugintypes.StatusDisabled)
-			data.CurrentState = plugintypes.DeriveHostState(plugintypes.InstalledNo, plugintypes.StatusDisabled)
+			data.Status = statusflag.Disabled.Int()
+			data.DesiredState = plugintypes.DeriveHostState(statusflag.Uninstalled.Int(), statusflag.Disabled.Int())
+			data.CurrentState = plugintypes.DeriveHostState(statusflag.Uninstalled.Int(), statusflag.Disabled.Int())
 		}
 		if existing.Generation <= 0 {
 			data.Generation = int64(1)
@@ -201,6 +205,7 @@ func pluginRegistryDataMatches(existing *PluginRecord, data do.SysPlugin) bool {
 	return pluginRegistryFieldMatches(existing.Name, data.Name) &&
 		pluginRegistryFieldMatches(existing.Version, data.Version) &&
 		pluginRegistryFieldMatches(existing.Type, data.Type) &&
+		pluginRegistryFieldMatches(existing.Distribution, data.Distribution) &&
 		pluginRegistryFieldMatches(existing.Installed, data.Installed) &&
 		pluginRegistryFieldMatches(existing.Status, data.Status) &&
 		pluginRegistryFieldMatches(existing.DesiredState, data.DesiredState) &&
@@ -241,7 +246,7 @@ func (s *serviceImpl) SetPluginStatus(ctx context.Context, pluginID string, enab
 	if err != nil {
 		return err
 	}
-	installed := plugintypes.InstalledYes
+	installed := statusflag.Installed.Int()
 	if registry != nil {
 		installed = registry.Installed
 	}
@@ -251,7 +256,7 @@ func (s *serviceImpl) SetPluginStatus(ctx context.Context, pluginID string, enab
 		DesiredState: stableState,
 		CurrentState: stableState,
 	}
-	if enabled == plugintypes.StatusEnabled {
+	if enabled == statusflag.EnabledValue.Int() {
 		data.EnabledAt = timePtr(time.Now())
 	} else {
 		data.DisabledAt = timePtr(time.Now())
@@ -286,7 +291,7 @@ func (s *serviceImpl) SetPluginInstalled(ctx context.Context, pluginID string, i
 	if err != nil {
 		return err
 	}
-	enabled := plugintypes.StatusDisabled
+	enabled := statusflag.Disabled.Int()
 	if registry != nil {
 		enabled = registry.Status
 	}
@@ -296,7 +301,7 @@ func (s *serviceImpl) SetPluginInstalled(ctx context.Context, pluginID string, i
 		DesiredState: stableState,
 		CurrentState: stableState,
 	}
-	if installed == plugintypes.InstalledYes {
+	if installed == statusflag.Installed.Int() {
 		data.InstalledAt = timePtr(time.Now())
 	}
 	_, err = dao.SysPlugin.Ctx(ctx).
@@ -418,10 +423,10 @@ func shouldDetachDynamicManifestGovernance(plugin *PluginRecord) bool {
 	if plugin == nil {
 		return false
 	}
-	if plugintypes.NormalizeType(plugin.Type) != plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(plugin.Type) != pluginv1.PluginTypeDynamic {
 		return false
 	}
-	if plugin.Installed == plugintypes.InstalledYes {
+	if plugin.Installed == statusflag.Installed.Int() {
 		return false
 	}
 	return plugin.InstalledAt != nil

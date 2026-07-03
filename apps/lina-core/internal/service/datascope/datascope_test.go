@@ -105,9 +105,11 @@ func TestCurrentRejectsUnsupportedScope(t *testing.T) {
 // delegated to the optional organization provider instead of materializing
 // visible user IDs in the shared data-scope service.
 func TestApplyUserScopeUsesOrgCapabilityForDepartment(t *testing.T) {
-	ctx := context.Background()
-	queryModel := dao.SysUser.Ctx(ctx)
-	orgCapSvc := &dataScopeTrackingOrgCap{enabled: true}
+	var (
+		ctx        = context.Background()
+		queryModel = dao.SysUser.Ctx(ctx)
+		orgCapSvc  = &dataScopeTrackingOrgCap{enabled: true}
+	)
 	svc := New(dataScopeStaticBizCtx{ctx: &model.Context{UserId: 11}}, &dataScopeRoleReader{
 		snapshots: map[int]*AccessSnapshot{
 			11: {UserID: 11, Scope: ScopeDept},
@@ -126,9 +128,11 @@ func TestApplyUserScopeUsesOrgCapabilityForDepartment(t *testing.T) {
 // safely degrades to current-user filtering when organization capability is not
 // enabled.
 func TestApplyUserScopeFallsBackToSelfWhenOrgDisabled(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertDataScopeUser(t, ctx, "datascope-current")
-	otherUserID := insertDataScopeUser(t, ctx, "datascope-other")
+	var (
+		ctx           = context.Background()
+		currentUserID = insertDataScopeUser(t, ctx, "datascope-current")
+		otherUserID   = insertDataScopeUser(t, ctx, "datascope-other")
+	)
 	t.Cleanup(func() { cleanupDataScopeUsers(t, ctx, []int{currentUserID, otherUserID}) })
 	queryModel := dao.SysUser.Ctx(ctx).WhereIn(dao.SysUser.Columns().Id, []int{currentUserID, otherUserID})
 	orgCapSvc := &dataScopeTrackingOrgCap{enabled: false}
@@ -160,9 +164,11 @@ func TestApplyUserScopeFallsBackToSelfWhenOrgDisabled(t *testing.T) {
 // TestApplyUserScopeWithBypassComposesDeptExists verifies bypass-aware scopes
 // compose department filtering through the provider-built EXISTS subquery.
 func TestApplyUserScopeWithBypassComposesDeptExists(t *testing.T) {
-	ctx := context.Background()
-	queryModel := dao.SysJob.Ctx(ctx)
-	orgCapSvc := &dataScopeTrackingOrgCap{enabled: true}
+	var (
+		ctx        = context.Background()
+		queryModel = dao.SysJob.Ctx(ctx)
+		orgCapSvc  = &dataScopeTrackingOrgCap{enabled: true}
+	)
 	svc := New(dataScopeStaticBizCtx{ctx: &model.Context{UserId: 13}}, &dataScopeRoleReader{
 		snapshots: map[int]*AccessSnapshot{
 			13: {UserID: 13, Scope: ScopeDept},

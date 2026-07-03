@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -35,9 +36,11 @@ func TestPostgreSQLProjectSQLAssetsSmoke(t *testing.T) {
 		t.Skip("official plugin workspace is not initialized")
 	}
 
-	installAssets := collectProjectSQLAssets(t, sqlAssetGroupInstall)
-	mockAssets := collectProjectSQLAssets(t, sqlAssetGroupMock)
-	uninstallAssets := collectProjectSQLAssets(t, sqlAssetGroupUninstall)
+	var (
+		installAssets   = collectProjectSQLAssets(t, sqlAssetGroupInstall)
+		mockAssets      = collectProjectSQLAssets(t, sqlAssetGroupMock)
+		uninstallAssets = collectProjectSQLAssets(t, sqlAssetGroupUninstall)
+	)
 	if len(installAssets) == 0 || len(mockAssets) == 0 || len(uninstallAssets) == 0 {
 		t.Fatal("expected install, mock, and uninstall SQL assets")
 	}
@@ -73,6 +76,72 @@ func TestPostgreSQLProjectSQLAssetsSmoke(t *testing.T) {
 	executePostgreSQLSQLAssets(t, ctx, db, uninstallAssets)
 }
 
+// TestPostgreSQLProjectSQLUsesTimestamptzForInstants verifies host and plugin
+// SQL assets create absolute instant columns as TIMESTAMPTZ.
+func TestPostgreSQLProjectSQLUsesTimestamptzForInstants(t *testing.T) {
+	root := repositoryRootForSQLAudit(t)
+	removedMigrationPath := filepath.Join(root, "apps/lina-core/manifest/sql/013-timezone-aware-timestamps.sql")
+	if _, err := os.Stat(removedMigrationPath); err == nil {
+		t.Fatalf("core schema should not rely on standalone timestamp migration %s", removedMigrationPath)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("stat timestamp migration path: %v", err)
+	}
+
+	var files []string
+	for _, group := range []sqlAssetGroup{sqlAssetGroupInstall, sqlAssetGroupMock} {
+		for _, pattern := range sqlAssetPatterns(root, group) {
+			matches, err := filepath.Glob(pattern)
+			if err != nil {
+				t.Fatalf("glob project SQL assets failed: %v", err)
+			}
+			files = append(files, matches...)
+		}
+	}
+	if len(files) == 0 {
+		t.Fatal("expected project install or mock SQL assets")
+	}
+
+	bareTimestampType := regexp.MustCompile(`\bTIMESTAMP\b`)
+	var (
+		hostCombined   strings.Builder
+		pluginCombined strings.Builder
+	)
+	for _, file := range files {
+		content, readErr := os.ReadFile(file)
+		if readErr != nil {
+			t.Fatalf("read project SQL asset %s: %v", file, readErr)
+		}
+		if match := bareTimestampType.FindStringIndex(string(content)); match != nil {
+			t.Fatalf("project SQL asset %s still declares bare TIMESTAMP", file)
+		}
+		target := &hostCombined
+		if strings.Contains(filepath.ToSlash(file), "/apps/lina-plugins/") {
+			target = &pluginCombined
+		}
+		target.Write(content)
+		target.WriteString("\n")
+	}
+
+	assertRequiredSQLPatterns(t, "host SQL assets", hostCombined.String(), []string{
+		`"created_at"\s+TIMESTAMPTZ`,
+		`"updated_at"\s+TIMESTAMPTZ`,
+		`"start_at"\s+TIMESTAMPTZ`,
+		`"read_at"\s+TIMESTAMPTZ`,
+		`"expire_time"\s+TIMESTAMPTZ`,
+		`"last_heartbeat_at"\s+TIMESTAMPTZ`,
+		`"login_time"\s+TIMESTAMPTZ`,
+	})
+	if pluginCombined.Len() == 0 {
+		return
+	}
+	assertRequiredSQLPatterns(t, "plugin SQL assets", pluginCombined.String(), []string{
+		`"oper_time"\s+TIMESTAMPTZ`,
+		`"joined_at"\s+TIMESTAMPTZ`,
+		`"last_test_at"\s+TIMESTAMPTZ`,
+		`"expires_at"\s+TIMESTAMPTZ`,
+	})
+}
+
 // executePostgreSQLSQLAssets executes assets in order on one PostgreSQL DB.
 func executePostgreSQLSQLAssets(t *testing.T, ctx context.Context, db gdb.DB, assets []sqlTestAsset) {
 	t.Helper()
@@ -85,6 +154,17 @@ func executePostgreSQLSQLAssets(t *testing.T, ctx context.Context, db gdb.DB, as
 				}
 			}
 		})
+	}
+}
+
+// assertRequiredSQLPatterns verifies that one SQL asset group keeps representative
+// instant columns on TIMESTAMPTZ.
+func assertRequiredSQLPatterns(t *testing.T, group string, content string, requiredPatterns []string) {
+	t.Helper()
+	for _, required := range requiredPatterns {
+		if !regexp.MustCompile(required).MatchString(content) {
+			t.Fatalf("%s are missing %q", group, required)
+		}
 	}
 }
 

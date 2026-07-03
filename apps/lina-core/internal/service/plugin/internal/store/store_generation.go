@@ -6,8 +6,10 @@ package store
 import (
 	"strings"
 
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/pkg/statusflag"
 )
 
 // NextGeneration returns the next stable generation number for one plugin registry row.
@@ -33,11 +35,11 @@ func ShouldTrackStagedDynamicRelease(registry *PluginRecord, manifest *catalog.M
 	if registry == nil || manifest == nil {
 		return false
 	}
-	if plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
-		plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic ||
+		plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic {
 		return false
 	}
-	if registry.Installed != plugintypes.InstalledYes {
+	if registry.Installed != statusflag.Installed.Int() {
 		return false
 	}
 	if strings.TrimSpace(registry.Version) == "" || strings.TrimSpace(manifest.Version) == "" {

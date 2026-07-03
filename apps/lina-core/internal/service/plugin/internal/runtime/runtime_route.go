@@ -11,11 +11,11 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/bizerr"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 	bridgecodec "lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
 // Request-context keys and sentinel values used by the dynamic route pipeline.
@@ -23,9 +23,6 @@ const (
 	dynamicRouteCtxVarState    gctx.StrKey = "plugin_dynamic_route_state"
 	dynamicRouteCtxVarIdentity gctx.StrKey = "plugin_dynamic_route_identity"
 	dynamicRouteCtxVarMetadata gctx.StrKey = "plugin_dynamic_route_metadata"
-
-	// statusNormal represents the normal/enabled status for role and menu queries.
-	statusNormal = 1
 )
 
 // DynamicRouteDispatchInput describes one host-side dynamic route dispatch call.
@@ -72,7 +69,7 @@ func (s *serviceImpl) PrepareDynamicRouteMiddleware(r *ghttp.Request) {
 		return
 	}
 	setDynamicRouteRuntimeState(r, runtimeState)
-	setDynamicRouteMetadata(r, buildDynamicRouteMetadata(runtimeState))
+	setMetadata(r, buildMetadata(runtimeState))
 	r.Middleware.Next()
 }
 
@@ -138,6 +135,64 @@ func (s *serviceImpl) handleDynamicRouteRequest(r *ghttp.Request) {
 	r.ExitAll()
 }
 
+// DispatchDynamicRoute dispatches one public-prefix request into the active release
+// of one dynamic plugin. Matching always happens against the archived active manifest
+// so staged uploads cannot affect live traffic before reconcile.
+func (s *serviceImpl) DispatchDynamicRoute(
+	ctx context.Context,
+	in *DynamicRouteDispatchInput,
+) (*bridgecontract.BridgeResponseEnvelopeV1, error) {
+	if in == nil || in.Request == nil {
+		return bridgecodec.NewBadRequestResponse("Dynamic route request is missing"), nil
+	}
+
+	runtimeState, failure, err := s.prepareDynamicRouteRuntime(ctx, in.Request)
+	if err != nil {
+		return nil, err
+	}
+	if failure != nil {
+		return failure, nil
+	}
+	identity, failure, err := s.authorizeDynamicRouteRequest(ctx, runtimeState, in.Request)
+	if err != nil {
+		return nil, err
+	}
+	if failure != nil {
+		return failure, nil
+	}
+	return s.executePreparedDynamicRoute(ctx, runtimeState, identity, in.Request)
+}
+
+// executePreparedDynamicRoute builds the bridge request envelope and invokes
+// the runtime executor for the matched active route.
+func (s *serviceImpl) executePreparedDynamicRoute(
+	ctx context.Context,
+	runtimeState *dynamicRouteRuntimeState,
+	identity *bridgecontract.IdentitySnapshotV1,
+	request *ghttp.Request,
+) (*bridgecontract.BridgeResponseEnvelopeV1, error) {
+	if runtimeState == nil || runtimeState.Match == nil || runtimeState.Manifest == nil {
+		return bridgecodec.NewInternalErrorResponse("Dynamic route runtime state is incomplete"), nil
+	}
+
+	requestEnvelope, err := s.buildDynamicRouteRequestEnvelopeWithIdentity(
+		runtimeState.Match,
+		request,
+		identity,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if runtimeState.Manifest.BridgeSpec == nil || !runtimeState.Manifest.BridgeSpec.RouteExecution {
+		return bridgecodec.NewFailureResponse(
+			http.StatusNotImplemented,
+			"BRIDGE_NOT_IMPLEMENTED",
+			"Dynamic route bridge is not executable for the active plugin release",
+		), nil
+	}
+	return s.executeDynamicRoute(ctx, runtimeState.Manifest, requestEnvelope)
+}
+
 // prepareDynamicRouteRuntime resolves the active manifest and matched route for
 // one incoming fixed-prefix request.
 func (s *serviceImpl) prepareDynamicRouteRuntime(
@@ -168,7 +223,7 @@ func (s *serviceImpl) prepareDynamicRouteRuntime(
 	if err != nil {
 		return nil, nil, err
 	}
-	if registry == nil || registry.Installed != plugintypes.InstalledYes || registry.Status != plugintypes.StatusEnabled {
+	if registry == nil || registry.Installed != statusflag.Installed.Int() || registry.Status != statusflag.EnabledValue.Int() {
 		return nil, bridgecodec.NewNotFoundResponse("Dynamic plugin is not enabled"), nil
 	}
 	runtimeState, err := s.storeSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
@@ -186,7 +241,7 @@ func (s *serviceImpl) prepareDynamicRouteRuntime(
 			message,
 		), nil
 	}
-	if s.menuFilter != nil && !s.menuFilter.CanExposeBusinessEntries(ctx, match.PluginID) {
+	if s.integrationSvc != nil && !s.integrationSvc.CanExposeBusinessEntries(ctx, match.PluginID) {
 		return nil, bridgecodec.NewNotFoundResponse("Dynamic plugin is not enabled"), nil
 	}
 	return &dynamicRouteRuntimeState{

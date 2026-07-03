@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	pluginv1 "lina-core/api/plugin/v1"
 	"path/filepath"
 	"strings"
 
@@ -30,7 +31,7 @@ const (
 // ValidateRuntimeFrontendMenuBindings verifies that dynamic plugin menus only
 // reference declared public assets that exist in the plugin's in-memory bundle.
 func (s *serviceImpl) ValidateRuntimeFrontendMenuBindings(ctx context.Context, manifest *catalog.Manifest) error {
-	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
+	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic {
 		return nil
 	}
 
@@ -184,9 +185,11 @@ func validateHostedMenuMode(
 	queryParams map[string]string,
 	relativeAssetPath string,
 ) error {
-	componentPath := strings.TrimSpace(menu.Component)
-	accessMode := strings.TrimSpace(queryParams[pluginhost.DynamicAccessModeQueryKey])
-	isEmbeddedComponent := componentPath == pluginhost.DynamicPageComponentPath
+	var (
+		componentPath       = strings.TrimSpace(menu.Component)
+		accessMode          = strings.TrimSpace(queryParams[pluginhost.DynamicAccessModeQueryKey])
+		isEmbeddedComponent = componentPath == pluginhost.DynamicPageComponentPath
+	)
 
 	if accessMode == pluginhost.DynamicAccessModeEmbeddedMount {
 		if !isEmbeddedComponent {

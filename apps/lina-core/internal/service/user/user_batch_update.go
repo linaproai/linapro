@@ -15,6 +15,7 @@ import (
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/statusflag"
 )
 
 // BatchUpdateInput defines optional patch fields for selected users.
@@ -74,7 +75,7 @@ func (s *serviceImpl) BatchUpdate(ctx context.Context, in BatchUpdateInput) erro
 			}
 		}
 
-		if in.UpdateTenant && tenantPlan != nil && tenantPlan.shouldReplace && s.tenantMembers != nil {
+		if in.UpdateTenant && tenantPlan != nil && tenantPlan.shouldReplace && s.tenantSvc != nil {
 			for _, userID := range normalizedIDs {
 				if _, err := dao.SysUser.Ctx(ctx).
 					Where(do.SysUser{Id: userID}).
@@ -82,7 +83,7 @@ func (s *serviceImpl) BatchUpdate(ctx context.Context, in BatchUpdateInput) erro
 					Update(); err != nil {
 					return err
 				}
-				if err := s.tenantMembers.ReplaceUserTenantAssignments(ctx, userID, tenantPlan.plan); err != nil {
+				if err := s.tenantSvc.ReplaceUserTenantAssignments(ctx, userID, tenantPlan.plan); err != nil {
 					return err
 				}
 			}
@@ -121,7 +122,7 @@ func (s *serviceImpl) ensureBatchUpdateTargetsAllowed(ctx context.Context, ids [
 			return bizerr.NewCode(CodeUserCurrentEditDenied)
 		}
 	}
-	if in.UpdateStatus && in.Status != nil && Status(*in.Status) == StatusDisabled {
+	if in.UpdateStatus && in.Status != nil && Status(*in.Status) == statusflag.Disabled {
 		for _, id := range ids {
 			if bizCtx != nil && bizCtx.UserId == id {
 				return bizerr.NewCode(CodeUserCurrentDisableDenied)
@@ -170,10 +171,11 @@ func (s *serviceImpl) resolveBatchRoleAssignments(ctx context.Context, roleIDs [
 
 // visibleRolesByID returns active roles in the current tenant boundary.
 func (s *serviceImpl) visibleRolesByID(ctx context.Context, roleIDs []int) ([]*entity.SysRole, error) {
+	cols := dao.SysRole.Columns()
 	var roles []*entity.SysRole
 	model := dao.SysRole.Ctx(ctx).
-		WhereIn(dao.SysRole.Columns().Id, roleIDs).
-		Where(dao.SysRole.Columns().Status, 1)
+		WhereIn(cols.Id, roleIDs).
+		Where(cols.Status, 1)
 	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
 	err := model.Scan(&roles)
 	if err != nil {
@@ -187,9 +189,10 @@ func (s *serviceImpl) ensureUsersMatchRoleBoundary(ctx context.Context, item *en
 	if item == nil {
 		return bizerr.NewCode(role.CodeRoleNotFound)
 	}
+	cols := dao.SysUser.Columns()
 	if item.TenantId == datascope.PlatformTenantID {
 		count, err := dao.SysUser.Ctx(ctx).
-			WhereIn(dao.SysUser.Columns().Id, userIDs).
+			WhereIn(cols.Id, userIDs).
 			Where(do.SysUser{TenantId: datascope.PlatformTenantID}).
 			Count()
 		if err != nil {
@@ -202,8 +205,8 @@ func (s *serviceImpl) ensureUsersMatchRoleBoundary(ctx context.Context, item *en
 	}
 
 	count, err := dao.SysUser.Ctx(ctx).
-		WhereIn(dao.SysUser.Columns().Id, userIDs).
-		WhereNot(dao.SysUser.Columns().TenantId, datascope.PlatformTenantID).
+		WhereIn(cols.Id, userIDs).
+		WhereNot(cols.TenantId, datascope.PlatformTenantID).
 		Count()
 	if err != nil {
 		return err
@@ -211,10 +214,10 @@ func (s *serviceImpl) ensureUsersMatchRoleBoundary(ctx context.Context, item *en
 	if count != len(userIDs) {
 		return bizerr.NewCode(role.CodeTenantRoleAssignmentForbidden)
 	}
-	if s.tenantMembers == nil {
+	if s.tenantSvc == nil {
 		return nil
 	}
-	if err := s.tenantMembers.EnsureUsersInTenant(ctx, userIDs, tenantIDFromRole(item)); err != nil {
+	if err := s.tenantSvc.EnsureUsersInTenant(ctx, userIDs, tenantIDFromRole(item)); err != nil {
 		return mapTenantMembershipRoleError(err)
 	}
 	return nil

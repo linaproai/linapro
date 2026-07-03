@@ -7,12 +7,15 @@ import (
 	"context"
 
 	v1 "lina-core/api/plugin/v1"
+	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/statusflag"
 )
 
 // Disable updates plugin status to disabled.
 func (c *ControllerV1) Disable(ctx context.Context, req *v1.DisableReq) (res *v1.DisableRes, err error) {
-	if err = c.pluginSvc.Disable(ctx, req.Id); err != nil {
+	if err = c.pluginSvc.UpdateStatus(ctx, req.Id, pluginsvc.UpdateStatusOptions{
+		Status: statusflag.Disabled.Int(),
+	}); err != nil {
 		return nil, err
 	}
 	c.roleSvc.NotifyAccessTopologyChanged(ctx)

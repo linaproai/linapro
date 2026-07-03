@@ -21,23 +21,6 @@ func TestServiceContractDoesNotExposeTenantWorkflow(t *testing.T) {
 	}
 }
 
-// TestTenantTokenIssuerOwnsTenantTokenWorkflow verifies tenant token handoff is
-// available through the explicit narrow interface.
-func TestTenantTokenIssuerOwnsTenantTokenWorkflow(t *testing.T) {
-	issuerType := reflect.TypeOf((*TenantTokenIssuer)(nil)).Elem()
-	for _, methodName := range []string{
-		"IssueTenantToken",
-		"ReissueTenantToken",
-		"ReissueTenantTokenFromBearer",
-		"IssueImpersonationToken",
-		"RevokeImpersonationToken",
-	} {
-		if _, ok := issuerType.MethodByName(methodName); !ok {
-			t.Fatalf("TenantTokenIssuer must expose tenant token method %s", methodName)
-		}
-	}
-}
-
 // TestClientTypeRejectsNonUserActors verifies service and plugin actors do not
 // enter the user-session client type enum.
 func TestClientTypeRejectsNonUserActors(t *testing.T) {

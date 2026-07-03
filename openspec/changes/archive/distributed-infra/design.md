@@ -36,7 +36,13 @@ leader election 属于`cluster.Service`内部实现。集群模式使用固定 l
 
 ## KV Cache And Short-Lived State
 
-`kvcache`保持后端无关 facade。单机模式使用 SQL table backend，集群模式使用 coordination KV backend。coordination KV 通过 provider 的 KV 能力实现`get`、`set`、`set-if-absent`、`delete`、`incr`、`expire`、`ttl`和 compare-and-delete；Redis backend 使用原生 TTL 和原子递增，`RequiresExpiredCleanup=false`，不注册 SQL 过期清理任务。
+`kvcache`保持后端无关 facade。单机模式使用进程内`memory`后端（基于 GoFrame `gcache`），集群模式使用 coordination KV backend。coordination KV 通过 provider 的 KV 能力实现`get`、`set`、`set-if-absent`、`delete`、`incr`、`expire`、`ttl`和 compare-and-delete；Redis backend 使用原生 TTL 和原子递增，`RequiresExpiredCleanup=false`，不注册 SQL 过期清理任务。
+
+**单机 memory 后端决策**：单机部署只有一个宿主进程，进程内缓存足以满足同进程插件、认证和宿主模块的缓存共享。相比数据库表，进程内缓存降低数据库访问频次，符合"缓存不应成为数据库热路径"的性能目标。`memory`后端要求写入、递增和过期更新使用正 TTL，不创建永不过期缓存条目。
+
+**sys_kv_cache 删除决策**：项目无历史兼容负担，直接从宿主 SQL 基线删除`sys_kv_cache`表、索引和注释，不新增过渡清理 SQL。删除 SQL table backend、`BackendSQLTable`常量和 KV 过期清理定时任务。
+
+**认证权威源决策**：用户登录态权威来源为`sys_online_session`。完整认证链包含 JWT 签名/类型/revoke 快速检查和基于`sys_online_session`的会话存在性/租户归属/超时校验两个阶段。单机 JWT revoke 仅作为进程内快速拒绝缓存；服务重启后依赖 session 表拒绝已退出或强制下线 token。
 
 所有 KV cache 都是有损缓存，不能作为权限、配置、插件 stable state、租户隔离、业务权威数据或关键 revision 的事实源。写入、删除、递增或过期操作失败不得伪装成功；插件 cache 和源码插件 cache 均通过宿主授权 namespace、插件 ID、租户维度和逻辑 key 生成内部 key，不暴露 Redis client、SQL backend、owner type 或底层连接。
 

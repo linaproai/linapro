@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -33,19 +34,17 @@ func (s *serviceImpl) RegisterHTTPRoutes(
 		return err
 	}
 
-	checker := s.buildBackgroundEnabledChecker()
 	for _, manifest := range manifests {
 		sourcePlugin, ok := pluginhost.GetSourcePlugin(manifest.ID)
 		if !ok {
 			continue
 		}
-		registrar := pluginhost.NewHTTPRegistrar(
+		registrar := newSourceHTTPRegistrar(
 			server,
 			pluginGroup,
 			manifest.ID,
-			checker,
 			middlewares,
-			s.sourceServicesForPlugin(manifest.ID),
+			s,
 		)
 		for _, handler := range sourcePlugin.GetRouteRegistrars() {
 			if handler == nil || handler.Handler == nil {
@@ -73,18 +72,12 @@ func (s *serviceImpl) RegisterJobs(ctx context.Context) error {
 		return err
 	}
 
-	checker := s.buildBackgroundEnabledChecker()
 	for _, manifest := range manifests {
 		sourcePlugin, ok := pluginhost.GetSourcePlugin(manifest.ID)
 		if !ok {
 			continue
 		}
-		registrar := pluginhost.NewJobsRegistrar(
-			manifest.ID,
-			checker,
-			s.buildPrimaryNodeChecker(),
-			s.sourceServicesForPlugin(manifest.ID),
-		)
+		registrar := newSourceJobRegistrar(manifest.ID, s)
 		for _, handler := range sourcePlugin.GetJobRegistrars() {
 			if handler == nil || handler.Handler == nil {
 				continue
@@ -98,7 +91,7 @@ func (s *serviceImpl) RegisterJobs(ctx context.Context) error {
 }
 
 // DispatchPluginHookEvent dispatches one named hook event to all enabled plugins.
-// It implements catalog.HookDispatcher and runtime.HookDispatcher.
+// It implements catalog hook dispatch and runtime.IntegrationService.
 func (s *serviceImpl) DispatchPluginHookEvent(
 	ctx context.Context,
 	eventName pluginhost.ExtensionPoint,
@@ -114,7 +107,7 @@ func (s *serviceImpl) DispatchPluginHookEvent(
 		if manifest == nil {
 			continue
 		}
-		if plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
+		if plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic {
 			manifests = append(manifests, manifest)
 			continue
 		}
@@ -161,7 +154,7 @@ func (s *serviceImpl) FilterMenus(ctx context.Context, menus []*entity.SysMenu) 
 }
 
 // FilterPermissionMenus filters permission menus based on plugin enablement and plugin-defined permission visibility.
-// It implements runtime.PermissionMenuFilter.
+// It implements runtime.IntegrationService.
 func (s *serviceImpl) FilterPermissionMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu {
 	if len(menus) == 0 {
 		return menus

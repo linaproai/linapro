@@ -23,7 +23,7 @@
 docker compose -f hack/deploy/docker-compose.yaml up
 ```
 
-等待`linapro`服务健康后，访问`http://localhost:9120`。
+等待`linapro`服务启动完成后，访问`http://localhost:9120`。
 
 如需后台运行：
 
@@ -103,14 +103,3 @@ docker compose -f hack/deploy/docker-compose.yaml down
 docker compose -f hack/deploy/docker-compose.yaml down
 docker compose -f hack/deploy/docker-compose.yaml up
 ```
-
-## 健康检查
-
-LinaPro 服务健康检查会访问：
-
-```bash
-curl http://localhost:9120/api/v1/health
-```
-
-健康响应中会包含`"status":"ok"`。
-

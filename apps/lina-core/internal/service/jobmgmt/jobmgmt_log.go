@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	jobv1 "lina-core/api/job/v1"
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
@@ -117,11 +118,13 @@ func (s *serviceImpl) GetLog(ctx context.Context, id int64) (*LogDetailOutput, e
 
 // ClearLogs deletes matching execution logs and returns the deleted row count.
 func (s *serviceImpl) ClearLogs(ctx context.Context, in ClearLogsInput) (int64, error) {
-	model := dao.SysJobLog.Ctx(ctx)
-	logIDs := parseInt64IDs(in.IDs)
-	cols := dao.SysJobLog.Columns()
-	beginTime := strings.TrimSpace(in.BeginTime)
-	endTime := strings.TrimSpace(in.EndTime)
+	var (
+		model     = dao.SysJobLog.Ctx(ctx)
+		logIDs    = parseInt64IDs(in.IDs)
+		cols      = dao.SysJobLog.Columns()
+		beginTime = strings.TrimSpace(in.BeginTime)
+		endTime   = strings.TrimSpace(in.EndTime)
+	)
 
 	switch {
 	case len(logIDs) > 0:
@@ -268,13 +271,13 @@ func (s *serviceImpl) cleanupJobLogsByPolicy(
 	jobID int64,
 	policy *jobmeta.RetentionOption,
 ) (int64, error) {
-	if policy == nil || policy.Mode == jobmeta.RetentionModeNone {
+	if policy == nil || policy.Mode == jobv1.RetentionModeNone {
 		return 0, nil
 	}
 
 	cols := dao.SysJobLog.Columns()
 	switch policy.Mode {
-	case jobmeta.RetentionModeDays:
+	case jobv1.RetentionModeDays:
 		model := dao.SysJobLog.Ctx(ctx).
 			Where(do.SysJobLog{JobId: jobID}).
 			WhereLT(cols.StartAt, time.Now().AddDate(0, 0, -int(policy.Value)).Format("2006-01-02 15:04:05"))
@@ -285,7 +288,7 @@ func (s *serviceImpl) cleanupJobLogsByPolicy(
 		}
 		return result.RowsAffected()
 
-	case jobmeta.RetentionModeCount:
+	case jobv1.RetentionModeCount:
 		var rows []*entity.SysJobLog
 		model := dao.SysJobLog.Ctx(ctx).
 			Where(do.SysJobLog{JobId: jobID}).
@@ -344,14 +347,15 @@ func (s *serviceImpl) jobDisplayMapByLogs(
 		return map[int64]logJobDisplay{}, nil
 	}
 
+	cols := dao.SysJob.Columns()
 	var jobs []*entity.SysJob
 	err := dao.SysJob.Ctx(ctx).
-		WhereIn(dao.SysJob.Columns().Id, jobIDs).
+		WhereIn(cols.Id, jobIDs).
 		Fields(
-			dao.SysJob.Columns().Id,
-			dao.SysJob.Columns().Name,
-			dao.SysJob.Columns().HandlerRef,
-			dao.SysJob.Columns().IsBuiltin,
+			cols.Id,
+			cols.Name,
+			cols.HandlerRef,
+			cols.IsBuiltin,
 		).
 		Scan(&jobs)
 	if err != nil {

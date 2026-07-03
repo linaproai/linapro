@@ -13,6 +13,9 @@
       "password": {
         "hashFailed": "Failed to hash password"
       },
+      "tenant": {
+        "unavailable": "Tenant is not available"
+      },
       "token": {
         "invalid": "Invalid token",
         "state": {
@@ -723,6 +726,13 @@
           }
         }
       },
+      "builtin": {
+        "management": {
+          "action": {
+            "denied": "Built-in plugin {pluginId} is managed by host startup and cannot be changed through ordinary plugin management"
+          }
+        }
+      },
       "dynamic": {
         "artifact": {
           "missing": "Dynamic plugin is missing {artifactPath} and cannot {action}. Run make wasm p={pluginId} first",
@@ -1154,7 +1164,8 @@
         },
         "expire": {
           "seconds": {
-            "negative": "Cache expiration seconds cannot be negative"
+            "negative": "Cache expiration seconds cannot be negative",
+            "required": "Cache expiration seconds must be greater than 0"
           }
         },
         "field": {

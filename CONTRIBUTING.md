@@ -101,6 +101,7 @@ make test                        # Run the full E2E suite
 make db.init                     # Initialize the database (DDL + seed data)
 make db.mock                     # Load mock demo data; run db.init first
 make image tag=v0.6.0            # Build the production Docker image
+make version to=v0.6.0           # Update framework.version and root README image cache keys
 make release.tag.check tag=v0.6.0 # Verify the release tag matches metadata.yaml framework.version
 make up                          # Generate a commit message with claude and push by default
 make up tool=codex               # Generate a commit message with codex and push
@@ -323,9 +324,12 @@ Keep the summary line under 72 characters. Add a blank line before any extended 
 
 # Release Tags
 
-Release tag names must match `apps/lina-core/manifest/config/metadata.yaml` `framework.version` exactly. Maintainers should check the target version locally before releasing:
+Release tag names must match `apps/lina-core/manifest/config/metadata.yaml` `framework.version` exactly. When preparing a version bump, use `make version to=<version>` to update `framework.version` and refresh root `README` image cache keys. The version must use `vMAJOR.MINOR.PATCH` or `vMAJOR.MINOR.PATCH-prerelease`.
+
+Maintainers should check the target version locally before releasing:
 
 ```bash
+make version to=v0.2.0
 make release.tag.check tag=v0.2.0
 ```
 

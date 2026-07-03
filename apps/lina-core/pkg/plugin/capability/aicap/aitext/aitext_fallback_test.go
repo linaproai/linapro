@@ -16,7 +16,7 @@ import (
 func TestGenerateTextReturnsUnavailableWithoutProvider(t *testing.T) {
 	t.Parallel()
 
-	service := New(nil, nil)
+	service := New(nil, nil, nil)
 	_, err := service.GenerateText(context.Background(), validGenerateRequest())
 	if !bizerr.Is(err, CodeTextProviderUnavailable) {
 		t.Fatalf("expected provider unavailable error, got %v", err)
@@ -29,7 +29,7 @@ func TestGenerateTextReturnsUnavailableWithoutProvider(t *testing.T) {
 func TestGenerateTextValidatesTierAndThinkingEffort(t *testing.T) {
 	t.Parallel()
 
-	service := New(nil, nil)
+	service := New(nil, nil, nil)
 	request := validGenerateRequest()
 	request.Tier = Tier("custom")
 	_, err := service.GenerateText(context.Background(), request)
@@ -69,7 +69,8 @@ func TestGenerateTextDelegatesToActiveProvider(t *testing.T) {
 		t.Fatalf("register provider failed: %v", err)
 	}
 
-	service := New(manager, testRuntime{pluginID: pluginID})
+	runtime := testRuntime{pluginID: pluginID}
+	service := New(manager, runtime, runtime.ProviderEnv)
 	response, err := service.GenerateText(context.Background(), validGenerateRequest())
 	if err != nil {
 		t.Fatalf("expected active provider success, got %v", err)
@@ -98,7 +99,8 @@ func TestForPluginInjectsSourcePluginID(t *testing.T) {
 		t.Fatalf("register provider failed: %v", err)
 	}
 
-	service := ForPlugin(New(manager, testRuntime{pluginID: pluginID}), " source-plugin ")
+	runtime := testRuntime{pluginID: pluginID}
+	service := ForPlugin(New(manager, runtime, runtime.ProviderEnv), " source-plugin ")
 	if _, err := service.GenerateText(context.Background(), validGenerateRequest()); err != nil {
 		t.Fatalf("expected active provider success, got %v", err)
 	}
@@ -110,9 +112,11 @@ func TestForPluginInjectsSourcePluginID(t *testing.T) {
 func TestGenerateTextRejectsProviderConflict(t *testing.T) {
 	t.Parallel()
 
-	firstPluginID := fmt.Sprintf("plugin-test-ai-provider-a-%d", time.Now().UnixNano())
-	secondPluginID := fmt.Sprintf("plugin-test-ai-provider-b-%d", time.Now().UnixNano())
-	manager := NewManager()
+	var (
+		firstPluginID  = fmt.Sprintf("plugin-test-ai-provider-a-%d", time.Now().UnixNano())
+		secondPluginID = fmt.Sprintf("plugin-test-ai-provider-b-%d", time.Now().UnixNano())
+		manager        = NewManager()
+	)
 	for _, pluginID := range []string{firstPluginID, secondPluginID} {
 		pluginID := pluginID
 		if err := manager.RegisterFactory(pluginID, func(context.Context, ProviderEnv) (Provider, error) {
@@ -122,7 +126,8 @@ func TestGenerateTextRejectsProviderConflict(t *testing.T) {
 		}
 	}
 
-	service := New(manager, testRuntime{pluginID: firstPluginID, secondPluginID: secondPluginID})
+	runtime := testRuntime{pluginID: firstPluginID, secondPluginID: secondPluginID}
+	service := New(manager, runtime, runtime.ProviderEnv)
 	_, err := service.GenerateText(context.Background(), validGenerateRequest())
 	if !bizerr.Is(err, capmodel.CodeCapabilityProviderConflict) {
 		t.Fatalf("expected provider conflict error, got %v", err)
@@ -173,6 +178,6 @@ func (r testRuntime) IsProviderEnabled(_ context.Context, pluginID string) bool 
 	return pluginID == r.pluginID || pluginID == r.secondPluginID
 }
 
-func (r testRuntime) AITextProviderEnv(pluginID string) ProviderEnv {
+func (r testRuntime) ProviderEnv(_ context.Context, pluginID string) ProviderEnv {
 	return ProviderEnv{PluginID: pluginID}
 }

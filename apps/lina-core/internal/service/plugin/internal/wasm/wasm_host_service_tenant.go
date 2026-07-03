@@ -8,6 +8,8 @@ package wasm
 import (
 	"context"
 
+	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
@@ -35,34 +37,25 @@ func dispatchTenantHostService(
 	case bridgehostservice.HostServiceMethodTenantStatus:
 		return capabilityJSONResponse(service.Status(ctx))
 	case bridgehostservice.HostServiceMethodTenantCurrent:
-		return capabilityJSONResponse(service.Current(ctx))
+		return capabilityJSONResponse(service.Context().Current(ctx))
 	case bridgehostservice.HostServiceMethodTenantCurrentInfo:
-		result, err := service.CurrentTenantInfo(ctx)
+		result, err := service.Context().Info(ctx)
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodTenantPlatformBypass:
-		return capabilityJSONResponse(service.PlatformBypass(ctx))
-	case bridgehostservice.HostServiceMethodTenantEnsureVisible:
-		var request tenantIDRequest
-		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
-			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
-		}
-		if err := service.EnsureTenantVisible(ctx, tenantcap.TenantID(request.TenantID)); err != nil {
-			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
-		}
-		return capabilityJSONResponse(true)
+		return capabilityJSONResponse(service.Context().PlatformBypass(ctx))
 	case bridgehostservice.HostServiceMethodTenantBatchGet:
 		var request tenantIDsRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		result, err := service.BatchGetTenants(ctx, tenantIDsFromInts(request.TenantIDs))
+		result, err := service.Directory().BatchGet(ctx, tenantIDsFromInts(request.TenantIDs))
 		return domainCapabilityResult(result, err)
-	case bridgehostservice.HostServiceMethodTenantSearch:
-		var request tenantcap.SearchInput
+	case bridgehostservice.HostServiceMethodTenantDirectoryList:
+		var request tenantcap.ListInput
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		result, err := service.SearchTenants(ctx, request)
+		result, err := service.Directory().List(ctx, request)
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodTenantValidateUserInTenant:
 		var request userTenantRequest
@@ -72,7 +65,7 @@ func dispatchTenantHostService(
 		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceTenant, method, []int{request.UserID}); response != nil {
 			return response
 		}
-		if err := service.ValidateUserInTenant(ctx, request.UserID, tenantcap.TenantID(request.TenantID)); err != nil {
+		if err := service.Membership().Validate(ctx, request.UserID, tenantcap.TenantID(request.TenantID)); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		return capabilityJSONResponse(true)
@@ -84,40 +77,46 @@ func dispatchTenantHostService(
 		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceTenant, method, []int{request.UserID}); response != nil {
 			return response
 		}
-		tenants, err := service.ListUserTenants(ctx, request.UserID)
+		tenants, err := service.Membership().ListByUser(ctx, request.UserID)
 		if err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
 		return capabilityJSONResponse(tenants)
-	case bridgehostservice.HostServiceMethodTenantBatchListUserTenants:
-		var request intUserIDsRequest
-		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
-			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
-		}
-		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceTenant, method, request.UserIDs); response != nil {
-			return response
-		}
-		result, err := service.BatchListUserTenants(ctx, request.UserIDs)
-		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodTenantBatchEnsureVisible:
 		var request tenantIDsRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		err := service.EnsureTenantsVisible(ctx, tenantIDsFromInts(request.TenantIDs))
+		err := service.Directory().EnsureVisible(ctx, tenantIDsFromInts(request.TenantIDs))
 		return domainCapabilityResult(true, err)
-	case bridgehostservice.HostServiceMethodTenantValidateSwitch:
-		var request tenantSwitchRequest
+	case bridgehostservice.HostServiceMethodTenantPluginSetEnabled:
+		pluginSvc := service.Plugins()
+		if pluginSvc == nil {
+			return domainServiceNotScoped("tenant.plugins")
+		}
+		var request tenantPluginSetEnabledRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceTenant, method, []int{request.UserID}); response != nil {
-			return response
+		err := pluginSvc.SetTenantPluginEnabled(ctx, plugincap.PluginID(request.PluginID), request.Enabled)
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodTenantPluginProvisionDefaults:
+		pluginSvc := service.Plugins()
+		if pluginSvc == nil {
+			return domainServiceNotScoped("tenant.plugins")
 		}
-		if err := service.SwitchTenant(ctx, request.UserID, tenantcap.TenantID(request.TargetTenantID)); err != nil {
+		var request tenantPluginProvisionDefaultsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		return capabilityJSONResponse(true)
+		err := pluginSvc.ProvisionTenantPluginDefaults(ctx, capmodel.DomainID(request.TenantID))
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodTenantFilterContext:
+		filterSvc := service.Filter()
+		if filterSvc == nil {
+			return domainServiceNotScoped("tenant.filter")
+		}
+		return capabilityJSONResponse(filterSvc.Context(ctx))
 	default:
 		return bridgehostcall.NewHostCallErrorResponse(
 			bridgehostcall.HostCallStatusNotFound,
@@ -135,12 +134,6 @@ func tenantServiceForHostCall(hcc *hostCallContext) tenantcap.Service {
 	return services.Tenant()
 }
 
-// tenantIDRequest carries one tenant identifier.
-type tenantIDRequest struct {
-	// TenantID is the tenant identifier.
-	TenantID int `json:"tenantId"`
-}
-
 // tenantIDsRequest carries multiple tenant identifiers.
 type tenantIDsRequest struct {
 	// TenantIDs are the tenant identifiers.
@@ -155,12 +148,24 @@ type userTenantRequest struct {
 	TenantID int `json:"tenantId"`
 }
 
-// tenantSwitchRequest carries one tenant switch check.
-type tenantSwitchRequest struct {
+// intUserIDRequest carries one user identifier.
+type intUserIDRequest struct {
 	// UserID is the user identifier.
 	UserID int `json:"userId"`
-	// TargetTenantID is the requested tenant identifier.
-	TargetTenantID int `json:"targetTenantId"`
+}
+
+// tenantPluginSetEnabledRequest carries a tenant-plugin enablement update.
+type tenantPluginSetEnabledRequest struct {
+	// PluginID is the plugin identifier.
+	PluginID string `json:"pluginId"`
+	// Enabled is the requested tenant plugin enablement state.
+	Enabled bool `json:"enabled"`
+}
+
+// tenantPluginProvisionDefaultsRequest carries one tenant default-provisioning target.
+type tenantPluginProvisionDefaultsRequest struct {
+	// TenantID is the tenant identifier.
+	TenantID string `json:"tenantId"`
 }
 
 // tenantIDsFromInts converts transport tenant identifiers to domain IDs.

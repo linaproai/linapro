@@ -5,6 +5,7 @@ package openapi
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"net/http"
 	"strings"
 
@@ -13,6 +14,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
 // ProjectDynamicRoutesToOpenAPI projects currently enabled dynamic plugin routes into the host OpenAPI paths.
@@ -52,7 +54,7 @@ func (s *serviceImpl) buildDynamicRouteProjection(ctx context.Context) (goai.Pat
 	}
 	projected := make(goai.Paths)
 	for _, manifest := range manifests {
-		if manifest == nil || plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
+		if manifest == nil || plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic {
 			continue
 		}
 		if !runtime.isEnabled(manifest.ID) {
@@ -96,8 +98,8 @@ func (s *serviceImpl) resolveActiveOrDesiredManifest(ctx context.Context, plugin
 		return nil, err
 	}
 	if registry != nil &&
-		plugintypes.NormalizeType(registry.Type) == plugintypes.TypeDynamic &&
-		registry.Installed == plugintypes.InstalledYes &&
+		plugintypes.NormalizeType(registry.Type) == pluginv1.PluginTypeDynamic &&
+		registry.Installed == statusflag.Installed.Int() &&
 		registry.ReleaseId > 0 {
 		release, releaseErr := s.storeSvc.GetRegistryRelease(ctx, registry)
 		if releaseErr != nil || release == nil {

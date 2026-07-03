@@ -21,6 +21,7 @@ import (
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -53,10 +54,7 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 	}
 
 	dispatchLoginFailed := func(username string, msg string, reason string) {
-		if s.hookSvc == nil {
-			return
-		}
-		if hookErr := s.hookSvc.HandleAuthLoginFailed(ctx, pluginhost.AuthHookPayloadInput{
+		s.dispatchAuthHookEvent(ctx, pluginhost.ExtensionPointAuthLoginFailed, pluginhost.AuthHookPayloadInput{
 			UserName:   username,
 			Status:     authLoginStatusFail,
 			IP:         ip,
@@ -65,9 +63,7 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 			OS:         osName,
 			Message:    msg,
 			Reason:     reason,
-		}); hookErr != nil {
-			logger.Warningf(ctx, "plugin login failed hook failed: %v", hookErr)
-		}
+		}, "plugin login failed hook failed")
 	}
 
 	blacklisted, err := s.configSvc.IsLoginIPBlacklisted(ctx, ip)
@@ -100,17 +96,18 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 	}
 
 	// Check status
-	if user.Status == statusDisabled {
+	if user.Status == statusflag.Disabled.Int() {
 		dispatchLoginFailed(in.Username, authEventMessageUserDisabled, pluginhost.AuthHookReasonUserDisabled)
 		return nil, bizerr.NewCode(CodeAuthUserDisabled)
 	}
 
+	tenantSvcAvailable := s.tenantSvc != nil && s.tenantSvc.Available(ctx)
 	tenants, err := s.loginTenants(ctx, user.Id)
 	if err != nil {
 		return nil, err
 	}
-	if s.tenantSvc != nil && s.tenantSvc.Available(ctx) && user.TenantId != int(tenantcap.PLATFORM) && len(tenants) == 0 {
-		dispatchLoginFailed(in.Username, "Tenant is not available", "tenant_unavailable")
+	if user.TenantId != int(tenantcap.PLATFORM) && (!tenantSvcAvailable || len(tenants) == 0) {
+		dispatchLoginFailed(in.Username, authEventMessageTenantUnavailable, authHookReasonTenantUnavailable)
 		return nil, bizerr.NewCode(CodeAuthTenantUnavailable)
 	}
 	if len(tenants) > 1 {
@@ -151,20 +148,16 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		logger.Warningf(ctx, "create online session failed tokenId=%s err=%v", tokenId, err)
 	}
 
-	if s.hookSvc != nil {
-		if err := s.hookSvc.HandleAuthLoginSucceeded(ctx, pluginhost.AuthHookPayloadInput{
-			UserName:   in.Username,
-			Status:     authLoginStatusSuccess,
-			IP:         ip,
-			ClientType: clientType.String(),
-			Browser:    browser,
-			OS:         osName,
-			Message:    authEventMessageLoginSuccessful,
-			Reason:     pluginhost.AuthHookReasonLoginSuccessful,
-		}); err != nil {
-			logger.Warningf(ctx, "plugin login succeeded hook failed: %v", err)
-		}
-	}
+	s.dispatchAuthHookEvent(ctx, pluginhost.ExtensionPointAuthLoginSucceeded, pluginhost.AuthHookPayloadInput{
+		UserName:   in.Username,
+		Status:     authLoginStatusSuccess,
+		IP:         ip,
+		ClientType: clientType.String(),
+		Browser:    browser,
+		OS:         osName,
+		Message:    authEventMessageLoginSuccessful,
+		Reason:     pluginhost.AuthHookReasonLoginSuccessful,
+	}, "plugin login succeeded hook failed")
 	return &LoginOutput{AccessToken: accessToken, RefreshToken: refreshToken}, nil
 }
 
@@ -200,6 +193,11 @@ func (s *serviceImpl) ReissueTenantToken(ctx context.Context, in TenantTokenReis
 	if in.CurrentClaims == nil {
 		return nil, bizerr.NewCode(CodeAuthTokenInvalid)
 	}
+	if !in.SkipSessionValidation {
+		if err := s.validateAccessSession(ctx, in.CurrentClaims); err != nil {
+			return nil, err
+		}
+	}
 	if err := s.validateSwitchTenant(ctx, in.CurrentClaims.UserId, in.TenantID); err != nil {
 		return nil, err
 	}
@@ -227,13 +225,14 @@ func (s *serviceImpl) ReissueTenantToken(ctx context.Context, in TenantTokenReis
 
 // ReissueTenantTokenFromBearer parses the current token and reissues it for another tenant.
 func (s *serviceImpl) ReissueTenantTokenFromBearer(ctx context.Context, tokenString string, tenantID int) (*TenantTokenOutput, error) {
-	claims, err := s.ParseToken(ctx, tokenString)
+	claims, err := s.AuthenticateAccessToken(ctx, tokenString)
 	if err != nil {
 		return nil, err
 	}
 	return s.ReissueTenantToken(ctx, TenantTokenReissueInput{
-		CurrentClaims: claims,
-		TenantID:      tenantID,
+		CurrentClaims:         claims,
+		SkipSessionValidation: true,
+		TenantID:              tenantID,
 	})
 }
 
@@ -252,7 +251,7 @@ func (s *serviceImpl) IssueImpersonationToken(ctx context.Context, in Impersonat
 	if user == nil {
 		return nil, bizerr.NewCode(CodeAuthTokenInvalid)
 	}
-	if user.Status == statusDisabled {
+	if user.Status == statusflag.Disabled.Int() {
 		return nil, bizerr.NewCode(CodeAuthUserDisabled)
 	}
 	businessCtx, _ := ctx.Value(bizctx.ContextKey).(*model.Context)
@@ -282,7 +281,7 @@ func (s *serviceImpl) IssueImpersonationToken(ctx context.Context, in Impersonat
 
 // RevokeImpersonationToken validates and revokes one host impersonation token.
 func (s *serviceImpl) RevokeImpersonationToken(ctx context.Context, tokenString string, tenantID int) error {
-	claims, err := s.ParseToken(ctx, strings.TrimSpace(strings.TrimPrefix(tokenString, "Bearer ")))
+	claims, err := s.parseToken(ctx, strings.TrimSpace(strings.TrimPrefix(tokenString, "Bearer ")), tokenKindAccess)
 	if err != nil {
 		return err
 	}
@@ -292,6 +291,9 @@ func (s *serviceImpl) RevokeImpersonationToken(ctx context.Context, tokenString 
 	if tenantID > 0 && claims.TenantId != tenantID {
 		return bizerr.NewCode(CodeAuthTokenInvalid)
 	}
+	if err = s.validateAccessSession(ctx, claims); err != nil {
+		return err
+	}
 	expiresAt := time.Time{}
 	if claims.ExpiresAt != nil {
 		expiresAt = claims.ExpiresAt.Time
@@ -299,9 +301,27 @@ func (s *serviceImpl) RevokeImpersonationToken(ctx context.Context, tokenString 
 	return s.revokeSession(ctx, claims.TokenId, expiresAt)
 }
 
-// ParseToken parses and validates JWT token, returns claims.
-func (s *serviceImpl) ParseToken(ctx context.Context, tokenString string) (*Claims, error) {
-	return s.parseToken(ctx, tokenString, tokenKindAccess)
+// AuthenticateAccessToken parses an access token and validates its online session.
+func (s *serviceImpl) AuthenticateAccessToken(ctx context.Context, tokenString string) (*Claims, error) {
+	claims, err := s.parseToken(ctx, normalizeBearerToken(tokenString), tokenKindAccess)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.validateAccessSession(ctx, claims); err != nil {
+		return nil, err
+	}
+	return claims, nil
+}
+
+// normalizeBearerToken accepts either an Authorization header value or a raw
+// access-token string and returns the token segment consumed by JWT parsing.
+func normalizeBearerToken(tokenString string) string {
+	token := strings.TrimSpace(tokenString)
+	const bearerPrefix = "Bearer "
+	if strings.HasPrefix(token, bearerPrefix) {
+		return strings.TrimSpace(strings.TrimPrefix(token, bearerPrefix))
+	}
+	return token
 }
 
 // Refresh validates a refresh token and issues a fresh access token for the
@@ -336,7 +356,7 @@ func (s *serviceImpl) Refresh(ctx context.Context, in RefreshInput) (*RefreshOut
 		}
 		return nil, bizerr.NewCode(CodeAuthTokenInvalid)
 	}
-	if user.Status == statusDisabled {
+	if user.Status == statusflag.Disabled.Int() {
 		if revokeErr := s.RevokeSession(ctx, claims.TokenId); revokeErr != nil {
 			logger.Warningf(ctx, "revoke disabled-user refresh session failed tokenId=%s userId=%d err=%v", claims.TokenId, user.Id, revokeErr)
 		}
@@ -423,6 +443,33 @@ func (s *serviceImpl) parseToken(ctx context.Context, tokenString string, expect
 	return nil, bizerr.NewCode(CodeAuthTokenInvalid)
 }
 
+// validateAccessSession confirms the parsed access token still has a valid
+// sys_online_session row. This is the complete login-state authority used by
+// middleware, tenant switching, and impersonation revocation.
+func (s *serviceImpl) validateAccessSession(ctx context.Context, claims *Claims) error {
+	if claims == nil || claims.TokenId == "" {
+		return bizerr.NewCode(CodeAuthTokenInvalid)
+	}
+	if s == nil || s.sessionStore == nil || s.configSvc == nil {
+		return bizerr.NewCode(CodeAuthTokenInvalid)
+	}
+	sessionTimeout, err := s.configSvc.GetSessionTimeout(ctx)
+	if err != nil {
+		return err
+	}
+	active, err := s.sessionStore.TouchOrValidate(ctx, claims.TenantId, claims.TokenId, sessionTimeout)
+	if err != nil {
+		return err
+	}
+	if !active {
+		if s.roleSvc != nil {
+			s.roleSvc.InvalidateTokenAccessContext(ctx, claims.TokenId)
+		}
+		return bizerr.NewCode(CodeAuthTokenInvalid)
+	}
+	return nil
+}
+
 // HashPassword hashes password using bcrypt.
 func (s *serviceImpl) HashPassword(password string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -453,21 +500,33 @@ func (s *serviceImpl) Logout(ctx context.Context, in LogoutInput) error {
 			return err
 		}
 	}
-	if s.hookSvc != nil {
-		if err := s.hookSvc.HandleAuthLogoutSucceeded(ctx, pluginhost.AuthHookPayloadInput{
-			UserName:   in.Username,
-			Status:     authLoginStatusSuccess,
-			IP:         ip,
-			ClientType: clientType.String(),
-			Browser:    browser,
-			OS:         osName,
-			Message:    authEventMessageLogoutSuccessful,
-			Reason:     pluginhost.AuthHookReasonLogoutSuccessful,
-		}); err != nil {
-			logger.Warningf(ctx, "plugin logout succeeded hook failed: %v", err)
-		}
-	}
+	s.dispatchAuthHookEvent(ctx, pluginhost.ExtensionPointAuthLogoutSucceeded, pluginhost.AuthHookPayloadInput{
+		UserName:   in.Username,
+		Status:     authLoginStatusSuccess,
+		IP:         ip,
+		ClientType: clientType.String(),
+		Browser:    browser,
+		OS:         osName,
+		Message:    authEventMessageLogoutSuccessful,
+		Reason:     pluginhost.AuthHookReasonLogoutSuccessful,
+	}, "plugin logout succeeded hook failed")
 	return nil
+}
+
+// dispatchAuthHookEvent publishes one auth lifecycle hook through the generic
+// plugin hook dispatcher while auth keeps ownership of the auth payload shape.
+func (s *serviceImpl) dispatchAuthHookEvent(
+	ctx context.Context,
+	event pluginhost.ExtensionPoint,
+	input pluginhost.AuthHookPayloadInput,
+	warning string,
+) {
+	if s == nil || s.hookSvc == nil {
+		return
+	}
+	if err := s.hookSvc.DispatchHookEvent(ctx, event, pluginhost.BuildAuthHookPayloadValues(input)); err != nil {
+		logger.Warningf(ctx, "%s: %v", warning, err)
+	}
 }
 
 // RevokeSession removes one online session by token ID and its cached access context.
@@ -521,16 +580,6 @@ func (s *serviceImpl) fallbackRevocationExpiresAt(ctx context.Context) (time.Tim
 		return time.Time{}, bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
 	}
 	return time.Now().Add(ttl), nil
-}
-
-// generateToken generates JWT token for given user, returns token string and tokenId.
-func (s *serviceImpl) generateToken(ctx context.Context, user *entity.SysUser, tenantID int, clientType ClientType) (string, string, error) {
-	tokenID := guid.S()
-	token, err := s.signToken(ctx, user, tenantID, tokenID, tokenKindAccess, clientType, false, 0)
-	if err != nil {
-		return "", "", err
-	}
-	return token, tokenID, nil
 }
 
 // generateTokenPair signs access and refresh JWTs for one online session.
@@ -618,7 +667,7 @@ func (s *serviceImpl) getUserDeptName(ctx context.Context, userId int) string {
 	if s == nil || s.orgCapSvc == nil {
 		return ""
 	}
-	deptName, err := s.orgCapSvc.GetUserDeptName(ctx, userId)
+	_, deptName, err := s.orgCapSvc.Assignment().GetUserDeptInfo(ctx, userId)
 	if err != nil {
 		return ""
 	}

@@ -12,8 +12,8 @@ import (
 
 	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/kvcache"
+	"lina-core/internal/service/plugin/internal/capabilityowner"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/cachecap"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
@@ -23,9 +23,11 @@ import (
 // TestCacheAdapterUsesSharedKVCache verifies common cache operations delegate
 // to the injected host kvcache service.
 func TestCacheAdapterUsesSharedKVCache(t *testing.T) {
-	ctx := context.Background()
-	cacheSvc := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
-	adapter := newCacheAdapter(cacheSvc, nil, "source-plugin-a")
+	var (
+		ctx      = context.Background()
+		cacheSvc = kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
+		adapter  = newCacheAdapter(cacheSvc, nil, "source-plugin-a")
+	)
 
 	item, err := adapter.Set(ctx, "profiles", "current", "value", time.Minute)
 	if err != nil {
@@ -70,15 +72,17 @@ func TestCacheAdapterUsesSharedKVCache(t *testing.T) {
 // TestCacheAdapterScopesByPluginID verifies two plugins using the same
 // namespace and key cannot read each other's cached values.
 func TestCacheAdapterScopesByPluginID(t *testing.T) {
-	ctx := context.Background()
-	cacheSvc := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
-	pluginA := newCacheAdapter(cacheSvc, nil, "source-plugin-a")
-	pluginB := newCacheAdapter(cacheSvc, nil, "source-plugin-b")
+	var (
+		ctx      = context.Background()
+		cacheSvc = kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
+		pluginA  = newCacheAdapter(cacheSvc, nil, "source-plugin-a")
+		pluginB  = newCacheAdapter(cacheSvc, nil, "source-plugin-b")
+	)
 
-	if _, err := pluginA.Set(ctx, "profiles", "current", "a", 0); err != nil {
+	if _, err := pluginA.Set(ctx, "profiles", "current", "a", time.Minute); err != nil {
 		t.Fatalf("set plugin a cache: %v", err)
 	}
-	if _, err := pluginB.Set(ctx, "profiles", "current", "b", 0); err != nil {
+	if _, err := pluginB.Set(ctx, "profiles", "current", "b", time.Minute); err != nil {
 		t.Fatalf("set plugin b cache: %v", err)
 	}
 
@@ -95,15 +99,17 @@ func TestCacheAdapterScopesByPluginID(t *testing.T) {
 // TestCacheAdapterScopesByTenantContext verifies tenant context becomes part
 // of the internal cache key when present.
 func TestCacheAdapterScopesByTenantContext(t *testing.T) {
-	cacheSvc := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
-	adapter := newCacheAdapter(cacheSvc, nil, "source-plugin-a")
-	tenantOne := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 1001})
-	tenantTwo := bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 1002})
+	var (
+		cacheSvc  = kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
+		adapter   = newCacheAdapter(cacheSvc, nil, "source-plugin-a")
+		tenantOne = bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 1001})
+		tenantTwo = bizctxcap.WithCurrentContext(context.Background(), bizctxcap.CurrentContext{TenantID: 1002})
+	)
 
-	if _, err := adapter.Set(tenantOne, "profiles", "current", "tenant-one", 0); err != nil {
+	if _, err := adapter.Set(tenantOne, "profiles", "current", "tenant-one", time.Minute); err != nil {
 		t.Fatalf("set tenant one cache: %v", err)
 	}
-	if _, err := adapter.Set(tenantTwo, "profiles", "current", "tenant-two", 0); err != nil {
+	if _, err := adapter.Set(tenantTwo, "profiles", "current", "tenant-two", time.Minute); err != nil {
 		t.Fatalf("set tenant two cache: %v", err)
 	}
 
@@ -120,17 +126,22 @@ func TestCacheAdapterScopesByTenantContext(t *testing.T) {
 // TestCacheAdapterRejectsInvalidTTLAndStringIncrement verifies validation and
 // type errors from the shared cache service are returned to source plugins.
 func TestCacheAdapterRejectsInvalidTTLAndStringIncrement(t *testing.T) {
-	ctx := context.Background()
-	cacheSvc := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
-	adapter := newCacheAdapter(cacheSvc, nil, "source-plugin-a")
+	var (
+		ctx      = context.Background()
+		cacheSvc = kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
+		adapter  = newCacheAdapter(cacheSvc, nil, "source-plugin-a")
+	)
 
 	if _, err := adapter.Set(ctx, "profiles", "invalid-ttl", "value", -time.Second); !bizerr.Is(err, kvcache.CodeKVCacheExpireSecondsNegative) {
 		t.Fatalf("expected negative TTL error, got %v", err)
 	}
-	if _, err := adapter.Set(ctx, "profiles", "typed", "not-int", 0); err != nil {
+	if _, err := adapter.Set(ctx, "profiles", "missing-ttl", "value", 0); !bizerr.Is(err, kvcache.CodeKVCacheExpireSecondsRequired) {
+		t.Fatalf("expected required TTL error, got %v", err)
+	}
+	if _, err := adapter.Set(ctx, "profiles", "typed", "not-int", time.Minute); err != nil {
 		t.Fatalf("seed string cache: %v", err)
 	}
-	if _, err := adapter.Incr(ctx, "profiles", "typed", 1, 0); !bizerr.Is(err, kvcache.CodeKVCacheIncrementValueNotInteger) {
+	if _, err := adapter.Incr(ctx, "profiles", "typed", 1, time.Minute); !bizerr.Is(err, kvcache.CodeKVCacheIncrementValueNotInteger) {
 		t.Fatalf("expected string increment error, got %v", err)
 	}
 }
@@ -138,14 +149,16 @@ func TestCacheAdapterRejectsInvalidTTLAndStringIncrement(t *testing.T) {
 // TestCacheAdapterReturnsBackendErrors verifies backend failures are not
 // converted into cache misses or fake successes.
 func TestCacheAdapterReturnsBackendErrors(t *testing.T) {
-	expectedErr := errors.New("backend unavailable")
-	cacheSvc := kvcache.New(kvcache.WithBackend(failingCacheBackend{err: expectedErr}))
-	adapter := newCacheAdapter(cacheSvc, nil, "source-plugin-a")
+	var (
+		expectedErr = errors.New("backend unavailable")
+		cacheSvc    = kvcache.New(kvcache.WithBackend(failingCacheBackend{err: expectedErr}))
+		adapter     = newCacheAdapter(cacheSvc, nil, "source-plugin-a")
+	)
 
 	if _, _, err := adapter.Get(context.Background(), "profiles", "current"); !errors.Is(err, expectedErr) {
 		t.Fatalf("expected get backend error, got %v", err)
 	}
-	if _, err := adapter.Set(context.Background(), "profiles", "current", "value", 0); !errors.Is(err, expectedErr) {
+	if _, err := adapter.Set(context.Background(), "profiles", "current", "value", time.Minute); !errors.Is(err, expectedErr) {
 		t.Fatalf("expected set backend error, got %v", err)
 	}
 }
@@ -187,11 +200,11 @@ func TestServicesForPluginReturnsScopedCache(t *testing.T) {
 // capability helper returns capability-owned consumers.
 func TestServicesExposeCapabilitiesThroughScopedServices(t *testing.T) {
 	services := &directory{
-		org:    orgspi.New(nil, nil),
-		tenant: tenantspi.New(nil, nil, nil),
+		org:    orgspi.New(nil, nil, nil),
+		tenant: tenantspi.New(nil, nil, nil, nil),
 	}
 
-	scoped := capability.ServicesForPlugin(services, "source-plugin-a")
+	scoped := capabilityowner.ServicesForPlugin(services, "source-plugin-a")
 	if scoped == nil {
 		t.Fatal("expected scoped services")
 	}

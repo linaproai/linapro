@@ -4,49 +4,30 @@ package kvcache
 
 import (
 	"context"
-	"sync"
 	"time"
 
-	sqltable "lina-core/internal/service/kvcache/internal/sqltable"
+	"lina-core/internal/service/coordination"
+	"lina-core/internal/service/kvcache/internal/contract"
+	"lina-core/internal/service/kvcache/internal/coordkv"
+	"lina-core/internal/service/kvcache/internal/memory"
 )
 
 // BackendName identifies one kvcache backend implementation.
-type BackendName string
+type BackendName = contract.BackendName
 
 // Supported backend names for the kvcache service.
 const (
-	// BackendSQLTable stores cache entries in the host sys_kv_cache SQL table.
-	BackendSQLTable BackendName = "sql-table"
+	// BackendMemory stores cache entries in the host process memory.
+	BackendMemory = contract.BackendMemory
+	// BackendCoordinationKV stores cache entries in the configured coordination KV backend.
+	BackendCoordinationKV = contract.BackendCoordinationKV
 )
 
 // Backend defines the backend-specific KV cache operations used by Service.
-type Backend interface {
-	// Name returns the stable backend implementation name.
-	Name() BackendName
-	// RequiresExpiredCleanup reports whether the backend needs external cleanup
-	// for expired entries.
-	RequiresExpiredCleanup() bool
-	// Get returns the current cache entry snapshot identified by ownerType and cacheKey.
-	Get(ctx context.Context, ownerType OwnerType, cacheKey string) (*Item, bool, error)
-	// GetInt returns the current integer cache value identified by ownerType and cacheKey.
-	GetInt(ctx context.Context, ownerType OwnerType, cacheKey string) (int64, bool, error)
-	// Set stores or replaces a string cache value with a backend-neutral TTL.
-	Set(ctx context.Context, ownerType OwnerType, cacheKey string, value string, ttl time.Duration) (*Item, error)
-	// Delete removes the cache entry identified by ownerType and cacheKey.
-	Delete(ctx context.Context, ownerType OwnerType, cacheKey string) error
-	// Incr increments an integer cache value by delta using a backend-neutral TTL.
-	Incr(ctx context.Context, ownerType OwnerType, cacheKey string, delta int64, ttl time.Duration) (*Item, error)
-	// Expire updates the expiration policy of a cache entry.
-	Expire(ctx context.Context, ownerType OwnerType, cacheKey string, ttl time.Duration) (bool, *time.Time, error)
-	// CleanupExpired removes expired entries when the backend needs external cleanup.
-	CleanupExpired(ctx context.Context) error
-}
+type Backend = contract.Backend
 
 // Provider creates one kvcache backend implementation.
-type Provider interface {
-	// NewBackend returns one backend instance for the provider implementation.
-	NewBackend() Backend
-}
+type Provider = contract.Provider
 
 // Option customizes kvcache service construction.
 type Option func(*serviceConfig)
@@ -57,28 +38,20 @@ type serviceConfig struct {
 	backend  Backend
 }
 
-// processDefaultProvider stores the process-wide fallback backend provider used
-// only when callers do not inject a backend explicitly.
-var processDefaultProvider = struct {
-	sync.RWMutex
-	provider Provider
-}{
-	provider: NewSQLTableProvider(),
-}
-
-// sqlTableProvider adapts the internal SQL table implementation to the
-// public kvcache provider contract.
-type sqlTableProvider struct{}
-
-// sqlTableBackend adapts the internal SQL table implementation to the
-// public kvcache backend contract.
-type sqlTableBackend struct {
-	backend *sqltable.SQLTableBackend
-}
-
 // newServiceConfig returns the default kvcache service configuration.
 func newServiceConfig() *serviceConfig {
-	return &serviceConfig{provider: DefaultProvider()}
+	return &serviceConfig{provider: NewMemoryProvider()}
+}
+
+// NewMemoryProvider returns the single-node in-process kvcache provider.
+func NewMemoryProvider() Provider {
+	return memory.NewProvider()
+}
+
+// NewCoordinationKVProvider returns a kvcache backend provider backed by
+// coordination KVStore.
+func NewCoordinationKVProvider(coordinationSvc coordination.Service) Provider {
+	return coordkv.NewProvider(coordinationSvc)
 }
 
 // WithProvider configures the backend provider used by the kvcache service.
@@ -98,120 +71,6 @@ func WithBackend(backend Backend) Option {
 		if config != nil && backend != nil {
 			config.backend = backend
 		}
-	}
-}
-
-// NewSQLTableProvider returns the default SQL table backend provider.
-func NewSQLTableProvider() Provider {
-	return sqlTableProvider{}
-}
-
-// DefaultProvider returns the process-wide fallback backend provider.
-func DefaultProvider() Provider {
-	processDefaultProvider.RLock()
-	provider := processDefaultProvider.provider
-	processDefaultProvider.RUnlock()
-	if provider == nil {
-		return NewSQLTableProvider()
-	}
-	return provider
-}
-
-// SetDefaultProvider selects the process-wide fallback backend provider used by
-// kvcache.New only when callers do not inject a backend explicitly.
-func SetDefaultProvider(provider Provider) {
-	processDefaultProvider.Lock()
-	if provider == nil {
-		processDefaultProvider.provider = NewSQLTableProvider()
-	} else {
-		processDefaultProvider.provider = provider
-	}
-	processDefaultProvider.Unlock()
-}
-
-// NewBackend creates one SQL table backend instance.
-func (sqlTableProvider) NewBackend() Backend {
-	return &sqlTableBackend{backend: sqltable.NewSQLTableBackend()}
-}
-
-// Name returns the stable SQL table backend name.
-func (b *sqlTableBackend) Name() BackendName {
-	return BackendSQLTable
-}
-
-// RequiresExpiredCleanup reports that SQL table entries need scheduled
-// cleanup because expiration is enforced by kvcache rather than the database.
-func (b *sqlTableBackend) RequiresExpiredCleanup() bool {
-	return true
-}
-
-// Get reads one cache entry through the internal SQL table implementation.
-func (b *sqlTableBackend) Get(ctx context.Context, ownerType OwnerType, cacheKey string) (*Item, bool, error) {
-	item, ok, err := b.backend.Get(ctx, sqltable.OwnerType(ownerType.String()), cacheKey)
-	return convertInternalItem(item), ok, err
-}
-
-// GetInt reads one integer cache value through the internal SQL table implementation.
-func (b *sqlTableBackend) GetInt(ctx context.Context, ownerType OwnerType, cacheKey string) (int64, bool, error) {
-	return b.backend.GetInt(ctx, sqltable.OwnerType(ownerType.String()), cacheKey)
-}
-
-// Set writes one string cache value through the internal SQL table implementation.
-func (b *sqlTableBackend) Set(
-	ctx context.Context,
-	ownerType OwnerType,
-	cacheKey string,
-	value string,
-	ttl time.Duration,
-) (*Item, error) {
-	item, err := b.backend.Set(ctx, sqltable.OwnerType(ownerType.String()), cacheKey, value, ttl)
-	return convertInternalItem(item), err
-}
-
-// Delete removes one cache entry through the internal SQL table implementation.
-func (b *sqlTableBackend) Delete(ctx context.Context, ownerType OwnerType, cacheKey string) error {
-	return b.backend.Delete(ctx, sqltable.OwnerType(ownerType.String()), cacheKey)
-}
-
-// Incr increments one integer cache value through the internal SQL table implementation.
-func (b *sqlTableBackend) Incr(
-	ctx context.Context,
-	ownerType OwnerType,
-	cacheKey string,
-	delta int64,
-	ttl time.Duration,
-) (*Item, error) {
-	item, err := b.backend.Incr(ctx, sqltable.OwnerType(ownerType.String()), cacheKey, delta, ttl)
-	return convertInternalItem(item), err
-}
-
-// Expire updates one cache entry expiration through the internal SQL table implementation.
-func (b *sqlTableBackend) Expire(
-	ctx context.Context,
-	ownerType OwnerType,
-	cacheKey string,
-	ttl time.Duration,
-) (bool, *time.Time, error) {
-	return b.backend.Expire(ctx, sqltable.OwnerType(ownerType.String()), cacheKey, ttl)
-}
-
-// CleanupExpired removes expired entries through the internal SQL table implementation.
-func (b *sqlTableBackend) CleanupExpired(ctx context.Context) error {
-	return b.backend.CleanupExpired(ctx)
-}
-
-// convertInternalItem maps one internal backend item into the public kvcache
-// item shape.
-func convertInternalItem(item *sqltable.Item) *Item {
-	if item == nil {
-		return nil
-	}
-	return &Item{
-		Key:       item.Key,
-		ValueKind: item.ValueKind,
-		Value:     item.Value,
-		IntValue:  item.IntValue,
-		ExpireAt:  item.ExpireAt,
 	}
 }
 
@@ -247,6 +106,9 @@ func (s *serviceImpl) Set(
 	value string,
 	ttl time.Duration,
 ) (*Item, error) {
+	if err := contract.ValidatePositiveTTL(ttl); err != nil {
+		return nil, err
+	}
 	return s.backend.Set(ctx, ownerType, cacheKey, value, ttl)
 }
 
@@ -263,6 +125,9 @@ func (s *serviceImpl) Incr(
 	delta int64,
 	ttl time.Duration,
 ) (*Item, error) {
+	if err := contract.ValidatePositiveTTL(ttl); err != nil {
+		return nil, err
+	}
 	return s.backend.Incr(ctx, ownerType, cacheKey, delta, ttl)
 }
 
@@ -273,6 +138,9 @@ func (s *serviceImpl) Expire(
 	cacheKey string,
 	ttl time.Duration,
 ) (bool, *time.Time, error) {
+	if err := contract.ValidatePositiveTTL(ttl); err != nil {
+		return false, nil, err
+	}
 	return s.backend.Expire(ctx, ownerType, cacheKey, ttl)
 }
 

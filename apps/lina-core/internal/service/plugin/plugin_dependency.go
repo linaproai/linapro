@@ -12,6 +12,7 @@ import (
 	"lina-core/internal/service/plugin/internal/management"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/statusflag"
 )
 
 type (
@@ -80,18 +81,6 @@ func (s *serviceImpl) CheckPluginDependencies(ctx context.Context, pluginID stri
 	return result, nil
 }
 
-// ensureNoReverseDependencies blocks uninstall when installed downstream plugins depend on target.
-func (s *serviceImpl) ensureNoReverseDependencies(ctx context.Context, pluginID string) error {
-	result, err := s.resolveReverseDependencies(ctx, pluginID, "")
-	if err != nil {
-		return err
-	}
-	if !plugindep.HasBlockers(result.Blockers) {
-		return nil
-	}
-	return s.buildReverseDependencyBlockedError(pluginID, result)
-}
-
 // ValidateSourcePluginUpgradeCandidate validates a source upgrade target before side effects.
 func (s *serviceImpl) ValidateSourcePluginUpgradeCandidate(ctx context.Context, manifest *catalog.Manifest) error {
 	return s.validateUpgradeCandidateDependencies(ctx, manifest)
@@ -126,19 +115,6 @@ func (s *serviceImpl) validateUpgradeCandidateDependencies(ctx context.Context, 
 		return s.buildReverseDependencyBlockedError(manifest.ID, reverseResult)
 	}
 	return nil
-}
-
-// resolveInstallDependencies evaluates dependency status for one discovered target.
-func (s *serviceImpl) resolveInstallDependencies(ctx context.Context, pluginID string) (*plugindep.InstallCheckResult, error) {
-	normalizedPluginID := strings.TrimSpace(pluginID)
-	if manifest := management.ManifestByIDFromContext(ctx, normalizedPluginID); manifest != nil {
-		return s.resolveInstallDependenciesForManifest(ctx, manifest)
-	}
-	manifest, err := s.catalogSvc.GetDesiredManifest(normalizedPluginID)
-	if err != nil {
-		return nil, err
-	}
-	return s.resolveInstallDependenciesForManifest(ctx, manifest)
 }
 
 // resolveInstallDependenciesForManifest evaluates dependency status using a candidate manifest override.
@@ -187,7 +163,7 @@ func (s *serviceImpl) buildDependencySnapshots(
 			return plugindep.ClonePluginSnapshots(cache.snapshots), nil
 		}
 	}
-	out, err := s.buildPluginProjection(ctx, pluginProjectionInput{
+	out, _, err := s.buildPluginProjection(ctx, pluginProjectionInput{
 		mode:      projectionModeDependencySnapshot,
 		candidate: candidate,
 	})
@@ -263,7 +239,7 @@ func (s *serviceImpl) buildDependencySnapshotsForProjection(
 			snapshotByID[registryPluginID] = snapshot
 		}
 		if registryPluginID == candidateID {
-			snapshot.Installed = registry.Installed == plugintypes.InstalledYes
+			snapshot.Installed = registry.Installed == statusflag.Installed.Int()
 			continue
 		}
 		plugindep.ApplyRegistrySnapshot(readCtx, s.storeSvc, snapshot, registry)
@@ -323,7 +299,7 @@ func (s *serviceImpl) dependencyTargetAlreadyInstalled(ctx context.Context, plug
 	if err != nil || registry == nil {
 		return false
 	}
-	return registry.Installed == plugintypes.InstalledYes
+	return registry.Installed == statusflag.Installed.Int()
 }
 
 // buildDependencyBlockedError converts resolver blockers into one structured business error.

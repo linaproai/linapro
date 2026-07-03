@@ -23,6 +23,7 @@ import (
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/session"
 	tokencap "lina-core/pkg/plugin/capability/authcap/token"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -50,28 +51,20 @@ func TestLoginRejectsBlacklistedIP(t *testing.T) {
 // newRuntimeParamAuthTestService constructs auth with explicit test
 // dependencies while still reading runtime params from the real config service.
 func newRuntimeParamAuthTestService() Service {
-	configSvc := hostconfig.New()
-	sessionStore := session.NewDBStore()
-	cacheSvc := kvcache.New()
-	return New(configSvc, runtimeParamAuthTestHooks{}, nil, roleTestService{}, disabledTenantAuthTestService{}, sessionStore, cacheSvc)
+	var (
+		configSvc    = hostconfig.New()
+		sessionStore = session.NewDBStore()
+		cacheSvc     = kvcache.New()
+	)
+	return New(configSvc, runtimeParamAuthTestHooks{}, nil, roleTestService{}, tenantspi.New(nil, nil, nil, nil), sessionStore, cacheSvc)
 }
 
 // runtimeParamAuthTestHooks discards auth lifecycle hooks for runtime-parameter
 // tests because these cases only verify config-driven auth rejection.
 type runtimeParamAuthTestHooks struct{}
 
-// HandleAuthLoginSucceeded records no hook state in runtime-parameter tests.
-func (runtimeParamAuthTestHooks) HandleAuthLoginSucceeded(context.Context, pluginhost.AuthHookPayloadInput) error {
-	return nil
-}
-
-// HandleAuthLoginFailed records no hook state in runtime-parameter tests.
-func (runtimeParamAuthTestHooks) HandleAuthLoginFailed(context.Context, pluginhost.AuthHookPayloadInput) error {
-	return nil
-}
-
-// HandleAuthLogoutSucceeded records no hook state in runtime-parameter tests.
-func (runtimeParamAuthTestHooks) HandleAuthLogoutSucceeded(context.Context, pluginhost.AuthHookPayloadInput) error {
+// DispatchHookEvent records no hook state in runtime-parameter tests.
+func (runtimeParamAuthTestHooks) DispatchHookEvent(context.Context, pluginhost.ExtensionPoint, map[string]interface{}) error {
 	return nil
 }
 

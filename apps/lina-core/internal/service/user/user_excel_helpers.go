@@ -19,8 +19,3 @@ func closeExcelFile(ctx context.Context, file *excelize.File, errPtr *error) {
 func setCellValue(file *excelize.File, sheet string, col int, row int, value any) error {
 	return excelutil.SetCellValue(file, sheet, col, row, value)
 }
-
-// setCellValueByName writes one cell identified by A1-style coordinates.
-func setCellValueByName(file *excelize.File, sheet string, cell string, value any) error {
-	return excelutil.SetCellValueByName(file, sheet, cell, value)
-}

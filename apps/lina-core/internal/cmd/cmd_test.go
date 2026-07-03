@@ -198,9 +198,11 @@ func TestSourcePluginProtectedRoutesIncludeTenancy(t *testing.T) {
 			if !strings.Contains(text, "middlewares.Auth()") {
 				return
 			}
-			authIndex := strings.Index(text, "middlewares.Auth()")
-			tenancyIndex := strings.Index(text, "middlewares.Tenancy()")
-			permissionIndex := strings.Index(text, "middlewares.Permission()")
+			var (
+				authIndex       = strings.Index(text, "middlewares.Auth()")
+				tenancyIndex    = strings.Index(text, "middlewares.Tenancy()")
+				permissionIndex = strings.Index(text, "middlewares.Permission()")
+			)
 			if tenancyIndex < 0 {
 				t.Fatalf("protected source plugin route must include Tenancy middleware: %s", file)
 			}
@@ -336,20 +338,6 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "static plugin.autoEnable validation surfaces from helpers as errors and is converted to a single fail-fast panic at the cache-load boundary so startup terminates with a clear message before dependent components run",
 		},
 		{
-			Path:     "apps/lina-core/internal/service/config/config_plugin.go",
-			Function: "SetPluginAutoEnableOverride",
-			Count:    1,
-			Category: panicCategoryStaticConfig,
-			Reason:   "test override helpers receive already-validated IDs; a normalization failure indicates broken test fixtures and must surface immediately",
-		},
-		{
-			Path:     "apps/lina-core/internal/service/config/config_plugin.go",
-			Function: "SetPluginAutoEnableEntriesOverride",
-			Count:    1,
-			Category: panicCategoryStaticConfig,
-			Reason:   "test override helpers receive already-validated entries; a normalization failure indicates broken test fixtures and must surface immediately",
-		},
-		{
 			Path:     "apps/lina-core/internal/service/config/config_workspace.go",
 			Function: "mustNormalizeWorkspaceBasePath",
 			Count:    7,
@@ -357,7 +345,7 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "invalid static workspace basePath would make frontend fallback route binding ambiguous, so startup must fail before serving HTTP traffic",
 		},
 		{
-			Path:     "apps/lina-core/internal/service/config/config_runtime_params_revision.go",
+			Path:     "apps/lina-core/internal/service/config/config_raw.go",
 			Function: "configureRuntimeParamCacheDomain",
 			Count:    1,
 			Category: panicCategoryStaticConfig,

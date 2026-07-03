@@ -4,6 +4,7 @@ package plugin
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	i18nsvc "lina-core/internal/service/i18n"
@@ -11,21 +12,8 @@ import (
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/statusflag"
 )
-
-// SyncSourcePlugins scans source plugin manifests and synchronizes default status.
-func (s *serviceImpl) SyncSourcePlugins(ctx context.Context) error {
-	if err := s.ensurePlatformGovernance(ctx); err != nil {
-		return err
-	}
-	if _, err := s.syncAndList(ctx); err != nil {
-		return err
-	}
-	if _, err := s.publishPluginChange(ctx, pluginChangePublishInput{reason: "source_plugins_synced"}); err != nil {
-		return err
-	}
-	return nil
-}
 
 // SyncSourcePluginsStrict synchronizes source plugins discovered by the
 // running host. Tooling is responsible for official submodule preflight before
@@ -63,14 +51,14 @@ func (s *serviceImpl) SyncAndList(ctx context.Context) (*ListOutput, error) {
 // syncAndList scans plugin manifests and mutates plugin governance tables for
 // trusted startup or already-guarded platform management paths.
 func (s *serviceImpl) syncAndList(ctx context.Context) (*ListOutput, error) {
-	out, err := s.buildPluginProjection(ctx, pluginProjectionInput{
+	out, readCtx, err := s.buildPluginProjection(ctx, pluginProjectionInput{
 		mode: projectionModeList,
 		sync: true,
 	})
 	if err != nil {
 		return nil, err
 	}
-	if err = s.integrationSvc.RefreshEnabledSnapshot(out.ctx); err != nil {
+	if err = s.integrationSvc.RefreshEnabledSnapshot(readCtx); err != nil {
 		return nil, err
 	}
 	return out.list, nil
@@ -101,6 +89,9 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 			continue
 		}
 		if in.Installed != nil && item.Installed != *in.Installed {
+			continue
+		}
+		if !in.IncludeBuiltin && item.Distribution == pluginv1.PluginDistributionBuiltin.String() {
 			continue
 		}
 		filtered = append(filtered, item)
@@ -171,9 +162,13 @@ func (s *serviceImpl) managementListCacheKey(ctx context.Context) (management.Li
 		}
 		runtimeRevision = revision
 	}
+	runtimeBundleRevision, err := s.i18nSvc.BundleRevision(ctx, locale)
+	if err != nil {
+		return management.ListCacheKey{}, err
+	}
 	return management.ListCacheKey{
 		Locale:               locale,
-		RuntimeBundleVersion: s.i18nSvc.BundleVersion(locale),
+		RuntimeBundleVersion: runtimeBundleRevision.Version,
 		RuntimeRevision:      runtimeRevision,
 	}, nil
 }
@@ -261,7 +256,7 @@ func (s *serviceImpl) ReadOnlyList(ctx context.Context) (*ListOutput, error) {
 // buildManagementList scans plugin manifests and projects current registry
 // state with complete governance detail, without synchronizing governance tables.
 func (s *serviceImpl) buildManagementList(ctx context.Context) (*ListOutput, error) {
-	out, err := s.buildPluginProjection(ctx, pluginProjectionInput{mode: projectionModeList})
+	out, _, err := s.buildPluginProjection(ctx, pluginProjectionInput{mode: projectionModeList})
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +267,7 @@ func (s *serviceImpl) buildManagementList(ctx context.Context) (*ListOutput, err
 // registry state without detail-only dependency, host-service, route, or cron
 // payloads.
 func (s *serviceImpl) buildManagementSummaryList(ctx context.Context) (*ListOutput, error) {
-	out, err := s.buildPluginProjection(ctx, pluginProjectionInput{mode: projectionModeSummary})
+	out, _, err := s.buildPluginProjection(ctx, pluginProjectionInput{mode: projectionModeSummary})
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +277,7 @@ func (s *serviceImpl) buildManagementSummaryList(ctx context.Context) (*ListOutp
 // buildManagementDetail scans plugin manifests once and projects complete
 // governance detail only for the requested plugin ID.
 func (s *serviceImpl) buildManagementDetail(ctx context.Context, pluginID string) (*PluginItem, error) {
-	out, err := s.buildPluginProjection(ctx, pluginProjectionInput{
+	out, _, err := s.buildPluginProjection(ctx, pluginProjectionInput{
 		mode:     projectionModeDetail,
 		pluginID: pluginID,
 	})
@@ -352,7 +347,7 @@ func (s *serviceImpl) ListEnabledPluginIDs(ctx context.Context) ([]string, error
 		if registry == nil || strings.TrimSpace(registry.PluginId) == "" {
 			continue
 		}
-		if registry.Installed != plugintypes.InstalledYes || registry.Status != plugintypes.StatusEnabled {
+		if registry.Installed != statusflag.Installed.Int() || registry.Status != statusflag.EnabledValue.Int() {
 			continue
 		}
 		pluginIDs = append(pluginIDs, strings.TrimSpace(registry.PluginId))

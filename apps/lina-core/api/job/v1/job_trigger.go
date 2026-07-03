@@ -4,7 +4,7 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // TriggerReq defines the request for triggering one scheduled job manually.
 type TriggerReq struct {
-	g.Meta `path:"/job/{id}/trigger" method:"post" tags:"Job Scheduling / Scheduled Jobs" summary:"Manually trigger tasks" operLog:"other" dc:"Immediately trigger the execution of the specified task once and record the execution log of trigger=manual" permission:"system:job:trigger"`
+	g.Meta `path:"/job/{id}/trigger" method:"post" tags:"Job Scheduling / Task Management" summary:"Manually trigger tasks" operLog:"other" dc:"Immediately trigger the execution of the specified task once and record the execution log of trigger=manual" permission:"system:job:trigger"`
 	Id     int64 `json:"id" v:"required" dc:"Task ID" eg:"1"`
 }
 

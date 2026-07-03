@@ -13,9 +13,9 @@ import (
 // receive detached plugin config copies even when the package uses defaults.
 func TestGetPluginUsesDefaultStoragePathAndClonesCachedConfig(t *testing.T) {
 	setTestConfigContent(t, "test: 1\n")
-	SetPluginDynamicStoragePathOverride("")
+	setPluginDynamicStoragePathOverride("")
 	t.Cleanup(func() {
-		SetPluginDynamicStoragePathOverride("")
+		setPluginDynamicStoragePathOverride("")
 	})
 
 	svc := New()
@@ -48,9 +48,9 @@ func TestGetPluginAllowsStrictForceUninstallOptOut(t *testing.T) {
 plugin:
   allowForceUninstall: false
 `)
-	SetPluginAllowForceUninstallOverride(nil)
+	setPluginAllowForceUninstallOverride(nil)
 	t.Cleanup(func() {
-		SetPluginAllowForceUninstallOverride(nil)
+		setPluginAllowForceUninstallOverride(nil)
 	})
 
 	cfg := New().GetPlugin(context.Background())
@@ -69,9 +69,9 @@ plugin:
   runtime:
     storagePath: ignored/runtime/plugins
 `)
-	SetPluginDynamicStoragePathOverride("")
+	setPluginDynamicStoragePathOverride("")
 	t.Cleanup(func() {
-		SetPluginDynamicStoragePathOverride("")
+		setPluginDynamicStoragePathOverride("")
 	})
 
 	svc := New()
@@ -88,9 +88,9 @@ plugin:
 // path is exposed when config is absent and test overrides take precedence.
 func TestGetPluginDynamicStoragePathUsesDefaultAndOverride(t *testing.T) {
 	setTestConfigContent(t, "test: 1\n")
-	SetPluginDynamicStoragePathOverride("")
+	setPluginDynamicStoragePathOverride("")
 	t.Cleanup(func() {
-		SetPluginDynamicStoragePathOverride("")
+		setPluginDynamicStoragePathOverride("")
 	})
 
 	svc := New()
@@ -98,7 +98,7 @@ func TestGetPluginDynamicStoragePathUsesDefaultAndOverride(t *testing.T) {
 		t.Fatalf("expected default plugin storage path temp/output, got %q", path)
 	}
 
-	SetPluginDynamicStoragePathOverride(" ./temp/output/../plugin-bundles ")
+	setPluginDynamicStoragePathOverride(" ./temp/output/../plugin-bundles ")
 	if path := svc.GetPluginDynamicStoragePath(context.Background()); path != resolveRuntimePath("./temp/output/../plugin-bundles") {
 		t.Fatalf("expected override storage path to win, got %q", path)
 	}
@@ -107,9 +107,9 @@ func TestGetPluginDynamicStoragePathUsesDefaultAndOverride(t *testing.T) {
 // TestGetPluginDynamicStoragePathOverrideIgnoresBlankValues verifies blank
 // overrides are treated as absent so callers can fall back safely.
 func TestGetPluginDynamicStoragePathOverrideIgnoresBlankValues(t *testing.T) {
-	SetPluginDynamicStoragePathOverride("   ")
+	setPluginDynamicStoragePathOverride("   ")
 	t.Cleanup(func() {
-		SetPluginDynamicStoragePathOverride("")
+		setPluginDynamicStoragePathOverride("")
 	})
 
 	if path := getPluginDynamicStoragePathOverride(); path != "" {
@@ -132,9 +132,9 @@ plugin:
     - id: "linapro-demo-source"
     - id: "linapro-demo-dynamic"
 `)
-	SetPluginAutoEnableOverride(nil)
+	setPluginAutoEnableOverride(nil)
 	t.Cleanup(func() {
-		SetPluginAutoEnableOverride(nil)
+		setPluginAutoEnableOverride(nil)
 	})
 
 	svc := New()
@@ -157,7 +157,7 @@ plugin:
 		t.Fatalf("expected cached auto-enable IDs to stay immutable, got %#v", refreshed.AutoEnable)
 	}
 
-	SetPluginAutoEnableOverride([]string{" override-plugin ", "override-plugin", "second-plugin"})
+	setPluginAutoEnableOverride([]string{" override-plugin ", "override-plugin", "second-plugin"})
 	overridden := svc.GetPlugin(context.Background())
 	if len(overridden.AutoEnable) != 2 {
 		t.Fatalf("expected override to replace auto-enable IDs, got %#v", overridden.AutoEnable)
@@ -189,9 +189,9 @@ plugin:
       withMockData: true
     - id: "linapro-demo-dynamic"
 `)
-	SetPluginAutoEnableOverride(nil)
+	setPluginAutoEnableOverride(nil)
 	t.Cleanup(func() {
-		SetPluginAutoEnableOverride(nil)
+		setPluginAutoEnableOverride(nil)
 	})
 
 	svc := New()
@@ -288,9 +288,9 @@ plugin:
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			setTestConfigContent(t, tc.yaml)
-			SetPluginAutoEnableOverride(nil)
+			setPluginAutoEnableOverride(nil)
 			t.Cleanup(func() {
-				SetPluginAutoEnableOverride(nil)
+				setPluginAutoEnableOverride(nil)
 			})
 
 			defer func() {

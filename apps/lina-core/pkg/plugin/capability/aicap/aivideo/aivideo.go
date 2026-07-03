@@ -12,6 +12,26 @@ import (
 	"lina-core/pkg/plugin/capability/capmodel"
 )
 
+// Service defines the video AI capability consumed by host services and plugins.
+type Service interface {
+	// Available reports whether an active video provider is available.
+	Available(ctx context.Context) bool
+	// Status returns the current video AI capability activation state.
+	Status(ctx context.Context) capmodel.CapabilityStatus
+	// MethodStatus returns the current activation state for one video method.
+	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
+	// Generate executes one governed video generation request.
+	Generate(ctx context.Context, request GenerateRequest) (*Response, error)
+	// Edit executes one governed video editing request.
+	Edit(ctx context.Context, request EditRequest) (*Response, error)
+	// Extend executes one governed video extension request.
+	Extend(ctx context.Context, request ExtendRequest) (*Response, error)
+	// OperationGet returns one provider operation reference.
+	OperationGet(ctx context.Context, request OperationGetRequest) (*Response, error)
+	// OperationCancel cancels one provider operation when authorized and supported.
+	OperationCancel(ctx context.Context, request OperationCancelRequest) (*aicommon.ProviderOperationRef, error)
+}
+
 const (
 	// CapabilityAIVideoV1 identifies the versioned video AI framework capability.
 	CapabilityAIVideoV1 = "framework.ai.video.v1"
@@ -98,7 +118,7 @@ type Response struct {
 	// Operation contains provider async operation state when the result is not ready.
 	Operation *aicommon.ProviderOperationRef `json:"operation,omitempty"`
 	// Provider contains public provider/model identity.
-	Provider aicommon.ProviderProjection `json:"provider"`
+	Provider aicommon.ProviderInfo `json:"provider"`
 	// Usage contains minimal usage details.
 	Usage aicommon.Usage `json:"usage,omitempty"`
 	// LatencyMs is the provider call latency in milliseconds.
@@ -107,55 +127,7 @@ type Response struct {
 	CreatedAt int64 `json:"createdAt,omitempty"`
 }
 
-// ProviderRequest carries provider-internal video requests with source identity.
-type ProviderRequest struct {
-	// SourcePluginID identifies the dynamic or source plugin that initiated the call.
-	SourcePluginID string `json:"sourcePluginId,omitempty"`
-	// Generate contains the video generation request when Method is generate.
-	Generate *GenerateRequest `json:"generate,omitempty"`
-	// Edit contains the video edit request when Method is edit.
-	Edit *EditRequest `json:"edit,omitempty"`
-	// Extend contains the video extension request when Method is extend.
-	Extend *ExtendRequest `json:"extend,omitempty"`
-}
-
-// Provider defines video AI capability implemented by provider plugins.
-type Provider interface {
-	// GenerateVideo executes one governed video generation request.
-	GenerateVideo(ctx context.Context, request ProviderRequest) (*Response, error)
-	// EditVideo executes one governed video editing request.
-	EditVideo(ctx context.Context, request ProviderRequest) (*Response, error)
-	// ExtendVideo executes one governed video extension request.
-	ExtendVideo(ctx context.Context, request ProviderRequest) (*Response, error)
-	// GetOperation returns one provider operation projection.
-	GetOperation(ctx context.Context, request OperationGetRequest) (*Response, error)
-	// CancelOperation cancels one provider operation when authorized and supported.
-	CancelOperation(ctx context.Context, request OperationCancelRequest) (*aicommon.ProviderOperationRef, error)
-}
-
-// Service defines the video AI capability consumed by host services and plugins.
-type Service interface {
-	// Available reports whether an active video provider is available.
-	Available(ctx context.Context) bool
-	// Status returns the current video AI capability activation state.
-	Status(ctx context.Context) capmodel.CapabilityStatus
-	// MethodStatus returns the current activation state for one video method.
-	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
-	// Generate executes one governed video generation request.
-	Generate(ctx context.Context, request GenerateRequest) (*Response, error)
-	// Edit executes one governed video editing request.
-	Edit(ctx context.Context, request EditRequest) (*Response, error)
-	// Extend executes one governed video extension request.
-	Extend(ctx context.Context, request ExtendRequest) (*Response, error)
-	// OperationGet returns one provider operation projection.
-	OperationGet(ctx context.Context, request OperationGetRequest) (*Response, error)
-	// OperationCancel cancels one provider operation when authorized and supported.
-	OperationCancel(ctx context.Context, request OperationCancelRequest) (*aicommon.ProviderOperationRef, error)
-}
-
-type serviceImpl struct {
-	sourcePluginID string
-}
+type serviceImpl struct{}
 
 var _ Service = (*serviceImpl)(nil)
 
@@ -163,9 +135,9 @@ var _ Service = (*serviceImpl)(nil)
 func New() Service { return &serviceImpl{} }
 
 // ForPlugin returns a plugin-scoped video service.
-func ForPlugin(service Service, pluginID string) Service {
+func ForPlugin(service Service, _ string) Service {
 	if _, ok := service.(*serviceImpl); service == nil || ok {
-		return &serviceImpl{sourcePluginID: strings.TrimSpace(pluginID)}
+		return &serviceImpl{}
 	}
 	return service
 }

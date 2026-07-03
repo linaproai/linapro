@@ -207,10 +207,12 @@ func Status(ctx context.Context, runtime Runtime, input Input) error {
 	}
 	rows := make([]pluginStatusRow, 0, len(expandedPlan.Items))
 	for _, item := range expandedPlan.Items {
-		target := ManagedPath(runtime.Root, item.ID)
-		exists := fileutil.DirExists(target)
-		version := "-"
-		contentHash := ""
+		var (
+			target      = ManagedPath(runtime.Root, item.ID)
+			exists      = fileutil.DirExists(target)
+			version     = "-"
+			contentHash = ""
+		)
 		if exists {
 			if manifest, readErr := ReadManifest(filepath.Join(target, "plugin.yaml")); readErr == nil {
 				version = toolutil.FirstNonEmpty(manifest.Version, "-")
@@ -291,9 +293,11 @@ func ValidateConfig(cfg config.Plugins, input Input) (pluginPlan, error) {
 	if len(cfg.Sources) == 0 {
 		return pluginPlan{}, errors.New("plugins.sources is empty in hack/config.yaml")
 	}
-	sourceFilter := strings.TrimSpace(input.Get("source"))
-	pluginFilter := splitPluginFilter(input.Get("p"))
-	sourceNames := make([]string, 0, len(cfg.Sources))
+	var (
+		sourceFilter = strings.TrimSpace(input.Get("source"))
+		pluginFilter = splitPluginFilter(input.Get("p"))
+		sourceNames  = make([]string, 0, len(cfg.Sources))
+	)
 	for name := range cfg.Sources {
 		sourceNames = append(sourceNames, name)
 	}

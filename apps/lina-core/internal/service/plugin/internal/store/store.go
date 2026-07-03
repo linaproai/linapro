@@ -8,31 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 )
-
-// ManifestCatalog provides read-only manifest helpers needed to derive persisted
-// governance snapshots from already-discovered manifests.
-type ManifestCatalog interface {
-	catalog.SQLAssetCatalog
-	catalog.FrontendAssetCatalog
-
-	// BuildRegistryChecksum returns the persisted checksum for one manifest.
-	BuildRegistryChecksum(manifest *catalog.Manifest) string
-	// BuildPackagePath returns the canonical package path for a manifest release row.
-	BuildPackagePath(manifest *catalog.Manifest) string
-	// RuntimeStorageDir returns the absolute path of the runtime WASM storage directory.
-	RuntimeStorageDir(ctx context.Context) (string, error)
-	// LoadManifestFromArtifactPath loads and validates a dynamic plugin manifest from an artifact path.
-	LoadManifestFromArtifactPath(artifactPath string) (*catalog.Manifest, error)
-}
-
-// NodeIDProvider exposes the current host node identity used for node-state projections.
-type NodeIDProvider interface {
-	// CurrentNodeID returns the stable identifier of the current host node.
-	CurrentNodeID() string
-}
 
 // RuntimeStatePatch carries registry runtime-state updates without exposing DO models.
 type RuntimeStatePatch struct {
@@ -145,9 +124,9 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	// catalogSvc provides manifest-only helper projections used before persistence.
-	catalogSvc ManifestCatalog
+	catalogSvc catalog.Service
 	// nodeIDProvider supplies the current node identity for governance projections.
-	nodeIDProvider NodeIDProvider
+	nodeIDProvider cluster.Service
 	// cacheMu protects release and YAML snapshot read-model caches.
 	cacheMu sync.RWMutex
 	// releaseManifestCache stores parsed dynamic release manifests by immutable release identity.
@@ -157,7 +136,7 @@ type serviceImpl struct {
 }
 
 // New creates a plugin governance store with the given manifest catalog helper.
-func New(catalogSvc ManifestCatalog, nodeIDProvider NodeIDProvider) Service {
+func New(catalogSvc catalog.Service, nodeIDProvider cluster.Service) Service {
 	return &serviceImpl{
 		catalogSvc:            catalogSvc,
 		nodeIDProvider:        nodeIDProvider,

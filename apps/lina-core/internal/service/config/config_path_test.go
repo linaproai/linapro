@@ -33,13 +33,15 @@ plugin:
   dynamic:
     storagePath: temp/output
 `)
-	repoRoot := newTestRepoRoot(t)
-	backendWorkingDir := filepath.Join(repoRoot, "apps", "lina-core")
-	expectedRepoRoot := realTestPath(t, repoRoot)
+	var (
+		repoRoot          = newTestRepoRoot(t)
+		backendWorkingDir = filepath.Join(repoRoot, "apps", "lina-core")
+		expectedRepoRoot  = realTestPath(t, repoRoot)
+	)
 	withWorkingDir(t, backendWorkingDir)
-	SetPluginDynamicStoragePathOverride("")
+	setPluginDynamicStoragePathOverride("")
 	t.Cleanup(func() {
-		SetPluginDynamicStoragePathOverride("")
+		setPluginDynamicStoragePathOverride("")
 	})
 
 	svc := New()

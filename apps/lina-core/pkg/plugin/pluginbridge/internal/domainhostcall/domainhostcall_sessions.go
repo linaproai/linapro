@@ -20,16 +20,28 @@ func Sessions(invoker Invoker) sessioncap.Service {
 }
 
 // Current returns the visible session projection for the current token.
-func (s sessionsService) Current(_ context.Context, _ capmodel.CapabilityContext) (*sessioncap.Projection, error) {
-	var out *sessioncap.Projection
+func (s sessionsService) Current(_ context.Context) (*sessioncap.SessionInfo, error) {
+	var out *sessioncap.SessionInfo
 	err := s.callJSONRequest(protocol.HostServiceSessions, protocol.HostServiceMethodSessionsCurrent, nil, &out)
 	return out, err
 }
 
-// Search returns one bounded visible session page.
-func (s sessionsService) Search(_ context.Context, _ capmodel.CapabilityContext, input sessioncap.SearchInput) (*capmodel.PageResult[*sessioncap.Projection], error) {
-	out := &capmodel.PageResult[*sessioncap.Projection]{Items: []*sessioncap.Projection{}}
-	err := s.callJSONRequest(protocol.HostServiceSessions, protocol.HostServiceMethodSessionsSearch, sessionSearchRequest{
+// Get returns one visible session projection through the registered batch-read method.
+func (s sessionsService) Get(ctx context.Context, id sessioncap.SessionID) (*sessioncap.SessionInfo, error) {
+	result, err := s.BatchGet(ctx, []sessioncap.SessionID{id})
+	if err != nil || result == nil {
+		return nil, err
+	}
+	if item, ok := result.Items[id]; ok {
+		return item, nil
+	}
+	return nil, nil
+}
+
+// List returns one bounded visible session page.
+func (s sessionsService) List(_ context.Context, input sessioncap.ListInput) (*capmodel.PageResult[*sessioncap.SessionInfo], error) {
+	out := &capmodel.PageResult[*sessioncap.SessionInfo]{Items: []*sessioncap.SessionInfo{}}
+	err := s.callJSONRequest(protocol.HostServiceSessions, protocol.HostServiceMethodSessionsList, sessionListRequest{
 		Username: input.Username,
 		IP:       input.IP,
 		PageNum:  input.Page.PageNum,
@@ -39,26 +51,36 @@ func (s sessionsService) Search(_ context.Context, _ capmodel.CapabilityContext,
 }
 
 // BatchGet returns visible sessions and opaque missing IDs.
-func (s sessionsService) BatchGet(_ context.Context, _ capmodel.CapabilityContext, ids []sessioncap.SessionID) (*capmodel.BatchResult[*sessioncap.Projection, sessioncap.SessionID], error) {
-	out := &capmodel.BatchResult[*sessioncap.Projection, sessioncap.SessionID]{Items: map[sessioncap.SessionID]*sessioncap.Projection{}}
+func (s sessionsService) BatchGet(_ context.Context, ids []sessioncap.SessionID) (*capmodel.BatchResult[*sessioncap.SessionInfo, sessioncap.SessionID], error) {
+	out := &capmodel.BatchResult[*sessioncap.SessionInfo, sessioncap.SessionID]{Items: map[sessioncap.SessionID]*sessioncap.SessionInfo{}}
 	err := s.callJSONRequest(protocol.HostServiceSessions, protocol.HostServiceMethodSessionsBatchGet, idsRequest{IDs: sessionIDsToStrings(ids)}, out)
 	return out, err
 }
 
 // BatchGetUserOnlineStatus returns visible users' online status in one bounded call.
-func (s sessionsService) BatchGetUserOnlineStatus(_ context.Context, _ capmodel.CapabilityContext, userIDs []string) (*capmodel.BatchResult[*sessioncap.UserOnlineStatusProjection, string], error) {
-	out := &capmodel.BatchResult[*sessioncap.UserOnlineStatusProjection, string]{Items: map[string]*sessioncap.UserOnlineStatusProjection{}}
+func (s sessionsService) BatchGetUserOnlineStatus(_ context.Context, userIDs []string) (*capmodel.BatchResult[*sessioncap.UserOnlineStatus, string], error) {
+	out := &capmodel.BatchResult[*sessioncap.UserOnlineStatus, string]{Items: map[string]*sessioncap.UserOnlineStatus{}}
 	err := s.callJSONRequest(protocol.HostServiceSessions, protocol.HostServiceMethodSessionsBatchGetUserOnlineStatus, sessionUserOnlineStatusRequest{UserIDs: append([]string(nil), userIDs...)}, out)
 	return out, err
 }
 
 // EnsureVisible rejects when any requested online session is absent or invisible.
-func (s sessionsService) EnsureVisible(_ context.Context, _ capmodel.CapabilityContext, ids []sessioncap.SessionID) error {
+func (s sessionsService) EnsureVisible(_ context.Context, ids []sessioncap.SessionID) error {
 	return s.callJSONRequest(protocol.HostServiceSessions, protocol.HostServiceMethodSessionsEnsureVisible, idsRequest{IDs: sessionIDsToStrings(ids)}, nil)
 }
 
-// sessionSearchRequest carries bounded online-session search parameters.
-type sessionSearchRequest struct {
+// Revoke revokes one visible online session.
+func (s sessionsService) Revoke(_ context.Context, id sessioncap.SessionID) error {
+	return s.callJSONRequest(protocol.HostServiceSessions, protocol.HostServiceMethodSessionsRevoke, sessionIDRequest{SessionID: string(id)}, nil)
+}
+
+// RevokeMany revokes visible online sessions.
+func (s sessionsService) RevokeMany(_ context.Context, ids []sessioncap.SessionID) error {
+	return s.callJSONRequest(protocol.HostServiceSessions, protocol.HostServiceMethodSessionsRevokeMany, idsRequest{IDs: sessionIDsToStrings(ids)}, nil)
+}
+
+// sessionListRequest carries bounded online-session list parameters.
+type sessionListRequest struct {
 	Username string `json:"username"`
 	IP       string `json:"ip"`
 	PageNum  int    `json:"pageNum"`
@@ -68,6 +90,10 @@ type sessionSearchRequest struct {
 // sessionUserOnlineStatusRequest carries bounded user online status parameters.
 type sessionUserOnlineStatusRequest struct {
 	UserIDs []string `json:"userIds"`
+}
+
+type sessionIDRequest struct {
+	SessionID string `json:"sessionId"`
 }
 
 // sessionIDsToStrings converts online-session IDs to transport strings.

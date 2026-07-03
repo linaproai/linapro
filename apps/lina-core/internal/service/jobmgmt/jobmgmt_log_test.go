@@ -6,6 +6,8 @@ package jobmgmt
 import (
 	"context"
 	"fmt"
+	jobv1 "lina-core/api/job/v1"
+	joblogv1 "lina-core/api/joblog/v1"
 	"testing"
 	"time"
 
@@ -17,7 +19,6 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	hostconfig "lina-core/internal/service/config"
-	"lina-core/internal/service/jobmeta"
 )
 
 // jobLogCleanupConfigStub overrides log-retention settings while inheriting
@@ -51,17 +52,17 @@ func insertLogCleanupTestJob(t *testing.T, ctx context.Context) int64 {
 	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
 		GroupId:        defaultGroupID(t, ctx),
 		Name:           uniqueTestName("job-log-cleanup"),
-		TaskType:       string(jobmeta.TaskTypeHandler),
+		TaskType:       string(jobv1.TaskTypeHandler),
 		HandlerRef:     "host:cleanup-job-logs",
 		Params:         `{}`,
 		TimeoutSeconds: 30,
 		CronExpr:       "* * * * *",
 		Timezone:       "Asia/Shanghai",
-		Scope:          string(jobmeta.JobScopeMasterOnly),
-		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		Scope:          string(jobv1.ScopeMasterOnly),
+		Concurrency:    string(jobv1.ConcurrencySingleton),
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
-		Status:         string(jobmeta.JobStatusDisabled),
+		Status:         string(jobv1.StatusDisabled),
 	}).InsertAndGetId()
 	if err != nil {
 		t.Fatalf("expected execution-log test job insert to succeed, got error: %v", err)
@@ -91,12 +92,12 @@ func insertLogCleanupTestLogAt(
 		JobId:          jobID,
 		JobSnapshot:    fmt.Sprintf(`{"name":"%s"}`, suffix),
 		NodeId:         "test-node",
-		Trigger:        string(jobmeta.TriggerTypeManual),
+		Trigger:        string(joblogv1.TriggerManual),
 		ParamsSnapshot: `{}`,
 		StartAt:        &startAt,
 		EndAt:          &startAt,
 		DurationMs:     1,
-		Status:         string(jobmeta.LogStatusSuccess),
+		Status:         string(joblogv1.StatusSuccess),
 		ErrMsg:         "",
 		ResultJson:     `{}`,
 	}).InsertAndGetId()

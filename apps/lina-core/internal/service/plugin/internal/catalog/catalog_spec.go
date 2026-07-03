@@ -71,6 +71,8 @@ func ValidateHookSpec(pluginID string, spec *HookSpec, filePath string) error {
 }
 
 // ValidateResourceSpec validates a plugin-declared backend resource specification.
+//
+//nolint:cyclop // Resource validation keeps type-specific plugin resource checks in one public contract boundary.
 func ValidateResourceSpec(pluginID string, spec *ResourceSpec, filePath string) error {
 	if spec == nil {
 		return gerror.Newf("plugin resource cannot be nil: %s", filePath)

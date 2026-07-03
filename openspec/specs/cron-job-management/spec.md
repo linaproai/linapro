@@ -10,7 +10,7 @@
 
 #### Scenario:全局默认策略
 - **当** 任务 `log_retention_override` 为空时
-- **则** 任务日志按系统参数 `cron.log.retention` 清理
+- **则** 任务日志按系统参数 `sys.cron.log.retention` 清理
 
 #### Scenario:任务级覆盖
 - **当** 任务 `log_retention_override` 配置为 `{mode: days, value: 60}` 或 `{mode: count, value: 500}` 时
@@ -54,7 +54,7 @@
 - **且** 操作列仅显示一个编辑入口
 
 #### Scenario:Shell 任务默认启用
-- **当** 系统初始化 `cron.shell.enabled` 或因参数缺失回退时
+- **当** 系统初始化 `sys.cron.shell.enabled` 或因参数缺失回退时
 - **则** 默认值为 `true`
 - **且** 平台级不支持 Shell 的保护仍可安全禁用 Shell 任务
 

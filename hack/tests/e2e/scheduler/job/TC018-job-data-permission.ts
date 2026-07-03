@@ -35,10 +35,10 @@ test.describe("TC-18 定时任务数据权限", () => {
 
   test.beforeAll(async () => {
     adminApi = await createAdminApiContext();
-    originalShellSwitch = await getConfigByKey(adminApi, "cron.shell.enabled");
+    originalShellSwitch = await getConfigByKey(adminApi, "sys.cron.shell.enabled");
     await setCronShellEnabled(adminApi, true);
     await expect
-      .poll(async () => (await getConfigByKey(adminApi, "cron.shell.enabled")).value)
+      .poll(async () => (await getConfigByKey(adminApi, "sys.cron.shell.enabled")).value)
       .toBe("true");
 
     const suffix = Date.now().toString();

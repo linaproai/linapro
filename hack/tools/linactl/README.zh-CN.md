@@ -17,6 +17,9 @@ go run . db.init confirm=init
 go run . db.upgrade confirm=upgrade
 go run . db.mock confirm=mock
 go run . tidy
+go run . lint.go plugins=0
+go run . lint.go plugins=1
+go run . lint.go plugins=0 fix=true
 go run . build platforms=linux/amd64,linux/arm64
 go run . build dir=apps/lina-plugins/john-ai-agentbox
 go run . image tag=v0.2.0 push=0
@@ -39,6 +42,8 @@ make.cmd db.init confirm=init
 make.cmd db.upgrade confirm=upgrade
 make.cmd db.mock confirm=mock
 make.cmd tidy
+make.cmd lint.go plugins=0
+make.cmd lint.go plugins=1
 make.cmd version to=v0.2.0
 make.cmd release.tag.check tag=v0.2.0
 ```
@@ -50,6 +55,7 @@ make.cmd release.tag.check tag=v0.2.0
 .\make.cmd status
 .\make.cmd pack.assets
 .\make.cmd i18n.check
+.\make.cmd lint.go plugins=0
 .\make.cmd version to=v0.2.0
 .\make.cmd release.tag.check tag=v0.2.0
 ```
@@ -64,7 +70,8 @@ make.cmd release.tag.check tag=v0.2.0
 | `rebuild` | `rebuild=true` | 在`db.init`时重建配置中的数据库。 |
 | `dir` | `dir=apps/lina-plugins/john-ai-agentbox` | 为`build`选择单个构建目标目录。省略时构建宿主框架、默认工作台和所有已启用插件。 |
 | `platforms` | `platforms=linux/amd64,linux/arm64` | 指定构建目标平台。 |
-| `plugins` | `plugins=0` | 覆盖构建、开发、镜像和 Go 测试命令的自动插件完整模式探测。 |
+| `plugins` | `plugins=0` | 覆盖构建、开发、镜像、`Go`测试和`Go`静态检查命令的自动插件完整模式探测。 |
+| `fix` | `fix=true` | 允许`lint.go`向`golangci-lint`传入`--fix`；默认不启用，避免检查路径改写文件。 |
 | `to` | `to=v0.2.0` | 指定`version`写入的框架版本号。 |
 | `tag` | `tag=v0.2.0` | 指定`release.tag.check`校验的 release tag。 |
 | `print-version` | `print-version=1` | 输出已校验的`framework.version`，供发布自动化使用。 |
@@ -88,6 +95,25 @@ build:
 ```
 
 传入`dir=apps/lina-plugins/<plugin-id>`时，`linactl build`只执行该插件的配置指令。
+
+## Go 静态检查
+
+`linactl lint.go`通过`golangci-lint`运行仓库`Go`静态检查门禁。主检查工具版本由仓库根目录`.golangci-lint-version`锁定，规则配置位于仓库根目录`.golangci.yml`，死代码检查使用仓库根目录`.staticcheck-version`锁定的`staticcheck`版本。
+
+如果`PATH`中缺少`golangci-lint`或`staticcheck`，或其版本与锁定版本不一致，`linactl lint.go`会通过`go install`安装锁定版本，并使用安装后的精确二进制继续执行。`linactl env.setup`会在前端和浏览器环境安装前执行同一套锁定工具安装流程，使新开发环境能够提前准备`Go`静态检查工具。安装流程使用`GOWORK=off`并移除构建标签或交叉编译变量，避免插件完整模式的 lint 设置影响外部工具构建。首次安装需要正常的`Go`模块网络访问。
+
+```bash
+make lint.go plugins=0
+make lint.go plugins=1
+make lint.go plugins=0 fix=true
+go run . lint.go plugins=0
+```
+
+使用`plugins=0`检查宿主工作区，覆盖`apps/lina-core`和`hack/tools/linactl`。官方插件源码已初始化时，使用`plugins=1`；该模式会准备已忽略的`temp/go.work.plugins`工作区，并检查宿主、工具和官方插件`Go`模块。未传入`plugins`时，`linactl`沿用构建和测试命令的自动探测行为。
+
+`golangci-lint`不启用独立`unused` linter。`linactl lint.go`会对所有包运行`staticcheck U1000`作为死代码检查；非测试文件包含`//go:build wasip1`或`//go:build !wasip1`的包使用宿主目标和`GOOS=wasip1 GOARCH=wasm`矩阵，避免 guest 专属桥接代码在默认宿主构建下被误报为死代码。
+
+`fix=true`是显式开发者操作。它允许`golangci-lint`在支持时改写导入和格式；`CI`不会启用该参数。
 
 ## 构建工具命令
 
@@ -297,5 +323,6 @@ go run . help
 go run . wasm dry-run=true
 go run . plugins.status
 go run . i18n.check
+go run . lint.go plugins=0
 go run . release.tag.check tag=v0.2.0
 ```

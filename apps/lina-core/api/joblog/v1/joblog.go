@@ -10,6 +10,15 @@ const (
 	TriggerManual Trigger = "manual"
 )
 
+// IsValid reports whether the execution trigger type is supported.
+func (t Trigger) IsValid() bool {
+	switch t {
+	case TriggerCron, TriggerManual:
+		return true
+	}
+	return false
+}
+
 // Status identifies the recorded execution outcome.
 type Status string
 
@@ -24,6 +33,22 @@ const (
 	StatusSkippedSingleton      Status = "skipped_singleton"
 	StatusSkippedMaxConcurrency Status = "skipped_max_concurrency"
 )
+
+// IsValid reports whether the execution log status is supported.
+func (s Status) IsValid() bool {
+	switch s {
+	case StatusRunning,
+		StatusSuccess,
+		StatusFailed,
+		StatusCancelled,
+		StatusTimeout,
+		StatusSkippedNotPrimary,
+		StatusSkippedSingleton,
+		StatusSkippedMaxConcurrency:
+		return true
+	}
+	return false
+}
 
 // JobLogItem exposes scheduled-job execution log fields needed by the UI.
 type JobLogItem struct {

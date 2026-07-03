@@ -56,6 +56,9 @@ database:
     # 默认数据库连接串
     # PostgreSQL 14+: pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable
     link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+    # PostgreSQL session timezone used when displaying and decoding TIMESTAMPTZ columns.
+    # 显示和解码 TIMESTAMPTZ 字段时使用的 PostgreSQL 会话时区。
+    timezone: "Asia/Shanghai"
     # Whether to enable SQL debug logs; keep disabled by default and enable temporarily for SQL diagnostics
     # 是否开启 SQL 调试日志；默认关闭，排查 SQL 执行明细时再临时开启
     debug: false
@@ -79,13 +82,6 @@ session:
   # Session cleanup job interval as a duration string
   # 会话清理任务执行间隔（duration 字符串）
   cleanupInterval: 5m
-
-# Health probe configuration
-# 健康探针配置
-health:
-  # Database probe timeout as a duration string
-  # 数据库探活超时时间（duration 字符串）
-  timeout: 5s
 
 # Scheduler configuration
 # 调度器配置

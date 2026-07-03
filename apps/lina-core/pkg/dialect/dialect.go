@@ -78,10 +78,6 @@ type Dialect interface {
 	// not include an application table literal. Callers use the result to keep
 	// governance code independent from concrete database catalog syntax.
 	ClassifyReadSQL(sql string) ReadSQLClassification
-	// OnStartup applies dialect-specific runtime bootstrap behavior before
-	// cluster services start. Implementations may use runtime to adjust in-memory
-	// cluster compatibility flags, and return errors for startup blockers.
-	OnStartup(ctx context.Context, runtime RuntimeConfig) error
 }
 
 // TableMeta describes portable table metadata exposed through the dialect
@@ -96,15 +92,6 @@ type TableMeta struct {
 type ReadSQLClassification struct {
 	MetadataLookup bool // MetadataLookup reports catalog SQL that binds the table name as an argument.
 	SchemaProbe    bool // SchemaProbe reports database/session probes that do not target one application table.
-}
-
-// RuntimeConfig is the narrow startup configuration interface needed by
-// dialect hooks. Host config.Service adapts to this interface internally.
-type RuntimeConfig interface {
-	// OverrideClusterEnabledForDialect locks cluster.enabled in memory for the
-	// current process when a dialect cannot support cluster mode. The call is a
-	// startup-only compatibility adjustment and must not mutate persisted config.
-	OverrideClusterEnabledForDialect(value bool)
 }
 
 // From resolves one database dialect from the database.default.link prefix.

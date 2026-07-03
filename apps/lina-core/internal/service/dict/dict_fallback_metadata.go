@@ -136,9 +136,11 @@ func dictDataOverridePermissions(
 	ctx context.Context,
 	records []*entity.SysDictData,
 ) (map[string]bool, error) {
-	result := make(map[string]bool)
-	dictTypes := make([]string, 0, len(records))
-	seen := make(map[string]struct{}, len(records))
+	var (
+		result    = make(map[string]bool)
+		dictTypes = make([]string, 0, len(records))
+		seen      = make(map[string]struct{}, len(records))
+	)
 	for _, record := range records {
 		if record == nil || record.DictType == "" {
 			continue

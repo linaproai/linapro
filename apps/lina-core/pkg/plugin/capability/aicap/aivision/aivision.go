@@ -11,6 +11,18 @@ import (
 	"lina-core/pkg/plugin/capability/capmodel"
 )
 
+// Service defines the vision AI capability consumed by host services and plugins.
+type Service interface {
+	// Available reports whether an active vision provider is available.
+	Available(ctx context.Context) bool
+	// Status returns the current vision AI capability activation state.
+	Status(ctx context.Context) capmodel.CapabilityStatus
+	// MethodStatus returns the current activation state for one vision method.
+	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
+	// Analyze executes one governed visual analysis request.
+	Analyze(ctx context.Context, request AnalyzeRequest) (*AnalyzeResponse, error)
+}
+
 const (
 	// CapabilityAIVisionV1 identifies the versioned vision AI framework capability.
 	CapabilityAIVisionV1 = "framework.ai.vision.v1"
@@ -39,7 +51,7 @@ type AnalyzeResponse struct {
 	// Text is the visual analysis result.
 	Text string `json:"text"`
 	// Provider contains public provider/model identity.
-	Provider aicommon.ProviderProjection `json:"provider"`
+	Provider aicommon.ProviderInfo `json:"provider"`
 	// Usage contains minimal usage details.
 	Usage aicommon.Usage `json:"usage,omitempty"`
 	// LatencyMs is the provider call latency in milliseconds.
@@ -48,34 +60,7 @@ type AnalyzeResponse struct {
 	AnalyzedAt int64 `json:"analyzedAt,omitempty"`
 }
 
-// ProviderRequest carries provider-internal vision requests with source identity.
-type ProviderRequest struct {
-	AnalyzeRequest
-	// SourcePluginID identifies the dynamic or source plugin that initiated the call.
-	SourcePluginID string `json:"sourcePluginId,omitempty"`
-}
-
-// Provider defines vision AI capability implemented by provider plugins.
-type Provider interface {
-	// AnalyzeVision executes one governed visual analysis request.
-	AnalyzeVision(ctx context.Context, request ProviderRequest) (*AnalyzeResponse, error)
-}
-
-// Service defines the vision AI capability consumed by host services and plugins.
-type Service interface {
-	// Available reports whether an active vision provider is available.
-	Available(ctx context.Context) bool
-	// Status returns the current vision AI capability activation state.
-	Status(ctx context.Context) capmodel.CapabilityStatus
-	// MethodStatus returns the current activation state for one vision method.
-	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
-	// Analyze executes one governed visual analysis request.
-	Analyze(ctx context.Context, request AnalyzeRequest) (*AnalyzeResponse, error)
-}
-
-type serviceImpl struct {
-	sourcePluginID string
-}
+type serviceImpl struct{}
 
 var _ Service = (*serviceImpl)(nil)
 
@@ -83,9 +68,9 @@ var _ Service = (*serviceImpl)(nil)
 func New() Service { return &serviceImpl{} }
 
 // ForPlugin returns a plugin-scoped vision service.
-func ForPlugin(service Service, pluginID string) Service {
+func ForPlugin(service Service, _ string) Service {
 	if _, ok := service.(*serviceImpl); service == nil || ok {
-		return &serviceImpl{sourcePluginID: strings.TrimSpace(pluginID)}
+		return &serviceImpl{}
 	}
 	return service
 }

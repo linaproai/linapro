@@ -22,7 +22,8 @@ func (s *serviceImpl) LocalizeError(ctx context.Context, err error) string {
 		return ""
 	}
 
-	if validationErr, ok := err.(gvalid.Error); ok {
+	var validationErr gvalid.Error
+	if errors.As(err, &validationErr) {
 		return s.localizeValidationError(ctx, validationErr)
 	}
 

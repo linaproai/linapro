@@ -11,6 +11,18 @@ import (
 	"lina-core/pkg/plugin/capability/capmodel"
 )
 
+// Service defines the embedding AI capability consumed by host services and plugins.
+type Service interface {
+	// Available reports whether an active embedding provider is available.
+	Available(ctx context.Context) bool
+	// Status returns the current embedding AI capability activation state.
+	Status(ctx context.Context) capmodel.CapabilityStatus
+	// MethodStatus returns the current activation state for one embedding method.
+	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
+	// Create executes one governed embedding request.
+	Create(ctx context.Context, request CreateRequest) (*CreateResponse, error)
+}
+
 const (
 	// CapabilityAIEmbeddingV1 identifies the versioned embedding AI framework capability.
 	CapabilityAIEmbeddingV1 = "framework.ai.embedding.v1"
@@ -57,7 +69,7 @@ type CreateResponse struct {
 	// Embeddings contains ordered vector results.
 	Embeddings []Embedding `json:"embeddings"`
 	// Provider contains public provider/model identity.
-	Provider aicommon.ProviderProjection `json:"provider"`
+	Provider aicommon.ProviderInfo `json:"provider"`
 	// Usage contains minimal usage details.
 	Usage aicommon.Usage `json:"usage,omitempty"`
 	// LatencyMs is the provider call latency in milliseconds.
@@ -66,34 +78,7 @@ type CreateResponse struct {
 	CreatedAt int64 `json:"createdAt,omitempty"`
 }
 
-// ProviderRequest carries provider-internal embedding requests with source identity.
-type ProviderRequest struct {
-	CreateRequest
-	// SourcePluginID identifies the dynamic or source plugin that initiated the call.
-	SourcePluginID string `json:"sourcePluginId,omitempty"`
-}
-
-// Provider defines embedding AI capability implemented by provider plugins.
-type Provider interface {
-	// CreateEmbedding executes one governed embedding request.
-	CreateEmbedding(ctx context.Context, request ProviderRequest) (*CreateResponse, error)
-}
-
-// Service defines the embedding AI capability consumed by host services and plugins.
-type Service interface {
-	// Available reports whether an active embedding provider is available.
-	Available(ctx context.Context) bool
-	// Status returns the current embedding AI capability activation state.
-	Status(ctx context.Context) capmodel.CapabilityStatus
-	// MethodStatus returns the current activation state for one embedding method.
-	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
-	// Create executes one governed embedding request.
-	Create(ctx context.Context, request CreateRequest) (*CreateResponse, error)
-}
-
-type serviceImpl struct {
-	sourcePluginID string
-}
+type serviceImpl struct{}
 
 var _ Service = (*serviceImpl)(nil)
 
@@ -101,9 +86,9 @@ var _ Service = (*serviceImpl)(nil)
 func New() Service { return &serviceImpl{} }
 
 // ForPlugin returns a plugin-scoped embedding service.
-func ForPlugin(service Service, pluginID string) Service {
+func ForPlugin(service Service, _ string) Service {
 	if _, ok := service.(*serviceImpl); service == nil || ok {
-		return &serviceImpl{sourcePluginID: strings.TrimSpace(pluginID)}
+		return &serviceImpl{}
 	}
 	return service
 }

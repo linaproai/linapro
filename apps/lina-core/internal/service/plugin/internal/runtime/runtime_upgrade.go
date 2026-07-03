@@ -5,12 +5,14 @@ package runtime
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
+	"lina-core/pkg/statusflag"
 )
 
 // UpgradeDynamicPluginRequest runs the version-switching upgrade path for one
@@ -37,10 +39,10 @@ func (s *serviceImpl) UpgradeDynamicPluginRequest(ctx context.Context, pluginID 
 	if err != nil {
 		return err
 	}
-	if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if registry == nil || plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return gerror.Newf("dynamic plugin registry is not dynamic: %s", normalizedPluginID)
 	}
-	if registry.Installed != plugintypes.InstalledYes {
+	if registry.Installed != statusflag.Installed.Int() {
 		return gerror.Newf("dynamic plugin is not installed: %s", normalizedPluginID)
 	}
 
@@ -48,7 +50,7 @@ func (s *serviceImpl) UpgradeDynamicPluginRequest(ctx context.Context, pluginID 
 	if err != nil {
 		return err
 	}
-	if desiredManifest == nil || plugintypes.NormalizeType(desiredManifest.Type) != plugintypes.TypeDynamic {
+	if desiredManifest == nil || plugintypes.NormalizeType(desiredManifest.Type) != pluginv1.PluginTypeDynamic {
 		return gerror.Newf("dynamic plugin desired manifest does not exist: %s", normalizedPluginID)
 	}
 	if strings.TrimSpace(desiredManifest.Version) == strings.TrimSpace(registry.Version) {

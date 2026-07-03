@@ -237,9 +237,11 @@ func TestHandleHostServiceInvokeLockRejectsTicketMismatch(t *testing.T) {
 	ensurePluginLockerTable(t, ctx)
 	configureDefaultLockDomainService(t)
 
-	pluginID := "test-plugin-lock-mismatch"
-	lockName := "orders-sync"
-	otherLockName := "inventory-sync"
+	var (
+		pluginID      = "test-plugin-lock-mismatch"
+		lockName      = "orders-sync"
+		otherLockName = "inventory-sync"
+	)
 	cleanupPluginLock(t, ctx, buildPluginLockName(pluginID, lockName))
 	cleanupPluginLock(t, ctx, buildPluginLockName(pluginID, otherLockName))
 	t.Cleanup(func() {
@@ -354,14 +356,18 @@ func TestHandleHostServiceInvokeLockUsesCoordinationAndTenantIsolation(t *testin
 		locker.ConfigureCoordination(nil)
 	})
 
-	lockName := "orders-sync"
-	tenantOne := newTenantLockHostCallContext("test-plugin-lock-tenant", 11, lockName)
-	tenantTwo := newTenantLockHostCallContext("test-plugin-lock-tenant", 22, lockName)
-	otherPlugin := newTenantLockHostCallContext("test-plugin-lock-other", 11, lockName)
+	var (
+		lockName    = "orders-sync"
+		tenantOne   = newTenantLockHostCallContext("test-plugin-lock-tenant", 11, lockName)
+		tenantTwo   = newTenantLockHostCallContext("test-plugin-lock-tenant", 22, lockName)
+		otherPlugin = newTenantLockHostCallContext("test-plugin-lock-other", 11, lockName)
+	)
 
-	tenantOneTicket := acquireLockTicket(t, tenantOne, lockName)
-	tenantTwoTicket := acquireLockTicket(t, tenantTwo, lockName)
-	otherPluginTicket := acquireLockTicket(t, otherPlugin, lockName)
+	var (
+		tenantOneTicket   = acquireLockTicket(t, tenantOne, lockName)
+		tenantTwoTicket   = acquireLockTicket(t, tenantTwo, lockName)
+		otherPluginTicket = acquireLockTicket(t, otherPlugin, lockName)
+	)
 	if tenantOneTicket == tenantTwoTicket || tenantOneTicket == otherPluginTicket {
 		t.Fatal("expected isolated coordination lock tickets")
 	}

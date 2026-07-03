@@ -11,6 +11,7 @@ type PluginRecord struct {
 	Name                    string
 	Version                 string
 	Type                    string
+	Distribution            string
 	Installed               int
 	Status                  int
 	DesiredState            string

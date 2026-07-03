@@ -4,6 +4,7 @@ package jobmgmt
 
 import (
 	"context"
+	jobv1 "lina-core/api/job/v1"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -12,8 +13,8 @@ import (
 )
 
 // UpdateJobStatus toggles one job between enabled and disabled states.
-func (s *serviceImpl) UpdateJobStatus(ctx context.Context, id int64, status jobmeta.JobStatus) error {
-	if status != jobmeta.JobStatusEnabled && status != jobmeta.JobStatusDisabled {
+func (s *serviceImpl) UpdateJobStatus(ctx context.Context, id int64, status jobv1.Status) error {
+	if status != jobv1.StatusEnabled && status != jobv1.StatusDisabled {
 		return bizerr.NewCode(CodeJobStatusToggleInvalid)
 	}
 
@@ -30,14 +31,14 @@ func (s *serviceImpl) UpdateJobStatus(ctx context.Context, id int64, status jobm
 	if err = s.ensureJobVisible(ctx, job); err != nil {
 		return err
 	}
-	if status == jobmeta.JobStatusEnabled {
+	if status == jobv1.StatusEnabled {
 		if err = s.validateExecutableJob(ctx, job); err != nil {
 			return err
 		}
 	}
 
 	stopReason := ""
-	if status == jobmeta.JobStatusDisabled {
+	if status == jobv1.StatusDisabled {
 		stopReason = string(jobmeta.StopReasonManual)
 	}
 	_, err = dao.SysJob.Ctx(ctx).
@@ -54,7 +55,7 @@ func (s *serviceImpl) UpdateJobStatus(ctx context.Context, id int64, status jobm
 	if s.scheduler == nil {
 		return nil
 	}
-	if status == jobmeta.JobStatusEnabled {
+	if status == jobv1.StatusEnabled {
 		return s.scheduler.Refresh(ctx, id)
 	}
 	s.scheduler.Remove(id)
@@ -88,7 +89,7 @@ func (s *serviceImpl) ResetJob(ctx context.Context, id int64) error {
 	if err != nil {
 		return err
 	}
-	if s.scheduler != nil && jobmeta.NormalizeJobStatus(job.Status) == jobmeta.JobStatusEnabled {
+	if s.scheduler != nil && jobmeta.NormalizeJobStatus(job.Status) == jobv1.StatusEnabled {
 		return s.scheduler.Refresh(ctx, id)
 	}
 	return nil

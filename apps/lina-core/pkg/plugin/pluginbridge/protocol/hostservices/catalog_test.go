@@ -35,9 +35,6 @@ func TestCatalogPayloadKinds(t *testing.T) {
 			if method.PayloadKind == "" {
 				t.Fatalf("catalog method %s is missing payload kind", key)
 			}
-			if method.PayloadKind == PayloadKindReserved {
-				continue
-			}
 			if method.PayloadKind == PayloadKindDedicated {
 				if _, ok := dedicatedServices[method.Service]; !ok {
 					t.Fatalf("ordinary host service %s uses dedicated codec without whitelist", key)
@@ -49,10 +46,12 @@ func TestCatalogPayloadKinds(t *testing.T) {
 }
 
 func TestOrdinaryJSONServicesHaveNoDedicatedCapabilityCodecs(t *testing.T) {
-	root := repoRootForCatalogTest(t)
-	protocolDir := filepath.Dir(root)
-	protocolTypes := declaredTypeNames(t, protocolDir)
-	protocolFuncs := declaredFuncNames(t, protocolDir)
+	var (
+		root          = repoRootForCatalogTest(t)
+		protocolDir   = filepath.Dir(root)
+		protocolTypes = declaredTypeNames(t, protocolDir)
+		protocolFuncs = declaredFuncNames(t, protocolDir)
+	)
 	for _, name := range []string{
 		"HostServiceUsersBatchGetRequest",
 		"HostServiceUsersSearchRequest",

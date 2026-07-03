@@ -21,6 +21,7 @@ import (
 
 // Set persists a session record.
 func (s *DBStore) Set(ctx context.Context, session *Session) error {
+	cols := dao.SysOnlineSession.Columns()
 	_, err := dao.SysOnlineSession.Ctx(ctx).
 		Data(do.SysOnlineSession{
 			TokenId:        session.TokenId,
@@ -35,18 +36,18 @@ func (s *DBStore) Set(ctx context.Context, session *Session) error {
 			LoginTime:      session.LoginTime,
 			LastActiveTime: normalizeSessionLastActive(session),
 		}).
-		OnConflict(dao.SysOnlineSession.Columns().TokenId).
+		OnConflict(cols.TokenId).
 		OnDuplicate(
-			dao.SysOnlineSession.Columns().TenantId,
-			dao.SysOnlineSession.Columns().UserId,
-			dao.SysOnlineSession.Columns().Username,
-			dao.SysOnlineSession.Columns().ClientType,
-			dao.SysOnlineSession.Columns().DeptName,
-			dao.SysOnlineSession.Columns().Ip,
-			dao.SysOnlineSession.Columns().Browser,
-			dao.SysOnlineSession.Columns().Os,
-			dao.SysOnlineSession.Columns().LoginTime,
-			dao.SysOnlineSession.Columns().LastActiveTime,
+			cols.TenantId,
+			cols.UserId,
+			cols.Username,
+			cols.ClientType,
+			cols.DeptName,
+			cols.Ip,
+			cols.Browser,
+			cols.Os,
+			cols.LoginTime,
+			cols.LastActiveTime,
 		).
 		Save()
 	return err
@@ -60,24 +61,6 @@ func normalizeSessionLastActive(session *Session) *time.Time {
 	}
 	now := time.Now()
 	return &now
-}
-
-// setProjection persists or refreshes a session projection in PostgreSQL.
-func (s *DBStore) setProjection(ctx context.Context, session *Session) error {
-	_, err := dao.SysOnlineSession.Ctx(ctx).Data(do.SysOnlineSession{
-		TokenId:        session.TokenId,
-		TenantId:       session.TenantId,
-		UserId:         session.UserId,
-		Username:       session.Username,
-		ClientType:     session.ClientType,
-		DeptName:       session.DeptName,
-		Ip:             session.Ip,
-		Browser:        session.Browser,
-		Os:             session.Os,
-		LoginTime:      session.LoginTime,
-		LastActiveTime: normalizeSessionLastActive(session),
-	}).Insert()
-	return err
 }
 
 // tokenSessionModel builds the session lookup model for one globally unique token.

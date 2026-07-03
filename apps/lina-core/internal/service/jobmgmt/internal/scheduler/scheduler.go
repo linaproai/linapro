@@ -31,7 +31,6 @@ type Scheduler interface {
 
 // runningExecution stores one cancellable execution instance.
 type runningExecution struct {
-	jobID   int64              // jobID identifies the owning job definition.
 	cancel  context.CancelFunc // cancel stops the execution context.
 	release func()             // release decrements concurrency bookkeeping.
 }

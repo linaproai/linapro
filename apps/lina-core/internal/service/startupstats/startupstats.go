@@ -36,6 +36,8 @@ const (
 
 // Startup phase names used by HTTP runtime startup orchestration.
 const (
+	// PhasePluginBootstrapBuiltin measures built-in source-plugin startup reconciliation.
+	PhasePluginBootstrapBuiltin Phase = "plugin_bootstrap_builtin"
 	// PhasePluginBootstrapAutoEnable measures startup plugin auto-enable work.
 	PhasePluginBootstrapAutoEnable Phase = "plugin_bootstrap_auto_enable"
 	// PhasePluginSourceUpgradeReadiness measures source-plugin upgrade drift scanning.

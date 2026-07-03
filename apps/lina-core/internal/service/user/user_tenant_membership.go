@@ -36,7 +36,7 @@ func (s *serviceImpl) platformTenantBypass(ctx context.Context) bool {
 			return true
 		}
 	}
-	if s.tenantAccess != nil && s.tenantAccess.PlatformBypass(ctx) {
+	if s.tenantSvc != nil && s.tenantSvc.PlatformBypass(ctx) {
 		return true
 	}
 	scope, err := s.currentScopeSvc().Current(ctx)
@@ -55,7 +55,7 @@ func (s *serviceImpl) resolveCreateTenantMemberships(
 	requestedTenantIDs []int,
 ) (*tenantcap.UserTenantAssignmentPlan, error) {
 	tenantID := currentTenantID(ctx)
-	if !s.multiTenantEnabled(ctx) || s.tenantMembers == nil {
+	if !s.multiTenantEnabled(ctx) || s.tenantSvc == nil {
 		if tenantID == datascope.PlatformTenantID {
 			return &tenantcap.UserTenantAssignmentPlan{
 				PrimaryTenant: tenantcap.PLATFORM,
@@ -77,7 +77,7 @@ func (s *serviceImpl) resolveCreateTenantMemberships(
 			return nil, err
 		}
 	}
-	return s.tenantMembers.ResolveUserTenantAssignment(
+	return s.tenantSvc.ResolveUserTenantAssignment(
 		ctx,
 		toTenantIDs(requestedTenantIDs),
 		tenantcap.UserTenantAssignmentCreate,
@@ -90,7 +90,7 @@ func (s *serviceImpl) resolveUpdateTenantMemberships(
 	ctx context.Context,
 	requestedTenantIDs []int,
 ) (*tenantcap.UserTenantAssignmentPlan, error) {
-	if !s.multiTenantEnabled(ctx) || s.tenantMembers == nil || requestedTenantIDs == nil {
+	if !s.multiTenantEnabled(ctx) || s.tenantSvc == nil || requestedTenantIDs == nil {
 		return &tenantcap.UserTenantAssignmentPlan{}, nil
 	}
 	normalized := normalizeTenantIDs(requestedTenantIDs)
@@ -103,7 +103,7 @@ func (s *serviceImpl) resolveUpdateTenantMemberships(
 			return nil, err
 		}
 	}
-	return s.tenantMembers.ResolveUserTenantAssignment(
+	return s.tenantSvc.ResolveUserTenantAssignment(
 		ctx,
 		toTenantIDs(requestedTenantIDs),
 		tenantcap.UserTenantAssignmentUpdate,
@@ -123,7 +123,7 @@ func (s *serviceImpl) ensurePlatformRequestedTenantsAllowed(
 		}
 		return bizerr.NewCode(tenantcap.CodeTenantForbidden, bizerr.P("tenantId", normalized[0]))
 	}
-	tenants, err := s.tenantAccess.ListUserTenants(ctx, bizCtx.UserId)
+	tenants, err := s.tenantSvc.ListUserTenants(ctx, bizCtx.UserId)
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func toTenantIDs(tenantIDs []int) []tenantcap.TenantID {
 
 // multiTenantEnabled reports whether the optional linapro-tenant-core plugin is active.
 func (s *serviceImpl) multiTenantEnabled(ctx context.Context) bool {
-	return s != nil && s.tenantAccess != nil && s.tenantAccess.Available(ctx)
+	return s != nil && s.tenantSvc != nil && s.tenantSvc.Available(ctx)
 }
 
 // GetUserTenantMemberships returns tenant ownership data for one visible user.
@@ -211,7 +211,7 @@ func (s *serviceImpl) GetUserTenantMemberships(ctx context.Context, userId int) 
 	if err := s.ensureUserVisible(ctx, userId); err != nil {
 		return nil, nil, err
 	}
-	items, err := s.tenantMembers.ListUserTenantProjections(ctx, []int{userId})
+	items, err := s.tenantSvc.ListUserTenantMemberships(ctx, []int{userId})
 	if err != nil {
 		return nil, nil, err
 	}

@@ -293,10 +293,12 @@ func (s *storageUploadSessions) commit(
 		return nil, gerror.Newf("storage upload size mismatch: got %d want %d", size, session.offset)
 	}
 	delete(s.sessions, uploadID)
-	tempDir := session.tempDir
-	tempPath := session.tempPath
-	contentType := session.contentType
-	overwrite := session.overwrite
+	var (
+		tempDir     = session.tempDir
+		tempPath    = session.tempPath
+		contentType = session.contentType
+		overwrite   = session.overwrite
+	)
 	s.mu.Unlock()
 
 	file, err := os.Open(tempPath)

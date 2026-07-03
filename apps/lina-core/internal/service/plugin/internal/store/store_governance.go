@@ -56,7 +56,7 @@ func (s *serviceImpl) BuildGovernanceSnapshot(
 	}
 
 	if s.nodeIDProvider != nil {
-		nodeID := strings.TrimSpace(s.nodeIDProvider.CurrentNodeID())
+		nodeID := strings.TrimSpace(s.nodeIDProvider.NodeID())
 		if nodeID != "" {
 			var nodeState *NodeStateRecord
 			stateErr := dao.SysPluginNodeState.Ctx(ctx).

@@ -25,13 +25,13 @@ type SysOnlineSessionColumns struct {
 	TokenId        string // Session token ID (UUID)
 	UserId         string // User ID
 	Username       string // Login account
+	ClientType     string // User session client type: web, mobile, desktop, cli
 	DeptName       string // Department name
 	Ip             string // Login IP
 	Browser        string // Browser
 	Os             string // Operating system
 	LoginTime      string // Login time
 	LastActiveTime string // Last active time
-	ClientType     string // User session client type: web, mobile, desktop, cli
 }
 
 // sysOnlineSessionColumns holds the columns for the table sys_online_session.
@@ -40,13 +40,13 @@ var sysOnlineSessionColumns = SysOnlineSessionColumns{
 	TokenId:        "token_id",
 	UserId:         "user_id",
 	Username:       "username",
+	ClientType:     "client_type",
 	DeptName:       "dept_name",
 	Ip:             "ip",
 	Browser:        "browser",
 	Os:             "os",
 	LoginTime:      "login_time",
 	LastActiveTime: "last_active_time",
-	ClientType:     "client_type",
 }
 
 // NewSysOnlineSessionDao creates and returns a new DAO object for table data access.

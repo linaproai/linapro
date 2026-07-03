@@ -19,6 +19,7 @@ import (
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
+	"lina-core/pkg/statusflag"
 )
 
 const (
@@ -48,12 +49,14 @@ type userTenantMembershipTestRow struct {
 // TestUserListUsesMembershipVisibility verifies tenant users are visible by
 // active membership instead of only sys_user.tenant_id.
 func TestUserListUsesMembershipVisibility(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), 61001)
+	ctx := datascope.WithTenantScope(context.Background(), 61001)
 	ensureUserTenantMembershipTestTables(t, ctx)
-	currentUserID := insertUserTenantMembershipTestUser(t, ctx, "membership-list-current", 61001)
-	primaryOtherUserID := insertUserTenantMembershipTestUser(t, ctx, "membership-list-primary-other", 61002)
-	invisibleUserID := insertUserTenantMembershipTestUser(t, ctx, "membership-list-invisible", 61001)
-	roleID := insertUserTenantMembershipTestRole(t, ctx, "membership-list-role", 61001)
+	var (
+		currentUserID      = insertUserTenantMembershipTestUser(t, ctx, "membership-list-current", 61001)
+		primaryOtherUserID = insertUserTenantMembershipTestUser(t, ctx, "membership-list-primary-other", 61002)
+		invisibleUserID    = insertUserTenantMembershipTestUser(t, ctx, "membership-list-invisible", 61001)
+		roleID             = insertUserTenantMembershipTestRole(t, ctx, "membership-list-role", 61001)
+	)
 	t.Cleanup(func() {
 		cleanupUserTenantMembershipRows(t, ctx, []int{currentUserID, primaryOtherUserID, invisibleUserID})
 		cleanupUserDeleteTestRows(t, ctx, []int{currentUserID, primaryOtherUserID, invisibleUserID})
@@ -86,7 +89,7 @@ func TestUserListUsesMembershipVisibility(t *testing.T) {
 // TestUserCreateWritesTenantAndMembership verifies tenant-scoped creation
 // stores the primary tenant and creates an active membership row.
 func TestUserCreateWritesTenantAndMembership(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), 61011)
+	ctx := datascope.WithTenantScope(context.Background(), 61011)
 	ensureUserTenantMembershipTestTables(t, ctx)
 	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 
@@ -96,7 +99,7 @@ func TestUserCreateWritesTenantAndMembership(t *testing.T) {
 	userID, err := svc.Create(ctx, CreateInput{
 		Username: username,
 		Password: "admin123",
-		Status:   StatusNormal,
+		Status:   statusflag.EnabledValue,
 	})
 	if err != nil {
 		t.Fatalf("create tenant user: %v", err)
@@ -134,7 +137,7 @@ func TestPlatformUserCreateWritesSelectedTenantMemberships(t *testing.T) {
 	userID, err := svc.Create(ctx, CreateInput{
 		Username:  username,
 		Password:  "admin123",
-		Status:    StatusNormal,
+		Status:    statusflag.EnabledValue,
 		TenantIds: []int{tenantAID, tenantBID, tenantAID},
 	})
 	if err != nil {
@@ -163,9 +166,11 @@ func TestPlatformUserUpdateReplacesTenantMemberships(t *testing.T) {
 	ensureUserTenantMembershipTestTables(t, ctx)
 	tenantAID, _ := insertUserTenantMembershipTestTenant(t, ctx, "membership-update-platform-a")
 	tenantBID, tenantBName := insertUserTenantMembershipTestTenant(t, ctx, "membership-update-platform-b")
-	operatorID := insertUserTenantMembershipTestUser(t, ctx, "membership-update-platform-operator", 0)
-	userID := insertUserTenantMembershipTestUser(t, ctx, "membership-update-platform-user", tenantAID)
-	roleID := insertUserDataScopeTestRole(t, ctx, "membership-update-platform-role", userDataScopeAll, 1)
+	var (
+		operatorID = insertUserTenantMembershipTestUser(t, ctx, "membership-update-platform-operator", 0)
+		userID     = insertUserTenantMembershipTestUser(t, ctx, "membership-update-platform-user", tenantAID)
+		roleID     = insertUserDataScopeTestRole(t, ctx, "membership-update-platform-role", userDataScopeAll, 1)
+	)
 	t.Cleanup(func() {
 		cleanupUserTenantMembershipRows(t, ctx, []int{operatorID, userID})
 		cleanupUserTenantMembershipTestTenants(t, ctx, []int{tenantAID, tenantBID})
@@ -227,7 +232,7 @@ func TestTenantBoundOperatorCreateAllowsOwnedTenantAssignments(t *testing.T) {
 	userID, err := svc.Create(ctx, CreateInput{
 		Username:  username,
 		Password:  "admin123",
-		Status:    StatusNormal,
+		Status:    statusflag.EnabledValue,
 		TenantIds: []int{tenantAID, tenantBID},
 	})
 	if err != nil {
@@ -268,7 +273,7 @@ func TestTenantBoundOperatorCreateRejectsForeignTenantAssignments(t *testing.T) 
 	_, err := svc.Create(ctx, CreateInput{
 		Username:  username,
 		Password:  "admin123",
-		Status:    StatusNormal,
+		Status:    statusflag.EnabledValue,
 		TenantIds: []int{tenantBID},
 	})
 	if err == nil {
@@ -303,7 +308,7 @@ func TestTenantBoundOperatorCreateRejectsEmptyTenantAssignments(t *testing.T) {
 	_, err := svc.Create(ctx, CreateInput{
 		Username: username,
 		Password: "admin123",
-		Status:   StatusNormal,
+		Status:   statusflag.EnabledValue,
 	})
 	if err == nil {
 		t.Fatal("expected platform-scope user creation to fail for tenant-bound operator")
@@ -320,9 +325,11 @@ func TestTenantBoundOperatorUpdateRejectsForeignTenantAssignments(t *testing.T) 
 	ensureUserTenantMembershipTestTables(t, ctx)
 	tenantAID, _ := insertUserTenantMembershipTestTenant(t, ctx, "membership-update-foreign-a")
 	tenantBID, _ := insertUserTenantMembershipTestTenant(t, ctx, "membership-update-foreign-b")
-	operatorID := insertUserTenantMembershipTestUser(t, ctx, "membership-update-foreign-operator", 0)
-	userID := insertUserTenantMembershipTestUser(t, ctx, "membership-update-foreign-user", tenantAID)
-	roleID := insertUserDataScopeTestRole(t, ctx, "membership-update-foreign-role", userDataScopeTenant, 1)
+	var (
+		operatorID = insertUserTenantMembershipTestUser(t, ctx, "membership-update-foreign-operator", 0)
+		userID     = insertUserTenantMembershipTestUser(t, ctx, "membership-update-foreign-user", tenantAID)
+		roleID     = insertUserDataScopeTestRole(t, ctx, "membership-update-foreign-role", userDataScopeTenant, 1)
+	)
 	t.Cleanup(func() {
 		cleanupUserTenantMembershipRows(t, ctx, []int{operatorID, userID})
 		cleanupUserTenantMembershipTestTenants(t, ctx, []int{tenantAID, tenantBID})
@@ -367,7 +374,7 @@ func TestListUserTenantMembershipsAggregatesTenantNames(t *testing.T) {
 	insertUserTenantMembershipTestMembership(t, ctx, userID, tenantAID, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, ctx, userID, tenantBID, userTenantMembershipTestActive)
 
-	actual, err := (&userTenantMembershipTestProvider{}).ListUserTenantProjections(ctx, []int{userID})
+	actual, err := (&userTenantMembershipTestProvider{}).ListUserTenantMemberships(ctx, []int{userID})
 	if err != nil {
 		t.Fatalf("list tenant memberships: %v", err)
 	}
@@ -399,8 +406,8 @@ func TestListUserTenantMembershipsRespectsTenantContext(t *testing.T) {
 	insertUserTenantMembershipTestMembership(t, baseCtx, userID, tenantAID, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, baseCtx, userID, tenantBID, userTenantMembershipTestActive)
 
-	actual, err := (&userTenantMembershipTestProvider{}).ListUserTenantProjections(
-		datascope.WithTenantForTest(baseCtx, tenantAID),
+	actual, err := (&userTenantMembershipTestProvider{}).ListUserTenantMemberships(
+		datascope.WithTenantScope(baseCtx, tenantAID),
 		[]int{userID},
 	)
 	if err != nil {
@@ -425,9 +432,11 @@ func TestUserListTenantFilterUsesMembershipForPlatformContext(t *testing.T) {
 	ensureUserTenantMembershipTestTables(t, ctx)
 	tenantAID, _ := insertUserTenantMembershipTestTenant(t, ctx, "membership-list-filter-a")
 	tenantBID, _ := insertUserTenantMembershipTestTenant(t, ctx, "membership-list-filter-b")
-	userAID := insertUserTenantMembershipTestUser(t, ctx, "membership-list-filter-a-user", 0)
-	userBID := insertUserTenantMembershipTestUser(t, ctx, "membership-list-filter-b-user", 0)
-	roleID := insertUserDataScopeTestRole(t, ctx, "membership-list-filter-platform-role", userDataScopeAll, 1)
+	var (
+		userAID = insertUserTenantMembershipTestUser(t, ctx, "membership-list-filter-a-user", 0)
+		userBID = insertUserTenantMembershipTestUser(t, ctx, "membership-list-filter-b-user", 0)
+		roleID  = insertUserDataScopeTestRole(t, ctx, "membership-list-filter-platform-role", userDataScopeAll, 1)
+	)
 	t.Cleanup(func() {
 		cleanupUserTenantMembershipRows(t, ctx, []int{userAID, userBID})
 		cleanupUserTenantMembershipTestTenants(t, ctx, []int{tenantAID, tenantBID})
@@ -462,9 +471,11 @@ func TestTenantBoundOperatorListRejectsForeignTenantFilter(t *testing.T) {
 	ensureUserTenantMembershipTestTables(t, ctx)
 	tenantAID, _ := insertUserTenantMembershipTestTenant(t, ctx, "membership-list-foreign-a")
 	tenantBID, _ := insertUserTenantMembershipTestTenant(t, ctx, "membership-list-foreign-b")
-	operatorID := insertUserTenantMembershipTestUser(t, ctx, "membership-list-foreign-operator", 0)
-	targetID := insertUserTenantMembershipTestUser(t, ctx, "membership-list-foreign-target", 0)
-	roleID := insertUserDataScopeTestRole(t, ctx, "membership-list-foreign-role", userDataScopeTenant, 1)
+	var (
+		operatorID = insertUserTenantMembershipTestUser(t, ctx, "membership-list-foreign-operator", 0)
+		targetID   = insertUserTenantMembershipTestUser(t, ctx, "membership-list-foreign-target", 0)
+		roleID     = insertUserDataScopeTestRole(t, ctx, "membership-list-foreign-role", userDataScopeTenant, 1)
+	)
 	t.Cleanup(func() {
 		cleanupUserTenantMembershipRows(t, ctx, []int{operatorID, targetID})
 		cleanupUserTenantMembershipTestTenants(t, ctx, []int{tenantAID, tenantBID})
@@ -524,9 +535,11 @@ func TestUserListTenantContextIgnoresCrossTenantFilter(t *testing.T) {
 	ensureUserTenantMembershipTestTables(t, baseCtx)
 	tenantAID, _ := insertUserTenantMembershipTestTenant(t, baseCtx, "membership-list-context-a")
 	tenantBID, _ := insertUserTenantMembershipTestTenant(t, baseCtx, "membership-list-context-b")
-	userAID := insertUserTenantMembershipTestUser(t, baseCtx, "membership-list-context-a-user", 0)
-	userBID := insertUserTenantMembershipTestUser(t, baseCtx, "membership-list-context-b-user", 0)
-	roleID := insertUserTenantMembershipTestRole(t, baseCtx, "membership-list-context-role", tenantAID)
+	var (
+		userAID = insertUserTenantMembershipTestUser(t, baseCtx, "membership-list-context-a-user", 0)
+		userBID = insertUserTenantMembershipTestUser(t, baseCtx, "membership-list-context-b-user", 0)
+		roleID  = insertUserTenantMembershipTestRole(t, baseCtx, "membership-list-context-role", tenantAID)
+	)
 	t.Cleanup(func() {
 		cleanupUserTenantMembershipRows(t, baseCtx, []int{userAID, userBID})
 		cleanupUserTenantMembershipTestTenants(t, baseCtx, []int{tenantAID, tenantBID})
@@ -538,7 +551,7 @@ func TestUserListTenantContextIgnoresCrossTenantFilter(t *testing.T) {
 	insertUserTenantMembershipTestMembership(t, baseCtx, userAID, tenantAID, userTenantMembershipTestActive)
 	insertUserTenantMembershipTestMembership(t, baseCtx, userBID, tenantBID, userTenantMembershipTestActive)
 
-	ctx := datascope.WithTenantForTest(baseCtx, tenantAID)
+	ctx := datascope.WithTenantScope(baseCtx, tenantAID)
 	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: userAID, TenantId: tenantAID}})
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20, TenantId: &tenantBID})
@@ -597,11 +610,6 @@ func (r userTenantMembershipEnablementReader) IsProviderEnabled(_ context.Contex
 	return pluginID == r.pluginID
 }
 
-// TenantProviderEnv returns an empty typed provider environment in user tests.
-func (userTenantMembershipEnablementReader) TenantProviderEnv(string) tenantspi.ProviderEnv {
-	return tenantspi.ProviderEnv{}
-}
-
 // activateUserTenantMembershipProvider declares the test tenant provider and
 // returns a runtime that enables only that provider plugin.
 func activateUserTenantMembershipProvider(t *testing.T) (*tenantspi.Manager, userTenantMembershipEnablementReader) {
@@ -639,14 +647,6 @@ func (*userTenantMembershipTestProvider) ListUserTenants(
 		return nil, err
 	}
 	return items[userID], nil
-}
-
-// BatchListUserTenants returns active tenant memberships for the requested users.
-func (*userTenantMembershipTestProvider) BatchListUserTenants(
-	ctx context.Context,
-	userIDs []int,
-) (map[int][]tenantcap.TenantInfo, error) {
-	return batchListUserTenantMembershipTestTenants(ctx, userIDs)
 }
 
 // batchListUserTenantMembershipTestTenants returns the users' active tenant memberships.
@@ -713,12 +713,12 @@ func (*userTenantMembershipTestProvider) ApplyUserTenantFilter(
 	return model.WhereIn(userIDColumn, activeUserTenantMembershipTestUserModel(ctx, int(tenantID))), false, nil
 }
 
-// ListUserTenantProjections returns tenant ownership labels for visible users.
-func (*userTenantMembershipTestProvider) ListUserTenantProjections(
+// ListUserTenantMemberships returns tenant ownership labels for visible users.
+func (*userTenantMembershipTestProvider) ListUserTenantMemberships(
 	ctx context.Context,
 	userIDs []int,
-) (map[int]*tenantcap.UserTenantProjection, error) {
-	result := make(map[int]*tenantcap.UserTenantProjection)
+) (map[int]*tenantcap.TenantMembershipInfo, error) {
+	result := make(map[int]*tenantcap.TenantMembershipInfo)
 	if len(userIDs) == 0 {
 		return result, nil
 	}
@@ -742,7 +742,7 @@ func (*userTenantMembershipTestProvider) ListUserTenantProjections(
 		}
 		item := result[row.UserID]
 		if item == nil {
-			item = &tenantcap.UserTenantProjection{}
+			item = &tenantcap.TenantMembershipInfo{}
 			result[row.UserID] = item
 		}
 		item.TenantIDs = append(item.TenantIDs, tenantcap.TenantID(row.TenantID))

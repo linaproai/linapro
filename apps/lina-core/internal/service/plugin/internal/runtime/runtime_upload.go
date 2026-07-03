@@ -7,6 +7,7 @@ package runtime
 import (
 	"context"
 	"io"
+	pluginv1 "lina-core/api/plugin/v1"
 	"path/filepath"
 	"strings"
 
@@ -17,6 +18,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/closeutil"
+	"lina-core/pkg/statusflag"
 )
 
 // bytesPerMegabyte converts the configured `sys.upload.maxSize` value from MB
@@ -88,11 +90,11 @@ func (s *serviceImpl) UploadDynamicPackage(ctx context.Context, in *DynamicUploa
 
 // validateUploadedPackageSize enforces the runtime-effective upload ceiling for one package upload.
 func (s *serviceImpl) validateUploadedPackageSize(ctx context.Context, sizeBytes int64) error {
-	if sizeBytes <= 0 || s == nil || s.uploadSize == nil {
+	if sizeBytes <= 0 || s == nil || s.configSvc == nil {
 		return nil
 	}
 
-	uploadMaxSizeMB, err := s.uploadSize.GetUploadMaxSize(ctx)
+	uploadMaxSizeMB, err := s.configSvc.GetUploadMaxSize(ctx)
 	if err != nil {
 		return err
 	}
@@ -165,12 +167,12 @@ func (s *serviceImpl) storeUploadedPackage(
 	if err != nil {
 		return nil, err
 	}
-	if registry != nil && plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if registry != nil && plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return nil, gerror.New("a source plugin with the same ID already exists; dynamic plugin upload cannot overwrite it")
 	}
 
 	allowInstalledUpgradeOverwrite := false
-	if registry != nil && registry.Installed == plugintypes.InstalledYes {
+	if registry != nil && registry.Installed == statusflag.Installed.Int() {
 		compareResult, compareErr := plugintypes.CompareSemanticVersions(manifest.Version, registry.Version)
 		if compareErr != nil {
 			return nil, compareErr

@@ -36,13 +36,16 @@ func (s *serviceImpl) Get(ctx context.Context) *model.Context {
 func (s *serviceImpl) Current(ctx context.Context) bizctxcap.CurrentContext {
 	if c := s.Get(ctx); c != nil {
 		return bizctxcap.CurrentContext{
-			TokenID:         c.TokenId,
-			UserID:          c.UserId,
-			Username:        c.Username,
-			TenantID:        c.TenantId,
-			ActingUserID:    c.ActingUserId,
-			ActingAsTenant:  c.ActingAsTenant,
-			IsImpersonation: c.IsImpersonation,
+			TokenID:              c.TokenId,
+			UserID:               c.UserId,
+			Username:             c.Username,
+			TenantID:             c.TenantId,
+			ActingUserID:         c.ActingUserId,
+			ActingAsTenant:       c.ActingAsTenant,
+			IsImpersonation:      c.IsImpersonation,
+			DataScope:            c.DataScope,
+			DataScopeUnsupported: c.DataScopeUnsupported,
+			UnsupportedDataScope: c.UnsupportedDataScope,
 			PlatformBypass: c.TenantId == 0 &&
 				c.DataScope == 1 &&
 				!c.DataScopeUnsupported &&

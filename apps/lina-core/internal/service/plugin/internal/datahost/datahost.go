@@ -831,9 +831,11 @@ func decodeDataBatchGetKeys(request *protocol.HostServiceDataBatchGetRequest) ([
 	if len(request.KeyJSON) > maxDataBatchGetKeys {
 		return nil, nil, gerror.Newf("record store batch_get key count exceeds limit %d", maxDataBatchGetKeys)
 	}
-	keys := make([]interface{}, 0, len(request.KeyJSON))
-	keyJSON := make([][]byte, 0, len(request.KeyJSON))
-	seen := make(map[string]struct{}, len(request.KeyJSON))
+	var (
+		keys    = make([]interface{}, 0, len(request.KeyJSON))
+		keyJSON = make([][]byte, 0, len(request.KeyJSON))
+		seen    = make(map[string]struct{}, len(request.KeyJSON))
+	)
 	for _, rawKeyJSON := range request.KeyJSON {
 		key, err := decodeJSONScalar(rawKeyJSON)
 		if err != nil {

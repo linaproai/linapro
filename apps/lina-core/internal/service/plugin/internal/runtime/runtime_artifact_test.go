@@ -5,6 +5,7 @@ package runtime_test
 import (
 	"encoding/base64"
 	"encoding/json"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,7 +13,6 @@ import (
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
-	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -103,13 +103,16 @@ func TestEnsureRuntimeArtifactAvailableRejectsMissingGeneratedWasm(t *testing.T)
 		ID:      pluginID,
 		Name:    "Runtime Missing Install Plugin",
 		Version: "v0.9.3",
-		Type:    plugintypes.TypeDynamic.String(),
+		Type:    pluginv1.PluginTypeDynamic.String(),
 		RootDir: filepath.Dir(artifactPath),
 	}
 
 	strictErr := services.Runtime.ValidateRuntimeArtifact(manifest, filepath.Dir(artifactPath))
-	if strictErr == nil || !runtime.IsMissingArtifactError(strictErr) {
+	if strictErr == nil {
 		t.Fatalf("expected strict runtime validation to report a missing artifact, got: %v", strictErr)
+	}
+	if expected := filepath.ToSlash(testutil.RuntimeArtifactRelativePath(pluginID)); !strings.Contains(strictErr.Error(), expected) {
+		t.Fatalf("expected strict runtime validation to mention missing wasm path %q, got: %v", expected, strictErr)
 	}
 
 	err := services.Runtime.EnsureRuntimeArtifactAvailable(manifest, "install")
@@ -119,7 +122,7 @@ func TestEnsureRuntimeArtifactAvailableRejectsMissingGeneratedWasm(t *testing.T)
 	if expected := "make wasm p=" + pluginID; !strings.Contains(err.Error(), expected) {
 		t.Fatalf("expected lifecycle precondition error to mention %q, got: %v", expected, err)
 	}
-	if expected := filepath.ToSlash(runtime.BuildArtifactRelativePath(pluginID)); !strings.Contains(err.Error(), expected) {
+	if expected := filepath.ToSlash(testutil.RuntimeArtifactRelativePath(pluginID)); !strings.Contains(err.Error(), expected) {
 		t.Fatalf("expected lifecycle precondition error to mention missing wasm path %q, got: %v", expected, err)
 	}
 }
@@ -138,7 +141,7 @@ func TestValidateRuntimeArtifactTreatsOmittedPublicAssetIndexAsDefault(t *testin
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-public-index-default"))
+	artifactPath := filepath.Join(pluginDir, testutil.RuntimeArtifactRelativePath("plugin-dev-dynamic-public-index-default"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
@@ -146,7 +149,7 @@ func TestValidateRuntimeArtifactTreatsOmittedPublicAssetIndexAsDefault(t *testin
 			ID:      "plugin-dev-dynamic-public-index-default",
 			Name:    "Runtime Public Index Default Plugin",
 			Version: "v0.4.0",
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 			PublicAssets: []*catalog.PublicAssetSpec{
 				{Source: "frontend/pages", Mount: "/", Index: "index.html"},
 			},
@@ -168,7 +171,7 @@ func TestValidateRuntimeArtifactTreatsOmittedPublicAssetIndexAsDefault(t *testin
 		ID:      "plugin-dev-dynamic-public-index-default",
 		Name:    "Runtime Public Index Default Plugin",
 		Version: "v0.4.0",
-		Type:    plugintypes.TypeDynamic.String(),
+		Type:    pluginv1.PluginTypeDynamic.String(),
 		RootDir: pluginDir,
 		PublicAssets: []*catalog.PublicAssetSpec{
 			{Source: "frontend/pages", Mount: "/"},
@@ -193,7 +196,7 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-routes"))
+	artifactPath := filepath.Join(pluginDir, testutil.RuntimeArtifactRelativePath("plugin-dev-dynamic-routes"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
@@ -201,7 +204,7 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 			ID:      "plugin-dev-dynamic-routes",
 			Name:    "Runtime Route Plugin",
 			Version: "v0.3.0",
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:        protocol.RuntimeKindWasm,
@@ -268,7 +271,7 @@ func TestParseRuntimeArtifactLoadsManifestResources(t *testing.T) {
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-manifest-resources"))
+	artifactPath := filepath.Join(pluginDir, testutil.RuntimeArtifactRelativePath("plugin-dev-dynamic-manifest-resources"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
@@ -276,7 +279,7 @@ func TestParseRuntimeArtifactLoadsManifestResources(t *testing.T) {
 			ID:      "plugin-dev-dynamic-manifest-resources",
 			Name:    "Runtime Manifest Resource Plugin",
 			Version: "v0.3.9",
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:           protocol.RuntimeKindWasm,
@@ -338,7 +341,7 @@ func TestParseRuntimeArtifactRejectsInvalidManifestResourcePath(t *testing.T) {
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-manifest-invalid"))
+	artifactPath := filepath.Join(pluginDir, testutil.RuntimeArtifactRelativePath("plugin-dev-dynamic-manifest-invalid"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
@@ -346,7 +349,7 @@ func TestParseRuntimeArtifactRejectsInvalidManifestResourcePath(t *testing.T) {
 			ID:      "plugin-dev-dynamic-manifest-invalid",
 			Name:    "Runtime Manifest Invalid Plugin",
 			Version: "v0.3.10",
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:           protocol.RuntimeKindWasm,
@@ -389,7 +392,7 @@ func TestParseRuntimeArtifactLoadsLifecycleContracts(t *testing.T) {
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-lifecycle-contracts"))
+	artifactPath := filepath.Join(pluginDir, testutil.RuntimeArtifactRelativePath("plugin-dev-dynamic-lifecycle-contracts"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
@@ -397,7 +400,7 @@ func TestParseRuntimeArtifactLoadsLifecycleContracts(t *testing.T) {
 			ID:      "plugin-dev-dynamic-lifecycle-contracts",
 			Name:    "Runtime Lifecycle Plugin",
 			Version: "v0.3.8",
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -447,7 +450,7 @@ func TestParseRuntimeArtifactPreservesDependencies(t *testing.T) {
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-dependencies"))
+	artifactPath := filepath.Join(pluginDir, testutil.RuntimeArtifactRelativePath("plugin-dev-dynamic-dependencies"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
@@ -455,7 +458,7 @@ func TestParseRuntimeArtifactPreservesDependencies(t *testing.T) {
 			ID:      "plugin-dev-dynamic-dependencies",
 			Name:    "Runtime Dependency Plugin",
 			Version: "v0.3.7",
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 			Dependencies: &plugintypes.DependencySpec{
 				Framework: &plugintypes.FrameworkDependencySpec{Version: ">=0.1.0 <1.0.0"},
 				Plugins: []*plugintypes.PluginDependencySpec{
@@ -536,10 +539,10 @@ func TestParseRuntimeArtifactRejectsUnsupportedDependencyPolicyFields(t *testing
 				"id":                  "plugin-dev-dynamic-policy",
 				"name":                "Runtime Policy Plugin",
 				"version":             "v0.3.8",
-				"type":                plugintypes.TypeDynamic.String(),
-				"scopeNature":         plugintypes.ScopeNatureTenantAware.String(),
+				"type":                pluginv1.PluginTypeDynamic.String(),
+				"scopeNature":         pluginv1.ScopeNatureTenantAware.String(),
 				"supportsMultiTenant": true,
-				"defaultInstallMode":  plugintypes.InstallModeTenantScoped.String(),
+				"defaultInstallMode":  pluginv1.InstallModeTenantScoped.String(),
 			}
 			for key, value := range tt.manifestBody {
 				manifestBody[key] = value
@@ -573,7 +576,7 @@ func TestParseRuntimeArtifactAcceptsNestedRuntimeI18NAssets(t *testing.T) {
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-runtime-i18n"))
+	artifactPath := filepath.Join(pluginDir, testutil.RuntimeArtifactRelativePath("plugin-dev-dynamic-runtime-i18n"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
@@ -581,7 +584,7 @@ func TestParseRuntimeArtifactAcceptsNestedRuntimeI18NAssets(t *testing.T) {
 			ID:      "plugin-dev-dynamic-runtime-i18n",
 			Name:    "Runtime I18N Plugin",
 			Version: "v0.3.6",
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:    protocol.RuntimeKindWasm,
@@ -638,7 +641,7 @@ func TestParseRuntimeArtifactValidatesAPIDocI18NAssets(t *testing.T) {
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-apidoc-i18n"))
+	artifactPath := filepath.Join(pluginDir, testutil.RuntimeArtifactRelativePath("plugin-dev-dynamic-apidoc-i18n"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
@@ -646,7 +649,7 @@ func TestParseRuntimeArtifactValidatesAPIDocI18NAssets(t *testing.T) {
 			ID:      "plugin-dev-dynamic-apidoc-i18n",
 			Name:    "Runtime APIDoc I18N Plugin",
 			Version: "v0.3.3",
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:          protocol.RuntimeKindWasm,
@@ -703,7 +706,7 @@ func TestParseRuntimeArtifactRejectsInvalidAPIDocI18NAssets(t *testing.T) {
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-apidoc-i18n-invalid"))
+	artifactPath := filepath.Join(pluginDir, testutil.RuntimeArtifactRelativePath("plugin-dev-dynamic-apidoc-i18n-invalid"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
@@ -711,7 +714,7 @@ func TestParseRuntimeArtifactRejectsInvalidAPIDocI18NAssets(t *testing.T) {
 			ID:      "plugin-dev-dynamic-apidoc-i18n-invalid",
 			Name:    "Runtime APIDoc I18N Invalid Plugin",
 			Version: "v0.3.4",
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:          protocol.RuntimeKindWasm,
@@ -768,7 +771,7 @@ func TestParseRuntimeArtifactRejectsAPIDocI18NCountMismatch(t *testing.T) {
 		nil,
 	)
 
-	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dev-dynamic-apidoc-i18n-count"))
+	artifactPath := filepath.Join(pluginDir, testutil.RuntimeArtifactRelativePath("plugin-dev-dynamic-apidoc-i18n-count"))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
@@ -776,7 +779,7 @@ func TestParseRuntimeArtifactRejectsAPIDocI18NCountMismatch(t *testing.T) {
 			ID:      "plugin-dev-dynamic-apidoc-i18n-count",
 			Name:    "Runtime APIDoc I18N Count Plugin",
 			Version: "v0.3.5",
-			Type:    plugintypes.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:          protocol.RuntimeKindWasm,

@@ -9,6 +9,19 @@ import (
 	"time"
 )
 
+// Service defines the plugin-visible distributed lock operations. The
+// implementation must scope every call by current plugin ID and tenant context,
+// and must treat Ticket as opaque to callers.
+type Service interface {
+	// Acquire attempts to acquire one plugin-scoped lock and returns a ticket
+	// only when the lock is acquired.
+	Acquire(ctx context.Context, in AcquireInput) (*AcquireOutput, error)
+	// Renew extends one plugin-scoped lock using the ticket issued by Acquire.
+	Renew(ctx context.Context, in RenewInput) (*RenewOutput, error)
+	// Release releases one plugin-scoped lock using the ticket issued by Acquire.
+	Release(ctx context.Context, in ReleaseInput) error
+}
+
 // Lock lease boundaries published to source and dynamic plugins.
 const (
 	// DefaultLease is used when a caller does not request a lease.
@@ -61,17 +74,4 @@ type ReleaseInput struct {
 	Name string
 	// Ticket is the opaque token returned by Acquire.
 	Ticket string
-}
-
-// Service defines the plugin-visible distributed lock operations. The
-// implementation must scope every call by current plugin ID and tenant context,
-// and must treat Ticket as opaque to callers.
-type Service interface {
-	// Acquire attempts to acquire one plugin-scoped lock and returns a ticket
-	// only when the lock is acquired.
-	Acquire(ctx context.Context, in AcquireInput) (*AcquireOutput, error)
-	// Renew extends one plugin-scoped lock using the ticket issued by Acquire.
-	Renew(ctx context.Context, in RenewInput) (*RenewOutput, error)
-	// Release releases one plugin-scoped lock using the ticket issued by Acquire.
-	Release(ctx context.Context, in ReleaseInput) error
 }

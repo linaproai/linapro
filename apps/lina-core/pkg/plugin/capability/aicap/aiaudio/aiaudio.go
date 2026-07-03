@@ -11,6 +11,20 @@ import (
 	"lina-core/pkg/plugin/capability/capmodel"
 )
 
+// Service defines the audio AI capability consumed by host services and plugins.
+type Service interface {
+	// Available reports whether an active audio provider is available.
+	Available(ctx context.Context) bool
+	// Status returns the current audio AI capability activation state.
+	Status(ctx context.Context) capmodel.CapabilityStatus
+	// MethodStatus returns the current activation state for one audio method.
+	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
+	// Transcribe executes one governed audio transcription request.
+	Transcribe(ctx context.Context, request TranscribeRequest) (*TranscribeResponse, error)
+	// Synthesize executes one governed audio synthesis request.
+	Synthesize(ctx context.Context, request SynthesizeRequest) (*SynthesizeResponse, error)
+}
+
 const (
 	// CapabilityAIAudioV1 identifies the versioned audio AI framework capability.
 	CapabilityAIAudioV1 = "framework.ai.audio.v1"
@@ -43,7 +57,7 @@ type TranscribeResponse struct {
 	// Language is the detected or applied language.
 	Language string `json:"language,omitempty"`
 	// Provider contains public provider/model identity.
-	Provider aicommon.ProviderProjection `json:"provider"`
+	Provider aicommon.ProviderInfo `json:"provider"`
 	// Usage contains minimal usage details.
 	Usage aicommon.Usage `json:"usage,omitempty"`
 	// LatencyMs is the provider call latency in milliseconds.
@@ -75,7 +89,7 @@ type SynthesizeResponse struct {
 	// Operation contains provider async operation state when the result is not ready.
 	Operation *aicommon.ProviderOperationRef `json:"operation,omitempty"`
 	// Provider contains public provider/model identity.
-	Provider aicommon.ProviderProjection `json:"provider"`
+	Provider aicommon.ProviderInfo `json:"provider"`
 	// Usage contains minimal usage details.
 	Usage aicommon.Usage `json:"usage,omitempty"`
 	// LatencyMs is the provider call latency in milliseconds.
@@ -84,41 +98,7 @@ type SynthesizeResponse struct {
 	CreatedAt int64 `json:"createdAt,omitempty"`
 }
 
-// ProviderRequest carries provider-internal audio requests with source identity.
-type ProviderRequest struct {
-	// SourcePluginID identifies the dynamic or source plugin that initiated the call.
-	SourcePluginID string `json:"sourcePluginId,omitempty"`
-	// Transcribe contains the transcription request when Method is transcribe.
-	Transcribe *TranscribeRequest `json:"transcribe,omitempty"`
-	// Synthesize contains the synthesis request when Method is synthesize.
-	Synthesize *SynthesizeRequest `json:"synthesize,omitempty"`
-}
-
-// Provider defines audio AI capability implemented by provider plugins.
-type Provider interface {
-	// TranscribeAudio executes one governed transcription request.
-	TranscribeAudio(ctx context.Context, request ProviderRequest) (*TranscribeResponse, error)
-	// SynthesizeAudio executes one governed synthesis request.
-	SynthesizeAudio(ctx context.Context, request ProviderRequest) (*SynthesizeResponse, error)
-}
-
-// Service defines the audio AI capability consumed by host services and plugins.
-type Service interface {
-	// Available reports whether an active audio provider is available.
-	Available(ctx context.Context) bool
-	// Status returns the current audio AI capability activation state.
-	Status(ctx context.Context) capmodel.CapabilityStatus
-	// MethodStatus returns the current activation state for one audio method.
-	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
-	// Transcribe executes one governed audio transcription request.
-	Transcribe(ctx context.Context, request TranscribeRequest) (*TranscribeResponse, error)
-	// Synthesize executes one governed audio synthesis request.
-	Synthesize(ctx context.Context, request SynthesizeRequest) (*SynthesizeResponse, error)
-}
-
-type serviceImpl struct {
-	sourcePluginID string
-}
+type serviceImpl struct{}
 
 var _ Service = (*serviceImpl)(nil)
 
@@ -126,9 +106,9 @@ var _ Service = (*serviceImpl)(nil)
 func New() Service { return &serviceImpl{} }
 
 // ForPlugin returns a plugin-scoped audio service.
-func ForPlugin(service Service, pluginID string) Service {
+func ForPlugin(service Service, _ string) Service {
 	if _, ok := service.(*serviceImpl); service == nil || ok {
-		return &serviceImpl{sourcePluginID: strings.TrimSpace(pluginID)}
+		return &serviceImpl{}
 	}
 	return service
 }

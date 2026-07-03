@@ -6,6 +6,7 @@ package runtime
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -21,6 +22,35 @@ import (
 	"lina-core/pkg/logger"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
+)
+
+type (
+	// RuntimeUpgradeState identifies whether discovered plugin files match the effective state.
+	RuntimeUpgradeState = plugintypes.RuntimeUpgradeState
+	// RuntimeUpgradeAbnormalReason identifies why a plugin cannot be treated as normally upgradeable.
+	RuntimeUpgradeAbnormalReason = plugintypes.RuntimeUpgradeAbnormalReason
+	// RuntimeUpgradeFailurePhase identifies the phase associated with the latest failure.
+	RuntimeUpgradeFailurePhase = plugintypes.RuntimeUpgradeFailurePhase
+	// RuntimeUpgradeFailure exposes the latest observable runtime-upgrade failure.
+	RuntimeUpgradeFailure = plugintypes.RuntimeUpgradeFailure
+)
+
+const (
+	// RuntimeUpgradeStateNormal means the effective and discovered metadata are aligned.
+	RuntimeUpgradeStateNormal = plugintypes.RuntimeUpgradeStateNormal
+	// RuntimeUpgradeStatePendingUpgrade means discovered files are newer than the effective version.
+	RuntimeUpgradeStatePendingUpgrade = plugintypes.RuntimeUpgradeStatePendingUpgrade
+	// RuntimeUpgradeStateAbnormal means discovered files are older or cannot be safely compared.
+	RuntimeUpgradeStateAbnormal = plugintypes.RuntimeUpgradeStateAbnormal
+	// RuntimeUpgradeStateUpgradeRunning means a runtime upgrade transition is reconciling.
+	RuntimeUpgradeStateUpgradeRunning = plugintypes.RuntimeUpgradeStateUpgradeRunning
+	// RuntimeUpgradeStateUpgradeFailed means the latest target release failed before becoming effective.
+	RuntimeUpgradeStateUpgradeFailed = plugintypes.RuntimeUpgradeStateUpgradeFailed
+	// RuntimeUpgradeAbnormalReasonDiscoveredVersionLowerThanEffective means the file version is lower than the DB version.
+	RuntimeUpgradeAbnormalReasonDiscoveredVersionLowerThanEffective = plugintypes.RuntimeUpgradeAbnormalReasonDiscoveredVersionLowerThanEffective
+	// RuntimeUpgradeAbnormalReasonVersionCompareFailed means at least one version string is not semver-compatible.
+	RuntimeUpgradeAbnormalReasonVersionCompareFailed = plugintypes.RuntimeUpgradeAbnormalReasonVersionCompareFailed
 )
 
 // PluginItem is a flattened, display-ready projection of one plugin entry combining
@@ -46,6 +76,8 @@ type PluginItem struct {
 	LastUpgradeFailure *RuntimeUpgradeFailure
 	// Type is the normalized plugin type (source or dynamic).
 	Type string
+	// Distribution is the plugin distribution governance type.
+	Distribution string
 	// Description is the short plugin description.
 	Description string
 	// Installed reports whether the plugin has been installed.
@@ -69,7 +101,7 @@ type PluginItem struct {
 	// AuthorizationRequired reports whether any resource-scoped host services need confirmation.
 	AuthorizationRequired bool
 	// AuthorizationStatus identifies whether host-service authorization is pending or already confirmed.
-	AuthorizationStatus AuthorizationStatus
+	AuthorizationStatus pluginv1.AuthorizationStatus
 	// RequestedHostServices is the current requested host service snapshot.
 	RequestedHostServices []*bridgehostservice.HostServiceSpec
 	// AuthorizedHostServices is the host-confirmed host service snapshot.
@@ -83,6 +115,63 @@ type PluginItem struct {
 	HasMockData bool
 }
 
+// localizePluginMetadata returns localized plugin name and description values.
+func (s *serviceImpl) localizePluginMetadata(
+	ctx context.Context,
+	id string,
+	pluginType string,
+	name string,
+	description string,
+) (string, string) {
+	if s == nil || s.i18nSvc == nil {
+		return name, description
+	}
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return name, description
+	}
+	nameKey := "plugin." + trimmedID + ".name"
+	descriptionKey := "plugin." + trimmedID + ".description"
+	if plugintypes.NormalizeType(pluginType) == pluginv1.PluginTypeDynamic {
+		localizedName := s.i18nSvc.TranslateDynamicPluginSourceText(ctx, trimmedID, nameKey, name)
+		localizedDescription := s.i18nSvc.TranslateDynamicPluginSourceText(ctx, trimmedID, descriptionKey, description)
+		return localizedName, localizedDescription
+	}
+	localizedName := s.i18nSvc.Translate(ctx, nameKey, name)
+	localizedDescription := s.i18nSvc.Translate(ctx, descriptionKey, description)
+	return localizedName, localizedDescription
+}
+
+// cloneRouteContracts deep-copies dynamic route contracts for management-list
+// projections so response models do not alias catalog manifest slices.
+func cloneRouteContracts(routes []*bridgecontract.RouteContract) []*bridgecontract.RouteContract {
+	if len(routes) == 0 {
+		return nil
+	}
+
+	items := make([]*bridgecontract.RouteContract, 0, len(routes))
+	for _, route := range routes {
+		if route == nil {
+			continue
+		}
+		items = append(items, &bridgecontract.RouteContract{
+			Path:        route.Path,
+			Method:      route.Method,
+			Tags:        append([]string(nil), route.Tags...),
+			Summary:     route.Summary,
+			Description: route.Description,
+			Access:      route.Access,
+			Permission:  route.Permission,
+			Meta:        cloneStringMap(route.Meta),
+			RequestType: route.RequestType,
+		})
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	return items
+}
+
 // listRuntimeRegistries returns all dynamic-type plugin registry rows.
 func (s *serviceImpl) listRuntimeRegistries(ctx context.Context) ([]*store.PluginRecord, error) {
 	registries, err := s.storeSvc.ListAllRegistries(ctx)
@@ -91,7 +180,7 @@ func (s *serviceImpl) listRuntimeRegistries(ctx context.Context) ([]*store.Plugi
 	}
 	list := make([]*store.PluginRecord, 0)
 	for _, registry := range registries {
-		if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+		if registry == nil || plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 			continue
 		}
 		list = append(list, registry)
@@ -120,6 +209,8 @@ func (s *serviceImpl) buildPluginSummaryItem(ctx context.Context, manifest *cata
 
 // buildPluginItemWithOptions returns a PluginItem projection combining manifest
 // and registry data while keeping list and detail payload boundaries explicit.
+//
+//nolint:cyclop // Projection assembly keeps list/detail field boundaries visible for plugin governance reads.
 func (s *serviceImpl) buildPluginItemWithOptions(
 	ctx context.Context,
 	manifest *catalog.Manifest,
@@ -136,6 +227,7 @@ func (s *serviceImpl) buildPluginItemWithOptions(
 		version                 string
 		pluginType              string
 		description             string
+		distribution            string
 		installed               int
 		enabled                 int
 		installedAt             *int64
@@ -154,6 +246,7 @@ func (s *serviceImpl) buildPluginItemWithOptions(
 		name = manifest.Name
 		version = manifest.Version
 		pluginType = manifest.Type
+		distribution = plugintypes.NormalizeDistribution(manifest.Distribution).String()
 		description = manifest.Description
 	}
 	if registry != nil {
@@ -169,6 +262,7 @@ func (s *serviceImpl) buildPluginItemWithOptions(
 		if registry.Type != "" {
 			pluginType = registry.Type
 		}
+		distribution = registry.Distribution
 		if registry.Remark != "" {
 			description = registry.Remark
 		}
@@ -214,6 +308,7 @@ func (s *serviceImpl) buildPluginItemWithOptions(
 		}
 	} else if snapshot != nil {
 		supportsMultiTenant = snapshot.SupportsMultiTenant
+		distribution = snapshot.Distribution
 	}
 
 	normalizeHostServices := func(source string, specs []*bridgehostservice.HostServiceSpec) []*bridgehostservice.HostServiceSpec {
@@ -229,7 +324,7 @@ func (s *serviceImpl) buildPluginItemWithOptions(
 		requestedHostServices  = []*bridgehostservice.HostServiceSpec{}
 		authorizedHostServices = []*bridgehostservice.HostServiceSpec{}
 		authorizationRequired  bool
-		authorizationStatus    = AuthorizationStatusNotRequired
+		authorizationStatus    = pluginv1.AuthorizationStatusNotRequired
 		declaredRoutes         []*bridgecontract.RouteContract
 	)
 
@@ -243,9 +338,9 @@ func (s *serviceImpl) buildPluginItemWithOptions(
 	} else if manifest != nil {
 		authorizationRequired = store.HasResourceScopedHostServices(manifest.HostServices)
 		if authorizationRequired {
-			authorizationStatus = AuthorizationStatusPending
+			authorizationStatus = pluginv1.AuthorizationStatusPending
 		} else {
-			authorizationStatus = AuthorizationStatusNotRequired
+			authorizationStatus = pluginv1.AuthorizationStatusNotRequired
 		}
 		if options.includeGovernanceDetails {
 			requestedHostServices = normalizeHostServices("manifest.requested", manifest.HostServices)
@@ -288,6 +383,7 @@ func (s *serviceImpl) buildPluginItemWithOptions(
 		AbnormalReason:          upgradeProjection.AbnormalReason,
 		LastUpgradeFailure:      upgradeProjection.LastFailure,
 		Type:                    pluginType,
+		Distribution:            distribution,
 		Description:             description,
 		Installed:               installed,
 		InstalledAt:             installedAt,
@@ -339,7 +435,7 @@ func (s *serviceImpl) HasArtifactStorageFile(ctx context.Context, pluginID strin
 // uninstalled only when neither the mutable staging artifact nor the active
 // release artifact can be loaded.
 func (s *serviceImpl) reconcileRegistryArtifactState(ctx context.Context, registry *store.PluginRecord) (*store.PluginRecord, error) {
-	if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if registry == nil || plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return registry, nil
 	}
 	if strings.TrimSpace(registry.PluginId) == "" {
@@ -353,7 +449,7 @@ func (s *serviceImpl) reconcileRegistryArtifactState(ctx context.Context, regist
 	if exists {
 		return registry, nil
 	}
-	if registry.Installed != plugintypes.InstalledYes && registry.Status != plugintypes.StatusEnabled {
+	if registry.Installed != statusflag.Installed.Int() && registry.Status != statusflag.EnabledValue.Int() {
 		return registry, nil
 	}
 	if manifest, loadErr := s.loadActiveManifest(ctx, registry); loadErr == nil && manifest != nil {
@@ -361,8 +457,8 @@ func (s *serviceImpl) reconcileRegistryArtifactState(ctx context.Context, regist
 	}
 
 	data := do.SysPlugin{
-		Installed:    plugintypes.InstalledNo,
-		Status:       plugintypes.StatusDisabled,
+		Installed:    statusflag.Uninstalled.Int(),
+		Status:       statusflag.Disabled.Int(),
 		DesiredState: plugintypes.HostStateUninstalled.String(),
 		CurrentState: plugintypes.HostStateUninstalled.String(),
 		ReleaseId:    0,
@@ -416,7 +512,7 @@ func timePtr(value time.Time) *time.Time {
 // projectRegistryArtifactState returns a read-only projection of a dynamic
 // registry row when its runtime artifact is missing from storage.
 func (s *serviceImpl) projectRegistryArtifactState(ctx context.Context, registry *store.PluginRecord) *store.PluginRecord {
-	if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if registry == nil || plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return registry
 	}
 	if strings.TrimSpace(registry.PluginId) == "" {
@@ -427,7 +523,7 @@ func (s *serviceImpl) projectRegistryArtifactState(ctx context.Context, registry
 	if err != nil || exists {
 		return registry
 	}
-	if registry.Installed != plugintypes.InstalledYes && registry.Status != plugintypes.StatusEnabled {
+	if registry.Installed != statusflag.Installed.Int() && registry.Status != statusflag.EnabledValue.Int() {
 		return registry
 	}
 	if manifest, loadErr := s.loadActiveManifest(ctx, registry); loadErr == nil && manifest != nil {
@@ -435,8 +531,8 @@ func (s *serviceImpl) projectRegistryArtifactState(ctx context.Context, registry
 	}
 
 	projected := *registry
-	projected.Installed = plugintypes.InstalledNo
-	projected.Status = plugintypes.StatusDisabled
+	projected.Installed = statusflag.Uninstalled.Int()
+	projected.Status = statusflag.Disabled.Int()
 	projected.DesiredState = plugintypes.HostStateUninstalled.String()
 	projected.CurrentState = plugintypes.HostStateUninstalled.String()
 	projected.ReleaseId = 0
@@ -458,12 +554,12 @@ func SortPluginItems(items []*PluginItem) {
 
 // buildAuthorizationStatus maps manifest snapshot flags into one list-facing
 // authorization review state.
-func buildAuthorizationStatus(required bool, confirmed bool) AuthorizationStatus {
+func buildAuthorizationStatus(required bool, confirmed bool) pluginv1.AuthorizationStatus {
 	if !required {
-		return AuthorizationStatusNotRequired
+		return pluginv1.AuthorizationStatusNotRequired
 	}
 	if confirmed {
-		return AuthorizationStatusConfirmed
+		return pluginv1.AuthorizationStatusConfirmed
 	}
-	return AuthorizationStatusPending
+	return pluginv1.AuthorizationStatusPending
 }

@@ -12,6 +12,20 @@ import (
 	"lina-core/pkg/plugin/capability/capmodel"
 )
 
+// Service defines the image AI capability consumed by host services and plugins.
+type Service interface {
+	// Available reports whether an active image provider is available.
+	Available(ctx context.Context) bool
+	// Status returns the current image AI capability activation state.
+	Status(ctx context.Context) capmodel.CapabilityStatus
+	// MethodStatus returns the current activation state for one image method.
+	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
+	// Generate executes one governed image generation request.
+	Generate(ctx context.Context, request GenerateRequest) (*Response, error)
+	// Edit executes one governed image editing request.
+	Edit(ctx context.Context, request EditRequest) (*Response, error)
+}
+
 const (
 	// CapabilityAIImageV1 identifies the versioned image AI framework capability.
 	CapabilityAIImageV1 = "framework.ai.image.v1"
@@ -62,12 +76,12 @@ type EditRequest struct {
 
 // Response carries image assets or a provider operation reference.
 type Response struct {
-	// Assets contains generated or edited image asset projections.
+	// Assets contains generated or edited image assets.
 	Assets []aicommon.AssetResult `json:"assets,omitempty"`
 	// Operation contains provider async operation state when the result is not ready.
 	Operation *aicommon.ProviderOperationRef `json:"operation,omitempty"`
 	// Provider contains public provider/model identity.
-	Provider aicommon.ProviderProjection `json:"provider"`
+	Provider aicommon.ProviderInfo `json:"provider"`
 	// Usage contains minimal usage details.
 	Usage aicommon.Usage `json:"usage,omitempty"`
 	// LatencyMs is the provider call latency in milliseconds.
@@ -76,42 +90,8 @@ type Response struct {
 	CreatedAt int64 `json:"createdAt,omitempty"`
 }
 
-// ProviderRequest carries provider-internal image requests with governed source identity.
-type ProviderRequest struct {
-	// SourcePluginID identifies the dynamic or source plugin that initiated the call.
-	SourcePluginID string `json:"sourcePluginId,omitempty"`
-	// Generate contains the image generation request when Method is generate.
-	Generate *GenerateRequest `json:"generate,omitempty"`
-	// Edit contains the image editing request when Method is edit.
-	Edit *EditRequest `json:"edit,omitempty"`
-}
-
-// Provider defines image AI capability implemented by provider plugins.
-type Provider interface {
-	// GenerateImage executes one governed image generation request.
-	GenerateImage(ctx context.Context, request ProviderRequest) (*Response, error)
-	// EditImage executes one governed image editing request.
-	EditImage(ctx context.Context, request ProviderRequest) (*Response, error)
-}
-
-// Service defines the image AI capability consumed by host services and plugins.
-type Service interface {
-	// Available reports whether an active image provider is available.
-	Available(ctx context.Context) bool
-	// Status returns the current image AI capability activation state.
-	Status(ctx context.Context) capmodel.CapabilityStatus
-	// MethodStatus returns the current activation state for one image method.
-	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
-	// Generate executes one governed image generation request.
-	Generate(ctx context.Context, request GenerateRequest) (*Response, error)
-	// Edit executes one governed image editing request.
-	Edit(ctx context.Context, request EditRequest) (*Response, error)
-}
-
 // serviceImpl is the fallback image service used until a provider plugin binds the method.
-type serviceImpl struct {
-	sourcePluginID string
-}
+type serviceImpl struct{}
 
 var _ Service = (*serviceImpl)(nil)
 
@@ -121,12 +101,12 @@ func New() Service {
 }
 
 // ForPlugin returns a plugin-scoped image service.
-func ForPlugin(service Service, pluginID string) Service {
+func ForPlugin(service Service, _ string) Service {
 	if service == nil {
-		return &serviceImpl{sourcePluginID: strings.TrimSpace(pluginID)}
+		return &serviceImpl{}
 	}
 	if _, ok := service.(*serviceImpl); ok {
-		return &serviceImpl{sourcePluginID: strings.TrimSpace(pluginID)}
+		return &serviceImpl{}
 	}
 	return service
 }

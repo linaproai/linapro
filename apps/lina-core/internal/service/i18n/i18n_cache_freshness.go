@@ -9,9 +9,9 @@ import (
 	"lina-core/pkg/logger"
 )
 
-// EnsureRuntimeBundleCacheFresh synchronizes clustered plugin-runtime cache
+// ensureRuntimeBundleCacheFresh synchronizes clustered plugin-runtime cache
 // revisions before callers make HTTP cache decisions.
-func (s *serviceImpl) EnsureRuntimeBundleCacheFresh(ctx context.Context) error {
+func (s *serviceImpl) ensureRuntimeBundleCacheFresh(ctx context.Context) error {
 	if s == nil || s.runtimeCacheRevisionCtl == nil {
 		return nil
 	}
@@ -21,7 +21,7 @@ func (s *serviceImpl) EnsureRuntimeBundleCacheFresh(ctx context.Context) error {
 // ensureRuntimeBundleCacheFreshBestEffort keeps translation read paths
 // available while still surfacing cluster revision failures in logs.
 func (s *serviceImpl) ensureRuntimeBundleCacheFreshBestEffort(ctx context.Context) {
-	if err := s.EnsureRuntimeBundleCacheFresh(ctx); err != nil {
+	if err := s.ensureRuntimeBundleCacheFresh(ctx); err != nil {
 		logger.Warningf(ctx, "refresh runtime i18n cache failed: %v", err)
 	}
 }

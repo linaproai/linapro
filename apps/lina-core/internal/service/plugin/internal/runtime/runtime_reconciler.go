@@ -7,6 +7,7 @@ package runtime
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/logger"
+	"lina-core/pkg/statusflag"
 )
 
 // runtimeReconcilerRevisionPollInterval is the clustered background cadence for
@@ -30,10 +32,12 @@ const (
 	// runtimeReconcilerStaleReconcilingAfter is the conservative window after
 	// which a leftover transient host state is treated as abandoned.
 	runtimeReconcilerStaleReconcilingAfter = 5 * time.Minute
-	// runtimeReconcilerDistributedLockLease bounds one per-plugin primary-side
+	// runtimeReconcilerLockLease bounds one per-plugin primary-side
 	// reconcile lease in clustered deployments.
-	runtimeReconcilerDistributedLockLease  = 30 * time.Minute
-	runtimeReconcilerDistributedLockReason = "plugin-runtime-reconcile"
+	runtimeReconcilerLockLease = 30 * time.Minute
+	// runtimeReconcilerLockReason records the reconcile owner purpose in
+	// coordination backends.
+	runtimeReconcilerLockReason = "plugin-runtime-reconcile"
 )
 
 // StartRuntimeReconciler starts the background loop that keeps dynamic-plugin
@@ -163,15 +167,22 @@ func (s *serviceImpl) refreshInstalledRuntimePluginRelease(
 	manifestByID map[string]*catalog.Manifest,
 ) error {
 	if registry == nil ||
-		plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic ||
-		registry.Installed != plugintypes.InstalledYes {
+		plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic ||
+		registry.Installed != statusflag.Installed.Int() {
 		return nil
 	}
-	desiredManifest, err := s.lookupDesiredManifest(registry.PluginId, manifestByID)
-	if err != nil {
-		return err
+	pluginID := strings.TrimSpace(registry.PluginId)
+	var desiredManifest *catalog.Manifest
+	if manifestByID != nil {
+		desiredManifest = manifestByID[pluginID]
+	} else {
+		var err error
+		desiredManifest, err = s.lookupDesiredManifest(pluginID, manifestByID)
+		if err != nil {
+			return err
+		}
 	}
-	if desiredManifest == nil || plugintypes.NormalizeType(desiredManifest.Type) != plugintypes.TypeDynamic {
+	if desiredManifest == nil || plugintypes.NormalizeType(desiredManifest.Type) != pluginv1.PluginTypeDynamic {
 		return nil
 	}
 	if strings.TrimSpace(desiredManifest.Version) != strings.TrimSpace(registry.Version) {
@@ -300,7 +311,7 @@ func (s *serviceImpl) reconcilePluginIfNeeded(
 	manifestByID map[string]*catalog.Manifest,
 	options DynamicReconcileOptions,
 ) error {
-	if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if registry == nil || plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return nil
 	}
 
@@ -319,7 +330,7 @@ func (s *serviceImpl) reconcilePluginIfNeeded(
 	}
 	stableState := store.BuildStableHostState(registry)
 	if desiredState == plugintypes.HostStateUninstalled.String() {
-		if registry.Installed != plugintypes.InstalledYes {
+		if registry.Installed != statusflag.Installed.Int() {
 			return nil
 		}
 		return s.applyUninstall(ctx, registry)
@@ -333,11 +344,11 @@ func (s *serviceImpl) reconcilePluginIfNeeded(
 		strings.TrimSpace(options.DesiredManifest.ID) == strings.TrimSpace(registry.PluginId) {
 		desiredManifest = catalog.CloneManifest(options.DesiredManifest)
 	}
-	if desiredManifest == nil || plugintypes.NormalizeType(desiredManifest.Type) != plugintypes.TypeDynamic {
+	if desiredManifest == nil || plugintypes.NormalizeType(desiredManifest.Type) != pluginv1.PluginTypeDynamic {
 		return gerror.New("dynamic plugin desired manifest does not exist")
 	}
 
-	if registry.Installed != plugintypes.InstalledYes {
+	if registry.Installed != statusflag.Installed.Int() {
 		return s.applyInstall(ctx, registry, desiredManifest, desiredState, options)
 	}
 	if strings.TrimSpace(desiredManifest.Version) != strings.TrimSpace(registry.Version) {
@@ -385,7 +396,7 @@ func (s *serviceImpl) reconcilePrimaryPluginWithLock(
 	registry *store.PluginRecord,
 	fn func(context.Context, *store.PluginRecord) error,
 ) error {
-	if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if registry == nil || plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return nil
 	}
 	if fn == nil {
@@ -411,7 +422,7 @@ func (s *serviceImpl) reconcilePrimaryPluginWithRequiredLock(
 	registry *store.PluginRecord,
 	fn func(context.Context, *store.PluginRecord) error,
 ) error {
-	if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if registry == nil || plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return nil
 	}
 	if fn == nil {
@@ -491,7 +502,7 @@ func (s *serviceImpl) lockRuntimeReconcilePlugin(ctx context.Context, pluginID s
 
 	lockName := runtimeReconcilerLockName(pluginID)
 	holder := s.runtimeReconcilerLockHolder()
-	instance, ok, err := lockSvc.Lock(ctx, lockName, holder, runtimeReconcilerDistributedLockReason, runtimeReconcilerDistributedLockLease)
+	instance, ok, err := lockSvc.Lock(ctx, lockName, holder, runtimeReconcilerLockReason, runtimeReconcilerLockLease)
 	if err != nil {
 		return false, nil, err
 	}
@@ -522,13 +533,13 @@ func (s *serviceImpl) runtimeReconcilerLockHolder() string {
 // reconcileCurrentNodeProjection verifies the current node can serve the active
 // dynamic plugin state and then persists the node-local convergence snapshot.
 func (s *serviceImpl) reconcileCurrentNodeProjection(ctx context.Context, registry *store.PluginRecord) error {
-	if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if registry == nil || plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return nil
 	}
 
 	// Enabled dynamic plugins must prove their active manifest and optional
 	// frontend bundle still load on this node before we mark the node converged.
-	if registry.Installed == plugintypes.InstalledYes && registry.Status == plugintypes.StatusEnabled && registry.ReleaseId > 0 {
+	if registry.Installed == statusflag.Installed.Int() && registry.Status == statusflag.EnabledValue.Int() && registry.ReleaseId > 0 {
 		manifest, err := s.loadActiveManifest(ctx, registry)
 		if err != nil {
 			return s.syncNodeProjection(ctx, nodeProjectionInput{

@@ -62,9 +62,11 @@ func TestCollectAgentUniverseSorted(t *testing.T) {
 
 	// 1) Every priority agent that is registered must appear in the
 	//    configured priority order, before any non-priority agent.
-	previousRank := -1
-	previousName := ""
-	highestPriorityIndex := -1
+	var (
+		previousRank         = -1
+		previousName         = ""
+		highestPriorityIndex = -1
+	)
 	for _, name := range agentDisplayPriority {
 		index, ok := positions[name]
 		if !ok {

@@ -4,19 +4,11 @@
 package dependency
 
 import (
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"sort"
 	"strings"
 )
-
-// Resolver evaluates plugin dependency declarations against discovered and
-// installed plugin snapshots.
-type Resolver struct{}
-
-// New creates a dependency resolver.
-func New() *Resolver {
-	return &Resolver{}
-}
 
 // CheckInstall evaluates whether target can be installed with all declared
 // plugin dependencies already installed and version-compatible.
@@ -29,7 +21,7 @@ func (r *Resolver) CheckInstall(input InstallCheckInput) *InstallCheckResult {
 	target := plugins[targetID]
 	if target == nil {
 		result.Blockers = append(result.Blockers, &Blocker{
-			Code:     BlockerDependencyMissing,
+			Code:     pluginv1.BlockerCodeDependencyMissing,
 			PluginID: targetID,
 			Detail:   "target plugin snapshot is missing",
 		})
@@ -37,9 +29,9 @@ func (r *Resolver) CheckInstall(input InstallCheckInput) *InstallCheckResult {
 	}
 
 	result.Framework = r.checkFramework(target, input.FrameworkVersion)
-	if result.Framework.Status == FrameworkStatusUnsatisfied {
+	if result.Framework.Status == pluginv1.FrameworkStatusUnsatisfied {
 		result.Blockers = append(result.Blockers, &Blocker{
-			Code:            BlockerFrameworkVersionUnsatisfied,
+			Code:            pluginv1.BlockerCodeFrameworkVersionUnsatisfied,
 			PluginID:        targetID,
 			RequiredVersion: result.Framework.RequiredVersion,
 			CurrentVersion:  result.Framework.CurrentVersion,
@@ -91,7 +83,7 @@ func (r *Resolver) CheckReverse(input ReverseCheckInput) *ReverseCheckResult {
 		}
 		if entry.unknown {
 			result.Blockers = append(result.Blockers, &Blocker{
-				Code:     BlockerDependencySnapshotUnknown,
+				Code:     pluginv1.BlockerCodeDependencySnapshotUnknown,
 				PluginID: dependentID,
 				Detail:   "installed plugin dependency snapshot is unavailable",
 			})
@@ -107,7 +99,7 @@ func (r *Resolver) CheckReverse(input ReverseCheckInput) *ReverseCheckResult {
 
 		if result.CandidateVersion == "" {
 			result.Blockers = append(result.Blockers, &Blocker{
-				Code:            BlockerReverseDependency,
+				Code:            pluginv1.BlockerCodeReverseDependency,
 				PluginID:        dependent.PluginID,
 				DependencyID:    targetID,
 				RequiredVersion: dependent.RequiredVersion,
@@ -123,7 +115,7 @@ func (r *Resolver) CheckReverse(input ReverseCheckInput) *ReverseCheckResult {
 		matches, err := plugintypes.MatchesSemanticVersionRange(result.CandidateVersion, dependent.RequiredVersion)
 		if err != nil || !matches {
 			result.Blockers = append(result.Blockers, &Blocker{
-				Code:            BlockerReverseDependencyVersion,
+				Code:            pluginv1.BlockerCodeReverseDependencyVersion,
 				PluginID:        dependent.PluginID,
 				DependencyID:    targetID,
 				RequiredVersion: dependent.RequiredVersion,
@@ -134,14 +126,6 @@ func (r *Resolver) CheckReverse(input ReverseCheckInput) *ReverseCheckResult {
 		}
 	}
 	return result
-}
-
-// ReverseDependencyIndex stores installed downstream dependencies by target ID.
-// It is built once from the current snapshot set so each reverse check can look
-// up the requested target without scanning all plugin dependency declarations.
-type ReverseDependencyIndex struct {
-	entriesByTarget map[string][]*reverseDependencyEntry
-	wildcardUnknown []*reverseDependencyEntry
 }
 
 // reverseDependencyEntry identifies one installed plugin dependency declaration
@@ -244,7 +228,7 @@ type walkState struct {
 func (r *Resolver) checkFramework(plugin *PluginSnapshot, frameworkVersion string) FrameworkCheck {
 	check := FrameworkCheck{
 		CurrentVersion: strings.TrimSpace(frameworkVersion),
-		Status:         FrameworkStatusNotDeclared,
+		Status:         pluginv1.FrameworkStatusNotDeclared,
 	}
 	dependencies := pluginDependencies(plugin)
 	if dependencies == nil || dependencies.Framework == nil || strings.TrimSpace(dependencies.Framework.Version) == "" {
@@ -253,10 +237,10 @@ func (r *Resolver) checkFramework(plugin *PluginSnapshot, frameworkVersion strin
 	check.RequiredVersion = strings.TrimSpace(dependencies.Framework.Version)
 	matches, err := plugintypes.MatchesSemanticVersionRange(check.CurrentVersion, check.RequiredVersion)
 	if err != nil || !matches {
-		check.Status = FrameworkStatusUnsatisfied
+		check.Status = pluginv1.FrameworkStatusUnsatisfied
 		return check
 	}
-	check.Status = FrameworkStatusSatisfied
+	check.Status = pluginv1.FrameworkStatusSatisfied
 	return check
 }
 
@@ -274,7 +258,7 @@ func (r *Resolver) walkDependencies(state walkState) {
 		cycle = append(cycle, ownerID)
 		state.result.Cycle = cycle
 		state.result.Blockers = append(state.result.Blockers, &Blocker{
-			Code:         BlockerDependencyCycle,
+			Code:         pluginv1.BlockerCodeDependencyCycle,
 			PluginID:     ownerID,
 			DependencyID: ownerID,
 			Chain:        cycle,
@@ -295,7 +279,7 @@ func (r *Resolver) walkDependencies(state walkState) {
 			cycle = append(cycle, dependencyID)
 			state.result.Cycle = cycle
 			state.result.Blockers = append(state.result.Blockers, &Blocker{
-				Code:         BlockerDependencyCycle,
+				Code:         pluginv1.BlockerCodeDependencyCycle,
 				PluginID:     ownerID,
 				DependencyID: dependencyID,
 				Chain:        cycle,
@@ -309,7 +293,7 @@ func (r *Resolver) walkDependencies(state walkState) {
 			continue
 		}
 		r.recordDependencyOutcome(state, check)
-		if check.Discovered && check.Status == DependencyStatusSatisfied {
+		if check.Discovered && check.Status == pluginv1.DependencyStatusSatisfied {
 			next := state.plugins[check.DependencyID]
 			if next != nil {
 				nextChain := append(append([]string(nil), state.chain...), check.DependencyID)
@@ -344,7 +328,7 @@ func (r *Resolver) evaluateDependency(
 		Chain:           append(append([]string(nil), chain...), dependencyID),
 	}
 	if dependency == nil {
-		check.Status = DependencyStatusMissing
+		check.Status = pluginv1.DependencyStatusMissing
 		return check
 	}
 
@@ -355,27 +339,27 @@ func (r *Resolver) evaluateDependency(
 	if check.RequiredVersion != "" {
 		matches, err := plugintypes.MatchesSemanticVersionRange(check.CurrentVersion, check.RequiredVersion)
 		if err != nil || !matches {
-			check.Status = DependencyStatusVersionUnsatisfied
+			check.Status = pluginv1.DependencyStatusVersionUnsatisfied
 			return check
 		}
 	}
 	if dependency.Installed {
-		check.Status = DependencyStatusSatisfied
+		check.Status = pluginv1.DependencyStatusSatisfied
 		return check
 	}
-	check.Status = DependencyStatusMissing
+	check.Status = pluginv1.DependencyStatusMissing
 	return check
 }
 
 // recordDependencyOutcome updates result collections for one dependency edge.
 func (r *Resolver) recordDependencyOutcome(state walkState, check *PluginDependencyCheck) {
 	switch check.Status {
-	case DependencyStatusSatisfied:
+	case pluginv1.DependencyStatusSatisfied:
 		return
-	case DependencyStatusMissing:
-		state.result.Blockers = appendDependencyBlocker(state.result.Blockers, BlockerDependencyMissing, check)
-	case DependencyStatusVersionUnsatisfied:
-		state.result.Blockers = appendDependencyBlocker(state.result.Blockers, BlockerDependencyVersionUnsatisfied, check)
+	case pluginv1.DependencyStatusMissing:
+		state.result.Blockers = appendDependencyBlocker(state.result.Blockers, pluginv1.BlockerCodeDependencyMissing, check)
+	case pluginv1.DependencyStatusVersionUnsatisfied:
+		state.result.Blockers = appendDependencyBlocker(state.result.Blockers, pluginv1.BlockerCodeDependencyVersionUnsatisfied, check)
 	}
 }
 

@@ -13,11 +13,11 @@ import (
 // ControllerV1 is the system info controller.
 type ControllerV1 struct {
 	sysInfoSvc sysinfosvc.Service // system info service
-	i18nSvc    i18nsvc.Translator // i18nSvc localizes project and component descriptions.
+	i18nSvc    i18nsvc.Service    // i18nSvc localizes project and component descriptions.
 }
 
 // NewV1 creates a sysinfo controller from explicit runtime-owned dependencies.
-func NewV1(sysInfoSvc sysinfosvc.Service, i18nSvc i18nsvc.Translator) sysinfo.ISysinfoV1 {
+func NewV1(sysInfoSvc sysinfosvc.Service, i18nSvc i18nsvc.Service) sysinfo.ISysinfoV1 {
 	return &ControllerV1{
 		sysInfoSvc: sysInfoSvc,
 		i18nSvc:    i18nSvc,

@@ -6,7 +6,6 @@ package goframecli
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	"linactl/internal/toolrun"
 )
@@ -34,11 +33,6 @@ func Run(ctx context.Context, target Target, executable Executable, run toolrun.
 	}
 	childArgs := append([]string{hiddenCommand, "--config-dir=" + target.ConfigDir}, args...)
 	return run(ctx, toolrun.Options{Dir: target.WorkDir}, binary, childArgs...)
-}
-
-// coreDir returns the GoFrame project directory used for code generation.
-func coreDir(root string) string {
-	return filepath.Join(root, "apps", "lina-core")
 }
 
 // validateArgs restricts the embedded GoFrame surface to the code generation

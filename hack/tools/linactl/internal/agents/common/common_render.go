@@ -36,11 +36,13 @@ func Render(out io.Writer, results []Result, extraColumns ...ColumnSpec) error {
 		columnStatus   = "STATUS"
 		columnDetail   = "DETAIL"
 	)
-	maxAgent := len(columnAgent)
-	maxPath := len(columnPath)
-	maxCategory := len(columnCategory)
-	maxStatus := len(columnStatus)
-	extraWidths := make([]int, len(extraColumns))
+	var (
+		maxAgent    = len(columnAgent)
+		maxPath     = len(columnPath)
+		maxCategory = len(columnCategory)
+		maxStatus   = len(columnStatus)
+		extraWidths = make([]int, len(extraColumns))
+	)
 	for index, column := range extraColumns {
 		extraWidths[index] = len(column.Header)
 	}
@@ -106,10 +108,12 @@ func Render(out io.Writer, results []Result, extraColumns ...ColumnSpec) error {
 // set is identical across every resource subpackage so the helper lives
 // in common.
 func EmitHints(out io.Writer, results []Result) error {
-	hasMismatch := false
-	hasConflict := false
-	hasRootCollision := false
-	hasError := false
+	var (
+		hasMismatch      = false
+		hasConflict      = false
+		hasRootCollision = false
+		hasError         = false
+	)
 	for _, result := range results {
 		switch result.Status {
 		case StatusMismatch:

@@ -24,7 +24,7 @@ func TestRuntimeDelegateReportsUnboundSideEffects(t *testing.T) {
 	if err := delegate.BindService(nil); err == nil || !strings.Contains(err.Error(), "nil service") {
 		t.Fatalf("expected nil bind error, got %v", err)
 	}
-	if err := delegate.HandleAuthLoginSucceeded(context.Background(), pluginhost.AuthHookPayloadInput{}); err == nil ||
+	if err := delegate.DispatchHookEvent(context.Background(), pluginhost.ExtensionPointAuthLoginSucceeded, map[string]interface{}{}); err == nil ||
 		!strings.Contains(err.Error(), "not bound") {
 		t.Fatalf("expected unbound auth hook error, got %v", err)
 	}

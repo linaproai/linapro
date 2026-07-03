@@ -25,7 +25,7 @@
                 "dc": "Handler 唯一引用；公共创建/编辑接口固定留空"
               },
               "logRetentionOverride": {
-                "dc": "任务级日志保留策略；不传则跟随系统参数 cron.log.retention"
+                "dc": "任务级日志保留策略；不传则跟随系统参数 sys.cron.log.retention"
               },
               "maxConcurrency": {
                 "dc": "最大并发数；concurrency=parallel 时生效"
@@ -67,7 +67,7 @@
             "meta": {
               "dc": "创建一个新的用户自建 Shell 定时任务；Handler 类型任务仅允许由宿主或插件源码注册",
               "summary": "创建任务",
-              "tags": "任务调度/定时任务"
+              "tags": "任务调度/任务管理"
             },
             "responses": {
               "200": {
@@ -110,7 +110,7 @@
             "meta": {
               "dc": "根据输入的5段或6段 Cron 表达式和时区预览最近5次触发时间，用于任务表单校验与展示；5段表达式按分钟粒度解析，运行时会补 # 秒占位",
               "summary": "预览定时表达式",
-              "tags": "任务调度/定时任务"
+              "tags": "任务调度/任务管理"
             },
             "responses": {
               "200": {
@@ -149,7 +149,7 @@
             "meta": {
               "dc": "按任务ID批量删除定时任务，内置任务不允许删除",
               "summary": "删除任务",
-              "tags": "任务调度/定时任务"
+              "tags": "任务调度/任务管理"
             },
             "schema": {
               "dc": "按任务ID批量删除定时任务，内置任务不允许删除"
@@ -164,7 +164,7 @@
             "meta": {
               "dc": "根据任务ID查询定时任务详情，返回基础配置、分组信息以及当前策略字段",
               "summary": "获取任务详情",
-              "tags": "任务调度/定时任务"
+              "tags": "任务调度/任务管理"
             },
             "responses": {
               "200": {
@@ -374,7 +374,7 @@
                 "dc": "Handler 唯一引用；公共创建/编辑接口固定留空"
               },
               "logRetentionOverride": {
-                "dc": "任务级日志保留策略；不传则跟随系统参数 cron.log.retention"
+                "dc": "任务级日志保留策略；不传则跟随系统参数 sys.cron.log.retention"
               },
               "maxConcurrency": {
                 "dc": "最大并发数；concurrency=parallel 时生效"
@@ -527,7 +527,7 @@
             "meta": {
               "dc": "分页查询定时任务列表，支持按分组、状态、任务类型、关键字、调度范围与并发策略筛选",
               "summary": "获取任务列表",
-              "tags": "任务调度/定时任务"
+              "tags": "任务调度/任务管理"
             },
             "responses": {
               "200": {
@@ -576,7 +576,7 @@
             "meta": {
               "dc": "将指定用户自建任务的 executed_count 重置为0，不影响历史执行日志；源码注册任务不允许通过公共接口重置",
               "summary": "重置执行计数",
-              "tags": "任务调度/定时任务"
+              "tags": "任务调度/任务管理"
             },
             "schema": {
               "dc": "将指定用户自建任务的 executed_count 重置为0，不影响历史执行日志；源码注册任务不允许通过公共接口重置"
@@ -591,7 +591,7 @@
             "meta": {
               "dc": "立即触发指定任务执行一次，记录 trigger=manual 的执行日志",
               "summary": "手动触发任务",
-              "tags": "任务调度/定时任务"
+              "tags": "任务调度/任务管理"
             },
             "responses": {
               "200": {
@@ -646,7 +646,7 @@
                 "dc": "任务ID"
               },
               "logRetentionOverride": {
-                "dc": "任务级日志保留策略；不传则跟随系统参数 cron.log.retention"
+                "dc": "任务级日志保留策略；不传则跟随系统参数 sys.cron.log.retention"
               },
               "maxConcurrency": {
                 "dc": "最大并发数；concurrency=parallel 时生效"
@@ -688,7 +688,7 @@
             "meta": {
               "dc": "根据任务ID更新用户自建 Shell 定时任务配置；源码注册任务只允许查看和触发，不允许通过公共接口修改",
               "summary": "更新任务",
-              "tags": "任务调度/定时任务"
+              "tags": "任务调度/任务管理"
             },
             "requestBody": {
               "content": {
@@ -714,7 +714,7 @@
                       "dc": "Handler 唯一引用；公共创建/编辑接口固定留空"
                     },
                     "logRetentionOverride": {
-                      "dc": "任务级日志保留策略；不传则跟随系统参数 cron.log.retention"
+                      "dc": "任务级日志保留策略；不传则跟随系统参数 sys.cron.log.retention"
                     },
                     "maxConcurrency": {
                       "dc": "最大并发数；concurrency=parallel 时生效"
@@ -775,7 +775,7 @@
             "meta": {
               "dc": "启用或停用指定用户自建定时任务；源码注册任务为只读定义，不允许通过公共接口启停",
               "summary": "更新任务状态",
-              "tags": "任务调度/定时任务"
+              "tags": "任务调度/任务管理"
             },
             "requestBody": {
               "content": {

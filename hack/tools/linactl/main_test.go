@@ -19,6 +19,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -84,6 +85,18 @@ func TestCommandRegistryUsesDottedTestCommands(t *testing.T) {
 		if _, ok := registry[name]; ok {
 			t.Fatalf("legacy command %q should not be registered", name)
 		}
+	}
+}
+
+// TestCommandRegistryUsesDottedLintGoCommand guards the public Go static lint
+// command name.
+func TestCommandRegistryUsesDottedLintGoCommand(t *testing.T) {
+	registry := commandRegistry()
+	if _, ok := registry["lint.go"]; !ok {
+		t.Fatalf("expected command %q to be registered", "lint.go")
+	}
+	if _, ok := registry["lint-go"]; ok {
+		t.Fatalf("legacy command %q should not be registered", "lint-go")
 	}
 }
 
@@ -313,9 +326,11 @@ func TestRunDaoDispatchesEmbeddedGoFrame(t *testing.T) {
 // TestRunCtrlDispatchesToPluginBackend verifies explicit dir targeting resolves
 // to the plugin backend work directory and plugin-root config directory.
 func TestRunCtrlDispatchesToPluginBackend(t *testing.T) {
-	root := t.TempDir()
-	pluginRoot := filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
-	pluginBackend := filepath.Join(pluginRoot, "backend")
+	var (
+		root          = t.TempDir()
+		pluginRoot    = filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
+		pluginBackend = filepath.Join(pluginRoot, "backend")
+	)
 	if err := os.MkdirAll(pluginBackend, 0o755); err != nil {
 		t.Fatalf("mkdir plugin backend: %v", err)
 	}
@@ -333,9 +348,11 @@ func TestRunCtrlDispatchesToPluginBackend(t *testing.T) {
 // TestRunDaoDispatchesToExplicitBackendDir verifies Makefile wrappers can pass
 // a relative backend directory directly.
 func TestRunDaoDispatchesToExplicitBackendDir(t *testing.T) {
-	root := t.TempDir()
-	pluginRoot := filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
-	pluginBackend := filepath.Join(pluginRoot, "backend")
+	var (
+		root          = t.TempDir()
+		pluginRoot    = filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
+		pluginBackend = filepath.Join(pluginRoot, "backend")
+	)
 	if err := os.MkdirAll(pluginBackend, 0o755); err != nil {
 		t.Fatalf("mkdir plugin backend: %v", err)
 	}
@@ -353,9 +370,11 @@ func TestRunDaoDispatchesToExplicitBackendDir(t *testing.T) {
 // TestRunDaoRejectsTargetWithoutGoFrameConfig keeps failures actionable before
 // the hidden GoFrame subprocess is started.
 func TestRunDaoRejectsTargetWithoutGoFrameConfig(t *testing.T) {
-	root := t.TempDir()
-	pluginRoot := filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
-	pluginBackend := filepath.Join(pluginRoot, "backend")
+	var (
+		root          = t.TempDir()
+		pluginRoot    = filepath.Join(root, "apps", "lina-plugins", "demo-plugin")
+		pluginBackend = filepath.Join(pluginRoot, "backend")
+	)
 	if err := os.MkdirAll(pluginBackend, 0o755); err != nil {
 		t.Fatalf("mkdir plugin backend: %v", err)
 	}
@@ -703,6 +722,8 @@ database:
 // former setup command's dependency installation behavior.
 func TestRunEnvSetupInstallsFrontendAndPlaywright(t *testing.T) {
 	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".golangci-lint-version"), "v2.12.2\n")
+	writeFile(t, filepath.Join(root, ".staticcheck-version"), "v0.7.0\n")
 	if err := os.MkdirAll(filepath.Join(root, "apps", "lina-vben"), 0o755); err != nil {
 		t.Fatalf("mkdir frontend workspace: %v", err)
 	}
@@ -719,6 +740,12 @@ func TestRunEnvSetupInstallsFrontendAndPlaywright(t *testing.T) {
 	var commands []string
 	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
 		commands = append(commands, name+" "+strings.Join(args, " "))
+		switch {
+		case name == "golangci-lint" && strings.Join(args, " ") == "--version":
+			return exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "golangci-lint has version 2.12.2")
+		case name == "staticcheck" && strings.Join(args, " ") == "-version":
+			return exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "staticcheck v0.7.0")
+		}
 		return exec.Command(os.Args[0], "-test.run=TestHelperRecordWorkingDirectory", "--")
 	}
 
@@ -727,7 +754,12 @@ func TestRunEnvSetupInstallsFrontendAndPlaywright(t *testing.T) {
 	}
 
 	got := strings.Join(commands, "\n")
-	expected := "pnpm install\npnpm exec playwright install --with-deps --only-shell chromium"
+	expected := strings.Join([]string{
+		"golangci-lint --version",
+		"staticcheck -version",
+		"pnpm install",
+		"pnpm exec playwright install --with-deps --only-shell chromium",
+	}, "\n")
 	if got != expected {
 		t.Fatalf("unexpected env.setup commands:\ngot:\n%s\nexpected:\n%s", got, expected)
 	}
@@ -740,6 +772,92 @@ func TestRunEnvSetupInstallsFrontendAndPlaywright(t *testing.T) {
 	}
 	if !strings.Contains(string(content), filepath.Join(root, "hack", "tests")) {
 		t.Fatalf("env.setup should install Playwright in hack/tests:\n%s", string(content))
+	}
+}
+
+// TestRunEnvSetupInstallsGoLintToolsFirst verifies env.setup prepares the
+// repository-pinned Go lint tools before frontend and browser setup.
+func TestRunEnvSetupInstallsGoLintToolsFirst(t *testing.T) {
+	root := t.TempDir()
+	gopath := filepath.Join(root, "gopath")
+	golangciLintBinary := filepath.Join(gopath, "bin", toolutil.ExecutableName("golangci-lint"))
+	staticcheckBinary := filepath.Join(gopath, "bin", toolutil.ExecutableName("staticcheck"))
+	writeFile(t, filepath.Join(root, ".golangci-lint-version"), "v2.12.2\n")
+	writeFile(t, filepath.Join(root, ".staticcheck-version"), "v0.7.0\n")
+	if err := os.MkdirAll(filepath.Join(root, "apps", "lina-vben"), 0o755); err != nil {
+		t.Fatalf("mkdir frontend workspace: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "hack", "tests"), 0o755); err != nil {
+		t.Fatalf("mkdir test workspace: %v", err)
+	}
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.env = []string{
+		"GOWORK=" + filepath.Join(root, "temp", "go.work.plugins"),
+		"GOFLAGS=-tags=official_plugins",
+		"GOOS=wasip1",
+		"GOARCH=wasm",
+		"GOWASM=satconv",
+	}
+	application.lookPath = func(name string) (string, error) {
+		switch name {
+		case "golangci-lint", "staticcheck":
+			return "", fmt.Errorf("%s missing", name)
+		default:
+			return name, nil
+		}
+	}
+	var calls []capturedCommand
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		switch {
+		case name == "go" && strings.Join(args, " ") == "env GOBIN":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "")
+		case name == "go" && strings.Join(args, " ") == "env GOPATH":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", gopath)
+		case name == golangciLintBinary && strings.Join(args, " ") == "--version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "golangci-lint has version 2.12.2")
+		case name == staticcheckBinary && strings.Join(args, " ") == "-version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "staticcheck v0.7.0")
+		}
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+
+	if err := runEnvSetup(context.Background(), application, commandInput{}); err != nil {
+		t.Fatalf("runEnvSetup returned error: %v", err)
+	}
+
+	expected := []string{
+		"go env GOBIN",
+		"go env GOPATH",
+		"go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2",
+		golangciLintBinary + " --version",
+		"go env GOBIN",
+		"go env GOPATH",
+		"go install honnef.co/go/tools/cmd/staticcheck@v0.7.0",
+		staticcheckBinary + " -version",
+		"pnpm install",
+		"pnpm exec playwright install --with-deps --only-shell chromium",
+	}
+	if got := commandLines(calls); strings.Join(got, "\n") != strings.Join(expected, "\n") {
+		t.Fatalf("unexpected env.setup command sequence:\ngot:\n%s\nexpected:\n%s", strings.Join(got, "\n"), strings.Join(expected, "\n"))
+	}
+	for _, index := range []int{2, 6} {
+		installEnv := calls[index].cmd.Env
+		if got := toolutil.EnvValue(installEnv, "GOWORK"); got != "off" {
+			t.Fatalf("expected install to force GOWORK=off, got %q", got)
+		}
+		for _, key := range []string{"GOFLAGS", "GOOS", "GOARCH", "GOWASM"} {
+			if got := toolutil.EnvValue(installEnv, key); got != "" {
+				t.Fatalf("expected install env to remove %s, got %q", key, got)
+			}
+		}
 	}
 }
 
@@ -972,9 +1090,11 @@ func TestRunBuildDirBuildsHostBackendWithPreparedAssets(t *testing.T) {
 }
 
 func TestResolvePluginConfigBuildStepsSkipsPluginsWithoutCommands(t *testing.T) {
-	root := t.TempDir()
-	withBuild := filepath.Join(root, "apps", "lina-plugins", "with-build")
-	withoutBuild := filepath.Join(root, "apps", "lina-plugins", "without-build")
+	var (
+		root         = t.TempDir()
+		withBuild    = filepath.Join(root, "apps", "lina-plugins", "with-build")
+		withoutBuild = filepath.Join(root, "apps", "lina-plugins", "without-build")
+	)
 	writeFile(t, filepath.Join(withBuild, "plugin.yaml"), "id: with-build\n")
 	writeFile(t, filepath.Join(withBuild, "hack", "config.yaml"), "build:\n  commands:\n    - node build.mjs\n    - pnpm --dir \"$(PLUGIN_ROOT)/frontend\" run build\n")
 	writeFile(t, filepath.Join(withoutBuild, "plugin.yaml"), "id: without-build\n")
@@ -1254,9 +1374,11 @@ func TestWaitHTTPFailsFastWhenProcessExits(t *testing.T) {
 		t.Fatalf("write pid file: %v", err)
 	}
 
-	start := time.Now()
-	err := devservice.WaitHTTP("Backend", server.URL+"/api.json", pidFile, "service.log", 10*time.Second, process.Alive)
-	elapsed := time.Since(start)
+	var (
+		start   = time.Now()
+		err     = devservice.WaitHTTP("Backend", server.URL+"/api.json", pidFile, "service.log", 10*time.Second, process.Alive)
+		elapsed = time.Since(start)
+	)
 	if err == nil {
 		t.Fatalf("devservice.WaitHTTP should fail when recorded process is not alive")
 	}
@@ -1830,9 +1952,11 @@ func TestOfficialPluginBackendImportsDiscoversSourcePlugins(t *testing.T) {
 // TestGoWorkspaceModulesSkipsGeneratedOfficialPluginAggregate verifies test.go
 // does not run package tests from the generated bridge module itself.
 func TestGoWorkspaceModulesSkipsGeneratedOfficialPluginAggregate(t *testing.T) {
-	root := t.TempDir()
-	coreDir := filepath.Join(root, "apps", "lina-core")
-	aggregateDir := plugins.AggregateModuleDir(root)
+	var (
+		root         = t.TempDir()
+		coreDir      = filepath.Join(root, "apps", "lina-core")
+		aggregateDir = plugins.AggregateModuleDir(root)
+	)
 	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
 	writeFile(t, filepath.Join(aggregateDir, "go.mod"), "module lina-plugins\n")
 
@@ -1851,6 +1975,827 @@ func TestGoWorkspaceModulesSkipsGeneratedOfficialPluginAggregate(t *testing.T) {
 	}
 	if len(modules) != 1 || !samePath(t, modules[0], coreDir) {
 		t.Fatalf("unexpected workspace modules: %#v", modules)
+	}
+}
+
+// TestGoLintWorkspaceModulesKeepsGeneratedOfficialPluginAggregate verifies
+// lint.go leaves the generated plugin bridge visible so .golangci.yml remains
+// the single source of generated-code exclusions.
+func TestGoLintWorkspaceModulesKeepsGeneratedOfficialPluginAggregate(t *testing.T) {
+	var (
+		root         = t.TempDir()
+		coreDir      = filepath.Join(root, "apps", "lina-core")
+		aggregateDir = plugins.AggregateModuleDir(root)
+	)
+	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(aggregateDir, "go.mod"), "module lina-plugins\n")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		if name != "go" || strings.Join(args, " ") != "list -m -f {{.Dir}}" {
+			t.Fatalf("unexpected module list command: %s %s", name, strings.Join(args, " "))
+		}
+		return exec.Command(os.Args[0], "-test.run=TestHelperPrintWorkspaceModules", "--", coreDir, aggregateDir)
+	}
+
+	modules, err := goLintWorkspaceModules(context.Background(), application)
+	if err != nil {
+		t.Fatalf("goLintWorkspaceModules returned error: %v", err)
+	}
+	if len(modules) != 2 || !samePath(t, modules[0], coreDir) || !samePath(t, modules[1], aggregateDir) {
+		t.Fatalf("unexpected lint workspace modules: %#v", modules)
+	}
+}
+
+// TestRunLintGoDispatchesHostWorkspaceModules verifies host-only lint runs
+// golangci-lint once per discovered workspace module with the repository config.
+func TestRunLintGoDispatchesHostWorkspaceModules(t *testing.T) {
+	var (
+		root    = t.TempDir()
+		coreDir = filepath.Join(root, "apps", "lina-core")
+		toolDir = filepath.Join(root, "hack", "tools", "linactl")
+	)
+	writeFile(t, filepath.Join(root, ".golangci-lint-version"), "v2.12.2\n")
+	writeFile(t, filepath.Join(root, ".staticcheck-version"), "v0.7.0\n")
+	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(toolDir, "go.mod"), "module linactl\n")
+
+	var calls []capturedCommand
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.env = []string{
+		"GOWORK=" + filepath.Join(root, "stale.work"),
+		"GOFLAGS=-mod=mod -tags=official_plugins,netgo",
+	}
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	packageListCount := 0
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		switch {
+		case name == "go" && strings.Join(args, " ") == "list -m -f {{.Dir}}":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintWorkspaceModules", "--", coreDir, toolDir)
+		case name == "go" && strings.Join(args, " ") == "list -f {{.Dir}} ./...":
+			packageListCount++
+			if packageListCount == 1 {
+				cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", coreDir)
+			} else {
+				cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", toolDir)
+			}
+		case name == "golangci-lint" && strings.Join(args, " ") == "--version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "golangci-lint has version 2.12.2")
+		case name == "staticcheck" && strings.Join(args, " ") == "-version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "staticcheck v0.7.0")
+		}
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+
+	input := commandInput{Params: map[string]string{"plugins": "0"}}
+	if err := runLintGo(context.Background(), application, input); err != nil {
+		t.Fatalf("runLintGo returned error: %v", err)
+	}
+
+	expectedConfig := filepath.Join(root, ".golangci.yml")
+	expected := []string{
+		"go list -m -f {{.Dir}}",
+		"go list -f {{.Dir}} ./...",
+		"go list -f {{.Dir}} ./...",
+		"golangci-lint --version",
+		"staticcheck -version",
+		"golangci-lint run --config " + expectedConfig + " ./...",
+		"staticcheck -checks=U1000 -tests=false .",
+		"golangci-lint run --config " + expectedConfig + " ./...",
+		"staticcheck -checks=U1000 -tests=false .",
+	}
+	if got := commandLines(calls); strings.Join(got, "\n") != strings.Join(expected, "\n") {
+		t.Fatalf("unexpected lint command sequence:\ngot:\n%s\nexpected:\n%s", strings.Join(got, "\n"), strings.Join(expected, "\n"))
+	}
+	if calls[5].cmd.Dir != coreDir || calls[7].cmd.Dir != toolDir {
+		t.Fatalf("unexpected lint command dirs: %q %q", calls[5].cmd.Dir, calls[7].cmd.Dir)
+	}
+	if got := toolutil.EnvValue(calls[5].cmd.Env, "GOWORK"); got != "" {
+		t.Fatalf("expected host-only lint to clear inherited GOWORK, got %q", got)
+	}
+	if got := toolutil.EnvValue(calls[5].cmd.Env, plugins.SourcePluginsEnvKey); got != "0" {
+		t.Fatalf("expected host-only lint to disable source plugin discovery, got %q", got)
+	}
+	if got := toolutil.EnvValue(calls[5].cmd.Env, "GOFLAGS"); strings.Contains(got, plugins.OfficialBuildTag) {
+		t.Fatalf("expected host-only lint to remove official plugin tag, got %q", got)
+	}
+}
+
+// TestRunLintGoFixAppendsFix verifies automatic formatting remains an explicit
+// opt-in flag.
+func TestRunLintGoFixAppendsFix(t *testing.T) {
+	var (
+		root    = t.TempDir()
+		coreDir = filepath.Join(root, "apps", "lina-core")
+		toolDir = filepath.Join(root, "hack", "tools", "linactl")
+	)
+	writeFile(t, filepath.Join(root, ".golangci-lint-version"), "v2.12.2\n")
+	writeFile(t, filepath.Join(root, ".staticcheck-version"), "v0.7.0\n")
+	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(toolDir, "go.mod"), "module linactl\n")
+
+	var calls []capturedCommand
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	packageListCount := 0
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		switch {
+		case name == "go" && strings.Join(args, " ") == "list -m -f {{.Dir}}":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintWorkspaceModules", "--", coreDir, toolDir)
+		case name == "go" && strings.Join(args, " ") == "list -f {{.Dir}} ./...":
+			packageListCount++
+			if packageListCount == 1 {
+				cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", coreDir)
+			} else {
+				cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", toolDir)
+			}
+		case name == "golangci-lint" && strings.Join(args, " ") == "--version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "golangci-lint has version 2.12.2")
+		case name == "staticcheck" && strings.Join(args, " ") == "-version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "staticcheck v0.7.0")
+		}
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+	input := commandInput{Params: map[string]string{"plugins": "0", "fix": "true"}}
+	if err := runLintGo(context.Background(), application, input); err != nil {
+		t.Fatalf("runLintGo returned error: %v", err)
+	}
+
+	expectedArgs := []string{"run", "--config", filepath.Join(root, ".golangci.yml"), "--fix", "./..."}
+	if len(calls) < 9 {
+		t.Fatalf("expected lint child commands, got %#v", calls)
+	}
+	if strings.Join(calls[5].args, "\x00") != strings.Join(expectedArgs, "\x00") {
+		t.Fatalf("unexpected lint args: got %#v want %#v", calls[5].args, expectedArgs)
+	}
+}
+
+// TestEnsureGoLintBinaryUsesPathVersion verifies a matching PATH binary is
+// reused without running go install.
+func TestEnsureGoLintBinaryUsesPathVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".golangci-lint-version"), "v2.12.2\n")
+
+	var calls []capturedCommand
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		if name == "golangci-lint" && strings.Join(args, " ") == "--version" {
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "golangci-lint has version 2.12.2")
+		}
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+
+	path, version, err := ensureGoLintBinary(context.Background(), application)
+	if err != nil {
+		t.Fatalf("ensureGoLintBinary returned error: %v", err)
+	}
+	if path != "golangci-lint" || version != "v2.12.2" {
+		t.Fatalf("unexpected binary resolution: path=%q version=%q", path, version)
+	}
+	if got := commandLines(calls); strings.Join(got, "\n") != "golangci-lint --version" {
+		t.Fatalf("unexpected command sequence: %#v", got)
+	}
+}
+
+// TestEnsureGoLintBinaryInstallsMissingBinary verifies a missing PATH binary is
+// installed with an environment isolated from repository workspaces and tags.
+func TestEnsureGoLintBinaryInstallsMissingBinary(t *testing.T) {
+	root := t.TempDir()
+	gopath := filepath.Join(root, "gopath")
+	expectedBinary := filepath.Join(gopath, "bin", toolutil.ExecutableName("golangci-lint"))
+	writeFile(t, filepath.Join(root, ".golangci-lint-version"), "v2.12.2\n")
+
+	var calls []capturedCommand
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.env = []string{
+		"GOWORK=" + filepath.Join(root, "temp", "go.work.plugins"),
+		"GOFLAGS=-tags=official_plugins",
+		"GOOS=wasip1",
+		"GOARCH=wasm",
+	}
+	application.lookPath = func(name string) (string, error) {
+		if name == "golangci-lint" {
+			return "", errors.New("missing golangci-lint")
+		}
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		switch {
+		case name == "go" && strings.Join(args, " ") == "env GOBIN":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "")
+		case name == "go" && strings.Join(args, " ") == "env GOPATH":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", gopath)
+		case name == expectedBinary && strings.Join(args, " ") == "--version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "golangci-lint has version 2.12.2")
+		}
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+
+	path, version, err := ensureGoLintBinary(context.Background(), application)
+	if err != nil {
+		t.Fatalf("ensureGoLintBinary returned error: %v", err)
+	}
+	if path != expectedBinary || version != "v2.12.2" {
+		t.Fatalf("unexpected binary resolution: path=%q version=%q", path, version)
+	}
+	expected := []string{
+		"go env GOBIN",
+		"go env GOPATH",
+		"go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2",
+		expectedBinary + " --version",
+	}
+	if got := commandLines(calls); strings.Join(got, "\n") != strings.Join(expected, "\n") {
+		t.Fatalf("unexpected install command sequence:\ngot:\n%s\nexpected:\n%s", strings.Join(got, "\n"), strings.Join(expected, "\n"))
+	}
+	installEnv := calls[2].cmd.Env
+	if got := toolutil.EnvValue(installEnv, "GOWORK"); got != "off" {
+		t.Fatalf("expected install to force GOWORK=off, got %q", got)
+	}
+	for _, key := range []string{"GOFLAGS", "GOOS", "GOARCH"} {
+		if got := toolutil.EnvValue(installEnv, key); got != "" {
+			t.Fatalf("expected install env to remove %s, got %q", key, got)
+		}
+	}
+}
+
+// TestEnsureGoLintBinaryInstallsVersionMismatch verifies a stale PATH binary
+// is replaced by the repository-pinned version.
+func TestEnsureGoLintBinaryInstallsVersionMismatch(t *testing.T) {
+	root := t.TempDir()
+	gobin := filepath.Join(root, "bin")
+	expectedBinary := filepath.Join(gobin, toolutil.ExecutableName("golangci-lint"))
+	writeFile(t, filepath.Join(root, ".golangci-lint-version"), "v2.12.2\n")
+
+	var calls []capturedCommand
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		switch {
+		case name == "golangci-lint" && strings.Join(args, " ") == "--version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "golangci-lint has version 2.11.0")
+		case name == "go" && strings.Join(args, " ") == "env GOBIN":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", gobin)
+		case name == expectedBinary && strings.Join(args, " ") == "--version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "golangci-lint has version 2.12.2")
+		}
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+
+	path, _, err := ensureGoLintBinary(context.Background(), application)
+	if err != nil {
+		t.Fatalf("ensureGoLintBinary returned error: %v", err)
+	}
+	if path != expectedBinary {
+		t.Fatalf("expected installed binary path %q, got %q", expectedBinary, path)
+	}
+	expected := []string{
+		"golangci-lint --version",
+		"go env GOBIN",
+		"go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2",
+		expectedBinary + " --version",
+	}
+	if got := commandLines(calls); strings.Join(got, "\n") != strings.Join(expected, "\n") {
+		t.Fatalf("unexpected install command sequence:\ngot:\n%s\nexpected:\n%s", strings.Join(got, "\n"), strings.Join(expected, "\n"))
+	}
+}
+
+// TestEnsureGoLintBinaryRejectsEmptyPinnedVersion verifies version-lock file
+// errors stay actionable before any child process runs.
+func TestEnsureGoLintBinaryRejectsEmptyPinnedVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".golangci-lint-version"), "\n")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		t.Fatalf("unexpected child command: %s %s", name, strings.Join(args, " "))
+		return exec.Command(os.Args[0], "-test.run=TestHelperCommandFailure", "--")
+	}
+
+	_, _, err := ensureGoLintBinary(context.Background(), application)
+	if err == nil || !strings.Contains(err.Error(), ".golangci-lint-version is empty") {
+		t.Fatalf("expected empty version error, got %v", err)
+	}
+}
+
+// TestEnsureGoLintStaticcheckBinaryUsesPathVersion verifies a matching PATH
+// staticcheck binary is reused without running go install.
+func TestEnsureGoLintStaticcheckBinaryUsesPathVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".staticcheck-version"), "v0.7.0\n")
+
+	var calls []capturedCommand
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		if name == "staticcheck" && strings.Join(args, " ") == "-version" {
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "staticcheck 2026.1.1 (0.7.0)")
+		}
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+
+	path, version, err := ensureGoLintStaticcheckBinary(context.Background(), application)
+	if err != nil {
+		t.Fatalf("ensureGoLintStaticcheckBinary returned error: %v", err)
+	}
+	if path != "staticcheck" || version != "v0.7.0" {
+		t.Fatalf("unexpected binary resolution: path=%q version=%q", path, version)
+	}
+	if got := commandLines(calls); strings.Join(got, "\n") != "staticcheck -version" {
+		t.Fatalf("unexpected command sequence: %#v", got)
+	}
+}
+
+// TestEnsureGoLintStaticcheckBinaryInstallsMissingBinary verifies a missing PATH
+// staticcheck binary is installed with the same isolated tool environment.
+func TestEnsureGoLintStaticcheckBinaryInstallsMissingBinary(t *testing.T) {
+	root := t.TempDir()
+	gopath := filepath.Join(root, "gopath")
+	expectedBinary := filepath.Join(gopath, "bin", toolutil.ExecutableName("staticcheck"))
+	writeFile(t, filepath.Join(root, ".staticcheck-version"), "v0.7.0\n")
+
+	var calls []capturedCommand
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.env = []string{
+		"GOWORK=" + filepath.Join(root, "temp", "go.work.plugins"),
+		"GOFLAGS=-tags=official_plugins",
+		"GOOS=wasip1",
+		"GOARCH=wasm",
+		"GOWASM=satconv",
+	}
+	application.lookPath = func(name string) (string, error) {
+		if name == "staticcheck" {
+			return "", errors.New("missing staticcheck")
+		}
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		switch {
+		case name == "go" && strings.Join(args, " ") == "env GOBIN":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "")
+		case name == "go" && strings.Join(args, " ") == "env GOPATH":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", gopath)
+		case name == expectedBinary && strings.Join(args, " ") == "-version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "staticcheck v0.7.0")
+		}
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+
+	path, version, err := ensureGoLintStaticcheckBinary(context.Background(), application)
+	if err != nil {
+		t.Fatalf("ensureGoLintStaticcheckBinary returned error: %v", err)
+	}
+	if path != expectedBinary || version != "v0.7.0" {
+		t.Fatalf("unexpected binary resolution: path=%q version=%q", path, version)
+	}
+	expected := []string{
+		"go env GOBIN",
+		"go env GOPATH",
+		"go install honnef.co/go/tools/cmd/staticcheck@v0.7.0",
+		expectedBinary + " -version",
+	}
+	if got := commandLines(calls); strings.Join(got, "\n") != strings.Join(expected, "\n") {
+		t.Fatalf("unexpected install command sequence:\ngot:\n%s\nexpected:\n%s", strings.Join(got, "\n"), strings.Join(expected, "\n"))
+	}
+	installEnv := calls[2].cmd.Env
+	if got := toolutil.EnvValue(installEnv, "GOWORK"); got != "off" {
+		t.Fatalf("expected install to force GOWORK=off, got %q", got)
+	}
+	for _, key := range []string{"GOFLAGS", "GOOS", "GOARCH", "GOWASM"} {
+		if got := toolutil.EnvValue(installEnv, key); got != "" {
+			t.Fatalf("expected install env to remove %s, got %q", key, got)
+		}
+	}
+}
+
+// TestEnsureGoLintStaticcheckBinaryInstallsVersionMismatch verifies a stale PATH
+// staticcheck binary is replaced by the repository-pinned version.
+func TestEnsureGoLintStaticcheckBinaryInstallsVersionMismatch(t *testing.T) {
+	root := t.TempDir()
+	gobin := filepath.Join(root, "bin")
+	expectedBinary := filepath.Join(gobin, toolutil.ExecutableName("staticcheck"))
+	writeFile(t, filepath.Join(root, ".staticcheck-version"), "v0.7.0\n")
+
+	var calls []capturedCommand
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		switch {
+		case name == "staticcheck" && strings.Join(args, " ") == "-version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "staticcheck v0.6.1")
+		case name == "go" && strings.Join(args, " ") == "env GOBIN":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", gobin)
+		case name == expectedBinary && strings.Join(args, " ") == "-version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "staticcheck 2026.1.1 (0.7.0)")
+		}
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+
+	path, _, err := ensureGoLintStaticcheckBinary(context.Background(), application)
+	if err != nil {
+		t.Fatalf("ensureGoLintStaticcheckBinary returned error: %v", err)
+	}
+	if path != expectedBinary {
+		t.Fatalf("expected installed binary path %q, got %q", expectedBinary, path)
+	}
+	expected := []string{
+		"staticcheck -version",
+		"go env GOBIN",
+		"go install honnef.co/go/tools/cmd/staticcheck@v0.7.0",
+		expectedBinary + " -version",
+	}
+	if got := commandLines(calls); strings.Join(got, "\n") != strings.Join(expected, "\n") {
+		t.Fatalf("unexpected install command sequence:\ngot:\n%s\nexpected:\n%s", strings.Join(got, "\n"), strings.Join(expected, "\n"))
+	}
+}
+
+// TestEnsureGoLintStaticcheckBinaryRejectsEmptyPinnedVersion verifies the
+// staticcheck version-lock file is validated before any child process runs.
+func TestEnsureGoLintStaticcheckBinaryRejectsEmptyPinnedVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".staticcheck-version"), "\n")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		t.Fatalf("unexpected child command: %s %s", name, strings.Join(args, " "))
+		return exec.Command(os.Args[0], "-test.run=TestHelperCommandFailure", "--")
+	}
+
+	_, _, err := ensureGoLintStaticcheckBinary(context.Background(), application)
+	if err == nil || !strings.Contains(err.Error(), ".staticcheck-version is empty") {
+		t.Fatalf("expected empty version error, got %v", err)
+	}
+}
+
+func TestGoLintVersionOutputMatches(t *testing.T) {
+	if !goLintVersionOutputMatches("golangci-lint has version 2.12.2 built with go1.25.4", "v2.12.2") {
+		t.Fatalf("expected version output to match pinned version")
+	}
+	if goLintVersionOutputMatches("golangci-lint has version 2.12.20 built with go1.25.4", "v2.12.2") {
+		t.Fatalf("expected distinct patch version not to match")
+	}
+	if !goLintVersionOutputMatches("staticcheck 2026.1.1 (0.7.0)", "v0.7.0") {
+		t.Fatalf("expected staticcheck release output to match pinned module version")
+	}
+	if goLintVersionOutputMatches("staticcheck 2026.1.1 (0.7.10)", "v0.7.0") {
+		t.Fatalf("expected distinct staticcheck patch version not to match")
+	}
+}
+
+// TestRunLintGoPluginFullUsesPreparedWorkspace verifies plugin-full lint reuses
+// the temporary official plugin Go workspace and official build tag.
+func TestRunLintGoPluginFullUsesPreparedWorkspace(t *testing.T) {
+	var (
+		root      = t.TempDir()
+		coreDir   = filepath.Join(root, "apps", "lina-core")
+		pluginDir = filepath.Join(root, "apps", "lina-plugins", "plugin-a")
+	)
+	writeFile(t, filepath.Join(root, ".golangci-lint-version"), "v2.12.2\n")
+	writeFile(t, filepath.Join(root, ".staticcheck-version"), "v0.7.0\n")
+	writeFile(t, filepath.Join(root, "go.work"), "go 1.25.0\n\nuse ./apps/lina-core\n")
+	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(pluginDir, "go.mod"), "module plugin-a\n")
+	writeFile(t, filepath.Join(pluginDir, "plugin.yaml"), "id: plugin-a\ntype: source\n")
+	writeFile(t, filepath.Join(pluginDir, "backend", "plugin.go"), "package backend\n")
+
+	var calls []capturedCommand
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	packageListCount := 0
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		switch {
+		case name == "go" && strings.Join(args, " ") == "list -m -f {{.Dir}}":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintWorkspaceModules", "--", coreDir, pluginDir)
+		case name == "go" && strings.Join(args, " ") == "list -f {{.Dir}} ./...":
+			packageListCount++
+			if packageListCount == 1 {
+				cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", coreDir)
+			} else {
+				cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", pluginDir)
+			}
+		case name == "golangci-lint" && strings.Join(args, " ") == "--version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "golangci-lint has version 2.12.2")
+		case name == "staticcheck" && strings.Join(args, " ") == "-version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "staticcheck v0.7.0")
+		}
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+	input := commandInput{Params: map[string]string{"plugins": "1"}}
+	if err := runLintGo(context.Background(), application, input); err != nil {
+		t.Fatalf("runLintGo returned error: %v", err)
+	}
+
+	workspacePath := filepath.Join(root, "temp", "go.work.plugins")
+	if !fileutil.FileExists(workspacePath) {
+		t.Fatalf("expected plugin-full lint to prepare %s", workspacePath)
+	}
+	if got := toolutil.EnvValue(calls[0].cmd.Env, "GOWORK"); got != workspacePath {
+		t.Fatalf("expected go list to use plugin workspace, got %q", got)
+	}
+	if got := toolutil.EnvValue(calls[5].cmd.Env, plugins.SourcePluginsEnvKey); got != "1" {
+		t.Fatalf("expected plugin-full lint to enable source plugin discovery, got %q", got)
+	}
+	if got := toolutil.EnvValue(calls[5].cmd.Env, "GOFLAGS"); !strings.Contains(got, plugins.OfficialBuildTag) {
+		t.Fatalf("expected plugin-full lint to add official plugin tag, got %q", got)
+	}
+}
+
+// TestGoLintModulePlanForDirSeparatesGuestSensitivePackages verifies package
+// planning keeps `wasip1`-gated packages out of the host-only dead-code pass.
+func TestGoLintModulePlanForDirSeparatesGuestSensitivePackages(t *testing.T) {
+	root := t.TempDir()
+	moduleDir := filepath.Join(root, "apps", "lina-core")
+	writeFile(t, filepath.Join(moduleDir, "go.mod"), "module lina-core\n\ngo 1.25.0\n")
+	writeFile(t, filepath.Join(moduleDir, "hostpkg", "host.go"), "package hostpkg\n")
+	writeFile(t, filepath.Join(moduleDir, "pkg", "plugin", "pluginbridge", "recordstore", "recordstore.go"), "package recordstore\n\ntype Tx struct{}\n")
+	writeFile(t, filepath.Join(moduleDir, "pkg", "plugin", "pluginbridge", "recordstore", "recordstore_exec_stub.go"), "//go:build !wasip1\n\npackage recordstore\n")
+	writeFile(t, filepath.Join(moduleDir, "pkg", "plugin", "pluginbridge", "recordstore", "recordstore_exec_wasip1.go"), "//go:build wasip1\n\npackage recordstore\n")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.env = toolutil.RemoveEnvValue(application.env, "GOWORK")
+
+	plan, err := goLintModulePlanForDir(context.Background(), application, moduleDir)
+	if err != nil {
+		t.Fatalf("goLintModulePlanForDir returned error: %v", err)
+	}
+	if !sameStringSet(plan.HostPackages, []string{"./hostpkg"}) {
+		t.Fatalf("unexpected host packages: %#v", plan.HostPackages)
+	}
+	if !sameStringSet(plan.GuestSensitivePackages, []string{"./pkg/plugin/pluginbridge/recordstore"}) {
+		t.Fatalf("unexpected guest-sensitive packages: %#v", plan.GuestSensitivePackages)
+	}
+}
+
+// TestRunLintGoDispatchesGuestSensitiveDeadCodeChecks verifies lint.go checks
+// normal packages with U1000 and guest-sensitive packages with the staticcheck
+// dead-code matrix.
+func TestRunLintGoDispatchesGuestSensitiveDeadCodeChecks(t *testing.T) {
+	var (
+		root         = t.TempDir()
+		coreDir      = filepath.Join(root, "apps", "lina-core")
+		toolDir      = filepath.Join(root, "hack", "tools", "linactl")
+		guestPkgDir  = filepath.Join(coreDir, "pkg", "plugin", "pluginbridge", "recordstore")
+		guestPkgPath = "./pkg/plugin/pluginbridge/recordstore"
+	)
+	writeFile(t, filepath.Join(root, ".golangci-lint-version"), "v2.12.2\n")
+	writeFile(t, filepath.Join(root, ".staticcheck-version"), "v0.7.0\n")
+	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(toolDir, "go.mod"), "module linactl\n")
+	writeFile(t, filepath.Join(guestPkgDir, "recordstore_exec_stub.go"), "//go:build !wasip1\n\npackage recordstore\n")
+	writeFile(t, filepath.Join(guestPkgDir, "recordstore_exec_wasip1.go"), "//go:build wasip1\n\npackage recordstore\n")
+
+	var calls []capturedCommand
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	packageListCount := 0
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		switch {
+		case name == "go" && strings.Join(args, " ") == "list -m -f {{.Dir}}":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintWorkspaceModules", "--", coreDir, toolDir)
+		case name == "go" && strings.Join(args, " ") == "list -f {{.Dir}} ./...":
+			packageListCount++
+			if packageListCount == 1 {
+				cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", coreDir, guestPkgDir)
+			} else {
+				cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", toolDir)
+			}
+		case name == "golangci-lint" && strings.Join(args, " ") == "--version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "golangci-lint has version 2.12.2")
+		case name == "staticcheck" && strings.Join(args, " ") == "-version":
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintLines", "--", "staticcheck v0.7.0")
+		}
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+
+	if err := runLintGo(context.Background(), application, commandInput{Params: map[string]string{"plugins": "0"}}); err != nil {
+		t.Fatalf("runLintGo returned error: %v", err)
+	}
+
+	expectedConfig := filepath.Join(root, ".golangci.yml")
+	expected := []string{
+		"go list -m -f {{.Dir}}",
+		"go list -f {{.Dir}} ./...",
+		"go list -f {{.Dir}} ./...",
+		"golangci-lint --version",
+		"staticcheck -version",
+		"golangci-lint run --config " + expectedConfig + " ./...",
+		"staticcheck -checks=U1000 -tests=false .",
+		"staticcheck -checks=U1000 -tests=false -matrix " + guestPkgPath,
+		"golangci-lint run --config " + expectedConfig + " ./...",
+		"staticcheck -checks=U1000 -tests=false .",
+	}
+	if got := commandLines(calls); strings.Join(got, "\n") != strings.Join(expected, "\n") {
+		t.Fatalf("unexpected lint command sequence:\ngot:\n%s\nexpected:\n%s", strings.Join(got, "\n"), strings.Join(expected, "\n"))
+	}
+	if calls[7].cmd.Stdin == nil {
+		t.Fatalf("expected staticcheck matrix command to receive stdin")
+	}
+}
+
+// TestRunGoLintModulePlanSkipsHostDeadCodeWithoutHostPackages verifies a module
+// with only guest-sensitive packages avoids an empty host U1000 invocation.
+func TestRunGoLintModulePlanSkipsHostDeadCodeWithoutHostPackages(t *testing.T) {
+	root := t.TempDir()
+	moduleDir := filepath.Join(root, "apps", "lina-core")
+	writeFile(t, filepath.Join(moduleDir, "go.mod"), "module lina-core\n")
+	var calls []capturedCommand
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+
+	plan := goLintModulePlan{
+		ModuleDir:              moduleDir,
+		GuestSensitivePackages: []string{"./guest"},
+	}
+	if err := runGoLintModulePlan(
+		context.Background(),
+		application,
+		nil,
+		"goLintBinary",
+		"staticcheckBinary",
+		filepath.Join(root, ".golangci.yml"),
+		false,
+		plan,
+	); err != nil {
+		t.Fatalf("runGoLintModulePlan returned error: %v", err)
+	}
+
+	expected := []string{
+		"goLintBinary run --config " + filepath.Join(root, ".golangci.yml") + " ./...",
+		"staticcheckBinary -checks=U1000 -tests=false -matrix ./guest",
+	}
+	if got := commandLines(calls); strings.Join(got, "\n") != strings.Join(expected, "\n") {
+		t.Fatalf("unexpected lint command sequence:\ngot:\n%s\nexpected:\n%s", strings.Join(got, "\n"), strings.Join(expected, "\n"))
+	}
+	if calls[1].cmd.Stdin == nil {
+		t.Fatalf("expected guest-sensitive staticcheck matrix command to receive stdin")
+	}
+}
+
+// TestGoLintStaticcheckMatrixInput verifies the staticcheck dead-code matrix is
+// pinned to the host and wasm guest targets.
+func TestGoLintStaticcheckMatrixInput(t *testing.T) {
+	const expected = "host:\nwasm_guest: GOOS=wasip1 GOARCH=wasm\n"
+	if got := goLintStaticcheckMatrixInput(); got != expected {
+		t.Fatalf("unexpected staticcheck matrix input:\ngot:\n%s\nexpected:\n%s", got, expected)
+	}
+}
+
+// TestGoLintFileHasWasip1BuildParsesBuildExpressions verifies build-tag
+// detection handles equivalent `go:build` expressions instead of relying on a
+// single string shape.
+func TestGoLintFileHasWasip1BuildParsesBuildExpressions(t *testing.T) {
+	cases := map[string]struct {
+		content string
+		want    bool
+	}{
+		"wasip1 and wasm": {
+			content: "//go:build wasm && wasip1\n\npackage recordstore\n",
+			want:    true,
+		},
+		"not wasip1": {
+			content: "//go:build !wasip1\n\npackage recordstore\n",
+			want:    true,
+		},
+		"host only": {
+			content: "//go:build linux || darwin\n\npackage recordstore\n",
+			want:    false,
+		},
+		"no build constraint": {
+			content: "package recordstore\n",
+			want:    false,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := goLintFileHasWasip1Build([]byte(tc.content)); got != tc.want {
+				t.Fatalf("goLintFileHasWasip1Build() = %t, want %t", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestRunLintGoPluginFullRequiresWorkspace verifies explicit plugin-full lint
+// fails with the same actionable workspace hint as build and test commands.
+func TestRunLintGoPluginFullRequiresWorkspace(t *testing.T) {
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = t.TempDir()
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		t.Fatalf("unexpected child command: %s %s", name, strings.Join(args, " "))
+		return exec.Command(os.Args[0], "-test.run=TestHelperCommandFailure", "--")
+	}
+
+	input := commandInput{Params: map[string]string{"plugins": "1"}}
+	err := runLintGo(context.Background(), application, input)
+	if err == nil {
+		t.Fatalf("expected plugin-full lint to fail without official plugin workspace")
+	}
+	if !strings.Contains(err.Error(), "official plugin workspace") || !strings.Contains(err.Error(), plugins.InitCommand) {
+		t.Fatalf("expected actionable plugin workspace error, got %v", err)
 	}
 }
 
@@ -1900,9 +2845,11 @@ func TestGoWorkspaceModulesIncludesStdoutDiagnosticInErrors(t *testing.T) {
 // at a time while retaining the requested race and verbose flags for packages
 // that actually contain Go tests.
 func TestRunTestGoSerializesPackageExecution(t *testing.T) {
-	root := t.TempDir()
-	coreDir := filepath.Join(root, "apps", "lina-core")
-	aggregateDir := plugins.AggregateModuleDir(root)
+	var (
+		root         = t.TempDir()
+		coreDir      = filepath.Join(root, "apps", "lina-core")
+		aggregateDir = plugins.AggregateModuleDir(root)
+	)
 	writeFile(t, filepath.Join(coreDir, "go.mod"), "module lina-core\n")
 	writeFile(t, filepath.Join(aggregateDir, "go.mod"), "module lina-plugins\n")
 
@@ -2248,6 +3195,7 @@ func TestPluginCommandSmokeFixtureIncludesLinactlLocalReplaceDeps(t *testing.T) 
 	for _, expected := range []string{
 		`cp apps/lina-core/go.mod "$smoke_root/apps/lina-core/go.mod"`,
 		`cp apps/lina-core/go.sum "$smoke_root/apps/lina-core/go.sum"`,
+		`cp -R apps/lina-core/api "$smoke_root/apps/lina-core/api"`,
 		`cp -R apps/lina-core/pkg "$smoke_root/apps/lina-core/pkg"`,
 		`./apps/lina-core`,
 	} {
@@ -2273,6 +3221,7 @@ func TestMakeCommandSmokeDevFixtureIncludesLinactlLocalReplaceDeps(t *testing.T)
 	for _, expected := range []string{
 		`cp apps/lina-core/go.mod "$smoke_root/apps/lina-core/go.mod"`,
 		`cp apps/lina-core/go.sum "$smoke_root/apps/lina-core/go.sum"`,
+		`cp -R apps/lina-core/api "$smoke_root/apps/lina-core/api"`,
 		`cp -R apps/lina-core/pkg "$smoke_root/apps/lina-core/pkg"`,
 		`./apps/lina-core`,
 	} {
@@ -2304,6 +3253,32 @@ func TestReusableSmokeWorkflowsDoNotCopyRemovedPluginCapabilityData(t *testing.T
 		if strings.Contains(string(content), "apps/lina-core/pkg/plugin/capability/data") {
 			t.Fatalf("workflow %s must not copy removed plugin capability/data package", workflow)
 		}
+	}
+}
+
+// TestHostOnlyArtifactSmokeUsesSystemInfoReadiness guards the host-only
+// artifact smoke action after the anonymous health endpoint was removed.
+func TestHostOnlyArtifactSmokeUsesSystemInfoReadiness(t *testing.T) {
+	root, err := fileutil.DiscoverRepoRoot()
+	if err != nil {
+		t.Fatalf("discover repo root: %v", err)
+	}
+	content, err := os.ReadFile(filepath.Join(root, ".github", "actions", "host-only-artifact-smoke", "action.yml"))
+	if err != nil {
+		t.Fatalf("read host-only artifact smoke action: %v", err)
+	}
+	text := string(content)
+	for _, expected := range []string{
+		`/api/v1/auth/login`,
+		`/api/v1/system/info`,
+		`clusterEnabled`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("host-only artifact smoke action missing %q", expected)
+		}
+	}
+	if strings.Contains(text, "/api/v1/health") {
+		t.Fatal("host-only artifact smoke action must not poll the removed health endpoint")
 	}
 }
 
@@ -3140,6 +4115,27 @@ func TestHelperPrintWorkspaceModules(t *testing.T) {
 	os.Exit(0)
 }
 
+// TestHelperPrintLines prints each supplied argument on its own line for
+// deterministic `go list -f` discovery tests.
+func TestHelperPrintLines(t *testing.T) {
+	index := -1
+	for i, arg := range os.Args {
+		if arg == "--" {
+			index = i
+			break
+		}
+	}
+	if index == -1 || index == len(os.Args)-1 {
+		return
+	}
+	for _, line := range os.Args[index+1:] {
+		if _, err := fmt.Fprintln(os.Stdout, line); err != nil {
+			os.Exit(1)
+		}
+	}
+	os.Exit(0)
+}
+
 // TestHelperPrintGoListPackages prints deterministic go list -json records for
 // linactl test.go planning tests.
 func TestHelperPrintGoListPackages(t *testing.T) {
@@ -3179,10 +4175,50 @@ func writeFile(t *testing.T, path string, content string) {
 	}
 }
 
+func sameStringSet(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	leftCopy := append([]string(nil), left...)
+	rightCopy := append([]string(nil), right...)
+	sort.Strings(leftCopy)
+	sort.Strings(rightCopy)
+	return strings.Join(leftCopy, "\x00") == strings.Join(rightCopy, "\x00")
+}
+
 type capturedCommand struct {
 	name string
 	args []string
 	cmd  *exec.Cmd
+}
+
+func commandLines(calls []capturedCommand) []string {
+	lines := make([]string, 0, len(calls))
+	for _, call := range calls {
+		lines = append(lines, call.name+" "+strings.Join(call.args, " "))
+	}
+	return lines
+}
+
+func newLintCommandTestApp(root string, firstModule string, secondModule string, calls *[]capturedCommand) *app {
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		if name == "go" {
+			cmd = exec.Command(os.Args[0], "-test.run=TestHelperPrintWorkspaceModules", "--", firstModule, secondModule)
+		}
+		*calls = append(*calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+	return application
 }
 
 func writeBuildFixture(t *testing.T, root string) {

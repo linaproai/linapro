@@ -12,7 +12,9 @@ LinaPro 需要支持多节点部署、滚动发布、插件运行时收敛和跨
 - 将`cachecoord`集群模式迁移到 Redis revision + event，保留请求路径或 watcher 的 revision 兜底；权限、运行时配置和插件运行时等关键域按 fail-closed、visible error 或 conservative-hide 处理。
 - 将通用`kvcache`集群后端切换为 coordination KV，使用 Redis TTL 和原子递增；SQL table backend 仅用于单机或测试边界，所有 KV cache 仍是有损缓存。
 - 将 JWT revoke、`pre_token`、一次性认证状态和在线会话 hot state 迁移到 coordination KV，认证和会话安全路径在 Redis 不可读时 fail-closed。
-- 保留`sys_locker`、`sys_cache_revision`和`sys_kv_cache`的历史语义：可用于单机、测试、诊断或未来兜底，不再作为集群跨节点一致性的主实现。
+- 保留`sys_locker`和`sys_cache_revision`的历史语义：可用于单机、测试、诊断或未来兜底，不再作为集群跨节点一致性的主实现。
+- 将单机模式`kvcache`后端从 SQL table 替换为进程内`memory`后端，删除`sys_kv_cache`表和相关清理任务；集群模式继续使用 Redis coordination KV。
+- 明确用户登录态权威来源为`sys_online_session`，单机 JWT revoke 仅作为进程内快速拒绝缓存。
 - 扩展系统信息和健康诊断，暴露 coordination backend、Redis 健康、node ID、primary 状态、revision/event/lock 最近错误和缓存协调状态。
 - 将调度、配置、角色权限、认证、在线用户、插件运行时、插件 host cache/lock 和 pluginbridge 等非 owner 能力中的分布式影响迁移为交叉影响摘要，避免在本分组重复保存完整规范。
 

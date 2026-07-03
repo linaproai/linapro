@@ -1,7 +1,7 @@
-// tenantcap_impl.go implements optional tenant-capability delegation and
-// fallback helpers. It checks source-plugin enablement before forwarding tenant
-// isolation, membership, and query-scope operations, returning platform-safe
-// defaults when multi-tenancy is not installed or not enabled.
+// This file implements tenant provider delegation, provider status conversion,
+// and host fallback helpers. It checks source-plugin enablement before
+// forwarding tenant isolation, membership, and query-scope operations, returning
+// platform-safe defaults when multi-tenancy is not installed or not enabled.
 
 package tenantspi
 
@@ -13,6 +13,7 @@ import (
 
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/capmodel"
+	internalregistry "lina-core/pkg/plugin/capability/internal/capabilityregistry"
 	"lina-core/pkg/plugin/capability/tenantcap"
 )
 
@@ -21,7 +22,7 @@ func (s *serviceImpl) Available(ctx context.Context) bool {
 	if s == nil {
 		return false
 	}
-	return s.manager.registry.StatusWithProvider(ctx, tenantcap.CapabilityTenantV1, s.runtime, s.providerEnv).Available
+	return s.manager.registry.StatusWithProvider(ctx, tenantcap.CapabilityTenantV1, s.enablement, s.providerEnv).Available
 }
 
 // Status returns the current tenant capability activation state.
@@ -29,7 +30,81 @@ func (s *serviceImpl) Status(ctx context.Context) capmodel.CapabilityStatus {
 	if s == nil {
 		return convertCapabilityStatus(NewManager().registry.Status(ctx, tenantcap.CapabilityTenantV1, nil))
 	}
-	return convertCapabilityStatus(s.manager.registry.StatusWithProvider(ctx, tenantcap.CapabilityTenantV1, s.runtime, s.providerEnv))
+	return convertCapabilityStatus(s.manager.registry.StatusWithProvider(ctx, tenantcap.CapabilityTenantV1, s.enablement, s.providerEnv))
+}
+
+// convertCapabilityStatus copies internal capability state into public DTOs.
+func convertCapabilityStatus(status internalregistry.CapabilityStatus) capmodel.CapabilityStatus {
+	providers := make([]capmodel.ProviderStatus, 0, len(status.Providers))
+	for _, provider := range status.Providers {
+		providers = append(providers, convertProviderStatus(provider))
+	}
+	return capmodel.CapabilityStatus{
+		CapabilityID:   status.CapabilityID,
+		Available:      status.Available,
+		ActiveProvider: status.ActiveProvider,
+		Reason:         status.Reason,
+		Providers:      providers,
+	}
+}
+
+// convertProviderStatus copies one internal provider state into a public DTO.
+func convertProviderStatus(status internalregistry.ProviderStatus) capmodel.ProviderStatus {
+	return capmodel.ProviderStatus{
+		CapabilityID: status.CapabilityID,
+		PluginID:     status.PluginID,
+		Active:       status.Active,
+		Conflict:     status.Conflict,
+		Reason:       status.Reason,
+	}
+}
+
+// Context returns current-tenant context operations.
+func (s *serviceImpl) Context() tenantcap.ContextService {
+	return tenantContextService{root: s}
+}
+
+// Directory returns tenant directory operations.
+func (s *serviceImpl) Directory() tenantcap.DirectoryService {
+	return tenantDirectoryService{root: s}
+}
+
+// Membership returns user-to-tenant membership operations.
+func (s *serviceImpl) Membership() tenantcap.MembershipService {
+	return tenantMembershipService{root: s}
+}
+
+// Plugins returns tenant-plugin governance operations when the host directory injects them.
+func (s *serviceImpl) Plugins() tenantcap.PluginService {
+	return nil
+}
+
+// Filter returns plugin-visible tenant filter context reads.
+func (s *serviceImpl) Filter() tenantcap.FilterService {
+	if s == nil {
+		return nil
+	}
+	return tenantFilterContextService{root: s}
+}
+
+// tenantContextService delegates tenant context reads to the root runtime service.
+type tenantContextService struct {
+	root *serviceImpl
+}
+
+// tenantDirectoryService delegates tenant directory operations to the root runtime service.
+type tenantDirectoryService struct {
+	root *serviceImpl
+}
+
+// tenantMembershipService delegates tenant membership operations to the root runtime service.
+type tenantMembershipService struct {
+	root *serviceImpl
+}
+
+// tenantFilterContextService delegates tenant filter context reads to the root runtime service.
+type tenantFilterContextService struct {
+	root *serviceImpl
 }
 
 // currentProvider returns the currently usable tenant-capability provider.
@@ -37,7 +112,7 @@ func (s *serviceImpl) currentProvider(ctx context.Context) (Provider, error) {
 	if s == nil {
 		return nil, nil
 	}
-	provider, err := s.manager.registry.ActiveProviderWithError(ctx, tenantcap.CapabilityTenantV1, s.runtime, s.providerEnv)
+	provider, err := s.manager.registry.ActiveProviderWithError(ctx, tenantcap.CapabilityTenantV1, s.enablement, s.providerEnv)
 	if err != nil || provider == nil {
 		return nil, err
 	}
@@ -49,15 +124,20 @@ func (s *serviceImpl) currentProvider(ctx context.Context) (Provider, error) {
 }
 
 // providerEnv builds lazy construction inputs for one tenant provider.
-func (s *serviceImpl) providerEnv(_ context.Context, pluginID string) ProviderEnv {
-	env := ProviderEnv{PluginID: pluginID}
-	if s != nil && s.runtime != nil {
-		env = s.runtime.TenantProviderEnv(pluginID)
+func (s *serviceImpl) providerEnv(ctx context.Context, pluginID string) ProviderEnv {
+	env := defaultProviderEnv(ctx, pluginID)
+	if s != nil && s.envFactory != nil {
+		env = s.envFactory(ctx, pluginID)
 	}
 	if env.PluginID == "" {
 		env.PluginID = pluginID
 	}
 	return env
+}
+
+// Current returns the current request tenant.
+func (s tenantContextService) Current(ctx context.Context) tenantcap.TenantID {
+	return s.root.Current(ctx)
 }
 
 // Current returns the current request tenant from bizctx, defaulting to platform.
@@ -69,20 +149,38 @@ func (s *serviceImpl) Current(ctx context.Context) tenantcap.TenantID {
 	return tenantcap.TenantID(current.TenantID)
 }
 
-// CurrentTenantInfo returns the current request tenant projection.
-func (s *serviceImpl) CurrentTenantInfo(ctx context.Context) (*tenantcap.TenantInfo, error) {
+// Info returns the current request tenant projection.
+func (s tenantContextService) Info(ctx context.Context) (*tenantcap.TenantInfo, error) {
+	return s.root.currentTenantInfo(ctx)
+}
+
+// currentTenantInfo returns the current request tenant projection.
+func (s *serviceImpl) currentTenantInfo(ctx context.Context) (*tenantcap.TenantInfo, error) {
 	current := s.Current(ctx)
 	if current <= tenantcap.PLATFORM {
 		return platformTenantInfo(), nil
 	}
-	provider, err := s.tenantProjectionProvider(ctx)
+	provider, err := s.tenantDirectoryProvider(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if provider == nil {
 		return &tenantcap.TenantInfo{ID: current}, nil
 	}
-	return provider.CurrentTenantInfo(ctx, current)
+	return provider.Info(ctx, current)
+}
+
+// PlatformBypass reports whether the current request may bypass tenant filtering.
+func (s tenantContextService) PlatformBypass(ctx context.Context) bool {
+	return s.root.PlatformBypass(ctx)
+}
+
+// Context returns plugin-visible tenant and audit metadata.
+func (s tenantFilterContextService) Context(ctx context.Context) tenantcap.TenantFilterContext {
+	if s.root == nil || s.root.bizCtxSvc == nil {
+		return tenantcap.TenantFilterContext{}
+	}
+	return tenantFilterContextFromCurrent(s.root.bizCtxSvc.Current(ctx))
 }
 
 // Apply injects tenant filtering into a model when multi-tenancy is enabled.
@@ -102,6 +200,11 @@ func (s *serviceImpl) PlatformBypass(ctx context.Context) bool {
 		return false
 	}
 	return s.bizCtxSvc.Current(ctx).PlatformBypass
+}
+
+// EnsureVisible validates that the current user can access tenant identifiers.
+func (s tenantDirectoryService) EnsureVisible(ctx context.Context, tenantIDs []tenantcap.TenantID) error {
+	return s.root.ensureTenantsVisible(ctx, tenantIDs)
 }
 
 // EnsureTenantVisible validates that the current user can access tenantID.
@@ -127,6 +230,38 @@ func (s *serviceImpl) EnsureTenantVisible(ctx context.Context, tenantID tenantca
 		return bizerr.NewCode(tenantcap.CodeTenantForbidden, bizerr.P("tenantId", int(tenantID)))
 	}
 	return provider.ValidateUserInTenant(ctx, businessCtx.UserID, tenantID)
+}
+
+// ensureTenantsVisible validates that the current user can access tenant identifiers.
+func (s *serviceImpl) ensureTenantsVisible(ctx context.Context, tenantIDs []tenantcap.TenantID) error {
+	if len(tenantIDs) == 0 {
+		return nil
+	}
+	if len(tenantIDs) > tenantcap.MaxTenantBatchSize {
+		return bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", tenantcap.MaxTenantBatchSize))
+	}
+	normalized := normalizeTenantIDs(tenantIDs)
+	if len(normalized) == 0 {
+		return nil
+	}
+	provider, err := s.tenantDirectoryProvider(ctx)
+	if err != nil {
+		return err
+	}
+	if provider == nil {
+		for _, tenantID := range normalized {
+			if tenantID != tenantcap.PLATFORM {
+				return bizerr.NewCode(tenantcap.CodeTenantForbidden, bizerr.P("tenantId", int(tenantID)))
+			}
+		}
+		return nil
+	}
+	return provider.EnsureVisible(ctx, normalized)
+}
+
+// Validate verifies that a user can access a tenant.
+func (s tenantMembershipService) Validate(ctx context.Context, userID int, tenantID tenantcap.TenantID) error {
+	return s.root.ValidateUserInTenant(ctx, userID, tenantID)
 }
 
 // ValidateUserInTenant verifies that a user can access a tenant.
@@ -209,8 +344,13 @@ func (s *serviceImpl) ListUserTenants(ctx context.Context, userID int) ([]tenant
 	return provider.ListUserTenants(ctx, userID)
 }
 
-// BatchGetTenants returns visible tenant projections and opaque missing IDs.
-func (s *serviceImpl) BatchGetTenants(
+// ListByUser returns active tenant memberships visible to one user.
+func (s tenantMembershipService) ListByUser(ctx context.Context, userID int) ([]tenantcap.TenantInfo, error) {
+	return s.root.ListUserTenants(ctx, userID)
+}
+
+// batchGetTenants returns visible tenant projections and opaque missing IDs.
+func (s *serviceImpl) batchGetTenants(
 	ctx context.Context,
 	tenantIDs []tenantcap.TenantID,
 ) (*capmodel.BatchResult[*tenantcap.TenantInfo, tenantcap.TenantID], error) {
@@ -228,7 +368,7 @@ func (s *serviceImpl) BatchGetTenants(
 	if len(normalized) == 0 {
 		return result, nil
 	}
-	provider, err := s.tenantProjectionProvider(ctx)
+	provider, err := s.tenantDirectoryProvider(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -242,15 +382,35 @@ func (s *serviceImpl) BatchGetTenants(
 		}
 		return result, nil
 	}
-	return provider.BatchGetTenants(ctx, normalized)
+	return provider.BatchGet(ctx, normalized)
 }
 
-// SearchTenants returns bounded tenant candidates visible to the caller.
-func (s *serviceImpl) SearchTenants(
+// Get returns one visible tenant projection.
+func (s tenantDirectoryService) Get(ctx context.Context, tenantID tenantcap.TenantID) (*tenantcap.TenantInfo, error) {
+	result, err := s.root.batchGetTenants(ctx, []tenantcap.TenantID{tenantID})
+	if err != nil {
+		return nil, err
+	}
+	if result == nil || result.Items[tenantID] == nil {
+		return nil, bizerr.NewCode(tenantcap.CodeTenantForbidden, bizerr.P("tenantId", int(tenantID)))
+	}
+	return result.Items[tenantID], nil
+}
+
+// BatchGet returns visible tenant projections and opaque missing IDs.
+func (s tenantDirectoryService) BatchGet(
 	ctx context.Context,
-	input tenantcap.SearchInput,
+	tenantIDs []tenantcap.TenantID,
+) (*capmodel.BatchResult[*tenantcap.TenantInfo, tenantcap.TenantID], error) {
+	return s.root.batchGetTenants(ctx, tenantIDs)
+}
+
+// searchTenants returns bounded tenant candidates visible to the caller.
+func (s *serviceImpl) searchTenants(
+	ctx context.Context,
+	input tenantcap.ListInput,
 ) (*capmodel.PageResult[*tenantcap.TenantInfo], error) {
-	provider, err := s.tenantProjectionProvider(ctx)
+	provider, err := s.tenantDirectoryProvider(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -258,57 +418,15 @@ func (s *serviceImpl) SearchTenants(
 		return &capmodel.PageResult[*tenantcap.TenantInfo]{Items: []*tenantcap.TenantInfo{}}, nil
 	}
 	input.Page = normalizeTenantPage(input.Page)
-	return provider.SearchTenants(ctx, input)
+	return provider.List(ctx, input)
 }
 
-// BatchListUserTenants returns active tenant memberships for visible users.
-func (s *serviceImpl) BatchListUserTenants(ctx context.Context, userIDs []int) (map[int][]tenantcap.TenantInfo, error) {
-	result := make(map[int][]tenantcap.TenantInfo)
-	if len(userIDs) == 0 {
-		return result, nil
-	}
-	if len(userIDs) > tenantcap.MaxUserTenantBatchSize {
-		return nil, bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", tenantcap.MaxUserTenantBatchSize))
-	}
-	normalized := normalizePositiveUserIDs(userIDs)
-	if len(normalized) == 0 {
-		return result, nil
-	}
-	provider, err := s.userMembershipProvider(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if provider == nil {
-		return result, nil
-	}
-	return provider.BatchListUserTenants(ctx, normalized)
-}
-
-// EnsureTenantsVisible validates that the current user can access every tenant.
-func (s *serviceImpl) EnsureTenantsVisible(ctx context.Context, tenantIDs []tenantcap.TenantID) error {
-	if len(tenantIDs) == 0 {
-		return nil
-	}
-	if len(tenantIDs) > tenantcap.MaxTenantBatchSize {
-		return bizerr.NewCode(capmodel.CodeCapabilityLimitExceeded, bizerr.P("limit", tenantcap.MaxTenantBatchSize))
-	}
-	normalized := normalizeTenantIDs(tenantIDs)
-	if len(normalized) == 0 {
-		return nil
-	}
-	provider, err := s.tenantProjectionProvider(ctx)
-	if err != nil {
-		return err
-	}
-	if provider == nil {
-		for _, tenantID := range normalized {
-			if tenantID != tenantcap.PLATFORM {
-				return bizerr.NewCode(tenantcap.CodeTenantForbidden, bizerr.P("tenantId", int(tenantID)))
-			}
-		}
-		return nil
-	}
-	return provider.EnsureTenantsVisible(ctx, normalized)
+// List returns bounded tenant candidates visible to the caller.
+func (s tenantDirectoryService) List(
+	ctx context.Context,
+	input tenantcap.ListInput,
+) (*capmodel.PageResult[*tenantcap.TenantInfo], error) {
+	return s.root.searchTenants(ctx, input)
 }
 
 // ApplyUserTenantFilter constrains platform user-list rows to a requested tenant.
@@ -328,13 +446,13 @@ func (s *serviceImpl) ApplyUserTenantFilter(
 	return provider.ApplyUserTenantFilter(ctx, model, userIDColumn, tenantID)
 }
 
-// tenantProjectionProvider returns the optional tenant projection capability facet.
-func (s *serviceImpl) tenantProjectionProvider(ctx context.Context) (TenantProjectionProvider, error) {
+// tenantDirectoryProvider returns the optional tenant projection capability facet.
+func (s *serviceImpl) tenantDirectoryProvider(ctx context.Context) (DirectoryProvider, error) {
 	provider, err := s.currentProvider(ctx)
 	if err != nil || provider == nil {
 		return nil, err
 	}
-	projectionProvider, ok := provider.(TenantProjectionProvider)
+	projectionProvider, ok := provider.(DirectoryProvider)
 	if !ok {
 		return nil, nil
 	}
@@ -387,29 +505,12 @@ func normalizeTenantIDs(ids []tenantcap.TenantID) []tenantcap.TenantID {
 	return result
 }
 
-// normalizePositiveUserIDs removes duplicate positive user identifiers.
-func normalizePositiveUserIDs(ids []int) []int {
-	result := make([]int, 0, len(ids))
-	seen := make(map[int]struct{}, len(ids))
-	for _, id := range ids {
-		if id <= 0 {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		result = append(result, id)
-	}
-	return result
-}
-
-// ListUserTenantProjections returns tenant ownership labels for visible users.
-func (s *serviceImpl) ListUserTenantProjections(
+// ListUserTenantMemberships returns tenant ownership labels for visible users.
+func (s *serviceImpl) ListUserTenantMemberships(
 	ctx context.Context,
 	userIDs []int,
-) (map[int]*tenantcap.UserTenantProjection, error) {
-	result := make(map[int]*tenantcap.UserTenantProjection)
+) (map[int]*tenantcap.TenantMembershipInfo, error) {
+	result := make(map[int]*tenantcap.TenantMembershipInfo)
 	if len(userIDs) == 0 {
 		return result, nil
 	}
@@ -420,7 +521,7 @@ func (s *serviceImpl) ListUserTenantProjections(
 	if provider == nil {
 		return result, nil
 	}
-	return provider.ListUserTenantProjections(ctx, userIDs)
+	return provider.ListUserTenantMemberships(ctx, userIDs)
 }
 
 // ResolveUserTenantAssignment validates requested memberships and returns a host write plan.
@@ -493,7 +594,9 @@ func (s *serviceImpl) ProvisionAutoEnabledTenantPlugins(ctx context.Context) err
 	if provider == nil {
 		return nil
 	}
-	provisioningProvider, ok := provider.(PluginProvisioningProvider)
+	provisioningProvider, ok := provider.(interface {
+		ProvisionAutoEnabledTenantPlugins(ctx context.Context) error
+	})
 	if !ok {
 		return nil
 	}
@@ -501,11 +604,6 @@ func (s *serviceImpl) ProvisionAutoEnabledTenantPlugins(ctx context.Context) err
 }
 
 // IsProviderEnabled always returns false.
-func (noopProviderRuntime) IsProviderEnabled(_ context.Context, _ string) bool {
+func (noopEnablementReader) IsProviderEnabled(_ context.Context, _ string) bool {
 	return false
-}
-
-// TenantProviderEnv returns an empty typed provider environment.
-func (noopProviderRuntime) TenantProviderEnv(pluginID string) ProviderEnv {
-	return ProviderEnv{PluginID: pluginID}
 }

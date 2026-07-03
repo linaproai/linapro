@@ -83,9 +83,11 @@ func (s *serviceImpl) FindRouteTitleOperationKeys(ctx context.Context, keyword s
 		return []string{}
 	}
 
-	normalizedKeyword := strings.ToLower(strings.TrimSpace(keyword))
-	catalog := s.loadOpenAPIMessageCatalog(ctx, s.i18nSvc.GetLocale(ctx))
-	matches := make(map[string]struct{})
+	var (
+		normalizedKeyword = strings.ToLower(strings.TrimSpace(keyword))
+		catalog           = s.loadOpenAPIMessageCatalog(ctx, s.i18nSvc.GetLocale(ctx))
+		matches           = make(map[string]struct{})
+	)
 	for key, value := range catalog {
 		if !strings.Contains(strings.ToLower(value), normalizedKeyword) {
 			continue
@@ -120,7 +122,7 @@ func resolveRouteTextWithLocalizer(localizer *openAPILocalizer, input RouteTextI
 	}
 	keyBase := strings.TrimSpace(input.OperationKey)
 	if keyBase == "" {
-		keyBase = BuildRouteOperationKeyFromPath(input.Path, input.Method)
+		keyBase = buildRouteOperationKeyFromPath(input.Path, input.Method)
 	}
 	if keyBase == "" {
 		return output
@@ -130,18 +132,18 @@ func resolveRouteTextWithLocalizer(localizer *openAPILocalizer, input RouteTextI
 	return output
 }
 
-// BuildRouteOperationKeyFromHandlerType returns the static-route apidoc key
+// buildRouteOperationKeyFromHandlerType returns the static-route apidoc key
 // base for a GoFrame strict handler function type.
-func BuildRouteOperationKeyFromHandlerType(handlerType reflect.Type) string {
+func buildRouteOperationKeyFromHandlerType(handlerType reflect.Type) string {
 	if handlerType == nil || handlerType.Kind() != reflect.Func || handlerType.NumIn() != 2 {
 		return ""
 	}
-	return BuildRouteOperationKeyFromRequestType(handlerType.In(1))
+	return buildRouteOperationKeyFromRequestType(handlerType.In(1))
 }
 
-// BuildRouteOperationKeyFromRequestType returns the static-route apidoc key
+// buildRouteOperationKeyFromRequestType returns the static-route apidoc key
 // base for a GoFrame request DTO type.
-func BuildRouteOperationKeyFromRequestType(reqType reflect.Type) string {
+func buildRouteOperationKeyFromRequestType(reqType reflect.Type) string {
 	if reqType == nil {
 		return ""
 	}
@@ -155,9 +157,9 @@ func BuildRouteOperationKeyFromRequestType(reqType reflect.Type) string {
 	return normalizeOpenAPIComponentKey(componentName)
 }
 
-// BuildRouteOperationKeyFromPath returns the path-derived apidoc operation key
+// buildRouteOperationKeyFromPath returns the path-derived apidoc operation key
 // base used for dynamic plugin routes and non-DTO fallback routes.
-func BuildRouteOperationKeyFromPath(path string, method string) string {
+func buildRouteOperationKeyFromPath(path string, method string) string {
 	normalizedPath := normalizeOpenAPIPath(path)
 	if normalizedPath == "" {
 		return ""

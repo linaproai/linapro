@@ -6,6 +6,7 @@ package jobmgmt
 import (
 	"context"
 	"fmt"
+	jobv1 "lina-core/api/job/v1"
 	"testing"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
-	"lina-core/internal/service/jobmeta"
 	"lina-core/pkg/bizerr"
 )
 
@@ -188,15 +188,15 @@ func TestCreateJobWritesCurrentTenant(t *testing.T) {
 	jobID, err := svc.CreateJob(tenantACtx, SaveJobInput{
 		GroupID:        groupID,
 		Name:           uniqueTestName("tenant-created-job"),
-		TaskType:       jobmeta.TaskTypeShell,
+		TaskType:       jobv1.TaskTypeShell,
 		Timeout:        jobGroupTestTimeout,
 		ShellCmd:       "printf 'tenant'",
 		CronExpr:       "*/5 * * * *",
 		Timezone:       "Asia/Shanghai",
-		Scope:          jobmeta.JobScopeMasterOnly,
-		Concurrency:    jobmeta.JobConcurrencySingleton,
+		Scope:          jobv1.ScopeMasterOnly,
+		Concurrency:    jobv1.ConcurrencySingleton,
 		MaxConcurrency: 1,
-		Status:         jobmeta.JobStatusDisabled,
+		Status:         jobv1.StatusDisabled,
 	})
 	if err != nil {
 		t.Fatalf("expected tenant job create to succeed, got error: %v", err)
@@ -217,7 +217,7 @@ const jobGroupTestTimeout = 30 * time.Second
 
 // jobGroupTenantContext injects one tenant for service-layer tenant scoping.
 func jobGroupTenantContext(ctx context.Context, tenantID int) context.Context {
-	return datascope.WithTenantForTest(ctx, tenantID)
+	return datascope.WithTenantScope(ctx, tenantID)
 }
 
 // insertJobGroupTenantFixture inserts one tenant-owned group fixture.
@@ -258,18 +258,18 @@ func insertJobTenantFixture(t *testing.T, ctx context.Context, tenantID int, gro
 		GroupId:        groupID,
 		Name:           name,
 		Description:    "Tenant job-group isolation fixture.",
-		TaskType:       string(jobmeta.TaskTypeShell),
+		TaskType:       string(jobv1.TaskTypeShell),
 		HandlerRef:     "",
 		Params:         `{}`,
 		TimeoutSeconds: 30,
 		ShellCmd:       "printf 'tenant'",
 		CronExpr:       "* * * * *",
 		Timezone:       "Asia/Shanghai",
-		Scope:          string(jobmeta.JobScopeMasterOnly),
-		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		Scope:          string(jobv1.ScopeMasterOnly),
+		Concurrency:    string(jobv1.ConcurrencySingleton),
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
-		Status:         string(jobmeta.JobStatusDisabled),
+		Status:         string(jobv1.StatusDisabled),
 		IsBuiltin:      0,
 		SeedVersion:    0,
 	}).InsertAndGetId()

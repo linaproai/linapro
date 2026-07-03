@@ -15,9 +15,9 @@ CREATE TABLE IF NOT EXISTS sys_job_group (
     "remark"     VARCHAR(512) NOT NULL DEFAULT '',
     "sort_order" INT NOT NULL DEFAULT 0,
     "is_default" SMALLINT NOT NULL DEFAULT 0,
-    "created_at" TIMESTAMP,
-    "updated_at" TIMESTAMP,
-    "deleted_at" TIMESTAMP
+    "created_at" TIMESTAMPTZ,
+    "updated_at" TIMESTAMPTZ,
+    "deleted_at" TIMESTAMPTZ
 );
 
 COMMENT ON TABLE sys_job_group IS 'Scheduled job group table';
@@ -66,9 +66,9 @@ CREATE TABLE IF NOT EXISTS sys_job (
     "seed_version"           INT NOT NULL DEFAULT 0,
     "created_by"             BIGINT NOT NULL DEFAULT 0,
     "updated_by"             BIGINT NOT NULL DEFAULT 0,
-    "created_at"             TIMESTAMP,
-    "updated_at"             TIMESTAMP,
-    "deleted_at"             TIMESTAMP
+    "created_at"             TIMESTAMPTZ,
+    "updated_at"             TIMESTAMPTZ,
+    "deleted_at"             TIMESTAMPTZ
 );
 
 COMMENT ON TABLE sys_job IS 'Scheduled job table';
@@ -121,13 +121,13 @@ CREATE TABLE IF NOT EXISTS sys_job_log (
     "node_id"         VARCHAR(128) NOT NULL DEFAULT '',
     "trigger"       VARCHAR(32) NOT NULL DEFAULT 'cron',
     "params_snapshot" TEXT,
-    "start_at"        TIMESTAMP,
-    "end_at"          TIMESTAMP,
+    "start_at"        TIMESTAMPTZ,
+    "end_at"          TIMESTAMPTZ,
     "duration_ms"     BIGINT NOT NULL DEFAULT 0,
     "status"          VARCHAR(64) NOT NULL DEFAULT 'running',
     "err_msg"         VARCHAR(1000) NOT NULL DEFAULT '',
     "result_json"     TEXT,
-    "created_at"      TIMESTAMP
+    "created_at"      TIMESTAMPTZ
 );
 
 COMMENT ON TABLE sys_job_log IS 'Scheduled job execution log table';
@@ -162,7 +162,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO sys_config ("name", "key", "value", "is_builtin", "remark", "created_at", "updated_at")
 VALUES (
     '定时任务-Shell 模式全局开关',
-    'cron.shell.enabled',
+    'sys.cron.shell.enabled',
     'true',
     1,
     '控制 Shell 类型任务是否允许创建、修改、触发与终止，可选值：true、false。',
@@ -174,7 +174,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO sys_config ("name", "key", "value", "is_builtin", "remark", "created_at", "updated_at")
 VALUES (
     '定时任务-执行日志保留策略',
-    'cron.log.retention',
+    'sys.cron.log.retention',
     '{"mode":"days","value":30}',
     1,
     '控制定时任务执行日志默认保留策略，使用 JSON：{"mode":"days|count|none","value":N}。',

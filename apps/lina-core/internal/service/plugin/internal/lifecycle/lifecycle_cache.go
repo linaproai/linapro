@@ -6,8 +6,8 @@ package lifecycle
 import (
 	"context"
 
-	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
+	"lina-core/pkg/statusflag"
 )
 
 // syncEnabledSnapshotAndPublishRuntimeChange updates local enablement and
@@ -44,7 +44,7 @@ func (s *serviceImpl) syncEnabledSnapshotStateFromRegistry(
 	if err != nil {
 		return err
 	}
-	if registry == nil || registry.Installed != plugintypes.InstalledYes {
+	if registry == nil || registry.Installed != statusflag.Installed.Int() {
 		s.integrationSvc.DeletePluginEnabledState(pluginID)
 		return nil
 	}
@@ -56,7 +56,7 @@ func (s *serviceImpl) syncEnabledSnapshotStateFromRegistry(
 	if err != nil {
 		return err
 	}
-	enabled := registry.Status == plugintypes.StatusEnabled &&
+	enabled := registry.Status == statusflag.EnabledValue.Int() &&
 		store.RuntimeStateAllowsBusinessEntry(runtimeState.State)
 	s.integrationSvc.SetPluginEnabledState(pluginID, enabled)
 	return nil

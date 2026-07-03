@@ -56,57 +56,18 @@ write_cluster_config() {
   REDIS_ADDR="$REDIS_ADDR" perl -0pi -e 's/(redis:\n(?:[ \t]*#.*\n)*[ \t]*address:\s*")[^"]+(")/$1.$ENV{REDIS_ADDR}.$2/e' "$CONFIG_PATH"
 }
 
-wait_for_cluster_health() {
-  local elapsed=0
-  local response=""
-  while [ "$elapsed" -lt 90 ]; do
-    if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
-      echo "Redis cluster smoke startup failed; backend exited early"
-      echo "Check log: $BACKEND_LOG"
-      exit 1
-    fi
-    response="$(curl -fsS "http://127.0.0.1:$SMOKE_PORT/api/v1/health" 2>/dev/null || true)"
-    # A one-node cluster should become master after Redis leader election
-    # acquires the lease. Polling avoids racing the asynchronous election loop.
-    if [ -n "$response" ] && HEALTH_RESPONSE="$response" python3 - <<'PY'
-import json
-import os
-import sys
-
-payload = json.loads(os.environ["HEALTH_RESPONSE"])
-data = payload.get("data", payload)
-if payload.get("code", 0) == 0 and data.get("status") == "ok" and data.get("mode") == "master":
-    sys.exit(0)
-sys.exit(1)
-PY
-    then
-      return 0
-    fi
-    sleep 1
-    elapsed=$((elapsed + 1))
-  done
-  echo "Redis cluster smoke startup timed out waiting for master health mode"
-  echo "Last health response: $response"
-  echo "Check log: $BACKEND_LOG"
-  exit 1
-}
-
-assert_login_and_sysinfo() {
-  # Login proves the cluster session store can write Redis hot state and the
-  # PostgreSQL online-session projection through the normal HTTP path.
+login_admin() {
   local login_response
   login_response="$(
     curl -fsS \
       -H "Content-Type: application/json" \
       -d '{"username":"admin","password":"admin123","clientType":"web"}' \
       "http://127.0.0.1:$SMOKE_PORT/api/v1/auth/login"
-  )"
+  )" || return 1
 
-  local token
-  token="$(LOGIN_RESPONSE="$login_response" python3 - <<'PY'
+  LOGIN_RESPONSE="$login_response" python3 - <<'PY'
 import json
 import os
-import sys
 
 payload = json.loads(os.environ["LOGIN_RESPONSE"])
 data = payload.get("data", payload)
@@ -117,17 +78,72 @@ if not token:
     raise SystemExit(f"login response did not contain accessToken: {payload!r}")
 print(token)
 PY
-  )"
+}
+
+fetch_sysinfo() {
+  local token="$1"
+  curl -fsS \
+    -H "Authorization: Bearer $token" \
+    "http://127.0.0.1:$SMOKE_PORT/api/v1/system/info"
+}
+
+wait_for_cluster_primary() {
+  local elapsed=0
+  local response=""
+  local token=""
+  while [ "$elapsed" -lt 90 ]; do
+    if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+      echo "Redis cluster smoke startup failed; backend exited early"
+      echo "Check log: $BACKEND_LOG"
+      exit 1
+    fi
+    token="$(login_admin 2>/dev/null || true)"
+    if [ -n "$token" ]; then
+      response="$(fetch_sysinfo "$token" 2>/dev/null || true)"
+    fi
+    # A one-node cluster should become master after Redis leader election
+    # acquires the lease. Polling avoids racing the asynchronous election loop.
+    if [ -n "$response" ] && SYSINFO_RESPONSE="$response" python3 - <<'PY'
+import json
+import os
+import sys
+
+payload = json.loads(os.environ["SYSINFO_RESPONSE"])
+data = payload.get("data", payload)
+coordination = data.get("coordination") or {}
+if (
+    payload.get("code", 0) == 0
+    and coordination.get("clusterEnabled") is True
+    and coordination.get("backend") == "redis"
+    and coordination.get("redisHealthy") is True
+    and coordination.get("primary") is True
+):
+    sys.exit(0)
+sys.exit(1)
+PY
+    then
+      return 0
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  echo "Redis cluster smoke startup timed out waiting for primary coordination state"
+  echo "Last system info response: $response"
+  echo "Check log: $BACKEND_LOG"
+  exit 1
+}
+
+assert_login_and_sysinfo() {
+  # Login proves the cluster session store can write Redis hot state and the
+  # PostgreSQL online-session projection through the normal HTTP path.
+  local token
+  token="$(login_admin)"
 
   local sysinfo_response
-  sysinfo_response="$(
-    curl -fsS \
-      -H "Authorization: Bearer $token" \
-      "http://127.0.0.1:$SMOKE_PORT/api/v1/system/info"
-  )"
+  sysinfo_response="$(fetch_sysinfo "$token")"
 
-  # System info is the public diagnostics surface for Redis coordination. Keep
-  # this assertion focused on wiring and health, not on exhaustive page behavior.
+  # System info is the protected diagnostics surface for Redis coordination.
+  # Keep this assertion focused on wiring, not on exhaustive page behavior.
   SYSINFO_RESPONSE="$sysinfo_response" python3 - <<'PY'
 import json
 import os
@@ -175,7 +191,7 @@ make -C "$CORE_DIR" pack.assets
 ) >"$BACKEND_LOG" 2>&1 &
 BACKEND_PID="$!"
 
-wait_for_cluster_health
+wait_for_cluster_primary
 assert_login_and_sysinfo
 
 echo "Redis cluster backend smoke passed"

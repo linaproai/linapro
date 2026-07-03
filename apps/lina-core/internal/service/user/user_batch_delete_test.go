@@ -48,10 +48,12 @@ func TestDeleteRollsBackWhenOrgCleanupFails(t *testing.T) {
 // TestBatchDeleteRejectsCurrentUserAtomically verifies current-user protection
 // rejects the whole batch before deleting any selected users.
 func TestBatchDeleteRejectsCurrentUserAtomically(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertUserDeleteTestUser(t, ctx, "current-user")
-	otherUserID := insertUserDeleteTestUser(t, ctx, "other-user")
-	roleID := insertUserDeleteTestRole(t, ctx, "current-user-role")
+	var (
+		ctx           = context.Background()
+		currentUserID = insertUserDeleteTestUser(t, ctx, "current-user")
+		otherUserID   = insertUserDeleteTestUser(t, ctx, "other-user")
+		roleID        = insertUserDeleteTestRole(t, ctx, "current-user-role")
+	)
 	t.Cleanup(func() {
 		cleanupUserDeleteTestRows(t, ctx, []int{currentUserID, otherUserID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
@@ -115,9 +117,11 @@ func TestBatchDeleteRemovesUsersAndAssociations(t *testing.T) {
 // TestBatchDeleteRejectsBuiltinAdminAtomically verifies built-in administrator
 // protection rejects the whole batch before deleting any selected users.
 func TestBatchDeleteRejectsBuiltinAdminAtomically(t *testing.T) {
-	ctx := context.Background()
-	otherUserID := insertUserDeleteTestUser(t, ctx, "other-admin-guard")
-	adminUserID := mustQueryBuiltinAdminUserID(t, ctx)
+	var (
+		ctx         = context.Background()
+		otherUserID = insertUserDeleteTestUser(t, ctx, "other-admin-guard")
+		adminUserID = mustQueryBuiltinAdminUserID(t, ctx)
+	)
 	t.Cleanup(func() {
 		cleanupUserDeleteTestRows(t, ctx, []int{otherUserID})
 	})
@@ -373,8 +377,8 @@ func (f userDeleteFailingOrgCap) ListDeptTree(context.Context, orgcap.DeptTreeIn
 }
 
 // SearchDepartments returns no department candidates.
-func (f userDeleteFailingOrgCap) SearchDepartments(context.Context, orgcap.DeptSearchInput) (*capmodel.PageResult[*orgcap.DeptProjection], error) {
-	return &capmodel.PageResult[*orgcap.DeptProjection]{Items: []*orgcap.DeptProjection{}}, nil
+func (f userDeleteFailingOrgCap) SearchDepartments(context.Context, orgcap.DeptListInput) (*capmodel.PageResult[*orgcap.DeptInfo], error) {
+	return &capmodel.PageResult[*orgcap.DeptInfo]{Items: []*orgcap.DeptInfo{}}, nil
 }
 
 // ListPostOptionsPage returns no post candidates.

@@ -15,6 +15,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"gopkg.in/yaml.v3"
 
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/capability/plugincap"
@@ -29,6 +30,11 @@ type hostConfigClient struct{ baseService }
 
 // hostConfigCapabilityService adapts a hostConfigClient to hostconfigcap.Service.
 type hostConfigCapabilityService struct {
+	client *hostConfigClient
+}
+
+// hostConfigSysConfigService adapts governed sys_config methods to host services.
+type hostConfigSysConfigService struct {
 	client *hostConfigClient
 }
 
@@ -135,12 +141,25 @@ func (s *hostConfigClient) Duration(key string) (time.Duration, bool, error) {
 }
 
 // Get returns the raw host config value for the requested key.
-func (s *hostConfigCapabilityService) Get(_ context.Context, key string) (*gvar.Var, error) {
+func (s *hostConfigCapabilityService) Get(_ context.Context, key string, defaultValue any) (*gvar.Var, error) {
 	value, found, err := s.client.Get(key)
-	if err != nil || !found {
+	if err != nil {
 		return nil, err
 	}
-	return gvarFromJSONValue(value), nil
+	if !found {
+		if defaultValue != nil {
+			return gvar.New(defaultValue), nil
+		}
+		return nil, nil
+	}
+	result := gvarFromJSONValue(value)
+	if result == nil || result.IsNil() {
+		if defaultValue != nil {
+			return gvar.New(defaultValue), nil
+		}
+		return nil, nil
+	}
+	return result, nil
 }
 
 // Exists reports whether a host config key is available.
@@ -185,11 +204,105 @@ func (s *hostConfigCapabilityService) Duration(_ context.Context, key string, de
 	return value, nil
 }
 
+// SysConfig returns the dynamic single-key sys_config subresource adapter.
+func (s *hostConfigCapabilityService) SysConfig() hostconfigcap.SysConfigService {
+	return hostConfigSysConfigService{client: s.client}
+}
+
+// Get reads one governed sys_config projection.
+func (s hostConfigSysConfigService) Get(_ context.Context, key hostconfigcap.SysConfigKey) (*hostconfigcap.SysConfigInfo, error) {
+	var out *hostconfigcap.SysConfigInfo
+	err := s.client.callHostServiceJSONRequest(
+		protocol.HostServiceHostConfig,
+		protocol.HostServiceMethodHostConfigSysConfigGet,
+		string(key),
+		"",
+		hostConfigSysConfigKeyRequest{Key: string(key)},
+		&out,
+	)
+	return out, err
+}
+
+// BatchGet reads governed sys_config projections.
+func (s hostConfigSysConfigService) BatchGet(ctx context.Context, keys []hostconfigcap.SysConfigKey) (*capmodel.BatchResult[*hostconfigcap.SysConfigInfo, hostconfigcap.SysConfigKey], error) {
+	out := &capmodel.BatchResult[*hostconfigcap.SysConfigInfo, hostconfigcap.SysConfigKey]{
+		Items:      map[hostconfigcap.SysConfigKey]*hostconfigcap.SysConfigInfo{},
+		MissingIDs: []hostconfigcap.SysConfigKey{},
+	}
+	for _, key := range keys {
+		item, err := s.Get(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		if item == nil {
+			out.MissingIDs = append(out.MissingIDs, key)
+			continue
+		}
+		out.Items[key] = item
+	}
+	return out, nil
+}
+
+// List is not published as a dynamic hostconfig host-service method because
+// list authorization cannot be represented by one `resources.keys` resourceRef.
+func (hostConfigSysConfigService) List(_ context.Context, _ hostconfigcap.ListSysConfigInput) (*capmodel.PageResult[*hostconfigcap.SysConfigInfo], error) {
+	return nil, unsupportedDynamicMethodError("hostconfig.sys_config.list")
+}
+
+// SetValue writes one governed sys_config value.
+func (s hostConfigSysConfigService) SetValue(_ context.Context, key hostconfigcap.SysConfigKey, value string) error {
+	return s.client.callHostServiceJSONRequest(
+		protocol.HostServiceHostConfig,
+		protocol.HostServiceMethodHostConfigSysConfigSetValue,
+		string(key),
+		"",
+		hostConfigSysConfigSetValueRequest{Key: string(key), Value: value},
+		nil,
+	)
+}
+
+// Reset resets one governed sys_config value.
+func (s hostConfigSysConfigService) Reset(_ context.Context, key hostconfigcap.SysConfigKey) error {
+	return s.client.callHostServiceJSONRequest(
+		protocol.HostServiceHostConfig,
+		protocol.HostServiceMethodHostConfigSysConfigReset,
+		string(key),
+		"",
+		hostConfigSysConfigKeyRequest{Key: string(key)},
+		nil,
+	)
+}
+
+// EnsureVisible rejects when any sys_config key is outside caller scope.
+func (s hostConfigSysConfigService) EnsureVisible(ctx context.Context, keys []hostconfigcap.SysConfigKey) error {
+	for _, key := range keys {
+		if _, err := s.Get(ctx, key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type hostConfigSysConfigKeyRequest struct {
+	Key string `json:"key"`
+}
+
+type hostConfigSysConfigSetValueRequest struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 // Get returns the raw plugin configuration value for the given key.
-func (s *pluginConfigService) Get(_ context.Context, key string) (*gvar.Var, error) {
+func (s *pluginConfigService) Get(_ context.Context, key string, defaultValue any) (*gvar.Var, error) {
 	value, found, err := s.configValue(protocol.HostServicePlugins, protocol.HostServiceMethodPluginsConfigGet, "", key)
-	if err != nil || !found {
+	if err != nil {
 		return nil, err
+	}
+	if !found {
+		if defaultValue != nil {
+			return gvar.New(defaultValue), nil
+		}
+		return nil, nil
 	}
 	return gvarFromJSONValue(value), nil
 }
@@ -205,7 +318,7 @@ func (s *pluginConfigService) Scan(ctx context.Context, key string, target any) 
 	if target == nil {
 		return gerror.New("plugin config scan target cannot be nil")
 	}
-	value, err := s.Get(ctx, key)
+	value, err := s.Get(ctx, key, nil)
 	if err != nil || value == nil || value.IsNil() {
 		return err
 	}
@@ -508,6 +621,8 @@ func parentDirectoryPrefix(path string) string {
 	return path[:index+1]
 }
 
-var _ plugincap.ConfigService = (*pluginConfigService)(nil)
-var _ hostconfigcap.Service = (*hostConfigCapabilityService)(nil)
-var _ manifestcap.Service = (*manifestCapabilityService)(nil)
+var (
+	_ plugincap.ConfigService = (*pluginConfigService)(nil)
+	_ hostconfigcap.Service   = (*hostConfigCapabilityService)(nil)
+	_ manifestcap.Service     = (*manifestCapabilityService)(nil)
+)

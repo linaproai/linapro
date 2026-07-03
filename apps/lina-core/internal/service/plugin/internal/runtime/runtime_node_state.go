@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 	"time"
 
@@ -107,7 +108,7 @@ func (s *serviceImpl) CurrentNodeID() string {
 // SyncPluginReleaseRuntimeState implements catalog.ReleaseStateSyncer.
 // It updates the active release row to reflect current registry state.
 func (s *serviceImpl) SyncPluginReleaseRuntimeState(ctx context.Context, registry *store.PluginRecord) error {
-	if registry == nil || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if registry == nil || plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return nil
 	}
 
@@ -129,9 +130,11 @@ func (s *serviceImpl) syncNodeProjection(ctx context.Context, in nodeProjectionI
 		return nil
 	}
 
-	pluginID := strings.TrimSpace(in.PluginID)
-	nodeKey := s.currentNodeID()
-	desiredState := strings.TrimSpace(in.DesiredState)
+	var (
+		pluginID     = strings.TrimSpace(in.PluginID)
+		nodeKey      = s.currentNodeID()
+		desiredState = strings.TrimSpace(in.DesiredState)
+	)
 	if desiredState == "" {
 		desiredState = plugintypes.NodeStateUninstalled.String()
 	}

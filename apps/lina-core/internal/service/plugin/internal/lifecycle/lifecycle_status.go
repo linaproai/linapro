@@ -6,6 +6,7 @@ package lifecycle
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	plugindep "lina-core/internal/service/plugin/internal/dependency"
@@ -15,6 +16,7 @@ import (
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // UpdateStatusOptions carries per-request state-change policy values.
@@ -34,14 +36,14 @@ func (s *serviceImpl) UpdateStatus(
 	status int,
 	options UpdateStatusOptions,
 ) error {
-	if status != plugintypes.StatusDisabled && status != plugintypes.StatusEnabled {
+	if status != statusflag.Disabled.Int() && status != statusflag.EnabledValue.Int() {
 		return bizerr.NewCode(CodePluginStatusInvalid)
 	}
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
 		return err
 	}
-	if status == plugintypes.StatusEnabled && plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeDynamic {
+	if status == statusflag.EnabledValue.Int() && plugintypes.NormalizeType(manifest.Type) == pluginv1.PluginTypeDynamic {
 		if err = s.runtimeSvc.EnsureRuntimeArtifactAvailable(manifest, "enable"); err != nil {
 			return err
 		}
@@ -56,12 +58,12 @@ func (s *serviceImpl) UpdateStatus(
 	if !installed {
 		return bizerr.NewCode(CodePluginNotInstalled)
 	}
-	if status == plugintypes.StatusEnabled {
+	if status == statusflag.EnabledValue.Int() {
 		if err = s.ensureEnableDependencies(ctx, pluginID, options.FrameworkVersion); err != nil {
 			return err
 		}
 	}
-	if plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(manifest.Type) == pluginv1.PluginTypeDynamic {
 		return s.updateDynamicStatus(ctx, manifest, pluginID, status, options)
 	}
 	return s.updateSourceStatus(ctx, manifest, pluginID, status)
@@ -107,7 +109,7 @@ func (s *serviceImpl) updateDynamicStatus(
 	status int,
 	options UpdateStatusOptions,
 ) error {
-	if status == plugintypes.StatusEnabled {
+	if status == statusflag.EnabledValue.Int() {
 		return s.enableDynamicPlugin(ctx, manifest, pluginID, options)
 	}
 	return s.disableDynamicPlugin(ctx, pluginID)
@@ -124,7 +126,7 @@ func (s *serviceImpl) enableDynamicPlugin(
 	if err := s.persistDynamicPluginAuthorization(ctx, manifest, options.Authorization); err != nil {
 		return err
 	}
-	if err := s.reconcileDynamicPluginStatus(ctx, pluginID, plugintypes.StatusEnabled); err != nil {
+	if err := s.reconcileDynamicPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 		return err
 	}
 	if err := s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "dynamic_plugin_status_changed"); err != nil {
@@ -149,7 +151,7 @@ func (s *serviceImpl) disableDynamicPlugin(ctx context.Context, pluginID string)
 		return err
 	}
 	activeManifest := s.loadActiveDynamicLifecycleManifestBestEffort(ctx, pluginID)
-	if err = s.reconcileDynamicPluginStatus(ctx, pluginID, plugintypes.StatusDisabled); err != nil {
+	if err = s.reconcileDynamicPluginStatus(ctx, pluginID, statusflag.Disabled.Int()); err != nil {
 		return err
 	}
 	if err = s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "dynamic_plugin_status_changed"); err != nil {
@@ -172,7 +174,7 @@ func (s *serviceImpl) updateSourceStatus(
 	pluginID string,
 	status int,
 ) error {
-	if status == plugintypes.StatusEnabled {
+	if status == statusflag.EnabledValue.Int() {
 		return s.enableSourcePlugin(ctx, pluginID)
 	}
 	return s.disableSourcePlugin(ctx, manifest, pluginID)
@@ -180,7 +182,7 @@ func (s *serviceImpl) updateSourceStatus(
 
 // enableSourcePlugin updates source governance state and publishes successful enable side effects.
 func (s *serviceImpl) enableSourcePlugin(ctx context.Context, pluginID string) error {
-	if err := s.storeSvc.SetPluginStatus(ctx, pluginID, plugintypes.StatusEnabled); err != nil {
+	if err := s.storeSvc.SetPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 		return err
 	}
 	if err := s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "source_plugin_status_changed"); err != nil {
@@ -200,7 +202,7 @@ func (s *serviceImpl) disableSourcePlugin(ctx context.Context, manifest *catalog
 	); err != nil {
 		return err
 	}
-	if err := s.storeSvc.SetPluginStatus(ctx, pluginID, plugintypes.StatusDisabled); err != nil {
+	if err := s.storeSvc.SetPluginStatus(ctx, pluginID, statusflag.Disabled.Int()); err != nil {
 		return err
 	}
 	if err := s.syncEnabledSnapshotAndPublishRuntimeChange(ctx, pluginID, "source_plugin_status_changed"); err != nil {
@@ -217,7 +219,7 @@ func (s *serviceImpl) disableSourcePlugin(ctx context.Context, manifest *catalog
 // reconciler host state transitions used by dynamic plugins.
 func (s *serviceImpl) reconcileDynamicPluginStatus(ctx context.Context, pluginID string, status int) error {
 	targetState := plugintypes.HostStateInstalled.String()
-	if status == plugintypes.StatusEnabled {
+	if status == statusflag.EnabledValue.Int() {
 		targetState = plugintypes.HostStateEnabled.String()
 	}
 	return s.runtimeSvc.ReconcileDynamicPluginRequest(ctx, pluginID, targetState, runtime.DynamicReconcileOptions{})

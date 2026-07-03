@@ -13,6 +13,7 @@ import (
 	"github.com/gogf/gf/v2/util/gconv"
 	"gopkg.in/yaml.v3"
 
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/plugin/internal/catalog"
@@ -20,6 +21,7 @@ import (
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
 // LoadReleaseManifest loads the dynamic plugin manifest from a persisted release artifact.
@@ -348,6 +350,7 @@ func (s *serviceImpl) buildManifestSnapshotModel(manifest *catalog.Manifest) (*M
 		Name:                      manifest.Name,
 		Version:                   manifest.Version,
 		Type:                      manifest.Type,
+		Distribution:              plugintypes.NormalizeDistribution(manifest.Distribution).String(),
 		ScopeNature:               manifest.ScopeNature,
 		SupportsMultiTenant:       manifest.SupportsTenantGovernance(),
 		DefaultInstallMode:        manifest.DefaultInstallMode,
@@ -528,7 +531,7 @@ func (s *serviceImpl) buildReleasePackagePathForSync(manifest *catalog.Manifest,
 // shouldPreserveArchivedPackagePath returns true when a release's package path already
 // points to an archived location and should not be overwritten by the mutable staging artifact.
 func shouldPreserveArchivedPackagePath(manifest *catalog.Manifest, packagePath string) bool {
-	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
+	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic {
 		return false
 	}
 	normalizedPath := filepath.ToSlash(strings.TrimSpace(packagePath))
@@ -545,16 +548,16 @@ func (s *serviceImpl) buildReleaseStatusForManifest(manifest *catalog.Manifest, 
 	if manifest == nil || registry == nil {
 		return plugintypes.ReleaseStatusPrepared
 	}
-	if plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeSource {
+	if plugintypes.NormalizeType(manifest.Type) == pluginv1.PluginTypeSource {
 		if strings.TrimSpace(registry.Version) == strings.TrimSpace(manifest.Version) {
 			return plugintypes.BuildReleaseStatus(registry.Installed, registry.Status)
 		}
-		if registry.Installed != plugintypes.InstalledYes {
+		if registry.Installed != statusflag.Installed.Int() {
 			return plugintypes.BuildReleaseStatus(registry.Installed, registry.Status)
 		}
 		return plugintypes.ReleaseStatusPrepared
 	}
-	if plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic {
 		return plugintypes.BuildReleaseStatus(registry.Installed, registry.Status)
 	}
 	if registry.ReleaseId > 0 && releaseID == registry.ReleaseId {
@@ -568,7 +571,7 @@ func (s *serviceImpl) buildReleaseStatusForManifest(manifest *catalog.Manifest, 
 
 // buildReleaseManifestPath returns the manifest path to store in the release row.
 func (s *serviceImpl) buildReleaseManifestPath(manifest *catalog.Manifest) string {
-	if manifest == nil || plugintypes.NormalizeType(manifest.Type) == plugintypes.TypeDynamic {
+	if manifest == nil || plugintypes.NormalizeType(manifest.Type) == pluginv1.PluginTypeDynamic {
 		return ""
 	}
 	if catalog.HasSourcePluginEmbeddedFiles(manifest) {
@@ -624,7 +627,7 @@ func (s *serviceImpl) countSQLAssets(manifest *catalog.Manifest, direction plugi
 
 // buildFrontendPageCount counts discovered source-plugin frontend pages.
 func (s *serviceImpl) buildFrontendPageCount(manifest *catalog.Manifest) int {
-	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeSource {
+	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeSource {
 		return 0
 	}
 	if s.catalogSvc == nil {
@@ -635,7 +638,7 @@ func (s *serviceImpl) buildFrontendPageCount(manifest *catalog.Manifest) int {
 
 // buildFrontendSlotCount counts discovered source-plugin frontend slot entries.
 func (s *serviceImpl) buildFrontendSlotCount(manifest *catalog.Manifest) int {
-	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeSource {
+	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeSource {
 		return 0
 	}
 	if s.catalogSvc == nil {

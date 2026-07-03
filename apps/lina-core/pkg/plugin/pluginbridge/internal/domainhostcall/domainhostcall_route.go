@@ -18,9 +18,9 @@ func Route(invoker Invoker) routecap.Service {
 	return routeService{baseService: newBaseService(invoker)}
 }
 
-// DynamicRouteMetadata returns the current dynamic-route metadata projection.
-func (s routeService) DynamicRouteMetadata(context.Context) *routecap.DynamicRouteMetadata {
-	var out routecap.DynamicRouteMetadata
+// GetMetadata returns the current dynamic-route metadata projection.
+func (s routeService) GetMetadata(context.Context) *routecap.Metadata {
+	var out routecap.Metadata
 	if err := s.callJSONRequest(protocol.HostServiceRoute, protocol.HostServiceMethodRouteMetadataGet, nil, &out); err != nil {
 		return nil
 	}

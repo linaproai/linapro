@@ -6,6 +6,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 	"time"
 
@@ -14,8 +15,10 @@ import (
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 const (
@@ -26,7 +29,7 @@ const (
 // registering them directly into gcron.
 type managedJobCollector struct {
 	pluginID string
-	services pluginhost.Services
+	services capability.Services
 	items    []ManagedJob
 }
 
@@ -63,10 +66,12 @@ func (c *managedJobCollector) AddWithMetadata(
 		return gerror.New("plugin job handler cannot be nil")
 	}
 
-	trimmedPattern := strings.TrimSpace(pattern)
-	trimmedName := strings.TrimSpace(name)
-	trimmedDisplayName := strings.TrimSpace(displayName)
-	trimmedDescription := strings.TrimSpace(description)
+	var (
+		trimmedPattern     = strings.TrimSpace(pattern)
+		trimmedName        = strings.TrimSpace(name)
+		trimmedDisplayName = strings.TrimSpace(displayName)
+		trimmedDescription = strings.TrimSpace(description)
+	)
 	if trimmedPattern == "" {
 		return gerror.New("plugin job expression cannot be empty")
 	}
@@ -103,7 +108,7 @@ func (c *managedJobCollector) IsPrimaryNode() bool {
 }
 
 // Services returns the host-published runtime services for source-plugin construction.
-func (c *managedJobCollector) Services() pluginhost.Services {
+func (c *managedJobCollector) Services() capability.Services {
 	if c == nil {
 		return nil
 	}
@@ -160,7 +165,7 @@ func (s *serviceImpl) collectManagedJobsWithOptions(
 			return nil, err
 		}
 		if options.installedOnly &&
-			(registry == nil || registry.Installed != plugintypes.InstalledYes) {
+			(registry == nil || registry.Installed != statusflag.Installed.Int()) {
 			continue
 		}
 		sourceItems, err := s.collectSourceManagedJobs(ctx, manifest)
@@ -225,13 +230,13 @@ func (s *serviceImpl) collectDynamicManagedJobs(
 	if manifest == nil {
 		return nil, nil
 	}
-	if plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic {
 		return nil, nil
 	}
 	if !manifestDeclaresJobsRegister(manifest) {
 		return nil, nil
 	}
-	if s.dynamicJobExecutor == nil {
+	if s.runtimeSvc == nil {
 		return nil, gerror.Newf("dynamic plugin Jobs executor is not injected: %s", manifest.ID)
 	}
 	registry, err := s.storeSvc.GetRegistry(ctx, manifest.ID)
@@ -248,7 +253,7 @@ func (s *serviceImpl) collectDynamicManagedJobs(
 		}
 	}
 
-	contracts, err := s.dynamicJobExecutor.DiscoverJobContracts(ctx, manifest)
+	contracts, err := s.runtimeSvc.DiscoverJobContracts(ctx, manifest)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +280,7 @@ func (s *serviceImpl) collectDynamicManagedJobs(
 			MaxConcurrency: contractSnapshot.MaxConcurrency,
 			Timeout:        time.Duration(contractSnapshot.TimeoutSeconds) * time.Second,
 			Handler: func(ctx context.Context) error {
-				return s.dynamicJobExecutor.ExecuteDeclaredJob(ctx, manifestSnapshot, &contractSnapshot)
+				return s.runtimeSvc.ExecuteDeclaredJob(ctx, manifestSnapshot, &contractSnapshot)
 			},
 		})
 	}

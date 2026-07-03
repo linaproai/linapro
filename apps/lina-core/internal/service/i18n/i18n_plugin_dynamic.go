@@ -12,21 +12,17 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/logger"
 	bridgeartifact "lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
 const (
-	// dynamicPluginType identifies dynamic plugins in sys_plugin.
-	dynamicPluginType = "dynamic"
-	// dynamicPluginInstalledYes marks one plugin registry row as installed.
-	dynamicPluginInstalledYes = 1
-	// dynamicPluginStatusEnabled marks one plugin registry row as enabled.
-	dynamicPluginStatusEnabled = 1
 	// dynamicPluginReleaseStatusActive marks one release row as active.
 	dynamicPluginReleaseStatusActive = "active"
 )
@@ -119,9 +115,9 @@ func (s *serviceImpl) loadDynamicPluginLocaleBundle(ctx context.Context, locale 
 	if err := dao.SysPlugin.Ctx(ctx).
 		Where(do.SysPlugin{
 			PluginId:  trimmedPluginID,
-			Type:      dynamicPluginType,
-			Installed: dynamicPluginInstalledYes,
-			Status:    dynamicPluginStatusEnabled,
+			Type:      pluginv1.PluginTypeDynamic.String(),
+			Installed: statusflag.Installed.Int(),
+			Status:    statusflag.EnabledValue.Int(),
 		}).
 		Scan(&plugin); err != nil {
 		logger.Warningf(ctx, "load dynamic plugin i18n plugin row failed plugin=%s locale=%s err=%v", trimmedPluginID, resolvedLocale, err)
@@ -285,7 +281,7 @@ func (s *serviceImpl) listDynamicPluginI18NArtifactCandidates(
 	if err := dao.SysPlugin.Ctx(ctx).
 		Where(do.SysPlugin{
 			PluginId: trimmedPluginID,
-			Type:     dynamicPluginType,
+			Type:     pluginv1.PluginTypeDynamic.String(),
 		}).
 		Scan(&plugin); err != nil {
 		return nil, err
@@ -311,7 +307,7 @@ func (s *serviceImpl) listDynamicPluginI18NArtifactCandidates(
 	err := dao.SysPluginRelease.Ctx(ctx).
 		Where(do.SysPluginRelease{
 			PluginId: trimmedPluginID,
-			Type:     dynamicPluginType,
+			Type:     pluginv1.PluginTypeDynamic.String(),
 		}).
 		OrderDesc(dao.SysPluginRelease.Columns().Id).
 		Scan(&releases)
@@ -406,9 +402,9 @@ func (s *serviceImpl) listEnabledDynamicPluginReleases(ctx context.Context) ([]*
 		if plugin == nil || strings.TrimSpace(plugin.PluginId) == "" {
 			continue
 		}
-		if strings.TrimSpace(plugin.Type) != dynamicPluginType ||
-			plugin.Installed != dynamicPluginInstalledYes ||
-			plugin.Status != dynamicPluginStatusEnabled {
+		if strings.TrimSpace(plugin.Type) != pluginv1.PluginTypeDynamic.String() ||
+			plugin.Installed != statusflag.Installed.Int() ||
+			plugin.Status != statusflag.EnabledValue.Int() {
 			continue
 		}
 		release := releasesByID[plugin.ReleaseId]

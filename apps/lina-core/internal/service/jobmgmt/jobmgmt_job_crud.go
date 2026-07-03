@@ -5,6 +5,7 @@ package jobmgmt
 import (
 	"context"
 	"encoding/json"
+	jobv1 "lina-core/api/job/v1"
 	"strings"
 	"time"
 
@@ -141,7 +142,7 @@ func (s *serviceImpl) GetJob(ctx context.Context, id int64) (*JobDetailOutput, e
 
 // CreateJob persists one new scheduled job and refreshes the scheduler when needed.
 func (s *serviceImpl) CreateJob(ctx context.Context, in SaveJobInput) (int64, error) {
-	if in.TaskType != jobmeta.TaskTypeShell {
+	if in.TaskType != jobv1.TaskTypeShell {
 		return 0, bizerr.NewCode(CodeJobCreateShellOnly)
 	}
 	jobRecord, err := s.normalizeJobRecord(ctx, nil, in)
@@ -154,7 +155,7 @@ func (s *serviceImpl) CreateJob(ctx context.Context, in SaveJobInput) (int64, er
 		return 0, err
 	}
 	jobID := gconv.Int64(insertID)
-	if jobmeta.NormalizeJobStatus(gconv.String(jobRecord.Status)) == jobmeta.JobStatusEnabled && s.scheduler != nil {
+	if jobmeta.NormalizeJobStatus(gconv.String(jobRecord.Status)) == jobv1.StatusEnabled && s.scheduler != nil {
 		if err = s.scheduler.Refresh(ctx, jobID); err != nil {
 			return 0, err
 		}
@@ -177,7 +178,7 @@ func (s *serviceImpl) UpdateJob(ctx context.Context, in UpdateJobInput) error {
 	if err = s.ensureJobVisible(ctx, existing); err != nil {
 		return err
 	}
-	if in.TaskType != jobmeta.TaskTypeShell {
+	if in.TaskType != jobv1.TaskTypeShell {
 		return bizerr.NewCode(CodeJobUpdateShellOnly)
 	}
 
@@ -194,7 +195,7 @@ func (s *serviceImpl) UpdateJob(ctx context.Context, in UpdateJobInput) error {
 		return err
 	}
 
-	if jobmeta.NormalizeJobStatus(gconv.String(jobRecord.Status)) == jobmeta.JobStatusEnabled {
+	if jobmeta.NormalizeJobStatus(gconv.String(jobRecord.Status)) == jobv1.StatusEnabled {
 		if s.scheduler != nil {
 			return s.scheduler.Refresh(ctx, in.ID)
 		}
@@ -333,7 +334,7 @@ func (s *serviceImpl) normalizeJobRecord(
 	if !in.Concurrency.IsValid() {
 		return do.SysJob{}, bizerr.NewCode(CodeJobConcurrencyInvalid)
 	}
-	if !in.Status.IsValid() || in.Status == jobmeta.JobStatusPausedByPlugin {
+	if !in.Status.IsValid() || in.Status == jobv1.StatusPausedByPlugin {
 		return do.SysJob{}, bizerr.NewCode(CodeJobStatusInvalid)
 	}
 	if in.MaxExecutions < 0 {
@@ -341,21 +342,23 @@ func (s *serviceImpl) normalizeJobRecord(
 	}
 
 	maxConcurrency := in.MaxConcurrency
-	if in.Concurrency == jobmeta.JobConcurrencySingleton {
+	if in.Concurrency == jobv1.ConcurrencySingleton {
 		maxConcurrency = 1
 	}
 	if maxConcurrency <= 0 || maxConcurrency > 100 {
 		return do.SysJob{}, bizerr.NewCode(CodeJobMaxConcurrencyInvalid)
 	}
 
-	paramsJSON := ""
-	envJSON := ""
-	handlerRef := strings.TrimSpace(in.HandlerRef)
-	shellCmd := strings.TrimSpace(in.ShellCmd)
-	workDir := strings.TrimSpace(in.WorkDir)
+	var (
+		paramsJSON = ""
+		envJSON    = ""
+		handlerRef = strings.TrimSpace(in.HandlerRef)
+		shellCmd   = strings.TrimSpace(in.ShellCmd)
+		workDir    = strings.TrimSpace(in.WorkDir)
+	)
 
 	switch in.TaskType {
-	case jobmeta.TaskTypeHandler:
+	case jobv1.TaskTypeHandler:
 		def, ok := s.registry.Lookup(handlerRef)
 		if !ok {
 			return do.SysJob{}, bizerr.NewCode(jobhandler.CodeJobHandlerNotFound)
@@ -371,7 +374,7 @@ func (s *serviceImpl) normalizeJobRecord(
 		shellCmd = ""
 		workDir = ""
 
-	case jobmeta.TaskTypeShell:
+	case jobv1.TaskTypeShell:
 		shellEnabled, shellErr := s.configSvc.IsCronShellEnabled(ctx)
 		if shellErr != nil {
 			return do.SysJob{}, shellErr
@@ -449,7 +452,7 @@ func normalizeRetentionOptionJSON(option *jobmeta.RetentionOption) (string, erro
 	if !option.Mode.IsValid() {
 		return "", bizerr.NewCode(jobmeta.CodeJobRetentionModeUnsupported)
 	}
-	if option.Mode != jobmeta.RetentionModeNone && option.Value <= 0 {
+	if option.Mode != jobv1.RetentionModeNone && option.Value <= 0 {
 		return "", bizerr.NewCode(jobmeta.CodeJobRetentionValueInvalid)
 	}
 	return jobmeta.MustMarshalRetentionOption(option)

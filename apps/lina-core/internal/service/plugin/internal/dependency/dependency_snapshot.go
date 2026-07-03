@@ -9,22 +9,14 @@ import (
 
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
+	"lina-core/pkg/statusflag"
 )
-
-// ReleaseSnapshotReader is the catalog slice required to hydrate effective
-// dependency metadata from an installed plugin release.
-type ReleaseSnapshotReader interface {
-	// GetRegistryRelease returns the active release row for a plugin registry.
-	GetRegistryRelease(ctx context.Context, registry *store.PluginRecord) (*store.ReleaseRecord, error)
-	// ParseManifestSnapshot parses a persisted release manifest snapshot.
-	ParseManifestSnapshot(snapshot string) (*store.ManifestSnapshot, error)
-}
 
 // ApplyRegistrySnapshot prefers installed release snapshots for effective
 // dependency metadata and marks unknown snapshots conservatively.
 func ApplyRegistrySnapshot(
 	ctx context.Context,
-	storeSvc ReleaseSnapshotReader,
+	storeSvc store.Service,
 	snapshot *PluginSnapshot,
 	registry *store.PluginRecord,
 ) {
@@ -37,7 +29,7 @@ func ApplyRegistrySnapshot(
 	if strings.TrimSpace(registry.Version) != "" {
 		snapshot.Version = strings.TrimSpace(registry.Version)
 	}
-	snapshot.Installed = registry.Installed == plugintypes.InstalledYes
+	snapshot.Installed = registry.Installed == statusflag.Installed.Int()
 	if !snapshot.Installed {
 		return
 	}

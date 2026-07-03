@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 	"time"
 
@@ -12,13 +13,14 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
+	"lina-core/internal/service/plugin/internal/capabilityowner"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/internal/service/plugin/internal/wasm"
-	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // applyUninstall removes live governance, runs uninstall cleanup according to
@@ -53,7 +55,7 @@ func (s *serviceImpl) applyUninstall(ctx context.Context, registry *store.Plugin
 	_, err = dao.SysPlugin.Ctx(ctx).
 		Where(do.SysPlugin{PluginId: registry.PluginId}).
 		Data(do.SysPlugin{
-			Status:       plugintypes.StatusDisabled,
+			Status:       statusflag.Disabled.Int(),
 			DesiredState: plugintypes.HostStateUninstalled.String(),
 			CurrentState: plugintypes.HostStateReconciling.String(),
 		}).
@@ -76,7 +78,7 @@ func (s *serviceImpl) applyUninstall(ctx context.Context, registry *store.Plugin
 	if err = s.deletePluginMenusByManifest(ctx, manifest); err != nil {
 		return s.rollbackReleaseFailure(ctx, registry, 0, err)
 	}
-	registry, err = s.finalizeState(ctx, registry, manifest, nil, plugintypes.InstalledNo, plugintypes.StatusDisabled)
+	registry, err = s.finalizeState(ctx, registry, manifest, nil, statusflag.Uninstalled.Int(), statusflag.Disabled.Int())
 	if err != nil {
 		return err
 	}
@@ -125,7 +127,7 @@ func (s *serviceImpl) storageCleanupServiceForPlugin(pluginID string) storagecap
 	if s == nil || s.storageCleanupServices == nil {
 		return nil
 	}
-	services := capability.ServicesForPlugin(s.storageCleanupServices.StorageCleanupServices(), pluginID)
+	services := capabilityowner.ServicesForPlugin(s.storageCleanupServices, pluginID)
 	if services == nil {
 		return nil
 	}
@@ -143,7 +145,7 @@ func (s *serviceImpl) repairActiveReleaseBeforeUninstall(ctx context.Context, re
 	if err != nil {
 		return err
 	}
-	if desiredManifest == nil || plugintypes.NormalizeType(desiredManifest.Type) != plugintypes.TypeDynamic {
+	if desiredManifest == nil || plugintypes.NormalizeType(desiredManifest.Type) != pluginv1.PluginTypeDynamic {
 		return gerror.Newf("dynamic plugin desired manifest does not exist: %s", registry.PluginId)
 	}
 	if strings.TrimSpace(desiredManifest.Version) != strings.TrimSpace(registry.Version) {
@@ -177,7 +179,7 @@ func (s *serviceImpl) ForceUninstallMissingArtifact(ctx context.Context, registr
 		return nil
 	}
 	pluginID := strings.TrimSpace(registry.PluginId)
-	if pluginID == "" || plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if pluginID == "" || plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return nil
 	}
 
@@ -208,8 +210,8 @@ func (s *serviceImpl) ForceUninstallMissingArtifact(ctx context.Context, registr
 	_, err = dao.SysPlugin.Ctx(ctx).
 		Where(do.SysPlugin{PluginId: pluginID}).
 		Data(do.SysPlugin{
-			Installed:    plugintypes.InstalledNo,
-			Status:       plugintypes.StatusDisabled,
+			Installed:    statusflag.Uninstalled.Int(),
+			Status:       statusflag.Disabled.Int(),
 			DesiredState: stableState,
 			CurrentState: stableState,
 			Generation:   nextGeneration,
@@ -274,10 +276,10 @@ func (s *serviceImpl) UninstallWithOptions(ctx context.Context, pluginID string,
 	if err != nil {
 		return err
 	}
-	if registry == nil || registry.Installed != plugintypes.InstalledYes {
+	if registry == nil || registry.Installed != statusflag.Installed.Int() {
 		return nil
 	}
-	if plugintypes.NormalizeType(registry.Type) == plugintypes.TypeSource {
+	if plugintypes.NormalizeType(registry.Type) == pluginv1.PluginTypeSource {
 		return gerror.New("source plugins are compiled into the host and cannot be uninstalled")
 	}
 	release, err := s.storeSvc.GetRegistryRelease(ctx, registry)

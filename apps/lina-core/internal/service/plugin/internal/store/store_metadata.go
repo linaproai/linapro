@@ -4,6 +4,7 @@
 package store
 
 import (
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
@@ -15,6 +16,7 @@ type ManifestSnapshot struct {
 	Name                      string                      `yaml:"name"`
 	Version                   string                      `yaml:"version"`
 	Type                      string                      `yaml:"type"`
+	Distribution              string                      `yaml:"distribution"`
 	ScopeNature               string                      `yaml:"scopeNature,omitempty"`
 	SupportsMultiTenant       bool                        `yaml:"supportsMultiTenant,omitempty"`
 	DefaultInstallMode        string                      `yaml:"defaultInstallMode,omitempty"`
@@ -60,10 +62,11 @@ func PublishedManifestSnapshot(snapshot *ManifestSnapshot) *protocol.ManifestSna
 		ID:                      snapshot.ID,
 		Name:                    snapshot.Name,
 		Version:                 snapshot.Version,
-		Type:                    snapshot.Type,
-		ScopeNature:             snapshot.ScopeNature,
+		Type:                    pluginv1.PluginType(snapshot.Type),
+		Distribution:            pluginv1.PluginDistribution(snapshot.Distribution),
+		ScopeNature:             pluginv1.ScopeNature(snapshot.ScopeNature),
 		SupportsMultiTenant:     snapshot.SupportsMultiTenant,
-		DefaultInstallMode:      snapshot.DefaultInstallMode,
+		DefaultInstallMode:      pluginv1.InstallMode(snapshot.DefaultInstallMode),
 		Description:             snapshot.Description,
 		InstallSQLCount:         snapshot.InstallSQLCount,
 		UninstallSQLCount:       snapshot.UninstallSQLCount,

@@ -81,7 +81,7 @@
 - **且** LinaPro 不被描述为单一后台管理系统或偏离框架定位的其他产品定位
 
 ### Requirement: 系统信息必须暴露 coordination 状态
-系统 SHALL 在系统信息或健康诊断中暴露集群 coordination 状态。响应至少包含 cluster enabled、coordination backend、Redis 健康、当前 node ID、primary 状态和最近错误。
+系统 SHALL 在系统信息诊断中暴露集群 coordination 状态。响应至少包含 cluster enabled、coordination backend、Redis 健康、当前 node ID、primary 状态和最近错误。
 
 #### Scenario: 集群 Redis 健康状态
 - **WHEN** 运维查询系统信息
@@ -104,7 +104,7 @@
 - **AND** 可识别节点是否落后于 Redis shared revision
 
 ### Requirement: 诊断字段必须同步 apidoc i18n
-如果系统信息或健康 API 新增 coordination 诊断字段，系统 SHALL 同步维护 apidoc i18n JSON。不得只修改响应结构而遗漏接口文档翻译资源。
+如果系统信息 API 新增 coordination 诊断字段，系统 SHALL 同步维护 apidoc i18n JSON。不得只修改响应结构而遗漏接口文档翻译资源。
 
 #### Scenario: 新增 coordination 字段文档
 - **WHEN** API 响应新增 `coordination.backend` 或 `coordination.redisHealthy`

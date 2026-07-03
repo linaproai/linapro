@@ -11,6 +11,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/pkg/statusflag"
 )
 
 const (
@@ -93,7 +94,7 @@ func BuildRuntimeUpgradeProjection(
 	projection.EffectiveVersion = resolveEffectiveRuntimeVersion(registry, effectiveSnapshot)
 	projection.DiscoveredVersion = resolveDiscoveredRuntimeVersion(manifest, targetSnapshot)
 
-	if registry == nil || registry.Installed != plugintypes.InstalledYes {
+	if registry == nil || registry.Installed != statusflag.Installed.Int() {
 		return projection
 	}
 	if projection.EffectiveVersion == "" || projection.DiscoveredVersion == "" {
@@ -221,6 +222,7 @@ func (s *serviceImpl) getLatestFailedUpgradeMigration(
 	if release == nil {
 		return nil, nil
 	}
+	cols := dao.SysPluginMigration.Columns()
 	var migration *MigrationRecord
 	err := dao.SysPluginMigration.Ctx(ctx).
 		Where(do.SysPluginMigration{
@@ -229,8 +231,8 @@ func (s *serviceImpl) getLatestFailedUpgradeMigration(
 			Phase:     plugintypes.MigrationDirectionUpgrade.String(),
 			Status:    plugintypes.MigrationExecutionStatusFailed.String(),
 		}).
-		OrderDesc(dao.SysPluginMigration.Columns().UpdatedAt).
-		OrderDesc(dao.SysPluginMigration.Columns().Id).
+		OrderDesc(cols.UpdatedAt).
+		OrderDesc(cols.Id).
 		Scan(&migration)
 	return migration, err
 }

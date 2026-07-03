@@ -4,6 +4,7 @@ package lifecycle
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/statusflag"
 )
 
 // startupAutoEnableWaitTimeout bounds how long host startup waits for one
@@ -88,9 +90,9 @@ func (s *serviceImpl) bootstrapAutoEnablePlugin(
 	}
 
 	switch plugintypes.NormalizeType(manifest.Type) {
-	case plugintypes.TypeSource:
+	case pluginv1.PluginTypeSource:
 		return s.bootstrapAutoEnableSourcePlugin(ctx, manifest, entry.WithMockData, frameworkVersion)
-	case plugintypes.TypeDynamic:
+	case pluginv1.PluginTypeDynamic:
 		return s.bootstrapAutoEnableDynamicPlugin(ctx, manifest, entry.WithMockData, frameworkVersion)
 	default:
 		return bizerr.NewCode(
@@ -138,7 +140,7 @@ func (s *serviceImpl) bootstrapAutoEnableSourcePlugin(
 		}); err != nil {
 			return bizerr.WrapCode(err, CodePluginSourceInstallFailed)
 		}
-		if err := s.UpdateStatus(ctx, manifest.ID, plugintypes.StatusEnabled, UpdateStatusOptions{
+		if err := s.UpdateStatus(ctx, manifest.ID, statusflag.EnabledValue.Int(), UpdateStatusOptions{
 			FrameworkVersion: frameworkVersion,
 		}); err != nil {
 			return bizerr.WrapCode(err, CodePluginSourceEnableFailed)
@@ -169,7 +171,7 @@ func (s *serviceImpl) bootstrapAutoEnableDynamicPlugin(
 		}); err != nil {
 			return bizerr.WrapCode(err, CodePluginDynamicInstallFailed)
 		}
-		if err := s.UpdateStatus(ctx, manifest.ID, plugintypes.StatusEnabled, UpdateStatusOptions{
+		if err := s.UpdateStatus(ctx, manifest.ID, statusflag.EnabledValue.Int(), UpdateStatusOptions{
 			FrameworkVersion: frameworkVersion,
 		}); err != nil {
 			return bizerr.WrapCode(err, CodePluginDynamicEnableFailed)
@@ -215,6 +217,30 @@ func (s *serviceImpl) ensurePluginStateDuringStartup(
 	stateSatisfied func(*store.PluginRecord) bool,
 	executeShared func() error,
 ) error {
+	return s.ensurePluginStateDuringStartupWithPolicy(ctx, pluginID, stateSatisfied, executeShared, true)
+}
+
+// ensurePluginStateDuringStartupUnwrapped waits like ensurePluginStateDuringStartup
+// but returns the shared executor error directly. Builtin startup reconciliation
+// uses it so runtime-upgrade diagnostics are not hidden behind auto-enable codes.
+func (s *serviceImpl) ensurePluginStateDuringStartupUnwrapped(
+	ctx context.Context,
+	pluginID string,
+	stateSatisfied func(*store.PluginRecord) bool,
+	executeShared func() error,
+) error {
+	return s.ensurePluginStateDuringStartupWithPolicy(ctx, pluginID, stateSatisfied, executeShared, false)
+}
+
+// ensurePluginStateDuringStartupWithPolicy implements shared startup waiting
+// and primary-only execution for plugin bootstrap flows.
+func (s *serviceImpl) ensurePluginStateDuringStartupWithPolicy(
+	ctx context.Context,
+	pluginID string,
+	stateSatisfied func(*store.PluginRecord) bool,
+	executeShared func() error,
+	wrapSharedError bool,
+) error {
 	var (
 		deadline = time.Now().Add(startupAutoEnableWaitTimeout)
 		ticker   = time.NewTicker(startupAutoEnablePollInterval)
@@ -238,6 +264,9 @@ func (s *serviceImpl) ensurePluginStateDuringStartup(
 				return bizerr.NewCode(CodePluginAutoEnableSharedExecutorMissing, bizerr.P("pluginId", pluginID))
 			}
 			if err := executeShared(); err != nil {
+				if !wrapSharedError {
+					return err
+				}
 				return bizerr.WrapCode(err, CodePluginAutoEnableFailed, bizerr.P("pluginId", pluginID))
 			}
 			continue
@@ -257,12 +286,12 @@ func (s *serviceImpl) ensurePluginStateDuringStartup(
 
 // isClusterModeEnabled is a nil-safe wrapper around startup topology.
 func (s *serviceImpl) isClusterModeEnabled() bool {
-	return s != nil && s.topology != nil && s.topology.IsClusterModeEnabled()
+	return s != nil && s.topology != nil && s.topology.IsEnabled()
 }
 
 // isPrimaryNode is a nil-safe wrapper around startup topology.
 func (s *serviceImpl) isPrimaryNode() bool {
-	return s == nil || s.topology == nil || s.topology.IsPrimaryNode()
+	return s == nil || s.topology == nil || s.topology.IsPrimary()
 }
 
 // isPluginStartupEnabled reports whether one registry row already reflects the
@@ -271,10 +300,10 @@ func isPluginStartupEnabled(registry *store.PluginRecord) bool {
 	if registry == nil {
 		return false
 	}
-	if registry.Installed != plugintypes.InstalledYes || registry.Status != plugintypes.StatusEnabled {
+	if registry.Installed != statusflag.Installed.Int() || registry.Status != statusflag.EnabledValue.Int() {
 		return false
 	}
-	if plugintypes.NormalizeType(registry.Type) != plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return true
 	}
 	return strings.TrimSpace(registry.CurrentState) == plugintypes.HostStateEnabled.String()

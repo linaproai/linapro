@@ -44,9 +44,11 @@ func TestAgentsRegistryIntegrity(t *testing.T) {
 	if len(specs) == 0 {
 		t.Fatalf("expected non-empty agent registry")
 	}
-	seen := make(map[string]struct{}, len(specs))
-	hasLink := false
-	hasNative := false
+	var (
+		seen      = make(map[string]struct{}, len(specs))
+		hasLink   = false
+		hasNative = false
+	)
 	for _, spec := range specs {
 		if spec.Name == "" {
 			t.Fatalf("agent missing name: %+v", spec)
@@ -160,9 +162,11 @@ func TestApplyLinkConflictNeverDeletesRealFile(t *testing.T) {
 }
 
 func TestApplyLinkMismatchRequiresForce(t *testing.T) {
-	root := newRepoFixture(t)
-	link := filepath.Join(root, "CLAUDE.md")
-	otherTarget := filepath.Join(root, "elsewhere.md")
+	var (
+		root        = newRepoFixture(t)
+		link        = filepath.Join(root, "CLAUDE.md")
+		otherTarget = filepath.Join(root, "elsewhere.md")
+	)
 	if err := os.WriteFile(otherTarget, []byte("foreign"), 0o644); err != nil {
 		t.Fatalf("write foreign target: %v", err)
 	}

@@ -11,11 +11,11 @@ import (
 )
 
 // ProviderStatuses returns all text AI provider states.
-func (m *Manager) ProviderStatuses(ctx context.Context, runtime ProviderRuntime) []capmodel.ProviderStatus {
+func (m *Manager) ProviderStatuses(ctx context.Context, enablement internalregistry.EnablementReader) []capmodel.ProviderStatus {
 	if m == nil || m.registry == nil {
 		return nil
 	}
-	statuses := m.registry.Statuses(ctx, runtime)
+	statuses := m.registry.Statuses(ctx, enablement)
 	result := make([]capmodel.ProviderStatus, 0, len(statuses))
 	for _, status := range statuses {
 		result = append(result, convertProviderStatus(status))

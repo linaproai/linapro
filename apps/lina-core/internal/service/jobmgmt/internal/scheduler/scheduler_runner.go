@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	jobv1 "lina-core/api/job/v1"
+	joblogv1 "lina-core/api/joblog/v1"
 	"strings"
 	"time"
 
@@ -28,16 +30,16 @@ func (s *serviceImpl) runCronJob(ctx context.Context, jobID int64) {
 		logger.Warningf(ctx, "load scheduled job failed job_id=%d err=%v", jobID, err)
 		return
 	}
-	if job == nil || jobmeta.NormalizeJobStatus(job.Status) != jobmeta.JobStatusEnabled {
+	if job == nil || jobmeta.NormalizeJobStatus(job.Status) != jobv1.StatusEnabled {
 		return
 	}
 
-	if jobmeta.NormalizeJobScope(job.Scope) == jobmeta.JobScopeMasterOnly && !s.isPrimary() {
+	if jobmeta.NormalizeJobScope(job.Scope) == jobv1.ScopeMasterOnly && !s.isPrimary() {
 		if err = s.createTerminalLog(
 			ctx,
 			job,
-			jobmeta.TriggerTypeCron,
-			jobmeta.LogStatusSkippedNotPrimary,
+			joblogv1.TriggerCron,
+			joblogv1.StatusSkippedNotPrimary,
 			"Current node is not primary, skipped execution",
 		); err != nil {
 			logger.Warningf(ctx, "create not-primary job log failed job_id=%d err=%v", jobID, err)
@@ -54,7 +56,7 @@ func (s *serviceImpl) runCronJob(ctx context.Context, jobID int64) {
 		if err = s.createTerminalLog(
 			ctx,
 			job,
-			jobmeta.TriggerTypeCron,
+			joblogv1.TriggerCron,
 			skippedStatus,
 			"Current scheduled job has reached its concurrency limit, skipped execution",
 		); err != nil {
@@ -77,18 +79,18 @@ func (s *serviceImpl) runCronJob(ctx context.Context, jobID int64) {
 		return
 	}
 
-	logID, execution, err := s.createExecution(ctx, job, jobmeta.TriggerTypeCron)
+	logID, execCtx, execution, err := s.createExecution(ctx, job, joblogv1.TriggerCron)
 	if err != nil {
 		release()
 		logger.Warningf(ctx, "create running job log failed job_id=%d err=%v", jobID, err)
 		return
 	}
-	s.storeRunningExecution(logID, jobID, execution.cancel, release)
+	s.storeRunningExecution(logID, execution.cancel, release)
 	if shouldRemove {
 		s.Remove(jobID)
 	}
 
-	go s.executeJob(execution, job, logID)
+	go s.executeJob(execCtx, execution, job, logID)
 }
 
 // prepareCronQuota increments cron execution counters and disables exhausted jobs.
@@ -114,7 +116,7 @@ func (s *serviceImpl) prepareCronQuota(
 	nextCount := currentCount + 1
 	shouldRemove := false
 	if job.MaxExecutions > 0 && nextCount >= int64(job.MaxExecutions) {
-		data.Status = string(jobmeta.JobStatusDisabled)
+		data.Status = string(jobv1.StatusDisabled)
 		data.StopReason = string(jobmeta.StopReasonMaxExecutionsReached)
 		shouldRemove = true
 	}
@@ -122,7 +124,7 @@ func (s *serviceImpl) prepareCronQuota(
 	result, err := dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{
 			Id:            job.Id,
-			Status:        string(jobmeta.JobStatusEnabled),
+			Status:        string(jobv1.StatusEnabled),
 			ExecutedCount: currentCount,
 		}).
 		Data(data).
@@ -140,7 +142,7 @@ func (s *serviceImpl) prepareCronQuota(
 
 	job.ExecutedCount = nextCount
 	if shouldRemove {
-		job.Status = string(jobmeta.JobStatusDisabled)
+		job.Status = string(jobv1.StatusDisabled)
 		job.StopReason = string(jobmeta.StopReasonMaxExecutionsReached)
 	}
 	return job, shouldRemove, nil
@@ -149,9 +151,9 @@ func (s *serviceImpl) prepareCronQuota(
 // disableForMaxExecutions disables one exhausted job and returns whether the scheduler should unregister it.
 func (s *serviceImpl) disableForMaxExecutions(ctx context.Context, jobID int64) (bool, error) {
 	result, err := dao.SysJob.Ctx(ctx).
-		Where(do.SysJob{Id: jobID, Status: string(jobmeta.JobStatusEnabled)}).
+		Where(do.SysJob{Id: jobID, Status: string(jobv1.StatusEnabled)}).
 		Data(do.SysJob{
-			Status:     string(jobmeta.JobStatusDisabled),
+			Status:     string(jobv1.StatusDisabled),
 			StopReason: string(jobmeta.StopReasonMaxExecutionsReached),
 		}).
 		Update()
@@ -167,18 +169,19 @@ func (s *serviceImpl) disableForMaxExecutions(ctx context.Context, jobID int64) 
 
 // executeJob dispatches one running job instance and persists its final log state.
 func (s *serviceImpl) executeJob(
+	ctx context.Context,
 	execution executionState,
 	job *entity.SysJob,
 	logID int64,
 ) {
 	defer s.finishRunningExecution(logID)
 
-	status, errMsg, resultJSON := s.dispatchExecution(execution.ctx, job)
+	status, errMsg, resultJSON := s.dispatchExecution(ctx, job)
 	// Persist the terminal log state with a detached context so timeout or
 	// cancellation does not prevent the final status from being recorded.
-	finishCtx := context.WithoutCancel(execution.ctx)
+	finishCtx := context.WithoutCancel(ctx)
 	if err := s.finishLog(finishCtx, logID, execution.startedAt, status, errMsg, resultJSON); err != nil {
-		logger.Warningf(execution.ctx, "finish scheduled job log failed log_id=%d err=%v", logID, err)
+		logger.Warningf(ctx, "finish scheduled job log failed log_id=%d err=%v", logID, err)
 	}
 }
 
@@ -188,12 +191,12 @@ func (s *serviceImpl) dispatchExecution(
 	job *entity.SysJob,
 ) (jobmeta.LogStatus, string, string) {
 	switch jobmeta.NormalizeTaskType(job.TaskType) {
-	case jobmeta.TaskTypeHandler:
+	case jobv1.TaskTypeHandler:
 		return s.dispatchHandlerExecution(ctx, job)
-	case jobmeta.TaskTypeShell:
+	case jobv1.TaskTypeShell:
 		return s.dispatchShellExecution(ctx, job)
 	default:
-		return jobmeta.LogStatusFailed, "Scheduled-job task type is not supported", ""
+		return joblogv1.StatusFailed, "Scheduled-job task type is not supported", ""
 	}
 }
 
@@ -204,10 +207,10 @@ func (s *serviceImpl) dispatchHandlerExecution(
 ) (jobmeta.LogStatus, string, string) {
 	def, ok := s.registry.Lookup(job.HandlerRef)
 	if !ok {
-		return jobmeta.LogStatusFailed, "Scheduled-job handler does not exist", ""
+		return joblogv1.StatusFailed, "Scheduled-job handler does not exist", ""
 	}
 	if err := jobhandler.ValidateParams(def.ParamsSchema, json.RawMessage(job.Params)); err != nil {
-		return jobmeta.LogStatusFailed, err.Error(), ""
+		return joblogv1.StatusFailed, err.Error(), ""
 	}
 
 	result, err := def.Invoke(ctx, json.RawMessage(job.Params))
@@ -218,7 +221,7 @@ func (s *serviceImpl) dispatchHandlerExecution(
 			time.Duration(job.TimeoutSeconds)*time.Second,
 		), marshalResultJSON(nil)
 	}
-	return jobmeta.LogStatusSuccess, "", marshalResultJSON(result)
+	return joblogv1.StatusSuccess, "", marshalResultJSON(result)
 }
 
 // dispatchShellExecution runs one shell task through the guarded shell executor.
@@ -227,13 +230,13 @@ func (s *serviceImpl) dispatchShellExecution(
 	job *entity.SysJob,
 ) (jobmeta.LogStatus, string, string) {
 	if s.shellExecutor == nil {
-		return jobmeta.LogStatusFailed, "Shell executor is not initialized", ""
+		return joblogv1.StatusFailed, "Shell executor is not initialized", ""
 	}
 
 	envMap := make(map[string]string)
 	if strings.TrimSpace(job.Env) != "" {
 		if err := json.Unmarshal([]byte(job.Env), &envMap); err != nil {
-			return jobmeta.LogStatusFailed, "Failed to parse Shell environment variables", ""
+			return joblogv1.StatusFailed, "Failed to parse Shell environment variables", ""
 		}
 	}
 
@@ -251,7 +254,7 @@ func (s *serviceImpl) dispatchShellExecution(
 			time.Duration(job.TimeoutSeconds)*time.Second,
 		), resultJSON
 	}
-	return jobmeta.LogStatusSuccess, "", resultJSON
+	return joblogv1.StatusSuccess, "", resultJSON
 }
 
 // buildShellResult converts one executor output snapshot to the stable
@@ -284,15 +287,15 @@ func marshalResultJSON(result any) string {
 // mapContextErrorToLogStatus maps cancellation and timeout failures to specific log statuses.
 func mapContextErrorToLogStatus(err error, ctx context.Context) jobmeta.LogStatus {
 	if err == nil {
-		return jobmeta.LogStatusSuccess
+		return joblogv1.StatusSuccess
 	}
 	if errors.Is(err, context.Canceled) || ctx.Err() == context.Canceled {
-		return jobmeta.LogStatusCancelled
+		return joblogv1.StatusCancelled
 	}
 	if errors.Is(err, context.DeadlineExceeded) || ctx.Err() == context.DeadlineExceeded {
-		return jobmeta.LogStatusTimeout
+		return joblogv1.StatusTimeout
 	}
-	return jobmeta.LogStatusFailed
+	return joblogv1.StatusFailed
 }
 
 // buildExecutionErrMsg normalizes timeout and cancellation failures into
@@ -301,7 +304,7 @@ func buildExecutionErrMsg(err error, ctx context.Context, timeout time.Duration)
 	if err == nil {
 		return ""
 	}
-	if mapContextErrorToLogStatus(err, ctx) != jobmeta.LogStatusTimeout {
+	if mapContextErrorToLogStatus(err, ctx) != joblogv1.StatusTimeout {
 		return err.Error()
 	}
 

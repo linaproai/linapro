@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import type { PropType } from 'vue';
 
+import type { DeptTree } from '#/api/system/user';
+
 import { onMounted, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
+
 import { Empty, InputSearch, Skeleton, Tree } from 'ant-design-vue';
 
-import { getDeptTree, type DeptTree } from '#/api/system/user';
+import { getDeptTree } from '#/api/system/user';
 
 defineOptions({ inheritAttrs: false });
 
@@ -42,8 +45,23 @@ const searchValue = defineModel('searchValue', {
 /** 部门数据源 */
 type DeptTreeArray = DeptTree[];
 const deptTreeArray = ref<DeptTreeArray>([]);
+const expandedDeptIds = ref<Array<number | string>>([]);
 /** 骨架屏加载 */
 const showTreeSkeleton = ref<boolean>(true);
+
+function collectDeptIds(nodes: DeptTreeArray): Array<number | string> {
+  const ids: Array<number | string> = [];
+  const walk = (items: DeptTreeArray) => {
+    for (const item of items) {
+      ids.push(item.id);
+      if (item.children?.length) {
+        walk(item.children);
+      }
+    }
+  };
+  walk(nodes);
+  return ids;
+}
 
 async function loadTree() {
   showTreeSkeleton.value = true;
@@ -52,6 +70,7 @@ async function loadTree() {
 
   const ret = await props.api();
   deptTreeArray.value = ret;
+  expandedDeptIds.value = collectDeptIds(ret);
   showTreeSkeleton.value = false;
 }
 
@@ -64,6 +83,7 @@ async function handleReload() {
 async function refreshTree() {
   const ret = await props.api();
   deptTreeArray.value = ret;
+  expandedDeptIds.value = collectDeptIds(ret);
 }
 
 onMounted(loadTree);
@@ -80,12 +100,12 @@ defineExpose({ refreshTree });
       class="p-[8px]"
     >
       <div
-        class="bg-background flex h-full flex-col overflow-y-auto rounded-lg"
+        class="flex h-full flex-col overflow-y-auto rounded-lg bg-background"
       >
         <!-- 固定在顶部 必须加上bg-background背景色 否则会产生'穿透'效果 -->
         <div
           v-if="showSearch"
-          class="bg-background z-100 sticky left-0 top-0 p-[8px]"
+          class="sticky top-0 left-0 z-100 bg-background p-[8px]"
         >
           <InputSearch
             v-model:value="searchValue"
@@ -107,6 +127,7 @@ defineExpose({ refreshTree });
           <Tree
             v-bind="$attrs"
             v-if="deptTreeArray.length > 0"
+            v-model:expanded-keys="expandedDeptIds"
             v-model:selected-keys="selectDeptId"
             :class="$attrs.class as string"
             :field-names="{ title: 'label', key: 'id' }"

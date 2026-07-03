@@ -50,6 +50,8 @@ type Manifest struct {
 	Version string `yaml:"version"`
 	// Type is the normalized plugin type ("source" or "dynamic").
 	Type string `yaml:"type"`
+	// Distribution declares how the host governs plugin distribution lifecycle.
+	Distribution string `yaml:"distribution"`
 	// ScopeNature declares whether the plugin is platform-only or tenant-aware.
 	ScopeNature string `yaml:"scope_nature"`
 	// SupportsMultiTenant declares whether the plugin can participate in tenant-level governance.
@@ -312,6 +314,8 @@ type ArtifactManifest struct {
 	Version string `json:"version" yaml:"version"`
 	// Type is the normalized plugin type.
 	Type string `json:"type" yaml:"type"`
+	// Distribution declares how the host governs plugin distribution lifecycle.
+	Distribution string `json:"distribution,omitempty" yaml:"distribution,omitempty"`
 	// ScopeNature declares whether the plugin is platform-only or tenant-aware.
 	ScopeNature string `json:"scopeNature,omitempty" yaml:"scopeNature,omitempty"`
 	// SupportsMultiTenant declares whether the plugin can participate in tenant-level governance.

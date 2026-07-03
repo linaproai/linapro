@@ -258,15 +258,6 @@ type allowlistKey struct {
 	Line int
 }
 
-// scanRuntimeI18N scans source files and returns all non-allowlisted findings.
-func scanRuntimeI18N(repoRoot string, options scanOptions) ([]scanFinding, error) {
-	report, err := scanRuntimeI18NReport(repoRoot, options)
-	if err != nil {
-		return nil, err
-	}
-	return report.Findings, nil
-}
-
 // scanRuntimeI18NReport scans source files and returns a categorized report.
 func scanRuntimeI18NReport(repoRoot string, options scanOptions) (*scanReport, error) {
 	allowlist, err := loadAllowlist(options.allowlistPath)
@@ -357,11 +348,13 @@ func loadAllowlist(path string) (map[allowlistKey]allowlistEntry, error) {
 		return nil, fmt.Errorf("invalid allowlist JSON %s: %w", normalizedPath, err)
 	}
 	for index, entry := range payload.Entries {
-		sourcePath := strings.TrimSpace(entry.Path)
-		rule := strings.TrimSpace(entry.Rule)
-		reason := strings.TrimSpace(entry.Reason)
-		category := strings.TrimSpace(entry.Category)
-		scope := strings.TrimSpace(entry.Scope)
+		var (
+			sourcePath = strings.TrimSpace(entry.Path)
+			rule       = strings.TrimSpace(entry.Rule)
+			reason     = strings.TrimSpace(entry.Reason)
+			category   = strings.TrimSpace(entry.Category)
+			scope      = strings.TrimSpace(entry.Scope)
+		)
 		if sourcePath == "" || rule == "" || reason == "" || category == "" || scope == "" {
 			return nil, fmt.Errorf("invalid allowlist entry #%d: path, rule, category, reason, and scope are required", index+1)
 		}
@@ -407,11 +400,6 @@ func iterSourceFiles(repoRoot string) ([]string, error) {
 			if !isScannableSourceSuffix(path) {
 				return nil
 			}
-			relPath, relErr := filepath.Rel(repoRoot, path)
-			if relErr != nil {
-				return relErr
-			}
-			relPath = filepath.ToSlash(relPath)
 			files = append(files, path)
 			return nil
 		})
@@ -545,18 +533,6 @@ func populateScanSummary(report *scanReport) {
 		report.Summary.ByCategory[finding.Category]++
 	}
 	report.Summary.ViolationFiles = len(violationFiles)
-}
-
-// emitScanFindings writes text or JSON scanner output.
-func emitScanFindings(out io.Writer, findings []scanFinding, format string) error {
-	report := &scanReport{
-		Summary: scanSummary{
-			ByCategory: make(map[string]int),
-		},
-		Findings: findings,
-	}
-	populateScanSummary(report)
-	return emitScanReport(out, report, format)
 }
 
 // emitScanReport writes text or JSON scanner output.

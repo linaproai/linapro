@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/coordination"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
@@ -382,7 +383,7 @@ func (s *serviceImpl) clusterEnabled() bool {
 
 // topologySnapshot returns the current topology view without exposing mutable
 // coordinator state to callers.
-func (s *serviceImpl) topologySnapshot() Topology {
+func (s *serviceImpl) topologySnapshot() cluster.Service {
 	if s == nil {
 		return nil
 	}

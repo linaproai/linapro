@@ -19,18 +19,24 @@ type reconcilerRevisionTestTopology struct {
 	nodeID  string
 }
 
-// IsClusterModeEnabled reports the configured cluster switch.
-func (t reconcilerRevisionTestTopology) IsClusterModeEnabled() bool {
+// Start records no behavior for the in-memory test topology.
+func (t reconcilerRevisionTestTopology) Start(context.Context) {}
+
+// Stop records no behavior for the in-memory test topology.
+func (t reconcilerRevisionTestTopology) Stop(context.Context) {}
+
+// IsEnabled reports the configured cluster switch.
+func (t reconcilerRevisionTestTopology) IsEnabled() bool {
 	return t.cluster
 }
 
-// IsPrimaryNode reports the configured primary flag.
-func (t reconcilerRevisionTestTopology) IsPrimaryNode() bool {
+// IsPrimary reports the configured primary flag.
+func (t reconcilerRevisionTestTopology) IsPrimary() bool {
 	return t.primary
 }
 
-// CurrentNodeID returns the configured node identifier.
-func (t reconcilerRevisionTestTopology) CurrentNodeID() string {
+// NodeID returns the configured node identifier.
+func (t reconcilerRevisionTestTopology) NodeID() string {
 	return t.nodeID
 }
 
@@ -129,9 +135,11 @@ func newTestReconcilerRevisionController(
 // TestNextBackgroundReconcileDecisionUsesSharedRevision verifies the background
 // loop skips full scans after it has consumed the current shared revision.
 func TestNextBackgroundReconcileDecisionUsesSharedRevision(t *testing.T) {
-	ctx := context.Background()
-	fakeCoord := &reconcilerRevisionCacheCoord{revision: 3}
-	observed := revisionctrl.NewObservedRevision()
+	var (
+		ctx       = context.Background()
+		fakeCoord = &reconcilerRevisionCacheCoord{revision: 3}
+		observed  = revisionctrl.NewObservedRevision()
+	)
 	service := &serviceImpl{
 		topology: reconcilerRevisionTestTopology{
 			cluster: true,
@@ -176,9 +184,11 @@ func TestNextBackgroundReconcileDecisionUsesSharedRevision(t *testing.T) {
 // TestNextBackgroundReconcileDecisionAllowsSafetySweep verifies the reconciler
 // still performs a low-frequency full scan when the revision is unchanged.
 func TestNextBackgroundReconcileDecisionAllowsSafetySweep(t *testing.T) {
-	ctx := context.Background()
-	fakeCoord := &reconcilerRevisionCacheCoord{revision: 9}
-	observed := revisionctrl.NewObservedRevision()
+	var (
+		ctx       = context.Background()
+		fakeCoord = &reconcilerRevisionCacheCoord{revision: 9}
+		observed  = revisionctrl.NewObservedRevision()
+	)
 	observed.Store(9)
 	service := &serviceImpl{
 		topology: reconcilerRevisionTestTopology{

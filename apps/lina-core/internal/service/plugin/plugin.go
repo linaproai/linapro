@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/cachecoord/revisionctrl"
+	"lina-core/internal/service/cluster"
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/coordination"
 	i18nsvc "lina-core/internal/service/i18n"
@@ -23,14 +24,17 @@ import (
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/management"
+	"lina-core/internal/service/plugin/internal/manifestresource"
 	"lina-core/internal/service/plugin/internal/migration"
 	"lina-core/internal/service/plugin/internal/openapi"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/internal/service/plugin/internal/upgrade"
+	rolesvc "lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 
 	"lina-core/internal/model/entity"
@@ -38,8 +42,6 @@ import (
 	"lina-core/pkg/plugin/capability"
 	aitextsvc "lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
-	"lina-core/pkg/plugin/capability/manifestcap"
-	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -104,8 +106,8 @@ type (
 	// RuntimeFrontendAssetOutput contains one resolved frontend asset ready to be served.
 	RuntimeFrontendAssetOutput = frontend.RuntimeFrontendAssetOutput
 
-	// DynamicRouteMetadata stores generic metadata for dynamic routes.
-	DynamicRouteMetadata = runtime.DynamicRouteMetadata
+	// Metadata stores generic metadata for dynamic routes.
+	Metadata = runtime.Metadata
 
 	// PluginDynamicStateItem represents public runtime state of one plugin.
 	PluginDynamicStateItem = runtime.PluginDynamicStateItem
@@ -188,36 +190,105 @@ type UninstallOptions struct {
 	Force bool
 }
 
-// GetDynamicRouteMetadata returns generic dynamic-route metadata from the request.
-// This package-level function is retained for callers that cannot import the runtime sub-package.
-var GetDynamicRouteMetadata = runtime.GetDynamicRouteMetadata
-
-// ScanRegisteredSourceManifests returns registered source-plugin manifests
-// without synchronizing registry, release, menu, permission, or cache state.
-func ScanRegisteredSourceManifests() ([]*SourceManifest, error) {
-	return catalog.New(nil).ScanEmbeddedSourceManifests()
+// UpdateStatusOptions defines one plugin status transition request.
+type UpdateStatusOptions struct {
+	// Status is the target enabled-state value, where 1 means enabled and 0 means disabled.
+	Status int
+	// Authorization optionally carries one host-confirmed host-service authorization
+	// snapshot before enabling a dynamic plugin.
+	Authorization *HostServiceAuthorizationInput
 }
 
-// AuthHookService defines auth-related plugin hook operations.
-type AuthHookService interface {
-	// HandleAuthLoginSucceeded dispatches a login-succeeded hook to all enabled plugins.
-	HandleAuthLoginSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error
-	// HandleAuthLoginFailed dispatches a login-failed hook to all enabled plugins.
-	HandleAuthLoginFailed(ctx context.Context, input pluginhost.AuthHookPayloadInput) error
-	// HandleAuthLogoutSucceeded dispatches a logout-succeeded hook to all enabled plugins.
-	HandleAuthLogoutSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error
+// ManagedJobQuery defines one plugin-owned scheduled-job discovery request.
+type ManagedJobQuery struct {
+	// PluginID optionally narrows discovery to one plugin. Empty means all matching plugins.
+	PluginID string
+	// ExecutableOnly requires installed, enabled, runtime-safe job handlers that
+	// may be published for execution.
+	ExecutableOnly bool
+	// InstalledOnly skips preview declarations from uninstalled plugins while
+	// still returning disabled-plugin declarations for management projection.
+	InstalledOnly bool
+	// IncludeHandlers keeps executable handler functions in the returned jobs.
+	// Management and projection callers should leave this false.
+	IncludeHandlers bool
 }
 
-// DataCommentService defines host data-table comment lookup operations.
-type DataCommentService interface {
+// Service defines the composed plugin service contract.
+type Service interface {
+	managementService
+	startupService
+	runtimeHTTPService
+	integrationService
+	jobService
+	stateService
+	capabilityEnvService
+	tenantLifecycleService
+}
+
+// managementService defines plugin management and management-read contracts.
+type managementService interface {
 	// ResolveDataTableComments resolves host-side table comments for the given
 	// data-table names. It degrades to an empty map when metadata lookup is
 	// unavailable so plugin list APIs are not blocked by optional schema comments.
 	ResolveDataTableComments(ctx context.Context, tables []string) map[string]string
+	// Install executes the install lifecycle and returns the dependency plan/results
+	// produced before the target plugin side effects. It optionally persists one
+	// host-confirmed host service authorization snapshot when the target is a
+	// dynamic plugin. When options.InstallMockData is true the optional mock-data
+	// load phase runs inside one database transaction after install SQL completes;
+	// any failure rolls back only the mock load and leaves the install results intact.
+	Install(
+		ctx context.Context,
+		pluginID string,
+		options InstallOptions,
+	) (*DependencyCheckResult, error)
+	// Uninstall executes the uninstall lifecycle with one explicit policy snapshot.
+	Uninstall(ctx context.Context, pluginID string, options UninstallOptions) error
+	// CheckPluginDependencies evaluates dependency status for plugin management UI.
+	CheckPluginDependencies(ctx context.Context, pluginID string) (*DependencyCheckResult, error)
+	// UpdateStatus updates plugin status and optionally persists one dynamic-plugin
+	// host-service authorization snapshot before enabling.
+	UpdateStatus(ctx context.Context, pluginID string, options UpdateStatusOptions) error
+	// UpdateTenantProvisioningPolicy updates the platform-owned new-tenant plugin provisioning policy.
+	UpdateTenantProvisioningPolicy(ctx context.Context, pluginID string, autoEnableForNewTenants bool) error
+	// ListSourceUpgradeStatuses scans source manifests and returns one
+	// effective-versus-discovered upgrade-status item per source plugin.
+	ListSourceUpgradeStatuses(ctx context.Context) ([]*SourceUpgradeStatus, error)
+	// UpgradeSourcePlugin applies one explicit source-plugin upgrade from the
+	// current effective version to the newer discovered source version.
+	UpgradeSourcePlugin(ctx context.Context, pluginID string) (*SourceUpgradeResult, error)
+	// SyncSourcePluginsStrict synchronizes source plugins discovered by the
+	// running host.
+	SyncSourcePluginsStrict(ctx context.Context) (*ListOutput, error)
+	// SyncAndList scans plugin manifests, synchronizes plugin registry rows, and
+	// returns the combined list of source and dynamic plugin items.
+	SyncAndList(ctx context.Context) (*ListOutput, error)
+	// List returns the paginated read-only plugin summary list with optional filtering applied.
+	List(ctx context.Context, in ListInput) (*ListOutput, error)
+	// Get returns one read-only plugin detail projection by exact plugin ID.
+	Get(ctx context.Context, pluginID string) (*PluginItem, error)
+	// PreviewRuntimeUpgrade returns a side-effect-free upgrade preview for one pending plugin.
+	PreviewRuntimeUpgrade(ctx context.Context, pluginID string) (*RuntimeUpgradePreview, error)
+	// ExecuteRuntimeUpgrade runs one explicit runtime upgrade after confirmation.
+	ExecuteRuntimeUpgrade(
+		ctx context.Context,
+		pluginID string,
+		options RuntimeUpgradeOptions,
+	) (*RuntimeUpgradeResult, error)
+	// ListRuntimeStates returns public plugin runtime states for shell slot rendering.
+	ListRuntimeStates(ctx context.Context) (*RuntimeStateListOutput, error)
+	// UploadDynamicPackage validates and stores a runtime WASM package.
+	UploadDynamicPackage(ctx context.Context, in *DynamicUploadInput) (*DynamicUploadOutput, error)
+	// ResolveResourcePermission resolves the plugin-scoped permission required
+	// by the generic resource list endpoint for one plugin-owned resource.
+	ResolveResourcePermission(ctx context.Context, pluginID string, resourceID string) (string, error)
+	// ListResourceRecords queries plugin-owned backend resource rows.
+	ListResourceRecords(ctx context.Context, in ResourceListInput) (*ResourceListOutput, error)
 }
 
-// FrontendAssetService defines runtime frontend bundle and asset operations.
-type FrontendAssetService interface {
+// runtimeHTTPService defines dynamic route and frontend asset contracts used by HTTP startup.
+type runtimeHTTPService interface {
 	// PrewarmRuntimeFrontendBundles preloads frontend bundles for enabled dynamic plugins.
 	PrewarmRuntimeFrontendBundles(ctx context.Context) error
 	// ResolveRuntimeFrontendAsset resolves one frontend asset for a dynamic plugin.
@@ -229,10 +300,22 @@ type FrontendAssetService interface {
 	) (*RuntimeFrontendAssetOutput, error)
 	// BuildRuntimeFrontendPublicBaseURL returns the public base URL for a plugin's hosted frontend assets.
 	BuildRuntimeFrontendPublicBaseURL(pluginID string, version string) string
+	// ProjectDynamicRoutesToOpenAPI projects dynamic routes into the host OpenAPI paths.
+	ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths goai.Paths) error
+	// StartRuntimeReconciler starts the background reconciler loop for dynamic plugins.
+	StartRuntimeReconciler(ctx context.Context)
+	// ReconcileRuntimePlugins runs one reconciliation pass for all dynamic plugins.
+	ReconcileRuntimePlugins(ctx context.Context) error
+	// PrepareDynamicRouteMiddleware prepares dynamic route state before the main handler.
+	PrepareDynamicRouteMiddleware(r *ghttp.Request)
+	// AuthenticateDynamicRouteMiddleware authenticates JWT tokens for dynamic routes.
+	AuthenticateDynamicRouteMiddleware(r *ghttp.Request)
+	// RegisterDynamicRouteDispatcher binds the dynamic route catch-all handler to the group.
+	RegisterDynamicRouteDispatcher(group *ghttp.RouterGroup)
 }
 
-// SourceIntegrationService defines host integration operations for source plugins.
-type SourceIntegrationService interface {
+// integrationService defines source-plugin route, hook, menu, and provider registration contracts.
+type integrationService interface {
 	// RegisterHTTPRoutes registers callback-contributed HTTP routes for source plugins.
 	RegisterHTTPRoutes(
 		ctx context.Context,
@@ -250,31 +333,6 @@ type SourceIntegrationService interface {
 		orgManager *orgspi.Manager,
 		aiTextManager *aitextsvc.Manager,
 	) error
-	// ListExecutableJobs returns plugin-owned job definitions whose
-	// handlers are safe to publish for execution. Dynamic plugins must be in
-	// an enabled business-entry state; disabled, pending-upgrade, abnormal, and
-	// failed-upgrade dynamic plugins are excluded. Use this only for runtime
-	// handler publication, not for authorization previews or task-table
-	// projection.
-	ListExecutableJobs(ctx context.Context) ([]ManagedJob, error)
-	// ListExecutableJobsByPlugin returns executable job definitions for
-	// one plugin. It applies the same enablement and runtime-state rules as
-	// ListExecutableJobs while narrowing discovery to pluginID, so callers
-	// can register handlers during a plugin enable lifecycle without exposing
-	// declarations that are not currently executable.
-	ListExecutableJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedJob, error)
-	// ListJobDeclarationsByPlugin returns declared job metadata for one
-	// plugin without requiring the plugin business entry to be enabled. This is
-	// intended for management review and host-service authorization previews,
-	// including not-yet-installed dynamic plugins. Callers must not publish the
-	// returned handlers directly because the plugin may not be executable.
-	ListJobDeclarationsByPlugin(ctx context.Context, pluginID string) ([]ManagedJob, error)
-	// ListInstalledJobDeclarations returns declared job metadata for
-	// installed plugins without requiring their business entries to be enabled.
-	// Scheduled-job projection uses this to create or update task-table rows
-	// for installed plugins while avoiding preview-only declarations from
-	// uninstalled plugins.
-	ListInstalledJobDeclarations(ctx context.Context) ([]ManagedJob, error)
 	// DispatchHookEvent dispatches one named hook event to all enabled plugins.
 	DispatchHookEvent(
 		ctx context.Context,
@@ -287,71 +345,60 @@ type SourceIntegrationService interface {
 	FilterPermissionMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu
 }
 
-// ResourceQueryService defines plugin-owned backend resource query operations.
-type ResourceQueryService interface {
-	// ResolveResourcePermission resolves the plugin-scoped permission required
-	// by the generic resource list endpoint for one plugin-owned resource.
-	ResolveResourcePermission(ctx context.Context, pluginID string, resourceID string) (string, error)
-	// ListResourceRecords queries plugin-owned backend resource rows.
-	ListResourceRecords(ctx context.Context, in ResourceListInput) (*ResourceListOutput, error)
-}
-
-// LifecycleManagementService defines plugin lifecycle and status management operations.
-type LifecycleManagementService interface {
+// startupService defines plugin startup and startup-read-model contracts.
+type startupService interface {
+	// BootstrapBuiltinPlugins synchronizes manifests and ensures project built-in
+	// source plugins are installed, upgraded when needed, and enabled before
+	// ordinary plugin.autoEnable startup reconciliation runs. The method is a
+	// startup-only governance path and bypasses ordinary management write guards.
+	BootstrapBuiltinPlugins(ctx context.Context) error
 	// BootstrapAutoEnable synchronizes manifests and ensures every plugin listed
 	// in plugin.autoEnable is installed and enabled before later host wiring runs.
 	BootstrapAutoEnable(ctx context.Context) error
 	// ReconcileAutoEnabledTenantPlugins applies startup auto-enable policy to
 	// tenant-scoped plugins after source-plugin providers have registered.
 	ReconcileAutoEnabledTenantPlugins(ctx context.Context) error
-	// Install executes the install lifecycle and returns the dependency plan/results
-	// produced before the target plugin side effects. It optionally persists one
-	// host-confirmed host service authorization snapshot when the target is a
-	// dynamic plugin. When options.InstallMockData is true the optional mock-data
-	// load phase runs inside one database transaction after install SQL completes;
-	// any failure rolls back only the mock load and leaves the install results intact.
-	Install(
-		ctx context.Context,
-		pluginID string,
-		options InstallOptions,
-	) (*DependencyCheckResult, error)
-	// Uninstall executes the uninstall lifecycle with one explicit policy snapshot.
-	Uninstall(ctx context.Context, pluginID string, options UninstallOptions) error
-	// CheckPluginDependencies evaluates dependency status for plugin management UI.
-	CheckPluginDependencies(ctx context.Context, pluginID string) (*DependencyCheckResult, error)
-	// UpdateStatus updates plugin status, where status is 1=enabled and 0=disabled,
-	// and optionally persists one host-confirmed host service authorization snapshot
-	// before enabling a dynamic plugin.
-	UpdateStatus(
-		ctx context.Context,
-		pluginID string,
-		status int,
-		authorization *HostServiceAuthorizationInput,
-	) error
-	// Enable enables the specified plugin.
-	Enable(ctx context.Context, pluginID string) error
-	// Disable disables the specified plugin.
-	Disable(ctx context.Context, pluginID string) error
-	// UpdateTenantProvisioningPolicy updates the platform-owned new-tenant plugin provisioning policy.
-	UpdateTenantProvisioningPolicy(ctx context.Context, pluginID string, autoEnableForNewTenants bool) error
+	// ValidateSourcePluginUpgradeReadiness scans source-plugin version drift
+	// without failing on pending upgrades; list/runtime state exposes the result.
+	ValidateSourcePluginUpgradeReadiness(ctx context.Context) error
+	// ValidateStartupConsistency fails fast when persisted plugin and tenant
+	// governance state is incoherent before routes are served.
+	ValidateStartupConsistency(ctx context.Context) error
+	// WithStartupDataSnapshot returns a child context carrying plugin startup
+	// snapshots shared by one host startup orchestration.
+	WithStartupDataSnapshot(ctx context.Context) (context.Context, error)
+	// PrewarmManagementList builds the plugin management summary list read model.
+	PrewarmManagementList(ctx context.Context) error
+}
+
+// stateService defines plugin state-read contracts used by guards and capability providers.
+type stateService interface {
 	// IsInstalled returns whether a plugin is installed.
 	IsInstalled(ctx context.Context, pluginID string) bool
 	// IsEnabled returns whether a plugin is enabled.
 	IsEnabled(ctx context.Context, pluginID string) bool
 	// IsProviderEnabled returns whether pluginID is platform-enabled for framework capability provider use.
 	IsProviderEnabled(ctx context.Context, pluginID string) bool
-	// AITextProviderEnv returns typed, plugin-scoped text AI provider construction inputs.
-	AITextProviderEnv(pluginID string) aitextsvc.ProviderEnv
-	// OrgProviderEnv returns typed, plugin-scoped organization-provider construction inputs.
-	OrgProviderEnv(pluginID string) orgspi.ProviderEnv
-	// TenantProviderEnv returns typed, plugin-scoped tenant-provider construction inputs.
-	TenantProviderEnv(pluginID string) tenantspi.ProviderEnv
 	// IsEnabledAuthoritative returns whether pluginID is installed, enabled, and
 	// allowed to expose business entries after forcing a persisted governance
 	// read instead of reusing process-local platform snapshots. It preserves the
 	// current tenant/request scope and returns false when authoritative state
 	// cannot be resolved.
 	IsEnabledAuthoritative(ctx context.Context, pluginID string) bool
+}
+
+// capabilityEnvService defines provider construction inputs scoped to one plugin.
+type capabilityEnvService interface {
+	// AITextProviderEnv returns typed, plugin-scoped text AI provider construction inputs.
+	AITextProviderEnv(ctx context.Context, pluginID string) aitextsvc.ProviderEnv
+	// OrgProviderEnv returns typed, plugin-scoped organization-provider construction inputs.
+	OrgProviderEnv(ctx context.Context, pluginID string) orgspi.ProviderEnv
+	// TenantProviderEnv returns typed, plugin-scoped tenant-provider construction inputs.
+	TenantProviderEnv(ctx context.Context, pluginID string) tenantspi.ProviderEnv
+}
+
+// tenantLifecycleService defines tenant-governance lifecycle preconditions and notifications.
+type tenantLifecycleService interface {
 	// EnsureTenantPluginDisableAllowed runs plugin lifecycle preconditions
 	// before tenant-scoped plugin disable.
 	EnsureTenantPluginDisableAllowed(ctx context.Context, pluginID string, tenantID int) error
@@ -362,104 +409,21 @@ type LifecycleManagementService interface {
 	EnsureTenantDeleteAllowed(ctx context.Context, tenantID int) error
 	// NotifyTenantDeleted runs best-effort lifecycle notifications after tenant deletion.
 	NotifyTenantDeleted(ctx context.Context, tenantID int)
+}
+
+// jobService defines plugin-owned scheduled-job and lifecycle observer contracts.
+type jobService interface {
+	// ListManagedJobs returns plugin-owned scheduled-job declarations or
+	// executable handlers according to query. Callers requesting executable jobs
+	// must set ExecutableOnly; management projection callers should leave
+	// IncludeHandlers false so handler functions are not published accidentally.
+	ListManagedJobs(ctx context.Context, query ManagedJobQuery) ([]ManagedJob, error)
 	// ListEnabledPluginIDs returns the IDs of plugins that are currently
 	// installed and enabled.
 	ListEnabledPluginIDs(ctx context.Context) ([]string, error)
-}
-
-// SourceUpgradeGovernanceService defines source-plugin upgrade discovery and
-// explicit effective-version switching operations.
-type SourceUpgradeGovernanceService interface {
-	// ListSourceUpgradeStatuses scans source manifests and returns one
-	// effective-versus-discovered upgrade-status item per source plugin.
-	ListSourceUpgradeStatuses(ctx context.Context) ([]*SourceUpgradeStatus, error)
-	// UpgradeSourcePlugin applies one explicit source-plugin upgrade from the
-	// current effective version to the newer discovered source version.
-	UpgradeSourcePlugin(ctx context.Context, pluginID string) (*SourceUpgradeResult, error)
-	// ValidateSourcePluginUpgradeReadiness scans source-plugin version drift
-	// without failing on pending upgrades; list/runtime state exposes the result.
-	ValidateSourcePluginUpgradeReadiness(ctx context.Context) error
-	// ValidateStartupConsistency fails fast when persisted plugin and tenant
-	// governance state is incoherent before routes are served.
-	ValidateStartupConsistency(ctx context.Context) error
-}
-
-// RegistryQueryService defines manifest synchronization and plugin list query operations.
-type RegistryQueryService interface {
-	// WithStartupDataSnapshot returns a child context carrying plugin startup
-	// snapshots shared by one host startup orchestration.
-	WithStartupDataSnapshot(ctx context.Context) (context.Context, error)
-	// SyncSourcePlugins scans source plugin manifests and synchronizes default status.
-	SyncSourcePlugins(ctx context.Context) error
-	// SyncSourcePluginsStrict synchronizes source plugins discovered by the
-	// running host.
-	SyncSourcePluginsStrict(ctx context.Context) (*ListOutput, error)
-	// SyncAndList scans plugin manifests, synchronizes plugin registry rows, and
-	// returns the combined list of source and dynamic plugin items.
-	SyncAndList(ctx context.Context) (*ListOutput, error)
-	// List returns the paginated read-only plugin summary list with optional filtering applied.
-	List(ctx context.Context, in ListInput) (*ListOutput, error)
-	// Get returns one read-only plugin detail projection by exact plugin ID.
-	Get(ctx context.Context, pluginID string) (*PluginItem, error)
-	// PrewarmManagementList builds the plugin management summary list read model.
-	PrewarmManagementList(ctx context.Context) error
-	// PreviewRuntimeUpgrade returns a side-effect-free upgrade preview for one pending plugin.
-	PreviewRuntimeUpgrade(ctx context.Context, pluginID string) (*RuntimeUpgradePreview, error)
-	// ExecuteRuntimeUpgrade runs one explicit runtime upgrade after confirmation.
-	ExecuteRuntimeUpgrade(
-		ctx context.Context,
-		pluginID string,
-		options RuntimeUpgradeOptions,
-	) (*RuntimeUpgradeResult, error)
-}
-
-// OpenAPIProjectionService defines plugin route projection into the host OpenAPI document.
-type OpenAPIProjectionService interface {
-	// ProjectDynamicRoutesToOpenAPI projects dynamic routes into the host OpenAPI paths.
-	ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths goai.Paths) error
-}
-
-// RuntimeManagementService defines dynamic plugin runtime reconciliation and state query operations.
-type RuntimeManagementService interface {
-	// StartRuntimeReconciler starts the background reconciler loop for dynamic plugins.
-	StartRuntimeReconciler(ctx context.Context)
-	// ReconcileRuntimePlugins runs one reconciliation pass for all dynamic plugins.
-	ReconcileRuntimePlugins(ctx context.Context) error
-	// ListRuntimeStates returns public plugin runtime states for shell slot rendering.
-	ListRuntimeStates(ctx context.Context) (*RuntimeStateListOutput, error)
-}
-
-// DynamicPackageService defines runtime WASM package upload operations.
-type DynamicPackageService interface {
-	// UploadDynamicPackage validates and stores a runtime WASM package.
-	UploadDynamicPackage(ctx context.Context, in *DynamicUploadInput) (*DynamicUploadOutput, error)
-}
-
-// DynamicRouteService defines host-managed dynamic route middleware and dispatch registration operations.
-type DynamicRouteService interface {
-	// PrepareDynamicRouteMiddleware prepares dynamic route state before the main handler.
-	PrepareDynamicRouteMiddleware(r *ghttp.Request)
-	// AuthenticateDynamicRouteMiddleware authenticates JWT tokens for dynamic routes.
-	AuthenticateDynamicRouteMiddleware(r *ghttp.Request)
-	// RegisterDynamicRouteDispatcher binds the dynamic route catch-all handler to the group.
-	RegisterDynamicRouteDispatcher(group *ghttp.RouterGroup)
-}
-
-// Service defines the plugin service contract by composing plugin sub-capabilities.
-type Service interface {
-	AuthHookService
-	DataCommentService
-	FrontendAssetService
-	SourceIntegrationService
-	ResourceQueryService
-	LifecycleManagementService
-	SourceUpgradeGovernanceService
-	RegistryQueryService
-	OpenAPIProjectionService
-	RuntimeManagementService
-	DynamicPackageService
-	DynamicRouteService
-	LifecycleObserverRegistrar
+	// RegisterLifecycleObserver subscribes one synchronous lifecycle observer and
+	// returns its unsubscribe function.
+	RegisterLifecycleObserver(observer LifecycleObserver) func()
 }
 
 // Ensure serviceImpl satisfies the composed plugin facade contract.
@@ -471,13 +435,16 @@ type serviceImpl struct {
 	configSvc configsvc.Service
 	// topology reports whether the current host instance should execute shared
 	// lifecycle actions or wait for another primary node to converge them.
-	topology Topology
+	topology cluster.Service
 	// catalogSvc provides manifest discovery, validation, and manifest asset access.
 	catalogSvc catalog.Service
 	// storeSvc owns plugin governance persistence and stable projections.
 	storeSvc store.Service
 	// lifecycleSvc provides install/uninstall lifecycle orchestration.
 	lifecycleSvc lifecycle.Service
+	// pluginLifecycleService exposes host-internal lifecycle checks to provider
+	// construction without publishing them through plugincap.Service.
+	pluginLifecycleService plugincap.LifecycleService
 	// migrationSvc executes plugin SQL lifecycle phases and migration ledger writes.
 	migrationSvc migration.Service
 	// runtimeSvc provides dynamic plugin reconciliation and route dispatch.
@@ -492,13 +459,9 @@ type serviceImpl struct {
 	openapiSvc openapi.Service
 	// capabilities exposes runtime-owned adapters for lazy provider construction.
 	capabilities capability.Services
-	// sourceServices resolves plugin-scoped source-plugin services for integration callbacks.
-	sourceServices *sourceServicesProvider
-	// orgDeptProvider resolves organization departments for plugin resource data-scope filters.
-	orgDeptProvider *organizationDeptProvider
 	// i18nSvc localizes plugin lifecycle messages and invalidates runtime
 	// translation bundles after plugin lifecycle mutations.
-	i18nSvc pluginI18nService
+	i18nSvc i18nsvc.Service
 	// runtimeCacheRevisionCtrl coordinates process-local runtime caches in cluster deployments.
 	runtimeCacheRevisionCtrl *revisionctrl.Controller
 	// activeDynamicArtifactSnapshotMu protects activeDynamicArtifactSnapshot.
@@ -507,18 +470,12 @@ type serviceImpl struct {
 	activeDynamicArtifactSnapshot map[string]string
 	// wasmRuntime owns dynamic-plugin WASM execution and host-call dependencies.
 	wasmRuntime *wasmRuntimeProvider
-	// lifecycleObservers stores transitional root-level observers for flows not yet migrated to lifecycle.
-	lifecycleObservers *lifecycleObserverRegistry
 	// runtimeUpgradeLockStore coordinates explicit runtime upgrades across cluster nodes.
 	runtimeUpgradeLockStore coordination.LockStore
 	// managementListCache stores the plugin-management summary read model.
 	managementListCache *management.ListCache
-	// tenantStartup validates tenant-governance startup state through a narrow tenant capability.
-	tenantStartup pluginTenantStartupCapability
-	// tenantProvisioning provisions tenant-scoped auto-enabled plugins after startup policy convergence.
-	tenantProvisioning tenantspi.PluginProvisioningService
-	// tenantGovernance guards platform plugin-governance writes in HTTP paths.
-	tenantGovernance platformGovernanceTenantCapability
+	// tenantSvc provides tenant governance, startup consistency, and tenant plugin provisioning.
+	tenantSvc tenantspi.Service
 }
 
 // New creates and returns a new plugin Service.
@@ -526,28 +483,27 @@ type serviceImpl struct {
 // default single-node topology implementation.
 // reconcilerLockSvc must be created by the startup composition root and shared
 // with host-lock services that use the same deployment-selected locker backend.
-// capabilityServices, tenant/org governance services, and WASM host-service
-// factories must also be startup-owned shared instances; callers that need to
-// break the host-service construction cycle should use RuntimeDelegate and bind
-// it to the returned service before serving requests.
+// capabilityServices, tenant/org governance services, plugin config factory,
+// and host config service must also be startup-owned shared instances. The
+// plugin service owns the manifest resource factory used by the dynamic WASM
+// host runtime. Callers that need to break the host-service construction cycle
+// should use RuntimeDelegate and bind it to the returned service before serving
+// requests.
 func New(
-	topology Topology,
+	topology cluster.Service,
 	configProvider configsvc.Service,
 	bizCtxProvider bizctx.Service,
 	cacheCoordSvc cachecoord.Service,
 	i18nSvc i18nsvc.Service,
 	sessionStore session.Store,
-	roleAccess runtime.RoleAccessProjector,
+	roleAccess rolesvc.Service,
 	reconcilerLockSvc locker.Service,
 	runtimeUpgradeLockStore coordination.LockStore,
 	capabilityServices capability.Services,
 	organizationSvc orgcapsvc.Service,
-	tenantStartup pluginTenantStartupCapability,
-	tenantProvisioning tenantspi.PluginProvisioningService,
-	tenantGovernance platformGovernanceTenantCapability,
-	pluginConfigFactory plugincap.ConfigServiceFactory,
+	tenantSvc tenantspi.Service,
+	pluginConfigFactory PluginConfigFactory,
 	hostConfigSvc hostconfigcap.Service,
-	pluginManifestFactory manifestcap.ServiceFactory,
 ) (Service, error) {
 	if configProvider == nil {
 		return nil, gerror.New("plugin service requires a non-nil config service")
@@ -565,7 +521,7 @@ func New(
 		return nil, gerror.New("plugin service requires a non-nil session store")
 	}
 	if roleAccess == nil {
-		return nil, gerror.New("plugin service requires a non-nil role access projector")
+		return nil, gerror.New("plugin service requires a non-nil role service")
 	}
 	if reconcilerLockSvc == nil {
 		return nil, gerror.New("plugin service requires a non-nil reconciler lock service")
@@ -576,78 +532,62 @@ func New(
 	if organizationSvc == nil {
 		return nil, gerror.New("plugin service requires a non-nil organization capability service")
 	}
-	if tenantStartup == nil {
-		return nil, gerror.New("plugin service requires a non-nil tenant startup capability")
-	}
-	if tenantProvisioning == nil {
-		return nil, gerror.New("plugin service requires a non-nil tenant provisioning capability")
-	}
-	if tenantGovernance == nil {
-		return nil, gerror.New("plugin service requires a non-nil tenant platform governance capability")
+	if tenantSvc == nil {
+		return nil, gerror.New("plugin service requires a non-nil tenant service")
 	}
 	wasmRuntimeInstance, err := newWasmHostServiceRuntime(
 		capabilityServices,
 		pluginConfigFactory,
 		hostConfigSvc,
-		pluginManifestFactory,
+		manifestresource.NewFactory(""),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	var topo Topology = singleNodeTopology{}
-	if topology != nil {
-		topo = topology
+	topologySvc := topology
+	if topologySvc == nil {
+		topologySvc = cluster.New(nil)
 	}
 
 	var (
 		catalogSvc           = catalog.New(configProvider)
-		topologyProvider     = &runtimeTopologyAdapter{topo}
-		storeSvc             = store.New(catalogSvc, topologyProvider)
+		storeSvc             = store.New(catalogSvc, topologySvc)
 		migrationSvc         = migration.New(catalogSvc, storeSvc)
 		frontendSvc          = frontend.New(catalogSvc, storeSvc)
 		openapiRevision      = openapi.NewDeferredRevisionReader()
 		openapiSvc           = openapi.New(catalogSvc, storeSvc, openapiRevision, i18nSvc)
-		sourceServices       = &sourceServicesProvider{capabilities: capabilityServices}
-		orgDeptProvider      = &organizationDeptProvider{service: organizationSvc}
 		integrationDelegates = &integrationDelegateProvider{}
 		cacheChangeNotifier  = &runtimeCacheChangeNotifierProvider{}
 		dependencyValidator  = &dependencyValidatorProvider{}
 		wasmRuntime          = &wasmRuntimeProvider{runtime: wasmRuntimeInstance}
-		lifecycleTopology    = &lifecycleTopologyAdapter{topo}
 	)
 	runtimeSvc := runtime.New(
 		catalogSvc,
 		storeSvc,
 		migrationSvc,
 		frontendSvc,
-		openapiSvc,
 		i18nSvc,
 		reconcilerLockSvc,
-		topologyProvider,
+		topologySvc,
 		integrationDelegates,
-		integrationDelegates,
-		integrationDelegates,
-		&jwtConfigAdapter{configProvider},
-		&uploadSizeAdapter{configProvider},
-		&userCtxAdapter{bizCtxProvider},
+		configProvider,
+		bizCtxProvider,
 		sessionStore,
 		roleAccess,
-		integrationDelegates,
 		cacheChangeNotifier,
 		dependencyValidator,
-		sourceServices,
+		capabilityServices,
 		wasmRuntime,
 	)
 	integrationSvc := integration.New(
 		catalogSvc,
 		storeSvc,
-		&bizCtxAdapter{bizCtxProvider},
-		&integrationTopologyAdapter{topo},
-		sourceServices,
-		orgDeptProvider,
+		bizCtxProvider,
+		topologySvc,
+		capabilityServices,
+		organizationSvc,
 		runtimeSvc,
-		integration.NewSharedState(),
 	)
 	integrationDelegates.BindService(integrationSvc)
 	dependencyResolver := plugindep.New()
@@ -660,38 +600,35 @@ func New(
 		dependencyResolver,
 		i18nSvc,
 		cacheChangeNotifier,
-		lifecycleTopology,
-		tenantProvisioning,
-		sourceServices,
+		topologySvc,
+		tenantSvc,
+		capabilityServices,
 	)
 
 	service := &serviceImpl{
 		configSvc:                     configProvider,
-		topology:                      topo,
+		topology:                      topologySvc,
 		catalogSvc:                    catalogSvc,
 		storeSvc:                      storeSvc,
 		lifecycleSvc:                  lifecycleSvc,
+		pluginLifecycleService:        plugincap.NewLifecycle(lifecycleSvc),
 		migrationSvc:                  migrationSvc,
 		runtimeSvc:                    runtimeSvc,
 		integrationSvc:                integrationSvc,
 		frontendSvc:                   frontendSvc,
 		openapiSvc:                    openapiSvc,
 		capabilities:                  capabilityServices,
-		sourceServices:                sourceServices,
-		orgDeptProvider:               orgDeptProvider,
 		i18nSvc:                       i18nSvc,
 		activeDynamicArtifactSnapshot: make(map[string]string),
 		wasmRuntime:                   wasmRuntime,
 		runtimeUpgradeLockStore:       runtimeUpgradeLockStore,
 		managementListCache:           management.NewListCache(),
-		tenantStartup:                 tenantStartup,
-		tenantProvisioning:            tenantProvisioning,
-		tenantGovernance:              tenantGovernance,
+		tenantSvc:                     tenantSvc,
 	}
 	cacheChangeNotifier.BindService(service)
 	dependencyValidator.BindService(service)
 	service.runtimeCacheRevisionCtrl = newRuntimeCacheRevisionController(
-		topo,
+		topologySvc,
 		cacheCoordSvc,
 		integrationSvc,
 		frontendSvc,
@@ -707,7 +644,6 @@ func New(
 	upgradeSvc, err := upgrade.New(
 		catalogSvc,
 		storeSvc,
-		lifecycleSvc,
 		runtimeSvc,
 		integrationSvc,
 		migrationSvc,
@@ -716,7 +652,7 @@ func New(
 		runtimeUpgradeLockStore,
 		upgradeCachePublisher{service: service},
 		upgradeCacheFreshener{service: service},
-		topo,
+		topologySvc,
 		configProvider,
 	)
 	if err != nil {

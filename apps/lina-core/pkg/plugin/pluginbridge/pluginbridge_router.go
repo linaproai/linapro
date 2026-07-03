@@ -191,9 +191,11 @@ func collectGuestControllerHandlerMetadata(controller any) ([]GuestControllerHan
 		return nil, gerror.New("guest route controller cannot be nil")
 	}
 
-	controllerType := controllerValue.Type()
-	items := make([]GuestControllerHandlerMetadata, 0, controllerType.NumMethod())
-	seenRequestTypes := make(map[string]struct{}, controllerType.NumMethod())
+	var (
+		controllerType   = controllerValue.Type()
+		items            = make([]GuestControllerHandlerMetadata, 0, controllerType.NumMethod())
+		seenRequestTypes = make(map[string]struct{}, controllerType.NumMethod())
+	)
 	for index := 0; index < controllerType.NumMethod(); index++ {
 		method := controllerType.Method(index)
 		item, ok, err := buildGuestControllerHandlerMetadata(method)

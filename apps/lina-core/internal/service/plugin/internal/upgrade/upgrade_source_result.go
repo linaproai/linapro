@@ -6,6 +6,7 @@ import (
 	"context"
 	"strings"
 
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/pkg/bizerr"
 )
 
@@ -13,7 +14,7 @@ import (
 // localized text on one source-plugin upgrade result.
 func setSourceUpgradeResultMessage(
 	ctx context.Context,
-	translator I18nService,
+	translator i18nsvc.Service,
 	result *SourceUpgradeResult,
 	messageKey string,
 	fallback string,

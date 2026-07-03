@@ -61,7 +61,7 @@ func unmarshalRequestEnvelope(content []byte, out *BridgeRequestEnvelopeV1) erro
 		case 3:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return gerror.New("failed to decode bridge request request")
+				return gerror.New("failed to decode bridge request snapshot")
 			}
 			out.Request = &HTTPRequestSnapshotV1{}
 			if err := unmarshalRequestSnapshot(value, out.Request); err != nil {

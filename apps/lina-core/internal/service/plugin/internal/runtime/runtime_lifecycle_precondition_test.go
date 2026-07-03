@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"testing"
 
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/store"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
@@ -56,6 +57,7 @@ func TestBuildDynamicLifecycleRequestPublishesTypedManifestSnapshot(t *testing.T
 				Name:                    "Dynamic Upgrade",
 				Version:                 "v0.1.0",
 				Type:                    "dynamic",
+				Distribution:            pluginv1.PluginDistributionManaged.String(),
 				ScopeNature:             "tenant_aware",
 				SupportsMultiTenant:     true,
 				DefaultInstallMode:      "tenant_scoped",
@@ -73,6 +75,7 @@ func TestBuildDynamicLifecycleRequestPublishesTypedManifestSnapshot(t *testing.T
 				Name:                    "Dynamic Upgrade",
 				Version:                 "v0.2.0",
 				Type:                    "dynamic",
+				Distribution:            pluginv1.PluginDistributionManaged.String(),
 				ScopeNature:             "tenant_aware",
 				SupportsMultiTenant:     true,
 				DefaultInstallMode:      "tenant_scoped",
@@ -152,6 +155,7 @@ func TestPublishedManifestSnapshotUsesBridgeContract(t *testing.T) {
 		Name:                    "Dynamic Upgrade",
 		Version:                 "v0.2.0",
 		Type:                    "dynamic",
+		Distribution:            pluginv1.PluginDistributionManaged.String(),
 		ScopeNature:             "tenant_aware",
 		SupportsMultiTenant:     true,
 		DefaultInstallMode:      "tenant_scoped",
@@ -167,6 +171,7 @@ func TestPublishedManifestSnapshotUsesBridgeContract(t *testing.T) {
 
 	if snapshot.ID != "plugin-dev-dynamic-upgrade" ||
 		snapshot.Version != "v0.2.0" ||
+		snapshot.Distribution != pluginv1.PluginDistributionManaged ||
 		snapshot.SupportsMultiTenant != true ||
 		snapshot.ResourceSpecCount != 6 ||
 		snapshot.HostServiceAuthRequired != true {

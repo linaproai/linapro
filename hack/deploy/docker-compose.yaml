@@ -62,14 +62,6 @@ services:
         ./lina init --confirm=init --rebuild=true
         ./lina mock --confirm=mock
         exec ./lina
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - wget -q -O- http://127.0.0.1:9120/api/v1/health | grep -q '"status":"ok"'
-      interval: 10s
-      timeout: 3s
-      retries: 12
-      start_period: 30s
     restart: unless-stopped
 
 configs:

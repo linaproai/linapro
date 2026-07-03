@@ -11,6 +11,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/testutil"
@@ -34,7 +35,7 @@ func TestListMockSQLPathsExcludedFromInstallScan(t *testing.T) {
 		ID:           "plugin-dev-mock-data-disjoint",
 		Name:         "Mock Data Disjoint Plugin",
 		Version:      "0.1.0",
-		Type:         plugintypes.TypeSource.String(),
+		Type:         pluginv1.PluginTypeSource.String(),
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		RootDir:      pluginDir,
 	}
@@ -79,7 +80,7 @@ func TestListMockSQLPathsEmptyWhenAbsent(t *testing.T) {
 		ID:           "plugin-dev-mock-data-absent",
 		Name:         "Mock Data Absent Plugin",
 		Version:      "0.1.0",
-		Type:         plugintypes.TypeSource.String(),
+		Type:         pluginv1.PluginTypeSource.String(),
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		RootDir:      pluginDir,
 	}
@@ -107,7 +108,7 @@ func TestListMockSQLPathsViaEmbeddedSourcePluginFiles(t *testing.T) {
 		ID:      "plugin-embedded-mock-data",
 		Name:    "Embedded Mock Data Plugin",
 		Version: "0.1.0",
-		Type:    plugintypes.TypeSource.String(),
+		Type:    pluginv1.PluginTypeSource.String(),
 		SourcePlugin: func() pluginhost.SourcePluginDefinition {
 			sourcePlugin := pluginhost.NewDeclarations("plugin-embedded-mock-data")
 			sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{

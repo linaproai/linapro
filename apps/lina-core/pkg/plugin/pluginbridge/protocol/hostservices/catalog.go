@@ -10,12 +10,11 @@ type ResourceKind string
 
 // Host-service resource kinds used by manifest validation and governance tests.
 const (
-	ResourceKindNone     ResourceKind = "none"
-	ResourceKindPath     ResourceKind = "path"
-	ResourceKindTable    ResourceKind = "table"
-	ResourceKindKey      ResourceKind = "key"
-	ResourceKindRef      ResourceKind = "resource"
-	ResourceKindReserved ResourceKind = "reserved"
+	ResourceKindNone  ResourceKind = "none"
+	ResourceKindPath  ResourceKind = "path"
+	ResourceKindTable ResourceKind = "table"
+	ResourceKindKey   ResourceKind = "key"
+	ResourceKindRef   ResourceKind = "resource"
 )
 
 // PayloadKind describes the host-service payload codec family used by one
@@ -28,7 +27,6 @@ const (
 	PayloadKindNone      PayloadKind = "none"
 	PayloadKindJSON      PayloadKind = "json"
 	PayloadKindDedicated PayloadKind = "dedicated"
-	PayloadKindReserved  PayloadKind = "reserved"
 )
 
 // ServiceDescriptor describes one logical host service family.
@@ -146,31 +144,13 @@ var catalog = []ServiceDescriptor{
 		},
 	},
 	{
-		Service:      "secret",
-		ResourceKind: ResourceKindRef,
-		Methods: []MethodDescriptor{
-			reservedHostMethod("resolve", "host:secret"),
-		},
-	},
-	{
-		Service:      "event",
-		ResourceKind: ResourceKindRef,
-		Methods: []MethodDescriptor{
-			reservedHostMethod("publish", "host:event:publish"),
-		},
-	},
-	{
-		Service:      "queue",
-		ResourceKind: ResourceKindRef,
-		Methods: []MethodDescriptor{
-			reservedHostMethod("enqueue", "host:queue:enqueue"),
-		},
-	},
-	{
 		Service:      "hostconfig",
 		ResourceKind: ResourceKindKey,
 		Methods: []MethodDescriptor{
 			hostMethod("get", "HostServiceMethodHostConfigGet", "host:hostconfig", "HostServiceConfigKeyRequest", "HostServiceConfigValueResponse"),
+			hostMethod("sys_config.get", "HostServiceMethodHostConfigSysConfigGet", "host:hostconfig", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("sys_config.value.set", "HostServiceMethodHostConfigSysConfigSetValue", "host:hostconfig", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("sys_config.reset", "HostServiceMethodHostConfigSysConfigReset", "host:hostconfig", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 		},
 	},
 	{
@@ -195,20 +175,15 @@ var catalog = []ServiceDescriptor{
 		Service:      "auth",
 		ResourceKind: ResourceKindNone,
 		Methods: []MethodDescriptor{
-			hostMethod("tenant.select", "HostServiceMethodAuthSelectTenant", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("tenant.switch", "HostServiceMethodAuthSwitchTenant", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("impersonation_token.issue", "HostServiceMethodAuthIssueImpersonationToken", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("impersonation_token.revoke", "HostServiceMethodAuthRevokeImpersonationToken", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-		},
-	},
-	{
-		Service:      "authz",
-		ResourceKind: ResourceKindNone,
-		Methods: []MethodDescriptor{
-			hostMethod("permissions.batch_get", "HostServiceMethodAuthzBatchGetPermissions", "host:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("permissions.batch_has", "HostServiceMethodAuthzBatchHasPermissions", "host:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("permissions.has", "HostServiceMethodAuthzHasPermission", "host:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("users.platform_admin.check", "HostServiceMethodAuthzIsPlatformAdmin", "host:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("token.tenant.select", "HostServiceMethodAuthSelectTenant", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("token.tenant.switch", "HostServiceMethodAuthSwitchTenant", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("token.impersonation_token.issue", "HostServiceMethodAuthIssueImpersonationToken", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("token.impersonation_token.revoke", "HostServiceMethodAuthRevokeImpersonationToken", "host:auth:token", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("authz.permissions.batch_get", "HostServiceMethodAuthzBatchGetPermissions", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("authz.permissions.batch_has", "HostServiceMethodAuthzBatchHasPermissions", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("authz.permissions.has", "HostServiceMethodAuthzHasPermission", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("authz.users.platform_admin.check", "HostServiceMethodAuthzIsPlatformAdmin", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("authz.role_permissions.replace", "HostServiceMethodAuthzReplaceRolePermissions", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 		},
 	},
 	{
@@ -241,8 +216,14 @@ var catalog = []ServiceDescriptor{
 			hostMethod("users.current.get", "HostServiceMethodUsersCurrent", "host:users", "", "HostServiceJSONResponse"),
 			hostMethod("users.batch_get", "HostServiceMethodUsersBatchGet", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("users.resolve.batch", "HostServiceMethodUsersBatchResolve", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("users.search", "HostServiceMethodUsersSearch", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("users.list", "HostServiceMethodUsersList", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("users.visible.ensure", "HostServiceMethodUsersEnsureVisible", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("users.create", "HostServiceMethodUsersCreate", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("users.update", "HostServiceMethodUsersUpdate", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("users.delete", "HostServiceMethodUsersDelete", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("users.status.set", "HostServiceMethodUsersSetStatus", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("users.password.reset", "HostServiceMethodUsersResetPassword", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("users.assignment.roles.replace", "HostServiceMethodUsersReplaceRoles", "host:users", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 		},
 	},
 	{
@@ -256,9 +237,25 @@ var catalog = []ServiceDescriptor{
 		Service:      "dict",
 		ResourceKind: ResourceKindNone,
 		Methods: []MethodDescriptor{
-			hostMethod("labels.resolve", "HostServiceMethodDictResolveLabels", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("dict.values.list", "HostServiceMethodDictListValues", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("values.visible.ensure", "HostServiceMethodDictEnsureValuesVisible", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.refresh", "HostServiceMethodDictRefresh", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.type.get", "HostServiceMethodDictTypeGet", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.type.batch_get", "HostServiceMethodDictTypeBatchGet", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.type.list", "HostServiceMethodDictTypeList", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.type.visible.ensure", "HostServiceMethodDictTypeEnsureVisible", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.type.keys.visible.ensure", "HostServiceMethodDictTypeEnsureKeysVisible", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.type.create", "HostServiceMethodDictTypeCreate", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.type.update", "HostServiceMethodDictTypeUpdate", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.type.delete", "HostServiceMethodDictTypeDelete", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.value.get", "HostServiceMethodDictValueGet", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.value.batch_get", "HostServiceMethodDictValueBatchGet", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.value.labels.resolve", "HostServiceMethodDictValueResolveLabels", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.value.list", "HostServiceMethodDictListValues", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.value.visible.ensure", "HostServiceMethodDictValueEnsureVisible", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.value.values.visible.ensure", "HostServiceMethodDictValueEnsureValuesVisible", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.value.create", "HostServiceMethodDictValueCreate", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.value.update", "HostServiceMethodDictValueUpdate", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.value.delete", "HostServiceMethodDictValueDelete", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("dict.value.by_type.delete", "HostServiceMethodDictValueDeleteByType", "host:dict", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 		},
 	},
 	{
@@ -266,15 +263,13 @@ var catalog = []ServiceDescriptor{
 		ResourceKind: ResourceKindNone,
 		Methods: []MethodDescriptor{
 			hostMethod("files.batch_get", "HostServiceMethodFilesBatchGet", "host:files", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("files.search", "HostServiceMethodFilesSearch", "host:files", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("files.list", "HostServiceMethodFilesList", "host:files", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("files.visible.ensure", "HostServiceMethodFilesEnsureVisible", "host:files", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-		},
-	},
-	{
-		Service:      "infra",
-		ResourceKind: ResourceKindNone,
-		Methods: []MethodDescriptor{
-			hostMethod("status.batch_get", "HostServiceMethodInfraBatchGetStatus", "host:infra", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("files.upload", "HostServiceMethodFilesUpload", "host:files", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("files.create_from_storage", "HostServiceMethodFilesCreateFromStorage", "host:files", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("files.metadata.update", "HostServiceMethodFilesUpdateMetadata", "host:files", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("files.delete", "HostServiceMethodFilesDelete", "host:files", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("files.delete_many", "HostServiceMethodFilesDeleteMany", "host:files", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 		},
 	},
 	{
@@ -282,8 +277,13 @@ var catalog = []ServiceDescriptor{
 		ResourceKind: ResourceKindNone,
 		Methods: []MethodDescriptor{
 			hostMethod("jobs.batch_get", "HostServiceMethodJobsBatchGet", "host:jobs", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("jobs.search", "HostServiceMethodJobsSearch", "host:jobs", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("jobs.list", "HostServiceMethodJobsList", "host:jobs", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("jobs.visible.ensure", "HostServiceMethodJobsEnsureVisible", "host:jobs", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("jobs.create", "HostServiceMethodJobsCreate", "host:jobs", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("jobs.update", "HostServiceMethodJobsUpdate", "host:jobs", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("jobs.delete", "HostServiceMethodJobsDelete", "host:jobs", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("jobs.run", "HostServiceMethodJobsRun", "host:jobs", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("jobs.status.set", "HostServiceMethodJobsSetStatus", "host:jobs", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("jobs.register", "HostServiceMethodJobsRegister", "host:jobs", "HostServiceJobsRegisterRequest", ""),
 		},
 	},
@@ -292,9 +292,14 @@ var catalog = []ServiceDescriptor{
 		ResourceKind: ResourceKindNone,
 		Methods: []MethodDescriptor{
 			hostMethod("messages.batch_get", "HostServiceMethodNotificationsBatchGetMessages", "host:notifications", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("messages.list", "HostServiceMethodNotificationsList", "host:notifications", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("messages.by_source.batch_get", "HostServiceMethodNotificationsBatchGetBySource", "host:notifications", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("messages.visible.ensure", "HostServiceMethodNotificationsEnsureVisible", "host:notifications", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethodWithResource("messages.send", "HostServiceMethodNotificationsSend", "host:notifications", ResourceKindRef, "HostServiceNotificationsSendRequest", "HostServiceNotificationsSendResponse"),
+			hostMethod("messages.delete", "HostServiceMethodNotificationsDelete", "host:notifications", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("messages.by_source.delete", "HostServiceMethodNotificationsDeleteBySource", "host:notifications", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("messages.mark_read", "HostServiceMethodNotificationsMarkRead", "host:notifications", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("messages.mark_unread", "HostServiceMethodNotificationsMarkUnread", "host:notifications", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 		},
 	},
 	{
@@ -303,17 +308,16 @@ var catalog = []ServiceDescriptor{
 		Methods: []MethodDescriptor{
 			hostMethod("plugins.current.get", "HostServiceMethodPluginsCurrent", "host:plugins", "", "HostServiceJSONResponse"),
 			hostMethod("plugins.batch_get", "HostServiceMethodPluginsBatchGet", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("plugins.search", "HostServiceMethodPluginsSearch", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("plugins.registry.list", "HostServiceMethodPluginsList", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("plugins.tenant.list", "HostServiceMethodPluginsListTenant", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("plugins.capabilities.status.batch_get", "HostServiceMethodPluginsBatchGetCapabilityStatus", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("plugins.enabled.check", "HostServiceMethodPluginsIsEnabled", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("plugins.provider_enabled.check", "HostServiceMethodPluginsIsProviderEnabled", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("plugins.enabled_authoritative.check", "HostServiceMethodPluginsIsEnabledAuthoritative", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("config.get", "HostServiceMethodPluginsConfigGet", "host:plugins", "HostServiceConfigKeyRequest", "HostServiceConfigValueResponse"),
-			hostMethod("lifecycle.tenant_plugin_disable.ensure", "HostServiceMethodPluginsLifecycleEnsureTenantPluginDisable", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("lifecycle.tenant_plugin_disabled.notify", "HostServiceMethodPluginsLifecycleNotifyTenantPluginDisabled", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("lifecycle.tenant_delete.ensure", "HostServiceMethodPluginsLifecycleEnsureTenantDelete", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("lifecycle.tenant_deleted.notify", "HostServiceMethodPluginsLifecycleNotifyTenantDeleted", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("plugins.state.enabled.check", "HostServiceMethodPluginsStateIsEnabled", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("plugins.state.provider_enabled.check", "HostServiceMethodPluginsStateIsProviderEnabled", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("plugins.state.enabled_authoritative.check", "HostServiceMethodPluginsStateIsEnabledAuthoritative", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("plugins.lifecycle.tenant_plugin_disable.ensure", "HostServiceMethodPluginsLifecycleEnsureTenantPluginDisableAllowed", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("plugins.lifecycle.tenant_plugin_disabled.notify", "HostServiceMethodPluginsLifecycleNotifyTenantPluginDisabled", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("plugins.lifecycle.tenant_delete.ensure", "HostServiceMethodPluginsLifecycleEnsureTenantDeleteAllowed", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("plugins.lifecycle.tenant_deleted.notify", "HostServiceMethodPluginsLifecycleNotifyTenantDeleted", "host:plugins", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 		},
 	},
 	{
@@ -328,10 +332,12 @@ var catalog = []ServiceDescriptor{
 		ResourceKind: ResourceKindNone,
 		Methods: []MethodDescriptor{
 			hostMethod("sessions.current.get", "HostServiceMethodSessionsCurrent", "host:sessions", "", "HostServiceJSONResponse"),
-			hostMethod("sessions.search", "HostServiceMethodSessionsSearch", "host:sessions", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("sessions.list", "HostServiceMethodSessionsList", "host:sessions", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("sessions.batch_get", "HostServiceMethodSessionsBatchGet", "host:sessions", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("sessions.users.online.batch_get", "HostServiceMethodSessionsBatchGetUserOnlineStatus", "host:sessions", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("sessions.visible.ensure", "HostServiceMethodSessionsEnsureVisible", "host:sessions", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("sessions.revoke", "HostServiceMethodSessionsRevoke", "host:sessions", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("sessions.revoke_many", "HostServiceMethodSessionsRevokeMany", "host:sessions", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 		},
 	},
 	{
@@ -340,17 +346,22 @@ var catalog = []ServiceDescriptor{
 		Methods: []MethodDescriptor{
 			hostMethod("capability.available", "HostServiceMethodOrgAvailable", "host:org", "", "HostServiceJSONResponse"),
 			hostMethod("capability.status", "HostServiceMethodOrgStatus", "host:org", "", "HostServiceJSONResponse"),
-			hostMethod("users.dept_assignments.list", "HostServiceMethodOrgListUserDeptAssignments", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("users.org_profiles.batch_get", "HostServiceMethodOrgBatchGetUserOrgProfiles", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("users.dept_info.get", "HostServiceMethodOrgGetUserDeptInfo", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("users.dept_name.get", "HostServiceMethodOrgGetUserDeptName", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("users.dept_ids.get", "HostServiceMethodOrgGetUserDeptIDs", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("users.post_ids.get", "HostServiceMethodOrgGetUserPostIDs", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("depts.tree.list", "HostServiceMethodOrgListDeptTree", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("depts.search", "HostServiceMethodOrgSearchDepartments", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("posts.options.list", "HostServiceMethodOrgListPostOptions", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("depts.visible.ensure", "HostServiceMethodOrgEnsureDepartmentsVisible", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("posts.visible.ensure", "HostServiceMethodOrgEnsurePostsVisible", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.assignment.user_profiles.batch_get", "HostServiceMethodOrgBatchGetUserOrgProfiles", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.department.tree.list", "HostServiceMethodOrgListDeptTree", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.department.batch_get", "HostServiceMethodOrgDepartmentBatchGet", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.department.list", "HostServiceMethodOrgDepartmentList", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.post.batch_get", "HostServiceMethodOrgPostBatchGet", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.post.options.list", "HostServiceMethodOrgListPostOptions", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.department.visible.ensure_many", "HostServiceMethodOrgEnsureDepartmentsVisible", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.post.visible.ensure_many", "HostServiceMethodOrgEnsurePostsVisible", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.department.create", "HostServiceMethodOrgDepartmentCreate", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.department.update", "HostServiceMethodOrgDepartmentUpdate", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.department.delete", "HostServiceMethodOrgDepartmentDelete", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.post.create", "HostServiceMethodOrgPostCreate", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.post.update", "HostServiceMethodOrgPostUpdate", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.post.delete", "HostServiceMethodOrgPostDelete", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.assignment.by_user.replace", "HostServiceMethodOrgAssignmentReplaceByUser", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("org.assignment.by_user.cleanup", "HostServiceMethodOrgAssignmentCleanupByUser", "host:org", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 		},
 	},
 	{
@@ -359,17 +370,17 @@ var catalog = []ServiceDescriptor{
 		Methods: []MethodDescriptor{
 			hostMethod("capability.available", "HostServiceMethodTenantAvailable", "host:tenant", "", "HostServiceJSONResponse"),
 			hostMethod("capability.status", "HostServiceMethodTenantStatus", "host:tenant", "", "HostServiceJSONResponse"),
-			hostMethod("tenants.current", "HostServiceMethodTenantCurrent", "host:tenant", "", "HostServiceJSONResponse"),
-			hostMethod("tenants.current_info.get", "HostServiceMethodTenantCurrentInfo", "host:tenant", "", "HostServiceJSONResponse"),
-			hostMethod("tenants.platform_bypass", "HostServiceMethodTenantPlatformBypass", "host:tenant", "", "HostServiceJSONResponse"),
-			hostMethod("tenants.visible.ensure", "HostServiceMethodTenantEnsureVisible", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("tenants.batch_get", "HostServiceMethodTenantBatchGet", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("tenants.search", "HostServiceMethodTenantSearch", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("users.tenant_membership.validate", "HostServiceMethodTenantValidateUserInTenant", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("users.tenants.list", "HostServiceMethodTenantListUserTenants", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("users.tenants.batch_list", "HostServiceMethodTenantBatchListUserTenants", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("tenants.visible.batch_ensure", "HostServiceMethodTenantBatchEnsureVisible", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("tenants.switch.validate", "HostServiceMethodTenantValidateSwitch", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("tenant.context.current", "HostServiceMethodTenantCurrent", "host:tenant", "", "HostServiceJSONResponse"),
+			hostMethod("tenant.context.info", "HostServiceMethodTenantCurrentInfo", "host:tenant", "", "HostServiceJSONResponse"),
+			hostMethod("tenant.context.platform_bypass", "HostServiceMethodTenantPlatformBypass", "host:tenant", "", "HostServiceJSONResponse"),
+			hostMethod("tenant.directory.batch_get", "HostServiceMethodTenantBatchGet", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("tenant.directory.list", "HostServiceMethodTenantDirectoryList", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("tenant.membership.validate", "HostServiceMethodTenantValidateUserInTenant", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("tenant.membership.list_by_user", "HostServiceMethodTenantListUserTenants", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("tenant.directory.visible.ensure_many", "HostServiceMethodTenantBatchEnsureVisible", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("tenant.plugins.enabled.set", "HostServiceMethodTenantPluginSetEnabled", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("tenant.plugins.defaults.provision", "HostServiceMethodTenantPluginProvisionDefaults", "host:tenant", "HostServiceJSONRequest", "HostServiceJSONResponse"),
+			hostMethod("tenant.filter.context", "HostServiceMethodTenantFilterContext", "host:tenant", "", "HostServiceJSONResponse"),
 		},
 	},
 }
@@ -435,15 +446,6 @@ func hostMethodWithResource(
 	descriptor := hostMethod(method, methodConst, capability, requestPayload, responsePayload)
 	descriptor.ResourceKind = resourceKind
 	return descriptor
-}
-
-func reservedHostMethod(method string, capability string) MethodDescriptor {
-	return MethodDescriptor{
-		Method:       method,
-		Capability:   capability,
-		ResourceKind: ResourceKindReserved,
-		PayloadKind:  PayloadKindReserved,
-	}
 }
 
 func inferPayloadKind(requestPayload string, responsePayload string) PayloadKind {

@@ -80,15 +80,13 @@ func (s *serviceImpl) buildDynamicRouteIdentitySnapshot(
 		s.userCtx.SetUser(ctx, claims.TokenId, claims.UserId, claims.Username, claims.Status, claims.ClientType)
 		s.userCtx.SetTenant(ctx, claims.TenantId)
 		if claims.ActingAsTenant || claims.IsImpersonation {
-			if impersonationSetter, ok := s.userCtx.(userImpersonationSetter); ok {
-				impersonationSetter.SetImpersonation(
-					ctx,
-					claims.ActingUserId,
-					claims.TenantId,
-					claims.ActingAsTenant,
-					claims.IsImpersonation,
-				)
-			}
+			s.userCtx.SetImpersonation(
+				ctx,
+				claims.ActingUserId,
+				claims.TenantId,
+				claims.ActingAsTenant,
+				claims.IsImpersonation,
+			)
 		}
 	}
 	accessContext, err := s.buildDynamicRouteAccessProjection(ctx, claims)
@@ -128,8 +126,8 @@ func (s *serviceImpl) buildDynamicRouteIdentitySnapshot(
 // parseDynamicRouteToken validates the bearer token and extracts route claims.
 func (s *serviceImpl) parseDynamicRouteToken(ctx context.Context, tokenString string) (*dynamicRouteClaims, error) {
 	secret := ""
-	if s.jwtConfig != nil {
-		secret = s.jwtConfig.GetJwtSecret(ctx)
+	if s.configSvc != nil {
+		secret = s.configSvc.GetJwtSecret(ctx)
 	}
 	token, err := jwt.ParseWithClaims(tokenString, &dynamicRouteClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(secret), nil
@@ -158,8 +156,8 @@ func (s *serviceImpl) touchDynamicRouteSession(ctx context.Context, tenantID int
 		return false, nil
 	}
 	timeout := 24 * time.Hour
-	if s.jwtConfig != nil {
-		configTimeout, err := s.jwtConfig.GetSessionTimeout(ctx)
+	if s.configSvc != nil {
+		configTimeout, err := s.configSvc.GetSessionTimeout(ctx)
 		if err != nil {
 			return false, err
 		}

@@ -3,10 +3,10 @@
 package lifecycle
 
 import (
+	pluginv1 "lina-core/api/plugin/v1"
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
@@ -17,8 +17,8 @@ import (
 func TestApplyInstallModeSelectionRejectsInvalidMode(t *testing.T) {
 	manifest := &catalog.Manifest{
 		ID:                 "plugin-invalid-install-mode",
-		ScopeNature:        plugintypes.ScopeNatureTenantAware.String(),
-		DefaultInstallMode: plugintypes.InstallModeTenantScoped.String(),
+		ScopeNature:        pluginv1.ScopeNatureTenantAware.String(),
+		DefaultInstallMode: pluginv1.InstallModeTenantScoped.String(),
 	}
 
 	err := applyInstallModeSelection(manifest, "per_tenant")
@@ -32,11 +32,11 @@ func TestApplyInstallModeSelectionRejectsInvalidMode(t *testing.T) {
 func TestApplyInstallModeSelectionRejectsPlatformOnlyTenantScoped(t *testing.T) {
 	manifest := &catalog.Manifest{
 		ID:                 "plugin-platform-only-install-mode",
-		ScopeNature:        plugintypes.ScopeNaturePlatformOnly.String(),
-		DefaultInstallMode: plugintypes.InstallModeGlobal.String(),
+		ScopeNature:        pluginv1.ScopeNaturePlatformOnly.String(),
+		DefaultInstallMode: pluginv1.InstallModeGlobal.String(),
 	}
 
-	err := applyInstallModeSelection(manifest, plugintypes.InstallModeTenantScoped.String())
+	err := applyInstallModeSelection(manifest, pluginv1.InstallModeTenantScoped.String())
 	if !bizerr.Is(err, CodePluginInstallModeInvalidForScopeNature) {
 		t.Fatalf("expected scope/install-mode mismatch bizerr, got %v", err)
 	}
@@ -47,14 +47,14 @@ func TestApplyInstallModeSelectionRejectsPlatformOnlyTenantScoped(t *testing.T) 
 func TestApplyInstallModeSelectionPersistsExplicitTenantAwareMode(t *testing.T) {
 	manifest := &catalog.Manifest{
 		ID:                 "plugin-tenant-aware-install-mode",
-		ScopeNature:        plugintypes.ScopeNatureTenantAware.String(),
-		DefaultInstallMode: plugintypes.InstallModeTenantScoped.String(),
+		ScopeNature:        pluginv1.ScopeNatureTenantAware.String(),
+		DefaultInstallMode: pluginv1.InstallModeTenantScoped.String(),
 	}
 
-	if err := applyInstallModeSelection(manifest, plugintypes.InstallModeGlobal.String()); err != nil {
+	if err := applyInstallModeSelection(manifest, pluginv1.InstallModeGlobal.String()); err != nil {
 		t.Fatalf("expected explicit global install mode to be accepted, got %v", err)
 	}
-	if manifest.DefaultInstallMode != plugintypes.InstallModeGlobal.String() {
+	if manifest.DefaultInstallMode != pluginv1.InstallModeGlobal.String() {
 		t.Fatalf("expected explicit global install mode to be applied, got %s", manifest.DefaultInstallMode)
 	}
 }
@@ -65,16 +65,16 @@ func TestApplyInstallModeSelectionRejectsUnsupportedTenantScoped(t *testing.T) {
 	supportsMultiTenant := false
 	manifest := &catalog.Manifest{
 		ID:                  "plugin-tenant-unsupported-install-mode",
-		ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
+		ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 		SupportsMultiTenant: &supportsMultiTenant,
-		DefaultInstallMode:  plugintypes.InstallModeGlobal.String(),
+		DefaultInstallMode:  pluginv1.InstallModeGlobal.String(),
 	}
 
-	err := applyInstallModeSelection(manifest, plugintypes.InstallModeTenantScoped.String())
+	err := applyInstallModeSelection(manifest, pluginv1.InstallModeTenantScoped.String())
 	if !bizerr.Is(err, CodePluginInstallModeInvalidForScopeNature) {
 		t.Fatalf("expected unsupported tenant-scoped install mode bizerr, got %v", err)
 	}
-	if manifest.DefaultInstallMode != plugintypes.InstallModeGlobal.String() {
+	if manifest.DefaultInstallMode != pluginv1.InstallModeGlobal.String() {
 		t.Fatalf("expected unsupported tenant governance to keep global install mode, got %s", manifest.DefaultInstallMode)
 	}
 }

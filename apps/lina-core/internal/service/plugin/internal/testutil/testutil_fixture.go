@@ -4,6 +4,7 @@ package testutil
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,8 +13,6 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/plugintypes"
-	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -142,15 +141,15 @@ func CreateTestRuntimePluginDirWithFrontendAssets(
 	supportsMultiTenant := true
 	WriteRuntimeWasmArtifact(
 		t,
-		filepath.Join(pluginDir, runtime.BuildArtifactRelativePath(pluginID)),
+		filepath.Join(pluginDir, RuntimeArtifactRelativePath(pluginID)),
 		&catalog.ArtifactManifest{
 			ID:                  pluginID,
 			Name:                pluginName,
 			Version:             version,
-			Type:                plugintypes.TypeDynamic.String(),
-			ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
+			Type:                pluginv1.PluginTypeDynamic.String(),
+			ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &supportsMultiTenant,
-			DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
+			DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
 			PublicAssets: []*catalog.PublicAssetSpec{
 				{Source: "frontend/pages", Mount: "/"},
 			},

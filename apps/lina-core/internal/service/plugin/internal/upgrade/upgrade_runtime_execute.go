@@ -6,6 +6,7 @@ package upgrade
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 	"sync"
 
@@ -18,6 +19,7 @@ import (
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // ExecuteRuntimeUpgrade runs one explicit runtime upgrade after confirmation.
@@ -50,14 +52,14 @@ func (s *serviceImpl) ExecuteRuntimeUpgrade(
 	if err != nil {
 		return nil, err
 	}
-	if !CanExecute(projection.State) {
+	if !canExecute(projection.State) {
 		return nil, bizerr.NewCode(
 			CodePluginRuntimeUpgradeUnavailable,
 			bizerr.P("pluginId", normalizedPluginID),
 			bizerr.P("runtimeState", projection.State.String()),
 		)
 	}
-	if plugintypes.NormalizeType(targetManifest.Type) == plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(targetManifest.Type) == pluginv1.PluginTypeDynamic {
 		if err = s.ensureDynamicPluginUpgradeLifecyclePreconditionAllowed(
 			ctx,
 			registry,
@@ -108,7 +110,7 @@ func (s *serviceImpl) ExecuteRuntimeUpgrade(
 			bizerr.P("toVersion", result.ToVersion),
 		)
 	}
-	if plugintypes.NormalizeType(targetManifest.Type) == plugintypes.TypeDynamic {
+	if plugintypes.NormalizeType(targetManifest.Type) == pluginv1.PluginTypeDynamic {
 		s.executeDynamicPluginUpgradeLifecycleNotification(
 			ctx,
 			registry,
@@ -212,14 +214,14 @@ func (s *serviceImpl) executeRuntimeUpgradeByType(
 	}
 
 	switch plugintypes.NormalizeType(targetManifest.Type) {
-	case plugintypes.TypeSource:
+	case pluginv1.PluginTypeSource:
 		_, err := s.ExecuteSourcePluginUpgrade(ctx, targetManifest.ID)
 		return err
-	case plugintypes.TypeDynamic:
+	case pluginv1.PluginTypeDynamic:
 		if err := s.persistDynamicPluginAuthorization(ctx, targetManifest, options.Authorization); err != nil {
 			return err
 		}
-		if registry != nil && registry.Installed == plugintypes.InstalledYes {
+		if registry != nil && registry.Installed == statusflag.Installed.Int() {
 			if err := s.runtimeSvc.UpgradeDynamicPluginRequest(ctx, targetManifest.ID); err != nil {
 				s.markDynamicPluginUpgradeFailed(ctx, targetManifest, err)
 				return err
@@ -293,14 +295,14 @@ func (s *serviceImpl) lockRuntimeUpgrade(ctx context.Context, pluginID string) (
 		)
 	}
 
-	lockName := DistributedLockName(pluginID)
-	owner := DistributedLockOwner(s.topology)
+	lockName := distributedLockName(pluginID)
+	owner := distributedLockOwner(s.topology)
 	handle, ok, err := s.runtimeUpgradeLockStore.Acquire(
 		ctx,
 		lockName,
 		owner,
-		DistributedLockReason,
-		DistributedLockLease,
+		distributedLockReason,
+		distributedLockLease,
 	)
 	if err != nil {
 		localUnlock()
@@ -356,7 +358,7 @@ func (s *serviceImpl) persistDynamicPluginAuthorization(
 	manifest *catalog.Manifest,
 	authorization *store.HostServiceAuthorizationInput,
 ) error {
-	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != plugintypes.TypeDynamic {
+	if manifest == nil || plugintypes.NormalizeType(manifest.Type) != pluginv1.PluginTypeDynamic {
 		return nil
 	}
 	if _, err := s.storeSvc.SyncManifest(ctx, manifest); err != nil {

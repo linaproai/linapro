@@ -213,6 +213,9 @@ func applyPluginRegistryData(registry *PluginRecord, data do.SysPlugin) {
 	if data.Type != nil {
 		registry.Type = gconv.String(data.Type)
 	}
+	if data.Distribution != nil {
+		registry.Distribution = gconv.String(data.Distribution)
+	}
 	if data.Installed != nil {
 		registry.Installed = gconv.Int(data.Installed)
 	}

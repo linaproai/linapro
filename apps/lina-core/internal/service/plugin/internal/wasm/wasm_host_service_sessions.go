@@ -24,17 +24,16 @@ func dispatchSessionsHostService(
 	if service == nil {
 		return domainServiceNotScoped("sessions")
 	}
-	capCtx := capabilityContextForHostCall(hcc, bridgehostservice.HostServiceSessions, method)
 	switch method {
 	case bridgehostservice.HostServiceMethodSessionsCurrent:
-		result, err := service.Current(ctx, capCtx)
+		result, err := service.Current(ctx)
 		return domainCapabilityResult(result, err)
-	case bridgehostservice.HostServiceMethodSessionsSearch:
-		var request sessionSearchRequest
+	case bridgehostservice.HostServiceMethodSessionsList:
+		var request sessionListRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		result, err := service.Search(ctx, capCtx, sessioncap.SearchInput{
+		result, err := service.List(ctx, sessioncap.ListInput{
 			Username: request.Username,
 			IP:       request.IP,
 			Page: capmodel.PageRequest{
@@ -48,21 +47,35 @@ func dispatchSessionsHostService(
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		result, err := service.BatchGet(ctx, capCtx, sessionIDs(request.IDs))
+		result, err := service.BatchGet(ctx, sessionIDs(request.IDs))
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodSessionsBatchGetUserOnlineStatus:
 		var request sessionUserOnlineStatusRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		result, err := service.BatchGetUserOnlineStatus(ctx, capCtx, append([]string(nil), request.UserIDs...))
+		result, err := service.BatchGetUserOnlineStatus(ctx, append([]string(nil), request.UserIDs...))
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodSessionsEnsureVisible:
 		var request idsRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return invalidCapabilityRequest(err)
 		}
-		err := service.EnsureVisible(ctx, capCtx, sessionIDs(request.IDs))
+		err := service.EnsureVisible(ctx, sessionIDs(request.IDs))
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodSessionsRevoke:
+		var request sessionIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Revoke(ctx, sessioncap.SessionID(strings.TrimSpace(request.SessionID)))
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodSessionsRevokeMany:
+		var request idsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.RevokeMany(ctx, sessionIDs(request.IDs))
 		return domainCapabilityResult(true, err)
 	default:
 		return domainMethodNotFound("sessions", method)
@@ -78,8 +91,8 @@ func sessionsServiceForHostCall(hcc *hostCallContext) sessioncap.Service {
 	return services.Sessions()
 }
 
-// sessionSearchRequest carries online-session search filters.
-type sessionSearchRequest struct {
+// sessionListRequest carries online-session list filters.
+type sessionListRequest struct {
 	Username string `json:"username"`
 	IP       string `json:"ip"`
 	PageNum  int    `json:"pageNum"`
@@ -89,6 +102,10 @@ type sessionSearchRequest struct {
 // sessionUserOnlineStatusRequest carries bounded user online status parameters.
 type sessionUserOnlineStatusRequest struct {
 	UserIDs []string `json:"userIds"`
+}
+
+type sessionIDRequest struct {
+	SessionID string `json:"sessionId"`
 }
 
 // sessionIDs converts transport string identifiers into typed session IDs.

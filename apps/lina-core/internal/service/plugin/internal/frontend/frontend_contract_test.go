@@ -5,14 +5,13 @@ package frontend_test
 import (
 	"context"
 	"encoding/base64"
+	pluginv1 "lina-core/api/plugin/v1"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
-	pluginfrontend "lina-core/internal/service/plugin/internal/frontend"
-	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -23,8 +22,7 @@ func TestValidateHostedMenuBindingsAcceptsHostedRuntimeModes(t *testing.T) {
 	services := testutil.NewServices()
 	service := services.Frontend
 
-	pluginfrontend.ResetBundleCache()
-	t.Cleanup(pluginfrontend.ResetBundleCache)
+	resetBundleCache(t, service)
 
 	pluginDir := testutil.CreateTestRuntimePluginDirWithFrontendAssets(
 		t,
@@ -51,7 +49,7 @@ func TestValidateHostedMenuBindingsAcceptsHostedRuntimeModes(t *testing.T) {
 		ID:           "plugin-dev-dynamic-bindings",
 		Name:         "Runtime Binding Plugin",
 		Version:      "v0.3.0",
-		Type:         plugintypes.TypeDynamic.String(),
+		Type:         pluginv1.PluginTypeDynamic.String(),
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		RootDir:      pluginDir,
 	}
@@ -94,8 +92,7 @@ func TestValidateHostedMenuBindingsRejectsBrokenEmbeddedMountContract(t *testing
 	services := testutil.NewServices()
 	service := services.Frontend
 
-	pluginfrontend.ResetBundleCache()
-	t.Cleanup(pluginfrontend.ResetBundleCache)
+	resetBundleCache(t, service)
 
 	pluginDir := testutil.CreateTestRuntimePluginDirWithFrontendAssets(
 		t,
@@ -117,7 +114,7 @@ func TestValidateHostedMenuBindingsRejectsBrokenEmbeddedMountContract(t *testing
 		ID:           "plugin-dev-dynamic-broken-bindings",
 		Name:         "Broken Runtime Binding Plugin",
 		Version:      "v0.3.1",
-		Type:         plugintypes.TypeDynamic.String(),
+		Type:         pluginv1.PluginTypeDynamic.String(),
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		RootDir:      pluginDir,
 	}

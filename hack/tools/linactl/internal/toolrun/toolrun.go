@@ -14,6 +14,8 @@ type Options struct {
 	Dir string
 	// Env overrides the child process environment.
 	Env []string
+	// Stdin overrides stdin forwarding.
+	Stdin io.Reader
 	// Quiet buffers child output unless the command fails.
 	Quiet bool
 	// Stdout overrides stdout forwarding.

@@ -11,6 +11,18 @@ import (
 	"lina-core/pkg/plugin/capability/capmodel"
 )
 
+// Service defines the safety AI capability consumed by host services and plugins.
+type Service interface {
+	// Available reports whether an active safety provider is available.
+	Available(ctx context.Context) bool
+	// Status returns the current safety AI capability activation state.
+	Status(ctx context.Context) capmodel.CapabilityStatus
+	// MethodStatus returns the current activation state for one safety method.
+	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
+	// Moderate executes one governed safety moderation request.
+	Moderate(ctx context.Context, request ModerateRequest) (*ModerateResponse, error)
+}
+
 const (
 	// CapabilityAISafetyV1 identifies the versioned safety AI framework capability.
 	CapabilityAISafetyV1 = "framework.ai.safety.v1"
@@ -51,7 +63,7 @@ type ModerateResponse struct {
 	// Categories contains provider-neutral category scores.
 	Categories []CategoryScore `json:"categories,omitempty"`
 	// Provider contains public provider/model identity.
-	Provider aicommon.ProviderProjection `json:"provider"`
+	Provider aicommon.ProviderInfo `json:"provider"`
 	// Usage contains minimal usage details.
 	Usage aicommon.Usage `json:"usage,omitempty"`
 	// LatencyMs is the provider call latency in milliseconds.
@@ -60,34 +72,7 @@ type ModerateResponse struct {
 	ModeratedAt int64 `json:"moderatedAt,omitempty"`
 }
 
-// ProviderRequest carries provider-internal safety requests with source identity.
-type ProviderRequest struct {
-	ModerateRequest
-	// SourcePluginID identifies the dynamic or source plugin that initiated the call.
-	SourcePluginID string `json:"sourcePluginId,omitempty"`
-}
-
-// Provider defines safety AI capability implemented by provider plugins.
-type Provider interface {
-	// Moderate executes one governed safety moderation request.
-	Moderate(ctx context.Context, request ProviderRequest) (*ModerateResponse, error)
-}
-
-// Service defines the safety AI capability consumed by host services and plugins.
-type Service interface {
-	// Available reports whether an active safety provider is available.
-	Available(ctx context.Context) bool
-	// Status returns the current safety AI capability activation state.
-	Status(ctx context.Context) capmodel.CapabilityStatus
-	// MethodStatus returns the current activation state for one safety method.
-	MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus
-	// Moderate executes one governed safety moderation request.
-	Moderate(ctx context.Context, request ModerateRequest) (*ModerateResponse, error)
-}
-
-type serviceImpl struct {
-	sourcePluginID string
-}
+type serviceImpl struct{}
 
 var _ Service = (*serviceImpl)(nil)
 
@@ -95,9 +80,9 @@ var _ Service = (*serviceImpl)(nil)
 func New() Service { return &serviceImpl{} }
 
 // ForPlugin returns a plugin-scoped safety service.
-func ForPlugin(service Service, pluginID string) Service {
+func ForPlugin(service Service, _ string) Service {
 	if _, ok := service.(*serviceImpl); service == nil || ok {
-		return &serviceImpl{sourcePluginID: strings.TrimSpace(pluginID)}
+		return &serviceImpl{}
 	}
 	return service
 }

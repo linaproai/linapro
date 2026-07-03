@@ -5,65 +5,19 @@ package plugin
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/plugin/internal/capabilityowner"
 	"lina-core/internal/service/plugin/internal/integration"
-	"lina-core/pkg/plugin/capability"
 	aitextsvc "lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	"lina-core/pkg/plugin/pluginhost"
 )
-
-// English fallback messages published with host authentication lifecycle events.
-const (
-	// AuthEventMessageLoginSuccessful is the English fallback for successful login messages.
-	AuthEventMessageLoginSuccessful = "Login successful"
-	// AuthEventMessageLoginFailed is the English fallback for generic failed login messages.
-	AuthEventMessageLoginFailed = "Login failed"
-	// AuthEventMessageLogoutSuccessful is the English fallback for successful logout messages.
-	AuthEventMessageLogoutSuccessful = "Logout successful"
-	// AuthEventMessageInvalidCredentials is the English fallback for invalid credential messages.
-	AuthEventMessageInvalidCredentials = "Invalid username or password"
-	// AuthEventMessageUserDisabled is the English fallback for disabled account messages.
-	AuthEventMessageUserDisabled = "User account is disabled"
-	// AuthEventMessageIPBlacklisted is the English fallback for blocked login IP messages.
-	AuthEventMessageIPBlacklisted = "Login IP is blacklisted"
-)
-
-// sourceServicesProvider stores the startup-owned capability directory and
-// returns plugin-scoped source-plugin service views for integration callbacks.
-type sourceServicesProvider struct {
-	capabilities capability.Services
-}
-
-// SourceServicesForPlugin returns a plugin-scoped source-plugin service view.
-func (p *sourceServicesProvider) SourceServicesForPlugin(pluginID string) pluginhost.Services {
-	if p == nil {
-		return nil
-	}
-	capabilities := p.capabilities
-	if capabilities == nil {
-		return nil
-	}
-	services := capability.ServicesForPlugin(capabilities, pluginID)
-	if sourceServices, ok := services.(pluginhost.Services); ok {
-		return sourceServices
-	}
-	return nil
-}
-
-// StorageCleanupServices returns the startup-owned shared capability directory
-// for runtime dynamic-plugin storage cleanup.
-func (p *sourceServicesProvider) StorageCleanupServices() capability.Services {
-	if p == nil {
-		return nil
-	}
-	return p.capabilities
-}
 
 // RegisterHTTPRoutes registers callback-contributed HTTP routes for source plugins.
 func (s *serviceImpl) RegisterHTTPRoutes(
@@ -85,46 +39,13 @@ func (s *serviceImpl) RegisterJobs(ctx context.Context) error {
 	return s.integrationSvc.RegisterJobs(ctx)
 }
 
-// HandleAuthLoginSucceeded dispatches a login-succeeded hook to all enabled plugins.
-func (s *serviceImpl) HandleAuthLoginSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
-	return s.dispatchAuthHookEvent(
-		ctx,
-		pluginhost.ExtensionPointAuthLoginSucceeded,
-		input,
-		pluginhost.AuthHookReasonLoginSuccessful,
-		AuthEventMessageLoginSuccessful,
-	)
-}
-
-// HandleAuthLoginFailed dispatches a login-failed hook to all enabled plugins.
-func (s *serviceImpl) HandleAuthLoginFailed(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
-	return s.dispatchAuthHookEvent(
-		ctx,
-		pluginhost.ExtensionPointAuthLoginFailed,
-		input,
-		pluginhost.AuthHookReasonLoginFailed,
-		AuthEventMessageLoginFailed,
-	)
-}
-
-// HandleAuthLogoutSucceeded dispatches a logout-succeeded hook to all enabled plugins.
-func (s *serviceImpl) HandleAuthLogoutSucceeded(ctx context.Context, input pluginhost.AuthHookPayloadInput) error {
-	return s.dispatchAuthHookEvent(
-		ctx,
-		pluginhost.ExtensionPointAuthLogoutSucceeded,
-		input,
-		pluginhost.AuthHookReasonLogoutSuccessful,
-		AuthEventMessageLogoutSuccessful,
-	)
-}
-
 // AITextProviderEnv returns typed, plugin-scoped text AI provider construction inputs.
-func (s *serviceImpl) AITextProviderEnv(pluginID string) aitextsvc.ProviderEnv {
+func (s *serviceImpl) AITextProviderEnv(_ context.Context, pluginID string) aitextsvc.ProviderEnv {
 	env := aitextsvc.ProviderEnv{PluginID: pluginID}
 	if s == nil || s.capabilities == nil {
 		return env
 	}
-	services := capability.ServicesForPlugin(s.capabilities, pluginID)
+	services := capabilityowner.ServicesForPlugin(s.capabilities, pluginID)
 	if services == nil {
 		return env
 	}
@@ -134,22 +55,16 @@ func (s *serviceImpl) AITextProviderEnv(pluginID string) aitextsvc.ProviderEnv {
 }
 
 // OrgProviderEnv returns typed, plugin-scoped organization-provider construction inputs.
-func (s *serviceImpl) OrgProviderEnv(pluginID string) orgspi.ProviderEnv {
+func (s *serviceImpl) OrgProviderEnv(_ context.Context, pluginID string) orgspi.ProviderEnv {
 	env := orgspi.ProviderEnv{PluginID: pluginID}
 	if s == nil || s.capabilities == nil {
 		return env
 	}
-	services := capability.ServicesForPlugin(s.capabilities, pluginID)
+	services := capabilityowner.ServicesForPlugin(s.capabilities, pluginID)
 	if services == nil {
 		return env
 	}
-	sourceServices, ok := services.(interface {
-		TenantFilter() tenantspi.PluginTableFilterService
-	})
-	if !ok {
-		return env
-	}
-	env.TenantFilter = sourceServices.TenantFilter()
+	env.Tenant = services.Tenant()
 	env.Users = services.Users()
 	return env
 }
@@ -195,80 +110,62 @@ func (s *serviceImpl) RegisterSourcePluginProviderFactories(
 }
 
 // TenantProviderEnv returns typed, plugin-scoped tenant-provider construction inputs.
-func (s *serviceImpl) TenantProviderEnv(pluginID string) tenantspi.ProviderEnv {
+func (s *serviceImpl) TenantProviderEnv(_ context.Context, pluginID string) tenantspi.ProviderEnv {
 	env := tenantspi.ProviderEnv{PluginID: pluginID}
 	if s == nil || s.capabilities == nil {
 		return env
 	}
-	services := capability.ServicesForPlugin(s.capabilities, pluginID)
+	services := capabilityowner.ServicesForPlugin(s.capabilities, pluginID)
 	if services == nil {
 		return env
 	}
 	env.BizCtx = services.BizCtx()
+	env.PluginLifecycle = s.pluginLifecycleService
 	if plugins := services.Plugins(); plugins != nil {
-		env.PluginLifecycle = plugins.Lifecycle()
-	}
-	env.Users = services.Users()
-	env.Plugins = services.Plugins()
-	if sourceServices, ok := services.(interface {
-		Admin() capability.AdminServices
-	}); ok {
-		if admin := sourceServices.Admin(); admin != nil {
-			env.PluginAdmin = admin.Plugins()
+		if lifecycle := plugins.Lifecycle(); lifecycle != nil {
+			env.PluginLifecycle = lifecycle
 		}
 	}
+	env.Tenant = services.Tenant()
+	env.Users = services.Users()
+	env.Plugins = services.Plugins()
 	return env
 }
 
-// ListExecutableJobs returns plugin-owned job definitions whose handlers
-// are safe to publish for execution. Dynamic plugins must be installed, enabled
-// for the current business-entry context, and free of runtime-upgrade blocking
-// states; declarations from disabled or preview-only dynamic plugins are
-// intentionally excluded. Use this method for executable handler publication,
-// not for authorization previews or scheduled-job table projection.
-func (s *serviceImpl) ListExecutableJobs(ctx context.Context) ([]ManagedJob, error) {
+// ListManagedJobs returns plugin-owned job declarations or executable handlers
+// according to the supplied query. Executable callers must opt in explicitly so
+// management projections do not accidentally publish handler functions.
+func (s *serviceImpl) ListManagedJobs(ctx context.Context, query ManagedJobQuery) ([]ManagedJob, error) {
 	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
 		return nil, err
 	}
-	return s.integrationSvc.ListExecutableJobs(ctx)
-}
-
-// ListExecutableJobsByPlugin returns executable plugin-owned scheduled job
-// definitions for one plugin. The method applies the same runtime cache
-// freshness, install, enablement, and runtime-state checks as
-// ListExecutableJobs while narrowing discovery to pluginID. Job-handler
-// lifecycle synchronization uses this path when an enabled plugin publishes its
-// concrete handler references.
-func (s *serviceImpl) ListExecutableJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedJob, error) {
-	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+	pluginID := strings.TrimSpace(query.PluginID)
+	var (
+		items []ManagedJob
+		err   error
+	)
+	switch {
+	case query.ExecutableOnly && pluginID != "":
+		items, err = s.integrationSvc.ListExecutableJobsByPlugin(ctx, pluginID)
+	case query.ExecutableOnly:
+		items, err = s.integrationSvc.ListExecutableJobs(ctx)
+	case query.InstalledOnly:
+		items, err = s.integrationSvc.ListInstalledJobDeclarations(ctx)
+		if err == nil && pluginID != "" {
+			items = filterManagedJobsByPlugin(items, pluginID)
+		}
+	case pluginID != "":
+		items, err = s.integrationSvc.ListJobDeclarationsByPlugin(ctx, pluginID)
+	default:
+		return nil, gerror.New("plugin managed job query requires executable, installed, or plugin id scope")
+	}
+	if err != nil {
 		return nil, err
 	}
-	return s.integrationSvc.ListExecutableJobsByPlugin(ctx, pluginID)
-}
-
-// ListJobDeclarationsByPlugin returns plugin-owned job declaration metadata
-// for management review without requiring the plugin business entry to be
-// enabled. This path is used by plugin list and authorization-preview screens,
-// including before a dynamic plugin is installed. Returned items describe what
-// the plugin declares; callers must not treat them as proof that handlers can be
-// executed.
-func (s *serviceImpl) ListJobDeclarationsByPlugin(ctx context.Context, pluginID string) ([]ManagedJob, error) {
-	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
-		return nil, err
+	if !query.IncludeHandlers {
+		clearManagedJobHandlers(items)
 	}
-	return s.integrationSvc.ListJobDeclarationsByPlugin(ctx, pluginID)
-}
-
-// ListInstalledJobDeclarations returns declared job metadata for installed
-// plugins without requiring their business entries to be enabled. Scheduled-job
-// projection uses this path so installed-but-disabled plugins can keep visible
-// task rows, while uninstalled authorization-preview declarations stay out of
-// the persistent task table.
-func (s *serviceImpl) ListInstalledJobDeclarations(ctx context.Context) ([]ManagedJob, error) {
-	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
-		return nil, err
-	}
-	return s.integrationSvc.ListInstalledJobDeclarations(ctx)
+	return items, nil
 }
 
 // DispatchHookEvent dispatches one named hook event to all enabled plugins.
@@ -285,40 +182,6 @@ func (s *serviceImpl) DispatchHookEvent(
 		return err
 	}
 	return s.integrationSvc.DispatchPluginHookEvent(readCtx, event, values)
-}
-
-// dispatchAuthHookEvent normalizes common auth payload reason and message
-// defaults before forwarding the event to the shared integration hook dispatcher.
-func (s *serviceImpl) dispatchAuthHookEvent(
-	ctx context.Context,
-	event pluginhost.ExtensionPoint,
-	input pluginhost.AuthHookPayloadInput,
-	defaultReason string,
-	defaultMessage string,
-) error {
-	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
-		return err
-	}
-	if input.Reason == "" {
-		input.Reason = defaultReason
-	}
-	if input.Message == "" {
-		input.Message = defaultMessage
-	}
-	return s.integrationSvc.DispatchPluginHookEvent(
-		ctx,
-		event,
-		pluginhost.BuildAuthHookPayloadValues(pluginhost.AuthHookPayloadInput{
-			UserName:   input.UserName,
-			Status:     input.Status,
-			IP:         input.IP,
-			ClientType: input.ClientType,
-			Browser:    input.Browser,
-			OS:         input.OS,
-			Message:    input.Message,
-			Reason:     input.Reason,
-		}),
-	)
 }
 
 // FilterMenus filters disabled plugin menus from the given menu list.
@@ -347,4 +210,27 @@ func (s *serviceImpl) ListResourceRecords(ctx context.Context, in ResourceListIn
 		return nil, err
 	}
 	return s.integrationSvc.ListResourceRecords(ctx, in)
+}
+
+// filterManagedJobsByPlugin keeps only jobs owned by pluginID in an already
+// bounded result set.
+func filterManagedJobsByPlugin(items []ManagedJob, pluginID string) []ManagedJob {
+	if len(items) == 0 || strings.TrimSpace(pluginID) == "" {
+		return items
+	}
+	filtered := make([]ManagedJob, 0, len(items))
+	for _, item := range items {
+		if strings.TrimSpace(item.PluginID) == pluginID {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
+// clearManagedJobHandlers removes executable callbacks from management
+// projections so declaration callers cannot accidentally publish handlers.
+func clearManagedJobHandlers(items []ManagedJob) {
+	for index := range items {
+		items[index].Handler = nil
+	}
 }

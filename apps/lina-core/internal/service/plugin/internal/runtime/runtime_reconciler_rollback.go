@@ -60,7 +60,7 @@ func (s *serviceImpl) rollbackReleaseFailure(
 	restoredRegistry := registry
 	if releaseID > 0 {
 		if updateErr := s.storeSvc.UpdateReleaseState(ctx, releaseID, plugintypes.ReleaseStatusFailed, ""); updateErr != nil {
-			logger.Warningf(ctx, "mark dynamic plugin release failed failed plugin=%s releaseID=%d err=%v", rollbackPluginID(registry), releaseID, updateErr)
+			logger.Warningf(ctx, "mark dynamic plugin release failed plugin=%s releaseID=%d err=%v", rollbackPluginID(registry), releaseID, updateErr)
 			reconcileErr = appendRollbackDiagnostics(reconcileErr, updateErr)
 		}
 	}
@@ -85,7 +85,7 @@ func (s *serviceImpl) rollbackReleaseFailure(
 	}
 	if registry != nil && releaseID > 0 {
 		if markErr := s.markRegistryFailed(ctx, registry.PluginId); markErr != nil {
-			logger.Warningf(ctx, "mark dynamic plugin registry failed failed plugin=%s err=%v", registry.PluginId, markErr)
+			logger.Warningf(ctx, "mark dynamic plugin registry failed plugin=%s err=%v", registry.PluginId, markErr)
 			reconcileErr = appendRollbackDiagnostics(reconcileErr, markErr)
 		}
 	}

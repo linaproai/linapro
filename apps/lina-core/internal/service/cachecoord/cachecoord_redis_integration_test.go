@@ -21,6 +21,12 @@ type redisCacheCoordTestTopology struct {
 	nodeID string
 }
 
+// Start records no behavior for Redis cachecoord integration test topology.
+func (redisCacheCoordTestTopology) Start(context.Context) {}
+
+// Stop records no behavior for Redis cachecoord integration test topology.
+func (redisCacheCoordTestTopology) Stop(context.Context) {}
+
 // IsEnabled reports clustered mode for Redis cachecoord integration tests.
 func (t redisCacheCoordTestTopology) IsEnabled() bool {
 	return true
@@ -44,14 +50,16 @@ func (t redisCacheCoordTestTopology) NodeID() string {
 // another node receives the Redis pub/sub notification needed to refresh local
 // state.
 func TestRedisCacheCoordIntegrationConcurrentRevisionAndEvent(t *testing.T) {
-	ctx := context.Background()
-	keys := newRedisCacheCoordIntegrationKeyBuilder(t)
-	writerCoord := newRedisCacheCoordIntegrationService(t, keys)
-	readerCoord := newRedisCacheCoordIntegrationService(t, keys)
-	publisher := NewWithCoordination(redisCacheCoordTestTopology{nodeID: "redis-cachecoord-writer"}, writerCoord)
-	consumer := NewWithCoordination(redisCacheCoordTestTopology{nodeID: "redis-cachecoord-reader"}, readerCoord)
-	domain := Domain("redis-cachecoord")
-	scope := Scope("concurrent-event")
+	var (
+		ctx         = context.Background()
+		keys        = newRedisCacheCoordIntegrationKeyBuilder(t)
+		writerCoord = newRedisCacheCoordIntegrationService(t, keys)
+		readerCoord = newRedisCacheCoordIntegrationService(t, keys)
+		publisher   = NewWithCoordination(redisCacheCoordTestTopology{nodeID: "redis-cachecoord-writer"}, writerCoord)
+		consumer    = NewWithCoordination(redisCacheCoordTestTopology{nodeID: "redis-cachecoord-reader"}, readerCoord)
+		domain      = Domain("redis-cachecoord")
+		scope       = Scope("concurrent-event")
+	)
 
 	revisionRedisKey, err := keys.RevisionKey(coordination.RevisionKey{
 		TenantID: 0,
@@ -66,9 +74,11 @@ func TestRedisCacheCoordIntegrationConcurrentRevisionAndEvent(t *testing.T) {
 	})
 
 	const workers = 8
-	events := make(chan coordination.Event, workers)
-	refreshed := make(chan int64, workers)
-	handlerErrs := make(chan error, workers)
+	var (
+		events      = make(chan coordination.Event, workers)
+		refreshed   = make(chan int64, workers)
+		handlerErrs = make(chan error, workers)
+	)
 	subscription, err := readerCoord.Events().Subscribe(ctx, func(handlerCtx context.Context, event coordination.Event) error {
 		if event.Kind != cacheInvalidateEventKind ||
 			event.Domain != string(domain) ||

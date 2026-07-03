@@ -9,9 +9,9 @@
 env.check:
 	@$(LINACTL) env.check
 
-# Install all prerequisites for development and E2E tests (frontend deps + Playwright browsers).
-# 安装开发与 E2E 测试的所有前置依赖（前端依赖 + Playwright 浏览器）。
-## env.setup: Install frontend dependencies and Playwright browsers
+# Install all prerequisites for development and E2E tests (Go lint tools + frontend deps + Playwright browsers).
+# 安装开发与 E2E 测试的所有前置依赖（Go 静态检查工具 + 前端依赖 + Playwright 浏览器）。
+## env.setup: Install Go lint tools, frontend dependencies, and Playwright browsers
 .PHONY: env.setup
 env.setup:
 	@$(LINACTL) env.setup

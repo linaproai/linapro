@@ -7,6 +7,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 	"testing"
 	"time"
@@ -25,8 +26,8 @@ import (
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/internal/service/session"
-	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
 // TestRuntimeReconcilerLockSerializesSamePlugin verifies a held per-plugin lock
@@ -127,7 +128,7 @@ func TestRequiredRuntimeReconcilerLockReturnsConflict(t *testing.T) {
 	called := false
 	err = service.reconcilePrimaryPluginWithRequiredLock(
 		ctx,
-		&store.PluginRecord{PluginId: pluginID, Type: plugintypes.TypeDynamic.String()},
+		&store.PluginRecord{PluginId: pluginID, Type: pluginv1.PluginTypeDynamic.String()},
 		func(context.Context, *store.PluginRecord) error {
 			called = true
 			return nil
@@ -138,6 +139,25 @@ func TestRequiredRuntimeReconcilerLockReturnsConflict(t *testing.T) {
 	}
 	if called {
 		t.Fatal("expected required lock conflict to skip lifecycle callback")
+	}
+}
+
+// TestRefreshInstalledRuntimePluginReleaseSkipsMissingDesiredManifest verifies
+// startup refresh does not fail when a stale installed dynamic registry row no
+// longer has a staged artifact in the runtime storage scan.
+func TestRefreshInstalledRuntimePluginReleaseSkipsMissingDesiredManifest(t *testing.T) {
+	ctx := context.Background()
+	service := &serviceImpl{}
+	registry := &store.PluginRecord{
+		PluginId:  "plugin-dev-runtime-refresh-missing-manifest",
+		Type:      pluginv1.PluginTypeDynamic.String(),
+		Version:   "v0.1.0",
+		Installed: statusflag.Installed.Int(),
+		Status:    statusflag.EnabledValue.Int(),
+	}
+
+	if err := service.refreshInstalledRuntimePluginRelease(ctx, registry, map[string]*catalog.Manifest{}); err != nil {
+		t.Fatalf("expected missing desired manifest to be skipped, got error: %v", err)
 	}
 }
 
@@ -162,8 +182,8 @@ func TestRecoverStaleReconcilingRestoresOldState(t *testing.T) {
 	if _, err = dao.SysPlugin.Ctx(ctx).
 		Where(do.SysPlugin{PluginId: pluginID}).
 		Data(do.SysPlugin{
-			Installed:    plugintypes.InstalledYes,
-			Status:       plugintypes.StatusEnabled,
+			Installed:    statusflag.Installed.Int(),
+			Status:       statusflag.EnabledValue.Int(),
 			DesiredState: plugintypes.HostStateEnabled.String(),
 			CurrentState: plugintypes.HostStateReconciling.String(),
 		}).
@@ -208,8 +228,8 @@ func TestRecoverFreshReconcilingSkipsPrimaryWork(t *testing.T) {
 	if _, err := dao.SysPlugin.Ctx(ctx).
 		Where(do.SysPlugin{PluginId: pluginID}).
 		Data(do.SysPlugin{
-			Installed:    plugintypes.InstalledYes,
-			Status:       plugintypes.StatusEnabled,
+			Installed:    statusflag.Installed.Int(),
+			Status:       statusflag.EnabledValue.Int(),
 			DesiredState: plugintypes.HostStateEnabled.String(),
 			CurrentState: plugintypes.HostStateReconciling.String(),
 		}).
@@ -366,45 +386,33 @@ func (p *runtimeSafetyLifecycleReconciler) EnsureRuntimeArtifactAvailable(manife
 	return p.service.EnsureRuntimeArtifactAvailable(manifest, actionLabel)
 }
 
-// runtimeSafetyStorageCleanupProvider returns no storage cleanup directory for
-// same-package safety tests.
-type runtimeSafetyStorageCleanupProvider struct{}
-
-// StorageCleanupServices returns no capability directory.
-func (runtimeSafetyStorageCleanupProvider) StorageCleanupServices() capability.Services {
-	return nil
-}
-
 // newRuntimeSafetyServices wires catalog, lifecycle, and runtime services with
 // only the dependencies exercised by reconciler safety tests.
 func newRuntimeSafetyServices() *runtimeSafetyServices {
-	configProvider := configsvc.New()
-	catalogSvc := catalog.New(configProvider)
-	topology := reconcilerRevisionTestTopology{cluster: false, primary: true, nodeID: "test-node"}
-	storeSvc := store.New(catalogSvc, topology)
-	migrationSvc := migration.New(catalogSvc, storeSvc)
-	lifecycleHook := &runtimeSafetyLifecycleReconciler{}
+	var (
+		configProvider = configsvc.New()
+		catalogSvc     = catalog.New(configProvider)
+		topology       = reconcilerRevisionTestTopology{cluster: false, primary: true, nodeID: "test-node"}
+		storeSvc       = store.New(catalogSvc, topology)
+		migrationSvc   = migration.New(catalogSvc, storeSvc)
+		lifecycleHook  = &runtimeSafetyLifecycleReconciler{}
+	)
 	runtimeSvc := New(
 		catalogSvc,
 		storeSvc,
 		migrationSvc,
 		nil,
 		nil,
-		nil,
 		locker.New(),
 		topology,
 		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		configProvider,
 		nil,
 		session.NewDBStore(),
 		testRoleAccessProjector{},
 		nil,
 		nil,
 		nil,
-		runtimeSafetyStorageCleanupProvider{},
 		nil,
 	).(*serviceImpl)
 	lifecycleHook.service = runtimeSvc
@@ -439,20 +447,20 @@ func newRuntimeSafetyManifest(
 			ID:                  pluginID,
 			Name:                name,
 			Version:             version,
-			Type:                plugintypes.TypeDynamic.String(),
-			ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
+			Type:                pluginv1.PluginTypeDynamic.String(),
+			ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &supportsMultiTenant,
-			DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
+			DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
 		},
 	}
 	return &catalog.Manifest{
 		ID:                  pluginID,
 		Name:                name,
 		Version:             version,
-		Type:                plugintypes.TypeDynamic.String(),
-		ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
+		Type:                pluginv1.PluginTypeDynamic.String(),
+		ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 		SupportsMultiTenant: &supportsMultiTenant,
-		DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
+		DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
 		RuntimeArtifact:     artifact,
 	}
 }

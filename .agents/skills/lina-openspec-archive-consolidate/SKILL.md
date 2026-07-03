@@ -2,6 +2,7 @@
 name: lina-openspec-archive-consolidate
 description: >-
   按功能职责对已归档的 OpenSpec 迭代内容进行聚合分类和高价值摘要压缩，并要求插件相关聚合归档和 specs 目录以 <plugin-id> 前缀区分主框架内容。
+  必须用户手动触发，禁止自动触发该技能。
 ---
 
 # Archive Consolidate（归档迭代聚合）

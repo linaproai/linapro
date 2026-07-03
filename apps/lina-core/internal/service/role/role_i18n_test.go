@@ -7,14 +7,19 @@ import (
 	"testing"
 
 	"lina-core/internal/model/entity"
+	i18nsvc "lina-core/internal/service/i18n"
 )
 
-// roleTestTranslator stubs the narrow role translation dependency.
-type roleTestTranslator map[string]string
+// roleTestTranslator stubs the role translation dependency.
+type roleTestTranslator struct {
+	i18nsvc.Service
+
+	values map[string]string
+}
 
 // Translate returns a configured translation or the caller fallback.
 func (t roleTestTranslator) Translate(_ context.Context, key string, fallback string) string {
-	if value, ok := t[key]; ok {
+	if value, ok := t.values[key]; ok {
 		return value
 	}
 	return fallback
@@ -24,7 +29,9 @@ func (t roleTestTranslator) Translate(_ context.Context, key string, fallback st
 func TestDisplayNameTranslatesBuiltinAdmin(t *testing.T) {
 	svc := &serviceImpl{
 		i18nSvc: roleTestTranslator{
-			"role.builtin.admin.name": "Administrator",
+			values: map[string]string{
+				"role.builtin.admin.name": "Administrator",
+			},
 		},
 	}
 
@@ -42,7 +49,9 @@ func TestDisplayNameTranslatesBuiltinAdmin(t *testing.T) {
 func TestDisplayNameTranslatesBuiltinUser(t *testing.T) {
 	svc := &serviceImpl{
 		i18nSvc: roleTestTranslator{
-			"role.builtin.user.name": "User",
+			values: map[string]string{
+				"role.builtin.user.name": "User",
+			},
 		},
 	}
 
@@ -60,7 +69,9 @@ func TestDisplayNameTranslatesBuiltinUser(t *testing.T) {
 func TestDisplayNameKeepsCustomRole(t *testing.T) {
 	svc := &serviceImpl{
 		i18nSvc: roleTestTranslator{
-			"role.builtin.admin.name": "Administrator",
+			values: map[string]string{
+				"role.builtin.admin.name": "Administrator",
+			},
 		},
 	}
 

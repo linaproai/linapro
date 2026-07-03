@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+// Service defines the API-documentation operations published to source plugins.
+type Service interface {
+	// ResolveRouteText resolves one route's localized module tag and operation summary.
+	ResolveRouteText(ctx context.Context, input RouteTextInput) RouteTextOutput
+	// ResolveRouteTexts resolves multiple route texts with one apidoc catalog load.
+	ResolveRouteTexts(ctx context.Context, inputs []RouteTextInput) []RouteTextOutput
+	// FindRouteTitleOperationKeys finds localized module tag operation keys by keyword.
+	FindRouteTitleOperationKeys(ctx context.Context, keyword string) []string
+}
+
 // RouteTextInput defines one API-documentation route text lookup request.
 type RouteTextInput struct {
 	// OperationKey is the stable apidoc operation key base when known.
@@ -29,16 +39,6 @@ type RouteTextOutput struct {
 	Title string
 	// Summary is the localized operation summary.
 	Summary string
-}
-
-// Service defines the API-documentation operations published to source plugins.
-type Service interface {
-	// ResolveRouteText resolves one route's localized module tag and operation summary.
-	ResolveRouteText(ctx context.Context, input RouteTextInput) RouteTextOutput
-	// ResolveRouteTexts resolves multiple route texts with one apidoc catalog load.
-	ResolveRouteTexts(ctx context.Context, inputs []RouteTextInput) []RouteTextOutput
-	// FindRouteTitleOperationKeys finds localized module tag operation keys by keyword.
-	FindRouteTitleOperationKeys(ctx context.Context, keyword string) []string
 }
 
 // BuildOperationKeyFromPath returns the path-derived apidoc operation key base

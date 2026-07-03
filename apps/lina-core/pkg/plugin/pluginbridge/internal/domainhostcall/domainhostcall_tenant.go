@@ -9,12 +9,28 @@ import (
 	"context"
 
 	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // tenantService adapts tenant capability reads to host services.
 type tenantService struct{ baseService }
+
+// tenantContextService adapts tenant context reads to host services.
+type tenantContextService struct{ baseService }
+
+// tenantDirectoryService adapts tenant directory operations to host services.
+type tenantDirectoryService struct{ baseService }
+
+// tenantMembershipService adapts tenant membership operations to host services.
+type tenantMembershipService struct{ baseService }
+
+// tenantPluginService adapts tenant-plugin governance operations to host services.
+type tenantPluginService struct{ baseService }
+
+// tenantFilterService adapts tenant-filter context reads to host services.
+type tenantFilterService struct{ baseService }
 
 // Tenant creates the tenant capability guest client.
 func Tenant(invoker Invoker) tenantcap.Service {
@@ -49,8 +65,33 @@ func (s tenantService) Available(_ context.Context) bool {
 	return available
 }
 
+// Context returns current-tenant context operations.
+func (s tenantService) Context() tenantcap.ContextService {
+	return tenantContextService{baseService: s.baseService}
+}
+
+// Directory returns tenant directory operations.
+func (s tenantService) Directory() tenantcap.DirectoryService {
+	return tenantDirectoryService{baseService: s.baseService}
+}
+
+// Membership returns user-to-tenant membership operations.
+func (s tenantService) Membership() tenantcap.MembershipService {
+	return tenantMembershipService{baseService: s.baseService}
+}
+
+// Plugins returns tenant-plugin governance operations.
+func (s tenantService) Plugins() tenantcap.PluginService {
+	return tenantPluginService{baseService: s.baseService}
+}
+
+// Filter returns tenant filter context reads.
+func (s tenantService) Filter() tenantcap.FilterService {
+	return tenantFilterService{baseService: s.baseService}
+}
+
 // Current returns the current request tenant.
-func (s tenantService) Current(_ context.Context) tenantcap.TenantID {
+func (s tenantContextService) Current(_ context.Context) tenantcap.TenantID {
 	var tenantID tenantcap.TenantID
 	if err := s.call(
 		protocol.HostServiceTenant,
@@ -63,8 +104,8 @@ func (s tenantService) Current(_ context.Context) tenantcap.TenantID {
 	return tenantID
 }
 
-// CurrentTenantInfo returns the current request tenant projection.
-func (s tenantService) CurrentTenantInfo(_ context.Context) (*tenantcap.TenantInfo, error) {
+// Info returns the current request tenant projection.
+func (s tenantContextService) Info(_ context.Context) (*tenantcap.TenantInfo, error) {
 	out := &tenantcap.TenantInfo{}
 	err := s.call(
 		protocol.HostServiceTenant,
@@ -76,7 +117,7 @@ func (s tenantService) CurrentTenantInfo(_ context.Context) (*tenantcap.TenantIn
 }
 
 // PlatformBypass reports whether the current request may bypass tenant filtering.
-func (s tenantService) PlatformBypass(_ context.Context) bool {
+func (s tenantContextService) PlatformBypass(_ context.Context) bool {
 	var bypass bool
 	if err := s.call(
 		protocol.HostServiceTenant,
@@ -89,18 +130,30 @@ func (s tenantService) PlatformBypass(_ context.Context) bool {
 	return bypass
 }
 
-// EnsureTenantVisible validates that the current user can access tenantID.
-func (s tenantService) EnsureTenantVisible(_ context.Context, tenantID tenantcap.TenantID) error {
+// Get returns one visible tenant projection.
+func (s tenantDirectoryService) Get(ctx context.Context, tenantID tenantcap.TenantID) (*tenantcap.TenantInfo, error) {
+	result, err := s.BatchGet(ctx, []tenantcap.TenantID{tenantID})
+	if err != nil {
+		return nil, err
+	}
+	if result == nil || result.Items[tenantID] == nil {
+		return nil, nil
+	}
+	return result.Items[tenantID], nil
+}
+
+// EnsureVisible validates that the current user can access tenant identifiers.
+func (s tenantDirectoryService) EnsureVisible(_ context.Context, tenantIDs []tenantcap.TenantID) error {
 	return s.callJSONRequest(
 		protocol.HostServiceTenant,
-		protocol.HostServiceMethodTenantEnsureVisible,
-		tenantIDRequest{TenantID: int(tenantID)},
+		protocol.HostServiceMethodTenantBatchEnsureVisible,
+		tenantIDsRequest{TenantIDs: tenantIDsToInts(tenantIDs)},
 		nil,
 	)
 }
 
-// BatchGetTenants returns visible tenant projections and opaque missing IDs.
-func (s tenantService) BatchGetTenants(_ context.Context, tenantIDs []tenantcap.TenantID) (*capmodel.BatchResult[*tenantcap.TenantInfo, tenantcap.TenantID], error) {
+// BatchGet returns visible tenant projections and opaque missing IDs.
+func (s tenantDirectoryService) BatchGet(_ context.Context, tenantIDs []tenantcap.TenantID) (*capmodel.BatchResult[*tenantcap.TenantInfo, tenantcap.TenantID], error) {
 	out := &capmodel.BatchResult[*tenantcap.TenantInfo, tenantcap.TenantID]{Items: map[tenantcap.TenantID]*tenantcap.TenantInfo{}}
 	err := s.callJSONRequest(
 		protocol.HostServiceTenant,
@@ -111,20 +164,20 @@ func (s tenantService) BatchGetTenants(_ context.Context, tenantIDs []tenantcap.
 	return out, err
 }
 
-// SearchTenants returns bounded tenant candidates visible to the caller.
-func (s tenantService) SearchTenants(_ context.Context, input tenantcap.SearchInput) (*capmodel.PageResult[*tenantcap.TenantInfo], error) {
+// List returns bounded tenant candidates visible to the caller.
+func (s tenantDirectoryService) List(_ context.Context, input tenantcap.ListInput) (*capmodel.PageResult[*tenantcap.TenantInfo], error) {
 	out := &capmodel.PageResult[*tenantcap.TenantInfo]{Items: []*tenantcap.TenantInfo{}}
 	err := s.callJSONRequest(
 		protocol.HostServiceTenant,
-		protocol.HostServiceMethodTenantSearch,
+		protocol.HostServiceMethodTenantDirectoryList,
 		input,
 		out,
 	)
 	return out, err
 }
 
-// ValidateUserInTenant verifies that a user can access tenantID.
-func (s tenantService) ValidateUserInTenant(_ context.Context, userID int, tenantID tenantcap.TenantID) error {
+// Validate verifies that a user can access tenantID.
+func (s tenantMembershipService) Validate(_ context.Context, userID int, tenantID tenantcap.TenantID) error {
 	return s.callJSONRequest(
 		protocol.HostServiceTenant,
 		protocol.HostServiceMethodTenantValidateUserInTenant,
@@ -133,8 +186,8 @@ func (s tenantService) ValidateUserInTenant(_ context.Context, userID int, tenan
 	)
 }
 
-// ListUserTenants returns active tenants visible to one user.
-func (s tenantService) ListUserTenants(_ context.Context, userID int) ([]tenantcap.TenantInfo, error) {
+// ListByUser returns active tenants visible to one user.
+func (s tenantMembershipService) ListByUser(_ context.Context, userID int) ([]tenantcap.TenantInfo, error) {
 	var tenants []tenantcap.TenantInfo
 	err := s.callJSONRequest(
 		protocol.HostServiceTenant,
@@ -145,48 +198,45 @@ func (s tenantService) ListUserTenants(_ context.Context, userID int) ([]tenantc
 	return tenants, err
 }
 
-// BatchListUserTenants returns active tenant memberships for visible users.
-func (s tenantService) BatchListUserTenants(_ context.Context, userIDs []int) (map[int][]tenantcap.TenantInfo, error) {
-	out := make(map[int][]tenantcap.TenantInfo)
-	err := s.callJSONRequest(
-		protocol.HostServiceTenant,
-		protocol.HostServiceMethodTenantBatchListUserTenants,
-		intUserIDsRequest{UserIDs: userIDs},
-		&out,
-	)
-	return out, err
-}
-
-// EnsureTenantsVisible validates that the current user can access every tenant.
-func (s tenantService) EnsureTenantsVisible(_ context.Context, tenantIDs []tenantcap.TenantID) error {
+// SetTenantPluginEnabled updates one tenant plugin enablement row.
+func (s tenantPluginService) SetTenantPluginEnabled(_ context.Context, pluginID plugincap.PluginID, enabled bool) error {
 	return s.callJSONRequest(
 		protocol.HostServiceTenant,
-		protocol.HostServiceMethodTenantBatchEnsureVisible,
-		tenantIDsRequest{TenantIDs: tenantIDsToInts(tenantIDs)},
+		protocol.HostServiceMethodTenantPluginSetEnabled,
+		tenantPluginSetEnabledRequest{PluginID: string(pluginID), Enabled: enabled},
 		nil,
 	)
 }
 
-// SwitchTenant validates a tenant switch before token re-issue.
-func (s tenantService) SwitchTenant(_ context.Context, userID int, target tenantcap.TenantID) error {
+// ProvisionTenantPluginDefaults creates missing default plugin rows for one tenant.
+func (s tenantPluginService) ProvisionTenantPluginDefaults(_ context.Context, tenantID capmodel.DomainID) error {
 	return s.callJSONRequest(
 		protocol.HostServiceTenant,
-		protocol.HostServiceMethodTenantValidateSwitch,
-		tenantSwitchRequest{UserID: userID, TargetTenantID: int(target)},
+		protocol.HostServiceMethodTenantPluginProvisionDefaults,
+		tenantPluginProvisionDefaultsRequest{TenantID: string(tenantID)},
 		nil,
 	)
 }
 
-// tenantIDRequest carries one tenant identifier.
-type tenantIDRequest struct {
-	// TenantID is the tenant identifier.
-	TenantID int `json:"tenantId"`
+// Context returns plugin-visible tenant and audit metadata.
+func (s tenantFilterService) Context(context.Context) tenantcap.TenantFilterContext {
+	var out tenantcap.TenantFilterContext
+	if err := s.call(protocol.HostServiceTenant, protocol.HostServiceMethodTenantFilterContext, nil, &out); err != nil {
+		return tenantcap.TenantFilterContext{}
+	}
+	return out
 }
 
 // tenantIDsRequest carries multiple tenant identifiers.
 type tenantIDsRequest struct {
 	// TenantIDs are the tenant identifiers.
 	TenantIDs []int `json:"tenantIds"`
+}
+
+// intUserIDRequest carries one integer user identifier.
+type intUserIDRequest struct {
+	// UserID is the user identifier.
+	UserID int `json:"userId"`
 }
 
 // userTenantRequest carries one user and tenant pair.
@@ -197,12 +247,18 @@ type userTenantRequest struct {
 	TenantID int `json:"tenantId"`
 }
 
-// tenantSwitchRequest carries one tenant switch check.
-type tenantSwitchRequest struct {
-	// UserID is the user identifier.
-	UserID int `json:"userId"`
-	// TargetTenantID is the requested tenant identifier.
-	TargetTenantID int `json:"targetTenantId"`
+// tenantPluginSetEnabledRequest carries a tenant-plugin enablement update.
+type tenantPluginSetEnabledRequest struct {
+	// PluginID is the plugin identifier.
+	PluginID string `json:"pluginId"`
+	// Enabled is the requested tenant plugin enablement state.
+	Enabled bool `json:"enabled"`
+}
+
+// tenantPluginProvisionDefaultsRequest carries one tenant default-provisioning target.
+type tenantPluginProvisionDefaultsRequest struct {
+	// TenantID is the tenant identifier.
+	TenantID string `json:"tenantId"`
 }
 
 // tenantIDsToInts converts tenant IDs to transport integers.
@@ -214,4 +270,8 @@ func tenantIDsToInts(ids []tenantcap.TenantID) []int {
 	return out
 }
 
-var _ tenantcap.Service = (*tenantService)(nil)
+var (
+	_ tenantcap.Service       = (*tenantService)(nil)
+	_ tenantcap.PluginService = (*tenantPluginService)(nil)
+	_ tenantcap.FilterService = (*tenantFilterService)(nil)
+)

@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/store"
+	"lina-core/pkg/statusflag"
 )
 
 // updateDesiredState records the management intent that the primary reconciler
@@ -80,17 +81,17 @@ func (s *serviceImpl) finalizeState(
 	if release != nil {
 		data.ReleaseId = release.Id
 	}
-	if installed == plugintypes.InstalledYes {
-		if registry.Installed != plugintypes.InstalledYes {
+	if installed == statusflag.Installed.Int() {
+		if registry.Installed != statusflag.Installed.Int() {
 			data.InstalledAt = timePtr(time.Now())
 		}
-		if enabled == plugintypes.StatusEnabled {
+		if enabled == statusflag.EnabledValue.Int() {
 			data.EnabledAt = timePtr(time.Now())
 		} else {
 			data.DisabledAt = timePtr(time.Now())
 		}
 	} else {
-		data.Status = plugintypes.StatusDisabled
+		data.Status = statusflag.Disabled.Int()
 		data.ReleaseId = 0
 		data.DisabledAt = timePtr(time.Now())
 	}

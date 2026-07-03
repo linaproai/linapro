@@ -26,16 +26,21 @@ type CurrentContext struct {
 	ActingAsTenant bool
 	// IsImpersonation reports whether the current token represents impersonation.
 	IsImpersonation bool
+	// Permissions contains effective permission keys for the current request.
+	Permissions []string
+	// DataScope stores the effective role data-scope snapshot.
+	DataScope int
+	// DataScopeUnsupported reports whether the role snapshot contains an unsupported data scope.
+	DataScopeUnsupported bool
+	// UnsupportedDataScope stores the first unsupported data-scope value.
+	UnsupportedDataScope int
+	// IsSuperAdmin reports whether the caller bypasses normal permission checks.
+	IsSuperAdmin bool
 	// PlatformBypass reports whether the request runs in platform scope.
 	PlatformBypass bool
 }
 
-// ContextProvider defines an optional source for plugin-visible business context.
-type ContextProvider interface {
-	// Current returns a read-only snapshot of the request context fields.
-	Current(ctx context.Context) CurrentContext
-}
-
+// currentContextKey is the private key for plugin-visible context snapshots.
 type currentContextKey struct{}
 
 // WithCurrentContext returns a child context carrying a plugin-visible business
@@ -47,6 +52,7 @@ func WithCurrentContext(ctx context.Context, current CurrentContext) context.Con
 	if current.TenantID == 0 {
 		current.PlatformBypass = true
 	}
+	current.Permissions = cloneStrings(current.Permissions)
 	return context.WithValue(ctx, currentContextKey{}, current)
 }
 
@@ -56,7 +62,16 @@ func CurrentFromContext(ctx context.Context) CurrentContext {
 		return CurrentContext{}
 	}
 	if current, ok := ctx.Value(currentContextKey{}).(CurrentContext); ok {
+		current.Permissions = cloneStrings(current.Permissions)
 		return current
 	}
 	return CurrentContext{}
+}
+
+// cloneStrings returns a detached copy of string values stored in context.
+func cloneStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	return append([]string(nil), values...)
 }

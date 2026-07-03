@@ -16,6 +16,8 @@ import (
 
 // dispatchOrgHostService routes one organization host-service method to the
 // same ordinary orgcap.Service surface exposed to source plugins.
+//
+//nolint:cyclop // Host-service dispatch is an explicit protocol switch with stable method-level branches.
 func dispatchOrgHostService(
 	ctx context.Context,
 	hcc *hostCallContext,
@@ -35,19 +37,6 @@ func dispatchOrgHostService(
 		return capabilityJSONResponse(service.Available(ctx))
 	case bridgehostservice.HostServiceMethodOrgStatus:
 		return capabilityJSONResponse(service.Status(ctx))
-	case bridgehostservice.HostServiceMethodOrgListUserDeptAssignments:
-		var request intUserIDsRequest
-		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
-			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
-		}
-		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceOrg, method, request.UserIDs); response != nil {
-			return response
-		}
-		assignments, err := service.ListUserDeptAssignments(ctx, request.UserIDs)
-		if err != nil {
-			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
-		}
-		return capabilityJSONResponse(assignments)
 	case bridgehostservice.HostServiceMethodOrgBatchGetUserOrgProfiles:
 		var request intUserIDsRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
@@ -56,94 +45,118 @@ func dispatchOrgHostService(
 		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceOrg, method, request.UserIDs); response != nil {
 			return response
 		}
-		result, err := service.BatchGetUserOrgProfiles(ctx, request.UserIDs)
+		result, err := service.Assignment().BatchGetUserProfiles(ctx, request.UserIDs)
 		return domainCapabilityResult(result, err)
-	case bridgehostservice.HostServiceMethodOrgGetUserDeptInfo:
-		var request intUserIDRequest
-		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
-			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
-		}
-		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceOrg, method, []int{request.UserID}); response != nil {
-			return response
-		}
-		deptID, deptName, err := service.GetUserDeptInfo(ctx, request.UserID)
-		if err != nil {
-			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
-		}
-		return capabilityJSONResponse(orgUserDeptInfoResponse{DeptID: deptID, DeptName: deptName})
-	case bridgehostservice.HostServiceMethodOrgGetUserDeptName:
-		var request intUserIDRequest
-		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
-			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
-		}
-		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceOrg, method, []int{request.UserID}); response != nil {
-			return response
-		}
-		name, err := service.GetUserDeptName(ctx, request.UserID)
-		if err != nil {
-			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
-		}
-		return capabilityJSONResponse(name)
-	case bridgehostservice.HostServiceMethodOrgGetUserDeptIDs:
-		var request intUserIDRequest
-		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
-			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
-		}
-		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceOrg, method, []int{request.UserID}); response != nil {
-			return response
-		}
-		deptIDs, err := service.GetUserDeptIDs(ctx, request.UserID)
-		if err != nil {
-			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
-		}
-		return capabilityJSONResponse(deptIDs)
-	case bridgehostservice.HostServiceMethodOrgGetUserPostIDs:
-		var request intUserIDRequest
-		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
-			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
-		}
-		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceOrg, method, []int{request.UserID}); response != nil {
-			return response
-		}
-		postIDs, err := service.GetUserPostIDs(ctx, request.UserID)
-		if err != nil {
-			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
-		}
-		return capabilityJSONResponse(postIDs)
 	case bridgehostservice.HostServiceMethodOrgListDeptTree:
 		var request orgcap.DeptTreeInput
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		result, err := service.ListDeptTree(ctx, request)
+		result, err := service.Department().ListTree(ctx, request)
 		return domainCapabilityResult(result, err)
-	case bridgehostservice.HostServiceMethodOrgSearchDepartments:
-		var request orgcap.DeptSearchInput
+	case bridgehostservice.HostServiceMethodOrgDepartmentBatchGet:
+		var request intDeptIDsRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		result, err := service.SearchDepartments(ctx, request)
+		result, err := service.Department().BatchGet(ctx, request.DeptIDs)
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodOrgDepartmentList:
+		var request orgcap.DeptListInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+		}
+		result, err := service.Department().List(ctx, request)
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodOrgPostBatchGet:
+		var request intPostIDsRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
+		}
+		result, err := service.Post().BatchGet(ctx, request.PostIDs)
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodOrgListPostOptions:
 		var request orgcap.PostOptionsInput
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		result, err := service.ListPostOptionsPage(ctx, request)
+		result, err := service.Post().ListOptions(ctx, request)
 		return domainCapabilityResult(result, err)
 	case bridgehostservice.HostServiceMethodOrgEnsureDepartmentsVisible:
 		var request intDeptIDsRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		err := service.EnsureDepartmentsVisible(ctx, request.DeptIDs)
+		err := service.Department().EnsureVisible(ctx, request.DeptIDs)
 		return domainCapabilityResult(true, err)
 	case bridgehostservice.HostServiceMethodOrgEnsurePostsVisible:
 		var request intPostIDsRequest
 		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
 			return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 		}
-		err := service.EnsurePostsVisible(ctx, request.PostIDs)
+		err := service.Post().EnsureVisible(ctx, request.PostIDs)
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodOrgDepartmentCreate:
+		var request orgcap.DeptCreateInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.Department().Create(ctx, request)
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodOrgDepartmentUpdate:
+		var request orgcap.DeptUpdateInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Department().Update(ctx, request)
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodOrgDepartmentDelete:
+		var request orgDeptIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Department().Delete(ctx, request.DeptID)
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodOrgPostCreate:
+		var request orgcap.PostCreateInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		result, err := service.Post().Create(ctx, request)
+		return domainCapabilityResult(result, err)
+	case bridgehostservice.HostServiceMethodOrgPostUpdate:
+		var request orgcap.PostUpdateInput
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Post().Update(ctx, request)
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodOrgPostDelete:
+		var request orgPostIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		err := service.Post().Delete(ctx, request.PostID)
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodOrgAssignmentReplaceByUser:
+		var request orgAssignmentReplaceByUserRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceOrg, method, []int{request.UserID}); response != nil {
+			return response
+		}
+		err := service.Assignment().ReplaceByUser(ctx, request.UserID, request.DeptID, append([]int(nil), request.PostIDs...))
+		return domainCapabilityResult(true, err)
+	case bridgehostservice.HostServiceMethodOrgAssignmentCleanupByUser:
+		var request intUserIDRequest
+		if err := decodeCapabilityJSONRequest(payload, &request); err != nil {
+			return invalidCapabilityRequest(err)
+		}
+		if response := ensureHostCallUsersVisible(ctx, hcc, bridgehostservice.HostServiceOrg, method, []int{request.UserID}); response != nil {
+			return response
+		}
+		err := service.Assignment().CleanupByUser(ctx, request.UserID)
 		return domainCapabilityResult(true, err)
 	default:
 		return bridgehostcall.NewHostCallErrorResponse(
@@ -162,20 +175,6 @@ func orgServiceForHostCall(hcc *hostCallContext) orgcap.Service {
 	return services.Org()
 }
 
-// orgUserDeptInfoResponse carries the tuple returned by orgcap.Service.GetUserDeptInfo.
-type orgUserDeptInfoResponse struct {
-	// DeptID is the department identifier.
-	DeptID int `json:"deptId"`
-	// DeptName is the department display name.
-	DeptName string `json:"deptName"`
-}
-
-// intUserIDRequest carries one integer user identifier.
-type intUserIDRequest struct {
-	// UserID is the user identifier.
-	UserID int `json:"userId"`
-}
-
 // intUserIDsRequest carries multiple integer user identifiers.
 type intUserIDsRequest struct {
 	// UserIDs are the user identifiers.
@@ -191,6 +190,20 @@ type intDeptIDsRequest struct {
 // intPostIDsRequest carries post identifiers.
 type intPostIDsRequest struct {
 	// PostIDs are the post identifiers.
+	PostIDs []int `json:"postIds"`
+}
+
+type orgDeptIDRequest struct {
+	DeptID int `json:"deptId"`
+}
+
+type orgPostIDRequest struct {
+	PostID int `json:"postId"`
+}
+
+type orgAssignmentReplaceByUserRequest struct {
+	UserID  int   `json:"userId"`
+	DeptID  *int  `json:"deptId,omitempty"`
 	PostIDs []int `json:"postIds"`
 }
 

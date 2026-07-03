@@ -120,7 +120,7 @@ func stdinAsFile(a *app) *os.File {
 	return nil
 }
 
-// runAgents dispatches the aggregate agents command. Behaviour:
+// runAgents dispatches the aggregate agents command. Behavior:
 //
 //   - agent=<name> [action=link|unlink] [force=1] : one-shot setup; the
 //     selected action runs against every resource type the agent is

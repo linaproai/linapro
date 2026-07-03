@@ -5,15 +5,13 @@ package frontend_test
 import (
 	"context"
 	"encoding/base64"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	pluginfrontend "lina-core/internal/service/plugin/internal/frontend"
-	"lina-core/internal/service/plugin/internal/plugintypes"
-	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -22,10 +20,9 @@ import (
 // dynamic artifact frontend assets are not publicly served without public_assets.
 func TestResolveRuntimeFrontendAssetRequiresPublicAssetDeclaration(t *testing.T) {
 	services := testutil.NewServices()
-	pluginfrontend.ResetBundleCache()
-	t.Cleanup(pluginfrontend.ResetBundleCache)
+	resetBundleCache(t, services.Frontend)
 
-	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), runtime.BuildArtifactFileName("plugin-dev-public-asset-required"))
+	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), testutil.RuntimeArtifactFileName("plugin-dev-public-asset-required"))
 	t.Cleanup(func() {
 		if err := os.Remove(artifactPath); err != nil && !os.IsNotExist(err) {
 			t.Fatalf("failed to cleanup runtime artifact %s: %v", artifactPath, err)
@@ -38,10 +35,10 @@ func TestResolveRuntimeFrontendAssetRequiresPublicAssetDeclaration(t *testing.T)
 			ID:                  "plugin-dev-public-asset-required",
 			Name:                "Public Asset Required Plugin",
 			Version:             "v0.1.0",
-			Type:                plugintypes.TypeDynamic.String(),
-			ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
+			Type:                pluginv1.PluginTypeDynamic.String(),
+			ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &testutil.DefaultTestSupportsMultiTenant,
-			DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
+			DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:        protocol.RuntimeKindWasm,
@@ -75,8 +72,7 @@ func TestResolveRuntimeFrontendAssetRequiresPublicAssetDeclaration(t *testing.T)
 // dynamic public_assets map browser paths to artifact frontend asset prefixes.
 func TestResolveRuntimeFrontendAssetMapsDynamicPublicAssets(t *testing.T) {
 	services := testutil.NewServices()
-	pluginfrontend.ResetBundleCache()
-	t.Cleanup(pluginfrontend.ResetBundleCache)
+	resetBundleCache(t, services.Frontend)
 
 	testutil.CreateTestRuntimeStorageArtifactWithFrontendAssets(
 		t,
@@ -134,11 +130,10 @@ func TestResolveRuntimeFrontendAssetMapsDynamicPublicAssets(t *testing.T) {
 // selects the directory default file instead of hard-coding index.html.
 func TestResolveRuntimeFrontendAssetUsesDeclaredIndex(t *testing.T) {
 	services := testutil.NewServices()
-	pluginfrontend.ResetBundleCache()
-	t.Cleanup(pluginfrontend.ResetBundleCache)
+	resetBundleCache(t, services.Frontend)
 
 	pluginID := "plugin-dev-dynamic-public-index"
-	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), runtime.BuildArtifactFileName(pluginID))
+	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), testutil.RuntimeArtifactFileName(pluginID))
 	t.Cleanup(func() {
 		if err := os.Remove(artifactPath); err != nil && !os.IsNotExist(err) {
 			t.Fatalf("failed to cleanup runtime artifact %s: %v", artifactPath, err)
@@ -151,10 +146,10 @@ func TestResolveRuntimeFrontendAssetUsesDeclaredIndex(t *testing.T) {
 			ID:                  pluginID,
 			Name:                "Public Asset Index Plugin",
 			Version:             "v0.1.0",
-			Type:                plugintypes.TypeDynamic.String(),
-			ScopeNature:         plugintypes.ScopeNatureTenantAware.String(),
+			Type:                pluginv1.PluginTypeDynamic.String(),
+			ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &testutil.DefaultTestSupportsMultiTenant,
-			DefaultInstallMode:  plugintypes.InstallModeTenantScoped.String(),
+			DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
 			PublicAssets: []*catalog.PublicAssetSpec{
 				{Source: "frontend/pages", Mount: "docs", Index: "index.htm"},
 			},
@@ -208,7 +203,7 @@ func TestResolveRuntimeFrontendAssetMapsSourcePublicAssets(t *testing.T) {
 		ID:           "plugin-dev-source-public-assets",
 		Name:         "Source Public Assets Plugin",
 		Version:      "0.1.0",
-		Type:         plugintypes.TypeSource.String(),
+		Type:         pluginv1.PluginTypeSource.String(),
 		RootDir:      pluginDir,
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		PublicAssets: []*catalog.PublicAssetSpec{{Source: "frontend/public", Mount: "/", Index: "index.htm"}},
@@ -263,7 +258,7 @@ func TestResolveRuntimeFrontendAssetServesPluginOwnedNonFrontendDirectory(t *tes
 		ID:           "plugin-dev-source-public-backend",
 		Name:         "Source Public Backend Plugin",
 		Version:      "0.1.0",
-		Type:         plugintypes.TypeSource.String(),
+		Type:         pluginv1.PluginTypeSource.String(),
 		RootDir:      pluginDir,
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		PublicAssets: []*catalog.PublicAssetSpec{{Source: "backend", Mount: "backend"}},
@@ -284,9 +279,11 @@ func TestResolveRuntimeFrontendAssetServesPluginOwnedNonFrontendDirectory(t *tes
 // TestResolveRuntimeFrontendAssetRejectsSymlinkEscape verifies source asset
 // serving rejects symlink paths that would leave the plugin resource boundary.
 func TestResolveRuntimeFrontendAssetRejectsSymlinkEscape(t *testing.T) {
-	services := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-dev-source-public-symlink")
-	outsideDir := t.TempDir()
+	var (
+		services   = testutil.NewServices()
+		pluginDir  = testutil.CreateTestPluginDir(t, "plugin-dev-source-public-symlink")
+		outsideDir = t.TempDir()
+	)
 	testutil.WriteTestFile(t, filepath.Join(outsideDir, "secret.txt"), "outside")
 	linkPath := filepath.Join(pluginDir, "frontend", "linked-public")
 	if err := os.Symlink(outsideDir, linkPath); err != nil {
@@ -302,7 +299,7 @@ func TestResolveRuntimeFrontendAssetRejectsSymlinkEscape(t *testing.T) {
 		ID:           "plugin-dev-source-public-symlink",
 		Name:         "Source Public Symlink Plugin",
 		Version:      "0.1.0",
-		Type:         plugintypes.TypeSource.String(),
+		Type:         pluginv1.PluginTypeSource.String(),
 		RootDir:      pluginDir,
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
 		PublicAssets: []*catalog.PublicAssetSpec{{Source: "frontend/linked-public", Mount: "/"}},
