@@ -32,7 +32,7 @@ type JobPayload struct {
 
 // CreateReq defines the request for creating one scheduled job.
 type CreateReq struct {
-	g.Meta `path:"/job" method:"post" tags:"Job Scheduling / Scheduled Jobs" summary:"Create task" operLog:"create" dc:"Create a new user-built Shell scheduled job; Handler type tasks can only be registered by the host or plugin source code" permission:"system:job:add"`
+	g.Meta `path:"/job" method:"post" tags:"Job Scheduling / Task Management" summary:"Create task" operLog:"create" dc:"Create a new user-built Shell scheduled job; Handler type tasks can only be registered by the host or plugin source code" permission:"system:job:add"`
 	JobPayload
 }
 

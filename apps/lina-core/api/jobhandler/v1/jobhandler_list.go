@@ -24,7 +24,7 @@ func (s Source) IsValid() bool {
 
 // ListReq defines the request for querying registered job handlers.
 type ListReq struct {
-	g.Meta  `path:"/job/handler" method:"get" tags:"Job Scheduling / Plugin Handlers" summary:"Get processor list" dc:"Query the registered task processor definitions of the current host and plugin for dropdown selection in the task form." permission:"system:job:list"`
+	g.Meta  `path:"/job/handler" method:"get" tags:"Job Scheduling / Task Management" summary:"Get processor list" dc:"Query the registered task processor definitions of the current host and plugin for dropdown selection in the task form." permission:"system:job:list"`
 	Source  Source `json:"source" dc:"Filter by processor source: host=host plugin=plugin, if not passed, query all" eg:"host"`
 	Keyword string `json:"keyword" dc:"Filter by processor reference or display name keyword" eg:"cleanup"`
 }

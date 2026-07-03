@@ -8,7 +8,7 @@ import (
 
 // ListReq defines the request for querying scheduled jobs.
 type ListReq struct {
-	g.Meta         `path:"/job" method:"get" tags:"Job Scheduling / Scheduled Jobs" summary:"Get task list" dc:"Paginated query for scheduled job list, supports filtering by group, status, task type, keyword, scheduling range and concurrency strategy" permission:"system:job:list"`
+	g.Meta         `path:"/job" method:"get" tags:"Job Scheduling / Task Management" summary:"Get task list" dc:"Paginated query for scheduled job list, supports filtering by group, status, task type, keyword, scheduling range and concurrency strategy" permission:"system:job:list"`
 	PageNum        int                 `json:"pageNum" d:"1" v:"min:1" dc:"Page number" eg:"1"`
 	PageSize       int                 `json:"pageSize" d:"10" v:"min:1|max:100" dc:"Number of items per page" eg:"10"`
 	GroupId        *int64              `json:"groupId" dc:"Filter by task group ID, if not passed, query all" eg:"1"`
