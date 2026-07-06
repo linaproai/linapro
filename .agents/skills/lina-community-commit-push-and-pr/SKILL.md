@@ -22,7 +22,7 @@ description: >-
 9. 用户回复`已合并`或`继续`后，必须先通过`gh pr view`或远端`main`提交确认子模块`PR`已经合并；如果尚未合并，停止并提示用户继续 review。
 10. 主框架`PR`创建后必须停止，并提醒用户先 review 和合并该`PR`。用户回复主框架`PR`已合并或要求收尾之前，不得执行本地分支恢复和`main`同步。
 11. 用户回复主框架`PR`已合并或要求收尾后，必须先通过`gh pr view`确认主框架`PR`状态为`MERGED`；如果尚未合并，停止并提示用户继续 review。
-12. 子模块和主框架`PR`都已确认合并后，必须将子模块和主框架工作树切回本次流程开始时记录的原始分支，并让这些分支与各自远端`main`保持同步。
+12. 子模块和主框架`PR`都已确认合并后，必须将子模块和主框架工作树切回本次流程开始时记录的原始分支，再在这些原始分支上拉取并合入各自远端`main`；完成前必须验证原始分支已经包含最新`origin/main`。
 13. 执行过程中遇到`git`合并、同步或更新分支时，只允许`Git`自动完成无冲突合并；一旦出现内容冲突、子模块指针冲突或需要人工选择的冲突，必须立即停止并交给用户处理，禁止自行编辑冲突文件、删除冲突标记、选择 ours/theirs、暂存冲突结果或提交冲突解决。
 
 ## 合并冲突处理
@@ -234,19 +234,22 @@ gh pr view "<framework-pr-number-or-url>" \
 
 如果任一`state`不是`MERGED`，停止并提示用户继续 review 和合并对应`PR`。
 
-2. 拉取两个仓库的远端`main`：
+2. 刷新两个仓库的远端`main`。该步骤只更新远端跟踪分支，不代表原始工作分支已经同步：
 
 ```bash
 git fetch origin main
 git -C apps/lina-plugins fetch origin main
 ```
 
-3. 先把子模块切回原始分支，并与子模块远端`main`同步：
+3. 先把子模块切回原始分支，并在该原始分支上拉取并合入子模块远端`main`：
 
 ```bash
 git -C apps/lina-plugins switch "$original_sub_branch"
+git -C apps/lina-plugins fetch origin main
 git -C apps/lina-plugins merge --ff-only origin/main
 ```
+
+不得只更新子模块本地`main`或`origin/main`后停止；必须让`$original_sub_branch`本身包含已经合并进远端`main`的最新内容。
 
 如果`--ff-only`失败，先按“合并冲突处理”规则做只读检查；只读检查确认可自动合并时才允许执行：
 
@@ -256,12 +259,15 @@ git -C apps/lina-plugins merge --no-edit origin/main
 
 如果出现冲突或需要人工选择，立即停止并报告冲突文件。
 
-4. 再把主框架切回原始分支，并与主框架远端`main`同步：
+4. 再把主框架切回原始分支，并在该原始分支上拉取并合入主框架远端`main`：
 
 ```bash
 git switch "$original_main_branch"
+git fetch origin main
 git merge --ff-only origin/main
 ```
+
+不得只更新主框架本地`main`或`origin/main`后停止；必须让`$original_main_branch`本身包含已经合并进远端`main`的最新内容。
 
 如果`--ff-only`失败，先按“合并冲突处理”规则做只读检查；只读检查确认可自动合并时才允许执行：
 
@@ -276,9 +282,13 @@ git merge --no-edit origin/main
 ```bash
 git status --short --branch
 git log --oneline -1
+git merge-base --is-ancestor origin/main HEAD
 git -C apps/lina-plugins status --short --branch
 git -C apps/lina-plugins log --oneline -1
+git -C apps/lina-plugins merge-base --is-ancestor origin/main HEAD
 ```
+
+如果任一`merge-base --is-ancestor origin/main HEAD`失败，说明对应原始工作分支尚未包含最新远端`main`内容，必须停止并报告该仓库未完成同步。
 
 如果同步后当前分支相对远端同名分支存在本地领先提交，必须推送对应原始分支；如果远端同名分支不存在，使用`-u`建立上游；如果当前分支相对远端同名分支存在落后或分叉，停止并报告风险：
 
@@ -330,7 +340,7 @@ git -C apps/lina-plugins push origin "$original_sub_branch"
 
 - 已确认合并的子模块`PR`地址和合并提交；
 - 已确认合并的主框架`PR`地址和合并提交；
-- 子模块当前分支、同步后的提交和是否已推送；
-- 主框架当前分支、同步后的提交和是否已推送；
+- 子模块当前分支、同步后的提交、是否已包含最新远端`main`和是否已推送；
+- 主框架当前分支、同步后的提交、是否已包含最新远端`main`和是否已推送；
 - 本地工作区是否干净；
 - 测试是否运行，未运行时如实说明。
