@@ -1,6 +1,7 @@
-import type { LoginTenant, TenantState } from '#/api/tenant/model';
-import type { PlatformTenant, TenantStatus } from '#/api/platform/tenant/model';
 import type { Router } from 'vue-router';
+
+import type { PlatformTenant, TenantStatus } from '#/api/platform/tenant/model';
+import type { LoginTenant, TenantState } from '#/api/tenant/model';
 
 import { computed, ref } from 'vue';
 
@@ -18,6 +19,10 @@ import {
 import { authLoginTenants, authSwitchTenant } from '#/api/tenant';
 import { $t } from '#/locales';
 import { refreshAccessibleState } from '#/router/access-refresh';
+import {
+  canListLoginTenants,
+  canListPlatformTenants,
+} from '#/store/tenant-permissions';
 
 const storageKey = 'linapro:tenant-state';
 const impersonationOriginalTokenKey =
@@ -66,7 +71,7 @@ function readOriginalRefreshToken() {
   return localStorage.getItem(impersonationOriginalRefreshTokenKey) || '';
 }
 
-function setOriginalRefreshToken(token?: string | null) {
+function setOriginalRefreshToken(token?: null | string) {
   if (typeof localStorage === 'undefined') {
     return;
   }
@@ -167,13 +172,33 @@ export const useTenantStore = defineStore('tenant', () => {
     if (!enabled.value || isImpersonation.value) {
       return tenants.value;
     }
+
+    const targetIsPlatform = payload?.isPlatform ?? isPlatform.value;
+    const targetUserId = payload?.userId ?? 0;
+    if (targetIsPlatform && !canListPlatformTenants(accessStore.accessCodes)) {
+      if (tenants.value.length > 0) {
+        tenants.value = [];
+        persist();
+      }
+      return tenants.value;
+    }
     if (!payload?.force && tenants.value.length > 0) {
       return tenants.value;
     }
 
+    if (!targetIsPlatform) {
+      if (tenants.value.length === 0 && currentTenant.value?.id) {
+        tenants.value = normalizeTenantOptions([currentTenant.value]);
+        persist();
+      }
+      if (targetUserId <= 0 || !canListLoginTenants(accessStore.accessCodes)) {
+        return tenants.value;
+      }
+    }
+
     loadingTenants.value = true;
     try {
-      if (payload?.isPlatform ?? isPlatform.value) {
+      if (targetIsPlatform) {
         const result = await platformTenantList({
           pageNum: 1,
           pageSize: 100,
@@ -191,11 +216,8 @@ export const useTenantStore = defineStore('tenant', () => {
         return tenants.value;
       }
 
-      if (!payload?.userId) {
-        return tenants.value;
-      }
       tenants.value = normalizeTenantOptions(
-        await authLoginTenants(payload.userId),
+        await authLoginTenants(targetUserId),
       );
       persist();
       return tenants.value;
@@ -221,12 +243,11 @@ export const useTenantStore = defineStore('tenant', () => {
       if (isPlatform.value) {
         const result = await platformTenantImpersonate(tenantId);
         const tenant = result.tenant;
-        const fallbackTenant = tenants.value.find((item) => item.id === tenantId);
+        const fallbackTenant = tenants.value.find(
+          (item) => item.id === tenantId,
+        );
         if (tenant) {
-          startImpersonation(
-            result.accessToken || result.token || '',
-            tenant,
-          );
+          startImpersonation(result.accessToken || result.token || '', tenant);
           await refreshAccessAndEnterDefaultRoute(router);
           return;
         }

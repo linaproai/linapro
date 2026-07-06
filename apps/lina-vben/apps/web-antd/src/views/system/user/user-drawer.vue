@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
 import { $t } from '@vben/locales';
-import { useUserStore } from '@vben/stores';
+import { useAccessStore, useUserStore } from '@vben/stores';
 
 import { message } from 'ant-design-vue';
 
@@ -37,6 +37,7 @@ const title = computed(() =>
 const dictStore = useDictStore();
 const tenantStore = useTenantStore();
 const userStore = useUserStore();
+const accessStore = useAccessStore();
 
 function addFullName(
   tree: any[],
@@ -74,6 +75,7 @@ async function setupTenantOptions() {
   }
 
   const options = await loadUserTenantOptions({
+    accessCodes: accessStore.accessCodes,
     currentTenant: tenantStore.currentTenant,
     isPlatform: tenantStore.isPlatform,
     tenants: tenantStore.tenants,
@@ -186,8 +188,8 @@ const [Drawer, drawerApi] = useVbenDrawer({
       const data = drawerApi.getData<{
         isEdit: boolean;
         orgEnabled?: boolean;
-        tenantEnabled?: boolean;
         row?: any;
+        tenantEnabled?: boolean;
       }>();
       isEdit.value = data?.isEdit ?? false;
       orgEnabled.value = data?.orgEnabled ?? false;
@@ -241,12 +243,13 @@ const [Drawer, drawerApi] = useVbenDrawer({
           roleIds: user.roleIds,
         };
         if (tenantEnabled.value) {
+          const currentTenantIds = tenantStore.currentTenant
+            ? [tenantStore.currentTenant.id]
+            : [];
           values.tenantIds =
             tenantStore.isPlatform || user.tenantIds?.length
               ? (user.tenantIds ?? [])
-              : tenantStore.currentTenant
-                ? [tenantStore.currentTenant.id]
-                : [];
+              : currentTenantIds;
         }
 
         if (orgEnabled.value) {

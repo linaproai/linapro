@@ -5,7 +5,7 @@ import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 import { $t } from '@vben/locales';
-import { useUserStore } from '@vben/stores';
+import { useAccessStore, useUserStore } from '@vben/stores';
 
 import { message } from 'ant-design-vue';
 
@@ -22,6 +22,7 @@ const emit = defineEmits<{ success: [] }>();
 const dictStore = useDictStore();
 const tenantStore = useTenantStore();
 const userStore = useUserStore();
+const accessStore = useAccessStore();
 
 const selectedRows = ref<any[]>([]);
 const tenantEnabled = ref(false);
@@ -158,6 +159,7 @@ async function setupTenantOptions() {
     return;
   }
   const options = await loadUserTenantOptions({
+    accessCodes: accessStore.accessCodes,
     currentTenant: tenantStore.currentTenant,
     isPlatform: tenantStore.isPlatform,
     tenants: tenantStore.tenants,
@@ -190,14 +192,13 @@ const [Modal, modalApi] = useVbenModal({
 
       formApi.setState({ schema: buildSchema() });
       await formApi.resetForm();
+      const currentTenantIds = tenantStore.currentTenant
+        ? [tenantStore.currentTenant.id]
+        : [];
       await formApi.setValues({
         roleIds: [],
         status: 1,
-        tenantIds: tenantStore.isPlatform
-          ? []
-          : tenantStore.currentTenant
-            ? [tenantStore.currentTenant.id]
-            : [],
+        tenantIds: tenantStore.isPlatform ? [] : currentTenantIds,
         updateRoles: false,
         updateStatus: false,
         updateTenant: false,
@@ -222,7 +223,9 @@ const [Modal, modalApi] = useVbenModal({
       return false;
     }
     if (updateStatus && values.status === undefined) {
-      message.warning($t('pages.system.user.batchEdit.messages.statusRequired'));
+      message.warning(
+        $t('pages.system.user.batchEdit.messages.statusRequired'),
+      );
       return false;
     }
     if (updateRoles && updateTenant) {
@@ -233,12 +236,12 @@ const [Modal, modalApi] = useVbenModal({
     }
 
     const ids = selectedRows.value.map((row) => Number(row.id));
-    const tenantIds =
-      updateTenant && !tenantStore.isPlatform
-        ? tenantStore.currentTenant
-          ? [tenantStore.currentTenant.id]
-          : []
-        : ((values.tenantIds ?? []) as number[]);
+    let tenantIds = (values.tenantIds ?? []) as number[];
+    if (updateTenant && !tenantStore.isPlatform) {
+      tenantIds = tenantStore.currentTenant
+        ? [tenantStore.currentTenant.id]
+        : [];
+    }
 
     await userBatchUpdate({
       ids,
@@ -257,10 +260,7 @@ const [Modal, modalApi] = useVbenModal({
 </script>
 
 <template>
-  <Modal
-    :title="$t('pages.system.user.batchEdit.title')"
-    class="w-[560px]"
-  >
+  <Modal :title="$t('pages.system.user.batchEdit.title')" class="w-[560px]">
     <div class="mb-4 text-sm text-muted-foreground">
       {{
         $t('pages.system.user.batchEdit.selectedCount', {

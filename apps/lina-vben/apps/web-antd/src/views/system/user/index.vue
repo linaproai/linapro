@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { Page, useVbenDrawer, useVbenModal } from '@vben/common-ui';
-import { preferences } from '@vben/preferences';
-import { useUserStore } from '@vben/stores';
-
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+
+import { Page, useVbenDrawer, useVbenModal } from '@vben/common-ui';
+import { preferences } from '@vben/preferences';
+import { useAccessStore, useUserStore } from '@vben/stores';
 
 import {
   Avatar,
@@ -35,11 +35,11 @@ import { downloadBlob } from '#/utils/download';
 
 import { buildColumns, querySchema } from './data';
 import DeptTree from './dept-tree.vue';
-import UserDrawer from './user-drawer.vue';
+import { loadUserTenantOptions } from './tenant-options';
 import UserBatchEditModal from './user-batch-edit-modal.vue';
+import UserDrawer from './user-drawer.vue';
 import UserImportModal from './user-import-modal.vue';
 import UserResetPwdModal from './user-reset-pwd-modal.vue';
-import { loadUserTenantOptions } from './tenant-options';
 
 const [UserDrawerRef, userDrawerApi] = useVbenDrawer({
   connectedComponent: UserDrawer,
@@ -58,6 +58,7 @@ const [UserResetPwdModalRef, userResetPwdModalApi] = useVbenModal({
 });
 
 const userStore = useUserStore();
+const accessStore = useAccessStore();
 const dictStore = useDictStore();
 const tenantStore = useTenantStore();
 const route = useRoute();
@@ -81,7 +82,7 @@ const statusLabel = computed(() => {
   };
 });
 
-let disposePluginRegistryListener: null | (() => void) = null;
+let disposePluginRegistryListener: (() => void) | null = null;
 
 function parseRouteTenantId() {
   const rawTenantId = Array.isArray(route.query.tenantId)
@@ -104,6 +105,7 @@ async function loadTenantOptions(force = false) {
     return tenantOptions.value;
   }
   tenantOptions.value = await loadUserTenantOptions({
+    accessCodes: accessStore.accessCodes,
     currentTenant: tenantStore.currentTenant,
     isPlatform: tenantStore.isPlatform,
     tenants: tenantStore.tenants,

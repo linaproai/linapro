@@ -1,8 +1,12 @@
-import type { LoginTenant } from '#/api/tenant/model';
 import type { PlatformTenant } from '#/api/platform/tenant/model';
+import type { LoginTenant } from '#/api/tenant/model';
 
 import { platformTenantList } from '#/api/platform/tenant';
 import { authLoginTenants } from '#/api/tenant';
+import {
+  canListLoginTenants,
+  canListPlatformTenants,
+} from '#/store/tenant-permissions';
 
 export interface UserTenantOption {
   label: string;
@@ -10,6 +14,7 @@ export interface UserTenantOption {
 }
 
 interface UserTenantOptionSource {
+  accessCodes?: string[];
   currentTenant?: LoginTenant | null;
   isPlatform: boolean;
   tenants: LoginTenant[];
@@ -33,7 +38,17 @@ function toOptions(items: Array<LoginTenant | PlatformTenant>) {
 export async function loadUserTenantOptions(
   source: UserTenantOptionSource,
 ): Promise<UserTenantOption[]> {
-  if (source.isPlatform && source.userId && source.userId > 0) {
+  if (!source.isPlatform) {
+    return source.currentTenant && source.currentTenant.id > 0
+      ? toOptions([source.currentTenant])
+      : [];
+  }
+
+  if (
+    source.userId &&
+    source.userId > 0 &&
+    canListLoginTenants(source.accessCodes)
+  ) {
     const userTenants = activeLoginTenants(
       await authLoginTenants(source.userId),
     );
@@ -47,12 +62,9 @@ export async function loadUserTenantOptions(
     return toOptions(visibleTenants);
   }
 
-  if (!source.isPlatform) {
-    return source.currentTenant && source.currentTenant.id > 0
-      ? toOptions([source.currentTenant])
-      : [];
+  if (!canListPlatformTenants(source.accessCodes)) {
+    return [];
   }
-
   const result = await platformTenantList({
     pageNum: 1,
     pageSize: 100,
