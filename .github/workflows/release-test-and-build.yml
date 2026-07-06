@@ -114,7 +114,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
+          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "GitHub Release ${RELEASE_TAG} already exists; skipping creation."
+            exit 0
+          fi
+
           gh release create "${RELEASE_TAG}" \
             --repo "${GITHUB_REPOSITORY}" \
+            --verify-tag \
             --title "LinaPro Release ${RELEASE_TAG}" \
             --notes "Release ${RELEASE_TAG}"
