@@ -58,6 +58,8 @@ type JobInfo struct {
 	Group string
 	// Status is the lifecycle status.
 	Status jobv1.Status
+	// LogRetentionOverride optionally overrides the system log cleanup policy.
+	LogRetentionOverride *LogRetentionOption `json:"logRetentionOverride,omitempty"`
 }
 
 // ListInput constrains scheduled-job candidate listing.
@@ -70,6 +72,14 @@ type ListInput struct {
 	Status jobv1.Status
 	// Page constrains result size and stable sorting.
 	Page capmodel.PageRequest
+}
+
+// LogRetentionOption stores one optional task-level log cleanup policy.
+type LogRetentionOption struct {
+	// Mode selects the retention strategy: days, count, or none.
+	Mode jobv1.RetentionMode `json:"mode"`
+	// Value stores the positive threshold for days/count; none uses zero.
+	Value int64 `json:"value"`
 }
 
 // SaveInput describes mutable scheduled-job fields exposed to plugins.
@@ -102,6 +112,8 @@ type SaveInput struct {
 	MaxExecutions int
 	// Status is the lifecycle status.
 	Status jobv1.Status
+	// LogRetentionOverride optionally overrides the system log cleanup policy.
+	LogRetentionOverride *LogRetentionOption `json:"logRetentionOverride,omitempty"`
 }
 
 // UpdateInput describes one scheduled-job update request.

@@ -33,6 +33,15 @@ type jobCapabilityAdapter struct {
 
 var _ capabilityjobcap.Service = (*jobCapabilityAdapter)(nil)
 
+// jobInfoRow stores the minimal sys_job projection returned to plugins.
+type jobInfoRow struct {
+	Id                   int64
+	Name                 string
+	GroupId              int64
+	Status               string
+	LogRetentionOverride string
+}
+
 // NewCapabilityAdapter creates the host-owned scheduled-job capability adapter.
 func NewCapabilityAdapter(owner jobmeta.Owner, tenantFilter tenantcap.FilterService, scopeSvc datascope.Service) capabilityjobcap.Service {
 	return &jobCapabilityAdapter{owner: owner, scopeSvc: scopeSvc, tenantFilter: tenantFilter}
@@ -65,15 +74,10 @@ func (a *jobCapabilityAdapter) BatchGet(ctx context.Context, ids []capabilityjob
 	if len(parsedIDs) == 0 {
 		return result, nil
 	}
-	rows := make([]*struct {
-		Id      int64
-		Name    string
-		GroupId int64
-		Status  string
-	}, 0, len(parsedIDs))
+	rows := make([]*jobInfoRow, 0, len(parsedIDs))
 	cols := dao.SysJob.Columns()
 	model := dao.SysJob.Ctx(ctx).
-		Fields(cols.Id, cols.Name, cols.GroupId, cols.Status).
+		Fields(cols.Id, cols.Name, cols.GroupId, cols.Status, cols.LogRetentionOverride).
 		WhereIn(cols.Id, parsedIDs)
 	if a != nil && a.tenantFilter != nil {
 		model = tenantspi.ApplyPluginTableFilter(ctx, a.tenantFilter, model, "")
@@ -93,12 +97,11 @@ func (a *jobCapabilityAdapter) BatchGet(ctx context.Context, ids []capabilityjob
 		if !ok {
 			continue
 		}
-		result.Items[requestID] = &capabilityjobcap.JobInfo{
-			ID:     requestID,
-			Name:   row.Name,
-			Group:  strconv.FormatInt(row.GroupId, 10),
-			Status: jobv1.Status(row.Status),
+		info, err := jobInfoFromRow(row, requestID)
+		if err != nil {
+			return nil, err
 		}
+		result.Items[requestID] = info
 	}
 	for _, id := range ids {
 		if _, ok := result.Items[id]; !ok && !slices.Contains(result.MissingIDs, id) {
@@ -145,14 +148,9 @@ func (a *jobCapabilityAdapter) List(ctx context.Context, input capabilityjobcap.
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]*struct {
-		Id      int64
-		Name    string
-		GroupId int64
-		Status  string
-	}, 0, pageSize)
+	rows := make([]*jobInfoRow, 0, pageSize)
 	if err = model.Clone().
-		Fields(cols.Id, cols.Name, cols.GroupId, cols.Status).
+		Fields(cols.Id, cols.Name, cols.GroupId, cols.Status, cols.LogRetentionOverride).
 		Page(pageNum, pageSize).
 		OrderDesc(cols.Id).
 		Scan(&rows); err != nil {
@@ -163,12 +161,11 @@ func (a *jobCapabilityAdapter) List(ctx context.Context, input capabilityjobcap.
 		if row == nil {
 			continue
 		}
-		items = append(items, &capabilityjobcap.JobInfo{
-			ID:     capabilityjobcap.JobID(strconv.FormatInt(row.Id, 10)),
-			Name:   row.Name,
-			Group:  strconv.FormatInt(row.GroupId, 10),
-			Status: jobv1.Status(row.Status),
-		})
+		info, err := jobInfoFromRow(row, capabilityjobcap.JobID(strconv.FormatInt(row.Id, 10)))
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, info)
 	}
 	return &capmodel.PageResult[*capabilityjobcap.JobInfo]{Items: items, Total: total}, nil
 }
@@ -291,22 +288,30 @@ func jobSaveInput(input capabilityjobcap.SaveInput) (jobmeta.SaveJobInput, error
 	if status == "" {
 		status = jobv1.StatusDisabled
 	}
+	var retentionOverride *jobmeta.RetentionOption
+	if input.LogRetentionOverride != nil {
+		retentionOverride = &jobmeta.RetentionOption{
+			Mode:  jobmeta.NormalizeRetentionMode(string(input.LogRetentionOverride.Mode)),
+			Value: input.LogRetentionOverride.Value,
+		}
+	}
 	return jobmeta.SaveJobInput{
-		GroupID:        groupID,
-		Name:           input.Name,
-		Description:    input.Description,
-		TaskType:       jobv1.TaskTypeShell,
-		Timeout:        timeout,
-		ShellCmd:       input.ShellCmd,
-		WorkDir:        input.WorkDir,
-		Env:            input.Env,
-		CronExpr:       input.CronExpr,
-		Timezone:       input.Timezone,
-		Scope:          scope,
-		Concurrency:    concurrency,
-		MaxConcurrency: maxConcurrency,
-		MaxExecutions:  input.MaxExecutions,
-		Status:         status,
+		GroupID:              groupID,
+		Name:                 input.Name,
+		Description:          input.Description,
+		TaskType:             jobv1.TaskTypeShell,
+		Timeout:              timeout,
+		ShellCmd:             input.ShellCmd,
+		WorkDir:              input.WorkDir,
+		Env:                  input.Env,
+		CronExpr:             input.CronExpr,
+		Timezone:             input.Timezone,
+		Scope:                scope,
+		Concurrency:          concurrency,
+		MaxConcurrency:       maxConcurrency,
+		MaxExecutions:        input.MaxExecutions,
+		Status:               status,
+		LogRetentionOverride: retentionOverride,
 	}, nil
 }
 
@@ -317,6 +322,37 @@ func parseJobID(id capabilityjobcap.JobID) (int64, error) {
 		return 0, bizerr.NewCode(capmodel.CodeCapabilityDenied)
 	}
 	return parsedID, nil
+}
+
+// jobInfoFromRow converts one sys_job projection into the plugin contract.
+func jobInfoFromRow(row *jobInfoRow, id capabilityjobcap.JobID) (*capabilityjobcap.JobInfo, error) {
+	retentionOverride, err := jobLogRetentionOption(row.LogRetentionOverride)
+	if err != nil {
+		return nil, err
+	}
+	return &capabilityjobcap.JobInfo{
+		ID:                   id,
+		Name:                 row.Name,
+		Group:                strconv.FormatInt(row.GroupId, 10),
+		Status:               jobv1.Status(row.Status),
+		LogRetentionOverride: retentionOverride,
+	}, nil
+}
+
+// jobLogRetentionOption parses the persisted job policy without leaking
+// jobmeta internals through the plugin contract.
+func jobLogRetentionOption(raw string) (*capabilityjobcap.LogRetentionOption, error) {
+	option, err := jobmeta.ParseRetentionOption(raw)
+	if err != nil {
+		return nil, err
+	}
+	if option == nil {
+		return nil, nil
+	}
+	return &capabilityjobcap.LogRetentionOption{
+		Mode:  option.Mode,
+		Value: option.Value,
+	}, nil
 }
 
 // requireOwner returns the injected job owner or a structured unavailable error.

@@ -1221,6 +1221,10 @@ func TestHandleHostServiceInvokeJobsRuntimeMethods(t *testing.T) {
 			Name:     "Heartbeat",
 			CronExpr: "*/5 * * * *",
 			Status:   jobv1.StatusEnabled,
+			LogRetentionOverride: &capabilityjobcap.LogRetentionOption{
+				Mode:  jobv1.RetentionModeCount,
+				Value: 500,
+			},
 		}),
 	)
 	if createResponse.Status != protocol.HostCallStatusSuccess {
@@ -1231,6 +1235,65 @@ func TestHandleHostServiceInvokeJobsRuntimeMethods(t *testing.T) {
 	if createdID != "job-created" || jobsSvc.lastCreate.Name != "Heartbeat" || jobsSvc.lastCurrent.UserID != 21 {
 		t.Fatalf("unexpected jobs create result=%q input=%#v bizctx=%#v", createdID, jobsSvc.lastCreate, jobsSvc.lastCurrent)
 	}
+	if jobsSvc.lastCreate.LogRetentionOverride == nil ||
+		jobsSvc.lastCreate.LogRetentionOverride.Mode != jobv1.RetentionModeCount ||
+		jobsSvc.lastCreate.LogRetentionOverride.Value != 500 {
+		t.Fatalf("unexpected jobs create retention override: %#v", jobsSvc.lastCreate.LogRetentionOverride)
+	}
+
+	jobsSvc.jobItems = []*capabilityjobcap.JobInfo{{
+		ID:     "job-created",
+		Name:   "Heartbeat",
+		Group:  "default",
+		Status: jobv1.StatusEnabled,
+		LogRetentionOverride: &capabilityjobcap.LogRetentionOption{
+			Mode:  jobv1.RetentionModeCount,
+			Value: 500,
+		},
+	}}
+	batchGetResponse := invokeCapabilityHostService(
+		t,
+		hcc,
+		protocol.HostServiceJobs,
+		protocol.HostServiceMethodJobsBatchGet,
+		marshalCapabilityJSONRequest(t, idsRequest{IDs: []string{"job-created"}}),
+	)
+	if batchGetResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected jobs batch_get success, got status=%d payload=%s", batchGetResponse.Status, string(batchGetResponse.Payload))
+	}
+	var batchGetResult capmodel.BatchResult[*capabilityjobcap.JobInfo, capabilityjobcap.JobID]
+	decodeCapabilityJSONResponse(t, batchGetResponse.Payload, &batchGetResult)
+	if !reflect.DeepEqual(jobsSvc.lastBatchGetIDs, []capabilityjobcap.JobID{"job-created"}) {
+		t.Fatalf("unexpected jobs batch_get IDs: %#v", jobsSvc.lastBatchGetIDs)
+	}
+	if got := batchGetResult.Items["job-created"]; got == nil ||
+		got.LogRetentionOverride == nil ||
+		got.LogRetentionOverride.Mode != jobv1.RetentionModeCount ||
+		got.LogRetentionOverride.Value != 500 {
+		t.Fatalf("unexpected jobs batch_get retention projection: %#v", got)
+	}
+
+	listResponse := invokeCapabilityHostService(
+		t,
+		hcc,
+		protocol.HostServiceJobs,
+		protocol.HostServiceMethodJobsList,
+		marshalCapabilityJSONRequest(t, jobsListRequest{Keyword: "Heartbeat", PageNum: 1, PageSize: 20}),
+	)
+	if listResponse.Status != protocol.HostCallStatusSuccess {
+		t.Fatalf("expected jobs list success, got status=%d payload=%s", listResponse.Status, string(listResponse.Payload))
+	}
+	var listResult capmodel.PageResult[*capabilityjobcap.JobInfo]
+	decodeCapabilityJSONResponse(t, listResponse.Payload, &listResult)
+	if jobsSvc.lastList.Keyword != "Heartbeat" || jobsSvc.lastList.Page.PageNum != 1 || jobsSvc.lastList.Page.PageSize != 20 {
+		t.Fatalf("unexpected jobs list input: %#v", jobsSvc.lastList)
+	}
+	if len(listResult.Items) != 1 ||
+		listResult.Items[0].LogRetentionOverride == nil ||
+		listResult.Items[0].LogRetentionOverride.Mode != jobv1.RetentionModeCount ||
+		listResult.Items[0].LogRetentionOverride.Value != 500 {
+		t.Fatalf("unexpected jobs list retention projection: %#v", listResult.Items)
+	}
 
 	updateResponse := invokeCapabilityHostService(
 		t,
@@ -1238,8 +1301,13 @@ func TestHandleHostServiceInvokeJobsRuntimeMethods(t *testing.T) {
 		protocol.HostServiceJobs,
 		protocol.HostServiceMethodJobsUpdate,
 		marshalCapabilityJSONRequest(t, capabilityjobcap.UpdateInput{
-			ID:        "job-created",
-			SaveInput: capabilityjobcap.SaveInput{Name: "Updated Heartbeat"},
+			ID: "job-created",
+			SaveInput: capabilityjobcap.SaveInput{
+				Name: "Updated Heartbeat",
+				LogRetentionOverride: &capabilityjobcap.LogRetentionOption{
+					Mode: jobv1.RetentionModeNone,
+				},
+			},
 		}),
 	)
 	if updateResponse.Status != protocol.HostCallStatusSuccess {
@@ -1247,6 +1315,11 @@ func TestHandleHostServiceInvokeJobsRuntimeMethods(t *testing.T) {
 	}
 	if jobsSvc.lastUpdate.ID != "job-created" || jobsSvc.lastUpdate.Name != "Updated Heartbeat" {
 		t.Fatalf("unexpected jobs update input: %#v", jobsSvc.lastUpdate)
+	}
+	if jobsSvc.lastUpdate.LogRetentionOverride == nil ||
+		jobsSvc.lastUpdate.LogRetentionOverride.Mode != jobv1.RetentionModeNone ||
+		jobsSvc.lastUpdate.LogRetentionOverride.Value != 0 {
+		t.Fatalf("unexpected jobs update retention override: %#v", jobsSvc.lastUpdate.LogRetentionOverride)
 	}
 
 	deleteResponse := invokeCapabilityHostService(
@@ -2080,6 +2153,8 @@ func jobsHostCallContext() *hostCallContext {
 			{
 				Service: protocol.HostServiceJobs,
 				Methods: []string{
+					protocol.HostServiceMethodJobsBatchGet,
+					protocol.HostServiceMethodJobsList,
 					protocol.HostServiceMethodJobsCreate,
 					protocol.HostServiceMethodJobsUpdate,
 					protocol.HostServiceMethodJobsDelete,
@@ -2941,13 +3016,16 @@ func (s *capabilityHostServiceFilesService) DeleteMany(ctx context.Context, ids 
 
 // capabilityHostServiceJobsService records scheduled-job requests in tests.
 type capabilityHostServiceJobsService struct {
-	lastCurrent  bizctxcap.CurrentContext
-	lastCreate   capabilityjobcap.SaveInput
-	lastUpdate   capabilityjobcap.UpdateInput
-	lastDeleteID capabilityjobcap.JobID
-	lastRunID    capabilityjobcap.JobID
-	lastStatusID capabilityjobcap.JobID
-	lastStatus   jobv1.Status
+	jobItems        []*capabilityjobcap.JobInfo
+	lastCurrent     bizctxcap.CurrentContext
+	lastBatchGetIDs []capabilityjobcap.JobID
+	lastList        capabilityjobcap.ListInput
+	lastCreate      capabilityjobcap.SaveInput
+	lastUpdate      capabilityjobcap.UpdateInput
+	lastDeleteID    capabilityjobcap.JobID
+	lastRunID       capabilityjobcap.JobID
+	lastStatusID    capabilityjobcap.JobID
+	lastStatus      jobv1.Status
 }
 
 // Get returns no job projection for dispatcher tests.
@@ -2959,16 +3037,36 @@ func (s *capabilityHostServiceJobsService) Get(ctx context.Context, id capabilit
 	return result.Items[id], nil
 }
 
-// BatchGet returns empty visible job projections.
-func (s *capabilityHostServiceJobsService) BatchGet(ctx context.Context, _ []capabilityjobcap.JobID) (*capmodel.BatchResult[*capabilityjobcap.JobInfo, capabilityjobcap.JobID], error) {
+// BatchGet returns configured visible job projections.
+func (s *capabilityHostServiceJobsService) BatchGet(ctx context.Context, ids []capabilityjobcap.JobID) (*capmodel.BatchResult[*capabilityjobcap.JobInfo, capabilityjobcap.JobID], error) {
 	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
-	return &capmodel.BatchResult[*capabilityjobcap.JobInfo, capabilityjobcap.JobID]{Items: map[capabilityjobcap.JobID]*capabilityjobcap.JobInfo{}}, nil
+	s.lastBatchGetIDs = append([]capabilityjobcap.JobID(nil), ids...)
+	result := &capmodel.BatchResult[*capabilityjobcap.JobInfo, capabilityjobcap.JobID]{
+		Items:      map[capabilityjobcap.JobID]*capabilityjobcap.JobInfo{},
+		MissingIDs: []capabilityjobcap.JobID{},
+	}
+	for _, id := range ids {
+		found := false
+		for _, item := range s.jobItems {
+			if item != nil && item.ID == id {
+				result.Items[id] = item
+				found = true
+				break
+			}
+		}
+		if !found {
+			result.MissingIDs = append(result.MissingIDs, id)
+		}
+	}
+	return result, nil
 }
 
-// List returns an empty job page.
-func (s *capabilityHostServiceJobsService) List(ctx context.Context, _ capabilityjobcap.ListInput) (*capmodel.PageResult[*capabilityjobcap.JobInfo], error) {
+// List returns configured visible job projections as one deterministic page.
+func (s *capabilityHostServiceJobsService) List(ctx context.Context, input capabilityjobcap.ListInput) (*capmodel.PageResult[*capabilityjobcap.JobInfo], error) {
 	s.lastCurrent = bizctxcap.CurrentFromContext(ctx)
-	return &capmodel.PageResult[*capabilityjobcap.JobInfo]{Items: []*capabilityjobcap.JobInfo{}}, nil
+	s.lastList = input
+	items := append([]*capabilityjobcap.JobInfo(nil), s.jobItems...)
+	return &capmodel.PageResult[*capabilityjobcap.JobInfo]{Items: items, Total: len(items)}, nil
 }
 
 // EnsureVisible accepts all requested jobs.
