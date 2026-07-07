@@ -1,6 +1,10 @@
 {
   "error": {
     "auth": {
+      "external": {
+        "identityInvalid": "外部认证 Provider 返回的身份信息无效",
+        "userNotProvisioned": "当前外部身份未关联本地账号"
+      },
       "login": {
         "clientType": {
           "invalid": "客户端类型无效"

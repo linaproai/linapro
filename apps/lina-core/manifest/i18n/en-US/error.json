@@ -1,6 +1,10 @@
 {
   "error": {
     "auth": {
+      "external": {
+        "identityInvalid": "External authentication provider returned an invalid identity",
+        "userNotProvisioned": "No local account is linked to this external identity"
+      },
       "login": {
         "clientType": {
           "invalid": "Client type is invalid"

@@ -66,4 +66,23 @@ var (
 		"Failed to update last login time",
 		gcode.CodeInternalError,
 	)
+	// CodeAuthExternalIdentityInvalid reports that an external login request
+	// carries an empty provider or subject and cannot be resolved to a stable
+	// external identity key.
+	CodeAuthExternalIdentityInvalid = bizerr.MustDefineWithKey(
+		"AUTH_EXTERNAL_IDENTITY_INVALID",
+		"error.auth.external.identityInvalid",
+		"External authentication provider returned an invalid identity",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeAuthExternalUserNotProvisioned reports that a verified external
+	// identity has no linked local account. The message is intentionally
+	// uniform regardless of whether the captured email exists as another
+	// account so external login never leaks account existence.
+	CodeAuthExternalUserNotProvisioned = bizerr.MustDefineWithKey(
+		"AUTH_EXTERNAL_USER_NOT_PROVISIONED",
+		"error.auth.external.userNotProvisioned",
+		"No local account is linked to this external identity",
+		gcode.CodeNotAuthorized,
+	)
 )
