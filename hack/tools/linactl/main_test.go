@@ -622,6 +622,65 @@ func TestRunEnvCheckPrintsToolStatusTable(t *testing.T) {
 	}
 }
 
+// TestDefaultEnvToolsUseNodeCLIsForFrontendChecks verifies env.check avoids
+// Windows batch shims for project-local frontend CLI version probes.
+func TestDefaultEnvToolsUseNodeCLIsForFrontendChecks(t *testing.T) {
+	root := t.TempDir()
+	tools := defaultEnvTools(root)
+
+	vite := requireEnvTool(t, tools, "Vite")
+	viteCLI := envViteCLIPath(root)
+	if vite.Command != "node" {
+		t.Fatalf("expected Vite probe to use node, got %q", vite.Command)
+	}
+	if len(vite.Args) != 2 || vite.Args[0] != viteCLI || vite.Args[1] != "--version" {
+		t.Fatalf("unexpected Vite probe args: %#v", vite.Args)
+	}
+	if vite.RequiredPath != viteCLI {
+		t.Fatalf("expected Vite required path %q, got %q", viteCLI, vite.RequiredPath)
+	}
+	if strings.Contains(strings.Join(vite.Args, " "), ".cmd") {
+		t.Fatalf("Vite probe must not use a Windows batch shim: %#v", vite.Args)
+	}
+
+	playwright := requireEnvTool(t, tools, "Playwright")
+	playwrightCLI := envPlaywrightCLIPath(root)
+	if playwright.Command != "node" {
+		t.Fatalf("expected Playwright probe to use node, got %q", playwright.Command)
+	}
+	if len(playwright.Args) != 2 || playwright.Args[0] != playwrightCLI || playwright.Args[1] != "--version" {
+		t.Fatalf("unexpected Playwright probe args: %#v", playwright.Args)
+	}
+	if playwright.RequiredPath != playwrightCLI {
+		t.Fatalf("expected Playwright required path %q, got %q", playwrightCLI, playwright.RequiredPath)
+	}
+	if strings.Contains(strings.Join(playwright.Args, " "), "pnpm exec") {
+		t.Fatalf("Playwright probe must not use pnpm exec: %#v", playwright.Args)
+	}
+}
+
+// TestProbeEnvToolReportsMissingRequiredPathWithoutRunningCommand verifies a
+// missing local CLI is reported as a dependency issue before spawning a child.
+func TestProbeEnvToolReportsMissingRequiredPathWithoutRunningCommand(t *testing.T) {
+	root := t.TempDir()
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		t.Fatalf("probe must not run %s %v when RequiredPath is missing", name, args)
+		return exec.Command(os.Args[0], "-test.run=TestHelperCommandFailure", "--")
+	}
+
+	result := probeEnvTool(context.Background(), application, envTool{
+		Name:         "Playwright",
+		Command:      "node",
+		Args:         []string{envPlaywrightCLIPath(root), "--version"},
+		RequiredPath: envPlaywrightCLIPath(root),
+	})
+	if !result.Missing {
+		t.Fatalf("expected missing result for absent RequiredPath")
+	}
+}
+
 // TestProbePostgreSQLServerVersionUsesCoreConfig verifies PostgreSQL checks
 // query the configured server version through Go's database driver.
 func TestProbePostgreSQLServerVersionUsesCoreConfig(t *testing.T) {
@@ -4012,6 +4071,17 @@ func containsString(values []string, expected string) bool {
 		}
 	}
 	return false
+}
+
+func requireEnvTool(t *testing.T, tools []envTool, name string) envTool {
+	t.Helper()
+	for _, tool := range tools {
+		if tool.Name == name {
+			return tool
+		}
+	}
+	t.Fatalf("env tool %q not found", name)
+	return envTool{}
 }
 
 func TestHelperLongRunningProcess(t *testing.T) {

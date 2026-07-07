@@ -57,6 +57,7 @@ type envTool struct {
 	Command       string
 	Args          []string
 	Dir           string
+	RequiredPath  string
 	Required      string
 	MinVersion    string
 	MissingRemark string
@@ -154,8 +155,9 @@ func defaultEnvTools(root string) []envTool {
 		},
 		{
 			Name:          "Vite",
-			Command:       toolutil.ViteCommand(root),
-			Args:          []string{"--version"},
+			Command:       "node",
+			Args:          []string{envViteCLIPath(root), "--version"},
+			RequiredPath:  envViteCLIPath(root),
 			Required:      ">= 7.3.1",
 			MinVersion:    "7.3.1",
 			MissingRemark: "Frontend dependencies are missing; run make env.setup.",
@@ -164,12 +166,13 @@ func defaultEnvTools(root string) []envTool {
 		},
 		{
 			Name:          "Playwright",
-			Command:       "pnpm",
-			Args:          []string{"exec", "playwright", "--version"},
+			Command:       "node",
+			Args:          []string{envPlaywrightCLIPath(root), "--version"},
 			Dir:           filepath.Join(root, "hack", "tests"),
+			RequiredPath:  envPlaywrightCLIPath(root),
 			Required:      ">= 1.58.2",
 			MinVersion:    "1.58.2",
-			MissingRemark: "pnpm is missing; install pnpm and run make env.setup.",
+			MissingRemark: "Playwright dependencies are missing; run make env.setup.",
 			FailureRemark: "Playwright CLI is unavailable; run make env.setup.",
 			SuccessRemark: "Playwright CLI is available.",
 		},
@@ -200,8 +203,12 @@ func probeEnvTool(ctx context.Context, a *app, tool envTool) envProbeResult {
 		return probePostgreSQLServerVersion(ctx, a, tool)
 	}
 
-	if !envCommandAvailable(tool.Command) {
+	if tool.RequiredPath != "" && !envFileAvailable(tool.RequiredPath) {
 		return envProbeResult{Missing: true}
+	}
+
+	if !envCommandAvailable(tool.Command) {
+		return envProbeResult{Missing: true, Remark: fmt.Sprintf("Required command %q is not available in PATH.", tool.Command)}
 	}
 
 	options := commandOptions{Dir: tool.Dir, Quiet: true}
@@ -316,11 +323,26 @@ func printEnvCheckTable(out io.Writer, rows []envCheckRow) error {
 // envCommandAvailable reports whether a command can be executed by linactl.
 func envCommandAvailable(command string) bool {
 	if filepath.IsAbs(command) {
-		info, err := os.Stat(command)
-		return err == nil && !info.IsDir()
+		return envFileAvailable(command)
 	}
 	_, err := exec.LookPath(command)
 	return err == nil
+}
+
+// envFileAvailable reports whether a local command or CLI script exists.
+func envFileAvailable(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+// envViteCLIPath returns Vite's project-local JavaScript CLI entrypoint.
+func envViteCLIPath(root string) string {
+	return filepath.Join(root, "apps", "lina-vben", "node_modules", "vite", "bin", "vite.js")
+}
+
+// envPlaywrightCLIPath returns the E2E workspace Playwright CLI entrypoint.
+func envPlaywrightCLIPath(root string) string {
+	return filepath.Join(root, "hack", "tests", "node_modules", "@playwright", "test", "cli.js")
 }
 
 // loadEnvPostgreSQLConnection reads and parses the default core database link.
