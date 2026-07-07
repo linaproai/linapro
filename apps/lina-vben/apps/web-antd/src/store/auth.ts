@@ -211,6 +211,72 @@ export const useAuthStore = defineStore('auth', () => {
     await clearSession(redirect);
   }
 
+  /**
+   * 消费插件外部登录（OIDC 等）回跳到登录页的登录结果。
+   * Consume an external-login (plugin OIDC) outcome delivered to the login
+   * page through query parameters. Mirrors the post-verification branches of
+   * authLogin: a token pair signs the user in immediately, while a pre-login
+   * token plus tenant candidates switches the login page into the existing
+   * two-stage tenant selection flow.
+   */
+  async function completeExternalLogin(input: {
+    accessToken?: string;
+    preToken?: string;
+    redirectPath?: string;
+    refreshToken?: string;
+    tenants?: LoginTenant[];
+  }) {
+    const tenants = Array.isArray(input.tenants) ? input.tenants : [];
+
+    if (input.preToken && !input.accessToken) {
+      pendingPreToken.value = input.preToken;
+      tenantStore.setTenantContext({
+        currentTenant: null,
+        enabled: true,
+        tenants,
+      });
+      return { requiresTenantSelection: true };
+    }
+
+    if (!input.accessToken) {
+      return { requiresTenantSelection: false };
+    }
+
+    try {
+      loginLoading.value = true;
+      accessStore.setAccessToken(input.accessToken);
+      accessStore.setRefreshToken(input.refreshToken ?? null);
+
+      const userInfo = await fetchUserInfo();
+      userStore.setUserInfo(userInfo);
+      tenantStore.setTenantContext({
+        currentTenant: tenants.length === 1 ? (tenants[0] ?? null) : null,
+        enabled: resolveTenantEnabled(tenants, userInfo, tenants[0] ?? null),
+        tenants,
+      });
+      accessStore.setLoginExpired(false);
+      // A plugin-provided landing path (settings defaultBackendRedirect) wins
+      // over the host default landing when present.
+      const landing = (input.redirectPath ?? '').trim();
+      await router.push(
+        landing ||
+          tenantStore.resolveFallbackPath(
+            userInfo.homePath || preferences.app.defaultHomePath,
+          ),
+      );
+      if (userInfo?.realName) {
+        notification.success({
+          description: `${$t('authentication.loginSuccessDesc')}: ${userInfo.realName}`,
+          duration: 3,
+          message: $t('authentication.loginSuccess'),
+        });
+      }
+    } finally {
+      loginLoading.value = false;
+    }
+    return { requiresTenantSelection: false };
+  }
+
   async function fetchUserInfo() {
     const userInfo = await getUserInfoApi();
     userStore.setUserInfo(userInfo);
@@ -240,6 +306,7 @@ export const useAuthStore = defineStore('auth', () => {
     $reset,
     authLogin,
     clearSession,
+    completeExternalLogin,
     fetchUserInfo,
     loginLoading,
     logout,

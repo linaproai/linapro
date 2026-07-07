@@ -4,6 +4,7 @@
   "pageDesc": "Built for evolving business needs with a ready-to-use admin entry point and flexible pluggable extensions",
   "loginSuccess": "Login Successful",
   "loginSuccessDesc": "Welcome Back",
+  "loginFailed": "Login Failed",
   "loginSubtitle": "Enter your account details to access the LinaPro host workspace",
   "selectAccount": "Quick Select Account",
   "username": "Username",
