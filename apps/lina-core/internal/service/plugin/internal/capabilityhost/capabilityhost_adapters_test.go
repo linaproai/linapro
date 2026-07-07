@@ -25,13 +25,16 @@ import (
 	"lina-core/internal/service/locker"
 	"lina-core/internal/service/plugin/internal/pluginconfig"
 	storagesvc "lina-core/internal/service/storage"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/apidoccap"
+	"lina-core/pkg/plugin/capability/authcap/externallogin"
 	"lina-core/pkg/plugin/capability/authcap/token"
 	capabilityfilecap "lina-core/pkg/plugin/capability/filecap"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/capability/storagecap"
 	capabilitytenantcap "lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestAPIDocAdapterConvertsRouteTextDTOs verifies plugin apidoc calls are
@@ -264,6 +267,7 @@ type fakeAuthService struct {
 	impersonationTenantID        int
 	revokedImpersonationBearer   string
 	revokedImpersonationTenantID int
+	externalLoginInput           auth.ExternalLoginInput
 }
 
 // IssueTenantToken records one pre-login token exchange.
@@ -307,6 +311,119 @@ func (f *fakeAuthService) RevokeImpersonationToken(_ context.Context, tokenStrin
 	f.revokedImpersonationBearer = tokenString
 	f.revokedImpersonationTenantID = tenantID
 	return nil
+}
+
+// LoginByExternalIdentity records the stamped external-login input and returns a
+// fixed token pair so adapter tests can assert on the host-stamped PluginID.
+func (f *fakeAuthService) LoginByExternalIdentity(
+	_ context.Context,
+	in auth.ExternalLoginInput,
+) (*auth.ExternalLoginOutput, error) {
+	f.externalLoginInput = in
+	return &auth.ExternalLoginOutput{AccessToken: "external-token", RefreshToken: "external-refresh-token"}, nil
+}
+
+// fakeExternalLoginPluginState stubs the plugin enablement lookup consumed by
+// the external-login adapter.
+type fakeExternalLoginPluginState struct {
+	enabled bool
+}
+
+// IsEnabled reports the configured enablement flag.
+func (s fakeExternalLoginPluginState) IsEnabled(context.Context, string) bool { return s.enabled }
+
+// IsProviderEnabled reports the configured enablement flag.
+func (s fakeExternalLoginPluginState) IsProviderEnabled(context.Context, string) bool {
+	return s.enabled
+}
+
+// IsEnabledAuthoritative reports the configured enablement flag.
+func (s fakeExternalLoginPluginState) IsEnabledAuthoritative(context.Context, string) bool {
+	return s.enabled
+}
+
+// registerExternalLoginTestPlugin registers a source plugin that declares one
+// external-identity provider and returns a cleanup function.
+func registerExternalLoginTestPlugin(t *testing.T, pluginID string, providerID string) {
+	t.Helper()
+	declarations := pluginhost.NewDeclarations(pluginID)
+	if err := declarations.Providers().ProvideExternalIdentity(providerID); err != nil {
+		t.Fatalf("declare external identity provider: %v", err)
+	}
+	cleanup, err := pluginhost.RegisterSourcePluginForTest(declarations)
+	if err != nil {
+		t.Fatalf("register source plugin: %v", err)
+	}
+	t.Cleanup(cleanup)
+}
+
+// TestExternalLoginAdapterFailsClosedWhenUnbound verifies the base adapter never
+// issues a session because it is not bound to a plugin.
+func TestExternalLoginAdapterFailsClosedWhenUnbound(t *testing.T) {
+	ctx := context.Background()
+	adapter := newExternalLoginAdapter(&fakeAuthService{}, fakeExternalLoginPluginState{enabled: true})
+
+	_, err := adapter.LoginByVerifiedIdentity(ctx, externallogin.LoginInput{Provider: "google", Subject: "sub"})
+	if !bizerr.Is(err, CodePluginHostExternalLoginPluginRequired) {
+		t.Fatalf("expected plugin-required, got %v", err)
+	}
+}
+
+// TestExternalLoginAdapterRejectsUnownedProvider verifies a plugin cannot log in
+// through a provider it did not declare.
+func TestExternalLoginAdapterRejectsUnownedProvider(t *testing.T) {
+	ctx := context.Background()
+	registerExternalLoginTestPlugin(t, "linapro-oidc-google", "google")
+	adapter := newExternalLoginAdapter(&fakeAuthService{}, fakeExternalLoginPluginState{enabled: true})
+	scoped := adapter.forPlugin("linapro-oidc-google")
+
+	_, err := scoped.LoginByVerifiedIdentity(ctx, externallogin.LoginInput{Provider: "discord", Subject: "sub"})
+	if !bizerr.Is(err, CodePluginHostExternalLoginProviderForbidden) {
+		t.Fatalf("expected provider-forbidden, got %v", err)
+	}
+}
+
+// TestExternalLoginAdapterRejectsDisabledPlugin verifies a disabled plugin
+// cannot issue external-login sessions even for an owned provider.
+func TestExternalLoginAdapterRejectsDisabledPlugin(t *testing.T) {
+	ctx := context.Background()
+	registerExternalLoginTestPlugin(t, "linapro-oidc-google", "google")
+	adapter := newExternalLoginAdapter(&fakeAuthService{}, fakeExternalLoginPluginState{enabled: false})
+	scoped := adapter.forPlugin("linapro-oidc-google")
+
+	_, err := scoped.LoginByVerifiedIdentity(ctx, externallogin.LoginInput{Provider: "google", Subject: "sub"})
+	if !bizerr.Is(err, CodePluginHostExternalLoginPluginDisabled) {
+		t.Fatalf("expected plugin-disabled, got %v", err)
+	}
+}
+
+// TestExternalLoginAdapterStampsPluginIDAndDelegates verifies the happy path
+// stamps the host-controlled plugin ID and delegates to the auth service.
+func TestExternalLoginAdapterStampsPluginIDAndDelegates(t *testing.T) {
+	ctx := context.Background()
+	registerExternalLoginTestPlugin(t, "linapro-oidc-google", "google")
+	issuer := &fakeAuthService{}
+	adapter := newExternalLoginAdapter(issuer, fakeExternalLoginPluginState{enabled: true})
+	scoped := adapter.forPlugin("linapro-oidc-google")
+
+	out, err := scoped.LoginByVerifiedIdentity(ctx, externallogin.LoginInput{
+		Provider:    "google",
+		Subject:     "subject-123",
+		Email:       "user@example.com",
+		DisplayName: "User",
+	})
+	if err != nil {
+		t.Fatalf("external login: %v", err)
+	}
+	if out.AccessToken != "external-token" || out.RefreshToken != "external-refresh-token" {
+		t.Fatalf("unexpected external login output: %#v", out)
+	}
+	if issuer.externalLoginInput.PluginID != "linapro-oidc-google" {
+		t.Fatalf("expected host-stamped plugin id, got %q", issuer.externalLoginInput.PluginID)
+	}
+	if issuer.externalLoginInput.Provider != "google" || issuer.externalLoginInput.Subject != "subject-123" {
+		t.Fatalf("unexpected forwarded identity: %#v", issuer.externalLoginInput)
+	}
 }
 
 // fakeRuntimeI18nService records runtime i18n calls used by capabilityhost tests.

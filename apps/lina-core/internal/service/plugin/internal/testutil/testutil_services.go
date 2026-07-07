@@ -472,9 +472,9 @@ func (s *testCapabilities) APIDoc() apidoccap.Service { return testNoopAPIDoc{} 
 // Auth returns a no-op auth namespace for plugin integration tests.
 func (s *testCapabilities) Auth() authcap.Service {
 	if s == nil {
-		return authcap.New(testNoopAuth{}, nil)
+		return authcap.New(testNoopAuth{}, nil, nil)
 	}
-	return authcap.New(testNoopAuth{}, s.authz)
+	return authcap.New(testNoopAuth{}, s.authz, nil)
 }
 
 // AI returns the default AI capability fallback namespace.

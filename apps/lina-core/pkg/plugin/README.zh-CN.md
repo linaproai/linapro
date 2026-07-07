@@ -23,7 +23,7 @@
 | 领域能力 | 职责边界 | 运行期与校验路径 |
 | --- | --- | --- |
 | `APIDoc` | 解析本地化 API 文档中的路由文本和标题 operation key。 | 通过能力目录或`apidoc`host call 提供；校验关注路由和 operation key 载荷。 |
-| `Auth` | 通过`Token()`和`Authz()`子能力处理租户 token 选择或切换、代用户 token、权限投影、单权限判断和批量权限判断。 | 运行期检查当前用户、租户、权限 key 和方法级授权。 |
+| `Auth` | 通过`Token()`、`Authz()`和`ExternalLogin()`子能力处理租户 token 选择或切换、代用户 token、权限投影、单权限判断、批量权限判断和外部身份登录。`ExternalLogin()`仅面向源码插件：宿主自行盖章调用插件身份，强制`ProvideExternalIdentity`的 provider 归属与插件启用检查，账号绑定保持宿主独占；动态插件收到 fail-closed 桩实现。 | 运行期检查当前用户、租户、权限 key 和方法级授权。外部登录通过宿主独占的`sys_user_external_identity`绑定解析`(provider, subject)`。 |
 | `AI` | 聚合文本、图片、向量、音频、视觉、文档、安全审核和视频等类型化 AI 子能力，并提供方法级状态投影。 | 调用按 method 授权，不接受资源声明，插件身份仅用于 provider 路由和治理。状态读取只暴露可用性、原因和公开 provider 身份。 |
 | `Users` | 提供用户基础读取、有界用户列表、可见性确认、受治理用户写入、状态与凭证动作，并通过`Users().Assignment()`聚合用户角色关联关系。 | 宿主实现必须让用户存在性和可见性检查保持在调用方边界内。用户角色关联方法默认仅属于源码/Go 契约，除非单独注册为动态`hostServices`；当前动态`users`服务只发布投影、批量、解析、列表和可见性方法。 |
 | `BizCtx` | 投影当前业务请求上下文。 | 作为只读运行期上下文桥接当前用户、租户、语言和请求元数据。 |

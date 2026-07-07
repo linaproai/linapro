@@ -4,6 +4,8 @@
 package pluginhost
 
 import (
+	"strings"
+
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/pkg/plugin/capability/aicap/aitext"
@@ -245,6 +247,27 @@ func (p *sourcePlugin) registerAITextProvider(factory aitext.ProviderFactory) er
 		return gerror.New("pluginhost: text AI provider factory already declared")
 	}
 	p.aiTextProvider = factory
+	return nil
+}
+
+// registerExternalIdentityProvider records one external-identity provider ID
+// owned by this source plugin. It trims the ID, rejects empty values, and
+// rejects duplicate declarations of the same ID while allowing a plugin to own
+// multiple distinct providers.
+func (p *sourcePlugin) registerExternalIdentityProvider(providerID string) error {
+	if p == nil {
+		return gerror.New("pluginhost: source plugin is nil")
+	}
+	normalized := strings.TrimSpace(providerID)
+	if normalized == "" {
+		return gerror.New("pluginhost: external identity provider id is empty")
+	}
+	for _, existing := range p.externalIdentities {
+		if existing == normalized {
+			return gerror.Newf("pluginhost: external identity provider %q already declared", normalized)
+		}
+	}
+	p.externalIdentities = append(p.externalIdentities, normalized)
 	return nil
 }
 

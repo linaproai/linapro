@@ -15,10 +15,12 @@ import (
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/apidoccap"
+	"lina-core/pkg/plugin/capability/authcap/externallogin"
 	"lina-core/pkg/plugin/capability/authcap/token"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/i18ncap"
 	"lina-core/pkg/plugin/capability/routecap"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // apiDocAdapter bridges the internal apidoc service into the published plugin contract.
@@ -170,6 +172,114 @@ func tenantTokenOutput(out *auth.TenantTokenOutput) *token.TenantTokenOutput {
 		return nil
 	}
 	return &token.TenantTokenOutput{AccessToken: out.AccessToken, RefreshToken: out.RefreshToken}
+}
+
+// externalLoginAdapter bridges the host auth service into the plugin-facing
+// external-login contract. It is plugin-scoped: the base adapter is unbound and
+// fail-closed, and forPlugin returns a copy bound to one source-plugin identity.
+// Provider ownership and plugin enablement are enforced here so the published
+// contract never trusts a plugin-supplied plugin identity.
+type externalLoginAdapter struct {
+	authSvc     auth.Service
+	pluginState pluginStateLookup
+	pluginID    string
+}
+
+// newExternalLoginAdapter creates the unbound base external-login adapter. The
+// base adapter fail-closes on every call because it is not bound to a plugin;
+// callers reach a usable service only through the plugin-scoped directory.
+func newExternalLoginAdapter(authSvc auth.Service, pluginState pluginStateLookup) *externalLoginAdapter {
+	return &externalLoginAdapter{authSvc: authSvc, pluginState: pluginState}
+}
+
+// forPlugin returns an external-login service bound to one source plugin.
+func (s *externalLoginAdapter) forPlugin(pluginID string) externallogin.Service {
+	if s == nil {
+		return nil
+	}
+	return &externalLoginAdapter{
+		authSvc:     s.authSvc,
+		pluginState: s.pluginState,
+		pluginID:    strings.TrimSpace(pluginID),
+	}
+}
+
+// LoginByVerifiedIdentity enforces plugin binding, provider ownership, and
+// plugin enablement before delegating to the host auth service. The host-owned
+// pluginID is stamped onto the host input so the plugin cannot spoof it.
+func (s *externalLoginAdapter) LoginByVerifiedIdentity(
+	ctx context.Context,
+	in externallogin.LoginInput,
+) (*externallogin.LoginOutput, error) {
+	if s == nil || s.authSvc == nil {
+		return nil, bizerr.NewCode(CodePluginHostAuthTokenStateUnavailable)
+	}
+	pluginID := strings.TrimSpace(s.pluginID)
+	if pluginID == "" {
+		return nil, bizerr.NewCode(CodePluginHostExternalLoginPluginRequired)
+	}
+	provider := strings.TrimSpace(in.Provider)
+	if !s.ownsProvider(pluginID, provider) {
+		return nil, bizerr.NewCode(CodePluginHostExternalLoginProviderForbidden)
+	}
+	if s.pluginState == nil || !s.pluginState.IsEnabled(ctx, pluginID) {
+		return nil, bizerr.NewCode(CodePluginHostExternalLoginPluginDisabled)
+	}
+	out, err := s.authSvc.LoginByExternalIdentity(ctx, auth.ExternalLoginInput{
+		PluginID:    pluginID,
+		Provider:    provider,
+		Subject:     in.Subject,
+		Email:       in.Email,
+		DisplayName: in.DisplayName,
+		ClientType:  token.ClientTypeWeb,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		return nil, bizerr.NewCode(CodePluginHostAuthTokenStateUnavailable)
+	}
+	return externalLoginOutput(out), nil
+}
+
+// ownsProvider reports whether pluginID declared providerID through
+// ProvideExternalIdentity at declaration time.
+func (s *externalLoginAdapter) ownsProvider(pluginID string, providerID string) bool {
+	if providerID == "" {
+		return false
+	}
+	definition, ok := pluginhost.GetSourcePlugin(pluginID)
+	if !ok || definition == nil {
+		return false
+	}
+	for _, owned := range definition.GetExternalIdentityProviderIDs() {
+		if owned == providerID {
+			return true
+		}
+	}
+	return false
+}
+
+// externalLoginOutput maps host external-login output into the published contract.
+func externalLoginOutput(out *auth.ExternalLoginOutput) *externallogin.LoginOutput {
+	if out == nil {
+		return nil
+	}
+	candidates := make([]externallogin.TenantCandidate, 0, len(out.Tenants))
+	for _, tenant := range out.Tenants {
+		candidates = append(candidates, externallogin.TenantCandidate{
+			ID:     tenant.Id,
+			Code:   tenant.Code,
+			Name:   tenant.Name,
+			Status: tenant.Status,
+		})
+	}
+	return &externallogin.LoginOutput{
+		AccessToken:      out.AccessToken,
+		RefreshToken:     out.RefreshToken,
+		PreToken:         out.PreToken,
+		TenantCandidates: candidates,
+	}
 }
 
 // bizCtxAdapter bridges the internal bizctx service into the published plugin contract.

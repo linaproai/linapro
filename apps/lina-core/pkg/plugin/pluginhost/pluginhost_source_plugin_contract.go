@@ -142,6 +142,14 @@ func (r *sourcePluginProviders) ProvideAIText(factory aitext.ProviderFactory) er
 	return r.plugin.registerAITextProvider(factory)
 }
 
+// ProvideExternalIdentity declares one source-plugin external-identity provider ID.
+func (r *sourcePluginProviders) ProvideExternalIdentity(providerID string) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin provider facade is nil")
+	}
+	return r.plugin.registerExternalIdentityProvider(providerID)
+}
+
 // UseEmbeddedFiles binds one plugin-owned embedded filesystem.
 func (r *sourcePluginAssets) UseEmbeddedFiles(fileSystem fs.FS) {
 	if r == nil || r.plugin == nil {

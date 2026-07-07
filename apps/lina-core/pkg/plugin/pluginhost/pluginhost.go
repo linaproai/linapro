@@ -233,6 +233,13 @@ type ProviderDeclarations interface {
 	ProvideOrg(factory orgspi.ProviderFactory) error
 	// ProvideAIText declares the text AI capability provider factory implemented by this source plugin.
 	ProvideAIText(factory aitext.ProviderFactory) error
+	// ProvideExternalIdentity declares one external-identity provider ID owned
+	// by this source plugin. The host uses the declared ownership set to reject
+	// external-login requests that claim a provider the calling plugin did not
+	// declare, preventing one plugin from minting sessions through another
+	// plugin's provider. A plugin may declare more than one provider ID;
+	// duplicate declarations of the same ID are rejected.
+	ProvideExternalIdentity(providerID string) error
 }
 
 // SourcePluginDefinition exposes the host-side read model restored from one
@@ -257,6 +264,10 @@ type SourcePluginDefinition interface {
 	GetOrgProviderFactory() orgspi.ProviderFactory
 	// GetAITextProviderFactory returns the declared text AI provider factory.
 	GetAITextProviderFactory() aitext.ProviderFactory
+	// GetExternalIdentityProviderIDs returns the external-identity provider IDs
+	// declared by this source plugin. The host consults this ownership set to
+	// authorize external-login requests.
+	GetExternalIdentityProviderIDs() []string
 	// GetBeforeInstallHandler returns the registered pre-install veto callback.
 	GetBeforeInstallHandler() SourcePluginBeforeLifecycleHandler
 	// GetAfterInstallHandler returns the registered post-install callback.

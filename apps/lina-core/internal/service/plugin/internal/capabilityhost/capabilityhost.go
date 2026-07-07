@@ -54,8 +54,9 @@ import (
 
 // directory implements the source-plugin host service directory.
 type directory struct {
-	apiDoc          apidoccap.Service // apiDoc exposes localized API-documentation route text.
-	auth            authcap.Service   // auth exposes authentication and authorization sub capabilities.
+	apiDoc          apidoccap.Service     // apiDoc exposes localized API-documentation route text.
+	auth            authcap.Service       // auth exposes authentication and authorization sub capabilities.
+	externalLogin   *externalLoginAdapter // externalLogin is the unbound base used to derive plugin-scoped external login.
 	ai              capabilityai.Service
 	users           capabilityusercap.Service
 	bizCtx          bizctxcap.Service // bizCtx exposes read-only request business context.
@@ -162,6 +163,7 @@ func New(
 		i18nAdapter        = newI18nAdapter(i18nSvc)
 		userDomain         = usercapadapter.NewCapabilityAdapter(userSvc, tenantSvc, scopeSvc, bizCtxAdapter)
 		tokenDomain        = newAuthAdapter(authSvc)
+		externalLoginBase  = newExternalLoginAdapter(authSvc, pluginStateSvc)
 		authzDomain        = role.NewCapabilityAdapter(roleAccessSvc, bizCtxAdapter, cacheCoordSvc)
 		dictDomain         = dict.NewCapabilityAdapter(tenantFilterSvc, i18nAdapter, cacheCoordSvc)
 		sysConfigDomain    = hostconfigadapter.NewSysConfigCapabilityAdapter(tenantFilterSvc, cacheCoordSvc)
@@ -178,7 +180,8 @@ func New(
 	)
 	return &directory{
 		apiDoc:          newAPIDocAdapter(apiDocSvc),
-		auth:            authcap.New(tokenDomain, authzDomain),
+		auth:            authcap.New(tokenDomain, authzDomain, externalLoginBase),
+		externalLogin:   externalLoginBase,
 		ai:              aiDomain,
 		users:           userDomain,
 		bizCtx:          bizCtxAdapter,

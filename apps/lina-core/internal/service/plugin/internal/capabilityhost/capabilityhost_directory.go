@@ -196,12 +196,17 @@ func (s *scopedDirectory) APIDoc() apidoccap.Service {
 	return s.base.APIDoc()
 }
 
-// Auth returns the delegated authentication and authorization namespace.
+// Auth returns the plugin-scoped authentication and authorization namespace.
+// Token and Authz sub capabilities are shared; external login is bound to this
+// plugin so provider ownership and enablement are enforced per plugin.
 func (s *scopedDirectory) Auth() authcap.Service {
 	if s == nil || s.base == nil {
 		return nil
 	}
-	return s.base.Auth()
+	if s.base.externalLogin == nil {
+		return s.base.Auth()
+	}
+	return authcap.ForPlugin(s.base.Auth(), s.base.externalLogin.forPlugin(s.pluginID))
 }
 
 // AI returns the plugin-scoped AI capability namespace.

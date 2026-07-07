@@ -6,8 +6,11 @@ package domainhostcall
 import (
 	"context"
 
+	"github.com/gogf/gf/v2/errors/gerror"
+
 	"lina-core/pkg/plugin/capability/authcap"
 	"lina-core/pkg/plugin/capability/authcap/authz"
+	"lina-core/pkg/plugin/capability/authcap/externallogin"
 	"lina-core/pkg/plugin/capability/authcap/token"
 	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
@@ -35,6 +38,28 @@ func (s authService) Token() token.Service {
 // Authz returns authorization-domain ordinary operations.
 func (s authService) Authz() authz.Service {
 	return authzService{baseService: s.baseService}
+}
+
+// ExternalLogin returns a fail-closed external-login service. External-identity
+// login is intentionally not published to dynamic plugins: there is no host
+// service method for it because the host cannot verify that a WASM guest is the
+// same artifact that serviced an OAuth redirect. Dynamic guests must not
+// exchange external identities for host sessions.
+func (s authService) ExternalLogin() externallogin.Service {
+	return externalLoginService{}
+}
+
+// externalLoginService is the dynamic-plugin external-login stub. Every call
+// fails closed because dynamic plugins cannot perform external-identity login.
+type externalLoginService struct{}
+
+// LoginByVerifiedIdentity always fails because dynamic plugins cannot exchange
+// external identities for host sessions.
+func (externalLoginService) LoginByVerifiedIdentity(
+	_ context.Context,
+	_ externallogin.LoginInput,
+) (*externallogin.LoginOutput, error) {
+	return nil, gerror.New("pluginbridge: external identity login is not available to dynamic plugins")
 }
 
 // SelectTenant consumes a pre-login token and issues a tenant-bound token.
