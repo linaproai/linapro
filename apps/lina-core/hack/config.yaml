@@ -41,6 +41,7 @@ gfcli:
           sys_role,
           sys_role_menu,
           sys_user,
+          sys_user_external_identity,
           sys_user_role
         descriptionTag: true
         noModelComment: true
