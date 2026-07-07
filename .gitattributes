@@ -4,3 +4,5 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 hack/scripts/install/bootstrap.sh text eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
