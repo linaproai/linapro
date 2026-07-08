@@ -18,12 +18,18 @@ func ValidateTooling(root string, commandNames []string) error {
 	if err != nil {
 		return fmt.Errorf("read make.cmd wrapper: %w", err)
 	}
+	if !isASCII(content) {
+		return errors.New("make.cmd must remain ASCII-only for Windows cmd.exe code page compatibility")
+	}
 	text := string(content)
 	if !strings.Contains(text, "go run . %*") {
 		return errors.New("make.cmd must delegate to linactl through go run . %*")
 	}
 	if strings.Contains(text, "GOWORK=off") {
 		return errors.New("make.cmd must not force GOWORK=off")
+	}
+	if err = validateWindowsWrapperAttributes(root); err != nil {
+		return err
 	}
 	linactlDir := filepath.Join(root, "hack", "tools", "linactl")
 	if info, statErr := os.Stat(linactlDir); statErr == nil && info.IsDir() {
@@ -46,6 +52,52 @@ func ValidateTooling(root string, commandNames []string) error {
 		return fmt.Errorf("hack/scripts contains legacy script %q; move maintained tooling into hack/tools/linactl or another Go tool", entries[0].Name())
 	}
 	return nil
+}
+
+func validateWindowsWrapperAttributes(root string) error {
+	content, err := os.ReadFile(filepath.Join(root, ".gitattributes"))
+	if err != nil {
+		return fmt.Errorf("read .gitattributes: %w", err)
+	}
+	text := string(content)
+	for _, pattern := range []string{"*.cmd", "*.bat"} {
+		if !hasCRLFTextAttribute(text, pattern) {
+			return fmt.Errorf(".gitattributes must set %s text eol=crlf", pattern)
+		}
+	}
+	return nil
+}
+
+func hasCRLFTextAttribute(content string, pattern string) bool {
+	for _, line := range strings.Split(content, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 || strings.HasPrefix(fields[0], "#") || fields[0] != pattern {
+			continue
+		}
+		hasText := false
+		hasCRLF := false
+		for _, field := range fields[1:] {
+			switch field {
+			case "text":
+				hasText = true
+			case "eol=crlf":
+				hasCRLF = true
+			}
+		}
+		if hasText && hasCRLF {
+			return true
+		}
+	}
+	return false
+}
+
+func isASCII(content []byte) bool {
+	for _, b := range content {
+		if b > 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 // ValidateLinactlCommandFiles checks that concrete command implementations use

@@ -94,6 +94,7 @@ const gridOptions: VxeGridProps = {
 };
 
 const checkedNum = ref(0);
+const selectedKeys = shallowRef<(number | string)[]>([]);
 
 function getTableRecords() {
   return tableApi.grid.getData() as MenuPermissionOption[];
@@ -104,12 +105,37 @@ function getCheckedRecords() {
     []) as MenuPermissionOption[];
 }
 
-function updateCheckedState(emitChange = false) {
-  const checkedKeys = getCheckedKeys();
+function normalizeCheckedKeys(keys: (number | string)[]) {
+  return filterPersistedMenuIds(uniq([...keys]));
+}
+
+function updateSelectedKeys(keys: (number | string)[], emitChange = false) {
+  const checkedKeys = normalizeCheckedKeys(keys);
+  selectedKeys.value = checkedKeys;
   checkedNum.value = checkedKeys.length;
   if (emitChange) {
     emit('update:checkedKeys', checkedKeys);
   }
+}
+
+function resetTableChecked(records: MenuPermissionOption[]) {
+  records.forEach((item) => {
+    rowAndChildrenChecked(item, false);
+  });
+  tableApi.grid.clearCheckboxRow();
+}
+
+function applyCheckedKeysToTable(
+  keys: (number | string)[],
+  associationMode = association.value,
+) {
+  const records = getTableRecords();
+  resetTableChecked(records);
+  setTableChecked(keys, records, tableApi, associationMode);
+}
+
+function syncSelectedKeysFromTable(emitChange = false) {
+  updateSelectedKeys(getTableCheckedKeys(), emitChange);
 }
 
 const [BasicTable, tableApi] = useVbenVxeGrid({
@@ -123,40 +149,17 @@ const [BasicTable, tableApi] = useVbenVxeGrid({
       } else {
         setPermissionsChecked(record, checked);
       }
-      updateCheckedState(true);
+      syncSelectedKeysFromTable(true);
     },
     checkboxAll: (params: any) => {
       const records = params.$grid.getData();
       records.forEach((item: any) => {
         rowAndChildrenChecked(item, params.checked);
       });
-      updateCheckedState(true);
+      syncSelectedKeysFromTable(true);
     },
   },
 });
-
-function setCheckedByKeys(
-  menus: MenuPermissionOption[],
-  keys: (number | string)[],
-  triggerOnchange: boolean,
-) {
-  menus.forEach((item) => {
-    if (keys.includes(item.id)) {
-      tableApi.grid.setCheckboxRow(item, true);
-    }
-    if (item.permissions && item.permissions.length > 0) {
-      item.permissions.forEach((permission) => {
-        if (keys.includes(permission.id)) {
-          permission.checked = true;
-          triggerOnchange && handlePermissionChange(item, false);
-        }
-      });
-    }
-    if (item.children && item.children.length > 0) {
-      setCheckedByKeys(item.children as any, keys, triggerOnchange);
-    }
-  });
-}
 
 const { FullScreenGuide, closeGuide, openGuide } = useFullScreenGuide();
 onMounted(() => {
@@ -166,6 +169,7 @@ onMounted(() => {
       const clonedMenus = cloneDeep(menus);
       menusWithPermissions(clonedMenus);
       await tableApi.grid.loadData(clonedMenus);
+      applyCheckedKeysToTable(selectedKeys.value);
       if (props.defaultExpandAll) {
         await nextTick();
         setExpandOrCollapse(true);
@@ -184,26 +188,16 @@ onMounted(() => {
   watch(
     () => props.checkedKeys,
     (value) => {
-      const allCheckedKeys = uniq([...value]);
-      const records = getTableRecords();
-      setCheckedByKeys(records, allCheckedKeys, association.value);
-      updateCheckedState();
+      updateSelectedKeys(value);
+      applyCheckedKeysToTable(selectedKeys.value);
       setTimeout(openGuide, 1000);
     },
   );
 });
 
-const lastCheckedKeys = shallowRef<(number | string)[]>([]);
 async function handleAssociationChange(e: RadioChangeEvent) {
-  lastCheckedKeys.value = getCheckedKeys();
-  const records = getTableRecords();
-  records.forEach((item: any) => {
-    rowAndChildrenChecked(item, false);
-  });
-  await tableApi.grid.clearCheckboxRow();
+  applyCheckedKeysToTable(selectedKeys.value, e.target.value);
   await tableApi.grid.scrollTo(0, 0);
-  setTableChecked(lastCheckedKeys.value, records, tableApi, !e.target.value);
-  updateCheckedState(true);
 }
 
 function setExpandOrCollapse(expand: boolean) {
@@ -222,7 +216,7 @@ function handlePermissionChange(row: any, emitChange = true) {
       tableApi.grid.setCheckboxRow(row, false);
     }
   }
-  updateCheckedState(emitChange);
+  syncSelectedKeysFromTable(emitChange);
 }
 
 function getKeys(records: MenuPermissionOption[], addCurrent: boolean) {
@@ -244,7 +238,7 @@ function getKeys(records: MenuPermissionOption[], addCurrent: boolean) {
   return uniq(allKeys);
 }
 
-function getCheckedKeys() {
+function getTableCheckedKeys() {
   if (association.value) {
     const records = getCheckedRecords();
     const nodeKeys = getKeys(records, true);
@@ -265,7 +259,7 @@ function getCheckedKeys() {
 
 defineExpose({
   closeGuide,
-  getCheckedKeys,
+  getCheckedKeys: () => selectedKeys.value,
 });
 </script>
 

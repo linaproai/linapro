@@ -28,6 +28,39 @@ export function filterPersistedMenuIds(ids: (number | string)[]) {
 }
 
 /**
+ * 已保存授权缺少祖先节点时，说明它来自独立选择模式。
+ */
+export function shouldUseAssociatedMenuSelection(
+  menus: MenuTreeNode[],
+  checkedKeys: (number | string)[],
+) {
+  const checkedSet = new Set(checkedKeys.map((key) => Number(key)));
+  let missingAncestor = false;
+
+  const visit = (nodes: MenuTreeNode[], ancestors: number[]) => {
+    for (const node of nodes) {
+      const id = Number(node.id);
+      if (
+        checkedSet.has(id) &&
+        ancestors.some((ancestor) => !checkedSet.has(ancestor))
+      ) {
+        missingAncestor = true;
+        return;
+      }
+      if (node.children?.length) {
+        visit(node.children, [...ancestors, id]);
+      }
+      if (missingAncestor) {
+        return;
+      }
+    }
+  };
+
+  visit(menus, []);
+  return !missingAncestor;
+}
+
+/**
  * 权限列设置是否全选
  */
 export function setPermissionsChecked(
@@ -99,8 +132,15 @@ export function setTableChecked(
   tableApi: ReturnType<typeof useVbenVxeGrid>['1'],
   association: boolean,
 ) {
+  const keySet = new Set(checkedKeys.map((key) => Number(key)));
   const menuList: MenuPermissionOption[] = treeToList(menus);
-  let checkedRows = menuList.filter((item) => checkedKeys.includes(item.id));
+  menuList.forEach((item) => {
+    item.permissions?.forEach((permission) => {
+      permission.checked = keySet.has(Number(permission.id));
+    });
+  });
+
+  let checkedRows = menuList.filter((item) => keySet.has(Number(item.id)));
 
   if (!association) {
     checkedRows = checkedRows.filter(
@@ -112,7 +152,7 @@ export function setTableChecked(
     tableApi.grid.setCheckboxRow(item, true);
     if (item?.permissions?.length > 0) {
       item.permissions.forEach((permission) => {
-        if (checkedKeys.includes(permission.id)) {
+        if (keySet.has(Number(permission.id))) {
           permission.checked = true;
         }
       });

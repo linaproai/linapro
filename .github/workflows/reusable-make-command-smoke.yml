@@ -76,7 +76,7 @@ jobs:
           backend_port=18080
           frontend_port=15666
 
-          mkdir -p "$smoke_root/hack/tools" "$smoke_root/apps/lina-core" "$smoke_root/apps/lina-core/manifest/config" "$smoke_root/apps/lina-core/manifest/sql" "$smoke_root/apps/lina-core/manifest/i18n/en-US" "$smoke_root/apps/lina-core/internal/packed/manifest" "$smoke_root/apps/lina-vben/node_modules/.bin" "$smoke_root/apps/lina-vben/apps/web-antd"
+          mkdir -p "$smoke_root/hack/tools" "$smoke_root/apps/lina-core" "$smoke_root/apps/lina-core/manifest/config" "$smoke_root/apps/lina-core/manifest/sql" "$smoke_root/apps/lina-core/manifest/i18n/en-US" "$smoke_root/apps/lina-core/internal/packed/manifest" "$smoke_root/apps/lina-vben/node_modules/vite/bin" "$smoke_root/apps/lina-vben/apps/web-antd"
           cp Makefile "$smoke_root/Makefile"
           cp -R hack/makefiles "$smoke_root/hack/makefiles"
           cp -R hack/tools/linactl "$smoke_root/hack/tools/linactl"
@@ -139,11 +139,18 @@ jobs:
           YAML
           echo "select 1;" > "$smoke_root/apps/lina-core/manifest/sql/001.sql"
           echo "{}" > "$smoke_root/apps/lina-core/manifest/i18n/en-US/framework.json"
-          cat > "$smoke_root/apps/lina-vben/node_modules/.bin/vite" <<'SH'
-          #!/usr/bin/env sh
-          exec python3 -m http.server 15666 --bind 127.0.0.1
-          SH
-          chmod +x "$smoke_root/apps/lina-vben/node_modules/.bin/vite"
+          cat > "$smoke_root/apps/lina-vben/node_modules/vite/bin/vite.js" <<'JS'
+          const http = require('node:http');
+
+          const portIndex = process.argv.indexOf('--port');
+          const hostIndex = process.argv.indexOf('--host');
+          const port = portIndex >= 0 ? Number(process.argv[portIndex + 1]) : 15666;
+          const host = hostIndex >= 0 ? process.argv[hostIndex + 1] : '127.0.0.1';
+
+          http.createServer((_request, response) => {
+            response.end('frontend ok\n');
+          }).listen(port, host);
+          JS
 
           make -C "$smoke_root" dev plugins=0 BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port"
           make -C "$smoke_root" status BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port" | tee "$RUNNER_TEMP/dev-status.txt"

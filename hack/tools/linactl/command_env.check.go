@@ -337,7 +337,7 @@ func envFileAvailable(path string) bool {
 
 // envViteCLIPath returns Vite's project-local JavaScript CLI entrypoint.
 func envViteCLIPath(root string) string {
-	return filepath.Join(root, "apps", "lina-vben", "node_modules", "vite", "bin", "vite.js")
+	return toolutil.ViteCommand(root)
 }
 
 // envPlaywrightCLIPath returns the E2E workspace Playwright CLI entrypoint.

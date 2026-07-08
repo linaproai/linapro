@@ -1,4 +1,5 @@
 export { default as MenuSelectTable } from './src/menu-select-table.vue';
+export { shouldUseAssociatedMenuSelection } from './src/helper';
 export {
   formatMenuPermissionLabel,
   formatMenuPermissionShortLabel,

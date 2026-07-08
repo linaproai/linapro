@@ -1739,7 +1739,13 @@ func TestRunDevStartsServicesAsAsyncProcessesAndPrintsFinalStatus(t *testing.T) 
 		if name == "go" && len(args) >= 1 && args[0] == "build" {
 			return exec.Command("true")
 		}
-		if strings.Contains(name, "vite") {
+		// Regression for https://github.com/linaproai/linapro/issues/85:
+		// runDev must start Vite through node instead of Windows batch shims.
+		isFrontend := name == "node" && len(args) > 0 && args[0] == toolutil.ViteCommand(root)
+		if isFrontend {
+			if strings.Contains(strings.Join(append([]string{name}, args...), " "), ".cmd") {
+				t.Fatalf("frontend process must not use a Windows batch shim: %s %#v", name, args)
+			}
 			serviceEnv, _ := runCtx.Value(devservice.RunnerContextServiceEnvKey).([]string)
 			if got := toolutil.EnvValue(serviceEnv, "LINAPRO_FRONTEND_DEV_SERVER_URL"); got != "" {
 				t.Fatalf("frontend process must not receive backend proxy env, got %q", got)
@@ -3198,6 +3204,7 @@ use (
 func TestValidateRepositoryToolingAllowsEmptyLegacyScriptDirectory(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "make.cmd"), "@echo off\r\npushd \"%~dp0hack\\tools\\linactl\" || exit /b 1\r\ngo run . %*\r\n")
+	writeWindowsWrapperAttributes(t, root)
 	if err := os.MkdirAll(filepath.Join(root, "hack", "scripts"), 0o755); err != nil {
 		t.Fatalf("mkdir hack/scripts: %v", err)
 	}
@@ -3210,6 +3217,7 @@ func TestValidateRepositoryToolingAllowsEmptyLegacyScriptDirectory(t *testing.T)
 func TestValidateRepositoryToolingRejectsLegacyScripts(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "make.cmd"), "@echo off\r\ngo run . %*\r\n")
+	writeWindowsWrapperAttributes(t, root)
 	writeFile(t, filepath.Join(root, "hack", "scripts", "legacy.sh"), "#!/usr/bin/env bash\n")
 
 	err := repository.ValidateTooling(root, commandNames())
@@ -3221,10 +3229,33 @@ func TestValidateRepositoryToolingRejectsLegacyScripts(t *testing.T) {
 func TestValidateRepositoryToolingRejectsStaleMakeCmdWorkspaceOverride(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "make.cmd"), "@echo off\r\nset GOWORK=off\r\ngo run . %*\r\n")
+	writeWindowsWrapperAttributes(t, root)
 
 	err := repository.ValidateTooling(root, commandNames())
 	if err == nil || !strings.Contains(err.Error(), "must not force GOWORK=off") {
 		t.Fatalf("expected stale GOWORK validation error, got %v", err)
+	}
+}
+
+func TestValidateRepositoryToolingRejectsNonASCIIMakeCmd(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "make.cmd"), "@echo off\r\nREM 用途：Windows wrapper\r\ngo run . %*\r\n")
+	writeWindowsWrapperAttributes(t, root)
+
+	err := repository.ValidateTooling(root, commandNames())
+	if err == nil || !strings.Contains(err.Error(), "ASCII-only") {
+		t.Fatalf("expected ASCII-only validation error, got %v", err)
+	}
+}
+
+func TestValidateRepositoryToolingRejectsMissingWindowsWrapperAttributes(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "make.cmd"), "@echo off\r\ngo run . %*\r\n")
+	writeFile(t, filepath.Join(root, ".gitattributes"), "*.cmd text eol=crlf\n")
+
+	err := repository.ValidateTooling(root, commandNames())
+	if err == nil || !strings.Contains(err.Error(), ".gitattributes must set *.bat text eol=crlf") {
+		t.Fatalf("expected missing .bat eol validation error, got %v", err)
 	}
 }
 
@@ -3236,6 +3267,11 @@ func TestValidateLinactlCommandFilesAcceptsRepositoryCommands(t *testing.T) {
 	if err = repository.ValidateLinactlCommandFiles(root, commandNames()); err != nil {
 		t.Fatalf("repository.ValidateLinactlCommandFiles returned error: %v", err)
 	}
+}
+
+func writeWindowsWrapperAttributes(t *testing.T, root string) {
+	t.Helper()
+	writeFile(t, filepath.Join(root, ".gitattributes"), "*.cmd text eol=crlf\n*.bat text eol=crlf\n")
 }
 
 // TestPluginCommandSmokeFixtureIncludesLinactlLocalReplaceDeps verifies the
@@ -4455,7 +4491,7 @@ func (rows *envCheckSQLRows) Next(dest []driver.Value) error {
 	return nil
 }
 
-// writeFrontendDependencySentinel creates the Vite binary expected by
+// writeFrontendDependencySentinel creates the Vite CLI expected by
 // ensureFrontendDeps so runDev unit tests do not require pnpm on PATH.
 func writeFrontendDependencySentinel(t *testing.T, root string) {
 	t.Helper()
