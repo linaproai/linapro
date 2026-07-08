@@ -23,7 +23,10 @@ import (
 //
 // 仅当 PID 文件指向存活进程、且对应端口在监听时才算运行中，避免把外部占用方
 // 或残留 PID 误判为本项目运行中。
-func runStatus(_ context.Context, a *app, input commandInput) error {
+func runStatus(ctx context.Context, a *app, input commandInput) error {
+	if dir := input.Get("dir"); dir != "" {
+		return runConfiguredCommandDir(ctx, a, dir, "status")
+	}
 	backendPort, err := input.Int("backend_port", defaultBackendPort)
 	if err != nil {
 		return err

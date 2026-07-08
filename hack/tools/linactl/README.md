@@ -22,6 +22,9 @@ go run . lint.go plugins=1
 go run . lint.go plugins=0 fix=true
 go run . build platforms=linux/amd64,linux/arm64
 go run . build dir=apps/lina-plugins/john-ai-agentbox
+go run . dev dir=tools/custom-builder
+go run . stop dir=tools/custom-builder
+go run . status dir=tools/custom-builder
 go run . image tag=v0.2.0 push=0
 go run . version to=v0.2.0
 go run . release.tag.check tag=v0.2.0
@@ -68,7 +71,7 @@ In PowerShell, run it with an explicit current-directory prefix:
 | --- | --- | --- |
 | `confirm` | `confirm=upgrade` | Confirms sensitive database maintenance commands. |
 | `rebuild` | `rebuild=true` | Rebuilds the configured database during `db.init`. |
-| `dir` | `dir=apps/lina-plugins/john-ai-agentbox` | Selects one build target directory for `build`. Omit it to build the host framework, default workspace, and every enabled plugin. |
+| `dir` | `dir=tools/custom-builder` | Selects one targeted command directory for `build`, `dev`, `stop`, or `status`. Omit it to run the command's default full workflow. |
 | `platforms` | `platforms=linux/amd64,linux/arm64` | Selects build target platforms. |
 | `plugins` | `plugins=0` | Overrides automatic plugin-full detection for build, dev, image, Go test, and Go lint commands. |
 | `fix` | `fix=true` | Allows `lint.go` to pass `--fix` to `golangci-lint`; omitted by default so checks do not rewrite files. |
@@ -84,17 +87,25 @@ In PowerShell, run it with an explicit current-directory prefix:
 
 When `plugins` is omitted, build and dev commands enable plugin-full mode if `apps/lina-plugins` contains plugin manifests. Plugin-full mode generates or refreshes ignored `temp/go.work.plugins` from the host-only root `go.work`, then resolves source-plugin Go modules through `GOWORK`.
 
-`linactl build` without `dir` builds the host framework backend, the default admin workspace frontend, host manifest assets, and all enabled official plugins. Use `dir=<path>` for a cross-platform targeted build from the repository root or through `make.cmd`, for example `dir=apps/lina-vben`, `dir=apps/lina-core`, or `dir=apps/lina-plugins/<plugin-id>`.
+`linactl build` without `dir` builds the host framework backend, the default admin workspace frontend, host manifest assets, and all enabled official plugins. Use `dir=<path>` for a cross-platform targeted build from the repository root or through `make.cmd`, for example `dir=apps/lina-vben`, `dir=apps/lina-core`, `dir=apps/lina-plugins/<plugin-id>`, or any directory that owns `hack/config.yaml`.
 
-Plugins keep custom build commands in the plugin root `hack/config.yaml` under `build.commands`. `linactl build` executes those commands from the plugin root; `$(PLUGIN_ROOT)` expands to the plugin directory and `$(REPO_ROOT)` expands to the repository root:
+Target directories can keep custom commands in their own `hack/config.yaml` under the matching command section. `linactl build dir=<path>` and `linactl dev dir=<path>` execute `build.commands`; `linactl stop dir=<path>` executes `stop.commands`; `linactl status dir=<path>` executes `status.commands`. Commands run from the selected directory. `$(TARGET_DIR)` and `$(BUILD_DIR)` both expand to the selected directory, `$(PLUGIN_ROOT)` remains an alias for plugin compatibility, and `$(REPO_ROOT)` expands to the repository root:
 
 ```yaml
 build:
   commands:
-    - pnpm --dir "$(PLUGIN_ROOT)/frontend" run build
+    - pnpm --dir "$(BUILD_DIR)/frontend" run build
+stop:
+  commands:
+    - node scripts/stop.mjs --root "$(TARGET_DIR)"
+status:
+  commands:
+    - node scripts/status.mjs --root "$(TARGET_DIR)"
 ```
 
-When `dir=apps/lina-plugins/<plugin-id>` is passed, `linactl build` runs only that plugin's configured commands.
+When `dir=apps/lina-plugins/<plugin-id>` is passed, official plugin mode is still used for that plugin. Source plugins receive the official plugin build environment, and dynamic plugins continue to produce their `WASM` artifact after configured commands finish. For non-plugin directories, `hack/config.yaml` is authoritative when present; directories without it fall back to a local `package.json` `build` script.
+
+When `dir` is passed to `linactl dev`, it runs the same targeted build path as `linactl build dir=<path>` and does not start or restart development services. When `dir` is passed to `linactl stop` or `linactl status`, the configured directory command replaces the default host service stop/status workflow.
 
 ## Go Static Lint
 

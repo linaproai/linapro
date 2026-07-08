@@ -10,7 +10,10 @@ import (
 )
 
 // runStop stops services that were started by linactl.
-func runStop(_ context.Context, a *app, input commandInput) error {
+func runStop(ctx context.Context, a *app, input commandInput) error {
+	if dir := input.Get("dir"); dir != "" {
+		return runConfiguredCommandDir(ctx, a, dir, "stop")
+	}
 	_, err := stopServices(a, input)
 	return err
 }

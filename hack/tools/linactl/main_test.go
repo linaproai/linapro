@@ -1079,6 +1079,53 @@ func TestRunBuildDirBuildsSelectedPluginOnly(t *testing.T) {
 	}
 }
 
+func TestRunBuildDirRunsArbitraryHackConfigCommands(t *testing.T) {
+	root := t.TempDir()
+	writeBuildFixture(t, root)
+	targetDir := filepath.Join(root, "tools", "custom-builder")
+	writeFile(t, filepath.Join(targetDir, "hack", "config.yaml"), "build:\n  commands:\n    - node build.mjs --target \"$(BUILD_DIR)\" --repo \"$(REPO_ROOT)\"\n")
+
+	calls := runBuildWithCapturedCommands(t, root, nil, commandInput{Params: map[string]string{
+		"dir": "tools/custom-builder",
+	}})
+
+	if len(calls) != 1 {
+		t.Fatalf("expected one configured build command, got %#v", calls)
+	}
+	call := calls[0]
+	if call.name != "node" || len(call.args) != 5 || call.args[0] != "build.mjs" || call.args[1] != "--target" || call.args[2] != targetDir || call.args[3] != "--repo" || call.args[4] != root {
+		t.Fatalf("unexpected configured build command: %#v", call)
+	}
+	if call.cmd.Dir != targetDir {
+		t.Fatalf("configured build dir mismatch: got %q want %q", call.cmd.Dir, targetDir)
+	}
+	if got := toolutil.EnvValue(call.cmd.Env, plugins.SourcePluginsEnvKey); got != "0" {
+		t.Fatalf("expected arbitrary configured build to use host-only plugin env, got %q", got)
+	}
+}
+
+func TestRunBuildDirFallsBackToPackageBuildWithoutHackConfig(t *testing.T) {
+	root := t.TempDir()
+	writeBuildFixture(t, root)
+	targetDir := filepath.Join(root, "tools", "package-builder")
+	writeFile(t, filepath.Join(targetDir, "package.json"), `{"scripts":{"build":"vite build"}}`)
+
+	calls := runBuildWithCapturedCommands(t, root, nil, commandInput{Params: map[string]string{
+		"dir": "tools/package-builder",
+	}})
+
+	if len(calls) != 1 {
+		t.Fatalf("expected one package build command, got %#v", calls)
+	}
+	call := calls[0]
+	if call.name != "pnpm" || len(call.args) != 2 || call.args[0] != "run" || call.args[1] != "build" {
+		t.Fatalf("unexpected package build command: %#v", call)
+	}
+	if call.cmd.Dir != targetDir {
+		t.Fatalf("package build dir mismatch: got %q want %q", call.cmd.Dir, targetDir)
+	}
+}
+
 func TestRunBuildWithoutDirBuildsAllPlugins(t *testing.T) {
 	root := t.TempDir()
 	writeBuildFixture(t, root)
@@ -1148,7 +1195,161 @@ func TestRunBuildDirBuildsHostBackendWithPreparedAssets(t *testing.T) {
 	}
 }
 
-func TestResolvePluginConfigBuildStepsSkipsPluginsWithoutCommands(t *testing.T) {
+func TestRunDevDirUsesBuildDirLogic(t *testing.T) {
+	root := t.TempDir()
+	writeBuildFixture(t, root)
+	targetDir := filepath.Join(root, "tools", "dev-target")
+	writeFile(t, filepath.Join(targetDir, "hack", "config.yaml"), "build:\n  commands:\n    - node dev-build.mjs --target \"$(BUILD_DIR)\"\n")
+
+	var calls []capturedCommand
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+	application.portInUse = func(int) bool {
+		t.Fatalf("runDev dir should not enter service port checks")
+		return false
+	}
+
+	if err := runDev(context.Background(), application, commandInput{Params: map[string]string{
+		"dir": "tools/dev-target",
+	}}); err != nil {
+		t.Fatalf("runDev returned error: %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected one configured build command, got %#v", calls)
+	}
+	call := calls[0]
+	if call.name != "node" || len(call.args) != 3 || call.args[0] != "dev-build.mjs" || call.args[1] != "--target" || call.args[2] != targetDir {
+		t.Fatalf("unexpected dev dir build command: %#v", call)
+	}
+	if call.cmd.Dir != targetDir {
+		t.Fatalf("dev dir build command dir mismatch: got %q want %q", call.cmd.Dir, targetDir)
+	}
+}
+
+func TestRunStopDirRunsConfiguredCommands(t *testing.T) {
+	root := t.TempDir()
+	writeBuildFixture(t, root)
+	targetDir := filepath.Join(root, "tools", "service-target")
+	writeFile(t, filepath.Join(targetDir, "hack", "config.yaml"), "stop:\n  commands:\n    - node stop.mjs --target \"$(TARGET_DIR)\" --repo \"$(REPO_ROOT)\"\n")
+
+	var calls []capturedCommand
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+
+	if err := runStop(context.Background(), application, commandInput{Params: map[string]string{
+		"dir": "tools/service-target",
+	}}); err != nil {
+		t.Fatalf("runStop returned error: %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected one configured stop command, got %#v", calls)
+	}
+	call := calls[0]
+	if call.name != "node" || len(call.args) != 5 || call.args[0] != "stop.mjs" || call.args[1] != "--target" || call.args[2] != targetDir || call.args[3] != "--repo" || call.args[4] != root {
+		t.Fatalf("unexpected stop command: %#v", call)
+	}
+	if call.cmd.Dir != targetDir {
+		t.Fatalf("stop command dir mismatch: got %q want %q", call.cmd.Dir, targetDir)
+	}
+	if call.cmd.Stdout != &stdout {
+		t.Fatalf("configured stop command output should be forwarded")
+	}
+}
+
+func TestRunStatusDirRunsConfiguredCommands(t *testing.T) {
+	root := t.TempDir()
+	writeBuildFixture(t, root)
+	targetDir := filepath.Join(root, "tools", "service-target")
+	writeFile(t, filepath.Join(targetDir, "hack", "config.yaml"), "status:\n  commands:\n    - node status.mjs --target \"$(BUILD_DIR)\"\n")
+
+	var calls []capturedCommand
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+		calls = append(calls, capturedCommand{
+			name: name,
+			args: append([]string(nil), args...),
+			cmd:  cmd,
+		})
+		return cmd
+	}
+	application.portInUse = func(int) bool {
+		t.Fatalf("runStatus dir should not enter default service status checks")
+		return false
+	}
+
+	if err := runStatus(context.Background(), application, commandInput{Params: map[string]string{
+		"dir": "tools/service-target",
+	}}); err != nil {
+		t.Fatalf("runStatus returned error: %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected one configured status command, got %#v", calls)
+	}
+	call := calls[0]
+	if call.name != "node" || len(call.args) != 3 || call.args[0] != "status.mjs" || call.args[1] != "--target" || call.args[2] != targetDir {
+		t.Fatalf("unexpected status command: %#v", call)
+	}
+	if call.cmd.Dir != targetDir {
+		t.Fatalf("status command dir mismatch: got %q want %q", call.cmd.Dir, targetDir)
+	}
+	if call.cmd.Stdout != &stdout {
+		t.Fatalf("configured status command output should be forwarded")
+	}
+}
+
+func TestRunStopDirRequiresHackConfig(t *testing.T) {
+	root := t.TempDir()
+	writeBuildFixture(t, root)
+	targetDir := filepath.Join(root, "tools", "missing-config")
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		t.Fatalf("mkdir target dir: %v", err)
+	}
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	err := runStop(context.Background(), application, commandInput{Params: map[string]string{
+		"dir": "tools/missing-config",
+	}})
+	if err == nil {
+		t.Fatalf("expected runStop to reject dir without hack/config.yaml")
+	}
+	if !strings.Contains(err.Error(), "stop dir has no hack/config.yaml") {
+		t.Fatalf("unexpected missing config error: %v", err)
+	}
+}
+
+func TestResolveBuildConfigStepsSkipsTargetsWithoutCommands(t *testing.T) {
 	var (
 		root         = t.TempDir()
 		withBuild    = filepath.Join(root, "apps", "lina-plugins", "with-build")
@@ -1167,9 +1368,12 @@ func TestResolvePluginConfigBuildStepsSkipsPluginsWithoutCommands(t *testing.T) 
 		t.Fatalf("unexpected plugin roots: %#v", plugins)
 	}
 
-	steps, err := resolvePluginConfigBuildSteps(root, withBuild)
+	steps, exists, err := resolveBuildConfigSteps(root, withBuild)
 	if err != nil {
-		t.Fatalf("resolvePluginConfigBuildSteps returned error: %v", err)
+		t.Fatalf("resolveBuildConfigSteps returned error: %v", err)
+	}
+	if !exists {
+		t.Fatalf("expected build config to exist")
 	}
 	if len(steps) != 2 {
 		t.Fatalf("unexpected plugin build steps: %#v", steps)
@@ -1177,12 +1381,42 @@ func TestResolvePluginConfigBuildStepsSkipsPluginsWithoutCommands(t *testing.T) 
 	if steps[1].Command != "pnpm" || steps[1].Args[1] != filepath.Join(withBuild, "frontend") {
 		t.Fatalf("expected plugin root expansion in command, got %#v", steps[1])
 	}
-	emptySteps, err := resolvePluginConfigBuildSteps(root, withoutBuild)
+	emptySteps, exists, err := resolveBuildConfigSteps(root, withoutBuild)
 	if err != nil {
-		t.Fatalf("resolvePluginConfigBuildSteps without commands returned error: %v", err)
+		t.Fatalf("resolveBuildConfigSteps without commands returned error: %v", err)
+	}
+	if !exists {
+		t.Fatalf("expected empty build config to exist")
 	}
 	if len(emptySteps) != 0 {
 		t.Fatalf("expected no build steps, got %#v", emptySteps)
+	}
+	missingSteps, exists, err := resolveBuildConfigSteps(root, filepath.Join(root, "missing-config"))
+	if err != nil {
+		t.Fatalf("resolveBuildConfigSteps missing config returned error: %v", err)
+	}
+	if exists {
+		t.Fatalf("missing build config should not be reported as existing")
+	}
+	if len(missingSteps) != 0 {
+		t.Fatalf("expected no steps for missing config, got %#v", missingSteps)
+	}
+
+	serviceTarget := filepath.Join(root, "tools", "service-target")
+	writeFile(t, filepath.Join(serviceTarget, "hack", "config.yaml"), "stop:\n  commands:\n    - node stop.mjs\nstatus:\n  commands:\n    - node status.mjs\n")
+	stopSteps, exists, err := resolveCommandConfigSteps(root, serviceTarget, "stop")
+	if err != nil {
+		t.Fatalf("resolveCommandConfigSteps stop returned error: %v", err)
+	}
+	if !exists || len(stopSteps) != 1 || stopSteps[0].Command != "node" || stopSteps[0].Args[0] != "stop.mjs" {
+		t.Fatalf("unexpected stop steps: exists=%t steps=%#v", exists, stopSteps)
+	}
+	statusSteps, exists, err := resolveCommandConfigSteps(root, serviceTarget, "status")
+	if err != nil {
+		t.Fatalf("resolveCommandConfigSteps status returned error: %v", err)
+	}
+	if !exists || len(statusSteps) != 1 || statusSteps[0].Command != "node" || statusSteps[0].Args[0] != "status.mjs" {
+		t.Fatalf("unexpected status steps: exists=%t steps=%#v", exists, statusSteps)
 	}
 }
 

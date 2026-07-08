@@ -22,6 +22,9 @@ go run . lint.go plugins=1
 go run . lint.go plugins=0 fix=true
 go run . build platforms=linux/amd64,linux/arm64
 go run . build dir=apps/lina-plugins/john-ai-agentbox
+go run . dev dir=tools/custom-builder
+go run . stop dir=tools/custom-builder
+go run . status dir=tools/custom-builder
 go run . image tag=v0.2.0 push=0
 go run . version to=v0.2.0
 go run . release.tag.check tag=v0.2.0
@@ -68,7 +71,7 @@ make.cmd release.tag.check tag=v0.2.0
 |------|------|------|
 | `confirm` | `confirm=upgrade` | 确认高风险数据库维护命令。 |
 | `rebuild` | `rebuild=true` | 在`db.init`时重建配置中的数据库。 |
-| `dir` | `dir=apps/lina-plugins/john-ai-agentbox` | 为`build`选择单个构建目标目录。省略时构建宿主框架、默认工作台和所有已启用插件。 |
+| `dir` | `dir=tools/custom-builder` | 为`build`、`dev`、`stop`或`status`选择单个定向命令目录。省略时执行对应命令的默认完整流程。 |
 | `platforms` | `platforms=linux/amd64,linux/arm64` | 指定构建目标平台。 |
 | `plugins` | `plugins=0` | 覆盖构建、开发、镜像、`Go`测试和`Go`静态检查命令的自动插件完整模式探测。 |
 | `fix` | `fix=true` | 允许`lint.go`向`golangci-lint`传入`--fix`；默认不启用，避免检查路径改写文件。 |
@@ -84,17 +87,25 @@ make.cmd release.tag.check tag=v0.2.0
 
 未传入`plugins`时，构建和开发命令会在`apps/lina-plugins`存在插件清单时启用插件完整模式。插件完整模式会基于宿主专用的根目录`go.work`生成或刷新已忽略的`temp/go.work.plugins`，并通过`GOWORK`解析源码插件`Go`模块。
 
-未传入`dir`时，`linactl build`会构建宿主框架后端、默认管理工作台前端、宿主`manifest`资源和所有已启用官方插件。需要从仓库根目录或通过`make.cmd`跨平台定向构建时，使用`dir=<path>`，例如`dir=apps/lina-vben`、`dir=apps/lina-core`或`dir=apps/lina-plugins/<plugin-id>`。
+未传入`dir`时，`linactl build`会构建宿主框架后端、默认管理工作台前端、宿主`manifest`资源和所有已启用官方插件。需要从仓库根目录或通过`make.cmd`跨平台定向构建时，使用`dir=<path>`，例如`dir=apps/lina-vben`、`dir=apps/lina-core`、`dir=apps/lina-plugins/<plugin-id>`，或任意拥有`hack/config.yaml`的目录。
 
-插件在插件根`hack/config.yaml`的`build.commands`下维护自定义构建指令。`linactl build`会在插件根目录执行这些指令；`$(PLUGIN_ROOT)`展开为插件目录，`$(REPO_ROOT)`展开为仓库根目录：
+目标目录可以在自身`hack/config.yaml`的对应命令分段下维护自定义指令。`linactl build dir=<path>`和`linactl dev dir=<path>`执行`build.commands`；`linactl stop dir=<path>`执行`stop.commands`；`linactl status dir=<path>`执行`status.commands`。指令会在所选目录执行。`$(TARGET_DIR)`和`$(BUILD_DIR)`都会展开为所选目录，`$(PLUGIN_ROOT)`作为插件兼容别名继续指向同一目录，`$(REPO_ROOT)`展开为仓库根目录：
 
 ```yaml
 build:
   commands:
-    - pnpm --dir "$(PLUGIN_ROOT)/frontend" run build
+    - pnpm --dir "$(BUILD_DIR)/frontend" run build
+stop:
+  commands:
+    - node scripts/stop.mjs --root "$(TARGET_DIR)"
+status:
+  commands:
+    - node scripts/status.mjs --root "$(TARGET_DIR)"
 ```
 
-传入`dir=apps/lina-plugins/<plugin-id>`时，`linactl build`只执行该插件的配置指令。
+传入`dir=apps/lina-plugins/<plugin-id>`时，官方插件模式仍作用于该插件。源码插件会使用官方插件构建环境，动态插件会在配置指令完成后继续生成自身`WASM`产物。非插件目录存在`hack/config.yaml`时以该配置为准；没有该配置的目录继续回退到本地`package.json`的`build`脚本。
+
+传入`dir`给`linactl dev`时，命令会执行与`linactl build dir=<path>`一致的定向构建路径，不启动或重启开发服务。传入`dir`给`linactl stop`或`linactl status`时，目录配置指令会替代默认宿主服务停止或状态查询流程。
 
 ## Go 静态检查
 

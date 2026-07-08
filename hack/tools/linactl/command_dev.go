@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"linactl/internal/devservice"
 	"linactl/internal/frontend"
@@ -19,6 +20,14 @@ import (
 
 // runDev builds and starts backend and frontend development services.
 func runDev(ctx context.Context, a *app, input commandInput) error {
+	if dir := strings.TrimSpace(input.Get("dir")); dir != "" {
+		options, err := resolveBuildOptions(a.root, input)
+		if err != nil {
+			return err
+		}
+		return runBuildDir(ctx, a, input, options, dir)
+	}
+
 	backendPort, err := input.Int("backend_port", defaultBackendPort)
 	if err != nil {
 		return err
