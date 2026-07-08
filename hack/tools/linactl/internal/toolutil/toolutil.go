@@ -80,12 +80,9 @@ func ExecutableName(name string) string {
 	return name
 }
 
-// ViteCommand returns the platform-specific Vite binary path.
+// ViteCommand returns Vite's project-local JavaScript CLI entrypoint.
 func ViteCommand(root string) string {
-	if runtime.GOOS == "windows" {
-		return filepath.Join(root, "apps", "lina-vben", "node_modules", ".bin", "vite.cmd")
-	}
-	return filepath.Join(root, "apps", "lina-vben", "node_modules", ".bin", "vite")
+	return filepath.Join(root, "apps", "lina-vben", "node_modules", "vite", "bin", "vite.js")
 }
 
 // RelativePath renders a path relative to the repository root when possible.

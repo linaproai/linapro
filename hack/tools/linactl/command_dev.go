@@ -105,7 +105,8 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 	}
 
 	services[0].StartName = backendBinary
-	services[1].StartName = toolutil.ViteCommand(a.root)
+	services[1].StartName = "node"
+	services[1].StartArgs = append([]string{toolutil.ViteCommand(a.root)}, services[1].StartArgs...)
 	previousEnv := a.env
 	a.env = env
 	defer func() {

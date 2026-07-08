@@ -87,8 +87,11 @@ export class RolePage {
   }
 
   async selectedDataScopeText(drawer: Locator) {
-    return (await this.dataScopeField(drawer).locator(".ant-select-selection-item").innerText())
-      .trim();
+    return (
+      await this.dataScopeField(drawer)
+        .locator(".ant-select-selection-item")
+        .innerText()
+    ).trim();
   }
 
   async openEditDrawer(
@@ -130,6 +133,43 @@ export class RolePage {
     await this.page
       .locator("[data-dismissable-drawer]")
       .click({ position: { x: 10, y: 10 } });
+  }
+
+  async expectMenuSelectionMode(
+    drawer: Locator,
+    mode: "independent" | "linked",
+  ) {
+    const label =
+      mode === "linked" ? /父子联动|Linked/i : /独立选择|Independent/i;
+    await expect(
+      drawer
+        .getByTestId("menu-permission-association-mode")
+        .locator(".ant-radio-button-wrapper-checked")
+        .filter({ hasText: label })
+        .first(),
+    ).toBeVisible({ timeout: 5000 });
+  }
+
+  async switchMenuSelectionMode(
+    drawer: Locator,
+    mode: "independent" | "linked",
+  ) {
+    const label =
+      mode === "linked" ? /父子联动|Linked/i : /独立选择|Independent/i;
+    await drawer
+      .getByTestId("menu-permission-association-mode")
+      .locator(".ant-radio-button-wrapper")
+      .filter({ hasText: label })
+      .first()
+      .click();
+    await waitForBusyIndicatorsToClear(drawer);
+  }
+
+  async submitDrawer(drawer: Locator) {
+    const confirmBtn = drawer.getByRole("button", { name: /确\s*认/ });
+    await confirmBtn.scrollIntoViewIfNeeded();
+    await this.dismissTourOverlayIfPresent();
+    await confirmBtn.click({ force: true });
   }
 
   /** Create a new role by clicking "新增" toolbar button */
@@ -423,10 +463,9 @@ export class RolePage {
   /** Assign menus to existing role */
   async assignMenusToRole(roleName: string, menuNames: string[]) {
     const drawer = await this.openEditDrawer(roleName);
-    await expect(drawer.getByPlaceholder(/请输入角色名称|Role Name/i)).toHaveValue(
-      roleName,
-      { timeout: 10000 },
-    );
+    await expect(
+      drawer.getByPlaceholder(/请输入角色名称|Role Name/i),
+    ).toHaveValue(roleName, { timeout: 10000 });
 
     // Wait for menu tree
     await drawer

@@ -10,7 +10,10 @@ import { message } from 'ant-design-vue';
 import { useVbenForm } from '#/adapter/form';
 import { menuTreeSelect, roleMenuTreeSelect } from '#/api/system/menu';
 import { roleAdd, roleInfo, roleUpdate } from '#/api/system/role';
-import { MenuSelectTable } from '#/components/tree';
+import {
+  MenuSelectTable,
+  shouldUseAssociatedMenuSelection,
+} from '#/components/tree';
 import { resolveManagementCapabilityState } from '#/plugins/management-capabilities';
 import { useDictStore } from '#/store/dict';
 import { defaultFormValueGetter, useBeforeCloseDiff } from '#/utils/popup';
@@ -69,17 +72,23 @@ async function setupMenuTree(id?: number) {
     const resp = await roleMenuTreeSelect(id);
     menuTree.value = resp.menus;
     await nextTick();
+    await formApi.setFieldValue(
+      'menuCheckStrictly',
+      shouldUseAssociatedMenuSelection(resp.menus, resp.checkedKeys),
+    );
     await formApi.setFieldValue('menuIds', resp.checkedKeys);
   } else {
     const resp = await menuTreeSelect();
     menuTree.value = resp;
     await nextTick();
+    await formApi.setFieldValue('menuCheckStrictly', true);
     await formApi.setFieldValue('menuIds', []);
   }
 }
 
 async function customFormValueGetter() {
-  const formValues = await defaultFormValueGetter(formApi)();
+  const formValues = { ...(await defaultFormValueGetter(formApi)()) };
+  delete formValues.menuCheckStrictly;
   const menuIds = menuSelectRef.value?.getCheckedKeys?.() ?? [];
   return {
     ...formValues,
@@ -151,6 +160,7 @@ async function handleConfirm() {
     }
     const menuIds = menuSelectRef.value?.getCheckedKeys?.() ?? [];
     const data = cloneDeep(await formApi.getValues());
+    delete data.menuCheckStrictly;
     data.menuIds = menuIds;
     await (isUpdate.value ? roleUpdate(data.id, data) : roleAdd(data));
     message.success(
