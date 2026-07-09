@@ -214,6 +214,11 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		userMsgSvc   = usermsg.New(bizCtxSvc, notifySvc, i18nSvc)
 		apiDocSvc    = apidoc.New(configSvc, bizCtxSvc, i18nSvc, pluginRuntime)
 	)
+	// Bind the user-owner external provisioning seam after both services
+	// exist: auth is constructed before user, so this cannot be a constructor
+	// dependency. externalProvisionAdapter narrows user.Service to the auth
+	// boundary contract.
+	authSvc.BindExternalProvisioner(externalProvisionAdapter{userSvc: userSvc})
 	sysInfoSvc, err := sysinfosvc.New(configSvc, clusterSvc, coordinationSvc, cacheCoordSvc)
 	if err != nil {
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)

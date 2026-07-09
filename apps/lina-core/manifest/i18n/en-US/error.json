@@ -3,7 +3,8 @@
     "auth": {
       "external": {
         "identityInvalid": "External authentication provider returned an invalid identity",
-        "userNotProvisioned": "No local account is linked to this external identity"
+        "userNotProvisioned": "No local account is linked to this external identity",
+        "emailConflict": "An account with this email already exists; sign in and link the identity from account settings"
       },
       "login": {
         "clientType": {

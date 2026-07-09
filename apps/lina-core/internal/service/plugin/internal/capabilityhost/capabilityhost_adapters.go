@@ -226,12 +226,13 @@ func (s *externalLoginAdapter) LoginByVerifiedIdentity(
 		return nil, bizerr.NewCode(CodePluginHostExternalLoginPluginDisabled)
 	}
 	out, err := s.authSvc.LoginByExternalIdentity(ctx, auth.ExternalLoginInput{
-		PluginID:    pluginID,
-		Provider:    provider,
-		Subject:     in.Subject,
-		Email:       in.Email,
-		DisplayName: in.DisplayName,
-		ClientType:  token.ClientTypeWeb,
+		PluginID:           pluginID,
+		Provider:           provider,
+		Subject:            in.Subject,
+		Email:              in.Email,
+		DisplayName:        in.DisplayName,
+		ClientType:         token.ClientTypeWeb,
+		AllowAutoProvision: in.AllowAutoProvision,
 	})
 	if err != nil {
 		return nil, err

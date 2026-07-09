@@ -42,6 +42,12 @@ type LoginInput struct {
 	Email string
 	// DisplayName is captured for audit and hook context only.
 	DisplayName string
+	// AllowAutoProvision declares that the calling plugin permits host-owned
+	// auto-provisioning for this login. The host still owns the policy: an
+	// unlinked identity with a same-email local account is rejected with an
+	// email-conflict error instead of silently linking, and account creation
+	// runs through the host user owner with least privilege.
+	AllowAutoProvision bool
 }
 
 // LoginOutput contains the host login outcome for a verified external identity.

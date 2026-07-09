@@ -23,9 +23,68 @@ import (
 	"lina-core/pkg/plugin/pluginhost"
 	"lina-core/pkg/statusflag"
 
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/mssola/useragent"
 )
+
+// tryAutoProvision runs the host-owned auto-provisioning policy for one
+// unlinked verified identity. It returns the provisioned user ID, or a
+// caller-visible bizerr:
+//
+//   - AllowAutoProvision unset or no provisioner bound -> not-provisioned
+//     (the historical fail-closed behavior).
+//   - An enabled local account already uses the same email -> email-conflict.
+//     The identity is NOT linked automatically; the user must sign in to the
+//     existing account and link the identity through an authenticated
+//     confirmation flow. This blocks silent account takeover through an IdP
+//     email assertion.
+//   - Otherwise the user owner provisions a least-privilege platform user and
+//     the (provider, subject) linkage row is recorded inside one transaction.
+func (s *serviceImpl) tryAutoProvision(ctx context.Context, in ExternalLoginInput) (int, error) {
+	if !in.AllowAutoProvision || s == nil || s.provisioner == nil {
+		return 0, bizerr.NewCode(CodeAuthExternalUserNotProvisioned)
+	}
+	email := strings.TrimSpace(in.Email)
+	if email == "" {
+		return 0, bizerr.NewCode(CodeAuthExternalUserNotProvisioned)
+	}
+	emailCount, err := dao.SysUser.Ctx(ctx).
+		Where(do.SysUser{Email: email}).
+		Count()
+	if err != nil {
+		return 0, err
+	}
+	if emailCount > 0 {
+		return 0, bizerr.NewCode(CodeAuthExternalEmailConflict)
+	}
+	var provisionedUserID int
+	if err = dao.SysUserExternalIdentity.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
+		userID, provisionErr := s.provisioner.ProvisionExternalUser(ctx, ExternalProvisionInput{
+			Email:       email,
+			DisplayName: in.DisplayName,
+			Remark:      "auto-provisioned by external login provider " + in.Provider,
+		})
+		if provisionErr != nil {
+			return provisionErr
+		}
+		if _, linkErr := dao.SysUserExternalIdentity.Ctx(ctx).Data(do.SysUserExternalIdentity{
+			UserId:        userID,
+			Provider:      in.Provider,
+			Subject:       strings.TrimSpace(in.Subject),
+			PluginId:      in.PluginID,
+			EmailSnapshot: email,
+		}).Insert(); linkErr != nil {
+			return linkErr
+		}
+		provisionedUserID = userID
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	logger.Infof(ctx, "external login auto-provisioned provider=%s subject=%s userId=%d", in.Provider, in.Subject, provisionedUserID)
+	return provisionedUserID, nil
+}
 
 // LoginByExternalIdentity resolves a verified external identity to a linked
 // local account and issues a host session. See the Service interface for the
@@ -90,8 +149,12 @@ func (s *serviceImpl) LoginByExternalIdentity(ctx context.Context, in ExternalLo
 		return nil, err
 	}
 	if identity == nil {
-		dispatchExternalLoginFailed(in.Email, authEventMessageExternalNotProvisioned, authHookReasonExternalNotProvisioned)
-		return nil, bizerr.NewCode(CodeAuthExternalUserNotProvisioned)
+		provisionedUserID, provisionErr := s.tryAutoProvision(ctx, in)
+		if provisionErr != nil {
+			dispatchExternalLoginFailed(in.Email, authEventMessageExternalNotProvisioned, authHookReasonExternalNotProvisioned)
+			return nil, provisionErr
+		}
+		identity = &entity.SysUserExternalIdentity{UserId: provisionedUserID}
 	}
 
 	var user *entity.SysUser

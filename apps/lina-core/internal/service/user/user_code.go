@@ -130,4 +130,17 @@ var (
 		"Failed to read worksheet {sheet}",
 		gcode.CodeInvalidParameter,
 	)
+	// CodeUserProvisionEmailInvalid reports that external provisioning received
+	// an empty or malformed email address.
+	CodeUserProvisionEmailInvalid = bizerr.MustDefine(
+		"USER_PROVISION_EMAIL_INVALID",
+		"External provisioning requires a valid email address",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeUserProvisionFailed reports that creating the provisioned user failed.
+	CodeUserProvisionFailed = bizerr.MustDefine(
+		"USER_PROVISION_FAILED",
+		"Failed to provision the external user",
+		gcode.CodeInternalError,
+	)
 )

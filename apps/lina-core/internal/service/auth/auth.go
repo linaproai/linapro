@@ -75,6 +75,10 @@ type Service interface {
 	// for tenant selection. It persists session state and dispatches auth hooks;
 	// user-visible failures are returned as bizerr codes.
 	Login(ctx context.Context, in LoginInput) (*LoginOutput, error)
+	// BindExternalProvisioner attaches the user-owner provisioning seam after
+	// startup wiring (auth is constructed before the user service). A nil
+	// provisioner keeps auto-provisioning disabled fail-closed.
+	BindExternalProvisioner(provisioner ExternalProvisioner)
 	// LoginByExternalIdentity resolves a plugin-verified external identity
 	// (provider + immutable subject) to a linked local account and issues a
 	// host session, reusing the same login-IP policy, disabled-account check,
@@ -132,6 +136,31 @@ type serviceImpl struct {
 	sessionStore session.Store // Session store
 	preTokens    preTokenStore
 	revoked      revokeStore
+	// provisioner is the user-owner system provisioning seam bound after
+	// startup through BindExternalProvisioner (auth is constructed before the
+	// user service). Nil keeps auto-provisioning disabled fail-closed.
+	provisioner ExternalProvisioner
+}
+
+// ExternalProvisioner is the narrow user-owner seam auth consumes to create
+// platform users for verified external identities. The user owner keeps the
+// provisioning rules (username derivation, unusable password, least
+// privilege); auth only decides WHEN provisioning is allowed.
+type ExternalProvisioner interface {
+	// ProvisionExternalUser creates one platform user for a verified external
+	// identity and returns the new user ID.
+	ProvisionExternalUser(ctx context.Context, in ExternalProvisionInput) (int, error)
+}
+
+// ExternalProvisionInput mirrors the user-owner provisioning input at the
+// auth boundary so auth does not import the user package.
+type ExternalProvisionInput struct {
+	// Email is the verified email address from the external provider.
+	Email string
+	// DisplayName optionally seeds the nickname.
+	DisplayName string
+	// Remark records the provisioning source for audit, e.g. the provider ID.
+	Remark string
 }
 
 // authHookService is the narrow plugin-hook surface required by auth. Auth
@@ -193,9 +222,15 @@ type ExternalLoginInput struct {
 	PluginID    string     // Source-plugin ID that owns Provider; stamped by the host adapter
 	Provider    string     // Stable external provider ID owned by PluginID
 	Subject     string     // Immutable provider-issued subject identifier
-	Email       string     // Email captured for audit/hook context only; never a resolution key
+	Email       string     // Verified email; used for provisioning/conflict checks only when AllowAutoProvision is set
 	DisplayName string     // Display name captured for audit/hook context only
 	ClientType  ClientType // User-session client type
+	// AllowAutoProvision declares that the calling plugin permits host-owned
+	// auto-provisioning for unlinked identities. The host still owns the
+	// provisioning policy: a same-email account conflict is rejected with
+	// CodeAuthExternalEmailConflict instead of silently linking, and account
+	// creation runs through the user owner's system provisioning path.
+	AllowAutoProvision bool
 }
 
 // ExternalLoginOutput defines output for LoginByExternalIdentity. It mirrors

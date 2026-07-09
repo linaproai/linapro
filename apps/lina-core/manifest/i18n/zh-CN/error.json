@@ -3,7 +3,8 @@
     "auth": {
       "external": {
         "identityInvalid": "外部认证 Provider 返回的身份信息无效",
-        "userNotProvisioned": "当前外部身份未关联本地账号"
+        "userNotProvisioned": "当前外部身份未关联本地账号",
+        "emailConflict": "该邮箱已存在本地账号；请先用该账号登录，再到账号设置中绑定外部身份"
       },
       "login": {
         "clientType": {
