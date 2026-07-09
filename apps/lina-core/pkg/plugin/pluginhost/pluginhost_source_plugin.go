@@ -7,6 +7,7 @@ import (
 	"io/fs"
 
 	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/authcap/externallogin/externalidentityspi"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
@@ -31,11 +32,12 @@ type sourcePlugin struct {
 	// access exposes grouped menu and permission access-control helpers.
 	access AccessDeclarations
 
-	embeddedFiles      fs.FS
-	tenantProvider     tenantspi.ProviderFactory
-	orgProvider        orgspi.ProviderFactory
-	aiTextProvider     aitext.ProviderFactory
-	externalIdentities []string
+	embeddedFiles          fs.FS
+	tenantProvider         tenantspi.ProviderFactory
+	orgProvider            orgspi.ProviderFactory
+	aiTextProvider         aitext.ProviderFactory
+	externalIdentities     []string
+	externalIdentityEngine externalidentityspi.ProviderFactory
 	beforeInstall      SourcePluginBeforeLifecycleHandler
 	afterInstall       SourcePluginAfterLifecycleHandler
 	beforeUpgrade      SourcePluginBeforeUpgradeHandler
@@ -159,6 +161,17 @@ func (p *sourcePlugin) GetOrgProviderFactory() orgspi.ProviderFactory {
 		return nil
 	}
 	return p.orgProvider
+}
+
+// GetExternalIdentityProviderFactory returns the declared external-identity
+// provider engine factory. It is distinct from GetExternalIdentityProviderIDs:
+// the factory supplies the resolve/provision engine (declared by
+// linapro-oidc-core), while the ID list stamps ownership for calling plugins.
+func (p *sourcePlugin) GetExternalIdentityProviderFactory() externalidentityspi.ProviderFactory {
+	if p == nil {
+		return nil
+	}
+	return p.externalIdentityEngine
 }
 
 // GetAITextProviderFactory returns the declared text AI provider factory.

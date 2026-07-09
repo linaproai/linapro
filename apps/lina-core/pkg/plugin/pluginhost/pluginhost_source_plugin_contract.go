@@ -9,6 +9,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/authcap/externallogin/externalidentityspi"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
@@ -148,6 +149,17 @@ func (r *sourcePluginProviders) ProvideExternalIdentity(providerID string) error
 		return gerror.New("pluginhost: source plugin provider facade is nil")
 	}
 	return r.plugin.registerExternalIdentityProvider(providerID)
+}
+
+// ProvideExternalIdentityProvider declares this source plugin's external-identity
+// provider engine factory (linapro-oidc-core). It is distinct from
+// ProvideExternalIdentity, which stamps provider-ID ownership for calling
+// plugins. A plugin that supplies the engine need not own any provider ID.
+func (r *sourcePluginProviders) ProvideExternalIdentityProvider(factory externalidentityspi.ProviderFactory) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin provider facade is nil")
+	}
+	return r.plugin.registerExternalIdentityProviderFactory(factory)
 }
 
 // UseEmbeddedFiles binds one plugin-owned embedded filesystem.

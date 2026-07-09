@@ -9,6 +9,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/authcap/externallogin/externalidentityspi"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
@@ -268,6 +269,25 @@ func (p *sourcePlugin) registerExternalIdentityProvider(providerID string) error
 		}
 	}
 	p.externalIdentities = append(p.externalIdentities, normalized)
+	return nil
+}
+
+// registerExternalIdentityProviderFactory records the external-identity provider
+// engine factory declared by this source plugin (linapro-oidc-core). It is
+// orthogonal to registerExternalIdentityProvider: the factory supplies the
+// resolve/provision engine, while the ID list stamps ownership for calling
+// plugins. Only one engine factory may be declared per plugin.
+func (p *sourcePlugin) registerExternalIdentityProviderFactory(factory externalidentityspi.ProviderFactory) error {
+	if p == nil {
+		return gerror.New("pluginhost: source plugin is nil")
+	}
+	if factory == nil {
+		return gerror.New("pluginhost: external identity provider factory is nil")
+	}
+	if p.externalIdentityEngine != nil {
+		return gerror.New("pluginhost: external identity provider factory already declared")
+	}
+	p.externalIdentityEngine = factory
 	return nil
 }
 

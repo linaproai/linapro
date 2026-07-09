@@ -122,7 +122,7 @@ func (d *scopedSourceServicesDirectory) APIDoc() apidoccap.Service {
 
 // Auth returns a no-op auth namespace required by tenant-core route registration.
 func (d *scopedSourceServicesDirectory) Auth() authcap.Service {
-	return authcap.New(scopedCapabilityAuth{}, scopedCapabilityAuthz{})
+	return authcap.New(scopedCapabilityAuth{}, scopedCapabilityAuthz{}, nil)
 }
 
 // BizCtx returns a minimal non-nil business context service required by source
@@ -909,6 +909,10 @@ func (scopedCapabilityUsers) EnsureVisible(context.Context, []capabilityusercap.
 
 // Create accepts user creation without mutating state.
 func (scopedCapabilityUsers) Create(context.Context, capabilityusercap.CreateInput) (capabilityusercap.UserID, error) {
+	return "", nil
+}
+
+func (scopedCapabilityUsers) ProvisionExternal(context.Context, capabilityusercap.ProvisionExternalInput) (capabilityusercap.UserID, error) {
 	return "", nil
 }
 

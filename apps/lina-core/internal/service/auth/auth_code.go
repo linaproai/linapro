@@ -85,14 +85,4 @@ var (
 		"No local account is linked to this external identity",
 		gcode.CodeNotAuthorized,
 	)
-	// CodeAuthExternalEmailConflict reports that auto-provisioning found an
-	// existing local account with the same email. The identity is not linked
-	// automatically; the user must sign in to the existing account and link
-	// the identity through an authenticated confirmation flow.
-	CodeAuthExternalEmailConflict = bizerr.MustDefineWithKey(
-		"AUTH_EXTERNAL_EMAIL_CONFLICT",
-		"error.auth.external.emailConflict",
-		"An account with this email already exists; sign in and link the identity from account settings",
-		gcode.CodeNotAuthorized,
-	)
 )

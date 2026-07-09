@@ -12,6 +12,7 @@ import (
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
+	"lina-core/pkg/plugin/capability/authcap/externallogin/externalidentityspi"
 	tokencap "lina-core/pkg/plugin/capability/authcap/token"
 	"lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
@@ -75,17 +76,20 @@ type Service interface {
 	// for tenant selection. It persists session state and dispatches auth hooks;
 	// user-visible failures are returned as bizerr codes.
 	Login(ctx context.Context, in LoginInput) (*LoginOutput, error)
-	// BindExternalProvisioner attaches the user-owner provisioning seam after
-	// startup wiring (auth is constructed before the user service). A nil
-	// provisioner keeps auto-provisioning disabled fail-closed.
-	BindExternalProvisioner(provisioner ExternalProvisioner)
+	// BindExternalIdentityProvider attaches the source-plugin external-identity
+	// provider seam after startup wiring. The provider owns external-identity
+	// storage, resolution, and provisioning/bind policy; auth keeps token,
+	// session, and tenant minting. A nil provider keeps external login
+	// fail-closed: no linkage is resolved and no account is created.
+	BindExternalIdentityProvider(provider externalidentityspi.Provider)
 	// LoginByExternalIdentity resolves a plugin-verified external identity
 	// (provider + immutable subject) to a linked local account and issues a
 	// host session, reusing the same login-IP policy, disabled-account check,
 	// tenant resolution, pre-login-token handoff, token issuance, session
-	// persistence, and auth hooks as password Login. Provisioning is
-	// host-owned and closed by default: an unlinked identity returns
-	// CodeAuthExternalUserNotProvisioned without creating a user. Callers must
+	// persistence, and auth hooks as password Login. Linkage storage and
+	// provisioning policy are provider-owned and fail-closed by default: an
+	// unlinked identity with no provider, or with auto-provisioning disallowed,
+	// returns CodeAuthExternalUserNotProvisioned without creating a user. Callers must
 	// have already verified the external identity; the host does not perform
 	// any OAuth or token exchange. An empty provider or subject returns
 	// CodeAuthExternalIdentityInvalid.
@@ -136,31 +140,11 @@ type serviceImpl struct {
 	sessionStore session.Store // Session store
 	preTokens    preTokenStore
 	revoked      revokeStore
-	// provisioner is the user-owner system provisioning seam bound after
-	// startup through BindExternalProvisioner (auth is constructed before the
-	// user service). Nil keeps auto-provisioning disabled fail-closed.
-	provisioner ExternalProvisioner
-}
-
-// ExternalProvisioner is the narrow user-owner seam auth consumes to create
-// platform users for verified external identities. The user owner keeps the
-// provisioning rules (username derivation, unusable password, least
-// privilege); auth only decides WHEN provisioning is allowed.
-type ExternalProvisioner interface {
-	// ProvisionExternalUser creates one platform user for a verified external
-	// identity and returns the new user ID.
-	ProvisionExternalUser(ctx context.Context, in ExternalProvisionInput) (int, error)
-}
-
-// ExternalProvisionInput mirrors the user-owner provisioning input at the
-// auth boundary so auth does not import the user package.
-type ExternalProvisionInput struct {
-	// Email is the verified email address from the external provider.
-	Email string
-	// DisplayName optionally seeds the nickname.
-	DisplayName string
-	// Remark records the provisioning source for audit, e.g. the provider ID.
-	Remark string
+	// identityProvider is the source-plugin external-identity provider bound
+	// after startup through BindExternalIdentityProvider. Nil keeps external
+	// login fail-closed: LoginByExternalIdentity resolves no linkage and
+	// provisions no account.
+	identityProvider externalidentityspi.Provider
 }
 
 // authHookService is the narrow plugin-hook surface required by auth. Auth
@@ -225,11 +209,11 @@ type ExternalLoginInput struct {
 	Email       string     // Verified email; used for provisioning/conflict checks only when AllowAutoProvision is set
 	DisplayName string     // Display name captured for audit/hook context only
 	ClientType  ClientType // User-session client type
-	// AllowAutoProvision declares that the calling plugin permits host-owned
-	// auto-provisioning for unlinked identities. The host still owns the
-	// provisioning policy: a same-email account conflict is rejected with
-	// CodeAuthExternalEmailConflict instead of silently linking, and account
-	// creation runs through the user owner's system provisioning path.
+	// AllowAutoProvision declares that the calling plugin permits
+	// auto-provisioning for unlinked identities. The provisioning policy is
+	// provider-owned (linapro-oidc-core): a same-email account conflict is
+	// rejected instead of silently linking, and account creation is delegated
+	// back to the host user owner's least-privilege provisioning path.
 	AllowAutoProvision bool
 }
 

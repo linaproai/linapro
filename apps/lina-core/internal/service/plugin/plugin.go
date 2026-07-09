@@ -41,6 +41,7 @@ import (
 
 	"lina-core/pkg/plugin/capability"
 	aitextsvc "lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/authcap/externallogin/externalidentityspi"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/pluginhost"
 )
@@ -332,6 +333,7 @@ type integrationService interface {
 		tenantManager *tenantspi.Manager,
 		orgManager *orgspi.Manager,
 		aiTextManager *aitextsvc.Manager,
+		externalIdentityManager *externalidentityspi.Manager,
 	) error
 	// DispatchHookEvent dispatches one named hook event to all enabled plugins.
 	DispatchHookEvent(
@@ -395,6 +397,8 @@ type capabilityEnvService interface {
 	OrgProviderEnv(ctx context.Context, pluginID string) orgspi.ProviderEnv
 	// TenantProviderEnv returns typed, plugin-scoped tenant-provider construction inputs.
 	TenantProviderEnv(ctx context.Context, pluginID string) tenantspi.ProviderEnv
+	// ExternalIdentityProviderEnv returns typed, plugin-scoped external-identity-provider construction inputs.
+	ExternalIdentityProviderEnv(ctx context.Context, pluginID string) externalidentityspi.ProviderEnv
 }
 
 // tenantLifecycleService defines tenant-governance lifecycle preconditions and notifications.

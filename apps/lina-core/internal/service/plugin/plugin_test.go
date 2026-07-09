@@ -584,6 +584,10 @@ func (rootNoopUsers) Create(context.Context, capabilityusercap.CreateInput) (cap
 	return "", nil
 }
 
+func (rootNoopUsers) ProvisionExternal(context.Context, capabilityusercap.ProvisionExternalInput) (capabilityusercap.UserID, error) {
+	return "", nil
+}
+
 // Update accepts user updates without mutating shared test state.
 func (rootNoopUsers) Update(context.Context, capabilityusercap.UpdateInput) error {
 	return nil

@@ -1,9 +1,10 @@
-// This file verifies the host-owned auto-provisioning policy for external
-// login: the switch-off fail-closed path, the same-email conflict rejection,
-// and the happy path that provisions a least-privilege platform user plus the
-// (provider, subject) linkage row inside one transaction. These are
-// database-backed tests following the same conventions as the other auth
-// integration tests (unique fixtures + t.Cleanup, bizerr code assertions).
+// This file verifies the auto-provisioning delegation for external login: the
+// switch-off fail-closed path, provider policy error pass-through, the
+// provider-unavailable sentinel mapping, and the happy path where a
+// provider-provisioned account enters the unchanged token-minting flow.
+// Provisioning policy (same-email conflict, anchor derivation, linkage
+// de-duplication) is provider-owned and covered by linapro-oidc-core's own
+// tests; these tests bind a mock provider and only seed sys_user fixtures.
 
 package auth
 
@@ -13,63 +14,30 @@ import (
 	"testing"
 	"time"
 
-	"lina-core/internal/dao"
-	"lina-core/internal/model/do"
-	"lina-core/internal/model/entity"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/authcap/externallogin/externalidentityspi"
 	tokencap "lina-core/pkg/plugin/capability/authcap/token"
+
+	"github.com/gogf/gf/v2/errors/gcode"
 )
 
-// testExternalProvisioner adapts the real user-owner provisioning service is
-// not available in the auth package without an import cycle, so the tests
-// bind a minimal provisioner that creates the user row directly with the
-// same least-privilege shape and records the received input for assertions.
-type testExternalProvisioner struct {
-	lastInput ExternalProvisionInput
-	failWith  error
-}
-
-// ProvisionExternalUser records the input and inserts one minimal platform user.
-func (p *testExternalProvisioner) ProvisionExternalUser(ctx context.Context, in ExternalProvisionInput) (int, error) {
-	p.lastInput = in
-	if p.failWith != nil {
-		return 0, p.failWith
-	}
-	id, err := dao.SysUser.Ctx(ctx).Data(do.SysUser{
-		Username: fmt.Sprintf("prov-%d", time.Now().UnixNano()),
-		Password: "x",
-		Nickname: in.DisplayName,
-		Email:    in.Email,
-		Status:   1,
-		TenantId: 0,
-	}).InsertAndGetId()
-	return int(id), err
-}
-
-// cleanupProvisionFixtures removes the user and linkage rows created by one test.
-func cleanupProvisionFixtures(t *testing.T, ctx context.Context, provider string, subject string, email string) {
-	t.Helper()
-	if _, err := dao.SysUserExternalIdentity.Ctx(ctx).
-		Unscoped().
-		Where(do.SysUserExternalIdentity{Provider: provider, Subject: subject}).
-		Delete(); err != nil {
-		t.Fatalf("cleanup linkage: %v", err)
-	}
-	if _, err := dao.SysUser.Ctx(ctx).
-		Unscoped().
-		Where(do.SysUser{Email: email}).
-		Delete(); err != nil {
-		t.Fatalf("cleanup user: %v", err)
-	}
-}
+// codeAuthTestProviderPolicyRejected simulates a provider-owned policy
+// rejection (for example the plugin's same-email conflict) crossing the seam.
+var codeAuthTestProviderPolicyRejected = bizerr.MustDefine(
+	"AUTH_TEST_PROVIDER_POLICY_REJECTED",
+	"Test provider policy rejection",
+	gcode.CodeInvalidOperation,
+)
 
 // TestExternalLoginAutoProvisionDisabledFailsClosed verifies that an unlinked
 // identity is rejected with not-provisioned when AllowAutoProvision is unset,
-// even when a provisioner is bound.
+// even when a provider is bound, and that the provider is never asked to
+// provision.
 func TestExternalLoginAutoProvisionDisabledFailsClosed(t *testing.T) {
 	ctx := context.Background()
 	svc := newTenantAuthTestService()
-	svc.BindExternalProvisioner(&testExternalProvisioner{})
+	provider := &mockIdentityProvider{links: map[string]int{}, provisionID: 1}
+	svc.BindExternalIdentityProvider(provider)
 
 	_, err := svc.LoginByExternalIdentity(ctx, ExternalLoginInput{
 		Provider:   "google",
@@ -81,56 +49,91 @@ func TestExternalLoginAutoProvisionDisabledFailsClosed(t *testing.T) {
 	if !bizerr.Is(err, CodeAuthExternalUserNotProvisioned) {
 		t.Fatalf("expected not-provisioned, got %v", err)
 	}
+	if len(provider.provisionCalls) != 0 {
+		t.Fatalf("expected no provisioning call, got %d", len(provider.provisionCalls))
+	}
 }
 
-// TestExternalLoginAutoProvisionEmailConflict verifies that an unlinked
-// identity whose email already belongs to a local account is rejected with the
-// email-conflict code instead of silently linking or provisioning.
-func TestExternalLoginAutoProvisionEmailConflict(t *testing.T) {
+// TestExternalLoginProviderPolicyErrorPassesThrough verifies that a
+// provider-owned policy rejection (for example the plugin's same-email
+// conflict) surfaces to the caller unchanged, and that the provider received
+// the verified identity fields.
+func TestExternalLoginProviderPolicyErrorPassesThrough(t *testing.T) {
 	ctx := context.Background()
 	svc := newTenantAuthTestService()
-	svc.BindExternalProvisioner(&testExternalProvisioner{})
-
-	username := fmt.Sprintf("conflict-user-%d", time.Now().UnixNano())
-	email := username + "@example.com"
-	userID := insertAuthTestUser(t, ctx, username, "admin123")
-	if _, err := dao.SysUser.Ctx(ctx).
-		Where(do.SysUser{Id: userID}).
-		Data(do.SysUser{Email: email}).
-		Update(); err != nil {
-		t.Fatalf("set fixture email: %v", err)
+	provider := &mockIdentityProvider{
+		links:        map[string]int{},
+		provisionErr: bizerr.NewCode(codeAuthTestProviderPolicyRejected),
 	}
+	svc.BindExternalIdentityProvider(provider)
 
+	subject := fmt.Sprintf("conflict-%d", time.Now().UnixNano())
+	email := "conflict@example.com"
 	_, err := svc.LoginByExternalIdentity(ctx, ExternalLoginInput{
+		PluginID:           "linapro-oidc-google",
 		Provider:           "google",
-		Subject:            fmt.Sprintf("conflict-%d", time.Now().UnixNano()),
+		Subject:            subject,
 		Email:              email,
 		ClientType:         tokencap.ClientTypeWeb,
 		AllowAutoProvision: true,
 	})
-	if !bizerr.Is(err, CodeAuthExternalEmailConflict) {
-		t.Fatalf("expected email-conflict, got %v", err)
+	if !bizerr.Is(err, codeAuthTestProviderPolicyRejected) {
+		t.Fatalf("expected provider policy rejection to pass through, got %v", err)
+	}
+	if len(provider.provisionCalls) != 1 {
+		t.Fatalf("expected one provisioning call, got %d", len(provider.provisionCalls))
+	}
+	call := provider.provisionCalls[0]
+	if call.Provider != "google" || call.Subject != subject || call.Email != email {
+		t.Fatalf("provider received unexpected provisioning input: %#v", call)
+	}
+	if call.PluginID != "linapro-oidc-google" {
+		t.Fatalf("expected host-stamped plugin ID, got %q", call.PluginID)
+	}
+	if !call.AllowAutoProvision {
+		t.Fatal("expected AllowAutoProvision to be forwarded as true")
 	}
 }
 
-// TestExternalLoginAutoProvisionCreatesUserAndLinkage verifies the happy path:
-// switch on, unlinked identity, unused email -> user provisioned, linkage row
-// written, token pair issued for the new platform user.
-func TestExternalLoginAutoProvisionCreatesUserAndLinkage(t *testing.T) {
+// TestExternalLoginProviderUnavailableMapsToNotProvisioned verifies that the
+// provider-unavailable sentinel (no enabled provider plugin) keeps the
+// historical uniform fail-closed outcome.
+func TestExternalLoginProviderUnavailableMapsToNotProvisioned(t *testing.T) {
 	ctx := context.Background()
 	svc := newTenantAuthTestService()
-	provisioner := &testExternalProvisioner{}
-	svc.BindExternalProvisioner(provisioner)
+	svc.BindExternalIdentityProvider(&mockIdentityProvider{
+		links:        map[string]int{},
+		provisionErr: externalidentityspi.ErrProviderUnavailable,
+	})
 
-	provider := "google"
-	subject := fmt.Sprintf("prov-sub-%d", time.Now().UnixNano())
-	email := fmt.Sprintf("prov-%d@example.com", time.Now().UnixNano())
-	t.Cleanup(func() { cleanupProvisionFixtures(t, ctx, provider, subject, email) })
+	_, err := svc.LoginByExternalIdentity(ctx, ExternalLoginInput{
+		Provider:           "google",
+		Subject:            fmt.Sprintf("unavailable-%d", time.Now().UnixNano()),
+		Email:              "unavailable@example.com",
+		ClientType:         tokencap.ClientTypeWeb,
+		AllowAutoProvision: true,
+	})
+	if !bizerr.Is(err, CodeAuthExternalUserNotProvisioned) {
+		t.Fatalf("expected not-provisioned, got %v", err)
+	}
+}
+
+// TestExternalLoginAutoProvisionIssuesSession verifies the happy path: switch
+// on, unlinked identity, provider provisions an account, and the resolved user
+// enters the unchanged token-minting flow.
+func TestExternalLoginAutoProvisionIssuesSession(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+
+	username := fmt.Sprintf("prov-user-%d", time.Now().UnixNano())
+	userID := insertAuthTestUser(t, ctx, username, "admin123")
+	provider := &mockIdentityProvider{links: map[string]int{}, provisionID: userID}
+	svc.BindExternalIdentityProvider(provider)
 
 	out, err := svc.LoginByExternalIdentity(ctx, ExternalLoginInput{
-		Provider:           provider,
-		Subject:            subject,
-		Email:              email,
+		Provider:           "google",
+		Subject:            fmt.Sprintf("prov-sub-%d", time.Now().UnixNano()),
+		Email:              fmt.Sprintf("prov-%d@example.com", time.Now().UnixNano()),
 		DisplayName:        "Provisioned User",
 		ClientType:         tokencap.ClientTypeWeb,
 		AllowAutoProvision: true,
@@ -141,20 +144,14 @@ func TestExternalLoginAutoProvisionCreatesUserAndLinkage(t *testing.T) {
 	if out.AccessToken == "" || out.RefreshToken == "" {
 		t.Fatalf("expected token pair for provisioned user, got %#v", out)
 	}
-	if provisioner.lastInput.Email != email {
-		t.Fatalf("provisioner received email %q, want %q", provisioner.lastInput.Email, email)
+	claims, err := svc.parseAccessTokenForTest(ctx, out.AccessToken)
+	if err != nil {
+		t.Fatalf("parse provisioned login token: %v", err)
 	}
-	// The linkage row must exist and reference the provisioned user.
-	var linkage *entity.SysUserExternalIdentity
-	if err = dao.SysUserExternalIdentity.Ctx(ctx).
-		Where(do.SysUserExternalIdentity{Provider: provider, Subject: subject}).
-		Scan(&linkage); err != nil {
-		t.Fatalf("scan linkage: %v", err)
+	if claims.UserId != userID {
+		t.Fatalf("expected token for provisioned user %d, got %d", userID, claims.UserId)
 	}
-	if linkage == nil || linkage.UserId == 0 {
-		t.Fatalf("expected linkage row for provisioned user, got %#v", linkage)
-	}
-	if linkage.EmailSnapshot != email {
-		t.Fatalf("linkage email snapshot = %q, want %q", linkage.EmailSnapshot, email)
+	if len(provider.provisionCalls) != 1 {
+		t.Fatalf("expected one provisioning call, got %d", len(provider.provisionCalls))
 	}
 }

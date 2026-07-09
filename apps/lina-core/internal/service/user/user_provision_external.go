@@ -42,10 +42,41 @@ const provisionPasswordByteLength = 32
 // identity. See the Service interface for the full contract.
 func (s *serviceImpl) ProvisionExternalUser(ctx context.Context, in ProvisionExternalInput) (int, error) {
 	email := strings.TrimSpace(in.Email)
+	anchor := strings.TrimSpace(in.UsernameAnchor)
+	// Email-backed providers derive the username from the email local part.
+	// Email-less providers (for example WeChat) MUST supply a deterministic
+	// anchor; only reject when neither a valid email nor an anchor is present.
 	if email == "" || !strings.Contains(email, "@") {
-		return 0, bizerr.NewCode(CodeUserProvisionEmailInvalid)
+		if anchor == "" {
+			return 0, bizerr.NewCode(CodeUserProvisionEmailInvalid)
+		}
+		// Email-less provisioning: do not persist an invalid email.
+		email = ""
 	}
-	username, err := s.resolveProvisionUsername(ctx, email)
+	var (
+		username string
+		err      error
+	)
+	if email != "" {
+		// Minting-safety invariant: never mint a second account for an email
+		// that an existing local account already uses, otherwise an IdP email
+		// assertion could take over or shadow that account. The lookup is an
+		// unfiltered host-side query because system provisioning runs without
+		// an actor context; callers (the external-identity provider plugin) map
+		// this into their caller-visible conflict policy.
+		count, countErr := dao.SysUser.Ctx(ctx).
+			Where(do.SysUser{Email: email}).
+			Count()
+		if countErr != nil {
+			return 0, bizerr.WrapCode(countErr, CodeUserProvisionFailed)
+		}
+		if count > 0 {
+			return 0, bizerr.NewCode(CodeUserProvisionEmailConflict)
+		}
+		username, err = s.resolveProvisionUsername(ctx, email)
+	} else {
+		username, err = s.resolveProvisionUsernameFromAnchor(ctx, anchor)
+	}
 	if err != nil {
 		return 0, err
 	}
@@ -123,6 +154,35 @@ func (s *serviceImpl) resolveProvisionUsername(ctx context.Context, email string
 		gerror.Newf("username derivation exhausted %d attempts for base %q", provisionUsernameMaxAttempts, candidateBase),
 		CodeUserProvisionFailed,
 	)
+}
+
+// resolveProvisionUsernameFromAnchor derives a deterministic username from a
+// collision-resistant anchor supplied by an email-less provider. Unlike the
+// email path, it MUST NOT append numeric de-duplication suffixes: the anchor is
+// the provider's stable per-identity key, so a repeated provisioning attempt
+// for the same external identity resolves to the same username and reuses the
+// same account (idempotent). When the derived username already exists, the
+// existing account ID is returned by the caller's link-conflict path; here we
+// only sanitize and bound the anchor into a legal username.
+func (s *serviceImpl) resolveProvisionUsernameFromAnchor(_ context.Context, anchor string) (string, error) {
+	base := strings.ToLower(strings.TrimSpace(anchor))
+	var builder strings.Builder
+	for _, r := range base {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			builder.WriteRune(r)
+		case r == '.' || r == '-' || r == '_':
+			builder.WriteRune(r)
+		}
+	}
+	candidate := strings.Trim(builder.String(), "._-")
+	if candidate == "" {
+		return "", bizerr.NewCode(CodeUserProvisionEmailInvalid)
+	}
+	if len(candidate) > provisionUsernameMaxLength {
+		candidate = candidate[:provisionUsernameMaxLength]
+	}
+	return candidate, nil
 }
 
 // generateUnusablePassword returns a high-entropy random password that is

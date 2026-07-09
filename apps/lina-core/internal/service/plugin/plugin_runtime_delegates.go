@@ -16,6 +16,7 @@ import (
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/wasm"
 	aitextsvc "lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/authcap/externallogin/externalidentityspi"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
@@ -149,6 +150,16 @@ func (d *RuntimeDelegate) TenantProviderEnv(ctx context.Context, pluginID string
 		return tenantspi.ProviderEnv{PluginID: pluginID}
 	}
 	return service.TenantProviderEnv(ctx, pluginID)
+}
+
+// ExternalIdentityProviderEnv returns external-identity provider construction
+// inputs after binding.
+func (d *RuntimeDelegate) ExternalIdentityProviderEnv(ctx context.Context, pluginID string) externalidentityspi.ProviderEnv {
+	service := d.serviceSnapshot()
+	if service == nil {
+		return externalidentityspi.ProviderEnv{PluginID: pluginID}
+	}
+	return service.ExternalIdentityProviderEnv(ctx, pluginID)
 }
 
 // EnsureTenantPluginDisableAllowed delegates tenant plugin disable guards after binding.

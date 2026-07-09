@@ -1272,6 +1272,11 @@ func (testUsersService) Create(context.Context, capabilityusercap.CreateInput) (
 	return "", nil
 }
 
+// ProvisionExternal accepts external-identity provisioning without mutating test state.
+func (testUsersService) ProvisionExternal(context.Context, capabilityusercap.ProvisionExternalInput) (capabilityusercap.UserID, error) {
+	return "", nil
+}
+
 // Update accepts user updates without mutating test state.
 func (testUsersService) Update(context.Context, capabilityusercap.UpdateInput) error {
 	return nil

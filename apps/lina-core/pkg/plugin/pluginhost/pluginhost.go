@@ -7,6 +7,7 @@ import (
 	"io/fs"
 
 	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/authcap/externallogin/externalidentityspi"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
@@ -240,6 +241,13 @@ type ProviderDeclarations interface {
 	// plugin's provider. A plugin may declare more than one provider ID;
 	// duplicate declarations of the same ID are rejected.
 	ProvideExternalIdentity(providerID string) error
+	// ProvideExternalIdentityProvider declares this source plugin's
+	// external-identity provider engine factory (resolve/provision/link). It is
+	// orthogonal to ProvideExternalIdentity ownership stamping: the engine
+	// plugin (linapro-oidc-core) supplies resolution and provisioning, while
+	// calling plugins (google/discord) still declare provider-ID ownership. Only
+	// one engine factory may be declared per plugin.
+	ProvideExternalIdentityProvider(factory externalidentityspi.ProviderFactory) error
 }
 
 // SourcePluginDefinition exposes the host-side read model restored from one
@@ -268,6 +276,9 @@ type SourcePluginDefinition interface {
 	// declared by this source plugin. The host consults this ownership set to
 	// authorize external-login requests.
 	GetExternalIdentityProviderIDs() []string
+	// GetExternalIdentityProviderFactory returns the declared external-identity
+	// provider engine factory, or nil when this plugin declares none.
+	GetExternalIdentityProviderFactory() externalidentityspi.ProviderFactory
 	// GetBeforeInstallHandler returns the registered pre-install veto callback.
 	GetBeforeInstallHandler() SourcePluginBeforeLifecycleHandler
 	// GetAfterInstallHandler returns the registered post-install callback.

@@ -1,16 +1,19 @@
 // auth_external_identity.go implements external-identity login: it resolves a
 // source-plugin-verified external identity (provider + immutable subject) to a
-// linked local account and issues a host session. The flow deliberately reuses
-// the shared login-IP policy, disabled-account check, tenant resolution,
-// pre-login-token handoff, token issuance, session persistence, and auth hooks
-// owned by the auth service so external login and password login stay
-// behavior-compatible. Provisioning is host-owned and closed by default; the
-// host never creates a local account from an external identity.
+// linked local account through the bound external-identity provider and issues
+// a host session. The flow deliberately reuses the shared login-IP policy,
+// disabled-account check, tenant resolution, pre-login-token handoff, token
+// issuance, session persistence, and auth hooks owned by the auth service so
+// external login and password login stay behavior-compatible. Linkage storage
+// and provisioning policy are provider-owned (linapro-oidc-core); when no
+// provider plugin is installed and enabled, external login is fail-closed: no
+// linkage resolves, no account is created, and no session is issued.
 
 package auth
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -19,71 +22,56 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
+	"lina-core/pkg/plugin/capability/authcap/externallogin/externalidentityspi"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	"lina-core/pkg/plugin/pluginhost"
 	"lina-core/pkg/statusflag"
 
-	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/mssola/useragent"
 )
 
-// tryAutoProvision runs the host-owned auto-provisioning policy for one
-// unlinked verified identity. It returns the provisioned user ID, or a
-// caller-visible bizerr:
-//
-//   - AllowAutoProvision unset or no provisioner bound -> not-provisioned
-//     (the historical fail-closed behavior).
-//   - An enabled local account already uses the same email -> email-conflict.
-//     The identity is NOT linked automatically; the user must sign in to the
-//     existing account and link the identity through an authenticated
-//     confirmation flow. This blocks silent account takeover through an IdP
-//     email assertion.
-//   - Otherwise the user owner provisions a least-privilege platform user and
-//     the (provider, subject) linkage row is recorded inside one transaction.
-func (s *serviceImpl) tryAutoProvision(ctx context.Context, in ExternalLoginInput) (int, error) {
-	if !in.AllowAutoProvision || s == nil || s.provisioner == nil {
+// resolveExternalUserID resolves a verified external identity to a local user
+// ID through the bound provider seam. A missing provider, missing linkage, or
+// disallowed auto-provisioning uniformly yields the fail-closed
+// not-provisioned outcome so external login never leaks account existence.
+// Provisioning policy (same-email conflict, email-less anchor derivation,
+// idempotent (provider, subject) de-duplication) is provider-owned; policy
+// rejections surface as the provider's caller-visible bizerr.
+func (s *serviceImpl) resolveExternalUserID(ctx context.Context, in ExternalLoginInput, provider string, subject string) (int, error) {
+	if s == nil || s.identityProvider == nil {
 		return 0, bizerr.NewCode(CodeAuthExternalUserNotProvisioned)
 	}
-	email := strings.TrimSpace(in.Email)
-	if email == "" {
-		return 0, bizerr.NewCode(CodeAuthExternalUserNotProvisioned)
-	}
-	emailCount, err := dao.SysUser.Ctx(ctx).
-		Where(do.SysUser{Email: email}).
-		Count()
+	userID, found, err := s.identityProvider.Resolve(ctx, externalidentityspi.ResolveInput{
+		Provider: provider,
+		Subject:  subject,
+	})
 	if err != nil {
 		return 0, err
 	}
-	if emailCount > 0 {
-		return 0, bizerr.NewCode(CodeAuthExternalEmailConflict)
+	if found {
+		return userID, nil
 	}
-	var provisionedUserID int
-	if err = dao.SysUserExternalIdentity.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
-		userID, provisionErr := s.provisioner.ProvisionExternalUser(ctx, ExternalProvisionInput{
-			Email:       email,
-			DisplayName: in.DisplayName,
-			Remark:      "auto-provisioned by external login provider " + in.Provider,
-		})
-		if provisionErr != nil {
-			return provisionErr
+	if !in.AllowAutoProvision {
+		return 0, bizerr.NewCode(CodeAuthExternalUserNotProvisioned)
+	}
+	userID, err = s.identityProvider.Provision(ctx, externalidentityspi.ProvisionInput{
+		Provider:           provider,
+		Subject:            subject,
+		Email:              strings.TrimSpace(in.Email),
+		DisplayName:        in.DisplayName,
+		PluginID:           in.PluginID,
+		AllowAutoProvision: true,
+	})
+	if err != nil {
+		// No enabled provider plugin keeps the historical fail-closed outcome.
+		if errors.Is(err, externalidentityspi.ErrProviderUnavailable) {
+			return 0, bizerr.NewCode(CodeAuthExternalUserNotProvisioned)
 		}
-		if _, linkErr := dao.SysUserExternalIdentity.Ctx(ctx).Data(do.SysUserExternalIdentity{
-			UserId:        userID,
-			Provider:      in.Provider,
-			Subject:       strings.TrimSpace(in.Subject),
-			PluginId:      in.PluginID,
-			EmailSnapshot: email,
-		}).Insert(); linkErr != nil {
-			return linkErr
-		}
-		provisionedUserID = userID
-		return nil
-	}); err != nil {
 		return 0, err
 	}
-	logger.Infof(ctx, "external login auto-provisioned provider=%s subject=%s userId=%d", in.Provider, in.Subject, provisionedUserID)
-	return provisionedUserID, nil
+	logger.Infof(ctx, "external login auto-provisioned provider=%s subject=%s userId=%d", provider, subject, userID)
+	return userID, nil
 }
 
 // LoginByExternalIdentity resolves a verified external identity to a linked
@@ -138,28 +126,19 @@ func (s *serviceImpl) LoginByExternalIdentity(ctx context.Context, in ExternalLo
 		return nil, bizerr.NewCode(CodeAuthIPBlacklisted)
 	}
 
-	// Resolve the linked local user through the authoritative (provider,
-	// subject) unique key. Missing linkage returns a uniform not-provisioned
-	// error so external login never leaks whether the captured email exists as
-	// another account.
-	var identity *entity.SysUserExternalIdentity
-	if err = dao.SysUserExternalIdentity.Ctx(ctx).
-		Where(do.SysUserExternalIdentity{Provider: provider, Subject: subject}).
-		Scan(&identity); err != nil {
+	// Resolve the linked local user through the provider-owned authoritative
+	// (provider, subject) key, provisioning through the provider policy when
+	// allowed. Failures keep the uniform not-provisioned outcome so external
+	// login never leaks whether the captured email exists as another account.
+	userID, err := s.resolveExternalUserID(ctx, in, provider, subject)
+	if err != nil {
+		dispatchExternalLoginFailed(in.Email, authEventMessageExternalNotProvisioned, authHookReasonExternalNotProvisioned)
 		return nil, err
-	}
-	if identity == nil {
-		provisionedUserID, provisionErr := s.tryAutoProvision(ctx, in)
-		if provisionErr != nil {
-			dispatchExternalLoginFailed(in.Email, authEventMessageExternalNotProvisioned, authHookReasonExternalNotProvisioned)
-			return nil, provisionErr
-		}
-		identity = &entity.SysUserExternalIdentity{UserId: provisionedUserID}
 	}
 
 	var user *entity.SysUser
 	if err = dao.SysUser.Ctx(ctx).
-		Where(do.SysUser{Id: identity.UserId}).
+		Where(do.SysUser{Id: userID}).
 		Scan(&user); err != nil {
 		return nil, err
 	}

@@ -641,6 +641,11 @@ func (s sessionUsersService) Create(context.Context, capabilityusercap.CreateInp
 	return "", nil
 }
 
+// ProvisionExternal is unused by sessioncap tests.
+func (s sessionUsersService) ProvisionExternal(context.Context, capabilityusercap.ProvisionExternalInput) (capabilityusercap.UserID, error) {
+	return "", nil
+}
+
 // Update is unused by sessioncap tests.
 func (s sessionUsersService) Update(context.Context, capabilityusercap.UpdateInput) error {
 	return nil

@@ -8,6 +8,8 @@ import (
 	"context"
 	"strconv"
 
+	"github.com/gogf/gf/v2/errors/gerror"
+
 	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/usercap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
@@ -121,6 +123,15 @@ func (s usersService) Create(_ context.Context, input usercap.CreateInput) (user
 	var out usercap.UserID
 	err := s.callJSONRequest(protocol.HostServiceUsers, protocol.HostServiceMethodUsersCreate, input, &out)
 	return out, err
+}
+
+// ProvisionExternal fails closed for dynamic plugins. External-identity account
+// provisioning is intentionally not published as a users host-service method:
+// mirroring Auth.ExternalLogin(), an operator-less least-privilege
+// account-minting primitive must not be reachable from sandboxed WASM guests,
+// so there is no protocol constant, descriptor entry, or dispatcher case for it.
+func (usersService) ProvisionExternal(_ context.Context, _ usercap.ProvisionExternalInput) (usercap.UserID, error) {
+	return "", gerror.New("pluginbridge: external identity provisioning is not available to dynamic plugins")
 }
 
 // Update updates one visible user through the dynamic users host service.

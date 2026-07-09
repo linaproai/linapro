@@ -316,6 +316,34 @@ func (a *userCapabilityAdapter) Create(ctx context.Context, input capabilityuser
 	return capabilityusercap.UserID(strconv.Itoa(id)), nil
 }
 
+// ProvisionExternal mints one least-privilege account for a verified external
+// identity through the host user owner's system provisioning path. It carries no
+// operator context and applies no tenant/role/create-boundary validation; the
+// owner derives the username, sets an unusable password, and assigns no roles or
+// tenants. Callers own idempotent link de-duplication before invoking it.
+func (a *userCapabilityAdapter) ProvisionExternal(ctx context.Context, input capabilityusercap.ProvisionExternalInput) (capabilityusercap.UserID, error) {
+	if a == nil || a.owner == nil {
+		return "", bizerr.NewCode(capmodel.CodeCapabilityUnavailable, bizerr.P("capability", "user-owner"))
+	}
+	id, err := a.owner.ProvisionExternalUser(ctx, usersvc.ProvisionExternalInput{
+		Email:          input.Email,
+		DisplayName:    input.DisplayName,
+		Remark:         input.Remark,
+		UsernameAnchor: input.UsernameAnchor,
+	})
+	if err != nil {
+		// Translate the host-internal conflict code into the stable capability
+		// sentinel: plugin modules cannot import internal bizerr codes, and the
+		// conflict must stay detectable with errors.Is so the provider plugin
+		// can apply its caller-visible conflict policy.
+		if bizerr.Is(err, usersvc.CodeUserProvisionEmailConflict) {
+			return "", capabilityusercap.ErrProvisionEmailConflict
+		}
+		return "", err
+	}
+	return capabilityusercap.UserID(strconv.Itoa(id)), nil
+}
+
 // Update mutates one visible user through the host user owner.
 func (a *userCapabilityAdapter) Update(ctx context.Context, input capabilityusercap.UpdateInput) error {
 	if a == nil || a.owner == nil {

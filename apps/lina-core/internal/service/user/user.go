@@ -157,14 +157,22 @@ type CreateInput struct {
 
 // ProvisionExternalInput defines input for ProvisionExternalUser. Email is
 // the verified address asserted by the external identity provider;
-// DisplayName seeds the nickname and may be empty.
+// DisplayName seeds the nickname and may be empty. When Email is empty an
+// external provider that has no email (for example WeChat) MUST supply a
+// deterministic UsernameAnchor so a stable username can be derived without an
+// email local part.
 type ProvisionExternalInput struct {
-	// Email is the verified email address from the external provider.
+	// Email is the verified email address from the external provider. It may be
+	// empty for email-less providers, in which case UsernameAnchor is required.
 	Email string
 	// DisplayName optionally seeds the nickname.
 	DisplayName string
 	// Remark records the provisioning source for audit, e.g. the provider ID.
 	Remark string
+	// UsernameAnchor is an optional deterministic anchor used to derive a
+	// username when Email is empty. It MUST be collision-resistant per distinct
+	// external identity so two identities cannot alias onto one account.
+	UsernameAnchor string
 }
 
 // UpdateInput defines input for Update function.
