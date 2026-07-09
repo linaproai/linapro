@@ -97,7 +97,7 @@ func EnsureBundledRuntimeSampleArtifactForTests(t *testing.T) {
 			"run",
 			".",
 			"wasm",
-			"plugin_dir="+pluginDir,
+			"dir="+pluginDir,
 			"out="+testDynamicStorageDir,
 		)
 		cmd.Dir = filepath.Join(repoRoot, "hack", "tools", "linactl")
@@ -128,7 +128,7 @@ func BuildRuntimeArtifactWithHackTool(t *testing.T, pluginDir string) *RuntimeBu
 	if err = ensureBuildWasmPluginWorkspace(repoRoot, pluginDir); err != nil {
 		t.Fatalf("failed to prepare temporary plugin workspace: %v", err)
 	}
-	cmd := exec.CommandContext(t.Context(), "go", "run", ".", "wasm", "plugin_dir="+pluginDir, "out="+outputDir)
+	cmd := exec.CommandContext(t.Context(), "go", "run", ".", "wasm", "dir="+pluginDir, "out="+outputDir)
 	cmd.Dir = filepath.Join(repoRoot, "hack", "tools", "linactl")
 	cmd.Env = append(os.Environ(), "GOWORK="+selectBuildWasmGoWork(repoRoot, pluginDir))
 	output, err := cmd.CombinedOutput()

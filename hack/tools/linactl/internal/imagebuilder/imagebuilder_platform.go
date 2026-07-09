@@ -110,12 +110,3 @@ func platformValues(targets []targetPlatform) []string {
 	}
 	return values
 }
-
-// joinPlatformSpace joins targets for shell for-loops in make recipes.
-func joinPlatformSpace(targets []targetPlatform) string {
-	values := make([]string, 0, len(targets))
-	for _, target := range targets {
-		values = append(values, target.String())
-	}
-	return strings.Join(values, " ")
-}

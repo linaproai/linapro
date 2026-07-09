@@ -48,14 +48,6 @@ func buildOutputBinaryRelPath(build buildConfig, target targetPlatform) string {
 	return filepath.Join(build.OutputDir, build.BinaryName)
 }
 
-// defaultBuildBinaryPath returns the printable primary build artifact path.
-func defaultBuildBinaryPath(build buildConfig) string {
-	if build.MultiPlatform() && len(build.Targets) > 0 {
-		return buildOutputBinaryRelPath(build, build.Targets[0])
-	}
-	return filepath.Join(build.OutputDir, build.BinaryName)
-}
-
 // imageStagedBinaryPath returns the Dockerfile input binary path for one target.
 func imageStagedBinaryPath(repoRoot string, build buildConfig, target targetPlatform) string {
 	return filepath.Join(repoRoot, conventionImageBinaryRoot, target.OS, target.Arch, conventionImageBinaryName)
