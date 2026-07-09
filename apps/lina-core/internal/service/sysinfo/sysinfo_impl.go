@@ -148,9 +148,11 @@ func formatRunDurationFallback(totalSeconds int64) string {
 		totalSeconds = 0
 	}
 
-	hours := totalSeconds / int64(time.Hour/time.Second)
-	minutes := totalSeconds / int64(time.Minute/time.Second) % 60
-	seconds := totalSeconds % 60
+	var (
+		hours   = totalSeconds / int64(time.Hour/time.Second)
+		minutes = totalSeconds / int64(time.Minute/time.Second) % 60
+		seconds = totalSeconds % 60
+	)
 	if hours > 0 {
 		return fmt.Sprintf("%d hours %d minutes %d seconds", hours, minutes, seconds)
 	}

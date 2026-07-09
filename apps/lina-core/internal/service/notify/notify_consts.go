@@ -2,11 +2,13 @@
 
 package notify
 
+import usermsgv1 "lina-core/api/usermsg/v1"
+
 // ChannelType defines the supported notify channel types.
 type ChannelType string
 
-// SourceType defines the supported notify source types.
-type SourceType string
+// SourceType reuses the user-message API source enum for notify origins.
+type SourceType = usermsgv1.SourceType
 
 // CategoryCode defines the supported notify category codes.
 type CategoryCode string
@@ -28,17 +30,6 @@ const (
 	ChannelTypeEmail ChannelType = "email"
 	// ChannelTypeWebhook identifies webhook deliveries.
 	ChannelTypeWebhook ChannelType = "webhook"
-)
-
-// Source type constants enumerate the supported business origins of notify
-// messages.
-const (
-	// SourceTypeNotice identifies notice-originated messages.
-	SourceTypeNotice SourceType = "notice"
-	// SourceTypePlugin identifies plugin-originated messages.
-	SourceTypePlugin SourceType = "plugin"
-	// SourceTypeSystem identifies system-originated messages.
-	SourceTypeSystem SourceType = "system"
 )
 
 // Category code constants enumerate the inbox message categories owned by the
@@ -63,14 +54,6 @@ const (
 	RecipientTypeWebhook RecipientType = "webhook"
 )
 
-// Channel status constants reflect persisted notify channel enablement.
-const (
-	// ChannelStatusDisabled marks a disabled channel row.
-	ChannelStatusDisabled = 0
-	// ChannelStatusEnabled marks an enabled channel row.
-	ChannelStatusEnabled = 1
-)
-
 // Delivery status constants reflect persisted notify delivery outcomes.
 const (
 	// DeliveryStatusPending marks a queued delivery.
@@ -83,11 +66,6 @@ const (
 
 // String returns the canonical channel type value.
 func (value ChannelType) String() string {
-	return string(value)
-}
-
-// String returns the canonical source type value.
-func (value SourceType) String() string {
 	return string(value)
 }
 

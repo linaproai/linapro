@@ -54,12 +54,20 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 		"backend_port":  strconv.Itoa(backendPort),
 		"frontend_port": strconv.Itoa(frontendPort),
 	}}
+	services := devservice.Services(a.root, backendPort, frontendPort)
 	stoppedPorts, err := stopServices(a, stopInput)
 	if err != nil {
 		return err
 	}
 	if len(stoppedPorts) > 0 {
 		devservice.WaitPortsReleased(a.portInUse, defaultPortReleaseTimeout, stoppedPorts...)
+	}
+	stoppedProjectPorts, err := devservice.StopCurrentProjectServiceProcessesForOccupiedPorts(a.stdout, a.root, services, a.portInUse, a.processList, a.processKill)
+	if err != nil {
+		return err
+	}
+	if len(stoppedProjectPorts) > 0 {
+		devservice.WaitPortsReleased(a.portInUse, defaultPortReleaseTimeout, stoppedProjectPorts...)
 	}
 
 	// After stopping our own services, verify the ports are actually free.
@@ -96,7 +104,6 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 		return err
 	}
 
-	services := devservice.Services(a.root, backendPort, frontendPort)
 	services[0].StartName = backendBinary
 	services[1].StartName = toolutil.ViteCommand(a.root)
 	previousEnv := a.env
@@ -111,21 +118,27 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 	}
 
 	for _, service := range services {
+		entryName := devservice.EntryName(service)
 		// readinessURL distinguishes the backend from the frontend so we do
 		// not accept arbitrary 4xx responses from an unrelated process that
 		// happens to be bound to the port (the backend exposes /api.json
 		// configured via server.extensions.apiDocPath).
 		// 后端就绪探测打 /api.json 并要求 2xx，避免外部进程的 404 被误判为就绪。
 		readinessURL := devservice.ReadinessURL(service)
-		if err = a.waitHTTP(service.Name, readinessURL, service.PIDPath, service.LogPath, defaultWaitTimeout); err != nil {
-			tailErr := devservice.TailLogToWriter(a.stderr, service.Name, service.LogPath, devservice.DefaultReadinessTailLines)
+		if err = a.waitHTTP(entryName, readinessURL, service.PIDPath, service.LogPath, defaultWaitTimeout); err != nil {
+			tailErr := devservice.TailLogToWriter(a.stderr, entryName, service.LogPath, devservice.DefaultReadinessTailLines)
 			if tailErr != nil {
-				fmt.Fprintf(a.stderr, "warning: tail %s log failed: %v\n", service.Name, tailErr)
+				fmt.Fprintf(a.stderr, "warning: tail %s log failed: %v\n", entryName, tailErr)
 			}
 			return err
 		}
-		if _, err = fmt.Fprintf(a.stdout, "%s is ready: %s\n", service.Name, service.URL); err != nil {
+		if _, err = fmt.Fprintf(a.stdout, "%s is ready: %s\n", entryName, service.URL); err != nil {
 			return fmt.Errorf("write readiness output: %w", err)
+		}
+	}
+	if pluginsEnabled {
+		if _, err = fmt.Fprintln(a.stdout, "Source plugin pages are mounted inside Lina Vben."); err != nil {
+			return fmt.Errorf("write plugin entry hint: %w", err)
 		}
 	}
 

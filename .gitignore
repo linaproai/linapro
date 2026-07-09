@@ -32,7 +32,7 @@ assets/
 # =============================================================================
 # Agent / AI tooling local config
 # =============================================================================
-.aiprompt.zh.md
+/localdocs/
 .codex/config.toml
 .github/codex/*
 !.github/codex/
@@ -132,3 +132,7 @@ apps/lina-plugins/*/temp/
 # rootCollision agent (openclaw) — only created with explicit AGENT=openclaw FORCE=1.
 # Ignored to keep an opt-in symlink from polluting the repo root if a user enables it.
 /skills
+
+# AGENTS.md is the only truth, link to it if necessary.
+/CLAUDE.md
+/GEMINI.md

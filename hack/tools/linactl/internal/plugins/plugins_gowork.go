@@ -50,6 +50,9 @@ func GoWorkUses(root string, workspace OfficialWorkspace) ([]string, error) {
 			return nil
 		}
 		dir := filepath.Dir(path)
+		if filepath.Clean(dir) == filepath.Clean(workspace.Root) {
+			return nil
+		}
 		relativePath, relErr := filepath.Rel(root, dir)
 		if relErr != nil {
 			return relErr
@@ -91,9 +94,11 @@ func WriteOfficialWorkspace(root string, workspace OfficialWorkspace) (string, e
 		return "", err
 	}
 
-	workspacePath := GoWorkPath(root)
-	normalizedUses := make([]string, 0, len(hostUses)+len(pluginUses))
-	seen := make(map[string]struct{}, len(hostUses)+len(pluginUses))
+	var (
+		workspacePath  = GoWorkPath(root)
+		normalizedUses = make([]string, 0, len(hostUses)+len(pluginUses))
+		seen           = make(map[string]struct{}, len(hostUses)+len(pluginUses))
+	)
 	addUse := func(use string) {
 		normalized := normalizeGoWorkUse(root, use)
 		if normalized == "" || isOfficialPluginGoWorkUse(normalized) {
@@ -142,22 +147,9 @@ func WriteOfficialWorkspace(root string, workspace OfficialWorkspace) (string, e
 	return workspacePath, nil
 }
 
-// writeOfficialAggregateModule resolves the module that satisfies the
-// host's `import _ "lina-plugins"` bridge. Official plugin workspaces can
-// provide this aggregate module at their root; older local fixtures without a
-// root module still receive an ignored generated fallback module.
+// writeOfficialAggregateModule generates the module that satisfies the
+// host's `import _ "lina-plugins"` bridge for plugin-full builds.
 func writeOfficialAggregateModule(root string, workspace OfficialWorkspace) (string, error) {
-	existingUse, err := existingOfficialAggregateModule(root, workspace)
-	if err != nil {
-		return "", err
-	}
-	if existingUse != "" {
-		if err = os.RemoveAll(AggregateModuleDir(root)); err != nil {
-			return "", fmt.Errorf("clean stale official plugin aggregate module: %w", err)
-		}
-		return existingUse, nil
-	}
-
 	imports, err := BackendImports(workspace)
 	if err != nil {
 		return "", err
@@ -182,27 +174,6 @@ func writeOfficialAggregateModule(root string, workspace OfficialWorkspace) (str
 	return "./" + filepath.ToSlash(relativePath), nil
 }
 
-// existingOfficialAggregateModule returns the official plugin root module
-// when it already owns the host bridge import path.
-func existingOfficialAggregateModule(root string, workspace OfficialWorkspace) (string, error) {
-	goModPath := filepath.Join(workspace.Root, "go.mod")
-	if !fileutil.FileExists(goModPath) {
-		return "", nil
-	}
-	moduleName, err := readGoModuleName(goModPath)
-	if err != nil {
-		return "", err
-	}
-	if moduleName != AggregateModuleName {
-		return "", nil
-	}
-	relativePath, err := filepath.Rel(root, workspace.Root)
-	if err != nil {
-		return "", fmt.Errorf("resolve existing official plugin aggregate module path: %w", err)
-	}
-	return "./" + filepath.ToSlash(relativePath), nil
-}
-
 // BackendImports discovers source-plugin backend packages that
 // must be imported by the generated aggregate module.
 func BackendImports(workspace OfficialWorkspace) ([]BackendImport, error) {
@@ -217,9 +188,11 @@ func BackendImports(workspace OfficialWorkspace) ([]BackendImport, error) {
 		if entry.Name() != "go.mod" {
 			return nil
 		}
-		moduleDir := filepath.Dir(path)
-		manifestPath := filepath.Join(moduleDir, "plugin.yaml")
-		backendPath := filepath.Join(moduleDir, "backend", "plugin.go")
+		var (
+			moduleDir    = filepath.Dir(path)
+			manifestPath = filepath.Join(moduleDir, "plugin.yaml")
+			backendPath  = filepath.Join(moduleDir, "backend", "plugin.go")
+		)
 		if !fileutil.FileExists(manifestPath) || !fileutil.FileExists(backendPath) {
 			return nil
 		}

@@ -3,32 +3,30 @@
 #
 # This Makefile fragment exposes two layered entry points:
 #
-# Support both the historical upper-case Make variables and the lower-case
-# names used by linactl's key=value arguments.
-agents.agent := $(or $(agent),$(AGENT))
-agents.action := $(or $(action),$(ACTION))
-agents.force := $(or $(force),$(FORCE))
+# Use the same lower-case key=value names as linactl arguments.
+agents.agent := $(agent)
+agents.action := $(action)
+agents.force := $(force)
 
 #   1. `agents` (recommended) — agent-first one-shot/interactive setup.
-#      - On a TTY without agent/AGENT, opens an arrow-key driven menu that
+#      - On a TTY without agent, opens an arrow-key driven menu that
 #        first picks the agent, then picks link or unlink. The chosen
 #        action is automatically applied to every resource type
 #        (skills / prompts / md) the agent participates in; resources
 #        where the agent is native or unregistered are skipped with an
 #        explicit reason in the final summary.
-#      - With agent=<name> (or AGENT=<name>), runs the same dispatch
+#      - With agent=<name>, runs the same dispatch
 #        non-interactively.
 #        action defaults to `link`; pass action=unlink to remove.
 #        agent must be a single supported agent name (no `all`, no
-#        comma-separated list). Upper-case AGENT/ACTION/FORCE remain
-#        compatibility aliases.
+#        comma-separated list).
 #
 #   2. `agents.<resource>.<action>` (advanced) — per-resource batch
 #      operations preserved from before:
 #        - skills:  directory bridge from .<tool>/skills    -> .agents/skills
 #        - prompts: directory bridge from .<tool>/commands  -> .agents/prompts
 #        - md:      single-file bridge from .<tool>.md      -> AGENTS.md
-#      These accept agent=<name|all|csv> (or AGENT=<name|all|csv>) and
+#      These accept agent=<name|all|csv> and
 #      remain the recommended route for batch updates across many agents
 #      at once.
 
@@ -38,7 +36,7 @@ agents.force := $(or $(force),$(FORCE))
         agents.md.link agents.md.unlink
 
 # agents drives the agent-first aggregate command. Without arguments and
-# attached to a TTY, it opens the arrow-key picker. With agent/AGENT set, it
+# attached to a TTY, it opens the arrow-key picker. With agent set, it
 # runs non-interactively against every resource the agent participates
 # in. Pass force=1 to rebuild mismatched links and auto-replace degraded
 # git symlink stubs (created when core.symlinks=false), action=unlink to remove.

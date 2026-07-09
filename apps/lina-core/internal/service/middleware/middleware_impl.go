@@ -1,7 +1,7 @@
 // middleware_impl.go implements request middleware for sessions, CORS,
-// localization, and plugin route filtering. It relies on the injected auth,
-// tenant, i18n, and plugin services so request paths share runtime state and
-// do not create independent service graphs while handling HTTP traffic.
+// localization, and route-publication helpers. It relies on the injected auth,
+// tenant, i18n, and role services so request paths share runtime state and do
+// not create independent service graphs while handling HTTP traffic.
 
 package middleware
 
@@ -70,36 +70,14 @@ func (s *serviceImpl) Auth(r *ghttp.Request) {
 		return
 	}
 
-	claims, err := s.authSvc.ParseToken(r.Context(), tokenString)
+	claims, err := s.authSvc.AuthenticateAccessToken(r.Context(), tokenString)
 	if err != nil {
-		r.Response.WriteStatus(http.StatusUnauthorized)
-		return
-	}
-
-	sessionTimeout, err := s.configSvc.GetSessionTimeout(r.Context())
-	if err != nil {
-		r.SetError(err)
-		return
-	}
-
-	// Update last active time and validate session exists (supports forced logout and timeout cleanup)
-	exists, err := s.authSvc.SessionStore().TouchOrValidate(
-		r.Context(),
-		claims.TenantId,
-		claims.TokenId,
-		sessionTimeout,
-	)
-	if err != nil || !exists {
-		s.roleSvc.InvalidateTokenAccessContext(r.Context(), claims.TokenId)
-		if err != nil {
-			r.SetError(err)
-		}
 		r.Response.WriteStatus(http.StatusUnauthorized)
 		return
 	}
 
 	// Inject user info into business context.
-	s.bizCtxSvc.SetUser(r.Context(), claims.TokenId, claims.UserId, claims.Username, claims.Status)
+	s.bizCtxSvc.SetUser(r.Context(), claims.TokenId, claims.UserId, claims.Username, claims.Status, claims.ClientType.String())
 	s.bizCtxSvc.SetTenant(r.Context(), claims.TenantId)
 	s.bizCtxSvc.SetImpersonation(
 		r.Context(),

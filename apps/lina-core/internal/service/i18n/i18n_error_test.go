@@ -77,6 +77,35 @@ func TestLocalizeErrorUsesStructuredFallback(t *testing.T) {
 	}
 }
 
+// TestLocalizeErrorUsesHostAuthErrorResources verifies authentication business
+// errors used by login rejection ship runtime translations in built-in locales.
+func TestLocalizeErrorUsesHostAuthErrorResources(t *testing.T) {
+	resetRuntimeBundleCache()
+	t.Cleanup(resetRuntimeBundleCache)
+
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
+	code := bizerr.MustDefine(
+		"AUTH_TENANT_UNAVAILABLE",
+		"Tenant is not available",
+		gcode.CodeNotAuthorized,
+	)
+	testCases := map[string]string{
+		DefaultLocale: "租户不可用",
+		EnglishLocale: "Tenant is not available",
+	}
+	for locale, expected := range testCases {
+		locale := locale
+		expected := expected
+		t.Run(locale, func(t *testing.T) {
+			ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: locale})
+			err := bizerr.NewCode(code)
+			if actual := svc.LocalizeError(ctx, err); actual != expected {
+				t.Fatalf("expected %s localized auth error %q, got %q", locale, expected, actual)
+			}
+		})
+	}
+}
+
 // TestLocalizeErrorUsesRuntimeBundleCache verifies structured-error rendering
 // reads through the normal runtime bundle cache and does not require a bespoke
 // per-error catalog build path.
@@ -92,7 +121,7 @@ func TestLocalizeErrorUsesRuntimeBundleCache(t *testing.T) {
 		"Fallback {value}",
 		gcode.CodeInvalidParameter,
 	)
-	plugin := pluginhost.NewSourcePlugin(pluginID)
+	plugin := pluginhost.NewDeclarations(pluginID)
 	plugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte(sourcePluginI18NManifestFixture(pluginID, true))},
 		"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(fmt.Sprintf(
@@ -105,9 +134,11 @@ func TestLocalizeErrorUsesRuntimeBundleCache(t *testing.T) {
 	}
 	resetRuntimeBundleCache()
 
-	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
-	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
-	err := bizerr.NewCode(code, bizerr.P("value", "message"))
+	var (
+		svc = New(bizctx.New(), config.New(), cachecoord.Default(nil))
+		ctx = context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
+		err = bizerr.NewCode(code, bizerr.P("value", "message"))
+	)
 	if actual := svc.LocalizeError(ctx, err); actual != "Cached message" {
 		t.Fatalf("expected cached runtime bundle translation %q, got %q", "Cached message", actual)
 	}

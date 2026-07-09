@@ -9,6 +9,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 
+	"lina-core/internal/cmd/internal/sqlassets"
 	"lina-core/pkg/logger"
 )
 
@@ -29,11 +30,11 @@ func (m *Main) Mock(ctx context.Context, in MockInput) (out *MockOutput, err err
 	if err = requireCommandConfirmation(mockCommandName, in.Confirm); err != nil {
 		return nil, err
 	}
-	source, err := resolveSQLAssetSource(in.SQLSource)
+	source, err := sqlassets.ResolveSource(in.SQLSource)
 	if err != nil {
 		return nil, err
 	}
-	assets, err := scanMockSQLAssets(ctx, source)
+	assets, err := sqlassets.ScanMock(ctx, source)
 	if err != nil {
 		return nil, gerror.Wrap(err, "scan mock SQL files failed")
 	}
@@ -41,22 +42,10 @@ func (m *Main) Mock(ctx context.Context, in MockInput) (out *MockOutput, err err
 		logger.Warning(ctx, "no mock SQL files found")
 		return
 	}
-	if err = executeSQLAssets(ctx, assets); err != nil {
+	if err = sqlassets.Execute(ctx, assets); err != nil {
 		return nil, err
 	}
 
 	logger.Info(ctx, "Mock data loaded.")
 	return
-}
-
-// scanMockSQLAssets loads host mock-data SQL assets from the selected source.
-func scanMockSQLAssets(ctx context.Context, source sqlAssetSource) ([]sqlAsset, error) {
-	switch source {
-	case sqlAssetSourceLocal:
-		return scanLocalSQLAssets(ctx, hostMockSQLDir())
-	case sqlAssetSourceEmbedded:
-		return scanEmbeddedSQLAssets(ctx, hostMockSQLDir())
-	default:
-		return nil, gerror.Newf("unsupported mock SQL asset source: %s", source)
-	}
 }

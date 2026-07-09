@@ -30,8 +30,6 @@ type staticConfigCaches struct {
 	jwt              staticConfigBox[JwtConfig]
 	logger           staticConfigBox[LoggerConfig]
 	metadata         staticConfigBox[MetadataConfig]
-	health           staticConfigBox[HealthConfig]
-	shutdown         staticConfigBox[ShutdownConfig]
 	scheduler        staticConfigBox[SchedulerConfig]
 	plugin           staticConfigBox[PluginConfig]
 	serverExtensions staticConfigBox[ServerExtensionsConfig]
@@ -48,12 +46,6 @@ var processStaticConfigCaches = newStaticConfigCaches()
 // uses it once during startup, while tests reuse it to clear once state.
 func newStaticConfigCaches() *staticConfigCaches {
 	return &staticConfigCaches{}
-}
-
-// resetStaticConfigCaches drops all once guards and cached objects. Tests call
-// this after mutating config adapter content so later reads observe new data.
-func resetStaticConfigCaches() {
-	processStaticConfigCaches = newStaticConfigCaches()
 }
 
 // cloneClusterConfig returns a detached copy so callers cannot mutate the
@@ -135,24 +127,6 @@ func cloneMetadataConfig(cfg *MetadataConfig) *MetadataConfig {
 		cloned.Frontend = append([]MetadataComponentInfo(nil), cfg.Frontend...)
 	}
 	return cloned
-}
-
-// cloneHealthConfig returns a detached copy of the cached health config.
-func cloneHealthConfig(cfg *HealthConfig) *HealthConfig {
-	if cfg == nil {
-		return nil
-	}
-	cloned := *cfg
-	return &cloned
-}
-
-// cloneShutdownConfig returns a detached copy of the cached shutdown config.
-func cloneShutdownConfig(cfg *ShutdownConfig) *ShutdownConfig {
-	if cfg == nil {
-		return nil
-	}
-	cloned := *cfg
-	return &cloned
 }
 
 // cloneSchedulerConfig returns a detached copy of the cached scheduler config.

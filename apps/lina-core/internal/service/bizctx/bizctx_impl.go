@@ -9,7 +9,7 @@ import (
 	"context"
 
 	"lina-core/internal/model"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 )
@@ -33,15 +33,19 @@ func (s *serviceImpl) Get(ctx context.Context) *model.Context {
 
 // Current returns the plugin-visible read-only projection of the current
 // business context.
-func (s *serviceImpl) Current(ctx context.Context) contract.CurrentContext {
+func (s *serviceImpl) Current(ctx context.Context) bizctxcap.CurrentContext {
 	if c := s.Get(ctx); c != nil {
-		return contract.CurrentContext{
-			UserID:          c.UserId,
-			Username:        c.Username,
-			TenantID:        c.TenantId,
-			ActingUserID:    c.ActingUserId,
-			ActingAsTenant:  c.ActingAsTenant,
-			IsImpersonation: c.IsImpersonation,
+		return bizctxcap.CurrentContext{
+			TokenID:              c.TokenId,
+			UserID:               c.UserId,
+			Username:             c.Username,
+			TenantID:             c.TenantId,
+			ActingUserID:         c.ActingUserId,
+			ActingAsTenant:       c.ActingAsTenant,
+			IsImpersonation:      c.IsImpersonation,
+			DataScope:            c.DataScope,
+			DataScopeUnsupported: c.DataScopeUnsupported,
+			UnsupportedDataScope: c.UnsupportedDataScope,
 			PlatformBypass: c.TenantId == 0 &&
 				c.DataScope == 1 &&
 				!c.DataScopeUnsupported &&
@@ -49,7 +53,7 @@ func (s *serviceImpl) Current(ctx context.Context) contract.CurrentContext {
 				!c.IsImpersonation,
 		}
 	}
-	return contract.CurrentFromContext(ctx)
+	return bizctxcap.CurrentFromContext(ctx)
 }
 
 // SetLocale sets locale info into business context.
@@ -60,12 +64,13 @@ func (s *serviceImpl) SetLocale(ctx context.Context, locale string) {
 }
 
 // SetUser sets user info into business context.
-func (s *serviceImpl) SetUser(ctx context.Context, tokenId string, userId int, username string, status int) {
+func (s *serviceImpl) SetUser(ctx context.Context, tokenId string, userId int, username string, status int, clientType string) {
 	if c := s.Get(ctx); c != nil {
 		c.TokenId = tokenId
 		c.UserId = userId
 		c.Username = username
 		c.Status = status
+		c.ClientType = clientType
 	}
 }
 

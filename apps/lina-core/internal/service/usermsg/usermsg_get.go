@@ -7,8 +7,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/gogf/gf/v2/util/gconv"
-
 	"lina-core/internal/dao"
 	"lina-core/internal/service/datascope"
 	notifysvc "lina-core/internal/service/notify"
@@ -88,7 +86,7 @@ func (s *serviceImpl) Get(ctx context.Context, id int64) (*MessageDetail, error)
 		TypeLabel:     s.localizeCategoryLabel(ctx, categoryCode),
 		TypeColor:     s.localizeCategoryColor(ctx, categoryCode),
 		SourceType:    record.SourceType,
-		SourceId:      gconv.Int64(record.SourceId),
+		SourceId:      record.SourceId,
 		Content:       record.Content,
 		CreatedByName: record.CreatedByName,
 		CreatedAt:     record.CreatedAt,

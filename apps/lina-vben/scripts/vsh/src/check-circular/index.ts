@@ -1,10 +1,12 @@
 import type { CAC } from 'cac';
 
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { extname } from 'node:path';
+import { dirname, join } from 'node:path';
 
-import { getStagedFiles } from '@vben/node-utils';
-
-import { circularDepsDetect } from 'circular-dependency-scanner';
+import { execa, getStagedFiles } from '@vben/node-utils';
 
 // 默认配置
 const DEFAULT_CONFIG = {
@@ -26,6 +28,13 @@ const DEFAULT_CONFIG = {
 // 类型定义
 type CircularDependencyResult = string[];
 
+interface CircularDepsDetectOptions {
+  absolute: boolean;
+  cwd: string;
+  ignore: string[];
+  verbose: boolean;
+}
+
 interface CheckCircularConfig {
   allowedExtensions?: string[];
   ignoreDirs?: string[];
@@ -40,6 +49,68 @@ interface CommandOptions {
 
 // 缓存机制
 const cache = new Map<string, CircularDependencyResult[]>();
+const require = createRequire(import.meta.url);
+
+function isNotFoundError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: string }).code === 'ENOENT'
+  );
+}
+
+function resolveScannerCliPath(): string {
+  const packageJsonPath =
+    require.resolve('circular-dependency-scanner/package.json');
+
+  return join(dirname(packageJsonPath), 'dist/cli.js');
+}
+
+async function readScannerOutput(
+  outputPath: string,
+): Promise<CircularDependencyResult[]> {
+  try {
+    const raw = await readFile(outputPath, 'utf8');
+    return JSON.parse(raw) as CircularDependencyResult[];
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      return [];
+    }
+
+    throw error;
+  }
+}
+
+async function detectCircularDependencies({
+  absolute,
+  cwd,
+  ignore,
+  verbose,
+}: CircularDepsDetectOptions): Promise<CircularDependencyResult[]> {
+  const outputDir = await mkdtemp(join(tmpdir(), 'vsh-circular-'));
+  const outputPath = join(outputDir, 'circles.json');
+
+  try {
+    const args = [
+      resolveScannerCliPath(),
+      ...(absolute ? ['--absolute'] : []),
+      '--ignore',
+      ...ignore,
+      '--output',
+      outputPath,
+    ];
+
+    await execa(process.execPath, args, {
+      cwd,
+      stdio: verbose ? 'inherit' : 'pipe',
+    });
+
+    return await readScannerOutput(outputPath);
+  } finally {
+    await rm(outputDir, { force: true, recursive: true });
+  }
+}
 
 /**
  * 格式化循环依赖的输出
@@ -92,10 +163,11 @@ async function checkCircular({
     }
 
     // 检测循环依赖
-    const results = await circularDepsDetect({
+    const results = await detectCircularDependencies({
       absolute: staged,
       cwd: process.cwd(),
       ignore: [ignorePattern],
+      verbose,
     });
 
     if (staged) {

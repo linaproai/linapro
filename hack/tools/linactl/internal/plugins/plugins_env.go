@@ -114,9 +114,11 @@ func appendGoBuildTag(env []string, tag string) []string {
 
 // addGoBuildTagValue appends one comma-separated Go build tag if missing.
 func addGoBuildTagValue(value string, tag string) string {
-	items := strings.Split(value, ",")
-	next := make([]string, 0, len(items)+1)
-	found := false
+	var (
+		items = strings.Split(value, ",")
+		next  = make([]string, 0, len(items)+1)
+		found = false
+	)
 	for _, item := range items {
 		trimmed := strings.TrimSpace(item)
 		if trimmed == "" {

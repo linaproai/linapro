@@ -11,8 +11,24 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
-// ValidateHostServiceSpecs validates and normalizes host service declarations in-place.
+// ValidateHostServiceSpecs validates and normalizes host service declarations
+// in-place. Data host-service declarations require ValidateHostServiceSpecsForPlugin
+// so table ownership is always checked against a concrete plugin ID.
 func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
+	return validateHostServiceSpecs(specs, "")
+}
+
+// ValidateHostServiceSpecsForPlugin validates and normalizes host service
+// declarations in-place, additionally enforcing plugin-owned data tables.
+func ValidateHostServiceSpecsForPlugin(pluginID string, specs []*HostServiceSpec) error {
+	return validateHostServiceSpecs(specs, pluginID)
+}
+
+// validateHostServiceSpecs applies structural host-service validation and, when
+// pluginID is present, data-service table ownership validation.
+//
+//nolint:cyclop // Host-service schema validation keeps all protocol-level failure cases in one guarded boundary.
+func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 	if len(specs) == 0 {
 		return nil
 	}
@@ -34,9 +50,6 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 		}
 		seenServices[spec.Service] = struct{}{}
 
-		if len(spec.Methods) == 0 {
-			spec.Methods = defaultHostServiceMethods(spec.Service)
-		}
 		methodSeen := make(map[string]struct{}, len(spec.Methods))
 		methods := make([]string, 0, len(spec.Methods))
 		for _, rawMethod := range spec.Methods {
@@ -160,6 +173,14 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 			if len(spec.Tables) == 0 {
 				return gerror.Newf("host service %s must declare at least one table", spec.Service)
 			}
+			if spec.Service == HostServiceData {
+				if strings.TrimSpace(pluginID) == "" {
+					return gerror.New("host service data requires plugin-aware validation")
+				}
+				if err := validateDataServiceTablesForPlugin(pluginID, spec.Tables); err != nil {
+					return err
+				}
+			}
 			continue
 		}
 		if _, ok := hostServicesWithKeys[spec.Service]; ok {
@@ -187,11 +208,15 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 			return gerror.Newf("host service %s cannot declare keys", spec.Service)
 		}
 
-		if _, ok := hostServicesWithoutResources[spec.Service]; ok {
+		methodResourceKind := hostServiceResourceKindForMethods(spec.Service, spec.Methods)
+		if methodResourceKind == hostServiceResourceNone {
 			if len(spec.Resources) > 0 {
 				return gerror.Newf("host service %s cannot declare resources", spec.Service)
 			}
 			continue
+		}
+		if methodResourceKind != "" && methodResourceKind != hostServiceResourceRef {
+			return gerror.Newf("host service %s uses unsupported resource declaration kind: %s", spec.Service, methodResourceKind)
 		}
 		if len(spec.Resources) == 0 {
 			return gerror.Newf("host service %s must declare at least one resource", spec.Service)
@@ -217,21 +242,88 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 	return nil
 }
 
-// defaultHostServiceMethods returns service-specific default method grants.
-func defaultHostServiceMethods(service string) []string {
-	switch service {
-	case HostServiceConfig:
-		return []string{HostServiceMethodConfigGet}
-	case HostServiceHostConfig:
-		return []string{HostServiceMethodHostConfigGet}
-	case HostServiceManifest:
-		return []string{HostServiceMethodManifestGet}
+// validateDataServiceTablesForPlugin restricts dynamic data-service access to
+// the current plugin namespace.
+func validateDataServiceTablesForPlugin(pluginID string, tables []string) error {
+	normalizedPluginID := normalizePluginIDForTableNamespace(pluginID)
+	if normalizedPluginID == "" {
+		return gerror.New("host service data requires plugin ID")
+	}
+	ownedTable := "plugin_" + normalizedPluginID
+	ownedPrefix := ownedTable + "_"
+	for _, table := range tables {
+		normalizedTable := strings.ToLower(strings.TrimSpace(table))
+		if normalizedTable == "" {
+			continue
+		}
+		if strings.HasPrefix(normalizedTable, "sys_") {
+			return gerror.Newf("host service data cannot declare host core table: %s", table)
+		}
+		if normalizedTable != ownedTable && !strings.HasPrefix(normalizedTable, ownedPrefix) {
+			return gerror.Newf(
+				"host service data table must belong to plugin %s namespace %s*: %s",
+				pluginID,
+				ownedPrefix,
+				table,
+			)
+		}
 	}
 	return nil
 }
 
-// NormalizeHostServiceSpecs returns deep-cloned and normalized host service declarations.
+// normalizePluginIDForTableNamespace converts a plugin ID into the database
+// namespace used by plugin-owned tables.
+func normalizePluginIDForTableNamespace(pluginID string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(pluginID))
+	if trimmed == "" {
+		return ""
+	}
+	replacer := strings.NewReplacer("-", "_", ".", "_")
+	return replacer.Replace(trimmed)
+}
+
+// hostServiceResourceKindForMethods returns the resource shape required by the
+// declared methods. Mixed none+resource methods require resource declarations
+// only when at least one resource-bound method is present.
+func hostServiceResourceKindForMethods(service string, methods []string) hostServiceResourceKind {
+	methodResources := hostServiceMethodResourceMap[service]
+	if len(methodResources) == 0 {
+		if _, ok := hostServicesWithoutResources[service]; ok {
+			return hostServiceResourceNone
+		}
+		return ""
+	}
+	requiresResource := false
+	for _, rawMethod := range methods {
+		method := normalizeHostServiceMethod(rawMethod)
+		switch methodResources[method] {
+		case hostServiceResourceRef:
+			requiresResource = true
+		case hostServiceResourceNone, "":
+		default:
+			return methodResources[method]
+		}
+	}
+	if requiresResource {
+		return hostServiceResourceRef
+	}
+	return hostServiceResourceNone
+}
+
+// NormalizeHostServiceSpecs returns deep-cloned and normalized host service
+// declarations. Data declarations must use NormalizeHostServiceSpecsForPlugin.
 func NormalizeHostServiceSpecs(specs []*HostServiceSpec) ([]*HostServiceSpec, error) {
+	return normalizeHostServiceSpecs(specs, "")
+}
+
+// NormalizeHostServiceSpecsForPlugin returns deep-cloned and normalized host
+// service declarations while enforcing plugin-owned data table declarations.
+func NormalizeHostServiceSpecsForPlugin(pluginID string, specs []*HostServiceSpec) ([]*HostServiceSpec, error) {
+	return normalizeHostServiceSpecs(specs, pluginID)
+}
+
+// normalizeHostServiceSpecs clones declarations before validation mutates them.
+func normalizeHostServiceSpecs(specs []*HostServiceSpec, pluginID string) ([]*HostServiceSpec, error) {
 	if len(specs) == 0 {
 		return []*HostServiceSpec{}, nil
 	}
@@ -265,7 +357,7 @@ func NormalizeHostServiceSpecs(specs []*HostServiceSpec) ([]*HostServiceSpec, er
 		}
 		cloned = append(cloned, next)
 	}
-	if err := ValidateHostServiceSpecs(cloned); err != nil {
+	if err := validateHostServiceSpecs(cloned, pluginID); err != nil {
 		return nil, err
 	}
 	return cloned, nil
@@ -283,6 +375,16 @@ func normalizeDeclaredPathForService(service string, value string) (string, erro
 // compile-time constants whose invalid form must fail fast.
 func MustNormalizeHostServiceSpecs(specs []*HostServiceSpec) []*HostServiceSpec {
 	normalized, err := NormalizeHostServiceSpecs(specs)
+	if err != nil {
+		panic(err)
+	}
+	return normalized
+}
+
+// MustNormalizeHostServiceSpecsForPlugin returns plugin-aware normalized
+// declarations or panics for compile-time constants whose invalid form must fail fast.
+func MustNormalizeHostServiceSpecsForPlugin(pluginID string, specs []*HostServiceSpec) []*HostServiceSpec {
+	normalized, err := NormalizeHostServiceSpecsForPlugin(pluginID, specs)
 	if err != nil {
 		panic(err)
 	}
@@ -356,11 +458,6 @@ func normalizeManifestDeclaredPath(value string) (string, error) {
 	}
 	if normalizedPath == "manifest" || strings.HasPrefix(normalizedPath, "manifest/") {
 		return "", gerror.Newf("path must be relative to manifest root: %s", value)
-	}
-	for _, reserved := range []string{"config", "sql", "i18n"} {
-		if normalizedPath == reserved || strings.HasPrefix(normalizedPath, reserved+"/") {
-			return "", gerror.Newf("path is managed by a dedicated pipeline: %s", value)
-		}
 	}
 	return normalizedPath, nil
 }

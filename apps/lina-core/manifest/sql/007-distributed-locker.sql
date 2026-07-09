@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS sys_locker (
     "name"        VARCHAR(64) NOT NULL,
     "reason"      VARCHAR(255) DEFAULT '',
     "holder"      VARCHAR(64) DEFAULT '',
-    "expire_time" TIMESTAMP NOT NULL,
-    "created_at"  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "updated_at"  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    "expire_time" TIMESTAMPTZ NOT NULL,
+    "created_at"  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    "updated_at"  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE sys_locker IS 'Distributed lock table';

@@ -35,15 +35,16 @@ const (
 // revision and short-circuits to 304 before cloning and nesting the bundle when
 // the client's If-None-Match header matches a warm cache revision.
 func (c *ControllerV1) RuntimeMessages(ctx context.Context, req *v1.RuntimeMessagesReq) (res *v1.RuntimeMessagesRes, err error) {
-	locale := c.localeResolver.ResolveLocale(ctx, req.Lang)
-	if err = c.bundleProvider.EnsureRuntimeBundleCacheFresh(ctx); err != nil {
+	locale := c.i18nSvc.ResolveLocale(ctx, req.Lang)
+	initialRevision, err := c.i18nSvc.BundleRevision(ctx, locale)
+	if err != nil {
 		return nil, err
 	}
 
 	r := g.RequestFromCtx(ctx)
 	if r != nil {
 		r.Response.Header().Set(runtimeMessagesCacheControlHeader, runtimeMessagesCacheControlValue)
-		if etag, ok := buildRuntimeMessagesETag(locale, c.bundleProvider.BundleRevision(locale)); ok {
+		if etag, ok := buildRuntimeMessagesETag(locale, initialRevision); ok {
 			r.Response.Header().Set(runtimeMessagesETagHeader, etag)
 			if matchesIfNoneMatch(r.Header.Get(runtimeMessagesIfNoneMatchHeader), etag) {
 				r.Response.Status = http.StatusNotModified
@@ -52,9 +53,13 @@ func (c *ControllerV1) RuntimeMessages(ctx context.Context, req *v1.RuntimeMessa
 		}
 	}
 
-	messages := c.bundleProvider.BuildRuntimeMessages(ctx, locale)
+	messages := c.i18nSvc.BuildRuntimeMessages(ctx, locale)
 	if r != nil {
-		if etag, ok := buildRuntimeMessagesETag(locale, c.bundleProvider.BundleRevision(locale)); ok {
+		revision, revisionErr := c.i18nSvc.BundleRevision(ctx, locale)
+		if revisionErr != nil {
+			return nil, revisionErr
+		}
+		if etag, ok := buildRuntimeMessagesETag(locale, revision); ok {
 			r.Response.Header().Set(runtimeMessagesETagHeader, etag)
 			if matchesIfNoneMatch(r.Header.Get(runtimeMessagesIfNoneMatchHeader), etag) {
 				r.Response.Status = http.StatusNotModified

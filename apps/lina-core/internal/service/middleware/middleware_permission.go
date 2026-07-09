@@ -9,6 +9,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/net/ghttp"
 
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/role"
 	"lina-core/pkg/bizerr"
 )
@@ -16,9 +17,8 @@ import (
 // Permission middleware constants define metadata tag names, wildcard grants,
 // and the normalized JSON error envelope code.
 const (
-	staticPermissionMetaTag      = "permission"
-	staticPermissionMetaTagAlias = "perms"
-	staticPermissionWildcard     = "*:*:*"
+	staticPermissionMetaTag  = "permission"
+	staticPermissionWildcard = "*:*:*"
 )
 
 // staticPermissionContextKey stores manually declared permissions for routes
@@ -106,11 +106,7 @@ func extractDeclaredPermissions(r *ghttp.Request) []string {
 	}
 	handler := r.GetServeHandler()
 	if handler != nil {
-		permissions := resolveDeclaredPermissions(
-			handler.GetMetaTag(staticPermissionMetaTag),
-			handler.GetMetaTag(staticPermissionMetaTagAlias),
-		)
-		if len(permissions) > 0 {
+		if permissions := resolveDeclaredPermissions(handler.GetMetaTag(staticPermissionMetaTag)); len(permissions) > 0 {
 			return permissions
 		}
 	}
@@ -120,14 +116,9 @@ func extractDeclaredPermissions(r *ghttp.Request) []string {
 	return nil
 }
 
-// resolveDeclaredPermissions prefers the canonical permission tag and falls
-// back to the legacy alias so older declarations remain compatible.
-func resolveDeclaredPermissions(permissionTag string, aliasTag string) []string {
-	permissions := normalizePermissionList(permissionTag)
-	if len(permissions) > 0 {
-		return permissions
-	}
-	return normalizePermissionList(aliasTag)
+// resolveDeclaredPermissions normalizes the canonical permission metadata tag.
+func resolveDeclaredPermissions(permissionTag string) []string {
+	return normalizePermissionList(permissionTag)
 }
 
 // normalizePermissionList trims, deduplicates, and preserves order for the
@@ -190,7 +181,7 @@ func hasRequiredPermissions(accessContext *role.UserAccessContext, required []st
 
 // writePermissionError writes one JSON error payload and binds the error onto
 // the request so upper layers can still observe the failure cause.
-func writePermissionError(r *ghttp.Request, i18nSvc middlewareI18nService, status int, err error) {
+func writePermissionError(r *ghttp.Request, i18nSvc i18nsvc.Service, status int, err error) {
 	if r == nil {
 		return
 	}

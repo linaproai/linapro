@@ -8,7 +8,6 @@ import (
 
 	v1 "lina-core/api/plugin/v1"
 	pluginsvc "lina-core/internal/service/plugin"
-	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/statusflag"
 )
@@ -16,32 +15,25 @@ import (
 // List scans plugins and returns current synchronized status list.
 func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListRes, err error) {
 	out, err := c.pluginSvc.List(ctx, pluginsvc.ListInput{
-		ID:        req.Id,
-		Name:      req.Name,
-		Type:      string(req.Type),
-		Status:    enabledPtrToInt(req.Status),
-		Installed: installationPtrToInt(req.Installed),
-		PageNum:   req.PageNum,
-		PageSize:  req.PageSize,
+		PageNum:        req.PageNum,
+		PageSize:       req.PageSize,
+		ID:             req.Id,
+		Name:           req.Name,
+		Type:           string(req.Type),
+		Status:         enabledPtrToInt(req.Status),
+		Installed:      installationPtrToInt(req.Installed),
+		IncludeBuiltin: req.IncludeBuiltin,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	tableComments := c.pluginSvc.ResolveDataTableComments(
-		ctx,
-		collectPluginDataAuthorizationTables(out.List),
-	)
-	managedCronJobsByPlugin := c.buildManagedCronJobMap(ctx, out.List)
 	autoEnableManagedSet := buildAutoEnableManagedSet(c.configSvc.GetPluginAutoEnable(ctx))
 
-	items := make([]*v1.PluginItem, 0, len(out.List))
+	items := make([]*v1.PluginListItem, 0, len(out.List))
 	for _, item := range out.List {
-		items = append(items, c.buildPluginItemResponse(
-			ctx,
+		items = append(items, c.buildPluginListItemResponse(
 			item,
-			tableComments,
-			managedCronJobsByPlugin[strings.TrimSpace(item.Id)],
 			autoEnableManagedSet[strings.TrimSpace(item.Id)],
 		))
 	}
@@ -49,19 +41,54 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 	return &v1.ListRes{List: items, Total: out.Total}, nil
 }
 
-// buildPluginItemResponse maps the service plugin projection into the public
-// management DTO used by both list and detail endpoints.
+// buildPluginListItemResponse maps the service plugin summary projection into
+// the public list DTO. Detail-only governance payloads are intentionally absent.
+func (c *ControllerV1) buildPluginListItemResponse(
+	item *pluginsvc.PluginItem,
+	autoEnableManaged bool,
+) *v1.PluginListItem {
+	if item == nil {
+		return nil
+	}
+	return &v1.PluginListItem{
+		Id:                      item.Id,
+		Name:                    item.Name,
+		Version:                 item.Version,
+		RuntimeState:            v1.RuntimeState(item.RuntimeState.String()),
+		EffectiveVersion:        item.EffectiveVersion,
+		DiscoveredVersion:       item.DiscoveredVersion,
+		UpgradeAvailable:        item.UpgradeAvailable,
+		AbnormalReason:          v1.RuntimeAbnormalReason(item.AbnormalReason.String()),
+		LastUpgradeFailure:      buildPluginUpgradeFailureItem(item.LastUpgradeFailure),
+		Type:                    v1.PluginType(item.Type),
+		Distribution:            v1.PluginDistribution(item.Distribution),
+		Description:             item.Description,
+		Installed:               statusflag.Installation(item.Installed),
+		InstalledAt:             item.InstalledAt,
+		Enabled:                 statusflag.Enabled(item.Enabled),
+		AutoEnableManaged:       boolToYesNo(autoEnableManaged),
+		AutoEnableForNewTenants: item.AutoEnableForNewTenants,
+		SupportsMultiTenant:     item.SupportsMultiTenant,
+		ScopeNature:             v1.ScopeNature(item.ScopeNature),
+		InstallMode:             v1.InstallMode(item.InstallMode),
+		StatusKey:               item.StatusKey,
+		UpdatedAt:               item.UpdatedAt,
+		AuthorizationRequired:   boolToYesNo(item.AuthorizationRequired),
+		AuthorizationStatus:     v1.AuthorizationStatus(item.AuthorizationStatus),
+		HasMockData:             boolToYesNo(item.HasMockData),
+	}
+}
+
+// buildPluginItemResponse maps the service plugin detail projection into the
+// public management DTO used by detail and action review endpoints.
 func (c *ControllerV1) buildPluginItemResponse(
-	ctx context.Context,
 	item *pluginsvc.PluginItem,
 	tableComments map[string]string,
-	managedCronJobs []pluginsvc.ManagedCronJob,
 	autoEnableManaged bool,
 ) *v1.PluginItem {
 	if item == nil {
 		return nil
 	}
-	localizedCronJobs := localizeManagedCronJobs(ctx, managedCronJobs, c.i18nSvc)
 	return &v1.PluginItem{
 		Id:                      item.Id,
 		Name:                    item.Name,
@@ -73,6 +100,7 @@ func (c *ControllerV1) buildPluginItemResponse(
 		AbnormalReason:          v1.RuntimeAbnormalReason(item.AbnormalReason.String()),
 		LastUpgradeFailure:      buildPluginUpgradeFailureItem(item.LastUpgradeFailure),
 		Type:                    v1.PluginType(item.Type),
+		Distribution:            v1.PluginDistribution(item.Distribution),
 		Description:             item.Description,
 		Installed:               statusflag.Installation(item.Installed),
 		InstalledAt:             item.InstalledAt,
@@ -90,12 +118,10 @@ func (c *ControllerV1) buildPluginItemResponse(
 		RequestedHostServices: buildHostServicePermissionItems(
 			item.RequestedHostServices,
 			tableComments,
-			localizedCronJobs,
 		),
 		AuthorizedHostServices: buildHostServicePermissionItems(
 			item.AuthorizedHostServices,
 			tableComments,
-			localizedCronJobs,
 		),
 		DeclaredRoutes: buildPluginRouteReviewItems(
 			item.Id,
@@ -117,37 +143,6 @@ func buildAutoEnableManagedSet(pluginIDs []string) map[string]bool {
 		managedSet[normalizedPluginID] = true
 	}
 	return managedSet
-}
-
-// buildManagedCronJobMap loads plugin-owned cron declarations for plugins that
-// expose the cron host service, so the review UI can present the discovered
-// task summaries without blocking the list API on optional failures.
-func (c *ControllerV1) buildManagedCronJobMap(
-	ctx context.Context,
-	items []*pluginsvc.PluginItem,
-) map[string][]pluginsvc.ManagedCronJob {
-	result := make(map[string][]pluginsvc.ManagedCronJob)
-	for _, item := range items {
-		if item == nil || strings.TrimSpace(item.Id) == "" {
-			continue
-		}
-		if !pluginUsesCronHostService(item.RequestedHostServices) &&
-			!pluginUsesCronHostService(item.AuthorizedHostServices) {
-			continue
-		}
-		managedCronJobs, err := c.pluginSvc.ListCronDeclarationsByPlugin(ctx, item.Id)
-		if err != nil {
-			logger.Warningf(
-				ctx,
-				"load plugin declared cron jobs failed plugin=%s err=%v",
-				item.Id,
-				err,
-			)
-			continue
-		}
-		result[item.Id] = managedCronJobs
-	}
-	return result
 }
 
 // collectPluginDataAuthorizationTables gathers the unique host data-table names
@@ -184,20 +179,6 @@ func collectHostServiceTables(
 			*tables = append(*tables, table)
 		}
 	}
-}
-
-// pluginUsesCronHostService reports whether the supplied host-service set
-// contains the dedicated cron registration service.
-func pluginUsesCronHostService(specs []*protocol.HostServiceSpec) bool {
-	for _, spec := range specs {
-		if spec == nil {
-			continue
-		}
-		if strings.TrimSpace(spec.Service) == protocol.HostServiceCron {
-			return true
-		}
-	}
-	return false
 }
 
 // buildPluginUpgradeFailureItem maps the service runtime-upgrade failure

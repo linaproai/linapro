@@ -11,13 +11,13 @@ import (
 
 // PostgreSQL SQLSTATE codes relevant to LinaPro's write paths.
 const (
-	ErrorUniqueViolation      = "23505"
-	ErrorSerializationFailure = "40001"
-	ErrorDeadlockDetected     = "40P01"
-	ErrorLockNotAvailable     = "55P03"
-	ErrorCheckViolation       = "23514"
-	ErrorForeignKeyViolation  = "23503"
-	ErrorNotNullViolation     = "23502"
+	errorUniqueViolation      = "23505"
+	errorSerializationFailure = "40001"
+	errorDeadlockDetected     = "40P01"
+	errorLockNotAvailable     = "55P03"
+	errorCheckViolation       = "23514"
+	errorForeignKeyViolation  = "23503"
+	errorNotNullViolation     = "23502"
 )
 
 // sqlStateError is the narrow SQLSTATE shape exposed by PostgreSQL drivers.
@@ -31,45 +31,28 @@ type sqlStateError interface {
 // IsRetryableWriteConflict classifies PostgreSQL transient write conflicts by
 // stable SQLSTATE code.
 func IsRetryableWriteConflict(err error) bool {
-	return IsRetryableSQLState(SQLState(err))
+	return isRetryableSQLState(sqlState(err))
 }
 
-// IsRetryableSQLState reports whether a PostgreSQL SQLSTATE represents a
+// isRetryableSQLState reports whether a PostgreSQL SQLSTATE represents a
 // transient write conflict that a caller may retry.
-func IsRetryableSQLState(code string) bool {
+func isRetryableSQLState(code string) bool {
 	switch strings.TrimSpace(code) {
-	case ErrorSerializationFailure, ErrorDeadlockDetected, ErrorLockNotAvailable:
+	case errorSerializationFailure, errorDeadlockDetected, errorLockNotAvailable:
 		return true
 	default:
 		return false
 	}
-}
-
-// IsConstraintViolation classifies PostgreSQL constraint failures by stable
-// SQLSTATE code.
-func IsConstraintViolation(err error) bool {
-	return IsConstraintSQLState(SQLState(err))
 }
 
 // IsUniqueConstraintViolation reports whether err is a PostgreSQL unique-key
 // conflict.
 func IsUniqueConstraintViolation(err error) bool {
-	return strings.TrimSpace(SQLState(err)) == ErrorUniqueViolation
+	return strings.TrimSpace(sqlState(err)) == errorUniqueViolation
 }
 
-// IsConstraintSQLState reports whether a PostgreSQL SQLSTATE represents one of
-// the constraint violations the dialect layer needs to classify.
-func IsConstraintSQLState(code string) bool {
-	switch strings.TrimSpace(code) {
-	case ErrorUniqueViolation, ErrorCheckViolation, ErrorForeignKeyViolation, ErrorNotNullViolation:
-		return true
-	default:
-		return false
-	}
-}
-
-// SQLState extracts one PostgreSQL SQLSTATE code from err when available.
-func SQLState(err error) string {
+// sqlState extracts one PostgreSQL SQLSTATE code from err when available.
+func sqlState(err error) string {
 	if err == nil {
 		return ""
 	}

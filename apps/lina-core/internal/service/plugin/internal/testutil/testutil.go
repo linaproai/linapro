@@ -6,8 +6,6 @@ import (
 	"os"
 
 	_ "lina-core/pkg/dbdriver"
-
-	configsvc "lina-core/internal/service/config"
 )
 
 // testDynamicStorageDir stores process-local dynamic plugin artifacts created by tests.
@@ -24,7 +22,6 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("failed to create isolated dynamic storage dir: %v", err))
 	}
-	configsvc.SetPluginDynamicStoragePathOverride(testDynamicStorageDir)
 	testSourcePluginRootDir, err = os.MkdirTemp("", "lina-plugin-dev-source-root-*")
 	if err != nil {
 		panic(fmt.Sprintf("failed to create isolated source plugin root: %v", err))

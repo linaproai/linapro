@@ -8,6 +8,7 @@ import (
 
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/store"
 )
 
 // RuntimeFrontendAssetOutput contains one resolved frontend asset ready to be served.
@@ -20,8 +21,8 @@ type RuntimeFrontendAssetOutput struct {
 
 // Service defines the frontend service contract.
 type Service interface {
-	// EnsureBundleReader returns a BundleReader for the manifest, building and caching the bundle if needed.
-	EnsureBundleReader(ctx context.Context, manifest *catalog.Manifest) (BundleReader, error)
+	// EnsureBundleReader returns a bundleReader for the manifest, building and caching the bundle if needed.
+	EnsureBundleReader(ctx context.Context, manifest *catalog.Manifest) (bundleReader, error)
 	// ValidateRuntimeFrontendMenuBindings verifies that dynamic plugin menus only reference
 	// hosted assets that exist in the plugin's in-memory bundle.
 	ValidateRuntimeFrontendMenuBindings(ctx context.Context, manifest *catalog.Manifest) error
@@ -55,11 +56,13 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	// catalogSvc provides registry, release, and manifest lookups for plugin public assets.
+	// catalogSvc provides manifest asset lookups for plugin public assets.
 	catalogSvc catalog.Service
+	// storeSvc provides registry and release projections for runtime frontend assets.
+	storeSvc store.Service
 }
 
-// New creates a frontend Service backed by the shared plugin catalog.
-func New(catalogSvc catalog.Service) Service {
-	return &serviceImpl{catalogSvc: catalogSvc}
+// New creates a frontend Service backed by the shared plugin catalog and store.
+func New(catalogSvc catalog.Service, storeSvc store.Service) Service {
+	return &serviceImpl{catalogSvc: catalogSvc, storeSvc: storeSvc}
 }

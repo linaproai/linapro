@@ -5,8 +5,8 @@ BACKEND_DIR   := apps/lina-core
 FRONTEND_DIR  := apps/lina-vben
 TEMP_DIR      := temp
 PID_DIR       := $(TEMP_DIR)/pids
-BACKEND_PID   := $(PID_DIR)/backend.pid
-FRONTEND_PID  := $(PID_DIR)/frontend.pid
+BACKEND_PID   := $(PID_DIR)/lina-core.pid
+FRONTEND_PID  := $(PID_DIR)/lina-vben.pid
 BACKEND_PORT  := 9120
 FRONTEND_PORT := 5666
 BACKEND_LOG   := $(TEMP_DIR)/lina-core.log
@@ -24,6 +24,7 @@ include hack/makefiles/build.mk
 include hack/makefiles/plugins.mk
 include hack/makefiles/image.mk
 include hack/makefiles/release.mk
+include hack/makefiles/lint.mk
 include hack/makefiles/test.mk
 include hack/makefiles/i18n.mk
 include hack/makefiles/database.mk

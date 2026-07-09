@@ -1,97 +1,36 @@
 ## Why
 
-LinaPro needs a complete user-management foundation that covers menu-based permission control, role assignment, login-page presentation governance, and system-parameter-driven configuration. Without these capabilities the system cannot enforce fine-grained access control, administrators cannot assign differentiated permissions to different roles, and the login page exposes unfinished entry points that mislead users into thinking unsupported authentication flows are available.
+LinaPro 需要一套稳定的用户、角色、菜单和权限基础能力，支撑动态路由、按钮级权限、角色授权、用户角色关联和默认管理后台导航。早期系统只有用户、部门、岗位、字典和硬编码管理员角色，缺少可配置 RBAC 主干；登录页还暴露未实现的注册、找回密码、短信、二维码和第三方登录入口，容易让用户误解当前产品能力。
 
-The menu and role management subsystem provides the core RBAC backbone: menus form a tree hierarchy of directories, pages, and buttons; roles bind menus to define permission scopes; users receive roles to inherit permissions; and the login flow returns the aggregated menu tree so the frontend can generate routes dynamically. The login-page presentation layer ensures that only the implemented username/password path is visible, defaults to a right-aligned layout, and lets administrators configure the layout and description through host-managed system parameters.
+多租户治理引入后，权限链路还暴露出“权限字符串等同于完整授权”的安全缺口。租户角色可能因历史脏数据或异常授权获得平台租户管理、平台插件治理或全局菜单治理权限；如果后端只检查权限字符串，就会越过当前租户上下文读取或修改平台资源。用户管理与角色授权因此必须同时承载菜单权限模型和上下文可分配权限边界。
 
 ## What Changes
 
-- **New menu management module**: full CRUD for system menus with tree hierarchy support (directory/menu/button types), external links, caching, icon selection, i18n keys, and status/visibility control.
-- **New role management module**: full CRUD for roles with menu-permission assignment using parent-child linkage, user assignment to roles, data-scope settings (all/dept-only/self-only), and role status control.
-- **Extended user management**: user creation and editing now support role selection; user list and detail views display associated role information; user deletion cleans up role associations.
-- **Extended login authentication flow**: login returns the user's aggregated menu tree, role list, and permission identifiers; the frontend uses the menu tree for dynamic route generation and button-level access control.
-- **Login page presentation governance**: hide unfinished authentication entry points (forgot password, registration, mobile login, QR-code login, third-party login); default to right-aligned login panel; manage login-panel position and page description through host public-frontend system parameters.
-- **Server monitor data storage optimization**: use `updated_at` for tracking latest data collection time per node, with stale-data cleanup for dynamic environments.
+- 建立菜单管理能力，支持目录、页面和按钮三类菜单，提供树形查询、详情、创建、更新、删除、状态/显隐控制、父子选择、菜单本地化标题和稳定`menu_key`。
+- 建立角色管理能力，支持角色 CRUD、状态控制、菜单权限分配、用户授权、数据范围字段、批量删除、插件菜单授权、权限拓扑缓存失效和本地化内置角色展示。
+- 扩展用户管理，用户列表、详情、创建、更新和删除均支持角色关联，用户删除和角色关联清理保持事务一致。
+- 扩展认证信息投影，登录后的用户信息包含角色、菜单树、权限标识和默认首页，前端可据此生成动态路由和按钮级访问控制。
+- 治理登录页展示，只暴露用户名密码登录；未完成认证子路由重定向回标准登录页；登录面板默认右侧布局，并通过公共前端配置管理布局和描述文案。
+- 加固租户权限边界：平台租户控制面、全局菜单治理、插件平台治理和角色可分配权限集合必须检查平台上下文；异常历史 platform-only 授权不得提升租户访问边界。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `menu-management`: System menu management with tree hierarchy, three menu types (directory/menu/button), external links, caching, icon selection, status and visibility control.
-- `role-management`: System role management with CRUD, menu-permission assignment, user assignment, data-scope settings, and status control.
-- `user-role-association`: User-to-role association support in user management, including role selection in forms and role display in lists.
-- `login-page-presentation`: Login page exposes only username/password login, hides unfinished entry points, defaults to right-aligned layout, and supports host-configurable layout and description.
+- `menu-management`：菜单树、菜单 CRUD、按钮权限、插件菜单归属、稳定后台目录、菜单本地化和平台上下文写保护。
+- `role-management`：角色 CRUD、菜单授权、用户授权、数据范围、批量删除、插件菜单授权、权限拓扑失效和可分配权限过滤。
+- `user-role-association`：用户创建、更新、列表、详情和删除中的角色关联治理。
+- `login-page-presentation`：登录入口展示治理、默认右侧登录面板、公共前端配置和未完成认证路由收口。
+- `tenant-platform-access-control`：平台租户控制面必须要求平台上下文，租户上下文持有异常平台权限仍失败关闭。
 
 ### Modified Capabilities
 
-- `user-auth`: Login authentication returns user roles, menu tree, and permission identifiers; supports dynamic route generation and button-level access control.
-- `user-management`: User list, detail, creation, update, and deletion extended with role association support.
-- `config-management`: Built-in public-frontend system parameters extended with login-panel position (`sys.auth.loginPanelLayout`) and login-page description (`sys.auth.pageDesc`).
+- `user-management`：扩展用户列表、详情、创建、更新和删除，纳入角色关联与事务清理。补充当前用户资料局部更新契约，明确只提交密码时不得因缺少昵称被拒绝。
+- `user-auth`：登录后用户信息投影包含菜单树、角色和权限标识；当前认证契约由`user-auth`主规范承载。
 
 ## Impact
 
-### Backend
-
-- New database tables: `sys_menu`, `sys_role`, `sys_role_menu`, `sys_user_role`
-- New API modules: `menu`, `role`
-- Modified API modules: `auth` (returns menu tree), `user` (adds role association)
-- New dictionary types: menu status, display status, menu type
-- New system parameters: `sys.auth.loginPanelLayout`, `sys.auth.pageDesc`
-- Modified config service: public-frontend whitelist, validation rules, and seed data
-
-### Frontend
-
-- New pages: menu management, role management, role-user assignment
-- Modified pages: user management (adds role selection and display)
-- Modified login flow: dynamic route generation based on menu tree, button-level permission directives
-- Modified login page: hide unfinished entry points, right-aligned default layout, host-configurable layout and description
-- Modified auth routes: unfinished auth subpages redirect to `/auth/login`
-
-### Permission Control
-
-- Login returns menu tree based on user roles; frontend controls page access via menu tree
-- Button-level permissions controlled through menu button type (B) entries
-- Admin role bypasses menu association checks and receives all permissions
-
-
----
-
-## Tenant Permission Boundary Hardening
-
-## Why
-
-`temp/tenant-permission-audit/tenant-permission-audit.md` 确认租户态权限校验存在多处边界缺口：角色授权可以分配平台租户管理权限，菜单、插件策略和任务分组等全局或租户敏感资源未强制校验平台上下文或租户范围。现有实现把“已登录 + 权限字符串”误当成完整授权条件，需要补齐“租户上下文 + 资源归属”的后端强约束。
-
-## What Changes
-
-- 平台控制面接口在校验权限字符串后继续要求平台上下文；租户上下文、代管租户上下文或异常持有平台权限的租户角色均不得调用平台控制面 API。
-- 角色授权树和角色创建/更新服务端提交共同使用“当前操作者可分配菜单/权限集合”，租户角色不得获得平台租户管理、平台插件治理和全局菜单治理写权限。
-- `sys_menu` 作为全局权限模型时，菜单创建、更新、删除、状态变更等写操作必须要求平台上下文；租户态仅能读取按上下文过滤后的授权投影。
-- 插件安装、卸载、启用、禁用、同步、上传、安装模式/新租户自动启用策略等平台治理动作必须要求平台上下文；租户插件自服务继续通过租户插件接口按当前租户执行。
-- 任务分组按 `tenant_id` 作为租户资源处理，列表、创建、更新、删除、任务计数和删除迁移均必须限制在当前租户范围内。
-- 参数设置和字典的 fallback 行返回来源与动作元数据，前端按 `canEdit` / `canOverride` 隐藏或切换操作，避免“可见但编辑必失败”。
-- 补齐后端业务错误、运行时语言包、apidoc i18n、前端类型与 E2E/单元测试覆盖。
-
-## Capabilities
-
-### New Capabilities
-
-- `tenant-platform-access-control`: 定义平台租户控制面 API 的平台上下文访问边界。
-
-### Modified Capabilities
-
-- `role-management`: 角色授权树和角色菜单提交必须执行上下文可分配权限过滤。
-- `menu-management`: 菜单治理写操作必须受平台上下文保护，租户态授权树按上下文过滤。
-- `plugin-permission-governance`: 平台插件治理权限和租户插件自服务权限必须分离。
-- `plugin-manifest-lifecycle`: 插件同步、上传、安装、卸载、启停、安装模式和租户供应策略等生命周期治理必须要求平台上下文。
-- `cron-job-management`: 任务分组必须作为租户作用域资源读写和迁移。
-- `config-management`: 租户 fallback 参数行必须携带来源与可操作性元数据。
-- `dict-management`: 租户 fallback 字典类型和字典数据必须携带来源与可操作性元数据。
-
-## Impact
-
-- 后端影响：`apps/lina-core/internal/service/menu`、`role`、`plugin`、`jobmgmt`、`sysconfig`、`dict`，以及 `apps/lina-plugins/multi-tenant/backend/internal/service/tenant` 等平台租户接口服务。
-- API/DTO 影响：角色授权树、菜单树、配置列表/详情、字典类型/数据列表、插件治理写接口、任务分组接口可能新增错误码或响应字段；只读接口保持 RESTful GET 语义。
-- 前端影响：角色授权抽屉、菜单管理、插件管理、任务分组、参数设置、字典管理的按钮可见性、错误提示、类型定义和 i18n 文案。
-- 数据影响：优先复用 `sys_job_group.tenant_id` 和现有租户字段，不引入新的菜单租户自定义模型；如发现旧任务分组 `tenant_id=0` 数据需要迁移，必须按迁移计划处理。
-- 缓存影响：权限拓扑、插件状态、配置/字典 fallback 缓存必须使用现有显式作用域失效和集群协调机制，禁止普通业务路径无理由全量清空。
+- 历史实现曾新增`sys_menu`、`sys_role`、`sys_role_menu`、`sys_user_role`，并影响菜单、角色、用户、认证、登录页、权限、前端路由、E2E、i18n、缓存失效和数据权限边界。
+- 当前归档压缩仅保留用户权限领域的历史原因、设计决策、反馈和验证摘要；当前能力契约以`openspec/specs/<capability>/spec.md`为准。
+- 配置、字典、调度、插件生命周期、插件权限、服务监控和认证等非 owner 能力只在`design.md`中保留交叉影响摘要，不再重复保存完整规范全文。
+- 本次压缩不修改运行时代码、HTTP API、数据库、前端 UI、插件源码、语言包、`manifest/i18n`、`apidoc i18n JSON`、缓存实现或生产构建入口。

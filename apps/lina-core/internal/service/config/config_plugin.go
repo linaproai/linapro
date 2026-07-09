@@ -52,8 +52,8 @@ var pluginAllowForceUninstallOverride atomic.Value
 //
 // withMockData defaults to false when omitted. Operators must explicitly opt
 // in to mock data per plugin so auto-installed plugins do not accidentally
-// ship demo data into production environments. Bare-string entries are
-// rejected at config load to keep the host configuration shape uniform and
+// ship demo data into production environments. Non-object entries are rejected
+// at config load to keep the host configuration shape uniform and
 // the operator intent explicit.
 type PluginAutoEnableEntry struct {
 	// ID is the plugin identifier the host should ensure is installed and enabled.
@@ -66,15 +66,14 @@ type PluginAutoEnableEntry struct {
 // PluginConfig holds plugin-related host configuration.
 type PluginConfig struct {
 	Dynamic PluginDynamicConfig `json:"dynamic"` // Dynamic contains dynamic plugin storage settings.
-	Runtime PluginDynamicConfig `json:"runtime"` // Runtime keeps legacy config compatibility for older runtime keys.
 	// AllowForceUninstall lets platform administrators bypass lifecycle
 	// precondition vetoes after an explicit confirmation path.
 	AllowForceUninstall bool `json:"allowForceUninstall"`
 	// AutoEnable lists plugin entries the host must auto-install and enable
 	// during startup. Populated manually from g.Cfg() rather than via the
-	// generic scan pipeline because the YAML schema accepts a mix of bare
-	// string IDs and {id, withMockData} objects per entry. The struct tags
-	// instruct gconv to skip this field during automatic scan.
+	// generic scan pipeline so the structured entry schema can fail fast with
+	// clear item-level errors. The struct tags instruct gconv to skip this field
+	// during automatic scan.
 	AutoEnable []PluginAutoEnableEntry `c:"-" gconv:"-" json:"-"`
 }
 
@@ -84,9 +83,9 @@ type PluginDynamicConfig struct {
 }
 
 // GetPlugin reads plugin config from configuration file. Sub-keys are scanned
-// individually so the autoEnable union schema (mixed string and object items)
-// can be parsed by readRawPluginAutoEnableEntries without fighting the
-// generic scan pipeline's strict type expectations.
+// individually so plugin.autoEnable object entries can be parsed by
+// readRawPluginAutoEnableEntries without fighting the generic scan pipeline's
+// strict type expectations.
 //
 // Validation errors from autoEnable parsing fail-fast at the cache-load boundary:
 // helpers return errors and this function panics ONCE so the startup process
@@ -102,12 +101,8 @@ func (s *serviceImpl) GetPlugin(ctx context.Context) *PluginConfig {
 		}
 		cfg.AllowForceUninstall = g.Cfg().MustGet(ctx, "plugin.allowForceUninstall", defaultPluginAllowForceUninstall).Bool()
 		mustScanConfig(ctx, "plugin.dynamic", &cfg.Dynamic)
-		mustScanConfig(ctx, "plugin.runtime", &cfg.Runtime)
 
 		cfg.Dynamic.StoragePath = strings.TrimSpace(cfg.Dynamic.StoragePath)
-		if cfg.Dynamic.StoragePath == "" {
-			cfg.Dynamic.StoragePath = strings.TrimSpace(cfg.Runtime.StoragePath)
-		}
 		if cfg.Dynamic.StoragePath == "" {
 			cfg.Dynamic.StoragePath = defaultPluginDynamicStoragePath
 		}
@@ -170,71 +165,6 @@ func (s *serviceImpl) GetPluginDynamicStoragePath(ctx context.Context) string {
 	return resolveRuntimePathWithDefault(s.GetPlugin(ctx).Dynamic.StoragePath, defaultPluginDynamicStoragePath)
 }
 
-// SetPluginDynamicStoragePathOverride overrides the dynamic-plugin storage path.
-// Tests use this to isolate runtime artifact discovery from the shared workspace.
-func SetPluginDynamicStoragePathOverride(path string) {
-	pluginDynamicStoragePathOverride.Store(strings.TrimSpace(path))
-}
-
-// SetPluginAutoEnableOverride overrides the startup auto-enable plugin IDs.
-// Tests use this to isolate startup bootstrap behavior from shared config
-// adapter content. Bare string IDs default to WithMockData=false to preserve
-// the legacy override semantics from before the union schema was introduced.
-//
-// Tests pass already-validated IDs, so the underlying normalization should not
-// fail; if it does, the test setup is itself broken and the panic from
-// gerror.Must surfaces the same fail-fast behavior expected of test fixtures.
-func SetPluginAutoEnableOverride(pluginIDs []string) {
-	if len(pluginIDs) == 0 {
-		pluginAutoEnableOverride.Store(pluginAutoEnableOverrideState{})
-		return
-	}
-	entries := make([]PluginAutoEnableEntry, 0, len(pluginIDs))
-	for _, pluginID := range pluginIDs {
-		entries = append(entries, PluginAutoEnableEntry{ID: pluginID})
-	}
-	normalized, err := normalizePluginAutoEnableEntries(entries)
-	if err != nil {
-		panic(gerror.Wrap(err, "SetPluginAutoEnableOverride received invalid plugin IDs"))
-	}
-	pluginAutoEnableOverride.Store(pluginAutoEnableOverrideState{
-		set:   true,
-		value: normalized,
-	})
-}
-
-// SetPluginAutoEnableEntriesOverride overrides the startup auto-enable plugin
-// entries with the union schema's full per-entry payload. Tests that exercise
-// the mock-data opt-in flow use this variant; tests that only care about ID
-// normalization can keep using SetPluginAutoEnableOverride.
-func SetPluginAutoEnableEntriesOverride(entries []PluginAutoEnableEntry) {
-	if len(entries) == 0 {
-		pluginAutoEnableOverride.Store(pluginAutoEnableOverrideState{})
-		return
-	}
-	normalized, err := normalizePluginAutoEnableEntries(entries)
-	if err != nil {
-		panic(gerror.Wrap(err, "SetPluginAutoEnableEntriesOverride received invalid entries"))
-	}
-	pluginAutoEnableOverride.Store(pluginAutoEnableOverrideState{
-		set:   true,
-		value: normalized,
-	})
-}
-
-// SetPluginAllowForceUninstallOverride overrides plugin.allowForceUninstall.
-// Tests pass nil to clear the override.
-func SetPluginAllowForceUninstallOverride(value *bool) {
-	if value == nil {
-		pluginAllowForceUninstallOverride.Store(pluginAllowForceUninstallOverrideState{})
-		return
-	}
-	pluginAllowForceUninstallOverride.Store(pluginAllowForceUninstallOverrideState{
-		set:   true,
-		value: *value,
-	})
-}
-
 // getPluginDynamicStoragePathOverride returns the normalized test override when set.
 func getPluginDynamicStoragePathOverride() string {
 	value := pluginDynamicStoragePathOverride.Load()
@@ -282,11 +212,11 @@ func getPluginAllowForceUninstallOverride() (bool, bool) {
 }
 
 // readRawPluginAutoEnableEntries decodes plugin.autoEnable from the raw config
-// value into the union-schema entry slice. Bare string elements normalize into
-// {ID, WithMockData=false}; object elements scan their id and withMockData
-// fields. Returns a typed error on shape violations so callers can decide how
-// to react (the cache-load closure in GetPlugin promotes the error to a single
-// startup-time panic; tests can recover from the panic to assert messages).
+// value into the structured entry slice. Each element must be an object with id
+// and optional withMockData fields. Returns a typed error on shape violations
+// so callers can decide how to react (the cache-load closure in GetPlugin
+// promotes the error to a single startup-time panic; tests can recover from the
+// panic to assert messages).
 func readRawPluginAutoEnableEntries(ctx context.Context) ([]PluginAutoEnableEntry, error) {
 	value := g.Cfg().MustGet(ctx, "plugin.autoEnable")
 	if value == nil || value.IsEmpty() {
@@ -404,9 +334,9 @@ func asKeyString(keyValue reflect.Value) string {
 
 // normalizePluginAutoEnableEntries trims, validates, and de-duplicates startup
 // auto-enable entries while preserving declaration order. The first occurrence
-// of a given plugin ID wins; subsequent duplicates are silently dropped to
-// match the legacy ID-only behavior. Returns an error when an entry has an
-// empty ID so callers can decide how to surface the failure.
+// of a given plugin ID wins; subsequent duplicates are silently dropped.
+// Returns an error when an entry has an empty ID so callers can decide how to
+// surface the failure.
 func normalizePluginAutoEnableEntries(entries []PluginAutoEnableEntry) ([]PluginAutoEnableEntry, error) {
 	if len(entries) == 0 {
 		return nil, nil

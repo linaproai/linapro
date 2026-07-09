@@ -14,9 +14,9 @@ CREATE TABLE IF NOT EXISTS sys_dict_type (
     "is_builtin" SMALLINT NOT NULL DEFAULT 0,
     "allow_tenant_override" BOOL NOT NULL DEFAULT FALSE,
     "remark"     VARCHAR(512) NOT NULL DEFAULT '',
-    "created_at" TIMESTAMP,
-    "updated_at" TIMESTAMP,
-    "deleted_at" TIMESTAMP DEFAULT NULL
+    "created_at" TIMESTAMPTZ,
+    "updated_at" TIMESTAMPTZ,
+    "deleted_at" TIMESTAMPTZ DEFAULT NULL
 );
 
 COMMENT ON TABLE sys_dict_type IS 'Dictionary type table';
@@ -50,9 +50,9 @@ CREATE TABLE IF NOT EXISTS sys_dict_data (
     "status"     SMALLINT NOT NULL DEFAULT 1,
     "is_builtin" SMALLINT NOT NULL DEFAULT 0,
     "remark"     VARCHAR(512) NOT NULL DEFAULT '',
-    "created_at" TIMESTAMP,
-    "updated_at" TIMESTAMP,
-    "deleted_at" TIMESTAMP DEFAULT NULL
+    "created_at" TIMESTAMPTZ,
+    "updated_at" TIMESTAMPTZ,
+    "deleted_at" TIMESTAMPTZ DEFAULT NULL
 );
 
 COMMENT ON TABLE sys_dict_data IS 'Dictionary data table';

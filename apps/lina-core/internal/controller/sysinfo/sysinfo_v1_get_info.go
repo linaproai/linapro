@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode"
 
-	"lina-core/api/sysinfo/v1"
+	v1 "lina-core/api/sysinfo/v1"
 	"lina-core/pkg/apitime"
 )
 
@@ -111,9 +111,11 @@ func (c *ControllerV1) formatRunDuration(ctx context.Context, totalSeconds int64
 		totalSeconds = 0
 	}
 
-	hours := totalSeconds / int64(time.Hour/time.Second)
-	minutes := totalSeconds / int64(time.Minute/time.Second) % 60
-	seconds := totalSeconds % 60
+	var (
+		hours   = totalSeconds / int64(time.Hour/time.Second)
+		minutes = totalSeconds / int64(time.Minute/time.Second) % 60
+		seconds = totalSeconds % 60
+	)
 	if hours > 0 {
 		template := c.i18nSvc.Translate(ctx, runDurationHoursMinutesSecondsKey, "%d hours %d minutes %d seconds")
 		return fmt.Sprintf(template, hours, minutes, seconds)

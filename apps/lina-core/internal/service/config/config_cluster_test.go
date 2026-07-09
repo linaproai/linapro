@@ -73,9 +73,9 @@ cluster:
 	}
 }
 
-// TestGetClusterIgnoresLegacyElectionConfig verifies the deprecated root-level
-// election section no longer affects cluster defaults.
-func TestGetClusterIgnoresLegacyElectionConfig(t *testing.T) {
+// TestGetClusterIgnoresRootElectionConfig verifies only cluster.election
+// affects cluster election defaults.
+func TestGetClusterIgnoresRootElectionConfig(t *testing.T) {
 	setTestConfigContent(t, `
 election:
   lease: 50s
@@ -128,9 +128,27 @@ cluster:
 	}
 }
 
-// TestPostgreSQLDialectOnStartupKeepsConfigServiceClusterEnabled verifies
-// PostgreSQL startup hooks are no-op for cluster mode.
-func TestPostgreSQLDialectOnStartupKeepsConfigServiceClusterEnabled(t *testing.T) {
+// TestOverrideClusterEnabledForDialectReselectsRuntimeParamRevisionController
+// verifies dialect startup overrides can force a config service constructed
+// from cluster.enabled=true back to local runtime-parameter revision handling.
+func TestOverrideClusterEnabledForDialectReselectsRuntimeParamRevisionController(t *testing.T) {
+	svc := &serviceImpl{}
+	svc.runtimeParamRevisionCtrl = newCacheCoordRuntimeParamRevisionController(true)
+
+	if _, ok := svc.runtimeParamRevisionCtrl.(*clusterRuntimeParamRevisionController); !ok {
+		t.Fatal("expected test setup to start with clustered runtime-param revision controller")
+	}
+
+	svc.OverrideClusterEnabledForDialect(false)
+
+	if _, ok := svc.runtimeParamRevisionCtrl.(*localRuntimeParamRevisionController); !ok {
+		t.Fatalf("expected dialect override to select local runtime-param revision controller, got %T", svc.runtimeParamRevisionCtrl)
+	}
+}
+
+// TestPostgreSQLDialectSupportsClusterKeepsConfigServiceClusterEnabled verifies
+// PostgreSQL does not trigger startup cluster compatibility overrides.
+func TestPostgreSQLDialectSupportsClusterKeepsConfigServiceClusterEnabled(t *testing.T) {
 	setTestConfigContent(t, `
 cluster:
   enabled: true
@@ -145,8 +163,8 @@ cluster:
 	if err != nil {
 		t.Fatalf("resolve PostgreSQL dialect failed: %v", err)
 	}
-	if err = dbDialect.OnStartup(context.Background(), svc); err != nil {
-		t.Fatalf("run PostgreSQL startup hook failed: %v", err)
+	if !dbDialect.SupportsCluster() {
+		svc.OverrideClusterEnabledForDialect(false)
 	}
 
 	if !svc.IsClusterEnabled(context.Background()) {
@@ -241,6 +259,7 @@ func setTestConfigContent(t *testing.T, content string) {
 
 	originalContent := adapter.GetContent()
 	adapter.SetContent(content)
+	adapter.Clear()
 	resetStaticConfigCaches()
 
 	t.Cleanup(func() {
@@ -249,6 +268,7 @@ func setTestConfigContent(t *testing.T, content string) {
 		} else {
 			adapter.RemoveContent()
 		}
+		adapter.Clear()
 		resetStaticConfigCaches()
 	})
 }

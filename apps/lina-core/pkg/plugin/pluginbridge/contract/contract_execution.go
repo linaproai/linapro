@@ -15,11 +15,10 @@ const (
 	ExecutionSourceRoute ExecutionSource = "route"
 	// ExecutionSourceHook marks one host hook callback execution.
 	ExecutionSourceHook ExecutionSource = "hook"
-	// ExecutionSourceCron marks one scheduled job execution.
-	ExecutionSourceCron ExecutionSource = "cron"
-	// ExecutionSourceCronDiscovery marks one host-driven cron declaration
-	// discovery call against a dynamic plugin runtime.
-	ExecutionSourceCronDiscovery ExecutionSource = "cron_discovery"
+	// ExecutionSourceJobs marks one scheduled job execution.
+	ExecutionSourceJobs ExecutionSource = "jobs"
+	// ExecutionSourceJobsDiscovery marks dynamic-plugin job declaration discovery.
+	ExecutionSourceJobsDiscovery ExecutionSource = "jobs.discovery"
 	// ExecutionSourceLifecycle marks one install/enable/disable lifecycle execution.
 	ExecutionSourceLifecycle ExecutionSource = "lifecycle"
 )

@@ -5,16 +5,19 @@ package integration
 
 import (
 	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
-	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
+	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // authoritativeEnablementContextKey stores the opt-in marker for persisted
@@ -47,10 +50,10 @@ func (s *serviceImpl) CanExposeBusinessEntries(ctx context.Context, pluginID str
 	if enabled, ok := s.loadedPlatformEnabledState(ctx, normalizedPluginID); ok {
 		return enabled
 	}
-	if s.catalogSvc == nil {
+	if s.storeSvc == nil {
 		return false
 	}
-	registry, err := s.catalogSvc.GetRegistry(ctx, normalizedPluginID)
+	registry, err := s.storeSvc.GetRegistry(ctx, normalizedPluginID)
 	if err != nil || registry == nil {
 		return false
 	}
@@ -82,10 +85,10 @@ func (s *serviceImpl) IsProviderEnabled(ctx context.Context, pluginID string) bo
 // CanExposeBusinessEntries.
 func (s *serviceImpl) IsInstalledEnabledForTenant(ctx context.Context, pluginID string) bool {
 	normalizedPluginID := strings.TrimSpace(pluginID)
-	if normalizedPluginID == "" || s == nil || s.catalogSvc == nil {
+	if normalizedPluginID == "" || s == nil || s.storeSvc == nil {
 		return false
 	}
-	registry, err := s.catalogSvc.GetRegistry(ctx, normalizedPluginID)
+	registry, err := s.storeSvc.GetRegistry(ctx, normalizedPluginID)
 	if err != nil || registry == nil {
 		return false
 	}
@@ -128,10 +131,10 @@ func (s *serviceImpl) SetTenantPluginEnabledState(ctx context.Context, pluginID 
 
 // registryEnabledForTenant resolves the effective plugin enablement state for
 // the current tenant context.
-func (s *serviceImpl) registryEnabledForTenant(ctx context.Context, registry *entity.SysPlugin) (bool, error) {
+func (s *serviceImpl) registryEnabledForTenant(ctx context.Context, registry *store.PluginRecord) (bool, error) {
 	if registry == nil ||
-		registry.Installed != catalog.InstalledYes ||
-		registry.Status != catalog.StatusEnabled {
+		registry.Installed != statusflag.Installed.Int() ||
+		registry.Status != statusflag.EnabledValue.Int() {
 		return false, nil
 	}
 	tenantID := datascope.CurrentTenantID(ctx)
@@ -139,28 +142,28 @@ func (s *serviceImpl) registryEnabledForTenant(ctx context.Context, registry *en
 	// availability. Global platform-only plugins such as linapro-tenant-core can still
 	// publish tenant-context APIs and permissions while tenant administrators
 	// remain unable to control them through the tenant plugin list.
-	if catalog.NormalizeInstallMode(registry.InstallMode) != catalog.InstallModeTenantScoped || tenantID == datascope.PlatformTenantID {
+	if plugintypes.NormalizeInstallMode(registry.InstallMode) != pluginv1.InstallModeTenantScoped || tenantID == datascope.PlatformTenantID {
 		return true, nil
 	}
 	return s.tenantPluginEnabled(ctx, registry.PluginId, tenantID)
 }
 
 // registryBusinessEntryEnabledForTenant resolves plugin enablement and runtime
-// upgrade state before allowing plugin-owned routes, menus, cron jobs, or hooks.
+// upgrade state before allowing plugin-owned routes, menus, scheduled jobs, or hooks.
 func (s *serviceImpl) registryBusinessEntryEnabledForTenant(
 	ctx context.Context,
-	registry *entity.SysPlugin,
+	registry *store.PluginRecord,
 	manifest *catalog.Manifest,
 ) (bool, error) {
 	enabled, err := s.registryEnabledForTenant(ctx, registry)
 	if err != nil || !enabled {
 		return enabled, err
 	}
-	state, err := s.catalogSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
+	state, err := s.storeSvc.BuildRuntimeUpgradeState(ctx, registry, manifest)
 	if err != nil {
 		return false, err
 	}
-	return catalog.RuntimeStateAllowsBusinessEntry(state.State), nil
+	return store.RuntimeStateAllowsBusinessEntry(state.State), nil
 }
 
 // tenantPluginEnabled reads one tenant-scoped plugin enablement row.
@@ -312,11 +315,11 @@ func (s *serviceImpl) buildEnabledPluginMapFromCatalog(
 		return enabledByID, nil
 	}
 
-	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	readCtx, err := s.storeSvc.WithStartupDataSnapshot(ctx)
 	if err != nil {
 		return nil, err
 	}
-	registries, err := s.catalogSvc.ListAllRegistries(readCtx)
+	registries, err := s.storeSvc.ListAllRegistries(readCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -422,36 +425,33 @@ func manifestByPluginID(manifests []*catalog.Manifest) map[string]*catalog.Manif
 	return result
 }
 
-// buildBackgroundEnabledChecker returns a PluginEnabledChecker for use in source plugin
-// route and cron registrars that need to guard runtime access.
-func (s *serviceImpl) buildBackgroundEnabledChecker() pluginhost.PluginEnabledChecker {
-	return func(ctx context.Context, pluginID string) bool {
-		normalizedPluginID := strings.TrimSpace(pluginID)
-		if normalizedPluginID == "" {
-			return false
-		}
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		if datascope.CurrentTenantID(ctx) != datascope.PlatformTenantID {
-			return s.CanExposeBusinessEntries(ctx, normalizedPluginID)
-		}
-
-		if enabled, ok := s.loadedPlatformEnabledState(ctx, normalizedPluginID); ok {
-			return enabled
-		}
+// canExposePluginBusinessEntries reports whether plugin runtime surfaces should
+// be available for the supplied context.
+func (s *serviceImpl) canExposePluginBusinessEntries(ctx context.Context, pluginID string) bool {
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" {
+		return false
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if datascope.CurrentTenantID(ctx) != datascope.PlatformTenantID {
 		return s.CanExposeBusinessEntries(ctx, normalizedPluginID)
 	}
+
+	if enabled, ok := s.loadedPlatformEnabledState(ctx, normalizedPluginID); ok {
+		return enabled
+	}
+	return s.CanExposeBusinessEntries(ctx, normalizedPluginID)
 }
 
-// buildPrimaryNodeChecker returns a PrimaryNodeChecker for use in source plugin cron registrars.
-func (s *serviceImpl) buildPrimaryNodeChecker() pluginhost.PrimaryNodeChecker {
-	return func() bool {
-		if s.topology == nil {
-			return false
-		}
-		return s.topology.IsPrimaryNode()
+// isPrimaryNode reports whether source-plugin registration is running on the
+// current cluster primary node.
+func (s *serviceImpl) isPrimaryNode() bool {
+	if s == nil || s.topology == nil {
+		return false
 	}
+	return s.topology.IsPrimary()
 }
 
 // setSourceRouteBindings stores the latest host-captured route bindings for one

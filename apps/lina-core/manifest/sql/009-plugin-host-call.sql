@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS sys_plugin_state (
     "state_key"   VARCHAR(255) NOT NULL DEFAULT '',
     "state_value" TEXT,
     "enabled"     BOOL NOT NULL DEFAULT FALSE,
-    "created_at"  TIMESTAMP,
-    "updated_at"  TIMESTAMP
+    "created_at"  TIMESTAMPTZ,
+    "updated_at"  TIMESTAMPTZ
 );
 
 COMMENT ON TABLE sys_plugin_state IS 'Plugin key-value state storage table';

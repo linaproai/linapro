@@ -13,9 +13,10 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	plugindata "lina-core/pkg/plugin/capability/data"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/plugin/pluginbridge/recordstore"
 )
 
 // Default pagination limits for governed list operations.
@@ -23,6 +24,7 @@ const (
 	defaultDataListPageNum  = 1
 	defaultDataListPageSize = 10
 	maxDataListPageSize     = 100
+	maxDataBatchGetKeys     = 100
 )
 
 // executionContext stores plugin, table, source, and identity data for one request.
@@ -89,7 +91,7 @@ func ExecuteList(
 	response := &protocol.HostServiceDataListResponse{
 		Total: int32(total),
 	}
-	if requestPlan.Action == plugindata.DataPlanActionCount {
+	if requestPlan.Action == recordstore.PlanActionCount {
 		return response, nil
 	}
 	fieldArgs, err := buildPlanFieldArgs(resource, requestPlan.Fields)
@@ -189,6 +191,84 @@ func ExecuteGet(
 	}, nil
 }
 
+// ExecuteBatchGet executes one governed detail batch lookup against an authorized table.
+func ExecuteBatchGet(
+	ctx context.Context,
+	pluginID string,
+	table string,
+	executionSource protocol.ExecutionSource,
+	identity *protocol.IdentitySnapshotV1,
+	orgSvc orgcap.Service,
+	resource *catalog.ResourceSpec,
+	request *protocol.HostServiceDataBatchGetRequest,
+) (*protocol.HostServiceDataBatchGetResponse, error) {
+	execCtx := &executionContext{
+		pluginID:        pluginID,
+		table:           table,
+		executionSource: executionSource,
+		identity:        identity,
+		orgSvc:          orgSvc,
+	}
+	if err := validateExecutionAccess(execCtx, resource, protocol.HostServiceMethodDataBatchGet); err != nil {
+		return nil, err
+	}
+	keys, keyJSON, err := decodeDataBatchGetKeys(request)
+	if err != nil {
+		return nil, err
+	}
+	if len(keys) == 0 {
+		return &protocol.HostServiceDataBatchGetResponse{}, nil
+	}
+	ctx = withPluginDataAudit(ctx, buildPluginDataAuditMetadata(execCtx, resource, protocol.HostServiceMethodDataBatchGet, false))
+
+	db, err := getPluginDataDB()
+	if err != nil {
+		return nil, err
+	}
+	model := buildResourceModel(db, ctx, resource).
+		WhereIn(resolveResourceKeyColumn(resource), keys)
+	model, err = applyResourceDataScope(ctx, model, resource, identity, orgSvc)
+	if err != nil {
+		return nil, err
+	}
+	queryFields := dataBatchGetQueryFields(resource, request.Fields)
+	fieldArgs, err := buildPlanFieldArgs(resource, queryFields)
+	if err != nil {
+		return nil, err
+	}
+	records, err := model.Fields(fieldArgs...).All()
+	if err != nil {
+		return nil, err
+	}
+
+	keyField := findResourceField(resource, resource.KeyField)
+	foundKeys := make(map[string]struct{}, len(records))
+	response := &protocol.HostServiceDataBatchGetResponse{
+		Records: make([][]byte, 0, len(records)),
+	}
+	for _, record := range records {
+		if record == nil {
+			continue
+		}
+		recordMap := record.Map()
+		if keyField != nil {
+			foundKeys[canonicalDataBatchKey(resolveResourceRecordValue(recordMap, keyField))] = struct{}{}
+		}
+		recordJSON, marshalErr := json.Marshal(buildResourceRecordWithSelection(recordMap, resource, request.Fields))
+		if marshalErr != nil {
+			return nil, marshalErr
+		}
+		response.Records = append(response.Records, recordJSON)
+	}
+	for index, key := range keys {
+		if _, ok := foundKeys[canonicalDataBatchKey(key)]; ok {
+			continue
+		}
+		response.MissingKeyJSON = append(response.MissingKeyJSON, append([]byte(nil), keyJSON[index]...))
+	}
+	return response, nil
+}
+
 // ExecuteCreate executes one governed record creation against an authorized table.
 func ExecuteCreate(
 	ctx context.Context,
@@ -274,7 +354,7 @@ func ExecuteTransaction(
 		return nil, err
 	}
 	if request == nil || len(request.Operations) == 0 {
-		return nil, gerror.New("data transaction requires at least one operation")
+		return nil, gerror.New("record store transaction requires at least one operation")
 	}
 
 	db, err := getPluginDataDB()
@@ -289,7 +369,7 @@ func ExecuteTransaction(
 	err = db.Transaction(txCtx, func(txExecCtx context.Context, tx gdb.TX) error {
 		for _, operation := range request.Operations {
 			if operation == nil {
-				return gerror.New("data transaction operation cannot be nil")
+				return gerror.New("record store transaction operation cannot be nil")
 			}
 			switch strings.ToLower(strings.TrimSpace(operation.Method)) {
 			case protocol.HostServiceMethodDataCreate:
@@ -338,7 +418,7 @@ func ExecuteTransaction(
 				response.Results = append(response.Results, result)
 				response.AffectedRows += result.AffectedRows
 			default:
-				return gerror.Newf("data transaction operation is not supported: %s", operation.Method)
+				return gerror.Newf("record store transaction operation is not supported: %s", operation.Method)
 			}
 		}
 		return nil
@@ -533,17 +613,17 @@ func validateExecutionAccess(execCtx *executionContext, resource *catalog.Resour
 	// source and identity snapshot so request-bound tables cannot be reused by
 	// anonymous or background execution paths.
 	normalizedSource := protocol.NormalizeExecutionSource(execCtx.executionSource)
-	switch catalog.NormalizeResourceAccessMode(resource.Access) {
-	case catalog.ResourceAccessModeRequest:
+	switch plugintypes.NormalizeResourceAccessMode(resource.Access) {
+	case plugintypes.ResourceAccessModeRequest:
 		if normalizedSource != protocol.ExecutionSourceRoute {
 			return gerror.Newf("data table %s only allows request-bound context", resource.Table)
 		}
 		if execCtx.identity == nil || execCtx.identity.UserID <= 0 {
 			return gerror.Newf("data table %s requires authenticated user context", resource.Table)
 		}
-	case catalog.ResourceAccessModeSystem:
+	case plugintypes.ResourceAccessModeSystem:
 		return nil
-	case catalog.ResourceAccessModeBoth:
+	case plugintypes.ResourceAccessModeBoth:
 		if normalizedSource == protocol.ExecutionSourceRoute && (execCtx.identity == nil || execCtx.identity.UserID <= 0) {
 			return gerror.Newf("data table %s requires authenticated user in request-bound context", resource.Table)
 		}
@@ -579,7 +659,7 @@ func buildResourceOrderBy(resource *catalog.ResourceSpec) string {
 	if orderBy == "" {
 		return ""
 	}
-	if catalog.NormalizeResourceOrderDirection(resource.OrderBy.Direction) == catalog.ResourceOrderDirectionDESC {
+	if plugintypes.NormalizeResourceOrderDirection(resource.OrderBy.Direction) == plugintypes.ResourceOrderDirectionDESC {
 		return orderBy + " DESC"
 	}
 	return orderBy + " ASC"
@@ -732,16 +812,81 @@ func decodeJSONObject(content []byte) (map[string]interface{}, error) {
 // decodeJSONScalar decodes a required scalar key payload.
 func decodeJSONScalar(content []byte) (interface{}, error) {
 	if len(content) == 0 {
-		return nil, gerror.New("data key cannot be empty")
+		return nil, gerror.New("record store key cannot be empty")
 	}
 	var value interface{}
 	if err := json.Unmarshal(content, &value); err != nil {
 		return nil, err
 	}
 	if value == nil {
-		return nil, gerror.New("data key cannot be empty")
+		return nil, gerror.New("record store key cannot be empty")
 	}
 	return value, nil
+}
+
+func decodeDataBatchGetKeys(request *protocol.HostServiceDataBatchGetRequest) ([]interface{}, [][]byte, error) {
+	if request == nil || len(request.KeyJSON) == 0 {
+		return nil, nil, gerror.New("record store batch_get keys cannot be empty")
+	}
+	if len(request.KeyJSON) > maxDataBatchGetKeys {
+		return nil, nil, gerror.Newf("record store batch_get key count exceeds limit %d", maxDataBatchGetKeys)
+	}
+	var (
+		keys    = make([]interface{}, 0, len(request.KeyJSON))
+		keyJSON = make([][]byte, 0, len(request.KeyJSON))
+		seen    = make(map[string]struct{}, len(request.KeyJSON))
+	)
+	for _, rawKeyJSON := range request.KeyJSON {
+		key, err := decodeJSONScalar(rawKeyJSON)
+		if err != nil {
+			return nil, nil, err
+		}
+		canonicalKey := canonicalDataBatchKey(key)
+		if canonicalKey == "" {
+			return nil, nil, gerror.New("record store batch_get key cannot be empty")
+		}
+		if _, ok := seen[canonicalKey]; ok {
+			continue
+		}
+		seen[canonicalKey] = struct{}{}
+		keys = append(keys, key)
+		keyJSON = append(keyJSON, append([]byte(nil), rawKeyJSON...))
+	}
+	return keys, keyJSON, nil
+}
+
+func canonicalDataBatchKey(value interface{}) string {
+	if value == nil {
+		return ""
+	}
+	content, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprint(value)
+	}
+	return string(content)
+}
+
+func dataBatchGetQueryFields(resource *catalog.ResourceSpec, selected []string) []string {
+	if len(selected) == 0 || resource == nil || strings.TrimSpace(resource.KeyField) == "" {
+		return selected
+	}
+	fields := make([]string, 0, len(selected)+1)
+	hasKey := false
+	for _, field := range selected {
+		normalized := strings.TrimSpace(field)
+		if normalized == "" {
+			fields = append(fields, field)
+			continue
+		}
+		if normalized == resource.KeyField {
+			hasKey = true
+		}
+		fields = append(fields, normalized)
+	}
+	if !hasKey {
+		fields = append(fields, resource.KeyField)
+	}
+	return fields
 }
 
 // encodeJSONValue marshals one optional scalar or structured response value.

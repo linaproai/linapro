@@ -23,6 +23,12 @@ type defaultCoordinatorTestTopology struct {
 	enabled bool
 }
 
+// Start records no behavior for the test topology.
+func (defaultCoordinatorTestTopology) Start(context.Context) {}
+
+// Stop records no behavior for the test topology.
+func (defaultCoordinatorTestTopology) Stop(context.Context) {}
+
 // IsEnabled reports the configured cluster mode for the test topology.
 func (t defaultCoordinatorTestTopology) IsEnabled() bool {
 	return t.enabled
@@ -69,10 +75,12 @@ func TestSingleNodeMarkChangedUsesProcessLocalRevision(t *testing.T) {
 
 // TestTenantScopedMarkChangedIsolatesLocalRevisions verifies tenant invalidation scope uses separate revisions.
 func TestTenantScopedMarkChangedIsolatesLocalRevisions(t *testing.T) {
-	ctx := context.Background()
-	service := New(NewStaticTopology(false))
-	domain := Domain("unit-tenant-cache")
-	scope := Scope("dict")
+	var (
+		ctx     = context.Background()
+		service = New(NewStaticTopology(false))
+		domain  = Domain("unit-tenant-cache")
+		scope   = Scope("dict")
+	)
 
 	tenantOneRevision, err := service.MarkTenantChanged(
 		ctx,
@@ -102,10 +110,12 @@ func TestTenantScopedMarkChangedIsolatesLocalRevisions(t *testing.T) {
 // TestTenantScopedMarkChangedCascadeUsesDistinctScope verifies platform
 // cascade invalidation does not overwrite a tenant-only revision bucket.
 func TestTenantScopedMarkChangedCascadeUsesDistinctScope(t *testing.T) {
-	ctx := context.Background()
-	service := New(NewStaticTopology(false))
-	domain := Domain("unit-tenant-cache-cascade")
-	scope := Scope("permission")
+	var (
+		ctx     = context.Background()
+		service = New(NewStaticTopology(false))
+		domain  = Domain("unit-tenant-cache-cascade")
+		scope   = Scope("permission")
+	)
 
 	tenantRevision, err := service.MarkTenantChanged(
 		ctx,
@@ -265,10 +275,12 @@ func TestClusterMarkChangedPersistsAtomicRevision(t *testing.T) {
 // TestClusterMarkChangedAcceptsUnconfiguredDomain verifies callers can use a
 // new valid domain without changing cachecoord code or configuring metadata.
 func TestClusterMarkChangedAcceptsUnconfiguredDomain(t *testing.T) {
-	ctx := context.Background()
-	service := NewWithCoordination(NewStaticTopology(true), coordination.NewMemory(nil))
-	domain := Domain("plugin:unit-test:custom")
-	scope := Scope("unit-test-free-domain")
+	var (
+		ctx     = context.Background()
+		service = NewWithCoordination(NewStaticTopology(true), coordination.NewMemory(nil))
+		domain  = Domain("plugin:unit-test:custom")
+		scope   = Scope("unit-test-free-domain")
+	)
 
 	revision, err := service.MarkChanged(ctx, domain, scope, ChangeReason("free_domain"))
 	if err != nil {
@@ -301,9 +313,11 @@ func TestClusterMarkChangedAcceptsUnconfiguredDomain(t *testing.T) {
 // cluster mode treat a missing revision row as revision zero instead of an
 // infrastructure failure.
 func TestClusterCurrentRevisionHandlesMissingSharedRow(t *testing.T) {
-	ctx := context.Background()
-	service := NewWithCoordination(NewStaticTopology(true), coordination.NewMemory(nil))
-	scope := Scope("unit-test-missing-shared-row")
+	var (
+		ctx     = context.Background()
+		service = NewWithCoordination(NewStaticTopology(true), coordination.NewMemory(nil))
+		scope   = Scope("unit-test-missing-shared-row")
+	)
 
 	revision, err := service.CurrentRevision(ctx, testRuntimeConfigDomain, scope)
 	if err != nil {
@@ -317,10 +331,12 @@ func TestClusterCurrentRevisionHandlesMissingSharedRow(t *testing.T) {
 // TestEnsureFreshRefreshesOncePerRevision verifies the refresher only runs when
 // the observed revision advances.
 func TestEnsureFreshRefreshesOncePerRevision(t *testing.T) {
-	ctx := context.Background()
-	coordSvc := coordination.NewMemory(nil)
-	publisher := NewWithCoordination(NewStaticTopology(true), coordSvc)
-	consumer := NewWithCoordination(NewStaticTopology(true), coordSvc)
+	var (
+		ctx       = context.Background()
+		coordSvc  = coordination.NewMemory(nil)
+		publisher = NewWithCoordination(NewStaticTopology(true), coordSvc)
+		consumer  = NewWithCoordination(NewStaticTopology(true), coordSvc)
+	)
 
 	if _, err := publisher.MarkChanged(ctx, testPluginRuntimeDomain, Scope("unit-test-refresh"), ChangeReason("first")); err != nil {
 		t.Fatalf("publish first revision failed: %v", err)
@@ -358,11 +374,13 @@ func TestEnsureFreshRefreshesOncePerRevision(t *testing.T) {
 // TestSnapshotIncludesProcessStatusFromOtherInstances verifies diagnostics can
 // expose status recorded by cachecoord users that own separate service instances.
 func TestSnapshotIncludesProcessStatusFromOtherInstances(t *testing.T) {
-	ctx := context.Background()
-	scope := Scope("unit-test-process-snapshot")
-	coordSvc := coordination.NewMemory(nil)
-	publisher := NewWithCoordination(NewStaticTopology(true), coordSvc)
-	diagnosticReader := NewWithCoordination(NewStaticTopology(true), coordSvc)
+	var (
+		ctx              = context.Background()
+		scope            = Scope("unit-test-process-snapshot")
+		coordSvc         = coordination.NewMemory(nil)
+		publisher        = NewWithCoordination(NewStaticTopology(true), coordSvc)
+		diagnosticReader = NewWithCoordination(NewStaticTopology(true), coordSvc)
+	)
 
 	revision, err := publisher.MarkChanged(ctx, testRuntimeConfigDomain, scope, ChangeReason("diagnostic_snapshot"))
 	if err != nil {
@@ -405,10 +423,12 @@ func withResetDefaultCoordinator(t *testing.T) {
 // TestSnapshotIncludesCoordinationHealth verifies clustered cache diagnostics
 // expose the active coordination backend and event subscription status.
 func TestSnapshotIncludesCoordinationHealth(t *testing.T) {
-	ctx := context.Background()
-	scope := Scope("unit-test-coordination-health")
-	coordSvc := coordination.NewMemory(nil)
-	service := NewWithCoordination(NewStaticTopology(true), coordSvc)
+	var (
+		ctx      = context.Background()
+		scope    = Scope("unit-test-coordination-health")
+		coordSvc = coordination.NewMemory(nil)
+		service  = NewWithCoordination(NewStaticTopology(true), coordSvc)
+	)
 
 	subscription, err := coordSvc.Events().Subscribe(ctx, func(context.Context, coordination.Event) error {
 		return nil

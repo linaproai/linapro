@@ -1,0 +1,64 @@
+# Reusable LinaPro Go static lint workflow.
+# LinaPro 可复用 Go 静态检查工作流。
+name: Reusable Go Lint
+
+on:
+  # Expose the Go lint gate for host-only and plugin-full callers.
+  # 将 Go 静态检查门禁暴露给宿主模式和插件完整模式调用方。
+  workflow_call:
+    inputs:
+      # Controls whether official plugin submodules are checked out for plugin-full runs.
+      # 控制是否为插件完整模式检出官方插件 submodule。
+      submodules:
+        description: Checkout submodule strategy for actions/checkout.
+        required: false
+        type: string
+        default: "false"
+      # Passes the host-only or plugin-full mode into make lint.go.
+      # 将宿主或插件完整模式传给 make lint.go。
+      plugins:
+        description: Official plugin build mode for make lint.go.
+        required: false
+        type: string
+        default: "0"
+
+# Lint jobs only need to read repository contents.
+# 静态检查 job 只需要读取仓库内容。
+permissions:
+  contents: read
+
+# Keep lint logs aligned with the project timezone.
+# 让静态检查日志与项目时区保持一致。
+env:
+  TZ: "Asia/Shanghai"
+
+jobs:
+  # Runs the public make entrypoint; linactl installs pinned Go lint tools as needed.
+  # 通过公开 make 入口执行检查；linactl 会按需安装仓库锁定的 Go lint 工具版本。
+  go-lint:
+    name: Go static lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      # Check out repository sources, optionally including plugin submodules.
+      # 拉取仓库源码，并可按调用方要求包含插件 submodule。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          submodules: ${{ inputs.submodules }}
+
+      # Install the Go toolchain used by linactl and the lint tool installation.
+      # 安装 linactl 和 lint 工具自动安装流程使用的 Go 工具链。
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: true
+          cache-dependency-path: "**/go.sum"
+
+      # Run lint through the repository entrypoint so local and CI behavior stay aligned.
+      # 通过仓库入口运行静态检查，保持本地和 CI 行为一致。
+      - name: Run Go Static Lint
+        run: |
+          make lint.go plugins="${{ inputs.plugins }}"

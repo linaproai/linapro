@@ -1,0 +1,326 @@
+version: "2"
+run:
+  concurrency: 4
+  modules-download-mode: readonly
+  issues-exit-code: 2
+  tests: false
+  allow-parallel-runners: true
+  allow-serial-runners: true
+
+linters:
+  default: none
+  enable:
+    # Enabled quality gate. Linters below focus on defects, resource handling,
+    # error handling, security, dead code, performance, and maintainability.
+    # 默认启用的质量门禁集合，覆盖缺陷、资源释放、错误处理、安全、死代码、性能和可维护性。
+    - asasalint
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - containedctx
+    - copyloopvar
+    - cyclop
+    - dogsled
+    - dupword
+    - durationcheck
+    - errcheck
+    - errname
+    - errorlint
+    - errchkjson
+    # - exhaustive
+    - fatcontext
+    - forcetypeassert
+    - gocheckcompilerdirectives
+    - gochecksumtype
+    # - gocognit
+    - goconst
+    - gocritic
+    - govet
+    # - gosec
+    - ineffassign
+    - loggercheck
+    - makezero
+    - misspell
+    # - musttag
+    - nakedret
+    # - nilerr
+    - nilnesserr
+    # - nilnil
+    - noctx
+    - nosprintfhostport
+    - nolintlint
+    - predeclared
+    - reassign
+    - revive
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
+    - staticcheck
+    # - unconvert
+    # - unparam
+    - unqueryvet
+    # Dead-code checks are handled by linactl's pinned staticcheck U1000 pass
+    # so wasip1 guest packages can be merged across host and wasm targets.
+    # 死代码检查统一由 linactl 固定版本 staticcheck U1000 处理，以便合并 host 与 wasip1/wasm 目标。
+    # - unused
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+    - whitespace
+    # - wrapcheck
+    # Disabled after FB-1 triage: useful in some projects, but too noisy for
+    # LinaPro's first blocking gate because they mostly report framework
+    # construction paths, generated-like protocol codecs, schema tag policy,
+    # overlapping complexity metrics, or micro-optimizations.
+    # FB-1 分诊后关闭：这些规则在本项目首批阻断门禁中噪声过高，
+    # 主要命中框架构造路径、协议编解码、契约标签命名、重复复杂度指标或微优化。
+    # - contextcheck
+    # - dupl
+    # - funlen
+    # - gocyclo
+    # - intrange
+    # - mirror
+    # - nestif
+    # - maintidx
+    # - perfsprint
+    # - prealloc
+    # - tagliatelle
+    # Available linters in golangci-lint v2.12.2. Uncomment after rule-specific triage.
+    # golangci-lint v2.12.2 支持的其他 linter；完成专项评估后再取消注释启用。
+    # - arangolint
+    # - asciicheck
+    # - clickhouselint
+    # - decorder
+    # - depguard
+    # - embeddedstructfieldcheck
+    # - err113
+    # - exhaustruct
+    # - exptostd
+    # - forbidigo
+    # - funcorder
+    # - ginkgolinter
+    # - gochecknoglobals
+    # - gochecknoinits
+    # - godoclint
+    # - godot
+    # - godox
+    # - goheader
+    # - gomoddirectives
+    # - gomodguard # deprecated; use gomodguard_v2.
+    # - gomodguard_v2
+    # - goprintffuncname
+    # - gosmopolitan
+    # - grouper
+    # - iface
+    # - importas
+    # - inamedparam
+    # - interfacebloat
+    # - iotamixing
+    # - ireturn
+    # - lll
+    # - mnd
+    # - modernize
+    # - nlreturn
+    # - noinlineerr
+    # - nonamedreturns
+    # - paralleltest
+    # - promlinter
+    # - protogetter
+    # - recvcheck
+    # - tagalign
+    # - testableexamples
+    # - testifylint
+    # - testpackage
+    # - thelper
+    # - tparallel
+    # - varnamelen
+    # - wsl # deprecated; use wsl_v5.
+    # - wsl_v5
+    # - zerologlint
+  settings:
+    cyclop:
+      max-complexity: 35
+      package-average: 12.0
+    gocognit:
+      min-complexity: 45
+    goconst:
+      min-len: 4
+      min-occurrences: 30
+      match-constant: false
+      numbers: true
+      min: 5
+      max: 20
+      ignore-calls: false
+    gocritic:
+      disabled-checks:
+        - appendAssign
+        - assignOp
+        - elseif
+        - ifElseChain
+        - singleCaseSwitch
+        - typeSwitchVar
+    govet:
+      enable-all: true
+      disable:
+        - asmdecl
+        - assign
+        - atomic
+        - atomicalign
+        - bools
+        - buildtag
+        - cgocall
+        - composites
+        - copylocks
+        - deepequalerrors
+        - errorsas
+        - fieldalignment
+        - findcall
+        - framepointer
+        - httpresponse
+        - ifaceassert
+        - loopclosure
+        - lostcancel
+        - nilfunc
+        - nilness
+        - reflectvaluecompare
+        - shift
+        - shadow
+        - sigchanyzer
+        - sortslice
+        - stdmethods
+        - stringintconv
+        - structtag
+        - testinggoroutine
+        - tests
+        - unmarshal
+        - unreachable
+        - unsafeptr
+        - unusedwrite
+    misspell:
+      locale: US
+      ignore-rules:
+        - cancelling
+        - cancelled
+    revive:
+      severity: error
+      rules:
+        - name: atomic
+        - name: line-length-limit
+          arguments:
+            - 1200
+          severity: error
+          disabled: false
+        - name: unhandled-error
+          severity: warning
+          disabled: true
+        - name: var-naming
+          arguments:
+            - - ID
+              - URL
+              - IP
+              - HTTP
+              - JSON
+              - API
+              - UID
+              - DB
+              - SQL
+            - - VM
+          severity: warning
+          disabled: true
+    staticcheck:
+      checks:
+        - all
+        - -S1000
+        - -S1008
+        - -S1009
+        - -S1011
+        - -S1016
+        - -S1023
+        - -S1025
+        - -S1029
+        - -S1034
+        - -S1040
+        - -SA1012
+        - -SA1016
+        - -SA1019
+        - -SA1029
+        - -SA4006
+        - -SA4015
+        - -SA5011
+        - -SA6003
+        - -SA9003
+        - -ST1003
+        - -ST1011
+        - -ST1019
+        - -QF1001
+        - -QF1002
+        - -QF1003
+        - -QF1006
+        - -QF1007
+        - -QF1008
+        - -QF1011
+        - -QF1012
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - goconst
+        path: _test\.go
+      - linters:
+          - goconst
+        text: string `pluginId` has
+      - linters:
+          - goconst
+        text: string `HostServiceJSONRequest` has
+      - linters:
+          - goconst
+        text: string `HostServiceJSONResponse` has
+      - linters:
+          - revive
+        path: _test\.go
+        text: context.Context should be the first parameter of a function
+    paths:
+      - internal/dao$
+      - internal/model/do$
+      - internal/model/entity$
+      - backend/internal/dao$
+      - backend/internal/model/do$
+      - backend/internal/model/entity$
+      - apps/lina-core/internal/dao$
+      - apps/lina-core/internal/model/do$
+      - apps/lina-core/internal/model/entity$
+      - apps/lina-plugins/.*/backend/internal/dao$
+      - apps/lina-plugins/.*/backend/internal/model/do$
+      - apps/lina-plugins/.*/backend/internal/model/entity$
+      - node_modules$
+      - temp$
+
+formatters:
+  enable:
+    - gofmt
+  settings:
+    gofmt:
+      simplify: true
+  exclusions:
+    generated: lax
+    paths:
+      - internal/dao$
+      - internal/model/do$
+      - internal/model/entity$
+      - backend/internal/dao$
+      - backend/internal/model/do$
+      - backend/internal/model/entity$
+      - apps/lina-core/internal/dao$
+      - apps/lina-core/internal/model/do$
+      - apps/lina-core/internal/model/entity$
+      - apps/lina-plugins/.*/backend/internal/dao$
+      - apps/lina-plugins/.*/backend/internal/model/do$
+      - apps/lina-plugins/.*/backend/internal/model/entity$
+      - node_modules$
+      - temp$

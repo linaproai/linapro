@@ -298,7 +298,7 @@ async function loginByPassword(
 ): Promise<string> {
   const anonymousApi = await playwrightRequest.newContext({ baseURL: apiBaseURL });
   const loginResponse = await anonymousApi.post("auth/login", {
-    data: { username, password },
+    data: { username, password, clientType: "web" },
   });
   const loginPayload = await expectApiSuccess<{ accessToken?: string }>(
     loginResponse,

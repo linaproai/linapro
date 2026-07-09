@@ -8,15 +8,16 @@ import (
 	"testing"
 	"time"
 
+	_ "lina-core/pkg/dbdriver"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/net/ghttp"
-	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/contract"
 )
 
 // TestCurrentResolvesWidestScope verifies super-admin, enabled-role merging,
@@ -104,9 +105,11 @@ func TestCurrentRejectsUnsupportedScope(t *testing.T) {
 // delegated to the optional organization provider instead of materializing
 // visible user IDs in the shared data-scope service.
 func TestApplyUserScopeUsesOrgCapabilityForDepartment(t *testing.T) {
-	ctx := context.Background()
-	queryModel := dao.SysUser.Ctx(ctx)
-	orgCapSvc := &dataScopeTrackingOrgCap{enabled: true}
+	var (
+		ctx        = context.Background()
+		queryModel = dao.SysUser.Ctx(ctx)
+		orgCapSvc  = &dataScopeTrackingOrgCap{enabled: true}
+	)
 	svc := New(dataScopeStaticBizCtx{ctx: &model.Context{UserId: 11}}, &dataScopeRoleReader{
 		snapshots: map[int]*AccessSnapshot{
 			11: {UserID: 11, Scope: ScopeDept},
@@ -125,9 +128,11 @@ func TestApplyUserScopeUsesOrgCapabilityForDepartment(t *testing.T) {
 // safely degrades to current-user filtering when organization capability is not
 // enabled.
 func TestApplyUserScopeFallsBackToSelfWhenOrgDisabled(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertDataScopeUser(t, ctx, "datascope-current")
-	otherUserID := insertDataScopeUser(t, ctx, "datascope-other")
+	var (
+		ctx           = context.Background()
+		currentUserID = insertDataScopeUser(t, ctx, "datascope-current")
+		otherUserID   = insertDataScopeUser(t, ctx, "datascope-other")
+	)
 	t.Cleanup(func() { cleanupDataScopeUsers(t, ctx, []int{currentUserID, otherUserID}) })
 	queryModel := dao.SysUser.Ctx(ctx).WhereIn(dao.SysUser.Columns().Id, []int{currentUserID, otherUserID})
 	orgCapSvc := &dataScopeTrackingOrgCap{enabled: false}
@@ -159,9 +164,11 @@ func TestApplyUserScopeFallsBackToSelfWhenOrgDisabled(t *testing.T) {
 // TestApplyUserScopeWithBypassComposesDeptExists verifies bypass-aware scopes
 // compose department filtering through the provider-built EXISTS subquery.
 func TestApplyUserScopeWithBypassComposesDeptExists(t *testing.T) {
-	ctx := context.Background()
-	queryModel := dao.SysJob.Ctx(ctx)
-	orgCapSvc := &dataScopeTrackingOrgCap{enabled: true}
+	var (
+		ctx        = context.Background()
+		queryModel = dao.SysJob.Ctx(ctx)
+		orgCapSvc  = &dataScopeTrackingOrgCap{enabled: true}
+	)
 	svc := New(dataScopeStaticBizCtx{ctx: &model.Context{UserId: 13}}, &dataScopeRoleReader{
 		snapshots: map[int]*AccessSnapshot{
 			13: {UserID: 13, Scope: ScopeDept},
@@ -188,11 +195,11 @@ func (s dataScopeStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 func (s dataScopeStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
 
 // Current returns the plugin-visible business context projection.
-func (s dataScopeStaticBizCtx) Current(context.Context) contract.CurrentContext {
+func (s dataScopeStaticBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	if s.ctx == nil {
-		return contract.CurrentContext{}
+		return bizctxcap.CurrentContext{}
 	}
-	return contract.CurrentContext{
+	return bizctxcap.CurrentContext{
 		UserID:          s.ctx.UserId,
 		Username:        s.ctx.Username,
 		TenantID:        s.ctx.TenantId,
@@ -207,7 +214,7 @@ func (s dataScopeStaticBizCtx) Current(context.Context) contract.CurrentContext 
 func (s dataScopeStaticBizCtx) SetLocale(context.Context, string) {}
 
 // SetUser is unused by data-scope tests.
-func (s dataScopeStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
+func (s dataScopeStaticBizCtx) SetUser(context.Context, string, int, string, int, string) {}
 
 // SetTenant is unused by data-scope tests.
 func (s dataScopeStaticBizCtx) SetTenant(context.Context, int) {}

@@ -96,7 +96,7 @@
                             "dc": "消息ID"
                           },
                           "sourceId": {
-                            "dc": "来源ID"
+                            "dc": "发送方声明的原始来源记录ID"
                           },
                           "sourceType": {
                             "dc": "来源类型：notice=通知公告 plugin=动态插件 system=系统"
@@ -139,7 +139,7 @@
                 "dc": "消息ID"
               },
               "sourceId": {
-                "dc": "来源ID"
+                "dc": "发送方声明的原始来源记录ID"
               },
               "sourceType": {
                 "dc": "来源类型：notice=通知公告 plugin=动态插件 system=系统"
@@ -207,7 +207,7 @@
                 "dc": "已读时间，Unix 毫秒时间戳，未读时为空"
               },
               "sourceId": {
-                "dc": "来源ID，当前通知公告预览使用该字段"
+                "dc": "发送方声明的原始来源记录ID"
               },
               "sourceType": {
                 "dc": "来源类型：notice=通知公告 plugin=动态插件 system=系统"

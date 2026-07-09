@@ -28,29 +28,29 @@
 
 ### Requirement: `Makefile` 条目必须复用相同的确认语义
 
-系统 SHALL 要求仓库根目录和 `apps/lina-core` 中的 `make init` 和 `make mock` 使用与命令实现相同的确认值，并在确认值缺失或不正确时提前失败。
+系统 SHALL 要求仓库根目录和 `apps/lina-core` 中的 `make db.init` 和 `make db.mock` 使用与命令实现相同的确认值，并在确认值缺失或不正确时提前失败。
 
-#### Scenario: 仓库根目录 `make init` 缺少确认
-- **当** 运维人员从仓库根目录运行 `make init` 但未带 `confirm=init` 时
+#### Scenario: 仓库根目录 `make db.init` 缺少确认
+- **当** 运维人员从仓库根目录运行 `make db.init` 但未带 `confirm=init` 时
 - **则** `Makefile` 拒绝继续
-- **且** 打印正确示例 `make init confirm=init`
+- **且** 打印正确示例 `make db.init confirm=init`
 
-#### Scenario: 后端 `make mock` 使用正确的确认变量
-- **当** 运维人员从 `apps/lina-core` 运行 `make mock confirm=mock` 时
+#### Scenario: 后端 `make db.mock` 使用正确的确认变量
+- **当** 运维人员从 `apps/lina-core` 运行 `make db.mock confirm=mock` 时
 - **则** `Makefile` 将确认值传递给后端命令实现
 - **且** 后端命令继续进行 `mock` 特定的验证和执行
 
 ### Requirement: 数据库引导命令必须按执行阶段显式选择 SQL 资源来源
 
-系统 SHALL 使 SQL 资源来源显式化。运行时 `lina init` 和 `lina mock` 命令默认从嵌入式 FS 读取宿主 SQL 资源，而开发时 `make init` 和 `make mock` 命令必须显式切换到源码树中的本地 SQL 文件。实现不得从当前工作目录推断来源。
+系统 SHALL 使 SQL 资源来源显式化。运行时 `lina init` 和 `lina mock` 命令默认从嵌入式 FS 读取宿主 SQL 资源，而开发时 `make db.init` 和 `make db.mock` 命令必须显式切换到源码树中的本地 SQL 文件。实现不得从当前工作目录推断来源。
 
 #### Scenario: 运行时 `init` 默认读取嵌入式 SQL
 - **当** 运维人员从发布的二进制文件运行 `lina init --confirm=init` 时
 - **则** 命令从 `manifest/sql/` 读取嵌入式 SQL 资源
 - **且** 不要求本地源码树存在
 
-#### Scenario: 开发时 `make mock` 显式读取本地 SQL
-- **当** 开发者运行 `make mock confirm=mock` 时
+#### Scenario: 开发时 `make db.mock` 显式读取本地 SQL
+- **当** 开发者运行 `make db.mock confirm=mock` 时
 - **则** `Makefile` 显式将命令切换到本地 SQL 源
 - **且** 命令从源码树中的 `manifest/sql/mock-data/` 读取 SQL
 
@@ -101,7 +101,7 @@
 
 #### Scenario: PostgreSQL 链接下 init 走 PostgreSQL 方言准备
 
-- **当** 配置文件 `database.default.link` 以 `pgsql:` 开头且运维人员运行 `make init confirm=init` 时
+- **当** 配置文件 `database.default.link` 以 `pgsql:` 开头且运维人员运行 `make db.init confirm=init` 时
 - **则** 命令调用当前 PostgreSQL 方言实例的 `PrepareDatabase` 创建或确认数据库存在
 - **且** PrepareDatabase 通过连接系统库 `postgres` 执行 `CREATE DATABASE IF NOT EXISTS` 等价逻辑
 - **且** 后续 SQL 执行连接到该数据库
@@ -109,14 +109,14 @@
 
 #### Scenario: SQLite 链接下 init 快速失败
 
-- **当** 配置文件链接以 `sqlite:` 开头且运维人员运行 `make init confirm=init`
+- **当** 配置文件链接以 `sqlite:` 开头且运维人员运行 `make db.init confirm=init`
 - **则** 命令在方言解析阶段失败
 - **且** 错误消息说明 SQLite 不再支持
 - **且** 命令不得创建 SQLite 父目录、SQLite 数据库文件或执行 SQL 转译
 
 #### Scenario: rebuild 参数下 PostgreSQL 方言重建数据库
 
-- **当** 配置文件链接以 `pgsql:` 开头且运维人员运行 `make init confirm=init rebuild=true` 时
+- **当** 配置文件链接以 `pgsql:` 开头且运维人员运行 `make db.init confirm=init rebuild=true` 时
 - **则** 命令调用当前 PostgreSQL 方言实例的 `PrepareDatabase(rebuild=true)`
 - **且** 实现先连接系统库 `postgres`，调用 `pg_terminate_backend` 终止活跃连接
 - **且** 再执行 `DROP DATABASE IF EXISTS <目标库>`
@@ -140,7 +140,7 @@
 
 #### Scenario: mock 不执行数据库准备
 
-- **当** 运维人员运行 `make mock confirm=mock` 时
+- **当** 运维人员运行 `make db.mock confirm=mock` 时
 - **则** 命令不调用 `Dialect.PrepareDatabase`
 - **且** 命令直接使用当前配置中的 `database.default.link` 连接已初始化数据库并加载 mock SQL
 - **且** 如果目标数据库、数据表或基础 seed 不存在，命令快速失败并返回数据库错误，不静默创建或重建数据库

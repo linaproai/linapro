@@ -1,10 +1,50 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { appConfig } = vi.hoisted(() => ({
-  appConfig: {
-    apiURL: undefined as string | undefined,
-  },
-}));
+const {
+  accessStore,
+  appConfig,
+  authStore,
+  requestClientInstances,
+  tenantStore,
+  translations,
+} = vi.hoisted(() => {
+  const accessStore = {
+    accessToken: null as null | string,
+    isAccessChecked: false,
+    refreshToken: null as null | string,
+    setAccessToken: vi.fn((token: null | string) => {
+      accessStore.accessToken = token;
+    }),
+    setLoginExpired: vi.fn(),
+    setRefreshToken: vi.fn((token: null | string) => {
+      accessStore.refreshToken = token;
+    }),
+  };
+  return {
+    accessStore,
+    appConfig: {
+      apiURL: undefined as string | undefined,
+    },
+    authStore: {
+      clearSession: vi.fn(),
+    },
+    requestClientInstances: [] as Array<{
+      addRequestInterceptor: ReturnType<typeof vi.fn>;
+      addResponseInterceptor: ReturnType<typeof vi.fn>;
+      instance: {
+        post: ReturnType<typeof vi.fn>;
+      };
+      options?: unknown;
+    }>,
+    tenantStore: {
+      currentTenant: null as null | { code?: string },
+      enabled: false,
+    },
+    translations: {
+      'ui.fallback.http.unauthorized': '登录认证过期，请重新登录后继续。',
+    } as Record<string, string>,
+  };
+});
 
 vi.mock('@vben/hooks', () => ({
   useAppConfig: () => appConfig,
@@ -30,7 +70,9 @@ vi.mock('@vben/request', () => {
 
     public addResponseInterceptor = vi.fn();
 
-    public constructor(public readonly options?: unknown) {}
+    public constructor(public readonly options?: unknown) {
+      requestClientInstances.push(this);
+    }
   }
 
   return {
@@ -42,14 +84,7 @@ vi.mock('@vben/request', () => {
 });
 
 vi.mock('@vben/stores', () => ({
-  useAccessStore: () => ({
-    accessToken: null,
-    isAccessChecked: false,
-    refreshToken: null,
-    setAccessToken: vi.fn(),
-    setLoginExpired: vi.fn(),
-    setRefreshToken: vi.fn(),
-  }),
+  useAccessStore: () => accessStore,
 }));
 
 vi.mock('ant-design-vue', () => ({
@@ -59,20 +94,15 @@ vi.mock('ant-design-vue', () => ({
 }));
 
 vi.mock('#/locales', () => ({
-  $t: (key: string) => key,
+  $t: (key: string) => translations[key] ?? key,
 }));
 
 vi.mock('#/store', () => ({
-  useAuthStore: () => ({
-    clearSession: vi.fn(),
-  }),
+  useAuthStore: () => authStore,
 }));
 
 vi.mock('#/store/tenant', () => ({
-  useTenantStore: () => ({
-    currentTenant: null,
-    enabled: false,
-  }),
+  useTenantStore: () => tenantStore,
 }));
 
 async function importRequestWithApiURL(apiURL?: string) {
@@ -83,7 +113,14 @@ async function importRequestWithApiURL(apiURL?: string) {
 
 describe('request API helpers', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    requestClientInstances.length = 0;
+    accessStore.accessToken = null;
+    accessStore.isAccessChecked = false;
+    accessStore.refreshToken = null;
     appConfig.apiURL = undefined;
+    tenantStore.currentTenant = null;
+    tenantStore.enabled = false;
   });
 
   it('uses the default host API base when the test environment omits VITE_GLOB_API_URL', async () => {
@@ -102,5 +139,48 @@ describe('request API helpers', () => {
     expect(pluginApiPath('/linapro-tenant-core/', 'platform/tenants')).toBe(
       'https://example.test/x/linapro-tenant-core/api/v1/platform/tenants',
     );
+  });
+
+  it('marks refresh authorization failures as a localized session-expired error', async () => {
+    accessStore.refreshToken = 'stored-refresh-token';
+    await importRequestWithApiURL();
+
+    const refreshClient = requestClientInstances[0];
+    refreshClient?.instance.post.mockResolvedValue({
+      data: {
+        code: 61,
+        message: 'Not Authorized',
+      },
+    });
+
+    const { authenticateResponseInterceptor } = await import('@vben/request');
+    const authenticateOptions = vi.mocked(authenticateResponseInterceptor).mock
+      .calls[0]?.[0] as
+      | {
+          doRefreshToken: () => Promise<string>;
+        }
+      | undefined;
+
+    await expect(authenticateOptions?.doRefreshToken()).rejects.toMatchObject({
+      message: '登录认证过期，请重新登录后继续。',
+      response: {
+        data: {
+          code: 61,
+          message: 'Not Authorized',
+          messageKey: 'ui.fallback.http.unauthorized',
+        },
+        status: 401,
+      },
+    });
+    expect(refreshClient?.instance.post).toHaveBeenCalledWith(
+      '/auth/refresh',
+      { refreshToken: 'stored-refresh-token' },
+      {
+        headers: {
+          'Accept-Language': 'zh-CN',
+        },
+      },
+    );
+    expect(accessStore.setAccessToken).not.toHaveBeenCalled();
   });
 });

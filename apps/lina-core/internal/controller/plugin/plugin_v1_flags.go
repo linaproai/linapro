@@ -1,6 +1,6 @@
 // This file centralizes plugin-controller flag conversions between public API
-// DTO contracts and the legacy service-layer integer fields. Keep these helpers
-// local to the controller so service internals do not import API-only packages.
+// DTO contracts and service-layer integer fields. Keep these helpers local to
+// the controller so service internals do not import API-only packages.
 
 package plugin
 

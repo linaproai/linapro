@@ -1,242 +1,85 @@
-## Context
+# Design
 
-This consolidation merges archived changes addressing developer tooling and operational infrastructure for LinaPro. The changes share a common theme: improving the developer experience around tooling, configuration, release governance, and operational workflows. The merged design organizes them by functional area.
+## Command Entry And Tool Consolidation
 
-## Goals / Non-Goals
+`linactl`是仓库默认跨平台开发命令承载者。所有常用命令使用 Go 标准库处理路径、进程、HTTP readiness、端口、文件复制、PID、日志和参数解析。`Makefile`继续服务 Linux/macOS 与既有 CI，Windows`make.cmd`服务`cmd.exe`和 PowerShell，但两者只转发到同一套`linactl`实现。命令保留 make-style`key=value`参数，避免迁移破坏既有开发习惯。
 
-**Goals:**
-- Provide a unified cross-platform development command entry point through `linactl`.
-- Consolidate independent build tools into `linactl/internal/` subcomponents.
-- Separate environment management from service startup with `env.check` and `env.setup`.
-- Automate monthly OpenSpec archive governance with configurable AI Coding tools.
-- Enforce release tag version consistency and provide controlled release tag creation.
-- Restructure release workflow to reuse shared test verification suite.
-- Provide a manual nightly image build entry and memory-only Docker Compose launcher.
-- Provide a single `make upgrade` entry point for both framework and source-plugin upgrades.
-- Remove duplicated database connection settings and `multiStatements` dependency.
-- Establish cross-platform installation scripts for new developers.
-- Project the built-in log cleanup task through startup code.
-- Provide a manual-trigger-only skill for backend API performance auditing.
+工具实现从独立 Go 模块收敛到`hack/tools/linactl/internal/`。镜像构建、动态插件 Wasm 打包、运行时 i18n 扫描、GoFrame controller/DAO 生成分别由内部子组件承载；公开命令仍保持`make image`、`make image.build`、`make wasm`、`make i18n.check`、`make ctrl`、`make dao`等稳定入口。GoFrame CLI 通过仓库锁定的 module 版本嵌入到隐藏隔离入口执行，避免开发者本地`gf`版本或`latest`二进制漂移。
 
-**Non-Goals:**
-- Do not rewrite GoFrame CLI, Docker, kubectl, pnpm, Playwright, or Go toolchain.
-- Do not require Windows users to install GNU Make, Git Bash, MSYS2, or Cygwin.
-- Do not change runtime API, database schema, permissions, plugin runtime contracts, or frontend UI.
-- Do not implement rollback commands or automatic rollback.
-- Do not build a runtime business-system upgrade platform.
-- Do not automatically install system dependencies during bootstrap installation.
-- Do not automatically fix issues discovered by the performance audit.
-- Do not implement real-time monitoring or APM.
+`env.check`只做轻量工具级健康检查，不启动服务、不修改依赖；`env.setup`承接原`dev.setup`语义，用于前端依赖和 Playwright Chromium headless shell。`linactl dev`只等待自己管理的旧进程端口释放，仍拒绝杀死未知外部端口占用。
 
-## Cross-Platform Dev Commands
+## GoFrame Code Generation With Target Directory Support
 
-### Decision 1: Use Go CLI as the cross-platform primary entry point
+`linactl ctrl`和`linactl dao`只接受`dir=`目标参数，删除旧`p=`、`plugin=`和`target=`参数。不传目标时默认宿主`apps/lina-core`。
 
-New or extended `hack/tools/linactl` provides unified subcommands (`dev`, `stop`, `status`, `build`, `wasm`, `init`, `mock`, `test`, `test-go`, `help`, `env.check`, `env.setup`, `image`, `image.build`, `i18n.check`, `release.tag.check`, `pack.assets`, `plugins.*`, etc.). The Go CLI handles cross-platform path processing, file copying, process startup, HTTP readiness, port detection, log files, subcommand execution, and error output.
+**插件代码生成配置迁移决策**：将官方插件的 GoFrame 代码生成配置从`backend/hack/config.yaml`迁移到插件根`hack/config.yaml`。`linactl`内部使用`Target{WorkDir, ConfigDir}`表示代码生成目标，插件后端目标为`WorkDir=apps/lina-plugins/<plugin-id>/backend`、`ConfigDir=apps/lina-plugins/<plugin-id>/hack`。标准插件识别只作用于`dir=<plugin>/backend`：当目标目录名为`backend`、父目录存在`plugin.yaml`、父目录位于`apps/lina-plugins/`下且`plugin.yaml`中的`id`与目录名一致时，目标被识别为标准插件后端并读取插件根`hack/`。
 
-Go was chosen because the project backend and existing toolchain are already Go-based, Go's standard library provides cross-platform file system, process, HTTP, path, and environment variable handling, Windows users already need Go for backend development, and existing `hack/tools/*` already follow the Go tool pattern.
+**插件自定义构建指令迁移决策**：`linactl build`改为读取插件根`hack/config.yaml`中的`build.commands`，支持`$(PLUGIN_ROOT)`和`$(REPO_ROOT)`变量展开。删除`apps/lina-plugins`根`go.mod`、`go.sum`和`lina-plugins.go`，改为由`linactl`在插件完整构建时自动生成源码插件聚合模块和临时`go.work`。
 
-### Decision 2: `make.cmd` serves only as a Windows thin wrapper
+公开命令负责解析目标目录，隐藏`__goframe`子命令仍只接受`gen ctrl`或`gen dao`，并在父进程指定的工作目录中运行内嵌 GoFrame CLI。`dao`会提前校验目标`hack/config.yaml`，`ctrl`只要求目标后端目录存在，避免把 DAO 配置前置条件错误套到只生成 controller 的插件上。`plugins.check`扫描插件根`hack/config.yaml`，并阻断旧路径`backend/hack/config.yaml`。
 
-The repository root provides `make.cmd` that forwards parameters to the Go CLI. It does not carry business logic, duplicate complex logic, or maintain a separate task implementation. `cmd.exe` users execute `make dev`; PowerShell users use `.\make dev` or `.\make.cmd dev`. All parameters are forwarded transparently.
+根`Makefile`通过`hack/makefiles/database.mk`暴露统一`ctrl`和`dao`目标。`apps/lina-core/Makefile`删除旧`hack/hack-cli.mk`、`hack/hack.mk`依赖和旧`gf`安装/镜像重复入口，只保留宿主相关薄转发。
 
-### Decision 3: `Makefile` remains as a compatibility layer
+新增根目录共享片段`hack/makefiles/plugin.codegen.mk`，统一维护插件`ctrl`和`dao`目标。所有官方插件根目录`Makefile`改为计算自身`PLUGIN_ROOT`和`REPO_ROOT`后 include 共享片段，通过`$(PLUGIN_ROOT)/backend`推导目标后端目录，不再硬编码具体插件 ID 或`apps/lina-plugins/<plugin-id>/backend`。
 
-The existing `make <target>` entry is not removed. Target implementations are progressively thinned to call the Go CLI. Migration order: low-risk targets first (`help`, `status`, `pack.assets`, `wasm`), then development service targets (`dev`, `stop`), then build targets (`build`), then verification targets (`test-go`, `test-scripts`), then sub-module targets.
+## GoFrame Shutdown Config Reuse
 
-### Decision 4: Support make-style parameters
+**决策**：移除 LinaPro 自定义`shutdown.timeout`配置入口和`config.Service.GetShutdown`读取契约，改用 GoFrame Server 的`server.gracefulShutdownTimeout`作为停机超时唯一来源。宿主运行时资源清理继续在 GoFrame`Server.Run()`返回后执行，清理 deadline 从`Server.GetGracefulShutdownTimeout()`派生。
 
-The Go CLI supports existing make-style `key=value` parameters (e.g., `init confirm=init rebuild=true`, `build platforms=linux/amd64,linux/arm64 verbose=1`, `wasm p=plugin-demo-dynamic`). Internally, `key=value` pairs are normalized to option structures.
+**关键实现**：
+- 删除`config.Service.GetShutdown`接口及其实现
+- `httpstartup`模块从 GoFrame Server 实例读取停机超时，不再依赖自定义配置键
+- 配置样例将停机超时迁移到`server.gracefulShutdownTimeout`，移除顶层`shutdown`配置段
+- 不新增 HTTP API、前端页面或数据库变更
 
-### Decision 5: Test strategy centered on tool behavior
+## Agent Resource Bridges
 
-This change belongs to the development toolchain and does not involve user-observable pages, so E2E tests are not needed. Go unit tests and command-level smoke tests cover parameter parsing, file copying, plugin scanning, help output, and Makefile thin-wrapper consistency.
+Agent 资源桥接从单一`skills`命令扩展为`agents.<resource>.<action>`命令树，管理`skills`、`prompts`和`md`三类资源。实现分为`internal/agents/common`公共状态机与各资源专属注册表；所有 link/unlink 只操作仓库根内路径，不接受外部 root 参数，不修改`HOME`或系统全局路径。
 
-### Decision 6: GitHub Actions must cover Windows basic commands
+软链使用`os.Symlink`、`os.Readlink`、`os.Lstat`、`os.Remove`、`filepath.Rel`等 Go 标准库实现。`force=1`只允许重建错误软链，绝不删除真实文件或目录。`agents`聚合入口在 TTY 中提供资源、动作、Agent 三层菜单，日常显示人类可读名称和简化汇总，详细路径状态留给资源子命令。
 
-`.github/workflows/` related workflows add `windows-latest` runner verification covering at least `go run ./hack/tools/linactl help`, `go run ./hack/tools/linactl status`, and one lightweight file or plugin tool command. Windows CI verification covers both `cmd.exe` (`make <target>`) and PowerShell (`.\make <target>`) usage. Heavy builds, database initialization, Docker images, and dev services use lightweight smoke or dry-run modes.
+`agent-skills-link-cli`旧命令的完整行为已并入`agents-multi-resource`，当前主规范保留同等状态机约束；本分组不再保存与主规范完全相同的历史`spec.md`副本。
 
-## Linactl Build Tool Consolidation
+## OpenSpec Automation
 
-### Decision 7: Use `linactl/internal` subcomponents for tool implementations
+月度 OpenSpec workflow 先确定是否存在已完成活跃变更，完成候选必须通过确定性 preflight；没有完成变更时跳过 AI 工具执行。自动归档和归档聚合都在所选 AI Coding 工具运行时内执行，工具由`AI_CODING_TOOL`变量选择，支持`codex`、`cc`和`copilot`，默认`codex`。
 
-Image building implementation goes into `hack/tools/linactl/internal/imagebuilder`, dynamic plugin packaging into `hack/tools/linactl/internal/wasmbuilder`, and runtime i18n governance scanning into `hack/tools/linactl/internal/runtimei18n`. Command files only orchestrate parameters, plugin workspace preparation, and output.
+Codex、Claude Code 和 GitHub Copilot CLI 的运行环境隔离在各自 reusable workflow 中，主 workflow 只负责候选检测和路由。所有工具共享`.github/prompts/`下的自动归档和聚合提示词；凭据、模型和 base URL 仅在运行时由 secrets/variables 注入临时 AI home，真实密钥和 endpoint 不进入仓库工作区。
 
-### Decision 8: Allow `linactl` compile-time dependency on `lina-core/pkg/pluginbridge`
+流程按阶段 fail-fast：preflight、auto-archive、completed-change assertion、OpenSpec 校验、archive consolidation、临时变更清理、变更范围保护、提交、推送和 PR 创建任一步失败都停止后续动作。归档结果通过固定维护分支创建或更新 PR，不直接写默认分支，且只允许`openspec/**`变更进入自动 PR。
 
-`wasmbuilder` needs `pluginbridge` artifact section, lifecycle, route, and host service contract definitions. Keeping this as a compile-time dependency eliminates subprocess tool boundaries. The `linactl/go.mod` explicitly declares the `lina-core` local dependency for `GOWORK=off` compilation.
+## Release And Image Governance
 
-### Decision 9: Keep public commands stable and delete old independent entries
+release 发布链路以`framework.version`为唯一 tag 基线。`linactl release.tag.check`读取`apps/lina-core/manifest/config/metadata.yaml`并校验 tag 完全一致、版本非空、格式符合 Docker tag 兼容的 SemVer 子集。tag push workflow 在测试和镜像发布前执行同一命令，受控 release tag workflow 也在创建 tag 前复用同一校验，并通过 GitHub App installation token 配合 tag ruleset actor bypass。
 
-User-facing entries remain `make image`, `make image.build`, `make wasm`, `make i18n.check` and their `linactl` equivalents. Old tool directories are deleted; repository tests, CI, and documentation switch to public entries or internal package tests.
+`Release Test and Build`复用共享测试验证套件，使用 Main CI 的 brief scope，不运行完整 E2E。release 镜像发布依赖 tag 校验和共享测试全部成功，成功后发布 GHCR 多架构镜像和`latest`，再创建 GitHub Release。manual nightly image build 是明确的维护重发入口，直接调用镜像发布 workflow，不等待测试门禁；定时 nightly 继续保留完整测试门禁。
 
-## Dev Environment Commands
+镜像构建使用每个平台对应的宿主二进制，多平台 buildx 构建必须`push=1`。demo Compose 使用 PostgreSQL 和 tmpfs 提供内存态体验环境，运行时配置独立放在`hack/deploy/config.yaml`并只读注入；测试 Compose 只提供手工开发容器，不自动初始化或启动业务服务。
 
-### Decision 10: `env.check` performs tool-level smoke detection only
+## Upgrade And Installation
 
-`env.check` checks for Go, Node.js, pnpm, Vite, Playwright, and PostgreSQL using `exec.LookPath` and version commands. It outputs a bordered ASCII table with name, current version, required version, satisfied status, and remarks. It does not start dev services, connect to business databases, or modify local dependencies.
+`make upgrade`是开发工具治理中的历史升级入口，用于区分框架升级与源码插件升级的文件发现、命令确认和开发期操作边界。后续插件有效版本、发现版本、运行时升级、发布切换、依赖校验、治理资源同步和失败诊断统一收敛到插件运行时升级模型；本分组只保留命令入口和开发工具侧的演进原因。
 
-### Decision 11: PostgreSQL detection uses Go database connection
-
-PostgreSQL version detection reads `apps/lina-core/manifest/config/config.yaml` database connection settings and queries `SHOW server_version` via Go `database/sql`, rather than depending on the `psql` client tool.
-
-### Decision 12: Version requirements are centrally defined in `linactl`
-
-Each tool's minimum or project-required version (e.g., Go 1.25+, PostgreSQL 14+) is defined within the `env.check` command file. Adjusting requirements does not require Makefile changes.
-
-### Decision 13: `env.setup` reuses the original `dev.setup` implementation path
-
-The command file is renamed to `command_env.setup.go` with function `runEnvSetup`, continuing to call `frontend.EnsureDeps` and the Playwright installation command. Behavior migration maintains compatibility.
-
-## Image Build Workflows
-
-### Decision 14: Release workflow reuses shared test verification suite
-
-The release workflow calls `.github/workflows/reusable-test-verification-suite.yml` with Main CI's brief test scope (no E2E). The `release-image` job depends on tag version check and `verification-suite` via `needs`. Any test failure, cancellation, or timeout prevents GHCR login, image push, and `latest` update.
-
-### Decision 15: Release workflow creates GitHub Release after successful publishing
-
-After tag validation, shared test suite, and GHCR image publishing all succeed, the release workflow creates a GitHub Release with title `LinaPro Release <tag>`. If any gate fails, no Release is created.
-
-### Decision 16: Manual nightly image build bypasses test gates
-
-A separate `workflow_dispatch`-only workflow directly calls the reusable image publish workflow without test dependencies. It uses the same nightly tag strategy, multi-architecture platforms, official plugin full build mode, and GHCR publish permissions. The scheduled nightly workflow continues to require test gates.
-
-### Decision 17: Nightly demo image provides memory-only Docker Compose launcher
-
-`hack/deploy/docker-compose.yaml` provides a demo launcher using PostgreSQL service, memory-only `tmpfs` data directories, runtime configuration from `hack/deploy/config.yaml` injected as read-only config, and startup sequence: PostgreSQL health check, `init --rebuild=true`, `mock`, HTTP service. The `hack/deploy/tests/docker-compose.yaml` provides a manual development container based on `loads/ubuntu:24.04-npm`.
-
-### Decision 18: Multi-architecture Docker image building uses per-platform host binaries
-
-Multi-platform image builds prepare host binaries for each target platform. Docker buildx pushes multi-architecture manifests. Without `push=1`, multi-platform builds fail fast.
-
-## OpenSpec Archive Automation
-
-### Decision 19: Independent monthly workflow with configurable AI Coding tool
-
-A `Monthly OpenSpec Archive` workflow uses `schedule` and `workflow_dispatch` triggers. The schedule uses UTC month-end cron groups covering Asia/Shanghai 1st-of-month 00:00, with leap-year deduplication for February. The `AI_CODING_TOOL` GitHub Variable selects the tool (`codex`, `cc`, or `copilot`; default `codex`).
-
-### Decision 20: Tool-specific reusable workflows with shared composite actions
-
-Codex, Claude Code, and GitHub Copilot CLI implementations are isolated in separate reusable workflows. Common governance steps (setup, change detection, archive completion assertion, validation, PR finalization) are extracted to local composite actions under `.github/actions/monthly-openspec-*`.
-
-### Decision 21: Shared prompt files across AI tools
-
-Auto-archive and archive consolidation prompts are maintained in `.github/prompts/` and referenced by all tool-specific workflows via stdin.
-
-### Decision 22: Phase-based fail-fast with OpenSpec validation
-
-After auto-archive, `openspec list --json` verifies no completed changes remain. After archive consolidation, `openspec validate --all` runs. Any phase failure stops subsequent phases and prevents PR creation. Change scope protection only allows `openspec/**` modifications.
-
-### Decision 23: PR-based write-back instead of direct push
-
-Archive results are written to a fixed maintenance branch `automation/monthly-openspec-archive` and a PR is created or updated targeting the default branch. No direct push to the default branch.
-
-### Decision 24: Runtime credential injection
-
-AI tool credentials and provider `base_url` are injected at runtime from GitHub Secrets and Variables. Real API keys and endpoints never enter the repository workspace, artifacts, or commit history.
-
-### Decision 25: AI tool execution logs stream to GitHub Actions
-
-`codex exec`, `claude -p`, and `copilot -p` stdout/stderr are streamed to the current Actions step log via `tee`, while artifact logs are preserved for post-hoc review. Log passthrough must not mask AI tool process failure exit codes.
-
-## Release Version Governance
-
-### Decision 26: `linactl release.tag.check` as the single version consistency entry point
-
-The command reads `apps/lina-core/manifest/config/metadata.yaml` `framework.version` and compares it with the provided tag. Validation includes: version non-empty, tag non-empty, exact match, release format compliance, and Docker tag compatibility.
-
-### Decision 27: Release tag format limited to Docker-compatible SemVer subset
-
-Allowed: `vMAJOR.MINOR.PATCH` and `vMAJOR.MINOR.PATCH-prerelease` (e.g., `v0.2.0`, `v0.2.1-rc.1`). Disallowed: SemVer build metadata `+build` because Docker tags do not support `+`.
-
-### Decision 28: Existing tag push release workflow gains a leading version check job
-
-All test and image publishing jobs depend on the `release-tag-version-check` job via `needs`. Even if someone bypasses the recommended flow and pushes a tag directly, incorrect tags will not produce release artifacts.
-
-### Decision 29: Controlled release tag creation via GitHub App
-
-A `Create Release Tag` manual workflow reads `framework.version`, runs the same `linactl release.tag.check` validation, and creates and pushes a matching tag using a GitHub App installation token generated from `RELEASE_APP_CLIENT_ID` and `RELEASE_APP_PRIVATE_KEY`. The tag ruleset bypass must be configured to the GitHub App actor, not to a token string.
-
-## Upgrade Governance
-
-### Decision 30: Keep `make upgrade` as the only development-time upgrade entry point
-
-`make upgrade` accepts explicit scope parameters (`scope=framework` or `scope=source-plugin`). The implementation lives under `hack/upgrade-source/` with `main.go` at the root and internal components for framework and source-plugin upgrades.
-
-### Decision 31: Source plugins must separate effective version from discovered version
-
-`sys_plugin.version` and `sys_plugin.release_id` represent only the effective source-plugin version. Higher versions discovered in source are written as prepared releases and do not take effect until an explicit upgrade completes.
-
-### Decision 32: Host startup must fail fast when a source-plugin upgrade is pending
-
-After source scanning, startup compares the effective version with the highest discovered source version. If an installed source plugin is behind, startup fails with the plugin ID, effective version, discovered version, and recommended `make upgrade` command.
-
-### Decision 33: Reuse release, migration, and resource-reference ledgers
-
-Source-plugin upgrades reuse `sys_plugin_release`, `sys_plugin_migration`, and `sys_plugin_resource_ref` rather than introducing a separate upgrade metadata stack. Upgrade records entries with `phase=upgrade` and synchronizes menus, permissions, and governance resource references.
-
-### Decision 34: Framework upgrades replay all host SQL from the first file
-
-After the target source code is applied, the framework upgrade replays every host SQL file from the first file in sorted order. Execution stops immediately on the first SQL failure.
-
-## Development Database Configuration
-
-### Decision 35: Reuse one development database connection through YAML anchors
-
-Define one shared database connection anchor in `apps/lina-core/hack/config.yaml` and let both `database.default.link` and `gfcli.gen.dao[].link` reference it. Remove `multiStatements=true` from the shared DSN.
-
-### Decision 36: Split SQL statements explicitly in the command layer
-
-Add SQL splitting helpers under `apps/lina-core/internal/cmd/` that turn each SQL file into an ordered statement list executed one statement at a time. The splitter ignores blank fragments and handles common comments and semicolons inside string literals. `executeSQLAssetsWithExecutor` keeps its fail-fast behavior with statement-level granularity.
-
-## Framework Bootstrap Installer
-
-### Decision 37: Dual entry point scripts
-
-`install.sh` for macOS/Linux and `install.ps1` for Windows PowerShell under `hack/scripts/install/`. Both share consistent core parameter semantics. Archive download (tar.gz for Unix, zip for Windows) is preferred over `git clone`.
-
-### Decision 38: Target directory uses explicit mode selection with safe defaults
-
-Default: new subdirectory under current working directory. Current-directory mode: extract directly. Specified directory: deploy to target. Non-empty target directory without explicit overwrite parameter: refuse to continue. Extraction uses temporary directory first, then moves to final position.
-
-### Decision 39: Environment health check only, no automatic dependency installation
-
-After deployment, check for Go, Node.js, pnpm, MySQL, and make presence/version. Output post-installation guidance with project path and recommended next commands. Do not call package managers automatically.
-
-## Cron Job Management
-
-### Decision 40: Project built-in cleanup task through startup code
-
-The `host:cleanup-job-logs` task is registered through host source code and projected into `sys_job` during service startup. Delivery SQL does not write initialization seed data. Default `cron_expr` triggers daily at midnight with `is_builtin=1`.
+安装脚本位于`hack/scripts/install/`，Unix 使用`install.sh`，Windows PowerShell 使用`install.ps1`。安装默认下载源码 archive，不要求本地 Git；部署先解压到临时目录再移动到目标目录，非空目标默认拒绝覆盖。安装完成后输出 Go、Node.js、pnpm、MySQL、make 等环境健康检查和后续命令建议，不自动安装系统依赖。
 
 ## Performance Audit Skill
 
-### Decision 41: Implement the audit as an agent skill
+`lina-perf-audit`是手动触发技能，禁止由 CI、定时任务、git hook 或其他技能自动调用。完整审计分三阶段：Stage 0 重置本地环境、安装并启用内建插件、写入 audit-only stress fixture、扫描 endpoints 并准备日志；Stage 1 用 sub-agent 并发审计 endpoint；Stage 2 聚合`SUMMARY.md`、`meta.json`和持久 issue cards。
 
-The workflow lives at `.agents/skills/lina-perf-audit/` with `SKILL.md`, references, and bundled scripts. Manual trigger only; no invocation from CI, scheduled jobs, git hooks, or other skills.
+审计通过 GoFrame 默认`Trace-ID`关联请求与 SQL 日志，不添加生产中间件。破坏性 endpoint 使用自主 create-call-delete fixture，无匹配 create 时跳过并要求人工跟进。读取请求出现非预期写 SQL、N+1、缺索引、无分页、重复查询等问题按严重度写入`perf-issues/`，通过 fingerprint 跨运行去重；issue-card 正文为中文，机器字段保持原文。
 
-### Decision 42: Three-stage audit workflow
+## Cross-Domain Impacts
 
-Stage 0 preparation (environment setup, plugin installation, endpoint scanning, stress fixtures), Stage 1 concurrent sub-agent audit, Stage 2 summary and persistent issue-card aggregation. Per-run artifacts under `temp/lina-perf-audit/<run-id>/`.
+- `project-setup`承载项目初始化、运行时数据库、开发工作台入口和 E2E base path 当前契约；当前契约由`openspec/specs/project-setup/spec.md`承载，历史 owner 为`archive/foundation`，本分组只保留开发命令和环境入口影响。
+- `database-bootstrap-commands`承载 init/mock 确认、SQL asset source 和 statement-by-statement 执行；当前契约由`openspec/specs/database-bootstrap-commands/spec.md`承载，历史 owner 为`archive/database-engine`。
+- `cron-job-management`承载内置日志清理任务投射、任务权限和调度业务规则；当前契约由`openspec/specs/cron-job-management/spec.md`承载，历史 owner 为`archive/scheduled-jobs`。
+- `e2e-suite-organization`承载 Playwright 测试目录、TC 编号、host-only/plugin-full 和 nightly E2E 治理；当前契约由`openspec/specs/e2e-suite-organization/spec.md`承载，历史 owner 为`archive/e2e-testing`。
+- `release-image-build`同时影响 CI、workflow、image builder 和 demo Compose；本分组保留发布工具链历史 owner，但运行时容器行为以当前主规范为准。
+- `plugin-upgrade-governance`承载源码插件与动态插件的有效版本隔离、运行时升级、发布切换和失败诊断；当前契约由`openspec/specs/plugin-upgrade-governance/spec.md`承载，历史 owner 为`archive/plugin-framework`。本分组只保留开发期命令入口对该能力的历史影响。
+- `spec-governance`同时涉及 OpenSpec 流程与项目规范规则加载；本分组保留月度归档自动化影响，主规范仍由`openspec/specs/spec-governance/spec.md`承载。
 
-### Decision 43: Trace-ID based SQL evidence with destructive endpoint handling
+## Governance Notes
 
-Sub agents use GoFrame's default `Trace-ID` response header to correlate endpoint calls with SQL log lines. Destructive endpoints use autonomous create-call-delete fixtures. Read/query endpoints that execute unexpected write SQL are reported as HIGH severity, with operational writes to `sys_online_session` or `plugin_monitor_operlog` treated as expected.
+本分组历史实现修改过开发工具、脚本、workflow、README、Agent skill 和 OpenSpec 文档，按开发工具和文档规则完成过跨平台影响记录。运行时影响均应在对应 owner 变更中审查：本归档压缩不新增 Go、API、SQL、前端、插件或运行时 i18n 变更。测试策略以工具单测、命令 smoke、workflow 语法、shell 语法、OpenSpec 校验、diff 检查和手工触发 dry-run 为主，E2E 仅在具体用户可观察行为变更的 owner 任务中维护。
 
-### Decision 44: Persistent cross-run issue cards with fingerprint de-duplication
-
-Each finding writes a persistent markdown card under repository-root `perf-issues/`. Cards are de-duplicated by fingerprint. Repeated findings update `last_seen_run` and `seen_count`. Previously fixed cards are reopened when issues recur.
-
-## Risks / Trade-offs
-
-- Go CLI compilation adds startup latency to each command invocation. Accepted for cross-platform consistency; cached binary entry can be added later.
-- `make.cmd` may conflict with real GNU Make on systems that have both. Mitigated by Windows-only local script usage.
-- Build tool consolidation makes `linactl` heavier. Accepted because tools are LinaPro-repository-specific.
-- Monthly auto-archive may leave recently completed changes in the active directory for up to a month. Mitigated by manual trigger entry.
-- UTC cron cannot directly express Beijing-time month-start. Mitigated by grouped cron with leap-year deduplication.
-- Manual nightly bypass may publish images from unverified commits. Documented as maintenance re-publish entry.
-- Without upgrade rollback, recovery is manual. Intentional boundary for this iteration.
-- Custom SQL splitter may miss edge cases. Mitigated by targeted tests against current SQL style.
-- Destructive local setup from audit skill requires explicit confirmation for ambiguous requests.
-- Historical source-plugin releases reference evolving source trees rather than frozen artifacts. Accepted to deliver clear upgrade path first.
+反馈闭环处理过 FB-1（`make dao`/`make ctrl`只能在宿主或插件后端目录下正确生成）、FB-2（插件根目录 Makefile 硬编码插件后端路径）和 FB-3（Redis cluster smoke 脚本仍调用已移除的`make init`目标）。FB-1 根因为`linactl`的 GoFrame CLI 入口固定使用`apps/lina-core`作为项目目录，修复为支持显式目标目录参数；FB-2 根因为插件 Makefile 硬编码`dir=apps/lina-plugins/<plugin-id>/backend`，修复为引入共享`plugin.codegen.mk`片段；FB-3 根因为 smoke 脚本未同步`db.init`目标重命名，修复为更新命令名称。三项反馈均不修改运行时代码、HTTP API、SQL、前端 UI 或插件运行时契约。

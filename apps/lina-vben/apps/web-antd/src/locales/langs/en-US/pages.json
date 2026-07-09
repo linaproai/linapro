@@ -9,6 +9,7 @@
     "confirm": "Confirm",
     "cancel": "Cancel",
     "reset": "Reset",
+    "save": "Save",
     "export": "Export",
     "import": "Import",
     "more": "More",
@@ -744,6 +745,12 @@
       "messages": {
         "cancelSent": "Termination request sent",
         "deleteSelectedConfirm": "Delete the selected {count} execution log(s)?",
+        "deleteAllHint": "When selected, the date range is ignored and all execution logs in the current permission scope are deleted.",
+        "deleteAllLabel": "Delete all execution logs",
+        "deleteRangeDescription": "Select how to delete execution logs. By default, logs are cleaned by date range; selecting all logs cleans every execution log in the current permission scope.",
+        "deleteRangeRequired": "Select a complete execution log date range",
+        "deleteRangeSuccess": "Deleted {count} execution log(s)",
+        "deleteRangeTitle": "Delete Execution Logs",
         "clearCurrentConfirm": "Clear execution logs for the current job?",
         "clearAllConfirm": "Clear all execution logs?",
         "clearSuccess": "Execution logs cleared",
@@ -959,12 +966,7 @@
         "uninstallBlocked": "This plugin is required by installed plugins."
       },
       "hostServices": {
-        "cron": {
-          "pattern": "Pattern",
-          "parallelLimit": "{label} (max {value})"
-        },
         "messages": {
-          "cronEmpty": "No cron resources declared",
           "defaultEmpty": "No scoped resources declared"
         },
         "scope": {
@@ -973,9 +975,11 @@
           "requested": "Requested Scope"
         },
         "service": {
-          "cron": "Cron",
           "data": "Data",
+          "jobs": "Jobs",
           "network": "Network",
+          "notifications": "Notifications",
+          "plugins": "Plugins",
           "runtime": "Runtime",
           "storage": "Storage"
         },

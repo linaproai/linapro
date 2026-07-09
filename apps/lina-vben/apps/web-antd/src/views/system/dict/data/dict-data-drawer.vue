@@ -13,14 +13,11 @@ import {
   dictDataUpdate,
 } from '#/api/system/dict/dict-data';
 import { tagTypes } from '#/components/dict';
-import { useDictStore } from '#/store/dict';
 
 import { drawerSchema } from './data';
 import TagStylePicker from './tag-style-picker.vue';
 
-const emit = defineEmits<{ reload: [] }>();
-
-const dictStore = useDictStore();
+const emit = defineEmits<{ reload: [dictType: string] }>();
 
 interface DrawerProps {
   dictType: string;
@@ -104,10 +101,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         message.success($t('pages.common.createSuccess'));
       }
 
-      // 清除字典缓存，确保其他页面读取最新数据
-      dictStore.resetCache();
-
-      emit('reload');
+      emit('reload', data.dictType);
       drawerApi.close();
     } catch (error) {
       console.error(error);

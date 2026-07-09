@@ -7,7 +7,7 @@ package dict
 import (
 	"context"
 
-	"lina-core/api/dict/v1"
+	v1 "lina-core/api/dict/v1"
 )
 
 type IDictV1 interface {

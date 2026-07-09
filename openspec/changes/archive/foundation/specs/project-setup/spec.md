@@ -8,13 +8,13 @@
 - **WHEN** 后端服务启动且 `database.default.link` 以 `pgsql:` 开头
 - **THEN** 后端通过 GoFrame PG 驱动连接到 PostgreSQL 数据库
 - **AND** 服务启动不创建、删除或重建数据库
-- **AND** 数据库创建、重建和 SQL 加载仅由 `make init confirm=init` / `make init confirm=init rebuild=true` 等运维初始化命令触发
+- **AND** 数据库创建、重建和 SQL 加载仅由 `make db.init confirm=init` / `make db.init confirm=init rebuild=true` 等运维初始化命令触发
 - **AND** 业务文本键的唯一约束和等值匹配按 PostgreSQL 默认大小写敏感语义工作
 
 #### Scenario: SQLite 开发演示模式
 - **WHEN** 开发者将 `database.default.link` 改为 `sqlite::@file(./temp/sqlite/linapro.db)`
 - **THEN** 后端通过 GoFrame SQLite 驱动连接到 SQLite 数据库文件
-- **AND** SQLite 数据库文件父目录由 `make init` 的方言准备逻辑创建
+- **AND** SQLite 数据库文件父目录由 `make db.init` 的方言准备逻辑创建
 - **AND** 启动日志输出"不得用于生产"的明确警示
 
 #### Scenario: MySQL 链接被显式拒绝

@@ -39,7 +39,8 @@ go run main.go
 make build
 make dao
 make ctrl
-make init confirm=init
+make db.init confirm=init
+make db.mock confirm=mock
 ```
 
 For release builds, use `make build platforms=linux/arm64` to cross-compile one target, or run multi-platform image publishing from the repository root:
@@ -50,7 +51,7 @@ make image platforms=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6
 
 ## Database Configuration
 
-The host reads the active database dialect only from `database.default.link` in the runtime config. `PostgreSQL 14+` is the default production database. Prepare `PostgreSQL` before running `make init` or `make dev`; those commands do not start or manage the database.
+The host reads the active database dialect only from `database.default.link` in the runtime config. `PostgreSQL 14+` is the default production database. Prepare `PostgreSQL` before running `make db.init` or `make dev`; those commands do not start or manage the database.
 
 For local development, start a matching container:
 
@@ -75,7 +76,7 @@ database:
     link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
 ```
 
-`make init` is an operations bootstrap command that uses the configured database account. That account must be able to connect to the system database, create and drop the target database, terminate target-database connections, create tables and indexes, write comments, and insert seed data. Permission failures are surfaced directly; the runtime does not provide a lower-privilege initialization fallback.
+`make db.init` is an operations bootstrap command that uses the configured database account. That account must be able to connect to the system database, create and drop the target database, terminate target-database connections, create tables and indexes, write comments, and insert seed data. Permission failures are surfaced directly; the runtime does not provide a lower-privilege initialization fallback.
 
 For external hosted `PostgreSQL`, such as `RDS` or `Aliyun PolarDB`, point `database.default.link` at the provider endpoint and run initialization with an account that has the permissions above.
 

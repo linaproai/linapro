@@ -5,9 +5,9 @@
 // instead of letting `make dev` start mismatched services.
 //
 // portcheck 子组件用于在 linactl 启动开发服务之前，校验三处端口配置一致：
-//   1. 命令侧传入的 backend_port（默认来自 Makefile 的 BACKEND_PORT）
-//   2. 后端配置 apps/lina-core/manifest/config/config.yaml 中的 server.address
-//   3. 前端 apps/lina-vben/apps/web-antd/vite.config.mts 中所有 proxy target
+//  1. 命令侧传入的 backend_port（默认来自 Makefile 的 BACKEND_PORT）
+//  2. 后端配置 apps/lina-core/manifest/config/config.yaml 中的 server.address
+//  3. 前端 apps/lina-vben/apps/web-antd/vite.config.mts 中所有 proxy target
 //
 // 任一处不一致都会返回带有具体来源、期望值与实际值的错误，避免 dev 服务以错配
 // 端口启动后再以"探活超时"或"接口 404"等间接形式暴露问题。

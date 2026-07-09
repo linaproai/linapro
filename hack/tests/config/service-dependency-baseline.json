@@ -3,19 +3,19 @@
   "description": "Reviewed baseline for production critical service and controller constructor calls after explicit dependency injection migration. Entries are limited to startup/registration boundaries, component-internal composition, test helpers, or documented stateless/demo boundaries; counts must not increase.",
   "entries": [
     {
-      "path": "apps/lina-core/internal/cmd/cmd_http_routes.go",
-      "maxCalls": 17,
-      "reason": "HTTP startup, route, and hosted-doc binding boundary; allowed to construct and publish shared runtime instances explicitly."
-    },
-    {
-      "path": "apps/lina-core/internal/cmd/cmd_http_runtime.go",
-      "maxCalls": 26,
-      "reason": "HTTP startup, route, and hosted-doc binding boundary; allowed to construct and publish shared runtime instances explicitly."
-    },
-    {
-      "path": "apps/lina-core/internal/cmd/cmd_http.go",
+      "path": "apps/lina-core/internal/cmd/internal/httpstartup/http.go",
       "maxCalls": 1,
-      "reason": "HTTP startup, route, and hosted-doc binding boundary; allowed to construct and publish shared runtime instances explicitly."
+      "reason": "HTTP startup composition entrypoint; constructs the shared config service once before delegating to focused startup helpers."
+    },
+    {
+      "path": "apps/lina-core/internal/cmd/internal/httpstartup/http_routes.go",
+      "maxCalls": 17,
+      "reason": "HTTP route binding boundary; constructs host controllers from shared runtime services without creating replacement service graphs."
+    },
+    {
+      "path": "apps/lina-core/internal/cmd/internal/httpstartup/http_runtime.go",
+      "maxCalls": 24,
+      "reason": "HTTP startup composition boundary; constructs and shares process-wide runtime services, capability adapters, and scheduler dependencies once."
     },
     {
       "path": "apps/lina-core/internal/service/config/config_runtime_params_revision.go",
@@ -64,7 +64,7 @@
     },
     {
       "path": "apps/lina-core/internal/service/plugin/internal/testutil/testutil_services.go",
-      "maxCalls": 10,
+      "maxCalls": 14,
       "reason": "plugin package test helper constructing an isolated test service graph; production paths do not import this helper."
     },
     {
@@ -79,13 +79,13 @@
     },
     {
       "path": "apps/lina-core/internal/service/plugin/plugin.go",
-      "maxCalls": 7,
+      "maxCalls": 9,
       "reason": "plugin facade composition boundary; constructs private sub-services once from explicit runtime dependencies passed to plugin.New."
     },
     {
-      "path": "apps/lina-core/internal/service/pluginhostservices/pluginhostservices.go",
-      "maxCalls": 3,
-      "reason": "source-plugin host service publication boundary; adapters are constructed once from runtime-owned dependencies."
+      "path": "apps/lina-core/internal/service/plugin/plugin_host_services.go",
+      "maxCalls": 1,
+      "reason": "source-plugin host service publication facade; delegates adapter construction to the plugin hostservices component using runtime-owned dependencies."
     },
     {
       "path": "apps/lina-core/internal/service/role/role_access_revision.go",

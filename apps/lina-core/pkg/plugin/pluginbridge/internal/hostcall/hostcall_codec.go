@@ -5,10 +5,20 @@
 package hostcall
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"google.golang.org/protobuf/encoding/protowire"
+
+	"lina-core/pkg/bizerr"
+)
+
+const (
+	hostCallErrorCodeCapabilityDenied = "HOST_CALL_CAPABILITY_DENIED"
+	hostCallErrorCodeNotFound         = "HOST_CALL_NOT_FOUND"
+	hostCallErrorCodeInvalidRequest   = "HOST_CALL_INVALID_REQUEST"
+	hostCallErrorCodeInternal         = "HOST_CALL_INTERNAL_ERROR"
 )
 
 // ---------------------------------------------------------------------------
@@ -20,9 +30,22 @@ type HostCallResponseEnvelope struct {
 	// Status indicates the outcome: 0=success, 1=capability_denied, 2=not_found,
 	// 3=invalid_request, 4=internal_error.
 	Status uint32 `json:"status"`
-	// Payload carries opcode-specific response data on success, or an error
-	// message string on failure.
+	// Payload carries opcode-specific response data on success, or a JSON
+	// HostCallErrorPayload on failure.
 	Payload []byte `json:"payload,omitempty"`
+}
+
+// HostCallErrorPayload carries structured, localizable error metadata returned
+// by failed host calls without changing the outer ABI envelope.
+type HostCallErrorPayload struct {
+	// ErrorCode is a stable machine-readable error code.
+	ErrorCode string `json:"errorCode"`
+	// MessageKey is the runtime i18n key used by the guest or UI boundary.
+	MessageKey string `json:"messageKey"`
+	// MessageParams carries named parameters for localized rendering.
+	MessageParams map[string]any `json:"messageParams,omitempty"`
+	// Fallback is an English fallback message.
+	Fallback string `json:"fallback"`
 }
 
 // MarshalHostCallResponse encodes a host call response envelope.
@@ -85,7 +108,105 @@ func NewHostCallEmptySuccessResponse() *HostCallResponseEnvelope {
 
 // NewHostCallErrorResponse builds an error response with the given status and message.
 func NewHostCallErrorResponse(status uint32, message string) *HostCallResponseEnvelope {
-	return &HostCallResponseEnvelope{Status: status, Payload: []byte(message)}
+	return NewHostCallErrorPayloadResponse(status, HostCallErrorPayload{
+		ErrorCode:  defaultHostCallErrorCode(status),
+		MessageKey: defaultHostCallMessageKey(status),
+		Fallback:   normalizeHostCallErrorFallback(status, message),
+	})
+}
+
+// NewHostCallErrorResponseFromError builds an error response from a structured
+// bizerr when present, falling back to status-scoped host-call metadata.
+func NewHostCallErrorResponseFromError(status uint32, err error) *HostCallResponseEnvelope {
+	if err == nil {
+		return NewHostCallErrorResponse(status, "")
+	}
+	if messageErr, ok := bizerr.As(err); ok {
+		return NewHostCallErrorPayloadResponse(status, HostCallErrorPayload{
+			ErrorCode:     messageErr.RuntimeCode(),
+			MessageKey:    messageErr.MessageKey(),
+			MessageParams: messageErr.Params(),
+			Fallback:      messageErr.Fallback(),
+		})
+	}
+	return NewHostCallErrorResponse(status, err.Error())
+}
+
+// NewHostCallErrorPayloadResponse builds an error response with explicit
+// structured payload metadata.
+func NewHostCallErrorPayloadResponse(status uint32, payload HostCallErrorPayload) *HostCallResponseEnvelope {
+	payload.ErrorCode = strings.TrimSpace(payload.ErrorCode)
+	if payload.ErrorCode == "" {
+		payload.ErrorCode = defaultHostCallErrorCode(status)
+	}
+	payload.MessageKey = strings.TrimSpace(payload.MessageKey)
+	if payload.MessageKey == "" {
+		payload.MessageKey = defaultHostCallMessageKey(status)
+	}
+	payload.Fallback = normalizeHostCallErrorFallback(status, payload.Fallback)
+	content, err := json.Marshal(payload)
+	if err != nil {
+		content = []byte(`{"errorCode":"HOST_CALL_INTERNAL_ERROR","messageKey":"error.host_call.internal_error","fallback":"Host call failed"}`)
+	}
+	return &HostCallResponseEnvelope{Status: status, Payload: content}
+}
+
+// UnmarshalHostCallErrorPayload decodes the structured error payload returned
+// by a failed host call.
+func UnmarshalHostCallErrorPayload(data []byte) (*HostCallErrorPayload, error) {
+	out := &HostCallErrorPayload{}
+	if err := json.Unmarshal(data, out); err != nil {
+		return nil, gerror.Wrap(err, "decode host call error payload failed")
+	}
+	return out, nil
+}
+
+func defaultHostCallErrorCode(status uint32) string {
+	switch status {
+	case HostCallStatusCapabilityDenied:
+		return hostCallErrorCodeCapabilityDenied
+	case HostCallStatusNotFound:
+		return hostCallErrorCodeNotFound
+	case HostCallStatusInvalidRequest:
+		return hostCallErrorCodeInvalidRequest
+	case HostCallStatusInternalError:
+		return hostCallErrorCodeInternal
+	default:
+		return "HOST_CALL_FAILED"
+	}
+}
+
+func defaultHostCallMessageKey(status uint32) string {
+	switch status {
+	case HostCallStatusCapabilityDenied:
+		return "error.host_call.capability_denied"
+	case HostCallStatusNotFound:
+		return "error.host_call.not_found"
+	case HostCallStatusInvalidRequest:
+		return "error.host_call.invalid_request"
+	case HostCallStatusInternalError:
+		return "error.host_call.internal_error"
+	default:
+		return "error.host_call.failed"
+	}
+}
+
+func normalizeHostCallErrorFallback(status uint32, fallback string) string {
+	if value := strings.TrimSpace(fallback); value != "" {
+		return value
+	}
+	switch status {
+	case HostCallStatusCapabilityDenied:
+		return "Host call capability denied"
+	case HostCallStatusNotFound:
+		return "Host call target not found"
+	case HostCallStatusInvalidRequest:
+		return "Invalid host call request"
+	case HostCallStatusInternalError:
+		return "Host call failed"
+	default:
+		return "Host call failed"
+	}
 }
 
 // ---------------------------------------------------------------------------

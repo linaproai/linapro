@@ -8,7 +8,7 @@ import (
 
 	"github.com/gogf/gf/v2/frame/g"
 
-	"lina-core/api/plugin/v1"
+	v1 "lina-core/api/plugin/v1"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/statusflag"
 )

@@ -12,7 +12,7 @@ type GroupPayload struct {
 
 // CreateReq defines the request for creating one scheduled job group.
 type CreateReq struct {
-	g.Meta `path:"/job-group" method:"post" tags:"Job Scheduling / Job Groups" summary:"Create group" dc:"Create a new scheduled job group for the task management page to organize tasks by group" permission:"system:jobgroup:add"`
+	g.Meta `path:"/job-group" method:"post" tags:"Job Scheduling / Group Management" summary:"Create group" dc:"Create a new scheduled job group for the task management page to organize tasks by group" permission:"system:jobgroup:add"`
 	GroupPayload
 }
 

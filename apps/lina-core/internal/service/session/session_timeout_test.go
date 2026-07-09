@@ -60,9 +60,11 @@ func TestIsSessionInactiveUsesTimeout(t *testing.T) {
 // TestTouchOrValidateRefreshesActiveSession verifies valid sessions keep their
 // record and refresh the last-active timestamp.
 func TestTouchOrValidateRefreshesActiveSession(t *testing.T) {
-	ctx := context.Background()
-	tokenID := fmt.Sprintf("session-active-%d", time.Now().UnixNano())
-	lastActive := time.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
+	var (
+		ctx        = context.Background()
+		tokenID    = fmt.Sprintf("session-active-%d", time.Now().UnixNano())
+		lastActive = time.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
+	)
 
 	insertSessionRecord(t, ctx, tokenID, &lastActive)
 
@@ -93,9 +95,11 @@ func TestTouchOrValidateRefreshesActiveSession(t *testing.T) {
 // TestSessionRecordSurvivesStoreRecreation verifies valid online-session rows
 // are retained across process-local store recreation and remain usable.
 func TestSessionRecordSurvivesStoreRecreation(t *testing.T) {
-	ctx := context.Background()
-	tokenID := fmt.Sprintf("session-restart-%d", time.Now().UnixNano())
-	lastActive := time.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
+	var (
+		ctx        = context.Background()
+		tokenID    = fmt.Sprintf("session-restart-%d", time.Now().UnixNano())
+		lastActive = time.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
+	)
 
 	insertSessionRecord(t, ctx, tokenID, &lastActive)
 
@@ -121,9 +125,11 @@ func TestSessionRecordSurvivesStoreRecreation(t *testing.T) {
 // TestTouchOrValidateRejectsTenantMismatch verifies token identity is global
 // while request validation still enforces the expected tenant ownership.
 func TestTouchOrValidateRejectsTenantMismatch(t *testing.T) {
-	ctx := context.Background()
-	tokenID := fmt.Sprintf("session-tenant-mismatch-%d", time.Now().UnixNano())
-	lastActive := time.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
+	var (
+		ctx        = context.Background()
+		tokenID    = fmt.Sprintf("session-tenant-mismatch-%d", time.Now().UnixNano())
+		lastActive = time.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
+	)
 
 	insertTenantSessionRecord(t, ctx, 22, tokenID, &lastActive)
 
@@ -154,9 +160,11 @@ func TestTouchOrValidateRejectsTenantMismatch(t *testing.T) {
 // TestTouchOrValidateSkipsRecentActiveSessionUpdate verifies recent activity
 // remains valid without writing another last-active timestamp.
 func TestTouchOrValidateSkipsRecentActiveSessionUpdate(t *testing.T) {
-	ctx := context.Background()
-	tokenID := fmt.Sprintf("session-recent-%d", time.Now().UnixNano())
-	lastActive := time.Now().Truncate(time.Second)
+	var (
+		ctx        = context.Background()
+		tokenID    = fmt.Sprintf("session-recent-%d", time.Now().UnixNano())
+		lastActive = time.Now().Truncate(time.Second)
+	)
 
 	insertSessionRecord(t, ctx, tokenID, &lastActive)
 
@@ -201,6 +209,7 @@ func insertTenantSessionRecord(t *testing.T, ctx context.Context, tenantID int, 
 		TenantId:       tenantID,
 		UserId:         1,
 		Username:       "admin",
+		ClientType:     "web",
 		DeptName:       "系统管理部",
 		Ip:             "127.0.0.1",
 		Browser:        "test",

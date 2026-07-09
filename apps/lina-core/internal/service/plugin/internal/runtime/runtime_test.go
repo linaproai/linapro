@@ -3,11 +3,13 @@
 package runtime_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+	"time"
 
+	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/plugin/pluginhost"
@@ -26,44 +28,40 @@ func TestBuildRuntimeWasmArtifactEmbedsBackendContracts(t *testing.T) {
 	)
 	testutil.WriteTestFile(
 		t,
-		filepath.Join(pluginDir, "backend", "hooks", "001-login.yaml"),
-		strings.Join([]string{
-			"event: auth.login.succeeded",
-			"action: sleep",
-			"timeoutMs: 50",
-			"sleepMs: 10",
-		}, "\n"),
-	)
-	testutil.WriteTestFile(
-		t,
-		filepath.Join(pluginDir, "backend", "resources", "001-records.yaml"),
-		strings.Join([]string{
-			"key: records",
-			"type: table-list",
-			"table: plugin_runtime_records",
-			"fields:",
-			"  - name: id",
-			"    column: id",
-			"  - name: status",
-			"    column: status",
-			"filters:",
-			"  - param: status",
-			"    column: status",
-			"    operator: eq",
-			"orderBy:",
-			"  column: id",
-			"  direction: asc",
-			"operations:",
-			"  - query",
-			"  - get",
-			"  - update",
-			"keyField: id",
-			"writableFields:",
-			"  - status",
-			"access: both",
-			"dataScope:",
-			"  userColumn: owner_user_id",
-		}, "\n"),
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		`wasm:
+  hooks:
+    - event: auth.login.succeeded
+      action: sleep
+      timeout: 50ms
+      sleep: 10ms
+  resources:
+    - key: records
+      type: table-list
+      table: plugin_runtime_records
+      fields:
+        - name: id
+          column: id
+        - name: status
+          column: status
+      filters:
+        - param: status
+          column: status
+          operator: eq
+      orderBy:
+        column: id
+        direction: asc
+      operations:
+        - query
+        - get
+        - update
+      keyField: id
+      writableFields:
+        - status
+      access: both
+      dataScope:
+        userColumn: owner_user_id
+`,
 	)
 
 	buildOut := testutil.BuildRuntimeArtifactWithHackTool(t, pluginDir)
@@ -92,6 +90,39 @@ func TestBuildRuntimeWasmArtifactEmbedsBackendContracts(t *testing.T) {
 	}
 }
 
+// TestRunBundledDynamicSampleBeforeInstallLifecycleAllowsRuntimeLog verifies
+// the bundled dynamic sample can run its BeforeInstall callback, including the
+// runtime.log.write host service used by the callback implementation.
+func TestRunBundledDynamicSampleBeforeInstallLifecycleAllowsRuntimeLog(t *testing.T) {
+	testutil.EnsureBundledRuntimeSampleArtifactForTests(t)
+
+	services := testutil.NewServices()
+	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), testutil.RuntimeArtifactFileName("linapro-demo-dynamic"))
+	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+	if err != nil {
+		t.Fatalf("expected bundled dynamic manifest to load, got error: %v", err)
+	}
+	for _, contract := range manifest.LifecycleHandlers {
+		if contract != nil && contract.Operation.String() == pluginhost.LifecycleHookBeforeInstall.String() {
+			// CI runs this package with -race, so the real bundled sample gets a
+			// wider test-only cold-start budget without changing production defaults.
+			contract.TimeoutMs = int((2 * time.Minute) / time.Millisecond)
+			break
+		}
+	}
+
+	decision, err := services.Runtime.RunDynamicLifecyclePrecondition(context.Background(), manifest, runtime.DynamicLifecycleInput{
+		PluginID:  manifest.ID,
+		Operation: pluginhost.LifecycleHookBeforeInstall,
+	})
+	if err != nil {
+		t.Fatalf("expected bundled BeforeInstall lifecycle to succeed, got error: %v decision=%#v", err, decision)
+	}
+	if decision == nil || !decision.OK {
+		t.Fatalf("expected bundled BeforeInstall lifecycle to allow install, got %#v", decision)
+	}
+}
+
 // TestLoadRuntimePluginManifestFromArtifactHydratesBackendContracts verifies
 // that runtime manifest loading restores embedded backend contracts.
 func TestLoadRuntimePluginManifestFromArtifactHydratesBackendContracts(t *testing.T) {
@@ -105,35 +136,31 @@ func TestLoadRuntimePluginManifestFromArtifactHydratesBackendContracts(t *testin
 	)
 	testutil.WriteTestFile(
 		t,
-		filepath.Join(pluginDir, "backend", "hooks", "001-login.yaml"),
-		strings.Join([]string{
-			"event: auth.login.succeeded",
-			"action: sleep",
-			"timeoutMs: 50",
-			"sleepMs: 10",
-		}, "\n"),
-	)
-	testutil.WriteTestFile(
-		t,
-		filepath.Join(pluginDir, "backend", "resources", "001-records.yaml"),
-		strings.Join([]string{
-			"key: records",
-			"type: table-list",
-			"table: plugin_runtime_records",
-			"fields:",
-			"  - name: id",
-			"    column: id",
-			"  - name: status",
-			"    column: status",
-			"orderBy:",
-			"  column: id",
-			"  direction: asc",
-			"operations:",
-			"  - query",
-			"  - get",
-			"keyField: id",
-			"access: request",
-		}, "\n"),
+		filepath.Join(pluginDir, "hack", "config.yaml"),
+		`wasm:
+  hooks:
+    - event: auth.login.succeeded
+      action: sleep
+      timeout: 50ms
+      sleep: 10ms
+  resources:
+    - key: records
+      type: table-list
+      table: plugin_runtime_records
+      fields:
+        - name: id
+          column: id
+        - name: status
+          column: status
+      orderBy:
+        column: id
+        direction: asc
+      operations:
+        - query
+        - get
+      keyField: id
+      access: request
+`,
 	)
 
 	buildOut := testutil.BuildRuntimeArtifactWithHackTool(t, pluginDir)

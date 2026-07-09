@@ -4,18 +4,32 @@ package testutil
 
 import (
 	"encoding/base64"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
-	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 // DefaultTestSupportsMultiTenant is the tenant-governance flag used by runtime artifact fixtures.
 var DefaultTestSupportsMultiTenant = true
+
+// RuntimeArtifactFileName returns the canonical test WASM filename for a plugin ID.
+func RuntimeArtifactFileName(pluginID string) string {
+	normalizedID := strings.TrimSpace(pluginID)
+	if normalizedID == "" {
+		return "plugin.wasm"
+	}
+	return normalizedID + ".wasm"
+}
+
+// RuntimeArtifactRelativePath returns the canonical test relative artifact path.
+func RuntimeArtifactRelativePath(pluginID string) string {
+	return filepath.Join("runtime", RuntimeArtifactFileName(pluginID))
+}
 
 // CreateTestRuntimeStorageArtifact creates one runtime artifact in the isolated test storage directory.
 func CreateTestRuntimeStorageArtifact(
@@ -70,10 +84,10 @@ func CreateTestRuntimeStorageArtifactWithFilename(
 			ID:                  pluginID,
 			Name:                pluginName,
 			Version:             version,
-			Type:                catalog.TypeDynamic.String(),
-			ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+			Type:                pluginv1.PluginTypeDynamic.String(),
+			ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &DefaultTestSupportsMultiTenant,
-			DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+			DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
 			PublicAssets:        runtimePublicAssetsForFrontendAssets(DefaultTestRuntimeFrontendAssets()),
 		},
 		&catalog.ArtifactSpec{
@@ -132,7 +146,7 @@ func CreateTestRuntimeStorageArtifactWithMenus(
 		t.Fatalf("failed to create dynamic storage dir: %v", err)
 	}
 
-	artifactPath := filepath.Join(storageDir, runtime.BuildArtifactFileName(pluginID))
+	artifactPath := filepath.Join(storageDir, RuntimeArtifactFileName(pluginID))
 	t.Cleanup(func() {
 		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
 			t.Fatalf("failed to remove runtime menu artifact %s: %v", artifactPath, cleanupErr)
@@ -146,10 +160,10 @@ func CreateTestRuntimeStorageArtifactWithMenus(
 			ID:                  pluginID,
 			Name:                pluginName,
 			Version:             version,
-			Type:                catalog.TypeDynamic.String(),
-			ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+			Type:                pluginv1.PluginTypeDynamic.String(),
+			ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &DefaultTestSupportsMultiTenant,
-			DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+			DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
 			Menus:               menus,
 			PublicAssets:        runtimePublicAssetsForFrontendAssets(DefaultTestRuntimeFrontendAssets()),
 		},
@@ -197,6 +211,62 @@ func CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
 	)
 }
 
+// CreateTestRuntimeStorageArtifactWithHostServices creates one runtime
+// artifact carrying structured host service declarations.
+func CreateTestRuntimeStorageArtifactWithHostServices(
+	t *testing.T,
+	pluginID string,
+	pluginName string,
+	version string,
+	hostServices []*protocol.HostServiceSpec,
+	routeContracts []*protocol.RouteContract,
+	bridgeSpec *protocol.BridgeSpec,
+) string {
+	t.Helper()
+
+	storageDir := testDynamicStorageDir
+	if err := os.MkdirAll(storageDir, 0o755); err != nil {
+		t.Fatalf("failed to create dynamic storage dir: %v", err)
+	}
+
+	artifactPath := filepath.Join(storageDir, RuntimeArtifactFileName(pluginID))
+	t.Cleanup(func() {
+		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+			t.Fatalf("failed to remove runtime host-service artifact %s: %v", artifactPath, cleanupErr)
+		}
+	})
+
+	frontendAssets := DefaultTestRuntimeFrontendAssets()
+	WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:                  pluginID,
+			Name:                pluginName,
+			Version:             version,
+			Type:                pluginv1.PluginTypeDynamic.String(),
+			ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
+			SupportsMultiTenant: &DefaultTestSupportsMultiTenant,
+			DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
+			PublicAssets:        runtimePublicAssetsForFrontendAssets(frontendAssets),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind:        protocol.RuntimeKindWasm,
+			ABIVersion:         protocol.SupportedABIVersion,
+			FrontendAssetCount: len(frontendAssets),
+			RouteCount:         len(routeContracts),
+			HostServices:       hostServices,
+		},
+		frontendAssets,
+		nil,
+		nil,
+		nil,
+		routeContracts,
+		bridgeSpec,
+	)
+	return artifactPath
+}
+
 // CreateTestRuntimeStorageArtifactWithFrontendAssetsMenusAndBackendContracts creates one runtime artifact with menu and backend contract sections.
 func CreateTestRuntimeStorageArtifactWithFrontendAssetsMenusAndBackendContracts(
 	t *testing.T,
@@ -217,7 +287,7 @@ func CreateTestRuntimeStorageArtifactWithFrontendAssetsMenusAndBackendContracts(
 		t.Fatalf("failed to create dynamic storage dir: %v", err)
 	}
 
-	artifactPath := filepath.Join(storageDir, runtime.BuildArtifactFileName(pluginID))
+	artifactPath := filepath.Join(storageDir, RuntimeArtifactFileName(pluginID))
 	t.Cleanup(func() {
 		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
 			t.Fatalf("failed to remove runtime contract artifact %s: %v", artifactPath, cleanupErr)
@@ -231,10 +301,10 @@ func CreateTestRuntimeStorageArtifactWithFrontendAssetsMenusAndBackendContracts(
 			ID:                  pluginID,
 			Name:                pluginName,
 			Version:             version,
-			Type:                catalog.TypeDynamic.String(),
-			ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+			Type:                pluginv1.PluginTypeDynamic.String(),
+			ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
 			SupportsMultiTenant: &DefaultTestSupportsMultiTenant,
-			DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+			DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
 			Menus:               menus,
 			PublicAssets:        runtimePublicAssetsForFrontendAssets(frontendAssets),
 		},

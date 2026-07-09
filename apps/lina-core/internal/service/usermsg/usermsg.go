@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"lina-core/internal/service/bizctx"
+	i18nsvc "lina-core/internal/service/i18n"
 	notifysvc "lina-core/internal/service/notify"
 )
 
@@ -65,18 +66,12 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	bizCtxSvc bizctx.Service
-	notifySvc notifysvc.Service     // Unified notify service
-	i18nSvc   usermsgI18nTranslator // Host i18n service for category label/color localization
-}
-
-// usermsgI18nTranslator defines the narrow translation capability usermsg needs.
-type usermsgI18nTranslator interface {
-	// Translate returns one runtime translation key with caller-provided fallback text.
-	Translate(ctx context.Context, key string, fallback string) string
+	notifySvc notifysvc.Service // Unified notify service
+	i18nSvc   i18nsvc.Service   // Host i18n service for category label/color localization
 }
 
 // New creates a usermsg service from explicit runtime-owned dependencies.
-func New(bizCtxSvc bizctx.Service, notifySvc notifysvc.Service, i18nSvc usermsgI18nTranslator) Service {
+func New(bizCtxSvc bizctx.Service, notifySvc notifysvc.Service, i18nSvc i18nsvc.Service) Service {
 	return &serviceImpl{
 		bizCtxSvc: bizCtxSvc,
 		notifySvc: notifySvc,
@@ -105,7 +100,7 @@ type MessageItem struct {
 	TypeLabel    string     // Localized category label resolved at the host
 	TypeColor    string     // Localized category tag color resolved at the host
 	SourceType   string     // Message source type
-	SourceId     int64      // Message source ID
+	SourceId     string     // Original sender-declared source record ID
 	IsRead       int        // Whether the message has been read
 	ReadAt       *time.Time // Read time
 	CreatedAt    *time.Time // Creation time
@@ -120,7 +115,7 @@ type MessageDetail struct {
 	TypeLabel     string     // Localized category label resolved at the host
 	TypeColor     string     // Localized category tag color resolved at the host
 	SourceType    string     // Message source type
-	SourceId      int64      // Message source ID
+	SourceId      string     // Original sender-declared source record ID
 	Content       string     // Renderable message body content
 	CreatedByName string     // Sender display name
 	CreatedAt     *time.Time // Message creation time

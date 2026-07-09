@@ -11,7 +11,7 @@ import (
 
 // PostOptions returns selectable post options for the requested department subtree.
 func (c *ControllerV1) PostOptions(ctx context.Context, req *v1.PostOptionsReq) (res *v1.PostOptionsRes, err error) {
-	options, err := c.orgCapSvc.ListPostOptions(ctx, req.DeptId)
+	options, err := c.orgSvc.Workspace().ListPostOptions(ctx, req.DeptId)
 	if err != nil {
 		return nil, err
 	}

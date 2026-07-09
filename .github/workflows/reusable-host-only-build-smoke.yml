@@ -106,8 +106,8 @@ jobs:
       - name: Initialize Database
         run: |
           cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
-          make init confirm=init rebuild=true
-          make mock confirm=mock
+          make db.init confirm=init rebuild=true
+          make db.mock confirm=mock
 
       # Build a Linux amd64 host-only backend artifact into the temp output directory.
       # 将 Linux amd64 宿主模式后端产物构建到临时输出目录。

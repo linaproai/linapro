@@ -114,7 +114,7 @@ async function handleDelete(row: DictData) {
   }
   await dictDataDelete(row.id);
   message.success($t('pages.common.deleteSuccess'));
-  dictStore.resetCache();
+  await dictStore.refreshDictOptions(dictType.value);
   await tableApi.query();
 }
 
@@ -137,15 +137,15 @@ function handleMultiDelete() {
         await dictDataDelete(id);
       }
       checkedRows.value = [];
-      dictStore.resetCache();
+      await dictStore.refreshDictOptions(dictType.value);
       await tableApi.query();
     },
   });
 }
 
-function onReload() {
-  dictStore.resetCache();
-  tableApi.query();
+async function onReload(dictTypeToRefresh?: string) {
+  await dictStore.refreshDictOptions(dictTypeToRefresh || dictType.value);
+  await tableApi.query();
 }
 
 emitter.on('rowClick', async (value: string) => {

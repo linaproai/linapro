@@ -4,6 +4,7 @@ package testutil
 
 import (
 	"encoding/json"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"testing"
@@ -47,7 +48,7 @@ func WriteRuntimeWasmArtifact(
 	frontendAssets []*catalog.ArtifactFrontendAsset,
 	installSQLAssets []*catalog.ArtifactSQLAsset,
 	uninstallSQLAssets []*catalog.ArtifactSQLAsset,
-	cronContracts []*protocol.CronContract,
+	_ any,
 	routeContracts []*protocol.RouteContract,
 	bridgeSpec *protocol.BridgeSpec,
 ) {
@@ -60,7 +61,7 @@ func WriteRuntimeWasmArtifact(
 		frontendAssets,
 		installSQLAssets,
 		uninstallSQLAssets,
-		cronContracts,
+		nil,
 		routeContracts,
 		bridgeSpec,
 	)
@@ -110,7 +111,7 @@ func buildTestRuntimeWasmArtifactContent(
 	frontendAssets []*catalog.ArtifactFrontendAsset,
 	installSQLAssets []*catalog.ArtifactSQLAsset,
 	uninstallSQLAssets []*catalog.ArtifactSQLAsset,
-	_ []*protocol.CronContract,
+	_ any,
 	routeContracts []*protocol.RouteContract,
 	bridgeSpec *protocol.BridgeSpec,
 ) []byte {
@@ -202,13 +203,13 @@ func normalizeTestArtifactManifest(manifest *catalog.ArtifactManifest) {
 		return
 	}
 	if manifest.ScopeNature == "" {
-		manifest.ScopeNature = catalog.ScopeNatureTenantAware.String()
+		manifest.ScopeNature = pluginv1.ScopeNatureTenantAware.String()
 	}
 	if manifest.SupportsMultiTenant == nil {
 		manifest.SupportsMultiTenant = &DefaultTestSupportsMultiTenant
 	}
 	if manifest.DefaultInstallMode == "" {
-		manifest.DefaultInstallMode = catalog.InstallModeTenantScoped.String()
+		manifest.DefaultInstallMode = pluginv1.InstallModeTenantScoped.String()
 	}
 }
 

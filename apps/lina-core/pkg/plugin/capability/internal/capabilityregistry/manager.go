@@ -9,17 +9,20 @@ import (
 	"sync"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+
+	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/capmodel"
 )
 
 const (
-	// ReasonNoProvider indicates no provider is currently active.
-	ReasonNoProvider = "no_provider"
-	// ReasonPluginDisabled indicates a declared provider plugin is not enabled.
-	ReasonPluginDisabled = "plugin_disabled"
-	// ReasonConflict indicates a singleton capability has more than one active provider.
-	ReasonConflict = "provider_conflict"
-	// ReasonProviderError indicates the enabled provider cannot be constructed.
-	ReasonProviderError = "provider_error"
+	// reasonNoProvider indicates no provider is currently active.
+	reasonNoProvider = "no_provider"
+	// reasonPluginDisabled indicates a declared provider plugin is not enabled.
+	reasonPluginDisabled = "plugin_disabled"
+	// reasonConflict indicates a singleton capability has more than one active provider.
+	reasonConflict = "provider_conflict"
+	// reasonProviderError indicates the enabled provider cannot be constructed.
+	reasonProviderError = "provider_error"
 )
 
 // ProviderFactory creates one provider instance for the supplied typed activation environment.
@@ -129,7 +132,11 @@ func (m *Manager[Env]) ActiveProviderWithError(
 		return nil, nil
 	}
 	if len(enabledIDs) > 1 {
-		return nil, gerror.Newf("multiple capability providers enabled: capability=%s providers=%s", capabilityID, strings.Join(enabledIDs, ","))
+		return nil, bizerr.NewCode(
+			capmodel.CodeCapabilityProviderConflict,
+			bizerr.P("capability", capabilityID),
+			bizerr.P("providerIds", strings.Join(enabledIDs, ",")),
+		)
 	}
 	return m.providerForPlugin(ctx, capabilityID, enabledIDs[0], envFactory)
 }
@@ -141,7 +148,7 @@ func (m *Manager[Env]) Status(
 	enablement EnablementReader,
 ) CapabilityStatus {
 	if m == nil {
-		return CapabilityStatus{CapabilityID: strings.TrimSpace(capabilityID), Reason: ReasonNoProvider}
+		return CapabilityStatus{CapabilityID: strings.TrimSpace(capabilityID), Reason: reasonNoProvider}
 	}
 	return m.status(ctx, strings.TrimSpace(capabilityID), enablement)
 }
@@ -155,7 +162,7 @@ func (m *Manager[Env]) StatusWithProvider(
 	envFactory ProviderEnvFactory[Env],
 ) CapabilityStatus {
 	if m == nil {
-		return CapabilityStatus{CapabilityID: strings.TrimSpace(capabilityID), Reason: ReasonNoProvider}
+		return CapabilityStatus{CapabilityID: strings.TrimSpace(capabilityID), Reason: reasonNoProvider}
 	}
 	status := m.status(ctx, strings.TrimSpace(capabilityID), enablement)
 	if !status.Available || status.ActiveProvider == "" {
@@ -167,11 +174,11 @@ func (m *Manager[Env]) StatusWithProvider(
 	}
 	status.Available = false
 	status.ActiveProvider = ""
-	status.Reason = ReasonProviderError
+	status.Reason = reasonProviderError
 	for i := range status.Providers {
 		if status.Providers[i].Active {
 			status.Providers[i].Active = false
-			status.Providers[i].Reason = ReasonProviderError
+			status.Providers[i].Reason = reasonProviderError
 		}
 	}
 	return status
@@ -269,7 +276,7 @@ func (m *Manager[Env]) status(
 ) CapabilityStatus {
 	status := CapabilityStatus{
 		CapabilityID: capabilityID,
-		Reason:       ReasonNoProvider,
+		Reason:       reasonNoProvider,
 		Providers:    make([]ProviderStatus, 0),
 	}
 	m.mu.RLock()
@@ -292,7 +299,7 @@ func (m *Manager[Env]) status(
 			Conflict:     enabled && conflict,
 		}
 		if !enabled {
-			providerStatus.Reason = ReasonPluginDisabled
+			providerStatus.Reason = reasonPluginDisabled
 		}
 		if providerStatus.Active {
 			status.Available = true
@@ -300,8 +307,8 @@ func (m *Manager[Env]) status(
 			status.Reason = ""
 		}
 		if providerStatus.Conflict {
-			providerStatus.Reason = ReasonConflict
-			status.Reason = ReasonConflict
+			providerStatus.Reason = reasonConflict
+			status.Reason = reasonConflict
 		}
 		status.Providers = append(status.Providers, providerStatus)
 	}

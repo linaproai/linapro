@@ -23,7 +23,7 @@ Run the command from the repository root:
 docker compose -f hack/deploy/docker-compose.yaml up
 ```
 
-Open `http://localhost:9120` after the `linapro` service becomes healthy.
+Open `http://localhost:9120` after the `linapro` service finishes startup.
 
 To run the demo in the background:
 
@@ -103,14 +103,3 @@ Recreate a fresh demo:
 docker compose -f hack/deploy/docker-compose.yaml down
 docker compose -f hack/deploy/docker-compose.yaml up
 ```
-
-## Health Check
-
-The LinaPro service health check calls:
-
-```bash
-curl http://localhost:9120/api/v1/health
-```
-
-A healthy response includes `"status":"ok"`.
-

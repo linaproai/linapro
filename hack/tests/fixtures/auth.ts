@@ -79,3 +79,4 @@ export const test = base.extend<AuthFixtures>({
 });
 
 export { expect } from '@playwright/test';
+export type { Locator, Page, Route } from '@playwright/test';

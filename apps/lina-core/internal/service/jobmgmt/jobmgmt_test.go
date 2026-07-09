@@ -24,9 +24,9 @@ import (
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/role"
-	"lina-core/pkg/plugin/capability/contract"
-	"lina-core/pkg/plugin/capability/orgcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // noopScheduler keeps job-management unit tests focused on validation and persistence.
@@ -62,11 +62,11 @@ func (s jobmgmtStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 func (s jobmgmtStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
 
 // Current returns the plugin-visible business context projection.
-func (s jobmgmtStaticBizCtx) Current(context.Context) contract.CurrentContext {
+func (s jobmgmtStaticBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	if s.ctx == nil {
-		return contract.CurrentContext{}
+		return bizctxcap.CurrentContext{}
 	}
-	return contract.CurrentContext{
+	return bizctxcap.CurrentContext{
 		UserID:          s.ctx.UserId,
 		Username:        s.ctx.Username,
 		TenantID:        s.ctx.TenantId,
@@ -81,7 +81,7 @@ func (s jobmgmtStaticBizCtx) Current(context.Context) contract.CurrentContext {
 func (s jobmgmtStaticBizCtx) SetLocale(context.Context, string) {}
 
 // SetUser is unused by job-management service tests.
-func (s jobmgmtStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
+func (s jobmgmtStaticBizCtx) SetUser(context.Context, string, int, string, int, string) {}
 
 // SetTenant is unused by job-management service tests.
 func (s jobmgmtStaticBizCtx) SetTenant(context.Context, int) {}
@@ -207,13 +207,15 @@ func newTestServiceWithExplicitDependencies(
 ) *serviceImpl {
 	t.Helper()
 
-	bizCtxSvc := bizctx.New()
-	configSvc := hostconfig.New()
-	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
-	orgCapSvc := orgcap.New(nil)
-	tenantSvc := tenantcapsvc.New(nil, bizCtxSvc)
-	roleSvc := role.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
-	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
+	var (
+		bizCtxSvc = bizctx.New()
+		configSvc = hostconfig.New()
+		i18nSvc   = i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
+		orgCapSvc = orgspi.New(nil, nil, nil)
+		tenantSvc = tenantspi.New(nil, nil, nil, bizCtxSvc)
+		roleSvc   = role.New(nil, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
+		scopeSvc  = datascope.New(bizCtxSvc, roleSvc, orgCapSvc.Scope())
+	)
 	roleSvc.SetDataScopeService(scopeSvc)
 	return New(bizCtxSvc, configSvc, i18nSvc, registry, scheduler, scopeSvc).(*serviceImpl)
 }
@@ -226,11 +228,13 @@ func setJobMgmtTestBizCtx(svc *serviceImpl, bizCtxSvc bizctx.Service) {
 	if configSvc == nil {
 		configSvc = hostconfig.New()
 	}
-	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
-	orgCapSvc := orgcap.New(nil)
-	tenantSvc := tenantcapsvc.New(nil, bizCtxSvc)
-	roleSvc := role.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
-	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
+	var (
+		i18nSvc   = i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
+		orgCapSvc = orgspi.New(nil, nil, nil)
+		tenantSvc = tenantspi.New(nil, nil, nil, bizCtxSvc)
+		roleSvc   = role.New(nil, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
+		scopeSvc  = datascope.New(bizCtxSvc, roleSvc, orgCapSvc.Scope())
+	)
 	roleSvc.SetDataScopeService(scopeSvc)
 	svc.scopeSvc = scopeSvc
 }

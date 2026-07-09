@@ -1,13 +1,14 @@
 // Package pluginhost defines the public backend extension contracts that source
-// plugins use to register routes, hooks, cron jobs, and governance callbacks
-// through grouped facade interfaces.
+// plugins use to register routes, hooks, scheduled jobs, and access-control
+// callbacks through grouped facade interfaces.
 package pluginhost
 
 import (
 	"io/fs"
 
-	"lina-core/pkg/plugin/capability"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 const (
@@ -29,47 +30,37 @@ const (
 	DynamicAccessModeEmbeddedMount = "embedded-mount"
 )
 
-// SourcePlugin defines the grouped plugin-facing contract published to source
-// plugins during compile-time registration.
-type SourcePlugin interface {
+// Declarations defines the grouped declaration-time contract published to
+// source plugins during compile-time registration.
+type Declarations interface {
 	// ID returns the stable plugin identifier that must match `plugin.yaml`.
 	ID() string
 	// Assets returns the plugin asset registration facade.
-	Assets() SourcePluginAssets
+	Assets() AssetDeclarations
 	// Lifecycle returns the plugin lifecycle callback registration facade.
-	Lifecycle() SourcePluginLifecycle
+	Lifecycle() LifecycleDeclarations
 	// Hooks returns the event-hook registration facade.
-	Hooks() SourcePluginHooks
+	Hooks() HookDeclarations
 	// HTTP returns the HTTP registration facade.
-	HTTP() SourcePluginHTTP
-	// Cron returns the cron registration facade.
-	Cron() SourcePluginCron
-	// Governance returns the menu and permission governance registration facade.
-	Governance() SourcePluginGovernance
+	HTTP() HTTPDeclarations
+	// Jobs returns the scheduled-job registration facade.
+	Jobs() JobDeclarations
+	// Providers returns the framework capability provider declaration facade.
+	Providers() ProviderDeclarations
+	// Access returns the menu and permission access-control registration facade.
+	Access() AccessDeclarations
 }
 
-// Services is the source-plugin runtime service directory used by registrar and
-// callback flows. It embeds the ordinary capability services and adds
-// source-plugin-only governed seams that are not part of
-// capability.Services.
-type Services interface {
-	capability.Services
-	// TenantFilter returns the source-plugin tenant-filter service for
-	// plugin-owned tables. This method carries a database query builder and is
-	// intentionally kept out of the ordinary capability services.
-	TenantFilter() contract.TenantFilterService
-}
-
-// SourcePluginAssets exposes plugin-owned asset declarations grouped under one
+// AssetDeclarations exposes plugin-owned asset declarations grouped under one
 // dedicated facade.
-type SourcePluginAssets interface {
+type AssetDeclarations interface {
 	// UseEmbeddedFiles binds one plugin-owned embedded filesystem.
 	UseEmbeddedFiles(fileSystem fs.FS)
 }
 
-// SourcePluginLifecycle exposes lifecycle callback registrations grouped under
+// LifecycleDeclarations exposes lifecycle callback registrations grouped under
 // one dedicated facade.
-type SourcePluginLifecycle interface {
+type LifecycleDeclarations interface {
 	// RegisterBeforeInstallHandler registers a pre-install lifecycle callback
 	// for the source plugin. The host invokes this callback before it applies
 	// install SQL, synchronizes plugin governance resources, or marks the plugin
@@ -204,52 +195,79 @@ type SourcePluginLifecycle interface {
 	RegisterUninstallHandler(handler SourcePluginUninstallHandler) error
 }
 
-// SourcePluginHooks exposes callback-style host hook registrations grouped
+// HookDeclarations exposes callback-style host hook registrations grouped
 // under one dedicated facade.
-type SourcePluginHooks interface {
+type HookDeclarations interface {
 	// RegisterHook registers one callback-style host hook handler.
 	RegisterHook(point ExtensionPoint, mode CallbackExecutionMode, handler HookHandler) error
 }
 
-// SourcePluginHTTP exposes HTTP-adjacent registrations grouped under one
+// HTTPDeclarations exposes HTTP-adjacent registrations grouped under one
 // dedicated facade.
-type SourcePluginHTTP interface {
+type HTTPDeclarations interface {
 	// RegisterRoutes registers one callback that contributes plugin-owned HTTP routes.
 	RegisterRoutes(point ExtensionPoint, mode CallbackExecutionMode, handler RouteRegisterHandler) error
 }
 
-// SourcePluginCron exposes cron registrations grouped under one dedicated
+// JobDeclarations exposes scheduled-job registrations grouped under one dedicated
 // facade.
-type SourcePluginCron interface {
-	// RegisterCron registers one callback that contributes plugin-owned cron jobs.
-	RegisterCron(point ExtensionPoint, mode CallbackExecutionMode, handler CronRegisterHandler) error
+type JobDeclarations interface {
+	// RegisterJobs registers one callback that contributes plugin-owned scheduled jobs.
+	RegisterJobs(point ExtensionPoint, mode CallbackExecutionMode, handler JobRegisterHandler) error
 }
 
-// SourcePluginGovernance exposes governance callback registrations grouped
-// under one dedicated facade.
-type SourcePluginGovernance interface {
+// AccessDeclarations exposes menu and permission access-control callback
+// registrations grouped under one dedicated facade.
+type AccessDeclarations interface {
 	// RegisterMenuFilter registers one callback that filters host menus.
 	RegisterMenuFilter(point ExtensionPoint, mode CallbackExecutionMode, handler MenuFilterHandler) error
 	// RegisterPermissionFilter registers one callback that filters host permissions.
 	RegisterPermissionFilter(point ExtensionPoint, mode CallbackExecutionMode, handler PermissionFilterHandler) error
 }
 
+// ProviderDeclarations exposes framework capability provider factory declarations.
+type ProviderDeclarations interface {
+	// ProvideTenant declares the tenant capability provider factory implemented by this source plugin.
+	ProvideTenant(factory tenantspi.ProviderFactory) error
+	// ProvideOrg declares the organization capability provider factory implemented by this source plugin.
+	ProvideOrg(factory orgspi.ProviderFactory) error
+	// ProvideAIText declares the text AI capability provider factory implemented by this source plugin.
+	ProvideAIText(factory aitext.ProviderFactory) error
+	// ProvideExternalIdentity declares one external-identity provider ID owned
+	// by this source plugin. The host uses the declared ownership set to reject
+	// external-login requests that claim a provider the calling plugin did not
+	// declare, preventing one plugin from minting sessions through another
+	// plugin's provider. A plugin may declare more than one provider ID;
+	// duplicate declarations of the same ID are rejected.
+	ProvideExternalIdentity(providerID string) error
+}
+
 // SourcePluginDefinition exposes the host-side read model restored from one
 // grouped source-plugin registration.
 type SourcePluginDefinition interface {
-	SourcePlugin
+	Declarations
 	// GetEmbeddedFiles returns the plugin-owned embedded filesystem when declared.
 	GetEmbeddedFiles() fs.FS
 	// GetHookHandlers returns the registered callback-style hook handlers.
 	GetHookHandlers() []*HookHandlerRegistration
 	// GetRouteRegistrars returns the registered route contribution callbacks.
 	GetRouteRegistrars() []*RouteHandlerRegistration
-	// GetCronRegistrars returns the registered cron contribution callbacks.
-	GetCronRegistrars() []*CronHandlerRegistration
+	// GetJobRegistrars returns the registered scheduled-job contribution callbacks.
+	GetJobRegistrars() []*JobHandlerRegistration
 	// GetMenuFilters returns the registered menu filter callbacks.
 	GetMenuFilters() []*MenuFilterHandlerRegistration
 	// GetPermissionFilters returns the registered permission filter callbacks.
 	GetPermissionFilters() []*PermissionFilterHandlerRegistration
+	// GetTenantProviderFactory returns the declared tenant provider factory.
+	GetTenantProviderFactory() tenantspi.ProviderFactory
+	// GetOrgProviderFactory returns the declared organization provider factory.
+	GetOrgProviderFactory() orgspi.ProviderFactory
+	// GetAITextProviderFactory returns the declared text AI provider factory.
+	GetAITextProviderFactory() aitext.ProviderFactory
+	// GetExternalIdentityProviderIDs returns the external-identity provider IDs
+	// declared by this source plugin. The host consults this ownership set to
+	// authorize external-login requests.
+	GetExternalIdentityProviderIDs() []string
 	// GetBeforeInstallHandler returns the registered pre-install veto callback.
 	GetBeforeInstallHandler() SourcePluginBeforeLifecycleHandler
 	// GetAfterInstallHandler returns the registered post-install callback.

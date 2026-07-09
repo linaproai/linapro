@@ -1,18 +1,21 @@
-// This file exposes host integration methods on the root plugin facade.
+// This file exposes host integration and hook dispatch methods on the root
+// plugin facade.
 
 package plugin
 
 import (
 	"context"
+	"strings"
 
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/plugin/internal/capabilityowner"
 	"lina-core/internal/service/plugin/internal/integration"
-	"lina-core/pkg/plugin/capability"
-	"lina-core/pkg/plugin/capability/contract"
-	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	aitextsvc "lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -26,104 +29,143 @@ func (s *serviceImpl) RegisterHTTPRoutes(
 	return s.integrationSvc.RegisterHTTPRoutes(ctx, server, pluginGroup, middlewares)
 }
 
-// RegisterCrons registers callback-contributed cron jobs for source plugins.
-func (s *serviceImpl) RegisterCrons(ctx context.Context) error {
-	return s.integrationSvc.RegisterCrons(ctx)
+// ListSourceRouteBindings returns the source-plugin route bindings captured during registration.
+func (s *serviceImpl) ListSourceRouteBindings() []pluginhost.SourceRouteBinding {
+	return s.integrationSvc.ListSourceRouteBindings()
 }
 
-// SetCapabilities wires the host-published capability services used by plugins.
-func (s *serviceImpl) SetCapabilities(capabilities capability.Services) {
-	if s == nil || s.integrationSvc == nil {
-		return
-	}
-	s.capabilities = capabilities
-	s.integrationSvc.SetCapabilities(capabilities)
+// RegisterJobs registers callback-contributed scheduled jobs for source plugins.
+func (s *serviceImpl) RegisterJobs(ctx context.Context) error {
+	return s.integrationSvc.RegisterJobs(ctx)
 }
 
-// OrgProviderEnv returns typed, plugin-scoped organization-provider construction inputs.
-func (s *serviceImpl) OrgProviderEnv(pluginID string) orgcapsvc.ProviderEnv {
-	env := orgcapsvc.ProviderEnv{PluginID: pluginID}
+// AITextProviderEnv returns typed, plugin-scoped text AI provider construction inputs.
+func (s *serviceImpl) AITextProviderEnv(_ context.Context, pluginID string) aitextsvc.ProviderEnv {
+	env := aitextsvc.ProviderEnv{PluginID: pluginID}
 	if s == nil || s.capabilities == nil {
 		return env
 	}
-	services := capability.ServicesForPlugin(s.capabilities, pluginID)
-	if services == nil {
-		return env
-	}
-	sourceServices, ok := services.(interface {
-		TenantFilter() contract.TenantFilterService
-	})
-	if !ok {
-		return env
-	}
-	env.TenantFilter = sourceServices.TenantFilter()
-	return env
-}
-
-// TenantProviderEnv returns typed, plugin-scoped tenant-provider construction inputs.
-func (s *serviceImpl) TenantProviderEnv(pluginID string) tenantcapsvc.ProviderEnv {
-	env := tenantcapsvc.ProviderEnv{PluginID: pluginID}
-	if s == nil || s.capabilities == nil {
-		return env
-	}
-	services := capability.ServicesForPlugin(s.capabilities, pluginID)
+	services := capabilityowner.ServicesForPlugin(s.capabilities, pluginID)
 	if services == nil {
 		return env
 	}
 	env.BizCtx = services.BizCtx()
-	env.PluginLifecycle = services.PluginLifecycle()
+	env.Cache = services.Cache()
 	return env
 }
 
-// ListExecutableCronJobs returns plugin-owned cron definitions whose handlers
-// are safe to publish for execution. Dynamic plugins must be installed, enabled
-// for the current business-entry context, and free of runtime-upgrade blocking
-// states; declarations from disabled or preview-only dynamic plugins are
-// intentionally excluded. Use this method for executable handler publication,
-// not for authorization previews or scheduled-job table projection.
-func (s *serviceImpl) ListExecutableCronJobs(ctx context.Context) ([]ManagedCronJob, error) {
-	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
-		return nil, err
+// OrgProviderEnv returns typed, plugin-scoped organization-provider construction inputs.
+func (s *serviceImpl) OrgProviderEnv(_ context.Context, pluginID string) orgspi.ProviderEnv {
+	env := orgspi.ProviderEnv{PluginID: pluginID}
+	if s == nil || s.capabilities == nil {
+		return env
 	}
-	return s.integrationSvc.ListExecutableCronJobs(ctx)
+	services := capabilityowner.ServicesForPlugin(s.capabilities, pluginID)
+	if services == nil {
+		return env
+	}
+	env.Tenant = services.Tenant()
+	env.Users = services.Users()
+	return env
 }
 
-// ListExecutableCronJobsByPlugin returns executable plugin-owned cron
-// definitions for one plugin. The method applies the same runtime cache
-// freshness, install, enablement, and runtime-state checks as
-// ListExecutableCronJobs while narrowing discovery to pluginID. Job-handler
-// lifecycle synchronization uses this path when an enabled plugin publishes its
-// concrete handler references.
-func (s *serviceImpl) ListExecutableCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error) {
-	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
-		return nil, err
+// RegisterSourcePluginProviderFactories registers compile-time source-plugin
+// provider declarations into the startup-owned shared provider managers.
+func (s *serviceImpl) RegisterSourcePluginProviderFactories(
+	tenantManager *tenantspi.Manager,
+	orgManager *orgspi.Manager,
+	aiTextManager *aitextsvc.Manager,
+) error {
+	for _, definition := range pluginhost.ListSourcePlugins() {
+		if definition == nil {
+			continue
+		}
+		pluginID := definition.ID()
+		if factory := definition.GetTenantProviderFactory(); factory != nil {
+			if tenantManager == nil {
+				return gerror.New("plugin service requires tenant provider manager")
+			}
+			if err := tenantManager.RegisterFactory(pluginID, factory); err != nil {
+				return err
+			}
+		}
+		if factory := definition.GetOrgProviderFactory(); factory != nil {
+			if orgManager == nil {
+				return gerror.New("plugin service requires organization provider manager")
+			}
+			if err := orgManager.RegisterFactory(pluginID, factory); err != nil {
+				return err
+			}
+		}
+		if factory := definition.GetAITextProviderFactory(); factory != nil {
+			if aiTextManager == nil {
+				return gerror.New("plugin service requires text AI provider manager")
+			}
+			if err := aiTextManager.RegisterFactory(pluginID, factory); err != nil {
+				return err
+			}
+		}
 	}
-	return s.integrationSvc.ListExecutableCronJobsByPlugin(ctx, pluginID)
+	return nil
 }
 
-// ListCronDeclarationsByPlugin returns plugin-owned cron declaration metadata
-// for management review without requiring the plugin business entry to be
-// enabled. This path is used by plugin list and authorization-preview screens,
-// including before a dynamic plugin is installed. Returned items describe what
-// the plugin declares; callers must not treat them as proof that handlers can be
-// executed.
-func (s *serviceImpl) ListCronDeclarationsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error) {
-	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
-		return nil, err
+// TenantProviderEnv returns typed, plugin-scoped tenant-provider construction inputs.
+func (s *serviceImpl) TenantProviderEnv(_ context.Context, pluginID string) tenantspi.ProviderEnv {
+	env := tenantspi.ProviderEnv{PluginID: pluginID}
+	if s == nil || s.capabilities == nil {
+		return env
 	}
-	return s.integrationSvc.ListCronDeclarationsByPlugin(ctx, pluginID)
+	services := capabilityowner.ServicesForPlugin(s.capabilities, pluginID)
+	if services == nil {
+		return env
+	}
+	env.BizCtx = services.BizCtx()
+	env.PluginLifecycle = s.pluginLifecycleService
+	if plugins := services.Plugins(); plugins != nil {
+		if lifecycle := plugins.Lifecycle(); lifecycle != nil {
+			env.PluginLifecycle = lifecycle
+		}
+	}
+	env.Tenant = services.Tenant()
+	env.Users = services.Users()
+	env.Plugins = services.Plugins()
+	return env
 }
 
-// ListInstalledCronDeclarations returns declared cron metadata for installed
-// plugins without requiring their business entries to be enabled. Scheduled-job
-// projection uses this path so installed-but-disabled plugins can keep visible
-// task rows, while uninstalled authorization-preview declarations stay out of
-// the persistent task table.
-func (s *serviceImpl) ListInstalledCronDeclarations(ctx context.Context) ([]ManagedCronJob, error) {
+// ListManagedJobs returns plugin-owned job declarations or executable handlers
+// according to the supplied query. Executable callers must opt in explicitly so
+// management projections do not accidentally publish handler functions.
+func (s *serviceImpl) ListManagedJobs(ctx context.Context, query ManagedJobQuery) ([]ManagedJob, error) {
 	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
 		return nil, err
 	}
-	return s.integrationSvc.ListInstalledCronDeclarations(ctx)
+	pluginID := strings.TrimSpace(query.PluginID)
+	var (
+		items []ManagedJob
+		err   error
+	)
+	switch {
+	case query.ExecutableOnly && pluginID != "":
+		items, err = s.integrationSvc.ListExecutableJobsByPlugin(ctx, pluginID)
+	case query.ExecutableOnly:
+		items, err = s.integrationSvc.ListExecutableJobs(ctx)
+	case query.InstalledOnly:
+		items, err = s.integrationSvc.ListInstalledJobDeclarations(ctx)
+		if err == nil && pluginID != "" {
+			items = filterManagedJobsByPlugin(items, pluginID)
+		}
+	case pluginID != "":
+		items, err = s.integrationSvc.ListJobDeclarationsByPlugin(ctx, pluginID)
+	default:
+		return nil, gerror.New("plugin managed job query requires executable, installed, or plugin id scope")
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !query.IncludeHandlers {
+		clearManagedJobHandlers(items)
+	}
+	return items, nil
 }
 
 // DispatchHookEvent dispatches one named hook event to all enabled plugins.
@@ -135,7 +177,7 @@ func (s *serviceImpl) DispatchHookEvent(
 	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
 		return err
 	}
-	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	readCtx, err := s.storeSvc.WithStartupDataSnapshot(ctx)
 	if err != nil {
 		return err
 	}
@@ -168,4 +210,27 @@ func (s *serviceImpl) ListResourceRecords(ctx context.Context, in ResourceListIn
 		return nil, err
 	}
 	return s.integrationSvc.ListResourceRecords(ctx, in)
+}
+
+// filterManagedJobsByPlugin keeps only jobs owned by pluginID in an already
+// bounded result set.
+func filterManagedJobsByPlugin(items []ManagedJob, pluginID string) []ManagedJob {
+	if len(items) == 0 || strings.TrimSpace(pluginID) == "" {
+		return items
+	}
+	filtered := make([]ManagedJob, 0, len(items))
+	for _, item := range items {
+		if strings.TrimSpace(item.PluginID) == pluginID {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
+// clearManagedJobHandlers removes executable callbacks from management
+// projections so declaration callers cannot accidentally publish handlers.
+func clearManagedJobHandlers(items []ManagedJob) {
+	for index := range items {
+		items[index].Handler = nil
+	}
 }

@@ -51,9 +51,6 @@
     "iam": {
       "title": "Access"
     },
-    "auth-provider": {
-      "title": "Authentication Providers"
-    },
     "monitor": {
       "title": "Monitoring"
     },

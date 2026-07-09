@@ -23,7 +23,9 @@ import (
 )
 
 // testConfigProvider provides fixed OpenAPI metadata for builder tests.
-type testConfigProvider struct{}
+type testConfigProvider struct {
+	configsvc.Service
+}
 
 // testPluginRouteProvider provides controllable source and dynamic plugin route
 // projection inputs for builder tests.
@@ -42,6 +44,15 @@ type testHostListReq struct {
 type testHostListRes struct {
 	Message string `json:"message" dc:"Message title" eg:"System maintenance notification"`
 }
+
+// testHostExportReq defines a GET route that intentionally shares the same
+// description as testHostListReq so localization must not depend on dc lookup.
+type testHostExportReq struct {
+	g.Meta `path:"/host/items/export" method:"get" tags:"User Management" summary:"Export user list" dc:"Query the paginated user list, support filtering by user name, nickname, status, mobile phone number, gender, department, creation time and other conditions, support custom sorting"`
+}
+
+// testHostExportRes is the response DTO for the export route test handler.
+type testHostExportRes struct{}
 
 // testSourceEnabledReq defines one enabled source-plugin DTO route used in tests.
 type testSourceEnabledReq struct {
@@ -68,6 +79,11 @@ func (p *testConfigProvider) GetOpenApi(ctx context.Context) *configsvc.OpenApiC
 		ServerUrl:         "https://api.example.com",
 		ServerDescription: "Test API Server",
 	}
+}
+
+// GetPluginDynamicStoragePath returns the default dynamic-plugin storage root.
+func (p *testConfigProvider) GetPluginDynamicStoragePath(ctx context.Context) string {
+	return configsvc.New().GetPluginDynamicStoragePath(ctx)
 }
 
 // ListSourceRouteBindings returns the test-controlled source route snapshot.
@@ -98,6 +114,12 @@ func testHostListHandler(ctx context.Context, req *testHostListReq) (*testHostLi
 	return &testHostListRes{}, nil
 }
 
+// testHostExportHandler is the strict-route host handler used to verify stable
+// DTO operation keys when multiple GET operations share one description.
+func testHostExportHandler(ctx context.Context, req *testHostExportReq) (*testHostExportRes, error) {
+	return &testHostExportRes{}, nil
+}
+
 // testSourceEnabledHandler is the strict-route source-plugin handler for the enabled case.
 func testSourceEnabledHandler(ctx context.Context, req *testSourceEnabledReq) (*testSourceEnabledRes, error) {
 	return &testSourceEnabledRes{}, nil
@@ -117,6 +139,7 @@ func TestBuildProjectsHostAndEnabledPluginRoutes(t *testing.T) {
 	server.SetDumpRouterMap(false)
 	server.Group("/api/v1", func(group *ghttp.RouterGroup) {
 		group.Bind(testHostListHandler)
+		group.Bind(testHostExportHandler)
 		group.Bind(testSourceEnabledHandler)
 		group.Bind(testSourceDisabledHandler)
 	})
@@ -164,6 +187,9 @@ func TestBuildProjectsHostAndEnabledPluginRoutes(t *testing.T) {
 	if _, ok := document.Paths["/api/v1/host/items"]; !ok {
 		t.Fatalf("expected host static route to stay in hosted document")
 	}
+	if _, ok := document.Paths["/api/v1/host/items/export"]; !ok {
+		t.Fatalf("expected host export static route to stay in hosted document")
+	}
 	if _, ok := document.Paths["/api/v1/plugins/enabled/ping"]; !ok {
 		t.Fatalf("expected enabled source-plugin route to be projected")
 	}
@@ -184,6 +210,7 @@ func TestBuildLocalizesOpenAPIForRequestLocale(t *testing.T) {
 	server.SetDumpRouterMap(false)
 	server.Group("/api/v1", func(group *ghttp.RouterGroup) {
 		group.Bind(testHostListHandler)
+		group.Bind(testHostExportHandler)
 		group.Bind(testSourceEnabledHandler)
 	})
 	server.Start()
@@ -226,6 +253,13 @@ func TestBuildLocalizesOpenAPIForRequestLocale(t *testing.T) {
 	if got := hostOperation.Summary; got != "Get user list" {
 		t.Fatalf("expected localized host summary Get user list, got %s", got)
 	}
+	hostExportOperation := document.Paths["/api/v1/host/items/export"].Get
+	if hostExportOperation == nil {
+		t.Fatalf("expected host export operation to be present")
+	}
+	if got := hostExportOperation.Summary; got != "Export user list" {
+		t.Fatalf("expected localized host export summary Export user list, got %s", got)
+	}
 	if len(hostOperation.Parameters) == 0 || hostOperation.Parameters[0].Value == nil {
 		t.Fatalf("expected host operation to expose query parameters")
 	}
@@ -246,6 +280,8 @@ func TestBuildLocalizesOpenAPIForRequestLocale(t *testing.T) {
 		"core.internal.service.apidoc.testHostListReq.fields.pageNum.dc":             "页码",
 		"core.internal.service.apidoc.testHostListReq.meta.summary":                  "获取用户列表",
 		"core.internal.service.apidoc.testHostListReq.meta.tags":                     "用户管理",
+		"core.internal.service.apidoc.testHostExportReq.meta.summary":                "导出用户列表",
+		"core.internal.service.apidoc.testHostExportReq.meta.tags":                   "用户管理",
 		"core.internal.service.apidoc.testSourceEnabledReq.meta.tags":                "源码插件示例",
 		"plugins.linapro_demo_dynamic.paths.get.api.v1.backend_summary.meta.summary": "查询动态插件后端执行摘要",
 	})
@@ -269,6 +305,16 @@ func TestBuildLocalizesOpenAPIForRequestLocale(t *testing.T) {
 	}
 	if got := zhHostOperation.Summary; got != "获取用户列表" {
 		t.Fatalf("expected Chinese host summary 获取用户列表, got %s", got)
+	}
+	zhHostExportOperation := zhDocument.Paths["/api/v1/host/items/export"].Get
+	if zhHostExportOperation == nil {
+		t.Fatalf("expected localized Chinese host export operation to be present")
+	}
+	if got := zhHostExportOperation.Summary; got != "导出用户列表" {
+		t.Fatalf("expected Chinese host export summary 导出用户列表, got %s", got)
+	}
+	if got := zhHostExportOperation.XExtensions[openAPIOperationKeyExtension]; got != "" {
+		t.Fatalf("expected internal operation key marker to be removed, got %s", got)
 	}
 	if len(zhHostOperation.Parameters) == 0 || zhHostOperation.Parameters[0].Value == nil {
 		t.Fatalf("expected Chinese host operation to expose query parameters")
@@ -343,7 +389,6 @@ func TestLocalizeSchemaTranslatesAlreadySeenDirectMetadata(t *testing.T) {
 func TestEnglishLocalizerPreservesGeneratedSchemaMetadata(t *testing.T) {
 	service := New(&testConfigProvider{}, bizctx.New(), i18nsvc.New(bizctx.New(), configsvc.New(), cachecoord.Default(nil)), &testPluginRouteProvider{}).(*serviceImpl)
 	localizer := &openAPILocalizer{
-		locale:  i18nsvc.EnglishLocale,
 		catalog: map[string]string{},
 	}
 	schema := &goai.Schema{

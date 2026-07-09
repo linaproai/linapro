@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/os/gctx"
 	_ "lina-core/pkg/dbdriver"
+
+	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/internal/model"
 	"lina-core/internal/service/bizctx"

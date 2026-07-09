@@ -59,21 +59,24 @@ const targetRequestedServices = computed<HostServicePermissionItem[]>(() => {
 });
 
 const targetHostServiceCards = computed(() => {
-  return buildPluginAuthorizationHostServiceCards(targetRequestedServices.value, {
-    authorizationRequired:
-      preview.value?.hostServicesDiff.authorizationRequired === true,
-    buildScopeContainerTestId: (service) => {
-      return currentPlugin.value
-        ? `plugin-upgrade-host-service-${currentPlugin.value.id}-${service}`
-        : undefined;
+  return buildPluginAuthorizationHostServiceCards(
+    targetRequestedServices.value,
+    {
+      authorizationRequired:
+        preview.value?.hostServicesDiff.authorizationRequired === true,
+      buildScopeContainerTestId: (service) => {
+        return currentPlugin.value
+          ? `plugin-upgrade-host-service-${currentPlugin.value.id}-${service}`
+          : undefined;
+      },
+      buildScopeItemTestIdPrefix: (service) => {
+        return currentPlugin.value
+          ? `plugin-upgrade-host-service-item-${currentPlugin.value.id}-${service}`
+          : undefined;
+      },
+      targetSummaryBadgeColor: 'gold',
     },
-    buildScopeItemTestIdPrefix: (service) => {
-      return currentPlugin.value
-        ? `plugin-upgrade-host-service-item-${currentPlugin.value.id}-${service}`
-        : undefined;
-    },
-    targetSummaryBadgeColor: 'gold',
-  });
+  );
 });
 
 const hostServiceChanges = computed(() => {
@@ -86,7 +89,10 @@ const hostServiceChanges = computed(() => {
 });
 
 const hasHostServiceReview = computed(() => {
-  return targetHostServiceCards.value.length > 0 || hostServiceChanges.value.length > 0;
+  return (
+    targetHostServiceCards.value.length > 0 ||
+    hostServiceChanges.value.length > 0
+  );
 });
 
 const hasDependencyContent = computed(() => {
@@ -167,7 +173,7 @@ function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
   return {
     authorization: {
       services: targetRequestedServices.value
-        .filter((service) => hasServiceTargets(service))
+        .filter((service) => shouldSubmitHostServiceAuthorization(service))
         .map((service) => ({
           methods: service.methods,
           paths:
@@ -188,17 +194,21 @@ function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
   };
 }
 
-function hasServiceTargets(service: HostServicePermissionItem) {
+function shouldSubmitHostServiceAuthorization(
+  service: HostServicePermissionItem,
+) {
   return (
+    (service.methods ?? []).length > 0 ||
     (service.paths ?? []).length > 0 ||
     (service.tables ?? []).length > 0 ||
-    (service.cronItems ?? []).length > 0 ||
     (service.resources ?? []).length > 0
   );
 }
 
 function updateConfirmDisabled() {
-  modalApi.setState({ confirmDisabled: previewLoading.value || !preview.value });
+  modalApi.setState({
+    confirmDisabled: previewLoading.value || !preview.value,
+  });
 }
 
 function handleClosed() {
@@ -369,16 +379,36 @@ function resolveRuntimeErrorMessage(error: unknown) {
         <DescriptionsItem :label="$t('pages.system.plugin.fields.type')">
           {{ formatPluginType(currentPlugin.type) }}
         </DescriptionsItem>
-        <DescriptionsItem :label="$t('pages.system.plugin.fields.runtimeState')">
-          <Tag :color="getRuntimeStateColor(preview?.runtimeState || currentPlugin.runtimeState)">
-            {{ formatRuntimeState(preview?.runtimeState || currentPlugin.runtimeState) }}
+        <DescriptionsItem
+          :label="$t('pages.system.plugin.fields.runtimeState')"
+        >
+          <Tag
+            :color="
+              getRuntimeStateColor(
+                preview?.runtimeState || currentPlugin.runtimeState,
+              )
+            "
+          >
+            {{
+              formatRuntimeState(
+                preview?.runtimeState || currentPlugin.runtimeState,
+              )
+            }}
           </Tag>
         </DescriptionsItem>
-        <DescriptionsItem :label="$t('pages.system.plugin.fields.effectiveVersion')">
-          {{ preview?.effectiveVersion || currentPlugin.effectiveVersion || '-' }}
+        <DescriptionsItem
+          :label="$t('pages.system.plugin.fields.effectiveVersion')"
+        >
+          {{
+            preview?.effectiveVersion || currentPlugin.effectiveVersion || '-'
+          }}
         </DescriptionsItem>
-        <DescriptionsItem :label="$t('pages.system.plugin.fields.discoveredVersion')">
-          {{ preview?.discoveredVersion || currentPlugin.discoveredVersion || '-' }}
+        <DescriptionsItem
+          :label="$t('pages.system.plugin.fields.discoveredVersion')"
+        >
+          {{
+            preview?.discoveredVersion || currentPlugin.discoveredVersion || '-'
+          }}
         </DescriptionsItem>
       </Descriptions>
 
@@ -392,17 +422,23 @@ function resolveRuntimeErrorMessage(error: unknown) {
             class="rounded-md border border-[var(--ant-color-border)] p-3"
             data-testid="plugin-upgrade-from-manifest"
           >
-            <div class="mb-2 text-sm font-semibold text-[var(--ant-color-text)]">
+            <div
+              class="mb-2 text-sm font-semibold text-[var(--ant-color-text)]"
+            >
               {{ $t('pages.system.plugin.upgrade.fromManifest') }}
             </div>
             <Descriptions size="small" :column="1">
               <DescriptionsItem :label="$t('pages.system.plugin.fields.name')">
                 {{ formatSnapshotName(preview.fromManifest) }}
               </DescriptionsItem>
-              <DescriptionsItem :label="$t('pages.system.plugin.fields.version')">
+              <DescriptionsItem
+                :label="$t('pages.system.plugin.fields.version')"
+              >
                 {{ preview.fromManifest?.version || '-' }}
               </DescriptionsItem>
-              <DescriptionsItem :label="$t('pages.system.plugin.fields.description')">
+              <DescriptionsItem
+                :label="$t('pages.system.plugin.fields.description')"
+              >
                 {{ preview.fromManifest?.description || '-' }}
               </DescriptionsItem>
             </Descriptions>
@@ -412,17 +448,23 @@ function resolveRuntimeErrorMessage(error: unknown) {
             class="rounded-md border border-[var(--ant-color-primary)] bg-[var(--ant-color-primary-bg)] p-3"
             data-testid="plugin-upgrade-to-manifest"
           >
-            <div class="mb-2 text-sm font-semibold text-[var(--ant-color-primary)]">
+            <div
+              class="mb-2 text-sm font-semibold text-[var(--ant-color-primary)]"
+            >
               {{ $t('pages.system.plugin.upgrade.toManifest') }}
             </div>
             <Descriptions size="small" :column="1">
               <DescriptionsItem :label="$t('pages.system.plugin.fields.name')">
                 {{ formatSnapshotName(preview.toManifest) }}
               </DescriptionsItem>
-              <DescriptionsItem :label="$t('pages.system.plugin.fields.version')">
+              <DescriptionsItem
+                :label="$t('pages.system.plugin.fields.version')"
+              >
                 {{ preview.toManifest?.version || '-' }}
               </DescriptionsItem>
-              <DescriptionsItem :label="$t('pages.system.plugin.fields.description')">
+              <DescriptionsItem
+                :label="$t('pages.system.plugin.fields.description')"
+              >
                 {{ preview.toManifest?.description || '-' }}
               </DescriptionsItem>
             </Descriptions>
@@ -443,23 +485,44 @@ function resolveRuntimeErrorMessage(error: unknown) {
         <PluginSectionTitle test-id="plugin-upgrade-sql-section-title">
           {{ $t('pages.system.plugin.upgrade.sqlSection') }}
         </PluginSectionTitle>
-        <div class="grid gap-2 md:grid-cols-4" data-testid="plugin-upgrade-sql-summary">
+        <div
+          class="grid gap-2 md:grid-cols-4"
+          data-testid="plugin-upgrade-sql-summary"
+        >
           <Tag color="blue">
-            {{ $t('pages.system.plugin.upgrade.installSqlCount', { count: preview.sqlSummary.installSqlCount }) }}
+            {{
+              $t('pages.system.plugin.upgrade.installSqlCount', {
+                count: preview.sqlSummary.installSqlCount,
+              })
+            }}
           </Tag>
           <Tag color="purple">
-            {{ $t('pages.system.plugin.upgrade.runtimeSqlCount', { count: preview.sqlSummary.runtimeSqlAssetCount }) }}
+            {{
+              $t('pages.system.plugin.upgrade.runtimeSqlCount', {
+                count: preview.sqlSummary.runtimeSqlAssetCount,
+              })
+            }}
           </Tag>
           <Tag color="default">
-            {{ $t('pages.system.plugin.upgrade.uninstallSqlCount', { count: preview.sqlSummary.uninstallSqlCount }) }}
+            {{
+              $t('pages.system.plugin.upgrade.uninstallSqlCount', {
+                count: preview.sqlSummary.uninstallSqlCount,
+              })
+            }}
           </Tag>
           <Tag color="gold">
-            {{ $t('pages.system.plugin.upgrade.mockSqlExcluded', { count: preview.sqlSummary.mockSqlCount }) }}
+            {{
+              $t('pages.system.plugin.upgrade.mockSqlExcluded', {
+                count: preview.sqlSummary.mockSqlCount,
+              })
+            }}
           </Tag>
         </div>
 
         <template v-if="hasHostServiceReview">
-          <PluginSectionTitle test-id="plugin-upgrade-host-service-section-title">
+          <PluginSectionTitle
+            test-id="plugin-upgrade-host-service-section-title"
+          >
             {{ $t('pages.system.plugin.upgrade.hostServiceSection') }}
           </PluginSectionTitle>
           <div
@@ -473,8 +536,8 @@ function resolveRuntimeErrorMessage(error: unknown) {
               :color="getHostServiceChangeColor(change.kind)"
             >
               {{ formatHostServiceChangeKind(change.kind) }}
-              · {{ formatServiceLabel(change.service) }}
-              · {{ summarizeHostServiceChange(change) }}
+              · {{ formatServiceLabel(change.service) }} ·
+              {{ summarizeHostServiceChange(change) }}
             </Tag>
           </div>
           <PluginHostServiceCards

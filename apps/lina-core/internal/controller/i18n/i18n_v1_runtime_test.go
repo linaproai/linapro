@@ -26,19 +26,22 @@ import (
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
-	"lina-core/pkg/plugin/capability/orgcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
+
+	_ "lina-core/pkg/dbdriver"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gctx"
-	_ "lina-core/pkg/dbdriver"
 )
 
 // newTestI18nService creates a standalone i18n service for tests.
 func newTestI18nService() i18nsvc.Service {
-	configSvc := hostconfig.New()
-	bizCtxSvc := bizctx.New()
-	clusterSvc := cluster.New(configSvc.GetCluster(context.Background()))
+	var (
+		configSvc  = hostconfig.New()
+		bizCtxSvc  = bizctx.New()
+		clusterSvc = cluster.New(configSvc.GetCluster(context.Background()))
+	)
 	return i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(clusterSvc))
 }
 
@@ -49,9 +52,7 @@ func TestRuntimeMessagesUsesExplicitLangOverride(t *testing.T) {
 
 	i18nSvc := newTestI18nService()
 	controller := &ControllerV1{
-		localeResolver: i18nSvc,
-		bundleProvider: i18nSvc,
-		maintainer:     i18nSvc,
+		i18nSvc: i18nSvc,
 	}
 	ctx := context.WithValue(
 		context.Background(),
@@ -83,9 +84,7 @@ func TestRuntimeLocalesReturnsLocalizedDescriptors(t *testing.T) {
 
 	i18nSvc := newTestI18nService()
 	controller := &ControllerV1{
-		localeResolver: i18nSvc,
-		bundleProvider: i18nSvc,
-		maintainer:     i18nSvc,
+		i18nSvc: i18nSvc,
 	}
 	ctx := context.WithValue(
 		context.Background(),
@@ -103,7 +102,7 @@ func TestRuntimeLocalesReturnsLocalizedDescriptors(t *testing.T) {
 	if !res.Enabled {
 		t.Fatal("expected runtime locale switch to be enabled by default")
 	}
-	expectedItems := i18nSvc.ListRuntimeLocales(ctx, i18nsvc.EnglishLocale)
+	expectedItems := i18nSvc.RuntimeLocales(ctx, i18nsvc.EnglishLocale).Items
 	if len(res.Items) != len(expectedItems) {
 		t.Fatalf("expected %d locale descriptors, got %d", len(expectedItems), len(res.Items))
 	}
@@ -127,8 +126,7 @@ func TestRuntimeLocalesReturnsDisabledDefaultOnly(t *testing.T) {
 	t.Parallel()
 
 	controller := &ControllerV1{
-		localeResolver: disabledRuntimeLocaleService{},
-		bundleProvider: disabledRuntimeLocaleService{},
+		i18nSvc: disabledRuntimeLocaleService{},
 	}
 
 	res, err := controller.RuntimeLocales(context.Background(), &v1.RuntimeLocalesReq{Lang: i18nsvc.EnglishLocale})
@@ -152,9 +150,10 @@ func TestRuntimeLocalesReturnsDisabledDefaultOnly(t *testing.T) {
 	}
 }
 
-// disabledRuntimeLocaleService is a narrow fake for controller disabled-i18n
-// response-shape tests.
-type disabledRuntimeLocaleService struct{}
+// disabledRuntimeLocaleService is a fake for controller disabled-i18n response-shape tests.
+type disabledRuntimeLocaleService struct {
+	i18nsvc.Service
+}
 
 const (
 	// disabledRuntimeBundleFingerprint is a stable fake fingerprint for tests.
@@ -176,40 +175,26 @@ func (disabledRuntimeLocaleService) GetLocale(_ context.Context) string {
 	return i18nsvc.DefaultLocale
 }
 
-// EnsureRuntimeBundleCacheFresh is a no-op for the disabled-locale fake.
-func (disabledRuntimeLocaleService) EnsureRuntimeBundleCacheFresh(_ context.Context) error {
-	return nil
-}
-
 // BundleRevision returns a stable fake bundle revision.
-func (disabledRuntimeLocaleService) BundleRevision(_ string) i18nsvc.RuntimeBundleRevision {
+func (disabledRuntimeLocaleService) BundleRevision(_ context.Context, _ string) (i18nsvc.RuntimeBundleRevision, error) {
 	return i18nsvc.RuntimeBundleRevision{
 		Version:     1,
 		Fingerprint: disabledRuntimeBundleFingerprint,
-	}
+	}, nil
 }
 
-// BundleVersion returns a stable fake bundle version.
-func (disabledRuntimeLocaleService) BundleVersion(_ string) uint64 {
-	return 1
-}
-
-// ListRuntimeLocales returns only the default locale descriptor.
-func (disabledRuntimeLocaleService) ListRuntimeLocales(_ context.Context, _ string) []i18nsvc.LocaleDescriptor {
-	return []i18nsvc.LocaleDescriptor{
-		{
+// RuntimeLocales returns only the default locale descriptor.
+func (disabledRuntimeLocaleService) RuntimeLocales(_ context.Context, _ string) i18nsvc.RuntimeLocalesOutput {
+	return i18nsvc.RuntimeLocalesOutput{
+		Enabled: false,
+		Items: []i18nsvc.LocaleDescriptor{{
 			Locale:     i18nsvc.DefaultLocale,
 			Name:       "简体中文",
 			NativeName: "简体中文",
 			Direction:  i18nsvc.LocaleDirectionLTR.String(),
 			IsDefault:  true,
-		},
+		}},
 	}
-}
-
-// IsMultiLanguageEnabled reports disabled runtime language switching.
-func (disabledRuntimeLocaleService) IsMultiLanguageEnabled(_ context.Context) bool {
-	return false
 }
 
 // BuildRuntimeMessages returns an empty fake runtime bundle.
@@ -226,13 +211,8 @@ type countingRuntimeLocaleService struct {
 }
 
 // BundleRevision returns the configured fake runtime bundle revision.
-func (s *countingRuntimeLocaleService) BundleRevision(_ string) i18nsvc.RuntimeBundleRevision {
-	return s.revision
-}
-
-// BundleVersion returns the configured fake runtime bundle version.
-func (s *countingRuntimeLocaleService) BundleVersion(_ string) uint64 {
-	return s.revision.Version
+func (s *countingRuntimeLocaleService) BundleRevision(_ context.Context, _ string) (i18nsvc.RuntimeBundleRevision, error) {
+	return s.revision, nil
 }
 
 // BuildRuntimeMessages records that a full response body was built.
@@ -423,8 +403,7 @@ func TestRuntimeMessagesWarmETagSkipsBundleBuild(t *testing.T) {
 		},
 	}
 	controller := &ControllerV1{
-		localeResolver: bundleSvc,
-		bundleProvider: bundleSvc,
+		i18nSvc: bundleSvc,
 	}
 	address := startRuntimeMessagesControllerTestServer(t, controller)
 	etag, ok := buildRuntimeMessagesETag(i18nsvc.DefaultLocale, bundleSvc.revision)
@@ -503,18 +482,16 @@ func startRuntimeMessagesControllerTestServer(t *testing.T, controller any) stri
 // newRuntimeMessagesTestMiddleware constructs response middleware with
 // explicit dependencies so controller tests do not rely on disabled defaults.
 func newRuntimeMessagesTestMiddleware() middlewaresvc.Service {
-	configSvc := hostconfig.New()
-	bizCtxSvc := bizctx.New()
-	i18nSvc := newTestI18nService()
-	cacheCoordSvc := cachecoord.Default(nil)
-	pluginSvc, err := pluginsvc.New(nil, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, session.NewDBStore(), nil)
-	if err != nil {
-		panic(err)
-	}
-	orgCapSvc := orgcap.New(pluginSvc)
-	tenantSvc := tenantcapsvc.New(pluginSvc, nil)
-	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, tenantSvc)
-	roleSvc.SetDataScopeService(datascope.New(bizCtxSvc, roleSvc, orgCapSvc))
-	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, session.NewDBStore(), kvcache.New())
-	return middlewaresvc.New(authSvc, bizCtxSvc, configSvc, i18nSvc, pluginSvc, roleSvc, tenantSvc)
+	var (
+		configSvc     = hostconfig.New()
+		bizCtxSvc     = bizctx.New()
+		i18nSvc       = newTestI18nService()
+		pluginRuntime = pluginsvc.NewRuntimeDelegate()
+		orgCapSvc     = orgspi.New(nil, pluginRuntime, pluginRuntime.OrgProviderEnv)
+		tenantSvc     = tenantspi.New(nil, pluginRuntime, pluginRuntime.TenantProviderEnv, nil)
+		roleSvc       = role.New(pluginRuntime, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
+	)
+	roleSvc.SetDataScopeService(datascope.New(bizCtxSvc, roleSvc, orgCapSvc.Scope()))
+	authSvc := auth.New(configSvc, pluginRuntime, orgCapSvc, roleSvc, tenantSvc, session.NewDBStore(), kvcache.New())
+	return middlewaresvc.New(authSvc, bizCtxSvc, configSvc, i18nSvc, roleSvc, tenantSvc)
 }

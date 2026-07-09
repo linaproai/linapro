@@ -6,6 +6,7 @@ package frontend
 import (
 	"context"
 	"io/fs"
+	pluginv1 "lina-core/api/plugin/v1"
 	"mime"
 	"net/http"
 	"os"
@@ -15,18 +16,20 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/resourcefs"
+	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/pluginhost"
+	"lina-core/pkg/statusflag"
 )
 
 // PrewarmRuntimeFrontendBundles rebuilds in-memory frontend bundles for all enabled
 // dynamic plugins during host startup. A single failed preload does not stop the host;
 // errors are collected and returned as one joined error.
 func (s *serviceImpl) PrewarmRuntimeFrontendBundles(ctx context.Context) error {
-	registries, err := s.catalogSvc.ListAllRegistries(ctx)
+	registries, err := s.storeSvc.ListAllRegistries(ctx)
 	if err != nil {
 		return err
 	}
@@ -37,10 +40,10 @@ func (s *serviceImpl) PrewarmRuntimeFrontendBundles(ctx context.Context) error {
 		if registry == nil {
 			continue
 		}
-		if catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
+		if plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 			continue
 		}
-		if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
+		if registry.Installed != statusflag.Installed.Int() || registry.Status != statusflag.EnabledValue.Int() {
 			s.InvalidateBundle(ctx, registry.PluginId, "plugin_not_enabled_during_prewarm")
 			continue
 		}
@@ -99,7 +102,7 @@ func (s *serviceImpl) ResolveRuntimeFrontendAsset(
 	if len(manifest.PublicAssets) == 0 {
 		return nil, gerror.New("current plugin does not declare public assets")
 	}
-	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
+	if plugintypes.NormalizeType(manifest.Type) == pluginv1.PluginTypeSource {
 		return s.resolveSourcePublicAsset(ctx, manifest, relativePath)
 	}
 	if manifest.RuntimeArtifact == nil || len(manifest.RuntimeArtifact.FrontendAssets) == 0 {
@@ -165,22 +168,22 @@ func HasFrontendAssets(manifest *catalog.Manifest) bool {
 
 // loadActiveDynamicPluginManifest returns the currently active dynamic-plugin manifest
 // reloaded from the stable release archive.
-func (s *serviceImpl) loadActiveDynamicPluginManifest(ctx context.Context, registry *entity.SysPlugin) (*catalog.Manifest, error) {
+func (s *serviceImpl) loadActiveDynamicPluginManifest(ctx context.Context, registry *store.PluginRecord) (*catalog.Manifest, error) {
 	if registry == nil {
 		return nil, gerror.New("plugin registry record cannot be nil")
 	}
-	if catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
+	if plugintypes.NormalizeType(registry.Type) != pluginv1.PluginTypeDynamic {
 		return nil, gerror.New("current plugin is not dynamic")
 	}
 
-	release, err := s.catalogSvc.GetRegistryRelease(ctx, registry)
+	release, err := s.storeSvc.GetRegistryRelease(ctx, registry)
 	if err != nil {
 		return nil, err
 	}
 	if release == nil {
 		return nil, gerror.Newf("dynamic plugin is missing active release: %s", registry.PluginId)
 	}
-	return s.catalogSvc.LoadReleaseManifest(ctx, release)
+	return s.storeSvc.LoadReleaseManifest(ctx, release)
 }
 
 // resolvePublicAssetManifest loads the manifest that owns a requested
@@ -188,19 +191,19 @@ func (s *serviceImpl) loadActiveDynamicPluginManifest(ctx context.Context, regis
 // releases while the plugin remains enabled; source plugins use the active
 // discovered manifest because they are compiled into the host.
 func (s *serviceImpl) resolvePublicAssetManifest(ctx context.Context, pluginID string, version string) (*catalog.Manifest, error) {
-	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+	registry, err := s.storeSvc.GetRegistry(ctx, pluginID)
 	if err != nil {
 		return nil, err
 	}
-	if registry != nil && catalog.NormalizeType(registry.Type) == catalog.TypeDynamic {
-		release, releaseErr := s.catalogSvc.GetRelease(ctx, pluginID, version)
+	if registry != nil && plugintypes.NormalizeType(registry.Type) == pluginv1.PluginTypeDynamic {
+		release, releaseErr := s.storeSvc.GetRelease(ctx, pluginID, version)
 		if releaseErr != nil {
 			return nil, releaseErr
 		}
 		if release == nil || !isReleaseServable(release) {
 			return nil, gerror.New("current dynamic plugin version does not exist or has switched")
 		}
-		return s.catalogSvc.LoadReleaseManifest(ctx, release)
+		return s.storeSvc.LoadReleaseManifest(ctx, release)
 	}
 
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
@@ -212,12 +215,12 @@ func (s *serviceImpl) resolvePublicAssetManifest(ctx context.Context, pluginID s
 
 // isReleaseServable reports whether a release row is in a state that allows
 // versioned public asset serving.
-func isReleaseServable(release *entity.SysPluginRelease) bool {
+func isReleaseServable(release *store.ReleaseRecord) bool {
 	if release == nil {
 		return false
 	}
 	switch strings.TrimSpace(release.Status) {
-	case catalog.ReleaseStatusActive.String(), catalog.ReleaseStatusInstalled.String():
+	case plugintypes.ReleaseStatusActive.String(), plugintypes.ReleaseStatusInstalled.String():
 		return true
 	default:
 		return false

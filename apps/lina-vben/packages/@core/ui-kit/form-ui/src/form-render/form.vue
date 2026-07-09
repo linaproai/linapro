@@ -53,8 +53,12 @@ const wrapperClass = computed(() => {
 
 provideFormRenderProps(props);
 
-// @ts-expect-error unused
-const { isCalculated, keepFormItemIndex, wrapperRef } = useExpandable(props);
+const { hasCollapsibleItems, isCalculated, keepFormItemIndex } =
+  useExpandable(props);
+
+const showEffectiveCollapseButton = computed(() => {
+  return props.showCollapseButton && hasCollapsibleItems.value;
+});
 
 const shapes = computed(() => {
   const resultShapes: FormShape[] = [];
@@ -92,7 +96,9 @@ const formComponentProps = computed(() => {
 });
 
 const formCollapsed = computed(() => {
-  return props.collapsed && isCalculated.value;
+  return (
+    props.collapsed && isCalculated.value && showEffectiveCollapseButton.value
+  );
 });
 
 const computedSchema = computed(
@@ -122,7 +128,7 @@ const computedSchema = computed(
 
       const hidden =
         // 折叠状态 & 显示折叠按钮 & 当前索引大于保留索引
-        props.showCollapseButton && !!formCollapsed.value && keepIndex
+        showEffectiveCollapseButton.value && !!formCollapsed.value && keepIndex
           ? keepIndex <= index
           : false;
 
@@ -179,6 +185,7 @@ const computedSchema = computed(
         <FormField
           v-bind="cSchema"
           :class="cSchema.formItemClass"
+          data-form-render-field
           :rules="cSchema.rules"
         >
           <template #default="slotProps">
@@ -186,7 +193,10 @@ const computedSchema = computed(
           </template>
         </FormField>
       </template>
-      <slot :shapes="shapes"></slot>
+      <slot
+        :shapes="shapes"
+        :show-collapse-button="showEffectiveCollapseButton"
+      ></slot>
     </div>
   </component>
 </template>

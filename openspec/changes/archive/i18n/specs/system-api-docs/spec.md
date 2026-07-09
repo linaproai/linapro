@@ -1,30 +1,32 @@
 ## ADDED Requirements
 
-### Requirement: API documentation must use English source copy and independent apidoc translation resources
-The host system SHALL maintain readable English OpenAPI documentation source text in host, source-plugin, and dynamic-plugin API DTOs, including route groups, summaries, descriptions, request parameter descriptions, response parameter descriptions, and fixed route projection copy. API documentation localization SHALL run while rendering `/api.json` according to the current request language, using independent `manifest/i18n/<locale>/apidoc/**/*.json` resources decoupled from runtime UI resources. Host API translations SHALL be maintained under `apps/lina-core/manifest/i18n/<locale>/apidoc/`. Plugin API translations SHALL be maintained independently by each plugin under `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>/apidoc/`. The lina-core apidoc module SHALL discover and merge these resources at render time. English API documentation SHALL directly use English source copy, and every `manifest/i18n/en-US/apidoc/**/*.json` file SHALL remain an empty-object placeholder.
+### Requirement: 接口文档页面必须展示加载状态
 
-#### Scenario: Chinese API documentation is projected through apidoc JSON
-- **WHEN** an administrator requests `/api.json?lang=zh-CN`
-- **THEN** English source copy maintained in API DTOs is mapped to Chinese through stable structured keys in `manifest/i18n/zh-CN/apidoc/**/*.json`
-- **AND** plugin API translation keys are provided by each plugin's own apidoc i18n JSON
+系统 SHALL 在接口文档 iframe 加载 Stoplight Elements 脚本和 `/api.json` 文档内容期间展示可见 Loading 状态，避免接口数量较多时出现长时间空白页面。
 
-#### Scenario: API copy changes validate apidoc translation coverage
-- **WHEN** a developer adds or modifies OpenAPI documentation tags
-- **THEN** the developer must update the owning host or plugin non-English apidoc translation resources
-- **AND** automated tests or review rules must block missing non-English translations
+#### Scenario: 接口文档内容仍在加载
+- **当** 管理员打开系统接口文档页面
+- **且** iframe 内的 Stoplight Elements 尚未完成接口索引渲染
+- **则** iframe 内展示加载中的状态提示
+- **且** 加载状态根据当前语言环境展示对应语言文案
 
-### Requirement: API documentation translation resource loading must reuse the unified ResourceLoader
-The system SHALL let apidoc translation resource loading be completed through the unified `ResourceLoader` in `pkg/i18nresource/`, with `Subdir="manifest/i18n"`, `LocaleSubdir="apidoc"`, `LayoutMode=LocaleSubdirectoryRecursive`, and `PluginScope=RestrictedToPluginNamespace`.
+#### Scenario: 接口文档完成渲染
+- **当** Stoplight Elements 已经渲染出接口文档侧边栏内容
+- **则** iframe 内的加载状态自动隐藏
+- **且** 管理员可以继续浏览接口文档和调试面板
 
-#### Scenario: apidoc and runtime bundle share resource loader implementation
-- **WHEN** the system loads apidoc translation resources
-- **THEN** the loading process completes through `i18nresource.ResourceLoader`
-- **AND** no duplicate directory traversal or `wasm` parsing logic exists compared to the `i18n` package
+### Requirement: 中文接口文档标题必须使用本地化文案
 
-### Requirement: API documentation metadata must align with project positioning
-The system SHALL ensure that OpenAPI titles, descriptions, and page introductions used by the system API documentation page align with LinaPro's unified project positioning.
+系统 SHALL 在中文语言环境生成 `/api.json` 时，使用稳定的接口文档本地化键翻译接口模块标题和接口摘要，不得因接口数量较多、接口描述重复或 GET/DELETE 接口缺少请求体而回退为英文标题。
 
-#### Scenario: Generated OpenAPI metadata
-- **WHEN** the host generates or reads OpenAPI document titles and descriptions
-- **THEN** titles and descriptions use semantics consistent with the LinaPro project positioning
-- **AND** no longer use "LinaPro Admin API", "backend management system API documentation", or equivalent expressions
+#### Scenario: 静态接口描述重复
+- **当** 多个静态接口使用相同的 `g.Meta dc` 描述
+- **且** 管理员在中文语言环境请求 `/api.json`
+- **则** 每个接口仍按其请求 DTO 对应的稳定本地化键翻译接口摘要
+- **且** 返回的 OpenAPI 文档不包含内部本地化辅助字段
+
+#### Scenario: 启用 i18n 的源码插件接口
+- **当** 已启用 `i18n` 的源码插件接口挂载在 `/x/<plugin-id>/...` 命名空间下
+- **且** 管理员在中文语言环境请求 `/api.json`
+- **则** 该源码插件接口优先按请求 DTO 对应的插件自有稳定本地化键翻译接口模块标题和接口摘要
+- **且** 不得因路径位于 `/x/<plugin-id>/...` 而错误回退到动态插件路径派生键

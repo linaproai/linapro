@@ -10,7 +10,7 @@ import (
 
 // DeptTree returns user department tree structure
 func (c *ControllerV1) DeptTree(ctx context.Context, req *v1.DeptTreeReq) (res *v1.DeptTreeRes, err error) {
-	nodes, err := c.orgCapSvc.UserDeptTree(ctx)
+	nodes, err := c.orgSvc.Workspace().UserDeptTree(ctx)
 	if err != nil {
 		return nil, err
 	}

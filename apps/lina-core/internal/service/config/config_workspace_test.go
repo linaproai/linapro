@@ -61,7 +61,6 @@ func TestGetWorkspaceBasePathRejectsInvalidValues(t *testing.T) {
 		{name: "host api", content: "workspace:\n  basePath: \"/api\"\n"},
 		{name: "plugin api", content: "workspace:\n  basePath: \"/x\"\n"},
 		{name: "plugin assets", content: "workspace:\n  basePath: \"/x-assets\"\n"},
-		{name: "legacy plugin assets", content: "workspace:\n  basePath: \"/plugin-assets\"\n"},
 	}
 
 	for _, testCase := range tests {

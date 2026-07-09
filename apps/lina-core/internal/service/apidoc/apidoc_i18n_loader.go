@@ -11,9 +11,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gogf/gf/v2/errors/gerror"
+	"gopkg.in/yaml.v3"
+
 	"lina-core/internal/packed"
 	i18nsvc "lina-core/internal/service/i18n"
-	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/pluginhost"
@@ -26,6 +28,8 @@ const (
 	openAPIPluginI18nDir = "manifest/i18n"
 	// openAPILocaleSubdir is the locale-scoped apidoc translation resource path.
 	openAPILocaleSubdir = "apidoc"
+	// sourcePluginManifestPath is the embedded source-plugin manifest path.
+	sourcePluginManifestPath = "plugin.yaml"
 )
 
 // openAPIMessageCache stores merged apidoc translation bundles per locale.
@@ -135,27 +139,76 @@ func (plugin openAPII18nSourcePlugin) GetEmbeddedFiles() fs.FS {
 // listOpenAPII18nSourcePlugins adapts i18n-managed source plugin manifests to
 // the shared ResourceLoader interface.
 func listOpenAPII18nSourcePlugins(ctx context.Context) []i18nresource.SourcePlugin {
-	manifests, err := pluginsvc.ScanRegisteredSourceManifests()
-	if err != nil {
-		logger.Warningf(ctx, "scan source plugin manifests for apidoc i18n resources failed err=%v", err)
+	sourcePlugins := pluginhost.ListSourcePlugins()
+	if len(sourcePlugins) == 0 {
 		return []i18nresource.SourcePlugin{}
 	}
+	sort.Slice(sourcePlugins, func(i, j int) bool {
+		return sourcePlugins[i].ID() < sourcePlugins[j].ID()
+	})
 
-	plugins := make([]i18nresource.SourcePlugin, 0, len(manifests))
-	for _, manifest := range manifests {
-		if manifest == nil || !manifest.I18NEnabled() || manifest.SourcePlugin == nil {
+	plugins := make([]i18nresource.SourcePlugin, 0, len(sourcePlugins))
+	for _, sourcePlugin := range sourcePlugins {
+		if sourcePlugin == nil {
 			continue
 		}
-		embeddedFiles := manifest.SourcePlugin.GetEmbeddedFiles()
-		if strings.TrimSpace(manifest.ID) == "" || embeddedFiles == nil {
+		embeddedFiles := sourcePlugin.GetEmbeddedFiles()
+		if embeddedFiles == nil {
+			logger.Warningf(ctx, "skip source plugin apidoc i18n resources because embedded files are missing plugin=%s", sourcePlugin.ID())
+			continue
+		}
+		manifest, err := readOpenAPISourcePluginManifest(embeddedFiles)
+		if err != nil {
+			logger.Warningf(ctx, "skip source plugin apidoc i18n resources because manifest cannot be read plugin=%s err=%v", sourcePlugin.ID(), err)
+			continue
+		}
+		if manifest == nil || !manifest.i18nEnabled() {
+			continue
+		}
+		pluginID := strings.TrimSpace(manifest.ID)
+		if pluginID == "" {
+			pluginID = strings.TrimSpace(sourcePlugin.ID())
+		}
+		if pluginID == "" {
 			continue
 		}
 		plugins = append(plugins, openAPII18nSourcePlugin{
-			id:    strings.TrimSpace(manifest.ID),
+			id:    pluginID,
 			files: embeddedFiles,
 		})
 	}
 	return plugins
+}
+
+// openAPISourcePluginManifest is the minimal plugin.yaml projection needed by
+// apidoc i18n loading. Full manifest validation remains owned by plugin catalog.
+type openAPISourcePluginManifest struct {
+	ID   string `yaml:"id"`
+	I18N *struct {
+		Enabled bool `yaml:"enabled"`
+	} `yaml:"i18n"`
+}
+
+// i18nEnabled reports whether one source plugin participates in apidoc i18n governance.
+func (manifest *openAPISourcePluginManifest) i18nEnabled() bool {
+	return manifest != nil && manifest.I18N != nil && manifest.I18N.Enabled
+}
+
+// readOpenAPISourcePluginManifest reads the source-plugin manifest projection
+// required for apidoc i18n filtering.
+func readOpenAPISourcePluginManifest(filesystem fs.FS) (*openAPISourcePluginManifest, error) {
+	if filesystem == nil {
+		return nil, gerror.New("source plugin embedded files are nil")
+	}
+	content, err := fs.ReadFile(filesystem, sourcePluginManifestPath)
+	if err != nil {
+		return nil, err
+	}
+	manifest := &openAPISourcePluginManifest{}
+	if err = yaml.Unmarshal(content, manifest); err != nil {
+		return nil, err
+	}
+	return manifest, nil
 }
 
 // loadOpenAPIEmbeddedBundle reads one locale bundle from an embedded filesystem.
@@ -164,13 +217,6 @@ func loadOpenAPIEmbeddedBundle(ctx context.Context, filesystem fs.FS, dir string
 		HostFS: filesystem,
 		Subdir: dir,
 	}).LoadHostBundle(ctx, locale)
-}
-
-// parseOpenAPIMessageCatalogJSON parses one apidoc bundle. Files may be
-// maintained as nested JSON or flat dotted keys, while the service keeps a flat
-// structured catalog internally.
-func parseOpenAPIMessageCatalogJSON(content []byte) (map[string]string, error) {
-	return i18nresource.ParseCatalog(content, i18nresource.ValueModeStringOnly)
 }
 
 // openAPIResourceLoader applies the common apidoc resource-loader defaults.

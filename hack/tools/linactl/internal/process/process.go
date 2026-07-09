@@ -16,3 +16,33 @@
 // Both files implement the same exported surface so callers can depend on
 // process.Alive and process.ConfigureDetached without writing build tags.
 package process
+
+import (
+	"fmt"
+	"os"
+	"strings"
+)
+
+// Info describes one visible operating-system process.
+type Info struct {
+	PID  int
+	Args []string
+	CWD  string
+}
+
+// CommandLine returns a readable command string for matching and diagnostics.
+func (i Info) CommandLine() string {
+	return strings.Join(i.Args, " ")
+}
+
+// Kill sends a platform default termination request to the process.
+func Kill(pid int) error {
+	if pid <= 1 {
+		return fmt.Errorf("invalid pid %d", pid)
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	return process.Kill()
+}

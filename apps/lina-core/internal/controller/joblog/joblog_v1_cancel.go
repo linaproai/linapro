@@ -7,7 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	"lina-core/api/joblog/v1"
+	jobv1 "lina-core/api/job/v1"
+	v1 "lina-core/api/joblog/v1"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
@@ -66,5 +67,5 @@ func isShellLog(logRow *entity.SysJobLog) bool {
 	if err := json.Unmarshal([]byte(logRow.JobSnapshot), &snapshot); err != nil {
 		return false
 	}
-	return jobmeta.NormalizeTaskType(snapshot.TaskType) == jobmeta.TaskTypeShell
+	return jobmeta.NormalizeTaskType(snapshot.TaskType) == jobv1.TaskTypeShell
 }

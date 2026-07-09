@@ -183,8 +183,8 @@ func (s *serviceImpl) newRoleMenuAssignmentClassifier(
 }
 
 // roleMenuAssignmentPlatformContext reports whether current context may assign
-// platform-control-plane permissions. Disabled tenancy keeps single-tenant
-// deployments compatible with existing platform-only behavior.
+// platform-control-plane permissions. Disabled tenancy is treated as platform
+// context because no tenant-scoped boundary exists.
 func (s *serviceImpl) roleMenuAssignmentPlatformContext(ctx context.Context) bool {
 	if s == nil || s.tenantSvc == nil {
 		return true
@@ -225,8 +225,7 @@ func loadRoleMenuPluginScopes(ctx context.Context, menus []*entity.SysMenu) (map
 	return scopes, nil
 }
 
-// collectRoleMenuPluginIDs extracts distinct plugin IDs from menu keys or
-// legacy remarks.
+// collectRoleMenuPluginIDs extracts distinct plugin IDs from menu keys.
 func collectRoleMenuPluginIDs(menus []*entity.SysMenu) []string {
 	seen := make(map[string]struct{}, len(menus))
 	ids := make([]string, 0)
@@ -356,16 +355,12 @@ func rolePermissionHasAnyPrefix(permission string, prefixes []string) bool {
 	return false
 }
 
-// roleMenuPluginID extracts the owner plugin ID from menu key first and legacy
-// remark second.
+// roleMenuPluginID extracts the owner plugin ID from the menu key.
 func roleMenuPluginID(menu *entity.SysMenu) string {
 	if menu == nil {
 		return ""
 	}
-	if pluginID := parseRoleMenuPluginID(menu.MenuKey); pluginID != "" {
-		return pluginID
-	}
-	return parseRoleMenuPluginID(menu.Remark)
+	return parseRoleMenuPluginID(menu.MenuKey)
 }
 
 // parseRoleMenuPluginID extracts the plugin ID from "plugin:<id>:..." or

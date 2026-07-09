@@ -32,8 +32,7 @@ func MilliFromTime(value time.Time) *int64 {
 }
 
 // MilliFromString converts a stored textual timestamp into a Unix timestamp in
-// milliseconds. Empty or unparsable values are projected as nil because this
-// helper is used only when adapting legacy storage strings into response DTOs.
+// milliseconds. Empty or unparsable values are projected as nil.
 func MilliFromString(value string) *int64 {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {

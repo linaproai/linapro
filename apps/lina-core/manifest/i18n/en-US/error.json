@@ -3,9 +3,13 @@
     "auth": {
       "external": {
         "identityInvalid": "External authentication provider returned an invalid identity",
-        "userNotProvisioned": "No local account is linked to this external identity"
+        "userNotProvisioned": "No local account is linked to this external identity",
+        "emailConflict": "An account with this email already exists; sign in and link the identity from account settings"
       },
       "login": {
+        "clientType": {
+          "invalid": "Client type is invalid"
+        },
         "invalidCredentials": "Invalid username or password",
         "ipBlacklisted": "Login from this IP address is blocked",
         "updateLastLoginFailed": "Failed to update last login time",
@@ -13,6 +17,9 @@
       },
       "password": {
         "hashFailed": "Failed to hash password"
+      },
+      "tenant": {
+        "unavailable": "Tenant is not available"
       },
       "token": {
         "invalid": "Invalid token",
@@ -37,6 +44,44 @@
         },
         "freshness": {
           "unavailable": "Cache freshness cannot be confirmed for {domain}/{scope}"
+        }
+      }
+    },
+    "ai": {
+      "text": {
+        "provider": {
+          "unavailable": "Text AI channel is unavailable"
+        },
+        "tier": {
+          "invalid": "Text AI tier {tier} is not supported"
+        },
+        "messages": {
+          "required": "Text AI generation requires at least one message"
+        },
+        "message": {
+          "role": {
+            "invalid": "Text AI message role {role} is not supported"
+          }
+        },
+        "thinking": {
+          "effort": {
+            "invalid": "Text AI thinking effort {effort} is not supported"
+          }
+        },
+        "purpose": {
+          "required": "Text AI purpose is required"
+        },
+        "metadata": {
+          "too": {
+            "large": "Text AI metadata exceeds the allowed size"
+          }
+        },
+        "max": {
+          "output": {
+            "tokens": {
+              "invalid": "Text AI max output tokens must be greater than or equal to zero"
+            }
+          }
         }
       }
     },
@@ -686,6 +731,13 @@
           }
         }
       },
+      "builtin": {
+        "management": {
+          "action": {
+            "denied": "Built-in plugin {pluginId} is managed by host startup and cannot be changed through ordinary plugin management"
+          }
+        }
+      },
       "dynamic": {
         "artifact": {
           "missing": "Dynamic plugin is missing {artifactPath} and cannot {action}. Run make wasm p={pluginId} first",
@@ -1117,7 +1169,8 @@
         },
         "expire": {
           "seconds": {
-            "negative": "Cache expiration seconds cannot be negative"
+            "negative": "Cache expiration seconds cannot be negative",
+            "required": "Cache expiration seconds must be greater than 0"
           }
         },
         "field": {
@@ -1248,6 +1301,9 @@
       "login": {
         "password": {
           "required": "Please enter a password"
+        },
+        "clientType": {
+          "required": "Please enter a client type"
         },
         "username": {
           "required": "Please enter a username"

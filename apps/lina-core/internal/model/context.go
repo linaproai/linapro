@@ -23,6 +23,11 @@ type Context struct {
 	// Example: 1.
 	Status int `json:"status"`
 
+	// ClientType is the user-session client type carried by the authenticated
+	// token, such as web, mobile, desktop, or cli.
+	// Example: "web".
+	ClientType string `json:"clientType"`
+
 	// TenantId is the current request tenant, where 0 means platform context.
 	// Example: 1001.
 	TenantId int `json:"tenantId"`

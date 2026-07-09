@@ -50,7 +50,7 @@ func runAgentsSkillsLink(_ context.Context, a *app, input commandInput) error {
 }
 
 // runAgentsSkillsLinkInteractive walks the user through a numbered
-// selection of link-class agents and optionally enables FORCE for
+// selection of link-class agents and optionally enables force for
 // mismatched rebuilds. Before showing the selection grid it renders a
 // full status overview that includes native and rootCollision agents,
 // so users can see every agent's current state — including agents that
@@ -89,7 +89,7 @@ func runAgentsSkillsLinkInteractive(a *app, force bool) error {
 		}
 		if hasMismatch {
 			confirmed, confirmErr := common.PromptYesNo(a.stdin, a.stdout,
-				"One or more selected agents have mismatched links. Rebuild with FORCE=1?", false)
+				"One or more selected agents have mismatched links. Rebuild with force=1?", false)
 			if confirmErr != nil {
 				return confirmErr
 			}

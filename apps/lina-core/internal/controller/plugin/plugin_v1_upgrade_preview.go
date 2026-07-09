@@ -5,7 +5,7 @@ package plugin
 import (
 	"context"
 
-	"lina-core/api/plugin/v1"
+	v1 "lina-core/api/plugin/v1"
 	pluginsvc "lina-core/internal/service/plugin"
 )
 
@@ -91,12 +91,10 @@ func buildPluginManifestSnapshotItem(
 		RequestedHostServices: buildHostServicePermissionItems(
 			snapshot.RequestedHostServices,
 			tableComments,
-			nil,
 		),
 		AuthorizedHostServices: buildHostServicePermissionItems(
 			snapshot.AuthorizedHostServices,
 			tableComments,
-			nil,
 		),
 	}
 }

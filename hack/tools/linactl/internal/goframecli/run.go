@@ -6,7 +6,6 @@ package goframecli
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	"linactl/internal/toolrun"
 )
@@ -16,9 +15,9 @@ const hiddenCommand = "__goframe"
 // Executable resolves the current linactl executable path.
 type Executable func() (string, error)
 
-// Run executes a whitelisted embedded GoFrame CLI command inside the core
-// application directory through linactl's hidden child command.
-func Run(ctx context.Context, root string, executable Executable, run toolrun.Runner, args ...string) error {
+// Run executes a whitelisted embedded GoFrame CLI command inside the target
+// GoFrame project directory through linactl's hidden child command.
+func Run(ctx context.Context, target Target, executable Executable, run toolrun.Runner, args ...string) error {
 	if err := validateArgs(args); err != nil {
 		return err
 	}
@@ -26,13 +25,14 @@ func Run(ctx context.Context, root string, executable Executable, run toolrun.Ru
 	if err != nil {
 		return fmt.Errorf("resolve linactl executable: %w", err)
 	}
-	childArgs := append([]string{hiddenCommand}, args...)
-	return run(ctx, toolrun.Options{Dir: coreDir(root)}, binary, childArgs...)
-}
-
-// coreDir returns the GoFrame project directory used for code generation.
-func coreDir(root string) string {
-	return filepath.Join(root, "apps", "lina-core")
+	if target.WorkDir == "" {
+		return fmt.Errorf("GoFrame code generation work directory is empty")
+	}
+	if target.ConfigDir == "" {
+		return fmt.Errorf("GoFrame code generation config directory is empty")
+	}
+	childArgs := append([]string{hiddenCommand, "--config-dir=" + target.ConfigDir}, args...)
+	return run(ctx, toolrun.Options{Dir: target.WorkDir}, binary, childArgs...)
 }
 
 // validateArgs restricts the embedded GoFrame surface to the code generation

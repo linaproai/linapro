@@ -3,6 +3,7 @@
 package imagebuilder
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -89,33 +90,6 @@ func defaultImageConfig() imageConfig {
 		BaseImage:  "alpine:3.22",
 		Dockerfile: "hack/docker/Dockerfile",
 	}
-}
-
-// discoverRepoRoot searches upward until the configured file is found.
-func discoverRepoRoot(configPath string) (string, string, error) {
-	start, err := os.Getwd()
-	if err != nil {
-		return "", "", err
-	}
-	if filepath.IsAbs(configPath) {
-		if _, statErr := os.Stat(configPath); statErr != nil {
-			return "", "", statErr
-		}
-		return filepath.Dir(filepath.Dir(configPath)), configPath, nil
-	}
-	current := start
-	for {
-		candidate := filepath.Join(current, configPath)
-		if _, statErr := os.Stat(candidate); statErr == nil {
-			return current, candidate, nil
-		}
-		parent := filepath.Dir(current)
-		if parent == current {
-			break
-		}
-		current = parent
-	}
-	return "", "", fmt.Errorf("cannot find %s from %s or its parents", configPath, start)
 }
 
 // loadConfig overlays root config from a YAML file.
@@ -215,14 +189,14 @@ func normalizeBuildConfig(cfg *buildConfig) error {
 }
 
 // normalizeImageConfig validates and completes derived image metadata values.
-func normalizeImageConfig(repoRoot string, cfg *imageConfig) error {
+func normalizeImageConfig(ctx context.Context, repoRoot string, cfg *imageConfig) error {
 	cfg.Name = strings.TrimSpace(cfg.Name)
 	cfg.Tag = strings.TrimSpace(cfg.Tag)
 	cfg.Registry = strings.Trim(strings.TrimSpace(cfg.Registry), "/")
 	cfg.BaseImage = strings.TrimSpace(cfg.BaseImage)
 	cfg.Dockerfile = filepath.Clean(strings.TrimSpace(cfg.Dockerfile))
 	if cfg.Tag == "" {
-		tag, err := deriveGitTag(repoRoot)
+		tag, err := deriveGitTag(ctx, repoRoot)
 		if err != nil {
 			return err
 		}

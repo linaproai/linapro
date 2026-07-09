@@ -6,15 +6,17 @@ import (
 	"context"
 	"strings"
 
-	"lina-core/api/jobhandler/v1"
+	v1 "lina-core/api/jobhandler/v1"
 	"lina-core/internal/service/jobmeta"
 )
 
 // List handles scheduled job handler list requests.
 func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListRes, err error) {
-	sourceFilter := jobmeta.NormalizeHandlerSource(string(req.Source))
-	keyword := strings.ToLower(strings.TrimSpace(req.Keyword))
-	items := make([]*v1.ListItem, 0)
+	var (
+		sourceFilter = jobmeta.NormalizeHandlerSource(string(req.Source))
+		keyword      = strings.ToLower(strings.TrimSpace(req.Keyword))
+		items        = make([]*v1.ListItem, 0)
+	)
 	for _, item := range c.registry.List() {
 		if sourceFilter.IsValid() && item.Source != sourceFilter {
 			continue

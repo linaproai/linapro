@@ -5,7 +5,7 @@ package jobhandler
 import (
 	"context"
 
-	"lina-core/api/jobhandler/v1"
+	v1 "lina-core/api/jobhandler/v1"
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	"lina-core/pkg/bizerr"
 )

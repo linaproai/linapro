@@ -92,9 +92,6 @@
 5. 启动宿主后，请求`GET /api/v1/i18n/runtime/locales?lang=<locale>`确认语言列表和元数据。
 6. 请求`GET /api/v1/i18n/runtime/messages?lang=<locale>`确认聚合后的运行时结果。
 7. 请求 `/api.json?lang=<locale>` 确认接口文档本地化结果。
-8. 使用`GET /api/v1/i18n/messages/missing?locale=<locale>`检查目标语言相对默认语言仍缺失的翻译键。
-9. 使用`GET /api/v1/i18n/messages/diagnostics?locale=<locale>`确认当前生效值来自宿主文件还是插件文件。
-10. 当需要离线校对或维护资源文件时，使用`GET /api/v1/i18n/messages/export?locale=<locale>`导出合并后的扁平 key 目录。
 
 ## 运行时接口缓存
 
@@ -103,12 +100,6 @@
 客户端应按语言持久化`{etag, messages, savedAt}`，下一次请求时带上`If-None-Match`。当服务端返回`304 Not Modified`时，响应体为空，客户端复用本地持久化语言包。
 
 运行时语言包失效必须带明确`scope`。宿主文件、源码插件和动态插件变更，应只失效受影响的语言、扇区或插件。整包清空只适用于进程级重载和测试清理。
-
-## 源码文案命名空间
-
-部分运行时 key 由代码源码文案拥有，例如内置调度任务标签。拥有该文案的业务包必须通过`i18n.RegisterSourceTextNamespace(prefix, reason)`注册对应前缀。
-
-`i18n`基础服务不得硬编码业务前缀。缺失翻译检查只会跳过已由所属模块注册的源码文案命名空间。
 
 ## 运行时文案治理
 

@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"lina-core/api/job/v1"
+	v1 "lina-core/api/job/v1"
 )
 
 // CronPreview handles requests that preview upcoming cron trigger times.

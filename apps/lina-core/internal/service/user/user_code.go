@@ -82,18 +82,6 @@ var (
 		"Not signed in",
 		gcode.CodeNotAuthorized,
 	)
-	// CodeUserDataScopeDenied reports that the requested user row is outside the current data scope.
-	CodeUserDataScopeDenied = bizerr.MustDefine(
-		"USER_DATA_SCOPE_DENIED",
-		"User data is outside the current data permission scope",
-		gcode.CodeNotAuthorized,
-	)
-	// CodeUserDataScopeUnsupported reports that an enabled role has an unsupported data scope.
-	CodeUserDataScopeUnsupported = bizerr.MustDefine(
-		"USER_DATA_SCOPE_UNSUPPORTED",
-		"Unsupported user data permission scope: {scope}",
-		gcode.CodeInvalidParameter,
-	)
 	// CodeUserTenantMembershipQueryFailed reports failure while checking tenant membership visibility.
 	CodeUserTenantMembershipQueryFailed = bizerr.MustDefine(
 		"USER_TENANT_MEMBERSHIP_QUERY_FAILED",
@@ -141,5 +129,18 @@ var (
 		"USER_IMPORT_SHEET_READ_FAILED",
 		"Failed to read worksheet {sheet}",
 		gcode.CodeInvalidParameter,
+	)
+	// CodeUserProvisionEmailInvalid reports that external provisioning received
+	// an empty or malformed email address.
+	CodeUserProvisionEmailInvalid = bizerr.MustDefine(
+		"USER_PROVISION_EMAIL_INVALID",
+		"External provisioning requires a valid email address",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeUserProvisionFailed reports that creating the provisioned user failed.
+	CodeUserProvisionFailed = bizerr.MustDefine(
+		"USER_PROVISION_FAILED",
+		"Failed to provision the external user",
+		gcode.CodeInternalError,
 	)
 )

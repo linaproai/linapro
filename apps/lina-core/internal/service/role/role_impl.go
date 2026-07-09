@@ -14,9 +14,7 @@ import (
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/apitime"
 	"lina-core/pkg/bizerr"
-	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/tenantcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 
 	"github.com/gogf/gf/v2/database/gdb"
 )
@@ -32,23 +30,6 @@ func (s *serviceImpl) SetDataScopeService(scopeSvc datascope.Service) {
 // FilterPermissionMenus returns the original menu slice unchanged.
 func (noopPermissionMenuFilter) FilterPermissionMenus(_ context.Context, menus []*entity.SysMenu) []*entity.SysMenu {
 	return menus
-}
-
-// organizationCapabilityStateFromPermissionFilter reuses the plugin service
-// dependency when it also exposes plugin enablement state.
-func organizationCapabilityStateFromPermissionFilter(permissionFilter PermissionMenuFilter) OrganizationCapabilityState {
-	if state, ok := permissionFilter.(OrganizationCapabilityState); ok {
-		return state
-	}
-	if pluginState, ok := permissionFilter.(pluginEnablementState); ok {
-		return pluginBackedOrganizationCapabilityState{pluginState: pluginState}
-	}
-	return nil
-}
-
-// Available reports whether linapro-org-core is enabled and the orgcap provider exists.
-func (s pluginBackedOrganizationCapabilityState) Available(ctx context.Context) bool {
-	return s.pluginState != nil && orgcapsvc.New(s.pluginState).Available(ctx)
 }
 
 // List queries role list with pagination.
@@ -197,7 +178,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 
 	// Use transaction
 	var roleId int64
-	err := dao.SysRole.Ctx(ctx).Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+	err := dao.SysRole.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
 		// Insert role (GoFrame auto-fills created_at and updated_at)
 		id, err := dao.SysRole.Ctx(ctx).Data(do.SysRole{
 			Name:      in.Name,
@@ -261,7 +242,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	}
 
 	// Use transaction
-	err = dao.SysRole.Ctx(ctx).Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+	err = dao.SysRole.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
 		// Update role
 		data := do.SysRole{
 			Name: in.Name,
@@ -344,7 +325,7 @@ func (s *serviceImpl) ensureRoleDataScopeAllowed(ctx context.Context, dataScope 
 	if dataScope != roleDataScopeDept {
 		return nil
 	}
-	if s != nil && s.orgCapabilityState != nil && s.orgCapabilityState.Available(ctx) {
+	if s != nil && s.orgCapSvc != nil && s.orgCapSvc.Available(ctx) {
 		return nil
 	}
 	return bizerr.NewCode(CodeRoleDataScopeDeptUnavailable)
@@ -711,9 +692,10 @@ func (s *serviceImpl) ensureRoleAssignmentUsersMatchRoleBoundary(ctx context.Con
 		return nil
 	}
 
+	cols := dao.SysUser.Columns()
 	if role.TenantId == datascope.PlatformTenantID {
 		count, err := dao.SysUser.Ctx(ctx).
-			WhereIn(dao.SysUser.Columns().Id, userIDs).
+			WhereIn(cols.Id, userIDs).
 			Where(do.SysUser{TenantId: datascope.PlatformTenantID}).
 			Count()
 		if err != nil {
@@ -726,8 +708,8 @@ func (s *serviceImpl) ensureRoleAssignmentUsersMatchRoleBoundary(ctx context.Con
 	}
 
 	count, err := dao.SysUser.Ctx(ctx).
-		WhereIn(dao.SysUser.Columns().Id, userIDs).
-		WhereNot(dao.SysUser.Columns().TenantId, datascope.PlatformTenantID).
+		WhereIn(cols.Id, userIDs).
+		WhereNot(cols.TenantId, datascope.PlatformTenantID).
 		Count()
 	if err != nil {
 		return err
@@ -739,7 +721,7 @@ func (s *serviceImpl) ensureRoleAssignmentUsersMatchRoleBoundary(ctx context.Con
 	if s == nil || s.tenantSvc == nil {
 		return nil
 	}
-	if err := s.tenantSvc.EnsureUsersInTenant(ctx, userIDs, tenantcapsvc.TenantID(role.TenantId)); err != nil {
+	if err := s.tenantSvc.EnsureUsersInTenant(ctx, userIDs, tenantcap.TenantID(role.TenantId)); err != nil {
 		if bizerr.Is(err, tenantcap.CodeTenantForbidden) {
 			return bizerr.NewCode(CodeTenantRoleAssignmentForbidden)
 		}

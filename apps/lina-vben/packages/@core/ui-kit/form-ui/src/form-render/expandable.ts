@@ -15,6 +15,7 @@ export function useExpandable(props: FormRenderProps) {
   const wrapperRef = useTemplateRef<HTMLElement>('wrapperRef');
   const isVisible = useElementVisibility(wrapperRef);
   const rowMapping = ref<Record<number, number>>({});
+  const renderedFormItemCount = ref<number>();
   // 是否已经计算过一次
   const isCalculated = ref(false);
 
@@ -31,17 +32,29 @@ export function useExpandable(props: FormRenderProps) {
     return maxItem - 1 || 1;
   });
 
+  const hasCollapsibleItems = computed(() => {
+    if (!props.showCollapseButton || !isCalculated.value) {
+      return false;
+    }
+    const formItemCount =
+      renderedFormItemCount.value ?? (props.schema?.length ?? 0);
+    return keepFormItemIndex.value < formItemCount;
+  });
+
   watch(
     [
       () => props.showCollapseButton,
       () => breakpoints.active().value,
+      () => props.schema,
       () => props.schema?.length,
+      () => props.wrapperClass,
       () => isVisible.value,
     ],
     async ([val]) => {
       if (val) {
         await nextTick();
         rowMapping.value = {};
+        renderedFormItemCount.value = undefined;
         isCalculated.value = false;
         await calculateRowMapping();
       }
@@ -65,6 +78,19 @@ export function useExpandable(props: FormRenderProps) {
     // }
 
     const formItems = [...wrapperRef.value.children];
+    const visibleFormItems = formItems.filter((el) => {
+      const itemRect = el.getBoundingClientRect();
+      const itemStyles = window.getComputedStyle(el);
+      return (
+        itemStyles.display !== 'none' &&
+        itemStyles.visibility !== 'hidden' &&
+        (itemRect.width > 0 || itemRect.height > 0)
+      );
+    });
+
+    renderedFormItemCount.value = visibleFormItems.filter((el) =>
+      el.hasAttribute('data-form-render-field'),
+    ).length;
 
     const container = wrapperRef.value;
     const containerStyles = window.getComputedStyle(container);
@@ -74,7 +100,7 @@ export function useExpandable(props: FormRenderProps) {
 
     const containerRect = container?.getBoundingClientRect();
 
-    formItems.forEach((el) => {
+    visibleFormItems.forEach((el) => {
       const itemRect = el.getBoundingClientRect();
 
       // 计算元素在第几行
@@ -101,5 +127,5 @@ export function useExpandable(props: FormRenderProps) {
     calculateRowMapping();
   });
 
-  return { isCalculated, keepFormItemIndex, wrapperRef };
+  return { hasCollapsibleItems, isCalculated, keepFormItemIndex, wrapperRef };
 }

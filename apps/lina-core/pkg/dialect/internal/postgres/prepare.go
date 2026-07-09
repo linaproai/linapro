@@ -19,12 +19,12 @@ const systemDatabaseName = "postgres"
 // PrepareDatabase creates the configured PostgreSQL database and optionally
 // drops it first when rebuild is explicitly requested.
 func PrepareDatabase(ctx context.Context, link string, rebuild bool) (err error) {
-	configNode, err := ConfigNodeFromLink(link)
+	configNode, err := configNodeFromLink(link)
 	if err != nil {
 		return err
 	}
 	databaseName := strings.TrimSpace(configNode.Name)
-	quotedName, err := QuoteIdentifier(databaseName)
+	quotedName, err := quoteIdentifier(databaseName)
 	if err != nil {
 		return err
 	}
@@ -77,8 +77,8 @@ func PrepareDatabase(ctx context.Context, link string, rebuild bool) (err error)
 	return nil
 }
 
-// ConfigNodeFromLink returns the GoFrame-parsed PostgreSQL configuration node.
-func ConfigNodeFromLink(link string) (*gdb.ConfigNode, error) {
+// configNodeFromLink returns the GoFrame-parsed PostgreSQL configuration node.
+func configNodeFromLink(link string) (*gdb.ConfigNode, error) {
 	db, err := gdb.New(gdb.ConfigNode{Link: link})
 	if err != nil {
 		return nil, gerror.Wrap(err, "parse PostgreSQL database link failed")
@@ -94,9 +94,9 @@ func ConfigNodeFromLink(link string) (*gdb.ConfigNode, error) {
 	return &node, nil
 }
 
-// QuoteIdentifier safely quotes one PostgreSQL identifier for database-level
+// quoteIdentifier safely quotes one PostgreSQL identifier for database-level
 // bootstrap statements.
-func QuoteIdentifier(identifier string) (string, error) {
+func quoteIdentifier(identifier string) (string, error) {
 	trimmed := strings.TrimSpace(identifier)
 	if trimmed == "" {
 		return "", gerror.New("PostgreSQL identifier must not be empty")

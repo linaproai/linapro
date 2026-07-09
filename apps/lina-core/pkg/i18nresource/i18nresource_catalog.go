@@ -34,8 +34,8 @@ func ParseCatalog(content []byte, valueMode ValueMode) (map[string]string, error
 	return flatMessages, nil
 }
 
-// SanitizeKeyPart normalizes one dotted-key segment for structured i18n keys.
-func SanitizeKeyPart(part string) string {
+// sanitizeKeyPart normalizes one dotted-key segment for structured i18n keys.
+func sanitizeKeyPart(part string) string {
 	trimmedPart := strings.TrimSpace(part)
 	trimmedPart = strings.Trim(trimmedPart, "{}")
 	trimmedPart = strings.ReplaceAll(trimmedPart, "-", "_")
@@ -60,7 +60,7 @@ func (l ResourceLoader) filterCatalog(ctx context.Context, pluginID string, sour
 	target := make(map[string]string, len(source))
 	namespacePrefix := ""
 	if l.pluginScope() == PluginScopeRestrictedToPluginNamespace && strings.TrimSpace(pluginID) != "" {
-		namespacePrefix = "plugins." + SanitizeKeyPart(pluginID) + "."
+		namespacePrefix = "plugins." + sanitizeKeyPart(pluginID) + "."
 	}
 	for key, value := range source {
 		trimmedKey := strings.TrimSpace(key)

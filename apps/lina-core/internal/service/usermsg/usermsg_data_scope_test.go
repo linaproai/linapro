@@ -8,37 +8,41 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/util/gconv"
 	_ "lina-core/pkg/dbdriver"
 
+	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/util/gconv"
+
+	usermsgv1 "lina-core/api/usermsg/v1"
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/notify"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/contract"
-	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // TestUserMessagesRemainSelfIsolatedForAllDataScope verifies all-data role
 // scope never broadens inbox message reads, marks, or deletes to other users.
 func TestUserMessagesRemainSelfIsolatedForAllDataScope(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertUserMsgScopeUser(t, ctx, "usermsg-current")
-	otherUserID := insertUserMsgScopeUser(t, ctx, "usermsg-other")
-	roleID := insertUserMsgScopeRole(t, ctx, "usermsg-all", 1)
+	var (
+		ctx           = context.Background()
+		currentUserID = insertUserMsgScopeUser(t, ctx, "usermsg-current")
+		otherUserID   = insertUserMsgScopeUser(t, ctx, "usermsg-other")
+		roleID        = insertUserMsgScopeRole(t, ctx, "usermsg-all", 1)
+	)
 	t.Cleanup(func() {
 		cleanupUserMsgScopeUsers(t, ctx, []int{currentUserID, otherUserID})
 		cleanupUserMsgScopeRoles(t, ctx, []int{roleID})
 	})
 	insertUserMsgScopeUserRole(t, ctx, currentUserID, roleID)
 
-	currentDeliveryID := insertUserMsgScopeDelivery(t, ctx, currentUserID, "current-message")
-	otherDeliveryID := insertUserMsgScopeDelivery(t, ctx, otherUserID, "other-message")
+	currentDeliveryID, currentSourceID := insertUserMsgScopeDelivery(t, ctx, currentUserID, "current-message")
+	otherDeliveryID, _ := insertUserMsgScopeDelivery(t, ctx, otherUserID, "other-message")
 	t.Cleanup(func() { cleanupUserMsgScopeDeliveries(t, ctx, []int64{currentDeliveryID, otherDeliveryID}) })
 
-	svc := New(nil, notify.New(tenantcap.New(nil, nil)), nil).(*serviceImpl)
+	svc := New(nil, notify.New(tenantspi.New(nil, nil, nil, nil)), nil).(*serviceImpl)
 	svc.bizCtxSvc = userMsgScopeStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
 
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20})
@@ -47,6 +51,17 @@ func TestUserMessagesRemainSelfIsolatedForAllDataScope(t *testing.T) {
 	}
 	if out.Total != 1 || len(out.List) != 1 || out.List[0].Id != currentDeliveryID {
 		t.Fatalf("expected only current user's message, got total=%d list=%#v", out.Total, out.List)
+	}
+	if out.List[0].SourceId != currentSourceID {
+		t.Fatalf("expected source ID %q in list projection, got %q", currentSourceID, out.List[0].SourceId)
+	}
+
+	detail, err := svc.Get(ctx, currentDeliveryID)
+	if err != nil {
+		t.Fatalf("get current message: %v", err)
+	}
+	if detail.SourceId != currentSourceID {
+		t.Fatalf("expected source ID %q in detail projection, got %q", currentSourceID, detail.SourceId)
 	}
 
 	if _, err = svc.Get(ctx, otherDeliveryID); !bizerr.Is(err, CodeUserMsgNotFound) {
@@ -78,11 +93,11 @@ func (s userMsgScopeStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 func (s userMsgScopeStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
 
 // Current returns the plugin-visible business context projection.
-func (s userMsgScopeStaticBizCtx) Current(context.Context) contract.CurrentContext {
+func (s userMsgScopeStaticBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	if s.ctx == nil {
-		return contract.CurrentContext{}
+		return bizctxcap.CurrentContext{}
 	}
-	return contract.CurrentContext{
+	return bizctxcap.CurrentContext{
 		UserID:          s.ctx.UserId,
 		Username:        s.ctx.Username,
 		TenantID:        s.ctx.TenantId,
@@ -97,7 +112,7 @@ func (s userMsgScopeStaticBizCtx) Current(context.Context) contract.CurrentConte
 func (s userMsgScopeStaticBizCtx) SetLocale(context.Context, string) {}
 
 // SetUser is unused by user-message tests.
-func (s userMsgScopeStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
+func (s userMsgScopeStaticBizCtx) SetUser(context.Context, string, int, string, int, string) {}
 
 // SetTenant is unused by user-message tests.
 func (s userMsgScopeStaticBizCtx) SetTenant(context.Context, int) {}
@@ -153,11 +168,12 @@ func insertUserMsgScopeUserRole(t *testing.T, ctx context.Context, userID int, r
 }
 
 // insertUserMsgScopeDelivery inserts one message and one inbox delivery.
-func insertUserMsgScopeDelivery(t *testing.T, ctx context.Context, userID int, title string) int64 {
+func insertUserMsgScopeDelivery(t *testing.T, ctx context.Context, userID int, title string) (int64, string) {
 	t.Helper()
+	sourceID := uniqueUserMsgScopeName("source")
 	messageID, err := dao.SysNotifyMessage.Ctx(ctx).Data(do.SysNotifyMessage{
-		SourceType:   notify.SourceTypeSystem.String(),
-		SourceId:     uniqueUserMsgScopeName("source"),
+		SourceType:   string(usermsgv1.SourceTypeSystem),
+		SourceId:     sourceID,
 		CategoryCode: notify.CategoryCodeSystem.String(),
 		Title:        title,
 		Content:      title + " content",
@@ -180,7 +196,7 @@ func insertUserMsgScopeDelivery(t *testing.T, ctx context.Context, userID int, t
 	if err != nil {
 		t.Fatalf("insert usermsg-scope delivery: %v", err)
 	}
-	return deliveryID
+	return deliveryID, sourceID
 }
 
 // cleanupUserMsgScopeUsers removes temporary users.

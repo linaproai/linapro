@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	jobv1 "lina-core/api/job/v1"
 	"strings"
 	"time"
 
@@ -295,9 +296,9 @@ func (s *serviceImpl) buildBuiltinJobRecord(
 
 	taskType := job.TaskType
 	if !taskType.IsValid() {
-		taskType = jobmeta.TaskTypeHandler
+		taskType = jobv1.TaskTypeHandler
 	}
-	if taskType != jobmeta.TaskTypeHandler && taskType != jobmeta.TaskTypeShell {
+	if taskType != jobv1.TaskTypeHandler && taskType != jobv1.TaskTypeShell {
 		return do.SysJob{}, nil, bizerr.NewCode(CodeJobBuiltinTypeUnsupported)
 	}
 
@@ -332,14 +333,14 @@ func (s *serviceImpl) buildBuiltinJobRecord(
 
 	scope := job.Scope
 	if !scope.IsValid() {
-		scope = jobmeta.JobScopeAllNode
+		scope = jobv1.ScopeAllNode
 	}
 	concurrency := job.Concurrency
 	if !concurrency.IsValid() {
-		concurrency = jobmeta.JobConcurrencySingleton
+		concurrency = jobv1.ConcurrencySingleton
 	}
 	maxConcurrency := job.MaxConcurrency
-	if concurrency == jobmeta.JobConcurrencySingleton {
+	if concurrency == jobv1.ConcurrencySingleton {
 		maxConcurrency = 1
 	}
 	if maxConcurrency <= 0 {
@@ -350,18 +351,20 @@ func (s *serviceImpl) buildBuiltinJobRecord(
 	}
 
 	status := job.Status
-	if status != jobmeta.JobStatusEnabled && status != jobmeta.JobStatusDisabled {
-		status = jobmeta.JobStatusEnabled
+	if status != jobv1.StatusEnabled && status != jobv1.StatusDisabled {
+		status = jobv1.StatusEnabled
 	}
 
-	paramsJSON := ""
-	handlerRef := strings.TrimSpace(job.HandlerRef)
-	shellCmd := ""
-	workDir := ""
-	envJSON := ""
+	var (
+		paramsJSON = ""
+		handlerRef = strings.TrimSpace(job.HandlerRef)
+		shellCmd   = ""
+		workDir    = ""
+		envJSON    = ""
+	)
 
 	switch taskType {
-	case jobmeta.TaskTypeHandler:
+	case jobv1.TaskTypeHandler:
 		if handlerRef == "" {
 			return do.SysJob{}, nil, bizerr.NewCode(CodeJobBuiltinHandlerRefRequired)
 		}
@@ -370,7 +373,7 @@ func (s *serviceImpl) buildBuiltinJobRecord(
 			return do.SysJob{}, nil, bizerr.WrapCode(marshalErr, CodeJobBuiltinParamsMarshalFailed)
 		}
 		paramsJSON = string(paramsData)
-	case jobmeta.TaskTypeShell:
+	case jobv1.TaskTypeShell:
 		shellCmd = strings.TrimSpace(shellCmd)
 	}
 
@@ -387,13 +390,13 @@ func (s *serviceImpl) buildBuiltinJobRecord(
 
 	stopReason := ""
 	effectiveStatus := status
-	if taskType == jobmeta.TaskTypeHandler && strings.HasPrefix(handlerRef, "plugin:") {
+	if taskType == jobv1.TaskTypeHandler && strings.HasPrefix(handlerRef, "plugin:") {
 		if _, ok := s.registry.Lookup(handlerRef); !ok {
-			effectiveStatus = jobmeta.JobStatusPausedByPlugin
+			effectiveStatus = jobv1.StatusPausedByPlugin
 			stopReason = string(jobmeta.StopReasonPluginUnavailable)
 		}
 	}
-	if effectiveStatus == jobmeta.JobStatusDisabled {
+	if effectiveStatus == jobv1.StatusDisabled {
 		stopReason = string(jobmeta.StopReasonManual)
 	}
 

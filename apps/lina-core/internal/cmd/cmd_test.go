@@ -1,27 +1,24 @@
-// This file verifies shared command helpers for explicit confirmations, SQL
-// asset source selection, and SQL execution behavior.
+// This file verifies shared command helpers and command-package governance
+// checks for confirmations, source plugin route middleware, and panic usage.
 
 package cmd
 
 import (
-	"context"
-	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
-	"reflect"
+	"runtime"
+	"sort"
 	"strings"
-	"sync"
 	"testing"
-	"time"
 	"unicode"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/glog"
 	_ "lina-core/pkg/dbdriver"
 
-	"lina-core/internal/service/startupstats"
-	"lina-core/pkg/logger"
+	"lina-core/internal/utility/testsupport"
 )
 
 // TestRequireCommandConfirmation verifies sensitive command confirmation tokens
@@ -47,6 +44,11 @@ func TestRequireCommandConfirmation(t *testing.T) {
 			confirmValue: mockCommandName,
 		},
 		{
+			name:         "upgrade accepts matching confirmation",
+			commandName:  upgradeCommandName,
+			confirmValue: upgradeCommandName,
+		},
+		{
 			name:         "init rejects missing confirmation",
 			commandName:  initCommandName,
 			confirmValue: "",
@@ -66,6 +68,17 @@ func TestRequireCommandConfirmation(t *testing.T) {
 				"command mock performs sensitive upgrade or database operations",
 				makeConfirmationExample(mockCommandName),
 				goRunConfirmationExample(mockCommandName),
+			},
+		},
+		{
+			name:         "upgrade rejects missing confirmation",
+			commandName:  upgradeCommandName,
+			confirmValue: "",
+			wantErr:      true,
+			wantSubstrings: []string{
+				"command upgrade performs sensitive upgrade or database operations",
+				makeConfirmationExample(upgradeCommandName),
+				goRunConfirmationExample(upgradeCommandName),
 			},
 		},
 	}
@@ -117,58 +130,6 @@ func TestCommandPackageHasNoHanText(t *testing.T) {
 	}
 }
 
-// TestHostSQLDirsFollowConvention verifies the init and mock SQL helpers keep
-// using the expected manifest directory layout.
-func TestHostSQLDirsFollowConvention(t *testing.T) {
-	t.Parallel()
-
-	if got := hostInitSQLDir(); got != "manifest/sql" {
-		t.Fatalf("expected init sql dir %q, got %q", "manifest/sql", got)
-	}
-	if got := hostMockSQLDir(); got != path.Join("manifest/sql", "mock-data") {
-		t.Fatalf("expected mock sql dir %q, got %q", path.Join("manifest/sql", "mock-data"), got)
-	}
-}
-
-// TestResolveSQLAssetSource verifies the command source selection is explicit
-// and defaults to embedded assets for runtime execution.
-func TestResolveSQLAssetSource(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		input   string
-		want    sqlAssetSource
-		wantErr bool
-	}{
-		{name: "default embedded", input: "", want: sqlAssetSourceEmbedded},
-		{name: "explicit embedded", input: "embedded", want: sqlAssetSourceEmbedded},
-		{name: "explicit local", input: "local", want: sqlAssetSourceLocal},
-		{name: "reject unknown", input: "filesystem", wantErr: true},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := resolveSQLAssetSource(tt.input)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("expected error")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("resolve source: %v", err)
-			}
-			if got != tt.want {
-				t.Fatalf("expected %q, got %q", tt.want, got)
-			}
-		})
-	}
-}
-
 // TestParseInitRebuildFlag verifies the optional rebuild flag accepts common
 // boolean spellings and rejects ambiguous values.
 func TestParseInitRebuildFlag(t *testing.T) {
@@ -212,432 +173,574 @@ func TestParseInitRebuildFlag(t *testing.T) {
 	}
 }
 
-// TestLogHTTPStartupSummaryEmitsFieldsWithoutSQL verifies startup observability
-// uses an aggregate summary instead of ORM SQL text.
-func TestLogHTTPStartupSummaryEmitsFieldsWithoutSQL(t *testing.T) {
-	ctx := context.Background()
-	collector := startupstats.New()
-	collector.Add(startupstats.CounterCatalogSnapshotBuilds, 1)
-	collector.Add(startupstats.CounterIntegrationSnapshotBuilds, 1)
-	collector.Add(startupstats.CounterJobSnapshotBuilds, 1)
-	collector.Add(startupstats.CounterPluginScans, 1)
-	collector.Add(startupstats.CounterPluginSyncChanged, 2)
-	collector.Add(startupstats.CounterPluginSyncNoop, 3)
-	collector.RecordPhase(startupstats.PhasePluginBootstrapAutoEnable, 12)
-	collector.RecordPhase(startupstats.PhasePluginStartupConsistency, 4)
-
-	var logs []string
-	logger.Logger().SetHandlers(func(ctx context.Context, in *glog.HandlerInput) {
-		logs = append(logs, in.ValuesContent())
-	})
-	t.Cleanup(func() {
-		logger.Logger().SetHandlers()
-	})
-
-	logHTTPStartupSummary(ctx, collector)
-
-	joined := strings.Join(logs, "\n")
-	for _, expected := range []string{
-		"startup summary",
-		"catalogSnapshots=1",
-		"integrationSnapshots=1",
-		"jobSnapshots=1",
-		"pluginScans=1",
-		"pluginChanged=2",
-		"pluginNoop=3",
-	} {
-		if !strings.Contains(joined, expected) {
-			t.Fatalf("expected startup summary to contain %q, got %q", expected, joined)
-		}
+// TestSourcePluginProtectedRoutesIncludeTenancy verifies source plugin APIs use
+// the same Auth -> Tenancy -> Permission chain as host protected static APIs.
+func TestSourcePluginProtectedRoutesIncludeTenancy(t *testing.T) {
+	repoRoot := filepath.Clean(filepath.Join("..", "..", "..", ".."))
+	if !testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
+		t.Skip("official plugin workspace is not initialized")
 	}
-	for _, forbidden := range []string{"SHOW FULL COLUMNS", "SELECT ", "INSERT INTO", "UPDATE ", "DELETE "} {
-		if strings.Contains(strings.ToUpper(joined), forbidden) {
-			t.Fatalf("expected startup summary to omit SQL text %q, got %q", forbidden, joined)
-		}
-	}
-}
-
-// TestStartHTTPPluginManagementListPrewarmLogsDebugDuration verifies startup
-// prewarming records elapsed time on the debug path for both outcomes.
-func TestStartHTTPPluginManagementListPrewarmLogsDebugDuration(t *testing.T) {
-	capture := newLogCapture(t)
-
-	testCases := []struct {
-		name   string
-		err    error
-		status string
-	}{
-		{
-			name:   "success",
-			status: "succeeded",
-		},
-		{
-			name:   "failure",
-			err:    gerror.New("prewarm failed"),
-			status: "failed",
-		},
-	}
-
-	for _, testCase := range testCases {
-		capture.Reset()
-
-		startHTTPPluginManagementListPrewarm(
-			context.Background(),
-			&prewarmLoggingPluginService{managementListErr: testCase.err},
-		)
-
-		joined := capture.WaitFor(
-			t,
-			"prewarm plugin management list finished status="+testCase.status,
-		)
-		if !strings.Contains(joined, "duration=") {
-			t.Fatalf("expected prewarm debug log to include duration, got %q", joined)
-		}
-	}
-}
-
-// TestPrewarmHTTPRuntimeFrontendBundlesLogsDebugDuration verifies synchronous
-// startup frontend prewarming records elapsed time on the debug path.
-func TestPrewarmHTTPRuntimeFrontendBundlesLogsDebugDuration(t *testing.T) {
-	capture := newLogCapture(t)
-	testCases := []struct {
-		name   string
-		err    error
-		status string
-	}{
-		{
-			name:   "success",
-			status: "succeeded",
-		},
-		{
-			name:   "failure",
-			err:    gerror.New("prewarm failed"),
-			status: "failed",
-		},
-	}
-
-	for _, testCase := range testCases {
-		capture.Reset()
-
-		prewarmHTTPRuntimeFrontendBundles(
-			context.Background(),
-			&prewarmLoggingPluginService{frontendBundlesErr: testCase.err},
-		)
-
-		joined := capture.Joined()
-		expected := "prewarm runtime frontend bundles finished status=" + testCase.status
-		if !strings.Contains(joined, expected) {
-			t.Fatalf("expected captured log to contain %q, got %q", expected, joined)
-		}
-		if !strings.Contains(joined, "duration=") {
-			t.Fatalf("expected prewarm debug log to include duration, got %q", joined)
-		}
-	}
-}
-
-// newLogCapture configures the project logger for one test and captures log
-// content while restoring global logger state during cleanup.
-func newLogCapture(t *testing.T) *logCapture {
-	t.Helper()
-
-	projectLogger := logger.Logger()
-	previousLevel := projectLogger.GetLevel()
-	projectLogger.SetLevel(glog.LEVEL_ALL)
-
-	capture := &logCapture{}
-	projectLogger.SetHandlers(func(ctx context.Context, in *glog.HandlerInput) {
-		capture.logsMu.Lock()
-		defer capture.logsMu.Unlock()
-		capture.logs = append(capture.logs, in.ValuesContent())
-	})
-	t.Cleanup(func() {
-		projectLogger.SetHandlers()
-		projectLogger.SetLevel(previousLevel)
-	})
-	return capture
-}
-
-// TestValidateHTTPStartupPluginConsistencyPanicsOnInvalidState verifies
-// startup consistency failures stop HTTP startup before later phases run.
-func TestValidateHTTPStartupPluginConsistencyPanicsOnInvalidState(t *testing.T) {
-	ctx := startupstats.WithCollector(context.Background(), startupstats.New())
-	pluginSvc := &startupConsistencyFailingPluginService{err: gerror.New("invalid startup state")}
-
-	defer func() {
-		recovered := recover()
-		if recovered == nil {
-			t.Fatal("expected startup consistency failure to panic")
-		}
-		if !pluginSvc.called {
-			t.Fatal("expected startup consistency validator to be called")
-		}
-		snapshot := startupstats.FromContext(ctx).Snapshot()
-		if _, ok := snapshot.Phases[startupstats.PhasePluginStartupConsistency]; !ok {
-			t.Fatalf("expected startup consistency phase to be recorded, got %#v", snapshot.Phases)
-		}
-	}()
-
-	if err := validateHTTPStartupPluginConsistency(ctx, pluginSvc); err != nil {
-		t.Fatalf("expected panic path before returning error, got %v", err)
-	}
-}
-
-// TestHTTPStartupRegistersSourceRoutesBeforeConsistencyValidation protects the
-// startup ordering required by source plugins that register host capability
-// providers from HTTP route callbacks.
-func TestHTTPStartupRegistersSourceRoutesBeforeConsistencyValidation(t *testing.T) {
-	content, err := os.ReadFile("cmd_http.go")
+	pluginFiles, err := filepath.Glob(filepath.Join(repoRoot, "apps", "lina-plugins", "*", "backend", "plugin.go"))
 	if err != nil {
-		t.Fatalf("read HTTP command source: %v", err)
+		t.Fatalf("scan source plugin route files failed: %v", err)
 	}
-	text := string(content)
-	beforeRoutesIndex := strings.Index(text, "startHTTPRuntimeBeforeSourceRoutes")
-	registerRoutesIndex := strings.Index(text, "registerSourcePluginHTTPRoutes")
-	finishRuntimeIndex := strings.Index(text, "finishHTTPRuntimeAfterSourceRoutes")
-	completeRoutesIndex := strings.Index(text, "completeSourcePluginHTTPRoutes")
-	if beforeRoutesIndex < 0 || registerRoutesIndex < 0 || finishRuntimeIndex < 0 || completeRoutesIndex < 0 {
-		t.Fatalf("expected split HTTP startup phases to be present")
+	if len(pluginFiles) == 0 {
+		t.Fatal("expected source plugin route files")
 	}
-	if !(beforeRoutesIndex < registerRoutesIndex &&
-		registerRoutesIndex < finishRuntimeIndex &&
-		finishRuntimeIndex < completeRoutesIndex) {
-		t.Fatalf(
-			"expected startup order start-before-routes -> register-source-routes -> finish-runtime -> complete-source-routes, got indexes %d %d %d %d",
-			beforeRoutesIndex,
-			registerRoutesIndex,
-			finishRuntimeIndex,
-			completeRoutesIndex,
-		)
+
+	for _, file := range pluginFiles {
+		t.Run(filepath.Base(filepath.Dir(filepath.Dir(file))), func(t *testing.T) {
+			content, readErr := os.ReadFile(file)
+			if readErr != nil {
+				t.Fatalf("read source plugin route file failed: %v", readErr)
+			}
+			text := string(content)
+			if !strings.Contains(text, "middlewares.Auth()") {
+				return
+			}
+			var (
+				authIndex       = strings.Index(text, "middlewares.Auth()")
+				tenancyIndex    = strings.Index(text, "middlewares.Tenancy()")
+				permissionIndex = strings.Index(text, "middlewares.Permission()")
+			)
+			if tenancyIndex < 0 {
+				t.Fatalf("protected source plugin route must include Tenancy middleware: %s", file)
+			}
+			if !(authIndex < tenancyIndex && tenancyIndex < permissionIndex) {
+				t.Fatalf("protected source plugin route must use Auth -> Tenancy -> Permission order: %s", file)
+			}
+		})
 	}
 }
 
-// startupConsistencyFailingPluginService is a narrow fake for startup runtime tests.
-type startupConsistencyFailingPluginService struct {
-	called bool
-	err    error
+// panicCategory names the approved semantic boundary for a production panic.
+type panicCategory string
+
+const (
+	// panicCategoryMustConstructor allows explicit Must helper fail-fast behavior.
+	panicCategoryMustConstructor panicCategory = "must-constructor"
+	// panicCategoryPanicRethrow allows rethrowing unknown panics after normalization.
+	panicCategoryPanicRethrow panicCategory = "panic-rethrow"
+	// panicCategoryPluginRegistration allows top-level source plugin registration fail-fast after error-returning APIs.
+	panicCategoryPluginRegistration panicCategory = "plugin-registration"
+	// panicCategoryStaticConfig allows invalid static configuration to fail during startup.
+	panicCategoryStaticConfig panicCategory = "static-config"
+	// panicCategoryStartup allows unrecoverable process bootstrap failures.
+	panicCategoryStartup panicCategory = "startup"
+)
+
+// panicAuditPolicy describes where production panic governance should scan and
+// which call boundaries are approved.
+type panicAuditPolicy struct {
+	ScanRoots  []string
+	SkipDirs   []string
+	Allowances []panicAllowance
 }
 
-// ValidateStartupConsistency records the startup validation call and returns the configured error.
-func (s *startupConsistencyFailingPluginService) ValidateStartupConsistency(context.Context) error {
-	s.called = true
-	return s.err
+// panicAllowance describes one approved panic boundary in production code.
+type panicAllowance struct {
+	Path     string
+	Function string
+	Count    int
+	Category panicCategory
+	Reason   string
 }
 
-// prewarmLoggingPluginService is a narrow fake for startup prewarm logging tests.
-type prewarmLoggingPluginService struct {
-	managementListErr  error
-	frontendBundlesErr error
+// panicKey identifies panic calls by source file and enclosing function.
+type panicKey struct {
+	Path     string
+	Function string
 }
 
-// PrewarmManagementList returns the configured result for startup logging tests.
-func (s *prewarmLoggingPluginService) PrewarmManagementList(context.Context) error {
-	return s.managementListErr
+// productionPanicPolicy enumerates approved panic use in backend production
+// files. Counts are intentionally strict so adding another panic to an
+// already-approved function still requires updating this review point.
+var productionPanicPolicy = panicAuditPolicy{
+	ScanRoots: []string{
+		"apps/lina-core",
+		"apps/lina-plugins",
+	},
+	SkipDirs: []string{
+		"node_modules",
+		"testdata",
+		"testutil",
+		"vendor",
+	},
+	Allowances: []panicAllowance{
+		{
+			Path:     "apps/lina-core/main.go",
+			Function: "main",
+			Count:    1,
+			Category: panicCategoryStartup,
+			Reason:   "the command tree cannot be constructed, so the process cannot continue",
+		},
+		{
+			Path:     "apps/lina-core/pkg/bizerr/bizerr_code.go",
+			Function: "MustDefineWithKey",
+			Count:    3,
+			Category: panicCategoryMustConstructor,
+			Reason:   "invalid business error definitions must fail during startup or tests",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/config/config_duration.go",
+			Function: "mustScanConfig",
+			Count:    2,
+			Category: panicCategoryStaticConfig,
+			Reason:   "invalid static configuration must fail before the dependent component runs",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/config/config_duration.go",
+			Function: "mustParsePositiveDuration",
+			Count:    2,
+			Category: panicCategoryStaticConfig,
+			Reason:   "invalid static duration configuration has no safe runtime meaning",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/config/config_duration.go",
+			Function: "mustValidateSecondAlignedDuration",
+			Count:    2,
+			Category: panicCategoryStaticConfig,
+			Reason:   "static scheduler intervals must be valid before cron registration",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/config/config_cluster.go",
+			Function: "mustValidateClusterConfig",
+			Count:    3,
+			Category: panicCategoryStaticConfig,
+			Reason:   "cluster mode must fail fast when the required Redis coordination backend is missing or unsupported",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/config/config_i18n.go",
+			Function: "normalizeAndValidateI18nConfig",
+			Count:    2,
+			Category: panicCategoryStaticConfig,
+			Reason:   "missing packaged i18n defaults makes locale resolution undefined",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/config/config_metadata.go",
+			Function: "(*serviceImpl).GetMetadata",
+			Count:    2,
+			Category: panicCategoryStaticConfig,
+			Reason:   "packaged delivery metadata must be readable and parseable",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/config/config_metadata.go",
+			Function: "mustScanMetadataConfig",
+			Count:    3,
+			Category: panicCategoryStaticConfig,
+			Reason:   "embedded metadata scan failures indicate a broken build artifact",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/config/config_plugin.go",
+			Function: "(*serviceImpl).GetPlugin",
+			Count:    2,
+			Category: panicCategoryStaticConfig,
+			Reason:   "static plugin.autoEnable validation surfaces from helpers as errors and is converted to a single fail-fast panic at the cache-load boundary so startup terminates with a clear message before dependent components run",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/config/config_workspace.go",
+			Function: "mustNormalizeWorkspaceBasePath",
+			Count:    7,
+			Category: panicCategoryStaticConfig,
+			Reason:   "invalid static workspace basePath would make frontend fallback route binding ambiguous, so startup must fail before serving HTTP traffic",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/config/config_raw.go",
+			Function: "configureRuntimeParamCacheDomain",
+			Count:    1,
+			Category: panicCategoryStaticConfig,
+			Reason:   "runtime-config cachecoord domain registration is a static consistency contract and failures make protected config freshness undefined",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/cachecoord/revisionctrl/revisionctrl_controller.go",
+			Function: "configureRuntimeCacheDomain",
+			Count:    1,
+			Category: panicCategoryStaticConfig,
+			Reason:   "plugin-runtime cachecoord domain registration is a static consistency contract and failures make plugin cache freshness undefined",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/role/role_access_revision.go",
+			Function: "configureAccessTopologyCacheDomain",
+			Count:    1,
+			Category: panicCategoryStaticConfig,
+			Reason:   "permission-access cachecoord domain registration is a static consistency contract and failures must fail closed before serving authorization checks",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/middleware/middleware_request_body_limit.go",
+			Function: "(*serviceImpl).RequestBodyLimit",
+			Count:    1,
+			Category: panicCategoryPanicRethrow,
+			Reason:   "unknown framework panic is rethrown after known request-size errors are normalized",
+		},
+		{
+			Path:     "apps/lina-core/pkg/plugin/pluginbridge/pluginbridge_router.go",
+			Function: "MustNewGuestControllerRouteDispatcher",
+			Count:    1,
+			Category: panicCategoryMustConstructor,
+			Reason:   "Must constructor documents fail-fast behavior and has a non-Must alternative",
+		},
+		{
+			Path:     "apps/lina-core/pkg/plugin/pluginbridge/internal/hostservice/hostservice_validation.go",
+			Function: "MustNormalizeHostServiceSpecs",
+			Count:    1,
+			Category: panicCategoryMustConstructor,
+			Reason:   "Must helper is reserved for compile-time host service declarations",
+		},
+		{
+			Path:     "apps/lina-core/pkg/plugin/pluginbridge/internal/hostservice/hostservice_validation.go",
+			Function: "MustNormalizeHostServiceSpecsForPlugin",
+			Count:    1,
+			Category: panicCategoryMustConstructor,
+			Reason:   "Must helper is reserved for compile-time plugin-scoped host service declarations",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/plugin/internal/datahost/internal/host/host_db.go",
+			Function: "registerPluginDataDrivers",
+			Count:    1,
+			Category: panicCategoryStartup,
+			Reason:   "plugin data DB drivers must register once before plugin data access can work",
+		},
+		{
+			Path:     "apps/lina-plugins/linapro-content-notice/backend/plugin.go",
+			Function: "init",
+			Count:    2,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "top-level source plugin registration chooses fail-fast after the error-returning registration API rejects invalid static declarations",
+		},
+		{
+			Path:     "apps/lina-plugins/linapro-ops-demo-guard/backend/plugin.go",
+			Function: "init",
+			Count:    3,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "top-level source plugin registration chooses fail-fast after the error-returning registration API rejects invalid static declarations",
+		},
+		{
+			Path:     "apps/lina-plugins/linapro-monitor-loginlog/backend/plugin.go",
+			Function: "init",
+			Count:    6,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "top-level source plugin, route, hook, and cron registration chooses fail-fast after error-returning registration APIs reject invalid static declarations",
+		},
+		{
+			Path:     "apps/lina-plugins/linapro-monitor-online/backend/plugin.go",
+			Function: "init",
+			Count:    2,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "top-level source plugin registration chooses fail-fast after the error-returning registration API rejects invalid static declarations",
+		},
+		{
+			Path:     "apps/lina-plugins/linapro-monitor-operlog/backend/plugin.go",
+			Function: "init",
+			Count:    2,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "top-level source plugin registration chooses fail-fast after the error-returning registration API rejects invalid static declarations",
+		},
+		{
+			Path:     "apps/lina-plugins/linapro-monitor-server/backend/plugin.go",
+			Function: "init",
+			Count:    4,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "top-level source plugin registration chooses fail-fast after the error-returning registration API rejects invalid static declarations",
+		},
+		{
+			Path:     "apps/lina-plugins/linapro-tenant-core/backend/plugin.go",
+			Function: "init",
+			Count:    6,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "top-level source plugin and framework provider factory registration chooses fail-fast after error-returning registration APIs reject invalid static declarations",
+		},
+		{
+			Path:     "apps/lina-plugins/linapro-org-core/backend/plugin.go",
+			Function: "init",
+			Count:    3,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "top-level source plugin and framework provider factory registration chooses fail-fast after error-returning registration APIs reject invalid static declarations",
+		},
+		{
+			Path:     "apps/lina-plugins/linapro-ai-core/backend/plugin.go",
+			Function: "init",
+			Count:    4,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "top-level source plugin, route, cron, and framework provider factory registration chooses fail-fast after error-returning registration APIs reject invalid static declarations",
+		},
+		{
+			Path:     "apps/lina-plugins/linapro-demo-source/backend/plugin.go",
+			Function: "init",
+			Count:    5,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "top-level source plugin registration chooses fail-fast after the error-returning registration API rejects invalid static declarations",
+		},
+		{
+			Path:     "apps/lina-plugins/linapro-oidc-google/backend/plugin.go",
+			Function: "init",
+			Count:    3,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "top-level source plugin, external-identity provider, and route registration chooses fail-fast after error-returning registration APIs reject invalid static declarations",
+		},
+		{
+			Path:     "apps/lina-plugins/linapro-oidc-discord/backend/plugin.go",
+			Function: "init",
+			Count:    3,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "top-level source plugin, external-identity provider, and route registration chooses fail-fast after error-returning registration APIs reject invalid static declarations",
+		},
+	},
 }
 
-// PrewarmRuntimeFrontendBundles returns the configured result for logging tests.
-func (s *prewarmLoggingPluginService) PrewarmRuntimeFrontendBundles(context.Context) error {
-	return s.frontendBundlesErr
+// TestProductionPanicsMatchAllowlist verifies production panic usage stays
+// narrow and documented.
+func TestProductionPanicsMatchAllowlist(t *testing.T) {
+	repoRoot := repoRootFromTest(t)
+	if !testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
+		t.Skip("official plugin workspace is not initialized")
+	}
+	found := scanProductionPanicCalls(t, repoRoot, productionPanicPolicy)
+	allowlist := buildPanicAllowlist(t, productionPanicPolicy.Allowances)
+
+	assertNoUnexpectedPanics(t, found, allowlist)
+	assertNoStalePanicAllowances(t, found, allowlist)
 }
 
-// logCapture stores project logger output for one test.
-type logCapture struct {
-	logs   []string
-	logsMu sync.Mutex
+// key returns the stable lookup key for one approved panic boundary.
+func (allowance panicAllowance) key() panicKey {
+	return panicKey{
+		Path:     filepath.ToSlash(allowance.Path),
+		Function: allowance.Function,
+	}
 }
 
-// Reset clears previously captured log output.
-func (c *logCapture) Reset() {
-	c.logsMu.Lock()
-	defer c.logsMu.Unlock()
-	c.logs = nil
+// String formats a panic boundary for deterministic test diagnostics.
+func (key panicKey) String() string {
+	return key.Path + ":" + key.Function
 }
 
-// Joined returns all currently captured log output.
-func (c *logCapture) Joined() string {
-	c.logsMu.Lock()
-	defer c.logsMu.Unlock()
-	return strings.Join(c.logs, "\n")
-}
-
-// WaitFor waits until the asynchronous startup prewarm goroutine emits one
-// expected log line, then returns all captured log content.
-func (c *logCapture) WaitFor(t *testing.T, substring string) string {
+// repoRootFromTest returns the repository root for this command package test.
+func repoRootFromTest(t *testing.T) string {
 	t.Helper()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		joined := c.Joined()
-		if strings.Contains(joined, substring) {
-			return joined
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("expected captured log to contain %q, got %q", substring, joined)
-		}
-		time.Sleep(10 * time.Millisecond)
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current test file")
 	}
+	root, err := filepath.Abs(filepath.Join(filepath.Dir(currentFile), "..", "..", "..", ".."))
+	if err != nil {
+		t.Fatalf("resolve repository root: %v", err)
+	}
+	return root
 }
 
-// TestExecuteSQLAssetsWithExecutorStopsAfterFirstError verifies execution halts
-// at the first failing SQL asset and returns the failing file name.
-func TestExecuteSQLAssetsWithExecutorStopsAfterFirstError(t *testing.T) {
-	t.Parallel()
+// buildPanicAllowlist validates configured allowances and indexes them by key.
+func buildPanicAllowlist(t *testing.T, allowances []panicAllowance) map[panicKey]panicAllowance {
+	t.Helper()
 
-	assets := []sqlAsset{
-		{Path: "manifest/sql/001-first.sql", Content: "FIRST"},
-		{Path: "manifest/sql/002-second.sql", Content: "SECOND"},
-		{Path: "manifest/sql/003-third.sql", Content: "THIRD"},
-	}
-
-	var executedSQL []string
-	err := executeSQLAssetsWithExecutor(context.Background(), assets, func(ctx context.Context, sql string) error {
-		executedSQL = append(executedSQL, sql)
-		if sql == "SECOND" {
-			return errors.New("boom")
+	allowlist := make(map[panicKey]panicAllowance, len(allowances))
+	for index, allowance := range allowances {
+		key := allowance.key()
+		if strings.TrimSpace(key.Path) == "" {
+			t.Fatalf("panic allowance %d must include path", index+1)
 		}
+		if strings.TrimSpace(key.Function) == "" {
+			t.Fatalf("panic allowance %d must include function", index+1)
+		}
+		if allowance.Count <= 0 {
+			t.Fatalf("panic allowance %s must expect at least one call", key)
+		}
+		if strings.TrimSpace(string(allowance.Category)) == "" {
+			t.Fatalf("panic allowance %s must include category", key)
+		}
+		if strings.TrimSpace(allowance.Reason) == "" {
+			t.Fatalf("panic allowance %s must include reason", key)
+		}
+		if _, exists := allowlist[key]; exists {
+			t.Fatalf("panic allowance %s is duplicated", key)
+		}
+		allowlist[key] = allowance
+	}
+	return allowlist
+}
+
+// scanProductionPanicCalls records panic call counts by file and enclosing function.
+func scanProductionPanicCalls(t *testing.T, repoRoot string, policy panicAuditPolicy) map[panicKey]int {
+	t.Helper()
+
+	found := make(map[panicKey]int)
+	skipDirs := skipDirSet(policy.SkipDirs)
+	for _, root := range policy.ScanRoots {
+		scanRootForPanicCalls(t, repoRoot, filepath.Join(repoRoot, filepath.FromSlash(root)), skipDirs, found)
+	}
+	return found
+}
+
+// skipDirSet builds a lookup set for directories excluded from production scanning.
+func skipDirSet(names []string) map[string]struct{} {
+	skipDirs := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		skipDirs[name] = struct{}{}
+	}
+	return skipDirs
+}
+
+// scanRootForPanicCalls scans one source root for production panic calls.
+func scanRootForPanicCalls(
+	t *testing.T,
+	repoRoot string,
+	scanRoot string,
+	skipDirs map[string]struct{},
+	found map[panicKey]int,
+) {
+	t.Helper()
+
+	err := filepath.WalkDir(scanRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			if _, skip := skipDirs[entry.Name()]; skip {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !isProductionGoFile(path) {
+			return nil
+		}
+		relPath, err := filepath.Rel(repoRoot, path)
+		if err != nil {
+			return err
+		}
+		scanFilePanicCalls(t, path, filepath.ToSlash(relPath), found)
 		return nil
 	})
-	if err == nil {
-		t.Fatal("expected execution error")
-	}
-	if !strings.Contains(err.Error(), "002-second.sql") {
-		t.Fatalf("expected error %q to contain failing file name", err.Error())
-	}
-	if !reflect.DeepEqual(executedSQL, []string{"FIRST", "SECOND"}) {
-		t.Fatalf("expected executed sql %v, got %v", []string{"FIRST", "SECOND"}, executedSQL)
+	if err != nil {
+		t.Fatalf("scan panic usage under %s: %v", scanRoot, err)
 	}
 }
 
-// TestExecuteSQLAssetsWithExecutorSkipsEmptyFiles verifies blank SQL assets are
-// ignored while non-empty assets still execute in order.
-func TestExecuteSQLAssetsWithExecutorSkipsEmptyFiles(t *testing.T) {
-	t.Parallel()
-
-	assets := []sqlAsset{
-		{Path: "manifest/sql/001-empty.sql", Content: ""},
-		{Path: "manifest/sql/002-seed.sql", Content: "SEED"},
-	}
-
-	var executedSQL []string
-	err := executeSQLAssetsWithExecutor(context.Background(), assets, func(ctx context.Context, sql string) error {
-		executedSQL = append(executedSQL, sql)
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if !reflect.DeepEqual(executedSQL, []string{"SEED"}) {
-		t.Fatalf("expected executed sql %v, got %v", []string{"SEED"}, executedSQL)
-	}
+// isProductionGoFile reports whether the path is a non-test Go source file.
+func isProductionGoFile(path string) bool {
+	return strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go")
 }
 
-// TestScanLocalSQLAssetsSortsFiles verifies development-mode local SQL loading
-// keeps lexical order.
-func TestScanLocalSQLAssetsSortsFiles(t *testing.T) {
-	t.Parallel()
-
-	tempDir := t.TempDir()
-	sqlDir := filepath.Join(tempDir, "manifest", "sql")
-	writeTestSQLFile(t, filepath.Join(sqlDir, "010-third.sql"), "THIRD")
-	writeTestSQLFile(t, filepath.Join(sqlDir, "001-first.sql"), "FIRST")
-	writeTestSQLFile(t, filepath.Join(sqlDir, "002-second.sql"), "SECOND")
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if err = os.Chdir(tempDir); err != nil {
-		t.Fatalf("chdir temp dir: %v", err)
-	}
-	defer func() {
-		if chdirErr := os.Chdir(cwd); chdirErr != nil {
-			t.Fatalf("restore cwd: %v", chdirErr)
-		}
-	}()
-
-	assets, err := scanLocalSQLAssets(context.Background(), hostInitSQLDir())
-	if err != nil {
-		t.Fatalf("scan local sql assets: %v", err)
-	}
-	got := []string{assets[0].Content, assets[1].Content, assets[2].Content}
-	if !reflect.DeepEqual(got, []string{"FIRST", "SECOND", "THIRD"}) {
-		t.Fatalf("expected ordered contents %v, got %v", []string{"FIRST", "SECOND", "THIRD"}, got)
-	}
-}
-
-// TestScanEmbeddedSQLAssetsReadsPreparedFiles verifies runtime-mode SQL loading
-// reads packaged manifest assets from the embedded filesystem.
-func TestScanEmbeddedSQLAssetsReadsPreparedFiles(t *testing.T) {
-	t.Parallel()
-
-	assets, err := scanEmbeddedSQLAssets(context.Background(), hostInitSQLDir())
-	if err != nil {
-		t.Fatalf("scan embedded sql assets: %v", err)
-	}
-	if len(assets) == 0 {
-		t.Fatal("expected embedded init sql assets")
-	}
-	if assets[0].Path != path.Join("manifest/sql", "001-user-auth-bootstrap.sql") {
-		t.Fatalf("expected first embedded sql asset %q, got %q", path.Join("manifest/sql", "001-user-auth-bootstrap.sql"), assets[0].Path)
-	}
-}
-
-// TestInitRuntimeDefaultUsesEmbeddedAssets verifies runtime `lina init`
-// behavior defaults to the embedded manifest SQL assets.
-func TestInitRuntimeDefaultUsesEmbeddedAssets(t *testing.T) {
-	t.Parallel()
-
-	source, err := resolveSQLAssetSource("")
-	if err != nil {
-		t.Fatalf("resolve default init source: %v", err)
-	}
-
-	assets, err := scanInitSQLAssets(context.Background(), source)
-	if err != nil {
-		t.Fatalf("scan init sql assets: %v", err)
-	}
-	if len(assets) == 0 {
-		t.Fatal("expected embedded init sql assets")
-	}
-	if assets[0].Path != path.Join("manifest/sql", "001-user-auth-bootstrap.sql") {
-		t.Fatalf("expected first embedded init sql asset %q, got %q", path.Join("manifest/sql", "001-user-auth-bootstrap.sql"), assets[0].Path)
-	}
-}
-
-// TestMockRuntimeDefaultUsesEmbeddedAssets verifies runtime `lina mock`
-// behavior defaults to the embedded mock-data SQL assets.
-func TestMockRuntimeDefaultUsesEmbeddedAssets(t *testing.T) {
-	t.Parallel()
-
-	source, err := resolveSQLAssetSource("")
-	if err != nil {
-		t.Fatalf("resolve default mock source: %v", err)
-	}
-
-	assets, err := scanMockSQLAssets(context.Background(), source)
-	if err != nil {
-		t.Fatalf("scan mock sql assets: %v", err)
-	}
-	if len(assets) == 0 {
-		t.Fatal("expected embedded mock sql assets")
-	}
-	if assets[0].Path != path.Join("manifest/sql", "mock-data", "001-users.sql") {
-		t.Fatalf(
-			"expected first embedded mock sql asset %q, got %q",
-			path.Join("manifest/sql", "mock-data", "001-users.sql"),
-			assets[0].Path,
-		)
-	}
-}
-
-// writeTestSQLFile writes one temporary SQL file for shared command helper tests.
-func writeTestSQLFile(t *testing.T, path string, contents string) string {
+// scanFilePanicCalls parses one Go file and records panic calls by enclosing function.
+func scanFilePanicCalls(t *testing.T, path string, relPath string, found map[panicKey]int) {
 	t.Helper()
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
+	fileSet := token.NewFileSet()
+	parsed, err := parser.ParseFile(fileSet, path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", relPath, err)
 	}
-	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
-		t.Fatalf("write %s: %v", path, err)
+	for _, decl := range parsed.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		key := panicKey{
+			Path:     relPath,
+			Function: functionAllowlistName(fn),
+		}
+		ast.Inspect(fn.Body, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			ident, ok := call.Fun.(*ast.Ident)
+			if ok && ident.Name == "panic" {
+				found[key]++
+			}
+			return true
+		})
 	}
-	return path
+}
+
+// assertNoUnexpectedPanics verifies every found panic is explicitly allowlisted.
+func assertNoUnexpectedPanics(
+	t *testing.T,
+	found map[panicKey]int,
+	allowlist map[panicKey]panicAllowance,
+) {
+	t.Helper()
+
+	for _, key := range sortedPanicKeys(found) {
+		count := found[key]
+		allowance, ok := allowlist[key]
+		if !ok {
+			t.Errorf("panic call is not allowlisted: %s count=%d", key, count)
+			continue
+		}
+		if allowance.Count != count {
+			t.Errorf("panic count changed for %s: want %d, got %d", key, allowance.Count, count)
+		}
+	}
+}
+
+// assertNoStalePanicAllowances verifies every allowlist entry still matches source code.
+func assertNoStalePanicAllowances(
+	t *testing.T,
+	found map[panicKey]int,
+	allowlist map[panicKey]panicAllowance,
+) {
+	t.Helper()
+
+	for _, key := range sortedPanicAllowanceKeys(allowlist) {
+		if _, ok := found[key]; !ok {
+			t.Errorf("panic allowance no longer matches any call: %s", key)
+		}
+	}
+}
+
+// sortedPanicKeys returns deterministic key ordering for count maps.
+func sortedPanicKeys(items map[panicKey]int) []panicKey {
+	keys := make([]panicKey, 0, len(items))
+	for key := range items {
+		keys = append(keys, key)
+	}
+	sortPanicKeys(keys)
+	return keys
+}
+
+// sortedPanicAllowanceKeys returns deterministic key ordering for allowance maps.
+func sortedPanicAllowanceKeys(items map[panicKey]panicAllowance) []panicKey {
+	keys := make([]panicKey, 0, len(items))
+	for key := range items {
+		keys = append(keys, key)
+	}
+	sortPanicKeys(keys)
+	return keys
+}
+
+// sortPanicKeys sorts panic keys by path and function for stable diagnostics.
+func sortPanicKeys(keys []panicKey) {
+	sort.Slice(keys, func(i int, j int) bool {
+		if keys[i].Path == keys[j].Path {
+			return keys[i].Function < keys[j].Function
+		}
+		return keys[i].Path < keys[j].Path
+	})
+}
+
+// functionAllowlistName formats top-level and method declarations for stable
+// allowlist keys.
+func functionAllowlistName(fn *ast.FuncDecl) string {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		return fn.Name.Name
+	}
+	return receiverName(fn.Recv.List[0].Type) + "." + fn.Name.Name
+}
+
+// receiverName formats one method receiver type without using source positions.
+func receiverName(expr ast.Expr) string {
+	switch typed := expr.(type) {
+	case *ast.Ident:
+		return typed.Name
+	case *ast.StarExpr:
+		return "(*" + receiverName(typed.X) + ")"
+	case *ast.IndexExpr:
+		return receiverName(typed.X)
+	case *ast.IndexListExpr:
+		return receiverName(typed.X)
+	case *ast.SelectorExpr:
+		return receiverName(typed.X) + "." + typed.Sel.Name
+	default:
+		return "unknown"
+	}
 }

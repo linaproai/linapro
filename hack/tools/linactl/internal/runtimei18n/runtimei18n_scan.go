@@ -98,8 +98,13 @@ var scannerRules = []scanRule{
 		Identifier: "frontend-property-han",
 		Category:   "UserMessage",
 		Include: []string{
+			"apps/lina-vben/apps/web-antd/src/**/*.js",
 			"apps/lina-vben/apps/web-antd/src/**/*.ts",
+			"apps/lina-vben/apps/web-antd/src/**/*.tsx",
 			"apps/lina-vben/apps/web-antd/src/**/*.vue",
+			"apps/lina-plugins/*/frontend/**/*.js",
+			"apps/lina-plugins/*/frontend/**/*.ts",
+			"apps/lina-plugins/*/frontend/**/*.tsx",
 			"apps/lina-plugins/*/frontend/**/*.vue",
 		},
 		Pattern: regexp.MustCompile(`\b(?:title|label|placeholder|content|emptyText)\s*:\s*['"][^'"]*[\x{3400}-\x{9fff}]`),
@@ -109,8 +114,13 @@ var scannerRules = []scanRule{
 		Identifier: "frontend-message-call-han",
 		Category:   "UserMessage",
 		Include: []string{
+			"apps/lina-vben/apps/web-antd/src/**/*.js",
 			"apps/lina-vben/apps/web-antd/src/**/*.ts",
+			"apps/lina-vben/apps/web-antd/src/**/*.tsx",
 			"apps/lina-vben/apps/web-antd/src/**/*.vue",
+			"apps/lina-plugins/*/frontend/**/*.js",
+			"apps/lina-plugins/*/frontend/**/*.ts",
+			"apps/lina-plugins/*/frontend/**/*.tsx",
 			"apps/lina-plugins/*/frontend/**/*.vue",
 		},
 		Pattern: regexp.MustCompile(`\b(?:message|notification)\.(?:success|error|warning|info|loading)\([^)\n]*['"][^'"]*[\x{3400}-\x{9fff}]`),
@@ -248,15 +258,6 @@ type allowlistKey struct {
 	Line int
 }
 
-// scanRuntimeI18N scans source files and returns all non-allowlisted findings.
-func scanRuntimeI18N(repoRoot string, options scanOptions) ([]scanFinding, error) {
-	report, err := scanRuntimeI18NReport(repoRoot, options)
-	if err != nil {
-		return nil, err
-	}
-	return report.Findings, nil
-}
-
 // scanRuntimeI18NReport scans source files and returns a categorized report.
 func scanRuntimeI18NReport(repoRoot string, options scanOptions) (*scanReport, error) {
 	allowlist, err := loadAllowlist(options.allowlistPath)
@@ -347,11 +348,13 @@ func loadAllowlist(path string) (map[allowlistKey]allowlistEntry, error) {
 		return nil, fmt.Errorf("invalid allowlist JSON %s: %w", normalizedPath, err)
 	}
 	for index, entry := range payload.Entries {
-		sourcePath := strings.TrimSpace(entry.Path)
-		rule := strings.TrimSpace(entry.Rule)
-		reason := strings.TrimSpace(entry.Reason)
-		category := strings.TrimSpace(entry.Category)
-		scope := strings.TrimSpace(entry.Scope)
+		var (
+			sourcePath = strings.TrimSpace(entry.Path)
+			rule       = strings.TrimSpace(entry.Rule)
+			reason     = strings.TrimSpace(entry.Reason)
+			category   = strings.TrimSpace(entry.Category)
+			scope      = strings.TrimSpace(entry.Scope)
+		)
 		if sourcePath == "" || rule == "" || reason == "" || category == "" || scope == "" {
 			return nil, fmt.Errorf("invalid allowlist entry #%d: path, rule, category, reason, and scope are required", index+1)
 		}
@@ -397,11 +400,6 @@ func iterSourceFiles(repoRoot string) ([]string, error) {
 			if !isScannableSourceSuffix(path) {
 				return nil
 			}
-			relPath, relErr := filepath.Rel(repoRoot, path)
-			if relErr != nil {
-				return relErr
-			}
-			relPath = filepath.ToSlash(relPath)
 			files = append(files, path)
 			return nil
 		})
@@ -416,7 +414,7 @@ func iterSourceFiles(repoRoot string) ([]string, error) {
 // isScannableSourceSuffix reports whether one file suffix is included in scanning.
 func isScannableSourceSuffix(path string) bool {
 	switch filepath.Ext(path) {
-	case ".go", ".ts", ".vue":
+	case ".go", ".js", ".ts", ".tsx", ".vue":
 		return true
 	default:
 		return false
@@ -535,18 +533,6 @@ func populateScanSummary(report *scanReport) {
 		report.Summary.ByCategory[finding.Category]++
 	}
 	report.Summary.ViolationFiles = len(violationFiles)
-}
-
-// emitScanFindings writes text or JSON scanner output.
-func emitScanFindings(out io.Writer, findings []scanFinding, format string) error {
-	report := &scanReport{
-		Summary: scanSummary{
-			ByCategory: make(map[string]int),
-		},
-		Findings: findings,
-	}
-	populateScanSummary(report)
-	return emitScanReport(out, report, format)
 }
 
 // emitScanReport writes text or JSON scanner output.

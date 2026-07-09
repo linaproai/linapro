@@ -27,12 +27,12 @@ type JobPayload struct {
 	MaxConcurrency       int                 `json:"maxConcurrency" d:"1" v:"min:1|max:100" dc:"Maximum number of concurrencies; effective when concurrency=parallel" eg:"1"`
 	MaxExecutions        int                 `json:"maxExecutions" d:"0" v:"min:0" dc:"Maximum number of executions: 0 = no limit" eg:"0"`
 	Status               Status              `json:"status" d:"disabled" v:"required|in:enabled,disabled" dc:"Task status: enabled=enabled disabled=disabled; paused_by_plugin is a system managed state and does not allow writing when creating or editing" eg:"enabled"`
-	LogRetentionOverride *LogRetentionOption `json:"logRetentionOverride" dc:"Task-level log retention policy; if not passed, follow the system parameter cron.log.retention" eg:"{\"mode\":\"days\",\"value\":60}"`
+	LogRetentionOverride *LogRetentionOption `json:"logRetentionOverride" dc:"Task-level log retention policy; if not passed, follow the system parameter sys.cron.log.retention" eg:"{\"mode\":\"days\",\"value\":60}"`
 }
 
 // CreateReq defines the request for creating one scheduled job.
 type CreateReq struct {
-	g.Meta `path:"/job" method:"post" tags:"Job Scheduling / Scheduled Jobs" summary:"Create task" operLog:"create" dc:"Create a new user-built Shell scheduled job; Handler type tasks can only be registered by the host or plugin source code" permission:"system:job:add"`
+	g.Meta `path:"/job" method:"post" tags:"Job Scheduling / Task Management" summary:"Create task" operLog:"create" dc:"Create a new user-built Shell scheduled job; Handler type tasks can only be registered by the host or plugin source code" permission:"system:job:add"`
 	JobPayload
 }
 

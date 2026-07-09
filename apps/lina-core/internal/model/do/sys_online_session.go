@@ -17,6 +17,7 @@ type SysOnlineSession struct {
 	TokenId        any        // Session token ID (UUID)
 	UserId         any        // User ID
 	Username       any        // Login account
+	ClientType     any        // User session client type: web, mobile, desktop, cli
 	DeptName       any        // Department name
 	Ip             any        // Login IP
 	Browser        any        // Browser

@@ -134,9 +134,11 @@ func TestMemoryKVStoreHonorsTTLAndCompareDelete(t *testing.T) {
 // TestMemoryRevisionStoreIsSharedByKey verifies revision increments are scoped
 // by tenant, domain, and scope.
 func TestMemoryRevisionStoreIsSharedByKey(t *testing.T) {
-	ctx := context.Background()
-	revisions := NewMemory(nil).Revision()
-	key := RevisionKey{TenantID: 1, Domain: "role", Scope: "global"}
+	var (
+		ctx       = context.Background()
+		revisions = NewMemory(nil).Revision()
+		key       = RevisionKey{TenantID: 1, Domain: "role", Scope: "global"}
+	)
 
 	first, err := revisions.Bump(ctx, key, "first")
 	if err != nil {
@@ -158,9 +160,11 @@ func TestMemoryRevisionStoreIsSharedByKey(t *testing.T) {
 // TestMemoryEventBusPublishesToSubscribers verifies published events are
 // delivered and subscription close stops delivery.
 func TestMemoryEventBusPublishesToSubscribers(t *testing.T) {
-	ctx := context.Background()
-	events := NewMemory(nil).Events()
-	received := make(chan Event, 1)
+	var (
+		ctx      = context.Background()
+		events   = NewMemory(nil).Events()
+		received = make(chan Event, 1)
+	)
 
 	subscription, err := events.Subscribe(ctx, func(_ context.Context, event Event) error {
 		received <- event

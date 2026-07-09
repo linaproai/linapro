@@ -62,9 +62,11 @@ func TestCollectAgentUniverseSorted(t *testing.T) {
 
 	// 1) Every priority agent that is registered must appear in the
 	//    configured priority order, before any non-priority agent.
-	previousRank := -1
-	previousName := ""
-	highestPriorityIndex := -1
+	var (
+		previousRank         = -1
+		previousName         = ""
+		highestPriorityIndex = -1
+	)
 	for _, name := range agentDisplayPriority {
 		index, ok := positions[name]
 		if !ok {
@@ -260,7 +262,7 @@ func TestParseAgentSetupAction(t *testing.T) {
 	}
 }
 
-// TestRunAgentsNonTTYPrintsUsage verifies the no-AGENT, non-TTY path
+// TestRunAgentsNonTTYPrintsUsage verifies the no-agent, non-TTY path
 // emits the usage hint and returns successfully (no error, no
 // dispatch). This is the standard CI invocation: `linactl agents`
 // in a piped context should never block on input.
@@ -282,7 +284,7 @@ func TestRunAgentsNonTTYPrintsUsage(t *testing.T) {
 	}
 }
 
-// TestRunAgentsRejectsAgentAll guards the safety rule: AGENT=all is
+// TestRunAgentsRejectsAgentAll guards the safety rule: agent=all is
 // explicitly rejected by the aggregate command.
 func TestRunAgentsRejectsAgentAll(t *testing.T) {
 	a, _ := newTestApp(t)
@@ -322,7 +324,7 @@ func TestRunAgentsUnknownAgentReportsCandidates(t *testing.T) {
 	}
 }
 
-// TestRunAgentsRejectsBadAction verifies typos in ACTION surface at the
+// TestRunAgentsRejectsBadAction verifies typos in action surface at the
 // CLI boundary rather than silently falling back.
 func TestRunAgentsRejectsBadAction(t *testing.T) {
 	a, _ := newTestApp(t)

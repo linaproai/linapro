@@ -14,17 +14,21 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/orgcap"
 )
 
 // TestRoleUsersApplyDataScope verifies role authorization pages and assignment
 // mutations only expose or accept users inside the current data scope.
 func TestRoleUsersApplyDataScope(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertRoleScopeUser(t, ctx, "role-scope-current")
-	hiddenUserID := insertRoleScopeUser(t, ctx, "role-scope-hidden")
-	scopeRoleID := insertRoleScopeRole(t, ctx, "role-scope-self", 3)
-	managedRoleID := insertRoleScopeRole(t, ctx, "role-scope-managed", 3)
+	var (
+		ctx           = context.Background()
+		currentUserID = insertRoleScopeUser(t, ctx, "role-scope-current")
+		hiddenUserID  = insertRoleScopeUser(t, ctx, "role-scope-hidden")
+		scopeRoleID   = insertRoleScopeRole(t, ctx, "role-scope-self", 3)
+		managedRoleID = insertRoleScopeRole(t, ctx, "role-scope-managed", 3)
+	)
 	t.Cleanup(func() {
 		cleanupRoleScopeUsers(t, ctx, []int{currentUserID, hiddenUserID})
 		cleanupRoleScopeRoles(t, ctx, []int{scopeRoleID, managedRoleID})
@@ -91,6 +95,20 @@ func (roleScopeEnabledOrgState) FilterPermissionMenus(_ context.Context, menus [
 // Available reports organization capability as available.
 func (roleScopeEnabledOrgState) Available(context.Context) bool { return true }
 
+// Status reports organization capability as active for data-scope tests.
+func (roleScopeEnabledOrgState) Status(context.Context) capmodel.CapabilityStatus {
+	return capmodel.CapabilityStatus{Available: true}
+}
+
+// Department is unused by role data-scope tests.
+func (roleScopeEnabledOrgState) Department() orgcap.DepartmentService { return nil }
+
+// Post is unused by role data-scope tests.
+func (roleScopeEnabledOrgState) Post() orgcap.PostService { return nil }
+
+// Assignment is unused by role data-scope tests.
+func (roleScopeEnabledOrgState) Assignment() orgcap.AssignmentService { return nil }
+
 // roleScopeStaticBizCtx returns a fixed business context.
 type roleScopeStaticBizCtx struct {
 	ctx *model.Context
@@ -103,11 +121,11 @@ func (s roleScopeStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
 func (s roleScopeStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
 
 // Current returns the plugin-visible business context projection.
-func (s roleScopeStaticBizCtx) Current(context.Context) contract.CurrentContext {
+func (s roleScopeStaticBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	if s.ctx == nil {
-		return contract.CurrentContext{}
+		return bizctxcap.CurrentContext{}
 	}
-	return contract.CurrentContext{
+	return bizctxcap.CurrentContext{
 		UserID:          s.ctx.UserId,
 		Username:        s.ctx.Username,
 		TenantID:        s.ctx.TenantId,
@@ -122,7 +140,7 @@ func (s roleScopeStaticBizCtx) Current(context.Context) contract.CurrentContext 
 func (s roleScopeStaticBizCtx) SetLocale(context.Context, string) {}
 
 // SetUser is unused by role data-scope tests.
-func (s roleScopeStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
+func (s roleScopeStaticBizCtx) SetUser(context.Context, string, int, string, int, string) {}
 
 // SetTenant is unused by role data-scope tests.
 func (s roleScopeStaticBizCtx) SetTenant(context.Context, int) {}

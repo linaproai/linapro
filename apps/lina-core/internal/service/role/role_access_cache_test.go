@@ -5,15 +5,15 @@ package role
 
 import (
 	"context"
-	"github.com/gogf/gf/v2/os/gcache"
 	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"lina-core/internal/dao"
-	"lina-core/internal/model/do"
+	"github.com/gogf/gf/v2/container/gvar"
+	"github.com/gogf/gf/v2/os/gcache"
+
 	"lina-core/internal/service/cachecoord"
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/coordination"
@@ -25,6 +25,11 @@ type fakeRoleConfigService struct {
 	clusterEnabled bool
 	jwtExpire      time.Duration
 	sessionTimeout time.Duration
+}
+
+// GetRaw returns nil because raw config values are irrelevant to access-cache tests.
+func (f *fakeRoleConfigService) GetRaw(context.Context, string) (*gvar.Var, error) {
+	return nil, nil
 }
 
 // GetWorkspace returns the admin workspace config used by role access-cache tests.
@@ -131,6 +136,11 @@ func (f *fakeRoleConfigService) GetCronLogRetention(_ context.Context) (*hostcon
 	}, nil
 }
 
+// GetLogRetentionDays returns the shared default log retention for tests.
+func (f *fakeRoleConfigService) GetLogRetentionDays(_ context.Context) (int64, error) {
+	return 30, nil
+}
+
 // IsLoginIPBlacklisted always reports false in tests.
 func (f *fakeRoleConfigService) IsLoginIPBlacklisted(_ context.Context, _ string) (bool, error) {
 	return false, nil
@@ -149,16 +159,6 @@ func (f *fakeRoleConfigService) GetLogger(_ context.Context) *hostconfig.LoggerC
 // GetMetadata returns an empty metadata config for tests.
 func (f *fakeRoleConfigService) GetMetadata(_ context.Context) *hostconfig.MetadataConfig {
 	return &hostconfig.MetadataConfig{}
-}
-
-// GetHealth returns an empty health config for tests.
-func (f *fakeRoleConfigService) GetHealth(_ context.Context) *hostconfig.HealthConfig {
-	return &hostconfig.HealthConfig{}
-}
-
-// GetShutdown returns an empty shutdown config for tests.
-func (f *fakeRoleConfigService) GetShutdown(_ context.Context) *hostconfig.ShutdownConfig {
-	return &hostconfig.ShutdownConfig{}
 }
 
 // GetScheduler returns an empty scheduler config for tests.
@@ -483,8 +483,8 @@ func TestInvalidateUserAccessContextsIsTenantScoped(t *testing.T) {
 	svc := newDefaultRoleTestService()
 	resetRoleAccessCacheTestState(t, svc)
 
-	tenantOneCtx := datascope.WithTenantForTest(context.Background(), 1)
-	tenantTwoCtx := datascope.WithTenantForTest(context.Background(), 2)
+	tenantOneCtx := datascope.WithTenantScope(context.Background(), 1)
+	tenantTwoCtx := datascope.WithTenantScope(context.Background(), 2)
 	sharedAccess := &UserAccessContext{
 		Permissions: []string{"system:role:auth"},
 	}
@@ -505,7 +505,7 @@ func TestInvalidateUserAccessContextsIsTenantScoped(t *testing.T) {
 // TestAccessCacheKeyUsesTenantcapBucket verifies role access cache keys use the
 // canonical tenantcap tenant/scope/key format.
 func TestAccessCacheKeyUsesTenantcapBucket(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), 42)
+	ctx := datascope.WithTenantScope(context.Background(), 42)
 	key := accessCacheKey(ctx, "issued-token")
 
 	if key != "tenant=42:scope=role:user-access:key=issued-token" {
@@ -519,9 +519,11 @@ func TestTokenAccessContextCacheIsTenantBucketed(t *testing.T) {
 	svc := newDefaultRoleTestService()
 	resetRoleAccessCacheTestState(t, svc)
 
-	tenantOneCtx := datascope.WithTenantForTest(context.Background(), 1)
-	tenantTwoCtx := datascope.WithTenantForTest(context.Background(), 2)
-	tokenID := "shared-token-id"
+	var (
+		tenantOneCtx = datascope.WithTenantScope(context.Background(), 1)
+		tenantTwoCtx = datascope.WithTenantScope(context.Background(), 2)
+		tokenID      = "shared-token-id"
+	)
 
 	svc.cacheTokenAccessContext(tenantOneCtx, tokenID, 11, 5, &UserAccessContext{
 		Permissions: []string{"system:tenant-cache:one"},
@@ -782,7 +784,7 @@ func TestClusterAccessRevisionUsesTenantScopedCacheCoord(t *testing.T) {
 	fakeCoord := &fakeRoleCacheCoordService{revision: 8}
 	controller := &clusterAccessRevisionController{cacheCoordSvc: fakeCoord}
 
-	tenantCtx := datascope.WithTenantForTest(context.Background(), 44)
+	tenantCtx := datascope.WithTenantScope(context.Background(), 44)
 	if _, err := controller.CurrentRevision(tenantCtx); err != nil {
 		t.Fatalf("read tenant access revision failed: %v", err)
 	}
@@ -801,30 +803,13 @@ func TestClusterAccessRevisionUsesTenantScopedCacheCoord(t *testing.T) {
 		t.Fatalf("expected tenant-only invalidation metadata, got %#v", fakeCoord.markTenant)
 	}
 
-	platformCtx := datascope.WithTenantForTest(context.Background(), datascope.PlatformTenantID)
+	platformCtx := datascope.WithTenantScope(context.Background(), datascope.PlatformTenantID)
 	if _, err := controller.MarkChanged(platformCtx); err != nil {
 		t.Fatalf("mark platform access revision failed: %v", err)
 	}
 	if fakeCoord.markTenant.TenantID != 0 || !fakeCoord.markTenant.CascadeToTenants {
 		t.Fatalf("expected platform cascade invalidation metadata, got %#v", fakeCoord.markTenant)
 	}
-}
-
-// cleanupPermissionAccessRevision removes the shared permission-access revision
-// row used by cross-instance tests.
-func cleanupPermissionAccessRevision(t *testing.T, ctx context.Context) {
-	t.Helper()
-
-	cleanup := func() {
-		if _, err := dao.SysCacheRevision.Ctx(ctx).Where(do.SysCacheRevision{
-			Domain: accessTopologyCacheDomain,
-			Scope:  cachecoord.ScopeGlobal,
-		}).Delete(); err != nil {
-			t.Fatalf("cleanup permission-access revision failed: %v", err)
-		}
-	}
-	cleanup()
-	t.Cleanup(cleanup)
 }
 
 // TestLoadTokenAccessContextWithCacheLockSuppressesDuplicateLoads verifies one
@@ -851,9 +836,11 @@ func TestLoadTokenAccessContextWithCacheLockSuppressesDuplicateLoads(t *testing.
 	}
 
 	const workers = 8
-	results := make(chan *UserAccessContext, workers)
-	errs := make(chan error, workers)
-	start := make(chan struct{})
+	var (
+		results = make(chan *UserAccessContext, workers)
+		errs    = make(chan error, workers)
+		start   = make(chan struct{})
+	)
 	var wg sync.WaitGroup
 	for range workers {
 		wg.Add(1)

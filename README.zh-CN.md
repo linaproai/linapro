@@ -1,18 +1,18 @@
 <div align=center>
-<img src="https://linapro.ai/img/linapro-logo.png" width="300" alt="linapro logo"/>
+<img src="https://linapro.ai/img/linapro-logo.png?v=0.5.0" width="300" alt="linapro logo"/>
 
-[![LinaPro CI](https://github.com/linaproai/linapro/actions/workflows/main-ci.yml/badge.svg)](https://github.com/linaproai/linapro/actions/workflows/main-ci.yml)
-[![LinaPro Stable Release](https://img.shields.io/github/v/release/linaproai/linapro?style=flat&v=0.2.0)](https://github.com/linaproai/linapro/releases)
-[![LinaPro License](https://img.shields.io/github/license/linaproai/linapro.svg?style=flat&v=2)](https://github.com/linaproai/linapro)
-[![LinaPro Is Production Ready](https://img.shields.io/badge/production-ready-blue.svg?style=flat)](https://github.com/linaproai/linapro)
+[![LinaPro CI](https://github.com/linaproai/linapro/actions/workflows/main-ci.yml/badge.svg?v=0.5.0)](https://github.com/linaproai/linapro/actions/workflows/main-ci.yml)
+[![LinaPro Stable Release](https://img.shields.io/github/v/release/linaproai/linapro?style=flat&v=0.5.0)](https://github.com/linaproai/linapro/releases)
+[![LinaPro License](https://img.shields.io/badge/license-apache%202.0-green.svg?style=flat&v=0.5.0)](https://github.com/linaproai/linapro)
+[![LinaPro Is Production Ready](https://img.shields.io/badge/production-ready-blue.svg?style=flat&v=0.5.0)](https://github.com/linaproai/linapro)
 
-[![Vue](https://img.shields.io/badge/Vue-3.x-42b883.svg)](https://vuejs.org/)
-[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8.svg)](https://golang.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-6.x-646CFF.svg)](https://vitejs.dev/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.x-06B6D4.svg)](https://tailwindcss.com/)
-[![GoFrame](https://img.shields.io/badge/GoFrame-v2-00ADD8.svg)](https://goframe.org/)
-[![Art Design Pro](https://img.shields.io/badge/Art_Design_Pro-UI-FF6B6B.svg)](https://github.com/ant-design/ant-design-pro)
+[![Vue](https://img.shields.io/badge/Vue-3.x-42b883.svg?v=0.5.0)](https://vuejs.org/)
+[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8.svg?v=0.5.0)](https://golang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg?v=0.5.0)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-6.x-646CFF.svg?v=0.5.0)](https://vitejs.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.x-06B6D4.svg?v=0.5.0)](https://tailwindcss.com/)
+[![GoFrame](https://img.shields.io/badge/GoFrame-v2-00ADD8.svg?v=0.5.0)](https://goframe.org/)
+[![Art Design Pro](https://img.shields.io/badge/Art_Design_Pro-UI-FF6B6B.svg?v=0.5.0)](https://github.com/ant-design/ant-design-pro)
 
 [English](README.md) | 简体中文
 
@@ -30,14 +30,8 @@
 | 资源 | 地址 |
 |------|------|
 | **开源仓库** | https://github.com/linaproai/linapro |
-| **后台演示** | http://demo.linapro.ai/ <br/>账号：`admin` <br/>密码：`admin123`|
+| **后台演示** | https://demo.linapro.ai/admin <br/>账号：`admin` <br/>密码：`admin123`|
 | **官方网站** | https://linapro.ai/ |
-
-# 默认入口
-
-内置管理工作台默认从`/admin`提供访问，因此根路径`/`默认会留给源码插件或宿主部署自行维护的公开路由使用。若部署方为管理后台配置独立域名，可以将`workspace.basePath`设置为`/`，让工作台占用该域名根路径。
-
-宿主控制面接口继续使用`/api/v1`。源码插件和动态插件的插件接口统一使用`/x/{plugin-id}/api/v1`，插件在`plugin.yaml`的`public_assets`中声明的公开静态资源会通过`/x-assets/{plugin-id}/{version}/...`提供访问。
 
 # 项目定位
 
@@ -103,19 +97,19 @@ graph TB
 
 <table>
   <tr>
-    <td><img src="https://linapro.ai/img/preview/linapro-i18n.webp?v=0.2.0" /></td>
-    <td><img src="https://linapro.ai/img/preview/linapro-plugin.webp?v=0.2.0" /></td>
-    <td><img src="https://linapro.ai/img/preview/linapro-apidoc.webp?v=0.2.0" /></td>
+    <td><img src="https://linapro.ai/img/preview/linapro-i18n.webp?v=0.5.0" /></td>
+    <td><img src="https://linapro.ai/img/preview/linapro-plugin.webp?v=0.5.0" /></td>
+    <td><img src="https://linapro.ai/img/preview/linapro-apidoc.webp?v=0.5.0" /></td>
   </tr>
   <tr>
-    <td><img src="https://linapro.ai/img/preview/linapro-menu.webp?v=0.2.0" /></td>
-    <td><img src="https://linapro.ai/img/preview/linapro-cron.webp?v=0.2.0" /></td>
-    <td><img src="https://linapro.ai/img/preview/linapro-monitor.webp?v=0.2.0" /></td>
+    <td><img src="https://linapro.ai/img/preview/linapro-menu.webp?v=0.5.0" /></td>
+    <td><img src="https://linapro.ai/img/preview/linapro-cron.webp?v=0.5.0" /></td>
+    <td><img src="https://linapro.ai/img/preview/linapro-monitor.webp?v=0.5.0" /></td>
   </tr>
   <tr>
-    <td><img src="https://linapro.ai/img/preview/linapro-sysconfig.webp?v=0.2.0" /></td>
-    <td><img src="https://linapro.ai/img/preview/linapro-user.webp?v=0.2.0" /></td>
-    <td><img src="https://linapro.ai/img/preview/linapro-multitenant-select.webp?v=0.2.0" /></td>
+    <td><img src="https://linapro.ai/img/preview/linapro-sysconfig.webp?v=0.5.0" /></td>
+    <td><img src="https://linapro.ai/img/preview/linapro-user.webp?v=0.5.0" /></td>
+    <td><img src="https://linapro.ai/img/preview/linapro-multitenant-select.webp?v=0.5.0" /></td>
   </tr>
 </table>
 

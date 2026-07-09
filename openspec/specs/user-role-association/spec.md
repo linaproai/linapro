@@ -2,7 +2,7 @@
 
 ## Purpose
 
-定义用户角色关联管理、角色分配和角色选项行为，确保用户权限归属在用户管理工作流中保持一致。
+定义用户角色关联管理、角色分配和角色选项行为，确保用户权限归属在用户管理工作流中保持一致，并为初始化索引、批量查询和删除清理提供可验证的约束。
 
 ## Requirements
 
@@ -96,7 +96,7 @@
 
 #### Scenario:sys_user_role 反向索引存在
 
-- **当** `make init` 完成数据库初始化时
+- **当** `make db.init` 完成数据库初始化时
 - **则** `SHOW INDEX FROM sys_user_role` 必须包含列 `role_id` 上的 `idx_role_id`
 
 #### Scenario:按角色查询用户使用索引

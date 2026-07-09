@@ -23,10 +23,10 @@ test.describe('TC-2 Shell 输出截断可查看', () => {
 
   test.beforeAll(async () => {
     api = await createAdminApiContext();
-    originalShellSwitch = await getConfigByKey(api, 'cron.shell.enabled');
+    originalShellSwitch = await getConfigByKey(api, 'sys.cron.shell.enabled');
     await setCronShellEnabled(api, true);
     await expect
-      .poll(async () => (await getConfigByKey(api, 'cron.shell.enabled')).value)
+      .poll(async () => (await getConfigByKey(api, 'sys.cron.shell.enabled')).value)
       .toBe('true');
   });
 

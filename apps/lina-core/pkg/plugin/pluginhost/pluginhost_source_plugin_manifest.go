@@ -4,7 +4,8 @@
 package pluginhost
 
 import (
-	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+	pluginv1 "lina-core/api/plugin/v1"
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/pluginhost/internal/manifestview"
 )
 
@@ -18,14 +19,14 @@ type ManifestSnapshot interface {
 	// Version returns the plugin version recorded in the manifest snapshot.
 	Version() string
 	// Type returns the plugin type recorded in the manifest snapshot.
-	Type() string
-	// Values returns the typed bridge manifest snapshot contract.
-	Values() *bridgecontract.ManifestSnapshotV1
+	Type() pluginv1.PluginType
+	// Values returns the typed manifest snapshot primitive.
+	Values() *capmodel.ManifestSnapshot
 }
 
 // NewManifestSnapshot creates one published manifest snapshot wrapper from the
 // shared lifecycle callback contract.
-func NewManifestSnapshot(value *bridgecontract.ManifestSnapshotV1) ManifestSnapshot {
+func NewManifestSnapshot(value *capmodel.ManifestSnapshot) ManifestSnapshot {
 	if value == nil {
 		return nil
 	}

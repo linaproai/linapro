@@ -17,6 +17,8 @@
 - 将 plugin-full CI 收敛为基于通用 scope 的分片执行与 Playwright shard 调度，独立上传 report、test-results 与服务日志，并通过显式 PostgreSQL 用户/数据库健康检查减少无效等待和日志噪声。
 - 将缓存/ETag 校验、业务状态断言和跨文件前置条件改为协议语义、稳定字段和自包含 fixture，避免因全局版本刷新、语言切换或共享数据残留导致误报。
 - 针对优化与分片过程中暴露出的宿主/插件回归不稳定问题，补齐页面装配、菜单投影刷新、插件资源权限、运行时上传探测、表格列契约、卸载前置条件文案和默认上传上限等配套修正。
+- `env.setup`默认安装 Chromium headless shell 以匹配默认 headless E2E 套件，保留 Linux `--with-deps`系统依赖安装；headed/debug 场景需要完整浏览器时单独安装。
+- 完整测试套件稳定化以测试替身、fixture 和依赖装配修复为主，不改变产品功能边界，确保 Go 单测、前端测试和 Playwright E2E 可重复通过。
 
 ## Capabilities
 
@@ -24,6 +26,7 @@
 
 - `e2e-suite-organization`：定义 E2E 目录边界、宿主/插件资产归属、根路径去插件耦合、非测试文件隔离和模块本地 TC 编号治理。
 - `e2e-suite-execution-efficiency`：定义分层执行入口、host-only 与 plugin-full 职责边界、登录态复用、轻量认证页面、状态驱动等待、共享状态隔离、插件 baseline、CI 分片和耗时验收机制。
+- `project-setup`：开发环境初始化入口默认安装 Chromium headless shell，并在文档中区分默认 headless 与 headed/debug 浏览器依赖。
 
 ### Modified Capabilities
 
@@ -43,3 +46,4 @@
 - 为保障优化后的回归稳定性，补充了少量宿主/插件运行时支持修正，包括插件页面可访问路由刷新判定、动态插件上传探测方式、运行时 reason 常量治理以及默认上传上限与打包资产对齐。
 - 不引入新的测试框架，不改变生产 API 契约或数据库 schema；除默认上传上限提升到 100MB 外，本组变更主要聚焦 E2E 基础设施、测试治理和为回归稳定性所需的配套修正。
 - 本组变更未新增前端运行时语言包、插件 manifest i18n 或 apidoc i18n 资源。
+- 测试稳定性修复只影响测试替身、fixture、运行依赖和环境初始化，不新增运行时用户可见行为。

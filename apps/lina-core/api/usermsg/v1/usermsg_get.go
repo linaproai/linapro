@@ -20,7 +20,7 @@ type GetRes struct {
 	TypeLabel     string     `json:"typeLabel" dc:"Localized category label resolved by the host according to the request locale" eg:"Notice"`
 	TypeColor     string     `json:"typeColor" dc:"Localized category tag color resolved by the host so the inbox preview can render badges without hardcoding category-specific colors" eg:"blue"`
 	SourceType    SourceType `json:"sourceType" dc:"Source type: notice=notification announcement plugin=dynamic plugin system=system" eg:"notice"`
-	SourceId      int64      `json:"sourceId" dc:"Source ID" eg:"1001"`
+	SourceId      string     `json:"sourceId" dc:"Original sender-declared source record ID" eg:"notice-1001"`
 	Content       string     `json:"content" dc:"Can be used directly to preview rendered message content" eg:"<p>The system will be undergoing maintenance tonight</p>"`
 	CreatedByName string     `json:"createdByName" dc:"Sender username" eg:"admin"`
 	CreatedAt     *int64     `json:"createdAt" dc:"Message creation time as Unix timestamp in milliseconds" eg:"1776752400000"`

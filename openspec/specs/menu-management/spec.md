@@ -344,7 +344,7 @@
 
 #### Scenario:sys_role_menu 反向索引存在
 
-- **当** `make init` 完成数据库初始化时
+- **当** `make db.init` 完成数据库初始化时
 - **则** `SHOW INDEX FROM sys_role_menu` 必须包含列 `menu_id` 上的 `idx_menu_id`
 
 ### Requirement: 全局菜单治理写操作必须要求平台上下文

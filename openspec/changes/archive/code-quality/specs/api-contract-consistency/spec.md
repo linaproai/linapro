@@ -1,111 +1,86 @@
-## ADDED Requirements
+# 接口契约一致性规范
 
-### Requirement: REST semantics and path style unification
+## Purpose
+统一后端 API 的 REST 语义、路径参数绑定方式与文档标签约束，确保接口合同在全仓库保持一致。
+## Requirements
+### Requirement: REST 语义与路径风格统一
+后端 API SHALL 在路径、HTTP 方法和资源语义上保持一致，读操作、写操作和删除操作分别使用仓库约定的 REST 方式表达。
 
-Backend APIs SHALL maintain consistency in path, HTTP method, and resource semantics. Read operations, write operations, and deletions SHALL each use the repository's agreed REST conventions.
+#### Scenario: 定义读取接口
+- **WHEN** 定义列表查询、详情查询、选项查询、树查询或导出接口
+- **THEN** 接口使用 `GET`
+- **AND** 路径采用资源化命名而不是动作化命名
 
-#### Scenario: Defining read endpoints
+#### Scenario: 定义写操作接口
+- **WHEN** 定义创建、更新、状态切换、导入或删除接口
+- **THEN** 接口分别使用 `POST`、`PUT`、`DELETE`
+- **AND** 同类资源的路径风格在全仓库保持一致
 
-- **WHEN** defining list queries, detail queries, option queries, tree queries, or export endpoints
-- **THEN** the endpoint uses `GET`
-- **AND** the path uses resource-based naming rather than action-based naming
+### Requirement: 路径参数绑定统一
+后端 API DTO SHALL 统一路径参数声明和绑定方式，避免同一接口同时混用多种参数风格。
 
-#### Scenario: Defining write-operation endpoints
+#### Scenario: 声明路径参数
+- **WHEN** 接口路径包含资源标识或子资源标识
+- **THEN** `g.Meta` 中使用 `{param}` 形式声明路径参数
+- **AND** 输入 DTO 字段统一使用 `json:"param"` 声明参数名，不在同一仓库混用 `p` 与 `json` 标签
+- **AND** 输出 DTO 继续使用 `json` 标签定义响应字段
 
-- **WHEN** defining create, update, status-change, import, or delete endpoints
-- **THEN** the endpoint uses `POST`, `PUT`, or `DELETE` respectively
-- **AND** the same resource family maintains consistent path style across the repository
+### Requirement: API 文档标签完整
+后端 API 输入输出结构 SHALL 为所有可见字段补齐清晰的 `dc` 和 `eg` 标签，确保自动生成的 OpenAPI 文档可直接理解和调试。
 
-### Requirement: Path parameter binding unification
+#### Scenario: 定义输入输出字段
+- **WHEN** 在 API DTO 中新增或整改输入输出字段
+- **THEN** 每个字段包含 `dc` 标签说明业务含义
+- **AND** 每个字段包含可直接用于调试的 `eg` 示例值
 
-Backend API DTOs SHALL unify path parameter declaration and binding conventions, avoiding mixed parameter styles within the same repository.
+#### Scenario: 定义枚举或可选字段
+- **WHEN** 字段表示状态、类型、开关或可选筛选条件
+- **THEN** `dc` 中明确列出取值含义或默认行为
+- **AND** 文档不要求调用方依赖阅读实现代码推断参数语义
 
-#### Scenario: Declaring path parameters
+#### Scenario: 复用跨模块公共枚举契约
+- **WHEN** 后端 API DTO 字段使用跨多个 API 模块共享的稳定枚举或值类型
+- **THEN** 该 DTO 使用 `apps/lina-core/pkg` 中按契约边界划分的公共组件或已有稳定公共组件
+- **AND** 公共组件 SHALL 以小型领域契约命名，禁止新增大一统 `pkg/enums`
+- **AND** 领域私有枚举 SHALL 保留在所属 API 或领域包内，不因字面值重复而强行合并
+- **AND** 类型抽象不得改变既有 JSON 字段名、字段取值、默认值或 API 文档示例语义
 
-- **WHEN** an endpoint path contains a resource identifier or sub-resource identifier
-- **THEN** `g.Meta` uses `{param}` syntax to declare path parameters
-- **AND** input DTO fields use `json:"param"` for parameter naming; the repository does not mix `p` and `json` tags
-- **AND** output DTOs continue using `json` tags for response fields
+### Requirement: API 响应不得直接暴露数据库实体
 
-### Requirement: API documentation tag completeness
+后端 API 响应 DTO SHALL 使用独立响应结构定义调用端可见字段，不得直接嵌入或返回 DAO 生成的数据库实体类型。响应边界 SHALL 通过显式字段映射只暴露当前接口需要的字段，避免数据库字段新增、字段重命名或内部治理字段变化被动改变外部 API 合同。
 
-Backend API input/output structures SHALL provide clear `dc` and `eg` tags for all visible fields, ensuring auto-generated OpenAPI documentation is directly understandable and debuggable.
+#### Scenario: 定义读取响应 DTO
+- **WHEN** API 定义列表、详情、选项、树、文件信息或当前用户资料等读取响应
+- **THEN** 响应类型 SHALL 使用 API 包内的独立 DTO
+- **AND** 响应类型 SHALL 不嵌入 `entity.*`
+- **AND** 响应列表 SHALL 不直接使用 `[]*entity.*`
 
-#### Scenario: Defining input/output fields
+#### Scenario: 映射实体到响应 DTO
+- **WHEN** 控制器或响应组装逻辑从服务层实体、投影或领域对象生成 API 响应
+- **THEN** 响应组装 SHALL 逐字段映射允许暴露的字段
+- **AND** 不得直接把数据库实体指针赋值到响应字段
 
-- **WHEN** adding or modifying input/output fields in API DTOs
-- **THEN** each field includes a `dc` tag describing its business meaning
-- **AND** each field includes a directly debuggable `eg` example value
-
-#### Scenario: Defining enum or optional fields
-
-- **WHEN** a field represents a status, type, toggle, or optional filter condition
-- **THEN** the `dc` tag explicitly lists all possible values and their meanings
-- **AND** documentation does not require callers to read implementation code to infer parameter semantics
-
-#### Scenario: Reusing cross-module public enum contracts
-
-- **WHEN** backend API DTO fields use stable enums or value types shared across multiple API modules
-- **THEN** the DTO uses public components in `apps/lina-core/pkg` organized by contract boundary, or existing stable public components
-- **AND** public components SHALL use small domain-contract naming; a unified `pkg/enums` package MUST NOT be created
-- **AND** domain-private enums SHALL remain in their owning API or service package, not merged solely to eliminate literal duplication
-- **AND** type abstraction MUST NOT change existing JSON field names, field values, defaults, or API documentation example semantics
-
-### Requirement: RESTful batch delete endpoints
-
-The system SHALL provide batch delete endpoints for users and roles using `DELETE` with repeated query parameters, reusing all single-record protection rules inside a single transaction.
-
-#### Scenario: Batch delete with repeated query parameters
-
-- **WHEN** a caller invokes `DELETE /api/v1/user?ids=1&ids=2&ids=3` or `DELETE /api/v1/role?ids=1&ids=2&ids=3`
-- **THEN** the system processes all IDs in a single transaction
-- **AND** any protection rule violation (built-in admin, current user, super administrator role) rejects the entire batch
-- **AND** the DTO uses `Ids []int json:"ids" v:"required|min-length:1"` with English `dc` and `eg` tags
-- **AND** the `g.Meta` carries the corresponding permission tag (`system:user:remove` or `system:role:remove`)
+#### Scenario: 隐藏内部和敏感字段
+- **WHEN** 数据库实体包含密码、凭据、软删除时间、存储路径、哈希、内部租户治理字段、缓存版本或其他内部实现字段
+- **THEN** API 响应 DTO SHALL 默认不暴露这些字段
+- **AND** 只有明确属于当前接口合同且经过权限、数据权限和业务边界评估的字段才可加入响应 DTO
 
 ### Requirement: Response instant fields use Unix timestamps in milliseconds
-
 Public HTTP JSON response DTO fields that represent exact instants SHALL return Unix timestamps in milliseconds. The JSON type MUST be numeric, and the Go DTO type MUST be `int64` or `*int64`. Public response DTOs MUST NOT directly expose `time.Time`, `*time.Time`, `gtime.Time`, `*gtime.Time`, or formatted strings for instant fields. This rule only constrains the API response DTO boundary and does not constrain internal `dao`, `entity`, `do`, or `service` models.
 
 #### Scenario: Defining an instant response field
-
 - **WHEN** a developer adds or modifies `createdAt`, `updatedAt`, `deletedAt`, `loginAt`, `startedAt`, `endedAt`, `expiredAt`, or another public HTTP JSON response DTO field that represents an exact instant
 - **THEN** the field type is `int64` or `*int64`
 - **AND** the field value represents a Unix timestamp in milliseconds
 - **AND** the field `dc` tag or API documentation includes `Unix timestamp in milliseconds`
 
 #### Scenario: Defining a calendar-date response field
-
 - **WHEN** a developer defines `birthday`, `businessDate`, `periodDate`, or another public HTTP JSON response DTO field that represents only a calendar date and not an exact instant
 - **THEN** the field may use a `YYYY-MM-DD` string
 - **AND** the field `dc` tag or API documentation clearly states `date-only` semantics
 - **AND** callers do not need to infer an exact instant in the server time zone from the field
 
 #### Scenario: Migrating an existing time-field contract
-
 - **WHEN** a developer plans to migrate an existing public API instant field from a string or time-object response to a Unix timestamp in milliseconds
 - **THEN** the migration is evaluated through the active OpenSpec change that owns the API contract change
 - **AND** frontend parsing, page formatting, `apidoc i18n` resources, and related test impact are evaluated together
-
-### Requirement: API response must not directly expose database entities
-
-Backend API response DTOs SHALL use independent response struct definitions for caller-visible fields, and MUST NOT directly embed or return DAO-generated database entity types. The response boundary SHALL explicitly map only the fields the current interface needs, avoiding passive changes to the external API contract when database fields are added, renamed, or internal governance fields change.
-
-#### Scenario: Defining read response DTOs
-
-- **WHEN** an API defines list, detail, option, tree, file info, or current user profile read responses
-- **THEN** the response type SHALL use an independent DTO within the API package
-- **AND** the response type SHALL NOT embed `entity.*`
-- **AND** response lists SHALL NOT directly use `[]*entity.*`
-
-#### Scenario: Mapping entities to response DTOs
-
-- **WHEN** controllers or response assembly logic generate API responses from service-layer entities, projections, or domain objects
-- **THEN** response assembly SHALL map fields one by one for only permitted fields
-- **AND** database entity pointers MUST NOT be directly assigned to response fields
-
-#### Scenario: Hiding internal and sensitive fields
-
-- **WHEN** database entities contain passwords, credentials, soft-delete timestamps, storage paths, hashes, internal tenant governance fields, cache versions, or other internal implementation fields
-- **THEN** API response DTOs SHALL NOT expose these fields by default
-- **AND** only fields that are explicitly part of the current interface contract and have been evaluated for permissions, data permissions, and business boundaries may be added to response DTOs

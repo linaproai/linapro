@@ -16,11 +16,13 @@ import (
 // TestBatchDeleteRemovesRolesAndAssociations verifies batch role deletion
 // clears role-menu and user-role associations in one service call.
 func TestBatchDeleteRemovesRolesAndAssociations(t *testing.T) {
-	ctx := context.Background()
-	svc := newDefaultRoleTestService()
-	roleID := insertTestRole(t, ctx, "batch-delete-role")
-	userID := insertRoleTestUser(t, ctx, "batch-delete-user")
-	menuID := insertRoleTestMenu(t, ctx, "batch-delete-menu")
+	var (
+		ctx    = context.Background()
+		svc    = newDefaultRoleTestService()
+		roleID = insertTestRole(t, ctx, "batch-delete-role")
+		userID = insertRoleTestUser(t, ctx, "batch-delete-user")
+		menuID = insertRoleTestMenu(t, ctx, "batch-delete-menu")
+	)
 	t.Cleanup(func() {
 		cleanupRoleTestRows(t, ctx, []int{roleID}, []int{userID}, []int{menuID})
 	})
@@ -56,9 +58,11 @@ func TestBatchDeleteRemovesRolesAndAssociations(t *testing.T) {
 // TestBatchDeleteRejectsBuiltinAdminRoleAtomically verifies a mixed batch with
 // the built-in admin role is rejected before any custom role is deleted.
 func TestBatchDeleteRejectsBuiltinAdminRoleAtomically(t *testing.T) {
-	ctx := context.Background()
-	svc := newDefaultRoleTestService()
-	roleID := insertTestRole(t, ctx, "batch-delete-admin-guard")
+	var (
+		ctx    = context.Background()
+		svc    = newDefaultRoleTestService()
+		roleID = insertTestRole(t, ctx, "batch-delete-admin-guard")
+	)
 	_, adminRoleID := mustQueryAdminUserAndRoleID(t, ctx)
 	t.Cleanup(func() {
 		cleanupRoleTestRows(t, ctx, []int{roleID}, nil, nil)

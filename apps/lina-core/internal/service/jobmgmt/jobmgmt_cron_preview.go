@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// PreviewCron returns the next five fire times for one cron expression.
+// PreviewJobs returns the next five fire times for one cron expression.
 func (s *serviceImpl) PreviewCron(_ context.Context, expr string, timezone string) ([]time.Time, error) {
 	_, location, err := normalizeJobTimezone(timezone)
 	if err != nil {

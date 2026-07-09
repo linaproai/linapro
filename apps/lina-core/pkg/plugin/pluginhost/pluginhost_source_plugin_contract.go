@@ -7,6 +7,10 @@ import (
 	"io/fs"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+
+	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // sourcePluginAssets is the asset-registration facade bound to one source
@@ -33,15 +37,20 @@ type sourcePluginHTTP struct {
 	plugin *sourcePlugin
 }
 
-// sourcePluginCron is the cron-registration facade bound to one source plugin
+// sourcePluginJobs is the scheduled-job registration facade bound to one source plugin
 // definition.
-type sourcePluginCron struct {
+type sourcePluginJobs struct {
 	plugin *sourcePlugin
 }
 
-// sourcePluginGovernance is the governance-registration facade bound to one
+// sourcePluginProviders is the framework provider declaration facade bound to one source plugin definition.
+type sourcePluginProviders struct {
+	plugin *sourcePlugin
+}
+
+// sourcePluginAccess is the access-control registration facade bound to one
 // source plugin definition.
-type sourcePluginGovernance struct {
+type sourcePluginAccess struct {
 	plugin *sourcePlugin
 }
 
@@ -54,7 +63,7 @@ func (p *sourcePlugin) ID() string {
 }
 
 // Assets returns the plugin asset registration facade.
-func (p *sourcePlugin) Assets() SourcePluginAssets {
+func (p *sourcePlugin) Assets() AssetDeclarations {
 	if p == nil {
 		return nil
 	}
@@ -62,7 +71,7 @@ func (p *sourcePlugin) Assets() SourcePluginAssets {
 }
 
 // Lifecycle returns the plugin lifecycle callback registration facade.
-func (p *sourcePlugin) Lifecycle() SourcePluginLifecycle {
+func (p *sourcePlugin) Lifecycle() LifecycleDeclarations {
 	if p == nil {
 		return nil
 	}
@@ -70,7 +79,7 @@ func (p *sourcePlugin) Lifecycle() SourcePluginLifecycle {
 }
 
 // Hooks returns the event-hook registration facade.
-func (p *sourcePlugin) Hooks() SourcePluginHooks {
+func (p *sourcePlugin) Hooks() HookDeclarations {
 	if p == nil {
 		return nil
 	}
@@ -78,27 +87,67 @@ func (p *sourcePlugin) Hooks() SourcePluginHooks {
 }
 
 // HTTP returns the HTTP registration facade.
-func (p *sourcePlugin) HTTP() SourcePluginHTTP {
+func (p *sourcePlugin) HTTP() HTTPDeclarations {
 	if p == nil {
 		return nil
 	}
 	return p.http
 }
 
-// Cron returns the cron registration facade.
-func (p *sourcePlugin) Cron() SourcePluginCron {
+// Jobs returns the scheduled-job registration facade.
+func (p *sourcePlugin) Jobs() JobDeclarations {
 	if p == nil {
 		return nil
 	}
-	return p.cron
+	return p.jobs
 }
 
-// Governance returns the menu and permission governance registration facade.
-func (p *sourcePlugin) Governance() SourcePluginGovernance {
+// Providers returns the framework capability provider declaration facade.
+func (p *sourcePlugin) Providers() ProviderDeclarations {
 	if p == nil {
 		return nil
 	}
-	return p.governance
+	return p.providers
+}
+
+// Access returns the menu and permission access-control registration facade.
+func (p *sourcePlugin) Access() AccessDeclarations {
+	if p == nil {
+		return nil
+	}
+	return p.access
+}
+
+// ProvideTenant declares one source-plugin tenant provider factory.
+func (r *sourcePluginProviders) ProvideTenant(factory tenantspi.ProviderFactory) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin provider facade is nil")
+	}
+	return r.plugin.registerTenantProvider(factory)
+}
+
+// ProvideOrg declares one source-plugin organization provider factory.
+func (r *sourcePluginProviders) ProvideOrg(factory orgspi.ProviderFactory) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin provider facade is nil")
+	}
+	return r.plugin.registerOrgProvider(factory)
+}
+
+// ProvideAIText declares one source-plugin text AI provider factory.
+func (r *sourcePluginProviders) ProvideAIText(factory aitext.ProviderFactory) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin provider facade is nil")
+	}
+	return r.plugin.registerAITextProvider(factory)
+}
+
+// ProvideExternalIdentity declares one source-plugin external-identity provider ID.
+func (r *sourcePluginProviders) ProvideExternalIdentity(providerID string) error {
+	if r == nil || r.plugin == nil {
+		return gerror.New("pluginhost: source plugin provider facade is nil")
+	}
+	return r.plugin.registerExternalIdentityProvider(providerID)
 }
 
 // UseEmbeddedFiles binds one plugin-owned embedded filesystem.
@@ -261,38 +310,38 @@ func (r *sourcePluginHTTP) RegisterRoutes(
 	return r.plugin.registerRoutes(point, mode, handler)
 }
 
-// RegisterCron registers one callback that contributes plugin-owned cron jobs.
-func (r *sourcePluginCron) RegisterCron(
+// RegisterJobs registers one callback that contributes plugin-owned scheduled jobs.
+func (r *sourcePluginJobs) RegisterJobs(
 	point ExtensionPoint,
 	mode CallbackExecutionMode,
-	handler CronRegisterHandler,
+	handler JobRegisterHandler,
 ) error {
 	if r == nil || r.plugin == nil {
-		return gerror.New("pluginhost: source plugin cron facade is nil")
+		return gerror.New("pluginhost: source plugin jobs facade is nil")
 	}
-	return r.plugin.registerCron(point, mode, handler)
+	return r.plugin.registerJobs(point, mode, handler)
 }
 
 // RegisterMenuFilter registers one callback that filters host menus.
-func (r *sourcePluginGovernance) RegisterMenuFilter(
+func (r *sourcePluginAccess) RegisterMenuFilter(
 	point ExtensionPoint,
 	mode CallbackExecutionMode,
 	handler MenuFilterHandler,
 ) error {
 	if r == nil || r.plugin == nil {
-		return gerror.New("pluginhost: source plugin governance facade is nil")
+		return gerror.New("pluginhost: source plugin access facade is nil")
 	}
 	return r.plugin.registerMenuFilter(point, mode, handler)
 }
 
 // RegisterPermissionFilter registers one callback that filters host permissions.
-func (r *sourcePluginGovernance) RegisterPermissionFilter(
+func (r *sourcePluginAccess) RegisterPermissionFilter(
 	point ExtensionPoint,
 	mode CallbackExecutionMode,
 	handler PermissionFilterHandler,
 ) error {
 	if r == nil || r.plugin == nil {
-		return gerror.New("pluginhost: source plugin governance facade is nil")
+		return gerror.New("pluginhost: source plugin access facade is nil")
 	}
 	return r.plugin.registerPermissionFilter(point, mode, handler)
 }

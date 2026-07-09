@@ -5,7 +5,7 @@ package role
 import (
 	"context"
 
-	"lina-core/api/role/v1"
+	v1 "lina-core/api/role/v1"
 )
 
 // RoleBatchDelete deletes multiple roles.

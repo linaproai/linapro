@@ -32,5 +32,5 @@ func (c *ControllerV1) translateSourceText(ctx context.Context, key string, sour
 	if c == nil || c.i18nSvc == nil || strings.TrimSpace(key) == "" {
 		return sourceText
 	}
-	return c.i18nSvc.TranslateSourceText(ctx, key, sourceText)
+	return c.i18nSvc.Translate(ctx, key, sourceText)
 }

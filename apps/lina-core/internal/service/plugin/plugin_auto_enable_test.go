@@ -4,7 +4,7 @@ package plugin
 
 import (
 	"context"
-	"encoding/json"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,15 +13,16 @@ import (
 
 	"github.com/gogf/gf/v2/frame/g"
 
-	"lina-core/internal/dao"
-	"lina-core/internal/model/do"
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
-	runtimepkg "lina-core/internal/service/plugin/internal/runtime"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/testutil"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
 // TestBootstrapAutoEnableInstallsAndEnablesSourcePlugin verifies startup
@@ -47,10 +48,10 @@ func TestBootstrapAutoEnableInstallsAndEnablesSourcePlugin(t *testing.T) {
 			"default_install_mode: global\n",
 	)
 
-	configsvc.SetPluginAutoEnableOverride([]string{pluginID})
+	setTestPluginAutoEnableOverride([]string{pluginID})
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
-		configsvc.SetPluginAutoEnableOverride(nil)
+		setTestPluginAutoEnableOverride(nil)
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	})
 
@@ -65,10 +66,10 @@ func TestBootstrapAutoEnableInstallsAndEnablesSourcePlugin(t *testing.T) {
 	if registry == nil {
 		t.Fatal("expected source plugin registry row after startup bootstrap")
 	}
-	if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
+	if registry.Installed != statusflag.Installed.Int() || registry.Status != statusflag.EnabledValue.Int() {
 		t.Fatalf("expected source plugin to be installed and enabled, got %#v", registry)
 	}
-	if registry.CurrentState != catalog.HostStateEnabled.String() {
+	if registry.CurrentState != plugintypes.HostStateEnabled.String() {
 		t.Fatalf("expected source plugin current state enabled, got %s", registry.CurrentState)
 	}
 
@@ -105,10 +106,10 @@ func TestBootstrapAutoEnableSourcePluginUpdatesStartupSnapshot(t *testing.T) {
 			"default_install_mode: global\n",
 	)
 
-	configsvc.SetPluginAutoEnableOverride([]string{pluginID})
+	setTestPluginAutoEnableOverride([]string{pluginID})
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
-		configsvc.SetPluginAutoEnableOverride(nil)
+		setTestPluginAutoEnableOverride(nil)
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	})
 
@@ -127,10 +128,10 @@ func TestBootstrapAutoEnableSourcePluginUpdatesStartupSnapshot(t *testing.T) {
 	if registry == nil {
 		t.Fatal("expected source plugin registry row after startup bootstrap")
 	}
-	if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
+	if registry.Installed != statusflag.Installed.Int() || registry.Status != statusflag.EnabledValue.Int() {
 		t.Fatalf("expected source plugin to be installed and enabled, got %#v", registry)
 	}
-	if registry.CurrentState != catalog.HostStateEnabled.String() {
+	if registry.CurrentState != plugintypes.HostStateEnabled.String() {
 		t.Fatalf("expected source plugin current state enabled, got %s", registry.CurrentState)
 	}
 }
@@ -146,7 +147,7 @@ func TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot(t *testing.T) {
 		version  = "v0.6.0"
 	)
 
-	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), runtimepkg.BuildArtifactFileName(pluginID))
+	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), testutil.RuntimeArtifactFileName(pluginID))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
@@ -154,7 +155,7 @@ func TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot(t *testing.T) {
 			ID:      pluginID,
 			Name:    "Dynamic Auto Enable Authorization Plugin",
 			Version: version,
-			Type:    catalog.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -190,7 +191,7 @@ func TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot(t *testing.T) {
 
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
-		configsvc.SetPluginAutoEnableOverride(nil)
+		setTestPluginAutoEnableOverride(nil)
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
 			t.Fatalf("failed to remove artifact %s: %v", artifactPath, cleanupErr)
@@ -200,14 +201,14 @@ func TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot(t *testing.T) {
 	if _, err := service.Install(ctx, pluginID, InstallOptions{Authorization: authorization}); err != nil {
 		t.Fatalf("expected initial dynamic plugin install to succeed, got error: %v", err)
 	}
-	if err := service.UpdateStatus(ctx, pluginID, catalog.StatusEnabled, authorization); err != nil {
+	if err := service.UpdateStatus(ctx, pluginID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int(), Authorization: authorization}); err != nil {
 		t.Fatalf("expected initial dynamic plugin enable to succeed, got error: %v", err)
 	}
 	if err := service.Uninstall(ctx, pluginID, UninstallOptions{PurgeStorageData: true}); err != nil {
 		t.Fatalf("expected dynamic plugin uninstall to succeed, got error: %v", err)
 	}
 
-	configsvc.SetPluginAutoEnableOverride([]string{pluginID})
+	setTestPluginAutoEnableOverride([]string{pluginID})
 
 	bootstrapService := newTestService()
 	if err := bootstrapService.BootstrapAutoEnable(ctx); err != nil {
@@ -221,10 +222,10 @@ func TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot(t *testing.T) {
 	if registry == nil {
 		t.Fatal("expected dynamic plugin registry row after startup bootstrap")
 	}
-	if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
+	if registry.Installed != statusflag.Installed.Int() || registry.Status != statusflag.EnabledValue.Int() {
 		t.Fatalf("expected dynamic plugin to be installed and enabled, got %#v", registry)
 	}
-	if registry.CurrentState != catalog.HostStateEnabled.String() {
+	if registry.CurrentState != plugintypes.HostStateEnabled.String() {
 		t.Fatalf("expected dynamic plugin current state enabled, got %s", registry.CurrentState)
 	}
 
@@ -235,7 +236,7 @@ func TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot(t *testing.T) {
 	if release == nil {
 		t.Fatal("expected dynamic plugin release row after startup bootstrap")
 	}
-	snapshot, err := bootstrapService.catalogSvc.ParseManifestSnapshot(release.ManifestSnapshot)
+	snapshot, err := bootstrapService.storeSvc.ParseManifestSnapshot(release.ManifestSnapshot)
 	if err != nil {
 		t.Fatalf("expected manifest snapshot parse to succeed, got error: %v", err)
 	}
@@ -254,7 +255,7 @@ func TestBootstrapAutoEnableRejectsDynamicPluginWithoutAuthorizationSnapshot(t *
 		pluginID = "plugin-dev-dynamic-auto-enable-auth-missing"
 	)
 
-	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), runtimepkg.BuildArtifactFileName(pluginID))
+	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), testutil.RuntimeArtifactFileName(pluginID))
 	testutil.WriteRuntimeWasmArtifact(
 		t,
 		artifactPath,
@@ -262,7 +263,7 @@ func TestBootstrapAutoEnableRejectsDynamicPluginWithoutAuthorizationSnapshot(t *
 			ID:      pluginID,
 			Name:    "Dynamic Auto Enable Missing Authorization Plugin",
 			Version: "v0.6.1",
-			Type:    catalog.TypeDynamic.String(),
+			Type:    pluginv1.PluginTypeDynamic.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind: protocol.RuntimeKindWasm,
@@ -285,10 +286,10 @@ func TestBootstrapAutoEnableRejectsDynamicPluginWithoutAuthorizationSnapshot(t *
 		nil,
 	)
 
-	configsvc.SetPluginAutoEnableOverride([]string{pluginID})
+	setTestPluginAutoEnableOverride([]string{pluginID})
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
-		configsvc.SetPluginAutoEnableOverride(nil)
+		setTestPluginAutoEnableOverride(nil)
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
 			t.Fatalf("failed to remove artifact %s: %v", artifactPath, cleanupErr)
@@ -329,10 +330,10 @@ func TestBootstrapAutoEnableWaitsUntilCurrentNodeBecomesPrimary(t *testing.T) {
 		nil,
 	)
 
-	configsvc.SetPluginAutoEnableOverride([]string{pluginID})
+	setTestPluginAutoEnableOverride([]string{pluginID})
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
-		configsvc.SetPluginAutoEnableOverride(nil)
+		setTestPluginAutoEnableOverride(nil)
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
 			t.Fatalf("failed to remove artifact %s: %v", artifactPath, cleanupErr)
@@ -357,10 +358,10 @@ func TestBootstrapAutoEnableWaitsUntilCurrentNodeBecomesPrimary(t *testing.T) {
 	if registry == nil {
 		t.Fatal("expected cluster bootstrap registry row after startup bootstrap")
 	}
-	if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
+	if registry.Installed != statusflag.Installed.Int() || registry.Status != statusflag.EnabledValue.Int() {
 		t.Fatalf("expected cluster bootstrap plugin to be installed and enabled, got %#v", registry)
 	}
-	if registry.CurrentState != catalog.HostStateEnabled.String() {
+	if registry.CurrentState != plugintypes.HostStateEnabled.String() {
 		t.Fatalf("expected cluster bootstrap plugin current state enabled, got %s", registry.CurrentState)
 	}
 }
@@ -404,7 +405,7 @@ func mockMigrationRowCount(t *testing.T, ctx context.Context, pluginID string) i
 		ctx,
 		"SELECT COUNT(1) FROM sys_plugin_migration WHERE plugin_id = ? AND phase = ?;",
 		pluginID,
-		catalog.MigrationDirectionMock.String(),
+		plugintypes.MigrationDirectionMock.String(),
 	)
 	if err != nil {
 		t.Fatalf("expected mock migration row count query to succeed, got error: %v", err)
@@ -459,7 +460,7 @@ func TestBootstrapAutoEnableHonorsPerEntryMockDataOptIn(t *testing.T) {
 		"INSERT INTO "+mockTable+" (marker) VALUES ('startup-mock-row');",
 	)
 
-	configsvc.SetPluginAutoEnableEntriesOverride([]configsvc.PluginAutoEnableEntry{
+	setTestPluginAutoEnableEntriesOverride([]configsvc.PluginAutoEnableEntry{
 		{ID: pluginIDNoMock, WithMockData: false},
 		{ID: pluginIDWithMock, WithMockData: true},
 	})
@@ -467,7 +468,7 @@ func TestBootstrapAutoEnableHonorsPerEntryMockDataOptIn(t *testing.T) {
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginIDNoMock)
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginIDWithMock)
 	t.Cleanup(func() {
-		configsvc.SetPluginAutoEnableEntriesOverride(nil)
+		setTestPluginAutoEnableEntriesOverride(nil)
 		dropMockTableIfExists(t, ctx, mockTable)
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginIDNoMock)
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginIDWithMock)
@@ -501,11 +502,16 @@ func TestBootstrapAutoEnableHonorsPerEntryMockDataOptIn(t *testing.T) {
 func TestReconcileAutoEnabledTenantPluginsProvisionsTenantScopedEntries(t *testing.T) {
 	var (
 		ctx      = context.Background()
-		service  = newTestService()
 		pluginID = autoEnableTenantProvisioningPluginID
 		version  = "v0.1.0"
 		tenantID = tenantcap.TenantID(50101)
 	)
+	tenantSvc := &autoEnableTenantProvisioningService{enabled: true, tenantID: tenantID}
+	service, err := newTestServiceWithTopologyAndTenantDeps(nil, tenantSvc)
+	if err != nil {
+		t.Fatalf("construct plugin service: %v", err)
+	}
+	tenantSvc.pluginSvc = service
 
 	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
 	testutil.WriteTestFile(
@@ -520,10 +526,10 @@ func TestReconcileAutoEnabledTenantPluginsProvisionsTenantScopedEntries(t *testi
 			"default_install_mode: tenant_scoped\n",
 	)
 
-	configsvc.SetPluginAutoEnableOverride([]string{pluginID})
+	setTestPluginAutoEnableOverride([]string{pluginID})
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	t.Cleanup(func() {
-		configsvc.SetPluginAutoEnableOverride(nil)
+		setTestPluginAutoEnableOverride(nil)
 		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
 	})
 
@@ -538,8 +544,6 @@ func TestReconcileAutoEnabledTenantPluginsProvisionsTenantScopedEntries(t *testi
 		t.Fatalf("expected bootstrap to leave tenant provisioning policy unset before provider reconciliation, got %#v", registry)
 	}
 
-	tenantSvc := &autoEnableTenantProvisioningService{enabled: true, pluginSvc: service, tenantID: tenantID}
-	service.SetTenantProvisioningCapability(tenantSvc)
 	if err = service.ReconcileAutoEnabledTenantPlugins(ctx); err != nil {
 		t.Fatalf("expected tenant provisioning reconciliation to succeed, got error: %v", err)
 	}
@@ -554,219 +558,8 @@ func TestReconcileAutoEnabledTenantPluginsProvisionsTenantScopedEntries(t *testi
 	if tenantSvc.provisionCalls != 1 {
 		t.Fatalf("expected tenant provisioning to run once, got %d", tenantSvc.provisionCalls)
 	}
-	if !service.IsEnabled(datascope.WithTenantForTest(ctx, int(tenantID)), pluginID) {
+	if !service.IsEnabled(datascope.WithTenantScope(ctx, int(tenantID)), pluginID) {
 		t.Fatalf("expected plugin %s to be visible for tenant %d after provisioning", pluginID, tenantID)
-	}
-}
-
-// TestBootstrapAutoEnableRefreshesLegacyHostRuntimeArchive verifies startup
-// runs a single-node dynamic reconciliation pass after manifest sync so stale
-// archived artifacts with obsolete hostruntime declarations are repaired from
-// the current staged artifact.
-func TestBootstrapAutoEnableRefreshesLegacyHostRuntimeArchive(t *testing.T) {
-	var (
-		ctx      = context.Background()
-		service  = newTestService()
-		pluginID = "plugin-dev-dynamic-legacy-host-config-startup"
-		name     = "Legacy HostRuntime Startup Plugin"
-		version  = "v0.1.0"
-	)
-
-	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), runtimepkg.BuildArtifactFileName(pluginID))
-	testutil.WriteRuntimeWasmArtifact(
-		t,
-		artifactPath,
-		&catalog.ArtifactManifest{
-			ID:      pluginID,
-			Name:    name,
-			Version: version,
-			Type:    catalog.TypeDynamic.String(),
-		},
-		&catalog.ArtifactSpec{
-			RuntimeKind: protocol.RuntimeKindWasm,
-			ABIVersion:  protocol.SupportedABIVersion,
-			HostServices: []*protocol.HostServiceSpec{{
-				Service: protocol.HostServiceHostConfig,
-				Methods: []string{protocol.HostServiceMethodHostConfigGet},
-				Keys:    []string{"workspace.basePath"},
-			}},
-		},
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-
-	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	t.Cleanup(func() {
-		configsvc.SetPluginAutoEnableOverride(nil)
-		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
-			t.Fatalf("failed to remove artifact %s: %v", artifactPath, cleanupErr)
-		}
-	})
-
-	authorization := &HostServiceAuthorizationInput{
-		Services: []*HostServiceAuthorizationDecision{{
-			Service: protocol.HostServiceHostConfig,
-			Methods: []string{protocol.HostServiceMethodHostConfigGet},
-			Keys:    []string{"workspace.basePath"},
-		}},
-	}
-	if _, err := service.Install(ctx, pluginID, InstallOptions{Authorization: authorization}); err != nil {
-		t.Fatalf("expected initial install to succeed, got error: %v", err)
-	}
-	if err := service.UpdateStatus(ctx, pluginID, catalog.StatusEnabled, authorization); err != nil {
-		t.Fatalf("expected initial enable to succeed, got error: %v", err)
-	}
-
-	release, err := service.getPluginRelease(ctx, pluginID, version)
-	if err != nil {
-		t.Fatalf("expected release lookup to succeed, got error: %v", err)
-	}
-	if release == nil {
-		t.Fatal("expected release row after enable")
-	}
-	legacyArchivePath := filepath.Join(
-		testutil.TestDynamicStorageDir(),
-		"releases",
-		pluginID,
-		version,
-		"legacy-hostruntime",
-		runtimepkg.BuildArtifactFileName(pluginID),
-	)
-	writeLegacyHostRuntimeArtifact(t, legacyArchivePath, pluginID, name, version)
-	legacySnapshot := strings.ReplaceAll(release.ManifestSnapshot, protocol.HostServiceHostConfig, "hostruntime")
-	if _, err = dao.SysPluginRelease.Ctx(ctx).
-		Where(do.SysPluginRelease{Id: release.Id}).
-		Data(do.SysPluginRelease{
-			PackagePath:      filepath.ToSlash(strings.TrimPrefix(legacyArchivePath, testutil.TestDynamicStorageDir()+string(os.PathSeparator))),
-			ManifestSnapshot: legacySnapshot,
-		}).
-		Update(); err != nil {
-		t.Fatalf("expected release row to accept legacy archive fixture, got error: %v", err)
-	}
-
-	staleRegistry, err := service.catalogSvc.RefreshStartupRegistry(ctx, pluginID)
-	if err != nil {
-		t.Fatalf("expected registry refresh to succeed, got error: %v", err)
-	}
-	if staleRegistry == nil {
-		t.Fatal("expected registry row before startup bootstrap")
-	}
-	if _, err = service.catalogSvc.RefreshStartupReleaseByID(ctx, release.Id); err != nil {
-		t.Fatalf("expected release refresh to succeed, got error: %v", err)
-	}
-	if _, err = service.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, staleRegistry); err == nil {
-		t.Fatal("expected legacy active archive to fail strict artifact parsing before startup repair")
-	}
-
-	configsvc.SetPluginAutoEnableOverride(nil)
-	if err = service.BootstrapAutoEnable(ctx); err != nil {
-		t.Fatalf("expected startup bootstrap to repair legacy dynamic archive, got error: %v", err)
-	}
-
-	repairedRegistry, err := service.getPluginRegistry(ctx, pluginID)
-	if err != nil {
-		t.Fatalf("expected repaired registry lookup to succeed, got error: %v", err)
-	}
-	if repairedRegistry == nil || repairedRegistry.ReleaseId <= 0 {
-		t.Fatalf("expected repaired registry with release id, got %#v", repairedRegistry)
-	}
-	repairedManifest, err := service.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, repairedRegistry)
-	if err != nil {
-		t.Fatalf("expected repaired active manifest to load, got error: %v", err)
-	}
-	if len(repairedManifest.HostServices) != 1 ||
-		repairedManifest.HostServices[0].Service != protocol.HostServiceHostConfig {
-		t.Fatalf("expected repaired active manifest to use hostconfig, got %#v", repairedManifest.HostServices)
-	}
-	repairedRelease, err := service.catalogSvc.GetRelease(ctx, pluginID, version)
-	if err != nil {
-		t.Fatalf("expected repaired release lookup to succeed, got error: %v", err)
-	}
-	if repairedRelease == nil || strings.Contains(repairedRelease.ManifestSnapshot, "hostruntime") {
-		t.Fatalf("expected repaired release snapshot without hostruntime, got %#v", repairedRelease)
-	}
-	if strings.Contains(filepath.ToSlash(repairedRelease.PackagePath), "legacy-hostruntime") {
-		t.Fatalf("expected repaired release package path to point at checksum archive, got %s", repairedRelease.PackagePath)
-	}
-}
-
-// writeLegacyHostRuntimeArtifact writes a strict-invalid runtime artifact that
-// mirrors the historical hostruntime service spelling found in old archives.
-func writeLegacyHostRuntimeArtifact(t *testing.T, filePath string, pluginID string, name string, version string) {
-	t.Helper()
-
-	manifest := &catalog.ArtifactManifest{
-		ID:                  pluginID,
-		Name:                name,
-		Version:             version,
-		Type:                catalog.TypeDynamic.String(),
-		ScopeNature:         catalog.ScopeNatureTenantAware.String(),
-		SupportsMultiTenant: &testutil.DefaultTestSupportsMultiTenant,
-		DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
-	}
-	runtimeMetadata := &catalog.ArtifactSpec{
-		RuntimeKind: protocol.RuntimeKindWasm,
-		ABIVersion:  protocol.SupportedABIVersion,
-	}
-	manifestContent, err := json.Marshal(manifest)
-	if err != nil {
-		t.Fatalf("failed to marshal legacy artifact manifest: %v", err)
-	}
-	runtimeContent, err := json.Marshal(runtimeMetadata)
-	if err != nil {
-		t.Fatalf("failed to marshal legacy artifact runtime metadata: %v", err)
-	}
-	hostServicesContent := []byte(`[{"service":"hostruntime","methods":["get"],"resources":{"keys":["workspace.basePath"]}}]`)
-
-	wasm := []byte{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}
-	wasm = appendTestWasmCustomSection(wasm, protocol.WasmSectionManifest, manifestContent)
-	wasm = appendTestWasmCustomSection(wasm, protocol.WasmSectionRuntime, runtimeContent)
-	wasm = appendTestWasmCustomSection(wasm, protocol.WasmSectionBackendHostServices, hostServicesContent)
-
-	if err = os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
-		t.Fatalf("failed to create legacy artifact dir: %v", err)
-	}
-	if err = os.WriteFile(filePath, wasm, 0o644); err != nil {
-		t.Fatalf("failed to write legacy artifact: %v", err)
-	}
-	t.Cleanup(func() {
-		if cleanupErr := os.Remove(filePath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
-			t.Fatalf("failed to remove legacy artifact %s: %v", filePath, cleanupErr)
-		}
-	})
-}
-
-// appendTestWasmCustomSection appends a WASM custom section for local fixtures.
-func appendTestWasmCustomSection(content []byte, name string, payload []byte) []byte {
-	sectionPayload := append([]byte{}, encodeTestWasmULEB128(uint32(len(name)))...)
-	sectionPayload = append(sectionPayload, []byte(name)...)
-	sectionPayload = append(sectionPayload, payload...)
-
-	out := append([]byte{}, content...)
-	out = append(out, 0x00)
-	out = append(out, encodeTestWasmULEB128(uint32(len(sectionPayload)))...)
-	out = append(out, sectionPayload...)
-	return out
-}
-
-// encodeTestWasmULEB128 encodes one unsigned WASM section length.
-func encodeTestWasmULEB128(value uint32) []byte {
-	out := make([]byte, 0, 5)
-	for {
-		current := byte(value & 0x7f)
-		value >>= 7
-		if value != 0 {
-			current |= 0x80
-		}
-		out = append(out, current)
-		if value == 0 {
-			return out
-		}
 	}
 }
 
@@ -777,10 +570,21 @@ const autoEnableTenantProvisioningPluginID = "plugin-dev-auto-enable-tenant-prov
 // autoEnableTenantProvisioningService is a narrow tenantcap fake for startup
 // auto-enable provisioning tests.
 type autoEnableTenantProvisioningService struct {
+	tenantspi.Service
 	enabled        bool
 	pluginSvc      *serviceImpl
 	tenantID       tenantcap.TenantID
 	provisionCalls int
+}
+
+// Available reports whether the test tenant provider is active.
+func (s *autoEnableTenantProvisioningService) Available(context.Context) bool {
+	return s.enabled
+}
+
+// PlatformBypass keeps auto-enable tests in platform-governance context.
+func (s *autoEnableTenantProvisioningService) PlatformBypass(context.Context) bool {
+	return true
 }
 
 // ProvisionAutoEnabledTenantPlugins records startup provisioning and writes the
@@ -791,4 +595,240 @@ func (s *autoEnableTenantProvisioningService) ProvisionAutoEnabledTenantPlugins(
 		return nil
 	}
 	return s.pluginSvc.integrationSvc.SetTenantPluginEnabledState(ctx, autoEnableTenantProvisioningPluginID, int(s.tenantID), true)
+}
+
+// TestBootstrapBuiltinPluginsInstallsAndEnablesSourcePlugin verifies builtin
+// source plugins converge without plugin.autoEnable configuration.
+func TestBootstrapBuiltinPluginsInstallsAndEnablesSourcePlugin(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		service  = newTestService()
+		pluginID = "plugin-dev-builtin-bootstrap-install"
+	)
+
+	createTestSourceDependencyPlugin(
+		t,
+		pluginID,
+		"Builtin Bootstrap Install",
+		"v0.1.0",
+		"distribution: builtin\n",
+	)
+	cleanupTestPluginIDs(t, ctx, pluginID)
+
+	if err := service.BootstrapBuiltinPlugins(ctx); err != nil {
+		t.Fatalf("expected builtin bootstrap to succeed, got error: %v", err)
+	}
+
+	assertPluginInstalledState(t, ctx, service, pluginID, statusflag.Installed.Int(), statusflag.EnabledValue.Int())
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup to succeed, got error: %v", err)
+	}
+	if registry.CurrentState != plugintypes.HostStateEnabled.String() {
+		t.Fatalf("expected builtin current state enabled, got %s", registry.CurrentState)
+	}
+}
+
+// TestBootstrapBuiltinPluginsDoesNotLoadMockData verifies builtin startup
+// install never loads manifest/sql/mock-data even when the plugin ships it.
+func TestBootstrapBuiltinPluginsDoesNotLoadMockData(t *testing.T) {
+	var (
+		ctx       = context.Background()
+		service   = newTestService()
+		pluginID  = "plugin-dev-builtin-bootstrap-no-mock"
+		mockTable = "plugin_builtin_bootstrap_no_mock_demo"
+	)
+
+	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
+	testutil.WriteTestFile(
+		t,
+		filepath.Join(pluginDir, "plugin.yaml"),
+		"id: "+pluginID+"\n"+
+			"name: Builtin Bootstrap No Mock\n"+
+			"version: v0.1.0\n"+
+			"type: source\n"+
+			"distribution: builtin\n"+
+			"scope_nature: tenant_aware\n"+
+			"supports_multi_tenant: false\n"+
+			"default_install_mode: global\n",
+	)
+	testutil.WriteTestFile(
+		t,
+		filepath.Join(pluginDir, "manifest", "sql", "001-"+pluginID+".sql"),
+		"CREATE TABLE IF NOT EXISTS "+mockTable+" (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker VARCHAR(32) NOT NULL);",
+	)
+	testutil.WriteTestFile(
+		t,
+		filepath.Join(pluginDir, "manifest", "sql", "mock-data", "001-"+pluginID+"-mock.sql"),
+		"INSERT INTO "+mockTable+" (marker) VALUES ('builtin-mock-row');",
+	)
+
+	dropMockTableIfExists(t, ctx, mockTable)
+	cleanupTestPluginIDs(t, ctx, pluginID)
+	t.Cleanup(func() {
+		dropMockTableIfExists(t, ctx, mockTable)
+	})
+
+	if err := service.BootstrapBuiltinPlugins(ctx); err != nil {
+		t.Fatalf("expected builtin bootstrap to succeed, got error: %v", err)
+	}
+	if rows := mockTableRowCount(t, ctx, mockTable); rows != 0 {
+		t.Fatalf("expected builtin bootstrap not to load mock-data rows, got %d", rows)
+	}
+	if mockMigrations := mockMigrationRowCount(t, ctx, pluginID); mockMigrations != 0 {
+		t.Fatalf("expected no mock migration records for builtin bootstrap, got %d", mockMigrations)
+	}
+}
+
+// TestBootstrapBuiltinPluginsUpgradesPendingSourcePlugin verifies startup
+// builtin reconciliation executes the unified runtime-upgrade path.
+func TestBootstrapBuiltinPluginsUpgradesPendingSourcePlugin(t *testing.T) {
+	var (
+		ctx         = context.Background()
+		service     = newTestService()
+		pluginID    = "plugin-dev-builtin-bootstrap-upgrade"
+		oldVersion  = "v0.1.0"
+		newVersion  = "v0.2.0"
+		manifestDir = testutil.CreateTestPluginDir(t, pluginID)
+		manifest    = filepath.Join(manifestDir, "plugin.yaml")
+	)
+
+	writeTestSourcePluginManifestWithExtra(
+		t,
+		manifest,
+		pluginID,
+		"Builtin Bootstrap Upgrade",
+		oldVersion,
+		"plugin:"+pluginID+":old",
+		"distribution: builtin\n",
+	)
+	cleanupTestPluginIDs(t, ctx, pluginID)
+
+	if err := service.BootstrapBuiltinPlugins(ctx); err != nil {
+		t.Fatalf("expected initial builtin bootstrap to succeed, got error: %v", err)
+	}
+	writeTestSourcePluginManifestWithExtra(
+		t,
+		manifest,
+		pluginID,
+		"Builtin Bootstrap Upgrade",
+		newVersion,
+		"plugin:"+pluginID+":new",
+		"distribution: builtin\n",
+	)
+
+	if err := service.BootstrapBuiltinPlugins(ctx); err != nil {
+		t.Fatalf("expected builtin bootstrap upgrade to succeed, got error: %v", err)
+	}
+
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup to succeed, got error: %v", err)
+	}
+	if registry.Version != newVersion {
+		t.Fatalf("expected builtin effective version %s after startup upgrade, got %s", newVersion, registry.Version)
+	}
+	assertPluginInstalledState(t, ctx, service, pluginID, statusflag.Installed.Int(), statusflag.EnabledValue.Int())
+}
+
+// TestBootstrapBuiltinPluginsFailsOnDiscoveredDowngrade verifies lower source
+// versions fail startup and do not demote the effective release.
+func TestBootstrapBuiltinPluginsFailsOnDiscoveredDowngrade(t *testing.T) {
+	var (
+		ctx         = context.Background()
+		service     = newTestService()
+		pluginID    = "plugin-dev-builtin-bootstrap-downgrade"
+		oldVersion  = "v0.1.0"
+		newVersion  = "v0.2.0"
+		manifestDir = testutil.CreateTestPluginDir(t, pluginID)
+		manifest    = filepath.Join(manifestDir, "plugin.yaml")
+	)
+
+	writeTestSourcePluginManifestWithExtra(
+		t,
+		manifest,
+		pluginID,
+		"Builtin Bootstrap Downgrade",
+		oldVersion,
+		"plugin:"+pluginID+":old",
+		"distribution: builtin\n",
+	)
+	cleanupTestPluginIDs(t, ctx, pluginID)
+
+	if err := service.BootstrapBuiltinPlugins(ctx); err != nil {
+		t.Fatalf("expected initial builtin bootstrap to succeed, got error: %v", err)
+	}
+	writeTestSourcePluginManifestWithExtra(
+		t,
+		manifest,
+		pluginID,
+		"Builtin Bootstrap Downgrade",
+		newVersion,
+		"plugin:"+pluginID+":new",
+		"distribution: builtin\n",
+	)
+	if err := service.BootstrapBuiltinPlugins(ctx); err != nil {
+		t.Fatalf("expected builtin upgrade bootstrap to succeed, got error: %v", err)
+	}
+	writeTestSourcePluginManifestWithExtra(
+		t,
+		manifest,
+		pluginID,
+		"Builtin Bootstrap Downgrade",
+		oldVersion,
+		"plugin:"+pluginID+":old",
+		"distribution: builtin\n",
+	)
+
+	err := service.BootstrapBuiltinPlugins(ctx)
+	if !bizerr.Is(err, CodePluginRuntimeUpgradeUnavailable) {
+		t.Fatalf("expected runtime-upgrade-unavailable error on builtin downgrade, got %v", err)
+	}
+	registry, lookupErr := service.getPluginRegistry(ctx, pluginID)
+	if lookupErr != nil {
+		t.Fatalf("expected registry lookup to succeed, got error: %v", lookupErr)
+	}
+	if registry.Version != newVersion {
+		t.Fatalf("expected effective version to remain %s after downgrade failure, got %s", newVersion, registry.Version)
+	}
+}
+
+// TestBootstrapBuiltinPluginsWaitsUntilCurrentNodeBecomesPrimary verifies
+// cluster startup waits before executing shared builtin lifecycle writes.
+func TestBootstrapBuiltinPluginsWaitsUntilCurrentNodeBecomesPrimary(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		pluginID = "plugin-dev-builtin-bootstrap-cluster"
+		topology = &testTopology{
+			enabled: true,
+			primary: false,
+			nodeID:  "builtin-bootstrap-follower",
+		}
+		service = newTestServiceWithTopology(topology)
+	)
+
+	createTestSourceDependencyPlugin(
+		t,
+		pluginID,
+		"Builtin Bootstrap Cluster",
+		"v0.1.0",
+		"distribution: builtin\n",
+	)
+	cleanupTestPluginIDs(t, ctx, pluginID)
+	setTestPluginAutoEnableOverride(nil)
+	t.Cleanup(func() {
+		setTestPluginAutoEnableOverride(nil)
+	})
+
+	timer := time.AfterFunc(150*time.Millisecond, func() {
+		topology.SetPrimary(true)
+	})
+	t.Cleanup(func() {
+		timer.Stop()
+	})
+
+	if err := service.BootstrapBuiltinPlugins(ctx); err != nil {
+		t.Fatalf("expected clustered builtin bootstrap to succeed after primary handoff, got error: %v", err)
+	}
+	assertPluginInstalledState(t, ctx, service, pluginID, statusflag.Installed.Int(), statusflag.EnabledValue.Int())
 }

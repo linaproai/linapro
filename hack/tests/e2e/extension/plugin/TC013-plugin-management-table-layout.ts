@@ -24,7 +24,7 @@ function pluginRow() {
     declaredRoutes: [],
     dependencyCheck: null,
     description: 'Used by E2E to verify plugin management table layout.',
-    discoveredVersion: 'v0.1.0',
+    discoveredVersion: 'v0.2.0',
     effectiveVersion: 'v0.1.0',
     enabled: 1,
     hasMockData: 0,
@@ -35,13 +35,13 @@ function pluginRow() {
     lastUpgradeFailure: undefined,
     name: 'Plugin Management Table Layout E2E',
     requestedHostServices: [],
-    runtimeState: 'normal',
+    runtimeState: 'pending_upgrade',
     scopeNature: 'global',
     statusKey: 'enabled',
     supportsMultiTenant: false,
     type: 'source',
     updatedAt: '',
-    upgradeAvailable: false,
+    upgradeAvailable: true,
     version: 'v0.1.0',
   };
 }
@@ -122,6 +122,24 @@ test.describe('TC-13 插件管理列表布局', () => {
       '插件名称',
       '版本号',
     ]);
+    await pluginPage.expectTableColumnWiderThan('版本号', [
+      '插件类型',
+      '状态',
+      '运行时状态',
+      '示例数据',
+      '支持多租户',
+      '新租户启用',
+    ]);
+    await pluginPage.expectTableColumnWidthAtMost('插件类型', 112);
+    await pluginPage.expectTableColumnWidthAtMost('状态', 100);
+    await pluginPage.expectTableColumnWidthAtMost('运行时状态', 116);
+    await pluginPage.expectTableColumnWidthAtMost('示例数据', 108);
+    await pluginPage.expectTableColumnWidthAtMost('支持多租户', 126);
+    await pluginPage.expectTableColumnWidthAtMost('新租户启用', 130);
+    await expect(pluginPage.pluginVersionValue(layoutPluginID)).toContainText(
+      /v0\.1\.0\s*->\s*v0\.2\.0/u,
+    );
+    await pluginPage.expectPluginVersionNotClipped(layoutPluginID);
     await expect(pluginPage.pluginColumnHelpIcon('runtimeState')).toBeVisible();
     await pluginPage.expectColumnHelpTooltip(
       'runtimeState',

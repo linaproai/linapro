@@ -9,8 +9,9 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
-	orgcapsvc "lina-core/pkg/plugin/capability/orgcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 const (
@@ -36,32 +37,16 @@ const (
 	roleDataScopeSelf = 4
 )
 
-// PermissionMenuFilter defines the narrow dependency required by the role
+// permissionMenuFilter defines the narrow dependency required by the role
 // service to hide plugin-owned permission menus that are not currently active.
-type PermissionMenuFilter interface {
+type permissionMenuFilter interface {
 	// FilterPermissionMenus returns only the permission menus that should remain
 	// effective for the current host and plugin state.
 	FilterPermissionMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu
 }
 
-// OrganizationCapabilityState defines the narrow organization-capability
-// dependency role needs to validate organization-dependent data-scope values.
-type OrganizationCapabilityState interface {
-	// Available reports whether organization capability is currently usable.
-	Available(ctx context.Context) bool
-}
-
-// pluginEnablementState defines the plugin-status reader used to derive
-// organization capability state in production controllers.
-type pluginEnablementState interface {
-	// IsProviderEnabled returns whether the given plugin ID can serve framework provider calls.
-	IsProviderEnabled(ctx context.Context, pluginID string) bool
-	// OrgProviderEnv returns typed, plugin-scoped organization provider construction inputs.
-	OrgProviderEnv(pluginID string) orgcapsvc.ProviderEnv
-}
-
-// RoleQueryService defines read-only role management operations.
-type RoleQueryService interface {
+// Service defines the full role service contract.
+type Service interface {
 	// List queries role list with pagination.
 	List(ctx context.Context, in ListInput) (*ListOutput, error)
 	// GetById retrieves role by ID.
@@ -73,10 +58,7 @@ type RoleQueryService interface {
 	// DisplayName returns the read-only display name for one role, localizing
 	// protected built-in roles while preserving custom role names.
 	DisplayName(ctx context.Context, role *entity.SysRole) string
-}
 
-// RoleMutationService defines role create, update, delete, and status operations.
-type RoleMutationService interface {
 	// Create creates a new role.
 	Create(ctx context.Context, in CreateInput) (int, error)
 	// Update updates role information.
@@ -87,11 +69,7 @@ type RoleMutationService interface {
 	BatchDelete(ctx context.Context, ids []int) error
 	// UpdateStatus updates role status.
 	UpdateStatus(ctx context.Context, id int, status int) error
-}
 
-// RoleMenuAssignmentService defines the assignable permission-menu projection
-// used by role forms and role-menu persistence.
-type RoleMenuAssignmentService interface {
 	// FilterAssignableMenus returns only menu rows that may be assigned by the
 	// current request context. The caller-provided order is preserved.
 	FilterAssignableMenus(ctx context.Context, menus []*entity.SysMenu) ([]*entity.SysMenu, error)
@@ -102,10 +80,7 @@ type RoleMenuAssignmentService interface {
 	// EnsureAssignableMenuIDs rejects the submitted menu IDs when any positive
 	// ID is outside the current request context's assignable set.
 	EnsureAssignableMenuIDs(ctx context.Context, menuIDs []int) error
-}
 
-// RoleUserAssignmentService defines role-to-user assignment operations.
-type RoleUserAssignmentService interface {
 	// GetUsers queries users assigned to a role.
 	GetUsers(ctx context.Context, in GetUsersInput) (*GetUsersOutput, error)
 	// AssignUsers assigns users to a role.
@@ -114,30 +89,21 @@ type RoleUserAssignmentService interface {
 	UnassignUser(ctx context.Context, roleId int, userId int) error
 	// UnassignUsers removes multiple users from a role.
 	UnassignUsers(ctx context.Context, roleId int, userIds []int) error
-}
 
-// UserRoleLookupService defines read-only user role lookup operations.
-type UserRoleLookupService interface {
 	// GetUserRoleIds returns role IDs for a user.
 	GetUserRoleIds(ctx context.Context, userId int) ([]int, error)
 	// GetUserRoles returns role entities for a user.
 	GetUserRoles(ctx context.Context, userId int) ([]*entity.SysRole, error)
 	// GetUserRoleNames returns role names for a user.
 	GetUserRoleNames(ctx context.Context, userId int) ([]string, error)
-}
 
-// UserPermissionLookupService defines role-derived menu and permission lookup operations.
-type UserPermissionLookupService interface {
 	// GetUserMenuIds returns menu IDs accessible by a user through their roles.
 	GetUserMenuIds(ctx context.Context, userId int) ([]int, error)
 	// GetUserPermissions returns effective menu and button permission strings for a user.
 	GetUserPermissions(ctx context.Context, userId int) ([]string, error)
 	// IsSuperAdmin checks whether the user is the built-in admin account.
 	IsSuperAdmin(ctx context.Context, userId int) bool
-}
 
-// RoleAccessSnapshotService defines token access snapshot and topology invalidation operations.
-type RoleAccessSnapshotService interface {
 	// PrimeTokenAccessContext preloads the access context cache for one freshly issued login token.
 	PrimeTokenAccessContext(
 		ctx context.Context,
@@ -159,19 +125,19 @@ type RoleAccessSnapshotService interface {
 	GetUserAccessContext(ctx context.Context, userId int) (*UserAccessContext, error)
 	// GetUserDataScopeSnapshot returns the user's effective role data-scope from the cached access snapshot.
 	GetUserDataScopeSnapshot(ctx context.Context, userId int) (*datascope.AccessSnapshot, error)
+	// BuildDynamicRouteAccessProjection returns a token-bound dynamic route access
+	// projection for the supplied user and tenant. The projection reuses the same
+	// permission topology revision, token access cache, tenant scope, and
+	// fail-closed freshness checks as protected host APIs. Returned slices are
+	// detached from shared cache entries and safe for request-local mutation.
+	BuildDynamicRouteAccessProjection(
+		ctx context.Context,
+		tokenID string,
+		userID int,
+		tenantID int,
+	) (*DynamicRouteAccessProjection, error)
 	// SetDataScopeService wires the shared data-scope service used by role user operations.
 	SetDataScopeService(scopeSvc datascope.Service)
-}
-
-// Service defines the full role service contract by composing feature-scoped contracts.
-type Service interface {
-	RoleQueryService
-	RoleMutationService
-	RoleMenuAssignmentService
-	RoleUserAssignmentService
-	UserRoleLookupService
-	UserPermissionLookupService
-	RoleAccessSnapshotService
 }
 
 // Ensure serviceImpl implements Service.
@@ -181,29 +147,33 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	bizCtxSvc          bizctx.Service
 	configSvc          config.Service
-	i18nSvc            roleI18nTranslator
-	permissionFilter   PermissionMenuFilter
-	orgCapabilityState OrganizationCapabilityState
-	tenantSvc          roleTenantGovernanceService
+	i18nSvc            i18nsvc.Service
+	permissionFilter   permissionMenuFilter
+	orgCapSvc          orgcap.Service
+	tenantSvc          tenantspi.Service
 	accessRevisionCtrl accessRevisionController
 	scopeSvc           datascope.Service
 }
 
 // New creates and returns a new role service from explicit runtime-owned dependencies.
-func New(permissionFilter PermissionMenuFilter, bizCtxSvc bizctx.Service, configSvc config.Service, i18nSvc roleI18nTranslator, orgCapabilityState OrganizationCapabilityState, tenantSvc roleTenantGovernanceService) Service {
+func New(
+	permissionFilter permissionMenuFilter,
+	bizCtxSvc bizctx.Service,
+	configSvc config.Service,
+	i18nSvc i18nsvc.Service,
+	orgCapSvc orgcap.Service,
+	tenantSvc tenantspi.Service,
+) Service {
 	if permissionFilter == nil {
 		permissionFilter = noopPermissionMenuFilter{}
 	}
-	if orgCapabilityState == nil {
-		orgCapabilityState = organizationCapabilityStateFromPermissionFilter(permissionFilter)
-	}
 	svc := &serviceImpl{
-		bizCtxSvc:          bizCtxSvc,
-		configSvc:          configSvc,
-		i18nSvc:            i18nSvc,
-		permissionFilter:   permissionFilter,
-		orgCapabilityState: orgCapabilityState,
-		tenantSvc:          tenantSvc,
+		bizCtxSvc:        bizCtxSvc,
+		configSvc:        configSvc,
+		i18nSvc:          i18nSvc,
+		permissionFilter: permissionFilter,
+		orgCapSvc:        orgCapSvc,
+		tenantSvc:        tenantSvc,
 		accessRevisionCtrl: newCacheCoordAccessRevisionController(
 			configSvc.IsClusterEnabled(context.Background()),
 		),
@@ -211,35 +181,9 @@ func New(permissionFilter PermissionMenuFilter, bizCtxSvc bizctx.Service, config
 	return svc
 }
 
-// roleI18nTranslator defines the narrow translation capability role needs.
-type roleI18nTranslator interface {
-	// Translate returns one runtime translation key with caller-provided fallback text.
-	Translate(ctx context.Context, key string, fallback string) string
-}
-
-// roleTenantGovernanceService is the tenant slice role needs for assignment
-// guards. It deliberately excludes tenant request resolution, query scope, and
-// provisioning methods.
-type roleTenantGovernanceService interface {
-	// Available reports whether tenant governance is active.
-	Available(ctx context.Context) bool
-	// PlatformBypass reports whether current context may mutate platform-wide
-	// permission topology.
-	PlatformBypass(ctx context.Context) bool
-	// EnsureUsersInTenant verifies every user belongs to tenantID before role
-	// assignment writes proceed.
-	EnsureUsersInTenant(ctx context.Context, userIDs []int, tenantID tenantcapsvc.TenantID) error
-}
-
 // noopPermissionMenuFilter keeps permission menus unchanged when no external
 // plugin-aware filter is injected into the role service.
 type noopPermissionMenuFilter struct{}
-
-// pluginBackedOrganizationCapabilityState derives organization capability from
-// both plugin enablement state and the registered orgcap provider.
-type pluginBackedOrganizationCapabilityState struct {
-	pluginState pluginEnablementState
-}
 
 // ListInput defines filters and pagination for role list queries.
 type ListInput struct {

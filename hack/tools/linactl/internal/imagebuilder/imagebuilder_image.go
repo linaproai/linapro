@@ -3,6 +3,7 @@
 package imagebuilder
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,8 +13,8 @@ import (
 )
 
 // deriveGitTag returns a git-derived image tag with latest as the final fallback.
-func deriveGitTag(repoRoot string) (string, error) {
-	cmd := exec.Command("git", "describe", "--tags", "--always", "--dirty", "--match", "v*")
+func deriveGitTag(ctx context.Context, repoRoot string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", "describe", "--tags", "--always", "--dirty", "--match", "v*")
 	cmd.Dir = repoRoot
 	output, err := cmd.Output()
 	if err != nil {
@@ -35,7 +36,7 @@ func validateImageBuildRequest(image imageConfig, build buildConfig) error {
 	}
 	for _, target := range build.Targets {
 		if target.OS != "linux" {
-			return fmt.Errorf("Docker image builds require linux target platforms, got %s", target.String())
+			return fmt.Errorf("docker image builds require linux target platforms, got %s", target.String())
 		}
 	}
 	if build.MultiPlatform() && !image.Push {
@@ -45,20 +46,20 @@ func validateImageBuildRequest(image imageConfig, build buildConfig) error {
 }
 
 // buildDockerImage runs docker build or buildx with the configured image platforms.
-func buildDockerImage(stdout io.Writer, repoRoot string, image imageConfig, build buildConfig, runner commandRunner, imageRef string) error {
+func buildDockerImage(ctx context.Context, stdout io.Writer, repoRoot string, image imageConfig, build buildConfig, runner commandRunner, imageRef string) error {
 	if build.MultiPlatform() {
 		args := buildxDockerArgs(repoRoot, image, build, imageRef)
 		fmt.Fprintf(stdout, "Building multi-platform Docker image: %s (%s)\n", imageRef, build.Platform)
 		dockerRunner := runner
 		dockerRunner.verbose = true
-		return dockerRunner.Run(".", nil, "docker", args...)
+		return dockerRunner.Run(ctx, ".", nil, "docker", args...)
 	}
 	target := build.Targets[0]
 	args := dockerBuildArgs(repoRoot, image, target, imageRef)
 	fmt.Fprintf(stdout, "Building Docker image: %s\n", imageRef)
 	dockerRunner := runner
 	dockerRunner.verbose = true
-	return dockerRunner.Run(".", nil, "docker", args...)
+	return dockerRunner.Run(ctx, ".", nil, "docker", args...)
 }
 
 // buildxDockerArgs returns Docker buildx arguments for multi-platform publishing.

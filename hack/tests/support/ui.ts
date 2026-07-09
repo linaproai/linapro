@@ -11,6 +11,12 @@ const busySelector = [
   '[aria-busy="true"]:visible',
 ].join(', ');
 
+const routeBlockingSelector = [
+  '.ant-spin-spinning:visible',
+  '.bg-overlay-content:not(.invisible):visible',
+  '.dark\\:bg-overlay:not(.invisible):visible',
+].join(', ');
+
 export async function waitForBusyIndicatorsToClear(
   scope: Locator | Page,
   timeout = 10000,
@@ -21,7 +27,7 @@ export async function waitForBusyIndicatorsToClear(
 export async function waitForRouteReady(page: Page, timeout = 10000) {
   await page.waitForLoadState('domcontentloaded');
   await page.waitForLoadState('networkidle', { timeout }).catch(() => {});
-  await waitForBusyIndicatorsToClear(page, timeout);
+  await expect(page.locator(routeBlockingSelector)).toHaveCount(0, { timeout });
 }
 
 export async function waitForTableReady(
@@ -31,7 +37,17 @@ export async function waitForTableReady(
 ) {
   const table = page.locator(selector).first();
   await table.waitFor({ state: 'visible', timeout });
-  await waitForRouteReady(page, timeout);
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForLoadState('networkidle', { timeout }).catch(() => {});
+  await waitForBusyIndicatorsToClear(table, timeout);
+  const owningGrid = table
+    .locator(
+      'xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " vxe-grid ")][1]',
+    )
+    .first();
+  if ((await owningGrid.count()) > 0) {
+    await waitForBusyIndicatorsToClear(owningGrid, timeout);
+  }
 }
 
 export async function waitForDialogReady(dialog: Locator, timeout = 10000) {

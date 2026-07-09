@@ -15,24 +15,11 @@ import (
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
 )
 
-// userDataScope represents the role data range used by host user management tests.
-type userDataScope = datascope.Scope
-
-// User data-scope levels follow sys_role.data_scope values.
-const (
-	userDataScopeNone   userDataScope = datascope.ScopeNone
-	userDataScopeAll    userDataScope = datascope.ScopeAll
-	userDataScopeTenant userDataScope = datascope.ScopeTenant
-	userDataScopeDept   userDataScope = datascope.ScopeDept
-	userDataScopeSelf   userDataScope = datascope.ScopeSelf
-)
-
 // applyUserDataScope injects the current user's data-scope filter into a
 // sys_user model. The empty flag lets callers return an empty result when a
 // scope resolves to no visible rows.
 func (s *serviceImpl) applyUserDataScope(ctx context.Context, m *gdb.Model) (*gdb.Model, bool, error) {
-	scopedModel, empty, err := s.currentScopeSvc().ApplyUserScope(ctx, m, qualifiedSysUserIDColumn())
-	return scopedModel, empty, mapDataScopeError(err)
+	return s.currentScopeSvc().ApplyUserScope(ctx, m, qualifiedSysUserIDColumn())
 }
 
 // ensureUserVisible rejects detail and mutation operations for rows outside
@@ -47,17 +34,17 @@ func (s *serviceImpl) ensureUsersVisible(ctx context.Context, userIDs []int) err
 	if err := s.ensureUsersVisibleByTenantMembership(ctx, userIDs); err != nil {
 		return err
 	}
-	return mapDataScopeError(s.currentScopeSvc().EnsureUsersVisible(ctx, userIDs))
+	return s.currentScopeSvc().EnsureUsersVisible(ctx, userIDs)
 }
 
 // ensureUsersVisibleByTenantMembership rejects tenant-scoped detail and write
 // operations unless every target has active membership in the current tenant.
 func (s *serviceImpl) ensureUsersVisibleByTenantMembership(ctx context.Context, userIDs []int) error {
-	if len(userIDs) == 0 || currentTenantID(ctx) == datascope.PlatformTenantID || s == nil || s.tenantMembers == nil {
+	if len(userIDs) == 0 || currentTenantID(ctx) == datascope.PlatformTenantID || s == nil || s.tenantSvc == nil {
 		return nil
 	}
 	return mapTenantMembershipVisibilityError(
-		s.tenantMembers.EnsureUsersInTenant(
+		s.tenantSvc.EnsureUsersInTenant(
 			ctx,
 			uniqueTenantMembershipUserIDs(userIDs),
 			tenantcapsvc.TenantID(currentTenantID(ctx)),
@@ -86,43 +73,12 @@ func qualifiedSysUserIDColumn() string {
 	return dao.SysUser.Table() + "." + dao.SysUser.Columns().Id
 }
 
-// currentUserDataScope computes the widest enabled role data-scope for the
-// current request user. The built-in administrator always receives all data.
-func (s *serviceImpl) currentUserDataScope(ctx context.Context) (userDataScope, int, error) {
-	currentScope, err := s.currentScopeSvc().Current(ctx)
-	if err != nil {
-		return userDataScopeNone, 0, mapDataScopeError(err)
-	}
-	return currentScope.Scope, currentScope.UserID, nil
-}
-
 // currentScopeSvc returns the injected shared data-scope service.
 func (s *serviceImpl) currentScopeSvc() datascope.Service {
 	if s != nil && s.scopeSvc != nil {
 		return s.scopeSvc
 	}
 	return nil
-}
-
-// mapDataScopeError preserves user-management legacy business error codes at
-// the module boundary while reusing shared data-scope internals.
-func mapDataScopeError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case bizerr.Is(err, datascope.CodeDataScopeDenied):
-		return bizerr.NewCode(CodeUserDataScopeDenied)
-	case bizerr.Is(err, datascope.CodeDataScopeNotAuthenticated):
-		return bizerr.NewCode(CodeUserNotAuthenticated)
-	case bizerr.Is(err, datascope.CodeDataScopeUnsupported):
-		messageErr, ok := bizerr.As(err)
-		if !ok {
-			return bizerr.NewCode(CodeUserDataScopeUnsupported)
-		}
-		return bizerr.NewCode(CodeUserDataScopeUnsupported, bizerr.P("scope", messageErr.Params()["scope"]))
-	default:
-		return err
-	}
 }
 
 // mapTenantMembershipVisibilityError preserves user-management authorization
@@ -132,7 +88,7 @@ func mapTenantMembershipVisibilityError(err error) error {
 		return nil
 	}
 	if bizerr.Is(err, tenantcap.CodeTenantForbidden) {
-		return bizerr.NewCode(CodeUserDataScopeDenied)
+		return bizerr.NewCode(datascope.CodeDataScopeDenied)
 	}
 	return err
 }

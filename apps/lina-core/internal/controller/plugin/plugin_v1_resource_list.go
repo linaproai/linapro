@@ -12,7 +12,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/util/gconv"
 
-	"lina-core/api/plugin/v1"
+	v1 "lina-core/api/plugin/v1"
 	i18nsvc "lina-core/internal/service/i18n"
 	middlewaresvc "lina-core/internal/service/middleware"
 	pluginsvc "lina-core/internal/service/plugin"
@@ -147,7 +147,7 @@ func hasPluginResourcePermission(accessContext *role.UserAccessContext, required
 // error response onto the current request context and aborts processing.
 func writePluginResourcePermissionError(
 	ctx context.Context,
-	i18nSvc i18nsvc.Translator,
+	i18nSvc i18nsvc.Service,
 	status int,
 	err error,
 ) {

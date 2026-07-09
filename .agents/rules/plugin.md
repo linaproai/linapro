@@ -1,48 +1,85 @@
-# 插件目录结构规则
+# 业务插件开发规则
 
-## 适用范围
+## 业务插件设计要求
 
-本规则约束 LinaPro 插件的通用资源目录、源码插件与动态插件共享的后端开发目录结构、源码插件编译嵌入对接、动态插件 WASM 运行时对接、动态插件产物资源视图、插件 manifest 资源、安装卸载 SQL、前端页面、宿主能力接缝和生命周期资源归属。
+在新开发/设计业务插件时，应当和用户明确以下关键需求：
 
-源码插件和动态插件必须共享插件清单、生命周期资源、SQL、i18n、前端静态资源和后端业务开发结构约定。两类插件的差异仅体现在与宿主的对接方式、运行时加载方式和交付形态上：源码插件随宿主编译嵌入，动态插件通过 WASM artifact、`pluginbridge`和`hostServices`协议接入。禁止让动态插件绕过统一的`api`、`controller`、`service`分层开发结构，也禁止让动态插件绕过通用插件资源约定。
+- **是否需要多语言支持**：以便确定`plugin.yaml`中是否需要声明`i18n`配置，编码时是否需要考虑`manifest/i18n/<locale>/`目录下的多语言资源维护。
+- **是否需要支持多租户**：以便确定设计数据表的时候是需要增加`tenant_id`字段，编码时是否需要使用到多租户的领域能力。
+- **是否随框架共同编译和发布**：以便确定分发模式`distribution`是`managed`还是`builtin`。
 
 ## 插件通用资源要求
 
-源码插件和动态插件都必须遵守以下通用资源约定：
+插件ID命名规范：`<author>-<domain>-<capability>` 
+- `<author>`: 插件的作者或组织名称，建议使用小写字母和数字的组合，长度不超过 `20` 字符。
+- `<domain>`: 插件所属的功能领域或业务域，建议使用小写字母和数字的组合，长度不超过 `20` 字符。
+- `<capability>`: 插件提供的具体能力或功能，建议使用小写字母和数字的组合，长度不超过 `20` 字符。
+- 插件 ID 必须唯一，且在整个 LinaPro 插件生态中保持稳定。插件 ID 会同时进入 URL path、动态资源路径、文件名、数据库键、菜单 key、权限字符串、`i18n` namespace、`apidoc` namespace 和宿主能力发现，因此必须严格遵守上述命名规范，避免使用特殊字符、空格或过长的名称，以确保插件能够正确识别和加载。
 
+插件目录结构规范：
+```text
+apps/lina-plugins/<plugin-id>/
+├── plugin.yaml                      # 插件元数据与能力声明
+├── plugin_embed.go                  # 插件源码嵌入宿主编译入口，源码插件必须维护
+├── Makefile                         # 插件make指令入口
+├── backend/                         # 插件后端源码
+│   ├── api/                         # API DTO与路由契约
+│   ├── internal/                    # 插件内部业务逻辑封装
+│   │   ├── controller/              # HTTP控制器
+│   │   ├── service/                 # 业务服务层
+│   │   ├── dao/                     # make dao生成
+│   │   └── model/                   # do/entity模型
+│   ├── pkg/                         # 插件对外暴露的能力，仅源码插件可提供
+│   └── plugin.go                    # 插件注册入口
+├── frontend/                        # 插件前端资源
+│   ├── pages/                       # 插件页面
+│   └── slots/                       # 插槽页面，可选
+├── hack/                            # 插件自身脚本和工具
+│   ├── config.yaml                  # 插件开发期工具配置入口，包含代码生成、自定义构建等配置
+│   └── tests/                       # 插件测试内容
+│       └── e2e/                     # 插件 e2e 测试内容
+├── manifest/                        # 插件清单与资源
+│   ├── config/                      # 插件运行期配置
+│   │   ├── config.yaml              # 开发期默认配置
+│   │   └── config.example.yaml      # 配置模板，不作为运行时默认值
+│   ├── sql/                         # 安装与升级SQL
+│   │   ├── mock-data/               # 演示数据，可选
+│   │   └── uninstall/               # 卸载SQL
+│   └── i18n/                        # 插件语言包
+├── README.md                        # 插件说明文档
+└── README.zh-CN.md                  # 插件中文说明文档
+```
+
+开发业务插件，插件的目录结构和代码结构需参考以下插件：
+- 源码插件需要参考官方提供的 `linapro-demo-source` 插件
+- 动态插件需要参考官方提供的 `linapro-demo-dynamic` 插件
+
+源码插件和动态插件都必须遵守以下通用资源约定：
 - 插件源码目录统一放在`apps/lina-plugins/<plugin-id>/`下，`<plugin-id>`必须与`plugin.yaml`中的`id`一致。
-- 插件必须维护`plugin.yaml`和`manifest/`。
-- 插件前端页面或公开静态资源统一放在`frontend/pages/`或由`plugin.yaml`的`public_assets`显式声明的目录下。
-- 插件安装 SQL 放在`manifest/sql/`。
-- 插件卸载 SQL 放在`manifest/sql/uninstall/`。
-- 插件 Mock 数据 SQL 放在`manifest/sql/mock-data/`。
 - 插件多语言资源放在`manifest/i18n/<locale>/`，API 文档翻译资源放在`manifest/i18n/<locale>/apidoc/`。
-- 不得把插件生命周期资源回流到宿主目录中。
 - 插件 SQL 必须遵守`.agents/rules/database.md`。
 - 插件 i18n 资源必须遵守`.agents/rules/i18n.md`。
+- 插件开发期工具配置统一维护在插件根`hack/config.yaml`，包括代码生成、自定义构建等插件本地工具配置。
+- 插件自定义构建指令统一放在插件根`hack/config.yaml`的`build.commands`下，由仓库根`make build`或`linactl build`读取执行。
 
-## 插件后端同构开发结构要求
+## 领域能力使用要求
+
+- 依赖领域能力的宽接口而非窄接口。例如，插件需要依赖`tenantcap.Service`，而不是依赖`tenantcap.FilterService`或者`tenantcap.PluginService`窄接口。
+
+## 插件后端开发结构要求
 
 源码插件和动态插件必须保持一致的后端业务开发结构，以降低开发者学习、迁移和维护成本。两类插件必须遵守以下结构：
 
 - 每个插件必须同时维护`plugin.yaml`、`backend/`、`frontend/`与`manifest/`。
-- 插件后端统一采用`backend/api/`、`backend/plugin.go`、`backend/internal/controller/`、`backend/internal/service/`结构。
-- `backend/api/`用于声明构建期可解析的 API DTO、请求响应契约和路由元数据。
+- 禁止在`backend`目录下创建后端公共组件或者目录，插件后端的业务模块应当严格封装在`backend/internal/service/`目录下。
 - `backend/plugin.go`用于声明插件后端入口、路由注册、生命周期接入或动态路由桥接入口。
-- `backend/internal/controller/`用于承载插件侧请求处理、参数转换、调用服务和响应投影逻辑。动态插件中的 controller 是 WASM guest 内部的请求处理分层，不等同于宿主原生 controller，但目录和职责必须保持一致。
-- `backend/internal/service/`用于承载插件业务编排、领域逻辑、中间件实现和对宿主能力接缝的调用。动态插件中的 service 通过`pluginbridge`、WASM host call 或版本化 host service 协议访问宿主能力。
-- 禁止再将业务`service`目录直接放在`backend/service/`下。
-- 插件业务编排、领域逻辑和中间件实现必须收敛到`backend/internal/service/`。
-- 只有实现宿主稳定能力接缝的 provider/adapter 才允许放在`backend/provider/`等非`internal`目录中。
 - 插件后端 Go 代码必须遵守`.agents/rules/backend-go.md`。
 
 ## 插件数据库访问要求
 
-- 插件若需要自有数据库访问，必须在插件自己的`backend/`下维护`hack/config.yaml`。
-- 插件的`make dao`生成结果必须放在`backend/internal/dao/`与`backend/internal/model/{do,entity}/`。
+- 涉及数据库访问的插件应在插件根`hack/config.yaml`中维护`gfcli.gen.dao`等代码生成工具配置，GoFrame 生成工作目录仍为插件`backend/`。
 - 禁止插件重新依赖宿主的`dao/do/entity`生成工件。
-- 源码插件和动态插件都不得把宿主`DAO`、`DO`、`Entity`、私有缓存快照、运行时状态或内部配置结构作为插件接口契约、服务参数或响应结构。
-- 动态插件涉及宿主数据访问时，必须通过`plugin.yaml`的`hostServices`资源边界和宿主授权的 host service 协议，不得直接依赖宿主私有 DAO、DO 或 Entity 工件。
+- 动态插件涉及宿主数据访问时，必须通过`plugin.yaml`的`hostServices`资源边界和宿主授权的 host service 协议。
 
 ## 源码插件对接要求
 
@@ -59,4 +96,3 @@
 - 动态插件源码目录应维护`main.go`作为 WASM guest 构建入口。
 - 动态插件的 controller和service 是 guest 内部开发分层，宿主不得把它们当作源码插件原生 controller和service 直接加载；宿主只能通过`pluginbridge`、WASM host call 或版本化 host service 协议与动态插件交互。
 - 动态插件涉及 Go guest 代码、WASM host service、host call 协议或插件桥接时，必须遵守`.agents/rules/backend-go.md`中关于动态插件 host service、WASM host service、错误处理和共享实例的要求。
-

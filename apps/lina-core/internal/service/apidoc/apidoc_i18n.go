@@ -49,7 +49,6 @@ func (s *serviceImpl) shouldLocalizeOpenAPI(ctx context.Context) bool {
 // openAPILocalizer carries a request-locale catalog and structural lookup
 // indexes for stable apidoc i18n keys.
 type openAPILocalizer struct {
-	locale              string
 	catalog             map[string]string
 	requestKeyByDesc    map[string]string
 	schemaKeyBySchema   map[*goai.Schema]string
@@ -60,7 +59,6 @@ type openAPILocalizer struct {
 // OpenAPI document projection.
 func (s *serviceImpl) newOpenAPILocalizer(ctx context.Context, document *goai.OpenApiV3) *openAPILocalizer {
 	localizer := &openAPILocalizer{
-		locale:              s.i18nSvc.GetLocale(ctx),
 		catalog:             s.loadOpenAPIMessageCatalog(ctx, s.i18nSvc.GetLocale(ctx)),
 		requestKeyByDesc:    make(map[string]string),
 		schemaKeyBySchema:   make(map[*goai.Schema]string),
@@ -167,14 +165,17 @@ func (l *openAPILocalizer) operationBaseKey(pathName string, method string, oper
 	if operation == nil {
 		return buildOpenAPIPathOperationKey(pathName, method)
 	}
-	if isDynamicPluginOpenAPIPath(pathName) {
-		return buildOpenAPIPathOperationKey(pathName, method)
+	if key := strings.TrimSpace(operation.XExtensions[openAPIOperationKeyExtension]); key != "" {
+		return key
 	}
 	if key := l.requestBodyComponentKey(operation.RequestBody); key != "" {
 		return key
 	}
 	if key := l.requestKeyByDesc[operation.Description]; key != "" {
 		return key
+	}
+	if isDynamicPluginOpenAPIPath(pathName) {
+		return buildOpenAPIPathOperationKey(pathName, method)
 	}
 	if strings.TrimSpace(operation.OperationID) != "" {
 		return "core.operations." + sanitizeOpenAPIKeyPart(operation.OperationID)

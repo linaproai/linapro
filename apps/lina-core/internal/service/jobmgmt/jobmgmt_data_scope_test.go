@@ -4,6 +4,8 @@ package jobmgmt
 
 import (
 	"context"
+	jobv1 "lina-core/api/job/v1"
+	joblogv1 "lina-core/api/joblog/v1"
 	"testing"
 	"time"
 
@@ -12,28 +14,31 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
-	"lina-core/internal/service/jobmeta"
 	"lina-core/pkg/bizerr"
 )
 
 // TestJobDataScopeFiltersUserJobsKeepsBuiltinsAndProtectsLogs verifies
 // user-created jobs are scoped by owner while built-in jobs remain visible.
 func TestJobDataScopeFiltersUserJobsKeepsBuiltinsAndProtectsLogs(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertJobScopeUser(t, ctx, "job-scope-current")
-	otherUserID := insertJobScopeUser(t, ctx, "job-scope-other")
-	roleID := insertJobScopeRole(t, ctx, "job-scope-self", 3)
+	var (
+		ctx           = context.Background()
+		currentUserID = insertJobScopeUser(t, ctx, "job-scope-current")
+		otherUserID   = insertJobScopeUser(t, ctx, "job-scope-other")
+		roleID        = insertJobScopeRole(t, ctx, "job-scope-self", 3)
+	)
 	t.Cleanup(func() {
 		cleanupJobScopeUsers(t, ctx, []int{currentUserID, otherUserID})
 		cleanupJobScopeRoles(t, ctx, []int{roleID})
 	})
 	insertJobScopeUserRole(t, ctx, currentUserID, roleID)
 
-	visibleJobID := insertJobScopeJob(t, ctx, currentUserID, "visible", 0)
-	hiddenJobID := insertJobScopeJob(t, ctx, otherUserID, "hidden", 0)
-	builtinJobID := insertJobScopeJob(t, ctx, otherUserID, "builtin", 1)
-	hiddenLogID := insertJobScopeLog(t, ctx, hiddenJobID, "hidden-log")
-	visibleLogID := insertJobScopeLog(t, ctx, visibleJobID, "visible-log")
+	var (
+		visibleJobID = insertJobScopeJob(t, ctx, currentUserID, "visible", 0)
+		hiddenJobID  = insertJobScopeJob(t, ctx, otherUserID, "hidden", 0)
+		builtinJobID = insertJobScopeJob(t, ctx, otherUserID, "builtin", 1)
+		hiddenLogID  = insertJobScopeLog(t, ctx, hiddenJobID, "hidden-log")
+		visibleLogID = insertJobScopeLog(t, ctx, visibleJobID, "visible-log")
+	)
 	t.Cleanup(func() {
 		cleanupJobHard(t, ctx, visibleJobID)
 		cleanupJobHard(t, ctx, hiddenJobID)
@@ -79,7 +84,7 @@ func TestJobDataScopeFiltersUserJobsKeepsBuiltinsAndProtectsLogs(t *testing.T) {
 	if _, err = svc.TriggerJob(ctx, hiddenJobID); !bizerr.Is(err, CodeJobDataScopeDenied) {
 		t.Fatalf("expected hidden job trigger denied, got %v", err)
 	}
-	if err = svc.ClearLogs(ctx, nil, int64ToString(hiddenLogID)); !bizerr.Is(err, CodeJobDataScopeDenied) {
+	if _, err = svc.ClearLogs(ctx, ClearLogsInput{IDs: int64ToString(hiddenLogID)}); !bizerr.Is(err, CodeJobDataScopeDenied) {
 		t.Fatalf("expected hidden log clear denied, got %v", err)
 	}
 
@@ -144,18 +149,18 @@ func insertJobScopeJob(t *testing.T, ctx context.Context, ownerID int, suffix st
 	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
 		GroupId:        defaultGroupID(t, ctx),
 		Name:           uniqueTestName("job-scope-" + suffix),
-		TaskType:       string(jobmeta.TaskTypeShell),
+		TaskType:       string(jobv1.TaskTypeShell),
 		HandlerRef:     "",
 		Params:         `{}`,
 		TimeoutSeconds: 30,
 		ShellCmd:       "printf 'scope'",
 		CronExpr:       "* * * * *",
 		Timezone:       "Asia/Shanghai",
-		Scope:          string(jobmeta.JobScopeMasterOnly),
-		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		Scope:          string(jobv1.ScopeMasterOnly),
+		Concurrency:    string(jobv1.ConcurrencySingleton),
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
-		Status:         string(jobmeta.JobStatusDisabled),
+		Status:         string(jobv1.StatusDisabled),
 		IsBuiltin:      isBuiltin,
 		CreatedBy:      ownerID,
 		UpdatedBy:      ownerID,
@@ -174,12 +179,12 @@ func insertJobScopeLog(t *testing.T, ctx context.Context, jobID int64, name stri
 		JobId:          jobID,
 		JobSnapshot:    `{"name":"` + name + `"}`,
 		NodeId:         "test",
-		Trigger:        string(jobmeta.TriggerTypeManual),
+		Trigger:        string(joblogv1.TriggerManual),
 		ParamsSnapshot: `{}`,
 		StartAt:        &now,
 		EndAt:          &now,
 		DurationMs:     1,
-		Status:         string(jobmeta.LogStatusSuccess),
+		Status:         string(joblogv1.StatusSuccess),
 		ResultJson:     `{}`,
 	}).InsertAndGetId()
 	if err != nil {

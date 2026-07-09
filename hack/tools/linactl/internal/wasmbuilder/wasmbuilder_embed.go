@@ -295,7 +295,7 @@ func collectAPIDocI18NAssets(pluginDir string, embeddedResources *embeddedStatic
 
 func collectManifestResources(pluginDir string, embeddedResources *embeddedStaticResourceSet) ([]*manifestResource, error) {
 	if embeddedResources != nil {
-		paths := embeddedResources.ListFiles("manifest", ".yaml")
+		paths := embeddedResources.ListFiles("manifest", "")
 		resources := make([]*manifestResource, 0, len(paths))
 		for _, filePath := range paths {
 			if !isPackagedManifestResourcePath(filePath) {
@@ -331,7 +331,7 @@ func collectManifestResources(pluginDir string, embeddedResources *embeddedStati
 			}
 			return nil
 		}
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
+		if entry.IsDir() {
 			return nil
 		}
 		relativePath, err := filepath.Rel(pluginDir, filePath)
@@ -371,18 +371,15 @@ func isPackagedManifestResourcePath(value string) bool {
 	if normalizedPath == "." {
 		return false
 	}
-	if normalizedPath == "manifest/config/config.yaml" || normalizedPath == "manifest/config/config.example.yaml" {
-		return true
-	}
 	if !strings.HasPrefix(normalizedPath, "manifest/") {
 		return false
 	}
-	for _, reserved := range []string{"manifest/config", "manifest/sql", "manifest/i18n"} {
-		if normalizedPath == reserved || strings.HasPrefix(normalizedPath, reserved+"/") {
+	for _, segment := range strings.Split(normalizedPath, "/") {
+		if shouldSkipEmbeddedDirectoryEntry(segment) {
 			return false
 		}
 	}
-	return filepath.Ext(normalizedPath) == ".yaml"
+	return true
 }
 
 func collectLocaleJSONAssets(

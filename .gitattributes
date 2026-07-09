@@ -1,3 +1,6 @@
 *.sh text eol=lf
 *.bash text eol=lf
+*.go text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
 hack/scripts/install/bootstrap.sh text eol=lf

@@ -85,27 +85,27 @@ const DEFAULT_TIME_ZONE_OPTIONS: TimezoneOption[] = [
   {
     offset: -5,
     timezone: 'America/New_York',
-    label: 'America/New_York(GMT-5)',
+    label: 'America/New_York(UTC-5)',
   },
   {
     offset: 0,
     timezone: 'Europe/London',
-    label: 'Europe/London(GMT0)',
+    label: 'Europe/London(UTC+0)',
   },
   {
     offset: 8,
     timezone: 'Asia/Shanghai',
-    label: 'Asia/Shanghai(GMT+8)',
+    label: 'Asia/Shanghai(UTC+8)',
   },
   {
     offset: 9,
     timezone: 'Asia/Tokyo',
-    label: 'Asia/Tokyo(GMT+9)',
+    label: 'Asia/Tokyo(UTC+9)',
   },
   {
     offset: 9,
     timezone: 'Asia/Seoul',
-    label: 'Asia/Seoul(GMT+9)',
+    label: 'Asia/Seoul(UTC+9)',
   },
 ];
 

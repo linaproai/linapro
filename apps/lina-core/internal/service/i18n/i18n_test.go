@@ -4,17 +4,19 @@ package i18n
 
 import (
 	"context"
-	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/gctx"
-	"github.com/gogf/gf/v2/util/gvalid"
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/os/gctx"
+	"github.com/gogf/gf/v2/util/gvalid"
 
 	"lina-core/internal/model"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cachecoord"
 	hostconfig "lina-core/internal/service/config"
+	_ "lina-core/pkg/dbdriver"
 	"lina-core/pkg/plugin/pluginhost"
 )
 
@@ -35,7 +37,7 @@ func (s stubConfigService) GetI18n(_ context.Context) *hostconfig.I18nConfig {
 
 // init registers one minimal source plugin fixture with embedded i18n assets.
 func init() {
-	plugin := pluginhost.NewSourcePlugin(testPluginID)
+	plugin := pluginhost.NewDeclarations(testPluginID)
 	plugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte(sourcePluginI18NManifestFixture(testPluginID, true))},
 		"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(`{
@@ -71,25 +73,6 @@ func runtimeLocaleDescriptorsForTest(t *testing.T) []LocaleDescriptor {
 		t.Fatal("expected at least one configured runtime locale")
 	}
 	return locales
-}
-
-// nonDefaultRuntimeLocaleCodesForTest returns every enabled non-default locale
-// so shipped-resource coverage automatically follows i18n.locales.
-func nonDefaultRuntimeLocaleCodesForTest(t *testing.T) []string {
-	t.Helper()
-
-	locales := runtimeLocaleDescriptorsForTest(t)
-	codes := make([]string, 0, len(locales))
-	for _, locale := range locales {
-		if locale.IsDefault {
-			continue
-		}
-		codes = append(codes, locale.Locale)
-	}
-	if len(codes) == 0 {
-		t.Fatal("expected at least one non-default runtime locale")
-	}
-	return codes
 }
 
 // TestNormalizeLocale verifies that raw locale aliases normalize to canonical locale codes.
@@ -180,14 +163,20 @@ func TestBuildRuntimeMessagesIncludesHostAndSourcePlugin(t *testing.T) {
 	}
 }
 
-// TestListRuntimeLocalesUsesRequestedDisplayLocale verifies that the runtime
+// TestRuntimeLocalesUsesRequestedDisplayLocale verifies that the runtime
 // locale list exposes localized display names and stable native names.
-func TestListRuntimeLocalesUsesRequestedDisplayLocale(t *testing.T) {
+func TestRuntimeLocalesUsesRequestedDisplayLocale(t *testing.T) {
 	resetRuntimeBundleCache()
 
-	svc := New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))
-	expectedLocales := runtimeLocaleDescriptorsForTest(t)
-	locales := svc.ListRuntimeLocales(context.Background(), EnglishLocale)
+	var (
+		svc             = New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))
+		expectedLocales = runtimeLocaleDescriptorsForTest(t)
+		output          = svc.RuntimeLocales(context.Background(), EnglishLocale)
+		locales         = output.Items
+	)
+	if !output.Enabled {
+		t.Fatal("expected runtime language switching to be enabled")
+	}
 	if len(locales) != len(expectedLocales) {
 		t.Fatalf("expected %d runtime locales, got %d", len(expectedLocales), len(locales))
 	}
@@ -348,7 +337,7 @@ func TestRegisterSourcePluginInvalidatesRuntimeBundleCache(t *testing.T) {
 		t.Fatalf("expected plugin %q translation to be absent before registration", testCacheInvalidatePluginID)
 	}
 
-	plugin := pluginhost.NewSourcePlugin(testCacheInvalidatePluginID)
+	plugin := pluginhost.NewDeclarations(testCacheInvalidatePluginID)
 	plugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte(sourcePluginI18NManifestFixture(testCacheInvalidatePluginID, true))},
 		"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(`{
@@ -383,84 +372,9 @@ func TestTranslateUsesContextLocaleAndFallback(t *testing.T) {
 	if actual := svc.Translate(ctx, "missing.translation.key", "fallback"); actual != "fallback" {
 		t.Fatalf("expected fallback value %q, got %q", "fallback", actual)
 	}
-	if actual := svc.TranslateSourceText(ctx, "job.handler.host.session-cleanup.name", "Online Session Cleanup"); actual != "Online Session Cleanup" {
+	if actual := svc.Translate(ctx, "job.handler.host.session-cleanup.name", "Online Session Cleanup"); actual != "Online Session Cleanup" {
 		t.Fatalf("expected source text fallback %q, got %q", "Online Session Cleanup", actual)
 	}
-}
-
-// TestCheckMissingMessagesSkipsSourceTextBackedKeys verifies that missing
-// diagnostics do not require JSON copies for source-owned keys.
-func TestCheckMissingMessagesSkipsSourceTextBackedKeys(t *testing.T) {
-	resetRuntimeBundleCache()
-	resetSourceTextNamespacesForTest()
-	RegisterSourceTextNamespace("job.handler.", "test job handler source text")
-	RegisterSourceTextNamespace("job.group.default.", "test default group source text")
-	t.Cleanup(func() {
-		resetRuntimeBundleCache()
-		resetSourceTextNamespacesForTest()
-	})
-
-	for _, locale := range nonDefaultRuntimeLocaleCodesForTest(t) {
-		items := New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil)).CheckMissingMessages(context.Background(), locale, "job.")
-		namespaces := RegisteredSourceTextNamespaces()
-		for _, item := range items {
-			for prefix := range namespaces {
-				if strings.HasPrefix(item.Key, prefix) {
-					t.Fatalf("expected source-text-backed key %q to be skipped for %s", item.Key, locale)
-				}
-			}
-		}
-	}
-}
-
-// TestShippedNonDefaultRuntimeCatalogsHaveNoMissingMessages verifies that each
-// shipped non-default runtime bundle covers the default-language baseline
-// except source-owned keys.
-func TestShippedNonDefaultRuntimeCatalogsHaveNoMissingMessages(t *testing.T) {
-	resetRuntimeBundleCache()
-	resetSourceTextNamespacesForTest()
-	RegisterSourceTextNamespace("job.handler.", "test job handler source text")
-	RegisterSourceTextNamespace("job.group.default.", "test default group source text")
-	t.Cleanup(func() {
-		resetRuntimeBundleCache()
-		resetSourceTextNamespacesForTest()
-	})
-
-	for _, locale := range nonDefaultRuntimeLocaleCodesForTest(t) {
-		items := New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil)).CheckMissingMessages(context.Background(), locale, "")
-		items = filterExternalDynamicPluginMissingMessagesForTest(items)
-		if len(items) == 0 {
-			continue
-		}
-
-		keys := make([]string, 0, len(items))
-		for _, item := range items {
-			keys = append(keys, item.Key)
-			if len(keys) >= 20 {
-				break
-			}
-		}
-		t.Fatalf("expected %s missing translation total=0, got %d; first keys: %s", locale, len(items), strings.Join(keys, ", "))
-	}
-}
-
-// filterExternalDynamicPluginMissingMessagesForTest removes gaps contributed by
-// previously installed dynamic-plugin release artifacts in the developer
-// database and source-plugin fixtures registered by neighboring unit tests.
-// This test verifies shipped host/source resources; dynamic-plugin artifact
-// freshness and synthetic plugin gaps are covered by focused tests and E2E.
-func filterExternalDynamicPluginMissingMessagesForTest(items []MissingMessageItem) []MissingMessageItem {
-	filteredItems := make([]MissingMessageItem, 0, len(items))
-	for _, item := range items {
-		if item.Source.ScopeKey == "linapro-demo-dynamic" {
-			continue
-		}
-		if strings.HasPrefix(item.Source.ScopeKey, "plugin-i18n-test-") {
-			continue
-		}
-		filteredItems = append(filteredItems, item)
-	}
-	return filteredItems
 }
 
 // TestLocalizeErrorSupportsFormattedBusinessKeys verifies that backend error

@@ -3,10 +3,11 @@
 
 package pluginhost
 
-import "lina-core/pkg/plugin/pluginhost/internal/routebinding"
+import "strings"
 
-// routeMethodAll is the normalized wildcard method marker used by route capture.
-const routeMethodAll = routebinding.MethodAll
+// sourceRouteMethodAll is the normalized wildcard method marker used by route
+// binding keys.
+const sourceRouteMethodAll = "ALL"
 
 // SourceRouteBinding stores one plugin-owned route binding captured during host
 // route registration.
@@ -26,7 +27,7 @@ type SourceRouteBinding struct {
 
 // Key returns the normalized uniqueness key of the binding.
 func (b SourceRouteBinding) Key() string {
-	return normalizeRouteMethod(b.Method) + " " + normalizeRoutePattern(b.Path)
+	return normalizeSourceRouteMethod(b.Method) + " " + normalizeSourceRoutePattern(b.Path)
 }
 
 // CloneSourceRouteBindings returns one detached copy of the given bindings.
@@ -39,51 +40,28 @@ func CloneSourceRouteBindings(bindings []SourceRouteBinding) []SourceRouteBindin
 	return items
 }
 
-// captureRouteBindings captures one or more route bindings from either a
-// function handler or a controller object.
-func captureRouteBindings(
-	pluginID string,
-	prefix string,
-	explicitPattern string,
-	explicitMethod string,
-	handler interface{},
-) []SourceRouteBinding {
-	return toSourceRouteBindings(routebinding.Capture(pluginID, prefix, explicitPattern, explicitMethod, handler))
-}
-
-// normalizeRouteMethod canonicalizes an HTTP method and falls back to ALL when
+// normalizeSourceRouteMethod canonicalizes an HTTP method and falls back to ALL when
 // the input is empty.
-func normalizeRouteMethod(method string) string {
-	return routebinding.NormalizeRouteMethod(method)
-}
-
-// normalizeRoutePattern canonicalizes one route path for stable capture keys
-// and path composition.
-func normalizeRoutePattern(pattern string) string {
-	return routebinding.NormalizeRoutePattern(pattern)
-}
-
-// joinRoutePatterns joins a group prefix and child pattern into one normalized
-// public route path.
-func joinRoutePatterns(prefix string, pattern string) string {
-	return routebinding.JoinRoutePatterns(prefix, pattern)
-}
-
-// toSourceRouteBindings converts internal routebinding snapshots to the
-// published pluginhost route binding contract.
-func toSourceRouteBindings(bindings []routebinding.Binding) []SourceRouteBinding {
-	if len(bindings) == 0 {
-		return nil
+func normalizeSourceRouteMethod(method string) string {
+	trimmed := strings.TrimSpace(method)
+	if trimmed == "" {
+		return sourceRouteMethodAll
 	}
-	items := make([]SourceRouteBinding, 0, len(bindings))
-	for _, binding := range bindings {
-		items = append(items, SourceRouteBinding{
-			PluginID:     binding.PluginID,
-			Method:       binding.Method,
-			Path:         binding.Path,
-			Handler:      binding.Handler,
-			Documentable: binding.Documentable,
-		})
+	normalized := strings.ToUpper(trimmed)
+	if normalized == sourceRouteMethodAll {
+		return sourceRouteMethodAll
 	}
-	return items
+	return normalized
+}
+
+// normalizeSourceRoutePattern canonicalizes one route path for stable capture keys.
+func normalizeSourceRoutePattern(pattern string) string {
+	trimmed := strings.TrimSpace(pattern)
+	if trimmed == "" || trimmed == "/" {
+		return "/"
+	}
+	if !strings.HasPrefix(trimmed, "/") {
+		trimmed = "/" + trimmed
+	}
+	return strings.TrimRight(trimmed, "/")
 }

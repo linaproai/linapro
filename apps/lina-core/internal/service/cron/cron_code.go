@@ -28,10 +28,4 @@ var (
 		"Runtime parameter sync dependency is not initialized",
 		gcode.CodeInternalError,
 	)
-	// CodeCronKVCacheDependencyMissing reports that KV cache cleanup dependencies are missing.
-	CodeCronKVCacheDependencyMissing = bizerr.MustDefine(
-		"CRON_KVCACHE_DEPENDENCY_MISSING",
-		"KV cache cleanup dependency is not initialized",
-		gcode.CodeInternalError,
-	)
 )

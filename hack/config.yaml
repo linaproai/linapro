@@ -60,5 +60,6 @@ plugins:
         - linapro-monitor-server
         - linapro-monitor-online
         - linapro-monitor-operlog
+        - linapro-ai-core
         - linapro-org-core
         - linapro-tenant-core

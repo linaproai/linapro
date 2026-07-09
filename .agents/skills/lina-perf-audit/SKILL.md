@@ -1,6 +1,11 @@
 ---
 name: lina-perf-audit
-description: "Manual trigger only. Run a comprehensive LinaPro backend API performance audit only when the user explicitly requests lina-perf-audit or confirms a full audit. This workflow resets the database via make init/mock, restarts services, installs and enables all built-in plugins, seeds load-test data, and launches concurrent sub-agents — it takes significant time (tens of minutes to hours) and consumes substantial tokens. Do not invoke from other skills, CI, scheduled tasks, Git hooks, or vague performance requests."
+description: >-
+  通过 make db.init/mock
+  重置数据库、重启服务、安装并启用所有内置插件、准备压测数据，并启动并发子代理；
+  通常需要几十分钟到数小时，且会消耗大量 Token。不得从其他技能、CI、定时任务、
+  Git 钩子或模糊的性能请求中触发。
+  必须用户手动触发，禁止自动触发该技能。
 ---
 
 # LinaPro 性能审计
@@ -22,7 +27,7 @@ description: "Manual trigger only. Run a comprehensive LinaPro backend API perfo
 - `对所有后端 API 进行全面性能审计`
 - `使用性能审计技能检查所有后端 API 的 N+1 问题`
 
-对于模糊请求，如 `API 好像有点慢`、`性能怎么样` 或 `检查接口性能`，应先请求用户确认。确认消息中必须提及数据库重置、服务重启、耗时、子代理扇出和 Token 成本。在确认前，不得运行 `make stop`、`make init`、`make mock`、`setup-audit-env.sh`、`prepare-builtin-plugins.sh` 或 `stress-fixture.sh`。
+对于模糊请求，如 `API 好像有点慢`、`性能怎么样` 或 `检查接口性能`，应先请求用户确认。确认消息中必须提及数据库重置、服务重启、耗时、子代理扇出和 Token 成本。在确认前，不得运行 `make stop`、`make db.init`、`make db.mock`、`setup-audit-env.sh`、`prepare-builtin-plugins.sh` 或 `stress-fixture.sh`。
 
 ## 适用场景
 
@@ -62,7 +67,7 @@ description: "Manual trigger only. Run a comprehensive LinaPro backend API perfo
 1. 确认用户已明确批准全面审计。
 2. 创建 `YYYYMMDD-HHMMSS` 格式的唯一 `run_id`，并设置 `run_dir=temp/lina-perf-audit/<run_id>`。
 3. 运行 `make stop`。
-4. 通过 `make init confirm=init rebuild=true` 和 `make mock confirm=mock` 重置本地数据。
+4. 通过 `make db.init confirm=init rebuild=true` 和 `make db.mock confirm=mock` 重置本地数据。
 5. 运行 `bash .agents/skills/lina-perf-audit/scripts/setup-audit-env.sh --run-id <run_id>`，修补审计日志配置、启动后端、等待就绪并获取 `admin` Token。
 6. 运行 `bash .agents/skills/lina-perf-audit/scripts/prepare-builtin-plugins.sh --run-dir <run_dir>`，发现、同步、安装、启用所有内置插件并加载模拟数据。
 7. 在宿主模拟数据和插件模拟数据就绪后，运行 `bash .agents/skills/lina-perf-audit/scripts/stress-fixture.sh --run-dir <run_dir>`。

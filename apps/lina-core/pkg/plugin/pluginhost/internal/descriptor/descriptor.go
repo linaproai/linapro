@@ -1,8 +1,8 @@
-// Package descriptor implements host-owned governance descriptor views used
+// Package descriptor implements host-owned access-control descriptor views used
 // behind the public pluginhost callback contracts.
 package descriptor
 
-// MenuInput carries one host menu projection for plugin governance callbacks.
+// MenuInput carries one host menu projection for plugin access-control callbacks.
 type MenuInput struct {
 	// ID is the menu identifier.
 	ID int

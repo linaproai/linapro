@@ -25,8 +25,8 @@ const (
 	// independent and consumers can detect the presence of mock data without
 	// scanning the install section.
 	WasmSectionMockSQL = "lina.plugin.mock.sql"
-	// WasmSectionManifestResources stores plugin manifest/config declaration
-	// resources that are exposed through release-bound runtime views.
+	// WasmSectionManifestResources stores plugin manifest resources that are
+	// exposed through release-bound runtime views.
 	WasmSectionManifestResources = "lina.plugin.manifest.resources"
 	// WasmSectionBackendHooks stores backend hook contracts.
 	WasmSectionBackendHooks = "lina.plugin.backend.hooks"
@@ -60,8 +60,8 @@ type RuntimeArtifactMetadata struct {
 	// kept as a separate field so consumers can detect mock-data presence
 	// without scanning the artifact sections.
 	MockSQLAssetCount int `json:"mockSqlAssetCount,omitempty" yaml:"mockSqlAssetCount,omitempty"`
-	// ManifestResourceCount reports the number of embedded manifest/config
-	// declaration resources available to release-bound runtime views.
+	// ManifestResourceCount reports the number of embedded manifest resources
+	// available to release-bound runtime views.
 	ManifestResourceCount int `json:"manifestResourceCount,omitempty" yaml:"manifestResourceCount,omitempty"`
 	// RouteCount reports the number of embedded backend route contracts.
 	RouteCount int `json:"routeCount,omitempty" yaml:"routeCount,omitempty"`

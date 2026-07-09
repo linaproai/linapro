@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/coordination"
 )
 
@@ -64,20 +65,6 @@ const (
 // Refresher rebuilds or invalidates one process-local cache domain after a
 // newer revision is observed.
 type Refresher func(ctx context.Context, revision int64) error
-
-// Topology exposes the cluster switch and node metadata needed by cachecoord.
-type Topology interface {
-	// IsEnabled reports whether clustered deployment mode is enabled and
-	// therefore whether shared revisions or backend events should be used.
-	IsEnabled() bool
-	// IsPrimary reports whether this node owns primary-only background work.
-	// Cache refresh calls remain valid on non-primary nodes and use revisions
-	// to converge local process state.
-	IsPrimary() bool
-	// NodeID returns the stable identifier of the current host node for
-	// diagnostics and event attribution.
-	NodeID() string
-}
 
 // DomainSpec optionally declares the reviewable consistency contract for one
 // cache domain.
@@ -153,7 +140,7 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	topologyMu sync.RWMutex
-	topology   Topology
+	topology   cluster.Service
 	coordMu    sync.RWMutex
 	coord      coordination.Service
 	mu         sync.RWMutex
@@ -181,13 +168,13 @@ var processDefaultService = struct {
 // New creates an isolated cache coordination service. Production service
 // constructors should normally use Default so process-local cache freshness
 // state stays shared.
-func New(topology Topology) Service {
+func New(topology cluster.Service) Service {
 	return newServiceImpl(topology)
 }
 
 // NewWithCoordination creates an isolated cache coordination service that uses
 // the provided coordination backend for clustered shared revisions.
-func NewWithCoordination(topology Topology, coordinationSvc coordination.Service) Service {
+func NewWithCoordination(topology cluster.Service, coordinationSvc coordination.Service) Service {
 	service := newServiceImpl(topology)
 	service.setCoordination(coordinationSvc)
 	return service
@@ -196,7 +183,7 @@ func NewWithCoordination(topology Topology, coordinationSvc coordination.Service
 // Default returns the process-wide cache coordination service. When a later
 // startup phase provides a richer topology, the existing coordinator is kept
 // and only its topology view is updated.
-func Default(topology Topology) Service {
+func Default(topology cluster.Service) Service {
 	processDefaultService.Lock()
 	defer processDefaultService.Unlock()
 
@@ -212,7 +199,7 @@ func Default(topology Topology) Service {
 
 // DefaultWithCoordination returns the process-wide cache coordination service
 // and wires the active distributed coordination backend when one is available.
-func DefaultWithCoordination(topology Topology, coordinationSvc coordination.Service) Service {
+func DefaultWithCoordination(topology cluster.Service, coordinationSvc coordination.Service) Service {
 	processDefaultService.Lock()
 	defer processDefaultService.Unlock()
 
@@ -231,7 +218,7 @@ func DefaultWithCoordination(topology Topology, coordinationSvc coordination.Ser
 }
 
 // newServiceImpl allocates one cache coordination implementation.
-func newServiceImpl(topology Topology) *serviceImpl {
+func newServiceImpl(topology cluster.Service) *serviceImpl {
 	if topology == nil {
 		topology = NewStaticTopology(false)
 	}
@@ -246,7 +233,7 @@ func newServiceImpl(topology Topology) *serviceImpl {
 
 // shouldReplaceDefaultTopology keeps the real cluster topology once it has
 // been wired while still allowing early static placeholders to be upgraded.
-func shouldReplaceDefaultTopology(current Topology, next Topology) bool {
+func shouldReplaceDefaultTopology(current cluster.Service, next cluster.Service) bool {
 	if next == nil {
 		return false
 	}

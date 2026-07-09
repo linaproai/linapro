@@ -1,112 +1,209 @@
+# 插件启动引导
+
+## Purpose
+
+定义 `plugin.autoEnable` 中列出的插件在宿主启动期间如何被安装、可选地加载模拟数据、启用和收敛。
 ## Requirements
+### Requirement:宿主必须在主配置文件中提供结构化的插件自动启用条目
 
-### Requirement: Simplified Plugin Auto-Enable Config in Main Config File
+宿主 SHALL 在 `apps/lina-core/manifest/config/config.yaml` 中提供 `plugin.autoEnable` 作为结构化条目列表。每个条目必须是包含必填 `id` 和可选 `withMockData` 字段的对象。`withMockData` 默认为 `false`；仅 `withMockData=true` 的条目在首次启动安装时加载插件模拟数据。裸字符串条目必须被拒绝。
 
-The system SHALL provide `plugin.autoEnable` as a list of structured objects with required `id` and optional `withMockData`. Bare string entries are also accepted. The config declares which plugins must auto-enable during startup.
+#### Scenario:解析有效的结构化自动启用列表
+- **当** `plugin.autoEnable` 包含 `{id: "linapro-ops-demo-guard", withMockData: false}`、`{id: "linapro-demo-source", withMockData: true}` 和 `{id: "linapro-demo-dynamic"}` 时
+- **则** 宿主将这些条目解析为 `[(linapro-ops-demo-guard, false), (linapro-demo-source, true), (linapro-demo-dynamic, false)]`
+- **且** 启动时仅为 `linapro-demo-source` 加载模拟数据
 
-#### Scenario: Parse valid auto-enable list
-- **WHEN** the host reads `plugin.autoEnable` from the main config
-- **THEN** it builds a valid set of plugin IDs for auto-enable
+#### Scenario:拒绝无效的自动启用配置
+- **当** 配置包含 `{id: ""}`、`{withMockData: true}`、`{id: "x", withMockData: "yes"}` 或裸字符串条目时
+- **则** 宿主在配置加载或启动期间失败
+- **且** 错误标识无效条目的位置或键
 
-#### Scenario: Reject invalid config
-- **WHEN** `plugin.autoEnable` is invalid or contains empty IDs
-- **THEN** the host refuses to continue startup
+### Requirement:宿主必须在插件接线前执行启动引导
 
-### Requirement: Startup Bootstrap Runs Before Plugin Wiring
+系统 SHALL 在插件 HTTP 路由注册、插件 cron 接线和动态前端包预热之前推进 `plugin.autoEnable` 中列出的插件的生命周期状态。一次宿主启动编排内，启动引导及后续插件接线、启用快照刷新、动态前端包预热 MUST 复用同一轮插件治理启动快照，避免重复读取等价的插件注册表、发布快照、菜单和资源引用全表数据。
 
-The system SHALL advance auto-enable plugins before route registration, cron wiring, and bundle warmup.
+#### Scenario:源码插件在启动接线前达到启用状态
+- **当** 发现的源码插件出现在 `plugin.autoEnable` 中时
+- **则** 宿主在路由和 cron 注册前安装并启用该源码插件
+- **且** 后续的启用快照读取将该插件视为已启用
+- **且** 后续插件路由注册和动态前端包预热复用启动引导期间创建或更新后的插件治理快照
 
-#### Scenario: Source plugin reaches enabled before wiring
-- **WHEN** a source plugin is in `plugin.autoEnable`
-- **THEN** the host installs and enables it before route/cron registration
+#### Scenario:不在自动启用列表中的插件保持手动治理
+- **当** 插件被发现但不在 `plugin.autoEnable` 中时
+- **则** 宿主仅执行常规清单同步和注册表刷新
+- **且** 宿主不得因启动引导而自动安装或自动启用它
+- **且** 后续启动接线阶段不得为该插件重复构造等价治理快照
 
-#### Scenario: Non-listed plugins remain manual
-- **WHEN** a plugin is not in `plugin.autoEnable`
-- **THEN** the host only performs routine sync, not auto-install/enable
+### Requirement:自动启用列表必须隐式包含安装和启用语义
 
-### Requirement: Auto-Enable Includes Install Semantics
+对于每个 `plugin.autoEnable` 条目，`BootstrapAutoEnable(ctx)` SHALL 执行隐式的"按需安装 + 启用"语义。如果 `withMockData=true`，首次安装必须复用手动安装路径的事务性模拟 SQL 执行。如果 `withMockData=false`，启动不得扫描或执行模拟数据目录。已安装的插件即使其条目有 `withMockData=true` 也不得重新加载模拟数据；该选项仅适用于首次安装。
 
-Plugins in `plugin.autoEnable` are interpreted as "ensure enabled during startup." If not installed, the host installs first, then enables.
+#### Scenario:自动启用新发现的插件（无模拟数据）
+- **当** `plugin.autoEnable` 包含 `{id: "linapro-demo-source"}` 且插件未安装
+- **且** 宿主执行 `BootstrapAutoEnable`
+- **则** 宿主执行安装 SQL、注册、菜单同步和启用
+- **且** 不扫描 `manifest/sql/mock-data/`
+- **且** 不创建该插件的模拟数据行
 
-### Requirement: Auto-Enable Failure Blocks Startup
+#### Scenario:自动启用新发现的插件（选择模拟数据）
+- **当** `plugin.autoEnable` 包含 `{id: "linapro-demo-source", withMockData: true}` 且插件未安装
+- **且** 宿主执行 `BootstrapAutoEnable`
+- **则** 安装 SQL 成功后宿主事务性执行所有插件 `manifest/sql/mock-data/*.sql` 文件
+- **且** 模拟阶段成功后插件被启用
 
-If any listed plugin is missing, fails to install, fails to enable, or does not converge within the wait window, the host MUST fail fast.
+#### Scenario:已安装插件再次出现并选择模拟数据
+- **当** `plugin.autoEnable` 包含 `{id: "x", withMockData: true}` 且插件已安装
+- **且** 宿主执行 `BootstrapAutoEnable`
+- **则** 宿主仅确保插件被启用
+- **且** 不重新运行安装 SQL 或模拟数据 SQL
 
-### Requirement: Cluster Mode Separates Shared and Local Actions
+### Requirement:列出的自动启用插件的任何失败必须阻塞宿主启动
 
-In cluster mode, only the primary node executes shared lifecycle actions. Followers wait for convergence and refresh local projections.
+任何 `BootstrapAutoEnable` 阶段失败 SHALL 阻塞宿主启动。`withMockData=true` 条目的模拟阶段失败也应阻塞启动；模拟事务回滚后，宿主必须暴露包含插件 ID、失败 SQL 文件和回滚事实的错误，以便运维人员修复问题并重启。
 
-### Requirement: Dynamic Plugin Auto-Enable Reuses Authorization Snapshots
+#### Scenario:缺失的自动启用插件导致启动失败
+- **当** `plugin.autoEnable` 中列出的插件 ID 在目录中不存在时
+- **则** 启动失败
+- **且** 错误包含插件 ID
 
-When a dynamic plugin with governed host services appears in `plugin.autoEnable`, the host reuses the existing authorization snapshot. Missing snapshots block startup.
+#### Scenario:安装失败导致启动失败
+- **当** 自动启用插件的安装 SQL 失败时
+- **则** 启动失败
+- **且** 错误包含失败原因
 
-### Requirement: Management UI Labels Auto-Enabled Plugins
+#### Scenario:自动启用期间模拟 SQL 失败导致启动失败
+- **当** `plugin.autoEnable` 包含 `{id: "x", withMockData: true}`
+- **且** 安装 SQL 成功
+- **且** `manifest/sql/mock-data/` 下任何 SQL 文件失败时
+- **则** 宿主回滚模拟事务并使启动失败
+- **且** 错误包含插件 ID、失败的模拟 SQL 文件和失败原因
 
-The plugin management UI SHALL show read-only indicators for auto-enabled plugins and warn before disable/uninstall that the host will restore on restart unless config changes.
+### Requirement:启动引导必须在集群模式下分离共享生命周期副作用和本地收敛
 
-### Requirement: Startup Auto-Enable Must Synchronize Lifecycle Writes to the Startup Snapshot
+系统 SHALL 在集群模式下仅允许主节点执行共享插件生命周期操作，如安装 SQL、菜单写入、发布切换和共享状态推进。从节点仅等待共享状态结果并刷新其本地投影。
 
-The system SHALL maintain consistency between plugin lifecycle writes and the shared startup snapshot within a single host startup orchestration. When `plugin.autoEnable` performs an on-demand install for a source plugin, the subsequent enable check, status inspection, route wiring, and warmup phases within the same startup context MUST read the updated `installed`, `status`, `desiredState`, and `currentState` projections.
+#### Scenario:主节点执行共享插件操作
+- **当** 集群模式下插件出现在 `plugin.autoEnable` 中且安装或启用必须推进时
+- **则** 仅主节点执行共享的安装、启用或协调操作
+- **且** 从节点不得重复这些共享副作用
 
-#### Scenario: Source plugin auto-installs then enables immediately
+#### Scenario:从节点在共享收敛后刷新本地视图
+- **当** 集群模式下从节点启动并发现 `plugin.autoEnable` 中的插件时
+- **则** 从节点等待主节点写入共享稳定状态或等待窗口超时
+- **且** 从该共享结果刷新其本地启用快照和运行时投影
 
-- **WHEN** the host startup context already carries a plugin governance startup snapshot
-- **AND** `plugin.autoEnable` contains a source plugin that is not yet installed
-- **THEN** the auto-install must synchronize the current startup snapshot's plugin registry projection
-- **AND** the subsequent enable check must recognize the plugin as installed
-- **AND** the host startup must not fail with `Plugin is not installed` for that plugin
+### Requirement:动态插件的启动自动启用必须复用现有授权快照
 
-#### Scenario: Already-installed source plugin auto-enables
+当声明受治理宿主服务的动态插件出现在 `plugin.autoEnable` 中时，系统 SHALL 复用当前发布的宿主已批准授权快照。宿主不得在主配置文件中要求授权详情。
 
-- **WHEN** the host startup context already carries a plugin governance startup snapshot
-- **AND** `plugin.autoEnable` contains a source plugin that is installed but not enabled
-- **THEN** the enable phase must reuse the installed state from the current startup snapshot
-- **AND** the enable must synchronize the current startup snapshot's enabled-state projection after completion
+#### Scenario:动态插件自动启用期间复用现有授权快照
+- **当** 动态插件出现在 `plugin.autoEnable` 中且其当前发布已有已批准的授权快照时
+- **则** 宿主复用该快照驱动启动自动启用
+- **且** 宿主不要求主配置文件再次提供授权详情
 
-### Requirement: Startup Auto-Enable Must Resolve and Install Auto Dependencies
+#### Scenario:无授权快照时拒绝启动自动启用
+- **当** 动态插件出现在 `plugin.autoEnable` 中、声明受治理宿主服务且无授权快照时
+- **则** 宿主停止启动
+- **且** 错误明确说明需要先经过正常审查流程
 
-`BootstrapAutoEnable(ctx)` SHALL execute dependency checks for plugins listed in `plugin.autoEnable`. For dependencies that are discovered, version-satisfied, not yet installed, and declared as `required: true` with `install: auto`, the startup auto-enable must complete dependency installation in deterministic topological order before installing the target plugin.
+### Requirement:插件管理 UI 必须标记启动自动启用的插件并警告临时治理操作
 
-#### Scenario: Install dependencies before auto-enabling target plugin
-- **WHEN** `plugin.autoEnable` contains plugin `x`
-- **AND** `x` declares auto-install hard dependency `a`
-- **AND** `a` is not yet installed
-- **THEN** startup bootstrap first installs `a`
-- **AND** startup bootstrap then installs and enables `x`
+系统 SHALL 通过插件管理列表和详情视图中的只读指示器显示插件是否被 `plugin.autoEnable` 匹配。管理员禁用或卸载这些插件时，UI 必须警告该操作是即时的，但除非配置更改，宿主将在重启后重新安装或重新启用该插件。
 
-#### Scenario: Startup dependency version not satisfied blocks startup
-- **WHEN** `plugin.autoEnable` contains plugin `x`
-- **AND** `x`'s hard dependency version is not satisfied
-- **THEN** host startup fails
-- **AND** the error contains the target plugin, dependency plugin, and version requirement
+#### Scenario:列表和详情视图显示启动自动启用指示器
+- **当** 插件 ID 存在于 `plugin.autoEnable` 中时
+- **则** 插件管理列表和详情视图显示只读的自动启用指示器
 
-### Requirement: Startup Auto-Enable Must Not Implicitly Enable Dependency Plugins
+#### Scenario:禁用启动自动启用的插件时警告重启行为
+- **当** 管理员尝试禁用自动启用的插件时
+- **则** UI 显示风险确认提示
+- **且** 提示说明永久禁用需要编辑 `plugin.autoEnable`
 
-The startup auto-enable flow SHALL only enable plugins explicitly listed in `plugin.autoEnable`. Plugins installed via dependency relationships must not be automatically enabled because they were installed as dependencies, unless the dependency plugin itself also appears in `plugin.autoEnable`.
+#### Scenario:卸载启动自动启用的插件时警告重启行为
+- **当** 管理员尝试卸载自动启用的插件时
+- **则** 卸载确认显示风险警告
+- **且** 警告说明如果配置不变，启动将重新安装并启用该插件
 
-#### Scenario: Dependency plugin not in auto-enable list
-- **WHEN** plugin `a` is installed as an auto dependency of plugin `x`
-- **AND** `a` is not in `plugin.autoEnable`
-- **THEN** startup bootstrap only ensures `a` is installed
-- **AND** startup bootstrap must not enable `a`
+### Requirement:启动自动启用必须同步生命周期写入后的启动快照
 
-#### Scenario: Dependency plugin also in auto-enable list
-- **WHEN** plugin `a` is installed as an auto dependency of plugin `x`
-- **AND** `a` is also in `plugin.autoEnable`
-- **THEN** startup bootstrap ensures `a` is enabled after dependency installation completes
+系统 SHALL 在一次宿主启动编排内保持插件生命周期写入与共享启动快照一致。`plugin.autoEnable` 对源码插件执行按需安装后，同一启动上下文中的后续启用、状态检查、路由接线和预热阶段必须读取到更新后的 `installed`、`status`、`desiredState` 和 `currentState` 投影。
 
-### Requirement: Cluster Mode Startup Dependency Installation Must Respect Primary Node Side-Effect Boundary
+#### Scenario:源码插件自动安装后立即启用
+- **当** 宿主启动上下文已经携带插件治理启动快照
+- **且** `plugin.autoEnable` 包含一个尚未安装的源码插件
+- **则** 自动安装完成后必须同步更新当前启动快照中的插件 registry 投影
+- **且** 后续启用检查必须将该插件识别为已安装
+- **且** 宿主启动不得因该插件报出 `Plugin is not installed`
 
-In cluster mode, dependency installation triggered by startup auto-enable SHALL respect existing plugin lifecycle primary node boundaries. Shared installation, menu writes, release switches, and state advancement can only be executed by the primary node; follower nodes must wait for shared state and refresh local projections.
+#### Scenario:已安装源码插件自动启用
+- **当** 宿主启动上下文已经携带插件治理启动快照
+- **且** `plugin.autoEnable` 包含一个已安装但未启用的源码插件
+- **则** 启用阶段必须复用当前启动快照中的已安装状态
+- **且** 启用完成后必须同步更新当前启动快照中的启用状态投影
 
-#### Scenario: Primary node installs auto dependencies
-- **WHEN** in cluster mode the primary node executes `BootstrapAutoEnable`
-- **AND** the auto-enable target plugin requires installing dependency plugins
-- **THEN** the primary node executes dependency plugin installation side effects
-- **AND** the primary node publishes runtime revision or equivalent events for affected plugins
+### Requirement: 启动自动启用必须解析并安装自动依赖
 
-#### Scenario: Follower node waits for dependency installation result
-- **WHEN** in cluster mode a follower node executes `BootstrapAutoEnable`
-- **AND** the auto-enable target plugin's dependency has not completed installation in shared state
-- **THEN** the follower node waits for primary node convergence or wait window timeout
-- **AND** the follower node must not duplicate dependency installation SQL or shared state writes
+`BootstrapAutoEnable(ctx)` SHALL 对 `plugin.autoEnable` 中列出的插件执行依赖检查。对已发现、版本满足、未安装且声明为 `required: true`、`install: auto` 的依赖插件，启动自动启用必须在目标插件安装前按确定性拓扑顺序完成依赖安装。
+
+#### Scenario: 自动启用目标插件前安装依赖
+- **WHEN** `plugin.autoEnable` 包含插件 `x`
+- **AND** `x` 声明自动安装硬依赖 `a`
+- **AND** `a` 尚未安装
+- **THEN** 启动引导先安装 `a`
+- **AND** 启动引导再安装并启用 `x`
+
+#### Scenario: 启动依赖版本不满足阻塞启动
+- **WHEN** `plugin.autoEnable` 包含插件 `x`
+- **AND** `x` 的硬依赖版本不满足
+- **THEN** 宿主启动失败
+- **AND** 错误包含目标插件、依赖插件和版本要求
+
+### Requirement: 启动自动启用不得隐式启用依赖插件
+
+启动自动启用流程 SHALL 只启用 `plugin.autoEnable` 中显式列出的插件。被依赖关系自动安装的插件不得因为作为依赖被安装而自动启用，除非该依赖插件自身也出现在 `plugin.autoEnable` 中。
+
+#### Scenario: 依赖插件不在自动启用列表中
+- **WHEN** 插件 `a` 被作为插件 `x` 的自动依赖安装
+- **AND** `a` 不在 `plugin.autoEnable` 中
+- **THEN** 启动引导只保证 `a` 已安装
+- **AND** 启动引导不得启用 `a`
+
+#### Scenario: 依赖插件也在自动启用列表中
+- **WHEN** 插件 `a` 被作为插件 `x` 的自动依赖安装
+- **AND** `a` 也在 `plugin.autoEnable` 中
+- **THEN** 启动引导在依赖安装完成后确保 `a` 被启用
+
+### Requirement: 集群模式下启动依赖安装必须遵守主节点副作用边界
+
+集群模式下，启动自动启用触发的依赖安装 SHALL 遵守现有插件生命周期主节点边界。共享安装、菜单写入、发布切换和状态推进只能由主节点执行；从节点必须等待共享状态并刷新本地投影。
+
+#### Scenario: 主节点安装自动依赖
+- **WHEN** 集群模式下主节点执行 `BootstrapAutoEnable`
+- **AND** 自动启用目标插件需要安装依赖插件
+- **THEN** 主节点执行依赖插件安装副作用
+- **AND** 主节点发布受影响插件的运行时修订或等价事件
+
+#### Scenario: 从节点等待依赖安装结果
+- **WHEN** 集群模式下从节点执行 `BootstrapAutoEnable`
+- **AND** 自动启用目标插件依赖尚未在共享状态中完成安装
+- **THEN** 从节点等待主节点收敛或等待窗口超时
+- **AND** 从节点不得重复执行依赖安装 SQL 或共享状态写入
+
+### Requirement:启动自动启用安装必须向源码插件生命周期暴露可信上下文
+
+系统 SHALL 在 `BootstrapAutoEnable(ctx)` 为 `plugin.autoEnable` 明确列出的目标插件执行安装时，向源码插件 `BeforeInstall` 生命周期回调暴露该安装来自启动自动启用配置的上下文。普通插件管理安装不得携带该上下文；自动依赖预安装也不得继承该上下文，除非该依赖插件自身也被明确列入 `plugin.autoEnable`。
+
+#### Scenario:自动启用目标插件收到启动安装上下文
+- **当** `plugin.autoEnable` 包含源码插件 `x`
+- **且** 宿主启动引导需要安装 `x`
+- **则** `x` 的 `BeforeInstall` 回调可识别当前安装来自启动自动启用配置
+
+#### Scenario:普通管理安装不携带启动安装上下文
+- **当** 管理员从插件管理页面或管理 API 安装源码插件 `x`
+- **则** `x` 的 `BeforeInstall` 回调不得看到启动自动启用安装上下文
+
+#### Scenario:自动依赖预安装不继承目标插件上下文
+- **当** `plugin.autoEnable` 包含插件 `a`
+- **且** `a` 自动安装依赖插件 `b`
+- **且** `b` 未被明确列入 `plugin.autoEnable`
+- **则** `b` 的 `BeforeInstall` 回调不得看到启动自动启用安装上下文

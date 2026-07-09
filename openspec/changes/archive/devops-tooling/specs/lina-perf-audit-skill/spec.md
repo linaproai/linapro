@@ -16,7 +16,7 @@ The `lina-perf-audit` skill SHALL declare itself as manual-trigger-only and MUST
 - **WHEN** the user says something ambiguous such as `the API seems slow`, `how is performance`, or `check interface performance`
 - **THEN** the skill asks whether to start the full audit before running any Stage 0 setup command
 - **AND** the confirmation text mentions database reset, service restart, elapsed time, sub-agent fan-out, and token cost
-- **AND** the skill does not run `make stop`, `make init`, `make mock`, `setup-audit-env.sh`, `prepare-builtin-plugins.sh`, or `stress-fixture.sh` before confirmation
+- **AND** the skill does not run `make stop`, `make db.init`, `make db.mock`, `setup-audit-env.sh`, `prepare-builtin-plugins.sh`, or `stress-fixture.sh` before confirmation
 
 #### Scenario: Other skills do not invoke this skill automatically
 
@@ -39,7 +39,7 @@ The `lina-perf-audit` skill MUST execute a full audit in three stages: Stage 0 p
 
 - **WHEN** the user has confirmed the full audit
 - **THEN** the skill creates a unique `run-id` in `YYYYMMDD-HHMMSS` format
-- **AND** it stops services, resets the local database with `make init confirm=init rebuild=true` and `make mock confirm=mock`, patches audit logging through `setup-audit-env.sh`, installs and enables all built-in plugins through `prepare-builtin-plugins.sh`, adds audit-only stress data through `stress-fixture.sh`, scans endpoints through `scan-endpoints.sh`, and probes fixtures through `probe-fixtures.sh`
+- **AND** it stops services, resets the local database with `make db.init confirm=init rebuild=true` and `make db.mock confirm=mock`, patches audit logging through `setup-audit-env.sh`, installs and enables all built-in plugins through `prepare-builtin-plugins.sh`, adds audit-only stress data through `stress-fixture.sh`, scans endpoints through `scan-endpoints.sh`, and probes fixtures through `probe-fixtures.sh`
 - **AND** all generated artifacts are written under `temp/lina-perf-audit/<run-id>/`
 - **AND** temporary logger settings are restored on success or failure through `restore-audit-env.sh`
 

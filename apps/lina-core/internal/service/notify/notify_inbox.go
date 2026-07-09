@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -102,7 +101,7 @@ func (s *serviceImpl) InboxList(ctx context.Context, in InboxListInput) (*InboxL
 			Title:        row.Title,
 			CategoryCode: row.CategoryCode,
 			SourceType:   row.SourceType,
-			SourceID:     gconv.Int64(row.SourceId),
+			SourceID:     row.SourceId,
 			IsRead:       row.IsRead,
 			ReadAt:       row.ReadAt,
 			CreatedAt:    row.CreatedAt,
@@ -202,7 +201,7 @@ func (s *serviceImpl) DeleteBySource(ctx context.Context, sourceType SourceType,
 	}
 	model := dao.SysNotifyMessage.Ctx(ctx).
 		Fields(messageCols.Id).
-		Where(messageCols.SourceType, sourceType.String()).
+		Where(messageCols.SourceType, string(sourceType)).
 		WhereIn(messageCols.SourceId, normalizedSourceIDs)
 	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
 	err := model.Scan(&rows)
@@ -224,7 +223,7 @@ func (s *serviceImpl) DeleteBySource(ctx context.Context, sourceType SourceType,
 	}
 
 	deliveryCols := dao.SysNotifyDelivery.Columns()
-	return dao.SysNotifyDelivery.Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+	return dao.SysNotifyDelivery.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
 		if _, err = dao.SysNotifyDelivery.Ctx(ctx).WhereIn(deliveryCols.MessageId, messageIDs).Delete(); err != nil {
 			return err
 		}

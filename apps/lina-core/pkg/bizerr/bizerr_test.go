@@ -44,9 +44,11 @@ func TestFormatReplacesNamedParameters(t *testing.T) {
 func TestCodeAccessorsAndMatching(t *testing.T) {
 	t.Parallel()
 
-	runtimeCode := "USER_LOCKED"
-	messageKey := "error.user.locked.custom"
-	fallback := "User is locked"
+	var (
+		runtimeCode = "USER_LOCKED"
+		messageKey  = "error.user.locked.custom"
+		fallback    = "User is locked"
+	)
 	code := MustDefineWithKey(
 		runtimeCode,
 		messageKey,

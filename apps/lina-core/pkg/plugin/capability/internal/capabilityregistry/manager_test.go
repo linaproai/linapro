@@ -7,6 +7,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/capmodel"
 )
 
 func TestStatusWithProviderReportsFactoryErrorAsUnavailable(t *testing.T) {
@@ -27,10 +30,10 @@ func TestStatusWithProviderReportsFactoryErrorAsUnavailable(t *testing.T) {
 	if status.ActiveProvider != "" {
 		t.Fatalf("expected active provider to be cleared, got %q", status.ActiveProvider)
 	}
-	if status.Reason != ReasonProviderError {
+	if status.Reason != reasonProviderError {
 		t.Fatalf("expected provider error reason, got %q", status.Reason)
 	}
-	if len(status.Providers) != 1 || status.Providers[0].Active || status.Providers[0].Reason != ReasonProviderError {
+	if len(status.Providers) != 1 || status.Providers[0].Active || status.Providers[0].Reason != reasonProviderError {
 		t.Fatalf("expected inactive provider_error provider status, got %#v", status.Providers)
 	}
 }
@@ -78,6 +81,19 @@ func TestActiveProviderWithErrorRejectsMultipleEnabledProviders(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected conflict error")
 	}
+	if !bizerr.Is(err, capmodel.CodeCapabilityProviderConflict) {
+		t.Fatalf("expected capability provider conflict error, got %v", err)
+	}
+	bizErr, ok := bizerr.As(err)
+	if !ok {
+		t.Fatalf("expected structured conflict error, got %v", err)
+	}
+	if bizErr.Params()["capability"] != "cap.test" {
+		t.Fatalf("expected capability param cap.test, got %#v", bizErr.Params())
+	}
+	if bizErr.Params()["providerIds"] != "provider-a,provider-b" {
+		t.Fatalf("expected deterministic provider IDs, got %#v", bizErr.Params())
+	}
 	if provider != nil {
 		t.Fatalf("expected no provider on conflict, got %#v", provider)
 	}
@@ -88,11 +104,11 @@ func TestActiveProviderWithErrorRejectsMultipleEnabledProviders(t *testing.T) {
 		testEnablement{"provider-a": true, "provider-b": true},
 		nil,
 	)
-	if status.Available || status.ActiveProvider != "" || status.Reason != ReasonConflict {
+	if status.Available || status.ActiveProvider != "" || status.Reason != reasonConflict {
 		t.Fatalf("expected unavailable conflict status, got %#v", status)
 	}
 	for _, providerStatus := range status.Providers {
-		if !providerStatus.Conflict || providerStatus.Reason != ReasonConflict {
+		if !providerStatus.Conflict || providerStatus.Reason != reasonConflict {
 			t.Fatalf("expected conflicted provider status, got %#v", status.Providers)
 		}
 	}
@@ -101,9 +117,11 @@ func TestActiveProviderWithErrorRejectsMultipleEnabledProviders(t *testing.T) {
 func TestStatusWithProviderConstructsAndCachesActiveProvider(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	manager := NewManager[string]()
-	calls := 0
+	var (
+		ctx     = context.Background()
+		manager = NewManager[string]()
+		calls   = 0
+	)
 	if err := manager.RegisterFactory("cap.test", "provider-a", func(_ context.Context, env string) (any, error) {
 		calls++
 		return "provider:" + env, nil

@@ -17,7 +17,8 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/capmodel"
 	"lina-core/pkg/plugin/capability/orgcap"
 )
 
@@ -47,10 +48,12 @@ func TestDeleteRollsBackWhenOrgCleanupFails(t *testing.T) {
 // TestBatchDeleteRejectsCurrentUserAtomically verifies current-user protection
 // rejects the whole batch before deleting any selected users.
 func TestBatchDeleteRejectsCurrentUserAtomically(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertUserDeleteTestUser(t, ctx, "current-user")
-	otherUserID := insertUserDeleteTestUser(t, ctx, "other-user")
-	roleID := insertUserDeleteTestRole(t, ctx, "current-user-role")
+	var (
+		ctx           = context.Background()
+		currentUserID = insertUserDeleteTestUser(t, ctx, "current-user")
+		otherUserID   = insertUserDeleteTestUser(t, ctx, "other-user")
+		roleID        = insertUserDeleteTestRole(t, ctx, "current-user-role")
+	)
 	t.Cleanup(func() {
 		cleanupUserDeleteTestRows(t, ctx, []int{currentUserID, otherUserID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
@@ -114,9 +117,11 @@ func TestBatchDeleteRemovesUsersAndAssociations(t *testing.T) {
 // TestBatchDeleteRejectsBuiltinAdminAtomically verifies built-in administrator
 // protection rejects the whole batch before deleting any selected users.
 func TestBatchDeleteRejectsBuiltinAdminAtomically(t *testing.T) {
-	ctx := context.Background()
-	otherUserID := insertUserDeleteTestUser(t, ctx, "other-admin-guard")
-	adminUserID := mustQueryBuiltinAdminUserID(t, ctx)
+	var (
+		ctx         = context.Background()
+		otherUserID = insertUserDeleteTestUser(t, ctx, "other-admin-guard")
+		adminUserID = mustQueryBuiltinAdminUserID(t, ctx)
+	)
 	t.Cleanup(func() {
 		cleanupUserDeleteTestRows(t, ctx, []int{otherUserID})
 	})
@@ -270,11 +275,11 @@ func (s userDeleteStaticBizCtx) Get(context.Context) *model.Context {
 }
 
 // Current returns the plugin-visible business context projection.
-func (s userDeleteStaticBizCtx) Current(context.Context) contract.CurrentContext {
+func (s userDeleteStaticBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	if s.ctx == nil {
-		return contract.CurrentContext{}
+		return bizctxcap.CurrentContext{}
 	}
-	return contract.CurrentContext{
+	return bizctxcap.CurrentContext{
 		UserID:          s.ctx.UserId,
 		Username:        s.ctx.Username,
 		TenantID:        s.ctx.TenantId,
@@ -289,7 +294,7 @@ func (s userDeleteStaticBizCtx) Current(context.Context) contract.CurrentContext
 func (s userDeleteStaticBizCtx) SetLocale(context.Context, string) {}
 
 // SetUser is unused by delete tests.
-func (s userDeleteStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
+func (s userDeleteStaticBizCtx) SetUser(context.Context, string, int, string, int, string) {}
 
 // SetTenant is unused by delete tests.
 func (s userDeleteStaticBizCtx) SetTenant(context.Context, int) {}
@@ -309,13 +314,21 @@ type userDeleteFailingOrgCap struct {
 func (f userDeleteFailingOrgCap) Available(context.Context) bool { return false }
 
 // Status returns an unavailable organization capability status.
-func (f userDeleteFailingOrgCap) Status(context.Context) contract.CapabilityStatus {
-	return contract.CapabilityStatus{}
+func (f userDeleteFailingOrgCap) Status(context.Context) capmodel.CapabilityStatus {
+	return capmodel.CapabilityStatus{}
 }
 
 // ListUserDeptAssignments returns no organization assignments.
 func (f userDeleteFailingOrgCap) ListUserDeptAssignments(context.Context, []int) (map[int]*orgcap.UserDeptAssignment, error) {
 	return map[int]*orgcap.UserDeptAssignment{}, nil
+}
+
+// BatchGetUserOrgProfiles returns no organization profiles.
+func (f userDeleteFailingOrgCap) BatchGetUserOrgProfiles(_ context.Context, userIDs []int) (*capmodel.BatchResult[*orgcap.UserOrgProfile, int], error) {
+	return &capmodel.BatchResult[*orgcap.UserOrgProfile, int]{
+		Items:      map[int]*orgcap.UserOrgProfile{},
+		MissingIDs: append([]int(nil), userIDs...),
+	}, nil
 }
 
 // GetUserDeptInfo returns an empty department projection.
@@ -356,6 +369,31 @@ func (f userDeleteFailingOrgCap) ApplyUserDeptUnassignedFilter(_ context.Context
 // GetUserPostIDs returns no post IDs.
 func (f userDeleteFailingOrgCap) GetUserPostIDs(context.Context, int) ([]int, error) {
 	return []int{}, nil
+}
+
+// ListDeptTree returns no department tree nodes.
+func (f userDeleteFailingOrgCap) ListDeptTree(context.Context, orgcap.DeptTreeInput) (*orgcap.DeptTreeResult, error) {
+	return &orgcap.DeptTreeResult{Items: []*orgcap.DeptTreeNode{}}, nil
+}
+
+// SearchDepartments returns no department candidates.
+func (f userDeleteFailingOrgCap) SearchDepartments(context.Context, orgcap.DeptListInput) (*capmodel.PageResult[*orgcap.DeptInfo], error) {
+	return &capmodel.PageResult[*orgcap.DeptInfo]{Items: []*orgcap.DeptInfo{}}, nil
+}
+
+// ListPostOptionsPage returns no post candidates.
+func (f userDeleteFailingOrgCap) ListPostOptionsPage(context.Context, orgcap.PostOptionsInput) (*capmodel.PageResult[*orgcap.PostOption], error) {
+	return &capmodel.PageResult[*orgcap.PostOption]{Items: []*orgcap.PostOption{}}, nil
+}
+
+// EnsureDepartmentsVisible accepts visibility checks in delete tests.
+func (f userDeleteFailingOrgCap) EnsureDepartmentsVisible(context.Context, []int) error {
+	return nil
+}
+
+// EnsurePostsVisible accepts visibility checks in delete tests.
+func (f userDeleteFailingOrgCap) EnsurePostsVisible(context.Context, []int) error {
+	return nil
 }
 
 // ReplaceUserAssignments accepts assignment replacement without doing work.

@@ -87,7 +87,7 @@ jobs:
       - name: Initialize Database Schema
         run: |
           cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
-          make init confirm=init
+          make db.init confirm=init
 
       # Generate embedded frontend/plugin assets required by backend package tests.
       # 生成后端包测试所需的前端和插件嵌入资源。
@@ -101,11 +101,11 @@ jobs:
         env:
           # This link is intentionally provided as an explicit integration-test
           # fixture instead of being read from apps/lina-core/manifest/config/config.yaml.
-          # Runtime config drives make init and application startup; PostgreSQL-backed
+          # Runtime config drives make db.init and application startup; PostgreSQL-backed
           # unit tests use this env var as an opt-in guard so local go test runs do not
           # accidentally connect to or mutate a developer/runtime database.
           # 这里显式提供集成测试数据库连接，而不是读取运行时 config.yaml。
-          # 运行时配置用于 make init 和应用启动；依赖 PostgreSQL 的单测用该
+          # 运行时配置用于 make db.init 和应用启动；依赖 PostgreSQL 的单测用该
           # 环境变量作为显式开关，避免本地 go test 误连或改写开发/运行库。
           LINA_TEST_PGSQL_LINK: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
         run: |

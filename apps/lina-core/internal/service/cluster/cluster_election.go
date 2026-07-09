@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"lina-core/internal/service/config"
 	"lina-core/internal/service/coordination"
 	"lina-core/pkg/logger"
 )
@@ -21,7 +20,7 @@ const lockName = "leader-election"
 // service and a renewable lease.
 type electionService struct {
 	lockStore   coordination.LockStore // lockStore manages distributed lock ownership.
-	cfg         *config.ElectionConfig // cfg stores election lease and renew settings.
+	cfg         *ElectionConfig        // cfg stores election lease and renew settings.
 	holder      string                 // holder is the current node identifier.
 	isLeader    atomic.Bool            // isLeader reports whether the current node owns leadership.
 	handle      *coordination.LockHandle
@@ -36,7 +35,7 @@ type electionService struct {
 // before Start is ever called.
 func newElectionService(
 	lockStore coordination.LockStore,
-	cfg *config.ElectionConfig,
+	cfg *ElectionConfig,
 	holder string,
 ) *electionService {
 	service := &electionService{

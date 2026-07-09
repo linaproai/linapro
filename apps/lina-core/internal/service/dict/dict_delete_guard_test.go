@@ -33,9 +33,11 @@ func TestDeleteRejectsBuiltInDictType(t *testing.T) {
 // TestDataDeleteRejectsBuiltInDictData verifies built-in dictionary data
 // cannot be removed through the management service.
 func TestDataDeleteRejectsBuiltInDictData(t *testing.T) {
-	ctx := context.Background()
-	dictType := insertDictTypeForDeleteGuard(t, ctx, false)
-	record := insertDictDataForDeleteGuard(t, ctx, dictType.Type, true)
+	var (
+		ctx      = context.Background()
+		dictType = insertDictTypeForDeleteGuard(t, ctx, false)
+		record   = insertDictDataForDeleteGuard(t, ctx, dictType.Type, true)
+	)
 
 	err := New(nil).DataDelete(ctx, record.Id)
 	if !bizerr.Is(err, CodeDictDataBuiltinDeleteDenied) {
@@ -48,9 +50,11 @@ func TestDataDeleteRejectsBuiltInDictData(t *testing.T) {
 // TestDeleteRejectsDictTypeContainingBuiltInData verifies cascading dictionary
 // type deletion cannot remove built-in dictionary data.
 func TestDeleteRejectsDictTypeContainingBuiltInData(t *testing.T) {
-	ctx := context.Background()
-	dictType := insertDictTypeForDeleteGuard(t, ctx, false)
-	record := insertDictDataForDeleteGuard(t, ctx, dictType.Type, true)
+	var (
+		ctx      = context.Background()
+		dictType = insertDictTypeForDeleteGuard(t, ctx, false)
+		record   = insertDictDataForDeleteGuard(t, ctx, dictType.Type, true)
+	)
 
 	err := New(nil).Delete(ctx, dictType.Id)
 	if !bizerr.Is(err, CodeDictDataBuiltinDeleteDenied) {
@@ -66,9 +70,11 @@ func TestDeleteRejectsDictTypeContainingBuiltInData(t *testing.T) {
 func insertDictTypeForDeleteGuard(t *testing.T, ctx context.Context, builtin bool) *entity.SysDictType {
 	t.Helper()
 
-	suffix := time.Now().UnixNano()
-	dictType := fmt.Sprintf("delete_guard_%d", suffix)
-	builtinFlag := 0
+	var (
+		suffix      = time.Now().UnixNano()
+		dictType    = fmt.Sprintf("delete_guard_%d", suffix)
+		builtinFlag = 0
+	)
 	if builtin {
 		builtinFlag = 1
 	}

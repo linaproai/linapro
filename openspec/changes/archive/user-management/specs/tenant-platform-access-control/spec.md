@@ -1,5 +1,8 @@
-## ADDED Requirements
+# tenant-platform-access-control Specification
 
+## Purpose
+TBD - created by archiving change tenant-permission-boundary-hardening. Update Purpose after archive.
+## Requirements
 ### Requirement: 平台租户控制面必须要求平台上下文
 
 系统 SHALL 将平台租户控制面接口视为平台资源访问边界。调用方除具备对应权限字符串外，还 MUST 处于平台上下文，且当前请求不得是代管租户上下文。租户上下文中的用户即使因历史脏授权或异常角色关系持有 `system:tenant:*` 权限，也 MUST 被拒绝访问平台租户控制面数据。

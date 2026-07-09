@@ -441,26 +441,16 @@ func bumpLocalAccessRevision() int64 {
 	return accessRevisionState.value
 }
 
-// clearLocalAccessRevision drops the process-local revision so the next read
-// must resynchronize after a local topology write.
-func clearLocalAccessRevision() {
-	accessRevisionState.Lock()
-	accessRevisionState.value = 0
-	accessRevisionState.expireAt = time.Time{}
-	accessRevisionState.Unlock()
-}
-
 // resolveAccessTokenID extracts the current login token ID from the business
 // context so access snapshots can be cached per issued session.
 func (s *serviceImpl) resolveAccessTokenID(ctx context.Context) string {
+	if tokenID, ok := ctx.Value(dynamicRouteAccessTokenContextKey{}).(string); ok {
+		return tokenID
+	}
 	if s == nil || s.bizCtxSvc == nil {
 		return ""
 	}
-	businessCtx := s.bizCtxSvc.Get(ctx)
-	if businessCtx == nil {
-		return ""
-	}
-	return businessCtx.TokenId
+	return s.bizCtxSvc.Current(ctx).TokenID
 }
 
 // resolveAccessCacheTTL keeps token snapshots no longer than either the JWT or

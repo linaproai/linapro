@@ -3,7 +3,7 @@ package plugin
 import (
 	"context"
 
-	"lina-core/api/plugin/v1"
+	v1 "lina-core/api/plugin/v1"
 )
 
 // UpdateTenantProvisioningPolicy updates a platform-owned new-tenant plugin policy.

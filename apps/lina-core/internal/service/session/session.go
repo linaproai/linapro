@@ -8,7 +8,7 @@ import (
 
 	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/datascope"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // sessionLastActiveUpdateWindow is the minimum interval between two
@@ -27,6 +27,7 @@ type Session struct {
 	TenantId       int        // Tenant ID, where 0 means platform
 	UserId         int        // User ID
 	Username       string     // Username
+	ClientType     string     // User-session client type
 	DeptName       string     // Department name
 	Ip             string     // Login IP address
 	Browser        string     // Browser information
@@ -47,6 +48,12 @@ type ListResult struct {
 	Total int        // Total count
 }
 
+// UserOnlineStatus reports projected online-session counts for one visible user.
+type UserOnlineStatus struct {
+	UserId       int // User ID
+	SessionCount int // Number of visible online sessions
+}
+
 // Store defines the session storage interface for persistent online-session
 // records.
 type Store interface {
@@ -54,6 +61,22 @@ type Store interface {
 	Set(ctx context.Context, session *Session) error
 	// Get returns one online session by its globally unique token ID.
 	Get(ctx context.Context, tokenId string) (*Session, error)
+	// BatchGetScoped returns online sessions for the requested token IDs after
+	// applying tenant ownership and data-scope constraints.
+	BatchGetScoped(
+		ctx context.Context,
+		tokenIds []string,
+		scopeSvc datascope.Service,
+		tenantSvc tenantspi.ScopeService,
+	) ([]*Session, error)
+	// BatchGetUserOnlineStatusScoped returns online-session counts for the
+	// requested users after applying tenant ownership and data-scope constraints.
+	BatchGetUserOnlineStatusScoped(
+		ctx context.Context,
+		userIds []int,
+		scopeSvc datascope.Service,
+		tenantSvc tenantspi.ScopeService,
+	) ([]*UserOnlineStatus, error)
 	// Delete removes one online session by its globally unique token ID.
 	Delete(ctx context.Context, tokenId string) error
 	// DeleteByUserId removes all online sessions that belong to one user in one tenant.
@@ -69,7 +92,7 @@ type Store interface {
 		filter *ListFilter,
 		pageNum, pageSize int,
 		scopeSvc datascope.Service,
-		tenantSvc tenantcapsvc.ScopeService,
+		tenantSvc tenantspi.ScopeService,
 	) (*ListResult, error)
 	// Count returns the total number of active online sessions.
 	Count(ctx context.Context) (int, error)
@@ -84,9 +107,9 @@ type Store interface {
 // DBStore implements Store using the persistent online-session table.
 type DBStore struct{}
 
-// SessionConfigurableStore extends Store with runtime session-timeout
+// sessionConfigurableStore extends Store with runtime session-timeout
 // propagation for hot-state implementations.
-type SessionConfigurableStore interface {
+type sessionConfigurableStore interface {
 	Store
 	// SetDefaultTTL updates the hot-state TTL used for login-time writes.
 	SetDefaultTTL(ttl time.Duration)

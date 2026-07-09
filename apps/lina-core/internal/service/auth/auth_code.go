@@ -22,6 +22,13 @@ var (
 		"Login IP is blacklisted",
 		gcode.CodeNotAuthorized,
 	)
+	// CodeAuthClientTypeInvalid reports a missing or unknown user-session client type.
+	CodeAuthClientTypeInvalid = bizerr.MustDefineWithKey(
+		"AUTH_CLIENT_TYPE_INVALID",
+		"error.auth.login.clientType.invalid",
+		"Client type is invalid",
+		gcode.CodeInvalidParameter,
+	)
 	// CodeAuthUserDisabled reports a disabled user login attempt.
 	CodeAuthUserDisabled = bizerr.MustDefine(
 		"AUTH_USER_DISABLED",
@@ -59,18 +66,33 @@ var (
 		"Failed to update last login time",
 		gcode.CodeInternalError,
 	)
-	// CodeAuthExternalIdentityInvalid reports that an external auth provider returned no usable identity.
+	// CodeAuthExternalIdentityInvalid reports that an external login request
+	// carries an empty provider or subject and cannot be resolved to a stable
+	// external identity key.
 	CodeAuthExternalIdentityInvalid = bizerr.MustDefineWithKey(
 		"AUTH_EXTERNAL_IDENTITY_INVALID",
 		"error.auth.external.identityInvalid",
 		"External authentication provider returned an invalid identity",
-		gcode.CodeNotAuthorized,
+		gcode.CodeInvalidParameter,
 	)
-	// CodeAuthExternalUserNotProvisioned reports that no local user matches the external identity.
+	// CodeAuthExternalUserNotProvisioned reports that a verified external
+	// identity has no linked local account. The message is intentionally
+	// uniform regardless of whether the captured email exists as another
+	// account so external login never leaks account existence.
 	CodeAuthExternalUserNotProvisioned = bizerr.MustDefineWithKey(
 		"AUTH_EXTERNAL_USER_NOT_PROVISIONED",
 		"error.auth.external.userNotProvisioned",
 		"No local account is linked to this external identity",
+		gcode.CodeNotAuthorized,
+	)
+	// CodeAuthExternalEmailConflict reports that auto-provisioning found an
+	// existing local account with the same email. The identity is not linked
+	// automatically; the user must sign in to the existing account and link
+	// the identity through an authenticated confirmation flow.
+	CodeAuthExternalEmailConflict = bizerr.MustDefineWithKey(
+		"AUTH_EXTERNAL_EMAIL_CONFLICT",
+		"error.auth.external.emailConflict",
+		"An account with this email already exists; sign in and link the identity from account settings",
 		gcode.CodeNotAuthorized,
 	)
 )

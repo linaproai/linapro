@@ -4,6 +4,8 @@ import type {
   JobHandlerOption,
   JobListParams,
   JobListResult,
+  JobLogClearParams,
+  JobLogClearResult,
   JobLogListParams,
   JobLogListResult,
   JobLogRecord,
@@ -94,10 +96,10 @@ export function jobLogDetail(id: number) {
   return requestClient.get<JobLogRecord>(`/job/log/${id}`);
 }
 
-/** 清空执行日志 */
-export function jobLogClear(jobId?: number) {
-  return requestClient.delete('/job/log', {
-    params: typeof jobId === 'number' ? { jobId } : undefined,
+/** 清理执行日志 */
+export function jobLogClear(params?: JobLogClearParams) {
+  return requestClient.delete<JobLogClearResult>('/job/log', {
+    params,
   });
 }
 

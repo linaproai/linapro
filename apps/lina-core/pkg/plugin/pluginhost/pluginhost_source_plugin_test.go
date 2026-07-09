@@ -11,7 +11,10 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
+	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/orgcap/orgspi"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
 // TestExtensionPointExecutionModes verifies hook and registrar points publish
@@ -54,13 +57,14 @@ func TestExtensionPointExecutionModes(t *testing.T) {
 // TestCallbackInputContractsUseInterfaces verifies published callback inputs are
 // exposed as interfaces rather than host concrete structs.
 func TestCallbackInputContractsUseInterfaces(t *testing.T) {
-	assertInterfaceType(t, (*SourcePlugin)(nil), "SourcePlugin")
-	assertInterfaceType(t, (*SourcePluginAssets)(nil), "SourcePluginAssets")
-	assertInterfaceType(t, (*SourcePluginLifecycle)(nil), "SourcePluginLifecycle")
-	assertInterfaceType(t, (*SourcePluginHooks)(nil), "SourcePluginHooks")
-	assertInterfaceType(t, (*SourcePluginHTTP)(nil), "SourcePluginHTTP")
-	assertInterfaceType(t, (*SourcePluginCron)(nil), "SourcePluginCron")
-	assertInterfaceType(t, (*SourcePluginGovernance)(nil), "SourcePluginGovernance")
+	assertInterfaceType(t, (*Declarations)(nil), "Declarations")
+	assertInterfaceType(t, (*AssetDeclarations)(nil), "AssetDeclarations")
+	assertInterfaceType(t, (*LifecycleDeclarations)(nil), "LifecycleDeclarations")
+	assertInterfaceType(t, (*HookDeclarations)(nil), "HookDeclarations")
+	assertInterfaceType(t, (*HTTPDeclarations)(nil), "HTTPDeclarations")
+	assertInterfaceType(t, (*JobDeclarations)(nil), "JobDeclarations")
+	assertInterfaceType(t, (*ProviderDeclarations)(nil), "ProviderDeclarations")
+	assertInterfaceType(t, (*AccessDeclarations)(nil), "AccessDeclarations")
 	assertInterfaceType(t, (*SourcePluginDefinition)(nil), "SourcePluginDefinition")
 	assertInterfaceType(t, (*HookPayload)(nil), "HookPayload")
 	assertInterfaceType(t, (*SourcePluginLifecycleInput)(nil), "SourcePluginLifecycleInput")
@@ -72,14 +76,14 @@ func TestCallbackInputContractsUseInterfaces(t *testing.T) {
 	assertInterfaceType(t, (*HTTPRegistrar)(nil), "HTTPRegistrar")
 	assertInterfaceType(t, (*RouteRegistrar)(nil), "RouteRegistrar")
 	assertInterfaceType(t, (*GlobalMiddlewareRegistrar)(nil), "GlobalMiddlewareRegistrar")
-	assertInterfaceType(t, (*CronRegistrar)(nil), "CronRegistrar")
+	assertInterfaceType(t, (*JobsRegistrar)(nil), "JobsRegistrar")
 	assertInterfaceType(t, (*MenuDescriptor)(nil), "MenuDescriptor")
 	assertInterfaceType(t, (*PermissionDescriptor)(nil), "PermissionDescriptor")
 }
 
 // TestRegisterHookAcceptsAsyncMode verifies async execution is allowed for hook callbacks.
 func TestRegisterHookAcceptsAsyncMode(t *testing.T) {
-	plugin := NewSourcePlugin("test-plugin-hook")
+	plugin := NewDeclarations("test-plugin-hook")
 	if err := plugin.Hooks().RegisterHook(
 		ExtensionPointAuthLoginSucceeded,
 		CallbackExecutionModeAsync,
@@ -102,7 +106,7 @@ func TestRegisterHookAcceptsAsyncMode(t *testing.T) {
 // TestRegisterRoutesRejectsAsyncMode verifies route registration returns an
 // error when the caller requests an unsupported execution mode.
 func TestRegisterRoutesRejectsAsyncMode(t *testing.T) {
-	plugin := NewSourcePlugin("test-plugin-route")
+	plugin := NewDeclarations("test-plugin-route")
 	err := plugin.HTTP().RegisterRoutes(
 		ExtensionPointHTTPRouteRegister,
 		CallbackExecutionModeAsync,
@@ -112,6 +116,95 @@ func TestRegisterRoutesRejectsAsyncMode(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatalf("expected async route registration to return an error")
+	}
+}
+
+// TestProviderDeclarationsStoreFactories verifies framework provider factories
+// are declared through the source-plugin facade and rejected when duplicated.
+func TestProviderDeclarationsStoreFactories(t *testing.T) {
+	plugin := NewDeclarations("test-plugin-provider")
+	providers := plugin.Providers()
+	tenantFactory := func(context.Context, tenantspi.ProviderEnv) (tenantspi.Provider, error) {
+		return nil, nil
+	}
+	orgFactory := func(context.Context, orgspi.ProviderEnv) (orgspi.Provider, error) {
+		return nil, nil
+	}
+	aiTextFactory := func(context.Context, aitext.ProviderEnv) (aitext.Provider, error) {
+		return nil, nil
+	}
+
+	if err := providers.ProvideTenant(tenantFactory); err != nil {
+		t.Fatalf("expected tenant provider declaration to succeed, got %v", err)
+	}
+	if err := providers.ProvideOrg(orgFactory); err != nil {
+		t.Fatalf("expected org provider declaration to succeed, got %v", err)
+	}
+	if err := providers.ProvideAIText(aiTextFactory); err != nil {
+		t.Fatalf("expected text AI provider declaration to succeed, got %v", err)
+	}
+
+	definition := mustSourcePluginDefinition(t, plugin)
+	if definition.GetTenantProviderFactory() == nil {
+		t.Fatalf("expected tenant provider factory to be stored")
+	}
+	if definition.GetOrgProviderFactory() == nil {
+		t.Fatalf("expected org provider factory to be stored")
+	}
+	if definition.GetAITextProviderFactory() == nil {
+		t.Fatalf("expected text AI provider factory to be stored")
+	}
+	if err := providers.ProvideTenant(tenantFactory); err == nil {
+		t.Fatalf("expected duplicate tenant provider declaration to fail")
+	}
+	if err := providers.ProvideOrg(orgFactory); err == nil {
+		t.Fatalf("expected duplicate org provider declaration to fail")
+	}
+	if err := providers.ProvideAIText(aiTextFactory); err == nil {
+		t.Fatalf("expected duplicate text AI provider declaration to fail")
+	}
+}
+
+// TestProvideExternalIdentityStoresOwnershipAndRejectsInvalid verifies external
+// identity provider ownership is recorded, trimmed, and guarded against empty
+// and duplicate declarations.
+func TestProvideExternalIdentityStoresOwnershipAndRejectsInvalid(t *testing.T) {
+	plugin := NewDeclarations("test-plugin-external-identity")
+	providers := plugin.Providers()
+
+	if err := providers.ProvideExternalIdentity("  "); err == nil {
+		t.Fatalf("expected empty external identity provider to be rejected")
+	}
+	if err := providers.ProvideExternalIdentity(" google "); err != nil {
+		t.Fatalf("expected external identity provider declaration to succeed, got %v", err)
+	}
+	if err := providers.ProvideExternalIdentity("discord"); err != nil {
+		t.Fatalf("expected second distinct provider declaration to succeed, got %v", err)
+	}
+	if err := providers.ProvideExternalIdentity("google"); err == nil {
+		t.Fatalf("expected duplicate external identity provider declaration to fail")
+	}
+
+	definition := mustSourcePluginDefinition(t, plugin)
+	owned := definition.GetExternalIdentityProviderIDs()
+	if len(owned) != 2 || owned[0] != "google" || owned[1] != "discord" {
+		t.Fatalf("unexpected declared external identity providers: %#v", owned)
+	}
+}
+
+// TestProviderDeclarationsRejectNilFactories verifies provider facade validation
+// reports caller errors instead of storing unusable factories.
+func TestProviderDeclarationsRejectNilFactories(t *testing.T) {
+	providers := NewDeclarations("test-plugin-provider-nil").Providers()
+
+	if err := providers.ProvideTenant(nil); err == nil {
+		t.Fatalf("expected nil tenant provider factory to fail")
+	}
+	if err := providers.ProvideOrg(nil); err == nil {
+		t.Fatalf("expected nil org provider factory to fail")
+	}
+	if err := providers.ProvideAIText(nil); err == nil {
+		t.Fatalf("expected nil text AI provider factory to fail")
 	}
 }
 
@@ -130,30 +223,6 @@ func TestRegisterSourcePluginForTestReturnsGoFrameError(t *testing.T) {
 	stack := gerror.Stack(err)
 	if !strings.Contains(stack, "RegisterSourcePluginForTest") {
 		t.Fatalf("expected GoFrame stack to include registration helper, got %q", stack)
-	}
-}
-
-// TestCronRegistrarReportsPrimaryNode verifies cron registrars expose the
-// current primary-node status from the host callback.
-func TestCronRegistrarReportsPrimaryNode(t *testing.T) {
-	registrar := NewCronRegistrar(
-		"test-plugin",
-		nil,
-		func() bool { return false },
-		nil,
-	)
-	if registrar.IsPrimaryNode() {
-		t.Fatalf("expected current node to be non-primary")
-	}
-
-	registrar = NewCronRegistrar(
-		"test-plugin",
-		nil,
-		func() bool { return true },
-		nil,
-	)
-	if !registrar.IsPrimaryNode() {
-		t.Fatalf("expected current node to be primary")
 	}
 }
 
@@ -199,7 +268,7 @@ func TestHookPayloadHelpersBuildPublishedKeys(t *testing.T) {
 // TestRegisterUninstallHandlerPublishesPolicySnapshot verifies uninstall
 // handlers receive the host-confirmed policy snapshot interface.
 func TestRegisterUninstallHandlerPublishesPolicySnapshot(t *testing.T) {
-	plugin := NewSourcePlugin("test-plugin-uninstall")
+	plugin := NewDeclarations("test-plugin-uninstall")
 	called := false
 
 	if err := plugin.Lifecycle().RegisterUninstallHandler(func(ctx context.Context, input SourcePluginUninstallInput) error {
@@ -264,7 +333,7 @@ func TestLifecycleInputPublishesUninstallPolicySnapshot(t *testing.T) {
 // TestRegisterUpgradeHandlersPublishesManifestSnapshots verifies source-plugin
 // upgrade callbacks receive stable manifest snapshot interfaces.
 func TestRegisterUpgradeHandlersPublishesManifestSnapshots(t *testing.T) {
-	plugin := NewSourcePlugin("test-plugin-upgrade")
+	plugin := NewDeclarations("test-plugin-upgrade")
 	called := false
 
 	if err := plugin.Lifecycle().RegisterUpgradeHandler(func(ctx context.Context, input SourcePluginUpgradeInput) error {
@@ -294,18 +363,20 @@ func TestRegisterUpgradeHandlersPublishesManifestSnapshots(t *testing.T) {
 		"test-plugin-upgrade",
 		"v0.1.0",
 		"v0.2.0",
-		NewManifestSnapshot(&bridgecontract.ManifestSnapshotV1{
-			ID:      "test-plugin-upgrade",
-			Name:    "Test Plugin Upgrade",
-			Version: "v0.1.0",
-			Type:    "source",
+		NewManifestSnapshot(&capmodel.ManifestSnapshot{
+			ID:           "test-plugin-upgrade",
+			Name:         "Test Plugin Upgrade",
+			Version:      "v0.1.0",
+			Type:         "source",
+			Distribution: "managed",
 		}),
-		NewManifestSnapshot(&bridgecontract.ManifestSnapshotV1{
-			ID:        "test-plugin-upgrade",
-			Name:      "Test Plugin Upgrade",
-			Version:   "v0.2.0",
-			Type:      "source",
-			MenuCount: 2,
+		NewManifestSnapshot(&capmodel.ManifestSnapshot{
+			ID:           "test-plugin-upgrade",
+			Name:         "Test Plugin Upgrade",
+			Version:      "v0.2.0",
+			Type:         "source",
+			Distribution: "managed",
+			MenuCount:    2,
 		}),
 	)
 	if err := handler(context.Background(), input); err != nil {
@@ -316,15 +387,16 @@ func TestRegisterUpgradeHandlersPublishesManifestSnapshots(t *testing.T) {
 	}
 }
 
-// TestNewManifestSnapshotUsesBridgeContract verifies source-plugin snapshots
-// use the shared typed bridge lifecycle contract.
-func TestNewManifestSnapshotUsesBridgeContract(t *testing.T) {
-	input := &bridgecontract.ManifestSnapshotV1{
-		ID:          "test-plugin-typed-snapshot",
-		Name:        "Test Plugin Typed Snapshot",
-		Version:     "v1.0.0",
-		Type:        "source",
-		Description: "typed contract",
+// TestNewManifestSnapshotUsesSharedPrimitive verifies source-plugin snapshots
+// use the shared typed capmodel manifest snapshot primitive.
+func TestNewManifestSnapshotUsesSharedPrimitive(t *testing.T) {
+	input := &capmodel.ManifestSnapshot{
+		ID:           "test-plugin-typed-snapshot",
+		Name:         "Test Plugin Typed Snapshot",
+		Version:      "v1.0.0",
+		Type:         "source",
+		Distribution: "managed",
+		Description:  "typed contract",
 	}
 	snapshot := NewManifestSnapshot(input)
 	input.Description = "mutated"
@@ -351,7 +423,7 @@ func TestNewManifestSnapshotReturnsNilForMissingContract(t *testing.T) {
 // TestSourcePluginLifecycleCallbackAdapterRunsBeforeUpgrade verifies lifecycle
 // facade callbacks are adapted into the shared callback runner.
 func TestSourcePluginLifecycleCallbackAdapterRunsBeforeUpgrade(t *testing.T) {
-	plugin := NewSourcePlugin("test-plugin-before-upgrade")
+	plugin := NewDeclarations("test-plugin-before-upgrade")
 	if err := plugin.Lifecycle().RegisterBeforeUpgradeHandler(func(ctx context.Context, input SourcePluginUpgradeInput) (bool, string, error) {
 		if input.PluginID() != "test-plugin-before-upgrade" {
 			t.Fatalf("expected plugin id to be published, got %s", input.PluginID())
@@ -372,8 +444,8 @@ func TestSourcePluginLifecycleCallbackAdapterRunsBeforeUpgrade(t *testing.T) {
 		),
 		Participants: []LifecycleParticipant{
 			{
-				PluginID: "test-plugin-before-upgrade",
-				Callback: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
+				PluginID:  "test-plugin-before-upgrade",
+				Callbacks: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
 			},
 		},
 	})
@@ -388,7 +460,7 @@ func TestSourcePluginLifecycleCallbackAdapterRunsBeforeUpgrade(t *testing.T) {
 // TestSourcePluginLifecycleCallbackAdapterRunsUpgrade verifies custom upgrade
 // callbacks are exposed through the shared lifecycle runner.
 func TestSourcePluginLifecycleCallbackAdapterRunsUpgrade(t *testing.T) {
-	plugin := NewSourcePlugin("test-plugin-upgrade")
+	plugin := NewDeclarations("test-plugin-upgrade")
 	called := false
 	if err := plugin.Lifecycle().RegisterUpgradeHandler(func(ctx context.Context, input SourcePluginUpgradeInput) error {
 		called = true
@@ -414,8 +486,8 @@ func TestSourcePluginLifecycleCallbackAdapterRunsUpgrade(t *testing.T) {
 		),
 		Participants: []LifecycleParticipant{
 			{
-				PluginID: "test-plugin-upgrade",
-				Callback: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
+				PluginID:  "test-plugin-upgrade",
+				Callbacks: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
 			},
 		},
 	})
@@ -427,7 +499,7 @@ func TestSourcePluginLifecycleCallbackAdapterRunsUpgrade(t *testing.T) {
 // TestSourcePluginLifecycleCallbackAdapterRunsAfterInstall verifies source
 // plugin After* facade callbacks are adapted into the shared callback runner.
 func TestSourcePluginLifecycleCallbackAdapterRunsAfterInstall(t *testing.T) {
-	plugin := NewSourcePlugin("test-plugin-after-install")
+	plugin := NewDeclarations("test-plugin-after-install")
 	called := false
 	if err := plugin.Lifecycle().RegisterAfterInstallHandler(func(ctx context.Context, input SourcePluginLifecycleInput) error {
 		called = true
@@ -447,8 +519,8 @@ func TestSourcePluginLifecycleCallbackAdapterRunsAfterInstall(t *testing.T) {
 		PluginInput: NewSourcePluginLifecycleInput("test-plugin-after-install", LifecycleHookAfterInstall.String()),
 		Participants: []LifecycleParticipant{
 			{
-				PluginID: "test-plugin-after-install",
-				Callback: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
+				PluginID:  "test-plugin-after-install",
+				Callbacks: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
 			},
 		},
 	})
@@ -460,7 +532,7 @@ func TestSourcePluginLifecycleCallbackAdapterRunsAfterInstall(t *testing.T) {
 // TestSourcePluginLifecycleCallbackAdapterRunsInstallModeChange verifies
 // install-mode precondition callbacks are exposed through the lifecycle facade.
 func TestSourcePluginLifecycleCallbackAdapterRunsInstallModeChange(t *testing.T) {
-	plugin := NewSourcePlugin("test-plugin-before-install-mode")
+	plugin := NewDeclarations("test-plugin-before-install-mode")
 	if err := plugin.Lifecycle().RegisterBeforeInstallModeChangeHandler(func(
 		ctx context.Context,
 		input SourcePluginInstallModeChangeInput,
@@ -486,8 +558,8 @@ func TestSourcePluginLifecycleCallbackAdapterRunsInstallModeChange(t *testing.T)
 		),
 		Participants: []LifecycleParticipant{
 			{
-				PluginID: "test-plugin-before-install-mode",
-				Callback: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
+				PluginID:  "test-plugin-before-install-mode",
+				Callbacks: NewSourcePluginLifecycleCallbackAdapter(mustSourcePluginDefinition(t, plugin)),
 			},
 		},
 	})
@@ -508,9 +580,9 @@ func assertInterfaceType(t *testing.T, value interface{}, name string) {
 	}
 }
 
-// mustSourcePluginDefinition narrows one published SourcePlugin to the host
+// mustSourcePluginDefinition narrows one published Declarations value to the host
 // definition view used by registry and integration code.
-func mustSourcePluginDefinition(t *testing.T, plugin SourcePlugin) SourcePluginDefinition {
+func mustSourcePluginDefinition(t *testing.T, plugin Declarations) SourcePluginDefinition {
 	t.Helper()
 
 	definition, ok := plugin.(SourcePluginDefinition)

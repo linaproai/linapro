@@ -19,6 +19,7 @@ const apiBaseURL = config.apiBaseURL;
 const successPluginID = "plugin-dev-host-services-e2e";
 const deniedPluginID = "plugin-dev-host-services-denied-e2e";
 const rawSQLPluginID = "plugin-dev-host-services-raw-sql-e2e";
+const successDataTable = "plugin_plugin_dev_host_services_e2e_record";
 
 type PluginListItem = {
   id: string;
@@ -135,6 +136,7 @@ async function createAdminApiContext(): Promise<APIRequestContext> {
     data: {
       username: config.adminUser,
       password: config.adminPass,
+      clientType: "web",
     },
   });
   const loginPayload = await expectApiSuccess<{ accessToken?: string }>(
@@ -249,6 +251,27 @@ function ensurePluginStateTable() {
   ]);
 }
 
+function ensureSuccessDataTable() {
+  execPgSQLStatements([
+    `DROP TABLE IF EXISTS ${successDataTable};`,
+    [
+      `CREATE TABLE ${successDataTable} (`,
+      "  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,",
+      "  plugin_id VARCHAR(64) NOT NULL DEFAULT '',",
+      "  release_id INTEGER NOT NULL DEFAULT 0,",
+      "  node_key VARCHAR(255) NOT NULL DEFAULT '',",
+      "  desired_state VARCHAR(64) NOT NULL DEFAULT '',",
+      "  current_state VARCHAR(64) NOT NULL DEFAULT '',",
+      "  generation INTEGER NOT NULL DEFAULT 0,",
+      "  error_message TEXT NOT NULL DEFAULT '',",
+      "  created_at TIMESTAMP,",
+      "  updated_at TIMESTAMP,",
+      "  deleted_at TIMESTAMP",
+      ");",
+    ].join(" "),
+  ]);
+}
+
 function cleanupPluginRows(pluginIDs: string[]) {
   const statements: string[] = [];
   for (const pluginID of pluginIDs) {
@@ -267,6 +290,14 @@ function cleanupPluginRows(pluginIDs: string[]) {
   execPgSQLStatements(statements);
 }
 
+function cleanupSuccessDataTable() {
+  execPgSQLStatements([`DELETE FROM ${successDataTable};`]);
+}
+
+function dropSuccessDataTable() {
+  execPgSQLStatements([`DROP TABLE IF EXISTS ${successDataTable};`]);
+}
+
 function cleanupArtifacts(pluginIDs: string[]) {
   for (const pluginID of pluginIDs) {
     rmSync(uploadedArtifactPath(pluginID), { force: true });
@@ -277,12 +308,12 @@ function buildPluginRuntimeMain(moduleName: string) {
   return `package main
 
 import (
-	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	dynamicbackend "${moduleName}/backend"
 )
 
-var guestRuntime = bridgeguest.NewGuestRuntime(dynamicbackend.HandleRequest)
+var guestRuntime = bridgeplugin.NewGuestRuntime(dynamicbackend.HandleRequest)
 
 //go:wasmexport lina_dynamic_route_alloc
 func linaDynamicRouteAlloc(size uint32) uint32 {
@@ -324,12 +355,12 @@ function buildBackendPluginFile(moduleName: string) {
 package backend
 
 import (
-	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"${moduleName}/backend/internal/controller/dynamic"
 )
 
-var guestRouteDispatcher = bridgeguest.MustNewGuestControllerRouteDispatcher(dynamic.New())
+var guestRouteDispatcher = bridgeplugin.MustNewGuestControllerRouteDispatcher(dynamic.New())
 
 func HandleRequest(
 	request *protocol.BridgeRequestEnvelopeV1,
@@ -451,7 +482,7 @@ hostServices:
       - transaction
     resources:
       tables:
-        - sys_plugin_node_state
+        - ${successDataTable}
 `,
   );
   writeTestFile(
@@ -481,27 +512,32 @@ func New() *Controller {
     `package dynamic
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	plugindata "lina-core/pkg/plugin/capability/data"
-	capabilityguest "lina-core/pkg/plugin/capability/guest"
+	"lina-core/pkg/plugin/capability/storagecap"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
+	"lina-core/pkg/plugin/pluginbridge/recordstore"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 const (
 	networkURL = "${upstreamBaseURL}"
-	dataTable  = "sys_plugin_node_state"
+	dataTable  = "${successDataTable}"
 )
 
 func (c *Controller) HostServices(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	var (
-		runtimeSvc = capabilityguest.Runtime()
-		storageSvc = capabilityguest.Storage()
-		httpSvc    = capabilityguest.Network()
-		dataSvc    = plugindata.Open()
+		ctx        = bridgeplugin.NewGuestControllerContext(request)
+		services   = bridgeplugin.Default()
+		runtimeSvc = services.Runtime()
+		storageSvc = services.Storage()
+		httpSvc    = services.Network()
+		dataSvc    = services.RecordStore()
 	)
 
 	nowValue, err := runtimeSvc.Now()
@@ -554,28 +590,62 @@ func (c *Controller) HostServices(request *protocol.BridgeRequestEnvelopeV1) (*p
 	if err != nil {
 		return nil, gerror.Wrap(err, "marshal storage body failed")
 	}
-	objectMeta, err := storageSvc.Put(objectPath, storageBody, "application/json", true)
+	objectMeta, err := storageSvc.Put(ctx, storagecap.PutInput{
+		Path:        objectPath,
+		Body:        bytes.NewReader(storageBody),
+		Size:        int64(len(storageBody)),
+		ContentType: "application/json",
+		Overwrite:   true,
+	})
 	if err != nil {
 		return nil, err
 	}
-	readBody, _, storageFound, err := storageSvc.Get(objectPath)
+	if objectMeta == nil || objectMeta.Object == nil {
+		return nil, gerror.New("storage put response missing object metadata")
+	}
+	readOutput, err := storageSvc.Get(ctx, storagecap.GetInput{Path: objectPath})
 	if err != nil {
 		return nil, err
 	}
-	statObject, statFound, err := storageSvc.Stat(objectPath)
+	var readBody []byte
+	if readOutput != nil && readOutput.Found && readOutput.Body != nil {
+		readBody, err = io.ReadAll(readOutput.Body)
+		closeErr := readOutput.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+	}
+	statOutput, err := storageSvc.Stat(ctx, storagecap.StatInput{Path: objectPath})
 	if err != nil {
 		return nil, err
 	}
-	listObjects, err := storageSvc.List("e2e", 10)
+	if statOutput != nil && statOutput.Found && statOutput.Object == nil {
+		return nil, gerror.New("storage stat response missing object metadata")
+	}
+	listOutput, err := storageSvc.List(ctx, storagecap.ListInput{Prefix: "e2e", Limit: 10})
 	if err != nil {
 		return nil, err
 	}
-	if err = storageSvc.Delete(objectPath); err != nil {
+	if err = storageSvc.Delete(ctx, storagecap.DeleteInput{Path: objectPath}); err != nil {
 		return nil, err
 	}
-	_, deletedFound, err := storageSvc.Stat(objectPath)
+	deletedOutput, err := storageSvc.Stat(ctx, storagecap.StatInput{Path: objectPath})
 	if err != nil {
 		return nil, err
+	}
+	storageFound := readOutput != nil && readOutput.Found
+	statFound := statOutput != nil && statOutput.Found
+	deletedFound := deletedOutput != nil && deletedOutput.Found
+	listedCount := 0
+	if listOutput != nil {
+		listedCount = len(listOutput.Objects)
+	}
+	statPath := ""
+	if statOutput != nil && statOutput.Object != nil {
+		statPath = statOutput.Object.Path
 	}
 
 	networkResponse, err := httpSvc.Request(networkURL+"/ping?plugin="+request.PluginID, &protocol.HostServiceNetworkRequest{
@@ -588,7 +658,7 @@ func (c *Controller) HostServices(request *protocol.BridgeRequestEnvelopeV1) (*p
 		return nil, err
 	}
 
-	err = dataSvc.Transaction(func(tx *plugindata.Tx) error {
+	err = dataSvc.Transaction(func(tx *recordstore.Tx) error {
 		_, txErr := tx.Table(dataTable).Insert(map[string]any{
 			"pluginId": request.PluginID,
 			"releaseId": 0,
@@ -653,11 +723,11 @@ func (c *Controller) HostServices(request *protocol.BridgeRequestEnvelopeV1) (*p
 		"storage": map[string]any{
 			"objectPath": objectPath,
 			"stored": storageFound && string(readBody) == string(storageBody),
-			"listedCount": len(listObjects),
+			"listedCount": listedCount,
 			"statFound": statFound,
 			"deleted": !deletedFound,
-			"writtenPath": objectMeta.Path,
-			"statPath": statObject.Path,
+			"writtenPath": objectMeta.Object.Path,
+			"statPath": statPath,
 		},
 		"network": map[string]any{
 			"statusCode": networkResponse.StatusCode,
@@ -774,13 +844,18 @@ func New() *Controller {
     `package dynamic
 
 import (
-	plugindata "lina-core/pkg/plugin/capability/data"
-	capabilityguest "lina-core/pkg/plugin/capability/guest"
+	"bytes"
+
+	"lina-core/pkg/plugin/capability/storagecap"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 func (c *Controller) DeniedMethod(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, _, _, err := capabilityguest.Storage().Get("authorized-files/blocked.txt")
+	_, err := bridgeplugin.Default().Storage().Get(
+		bridgeplugin.NewGuestControllerContext(request),
+		storagecap.GetInput{Path: "authorized-files/blocked.txt"},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -788,7 +863,16 @@ func (c *Controller) DeniedMethod(request *protocol.BridgeRequestEnvelopeV1) (*p
 }
 
 func (c *Controller) DeniedResource(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := capabilityguest.Storage().PutText("denied-files/blocked.txt", "blocked", "text/plain", true)
+	_, err := bridgeplugin.Default().Storage().Put(
+		bridgeplugin.NewGuestControllerContext(request),
+		storagecap.PutInput{
+			Path:        "denied-files/blocked.txt",
+			Body:        bytes.NewReader([]byte("blocked")),
+			Size:        7,
+			ContentType: "text/plain",
+			Overwrite:   true,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -796,7 +880,7 @@ func (c *Controller) DeniedResource(request *protocol.BridgeRequestEnvelopeV1) (
 }
 
 func (c *Controller) DeniedService(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, _, err := plugindata.Open().Table("sys_plugin_node_state").Page(1, 1).All()
+	_, _, err := bridgeplugin.Default().RecordStore().Table("sys_plugin_node_state").Page(1, 1).All()
 	if err != nil {
 		return nil, err
 	}
@@ -985,6 +1069,7 @@ test.describe("TC-4 Runtime Wasm Host Services", () => {
     mkdirSync(sourceRoot(), { recursive: true });
     mkdirSync(buildOutputDir(), { recursive: true });
     ensurePluginStateTable();
+    ensureSuccessDataTable();
 
     const upstream = await startUpstreamServer();
     upstreamServer = upstream.server;
@@ -1019,6 +1104,7 @@ test.describe("TC-4 Runtime Wasm Host Services", () => {
       });
     }
     cleanupPluginRows([successPluginID, deniedPluginID, rawSQLPluginID]);
+    dropSuccessDataTable();
     cleanupArtifacts([successPluginID, deniedPluginID, rawSQLPluginID]);
     rmSync(tempRoot(), { force: true, recursive: true });
   });
@@ -1027,6 +1113,7 @@ test.describe("TC-4 Runtime Wasm Host Services", () => {
     await resetPlugin(adminApi!, successPluginID);
     await resetPlugin(adminApi!, deniedPluginID);
     cleanupPluginRows([successPluginID, deniedPluginID, rawSQLPluginID]);
+    cleanupSuccessDataTable();
     cleanupArtifacts([successPluginID, deniedPluginID, rawSQLPluginID]);
   });
 
@@ -1034,6 +1121,7 @@ test.describe("TC-4 Runtime Wasm Host Services", () => {
     await resetPlugin(adminApi!, successPluginID);
     await resetPlugin(adminApi!, deniedPluginID);
     cleanupPluginRows([successPluginID, deniedPluginID, rawSQLPluginID]);
+    cleanupSuccessDataTable();
     cleanupArtifacts([successPluginID, deniedPluginID, rawSQLPluginID]);
   });
 

@@ -19,9 +19,9 @@ CREATE TABLE IF NOT EXISTS sys_menu (
     "is_cache"    SMALLINT NOT NULL DEFAULT 0,
     "query_param" VARCHAR(255) NOT NULL DEFAULT '',
     "remark"      VARCHAR(512) NOT NULL DEFAULT '',
-    "created_at"  TIMESTAMP,
-    "updated_at"  TIMESTAMP,
-    "deleted_at"  TIMESTAMP
+    "created_at"  TIMESTAMPTZ,
+    "updated_at"  TIMESTAMPTZ,
+    "deleted_at"  TIMESTAMPTZ
 );
 
 COMMENT ON TABLE sys_menu IS 'Menu permission table';
@@ -60,9 +60,9 @@ CREATE TABLE IF NOT EXISTS sys_role (
     "data_scope" SMALLINT NOT NULL DEFAULT 2,
     "status"     SMALLINT NOT NULL DEFAULT 1,
     "remark"     VARCHAR(512) NOT NULL DEFAULT '',
-    "created_at" TIMESTAMP,
-    "updated_at" TIMESTAMP,
-    "deleted_at" TIMESTAMP
+    "created_at" TIMESTAMPTZ,
+    "updated_at" TIMESTAMPTZ,
+    "deleted_at" TIMESTAMPTZ
 );
 
 COMMENT ON TABLE sys_role IS 'Role information table';
@@ -220,10 +220,10 @@ ON CONFLICT DO NOTHING;
 -- 工作台菜单
 -- ============================================================
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "created_at", "updated_at")
-VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'dashboard') AS parent), 'dashboard:analytics:list', '分析页', 'analytics', 'dashboard/analytics/index', 'dashboard:analytics:list', 'lucide:area-chart', 'M', 1, 1, 1, 0, 0, NOW(), NOW())
+VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'dashboard') AS parent), 'dashboard:analytics:list', '分析页', 'analytics', 'dashboard/analytics/index', 'dashboard:analytics:list', 'lucide:area-chart', 'M', 1, 1, 1, 0, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "created_at", "updated_at")
-VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'dashboard') AS parent), 'dashboard:workspace:list', '工作台', 'workspace', 'dashboard/workspace/index', 'dashboard:workspace:list', 'carbon:workspace', 'M', 2, 1, 1, 0, 0, NOW(), NOW())
+VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'dashboard') AS parent), 'dashboard:workspace:list', '工作台', 'workspace', 'dashboard/workspace/index', 'dashboard:workspace:list', 'carbon:workspace', 'M', 2, 1, 1, 0, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
 -- ============================================================
@@ -231,7 +231,7 @@ ON CONFLICT DO NOTHING;
 -- 权限管理菜单
 -- ============================================================
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "created_at", "updated_at")
-VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'iam') AS parent), 'system:user:list', '用户管理', '/system/user', 'system/user/index', 'system:user:list', 'ant-design:user-outlined', 'M', 1, 1, 1, 0, 0, NOW(), NOW())
+VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'iam') AS parent), 'system:user:list', '用户管理', '/system/user', 'system/user/index', 'system:user:list', 'ant-design:user-outlined', 'M', 1, 1, 1, 0, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "created_at", "updated_at")
 VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'system:user:list') AS parent), 'system:user:query', '用户查询', '', '', 'system:user:query', '', 'B', 1, 1, 1, 0, 0, NOW(), NOW())
@@ -256,7 +256,7 @@ VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = '
 ON CONFLICT DO NOTHING;
 
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "created_at", "updated_at")
-VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'iam') AS parent), 'system:role:list', '角色管理', '/system/role', 'system/role/index', 'system:role:list', 'lucide:shield', 'M', 2, 1, 1, 0, 0, NOW(), NOW())
+VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'iam') AS parent), 'system:role:list', '角色管理', '/system/role', 'system/role/index', 'system:role:list', 'lucide:shield', 'M', 2, 1, 1, 0, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "created_at", "updated_at")
 VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'system:role:list') AS parent), 'system:role:query', '角色查询', '', '', 'system:role:query', '', 'B', 1, 1, 1, 0, 0, NOW(), NOW())
@@ -275,7 +275,7 @@ VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = '
 ON CONFLICT DO NOTHING;
 
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "created_at", "updated_at")
-VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'iam') AS parent), 'system:menu:list', '菜单管理', '/system/menu', 'system/menu/index', 'system:menu:list', 'lucide:menu', 'M', 3, 1, 1, 0, 0, NOW(), NOW())
+VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'iam') AS parent), 'system:menu:list', '菜单管理', '/system/menu', 'system/menu/index', 'system:menu:list', 'lucide:menu', 'M', 3, 1, 1, 0, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "created_at", "updated_at")
 VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'system:menu:list') AS parent), 'system:menu:query', '菜单查询', '', '', 'system:menu:query', '', 'B', 1, 1, 1, 0, 0, NOW(), NOW())
@@ -295,7 +295,7 @@ ON CONFLICT DO NOTHING;
 -- 系统设置菜单
 -- ============================================================
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "created_at", "updated_at")
-VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'setting') AS parent), 'system:dict:list', '字典管理', '/system/dict', 'system/dict/index', 'system:dict:list', 'lucide:book-open', 'M', 1, 1, 1, 0, 0, NOW(), NOW())
+VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'setting') AS parent), 'system:dict:list', '字典管理', '/system/dict', 'system/dict/index', 'system:dict:list', 'lucide:book-open', 'M', 1, 1, 1, 0, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "created_at", "updated_at")
 VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'system:dict:list') AS parent), 'system:dict:query', '字典查询', '', '', 'system:dict:query', '', 'B', 1, 1, 1, 0, 0, NOW(), NOW())
@@ -314,7 +314,7 @@ VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = '
 ON CONFLICT DO NOTHING;
 
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "created_at", "updated_at")
-VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'setting') AS parent), 'system:config:list', '参数设置', '/system/config', 'system/config/index', 'system:config:list', 'lucide:sliders-horizontal', 'M', 2, 1, 1, 0, 0, NOW(), NOW())
+VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'setting') AS parent), 'system:config:list', '参数设置', '/system/config', 'system/config/index', 'system:config:list', 'lucide:sliders-horizontal', 'M', 2, 1, 1, 0, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "created_at", "updated_at")
 VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'system:config:list') AS parent), 'system:config:query', '参数查询', '', '', 'system:config:query', '', 'B', 1, 1, 1, 0, 0, NOW(), NOW())
@@ -333,7 +333,7 @@ VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = '
 ON CONFLICT DO NOTHING;
 
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "created_at", "updated_at")
-VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'setting') AS parent), 'system:file:list', '文件管理', '/system/file', 'system/file/index', 'system:file:list', 'lucide:folder-open', 'M', 3, 1, 1, 0, 0, NOW(), NOW())
+VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'setting') AS parent), 'system:file:list', '文件管理', '/system/file', 'system/file/index', 'system:file:list', 'lucide:folder-open', 'M', 3, 1, 1, 0, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "created_at", "updated_at")
 VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'system:file:list') AS parent), 'system:file:query', '文件查询', '', '', 'system:file:query', '', 'B', 1, 1, 1, 0, 0, NOW(), NOW())
@@ -353,7 +353,7 @@ ON CONFLICT DO NOTHING;
 -- 扩展中心菜单
 -- ============================================================
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
-VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'extension') AS parent), 'extension:plugin:list', '插件管理', '/system/plugin', 'system/plugin/index', 'plugin:list', 'lucide:plug', 'M', 1, 1, 1, 0, 0, '插件管理菜单', NOW(), NOW())
+VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'extension') AS parent), 'extension:plugin:list', '插件管理', '/system/plugin', 'system/plugin/index', 'plugin:list', 'lucide:plug', 'M', 1, 1, 1, 0, 1, '插件管理菜单', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
 VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'extension:plugin:list') AS parent), 'extension:plugin:query', '插件查询', '', '', 'plugin:query', '', 'B', 1, 1, 1, 0, 0, '插件查询按钮', NOW(), NOW())

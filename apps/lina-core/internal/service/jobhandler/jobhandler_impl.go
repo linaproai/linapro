@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"lina-core/internal/service/jobmeta"
+	jobhandlerv1 "lina-core/api/jobhandler/v1"
 	"lina-core/pkg/bizerr"
 )
 
@@ -29,10 +29,10 @@ func (s *serviceImpl) Register(def HandlerDef) error {
 	if !def.Source.IsValid() {
 		return bizerr.NewCode(CodeJobHandlerSourceUnsupported)
 	}
-	if def.Source == jobmeta.HandlerSourcePlugin && def.PluginID == "" {
+	if def.Source == jobhandlerv1.SourcePlugin && def.PluginID == "" {
 		return bizerr.NewCode(CodeJobHandlerPluginIDRequired)
 	}
-	if def.Source == jobmeta.HandlerSourceHost {
+	if def.Source == jobhandlerv1.SourceHost {
 		def.PluginID = ""
 	}
 

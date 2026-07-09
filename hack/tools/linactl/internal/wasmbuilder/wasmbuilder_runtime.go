@@ -4,13 +4,23 @@
 package wasmbuilder
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+)
+
+const (
+	guestRuntimeBuildLockRetryInterval = 100 * time.Millisecond
+	guestRuntimeBuildLockStaleAfter    = 30 * time.Minute
+	guestRuntimeBuildLockTimeout       = 2 * time.Minute
 )
 
 func buildGuestRuntimeWasm(
@@ -37,6 +47,17 @@ func buildGuestRuntimeWasm(
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		return "", err
 	}
+	releaseBuildLock, err := acquireGuestRuntimeBuildLock(pluginDir)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if releaseBuildLock != nil {
+			if releaseErr := releaseBuildLock(); releaseErr != nil && err == nil {
+				err = releaseErr
+			}
+		}
+	}()
 	cleanupDispatcher, err := prepareGeneratedWasmDispatcher(pluginDir, pluginID, routeSources, lifecycleSpecs)
 	if err != nil {
 		return "", err
@@ -48,9 +69,11 @@ func buildGuestRuntimeWasm(
 			}
 		}
 	}()
-	buildDir := pluginDir
-	buildTarget := "."
-	buildEnv := append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm")
+	var (
+		buildDir    = pluginDir
+		buildTarget = "."
+		buildEnv    = append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm")
+	)
 	if workMode := selectGuestRuntimeGoWork(pluginDir); workMode != "" {
 		buildEnv = append(buildEnv, "GOWORK="+workMode)
 	}
@@ -85,7 +108,7 @@ func buildGuestRuntimeWasm(
 			}
 		}
 	}()
-	cmd := exec.Command("go", "build", "-buildmode=c-shared", "-o", outputPath, buildTarget)
+	cmd := exec.CommandContext(context.Background(), "go", "build", "-buildmode=c-shared", "-o", outputPath, buildTarget)
 	cmd.Dir = buildDir
 	cmd.Env = buildEnv
 	output, err := cmd.CombinedOutput()
@@ -93,6 +116,68 @@ func buildGuestRuntimeWasm(
 		return "", fmt.Errorf("failed to build dynamic guest runtime: %w: %s", err, strings.TrimSpace(string(output)))
 	}
 	return outputPath, nil
+}
+
+func acquireGuestRuntimeBuildLock(pluginDir string) (func() error, error) {
+	absPluginDir, err := filepath.Abs(pluginDir)
+	if err != nil {
+		return nil, err
+	}
+	var (
+		normalizedPluginDir = filepath.Clean(absPluginDir)
+		lockHash            = sha256.Sum256([]byte(normalizedPluginDir))
+		lockRoot            = filepath.Join(os.TempDir(), "linapro-wasm-build-locks")
+	)
+	if err = os.MkdirAll(lockRoot, 0o755); err != nil {
+		return nil, fmt.Errorf("failed to create wasm build lock root: %w", err)
+	}
+	lockDir := filepath.Join(lockRoot, hex.EncodeToString(lockHash[:]))
+	deadline := time.Now().Add(guestRuntimeBuildLockTimeout)
+
+	for {
+		if err = os.Mkdir(lockDir, 0o700); err == nil {
+			ownerPath := filepath.Join(lockDir, "owner")
+			owner := fmt.Sprintf("pid=%d\npluginDir=%s\n", os.Getpid(), normalizedPluginDir)
+			if writeErr := os.WriteFile(ownerPath, []byte(owner), 0o600); writeErr != nil {
+				if removeErr := os.RemoveAll(lockDir); removeErr != nil {
+					return nil, fmt.Errorf("failed to write wasm build lock owner: %w; cleanup failed: %w", writeErr, removeErr)
+				}
+				return nil, fmt.Errorf("failed to write wasm build lock owner: %w", writeErr)
+			}
+			return func() error {
+				if removeErr := os.RemoveAll(lockDir); removeErr != nil && !os.IsNotExist(removeErr) {
+					return fmt.Errorf("failed to release wasm build lock: %w", removeErr)
+				}
+				return nil
+			}, nil
+		}
+		if !os.IsExist(err) {
+			return nil, fmt.Errorf("failed to acquire wasm build lock: %w", err)
+		}
+		if stale, staleErr := guestRuntimeBuildLockStale(lockDir); staleErr != nil {
+			return nil, staleErr
+		} else if stale {
+			if removeErr := os.RemoveAll(lockDir); removeErr != nil && !os.IsNotExist(removeErr) {
+				return nil, fmt.Errorf("failed to remove stale wasm build lock: %w", removeErr)
+			}
+			continue
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("timed out waiting for wasm build lock for %s", normalizedPluginDir)
+		}
+		time.Sleep(guestRuntimeBuildLockRetryInterval)
+	}
+}
+
+func guestRuntimeBuildLockStale(lockDir string) (bool, error) {
+	info, err := os.Stat(lockDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to stat wasm build lock: %w", err)
+	}
+	return time.Since(info.ModTime()) > guestRuntimeBuildLockStaleAfter, nil
 }
 
 // selectGuestRuntimeGoWork chooses the Go workspace mode used to build the

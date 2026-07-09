@@ -5,12 +5,14 @@ package cron
 
 import (
 	"context"
+	"errors"
+	jobv1 "lina-core/api/job/v1"
 	"testing"
+	"time"
 
 	"lina-core/internal/model/entity"
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/jobhandler"
-	"lina-core/internal/service/jobmeta"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 	pluginsvc "lina-core/internal/service/plugin"
 )
@@ -18,6 +20,7 @@ import (
 // managedJobSyncerStub captures built-in reconciliation inputs and returns
 // sys_job projection IDs without reading them back from persistence.
 type managedJobSyncerStub struct {
+	jobmgmtsvc.Service
 	received []jobmgmtsvc.BuiltinJobDef
 }
 
@@ -42,7 +45,7 @@ func (s *managedJobSyncerStub) ReconcileBuiltinJobs(
 			Concurrency:    string(job.Concurrency),
 			MaxConcurrency: job.MaxConcurrency,
 			MaxExecutions:  job.MaxExecutions,
-			Status:         string(jobmeta.JobStatusEnabled),
+			Status:         string(jobv1.StatusEnabled),
 			IsBuiltin:      1,
 		})
 	}
@@ -81,20 +84,72 @@ func (s *managedJobSchedulerStub) CancelLog(ctx context.Context, logID int64) er
 // managedPluginCronStub records which plugin cron surface the cron service
 // consumes while building code-owned scheduled-job projections.
 type managedPluginCronStub struct {
+	pluginsvc.Service
 	listExecutableCalled        bool
 	listInstalledDeclaredCalled bool
-	installedDeclarations       []pluginsvc.ManagedCronJob
+	installedDeclarations       []pluginsvc.ManagedJob
 }
 
-// ListExecutableCronJobs records unexpected executable-list usage.
-func (s *managedPluginCronStub) ListExecutableCronJobs(ctx context.Context) ([]pluginsvc.ManagedCronJob, error) {
-	s.listExecutableCalled = true
-	return nil, nil
+// retryRegistryStub fails one registration attempt before accepting handlers.
+type retryRegistryStub struct {
+	registerErr error
+	registered  []jobhandler.HandlerDef
 }
 
-// ListInstalledCronDeclarations returns installed plugin declaration snapshots.
-func (s *managedPluginCronStub) ListInstalledCronDeclarations(ctx context.Context) ([]pluginsvc.ManagedCronJob, error) {
-	s.listInstalledDeclaredCalled = true
+// Register records handlers after the configured transient error is consumed.
+func (s *retryRegistryStub) Register(def jobhandler.HandlerDef) error {
+	if s.registerErr != nil {
+		err := s.registerErr
+		s.registerErr = nil
+		return err
+	}
+	s.registered = append(s.registered, def)
+	return nil
+}
+
+// Unregister is unused by managed-handler retry tests.
+func (s *retryRegistryStub) Unregister(ref string) {}
+
+// Lookup is unused by managed-handler retry tests.
+func (s *retryRegistryStub) Lookup(ref string) (jobhandler.HandlerDef, bool) {
+	return jobhandler.HandlerDef{}, false
+}
+
+// List is unused by managed-handler retry tests.
+func (s *retryRegistryStub) List() []jobhandler.HandlerInfo { return nil }
+
+// SubscribeChanges is unused by managed-handler retry tests.
+func (s *retryRegistryStub) SubscribeChanges(callback jobhandler.ChangeCallback) func() {
+	return func() {}
+}
+
+// managedJobConfigStub overrides runtime settings while inheriting the rest
+// of the host config service contract from a real service instance.
+type managedJobConfigStub struct {
+	hostconfig.Service
+	sessionTimeout  time.Duration
+	logRetentionDay int64
+}
+
+// GetSessionTimeout returns the runtime-effective session timeout for tests.
+func (s managedJobConfigStub) GetSessionTimeout(context.Context) (time.Duration, error) {
+	return s.sessionTimeout, nil
+}
+
+// GetLogRetentionDays returns the runtime-effective log retention in days for tests.
+func (s managedJobConfigStub) GetLogRetentionDays(context.Context) (int64, error) {
+	return s.logRetentionDay, nil
+}
+
+// ListManagedJobs returns installed plugin declaration snapshots.
+func (s *managedPluginCronStub) ListManagedJobs(ctx context.Context, query pluginsvc.ManagedJobQuery) ([]pluginsvc.ManagedJob, error) {
+	if query.ExecutableOnly {
+		s.listExecutableCalled = true
+		return nil, nil
+	}
+	if query.InstalledOnly {
+		s.listInstalledDeclaredCalled = true
+	}
 	return s.installedDeclarations, nil
 }
 
@@ -102,9 +157,11 @@ func (s *managedPluginCronStub) ListInstalledCronDeclarations(ctx context.Contex
 // registers built-ins from the reconciliation return value rather than a later
 // persistent scheduler scan of sys_job.
 func TestSyncBuiltinScheduledJobsRegistersDeclarationSnapshots(t *testing.T) {
-	ctx := context.Background()
-	syncer := &managedJobSyncerStub{}
-	scheduler := &managedJobSchedulerStub{}
+	var (
+		ctx       = context.Background()
+		syncer    = &managedJobSyncerStub{}
+		scheduler = &managedJobSchedulerStub{}
+	)
 	svc := &serviceImpl{
 		configSvc:           hostconfig.New(),
 		registry:            jobhandler.New(),
@@ -135,21 +192,49 @@ func TestSyncBuiltinScheduledJobsRegistersDeclarationSnapshots(t *testing.T) {
 	}
 }
 
+// TestManagedHostJobsDoNotProjectKVCacheCleanup verifies built-in scheduled
+// jobs no longer expose SQL table cache cleanup now that supported backends
+// expire keys natively.
+func TestManagedHostJobsDoNotProjectKVCacheCleanup(t *testing.T) {
+	ctx := context.Background()
+	registry := jobhandler.New()
+	svc := &serviceImpl{
+		configSvc: hostconfig.New(),
+		registry:  registry,
+	}
+
+	if err := svc.ensureManagedHandlersRegistered(); err != nil {
+		t.Fatalf("register managed handlers: %v", err)
+	}
+	if _, ok := registry.Lookup("host:kvcache-cleanup-expired"); ok {
+		t.Fatal("expected KV cache cleanup handler to be absent")
+	}
+	jobs, err := svc.buildHostBuiltinJobs(ctx)
+	if err != nil {
+		t.Fatalf("build host builtin jobs: %v", err)
+	}
+	for _, job := range jobs {
+		if job.HandlerRef == "host:kvcache-cleanup-expired" {
+			t.Fatalf("expected no KV cache cleanup job projection, got %#v", job)
+		}
+	}
+}
+
 // TestBuildPluginBuiltinJobsUsesInstalledDeclarations verifies disabled but
-// installed plugin cron declarations remain visible to scheduled-job management.
+// installed plugin job declarations remain visible to scheduled-job management.
 func TestBuildPluginBuiltinJobsUsesInstalledDeclarations(t *testing.T) {
 	ctx := context.Background()
 	pluginSvc := &managedPluginCronStub{
-		installedDeclarations: []pluginsvc.ManagedCronJob{
+		installedDeclarations: []pluginsvc.ManagedJob{
 			{
-				PluginID:       "plugin-cron-installed",
+				PluginID:       "plugin-jobs-installed",
 				Name:           "heartbeat",
 				DisplayName:    "Plugin Heartbeat",
 				Description:    "Installed plugin heartbeat.",
 				Pattern:        "# */10 * * * *",
 				Timezone:       "Asia/Shanghai",
-				Scope:          jobmeta.JobScopeAllNode,
-				Concurrency:    jobmeta.JobConcurrencySingleton,
+				Scope:          jobv1.ScopeAllNode,
+				Concurrency:    jobv1.ConcurrencySingleton,
 				MaxConcurrency: 1,
 			},
 		},
@@ -172,7 +257,71 @@ func TestBuildPluginBuiltinJobsUsesInstalledDeclarations(t *testing.T) {
 	if len(jobs) != 1 {
 		t.Fatalf("expected one plugin builtin job, got %#v", jobs)
 	}
-	if jobs[0].HandlerRef != "plugin:plugin-cron-installed/cron:heartbeat" {
+	if jobs[0].HandlerRef != "plugin:plugin-jobs-installed/jobs:heartbeat" {
 		t.Fatalf("unexpected plugin handler ref: %s", jobs[0].HandlerRef)
+	}
+}
+
+// TestEnsureManagedHandlersRegisteredRetriesAfterFailure verifies transient
+// registry failures are not hidden by one-shot initialization state.
+func TestEnsureManagedHandlersRegisteredRetriesAfterFailure(t *testing.T) {
+	registry := &retryRegistryStub{registerErr: errors.New("temporary registry failure")}
+	svc := &serviceImpl{registry: registry}
+
+	if err := svc.ensureManagedHandlersRegistered(); err == nil {
+		t.Fatal("expected first managed handler registration to fail")
+	}
+	if len(registry.registered) != 0 {
+		t.Fatalf("expected failed registration not to record handlers, got %#v", registry.registered)
+	}
+
+	if err := svc.ensureManagedHandlersRegistered(); err != nil {
+		t.Fatalf("expected managed handler registration retry to succeed, got error: %v", err)
+	}
+	if len(registry.registered) != 1 {
+		t.Fatalf("expected retry to register one host handler, got %d", len(registry.registered))
+	}
+	if registry.registered[0].Ref != "host:session-cleanup" {
+		t.Fatalf("unexpected registered handler ref: %s", registry.registered[0].Ref)
+	}
+}
+
+// TestEffectiveSessionCleanupTimeoutUsesRuntimeSessionTimeout verifies online
+// session cleanup honors the runtime session timeout before retention boundaries.
+func TestEffectiveSessionCleanupTimeoutUsesRuntimeSessionTimeout(t *testing.T) {
+	svc := &serviceImpl{
+		configSvc: managedJobConfigStub{
+			Service:         hostconfig.New(),
+			sessionTimeout:  6 * time.Hour,
+			logRetentionDay: 90,
+		},
+	}
+
+	timeout, err := svc.effectiveSessionCleanupTimeout(context.Background())
+	if err != nil {
+		t.Fatalf("resolve effective session cleanup timeout: %v", err)
+	}
+	if timeout != 6*time.Hour {
+		t.Fatalf("expected runtime session timeout 6h, got %s", timeout)
+	}
+}
+
+// TestEffectiveSessionCleanupTimeoutUsesStricterLogRetention verifies the
+// global log-retention maximum can tighten online-session cleanup.
+func TestEffectiveSessionCleanupTimeoutUsesStricterLogRetention(t *testing.T) {
+	svc := &serviceImpl{
+		configSvc: managedJobConfigStub{
+			Service:         hostconfig.New(),
+			sessionTimeout:  20 * 24 * time.Hour,
+			logRetentionDay: 7,
+		},
+	}
+
+	timeout, err := svc.effectiveSessionCleanupTimeout(context.Background())
+	if err != nil {
+		t.Fatalf("resolve effective session cleanup timeout: %v", err)
+	}
+	if timeout != 7*24*time.Hour {
+		t.Fatalf("expected stricter log retention timeout 168h, got %s", timeout)
 	}
 }

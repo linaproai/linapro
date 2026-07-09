@@ -1,40 +1,40 @@
-## Requirements
+## ADDED Requirements
 
-### Requirement: Plugin ID Must Satisfy Runtime Safety Boundary
+### Requirement: 插件 ID 必须满足运行时安全边界
 
-The system SHALL only enforce basic safety boundaries for plugin IDs at runtime: the ID must not be empty, total length MUST NOT exceed 64 characters, and MUST use lowercase letters, digits, and hyphens组成的 kebab-case text, to ensure safe use in URL paths, dynamic asset paths, filenames, database keys, menu keys, permission strings, i18n namespaces, and apidoc namespaces. The host runtime SHALL NOT enforce `<author>-<domain>-<capability>` structure, domain whitelists, official capability reservations, or old official ID rejection tables.
+系统 SHALL 只在运行时强制校验插件 ID 的基础安全边界：插件 ID 不能为空、总长度 MUST 不超过运行时 `plugin_id` 字段允许的 64 字符，并且 MUST 使用小写字母、数字和 hyphen 组成的 kebab-case 文本，以保证其可安全用于 URL path、动态资产路径、文件名、数据库键、菜单 key、权限字符串、i18n namespace 和 apidoc namespace。宿主运行时 SHALL NOT 强制校验 `<author>-<domain>-<capability>` 结构、domain 白名单、官方 capability 保留或旧官方 ID 拒绝表。
 
-#### Scenario: Accepts officially recommended structured plugin ID
-- **WHEN** a plugin manifest declares `id: linapro-content-notice`
-- **THEN** the system accepts the plugin ID
-- **AND** the ID can continue serving as derived namespace for menus, permissions, resources, i18n, and apidoc
+#### Scenario: 接受官方建议的结构化插件 ID
+- **WHEN** 插件 manifest 声明 `id: linapro-content-notice`
+- **THEN** 系统接受该插件 ID
+- **AND** 该 ID 可继续作为菜单、权限、资源、i18n 和 apidoc 的派生命名空间
 
-#### Scenario: Accepts non-three-segment extension plugin ID
-- **WHEN** a plugin manifest declares `id: demo-control`
-- **THEN** the system accepts the plugin ID
-- **AND** the system must not reject the manifest because it does not satisfy the `<author>-<domain>-<capability>` recommended structure
+#### Scenario: 接受非三段结构的扩展插件 ID
+- **WHEN** 插件 manifest 声明 `id: demo-control`
+- **THEN** 系统接受该插件 ID
+- **AND** 系统不得因其不满足 `<author>-<domain>-<capability>` 建议结构而拒绝 manifest
 
-#### Scenario: Accepts custom domain segment
-- **WHEN** a plugin manifest declares `id: acme-random-report`
-- **THEN** the system accepts the plugin ID
-- **AND** the system must not reject the manifest because `random` is not in the host built-in list
+#### Scenario: 接受自定义 domain 片段
+- **WHEN** 插件 manifest 声明 `id: acme-random-report`
+- **THEN** 系统接受该插件 ID
+- **AND** 系统不得因 `random` 不在宿主内置列表中而拒绝 manifest
 
-#### Scenario: Rejects unsafe characters
-- **WHEN** a plugin manifest declares `id: Acme_Report`
-- **THEN** the system rejects the manifest
-- **AND** the error states the plugin ID must use kebab-case lowercase letters and digits
+#### Scenario: 拒绝不安全字符
+- **WHEN** 插件 manifest 声明 `id: Acme_Report`
+- **THEN** 系统拒绝该 manifest
+- **AND** 错误说明插件 ID 必须使用 kebab-case lowercase letters and digits
 
-#### Scenario: Rejects overly long plugin ID
-- **WHEN** a plugin manifest declares an ID exceeding 64 characters
-- **THEN** the system rejects the manifest
-- **AND** the error states the plugin ID length must not exceed 64 characters
+#### Scenario: 拒绝超长插件 ID
+- **WHEN** 插件 manifest 声明超过 64 字符的 ID
+- **THEN** 系统拒绝该 manifest
+- **AND** 错误说明插件 ID length must not exceed 64 characters
 
-### Requirement: Official Plugin IDs Must Use Normalized Mapping
+### Requirement: 官方插件 ID 必须使用规范化映射
 
-The system SHALL normalize LinaPro official plugin IDs shipped with the repository to the following mapping, and must not continue using old official IDs in official plugin runtime configuration, manifests, source registration, menus, permissions, cron, i18n, apidoc, tests, or documentation forward paths. This mapping only constrains LinaPro official plugin assets and does not serve as a runtime rejection table for third-party plugin IDs.
+系统 SHALL 将 LinaPro 官方随仓库发布的插件 ID 规范化为以下映射，并不得继续在官方插件的运行时配置、manifest、源码注册、菜单、权限、cron、i18n、apidoc、测试或文档正向路径中使用旧官方 ID。该映射只约束 LinaPro 官方插件资产，不作为宿主对第三方插件 ID 的运行时拒绝表。
 
-| Old ID | New ID |
-|--------|--------|
+| 旧 ID | 新 ID |
+| --- | --- |
 | `content-notice` | `linapro-content-notice` |
 | `monitor-loginlog` | `linapro-monitor-loginlog` |
 | `monitor-operlog` | `linapro-monitor-operlog` |
@@ -46,50 +46,50 @@ The system SHALL normalize LinaPro official plugin IDs shipped with the reposito
 | `plugin-demo-source` | `linapro-demo-source` |
 | `demo-control` | `linapro-ops-demo-guard` |
 
-#### Scenario: Official plugin list uses new ID
-- **WHEN** the host scans `apps/lina-plugins/linapro-org-core/plugin.yaml`
-- **THEN** the manifest ID is `linapro-org-core`
-- **AND** the host must not discover `org-center` in the official plugin list
+#### Scenario: 官方插件清单使用新 ID
+- **WHEN** 宿主扫描 `apps/lina-plugins/linapro-org-core/plugin.yaml`
+- **THEN** manifest ID 为 `linapro-org-core`
+- **AND** 宿主不得在官方插件清单中发现 `org-center`
 
-#### Scenario: Official auto-enable config uses new ID
-- **WHEN** the host reads the repository default `plugin.autoEnable`
-- **THEN** official plugin entries use the normalized new IDs
-- **AND** the default config must not continue using `multi-tenant`, `org-center`, or other old official IDs
+#### Scenario: 官方自动启用配置使用新 ID
+- **WHEN** 宿主读取仓库默认 `plugin.autoEnable`
+- **THEN** 官方插件项使用规范化新 ID
+- **AND** 默认配置中不得继续使用 `multi-tenant`、`org-center` 或其他旧官方 ID
 
-### Requirement: Plugin Runtime Identity Must Use Current Plugin ID
+### Requirement: 插件运行时身份必须使用当前插件 ID
 
-The system SHALL use the current plugin ID at runtime identity boundaries and must not provide alias, redirect, or compatible lookup for old official IDs. This boundary includes plugin management API, extension API, dynamic frontend asset URL, menu keys, permission strings, cron handlerRefs, plugin state tables, release tables, migration tables, resource reference tables, node state tables, plugin KV state tables, and host service authorization records.
+系统 SHALL 在运行时身份边界使用当前插件 ID，不得为官方旧 ID 提供 alias、重定向或兼容查询。该边界包括插件管理 API、扩展 API、动态前端资产 URL、菜单 key、权限字符串、cron handlerRef、插件状态表、发布表、迁移表、资源引用表、节点状态表、插件 KV 状态表和 host service 授权记录。
 
-#### Scenario: New extension API path uses current ID
-- **WHEN** dynamic plugin `linapro-demo-dynamic` exposes an extension API
-- **THEN** the host public path uses `/api/v1/extensions/linapro-demo-dynamic/...`
-- **AND** the host must not expose the same official plugin via `/api/v1/extensions/plugin-demo-dynamic/...`
+#### Scenario: 新扩展 API 路径使用当前 ID
+- **WHEN** 动态插件 `linapro-demo-dynamic` 暴露扩展 API
+- **THEN** 宿主公开路径使用 `/api/v1/extensions/linapro-demo-dynamic/...`
+- **AND** 宿主不得通过 `/api/v1/extensions/plugin-demo-dynamic/...` 暴露同一官方插件
 
-#### Scenario: New dynamic asset path uses current ID
-- **WHEN** dynamic plugin `linapro-demo-dynamic` provides frontend assets
-- **THEN** the host asset path uses `/plugin-assets/linapro-demo-dynamic/<version>/...`
-- **AND** the host must not expose the same official plugin assets via `/plugin-assets/plugin-demo-dynamic/<version>/...`
+#### Scenario: 新动态资产路径使用当前 ID
+- **WHEN** 动态插件 `linapro-demo-dynamic` 提供前端资产
+- **THEN** 宿主资产路径使用 `/plugin-assets/linapro-demo-dynamic/<version>/...`
+- **AND** 宿主不得通过 `/plugin-assets/plugin-demo-dynamic/<version>/...` 暴露同一官方插件资产
 
-#### Scenario: New cron handlerRef uses current ID
-- **WHEN** plugin `linapro-monitor-server` registers built-in scheduled tasks
-- **THEN** handlerRef uses `plugin:linapro-monitor-server/cron:<name>`
-- **AND** the system must not continue generating `plugin:monitor-server/cron:<name>`
+#### Scenario: 新 cron handlerRef 使用当前 ID
+- **WHEN** 插件 `linapro-monitor-server` 注册内置定时任务
+- **THEN** handlerRef 使用 `plugin:linapro-monitor-server/cron:<name>`
+- **AND** 系统不得继续生成 `plugin:monitor-server/cron:<name>`
 
-### Requirement: Repository Governance Scan Must Verify Official Plugin ID Consistency
+### Requirement: 仓库治理扫描必须验证官方插件 ID 一致性
 
-The system SHALL provide automated verification ensuring official plugin directory names, manifest IDs, source plugin registration IDs, dynamic artifact manifests, dependency declarations, menu keys, runtime i18n keys, apidoc i18n keys, configuration, and test fixtures use the same current plugin ID. Verification failure must block the change.
+系统 SHALL 提供自动化验证，确保官方插件目录名、manifest ID、源码插件注册 ID、动态 artifact manifest、依赖声明、菜单 key、运行时 i18n key、apidoc i18n key、配置和测试 fixture 使用同一个当前插件 ID。验证失败时变更不得通过。
 
-#### Scenario: Directory name inconsistent with manifest ID
-- **WHEN** plugin directory is `apps/lina-plugins/linapro-content-notice`
-- **AND** the directory's `plugin.yaml` declares `id: content-notice`
-- **THEN** governance verification fails
-- **AND** the error states the directory name is inconsistent with the manifest ID
+#### Scenario: 目录名与 manifest ID 不一致
+- **WHEN** 插件目录为 `apps/lina-plugins/linapro-content-notice`
+- **AND** 该目录的 `plugin.yaml` 声明 `id: content-notice`
+- **THEN** 治理验证失败
+- **AND** 错误指出目录名与 manifest ID 不一致
 
-#### Scenario: i18n namespace uses old ID
-- **WHEN** plugin `linapro-content-notice` runtime language pack contains `plugin.content-notice.name`
-- **THEN** governance verification fails
-- **AND** the error states runtime i18n keys must use the `plugin.linapro-content-notice.` prefix
+#### Scenario: i18n namespace 使用旧 ID
+- **WHEN** 插件 `linapro-content-notice` 的运行时语言包包含 `plugin.content-notice.name`
+- **THEN** 治理验证失败
+- **AND** 错误指出运行时 i18n key 必须使用 `plugin.linapro-content-notice.` 前缀
 
-#### Scenario: apidoc namespace uses current ID
-- **WHEN** plugin `linapro-demo-dynamic` apidoc language pack contains `plugins.linapro_demo_dynamic`
-- **THEN** governance verification passes
+#### Scenario: apidoc namespace 使用当前 ID
+- **WHEN** 插件 `linapro-demo-dynamic` 的 apidoc 语言包包含 `plugins.linapro_demo_dynamic`
+- **THEN** 治理验证通过

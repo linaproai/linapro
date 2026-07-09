@@ -15,6 +15,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	dictsvc "lina-core/internal/service/dict"
+	storagesvc "lina-core/internal/service/storage"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/gdbutil"
 	"lina-core/pkg/logger"
@@ -22,24 +23,25 @@ import (
 
 // List returns paginated file records.
 func (s *serviceImpl) List(ctx context.Context, in *ListInput) (*ListOutput, error) {
+	cols := dao.SysFile.Columns()
 	m := dao.SysFile.Ctx(ctx)
 	if in.Name != "" {
-		m = m.WhereLike(dao.SysFile.Columns().Name, fmt.Sprintf("%%%s%%", in.Name))
+		m = m.WhereLike(cols.Name, fmt.Sprintf("%%%s%%", in.Name))
 	}
 	if in.Original != "" {
-		m = m.WhereLike(dao.SysFile.Columns().Original, fmt.Sprintf("%%%s%%", in.Original))
+		m = m.WhereLike(cols.Original, fmt.Sprintf("%%%s%%", in.Original))
 	}
 	if in.Suffix != "" {
-		m = m.Where(dao.SysFile.Columns().Suffix, in.Suffix)
+		m = m.Where(cols.Suffix, in.Suffix)
 	}
 	if in.BeginTime != "" {
-		m = m.WhereGTE(dao.SysFile.Columns().CreatedAt, in.BeginTime)
+		m = m.WhereGTE(cols.CreatedAt, in.BeginTime)
 	}
 	if in.EndTime != "" {
-		m = m.WhereLTE(dao.SysFile.Columns().CreatedAt, in.EndTime)
+		m = m.WhereLTE(cols.CreatedAt, in.EndTime)
 	}
 	if in.Scene != "" {
-		m = m.Where(dao.SysFile.Columns().Scene, in.Scene)
+		m = m.Where(cols.Scene, in.Scene)
 	}
 	var err error
 	m, err = s.applyFileDataScope(ctx, m)
@@ -51,7 +53,6 @@ func (s *serviceImpl) List(ctx context.Context, in *ListInput) (*ListOutput, err
 		return nil, err
 	}
 
-	cols := dao.SysFile.Columns()
 	var (
 		orderBy           = cols.Id
 		allowedSortFields = map[string]string{
@@ -72,9 +73,11 @@ func (s *serviceImpl) List(ctx context.Context, in *ListInput) (*ListOutput, err
 		return nil, err
 	}
 
-	userNameMap := s.loadCreatorNames(ctx, files)
-	baseUrl := s.getBaseUrl(ctx)
-	items := make([]*ListOutputItem, len(files))
+	var (
+		userNameMap = s.loadCreatorNames(ctx, files)
+		baseUrl     = s.getBaseUrl(ctx)
+		items       = make([]*ListOutputItem, len(files))
+	)
 	for i, f := range files {
 		fileCopy := *f
 		if fileCopy.Url != "" && baseUrl != "" {
@@ -166,20 +169,21 @@ func (s *serviceImpl) Delete(ctx context.Context, idsStr string) error {
 	if err := s.ensureFilesVisible(ctx, idList); err != nil {
 		return err
 	}
+	cols := dao.SysFile.Columns()
 	var files []*entity.SysFile
-	model := dao.SysFile.Ctx(ctx).WhereIn(dao.SysFile.Columns().Id, idList)
+	model := dao.SysFile.Ctx(ctx).WhereIn(cols.Id, idList)
 	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
 	err := model.Scan(&files)
 	if err != nil {
 		return err
 	}
-	deleteModel := dao.SysFile.Ctx(ctx).WhereIn(dao.SysFile.Columns().Id, idList)
+	deleteModel := dao.SysFile.Ctx(ctx).WhereIn(cols.Id, idList)
 	deleteModel = datascope.ApplyTenantScope(ctx, deleteModel, datascope.TenantColumn)
 	if _, err = deleteModel.Delete(); err != nil {
 		return err
 	}
 	for _, f := range files {
-		if deleteErr := s.storage.Delete(ctx, f.Path); deleteErr != nil {
+		if deleteErr := s.storage.Delete(ctx, storagesvc.DeleteInput{Namespace: storagesvc.NamespaceFiles, Key: f.Path}); deleteErr != nil {
 			logger.Warningf(ctx, "delete storage file failed path=%s err=%v", f.Path, deleteErr)
 		}
 	}
@@ -217,13 +221,14 @@ func (s *serviceImpl) UsageScenes(ctx context.Context) ([]*UsageScenesOutput, er
 
 // Suffixes returns distinct file suffixes from the database.
 func (s *serviceImpl) Suffixes(ctx context.Context) ([]*SuffixesOutput, error) {
+	cols := dao.SysFile.Columns()
 	model, err := s.applyFileDataScope(ctx, dao.SysFile.Ctx(ctx))
 	if err != nil {
 		return nil, err
 	}
-	result, err := model.Fields(dao.SysFile.Columns().Suffix).
-		Group(dao.SysFile.Columns().Suffix).
-		OrderAsc(dao.SysFile.Columns().Suffix).
+	result, err := model.Fields(cols.Suffix).
+		Group(cols.Suffix).
+		OrderAsc(cols.Suffix).
 		Array()
 	if err != nil {
 		return nil, err

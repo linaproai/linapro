@@ -8,7 +8,7 @@ import (
 
 // ListReq defines the request for querying scheduled job groups.
 type ListReq struct {
-	g.Meta         `path:"/job-group" method:"get" tags:"Job Scheduling / Job Groups" summary:"Get group list" dc:"Paginated query task grouping list, supports filtering by coding and name keywords" permission:"system:jobgroup:list"`
+	g.Meta         `path:"/job-group" method:"get" tags:"Job Scheduling / Group Management" summary:"Get group list" dc:"Paginated query task grouping list, supports filtering by coding and name keywords" permission:"system:jobgroup:list"`
 	PageNum        int                 `json:"pageNum" d:"1" v:"min:1" dc:"Page number" eg:"1"`
 	PageSize       int                 `json:"pageSize" d:"10" v:"min:1|max:100" dc:"Number of items per page" eg:"10"`
 	Code           string              `json:"code" dc:"Filter by group encoding (fuzzy matching)" eg:"default"`

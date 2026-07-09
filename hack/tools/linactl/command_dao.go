@@ -2,14 +2,14 @@
 
 package main
 
-import (
-	"context"
+import "context"
 
-	"linactl/internal/goframecli"
-)
-
-// runDao runs the embedded GoFrame gen dao command in the core application
+// runDao runs the embedded GoFrame gen dao command in the selected backend
 // directory without requiring an external gf binary.
-func runDao(ctx context.Context, a *app, _ commandInput) error {
-	return goframecli.Run(ctx, a.root, a.executable, a.runCommand, "gen", "dao")
+func runDao(ctx context.Context, a *app, input commandInput) error {
+	target, err := resolveGoFrameTargetInput(a.root, input, true)
+	if err != nil {
+		return err
+	}
+	return runGoFrameTarget(ctx, a, target, "gen", "dao")
 }

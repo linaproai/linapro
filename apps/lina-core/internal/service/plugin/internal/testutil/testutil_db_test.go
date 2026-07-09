@@ -14,9 +14,11 @@ import (
 // TestCleanupPluginGovernanceRowsHardUsesExplicitPluginConditions verifies the
 // shared cleanup helper keeps DELETE statements scoped to the target plugin ID.
 func TestCleanupPluginGovernanceRowsHardUsesExplicitPluginConditions(t *testing.T) {
-	ctx := context.Background()
-	targetPluginID := fmt.Sprintf("plugin-cleanup-target-%d", time.Now().UnixNano())
-	otherPluginID := fmt.Sprintf("plugin-cleanup-other-%d", time.Now().UnixNano())
+	var (
+		ctx            = context.Background()
+		targetPluginID = fmt.Sprintf("plugin-cleanup-target-%d", time.Now().UnixNano())
+		otherPluginID  = fmt.Sprintf("plugin-cleanup-other-%d", time.Now().UnixNano())
+	)
 
 	createMinimalPluginGovernanceTables(t, ctx)
 	t.Cleanup(func() {

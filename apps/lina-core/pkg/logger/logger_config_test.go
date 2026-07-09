@@ -138,9 +138,11 @@ func TestBindServerAlignsSharedOutput(t *testing.T) {
 		t.Fatalf("expected server logger path %q, got %q", tempDir, server.Logger().GetPath())
 	}
 
-	configValue := reflect.ValueOf(server).Elem().FieldByName("config")
-	accessPattern := unsafeFieldString(configValue.FieldByName("AccessLogPattern"))
-	errorPattern := unsafeFieldString(configValue.FieldByName("ErrorLogPattern"))
+	var (
+		configValue   = reflect.ValueOf(server).Elem().FieldByName("config")
+		accessPattern = unsafeFieldString(configValue.FieldByName("AccessLogPattern"))
+		errorPattern  = unsafeFieldString(configValue.FieldByName("ErrorLogPattern"))
+	)
 	if accessPattern != "lina-{Y-m-d}.log" {
 		t.Fatalf("expected access log pattern to match shared file, got %q", accessPattern)
 	}
@@ -161,9 +163,11 @@ func TestBindServerUsesDefaultPatternWhenFileMissing(t *testing.T) {
 		t.Fatalf("bind server logger: %v", err)
 	}
 
-	configValue := reflect.ValueOf(server).Elem().FieldByName("config")
-	accessPattern := unsafeFieldString(configValue.FieldByName("AccessLogPattern"))
-	errorPattern := unsafeFieldString(configValue.FieldByName("ErrorLogPattern"))
+	var (
+		configValue   = reflect.ValueOf(server).Elem().FieldByName("config")
+		accessPattern = unsafeFieldString(configValue.FieldByName("AccessLogPattern"))
+		errorPattern  = unsafeFieldString(configValue.FieldByName("ErrorLogPattern"))
+	)
 	if accessPattern != defaultFilePattern {
 		t.Fatalf("expected default access log pattern %q, got %q", defaultFilePattern, accessPattern)
 	}

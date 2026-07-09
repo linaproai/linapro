@@ -5,6 +5,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	pluginv1 "lina-core/api/plugin/v1"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,10 +18,266 @@ import (
 	"lina-core/internal/model/entity"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/testutil"
+	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
+
+// findPluginItem returns one plugin list item by plugin ID for list assertions.
+func findPluginItem(out *ListOutput, pluginID string) *PluginItem {
+	if out == nil {
+		return nil
+	}
+	for _, current := range out.List {
+		if current != nil && current.Id == pluginID {
+			return current
+		}
+	}
+	return nil
+}
+
+// TestManagementListCacheAvoidsRepeatedManifestScans verifies the management
+// list read model is reused until an explicit plugin-runtime invalidation.
+func TestManagementListCacheAvoidsRepeatedManifestScans(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = startupstats.WithCollector(context.Background(), startupstats.New())
+		pluginID = "plugin-dev-source-management-list-cache"
+	)
+
+	createTestSourceDependencyPlugin(t, pluginID, "Source Management List Cache", "v0.1.0", "")
+	cleanupTestPluginIDs(t, context.Background(), pluginID)
+
+	first, err := service.List(ctx, ListInput{})
+	if err != nil {
+		t.Fatalf("build first management list: %v", err)
+	}
+	if findPluginItem(first, pluginID) == nil {
+		t.Fatalf("expected first management list to include %s", pluginID)
+	}
+
+	second, err := service.List(ctx, ListInput{})
+	if err != nil {
+		t.Fatalf("read cached management list: %v", err)
+	}
+	if findPluginItem(second, pluginID) == nil {
+		t.Fatalf("expected cached management list to include %s", pluginID)
+	}
+
+	snapshot := startupstats.FromContext(ctx).Snapshot()
+	if got := snapshot.CounterValue(startupstats.CounterPluginScans); got != 1 {
+		t.Fatalf("expected cached list to avoid repeated scans, got %d", got)
+	}
+
+	service.InvalidateManagementListCache(ctx, "test")
+	third, err := service.List(ctx, ListInput{})
+	if err != nil {
+		t.Fatalf("rebuild invalidated management list: %v", err)
+	}
+	if findPluginItem(third, pluginID) == nil {
+		t.Fatalf("expected rebuilt management list to include %s", pluginID)
+	}
+
+	snapshot = startupstats.FromContext(ctx).Snapshot()
+	if got := snapshot.CounterValue(startupstats.CounterPluginScans); got != 2 {
+		t.Fatalf("expected invalidated list to rescan once, got %d", got)
+	}
+}
+
+// TestRuntimeCacheChangeInvalidatesManagementList verifies lifecycle cache
+// publications clear the plugin-management list read model.
+func TestRuntimeCacheChangeInvalidatesManagementList(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = startupstats.WithCollector(context.Background(), startupstats.New())
+		pluginID = "plugin-dev-source-management-list-runtime-invalidate"
+	)
+
+	createTestSourceDependencyPlugin(t, pluginID, "Source Management List Runtime Invalidate", "v0.1.0", "")
+	cleanupTestPluginIDs(t, context.Background(), pluginID)
+
+	if _, err := service.List(ctx, ListInput{}); err != nil {
+		t.Fatalf("build management list: %v", err)
+	}
+	if _, err := service.List(ctx, ListInput{}); err != nil {
+		t.Fatalf("read cached management list: %v", err)
+	}
+	if err := service.MarkRuntimeCacheChanged(ctx, "test_runtime_cache_changed"); err != nil {
+		t.Fatalf("mark runtime cache changed: %v", err)
+	}
+	if _, err := service.List(ctx, ListInput{}); err != nil {
+		t.Fatalf("rebuild after runtime cache change: %v", err)
+	}
+
+	snapshot := startupstats.FromContext(ctx).Snapshot()
+	if got := snapshot.CounterValue(startupstats.CounterPluginScans); got != 2 {
+		t.Fatalf("expected runtime cache change to invalidate list, got %d scans", got)
+	}
+}
+
+// TestPrewarmManagementListPopulatesCache verifies startup prewarm fills the
+// same complete read model later consumed by management list requests.
+func TestPrewarmManagementListPopulatesCache(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = startupstats.WithCollector(context.Background(), startupstats.New())
+		pluginID = "plugin-dev-source-management-list-prewarm"
+	)
+
+	createTestSourceDependencyPlugin(t, pluginID, "Source Management List Prewarm", "v0.1.0", "")
+	cleanupTestPluginIDs(t, context.Background(), pluginID)
+
+	if err := service.PrewarmManagementList(ctx); err != nil {
+		t.Fatalf("prewarm management list: %v", err)
+	}
+	out, err := service.List(ctx, ListInput{ID: pluginID})
+	if err != nil {
+		t.Fatalf("read prewarmed management list: %v", err)
+	}
+	if len(out.List) != 1 || out.List[0] == nil || out.List[0].Id != pluginID {
+		t.Fatalf("expected prewarmed filtered list for %s, got %#v", pluginID, out)
+	}
+
+	snapshot := startupstats.FromContext(ctx).Snapshot()
+	if got := snapshot.CounterValue(startupstats.CounterPluginScans); got != 1 {
+		t.Fatalf("expected prewarm plus list to scan once, got %d", got)
+	}
+}
+
+// TestManagementListCacheIsLocaleScoped verifies localized plugin metadata
+// cannot leak from startup prewarm or another request locale.
+func TestManagementListCacheIsLocaleScoped(t *testing.T) {
+	var (
+		service   = newTestService()
+		baseCtx   = context.Background()
+		defaultID = "plugin-dev-source-management-list-default-locale"
+		englishID = "plugin-dev-source-management-list-english-locale"
+	)
+
+	createTestSourceDependencyPlugin(t, defaultID, "Source Management List Default Locale", "v0.1.0", "")
+	createTestSourceDependencyPlugin(t, englishID, "Source Management List English Locale", "v0.1.0", "")
+	cleanupTestPluginIDs(t, context.Background(), defaultID, englishID)
+
+	if _, err := service.List(baseCtx, ListInput{ID: defaultID}); err != nil {
+		t.Fatalf("build default-locale management list: %v", err)
+	}
+
+	englishCtx := context.WithValue(
+		context.Background(),
+		gctx.StrKey("BizCtx"),
+		&model.Context{Locale: i18nsvc.EnglishLocale},
+	)
+	if _, err := service.List(englishCtx, ListInput{ID: englishID}); err != nil {
+		t.Fatalf("build english-locale management list: %v", err)
+	}
+	baseKey, err := service.managementListCacheKey(baseCtx)
+	if err != nil {
+		t.Fatalf("build default-locale cache key: %v", err)
+	}
+	baseRevision, err := service.runtimeCacheRevisionCtrl.CurrentRevision(baseCtx)
+	if err != nil {
+		t.Fatalf("read default-locale runtime revision: %v", err)
+	}
+	if baseKey.Locale != i18nsvc.DefaultLocale {
+		t.Fatalf("expected default-locale cache key locale %s, got %s", i18nsvc.DefaultLocale, baseKey.Locale)
+	}
+	baseBundleRevision, err := service.i18nSvc.BundleRevision(baseCtx, i18nsvc.DefaultLocale)
+	if err != nil {
+		t.Fatalf("read default-locale runtime bundle revision: %v", err)
+	}
+	if baseKey.RuntimeBundleVersion != baseBundleRevision.Version {
+		t.Fatalf("expected default-locale cache key bundle version to match runtime bundle, got %d", baseKey.RuntimeBundleVersion)
+	}
+	if baseKey.RuntimeRevision != baseRevision {
+		t.Fatalf("expected default-locale cache key runtime revision %d, got %d", baseRevision, baseKey.RuntimeRevision)
+	}
+	if _, ok := service.managementListCache.Get(baseKey); !ok {
+		t.Fatalf("expected default-locale management list cache")
+	}
+	englishKey, err := service.managementListCacheKey(englishCtx)
+	if err != nil {
+		t.Fatalf("build english-locale cache key: %v", err)
+	}
+	englishRevision, err := service.runtimeCacheRevisionCtrl.CurrentRevision(englishCtx)
+	if err != nil {
+		t.Fatalf("read english-locale runtime revision: %v", err)
+	}
+	if englishKey.Locale != i18nsvc.EnglishLocale {
+		t.Fatalf("expected english-locale cache key locale %s, got %s", i18nsvc.EnglishLocale, englishKey.Locale)
+	}
+	englishBundleRevision, err := service.i18nSvc.BundleRevision(englishCtx, i18nsvc.EnglishLocale)
+	if err != nil {
+		t.Fatalf("read english-locale runtime bundle revision: %v", err)
+	}
+	if englishKey.RuntimeBundleVersion != englishBundleRevision.Version {
+		t.Fatalf("expected english-locale cache key bundle version to match runtime bundle, got %d", englishKey.RuntimeBundleVersion)
+	}
+	if englishKey.RuntimeRevision != englishRevision {
+		t.Fatalf("expected english-locale cache key runtime revision %d, got %d", englishRevision, englishKey.RuntimeRevision)
+	}
+	if englishKey.String() == baseKey.String() {
+		t.Fatalf("expected locale-scoped cache keys to differ, got %s", englishKey.String())
+	}
+	if _, ok := service.managementListCache.Get(englishKey); !ok {
+		t.Fatalf("expected english-locale management list cache")
+	}
+}
+
+// TestListHidesBuiltinByDefaultAndIncludesForDiagnostics verifies ordinary
+// management list reads filter builtin plugins without rebuilding or mutating
+// the underlying read model.
+func TestListHidesBuiltinByDefaultAndIncludesForDiagnostics(t *testing.T) {
+	var (
+		service   = newTestService()
+		ctx       = startupstats.WithCollector(context.Background(), startupstats.New())
+		managedID = "plugin-dev-list-managed-distribution"
+		builtinID = "plugin-dev-list-builtin-distribution"
+	)
+
+	createTestSourceDependencyPlugin(t, managedID, "Managed Distribution", "v0.1.0", "")
+	createTestSourceDependencyPlugin(
+		t,
+		builtinID,
+		"Builtin Distribution",
+		"v0.1.0",
+		"distribution: builtin\n",
+	)
+	cleanupTestPluginIDs(t, context.Background(), managedID, builtinID)
+
+	defaultOut, err := service.List(ctx, ListInput{ID: "plugin-dev-list-"})
+	if err != nil {
+		t.Fatalf("expected default list to succeed, got error: %v", err)
+	}
+	if findPluginItem(defaultOut, managedID) == nil {
+		t.Fatalf("expected managed plugin in default list")
+	}
+	if findPluginItem(defaultOut, builtinID) != nil {
+		t.Fatalf("expected builtin plugin to be hidden by default")
+	}
+
+	diagnosticOut, err := service.List(ctx, ListInput{
+		ID:             "plugin-dev-list-",
+		IncludeBuiltin: true,
+	})
+	if err != nil {
+		t.Fatalf("expected include-builtin list to succeed, got error: %v", err)
+	}
+	builtin := findPluginItem(diagnosticOut, builtinID)
+	if builtin == nil {
+		t.Fatalf("expected builtin plugin in diagnostic list")
+	}
+	if builtin.Distribution != pluginv1.PluginDistributionBuiltin.String() {
+		t.Fatalf("expected builtin distribution, got %#v", builtin)
+	}
+
+	snapshot := startupstats.FromContext(ctx).Snapshot()
+	if got := snapshot.CounterValue(startupstats.CounterPluginScans); got != 1 {
+		t.Fatalf("expected diagnostic filtering to reuse cached read model, got %d scans", got)
+	}
+}
 
 // TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState verifies that
 // missing runtime artifacts reconcile registry state without hiding the plugin.
@@ -53,10 +310,10 @@ func TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState(t *testing.T
 	if _, err = service.syncPluginManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected dynamic manifest sync to succeed, got error: %v", err)
 	}
-	if err = service.setPluginInstalled(ctx, pluginID, catalog.InstalledYes); err != nil {
+	if err = service.setPluginInstalled(ctx, pluginID, statusflag.Installed.Int()); err != nil {
 		t.Fatalf("expected dynamic plugin install state to be set, got error: %v", err)
 	}
-	if err = service.setPluginStatus(ctx, pluginID, catalog.StatusEnabled); err != nil {
+	if err = service.setPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 		t.Fatalf("expected dynamic plugin enable state to be set, got error: %v", err)
 	}
 	if err = os.Remove(artifactPath); err != nil {
@@ -78,11 +335,11 @@ func TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState(t *testing.T
 	if item == nil {
 		t.Fatalf("expected missing dynamic plugin to remain visible in plugin list")
 	}
-	if item.Installed != catalog.InstalledNo {
-		t.Fatalf("expected missing dynamic plugin installed state to reconcile to %d, got %d", catalog.InstalledNo, item.Installed)
+	if item.Installed != statusflag.Uninstalled.Int() {
+		t.Fatalf("expected missing dynamic plugin installed state to reconcile to %d, got %d", statusflag.Uninstalled.Int(), item.Installed)
 	}
-	if item.Enabled != catalog.StatusDisabled {
-		t.Fatalf("expected missing dynamic plugin enabled state to reconcile to %d, got %d", catalog.StatusDisabled, item.Enabled)
+	if item.Enabled != statusflag.Disabled.Int() {
+		t.Fatalf("expected missing dynamic plugin enabled state to reconcile to %d, got %d", statusflag.Disabled.Int(), item.Enabled)
 	}
 
 	runtimeStates, err := service.ListRuntimeStates(ctx)
@@ -99,7 +356,7 @@ func TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState(t *testing.T
 	if runtimeState == nil {
 		t.Fatalf("expected missing dynamic plugin to remain visible in public runtime states")
 	}
-	if runtimeState.Installed != catalog.InstalledNo || runtimeState.Enabled != catalog.StatusDisabled {
+	if runtimeState.Installed != statusflag.Uninstalled.Int() || runtimeState.Enabled != statusflag.Disabled.Int() {
 		t.Fatalf("expected public runtime state to reconcile to uninstalled+disabled, got installed=%d enabled=%d", runtimeState.Installed, runtimeState.Enabled)
 	}
 	if runtimeState.RuntimeState != RuntimeUpgradeStateNormal {
@@ -113,7 +370,7 @@ func TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState(t *testing.T
 	if registry == nil {
 		t.Fatalf("expected runtime registry row to remain after reconciliation")
 	}
-	if registry.Installed != catalog.InstalledNo || registry.Status != catalog.StatusDisabled {
+	if registry.Installed != statusflag.Uninstalled.Int() || registry.Status != statusflag.Disabled.Int() {
 		t.Fatalf("expected runtime registry row to reconcile to uninstalled+disabled, got installed=%d enabled=%d", registry.Installed, registry.Status)
 	}
 }
@@ -149,10 +406,10 @@ func TestListProjectsMissingRuntimeRegistryWithoutWriting(t *testing.T) {
 	if _, err = service.syncPluginManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected dynamic manifest sync to succeed, got error: %v", err)
 	}
-	if err = service.setPluginInstalled(ctx, pluginID, catalog.InstalledYes); err != nil {
+	if err = service.setPluginInstalled(ctx, pluginID, statusflag.Installed.Int()); err != nil {
 		t.Fatalf("expected dynamic plugin install state to be set, got error: %v", err)
 	}
-	if err = service.setPluginStatus(ctx, pluginID, catalog.StatusEnabled); err != nil {
+	if err = service.setPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 		t.Fatalf("expected dynamic plugin enable state to be set, got error: %v", err)
 	}
 
@@ -176,11 +433,11 @@ func TestListProjectsMissingRuntimeRegistryWithoutWriting(t *testing.T) {
 	if item == nil {
 		t.Fatalf("expected missing dynamic plugin to remain visible in read-only plugin list")
 	}
-	if item.Installed != catalog.InstalledNo {
-		t.Fatalf("expected read-only projection installed state to be %d, got %d", catalog.InstalledNo, item.Installed)
+	if item.Installed != statusflag.Uninstalled.Int() {
+		t.Fatalf("expected read-only projection installed state to be %d, got %d", statusflag.Uninstalled.Int(), item.Installed)
 	}
-	if item.Enabled != catalog.StatusDisabled {
-		t.Fatalf("expected read-only projection enabled state to be %d, got %d", catalog.StatusDisabled, item.Enabled)
+	if item.Enabled != statusflag.Disabled.Int() {
+		t.Fatalf("expected read-only projection enabled state to be %d, got %d", statusflag.Disabled.Int(), item.Enabled)
 	}
 
 	registryAfter, err := service.getPluginRegistry(ctx, pluginID)
@@ -211,6 +468,281 @@ func TestListProjectsMissingRuntimeRegistryWithoutWriting(t *testing.T) {
 			registryAfter.Generation,
 			registryAfter.ReleaseId,
 		)
+	}
+}
+
+// TestNormalizePluginListPageBounds verifies plugin management list pagination
+// applies stable defaults and the service-side maximum page size.
+func TestNormalizePluginListPageBounds(t *testing.T) {
+	pageNum, pageSize := normalizeListPage(0, 0)
+	if pageNum != defaultListPageNum || pageSize != defaultListPageSize {
+		t.Fatalf("expected default page %d/%d, got %d/%d", defaultListPageNum, defaultListPageSize, pageNum, pageSize)
+	}
+
+	pageNum, pageSize = normalizeListPage(2, maxListPageSize+1)
+	if pageNum != 2 || pageSize != maxListPageSize {
+		t.Fatalf("expected bounded page 2/%d, got %d/%d", maxListPageSize, pageNum, pageSize)
+	}
+}
+
+// TestListPaginatesAndKeepsGovernanceDetailsOutOfSummary verifies the GET-list
+// path is a paginated summary while exact detail lookup still exposes governance
+// review payloads for the selected plugin only.
+func TestListPaginatesAndKeepsGovernanceDetailsOutOfSummary(t *testing.T) {
+	var (
+		service       = newTestService()
+		ctx           = context.Background()
+		filterPrefix  = "plugin-dev-summary-page-"
+		firstPluginID = filterPrefix + "a"
+		secondID      = filterPrefix + "b"
+		detailID      = "plugin-dev-dynamic-summary-detail"
+		version       = "v0.1.0"
+	)
+
+	createTestSourceDependencyPlugin(t, firstPluginID, "Summary Page A", version, "")
+	createTestSourceDependencyPlugin(t, secondID, "Summary Page B", version, "")
+	cleanupTestPluginIDs(t, context.Background(), firstPluginID, secondID, detailID)
+
+	out, err := service.List(ctx, ListInput{
+		PageNum:  2,
+		PageSize: 1,
+		ID:       filterPrefix,
+	})
+	if err != nil {
+		t.Fatalf("expected paginated summary list to succeed, got error: %v", err)
+	}
+	if out.Total != 2 || len(out.List) != 1 {
+		t.Fatalf("expected second page of two filtered plugins, got total=%d len=%d", out.Total, len(out.List))
+	}
+	if out.List[0] == nil || out.List[0].Id != secondID {
+		t.Fatalf("expected second plugin on page 2, got %#v", out.List)
+	}
+	emptyPage, err := service.List(ctx, ListInput{
+		PageNum:  3,
+		PageSize: 1,
+		ID:       filterPrefix,
+	})
+	if err != nil {
+		t.Fatalf("expected empty page summary list to succeed, got error: %v", err)
+	}
+	if emptyPage.Total != 2 || len(emptyPage.List) != 0 {
+		t.Fatalf("expected empty page with retained total=2, got total=%d len=%d", emptyPage.Total, len(emptyPage.List))
+	}
+
+	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), detailID+".wasm")
+	t.Cleanup(func() {
+		if err := os.Remove(artifactPath); err != nil && !os.IsNotExist(err) {
+			t.Fatalf("failed to remove dynamic summary artifact %s: %v", artifactPath, err)
+		}
+	})
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:                  detailID,
+			Name:                "Dynamic Summary Detail Plugin",
+			Version:             version,
+			Type:                pluginv1.PluginTypeDynamic.String(),
+			ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
+			SupportsMultiTenant: &testutil.DefaultTestSupportsMultiTenant,
+			DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
+			HostServices: []*protocol.HostServiceSpec{
+				{
+					Service: protocol.HostServiceStorage,
+					Methods: []string{
+						protocol.HostServiceMethodStorageGet,
+					},
+					Paths: []string{"reports/"},
+				},
+			},
+			RouteCount: 1,
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		[]*protocol.RouteContract{
+			{
+				Path:        "/governed-report",
+				Method:      "GET",
+				Access:      protocol.AccessPublic,
+				RequestType: "DynamicSummaryDetailReq",
+			},
+		},
+		&protocol.BridgeSpec{
+			ABIVersion:     protocol.ABIVersionV1,
+			RuntimeKind:    protocol.RuntimeKindWasm,
+			RouteExecution: true,
+			RequestCodec:   protocol.CodecProtobuf,
+			ResponseCodec:  protocol.CodecProtobuf,
+			AllocExport:    protocol.DefaultGuestAllocExport,
+			ExecuteExport:  protocol.DefaultGuestExecuteExport,
+		},
+	)
+	service.InvalidateManagementListCache(ctx, "dynamic_summary_artifact_created")
+
+	summary, err := service.List(ctx, ListInput{ID: detailID})
+	if err != nil {
+		t.Fatalf("expected summary list for dynamic plugin to succeed, got error: %v", err)
+	}
+	summaryItem := findPluginItem(summary, detailID)
+	if summaryItem == nil {
+		t.Fatalf("expected dynamic plugin summary item")
+	}
+	if !summaryItem.AuthorizationRequired {
+		t.Fatalf("expected summary to retain authorization-required status, got %#v", summaryItem)
+	}
+	if summaryItem.DependencyCheck != nil {
+		t.Fatalf("expected summary list not to attach dependency check, got %#v", summaryItem.DependencyCheck)
+	}
+	if len(summaryItem.RequestedHostServices) != 0 ||
+		len(summaryItem.AuthorizedHostServices) != 0 ||
+		len(summaryItem.DeclaredRoutes) != 0 {
+		t.Fatalf("expected summary list to omit detail governance payloads, got requested=%#v authorized=%#v routes=%#v", summaryItem.RequestedHostServices, summaryItem.AuthorizedHostServices, summaryItem.DeclaredRoutes)
+	}
+
+	full, err := service.ReadOnlyList(ctx)
+	if err != nil {
+		t.Fatalf("expected full read-only plugin list to succeed, got error: %v", err)
+	}
+	fullItem := findPluginItem(full, detailID)
+	if fullItem == nil {
+		t.Fatalf("expected dynamic plugin full read-only item")
+	}
+	if fullItem.DependencyCheck == nil {
+		t.Fatalf("expected full read-only item to attach dependency check")
+	}
+	if len(fullItem.RequestedHostServices) != 1 || fullItem.RequestedHostServices[0].Service != protocol.HostServiceStorage {
+		t.Fatalf("expected full read-only item requested host service, got %#v", fullItem.RequestedHostServices)
+	}
+	if len(fullItem.DeclaredRoutes) != 1 || fullItem.DeclaredRoutes[0].Path != "/governed-report" {
+		t.Fatalf("expected full read-only item declared route, got %#v", fullItem.DeclaredRoutes)
+	}
+
+	detail, err := service.Get(ctx, detailID)
+	if err != nil {
+		t.Fatalf("expected plugin detail to succeed, got error: %v", err)
+	}
+	if detail.DependencyCheck == nil {
+		t.Fatalf("expected detail to attach dependency check")
+	}
+	if len(detail.RequestedHostServices) != 1 || detail.RequestedHostServices[0].Service != protocol.HostServiceStorage {
+		t.Fatalf("expected detail requested host service, got %#v", detail.RequestedHostServices)
+	}
+	if len(detail.DeclaredRoutes) != 1 || detail.DeclaredRoutes[0].Path != "/governed-report" {
+		t.Fatalf("expected detail declared route, got %#v", detail.DeclaredRoutes)
+	}
+
+	_, err = service.Install(ctx, detailID, InstallOptions{
+		Authorization: &HostServiceAuthorizationInput{
+			Services: []*HostServiceAuthorizationDecision{
+				{
+					Service: protocol.HostServiceStorage,
+					Methods: []string{
+						protocol.HostServiceMethodStorageGet,
+					},
+					Paths: []string{"reports/"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected dynamic plugin install with authorization to succeed, got error: %v", err)
+	}
+	if err = os.Remove(artifactPath); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("failed to remove staging artifact %s: %v", artifactPath, err)
+	}
+
+	installedDetail, err := service.Get(ctx, detailID)
+	if err != nil {
+		t.Fatalf("expected installed plugin detail to fall back to release snapshot, got error: %v", err)
+	}
+	if len(installedDetail.AuthorizedHostServices) != 1 ||
+		installedDetail.AuthorizedHostServices[0].Service != protocol.HostServiceStorage {
+		t.Fatalf("expected installed detail authorized snapshot, got %#v", installedDetail.AuthorizedHostServices)
+	}
+	if len(installedDetail.DeclaredRoutes) != 1 ||
+		installedDetail.DeclaredRoutes[0].Path != "/governed-report" {
+		t.Fatalf("expected installed detail declared route from release snapshot, got %#v", installedDetail.DeclaredRoutes)
+	}
+	installedFull, err := service.ReadOnlyList(ctx)
+	if err != nil {
+		t.Fatalf("expected installed plugin full read-only list to fall back to release snapshot, got error: %v", err)
+	}
+	installedFullItem := findPluginItem(installedFull, detailID)
+	if installedFullItem == nil {
+		t.Fatalf("expected installed plugin full read-only item")
+	}
+	if len(installedFullItem.AuthorizedHostServices) != 1 ||
+		installedFullItem.AuthorizedHostServices[0].Service != protocol.HostServiceStorage {
+		t.Fatalf("expected installed full read-only item authorized snapshot, got %#v", installedFullItem.AuthorizedHostServices)
+	}
+	if len(installedFullItem.DeclaredRoutes) != 1 ||
+		installedFullItem.DeclaredRoutes[0].Path != "/governed-report" {
+		t.Fatalf("expected installed full read-only item declared route from release snapshot, got %#v", installedFullItem.DeclaredRoutes)
+	}
+}
+
+// TestReadOnlyListProjectionBatchesDependencyChecks verifies full management
+// projections reuse manifest and store snapshots while attaching dependency
+// status to every row.
+func TestReadOnlyListProjectionBatchesDependencyChecks(t *testing.T) {
+	var (
+		service      = newTestService()
+		ctx          = startupstats.WithCollector(context.Background(), startupstats.New())
+		dependencyID = "plugin-dev-source-projection-batch-dependency"
+		targetID     = "plugin-dev-source-projection-batch-target"
+	)
+
+	createTestSourceDependencyPlugin(t, dependencyID, "Projection Batch Dependency", "v0.1.0", "")
+	createTestSourceDependencyPlugin(
+		t,
+		targetID,
+		"Projection Batch Target",
+		"v0.1.0",
+		"dependencies:\n"+
+			"  plugins:\n"+
+			"    - id: "+dependencyID+"\n"+
+			"      version: \">=0.1.0\"\n",
+	)
+	cleanupTestPluginIDs(t, context.Background(), dependencyID, targetID)
+
+	out, err := service.ReadOnlyList(ctx)
+	if err != nil {
+		t.Fatalf("expected full read-only plugin list to succeed, got error: %v", err)
+	}
+	dependencyItem := findPluginItem(out, dependencyID)
+	if dependencyItem == nil || dependencyItem.DependencyCheck == nil {
+		t.Fatalf("expected dependency plugin to include dependency check, got %#v", dependencyItem)
+	}
+	if dependencyItem.DependencyCheck.TargetID != dependencyID {
+		t.Fatalf("expected dependency check target %s, got %#v", dependencyID, dependencyItem.DependencyCheck)
+	}
+	targetItem := findPluginItem(out, targetID)
+	if targetItem == nil || targetItem.DependencyCheck == nil {
+		t.Fatalf("expected target plugin to include dependency check, got %#v", targetItem)
+	}
+	if targetItem.DependencyCheck.TargetID != targetID {
+		t.Fatalf("expected target dependency check target %s, got %#v", targetID, targetItem.DependencyCheck)
+	}
+	if len(targetItem.DependencyCheck.Blockers) != 1 ||
+		targetItem.DependencyCheck.Blockers[0].DependencyID != dependencyID {
+		t.Fatalf("expected target dependency check to expose missing dependency blocker, got %#v", targetItem.DependencyCheck)
+	}
+
+	snapshot := startupstats.FromContext(ctx).Snapshot()
+	if got := snapshot.CounterValue(startupstats.CounterPluginScans); got != 1 {
+		t.Fatalf("expected full projection to scan manifests once, got %d", got)
+	}
+	if got := snapshot.CounterValue(startupstats.CounterCatalogSnapshotBuilds); got != 1 {
+		t.Fatalf("expected full projection to build one store snapshot, got %d", got)
+	}
+	if got := snapshot.CounterValue(startupstats.CounterIntegrationSnapshotBuilds); got != 0 {
+		t.Fatalf("expected full read-only projection not to build integration snapshot, got %d", got)
 	}
 }
 
@@ -332,204 +864,6 @@ func TestListMarksInstalledDynamicPluginWithHigherArtifactPendingUpgrade(t *test
 	}
 }
 
-// TestPreviewRuntimeUpgradeReturnsPendingDynamicPlan verifies that preview is
-// read-only and exposes manifest snapshots, dependency checks, SQL summary,
-// hostServices drift, and stable risk hints for a pending dynamic upgrade.
-func TestPreviewRuntimeUpgradeReturnsPendingDynamicPlan(t *testing.T) {
-	var (
-		service    = newTestService()
-		ctx        = context.Background()
-		pluginID   = "plugin-dev-dynamic-runtime-upgrade-preview"
-		oldVersion = "v0.1.0"
-		newVersion = "v0.2.0"
-	)
-
-	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), pluginID+".wasm")
-	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	t.Cleanup(func() {
-		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
-			t.Fatalf("failed to remove runtime upgrade preview artifact %s: %v", artifactPath, cleanupErr)
-		}
-	})
-
-	testutil.WriteRuntimeWasmArtifact(
-		t,
-		artifactPath,
-		&catalog.ArtifactManifest{
-			ID:      pluginID,
-			Name:    "Dynamic Runtime Upgrade Preview Plugin",
-			Version: oldVersion,
-			Type:    catalog.TypeDynamic.String(),
-		},
-		&catalog.ArtifactSpec{
-			RuntimeKind: protocol.RuntimeKindWasm,
-			ABIVersion:  protocol.SupportedABIVersion,
-			HostServices: []*protocol.HostServiceSpec{
-				{
-					Service: protocol.HostServiceStorage,
-					Methods: []string{protocol.HostServiceMethodStorageGet},
-					Paths:   []string{"reports/"},
-				},
-			},
-		},
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
-		t.Fatalf("expected initial dynamic plugin install to succeed, got error: %v", err)
-	}
-
-	oldRelease, err := service.getPluginRelease(ctx, pluginID, oldVersion)
-	if err != nil {
-		t.Fatalf("expected old release lookup to succeed, got error: %v", err)
-	}
-	if oldRelease == nil {
-		t.Fatal("expected old release row")
-	}
-
-	testutil.WriteRuntimeWasmArtifact(
-		t,
-		artifactPath,
-		&catalog.ArtifactManifest{
-			ID:      pluginID,
-			Name:    "Dynamic Runtime Upgrade Preview Plugin",
-			Version: newVersion,
-			Type:    catalog.TypeDynamic.String(),
-		},
-		&catalog.ArtifactSpec{
-			RuntimeKind: protocol.RuntimeKindWasm,
-			ABIVersion:  protocol.SupportedABIVersion,
-			HostServices: []*protocol.HostServiceSpec{
-				{
-					Service: protocol.HostServiceStorage,
-					Methods: []string{
-						protocol.HostServiceMethodStorageGet,
-						protocol.HostServiceMethodStoragePut,
-					},
-					Paths: []string{"reports/", "exports/"},
-				},
-			},
-		},
-		nil,
-		[]*catalog.ArtifactSQLAsset{
-			{
-				Key:     "001-upgrade-preview.sql",
-				Content: "CREATE TABLE IF NOT EXISTS plugin_dynamic_runtime_upgrade_preview(id INTEGER);",
-			},
-		},
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-	newManifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
-	if err != nil {
-		t.Fatalf("expected target dynamic artifact manifest to load, got error: %v", err)
-	}
-	if _, err = service.syncPluginManifest(ctx, newManifest); err != nil {
-		t.Fatalf("expected target manifest sync to succeed, got error: %v", err)
-	}
-
-	preview, err := service.PreviewRuntimeUpgrade(ctx, pluginID)
-	if err != nil {
-		t.Fatalf("expected runtime upgrade preview to succeed, got error: %v", err)
-	}
-	if preview.PluginID != pluginID || preview.RuntimeState != RuntimeUpgradeStatePendingUpgrade {
-		t.Fatalf("expected pending preview for %s, got %#v", pluginID, preview)
-	}
-	if preview.EffectiveVersion != oldVersion || preview.DiscoveredVersion != newVersion {
-		t.Fatalf("expected versions %s/%s, got %#v", oldVersion, newVersion, preview)
-	}
-	if preview.FromManifest == nil || preview.FromManifest.Version != oldVersion {
-		t.Fatalf("expected from manifest version %s, got %#v", oldVersion, preview.FromManifest)
-	}
-	if preview.ToManifest == nil || preview.ToManifest.Version != newVersion {
-		t.Fatalf("expected to manifest version %s, got %#v", newVersion, preview.ToManifest)
-	}
-	if preview.SQLSummary.InstallSQLCount != 1 || preview.SQLSummary.RuntimeSQLAssetCount != 1 {
-		t.Fatalf("expected target SQL summary to include one SQL asset, got %#v", preview.SQLSummary)
-	}
-	if !preview.HostServicesDiff.AuthorizationRequired || !preview.HostServicesDiff.AuthorizationChanged {
-		t.Fatalf("expected host service authorization to be required and changed, got %#v", preview.HostServicesDiff)
-	}
-	if len(preview.HostServicesDiff.Changed) != 1 {
-		t.Fatalf("expected one changed host service, got %#v", preview.HostServicesDiff)
-	}
-	change := preview.HostServicesDiff.Changed[0]
-	if change.Service != protocol.HostServiceStorage {
-		t.Fatalf("expected storage host service change, got %#v", change)
-	}
-	if len(change.FromPaths) != 1 || change.FromPaths[0] != "reports/" {
-		t.Fatalf("expected from paths to contain reports/, got %#v", change.FromPaths)
-	}
-	if len(change.ToPaths) != 2 || change.ToPaths[0] != "exports/" || change.ToPaths[1] != "reports/" {
-		t.Fatalf("expected target paths to contain exports/ and reports/, got %#v", change.ToPaths)
-	}
-	if preview.DependencyCheck == nil || preview.DependencyCheck.TargetID != pluginID {
-		t.Fatalf("expected dependency check for target plugin, got %#v", preview.DependencyCheck)
-	}
-	if !containsString(preview.RiskHints, RuntimeUpgradeRiskHintUpgradeSQLRequiresReview) {
-		t.Fatalf("expected SQL review risk hint, got %#v", preview.RiskHints)
-	}
-	if !containsString(preview.RiskHints, RuntimeUpgradeRiskHintHostServiceAuthorizationChanged) {
-		t.Fatalf("expected host service authorization risk hint, got %#v", preview.RiskHints)
-	}
-
-	registry, err := service.getPluginRegistry(ctx, pluginID)
-	if err != nil {
-		t.Fatalf("expected registry lookup after preview to succeed, got error: %v", err)
-	}
-	if registry == nil || registry.Version != oldVersion || registry.ReleaseId != oldRelease.Id {
-		t.Fatalf("expected preview not to switch effective release, got %#v", registry)
-	}
-}
-
-// TestPreviewRuntimeUpgradeRejectsNormalPlugin verifies preview does not turn a
-// non-pending plugin into an upgrade action.
-func TestPreviewRuntimeUpgradeRejectsNormalPlugin(t *testing.T) {
-	var (
-		service  = newTestService()
-		ctx      = context.Background()
-		pluginID = "plugin-dev-dynamic-runtime-upgrade-preview-normal"
-		version  = "v0.1.0"
-	)
-
-	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
-		t,
-		pluginID,
-		"Dynamic Runtime Upgrade Preview Normal Plugin",
-		version,
-		nil,
-		nil,
-	)
-
-	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	t.Cleanup(func() {
-		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
-	})
-
-	manifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
-	if err != nil {
-		t.Fatalf("expected dynamic artifact manifest to load, got error: %v", err)
-	}
-	if _, err = service.syncPluginManifest(ctx, manifest); err != nil {
-		t.Fatalf("expected dynamic manifest sync to succeed, got error: %v", err)
-	}
-	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
-		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
-	}
-
-	_, err = service.PreviewRuntimeUpgrade(ctx, pluginID)
-	if !bizerr.Is(err, CodePluginRuntimeUpgradePreviewUnavailable) {
-		t.Fatalf("expected preview unavailable bizerr, got %v", err)
-	}
-}
-
 // TestListMarksInstalledDynamicPluginWithFailedTargetReleaseUpgradeFailed verifies
 // failed target releases stay visible as retryable runtime-upgrade failures.
 func TestListMarksInstalledDynamicPluginWithFailedTargetReleaseUpgradeFailed(t *testing.T) {
@@ -589,10 +923,10 @@ func TestListMarksInstalledDynamicPluginWithFailedTargetReleaseUpgradeFailed(t *
 	if targetRelease == nil {
 		t.Fatal("expected target release row")
 	}
-	if err = service.catalogSvc.UpdateReleaseState(
+	if err = service.storeSvc.UpdateReleaseState(
 		ctx,
 		targetRelease.Id,
-		catalog.ReleaseStatusFailed,
+		plugintypes.ReleaseStatusFailed,
 		"",
 	); err != nil {
 		t.Fatalf("expected target release failure state update to succeed, got error: %v", err)
@@ -621,7 +955,7 @@ func TestListMarksInstalledDynamicPluginWithFailedTargetReleaseUpgradeFailed(t *
 	if err != nil {
 		t.Fatalf("expected failed release lookup to succeed, got error: %v", err)
 	}
-	if failedRelease == nil || failedRelease.Status != catalog.ReleaseStatusFailed.String() {
+	if failedRelease == nil || failedRelease.Status != plugintypes.ReleaseStatusFailed.String() {
 		t.Fatalf("expected target release to remain failed after sync, got %#v", failedRelease)
 	}
 }
@@ -719,7 +1053,7 @@ func TestFilterMenusUsesAuthoritativeRegistryState(t *testing.T) {
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
 	service.integrationSvc.SetPluginEnabledState(pluginID, false)
-	if err := service.catalogSvc.SetPluginStatus(ctx, pluginID, catalog.StatusEnabled); err != nil {
+	if err := service.storeSvc.SetPluginStatus(ctx, pluginID, statusflag.EnabledValue.Int()); err != nil {
 		t.Fatalf("expected persisted plugin status update to succeed, got error: %v", err)
 	}
 
@@ -768,7 +1102,7 @@ func TestListLocalizesUninstalledDynamicPluginMetadataInEnglish(t *testing.T) {
 			ID:          pluginID,
 			Name:        "动态插件列表中文名",
 			Version:     "v0.9.8",
-			Type:        catalog.TypeDynamic.String(),
+			Type:        pluginv1.PluginTypeDynamic.String(),
 			Description: "未安装动态插件的中文描述",
 		},
 		&catalog.ArtifactSpec{
@@ -809,7 +1143,7 @@ func TestListLocalizesUninstalledDynamicPluginMetadataInEnglish(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected dynamic i18n manifest sync to succeed, got error: %v", err)
 	}
-	if registry == nil || registry.Installed != catalog.InstalledNo {
+	if registry == nil || registry.Installed != statusflag.Uninstalled.Int() {
 		t.Fatalf("expected dynamic i18n plugin to remain uninstalled after sync, got %#v", registry)
 	}
 
@@ -827,7 +1161,7 @@ func TestListLocalizesUninstalledDynamicPluginMetadataInEnglish(t *testing.T) {
 	if item.Description != "English dynamic plugin description before installation." {
 		t.Fatalf("expected English plugin description before install, got %q", item.Description)
 	}
-	if item.Installed != catalog.InstalledNo {
+	if item.Installed != statusflag.Uninstalled.Int() {
 		t.Fatalf("expected plugin to remain not installed, got %d", item.Installed)
 	}
 }
@@ -928,29 +1262,6 @@ func TestSyncAndListDoesNotRestoreUninstalledDynamicGovernanceProjection(t *test
 	if resourceCount != 0 {
 		t.Fatalf("expected sync-and-list not to recreate governance resource refs for uninstalled plugin, got count=%d", resourceCount)
 	}
-}
-
-// findPluginItem returns one plugin list item by plugin ID for list assertions.
-func findPluginItem(out *ListOutput, pluginID string) *PluginItem {
-	if out == nil {
-		return nil
-	}
-	for _, current := range out.List {
-		if current != nil && current.Id == pluginID {
-			return current
-		}
-	}
-	return nil
-}
-
-// containsString reports whether values contains target.
-func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
 }
 
 // appendRuntimeI18NSectionForPluginListTest appends one runtime i18n custom

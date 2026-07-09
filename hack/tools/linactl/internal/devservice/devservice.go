@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"linactl/internal/process"
 	"linactl/internal/toolutil"
 )
 
@@ -29,15 +30,16 @@ const readinessLogTailLines = 30
 
 // Config stores development service paths and ports.
 type Config struct {
-	Name      string
-	URL       string
-	Port      int
-	PIDPath   string
-	LogPath   string
-	WorkDir   string
-	StartName string
-	StartArgs []string
-	Env       []string
+	Name        string
+	DisplayName string
+	URL         string
+	Port        int
+	PIDPath     string
+	LogPath     string
+	WorkDir     string
+	StartName   string
+	StartArgs   []string
+	Env         []string
 }
 
 // RunnerContextServiceEnvKey carries service-level environment additions to
@@ -46,7 +48,7 @@ const RunnerContextServiceEnvKey = "LINACTL_SERVICE_ENV"
 
 // StatusRow stores one printable development service status row.
 type StatusRow struct {
-	Service string
+	Entry   string
 	Status  string
 	URL     string
 	PID     string
@@ -67,32 +69,48 @@ type PortInUseFunc = func(int) bool
 // 进程存活检测函数类型别名，便于测试注入。
 type ProcessAliveFunc = func(int) bool
 
+// ProcessListFunc returns visible operating-system processes.
+type ProcessListFunc func() ([]process.Info, error)
+
+// ProcessKillFunc stops one process by PID.
+type ProcessKillFunc func(int) error
+
 // Services returns backend and frontend development service definitions.
 func Services(root string, backendPort int, frontendPort int) []Config {
 	tempDir := filepath.Join(root, "temp")
 	pidDir := filepath.Join(tempDir, "pids")
 	return []Config{
 		{
-			Name:    "Backend",
-			URL:     fmt.Sprintf("http://127.0.0.1:%d/", backendPort),
-			Port:    backendPort,
-			PIDPath: filepath.Join(pidDir, "backend.pid"),
-			LogPath: filepath.Join(tempDir, "lina-core.log"),
-			WorkDir: filepath.Join(root, "apps", "lina-core"),
+			Name:        "Backend",
+			DisplayName: "Lina Core",
+			URL:         fmt.Sprintf("http://127.0.0.1:%d/", backendPort),
+			Port:        backendPort,
+			PIDPath:     filepath.Join(pidDir, "lina-core.pid"),
+			LogPath:     filepath.Join(tempDir, "lina-core.log"),
+			WorkDir:     filepath.Join(root, "apps", "lina-core"),
 			Env: []string{
 				fmt.Sprintf("LINAPRO_FRONTEND_DEV_SERVER_URL=http://127.0.0.1:%d", frontendPort),
 			},
 		},
 		{
-			Name:      "Frontend",
-			URL:       fmt.Sprintf("http://127.0.0.1:%d/", frontendPort),
-			Port:      frontendPort,
-			PIDPath:   filepath.Join(pidDir, "frontend.pid"),
-			LogPath:   filepath.Join(tempDir, "lina-vben.log"),
-			WorkDir:   filepath.Join(root, "apps", "lina-vben", "apps", "web-antd"),
-			StartArgs: []string{"--mode", "development", "--host", "127.0.0.1", "--port", strconv.Itoa(frontendPort), "--strictPort"},
+			Name:        "Frontend",
+			DisplayName: "Lina Vben",
+			URL:         fmt.Sprintf("http://127.0.0.1:%d/", frontendPort),
+			Port:        frontendPort,
+			PIDPath:     filepath.Join(pidDir, "lina-vben.pid"),
+			LogPath:     filepath.Join(tempDir, "lina-vben.log"),
+			WorkDir:     filepath.Join(root, "apps", "lina-vben", "apps", "web-antd"),
+			StartArgs:   []string{"--mode", "development", "--host", "127.0.0.1", "--port", strconv.Itoa(frontendPort), "--strictPort"},
 		},
 	}
+}
+
+// EntryName returns the user-facing development entry name for terminal output.
+func EntryName(service Config) string {
+	if strings.TrimSpace(service.DisplayName) != "" {
+		return service.DisplayName
+	}
+	return service.Name
 }
 
 // ReadinessURL returns the URL that WaitHTTP should probe for the given
@@ -110,7 +128,7 @@ func ReadinessURL(service Config) string {
 
 // PrintStatusTable renders development service status without terminal-specific dependencies.
 func PrintStatusTable(out io.Writer, rows []StatusRow) error {
-	headers := []string{"Service", "Status", "URL", "PID", "PID File", "Log File"}
+	headers := []string{"Entry", "Status", "URL", "PID", "PID File", "Log File"}
 	widths := make([]int, len(headers))
 	for i, header := range headers {
 		widths[i] = len(header)
@@ -146,7 +164,7 @@ func PrintStatusTable(out io.Writer, rows []StatusRow) error {
 
 // values returns the printable table cells for one service status row.
 func (r StatusRow) values() []string {
-	return []string{r.Service, r.Status, r.URL, r.PID, r.PIDFile, r.LogFile}
+	return []string{r.Entry, r.Status, r.URL, r.PID, r.PIDFile, r.LogFile}
 }
 
 // printTableBorder prints one ASCII border line for a table.
@@ -198,6 +216,53 @@ func EnsurePortsAvailable(probe PortInUseFunc, backendPort int, frontendPort int
 		"%s already in use; stop the occupant or choose a different port via the BACKEND_PORT/FRONTEND_PORT make variables",
 		strings.Join(occupied, " and "),
 	)
+}
+
+// StopCurrentProjectServiceProcessesForOccupiedPorts stops untracked
+// current-repository service processes when their development ports are still
+// occupied after PID-file-backed stop has run. Unknown or ambiguous matches are
+// deliberately left alone so the final EnsurePortsAvailable diagnostic remains
+// conservative.
+func StopCurrentProjectServiceProcessesForOccupiedPorts(out io.Writer, root string, services []Config, probe PortInUseFunc, list ProcessListFunc, kill ProcessKillFunc) ([]int, error) {
+	if probe == nil {
+		probe = IsTCPListening
+	}
+	if list == nil || kill == nil {
+		return nil, nil
+	}
+
+	occupied := make([]Config, 0, len(services))
+	for _, service := range services {
+		if probe(service.Port) {
+			occupied = append(occupied, service)
+		}
+	}
+	if len(occupied) == 0 {
+		return nil, nil
+	}
+
+	infos, err := list()
+	if err != nil {
+		fmt.Fprintf(out, "warning: inspect port occupants failed: %v\n", err)
+		return nil, nil
+	}
+
+	stoppedPorts := make([]int, 0, len(occupied))
+	for _, service := range occupied {
+		matches := matchingProjectServiceProcesses(root, service, infos)
+		if len(matches) != 1 {
+			continue
+		}
+		match := matches[0]
+		if err = kill(match.PID); err != nil {
+			return stoppedPorts, fmt.Errorf("stop %s process %d occupying port %d: %w", service.Name, match.PID, service.Port, err)
+		}
+		if _, err = fmt.Fprintf(out, "%s port %d is occupied by current project process %d; stopped it\n", service.Name, service.Port, match.PID); err != nil {
+			return stoppedPorts, fmt.Errorf("write port occupant cleanup output: %w", err)
+		}
+		stoppedPorts = append(stoppedPorts, service.Port)
+	}
+	return stoppedPorts, nil
 }
 
 // WaitPortsReleased waits briefly for TCP ports to become free after managed
@@ -253,6 +318,85 @@ func boundPorts(probe PortInUseFunc, ports ...int) []int {
 	return occupied
 }
 
+func matchingProjectServiceProcesses(root string, service Config, infos []process.Info) []process.Info {
+	matches := make([]process.Info, 0, 1)
+	for _, info := range infos {
+		if info.PID <= 1 || !processBelongsToRoot(root, info) {
+			continue
+		}
+		switch service.Name {
+		case "Backend":
+			if matchesBackendService(root, info) {
+				matches = append(matches, info)
+			}
+		case "Frontend":
+			if matchesFrontendService(service, info) {
+				matches = append(matches, info)
+			}
+		}
+	}
+	return matches
+}
+
+func processBelongsToRoot(root string, info process.Info) bool {
+	if pathWithin(root, info.CWD) {
+		return true
+	}
+	return strings.Contains(filepath.ToSlash(info.CommandLine()), filepath.ToSlash(filepath.Clean(root)))
+}
+
+func matchesBackendService(root string, info process.Info) bool {
+	var (
+		command              = filepath.ToSlash(info.CommandLine())
+		backendBinary        = filepath.ToSlash(filepath.Join(root, "temp", "bin", "lina"))
+		windowsBackendBinary = filepath.ToSlash(filepath.Join(root, "temp", "bin", "lina.exe"))
+	)
+	return strings.Contains(command, backendBinary) || strings.Contains(command, windowsBackendBinary)
+}
+
+func matchesFrontendService(service Config, info process.Info) bool {
+	command := strings.ToLower(filepath.ToSlash(info.CommandLine()))
+	if !strings.Contains(command, "vite") {
+		return false
+	}
+	if hasExplicitDifferentPort(info.Args, service.Port) {
+		return false
+	}
+	return pathWithin(service.WorkDir, info.CWD) || strings.Contains(command, "apps/lina-vben")
+}
+
+func hasExplicitDifferentPort(args []string, expected int) bool {
+	expectedText := strconv.Itoa(expected)
+	for i, arg := range args {
+		if arg == "--port" && i+1 < len(args) {
+			return args[i+1] != expectedText
+		}
+		if strings.HasPrefix(arg, "--port=") {
+			return strings.TrimPrefix(arg, "--port=") != expectedText
+		}
+	}
+	return false
+}
+
+func pathWithin(root string, path string) bool {
+	if root == "" || path == "" {
+		return false
+	}
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return false
+	}
+	pathAbs, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(filepath.Clean(rootAbs), filepath.Clean(pathAbs))
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
 // StartService starts a development service and records its PID file.
 //
 // After the child is started we spawn a goroutine that calls cmd.Wait() so
@@ -293,7 +437,7 @@ func StartService(root string, stdout io.Writer, stderr io.Writer, env []string,
 	detach(cmd)
 	if err = cmd.Start(); err != nil {
 		if closeErr := logFile.Close(); closeErr != nil {
-			return fmt.Errorf("start %s failed and close log failed: %v: %w", service.Name, closeErr, err)
+			return fmt.Errorf("start %s failed and close log failed: %w: %w", service.Name, closeErr, err)
 		}
 		return fmt.Errorf("start %s: %w", service.Name, err)
 	}
@@ -360,6 +504,9 @@ func WaitHTTP(name string, url string, pidPath string, logPath string, timeout t
 	if alive == nil {
 		alive = func(int) bool { return true }
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
 	deadline := time.Now().Add(timeout)
 	client := newReadinessHTTPClient(2 * time.Second)
 	for time.Now().Before(deadline) {
@@ -370,7 +517,11 @@ func WaitHTTP(name string, url string, pidPath string, logPath string, timeout t
 		if !alive(pid) {
 			return fmt.Errorf("%s startup failed: process %d exited; check log: %s", name, pid, logPath)
 		}
-		resp, err := client.Get(url)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return fmt.Errorf("create %s readiness request: %w", name, err)
+		}
+		resp, err := client.Do(req)
 		if err == nil {
 			if closeErr := resp.Body.Close(); closeErr != nil {
 				return fmt.Errorf("close %s readiness response: %w", name, closeErr)
@@ -379,7 +530,11 @@ func WaitHTTP(name string, url string, pidPath string, logPath string, timeout t
 				return nil
 			}
 		}
-		time.Sleep(time.Second)
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("%s startup timed out (%s): %s; check log: %s", name, timeout, url, logPath)
+		case <-time.After(time.Second):
+		}
 	}
 	return fmt.Errorf("%s startup timed out (%s): %s; check log: %s", name, timeout, url, logPath)
 }
@@ -396,7 +551,11 @@ func newReadinessHTTPClient(timeout time.Duration) http.Client {
 
 // IsTCPListening reports whether localhost accepts TCP connections on a port.
 func IsTCPListening(port int) bool {
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	dialer := net.Dialer{Timeout: time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
 	if err != nil {
 		return false
 	}

@@ -7,7 +7,7 @@ package user
 import (
 	"context"
 
-	"lina-core/api/user/v1"
+	v1 "lina-core/api/user/v1"
 )
 
 type IUserV1 interface {

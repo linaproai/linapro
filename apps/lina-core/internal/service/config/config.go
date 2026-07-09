@@ -5,42 +5,20 @@ package config
 import (
 	"context"
 	"time"
+
+	"github.com/gogf/gf/v2/container/gvar"
 )
 
-// Service defines the complete config service contract by composing narrower
-// categorized interfaces for callers that need a smaller dependency surface.
+// Service defines the complete host configuration contract.
 type Service interface {
-	WorkspaceConfigReader
-	ClusterConfigReader
-	AuthConfigReader
-	LoginConfigReader
-	FrontendConfigReader
-	I18nConfigReader
-	CronConfigReader
-	HostOperationsConfigReader
-	DeliveryMetadataConfigReader
-	PluginConfigReader
-	UploadConfigReader
-	RuntimeParamSyncer
-}
+	// GetRaw returns one raw host configuration value or root snapshot for key.
+	GetRaw(ctx context.Context, key string) (*gvar.Var, error)
 
-// WorkspaceConfigReader reads the built-in admin workspace routing settings.
-type WorkspaceConfigReader interface {
 	// GetWorkspace reads the admin workspace routing config from configuration file.
 	GetWorkspace(ctx context.Context) *WorkspaceConfig
 	// GetWorkspaceBasePath returns the normalized admin workspace entry path.
 	GetWorkspaceBasePath(ctx context.Context) string
-	// GetWorkspaceRouterMode returns the normalized vue-router history backend
-	// (hash or history) used by the admin workspace.
-	GetWorkspaceRouterMode(ctx context.Context) string
-	// BuildWorkspaceRouteURL composes the absolute URL path that the browser
-	// must visit to land on one workspace route, honoring base path and
-	// router mode so backend-issued redirects stay in sync with the SPA.
-	BuildWorkspaceRouteURL(ctx context.Context, routePath string, rawQuery string) string
-}
 
-// ClusterConfigReader reads cluster topology settings.
-type ClusterConfigReader interface {
 	// GetCluster reads cluster config from configuration file.
 	GetCluster(ctx context.Context) *ClusterConfig
 	// GetClusterRedis reads the Redis coordination config from configuration file.
@@ -50,10 +28,7 @@ type ClusterConfigReader interface {
 	// OverrideClusterEnabledForDialect locks cluster.enabled in memory when the
 	// active database dialect cannot support multi-node coordination.
 	OverrideClusterEnabledForDialect(value bool)
-}
 
-// AuthConfigReader reads authentication and session settings.
-type AuthConfigReader interface {
 	// GetJwt reads JWT config from configuration file.
 	GetJwt(ctx context.Context) (*JwtConfig, error)
 	// GetJwtSecret returns the static JWT signing secret loaded from config.yaml.
@@ -64,66 +39,44 @@ type AuthConfigReader interface {
 	GetSession(ctx context.Context) (*SessionConfig, error)
 	// GetSessionTimeout returns the runtime-effective online-session timeout.
 	GetSessionTimeout(ctx context.Context) (time.Duration, error)
-}
 
-// LoginConfigReader reads login policy settings.
-type LoginConfigReader interface {
 	// GetLogin reads runtime login parameters from sys_config.
 	GetLogin(ctx context.Context) (*LoginConfig, error)
 	// IsLoginIPBlacklisted reports whether the input IP is denied by the
 	// runtime-effective blacklist without constructing a full config object.
 	IsLoginIPBlacklisted(ctx context.Context, ip string) (bool, error)
-}
 
-// FrontendConfigReader reads public frontend shell settings.
-type FrontendConfigReader interface {
+	// GetLogRetentionDays returns the runtime-effective maximum log retention period in days.
+	GetLogRetentionDays(ctx context.Context) (int64, error)
+
 	// GetPublicFrontend returns the public-safe frontend branding and display
 	// settings that can be consumed by login pages and the admin workspace.
 	GetPublicFrontend(ctx context.Context) (*PublicFrontendConfig, error)
-}
 
-// I18nConfigReader reads host internationalization settings.
-type I18nConfigReader interface {
 	// GetI18n reads runtime internationalization settings from configuration file.
 	GetI18n(ctx context.Context) *I18nConfig
-}
 
-// CronConfigReader reads scheduled-job governance settings.
-type CronConfigReader interface {
 	// GetCron reads runtime cron-management parameters from protected sys_config entries.
 	GetCron(ctx context.Context) (*CronConfig, error)
 	// IsCronShellEnabled reports whether shell-type cron jobs are currently allowed.
 	IsCronShellEnabled(ctx context.Context) (bool, error)
 	// GetCronLogRetention returns the runtime-effective default cron log retention policy.
 	GetCronLogRetention(ctx context.Context) (*CronLogRetentionConfig, error)
-}
 
-// HostOperationsConfigReader reads process-level host operation settings.
-type HostOperationsConfigReader interface {
 	// GetServerExtensions reads LinaPro-specific server extension settings from configuration file.
 	GetServerExtensions(ctx context.Context) *ServerExtensionsConfig
 	// GetLogger reads logger config from configuration file.
 	GetLogger(ctx context.Context) *LoggerConfig
-	// GetHealth reads health probe config from configuration file.
-	GetHealth(ctx context.Context) *HealthConfig
-	// GetShutdown reads graceful-shutdown config from configuration file.
-	GetShutdown(ctx context.Context) *ShutdownConfig
 	// GetScheduler reads scheduler config from configuration file.
 	GetScheduler(ctx context.Context) *SchedulerConfig
 	// GetSchedulerDefaultTimezone returns the configured default timezone for managed scheduled jobs.
 	GetSchedulerDefaultTimezone(ctx context.Context) string
-}
 
-// DeliveryMetadataConfigReader reads embedded delivery metadata and OpenAPI settings.
-type DeliveryMetadataConfigReader interface {
 	// GetMetadata reads embedded delivery metadata from the packaged resource file.
 	GetMetadata(ctx context.Context) *MetadataConfig
 	// GetOpenApi reads OpenAPI config from embedded metadata.
 	GetOpenApi(ctx context.Context) *OpenApiConfig
-}
 
-// PluginConfigReader reads plugin runtime and bootstrap settings.
-type PluginConfigReader interface {
 	// GetPlugin reads plugin config from configuration file.
 	GetPlugin(ctx context.Context) *PluginConfig
 	// GetPluginAutoEnable returns the plugin IDs that the host should
@@ -138,26 +91,20 @@ type PluginConfigReader interface {
 	GetPluginAutoEnableEntries(ctx context.Context) []PluginAutoEnableEntry
 	// GetPluginDynamicStoragePath returns the runtime-resolved dynamic wasm storage directory.
 	GetPluginDynamicStoragePath(ctx context.Context) string
-}
 
-// UploadConfigReader reads upload storage and size-limit settings.
-type UploadConfigReader interface {
 	// GetUpload reads upload config from configuration file.
 	GetUpload(ctx context.Context) (*UploadConfig, error)
 	// GetUploadPath returns the runtime-resolved static upload directory loaded from config.yaml.
 	GetUploadPath(ctx context.Context) string
 	// GetUploadMaxSize returns the runtime-effective upload size ceiling in MB.
 	GetUploadMaxSize(ctx context.Context) (int64, error)
-}
 
-// RuntimeParamSyncer synchronizes protected runtime-parameter snapshots.
-type RuntimeParamSyncer interface {
-	// MarkRuntimeParamsChanged bumps the shared runtime-parameter revision and clears
-	// the current process snapshot after one protected runtime parameter mutation.
+	// MarkRuntimeParamsChanged bumps the shared sys_config revision and clears
+	// the current process snapshot after one system-configuration mutation.
 	MarkRuntimeParamsChanged(ctx context.Context) error
-	// NotifyRuntimeParamsChanged best-effort refreshes the shared runtime-parameter revision.
+	// NotifyRuntimeParamsChanged best-effort refreshes the shared sys_config revision.
 	NotifyRuntimeParamsChanged(ctx context.Context)
-	// SyncRuntimeParamSnapshot synchronizes the process-local runtime-parameter
+	// SyncRuntimeParamSnapshot synchronizes the process-local sys_config
 	// snapshot cache with the shared revision visible to the current node.
 	SyncRuntimeParamSnapshot(ctx context.Context) error
 }

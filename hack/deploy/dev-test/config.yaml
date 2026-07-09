@@ -6,6 +6,7 @@
 server:
   address: ":9120"
   dumpRouterMap: false
+  gracefulShutdownTimeout: 30
   extensions:
     apiDocPath: "/api.json"
 
@@ -38,14 +39,6 @@ session:
 # Service monitoring configuration.
 monitor:
   interval: 1m
-
-# Health probe configuration.
-health:
-  timeout: 5s
-
-# Graceful shutdown configuration.
-shutdown:
-  timeout: 30s
 
 # Scheduler configuration.
 scheduler:

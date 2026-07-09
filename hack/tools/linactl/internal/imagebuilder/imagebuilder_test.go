@@ -154,9 +154,11 @@ func TestBuildxDockerArgs(t *testing.T) {
 // TestDockerBuildArgs verifies single-platform local builds pass the target
 // platform to Dockerfile ARGs.
 func TestDockerBuildArgs(t *testing.T) {
-	image := defaultImageConfig()
-	target := targetPlatform{OS: "linux", Arch: "arm64"}
-	args := dockerBuildArgs("/repo", image, target, "linapro:test")
+	var (
+		image  = defaultImageConfig()
+		target = targetPlatform{OS: "linux", Arch: "arm64"}
+		args   = dockerBuildArgs("/repo", image, target, "linapro:test")
+	)
 
 	want := []string{
 		"build",

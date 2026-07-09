@@ -88,7 +88,7 @@ test.describe('TC-16 定时任务导航与帮助文案', () => {
 
   test.beforeAll(async () => {
     api = await createAdminApiContext();
-    originalShellSwitch = await getConfigByKey(api, 'cron.shell.enabled');
+    originalShellSwitch = await getConfigByKey(api, 'sys.cron.shell.enabled');
     originalThemeMode = await getConfigByKey(api, 'sys.ui.theme.mode');
     await setCronShellEnabled(api, true);
     await updateConfigValue(api, originalThemeMode.id, 'dark');

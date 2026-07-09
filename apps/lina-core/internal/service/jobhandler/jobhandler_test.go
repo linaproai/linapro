@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"lina-core/internal/service/jobmeta"
+	jobhandlerv1 "lina-core/api/jobhandler/v1"
 	pluginsvc "lina-core/internal/service/plugin"
 )
 
@@ -25,7 +25,7 @@ func TestRegisterRejectsDuplicateRefs(t *testing.T) {
 		Ref:          "host:test",
 		DisplayName:  "Test Handler",
 		ParamsSchema: `{"type":"object","properties":{}}`,
-		Source:       jobmeta.HandlerSourceHost,
+		Source:       jobhandlerv1.SourceHost,
 		Invoke: func(ctx context.Context, params json.RawMessage) (result any, err error) {
 			return nil, nil
 		},
@@ -56,7 +56,7 @@ func TestLookupAndUnregisterNotify(t *testing.T) {
 		Ref:          "host:test-lookup",
 		DisplayName:  "Lookup Handler",
 		ParamsSchema: `{"type":"object","properties":{}}`,
-		Source:       jobmeta.HandlerSourceHost,
+		Source:       jobhandlerv1.SourceHost,
 		Invoke: func(ctx context.Context, params json.RawMessage) (result any, err error) {
 			return map[string]any{"ok": true}, nil
 		},
@@ -127,21 +127,32 @@ func TestRegisterHostHandlersProvidesWaitHandler(t *testing.T) {
 	}
 }
 
-// testPluginStatusChecker exposes enabled-state snapshots for plugin lifecycle tests.
-type testPluginStatusChecker struct {
+// testPluginLifecycleService exposes the plugin service methods used by
+// lifecycle attachment tests.
+type testPluginLifecycleService struct {
+	pluginsvc.Service
+	observer    pluginsvc.LifecycleObserver
 	enabled     map[string]bool
-	managedJobs map[string][]pluginsvc.ManagedCronJob
+	managedJobs map[string][]pluginsvc.ManagedJob
+}
+
+// RegisterLifecycleObserver stores the observer and returns an unsubscribe function.
+func (s *testPluginLifecycleService) RegisterLifecycleObserver(observer pluginsvc.LifecycleObserver) func() {
+	s.observer = observer
+	return func() {
+		s.observer = nil
+	}
 }
 
 // IsEnabled reports whether one plugin is flagged enabled in the test snapshot.
-func (c testPluginStatusChecker) IsEnabled(ctx context.Context, pluginID string) bool {
-	return c.enabled[pluginID]
+func (s *testPluginLifecycleService) IsEnabled(ctx context.Context, pluginID string) bool {
+	return s.enabled[pluginID]
 }
 
 // ListEnabledPluginIDs returns the enabled plugin IDs for startup lifecycle tests.
-func (c testPluginStatusChecker) ListEnabledPluginIDs(ctx context.Context) ([]string, error) {
-	items := make([]string, 0, len(c.enabled))
-	for pluginID, enabled := range c.enabled {
+func (s *testPluginLifecycleService) ListEnabledPluginIDs(ctx context.Context) ([]string, error) {
+	items := make([]string, 0, len(s.enabled))
+	for pluginID, enabled := range s.enabled {
 		if !enabled {
 			continue
 		}
@@ -150,51 +161,55 @@ func (c testPluginStatusChecker) ListEnabledPluginIDs(ctx context.Context) ([]st
 	return items, nil
 }
 
-// ListExecutableCronJobsByPlugin returns no synthetic cron jobs for registry tests
-// unless one test overrides the fixture explicitly.
-func (c testPluginStatusChecker) ListExecutableCronJobsByPlugin(
+// ListManagedJobs returns synthetic scheduled jobs for registry tests when
+// the caller requests executable jobs for a plugin.
+func (s *testPluginLifecycleService) ListManagedJobs(
 	ctx context.Context,
-	pluginID string,
-) ([]pluginsvc.ManagedCronJob, error) {
-	return c.managedJobs[pluginID], nil
+	query pluginsvc.ManagedJobQuery,
+) ([]pluginsvc.ManagedJob, error) {
+	if !query.ExecutableOnly {
+		return nil, nil
+	}
+	return s.managedJobs[query.PluginID], nil
 }
 
 // TestAttachPluginLifecycleSyncsEnabledPluginCronHandlers verifies startup
-// sync registers projected plugin cron handlers for already-enabled plugins.
+// sync registers projected plugin job handlers for already-enabled plugins.
 func TestAttachPluginLifecycleSyncsEnabledPluginCronHandlers(t *testing.T) {
 	const pluginID = "jobhandler-lifecycle-enabled-sync"
 
 	registry := New()
-	unsubscribe, err := AttachPluginLifecycle(
-		context.Background(),
-		registry,
-		testPluginStatusChecker{
-			enabled: map[string]bool{pluginID: true},
-			managedJobs: map[string][]pluginsvc.ManagedCronJob{
-				pluginID: {
-					{
-						PluginID:    pluginID,
-						Name:        "echo",
-						DisplayName: "Echo",
-						Description: "Projected builtin cron handler for lifecycle sync tests.",
-						Handler: func(ctx context.Context) error {
-							return nil
-						},
+	pluginSvc := &testPluginLifecycleService{
+		enabled: map[string]bool{pluginID: true},
+		managedJobs: map[string][]pluginsvc.ManagedJob{
+			pluginID: {
+				{
+					PluginID:    pluginID,
+					Name:        "echo",
+					DisplayName: "Echo",
+					Description: "Projected builtin job handler for lifecycle sync tests.",
+					Handler: func(ctx context.Context) error {
+						return nil
 					},
 				},
 			},
 		},
+	}
+	unsubscribe, err := AttachPluginLifecycle(
+		context.Background(),
+		registry,
+		pluginSvc,
 	)
 	if err != nil {
 		t.Fatalf("expected plugin lifecycle attachment to succeed, got error: %v", err)
 	}
 	defer unsubscribe()
 
-	definition, ok := registry.Lookup("plugin:" + pluginID + "/cron:echo")
+	definition, ok := registry.Lookup("plugin:" + pluginID + "/jobs:echo")
 	if !ok {
-		t.Fatal("expected enabled plugin cron handler to be registered during startup sync")
+		t.Fatal("expected enabled plugin job handler to be registered during startup sync")
 	}
-	if definition.Source != jobmeta.HandlerSourcePlugin {
+	if definition.Source != jobhandlerv1.SourcePlugin {
 		t.Fatalf("expected plugin handler source, got %s", definition.Source)
 	}
 	if definition.PluginID != pluginID {
@@ -203,21 +218,21 @@ func TestAttachPluginLifecycleSyncsEnabledPluginCronHandlers(t *testing.T) {
 }
 
 // TestPluginLifecycleObserverRegistersAndUnregistersPluginCronHandlers
-// verifies plugin lifecycle callbacks keep projected cron handlers in sync.
+// verifies plugin lifecycle callbacks keep projected job handlers in sync.
 func TestPluginLifecycleObserverRegistersAndUnregistersPluginCronHandlers(t *testing.T) {
 	const pluginID = "jobhandler-lifecycle-transition"
 
 	observer := &pluginLifecycleObserver{
 		registry: New(),
-		bridge: testPluginStatusChecker{
+		pluginSvc: &testPluginLifecycleService{
 			enabled: map[string]bool{pluginID: true},
-			managedJobs: map[string][]pluginsvc.ManagedCronJob{
+			managedJobs: map[string][]pluginsvc.ManagedJob{
 				pluginID: {
 					{
 						PluginID:    pluginID,
 						Name:        "echo",
 						DisplayName: "Echo",
-						Description: "Projected builtin cron handler for lifecycle transition tests.",
+						Description: "Projected builtin job handler for lifecycle transition tests.",
 						Handler: func(ctx context.Context) error {
 							return nil
 						},
@@ -229,29 +244,29 @@ func TestPluginLifecycleObserverRegistersAndUnregistersPluginCronHandlers(t *tes
 	if err := observer.OnPluginEnabled(context.Background(), pluginID); err != nil {
 		t.Fatalf("expected plugin enable callback to succeed, got error: %v", err)
 	}
-	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/cron:echo"); !ok {
-		t.Fatal("expected plugin cron handler to be registered after enable callback")
+	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/jobs:echo"); !ok {
+		t.Fatal("expected plugin job handler to be registered after enable callback")
 	}
 
 	if err := observer.OnPluginDisabled(context.Background(), pluginID); err != nil {
 		t.Fatalf("expected plugin disable callback to succeed, got error: %v", err)
 	}
-	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/cron:echo"); ok {
-		t.Fatal("expected plugin cron handler to be removed after disable callback")
+	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/jobs:echo"); ok {
+		t.Fatal("expected plugin job handler to be removed after disable callback")
 	}
 
 	if err := observer.OnPluginEnabled(context.Background(), pluginID); err != nil {
 		t.Fatalf("expected plugin re-enable callback to succeed, got error: %v", err)
 	}
-	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/cron:echo"); !ok {
-		t.Fatal("expected plugin cron handler to be re-registered after re-enable callback")
+	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/jobs:echo"); !ok {
+		t.Fatal("expected plugin job handler to be re-registered after re-enable callback")
 	}
 
 	if err := observer.OnPluginUninstalled(context.Background(), pluginID); err != nil {
 		t.Fatalf("expected plugin uninstall callback to succeed, got error: %v", err)
 	}
-	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/cron:echo"); ok {
-		t.Fatal("expected plugin cron handler to be removed after uninstall callback")
+	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/jobs:echo"); ok {
+		t.Fatal("expected plugin job handler to be removed after uninstall callback")
 	}
 }
 
@@ -261,36 +276,37 @@ func TestAttachPluginLifecycleSyncsEnabledDynamicPluginCronHandlers(t *testing.T
 	const pluginID = "jobhandler-dynamic-enabled-sync"
 
 	registry := New()
-	unsubscribe, err := AttachPluginLifecycle(
-		context.Background(),
-		registry,
-		testPluginStatusChecker{
-			enabled: map[string]bool{pluginID: true},
-			managedJobs: map[string][]pluginsvc.ManagedCronJob{
-				pluginID: {
-					{
-						PluginID:    pluginID,
-						Name:        "heartbeat",
-						DisplayName: "Heartbeat",
-						Description: "Dynamic cron heartbeat handler.",
-						Handler: func(ctx context.Context) error {
-							return nil
-						},
+	pluginSvc := &testPluginLifecycleService{
+		enabled: map[string]bool{pluginID: true},
+		managedJobs: map[string][]pluginsvc.ManagedJob{
+			pluginID: {
+				{
+					PluginID:    pluginID,
+					Name:        "heartbeat",
+					DisplayName: "Heartbeat",
+					Description: "Dynamic job heartbeat handler.",
+					Handler: func(ctx context.Context) error {
+						return nil
 					},
 				},
 			},
 		},
+	}
+	unsubscribe, err := AttachPluginLifecycle(
+		context.Background(),
+		registry,
+		pluginSvc,
 	)
 	if err != nil {
 		t.Fatalf("expected plugin lifecycle attachment to succeed, got error: %v", err)
 	}
 	defer unsubscribe()
 
-	definition, ok := registry.Lookup("plugin:" + pluginID + "/cron:heartbeat")
+	definition, ok := registry.Lookup("plugin:" + pluginID + "/jobs:heartbeat")
 	if !ok {
-		t.Fatal("expected enabled dynamic-plugin cron handler to be registered during startup sync")
+		t.Fatal("expected enabled dynamic-plugin job handler to be registered during startup sync")
 	}
-	if definition.Source != jobmeta.HandlerSourcePlugin {
+	if definition.Source != jobhandlerv1.SourcePlugin {
 		t.Fatalf("expected plugin handler source, got %s", definition.Source)
 	}
 	if definition.PluginID != pluginID {

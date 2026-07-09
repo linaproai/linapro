@@ -1,4 +1,4 @@
-// This file keeps gcron registration and concurrency bookkeeping helpers for
+// This file keeps gjob registration and concurrency bookkeeping helpers for
 // the persistent scheduled-job scheduler.
 
 package scheduler
@@ -6,6 +6,8 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	jobv1 "lina-core/api/job/v1"
+	joblogv1 "lina-core/api/joblog/v1"
 	"strings"
 
 	"github.com/gogf/gf/v2/os/gcron"
@@ -46,7 +48,7 @@ func (s *serviceImpl) Refresh(ctx context.Context, jobID int64) error {
 	if err != nil {
 		return err
 	}
-	if job == nil || jobmeta.NormalizeJobStatus(job.Status) != jobmeta.JobStatusEnabled {
+	if job == nil || jobmeta.NormalizeJobStatus(job.Status) != jobv1.StatusEnabled {
 		return nil
 	}
 	return s.registerJob(ctx, job)
@@ -63,7 +65,7 @@ func (s *serviceImpl) RegisterJobSnapshot(ctx context.Context, job *entity.SysJo
 	// This removes only the in-memory scheduler entry so changed cron metadata
 	// takes effect and paused built-ins cannot keep running from a stale entry.
 	s.Remove(job.Id)
-	if jobmeta.NormalizeJobStatus(job.Status) != jobmeta.JobStatusEnabled {
+	if jobmeta.NormalizeJobStatus(job.Status) != jobv1.StatusEnabled {
 		return nil
 	}
 	return s.registerJob(ctx, job)
@@ -126,7 +128,7 @@ func (s *serviceImpl) handleLoadRegisterError(
 	if job.IsBuiltin == 1 {
 		return false, nil
 	}
-	if jobmeta.NormalizeTaskType(job.TaskType) != jobmeta.TaskTypeHandler {
+	if jobmeta.NormalizeTaskType(job.TaskType) != jobv1.TaskTypeHandler {
 		return false, nil
 	}
 	if !strings.HasPrefix(strings.TrimSpace(job.HandlerRef), "plugin:") {
@@ -139,10 +141,10 @@ func (s *serviceImpl) handleLoadRegisterError(
 	_, err := dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{
 			Id:     job.Id,
-			Status: string(jobmeta.JobStatusEnabled),
+			Status: string(jobv1.StatusEnabled),
 		}).
 		Data(do.SysJob{
-			Status:     string(jobmeta.JobStatusPausedByPlugin),
+			Status:     string(jobv1.StatusPausedByPlugin),
 			StopReason: string(jobmeta.StopReasonPluginUnavailable),
 		}).
 		Update()
@@ -158,7 +160,7 @@ func (s *serviceImpl) listEnabledJobs(ctx context.Context) ([]*entity.SysJob, er
 	err := dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{
 			IsBuiltin: 0,
-			Status:    string(jobmeta.JobStatusEnabled),
+			Status:    string(jobv1.StatusEnabled),
 		}).
 		Scan(&jobs)
 	return jobs, err
@@ -181,7 +183,7 @@ func (s *serviceImpl) acquireSlot(job *entity.SysJob) (func(), jobmeta.LogStatus
 
 	concurrency := jobmeta.NormalizeJobConcurrency(job.Concurrency)
 	maxConcurrency := job.MaxConcurrency
-	if concurrency == jobmeta.JobConcurrencySingleton || maxConcurrency <= 0 {
+	if concurrency == jobv1.ConcurrencySingleton || maxConcurrency <= 0 {
 		maxConcurrency = 1
 	}
 
@@ -189,10 +191,10 @@ func (s *serviceImpl) acquireSlot(job *entity.SysJob) (func(), jobmeta.LogStatus
 	current := s.runningCounts[job.Id]
 	if current >= maxConcurrency {
 		s.mu.Unlock()
-		if concurrency == jobmeta.JobConcurrencySingleton {
-			return func() {}, jobmeta.LogStatusSkippedSingleton, nil
+		if concurrency == jobv1.ConcurrencySingleton {
+			return func() {}, joblogv1.StatusSkippedSingleton, nil
 		}
-		return func() {}, jobmeta.LogStatusSkippedMaxConcurrency, nil
+		return func() {}, joblogv1.StatusSkippedMaxConcurrency, nil
 	}
 	s.runningCounts[job.Id] = current + 1
 	s.mu.Unlock()
@@ -216,13 +218,11 @@ func (s *serviceImpl) acquireSlot(job *entity.SysJob) (func(), jobmeta.LogStatus
 // storeRunningExecution stores one cancellable running instance.
 func (s *serviceImpl) storeRunningExecution(
 	logID int64,
-	jobID int64,
 	cancel context.CancelFunc,
 	release func(),
 ) {
 	s.mu.Lock()
 	s.runningInstances[logID] = &runningExecution{
-		jobID:   jobID,
 		cancel:  cancel,
 		release: release,
 	}

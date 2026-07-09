@@ -11,7 +11,7 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
-	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/startupstats"
 )
 
@@ -98,7 +98,7 @@ func (s *startupDataSnapshot) pluginMenus(pluginID string) []*entity.SysMenu {
 	if s == nil {
 		return nil
 	}
-	prefix := catalog.MenuKeyPrefix + strings.TrimSpace(pluginID) + ":"
+	prefix := plugintypes.MenuKeyPrefix + strings.TrimSpace(pluginID) + ":"
 	items := make([]*entity.SysMenu, 0)
 	for key, menu := range s.menusByKey {
 		if menu == nil || !strings.HasPrefix(key, prefix) {
@@ -133,23 +133,6 @@ func (s *startupDataSnapshot) menusByKeys(menuKeys []string, unscoped bool) map[
 		result[normalizedKey] = menu
 	}
 	return result
-}
-
-// countMenuChildren counts non-deleted snapshot menus directly nested under parentID.
-func (s *startupDataSnapshot) countMenuChildren(parentID int) int {
-	if s == nil || parentID == 0 {
-		return 0
-	}
-	count := 0
-	for _, menu := range s.menusByKey {
-		if menu == nil || menu.DeletedAt != nil {
-			continue
-		}
-		if menu.ParentId == parentID {
-			count++
-		}
-	}
-	return count
 }
 
 // storeMenu records a menu row in the startup snapshot.

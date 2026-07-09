@@ -1,450 +1,80 @@
-## Context
+# Design
 
-LinaPro 当前架构以"单租户 + 单一管理员"为前提:`sys_user`、`sys_role`、`sys_*` 业务表无租户维度;`bizctx` 仅承载用户身份与 locale;数据权限通过 `datascope`(角色 data_scope)与 `orgcap`(部门树)叠加;插件治理为单层(平台管理员 install + 启用,影响所有人)。
+## 多租户接缝和隔离模型
 
-要支持"公司内部多 BU(初期)+ 未来可演化为 SaaS 硬隔离"的多租户形态,核心约束有四:
+多租户能力通过宿主稳定接缝承载，而不是把具体租户主体硬编码进`lina-core`。宿主保留`tenantcap`接口、no-op 默认实现、租户过滤、当前租户读取和平台 bypass 判断；`multi-tenant`源码插件提供租户表、成员关系、解析器、Provider 和平台租户管理入口。这样未启用多租户时系统仍以`tenant_id=0`的 PLATFORM 语义开箱运行，启用后同一接缝变为租户隔离事实源。
 
-1. **不分期、一次完整落地**(用户明确要求):项目无历史负担,Pool 模型一次到位代价更小。
-2. **尽可能插件化**:租户主体、成员、生命周期等高变更频率部分由 `multi-tenant` 插件持有;宿主仅保留最薄的能力接缝。
-3. **保持单租户开箱可用**:不安装 `multi-tenant` 插件时,系统行为与今天等价(租户敏感数据视为 `tenant_id=0` 的 PLATFORM 租户,平台控制面数据保持全局)。
-4. **复用现有"稳定能力接缝"模式**:`pkg/orgcap` + `internal/service/orgcap` + plugin Provider 的三段式范式已被验证,本设计直接复用其形状。
+隔离模型选择 Pool，即单库单 schema 加`tenant_id`列。租户敏感`sys_*`业务表、租户作用域运行时状态表和插件业务表必须带`tenant_id`，原查询索引升级为`(tenant_id, ...)`联合索引；`sys_locker`、`sys_menu`、`sys_plugin`、插件发布与迁移记录、插件资源引用和通知通道等平台控制面表保持全局。替代方案 schema-per-tenant 和 DB-per-tenant 会把连接路由和资源治理推入宿主，违背插件化目标，因此首版不做。
 
-stakeholders:
-- 框架核心开发者(本仓库维护者)
-- 框架使用方运维(平台管理员)与租户管理员(下游)
-- 插件作者(需理解 `scope_nature` 与 `LifecycleGuard` 契约)
-- AI 协作研发流程(需通过 OpenSpec 治理保证 spec 一致性)
+查询路径以`tenantcap.Apply(ctx, model, "tenant_id")`统一注入租户条件，并先于数据权限过滤执行。写路径由 service 根据`bizctx.TenantId`写入租户字段；平台管理员跨租户写必须使用 impersonation 或专用平台 API，不能在普通业务 API 中隐式跨租户写入。平台管理员只有在`TenantId=0`且具备全部数据权限的管理平台上下文才 bypass 租户过滤；impersonation 某租户时仍按目标租户过滤，只在审计中记录真实操作人。
 
-## Goals / Non-Goals
+## 租户主体、成员和权限模型
 
-**Goals:**
+租户主体由`plugin_multi_tenant_tenant`维护，`code`全局唯一、不可修改、只允许`[a-z0-9-]{2,32}`，显示名可本地化。租户状态为`active`、`suspended`和软删除`deleted`；删除保留 tombstone，暂停只阻断成员登录和业务读写，不清理数据。
 
-- 在不破坏单租户开箱体验的前提下,提供完整的多租户能力(schema、解析、JWT/会话、缓存、文件、审计、插件治理、UI)。
-- 把"是否启用多租户、如何解析租户、租户主体管理、用户-租户绑定、租户配置覆盖、租户生命周期事件"等所有可变政策封装在 `multi-tenant` 插件内。
-- 把"插件治理"升级为"平台管理员 install + 租户管理员 enable"的两层模型,并通过 `scope_nature` + `install_mode` 把插件作用域显式化。
-- 把"卸载/禁用前置校验"从宿主硬编码迁移为插件自检(`LifecycleGuard` 否决型钩子),允许平台管理员紧急 `--force` 但强审计。
-- 在 1:N membership 模型下提供平台管理员 vs 租户管理员的能力组合、跨租户 impersonation 与可观察性。
-- 给字典、配置等"平台默认 + 租户覆盖"语义的资源提供统一的 fallback 读路径辅助方法。
-- 全面接入 i18n(zh-CN / en-US)、数据权限(datascope)、缓存一致性(cluster-aware 失效)、审计(loginlog/operlog 双轨)。
+用户模型选择全局身份 + 1:N membership。`sys_user.tenant_id`只表示主租户或默认登录租户，真正的租户可见性由`plugin_multi_tenant_user_membership`决定。平台管理员是`tenant_id=0`平台上下文用户，不持有 membership；如果需要进入租户视角，必须使用 impersonation。
 
-**Non-Goals:**
+角色模型使用`sys_role.tenant_id`和四级数据范围表达平台/租户边界，不增加平台角色布尔字段，也不使用`platform:*`和`tenant:*`两套权限前缀。平台角色属于`tenant_id=0`上下文，可以配合全部数据权限和统一`system:*`功能权限执行平台治理；租户角色只能属于具体租户，禁止配置全部数据权限。用户角色关系也带`tenant_id`，角色授权树必须按当前上下文过滤可分配菜单和按钮，租户上下文不得分配平台租户管理、平台插件治理或全局菜单治理写权限。
 
-- 不实现 schema-per-tenant 或 DB-per-tenant 隔离模式;首版隔离模式由代码默认值固定为 `pool`,暂不在宿主配置文件中开放。
-- 不实现"按租户启用插件 UI 的批量平台面板"高级形态;租户管理员单租户内启用即可,平台管理员的批量操作留作未来扩展。
-- 不实现"租户级配额/计费"逻辑;本轮不创建配额表或占位执行逻辑,后续迭代单独设计。
-- 不实现"租户级品牌定制"(logo、配色、域名 SSL 等);只在 schema 层为 `tenant_branding` 留扩展位。
-- 不引入分布式事务、跨租户数据迁移、租户合并/分裂等复杂运维操作。
-- 不破坏现有"单租户开箱体验":未安装 multi-tenant 插件时,所有租户敏感表的 `tenant_id` 默认 0,平台控制面表保持全局,所有过滤逻辑 no-op,所有现有 e2e 用例不修改也能通过。
+## 租户解析和认证会话
 
-## Decisions
+租户解析链固定为`override`、JWT、session、header、subdomain、default。正式 JWT 的`TenantId`是普通业务请求的权威租户身份，header 和 subdomain 只作为登录前或`pre_token`阶段 hint，不得覆盖已认证 JWT。`X-Tenant-Override`只允许平台管理员在平台上下文使用，并进入 impersonation 审计语义。`rootDomain`首版固定为空，子域名解析保持禁用；解析链、保留子域和歧义策略都固定在代码中，不创建运行时解析配置表或共享 revision。
 
-### 1. 隔离模型:Pool(单库 + tenant_id 列)
+登录被拆成凭证校验和租户选择两个步骤。多 membership 用户先获得 60 秒、单次使用、仅限`select-tenant`的`pre_token`和候选租户列表，选择租户后才签发正式 JWT；单 membership 用户可自动选择。切换租户必须调用`/auth/switch-tenant`，服务端校验 membership、撤销旧 token、删除旧 session、签发新 token，并返回新菜单和权限。
 
-**选择**:租户敏感 `sys_*` 业务表、租户作用域运行时状态表与插件业务表加 `tenant_id INT NOT NULL DEFAULT 0`,索引升级为 `(tenant_id, ...)` 联合索引。平台控制面表保持全局唯一,不机械加租户字段。`sys_user` 在 1:N 模式下以 membership 作为用户可见性权威边界,`sys_user.tenant_id` 仅表示主租户/默认登录租户。
+平台管理员 impersonation 通过专用平台接口签发 token，token 中记录目标`tenant_id`、`is_impersonation`和`acting_user_id`。该 token 在业务链路中按目标租户过滤，不继承平台全局 bypass；登录日志、操作日志和审计载荷同时记录真实操作人和代操作租户。
 
-**表职责分类**:
-- 租户敏感业务表:用户、角色、字典、配置、文件、会话、通知消息/投递、任务/任务日志、缓存 KV、缓存修订以及插件业务数据表,必须携带 `tenant_id`。
-- 租户作用域运行时状态表:`sys_plugin_state` 必须携带 `tenant_id`,用于表达平台级或租户级插件启用状态与插件状态 KV。
-- 平台控制面/全局配置表:`sys_locker`、`sys_menu`、`sys_plugin`、`sys_plugin_release`、`sys_plugin_migration`、`sys_plugin_resource_ref`、`sys_plugin_node_state`、`sys_notify_channel` 不携带 `tenant_id`;其租户差异通过 `sys_plugin_state`、角色/菜单分配、通知消息/投递或专用业务表表达。
+`clientType`被确认为会话事实源。登录请求必须显式传入`web`、`mobile`、`desktop`或`cli`，后续登录、退出、租户 token 签发、租户切换、刷新和 impersonation 流程都复用该值。JWT、`pre_token`、`bizctx`、`sys_online_session`、Redis session hot state 和认证生命周期 Hook 必须保持一致，避免未来移动端、桌面端或 CLI 客户端在审计和插件 Hook 中被误判为默认 Web。
 
-**理由**:
-- 与"插件主导"目标自洽(其他模式需要宿主级连接路由,无法插件化)。
-- Pool 是 Q1 软隔离的标准答案,且 PG 对 (tenant_id, x) 联合索引性能稳定。
-- 未来要升级为 schema-per-tenant 时,通过中间件层加 `SET search_path` 即可,业务代码不变。
+## 会话热状态和集群安全
 
-**替代方案**:
-- schema-per-tenant:连接路由侵入宿主,放弃插件主导。
-- DB-per-tenant:连接池 + DSN 路由,工程量与运维复杂度过高,首版不做。
+集群模式下，请求热路径的会话有效性存储在 Redis，PostgreSQL `sys_online_session`保留为在线用户列表、数据权限过滤、登录信息展示和清理投影。Redis session key 至少包含租户和 token 维度，payload 包含用户、租户、`clientType`、登录时间、最后活跃时间和必要客户端上下文。
 
-**默认值**:代码常量 `DefaultIsolationMode = "pool"`。宿主 `config.template.yaml` 不暴露 `tenant.isolation.mode`;未来开放 schema-per-tenant 或 DB-per-tenant 时通过受控设置入口调整。
+认证链读取 Redis session hot state、token revoke 状态和权限/配置 freshness 时遵循 fail-closed。Redis 不可读且超过允许窗口时，不得仅凭 JWT 签名放行业务请求。强制下线必须删除 Redis session hot key、写入 revoke 状态并删除或标记 PostgreSQL 投影；只删除投影不视为完成强退。
 
-### 2. 用户-租户基数:1:N membership(默认),保留 1:1 策略扩展
+活跃时间写回 PostgreSQL 必须节流。Redis 维护请求热路径 last active 和 TTL，超过写回窗口后再更新投影，避免每个受保护请求都写数据库。投影清理任务保留，用于删除 Redis 已过期但 PostgreSQL 尚未清理的孤儿会话。
 
-**选择**:全局身份(`sys_user.username` 全局唯一)+ `plugin_multi_tenant_user_membership` 多对多绑定。代码默认值 `DefaultCardinality = "multi"`,即允许一个用户加入多个租户;`single` 作为后续受控管理设置的可选策略保留,当前不通过宿主配置文件开放。
+## 租户配置覆盖和数据隔离
 
-**理由**:
-- 内部 BU 场景下"同一员工服务多个 BU"是常态。
-- 1:N 是 1:1 的真超集;`single` 模式下绑定第二条 membership 时被拒即可。
-- Slack/Notion/GitHub Orgs/Atlassian 都采用此模型;Salesforce 历史 1:1 已是行业反例。
+字典和配置支持“平台默认 + 租户覆盖”。读取先查当前租户，未覆盖时 fallback 到`tenant_id=0`平台默认；写入默认作用于当前租户，平台默认只能由平台 API 或平台 service 显式写入。字典类型通过`allow_tenant_override`控制是否允许租户覆盖，fallback 行必须返回`sourceTenantId`、`isFallback`、`canEdit`、`canOverride`和`overrideMode`等动作元数据，前端不得把平台行伪装成可直接编辑的本租户记录。
 
-**Schema**:
-```
-sys_user
-  + tenant_id INT NOT NULL DEFAULT 0
-    -- 在 multi 模式下为"主租户/默认登录租户"
-    -- 在 single 模式下为权威唯一租户
-    -- 0 = PLATFORM 用户(平台管理员或单租户模式下的所有用户)
+文件存储按租户前缀隔离，本地路径使用`/storage/t/{tenant_id}/...`，对象存储 key 使用`t/{tenant_id}/...`。文件下载和预览接口校验请求租户与文件租户一致；平台管理员的跨租户只读访问必须走显式`/platform/*`接口，impersonation 模式不因真实身份是平台管理员而绕过目标租户过滤。
 
-plugin_multi_tenant_user_membership
-  id, user_id, tenant_id,
-  status SMALLINT,
-  joined_at
-  UNIQUE (user_id, tenant_id)
-```
+缓存 key 必须携带租户维度。租户覆盖变更只失效本租户对应缓存；平台默认变更按 fallback 影响范围级联失效。运行时翻译包缓存不增加租户分桶，因为本轮不落地租户级 i18n override；字典、配置、权限、角色、菜单和插件启用状态等业务缓存承担租户维度。
 
-**替代方案**:
-- 严格 1:1:简单但限制大;首版直接做但允许配置切回。
-- N:M + 租户内 profile(Slack 形态):本次不做,留扩展位 `plugin_multi_tenant_user_profile`。
+审计日志全面双轨化。登录日志和操作日志增加`tenant_id`、`acting_user_id`、`on_behalf_of_tenant_id`和`is_impersonation`；force-uninstall、impersonation 启用、install mode 切换和 LifecycleGuard 调用使用`oper_type='other'`并写入可检索摘要。
 
-### 3. 平台管理员 vs 租户管理员的能力组合
-
-**选择**:`sys_role` 增加 `tenant_id INT`,并将 `data_scope` 扩展为 `1=全部数据`、`2=本租户数据`、`3=本部门数据`、`4=本人数据`;`sys_user_role` 增加 `tenant_id INT`,UNIQUE `(user_id, role_id, tenant_id)`。不再维护平台角色布尔字段。
-
-**语义**:
-- `tenant_id=0` 的角色属于平台上下文,可配置 `data_scope=1` 以获得平台全局数据权限;是否能执行平台操作仍取决于统一的 `system:*` 功能权限。
-- `tenant_id>0` 的角色属于租户上下文,仅在所属租户内可见与可分配;租户角色禁止配置 `data_scope=1`,只能使用 `2`、`3` 或 `4`。
-- 权限点只表达功能动作,统一使用 `system:*`;平台/租户边界由 API 路由平面、当前租户上下文、数据权限、菜单可见性和插件启用状态共同约束。
-- 平台管理员在请求中:`bizctx.TenantId=0` 表示"管理平台",`bizctx.TenantId=T` 表示"代某租户操作"(impersonation)。
-- impersonation 状态下,操作日志双轨记录:`acting_user_id=平台管理员` + `on_behalf_of_tenant_id=T`。
-
-**bypass 规则**:
-- 仅管理平台模式(`bizctx.TenantId=0` 且有效数据权限为 `data_scope=1`)全量 bypass `tenantcap.Apply`。
-- 平台管理员 impersonation 某租户时(`bizctx.TenantId=T`,`bizctx.ActingAsTenant=true`)不全量 bypass,而是按租户 T 的普通租户视图注入过滤;区别仅体现在审计字段 `acting_user_id` / `on_behalf_of_tenant_id`。
-- 平台管理员跨租户读仅允许通过显式 `/platform/*` API;平台管理员跨租户写必须通过 impersonation 或专用平台 API,且必须显式指定目标 `tenant_id` 并记审计。
-
-**默认 admin 用户的迁移**:
-- `admin` 用户 → `tenant_id=0`,绑定"超级管理员"角色(`tenant_id=0`,`data_scope=1`,permissions=`['*']`)。
-- 新建租户后,自动 provision 一个"租户管理员"模板角色(`tenant_id=新租户`,`data_scope=2`,并分配租户管理相关 `system:*` 权限)。
-
-### 4. bizctx 与租户解析中间件
-
-**选择**:`bizctx.Context` 增加 `TenantId int` 字段;新增 `tenancy` 中间件位于 `auth` 之后、业务处理之前。
-
-**解析责任链**(代码固定顺序为 `[override, jwt, session, header, subdomain, default]`):
-
-```
-override     X-Tenant-Override (仅平台管理员)
-jwt          Claims.TenantId
-session      Session 中持久化的当前租户
-header       X-Tenant-Code(仅登录前/无正式 JWT 的请求作为租户 hint)
-subdomain    {code}.{root_domain}(仅登录前/无正式 JWT 的请求作为租户 hint;rootDomain 当前固定为空,暂不支持设置)
-default      用户的主租户(tenant_id=0 或 membership 第一条)
-```
-
-每个解析器实现独立接口 `tenancy.Resolver`,在 plugin 启动时注册到 `tenantcap.Service`。策略来自代码常量,不创建 `plugin_multi_tenant_resolver_config` 表,不通过宿主配置文件或后台运行时配置覆盖;宿主 `config.template.yaml` 不再提供 `tenant.resolution.*`。
-
-**TenantId 优先级固定策略**:
-- 平台管理员 `X-Tenant-Override` 最高优先级,但只允许平台管理员且必须进入 impersonation 审计语义。
-- 已签发正式 JWT 的业务请求以 `Claims.TenantId` 为权威租户身份;普通用户不得通过 `X-Tenant-Code`、子域名或 session 覆盖 JWT 中的租户。
-- session 仅作为服务端持续会话校验与无 JWT 内部链路的兜底,不得覆盖正式 JWT。
-- header/subdomain 只作为登录前或 `pre_token` 阶段的租户 hint,用于缩小候选租户或自动选择;如果与用户 membership 不匹配则拒绝。
-- default 只在没有 override、JWT、session、header/subdomain hint 时生效;在 1:N 且无主租户可判定时按 `on_ambiguous` 返回 `TENANT_REQUIRED`。
-- 切换租户必须调用 `/auth/switch-tenant` 重签 token 并撤销旧 token,禁止通过 header/subdomain 让旧 token 临时切到其他租户。
-
-**未识别请求行为**(`on_ambiguous`):
-- `prompt`(代码固定):返回 `TENANT_REQUIRED` 错误码,前端弹挑选器。
-
-**保留子域名**:代码默认 `[www, api, admin, static, docs]`;命中保留子域时不解析为租户,等同 PLATFORM。`rootDomain` 后续会开放设置,当前固定为空并禁用子域名解析。
-
-**multi-tenant 插件未安装时**:`tenancy` 中间件存在但走"短路":直接写 `bizctx.TenantId=0` 并放行,所有 `tenantcap.Apply` 退化为 no-op。
-
-**理由**:
-- 责任链 + Provider 模式让宿主与插件解耦;插件提供具体 Resolver 实现。
-- 首版固定策略避免引入没有实际管理界面、缓存一致性和分布式广播语义的运行时配置表;后续开放 rootDomain 或策略调整时再单独设计配置来源与一致性机制。
-
-### 5. tenantcap 接缝与 DAO 注入纪律
-
-**新增**:
-- `pkg/tenantcap/`:Provider 接口、注册函数、TenantID 类型、PLATFORM 常量。
-- `internal/service/tenantcap/`:`Service` 接口、`Apply(model, col)`、`Current(ctx)`、`Enabled(ctx)`、`EnsureTenantVisible(ctx, tenantID)`、`PlatformBypass(ctx)`(平台管理员判断)。
-
-**Provider 接口**:
-```go
-type Provider interface {
-    ResolveTenant(ctx context.Context, r *ghttp.Request) (TenantID, error)
-    ValidateUserInTenant(ctx context.Context, userID int, tenantID TenantID) error
-    ListUserTenants(ctx context.Context, userID int) ([]TenantInfo, error)
-    SwitchTenant(ctx context.Context, userID int, target TenantID) error
-}
-```
-
-**DAO 注入纪律**:
-- 凡读取带 `tenant_id` 的租户敏感 `sys_*` 表、租户作用域运行时状态表或插件业务表的 host service,必须经 `tenantcap.Apply(ctx, model, "tenant_id")` 包装;平台控制面表不经 tenantcap 注入,但只能通过平台/宿主治理 service 访问。
-- 与 `datascope.ApplyUserScope` 叠加时,先 tenantcap 后 datascope(租户隔离优先级最高)。
-- `Apply` 在 multi-tenant 未启用时是 no-op,启用后注入 `WHERE tenant_id = ?`。
-- 平台管理员管理平台上下文(`TenantId=0` 且 `PlatformBypass(ctx) = true`)时跳过注入;平台管理员 impersonation 某租户时仍注入目标租户过滤。
-- 写操作:由 service 层在构造 DO 时填 `tenant_id = bizctx.TenantId`;平台管理员显式写时使用专用 service 方法(避免误写到 PLATFORM)。
-
-**理由**:
-- 与现有 `datascope.ApplyUserScope` 调用形态一致,开发者无新认知负担。
-- 把"是否启用 + 是否 bypass"集中在 Service 层,DAO 调用点不需要写条件判断。
-
-### 6. JWT/Session 的租户绑定
-
-**选择**:
-- JWT Claims 增加 `TenantId int`(0 = 平台).
-- 会话存储以全局唯一 `token_id` 作为主键,`tenant_id` 仅作为会话归属、列表过滤、数据权限与请求时 claim/session 一致性校验维度,index `(tenant_id, user_id)` 与 `(tenant_id, login_time)`。
-- 切换租户:调用 `/auth/switch-tenant`,服务端校验 membership → 删除旧 session → 重签 token → 返回新 token。旧 token 被加入 revoke 列表(短期 + cluster 广播)。
-- 登录时若用户仅 1 个 membership,自动选中;否则按解析策略走。
-
-**理由**:
-- token 中带 tenant_id 是行业惯例(Auth0 Organizations、Cognito)。
-- 重签 + 旧 token 立即失效防止"老 token 持平台权限访问租户接口"逃逸。
-
-### 7. 字典/配置的 platform fallback
-
-**读路径**(封装在 `tenantcap.ReadWithPlatformFallback`):
-```sql
-SELECT * FROM sys_dict_data WHERE dict_type = ? AND tenant_id = current_tenant
-UNION ALL
-SELECT * FROM sys_dict_data WHERE dict_type = ? AND tenant_id = 0
-  AND NOT EXISTS (SELECT 1 FROM sys_dict_data WHERE dict_type = ? AND tenant_id = current_tenant);
-```
-
-或应用层两次查询 + 合并,以避免数据库特有语法:
-1. 先查 `tenant_id = current_tenant`,如有结果直接返回。
-2. 否则 fallback 查 `tenant_id = 0`。
-
-**写路径**:
-- 默认写 `bizctx.TenantId`(租户管理员只能写自己租户)。
-- 平台管理员显式调用 `WritePlatformDefault(...)` 才能写 `tenant_id=0`。
-- 字典类型的"是否允许租户覆盖"通过 `sys_dict_type.allow_tenant_override BOOL` 控制;false 时仅平台管理员可改,所有租户共享。
-
-**适用范围**:
-- `sys_dict_type` / `sys_dict_data` / `sys_config`:platform fallback。
-- `sys_role`:平台上下文可治理平台与租户角色;租户上下文仅治理本租户角色,不使用 platform fallback。
-- `sys_menu`:平台全局,不接入 tenancy。
-- `sys_notify_channel`:平台全局通道目录与内置通道配置,消息与投递通过 `sys_notify_message` / `sys_notify_delivery` 的 `tenant_id` 隔离。
-
-**理由**:
-- 真实 SaaS 普遍需要"平台默认 + 租户覆盖",硬选一种会失去灵活性。
-- 把 fallback 模式封装到 helper,DAO 调用点保持简单。
-
-### 8. 插件治理两层化与 scope_nature
-
-**plugin.yaml 新增字段**:
-```yaml
-id: <plugin-id>
-scope_nature: platform_only | tenant_aware  # 必填
-default_install_mode: global | tenant_scoped # 可选,scope_nature=tenant_aware 时生效,默认 tenant_scoped
-```
-
-**sys_plugin 新增列**:
-- `scope_nature VARCHAR(32)`:安装时从 plugin.yaml 拷贝,运行时不可改。
-- `install_mode VARCHAR(32)`:platform_only 强制 `global`;tenant_aware 由平台管理员选,可在严格条件下切换。
-- `auto_enable_for_new_tenants BOOL`:平台插件系统维护的新租户自动启用策略,不从 plugin.yaml 同步;仅当插件已安装、宿主已启用、`scope_nature=tenant_aware` 且 `install_mode=tenant_scoped` 时生效。
-
-`sys_plugin` 本身是插件注册目录与治理控制面,不携带 `tenant_id`;不同租户的启用状态由 `sys_plugin_state` 表达。
-
-**sys_plugin_state 改造**:
-- 增加 `tenant_id INT NOT NULL DEFAULT 0`。
-- 保留 `id` 自增技术主键,使用唯一索引 `(plugin_id, tenant_id, state_key)` 表达业务唯一性;其中插件启用状态固定使用 `state_key='__tenant_enabled__'`,保留插件运行时多 key KV 状态能力。
-- `tenant_id=0`:平台级开关(对 platform_only 与 install_mode=global 适用)。
-- `tenant_id>0`:租户级开关(对 install_mode=tenant_scoped 适用)。
-
-**IsEnabled 解析**(伪码):
-```go
-func IsEnabled(ctx, pluginID) bool {
-    p := lookupPlugin(pluginID)
-    if !p.installed { return false }
-    if p.scope_nature == "platform_only" || p.install_mode == "global" {
-        return state(pluginID, 0).enabled
-    }
-    // tenant_scoped
-    tid := bizctx.TenantId(ctx)
-    if tid == 0 { return false }
-    return state(pluginID, tid).enabled
-}
-```
-
-**install_mode 切换规则**:
-| 切换方向 | 是否允许 | 处理 |
-|----------|----------|------|
-| `global → tenant_scoped` | ✅ | 自动为所有 active 租户初始化 enabled=current global state |
-| `tenant_scoped → global` | ⚠️ | 仅平台管理员可执行;二次确认 + 强制审计;立即对所有租户强制启用 |
-| `scope_nature` 变更 | ❌ | 仅插件升级版本时随 manifest 变更,需迁移脚本 |
-
-**租户管理员可见的插件清单**:仅 `scope_nature=tenant_aware` 且 `install_mode=tenant_scoped` 的已安装插件。
-
-**理由**:
-- 与 Atlassian Forge / Slack Apps 的两层治理对齐。
-- `scope_nature` 写入 plugin.yaml 让插件作者承担"作用域天性"判断的责任,而不是平台管理员。
-- 新租户自动启用属于平台开通策略,由平台管理员在插件系统中维护;插件只能声明自己支持租户治理,不能替部署方决定所有新租户默认获得哪些插件。
-
-### 9. LifecycleGuard 否决型钩子
-
-**契约**(`pkg/pluginhost/lifecycle_guard.go`):
-```go
-type CanUninstaller interface {
-    CanUninstall(ctx context.Context) (ok bool, reason string, err error)
-}
-type CanDisabler interface {
-    CanDisable(ctx context.Context) (ok bool, reason string, err error)
-}
-type CanTenantDisabler interface {
-    CanTenantDisable(ctx context.Context, tenantID int) (ok bool, reason string, err error)
-}
-type CanTenantDeleter interface {
-    CanTenantDelete(ctx context.Context, tenantID int) (ok bool, reason string, err error)
-}
-```
-
-**调用与聚合**:
-- 宿主在执行卸载/禁用/租户删除前,枚举所有已安装插件 → 类型断言每个 `CanXxx` 接口 → 并发调用(超时 5s/钩子)。
-- 任意一个返回 `ok=false` → 整体拒绝;**仍执行所有钩子**收集理由集合(不短路)。
-- `ok=true, err!=nil`:理由 = `"plugin <id> guard check failed: <err>"`,默认拒绝。
-- `panic`:recover + 默认拒绝 + 记日志。
-- `reason` 必须是 i18n key(参考 `framework-i18n-source-text-registry`),前端按 locale 渲染。
-
-**`--force` 通道**:
-- 平台管理员可在 UI 上选"强制卸载",必须文本输入插件 ID 二次确认。
-- 强制操作单独写审计日志,记录被绕过的所有 reason 与触发用户。
-- 配置 `plugin.allow_force_uninstall: true|false`(默认 true,严格合规场景可关)。
-
-**multi-tenant 插件的具体实现**:
-- `CanUninstall`:存在 `plugin_multi_tenant_tenant.status='active'` 行 → 拒绝,reason `"plugin.multi-tenant.uninstall_blocked.tenants_exist"`,params `{count}`。
-- `CanDisable`(install_mode=global 适用):存在 active 租户 → 拒绝,reason `"plugin.multi-tenant.disable_blocked.tenants_exist"`。
-- `CanTenantDelete`(订阅,跨插件协作):若该租户存在未结算资源 → 拒绝(本次未实现具体规则,预留接口)。
-
-**理由**:
-- 把"前置校验"从宿主硬编码迁移为插件自检,符合解耦原则。
-- 聚合多否决一次性展示是 IDE 平台(Eclipse/IntelliJ)惯例,避免运维人员"修一个发现下一个"。
-
-### 10. 缓存一致性(集群感知)
-
-**约束**:
-- 所有租户敏感运行时缓存(`kvcache` / `pluginruntimecache` / 字典缓存 / 配置缓存 / 角色缓存)key 默认携带 `tenant_id` 维度;运行时翻译包缓存不携带租户维度,因为本次不落地租户级 i18n override。
-- `cluster.enabled=true` 时,`cachecoord` 失效消息额外携带 `tenant_id` 字段;按 `(tenant_id, scope, key)` 精细化失效。
-- 平台级缓存(`tenant_id=0`)失效广播作用于所有节点的所有租户视图(因为可能影响 fallback 结果)。
-- 多租户能力本身的缓存(`plugin_multi_tenant_tenant`、membership 列表)采用版本号 + 短期内存缓存 + 集群广播失效。
-
-**集群一致性兜底**:
-- 单机模式(`cluster.enabled=false`):同步刷新 + 进程内缓存,无需广播。
-- 集群模式:依赖现有 `cachecoord` 与 leader-election 机制;租户敏感运行时缓存通过显式 scope 广播失效。
-
-**租户解析策略**:
-- 解析链、保留子域、`rootDomain` 与 ambiguous 行为固定在代码中,不引入解析配置缓存、shared revision 或广播。
-- `plugin_multi_tenant_tenant` 是 header/subdomain 解析的权威数据源;租户 code 不可修改,删除后按软删除结果自然不可解析。
-
-**理由**:
-- 命中"缓存一致性治理要求"硬性条款。
-- 多租户场景下"用户切租户后角色错版本"是高发事故,版本号 + 主动失效是必备防线。
-
-### 11. org-center 插件的协同改造
-
-**Schema 变更**:
-- `plugin_org_center_dept` / `_post` / `_user_dept` / `_user_post` 全部加 `tenant_id INT NOT NULL DEFAULT 0`。
-- 索引升级为 `(tenant_id, ...)` 联合索引。
-- 现有 mock 数据写入 `tenant_id=0`(PLATFORM 默认部门),`make mock` 兼容。
-
-**生命周期边界**:
-- 当前不通过 `tenant.created` / `tenant.deleted` 事件驱动 org-center 初始化或清理。
-- 部门、岗位与用户组织关系以 `tenant_id` 隔离,租户删除前通过 LifecycleGuard 检查持有租户数据的插件。
-- 暂停租户不删数据,但 `orgcap.Provider` 在 suspended 租户上下文返回受限视图。
-
-**bizctx 接入**:
-- 所有 dept 树构建、用户-部门解析、`ApplyUserDeptScope` 内部读 `bizctx.TenantId`,过滤本租户数据。
-- 平台管理员上下文 + impersonation 的某租户 → 显示该租户的部门树。
-
-**plugin.yaml**:
-```yaml
-id: org-center
-scope_nature: tenant_aware
-default_install_mode: global
-```
-
-理由:部门管理是企业基础能力,默认对所有租户开启更符合"开箱即用"。
-
-### 12. 文件存储租户隔离
-
-- 本地存储:文件路径前缀 `/storage/t/{tenant_id}/yyyy/mm/dd/...`,`tenant_id=0` 为平台共享。
-- 对象存储(若启用):object key 前缀 `t/{tenant_id}/...`。
-- 跨租户引用:不允许;若需共享(如平台 logo)显式写 `tenant_id=0`。
-- 文件读取接口:鉴权时校验文件 `tenant_id` 与 `bizctx.TenantId` 匹配;平台管理员管理平台模式只能通过显式 `/platform/*` 只读接口跨租户访问,impersonation 时按目标租户校验。
-
-### 13. 任务调度的租户感知
-
-- `sys_job` / `sys_job_log` 加 `tenant_id`;内置系统任务(session 清理、监控数据归档)`tenant_id=0`,业务任务由租户管理员创建,绑定本租户。
-- 任务执行时,`gcron` 触发的回调会构造一个 `bizctx`,其中 `TenantId=任务.tenant_id`,`UserId=任务.create_by`(或 0 表示系统)。
-- 平台级 handler(如 `cron.session.cleanup`)注册时声明 `scope: platform`;租户级 handler 注册时声明 `scope: tenant`。
-- 租户管理员只能创建/查看 `scope=tenant` 的 handler 任务;平台管理员可创建任意。
-
-### 14. 审计与可观察性
-
-- `monitor-loginlog` 表:加 `tenant_id`(用户登录到的租户)、`acting_user_id`(true 操作人,通常 = user_id;impersonation 时 = 平台管理员)、`on_behalf_of_tenant_id`(impersonation 时 = 目标租户)。
-- `monitor-operlog` 同上,字段语义对齐。
-- 查询接口:租户管理员只能看本租户日志;平台管理员可看全部 + 按 `acting_user_id` 过滤。
-- 强制操作(force-uninstall、impersonation 启用、scope 切换)单独审计:`monitor-operlog.oper_type='other'`,并在 `oper_summary`、route metadata 与载荷中记录具体审计类别和上下文。
-
-### 15. i18n 与运行时翻译缓存
-
-- 否决钩子 reason、平台租户管理入口、用户管理中的租户成员关系展示、平台管理员标签、租户切换提示、登录页租户挑选 UI 全部走 i18n key。
-- 运行时翻译包缓存继续按 `locale`、`sector` 与插件标识维度组织,不新增 `tenant_id` 分桶;本次不创建租户级 i18n override 数据源。
-- 字典与配置等租户覆盖语义由对应业务缓存承担租户维度;租户覆盖仅失效本租户业务缓存,平台默认变更按 fallback 影响范围级联失效。
-- 运行时翻译包失效必须显式限定 `locale`、`sector` 与插件标识,禁止因普通业务租户变更清空所有语言或所有 sector。
-- `manifest/i18n/<locale>/apidoc/**.json` 不变(apidoc 走插件/宿主合并,与租户无关)。
-
-### 16. 启动期装配与一致性校验
-
-- `framework-bootstrap-installer` 启动时:
-  1. 按顺序应用源 SQL 初始化文件;多租户表结构已直接定义在各表所属建表 SQL 中,`016` 仅保留本迭代 seed。
-  2. 检测 `multi-tenant` 插件是否安装且 enabled → 是 → 装配 `tenantcap.Provider` → tenancy 中间件激活 → 否 → 短路模式。
-  3. 校验 `sys_plugin.install_mode` 与 `scope_nature` 一致性(platform_only 必须 install_mode=global,否则启动期 panic 并提示修复)。
-  4. 校验 `sys_role` 不包含平台角色布尔字段,并校验租户角色(`tenant_id>0`)不得配置 `data_scope=1`。
-- 启动期任何一致性检查失败,服务拒绝启动并打印明确报错。
-
-### 17. e2e 测试组织
-
-多租户源码插件自有 E2E 维护在 `apps/lina-plugins/multi-tenant/hack/tests/e2e/`,涵盖:
-
-- `tenant-lifecycle/`:创建、暂停、恢复、删除租户,验证 schema 与缓存一致性。
-- `tenant-isolation/`:租户 A 用户不可见租户 B 数据(用户、角色、菜单、字典、配置、文件、日志)。
-- `tenant-resolution/`:每种解析策略一组用例(header、subdomain mock、JWT、session、default、prompt)。
-- `tenant-switching/`:1:N 用户切换租户,旧 token 失效,菜单/权限刷新。
-- `platform-admin/`:平台管理员 impersonation、bypass 校验、双轨日志。
-- `plugin-governance/`:install_mode 选择、tenant_scoped 启用/禁用、scope_nature 强制。
-- `lifecycle-guard/`:卸载否决聚合、`--force` 流程、reason i18n 渲染。
-- `tenant-config-override/`:字典/配置 platform fallback 与租户覆盖。
-- `org-center-tenancy/`:org-center 插件租户感知、租户事件触发部门初始化。
-
-每个 TC 文件遵循 `TC{NNNN}-` 命名规范。
-
-## Risks / Trade-offs
-
-| 风险 | 缓解 |
-|------|------|
-| **改动面巨大,一次性落地易出回归** | 严格的 e2e 隔离用例 + datascope 已有的查询过滤先例 + tenancy bypass 的统一 helper(避免散点判断);租户敏感表 `tenant_id` 默认 0 + Apply no-op 保证未启用 multi-tenant 时行为完全等价,平台控制面表保持全局 |
-| **DAO 注入纪律遗漏导致跨租户数据泄露** | 通过 `backend-conformance` spec 增加硬条款 + `lina-review` 审查清单中加入"DAO 必须经 tenantcap.Apply"检查;e2e 隔离用例覆盖每个查询接口的反例 |
-| **缓存 key 遗漏 tenant 维度导致脏读** | 集中在 helper 函数中构造 cache key,各模块通过 helper 而非自行拼接;用例验证"租户 A 切租户 B 后看到 A 的旧数据"反例 |
-| **JWT 切换租户导致 race condition** | 旧 token 立即写 revoke 列表 + cluster 广播;客户端切换流程要求"先调 switch-tenant 拿新 token,再用新 token 请求",避免双 token 并发 |
-| **`scope_nature` 误标注导致插件错位** | 安装期校验:platform_only 不允许 install_mode=tenant_scoped;租户管理员看不到 platform_only 插件即使 enabled;插件作者文档明确两值语义 |
-| **LifecycleGuard 钩子超时阻塞 UI** | 5s 钩子超时 + fail-safe(超时 = ok=false);并发执行所有钩子;UI 显示"插件 X 检查中..." |
-| **平台管理员 `--force` 滥用** | 强制审计 + 二次确认输入插件 ID + 配置开关可关;`monitor-operlog.oper_type='other'` 结合摘要、route metadata 与载荷便于运维核对 |
-| **租户解析策略误改导致全站 401** | 首版解析策略固定在代码中,不提供后台运行时修改或 DB 覆盖;业务请求中的正式 JWT 始终优先于普通 hint,避免 header/subdomain 误覆盖已认证租户 |
-| **org-center 改造影响现有部门树用例** | mock 数据写入 PLATFORM(0),单租户场景下 dept 树行为与今天等价;e2e 既有用例保持通过 |
-| **租户暂停/删除时插件数据残留** | 通过 `CanTenantDelete` 钩子要求所有持有租户数据的插件参与确认;当前不提供未完整实现的 tenant.deleted 事件清理,需要跨插件清理时另行设计可靠编排或事件基础设施 |
-| **多租户性能下降(联合索引未命中)** | 所有原索引升级为 `(tenant_id, ...)`;用 PG `EXPLAIN` 验证关键查询;性能审计纳入 `lina-perf-audit` 后续轮次 |
-| **i18n 资源缺失导致否决理由无法本地化** | i18n 翻译完整性校验测试覆盖租户管理 + LifecycleGuard reason key;CI 阻断缺失翻译 |
-| **登录解析"prompt"模式增加额外往返** | 默认行为提供清晰交互(挑选器),且仅在 1:N 用户首次登录时出现;后续走 session 短路 |
-| **平台/租户角色权限模型复杂度上升** | 不引入角色布尔开关和权限前缀分叉,统一用 `tenant_id`、`data_scope` 与 `system:*` 功能权限组合表达能力;UI 严格隔离平台/租户视图 |
-| **未来从 Pool 升 schema-per-tenant 的迁移成本** | 代码默认值已集中表达隔离模式,tenancy 中间件已是统一注入点;后续开放设置入口时改 mode 实现即可,业务代码不动 |
-
-## Migration Plan
-
-项目无历史负担,采用**重置数据库 + 按新 schema 初始化**:
-
-1. **宿主 SQL 源文件直接定义最终 schema**:
-   - 在各租户敏感表所属源建表 SQL 中直接加入 `tenant_id`、租户化索引和约束;平台控制面表保持全局唯一。
-   - 在 `006-menu-role-management.sql` 中直接定义 `sys_role.tenant_id`、四级 `data_scope` 与 `sys_user_role.tenant_id`。
-   - 在 `008-plugin-framework.sql` 与 `009-plugin-host-call.sql` 中直接定义插件治理字段和 `sys_plugin_state` 租户化唯一索引。
-   - `016-multi-tenant-and-plugin-governance.sql` 仅保留本迭代新增的多租户一级目录 seed 与 admin 授权绑定。
-2. **新增插件 SQL** `apps/lina-plugins/multi-tenant/manifest/sql/001-multi-tenant-schema.sql`:
-   - `plugin_multi_tenant_tenant`、`plugin_multi_tenant_user_membership`、`plugin_multi_tenant_config_override`。
-3. **org-center 插件 SQL 变更** `apps/lina-plugins/org-center/manifest/sql/001-org-center-schema.sql` 同迭代修改:
-   - 所有 plugin_org_center_* 表加 `tenant_id`(项目无历史负担,直接改 001 文件)。
-4. **执行 `make init`**:重建数据库;执行 `make mock` 加载演示数据。
-5. **代码部署**:`tenantcap` 与中间件等核心改动随版本一起上线。
-6. **回滚策略**:回退到上一个 git 标签 + 重新 `make init`(项目阶段允许重置数据库)。
-
-## Clarified Decisions
-
-- **租户编码(tenant code)**:只允许 ASCII 小写字母、数字与连字符,格式固定为 `[a-z0-9-]{2,32}`;不允许中文或其他 Unicode 字符。中文、英文展示名称只写入 `name`。
-- **TenantId 优先级**:正式 JWT 是普通业务请求的权威租户身份;header/subdomain 仅是登录前 hint;切换租户必须通过 `/auth/switch-tenant` 重签。
-- **平台 bypass 与 impersonation**:只有 `TenantId=0` 管理平台模式全量 bypass;impersonation `TenantId=T` 按 T 过滤,仅审计标识平台管理员代操作。
-- **暂停租户边界**:租户成员不可读写;平台管理员可通过 `/platform/*` 执行只读排障与恢复操作。业务写入必须通过 impersonation 或专用平台 API。
-- **install_mode 切回 global**:平台管理员确认后强制所有租户启用该插件,并强审计。
-- **用户列表隔离边界**:1:N 模式下 membership 是租户可见性的权威边界;`sys_user.tenant_id` 仅表示主租户/默认登录租户,不能作为用户列表唯一过滤条件。
-- **平台管理员的 impersonation token audience**:本次不拆分单独 audience,仍使用正式 token 结构,通过 `is_impersonation`、`acting_user_id` 与审计字段区分。
-- **租户级 i18n 自定义文案**:本次不落地;留 schema 扩展位 `plugin_multi_tenant_i18n_override` 不创建。
-- **平台管理员全平台聚合视图**:本次提供"租户总览 + 用户聚合 + 操作日志全量"基础页面,深度看板留扩展。
-- **配额(quota)强制时机**:本次不建表、不写入 mock 数据、不实现 hook;租户级配额/计费由后续迭代重新建模。
+## 插件租户治理
+
+插件治理从“平台安装即全局启用”演进为“平台管理员安装，租户管理员启用”的两层模型。`plugin.yaml`必须声明`scope_nature`：`platform_only`只能以`global`方式运行，租户管理员不可见；`tenant_aware`可由平台管理员选择`global`或`tenant_scoped`安装模式。`scope_nature`安装后不可运行时修改，只能随插件升级和迁移脚本变更。
+
+`install_mode=global`时，插件启用状态由`sys_plugin_state(tenant_id=0, state_key='__tenant_enabled__')`表示，对所有租户生效；`tenant_scoped`时，每个租户持有独立启用状态，不存在状态行视为未启用。平台管理员维护`auto_enable_for_new_tenants`，该策略不来自`plugin.yaml`，只在插件支持多租户、已安装、已启用且为`tenant_scoped`时用于新租户开通。
+
+租户管理员只能通过租户插件接口启用或禁用当前租户的`tenant_scoped`插件。插件路由可在启动期全局挂载，但请求时必须根据`(tenant_id, plugin_id)`启用状态过滤；未启用返回受控 404，不进入插件 handler。菜单、权限和运行时缓存按租户启用状态投影，启用/禁用后按插件和租户精细失效。
+
+LifecycleGuard 让插件在卸载、禁用、租户禁用、租户删除和安装模式切换前执行自检。钩子并发调用、单钩子超时 5 秒、总超时 10 秒；任何否决都会阻断动作，但系统仍收集所有 reason。reason 必须是 i18n key，前端按当前语言渲染。平台管理员可按配置使用 force 通道，必须二次输入插件 ID，审计记录被绕过的 reason 和触发用户。
+
+## 生命周期、启动和协同插件
+
+租户生命周期不通过不完整的 outbox 或未实现事件总线表达。创建租户后，`multi-tenant`插件直接调用插件治理服务执行新租户默认启用策略；删除租户前先调用所有插件的`CanTenantDelete`，全部通过后才软删除租户主体。暂停和恢复只改变租户状态，不触发数据清理或异步事件分发。
+
+启动期装配需要保证 Provider 和治理状态一致。启用`multi-tenant`插件时，插件必须注册`tenantcap.Provider`；未启用时装配 no-op service。启动一致性校验覆盖`scope_nature`与`install_mode`组合、租户角色数据范围、平台用户 membership 和 Provider 注册状态，失败时拒绝启动并输出明确诊断。
+
+`org-center`协同改造为租户感知插件，部门、岗位和用户组织关系表带`tenant_id`并通过`orgcap.Provider`按当前租户过滤。当前版本不承诺通过`tenant.created`或`tenant.deleted`事件自动初始化或清理组织数据；需要跨插件清理时必须先设计可靠生命周期编排。
+
+历史验证覆盖多租户基础、跨租户隔离矩阵、解析策略、租户切换、平台 impersonation、插件治理两层化、LifecycleGuard、集群缓存失效、token revoke 广播、联合索引`EXPLAIN`和单租户回归。`i18n`完整性、双语文档镜像、OpenSpec 严格校验和`lina-review`审查作为归档前治理证据保留。
+
+## Cross-Domain Impacts
+
+- `plugin-runtime-loading`、`plugin-manifest-lifecycle`、`plugin-cache-service`、`plugin-host-service-extension`、`plugin-storage-service`、`plugin-startup-bootstrap`和`plugin-permission-governance`受多租户启用状态、租户缓存 key、host service 租户透传和平台/租户插件治理影响；当前插件框架契约由`openspec/specs/<capability>/spec.md`承载，历史 owner 为`archive/plugin-framework`。
+- `distributed-cache-coordination`为租户缓存失效、Redis revision/event、fail-closed 和 conservative-hide 提供基础；当前契约由`openspec/specs/distributed-cache-coordination/spec.md`承载，历史 owner 为`archive/distributed-infra`。`session-hot-state`在本分组保留认证会话历史 owner，分布式归档中的同名副本后续可裁剪。
+- `config-management`、`dict-management`和`dictionary-management`只保留租户 fallback、动作元数据和租户缓存失效影响；当前契约由系统配置、字典和主规范承载，长期 owner 分别为`archive/system-config`或`archive/org-structure`。
+- `user-management`、`user-role-association`和`role-management`受 membership、租户角色、数据范围和可分配权限集合影响；当前通用用户角色契约由`archive/user-management`及主规范承载，本分组只保留多租户身份边界。
+- `dept-management`和`post-management`由组织源码插件交付，本分组只保留 org-center 租户感知、部门岗位过滤和未实现租户事件清理的决策；当前契约由`archive/org-structure`和主规范承载。
+- `login-log`、`oper-log`和`online-user`受租户审计字段、impersonation 双轨、`clientType`投影和 Redis 会话热状态影响；当前管理能力契约由系统监控相关归档和主规范承载，认证会话事实源仍由本分组设计说明。
+- `cron-job-management`受任务和任务分组租户隔离、系统任务平台级和执行时构造租户`bizctx`影响；当前契约由调度相关主规范和`archive/scheduled-jobs`承载。
+- `notice-management`和`user-message`受消息、公告、投递和未读数的当前租户/当前用户边界影响；当前契约由`archive/notification`及主规范承载。
+- `framework-i18n-runtime-performance`、`management-workbench-i18n`、`login-page-presentation`和`dashboard-workbench`只保留租户术语、登录挑选器、工作台租户切换和运行时翻译缓存边界；长期 owner 为`archive/i18n`和工作台主规范。
+- `database-bootstrap-commands`、`project-setup`和`framework-bootstrap-installer`受`make db.init`/`make db.mock`写入 PLATFORM、开发入口、多租户启动校验和 PostgreSQL-only 初始化影响；当前契约由`archive/database-engine`、`archive/foundation`或开发工具主规范承载。
+- `e2e-suite-organization`只保留多租户测试矩阵和插件自有测试目录归属影响；当前契约由`archive/e2e-testing`和测试主规范承载。
+- `backend-conformance`、`core-host-boundary-governance`、`module-decoupling`和`spec-governance`提供 DAO 注入纪律、宿主接缝、可选插件降级和 OpenSpec 规则加载要求；当前契约由主规范和对应治理分组承载，本分组通过设计记录多租户相关约束。

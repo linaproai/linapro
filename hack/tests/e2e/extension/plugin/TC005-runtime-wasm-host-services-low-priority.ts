@@ -132,6 +132,7 @@ async function createAdminApiContext(): Promise<APIRequestContext> {
     data: {
       username: config.adminUser,
       password: config.adminPass,
+      clientType: "web",
     },
   });
   const loginPayload = await expectApiSuccess<{ accessToken?: string }>(
@@ -156,6 +157,7 @@ async function apiLogin(username: string, password: string): Promise<string> {
       data: {
         username,
         password,
+        clientType: "web",
       },
     });
     const loginPayload = await expectApiSuccess<{ accessToken?: string }>(
@@ -409,12 +411,12 @@ function buildPluginRuntimeMain(moduleName: string) {
   return `package main
 
 import (
-	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	dynamicbackend "${moduleName}/backend"
 )
 
-var guestRuntime = bridgeguest.NewGuestRuntime(dynamicbackend.HandleRequest)
+var guestRuntime = bridgeplugin.NewGuestRuntime(dynamicbackend.HandleRequest)
 
 //go:wasmexport lina_dynamic_route_alloc
 func linaDynamicRouteAlloc(size uint32) uint32 {
@@ -456,12 +458,12 @@ function buildBackendPluginFile(moduleName: string) {
 package backend
 
 import (
-	bridgeguest "lina-core/pkg/plugin/pluginbridge/guest"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"${moduleName}/backend/internal/controller/dynamic"
 )
 
-var guestRouteDispatcher = bridgeguest.MustNewGuestControllerRouteDispatcher(dynamic.New())
+var guestRouteDispatcher = bridgeplugin.MustNewGuestControllerRouteDispatcher(dynamic.New())
 
 func HandleRequest(
 	request *protocol.BridgeRequestEnvelopeV1,
@@ -565,9 +567,9 @@ hostServices:
       - release
     resources:
       - ref: e2e-lock
-  - service: notify
+  - service: notifications
     methods:
-      - send
+      - messages.send
     resources:
       - ref: inbox
 `,
@@ -579,7 +581,7 @@ hostServices:
 import "github.com/gogf/gf/v2/frame/g"
 
 type LowPriorityHostServicesReq struct {
-	g.Meta \`path:"/api/v1/low-priority-host-services" method:"get" tags:"动态插件 E2E" summary:"低优先级 host service 演示" dc:"验证 cache、lock、notify 三类低优先级宿主服务在动态插件路由内的成功调用" access:"login" permission:"${successPluginID}:host:view" operLog:"other"\`
+	g.Meta \`path:"/api/v1/low-priority-host-services" method:"get" tags:"动态插件 E2E" summary:"低优先级 host service 演示" dc:"验证 cache、lock、notifications 三类低优先级宿主服务在动态插件路由内的成功调用" access:"login" permission:"${successPluginID}:host:view" operLog:"other"\`
 }
 `,
   );
@@ -600,10 +602,14 @@ func New() *Controller {
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	capabilityguest "lina-core/pkg/plugin/capability/guest"
+	usermsgv1 "lina-core/api/usermsg/v1"
+	"lina-core/pkg/plugin/capability/lockcap"
+	"lina-core/pkg/plugin/capability/notifycap"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -614,64 +620,63 @@ const (
 
 func (c *Controller) LowPriorityHostServices(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
 	var (
-		cacheSvc = capabilityguest.Cache()
-		lockSvc = capabilityguest.Lock()
-		notifySvc = capabilityguest.Notify()
+		ctx = bridgeplugin.NewGuestControllerContext(request)
+		services = bridgeplugin.Default()
+		cacheSvc = services.Cache()
+		lockSvc = services.Lock()
+		notifySvc = services.Notifications()
 	)
 
-	cacheSetValue, err := cacheSvc.Set(cacheNamespace, "profile", request.PluginID, 60)
+	cacheSetValue, err := cacheSvc.Set(ctx, cacheNamespace, "profile", request.PluginID, 60*time.Second)
 	if err != nil {
 		return nil, err
 	}
-	cacheGetValue, cacheFound, err := cacheSvc.Get(cacheNamespace, "profile")
+	cacheGetValue, cacheFound, err := cacheSvc.Get(ctx, cacheNamespace, "profile")
 	if err != nil {
 		return nil, err
 	}
-	counterValue, err := cacheSvc.Incr(cacheNamespace, "counter", 2, 60)
+	counterValue, err := cacheSvc.Incr(ctx, cacheNamespace, "counter", 2, 60*time.Second)
 	if err != nil {
 		return nil, err
 	}
-	expireFound, expireAt, err := cacheSvc.Expire(cacheNamespace, "profile", 120)
+	expireFound, expireAt, err := cacheSvc.Expire(ctx, cacheNamespace, "profile", 120*time.Second)
 	if err != nil {
 		return nil, err
 	}
-	if err = cacheSvc.Delete(cacheNamespace, "profile"); err != nil {
+	if err = cacheSvc.Delete(ctx, cacheNamespace, "profile"); err != nil {
 		return nil, err
 	}
-	_, cacheFoundAfterDelete, err := cacheSvc.Get(cacheNamespace, "profile")
+	_, cacheFoundAfterDelete, err := cacheSvc.Get(ctx, cacheNamespace, "profile")
 	if err != nil {
 		return nil, err
 	}
 
-	lockAcquire, err := lockSvc.Acquire(lockName, 5000)
+	lockAcquire, err := lockSvc.Acquire(ctx, lockcap.AcquireInput{Name: lockName, Lease: 5 * time.Second})
 	if err != nil {
 		return nil, err
 	}
 	if lockAcquire == nil || !lockAcquire.Acquired || lockAcquire.Ticket == "" {
 		return nil, gerror.New("lock acquire failed")
 	}
-	lockRenew, err := lockSvc.Renew(lockName, lockAcquire.Ticket)
+	lockRenew, err := lockSvc.Renew(ctx, lockcap.RenewInput{Name: lockName, Ticket: lockAcquire.Ticket})
 	if err != nil {
 		return nil, err
 	}
-	if err = lockSvc.Release(lockName, lockAcquire.Ticket); err != nil {
+	if err = lockSvc.Release(ctx, lockcap.ReleaseInput{Name: lockName, Ticket: lockAcquire.Ticket}); err != nil {
 		return nil, err
 	}
 
-	payloadJSON, err := json.Marshal(map[string]string{
-		"requestId": request.RequestID,
-	})
-	if err != nil {
-		return nil, gerror.Wrap(err, "marshal notify payload failed")
-	}
-	notifyResult, err := notifySvc.Send("inbox", &protocol.HostServiceNotifySendRequest{
+	notifyResult, err := notifySvc.Send(ctx, notifycap.SendInput{
+		ChannelKey: "inbox",
 		Title: "低优先级宿主服务测试通知",
-		Content: "cache/lock/notify success",
-		SourceType: "plugin",
+		Content: "cache/lock/notifications success",
+		SourceType: usermsgv1.SourceTypePlugin,
 		SourceID: request.RequestID,
-		CategoryCode: "other",
-		RecipientUserIDs: []int64{1},
-		PayloadJSON: payloadJSON,
+		Category: notifycap.CategoryCodeOther,
+		Recipients: []string{"1"},
+		Payload: map[string]any{
+			"requestId": request.RequestID,
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -764,9 +769,9 @@ hostServices:
       - acquire
     resources:
       - ref: authorized-lock
-  - service: notify
+  - service: notifications
     methods:
-      - send
+      - messages.send
     resources:
       - ref: inbox
 `,
@@ -786,7 +791,7 @@ type LockDeniedReq struct {
 }
 
 type NotifyDeniedReq struct {
-	g.Meta \`path:"/api/v1/notify-denied" method:"get" tags:"动态插件 E2E" summary:"未授权通知通道" dc:"验证 notify host service 调用未授权通知通道时会被宿主拒绝" access:"login" permission:"${deniedPluginID}:host:view" operLog:"other"\`
+	g.Meta \`path:"/api/v1/notify-denied" method:"get" tags:"动态插件 E2E" summary:"未授权通知通道" dc:"验证 notifications host service 调用未授权通知通道时会被宿主拒绝" access:"login" permission:"${deniedPluginID}:host:view" operLog:"other"\`
 }
 `,
   );
@@ -807,13 +812,17 @@ func New() *Controller {
 
 import (
 	"strings"
+	"time"
 
-	capabilityguest "lina-core/pkg/plugin/capability/guest"
+	"lina-core/pkg/plugin/capability/lockcap"
+	"lina-core/pkg/plugin/capability/notifycap"
+	bridgeplugin "lina-core/pkg/plugin/pluginbridge"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
 func (c *Controller) CacheLimit(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := capabilityguest.Cache().Set("limited-cache", "oversized", strings.Repeat("a", 4097), 0)
+	ctx := bridgeplugin.NewGuestControllerContext(request)
+	_, err := bridgeplugin.Default().Cache().Set(ctx, "limited-cache", "oversized", strings.Repeat("a", 4097), 60*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -821,7 +830,8 @@ func (c *Controller) CacheLimit(request *protocol.BridgeRequestEnvelopeV1) (*pro
 }
 
 func (c *Controller) LockDenied(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := capabilityguest.Lock().Acquire("blocked-lock", 1000)
+	ctx := bridgeplugin.NewGuestControllerContext(request)
+	_, err := bridgeplugin.Default().Lock().Acquire(ctx, lockcap.AcquireInput{Name: "blocked-lock", Lease: time.Second})
 	if err != nil {
 		return nil, err
 	}
@@ -829,11 +839,15 @@ func (c *Controller) LockDenied(request *protocol.BridgeRequestEnvelopeV1) (*pro
 }
 
 func (c *Controller) NotifyDenied(request *protocol.BridgeRequestEnvelopeV1) (*protocol.BridgeResponseEnvelopeV1, error) {
-	_, err := capabilityguest.Notify().Send("ops-webhook", &protocol.HostServiceNotifySendRequest{
-		Title: "denied notify",
-		Content: "blocked",
-		RecipientUserIDs: []int64{1},
-	})
+	_, err := bridgeplugin.New().Notifications().Send(
+		bridgeplugin.NewGuestControllerContext(request),
+		notifycap.SendInput{
+			ChannelKey: "ops-webhook",
+			Title: "denied notify",
+			Content: "blocked",
+			Recipients: []string{"1"},
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -997,7 +1011,7 @@ test.describe("TC-1 Runtime Wasm Low Priority Host Services", () => {
     expect(payload.lock.expireAt).toBeTruthy();
     expect(payload.lock.renewExpireAt).toBeTruthy();
 
-    expect(payload.notify.messageId).toBeGreaterThan(0);
+    expect(Number.parseInt(String(payload.notify.messageId), 10)).toBeGreaterThan(0);
     expect(payload.notify.deliveryCount).toBe(1);
 
     const unreadAfter = await apiUnreadCount(adminToken);

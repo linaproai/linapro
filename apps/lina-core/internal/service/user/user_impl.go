@@ -16,19 +16,22 @@ import (
 	"lina-core/pkg/gdbutil"
 	"lina-core/pkg/plugin/capability/tenantcap"
 	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/statusflag"
 
 	"github.com/gogf/gf/v2/database/gdb"
 )
 
 // List queries user list with pagination and filters.
+//
+//nolint:cyclop // User listing combines optional filters and batch projections while keeping one paged query path.
 func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, error) {
 	var (
 		cols = dao.SysUser.Columns()
 		m    = dao.SysUser.Ctx(ctx)
 	)
 	var err error
-	if s.tenantScope != nil {
-		m, _, err = s.tenantScope.ApplyUserTenantScope(ctx, m, qualifiedSysUserIDColumn())
+	if s.tenantSvc != nil {
+		m, _, err = s.tenantSvc.ApplyUserTenantScope(ctx, m, qualifiedSysUserIDColumn())
 		if err != nil {
 			return nil, err
 		}
@@ -54,8 +57,8 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		if err = s.ensureListTenantFilterAllowed(ctx, *in.TenantId); err != nil {
 			return nil, err
 		}
-		if s.tenantScope != nil {
-			m, _, err = s.tenantScope.ApplyUserTenantFilter(
+		if s.tenantSvc != nil {
+			m, _, err = s.tenantSvc.ApplyUserTenantFilter(
 				ctx,
 				m,
 				qualifiedSysUserIDColumn(),
@@ -73,19 +76,21 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		m = m.WhereLTE(cols.CreatedAt, in.EndTime)
 	}
 
-	// Filter by dept via association table
-	if in.DeptId != nil && s.orgScope != nil {
-		if *in.DeptId == 0 {
-			m, _, err = s.orgScope.ApplyUserDeptUnassignedFilter(ctx, m, qualifiedSysUserIDColumn())
-		} else {
-			var deptEmpty bool
-			m, deptEmpty, err = s.orgScope.ApplyUserDeptFilter(ctx, m, qualifiedSysUserIDColumn(), *in.DeptId)
-			if deptEmpty {
-				return &ListOutput{List: []*ListOutputItem{}, Total: 0}, nil
+	// Filter by dept via association table.
+	if in.DeptId != nil && s.orgCapSvc != nil {
+		if orgScope := s.orgCapSvc.Scope(); orgScope != nil {
+			if *in.DeptId == 0 {
+				m, _, err = orgScope.ApplyUserDeptUnassignedFilter(ctx, m, qualifiedSysUserIDColumn())
+			} else {
+				var deptEmpty bool
+				m, deptEmpty, err = orgScope.ApplyUserDeptFilter(ctx, m, qualifiedSysUserIDColumn(), *in.DeptId)
+				if deptEmpty {
+					return &ListOutput{List: []*ListOutputItem{}, Total: 0}, nil
+				}
 			}
-		}
-		if err != nil {
-			return nil, err
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -149,7 +154,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	userDeptMap := make(map[int]int)
 	deptNameMap := make(map[int]string)
 	if s.orgCapSvc != nil {
-		assignments, assignmentErr := s.orgCapSvc.ListUserDeptAssignments(ctx, userIds)
+		assignments, assignmentErr := s.orgCapSvc.Assignment().BatchListByUsers(ctx, userIds)
 		if assignmentErr != nil {
 			return nil, assignmentErr
 		}
@@ -162,9 +167,9 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		}
 	}
 
-	userTenantMap := make(map[int]*tenantcap.UserTenantProjection)
-	if s.multiTenantEnabled(ctx) && s.tenantMembers != nil {
-		userTenantMap, err = s.tenantMembers.ListUserTenantProjections(ctx, userIds)
+	userTenantMap := make(map[int]*tenantcap.TenantMembershipInfo)
+	if s.multiTenantEnabled(ctx) && s.tenantSvc != nil {
+		userTenantMap, err = s.tenantSvc.ListUserTenantMemberships(ctx, userIds)
 		if err != nil {
 			return nil, err
 		}
@@ -248,7 +253,10 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 
 // GetUserDeptInfo returns the dept ID and name for a user.
 func (s *serviceImpl) GetUserDeptInfo(ctx context.Context, userId int) (int, string, error) {
-	return s.orgCapSvc.GetUserDeptInfo(ctx, userId)
+	if s == nil || s.orgCapSvc == nil {
+		return 0, "", nil
+	}
+	return s.orgCapSvc.Assignment().GetUserDeptInfo(ctx, userId)
 }
 
 // Create creates a new user with transaction support.
@@ -285,7 +293,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 	primaryTenantID := int(tenantPlan.PrimaryTenant)
 
 	// Use transaction to ensure atomicity
-	err = dao.SysUser.Ctx(ctx).Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+	err = dao.SysUser.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
 		// Insert user (GoFrame auto-fills created_at and updated_at)
 		id, err := dao.SysUser.Ctx(ctx).Data(do.SysUser{
 			Username: in.Username,
@@ -304,7 +312,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 
 		userId = int(id)
 		if tenantPlan.ShouldReplace {
-			if err = s.tenantMembers.ReplaceUserTenantAssignments(ctx, userId, tenantPlan); err != nil {
+			if err = s.tenantSvc.ReplaceUserTenantAssignments(ctx, userId, tenantPlan); err != nil {
 				return err
 			}
 		}
@@ -330,10 +338,10 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 // replaceUserOrganizationAssignments delegates optional organization writes to
 // the host-internal assignment seam when the organization module is available.
 func (s *serviceImpl) replaceUserOrganizationAssignments(ctx context.Context, userID int, deptID *int, postIDs []int) error {
-	if s == nil || s.orgAssignment == nil {
+	if s == nil || s.orgCapSvc == nil {
 		return nil
 	}
-	return s.orgAssignment.ReplaceUserAssignments(ctx, userID, deptID, postIDs)
+	return s.orgCapSvc.Assignment().ReplaceByUser(ctx, userID, deptID, postIDs)
 }
 
 // GetById retrieves user by ID.
@@ -414,7 +422,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	}
 
 	// Use transaction to ensure atomicity
-	err = dao.SysUser.Ctx(ctx).Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+	err = dao.SysUser.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
 		// Update user
 		_, err := dao.SysUser.Ctx(ctx).Where(do.SysUser{Id: in.Id}).Data(data).Update()
 		if err != nil {
@@ -422,7 +430,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		}
 
 		if tenantPlan.ShouldReplace {
-			if err = s.tenantMembers.ReplaceUserTenantAssignments(ctx, in.Id, tenantPlan); err != nil {
+			if err = s.tenantSvc.ReplaceUserTenantAssignments(ctx, in.Id, tenantPlan); err != nil {
 				return err
 			}
 		}
@@ -522,10 +530,10 @@ func (s *serviceImpl) deleteUserRecordAndAssociations(ctx context.Context, id in
 // cleanupUserOrganizationAssignments delegates optional organization cleanup to
 // the host-internal assignment seam when the organization module is available.
 func (s *serviceImpl) cleanupUserOrganizationAssignments(ctx context.Context, userID int) error {
-	if s == nil || s.orgAssignment == nil {
+	if s == nil || s.orgCapSvc == nil {
 		return nil
 	}
-	return s.orgAssignment.CleanupUserAssignments(ctx, userID)
+	return s.orgCapSvc.Assignment().CleanupByUser(ctx, userID)
 }
 
 // normalizeUserDeleteIDs removes duplicate IDs while preserving request order.
@@ -546,7 +554,7 @@ func normalizeUserDeleteIDs(ids []int) []int {
 func (s *serviceImpl) UpdateStatus(ctx context.Context, id int, status Status) error {
 	// Cannot disable self
 	bizCtx := s.bizCtxSvc.Get(ctx)
-	if bizCtx != nil && bizCtx.UserId == id && status == StatusDisabled {
+	if bizCtx != nil && bizCtx.UserId == id && status == statusflag.Disabled {
 		return bizerr.NewCode(CodeUserCurrentDisableDenied)
 	}
 
@@ -647,7 +655,10 @@ func (s *serviceImpl) UpdateAvatar(ctx context.Context, avatarUrl string) error 
 
 // GetUserPostIds returns the post IDs associated with a user.
 func (s *serviceImpl) GetUserPostIds(ctx context.Context, userId int) ([]int, error) {
-	return s.orgCapSvc.GetUserPostIDs(ctx, userId)
+	if s == nil || s.orgCapSvc == nil {
+		return []int{}, nil
+	}
+	return s.orgCapSvc.Assignment().GetUserPostIDs(ctx, userId)
 }
 
 // GetUserRoleIds returns the role IDs associated with a user.

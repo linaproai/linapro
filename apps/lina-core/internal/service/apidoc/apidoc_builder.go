@@ -5,6 +5,7 @@ package apidoc
 
 import (
 	"context"
+	"reflect"
 	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -15,6 +16,12 @@ import (
 	"lina-core/pkg/plugin/pluginhost"
 )
 
+const (
+	// openAPIOperationKeyExtension is an internal-only operation marker removed
+	// before the OpenAPI document is returned to callers.
+	openAPIOperationKeyExtension = "x-lina-apidoc-operation-key"
+)
+
 // Build builds one host-managed OpenAPI document from the current route table
 // and current plugin enablement state.
 func (s *serviceImpl) Build(ctx context.Context, server *ghttp.Server) (*goai.OpenApiV3, error) {
@@ -22,9 +29,11 @@ func (s *serviceImpl) Build(ctx context.Context, server *ghttp.Server) (*goai.Op
 		return nil, gerror.New("apidoc: host server is nil")
 	}
 
-	document := s.newDocument(ctx)
-	sourceRouteBindings := s.listSourceRouteBindings()
-	sourceRouteKeySet := buildSourceRouteKeySet(sourceRouteBindings)
+	var (
+		document            = s.newDocument(ctx)
+		sourceRouteBindings = s.listSourceRouteBindings()
+		sourceRouteKeySet   = buildSourceRouteKeySet(sourceRouteBindings)
+	)
 
 	if err := s.addHostStaticRoutes(document, server, sourceRouteKeySet); err != nil {
 		return nil, err
@@ -36,6 +45,7 @@ func (s *serviceImpl) Build(ctx context.Context, server *ghttp.Server) (*goai.Op
 		}
 	}
 	s.localizeDocument(ctx, document)
+	stripOpenAPIOperationKeyExtensions(document.Paths)
 	return document, nil
 }
 
@@ -182,6 +192,7 @@ func addHandlerRouteToOpenAPI(
 	if document == nil {
 		return nil
 	}
+	operationKey := buildRouteOperationKeyFromHandlerType(reflect.TypeOf(handler))
 	methods := expandOpenAPIMethods(method)
 	for _, item := range methods {
 		if err := document.Add(goai.AddInput{
@@ -191,8 +202,86 @@ func addHandlerRouteToOpenAPI(
 		}); err != nil {
 			return err
 		}
+		annotateOpenAPIOperationKey(document, path, item, operationKey)
 	}
 	return nil
+}
+
+// annotateOpenAPIOperationKey stores the internal DTO-derived operation key on
+// static operations so localization never has to infer GET and DELETE keys from
+// duplicated route descriptions.
+func annotateOpenAPIOperationKey(document *goai.OpenApiV3, path string, method string, operationKey string) {
+	if document == nil || strings.TrimSpace(operationKey) == "" {
+		return
+	}
+	pathItem, ok := document.Paths[path]
+	if !ok {
+		return
+	}
+	operation := openAPIOperationByMethod(&pathItem, method)
+	if operation == nil {
+		return
+	}
+	if operation.XExtensions == nil {
+		operation.XExtensions = goai.XExtensions{}
+	}
+	operation.XExtensions[openAPIOperationKeyExtension] = operationKey
+}
+
+// stripOpenAPIOperationKeyExtensions removes internal localization markers from
+// the public OpenAPI output.
+func stripOpenAPIOperationKeyExtensions(paths goai.Paths) {
+	for pathName, pathItem := range paths {
+		stripOpenAPIOperationKeyExtension(pathItem.Connect)
+		stripOpenAPIOperationKeyExtension(pathItem.Delete)
+		stripOpenAPIOperationKeyExtension(pathItem.Get)
+		stripOpenAPIOperationKeyExtension(pathItem.Head)
+		stripOpenAPIOperationKeyExtension(pathItem.Options)
+		stripOpenAPIOperationKeyExtension(pathItem.Patch)
+		stripOpenAPIOperationKeyExtension(pathItem.Post)
+		stripOpenAPIOperationKeyExtension(pathItem.Put)
+		stripOpenAPIOperationKeyExtension(pathItem.Trace)
+		paths[pathName] = pathItem
+	}
+}
+
+// stripOpenAPIOperationKeyExtension removes the internal DTO-derived operation
+// key marker from one operation.
+func stripOpenAPIOperationKeyExtension(operation *goai.Operation) {
+	if operation == nil || operation.XExtensions == nil {
+		return
+	}
+	delete(operation.XExtensions, openAPIOperationKeyExtension)
+}
+
+// openAPIOperationByMethod returns the operation pointer assigned to one
+// normalized OpenAPI method.
+func openAPIOperationByMethod(pathItem *goai.Path, method string) *goai.Operation {
+	if pathItem == nil {
+		return nil
+	}
+	switch strings.ToUpper(strings.TrimSpace(method)) {
+	case "CONNECT":
+		return pathItem.Connect
+	case "DELETE":
+		return pathItem.Delete
+	case "GET":
+		return pathItem.Get
+	case "HEAD":
+		return pathItem.Head
+	case "OPTIONS":
+		return pathItem.Options
+	case "PATCH":
+		return pathItem.Patch
+	case "POST":
+		return pathItem.Post
+	case "PUT":
+		return pathItem.Put
+	case "TRACE":
+		return pathItem.Trace
+	default:
+		return nil
+	}
 }
 
 // buildSourceRouteKeySet builds one lookup set for source-plugin route keys.

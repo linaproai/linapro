@@ -1,7 +1,7 @@
 ## 1. 数据库与基础设施
 
 - [x] 1.1 创建 SQL 文件：`sys_notice` 表 DDL、`sys_user_message` 表 DDL、字典种子数据（`sys_notice_type`、`sys_notice_status`）、菜单权限数据
-- [x] 1.2 执行 `make init` 更新数据库，执行 `make dao` 生成 DAO/DO/Entity 代码
+- [x] 1.2 执行 `make db.init` 更新数据库，执行 `make dao` 生成 DAO/DO/Entity 代码
 
 ## 2. 后端 -- 通知公告管理
 

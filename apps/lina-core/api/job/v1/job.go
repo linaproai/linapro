@@ -14,6 +14,15 @@ const (
 	TaskTypeShell   TaskType = "shell"
 )
 
+// IsValid reports whether the job task type is supported.
+func (t TaskType) IsValid() bool {
+	switch t {
+	case TaskTypeHandler, TaskTypeShell:
+		return true
+	}
+	return false
+}
+
 // Scope identifies where one scheduled job is allowed to execute.
 type Scope string
 
@@ -23,6 +32,15 @@ const (
 	ScopeAllNode    Scope = "all_node"
 )
 
+// IsValid reports whether the job scope is supported.
+func (s Scope) IsValid() bool {
+	switch s {
+	case ScopeMasterOnly, ScopeAllNode:
+		return true
+	}
+	return false
+}
+
 // Concurrency identifies the in-node overlap policy for one job.
 type Concurrency string
 
@@ -31,6 +49,15 @@ const (
 	ConcurrencySingleton Concurrency = "singleton"
 	ConcurrencyParallel  Concurrency = "parallel"
 )
+
+// IsValid reports whether the job concurrency mode is supported.
+func (c Concurrency) IsValid() bool {
+	switch c {
+	case ConcurrencySingleton, ConcurrencyParallel:
+		return true
+	}
+	return false
+}
 
 // Status identifies the persistent lifecycle status of one job definition.
 type Status string
@@ -42,6 +69,15 @@ const (
 	StatusPausedByPlugin Status = "paused_by_plugin"
 )
 
+// IsValid reports whether the job status is supported.
+func (s Status) IsValid() bool {
+	switch s {
+	case StatusEnabled, StatusDisabled, StatusPausedByPlugin:
+		return true
+	}
+	return false
+}
+
 // RetentionMode identifies one job-log retention policy mode.
 type RetentionMode string
 
@@ -51,6 +87,15 @@ const (
 	RetentionModeCount RetentionMode = "count"
 	RetentionModeNone  RetentionMode = "none"
 )
+
+// IsValid reports whether the job-log retention mode is supported.
+func (m RetentionMode) IsValid() bool {
+	switch m {
+	case RetentionModeDays, RetentionModeCount, RetentionModeNone:
+		return true
+	}
+	return false
+}
 
 // JobItem exposes scheduled-job fields needed by the management UI.
 type JobItem struct {

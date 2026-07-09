@@ -15,6 +15,7 @@ import {
   dictTypeDelete,
   dictTypeList,
 } from '#/api/system/dict/dict-type';
+import { useDictStore } from '#/store/dict';
 import { downloadBlob } from '#/utils/download';
 
 import { emitter } from '../mitt';
@@ -31,6 +32,7 @@ const [ImportModal, importModalApi] = useVbenModal({
 });
 
 const lastDictType = ref('');
+const dictStore = useDictStore();
 
 const [BasicTable, tableApi] = useVbenVxeGrid({
   formOptions: {
@@ -134,6 +136,7 @@ async function handleDelete(row: DictType) {
       try {
         await dictTypeDelete(row.id);
         message.success($t('pages.common.deleteSuccess'));
+        await dictStore.refreshDictOptions(row.type);
         await tableApi.query();
         // Refresh dict data panel if the deleted type was selected
         if (lastDictType.value === row.type) {
@@ -167,6 +170,7 @@ function handleMultiDelete() {
         await dictTypeDelete(id);
       }
       checkedRows.value = [];
+      await dictStore.refreshDictOptions();
       await tableApi.query();
       // Clear dict data panel selection
       emitter.emit('rowClick', '');
@@ -175,12 +179,20 @@ function handleMultiDelete() {
   });
 }
 
-function onReload() {
-  tableApi.query();
+async function onReload(dictTypesToRefresh?: string[]) {
+  if (dictTypesToRefresh?.length) {
+    await Promise.all(
+      dictTypesToRefresh.map((dictType) =>
+        dictStore.refreshDictOptions(dictType),
+      ),
+    );
+  }
+  await tableApi.query();
 }
 
-function onImportReload() {
-  tableApi.query();
+async function onImportReload() {
+  await dictStore.refreshDictOptions();
+  await tableApi.query();
 }
 
 async function handleExport() {

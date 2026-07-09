@@ -44,7 +44,7 @@ func runAgentsMdLink(_ context.Context, a *app, input commandInput) error {
 }
 
 // runAgentsMdLinkInteractive walks the user through a numbered selection
-// of link-class agents and optionally enables FORCE for mismatched
+// of link-class agents and optionally enables force for mismatched
 // rebuilds. Before showing the selection grid it renders a full status
 // overview that includes native-class agents, so users can see every
 // agent's current state — including agents that read AGENTS.md
@@ -83,7 +83,7 @@ func runAgentsMdLinkInteractive(a *app, force bool) error {
 		}
 		if hasMismatch {
 			confirmed, confirmErr := common.PromptYesNo(a.stdin, a.stdout,
-				"One or more selected agents have mismatched links. Rebuild with FORCE=1?", false)
+				"One or more selected agents have mismatched links. Rebuild with force=1?", false)
 			if confirmErr != nil {
 				return confirmErr
 			}

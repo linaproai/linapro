@@ -73,8 +73,8 @@ jobs:
     timeout-minutes: 180
 
     services:
-      # Provides the PostgreSQL database used by make init, mock data, and the backend service.
-      # 提供 make init、mock 数据和后端服务使用的 PostgreSQL 数据库。
+      # Provides the PostgreSQL database used by make db.init, mock data, and the backend service.
+      # 提供 make db.init、mock 数据和后端服务使用的 PostgreSQL 数据库。
       postgres:
         image: postgres:14-alpine
         env:
@@ -171,8 +171,8 @@ jobs:
       - name: Initialize Database
         run: |
           cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
-          make init confirm=init rebuild=true
-          make mock confirm=mock
+          make db.init confirm=init rebuild=true
+          make db.mock confirm=mock
 
       # Start host-only or plugin-full services using the caller-provided command.
       # 使用调用方提供的命令启动宿主或插件完整服务。

@@ -14,6 +14,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/statusflag"
 )
 
 // ExportInput defines input for Export function.
@@ -218,7 +219,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 			TenantId: primaryTenantID,
 			Username: username,
 			Password: hash,
-			Status:   int(StatusNormal),
+			Status:   int(statusflag.EnabledValue),
 		}
 		if len(row) > 2 {
 			data.Nickname = row[2]
@@ -247,7 +248,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 		}
 		if len(row) > 6 {
 			if s.isUserDisabledStatusInput(ctx, row[6]) {
-				data.Status = int(StatusDisabled)
+				data.Status = statusflag.Disabled.Int()
 			}
 		}
 		if len(row) > 7 {
@@ -259,8 +260,8 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 			if insertErr != nil {
 				return insertErr
 			}
-			if tenantPlan.ShouldReplace && s.tenantMembers != nil {
-				return s.tenantMembers.ReplaceUserTenantAssignments(ctx, int(insertedID), tenantPlan)
+			if tenantPlan.ShouldReplace && s.tenantSvc != nil {
+				return s.tenantSvc.ReplaceUserTenantAssignments(ctx, int(insertedID), tenantPlan)
 			}
 			return nil
 		})
@@ -320,7 +321,7 @@ func (s *serviceImpl) GenerateImportTemplate(ctx context.Context) (data []byte, 
 	if err = setCellValue(f, sheet, 6, 2, s.userSexText(ctx, 1)); err != nil {
 		return nil, err
 	}
-	if err = setCellValue(f, sheet, 7, 2, s.userStatusText(ctx, StatusNormal)); err != nil {
+	if err = setCellValue(f, sheet, 7, 2, s.userStatusText(ctx, statusflag.EnabledValue)); err != nil {
 		return nil, err
 	}
 	if err = setCellValue(f, sheet, 8, 2, s.runtimeText(ctx, "artifact.user.importTemplate.example.remark", "Sample user")); err != nil {

@@ -8,13 +8,55 @@ import (
 	"time"
 
 	"lina-core/internal/service/cachecoord"
-	"lina-core/internal/service/pluginruntimecache"
+	"lina-core/internal/service/cachecoord/revisionctrl"
 	"lina-core/pkg/logger"
 )
 
 // runtimeReconcilerSafetySweepInterval is the low-frequency fallback full-scan
 // cadence used when no shared revision changes are observed.
 const runtimeReconcilerSafetySweepInterval = 5 * time.Minute
+
+// runtimeChangeReason identifies why the dynamic-plugin runtime cache or
+// reconciler revision changed. Keep these values stable because external cache
+// coordinators and logs may persist them as plain strings even though runtime
+// code uses the named type.
+type runtimeChangeReason string
+
+const (
+	// runtimeChangeReasonPluginInstalled means a dynamic plugin release became installed.
+	runtimeChangeReasonPluginInstalled runtimeChangeReason = "plugin_installed"
+	// runtimeChangeReasonPluginUpgraded means an installed dynamic plugin switched release versions.
+	runtimeChangeReasonPluginUpgraded runtimeChangeReason = "plugin_upgraded"
+	// runtimeChangeReasonPluginDisabled means an installed dynamic plugin became disabled.
+	runtimeChangeReasonPluginDisabled runtimeChangeReason = "plugin_disabled"
+	// runtimeChangeReasonPluginEnabled means an installed dynamic plugin became enabled.
+	runtimeChangeReasonPluginEnabled runtimeChangeReason = "plugin_enabled"
+	// runtimeChangeReasonPluginStatusChanged means a dynamic plugin status toggle completed.
+	runtimeChangeReasonPluginStatusChanged runtimeChangeReason = "plugin_status_changed"
+	// runtimeChangeReasonPluginRefreshed means an installed dynamic plugin release was refreshed.
+	runtimeChangeReasonPluginRefreshed runtimeChangeReason = "plugin_refreshed"
+	// runtimeChangeReasonPluginUninstalled means a dynamic plugin was uninstalled using its manifest.
+	runtimeChangeReasonPluginUninstalled runtimeChangeReason = "plugin_uninstalled"
+	// runtimeChangeReasonPluginOrphanUninstalled means host governance was force-cleared for a missing artifact.
+	runtimeChangeReasonPluginOrphanUninstalled runtimeChangeReason = "plugin_orphan_uninstalled"
+	// runtimeChangeReasonRuntimePackageUploaded means a dynamic runtime package was uploaded.
+	runtimeChangeReasonRuntimePackageUploaded runtimeChangeReason = "runtime_package_uploaded"
+	// runtimeChangeReasonDynamicPackageUploaded means a dynamic package upload changed desired reconciliation input.
+	runtimeChangeReasonDynamicPackageUploaded runtimeChangeReason = "dynamic_package_uploaded"
+	// runtimeChangeReasonRuntimeArtifactMissing means an active runtime artifact disappeared and registry state changed.
+	runtimeChangeReasonRuntimeArtifactMissing runtimeChangeReason = "runtime_artifact_missing"
+	// runtimeChangeReasonStaleReconcilingRestored means an abandoned transient
+	// reconcile state was restored to a stable state.
+	runtimeChangeReasonStaleReconcilingRestored runtimeChangeReason = "stale_reconciling_restored"
+	// runtimeChangeReasonDesiredStateChanged means a management request changed one plugin target state.
+	runtimeChangeReasonDesiredStateChanged runtimeChangeReason = "desired_state_changed"
+	// runtimeChangeReasonSingleNode means single-node mode should run reconciliation every tick.
+	runtimeChangeReasonSingleNode runtimeChangeReason = "single_node"
+	// runtimeChangeReasonRevisionChanged means the shared reconciler revision advanced.
+	runtimeChangeReasonRevisionChanged runtimeChangeReason = "revision_changed"
+	// runtimeChangeReasonSafetySweep means the low-frequency safety scan interval elapsed.
+	runtimeChangeReasonSafetySweep runtimeChangeReason = "safety_sweep"
+)
 
 // backgroundReconcileDecision captures whether one reconciler tick should run a
 // full registry convergence pass and which shared revision it will consume.
@@ -31,49 +73,22 @@ type backgroundReconcileDecision struct {
 // after topology has been injected.
 func (s *serviceImpl) configureReconcilerRevisionController() {
 	if s.reconcilerRevisionObserved == nil {
-		s.reconcilerRevisionObserved = pluginruntimecache.NewObservedRevision()
+		s.reconcilerRevisionObserved = revisionctrl.NewObservedRevision()
 	}
-	s.reconcilerRevisionCtrl = pluginruntimecache.NewControllerForScopeWithCoordinator(
+	s.reconcilerRevisionCtrl = revisionctrl.NewControllerForScopeWithCoordinator(
 		cachecoord.ScopeReconciler,
-		pluginruntimecache.ReconcilerCacheChangeReason,
+		revisionctrl.ReconcilerCacheChangeReason,
 		s.isClusterModeEnabled(),
-		cachecoord.Default(runtimeCacheCoordTopology{s: s}),
+		cachecoord.Default(s.topology),
 		s.reconcilerRevisionObserved,
 		nil,
 	)
 }
 
-// runtimeCacheCoordTopology adapts the runtime topology provider to cachecoord.
-type runtimeCacheCoordTopology struct {
-	s *serviceImpl
-}
-
-// IsEnabled reports whether clustered runtime reconciliation is active.
-func (t runtimeCacheCoordTopology) IsEnabled() bool {
-	return t.s != nil && t.s.isClusterModeEnabled()
-}
-
-// IsPrimary reports whether this runtime instance owns primary work.
-func (t runtimeCacheCoordTopology) IsPrimary() bool {
-	return t.s == nil || t.s.isPrimaryNode()
-}
-
-// NodeID returns the current runtime node identifier.
-func (t runtimeCacheCoordTopology) NodeID() string {
-	if t.s == nil {
-		return "local-node"
-	}
-	nodeID := t.s.currentNodeID()
-	if nodeID == "" {
-		return "local-node"
-	}
-	return nodeID
-}
-
 // ensureReconcilerRevisionController returns the configured controller, creating
 // a topology-aware no-op controller when tests or direct constructors skipped
 // setter injection.
-func (s *serviceImpl) ensureReconcilerRevisionController() *pluginruntimecache.Controller {
+func (s *serviceImpl) ensureReconcilerRevisionController() *revisionctrl.Controller {
 	if s.reconcilerRevisionCtrl == nil {
 		s.configureReconcilerRevisionController()
 	}

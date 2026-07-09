@@ -7,25 +7,28 @@ package session
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 
 	"github.com/gogf/gf/v2/database/gdb"
 )
 
 // Set persists a session record.
 func (s *DBStore) Set(ctx context.Context, session *Session) error {
+	cols := dao.SysOnlineSession.Columns()
 	_, err := dao.SysOnlineSession.Ctx(ctx).
 		Data(do.SysOnlineSession{
 			TokenId:        session.TokenId,
 			TenantId:       session.TenantId,
 			UserId:         session.UserId,
 			Username:       session.Username,
+			ClientType:     session.ClientType,
 			DeptName:       session.DeptName,
 			Ip:             session.Ip,
 			Browser:        session.Browser,
@@ -33,17 +36,18 @@ func (s *DBStore) Set(ctx context.Context, session *Session) error {
 			LoginTime:      session.LoginTime,
 			LastActiveTime: normalizeSessionLastActive(session),
 		}).
-		OnConflict(dao.SysOnlineSession.Columns().TokenId).
+		OnConflict(cols.TokenId).
 		OnDuplicate(
-			dao.SysOnlineSession.Columns().TenantId,
-			dao.SysOnlineSession.Columns().UserId,
-			dao.SysOnlineSession.Columns().Username,
-			dao.SysOnlineSession.Columns().DeptName,
-			dao.SysOnlineSession.Columns().Ip,
-			dao.SysOnlineSession.Columns().Browser,
-			dao.SysOnlineSession.Columns().Os,
-			dao.SysOnlineSession.Columns().LoginTime,
-			dao.SysOnlineSession.Columns().LastActiveTime,
+			cols.TenantId,
+			cols.UserId,
+			cols.Username,
+			cols.ClientType,
+			cols.DeptName,
+			cols.Ip,
+			cols.Browser,
+			cols.Os,
+			cols.LoginTime,
+			cols.LastActiveTime,
 		).
 		Save()
 	return err
@@ -57,23 +61,6 @@ func normalizeSessionLastActive(session *Session) *time.Time {
 	}
 	now := time.Now()
 	return &now
-}
-
-// setProjection persists or refreshes a session projection in PostgreSQL.
-func (s *DBStore) setProjection(ctx context.Context, session *Session) error {
-	_, err := dao.SysOnlineSession.Ctx(ctx).Data(do.SysOnlineSession{
-		TokenId:        session.TokenId,
-		TenantId:       session.TenantId,
-		UserId:         session.UserId,
-		Username:       session.Username,
-		DeptName:       session.DeptName,
-		Ip:             session.Ip,
-		Browser:        session.Browser,
-		Os:             session.Os,
-		LoginTime:      session.LoginTime,
-		LastActiveTime: normalizeSessionLastActive(session),
-	}).Insert()
-	return err
 }
 
 // tokenSessionModel builds the session lookup model for one globally unique token.
@@ -103,6 +90,7 @@ func (s *DBStore) Get(ctx context.Context, tokenId string) (*Session, error) {
 		TenantId:       e.TenantId,
 		UserId:         e.UserId,
 		Username:       e.Username,
+		ClientType:     e.ClientType,
 		DeptName:       e.DeptName,
 		Ip:             e.Ip,
 		Browser:        e.Browser,
@@ -110,6 +98,151 @@ func (s *DBStore) Get(ctx context.Context, tokenId string) (*Session, error) {
 		LoginTime:      e.LoginTime,
 		LastActiveTime: e.LastActiveTime,
 	}, nil
+}
+
+// BatchGetScoped returns requested sessions constrained by tenant and user data scope.
+func (s *DBStore) BatchGetScoped(
+	ctx context.Context,
+	tokenIds []string,
+	scopeSvc datascope.Service,
+	tenantSvc tenantspi.ScopeService,
+) ([]*Session, error) {
+	requestedTokenIDs := normalizeSessionTokenIDs(tokenIds)
+	if len(requestedTokenIDs) == 0 {
+		return []*Session{}, nil
+	}
+
+	cols := dao.SysOnlineSession.Columns()
+	model := dao.SysOnlineSession.Ctx(ctx).
+		Fields(
+			cols.TokenId,
+			cols.TenantId,
+			cols.UserId,
+			cols.Username,
+			cols.ClientType,
+			cols.DeptName,
+			cols.Ip,
+			cols.Browser,
+			cols.Os,
+			cols.LoginTime,
+			cols.LastActiveTime,
+		).
+		WhereIn(cols.TokenId, requestedTokenIDs)
+	if tenantSvc != nil {
+		var err error
+		model, err = tenantSvc.Apply(ctx, model, qualifiedOnlineSessionTenantIDColumn())
+		if err != nil {
+			return nil, err
+		}
+	}
+	if scopeSvc != nil {
+		var err error
+		var empty bool
+		model, empty, err = scopeSvc.ApplyUserScope(ctx, model, qualifiedOnlineSessionUserIDColumn())
+		if err != nil {
+			return nil, err
+		}
+		if empty {
+			return []*Session{}, nil
+		}
+	}
+
+	var entities []*entity.SysOnlineSession
+	if err := model.Scan(&entities); err != nil {
+		return nil, err
+	}
+	return sessionsFromEntities(entities), nil
+}
+
+// BatchGetUserOnlineStatusScoped returns visible online-session counts grouped
+// by requested user IDs in one query.
+func (s *DBStore) BatchGetUserOnlineStatusScoped(
+	ctx context.Context,
+	userIds []int,
+	scopeSvc datascope.Service,
+	tenantSvc tenantspi.ScopeService,
+) ([]*UserOnlineStatus, error) {
+	requestedUserIDs := normalizeSessionUserIDs(userIds)
+	if len(requestedUserIDs) == 0 {
+		return []*UserOnlineStatus{}, nil
+	}
+
+	cols := dao.SysOnlineSession.Columns()
+	model := dao.SysOnlineSession.Ctx(ctx).
+		Fields(cols.UserId, "COUNT(1) AS session_count").
+		WhereIn(cols.UserId, requestedUserIDs)
+	if tenantSvc != nil {
+		var err error
+		model, err = tenantSvc.Apply(ctx, model, qualifiedOnlineSessionTenantIDColumn())
+		if err != nil {
+			return nil, err
+		}
+	}
+	if scopeSvc != nil {
+		var err error
+		var empty bool
+		model, empty, err = scopeSvc.ApplyUserScope(ctx, model, qualifiedOnlineSessionUserIDColumn())
+		if err != nil {
+			return nil, err
+		}
+		if empty {
+			return []*UserOnlineStatus{}, nil
+		}
+	}
+
+	rows := make([]*struct {
+		UserId       int `orm:"user_id"`
+		SessionCount int `orm:"session_count"`
+	}, 0, len(requestedUserIDs))
+	if err := model.Group(cols.UserId).Scan(&rows); err != nil {
+		return nil, err
+	}
+	statuses := make([]*UserOnlineStatus, 0, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		statuses = append(statuses, &UserOnlineStatus{
+			UserId:       row.UserId,
+			SessionCount: row.SessionCount,
+		})
+	}
+	return statuses, nil
+}
+
+// normalizeSessionTokenIDs trims and de-duplicates non-empty session token IDs.
+func normalizeSessionTokenIDs(tokenIds []string) []string {
+	requestedTokenIDs := make([]string, 0, len(tokenIds))
+	seen := make(map[string]struct{}, len(tokenIds))
+	for _, tokenID := range tokenIds {
+		normalizedTokenID := strings.TrimSpace(tokenID)
+		if normalizedTokenID == "" {
+			continue
+		}
+		if _, exists := seen[normalizedTokenID]; exists {
+			continue
+		}
+		seen[normalizedTokenID] = struct{}{}
+		requestedTokenIDs = append(requestedTokenIDs, normalizedTokenID)
+	}
+	return requestedTokenIDs
+}
+
+// normalizeSessionUserIDs de-duplicates positive user IDs.
+func normalizeSessionUserIDs(userIds []int) []int {
+	requestedUserIDs := make([]int, 0, len(userIds))
+	seen := make(map[int]struct{}, len(userIds))
+	for _, userID := range userIds {
+		if userID <= 0 {
+			continue
+		}
+		if _, exists := seen[userID]; exists {
+			continue
+		}
+		seen[userID] = struct{}{}
+		requestedUserIDs = append(requestedUserIDs, userID)
+	}
+	return requestedUserIDs
 }
 
 // Delete removes a session by globally unique token ID.
@@ -154,6 +287,7 @@ func (s *DBStore) List(ctx context.Context, filter *ListFilter) ([]*Session, err
 			TenantId:       e.TenantId,
 			UserId:         e.UserId,
 			Username:       e.Username,
+			ClientType:     e.ClientType,
 			DeptName:       e.DeptName,
 			Ip:             e.Ip,
 			Browser:        e.Browser,
@@ -200,6 +334,7 @@ func (s *DBStore) ListPage(ctx context.Context, filter *ListFilter, pageNum, pag
 			TenantId:       e.TenantId,
 			UserId:         e.UserId,
 			Username:       e.Username,
+			ClientType:     e.ClientType,
 			DeptName:       e.DeptName,
 			Ip:             e.Ip,
 			Browser:        e.Browser,
@@ -222,7 +357,7 @@ func (s *DBStore) ListPageScoped(
 	filter *ListFilter,
 	pageNum, pageSize int,
 	scopeSvc datascope.Service,
-	tenantSvc tenantcapsvc.ScopeService,
+	tenantSvc tenantspi.ScopeService,
 ) (*ListResult, error) {
 	m := dao.SysOnlineSession.Ctx(ctx)
 	if filter != nil {
@@ -273,6 +408,7 @@ func (s *DBStore) ListPageScoped(
 			TenantId:       e.TenantId,
 			UserId:         e.UserId,
 			Username:       e.Username,
+			ClientType:     e.ClientType,
 			DeptName:       e.DeptName,
 			Ip:             e.Ip,
 			Browser:        e.Browser,
@@ -286,6 +422,30 @@ func (s *DBStore) ListPageScoped(
 		Items: sessions,
 		Total: total,
 	}, nil
+}
+
+// sessionsFromEntities maps online-session entities to stable service projections.
+func sessionsFromEntities(entities []*entity.SysOnlineSession) []*Session {
+	sessions := make([]*Session, 0, len(entities))
+	for _, e := range entities {
+		if e == nil {
+			continue
+		}
+		sessions = append(sessions, &Session{
+			TokenId:        e.TokenId,
+			TenantId:       e.TenantId,
+			UserId:         e.UserId,
+			Username:       e.Username,
+			ClientType:     e.ClientType,
+			DeptName:       e.DeptName,
+			Ip:             e.Ip,
+			Browser:        e.Browser,
+			Os:             e.Os,
+			LoginTime:      e.LoginTime,
+			LastActiveTime: e.LastActiveTime,
+		})
+	}
+	return sessions
 }
 
 // qualifiedOnlineSessionUserIDColumn returns the fully qualified session owner column.

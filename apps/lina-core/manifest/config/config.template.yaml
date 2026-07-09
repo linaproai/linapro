@@ -9,6 +9,9 @@ server:
   # Whether to dump the route table at startup
   # 是否在启动时输出路由表
   dumpRouterMap: false
+  # GoFrame graceful HTTP shutdown timeout in seconds
+  # GoFrame HTTP 优雅关停超时时间（秒）
+  gracefulShutdownTimeout: 30
   # LinaPro extension configuration for the GoFrame server component
   # LinaPro 对 GoFrame server 组件的扩展配置
   extensions:
@@ -53,6 +56,9 @@ database:
     # 默认数据库连接串
     # PostgreSQL 14+: pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable
     link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+    # PostgreSQL session timezone used when displaying and decoding TIMESTAMPTZ columns.
+    # 显示和解码 TIMESTAMPTZ 字段时使用的 PostgreSQL 会话时区。
+    timezone: "Asia/Shanghai"
     # Whether to enable SQL debug logs; keep disabled by default and enable temporarily for SQL diagnostics
     # 是否开启 SQL 调试日志；默认关闭，排查 SQL 执行明细时再临时开启
     debug: false
@@ -77,20 +83,6 @@ session:
   # 会话清理任务执行间隔（duration 字符串）
   cleanupInterval: 5m
 
-# Health probe configuration
-# 健康探针配置
-health:
-  # Database probe timeout as a duration string
-  # 数据库探活超时时间（duration 字符串）
-  timeout: 5s
-
-# Graceful shutdown configuration
-# 优雅关停配置
-shutdown:
-  # Full process shutdown timeout as a duration string
-  # 进程关停完整流程超时时间（duration 字符串）
-  timeout: 30s
-
 # Scheduler configuration
 # 调度器配置
 scheduler:
@@ -107,15 +99,6 @@ workspace:
   # 内建管理工作台入口路径。该配置在启动期生效；独立管理后台域名场景可使用 "/"，
   # 但不能使用 "/api"、"/x"、"/x-assets" 或其他保留路径。
   basePath: "/admin"
-  # vue-router history backend used by the workspace bundle.
-  # Allowed values: "hash" (default, no SPA fallback required) or "history"
-  # (requires the host or reverse proxy to serve index.html for unknown paths).
-  # The value MUST match VITE_ROUTER_HISTORY in the frontend build because the
-  # backend composes OAuth handoff and other post-login redirect URLs from it.
-  # 管理工作台使用的 vue-router 历史模式。允许的值为 "hash"（默认，无需 SPA 兜底）
-  # 与 "history"（需要宿主或反向代理将未知路径回退到 index.html）。该值必须与
-  # 前端构建期的 VITE_ROUTER_HISTORY 保持一致。
-  routerMode: "hash"
 
 # Internationalization configuration
 # 国际化配置

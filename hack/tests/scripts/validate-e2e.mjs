@@ -146,6 +146,14 @@ const rootGovernanceFiles = [
   ...walk(path.resolve(testsDir, 'scripts')).map((item) => toPosix(path.relative(testsDir, item))),
   ...walk(path.resolve(testsDir, 'support')).map((item) => toPosix(path.relative(testsDir, item))),
 ].filter((file) => /\.(?:json|mjs|md|ts)$/u.test(file));
+const pluginGovernanceFiles = sourcePluginIdentifiers
+  .flatMap((pluginId) =>
+    ['e2e', 'pages', 'support'].flatMap((segment) =>
+      walk(path.resolve(repoRoot, 'apps/lina-plugins', pluginId, 'hack/tests', segment)),
+    ),
+  )
+  .map((item) => toPosix(path.relative(repoRoot, item)))
+  .filter((file) => /\.(?:mjs|ts)$/u.test(file));
 
 function collectStrings(value, owner, results = []) {
   if (typeof value === 'string') {
@@ -199,6 +207,25 @@ function validateRootServiceDependencyBaseline() {
   }
 }
 
+function validateDirectAuthLoginClientType(files) {
+  const directAuthLoginPattern = /(?:\bfetch\s*\(\s*`[^`]*auth\/login|\bfetch\s*\(\s*['"][^'"]*auth\/login|\.post\s*\(\s*['"](?:\/api\/v1\/)?auth\/login['"])/gu;
+  for (const file of files) {
+    const absolutePath = file.startsWith('apps/lina-plugins/')
+      ? path.resolve(repoRoot, file)
+      : path.resolve(testsDir, file);
+    const source = readFileSync(absolutePath, 'utf8');
+    let match;
+    while ((match = directAuthLoginPattern.exec(source)) !== null) {
+      const after = source.slice(match.index, match.index + 600);
+      if (!after.includes('clientType')) {
+        addError(
+          `Direct auth/login request must include clientType in ${file}:${source.slice(0, match.index).split('\n').length}.`,
+        );
+      }
+    }
+  }
+}
+
 function entryExistsOrResolves(entry) {
   if (listTcFiles(entry).length > 0) {
     return true;
@@ -229,6 +256,7 @@ function isPluginScope(scope, entries) {
 
 validateRootManifestPluginEntries();
 validateRootServiceDependencyBaseline();
+validateDirectAuthLoginClientType([...rootGovernanceFiles, ...pluginGovernanceFiles]);
 
 for (const directory of legacyPluginE2EDirs) {
   const relativePath = pluginTestRelativePath(directory);

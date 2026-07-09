@@ -187,7 +187,7 @@ TBD - created by archiving change switch-default-database-to-postgres. Update Pu
 - **THEN** 文件中 MUST NOT 出现 `CREATE DATABASE` / `DROP DATABASE` / `USE <db>` 任一关键字组合
 
 #### Scenario: 数据库管理由方言层钩子负责
-- **WHEN** 运维人员运行 `make init confirm=init` 或 `make init confirm=init rebuild=true`
+- **WHEN** 运维人员运行 `make db.init confirm=init` 或 `make db.init confirm=init rebuild=true`
 - **THEN** 库的创建/重建由 `Dialect.PrepareDatabase` 完成
 - **AND** 后续 SQL 文件加载只关心表与数据，不关心库本身
 

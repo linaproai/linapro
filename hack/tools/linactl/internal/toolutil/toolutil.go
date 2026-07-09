@@ -107,9 +107,10 @@ func FirstNonEmpty(values ...string) string {
 	return ""
 }
 
-// NormalizeParamKey keeps make-style and CLI-style option keys equivalent.
+// NormalizeParamKey keeps hyphenated CLI-style option keys equivalent to
+// underscore-separated internal parameter names.
 func NormalizeParamKey(key string) string {
-	return strings.ReplaceAll(strings.ToLower(strings.TrimSpace(key)), "-", "_")
+	return strings.ReplaceAll(strings.TrimSpace(key), "-", "_")
 }
 
 // FileExists reports whether a path exists and is a regular file.

@@ -54,6 +54,8 @@ export type JobDetail = {
   seedVersion?: number;
   groupCode: string;
   groupName: string;
+  createdAt?: number;
+  updatedAt?: number;
 };
 
 export type LogDetail = {
@@ -119,7 +121,9 @@ function flattenMenus(list: MenuNode[]): MenuNode[] {
 function menuTreeHasPermission(node: MenuNode, permission: string): boolean {
   return (
     node.perms === permission ||
-    Boolean(node.children?.some((child) => menuTreeHasPermission(child, permission)))
+    Boolean(
+      node.children?.some((child) => menuTreeHasPermission(child, permission)),
+    )
   );
 }
 
@@ -132,6 +136,7 @@ export async function createApiContext(
     data: {
       username,
       password,
+      clientType: "web",
     },
   });
   const loginPayload = await expectSuccess<{ accessToken: string }>(
@@ -153,8 +158,21 @@ export async function createAdminApiContext(): Promise<APIRequestContext> {
 
 export async function expectSuccess<T>(response: APIResponse): Promise<T> {
   expect(response.ok()).toBeTruthy();
-  const payload = (await response.json()) as ApiEnvelope<T>;
-  expect(payload.code).toBe(0);
+  const payload = (await response.json()) as ApiEnvelope<T> & {
+    errorCode?: string;
+    messageKey?: string;
+    messageParams?: Record<string, unknown>;
+  };
+  expect(
+    payload.code,
+    [
+      `expected API success for ${response.url()}`,
+      `errorCode=${payload.errorCode ?? ""}`,
+      `message=${payload.message ?? ""}`,
+      `messageKey=${payload.messageKey ?? ""}`,
+      `messageParams=${JSON.stringify(payload.messageParams ?? {})}`,
+    ].join(" "),
+  ).toBe(0);
   return payload.data;
 }
 
@@ -372,9 +390,9 @@ export async function ensurePluginBuiltinJobEnabled(
     )
     .toBe("true:false");
 
-  const jobs = await listJobs(api, options.jobName);
+  const jobs = await listAllJobs(api);
   const currentJob = jobs.list.find(
-    (item) => item.name === options.jobName && item.isBuiltin === 1,
+    (item) => item.handlerRef === options.handlerRef && item.isBuiltin === 1,
   );
   if (currentJob?.status.startsWith("paused_by_plugin")) {
     await disablePlugin(api, options.pluginId);
@@ -385,9 +403,10 @@ export async function ensurePluginBuiltinJobEnabled(
   await expect
     .poll(
       async () => {
-        const result = await listJobs(api, options.jobName);
+        const result = await listAllJobs(api);
         const builtinJob = result.list.find(
-          (item) => item.name === options.jobName && item.isBuiltin === 1,
+          (item) =>
+            item.handlerRef === options.handlerRef && item.isBuiltin === 1,
         );
         jobId = builtinJob?.id ?? 0;
         return builtinJob
@@ -478,6 +497,27 @@ export async function listJobs(api: APIRequestContext, keyword = "") {
       `job?pageNum=1&pageSize=100&keyword=${encodeURIComponent(keyword)}`,
     ),
   );
+}
+
+async function listAllJobs(api: APIRequestContext) {
+  const pageSize = 100;
+  const firstPage = await expectSuccess<{ list: JobDetail[]; total: number }>(
+    await api.get(`job?pageNum=1&pageSize=${pageSize}`),
+  );
+  const list = [...firstPage.list];
+  const pageCount = Math.ceil(firstPage.total / pageSize);
+
+  for (let pageNum = 2; pageNum <= pageCount; pageNum += 1) {
+    const page = await expectSuccess<{ list: JobDetail[]; total: number }>(
+      await api.get(`job?pageNum=${pageNum}&pageSize=${pageSize}`),
+    );
+    list.push(...page.list);
+  }
+
+  return {
+    list,
+    total: firstPage.total,
+  };
 }
 
 export async function updateJobStatus(
@@ -602,7 +642,7 @@ export async function setCronShellEnabled(
   api: APIRequestContext,
   enabled: boolean,
 ) {
-  const item = await getConfigByKey(api, "cron.shell.enabled");
+  const item = await getConfigByKey(api, "sys.cron.shell.enabled");
   const targetValue = enabled ? "true" : "false";
   if (item.value !== targetValue) {
     await updateConfigValue(api, item.id, targetValue);
@@ -614,17 +654,17 @@ export async function restoreCronShellEnabled(
   api: APIRequestContext,
   original?: Pick<ConfigItem, "value"> | null,
 ) {
-  const item = await getConfigByKey(api, "cron.shell.enabled");
+  const item = await getConfigByKey(api, "sys.cron.shell.enabled");
   const targetValue = normalizeCronShellEnabledValue(original?.value);
   if (item.value !== targetValue) {
     await updateConfigValue(api, item.id, targetValue);
   }
   await expect
     .poll(
-      async () => (await getConfigByKey(api, "cron.shell.enabled")).value,
+      async () => (await getConfigByKey(api, "sys.cron.shell.enabled")).value,
       {
         timeout: 10000,
-        message: "cron.shell.enabled should be restored",
+        message: "sys.cron.shell.enabled should be restored",
       },
     )
     .toBe(targetValue);

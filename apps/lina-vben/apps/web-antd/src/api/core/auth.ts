@@ -5,6 +5,7 @@ import { requestClient } from '#/api/request';
 export namespace AuthApi {
   /** 登录接口参数 */
   export interface LoginParams {
+    clientType?: 'cli' | 'desktop' | 'mobile' | 'web';
     password?: string;
     username?: string;
   }
@@ -22,30 +23,16 @@ export namespace AuthApi {
     accessToken: string;
     refreshToken?: string;
   }
-
-  /** 第三方登录入口接口返回的 provider 元数据 */
-  export interface ProviderEntity {
-    description: string;
-    displayOrder: number;
-    entryUrl: string;
-    icon: string;
-    kind: string;
-    name: string;
-    pluginId: string;
-    providerId: string;
-  }
-
-  /** /auth/providers 接口的响应 payload */
-  export interface ProvidersResult {
-    providers: ProviderEntity[];
-  }
 }
 
 /**
  * 登录
  */
 export async function loginApi(data: AuthApi.LoginParams) {
-  return requestClient.post<AuthApi.LoginResult>('/auth/login', data);
+  return requestClient.post<AuthApi.LoginResult>('/auth/login', {
+    ...data,
+    clientType: 'web',
+  });
 }
 
 /**
@@ -60,11 +47,4 @@ export async function logoutApi() {
  */
 export async function refreshTokenApi(data: AuthApi.RefreshTokenParams) {
   return requestClient.post<AuthApi.RefreshTokenResult>('/auth/refresh', data);
-}
-
-/**
- * 列出已启用的第三方登录 provider 入口
- */
-export async function listAuthProvidersApi() {
-  return requestClient.get<AuthApi.ProvidersResult>('/auth/providers');
 }

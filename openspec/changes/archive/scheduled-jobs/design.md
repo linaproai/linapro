@@ -327,7 +327,7 @@ sys_job_log
 
 ### Deployment Steps
 
-1. After merging PR, execute `make init` to trigger `manifest/sql/<NNN>-scheduled-job-management.sql` migration: create three new tables, insert default group, insert system parameters `cron.shell.enabled=false` and `cron.log.retention`, register permission points and menu items, insert dictionaries. Note: built-in job rows are NOT seeded into `sys_job`.
+1. After merging PR, execute `make db.init` to trigger `manifest/sql/<NNN>-scheduled-job-management.sql` migration: create three new tables, insert default group, insert system parameters `cron.shell.enabled=false` and `cron.log.retention`, register permission points and menu items, insert dictionaries. Note: built-in job rows are NOT seeded into `sys_job`.
 2. Frontend build and deploy, gradually enable `system:job:*` menu items.
 3. On backend restart, `service/cron/cron.go`'s `Start(ctx)` calls `jobmgmtScheduler.LoadAndRegister(ctx)` to load `sys_job where status=enabled and is_builtin=0` and register to gcron; built-in jobs are registered from code/plugin declarations through `cron.syncBuiltinScheduledJobs`. Existing code-embedded cron continues through the old path, no interference.
 4. Operations enables `cron.shell.enabled=true` on the system parameters page (if shell capability is needed), and grants `system:job:shell` permission to roles that need to execute shell tasks.

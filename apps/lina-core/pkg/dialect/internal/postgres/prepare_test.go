@@ -7,11 +7,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/gogf/gf/v2/database/gdb"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gogf/gf/v2/database/gdb"
 )
 
 // TestConfigNodeFromLink verifies database links are parsed by GoFrame's
@@ -20,7 +21,7 @@ func TestConfigNodeFromLink(t *testing.T) {
 	t.Parallel()
 
 	link := "pgsql:postgres:secret@tcp(127.0.0.1:5432)/linapro?sslmode=disable&connect_timeout=5"
-	node, err := ConfigNodeFromLink(link)
+	node, err := configNodeFromLink(link)
 	if err != nil {
 		t.Fatalf("parse PostgreSQL config node failed: %v", err)
 	}
@@ -63,7 +64,7 @@ func TestConfigNodeFromLinkRejectsMissingDatabase(t *testing.T) {
 		t.Run(link, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := ConfigNodeFromLink(link); err == nil {
+			if _, err := configNodeFromLink(link); err == nil {
 				t.Fatal("expected missing database name error")
 			}
 		})
@@ -75,17 +76,17 @@ func TestConfigNodeFromLinkRejectsMissingDatabase(t *testing.T) {
 func TestQuoteIdentifier(t *testing.T) {
 	t.Parallel()
 
-	got, err := QuoteIdentifier(`lina"pro`)
+	got, err := quoteIdentifier(`lina"pro`)
 	if err != nil {
 		t.Fatalf("quote identifier failed: %v", err)
 	}
 	if got != `"lina""pro"` {
 		t.Fatalf("expected escaped identifier, got %q", got)
 	}
-	if _, err = QuoteIdentifier(""); err == nil {
+	if _, err = quoteIdentifier(""); err == nil {
 		t.Fatal("expected empty identifier error")
 	}
-	if _, err = QuoteIdentifier("bad\x00name"); err == nil {
+	if _, err = quoteIdentifier("bad\x00name"); err == nil {
 		t.Fatal("expected NUL identifier error")
 	}
 }
@@ -198,7 +199,7 @@ func openPostgresIntegrationDB(t *testing.T, link string) gdb.DB {
 func postgresLinkWithDatabase(t *testing.T, link string, databaseName string) string {
 	t.Helper()
 
-	node, err := ConfigNodeFromLink(link)
+	node, err := configNodeFromLink(link)
 	if err != nil {
 		t.Fatalf("parse PostgreSQL link failed: %v", err)
 	}
@@ -210,7 +211,7 @@ func postgresLinkWithDatabase(t *testing.T, link string, databaseName string) st
 func postgresSystemLink(t *testing.T, link string) string {
 	t.Helper()
 
-	node, err := ConfigNodeFromLink(link)
+	node, err := configNodeFromLink(link)
 	if err != nil {
 		t.Fatalf("parse PostgreSQL link failed: %v", err)
 	}
@@ -234,7 +235,7 @@ func dropPostgresIntegrationDatabase(t *testing.T, targetLink string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	targetNode, err := ConfigNodeFromLink(targetLink)
+	targetNode, err := configNodeFromLink(targetLink)
 	if err != nil {
 		t.Errorf("parse target PostgreSQL link for cleanup failed: %v", err)
 		return
@@ -253,7 +254,7 @@ func dropPostgresIntegrationDatabase(t *testing.T, targetLink string) {
 		t.Errorf("terminate PostgreSQL cleanup connections failed: %v", err)
 		return
 	}
-	quotedName, err := QuoteIdentifier(targetNode.Name)
+	quotedName, err := quoteIdentifier(targetNode.Name)
 	if err != nil {
 		t.Errorf("quote PostgreSQL cleanup database name failed: %v", err)
 		return

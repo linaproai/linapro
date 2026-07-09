@@ -12,6 +12,7 @@ import (
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/statusflag"
 )
 
 // TestBatchUpdateReplacesStatusAndRoles verifies selected users receive the
@@ -32,7 +33,7 @@ func TestBatchUpdateReplacesStatusAndRoles(t *testing.T) {
 		insertUserDeleteTestUserRole(t, ctx, userID, oldRoleID)
 	}
 
-	disabledStatus := int(StatusDisabled)
+	disabledStatus := statusflag.Disabled.Int()
 	svc := newUserTestService().(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: mustQueryBuiltinAdminUserID(t, ctx), TenantId: 0, DataScope: 1}})
 	if err := svc.BatchUpdate(ctx, BatchUpdateInput{
@@ -61,14 +62,16 @@ func TestBatchUpdateReplacesStatusAndRoles(t *testing.T) {
 // TestBatchUpdateRejectsCurrentUserAtomically verifies current-user protection
 // rejects the whole batch before changing any selected row.
 func TestBatchUpdateRejectsCurrentUserAtomically(t *testing.T) {
-	ctx := context.Background()
-	currentUserID := insertUserDeleteTestUser(t, ctx, "batch-update-current")
-	otherUserID := insertUserDeleteTestUser(t, ctx, "batch-update-other")
+	var (
+		ctx           = context.Background()
+		currentUserID = insertUserDeleteTestUser(t, ctx, "batch-update-current")
+		otherUserID   = insertUserDeleteTestUser(t, ctx, "batch-update-other")
+	)
 	t.Cleanup(func() {
 		cleanupUserDeleteTestRows(t, ctx, []int{currentUserID, otherUserID})
 	})
 
-	disabledStatus := int(StatusDisabled)
+	disabledStatus := statusflag.Disabled.Int()
 	svc := newUserTestService().(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID, TenantId: 0, DataScope: 1}})
 	err := svc.BatchUpdate(ctx, BatchUpdateInput{
@@ -83,7 +86,7 @@ func TestBatchUpdateRejectsCurrentUserAtomically(t *testing.T) {
 	if !ok || !messageErr.Matches(CodeUserCurrentEditDenied) {
 		t.Fatalf("expected CodeUserCurrentEditDenied, got %v", err)
 	}
-	if status := mustQueryUserBatchUpdateStatus(t, ctx, otherUserID); status != int(StatusNormal) {
+	if status := mustQueryUserBatchUpdateStatus(t, ctx, otherUserID); status != int(statusflag.EnabledValue) {
 		t.Fatalf("expected other user to remain enabled, got status=%d", status)
 	}
 }
@@ -107,13 +110,13 @@ func TestBatchUpdateReplacesTenantMemberships(t *testing.T) {
 		cleanupUserDeleteTestRows(t, ctx, append([]int{operatorID}, userIDs...))
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
 	})
-	tenantRuntime := activateUserTenantMembershipProvider(t)
+	tenantManager, tenantRuntime := activateUserTenantMembershipProvider(t)
 	insertUserDeleteTestUserRole(t, ctx, operatorID, roleID)
 	for _, userID := range userIDs {
 		insertUserTenantMembershipTestMembership(t, ctx, userID, tenantAID, userTenantMembershipTestActive)
 	}
 
-	svc := newUserTestService(tenantRuntime).(*serviceImpl)
+	svc := newUserTestService(tenantManager, tenantRuntime).(*serviceImpl)
 	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: operatorID, TenantId: 0, DataScope: 1}})
 	if err := svc.BatchUpdate(ctx, BatchUpdateInput{
 		Ids:          userIDs,
@@ -140,9 +143,11 @@ func TestBatchUpdateReplacesTenantMemberships(t *testing.T) {
 // tenant membership rewrites cannot be combined under one current-tenant role
 // selection.
 func TestBatchUpdateRejectsRoleTenantCombinedPatch(t *testing.T) {
-	ctx := context.Background()
-	userID := insertUserDeleteTestUser(t, ctx, "batch-update-role-tenant-conflict")
-	roleID := insertUserDeleteTestRole(t, ctx, "batch-update-role-tenant-conflict-role")
+	var (
+		ctx    = context.Background()
+		userID = insertUserDeleteTestUser(t, ctx, "batch-update-role-tenant-conflict")
+		roleID = insertUserDeleteTestRole(t, ctx, "batch-update-role-tenant-conflict-role")
+	)
 	t.Cleanup(func() {
 		cleanupUserDeleteTestRows(t, ctx, []int{userID})
 		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})

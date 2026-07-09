@@ -4,7 +4,7 @@
 - [x] 1.2 In the same SQL, insert default group (`code=default, is_default=1`), system parameters `cron.shell.enabled=false` and `cron.log.retention={"mode":"days","value":30}`
 - [x] 1.3 In the same SQL, insert menus (Task Management / Group Management / Execution Log) and button permissions (`system:job:add/edit/remove/status/trigger/reset`, `system:jobgroup:add/edit/remove`, `system:joblog:remove/cancel`, `system:job:shell`), and register menu permissions `system:job:list / system:jobgroup:list / system:joblog:list`
 - [x] 1.4 In the same SQL, insert dictionary types and data: `cron_job_status / cron_job_task_type / cron_job_scope / cron_job_concurrency / cron_job_trigger / cron_job_log_status / cron_log_retention_mode`
-- [x] 1.5 Execute `make init` to verify SQL idempotency and re-entrancy; confirm repeated execution has no errors
+- [x] 1.5 Execute `make db.init` to verify SQL idempotency and re-entrancy; confirm repeated execution has no errors
 - [x] 1.6 Verify that delivery SQL does NOT seed built-in job rows into `sys_job`; built-in jobs are projected from code and plugin declarations at runtime
 
 ## 2. Backend DAO and API Skeleton
@@ -152,7 +152,7 @@
 
 - [x] 16.1 Update `apps/lina-core/README.md / README.zh-CN.md`: add "Scheduled Job Management" section in module list (Chinese and English synchronized)
 - [x] 16.2 Update `apps/lina-vben/apps/web-antd/README.md / README.zh-CN.md`: add route and page entry description
-- [x] 16.3 Verify `make init / make dao / make ctrl / make dev / make test` full flow passes
+- [x] 16.3 Verify `make db.init / make dao / make ctrl / make dev / make test` full flow passes
 - [x] 16.4 Call `/lina-review` skill for code and specification review, handle all critical issues
 - [x] 16.5 After user confirms feature completion, execute `/opsx:archive scheduled-jobs`
 

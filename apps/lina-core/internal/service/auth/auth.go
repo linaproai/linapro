@@ -8,35 +8,56 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
+	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/kvcache"
-	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
-	"lina-core/pkg/authtoken"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	tokencap "lina-core/pkg/plugin/capability/authcap/token"
+	"lina-core/pkg/plugin/capability/orgcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // Auth status constants used by login validation.
 const (
-	// statusDisabled represents a disabled user status.
-	// Mirrors user.StatusDisabled; duplicated here to avoid circular import.
-	statusDisabled = 0
 	// authLoginStatusSuccess marks a successful login lifecycle event.
 	authLoginStatusSuccess = 0
 	// authLoginStatusFail marks a failed login lifecycle event.
 	authLoginStatusFail = 1
 )
 
+// English fallback messages published with host authentication lifecycle hooks.
+const (
+	// authEventMessageLoginSuccessful is the English fallback for successful login messages.
+	authEventMessageLoginSuccessful = "Login successful"
+	// authEventMessageInvalidCredentials is the English fallback for invalid credential messages.
+	authEventMessageInvalidCredentials = "Invalid username or password"
+	// authEventMessageUserDisabled is the English fallback for disabled account messages.
+	authEventMessageUserDisabled = "User account is disabled"
+	// authEventMessageIPBlacklisted is the English fallback for blocked login IP messages.
+	authEventMessageIPBlacklisted = "Login IP is blacklisted"
+	// authEventMessageTenantUnavailable is the English fallback for tenant-auth rejection messages.
+	authEventMessageTenantUnavailable = "Tenant is not available"
+	// authEventMessageLogoutSuccessful is the English fallback for successful logout messages.
+	authEventMessageLogoutSuccessful = "Logout successful"
+	// authEventMessageExternalNotProvisioned is the English fallback for unlinked external-identity messages.
+	authEventMessageExternalNotProvisioned = "No local account is linked to this external identity"
+	// authHookReasonTenantUnavailable identifies tenant service or membership failures.
+	authHookReasonTenantUnavailable = "tenant_unavailable"
+	// authHookReasonExternalNotProvisioned identifies external-identity logins with no linked local account.
+	authHookReasonExternalNotProvisioned = "external_not_provisioned"
+)
+
 // tokenKind identifies the intended use of one signed JWT. The underlying
-// string values are owned by `pkg/authtoken` so host signers, host parsers,
+// string values are owned by `authcap/token` so host signers, host parsers,
 // dynamic plugin routes, and source plugins stay in lock-step.
 type tokenKind string
 
 const (
 	// tokenKindAccess marks JWTs accepted by protected API middleware.
-	tokenKindAccess tokenKind = authtoken.KindAccess
+	tokenKindAccess tokenKind = tokencap.KindAccess
 	// tokenKindRefresh marks JWTs accepted only by the refresh-token endpoint.
-	tokenKindRefresh tokenKind = authtoken.KindRefresh
+	tokenKindRefresh tokenKind = tokencap.KindRefresh
 	// defaultRefreshTokenTTL is the minimum lifetime for refresh tokens.
 	defaultRefreshTokenTTL time.Duration = 7 * 24 * time.Hour
 )
@@ -54,138 +75,116 @@ type Service interface {
 	// for tenant selection. It persists session state and dispatches auth hooks;
 	// user-visible failures are returned as bizerr codes.
 	Login(ctx context.Context, in LoginInput) (*LoginOutput, error)
+	// BindExternalProvisioner attaches the user-owner provisioning seam after
+	// startup wiring (auth is constructed before the user service). A nil
+	// provisioner keeps auto-provisioning disabled fail-closed.
+	BindExternalProvisioner(provisioner ExternalProvisioner)
+	// LoginByExternalIdentity resolves a plugin-verified external identity
+	// (provider + immutable subject) to a linked local account and issues a
+	// host session, reusing the same login-IP policy, disabled-account check,
+	// tenant resolution, pre-login-token handoff, token issuance, session
+	// persistence, and auth hooks as password Login. Provisioning is
+	// host-owned and closed by default: an unlinked identity returns
+	// CodeAuthExternalUserNotProvisioned without creating a user. Callers must
+	// have already verified the external identity; the host does not perform
+	// any OAuth or token exchange. An empty provider or subject returns
+	// CodeAuthExternalIdentityInvalid.
+	LoginByExternalIdentity(ctx context.Context, in ExternalLoginInput) (*ExternalLoginOutput, error)
 	// Refresh validates a host refresh token, confirms the online session and
 	// tenant membership are still valid, primes role access cache, and returns a
 	// fresh access token while preserving the refresh token.
 	Refresh(ctx context.Context, in RefreshInput) (*RefreshOutput, error)
-	// ParseToken parses an access token, validates its token kind and revoke
-	// marker, and returns claims for middleware context injection.
-	ParseToken(ctx context.Context, tokenString string) (*Claims, error)
+	// AuthenticateAccessToken validates an access token and confirms the
+	// corresponding sys_online_session row is present, tenant-bound, and not
+	// timed out. It returns claims only after the complete login state is valid.
+	AuthenticateAccessToken(ctx context.Context, tokenString string) (*Claims, error)
+	// IssueTenantToken consumes a pre-login token and issues a tenant-bound token
+	// pair while validating tenant membership and creating online-session state.
+	IssueTenantToken(ctx context.Context, in TenantTokenIssueInput) (*TenantTokenOutput, error)
+	// ReissueTenantTokenFromBearer parses the current access token, validates a
+	// tenant switch, revokes the old session, and issues a new tenant token pair.
+	ReissueTenantTokenFromBearer(ctx context.Context, tokenString string, tenantID int) (*TenantTokenOutput, error)
+	// IssueImpersonationToken signs and registers one host-owned impersonation
+	// token using the shared auth/session state.
+	IssueImpersonationToken(ctx context.Context, in ImpersonationTokenIssueInput) (*ImpersonationTokenOutput, error)
+	// RevokeImpersonationToken validates one host impersonation token and revokes
+	// its online-session state when it belongs to the supplied tenant.
+	RevokeImpersonationToken(ctx context.Context, tokenString string, tenantID int) error
 	// HashPassword hashes a plaintext password with bcrypt for user-account
 	// writes; it does not persist the result.
 	HashPassword(password string) (string, error)
-	// Logout revokes the supplied token ID, clears cached access context, removes
-	// the online-session row, and dispatches logout hooks. An empty tokenId only
-	// records hook state and leaves sessions unchanged.
-	Logout(ctx context.Context, username string, tenantId int, tokenId string) error
+	// Logout revokes the supplied token ID, clears cached access context,
+	// removes the online-session row, and dispatches logout hooks using the
+	// current session client type. An empty tokenId only records hook state and
+	// leaves sessions unchanged.
+	Logout(ctx context.Context, in LogoutInput) error
 	// RevokeSession writes a shared revoke marker, removes one online session by
 	// token ID, and invalidates token-bound role access cache across callers.
 	RevokeSession(ctx context.Context, tokenId string) error
-	// LoginByExternal resolves a verified external provider identity into a
-	// host login outcome. Source-plugin OAuth callbacks must have already
-	// verified the provider exchange before calling this method; the host
-	// enforces login policy, user lookup by email, tenant resolution, JWT
-	// issuance, online session creation, and auth lifecycle hooks identically
-	// to password login.
-	LoginByExternal(ctx context.Context, in ExternalLoginInput) (*LoginOutput, error)
-	// ListProviders returns enabled authentication provider entries discovered
-	// from the host auth-provider registry. Each entry includes static
-	// metadata plus a runtime snapshot of post-login redirect rules so the
-	// default workbench login page can render third-party login buttons.
-	ListProviders(ctx context.Context) ([]ProviderEntryView, error)
-}
-
-// TenantTokenIssuer defines the narrow host-owned token handoff used by
-// tenant-aware auth adapters.
-type TenantTokenIssuer interface {
-	// IssueTenantToken consumes a short-lived pre-login token, validates the
-	// selected tenant membership, and issues a tenant-bound token pair.
-	IssueTenantToken(ctx context.Context, in TenantTokenIssueInput) (*TenantTokenOutput, error)
-	// ReissueTenantToken validates tenant membership, revokes the current token
-	// and cached access context, and issues a new tenant-bound token pair.
-	ReissueTenantToken(ctx context.Context, in TenantTokenReissueInput) (*TenantTokenOutput, error)
-	// ReissueTenantTokenFromBearer parses the current bearer token and delegates
-	// to ReissueTenantToken for tenant-switch validation and revocation.
-	ReissueTenantTokenFromBearer(ctx context.Context, tokenString string, tenantID int) (*TenantTokenOutput, error)
-	// IssueImpersonationToken signs a host-owned impersonation access token for
-	// a platform administrator entering target tenant scope. It creates the
-	// online-session row and primes role access using platform administrator
-	// grants while retaining the target tenant as the request data boundary.
-	IssueImpersonationToken(ctx context.Context, in ImpersonationTokenIssueInput) (*ImpersonationTokenOutput, error)
-	// RevokeImpersonationToken validates that tokenString is an impersonation
-	// access token for tenantID when tenantID is non-zero, then revokes the
-	// session and token access cache through the host auth state store.
-	RevokeImpersonationToken(ctx context.Context, tokenString string, tenantID int) error
 }
 
 // Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
-// Ensure serviceImpl implements TenantTokenIssuer.
-var _ TenantTokenIssuer = (*serviceImpl)(nil)
-
 // serviceImpl implements Service.
 type serviceImpl struct {
-	configSvc    authConfigService // Configuration service
-	orgCapSvc    authOrgProjectionService
-	pluginSvc    pluginsvc.Service // Plugin service
-	roleSvc      authRoleService   // Role service
-	tenantSvc    authTenantAccessService
+	configSvc    configsvc.Service // Configuration service
+	orgCapSvc    orgcap.Service
+	hookSvc      authHookService // Authentication lifecycle hook dispatcher
+	roleSvc      role.Service    // Role service
+	tenantSvc    tenantspi.Service
 	sessionStore session.Store // Session store
 	preTokens    preTokenStore
 	revoked      revokeStore
+	// provisioner is the user-owner system provisioning seam bound after
+	// startup through BindExternalProvisioner (auth is constructed before the
+	// user service). Nil keeps auto-provisioning disabled fail-closed.
+	provisioner ExternalProvisioner
 }
 
-// authConfigService is the narrow config surface used by auth.
-type authConfigService interface {
-	// GetJwtSecret returns the signing secret used for host access and refresh
-	// tokens. Callers treat an empty value as a configuration error at token
-	// issue or parse time rather than caching it locally.
-	GetJwtSecret(ctx context.Context) string
-	// GetJwtExpire returns the configured token lifetime. It may return a
-	// configuration parsing error when the duration value is invalid.
-	GetJwtExpire(ctx context.Context) (time.Duration, error)
-	// GetSessionTimeout returns the online-session timeout used for session and
-	// token revocation bookkeeping. It returns configuration errors from the
-	// underlying system-config service unchanged.
-	GetSessionTimeout(ctx context.Context) (time.Duration, error)
-	// IsLoginIPBlacklisted reports whether the given client IP is denied by
-	// login policy. It returns lookup or configuration errors so authentication
-	// can fail closed when policy state cannot be trusted.
-	IsLoginIPBlacklisted(ctx context.Context, ip string) (bool, error)
+// ExternalProvisioner is the narrow user-owner seam auth consumes to create
+// platform users for verified external identities. The user owner keeps the
+// provisioning rules (username derivation, unusable password, least
+// privilege); auth only decides WHEN provisioning is allowed.
+type ExternalProvisioner interface {
+	// ProvisionExternalUser creates one platform user for a verified external
+	// identity and returns the new user ID.
+	ProvisionExternalUser(ctx context.Context, in ExternalProvisionInput) (int, error)
 }
 
-// authRoleService is the narrow role access-cache surface used by auth.
-type authRoleService interface {
-	// PrimeTokenAccessContext builds and caches the role/menu/data-scope access
-	// snapshot for one issued token. It returns permission-data lookup errors so
-	// token issuance can be rolled back when access context cannot be prepared.
-	PrimeTokenAccessContext(ctx context.Context, tokenID string, userID int) (*role.UserAccessContext, error)
-	// InvalidateTokenAccessContext removes the cached access snapshot for one
-	// token. Missing snapshots are treated as success because revocation paths
-	// must remain idempotent.
-	InvalidateTokenAccessContext(ctx context.Context, tokenID string)
+// ExternalProvisionInput mirrors the user-owner provisioning input at the
+// auth boundary so auth does not import the user package.
+type ExternalProvisionInput struct {
+	// Email is the verified email address from the external provider.
+	Email string
+	// DisplayName optionally seeds the nickname.
+	DisplayName string
+	// Remark records the provisioning source for audit, e.g. the provider ID.
+	Remark string
 }
 
-// authOrgProjectionService is the organization read slice used by auth session
-// projection. It deliberately excludes organization assignment and data-scope
-// query builder methods.
-type authOrgProjectionService interface {
-	// GetUserDeptName returns one user's department display name for login and
-	// online-session projection. Missing organization capability should degrade
-	// to an empty name.
-	GetUserDeptName(ctx context.Context, userID int) (string, error)
-}
-
-// authTenantAccessService is the tenant membership slice required by auth. It
-// excludes tenant query-scope, provisioning, and startup consistency methods.
-type authTenantAccessService interface {
-	// Available reports whether tenant membership checks should run.
-	Available(ctx context.Context) bool
-	// ListUserTenants returns active tenant candidates visible to one login user.
-	ListUserTenants(ctx context.Context, userID int) ([]tenantcapsvc.TenantInfo, error)
-	// ValidateUserInTenant verifies that userID may issue a token for tenantID.
-	ValidateUserInTenant(ctx context.Context, userID int, tenantID tenantcapsvc.TenantID) error
-	// SwitchTenant validates a tenant switch before token reissue.
-	SwitchTenant(ctx context.Context, userID int, target tenantcapsvc.TenantID) error
+// authHookService is the narrow plugin-hook surface required by auth. Auth
+// owns authentication state and publishes hook payloads without depending on
+// the plugin service root package.
+type authHookService interface {
+	// DispatchHookEvent dispatches one plugin hook event with already-normalized payload values.
+	DispatchHookEvent(ctx context.Context, event pluginhost.ExtensionPoint, values map[string]interface{}) error
 }
 
 // New creates the concrete auth service from explicit runtime-owned dependencies.
-func New(configSvc authConfigService, pluginSvc pluginsvc.Service, orgCapSvc authOrgProjectionService, roleSvc authRoleService, tenantSvc authTenantAccessService, sessionStore session.Store, kvCacheSvc kvcache.Service) Service {
+func New(
+	configSvc configsvc.Service,
+	hookSvc authHookService,
+	orgCapSvc orgcap.Service,
+	roleSvc role.Service,
+	tenantSvc tenantspi.Service,
+	sessionStore session.Store,
+	kvCacheSvc kvcache.Service,
+) Service {
 	return &serviceImpl{
 		configSvc:    configSvc,
 		orgCapSvc:    orgCapSvc,
-		pluginSvc:    pluginSvc,
+		hookSvc:      hookSvc,
 		roleSvc:      roleSvc,
 		tenantSvc:    tenantSvc,
 		sessionStore: sessionStore,
@@ -196,21 +195,60 @@ func New(configSvc authConfigService, pluginSvc pluginsvc.Service, orgCapSvc aut
 
 // Claims defines JWT token claims.
 type Claims struct {
-	TokenId         string    `json:"tokenId"`         // Unique token identifier
-	TokenType       tokenKind `json:"tokenType"`       // TokenType identifies access or refresh token usage.
-	UserId          int       `json:"userId"`          // User ID
-	Username        string    `json:"username"`        // Username
-	Status          int       `json:"status"`          // Status
-	TenantId        int       `json:"tenantId"`        // Tenant ID, where 0 means platform
-	IsImpersonation bool      `json:"isImpersonation"` // Whether the token represents impersonation
-	ActingUserId    int       `json:"actingUserId"`    // Real user ID during impersonation
+	TokenId         string     `json:"tokenId"`         // Unique token identifier
+	TokenType       tokenKind  `json:"tokenType"`       // TokenType identifies access or refresh token usage.
+	ClientType      ClientType `json:"clientType"`      // ClientType identifies the user-session client.
+	UserId          int        `json:"userId"`          // User ID
+	Username        string     `json:"username"`        // Username
+	Status          int        `json:"status"`          // Status
+	TenantId        int        `json:"tenantId"`        // Tenant ID, where 0 means platform
+	IsImpersonation bool       `json:"isImpersonation"` // Whether the token represents impersonation
+	ActingUserId    int        `json:"actingUserId"`    // Real user ID during impersonation
 	jwt.RegisteredClaims
 }
 
 // LoginInput defines input for Login function.
 type LoginInput struct {
-	Username string // Username
-	Password string // Password
+	Username   string     // Username
+	Password   string     // Password
+	ClientType ClientType // User-session client type
+}
+
+// ExternalLoginInput defines input for LoginByExternalIdentity. The caller is
+// a source plugin that has already verified the external identity; PluginID is
+// stamped by the host-scoped capability adapter and must not be trusted from
+// unauthenticated request payloads.
+type ExternalLoginInput struct {
+	PluginID    string     // Source-plugin ID that owns Provider; stamped by the host adapter
+	Provider    string     // Stable external provider ID owned by PluginID
+	Subject     string     // Immutable provider-issued subject identifier
+	Email       string     // Verified email; used for provisioning/conflict checks only when AllowAutoProvision is set
+	DisplayName string     // Display name captured for audit/hook context only
+	ClientType  ClientType // User-session client type
+	// AllowAutoProvision declares that the calling plugin permits host-owned
+	// auto-provisioning for unlinked identities. The host still owns the
+	// provisioning policy: a same-email account conflict is rejected with
+	// CodeAuthExternalEmailConflict instead of silently linking, and account
+	// creation runs through the user owner's system provisioning path.
+	AllowAutoProvision bool
+}
+
+// ExternalLoginOutput defines output for LoginByExternalIdentity. It mirrors
+// LoginOutput: a token pair is set for 0/1 active tenants, otherwise a
+// pre-login token plus tenant candidates are returned for tenant selection.
+type ExternalLoginOutput struct {
+	AccessToken  string       // JWT access token
+	RefreshToken string       // JWT refresh token
+	PreToken     string       // Short-lived pre-login token for tenant selection
+	Tenants      []TenantInfo // Tenant candidates for two-stage login
+}
+
+// LogoutInput defines input for Logout function.
+type LogoutInput struct {
+	Username   string     // Username
+	TenantID   int        // Tenant ID, where 0 means platform
+	TokenID    string     // Token/session identifier
+	ClientType ClientType // User-session client type
 }
 
 // LoginOutput defines output for Login function.
@@ -248,8 +286,9 @@ type TenantTokenIssueInput struct {
 
 // TenantTokenReissueInput defines input for reissuing the current formal token for a tenant.
 type TenantTokenReissueInput struct {
-	CurrentClaims *Claims // Current token claims
-	TenantID      int     // Target tenant ID
+	CurrentClaims         *Claims // Current token claims
+	SkipSessionValidation bool    // Skip session validation when the caller already completed it in the same request.
+	TenantID              int     // Target tenant ID
 }
 
 // TenantTokenOutput defines a tenant-bound JWT response.
@@ -270,48 +309,4 @@ type ImpersonationTokenOutput struct {
 	TokenID      string // Host token/session identifier
 	TenantID     int    // Target tenant ID
 	ActingUserID int    // Platform administrator user ID
-}
-
-// ExternalLoginInput describes a verified external provider identity passed
-// from a source-plugin OAuth callback to the host login handoff.
-type ExternalLoginInput struct {
-	// ProviderID is the stable provider identifier (e.g. "google").
-	ProviderID string
-	// PluginID is the owning source-plugin identifier (e.g. "linapro-oidc-google").
-	PluginID string
-	// ExternalUserID is the provider-side user identifier, used for logging.
-	ExternalUserID string
-	// Email is the email address returned by the provider; required.
-	Email string
-	// DisplayName is the human-readable name returned by the provider; optional.
-	DisplayName string
-	// ClientIP is the original client IP forwarded by the OAuth callback.
-	// When empty the host falls back to the current request IP.
-	ClientIP string
-}
-
-// ProviderEntryView is the host-side projection of one public authentication
-// provider entry used by /auth/providers responses. It intentionally contains
-// only login button metadata; SSO redirect rules remain internal to provider
-// callback handlers and authenticated plugin settings APIs.
-type ProviderEntryView struct {
-	// ProviderID is the stable provider identifier (e.g. "google").
-	ProviderID string
-	// PluginID is the owning source-plugin identifier.
-	PluginID string
-	// Kind is the provider kind: "oauth2", "oidc", "ldap", "saml", "cas".
-	Kind string
-	// Name is the display name shown on the login page.
-	Name string
-	// Description is the short tagline shown next to the entry.
-	Description string
-	// Icon is the icon identifier rendered by the workbench.
-	Icon string
-	// EntryURL is the provider login entry URL or deep-link route.
-	EntryURL string
-	// DisplayOrder controls login entry sort order; smaller values first.
-	DisplayOrder int
-	// Enabled reports whether the entry should be rendered on the login
-	// page (the owning plugin is enabled and the provider opted in).
-	Enabled bool
 }

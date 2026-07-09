@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/golang-jwt/jwt/v5"
 
@@ -20,14 +19,16 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/bizctx"
+	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/plugin/capability/contract"
+	tokencap "lina-core/pkg/plugin/capability/authcap/token"
 	"lina-core/pkg/plugin/capability/tenantcap"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestSelectTenantConsumesPreTokenOnce verifies pre-login tokens are single-use
@@ -36,9 +37,10 @@ func TestSelectTenantConsumesPreTokenOnce(t *testing.T) {
 	ctx := context.Background()
 	svc := newTenantAuthTestService()
 	preToken, err := svc.preTokens.Create(ctx, preTokenRecord{
-		UserID:   101,
-		Username: "tenant-user",
-		Status:   1,
+		UserID:     101,
+		Username:   "tenant-user",
+		Status:     1,
+		ClientType: tokencap.ClientTypeWeb,
 	})
 	if err != nil {
 		t.Fatalf("create pre-token: %v", err)
@@ -51,12 +53,15 @@ func TestSelectTenantConsumesPreTokenOnce(t *testing.T) {
 	if out.RefreshToken == "" {
 		t.Fatal("expected selected tenant refresh token")
 	}
-	claims, err := svc.ParseToken(ctx, out.AccessToken)
+	claims, err := svc.parseAccessTokenForTest(ctx, out.AccessToken)
 	if err != nil {
 		t.Fatalf("parse selected token: %v", err)
 	}
 	if claims.TenantId != 11 || claims.UserId != 101 {
 		t.Fatalf("expected selected tenant claims, got tenant=%d user=%d", claims.TenantId, claims.UserId)
+	}
+	if claims.ClientType != tokencap.ClientTypeWeb {
+		t.Fatalf("expected selected tenant clientType %q, got %q", tokencap.ClientTypeWeb, claims.ClientType)
 	}
 
 	_, err = svc.IssueTenantToken(ctx, TenantTokenIssueInput{PreToken: preToken, TenantID: 11})
@@ -69,15 +74,18 @@ func TestSelectTenantConsumesPreTokenOnce(t *testing.T) {
 // selection primes role access with the selected tenant instead of the caller
 // context tenant.
 func TestIssueTenantTokenPrimesAccessContextWithSelectedTenant(t *testing.T) {
-	ctx := datascope.WithTenantScope(context.Background(), 99)
-	svc := newTenantAuthTestService()
-	roleSvc := &trackingRoleTestService{}
+	var (
+		ctx     = datascope.WithTenantScope(context.Background(), 99)
+		svc     = newTenantAuthTestService()
+		roleSvc = &trackingRoleTestService{}
+	)
 	svc.roleSvc = roleSvc
 
 	preToken, err := svc.preTokens.Create(ctx, preTokenRecord{
-		UserID:   101,
-		Username: "tenant-user",
-		Status:   1,
+		UserID:     101,
+		Username:   "tenant-user",
+		Status:     1,
+		ClientType: tokencap.ClientTypeWeb,
 	})
 	if err != nil {
 		t.Fatalf("create pre-token: %v", err)
@@ -95,9 +103,11 @@ func TestIssueTenantTokenPrimesAccessContextWithSelectedTenant(t *testing.T) {
 // impersonation tokens are host-owned and permission priming receives the
 // target tenant plus impersonation business context.
 func TestIssueImpersonationTokenUsesHostSignerAndTenantScopedPrime(t *testing.T) {
-	ctx := context.Background()
-	svc := newTenantAuthTestService()
-	roleSvc := &trackingRoleTestService{}
+	var (
+		ctx     = context.WithValue(context.Background(), bizctx.ContextKey, &model.Context{ClientType: tokencap.ClientTypeDesktop.String()})
+		svc     = newTenantAuthTestService()
+		roleSvc = &trackingRoleTestService{}
+	)
 	svc.roleSvc = roleSvc
 	username := fmt.Sprintf("impersonation-admin-%d", time.Now().UnixNano())
 	userID := insertAuthTestUser(t, ctx, username, "admin123")
@@ -109,14 +119,17 @@ func TestIssueImpersonationTokenUsesHostSignerAndTenantScopedPrime(t *testing.T)
 	if out.AccessToken == "" || out.TokenID == "" || out.TenantID != 42 || out.ActingUserID != userID {
 		t.Fatalf("unexpected impersonation output: %#v", out)
 	}
-	claims, err := svc.ParseToken(ctx, out.AccessToken)
+	claims, err := svc.parseAccessTokenForTest(ctx, out.AccessToken)
 	if err != nil {
 		t.Fatalf("parse impersonation token: %v", err)
 	}
 	if !claims.IsImpersonation || claims.ActingUserId != userID || claims.UserId != userID || claims.TenantId != 42 || claims.TokenId != out.TokenID {
 		t.Fatalf("unexpected impersonation claims: %#v", claims)
 	}
-	if sessionItem, err := svc.sessionStore.Get(ctx, out.TokenID); err != nil || sessionItem == nil || sessionItem.TenantId != 42 || sessionItem.UserId != userID {
+	if claims.ClientType != tokencap.ClientTypeDesktop {
+		t.Fatalf("expected impersonation clientType %q, got %q", tokencap.ClientTypeDesktop, claims.ClientType)
+	}
+	if sessionItem, err := svc.sessionStore.Get(ctx, out.TokenID); err != nil || sessionItem == nil || sessionItem.TenantId != 42 || sessionItem.UserId != userID || sessionItem.ClientType != tokencap.ClientTypeDesktop.String() {
 		t.Fatalf("expected impersonation session in target tenant, session=%#v err=%v", sessionItem, err)
 	}
 	if len(roleSvc.tenantIDs) != 1 || roleSvc.tenantIDs[0] != 42 {
@@ -128,14 +141,15 @@ func TestIssueImpersonationTokenUsesHostSignerAndTenantScopedPrime(t *testing.T)
 	if !roleSvc.contexts[0].IsImpersonation ||
 		!roleSvc.contexts[0].ActingAsTenant ||
 		roleSvc.contexts[0].ActingUserId != userID ||
-		roleSvc.contexts[0].TenantId != 42 {
+		roleSvc.contexts[0].TenantId != 42 ||
+		roleSvc.contexts[0].ClientType != tokencap.ClientTypeDesktop.String() {
 		t.Fatalf("unexpected impersonation business context: %#v", roleSvc.contexts[0])
 	}
 
 	if err = svc.RevokeImpersonationToken(ctx, "Bearer "+out.AccessToken, 42); err != nil {
 		t.Fatalf("revoke impersonation token: %v", err)
 	}
-	if _, err = svc.ParseToken(ctx, out.AccessToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
+	if _, err = svc.parseAccessTokenForTest(ctx, out.AccessToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
 		t.Fatalf("expected revoked impersonation token to be invalid, got %v", err)
 	}
 }
@@ -143,15 +157,40 @@ func TestIssueImpersonationTokenUsesHostSignerAndTenantScopedPrime(t *testing.T)
 // TestRevokeImpersonationTokenRejectsNonImpersonationToken verifies plugins
 // cannot use the impersonation revoke path to tear down ordinary sessions.
 func TestRevokeImpersonationTokenRejectsNonImpersonationToken(t *testing.T) {
-	ctx := context.Background()
-	svc := newTenantAuthTestService()
-	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
-	accessToken, _, _, err := svc.generateTokenPair(ctx, user, 42)
+	var (
+		ctx  = context.Background()
+		svc  = newTenantAuthTestService()
+		user = &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	)
+	accessToken, _, _, err := svc.generateTokenPair(ctx, user, 42, tokencap.ClientTypeWeb)
 	if err != nil {
 		t.Fatalf("generate tenant token: %v", err)
 	}
 	if err = svc.RevokeImpersonationToken(ctx, accessToken, 42); !bizerr.Is(err, CodeAuthTokenInvalid) {
 		t.Fatalf("expected non-impersonation revoke to be rejected, got %v", err)
+	}
+}
+
+// TestRevokeImpersonationTokenRequiresOnlineSession verifies impersonation
+// revocation does not accept a valid JWT after the authoritative session row is
+// gone.
+func TestRevokeImpersonationTokenRequiresOnlineSession(t *testing.T) {
+	var (
+		ctx      = context.WithValue(context.Background(), bizctx.ContextKey, &model.Context{ClientType: tokencap.ClientTypeWeb.String()})
+		svc      = newTenantAuthTestService()
+		username = fmt.Sprintf("impersonation-session-%d", time.Now().UnixNano())
+		userID   = insertAuthTestUser(t, ctx, username, "admin123")
+	)
+
+	out, err := svc.IssueImpersonationToken(ctx, ImpersonationTokenIssueInput{ActingUserID: userID, TenantID: 42})
+	if err != nil {
+		t.Fatalf("issue impersonation token: %v", err)
+	}
+	if err = svc.sessionStore.Delete(ctx, out.TokenID); err != nil {
+		t.Fatalf("delete impersonation session: %v", err)
+	}
+	if err = svc.RevokeImpersonationToken(ctx, "Bearer "+out.AccessToken, 42); !bizerr.Is(err, CodeAuthTokenInvalid) {
+		t.Fatalf("expected missing impersonation session to reject revoke, got %v", err)
 	}
 }
 
@@ -161,9 +200,10 @@ func TestPreTokenTTLIsShortAndEnforced(t *testing.T) {
 	ctx := context.Background()
 	store := newMemoryPreTokenStore()
 	preToken, err := store.Create(ctx, preTokenRecord{
-		UserID:   101,
-		Username: "tenant-user",
-		Status:   1,
+		UserID:     101,
+		Username:   "tenant-user",
+		Status:     1,
+		ClientType: tokencap.ClientTypeWeb,
 	})
 	if err != nil {
 		t.Fatalf("create pre-token: %v", err)
@@ -186,17 +226,20 @@ func TestPreTokenTTLIsShortAndEnforced(t *testing.T) {
 // TestPreTokenSharedStoreConsumesAcrossInstances verifies that the shared
 // token store enforces single-use semantics across auth service instances.
 func TestPreTokenSharedStoreConsumesAcrossInstances(t *testing.T) {
-	ctx := context.Background()
-	sharedCache := newSharedMemoryKVCache()
-	firstSvc := newTenantAuthTestService()
-	secondSvc := newTenantAuthTestService()
+	var (
+		ctx         = context.Background()
+		sharedCache = newSharedMemoryKVCache()
+		firstSvc    = newTenantAuthTestService()
+		secondSvc   = newTenantAuthTestService()
+	)
 	firstSvc.preTokens = newKVPreTokenStore(sharedCache)
 	secondSvc.preTokens = newKVPreTokenStore(sharedCache)
 
 	preToken, err := firstSvc.preTokens.Create(ctx, preTokenRecord{
-		UserID:   101,
-		Username: "tenant-user",
-		Status:   1,
+		UserID:     101,
+		Username:   "tenant-user",
+		Status:     1,
+		ClientType: tokencap.ClientTypeWeb,
 	})
 	if err != nil {
 		t.Fatalf("create shared pre-token: %v", err)
@@ -212,11 +255,13 @@ func TestPreTokenSharedStoreConsumesAcrossInstances(t *testing.T) {
 // TestRevokeLayeredStoreUsesLocalAndSharedState verifies revoke checks use a
 // process-local memory layer and converge across instances through shared KV state.
 func TestRevokeLayeredStoreUsesLocalAndSharedState(t *testing.T) {
-	ctx := context.Background()
-	sharedCache := newSharedMemoryKVCache()
-	firstStore := newLayeredRevokeStore(newMemoryRevokeStore(), newKVRevokeStore(sharedCache))
-	secondStore := newLayeredRevokeStore(newMemoryRevokeStore(), newKVRevokeStore(sharedCache))
-	expiresAt := time.Now().Add(time.Hour)
+	var (
+		ctx         = context.Background()
+		sharedCache = newSharedMemoryKVCache()
+		firstStore  = newLayeredRevokeStore(newMemoryRevokeStore(), newKVRevokeStore(sharedCache))
+		secondStore = newLayeredRevokeStore(newMemoryRevokeStore(), newKVRevokeStore(sharedCache))
+		expiresAt   = time.Now().Add(time.Hour)
+	)
 
 	if err := firstStore.Add(ctx, "revoked-token", expiresAt); err != nil {
 		t.Fatalf("add layered revoke: %v", err)
@@ -241,18 +286,20 @@ func TestRevokeLayeredStoreUsesLocalAndSharedState(t *testing.T) {
 // TestSwitchTenantRevokesOldToken verifies switching tenant invalidates the old
 // token and signs a new token for the requested tenant.
 func TestSwitchTenantRevokesOldToken(t *testing.T) {
-	ctx := context.Background()
-	svc := newTenantAuthTestService()
-	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
-	oldToken, oldTokenID, err := svc.generateToken(ctx, user, 11)
+	var (
+		ctx  = context.Background()
+		svc  = newTenantAuthTestService()
+		user = &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	)
+	oldToken, oldTokenID, err := svc.generateToken(ctx, user, 11, tokencap.ClientTypeDesktop)
 	if err != nil {
 		t.Fatalf("generate old token: %v", err)
 	}
-	oldClaims, err := svc.ParseToken(ctx, oldToken)
+	oldClaims, err := svc.parseAccessTokenForTest(ctx, oldToken)
 	if err != nil {
 		t.Fatalf("parse old token: %v", err)
 	}
-	if err = svc.sessionStore.Set(ctx, &session.Session{TokenId: oldTokenID, TenantId: 11, UserId: 101, Username: "tenant-user"}); err != nil {
+	if err = svc.sessionStore.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeDesktop.String(), TokenId: oldTokenID, TenantId: 11, UserId: 101, Username: "tenant-user"}); err != nil {
 		t.Fatalf("set old session: %v", err)
 	}
 
@@ -260,18 +307,54 @@ func TestSwitchTenantRevokesOldToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("switch tenant: %v", err)
 	}
-	if _, err = svc.ParseToken(ctx, oldToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
+	if _, err = svc.parseAccessTokenForTest(ctx, oldToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
 		t.Fatalf("expected old token to be revoked, got %v", err)
 	}
-	newClaims, err := svc.ParseToken(ctx, out.AccessToken)
+	newClaims, err := svc.parseAccessTokenForTest(ctx, out.AccessToken)
 	if err != nil {
 		t.Fatalf("parse new token: %v", err)
 	}
 	if newClaims.TenantId != 22 {
 		t.Fatalf("expected new tenant 22, got %d", newClaims.TenantId)
 	}
+	if newClaims.ClientType != tokencap.ClientTypeDesktop {
+		t.Fatalf("expected switched tenant clientType %q, got %q", tokencap.ClientTypeDesktop, newClaims.ClientType)
+	}
 	if out.RefreshToken == "" {
 		t.Fatal("expected switched tenant refresh token")
+	}
+}
+
+// TestSwitchTenantFromBearerAcceptsAuthorizationHeader verifies the bearer
+// helper accepts an Authorization header value and still validates the current
+// session before issuing a replacement token.
+func TestSwitchTenantFromBearerAcceptsAuthorizationHeader(t *testing.T) {
+	var (
+		ctx  = context.Background()
+		svc  = newTenantAuthTestService()
+		user = &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	)
+	oldToken, oldTokenID, err := svc.generateToken(ctx, user, 11, tokencap.ClientTypeWeb)
+	if err != nil {
+		t.Fatalf("generate old token: %v", err)
+	}
+	if err = svc.sessionStore.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeWeb.String(), TokenId: oldTokenID, TenantId: 11, UserId: 101, Username: "tenant-user"}); err != nil {
+		t.Fatalf("set old session: %v", err)
+	}
+
+	out, err := svc.ReissueTenantTokenFromBearer(ctx, "Bearer "+oldToken, 22)
+	if err != nil {
+		t.Fatalf("switch tenant from bearer header: %v", err)
+	}
+	claims, err := svc.parseAccessTokenForTest(ctx, out.AccessToken)
+	if err != nil {
+		t.Fatalf("parse reissued token: %v", err)
+	}
+	if claims.TenantId != 22 || claims.UserId != 101 {
+		t.Fatalf("expected tenant 22 user 101 claims, got tenant=%d user=%d", claims.TenantId, claims.UserId)
+	}
+	if _, err = svc.parseAccessTokenForTest(ctx, oldToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
+		t.Fatalf("expected old token to be revoked, got %v", err)
 	}
 }
 
@@ -290,7 +373,10 @@ func TestLoginSelectTenantSwitchTenantLogoutFlow(t *testing.T) {
 		},
 	})
 
-	loginOut, err := svc.Login(ctx, LoginInput{Username: username, Password: "admin123"})
+	hooks := &recordingAuthHookService{}
+	svc.hookSvc = hooks
+
+	loginOut, err := svc.Login(ctx, LoginInput{Username: username, Password: "admin123", ClientType: tokencap.ClientTypeMobile})
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -308,15 +394,21 @@ func TestLoginSelectTenantSwitchTenantLogoutFlow(t *testing.T) {
 	if selectOut.RefreshToken == "" {
 		t.Fatal("expected selected tenant refresh token")
 	}
-	selectedClaims, err := svc.ParseToken(ctx, selectOut.AccessToken)
+	selectedClaims, err := svc.parseAccessTokenForTest(ctx, selectOut.AccessToken)
 	if err != nil {
 		t.Fatalf("parse selected token: %v", err)
 	}
 	if selectedClaims.TenantId != 11 || selectedClaims.UserId != userID {
 		t.Fatalf("expected selected tenant/user claims, got tenant=%d user=%d", selectedClaims.TenantId, selectedClaims.UserId)
 	}
+	if selectedClaims.ClientType != tokencap.ClientTypeMobile {
+		t.Fatalf("expected selected tenant clientType %q, got %q", tokencap.ClientTypeMobile, selectedClaims.ClientType)
+	}
 	if active, err := svc.sessionStore.TouchOrValidate(ctx, 11, selectedClaims.TokenId, time.Hour); err != nil || !active {
 		t.Fatalf("expected selected tenant session, active=%v err=%v", active, err)
+	}
+	if selectedSession, err := svc.sessionStore.Get(ctx, selectedClaims.TokenId); err != nil || selectedSession == nil || selectedSession.ClientType != tokencap.ClientTypeMobile.String() {
+		t.Fatalf("expected selected tenant session clientType %q, session=%#v err=%v", tokencap.ClientTypeMobile, selectedSession, err)
 	}
 
 	switchOut, err := svc.ReissueTenantToken(ctx, TenantTokenReissueInput{CurrentClaims: selectedClaims, TenantID: 22})
@@ -326,15 +418,18 @@ func TestLoginSelectTenantSwitchTenantLogoutFlow(t *testing.T) {
 	if switchOut.RefreshToken == "" {
 		t.Fatal("expected switched tenant refresh token")
 	}
-	if _, err = svc.ParseToken(ctx, selectOut.AccessToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
+	if _, err = svc.parseAccessTokenForTest(ctx, selectOut.AccessToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
 		t.Fatalf("expected selected token revoked after switch, got %v", err)
 	}
-	switchedClaims, err := svc.ParseToken(ctx, switchOut.AccessToken)
+	switchedClaims, err := svc.parseAccessTokenForTest(ctx, switchOut.AccessToken)
 	if err != nil {
 		t.Fatalf("parse switched token: %v", err)
 	}
 	if switchedClaims.TenantId != 22 || switchedClaims.UserId != userID {
 		t.Fatalf("expected switched tenant/user claims, got tenant=%d user=%d", switchedClaims.TenantId, switchedClaims.UserId)
+	}
+	if switchedClaims.ClientType != tokencap.ClientTypeMobile {
+		t.Fatalf("expected switched tenant clientType %q, got %q", tokencap.ClientTypeMobile, switchedClaims.ClientType)
 	}
 	if active, err := svc.sessionStore.TouchOrValidate(ctx, 11, selectedClaims.TokenId, time.Hour); err != nil || active {
 		t.Fatalf("expected selected tenant session removed, active=%v err=%v", active, err)
@@ -342,12 +437,69 @@ func TestLoginSelectTenantSwitchTenantLogoutFlow(t *testing.T) {
 	if active, err := svc.sessionStore.TouchOrValidate(ctx, 22, switchedClaims.TokenId, time.Hour); err != nil || !active {
 		t.Fatalf("expected switched tenant session, active=%v err=%v", active, err)
 	}
+	if switchedSession, err := svc.sessionStore.Get(ctx, switchedClaims.TokenId); err != nil || switchedSession == nil || switchedSession.ClientType != tokencap.ClientTypeMobile.String() {
+		t.Fatalf("expected switched tenant session clientType %q, session=%#v err=%v", tokencap.ClientTypeMobile, switchedSession, err)
+	}
 
-	if err = svc.Logout(ctx, username, switchedClaims.TenantId, switchedClaims.TokenId); err != nil {
+	if err = svc.Logout(ctx, LogoutInput{
+		Username:   username,
+		TenantID:   switchedClaims.TenantId,
+		TokenID:    switchedClaims.TokenId,
+		ClientType: switchedClaims.ClientType,
+	}); err != nil {
 		t.Fatalf("logout switched tenant token: %v", err)
 	}
 	if active, err := svc.sessionStore.TouchOrValidate(ctx, 22, switchedClaims.TokenId, time.Hour); err != nil || active {
 		t.Fatalf("expected switched tenant session removed after logout, active=%v err=%v", active, err)
+	}
+	if len(hooks.logoutSucceeded) != 1 || hooks.logoutSucceeded[0].ClientType != tokencap.ClientTypeMobile.String() {
+		t.Fatalf("expected logout hook clientType %q, got %#v", tokencap.ClientTypeMobile, hooks.logoutSucceeded)
+	}
+}
+
+// TestLoginFailureHookUsesRequestedClientType verifies failed auth events carry
+// the explicit user-session client type instead of an internal default.
+func TestLoginFailureHookUsesRequestedClientType(t *testing.T) {
+	var (
+		ctx   = context.Background()
+		svc   = newTenantAuthTestService()
+		hooks = &recordingAuthHookService{}
+	)
+	svc.hookSvc = hooks
+
+	_, err := svc.Login(ctx, LoginInput{
+		Username:   "missing-user-for-client-type-hook",
+		Password:   "bad-password",
+		ClientType: tokencap.ClientTypeMobile,
+	})
+	if !bizerr.Is(err, CodeAuthInvalidCredentials) {
+		t.Fatalf("expected invalid credentials, got %v", err)
+	}
+	if len(hooks.loginFailed) != 1 {
+		t.Fatalf("expected one login failed hook, got %#v", hooks.loginFailed)
+	}
+	if hooks.loginFailed[0].ClientType != tokencap.ClientTypeMobile.String() {
+		t.Fatalf("expected failed hook clientType %q, got %q", tokencap.ClientTypeMobile, hooks.loginFailed[0].ClientType)
+	}
+	if hooks.loginFailed[0].Reason != pluginhost.AuthHookReasonInvalidCredentials {
+		t.Fatalf("expected invalid credential reason, got %q", hooks.loginFailed[0].Reason)
+	}
+}
+
+// TestLoginRejectsPluginAndServiceClientTypes verifies non-user actors are not
+// accepted as login session client types.
+func TestLoginRejectsPluginAndServiceClientTypes(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+
+	for _, clientType := range []ClientType{"plugin", "service"} {
+		if _, err := svc.Login(ctx, LoginInput{
+			Username:   "ignored",
+			Password:   "ignored",
+			ClientType: clientType,
+		}); !bizerr.Is(err, CodeAuthClientTypeInvalid) {
+			t.Fatalf("expected invalid client type for %q, got %v", clientType, err)
+		}
 	}
 }
 
@@ -367,28 +519,80 @@ func TestLoginRejectsTenantUserWithoutActiveTenant(t *testing.T) {
 	}
 	svc.tenantSvc = registerTenantAuthTestProvider(t, map[int][]tenantcap.TenantInfo{userID: {}})
 
-	if _, err := svc.Login(ctx, LoginInput{Username: username, Password: "admin123"}); !bizerr.Is(err, CodeAuthTenantUnavailable) {
+	if _, err := svc.Login(ctx, LoginInput{Username: username, Password: "admin123", ClientType: tokencap.ClientTypeWeb}); !bizerr.Is(err, CodeAuthTenantUnavailable) {
 		t.Fatalf("expected tenant unavailable login error, got %v", err)
+	}
+}
+
+// TestLoginRejectsTenantUserWhenTenantServiceUnavailable verifies tenant users
+// fail closed when the tenant provider is disabled instead of receiving a
+// platform-scoped token.
+func TestLoginRejectsTenantUserWhenTenantServiceUnavailable(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	hooks := &recordingAuthHookService{}
+	svc.hookSvc = hooks
+
+	username := fmt.Sprintf("tenant-service-disabled-%d", time.Now().UnixNano())
+	userID := insertAuthTestUser(t, ctx, username, "admin123")
+	if _, err := dao.SysUser.Ctx(ctx).
+		Where(do.SysUser{Id: userID}).
+		Data(do.SysUser{TenantId: 11}).
+		Update(); err != nil {
+		t.Fatalf("set tenant id on auth test user: %v", err)
+	}
+
+	providerPluginID := fmt.Sprintf("plugin-test-disabled-auth-tenant-provider-%d", time.Now().UnixNano())
+	manager := tenantspi.NewManager()
+	if err := manager.RegisterFactory(providerPluginID, func(context.Context, tenantspi.ProviderEnv) (tenantspi.Provider, error) {
+		return &tenantAuthTestProvider{tenantsByUser: map[int][]tenantcap.TenantInfo{
+			userID: {{ID: 11, Code: "tenant-a", Name: "Tenant A", Status: "enabled"}},
+		}}, nil
+	}); err != nil {
+		t.Fatalf("register disabled auth tenant provider: %v", err)
+	}
+	svc.tenantSvc = tenantspi.New(manager, tenantAuthProviderRuntime{pluginID: "disabled-provider-not-enabled"}, nil, nil)
+	if svc.tenantSvc.Available(ctx) {
+		t.Fatal("expected test tenant service to be unavailable")
+	}
+
+	out, err := svc.Login(ctx, LoginInput{Username: username, Password: "admin123", ClientType: tokencap.ClientTypeWeb})
+	if !bizerr.Is(err, CodeAuthTenantUnavailable) {
+		t.Fatalf("expected tenant unavailable login error, got out=%#v err=%v", out, err)
+	}
+	if out != nil {
+		t.Fatalf("expected tenant service outage to reject token issuance, got %#v", out)
+	}
+	if len(hooks.loginFailed) != 1 {
+		t.Fatalf("expected one tenant unavailable failure hook, got %#v", hooks.loginFailed)
+	}
+	if hooks.loginFailed[0].Reason != authHookReasonTenantUnavailable {
+		t.Fatalf("expected tenant unavailable reason %q, got %q", authHookReasonTenantUnavailable, hooks.loginFailed[0].Reason)
+	}
+	if len(hooks.loginSucceeded) != 0 {
+		t.Fatalf("expected no login success hook, got %#v", hooks.loginSucceeded)
 	}
 }
 
 // TestRefreshTokenIssuesFreshAccessToken verifies refresh tokens can renew an
 // access token for the same online session without rotating the session ID.
 func TestRefreshTokenIssuesFreshAccessToken(t *testing.T) {
-	ctx := context.Background()
-	svc := newTenantAuthTestService()
-	username := fmt.Sprintf("refresh-user-%d", time.Now().UnixNano())
-	userID := insertAuthTestUser(t, ctx, username, "admin123")
-	user := &entity.SysUser{Id: userID, Username: username, Status: 1}
+	var (
+		ctx      = context.Background()
+		svc      = newTenantAuthTestService()
+		username = fmt.Sprintf("refresh-user-%d", time.Now().UnixNano())
+		userID   = insertAuthTestUser(t, ctx, username, "admin123")
+		user     = &entity.SysUser{Id: userID, Username: username, Status: 1}
+	)
 
-	accessToken, refreshToken, tokenID, err := svc.generateTokenPair(ctx, user, 11)
+	accessToken, refreshToken, tokenID, err := svc.generateTokenPair(ctx, user, 11, tokencap.ClientTypeCLI)
 	if err != nil {
 		t.Fatalf("generate token pair: %v", err)
 	}
-	if _, err = svc.ParseToken(ctx, accessToken); err != nil {
+	if _, err = svc.parseAccessTokenForTest(ctx, accessToken); err != nil {
 		t.Fatalf("parse access token: %v", err)
 	}
-	if err = svc.sessionStore.Set(ctx, &session.Session{TokenId: tokenID, TenantId: 11, UserId: userID, Username: username}); err != nil {
+	if err = svc.sessionStore.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeCLI.String(), TokenId: tokenID, TenantId: 11, UserId: userID, Username: username}); err != nil {
 		t.Fatalf("set refresh session: %v", err)
 	}
 
@@ -399,31 +603,38 @@ func TestRefreshTokenIssuesFreshAccessToken(t *testing.T) {
 	if out.RefreshToken != refreshToken {
 		t.Fatalf("expected refresh token to remain stable")
 	}
-	claims, err := svc.ParseToken(ctx, out.AccessToken)
+	claims, err := svc.parseAccessTokenForTest(ctx, out.AccessToken)
 	if err != nil {
 		t.Fatalf("parse refreshed access token: %v", err)
 	}
 	if claims.TokenId != tokenID || claims.TokenType != tokenKindAccess || claims.UserId != userID || claims.TenantId != 11 {
 		t.Fatalf("unexpected refreshed claims: %#v", claims)
 	}
+	if claims.ClientType != tokencap.ClientTypeCLI {
+		t.Fatalf("expected refreshed access clientType %q, got %q", tokencap.ClientTypeCLI, claims.ClientType)
+	}
 }
 
 // TestRefreshPrimesAccessContextWithRefreshTokenTenant verifies refresh
 // token renewal primes role access using the tenant encoded in the JWT.
 func TestRefreshPrimesAccessContextWithRefreshTokenTenant(t *testing.T) {
-	ctx := datascope.WithTenantScope(context.Background(), 99)
-	svc := newTenantAuthTestService()
-	roleSvc := &trackingRoleTestService{}
+	var (
+		ctx     = datascope.WithTenantScope(context.Background(), 99)
+		svc     = newTenantAuthTestService()
+		roleSvc = &trackingRoleTestService{}
+	)
 	svc.roleSvc = roleSvc
-	username := fmt.Sprintf("refresh-scope-%d", time.Now().UnixNano())
-	userID := insertAuthTestUser(t, context.Background(), username, "admin123")
-	user := &entity.SysUser{Id: userID, Username: username, Status: 1}
+	var (
+		username = fmt.Sprintf("refresh-scope-%d", time.Now().UnixNano())
+		userID   = insertAuthTestUser(t, context.Background(), username, "admin123")
+		user     = &entity.SysUser{Id: userID, Username: username, Status: 1}
+	)
 
-	_, refreshToken, tokenID, err := svc.generateTokenPair(ctx, user, 22)
+	_, refreshToken, tokenID, err := svc.generateTokenPair(ctx, user, 22, tokencap.ClientTypeWeb)
 	if err != nil {
 		t.Fatalf("generate token pair: %v", err)
 	}
-	if err = svc.sessionStore.Set(ctx, &session.Session{TokenId: tokenID, TenantId: 22, UserId: userID, Username: username}); err != nil {
+	if err = svc.sessionStore.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeWeb.String(), TokenId: tokenID, TenantId: 22, UserId: userID, Username: username}); err != nil {
 		t.Fatalf("set refresh session: %v", err)
 	}
 
@@ -438,15 +649,17 @@ func TestRefreshPrimesAccessContextWithRefreshTokenTenant(t *testing.T) {
 // TestRefreshTokenCannotBeUsedAsAccessToken verifies refresh JWTs are rejected
 // by the protected API access-token parser.
 func TestRefreshTokenCannotBeUsedAsAccessToken(t *testing.T) {
-	ctx := context.Background()
-	svc := newTenantAuthTestService()
-	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	var (
+		ctx  = context.Background()
+		svc  = newTenantAuthTestService()
+		user = &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	)
 
-	_, refreshToken, _, err := svc.generateTokenPair(ctx, user, 11)
+	_, refreshToken, _, err := svc.generateTokenPair(ctx, user, 11, tokencap.ClientTypeWeb)
 	if err != nil {
 		t.Fatalf("generate token pair: %v", err)
 	}
-	if _, err = svc.ParseToken(ctx, refreshToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
+	if _, err = svc.parseAccessTokenForTest(ctx, refreshToken); !bizerr.Is(err, CodeAuthTokenInvalid) {
 		t.Fatalf("expected refresh token to be rejected as access token, got %v", err)
 	}
 }
@@ -454,11 +667,13 @@ func TestRefreshTokenCannotBeUsedAsAccessToken(t *testing.T) {
 // TestRefreshRejectsRevokedSession verifies a valid refresh JWT is not enough
 // when the online session has already been revoked.
 func TestRefreshRejectsRevokedSession(t *testing.T) {
-	ctx := context.Background()
-	svc := newTenantAuthTestService()
-	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	var (
+		ctx  = context.Background()
+		svc  = newTenantAuthTestService()
+		user = &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	)
 
-	_, refreshToken, _, err := svc.generateTokenPair(ctx, user, 11)
+	_, refreshToken, _, err := svc.generateTokenPair(ctx, user, 11, tokencap.ClientTypeWeb)
 	if err != nil {
 		t.Fatalf("generate token pair: %v", err)
 	}
@@ -471,22 +686,24 @@ func TestRefreshRejectsRevokedSession(t *testing.T) {
 // claiming a negative/sentinel tenant ID — which the host signer never
 // issues — is treated as forged and the underlying session is torn down.
 func TestRefreshRejectsNegativeTenantClaim(t *testing.T) {
-	ctx := context.Background()
-	svc := newTenantAuthTestService()
-	username := fmt.Sprintf("tenant-neg-%d", time.Now().UnixNano())
-	userID := insertAuthTestUser(t, ctx, username, "admin123")
-	user := &entity.SysUser{Id: userID, Username: username, Status: 1}
+	var (
+		ctx      = context.Background()
+		svc      = newTenantAuthTestService()
+		username = fmt.Sprintf("tenant-neg-%d", time.Now().UnixNano())
+		userID   = insertAuthTestUser(t, ctx, username, "admin123")
+		user     = &entity.SysUser{Id: userID, Username: username, Status: 1}
+	)
 
 	// Forge a refresh token whose TenantId sits below PLATFORM. We bypass
 	// generateTokenPair because the production signer never emits such a
 	// value; the goal is to confirm the parser/refresh path rejects it.
 	const forgedTenantID = -1
 	tokenID := "forged-negative-tenant-token"
-	refreshToken, err := svc.signToken(ctx, user, forgedTenantID, tokenID, tokenKindRefresh, false, 0)
+	refreshToken, err := svc.signToken(ctx, user, forgedTenantID, tokenID, tokenKindRefresh, tokencap.ClientTypeWeb, false, 0)
 	if err != nil {
 		t.Fatalf("sign forged refresh token: %v", err)
 	}
-	if err = svc.sessionStore.Set(ctx, &session.Session{TokenId: tokenID, TenantId: forgedTenantID, UserId: userID, Username: username}); err != nil {
+	if err = svc.sessionStore.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeWeb.String(), TokenId: tokenID, TenantId: forgedTenantID, UserId: userID, Username: username}); err != nil {
 		t.Fatalf("seed forged session: %v", err)
 	}
 
@@ -507,9 +724,11 @@ func TestRefreshPreservesSessionOnProviderInfraError(t *testing.T) {
 	ctx := context.Background()
 	svc := newTenantAuthTestService()
 
-	username := fmt.Sprintf("tenant-infra-%d", time.Now().UnixNano())
-	userID := insertAuthTestUser(t, ctx, username, "admin123")
-	user := &entity.SysUser{Id: userID, Username: username, Status: 1}
+	var (
+		username = fmt.Sprintf("tenant-infra-%d", time.Now().UnixNano())
+		userID   = insertAuthTestUser(t, ctx, username, "admin123")
+		user     = &entity.SysUser{Id: userID, Username: username, Status: 1}
+	)
 
 	infraErr := errors.New("simulated tenant provider infra failure")
 	provider := &tenantAuthTestProvider{
@@ -520,11 +739,11 @@ func TestRefreshPreservesSessionOnProviderInfraError(t *testing.T) {
 	}
 	svc.tenantSvc = registerTenantAuthProviderInstance(t, provider)
 
-	_, refreshToken, tokenID, err := svc.generateTokenPair(ctx, user, 11)
+	_, refreshToken, tokenID, err := svc.generateTokenPair(ctx, user, 11, tokencap.ClientTypeWeb)
 	if err != nil {
 		t.Fatalf("generate token pair: %v", err)
 	}
-	if err = svc.sessionStore.Set(ctx, &session.Session{TokenId: tokenID, TenantId: 11, UserId: userID, Username: username}); err != nil {
+	if err = svc.sessionStore.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeWeb.String(), TokenId: tokenID, TenantId: 11, UserId: userID, Username: username}); err != nil {
 		t.Fatalf("set refresh session: %v", err)
 	}
 
@@ -551,20 +770,22 @@ func TestRefreshRejectsAfterTenantMembershipRemoved(t *testing.T) {
 	ctx := context.Background()
 	svc := newTenantAuthTestService()
 
-	username := fmt.Sprintf("tenant-evict-%d", time.Now().UnixNano())
-	userID := insertAuthTestUser(t, ctx, username, "admin123")
-	user := &entity.SysUser{Id: userID, Username: username, Status: 1}
+	var (
+		username = fmt.Sprintf("tenant-evict-%d", time.Now().UnixNano())
+		userID   = insertAuthTestUser(t, ctx, username, "admin123")
+		user     = &entity.SysUser{Id: userID, Username: username, Status: 1}
+	)
 
 	provider := &tenantAuthTestProvider{tenantsByUser: map[int][]tenantcap.TenantInfo{
 		userID: {{ID: 11, Code: "tenant-a", Name: "Tenant A", Status: "enabled"}},
 	}}
 	svc.tenantSvc = registerTenantAuthProviderInstance(t, provider)
 
-	_, refreshToken, tokenID, err := svc.generateTokenPair(ctx, user, 11)
+	_, refreshToken, tokenID, err := svc.generateTokenPair(ctx, user, 11, tokencap.ClientTypeWeb)
 	if err != nil {
 		t.Fatalf("generate token pair: %v", err)
 	}
-	if err = svc.sessionStore.Set(ctx, &session.Session{TokenId: tokenID, TenantId: 11, UserId: userID, Username: username}); err != nil {
+	if err = svc.sessionStore.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeWeb.String(), TokenId: tokenID, TenantId: 11, UserId: userID, Username: username}); err != nil {
 		t.Fatalf("set refresh session: %v", err)
 	}
 
@@ -588,18 +809,20 @@ func TestRefreshRejectsAfterTenantMembershipRemoved(t *testing.T) {
 // TestRevokeSharedStoreInvalidatesAcrossInstances verifies that one auth
 // instance can revoke a JWT and another instance rejects it through shared state.
 func TestRevokeSharedStoreInvalidatesAcrossInstances(t *testing.T) {
-	ctx := context.Background()
-	sharedCache := newSharedMemoryKVCache()
-	firstSvc := newTenantAuthTestService()
-	secondSvc := newTenantAuthTestService()
+	var (
+		ctx         = context.Background()
+		sharedCache = newSharedMemoryKVCache()
+		firstSvc    = newTenantAuthTestService()
+		secondSvc   = newTenantAuthTestService()
+	)
 	firstSvc.revoked = newKVRevokeStore(sharedCache)
 	secondSvc.revoked = newKVRevokeStore(sharedCache)
 	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
-	token, tokenID, err := firstSvc.generateToken(ctx, user, 11)
+	token, tokenID, err := firstSvc.generateToken(ctx, user, 11, tokencap.ClientTypeWeb)
 	if err != nil {
 		t.Fatalf("generate shared revoke token: %v", err)
 	}
-	claims, err := firstSvc.ParseToken(ctx, token)
+	claims, err := firstSvc.parseAccessTokenForTest(ctx, token)
 	if err != nil {
 		t.Fatalf("parse shared revoke token before revoke: %v", err)
 	}
@@ -612,47 +835,89 @@ func TestRevokeSharedStoreInvalidatesAcrossInstances(t *testing.T) {
 	if err = firstSvc.revoked.Add(ctx, claims.TokenId, claims.ExpiresAt.Time); err != nil {
 		t.Fatalf("add shared revoke state: %v", err)
 	}
-	if _, err = secondSvc.ParseToken(ctx, token); !bizerr.Is(err, CodeAuthTokenInvalid) {
+	if _, err = secondSvc.parseAccessTokenForTest(ctx, token); !bizerr.Is(err, CodeAuthTokenInvalid) {
 		t.Fatalf("expected second instance to reject revoked token, got %v", err)
 	}
 }
 
-// TestParseTokenRevokeReadFailureFailClosed verifies a valid JWT is rejected
+// TestAccessTokenParseRevokeReadFailureFailClosed verifies a valid JWT is rejected
 // when the shared token-state store cannot confirm whether it has been revoked.
-func TestParseTokenRevokeReadFailureFailClosed(t *testing.T) {
-	ctx := context.Background()
-	svc := newTenantAuthTestService()
-	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
-	token, _, err := svc.generateToken(ctx, user, 11)
+func TestAccessTokenParseRevokeReadFailureFailClosed(t *testing.T) {
+	var (
+		ctx  = context.Background()
+		svc  = newTenantAuthTestService()
+		user = &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	)
+	token, _, err := svc.generateToken(ctx, user, 11, tokencap.ClientTypeWeb)
 	if err != nil {
 		t.Fatalf("generate token: %v", err)
 	}
 
 	svc.revoked = &failingRevokeStore{revokedErr: errors.New("simulated redis revoke read failure")}
-	if _, err = svc.ParseToken(ctx, token); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
+	if _, err = svc.parseAccessTokenForTest(ctx, token); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
 		t.Fatalf("expected revoke read failure to fail closed, got %v", err)
+	}
+}
+
+// TestAuthenticateAccessTokenUsesOnlineSessionAuthority verifies complete
+// access-token authentication rejects a valid JWT when the authoritative
+// sys_online_session-equivalent store has no matching session.
+func TestAuthenticateAccessTokenUsesOnlineSessionAuthority(t *testing.T) {
+	var (
+		ctx  = context.Background()
+		svc  = newTenantAuthTestService()
+		user = &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	)
+	token, tokenID, err := svc.generateToken(ctx, user, 11, tokencap.ClientTypeWeb)
+	if err != nil {
+		t.Fatalf("generate token: %v", err)
+	}
+	if _, err = svc.parseAccessTokenForTest(ctx, token); err != nil {
+		t.Fatalf("low-level access-token parsing should only validate JWT and revoke state: %v", err)
+	}
+	if _, err = svc.AuthenticateAccessToken(ctx, token); !bizerr.Is(err, CodeAuthTokenInvalid) {
+		t.Fatalf("expected missing online session to reject complete auth, got %v", err)
+	}
+	if err = svc.sessionStore.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeWeb.String(), TokenId: tokenID, TenantId: 11, UserId: 101, Username: "tenant-user"}); err != nil {
+		t.Fatalf("set online session: %v", err)
+	}
+	claims, err := svc.AuthenticateAccessToken(ctx, token)
+	if err != nil {
+		t.Fatalf("expected valid session to authenticate: %v", err)
+	}
+	if claims.TokenId != tokenID || claims.TenantId != 11 {
+		t.Fatalf("unexpected authenticated claims: %#v", claims)
 	}
 }
 
 // TestLogoutRevokesCurrentToken verifies logout removes the supplied token from
 // the session store contract and writes shared JWT revocation state.
 func TestLogoutRevokesCurrentToken(t *testing.T) {
-	ctx := context.Background()
-	store := newMemorySessionStore()
-	sharedCache := newSharedMemoryKVCache()
-	svc := newTenantAuthTestService()
+	var (
+		ctx         = context.Background()
+		store       = newMemorySessionStore()
+		sharedCache = newSharedMemoryKVCache()
+		svc         = newTenantAuthTestService()
+		hooks       = &recordingAuthHookService{}
+	)
+	svc.hookSvc = hooks
 	svc.sessionStore = store
 	svc.revoked = newKVRevokeStore(sharedCache)
 	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
-	token, tokenID, err := svc.generateToken(ctx, user, 22)
+	token, tokenID, err := svc.generateToken(ctx, user, 22, tokencap.ClientTypeWeb)
 	if err != nil {
 		t.Fatalf("generate logout token: %v", err)
 	}
-	if err = store.Set(ctx, &session.Session{TokenId: tokenID, TenantId: 22, UserId: 101, Username: "tenant-user"}); err != nil {
+	if err = store.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeWeb.String(), TokenId: tokenID, TenantId: 22, UserId: 101, Username: "tenant-user"}); err != nil {
 		t.Fatalf("set logout session: %v", err)
 	}
 
-	if err = svc.Logout(ctx, "tenant-user", 22, tokenID); err != nil {
+	if err = svc.Logout(ctx, LogoutInput{
+		Username:   "tenant-user",
+		TenantID:   22,
+		TokenID:    tokenID,
+		ClientType: tokencap.ClientTypeWeb,
+	}); err != nil {
 		t.Fatalf("logout: %v", err)
 	}
 	if store.deletedTokenID != tokenID {
@@ -661,22 +926,27 @@ func TestLogoutRevokesCurrentToken(t *testing.T) {
 	if _, ok, err := sharedCache.Get(ctx, kvcache.OwnerTypeModule, revokeCacheKey(tokenID)); err != nil || !ok {
 		t.Fatalf("expected logout shared revoke state, ok=%v err=%v", ok, err)
 	}
-	if _, err = svc.ParseToken(ctx, token); !bizerr.Is(err, CodeAuthTokenInvalid) {
+	if _, err = svc.parseAccessTokenForTest(ctx, token); !bizerr.Is(err, CodeAuthTokenInvalid) {
 		t.Fatalf("expected logged-out token to be rejected, got %v", err)
+	}
+	if len(hooks.logoutSucceeded) != 1 || hooks.logoutSucceeded[0].ClientType != tokencap.ClientTypeWeb.String() {
+		t.Fatalf("expected logout hook clientType %q, got %#v", tokencap.ClientTypeWeb, hooks.logoutSucceeded)
 	}
 }
 
 // TestRevokeSessionWritesSharedRevoke verifies force-logout style token-ID
 // revocation publishes shared revoke state before removing the session row.
 func TestRevokeSessionWritesSharedRevoke(t *testing.T) {
-	ctx := context.Background()
-	store := newMemorySessionStore()
-	sharedCache := newSharedMemoryKVCache()
-	svc := newTenantAuthTestService()
+	var (
+		ctx         = context.Background()
+		store       = newMemorySessionStore()
+		sharedCache = newSharedMemoryKVCache()
+		svc         = newTenantAuthTestService()
+	)
 	svc.sessionStore = store
 	svc.revoked = newKVRevokeStore(sharedCache)
 
-	if err := store.Set(ctx, &session.Session{TokenId: "force-token", TenantId: 22, UserId: 101, Username: "tenant-user"}); err != nil {
+	if err := store.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeWeb.String(), TokenId: "force-token", TenantId: 22, UserId: 101, Username: "tenant-user"}); err != nil {
 		t.Fatalf("set force logout session: %v", err)
 	}
 	if err := svc.RevokeSession(ctx, "force-token"); err != nil {
@@ -693,13 +963,20 @@ func TestRevokeSessionWritesSharedRevoke(t *testing.T) {
 // TestLogoutRevokeWriteFailureReturnsStructuredError verifies logout does not
 // hide shared token-state write failures.
 func TestLogoutRevokeWriteFailureReturnsStructuredError(t *testing.T) {
-	ctx := context.Background()
-	svc := newTenantAuthTestService()
-	store := newMemorySessionStore()
+	var (
+		ctx   = context.Background()
+		svc   = newTenantAuthTestService()
+		store = newMemorySessionStore()
+	)
 	svc.sessionStore = store
 	svc.revoked = &failingRevokeStore{addErr: errors.New("simulated logout revoke write failure")}
 
-	if err := svc.Logout(ctx, "tenant-user", 22, "logout-failure-token"); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
+	if err := svc.Logout(ctx, LogoutInput{
+		Username:   "tenant-user",
+		TenantID:   22,
+		TokenID:    "logout-failure-token",
+		ClientType: tokencap.ClientTypeWeb,
+	}); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
 		t.Fatalf("expected logout revoke write failure to be structured, got %v", err)
 	}
 	if store.deletedTokenID != "" {
@@ -710,9 +987,11 @@ func TestLogoutRevokeWriteFailureReturnsStructuredError(t *testing.T) {
 // TestRevokeSessionWriteFailureReturnsStructuredError verifies force-logout
 // style revocation reports shared token-state write failures.
 func TestRevokeSessionWriteFailureReturnsStructuredError(t *testing.T) {
-	ctx := context.Background()
-	svc := newTenantAuthTestService()
-	store := newMemorySessionStore()
+	var (
+		ctx   = context.Background()
+		svc   = newTenantAuthTestService()
+		store = newMemorySessionStore()
+	)
 	svc.sessionStore = store
 	svc.revoked = &failingRevokeStore{addErr: errors.New("simulated force logout revoke write failure")}
 
@@ -727,18 +1006,20 @@ func TestRevokeSessionWriteFailureReturnsStructuredError(t *testing.T) {
 // TestSwitchTenantRevokeWriteFailureReturnsStructuredError verifies old-token
 // revocation write failures abort tenant switching with a stable auth error.
 func TestSwitchTenantRevokeWriteFailureReturnsStructuredError(t *testing.T) {
-	ctx := context.Background()
-	svc := newTenantAuthTestService()
-	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
-	oldToken, oldTokenID, err := svc.generateToken(ctx, user, 11)
+	var (
+		ctx  = context.Background()
+		svc  = newTenantAuthTestService()
+		user = &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	)
+	oldToken, oldTokenID, err := svc.generateToken(ctx, user, 11, tokencap.ClientTypeWeb)
 	if err != nil {
 		t.Fatalf("generate old token: %v", err)
 	}
-	oldClaims, err := svc.ParseToken(ctx, oldToken)
+	oldClaims, err := svc.parseAccessTokenForTest(ctx, oldToken)
 	if err != nil {
 		t.Fatalf("parse old token: %v", err)
 	}
-	if err = svc.sessionStore.Set(ctx, &session.Session{TokenId: oldTokenID, TenantId: 11, UserId: 101, Username: "tenant-user"}); err != nil {
+	if err = svc.sessionStore.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeWeb.String(), TokenId: oldTokenID, TenantId: 11, UserId: 101, Username: "tenant-user"}); err != nil {
 		t.Fatalf("set old session: %v", err)
 	}
 
@@ -748,15 +1029,38 @@ func TestSwitchTenantRevokeWriteFailureReturnsStructuredError(t *testing.T) {
 	}
 }
 
+// TestSwitchTenantRequiresOnlineSession verifies tenant switching validates the
+// current token against the authoritative online session store before revoking
+// it and issuing a new session.
+func TestSwitchTenantRequiresOnlineSession(t *testing.T) {
+	var (
+		ctx  = context.Background()
+		svc  = newTenantAuthTestService()
+		user = &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	)
+	oldToken, _, err := svc.generateToken(ctx, user, 11, tokencap.ClientTypeWeb)
+	if err != nil {
+		t.Fatalf("generate old token: %v", err)
+	}
+	oldClaims, err := svc.parseAccessTokenForTest(ctx, oldToken)
+	if err != nil {
+		t.Fatalf("parse old token: %v", err)
+	}
+
+	if _, err = svc.ReissueTenantToken(ctx, TenantTokenReissueInput{CurrentClaims: oldClaims, TenantID: 22}); !bizerr.Is(err, CodeAuthTokenInvalid) {
+		t.Fatalf("expected missing online session to reject tenant switch, got %v", err)
+	}
+}
+
 // TestMemorySessionStoreUsesGlobalTokenIdentity verifies the auth test helper
 // mirrors the production globally unique token_id session-store contract.
 func TestMemorySessionStoreUsesGlobalTokenIdentity(t *testing.T) {
 	ctx := context.Background()
 	store := newMemorySessionStore()
-	if err := store.Set(ctx, &session.Session{TokenId: "same-token", TenantId: 11, UserId: 101}); err != nil {
+	if err := store.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeWeb.String(), TokenId: "same-token", TenantId: 11, UserId: 101}); err != nil {
 		t.Fatalf("set tenant 11 session: %v", err)
 	}
-	if err := store.Set(ctx, &session.Session{TokenId: "same-token", TenantId: 22, UserId: 101}); err != nil {
+	if err := store.Set(ctx, &session.Session{ClientType: tokencap.ClientTypeWeb.String(), TokenId: "same-token", TenantId: 22, UserId: 101}); err != nil {
 		t.Fatalf("replace session by token: %v", err)
 	}
 	if item, err := store.Get(ctx, "same-token"); err != nil || item == nil || item.TenantId != 22 {
@@ -787,8 +1091,16 @@ func newTenantAuthTestService() *serviceImpl {
 	}
 }
 
+// parseAccessTokenForTest exposes low-level access-token parsing to same-package
+// tests without adding it to the production Service contract.
+func (s *serviceImpl) parseAccessTokenForTest(ctx context.Context, tokenString string) (*Claims, error) {
+	return s.parseToken(ctx, tokenString, tokenKindAccess)
+}
+
 // configTestService provides JWT settings used by auth unit tests.
-type configTestService struct{}
+type configTestService struct {
+	configsvc.Service
+}
 
 // GetJwtSecret returns a stable test signing secret.
 func (configTestService) GetJwtSecret(context.Context) string {
@@ -811,7 +1123,9 @@ func (configTestService) IsLoginIPBlacklisted(context.Context, string) (bool, er
 }
 
 // roleTestService stubs the token access cache hooks used by auth.
-type roleTestService struct{}
+type roleTestService struct {
+	role.Service
+}
 
 // PrimeTokenAccessContext returns a no-op access snapshot.
 func (roleTestService) PrimeTokenAccessContext(context.Context, string, int) (*role.UserAccessContext, error) {
@@ -824,6 +1138,7 @@ func (roleTestService) InvalidateTokenAccessContext(context.Context, string) {}
 // trackingRoleTestService records the tenant scope used to prime token access
 // snapshots.
 type trackingRoleTestService struct {
+	role.Service
 	tenantIDs []int
 	contexts  []*model.Context
 }
@@ -843,231 +1158,45 @@ func (s *trackingRoleTestService) PrimeTokenAccessContext(ctx context.Context, _
 // InvalidateTokenAccessContext records no state for tenant-scope assertions.
 func (s *trackingRoleTestService) InvalidateTokenAccessContext(context.Context, string) {}
 
-// enabledTenantAuthTestService enables tenant provider validation for auth tests.
-type enabledTenantAuthTestService struct{}
-
-// disabledTenantAuthTestService keeps multi-tenancy disabled for tests that
-// only need the auth service to satisfy its explicit dependency contract.
-type disabledTenantAuthTestService struct{}
-
-// Available reports no active tenant provider for disabled tenancy tests.
-func (disabledTenantAuthTestService) Available(context.Context) bool {
-	return false
+// recordingAuthHookService records auth hook payloads for client-type
+// propagation assertions.
+type recordingAuthHookService struct {
+	loginSucceeded  []pluginhost.AuthHookPayloadInput
+	loginFailed     []pluginhost.AuthHookPayloadInput
+	logoutSucceeded []pluginhost.AuthHookPayloadInput
 }
 
-// Status returns an unavailable tenant capability status.
-func (disabledTenantAuthTestService) Status(context.Context) contract.CapabilityStatus {
-	return contract.CapabilityStatus{}
-}
-
-// Current returns platform tenant for disabled tenancy tests.
-func (disabledTenantAuthTestService) Current(context.Context) tenantcapsvc.TenantID {
-	return tenantcap.PLATFORM
-}
-
-// Apply returns the input model unchanged when tenancy is disabled.
-func (disabledTenantAuthTestService) Apply(_ context.Context, model *gdb.Model, _ string) (*gdb.Model, error) {
-	return model, nil
-}
-
-// PlatformBypass reports platform bypass for disabled tenancy tests.
-func (disabledTenantAuthTestService) PlatformBypass(context.Context) bool {
-	return true
-}
-
-// EnsureTenantVisible accepts all tenants when tenancy is disabled.
-func (disabledTenantAuthTestService) EnsureTenantVisible(context.Context, tenantcapsvc.TenantID) error {
-	return nil
-}
-
-// ValidateUserInTenant accepts all users when tenancy is disabled.
-func (disabledTenantAuthTestService) ValidateUserInTenant(context.Context, int, tenantcapsvc.TenantID) error {
-	return nil
-}
-
-// ResolveTenant returns platform tenant for disabled tenancy tests.
-func (disabledTenantAuthTestService) ResolveTenant(context.Context, *ghttp.Request) (*tenantcap.ResolverResult, error) {
-	return &tenantcap.ResolverResult{TenantID: tenantcap.PLATFORM, Matched: true}, nil
-}
-
-// ListUserTenants returns no tenant options when tenancy is disabled.
-func (disabledTenantAuthTestService) ListUserTenants(context.Context, int) ([]tenantcap.TenantInfo, error) {
-	return []tenantcap.TenantInfo{}, nil
-}
-
-// SwitchTenant accepts tenant switches when tenancy is disabled.
-func (disabledTenantAuthTestService) SwitchTenant(context.Context, int, tenantcapsvc.TenantID) error {
-	return nil
-}
-
-// ApplyUserTenantScope returns the model unchanged when tenancy is disabled.
-func (disabledTenantAuthTestService) ApplyUserTenantScope(
+// DispatchHookEvent records auth hook payloads by extension point.
+func (s *recordingAuthHookService) DispatchHookEvent(
 	_ context.Context,
-	model *gdb.Model,
-	_ string,
-) (*gdb.Model, bool, error) {
-	return model, false, nil
-}
-
-// ApplyUserTenantFilter returns the model unchanged when tenancy is disabled.
-func (disabledTenantAuthTestService) ApplyUserTenantFilter(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-	_ tenantcapsvc.TenantID,
-) (*gdb.Model, bool, error) {
-	return model, false, nil
-}
-
-// ListUserTenantProjections returns no projections when tenancy is disabled.
-func (disabledTenantAuthTestService) ListUserTenantProjections(
-	context.Context,
-	[]int,
-) (map[int]*tenantcap.UserTenantProjection, error) {
-	return map[int]*tenantcap.UserTenantProjection{}, nil
-}
-
-// ResolveUserTenantAssignment returns an empty assignment plan when tenancy is disabled.
-func (disabledTenantAuthTestService) ResolveUserTenantAssignment(
-	context.Context,
-	[]tenantcapsvc.TenantID,
-	tenantcap.UserTenantAssignmentMode,
-) (*tenantcap.UserTenantAssignmentPlan, error) {
-	return &tenantcap.UserTenantAssignmentPlan{}, nil
-}
-
-// ReplaceUserTenantAssignments is a no-op when tenancy is disabled.
-func (disabledTenantAuthTestService) ReplaceUserTenantAssignments(
-	context.Context,
-	int,
-	*tenantcap.UserTenantAssignmentPlan,
+	event pluginhost.ExtensionPoint,
+	values map[string]interface{},
 ) error {
+	input := authHookPayloadInputFromValues(values)
+	switch event {
+	case pluginhost.ExtensionPointAuthLoginSucceeded:
+		s.loginSucceeded = append(s.loginSucceeded, input)
+	case pluginhost.ExtensionPointAuthLoginFailed:
+		s.loginFailed = append(s.loginFailed, input)
+	case pluginhost.ExtensionPointAuthLogoutSucceeded:
+		s.logoutSucceeded = append(s.logoutSucceeded, input)
+	}
 	return nil
 }
 
-// EnsureUsersInTenant accepts all users when tenancy is disabled.
-func (disabledTenantAuthTestService) EnsureUsersInTenant(context.Context, []int, tenantcapsvc.TenantID) error {
-	return nil
-}
-
-// ValidateUserMembershipStartupConsistency returns no details when tenancy is disabled.
-func (disabledTenantAuthTestService) ValidateUserMembershipStartupConsistency(context.Context) ([]string, error) {
-	return nil, nil
-}
-
-// ProvisionAutoEnabledTenantPlugins is a no-op when tenancy is disabled.
-func (disabledTenantAuthTestService) ProvisionAutoEnabledTenantPlugins(context.Context) error {
-	return nil
-}
-
-// Available reports an active tenant provider for enabled tenancy tests.
-func (enabledTenantAuthTestService) Available(context.Context) bool {
-	return true
-}
-
-// Status returns an available tenant capability status.
-func (enabledTenantAuthTestService) Status(context.Context) contract.CapabilityStatus {
-	return contract.CapabilityStatus{Available: true, ActiveProvider: tenantcap.ProviderPluginID}
-}
-
-// Current returns the platform tenant for tests that do not carry request context.
-func (enabledTenantAuthTestService) Current(context.Context) tenantcapsvc.TenantID {
-	return tenantcap.PLATFORM
-}
-
-// Apply returns the model unchanged in auth tests.
-func (enabledTenantAuthTestService) Apply(_ context.Context, model *gdb.Model, _ string) (*gdb.Model, error) {
-	return model, nil
-}
-
-// PlatformBypass reports no platform bypass in auth tests.
-func (enabledTenantAuthTestService) PlatformBypass(context.Context) bool {
-	return false
-}
-
-// EnsureTenantVisible accepts all tenants in auth tests.
-func (enabledTenantAuthTestService) EnsureTenantVisible(context.Context, tenantcapsvc.TenantID) error {
-	return nil
-}
-
-// ValidateUserInTenant accepts all users in auth tests.
-func (enabledTenantAuthTestService) ValidateUserInTenant(context.Context, int, tenantcapsvc.TenantID) error {
-	return nil
-}
-
-// ResolveTenant returns no request-derived tenant in auth tests.
-func (enabledTenantAuthTestService) ResolveTenant(context.Context, *ghttp.Request) (*tenantcap.ResolverResult, error) {
-	return &tenantcap.ResolverResult{TenantID: tenantcap.PLATFORM, Matched: true}, nil
-}
-
-// ListUserTenants returns no tenants in auth tests unless provider lookup is used directly.
-func (enabledTenantAuthTestService) ListUserTenants(context.Context, int) ([]tenantcap.TenantInfo, error) {
-	return []tenantcap.TenantInfo{}, nil
-}
-
-// SwitchTenant accepts tenant switches in auth tests.
-func (enabledTenantAuthTestService) SwitchTenant(context.Context, int, tenantcapsvc.TenantID) error {
-	return nil
-}
-
-// ApplyUserTenantScope returns the model unchanged in auth tests.
-func (enabledTenantAuthTestService) ApplyUserTenantScope(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-) (*gdb.Model, bool, error) {
-	return model, false, nil
-}
-
-// ApplyUserTenantFilter returns the model unchanged in auth tests.
-func (enabledTenantAuthTestService) ApplyUserTenantFilter(
-	_ context.Context,
-	model *gdb.Model,
-	_ string,
-	_ tenantcapsvc.TenantID,
-) (*gdb.Model, bool, error) {
-	return model, false, nil
-}
-
-// ListUserTenantProjections returns no projections in auth tests.
-func (enabledTenantAuthTestService) ListUserTenantProjections(
-	context.Context,
-	[]int,
-) (map[int]*tenantcap.UserTenantProjection, error) {
-	return map[int]*tenantcap.UserTenantProjection{}, nil
-}
-
-// ResolveUserTenantAssignment returns an empty plan in auth tests.
-func (enabledTenantAuthTestService) ResolveUserTenantAssignment(
-	context.Context,
-	[]tenantcapsvc.TenantID,
-	tenantcap.UserTenantAssignmentMode,
-) (*tenantcap.UserTenantAssignmentPlan, error) {
-	return &tenantcap.UserTenantAssignmentPlan{}, nil
-}
-
-// ReplaceUserTenantAssignments is a no-op in auth tests.
-func (enabledTenantAuthTestService) ReplaceUserTenantAssignments(
-	context.Context,
-	int,
-	*tenantcap.UserTenantAssignmentPlan,
-) error {
-	return nil
-}
-
-// EnsureUsersInTenant accepts all users in auth tests.
-func (enabledTenantAuthTestService) EnsureUsersInTenant(context.Context, []int, tenantcapsvc.TenantID) error {
-	return nil
-}
-
-// ValidateUserMembershipStartupConsistency returns no details in auth tests.
-func (enabledTenantAuthTestService) ValidateUserMembershipStartupConsistency(context.Context) ([]string, error) {
-	return nil, nil
-}
-
-// ProvisionAutoEnabledTenantPlugins is a no-op in auth tests.
-func (enabledTenantAuthTestService) ProvisionAutoEnabledTenantPlugins(context.Context) error {
-	return nil
+// authHookPayloadInputFromValues restores typed auth hook fields for assertions.
+func authHookPayloadInputFromValues(values map[string]interface{}) pluginhost.AuthHookPayloadInput {
+	status, _ := pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyStatus)
+	return pluginhost.AuthHookPayloadInput{
+		UserName:   pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyUserName),
+		Status:     status,
+		IP:         pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyIP),
+		ClientType: pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyClientType),
+		Browser:    pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyBrowser),
+		OS:         pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyOS),
+		Message:    pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyMessage),
+		Reason:     pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyReason),
+	}
 }
 
 // tenantAuthTestProvider provides deterministic tenant memberships for auth tests.
@@ -1111,22 +1240,23 @@ func (p *tenantAuthTestProvider) SwitchTenant(ctx context.Context, userID int, t
 }
 
 // registerTenantAuthTestProvider installs a temporary tenant provider.
-func registerTenantAuthTestProvider(t *testing.T, tenantsByUser map[int][]tenantcap.TenantInfo) tenantcap.Service {
+func registerTenantAuthTestProvider(t *testing.T, tenantsByUser map[int][]tenantcap.TenantInfo) tenantspi.Service {
 	t.Helper()
 	return registerTenantAuthProviderInstance(t, &tenantAuthTestProvider{tenantsByUser: tenantsByUser})
 }
 
 // registerTenantAuthProviderInstance installs a temporary tenant provider
 // through the pluginservice lifecycle-style registry.
-func registerTenantAuthProviderInstance(t *testing.T, provider *tenantAuthTestProvider) tenantcap.Service {
+func registerTenantAuthProviderInstance(t *testing.T, provider *tenantAuthTestProvider) tenantspi.Service {
 	t.Helper()
 	providerPluginID := fmt.Sprintf("plugin-test-auth-tenant-provider-%d", time.Now().UnixNano())
-	if err := tenantcap.Provide(providerPluginID, func(context.Context, tenantcap.ProviderEnv) (tenantcap.Provider, error) {
+	manager := tenantspi.NewManager()
+	if err := manager.RegisterFactory(providerPluginID, func(context.Context, tenantspi.ProviderEnv) (tenantspi.Provider, error) {
 		return provider, nil
 	}); err != nil {
 		t.Fatalf("register auth tenant provider: %v", err)
 	}
-	return tenantcap.New(tenantAuthProviderRuntime{pluginID: providerPluginID}, nil)
+	return tenantspi.New(manager, tenantAuthProviderRuntime{pluginID: providerPluginID}, nil, nil)
 }
 
 // tenantAuthProviderRuntime marks exactly one test provider plugin enabled.
@@ -1137,11 +1267,6 @@ type tenantAuthProviderRuntime struct {
 // IsProviderEnabled reports whether the given test provider plugin is enabled.
 func (r tenantAuthProviderRuntime) IsProviderEnabled(_ context.Context, pluginID string) bool {
 	return pluginID == r.pluginID
-}
-
-// TenantProviderEnv returns an empty typed provider environment in auth tests.
-func (tenantAuthProviderRuntime) TenantProviderEnv(string) tenantcap.ProviderEnv {
-	return tenantcap.ProviderEnv{}
 }
 
 // insertAuthTestUser inserts one enabled user and cleans it up after the test.
@@ -1361,6 +1486,45 @@ func (s *memorySessionStore) Get(_ context.Context, tokenID string) (*session.Se
 	return s.items[tokenID], nil
 }
 
+// BatchGetScoped returns requested sessions for auth unit tests.
+func (s *memorySessionStore) BatchGetScoped(
+	_ context.Context,
+	tokenIDs []string,
+	_ datascope.Service,
+	_ tenantspi.ScopeService,
+) ([]*session.Session, error) {
+	items := make([]*session.Session, 0, len(tokenIDs))
+	for _, tokenID := range tokenIDs {
+		if item := s.items[tokenID]; item != nil {
+			items = append(items, item)
+		}
+	}
+	return items, nil
+}
+
+// BatchGetUserOnlineStatusScoped returns in-memory session counts per user.
+func (s *memorySessionStore) BatchGetUserOnlineStatusScoped(
+	_ context.Context,
+	userIDs []int,
+	_ datascope.Service,
+	_ tenantspi.ScopeService,
+) ([]*session.UserOnlineStatus, error) {
+	counts := make(map[int]int, len(userIDs))
+	for _, item := range s.items {
+		if item != nil {
+			counts[item.UserId]++
+		}
+	}
+	statuses := make([]*session.UserOnlineStatus, 0, len(userIDs))
+	for _, userID := range userIDs {
+		statuses = append(statuses, &session.UserOnlineStatus{
+			UserId:       userID,
+			SessionCount: counts[userID],
+		})
+	}
+	return statuses, nil
+}
+
 // Delete records and removes one token.
 func (s *memorySessionStore) Delete(_ context.Context, tokenID string) error {
 	s.deletedTokenID = tokenID
@@ -1403,7 +1567,7 @@ func (s *memorySessionStore) ListPageScoped(
 	int,
 	int,
 	datascope.Service,
-	tenantcapsvc.ScopeService,
+	tenantspi.ScopeService,
 ) (*session.ListResult, error) {
 	items, err := s.List(context.Background(), nil)
 	if err != nil {
@@ -1430,18 +1594,10 @@ func (s *memorySessionStore) CleanupInactive(context.Context, time.Duration) (in
 
 // Interface guards keep the fakes aligned with auth dependencies.
 var (
-	_ interface {
-		GetJwtSecret(context.Context) string
-		GetJwtExpire(context.Context) (time.Duration, error)
-		GetSessionTimeout(context.Context) (time.Duration, error)
-	} = configTestService{}
-	_ interface {
-		PrimeTokenAccessContext(context.Context, string, int) (*role.UserAccessContext, error)
-		InvalidateTokenAccessContext(context.Context, string)
-	} = roleTestService{}
-	_ session.Store        = (*memorySessionStore)(nil)
-	_ kvcache.Service      = (*sharedMemoryKVCache)(nil)
-	_ jwt.Claims           = (*Claims)(nil)
-	_ tenantcapsvc.Service = enabledTenantAuthTestService{}
-	_ tenantcap.Provider   = (*tenantAuthTestProvider)(nil)
+	_ configsvc.Service  = configTestService{}
+	_ role.Service       = roleTestService{}
+	_ session.Store      = (*memorySessionStore)(nil)
+	_ kvcache.Service    = (*sharedMemoryKVCache)(nil)
+	_ jwt.Claims         = (*Claims)(nil)
+	_ tenantspi.Provider = (*tenantAuthTestProvider)(nil)
 )

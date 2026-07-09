@@ -10,8 +10,9 @@ import (
 // Login handles user login.
 func (c *ControllerV1) Login(ctx context.Context, req *v1.LoginReq) (res *v1.LoginRes, err error) {
 	out, err := c.authSvc.Login(ctx, authsvc.LoginInput{
-		Username: req.Username,
-		Password: req.Password,
+		Username:   req.Username,
+		Password:   req.Password,
+		ClientType: authsvc.ClientType(req.ClientType),
 	})
 	if err != nil {
 		return nil, err

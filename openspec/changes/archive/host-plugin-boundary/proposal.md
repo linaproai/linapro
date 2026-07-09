@@ -1,81 +1,33 @@
 ## Why
 
-LinaPro's host service has accumulated multiple backend capabilities -- permissions, organization, content, monitoring, tasks, and development tools -- that blur the line between framework core and optional business modules. This weakens the project's positioning as an "AI-driven full-stack development framework": developers can start quickly, but cannot easily distinguish which capabilities are essential and which can be cut, replaced, or evolved independently.
+LinaPro 的宿主需要清晰区分框架核心、默认治理基座与可选业务模块。权限、组织、内容、监控、调度、插件和开发工具曾在默认管理后台中相互缠绕，导致开发者难以判断哪些能力属于`apps/lina-core`长期稳定边界，哪些能力应通过源码插件交付、启停和替换。
 
-Beyond boundary slimming, the project also needs environment-level governance. Demo environments require a data-protection layer that preserves full browse/query behavior while preventing accidental or malicious writes. This cannot be solved by administrator discipline alone; it needs a systematic, plugin-driven guard.
-
-The plugin bridge infrastructure also needed structural clarity. `pkg/pluginbridge` accumulated bridge ABI, codec, WASM artifact parsing, host call, host service protocol, and guest SDK code in a single root package, making it difficult for users to distinguish stable contracts from host-internal protocols from plugin-facing helpers. Refactoring into responsibility-scoped subcomponents improves readability and maintainability.
-
-This change addresses all three concerns: converging the host into its framework core and management base while delivering non-core modules as source plugins, adding a demo-control source plugin that enforces read-only protection through the same plugin lifecycle and global middleware seams, and restructuring the pluginbridge package into responsibility-scoped subcomponents with a thin root-package facade.
+本分组同时沉淀了两个宿主边界样板：`demo-control`作为官方源码插件，通过宿主发布的全局 HTTP 中间件 seam 实现演示环境写保护；`pkg/pluginbridge`子组件化拆分验证了插件公共包也必须按宿主边界和职责组织，但完整插件桥接契约由插件框架分组长期承载。
 
 ## What Changes
 
-- Reconstruct the default management backend first-level menu structure to form 9 stable mount points provided by the host: `dashboard`, `iam`, `org`, `setting`, `content`, `monitor`, `scheduler`, `extension`, `developer`.
-- Establish that these first-level directories are explicitly created and owned by the host; plugins can only mount menus to these directories and cannot create new first-level directory systems.
-- Clarify host boundaries: user management, role management, menu management, plugin management, task scheduling, authentication session kernel, configuration, and dictionary remain in the host.
-- Deliver non-core management modules as official source plugins:
-  - `org-center` -- department management and position management.
-  - `content-notice` -- notification announcements.
-  - `monitor-online` -- online user query and forced offline management.
-  - `monitor-server` -- service monitoring collection, cleaning, and display.
-  - `monitor-operlog` -- operation log query, details, export, cleaning, and page.
-  - `monitor-loginlog` -- login log query, details, export, cleaning, and page.
-  - `demo-control` -- demo-mode write-protection guard.
-- Introduce stable capability seams (capability interfaces, event hooks, HTTP route/middleware registrars, Cron registers) instead of scattering `if pluginEnabled` branches throughout host code.
-- Define plugin-local ORM generation, plugin-scoped table naming (`plugin_<plugin_id_snake_case>`), and plugin-owned storage lifecycle boundaries.
-- Add a `demo-control` source plugin that blocks write operations across `/*` based on HTTP Method semantics when enabled via `plugin.autoEnable`, preserving a minimal session and plugin-governance whitelist.
-- Refactor `pkg/pluginbridge` from a flat package into responsibility-scoped subcomponent packages (`contract`, `codec`, `artifact`, `hostcall`, `hostservice`, `guest`) with a thin root-package facade that maintains backward compatibility through type aliases, const aliases, and wrapper functions.
+- 确认宿主只长期保留框架核心和管理基座，包括认证、用户、角色、菜单、插件治理、调度、配置、字典、文件、统一事件、稳定顶级菜单和能力 seam。
+- 将组织、内容、在线用户、服务监控、操作日志和登录日志等非核心管理模块按官方源码插件交付，并要求宿主在插件缺失时平滑降级。
+- 建立稳定的一层菜单挂载点：`dashboard`、`iam`、`org`、`setting`、`content`、`monitor`、`scheduler`、`extension`、`developer`；插件只能按语义挂载到宿主稳定目录，空目录由投影层隐藏。
+- 使用能力接口、事件 Hook、HTTP 注册器、全局中间件注册器、Cron 注册器、菜单过滤和权限过滤 seam 替代散落的`if pluginEnabled`分支。
+- 交付`demo-control`官方源码插件，以`plugin.autoEnable`是否包含`demo-control`作为唯一演示写保护开关，启用后按 HTTP Method 拦截`/*`写请求并保留登录、登出和受控插件治理白名单。
+- 记录`pkg/pluginbridge`拆分对宿主边界的影响：桥接契约、guest SDK、ABI、transport和host service wire必须按职责分层，不能把业务能力语义混入桥接层。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `core-host-boundary-governance`: Defines that the open source stage host only retains the boundary constraints between the framework core and the governance base.
-- `module-decoupling`: Defines independent start, stop, and host downgrade rules when non-core management modules are delivered as source plugins.
-- `menu-management`: Introduces a stable first-level directory structure, plugin menu semantic mounting, and empty directory hiding rules for the default backend.
-- `plugin-manifest-lifecycle`: Supplements fixed mount points, domain-capability plugin IDs, and host directory parent key constraints for official source plugins.
-- `demo-control-guard`: Defines a demo-control source plugin governed by `plugin.autoEnable`, together with global write-interception rules based on HTTP Method semantics.
-- `pluginbridge-subcomponent-architecture`: Defines the `pkg/pluginbridge` subcomponent package structure, dependency boundaries, backward-compatible facade, and verification requirements after structural refactoring.
+- `core-host-boundary-governance`
+- `module-decoupling`
+- `demo-control-guard`
+- `plugin-http-slot-extension`
 
 ### Modified Capabilities
 
-- `dept-management`: Department management capabilities are delivered by the `org-center` source plugin.
-- `post-management`: Position management capabilities are delivered by the `org-center` source plugin.
-- `notice-management`: Notification announcement capabilities are delivered by the `content-notice` source plugin, mounted under `content management`.
-- `online-user`: Online user capabilities are delivered by the `monitor-online` source plugin; the host only retains the authentication session kernel.
-- `server-monitor`: Service monitoring capabilities are delivered by the `monitor-server` source plugin.
-- `oper-log`: Operation log capabilities are delivered by the `monitor-operlog` source plugin; the host emits unified audit events instead.
-- `login-log`: Login log capabilities are delivered by the `monitor-loginlog` source plugin; the host emits unified login events instead.
-- `user-management`: User management hides department/position-related filters, fields, and form items when the organization plugin is missing.
-- `user-auth`: The authentication link publishes login lifecycle events without directly depending on specific login log persistence implementations.
-- `config-management`: Log TraceID output is controlled only by static configuration, not runtime parameters.
-- `plugin-hook-slot-extension`: Dynamic plugins reuse public bridge components for ABI, codec, and typed guest controller adaptation.
-- `plugin-http-slot-extension`: The host publishes backend extension points through callback registration (HTTP routes, Cron, menu/permission filters).
-- `plugin-runtime-loading`: WASM custom section parsing is still provided centrally by the pluginbridge ecosystem, but the implementation is no longer required to reside in the root package file `pluginbridge_wasm_section.go`; it may be housed in a responsibility-scoped subcomponent such as `pluginbridge/artifact`.
+无。
 
 ## Impact
 
-### Backend Impact
-
-- Adjust host menu initialization SQL and menu projection logic to provide a stable first-level directory, accurate parent `menu_key`, and a hideable host directory skeleton.
-- Extract host dependencies of organization, notification, and monitoring modules to prepare for source plugin migration.
-- Supplement host kernel/plugin display management boundaries for login, audit, online session, and service monitoring links.
-- Add official source plugin directories and explicit wiring entries.
-- Tighten plugin storage boundaries: the host no longer holds `dao/do/entity`, mock data, or direct table lookup logic for plugin business tables.
-- Add `demo-control` source plugin with global HTTP middleware integration for write protection.
-- Publish unified event contracts for login lifecycle and audit events, removing direct host dependencies on specific log implementations.
-- Refactor `pkg/pluginbridge` into subcomponent packages (`contract`, `codec`, `artifact`, `hostcall`, `hostservice`, `guest`) with a thin root-package facade preserving backward compatibility.
-
-### Frontend Impact
-
-- Adjust the left menu hierarchy and routing grouping of the default management backend.
-- User management, monitoring, and other pages degrade their UI based on plugin availability (hidden fields, filters, tree selectors).
-- Navigation results dynamically refresh after plugin start/stop to ensure empty parent directories automatically converge.
-
-### R&D and Delivery Impact
-
-- Add official source plugin templates and naming constraints.
-- Add plugin-owned table naming constraints and default database loading boundary constraints.
-- Add E2E coverage for plugin start/stop, empty directory hiding, host downgrade, menu refresh, and demo-control write interception.
-- Subsequent module implementation must evaluate whether a capability belongs to the host or a source plugin.
-- The pluginbridge subcomponent structure provides clearer import paths for plugin developers and host maintainers; the root-package facade ensures existing plugin code continues to compile without immediate migration.
+- 影响宿主与源码插件的职责划分、菜单挂载、HTTP/Cron/事件扩展 seam、演示环境治理和动态插件桥接代码组织。
+- 交叉影响用户、组织、内容、监控、认证、配置、插件生命周期和`pluginbridge-subcomponent-architecture`能力；这些能力的当前契约由对应 owner 分组或`openspec/specs`承载。
+- 不把可选业务模块重新内置到`apps/lina-core`，也不引入新的商业插件市场、签名授权或计费分发能力。

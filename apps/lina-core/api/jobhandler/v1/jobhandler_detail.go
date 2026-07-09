@@ -4,7 +4,7 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // DetailReq defines the request for querying one registered job handler detail.
 type DetailReq struct {
-	g.Meta `path:"/job/handler/{ref}" method:"get" tags:"Job Scheduling / Plugin Handlers" summary:"Get processor details" dc:"According to the processor reference query details, description information and parameter schema are returned; refs containing slashes need to be URL encoded" permission:"system:job:list"`
+	g.Meta `path:"/job/handler/{ref}" method:"get" tags:"Job Scheduling / Task Management" summary:"Get processor details" dc:"According to the processor reference query details, description information and parameter schema are returned; refs containing slashes need to be URL encoded" permission:"system:job:list"`
 	Ref    string `json:"ref" v:"required" dc:"Processor unique reference" eg:"host:cleanup-job-logs"`
 }
 

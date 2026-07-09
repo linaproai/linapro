@@ -11,10 +11,30 @@ import (
 
 	"lina-core/internal/model"
 	"lina-core/internal/service/datascope"
+	i18nsvc "lina-core/internal/service/i18n"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
-	"lina-core/pkg/plugin/capability/contract"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 )
+
+// fakePluginI18nService provides deterministic translation values for
+// resource permission controller tests.
+type fakePluginI18nService struct {
+	i18nsvc.Service
+}
+
+// Translate returns the supplied fallback.
+func (fakePluginI18nService) Translate(_ context.Context, _ string, fallback string) string {
+	return fallback
+}
+
+// LocalizeError returns the error string for fake localizer tests.
+func (fakePluginI18nService) LocalizeError(_ context.Context, err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
 
 // pluginResourceFakeBizCtx stores one mutable business context for controller tests.
 type pluginResourceFakeBizCtx struct {
@@ -32,11 +52,11 @@ func (f *pluginResourceFakeBizCtx) Get(_ context.Context) *model.Context {
 }
 
 // Current returns the plugin-visible business context projection.
-func (f *pluginResourceFakeBizCtx) Current(context.Context) contract.CurrentContext {
+func (f *pluginResourceFakeBizCtx) Current(context.Context) bizctxcap.CurrentContext {
 	if f.ctx == nil {
-		return contract.CurrentContext{}
+		return bizctxcap.CurrentContext{}
 	}
-	return contract.CurrentContext{
+	return bizctxcap.CurrentContext{
 		UserID:          f.ctx.UserId,
 		Username:        f.ctx.Username,
 		TenantID:        f.ctx.TenantId,
@@ -55,12 +75,13 @@ func (f *pluginResourceFakeBizCtx) SetLocale(_ context.Context, locale string) {
 }
 
 // SetUser records the current authenticated user snapshot.
-func (f *pluginResourceFakeBizCtx) SetUser(_ context.Context, tokenId string, userId int, username string, status int) {
+func (f *pluginResourceFakeBizCtx) SetUser(_ context.Context, tokenId string, userId int, username string, status int, clientType string) {
 	if f.ctx != nil {
 		f.ctx.TokenId = tokenId
 		f.ctx.UserId = userId
 		f.ctx.Username = username
 		f.ctx.Status = status
+		f.ctx.ClientType = clientType
 	}
 }
 
@@ -131,7 +152,7 @@ func TestEnsurePluginResourcePermissionPropagatesDataScope(t *testing.T) {
 			permission: requiredPermission,
 		},
 		bizCtxSvc: bizCtx,
-		i18nSvc:   fakePluginI18nTranslator{},
+		i18nSvc:   fakePluginI18nService{},
 		roleSvc: pluginResourceFakeRoleService{
 			accessContext: &role.UserAccessContext{
 				Permissions:          []string{requiredPermission},

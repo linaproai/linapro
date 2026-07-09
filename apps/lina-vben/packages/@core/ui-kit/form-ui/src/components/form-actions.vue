@@ -12,6 +12,10 @@ const { $t } = useSimpleLocale();
 
 const [rootProps, form] = injectFormProps();
 
+const actionProps = defineProps<{
+  showCollapseButton?: boolean;
+}>();
+
 const collapsed = defineModel({ default: false });
 
 const resetButtonOptions = computed(() => {
@@ -33,6 +37,10 @@ const submitButtonOptions = computed(() => {
 // const isQueryForm = computed(() => {
 //   return !!unref(rootProps).showCollapseButton;
 // });
+
+const showCollapseButton = computed(() => {
+  return actionProps.showCollapseButton ?? unref(rootProps).showCollapseButton;
+});
 
 async function handleSubmit(e: Event) {
   e?.preventDefault();
@@ -176,7 +184,7 @@ defineExpose({
 
     <VbenExpandableArrow
       class="ml-[-0.3em]"
-      v-if="rootProps.showCollapseButton"
+      v-if="showCollapseButton"
       v-model:model-value="collapsed"
     >
       <span>{{ collapsed ? $t('expand') : $t('collapse') }}</span>

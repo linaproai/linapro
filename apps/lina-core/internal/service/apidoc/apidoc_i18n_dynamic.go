@@ -13,30 +13,19 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
+	pluginv1 "lina-core/api/plugin/v1"
 	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
 	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/logger"
 	bridgeartifact "lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
 const (
-	// openAPIDynamicPluginType identifies dynamic plugins in sys_plugin.
-	openAPIDynamicPluginType = "dynamic"
-	// openAPIDynamicPluginInstalledYes marks one plugin registry row as installed.
-	openAPIDynamicPluginInstalledYes = 1
-	// openAPIDynamicPluginStatusEnabled marks one plugin registry row as enabled.
-	openAPIDynamicPluginStatusEnabled = 1
 	// openAPIDynamicPluginReleaseStatusActive marks one release row as active.
 	openAPIDynamicPluginReleaseStatusActive = "active"
 )
-
-// openAPIDynamicStorageConfigProvider exposes the dynamic plugin artifact root
-// without forcing narrow apidoc tests to implement the full config service.
-type openAPIDynamicStorageConfigProvider interface {
-	// GetPluginDynamicStoragePath returns the configured dynamic plugin storage root.
-	GetPluginDynamicStoragePath(ctx context.Context) string
-}
 
 // openAPIDynamicPluginI18NAsset stores one apidoc locale snapshot embedded in
 // a dynamic plugin artifact.
@@ -105,9 +94,9 @@ func listOpenAPIEnabledDynamicPluginReleases(ctx context.Context) ([]*entity.Sys
 		if plugin == nil || strings.TrimSpace(plugin.PluginId) == "" {
 			continue
 		}
-		if strings.TrimSpace(plugin.Type) != openAPIDynamicPluginType ||
-			plugin.Installed != openAPIDynamicPluginInstalledYes ||
-			plugin.Status != openAPIDynamicPluginStatusEnabled {
+		if strings.TrimSpace(plugin.Type) != pluginv1.PluginTypeDynamic.String() ||
+			plugin.Installed != statusflag.Installed.Int() ||
+			plugin.Status != statusflag.EnabledValue.Int() {
 			continue
 		}
 		release := releasesByID[plugin.ReleaseId]
@@ -198,11 +187,10 @@ func (s *serviceImpl) resolveOpenAPIDynamicPluginPackagePath(ctx context.Context
 		return filepath.Clean(trimmedPath), nil
 	}
 
-	configProvider, ok := s.configSvc.(openAPIDynamicStorageConfigProvider)
-	if !ok || configProvider == nil {
+	if s.configSvc == nil {
 		return filepath.Clean(trimmedPath), nil
 	}
-	storagePath := strings.TrimSpace(configProvider.GetPluginDynamicStoragePath(ctx))
+	storagePath := strings.TrimSpace(s.configSvc.GetPluginDynamicStoragePath(ctx))
 	if storagePath == "" {
 		return filepath.Clean(trimmedPath), nil
 	}

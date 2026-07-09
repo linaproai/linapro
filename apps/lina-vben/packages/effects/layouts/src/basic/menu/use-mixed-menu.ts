@@ -138,10 +138,10 @@ function useMixedMenu() {
   }
 
   watch(
-    () => route.path,
-    (path) => {
+    () => [route.path, route.meta?.activePath, route.meta?.link, menus.value],
+    ([path]) => {
       const currentPath = route?.meta?.activePath ?? route?.meta?.link ?? path;
-      if (willOpenedByWindow(currentPath)) {
+      if (typeof currentPath !== 'string' || willOpenedByWindow(currentPath)) {
         return;
       }
       calcSideMenus(currentPath);

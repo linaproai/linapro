@@ -27,12 +27,6 @@ func normalizeLower(value string, defaultValue string) string {
 	return normalized
 }
 
-// normalizeStoragePathSlice normalizes declared storage paths and drops invalid
-// entries for clone-style normalization flows.
-func normalizeStoragePathSlice(paths []string) []string {
-	return normalizePathSliceForService(HostServiceStorage, paths)
-}
-
 // normalizePathSliceForService normalizes declared path resources for one service.
 func normalizePathSliceForService(service string, paths []string) []string {
 	if len(paths) == 0 {

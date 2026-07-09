@@ -6,6 +6,7 @@ import { reactive } from 'vue';
 import { defineStore } from 'pinia';
 
 import { dictDataByType } from '#/api/system/dict/dict-data';
+import type { DictData } from '#/api/system/dict/dict-data-model';
 
 import type { DictEnumKey } from '@vben/constants';
 
@@ -29,6 +30,42 @@ export const useDictStore = defineStore('dict', () => {
    */
   const dictRequestCache = new Map<string, Promise<DictOption[]>>();
 
+  function normalizeDictOptions(list: DictData[] = []): DictOption[] {
+    return list.map((item) => ({
+      label: item.label,
+      value: item.value,
+      tagStyle: item.tagStyle,
+      cssClass: item.cssClass,
+    }));
+  }
+
+  function ensureDictOptions(dictName: string): DictOption[] {
+    if (!dictOptionsMap.has(dictName)) {
+      dictOptionsMap.set(dictName, []);
+    }
+    return dictOptionsMap.get(dictName)!;
+  }
+
+  function loadDictOptions(dictName: string, options: DictOption[]) {
+    const promise = dictDataByType(dictName)
+      .then((list) => {
+        if (dictRequestCache.get(dictName) !== promise) {
+          return options;
+        }
+        const items = normalizeDictOptions(list || []);
+        options.splice(0, options.length, ...items);
+        return options;
+      })
+      .catch(() => options)
+      .finally(() => {
+        if (dictRequestCache.get(dictName) === promise) {
+          dictRequestCache.delete(dictName);
+        }
+      });
+    dictRequestCache.set(dictName, promise);
+    return promise;
+  }
+
   /**
    * 获取字典选项（同步返回响应式数组，异步加载数据）
    * @param dictName 字典类型
@@ -36,32 +73,11 @@ export const useDictStore = defineStore('dict', () => {
    */
   function getDictOptions(dictName: string): DictOption[] {
     if (!dictName) return [];
-    // 如果没有缓存，创建一个空数组
-    if (!dictOptionsMap.has(dictName)) {
-      dictOptionsMap.set(dictName, []);
-    }
-    const options = dictOptionsMap.get(dictName)!;
+    const options = ensureDictOptions(dictName);
 
     // 如果数组为空且没有正在进行的请求，触发异步加载
     if (options.length === 0 && !dictRequestCache.has(dictName)) {
-      const promise = dictDataByType(dictName)
-        .then((list) => {
-          const items = (list || []).map((item) => ({
-            label: item.label,
-            value: item.value,
-            tagStyle: item.tagStyle,
-            cssClass: item.cssClass,
-          }));
-          // 使用 push 保持响应式引用
-          options.push(...items);
-          dictRequestCache.delete(dictName);
-          return options;
-        })
-        .catch(() => {
-          dictRequestCache.delete(dictName);
-          return options;
-        });
-      dictRequestCache.set(dictName, promise);
+      loadDictOptions(dictName, options);
     }
 
     return options;
@@ -80,8 +96,24 @@ export const useDictStore = defineStore('dict', () => {
       return options;
     }
     // 等待正在进行的请求完成
-    await dictRequestCache.get(dictName);
+    await dictRequestCache.get(dictName)?.catch(() => options);
     return options;
+  }
+
+  async function refreshDictOptions(dictName?: string): Promise<void> {
+    if (!dictName) {
+      if (dictOptionsMap.size === 0) {
+        dictRequestCache.clear();
+        return;
+      }
+      await Promise.all(
+        [...dictOptionsMap.keys()].map((key) => refreshDictOptions(key)),
+      );
+      return;
+    }
+    const options = ensureDictOptions(dictName);
+    dictRequestCache.delete(dictName);
+    await loadDictOptions(dictName, options);
   }
 
   function resetCache() {
@@ -97,6 +129,7 @@ export const useDictStore = defineStore('dict', () => {
     dictOptionsMap,
     getDictOptions,
     getDictOptionsAsync,
+    refreshDictOptions,
     resetCache,
     $reset,
   };

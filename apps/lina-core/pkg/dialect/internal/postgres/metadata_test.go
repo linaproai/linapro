@@ -4,11 +4,12 @@ package postgres
 
 import (
 	"context"
-	"github.com/gogf/gf/v2/database/gdb"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gogf/gf/v2/database/gdb"
 )
 
 // TestQueryTableMetadataEmptyInput verifies the no-table path remains a pure

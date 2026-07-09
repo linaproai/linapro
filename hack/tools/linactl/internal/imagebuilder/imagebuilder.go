@@ -25,7 +25,6 @@ type Input interface {
 type CommandRunner func(context.Context, string, string, ...string) error
 
 type commandRunner struct {
-	ctx     context.Context
 	root    string
 	verbose bool
 	run     CommandRunner
@@ -76,7 +75,7 @@ func RunWithOutput(ctx context.Context, root string, input Input, run CommandRun
 	if err = applyImageOverrides(&cfg.Image, opts, specified); err != nil {
 		return err
 	}
-	if err = normalizeImageConfig(root, &cfg.Image); err != nil {
+	if err = normalizeImageConfig(ctx, root, &cfg.Image); err != nil {
 		return err
 	}
 	if opts.Preflight {
@@ -88,7 +87,6 @@ func RunWithOutput(ctx context.Context, root string, input Input, run CommandRun
 		return fmt.Errorf("parse verbose: %w", err)
 	}
 	runner := commandRunner{
-		ctx:     ctx,
 		root:    root,
 		verbose: verbose,
 		run:     run,
@@ -118,7 +116,7 @@ func RunWithOutput(ctx context.Context, root string, input Input, run CommandRun
 	}
 
 	imageRef := buildImageRef(cfg.Image)
-	if err = buildDockerImage(stdout, root, cfg.Image, cfg.Build, runner, imageRef); err != nil {
+	if err = buildDockerImage(ctx, stdout, root, cfg.Image, cfg.Build, runner, imageRef); err != nil {
 		return err
 	}
 	if cfg.Build.MultiPlatform() {
@@ -128,7 +126,7 @@ func RunWithOutput(ctx context.Context, root string, input Input, run CommandRun
 	if cfg.Image.Push {
 		dockerRunner := runner
 		dockerRunner.verbose = true
-		if err = dockerRunner.Run(".", nil, "docker", "push", imageRef); err != nil {
+		if err = dockerRunner.Run(ctx, ".", nil, "docker", "push", imageRef); err != nil {
 			return err
 		}
 		fmt.Fprintf(stdout, "✓ Docker image pushed: %s\n", imageRef)
@@ -208,7 +206,7 @@ func optionsFromInput(input Input, extra []string) (cliOptions, map[string]bool,
 }
 
 // Run executes one child process in a repository-relative directory.
-func (r commandRunner) Run(dir string, _ []string, name string, args ...string) error {
+func (r commandRunner) Run(ctx context.Context, dir string, _ []string, name string, args ...string) error {
 	workingDir := filepath.Join(r.root, dir)
-	return r.run(r.ctx, workingDir, name, args...)
+	return r.run(ctx, workingDir, name, args...)
 }

@@ -17,7 +17,7 @@ Scope:
 - endpoints[]: {{endpoint_json_subset}}
 
 Hard limits:
-- Do not run make stop, make init, make mock, setup-audit-env.sh, prepare-builtin-plugins.sh, or stress-fixture.sh.
+- Do not run make stop, make db.init, make db.mock, setup-audit-env.sh, prepare-builtin-plugins.sh, or stress-fixture.sh.
 - Do not modify source code, API DTOs, SQL files, frontend files, OpenSpec files, or scripts.
 - Write only your assigned audit file under {{run_dir}}/audits/.
 - Keep your final audit markdown under 5KB unless the assigned shard genuinely needs more evidence.

@@ -72,8 +72,6 @@ const notifications = computed<NotificationItem[]>(() =>
     isRead: msg.isRead === 1,
     message: msg.title,
     title: msg.typeLabel,
-    sourceType: msg.sourceType,
-    sourceId: msg.sourceId,
   })),
 );
 
@@ -137,8 +135,8 @@ function handleViewAll() {
 
 function handleNotificationClick(item: NotificationItem) {
   const msg = messageStore.messages.find((m) => m.id === item.id);
-  if (msg?.sourceType === 'notice' && msg?.sourceId) {
-    previewModalApi.setData({ id: msg.sourceId });
+  if (msg?.sourceType === 'notice') {
+    previewModalApi.setData({ messageId: msg.id });
     previewModalApi.open();
   }
 }

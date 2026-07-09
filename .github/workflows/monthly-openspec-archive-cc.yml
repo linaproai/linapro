@@ -67,7 +67,7 @@ jobs:
   archive:
     name: Archive and consolidate with Claude Code
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
 
     steps:
       # Check out the selected target branch with full history so archive branches can be created.

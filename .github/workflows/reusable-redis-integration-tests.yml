@@ -89,7 +89,7 @@ jobs:
       - name: Initialize Database Schema
         run: |
           cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
-          make init confirm=init
+          make db.init confirm=init
 
       # Run only Redis integration tests with explicit PostgreSQL and Redis fixtures.
       # 使用显式 PostgreSQL 与 Redis fixture 只运行 Redis 集成测试。

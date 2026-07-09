@@ -111,8 +111,8 @@ jobs:
       - name: Run Redis Cluster Smoke
         env:
           # The smoke script requires an explicit DB link because it runs
-          # `make init rebuild=true`; do not let it fall back to a developer DB.
-          # 冒烟脚本会运行 `make init rebuild=true`，因此必须显式传入数据库连接；
+          # `make db.init rebuild=true`; do not let it fall back to a developer DB.
+          # 冒烟脚本会运行 `make db.init rebuild=true`，因此必须显式传入数据库连接；
           # 不允许回退到开发者本地数据库。
           LINAPRO_REDIS_CLUSTER_SMOKE_DB_LINK: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
           LINAPRO_REDIS_CLUSTER_SMOKE_REDIS_ADDR: "127.0.0.1:6379"

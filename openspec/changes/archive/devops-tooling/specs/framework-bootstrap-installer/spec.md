@@ -55,7 +55,7 @@ The system SHALL check key dependencies required for the `LinaPro` development f
 #### Scenario: Output guidance to proceed when all key dependencies are present
 - **WHEN** the installation script completes source code deployment and detects that all key dependencies are satisfied
 - **THEN** the script outputs the project directory
-- **AND** the script prompts the user to continue executing subsequent commands such as `make init`, `make mock`, `make dev`
+- **AND** the script prompts the user to continue executing subsequent commands such as `make db.init`, `make db.mock`, `make dev`
 
 #### Scenario: Output diagnostic results when dependencies are missing
 - **WHEN** the installation script completes source code deployment but finds one or more key dependencies missing

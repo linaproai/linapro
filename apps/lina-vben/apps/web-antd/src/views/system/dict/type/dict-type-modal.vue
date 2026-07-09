@@ -15,10 +15,11 @@ import {
 
 import { modalSchema } from './data';
 
-const emit = defineEmits<{ reload: [] }>();
+const emit = defineEmits<{ reload: [dictTypes?: string[]] }>();
 
 const isEdit = ref(false);
 const recordId = ref<number>(0);
+const originalType = ref('');
 const title = computed(() =>
   isEdit.value
     ? $t('pages.system.dict.type.drawer.editTitle')
@@ -52,6 +53,7 @@ const [BasicModal, modalApi] = useVbenModal({
 
     if (isEdit.value && id) {
       const record = await dictTypeInfo(id);
+      originalType.value = record.type;
       await formApi.setValues(record);
     }
 
@@ -74,7 +76,7 @@ async function handleConfirm() {
       await dictTypeAdd(data);
       message.success($t('pages.common.createSuccess'));
     }
-    emit('reload');
+    emit('reload', [...new Set([originalType.value, data.type].filter(Boolean))]);
     modalApi.close();
   } catch (error) {
     console.error(error);
@@ -85,6 +87,7 @@ async function handleConfirm() {
 
 async function handleClosed() {
   await formApi.resetForm();
+  originalType.value = '';
 }
 </script>
 

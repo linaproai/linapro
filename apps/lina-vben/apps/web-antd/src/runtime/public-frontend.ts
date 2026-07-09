@@ -165,7 +165,7 @@ function normalizeWorkspaceBasePath(value: unknown): string {
     return '/';
   }
 
-  const reservedPrefixes = ['/api', '/api/v1', '/x', '/x-assets', '/plugin-assets'];
+  const reservedPrefixes = ['/api', '/api/v1', '/x', '/x-assets'];
   if (
     reservedPrefixes.some(
       (prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`),
@@ -222,7 +222,7 @@ function resolveWorkspaceAssetURL(value: unknown): string {
     : `/${normalizedPath}`;
   if (
     rootedPath === '/api.json' ||
-    ['/api', '/x', '/x-assets', '/plugin-assets'].some(
+    ['/api', '/x', '/x-assets'].some(
       (prefix) => rootedPath === prefix || rootedPath.startsWith(`${prefix}/`),
     )
   ) {

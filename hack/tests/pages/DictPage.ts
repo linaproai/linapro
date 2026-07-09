@@ -521,6 +521,26 @@ export class DictPage {
     return this.dataPanel.locator(".vxe-body--row").count();
   }
 
+  async getDataActivePage(): Promise<number> {
+    const active = this.dataPanel.locator(".vxe-pager--num-btn.is--active");
+    await active.first().waitFor({ state: "visible", timeout: 5000 });
+    const text = await active.first().textContent();
+    const page = Number(text?.trim());
+    if (!Number.isFinite(page)) {
+      throw new Error(`Unable to resolve active dict data page from "${text}"`);
+    }
+    return page;
+  }
+
+  async gotoDataPage(pageNumber: number) {
+    await this.dataPanel
+      .locator(".vxe-pager--num-btn")
+      .filter({ hasText: new RegExp(`^${pageNumber}$`) })
+      .first()
+      .click();
+    await waitForRouteReady(this.page);
+  }
+
   /** Get visible row count in the type panel */
   async getTypeRowCount(): Promise<number> {
     return this.typePanel.locator(".vxe-body--row").count();

@@ -3,16 +3,24 @@
 package openapi
 
 import (
+	"context"
+	pluginv1 "lina-core/api/plugin/v1"
 	"net/http"
 	"testing"
 
+	"github.com/gogf/gf/v2/net/goai"
+
+	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/store"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
+	"lina-core/pkg/statusflag"
 )
 
-// TestBuildRouteOpenAPIOperationUsesBridgeState verifies that projected
+// TestRouteOpenAPIOperationUsesBridgeState verifies that projected
 // responses follow the runtime bridge execution flag.
-func TestBuildRouteOpenAPIOperationUsesBridgeState(t *testing.T) {
-	operation := BuildRouteOpenAPIOperation("linapro-demo-dynamic", &protocol.RouteContract{
+func TestRouteOpenAPIOperationUsesBridgeState(t *testing.T) {
+	operation := buildRouteOpenAPIOperation("linapro-demo-dynamic", &protocol.RouteContract{
 		Path:        "/api/v1/review-summary",
 		Method:      http.MethodGet,
 		Access:      protocol.AccessLogin,
@@ -40,7 +48,7 @@ func TestBuildRouteOpenAPIOperationUsesBridgeState(t *testing.T) {
 		t.Fatalf("expected dynamic OpenAPI operation to omit i18n extensions, got %#v", operation.XExtensions)
 	}
 
-	placeholder := BuildRouteOpenAPIOperation("linapro-demo-dynamic", &protocol.RouteContract{
+	placeholder := buildRouteOpenAPIOperation("linapro-demo-dynamic", &protocol.RouteContract{
 		Path:        "/api/v1/placeholder",
 		Method:      http.MethodGet,
 		Access:      protocol.AccessPublic,
@@ -97,4 +105,173 @@ func TestBuildRoutePublicPathPreservesPluginOwnedPathContent(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestProjectDynamicRoutesToOpenAPICacheKeys verifies dynamic route projection
+// is cached by runtime revision, locale, and runtime bundle version.
+func TestProjectDynamicRoutesToOpenAPICacheKeys(t *testing.T) {
+	var (
+		ctx        = context.Background()
+		catalogSvc = &fakeProjectionCatalog{manifest: dynamicOpenAPITestManifest("OpenAPI Summary")}
+		storeSvc   = &fakeProjectionStore{manifest: dynamicOpenAPITestManifest("OpenAPI Summary")}
+		revision   = &fakeRevisionReader{revision: 1}
+		locale     = &fakeRuntimeI18nService{locale: "zh-CN", version: 1}
+		service    = New(catalogSvc, storeSvc, revision, locale)
+	)
+
+	firstPaths := goai.Paths{}
+	if err := service.ProjectDynamicRoutesToOpenAPI(ctx, firstPaths); err != nil {
+		t.Fatalf("project first dynamic routes: %v", err)
+	}
+	if got := catalogSvc.scanCalls; got != 1 {
+		t.Fatalf("expected first projection to scan once, got %d", got)
+	}
+	firstPaths["/x/plugin-openapi-cache/api/v1/review"].Get.Summary = "mutated by caller"
+
+	secondPaths := goai.Paths{}
+	if err := service.ProjectDynamicRoutesToOpenAPI(ctx, secondPaths); err != nil {
+		t.Fatalf("project second dynamic routes: %v", err)
+	}
+	if got := catalogSvc.scanCalls; got != 1 {
+		t.Fatalf("expected cache hit not to rescan, got %d", got)
+	}
+	if summary := secondPaths["/x/plugin-openapi-cache/api/v1/review"].Get.Summary; summary != "OpenAPI Summary" {
+		t.Fatalf("expected cached projection clone to keep original summary, got %q", summary)
+	}
+
+	revision.revision = 2
+	thirdPaths := goai.Paths{}
+	if err := service.ProjectDynamicRoutesToOpenAPI(ctx, thirdPaths); err != nil {
+		t.Fatalf("project after revision change: %v", err)
+	}
+	if got := catalogSvc.scanCalls; got != 2 {
+		t.Fatalf("expected runtime revision change to rebuild projection, got scans=%d", got)
+	}
+
+	locale.locale = "en-US"
+	fourthPaths := goai.Paths{}
+	if err := service.ProjectDynamicRoutesToOpenAPI(ctx, fourthPaths); err != nil {
+		t.Fatalf("project after locale change: %v", err)
+	}
+	if got := catalogSvc.scanCalls; got != 3 {
+		t.Fatalf("expected locale change to rebuild projection, got scans=%d", got)
+	}
+
+	locale.version = 2
+	fifthPaths := goai.Paths{}
+	if err := service.ProjectDynamicRoutesToOpenAPI(ctx, fifthPaths); err != nil {
+		t.Fatalf("project after bundle version change: %v", err)
+	}
+	if got := catalogSvc.scanCalls; got != 4 {
+		t.Fatalf("expected bundle version change to rebuild projection, got scans=%d", got)
+	}
+
+	service.InvalidateProjectionCache(ctx, "test_runtime_changed")
+	sixthPaths := goai.Paths{}
+	if err := service.ProjectDynamicRoutesToOpenAPI(ctx, sixthPaths); err != nil {
+		t.Fatalf("project after explicit invalidation: %v", err)
+	}
+	if got := catalogSvc.scanCalls; got != 5 {
+		t.Fatalf("expected explicit invalidation to rebuild projection, got scans=%d", got)
+	}
+}
+
+func dynamicOpenAPITestManifest(summary string) *catalog.Manifest {
+	return &catalog.Manifest{
+		ID:      "plugin-openapi-cache",
+		Name:    "Plugin OpenAPI Cache",
+		Version: "v0.1.0",
+		Type:    pluginv1.PluginTypeDynamic.String(),
+		Routes: []*protocol.RouteContract{
+			{
+				Path:    "/api/v1/review",
+				Method:  http.MethodGet,
+				Access:  protocol.AccessLogin,
+				Summary: summary,
+			},
+		},
+		BridgeSpec: &protocol.BridgeSpec{RouteExecution: true},
+	}
+}
+
+type fakeProjectionCatalog struct {
+	catalog.Service
+	manifest  *catalog.Manifest
+	scanCalls int
+}
+
+func (f *fakeProjectionCatalog) ScanManifests() ([]*catalog.Manifest, error) {
+	f.scanCalls++
+	return []*catalog.Manifest{catalog.CloneManifest(f.manifest)}, nil
+}
+
+func (f *fakeProjectionCatalog) GetDesiredManifest(pluginID string) (*catalog.Manifest, error) {
+	if pluginID != f.manifest.ID {
+		return nil, nil
+	}
+	return catalog.CloneManifest(f.manifest), nil
+}
+
+type fakeProjectionStore struct {
+	store.Service
+	manifest *catalog.Manifest
+}
+
+func (f *fakeProjectionStore) WithStartupDataSnapshot(ctx context.Context) (context.Context, error) {
+	return ctx, nil
+}
+
+func (f *fakeProjectionStore) ListAllRegistries(context.Context) ([]*store.PluginRecord, error) {
+	return []*store.PluginRecord{
+		{
+			PluginId:  f.manifest.ID,
+			Type:      pluginv1.PluginTypeDynamic.String(),
+			Installed: statusflag.Installed.Int(),
+			Status:    statusflag.EnabledValue.Int(),
+			ReleaseId: 1,
+		},
+	}, nil
+}
+
+func (f *fakeProjectionStore) GetRegistry(_ context.Context, pluginID string) (*store.PluginRecord, error) {
+	if pluginID != f.manifest.ID {
+		return nil, nil
+	}
+	return &store.PluginRecord{
+		PluginId:  f.manifest.ID,
+		Type:      pluginv1.PluginTypeDynamic.String(),
+		Installed: statusflag.Installed.Int(),
+		Status:    statusflag.EnabledValue.Int(),
+		ReleaseId: 1,
+	}, nil
+}
+
+func (f *fakeProjectionStore) GetRegistryRelease(context.Context, *store.PluginRecord) (*store.ReleaseRecord, error) {
+	return &store.ReleaseRecord{Id: 1, PluginId: f.manifest.ID, ReleaseVersion: f.manifest.Version}, nil
+}
+
+func (f *fakeProjectionStore) LoadReleaseManifest(context.Context, *store.ReleaseRecord) (*catalog.Manifest, error) {
+	return catalog.CloneManifest(f.manifest), nil
+}
+
+type fakeRevisionReader struct {
+	revision int64
+}
+
+func (f *fakeRevisionReader) CurrentRevision(context.Context) (int64, error) {
+	return f.revision, nil
+}
+
+type fakeRuntimeI18nService struct {
+	i18nsvc.Service
+	locale  string
+	version uint64
+}
+
+func (f *fakeRuntimeI18nService) GetLocale(context.Context) string {
+	return f.locale
+}
+
+func (f *fakeRuntimeI18nService) BundleRevision(context.Context, string) (i18nsvc.RuntimeBundleRevision, error) {
+	return i18nsvc.RuntimeBundleRevision{Version: f.version}, nil
 }

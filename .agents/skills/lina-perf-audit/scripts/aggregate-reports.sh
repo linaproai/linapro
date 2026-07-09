@@ -553,7 +553,7 @@ def write_card(finding: dict, existing_path: Path | None) -> Path:
 
 ## 复现方式
 
-1. `make init confirm=init rebuild=true && make mock confirm=mock`
+1. `make db.init confirm=init rebuild=true && make db.mock confirm=mock`
 2. `bash .agents/skills/lina-perf-audit/scripts/setup-audit-env.sh --run-id {run_id}`
 3. `bash .agents/skills/lina-perf-audit/scripts/prepare-builtin-plugins.sh --run-dir temp/lina-perf-audit/{run_id}`
 4. `bash .agents/skills/lina-perf-audit/scripts/stress-fixture.sh --run-dir temp/lina-perf-audit/{run_id}`

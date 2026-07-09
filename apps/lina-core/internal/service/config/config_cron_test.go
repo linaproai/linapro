@@ -70,6 +70,26 @@ func TestGetCronUsesDefaultsWhenRuntimeParamsMissing(t *testing.T) {
 	}
 }
 
+// TestGetCronLogRetentionUsesStaticConfigBeforeDefault verifies protected
+// getters consult static config before falling back to host default metadata.
+func TestGetCronLogRetentionUsesStaticConfigBeforeDefault(t *testing.T) {
+	withCachedRuntimeParamSnapshot(t, &runtimeParamSnapshot{})
+	setTestServerConfigAdapter(t, `
+sys:
+  cron:
+    log:
+      retention: '{"mode":"count","value":200}'
+`)
+
+	retention, err := New().GetCronLogRetention(context.Background())
+	if err != nil {
+		t.Fatalf("get static cron log retention: %v", err)
+	}
+	if retention.Mode != CronLogRetentionModeCount || retention.Value != 200 {
+		t.Fatalf("expected static cron log retention count/200, got mode=%q value=%d", retention.Mode, retention.Value)
+	}
+}
+
 // TestGetCronLogRetentionReturnsInvalidRuntimeValue verifies malformed runtime
 // JSON is returned to callers instead of being hidden behind a fallback value.
 func TestGetCronLogRetentionReturnsInvalidRuntimeValue(t *testing.T) {

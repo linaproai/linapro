@@ -28,11 +28,6 @@ func isValidDictType(typeStr string) bool {
 	return dictTypeRegex.MatchString(typeStr)
 }
 
-// isValidDictValue checks if the dict value is valid (non-empty, no leading/trailing spaces).
-func isValidDictValue(value string) bool {
-	return len(value) > 0 && value == regexp.MustCompile(`^\s+|\s+$`).ReplaceAllString(value, "")
-}
-
 // CombinedImportResult represents the result of combined import.
 type CombinedImportResult struct {
 	TypeSuccess int
@@ -51,6 +46,8 @@ type ImportFailItem struct {
 
 // CombinedImport imports dictionary types and data from an Excel file.
 // If updateSupport is true, existing records will be updated; otherwise, they will be skipped.
+//
+//nolint:cyclop // Import validation intentionally keeps the CSV/XLSX branch outcomes explicit for operator diagnostics.
 func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updateSupport bool) (result *CombinedImportResult, err error) {
 	result = &CombinedImportResult{
 		FailList: make([]ImportFailItem, 0),
@@ -240,9 +237,11 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 			continue
 		}
 
-		dictType := row[0]
-		label := row[1]
-		value := row[2]
+		var (
+			dictType = row[0]
+			label    = row[1]
+			value    = row[2]
+		)
 
 		// Validate label is not empty
 		if label == "" {
@@ -706,9 +705,11 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 			continue
 		}
 
-		dictType := row[0]
-		label := row[1]
-		value := row[2]
+		var (
+			dictType = row[0]
+			label    = row[1]
+			value    = row[2]
+		)
 
 		// Validate label is not empty
 		if label == "" {

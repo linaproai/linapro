@@ -4,6 +4,8 @@ package jobmgmt
 
 import (
 	"context"
+	jobv1 "lina-core/api/job/v1"
+	joblogv1 "lina-core/api/joblog/v1"
 	"testing"
 	"time"
 
@@ -74,22 +76,22 @@ func TestSyncBuiltinJobsReusesBuiltinRowByGroupAndName(t *testing.T) {
 		GroupCode:      "default",
 		Name:           uniqueTestName("builtin-same-name"),
 		Description:    "Legacy handler ref used to verify row reuse by group/name.",
-		TaskType:       jobmeta.TaskTypeHandler,
+		TaskType:       jobv1.TaskTypeHandler,
 		HandlerRef:     "host:legacy-builtin-row-reuse",
 		Params:         map[string]any{},
 		Timeout:        5 * time.Minute,
 		Pattern:        "@every 1m",
 		Timezone:       "Asia/Shanghai",
-		Scope:          jobmeta.JobScopeMasterOnly,
-		Concurrency:    jobmeta.JobConcurrencySingleton,
+		Scope:          jobv1.ScopeMasterOnly,
+		Concurrency:    jobv1.ConcurrencySingleton,
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
-		Status:         jobmeta.JobStatusEnabled,
+		Status:         jobv1.StatusEnabled,
 	}
 	jobID := syncBuiltinHandlerJob(t, ctx, svc, def)
 	defer cleanupJobHard(t, ctx, jobID)
 
-	def.HandlerRef = "plugin:linapro-monitor-server/cron:" + def.Name
+	def.HandlerRef = "plugin:linapro-monitor-server/jobs:" + def.Name
 	if _, err := svc.SyncBuiltinJobs(ctx, []BuiltinJobDef{def}); err != nil {
 		t.Fatalf("expected builtin job rename sync to succeed, got error: %v", err)
 	}
@@ -106,7 +108,7 @@ func TestSyncBuiltinJobsReusesBuiltinRowByGroupAndName(t *testing.T) {
 	if current.HandlerRef != def.HandlerRef {
 		t.Fatalf("expected handler ref to update to %s, got %s", def.HandlerRef, current.HandlerRef)
 	}
-	if got := jobmeta.NormalizeJobStatus(current.Status); got != jobmeta.JobStatusPausedByPlugin {
+	if got := jobmeta.NormalizeJobStatus(current.Status); got != jobv1.StatusPausedByPlugin {
 		t.Fatalf("expected missing plugin handler to downgrade to paused_by_plugin, got %s", got)
 	}
 
@@ -124,33 +126,35 @@ func TestSyncBuiltinJobsReusesBuiltinRowByGroupAndName(t *testing.T) {
 // TestSyncBuiltinJobsPrunesRemovedBuiltins verifies removed code-owned jobs are
 // hard-deleted together with their logs before new built-ins are inserted.
 func TestSyncBuiltinJobsPrunesRemovedBuiltins(t *testing.T) {
-	ctx := context.Background()
-	scheduler := &trackingScheduler{}
-	svc := newTestServiceWithRegistry(t, jobhandler.New(), scheduler)
-	existingDefs := snapshotExistingBuiltinDefs(t, ctx)
+	var (
+		ctx          = context.Background()
+		scheduler    = &trackingScheduler{}
+		svc          = newTestServiceWithRegistry(t, jobhandler.New(), scheduler)
+		existingDefs = snapshotExistingBuiltinDefs(t, ctx)
+	)
 
 	obsolete := BuiltinJobDef{
 		GroupCode:      "default",
 		Name:           uniqueTestName("builtin-obsolete"),
 		Description:    "Obsolete builtin used to verify reconciliation cleanup.",
-		TaskType:       jobmeta.TaskTypeHandler,
+		TaskType:       jobv1.TaskTypeHandler,
 		HandlerRef:     "host:obsolete-builtin-job",
 		Params:         map[string]any{},
 		Timeout:        5 * time.Minute,
 		Pattern:        "@every 1m",
 		Timezone:       "Asia/Shanghai",
-		Scope:          jobmeta.JobScopeMasterOnly,
-		Concurrency:    jobmeta.JobConcurrencySingleton,
+		Scope:          jobv1.ScopeMasterOnly,
+		Concurrency:    jobv1.ConcurrencySingleton,
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
-		Status:         jobmeta.JobStatusEnabled,
+		Status:         jobv1.StatusEnabled,
 	}
 	obsoleteJobID := syncBuiltinHandlerJob(t, ctx, svc, obsolete)
 
 	if _, err := dao.SysJobLog.Ctx(ctx).Data(do.SysJobLog{
 		JobId:      obsoleteJobID,
-		Status:     string(jobmeta.LogStatusSuccess),
-		Trigger:    string(jobmeta.TriggerTypeCron),
+		Status:     string(joblogv1.StatusSuccess),
+		Trigger:    string(joblogv1.TriggerCron),
 		NodeId:     "test-node",
 		DurationMs: 1,
 	}).Insert(); err != nil {
@@ -161,17 +165,17 @@ func TestSyncBuiltinJobsPrunesRemovedBuiltins(t *testing.T) {
 		GroupCode:      "default",
 		Name:           uniqueTestName("builtin-current"),
 		Description:    "Current builtin kept after reconciliation.",
-		TaskType:       jobmeta.TaskTypeHandler,
+		TaskType:       jobv1.TaskTypeHandler,
 		HandlerRef:     "host:current-builtin-job",
 		Params:         map[string]any{},
 		Timeout:        5 * time.Minute,
 		Pattern:        "@every 5m",
 		Timezone:       "Asia/Shanghai",
-		Scope:          jobmeta.JobScopeMasterOnly,
-		Concurrency:    jobmeta.JobConcurrencySingleton,
+		Scope:          jobv1.ScopeMasterOnly,
+		Concurrency:    jobv1.ConcurrencySingleton,
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
-		Status:         jobmeta.JobStatusEnabled,
+		Status:         jobv1.StatusEnabled,
 	}
 	desired := append(existingDefs, current)
 	if _, err := svc.ReconcileBuiltinJobs(ctx, desired); err != nil {

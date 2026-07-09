@@ -35,7 +35,7 @@ func EnsureBrowsers(_ context.Context) error {
 	entries, err := os.ReadDir(cacheDir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("Playwright browsers not installed. Run: make env.setup")
+			return fmt.Errorf("playwright browsers not installed. Run: make env.setup")
 		}
 		return fmt.Errorf("check Playwright browser cache: %w", err)
 	}
@@ -46,5 +46,5 @@ func EnsureBrowsers(_ context.Context) error {
 		}
 	}
 
-	return fmt.Errorf("Playwright Chromium browser not found in %s. Run: make env.setup", cacheDir)
+	return fmt.Errorf("playwright Chromium browser not found in %s. Run: make env.setup", cacheDir)
 }

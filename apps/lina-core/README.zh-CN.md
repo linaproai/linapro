@@ -39,7 +39,8 @@ go run main.go
 make build
 make dao
 make ctrl
-make init confirm=init
+make db.init confirm=init
+make db.mock confirm=mock
 ```
 
 发布构建可使用`make build platforms=linux/arm64`交叉编译单一目标，或在仓库根目录发布多平台镜像：
@@ -50,7 +51,7 @@ make image platforms=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6
 
 ## 数据库配置
 
-宿主运行时数据库方言只从配置文件中的`database.default.link`读取。`PostgreSQL 14+`是默认生产数据库。运行`make init`或`make dev`之前，请先准备`PostgreSQL`；这些命令不会启动或管理数据库。
+宿主运行时数据库方言只从配置文件中的`database.default.link`读取。`PostgreSQL 14+`是默认生产数据库。运行`make db.init`或`make dev`之前，请先准备`PostgreSQL`；这些命令不会启动或管理数据库。
 
 本地开发可使用以下容器：
 
@@ -75,7 +76,7 @@ database:
     link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
 ```
 
-`make init`是运维初始化命令，会使用配置中的数据库账号。该账号必须具备连接系统库、创建和删除目标数据库、终止目标库连接、建表、建索引、写入注释和写入`Seed`数据的权限。权限不足会直接失败，运行时不会提供低权限初始化兜底。
+`make db.init`是运维初始化命令，会使用配置中的数据库账号。该账号必须具备连接系统库、创建和删除目标数据库、终止目标库连接、建表、建索引、写入注释和写入`Seed`数据的权限。权限不足会直接失败，运行时不会提供低权限初始化兜底。
 
 使用外部托管`PostgreSQL`，例如`RDS`或阿里云`PolarDB`时，请将`database.default.link`指向供应商端点，并使用具备上述权限的账号执行初始化。
 

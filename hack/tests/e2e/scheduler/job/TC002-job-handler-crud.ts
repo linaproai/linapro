@@ -18,7 +18,7 @@ test.describe('TC-2 源码注册任务可见且只读', () => {
 
   test.beforeAll(async () => {
     api = await createAdminApiContext();
-    originalShellSwitch = await getConfigByKey(api, 'cron.shell.enabled');
+    originalShellSwitch = await getConfigByKey(api, 'sys.cron.shell.enabled');
     await setCronShellEnabled(api, true);
   });
 

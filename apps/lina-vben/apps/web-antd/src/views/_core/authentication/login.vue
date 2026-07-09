@@ -1,9 +1,10 @@
 <script lang="ts" setup>
 import type { VbenFormSchema } from '@vben/common-ui';
 
-import type { AuthApi } from '#/api/core/auth';
+import type { LoginTenant } from '#/api/tenant/model';
 
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import {
   AuthenticationLogin,
@@ -11,10 +12,10 @@ import {
   VbenButton,
   z,
 } from '@vben/common-ui';
-import { IconifyIcon } from '@vben/icons';
 import { $t } from '@vben/locales';
 
-import { listAuthProvidersApi } from '#/api/core/auth';
+import { notification } from 'ant-design-vue';
+
 import PluginSlotOutlet from '#/components/plugin/plugin-slot-outlet.vue';
 import { pluginSlotKeys } from '#/plugins/plugin-slots';
 import { publicFrontendSettings } from '#/runtime/public-frontend';
@@ -24,6 +25,61 @@ defineOptions({ name: 'Login' });
 
 const authStore = useAuthStore();
 const tenantStore = useTenantStore();
+const route = useRoute();
+const router = useRouter();
+
+/**
+ * parseExternalTenants decodes the JSON tenant-candidate list a plugin OIDC
+ * callback appends for multi-tenant users. Malformed payloads degrade to an
+ * empty list so the login page never crashes on a tampered query.
+ */
+function parseExternalTenants(raw: unknown): LoginTenant[] {
+  if (typeof raw !== 'string' || raw === '') {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * consumeExternalLogin handles the `?externalLogin=1` outcome a plugin OIDC
+ * callback encodes into the login-page query: a signed-in outcome stores the
+ * token pair and enters the workspace; a select-tenant outcome switches this
+ * page into the existing two-stage tenant selection; an error outcome shows a
+ * notification. The query is stripped afterwards so refreshes do not replay
+ * one-time tokens.
+ */
+async function consumeExternalLogin() {
+  const query = route.query;
+  if (query.externalLogin !== '1') {
+    return;
+  }
+  const status = String(query.status ?? '');
+  const message = String(query.message ?? '');
+  await router.replace({ path: route.path, query: {} });
+  if (status === 'error') {
+    notification.error({
+      description: message,
+      duration: 5,
+      message: $t('authentication.loginFailed'),
+    });
+    return;
+  }
+  await authStore.completeExternalLogin({
+    accessToken: typeof query.accessToken === 'string' ? query.accessToken : '',
+    preToken: typeof query.preToken === 'string' ? query.preToken : '',
+    redirectPath: typeof query.redirect === 'string' ? query.redirect : '',
+    refreshToken:
+      typeof query.refreshToken === 'string' ? query.refreshToken : '',
+    tenants: parseExternalTenants(query.tenants),
+  });
+}
+
+onMounted(consumeExternalLogin);
 const tenantOptions = computed(() =>
   tenantStore.tenants.map((tenant) => ({
     code: tenant.code,
@@ -118,30 +174,6 @@ async function handleSelectTenant() {
   }
   await authStore.selectTenant(tenantId);
 }
-
-// Third-party login provider entries discovered via /auth/providers. The
-// host filters out providers whose owning plugin is disabled, so this list
-// reflects exactly the entries the workbench should render.
-const authProviders = ref<AuthApi.ProviderEntity[]>([]);
-
-function handleProviderClick(provider: AuthApi.ProviderEntity) {
-  window.location.href = provider.entryUrl;
-}
-
-onMounted(() => {
-  void (async () => {
-    try {
-      const res = await listAuthProvidersApi();
-      authProviders.value = Array.isArray(res.providers)
-        ? res.providers
-            .slice()
-            .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
-        : [];
-    } catch {
-      authProviders.value = [];
-    }
-  })();
-});
 </script>
 
 <template>
@@ -206,23 +238,6 @@ onMounted(() => {
       >
         {{ $t('pages.multiTenant.login.enterTenant') }}
       </VbenButton>
-    </div>
-    <div
-      v-if="authProviders.length > 0 && !authStore.pendingPreToken && !authStore.tenantLoginTransitioning"
-      class="mt-4 space-y-3"
-    >
-      <a-button
-        v-for="provider in authProviders"
-        :key="provider.providerId"
-        block
-        size="large"
-        @click="handleProviderClick(provider)"
-      >
-        <template #icon>
-          <IconifyIcon :icon="provider.icon || 'ant-design:login-outlined'" />
-        </template>
-        {{ $t('authentication.continueWithProvider', [provider.name]) }}
-      </a-button>
     </div>
     <PluginSlotOutlet :slot-key="pluginSlotKeys.authLoginAfter" class="mt-4" />
   </div>

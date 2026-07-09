@@ -5,7 +5,7 @@ package job
 import (
 	"time"
 
-	"lina-core/api/job/v1"
+	v1 "lina-core/api/job/v1"
 	"lina-core/internal/service/jobmeta"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 )

@@ -30,8 +30,7 @@ func MustDefine(errorCode string, fallback string, typeCode gcode.Code) *Code {
 }
 
 // MustDefineWithKey creates one reusable business error definition with an
-// explicit runtime i18n key. Prefer MustDefine unless a legacy key must be
-// preserved.
+// explicit runtime i18n key.
 func MustDefineWithKey(errorCode string, messageKey string, fallback string, typeCode gcode.Code) *Code {
 	meta := Meta{
 		ErrorCode:  strings.TrimSpace(errorCode),

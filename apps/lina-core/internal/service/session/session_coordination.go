@@ -16,10 +16,10 @@ import (
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
-	tenantcapsvc "lina-core/pkg/plugin/capability/tenantcap"
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
 
-var _ SessionConfigurableStore = (*CoordinationStore)(nil)
+var _ sessionConfigurableStore = (*CoordinationStore)(nil)
 
 // CoordinationStore stores request-path session state in coordination KV and
 // delegates management-list projections to PostgreSQL.
@@ -39,6 +39,7 @@ type sessionHotState struct {
 	TenantID       int       `json:"tenantId"`
 	UserID         int       `json:"userId"`
 	Username       string    `json:"username"`
+	ClientType     string    `json:"clientType"`
 	DeptName       string    `json:"deptName,omitempty"`
 	IP             string    `json:"ip,omitempty"`
 	Browser        string    `json:"browser,omitempty"`
@@ -85,7 +86,7 @@ func NewCoordinationStoreWithDefaultTTL(
 	ttl time.Duration,
 ) Store {
 	store := NewCoordinationStore(coordinationSvc, projection)
-	if configurable, ok := store.(SessionConfigurableStore); ok {
+	if configurable, ok := store.(sessionConfigurableStore); ok {
 		configurable.SetDefaultTTL(ttl)
 	}
 	return store
@@ -151,6 +152,34 @@ func (s *CoordinationStore) Get(ctx context.Context, tokenId string) (*Session, 
 	return s.projection.Get(ctx, tokenId)
 }
 
+// BatchGetScoped returns requested session projections from PostgreSQL after
+// applying tenant ownership and data-scope constraints.
+func (s *CoordinationStore) BatchGetScoped(
+	ctx context.Context,
+	tokenIds []string,
+	scopeSvc datascope.Service,
+	tenantSvc tenantspi.ScopeService,
+) ([]*Session, error) {
+	if s == nil || s.projection == nil {
+		return []*Session{}, nil
+	}
+	return s.projection.BatchGetScoped(ctx, tokenIds, scopeSvc, tenantSvc)
+}
+
+// BatchGetUserOnlineStatusScoped returns projected online-session counts from
+// PostgreSQL after applying tenant ownership and data-scope constraints.
+func (s *CoordinationStore) BatchGetUserOnlineStatusScoped(
+	ctx context.Context,
+	userIds []int,
+	scopeSvc datascope.Service,
+	tenantSvc tenantspi.ScopeService,
+) ([]*UserOnlineStatus, error) {
+	if s == nil || s.projection == nil {
+		return []*UserOnlineStatus{}, nil
+	}
+	return s.projection.BatchGetUserOnlineStatusScoped(ctx, userIds, scopeSvc, tenantSvc)
+}
+
 // Delete removes one session from coordination KV and PostgreSQL projection.
 func (s *CoordinationStore) Delete(ctx context.Context, tokenId string) error {
 	if s == nil {
@@ -209,7 +238,7 @@ func (s *CoordinationStore) ListPageScoped(
 	filter *ListFilter,
 	pageNum, pageSize int,
 	scopeSvc datascope.Service,
-	tenantSvc tenantcapsvc.ScopeService,
+	tenantSvc tenantspi.ScopeService,
 ) (*ListResult, error) {
 	return s.projection.ListPageScoped(ctx, filter, pageNum, pageSize, scopeSvc, tenantSvc)
 }
@@ -307,6 +336,7 @@ func sessionHotStateFromSession(session *Session, now time.Time) sessionHotState
 		TenantID:       session.TenantId,
 		UserID:         session.UserId,
 		Username:       session.Username,
+		ClientType:     session.ClientType,
 		DeptName:       session.DeptName,
 		IP:             session.Ip,
 		Browser:        session.Browser,

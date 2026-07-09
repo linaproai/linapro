@@ -9,6 +9,66 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { height: 100%; overflow: hidden; background-color: #fff; }
 
+    .api-docs-loading {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      color: #111827;
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
+    .api-docs-loading-panel {
+      display: flex;
+      max-width: min(360px, calc(100vw - 48px));
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.10);
+    }
+    .api-docs-loading-spinner {
+      width: 20px;
+      height: 20px;
+      flex: 0 0 auto;
+      border: 2px solid #d1d5db;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: api-docs-loading-spin 0.8s linear infinite;
+    }
+    .api-docs-loading-copy {
+      min-width: 0;
+      line-height: 1.4;
+    }
+    .api-docs-loading-title {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .api-docs-loading-note {
+      display: block;
+      margin-top: 2px;
+      color: #6b7280;
+      font-size: 12px;
+    }
+    body.api-docs-ready .api-docs-loading {
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+    }
+    body.api-docs-error .api-docs-loading-spinner {
+      border-color: #fecaca;
+      border-top-color: #dc2626;
+      animation: none;
+    }
+    @keyframes api-docs-loading-spin {
+      to { transform: rotate(360deg); }
+    }
+
     /* 减少侧边栏顶部空白：隐藏标题容器并去除多余间距 */
     .sl-overflow-y-auto.sl-flex-col.sl-sticky {
       padding-top: 0 !important;
@@ -76,7 +136,91 @@
   </style>
 </head>
 <body>
+  <div id="api-docs-loading" class="api-docs-loading" role="status" aria-live="polite" aria-atomic="true">
+    <div class="api-docs-loading-panel">
+      <span class="api-docs-loading-spinner" aria-hidden="true"></span>
+      <span class="api-docs-loading-copy">
+        <span id="api-docs-loading-title" class="api-docs-loading-title">接口文档加载中</span>
+        <span id="api-docs-loading-note" class="api-docs-loading-note">正在准备接口索引和调试面板</span>
+      </span>
+    </div>
+  </div>
   <script>
+    var apiDocsLoadingTimer = null;
+    var apiDocsMessages = {
+      'zh-CN': {
+        loadingTitle: '接口文档加载中',
+        loadingNote: '正在准备接口索引和调试面板',
+        slowTitle: '接口内容较多，仍在加载中',
+        slowNote: '请稍候，文档解析完成后会自动显示',
+        errorTitle: '接口文档加载失败',
+        errorNote: '请刷新页面或稍后重试'
+      },
+      'en-US': {
+        loadingTitle: 'Loading API documentation',
+        loadingNote: 'Preparing the endpoint index and try-it panel',
+        slowTitle: 'Large API document is still loading',
+        slowNote: 'The page will appear automatically after parsing finishes',
+        errorTitle: 'API documentation failed to load',
+        errorNote: 'Refresh the page or try again later'
+      }
+    };
+
+    function resolveApiDocsMessages(lang) {
+      return String(lang || '').toLowerCase().indexOf('zh') === 0
+        ? apiDocsMessages['zh-CN']
+        : apiDocsMessages['en-US'];
+    }
+
+    function updateApiDocsLoadingText(state, lang) {
+      var title = document.getElementById('api-docs-loading-title');
+      var note = document.getElementById('api-docs-loading-note');
+      if (!title || !note) return;
+
+      var messages = resolveApiDocsMessages(lang || document.documentElement.getAttribute('lang'));
+      if (state === 'slow') {
+        title.textContent = messages.slowTitle;
+        note.textContent = messages.slowNote;
+      } else if (state === 'error') {
+        title.textContent = messages.errorTitle;
+        note.textContent = messages.errorNote;
+      } else {
+        title.textContent = messages.loadingTitle;
+        note.textContent = messages.loadingNote;
+      }
+    }
+
+    function markApiDocsReady() {
+      if (document.body.classList.contains('api-docs-ready')) return;
+      if (apiDocsLoadingTimer) {
+        window.clearTimeout(apiDocsLoadingTimer);
+        apiDocsLoadingTimer = null;
+      }
+      document.body.classList.add('api-docs-ready');
+      document.body.classList.remove('api-docs-error');
+    }
+
+    function markApiDocsError() {
+      if (document.body.classList.contains('api-docs-ready')) return;
+      if (apiDocsLoadingTimer) {
+        window.clearTimeout(apiDocsLoadingTimer);
+        apiDocsLoadingTimer = null;
+      }
+      document.body.classList.add('api-docs-error');
+      updateApiDocsLoadingText('error');
+    }
+
+    function isApiDocsRendered() {
+      var sidebar = document.querySelector('.sl-overflow-y-auto.sl-flex-col.sl-sticky');
+      return !!(sidebar && sidebar.querySelector('.sl-uppercase'));
+    }
+
+    function updateApiDocsReadyState() {
+      if (isApiDocsRendered()) {
+        markApiDocsReady();
+      }
+    }
+
     // FB-32: Read JWT token from URL parameter and pre-fill Stoplight Try It auth
     (function() {
       var params = new URLSearchParams(window.location.search);
@@ -85,6 +229,18 @@
       var apiParams = new URLSearchParams();
       apiParams.set('lang', lang);
       document.documentElement.setAttribute('lang', lang);
+      updateApiDocsLoadingText('loading', lang);
+      apiDocsLoadingTimer = window.setTimeout(function() {
+        if (!document.body.classList.contains('api-docs-ready')) {
+          updateApiDocsLoadingText('slow', lang);
+        }
+      }, 15000);
+      window.addEventListener('error', function(event) {
+        var target = event.target || event.srcElement;
+        if (target && target.tagName === 'SCRIPT') {
+          markApiDocsError();
+        }
+      }, true);
       if (token) {
         localStorage.setItem('TryIt_securitySchemeValues', JSON.stringify({
           BearerAuth: token
@@ -153,10 +309,14 @@
     var observer = new MutationObserver(function() {
       var sidebar = document.querySelector('.sl-overflow-y-auto.sl-flex-col.sl-sticky');
       if (sidebar && sidebar.querySelector('.sl-uppercase')) {
+        markApiDocsReady();
         setupSchemasCollapse();
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener('load', function() {
+      window.setTimeout(updateApiDocsReadyState, 0);
+    });
   </script>
 </body>
 </html>

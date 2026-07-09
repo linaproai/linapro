@@ -20,9 +20,8 @@ import (
 	"testing/fstest"
 	"unicode"
 
-	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/internal/utility/testsupport"
 	"lina-core/pkg/plugin/pluginhost"
-	"lina-core/pkg/testsupport"
 )
 
 var openAPIMetadataTagPattern = regexp.MustCompile(`([A-Za-z0-9_-]+):"((?:\\.|[^"\\])*)"`)
@@ -70,10 +69,12 @@ func TestOpenAPIMetadataUsesEnglishSourceText(t *testing.T) {
 // source metadata directly while non-English API docs keep complete structured
 // apidoc bundle coverage for hand-authored API metadata.
 func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
-	repoRoot := locateRepositoryRoot(t)
-	sourceEn := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/en-US/apidoc"))
-	packedEn := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n/en-US/apidoc"))
-	pluginEn := readOpenAPIPluginJSONBundles(t, repoRoot, "en-US")
+	var (
+		repoRoot = locateRepositoryRoot(t)
+		sourceEn = readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/en-US/apidoc"))
+		packedEn = readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n/en-US/apidoc"))
+		pluginEn = readOpenAPIPluginJSONBundles(t, repoRoot, "en-US")
+	)
 
 	assertOpenAPIBundlesMirror(t, "en-US", sourceEn, packedEn)
 	assertOpenAPIEnglishBundlePlaceholder(t, sourceEn)
@@ -114,10 +115,12 @@ func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
 	for _, locale := range discoverOpenAPINonEnglishLocales(t, repoRoot) {
 		locale := locale
 		t.Run(locale, func(t *testing.T) {
-			sourceBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n", locale, "apidoc"))
-			packedBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n", locale, "apidoc"))
-			pluginBundles := readOpenAPIPluginJSONBundles(t, repoRoot, locale)
-			mergedBundle := cloneOpenAPIMessageCatalog(sourceBundle)
+			var (
+				sourceBundle  = readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n", locale, "apidoc"))
+				packedBundle  = readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n", locale, "apidoc"))
+				pluginBundles = readOpenAPIPluginJSONBundles(t, repoRoot, locale)
+				mergedBundle  = cloneOpenAPIMessageCatalog(sourceBundle)
+			)
 			for _, bundle := range pluginBundles {
 				mergeOpenAPIMessageCatalog(mergedBundle, bundle)
 			}
@@ -395,7 +398,7 @@ func TestServiceOpenAPIMessageCatalogHonorsSourcePluginI18NPolicy(t *testing.T) 
 		optOutPluginID  = "plugin-dev-apidoc-i18n-opt-out"
 	)
 
-	managedPlugin := pluginhost.NewSourcePlugin(managedPluginID)
+	managedPlugin := pluginhost.NewDeclarations(managedPluginID)
 	managedPlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte("id: " + managedPluginID + "\nname: Managed\nversion: v0.1.0\ntype: source\nscope_nature: platform_only\nsupports_multi_tenant: false\ndefault_install_mode: global\ni18n:\n  enabled: true\n  default: zh-CN\n  locales:\n    - locale: zh-CN\n      nativeName: 简体中文\n")},
 		"manifest/i18n/zh-CN/apidoc/plugin.json": &fstest.MapFile{Data: []byte(`{
@@ -422,7 +425,7 @@ func TestServiceOpenAPIMessageCatalogHonorsSourcePluginI18NPolicy(t *testing.T) 
 	}
 	t.Cleanup(cleanupManaged)
 
-	missingI18nPlugin := pluginhost.NewSourcePlugin(optOutPluginID)
+	missingI18nPlugin := pluginhost.NewDeclarations(optOutPluginID)
 	missingI18nPlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml": &fstest.MapFile{Data: []byte("id: " + optOutPluginID + "\nname: Opt Out\nversion: v0.1.0\ntype: source\nscope_nature: platform_only\nsupports_multi_tenant: false\ndefault_install_mode: global\n")},
 		"manifest/i18n/zh-CN/apidoc/plugin.json": &fstest.MapFile{Data: []byte(`{
@@ -1038,19 +1041,27 @@ func openAPII18NManagedPluginRoots(t *testing.T, repoRoot string) []string {
 func openAPII18NManagedPluginIDSet(t *testing.T) map[string]struct{} {
 	t.Helper()
 
-	manifests, err := pluginsvc.ScanRegisteredSourceManifests()
-	if err != nil {
-		t.Fatalf("scan source plugin manifests for apidoc i18n governance failed: %v", err)
-	}
-	managedPluginIDs := make(map[string]struct{}, len(manifests))
-	for _, manifest := range manifests {
-		if manifest == nil || strings.TrimSpace(manifest.ID) == "" {
+	sourcePlugins := pluginhost.ListSourcePlugins()
+	managedPluginIDs := make(map[string]struct{}, len(sourcePlugins))
+	for _, sourcePlugin := range sourcePlugins {
+		if sourcePlugin == nil || sourcePlugin.GetEmbeddedFiles() == nil {
 			continue
 		}
-		if !manifest.I18NEnabled() {
+		manifest, err := readOpenAPISourcePluginManifest(sourcePlugin.GetEmbeddedFiles())
+		if err != nil {
+			t.Fatalf("read source plugin manifest for apidoc i18n governance plugin=%s: %v", sourcePlugin.ID(), err)
+		}
+		if manifest == nil || !manifest.i18nEnabled() {
 			continue
 		}
-		managedPluginIDs[manifest.ID] = struct{}{}
+		pluginID := strings.TrimSpace(manifest.ID)
+		if pluginID == "" {
+			pluginID = strings.TrimSpace(sourcePlugin.ID())
+		}
+		if pluginID == "" {
+			continue
+		}
+		managedPluginIDs[pluginID] = struct{}{}
 	}
 	return managedPluginIDs
 }

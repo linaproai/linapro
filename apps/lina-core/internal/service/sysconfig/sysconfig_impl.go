@@ -7,7 +7,9 @@ import (
 	"bytes"
 	"context"
 	"sort"
+	"strings"
 
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/xuri/excelize/v2"
 
 	"lina-core/internal/dao"
@@ -59,6 +61,35 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	}, nil
 }
 
+// withConfigMutation runs one sysconfig mutation inside the shared transaction
+// boundary used for runtime-param refresh coordination.
+func (s *serviceImpl) withConfigMutation(ctx context.Context, handler func(ctx context.Context) error) error {
+	return dao.SysConfig.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
+		return handler(ctx)
+	})
+}
+
+// refreshRuntimeParamSnapshotIfNeeded marks the sys_config snapshot dirty when
+// any runtime configuration value changes.
+func (s *serviceImpl) refreshRuntimeParamSnapshotIfNeeded(
+	ctx context.Context,
+	key string,
+	previousValue string,
+	currentValue string,
+	forceRefresh bool,
+) error {
+	if strings.TrimSpace(key) == "" {
+		return nil
+	}
+	if !forceRefresh && previousValue == currentValue {
+		return nil
+	}
+	if s == nil || s.configSvc == nil {
+		return nil
+	}
+	return s.configSvc.MarkRuntimeParamsChanged(ctx)
+}
+
 // GetById retrieves config by ID.
 func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysConfig, error) {
 	var cfg *entity.SysConfig
@@ -106,10 +137,13 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 			return insertErr
 		}
 		createdID = insertedID
-
-		return s.refreshRuntimeParamSnapshotIfNeeded(ctx, in.Key, "", in.Value, true)
+		return nil
 	})
 	if err != nil {
+		return 0, err
+	}
+
+	if err = s.refreshRuntimeParamSnapshotIfNeeded(ctx, in.Key, "", in.Value, true); err != nil {
 		return 0, err
 	}
 
@@ -118,7 +152,13 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 
 // Update updates config information.
 func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
-	return s.withConfigMutation(ctx, func(ctx context.Context) error {
+	var (
+		previousKey   string
+		previousValue string
+		finalKey      string
+		finalValue    string
+	)
+	if err := s.withConfigMutation(ctx, func(ctx context.Context) error {
 		// Check config exists
 		existing, err := s.GetById(ctx, in.Id)
 		if err != nil {
@@ -144,11 +184,13 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 			}
 		}
 
-		finalKey := existing.Key
+		previousKey = existing.Key
+		finalKey = existing.Key
 		if in.Key != nil {
 			finalKey = *in.Key
 		}
-		finalValue := existing.Value
+		previousValue = existing.Value
+		finalValue = existing.Value
 		if in.Value != nil {
 			finalValue = *in.Value
 		}
@@ -175,8 +217,11 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 			return err
 		}
 
-		return s.refreshRuntimeParamSnapshotIfNeeded(ctx, finalKey, existing.Value, finalValue, false)
-	})
+		return nil
+	}); err != nil {
+		return err
+	}
+	return s.refreshRuntimeParamSnapshotIfNeeded(ctx, finalKey, previousValue, finalValue, previousKey != finalKey)
 }
 
 // Delete soft-deletes a config record using GoFrame's auto soft-delete feature.
@@ -194,7 +239,10 @@ func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 	_, err = dao.SysConfig.Ctx(ctx).
 		Where(do.SysConfig{Id: id}).
 		Delete()
-	return err
+	if err != nil {
+		return err
+	}
+	return s.refreshRuntimeParamSnapshotIfNeeded(ctx, existing.Key, existing.Value, "", true)
 }
 
 // validateManagedConfigValue delegates validation for protected runtime and
@@ -212,13 +260,13 @@ func isBuiltInConfigRecord(record *entity.SysConfig) bool {
 	if record == nil {
 		return false
 	}
-	return record.IsBuiltin == 1 || hostconfig.IsProtectedConfigParam(record.Key)
+	return record.IsBuiltin == 1 || hostconfig.IsManagedSysConfigKey(record.Key)
 }
 
 // builtInConfigFlag returns the persisted built-in marker for protected
 // system parameters that are created through management or import paths.
 func builtInConfigFlag(key string) int {
-	if hostconfig.IsProtectedConfigParam(key) {
+	if hostconfig.IsManagedSysConfigKey(key) {
 		return 1
 	}
 	return 0

@@ -91,34 +91,117 @@ func TestMustNormalizeHostServiceSpecsPanics(t *testing.T) {
 	}})
 }
 
-// TestValidateHostServiceSpecsAcceptsCronWithoutResources verifies cron
-// registration service declarations use the same resource-less shape as
-// runtime host services.
-func TestValidateHostServiceSpecsAcceptsCronWithoutResources(t *testing.T) {
+// TestValidateHostServiceSpecsRejectsCron verifies cron is not a plugin.yaml
+// host service declaration.
+func TestValidateHostServiceSpecsRejectsCron(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceCron,
-		Methods: []string{HostServiceMethodCronRegister},
+		Service: "cron",
+		Methods: []string{"register"},
 	}})
-	if err != nil {
-		t.Fatalf("expected cron host service without resources to validate, got %v", err)
+	if err == nil {
+		t.Fatal("expected cron host service declarations to be rejected")
 	}
 }
 
-// TestValidateHostServiceSpecsAcceptsConfigWithoutResources verifies config
-// read access is authorized at the service/method level through get only.
-func TestValidateHostServiceSpecsAcceptsConfigWithoutResources(t *testing.T) {
+// TestValidateHostServiceSpecsRejectsI18n verifies runtime translation is not
+// published as a dynamic-plugin host service.
+func TestValidateHostServiceSpecsRejectsI18n(t *testing.T) {
+	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
+		Service: "i18n",
+		Methods: []string{"locale.get"},
+	}})
+	if err == nil {
+		t.Fatal("expected i18n host service declarations to be rejected")
+	}
+}
+
+// TestValidateHostServiceSpecsRejectsStandaloneAuthz verifies authorization is
+// an auth-domain method family instead of a top-level dynamic host service.
+func TestValidateHostServiceSpecsRejectsStandaloneAuthz(t *testing.T) {
+	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
+		Service: "authz",
+		Methods: []string{"permissions.has"},
+	}})
+	if err == nil {
+		t.Fatal("expected standalone authz host service declarations to be rejected")
+	}
+}
+
+// TestValidateHostServiceSpecsRejectsRemovedServices verifies removed future
+// placeholders are treated as unknown dynamic host services.
+func TestValidateHostServiceSpecsRejectsRemovedServices(t *testing.T) {
+	for _, tc := range []struct {
+		service string
+		method  string
+	}{
+		{service: "secret", method: "resolve"},
+		{service: "event", method: "publish"},
+		{service: "queue", method: "enqueue"},
+	} {
+		tc := tc
+		t.Run(tc.service, func(t *testing.T) {
+			err := ValidateHostServiceSpecs([]*HostServiceSpec{{
+				Service: tc.service,
+				Methods: []string{tc.method},
+				Resources: []*HostServiceResourceSpec{{
+					Ref: tc.service + ".default",
+				}},
+			}})
+			if err == nil {
+				t.Fatalf("expected removed host service %s.%s to be rejected", tc.service, tc.method)
+			}
+		})
+	}
+}
+
+// TestValidateCapabilitiesRejectsRemovedCapabilities verifies removed future
+// host-service capabilities are not treated as current dynamic-plugin grants.
+func TestValidateCapabilitiesRejectsRemovedCapabilities(t *testing.T) {
+	for _, capability := range []string{
+		"host:secret",
+		"host:event:publish",
+		"host:queue:enqueue",
+	} {
+		capability := capability
+		t.Run(capability, func(t *testing.T) {
+			if err := ValidateCapabilities([]string{capability}); err == nil {
+				t.Fatalf("expected removed capability %s to be rejected", capability)
+			}
+		})
+	}
+}
+
+// TestValidateHostServiceSpecsRejectsMissingMethods verifies host service
+// declarations must grant concrete methods explicitly.
+func TestValidateHostServiceSpecsRejectsMissingMethods(t *testing.T) {
 	specs := []*HostServiceSpec{{
-		Service: HostServiceConfig,
-		Methods: []string{HostServiceMethodConfigGet},
+		Service: HostServiceHostConfig,
+		Keys:    []string{"workspace.basePath"},
+	}}
+
+	if err := ValidateHostServiceSpecs(specs); err == nil {
+		t.Fatal("expected host service without methods to be rejected")
+	}
+	if capabilities := CapabilityMapFromHostServices(specs); len(capabilities) != 0 {
+		t.Fatalf("expected host service without methods to derive no capabilities, got %#v", capabilities)
+	}
+}
+
+// TestValidateHostServiceSpecsAcceptsPluginsConfigWithoutResources verifies
+// plugin config read access is authorized as a plugins domain method.
+func TestValidateHostServiceSpecsAcceptsPluginsConfigWithoutResources(t *testing.T) {
+	specs := []*HostServiceSpec{{
+		Service: HostServicePlugins,
+		Methods: []string{HostServiceMethodPluginsConfigGet},
 	}}
 
 	if err := ValidateHostServiceSpecs(specs); err != nil {
-		t.Fatalf("expected config host service without resources to validate, got %v", err)
+		t.Fatalf("expected plugins config method without resources to validate, got %v", err)
 	}
 
 	capabilities := CapabilityMapFromHostServices(specs)
-	if _, ok := capabilities[CapabilityConfig]; !ok {
-		t.Fatalf("expected config declaration to derive %s capability", CapabilityConfig)
+	if _, ok := capabilities[CapabilityPlugins]; !ok {
+		t.Fatalf("expected plugins config declaration to derive %s capability", CapabilityPlugins)
 	}
 }
 
@@ -130,8 +213,9 @@ func TestValidateHostServiceSpecsAcceptsOrgTenantWithoutResources(t *testing.T) 
 			Service: HostServiceOrg,
 			Methods: []string{
 				HostServiceMethodOrgStatus,
-				HostServiceMethodOrgListUserDeptAssignments,
-				HostServiceMethodOrgGetUserDeptIDs,
+				HostServiceMethodOrgBatchGetUserOrgProfiles,
+				HostServiceMethodOrgDepartmentBatchGet,
+				HostServiceMethodOrgPostBatchGet,
 			},
 		},
 		{
@@ -139,7 +223,6 @@ func TestValidateHostServiceSpecsAcceptsOrgTenantWithoutResources(t *testing.T) 
 			Methods: []string{
 				HostServiceMethodTenantStatus,
 				HostServiceMethodTenantListUserTenants,
-				HostServiceMethodTenantValidateSwitch,
 			},
 		},
 	}
@@ -157,74 +240,129 @@ func TestValidateHostServiceSpecsAcceptsOrgTenantWithoutResources(t *testing.T) 
 	}
 }
 
-// TestValidateHostServiceSpecsDefaultsConfigMethods verifies omitted config
-// methods grant the single read-only get action.
-func TestValidateHostServiceSpecsDefaultsConfigMethods(t *testing.T) {
-	specs := []*HostServiceSpec{{
-		Service: HostServiceConfig,
-	}}
+// TestValidateHostServiceSpecsAcceptsDomainServicesWithoutResources verifies
+// ordinary domain host services are authorized by service and method only.
+func TestValidateHostServiceSpecsAcceptsDomainServicesWithoutResources(t *testing.T) {
+	specs := []*HostServiceSpec{
+		{Service: HostServiceAuth, Methods: []string{HostServiceMethodAuthzBatchGetPermissions, HostServiceMethodAuthzBatchHasPermissions}},
+		{Service: HostServiceDict, Methods: []string{HostServiceMethodDictValueResolveLabels, HostServiceMethodDictListValues, HostServiceMethodDictValueEnsureValuesVisible}},
+		{Service: HostServiceFiles, Methods: []string{HostServiceMethodFilesBatchGet, HostServiceMethodFilesList}},
+		{Service: HostServiceSessions, Methods: []string{HostServiceMethodSessionsCurrent, HostServiceMethodSessionsList, HostServiceMethodSessionsBatchGetUserOnlineStatus, HostServiceMethodSessionsEnsureVisible}},
+		{Service: HostServiceJobs, Methods: []string{HostServiceMethodJobsBatchGet, HostServiceMethodJobsList, HostServiceMethodJobsEnsureVisible, HostServiceMethodJobsRegister}},
+		{Service: HostServiceAPIDoc, Methods: []string{HostServiceMethodAPIDocFindRouteTitleOperationKeys}},
+		{Service: HostServiceBizCtx, Methods: []string{HostServiceMethodBizCtxCurrent}},
+		{Service: HostServiceRoute, Methods: []string{HostServiceMethodRouteMetadataGet}},
+		{Service: HostServiceNotifications, Methods: []string{HostServiceMethodNotificationsBatchGetMessages, HostServiceMethodNotificationsList, HostServiceMethodNotificationsDelete, HostServiceMethodNotificationsMarkRead}},
+		{Service: HostServicePlugins, Methods: []string{HostServiceMethodPluginsCurrent}},
+	}
 
 	if err := ValidateHostServiceSpecs(specs); err != nil {
-		t.Fatalf("expected config host service without explicit methods to validate, got %v", err)
-	}
-	expectedMethods := []string{HostServiceMethodConfigGet}
-	if !reflect.DeepEqual(specs[0].Methods, expectedMethods) {
-		t.Fatalf("expected omitted config methods to default to get, got %#v", specs[0].Methods)
+		t.Fatalf("expected ordinary domain host services without resources to validate, got %v", err)
 	}
 
-	capabilities := CapabilitiesFromHostServices([]*HostServiceSpec{{Service: HostServiceConfig}})
-	if len(capabilities) != 1 || capabilities[0] != CapabilityConfig {
-		t.Fatalf("expected omitted config methods to derive config capability, got %#v", capabilities)
+	capabilities := CapabilityMapFromHostServices(specs)
+	for _, capability := range []string{
+		CapabilityAuthz,
+		CapabilityDict,
+		CapabilityFiles,
+		CapabilitySessions,
+		CapabilityJobs,
+		CapabilityAPIDoc,
+		CapabilityBizCtx,
+		CapabilityRoute,
+		CapabilityNotifications,
+		CapabilityPlugins,
+	} {
+		if _, ok := capabilities[capability]; !ok {
+			t.Fatalf("expected domain declaration to derive %s capability, got %#v", capability, capabilities)
+		}
 	}
 }
 
-// TestValidateHostServiceSpecsRejectsConfigTypedMethods verifies config
-// declarations reject SDK typed helpers as authorization methods.
-func TestValidateHostServiceSpecsRejectsConfigTypedMethods(t *testing.T) {
+// TestValidateHostServiceSpecsRejectsPluginGovernanceLifecycleMethods verifies
+// legacy unscoped plugin governance method names are no longer published.
+func TestValidateHostServiceSpecsRejectsPluginGovernanceLifecycleMethods(t *testing.T) {
 	for _, method := range []string{
-		HostServiceMethodConfigExists,
-		HostServiceMethodConfigString,
-		HostServiceMethodConfigBool,
-		HostServiceMethodConfigInt,
-		HostServiceMethodConfigDuration,
+		"plugins.enabled.check",
+		"plugins.provider_enabled.check",
+		"plugins.enabled_authoritative.check",
+		"lifecycle.tenant_plugin_disable.ensure",
+		"lifecycle.tenant_plugin_disabled.notify",
+		"lifecycle.tenant_delete.ensure",
+		"lifecycle.tenant_deleted.notify",
 	} {
 		method := method
 		t.Run(method, func(t *testing.T) {
 			err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-				Service: HostServiceConfig,
-				Methods: []string{HostServiceMethodConfigGet, method},
+				Service: HostServicePlugins,
+				Methods: []string{method},
 			}})
 			if err == nil {
-				t.Fatalf("expected config typed helper method %s to be rejected", method)
+				t.Fatalf("expected removed plugin governance method %s to be rejected", method)
 			}
 		})
 	}
 }
 
-// TestValidateHostServiceSpecsRejectsConfigUnsupportedMethods verifies config
-// declarations only accept the get action.
-func TestValidateHostServiceSpecsRejectsConfigUnsupportedMethods(t *testing.T) {
+// TestValidateHostServiceSpecsRejectsStandaloneConfigService verifies the old
+// standalone config service is no longer published.
+func TestValidateHostServiceSpecsRejectsStandaloneConfigService(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceConfig,
-		Methods: []string{HostServiceMethodConfigGet, "set"},
+		Service: "config",
+		Methods: []string{"get"},
 	}})
 	if err == nil {
-		t.Fatal("expected unsupported config host service methods to be rejected")
+		t.Fatal("expected standalone config service to be rejected")
 	}
 }
 
-// TestValidateHostServiceSpecsRejectsConfigResources verifies config service
-// declarations do not accept resource restrictions in this model.
-func TestValidateHostServiceSpecsRejectsConfigResources(t *testing.T) {
+// TestValidateHostServiceSpecsRejectsPluginsConfigTypedMethods verifies config
+// helper names are not authorization methods under plugins.
+func TestValidateHostServiceSpecsRejectsPluginsConfigTypedMethods(t *testing.T) {
+	for _, method := range []string{
+		"config.exists",
+		"config.string",
+		"config.bool",
+		"config.int",
+		"config.duration",
+	} {
+		method := method
+		t.Run(method, func(t *testing.T) {
+			err := ValidateHostServiceSpecs([]*HostServiceSpec{{
+				Service: HostServicePlugins,
+				Methods: []string{HostServiceMethodPluginsConfigGet, method},
+			}})
+			if err == nil {
+				t.Fatalf("expected plugins config typed helper method %s to be rejected", method)
+			}
+		})
+	}
+}
+
+// TestValidateHostServiceSpecsRejectsPluginsConfigUnsupportedMethods verifies
+// plugin config declarations only accept config.get.
+func TestValidateHostServiceSpecsRejectsPluginsConfigUnsupportedMethods(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceConfig,
-		Methods: []string{HostServiceMethodConfigGet},
+		Service: HostServicePlugins,
+		Methods: []string{HostServiceMethodPluginsConfigGet, "config.set"},
+	}})
+	if err == nil {
+		t.Fatal("expected unsupported plugins config methods to be rejected")
+	}
+}
+
+// TestValidateHostServiceSpecsRejectsPluginsConfigResources verifies plugins
+// config declarations do not accept resource restrictions in this model.
+func TestValidateHostServiceSpecsRejectsPluginsConfigResources(t *testing.T) {
+	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
+		Service: HostServicePlugins,
+		Methods: []string{HostServiceMethodPluginsConfigGet},
 		Resources: []*HostServiceResourceSpec{{
 			Ref: "monitor.*",
 		}},
 	}})
 	if err == nil {
-		t.Fatal("expected config host service resources to be rejected")
+		t.Fatal("expected plugins config resources to be rejected")
 	}
 }
 
@@ -265,7 +403,7 @@ func TestValidateHostServiceSpecsRejectsLegacyHostRuntimeName(t *testing.T) {
 }
 
 // TestValidateHostServiceSpecsRejectsHostConfigWithoutKeys verifies key-scoped
-// runtime declarations must explicitly request public host keys.
+// runtime declarations must explicitly request authorized host config keys.
 func TestValidateHostServiceSpecsRejectsHostConfigWithoutKeys(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
 		Service: HostServiceHostConfig,
@@ -282,13 +420,26 @@ func TestValidateHostServiceSpecsAcceptsManifestPaths(t *testing.T) {
 	specs := []*HostServiceSpec{{
 		Service: HostServiceManifest,
 		Methods: []string{HostServiceMethodManifestGet},
-		Paths:   []string{" metadata.yaml ", "resources/*.yaml"},
+		Paths: []string{
+			" metadata.yaml ",
+			"config/config.example.yaml",
+			"i18n/zh-CN/plugin.json",
+			"resources/*.yaml",
+			"sql/001-schema.sql",
+		},
 	}}
 
 	if err := ValidateHostServiceSpecs(specs); err != nil {
 		t.Fatalf("expected manifest paths to validate, got %v", err)
 	}
-	if len(specs[0].Paths) != 2 || specs[0].Paths[0] != "metadata.yaml" || specs[0].Paths[1] != "resources/*.yaml" {
+	expectedPaths := []string{
+		"config/config.example.yaml",
+		"i18n/zh-CN/plugin.json",
+		"metadata.yaml",
+		"resources/*.yaml",
+		"sql/001-schema.sql",
+	}
+	if !reflect.DeepEqual(specs[0].Paths, expectedPaths) {
 		t.Fatalf("expected normalized manifest paths, got %#v", specs[0].Paths)
 	}
 	capabilities := CapabilityMapFromHostServices(specs)
@@ -298,7 +449,7 @@ func TestValidateHostServiceSpecsAcceptsManifestPaths(t *testing.T) {
 }
 
 // TestValidateHostServiceSpecsRejectsUnsafeManifestPaths verifies manifest
-// declarations reject paths that could escape or bypass dedicated manifest pipes.
+// declarations reject paths that could escape the manifest root.
 func TestValidateHostServiceSpecsRejectsUnsafeManifestPaths(t *testing.T) {
 	for _, manifestPath := range []string{
 		"",
@@ -307,9 +458,6 @@ func TestValidateHostServiceSpecsRejectsUnsafeManifestPaths(t *testing.T) {
 		`C:\secret.yaml`,
 		"http://example.com/metadata.yaml",
 		"manifest/metadata.yaml",
-		"config/config.yaml",
-		"sql/install.sql",
-		"i18n/zh-CN/messages.json",
 	} {
 		manifestPath := manifestPath
 		t.Run(manifestPath, func(t *testing.T) {
@@ -325,12 +473,12 @@ func TestValidateHostServiceSpecsRejectsUnsafeManifestPaths(t *testing.T) {
 	}
 }
 
-// TestValidateHostServiceSpecsRejectsCronResources verifies cron registration
-// declarations do not accept resource refs.
+// TestValidateHostServiceSpecsRejectsCronResources verifies cron cannot be
+// declared as a resource-scoped runtime host service.
 func TestValidateHostServiceSpecsRejectsCronResources(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
-		Service: HostServiceCron,
-		Methods: []string{HostServiceMethodCronRegister},
+		Service: "cron",
+		Methods: []string{"register"},
 		Resources: []*HostServiceResourceSpec{{
 			Ref: "unexpected",
 		}},
@@ -367,16 +515,66 @@ func TestValidateHostServiceSpecsRejectsCoreServiceWithoutResource(t *testing.T)
 	}
 }
 
-// TestValidateHostServiceSpecsAcceptsDataTables verifies data service
-// declarations normalize and accept authorized table lists.
-func TestValidateHostServiceSpecsAcceptsDataTables(t *testing.T) {
+// TestValidateHostServiceSpecsRejectsDataTablesWithoutPlugin verifies data
+// service declarations require plugin-aware table ownership validation.
+func TestValidateHostServiceSpecsRejectsDataTablesWithoutPlugin(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
 		Service: HostServiceData,
 		Methods: []string{HostServiceMethodDataList, HostServiceMethodDataUpdate},
 		Tables:  []string{" sys_plugin_node_state ", "sys_user"},
 	}})
-	if err != nil {
-		t.Fatalf("expected data host service tables to validate, got %v", err)
+	if err == nil {
+		t.Fatal("expected data host service tables without plugin ID to be rejected")
+	}
+}
+
+// TestValidateHostServiceSpecsForPluginAcceptsOwnedDataTables verifies
+// production validation allows only data tables in the current plugin namespace.
+func TestValidateHostServiceSpecsForPluginAcceptsOwnedDataTables(t *testing.T) {
+	specs := []*HostServiceSpec{{
+		Service: HostServiceData,
+		Methods: []string{HostServiceMethodDataList, HostServiceMethodDataUpdate},
+		Tables: []string{
+			" plugin_linapro_demo_dynamic_record ",
+			"plugin_linapro_demo_dynamic",
+		},
+	}}
+
+	if err := ValidateHostServiceSpecsForPlugin("linapro-demo-dynamic", specs); err != nil {
+		t.Fatalf("expected plugin-owned data tables to validate, got %v", err)
+	}
+	if len(specs[0].Tables) != 2 || specs[0].Tables[0] != "plugin_linapro_demo_dynamic" || specs[0].Tables[1] != "plugin_linapro_demo_dynamic_record" {
+		t.Fatalf("expected normalized plugin-owned tables, got %#v", specs[0].Tables)
+	}
+}
+
+// TestValidateHostServiceSpecsForPluginRejectsCoreDataTables verifies dynamic
+// data service declarations cannot authorize host sys_* core tables.
+func TestValidateHostServiceSpecsForPluginRejectsCoreDataTables(t *testing.T) {
+	err := ValidateHostServiceSpecsForPlugin("linapro-demo-dynamic", []*HostServiceSpec{{
+		Service: HostServiceData,
+		Methods: []string{HostServiceMethodDataList},
+		Tables:  []string{"sys_plugin_node_state"},
+	}})
+	if err == nil {
+		t.Fatal("expected host core data table to be rejected")
+	}
+}
+
+// TestNormalizeHostServiceSpecsForPluginRejectsOtherPluginDataTables verifies
+// official capability plugin tables stay inaccessible through another plugin's
+// generic data host service authorization.
+func TestNormalizeHostServiceSpecsForPluginRejectsOtherPluginDataTables(t *testing.T) {
+	normalized, err := NormalizeHostServiceSpecsForPlugin("linapro-demo-dynamic", []*HostServiceSpec{{
+		Service: HostServiceData,
+		Methods: []string{HostServiceMethodDataList},
+		Tables:  []string{"plugin_linapro_org_dept"},
+	}})
+	if err == nil {
+		t.Fatal("expected other plugin data table to be rejected")
+	}
+	if len(normalized) != 0 {
+		t.Fatalf("expected rejected declaration to return no normalized entries, got %#v", normalized)
 	}
 }
 
@@ -429,8 +627,8 @@ func TestValidateHostServiceSpecsAcceptsCacheLockNotifyResources(t *testing.T) {
 			},
 		},
 		{
-			Service: HostServiceNotify,
-			Methods: []string{HostServiceMethodNotifySend},
+			Service: HostServiceNotifications,
+			Methods: []string{HostServiceMethodNotificationsSend},
 			Resources: []*HostServiceResourceSpec{
 				{Ref: " inbox "},
 			},
@@ -438,7 +636,7 @@ func TestValidateHostServiceSpecsAcceptsCacheLockNotifyResources(t *testing.T) {
 	}
 
 	if err := ValidateHostServiceSpecs(specs); err != nil {
-		t.Fatalf("expected cache/lock/notify host service specs to validate, got %v", err)
+		t.Fatalf("expected cache/lock/notifications host service specs to validate, got %v", err)
 	}
 	if specs[0].Resources[0].Ref != "order-sync-cache" {
 		t.Fatalf("expected normalized cache resource ref, got %#v", specs[0].Resources[0])
@@ -448,6 +646,123 @@ func TestValidateHostServiceSpecsAcceptsCacheLockNotifyResources(t *testing.T) {
 	}
 	if specs[2].Resources[0].Ref != "inbox" {
 		t.Fatalf("expected normalized notify resource ref, got %#v", specs[2].Resources[0])
+	}
+}
+
+// TestValidateHostServiceSpecsAcceptsAITextMethodsWithoutResources verifies AI
+// text host service declarations derive host:ai:text without resource refs.
+func TestValidateHostServiceSpecsAcceptsAITextMethodsWithoutResources(t *testing.T) {
+	specs := []*HostServiceSpec{{
+		Service: " AI ",
+		Methods: []string{" Text.Generate "},
+	}}
+
+	if err := ValidateHostServiceSpecs(specs); err != nil {
+		t.Fatalf("expected ai text host service specs to validate, got %v", err)
+	}
+	if len(specs[0].Resources) != 0 {
+		t.Fatalf("expected ai host service to stay resource-less, got %#v", specs[0].Resources)
+	}
+	if specs[0].Service != HostServiceAI {
+		t.Fatalf("expected normalized ai service, got %s", specs[0].Service)
+	}
+	if len(specs[0].Methods) != 1 || specs[0].Methods[0] != HostServiceMethodAITextGenerate {
+		t.Fatalf("expected normalized ai text method, got %#v", specs[0].Methods)
+	}
+	capabilities := CapabilityMapFromHostServices(specs)
+	if _, ok := capabilities[CapabilityAIText]; !ok {
+		t.Fatalf("expected ai declaration to derive %s capability", CapabilityAIText)
+	}
+}
+
+// TestValidateHostServiceSpecsAcceptsAIMultimodalMethodsWithoutResources
+// verifies multimodal AI declarations derive method-specific capabilities
+// without resource refs.
+func TestValidateHostServiceSpecsAcceptsAIMultimodalMethodsWithoutResources(t *testing.T) {
+	specs := []*HostServiceSpec{{
+		Service: HostServiceAI,
+		Methods: []string{
+			HostServiceMethodAIImageGenerate,
+			HostServiceMethodAIEmbeddingCreate,
+			HostServiceMethodAIAudioTranscribe,
+			HostServiceMethodAIVisionAnalyze,
+			HostServiceMethodAIDocumentAnalyze,
+			HostServiceMethodAISafetyModerate,
+			HostServiceMethodAIVideoGenerate,
+			HostServiceMethodAIVideoOperationGet,
+		},
+	}}
+
+	if err := ValidateHostServiceSpecs(specs); err != nil {
+		t.Fatalf("expected multimodal ai host service specs to validate, got %v", err)
+	}
+	capabilities := CapabilityMapFromHostServices(specs)
+	for _, capability := range []string{
+		CapabilityAIImage,
+		CapabilityAIEmbedding,
+		CapabilityAIAudio,
+		CapabilityAIVision,
+		CapabilityAIDocument,
+		CapabilityAISafety,
+		CapabilityAIVideo,
+	} {
+		if _, ok := capabilities[capability]; !ok {
+			t.Fatalf("expected ai declaration to derive %s capability", capability)
+		}
+	}
+}
+
+// TestValidateHostServiceSpecsRejectsAIUnsupportedMethods verifies unsupported
+// AI methods are rejected before runtime.
+func TestValidateHostServiceSpecsRejectsAIUnsupportedMethods(t *testing.T) {
+	for _, testCase := range []HostServiceSpec{
+		{
+			Service: HostServiceAI,
+			Methods: []string{"computer.act"},
+		},
+		{
+			Service: HostServiceAI,
+			Methods: []string{"ui.operate"},
+		},
+	} {
+		spec := testCase
+		if err := ValidateHostServiceSpecs([]*HostServiceSpec{&spec}); err == nil {
+			t.Fatalf("expected invalid ai host service method to be rejected: %#v", testCase)
+		}
+	}
+}
+
+// TestValidateHostServiceSpecsRejectsAIResources verifies AI declarations use
+// method authorization only and reject every resource declaration shape.
+func TestValidateHostServiceSpecsRejectsAIResources(t *testing.T) {
+	for _, testCase := range []HostServiceSpec{
+		{
+			Service: HostServiceAI,
+			Methods: []string{HostServiceMethodAITextGenerate},
+			Resources: []*HostServiceResourceSpec{{
+				Ref: "purpose:content.summary",
+			}},
+		},
+		{
+			Service: HostServiceAI,
+			Methods: []string{HostServiceMethodAITextGenerate},
+			Paths:   []string{"reports/"},
+		},
+		{
+			Service: HostServiceAI,
+			Methods: []string{HostServiceMethodAITextGenerate},
+			Tables:  []string{"plugin_demo_reports"},
+		},
+		{
+			Service: HostServiceAI,
+			Methods: []string{HostServiceMethodAITextGenerate},
+			Keys:    []string{"ai.default"},
+		},
+	} {
+		spec := testCase
+		if err := ValidateHostServiceSpecs([]*HostServiceSpec{&spec}); err == nil {
+			t.Fatalf("expected ai host service resources to be rejected: %#v", testCase)
+		}
 	}
 }
 
@@ -755,8 +1070,8 @@ func TestCapabilitiesFromHostServicesDerivesLowPriorityCapabilitySet(t *testing.
 			},
 		},
 		{
-			Service: HostServiceNotify,
-			Methods: []string{HostServiceMethodNotifySend},
+			Service: HostServiceNotifications,
+			Methods: []string{HostServiceMethodNotificationsSend},
 			Resources: []*HostServiceResourceSpec{
 				{Ref: "inbox"},
 			},
@@ -766,7 +1081,7 @@ func TestCapabilitiesFromHostServicesDerivesLowPriorityCapabilitySet(t *testing.
 	if len(capabilities) != 3 {
 		t.Fatalf("expected 3 derived capabilities, got %#v", capabilities)
 	}
-	if capabilities[0] != CapabilityCache || capabilities[1] != CapabilityLock || capabilities[2] != CapabilityNotify {
+	if capabilities[0] != CapabilityCache || capabilities[1] != CapabilityLock || capabilities[2] != CapabilityNotifications {
 		t.Fatalf("unexpected derived low priority capabilities ordering: %#v", capabilities)
 	}
 }

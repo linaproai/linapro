@@ -5,7 +5,6 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/util/guid"
@@ -35,10 +34,11 @@ type preTokenStore interface {
 // preTokenRecord stores the authenticated user identity between password
 // verification and tenant selection.
 type preTokenRecord struct {
-	UserID    int
-	Username  string
-	Status    int
-	ExpiresAt time.Time
+	UserID     int
+	Username   string
+	Status     int
+	ClientType ClientType
+	ExpiresAt  time.Time
 }
 
 // storedPreTokenRecord is the persisted JSON envelope for pre-login tokens.
@@ -54,20 +54,9 @@ type kvPreTokenStore struct {
 	cache kvcache.Service
 }
 
-// memoryPreTokenStore keeps pre-login tokens in memory for isolated tests.
-type memoryPreTokenStore struct {
-	mu      sync.Mutex
-	records map[string]preTokenRecord
-}
-
 // newKVPreTokenStore creates a kvcache-backed pre-login token store.
 func newKVPreTokenStore(cache kvcache.Service) preTokenStore {
 	return &kvPreTokenStore{cache: cache}
-}
-
-// newMemoryPreTokenStore creates an empty in-memory pre-login token store.
-func newMemoryPreTokenStore() *memoryPreTokenStore {
-	return &memoryPreTokenStore{records: make(map[string]preTokenRecord)}
 }
 
 // Create stores one short-lived pre-login token.
@@ -119,34 +108,6 @@ func (s *kvPreTokenStore) Consume(ctx context.Context, token string) (preTokenRe
 		return preTokenRecord{}, false, nil
 	}
 	return payload.Record, true, nil
-}
-
-// Create stores one short-lived pre-login token.
-func (s *memoryPreTokenStore) Create(_ context.Context, record preTokenRecord) (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	token := preTokenGeneratedPrefix + guid.S()
-	record.ExpiresAt = time.Now().Add(preTokenTTL)
-	s.records[token] = record
-	return token, nil
-}
-
-// Consume returns and deletes one pre-login token. Expired tokens are treated
-// the same as missing tokens so callers get one stable user-facing error.
-func (s *memoryPreTokenStore) Consume(_ context.Context, token string) (preTokenRecord, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	record, ok := s.records[token]
-	if !ok {
-		return preTokenRecord{}, false, nil
-	}
-	delete(s.records, token)
-	if time.Now().After(record.ExpiresAt) {
-		return preTokenRecord{}, false, nil
-	}
-	return record, true, nil
 }
 
 // preTokenCacheKey builds the scoped kvcache key for one pre-login token.

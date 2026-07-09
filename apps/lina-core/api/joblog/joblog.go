@@ -7,7 +7,7 @@ package joblog
 import (
 	"context"
 
-	"lina-core/api/joblog/v1"
+	v1 "lina-core/api/joblog/v1"
 )
 
 type IJoblogV1 interface {

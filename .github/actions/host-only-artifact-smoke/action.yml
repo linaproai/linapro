@@ -1,7 +1,7 @@
 # Host-only artifact smoke test composite action.
-# Boots the compiled backend binary in single-node mode and validates health, login, and plugin endpoints.
+# Boots the compiled backend binary in single-node mode and validates login, system info, and plugin endpoints.
 # 宿主模式构建产物冒烟测试复合操作。
-# 以单节点模式启动编译后的后端二进制文件，校验健康检查、登录和插件列表等核心接口。
+# 以单节点模式启动编译后的后端二进制文件，校验登录、系统信息和插件列表等核心接口。
 name: Host-only Artifact Smoke
 description: Start a host-only backend artifact in Linux GitHub Actions jobs and verify core endpoints.
 
@@ -24,8 +24,8 @@ inputs:
 runs:
   using: composite
   steps:
-    # Start the binary, poll the health endpoint, then verify login and plugin list responses.
-    # 启动二进制文件，轮询健康检查接口，然后验证登录和插件列表响应。
+    # Start the binary, poll login/system-info readiness, then verify plugin list responses.
+    # 启动二进制文件，轮询登录和系统信息就绪状态，然后验证插件列表响应。
     - name: Run Host-only Artifact Smoke
       shell: bash
       env:
@@ -63,24 +63,55 @@ runs:
         backend_pid="$!"
         popd >/dev/null
 
-        # Poll the health endpoint for up to 90 seconds, expecting single-node host-only mode.
-        # 轮询健康检查接口最多 90 秒，期望返回单节点宿主模式。
-        response=""
+        # Poll login and the protected system-info endpoint for up to 90 seconds,
+        # expecting single-node host-only mode.
+        # 最多 90 秒轮询登录和受保护的系统信息接口，期望返回单节点宿主模式。
+        sysinfo_response=""
+        token=""
         for _ in $(seq 1 90); do
           if ! kill -0 "${backend_pid}" 2>/dev/null; then
-            echo "Host-only backend exited before health check passed" >&2
+            echo "Host-only backend exited before readiness check passed" >&2
             echo "Check log: ${LOG_PATH}" >&2
             exit 1
           fi
-          response="$(curl -fsS "http://127.0.0.1:${BACKEND_PORT}/api/v1/health" 2>/dev/null || true)"
-          if [ -n "${response}" ] && HEALTH_RESPONSE="${response}" python3 - <<'PY'
+          login_response="$(
+            curl -fsS \
+              -H "Content-Type: application/json" \
+              -d '{"username":"admin","password":"admin123","clientType":"web"}' \
+              "http://127.0.0.1:${BACKEND_PORT}/api/v1/auth/login" 2>/dev/null || true
+          )"
+          if [ -n "${login_response}" ]; then
+            token="$(LOGIN_RESPONSE="${login_response}" python3 - <<'PY'
+        import json
+        import os
+
+        payload = json.loads(os.environ["LOGIN_RESPONSE"])
+        data = payload.get("data", payload)
+        if payload.get("code", 0) == 0 and data.get("accessToken"):
+            print(data["accessToken"])
+        PY
+            )"
+          fi
+          if [ -n "${token}" ]; then
+            sysinfo_response="$(
+              curl -fsS \
+                -H "Authorization: Bearer ${token}" \
+                "http://127.0.0.1:${BACKEND_PORT}/api/v1/system/info" 2>/dev/null || true
+            )"
+          fi
+          if [ -n "${sysinfo_response}" ] && SYSINFO_RESPONSE="${sysinfo_response}" python3 - <<'PY'
         import json
         import os
         import sys
 
-        payload = json.loads(os.environ["HEALTH_RESPONSE"])
+        payload = json.loads(os.environ["SYSINFO_RESPONSE"])
         data = payload.get("data", payload)
-        if payload.get("code", 0) == 0 and data.get("status") == "ok" and data.get("mode") == "single":
+        coordination = data.get("coordination") or {}
+        if (
+            payload.get("code", 0) == 0
+            and coordination.get("clusterEnabled") is False
+            and coordination.get("primary") is True
+        ):
             sys.exit(0)
         sys.exit(1)
         PY
@@ -90,52 +121,30 @@ runs:
           sleep 1
         done
 
-        # Fail fast if the health endpoint never responded.
-        # 如果健康检查接口始终未响应则立即失败。
-        if [ -z "${response}" ]; then
-          echo "Host-only backend did not return a health response" >&2
+        # Fail fast if system-info readiness never succeeded.
+        # 如果系统信息就绪检查始终未成功则立即失败。
+        if [ -z "${sysinfo_response}" ]; then
+          echo "Host-only backend did not return a system info response" >&2
           echo "Check log: ${LOG_PATH}" >&2
           exit 1
         fi
 
-        # Validate the final health response payload in detail.
-        # 详细校验最终的健康检查响应载荷。
-        HEALTH_RESPONSE="${response}" python3 - <<'PY'
+        # Validate the final system-info response payload in detail.
+        # 详细校验最终的系统信息响应载荷。
+        SYSINFO_RESPONSE="${sysinfo_response}" python3 - <<'PY'
         import json
         import os
 
-        payload = json.loads(os.environ["HEALTH_RESPONSE"])
+        payload = json.loads(os.environ["SYSINFO_RESPONSE"])
         data = payload.get("data", payload)
         if payload.get("code", 0) != 0:
-            raise SystemExit(f"health business code is not zero: {payload!r}")
-        if data.get("status") != "ok":
-            raise SystemExit(f"expected health status ok, got: {payload!r}")
-        if data.get("mode") != "single":
-            raise SystemExit(f"expected single-node host-only mode, got: {payload!r}")
+            raise SystemExit(f"system info business code is not zero: {payload!r}")
+        coordination = data.get("coordination") or {}
+        if coordination.get("clusterEnabled") is not False:
+            raise SystemExit(f"expected host-only clusterEnabled=false, got: {payload!r}")
+        if coordination.get("primary") is not True:
+            raise SystemExit(f"expected host-only primary=true, got: {payload!r}")
         PY
-
-        # Authenticate with the default admin account and extract the access token.
-        # 使用默认管理员账号登录并提取访问令牌。
-        login_response="$(
-          curl -fsS \
-            -H "Content-Type: application/json" \
-            -d '{"username":"admin","password":"admin123"}' \
-            "http://127.0.0.1:${BACKEND_PORT}/api/v1/auth/login"
-        )"
-        token="$(LOGIN_RESPONSE="${login_response}" python3 - <<'PY'
-        import json
-        import os
-
-        payload = json.loads(os.environ["LOGIN_RESPONSE"])
-        data = payload.get("data", payload)
-        if payload.get("code", 0) != 0:
-            raise SystemExit(f"login business code is not zero: {payload!r}")
-        token = data.get("accessToken")
-        if not token:
-            raise SystemExit(f"login response did not contain accessToken: {payload!r}")
-        print(token)
-        PY
-        )"
 
         # Verify that no source plugins are loaded in host-only mode.
         # 验证宿主模式下未加载任何源码插件。

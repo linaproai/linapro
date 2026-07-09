@@ -4,6 +4,7 @@
 package i18n
 
 import (
+	"context"
 	"testing"
 
 	"lina-core/internal/service/bizctx"
@@ -24,9 +25,8 @@ func seedLocaleCache(locale string, populator func(lc *localeCache)) *localeCach
 	if populator != nil {
 		populator(lc)
 	}
-	merged, sources := mergeLocaleSectors(lc, locale)
+	merged := mergeLocaleSectors(lc)
 	lc.merged = merged
-	lc.sources = sources
 	lc.fingerprint = runtimeBundleFingerprint(merged)
 	lc.version++
 	return lc
@@ -192,7 +192,10 @@ func TestBundleRevisionReportsCachedFingerprint(t *testing.T) {
 	})
 
 	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil)).(*serviceImpl)
-	revision := svc.BundleRevision(EnglishLocale)
+	revision, err := svc.BundleRevision(context.Background(), EnglishLocale)
+	if err != nil {
+		t.Fatalf("expected bundle revision without error, got %v", err)
+	}
 	if revision.Version != cache.version {
 		t.Fatalf("expected revision version %d, got %d", cache.version, revision.Version)
 	}
@@ -230,10 +233,10 @@ func TestRuntimeBundleFingerprintIsStableAndContentSensitive(t *testing.T) {
 	}
 }
 
-// TestBundleVersionIncrementsOnInvalidate verifies that BundleVersion reports
+// TestBundleRevisionIncrementsOnInvalidate verifies that BundleRevision reports
 // monotonically increasing values whenever any sector contributing to a
 // locale is invalidated, supporting the future ETag protocol.
-func TestBundleVersionIncrementsOnInvalidate(t *testing.T) {
+func TestBundleRevisionIncrementsOnInvalidate(t *testing.T) {
 	resetRuntimeBundleCache()
 	t.Cleanup(resetRuntimeBundleCache)
 
@@ -242,9 +245,13 @@ func TestBundleVersionIncrementsOnInvalidate(t *testing.T) {
 	})
 
 	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil)).(*serviceImpl)
-	versionBefore := svc.BundleVersion(EnglishLocale)
+	revisionBefore, err := svc.BundleRevision(context.Background(), EnglishLocale)
+	if err != nil {
+		t.Fatalf("expected bundle revision before invalidation without error, got %v", err)
+	}
+	versionBefore := revisionBefore.Version
 	if versionBefore != cache.version {
-		t.Fatalf("expected BundleVersion to report cache version, got service=%d cache=%d", versionBefore, cache.version)
+		t.Fatalf("expected BundleRevision to report cache version, got service=%d cache=%d", versionBefore, cache.version)
 	}
 
 	svc.InvalidateRuntimeBundleCache(InvalidateScope{
@@ -252,15 +259,19 @@ func TestBundleVersionIncrementsOnInvalidate(t *testing.T) {
 		Sectors: []Sector{SectorHost},
 	})
 
-	versionAfter := svc.BundleVersion(EnglishLocale)
+	revisionAfter, err := svc.BundleRevision(context.Background(), EnglishLocale)
+	if err != nil {
+		t.Fatalf("expected bundle revision after invalidation without error, got %v", err)
+	}
+	versionAfter := revisionAfter.Version
 	if versionAfter <= versionBefore {
-		t.Fatalf("expected BundleVersion to advance after invalidation, before=%d after=%d", versionBefore, versionAfter)
+		t.Fatalf("expected BundleRevision to advance after invalidation, before=%d after=%d", versionBefore, versionAfter)
 	}
 }
 
-// TestBundleVersionIncrementsOnLocaleWideInvalidate verifies all-sector
+// TestBundleRevisionIncrementsOnLocaleWideInvalidate verifies all-sector
 // invalidation for a locale preserves monotonic ETag versions.
-func TestBundleVersionIncrementsOnLocaleWideInvalidate(t *testing.T) {
+func TestBundleRevisionIncrementsOnLocaleWideInvalidate(t *testing.T) {
 	resetRuntimeBundleCache()
 	t.Cleanup(resetRuntimeBundleCache)
 
@@ -275,13 +286,21 @@ func TestBundleVersionIncrementsOnLocaleWideInvalidate(t *testing.T) {
 	})
 
 	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil)).(*serviceImpl)
-	versionBefore := svc.BundleVersion(EnglishLocale)
+	revisionBefore, err := svc.BundleRevision(context.Background(), EnglishLocale)
+	if err != nil {
+		t.Fatalf("expected bundle revision before locale-wide invalidation without error, got %v", err)
+	}
+	versionBefore := revisionBefore.Version
 
 	svc.InvalidateRuntimeBundleCache(InvalidateScope{
 		Locales: []string{EnglishLocale},
 	})
 
-	versionAfter := svc.BundleVersion(EnglishLocale)
+	revisionAfter, err := svc.BundleRevision(context.Background(), EnglishLocale)
+	if err != nil {
+		t.Fatalf("expected bundle revision after locale-wide invalidation without error, got %v", err)
+	}
+	versionAfter := revisionAfter.Version
 	if versionAfter <= versionBefore {
 		t.Fatalf("expected locale-wide invalidation to advance version, before=%d after=%d", versionBefore, versionAfter)
 	}
@@ -294,9 +313,9 @@ func TestBundleVersionIncrementsOnLocaleWideInvalidate(t *testing.T) {
 	}
 }
 
-// TestBundleVersionIncrementsOnFullInvalidate verifies a full cache invalidation
+// TestBundleRevisionIncrementsOnFullInvalidate verifies a full cache invalidation
 // clears every cached locale while keeping each cached locale version monotonic.
-func TestBundleVersionIncrementsOnFullInvalidate(t *testing.T) {
+func TestBundleRevisionIncrementsOnFullInvalidate(t *testing.T) {
 	resetRuntimeBundleCache()
 	t.Cleanup(resetRuntimeBundleCache)
 
@@ -308,13 +327,29 @@ func TestBundleVersionIncrementsOnFullInvalidate(t *testing.T) {
 	})
 
 	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil)).(*serviceImpl)
-	enVersionBefore := svc.BundleVersion(EnglishLocale)
-	zhVersionBefore := svc.BundleVersion(DefaultLocale)
+	enRevisionBefore, err := svc.BundleRevision(context.Background(), EnglishLocale)
+	if err != nil {
+		t.Fatalf("expected en-US bundle revision before full invalidation without error, got %v", err)
+	}
+	zhRevisionBefore, err := svc.BundleRevision(context.Background(), DefaultLocale)
+	if err != nil {
+		t.Fatalf("expected zh-CN bundle revision before full invalidation without error, got %v", err)
+	}
+	enVersionBefore := enRevisionBefore.Version
+	zhVersionBefore := zhRevisionBefore.Version
 
 	svc.InvalidateRuntimeBundleCache(InvalidateScope{})
 
-	enVersionAfter := svc.BundleVersion(EnglishLocale)
-	zhVersionAfter := svc.BundleVersion(DefaultLocale)
+	enRevisionAfter, err := svc.BundleRevision(context.Background(), EnglishLocale)
+	if err != nil {
+		t.Fatalf("expected en-US bundle revision after full invalidation without error, got %v", err)
+	}
+	zhRevisionAfter, err := svc.BundleRevision(context.Background(), DefaultLocale)
+	if err != nil {
+		t.Fatalf("expected zh-CN bundle revision after full invalidation without error, got %v", err)
+	}
+	enVersionAfter := enRevisionAfter.Version
+	zhVersionAfter := zhRevisionAfter.Version
 	if enVersionAfter <= enVersionBefore {
 		t.Fatalf("expected en-US version to advance after full invalidation, before=%d after=%d", enVersionBefore, enVersionAfter)
 	}

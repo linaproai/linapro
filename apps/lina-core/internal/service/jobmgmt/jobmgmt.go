@@ -4,6 +4,7 @@ package jobmgmt
 
 import (
 	"context"
+	jobv1 "lina-core/api/job/v1"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -13,6 +14,7 @@ import (
 	"lina-core/internal/service/cluster"
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	internalscheduler "lina-core/internal/service/jobmgmt/internal/scheduler"
@@ -20,8 +22,8 @@ import (
 	"lina-core/pkg/logger"
 )
 
-// GroupService defines the scheduled-job group management contract.
-type GroupService interface {
+// Service defines the complete scheduled-job management contract.
+type Service interface {
 	// ListGroups returns scheduled-job groups with pagination, optional filters,
 	// validated ordering, and job counts. Database errors are returned unchanged.
 	ListGroups(ctx context.Context, in ListGroupsInput) (*ListGroupsOutput, error)
@@ -34,10 +36,7 @@ type GroupService interface {
 	// DeleteGroups removes one or more groups and migrates their jobs to the
 	// default group in the same mutation flow.
 	DeleteGroups(ctx context.Context, ids string) error
-}
 
-// JobService defines the scheduled-job task management contract.
-type JobService interface {
 	// WithStartupDataSnapshot returns a child context carrying scheduled-job
 	// startup snapshots shared by one host startup orchestration. Snapshot
 	// construction errors are returned and no global state is mutated.
@@ -48,26 +47,14 @@ type JobService interface {
 	// GetJob returns one scheduled-job detail snapshot after data-scope
 	// visibility checks. Missing jobs return jobmeta business errors.
 	GetJob(ctx context.Context, id int64) (*JobDetailOutput, error)
-	// CreateJob persists one new scheduled job after group, handler/shell, cron,
-	// timeout, workdir, and data-scope validation. Enabled jobs refresh the
-	// scheduler after persistence.
-	CreateJob(ctx context.Context, in SaveJobInput) (int64, error)
-	// UpdateJob updates one scheduled job after validation and refreshes or
-	// removes the scheduler registration according to the new state.
-	UpdateJob(ctx context.Context, in UpdateJobInput) error
-	// DeleteJobs removes one or more non-built-in scheduled jobs after
-	// visibility checks and unregisters them from the scheduler.
-	DeleteJobs(ctx context.Context, ids string) error
-	// UpdateJobStatus toggles one job between enabled and disabled states,
-	// applying scheduler registration changes and visibility checks.
-	UpdateJobStatus(ctx context.Context, id int64, status jobmeta.JobStatus) error
+
+	// Owner exposes governed scheduled-job mutation and execution operations
+	// used by host controllers and plugin capability adapters.
+	jobmeta.Owner
 	// ResetJob resets executed_count and stop_reason for one scheduled job after
 	// visibility checks. It does not alter scheduler registration.
 	ResetJob(ctx context.Context, id int64) error
-	// TriggerJob starts one manual execution and returns the created log ID after
-	// runtime prerequisites and handler/shell constraints are validated.
-	TriggerJob(ctx context.Context, id int64) (int64, error)
-	// PreviewCron returns the next five fire times for one cron expression and
+	// PreviewJobs returns the next five fire times for one cron expression and
 	// timezone without mutating persistent jobs.
 	PreviewCron(ctx context.Context, expr string, timezone string) ([]time.Time, error)
 	// SyncBuiltinJobs upserts code-owned scheduled jobs into sys_job using
@@ -76,32 +63,23 @@ type JobService interface {
 	// ReconcileBuiltinJobs refreshes the full code-owned job projection and
 	// prunes removed built-ins from sys_job while keeping scheduler state aligned.
 	ReconcileBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) ([]*entity.SysJob, error)
-}
 
-// LogService defines the scheduled-job execution log management contract.
-type LogService interface {
 	// ListLogs returns scheduled-job execution logs with pagination, filters,
 	// job metadata, validated ordering, and data-scope enforcement.
 	ListLogs(ctx context.Context, in ListLogsInput) (*ListLogsOutput, error)
 	// GetLog returns one execution-log detail snapshot after data-scope
 	// visibility checks. Missing logs return jobmeta business errors.
 	GetLog(ctx context.Context, id int64) (*LogDetailOutput, error)
-	// ClearLogs deletes matching execution logs by selected IDs, job, or all
-	// rows within the caller's data scope.
-	ClearLogs(ctx context.Context, jobID *int64, ids string) error
+	// ClearLogs deletes matching execution logs by selected IDs, job, optional
+	// start-time range, or all rows within the caller's data scope. It returns
+	// the number of rows removed.
+	ClearLogs(ctx context.Context, in ClearLogsInput) (int64, error)
 	// CancelLog cancels one currently running execution instance after
 	// visibility checks. Non-running or unknown logs return business errors.
 	CancelLog(ctx context.Context, id int64) error
 	// CleanupDueLogs removes logs that exceed effective retention policies and
 	// returns the number of rows removed.
 	CleanupDueLogs(ctx context.Context) (int64, error)
-}
-
-// Service defines the complete scheduled-job management contract.
-type Service interface {
-	JobService
-	LogService
-	GroupService
 }
 
 // Scheduler defines the persistent scheduled-job runner contract exported to
@@ -161,12 +139,12 @@ const (
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	bizCtxSvc bizctx.Service        // bizCtxSvc resolves the current operator identity.
-	configSvc configsvc.Service     // configSvc exposes runtime cron-management parameters.
-	i18nSvc   jobmgmtI18nTranslator // i18nSvc localizes backend-owned display metadata.
-	registry  jobhandler.Registry   // registry resolves handler definitions and validation schemas.
-	scheduler Scheduler             // scheduler keeps persistent jobs registered with gcron.
-	scopeSvc  datascope.Service     // scopeSvc enforces user-owned scheduled-job boundaries.
+	bizCtxSvc bizctx.Service      // bizCtxSvc resolves the current operator identity.
+	configSvc configsvc.Service   // configSvc exposes runtime cron-management parameters.
+	i18nSvc   i18nsvc.Service     // i18nSvc localizes backend-owned display metadata.
+	registry  jobhandler.Registry // registry resolves handler definitions and validation schemas.
+	scheduler Scheduler           // scheduler keeps persistent jobs registered with gcron.
+	scopeSvc  datascope.Service   // scopeSvc enforces user-owned scheduled-job boundaries.
 }
 
 // NewScheduler creates the persistent scheduler plus its internal shell
@@ -191,7 +169,7 @@ func NewScheduler(
 func New(
 	bizCtxSvc bizctx.Service,
 	configSvc configsvc.Service,
-	i18nSvc jobmgmtI18nTranslator,
+	i18nSvc i18nsvc.Service,
 	registry jobhandler.Registry,
 	scheduler Scheduler,
 	scopeSvc datascope.Service,
@@ -251,26 +229,7 @@ type ListGroupsOutput struct {
 }
 
 // SaveJobInput stores mutable scheduled-job fields.
-type SaveJobInput struct {
-	GroupID              int64                    // GroupID identifies the owning group.
-	Name                 string                   // Name is unique within the group.
-	Description          string                   // Description explains the job purpose.
-	TaskType             jobmeta.TaskType         // TaskType selects handler or shell execution.
-	HandlerRef           string                   // HandlerRef selects the registered handler for handler jobs.
-	Params               map[string]any           // Params stores handler parameters.
-	Timeout              time.Duration            // Timeout bounds each execution.
-	ShellCmd             string                   // ShellCmd stores the shell script for shell jobs.
-	WorkDir              string                   // WorkDir stores the optional shell working directory.
-	Env                  map[string]string        // Env stores shell environment overrides.
-	CronExpr             string                   // CronExpr stores the cron expression.
-	Timezone             string                   // Timezone stores the cron timezone identifier.
-	Scope                jobmeta.JobScope         // Scope selects master-only or all-node execution.
-	Concurrency          jobmeta.JobConcurrency   // Concurrency selects singleton or parallel execution.
-	MaxConcurrency       int                      // MaxConcurrency caps parallel overlap per node.
-	MaxExecutions        int                      // MaxExecutions caps cron-triggered runs.
-	Status               jobmeta.JobStatus        // Status selects enabled or disabled persistence state.
-	LogRetentionOverride *jobmeta.RetentionOption // LogRetentionOverride stores the optional per-job policy.
-}
+type SaveJobInput = jobmeta.SaveJobInput
 
 // BuiltinJobDef stores one code-owned scheduled-job definition projected into sys_job.
 type BuiltinJobDef struct {
@@ -287,22 +246,19 @@ type BuiltinJobDef struct {
 	Concurrency     jobmeta.JobConcurrency // Concurrency selects singleton or parallel execution.
 	MaxConcurrency  int                    // MaxConcurrency caps parallel overlap.
 	MaxExecutions   int                    // MaxExecutions caps cron-triggered runs.
-	Status          jobmeta.JobStatus      // Status stores the desired steady-state status.
+	Status          jobv1.Status           // Status stores the desired steady-state status.
 	LogRetentionRaw string                 // LogRetentionRaw stores the optional retention override JSON.
 }
 
 // UpdateJobInput stores one job update request.
-type UpdateJobInput struct {
-	ID int64 // ID identifies the target job.
-	SaveJobInput
-}
+type UpdateJobInput = jobmeta.UpdateJobInput
 
 // ListJobsInput stores job list filters and pagination.
 type ListJobsInput struct {
 	PageNum        int                    // PageNum is the 1-based page index.
 	PageSize       int                    // PageSize is the number of rows per page.
 	GroupID        *int64                 // GroupID filters by group ID.
-	Status         jobmeta.JobStatus      // Status filters by job status.
+	Status         jobv1.Status           // Status filters by job status.
 	TaskType       jobmeta.TaskType       // TaskType filters by job type.
 	Keyword        string                 // Keyword matches job name or description.
 	Scope          jobmeta.JobScope       // Scope filters by job scope.
@@ -343,6 +299,14 @@ type ListLogsInput struct {
 	EndTime        string              // EndTime filters by start_at upper bound.
 	OrderBy        string              // OrderBy selects one supported sort field.
 	OrderDirection string              // OrderDirection selects asc or desc ordering.
+}
+
+// ClearLogsInput stores execution-log cleanup filters.
+type ClearLogsInput struct {
+	JobID     *int64 // JobID limits cleanup to one visible job.
+	IDs       string // IDs stores comma-separated log IDs and takes priority.
+	BeginTime string // BeginTime filters start_at lower bound.
+	EndTime   string // EndTime filters start_at upper bound.
 }
 
 // LogListItem defines one log row returned to controllers.

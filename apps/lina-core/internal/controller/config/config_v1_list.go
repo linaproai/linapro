@@ -9,8 +9,8 @@ import (
 	v1 "lina-core/api/config/v1"
 	"lina-core/internal/service/sysconfig"
 	"lina-core/pkg/apitime"
+	"lina-core/pkg/fallbackoverride"
 	"lina-core/pkg/statusflag"
-	"lina-core/pkg/tenantoverride"
 )
 
 // List queries config items with pagination and filters.
@@ -50,7 +50,7 @@ func configItem(item *sysconfig.ConfigProjection) v1.ConfigItem {
 		IsFallback:     item.IsFallback,
 		CanEdit:        item.CanEdit,
 		CanOverride:    item.CanOverride,
-		OverrideMode:   tenantoverride.Mode(item.OverrideMode),
+		OverrideMode:   fallbackoverride.Mode(item.OverrideMode),
 		CreatedAt:      apitime.Milli(item.CreatedAt),
 		UpdatedAt:      apitime.Milli(item.UpdatedAt),
 	}

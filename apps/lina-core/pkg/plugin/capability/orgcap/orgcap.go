@@ -1,17 +1,90 @@
 // Package orgcap owns the stable organization capability contract exposed
-// through capability. The host owns enablement checks and fallback behavior;
-// provider plugins declare factories while the consumer service lazily creates
-// the concrete organization implementation when it is used.
+// through capability. Provider SPI, database scope helpers, and host workspace
+// view seams live in orgspi so ordinary consumers see only DTO contracts.
 package orgcap
 
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/database/gdb"
-
-	"lina-core/pkg/plugin/capability/contract"
-	internalregistry "lina-core/pkg/plugin/capability/internal/capabilityregistry"
+	"lina-core/pkg/plugin/capability/capmodel"
 )
+
+// Service defines the optional organization capability consumed by host core
+// services and plugins without depending on a concrete provider implementation.
+type Service interface {
+	// Available reports whether an active organization provider is available.
+	Available(ctx context.Context) bool
+	// Status returns the current organization capability activation state.
+	Status(ctx context.Context) capmodel.CapabilityStatus
+	// Department returns department resource operations.
+	Department() DepartmentService
+	// Post returns post resource operations.
+	Post() PostService
+	// Assignment returns user organization assignment operations.
+	Assignment() AssignmentService
+}
+
+// DepartmentService defines the plugin-visible organization department resource.
+type DepartmentService interface {
+	// Get returns one visible department info record.
+	Get(ctx context.Context, deptID int) (*DeptInfo, error)
+	// BatchGet returns visible department info records and opaque missing IDs.
+	BatchGet(ctx context.Context, deptIDs []int) (*capmodel.BatchResult[*DeptInfo, int], error)
+	// List returns bounded department candidates.
+	List(ctx context.Context, input DeptListInput) (*capmodel.PageResult[*DeptInfo], error)
+	// ListTree returns a bounded department tree.
+	ListTree(ctx context.Context, input DeptTreeInput) (*DeptTreeResult, error)
+	// ListOptions returns bounded department options.
+	ListOptions(ctx context.Context, input DeptOptionsInput) (*capmodel.PageResult[*DeptInfo], error)
+	// EnsureVisible verifies department identifiers are visible to the caller.
+	EnsureVisible(ctx context.Context, deptIDs []int) error
+	// Create creates one department through the organization owner.
+	Create(ctx context.Context, input DeptCreateInput) (int, error)
+	// Update updates one department through the organization owner.
+	Update(ctx context.Context, input DeptUpdateInput) error
+	// Delete deletes one department through the organization owner.
+	Delete(ctx context.Context, deptID int) error
+}
+
+// PostService defines the plugin-visible organization post resource.
+type PostService interface {
+	// Get returns one visible post info record.
+	Get(ctx context.Context, postID int) (*PostInfo, error)
+	// BatchGet returns visible post info records and opaque missing IDs.
+	BatchGet(ctx context.Context, postIDs []int) (*capmodel.BatchResult[*PostInfo, int], error)
+	// List returns bounded post candidates.
+	List(ctx context.Context, input PostListInput) (*capmodel.PageResult[*PostInfo], error)
+	// ListOptions returns bounded post options.
+	ListOptions(ctx context.Context, input PostOptionsInput) (*capmodel.PageResult[*PostOption], error)
+	// EnsureVisible verifies post identifiers are visible to the caller.
+	EnsureVisible(ctx context.Context, postIDs []int) error
+	// Create creates one post through the organization owner.
+	Create(ctx context.Context, input PostCreateInput) (int, error)
+	// Update updates one post through the organization owner.
+	Update(ctx context.Context, input PostUpdateInput) error
+	// Delete deletes one post through the organization owner.
+	Delete(ctx context.Context, postID int) error
+}
+
+// AssignmentService defines plugin-visible user organization assignments.
+type AssignmentService interface {
+	// BatchGetUserProfiles returns stable organization profiles for visible users.
+	BatchGetUserProfiles(ctx context.Context, userIDs []int) (*capmodel.BatchResult[*UserOrgProfile, int], error)
+	// ListByUser returns one user's organization profile.
+	ListByUser(ctx context.Context, userID int) (*UserOrgProfile, error)
+	// BatchListByUsers returns user-to-department info records for the provided users.
+	BatchListByUsers(ctx context.Context, userIDs []int) (map[int]*UserDeptAssignment, error)
+	// GetUserDeptInfo returns one user's department information.
+	GetUserDeptInfo(ctx context.Context, userID int) (int, string, error)
+	// GetUserDeptIDs returns one user's department identifier list.
+	GetUserDeptIDs(ctx context.Context, userID int) ([]int, error)
+	// GetUserPostIDs returns one user's post association list.
+	GetUserPostIDs(ctx context.Context, userID int) ([]int, error)
+	// ReplaceByUser rewrites one user's department and post associations.
+	ReplaceByUser(ctx context.Context, userID int, deptID *int, postIDs []int) error
+	// CleanupByUser deletes one user's optional organization associations.
+	CleanupByUser(ctx context.Context, userID int) error
+}
 
 const (
 	// CapabilityOrgV1 identifies the versioned organization framework capability.
@@ -20,7 +93,20 @@ const (
 	ProviderPluginID = "linapro-org-core"
 )
 
-// UserDeptAssignment describes one optional department projection for a user.
+const (
+	// MaxUserOrgProfileBatchSize is the maximum user count accepted by batch profile reads.
+	MaxUserOrgProfileBatchSize = 200
+	// MaxDeptTreeNodes is the maximum department node count returned through the ordinary tree contract.
+	MaxDeptTreeNodes = 500
+	// MaxDeptSearchPageSize is the maximum department candidate page size.
+	MaxDeptSearchPageSize = 200
+	// MaxPostOptionsPageSize is the maximum post candidate page size.
+	MaxPostOptionsPageSize = 200
+	// MaxVisibilityCheckSize is the maximum department or post identifiers checked in one call.
+	MaxVisibilityCheckSize = 200
+)
+
+// UserDeptAssignment describes one optional department assignment for a user.
 type UserDeptAssignment struct {
 	// DeptID is the associated department identifier.
 	DeptID int
@@ -28,7 +114,7 @@ type UserDeptAssignment struct {
 	DeptName string
 }
 
-// DeptTreeNode is one host-facing department tree node projection.
+// DeptTreeNode is one host-facing department tree node.
 type DeptTreeNode struct {
 	// Id is the department identifier, or 0 for the synthetic unassigned node.
 	Id int `json:"id"`
@@ -42,7 +128,7 @@ type DeptTreeNode struct {
 	Children []*DeptTreeNode `json:"children"`
 }
 
-// PostOption describes one selectable post projection exposed to host flows.
+// PostOption describes one selectable post option exposed to host flows.
 type PostOption struct {
 	// PostID is the selectable post identifier.
 	PostID int
@@ -50,231 +136,188 @@ type PostOption struct {
 	PostName string
 }
 
-// ProviderEnv carries the explicit host services an organization provider
-// adapter may use during lazy construction.
-type ProviderEnv struct {
-	// PluginID is the organization provider plugin being constructed.
-	PluginID string
-	// TenantFilter constrains provider-owned plugin tables by the current tenant.
-	TenantFilter contract.TenantFilterService
+// UserOrgProfile describes one user's stable organization profile.
+type UserOrgProfile struct {
+	// UserID is the host user identifier this profile belongs to.
+	UserID int `json:"userId"`
+	// DeptID is the user's primary department identifier when assigned.
+	DeptID int `json:"deptId"`
+	// DeptName is the user's primary department display name when assigned.
+	DeptName string `json:"deptName"`
+	// PostIDs are visible post identifiers assigned to the user.
+	PostIDs []int `json:"postIds"`
+	// PostNames are visible post display names assigned to the user.
+	PostNames []string `json:"postNames"`
 }
 
-// ProviderRuntime defines the narrow plugin state and environment capability
-// required by orgcap to use declared providers.
-//
-// ProviderRuntime 定义 orgcap 在延迟创建组织能力提供方时所需的最小宿主运行时入口，适用于从插件治理状态判断提供方是否可用，
-// 并为指定组织插件构造受治理的宿主环境。
-type ProviderRuntime interface {
-	// IsProviderEnabled reports whether pluginID may serve framework provider calls.
-	//
-	// IsProviderEnabled 判断指定插件是否允许承接框架组织能力调用，通常用于能力服务在调用 provider 前确认插件已启用且处于可服务状态。
-	IsProviderEnabled(ctx context.Context, pluginID string) bool
-	// OrgProviderEnv returns typed, plugin-scoped construction inputs for one provider plugin.
-	//
-	// OrgProviderEnv 返回指定组织插件的类型化构造环境，通常用于 provider 工厂获取租户过滤等宿主发布能力，同时避免插件直接依赖宿主内部实现。
-	OrgProviderEnv(pluginID string) ProviderEnv
+// DeptInfo describes one stable department candidate.
+type DeptInfo struct {
+	// DeptID is the department identifier.
+	DeptID int `json:"deptId"`
+	// ParentID is the parent department identifier.
+	ParentID int `json:"parentId"`
+	// DeptName is the department display name.
+	DeptName string `json:"deptName"`
+	// DeptCode is the stable department code.
+	DeptCode string `json:"deptCode"`
+	// Status is the provider-owned department status.
+	Status int `json:"status"`
 }
 
-// Provider defines the organization capability implemented by provider plugins.
-//
-// Provider 定义组织能力插件必须实现的完整提供方契约，适用于 linapro-org-core 等插件向宿主提供部门、岗位、组织数据权限和用户组织关系维护能力。
-type Provider interface {
-	// ListUserDeptAssignments returns user -> department projections for the provided users.
-	//
-	// ListUserDeptAssignments 批量返回用户到部门的归属投影，适用于用户列表、详情批量装配和会话投影等需要避免逐用户查询的场景。
-	ListUserDeptAssignments(ctx context.Context, userIDs []int) (map[int]*UserDeptAssignment, error)
-	// GetUserDeptInfo returns one user's department projection.
-	//
-	// GetUserDeptInfo 返回单个用户的部门标识和名称，适用于用户详情、登录会话补充信息等单用户读取场景。
-	GetUserDeptInfo(ctx context.Context, userID int) (int, string, error)
-	// GetUserDeptIDs returns one user's department identifier list.
-	//
-	// GetUserDeptIDs 返回单个用户所属部门标识集合，适用于部门数据权限判定或组织关系读取场景。
-	GetUserDeptIDs(ctx context.Context, userID int) ([]int, error)
-	// ApplyUserDeptScope injects a database-side department-scope constraint for rows owned by userIDColumn.
-	//
-	// ApplyUserDeptScope 向宿主数据库查询注入部门数据范围约束，适用于列表、导出等需要在数据库侧过滤用户可见数据的场景。
-	ApplyUserDeptScope(ctx context.Context, model *gdb.Model, userIDColumn string, currentUserID int) (*gdb.Model, bool, error)
-	// BuildUserDeptScopeExists builds a database-side department-scope EXISTS subquery.
-	//
-	// BuildUserDeptScopeExists 构建部门数据范围 EXISTS 子查询，适用于调用方需要把组织范围与其他条件组合成复杂查询的场景。
-	BuildUserDeptScopeExists(ctx context.Context, userIDColumn string, currentUserID int) (*gdb.Model, bool, error)
-	// ApplyUserDeptFilter constrains user rows to a requested department subtree without materializing user IDs.
-	//
-	// ApplyUserDeptFilter 将用户查询限制在指定部门子树内，适用于用户列表按部门筛选且需要避免先加载大量用户标识的场景。
-	ApplyUserDeptFilter(ctx context.Context, model *gdb.Model, userIDColumn string, deptID int) (*gdb.Model, bool, error)
-	// ApplyUserDeptUnassignedFilter constrains user rows to records without department assignments.
-	//
-	// ApplyUserDeptUnassignedFilter 将用户查询限制为未分配部门的用户，适用于用户管理工作台的未分配部门筛选场景。
-	ApplyUserDeptUnassignedFilter(ctx context.Context, model *gdb.Model, userIDColumn string) (*gdb.Model, bool, error)
-	// GetUserPostIDs returns one user's post association list.
-	//
-	// GetUserPostIDs 返回单个用户关联的岗位标识集合，适用于用户详情、编辑回显和组织关系维护场景。
-	GetUserPostIDs(ctx context.Context, userID int) ([]int, error)
-	// ReplaceUserAssignments rewrites one user's department and post associations.
-	//
-	// ReplaceUserAssignments 重写单个用户的部门和岗位关系，适用于用户创建、用户更新等需要同步组织归属的写入场景。
-	ReplaceUserAssignments(ctx context.Context, userID int, deptID *int, postIDs []int) error
-	// CleanupUserAssignments deletes one user's optional organization associations.
-	//
-	// CleanupUserAssignments 清理单个用户的可选组织关联，适用于用户删除或组织能力禁用后的关系释放场景。
-	CleanupUserAssignments(ctx context.Context, userID int) error
-	// UserDeptTree returns the optional department tree used by host user management.
-	//
-	// UserDeptTree 返回宿主用户管理需要的部门树投影，适用于部门筛选、树选择器和用户管理工作台的组织视图装配场景。
-	UserDeptTree(ctx context.Context) ([]*DeptTreeNode, error)
-	// ListPostOptions returns selectable post options for one department subtree.
-	//
-	// ListPostOptions 返回指定部门子树下可选择的岗位选项，适用于用户创建或编辑表单中的岗位候选项装配场景。
-	ListPostOptions(ctx context.Context, deptID *int) ([]*PostOption, error)
+// DeptTreeInput constrains ordinary department tree reads.
+type DeptTreeInput struct {
+	// MaxNodes caps the number of returned nodes; zero uses MaxDeptTreeNodes.
+	MaxNodes int `json:"maxNodes,omitempty"`
 }
 
-// ScopeService defines host-internal organization data-scope operations. It is
-// intentionally separate from Service because it carries database query
-// builders that ordinary plugin consumers must not receive from the capability
-// directory.
-//
-// ScopeService 定义宿主内部使用的组织数据范围能力，适用于角色权限、用户列表和业务数据列表在数据库查询层接入部门范围过滤，不面向普通插件消费。
-type ScopeService interface {
-	// Available reports whether organization-backed data-scope filtering can run.
-	//
-	// Available 判断组织数据范围过滤是否可用，适用于调用方在组织插件禁用时自动降级到默认数据范围策略。
-	Available(ctx context.Context) bool
-	// ApplyUserDeptScope injects a database-side department-scope constraint for rows owned by userIDColumn.
-	//
-	// ApplyUserDeptScope 向查询模型注入当前用户可见部门范围约束，适用于列表、导出和聚合统计等需要数据库侧过滤的宿主接口。
-	ApplyUserDeptScope(ctx context.Context, model *gdb.Model, userIDColumn string, currentUserID int) (*gdb.Model, bool, error)
-	// BuildUserDeptScopeExists builds a database-side department-scope EXISTS subquery.
-	//
-	// BuildUserDeptScopeExists 构建当前用户可见部门范围 EXISTS 子查询，适用于调用方需要自行组合 OR 条件或复合权限条件的查询路径。
-	BuildUserDeptScopeExists(ctx context.Context, userIDColumn string, currentUserID int) (*gdb.Model, bool, error)
-	// ApplyUserDeptFilter constrains user rows to a requested department subtree without materializing user IDs.
-	//
-	// ApplyUserDeptFilter 将用户查询限制到指定部门子树，适用于宿主用户管理按部门筛选并保持数据库侧分页过滤的场景。
-	ApplyUserDeptFilter(ctx context.Context, model *gdb.Model, userIDColumn string, deptID int) (*gdb.Model, bool, error)
-	// ApplyUserDeptUnassignedFilter constrains user rows to records without department assignments.
-	//
-	// ApplyUserDeptUnassignedFilter 将用户查询限制为未分配部门记录，适用于宿主用户管理的未分配用户筛选场景。
-	ApplyUserDeptUnassignedFilter(ctx context.Context, model *gdb.Model, userIDColumn string) (*gdb.Model, bool, error)
+// DeptTreeResult contains one bounded department tree.
+type DeptTreeResult struct {
+	// Items contains root department nodes.
+	Items []*DeptTreeNode `json:"items"`
+	// Total is the number of nodes before any max-node truncation.
+	Total int `json:"total"`
+	// Truncated reports whether the node list was truncated by MaxNodes.
+	Truncated bool `json:"truncated"`
 }
 
-// AssignmentService defines host-internal organization assignment mutations.
-// It is not exposed through capability.Services.Org because ordinary plugins
-// consume read-only organization projections.
-//
-// AssignmentService 定义宿主内部使用的组织归属写入能力，适用于用户创建、用户更新、用户删除等宿主流程维护部门和岗位关系，
-// 不通过普通插件能力目录暴露。
-type AssignmentService interface {
-	// ReplaceUserAssignments rewrites one user's department and post associations.
-	//
-	// ReplaceUserAssignments 重写指定用户的部门和岗位关系，适用于宿主用户保存流程在同一业务操作中同步组织归属。
-	ReplaceUserAssignments(ctx context.Context, userID int, deptID *int, postIDs []int) error
-	// CleanupUserAssignments deletes one user's optional organization associations.
-	//
-	// CleanupUserAssignments 删除指定用户的可选组织关系，适用于宿主删除用户或回收用户组织归属的清理路径。
-	CleanupUserAssignments(ctx context.Context, userID int) error
+// DeptListInput describes bounded department candidate listing.
+type DeptListInput struct {
+	// Keyword matches stable department name or code fields.
+	Keyword string `json:"keyword,omitempty"`
+	// Status optionally filters by provider-owned status.
+	Status *int `json:"status,omitempty"`
+	// Page constrains page number, page size and optional limit.
+	Page capmodel.PageRequest `json:"page"`
 }
 
-// ProjectionService defines host-internal organization projections used by the
-// built-in user-management workspace. It stays out of ordinary plugin
-// consumption because these shapes are workspace adapters, not framework
-// organization domain primitives.
-//
-// ProjectionService 定义宿主内建用户管理工作台使用的组织展示投影，适用于部门树、岗位下拉等页面适配数据装配，
-// 不作为普通插件消费的通用组织领域契约。
-type ProjectionService interface {
-	// UserDeptTree returns the optional department tree used by host user management.
-	//
-	// UserDeptTree 返回用户管理工作台需要的部门树投影，适用于部门筛选器、树选择器和组织视图展示。
-	UserDeptTree(ctx context.Context) ([]*DeptTreeNode, error)
-	// ListPostOptions returns selectable post options for one department subtree.
-	//
-	// ListPostOptions 返回指定部门子树下的岗位候选项，适用于用户创建和编辑表单中的岗位选择控件。
-	ListPostOptions(ctx context.Context, deptID *int) ([]*PostOption, error)
+// DeptOptionsInput describes bounded department option listing.
+type DeptOptionsInput struct {
+	// Keyword matches stable department name or code fields.
+	Keyword string `json:"keyword,omitempty"`
+	// Status optionally filters by provider-owned status.
+	Status *int `json:"status,omitempty"`
+	// Page constrains page number, page size and optional limit.
+	Page capmodel.PageRequest `json:"page"`
 }
 
-// RuntimeService is the host-owned organization adapter that combines the
-// ordinary consumer surface with host-internal scope, assignment, and
-// workspace-projection seams.
-//
-// RuntimeService 是宿主启动期持有的组织能力聚合接口，适用于在宿主内部显式注入普通消费、数据范围、归属写入和工作台投影等不同窄接口。
-type RuntimeService interface {
-	Service
-	ScopeService
-	AssignmentService
-	ProjectionService
+// DeptCreateInput carries plugin-visible department creation fields.
+type DeptCreateInput struct {
+	// ParentID is the parent department identifier; zero creates a root department.
+	ParentID int `json:"parentId,omitempty"`
+	// DeptName is the department display name.
+	DeptName string `json:"deptName"`
+	// DeptCode is the stable department code.
+	DeptCode string `json:"deptCode,omitempty"`
+	// OrderNum is the provider-owned display order.
+	OrderNum int `json:"orderNum,omitempty"`
+	// LeaderUserID optionally references the department leader user.
+	LeaderUserID int `json:"leaderUserId,omitempty"`
+	// Phone is the department contact phone.
+	Phone string `json:"phone,omitempty"`
+	// Email is the department contact email.
+	Email string `json:"email,omitempty"`
+	// Status is the provider-owned department status.
+	Status int `json:"status,omitempty"`
+	// Remark is an optional department note.
+	Remark string `json:"remark,omitempty"`
 }
 
-// Service defines the optional organization capability consumed by host core
-// services and plugins without depending on a concrete provider implementation.
-//
-// Service 定义宿主核心服务和普通插件可消费的只读组织能力，适用于读取用户部门、岗位等稳定组织投影，并在组织插件缺失时获得安全降级结果。
-type Service interface {
-	// Available reports whether an active organization provider is available.
-	//
-	// Available 判断当前是否存在可用组织能力提供方，适用于调用方决定展示、降级或跳过组织相关逻辑。
-	Available(ctx context.Context) bool
-	// Status returns the current organization capability activation state.
-	//
-	// Status 返回组织能力激活状态，适用于诊断、治理检查和插件能力状态展示。
-	Status(ctx context.Context) contract.CapabilityStatus
-	// ListUserDeptAssignments returns user-to-department projections for the provided users.
-	//
-	// ListUserDeptAssignments 批量返回用户部门归属投影，适用于列表、详情批量和导出等需要集合化装配部门信息的场景。
-	ListUserDeptAssignments(ctx context.Context, userIDs []int) (map[int]*UserDeptAssignment, error)
-	// GetUserDeptInfo returns one user's department projection.
-	//
-	// GetUserDeptInfo 返回单个用户的部门标识和名称，适用于详情读取、会话补充和低频单用户查询场景。
-	GetUserDeptInfo(ctx context.Context, userID int) (int, string, error)
-	// GetUserDeptName returns one user's department name for online-session projection.
-	//
-	// GetUserDeptName 返回单个用户的部门名称，适用于在线会话、审计展示和只需要名称的轻量投影场景。
-	GetUserDeptName(ctx context.Context, userID int) (string, error)
-	// GetUserDeptIDs returns one user's department identifier list.
-	//
-	// GetUserDeptIDs 返回单个用户所属部门标识集合，适用于权限判定和组织范围计算场景。
-	GetUserDeptIDs(ctx context.Context, userID int) ([]int, error)
-	// GetUserPostIDs returns one user's post association list.
-	//
-	// GetUserPostIDs 返回单个用户关联岗位标识集合，适用于用户详情、编辑回显和组织关系读取场景。
-	GetUserPostIDs(ctx context.Context, userID int) ([]int, error)
+// DeptUpdateInput carries plugin-visible department update fields.
+type DeptUpdateInput struct {
+	// DeptID is the department identifier to update.
+	DeptID int `json:"deptId"`
+	// ParentID optionally moves the department under another parent.
+	ParentID *int `json:"parentId,omitempty"`
+	// DeptName optionally updates the department display name.
+	DeptName *string `json:"deptName,omitempty"`
+	// DeptCode optionally updates the stable department code.
+	DeptCode *string `json:"deptCode,omitempty"`
+	// OrderNum optionally updates provider-owned display order.
+	OrderNum *int `json:"orderNum,omitempty"`
+	// LeaderUserID optionally updates the department leader user.
+	LeaderUserID *int `json:"leaderUserId,omitempty"`
+	// Phone optionally updates the department contact phone.
+	Phone *string `json:"phone,omitempty"`
+	// Email optionally updates the department contact email.
+	Email *string `json:"email,omitempty"`
+	// Status optionally updates provider-owned department status.
+	Status *int `json:"status,omitempty"`
+	// Remark optionally updates the department note.
+	Remark *string `json:"remark,omitempty"`
 }
 
-// ProviderFactory creates one organization provider from an explicit, typed
-// construction environment during lazy capability use.
-type ProviderFactory func(ctx context.Context, env ProviderEnv) (Provider, error)
-
-// serviceImpl delegates organization calls to the active provider and returns
-// neutral fallback values when no provider is usable.
-type serviceImpl struct {
-	runtime ProviderRuntime
+// PostInfo describes one stable post candidate.
+type PostInfo struct {
+	// PostID is the post identifier.
+	PostID int `json:"postId"`
+	// DeptID is the department identifier that owns the post.
+	DeptID int `json:"deptId"`
+	// PostCode is the stable post code.
+	PostCode string `json:"postCode"`
+	// PostName is the post display name.
+	PostName string `json:"postName"`
+	// Sort is the provider-owned display order.
+	Sort int `json:"sort"`
+	// Status is the provider-owned post status.
+	Status int `json:"status"`
+	// Remark is an optional post note.
+	Remark string `json:"remark,omitempty"`
 }
 
-// Ensure serviceImpl implements Service.
-var (
-	_ Service           = (*serviceImpl)(nil)
-	_ ScopeService      = (*serviceImpl)(nil)
-	_ AssignmentService = (*serviceImpl)(nil)
-	_ ProjectionService = (*serviceImpl)(nil)
-	_ RuntimeService    = (*serviceImpl)(nil)
-)
-
-// New creates an organization capability service. A nil provider runtime
-// treats the capability as disabled while keeping all fallback calls safe.
-func New(runtime ProviderRuntime) RuntimeService {
-	if runtime == nil {
-		runtime = noopProviderRuntime{}
-	}
-	return &serviceImpl{runtime: runtime}
+// PostOptionsInput describes bounded post candidate reads.
+type PostOptionsInput struct {
+	// DeptID optionally restricts posts to one department subtree.
+	DeptID *int `json:"deptId,omitempty"`
+	// Keyword matches stable post name or code fields.
+	Keyword string `json:"keyword,omitempty"`
+	// Status optionally filters by provider-owned status.
+	Status *int `json:"status,omitempty"`
+	// Page constrains page number, page size and optional limit.
+	Page capmodel.PageRequest `json:"page"`
 }
 
-// Provide declares one plugin-provided organization capability factory.
-func Provide(pluginID string, factory ProviderFactory) error {
-	return registerFactory(pluginID, factory)
+// PostListInput describes bounded post candidate listing.
+type PostListInput struct {
+	// DeptID optionally restricts posts to one department subtree.
+	DeptID *int `json:"deptId,omitempty"`
+	// Keyword matches stable post name or code fields.
+	Keyword string `json:"keyword,omitempty"`
+	// Status optionally filters by provider-owned status.
+	Status *int `json:"status,omitempty"`
+	// Page constrains page number, page size and optional limit.
+	Page capmodel.PageRequest `json:"page"`
 }
 
-// noopProviderRuntime reports all plugins as disabled when orgcap is
-// constructed without an explicit provider runtime.
-type noopProviderRuntime struct{}
+// PostCreateInput carries plugin-visible post creation fields.
+type PostCreateInput struct {
+	// DeptID is the owning department identifier.
+	DeptID int `json:"deptId"`
+	// PostCode is the stable post code.
+	PostCode string `json:"postCode"`
+	// PostName is the post display name.
+	PostName string `json:"postName"`
+	// Sort is the provider-owned display order.
+	Sort int `json:"sort,omitempty"`
+	// Status is the provider-owned post status.
+	Status int `json:"status,omitempty"`
+	// Remark is an optional post note.
+	Remark string `json:"remark,omitempty"`
+}
 
-var defaultManager = internalregistry.NewManager[ProviderEnv]()
+// PostUpdateInput carries plugin-visible post update fields.
+type PostUpdateInput struct {
+	// PostID is the post identifier to update.
+	PostID int `json:"postId"`
+	// DeptID optionally changes the owning department.
+	DeptID *int `json:"deptId,omitempty"`
+	// PostCode optionally updates the stable post code.
+	PostCode *string `json:"postCode,omitempty"`
+	// PostName optionally updates the post display name.
+	PostName *string `json:"postName,omitempty"`
+	// Sort optionally updates provider-owned display order.
+	Sort *int `json:"sort,omitempty"`
+	// Status optionally updates provider-owned post status.
+	Status *int `json:"status,omitempty"`
+	// Remark optionally updates the post note.
+	Remark *string `json:"remark,omitempty"`
+}

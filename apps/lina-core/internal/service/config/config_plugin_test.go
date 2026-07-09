@@ -1,4 +1,4 @@
-// This file verifies plugin configuration defaults, legacy fallback handling,
+// This file verifies plugin configuration defaults, strict storage-path loading,
 // and test-time dynamic storage-path overrides.
 
 package config
@@ -13,9 +13,9 @@ import (
 // receive detached plugin config copies even when the package uses defaults.
 func TestGetPluginUsesDefaultStoragePathAndClonesCachedConfig(t *testing.T) {
 	setTestConfigContent(t, "test: 1\n")
-	SetPluginDynamicStoragePathOverride("")
+	setPluginDynamicStoragePathOverride("")
 	t.Cleanup(func() {
-		SetPluginDynamicStoragePathOverride("")
+		setPluginDynamicStoragePathOverride("")
 	})
 
 	svc := New()
@@ -48,9 +48,9 @@ func TestGetPluginAllowsStrictForceUninstallOptOut(t *testing.T) {
 plugin:
   allowForceUninstall: false
 `)
-	SetPluginAllowForceUninstallOverride(nil)
+	setPluginAllowForceUninstallOverride(nil)
 	t.Cleanup(func() {
-		SetPluginAllowForceUninstallOverride(nil)
+		setPluginAllowForceUninstallOverride(nil)
 	})
 
 	cfg := New().GetPlugin(context.Background())
@@ -59,28 +59,28 @@ plugin:
 	}
 }
 
-// TestGetPluginFallsBackToLegacyRuntimeStoragePath verifies the legacy runtime
-// field still provides the effective storage path when the new field is empty.
-func TestGetPluginFallsBackToLegacyRuntimeStoragePath(t *testing.T) {
+// TestGetPluginIgnoresRuntimeStoragePath verifies only plugin.dynamic.storagePath
+// can configure the dynamic plugin storage directory.
+func TestGetPluginIgnoresRuntimeStoragePath(t *testing.T) {
 	setTestConfigContent(t, `
 plugin:
   dynamic:
     storagePath: "   "
   runtime:
-    storagePath: legacy/runtime/plugins
+    storagePath: ignored/runtime/plugins
 `)
-	SetPluginDynamicStoragePathOverride("")
+	setPluginDynamicStoragePathOverride("")
 	t.Cleanup(func() {
-		SetPluginDynamicStoragePathOverride("")
+		setPluginDynamicStoragePathOverride("")
 	})
 
 	svc := New()
 	cfg := svc.GetPlugin(context.Background())
-	if cfg.Dynamic.StoragePath != "legacy/runtime/plugins" {
-		t.Fatalf("expected legacy runtime storage path fallback, got %q", cfg.Dynamic.StoragePath)
+	if cfg.Dynamic.StoragePath != "temp/output" {
+		t.Fatalf("expected unsupported runtime storage path to be ignored, got %q", cfg.Dynamic.StoragePath)
 	}
-	if path := svc.GetPluginDynamicStoragePath(context.Background()); path != resolveRuntimePath("legacy/runtime/plugins") {
-		t.Fatalf("expected cleaned legacy runtime storage path, got %q", path)
+	if path := svc.GetPluginDynamicStoragePath(context.Background()); path != resolveRuntimePath("temp/output") {
+		t.Fatalf("expected default dynamic storage path, got %q", path)
 	}
 }
 
@@ -88,9 +88,9 @@ plugin:
 // path is exposed when config is absent and test overrides take precedence.
 func TestGetPluginDynamicStoragePathUsesDefaultAndOverride(t *testing.T) {
 	setTestConfigContent(t, "test: 1\n")
-	SetPluginDynamicStoragePathOverride("")
+	setPluginDynamicStoragePathOverride("")
 	t.Cleanup(func() {
-		SetPluginDynamicStoragePathOverride("")
+		setPluginDynamicStoragePathOverride("")
 	})
 
 	svc := New()
@@ -98,7 +98,7 @@ func TestGetPluginDynamicStoragePathUsesDefaultAndOverride(t *testing.T) {
 		t.Fatalf("expected default plugin storage path temp/output, got %q", path)
 	}
 
-	SetPluginDynamicStoragePathOverride(" ./temp/output/../plugin-bundles ")
+	setPluginDynamicStoragePathOverride(" ./temp/output/../plugin-bundles ")
 	if path := svc.GetPluginDynamicStoragePath(context.Background()); path != resolveRuntimePath("./temp/output/../plugin-bundles") {
 		t.Fatalf("expected override storage path to win, got %q", path)
 	}
@@ -107,9 +107,9 @@ func TestGetPluginDynamicStoragePathUsesDefaultAndOverride(t *testing.T) {
 // TestGetPluginDynamicStoragePathOverrideIgnoresBlankValues verifies blank
 // overrides are treated as absent so callers can fall back safely.
 func TestGetPluginDynamicStoragePathOverrideIgnoresBlankValues(t *testing.T) {
-	SetPluginDynamicStoragePathOverride("   ")
+	setPluginDynamicStoragePathOverride("   ")
 	t.Cleanup(func() {
-		SetPluginDynamicStoragePathOverride("")
+		setPluginDynamicStoragePathOverride("")
 	})
 
 	if path := getPluginDynamicStoragePathOverride(); path != "" {
@@ -120,10 +120,9 @@ func TestGetPluginDynamicStoragePathOverrideIgnoresBlankValues(t *testing.T) {
 // TestGetPluginAutoEnableNormalizesListAndAppliesOverrides verifies startup
 // auto-enable IDs are trimmed, de-duplicated, cloned, and overrideable in tests.
 func TestGetPluginAutoEnableNormalizesListAndAppliesOverrides(t *testing.T) {
-	// plugin.autoEnable accepts only the structured object form. The previous
-	// bare-string form has been removed for schema uniformity, so duplicate
-	// detection now exercises duplicate ids in the structured form together
-	// with whitespace-trimming and order preservation.
+	// plugin.autoEnable accepts only the structured object form, so duplicate
+	// detection exercises duplicate ids together with whitespace-trimming and
+	// order preservation.
 	setTestConfigContent(t, `
 plugin:
   autoEnable:
@@ -133,9 +132,9 @@ plugin:
     - id: "linapro-demo-source"
     - id: "linapro-demo-dynamic"
 `)
-	SetPluginAutoEnableOverride(nil)
+	setPluginAutoEnableOverride(nil)
 	t.Cleanup(func() {
-		SetPluginAutoEnableOverride(nil)
+		setPluginAutoEnableOverride(nil)
 	})
 
 	svc := New()
@@ -148,7 +147,7 @@ plugin:
 	}
 	for index, entry := range cfg.AutoEnable {
 		if entry.WithMockData {
-			t.Fatalf("expected bare-string YAML entries to default WithMockData=false at index %d, got %#v", index, entry)
+			t.Fatalf("expected omitted WithMockData to default false at index %d, got %#v", index, entry)
 		}
 	}
 
@@ -158,7 +157,7 @@ plugin:
 		t.Fatalf("expected cached auto-enable IDs to stay immutable, got %#v", refreshed.AutoEnable)
 	}
 
-	SetPluginAutoEnableOverride([]string{" override-plugin ", "override-plugin", "second-plugin"})
+	setPluginAutoEnableOverride([]string{" override-plugin ", "override-plugin", "second-plugin"})
 	overridden := svc.GetPlugin(context.Background())
 	if len(overridden.AutoEnable) != 2 {
 		t.Fatalf("expected override to replace auto-enable IDs, got %#v", overridden.AutoEnable)
@@ -190,9 +189,9 @@ plugin:
       withMockData: true
     - id: "linapro-demo-dynamic"
 `)
-	SetPluginAutoEnableOverride(nil)
+	setPluginAutoEnableOverride(nil)
 	t.Cleanup(func() {
-		SetPluginAutoEnableOverride(nil)
+		setPluginAutoEnableOverride(nil)
 	})
 
 	svc := New()
@@ -289,9 +288,9 @@ plugin:
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			setTestConfigContent(t, tc.yaml)
-			SetPluginAutoEnableOverride(nil)
+			setPluginAutoEnableOverride(nil)
 			t.Cleanup(func() {
-				SetPluginAutoEnableOverride(nil)
+				setPluginAutoEnableOverride(nil)
 			})
 
 			defer func() {

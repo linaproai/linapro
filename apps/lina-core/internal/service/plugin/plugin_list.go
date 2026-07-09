@@ -4,45 +4,16 @@ package plugin
 
 import (
 	"context"
-	"sort"
+	pluginv1 "lina-core/api/plugin/v1"
 	"strings"
 
-	"lina-core/internal/model/entity"
-	"lina-core/internal/service/plugin/internal/catalog"
+	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/plugin/internal/management"
+	"lina-core/internal/service/plugin/internal/plugintypes"
 	"lina-core/internal/service/plugin/internal/runtime"
-	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/statusflag"
 )
-
-// WithStartupDataSnapshot returns a child context carrying catalog and
-// integration startup snapshots for one host startup orchestration.
-func (s *serviceImpl) WithStartupDataSnapshot(ctx context.Context) (context.Context, error) {
-	startupCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
-	if err != nil {
-		return ctx, err
-	}
-	startupCtx, err = s.integrationSvc.WithStartupDataSnapshot(startupCtx)
-	if err != nil {
-		return ctx, err
-	}
-	return startupCtx, nil
-}
-
-// SyncSourcePlugins scans source plugin manifests and synchronizes default status.
-func (s *serviceImpl) SyncSourcePlugins(ctx context.Context) error {
-	if err := s.ensurePlatformGovernance(ctx); err != nil {
-		return err
-	}
-	out, err := s.syncAndList(ctx)
-	if err != nil {
-		return err
-	}
-	if _, err = s.markRuntimeCacheChanged(ctx, "source_plugins_synced"); err != nil {
-		return err
-	}
-	s.managementListCache.store(s.managementListCacheKey(ctx), out)
-	return nil
-}
 
 // SyncSourcePluginsStrict synchronizes source plugins discovered by the
 // running host. Tooling is responsible for official submodule preflight before
@@ -55,10 +26,9 @@ func (s *serviceImpl) SyncSourcePluginsStrict(ctx context.Context) (*ListOutput,
 	if err != nil {
 		return nil, err
 	}
-	if _, err = s.markRuntimeCacheChanged(ctx, "source_plugins_synced"); err != nil {
+	if _, err = s.publishPluginChange(ctx, pluginChangePublishInput{reason: "source_plugins_synced"}); err != nil {
 		return nil, err
 	}
-	s.managementListCache.store(s.managementListCacheKey(ctx), out)
 	return out, nil
 }
 
@@ -72,68 +42,47 @@ func (s *serviceImpl) SyncAndList(ctx context.Context) (*ListOutput, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err = s.markRuntimeCacheChanged(ctx, "plugins_synced_and_listed"); err != nil {
+	if _, err = s.publishPluginChange(ctx, pluginChangePublishInput{reason: "plugins_synced_and_listed"}); err != nil {
 		return nil, err
 	}
-	s.managementListCache.store(s.managementListCacheKey(ctx), out)
 	return out, nil
 }
 
 // syncAndList scans plugin manifests and mutates plugin governance tables for
 // trusted startup or already-guarded platform management paths.
 func (s *serviceImpl) syncAndList(ctx context.Context) (*ListOutput, error) {
-	manifests, err := s.catalogSvc.ScanManifests()
+	out, readCtx, err := s.buildPluginProjection(ctx, pluginProjectionInput{
+		mode: projectionModeList,
+		sync: true,
+	})
 	if err != nil {
 		return nil, err
 	}
-	startupstats.Add(ctx, startupstats.CounterPluginScans, 1)
-	startupstats.Add(ctx, startupstats.CounterPluginScanItems, len(manifests))
-
-	syncCtx, err := s.WithStartupDataSnapshot(ctx)
-	if err != nil {
+	if err = s.integrationSvc.RefreshEnabledSnapshot(readCtx); err != nil {
 		return nil, err
 	}
-	syncCtx = withManifestSnapshot(syncCtx, manifests)
-	syncCtx = s.WithDependencySnapshotCache(syncCtx)
-
-	covered := make(map[string]struct{}, len(manifests))
-	items := make([]*PluginItem, 0, len(manifests))
-	for _, manifest := range manifests {
-		covered[manifest.ID] = struct{}{}
-		registry, syncErr := s.catalogSvc.SyncManifest(syncCtx, manifest)
-		if syncErr != nil {
-			return nil, syncErr
-		}
-		items = append(items, s.buildServicePluginItem(syncCtx, s.runtimeSvc.BuildPluginItem(syncCtx, manifest, registry)))
-	}
-
-	runtimeItems, err := s.runtimeSvc.BuildRuntimeItems(syncCtx, covered)
-	if err != nil {
-		return nil, err
-	}
-	items = append(items, s.buildServicePluginItems(syncCtx, runtimeItems)...)
-	sortServicePluginItems(items)
-	if err = s.integrationSvc.RefreshEnabledSnapshot(syncCtx); err != nil {
-		return nil, err
-	}
-	return &ListOutput{List: items, Total: len(items)}, nil
+	return out.list, nil
 }
 
-// List returns the read-only plugin list with optional in-memory filtering applied.
+// List returns the paginated read-only plugin summary list with optional
+// in-memory filtering applied to the lightweight summary read model.
 func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, error) {
-	out, err := s.managementList(ctx)
+	out, err := s.managementSummaryList(ctx)
 	if err != nil {
 		return nil, err
 	}
 	filtered := make([]*PluginItem, 0, len(out.List))
 	for _, item := range out.List {
+		if item == nil {
+			continue
+		}
 		if in.ID != "" && !strings.Contains(item.Id, in.ID) {
 			continue
 		}
 		if in.Name != "" && !strings.Contains(item.Name, in.Name) {
 			continue
 		}
-		if in.Type != "" && !matchPluginType(item.Type, in.Type) {
+		if in.Type != "" && !matchesPluginType(item.Type, in.Type) {
 			continue
 		}
 		if in.Status != nil && item.Enabled != *in.Status {
@@ -142,31 +91,144 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		if in.Installed != nil && item.Installed != *in.Installed {
 			continue
 		}
+		if !in.IncludeBuiltin && item.Distribution == pluginv1.PluginDistributionBuiltin.String() {
+			continue
+		}
 		filtered = append(filtered, item)
 	}
-	return &ListOutput{List: paginatePluginItems(filtered, in.PageNum, in.PageSize), Total: len(filtered)}, nil
+	page, total := paginatePluginItems(filtered, in.PageNum, in.PageSize)
+	return &ListOutput{List: page, Total: total}, nil
 }
 
-// paginatePluginItems returns the requested page window of the filtered plugin
-// list. Total in ListOutput stays the full filtered count so the management UI
-// can render page navigation. A non-positive page size disables pagination and
-// returns all items, keeping internal callers that do not page unaffected.
-func paginatePluginItems(items []*PluginItem, pageNum int, pageSize int) []*PluginItem {
+// PrewarmManagementList builds the lightweight plugin management summary read
+// model so the first administrator request can reuse hot discovery projections.
+// Failures are returned to foreground callers and logged by
+// asynchronous startup callers.
+func (s *serviceImpl) PrewarmManagementList(ctx context.Context) error {
+	if _, err := s.managementSummaryList(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+// managementSummaryList returns the unfiltered plugin management summary read model.
+func (s *serviceImpl) managementSummaryList(ctx context.Context) (*ListOutput, error) {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return nil, err
+	}
+	cacheKey, err := s.managementListCacheKey(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out, err := s.managementListCache.LoadOrBuild(cacheKey, func() (*ListOutput, error) {
+		return s.buildManagementSummaryList(ctx)
+	})
+	if err != nil {
+		return nil, err
+	}
+	latestKey, err := s.managementListCacheKey(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if latestKey.String() != cacheKey.String() {
+		s.managementListCache.Store(latestKey, out)
+	}
+	return out, nil
+}
+
+// InvalidateManagementListCache clears this process-local read model. Cluster
+// peers observe the same plugin-runtime revision and invalidate through the
+// root runtime-cache refresh callback.
+func (s *serviceImpl) InvalidateManagementListCache(_ context.Context, _ string) {
+	if s == nil || s.managementListCache == nil {
+		return
+	}
+	s.managementListCache.Invalidate()
+}
+
+// managementListCacheKey returns the current cache partition because plugin
+// display metadata is localized during projection and can change when the
+// runtime translation bundle version or plugin-runtime revision changes.
+func (s *serviceImpl) managementListCacheKey(ctx context.Context) (management.ListCacheKey, error) {
+	if s == nil || s.i18nSvc == nil {
+		return management.ListCacheKey{Locale: i18nsvc.DefaultLocale}, nil
+	}
+	locale := normalizeManagementListCacheLocale(s.i18nSvc.GetLocale(ctx))
+	runtimeRevision := int64(0)
+	if s.runtimeCacheRevisionCtrl != nil {
+		revision, err := s.runtimeCacheRevisionCtrl.CurrentRevision(ctx)
+		if err != nil {
+			return management.ListCacheKey{}, err
+		}
+		runtimeRevision = revision
+	}
+	runtimeBundleRevision, err := s.i18nSvc.BundleRevision(ctx, locale)
+	if err != nil {
+		return management.ListCacheKey{}, err
+	}
+	return management.ListCacheKey{
+		Locale:               locale,
+		RuntimeBundleVersion: runtimeBundleRevision.Version,
+		RuntimeRevision:      runtimeRevision,
+	}, nil
+}
+
+// normalizeManagementListCacheLocale keeps cache keys stable for detached
+// startup contexts and tests that do not carry business locale metadata.
+func normalizeManagementListCacheLocale(locale string) string {
+	if locale == "" {
+		return i18nsvc.DefaultLocale
+	}
+	return locale
+}
+
+const (
+	// defaultListPageNum is used when callers omit the page number.
+	defaultListPageNum = 1
+	// defaultListPageSize is used when callers omit the page size.
+	defaultListPageSize = 20
+	// maxListPageSize bounds the plugin management summary list response size.
+	maxListPageSize = 100
+)
+
+// normalizeListPage applies default and maximum pagination bounds.
+func normalizeListPage(pageNum int, pageSize int) (int, int) {
+	if pageNum < defaultListPageNum {
+		pageNum = defaultListPageNum
+	}
 	if pageSize <= 0 {
-		return items
+		pageSize = defaultListPageSize
 	}
-	if pageNum <= 0 {
-		pageNum = 1
+	if pageSize > maxListPageSize {
+		pageSize = maxListPageSize
 	}
+	return pageNum, pageSize
+}
+
+// paginatePluginItems returns the requested page and the total item count.
+func paginatePluginItems(items []*PluginItem, pageNum int, pageSize int) ([]*PluginItem, int) {
+	pageNum, pageSize = normalizeListPage(pageNum, pageSize)
+	total := len(items)
 	start := (pageNum - 1) * pageSize
-	if start >= len(items) {
-		return []*PluginItem{}
+	if start >= total {
+		return []*PluginItem{}, total
 	}
 	end := start + pageSize
-	if end > len(items) {
-		end = len(items)
+	if end > total {
+		end = total
 	}
-	return items[start:end]
+	return items[start:end], total
+}
+
+// matchesPluginType compares normalized plugin types so list filtering accepts
+// user input that differs only by case or alias formatting.
+func matchesPluginType(actual string, expected string) bool {
+	actualType := plugintypes.NormalizeType(actual)
+	expectedType := plugintypes.NormalizeType(expected)
+	if expectedType == "" {
+		return true
+	}
+	return actualType == expectedType
 }
 
 // Get returns one read-only plugin detail projection by exact plugin ID.
@@ -175,14 +237,12 @@ func (s *serviceImpl) Get(ctx context.Context, pluginID string) (*PluginItem, er
 	if normalizedPluginID == "" {
 		return nil, bizerr.NewCode(CodePluginNotFound, bizerr.P("pluginId", normalizedPluginID))
 	}
-	out, err := s.managementList(ctx)
+	item, err := s.buildManagementDetail(ctx, normalizedPluginID)
 	if err != nil {
 		return nil, err
 	}
-	for _, item := range out.List {
-		if item != nil && item.Id == normalizedPluginID {
-			return item, nil
-		}
+	if item != nil {
+		return item, nil
 	}
 	return nil, bizerr.NewCode(CodePluginNotFound, bizerr.P("pluginId", normalizedPluginID))
 }
@@ -194,61 +254,37 @@ func (s *serviceImpl) ReadOnlyList(ctx context.Context) (*ListOutput, error) {
 }
 
 // buildManagementList scans plugin manifests and projects current registry
-// state without synchronizing governance tables.
+// state with complete governance detail, without synchronizing governance tables.
 func (s *serviceImpl) buildManagementList(ctx context.Context) (*ListOutput, error) {
-	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
-		return nil, err
-	}
-	manifests, err := s.catalogSvc.ScanManifests()
+	out, _, err := s.buildPluginProjection(ctx, pluginProjectionInput{mode: projectionModeList})
 	if err != nil {
 		return nil, err
 	}
-	startupstats.Add(ctx, startupstats.CounterPluginScans, 1)
-	startupstats.Add(ctx, startupstats.CounterPluginScanItems, len(manifests))
-
-	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
-	if err != nil {
-		return nil, err
-	}
-	readCtx = withManifestSnapshot(readCtx, manifests)
-	readCtx = s.WithDependencySnapshotCache(readCtx)
-	registries, err := s.catalogSvc.ListAllRegistries(readCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	registryByPluginID := buildRegistryByPluginID(registries)
-	covered := make(map[string]struct{}, len(manifests))
-	items := make([]*PluginItem, 0, len(manifests))
-	for _, manifest := range manifests {
-		if manifest == nil {
-			continue
-		}
-		covered[manifest.ID] = struct{}{}
-		if item := s.buildServicePluginItem(readCtx, s.runtimeSvc.BuildPluginItem(readCtx, manifest, registryByPluginID[manifest.ID])); item != nil {
-			items = append(items, item)
-		}
-	}
-
-	runtimeItems, err := s.runtimeSvc.BuildRuntimeItemsReadOnly(readCtx, covered)
-	if err != nil {
-		return nil, err
-	}
-	items = append(items, s.buildServicePluginItems(readCtx, runtimeItems)...)
-	sortServicePluginItems(items)
-	return &ListOutput{List: items, Total: len(items)}, nil
+	return out.list, nil
 }
 
-// buildRegistryByPluginID indexes registry rows by plugin ID for read-only list projection.
-func buildRegistryByPluginID(registries []*entity.SysPlugin) map[string]*entity.SysPlugin {
-	result := make(map[string]*entity.SysPlugin, len(registries))
-	for _, registry := range registries {
-		if registry == nil || strings.TrimSpace(registry.PluginId) == "" {
-			continue
-		}
-		result[registry.PluginId] = registry
+// buildManagementSummaryList scans plugin manifests and projects current
+// registry state without detail-only dependency, host-service, route, or cron
+// payloads.
+func (s *serviceImpl) buildManagementSummaryList(ctx context.Context) (*ListOutput, error) {
+	out, _, err := s.buildPluginProjection(ctx, pluginProjectionInput{mode: projectionModeSummary})
+	if err != nil {
+		return nil, err
 	}
-	return result
+	return out.list, nil
+}
+
+// buildManagementDetail scans plugin manifests once and projects complete
+// governance detail only for the requested plugin ID.
+func (s *serviceImpl) buildManagementDetail(ctx context.Context, pluginID string) (*PluginItem, error) {
+	out, _, err := s.buildPluginProjection(ctx, pluginProjectionInput{
+		mode:     projectionModeDetail,
+		pluginID: pluginID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out.item, nil
 }
 
 // buildServicePluginItems wraps runtime projections with facade-level metadata.
@@ -256,6 +292,18 @@ func (s *serviceImpl) buildServicePluginItems(ctx context.Context, items []*runt
 	out := make([]*PluginItem, 0, len(items))
 	for _, item := range items {
 		if wrapped := s.buildServicePluginItem(ctx, item); wrapped != nil {
+			out = append(out, wrapped)
+		}
+	}
+	return out
+}
+
+// buildServicePluginSummaryItems wraps runtime summary projections without
+// attaching dependency checks or detail-only governance payloads.
+func (s *serviceImpl) buildServicePluginSummaryItems(ctx context.Context, items []*runtime.PluginItem) []*PluginItem {
+	out := make([]*PluginItem, 0, len(items))
+	for _, item := range items {
+		if wrapped := s.buildServicePluginSummaryItem(ctx, item); wrapped != nil {
 			out = append(out, wrapped)
 		}
 	}
@@ -274,17 +322,13 @@ func (s *serviceImpl) buildServicePluginItem(ctx context.Context, item *runtime.
 	return out
 }
 
-// sortServicePluginItems sorts facade plugin projections by plugin ID.
-func sortServicePluginItems(items []*PluginItem) {
-	sort.Slice(items, func(i int, j int) bool {
-		if items[i] == nil {
-			return false
-		}
-		if items[j] == nil {
-			return true
-		}
-		return items[i].Id < items[j].Id
-	})
+// buildServicePluginSummaryItem wraps one runtime summary projection without
+// computing dependency status for list rendering.
+func (s *serviceImpl) buildServicePluginSummaryItem(_ context.Context, item *runtime.PluginItem) *PluginItem {
+	if item == nil {
+		return nil
+	}
+	return &PluginItem{PluginItem: *item}
 }
 
 // ListEnabledPluginIDs returns the IDs of plugins that are currently
@@ -293,7 +337,7 @@ func (s *serviceImpl) ListEnabledPluginIDs(ctx context.Context) ([]string, error
 	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
 		return nil, err
 	}
-	registries, err := s.catalogSvc.ListAllRegistries(ctx)
+	registries, err := s.storeSvc.ListAllRegistries(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -303,21 +347,10 @@ func (s *serviceImpl) ListEnabledPluginIDs(ctx context.Context) ([]string, error
 		if registry == nil || strings.TrimSpace(registry.PluginId) == "" {
 			continue
 		}
-		if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
+		if registry.Installed != statusflag.Installed.Int() || registry.Status != statusflag.EnabledValue.Int() {
 			continue
 		}
 		pluginIDs = append(pluginIDs, strings.TrimSpace(registry.PluginId))
 	}
 	return pluginIDs, nil
-}
-
-// matchPluginType compares normalized plugin types so list filtering accepts
-// user input that differs only by case or alias formatting.
-func matchPluginType(actual string, expected string) bool {
-	actualType := catalog.NormalizeType(actual)
-	expectedType := catalog.NormalizeType(expected)
-	if expectedType == "" {
-		return true
-	}
-	return actualType == expectedType
 }

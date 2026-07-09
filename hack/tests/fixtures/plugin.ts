@@ -17,8 +17,10 @@ type PluginListItem = {
   id: string;
   installMode?: string;
   installed?: number;
+  runtimeState?: string;
   scopeNature?: string;
   type?: string;
+  upgradeAvailable?: boolean;
   version?: string;
 };
 
@@ -35,10 +37,22 @@ async function ensurePluginEnabledState(
     await installPlugin(adminApi, pluginId, installMode);
     plugin = await findPlugin(adminApi, pluginId);
   }
+  if (plugin && plugin.installed === 1 && pluginNeedsRuntimeUpgrade(plugin)) {
+    await upgradePlugin(adminApi, pluginId);
+    plugin = await findPlugin(adminApi, pluginId);
+  }
   if (plugin?.enabled !== 1) {
     await updatePluginStatus(adminApi, pluginId, true);
   }
   loadSourcePluginMockData(pluginId);
+}
+
+function pluginNeedsRuntimeUpgrade(plugin: PluginListItem) {
+  return (
+    plugin.upgradeAvailable === true ||
+    plugin.runtimeState === 'pending_upgrade' ||
+    plugin.runtimeState === 'upgrade_failed'
+  );
 }
 
 function unwrapApiData(payload: any) {
@@ -78,6 +92,7 @@ export async function createAdminApiContext(): Promise<APIRequestContext> {
     data: {
       password: config.adminPass,
       username: config.adminUser,
+      clientType: 'web',
     },
   });
   assertOk(loginResponse, '管理员登录 API 失败');
@@ -147,6 +162,15 @@ export async function installPlugin(
   assertOk(response, `安装插件失败: ${pluginId}`);
 }
 
+export async function upgradePlugin(adminApi: APIRequestContext, pluginId: string) {
+  const response = await adminApi.post(`plugins/${pluginId}/upgrade`, {
+    data: {
+      confirmed: true,
+    },
+  });
+  assertOk(response, `升级插件失败: ${pluginId}`);
+}
+
 export async function uninstallPlugin(
   adminApi: APIRequestContext,
   pluginId: string,
@@ -178,6 +202,13 @@ export async function refreshPluginProjection(page: Page) {
     waitUntil: 'domcontentloaded',
   });
   await waitForRouteReady(page, 15000);
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('linapro:i18n:runtime:')) {
+        localStorage.removeItem(key);
+      }
+    }
+  });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitForRouteReady(page, 15000);
 }

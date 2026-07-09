@@ -1,4 +1,6 @@
 // This file defines menu-service business error codes and their i18n metadata.
+// Error codes stay in the module *_code.go file so response localization and
+// bizerr governance can discover one centralized definition point.
 
 package menu
 

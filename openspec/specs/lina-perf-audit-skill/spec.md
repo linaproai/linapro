@@ -22,7 +22,7 @@
 - **当** 用户说了一些模糊的话，如 `API 好像很慢`、`性能怎么样` 或 `检查接口性能` 时
 - **则** 技能在运行任何 Stage 0 设置命令前询问是否启动完整审计
 - **且** 确认文本提及数据库重置、服务重启、耗时、子代理扇出和 Token 成本
-- **且** 技能在确认前不运行 `make stop`、`make init`、`make mock`、`setup-audit-env.sh`、`prepare-builtin-plugins.sh` 或 `stress-fixture.sh`
+- **且** 技能在确认前不运行 `make stop`、`make db.init`、`make db.mock`、`setup-audit-env.sh`、`prepare-builtin-plugins.sh` 或 `stress-fixture.sh`
 
 #### Scenario:其他技能不自动调用此技能
 
@@ -45,7 +45,7 @@
 
 - **当** 用户确认完整审计后
 - **则** 技能创建 `YYYYMMDD-HHMMSS` 格式的唯一 `run-id`
-- **且** 停止服务，通过 `make init confirm=init rebuild=true` 和 `make mock confirm=mock` 重置本地数据库，通过 `setup-audit-env.sh` 补丁审计日志，通过 `prepare-builtin-plugins.sh` 安装并启用所有内置插件，通过 `stress-fixture.sh` 添加审计专用压力数据，通过 `scan-endpoints.sh` 扫描端点，通过 `probe-fixtures.sh` 探测固件
+- **且** 停止服务，通过 `make db.init confirm=init rebuild=true` 和 `make db.mock confirm=mock` 重置本地数据库，通过 `setup-audit-env.sh` 补丁审计日志，通过 `prepare-builtin-plugins.sh` 安装并启用所有内置插件，通过 `stress-fixture.sh` 添加审计专用压力数据，通过 `scan-endpoints.sh` 扫描端点，通过 `probe-fixtures.sh` 探测固件
 - **且** 所有生成产物写入 `temp/lina-perf-audit/<run-id>/` 下
 - **且** 通过 `restore-audit-env.sh` 在成功或失败时恢复临时日志设置
 

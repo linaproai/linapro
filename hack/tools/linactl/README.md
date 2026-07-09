@@ -13,10 +13,17 @@ go run . wasm p=linapro-demo-dynamic
 go run . wasm plugin_dir=/path/to/plugin out=temp/output
 go run . plugins.status
 go run . i18n.check
-go run . init confirm=init
+go run . db.init confirm=init
+go run . db.upgrade confirm=upgrade
+go run . db.mock confirm=mock
 go run . tidy
+go run . lint.go plugins=0
+go run . lint.go plugins=1
+go run . lint.go plugins=0 fix=true
 go run . build platforms=linux/amd64,linux/arm64
+go run . build dir=apps/lina-plugins/john-ai-agentbox
 go run . image tag=v0.2.0 push=0
+go run . version to=v0.2.0
 go run . release.tag.check tag=v0.2.0
 go run . release.tag.check print-version=1
 ```
@@ -31,8 +38,13 @@ make.cmd status
 make.cmd pack.assets
 make.cmd plugins.status
 make.cmd i18n.check
-make.cmd init confirm=init
+make.cmd db.init confirm=init
+make.cmd db.upgrade confirm=upgrade
+make.cmd db.mock confirm=mock
 make.cmd tidy
+make.cmd lint.go plugins=0
+make.cmd lint.go plugins=1
+make.cmd version to=v0.2.0
 make.cmd release.tag.check tag=v0.2.0
 ```
 
@@ -43,6 +55,8 @@ In PowerShell, run it with an explicit current-directory prefix:
 .\make.cmd status
 .\make.cmd pack.assets
 .\make.cmd i18n.check
+.\make.cmd lint.go plugins=0
+.\make.cmd version to=v0.2.0
 .\make.cmd release.tag.check tag=v0.2.0
 ```
 
@@ -52,10 +66,13 @@ In PowerShell, run it with an explicit current-directory prefix:
 
 | Parameter | Example | Purpose |
 | --- | --- | --- |
-| `confirm` | `confirm=init` | Confirms destructive bootstrap commands. |
-| `rebuild` | `rebuild=true` | Rebuilds the configured database during `init`. |
+| `confirm` | `confirm=upgrade` | Confirms sensitive database maintenance commands. |
+| `rebuild` | `rebuild=true` | Rebuilds the configured database during `db.init`. |
+| `dir` | `dir=apps/lina-plugins/john-ai-agentbox` | Selects one build target directory for `build`. Omit it to build the host framework, default workspace, and every enabled plugin. |
 | `platforms` | `platforms=linux/amd64,linux/arm64` | Selects build target platforms. |
-| `plugins` | `plugins=0` | Overrides automatic plugin-full detection for build, dev, image, and Go test commands. |
+| `plugins` | `plugins=0` | Overrides automatic plugin-full detection for build, dev, image, Go test, and Go lint commands. |
+| `fix` | `fix=true` | Allows `lint.go` to pass `--fix` to `golangci-lint`; omitted by default so checks do not rewrite files. |
+| `to` | `to=v0.2.0` | Selects the framework version written by `version`. |
 | `tag` | `tag=v0.2.0` | Selects the release tag checked by `release.tag.check`. |
 | `print-version` | `print-version=1` | Prints the validated `framework.version` for release automation. |
 | `p` | `p=linapro-tenant-core` | Selects one plugin for Wasm build or plugin workspace management commands. |
@@ -66,6 +83,37 @@ In PowerShell, run it with an explicit current-directory prefix:
 | `verbose` | `verbose=1` | Shows child command output for build tasks. |
 
 When `plugins` is omitted, build and dev commands enable plugin-full mode if `apps/lina-plugins` contains plugin manifests. Plugin-full mode generates or refreshes ignored `temp/go.work.plugins` from the host-only root `go.work`, then resolves source-plugin Go modules through `GOWORK`.
+
+`linactl build` without `dir` builds the host framework backend, the default admin workspace frontend, host manifest assets, and all enabled official plugins. Use `dir=<path>` for a cross-platform targeted build from the repository root or through `make.cmd`, for example `dir=apps/lina-vben`, `dir=apps/lina-core`, or `dir=apps/lina-plugins/<plugin-id>`.
+
+Plugins keep custom build commands in the plugin root `hack/config.yaml` under `build.commands`. `linactl build` executes those commands from the plugin root; `$(PLUGIN_ROOT)` expands to the plugin directory and `$(REPO_ROOT)` expands to the repository root:
+
+```yaml
+build:
+  commands:
+    - pnpm --dir "$(PLUGIN_ROOT)/frontend" run build
+```
+
+When `dir=apps/lina-plugins/<plugin-id>` is passed, `linactl build` runs only that plugin's configured commands.
+
+## Go Static Lint
+
+`linactl lint.go` runs the repository `Go` static lint gate through `golangci-lint`. The main lint binary version is pinned by the repository root `.golangci-lint-version`, the rules live in the repository root `.golangci.yml`, and dead-code checks use the pinned `staticcheck` version from the repository root `.staticcheck-version`.
+
+If `golangci-lint` or `staticcheck` is missing from `PATH` or reports a different version, `linactl lint.go` installs the pinned version with `go install` and then runs that exact binary. `linactl env.setup` performs the same pinned-tool installation before frontend and browser setup so new development environments can prepare the Go lint tools up front. The installation uses `GOWORK=off` and strips build-tag or cross-compilation variables so plugin-full lint settings do not affect the external tool build. First-time installation needs normal Go module network access.
+
+```bash
+make lint.go plugins=0
+make lint.go plugins=1
+make lint.go plugins=0 fix=true
+go run . lint.go plugins=0
+```
+
+Use `plugins=0` for the host workspace, covering `apps/lina-core` and `hack/tools/linactl`. Use `plugins=1` when official plugin sources are initialized; this mode prepares the ignored `temp/go.work.plugins` workspace and lints host, tool, and official plugin `Go` modules. If `plugins` is omitted, `linactl` keeps the existing auto-detection behavior used by build and test commands.
+
+`golangci-lint` does not enable the standalone `unused` linter. `linactl lint.go` runs `staticcheck U1000` for dead-code checks across all packages; packages that contain non-test files with `//go:build wasip1` or `//go:build !wasip1` use a host plus `GOOS=wasip1 GOARCH=wasm` matrix so guest-only bridge code is not reported as dead code under the default host build.
+
+`fix=true` is an explicit developer action. It lets `golangci-lint` rewrite imports and formatting where supported; CI never enables it.
 
 ## Build Tool Commands
 
@@ -86,9 +134,11 @@ Use `plugin_dir=<path>` when a test or local fixture needs to package a dynamic 
 ```bash
 go run . ctrl
 go run . dao
+go run . ctrl dir=apps/lina-plugins/linapro-content-notice/backend
+go run . dao dir=apps/lina-plugins/linapro-content-notice/backend
 ```
 
-The generated code still uses the `apps/lina-core` GoFrame project layout and reads `apps/lina-core/hack/config.yaml`. `dao` generation still requires the configured database to be reachable and initialized, so run the repository initialization flow or provide an equivalent database before using it.
+Without a target parameter, generated code uses the `apps/lina-core` GoFrame project layout and reads `apps/lina-core/hack/config.yaml`. Use `dir=<backend-dir>` to target another backend. Standard plugin backend targets keep the GoFrame working directory at `apps/lina-plugins/<plugin-id>/backend` and read code generation config from the plugin root `apps/lina-plugins/<plugin-id>/hack/config.yaml`; non-plugin targets continue to read `<backend-dir>/hack/config.yaml`. `dao` generation still requires the configured database to be reachable and initialized, so run the repository initialization flow or provide an equivalent database before using it.
 
 ## Runtime I18n Checks
 
@@ -100,6 +150,16 @@ go run . i18n.check
 ```
 
 The default scanner allowlist is maintained at `hack/tools/linactl/internal/runtimei18n/allowlist.json`.
+
+## Plugin Governance Checks
+
+`linactl plugins.check` scans every plugin directory under `apps/lina-plugins` that contains `plugin.yaml`. It checks production plugin paths for host core table generation, direct `sys_*` table access, legacy pluginbridge host-service usage, and dynamic `data` host-service table grants that do not belong to the current plugin.
+
+```bash
+make plugins.check
+go run . plugins.check
+go run . plugins.check format=json
+```
 
 ## Agent Symlinks (agents.* command tree)
 
@@ -128,7 +188,7 @@ make agents agent=claude-code force=1            # rebuild mismatched links duri
 make agents agent=claude-code action=unlink      # remove every managed symlink for claude-code
 ```
 
-`agent` must name a single supported agent: `agent=all` and comma-separated lists are explicitly rejected by the aggregate command (use the per-resource subcommands below for batch flows). Agent names are normalized to canonical kebab-case, so `ClaudeCode`, `Claude Code`, `claude_code`, and `claude-code` all resolve to `claude-code`. `action` defaults to `link`. Without `agent`, non-TTY invocations print a usage hint instead of blocking on input. The upper-case Make variables `AGENT`, `ACTION`, and `FORCE` remain accepted as compatibility aliases, but new examples should prefer the lower-case names because they match `linactl`'s `key=value` parameters.
+`agent` must name a single supported agent: `agent=all` and comma-separated lists are explicitly rejected by the aggregate command (use the per-resource subcommands below for batch flows). Agent names are normalized to canonical kebab-case, so `ClaudeCode`, `Claude Code`, `claude_code`, and `claude-code` all resolve to `claude-code`. `action` defaults to `link`. Without `agent`, non-TTY invocations print a usage hint instead of blocking on input. Parameter keys are case-sensitive and use lower-case `linactl` `key=value` names.
 
 ### Per-resource subcommands (advanced)
 
@@ -192,15 +252,24 @@ The old `make skills` / `make skills.link` / `make skills.unlink` targets and th
 | --- | --- |
 | `make skills` | `make agents` |
 | `make skills.link` | `make agents.skills.link` |
-| `make skills.link AGENT=<name>` | `make agents.skills.link agent=<name>` |
-| `make skills.link AGENT=all FORCE=1` | `make agents.skills.link agent=all force=1` |
+| `make skills.link agent=<name>` | `make agents.skills.link agent=<name>` |
+| `make skills.link agent=all force=1` | `make agents.skills.link agent=all force=1` |
 | `make skills.unlink` | `make agents.skills.unlink` |
-| `make skills.unlink AGENT=<name>` | `make agents.skills.unlink agent=<name>` |
+| `make skills.unlink agent=<name>` | `make agents.skills.unlink agent=<name>` |
 | `linactl skills` | `linactl agents` |
 | `linactl skills.link` | `linactl agents.skills.link` |
 | `linactl skills.unlink` | `linactl agents.skills.unlink` |
 
 The `agents.skills.*` subcommands behave identically to the previous `skills.*` commands (same registry, same status state machine, same TTY/CI behaviors). Only the command name changed.
+
+## Version Metadata
+
+`version` updates `apps/lina-core/manifest/config/metadata.yaml` `framework.version` and refreshes root `README` image URLs with a `v=<version>` cache key.
+
+```bash
+make.cmd version to=v0.2.0
+make version to=v0.2.0
+```
 
 ## Release Tag Check
 
@@ -254,5 +323,6 @@ go run . help
 go run . wasm dry-run=true
 go run . plugins.status
 go run . i18n.check
+go run . lint.go plugins=0
 go run . release.tag.check tag=v0.2.0
 ```

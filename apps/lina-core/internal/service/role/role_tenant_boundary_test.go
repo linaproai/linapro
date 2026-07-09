@@ -8,25 +8,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/net/ghttp"
+
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/tenantcap"
-)
-
-const (
-	// roleTenantBoundaryStatusNormal is the enabled status used by role tests.
-	roleTenantBoundaryStatusNormal = 1
+	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
+	"lina-core/pkg/statusflag"
 )
 
 // TestCreateWritesTenantOwnershipAndRoleMenuTenant verifies role creation
 // persists the current tenant on both role and role-menu rows.
 func TestCreateWritesTenantOwnershipAndRoleMenuTenant(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), 62001)
-	svc := newDefaultRoleTestService()
-	menuID := insertRoleTenantBoundaryMenu(t, ctx, "tenant-create", "system:tenant:plugin:list", 62001)
+	var (
+		ctx    = datascope.WithTenantScope(context.Background(), 62001)
+		svc    = newDefaultRoleTestService()
+		menuID = insertRoleTenantBoundaryMenu(t, ctx, "tenant-create", "system:tenant:plugin:list", 62001)
+	)
 	t.Cleanup(func() {
 		cleanupRoleTestRows(t, ctx, nil, nil, []int{menuID})
 	})
@@ -36,7 +39,7 @@ func TestCreateWritesTenantOwnershipAndRoleMenuTenant(t *testing.T) {
 		Key:       uniqueRoleTenantBoundaryName("tenant-role-key"),
 		Sort:      1,
 		DataScope: roleDataScopeSelf,
-		Status:    roleTenantBoundaryStatusNormal,
+		Status:    statusflag.EnabledValue.Int(),
 		MenuIds:   []int{menuID},
 	})
 	if err != nil {
@@ -58,11 +61,13 @@ func TestCreateWritesTenantOwnershipAndRoleMenuTenant(t *testing.T) {
 // TestAssignUsersWritesCurrentTenantRelation verifies role assignments persist
 // the role tenant boundary.
 func TestAssignUsersWritesCurrentTenantRelation(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), 62011)
-	svc := newDefaultRoleTestService()
-	roleID := insertRoleTenantBoundaryRole(t, ctx, "tenant-assign", 62011)
-	operatorRoleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-assign-operator", 62011, roleDataScopeTenant)
-	userID := insertRoleTenantBoundaryUser(t, ctx, "tenant-assign-user", 62011)
+	var (
+		ctx            = datascope.WithTenantScope(context.Background(), 62011)
+		svc            = newDefaultRoleTestService()
+		roleID         = insertRoleTenantBoundaryRole(t, ctx, "tenant-assign", 62011)
+		operatorRoleID = insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-assign-operator", 62011, roleDataScopeTenant)
+		userID         = insertRoleTenantBoundaryUser(t, ctx, "tenant-assign-user", 62011)
+	)
 	ensureRoleTenantBoundaryMembershipTable(t, ctx)
 	svc.tenantSvc = activateRoleTenantBoundaryProvider(t)
 	t.Cleanup(func() {
@@ -84,7 +89,7 @@ func TestAssignUsersWritesCurrentTenantRelation(t *testing.T) {
 // TestTenantRoleRejectsAllDataScope verifies tenant-local roles cannot receive
 // cross-tenant all-data scope.
 func TestTenantRoleRejectsAllDataScope(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), 62021)
+	ctx := datascope.WithTenantScope(context.Background(), 62021)
 	svc := newDefaultRoleTestService()
 
 	_, err := svc.Create(ctx, CreateInput{
@@ -92,7 +97,7 @@ func TestTenantRoleRejectsAllDataScope(t *testing.T) {
 		Key:       uniqueRoleTenantBoundaryName("tenant-all-data-deny-key"),
 		Sort:      1,
 		DataScope: roleDataScopeAll,
-		Status:    roleTenantBoundaryStatusNormal,
+		Status:    statusflag.EnabledValue.Int(),
 	})
 	if !bizerr.Is(err, CodeTenantRoleAllDataScopeForbidden) {
 		t.Fatalf("expected tenant all-data scope denial, got %v", err)
@@ -102,7 +107,7 @@ func TestTenantRoleRejectsAllDataScope(t *testing.T) {
 // TestPlatformContextRoleRejectsTenantPrimaryUser verifies platform-context
 // roles cannot be assigned to tenant-primary users.
 func TestPlatformContextRoleRejectsTenantPrimaryUser(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), datascope.PlatformTenantID)
+	ctx := datascope.WithTenantScope(context.Background(), datascope.PlatformTenantID)
 	svc := newDefaultRoleTestService()
 	adminUserID, _ := mustQueryAdminUserAndRoleID(t, ctx)
 	roleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "platform-role", 0, roleDataScopeAll)
@@ -121,12 +126,14 @@ func TestPlatformContextRoleRejectsTenantPrimaryUser(t *testing.T) {
 // TestTenantRoleRejectsPlatformPrimaryUser verifies tenant roles cannot be
 // assigned to platform users, which would make platform authority tenant-local.
 func TestTenantRoleRejectsPlatformPrimaryUser(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), 62023)
-	svc := newDefaultRoleTestService()
-	roleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-role-platform-user-deny", 62023, roleDataScopeTenant)
-	operatorRoleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-role-platform-user-operator", 62023, roleDataScopeTenant)
-	operatorUserID := insertRoleTenantBoundaryUser(t, ctx, "tenant-role-platform-user-operator", 62023)
-	platformUserID := insertRoleTenantBoundaryUser(t, ctx, "tenant-role-platform-user", 0)
+	var (
+		ctx            = datascope.WithTenantScope(context.Background(), 62023)
+		svc            = newDefaultRoleTestService()
+		roleID         = insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-role-platform-user-deny", 62023, roleDataScopeTenant)
+		operatorRoleID = insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-role-platform-user-operator", 62023, roleDataScopeTenant)
+		operatorUserID = insertRoleTenantBoundaryUser(t, ctx, "tenant-role-platform-user-operator", 62023)
+		platformUserID = insertRoleTenantBoundaryUser(t, ctx, "tenant-role-platform-user", 0)
+	)
 	t.Cleanup(func() {
 		cleanupRoleTestRows(t, ctx, []int{roleID, operatorRoleID}, []int{operatorUserID, platformUserID}, nil)
 	})
@@ -145,13 +152,15 @@ func TestTenantRoleRejectsPlatformPrimaryUser(t *testing.T) {
 // TestTenantRoleRequiresActiveMembershipWhenTableExists verifies tenant role
 // assignment checks the linapro-tenant-core membership table when it is installed.
 func TestTenantRoleRequiresActiveMembershipWhenTableExists(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), 62024)
+	ctx := datascope.WithTenantScope(context.Background(), 62024)
 	svc := newDefaultRoleTestService()
 	ensureRoleTenantBoundaryMembershipTable(t, ctx)
-	roleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-role-membership-deny", 62024, roleDataScopeTenant)
-	operatorRoleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-role-membership-operator", 62024, roleDataScopeTenant)
-	operatorUserID := insertRoleTenantBoundaryUser(t, ctx, "tenant-role-membership-operator", 62024)
-	targetUserID := insertRoleTenantBoundaryUser(t, ctx, "tenant-role-membership-target", 62024)
+	var (
+		roleID         = insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-role-membership-deny", 62024, roleDataScopeTenant)
+		operatorRoleID = insertRoleTenantBoundaryRoleWithScope(t, ctx, "tenant-role-membership-operator", 62024, roleDataScopeTenant)
+		operatorUserID = insertRoleTenantBoundaryUser(t, ctx, "tenant-role-membership-operator", 62024)
+		targetUserID   = insertRoleTenantBoundaryUser(t, ctx, "tenant-role-membership-target", 62024)
+	)
 	t.Cleanup(func() {
 		cleanupRoleTestRows(t, ctx, []int{roleID, operatorRoleID}, []int{operatorUserID, targetUserID}, nil)
 		cleanupRoleTenantBoundaryMembershipRows(t, ctx, []int{operatorUserID, targetUserID})
@@ -181,12 +190,14 @@ func TestTenantRoleRequiresActiveMembershipWhenTableExists(t *testing.T) {
 // TestTenantRoleAccessFiltersRoleMenuByTenant verifies permission resolution
 // does not reuse role-menu rows from another tenant for the same role ID.
 func TestTenantRoleAccessFiltersRoleMenuByTenant(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), 62031)
-	svc := newDefaultRoleTestService()
-	roleID := insertRoleTenantBoundaryRole(t, ctx, "tenant-access", 62031)
-	userID := insertRoleTenantBoundaryUser(t, ctx, "tenant-access-user", 62031)
-	tenantMenuID := insertRoleTenantBoundaryMenu(t, ctx, "tenant-access-menu", "system:tenant:visible", 62031)
-	otherMenuID := insertRoleTenantBoundaryMenu(t, ctx, "tenant-access-other-menu", "system:tenant:hidden", 62032)
+	var (
+		ctx          = datascope.WithTenantScope(context.Background(), 62031)
+		svc          = newDefaultRoleTestService()
+		roleID       = insertRoleTenantBoundaryRole(t, ctx, "tenant-access", 62031)
+		userID       = insertRoleTenantBoundaryUser(t, ctx, "tenant-access-user", 62031)
+		tenantMenuID = insertRoleTenantBoundaryMenu(t, ctx, "tenant-access-menu", "system:tenant:visible", 62031)
+		otherMenuID  = insertRoleTenantBoundaryMenu(t, ctx, "tenant-access-other-menu", "system:tenant:hidden", 62032)
+	)
 	t.Cleanup(func() {
 		cleanupRoleTestRows(t, ctx, []int{roleID}, []int{userID}, []int{tenantMenuID, otherMenuID})
 	})
@@ -209,11 +220,13 @@ func TestTenantRoleAccessFiltersRoleMenuByTenant(t *testing.T) {
 // TestImpersonationAccessUsesPlatformRoles verifies tenant impersonation keeps
 // target-tenant data context while permission grants come from platform roles.
 func TestImpersonationAccessUsesPlatformRoles(t *testing.T) {
-	ctx := datascope.WithTenantForTest(context.Background(), 62041)
-	svc := newDefaultRoleTestService()
-	roleID := insertRoleTenantBoundaryRoleWithScope(t, ctx, "impersonation-platform-role", datascope.PlatformTenantID, roleDataScopeAll)
-	userID := insertRoleTenantBoundaryUser(t, ctx, "impersonation-platform-user", datascope.PlatformTenantID)
-	menuID := insertRoleTenantBoundaryMenu(t, ctx, "impersonation-platform-menu", "system:tenant:impersonate:test", datascope.PlatformTenantID)
+	var (
+		ctx    = datascope.WithTenantScope(context.Background(), 62041)
+		svc    = newDefaultRoleTestService()
+		roleID = insertRoleTenantBoundaryRoleWithScope(t, ctx, "impersonation-platform-role", datascope.PlatformTenantID, roleDataScopeAll)
+		userID = insertRoleTenantBoundaryUser(t, ctx, "impersonation-platform-user", datascope.PlatformTenantID)
+		menuID = insertRoleTenantBoundaryMenu(t, ctx, "impersonation-platform-menu", "system:tenant:impersonate:test", datascope.PlatformTenantID)
+	)
 	t.Cleanup(func() {
 		cleanupRoleTestRows(t, ctx, []int{roleID}, []int{userID}, []int{menuID})
 	})
@@ -241,24 +254,113 @@ func TestImpersonationAccessUsesPlatformRoles(t *testing.T) {
 	}
 }
 
-// activateRoleTenantBoundaryProvider returns the narrow tenant governance fake
-// used by role assignment tests.
-func activateRoleTenantBoundaryProvider(t *testing.T) roleTenantGovernanceService {
+// activateRoleTenantBoundaryProvider returns a real tenant service with one
+// enabled membership provider for role assignment tests.
+func activateRoleTenantBoundaryProvider(t *testing.T) tenantspi.Service {
 	t.Helper()
-	return roleTenantBoundaryProvider{}
+	providerPluginID := fmt.Sprintf("plugin-test-role-tenant-provider-%d", time.Now().UnixNano())
+	manager := tenantspi.NewManager()
+	if err := manager.RegisterFactory(providerPluginID, func(context.Context, tenantspi.ProviderEnv) (tenantspi.Provider, error) {
+		return roleTenantBoundaryProvider{}, nil
+	}); err != nil {
+		t.Fatalf("register role tenant provider: %v", err)
+	}
+	return tenantspi.New(manager, roleTenantBoundaryRuntime{pluginID: providerPluginID}, nil, roleTenantBoundaryBizCtx{})
+}
+
+// roleTenantBoundaryRuntime marks exactly one role test tenant provider enabled.
+type roleTenantBoundaryRuntime struct {
+	pluginID string
+}
+
+// IsProviderEnabled reports whether the given test provider plugin is enabled.
+func (r roleTenantBoundaryRuntime) IsProviderEnabled(_ context.Context, pluginID string) bool {
+	return pluginID == r.pluginID
+}
+
+// roleTenantBoundaryBizCtx adapts role data-scope test context into tenant context.
+type roleTenantBoundaryBizCtx struct{}
+
+// Current returns the plugin-visible tenant context derived from datascope test helpers.
+func (roleTenantBoundaryBizCtx) Current(ctx context.Context) bizctxcap.CurrentContext {
+	tenantID := datascope.CurrentTenantID(ctx)
+	return bizctxcap.CurrentContext{
+		TenantID:        tenantID,
+		PlatformBypass:  tenantID == datascope.PlatformTenantID,
+		ActingAsTenant:  tenantID != datascope.PlatformTenantID,
+		IsImpersonation: false,
+	}
 }
 
 // roleTenantBoundaryProvider simulates the plugin-owned membership governance provider.
 type roleTenantBoundaryProvider struct{}
 
-// Available reports active tenant governance for role assignment tests.
-func (roleTenantBoundaryProvider) Available(context.Context) bool {
-	return true
+// ResolveTenant is unused by role assignment tests.
+func (roleTenantBoundaryProvider) ResolveTenant(
+	context.Context,
+	*ghttp.Request,
+) (*tenantcap.ResolverResult, error) {
+	return &tenantcap.ResolverResult{TenantID: tenantcap.PLATFORM, Matched: true}, nil
 }
 
-// PlatformBypass reports platform context from the test data-scope tenant.
-func (roleTenantBoundaryProvider) PlatformBypass(ctx context.Context) bool {
-	return datascope.CurrentTenantID(ctx) == datascope.PlatformTenantID
+// ValidateUserInTenant is unused by role assignment tests.
+func (roleTenantBoundaryProvider) ValidateUserInTenant(context.Context, int, tenantcap.TenantID) error {
+	return nil
+}
+
+// ListUserTenants is unused by role assignment tests.
+func (roleTenantBoundaryProvider) ListUserTenants(context.Context, int) ([]tenantcap.TenantInfo, error) {
+	return nil, nil
+}
+
+// SwitchTenant is unused by role assignment tests.
+func (roleTenantBoundaryProvider) SwitchTenant(context.Context, int, tenantcap.TenantID) error {
+	return nil
+}
+
+// ApplyUserTenantScope is unused by role assignment tests.
+func (roleTenantBoundaryProvider) ApplyUserTenantScope(
+	_ context.Context,
+	model *gdb.Model,
+	_ string,
+) (*gdb.Model, bool, error) {
+	return model, false, nil
+}
+
+// ApplyUserTenantFilter is unused by role assignment tests.
+func (roleTenantBoundaryProvider) ApplyUserTenantFilter(
+	_ context.Context,
+	model *gdb.Model,
+	_ string,
+	_ tenantcap.TenantID,
+) (*gdb.Model, bool, error) {
+	return model, false, nil
+}
+
+// ListUserTenantMemberships is unused by role assignment tests.
+func (roleTenantBoundaryProvider) ListUserTenantMemberships(
+	context.Context,
+	[]int,
+) (map[int]*tenantcap.TenantMembershipInfo, error) {
+	return nil, nil
+}
+
+// ResolveUserTenantAssignment is unused by role assignment tests.
+func (roleTenantBoundaryProvider) ResolveUserTenantAssignment(
+	context.Context,
+	[]tenantcap.TenantID,
+	tenantcap.UserTenantAssignmentMode,
+) (*tenantcap.UserTenantAssignmentPlan, error) {
+	return &tenantcap.UserTenantAssignmentPlan{}, nil
+}
+
+// ReplaceUserTenantAssignments is unused by role assignment tests.
+func (roleTenantBoundaryProvider) ReplaceUserTenantAssignments(
+	context.Context,
+	int,
+	*tenantcap.UserTenantAssignmentPlan,
+) error {
+	return nil
 }
 
 // EnsureUsersInTenant verifies role assignment targets are active tenant members.
@@ -282,6 +384,11 @@ func (roleTenantBoundaryProvider) EnsureUsersInTenant(
 		return bizerr.NewCode(tenantcap.CodeTenantForbidden, bizerr.P("tenantId", int(tenantID)))
 	}
 	return nil
+}
+
+// ValidateStartupConsistency is unused by role assignment tests.
+func (roleTenantBoundaryProvider) ValidateStartupConsistency(context.Context) ([]string, error) {
+	return nil, nil
 }
 
 // uniqueRoleTenantBoundaryName builds a stable unique test label.
@@ -312,7 +419,7 @@ func insertRoleTenantBoundaryRoleWithScope(
 		Key:       name,
 		Sort:      99,
 		DataScope: dataScope,
-		Status:    roleTenantBoundaryStatusNormal,
+		Status:    statusflag.EnabledValue.Int(),
 		TenantId:  tenantID,
 	}).InsertAndGetId()
 	if err != nil {
@@ -330,7 +437,7 @@ func insertRoleTenantBoundaryUser(t *testing.T, ctx context.Context, label strin
 		Username: username,
 		Password: "test-password-hash",
 		Nickname: username,
-		Status:   roleTenantBoundaryStatusNormal,
+		Status:   statusflag.EnabledValue.Int(),
 		TenantId: tenantID,
 	}).InsertAndGetId()
 	if err != nil {
@@ -350,8 +457,8 @@ func insertRoleTenantBoundaryMenu(t *testing.T, ctx context.Context, label strin
 		Perms:   permission,
 		Type:    "F",
 		Sort:    99,
-		Visible: roleTenantBoundaryStatusNormal,
-		Status:  roleTenantBoundaryStatusNormal,
+		Visible: statusflag.Visible.Int(),
+		Status:  statusflag.EnabledValue.Int(),
 	}).InsertAndGetId()
 	if err != nil {
 		t.Fatalf("insert tenant boundary menu: %v", err)

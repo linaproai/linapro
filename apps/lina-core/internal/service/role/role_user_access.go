@@ -55,8 +55,10 @@ func (s *serviceImpl) loadUserAccessContext(ctx context.Context, userId int) (*U
 		return nil, err
 	}
 
-	menuIds := []int{}
-	permissions := []string{}
+	var (
+		menuIds     []int
+		permissions []string
+	)
 	if isSuperAdmin {
 		menuIds, permissions, err = s.loadAllEnabledMenuAccess(ctx)
 		if err != nil {
@@ -112,8 +114,8 @@ func (s *serviceImpl) accessLookupContext(ctx context.Context) context.Context {
 	if s == nil || s.bizCtxSvc == nil {
 		return ctx
 	}
-	businessCtx := s.bizCtxSvc.Get(ctx)
-	if businessCtx == nil || (!businessCtx.IsImpersonation && !businessCtx.ActingAsTenant) {
+	businessCtx := s.bizCtxSvc.Current(ctx)
+	if businessCtx.UserID <= 0 || (!businessCtx.IsImpersonation && !businessCtx.ActingAsTenant) {
 		return ctx
 	}
 	return datascope.WithTenantScope(ctx, datascope.PlatformTenantID)

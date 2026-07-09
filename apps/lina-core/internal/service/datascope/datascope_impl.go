@@ -19,20 +19,27 @@ func (s *serviceImpl) Current(ctx context.Context) (*Context, error) {
 		return nil, bizerr.NewCode(CodeDataScopeNotAuthenticated)
 	}
 	bizCtx := s.bizCtxSvc.Get(ctx)
-	if bizCtx == nil || bizCtx.UserId <= 0 {
+	userID := 0
+	if bizCtx != nil {
+		userID = bizCtx.UserId
+	}
+	if userID <= 0 {
+		userID = s.bizCtxSvc.Current(ctx).UserID
+	}
+	if userID <= 0 {
 		return nil, bizerr.NewCode(CodeDataScopeNotAuthenticated)
 	}
 
 	if s.roleSvc == nil {
-		return &Context{UserID: bizCtx.UserId, Scope: ScopeNone}, nil
+		return &Context{UserID: userID, Scope: ScopeNone}, nil
 	}
 
-	snapshot, err := s.roleSvc.GetUserDataScopeSnapshot(ctx, bizCtx.UserId)
+	snapshot, err := s.roleSvc.GetUserDataScopeSnapshot(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	if snapshot == nil || snapshot.UserID != bizCtx.UserId {
-		return &Context{UserID: bizCtx.UserId, Scope: ScopeNone}, nil
+	if snapshot == nil || snapshot.UserID != userID {
+		return &Context{UserID: userID, Scope: ScopeNone}, nil
 	}
 	return &Context{
 		UserID:       snapshot.UserID,
@@ -96,8 +103,9 @@ func (s *serviceImpl) EnsureUsersVisible(ctx context.Context, userIDs []int) err
 	if len(normalizedIDs) == 0 {
 		return nil
 	}
-	model := dao.SysUser.Ctx(ctx).WhereIn(dao.SysUser.Columns().Id, normalizedIDs)
-	return s.EnsureRowsVisible(ctx, model, qualifiedColumn(dao.SysUser.Table(), dao.SysUser.Columns().Id), len(normalizedIDs))
+	cols := dao.SysUser.Columns()
+	model := dao.SysUser.Ctx(ctx).WhereIn(cols.Id, normalizedIDs)
+	return s.EnsureRowsVisible(ctx, model, qualifiedColumn(dao.SysUser.Table(), cols.Id), len(normalizedIDs))
 }
 
 // EnsureRowsVisible verifies all rows matched by model remain visible after

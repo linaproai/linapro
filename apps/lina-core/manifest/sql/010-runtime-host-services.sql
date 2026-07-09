@@ -3,41 +3,6 @@
 -- 010：运行时宿主服务
 -- ------------------------------------------------------------
 
--- Purpose: Stores tenant-scoped host and plugin key-value cache entries with optional expiration.
--- 用途：存储租户级宿主与插件键值缓存条目，并支持可选过期时间。
-CREATE TABLE IF NOT EXISTS sys_kv_cache (
-    "id"          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    "tenant_id"   INT NOT NULL DEFAULT 0,
-    "owner_type"  VARCHAR(16) NOT NULL DEFAULT '',
-    "owner_key"   VARCHAR(64) NOT NULL DEFAULT '',
-    "namespace"   VARCHAR(64) NOT NULL DEFAULT '',
-    "cache_key"   VARCHAR(128) NOT NULL DEFAULT '',
-    "value_kind"  SMALLINT NOT NULL DEFAULT 1,
-    "value_bytes" BYTEA NOT NULL,
-    "value_int"   BIGINT NOT NULL DEFAULT 0,
-    "expire_at"   TIMESTAMP NULL DEFAULT NULL,
-    "created_at"  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at"  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-COMMENT ON TABLE sys_kv_cache IS 'Host distributed KV cache table';
-COMMENT ON COLUMN sys_kv_cache."id" IS 'Primary key ID';
-COMMENT ON COLUMN sys_kv_cache."tenant_id" IS 'Owning tenant ID, 0 means PLATFORM';
-COMMENT ON COLUMN sys_kv_cache."owner_type" IS 'Owner type: plugin=dynamic plugin, module=host module';
-COMMENT ON COLUMN sys_kv_cache."owner_key" IS 'Owner key: plugin ID or module name';
-COMMENT ON COLUMN sys_kv_cache."namespace" IS 'Cache namespace mapped to the host-cache resource identifier';
-COMMENT ON COLUMN sys_kv_cache."cache_key" IS 'Cache key';
-COMMENT ON COLUMN sys_kv_cache."value_kind" IS 'Value type: 1=string, 2=integer';
-COMMENT ON COLUMN sys_kv_cache."value_bytes" IS 'Cache byte value used by get/set';
-COMMENT ON COLUMN sys_kv_cache."value_int" IS 'Cache integer value used by incr';
-COMMENT ON COLUMN sys_kv_cache."expire_at" IS 'Expiration time, NULL means never expires';
-COMMENT ON COLUMN sys_kv_cache."created_at" IS 'Creation time';
-COMMENT ON COLUMN sys_kv_cache."updated_at" IS 'Update time';
-
-CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_kv_cache_tenant_owner_namespace_key ON sys_kv_cache ("tenant_id", "owner_type", "owner_key", "namespace", "cache_key");
-CREATE INDEX IF NOT EXISTS idx_sys_kv_cache_tenant_owner ON sys_kv_cache ("tenant_id", "owner_type", "owner_key", "namespace");
-CREATE INDEX IF NOT EXISTS idx_sys_kv_cache_expire_at ON sys_kv_cache ("expire_at");
-
 -- Purpose: Stores reusable notification delivery channels and their structured configuration.
 -- 用途：存储可复用通知投递通道及其结构化配置。
 CREATE TABLE IF NOT EXISTS sys_notify_channel (
@@ -48,9 +13,9 @@ CREATE TABLE IF NOT EXISTS sys_notify_channel (
     "status"       SMALLINT NOT NULL DEFAULT 1,
     "config_json"  TEXT NOT NULL,
     "remark"       VARCHAR(500) NOT NULL DEFAULT '',
-    "created_at"   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at"   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deleted_at"   TIMESTAMP NULL DEFAULT NULL
+    "created_at"   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at"   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at"   TIMESTAMPTZ NULL DEFAULT NULL
 );
 
 COMMENT ON TABLE sys_notify_channel IS 'Notification channel table';
@@ -80,7 +45,7 @@ CREATE TABLE IF NOT EXISTS sys_notify_message (
     "content"        TEXT NOT NULL,
     "payload_json"   TEXT NOT NULL,
     "sender_user_id" BIGINT NOT NULL DEFAULT 0,
-    "created_at"     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "created_at"     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE sys_notify_message IS 'Notification message table';
@@ -112,12 +77,12 @@ CREATE TABLE IF NOT EXISTS sys_notify_delivery (
     "user_id"         BIGINT NOT NULL DEFAULT 0,
     "delivery_status" SMALLINT NOT NULL DEFAULT 0,
     "is_read"         SMALLINT NOT NULL DEFAULT 0,
-    "read_at"         TIMESTAMP NULL DEFAULT NULL,
+    "read_at"         TIMESTAMPTZ NULL DEFAULT NULL,
     "error_message"   VARCHAR(1000) NOT NULL DEFAULT '',
-    "sent_at"         TIMESTAMP NULL DEFAULT NULL,
-    "created_at"      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at"      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "deleted_at"      TIMESTAMP NULL DEFAULT NULL
+    "sent_at"         TIMESTAMPTZ NULL DEFAULT NULL,
+    "created_at"      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at"      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at"      TIMESTAMPTZ NULL DEFAULT NULL
 );
 
 COMMENT ON TABLE sys_notify_delivery IS 'Notification delivery record table';

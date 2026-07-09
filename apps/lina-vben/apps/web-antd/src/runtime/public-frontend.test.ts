@@ -242,6 +242,7 @@ describe('public frontend runtime settings', () => {
     expect(normalizeWorkspaceBasePath('/')).toBe('/');
     expect(normalizeWorkspaceBasePath('/x')).toBe('/admin');
     expect(normalizeWorkspaceBasePath('/x-assets/plugin')).toBe('/admin');
+    expect(normalizeWorkspaceBasePath('/plugin-assets')).toBe('/plugin-assets');
   });
 
   it('allows a root workspace base path for a dedicated admin domain', async () => {
@@ -305,6 +306,9 @@ describe('public frontend runtime settings', () => {
     expect(resolveWorkspaceAssetURL('/api/v1/user')).toBe('/api/v1/user');
     expect(resolveWorkspaceAssetURL('/x-assets/plugin/v0.1.0/app.js')).toBe(
       '/x-assets/plugin/v0.1.0/app.js',
+    );
+    expect(resolveWorkspaceAssetURL('/plugin-assets/logo.webp')).toBe(
+      '/admin/plugin-assets/logo.webp',
     );
     expect(resolveWorkspaceAssetURL('https://cdn.example.com/logo.webp')).toBe(
       'https://cdn.example.com/logo.webp',

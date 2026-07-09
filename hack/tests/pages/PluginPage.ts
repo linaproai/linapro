@@ -13,6 +13,7 @@ const pluginUpgradeActionPattern = /升\s*级|重试升级|Upgrade|Retry Upgrade
 const confirmActionPattern = /确\s*认|确\s*定|confirm|ok/iu;
 const cancelActionPattern = /取\s*消|cancel/iu;
 const pluginLifecycleActionTimeout = 120_000;
+const pluginLifecycleRefreshProbeTimeout = 5_000;
 
 type SidebarMenuName = RegExp | string;
 
@@ -227,6 +228,54 @@ export class PluginPage {
     return this.pluginMainRows().filter({ hasText: pluginId }).first();
   }
 
+  private pluginLifecycleSwitch(row: Locator): Locator {
+    return row
+      .locator(
+        '.ant-switch:not(.ant-switch-small):not([data-testid^="plugin-tenant-provisioning-"])',
+      )
+      .first();
+  }
+
+  private pluginIdSearchInput(): Locator {
+    return this.page
+      .getByRole("textbox", { name: /插件标识|Plugin ID/iu })
+      .first();
+  }
+
+  private async filterByPluginId(pluginId: string) {
+    const input = this.pluginIdSearchInput();
+    await expect(input).toBeVisible();
+    await input.fill(pluginId);
+
+    const listResponse = this.page
+      .waitForResponse(
+        (response) => {
+          const request = response.request();
+          return (
+            request.method() === "GET" &&
+            new URL(response.url()).pathname.endsWith("/plugins")
+          );
+        },
+        { timeout: 30_000 },
+      )
+      .catch(() => null);
+
+    await this.page.getByRole("button", { name: /搜\s*索|Search/iu }).click();
+    await listResponse;
+  }
+
+  private async ensurePluginRowVisible(pluginId: string) {
+    const row = this.pluginRow(pluginId);
+    if (await row.isVisible({ timeout: 1500 }).catch(() => false)) {
+      return row;
+    }
+
+    await this.filterByPluginId(pluginId);
+    const filteredRow = this.pluginRow(pluginId);
+    await expect(filteredRow, `未找到插件行: ${pluginId}`).toBeVisible();
+    return filteredRow;
+  }
+
   hostServiceAuthModal(): Locator {
     return this.page.getByTestId("plugin-host-service-auth-modal").last();
   }
@@ -323,6 +372,10 @@ export class PluginPage {
       .first();
   }
 
+  pluginTenantProvisioningSwitches(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-tenant-provisioning-${pluginId}`);
+  }
+
   pluginRuntimeState(pluginId: string): Locator {
     return this.page.getByTestId(`plugin-runtime-state-${pluginId}`).first();
   }
@@ -331,8 +384,45 @@ export class PluginPage {
     return this.page.getByTestId(`plugin-version-${pluginId}`).first();
   }
 
-  pluginManualRepairTag(pluginId: string): Locator {
-    return this.page.getByTestId(`plugin-abnormal-repair-${pluginId}`).first();
+  pluginDetailAction(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-detail-button-${pluginId}`).last();
+  }
+
+  pluginManualRepairAction(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-abnormal-repair-${pluginId}`).last();
+  }
+
+  async expectManualRepairActionMatchesDetailStyle(pluginId: string) {
+    const detailAction = this.pluginDetailAction(pluginId);
+    const manualRepairAction = this.pluginManualRepairAction(pluginId);
+
+    await expect(detailAction).toBeVisible();
+    await expect(manualRepairAction).toBeVisible();
+    await expect(manualRepairAction).toHaveClass(/ant-btn/u);
+
+    const [detailMetrics, manualRepairMetrics] = await Promise.all([
+      detailAction.evaluate((node) => {
+        const style = getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return {
+          fontSize: style.fontSize,
+          height: rect.height,
+        };
+      }),
+      manualRepairAction.evaluate((node) => {
+        const style = getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return {
+          fontSize: style.fontSize,
+          height: rect.height,
+        };
+      }),
+    ]);
+
+    expect(manualRepairMetrics.fontSize).toBe(detailMetrics.fontSize);
+    expect(
+      Math.abs(manualRepairMetrics.height - detailMetrics.height),
+    ).toBeLessThanOrEqual(1);
   }
 
   pluginUpgradeModal(): Locator {
@@ -490,7 +580,14 @@ export class PluginPage {
   }
 
   pluginEnabledSwitch(pluginId: string): Locator {
-    return this.pluginRow(pluginId).locator(".ant-switch").first();
+    return this.pluginLifecycleSwitch(this.pluginRow(pluginId));
+  }
+
+  pluginEnabledSwitches(pluginId: string): Locator {
+    const row = this.pluginRow(pluginId);
+    return row.locator(
+      '.ant-switch:not(.ant-switch-small):not([data-testid^="plugin-tenant-provisioning-"])',
+    );
   }
 
   pluginDescriptionCell(pluginId: string): Locator {
@@ -521,12 +618,7 @@ export class PluginPage {
   }
 
   async searchByPluginId(pluginId: string) {
-    const input = this.page
-      .getByRole("textbox", { name: /插件标识|Plugin ID/iu })
-      .first();
-    await expect(input).toBeVisible();
-    await input.fill(pluginId);
-    await this.page.getByRole("button", { name: /搜\s*索|Search/iu }).click();
+    await this.filterByPluginId(pluginId);
     await expect(this.pluginRow(pluginId)).toBeVisible();
   }
 
@@ -612,8 +704,7 @@ export class PluginPage {
     await expect(installButton).toBeVisible();
     await installButton.click();
     await expect(this.hostServiceAuthDialog()).toBeVisible();
-    await this.hostServiceAuthConfirmButton().click();
-    await expect(this.hostServiceAuthDialog()).toHaveCount(0);
+    await this.confirmHostServiceAuthorization();
     await expect(
       await this.pluginActionButton(pluginId, /卸\s*载/),
     ).toBeVisible();
@@ -723,8 +814,7 @@ export class PluginPage {
         await expect(checkbox).not.toBeChecked();
       }
     }
-    await this.hostServiceAuthConfirmButton().click();
-    await expect(this.hostServiceAuthDialog()).toHaveCount(0);
+    await this.confirmHostServiceAuthorization();
     await expect(
       await this.pluginActionButton(pluginId, /卸\s*载/),
     ).toBeVisible();
@@ -847,11 +937,30 @@ export class PluginPage {
   }
 
   async setPluginEnabled(pluginId: string, enabled: boolean) {
-    const row = this.pluginRow(pluginId);
-    await expect(row).toBeVisible();
-    const switcher = row.locator(".ant-switch").first();
-    const isChecked = (await switcher.getAttribute("aria-checked")) === "true";
-    if (isChecked !== enabled) {
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      const row = await this.ensurePluginRowVisible(pluginId);
+      const switcher = this.pluginLifecycleSwitch(row);
+      await expect(
+        switcher,
+        `未找到插件启用状态开关: ${pluginId}`,
+      ).toBeVisible();
+      const isChecked = (await switcher.getAttribute("aria-checked")) === "true";
+      if (isChecked === enabled) {
+        return;
+      }
+
+      const className = (await switcher.getAttribute("class")) ?? "";
+      if (className.includes("ant-switch-disabled")) {
+        if (attempt < 4) {
+          await this.filterByPluginId(pluginId);
+          await waitForRouteReady(this.page, 15000);
+          continue;
+        }
+        await expect(switcher).not.toHaveClass(/ant-switch-disabled/, {
+          timeout: pluginLifecycleActionTimeout,
+        });
+      }
+
       const actionPath = enabled ? "enable" : "disable";
       const statusResponse = this.page.waitForResponse(
         (response) => {
@@ -865,6 +974,32 @@ export class PluginPage {
         },
         { timeout: pluginLifecycleActionTimeout },
       );
+      const pluginStateRefresh = this.page
+        .waitForResponse(
+          (response) => {
+            const request = response.request();
+            return (
+              request.method() === "GET" &&
+              new URL(response.url()).pathname.endsWith(
+                "/plugins/dynamic/state",
+              )
+            );
+          },
+          { timeout: pluginLifecycleRefreshProbeTimeout },
+        )
+        .catch(() => null);
+      const menuRefresh = this.page
+        .waitForResponse(
+          (response) => {
+            const request = response.request();
+            return (
+              request.method() === "GET" &&
+              new URL(response.url()).pathname.endsWith("/menus/all")
+            );
+          },
+          { timeout: pluginLifecycleRefreshProbeTimeout },
+        )
+        .catch(() => null);
       await switcher.click();
       if (enabled) {
         const authDialogVisible = await this.hostServiceAuthDialog()
@@ -879,7 +1014,12 @@ export class PluginPage {
         response.ok(),
         `${actionPath} ${pluginId} should return 2xx`,
       ).toBe(true);
-      await expect(switcher).toHaveAttribute(
+      await Promise.all([pluginStateRefresh, menuRefresh]);
+      await this.filterByPluginId(pluginId);
+      const refreshedSwitcher = this.pluginLifecycleSwitch(
+        this.pluginRow(pluginId),
+      );
+      await expect(refreshedSwitcher).toHaveAttribute(
         "aria-checked",
         enabled ? "true" : "false",
         { timeout: pluginLifecycleActionTimeout },
@@ -898,6 +1038,7 @@ export class PluginPage {
         .last()
         .waitFor({ state: "hidden", timeout: pluginLifecycleActionTimeout })
         .catch(() => undefined);
+      return;
     }
   }
 
@@ -933,6 +1074,12 @@ export class PluginPage {
     ).toHaveCount(0);
   }
 
+  async expectUpgradeActionHidden(pluginId: string) {
+    await expect(
+      await this.pluginActionButton(pluginId, pluginUpgradeActionPattern),
+    ).toHaveCount(0);
+  }
+
   async expectUninstallActionVisible(pluginId: string) {
     await expect(
       await this.pluginActionButton(pluginId, pluginUninstallActionPattern),
@@ -959,20 +1106,41 @@ export class PluginPage {
   }
 
   async confirmHostServiceAuthorization() {
+    const confirmResponse = this.waitForLifecycleActionResponse();
     await this.hostServiceAuthConfirmButton().click();
+    await confirmResponse;
     await expect(this.hostServiceAuthDialog()).toHaveCount(0);
   }
 
   async confirmInstallAndEnable() {
     await expect(this.hostServiceAuthDialog()).toBeVisible();
     await expect(this.hostServiceAuthInstallAndEnableButton()).toBeVisible();
+    const confirmResponse = this.waitForLifecycleActionResponse();
     await this.hostServiceAuthInstallAndEnableButton().click();
+    await confirmResponse;
     await expect(this.hostServiceAuthDialog()).toHaveCount(0);
   }
 
+  private waitForLifecycleActionResponse() {
+    return this.page
+      .waitForResponse(
+        (response) => {
+          const request = response.request();
+          const method = request.method();
+          const pathname = new URL(response.url()).pathname;
+          return (
+            (method === "POST" || method === "PUT") &&
+            (/\/plugins\/[^/]+\/(install|enable)$/.test(pathname) ||
+              /\/plugins\/install$/.test(pathname))
+          );
+        },
+        { timeout: pluginLifecycleActionTimeout },
+      )
+      .catch(() => null);
+  }
+
   private async pluginActionButton(pluginId: string, name: RegExp) {
-    const row = this.pluginRow(pluginId);
-    await expect(row, `未找到插件行: ${pluginId}`).toBeVisible();
+    const row = await this.ensurePluginRowVisible(pluginId);
 
     const rowID = await row.getAttribute("rowid");
     expect(rowID, `未找到插件行 rowid: ${pluginId}`).toBeTruthy();
@@ -1218,6 +1386,43 @@ export class PluginPage {
         `${widerTitle} 列宽应大于 ${narrowerTitle}`,
       ).toBeGreaterThan(narrowerWidth);
     }
+  }
+
+  async expectTableColumnWidthAtMost(title: string, maxWidth: number) {
+    const cell = this.tableHeaderCell(title);
+    await expect(cell, `未找到列表列: ${title}`).toBeVisible();
+    const width = await cell.evaluate(
+      (element) => element.getBoundingClientRect().width,
+    );
+    expect(width, `${title} 列宽不应超过 ${maxWidth}px`).toBeLessThanOrEqual(
+      maxWidth,
+    );
+  }
+
+  async expectPluginVersionNotClipped(pluginId: string) {
+    const version = this.pluginVersionValue(pluginId);
+    await expect(version).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          await version.evaluate((element) => {
+            const cell = element.closest(".vxe-body--column");
+            if (!cell) {
+              return false;
+            }
+            const elementRect = element.getBoundingClientRect();
+            const cellRect = cell.getBoundingClientRect();
+            const horizontalPadding = 2;
+            const contentFits = element.scrollWidth <= element.clientWidth + 1;
+            return (
+              contentFits &&
+              elementRect.left >= cellRect.left - horizontalPadding &&
+              elementRect.right <= cellRect.right + horizontalPadding
+            );
+          }),
+        { message: `插件 ${pluginId} 的版本号内容不应被单元格裁剪` },
+      )
+      .toBe(true);
   }
 
   async expectBooleanTableCell(

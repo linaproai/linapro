@@ -1,72 +1,50 @@
 ## Why
 
-LinaPro's admin console, after completing the foundational business modules (user, department, post, dictionary, notifications, etc.), lacked core system governance capabilities: administrators could not track user operation behavior and login history, could not view online users and server runtime status, could not browse backend API documentation and system runtime information, and could not dynamically adjust system parameters at runtime. Additionally, while role management provided `dataScope` (all data / department data / self only) configuration, the host core interfaces mainly only checked menu and button permissions, without consistently applying data scope to host business data queries, details, exports, downloads, updates, deletes, and execution operations. This change addresses system observability, audit security, self-description, runtime configuration, and host-side data permission governance.
+LinaPro 在完成基础业务模块后仍缺少系统治理能力：管理员无法审计用户操作和登录历史，无法查看在线用户和服务运行状态，无法浏览系统 API 文档、版本信息和组件演示，也无法把角色数据范围真正落到宿主业务数据查询和写操作上。仅依赖菜单/按钮权限会让列表、详情、导出、下载、更新、删除和执行类操作出现可见性边界不一致。
+
+该历史分组的目标是补齐管理工作台的系统可观测、审计、安全自描述、在线会话、服务监控和宿主数据权限治理能力，并明确哪些系统治理数据不应套用角色数据范围过滤，避免把全局治理资源错误降级成普通用户数据。
+
+日志数据的最长存储时间此前由各模块自行维护或缺失清理机制。系统治理需要将日志保留收敛为一个宿主运行时参数 `sys.log.retentionDays`，统一约束操作日志、登录日志、任务执行日志、在线会话和智能中心调用日志的最长存储时间，避免各模块使用固定值、手动清理或缺失清理任务。
+
+操作日志和登录日志的前端页面此前以表格勾选为删除入口，用户无法按时间范围清理日志。系统治理需要将删除交互从勾选批量删除改为日期范围选择对话框，同时支持"删除所有日志"的全量清理入口。
 
 ## What Changes
 
-### Audit Log System
-- New **Operation Log** module: middleware automatically intercepts and records all write operations (POST/PUT/DELETE) and specially marked query operations (such as exports), recording operator, operation time, operation type, request parameters, response results, elapsed time, and other information
-- New **Login Log** module: automatically records login behavior during user login/logout, including login username, login time, IP, browser, operating system, login result, and other information
-- Both log types support conditional filtering, detail viewing, time-range-based cleanup (hard delete), batch deletion, and xlsx export
-- Operation log recording uses a hybrid middleware auto-interception + API definition tag approach; request parameters and response results undergo length truncation and password masking
-
-### System Observability
-- New **Online User** feature: session tracking based on MySQL MEMORY engine, displaying current online user list with admin support for forced offline of specified users
-- New **Server Monitor** feature: periodic server metric collection via gopsutil (CPU, memory, disk, network traffic), written to database, supporting multi-node distributed deployment; frontend displays server information, metrics, and Go runtime information
-- Refactored existing authentication middleware: creates session records on login, deletes session records on logout, and validates session validity during request processing (supporting forced offline and timeout cleanup)
-
-### System Self-Description
-- New **System API Docs** page: integrates Stoplight Elements OpenAPI document UI via iframe embedding, displays backend API documentation with online testing support; dynamically generates `servers[0].url` from the request origin instead of using a fixed `http://localhost:9120`
-- New **System Info** page: displays project introduction, backend/frontend technology component lists; backend provides system runtime information API
-- New **Component Demo** page: embeds vben5 official website demo page via iframe, with load failure handling
-
-### Runtime Configuration Management
-- New **Parameter Settings** module: `sys_config` table stores system parameters in key-value form, supporting full CRUD, key-name query, Excel export/import (with overwrite/ignore modes)
-- Optimized **Dictionary Management** export/import: supports merged export/import of dictionary types and dictionary data into dual-sheet Excel files, simplifying the operation workflow
-
-### Host Data Permission Governance
-- New unified host data permission parsing capability: resolves the current user's effective data scope based on enabled roles and `dataScope`, with superadmin bypass and multi-role widest-range merging
-- New explicit resource policy registration for host resources: each governable resource declares its own filtering strategy by user column, department column, or organizational capability; no automatic column-name inference
-- First-batch integration of suitable host business modules:
-  - User Management: filters by user identity and department user set for list, detail, export, update, delete, status change, password reset, and role-authorized user list operations
-  - File Management: filters by uploader `created_by` and uploader's department for list, detail, batch info, download-by-id, delete, and aggregate queries; uploaded file URL access remains public with path normalization and metadata validation
-  - Cron Job Management: filters user-created tasks (`is_builtin=0`) by `created_by` and creator's department; built-in task projections maintain system governance semantics
-  - Online User: filters online session list and forced-offline by session `user_id` and user's department
-  - User Message: maintains current user self-isolation semantics; data permission must not widen this boundary
-- Explicitly excluded from data permission filtering: menu management, role base CRUD, dictionary, configuration, plugin governance, i18n, health check, system info, public config, cache, locks, and cluster coordination
-- Organizational capability degradation: when org-center is unavailable, "department data" scope degrades to "self only" scope
+- 新增操作日志和登录日志，覆盖自动记录、查询、详情、清理、批量删除和导出。
+- 新增在线用户管理和会话存储抽象，认证中间件同时校验 JWT 和在线会话，支持强制下线和不活跃会话清理。
+- 新增服务监控，周期采集 CPU、内存、磁盘、网络、Go runtime 和节点信息，并支持多节点最新快照展示。
+- 新增系统 API 文档、版本信息和组件演示页面，API 文档使用 iframe 隔离样式并按请求入口动态生成 OpenAPI server URL。
+- 移除主框架内建匿名`GET /api/v1/health`接口和`health.timeout`配置，业务健康探测由具体业务或交付层自行定义；保留系统信息中的集群与 coordination 诊断。
+- 新增宿主内部中立对象存储能力，将文件中心和插件对象存储的重复本地磁盘读写收敛到统一`storage.Service`；文件中心和插件`Storage()`领域边界保持独立。
+- 新增参数设置和字典导入导出优化的交叉能力；参数配置当前契约由系统配置分组承载，字典治理当前契约由组织结构分组承载。
+- 建立宿主数据权限治理：按角色`dataScope`解析有效数据范围，通过显式资源策略接入用户、文件、用户创建任务、在线会话和消息自隔离边界；菜单、角色、字典、配置、插件、i18n、健康检查、系统信息等全局治理资源不自动套用数据权限过滤。
+- 新增统一日志最长保留天数运行时参数 `sys.log.retentionDays`，默认 90 天，作为宿主与官方源码插件日志数据的全局最长时间边界；各模块已有更细粒度清理策略可继续提供更严格的清理，但不得突破该最长存储时间。
+- 改进操作日志和登录日志前端页面删除交互：移除表格复选框和按 ID 勾选删除，改为日期范围选择对话框，同时支持"删除所有日志"全量清理入口。
 
 ## Capabilities
 
 ### New Capabilities
-- `oper-log`: Operation log auto-recording (middleware interception), list query, detail view, time-range cleanup, batch delete, export
-- `login-log`: Login log auto-recording, list query, detail view, time-range cleanup, batch delete, export
-- `online-user`: Online user management including session tracking (MySQL MEMORY engine), online user list query, forced offline, inactive session auto-cleanup
-- `server-monitor`: Server monitoring including periodic metric collection (CPU, memory, disk, network, Go runtime), multi-node database writes, frontend metric display with node switching
-- `system-api-docs`: System API documentation page integrating Stoplight Elements to display OpenAPI docs with online testing, dynamically generating server URLs from request origin
-- `system-info`: Version info page displaying project info, backend/frontend component info; backend provides system runtime info API
-- `component-demo`: Component demo page with iframe embedding of vben5 official demo, with load failure handling
-- `config-management`: Complete CRUD management for system parameter settings including list query, create, edit, delete, key-name query, Excel export/import
-- `dict-import`: Dictionary type and data import functionality, plus merged export/import optimization
-- `host-data-permission-governance`: Unified host data permission parsing, resource policy registration, module applicability classification, query injection, write-operation boundary validation, cache consistency, and first-batch host resource integration
+
+- `oper-log`：操作日志自动记录、查询、详情、清理、批量删除和导出；前端页面改为日期范围删除对话框。
+- `login-log`：登录/登出日志自动记录、查询、详情、清理、批量删除和导出；前端页面改为日期范围删除对话框。
+- `online-user`：在线会话存储、在线用户列表、强制下线、不活跃清理和数据权限约束。
+- `server-monitor`：服务指标周期采集、多节点快照、前端监控展示和 stale 数据清理。
+- `system-api-docs`：系统 API 文档 iframe 展示、在线调试和动态 server URL。
+- `system-info`：版本信息、运行时信息、前后端组件信息和外链配置。
+- `component-demo`：组件演示 iframe 页面和加载失败兜底。
+- `dict-import`：字典类型/数据导入、合并导出导入和模板下载。
+- `host-data-permission-governance`：宿主数据权限解析、资源策略、读写边界、缓存一致性和首批模块接入。
+- `log-retention-cleanup`：全局日志最长保留天数运行时参数、各日志模块自动清理策略、数据权限例外和缓存一致性。
 
 ### Modified Capabilities
-- `user-auth`: Authentication flow refactored -- login writes login log and creates session record, logout writes login log and deletes session record, middleware adds session validity check to support forced offline
-- `role-management`: Role data scope is no longer just a stored field; it must serve as input to host data permission parsing, and changes must trigger access topology cache invalidation
-- `user-management`: User data queries and mutations must follow the caller's data permission scope
-- `online-user`: Online session list and forced offline must follow the caller's data permission scope
-- `cron-job-management`: User-created tasks and associated execution logs must follow the caller's data permission scope; built-in task projections maintain system governance semantics
-- `user-message`: User messages maintain current user self-isolation boundary; data permission must not widen this boundary
+
+- `user-auth`：登录/登出写入日志并维护在线会话；当前认证契约由`user-auth`主规范承载。
+- `role-management`：角色`dataScope`成为宿主数据权限输入；当前角色契约由`user-management`分组承载。
+- `user-management`、`cron-job-management`、`user-message`：作为数据权限首批或自隔离资源受到治理；当前业务契约由各自 owner 分组承载。
 
 ## Impact
 
-- **Database**: New tables `sys_oper_log`, `sys_login_log`, `sys_online_session` (MEMORY engine), `sys_server_monitor`, `sys_config`; new system monitoring menu and dictionary data
-- **Backend API**: New RESTful interfaces for operation logs, login logs, online users, server monitoring, system info, parameter settings
-- **Backend Services**: New service modules for operlog, loginlog, online-user, server-monitor, sysinfo, sysconfig, dataperm; new operation log middleware; refactored auth service and middleware
-- **Backend Dependencies**: New `github.com/shirou/gopsutil/v4` (system metric collection), `mssola/useragent` (UA parsing)
-- **Frontend Routes**: New "System Monitor" menu (operation logs, login logs, online users, server monitor), "System Info" menu (system API docs, version info, component demo), parameter settings menu item
-- **Frontend Views**: New page components under monitor/ and about/ directories, system/config/ parameter settings page
-- **Frontend Dependencies**: Introduced `@scalar/api-reference` (OpenAPI document rendering)
-- **Dictionary Data**: New `sys_oper_type` (operation type), `sys_login_status` (login status) dictionary types
-- **Data Permission**: New `dataperm` internal service; affected backend services for user, file, job, session, and message modules; access topology cache integration for data scope changes
-- **i18n**: New bizerr error codes for data permission rejection must include zh-CN, en-US, zh-TW runtime translations
+- 历史实现曾新增日志、在线会话、服务监控、配置、系统信息和数据权限相关数据库表、服务、API、前端页面、E2E、i18n 和审查规则。
+- 当前能力契约以`openspec/specs/<capability>/spec.md`为准；本分组保留系统治理 owner 能力的历史规范入口。
+- 配置、调度、角色、用户、认证和消息等非 owner 能力只在`design.md`中保留交叉影响摘要，不再重复保存完整规范全文。
+- 本次压缩不修改运行时代码、HTTP API、数据库、前端 UI、插件源码、语言包、`manifest/i18n`、`apidoc i18n JSON`、缓存实现或生产构建入口。

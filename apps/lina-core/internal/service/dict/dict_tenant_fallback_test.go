@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/xuri/excelize/v2"
 	_ "lina-core/pkg/dbdriver"
+
+	"github.com/xuri/excelize/v2"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -22,9 +23,11 @@ import (
 // TestTenantDictReadPrefersTenantOverrideWithPlatformFallback verifies
 // dictionary type and data reads use tenant rows before platform defaults.
 func TestTenantDictReadPrefersTenantOverrideWithPlatformFallback(t *testing.T) {
-	ctx := context.Background()
-	tenantCtx := datascope.WithTenantForTest(ctx, 91)
-	dictType := fmt.Sprintf("tenant_fallback_%d", time.Now().UnixNano())
+	var (
+		ctx       = context.Background()
+		tenantCtx = datascope.WithTenantScope(ctx, 91)
+		dictType  = fmt.Sprintf("tenant_fallback_%d", time.Now().UnixNano())
+	)
 	insertTenantFallbackDictType(t, ctx, datascope.PlatformTenantID, dictType, "Platform", true)
 	insertTenantFallbackDictType(t, ctx, 91, dictType, "Tenant", true)
 	insertTenantFallbackDictType(t, ctx, datascope.PlatformTenantID, dictType+"_platform_only", "Platform Only", false)
@@ -94,9 +97,11 @@ func TestTenantDictReadPrefersTenantOverrideWithPlatformFallback(t *testing.T) {
 // TestTenantDictOverrideRequiresPlatformPermission verifies tenant dictionary
 // overrides are rejected unless the platform type allows them.
 func TestTenantDictOverrideRequiresPlatformPermission(t *testing.T) {
-	ctx := context.Background()
-	tenantCtx := datascope.WithTenantForTest(ctx, 92)
-	dictType := fmt.Sprintf("tenant_override_denied_%d", time.Now().UnixNano())
+	var (
+		ctx       = context.Background()
+		tenantCtx = datascope.WithTenantScope(ctx, 92)
+		dictType  = fmt.Sprintf("tenant_override_denied_%d", time.Now().UnixNano())
+	)
 	insertTenantFallbackDictType(t, ctx, datascope.PlatformTenantID, dictType, "Platform", false)
 
 	_, err := New(nil).Create(tenantCtx, CreateInput{
@@ -122,11 +127,13 @@ func TestTenantDictOverrideRequiresPlatformPermission(t *testing.T) {
 // TestTenantDictTypeImportPersistsCurrentTenant verifies imported dictionary
 // types are owned by the request tenant.
 func TestTenantDictTypeImportPersistsCurrentTenant(t *testing.T) {
-	ctx := context.Background()
-	tenantID := 97
-	tenantCtx := datascope.WithTenantForTest(ctx, tenantID)
-	dictType := fmt.Sprintf("tenant_import_type_%d", time.Now().UnixNano())
-	importData := buildDictTypeImportFile(t, []string{"Tenant Import Type", dictType, "1", "tenant import test"})
+	var (
+		ctx        = context.Background()
+		tenantID   = 97
+		tenantCtx  = datascope.WithTenantScope(ctx, tenantID)
+		dictType   = fmt.Sprintf("tenant_import_type_%d", time.Now().UnixNano())
+		importData = buildDictTypeImportFile(t, []string{"Tenant Import Type", dictType, "1", "tenant import test"})
+	)
 
 	result, err := New(nil).TypeImport(tenantCtx, bytes.NewReader(importData), false)
 	if err != nil {
@@ -155,10 +162,12 @@ func TestTenantDictTypeImportPersistsCurrentTenant(t *testing.T) {
 // verifies tenant data imports create tenant rows while preserving platform
 // fallback dictionary data.
 func TestTenantDictDataImportCreatesOverrideInsteadOfUpdatingPlatformFallback(t *testing.T) {
-	ctx := context.Background()
-	tenantID := 98
-	tenantCtx := datascope.WithTenantForTest(ctx, tenantID)
-	dictType := fmt.Sprintf("tenant_import_data_%d", time.Now().UnixNano())
+	var (
+		ctx       = context.Background()
+		tenantID  = 98
+		tenantCtx = datascope.WithTenantScope(ctx, tenantID)
+		dictType  = fmt.Sprintf("tenant_import_data_%d", time.Now().UnixNano())
+	)
 	insertTenantFallbackDictType(t, ctx, datascope.PlatformTenantID, dictType, "Platform Type", true)
 	insertTenantFallbackDictData(t, ctx, datascope.PlatformTenantID, dictType, "shared", "Platform Label")
 	importData := buildDictDataImportFile(t, []string{dictType, "Tenant Label", "shared", "1", "primary", "", "1", "tenant import override"})
