@@ -1042,19 +1042,12 @@ func writeWasmRouteHelpers(builder *strings.Builder, spec *wasmDispatcherSpec) {
 	return false
 }
 
-func generatedWasmParseBool(value string, isPathParam bool) bool {
+func generatedWasmParseBool(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "1", "true", "yes", "on":
+	case "1", "true":
 		return true
-	case "0", "false", "no", "off", "":
+	case "0", "false", "":
 		return false
-	default:
-		if isPathParam {
-			parsed, err := strconv.ParseBool(strings.TrimSpace(value))
-			if err == nil {
-				return parsed
-			}
-		}
 	}
 	return false
 }
@@ -1189,9 +1182,9 @@ func writeWasmRouteValueAssignment(builder *strings.Builder, field *wasmDTOField
 		builder.WriteString("\t\t}\n")
 	case "bool":
 		builder.WriteString(fmt.Sprintf("\t\tif value, ok := generatedWasmPathParams(targetRequest)[%s]; ok {\n", strconv.Quote(jsonName)))
-		builder.WriteString(fmt.Sprintf("\t\t\treq.%s = generatedWasmParseBool(value, true)\n", goName))
+		builder.WriteString(fmt.Sprintf("\t\t\treq.%s = generatedWasmParseBool(value)\n", goName))
 		builder.WriteString(fmt.Sprintf("\t\t} else if values, ok := generatedWasmQueryValues(targetRequest)[%s]; ok && len(values) > 0 {\n", strconv.Quote(jsonName)))
-		builder.WriteString(fmt.Sprintf("\t\t\treq.%s = generatedWasmParseBool(values[0], false)\n", goName))
+		builder.WriteString(fmt.Sprintf("\t\t\treq.%s = generatedWasmParseBool(values[0])\n", goName))
 		builder.WriteString("\t\t}\n")
 	case "int", "int8", "int16", "int32", "int64":
 		builder.WriteString(fmt.Sprintf("\t\tif value := generatedWasmRouteValue(targetRequest, %s); value != \"\" {\n", strconv.Quote(jsonName)))

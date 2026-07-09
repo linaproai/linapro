@@ -2,8 +2,7 @@
 // primitives that survived the migration to charmbracelet/huh.
 //
 // We test only the parts that are testable without a real terminal:
-//   - IsInteractiveTerminal and ReadLine (legacy primitives that still
-//     drive non-TTY paths and unit tests).
+//   - IsInteractiveTerminal.
 //   - The non-TTY degrade behaviour of PromptSelection / PromptSingleSelection
 //     / PromptYesNo. When stdin is not a *os.File pointing at a character
 //     device the helpers must return safe zero values rather than spawn a
@@ -37,27 +36,6 @@ func fakeSelectables() []SelectableEntry {
 func TestIsInteractiveTerminalNilFile(t *testing.T) {
 	if IsInteractiveTerminal(nil) {
 		t.Fatalf("nil file must not be a terminal")
-	}
-}
-
-func TestReadLineTrimsAndLowercases(t *testing.T) {
-	cases := []struct {
-		input string
-		want  string
-	}{
-		{input: "Link\n", want: "link"},
-		{input: "  q  \n", want: "q"},
-		{input: "\n", want: ""},
-		{input: "", want: ""},
-	}
-	for _, testCase := range cases {
-		got, err := ReadLine(bytes.NewBufferString(testCase.input))
-		if err != nil {
-			t.Fatalf("ReadLine(%q): %v", testCase.input, err)
-		}
-		if got != testCase.want {
-			t.Fatalf("ReadLine(%q) got=%q want=%q", testCase.input, got, testCase.want)
-		}
 	}
 }
 

@@ -31,7 +31,7 @@ func deriveGitTag(ctx context.Context, repoRoot string) (string, error) {
 func validateImageBuildRequest(image imageConfig, build buildConfig) error {
 	if image.Push {
 		if strings.TrimSpace(image.Registry) == "" {
-			return errors.New("push=true requires image.registry in hack/config.yaml, registry=<prefix>, or LINAPRO_IMAGE_REGISTRY")
+			return errors.New("push=true requires image.registry in hack/config.yaml or registry=<prefix>")
 		}
 	}
 	for _, target := range build.Targets {

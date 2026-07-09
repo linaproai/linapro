@@ -4,15 +4,131 @@ package wasmbuilder
 
 import (
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
+
+func TestRenderWasmDispatcherBoolParserUsesStandardFormsOnly(t *testing.T) {
+	content, err := renderWasmDispatcher(&wasmDispatcherSpec{
+		PluginID: "plugin-dev-bool",
+		APIControllers: []*wasmAPIControllerSpec{
+			{
+				APIPackage:     "dynamic/v1",
+				ImportAlias:    "controller1",
+				PackagePath:    "plugin-dev-bool/backend/internal/controller/dynamic/v1",
+				InterfacePath:  "plugin-dev-bool/backend/api/dynamic/v1",
+				Constructor:    "controller1.New()",
+				ConcreteType:   "*controller1.Controller",
+				InterfaceName:  "IReview",
+				InterfaceAlias: "dynamicv1",
+			},
+		},
+		Routes: []*wasmRouteHandlerSpec{
+			{
+				RequestType:     "ReviewReq",
+				Method:          "GET",
+				Path:            "/review",
+				APIPackage:      "dynamic/v1",
+				ControllerAlias: "controller1",
+				MethodName:      "Review",
+				DTOImportAlias:  "dtoV1",
+				RequestTypeExpr: "dtoV1.ReviewReq",
+				Fields: []*wasmDTOFieldSpec{
+					{GoName: "Enabled", JSONName: "enabled", GoType: "bool", Required: true},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("renderWasmDispatcher returned error: %v", err)
+	}
+
+	assertGeneratedWasmBoolParserUsesStandardFormsOnly(t, content)
+}
+
+func assertGeneratedWasmBoolParserUsesStandardFormsOnly(t *testing.T, content []byte) {
+	t.Helper()
+
+	fileNode, err := parser.ParseFile(token.NewFileSet(), generatedDispatcherFileName, content, 0)
+	if err != nil {
+		t.Fatalf("parse generated dispatcher: %v", err)
+	}
+
+	allowedCases := map[string]struct{}{
+		"1":     {},
+		"true":  {},
+		"0":     {},
+		"false": {},
+		"":      {},
+	}
+	seenCases := make(map[string]struct{}, len(allowedCases))
+	foundParser := false
+	ast.Inspect(fileNode, func(node ast.Node) bool {
+		switch item := node.(type) {
+		case *ast.FuncDecl:
+			if item.Name == nil || item.Name.Name != "generatedWasmParseBool" {
+				return true
+			}
+			foundParser = true
+			params := item.Type.Params
+			if params == nil || len(params.List) != 1 || len(params.List[0].Names) != 1 {
+				t.Fatalf("generated bool parser must accept exactly one value parameter")
+			}
+		case *ast.CallExpr:
+			switch fn := item.Fun.(type) {
+			case *ast.SelectorExpr:
+				if ident, ok := fn.X.(*ast.Ident); ok && ident.Name == "strconv" && fn.Sel.Name == "ParseBool" {
+					t.Fatalf("generated dispatcher must not call the standard library bool parser")
+				}
+			case *ast.Ident:
+				if fn.Name == "generatedWasmParseBool" && len(item.Args) != 1 {
+					t.Fatalf("generated bool parser call must pass exactly one argument")
+				}
+			}
+		case *ast.CaseClause:
+			if len(item.List) == 0 {
+				return true
+			}
+			for _, expr := range item.List {
+				literal, ok := expr.(*ast.BasicLit)
+				if !ok || literal.Kind != token.STRING {
+					continue
+				}
+				value, unquoteErr := strconv.Unquote(literal.Value)
+				if unquoteErr != nil {
+					t.Fatalf("unquote generated bool case %s: %v", literal.Value, unquoteErr)
+				}
+				if _, ok = allowedCases[value]; ok {
+					seenCases[value] = struct{}{}
+					continue
+				}
+				if value == "POST" || value == "PUT" || value == "PATCH" || value == "GET" || value == "ReviewReq" {
+					continue
+				}
+				t.Fatalf("generated dispatcher contains unexpected string switch case %q", value)
+			}
+		}
+		return true
+	})
+	if !foundParser {
+		t.Fatalf("generated dispatcher must define generatedWasmParseBool")
+	}
+	for value := range allowedCases {
+		if _, ok := seenCases[value]; !ok {
+			t.Fatalf("generated bool parser missing standard case %q", value)
+		}
+	}
+}
 
 func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	pluginDir := t.TempDir()

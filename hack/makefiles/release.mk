@@ -10,9 +10,6 @@ endif
 ifneq ($(origin metadata), undefined)
 RELEASE_ARGS += metadata=$(metadata)
 endif
-ifneq ($(origin print_version), undefined)
-RELEASE_ARGS += print_version=$(print_version)
-endif
 ifneq ($(origin print-version), undefined)
 RELEASE_ARGS += print-version=$(print-version)
 endif

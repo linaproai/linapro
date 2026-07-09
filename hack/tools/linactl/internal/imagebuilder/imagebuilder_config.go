@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -49,20 +48,19 @@ type imageConfig struct {
 
 // cliOptions stores one invocation's command-line overrides.
 type cliOptions struct {
-	ConfigPath    string
-	BuildOnly     bool
-	Preflight     bool
-	PrintBuildEnv bool
-	Image         string
-	Tag           string
-	Registry      string
-	Push          string
-	Platforms     string
-	CGOEnabled    string
-	OutputDir     string
-	BinaryName    string
-	BaseImage     string
-	Verbose       string
+	ConfigPath string
+	BuildOnly  bool
+	Preflight  bool
+	Image      string
+	Tag        string
+	Registry   string
+	Push       string
+	Platforms  string
+	CGOEnabled string
+	OutputDir  string
+	BinaryName string
+	BaseImage  string
+	Verbose    string
 }
 
 // defaultRootConfig returns stable defaults used when config values are omitted.
@@ -131,11 +129,8 @@ func applyBuildOverrides(cfg *buildConfig, opts cliOptions, specified map[string
 	return nil
 }
 
-// applyImageOverrides merges environment and command-line overrides into image metadata values.
+// applyImageOverrides merges command-line overrides into image metadata values.
 func applyImageOverrides(cfg *imageConfig, opts cliOptions, specified map[string]bool) error {
-	if envRegistry := strings.TrimSpace(os.Getenv("LINAPRO_IMAGE_REGISTRY")); envRegistry != "" && !specified["registry"] {
-		cfg.Registry = envRegistry
-	}
 	if specified["image"] {
 		cfg.Name = opts.Image
 	}
@@ -226,11 +221,14 @@ func parseOptionalBool(value string, fallback bool) (bool, error) {
 	if normalized == "" {
 		return fallback, nil
 	}
-	parsed, err := strconv.ParseBool(normalized)
-	if err != nil {
-		return false, err
+	switch strings.ToLower(normalized) {
+	case "1", "true":
+		return true, nil
+	case "0", "false":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid boolean value %q; expected true, false, 1, or 0", value)
 	}
-	return parsed, nil
 }
 
 // MultiPlatform reports whether the build targets more than one platform.

@@ -125,6 +125,42 @@ func TestValidateImageBuildRequestRejectsNonLinux(t *testing.T) {
 	}
 }
 
+func TestParseOptionalBoolRejectsNonStandardValue(t *testing.T) {
+	if _, err := parseOptionalBool("maybe", false); err == nil {
+		t.Fatalf("expected non-standard boolean value to be rejected")
+	}
+}
+
+func TestOptionsFromInputUsesKebabCaseOnly(t *testing.T) {
+	baseImageSnakeKey := "base" + "_" + "image"
+	outputDirSnakeKey := "output" + "_" + "dir"
+	binaryNameSnakeKey := "binary" + "_" + "name"
+
+	opts, specified, err := optionsFromInput(imageBuildTestInput{params: map[string]string{
+		"base-image":       "alpine:3.22",
+		baseImageSnakeKey:  "ubuntu:24.04",
+		"output-dir":       "temp/image",
+		outputDirSnakeKey:  "temp/ignored",
+		"binary-name":      "lina-custom",
+		binaryNameSnakeKey: "ignored",
+	}}, nil)
+	if err != nil {
+		t.Fatalf("optionsFromInput returned error: %v", err)
+	}
+	if opts.BaseImage != "alpine:3.22" || !specified["base-image"] {
+		t.Fatalf("expected kebab-case base-image to be selected, opts=%#v specified=%#v", opts, specified)
+	}
+	if opts.OutputDir != "temp/image" || !specified["output-dir"] {
+		t.Fatalf("expected kebab-case output-dir to be selected, opts=%#v specified=%#v", opts, specified)
+	}
+	if opts.BinaryName != "lina-custom" || !specified["binary-name"] {
+		t.Fatalf("expected kebab-case binary-name to be selected, opts=%#v specified=%#v", opts, specified)
+	}
+	if specified[baseImageSnakeKey] || specified[outputDirSnakeKey] || specified[binaryNameSnakeKey] {
+		t.Fatalf("snake_case keys must not be marked as specified: %#v", specified)
+	}
+}
+
 // TestBuildxDockerArgs verifies multi-platform image publishing uses buildx
 // with a platform matrix and push.
 func TestBuildxDockerArgs(t *testing.T) {
@@ -173,4 +209,32 @@ func TestDockerBuildArgs(t *testing.T) {
 	if !reflect.DeepEqual(args, want) {
 		t.Fatalf("docker build args = %#v, want %#v", args, want)
 	}
+}
+
+type imageBuildTestInput struct {
+	params map[string]string
+}
+
+func (input imageBuildTestInput) Get(key string) string {
+	return input.params[key]
+}
+
+func (input imageBuildTestInput) GetDefault(key string, fallback string) string {
+	if value := input.Get(key); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func (input imageBuildTestInput) Has(key string) bool {
+	_, ok := input.params[key]
+	return ok
+}
+
+func (input imageBuildTestInput) Bool(key string, fallback bool) (bool, error) {
+	return parseOptionalBool(input.Get(key), fallback)
+}
+
+func (input imageBuildTestInput) ParamMap() map[string]string {
+	return input.params
 }

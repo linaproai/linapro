@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,26 +30,17 @@ func runWasm(ctx context.Context, a *app, input commandInput) error {
 		return fmt.Errorf("create wasm output directory: %w", err)
 	}
 
-	if pluginDir := input.Get("plugin_dir"); pluginDir != "" {
-		if !filepath.IsAbs(pluginDir) {
-			cwd, err := os.Getwd()
-			if err != nil {
-				return fmt.Errorf("resolve current directory for wasm plugin dir: %w", err)
-			}
-			pluginDir = filepath.Join(cwd, pluginDir)
+	if rawDir := input.Get("dir"); rawDir != "" {
+		pluginDir, err := resolveWasmPluginDir(a.root, rawDir)
+		if err != nil {
+			return err
 		}
 		if err := preparePluginDirWorkspace(a.root, pluginDir); err != nil {
 			return err
 		}
-		dryRun, err := input.Bool("dry_run", false)
+		dryRun, err := input.Bool("dry-run", false)
 		if err != nil {
 			return err
-		}
-		if !dryRun {
-			dryRun, err = input.Bool("dry-run", false)
-			if err != nil {
-				return err
-			}
 		}
 		fmt.Fprintf(a.stdout, "Building dynamic wasm plugin from: %s\n", pluginDir)
 		if dryRun {
@@ -72,7 +64,7 @@ func runWasm(ctx context.Context, a *app, input commandInput) error {
 	if _, err = plugins.PrepareOfficialWorkspace(a.root, true, workspace); err != nil {
 		return err
 	}
-	plugins, err := dynamicPlugins(a.root, input.Get("p"))
+	plugins, err := dynamicPlugins(a.root)
 	if err != nil {
 		return err
 	}
@@ -81,15 +73,9 @@ func runWasm(ctx context.Context, a *app, input commandInput) error {
 		return nil
 	}
 
-	dryRun, err := input.Bool("dry_run", false)
+	dryRun, err := input.Bool("dry-run", false)
 	if err != nil {
 		return err
-	}
-	if !dryRun {
-		dryRun, err = input.Bool("dry-run", false)
-		if err != nil {
-			return err
-		}
 	}
 	for _, plugin := range plugins {
 		fmt.Fprintf(a.stdout, "Building dynamic wasm plugin: %s\n", plugin)
@@ -105,8 +91,30 @@ func runWasm(ctx context.Context, a *app, input commandInput) error {
 	return nil
 }
 
+func resolveWasmPluginDir(root string, rawDir string) (string, error) {
+	if strings.TrimSpace(rawDir) == "" {
+		return "", errors.New("wasm dir cannot be empty")
+	}
+	dir := rawDir
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(root, dir)
+	}
+	clean, err := filepath.Abs(filepath.Clean(dir))
+	if err != nil {
+		return "", fmt.Errorf("resolve wasm dir %q: %w", rawDir, err)
+	}
+	info, err := os.Stat(clean)
+	if err != nil {
+		return "", fmt.Errorf("stat wasm dir %s: %w", clean, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("wasm dir is not a directory: %s", clean)
+	}
+	return clean, nil
+}
+
 // preparePluginDirWorkspace prepares the temporary official plugin workspace
-// when an explicit plugin_dir points inside apps/lina-plugins.
+// when an explicit dir points inside apps/lina-plugins.
 func preparePluginDirWorkspace(root string, pluginDir string) error {
 	officialRoot := filepath.Join(root, "apps", "lina-plugins")
 	relativePath, err := filepath.Rel(officialRoot, pluginDir)
@@ -124,17 +132,11 @@ func preparePluginDirWorkspace(root string, pluginDir string) error {
 	return err
 }
 
-// dynamicPlugins returns dynamic plugin IDs, optionally validating one plugin.
-func dynamicPlugins(root string, plugin string) ([]string, error) {
+// dynamicPlugins returns buildable official dynamic plugin IDs.
+func dynamicPlugins(root string) ([]string, error) {
 	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
 	if err := plugins.RequireOfficialWorkspace(root); err != nil {
 		return nil, err
-	}
-	if plugin != "" {
-		if err := plugins.ValidateDynamic(pluginRoot, plugin); err != nil {
-			return nil, err
-		}
-		return []string{plugin}, nil
 	}
 
 	entries, err := os.ReadDir(pluginRoot)

@@ -6,8 +6,6 @@
 //     real character device, used by every command_agents.* entry point
 //     to decide whether to enter the huh-based interactive flow or fall
 //     back to a non-interactive usage hint.
-//   - ReadLine: a single-line trimmed/lower-cased reader retained for
-//     legacy non-TTY paths and tests that still parse plain text input.
 //   - SelectableEntry: the row description type consumed by huh-based
 //     PromptSelection / PromptSingleSelection helpers in
 //     common_interactive_huh.go.
@@ -23,11 +21,7 @@
 package common
 
 import (
-	"bufio"
-	"fmt"
-	"io"
 	"os"
-	"strings"
 )
 
 // IsInteractiveTerminal reports whether the provided file looks like an
@@ -42,19 +36,6 @@ func IsInteractiveTerminal(file *os.File) bool {
 		return false
 	}
 	return info.Mode()&os.ModeCharDevice != 0
-}
-
-// ReadLine reads a single trimmed and lower-cased line from the provided
-// reader. EOF is treated as an empty line so callers can interpret it as
-// cancellation. Other read errors are wrapped with context for upstream
-// display.
-func ReadLine(in io.Reader) (string, error) {
-	reader := bufio.NewReader(in)
-	line, err := reader.ReadString('\n')
-	if err != nil && err != io.EOF {
-		return "", fmt.Errorf("read line: %w", err)
-	}
-	return strings.TrimSpace(strings.ToLower(line)), nil
 }
 
 // SelectableEntry describes one candidate row for interactive selection.

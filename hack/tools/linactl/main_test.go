@@ -41,7 +41,7 @@ func init() {
 }
 
 func TestParseCommandInputSupportsMakeStyleParams(t *testing.T) {
-	input, err := parseCommandInput([]string{"confirm=init", "rebuild=true", "--platforms=linux/amd64,linux/arm64", "UPPER=ClaudeCode", "-h", "extra"})
+	input, err := parseCommandInput([]string{"confirm=init", "rebuild=true", "--platforms=linux/amd64,linux/arm64", "--dash-key=literal", "UPPER=ClaudeCode", "-h", "extra"})
 	if err != nil {
 		t.Fatalf("parseCommandInput returned error: %v", err)
 	}
@@ -55,9 +55,11 @@ func TestParseCommandInputSupportsMakeStyleParams(t *testing.T) {
 	if input.Get("platforms") != "linux/amd64,linux/arm64" {
 		t.Fatalf("platforms mismatch: %q", input.Get("platforms"))
 	}
-	input.Params["base_image"] = "alpine"
-	if input.Get("base-image") != "alpine" {
-		t.Fatalf("hyphenated key did not resolve normalized parameter")
+	if input.Get("dash-key") != "literal" {
+		t.Fatalf("hyphenated literal key mismatch: %q", input.Get("dash-key"))
+	}
+	if input.Get("dash_key") != "" {
+		t.Fatalf("hyphenated key should not resolve as snake_case parameter")
 	}
 	if input.Get("upper") != "" {
 		t.Fatalf("upper-case key should not resolve as lower-case parameter")
@@ -497,18 +499,18 @@ func TestRunReleaseTagCheckAcceptsMatchingMetadataVersion(t *testing.T) {
 	}
 }
 
-// TestRunReleaseTagCheckUsesGitHubRefNameFallback verifies tag workflow input.
-func TestRunReleaseTagCheckUsesGitHubRefNameFallback(t *testing.T) {
+// TestRunReleaseTagCheckRequiresExplicitTag verifies environment variables are
+// not accepted as implicit release inputs.
+func TestRunReleaseTagCheckRequiresExplicitTag(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "framework:\n  version: v1.2.3-rc.1\n")
 
 	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
 	application.root = root
-	application.env = toolutil.SetEnvValue(os.Environ(), "GITHUB_REF_NAME", "v1.2.3-rc.1")
 
 	err := runReleaseTagCheck(context.Background(), application, commandInput{})
-	if err != nil {
-		t.Fatalf("runReleaseTagCheck should use GITHUB_REF_NAME fallback: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "release tag is empty; pass tag=<version>") {
+		t.Fatalf("expected explicit tag error, got %v", err)
 	}
 }
 
@@ -521,7 +523,7 @@ func TestRunReleaseTagCheckPrintsValidatedFrameworkVersion(t *testing.T) {
 	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
 	application.root = root
 
-	err := runReleaseTagCheck(context.Background(), application, commandInput{Params: map[string]string{"print_version": "1"}})
+	err := runReleaseTagCheck(context.Background(), application, commandInput{Params: map[string]string{"print-version": "1"}})
 	if err != nil {
 		t.Fatalf("runReleaseTagCheck returned error: %v", err)
 	}
@@ -949,7 +951,7 @@ func TestDynamicPluginsScansYAMLManifests(t *testing.T) {
 	writeFile(t, filepath.Join(pluginRoot, "dynamic-b", "plugin.yaml"), "type: dynamic\n")
 	writeFile(t, filepath.Join(pluginRoot, "dynamic-a", "plugin.yaml"), "type: dynamic\n")
 
-	plugins, err := dynamicPlugins(root, "")
+	plugins, err := dynamicPlugins(root)
 	if err != nil {
 		t.Fatalf("dynamicPlugins returned error: %v", err)
 	}
@@ -1104,25 +1106,24 @@ func TestRunBuildDirRunsArbitraryHackConfigCommands(t *testing.T) {
 	}
 }
 
-func TestRunBuildDirFallsBackToPackageBuildWithoutHackConfig(t *testing.T) {
+func TestRunBuildDirRejectsPackageBuildWithoutHackConfig(t *testing.T) {
 	root := t.TempDir()
 	writeBuildFixture(t, root)
-	targetDir := filepath.Join(root, "tools", "package-builder")
-	writeFile(t, filepath.Join(targetDir, "package.json"), `{"scripts":{"build":"vite build"}}`)
+	writeFile(t, filepath.Join(root, "tools", "package-builder", "package.json"), `{"scripts":{"build":"vite build"}}`)
 
-	calls := runBuildWithCapturedCommands(t, root, nil, commandInput{Params: map[string]string{
-		"dir": "tools/package-builder",
-	}})
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.lookPath = func(name string) (string, error) {
+		return name, nil
+	}
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		t.Fatalf("build without hack/config.yaml must not execute %s %#v", name, args)
+		return exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+	}
 
-	if len(calls) != 1 {
-		t.Fatalf("expected one package build command, got %#v", calls)
-	}
-	call := calls[0]
-	if call.name != "pnpm" || len(call.args) != 2 || call.args[0] != "run" || call.args[1] != "build" {
-		t.Fatalf("unexpected package build command: %#v", call)
-	}
-	if call.cmd.Dir != targetDir {
-		t.Fatalf("package build dir mismatch: got %q want %q", call.cmd.Dir, targetDir)
+	err := runBuild(context.Background(), application, commandInput{Params: map[string]string{"dir": "tools/package-builder"}})
+	if err == nil || !strings.Contains(err.Error(), "build dir has no hack/config.yaml") {
+		t.Fatalf("expected missing hack/config.yaml error, got %v", err)
 	}
 }
 
@@ -1356,7 +1357,7 @@ func TestResolveBuildConfigStepsSkipsTargetsWithoutCommands(t *testing.T) {
 		withoutBuild = filepath.Join(root, "apps", "lina-plugins", "without-build")
 	)
 	writeFile(t, filepath.Join(withBuild, "plugin.yaml"), "id: with-build\n")
-	writeFile(t, filepath.Join(withBuild, "hack", "config.yaml"), "build:\n  commands:\n    - node build.mjs\n    - pnpm --dir \"$(PLUGIN_ROOT)/frontend\" run build\n")
+	writeFile(t, filepath.Join(withBuild, "hack", "config.yaml"), "build:\n  commands:\n    - node build.mjs\n    - pnpm --dir \"$(BUILD_DIR)/frontend\" run build\n")
 	writeFile(t, filepath.Join(withoutBuild, "plugin.yaml"), "id: without-build\n")
 	writeFile(t, filepath.Join(withoutBuild, "hack", "config.yaml"), "gfcli:\n  gen:\n    dao: []\n")
 
@@ -1379,7 +1380,7 @@ func TestResolveBuildConfigStepsSkipsTargetsWithoutCommands(t *testing.T) {
 		t.Fatalf("unexpected plugin build steps: %#v", steps)
 	}
 	if steps[1].Command != "pnpm" || steps[1].Args[1] != filepath.Join(withBuild, "frontend") {
-		t.Fatalf("expected plugin root expansion in command, got %#v", steps[1])
+		t.Fatalf("expected build dir expansion in command, got %#v", steps[1])
 	}
 	emptySteps, exists, err := resolveBuildConfigSteps(root, withoutBuild)
 	if err != nil {
@@ -1420,6 +1421,23 @@ func TestResolveBuildConfigStepsSkipsTargetsWithoutCommands(t *testing.T) {
 	}
 }
 
+func TestResolveBuildConfigStepsLeavesUnknownVariablesLiteral(t *testing.T) {
+	root := t.TempDir()
+	targetDir := filepath.Join(root, "apps", "lina-plugins", "with-build")
+	writeFile(t, filepath.Join(targetDir, "hack", "config.yaml"), "build:\n  commands:\n    - pnpm --dir \"$(UNKNOWN_ROOT)/frontend\" run build\n")
+
+	steps, exists, err := resolveBuildConfigSteps(root, targetDir)
+	if err != nil {
+		t.Fatalf("resolveBuildConfigSteps returned error: %v", err)
+	}
+	if !exists {
+		t.Fatalf("expected config existence to be reported")
+	}
+	if len(steps) != 1 || steps[0].Args[1] != "$(UNKNOWN_ROOT)/frontend" {
+		t.Fatalf("expected unknown variable to stay literal, got %#v", steps)
+	}
+}
+
 func TestRunWasmResolvesExplicitRelativeOutputFromRepositoryRoot(t *testing.T) {
 	root := t.TempDir()
 	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
@@ -1449,7 +1467,7 @@ func TestRunWasmResolvesExplicitRelativeOutputFromRepositoryRoot(t *testing.T) {
 	if err = runWasm(context.Background(), application, commandInput{
 		Params: map[string]string{
 			"out": "temp/output",
-			"p":   "linapro-demo-dynamic",
+			"dir": filepath.Join("apps", "lina-plugins", "linapro-demo-dynamic"),
 		},
 	}); err != nil {
 		t.Fatalf("runWasm returned error: %v", err)
@@ -1477,7 +1495,7 @@ func TestRunWasmUsesRepositoryTempOutputByDefault(t *testing.T) {
 	application.root = root
 
 	if err := runWasm(context.Background(), application, commandInput{
-		Params: map[string]string{"p": "linapro-demo-dynamic"},
+		Params: map[string]string{"dir": filepath.Join("apps", "lina-plugins", "linapro-demo-dynamic")},
 	}); err != nil {
 		t.Fatalf("runWasm returned error: %v", err)
 	}
@@ -1486,6 +1504,37 @@ func TestRunWasmUsesRepositoryTempOutputByDefault(t *testing.T) {
 	artifactPath := filepath.Join(expected, "linapro-demo-dynamic.wasm")
 	if !fileutil.FileExists(artifactPath) {
 		t.Fatalf("expected wasm artifact at %s", artifactPath)
+	}
+}
+
+func TestRunWasmDoesNotUsePluginIDParameterForSelection(t *testing.T) {
+	root := t.TempDir()
+	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
+	writeFile(t, filepath.Join(root, "go.work"), "go 1.25.0\n")
+	writeDynamicPluginManifest(t, filepath.Join(pluginRoot, "dynamic-a"), "dynamic-a")
+	writeDynamicPluginManifest(t, filepath.Join(pluginRoot, "dynamic-b"), "dynamic-b")
+
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+
+	if err := runWasm(context.Background(), application, commandInput{
+		Params: map[string]string{
+			"p":       "dynamic-a",
+			"dry-run": "true",
+		},
+	}); err != nil {
+		t.Fatalf("runWasm returned error: %v", err)
+	}
+
+	output := stdout.String()
+	for _, expected := range []string{
+		"Building dynamic wasm plugin: dynamic-a",
+		"Building dynamic wasm plugin: dynamic-b",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("expected dry-run output to contain %q, got:\n%s", expected, output)
+		}
 	}
 }
 
@@ -2182,11 +2231,8 @@ func TestResolveOfficialPluginBuildModeAutoDetectsWorkspace(t *testing.T) {
 	}
 
 	auto, _, err := plugins.ResolveBuildMode(root, commandInput{Params: map[string]string{"plugins": "auto"}})
-	if err != nil {
-		t.Fatalf("explicit plugins=auto returned error: %v", err)
-	}
-	if !auto {
-		t.Fatalf("expected plugins=auto to use workspace detection")
+	if err == nil || !strings.Contains(err.Error(), "invalid boolean value") {
+		t.Fatalf("expected non-boolean plugin mode value to be rejected, got auto=%v err=%v", auto, err)
 	}
 }
 
@@ -4386,7 +4432,7 @@ func TestHelperEmbeddedGoFrameCtrl(t *testing.T) {
 	application.root = os.Args[len(os.Args)-1]
 	if err := runEmbeddedGoFrame(context.Background(), application, commandInput{
 		Args:   []string{"gen", "ctrl"},
-		Params: map[string]string{"config_dir": filepath.Join(application.root, "apps", "lina-core", "hack")},
+		Params: map[string]string{"config-dir": filepath.Join(application.root, "apps", "lina-core", "hack")},
 	}); err != nil {
 		t.Fatalf("run embedded GoFrame ctrl: %v", err)
 	}
@@ -4571,7 +4617,7 @@ func writeBuildFixture(t *testing.T, root string) {
 	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "sql", "001.sql"), "-- sql\n")
 	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "i18n", "en", "messages.json"), "{}\n")
 	writeFile(t, filepath.Join(root, "apps", "lina-plugins", "john-ai-agentbox", "plugin.yaml"), "id: john-ai-agentbox\ntype: source\n")
-	writeFile(t, filepath.Join(root, "apps", "lina-plugins", "john-ai-agentbox", "hack", "config.yaml"), "build:\n  commands:\n    - pnpm --dir \"$(PLUGIN_ROOT)/frontend\" run build\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-plugins", "john-ai-agentbox", "hack", "config.yaml"), "build:\n  commands:\n    - pnpm --dir \"$(BUILD_DIR)/frontend\" run build\n")
 	writeFile(t, filepath.Join(root, "apps", "lina-core", "go.mod"), "module lina-core\n")
 }
 

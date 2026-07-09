@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"strings"
 )
 
 // Input exposes normalized linactl command parameters.
@@ -67,11 +66,6 @@ func RunWithOutput(ctx context.Context, root string, input Input, run CommandRun
 	if err = normalizeBuildConfig(&cfg.Build); err != nil {
 		return err
 	}
-	if opts.PrintBuildEnv {
-		printBuildEnv(stdout, cfg.Build)
-		return nil
-	}
-
 	if err = applyImageOverrides(&cfg.Image, opts, specified); err != nil {
 		return err
 	}
@@ -147,10 +141,10 @@ func optionsFromInput(input Input, extra []string) (cliOptions, map[string]bool,
 		"registry":    &opts.Registry,
 		"push":        &opts.Push,
 		"platforms":   &opts.Platforms,
-		"cgo_enabled": &opts.CGOEnabled,
-		"output_dir":  &opts.OutputDir,
-		"binary_name": &opts.BinaryName,
-		"base_image":  &opts.BaseImage,
+		"cgo-enabled": &opts.CGOEnabled,
+		"output-dir":  &opts.OutputDir,
+		"binary-name": &opts.BinaryName,
+		"base-image":  &opts.BaseImage,
 		"config":      &opts.ConfigPath,
 		"verbose":     &opts.Verbose,
 	}
@@ -161,7 +155,7 @@ func optionsFromInput(input Input, extra []string) (cliOptions, map[string]bool,
 			continue
 		}
 		*target = value
-		specified[strings.ReplaceAll(key, "_", "-")] = true
+		specified[key] = true
 	}
 	if value, exists := params["v"]; exists {
 		opts.Verbose = value
@@ -181,21 +175,12 @@ func optionsFromInput(input Input, extra []string) (cliOptions, map[string]bool,
 		}
 		opts.BuildOnly = buildOnly
 	}
-	if input.Has("print_build_env") {
-		printBuildEnv, err := input.Bool("print_build_env", false)
-		if err != nil {
-			return opts, nil, err
-		}
-		opts.PrintBuildEnv = printBuildEnv
-	}
 	for _, item := range extra {
 		switch item {
 		case "--preflight":
 			opts.Preflight = true
 		case "--build-only":
 			opts.BuildOnly = true
-		case "--print-build-env":
-			opts.PrintBuildEnv = true
 		case "":
 			continue
 		default:

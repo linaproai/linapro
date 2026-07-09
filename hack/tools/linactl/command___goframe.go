@@ -15,7 +15,7 @@ import (
 func runEmbeddedGoFrame(ctx context.Context, a *app, input commandInput) error {
 	configDir := input.Get("config-dir")
 	for key := range input.Params {
-		if key == "config_dir" {
+		if key == "config-dir" {
 			continue
 		}
 		return fmt.Errorf("embedded GoFrame only supports config-dir plus positional commands: gen ctrl or gen dao")

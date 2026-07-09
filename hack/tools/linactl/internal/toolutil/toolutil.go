@@ -16,15 +16,15 @@ import (
 	"strings"
 )
 
-// ParseBool parses command-line boolean forms accepted by linactl.
+// ParseBool parses the standard boolean forms accepted by linactl.
 func ParseBool(value string, _ bool) (bool, error) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "1", "true", "yes", "y", "on":
+	case "1", "true":
 		return true, nil
-	case "0", "false", "no", "n", "off":
+	case "0", "false":
 		return false, nil
 	default:
-		return false, fmt.Errorf("invalid boolean value %q", value)
+		return false, fmt.Errorf("invalid boolean value %q; expected true, false, 1, or 0", value)
 	}
 }
 
@@ -104,10 +104,9 @@ func FirstNonEmpty(values ...string) string {
 	return ""
 }
 
-// NormalizeParamKey keeps hyphenated CLI-style option keys equivalent to
-// underscore-separated internal parameter names.
+// NormalizeParamKey trims parameter keys without aliasing different spellings.
 func NormalizeParamKey(key string) string {
-	return strings.ReplaceAll(strings.TrimSpace(key), "-", "_")
+	return strings.TrimSpace(key)
 }
 
 // FileExists reports whether a path exists and is a regular file.

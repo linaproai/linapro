@@ -10,8 +10,6 @@ import (
 	"regexp"
 	"strings"
 
-	"linactl/internal/toolutil"
-
 	"gopkg.in/yaml.v3"
 )
 
@@ -33,12 +31,12 @@ type metadataFrameworkConfig struct {
 
 // runReleaseTagCheck verifies that a release tag matches framework.version.
 func runReleaseTagCheck(_ context.Context, a *app, input commandInput) error {
-	tag := releaseTagFromInput(a.env, input)
+	tag := releaseTagFromInput(input)
 	version, err := loadFrameworkVersion(a.root, input.Get("metadata"))
 	if err != nil {
 		return err
 	}
-	if input.HasBool("print_version") {
+	if input.HasBool("print-version") {
 		if err = validateFrameworkReleaseVersion(version); err != nil {
 			return err
 		}
@@ -52,12 +50,9 @@ func runReleaseTagCheck(_ context.Context, a *app, input commandInput) error {
 	return nil
 }
 
-// releaseTagFromInput resolves the release tag from parameters or GitHub env.
-func releaseTagFromInput(env []string, input commandInput) string {
-	if tag := strings.TrimSpace(input.Get("tag")); tag != "" {
-		return tag
-	}
-	return strings.TrimSpace(toolutil.EnvValue(env, "GITHUB_REF_NAME"))
+// releaseTagFromInput resolves the release tag from explicit parameters.
+func releaseTagFromInput(input commandInput) string {
+	return strings.TrimSpace(input.Get("tag"))
 }
 
 // loadFrameworkVersion reads framework.version from metadata.yaml.
@@ -93,7 +88,7 @@ func validateReleaseTagVersion(tag string, version string) error {
 		return err
 	}
 	if tag == "" {
-		return fmt.Errorf("release tag is empty; pass tag=<version> or run from a tag workflow with GITHUB_REF_NAME")
+		return fmt.Errorf("release tag is empty; pass tag=<version>")
 	}
 	if tag != version {
 		return fmt.Errorf("release tag %q must equal metadata framework.version %q", tag, version)

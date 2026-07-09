@@ -9,8 +9,8 @@ cd hack/tools/linactl
 go run . help
 go run . status
 go run . pack.assets
-go run . wasm p=linapro-demo-dynamic
-go run . wasm plugin_dir=/path/to/plugin out=temp/output
+go run . wasm dir=apps/lina-plugins/linapro-demo-dynamic
+go run . wasm dir=/path/to/plugin out=temp/output
 go run . plugins.status
 go run . i18n.check
 go run . db.init confirm=init
@@ -65,21 +65,20 @@ make.cmd release.tag.check tag=v0.2.0
 
 ## 参数
 
-`linactl`支持现有`make`风格的`key=value`参数，降低命令迁移成本。
+`linactl`支持`make`风格的`key=value`参数，公开参数`key`使用`kebab-case`。
 
 | 参数 | 示例 | 用途 |
 |------|------|------|
 | `confirm` | `confirm=upgrade` | 确认高风险数据库维护命令。 |
 | `rebuild` | `rebuild=true` | 在`db.init`时重建配置中的数据库。 |
-| `dir` | `dir=tools/custom-builder` | 为`build`、`dev`、`stop`或`status`选择单个定向命令目录。省略时执行对应命令的默认完整流程。 |
+| `dir` | `dir=tools/custom-builder` | 为`build`、`dev`、`stop`或`status`选择单个定向命令目录，或为`wasm`选择单个显式动态插件源码目录。省略时执行对应命令的默认完整流程。 |
 | `platforms` | `platforms=linux/amd64,linux/arm64` | 指定构建目标平台。 |
 | `plugins` | `plugins=0` | 覆盖构建、开发、镜像、`Go`测试和`Go`静态检查命令的自动插件完整模式探测。 |
 | `fix` | `fix=true` | 允许`lint.go`向`golangci-lint`传入`--fix`；默认不启用，避免检查路径改写文件。 |
 | `to` | `to=v0.2.0` | 指定`version`写入的框架版本号。 |
 | `tag` | `tag=v0.2.0` | 指定`release.tag.check`校验的 release tag。 |
 | `print-version` | `print-version=1` | 输出已校验的`framework.version`，供发布自动化使用。 |
-| `p` | `p=linapro-tenant-core` | 为 Wasm 构建或插件工作区管理命令选择单个插件。 |
-| `plugin-dir` | `plugin_dir=/path/to/plugin` | 从显式源码目录构建单个动态插件产物。 |
+| `p` | `p=linapro-tenant-core` | 为插件工作区管理命令选择单个插件。 |
 | `out` | `out=temp/output` | 指定动态插件产物输出目录；相对路径按仓库根目录解析。 |
 | `source` | `source=official` | 为插件工作区管理命令选择单个已配置来源。 |
 | `force` | `force=1` | 允许插件安装或更新命令覆盖已存在或存在本地改动的插件目录。 |
@@ -89,7 +88,7 @@ make.cmd release.tag.check tag=v0.2.0
 
 未传入`dir`时，`linactl build`会构建宿主框架后端、默认管理工作台前端、宿主`manifest`资源和所有已启用官方插件。需要从仓库根目录或通过`make.cmd`跨平台定向构建时，使用`dir=<path>`，例如`dir=apps/lina-vben`、`dir=apps/lina-core`、`dir=apps/lina-plugins/<plugin-id>`，或任意拥有`hack/config.yaml`的目录。
 
-目标目录可以在自身`hack/config.yaml`的对应命令分段下维护自定义指令。`linactl build dir=<path>`和`linactl dev dir=<path>`执行`build.commands`；`linactl stop dir=<path>`执行`stop.commands`；`linactl status dir=<path>`执行`status.commands`。指令会在所选目录执行。`$(TARGET_DIR)`和`$(BUILD_DIR)`都会展开为所选目录，`$(PLUGIN_ROOT)`作为插件兼容别名继续指向同一目录，`$(REPO_ROOT)`展开为仓库根目录：
+目标目录可以在自身`hack/config.yaml`的对应命令分段下维护自定义指令。`linactl build dir=<path>`和`linactl dev dir=<path>`执行`build.commands`；`linactl stop dir=<path>`执行`stop.commands`；`linactl status dir=<path>`执行`status.commands`。指令会在所选目录执行。`$(TARGET_DIR)`和`$(BUILD_DIR)`都会展开为所选目录，`$(REPO_ROOT)`展开为仓库根目录：
 
 ```yaml
 build:
@@ -103,7 +102,7 @@ status:
     - node scripts/status.mjs --root "$(TARGET_DIR)"
 ```
 
-传入`dir=apps/lina-plugins/<plugin-id>`时，官方插件模式仍作用于该插件。源码插件会使用官方插件构建环境，动态插件会在配置指令完成后继续生成自身`WASM`产物。非插件目录存在`hack/config.yaml`时以该配置为准；没有该配置的目录继续回退到本地`package.json`的`build`脚本。
+传入`dir=apps/lina-plugins/<plugin-id>`时，官方插件模式仍作用于该插件。源码插件会使用官方插件构建环境，动态插件会在配置指令完成后继续生成自身`WASM`产物。非插件目录必须提供`hack/config.yaml`；没有该配置的目录会被拒绝，不再回退读取其它本地清单。
 
 传入`dir`给`linactl dev`时，命令会执行与`linactl build dir=<path>`一致的定向构建路径，不启动或重启开发服务。传入`dir`给`linactl stop`或`linactl status`时，目录配置指令会替代默认宿主服务停止或状态查询流程。
 
@@ -133,10 +132,10 @@ go run . lint.go plugins=0
 ```bash
 make image tag=v0.2.0 push=0
 make image.build tag=v0.2.0
-make wasm p=linapro-demo-dynamic
+make wasm dir=apps/lina-plugins/linapro-demo-dynamic
 ```
 
-当测试或本地夹具需要打包`apps/lina-plugins`之外的动态插件目录时，可以使用`plugin_dir=<path>`。
+当测试或本地夹具需要打包`apps/lina-plugins`之外的动态插件目录时，可以使用`dir=<path>`。
 
 ## GoFrame 代码生成
 
@@ -291,8 +290,6 @@ make.cmd release.tag.check tag=v0.2.0
 make release.tag.check tag=v0.2.0
 make release.tag.check metadata=apps/lina-core/manifest/config/metadata.yaml tag=v0.2.0
 ```
-
-在 GitHub Actions 中，如果未传入 `tag`，该命令也会使用 `GITHUB_REF_NAME` 作为待校验标签。
 
 ## 插件工作区命令
 

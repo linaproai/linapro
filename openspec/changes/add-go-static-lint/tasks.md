@@ -6,7 +6,7 @@
 
 ## 2. `linactl`和`Makefile`入口
 
-- [x] 2.1 在`hack/tools/linactl`新增`lint.go`命令注册和命令实现，支持`plugins=auto|0|1`与显式`fix=true`参数。
+- [x] 2.1 在`hack/tools/linactl`新增`lint.go`命令注册和命令实现，支持省略`plugins`自动探测、显式`plugins=0|1`与显式`fix=true`参数。
 - [x] 2.2 复用现有官方插件工作区和临时`go.work`准备逻辑，使`plugins=0`覆盖宿主工作区，`plugins=1`覆盖官方插件完整工作区。
 - [x] 2.3 在根`Makefile`拆分片段中新增`lint.go`薄转发目标，并按最终决策新增或保留聚合`lint`目标。
 - [x] 2.4 为`linactl lint.go`补充单元测试，覆盖命令注册、参数解析、宿主模式分发、插件完整模式分发和插件工作区缺失错误。

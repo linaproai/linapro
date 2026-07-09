@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"linactl/internal/toolutil"
 )
@@ -95,9 +94,6 @@ func ResolveBuildMode(root string, input Input) (bool, OfficialWorkspace, error)
 		return false, workspace, err
 	}
 	if input.Has("plugins") {
-		if strings.EqualFold(strings.TrimSpace(input.Get("plugins")), "auto") {
-			return workspace.State == WorkspaceStateReady, workspace, nil
-		}
 		enabled, parseErr := input.Bool("plugins", false)
 		if parseErr != nil {
 			return false, workspace, parseErr

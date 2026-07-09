@@ -37,7 +37,7 @@
 
 ### 命令入口收敛到`linactl`
 
-新增`linactl lint.go [plugins=auto|0|1] [fix=true]`，根`Makefile`只作为薄包装转发到`linactl`。命令实现必须复用已有`prepareOfficialPluginBuildEnv`和`goWorkspaceModules`思路，避免在`Makefile`或`Shell`中复制插件工作区扫描逻辑。
+新增`linactl lint.go [plugins=0|1] [fix=true]`，省略`plugins`时按官方插件工作区自动探测；根`Makefile`只作为薄包装转发到`linactl`。命令实现必须复用已有`prepareOfficialPluginBuildEnv`和`goWorkspaceModules`思路，避免在`Makefile`或`Shell`中复制插件工作区扫描逻辑。
 
 替代方案是像`gf`一样在`Makefile`中直接调用`golangci-lint run -c .golangci.yml`。该方式简单，但无法自然支持`Windows make.cmd`、插件完整模式临时`go.work`和现有工具治理规则。
 
@@ -51,7 +51,7 @@
 
 ### 扫描范围按插件模式决定
 
-`plugins=0`使用根`go.work`扫描宿主与`linactl`模块。`plugins=1`要求官方插件工作区可用，生成临时插件完整`go.work`后扫描宿主、`linactl`、源码插件、动态插件构建相关`Go module`和自动生成的官方插件聚合模块。`plugins=auto`沿用现有插件模式解析：发现官方插件清单时启用插件完整模式，否则使用宿主模式。
+`plugins=0`使用根`go.work`扫描宿主与`linactl`模块。`plugins=1`要求官方插件工作区可用，生成临时插件完整`go.work`后扫描宿主、`linactl`、源码插件、动态插件构建相关`Go module`和自动生成的官方插件聚合模块。省略`plugins`时沿用现有插件模式解析：发现官方插件清单时启用插件完整模式，否则使用宿主模式。
 
 替代方案是始终遍历所有`go.mod`目录逐个执行`golangci-lint`。该方式覆盖直接，但重复下载、缓存和诊断聚合成本更高，也绕开了仓库已经维护的`go.work`语义。
 

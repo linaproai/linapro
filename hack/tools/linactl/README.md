@@ -9,8 +9,8 @@ cd hack/tools/linactl
 go run . help
 go run . status
 go run . pack.assets
-go run . wasm p=linapro-demo-dynamic
-go run . wasm plugin_dir=/path/to/plugin out=temp/output
+go run . wasm dir=apps/lina-plugins/linapro-demo-dynamic
+go run . wasm dir=/path/to/plugin out=temp/output
 go run . plugins.status
 go run . i18n.check
 go run . db.init confirm=init
@@ -65,21 +65,20 @@ In PowerShell, run it with an explicit current-directory prefix:
 
 ## Parameters
 
-`linactl` accepts the existing make-style `key=value` arguments to keep command migration low-friction.
+`linactl` accepts make-style `key=value` arguments. Public parameter keys use `kebab-case`.
 
 | Parameter | Example | Purpose |
 | --- | --- | --- |
 | `confirm` | `confirm=upgrade` | Confirms sensitive database maintenance commands. |
 | `rebuild` | `rebuild=true` | Rebuilds the configured database during `db.init`. |
-| `dir` | `dir=tools/custom-builder` | Selects one targeted command directory for `build`, `dev`, `stop`, or `status`. Omit it to run the command's default full workflow. |
+| `dir` | `dir=tools/custom-builder` | Selects one targeted command directory for `build`, `dev`, `stop`, or `status`, or one explicit dynamic plugin source directory for `wasm`. Omit it to run the command's default full workflow. |
 | `platforms` | `platforms=linux/amd64,linux/arm64` | Selects build target platforms. |
 | `plugins` | `plugins=0` | Overrides automatic plugin-full detection for build, dev, image, Go test, and Go lint commands. |
 | `fix` | `fix=true` | Allows `lint.go` to pass `--fix` to `golangci-lint`; omitted by default so checks do not rewrite files. |
 | `to` | `to=v0.2.0` | Selects the framework version written by `version`. |
 | `tag` | `tag=v0.2.0` | Selects the release tag checked by `release.tag.check`. |
 | `print-version` | `print-version=1` | Prints the validated `framework.version` for release automation. |
-| `p` | `p=linapro-tenant-core` | Selects one plugin for Wasm build or plugin workspace management commands. |
-| `plugin-dir` | `plugin_dir=/path/to/plugin` | Builds one dynamic plugin artifact from an explicit source directory. |
+| `p` | `p=linapro-tenant-core` | Selects one plugin for plugin workspace management commands. |
 | `out` | `out=temp/output` | Selects the dynamic plugin artifact output directory. Relative paths resolve from the repository root. |
 | `source` | `source=official` | Selects one configured plugin source for plugin workspace management commands. |
 | `force` | `force=1` | Allows plugin install/update commands to overwrite existing or dirty plugin directories. |
@@ -89,7 +88,7 @@ When `plugins` is omitted, build and dev commands enable plugin-full mode if `ap
 
 `linactl build` without `dir` builds the host framework backend, the default admin workspace frontend, host manifest assets, and all enabled official plugins. Use `dir=<path>` for a cross-platform targeted build from the repository root or through `make.cmd`, for example `dir=apps/lina-vben`, `dir=apps/lina-core`, `dir=apps/lina-plugins/<plugin-id>`, or any directory that owns `hack/config.yaml`.
 
-Target directories can keep custom commands in their own `hack/config.yaml` under the matching command section. `linactl build dir=<path>` and `linactl dev dir=<path>` execute `build.commands`; `linactl stop dir=<path>` executes `stop.commands`; `linactl status dir=<path>` executes `status.commands`. Commands run from the selected directory. `$(TARGET_DIR)` and `$(BUILD_DIR)` both expand to the selected directory, `$(PLUGIN_ROOT)` remains an alias for plugin compatibility, and `$(REPO_ROOT)` expands to the repository root:
+Target directories can keep custom commands in their own `hack/config.yaml` under the matching command section. `linactl build dir=<path>` and `linactl dev dir=<path>` execute `build.commands`; `linactl stop dir=<path>` executes `stop.commands`; `linactl status dir=<path>` executes `status.commands`. Commands run from the selected directory. `$(TARGET_DIR)` and `$(BUILD_DIR)` both expand to the selected directory, and `$(REPO_ROOT)` expands to the repository root:
 
 ```yaml
 build:
@@ -103,7 +102,7 @@ status:
     - node scripts/status.mjs --root "$(TARGET_DIR)"
 ```
 
-When `dir=apps/lina-plugins/<plugin-id>` is passed, official plugin mode is still used for that plugin. Source plugins receive the official plugin build environment, and dynamic plugins continue to produce their `WASM` artifact after configured commands finish. For non-plugin directories, `hack/config.yaml` is authoritative when present; directories without it fall back to a local `package.json` `build` script.
+When `dir=apps/lina-plugins/<plugin-id>` is passed, official plugin mode is still used for that plugin. Source plugins receive the official plugin build environment, and dynamic plugins continue to produce their `WASM` artifact after configured commands finish. For non-plugin directories, `hack/config.yaml` is required; directories without it are rejected instead of falling back to other local manifests.
 
 When `dir` is passed to `linactl dev`, it runs the same targeted build path as `linactl build dir=<path>` and does not start or restart development services. When `dir` is passed to `linactl stop` or `linactl status`, the configured directory command replaces the default host service stop/status workflow.
 
@@ -133,10 +132,10 @@ Use `plugins=0` for the host workspace, covering `apps/lina-core` and `hack/tool
 ```bash
 make image tag=v0.2.0 push=0
 make image.build tag=v0.2.0
-make wasm p=linapro-demo-dynamic
+make wasm dir=apps/lina-plugins/linapro-demo-dynamic
 ```
 
-Use `plugin_dir=<path>` when a test or local fixture needs to package a dynamic plugin outside `apps/lina-plugins`.
+Use `dir=<path>` when a test or local fixture needs to package a dynamic plugin outside `apps/lina-plugins`.
 
 ## GoFrame Code Generation
 
@@ -291,8 +290,6 @@ make.cmd release.tag.check tag=v0.2.0
 make release.tag.check tag=v0.2.0
 make release.tag.check metadata=apps/lina-core/manifest/config/metadata.yaml tag=v0.2.0
 ```
-
-In GitHub Actions, the command also accepts `GITHUB_REF_NAME` as the tag source when `tag` is omitted.
 
 ## Plugin Workspace Commands
 

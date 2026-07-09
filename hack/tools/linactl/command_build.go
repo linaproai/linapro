@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -106,14 +105,14 @@ func resolveBuildOptions(root string, input commandInput) (buildOptions, error) 
 		}
 	}
 
-	outputDir := input.GetDefault("output_dir", cfg.Build.OutputDir)
+	outputDir := input.GetDefault("output-dir", cfg.Build.OutputDir)
 	if outputDir == "" {
 		outputDir = "temp/output"
 	}
 	if !filepath.IsAbs(outputDir) {
 		outputDir = filepath.Join(root, outputDir)
 	}
-	binaryName := input.GetDefault("binary_name", cfg.Build.BinaryName)
+	binaryName := input.GetDefault("binary-name", cfg.Build.BinaryName)
 	if binaryName == "" {
 		binaryName = "lina"
 	}
@@ -121,7 +120,7 @@ func resolveBuildOptions(root string, input commandInput) (buildOptions, error) 
 	if cfg.Build.CGOEnabled {
 		cgoEnabled = "1"
 	}
-	if raw := input.Get("cgo_enabled"); raw != "" {
+	if raw := input.Get("cgo-enabled"); raw != "" {
 		enabled, parseErr := toolutil.ParseBool(raw, false)
 		if parseErr != nil {
 			return buildOptions{}, parseErr
@@ -181,7 +180,7 @@ func runBuildDir(ctx context.Context, a *app, input commandInput, options buildO
 		if handled {
 			return nil
 		}
-		return runPackageBuildDir(ctx, a, dir, env, options.Verbose)
+		return fmt.Errorf("build dir has no hack/config.yaml: %s", toolutil.RelativePath(a.root, dir))
 	}
 }
 
@@ -225,7 +224,7 @@ func runOnePluginBuild(ctx context.Context, a *app, pluginDir string, env []stri
 		fmt.Fprintf(a.stdout, "No plugin build commands configured: %s\n", toolutil.RelativePath(a.root, pluginDir))
 	}
 	if strings.EqualFold(strings.TrimSpace(manifest.Type), "dynamic") {
-		return runWasm(ctx, a, commandInput{Params: map[string]string{"plugin_dir": pluginDir, "out": options.OutputDir}})
+		return runWasm(ctx, a, commandInput{Params: map[string]string{"dir": pluginDir, "out": options.OutputDir}})
 	}
 	return nil
 }
@@ -270,22 +269,6 @@ func runConfiguredCommandDir(ctx context.Context, a *app, rawDir string, command
 	fmt.Fprintf(a.stdout, "Running configured %s: %s\n", commandName, relative)
 	env := plugins.BuildEnv(a.root, a.env, false, "")
 	return runBuildSteps(ctx, a, dir, env, true, steps)
-}
-
-func runPackageBuildDir(ctx context.Context, a *app, dir string, env []string, verbose bool) error {
-	packagePath := filepath.Join(dir, "package.json")
-	if !fileutil.FileExists(packagePath) {
-		return fmt.Errorf("build dir is not a supported target and has no hack/config.yaml or package.json build script: %s", dir)
-	}
-	hasBuild, err := hasPackageBuildScript(packagePath)
-	if err != nil {
-		return err
-	}
-	if !hasBuild {
-		return fmt.Errorf("build dir package.json has no non-empty build script: %s", dir)
-	}
-	fmt.Fprintf(a.stdout, "Building package: %s\n", toolutil.RelativePath(a.root, dir))
-	return a.runCommand(ctx, commandOptions{Dir: dir, Env: env, Quiet: !verbose}, "pnpm", "run", "build")
 }
 
 func resolveBuildDir(root string, rawDir string) (string, error) {
@@ -422,10 +405,9 @@ func resolveCommandConfigSteps(root string, dir string, commandName string) ([]b
 		return nil, true, err
 	}
 	variables := map[string]string{
-		"BUILD_DIR":   dir,
-		"PLUGIN_ROOT": dir,
-		"REPO_ROOT":   root,
-		"TARGET_DIR":  dir,
+		"BUILD_DIR":  dir,
+		"REPO_ROOT":  root,
+		"TARGET_DIR": dir,
 	}
 	steps := []buildStep{}
 	for index, command := range commands {
@@ -511,21 +493,6 @@ func splitBuildCommandLine(line string) ([]string, error) {
 		fields = append(fields, current.String())
 	}
 	return fields, nil
-}
-
-func hasPackageBuildScript(manifestPath string) (bool, error) {
-	data, err := os.ReadFile(manifestPath)
-	if err != nil {
-		return false, fmt.Errorf("read package build manifest %s: %w", manifestPath, err)
-	}
-	var manifest struct {
-		Scripts map[string]string `json:"scripts"`
-	}
-	if err = json.Unmarshal(data, &manifest); err != nil {
-		return false, fmt.Errorf("parse package build manifest %s: %w", manifestPath, err)
-	}
-	build, ok := manifest.Scripts["build"]
-	return ok && strings.TrimSpace(build) != "", nil
 }
 
 // ensurePackedPublicPlaceholder recreates the tracked placeholder after the
