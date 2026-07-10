@@ -36,6 +36,8 @@
 - **THEN** 系统拒绝该定向构建
 - **AND** 不读取`<target>/package.json`中的`build`脚本
 
+## ADDED Requirements
+
 ### Requirement: `linactl`公开参数必须只接受标准契约
 
 系统 SHALL 只接受当前标准化的`linactl`参数和配置输入。显式插件模式参数 MUST 使用标准布尔值，文档示例 SHOULD 使用`plugins=0`或`plugins=1`；未传入`plugins`时，系统 MAY 根据官方插件工作区是否存在插件清单自动选择宿主模式或插件完整模式。系统 MUST reject 显式`plugins=auto`，且不得为该旧值保留专门判断分支。公开命令参数`key`MUST 使用文档中声明的`kebab-case`形式，系统不得将`snake_case key`自动映射为`kebab-case key`，也不得将`kebab-case key`自动映射为`snake_case key`；根`Makefile`包装入口也 MUST 只转发当前标准参数名。动态`WASM`单插件构建的显式源码目录 MUST 使用`dir=<path>`，`wasm`命令不得读取`p`或`plugin-dir`作为插件选择或路径输入。布尔参数 MUST 只接受`true`、`false`、`1`和`0`；动态`WASM`生成派发器的布尔路由值也 MUST 使用同一标准集合。发布标签校验 MUST 通过显式`tag=<version>`参数传入待校验标签，不得读取环境变量作为隐式标签来源。镜像构建 registry MUST 只来自`hack/config.yaml`或显式`registry=<prefix>`参数，不得读取`LINAPRO_IMAGE_REGISTRY`环境变量。镜像构建内部入口不得保留环境打印调试参数或选项，也不得为这些旧调试入口保留专门判断分支。
@@ -109,3 +111,4 @@
 - **THEN** 系统不得进入环境打印流程
 - **AND** 不输出构建环境兼容信息
 - **AND** 不保留旧调试入口的专门判断分支
+

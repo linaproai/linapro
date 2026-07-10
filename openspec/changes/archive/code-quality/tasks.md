@@ -19,3 +19,5 @@
 - [x] 反馈`FB-53`~`FB-55`：API 响应暴露实体、源码插件 DTO 命名和聚合测试归属；根因：响应合同受数据库实体驱动且插件测试 ownership 不闭环；处理：独立响应 DTO、逐字段映射、插件 API DTO 重命名、测试迁回各插件目录；验证：API 静态验证、插件测试和审查通过。
 - [x] 验证：历史实现运行过`make db.init`、`make dao`、`make ctrl`、Go 单元测试、E2E、前端适配验证、静态扫描、OpenSpec 校验和`lina-review`；本次压缩仅需 OpenSpec 严格校验、重复能力扫描和 Markdown 空白检查。
 - [x] 治理：本归档压缩不修改运行时代码、HTTP API、数据库、缓存、数据权限、前端 UI、插件源码、运行时文案、语言包、`manifest/i18n`、`apidoc i18n JSON`、开发工具入口或生产构建；`i18n`影响仅限中文 OpenSpec 历史文档。
+- [x] 官方插件 panic 治理解耦：宿主精确白名单 + `backend/plugin.go` `init` fail-fast AST 自动放行；`PLUGIN_TENANT_PROVISIONING_POLICY_INVALID`文案改为 multi-tenant governance 语义并同步`en-US/error.json`；错误码不变。验证：`cmd` panic 治理测试、plugin 服务测试、静态检索无`linapro-tenant-core`品牌文案、OpenSpec 校验。
+- [x] 治理补充：`i18n`有影响（错误源文案与语言包）；缓存/数据权限/跨平台工具/DI 无新增运行期依赖；无用户可观察页面变更，无需 E2E。

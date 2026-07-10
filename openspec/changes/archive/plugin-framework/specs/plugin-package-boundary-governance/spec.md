@@ -249,3 +249,19 @@ TBD - created by archiving change refactor-plugin-package-boundaries. Update Pur
 ### Requirement: pluginbridge 不得依赖源码插件 Provider SPI
 
 系统 SHALL 将`pkg/plugin/pluginbridge`限定为动态插件 ABI、transport、公开协议和动态插件专属 guest SDK。`pluginbridge/**`非测试生产代码 MUST NOT import `pkg/plugin/capability/**`下路径段以`spi`结尾的源码插件 provider SPI 子包。该约束 MUST 由随`go test`执行的治理测试持续验证。
+
+### Requirement: 跨插件 import 边界必须由治理扫描覆盖
+
+系统 SHALL 提供静态治理扫描或等价验证，确保跨插件生产 Go import 只允许依赖目标插件的`backend/cap/...`公开契约。扫描 MUST 阻断跨插件 import `backend/internal/...`、`backend/internal/dao`、`backend/internal/model`、`backend/api`、controller、service 实现、私有 provider adapter 和`backend/pkg`领域能力入口。测试 fixture、代码生成输入和受控开发工具例外 MUST 在扫描规则中显式限定目录和用途。
+
+#### Scenario: 生产代码 import owner internal
+
+- **WHEN** 插件生产代码 import `lina-plugin-linapro-ai-core/backend/internal/service/ai`
+- **THEN** 治理扫描 MUST 失败
+- **AND** 调用方必须改为依赖`lina-plugin-linapro-ai-core/backend/cap/aicap/...`
+
+#### Scenario: 测试例外受限
+
+- **WHEN** 同插件内部测试需要访问`backend/internal`实现
+- **THEN** 该 import MAY 被允许
+- **AND** 例外不得允许其他插件生产代码跨插件访问 internal 实现

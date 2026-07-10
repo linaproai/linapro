@@ -1,5 +1,13 @@
 # Design
 
+## Go Static Lint Gate
+
+仓库通过根目录`.golangci.yml`、`.golangci-lint-version`和`.staticcheck-version`固定静态检查规则与工具版本。`linactl lint.go`是唯一跨平台扫描入口：省略`plugins`时按官方插件工作区自动探测；`plugins=0`扫描宿主与`linactl`；`plugins=1`生成临时完整`go.work`覆盖官方插件模块。根`Makefile`与`make.cmd`只做薄转发。
+
+死代码门禁不启用独立`unused` linter，而由固定版本`staticcheck U1000`承担；含`wasip1`/`!wasip1`构建约束的包按宿主目标与`GOOS=wasip1 GOARCH=wasm` guest 目标归并结果，避免 guest 专属符号被宿主目标误判。`lint.go`与`env.setup`在扫描或初始化前按锁定版本自动检测/安装`golangci-lint`与`staticcheck`，安装使用`GOWORK=off`并剥离可能污染的构建变量。`CI`复用`make lint.go`/`linactl lint.go`路径，主验证与发布验证均阻断宿主与插件完整模式失败，不使用`only-new-issues`作为长期豁免。
+
+动态插件 builder 配置与静态检查治理同期收敛：`wasm.hooks`、`wasm.resources`与`wasm.lifecycle.timeouts`统一放在插件根`hack/config.yaml`，时长必须使用带单位字符串；构建工具与宿主本地目录加载均不得再扫描`backend/*/*.yaml`。
+
 ## Command Entry And Tool Consolidation
 
 `linactl`是仓库默认跨平台开发命令承载者。所有常用命令使用 Go 标准库处理路径、进程、HTTP readiness、端口、文件复制、PID、日志和参数解析。`Makefile`继续服务 Linux/macOS 与既有 CI，Windows`make.cmd`服务`cmd.exe`和 PowerShell，但两者只转发到同一套`linactl`实现。命令保留 make-style`key=value`参数，避免迁移破坏既有开发习惯。

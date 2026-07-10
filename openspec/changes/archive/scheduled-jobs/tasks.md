@@ -1,3 +1,14 @@
+# Tasks
+
+## Summary
+
+- [x] Deliver scheduled job subsystem: groups, user-defined jobs, execution logs, handler registry, shell security, built-in job projection boundary, frontend pages, and E2E coverage (see historical sections below for detailed delivery checklist).
+- [x] Extend plugin `jobcap` with task-level log retention on create/update and query projection; reuse existing `jobs.*` host service methods and `sys_job.log_retention_override`.
+- [x] FB-1~FB-3: create/update input, query projection, demo-source/demo-dynamic full `jobcap.Service` usage and `jobs.*` authorization declarations; root cause for FB-2 was query projection omitting the persisted override column; validation covered jobcap/capabilityadapter/wasm/domainhostcall and plugin module tests with `GOWORK=off`.
+- [x] Governance: no runtime UI/i18n/API/SQL schema changes for jobcap extension; data permission reuses existing job visibility; no N+1; no new DI or cache paths.
+
+---
+
 ## 1. Database and Dictionary
 
 - [x] 1.1 Create `014-scheduled-job-management.sql` in `apps/lina-core/manifest/sql/` with `sys_job_group / sys_job / sys_job_log` three table DDLs (with indexes), foreign key constraints, idempotent `CREATE TABLE IF NOT EXISTS`

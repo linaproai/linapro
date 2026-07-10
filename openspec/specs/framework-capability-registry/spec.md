@@ -5,7 +5,7 @@ TBD - created by archiving change refine-plugin-capability-boundaries. Update Pu
 ## Requirements
 ### Requirement: 框架能力必须按领域归属独立 pluginservice 组件
 
-系统 SHALL 通过`pkg/plugin/capability/orgcap`、`pkg/plugin/capability/tenantcap`、`pkg/plugin/capability/aicap`等独立`*cap`组件维护由宿主定义契约且由插件提供实现的框架能力。每个能力组件 MUST 直接维护自身 capability ID、版本、DTO、普通消费`Service`接口、fallback/delegation 和必要错误类型；源码插件 provider SPI、宿主 scope helper、request resolver 和 provider runtime 接缝 MUST 迁入对应能力组件下的`*spi`子包。共享 provider registry、provider factory 声明、懒加载实例缓存、冲突检测和 manager 实现 MUST 放入`pkg/plugin/capability/internal/capabilityregistry`。系统 MUST NOT 再新增或保留`pkg/pluginservice`聚合包、`pkg/frameworkcap`聚合包、旧`pkg/orgcap`/`pkg/tenantcap`兼容包或宿主`internal/service/orgcap`、`internal/service/tenantcap`双重适配层。
+系统 SHALL 通过 core-owned 与 plugin-owned 两类路径维护插件可消费框架能力。core-owned 能力继续通过`pkg/plugin/capability/orgcap`、`pkg/plugin/capability/tenantcap`等独立`*cap`组件维护由宿主定义契约且由插件提供实现的框架能力。plugin-owned 非核心能力 MUST 通过 owner 插件`backend/cap/<domain>cap`维护 capability ID、版本、DTO、普通消费`Service`接口、fallback/delegation、错误语义、动态 guest SDK 和 provider SPI。共享 provider registry、provider factory 声明、懒加载实例缓存、冲突检测和 manager 实现可以继续由 core 承载，但 core 对 plugin-owned 能力只能感知通用 descriptor、owner 插件 ID、capability version、method、风险和资源形态。系统 MUST NOT 为 plugin-owned 非核心能力继续新增`lina-core/pkg/plugin/capability/<domain>cap`公开契约、领域专属 provider facade、动态 wire codec 或 WASM dispatcher 分支。
 
 #### Scenario: 组织能力由 orgcap 组件维护
 
@@ -24,23 +24,22 @@ TBD - created by archiving change refine-plugin-capability-boundaries. Update Pu
 - **AND** 消费方通过显式注入的`tenantcap.Service`或`capability.Services.Tenant()`获取租户普通消费能力实例
 - **AND** 系统不得要求消费方 import `pkg/frameworkcap`、`pkg/tenantcap`、`pkg/pluginservice`或宿主`internal/service/tenantcap`
 
-#### Scenario: 源码插件租户过滤子接口由 tenantspi 维护
+#### Scenario: AI 能力由 linapro-ai-core backend/cap 维护
 
-- **WHEN** 源码插件需要对插件自有表按当前租户追加`tenant_id`过滤
-- **THEN** 过滤接口位于`pkg/plugin/capability/tenantcap/tenantspi`
-- **AND** 入口只通过`pluginhost.Services.TenantFilter()`暴露给源码插件
-- **AND** 该接口不得成为`tenantcap.Service`普通租户消费面的一部分
-- **AND** 动态插件 guest SDK 和`hostServices`协议不得暴露该接口
+- **WHEN** 系统定义`AI`文本、多模态或后续非核心`AI`能力
+- **THEN** 该能力的 capability ID、DTO、普通消费`Service`接口、错误码、方法状态、provider SPI 和动态 guest SDK MUST 位于`apps/lina-plugins/linapro-ai-core/backend/cap/aicap`
+- **AND** core 只能通过通用 capability descriptor 注册、发现、授权和路由该能力
+- **AND** core 不得继续保留`pkg/plugin/capability/aicap`作为生产公开契约 owner
 
 #### Scenario: 能力契约不泄漏内部模型
 
-- **WHEN** capability service 返回组织、租户、用户或可见范围信息
+- **WHEN** capability service 返回组织、租户、用户、`AI`或可见范围信息
 - **THEN** 返回值使用该能力契约自有的 DTO、投影或值对象
-- **AND** 返回值不得包含宿主或插件内部`DAO`、`DO`、`Entity`、`*gdb.Model`或私有缓存结构
+- **AND** 返回值不得包含宿主或插件内部`DAO`、`DO`、`Entity`、`*gdb.Model`、provider 密钥、模型路由表或私有缓存结构
 
 ### Requirement: 插件必须通过 Provider Factory 声明框架能力实现
 
-系统 SHALL 要求源码插件通过`pluginhost.Declarations`的强类型 provider 声明 facade 声明其对 pluginservice capability 的实现。Provider factory MUST 在源码插件 registrar 阶段声明，例如`plugin.Providers().ProvideOrg(...)`、`plugin.Providers().ProvideTenant(...)`或`plugin.Providers().ProvideAIText(...)`。Provider 实例 MUST 由消费 service 在使用时通过`PluginStateService.IsProviderEnabled(ctx, pluginID)`确认提供方插件处于平台级可用状态后懒加载。插件启用状态 MUST 是 provider 可用性的唯一权威状态，系统 MUST NOT 再维护独立的 provider active 状态。插件不得在路由注册、controller 构造、业务请求路径或能力包级`Provide()`函数中直接写入全局 provider 注册表。
+系统 SHALL 要求源码插件在 registrar 阶段声明其对框架能力或 plugin-owned 能力的实现。core-owned 能力 MAY 继续通过`pluginhost.Declarations`的强类型 provider 声明 facade 声明，例如`plugin.Providers().ProvideOrg(...)`或`plugin.Providers().ProvideTenant(...)`。plugin-owned 非核心能力 MUST 通过通用 capability descriptor 声明，并由 owner 插件提供类型安全 helper 将领域 factory 包装为 descriptor；`pluginhost`不得为每个非核心领域新增`Provide<Domain>`方法。Provider 实例 MUST 由消费 service 或 owner handler 在使用时通过插件 enabled snapshot、owner 启用策略和 descriptor 版本判断可用。插件不得在路由注册、controller 构造、业务请求路径或能力包级`Provide()`函数中直接写入全局 provider 注册表。
 
 #### Scenario: 源码插件声明组织能力 Provider
 
@@ -60,16 +59,17 @@ TBD - created by archiving change refine-plugin-capability-boundaries. Update Pu
 #### Scenario: 源码插件声明 AI 文本 Provider
 
 - **WHEN** `linapro-ai-core`提供文本`AI`能力实现
-- **THEN** 插件入口通过`pluginhost.Declarations`的 provider 声明 facade 声明一个`aitext.ProviderFactory`
-- **AND** `aitext`父包不因注册机制收敛新增空 SPI 子包
-- **AND** provider 使用路径继续按插件 enabled snapshot 判断可用性
+- **THEN** 插件入口 MUST 通过`aicap`或`aicap/spi`提供的类型安全 helper 注册通用 capability descriptor
+- **AND** descriptor MUST 记录 owner 插件 ID、`ai`或`ai.text`能力键、`v1`协议版本、方法、风险、资源形态和 provider factory
+- **AND** `pluginhost`不得继续提供`ProvideAIText`专属方法
+- **AND** provider 使用路径继续按 owner 插件 enabled snapshot、descriptor 版本和 provider 状态判断可用性
 
 #### Scenario: 插件禁用后 Provider 不再被使用
 
-- **WHEN** 提供 pluginservice capability 的插件被禁用、卸载或升级失败
-- **THEN** `PluginStateService.IsProviderEnabled(ctx, pluginID)`返回 false
-- **AND** 消费 service 不再返回或调用该插件声明的 provider
-- **AND** 消费 service 的`Available(ctx)`或等价状态反映该能力不可用或降级状态
+- **WHEN** 提供 core-owned 或 plugin-owned capability 的插件被禁用、卸载或升级失败
+- **THEN** 对应 enabled snapshot 或 owner 可用性检查返回 false
+- **AND** 消费 service 或 owner handler 不再返回或调用该插件声明的 provider
+- **AND** 消费 service 的`Available(ctx)`、方法状态或等价状态反映该能力不可用或降级状态
 
 ### Requirement: Provider 实现必须封装在提供方插件内部
 
@@ -144,4 +144,21 @@ TBD - created by archiving change refine-plugin-capability-boundaries. Update Pu
 - **WHEN** 插件或宿主只读取某个 capability 的`Available(ctx)`状态
 - **THEN** 系统不得写入插件 registry 或清空无关插件、语言包、路由或前端 bundle 缓存
 - **AND** 只读检查不得产生跨实例失效事件
+
+### Requirement: 通用 capability descriptor 必须可治理和可测试
+
+系统 SHALL 为通用 capability descriptor 提供结构化校验、重复注册检查、版本匹配、owner 插件启用状态检查、方法风险分类、资源形态校验和审计投影。descriptor 校验 MUST 在启动、源码插件同步、动态 artifact 加载和 owner 插件升级路径执行，并通过单元测试覆盖未知 owner、重复 method、版本不满足、依赖缺失、禁用 owner 和 provider 冲突。
+
+#### Scenario: descriptor 注册缺少 owner
+
+- **WHEN** 源码插件或动态 artifact 注册 capability descriptor 但`ownerPluginId`为空或不等于声明插件 ID
+- **THEN** 系统 MUST 拒绝注册
+- **AND** 错误必须包含声明插件 ID、owner 插件 ID 和 capability key
+
+#### Scenario: descriptor 版本不满足消费声明
+
+- **WHEN** 动态插件声明`owner: linapro-ai-core`、`service: ai`和`version: v1`
+- **AND** owner 插件只发布不兼容版本
+- **THEN** 安装、启用或运行时授权 MUST 被拒绝
+- **AND** 拒绝结果必须进入依赖或 host service 授权诊断
 

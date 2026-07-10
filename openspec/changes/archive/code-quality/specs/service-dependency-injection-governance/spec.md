@@ -82,7 +82,9 @@ TBD - created by archiving change explicit-service-dependency-injection. Update 
 #### Scenario: 顶层静态注册入口选择失败退出
 - **WHEN** 源码插件包级 `init` 调用注册 API 收到错误
 - **THEN** 该顶层静态注册入口可以显式 `panic`
-- **AND** panic 治理扫描 allowlist 必须记录这是顶层入口收到错误后的失败退出
+- **AND** panic 治理扫描 MUST 将该调用识别为顶层入口收到错误后的失败退出
+- **AND** 识别方式可以是宿主精确 allowlist 条目，也可以是官方插件工作区对 `backend/plugin.go` `init` 注册 fail-fast 模式的自动归类
+- **AND** 官方插件集合变化时，不得要求维护按插件 ID 枚举的宿主 allowlist 清单
 
 #### Scenario: 运行期回调缺少宿主依赖
 - **WHEN** HTTP、Cron、Hook 或中间件注册回调在执行期发现宿主发布依赖缺失

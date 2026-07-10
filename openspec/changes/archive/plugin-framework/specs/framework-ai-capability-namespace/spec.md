@@ -1,8 +1,10 @@
-# framework-ai-capability-namespace Specification
+# AI 能力命名空间 owner 迁移
 
 ## Purpose
-TBD - created by archiving change refactor-ai-capability-namespace. Update Purpose after archive.
+保留 AI 命名空间与类型化子能力语义，并将非核心 AI 契约 owner 迁移到 linapro-ai-core。
+
 ## Requirements
+
 ### Requirement: 宿主能力目录必须通过 AI 命名空间暴露 AI 能力
 
 系统 SHALL 由`linapro-ai-core`在`backend/cap/aicap`发布`AI`能力族命名空间。源码消费插件 MUST 通过 owner 插件公开契约获取`AI`类型化子能力，例如`AI().Text()`或注入的`aitext.Service`。动态插件 MUST 通过 owner 插件公开 bridge SDK 和 owner-aware host service 调用对应子能力。根`lina-core/pkg/plugin/capability.Services` MUST NOT 继续作为`AI`生产契约 owner，也 MUST NOT 直接暴露`AIText()`、`AIImage()`、`AIEmbedding()`或其他按`AI`子能力展开的根方法。
@@ -58,39 +60,6 @@ TBD - created by archiving change refactor-ai-capability-namespace. Update Purpo
 - **THEN** `plugin.linapro-ai-core.ai.text.v1`的 capability ID、`Available(ctx)`、`Status(ctx)`、`GenerateText(ctx, request)`和 provider factory 语义 MUST 保持不变
 - **AND** 迁移 MUST NOT 将渠道、模型、档位或调用日志业务存储移入`lina-core`
 
-### Requirement: 文本 AI 来源身份必须由能力服务注入
-
-系统 SHALL 将文本生成消费请求与 provider 内部请求分离。普通调用方可见的 `GenerateRequest` MUST NOT 要求填写 `SourcePluginID`；插件来源身份 MUST 由 plugin-scoped 能力 service 或动态插件 host-call 上下文注入到 provider 请求。
-
-#### Scenario: 源码插件调用注入插件来源
-
-- **WHEN** 源码插件通过 `ServicesForPlugin(services, pluginID).AI().Text()` 发起文本生成
-- **THEN** 文本能力 service MUST 将该 `pluginID` 作为 provider 请求的来源插件标识
-- **AND** 普通调用方 MUST NOT 在消费请求中自行填写或伪造 `SourcePluginID`
-
-#### Scenario: 动态插件调用注入插件来源
-
-- **WHEN** 动态插件通过 `ai.text.generate` host service 发起文本生成
-- **THEN** `WASM` host service handler MUST 使用 host-call 上下文中的 `pluginID` 作为 provider 请求来源
-- **AND** 该来源 MUST 与智能中心调用日志和宿主服务审计中的来源插件保持一致
-
-#### Scenario: 宿主内部调用不伪造插件来源
-
-- **WHEN** 宿主内部模块直接使用 `AI().Text()` 发起文本生成
-- **THEN** 文本能力 service MUST 保持来源为空或使用规范定义的宿主来源标识
-- **AND** 宿主内部调用 MUST NOT 被记录为任意源码插件或动态插件来源
-
-### Requirement: AI 命名空间必须支持跨子能力方法状态批量读取
-系统 SHALL 在`AI`命名空间提供跨子能力方法状态批量读取能力，并可动态发布为`ai.methods.status.batch_get`或等价冻结名称。响应 MUST 只包含能力、方法、可用性、禁用原因和结构化 unavailable 信息，不得暴露 provider 配置、密钥、模型映射或内部路由策略。
-
-#### Scenario: 批量读取 AI 方法状态
-- **WHEN** 插件请求文本、图像、音频或视觉等多个`AI`方法状态
-- **THEN** 系统批量返回每个方法的可用性状态
-- **AND** provider 未启用或方法不可用时返回结构化状态而不是泄露 provider 内部配置
-
-#### Scenario: AI provider 配置不暴露
-- **WHEN** 插件读取`AI`方法状态
-- **THEN** 响应不得包含 API key、供应商私有 endpoint、模型路由表或内部 provider 优先级
 
 ### Requirement: AI owner 迁移必须覆盖全部已发布子能力方法
 
@@ -102,4 +71,3 @@ TBD - created by archiving change refactor-ai-capability-namespace. Update Purpo
 - **THEN** owner 契约包 MUST 覆盖文本和多模态公开 DTO/方法常量
 - **AND** 动态 descriptor MUST 至少发布`text.generate`、`text.method_status.get`和`ai.methods.status.batch_get`
 - **AND** 静态检索 MUST 证明 core 不再保留未说明的`AI`专属 host service 方法 owner
-

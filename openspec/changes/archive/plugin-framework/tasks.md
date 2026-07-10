@@ -37,3 +37,9 @@
 - [x] 插件服务契约收敛：收敛`plugin.Service`方法集合；`ListManagedJobs`替换多个 job 查询；`UpdateStatus`替换 Enable/Disable/SetStatus；FB-1 至 FB-6 收敛 facet 为私有定义。
 - [x] 窄接口移动到消费者：合并生产者自组合接口；移动跨包窄依赖到消费者；收敛`i18n.Service`删除无业务入口管理诊断 API；FB-1 至 FB-50 大量反馈闭环。
 - [x] 验证：`go test`覆盖 capability、pluginhost、pluginbridge、capabilityhost/wasm、各领域 owner adapter 等包；`openspec validate`通过；静态检索确认旧 AdminService/旧 wire method/旧顶层入口无残留。
+
+- [x] 交付 plugin-owned 领域能力：通用 descriptor 注册、owner-aware hostServices/catalog/授权快照/dispatcher、依赖与反向阻断、跨插件 import 边界扫描、`linapro-ai-core` backend/cap 契约与 bridge SDK、core AI 生产入口清理。
+- [x] 交付宿主分层简化：JSON envelope 政策、dedicated codec 方法级冻结、wire 常量单一来源、upgrade 归 lifecycle、README 同步。
+- [x] 验证：core 插件相关包测试、`linapro-ai-core`/`linapro-demo-dynamic` 包测试、`plugins.check`、`make wasm`、i18n 检查、E2E TC017/TC007、OpenSpec 严格校验与 lina-review。
+- [x] FB 摘要：owner invoker 收敛到`aicap.Service`；动态 descriptor 仅发布可运行方法；wire 常量放弃 go generate；CapabilityID 改为`plugin.linapro-ai-core.ai.*`。
+- [x] 治理：i18n 覆盖 owner 错误码/授权展示与前端 owner/version 标签；缓存按关键运行时数据治理；数据权限在 owner 查询路径接入；无新增业务表；API 主要扩展 owner-aware 投影；前端授权弹窗可观察行为由 E2E 覆盖；DI 以启动期 descriptor registry 与 domainServices 显式传递。

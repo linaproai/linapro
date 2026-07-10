@@ -1,8 +1,10 @@
-# framework-ai-multimodal-capabilities Specification
+# 多模态 AI 能力 owner 迁移
 
 ## Purpose
-TBD - created by archiving change extend-ai-multimodal-capabilities. Update Purpose after archive.
+保留多模态 AI 方法语义与安全边界，迁移契约包与动态方法发布 owner。
+
 ## Requirements
+
 ### Requirement: 宿主必须通过 AI 命名空间暴露类型化多模态子能力
 
 系统 SHALL 由`linapro-ai-core/backend/cap/aicap`在`AI()`命名空间下暴露图片、向量、音频、视觉、文档、安全审核和视频等类型化子能力。根`lina-core/pkg/plugin/capability.Services` MUST NOT 新增`AIImage()`、`AIEmbedding()`、`AIAudio()`等按子能力展开的根方法，也 MUST NOT 继续作为多模态`AI`契约 owner。
@@ -55,52 +57,6 @@ TBD - created by archiving change extend-ai-multimodal-capabilities. Update Purp
 - **THEN** owner 能力目录和动态插件 host service MUST 拒绝该方法
 - **AND** 错误 MUST 表明该能力不在本轮多模态`AI`能力范围内
 
-### Requirement: 大对象结果必须返回资产引用
-
-系统 SHALL 对图片、音频、视频等大对象结果返回`assetRef`或受控临时资产引用。能力响应、HTTP JSON、WASM host call 和插件调用结果 MUST NOT 返回无上限 base64 或完整二进制内容。
-
-#### Scenario: 图片生成返回资产引用
-
-- **WHEN** `image.generate`成功生成图片
-- **THEN** 响应 MUST 返回`assetRef`、`mimeType`、`sizeBytes`、`width`、`height`和生成时间投影
-- **AND** 响应 MUST NOT 返回完整 base64 图片内容
-
-#### Scenario: 音频合成返回资产引用
-
-- **WHEN** `audio.synthesize`成功生成音频
-- **THEN** 响应 MUST 返回`assetRef`、`mimeType`、`sizeBytes`和`durationMs`
-- **AND** 调用方 MUST 通过受控资产能力读取或下载音频内容
-
-#### Scenario: 渠道临时 URL 不直接外泄
-
-- **WHEN** 渠道返回临时下载 URL 或远程资产 URL
-- **THEN** provider adapter MUST 将其转换为受控资产引用或受控临时资产投影
-- **AND** 响应 MUST NOT 向动态插件或前端暴露携带认证信息的渠道 URL
-
-### Requirement: 渠道异步协议必须通过 ProviderOperationRef 表达
-
-系统 SHALL 使用`ProviderOperationRef`表达渠道侧异步 operation。`ProviderOperationRef` MUST 是 provider 协议适配引用，MUST NOT 表示业务任务、业务队列或用户进度记录。
-
-#### Scenario: 视频生成返回 operation 引用
-
-- **WHEN** `video.generate`调用的渠道无法同步返回最终视频资产
-- **THEN** 能力响应 MUST 返回`ProviderOperationRef`
-- **AND** `ProviderOperationRef` MUST 包含不透明`operationRef`、能力方法、渠道模型投影、状态、建议下次查询时间和过期时间
-- **AND** 响应 MUST NOT 创建或返回业务视频任务 ID
-
-#### Scenario: 查询 provider operation
-
-- **WHEN** 调用方持有有效`operationRef`并调用`video.operation.get`
-- **THEN** 系统 MUST 查询渠道 operation 状态或本地最小投影
-- **AND** operation 成功完成时 MUST 返回资产引用
-- **AND** operation 未完成时 MUST 返回状态和`nextPollAfterMs`
-
-#### Scenario: 业务异步由业务模块负责
-
-- **WHEN** 业务模块需要后台生成、轮询、重试、取消、通知或绑定业务资产
-- **THEN** 业务模块 MUST 创建并管理自己的业务任务、状态和数据归属
-- **AND** `lina-core`和`linapro-ai-core` MUST NOT 提供`/api/ai/video-jobs`或等价具体业务任务 API
-
 ### Requirement: 多模态能力必须提供可用性和降级状态
 
 系统 SHALL 由 owner 插件为每个多模态子能力提供可用性和状态查询。provider 缺失、模型能力未声明、档位未配置、endpoint 禁用、密钥不可用或方法不支持时，系统 MUST 返回结构化不可用状态或业务错误。动态插件读取多模态状态时 MUST 通过 owner-aware host service 和授权快照进入 owner handler。
@@ -118,21 +74,6 @@ TBD - created by archiving change extend-ai-multimodal-capabilities. Update Purp
 - **THEN** 所有多模态子能力 MUST 返回不可用状态
 - **AND** 宿主 MUST NOT 产生 500 或返回 nil service
 
-### Requirement: 多模态调用必须保护敏感输入输出
-
-系统 SHALL 将多模态调用视为敏感执行路径。能力层、host service 和 provider adapter MUST NOT 默认记录完整图片、音频、视频、文件、prompt、渠道响应原文或密钥。
-
-#### Scenario: 成功调用只记录摘要
-
-- **WHEN** 多模态能力调用成功
-- **THEN** 系统记录调用日志时 MUST 只记录`capabilityType`、`capabilityMethod`、`purpose`、档位、渠道模型投影、资产引用、用量、耗时和状态等最小摘要
-- **AND** 系统 MUST NOT 保存完整输入资产、完整输出资产或完整渠道响应正文
-
-#### Scenario: 失败调用脱敏
-
-- **WHEN** 多模态 provider 调用失败
-- **THEN** 错误摘要 MUST 脱敏 API key、认证头、渠道 URL 中的凭证、请求体和响应体敏感片段
-- **AND** 返回给调用方的错误 MUST 包含稳定错误码和可本地化消息键
 
 ### Requirement: 多模态动态方法不得继续由 core codec 拥有
 
@@ -150,4 +91,3 @@ TBD - created by archiving change extend-ai-multimodal-capabilities. Update Purp
 - **WHEN** 动态插件调用`video.operation.get`或`video.operation.cancel`
 - **THEN** owner bridge SDK MUST 维护 operation 请求响应契约
 - **AND** core 只校验 owner、service、version、method、授权快照和资源范围
-

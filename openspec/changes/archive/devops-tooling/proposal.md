@@ -19,6 +19,8 @@ LinaPro 的开发与运维工具链需要支撑跨平台协作、可持续交付
 - 记录 framework/source-plugin 开发期升级入口的治理演进，后续插件有效版本、发现版本、运行时升级和发布切换契约归插件框架分组统一承载。
 - 提供跨平台安装脚本、内存态 demo Compose、开发容器 Compose、`lina-perf-audit`手动触发性能审计技能和持久 issue-card 机制。
 - 将非工具链 owner 的项目初始化、数据库启动、E2E 组织和定时任务清理内容迁移为交叉影响摘要，避免在本分组重复保存完整能力规范。
+- 建立仓库级`Go`静态检查门禁：固定`golangci-lint`与`staticcheck`版本，通过`linactl lint.go`提供跨平台入口，支持宿主模式与插件完整模式，并接入主`CI`与发布验证。
+- 将动态插件 builder 专用的 hook、resource 与 lifecycle timeout 配置统一收敛到插件根`hack/config.yaml`的`wasm.*`配置，不再从`backend/*/*.yaml`读取。
 
 ## Capabilities
 
@@ -31,6 +33,8 @@ LinaPro 的开发与运维工具链需要支撑跨平台协作、可持续交付
 - `lina-perf-audit-skill`
 - `monthly-openspec-archive`
 - `release-version-governance`
+- `go-static-lint-governance`：仓库级`Go`静态检查配置、`linactl lint.go`入口、多目标死代码检查、插件工作区覆盖、`CI`门禁与治理文档。
+- `plugin-runtime-builder-config`：动态插件 builder 配置统一到插件根`hack/config.yaml`的`wasm`配置。
 
 ### Modified Capabilities
 

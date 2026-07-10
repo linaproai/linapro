@@ -167,3 +167,20 @@ TBD - created by archiving change refine-plugin-capability-boundaries. Update Pu
 - **THEN** `PluginStateService.IsProviderEnabled(ctx, pluginID)`返回 false
 - **AND** 消费 service 不再返回或调用该插件声明的 provider
 - **AND** 消费 service 的`Available(ctx)`或等价状态反映该能力不可用或降级状态
+
+### Requirement: 通用 capability descriptor 必须可治理和可测试
+
+系统 SHALL 为通用 capability descriptor 提供结构化校验、重复注册检查、版本匹配、owner 插件启用状态检查、方法风险分类、资源形态校验和审计投影。descriptor 校验 MUST 在启动、源码插件同步、动态 artifact 加载和 owner 插件升级路径执行，并通过单元测试覆盖未知 owner、重复 method、版本不满足、依赖缺失、禁用 owner 和 provider 冲突。
+
+#### Scenario: descriptor 注册缺少 owner
+
+- **WHEN** 源码插件或动态 artifact 注册 capability descriptor 但`ownerPluginId`为空或不等于声明插件 ID
+- **THEN** 系统 MUST 拒绝注册
+- **AND** 错误必须包含声明插件 ID、owner 插件 ID 和 capability key
+
+#### Scenario: descriptor 版本不满足消费声明
+
+- **WHEN** 动态插件声明`owner: linapro-ai-core`、`service: ai`和`version: v1`
+- **AND** owner 插件只发布不兼容版本
+- **THEN** 安装、启用或运行时授权 MUST 被拒绝
+- **AND** 拒绝结果必须进入依赖或 host service 授权诊断

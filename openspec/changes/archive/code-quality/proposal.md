@@ -17,6 +17,8 @@ LinaPro 后端曾同时存在 API 合同漂移、响应边界过宽、GoFrame v2
 - 建立 Go 单元测试效率规则：保留`-race`主路径，收敛真实 dynamic Wasm 执行为 smoke，复用轻量 fixture，减少无测试包完整执行并输出耗时摘要。
 - 建立 OpenSpec 归档文档治理规则：信息分层、能力 owner 映射、重复规范裁剪、分阶段压缩、语义覆盖和验证报告要求，将归档体量从约`3.5M`压缩至约`1.5M`。
 - 增强`.agents/rules/testing.md`，新增 E2E 质量审查的结果级要求，覆盖有效性、断言有效性、稳定性、异常路径和审查输出，不绑定具体测试实现方式。
+- 解耦官方源码插件`init`注册 fail-fast 与宿主 panic allowlist：`apps/lina-core`继续精确白名单，`apps/lina-plugins/*/backend/plugin.go`的约定 fail-fast 按 AST 模式自动归类，非常规插件 panic 仍失败。
+- 将宿主能力约束类错误文案改为能力语义（如 multi-tenant governance），错误码与`messageKey`保持稳定，用户可见消息不得绑定官方插件品牌 ID。
 
 ## Capabilities
 
@@ -27,11 +29,12 @@ LinaPro 后端曾同时存在 API 合同漂移、响应边界过宽、GoFrame v2
 - `service-dependency-injection-governance`：显式依赖注入、共享实例、初始化错误返回、聚合依赖结构体禁止和静态治理扫描。
 - `go-unit-test-execution-efficiency`：Go 单测分层、真实 Wasm smoke 边界、fixture 复用、`-race`保留、无测试包规划和耗时摘要。
 - `openspec-archive-document-governance`：OpenSpec 归档文档的信息分层、能力 owner 映射、重复规范裁剪、分阶段压缩、语义覆盖和验证报告要求。
+- `runtime-message-i18n-governance`：宿主运行时错误文案能力化，禁止官方插件品牌 ID 进入用户可见约束类消息。
 
 ### Modified Capabilities
 
 - `api-contract-consistency`：REST 语义、参数绑定、文档标签、响应 DTO 加固、毫秒时间戳和公共枚举契约。
-- `backend-conformance`：GoFrame ORM/软删除、事务、`panic`治理、主文件职责、接口注释、接口方法唯一性、文件顶部注释和`lina-review`后端检查。
+- `backend-conformance`：GoFrame ORM/软删除、事务、`panic`治理（含官方插件`init`模式自动放行）、主文件职责、接口注释、接口方法唯一性、文件顶部注释和`lina-review`后端检查。
 - `framework-i18n-runtime-performance`：语言切换只刷新强语言相关本地状态，菜单和路由标题通过本地 i18n key 响应式更新。
 - `e2e-suite-organization`：新增 E2E 质量审查的结果级要求和审查输出证据要求。
 

@@ -348,3 +348,9 @@ sys_job_log
 5. Built-in job delivery SQL does NOT write initialization seed data into `sys_job`; projections are upserted from code and plugin declarations at runtime.
 6. The `host:cleanup-job-logs` built-in cleanup task is registered through host source code and projected into `sys_job` during service startup, not through delivery SQL seed.
 7. `cron.shell.enabled` defaults to `true`; platform-level unsupported-shell protection can still disable shell jobs safely.
+
+## Plugin Job Capability Log Retention
+
+`Jobs()` is a host domain capability owned by `jobcap`. Task-level log retention is already available on the host HTTP admin path via `logRetentionOverride`. The plugin surface exposes the same optional policy on `jobcap.SaveInput` and projects it on `JobInfo` for `Get` / `BatchGet` / `List`.
+
+Semantics stay aligned with the admin API: `nil` follows `sys.cron.log.retention`; `{mode:"days"|"count", value:N}` requires `N > 0`; `{mode:"none", value:0}` disables task-level cleanup for that job. Validation and persistence reuse `jobmgmt` / `jobmeta` paths and the existing `sys_job.log_retention_override` column. Dynamic plugins reuse existing `jobs.create` / `jobs.update` / query methods without new wire methods or auth resources. Demo plugins cover full `jobcap.Service` usage and `jobs.*` declarations.

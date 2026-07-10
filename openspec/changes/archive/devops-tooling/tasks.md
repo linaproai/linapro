@@ -14,3 +14,6 @@
 - [x] 复用 GoFrame 停机配置：移除自定义`shutdown.timeout`和`config.Service.GetShutdown`，改用`server.gracefulShutdownTimeout`；资源清理 deadline 从`Server.GetGracefulShutdownTimeout()`派生。
 - [x] FB-1 至 FB-11：收敛`ctrl`/`dao`参数、移除根 Makefile 兼容、删除插件工作区级重复入口、修正`hack/config.yaml`文档定位、删除根`go.mod`/`go.sum`、修复旧版动态插件 release snapshot 兼容。
 - [x] 验证：`go test ./hack/tools/linactl/... -count=1`通过；`make plugins.check`通过；代表性插件`make dao`和`make ctrl`烟测通过；`openspec validate`通过；静态检索确认旧路径无活动配置残留。
+- [x] 交付`Go`静态检查门禁：仓库配置与版本锁定、`linactl lint.go`跨平台入口、宿主/插件完整模式、`staticcheck U1000`多目标死代码归并、`env.setup`预装工具、主`CI`/发布验证阻断。
+- [x] FB-1~FB-10（静态检查）：收敛首批 linter 噪声、按 wasip1 矩阵归并死代码、统一`staticcheck U1000`、自动安装锁定版本、`env.setup`预装、恢复动态示例 lifecycle 导出契约、builder 配置迁入`hack/config.yaml`并删除`backend/*/*.yaml`兼容路径；验证覆盖`linactl`单测、`make lint`、wasmbuilder/runtime 相关测试与 OpenSpec 校验。
+- [x] 治理：静态检查与 builder 配置变更无运行时`i18n`/缓存/数据权限/HTTP API 影响；跨平台入口仍为 Go/`linactl`；无需新增 E2E。

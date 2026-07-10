@@ -20,6 +20,7 @@ This change introduces a complete user-manageable scheduled job subsystem on top
 - **Human interaction**: UI provides manual trigger once (`trigger=manual`, not counted in `executed_count`) and manual termination of running instances (`ctx.Cancel` + process group kill). Manual trigger shows a confirmation modal before execution.
 - **Execution count policy**: When `max_executions>0`, reaching the limit auto-disables the job and records the reason in `stop_reason`; manual reset re-enables it.
 - **Log cleanup**: Global default cleanup policy (retention by count or days) plus task-level overrides, executed by a built-in system cron job.
+- **Plugin jobcap log retention**: Source and dynamic plugins can set and read the same task-level log retention override through `jobcap.SaveInput` / `JobInfo`, mapped to `sys_job.log_retention_override` without new host service methods or schema changes.
 - **Frontend**: Built on Vben5 (`useVbenForm / useVbenModal / useVbenVxeGrid / GhostButton + Popconfirm / IconifyIcon`) with task management, group management, and execution log pages. Handler parameter area dynamically renders forms from schema. Scheduled job navigation uses a "Scheduled Jobs" directory menu under System Management.
 - **E2E**: New Playwright test cases for task CRUD, groups, manual trigger/cancellation, shell switch, cluster scheduling scope, and built-in job execution boundary behavior.
 
