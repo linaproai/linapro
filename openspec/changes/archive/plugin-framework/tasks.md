@@ -30,7 +30,7 @@
 - [x] 缓存一致性：权威源、触发点、跨实例同步、最大陈旧窗口、故障降级未因重构改变
 - [x] DI：所有内部 service 构造函数逐项显式注入，不使用 Deps/Options 聚合结构体
 - [x] 不修改 HTTP API、DTO、SQL schema、前端页面、插件 manifest wire 或 apps/lina-plugins/* 源码目录
-- [x] Builtin 插件分发治理：新增`distribution`字段支持`builtin`声明；启动期自动安装/启用/安全升级 builtin 源码插件；普通管理入口隐藏并拒绝写操作；`sys_plugin.distribution`进入基线表结构。
+- [x] Builtin 插件分发治理：新增`distribution`字段支持`builtin`声明；启动期自动安装/启用/安全升级 builtin 源码插件；普通管理入口隐藏并拒绝写操作；`sys_plugin.distribution`进入基线表结构。普通可管理枚举由`marketplace`重命名为`managed`，缺省归一化为`managed`，旧`marketplace`在有效契约中拒绝，无兼容分支。
 - [x] 插件领域能力扩展阶段 0/1：冻结四类矩阵，实现`Users.Current`、`Users.BatchResolve`、`Authz.BatchHasPermissions`、`Dict.EnsureValuesVisible`、`Sessions.Current`，同步动态 host service catalog/guest/dispatcher/README。
 - [x] 插件领域能力扩展阶段 1.5-5：完成候选搜索、组织/租户/插件治理投影、插件私有资源批量、通知类型化和 AI 状态，覆盖 40+ 个新方法；FB-1 至 FB-3 收敛 Storage provider 选择为零配置、新增冲突错误码。
 - [x] 插件领域服务统一：废除`AdminServices`和各领域`AdminService`；动态 wire method 一次性标准化；治理能力内聚到对应领域`Service`；FB-1 至 FB-59 大量反馈闭环。

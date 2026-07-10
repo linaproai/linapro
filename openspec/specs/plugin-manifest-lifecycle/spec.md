@@ -564,6 +564,12 @@
 - **THEN** manifest 校验失败
 - **AND** 错误包含插件 ID 和缺失源码注册绑定的事实
 
+#### Scenario: 旧版 marketplace distribution 被拒绝
+
+- **WHEN** 插件 manifest 声明`distribution: marketplace`
+- **THEN** manifest 校验失败
+- **AND** 错误列出合法值`managed`和`builtin`
+
 #### Scenario: 非法 distribution 被拒绝
 
 - **WHEN** 插件 manifest 声明`distribution: external`

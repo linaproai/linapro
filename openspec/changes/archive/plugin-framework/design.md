@@ -104,10 +104,10 @@ source/dynamic 两套升级骨架分散在 `sourceupgrade`、`runtimeupgrade`、
 
 ## 10. Builtin 插件分发治理
 
-**决策**：在插件 manifest 中新增`distribution`字段，缺省为`marketplace`，支持`builtin`声明项目内建源码插件。`builtin`必须同时满足源码插件和编译期注册，动态插件不能声明`builtin`。
+**决策**：在插件 manifest 中新增`distribution`字段，缺省归一化为`managed`，支持`builtin`声明项目内建源码插件。合法值仅`managed|builtin`；旧值`marketplace`在有效契约中拒绝。`builtin`必须同时满足源码插件和编译期注册，动态插件不能声明`builtin`。
 
 **关键设计**：
-- `sys_plugin`基线表结构新增`distribution varchar(32) not null default 'marketplace'`
+- `sys_plugin`基线表结构使用`distribution varchar(32) not null default 'managed'`
 - 普通插件管理列表默认隐藏`builtin`插件，写操作由服务端 guard 统一拒绝
 - 启动期独立执行`BootstrapBuiltinPlugins(ctx)`，在插件路由、cron、前端包预热前自动安装、启用和安全升级 builtin 源码插件
 - 生命周期变化继续复用现有依赖解析、SQL 迁移、资源同步、缓存失效、enabled snapshot 和集群主节点边界

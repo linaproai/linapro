@@ -12,3 +12,5 @@
 - [x] 治理：本归档压缩不修改运行时代码、HTTP API、数据库、缓存、数据权限、前端 UI、插件源码、运行时文案、语言包、`manifest/i18n`、`apidoc i18n JSON`、开发工具入口或生产构建；非 owner 能力已迁移为`design.md`交叉影响摘要。
 - [x] 修复用户资料局部更新校验：移除`UpdateProfileReq.nickname`必填约束，使个人中心仅提交`password`时能通过校验；管理员创建用户的`nickname`必填约束保持不变。
 - [x] 验证：DTO 校验回归测试覆盖仅含`password`场景；E2E 测试`TC010-profile-password-update`覆盖个人中心修改密码；`go test ./api ./internal/cmd -count=1`通过；`openspec validate`通过。
+- [x] 前端租户候选权限门禁：`loadUserTenantOptions`/`tenantStore`/头部切换器先查权限快照；根因是无权限仍回退平台租户接口；验证 vitest、vue-tsc、eslint、插件 E2E TC003（用户/角色管理零平台租户请求）与截图审查。
+- [x] 治理：无新增运行时文案/缓存/数据权限后端变更；减少无权限瀑布请求；`linapro-tenant-core` 插槽与宿主 store 联动，无 SQL/API 契约变更。

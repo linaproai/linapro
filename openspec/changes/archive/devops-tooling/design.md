@@ -8,6 +8,8 @@
 
 动态插件 builder 配置与静态检查治理同期收敛：`wasm.hooks`、`wasm.resources`与`wasm.lifecycle.timeouts`统一放在插件根`hack/config.yaml`，时长必须使用带单位字符串；构建工具与宿主本地目录加载均不得再扫描`backend/*/*.yaml`。
 
+公开参数只接受标准契约：`plugins`显式值仅标准布尔，省略时按工作区探测；参数 key 仅 kebab-case；布尔仅`true/false/1/0`；`wasm`单插件仅`dir=`，拒绝`p`/`plugin-dir`；发布标签仅显式`tag=`；镜像 registry 仅配置或`registry=`，不读`LINAPRO_IMAGE_REGISTRY`；构建变量展开仅`TARGET_DIR`/`BUILD_DIR`/`REPO_ROOT`，定向构建缺`hack/config.yaml`时拒绝且不回退`package.json`。
+
 ## Command Entry And Tool Consolidation
 
 `linactl`是仓库默认跨平台开发命令承载者。所有常用命令使用 Go 标准库处理路径、进程、HTTP readiness、端口、文件复制、PID、日志和参数解析。`Makefile`继续服务 Linux/macOS 与既有 CI，Windows`make.cmd`服务`cmd.exe`和 PowerShell，但两者只转发到同一套`linactl`实现。命令保留 make-style`key=value`参数，避免迁移破坏既有开发习惯。

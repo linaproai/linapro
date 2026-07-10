@@ -66,3 +66,7 @@
 - `cron-job-management`承载任务分组租户隔离、调度任务和日志当前契约；本分组只保留租户权限边界修复要求任务分组按租户过滤的影响，历史 owner 为`archive/scheduled-jobs`。
 - `plugin-manifest-lifecycle`和`plugin-permission-governance`承载插件生命周期、菜单权限同步和平台插件治理当前契约；本分组只保留角色授权可分配集合与插件 platform-only 权限的交叉影响，历史 owner 为`archive/plugin-framework`。
 - `server-monitor`承载服务监控数据采集、单节点记录和 stale cleanup 当前契约；本分组只保留历史上服务监控菜单与权限可见性的反馈影响，历史 owner 为`archive/system-governance`。
+
+## 前端租户候选权限门禁
+
+前端加载租户候选与头部租户切换器前必须检查权限快照：缺少`system:tenant:list`不得请求平台租户列表，缺少`system:tenant:auth:login-tenants`不得请求登录租户候选。租户上下文页面优先使用当前租户，不因候选为空回退平台控制面接口。根因是无权限路径仍调用`authLoginTenants`/`platformTenantList`并在布局阶段被切换器触发。

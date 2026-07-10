@@ -17,3 +17,5 @@
 - [x] 交付`Go`静态检查门禁：仓库配置与版本锁定、`linactl lint.go`跨平台入口、宿主/插件完整模式、`staticcheck U1000`多目标死代码归并、`env.setup`预装工具、主`CI`/发布验证阻断。
 - [x] FB-1~FB-10（静态检查）：收敛首批 linter 噪声、按 wasip1 矩阵归并死代码、统一`staticcheck U1000`、自动安装锁定版本、`env.setup`预装、恢复动态示例 lifecycle 导出契约、builder 配置迁入`hack/config.yaml`并删除`backend/*/*.yaml`兼容路径；验证覆盖`linactl`单测、`make lint`、wasmbuilder/runtime 相关测试与 OpenSpec 校验。
 - [x] 治理：静态检查与 builder 配置变更无运行时`i18n`/缓存/数据权限/HTTP API 影响；跨平台入口仍为 Go/`linactl`；无需新增 E2E。
+- [x] 删除`linactl`历史兼容面：旧变量/回退路径/`plugins=auto`/snake_case/布尔别名/环境变量覆盖/调试入口；`wasm`仅`dir=`。
+- [x] FB-1~FB-6：删除未用 helper、收敛 kebab-case 与`dir=`、修复 CI 静态扫描与 runtime 测试`plugin_dir`误用；验证`linactl`全包测试、lint.go、相关 runtime 测试与 OpenSpec 校验。

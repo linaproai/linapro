@@ -21,6 +21,7 @@ LinaPro 的开发与运维工具链需要支撑跨平台协作、可持续交付
 - 将非工具链 owner 的项目初始化、数据库启动、E2E 组织和定时任务清理内容迁移为交叉影响摘要，避免在本分组重复保存完整能力规范。
 - 建立仓库级`Go`静态检查门禁：固定`golangci-lint`与`staticcheck`版本，通过`linactl lint.go`提供跨平台入口，支持宿主模式与插件完整模式，并接入主`CI`与发布验证。
 - 将动态插件 builder 专用的 hook、resource 与 lifecycle timeout 配置统一收敛到插件根`hack/config.yaml`的`wasm.*`配置，不再从`backend/*/*.yaml`读取。
+- 收敛`linactl`公开契约：删除旧构建变量、`package.json`构建回退、`plugins=auto`、snake_case 参数映射、宽松布尔别名、环境变量标签/registry 覆盖与镜像调试入口；`wasm`单插件入口仅`dir=`。
 
 ## Capabilities
 
