@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
@@ -930,7 +930,7 @@ function buildDynamicPluginArtifact(pluginDir: string, pluginID: string) {
         "run",
         ".",
         "wasm",
-        `plugin_dir=${pluginDir}`,
+        `dir=${pluginDir}`,
         `out=${buildOutputDir()}`,
       ],
       {
@@ -945,7 +945,13 @@ function buildDynamicPluginArtifact(pluginDir: string, pluginID: string) {
   } finally {
     rmSync(goWorkPath, { force: true });
   }
-  return builtArtifactPath(pluginID);
+  const artifactPath = builtArtifactPath(pluginID);
+  if (!existsSync(artifactPath)) {
+    throw new Error(
+      `linactl wasm 未生成预期产物: ${artifactPath} (pluginDir=${pluginDir})`,
+    );
+  }
+  return artifactPath;
 }
 
 function appendWasmULEB128(target: number[], value: number) {

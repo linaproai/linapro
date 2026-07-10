@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import type { APIRequestContext, APIResponse } from "@playwright/test";
@@ -897,7 +897,7 @@ function buildDynamicPluginArtifact(pluginDir: string, pluginID: string) {
         "run",
         ".",
         "wasm",
-        `plugin_dir=${pluginDir}`,
+        `dir=${pluginDir}`,
         `out=${buildOutputDir()}`,
       ],
       {
@@ -912,7 +912,13 @@ function buildDynamicPluginArtifact(pluginDir: string, pluginID: string) {
   } finally {
     rmSync(goWorkPath, { force: true });
   }
-  return builtArtifactPath(pluginID);
+  const artifactPath = builtArtifactPath(pluginID);
+  if (!existsSync(artifactPath)) {
+    throw new Error(
+      `linactl wasm 未生成预期产物: ${artifactPath} (pluginDir=${pluginDir})`,
+    );
+  }
+  return artifactPath;
 }
 
 test.describe("TC-1 Runtime Wasm Low Priority Host Services", () => {
