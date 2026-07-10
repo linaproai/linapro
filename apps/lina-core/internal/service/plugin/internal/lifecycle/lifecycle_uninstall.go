@@ -347,6 +347,7 @@ func buildReverseDependencyBlockedError(
 		bizerr.P("requiredVersion", requiredVersion),
 		bizerr.P("currentVersion", currentVersion),
 		bizerr.P("dependents", strings.Join(plugindep.ReverseDependentIDs(dependents), ",")),
+		bizerr.P("ownerHostServices", plugindep.FormatReverseDependentOwnerHostServices(dependents)),
 		bizerr.P("blockers", plugindep.FormatBlockers(result.Blockers)),
 	)
 }

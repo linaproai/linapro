@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	v1 "lina-core/api/plugin/v1"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -52,6 +53,14 @@ func TestBuildPluginDependencyCheckResultProjectsAllSections(t *testing.T) {
 				Name:            "Plugin Downstream",
 				Version:         "v0.2.0",
 				RequiredVersion: "<0.3.0",
+				OwnerHostServices: []*pluginsvc.DependencyOwnerHostServiceSummary{
+					{
+						Owner:   "linapro-ai-core",
+						Service: "ai",
+						Version: "v1",
+						Methods: []string{"text.generate"},
+					},
+				},
 			},
 		},
 		ReverseBlockers: []*pluginsvc.DependencyBlocker{
@@ -82,6 +91,10 @@ func TestBuildPluginDependencyCheckResultProjectsAllSections(t *testing.T) {
 	if len(out.ReverseDependents) != 1 || out.ReverseDependents[0].PluginId != "plugin-downstream" {
 		t.Fatalf("expected reverse dependent projection, got %#v", out.ReverseDependents)
 	}
+	if len(out.ReverseDependents[0].OwnerHostServices) != 1 ||
+		out.ReverseDependents[0].OwnerHostServices[0].Methods[0] != "text.generate" {
+		t.Fatalf("expected owner host service projection, got %#v", out.ReverseDependents[0].OwnerHostServices)
+	}
 	if len(out.ReverseBlockers) != 1 || out.ReverseBlockers[0].Code != "dependency_snapshot_unknown" {
 		t.Fatalf("expected reverse blocker projection, got %#v", out.ReverseBlockers)
 	}
@@ -97,10 +110,12 @@ func TestBuildHostServicePermissionItemsProjectsTablesAndResources(t *testing.T)
 			Tables:  []string{"plugin_linapro_demo_dynamic_record"},
 		},
 		{
-			Service: protocol.HostServiceNotifications,
-			Methods: []string{protocol.HostServiceMethodNotificationsSend},
+			Owner:   "linapro-ai-core",
+			Service: "ai",
+			Version: "v1",
+			Methods: []string{"text.generate"},
 			Resources: []*protocol.HostServiceResourceSpec{
-				{Ref: "inbox", Attributes: map[string]string{"channel": "inbox"}},
+				{Ref: "purpose:summary", Attributes: map[string]string{"purpose": "summary"}},
 			},
 		},
 	}
@@ -124,19 +139,44 @@ func TestBuildHostServicePermissionItemsProjectsTablesAndResources(t *testing.T)
 		t.Fatalf("expected table comment to be preserved, got %s", dataItem.TableItems[0].Comment)
 	}
 
-	notificationItem := items[1]
-	if notificationItem.Service != protocol.HostServiceNotifications {
-		t.Fatalf("expected second service to be notifications, got %s", notificationItem.Service)
+	ownerItem := items[1]
+	if ownerItem.Owner != "linapro-ai-core" || ownerItem.Service != "ai" || ownerItem.Version != "v1" {
+		t.Fatalf("expected second service identity to be preserved, got %#v", ownerItem)
 	}
-	if len(notificationItem.Resources) != 1 || notificationItem.Resources[0].Ref != "inbox" {
-		t.Fatalf("expected notification resource ref to be projected, got %#v", notificationItem.Resources)
+	if len(ownerItem.Resources) != 1 || ownerItem.Resources[0].Ref != "purpose:summary" {
+		t.Fatalf("expected owner resource ref to be projected, got %#v", ownerItem.Resources)
 	}
-	if notificationItem.Resources[0].Attributes["channel"] != "inbox" {
-		t.Fatalf("expected notification resource attributes to be cloned, got %#v", notificationItem.Resources[0].Attributes)
+	if ownerItem.Resources[0].Attributes["purpose"] != "summary" {
+		t.Fatalf("expected owner resource attributes to be cloned, got %#v", ownerItem.Resources[0].Attributes)
 	}
-	specs[1].Resources[0].Attributes["channel"] = "mutated"
-	if notificationItem.Resources[0].Attributes["channel"] != "inbox" {
-		t.Fatalf("expected projected resource attributes to be independent, got %#v", notificationItem.Resources[0].Attributes)
+	specs[1].Resources[0].Attributes["purpose"] = "mutated"
+	if ownerItem.Resources[0].Attributes["purpose"] != "summary" {
+		t.Fatalf("expected projected resource attributes to be independent, got %#v", ownerItem.Resources[0].Attributes)
+	}
+}
+
+// TestBuildAuthorizationInputPreservesOwnerAwareIdentity verifies API
+// authorization payloads retain plugin-owned identity fields.
+func TestBuildAuthorizationInputPreservesOwnerAwareIdentity(t *testing.T) {
+	input := buildAuthorizationInput(&v1.HostServiceAuthorizationReq{
+		Services: []*v1.HostServiceAuthorizationServiceReq{{
+			Owner:        " linapro-ai-core ",
+			Service:      " ai ",
+			Version:      " v1 ",
+			Methods:      []string{"text.generate"},
+			ResourceRefs: []string{"purpose:summary"},
+		}},
+	})
+
+	if input == nil || len(input.Services) != 1 {
+		t.Fatalf("expected one authorization service input, got %#v", input)
+	}
+	decision := input.Services[0]
+	if decision.Owner != "linapro-ai-core" || decision.Service != "ai" || decision.Version != "v1" {
+		t.Fatalf("expected owner-aware authorization identity to be trimmed, got %#v", decision)
+	}
+	if len(decision.ResourceRefs) != 1 || decision.ResourceRefs[0] != "purpose:summary" {
+		t.Fatalf("expected resource refs to be copied, got %#v", decision.ResourceRefs)
 	}
 }
 

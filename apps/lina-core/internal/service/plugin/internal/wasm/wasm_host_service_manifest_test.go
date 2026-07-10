@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/manifestresource"
+	"lina-core/pkg/plugin/capability/capregistry"
 	"lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -279,6 +280,7 @@ func TestHandleHostServiceInvokeManifestRootListRequiresBroadGrant(t *testing.T)
 func TestConfigureManifestHostServiceRejectsNil(t *testing.T) {
 	if _, err := NewRuntime(
 		&capabilityHostServiceTestServices{},
+		capregistry.NewRegistry(),
 		noopTestConfigFactory{},
 		noopTestHostConfigService{},
 		nil,

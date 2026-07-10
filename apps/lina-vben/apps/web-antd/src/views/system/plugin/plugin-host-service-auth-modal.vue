@@ -237,11 +237,13 @@ function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
             service.service === 'storage' || service.service === 'data'
               ? undefined
               : (service.resources ?? []).map((item) => item.ref),
+          owner: service.owner || undefined,
           tables:
             service.service === 'data'
               ? [...(service.tables ?? [])]
               : undefined,
           service: service.service,
+          version: service.version || undefined,
         })),
     },
     ...installMode,

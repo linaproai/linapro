@@ -15,7 +15,6 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/wasm"
-	aitextsvc "lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	bridgecontract "lina-core/pkg/plugin/pluginbridge/contract"
@@ -122,15 +121,6 @@ func (d *RuntimeDelegate) IsEnabledAuthoritative(ctx context.Context, pluginID s
 func (d *RuntimeDelegate) IsProviderEnabled(ctx context.Context, pluginID string) bool {
 	service := d.serviceSnapshot()
 	return service != nil && service.IsProviderEnabled(ctx, pluginID)
-}
-
-// AITextProviderEnv returns text-AI provider construction inputs after binding.
-func (d *RuntimeDelegate) AITextProviderEnv(ctx context.Context, pluginID string) aitextsvc.ProviderEnv {
-	service := d.serviceSnapshot()
-	if service == nil {
-		return aitextsvc.ProviderEnv{PluginID: pluginID}
-	}
-	return service.AITextProviderEnv(ctx, pluginID)
 }
 
 // OrgProviderEnv returns organization-provider construction inputs after binding.

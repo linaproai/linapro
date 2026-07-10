@@ -7,11 +7,14 @@ package plugingovernance
 
 import (
 	"fmt"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -23,21 +26,26 @@ const (
 	categoryGoAccess    = "ProductionGoAccess"
 	categoryHostService = "DynamicHostService"
 	categoryLegacy      = "LegacyBoundary"
+	categoryDependency  = "PluginDependency"
+	categoryBoundary    = "PluginPackageBoundary"
 
-	ruleConfigCoreTable          = "plugin-dao-config-core-table"
-	ruleConfigLegacyBackendPath  = "plugin-dao-config-legacy-backend-path"
-	ruleConfigMissingRootConfig  = "plugin-dao-config-missing-root-config"
-	ruleGeneratedCoreTableFile   = "plugin-generated-core-table-file"
-	ruleGoSharedCoreTable        = "plugin-go-shared-core-table"
-	ruleGoModelCoreTable         = "plugin-go-model-core-table"
-	ruleGoSQLCoreTable           = "plugin-go-sql-core-table"
-	ruleLegacyPluginbridgeClient = "plugin-legacy-pluginbridge-client"
-	ruleLegacyHostServiceHelper  = "plugin-legacy-hostservice-helper"
-	ruleLegacyHostServiceMethod  = "plugin-legacy-hostservice-method"
-	ruleDataCoreTable            = "plugin-data-core-table"
-	ruleDataForeignPluginTable   = "plugin-data-foreign-plugin-table"
-	ruleDataUnownedTable         = "plugin-data-unowned-table"
-	ruleManifestLegacyMethod     = "plugin-manifest-legacy-hostservice-method"
+	ruleConfigCoreTable                  = "plugin-dao-config-core-table"
+	ruleConfigLegacyBackendPath          = "plugin-dao-config-legacy-backend-path"
+	ruleConfigMissingRootConfig          = "plugin-dao-config-missing-root-config"
+	ruleGeneratedCoreTableFile           = "plugin-generated-core-table-file"
+	ruleGoSharedCoreTable                = "plugin-go-shared-core-table"
+	ruleGoModelCoreTable                 = "plugin-go-model-core-table"
+	ruleGoSQLCoreTable                   = "plugin-go-sql-core-table"
+	ruleLegacyPluginbridgeClient         = "plugin-legacy-pluginbridge-client"
+	ruleLegacyHostServiceHelper          = "plugin-legacy-hostservice-helper"
+	ruleLegacyHostServiceMethod          = "plugin-legacy-hostservice-method"
+	ruleDataCoreTable                    = "plugin-data-core-table"
+	ruleDataForeignPluginTable           = "plugin-data-foreign-plugin-table"
+	ruleDataUnownedTable                 = "plugin-data-unowned-table"
+	ruleManifestLegacyMethod             = "plugin-manifest-legacy-hostservice-method"
+	ruleSourceCapImportMissingDependency = "plugin-source-cap-import-missing-dependency"
+	ruleSourceCapImportMissingVersion    = "plugin-source-cap-import-missing-version"
+	ruleCrossPluginPrivateImport         = "plugin-cross-plugin-private-import"
 )
 
 var (
@@ -123,6 +131,20 @@ type tableNode struct {
 	Line  int
 }
 
+type pluginDependency struct {
+	Version string
+}
+
+type pluginManifestInfo struct {
+	ID           string
+	Dependencies map[string]pluginDependency
+}
+
+type pluginModuleOwner struct {
+	ModulePath string
+	PluginID   string
+}
+
 // Scan runs plugin governance checks against repoRoot.
 func Scan(repoRoot string) (*Report, error) {
 	root := filepath.Clean(strings.TrimSpace(repoRoot))
@@ -135,18 +157,22 @@ func Scan(repoRoot string) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
+	moduleOwners, err := discoverPluginModuleOwners(pluginRoots)
+	if err != nil {
+		return nil, err
+	}
 	for _, pluginRoot := range pluginRoots {
-		pluginID, err := scanPluginManifest(root, pluginRoot, report)
+		manifest, err := scanPluginManifest(root, pluginRoot, report)
 		if err != nil {
 			return nil, err
 		}
-		if pluginID == "" {
-			pluginID = filepath.Base(pluginRoot)
+		if manifest.ID == "" {
+			manifest.ID = filepath.Base(pluginRoot)
 		}
 		if err = scanPluginDAOConfig(root, pluginRoot, report); err != nil {
 			return nil, err
 		}
-		if err = scanPluginProductionGo(root, pluginRoot, pluginID, report); err != nil {
+		if err = scanPluginProductionGo(root, pluginRoot, manifest, moduleOwners, report); err != nil {
 			return nil, err
 		}
 	}
@@ -265,26 +291,30 @@ func hasGeneratedDAO(pluginRoot string) bool {
 
 // scanPluginManifest validates dynamic hostServices data table ownership and
 // legacy org/tenant method declarations.
-func scanPluginManifest(repoRoot string, pluginRoot string, report *Report) (string, error) {
+func scanPluginManifest(repoRoot string, pluginRoot string, report *Report) (pluginManifestInfo, error) {
 	manifestPath := filepath.Join(pluginRoot, "plugin.yaml")
 	root, err := readYAMLDocument(manifestPath)
 	if err != nil {
-		return "", err
+		return pluginManifestInfo{}, err
 	}
 	report.Summary.ManifestFiles++
 
 	relPath, err := relSlash(repoRoot, manifestPath)
 	if err != nil {
-		return "", err
+		return pluginManifestInfo{}, err
 	}
 	pluginID := scalarValue(mappingValue(root, "id"))
 	if pluginID == "" {
 		pluginID = filepath.Base(pluginRoot)
 	}
+	manifest := pluginManifestInfo{
+		ID:           pluginID,
+		Dependencies: collectPluginDependencies(root),
+	}
 
 	hostServices := mappingValue(root, "hostServices")
 	if hostServices == nil || hostServices.Kind != yaml.SequenceNode {
-		return pluginID, nil
+		return manifest, nil
 	}
 
 	for _, serviceNode := range hostServices.Content {
@@ -310,11 +340,11 @@ func scanPluginManifest(repoRoot string, pluginRoot string, report *Report) (str
 			validateDataServiceTable(report, relPath, pluginID, table)
 		}
 	}
-	return pluginID, nil
+	return manifest, nil
 }
 
 // scanPluginProductionGo blocks direct host table access in plugin production Go.
-func scanPluginProductionGo(repoRoot string, pluginRoot string, pluginID string, report *Report) error {
+func scanPluginProductionGo(repoRoot string, pluginRoot string, manifest pluginManifestInfo, moduleOwners []pluginModuleOwner, report *Report) error {
 	return filepath.WalkDir(pluginRoot, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -347,15 +377,18 @@ func scanPluginProductionGo(repoRoot string, pluginRoot string, pluginID string,
 				filepath.Base(path),
 			)
 		}
-		return scanGoSourceFile(path, relPath, pluginID, report)
+		return scanGoSourceFile(path, relPath, manifest, moduleOwners, report)
 	})
 }
 
-// scanGoSourceFile applies line-oriented production Go patterns.
-func scanGoSourceFile(path string, relPath string, _ string, report *Report) error {
+// scanGoSourceFile applies line-oriented and import-based production Go checks.
+func scanGoSourceFile(path string, relPath string, manifest pluginManifestInfo, moduleOwners []pluginModuleOwner, report *Report) error {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read Go source %s: %w", relPath, err)
+	}
+	if err = scanGoCrossPluginImports(content, relPath, manifest, moduleOwners, report); err != nil {
+		return err
 	}
 	lines := strings.Split(string(content), "\n")
 	for index, line := range lines {
@@ -372,6 +405,153 @@ func scanGoSourceFile(path string, relPath string, _ string, report *Report) err
 		}
 	}
 	return nil
+}
+
+// scanGoCrossPluginImports validates that production imports of other plugins
+// only target backend/cap contracts and carry matching hard dependencies.
+func scanGoCrossPluginImports(content []byte, relPath string, manifest pluginManifestInfo, moduleOwners []pluginModuleOwner, report *Report) error {
+	fileSet := token.NewFileSet()
+	parsed, err := parser.ParseFile(fileSet, relPath, content, parser.ImportsOnly)
+	if err != nil {
+		return fmt.Errorf("parse Go imports %s: %w", relPath, err)
+	}
+	for _, importSpec := range parsed.Imports {
+		importPath, err := strconv.Unquote(importSpec.Path.Value)
+		if err != nil {
+			return fmt.Errorf("parse Go import path %s: %w", relPath, err)
+		}
+		ownerPluginID, pluginSubpath := ownerPluginIDFromImport(importPath, moduleOwners)
+		if ownerPluginID == "" || ownerPluginID == manifest.ID {
+			continue
+		}
+		line := fileSet.Position(importSpec.Pos()).Line
+		if !isBackendCapSubpath(pluginSubpath) {
+			addFinding(
+				report,
+				relPath,
+				line,
+				ruleCrossPluginPrivateImport,
+				categoryBoundary,
+				"plugin production Go may only import another plugin's backend/cap public contract",
+				importPath,
+			)
+			continue
+		}
+		dependency, ok := manifest.Dependencies[ownerPluginID]
+		if !ok {
+			addFinding(
+				report,
+				relPath,
+				line,
+				ruleSourceCapImportMissingDependency,
+				categoryDependency,
+				"plugin production Go import of owner backend/cap requires dependencies.plugins entry for the owner plugin",
+				importPath,
+			)
+			continue
+		}
+		if strings.TrimSpace(dependency.Version) == "" {
+			addFinding(
+				report,
+				relPath,
+				line,
+				ruleSourceCapImportMissingVersion,
+				categoryDependency,
+				"plugin production Go import of owner backend/cap requires dependencies.plugins version range for the owner plugin",
+				importPath,
+			)
+		}
+	}
+	return nil
+}
+
+// ownerPluginIDFromImport resolves the plugin owner and module-relative import
+// subpath for a local plugin module import.
+func ownerPluginIDFromImport(importPath string, moduleOwners []pluginModuleOwner) (string, string) {
+	for _, owner := range moduleOwners {
+		if importPath == owner.ModulePath {
+			return owner.PluginID, ""
+		}
+		prefix := owner.ModulePath + "/"
+		if strings.HasPrefix(importPath, prefix) {
+			return owner.PluginID, strings.TrimPrefix(importPath, prefix)
+		}
+	}
+	modulePath, subpath, ok := splitPluginModuleImport(importPath)
+	if !ok || !strings.HasPrefix(modulePath, "lina-plugin-") {
+		return "", ""
+	}
+	return strings.TrimPrefix(modulePath, "lina-plugin-"), subpath
+}
+
+// splitPluginModuleImport splits a Go import path into module and subpath using
+// the Lina plugin module naming convention.
+func splitPluginModuleImport(importPath string) (string, string, bool) {
+	normalized := strings.TrimSpace(importPath)
+	if normalized == "" {
+		return "", "", false
+	}
+	modulePath, subpath, ok := strings.Cut(normalized, "/")
+	if !ok {
+		return normalized, "", true
+	}
+	return modulePath, subpath, true
+}
+
+// isBackendCapSubpath reports whether a module-relative import path targets the
+// public plugin-owned capability contract directory.
+func isBackendCapSubpath(subpath string) bool {
+	return subpath == "backend/cap" || strings.HasPrefix(subpath, "backend/cap/")
+}
+
+// discoverPluginModuleOwners maps local plugin Go module paths to plugin IDs.
+func discoverPluginModuleOwners(pluginRoots []string) ([]pluginModuleOwner, error) {
+	owners := make([]pluginModuleOwner, 0, len(pluginRoots))
+	for _, pluginRoot := range pluginRoots {
+		modulePath, err := readGoModulePath(filepath.Join(pluginRoot, "go.mod"))
+		if err != nil {
+			return nil, err
+		}
+		if modulePath == "" {
+			continue
+		}
+		owners = append(owners, pluginModuleOwner{
+			ModulePath: modulePath,
+			PluginID:   filepath.Base(pluginRoot),
+		})
+	}
+	sort.Slice(owners, func(left int, right int) bool {
+		return len(owners[left].ModulePath) > len(owners[right].ModulePath)
+	})
+	return owners, nil
+}
+
+// readGoModulePath returns the declared Go module path when go.mod exists.
+func readGoModulePath(goModPath string) (string, error) {
+	content, err := os.ReadFile(goModPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("read plugin go.mod %s: %w", goModPath, err)
+	}
+	for _, line := range strings.Split(string(content), "\n") {
+		fields := strings.Fields(strings.TrimSpace(line))
+		if len(fields) >= 2 && fields[0] == "module" {
+			return strings.TrimSpace(fields[1]), nil
+		}
+	}
+	return "", nil
+}
+
+// ownerPluginIDFromCapImport resolves the owner plugin ID for one backend/cap
+// import path.
+func ownerPluginIDFromCapImport(importPath string, moduleOwners []pluginModuleOwner) string {
+	ownerPluginID, pluginSubpath := ownerPluginIDFromImport(importPath, moduleOwners)
+	if ownerPluginID == "" || !isBackendCapSubpath(pluginSubpath) {
+		return ""
+	}
+	return ownerPluginID
 }
 
 // validateDataServiceTable enforces current-plugin table ownership for data grants.
@@ -440,6 +620,31 @@ func collectTables(node *yaml.Node) []tableNode {
 		}
 	}
 	return result
+}
+
+// collectPluginDependencies extracts dependencies.plugins declarations from a
+// plugin.yaml node.
+func collectPluginDependencies(node *yaml.Node) map[string]pluginDependency {
+	dependencies := make(map[string]pluginDependency)
+	plugins := mappingValue(mappingValue(node, "dependencies"), "plugins")
+	if plugins == nil || plugins.Kind != yaml.SequenceNode {
+		return dependencies
+	}
+	for _, item := range plugins.Content {
+		if item == nil || item.Kind != yaml.MappingNode {
+			continue
+		}
+		idNode := mappingValue(item, "id")
+		pluginID := scalarValue(idNode)
+		if pluginID == "" {
+			continue
+		}
+		versionNode := mappingValue(item, "version")
+		dependencies[pluginID] = pluginDependency{
+			Version: scalarValue(versionNode),
+		}
+	}
+	return dependencies
 }
 
 // mappingValue returns one mapping field from a YAML node.

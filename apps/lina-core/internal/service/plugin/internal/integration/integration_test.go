@@ -21,7 +21,6 @@ import (
 	"lina-core/internal/service/plugin/internal/capabilityowner"
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/plugin/capability"
-	capabilityai "lina-core/pkg/plugin/capability/aicap"
 	"lina-core/pkg/plugin/capability/apidoccap"
 	"lina-core/pkg/plugin/capability/authcap"
 	capabilityauthz "lina-core/pkg/plugin/capability/authcap/authz"
@@ -996,9 +995,6 @@ func (emptySourceServicesDirectory) APIDoc() apidoccap.Service { return nil }
 
 // Auth returns no auth namespace for this capability-scope test.
 func (emptySourceServicesDirectory) Auth() authcap.Service { return nil }
-
-// AI returns the default AI fallback namespace for this capability-scope test.
-func (emptySourceServicesDirectory) AI() capabilityai.Service { return capabilityai.New(nil) }
 
 // Users returns no user-domain service for this capability-scope test.
 func (emptySourceServicesDirectory) Users() capabilityusercap.Service { return nil }

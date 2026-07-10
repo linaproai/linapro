@@ -5,10 +5,12 @@ package protocol
 import "testing"
 
 // TestHostServiceRequestEnvelopeRoundTrip verifies host service request
-// envelopes preserve service, method, table, and payload data.
+// envelopes preserve owner, service, version, method, table, and payload data.
 func TestHostServiceRequestEnvelopeRoundTrip(t *testing.T) {
 	original := &HostServiceRequestEnvelope{
+		Owner:   "linapro-ai-core",
 		Service: HostServiceData,
+		Version: "v1",
 		Method:  HostServiceMethodDataGet,
 		Table:   "sys_plugin_node_state",
 		Payload: MarshalHostServiceDataGetRequest(&HostServiceDataGetRequest{
@@ -22,6 +24,12 @@ func TestHostServiceRequestEnvelopeRoundTrip(t *testing.T) {
 	}
 	if decoded.Service != original.Service {
 		t.Errorf("service: got %q, want %q", decoded.Service, original.Service)
+	}
+	if decoded.Owner != original.Owner {
+		t.Errorf("owner: got %q, want %q", decoded.Owner, original.Owner)
+	}
+	if decoded.Version != original.Version {
+		t.Errorf("version: got %q, want %q", decoded.Version, original.Version)
 	}
 	if decoded.Method != original.Method {
 		t.Errorf("method: got %q, want %q", decoded.Method, original.Method)

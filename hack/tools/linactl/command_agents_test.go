@@ -5,8 +5,10 @@
 // charmbracelet/huh ships its own test coverage for form mechanics.
 //
 // Coverage in this file:
-//   - collectAgentUniverse merges three registries, excludes native-only
-//     agents and is sorted deterministically.
+//   - collectAgentUniverse merges three registries, includes native-only
+//     agents and is sorted alphabetically by agent name.
+//   - partitionAgentUniverse / buildAgentPickerOptions split built-in and
+//     needs-setup groups with alphabetical order inside each group.
 //   - validateSingleAgentName rejects empty / "all" / comma-separated /
 //     unknown values and accepts a single supported agent.
 //   - parseAgentSetupAction normalizes link/unlink and rejects others.
@@ -39,95 +41,121 @@ func newTestApp(t *testing.T) (*app, *bytes.Buffer) {
 	return a, stdout
 }
 
-func TestCollectAgentUniverseExcludesNativeOnly(t *testing.T) {
+func TestCollectAgentUniverseIncludesNativeOnly(t *testing.T) {
 	universe := collectAgentUniverse(t.TempDir())
 	if len(universe) == 0 {
 		t.Fatalf("expected non-empty agent universe")
 	}
-	for _, agent := range universe {
-		if !agent.hasLinkRole() {
-			t.Fatalf("native-only agent %q leaked into universe (roles=%v)", agent.Name, agent.Roles)
-		}
-	}
-}
-
-func TestCollectAgentUniverseSorted(t *testing.T) {
-	universe := collectAgentUniverse(t.TempDir())
-
-	// Build a name -> position map for assertions.
-	positions := make(map[string]int, len(universe))
-	for index, agent := range universe {
-		positions[agent.Name] = index
-	}
-
-	// 1) Every priority agent that is registered must appear in the
-	//    configured priority order, before any non-priority agent.
 	var (
-		previousRank         = -1
-		previousName         = ""
-		highestPriorityIndex = -1
+		hasBuiltin bool
+		hasSetup   bool
 	)
-	for _, name := range agentDisplayPriority {
-		index, ok := positions[name]
-		if !ok {
-			// Priority entries may be unregistered (e.g. cline); skip.
+	for _, agent := range universe {
+		if agent.needsSetup() {
+			hasSetup = true
 			continue
 		}
-		rank, isPriority := agentPriorityRank(name)
-		if !isPriority {
-			t.Fatalf("agent %q expected to be priority but rank reports otherwise", name)
-		}
-		if rank <= previousRank {
-			t.Fatalf("priority list rank regressed: %q (rank=%d) after %q (rank=%d)", name, rank, previousName, previousRank)
-		}
-		previousRank = rank
-		previousName = name
-		if index > highestPriorityIndex {
-			highestPriorityIndex = index
-		}
+		hasBuiltin = true
 	}
-
-	// 2) After the priority block, the remaining agents must be in
-	//    strict ascending alphabetical order.
-	tail := universe[highestPriorityIndex+1:]
-	for index := 1; index < len(tail); index++ {
-		if tail[index-1].Name >= tail[index].Name {
-			t.Fatalf("non-priority tail not alphabetically sorted: %q before %q", tail[index-1].Name, tail[index].Name)
-		}
+	if !hasBuiltin {
+		t.Fatalf("expected at least one built-in (native-only) agent in universe")
 	}
+	if !hasSetup {
+		t.Fatalf("expected at least one needs-setup agent in universe")
+	}
+}
 
-	// 3) No non-priority agent may appear before any registered
-	//    priority agent.
-	for index := 0; index <= highestPriorityIndex; index++ {
-		if _, isPriority := agentPriorityRank(universe[index].Name); !isPriority {
-			t.Fatalf("non-priority agent %q (index %d) precedes registered priority agents", universe[index].Name, index)
+func TestCollectAgentUniverseSortedAlphabetically(t *testing.T) {
+	universe := collectAgentUniverse(t.TempDir())
+	if len(universe) < 2 {
+		t.Fatalf("expected at least two agents for alphabetical sort check")
+	}
+	for index := 1; index < len(universe); index++ {
+		if universe[index-1].Name >= universe[index].Name {
+			t.Fatalf("universe not alphabetically sorted: %q before %q", universe[index-1].Name, universe[index].Name)
 		}
 	}
 }
 
-func TestAgentPriorityRank(t *testing.T) {
-	// claude-code is intentionally first.
-	rank, ok := agentPriorityRank("claude-code")
-	if !ok || rank != 0 {
-		t.Fatalf("expected claude-code at rank 0, got rank=%d ok=%v", rank, ok)
+func TestPartitionAgentUniverseGroupsAndOrder(t *testing.T) {
+	universe := collectAgentUniverse(t.TempDir())
+	builtin, setup := partitionAgentUniverse(universe)
+	if len(builtin) == 0 || len(setup) == 0 {
+		t.Fatalf("expected both groups non-empty; builtin=%d setup=%d", len(builtin), len(setup))
 	}
-	// codex is intentionally second.
-	rank, ok = agentPriorityRank("codex")
-	if !ok || rank != 1 {
-		t.Fatalf("expected codex at rank 1, got rank=%d ok=%v", rank, ok)
+	for _, agent := range builtin {
+		if agent.needsSetup() {
+			t.Fatalf("built-in group contains needs-setup agent %q", agent.Name)
+		}
 	}
-	// codebuddy is intentionally NOT in the priority list (falls back
-	// to the alphabetical tail to avoid biasing the default surface).
-	if rank, ok := agentPriorityRank("codebuddy"); ok {
-		t.Fatalf("codebuddy should fall back to alphabetical tail, got rank=%d", rank)
+	for _, agent := range setup {
+		if !agent.needsSetup() {
+			t.Fatalf("setup group contains built-in agent %q", agent.Name)
+		}
 	}
-	// Unknown / non-priority agents fall through to the tail.
-	rank, ok = agentPriorityRank("definitely-not-an-agent")
-	if ok {
-		t.Fatalf("unexpected priority match for unknown name (rank=%d)", rank)
+	for index := 1; index < len(builtin); index++ {
+		if builtin[index-1].Name >= builtin[index].Name {
+			t.Fatalf("built-in group not alphabetical: %q before %q", builtin[index-1].Name, builtin[index].Name)
+		}
 	}
-	if rank != len(agentDisplayPriority) {
-		t.Fatalf("non-priority rank %d != len(priority) %d", rank, len(agentDisplayPriority))
+	for index := 1; index < len(setup); index++ {
+		if setup[index-1].Name >= setup[index].Name {
+			t.Fatalf("setup group not alphabetical: %q before %q", setup[index-1].Name, setup[index].Name)
+		}
+	}
+}
+
+func TestBuildAgentPickerOptionsTwoGroups(t *testing.T) {
+	universe := collectAgentUniverse(t.TempDir())
+	options := buildAgentPickerOptions(universe)
+	if len(options) < 4 {
+		t.Fatalf("expected section headers plus agents; got %d options", len(options))
+	}
+	if options[0].Value != agentPickerSectionBuiltin || !options[0].Section {
+		t.Fatalf("first option should be built-in section header, got value=%q section=%v", options[0].Value, options[0].Section)
+	}
+
+	var (
+		sawSetupSection bool
+		builtinNames    []string
+		setupNames      []string
+	)
+	for _, option := range options[1:] {
+		switch {
+		case option.Value == agentPickerSectionSetup:
+			sawSetupSection = true
+		case isAgentPickerSection(option.Value):
+			t.Fatalf("unexpected section value %q", option.Value)
+		case !sawSetupSection:
+			builtinNames = append(builtinNames, option.Value)
+		default:
+			setupNames = append(setupNames, option.Value)
+		}
+	}
+	if !sawSetupSection {
+		t.Fatalf("expected needs-setup section header")
+	}
+	if len(builtinNames) == 0 || len(setupNames) == 0 {
+		t.Fatalf("expected agents in both groups; builtin=%v setup=%v", builtinNames, setupNames)
+	}
+	for index := 1; index < len(builtinNames); index++ {
+		if builtinNames[index-1] >= builtinNames[index] {
+			t.Fatalf("picker built-in names not alphabetical: %q before %q", builtinNames[index-1], builtinNames[index])
+		}
+	}
+	for index := 1; index < len(setupNames); index++ {
+		if setupNames[index-1] >= setupNames[index] {
+			t.Fatalf("picker setup names not alphabetical: %q before %q", setupNames[index-1], setupNames[index])
+		}
+	}
+}
+
+func TestIsAgentPickerSection(t *testing.T) {
+	if !isAgentPickerSection(agentPickerSectionBuiltin) || !isAgentPickerSection(agentPickerSectionSetup) {
+		t.Fatalf("section markers should be detected")
+	}
+	if isAgentPickerSection("claude-code") {
+		t.Fatalf("real agent name must not be treated as section")
 	}
 }
 
@@ -188,6 +216,7 @@ func TestValidateSingleAgentName(t *testing.T) {
 		{name: "valid ClaudeCode", input: "ClaudeCode", want: "claude-code", wantErr: false},
 		{name: "valid Claude Code", input: "Claude Code", want: "claude-code", wantErr: false},
 		{name: "valid claude_code", input: "claude_code", want: "claude-code", wantErr: false},
+		{name: "valid native amp", input: "amp", want: "amp", wantErr: false},
 		{name: "empty", input: "", wantErr: true},
 		{name: "literal all", input: "all", wantErr: true},
 		{name: "case-insensitive all", input: "ALL", wantErr: true},
@@ -230,6 +259,129 @@ func TestRunAgentsNormalizesOneShotAgentName(t *testing.T) {
 		if !strings.Contains(output, fragment) {
 			t.Fatalf("normalized one-shot output missing %q; got %q", fragment, output)
 		}
+	}
+}
+
+func TestRunAgentsBuiltinAgentPrintsReadySummary(t *testing.T) {
+	a, stdout := newTestApp(t)
+	// amp is skills-native only in the current registries and must not
+	// require symlink setup through the aggregate command.
+	if err := runAgents(context.Background(), a, commandInput{Params: map[string]string{"agent": "amp"}}); err != nil {
+		t.Fatalf("runAgents builtin: %v", err)
+	}
+	output := stdout.String()
+	for _, fragment := range []string{
+		"Agent: Amp",
+		"built-in support",
+		"skills",
+		"native",
+	} {
+		if !strings.Contains(output, fragment) {
+			t.Fatalf("builtin summary missing %q; got %q", fragment, output)
+		}
+	}
+	if strings.Contains(output, "Action: link") {
+		t.Fatalf("builtin agent should not enter link/unlink flow; got %q", output)
+	}
+}
+
+func TestCollectAgentUniverseIncludesMainstreamTools(t *testing.T) {
+	universe := collectAgentUniverse(t.TempDir())
+	required := map[string]bool{
+		"claude-code": false,
+		"codex":       false,
+		"cursor":      false,
+		"gemini-cli":  false,
+		"grok":        false,
+		"zed":         false,
+		"lingma":      false,
+	}
+	for _, agent := range universe {
+		if _, ok := required[agent.Name]; ok {
+			required[agent.Name] = true
+		}
+	}
+	for name, found := range required {
+		if !found {
+			t.Fatalf("expected mainstream agent %q in make agents universe", name)
+		}
+	}
+}
+
+// TestNeedsSetupIgnoresPrompts locks the product rule: built-in vs
+// needs-setup is decided only by skills (.agents) and md (AGENTS.md).
+// prompts may still be link-class without pushing the agent out of built-in.
+func TestNeedsSetupIgnoresPrompts(t *testing.T) {
+	universe := collectAgentUniverse(t.TempDir())
+
+	// skills + md native (prompts may still be link) → built-in
+	for _, name := range []string{"codex", "cursor", "grok"} {
+		agent, ok := lookupAgent(universe, name)
+		if !ok {
+			t.Fatalf("expected %q in universe", name)
+		}
+		if agent.needsSetup() {
+			t.Fatalf("%s must be built-in (skills/md native); roles=%v", name, agent.Roles)
+		}
+	}
+
+	// skills and/or md still need a symlink → needs-setup
+	for _, name := range []string{"claude-code", "lingma"} {
+		agent, ok := lookupAgent(universe, name)
+		if !ok {
+			t.Fatalf("expected %q in universe", name)
+		}
+		if !agent.needsSetup() {
+			t.Fatalf("%s must be needs-setup (skills/md link); roles=%v", name, agent.Roles)
+		}
+	}
+}
+
+func TestRunAgentsCodexPrintsBuiltinReady(t *testing.T) {
+	a, stdout := newTestApp(t)
+	if err := runAgents(context.Background(), a, commandInput{Params: map[string]string{"agent": "codex"}}); err != nil {
+		t.Fatalf("runAgents codex: %v", err)
+	}
+	output := stdout.String()
+	for _, fragment := range []string{
+		"Agent: Codex",
+		"built-in support",
+		"skills",
+		"md",
+		"native",
+		"prompts",
+		"optional",
+	} {
+		if !strings.Contains(output, fragment) {
+			t.Fatalf("codex builtin summary missing %q; got %q", fragment, output)
+		}
+	}
+	if strings.Contains(output, "Action: link") {
+		t.Fatalf("codex must not enter aggregate link flow; got %q", output)
+	}
+}
+
+func TestCollectAgentUniverseUniqueDisplayNames(t *testing.T) {
+	universe := collectAgentUniverse(t.TempDir())
+	seen := make(map[string]string, len(universe))
+	for _, agent := range universe {
+		label := agent.optionLabel()
+		if previous, dup := seen[label]; dup {
+			t.Fatalf("duplicate picker label %q for agents %q and %q", label, previous, agent.Name)
+		}
+		seen[label] = agent.Name
+	}
+}
+
+func TestAgentAliasesResolveInAggregateCommand(t *testing.T) {
+	a, stdout := newTestApp(t)
+	// kimi-code-cli is an alias of kimi-cli; both must resolve without
+	// listing two "Kimi Code CLI" rows in the picker.
+	if err := runAgents(context.Background(), a, commandInput{Params: map[string]string{"agent": "kimi-code-cli"}}); err != nil {
+		t.Fatalf("runAgents kimi-code-cli alias: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "Agent: Kimi Code CLI") {
+		t.Fatalf("alias resolution missing Kimi Code CLI summary; got %q", stdout.String())
 	}
 }
 
@@ -276,6 +428,7 @@ func TestRunAgentsNonTTYPrintsUsage(t *testing.T) {
 		"Usage: linactl agents",
 		"One-shot mode",
 		"Interactive mode",
+		"two-group list",
 		"Advanced per-resource",
 	} {
 		if !strings.Contains(output, fragment) {
@@ -340,7 +493,7 @@ func TestRunAgentsRejectsBadAction(t *testing.T) {
 	}
 }
 
-// TestDispatchAgentSetupRendersCompactTable verifies the aggregate
+// TestDispatchAgentSetupSkipsUnregisteredResources verifies the aggregate
 // dispatcher prints one compact resource-level table instead of the
 // verbose per-resource tables used by agents.skills/prompts/md commands.
 func TestDispatchAgentSetupSkipsUnregisteredResources(t *testing.T) {

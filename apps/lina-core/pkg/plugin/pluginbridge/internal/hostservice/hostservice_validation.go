@@ -38,17 +38,31 @@ func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 		if spec == nil {
 			return gerror.New("host service declaration cannot be nil")
 		}
+		spec.Owner = normalizeHostServiceOwner(spec.Owner)
 		spec.Service = normalizeHostServiceName(spec.Service)
+		spec.Version = normalizeHostServiceVersion(spec.Version)
 		if spec.Service == "" {
 			return gerror.New("host service name cannot be empty")
 		}
-		if _, ok := hostServiceMethodCapabilityMap[spec.Service]; !ok {
-			return gerror.Newf("unknown host service declaration: %s", spec.Service)
+		if strings.HasPrefix(spec.Service, "plugin:") {
+			return gerror.Newf("host service %s must use structured owner and version fields", spec.Service)
 		}
-		if _, exists := seenServices[spec.Service]; exists {
-			return gerror.Newf("host service cannot be declared more than once: %s", spec.Service)
+		if spec.Owner == "" && spec.Version != "" {
+			return gerror.Newf("host service %s version requires owner", spec.Service)
 		}
-		seenServices[spec.Service] = struct{}{}
+		if spec.Owner != "" && spec.Version == "" {
+			return gerror.Newf("host service %s owner %s requires version", spec.Service, spec.Owner)
+		}
+		if spec.Owner == "" {
+			if _, ok := hostServiceMethodCapabilityMap[spec.Service]; !ok {
+				return gerror.Newf("unknown host service declaration: %s", spec.Service)
+			}
+		}
+		identity := HostServiceSpecIdentity(spec)
+		if _, exists := seenServices[identity]; exists {
+			return gerror.Newf("host service cannot be declared more than once: %s", HostServiceSpecLabel(spec))
+		}
+		seenServices[identity] = struct{}{}
 
 		methodSeen := make(map[string]struct{}, len(spec.Methods))
 		methods := make([]string, 0, len(spec.Methods))
@@ -57,7 +71,7 @@ func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 			if method == "" {
 				return gerror.Newf("host service %s method cannot be empty", spec.Service)
 			}
-			if RequiredCapabilityForHostServiceMethod(spec.Service, method) == "" {
+			if spec.Owner == "" && RequiredCapabilityForHostServiceMethod(spec.Service, method) == "" {
 				return gerror.Newf("host service %s does not support method: %s", spec.Service, method)
 			}
 			if _, exists := methodSeen[method]; exists {
@@ -143,6 +157,19 @@ func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 			return resources[i].Ref < resources[j].Ref
 		})
 		spec.Resources = resources
+
+		if spec.Owner != "" {
+			if len(spec.Tables) > 0 {
+				return gerror.Newf("host service %s cannot declare tables", HostServiceSpecLabel(spec))
+			}
+			if len(spec.Paths) > 0 {
+				return gerror.Newf("host service %s cannot declare paths", HostServiceSpecLabel(spec))
+			}
+			if len(spec.Keys) > 0 {
+				return gerror.Newf("host service %s cannot declare keys", HostServiceSpecLabel(spec))
+			}
+			continue
+		}
 
 		if _, ok := hostServicesWithPaths[spec.Service]; ok {
 			if len(spec.Tables) > 0 {
@@ -237,9 +264,47 @@ func validateHostServiceSpecs(specs []*HostServiceSpec, pluginID string) error {
 	}
 
 	sort.Slice(specs, func(i, j int) bool {
-		return specs[i].Service < specs[j].Service
+		return HostServiceSpecIdentity(specs[i]) < HostServiceSpecIdentity(specs[j])
 	})
 	return nil
+}
+
+// HostServiceIdentity returns the stable owner/service/version identity key for
+// one host service declaration.
+func HostServiceIdentity(owner string, service string, version string) string {
+	return normalizeHostServiceOwner(owner) + "\x00" +
+		normalizeHostServiceName(service) + "\x00" +
+		normalizeHostServiceVersion(version)
+}
+
+// HostServiceSpecIdentity returns the stable owner/service/version identity key
+// for one normalized host service declaration.
+func HostServiceSpecIdentity(spec *HostServiceSpec) string {
+	if spec == nil {
+		return ""
+	}
+	return HostServiceIdentity(spec.Owner, spec.Service, spec.Version)
+}
+
+// HostServiceIdentityLabel formats one owner/service/version identity for
+// diagnostics.
+func HostServiceIdentityLabel(owner string, service string, version string) string {
+	normalizedOwner := normalizeHostServiceOwner(owner)
+	normalizedService := normalizeHostServiceName(service)
+	normalizedVersion := normalizeHostServiceVersion(version)
+	if normalizedOwner == "" {
+		return normalizedService
+	}
+	return normalizedOwner + "/" + normalizedService + "/" + normalizedVersion
+}
+
+// HostServiceSpecLabel formats one host service declaration identity for
+// diagnostics.
+func HostServiceSpecLabel(spec *HostServiceSpec) string {
+	if spec == nil {
+		return ""
+	}
+	return HostServiceIdentityLabel(spec.Owner, spec.Service, spec.Version)
 }
 
 // validateDataServiceTablesForPlugin restricts dynamic data-service access to
@@ -333,7 +398,9 @@ func normalizeHostServiceSpecs(specs []*HostServiceSpec, pluginID string) ([]*Ho
 			continue
 		}
 		next := &HostServiceSpec{
+			Owner:   normalizeHostServiceOwner(item.Owner),
 			Service: normalizeHostServiceName(item.Service),
+			Version: normalizeHostServiceVersion(item.Version),
 			Methods: normalizeLowerStringSlice(item.Methods),
 			Paths:   normalizePathSliceForService(normalizeHostServiceName(item.Service), item.Paths),
 			Tables:  normalizeTableSlice(item.Tables),

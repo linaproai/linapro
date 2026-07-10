@@ -42,7 +42,6 @@ import (
 	"lina-core/internal/service/usermsg"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
@@ -196,11 +195,9 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 	var (
 		tenantProviderManager = tenantspi.NewManager()
 		orgProviderManager    = orgspi.NewManager()
-		aiTextProviderManager = aitext.NewManager()
 	)
 	var (
 		orgCapSvc    = orgspi.New(orgProviderManager, pluginRuntime, pluginRuntime.OrgProviderEnv)
-		aiTextSvc    = aitext.New(aiTextProviderManager, pluginRuntime, pluginRuntime.AITextProviderEnv)
 		tenantSvc    = tenantspi.New(tenantProviderManager, pluginRuntime, pluginRuntime.TenantProviderEnv, bizCtxSvc)
 		roleSvc      = role.New(pluginRuntime, bizCtxSvc, configSvc, i18nSvc, orgCapSvc, tenantSvc)
 		scopeSvc     = datascope.New(bizCtxSvc, roleSvc, orgCapSvc.Scope())
@@ -248,7 +245,6 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		i18nSvc,
 		pluginRuntime,
 		pluginRuntime,
-		aiTextSvc,
 		userSvc,
 		fileSvc,
 		jobMgmtSvc,
@@ -293,7 +289,6 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 	if err = pluginSvc.RegisterSourcePluginProviderFactories(
 		tenantProviderManager,
 		orgProviderManager,
-		aiTextProviderManager,
 	); err != nil {
 		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, err

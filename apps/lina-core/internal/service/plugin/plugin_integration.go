@@ -13,7 +13,6 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/capabilityowner"
 	"lina-core/internal/service/plugin/internal/integration"
-	aitextsvc "lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 	"lina-core/pkg/plugin/pluginhost"
@@ -39,21 +38,6 @@ func (s *serviceImpl) RegisterJobs(ctx context.Context) error {
 	return s.integrationSvc.RegisterJobs(ctx)
 }
 
-// AITextProviderEnv returns typed, plugin-scoped text AI provider construction inputs.
-func (s *serviceImpl) AITextProviderEnv(_ context.Context, pluginID string) aitextsvc.ProviderEnv {
-	env := aitextsvc.ProviderEnv{PluginID: pluginID}
-	if s == nil || s.capabilities == nil {
-		return env
-	}
-	services := capabilityowner.ServicesForPlugin(s.capabilities, pluginID)
-	if services == nil {
-		return env
-	}
-	env.BizCtx = services.BizCtx()
-	env.Cache = services.Cache()
-	return env
-}
-
 // OrgProviderEnv returns typed, plugin-scoped organization-provider construction inputs.
 func (s *serviceImpl) OrgProviderEnv(_ context.Context, pluginID string) orgspi.ProviderEnv {
 	env := orgspi.ProviderEnv{PluginID: pluginID}
@@ -74,7 +58,6 @@ func (s *serviceImpl) OrgProviderEnv(_ context.Context, pluginID string) orgspi.
 func (s *serviceImpl) RegisterSourcePluginProviderFactories(
 	tenantManager *tenantspi.Manager,
 	orgManager *orgspi.Manager,
-	aiTextManager *aitextsvc.Manager,
 ) error {
 	for _, definition := range pluginhost.ListSourcePlugins() {
 		if definition == nil {
@@ -94,14 +77,6 @@ func (s *serviceImpl) RegisterSourcePluginProviderFactories(
 				return gerror.New("plugin service requires organization provider manager")
 			}
 			if err := orgManager.RegisterFactory(pluginID, factory); err != nil {
-				return err
-			}
-		}
-		if factory := definition.GetAITextProviderFactory(); factory != nil {
-			if aiTextManager == nil {
-				return gerror.New("plugin service requires text AI provider manager")
-			}
-			if err := aiTextManager.RegisterFactory(pluginID, factory); err != nil {
 				return err
 			}
 		}

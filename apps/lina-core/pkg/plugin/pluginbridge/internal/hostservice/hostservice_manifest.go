@@ -14,7 +14,9 @@ import (
 
 // hostServiceSpecWire is the JSON decoding shape for host service declarations.
 type hostServiceSpecWire struct {
+	Owner     string          `json:"owner,omitempty" yaml:"owner,omitempty"`
 	Service   string          `json:"service" yaml:"service"`
+	Version   string          `json:"version,omitempty" yaml:"version,omitempty"`
 	Methods   []string        `json:"methods" yaml:"methods"`
 	Resources json.RawMessage `json:"resources,omitempty" yaml:"-"`
 }
@@ -50,6 +52,12 @@ func (spec HostServiceSpec) MarshalJSON() ([]byte, error) {
 		"service": spec.Service,
 		"methods": spec.Methods,
 	}
+	if spec.Owner != "" {
+		payload["owner"] = spec.Owner
+	}
+	if spec.Version != "" {
+		payload["version"] = spec.Version
+	}
 	if len(spec.Paths) > 0 {
 		payload["resources"] = &hostServiceStorageResourcesWire{Paths: spec.Paths}
 	} else if len(spec.Tables) > 0 {
@@ -72,6 +80,8 @@ func (spec *HostServiceSpec) UnmarshalJSON(data []byte) error {
 	}
 
 	spec.Service = wire.Service
+	spec.Owner = wire.Owner
+	spec.Version = wire.Version
 	spec.Methods = append([]string(nil), wire.Methods...)
 	spec.Paths = nil
 	spec.Tables = nil
@@ -125,6 +135,12 @@ func (spec HostServiceSpec) MarshalYAML() (interface{}, error) {
 		"service": spec.Service,
 		"methods": spec.Methods,
 	}
+	if spec.Owner != "" {
+		payload["owner"] = spec.Owner
+	}
+	if spec.Version != "" {
+		payload["version"] = spec.Version
+	}
 	if len(spec.Paths) > 0 {
 		payload["resources"] = &hostServiceStorageResourcesWire{Paths: spec.Paths}
 	} else if len(spec.Tables) > 0 {
@@ -143,7 +159,9 @@ func (spec HostServiceSpec) MarshalYAML() (interface{}, error) {
 // the unified `resources` envelope.
 func (spec *HostServiceSpec) UnmarshalYAML(node *yaml.Node) error {
 	type hostServiceSpecYAMLWire struct {
+		Owner     string    `yaml:"owner,omitempty"`
 		Service   string    `yaml:"service"`
+		Version   string    `yaml:"version,omitempty"`
 		Methods   []string  `yaml:"methods"`
 		Resources yaml.Node `yaml:"resources,omitempty"`
 	}
@@ -154,6 +172,8 @@ func (spec *HostServiceSpec) UnmarshalYAML(node *yaml.Node) error {
 	}
 
 	spec.Service = wire.Service
+	spec.Owner = wire.Owner
+	spec.Version = wire.Version
 	spec.Methods = append([]string(nil), wire.Methods...)
 	spec.Paths = nil
 	spec.Tables = nil

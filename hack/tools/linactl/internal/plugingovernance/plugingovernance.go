@@ -1,7 +1,8 @@
 // Package plugingovernance implements plugin governance scans for linactl. It
 // checks plugin production paths under apps/lina-plugins for host core table
-// generation, direct host storage access, legacy host-service declarations, and
-// dynamic data-service grants that would bypass domain capabilities.
+// generation, direct host storage access, legacy host-service declarations,
+// dynamic data-service grants, and owner capability imports that would bypass
+// plugin dependency governance.
 package plugingovernance
 
 import (

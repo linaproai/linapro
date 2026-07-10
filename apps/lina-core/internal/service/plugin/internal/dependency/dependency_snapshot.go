@@ -50,6 +50,7 @@ func ApplyRegistrySnapshot(
 		snapshot.Version = strings.TrimSpace(releaseSnapshot.Version)
 	}
 	snapshot.Dependencies = plugintypes.CloneDependencySpec(releaseSnapshot.Dependencies)
+	snapshot.OwnerHostServices = ownerHostServiceSummariesFromSpecs(releaseSnapshot.RequestedHostServices)
 }
 
 // ClonePluginSnapshots returns a detached copy so callers cannot mutate the
@@ -63,6 +64,7 @@ func ClonePluginSnapshots(items []*PluginSnapshot) []*PluginSnapshot {
 		}
 		cloned := *item
 		cloned.Dependencies = plugintypes.CloneDependencySpec(item.Dependencies)
+		cloned.OwnerHostServices = cloneOwnerHostServiceSummaries(item.OwnerHostServices)
 		out = append(out, &cloned)
 	}
 	return out

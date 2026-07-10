@@ -65,6 +65,20 @@ type ReverseDependentProjection struct {
 	Version string
 	// RequiredVersion is the target version range declared by the downstream plugin.
 	RequiredVersion string
+	// OwnerHostServices summarizes owner-aware host service declarations for the target owner.
+	OwnerHostServices []*OwnerHostServiceProjection
+}
+
+// OwnerHostServiceProjection exposes one owner-aware host service summary.
+type OwnerHostServiceProjection struct {
+	// Owner is the owner plugin ID for the plugin-owned host service.
+	Owner string
+	// Service is the logical host service identifier.
+	Service string
+	// Version is the owner capability protocol version.
+	Version string
+	// Methods lists declared host service methods.
+	Methods []string
 }
 
 // CheckProjection is the management-facing dependency status snapshot.
@@ -153,10 +167,11 @@ func ToReverseDependentProjections(items []*ReverseDependent) []*ReverseDependen
 			continue
 		}
 		out = append(out, &ReverseDependentProjection{
-			PluginID:        item.PluginID,
-			Name:            item.Name,
-			Version:         item.Version,
-			RequiredVersion: item.RequiredVersion,
+			PluginID:          item.PluginID,
+			Name:              item.Name,
+			Version:           item.Version,
+			RequiredVersion:   item.RequiredVersion,
+			OwnerHostServices: toOwnerHostServiceProjections(item.OwnerHostServices),
 		})
 	}
 	return out
@@ -242,6 +257,55 @@ func ReverseDependentIDs(items []*ReverseDependentProjection) []string {
 	return out
 }
 
+// FormatReverseDependentOwnerHostServices renders owner service method summaries
+// for stable error parameters.
+func FormatReverseDependentOwnerHostServices(items []*ReverseDependentProjection) string {
+	if len(items) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		for _, service := range item.OwnerHostServices {
+			if service == nil {
+				continue
+			}
+			parts = append(parts, strings.Join([]string{
+				strings.TrimSpace(item.PluginID),
+				strings.TrimSpace(service.Owner),
+				strings.TrimSpace(service.Service),
+				strings.TrimSpace(service.Version),
+				strings.Join(cloneSortedStrings(service.Methods), ","),
+			}, "|"))
+		}
+	}
+	return strings.Join(parts, ";")
+}
+
+func toOwnerHostServiceProjections(items []*OwnerHostServiceSummary) []*OwnerHostServiceProjection {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]*OwnerHostServiceProjection, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		out = append(out, &OwnerHostServiceProjection{
+			Owner:   item.Owner,
+			Service: item.Service,
+			Version: item.Version,
+			Methods: cloneSortedStrings(item.Methods),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // clonePluginProjections deep-copies dependency edge checks.
 func clonePluginProjections(in []*PluginProjection) []*PluginProjection {
 	if len(in) == 0 {
@@ -293,6 +357,26 @@ func cloneReverseDependentProjections(in []*ReverseDependentProjection) []*Rever
 			continue
 		}
 		clone := *item
+		clone.OwnerHostServices = cloneOwnerHostServiceProjections(item.OwnerHostServices)
+		out = append(out, &clone)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func cloneOwnerHostServiceProjections(in []*OwnerHostServiceProjection) []*OwnerHostServiceProjection {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*OwnerHostServiceProjection, 0, len(in))
+	for _, item := range in {
+		if item == nil {
+			continue
+		}
+		clone := *item
+		clone.Methods = cloneSortedStrings(item.Methods)
 		out = append(out, &clone)
 	}
 	if len(out) == 0 {

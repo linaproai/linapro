@@ -373,7 +373,7 @@ func buildLifecycleAuthorizedHostServices(
 	}
 	authorized := make([]*protocol.HostServiceSpec, 0, len(requested))
 	for _, spec := range requested {
-		if spec == nil || len(spec.Paths) > 0 || len(spec.Resources) > 0 || len(spec.Tables) > 0 {
+		if spec == nil || len(spec.Paths) > 0 || len(spec.Resources) > 0 || len(spec.Tables) > 0 || len(spec.Keys) > 0 {
 			continue
 		}
 		authorized = append(authorized, spec)

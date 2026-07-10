@@ -4,9 +4,11 @@
 package pluginhost
 
 import (
+	"strings"
+
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/capregistry"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
@@ -233,18 +235,39 @@ func (p *sourcePlugin) registerOrgProvider(factory orgspi.ProviderFactory) error
 	return nil
 }
 
-// RegisterAITextProvider records the text AI provider factory declared by this source plugin.
-func (p *sourcePlugin) registerAITextProvider(factory aitext.ProviderFactory) error {
+// RegisterCapabilityDescriptor records one plugin-owned capability descriptor declared by this source plugin.
+func (p *sourcePlugin) registerCapabilityDescriptor(descriptor capregistry.Descriptor) error {
 	if p == nil {
 		return gerror.New("pluginhost: source plugin is nil")
 	}
-	if factory == nil {
-		return gerror.New("pluginhost: text AI provider factory is nil")
+	if err := validateCapabilityDescriptorOwner(p.id, descriptor); err != nil {
+		return err
 	}
-	if p.aiTextProvider != nil {
-		return gerror.New("pluginhost: text AI provider factory already declared")
+	registry := capregistry.NewRegistry()
+	for _, existing := range p.capabilities {
+		if err := registry.Register(existing); err != nil {
+			return err
+		}
 	}
-	p.aiTextProvider = factory
+	if err := registry.Register(descriptor); err != nil {
+		return err
+	}
+	p.capabilities = registry.Descriptors()
+	return nil
+}
+
+func validateCapabilityDescriptorOwner(pluginID string, descriptor capregistry.Descriptor) error {
+	declaringPluginID := strings.TrimSpace(pluginID)
+	ownerPluginID := strings.TrimSpace(descriptor.OwnerPluginID)
+	if declaringPluginID == "" || ownerPluginID == "" || ownerPluginID != declaringPluginID {
+		return gerror.Newf(
+			"pluginhost: capability descriptor owner must match declaring source plugin: plugin=%s owner=%s service=%s version=%s",
+			declaringPluginID,
+			ownerPluginID,
+			strings.TrimSpace(descriptor.Service),
+			strings.TrimSpace(descriptor.Version),
+		)
+	}
 	return nil
 }
 

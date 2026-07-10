@@ -21,15 +21,13 @@ import (
 	"lina-core/internal/service/plugin/internal/capabilityowner"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/plugin/capability"
-	capabilityai "lina-core/pkg/plugin/capability/aicap"
-	"lina-core/pkg/plugin/capability/aicap/aicommon"
-	"lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/apidoccap"
 	"lina-core/pkg/plugin/capability/authcap"
 	capabilityauthz "lina-core/pkg/plugin/capability/authcap/authz"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/cachecap"
 	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/capregistry"
 	capabilitydictcap "lina-core/pkg/plugin/capability/dictcap"
 	capabilityfilecap "lina-core/pkg/plugin/capability/filecap"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
@@ -59,7 +57,6 @@ type capabilityHostServiceTestServices struct {
 	cache         cachecap.Service
 	hostConfig    hostconfigcap.Service
 	org           orgcap.Service
-	aiText        aitext.Service
 	jobs          capabilityjobcap.Service
 	users         capabilityusercap.Service
 	dict          capabilitydictcap.Service
@@ -107,18 +104,6 @@ func (*capabilityHostServiceTestServices) APIDoc() apidoccap.Service { return ni
 
 // Auth returns the configured auth capability namespace.
 func (s *capabilityHostServiceTestServices) Auth() authcap.Service { return s.auth }
-
-// AI returns the configured AI capability namespace.
-func (s *capabilityHostServiceTestServices) AI() capabilityai.Service {
-	text := s.aiText
-	if recorder, ok := text.(*capabilityHostServiceAITextService); ok && s.scopedPlugin != "" {
-		text = &capabilityHostServiceScopedAITextService{
-			base:           recorder,
-			sourcePluginID: s.scopedPlugin,
-		}
-	}
-	return capabilityai.New(text)
-}
 
 // Users returns the configured user-domain capability service.
 func (s *capabilityHostServiceTestServices) Users() capabilityusercap.Service { return s.users }
@@ -219,7 +204,6 @@ func TestHandleHostServiceInvokeOrgMethods(t *testing.T) {
 
 	services := &capabilityHostServiceTestServices{
 		org:           orgspi.New(orgManager, capabilityHostServiceOrgRuntime{pluginID: providerPluginID}, nil),
-		aiText:        aitext.New(nil, nil, nil),
 		users:         &capabilityHostServiceUsersService{},
 		tenant:        tenantspi.New(nil, nil, nil, nil),
 		scopeRecorder: &capabilityHostServiceScopeRecorder{},
@@ -430,7 +414,6 @@ func TestHandleHostServiceInvokeOrgRejectsInvisibleTargetUser(t *testing.T) {
 	userSvc := &capabilityHostServiceUsersService{ensureErr: errors.New("target user is outside data scope")}
 	services := &capabilityHostServiceTestServices{
 		org:    orgspi.New(orgManager, capabilityHostServiceOrgRuntime{pluginID: providerPluginID}, nil),
-		aiText: aitext.New(nil, nil, nil),
 		users:  userSvc,
 		tenant: tenantspi.New(nil, nil, nil, nil),
 	}
@@ -462,7 +445,6 @@ func TestHandleHostServiceInvokeUserMethods(t *testing.T) {
 	}
 	services := &capabilityHostServiceTestServices{
 		org:           orgspi.New(nil, nil, nil),
-		aiText:        aitext.New(nil, nil, nil),
 		users:         userSvc,
 		tenant:        tenantspi.New(nil, nil, nil, nil),
 		scopeRecorder: &capabilityHostServiceScopeRecorder{},
@@ -663,7 +645,6 @@ func TestHandleHostServiceInvokeAdditionalDomainMethods(t *testing.T) {
 	services := &capabilityHostServiceTestServices{
 		auth:   authcap.New(nil, authzSvc),
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aitext.New(nil, nil, nil),
 		dict:   dictSvc,
 		tenant: tenantspi.New(nil, nil, nil, nil),
 	}
@@ -915,7 +896,6 @@ func TestHandleHostServiceInvokeDictEnsurePreservesBlankValues(t *testing.T) {
 	dictSvc := &capabilityHostServiceDictService{denyBlankValues: true}
 	services := &capabilityHostServiceTestServices{
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aitext.New(nil, nil, nil),
 		dict:   dictSvc,
 		tenant: tenantspi.New(nil, nil, nil, nil),
 	}
@@ -946,7 +926,6 @@ func TestHandleHostServiceInvokeFilesWriteMethods(t *testing.T) {
 	services := &capabilityHostServiceTestServices{
 		files:  filesSvc,
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aitext.New(nil, nil, nil),
 		tenant: tenantspi.New(nil, nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
@@ -1050,7 +1029,6 @@ func TestHandleHostServiceInvokeFilesCreateFromStorageRejectsUnauthorizedStorage
 	services := &capabilityHostServiceTestServices{
 		files:  filesSvc,
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aitext.New(nil, nil, nil),
 		tenant: tenantspi.New(nil, nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
@@ -1086,7 +1064,6 @@ func TestHandleHostServiceInvokeSessionMethods(t *testing.T) {
 	}
 	services := &capabilityHostServiceTestServices{
 		org:      orgspi.New(nil, nil, nil),
-		aiText:   aitext.New(nil, nil, nil),
 		sessions: sessionSvc,
 		tenant:   tenantspi.New(nil, nil, nil, nil),
 	}
@@ -1204,7 +1181,6 @@ func TestHandleHostServiceInvokeJobsRuntimeMethods(t *testing.T) {
 	jobsSvc := &capabilityHostServiceJobsService{}
 	services := &capabilityHostServiceTestServices{
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aitext.New(nil, nil, nil),
 		jobs:   jobsSvc,
 		tenant: tenantspi.New(nil, nil, nil, nil),
 	}
@@ -1375,7 +1351,6 @@ func TestHandleHostServiceInvokeTenantMethods(t *testing.T) {
 	}
 	services := &capabilityHostServiceTestServices{
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aitext.New(nil, nil, nil),
 		users:  &capabilityHostServiceUsersService{},
 		tenant: tenantSvc,
 	}
@@ -1421,7 +1396,6 @@ func TestHandleHostServiceInvokeTenantGovernanceMethods(t *testing.T) {
 	tenantSvc := &capabilityHostServiceTenantService{plugins: tenantPluginSvc}
 	services := &capabilityHostServiceTestServices{
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aitext.New(nil, nil, nil),
 		users:  &capabilityHostServiceUsersService{},
 		tenant: tenantSvc,
 	}
@@ -1469,7 +1443,6 @@ func TestHandleHostServiceInvokeTenantFilterContext(t *testing.T) {
 	tenantSvc := &capabilityHostServiceTenantService{filter: filterSvc}
 	services := &capabilityHostServiceTestServices{
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aitext.New(nil, nil, nil),
 		users:  &capabilityHostServiceUsersService{},
 		tenant: tenantSvc,
 	}
@@ -1499,7 +1472,6 @@ func TestHandleHostServiceInvokeTenantRejectsInvisibleTargetUser(t *testing.T) {
 	tenantSvc := &capabilityHostServiceTenantService{}
 	services := &capabilityHostServiceTestServices{
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aitext.New(nil, nil, nil),
 		users:  userSvc,
 		tenant: tenantSvc,
 	}
@@ -1526,44 +1498,44 @@ func TestHandleHostServiceInvokeTenantRejectsInvisibleTargetUser(t *testing.T) {
 // TestHandleHostServiceInvokeAITextGenerate verifies AI host-service calls are
 // method-authorized and routed through capability.Services.AIText.
 func TestHandleHostServiceInvokeAITextGenerate(t *testing.T) {
-	aiSvc := &capabilityHostServiceAITextService{
-		response: &aitext.GenerateResponse{
+	aiSvc := &ownerTextHostService{
+		response: &aiTextGenerateResponse{
 			Text:         "summary",
-			Tier:         aitext.TierBasic,
+			Tier:         aiTierBasic,
 			ProviderName: "Fake AI",
 			ModelName:    "fake-text",
 			Protocol:     "test",
-			Usage:        aitext.Usage{InputTokens: 3, OutputTokens: 4},
+			Usage:        aiUsage{InputTokens: 3, OutputTokens: 4},
 			GeneratedAt:  time.Now().UnixMilli(),
 		},
 	}
 	services := &capabilityHostServiceTestServices{
-		org:    orgspi.New(nil, nil, nil),
-		aiText: aiSvc,
-		tenant: tenantspi.New(nil, nil, nil, nil),
+		org:           orgspi.New(nil, nil, nil),
+		tenant:        tenantspi.New(nil, nil, nil, nil),
+		scopeRecorder: &capabilityHostServiceScopeRecorder{},
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
+	invoker := configureAITextOwnerInvokerForTest(t, aiSvc)
 
 	response := invokeCapabilityHostService(
 		t,
 		aiTextHostCallContext(),
-		protocol.HostServiceAI,
-		protocol.HostServiceMethodAITextGenerate,
-		protocol.MarshalHostServiceAITextGenerateRequest(
-			&protocol.HostServiceAITextGenerateRequest{
-				Purpose:         "content.summary",
-				Tier:            aitext.TierBasic,
-				MaxOutputTokens: 512,
-				Messages: []aitext.Message{
-					{Role: aitext.MessageRoleUser, Content: "sensitive prompt must not be logged"},
-				},
+		"ai",
+		"text.generate",
+		marshalCapabilityJSONRequest(t, aiTextGenerateRequest{
+			Purpose:         "content.summary",
+			Tier:            aiTierBasic,
+			MaxOutputTokens: 512,
+			Messages: []aiTextMessage{
+				{Role: aiMessageRoleUser, Content: "sensitive prompt must not be logged"},
 			},
+		},
 		),
 	)
 	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected ai text success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
-	var out aitext.GenerateResponse
+	var out aiTextGenerateResponse
 	decodeCapabilityJSONResponse(t, response.Payload, &out)
 	if out.Text != "summary" {
 		t.Fatalf("unexpected ai text response: %#v", out)
@@ -1571,36 +1543,144 @@ func TestHandleHostServiceInvokeAITextGenerate(t *testing.T) {
 	if aiSvc.lastSourcePluginID != "test-ai-plugin" || aiSvc.lastRequest.Purpose != "content.summary" {
 		t.Fatalf("unexpected routed ai request: source=%s request=%#v", aiSvc.lastSourcePluginID, aiSvc.lastRequest)
 	}
+	if !invoker.called ||
+		invoker.invocation.OwnerPluginID != "linapro-ai-core" ||
+		invoker.invocation.Service != "ai" ||
+		invoker.invocation.Version != "v1" ||
+		invoker.invocation.Method != "text.generate" {
+		t.Fatalf("expected owner-aware invocation, got called=%v invocation=%#v", invoker.called, invoker.invocation)
+	}
+	if invoker.invocation.Services == nil || services.scopeRecorder.last() != "linapro-ai-core" {
+		t.Fatalf("expected owner-scoped services, got services=%T lastScope=%q", invoker.invocation.Services, services.scopeRecorder.last())
+	}
 	if aiSvc.lastRequest.MaxOutputTokens != 512 {
 		t.Fatalf("expected dto maxOutputTokens to pass through, got %d", aiSvc.lastRequest.MaxOutputTokens)
+	}
+}
+
+// TestHandleHostServiceInvokeOwnerMethodRejectsMissingHandler verifies owner
+// dispatcher does not fall back to service-specific core branches.
+func TestHandleHostServiceInvokeOwnerMethodRejectsMissingHandler(t *testing.T) {
+	configureOwnerCapabilityForTest(t, nil, "text.generate")
+
+	response := invokeCapabilityHostService(
+		t,
+		aiTextHostCallContext(),
+		"ai",
+		"text.generate",
+		marshalCapabilityJSONRequest(t, aiTextGenerateRequest{
+			Purpose: "content.summary",
+			Tier:    aiTierBasic,
+			Messages: []aiTextMessage{
+				{Role: aiMessageRoleUser, Content: "hello"},
+			},
+		},
+		),
+	)
+	if response.Status != protocol.HostCallStatusNotFound {
+		t.Fatalf("expected missing owner handler to be not found, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+}
+
+// TestHandleHostServiceInvokeOwnerRejectsVersionMismatch verifies requests for
+// an unregistered owner capability version do not reach the owner handler.
+func TestHandleHostServiceInvokeOwnerRejectsVersionMismatch(t *testing.T) {
+	invoker := &capabilityHostServiceOwnerInvoker{}
+	configureOwnerCapabilityForTest(t, invoker, "text.generate")
+
+	hcc := aiTextHostCallContext()
+	hcc.hostServices[0].Version = "v2"
+	response := invokeCapabilityHostService(
+		t,
+		hcc,
+		"ai",
+		"text.generate",
+		marshalCapabilityJSONRequest(t, aiTextGenerateRequest{
+			Purpose: "content.summary",
+			Tier:    aiTierBasic,
+			Messages: []aiTextMessage{
+				{Role: aiMessageRoleUser, Content: "hello"},
+			},
+		}),
+	)
+	if response.Status != protocol.HostCallStatusNotFound {
+		t.Fatalf("expected version mismatch to be not found, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	if invoker.called {
+		t.Fatal("expected version mismatch to be rejected before owner handler call")
+	}
+}
+
+// TestHandleHostServiceInvokeOwnerRejectsUnknownOwner verifies requests for an
+// owner absent from the descriptor registry do not reach any registered handler.
+func TestHandleHostServiceInvokeOwnerRejectsUnknownOwner(t *testing.T) {
+	invoker := &capabilityHostServiceOwnerInvoker{}
+	configureOwnerCapabilityForTest(t, invoker, "text.generate")
+
+	hcc := aiTextHostCallContext()
+	hcc.hostServices[0].Owner = "missing-ai-core"
+	response := invokeCapabilityHostService(
+		t,
+		hcc,
+		"ai",
+		"text.generate",
+		marshalCapabilityJSONRequest(t, aiTextGenerateRequest{
+			Purpose: "content.summary",
+			Tier:    aiTierBasic,
+			Messages: []aiTextMessage{
+				{Role: aiMessageRoleUser, Content: "hello"},
+			},
+		}),
+	)
+	if response.Status != protocol.HostCallStatusNotFound {
+		t.Fatalf("expected unknown owner to be not found, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	if invoker.called {
+		t.Fatal("expected unknown owner to be rejected before owner handler call")
+	}
+}
+
+// TestHandleHostServiceInvokeOwnerRejectsAuthorizedUnregisteredMethod verifies
+// authorization alone is insufficient when owner descriptor lacks the method.
+func TestHandleHostServiceInvokeOwnerRejectsAuthorizedUnregisteredMethod(t *testing.T) {
+	invoker := &capabilityHostServiceOwnerInvoker{}
+	configureOwnerCapabilityForTest(t, invoker, "text.generate")
+
+	hcc := aiTextHostCallContext()
+	hcc.hostServices[0].Methods = append(hcc.hostServices[0].Methods, "document.cite")
+	response := invokeCapabilityHostService(t, hcc, "ai", "document.cite", nil)
+	if response.Status != protocol.HostCallStatusNotFound {
+		t.Fatalf("expected unregistered owner method to be not found, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	if invoker.called {
+		t.Fatal("expected unregistered method to be rejected before owner handler call")
 	}
 }
 
 // TestHandleHostServiceInvokeAITextRoutesPurposeFromDTO verifies purpose stays
 // a request DTO field instead of a host-service resource authorization key.
 func TestHandleHostServiceInvokeAITextRoutesPurposeFromDTO(t *testing.T) {
-	aiSvc := &capabilityHostServiceAITextService{}
+	aiSvc := &ownerTextHostService{}
 	services := &capabilityHostServiceTestServices{
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aiSvc,
 		tenant: tenantspi.New(nil, nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
+	configureAITextOwnerInvokerForTest(t, aiSvc)
 
 	response := invokeCapabilityHostService(
 		t,
 		aiTextHostCallContext(),
-		protocol.HostServiceAI,
-		protocol.HostServiceMethodAITextGenerate,
-		protocol.MarshalHostServiceAITextGenerateRequest(
-			&protocol.HostServiceAITextGenerateRequest{
-				Purpose:         "code.review",
-				Tier:            aitext.TierBasic,
-				MaxOutputTokens: 128,
-				Messages: []aitext.Message{
-					{Role: aitext.MessageRoleUser, Content: "hello"},
-				},
+		"ai",
+		"text.generate",
+		marshalCapabilityJSONRequest(t, aiTextGenerateRequest{
+			Purpose:         "code.review",
+			Tier:            aiTierBasic,
+			MaxOutputTokens: 128,
+			Messages: []aiTextMessage{
+				{Role: aiMessageRoleUser, Content: "hello"},
 			},
+		},
 		),
 	)
 	if response.Status != protocol.HostCallStatusSuccess {
@@ -1614,28 +1694,27 @@ func TestHandleHostServiceInvokeAITextRoutesPurposeFromDTO(t *testing.T) {
 // TestHandleHostServiceInvokeAITextDoesNotEnforceOutputLimit verifies bridge
 // dispatch no longer enforces resource maxOutputTokens policy.
 func TestHandleHostServiceInvokeAITextDoesNotEnforceOutputLimit(t *testing.T) {
-	aiSvc := &capabilityHostServiceAITextService{}
+	aiSvc := &ownerTextHostService{}
 	services := &capabilityHostServiceTestServices{
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aiSvc,
 		tenant: tenantspi.New(nil, nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
+	configureAITextOwnerInvokerForTest(t, aiSvc)
 
 	response := invokeCapabilityHostService(
 		t,
 		aiTextHostCallContext(),
-		protocol.HostServiceAI,
-		protocol.HostServiceMethodAITextGenerate,
-		protocol.MarshalHostServiceAITextGenerateRequest(
-			&protocol.HostServiceAITextGenerateRequest{
-				Purpose:         "content.summary",
-				Tier:            aitext.TierBasic,
-				MaxOutputTokens: 128,
-				Messages: []aitext.Message{
-					{Role: aitext.MessageRoleUser, Content: "hello"},
-				},
+		"ai",
+		"text.generate",
+		marshalCapabilityJSONRequest(t, aiTextGenerateRequest{
+			Purpose:         "content.summary",
+			Tier:            aiTierBasic,
+			MaxOutputTokens: 128,
+			Messages: []aiTextMessage{
+				{Role: aiMessageRoleUser, Content: "hello"},
 			},
+		},
 		),
 	)
 	if response.Status != protocol.HostCallStatusSuccess {
@@ -1649,27 +1728,26 @@ func TestHandleHostServiceInvokeAITextDoesNotEnforceOutputLimit(t *testing.T) {
 // TestHandleHostServiceInvokeAITextDoesNotApplyDefaultOutputLimit verifies the
 // bridge does not derive default output limits from host-service resources.
 func TestHandleHostServiceInvokeAITextDoesNotApplyDefaultOutputLimit(t *testing.T) {
-	aiSvc := &capabilityHostServiceAITextService{}
+	aiSvc := &ownerTextHostService{}
 	services := &capabilityHostServiceTestServices{
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aiSvc,
 		tenant: tenantspi.New(nil, nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
+	configureAITextOwnerInvokerForTest(t, aiSvc)
 
 	response := invokeCapabilityHostService(
 		t,
 		aiTextHostCallContext(),
-		protocol.HostServiceAI,
-		protocol.HostServiceMethodAITextGenerate,
-		protocol.MarshalHostServiceAITextGenerateRequest(
-			&protocol.HostServiceAITextGenerateRequest{
-				Purpose: "content.summary",
-				Tier:    aitext.TierBasic,
-				Messages: []aitext.Message{
-					{Role: aitext.MessageRoleUser, Content: "hello"},
-				},
+		"ai",
+		"text.generate",
+		marshalCapabilityJSONRequest(t, aiTextGenerateRequest{
+			Purpose: "content.summary",
+			Tier:    aiTierBasic,
+			Messages: []aiTextMessage{
+				{Role: aiMessageRoleUser, Content: "hello"},
 			},
+		},
 		),
 	)
 	if response.Status != protocol.HostCallStatusSuccess {
@@ -1683,33 +1761,33 @@ func TestHandleHostServiceInvokeAITextDoesNotApplyDefaultOutputLimit(t *testing.
 // TestHandleHostServiceInvokeAITextMethodStatus verifies text method status
 // is dynamically dispatched without exposing provider configuration.
 func TestHandleHostServiceInvokeAITextMethodStatus(t *testing.T) {
-	aiSvc := &capabilityHostServiceAITextService{}
+	aiSvc := &ownerTextHostService{}
 	services := &capabilityHostServiceTestServices{
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aiSvc,
 		tenant: tenantspi.New(nil, nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
+	configureAITextOwnerInvokerForTest(t, aiSvc)
 
 	response := invokeCapabilityHostService(
 		t,
 		aiTextHostCallContext(),
-		protocol.HostServiceAI,
-		protocol.HostServiceMethodAITextMethodStatus,
-		marshalCapabilityJSONRequest(t, capabilityai.MethodStatusQuery{
-			CapabilityType:   capabilityai.CapabilityTypeText,
-			CapabilityMethod: capabilityai.CapabilityMethod(aicommon.CapabilityMethodTextGenerate),
+		"ai",
+		"text.method_status.get",
+		marshalCapabilityJSONRequest(t, aiMethodStatusQuery{
+			CapabilityType:   aiCapabilityTypeText,
+			CapabilityMethod: aiCapabilityMethod(aiCapabilityMethodTextGenerate),
 		}),
 	)
 	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected ai text method status success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
-	var out aicommon.MethodStatus
+	var out aiMethodStatus
 	decodeCapabilityJSONResponse(t, response.Payload, &out)
-	if !out.Available || out.CapabilityType != aicommon.CapabilityTypeText || out.CapabilityMethod != aicommon.CapabilityMethodTextGenerate {
+	if !out.Available || out.CapabilityType != aiCapabilityTypeText || out.CapabilityMethod != aiCapabilityMethodTextGenerate {
 		t.Fatalf("unexpected ai text method status: %#v", out)
 	}
-	if out.CapabilityStatus.ActiveProvider != aitext.ProviderPluginID {
+	if out.CapabilityStatus.ActiveProvider != aiOwnerPluginID {
 		t.Fatalf("expected public active provider projection, got %#v", out.CapabilityStatus)
 	}
 }
@@ -1717,28 +1795,28 @@ func TestHandleHostServiceInvokeAITextMethodStatus(t *testing.T) {
 // TestHandleHostServiceInvokeAIMethodStatuses verifies cross-sub-capability
 // method statuses are dynamically dispatched through the AI namespace.
 func TestHandleHostServiceInvokeAIMethodStatuses(t *testing.T) {
-	aiSvc := &capabilityHostServiceAITextService{}
+	aiSvc := &ownerTextHostService{}
 	services := &capabilityHostServiceTestServices{
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aiSvc,
 		tenant: tenantspi.New(nil, nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
+	configureAITextOwnerInvokerForTest(t, aiSvc)
 
 	response := invokeCapabilityHostService(
 		t,
 		aiTextHostCallContext(),
-		protocol.HostServiceAI,
-		protocol.HostServiceMethodAIMethodStatuses,
-		marshalCapabilityJSONRequest(t, capabilityai.MethodStatusesInput{
-			Methods: []capabilityai.MethodStatusQuery{
+		"ai",
+		"ai.methods.status.batch_get",
+		marshalCapabilityJSONRequest(t, aiMethodStatusesInput{
+			Methods: []aiMethodStatusQuery{
 				{
-					CapabilityType:   capabilityai.CapabilityTypeText,
-					CapabilityMethod: capabilityai.CapabilityMethod(aicommon.CapabilityMethodTextGenerate),
+					CapabilityType:   aiCapabilityTypeText,
+					CapabilityMethod: aiCapabilityMethod(aiCapabilityMethodTextGenerate),
 				},
 				{
-					CapabilityType:   capabilityai.CapabilityTypeImage,
-					CapabilityMethod: capabilityai.CapabilityMethod(aicommon.CapabilityMethodImageGenerate),
+					CapabilityType:   aiCapabilityTypeImage,
+					CapabilityMethod: aiCapabilityMethod(aiCapabilityMethodImageGenerate),
 				},
 			},
 		}),
@@ -1746,15 +1824,15 @@ func TestHandleHostServiceInvokeAIMethodStatuses(t *testing.T) {
 	if response.Status != protocol.HostCallStatusSuccess {
 		t.Fatalf("expected ai method status batch success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
-	var out capabilityai.MethodStatusesResult
+	var out aiMethodStatusesResult
 	decodeCapabilityJSONResponse(t, response.Payload, &out)
 	if len(out.Items) != 2 {
 		t.Fatalf("expected two ai method statuses, got %#v", out)
 	}
-	if !out.Items[0].Available || out.Items[0].CapabilityType != aicommon.CapabilityTypeText {
+	if !out.Items[0].Available || out.Items[0].CapabilityType != aiCapabilityTypeText {
 		t.Fatalf("unexpected text status: %#v", out.Items[0])
 	}
-	if out.Items[1].Available || out.Items[1].CapabilityType != aicommon.CapabilityTypeImage {
+	if out.Items[1].Available || out.Items[1].CapabilityType != aiCapabilityTypeImage {
 		t.Fatalf("expected unavailable fallback image status, got %#v", out.Items[1])
 	}
 }
@@ -1762,29 +1840,30 @@ func TestHandleHostServiceInvokeAIMethodStatuses(t *testing.T) {
 // TestHandleHostServiceInvokeAIRejectsUnauthorizedMethod verifies host-service
 // method authorization rejects undeclared AI methods before dispatch.
 func TestHandleHostServiceInvokeAIRejectsUnauthorizedMethod(t *testing.T) {
-	aiSvc := &capabilityHostServiceAITextService{}
+	aiSvc := &ownerTextHostService{}
 	services := &capabilityHostServiceTestServices{
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aiSvc,
 		tenant: tenantspi.New(nil, nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
+	invoker := configureAITextOwnerInvokerForTest(t, aiSvc)
 
 	hcc := aiTextHostCallContext()
-	hcc.capabilities[protocol.CapabilityAIDocument] = struct{}{}
 	hcc.hostServices = []*protocol.HostServiceSpec{
 		{
-			Service: protocol.HostServiceAI,
+			Owner:   "linapro-ai-core",
+			Service: "ai",
+			Version: "v1",
 			Methods: []string{
-				protocol.HostServiceMethodAITextGenerate,
+				"text.generate",
 			},
 		},
 	}
 	response := invokeCapabilityHostService(
 		t,
 		hcc,
-		protocol.HostServiceAI,
-		protocol.HostServiceMethodAIDocumentCite,
+		"ai",
+		"document.cite",
 		nil,
 	)
 	if response.Status != protocol.HostCallStatusCapabilityDenied {
@@ -1793,35 +1872,37 @@ func TestHandleHostServiceInvokeAIRejectsUnauthorizedMethod(t *testing.T) {
 	if aiSvc.called {
 		t.Fatal("expected unauthorized method to be rejected before AI service call")
 	}
+	if invoker.called {
+		t.Fatal("expected unauthorized method to be rejected before owner handler call")
+	}
 }
 
 // TestHandleHostServiceInvokeAITextRedactsProviderErrors verifies provider
 // failures do not leak authorization markers through the host-call response.
 func TestHandleHostServiceInvokeAITextRedactsProviderErrors(t *testing.T) {
-	aiSvc := &capabilityHostServiceAITextService{
+	aiSvc := &ownerTextHostService{
 		err: errors.New("provider failed authorization bearer sk-secret with full prompt body"),
 	}
 	services := &capabilityHostServiceTestServices{
 		org:    orgspi.New(nil, nil, nil),
-		aiText: aiSvc,
 		tenant: tenantspi.New(nil, nil, nil, nil),
 	}
 	configureDomainHostServicesForCapabilityTest(t, services)
+	configureAITextOwnerInvokerForTest(t, aiSvc)
 
 	response := invokeCapabilityHostService(
 		t,
 		aiTextHostCallContext(),
-		protocol.HostServiceAI,
-		protocol.HostServiceMethodAITextGenerate,
-		protocol.MarshalHostServiceAITextGenerateRequest(
-			&protocol.HostServiceAITextGenerateRequest{
-				Purpose:         "content.summary",
-				Tier:            aitext.TierBasic,
-				MaxOutputTokens: 128,
-				Messages: []aitext.Message{
-					{Role: aitext.MessageRoleUser, Content: "full prompt body"},
-				},
+		"ai",
+		"text.generate",
+		marshalCapabilityJSONRequest(t, aiTextGenerateRequest{
+			Purpose:         "content.summary",
+			Tier:            aiTierBasic,
+			MaxOutputTokens: 128,
+			Messages: []aiTextMessage{
+				{Role: aiMessageRoleUser, Content: "full prompt body"},
 			},
+		},
 		),
 	)
 	if response.Status != protocol.HostCallStatusInvalidRequest {
@@ -1840,7 +1921,6 @@ func TestHandleHostServiceInvokeAITextRedactsProviderErrors(t *testing.T) {
 func TestHandleHostServiceInvokeRejectsRemovedPluginGovernanceMethods(t *testing.T) {
 	services := &capabilityHostServiceTestServices{
 		org:           orgspi.New(nil, nil, nil),
-		aiText:        aitext.New(nil, nil, nil),
 		plugins:       &capabilityHostServicePluginsService{},
 		tenant:        tenantspi.New(nil, nil, nil, nil),
 		scopeRecorder: &capabilityHostServiceScopeRecorder{},
@@ -1877,6 +1957,7 @@ func TestHandleHostServiceInvokeRejectsRemovedPluginGovernanceMethods(t *testing
 func TestConfigureDomainHostServicesRejectNil(t *testing.T) {
 	if _, err := NewRuntime(
 		nil,
+		capregistry.NewRegistry(),
 		noopTestConfigFactory{},
 		noopTestHostConfigService{},
 		noopTestManifestFactory{},
@@ -1899,7 +1980,26 @@ func invokeCapabilityHostService(
 		Method:  method,
 		Payload: payload,
 	}
+	if spec := ownerSpecForTestInvoke(hcc, service); spec != nil {
+		request.Owner = spec.Owner
+		request.Version = spec.Version
+	}
 	return handleHostServiceInvoke(context.Background(), withTestHostCallRuntime(t, hcc), protocol.MarshalHostServiceRequestEnvelope(request))
+}
+
+func ownerSpecForTestInvoke(hcc *hostCallContext, service string) *protocol.HostServiceSpec {
+	if hcc == nil {
+		return nil
+	}
+	for _, spec := range hcc.hostServices {
+		if spec == nil || strings.TrimSpace(spec.Owner) == "" {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(spec.Service), strings.TrimSpace(service)) {
+			return spec
+		}
+	}
+	return nil
 }
 
 // orgTenantHostCallContext builds an authorized org and tenant host service context.
@@ -2012,18 +2112,17 @@ func userHostCallContext() *hostCallContext {
 // aiTextHostCallContext builds an authorized AI text host service context.
 func aiTextHostCallContext() *hostCallContext {
 	return &hostCallContext{
-		pluginID: "test-ai-plugin",
-		capabilities: map[string]struct{}{
-			protocol.CapabilityAIText: {},
-			protocol.CapabilityAI:     {},
-		},
+		pluginID:     "test-ai-plugin",
+		capabilities: map[string]struct{}{},
 		hostServices: []*protocol.HostServiceSpec{
 			{
-				Service: protocol.HostServiceAI,
+				Owner:   "linapro-ai-core",
+				Service: "ai",
+				Version: "v1",
 				Methods: []string{
-					protocol.HostServiceMethodAITextGenerate,
-					protocol.HostServiceMethodAITextMethodStatus,
-					protocol.HostServiceMethodAIMethodStatuses,
+					"text.generate",
+					"text.method_status.get",
+					"ai.methods.status.batch_get",
 				},
 			},
 		},
@@ -2217,6 +2316,218 @@ func decodeCapabilityJSONResponse(t *testing.T, payload []byte, out any) {
 	}
 }
 
+// capabilityHostServiceOwnerInvoker records generic owner dispatches and
+// delegates to a test callback.
+type capabilityHostServiceOwnerInvoker struct {
+	called     bool
+	invocation capregistry.Invocation
+	invoke     func(context.Context, capregistry.Invocation) (*capregistry.InvocationResult, error)
+}
+
+// Invoke records and executes one test owner capability call.
+func (i *capabilityHostServiceOwnerInvoker) Invoke(
+	ctx context.Context,
+	invocation capregistry.Invocation,
+) (*capregistry.InvocationResult, error) {
+	i.called = true
+	i.invocation = invocation
+	if i.invoke == nil {
+		return &capregistry.InvocationResult{}, nil
+	}
+	return i.invoke(ctx, invocation)
+}
+
+func configureOwnerCapabilityForTest(
+	t *testing.T,
+	invoker capregistry.Invoker,
+	methods ...string,
+) {
+	t.Helper()
+	registry := capregistry.NewRegistry()
+	descriptor := capregistry.Descriptor{
+		OwnerPluginID:   "linapro-ai-core",
+		Service:         "ai",
+		Version:         "v1",
+		SourceContract:  "lina-plugin-linapro-ai-core/backend/cap/aicap",
+		DynamicContract: "lina-plugin-linapro-ai-core/backend/cap/aicap/bridge",
+		Invoker:         invoker,
+		Methods:         make([]capregistry.MethodDescriptor, 0, len(methods)),
+	}
+	for _, method := range methods {
+		descriptor.Methods = append(descriptor.Methods, capregistry.MethodDescriptor{
+			Method:       method,
+			Capability:   "plugin.linapro-ai-core.ai.v1",
+			Risk:         capregistry.RiskLevelExecute,
+			ResourceKind: capregistry.ResourceKindNone,
+		})
+	}
+	if err := registry.Register(descriptor); err != nil {
+		t.Fatalf("register owner capability descriptor failed: %v", err)
+	}
+	if runtime, ok := testHostServiceRuntimes.Load(t.Name()); ok {
+		runtime.(*hostServiceRuntime).ownerCapabilities = registry
+		return
+	}
+	bindTestHostServiceRuntime(t, withTestOwnerCapabilities(registry))
+}
+
+func configureAITextOwnerInvokerForTest(
+	t *testing.T,
+	aiSvc *ownerTextHostService,
+) *capabilityHostServiceOwnerInvoker {
+	t.Helper()
+	invoker := &capabilityHostServiceOwnerInvoker{
+		invoke: func(ctx context.Context, invocation capregistry.Invocation) (*capregistry.InvocationResult, error) {
+			switch invocation.Method {
+			case "text.generate":
+				var request aiTextGenerateRequest
+				if err := decodeCapabilityJSONRequest(invocation.Payload, &request); err != nil {
+					return nil, err
+				}
+				aiSvc.lastSourcePluginID = invocation.CallerPluginID
+				response, err := aiSvc.GenerateText(ctx, request)
+				if err != nil {
+					errorResponse := protocol.NewHostCallErrorResponse(
+						protocol.HostCallStatusInvalidRequest,
+						sanitizeAIHostServiceError(err),
+					)
+					return &capregistry.InvocationResult{
+						Status:  errorResponse.Status,
+						Payload: errorResponse.Payload,
+					}, nil
+				}
+				return ownerCapabilityJSONResult(response), nil
+			case "text.method_status.get":
+				var request aiMethodStatusQuery
+				if err := decodeCapabilityJSONRequest(invocation.Payload, &request); err != nil {
+					return nil, err
+				}
+				return ownerCapabilityJSONResult(aiSvc.MethodStatus(ctx, request.CapabilityMethod)), nil
+			case "ai.methods.status.batch_get":
+				var request aiMethodStatusesInput
+				if err := decodeCapabilityJSONRequest(invocation.Payload, &request); err != nil {
+					return nil, err
+				}
+				return ownerCapabilityJSONResult(aiMethodStatuses(aiSvc, request)), nil
+			default:
+				return &capregistry.InvocationResult{Status: protocol.HostCallStatusNotFound}, nil
+			}
+		},
+	}
+	configureOwnerCapabilityForTest(
+		t,
+		invoker,
+		"text.generate",
+		"text.method_status.get",
+		"ai.methods.status.batch_get",
+		"document.cite",
+	)
+	return invoker
+}
+
+func ownerCapabilityJSONResult(value any) *capregistry.InvocationResult {
+	response := capabilityJSONResponse(value)
+	return &capregistry.InvocationResult{
+		Status:  response.Status,
+		Payload: response.Payload,
+	}
+}
+
+func sanitizeAIHostServiceError(error) string {
+	return "AI provider request failed"
+}
+
+const (
+	aiOwnerPluginID                   = "linapro-ai-core"
+	aiTextCapabilityID                = "plugin.linapro-ai-core.ai.text.v1"
+	aiTierBasic                       = "basic"
+	aiMessageRoleUser                 = "user"
+	aiCapabilityTypeText              = "text"
+	aiCapabilityTypeImage             = "image"
+	aiCapabilityMethodTextGenerate    = "generate"
+	aiCapabilityMethodImageGenerate   = "generate"
+	aiCapabilityReasonUnsupported     = "method_unsupported"
+	aiCapabilityReasonProviderMissing = "provider_unavailable"
+)
+
+type (
+	aiCapabilityMethod string
+
+	aiTextMessage struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}
+
+	aiTextGenerateRequest struct {
+		Purpose         string            `json:"purpose"`
+		Tier            string            `json:"tier,omitempty"`
+		Messages        []aiTextMessage   `json:"messages"`
+		MaxOutputTokens int               `json:"maxOutputTokens,omitempty"`
+		Temperature     *float64          `json:"temperature,omitempty"`
+		ThinkingEffort  *string           `json:"thinkingEffort,omitempty"`
+		Metadata        map[string]string `json:"metadata,omitempty"`
+	}
+
+	aiUsage struct {
+		InputTokens  int `json:"inputTokens"`
+		OutputTokens int `json:"outputTokens"`
+	}
+
+	aiTextGenerateResponse struct {
+		Text         string  `json:"text"`
+		Tier         string  `json:"tier"`
+		ProviderName string  `json:"providerName"`
+		ModelName    string  `json:"modelName"`
+		Protocol     string  `json:"protocol"`
+		Usage        aiUsage `json:"usage"`
+		LatencyMs    int     `json:"latencyMs"`
+		GeneratedAt  int64   `json:"generatedAt"`
+	}
+
+	aiMethodStatusQuery struct {
+		CapabilityType   string             `json:"capabilityType"`
+		CapabilityMethod aiCapabilityMethod `json:"capabilityMethod"`
+	}
+
+	aiMethodStatusesInput struct {
+		Methods []aiMethodStatusQuery `json:"methods"`
+	}
+
+	aiMethodStatusesResult struct {
+		Items []aiMethodStatus `json:"items"`
+	}
+
+	aiMethodStatus struct {
+		CapabilityType   string                    `json:"capabilityType"`
+		CapabilityMethod aiCapabilityMethod        `json:"capabilityMethod"`
+		Available        bool                      `json:"available"`
+		Reason           string                    `json:"reason,omitempty"`
+		CapabilityStatus capmodel.CapabilityStatus `json:"capabilityStatus"`
+	}
+)
+
+func aiMethodStatuses(service *ownerTextHostService, input aiMethodStatusesInput) *aiMethodStatusesResult {
+	result := &aiMethodStatusesResult{Items: make([]aiMethodStatus, 0, len(input.Methods))}
+	for _, query := range input.Methods {
+		if query.CapabilityType == aiCapabilityTypeText {
+			result.Items = append(result.Items, service.MethodStatus(context.Background(), query.CapabilityMethod))
+			continue
+		}
+		result.Items = append(result.Items, aiMethodStatus{
+			CapabilityType:   query.CapabilityType,
+			CapabilityMethod: query.CapabilityMethod,
+			Available:        false,
+			Reason:           aiCapabilityReasonProviderMissing,
+			CapabilityStatus: capmodel.CapabilityStatus{
+				CapabilityID: query.CapabilityType,
+				Available:    false,
+				Reason:       aiCapabilityReasonProviderMissing,
+			},
+		})
+	}
+	return result
+}
+
 // capabilityHostServicePluginsService exposes fake plugin registry, state, and
 // lifecycle services for plugins host-service dispatcher tests.
 type capabilityHostServicePluginsService struct {
@@ -2301,39 +2612,39 @@ func (*capabilityHostServicePluginsService) IsEnabledAuthoritative(context.Conte
 	return true, nil
 }
 
-// capabilityHostServiceAITextService records text AI requests in host-service tests.
-type capabilityHostServiceAITextService struct {
-	response           *aitext.GenerateResponse
+// ownerTextHostService records text AI requests in host-service tests.
+type ownerTextHostService struct {
+	response           *aiTextGenerateResponse
 	err                error
-	lastRequest        aitext.GenerateRequest
+	lastRequest        aiTextGenerateRequest
 	lastSourcePluginID string
 	called             bool
 }
 
 // Available reports that the fake service is usable.
-func (s *capabilityHostServiceAITextService) Available(context.Context) bool { return true }
+func (s *ownerTextHostService) Available(context.Context) bool { return true }
 
 // Status returns an available fake text AI capability status.
-func (s *capabilityHostServiceAITextService) Status(context.Context) capmodel.CapabilityStatus {
+func (s *ownerTextHostService) Status(context.Context) capmodel.CapabilityStatus {
 	return capmodel.CapabilityStatus{
-		CapabilityID:   aitext.CapabilityAITextV1,
+		CapabilityID:   aiTextCapabilityID,
 		Available:      true,
-		ActiveProvider: aitext.ProviderPluginID,
+		ActiveProvider: aiOwnerPluginID,
 	}
 }
 
 // MethodStatus returns a fake text AI method status without provider internals.
-func (s *capabilityHostServiceAITextService) MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus {
+func (s *ownerTextHostService) MethodStatus(ctx context.Context, method aiCapabilityMethod) aiMethodStatus {
 	var (
 		status    = s.Status(ctx)
-		available = method == aicommon.CapabilityMethodTextGenerate
+		available = method == aiCapabilityMethodTextGenerate
 		reason    = ""
 	)
 	if !available {
 		reason = "method_unsupported"
 	}
-	return aicommon.MethodStatus{
-		CapabilityType:   aicommon.CapabilityTypeText,
+	return aiMethodStatus{
+		CapabilityType:   aiCapabilityTypeText,
 		CapabilityMethod: method,
 		Available:        available,
 		Reason:           reason,
@@ -2342,50 +2653,19 @@ func (s *capabilityHostServiceAITextService) MethodStatus(ctx context.Context, m
 }
 
 // GenerateText records and returns a deterministic fake response.
-func (s *capabilityHostServiceAITextService) GenerateText(
+func (s *ownerTextHostService) GenerateText(
 	_ context.Context,
-	request aitext.GenerateRequest,
-) (*aitext.GenerateResponse, error) {
+	request aiTextGenerateRequest,
+) (*aiTextGenerateResponse, error) {
 	s.called = true
 	s.lastRequest = request
 	if s.err != nil {
 		return nil, s.err
 	}
 	if s.response == nil {
-		return &aitext.GenerateResponse{Text: "ok", Tier: request.Tier}, nil
+		return &aiTextGenerateResponse{Text: "ok", Tier: request.Tier}, nil
 	}
 	return s.response, nil
-}
-
-// capabilityHostServiceScopedAITextService records source plugin identity
-// injected by the scoped capability directory in host-service tests.
-type capabilityHostServiceScopedAITextService struct {
-	base           *capabilityHostServiceAITextService
-	sourcePluginID string
-}
-
-// Available delegates to the base fake service.
-func (s *capabilityHostServiceScopedAITextService) Available(ctx context.Context) bool {
-	return s.base.Available(ctx)
-}
-
-// Status delegates to the base fake service.
-func (s *capabilityHostServiceScopedAITextService) Status(ctx context.Context) capmodel.CapabilityStatus {
-	return s.base.Status(ctx)
-}
-
-// MethodStatus delegates to the base fake service.
-func (s *capabilityHostServiceScopedAITextService) MethodStatus(ctx context.Context, method aicommon.CapabilityMethod) aicommon.MethodStatus {
-	return s.base.MethodStatus(ctx, method)
-}
-
-// GenerateText records scoped source identity before delegating.
-func (s *capabilityHostServiceScopedAITextService) GenerateText(
-	ctx context.Context,
-	request aitext.GenerateRequest,
-) (*aitext.GenerateResponse, error) {
-	s.base.lastSourcePluginID = s.sourcePluginID
-	return s.base.GenerateText(ctx, request)
 }
 
 // capabilityHostServiceUsersService records user-domain requests in tests.

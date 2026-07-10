@@ -173,7 +173,7 @@ go run . plugins.check format=json
 
 ## Agent Symlinks (agents.* command tree)
 
-`linactl agents.<resource>.<action>` manages repository-local symlinks that bridge canonical sources under `.agents/` (and `AGENTS.md`) to per-agent project paths used by supported AI coding agents. Three resource types are supported:
+`linactl agents.<resource>.<action>` manages repository-local symlinks that bridge canonical sources under `.agents/` (and `AGENTS.md`) to per-agent project paths used by supported AI coding agents. Three resource types are supported. **Agent product definitions and resource apply logic live in one place**: `internal/agents/registry` (each product has optional `Skills` / `Prompts` / `MD` bindings). The former `skills` / `prompts` / `md` packages were removed; commands call `registry.ApplyLink` / `ApplyUnlink` with a resource kind.
 
 - **skills** — directory bridge from `.<tool>/skills` to `.agents/skills`. The supported agent list mirrors [vercel-labs/skills](https://github.com/vercel-labs/skills#supported-agents).
 - **prompts** — directory bridge from each agent's commands/prompts root (for example `.claude/commands`) to `.agents/prompts`.
@@ -185,10 +185,16 @@ The commands only operate inside the repository root; they never modify HOME dir
 
 The `agents` aggregate command is **agent-first**: pick one agent and the chosen action runs across every resource type that agent participates in. Resources where the agent is `native` or unregistered are skipped with an explicit reason in the final summary.
 
+The interactive picker lists **all registered agents** in two colored groups (both sorted A-Z):
+
+1. **Built-in support** (green) — tools that already read `.agents/skills` and `AGENTS.md` natively. Grouping ignores `prompts` (optional slash-command bridges stay on `agents.prompts.*`). Selecting one only prints a readiness summary.
+2. **Needs setup** (yellow) — tools whose `skills` and/or `md` paths still need managed symlinks; selecting one continues to `link` / `unlink`.
+
 ```bash
 # Interactive (TTY):
-#   Step 1: arrow-key pick the agent (filter by typing).
-#   Step 2: arrow-key pick `link` or `unlink`.
+#   Step 1: arrow-key pick the agent from the two-group list (filter by typing).
+#   Step 2: for needs-setup agents, arrow-key pick `link` or `unlink`.
+#           Built-in agents stop after the readiness summary.
 make agents
 
 # One-shot (works in any environment, including CI):
@@ -250,7 +256,7 @@ Status glyphs embedded in per-resource option labels:
 - `link` — agent uses a different project path. A relative symlink to the canonical source is created on demand.
 - `rootCollision` — project path is a bare repo-root name (only `skills/`, used by `openclaw`). Skipped by default; pass `agent=openclaw force=1` to opt in. Does not apply to prompts or md resources.
 
-> **Fallback behaviour for `md`:** some agents auto-fall back to `AGENTS.md` when their preferred private guide file (e.g. `CODEBUDDY.md`, `CLAUDE.md`) is absent. CodeBuddy is one such agent — Tencent's docs state it prefers `CODEBUDDY.md` but loads `AGENTS.md` automatically when no `CODEBUDDY.md` is present. Agents with a documented automatic fallback are registered as `native` so cloned repositories work zero-config; agents whose preferred file is the *only* path they read are registered as `link` so you can opt into a symlink. See the inline comments in `internal/agents/md/md_agents.go` for the source-of-truth citation behind every entry.
+> **Fallback behaviour for `md`:** some agents auto-fall back to `AGENTS.md` when their preferred private guide file (e.g. `CODEBUDDY.md`, `CLAUDE.md`) is absent. CodeBuddy is one such agent — Tencent's docs state it prefers `CODEBUDDY.md` but loads `AGENTS.md` automatically when no `CODEBUDDY.md` is present. Agents with a documented automatic fallback are registered as `native` so cloned repositories work zero-config; agents whose preferred file is the *only* path they read are registered as `link` so you can opt into a symlink. See the inline comments in `internal/agents/registry/agents.go` for the source-of-truth citation behind every entry.
 
 Real directories or files at the target path are never auto-removed, even with `force=1`, **unless** the file is a degraded symlink stub created by Git when `core.symlinks=false`. Git writes the intended link target path as plain-text file content when symlinks are disabled; `force=1` detects these stubs (regular file, ≤512 bytes, content matches the expected relative source path) and replaces them with real symlinks automatically. Genuine files with arbitrary content are still never touched. `force=1` also rebuilds symlinks that already exist but point at a non-managed target. Per-tool skills and prompts symlinks are listed in `.gitignore`, so creating them locally does not pollute the repository.
 

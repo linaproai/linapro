@@ -25,12 +25,13 @@ apps/lina-plugins/<plugin-id>/
 ├── Makefile                         # 插件make指令入口
 ├── backend/                         # 插件后端源码
 │   ├── api/                         # API DTO与路由契约
+│   ├── cap/                         # 插件拥有领域能力公开契约，可选，仅用于 plugin-owned 能力
 │   ├── internal/                    # 插件内部业务逻辑封装
 │   │   ├── controller/              # HTTP控制器
 │   │   ├── service/                 # 业务服务层
 │   │   ├── dao/                     # make dao生成
 │   │   └── model/                   # do/entity模型
-│   ├── pkg/                         # 插件对外暴露的能力，仅源码插件可提供
+│   ├── pkg/                         # 非标准目录，不承载跨插件领域能力入口
 │   └── plugin.go                    # 插件注册入口
 ├── frontend/                        # 插件前端资源
 │   ├── pages/                       # 插件页面
@@ -58,6 +59,7 @@ apps/lina-plugins/<plugin-id>/
 源码插件和动态插件都必须遵守以下通用资源约定：
 - 插件源码目录统一放在`apps/lina-plugins/<plugin-id>/`下，`<plugin-id>`必须与`plugin.yaml`中的`id`一致。
 - 插件多语言资源放在`manifest/i18n/<locale>/`，API 文档翻译资源放在`manifest/i18n/<locale>/apidoc/`。
+- 插件拥有非核心领域能力时，公开契约统一放在`backend/cap/<domain>cap`，动态`guest SDK`放在该能力契约下的`bridge`或等价子包，`provider SPI`放在`spi`或等价子包。
 - 插件 SQL 必须遵守`.agents/rules/database.md`。
 - 插件 i18n 资源必须遵守`.agents/rules/i18n.md`。
 - 插件开发期工具配置统一维护在插件根`hack/config.yaml`，包括代码生成、自定义构建等插件本地工具配置。
@@ -66,13 +68,18 @@ apps/lina-plugins/<plugin-id>/
 ## 领域能力使用要求
 
 - 依赖领域能力的宽接口而非窄接口。例如，插件需要依赖`tenantcap.Service`，而不是依赖`tenantcap.FilterService`或者`tenantcap.PluginService`窄接口。
+- 非核心`plugin-owned`领域能力的跨插件公开契约必须位于`owner`插件`backend/cap/<domain>cap`下。源码消费插件只能`import owner`插件的`backend/cap/...`公开契约，不得`import`目标插件`backend/internal/...`、`backend/internal/dao`、`backend/internal/model`、`controller`、`service`、`provider adapter`、私有缓存或`backend/pkg`作为领域能力入口。
+- 源码插件生产代码`import`其他插件`backend/cap/...`时，必须在自身`plugin.yaml dependencies.plugins`声明对应`owner`插件和版本约束，并在自身`go.mod`中声明匹配的`Go module`依赖。
+- 动态插件申请`owner`插件能力时，必须在`plugin.yaml hostServices`中显式声明`owner`、`service`、`version`和`methods`，并在`dependencies.plugins`中声明对应`owner`插件。不得使用`dependencies.capabilities`、软依赖或自动安装策略表达`owner`能力依赖。
+- `owner`插件应通过类型安全`helper`生成通用`capability descriptor`。`lina-core`只接收`descriptor`、执行依赖治理、授权快照、动态路由和审计，不为每个非核心领域新增领域专属`*cap`包、`provider facade`、`wire codec`或`dispatcher`分支。
 
 ## 插件后端开发结构要求
 
 源码插件和动态插件必须保持一致的后端业务开发结构，以降低开发者学习、迁移和维护成本。两类插件必须遵守以下结构：
 
 - 每个插件必须同时维护`plugin.yaml`、`backend/`、`frontend/`与`manifest/`。
-- 禁止在`backend`目录下创建后端公共组件或者目录，插件后端的业务模块应当严格封装在`backend/internal/service/`目录下。
+- 除`backend/cap`用于发布`plugin-owned`领域公开契约外，禁止在`backend`目录下创建后端公共组件或者目录。插件后端的业务模块应当严格封装在`backend/internal/service/`目录下。
+- `backend/cap`只允许承载公开契约、`DTO`、值对象、错误语义、动态`bridge SDK`、`provider SPI`和`descriptor helper`，不得包含`DAO`、`DO`、`Entity`、`controller`、业务`service`实现、`provider`密钥、私有缓存结构或宿主`dispatcher`。
 - `backend/plugin.go`用于声明插件后端入口、路由注册、生命周期接入或动态路由桥接入口。
 - 插件后端 Go 代码必须遵守`.agents/rules/backend-go.md`。
 
@@ -80,7 +87,9 @@ apps/lina-plugins/<plugin-id>/
 
 - 涉及数据库访问的插件应在插件根`hack/config.yaml`中维护`gfcli.gen.dao`等代码生成工具配置，GoFrame 生成工作目录仍为插件`backend/`。
 - 禁止插件重新依赖宿主的`dao/do/entity`生成工件。
-- 动态插件涉及宿主数据访问时，必须通过`plugin.yaml`的`hostServices`资源边界和宿主授权的 host service 协议。
+- 禁止插件重新依赖其他插件的`dao/do/entity`生成工件。跨插件业务调用必须通过`owner`插件`backend/cap`公开契约、受治理`capability descriptor`或动态`hostServices`协议完成。
+- 动态插件涉及宿主数据访问时，必须通过`plugin.yaml`的`hostServices`资源边界和宿主授权的`host service`协议。
+- 动态插件涉及`owner`插件领域能力时，必须通过`owner-aware hostServices`声明和`owner`插件发布的`bridge SDK`访问，不得把动态`guest SDK`当作绕过宿主授权、依赖检查、租户和数据权限边界的直连入口。
 
 ## 源码插件对接要求
 

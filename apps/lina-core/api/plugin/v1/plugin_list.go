@@ -144,10 +144,19 @@ type PluginDependencyBlocker struct {
 
 // PluginDependencyReverseDependent describes one installed downstream dependency.
 type PluginDependencyReverseDependent struct {
-	PluginId        string `json:"pluginId" dc:"Downstream plugin ID" eg:"linapro-content-notice"`
-	Name            string `json:"name" dc:"Downstream plugin display name" eg:"Content Notice"`
-	Version         string `json:"version" dc:"Downstream plugin version" eg:"v0.1.0"`
-	RequiredVersion string `json:"requiredVersion" dc:"Version range declared by downstream plugin" eg:">=0.1.0"`
+	PluginId          string                              `json:"pluginId" dc:"Downstream plugin ID" eg:"linapro-content-notice"`
+	Name              string                              `json:"name" dc:"Downstream plugin display name" eg:"Content Notice"`
+	Version           string                              `json:"version" dc:"Downstream plugin version" eg:"v0.1.0"`
+	RequiredVersion   string                              `json:"requiredVersion" dc:"Version range declared by downstream plugin" eg:">=0.1.0"`
+	OwnerHostServices []*PluginDependencyOwnerHostService `json:"ownerHostServices,omitempty" dc:"Owner-aware host service declarations in the downstream plugin that target the checked owner plugin" eg:"[]"`
+}
+
+// PluginDependencyOwnerHostService describes one owner-aware host service declaration summary.
+type PluginDependencyOwnerHostService struct {
+	Owner   string   `json:"owner" dc:"Owner plugin ID for the plugin-owned host service" eg:"linapro-ai-core"`
+	Service string   `json:"service" dc:"Logical host service identifier declared by the downstream plugin" eg:"ai"`
+	Version string   `json:"version" dc:"Owner capability protocol version declared by the downstream plugin" eg:"v1"`
+	Methods []string `json:"methods" dc:"Owner host service methods declared by the downstream plugin" eg:"[\"text.generate\"]"`
 }
 
 // PluginRouteReviewItem describes one dynamic route exposed by the current

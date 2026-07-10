@@ -40,15 +40,34 @@ func ParseSelectors(value string) []string {
 	return out
 }
 
+// agentAliasResolver optionally maps a kebab-case selector onto a
+// canonical agent Name (e.g. kimi-code-cli → kimi-cli). The unified
+// agents registry installs the real resolver during its package init so
+// common does not import registry (avoids an import cycle).
+var agentAliasResolver = func(normalized string) string { return normalized }
+
+// SetAgentAliasResolver installs the alias lookup used by
+// NormalizeAgentName. Passing nil restores the identity resolver.
+// Intended for registry package init and tests.
+func SetAgentAliasResolver(resolve func(normalized string) string) {
+	if resolve == nil {
+		agentAliasResolver = func(normalized string) string { return normalized }
+		return
+	}
+	agentAliasResolver = resolve
+}
+
 // NormalizeAgentName converts user-facing agent selector input to the
 // canonical kebab-case identifier used by registries. It accepts common
-// variants such as "ClaudeCode", "Claude Code" and "claude_code".
+// variants such as "ClaudeCode", "Claude Code" and "claude_code", and
+// then applies the installed alias resolver (when configured).
 func NormalizeAgentName(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return ""
 	}
-	return gstr.CaseKebab(value)
+	normalized := gstr.CaseKebab(value)
+	return agentAliasResolver(normalized)
 }
 
 // TargetPolicy controls which agent categories an "all" selector expands

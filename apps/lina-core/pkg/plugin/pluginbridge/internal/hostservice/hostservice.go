@@ -48,24 +48,6 @@ const (
 	CapabilityRoute = "host:route"
 	// CapabilitySessions grants access to online-session domain capability services.
 	CapabilitySessions = "host:sessions"
-	// CapabilityAI grants access to cross-sub-capability AI status projections.
-	CapabilityAI = "host:ai"
-	// CapabilityAIText grants access to host-defined text AI capability services.
-	CapabilityAIText = "host:ai:text"
-	// CapabilityAIImage grants access to host-defined image AI capability services.
-	CapabilityAIImage = "host:ai:image"
-	// CapabilityAIEmbedding grants access to host-defined embedding AI capability services.
-	CapabilityAIEmbedding = "host:ai:embedding"
-	// CapabilityAIAudio grants access to host-defined audio AI capability services.
-	CapabilityAIAudio = "host:ai:audio"
-	// CapabilityAIVision grants access to host-defined vision AI capability services.
-	CapabilityAIVision = "host:ai:vision"
-	// CapabilityAIDocument grants access to host-defined document AI capability services.
-	CapabilityAIDocument = "host:ai:document"
-	// CapabilityAISafety grants access to host-defined safety AI capability services.
-	CapabilityAISafety = "host:ai:safety"
-	// CapabilityAIVideo grants access to host-defined video AI capability services.
-	CapabilityAIVideo = "host:ai:video"
 	// CapabilityOrg grants access to host-defined organization capability services.
 	CapabilityOrg = "host:org"
 	// CapabilityTenant grants access to host-defined tenant capability services.
@@ -113,8 +95,6 @@ const (
 	HostServiceRoute = "route"
 	// HostServiceSessions is the online-session capability host service identifier.
 	HostServiceSessions = "sessions"
-	// HostServiceAI is the AI capability host service identifier.
-	HostServiceAI = "ai"
 	// HostServiceOrg is the organization capability host service identifier.
 	HostServiceOrg = "org"
 	// HostServiceTenant is the tenant capability host service identifier.
@@ -551,45 +531,6 @@ const (
 	HostServiceMethodTenantFilterContext = "tenant.filter.context"
 )
 
-// AI host-service methods describe the governed typed AI capability surface
-// available to authorized dynamic plugins.
-const (
-	// HostServiceMethodAITextGenerate executes one governed text generation request.
-	HostServiceMethodAITextGenerate = "text.generate"
-	// HostServiceMethodAITextMethodStatus reads one text AI method availability projection.
-	HostServiceMethodAITextMethodStatus = "text.method_status.get"
-	// HostServiceMethodAIMethodStatuses reads AI method availability projections across sub-capabilities.
-	HostServiceMethodAIMethodStatuses = "ai.methods.status.batch_get"
-	// HostServiceMethodAIImageGenerate executes one governed image generation request.
-	HostServiceMethodAIImageGenerate = "image.generate"
-	// HostServiceMethodAIImageEdit executes one governed image editing request.
-	HostServiceMethodAIImageEdit = "image.edit"
-	// HostServiceMethodAIEmbeddingCreate executes one governed embedding request.
-	HostServiceMethodAIEmbeddingCreate = "embedding.create"
-	// HostServiceMethodAIAudioTranscribe executes one governed audio transcription request.
-	HostServiceMethodAIAudioTranscribe = "audio.transcribe"
-	// HostServiceMethodAIAudioSynthesize executes one governed audio synthesis request.
-	HostServiceMethodAIAudioSynthesize = "audio.synthesize"
-	// HostServiceMethodAIVisionAnalyze executes one governed visual analysis request.
-	HostServiceMethodAIVisionAnalyze = "vision.analyze"
-	// HostServiceMethodAIDocumentAnalyze executes one governed document analysis request.
-	HostServiceMethodAIDocumentAnalyze = "document.analyze"
-	// HostServiceMethodAIDocumentCite executes one governed citation-aware document request.
-	HostServiceMethodAIDocumentCite = "document.cite"
-	// HostServiceMethodAISafetyModerate executes one governed safety moderation request.
-	HostServiceMethodAISafetyModerate = "safety.moderate"
-	// HostServiceMethodAIVideoGenerate executes one governed video generation request.
-	HostServiceMethodAIVideoGenerate = "video.generate"
-	// HostServiceMethodAIVideoEdit executes one governed video editing request.
-	HostServiceMethodAIVideoEdit = "video.edit"
-	// HostServiceMethodAIVideoExtend executes one governed video extension request.
-	HostServiceMethodAIVideoExtend = "video.extend"
-	// HostServiceMethodAIVideoOperationGet reads one governed provider operation.
-	HostServiceMethodAIVideoOperationGet = "video.operation.get"
-	// HostServiceMethodAIVideoOperationCancel cancels one governed provider operation.
-	HostServiceMethodAIVideoOperationCancel = "video.operation.cancel"
-)
-
 // Storage visibility constants describe the serving posture attached to plugin
 // storage objects.
 const (
@@ -601,8 +542,13 @@ const (
 
 // HostServiceSpec declares one structured host service authorization block in plugin.yaml.
 type HostServiceSpec struct {
+	// Owner is the plugin ID that owns this host service when the declaration
+	// targets a plugin-owned capability. Core-owned host services leave it empty.
+	Owner string `json:"owner,omitempty" yaml:"owner,omitempty"`
 	// Service is the logical host service identifier.
 	Service string `json:"service" yaml:"service"`
+	// Version is the owner capability protocol version for plugin-owned host services.
+	Version string `json:"version,omitempty" yaml:"version,omitempty"`
 	// Methods lists the allowed methods under the host service.
 	Methods []string `json:"methods" yaml:"methods"`
 	// Paths lists the authorized logical paths for the storage host service.

@@ -4,6 +4,15 @@
 // but service and method metadata must be maintained here first.
 package hostservices
 
+import (
+	"sort"
+	"strings"
+
+	"github.com/gogf/gf/v2/errors/gerror"
+
+	"lina-core/pkg/plugin/capability/capregistry"
+)
+
 // ResourceKind describes which authorization resource shape a host service
 // declaration uses in plugin manifests.
 type ResourceKind string
@@ -29,26 +38,57 @@ const (
 	PayloadKindDedicated PayloadKind = "dedicated"
 )
 
+// RiskLevel classifies one owner method for authorization and upgrade previews.
+type RiskLevel string
+
+// Host-service risk levels projected from plugin-owned capability descriptors.
+const (
+	RiskLevelRead    RiskLevel = "read"
+	RiskLevelWrite   RiskLevel = "write"
+	RiskLevelExecute RiskLevel = "execute"
+)
+
 // ServiceDescriptor describes one logical host service family.
 type ServiceDescriptor struct {
+	// Owner is empty for core-owned services and contains the owner plugin ID
+	// for plugin-owned service projections.
+	Owner string
 	// Service is the logical host service identifier.
 	Service string
+	// Version is empty for core-owned services and contains the plugin-owned
+	// capability protocol version for owner projections.
+	Version string
 	// ResourceKind describes the manifest resource declaration shape.
 	ResourceKind ResourceKind
+	// SourceContract names the public Go source-plugin contract package when
+	// the service comes from a plugin-owned capability descriptor.
+	SourceContract string
+	// DynamicContract names the public dynamic-plugin bridge SDK package when
+	// the service comes from a plugin-owned capability descriptor.
+	DynamicContract string
 	// Methods lists governed methods under this service.
 	Methods []MethodDescriptor
 }
 
 // MethodDescriptor describes one governed host service method.
 type MethodDescriptor struct {
+	// Owner is empty for core-owned services and contains the owner plugin ID
+	// for plugin-owned method projections.
+	Owner string
 	// Service is populated when descriptors are flattened.
 	Service string
+	// Version is empty for core-owned services and contains the plugin-owned
+	// capability protocol version for owner projections.
+	Version string
 	// Method is the wire method string.
 	Method string
 	// MethodConst is the stable Go constant name for the method.
 	MethodConst string
 	// Capability is the capability implied by this method.
 	Capability string
+	// Risk classifies plugin-owned methods for authorization and upgrade
+	// previews. Core-owned static methods leave this empty.
+	Risk RiskLevel
 	// ResourceKind describes the manifest resource declaration shape.
 	ResourceKind ResourceKind
 	// RequestPayload names the public request payload type when one exists.
@@ -184,29 +224,6 @@ var catalog = []ServiceDescriptor{
 			hostMethod("authz.permissions.has", "HostServiceMethodAuthzHasPermission", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("authz.users.platform_admin.check", "HostServiceMethodAuthzIsPlatformAdmin", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
 			hostMethod("authz.role_permissions.replace", "HostServiceMethodAuthzReplaceRolePermissions", "host:auth:authz", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-		},
-	},
-	{
-		Service:      "ai",
-		ResourceKind: ResourceKindNone,
-		Methods: []MethodDescriptor{
-			hostMethod("text.generate", "HostServiceMethodAITextGenerate", "host:ai:text", "HostServiceAITextGenerateRequest", "HostServiceJSONResponse"),
-			hostMethod("text.method_status.get", "HostServiceMethodAITextMethodStatus", "host:ai:text", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("ai.methods.status.batch_get", "HostServiceMethodAIMethodStatuses", "host:ai", "HostServiceJSONRequest", "HostServiceJSONResponse"),
-			hostMethod("image.generate", "HostServiceMethodAIImageGenerate", "host:ai:image", "HostServiceAIImageGenerateRequest", "HostServiceJSONResponse"),
-			hostMethod("image.edit", "HostServiceMethodAIImageEdit", "host:ai:image", "HostServiceAIImageEditRequest", "HostServiceJSONResponse"),
-			hostMethod("embedding.create", "HostServiceMethodAIEmbeddingCreate", "host:ai:embedding", "HostServiceAIEmbeddingCreateRequest", "HostServiceJSONResponse"),
-			hostMethod("audio.transcribe", "HostServiceMethodAIAudioTranscribe", "host:ai:audio", "HostServiceAIAudioTranscribeRequest", "HostServiceJSONResponse"),
-			hostMethod("audio.synthesize", "HostServiceMethodAIAudioSynthesize", "host:ai:audio", "HostServiceAIAudioSynthesizeRequest", "HostServiceJSONResponse"),
-			hostMethod("vision.analyze", "HostServiceMethodAIVisionAnalyze", "host:ai:vision", "HostServiceAIVisionAnalyzeRequest", "HostServiceJSONResponse"),
-			hostMethod("document.analyze", "HostServiceMethodAIDocumentAnalyze", "host:ai:document", "HostServiceAIDocumentAnalyzeRequest", "HostServiceJSONResponse"),
-			hostMethod("document.cite", "HostServiceMethodAIDocumentCite", "host:ai:document", "HostServiceAIDocumentCiteRequest", "HostServiceJSONResponse"),
-			hostMethod("safety.moderate", "HostServiceMethodAISafetyModerate", "host:ai:safety", "HostServiceAISafetyModerateRequest", "HostServiceJSONResponse"),
-			hostMethod("video.generate", "HostServiceMethodAIVideoGenerate", "host:ai:video", "HostServiceAIVideoGenerateRequest", "HostServiceJSONResponse"),
-			hostMethod("video.edit", "HostServiceMethodAIVideoEdit", "host:ai:video", "HostServiceAIVideoEditRequest", "HostServiceJSONResponse"),
-			hostMethod("video.extend", "HostServiceMethodAIVideoExtend", "host:ai:video", "HostServiceAIVideoExtendRequest", "HostServiceJSONResponse"),
-			hostMethod("video.operation.get", "HostServiceMethodAIVideoOperationGet", "host:ai:video", "HostServiceAIVideoOperationGetRequest", "HostServiceJSONResponse"),
-			hostMethod("video.operation.cancel", "HostServiceMethodAIVideoOperationCancel", "host:ai:video", "HostServiceAIVideoOperationCancelRequest", "HostServiceJSONResponse"),
 		},
 	},
 	{
@@ -406,10 +423,163 @@ func Catalog() []ServiceDescriptor {
 	return result
 }
 
+// CatalogWithDescriptors returns the static core-owned catalog merged with
+// plugin-owned owner descriptors projected into host-service metadata.
+func CatalogWithDescriptors(descriptors []capregistry.Descriptor) ([]ServiceDescriptor, error) {
+	catalog := Catalog()
+	ownerCatalog, err := CatalogFromDescriptors(descriptors)
+	if err != nil {
+		return nil, err
+	}
+	catalog = append(catalog, ownerCatalog...)
+	return catalog, nil
+}
+
+// CatalogFromDescriptors projects plugin-owned capability descriptors into
+// owner-aware host-service catalog entries. Projection is a pure value transform
+// with lightweight identity validation; runtime registration still happens in
+// capregistry when the host starts.
+func CatalogFromDescriptors(descriptors []capregistry.Descriptor) ([]ServiceDescriptor, error) {
+	if len(descriptors) == 0 {
+		return []ServiceDescriptor{}, nil
+	}
+	seen := make(map[string]struct{}, len(descriptors))
+	result := make([]ServiceDescriptor, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		service, err := projectOwnerDescriptor(descriptor)
+		if err != nil {
+			return nil, err
+		}
+		key := service.Owner + "\x00" + service.Service + "\x00" + service.Version
+		if _, exists := seen[key]; exists {
+			return nil, gerror.Newf(
+				"capability descriptor already registered: owner=%s service=%s version=%s",
+				service.Owner,
+				service.Service,
+				service.Version,
+			)
+		}
+		seen[key] = struct{}{}
+		result = append(result, service)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		left := result[i].Owner + "\x00" + result[i].Service + "\x00" + result[i].Version
+		right := result[j].Owner + "\x00" + result[j].Service + "\x00" + result[j].Version
+		return left < right
+	})
+	return result, nil
+}
+
+func projectOwnerDescriptor(descriptor capregistry.Descriptor) (ServiceDescriptor, error) {
+	owner := strings.TrimSpace(descriptor.OwnerPluginID)
+	service := strings.TrimSpace(descriptor.Service)
+	version := strings.TrimSpace(descriptor.Version)
+	if owner == "" {
+		return ServiceDescriptor{}, gerror.New("capability descriptor owner plugin id is required")
+	}
+	if service == "" {
+		return ServiceDescriptor{}, gerror.Newf("capability descriptor service is required: owner=%s", owner)
+	}
+	if version == "" {
+		return ServiceDescriptor{}, gerror.Newf(
+			"capability descriptor version is required: owner=%s service=%s",
+			owner,
+			service,
+		)
+	}
+	if len(descriptor.Methods) == 0 {
+		return ServiceDescriptor{}, gerror.Newf(
+			"capability descriptor methods are required: owner=%s service=%s version=%s",
+			owner,
+			service,
+			version,
+		)
+	}
+
+	projected := ServiceDescriptor{
+		Owner:           owner,
+		Service:         service,
+		Version:         version,
+		ResourceKind:    ownerDescriptorResourceKind(descriptor.Methods),
+		SourceContract:  strings.TrimSpace(descriptor.SourceContract),
+		DynamicContract: strings.TrimSpace(descriptor.DynamicContract),
+		Methods:         make([]MethodDescriptor, 0, len(descriptor.Methods)),
+	}
+	seenMethods := make(map[string]struct{}, len(descriptor.Methods))
+	for _, method := range descriptor.Methods {
+		name := strings.TrimSpace(method.Method)
+		if name == "" {
+			return ServiceDescriptor{}, gerror.Newf(
+				"capability descriptor method is required: owner=%s service=%s version=%s",
+				owner,
+				service,
+				version,
+			)
+		}
+		if _, exists := seenMethods[name]; exists {
+			return ServiceDescriptor{}, gerror.Newf(
+				"capability descriptor contains duplicate method: owner=%s service=%s version=%s method=%s",
+				owner,
+				service,
+				version,
+				name,
+			)
+		}
+		seenMethods[name] = struct{}{}
+		projected.Methods = append(projected.Methods, MethodDescriptor{
+			Owner:           owner,
+			Service:         service,
+			Version:         version,
+			Method:          name,
+			Capability:      strings.TrimSpace(method.Capability),
+			Risk:            ownerRiskLevel(method.Risk),
+			ResourceKind:    ownerResourceKind(method.ResourceKind),
+			RequestPayload:  strings.TrimSpace(method.RequestPayload),
+			ResponsePayload: strings.TrimSpace(method.ResponsePayload),
+			PayloadKind:     PayloadKindJSON,
+			Published:       true,
+			GuestClient:     true,
+			Dispatcher:      true,
+		})
+	}
+	sort.Slice(projected.Methods, func(i, j int) bool {
+		return projected.Methods[i].Method < projected.Methods[j].Method
+	})
+	return projected, nil
+}
+
 // Methods returns all governed host-service method descriptors.
 func Methods() []MethodDescriptor {
 	methods := make([]MethodDescriptor, 0)
 	for _, service := range Catalog() {
+		methods = append(methods, service.Methods...)
+	}
+	return methods
+}
+
+// MethodsWithDescriptors returns all core-owned and plugin-owned method
+// descriptors using the merged catalog projection.
+func MethodsWithDescriptors(descriptors []capregistry.Descriptor) ([]MethodDescriptor, error) {
+	catalog, err := CatalogWithDescriptors(descriptors)
+	if err != nil {
+		return nil, err
+	}
+	return methodsFromCatalog(catalog), nil
+}
+
+// MethodsFromDescriptors returns plugin-owned method descriptors projected from
+// owner capability descriptors.
+func MethodsFromDescriptors(descriptors []capregistry.Descriptor) ([]MethodDescriptor, error) {
+	catalog, err := CatalogFromDescriptors(descriptors)
+	if err != nil {
+		return nil, err
+	}
+	return methodsFromCatalog(catalog), nil
+}
+
+func methodsFromCatalog(catalog []ServiceDescriptor) []MethodDescriptor {
+	methods := make([]MethodDescriptor, 0)
+	for _, service := range catalog {
 		methods = append(methods, service.Methods...)
 	}
 	return methods
@@ -432,6 +602,47 @@ func hostMethod(
 		Published:       true,
 		GuestClient:     true,
 		Dispatcher:      true,
+	}
+}
+
+func ownerDescriptorResourceKind(methods []capregistry.MethodDescriptor) ResourceKind {
+	if len(methods) == 0 {
+		return ResourceKindNone
+	}
+	first := ownerResourceKind(methods[0].ResourceKind)
+	for _, method := range methods[1:] {
+		if ownerResourceKind(method.ResourceKind) != first {
+			return ResourceKindNone
+		}
+	}
+	return first
+}
+
+func ownerResourceKind(kind capregistry.ResourceKind) ResourceKind {
+	switch kind {
+	case capregistry.ResourceKindPath:
+		return ResourceKindPath
+	case capregistry.ResourceKindTable:
+		return ResourceKindTable
+	case capregistry.ResourceKindKey:
+		return ResourceKindKey
+	case capregistry.ResourceKindRef:
+		return ResourceKindRef
+	default:
+		return ResourceKindNone
+	}
+}
+
+func ownerRiskLevel(risk capregistry.RiskLevel) RiskLevel {
+	switch risk {
+	case capregistry.RiskLevelRead:
+		return RiskLevelRead
+	case capregistry.RiskLevelWrite:
+		return RiskLevelWrite
+	case capregistry.RiskLevelExecute:
+		return RiskLevelExecute
+	default:
+		return RiskLevel("")
 	}
 }
 

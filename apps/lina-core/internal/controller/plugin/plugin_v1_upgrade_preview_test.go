@@ -51,6 +51,14 @@ func TestBuildUpgradePreviewResponseProjectsAllSections(t *testing.T) {
 					Methods: []string{protocol.HostServiceMethodDataList},
 					Tables:  []string{"sys_plugin", "sys_plugin_release"},
 				},
+				{
+					Owner:   "linapro-ai-core",
+					Service: "ai",
+					Version: "v1",
+					Methods: []string{
+						"text.method_status.get",
+					},
+				},
 			},
 		},
 		DependencyCheck: &pluginsvc.DependencyCheckResult{
@@ -67,9 +75,20 @@ func TestBuildUpgradePreviewResponseProjectsAllSections(t *testing.T) {
 		HostServicesDiff: pluginsvc.RuntimeUpgradeHostServicesDiff{
 			Changed: []*pluginsvc.RuntimeUpgradeHostServiceChange{
 				{
-					Service:    protocol.HostServiceData,
-					FromTables: []string{"sys_plugin"},
-					ToTables:   []string{"sys_plugin", "sys_plugin_release"},
+					Owner:   "linapro-ai-core",
+					Service: "ai",
+					Version: "v1",
+					FromMethods: []string{
+						"text.generate",
+					},
+					ToMethods: []string{
+						"text.generate",
+						"text.method_status.get",
+					},
+					FromResourceCount: 1,
+					ToResourceCount:   2,
+					FromResourceRefs:  []string{"purpose:summary"},
+					ToResourceRefs:    []string{"purpose:rewrite", "purpose:summary"},
 				},
 			},
 			AuthorizationRequired: true,
@@ -103,10 +122,21 @@ func TestBuildUpgradePreviewResponseProjectsAllSections(t *testing.T) {
 	if out.ToManifest.RuntimeFrontendAssetCount != 3 {
 		t.Fatalf("expected runtime frontend asset count projection, got %#v", out.ToManifest)
 	}
-	if len(out.ToManifest.RequestedHostServices) != 1 ||
-		len(out.ToManifest.RequestedHostServices[0].TableItems) != 2 ||
-		out.ToManifest.RequestedHostServices[0].TableItems[1].Comment != "Plugin release" {
+	if len(out.ToManifest.RequestedHostServices) != 2 {
+		t.Fatalf("expected requested hostServices projection, got %#v", out.ToManifest.RequestedHostServices)
+	}
+	dataHostService := out.ToManifest.RequestedHostServices[0]
+	if len(dataHostService.TableItems) != 2 ||
+		dataHostService.TableItems[1].Comment != "Plugin release" {
 		t.Fatalf("expected requested hostServices with table comments, got %#v", out.ToManifest.RequestedHostServices)
+	}
+	ownerHostService := out.ToManifest.RequestedHostServices[1]
+	if ownerHostService.Owner != "linapro-ai-core" ||
+		ownerHostService.Service != "ai" ||
+		ownerHostService.Version != "v1" ||
+		len(ownerHostService.Methods) != 1 ||
+		ownerHostService.Methods[0] != "text.method_status.get" {
+		t.Fatalf("expected owner-aware requested hostServices projection, got %#v", ownerHostService)
 	}
 	if out.DependencyCheck == nil || out.DependencyCheck.TargetId != "plugin-preview" {
 		t.Fatalf("expected dependency projection, got %#v", out.DependencyCheck)
@@ -116,6 +146,15 @@ func TestBuildUpgradePreviewResponseProjectsAllSections(t *testing.T) {
 	}
 	if !out.HostServicesDiff.AuthorizationRequired || len(out.HostServicesDiff.Changed) != 1 {
 		t.Fatalf("expected hostServices diff projection, got %#v", out.HostServicesDiff)
+	}
+	if out.HostServicesDiff.Changed[0].Owner != "linapro-ai-core" || out.HostServicesDiff.Changed[0].Version != "v1" {
+		t.Fatalf("expected owner-aware hostServices diff projection, got %#v", out.HostServicesDiff.Changed[0])
+	}
+	if out.HostServicesDiff.Changed[0].FromResourceCount != 1 ||
+		out.HostServicesDiff.Changed[0].ToResourceCount != 2 ||
+		len(out.HostServicesDiff.Changed[0].ToResourceRefs) != 2 ||
+		out.HostServicesDiff.Changed[0].ToResourceRefs[1] != "purpose:summary" {
+		t.Fatalf("expected resource refs projection, got %#v", out.HostServicesDiff.Changed[0])
 	}
 	if len(out.RiskHints) != 2 || out.RiskHints[1] != pluginsvc.RuntimeUpgradeRiskHintMockSQLExcluded {
 		t.Fatalf("expected risk hint projection, got %#v", out.RiskHints)

@@ -78,6 +78,10 @@ func TestHostCallStubsReturnUnavailable(t *testing.T) {
 			_, err := services.Manifest().Get(t.Context(), "metadata.yaml")
 			return err
 		}},
+		{name: "owner host service", run: func() error {
+			_, err := InvokeOwnerHostService("linapro-ai-core", "ai", "v1", "text.generate", "", "", nil)
+			return err
+		}},
 	}
 
 	for _, c := range cases {

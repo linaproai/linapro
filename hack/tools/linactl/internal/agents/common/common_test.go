@@ -73,6 +73,24 @@ func TestResolveTargetsUnknownAgentReturnsError(t *testing.T) {
 }
 
 func TestNormalizeAgentName(t *testing.T) {
+	// Install the same alias map the unified registry uses so this package
+	// test does not depend on importing registry (would force common→registry
+	// for every common unit test).
+	SetAgentAliasResolver(func(normalized string) string {
+		aliases := map[string]string{
+			"kimi-code-cli":   "kimi-cli",
+			"antigravity-cli": "antigravity",
+			"qoder-cn":        "qoder",
+			"trae-cn":         "trae",
+			"zenflow":         "zencoder",
+		}
+		if canonical, ok := aliases[normalized]; ok {
+			return canonical
+		}
+		return normalized
+	})
+	t.Cleanup(func() { SetAgentAliasResolver(nil) })
+
 	cases := []struct {
 		input string
 		want  string
@@ -84,6 +102,13 @@ func TestNormalizeAgentName(t *testing.T) {
 		{input: "Claude Code", want: "claude-code"},
 		{input: "claude_code", want: "claude-code"},
 		{input: "QwenCode", want: "qwen-code"},
+		// Product aliases: vendor alternate ids collapse to one registry name.
+		{input: "kimi-code-cli", want: "kimi-cli"},
+		{input: "KimiCodeCLI", want: "kimi-cli"},
+		{input: "antigravity-cli", want: "antigravity"},
+		{input: "qoder-cn", want: "qoder"},
+		{input: "trae-cn", want: "trae"},
+		{input: "zenflow", want: "zencoder"},
 	}
 	for _, testCase := range cases {
 		if got := NormalizeAgentName(testCase.input); got != testCase.want {

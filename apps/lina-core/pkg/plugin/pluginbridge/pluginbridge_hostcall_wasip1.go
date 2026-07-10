@@ -55,21 +55,48 @@ func invokeHostCall(opcode uint32, reqBytes []byte) ([]byte, error) {
 	return envelope.Payload, nil
 }
 
-// invokeHostService builds one structured host-service request envelope and
-// dispatches it through the shared host call import.
+// invokeHostServiceEnvelope dispatches one structured host-service request
+// envelope through the shared host call import.
+func invokeHostServiceEnvelope(request *protocol.HostServiceRequestEnvelope) ([]byte, error) {
+	return invokeHostCall(protocol.OpcodeServiceInvoke, protocol.MarshalHostServiceRequestEnvelope(request))
+}
+
+// invokeHostService builds one core-owned structured host-service request
+// envelope and dispatches it through the shared host call import.
 func invokeHostService(service string, method string, resourceRef string, table string, payload []byte) ([]byte, error) {
-	request := &protocol.HostServiceRequestEnvelope{
+	return invokeHostServiceEnvelope(&protocol.HostServiceRequestEnvelope{
 		Service:     service,
 		Method:      method,
 		ResourceRef: resourceRef,
 		Table:       table,
 		Payload:     payload,
-	}
-	return invokeHostCall(protocol.OpcodeServiceInvoke, protocol.MarshalHostServiceRequestEnvelope(request))
+	})
 }
 
 // InvokeHostService dispatches one structured host-service request through the
 // WASI host call transport.
 func InvokeHostService(service string, method string, resourceRef string, table string, payload []byte) ([]byte, error) {
 	return invokeHostService(service, method, resourceRef, table, payload)
+}
+
+// InvokeOwnerHostService dispatches one plugin-owned structured host-service
+// request through the WASI host call transport.
+func InvokeOwnerHostService(
+	owner string,
+	service string,
+	version string,
+	method string,
+	resourceRef string,
+	table string,
+	payload []byte,
+) ([]byte, error) {
+	return invokeHostServiceEnvelope(&protocol.HostServiceRequestEnvelope{
+		Owner:       owner,
+		Service:     service,
+		Version:     version,
+		Method:      method,
+		ResourceRef: resourceRef,
+		Table:       table,
+		Payload:     payload,
+	})
 }

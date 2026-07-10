@@ -14,8 +14,10 @@ import (
 	"lina-core/internal/service/plugin/internal/manifestresource"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/plugin/capability"
+	"lina-core/pkg/plugin/capability/capregistry"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // TestStorageProviderRuntimeUsesInternalStateReader verifies provider storage
@@ -56,6 +58,8 @@ type wasmHostServiceTestDeps struct {
 	notifySvc notifysvc.Service
 	// hostServices provides plugin capability directories for host service dispatch.
 	hostServices capability.Services
+	// ownerCapabilities indexes plugin-owned dynamic capability descriptors.
+	ownerCapabilities *capregistry.Registry
 	// configFactory creates plugin-scoped config service views.
 	configFactory PluginConfigFactory
 	// hostConfigSvc exposes authorized host configuration reads.
@@ -71,6 +75,7 @@ func TestNewWasmHostServiceRuntimeRequiresExplicitDependencies(t *testing.T) {
 	validDeps := newWasmHostServiceTestDeps(t)
 	if _, err := newWasmHostServiceRuntime(
 		validDeps.hostServices,
+		validDeps.ownerCapabilities,
 		validDeps.configFactory,
 		validDeps.hostConfigSvc,
 		validDeps.manifestFactory,
@@ -86,6 +91,11 @@ func TestNewWasmHostServiceRuntimeRequiresExplicitDependencies(t *testing.T) {
 		{
 			name:    "domain-capabilities",
 			mutate:  func(deps *wasmHostServiceTestDeps) { deps.hostServices = nil },
+			message: "create wasm host service runtime failed",
+		},
+		{
+			name:    "owner-capabilities",
+			mutate:  func(deps *wasmHostServiceTestDeps) { deps.ownerCapabilities = nil },
 			message: "create wasm host service runtime failed",
 		},
 		{
@@ -111,6 +121,7 @@ func TestNewWasmHostServiceRuntimeRequiresExplicitDependencies(t *testing.T) {
 			tc.mutate(deps)
 			_, err := newWasmHostServiceRuntime(
 				deps.hostServices,
+				deps.ownerCapabilities,
 				deps.configFactory,
 				deps.hostConfigSvc,
 				deps.manifestFactory,
@@ -127,6 +138,7 @@ func TestNewWasmHostServiceRuntimeRequiresExplicitDependencies(t *testing.T) {
 	recoveredDeps := newWasmHostServiceTestDeps(t)
 	if _, err := newWasmHostServiceRuntime(
 		recoveredDeps.hostServices,
+		recoveredDeps.ownerCapabilities,
 		recoveredDeps.configFactory,
 		recoveredDeps.hostConfigSvc,
 		recoveredDeps.manifestFactory,
@@ -143,11 +155,79 @@ func newWasmHostServiceTestDeps(t *testing.T) *wasmHostServiceTestDeps {
 	configSvc := configsvc.New()
 	bizCtxSvc := bizctx.New()
 	return &wasmHostServiceTestDeps{
-		notifySvc:       notifysvc.New(tenantspi.New(nil, nil, nil, bizCtxSvc)),
-		hostServices:    newRootTestCapabilities(bizCtxSvc, nil),
-		configFactory:   NewPluginConfigFactory("", ""),
-		hostConfigSvc:   NewHostConfigService(configSvc),
-		manifestFactory: manifestresource.NewFactory(""),
+		notifySvc:         notifysvc.New(tenantspi.New(nil, nil, nil, bizCtxSvc)),
+		hostServices:      newRootTestCapabilities(bizCtxSvc, nil),
+		ownerCapabilities: capregistry.NewRegistry(),
+		configFactory:     NewPluginConfigFactory("", ""),
+		hostConfigSvc:     NewHostConfigService(configSvc),
+		manifestFactory:   manifestresource.NewFactory(""),
+	}
+}
+
+// TestBuildSourceCapabilityRegistryIndexesDeclaredOwnerDescriptors verifies
+// startup registry construction uses source-plugin descriptor declarations.
+func TestBuildSourceCapabilityRegistryIndexesDeclaredOwnerDescriptors(t *testing.T) {
+	sourcePlugin := pluginhost.NewDeclarations("plugin-dev-source-registry")
+	descriptor := capregistry.Descriptor{
+		OwnerPluginID: "plugin-dev-source-registry",
+		Service:       "workflow",
+		Version:       "v1",
+		Methods: []capregistry.MethodDescriptor{
+			{
+				Method:       "run.execute",
+				Capability:   "framework.workflow.v1",
+				Risk:         capregistry.RiskLevelExecute,
+				ResourceKind: capregistry.ResourceKindNone,
+			},
+		},
+	}
+	if err := sourcePlugin.Providers().ProvideCapability(descriptor); err != nil {
+		t.Fatalf("declare owner capability descriptor: %v", err)
+	}
+	cleanup, err := pluginhost.RegisterSourcePluginForTest(sourcePlugin)
+	if err != nil {
+		t.Fatalf("register source plugin for test: %v", err)
+	}
+	t.Cleanup(cleanup)
+
+	registry, err := buildSourceCapabilityRegistry()
+	if err != nil {
+		t.Fatalf("build source capability registry: %v", err)
+	}
+	method, ok := registry.LookupMethod("plugin-dev-source-registry", "workflow", "v1", "run.execute")
+	if !ok {
+		t.Fatal("expected source descriptor method to be indexed")
+	}
+	if method.OwnerPluginID != "plugin-dev-source-registry" || method.Service != "workflow" {
+		t.Fatalf("unexpected source method index: %#v", method)
+	}
+}
+
+// TestValidateSourceCapabilityDescriptorOwnerRejectsMismatch verifies startup
+// descriptor validation rejects descriptors not owned by their declaring plugin.
+func TestValidateSourceCapabilityDescriptorOwnerRejectsMismatch(t *testing.T) {
+	descriptor := capregistry.Descriptor{
+		OwnerPluginID: "linapro-ai-core",
+		Service:       "ai",
+		Version:       "v1",
+		Methods: []capregistry.MethodDescriptor{
+			{
+				Method:       "text.generate",
+				Capability:   "plugin.linapro-ai-core.ai.v1",
+				Risk:         capregistry.RiskLevelExecute,
+				ResourceKind: capregistry.ResourceKindNone,
+			},
+		},
+	}
+
+	err := validateSourceCapabilityDescriptorOwner("plugin-dev-source-owner-mismatch", descriptor)
+	if err == nil {
+		t.Fatal("expected mismatched source descriptor owner to fail")
+	}
+	for _, want := range []string{"plugin-dev-source-owner-mismatch", "linapro-ai-core", "ai", "v1"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("expected error to contain %q, got %v", want, err)
+		}
 	}
 }
 

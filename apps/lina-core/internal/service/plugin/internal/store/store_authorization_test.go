@@ -65,3 +65,51 @@ func TestBuildAuthorizedHostServiceSpecsForPluginKeepsOwnedTables(t *testing.T) 
 		t.Fatalf("expected confirmed plugin-owned table only, got %#v", authorized[0].Tables)
 	}
 }
+
+// TestBuildAuthorizedHostServiceSpecsForPluginUsesOwnerAwareIdentity verifies
+// authorization decisions do not collapse plugin-owned declarations with the
+// same service name.
+func TestBuildAuthorizedHostServiceSpecsForPluginUsesOwnerAwareIdentity(t *testing.T) {
+	authorized, err := BuildAuthorizedHostServiceSpecsForPlugin(
+		"linapro-demo-dynamic",
+		[]*protocol.HostServiceSpec{
+			{
+				Owner:   "linapro-ai-core",
+				Service: "ai",
+				Version: "v1",
+				Methods: []string{"text.generate"},
+				Resources: []*protocol.HostServiceResourceSpec{{
+					Ref: "purpose:summary",
+				}},
+			},
+			{
+				Owner:   "other-ai-core",
+				Service: "ai",
+				Version: "v1",
+				Methods: []string{"text.generate"},
+				Resources: []*protocol.HostServiceResourceSpec{{
+					Ref: "purpose:other",
+				}},
+			},
+		},
+		&HostServiceAuthorizationInput{Services: []*HostServiceAuthorizationDecision{{
+			Owner:        " LINAPRO-AI-CORE ",
+			Service:      " AI ",
+			Version:      " V1 ",
+			Methods:      []string{"text.generate"},
+			ResourceRefs: []string{"purpose:summary"},
+		}}},
+	)
+	if err != nil {
+		t.Fatalf("expected owner-aware authorization to validate, got %v", err)
+	}
+	if len(authorized) != 1 {
+		t.Fatalf("expected one authorized owner-aware host service, got %#v", authorized)
+	}
+	if authorized[0].Owner != "linapro-ai-core" || authorized[0].Service != "ai" || authorized[0].Version != "v1" {
+		t.Fatalf("expected owner-aware identity to be preserved, got %#v", authorized[0])
+	}
+	if len(authorized[0].Resources) != 1 || authorized[0].Resources[0].Ref != "purpose:summary" {
+		t.Fatalf("expected confirmed owner resource only, got %#v", authorized[0].Resources)
+	}
+}

@@ -122,7 +122,6 @@ func newHostServiceDispatchRegistry() (*hostServiceDispatchRegistry, error) {
 		registerManifestHostService,
 		registerAPIDocHostService,
 		registerAuthHostService,
-		registerAIHostService,
 		registerUsersHostService,
 		registerBizCtxHostService,
 		registerDictHostService,
@@ -329,30 +328,6 @@ func registerAuthHostService(registry *hostServiceDispatchRegistry) error {
 		bridgehostservice.HostServiceMethodAuthzReplaceRolePermissions,
 	}, func(ctx context.Context, hcc *hostCallContext, input hostServiceDispatchContext) *bridgehostcall.HostCallResponseEnvelope {
 		return dispatchAuthHostService(ctx, hcc, input.method, input.payload)
-	})
-}
-
-func registerAIHostService(registry *hostServiceDispatchRegistry) error {
-	return registerHostServiceMethods(registry, bridgehostservice.HostServiceAI, []string{
-		bridgehostservice.HostServiceMethodAITextGenerate,
-		bridgehostservice.HostServiceMethodAITextMethodStatus,
-		bridgehostservice.HostServiceMethodAIMethodStatuses,
-		bridgehostservice.HostServiceMethodAIImageGenerate,
-		bridgehostservice.HostServiceMethodAIImageEdit,
-		bridgehostservice.HostServiceMethodAIEmbeddingCreate,
-		bridgehostservice.HostServiceMethodAIAudioTranscribe,
-		bridgehostservice.HostServiceMethodAIAudioSynthesize,
-		bridgehostservice.HostServiceMethodAIVisionAnalyze,
-		bridgehostservice.HostServiceMethodAIDocumentAnalyze,
-		bridgehostservice.HostServiceMethodAIDocumentCite,
-		bridgehostservice.HostServiceMethodAISafetyModerate,
-		bridgehostservice.HostServiceMethodAIVideoGenerate,
-		bridgehostservice.HostServiceMethodAIVideoEdit,
-		bridgehostservice.HostServiceMethodAIVideoExtend,
-		bridgehostservice.HostServiceMethodAIVideoOperationGet,
-		bridgehostservice.HostServiceMethodAIVideoOperationCancel,
-	}, func(ctx context.Context, hcc *hostCallContext, input hostServiceDispatchContext) *bridgehostcall.HostCallResponseEnvelope {
-		return dispatchAIHostService(ctx, hcc, input.resourceRef, input.method, input.payload)
 	})
 }
 

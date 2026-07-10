@@ -496,6 +496,70 @@ func TestValidatePluginManifestRejectsInvalidDependencies(t *testing.T) {
 	}
 }
 
+// TestValidateManifestRequiresOwnerHostServiceDependency verifies dynamic
+// plugin.yaml hostServices.owner declarations have matching plugin dependencies.
+func TestValidateManifestRequiresOwnerHostServiceDependency(t *testing.T) {
+	tests := []struct {
+		name         string
+		dependencies *plugintypes.DependencySpec
+		want         string
+	}{
+		{
+			name: "missing owner dependency",
+			want: "dependencies.plugins entry",
+		},
+		{
+			name: "missing owner dependency version",
+			dependencies: &plugintypes.DependencySpec{
+				Plugins: []*plugintypes.PluginDependencySpec{{ID: "linapro-ai-core"}},
+			},
+			want: "version range",
+		},
+		{
+			name: "declared owner dependency version",
+			dependencies: &plugintypes.DependencySpec{
+				Plugins: []*plugintypes.PluginDependencySpec{{ID: "linapro-ai-core", Version: ">=0.1.0 <0.2.0"}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pluginDir := t.TempDir()
+			manifest := newOwnerHostServiceDynamicManifest(tt.dependencies)
+
+			err := testutil.NewServices().Catalog.ValidateManifest(manifest, filepath.Join(pluginDir, "plugin.yaml"))
+			if tt.want == "" {
+				if err != nil {
+					t.Fatalf("expected owner host service dependency validation to pass, got %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("expected owner host service dependency error containing %q, got %v", tt.want, err)
+			}
+		})
+	}
+}
+
+// TestValidateUploadedRuntimeManifestRequiresOwnerHostServiceDependency verifies
+// embedded dynamic artifact manifests cannot omit owner plugin dependencies.
+func TestValidateUploadedRuntimeManifestRequiresOwnerHostServiceDependency(t *testing.T) {
+	err := testutil.NewServices().Catalog.ValidateUploadedRuntimeManifest(newOwnerHostServiceDynamicManifest(nil))
+	if err == nil || !strings.Contains(err.Error(), "dependencies.plugins entry") {
+		t.Fatalf("expected uploaded runtime owner dependency error, got %v", err)
+	}
+}
+
+// TestBuildManifestSnapshotRequiresOwnerHostServiceDependency verifies install
+// and enable snapshot preparation rechecks owner host service dependencies.
+func TestBuildManifestSnapshotRequiresOwnerHostServiceDependency(t *testing.T) {
+	_, err := testutil.NewServices().Store.BuildManifestSnapshot(newOwnerHostServiceDynamicManifest(nil))
+	if err == nil || !strings.Contains(err.Error(), "dependencies.plugins entry") {
+		t.Fatalf("expected snapshot owner dependency error, got %v", err)
+	}
+}
+
 // TestLoadManifestFromYAMLRejectsUnsupportedDependencyPolicyFields verifies
 // unsupported plugin dependency policy fields are rejected before lenient YAML
 // decoding can discard them.
@@ -1723,6 +1787,30 @@ func TestValidateManifestForcesGlobalWhenTenantGovernanceUnsupported(t *testing.
 	}
 	if manifest.SupportsTenantGovernance() {
 		t.Fatalf("expected explicit supports_multi_tenant=false to disable tenant governance")
+	}
+}
+
+func newOwnerHostServiceDynamicManifest(dependencies *plugintypes.DependencySpec) *catalog.Manifest {
+	supportsMultiTenant := true
+	return &catalog.Manifest{
+		ID:                  "linapro-demo-dynamic",
+		Name:                "Dynamic Owner Host Service Demo",
+		Version:             "0.1.0",
+		Type:                pluginv1.PluginTypeDynamic.String(),
+		ScopeNature:         pluginv1.ScopeNatureTenantAware.String(),
+		SupportsMultiTenant: &supportsMultiTenant,
+		DefaultInstallMode:  pluginv1.InstallModeTenantScoped.String(),
+		Dependencies:        dependencies,
+		HostServices: []*protocol.HostServiceSpec{
+			{
+				Owner:   "linapro-ai-core",
+				Service: "ai",
+				Version: "v1",
+				Methods: []string{
+					"text.generate",
+				},
+			},
+		},
 	}
 }
 

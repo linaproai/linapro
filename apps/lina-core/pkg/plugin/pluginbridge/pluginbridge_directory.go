@@ -7,7 +7,6 @@ package pluginbridge
 import (
 	"context"
 
-	"lina-core/pkg/plugin/capability/aicap"
 	"lina-core/pkg/plugin/capability/apidoccap"
 	"lina-core/pkg/plugin/capability/authcap"
 	"lina-core/pkg/plugin/capability/bizctxcap"
@@ -103,9 +102,6 @@ func (directory) Sessions() sessioncap.Service { return domainhostcall.Sessions(
 
 // Tenant returns the tenant capability guest client.
 func (directory) Tenant() tenantcap.Service { return domainhostcall.Tenant(invokeCapabilityJSON) }
-
-// AI returns the guest-side AI capability namespace.
-func (directory) AI() aicap.Service { return domainhostcall.AI(invokeCapabilityJSON) }
 
 // pluginDirectory implements the guest-side plugin-domain namespace.
 type pluginDirectory struct{}

@@ -39,14 +39,13 @@ import (
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/plugin/capability"
-	capabilityai "lina-core/pkg/plugin/capability/aicap"
-	capabilityaitext "lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/apidoccap"
 	"lina-core/pkg/plugin/capability/authcap"
 	capabilityauthz "lina-core/pkg/plugin/capability/authcap/authz"
 	"lina-core/pkg/plugin/capability/bizctxcap"
 	"lina-core/pkg/plugin/capability/cachecap"
 	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/capregistry"
 	capabilitydictcap "lina-core/pkg/plugin/capability/dictcap"
 	capabilityfilecap "lina-core/pkg/plugin/capability/filecap"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
@@ -199,6 +198,7 @@ func newServicesWithInjected(
 	}
 	wasmRuntime, err := wasm.NewRuntime(
 		capabilitySvc,
+		capregistry.NewRegistry(),
 		pluginconfig.NewFactory("", ""),
 		hostconfigadapter.NewStaticCapabilityAdapter(configProvider),
 		manifestresource.NewFactory(""),
@@ -475,11 +475,6 @@ func (s *testCapabilities) Auth() authcap.Service {
 		return authcap.New(testNoopAuth{}, nil)
 	}
 	return authcap.New(testNoopAuth{}, s.authz)
-}
-
-// AI returns the default AI capability fallback namespace.
-func (s *testCapabilities) AI() capabilityai.Service {
-	return capabilityai.New(capabilityaitext.New(nil, nil, nil))
 }
 
 // Users returns an empty user-domain service for plugin integration tests.

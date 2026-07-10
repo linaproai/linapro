@@ -8,7 +8,7 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/capregistry"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
@@ -134,12 +134,12 @@ func (r *sourcePluginProviders) ProvideOrg(factory orgspi.ProviderFactory) error
 	return r.plugin.registerOrgProvider(factory)
 }
 
-// ProvideAIText declares one source-plugin text AI provider factory.
-func (r *sourcePluginProviders) ProvideAIText(factory aitext.ProviderFactory) error {
+// ProvideCapability declares one plugin-owned capability descriptor.
+func (r *sourcePluginProviders) ProvideCapability(descriptor capregistry.Descriptor) error {
 	if r == nil || r.plugin == nil {
 		return gerror.New("pluginhost: source plugin provider facade is nil")
 	}
-	return r.plugin.registerAITextProvider(factory)
+	return r.plugin.registerCapabilityDescriptor(descriptor)
 }
 
 // UseEmbeddedFiles binds one plugin-owned embedded filesystem.

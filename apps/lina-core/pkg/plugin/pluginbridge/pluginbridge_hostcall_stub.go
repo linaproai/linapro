@@ -10,3 +10,9 @@ package pluginbridge
 func InvokeHostService(_ string, _ string, _ string, _ string, _ []byte) ([]byte, error) {
 	return nil, ErrHostCallsUnavailable
 }
+
+// InvokeOwnerHostService reports that owner-aware guest host calls are
+// unavailable outside WASI guest builds.
+func InvokeOwnerHostService(_ string, _ string, _ string, _ string, _ string, _ string, _ []byte) ([]byte, error) {
+	return nil, ErrHostCallsUnavailable
+}

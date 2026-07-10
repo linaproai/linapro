@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"linactl/internal/agents/common"
-	"linactl/internal/agents/prompts"
+	"linactl/internal/agents/registry"
 )
 
 // promptsExtraColumns returns the extra column specs used by the prompts
@@ -39,7 +39,7 @@ func runAgentsPromptsLink(_ context.Context, a *app, input commandInput) error {
 	}
 
 	if len(selectors) == 0 {
-		results := prompts.PlanList(a.root)
+		results := registry.PlanList(a.root, registry.ResourcePrompts)
 		if err = common.Render(a.stdout, results, promptsExtraColumns()...); err != nil {
 			return err
 		}
@@ -59,7 +59,7 @@ func runAgentsPromptsLink(_ context.Context, a *app, input commandInput) error {
 // selection of link-class agents and optionally enables force for
 // mismatched rebuilds.
 func runAgentsPromptsLinkInteractive(a *app, force bool) error {
-	candidates := prompts.LinkCandidates(a.root)
+	candidates := registry.LinkCandidates(a.root, registry.ResourcePrompts)
 	names, err := common.PromptSelection(a.stdin, a.stdout, "Select agents to link (prompts):", candidates)
 	if err != nil {
 		return err
@@ -96,7 +96,7 @@ func runAgentsPromptsLinkInteractive(a *app, force bool) error {
 
 // executeAgentsPromptsLink applies the link request and renders results.
 func executeAgentsPromptsLink(a *app, selectors []string, force bool) error {
-	results, err := prompts.ApplyLink(a.root, prompts.LinkRequest{
+	results, err := registry.ApplyLink(a.root, registry.ResourcePrompts, registry.LinkRequest{
 		Selectors: selectors,
 		Force:     force,
 	})

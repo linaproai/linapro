@@ -189,6 +189,63 @@ func TestCheckReverseBlocksInstalledDependents(t *testing.T) {
 	}
 }
 
+// TestCheckReverseIncludesOwnerHostServiceSummaries verifies reverse
+// dependency diagnostics preserve owner-aware host service methods for the
+// target owner only.
+func TestCheckReverseIncludesOwnerHostServiceSummaries(t *testing.T) {
+	resolver := plugindep.New()
+	consumer := pluginSnapshot("consumer", "v0.1.0", true, dependenciesWithPlugins(
+		pluginDependency("owner-core", "<0.2.0"),
+	))
+	consumer.OwnerHostServices = []*plugindep.OwnerHostServiceSummary{
+		{
+			Owner:   "unrelated-owner",
+			Service: "ai",
+			Version: "v1",
+			Methods: []string{
+				"text.generate",
+			},
+		},
+		{
+			Owner:   "owner-core",
+			Service: "ai",
+			Version: "v1",
+			Methods: []string{
+				"text.method_status.get",
+				"text.generate",
+			},
+		},
+	}
+
+	result := resolver.CheckReverse(plugindep.ReverseCheckInput{
+		TargetID:         "owner-core",
+		CandidateVersion: "v0.2.0",
+		Plugins: []*plugindep.PluginSnapshot{
+			pluginSnapshot("owner-core", "v0.2.0", true, nil),
+			consumer,
+		},
+	})
+
+	if len(result.Dependents) != 1 || result.Dependents[0].PluginID != "consumer" {
+		t.Fatalf("expected consumer dependent, got %#v", result.Dependents)
+	}
+	hostServices := result.Dependents[0].OwnerHostServices
+	if len(hostServices) != 1 {
+		t.Fatalf("expected one target owner host service summary, got %#v", hostServices)
+	}
+	if hostServices[0].Owner != "owner-core" ||
+		hostServices[0].Service != "ai" ||
+		hostServices[0].Version != "v1" {
+		t.Fatalf("expected owner-core ai.v1 summary, got %#v", hostServices[0])
+	}
+	if !reflect.DeepEqual(hostServices[0].Methods, []string{"text.generate", "text.method_status.get"}) {
+		t.Fatalf("expected sorted owner methods, got %#v", hostServices[0].Methods)
+	}
+	if len(result.Blockers) != 1 || result.Blockers[0].Code != pluginv1.BlockerCodeReverseDependencyVersion {
+		t.Fatalf("expected reverse dependency version blocker, got %#v", result.Blockers)
+	}
+}
+
 // TestCheckReverseBlocksCandidateVersionBreakage verifies upgrades cannot
 // break installed downstream hard dependency ranges.
 func TestCheckReverseBlocksCandidateVersionBreakage(t *testing.T) {

@@ -222,6 +222,9 @@
           },
           "HostServiceAuthorizationServiceReq": {
             "fields": {
+              "owner": {
+                "dc": "plugin-owned host service 的 owner 插件 ID；core-owned host service 该字段为空"
+              },
               "methods": {
                 "dc": "宿主确认后的 method 集合，不传则沿用插件声明的全部 methods"
               },
@@ -235,7 +238,10 @@
                 "dc": "宿主确认后的治理目标集合；network 使用 URL 模式，低优先级服务继续使用逻辑 resourceRef，空数组表示拒绝该 service 下全部资源申请"
               },
               "service": {
-                "dc": "宿主服务标识，如 storage、network、data、hostConfig、manifest"
+                "dc": "宿主服务标识，如 storage、network、data、hostConfig、manifest 或 ai"
+              },
+              "version": {
+                "dc": "plugin-owned host service 的 owner 能力协议版本；core-owned host service 该字段为空"
               },
               "tables": {
                 "dc": "宿主确认后的数据表集合，仅 data service 使用，空数组表示拒绝该 service 下全部表申请"
@@ -244,6 +250,9 @@
           },
           "HostServicePermissionItem": {
             "fields": {
+              "owner": {
+                "dc": "plugin-owned host service 的 owner 插件 ID；core-owned host service 该字段为空"
+              },
               "methods": {
                 "dc": "该宿主服务下允许的方法集合"
               },
@@ -257,7 +266,10 @@
                 "dc": "该宿主服务下的治理目标集合；network 使用 URL 模式，低优先级服务继续使用 resourceRef"
               },
               "service": {
-                "dc": "宿主服务标识，如 runtime、storage、network、data、hostConfig、manifest、plugins、notifications"
+                "dc": "宿主服务标识，如 runtime、storage、network、data、hostConfig、manifest、plugins、notifications 或 ai"
+              },
+              "version": {
+                "dc": "plugin-owned host service 的 owner 能力协议版本；core-owned host service 该字段为空"
               },
               "tableItems": {
                 "dc": "该宿主服务下的数据表展示项，仅 data service 使用；当宿主可解析表级说明时会同时返回 comment"
@@ -1152,6 +1164,9 @@
               "name": {
                 "dc": "下游插件显示名称"
               },
+              "ownerHostServices": {
+                "dc": "下游插件中指向当前 owner 插件的 owner-aware host service 声明摘要"
+              },
               "pluginId": {
                 "dc": "依赖当前目标插件的下游插件 ID"
               },
@@ -1160,6 +1175,22 @@
               },
               "version": {
                 "dc": "下游插件当前版本"
+              }
+            }
+          },
+          "PluginDependencyOwnerHostService": {
+            "fields": {
+              "methods": {
+                "dc": "下游插件声明的 owner host service 方法列表"
+              },
+              "owner": {
+                "dc": "plugin-owned host service 的 owner 插件 ID"
+              },
+              "service": {
+                "dc": "下游插件声明的逻辑 host service 标识"
+              },
+              "version": {
+                "dc": "下游插件声明的 owner 能力协议版本"
               }
             }
           },
@@ -1465,8 +1496,14 @@
           },
           "PluginUpgradeHostServiceChange": {
             "fields": {
+              "owner": {
+                "dc": "plugin-owned host service 的 owner 插件 ID；core-owned host service 该字段为空"
+              },
               "service": {
                 "dc": "宿主服务标识"
+              },
+              "version": {
+                "dc": "plugin-owned host service 的 owner 能力协议版本；core-owned host service 该字段为空"
               },
               "fromMethods": {
                 "dc": "升级前生效的 method 集合"
@@ -1479,6 +1516,12 @@
               },
               "toResourceCount": {
                 "dc": "升级后目标治理资源引用数量"
+              },
+              "fromResourceRefs": {
+                "dc": "升级前生效的治理资源引用集合"
+              },
+              "toResourceRefs": {
+                "dc": "升级后目标治理资源引用集合"
               },
               "fromTables": {
                 "dc": "升级前生效的数据表集合"

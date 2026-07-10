@@ -44,6 +44,9 @@ type PluginSnapshot struct {
 	Dependencies *plugintypes.DependencySpec
 	// DependencySnapshotUnknown conservatively blocks reverse checks when true.
 	DependencySnapshotUnknown bool
+	// OwnerHostServices lists owner-aware host service declarations from the
+	// effective release snapshot or current discovered manifest.
+	OwnerHostServices []*OwnerHostServiceSummary
 }
 
 // InstallCheckInput defines all state required to evaluate an install request.
@@ -137,6 +140,8 @@ type ReverseDependent struct {
 	Version string
 	// RequiredVersion is the target version range declared by the downstream plugin.
 	RequiredVersion string
+	// OwnerHostServices summarizes owner-aware host services that target this dependency.
+	OwnerHostServices []*OwnerHostServiceSummary
 }
 
 // Blocker describes one hard dependency failure.
@@ -163,4 +168,17 @@ type Blocker struct {
 type ReverseDependencyIndex struct {
 	entriesByTarget map[string][]*reverseDependencyEntry
 	wildcardUnknown []*reverseDependencyEntry
+}
+
+// OwnerHostServiceSummary describes one owner-aware host service declaration
+// relevant to reverse dependency diagnostics.
+type OwnerHostServiceSummary struct {
+	// Owner is the owner plugin ID for the plugin-owned host service.
+	Owner string
+	// Service is the logical host service identifier.
+	Service string
+	// Version is the owner capability protocol version.
+	Version string
+	// Methods lists declared host service methods.
+	Methods []string
 }

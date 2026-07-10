@@ -90,10 +90,11 @@ func (r *Resolver) CheckReverse(input ReverseCheckInput) *ReverseCheckResult {
 			continue
 		}
 		dependent := &ReverseDependent{
-			PluginID:        dependentID,
-			Name:            strings.TrimSpace(entry.dependent.Name),
-			Version:         strings.TrimSpace(entry.dependent.Version),
-			RequiredVersion: strings.TrimSpace(entry.requiredVersion),
+			PluginID:          dependentID,
+			Name:              strings.TrimSpace(entry.dependent.Name),
+			Version:           strings.TrimSpace(entry.dependent.Version),
+			RequiredVersion:   strings.TrimSpace(entry.requiredVersion),
+			OwnerHostServices: ownerHostServiceSummariesForOwner(entry.dependent.OwnerHostServices, targetID),
 		}
 		result.Dependents = append(result.Dependents, dependent)
 

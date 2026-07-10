@@ -966,6 +966,10 @@
         "uninstallBlocked": "该插件仍被已安装插件依赖。"
       },
       "hostServices": {
+        "identity": {
+          "owner": "来源插件",
+          "version": "能力版本"
+        },
         "messages": {
           "defaultEmpty": "未声明受限资源"
         },

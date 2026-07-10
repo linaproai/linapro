@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"linactl/internal/agents/common"
-	"linactl/internal/agents/md"
+	"linactl/internal/agents/registry"
 )
 
 // runAgentsMdLink dispatches agents.md.link command invocations.
@@ -27,7 +27,7 @@ func runAgentsMdLink(_ context.Context, a *app, input commandInput) error {
 	}
 
 	if len(selectors) == 0 {
-		results := md.PlanList(a.root)
+		results := registry.PlanList(a.root, registry.ResourceMD)
 		if err = common.Render(a.stdout, results); err != nil {
 			return err
 		}
@@ -51,14 +51,14 @@ func runAgentsMdLink(_ context.Context, a *app, input commandInput) error {
 // natively and need no symlink — even though the grid only lets them
 // pick link-class agents to act on.
 func runAgentsMdLinkInteractive(a *app, force bool) error {
-	overview := md.PlanList(a.root)
+	overview := registry.PlanList(a.root, registry.ResourceMD)
 	if err := common.Render(a.stdout, overview); err != nil {
 		return err
 	}
 	if err := writeLine(a.stdout, ""); err != nil {
 		return err
 	}
-	candidates := md.LinkCandidates(a.root)
+	candidates := registry.LinkCandidates(a.root, registry.ResourceMD)
 	names, err := common.PromptSelection(a.stdin, a.stdout, "Select agents to link (md):", candidates)
 	if err != nil {
 		return err
@@ -95,7 +95,7 @@ func runAgentsMdLinkInteractive(a *app, force bool) error {
 
 // executeAgentsMdLink applies the link request and renders results.
 func executeAgentsMdLink(a *app, selectors []string, force bool) error {
-	results, err := md.ApplyLink(a.root, md.LinkRequest{
+	results, err := registry.ApplyLink(a.root, registry.ResourceMD, registry.LinkRequest{
 		Selectors: selectors,
 		Force:     force,
 	})

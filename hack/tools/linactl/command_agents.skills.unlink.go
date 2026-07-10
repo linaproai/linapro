@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	"linactl/internal/agents/common"
-	"linactl/internal/agents/skills"
+	"linactl/internal/agents/registry"
 )
 
 // runAgentsSkillsUnlink dispatches agents.skills.unlink command invocations.
@@ -33,7 +33,7 @@ func runAgentsSkillsUnlink(_ context.Context, a *app, input commandInput) error 
 // runAgentsSkillsUnlinkInteractive walks the user through a numbered
 // selection of currently managed links to remove.
 func runAgentsSkillsUnlinkInteractive(a *app) error {
-	candidates := skills.UnlinkCandidates(a.root)
+	candidates := registry.UnlinkCandidates(a.root, registry.ResourceSkills)
 	if len(candidates) == 0 {
 		return writeLine(a.stdout, "No managed agent skill symlinks were found. Nothing to unlink.")
 	}
@@ -49,7 +49,7 @@ func runAgentsSkillsUnlinkInteractive(a *app) error {
 
 // executeAgentsSkillsUnlink applies the unlink request and renders results.
 func executeAgentsSkillsUnlink(a *app, selectors []string) error {
-	results, err := skills.ApplyUnlink(a.root, skills.UnlinkRequest{Selectors: selectors})
+	results, err := registry.ApplyUnlink(a.root, registry.ResourceSkills, registry.UnlinkRequest{Selectors: selectors})
 	if err != nil {
 		return err
 	}

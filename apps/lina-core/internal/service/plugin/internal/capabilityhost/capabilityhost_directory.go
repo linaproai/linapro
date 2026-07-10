@@ -6,7 +6,6 @@ import (
 	filesvc "lina-core/internal/service/file"
 	"lina-core/internal/service/notify"
 	"lina-core/pkg/plugin/capability"
-	capabilityai "lina-core/pkg/plugin/capability/aicap"
 	"lina-core/pkg/plugin/capability/apidoccap"
 	"lina-core/pkg/plugin/capability/authcap"
 	"lina-core/pkg/plugin/capability/bizctxcap"
@@ -42,14 +41,6 @@ func (s *directory) Auth() authcap.Service {
 		return nil
 	}
 	return s.auth
-}
-
-// AI returns the host AI capability namespace.
-func (s *directory) AI() capabilityai.Service {
-	if s == nil || s.ai == nil {
-		return capabilityai.New(nil)
-	}
-	return s.ai
 }
 
 // Users returns the user-domain ordinary capability service.
@@ -202,14 +193,6 @@ func (s *scopedDirectory) Auth() authcap.Service {
 		return nil
 	}
 	return s.base.Auth()
-}
-
-// AI returns the plugin-scoped AI capability namespace.
-func (s *scopedDirectory) AI() capabilityai.Service {
-	if s == nil || s.base == nil {
-		return capabilityai.New(nil)
-	}
-	return capabilityai.ForPlugin(s.base.AI(), s.pluginID)
 }
 
 // Users returns the delegated user-domain ordinary capability service.

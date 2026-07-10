@@ -356,8 +356,6 @@ func capabilityContractDirForHostService(root string, service string) string {
 		return filepath.Join(capabilityRoot, "plugincap")
 	case HostServiceSessions:
 		return filepath.Join(capabilityRoot, "sessioncap")
-	case HostServiceAI:
-		return filepath.Join(capabilityRoot, "aicap")
 	default:
 		return filepath.Join(capabilityRoot, service+"cap")
 	}
@@ -662,7 +660,7 @@ func dispatchFunctionNames(t *testing.T, dir string) map[string]struct{} {
 				continue
 			}
 			name := fn.Name.Name
-			if name == "dispatchRegisteredHostService" {
+			if name == "dispatchRegisteredHostService" || name == "dispatchOwnerHostService" {
 				continue
 			}
 			if strings.HasPrefix(name, "dispatch") &&
@@ -683,8 +681,6 @@ func hostServiceConstNameForService(t *testing.T, service string) string {
 		return "HostServiceBizCtx"
 	case HostServiceHostConfig:
 		return "HostServiceHostConfig"
-	case HostServiceAI:
-		return "HostServiceAI"
 	default:
 		parts := strings.Split(service, "_")
 		for i, part := range parts {
@@ -706,8 +702,6 @@ func dispatcherFunctionNameForService(t *testing.T, service string) string {
 		return "dispatchBizCtxHostService"
 	case HostServiceHostConfig:
 		return "dispatchHostConfigService"
-	case HostServiceAI:
-		return "dispatchAIHostService"
 	default:
 		constName := hostServiceConstNameForService(t, service)
 		return "dispatch" + strings.TrimPrefix(constName, "HostService") + "HostService"

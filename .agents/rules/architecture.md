@@ -19,7 +19,11 @@
 
 ## 插件领域能力维护
 
-- 当新增或者修改给插件使用的领域能力时，应当同时保证该领域能力在源码插件和动态插件中都能够使用，例如`apps/lina-core/pkg/plugin/capability`中的领域能力发生变更时，需要同时在`apps/lina-core/pkg/plugin/pluginbridge`和`apps/lina-core/pkg/plugin/pluginhost`增加能力暴露，并且维护已有功能的调用调整
+- 当新增或者修改给插件使用的领域能力时，必须先判定该能力归属为`core-owned`还是`plugin-owned`。
+- `core-owned`领域能力是插件运行、隔离、授权、资源访问或宿主通用治理必需的能力，例如`runtime`、`storage`、`cache`、`lock`、`manifest`、`plugins`、`bizctx`和`route`等。这类能力的契约继续由`apps/lina-core/pkg/plugin/capability`或`apps/lina-core/pkg/plugin`下明确职责的包维护。
+- `plugin-owned`领域能力是非核心、变化快、领域实现和管理面归属明确业务插件的能力，例如`AI`等。这类能力的公开契约、源码插件`helper`、动态 `guest SDK`、`provider SPI`、能力描述符和版本策略必须由`owner`插件在`apps/lina-plugins/<plugin-id>/backend/cap/<domain>cap`维护。
+- `core-owned`领域能力发生变更时，必须同时保证源码插件和动态插件中都能够使用；例如`apps/lina-core/pkg/plugin/capability`中的领域能力发生变更时，需要同时在`apps/lina-core/pkg/plugin/pluginbridge`和`apps/lina-core/pkg/plugin/pluginhost`增加能力暴露，并且维护已有功能的调用调整。
+- `plugin-owned`领域能力发生变更时，必须同时保证源码插件和动态插件中都能够使用；源码插件通过`owner`插件`backend/cap`公开契约和类型安全`helper`消费，动态插件通过`owner`插件发布的`bridge SDK`、`owner-aware hostServices`声明和宿主通用`descriptor/dispatcher`消费。`lina-core`不得为每个`plugin-owned`领域继续新增领域专属`*cap`包、`provider facade`、`wire codec`或`dispatcher`分支。
 
 ## 模块解耦设计原则
 

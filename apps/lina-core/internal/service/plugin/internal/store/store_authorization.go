@@ -28,8 +28,12 @@ type HostServiceAuthorizationInput struct {
 // HostServiceAuthorizationDecision describes the confirmed methods and
 // resource refs for one logical host service.
 type HostServiceAuthorizationDecision struct {
+	// Owner is the owner plugin ID for plugin-owned host services.
+	Owner string
 	// Service is the logical host service identifier.
 	Service string
+	// Version is the owner capability protocol version for plugin-owned host services.
+	Version string
 	// Methods optionally narrows the allowed service methods.
 	Methods []string
 	// Paths lists the confirmed logical storage paths for this service.
@@ -260,7 +264,7 @@ func BuildAuthorizedHostServiceSpecsForPlugin(
 		if spec == nil {
 			continue
 		}
-		serviceMap[spec.Service] = spec
+		serviceMap[protocol.HostServiceSpecIdentity(spec)] = spec
 	}
 
 	decisionMap := make(map[string]*decisionState, len(input.Services))
@@ -268,11 +272,30 @@ func BuildAuthorizedHostServiceSpecsForPlugin(
 		if item == nil {
 			return nil, gerror.New("host service authorization item cannot be nil")
 		}
+		owner := strings.TrimSpace(strings.ToLower(item.Owner))
 		service := strings.TrimSpace(strings.ToLower(item.Service))
-		spec, ok := serviceMap[service]
-		if !ok {
-			return nil, gerror.Newf("host service authorization contains undeclared service: %s", item.Service)
+		version := strings.TrimSpace(strings.ToLower(item.Version))
+		if owner == "" && version != "" {
+			return nil, gerror.Newf("host service authorization %s version requires owner", service)
 		}
+		if owner != "" && version == "" {
+			return nil, gerror.Newf("host service authorization %s owner %s requires version", service, owner)
+		}
+		identity := protocol.HostServiceIdentity(owner, service, version)
+		spec, ok := serviceMap[identity]
+		if !ok {
+			return nil, gerror.Newf(
+				"host service authorization contains undeclared service: %s",
+				protocol.HostServiceIdentityLabel(owner, service, version),
+			)
+		}
+		if _, exists := decisionMap[identity]; exists {
+			return nil, gerror.Newf(
+				"host service authorization cannot be declared more than once: %s",
+				protocol.HostServiceSpecLabel(spec),
+			)
+		}
+		label := protocol.HostServiceSpecLabel(spec)
 
 		state := &decisionState{
 			methods:      make(map[string]struct{}),
@@ -287,7 +310,7 @@ func BuildAuthorizedHostServiceSpecsForPlugin(
 				continue
 			}
 			if !containsString(spec.Methods, normalizedMethod) {
-				return nil, gerror.Newf("host service %s authorization contains undeclared method: %s", service, method)
+				return nil, gerror.Newf("host service %s authorization contains undeclared method: %s", label, method)
 			}
 			state.methods[normalizedMethod] = struct{}{}
 		}
@@ -299,7 +322,7 @@ func BuildAuthorizedHostServiceSpecsForPlugin(
 				continue
 			}
 			if _, ok = pathSet[normalizedPath]; !ok {
-				return nil, gerror.Newf("host service %s authorization contains undeclared path: %s", service, declaredPath)
+				return nil, gerror.Newf("host service %s authorization contains undeclared path: %s", label, declaredPath)
 			}
 			state.paths[normalizedPath] = struct{}{}
 		}
@@ -311,7 +334,7 @@ func BuildAuthorizedHostServiceSpecsForPlugin(
 				continue
 			}
 			if _, ok = resourceSet[normalizedRef]; !ok {
-				return nil, gerror.Newf("host service %s authorization contains undeclared resourceRef: %s", service, ref)
+				return nil, gerror.Newf("host service %s authorization contains undeclared resourceRef: %s", label, ref)
 			}
 			state.resourceRefs[normalizedRef] = struct{}{}
 		}
@@ -322,7 +345,7 @@ func BuildAuthorizedHostServiceSpecsForPlugin(
 				continue
 			}
 			if _, ok = tableSet[normalizedTable]; !ok {
-				return nil, gerror.Newf("host service %s authorization contains undeclared table: %s", service, table)
+				return nil, gerror.Newf("host service %s authorization contains undeclared table: %s", label, table)
 			}
 			state.tables[normalizedTable] = struct{}{}
 		}
@@ -333,11 +356,11 @@ func BuildAuthorizedHostServiceSpecsForPlugin(
 				continue
 			}
 			if _, ok = keySet[normalizedKey]; !ok {
-				return nil, gerror.Newf("host service %s authorization contains undeclared key: %s", service, key)
+				return nil, gerror.Newf("host service %s authorization contains undeclared key: %s", label, key)
 			}
 			state.keys[normalizedKey] = struct{}{}
 		}
-		decisionMap[service] = state
+		decisionMap[identity] = state
 	}
 
 	authorized := make([]*protocol.HostServiceSpec, 0, len(requestedSpecs))
@@ -353,7 +376,7 @@ func BuildAuthorizedHostServiceSpecsForPlugin(
 			continue
 		}
 
-		decision, ok := decisionMap[spec.Service]
+		decision, ok := decisionMap[protocol.HostServiceSpecIdentity(spec)]
 		if !ok {
 			continue
 		}
@@ -372,7 +395,9 @@ func BuildAuthorizedHostServiceSpecsForPlugin(
 				continue
 			}
 			authorized = append(authorized, &protocol.HostServiceSpec{
+				Owner:   spec.Owner,
 				Service: spec.Service,
+				Version: spec.Version,
 				Methods: methods,
 				Paths:   paths,
 			})
@@ -385,7 +410,9 @@ func BuildAuthorizedHostServiceSpecsForPlugin(
 				continue
 			}
 			authorized = append(authorized, &protocol.HostServiceSpec{
+				Owner:   spec.Owner,
 				Service: spec.Service,
+				Version: spec.Version,
 				Methods: methods,
 				Tables:  tables,
 			})
@@ -398,7 +425,9 @@ func BuildAuthorizedHostServiceSpecsForPlugin(
 				continue
 			}
 			authorized = append(authorized, &protocol.HostServiceSpec{
+				Owner:   spec.Owner,
 				Service: spec.Service,
+				Version: spec.Version,
 				Methods: methods,
 				Keys:    keys,
 			})
@@ -411,7 +440,9 @@ func BuildAuthorizedHostServiceSpecsForPlugin(
 		}
 
 		authorized = append(authorized, &protocol.HostServiceSpec{
+			Owner:     spec.Owner,
 			Service:   spec.Service,
+			Version:   spec.Version,
 			Methods:   methods,
 			Resources: resources,
 		})

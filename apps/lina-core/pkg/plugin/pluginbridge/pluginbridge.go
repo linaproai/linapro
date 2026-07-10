@@ -8,7 +8,6 @@
 package pluginbridge
 
 import (
-	"lina-core/pkg/plugin/capability/aicap"
 	"lina-core/pkg/plugin/capability/apidoccap"
 	"lina-core/pkg/plugin/capability/authcap"
 	"lina-core/pkg/plugin/capability/bizctxcap"
@@ -86,8 +85,6 @@ type Services interface {
 	// never exposes provider internals and safely degrades through Status or
 	// Available when host transport fails.
 	Tenant() tenantcap.Service
-	// AI returns the guest-side AI capability namespace.
-	AI() aicap.Service
 }
 
 // Declarations exposes declaration-time capabilities for dynamic plugin startup

@@ -193,20 +193,22 @@ func (s *serviceImpl) buildDependencySnapshotsForProjection(
 			continue
 		}
 		snapshotByID[manifest.ID] = &plugindep.PluginSnapshot{
-			ID:           strings.TrimSpace(manifest.ID),
-			Name:         strings.TrimSpace(manifest.Name),
-			Version:      strings.TrimSpace(manifest.Version),
-			Manifest:     manifest,
-			Dependencies: plugintypes.CloneDependencySpec(manifest.Dependencies),
+			ID:                strings.TrimSpace(manifest.ID),
+			Name:              strings.TrimSpace(manifest.Name),
+			Version:           strings.TrimSpace(manifest.Version),
+			Manifest:          manifest,
+			Dependencies:      plugintypes.CloneDependencySpec(manifest.Dependencies),
+			OwnerHostServices: plugindep.OwnerHostServiceSummariesFromManifest(manifest),
 		}
 	}
 	if candidate != nil && strings.TrimSpace(candidate.ID) != "" {
 		snapshotByID[candidate.ID] = &plugindep.PluginSnapshot{
-			ID:           strings.TrimSpace(candidate.ID),
-			Name:         strings.TrimSpace(candidate.Name),
-			Version:      strings.TrimSpace(candidate.Version),
-			Manifest:     candidate,
-			Dependencies: plugintypes.CloneDependencySpec(candidate.Dependencies),
+			ID:                strings.TrimSpace(candidate.ID),
+			Name:              strings.TrimSpace(candidate.Name),
+			Version:           strings.TrimSpace(candidate.Version),
+			Manifest:          candidate,
+			Dependencies:      plugintypes.CloneDependencySpec(candidate.Dependencies),
+			OwnerHostServices: plugindep.OwnerHostServiceSummariesFromManifest(candidate),
 		}
 	}
 
@@ -330,6 +332,7 @@ func (s *serviceImpl) buildReverseDependencyBlockedError(
 		bizerr.P("requiredVersion", requiredVersion),
 		bizerr.P("currentVersion", currentVersion),
 		bizerr.P("dependents", strings.Join(plugindep.ReverseDependentIDs(dependents), ",")),
+		bizerr.P("ownerHostServices", plugindep.FormatReverseDependentOwnerHostServices(dependents)),
 		bizerr.P("blockers", plugindep.FormatBlockers(result.Blockers)),
 	)
 }

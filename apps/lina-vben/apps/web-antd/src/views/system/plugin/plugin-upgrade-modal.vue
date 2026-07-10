@@ -184,11 +184,13 @@ function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
             service.service === 'storage' || service.service === 'data'
               ? undefined
               : (service.resources ?? []).map((item) => item.ref),
+          owner: service.owner || undefined,
           service: service.service,
           tables:
             service.service === 'data'
               ? [...(service.tables ?? [])]
               : undefined,
+          version: service.version || undefined,
         })),
     },
   };
@@ -307,6 +309,14 @@ function summarizeHostServiceChange(change: PluginUpgradeHostServiceChange) {
   ]
     .filter(Boolean)
     .join(' · ');
+}
+
+function formatHostServiceChangeLabel(change: PluginUpgradeHostServiceChange) {
+  const label = formatServiceLabel(change.service);
+  if (!change.owner) {
+    return label;
+  }
+  return [label, change.owner, change.version].filter(Boolean).join(' · ');
 }
 
 function extractRuntimeErrorEnvelope(error: unknown): null | {
@@ -536,7 +546,7 @@ function resolveRuntimeErrorMessage(error: unknown) {
               :color="getHostServiceChangeColor(change.kind)"
             >
               {{ formatHostServiceChangeKind(change.kind) }}
-              · {{ formatServiceLabel(change.service) }} ·
+              · {{ formatHostServiceChangeLabel(change) }} ·
               {{ summarizeHostServiceChange(change) }}
             </Tag>
           </div>

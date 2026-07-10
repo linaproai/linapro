@@ -6,7 +6,7 @@ package pluginhost
 import (
 	"io/fs"
 
-	"lina-core/pkg/plugin/capability/aicap/aitext"
+	"lina-core/pkg/plugin/capability/capregistry"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
@@ -34,7 +34,7 @@ type sourcePlugin struct {
 	embeddedFiles     fs.FS
 	tenantProvider    tenantspi.ProviderFactory
 	orgProvider       orgspi.ProviderFactory
-	aiTextProvider    aitext.ProviderFactory
+	capabilities      []capregistry.Descriptor
 	beforeInstall     SourcePluginBeforeLifecycleHandler
 	afterInstall      SourcePluginAfterLifecycleHandler
 	beforeUpgrade     SourcePluginBeforeUpgradeHandler
@@ -62,6 +62,7 @@ type sourcePlugin struct {
 func NewDeclarations(id string) Declarations {
 	plugin := &sourcePlugin{
 		id:                id,
+		capabilities:      make([]capregistry.Descriptor, 0),
 		hookHandlers:      make([]*HookHandlerRegistration, 0),
 		routeRegistrars:   make([]*RouteHandlerRegistration, 0),
 		jobRegistrars:     make([]*JobHandlerRegistration, 0),
@@ -160,12 +161,21 @@ func (p *sourcePlugin) GetOrgProviderFactory() orgspi.ProviderFactory {
 	return p.orgProvider
 }
 
-// GetAITextProviderFactory returns the declared text AI provider factory.
-func (p *sourcePlugin) GetAITextProviderFactory() aitext.ProviderFactory {
+// GetCapabilityDescriptors returns plugin-owned capability descriptors declared by this source plugin.
+func (p *sourcePlugin) GetCapabilityDescriptors() []capregistry.Descriptor {
 	if p == nil {
-		return nil
+		return []capregistry.Descriptor{}
 	}
-	return p.aiTextProvider
+	items := make([]capregistry.Descriptor, 0, len(p.capabilities))
+	for _, descriptor := range p.capabilities {
+		items = append(items, cloneCapabilityDescriptor(descriptor))
+	}
+	return items
+}
+
+func cloneCapabilityDescriptor(descriptor capregistry.Descriptor) capregistry.Descriptor {
+	descriptor.Methods = append([]capregistry.MethodDescriptor(nil), descriptor.Methods...)
+	return descriptor
 }
 
 // GetBeforeInstallHandler returns the registered source-plugin pre-install callback.

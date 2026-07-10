@@ -966,6 +966,10 @@
         "uninstallBlocked": "This plugin is required by installed plugins."
       },
       "hostServices": {
+        "identity": {
+          "owner": "Owner Plugin",
+          "version": "Capability Version"
+        },
         "messages": {
           "defaultEmpty": "No scoped resources declared"
         },

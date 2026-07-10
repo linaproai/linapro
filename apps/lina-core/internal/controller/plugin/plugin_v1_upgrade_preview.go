@@ -122,11 +122,15 @@ func buildPluginUpgradeHostServiceChanges(
 			continue
 		}
 		out = append(out, &v1.PluginUpgradeHostServiceChange{
+			Owner:             item.Owner,
 			Service:           item.Service,
+			Version:           item.Version,
 			FromMethods:       cloneAPIStringSlice(item.FromMethods),
 			ToMethods:         cloneAPIStringSlice(item.ToMethods),
 			FromResourceCount: item.FromResourceCount,
 			ToResourceCount:   item.ToResourceCount,
+			FromResourceRefs:  cloneAPIStringSlice(item.FromResourceRefs),
+			ToResourceRefs:    cloneAPIStringSlice(item.ToResourceRefs),
 			FromTables:        cloneAPIStringSlice(item.FromTables),
 			ToTables:          cloneAPIStringSlice(item.ToTables),
 			FromPaths:         cloneAPIStringSlice(item.FromPaths),

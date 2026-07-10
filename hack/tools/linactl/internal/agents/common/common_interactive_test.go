@@ -124,3 +124,139 @@ func TestFormatCandidateLabelEmbedsGlyphAndStatus(t *testing.T) {
 		}
 	}
 }
+
+// TestClampListWindowKeepsCursorVisibleWithContext verifies the sliding
+// window does not pin the cursor to the top (the huh.Select failure mode).
+func TestClampListWindowKeepsCursorVisibleWithContext(t *testing.T) {
+	// Cursor moves from 0 -> 1 inside a tall enough window: start stays 0
+	// so the previous row remains visible.
+	if got := clampListWindow(1, 0, 10, 50); got != 0 {
+		t.Fatalf("expected windowStart to stay 0, got %d", got)
+	}
+	// Cursor walks past the bottom edge: window scrolls just enough.
+	if got := clampListWindow(10, 0, 10, 50); got != 1 {
+		t.Fatalf("expected windowStart 1 when cursor leaves bottom, got %d", got)
+	}
+	// Cursor walks above the top edge: window follows upward.
+	if got := clampListWindow(2, 5, 10, 50); got != 2 {
+		t.Fatalf("expected windowStart 2 when cursor leaves top, got %d", got)
+	}
+}
+
+// TestMoveSelectableFilteredSkipsSections ensures group headers are never
+// the resting place of the cursor.
+func TestMoveSelectableFilteredSkipsSections(t *testing.T) {
+	items := []singleListItem{
+		{value: "sec-a", label: "A", section: true},
+		{value: "a1", label: "A1"},
+		{value: "a2", label: "A2"},
+		{value: "sec-b", label: "B", section: true},
+		{value: "b1", label: "B1"},
+	}
+	filtered := []int{0, 1, 2, 3, 4}
+	// From first selectable (index 1), move down once -> a2 (index 2).
+	if got := moveSelectableFiltered(items, filtered, 1, 1); got != 2 {
+		t.Fatalf("move down from a1: got %d want 2", got)
+	}
+	// From a2, move down once -> skip section B, land on b1 (index 4).
+	if got := moveSelectableFiltered(items, filtered, 2, 1); got != 4 {
+		t.Fatalf("move down across section: got %d want 4", got)
+	}
+	// From b1, move up once -> a2 (index 2), not the section.
+	if got := moveSelectableFiltered(items, filtered, 4, -1); got != 2 {
+		t.Fatalf("move up across section: got %d want 2", got)
+	}
+}
+
+// TestFirstSelectableFilteredSkipsLeadingSection covers initial cursor
+// placement on a two-group agent list.
+func TestFirstSelectableFilteredSkipsLeadingSection(t *testing.T) {
+	items := []singleListItem{
+		{value: "sec", label: "Built-in", section: true},
+		{value: "amp", label: "Amp"},
+	}
+	filtered := []int{0, 1}
+	if got := firstSelectableFiltered(items, filtered); got != 1 {
+		t.Fatalf("first selectable: got %d want 1", got)
+	}
+}
+
+// TestSectionStartForCursorFindsNearestHeader covers walking upward from
+// a selectable row to its group title.
+func TestSectionStartForCursorFindsNearestHeader(t *testing.T) {
+	items := []singleListItem{
+		{value: "sec-a", label: "Built-in", section: true},
+		{value: "a1", label: "A1"},
+		{value: "a2", label: "A2"},
+		{value: "sec-b", label: "Needs setup", section: true},
+		{value: "b1", label: "B1"},
+	}
+	filtered := []int{0, 1, 2, 3, 4}
+	if got := sectionStartForCursor(items, filtered, 1); got != 0 {
+		t.Fatalf("cursor on a1: sectionStart got=%d want=0", got)
+	}
+	if got := sectionStartForCursor(items, filtered, 2); got != 0 {
+		t.Fatalf("cursor on a2: sectionStart got=%d want=0", got)
+	}
+	if got := sectionStartForCursor(items, filtered, 4); got != 3 {
+		t.Fatalf("cursor on b1: sectionStart got=%d want=3", got)
+	}
+	if got := sectionStartForCursor(items, filtered, -1); got != -1 {
+		t.Fatalf("invalid cursor: sectionStart got=%d want=-1", got)
+	}
+}
+
+// TestClampListWindowWithSectionRestoresGroupHeader is the regression for
+// "return to top of Built-in and still see the section title" instead of
+// only "… 1 more above".
+func TestClampListWindowWithSectionRestoresGroupHeader(t *testing.T) {
+	// Layout: [0]=section, [1]=first agent. After scrolling, windowStart
+	// was 1 so the title was hidden. Cursor returns to first agent (1).
+	// Plain clamp leaves start=1; with section recovery start becomes 0.
+	if got := clampListWindowWithSection(1, 1, 10, 50, 0); got != 0 {
+		t.Fatalf("restore built-in header: got=%d want=0", got)
+	}
+	// Section already in view: do not jump the window.
+	if got := clampListWindowWithSection(5, 0, 10, 50, 0); got != 0 {
+		t.Fatalf("section already visible: got=%d want=0", got)
+	}
+	// Deep in a long group: section is far above and cannot fit with the
+	// cursor in the same window — keep following the cursor.
+	// cursor=25, section=0, windowSize=10 → 25-0 >= 10, no pull.
+	if got := clampListWindowWithSection(25, 20, 10, 50, 0); got != 20 {
+		// clampListWindow(25, 20, 10, 50): cursor in [20,30) → 20
+		t.Fatalf("deep in group keep scroll: got=%d want=20", got)
+	}
+	// Cursor walks above current window onto first item; section pulls in.
+	// clamp alone would set start=1; with section 0 and fit, start=0.
+	if got := clampListWindowWithSection(1, 15, 10, 50, 0); got != 0 {
+		t.Fatalf("scroll up to first item with header: got=%d want=0", got)
+	}
+	// Needs-setup group: section at 10, first item at 11, window scrolled
+	// so start=11. Returning to item 11 should reveal section 10.
+	if got := clampListWindowWithSection(11, 11, 10, 50, 10); got != 10 {
+		t.Fatalf("restore needs-setup header: got=%d want=10", got)
+	}
+}
+
+// TestEnsureVisibleRestoresBuiltInHeader exercises the model helper end
+// to end with the two-group agent list layout.
+func TestEnsureVisibleRestoresBuiltInHeader(t *testing.T) {
+	model := singleListModel{
+		items: []singleListItem{
+			{value: "sec-a", label: "── Built-in support ──", section: true},
+			{value: "amp", label: "Amp"},
+			{value: "codex", label: "Codex"},
+			{value: "sec-b", label: "── Needs setup ──", section: true},
+			{value: "claude", label: "Claude Code"},
+		},
+		filtered:    []int{0, 1, 2, 3, 4},
+		cursor:      1,
+		windowStart: 1, // title already scrolled away
+		windowSize:  10,
+	}
+	model.ensureVisible()
+	if model.windowStart != 0 {
+		t.Fatalf("ensureVisible should reveal built-in header: windowStart=%d want=0", model.windowStart)
+	}
+}

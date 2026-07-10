@@ -173,7 +173,7 @@ go run . plugins.check format=json
 
 ## Agent 软链管理（agents.* 命令树）
 
-`linactl agents.<resource>.<action>` 用于管理仓库内三类资源的本地软链，把 `.agents/`（以及 `AGENTS.md`）下的标准源映射到各 AI Coding 工具的私有项目路径：
+`linactl agents.<resource>.<action>` 用于管理仓库内三类资源的本地软链，把 `.agents/`（以及 `AGENTS.md`）下的标准源映射到各 AI Coding 工具的私有项目路径。**Agent 产品定义与资源 apply 逻辑集中在一处**：`internal/agents/registry`（每个产品可选配置 `Skills` / `Prompts` / `MD` 绑定）。原 `skills` / `prompts` / `md` 包已删除；命令通过 `registry.ApplyLink` / `ApplyUnlink` 并指定资源类型调用。
 
 - **skills**：目录级软链，`.<tool>/skills` → `.agents/skills`。受支持的 Agent 列表与 [vercel-labs/skills](https://github.com/vercel-labs/skills#supported-agents) 官方项目路径表一致。
 - **prompts**：目录级软链，各 Agent 的 commands/prompts 根目录（例如 `.claude/commands`）→ `.agents/prompts`。
@@ -185,10 +185,16 @@ go run . plugins.check format=json
 
 聚合命令 `agents` 采用 **Agent 优先** 设计：选定一个 Agent，所选动作会自动作用到该 Agent 在 skills/prompts/md 三类资源中所有适用的绑定；对该 Agent 而言为 `native` 或未注册的资源会在最终摘要中显式列出跳过原因。
 
+交互选择列表会展示**全部已注册 Agent**，并分为两组（组内均按字母序 A-Z 排序，颜色区分）：
+
+1. **Built-in support**（绿色）— 已原生读取`.agents/skills`与`AGENTS.md`的工具。分组**不考虑**`prompts`（可选 slash/prompt 软链仍走`agents.prompts.*`）。选中后仅打印就绪说明，无需建链。
+2. **Needs setup**（黄色）— `skills`和/或`md`仍需受管软链的工具；选中后继续选择`link` / `unlink`。
+
 ```bash
 # 交互模式（终端）：
-#   第 1 步：方向键选择 Agent（可输入字符过滤）。
-#   第 2 步：方向键选择 `link` 或 `unlink`。
+#   第 1 步：方向键从双分组列表中选择 Agent（可输入字符过滤）。
+#   第 2 步：对 needs-setup Agent，方向键选择 `link` 或 `unlink`。
+#           对 built-in Agent，仅输出就绪说明后结束。
 make agents
 
 # 一键模式（CI/管道也可用）：
@@ -250,7 +256,7 @@ make agents.md.unlink agent=claude-code              # 移除 AGENTS.md 软链
 - `link`：Agent 使用其它项目路径，按需创建相对软链指向标准源。
 - `rootCollision`：项目路径为仓库根的裸名（仅 skills 中的 `skills/`，由 `openclaw` 使用）。默认跳过；显式`agent=openclaw force=1`才创建。prompts 与 md 资源中不存在该分类。
 
-> **md 资源的 fallback 行为说明**：部分 Agent 在私有规范文件（如 `CODEBUDDY.md`、`CLAUDE.md`）不存在时，会自动 fallback 读取 `AGENTS.md`。`CodeBuddy` 就是这样一个 Agent——根据腾讯官方文档，CodeBuddy 优先读取 `CODEBUDDY.md`，但当 `CODEBUDDY.md` 不存在时会自动加载 `AGENTS.md`。这类有官方文档支持的自动 fallback 机制的 Agent，在 md 注册表中按 `native` 注册，这样仓库 clone 即可用，无需建链；只有当 Agent 仅读取私有规范文件、不存在 fallback 路径时，才注册为 `link` 以便用户显式建链接入。每条 Agent 的证据来源都记录在 `internal/agents/md/md_agents.go` 的行内注释中。
+> **md 资源的 fallback 行为说明**：部分 Agent 在私有规范文件（如 `CODEBUDDY.md`、`CLAUDE.md`）不存在时，会自动 fallback 读取 `AGENTS.md`。`CodeBuddy` 就是这样一个 Agent——根据腾讯官方文档，CodeBuddy 优先读取 `CODEBUDDY.md`，但当 `CODEBUDDY.md` 不存在时会自动加载 `AGENTS.md`。这类有官方文档支持的自动 fallback 机制的 Agent，在 统一 agents 注册表中按 `native` 注册，这样仓库 clone 即可用，无需建链；只有当 Agent 仅读取私有规范文件、不存在 fallback 路径时，才注册为 `link` 以便用户显式建链接入。每条 Agent 的证据来源都记录在 `internal/agents/registry/agents.go` 的行内注释中。
 
 任何情况下命令都不会自动删除已存在的真实目录或文件，**除非**该文件是 Git 在`core.symlinks=false`时创建的降级软链伪文件。Git 在禁用符号链接时会将预期的链接目标路径作为纯文本写入文件内容；`force=1`能自动检测这类伪文件（普通文件、≤512 字节、内容与预期的相对源路径匹配）并将其替换为真正的符号链接。具有任意内容的正常文件仍然不会被触碰。`force=1`同时也会重建"已是软链但指向其它位置"的情况。所有 skills 与 prompts 受管软链目录已在`.gitignore`中忽略，本地创建不会污染仓库。
 

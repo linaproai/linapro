@@ -136,7 +136,7 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: plugin-dev-dynamic-builder\nname: Dynamic Builder\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\ndescription: standalone builder test\ndependencies:\n  framework:\n    version: \">=0.1.0 <1.0.0\"\n  plugins:\n    - id: linapro-tenant-core\n      version: \">=0.1.0\"\nhostServices:\n  - service: runtime\n    methods:\n      - log.write\n      - state.get\n      - state.set\n",
+		"id: plugin-dev-dynamic-builder\nname: Dynamic Builder\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\ndescription: standalone builder test\ndependencies:\n  framework:\n    version: \">=0.1.0 <1.0.0\"\n  plugins:\n    - id: linapro-ai-core\n      version: \">=0.1.0\"\n    - id: linapro-tenant-core\n      version: \">=0.1.0\"\nhostServices:\n  - service: runtime\n    methods:\n      - log.write\n      - state.get\n      - state.set\n  - service: ai\n    owner: linapro-ai-core\n    version: v1\n    methods:\n      - text.method_status.get\n",
 	)
 	mustWriteFile(
 		t,
@@ -294,12 +294,16 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	if manifest.Dependencies.Framework.Version != ">=0.1.0 <1.0.0" {
 		t.Fatalf("unexpected framework dependency: %#v", manifest.Dependencies.Framework)
 	}
-	if len(manifest.Dependencies.Plugins) != 1 {
-		t.Fatalf("expected one embedded plugin dependency, got %#v", manifest.Dependencies.Plugins)
+	if len(manifest.Dependencies.Plugins) != 2 {
+		t.Fatalf("expected two embedded plugin dependencies, got %#v", manifest.Dependencies.Plugins)
 	}
-	if manifest.Dependencies.Plugins[0].ID != "linapro-tenant-core" ||
-		manifest.Dependencies.Plugins[0].Version != ">=0.1.0" {
-		t.Fatalf("unexpected embedded plugin dependency: %#v", manifest.Dependencies.Plugins[0])
+	pluginDependencyVersions := make(map[string]string, len(manifest.Dependencies.Plugins))
+	for _, dependency := range manifest.Dependencies.Plugins {
+		pluginDependencyVersions[dependency.ID] = dependency.Version
+	}
+	if pluginDependencyVersions["linapro-ai-core"] != ">=0.1.0" ||
+		pluginDependencyVersions["linapro-tenant-core"] != ">=0.1.0" {
+		t.Fatalf("unexpected embedded plugin dependencies: %#v", manifest.Dependencies.Plugins)
 	}
 
 	metadata := &protocol.RuntimeArtifactMetadata{}
@@ -419,8 +423,20 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	if err = json.Unmarshal(sections[pluginDynamicWasmSectionBackendHostServices], &hostServices); err != nil {
 		t.Fatalf("expected host services section json to unmarshal, got error: %v", err)
 	}
-	if len(hostServices) != 1 || hostServices[0].Service != protocol.HostServiceRuntime {
+	if len(hostServices) != 2 {
 		t.Fatalf("unexpected embedded host services: %#v", hostServices)
+	}
+	var ownerAIService *protocol.HostServiceSpec
+	for _, item := range hostServices {
+		if item.Owner == "linapro-ai-core" && item.Service == "ai" {
+			ownerAIService = item
+			break
+		}
+	}
+	if ownerAIService == nil || ownerAIService.Version != "v1" ||
+		len(ownerAIService.Methods) != 1 ||
+		ownerAIService.Methods[0] != "text.method_status.get" {
+		t.Fatalf("expected embedded owner-aware AI host service, got %#v", hostServices)
 	}
 
 	if out.RuntimePath == "" {

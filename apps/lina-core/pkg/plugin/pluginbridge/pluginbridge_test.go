@@ -16,7 +16,6 @@ import (
 	"strings"
 	"testing"
 
-	"lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
 
@@ -62,10 +61,6 @@ func TestSharedCapabilityServicesUseBridgeTransport(t *testing.T) {
 	_, err = New().Tenant().Membership().ListByUser(context.Background(), 1)
 	if !errors.Is(err, ErrHostCallsUnavailable) {
 		t.Fatalf("expected non-WASI tenant capability to use host-call stub, got %v", err)
-	}
-	_, err = New().AI().Text().GenerateText(context.Background(), aitext.GenerateRequest{Purpose: "content.summary"})
-	if !errors.Is(err, ErrHostCallsUnavailable) {
-		t.Fatalf("expected non-WASI AI capability to use host-call stub, got %v", err)
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"linactl/internal/agents/common"
-	"linactl/internal/agents/md"
+	"linactl/internal/agents/registry"
 )
 
 // runAgentsMdUnlink dispatches agents.md.unlink command invocations.
@@ -31,7 +31,7 @@ func runAgentsMdUnlink(_ context.Context, a *app, input commandInput) error {
 // runAgentsMdUnlinkInteractive walks the user through a numbered
 // selection of currently managed links to remove.
 func runAgentsMdUnlinkInteractive(a *app) error {
-	candidates := md.UnlinkCandidates(a.root)
+	candidates := registry.UnlinkCandidates(a.root, registry.ResourceMD)
 	if len(candidates) == 0 {
 		return writeLine(a.stdout, "No managed AGENTS.md symlinks were found. Nothing to unlink.")
 	}
@@ -47,7 +47,7 @@ func runAgentsMdUnlinkInteractive(a *app) error {
 
 // executeAgentsMdUnlink applies the unlink request and renders results.
 func executeAgentsMdUnlink(a *app, selectors []string) error {
-	results, err := md.ApplyUnlink(a.root, md.UnlinkRequest{Selectors: selectors})
+	results, err := registry.ApplyUnlink(a.root, registry.ResourceMD, registry.UnlinkRequest{Selectors: selectors})
 	if err != nil {
 		return err
 	}

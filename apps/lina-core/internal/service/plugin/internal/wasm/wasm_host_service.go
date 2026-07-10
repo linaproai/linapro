@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
@@ -16,6 +17,7 @@ import (
 	"lina-core/internal/service/plugin/internal/pluginconfig"
 	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/capregistry"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	bridgehostcall "lina-core/pkg/plugin/pluginbridge/protocol"
 	bridgehostservice "lina-core/pkg/plugin/pluginbridge/protocol"
@@ -25,6 +27,7 @@ import (
 // host calls for one WASM runtime instance.
 type hostServiceRuntime struct {
 	domainServices      capability.Services
+	ownerCapabilities   *capregistry.Registry
 	pluginConfigFactory pluginconfig.Factory
 	hostConfigService   hostconfigcap.Service
 	manifestFactory     manifestresource.Factory
@@ -35,12 +38,16 @@ type hostServiceRuntime struct {
 // service instances.
 func NewRuntime(
 	domainServices capability.Services,
+	ownerCapabilities *capregistry.Registry,
 	pluginConfigFactory pluginconfig.Factory,
 	hostConfigService hostconfigcap.Service,
 	manifestFactory manifestresource.Factory,
 ) (Runtime, error) {
 	if domainServices == nil {
 		return nil, gerror.New("domain host services directory is nil")
+	}
+	if ownerCapabilities == nil {
+		return nil, gerror.New("owner capability registry is nil")
 	}
 	if pluginConfigFactory == nil {
 		return nil, gerror.New("wasm plugin config service requires a non-nil config factory")
@@ -54,6 +61,7 @@ func NewRuntime(
 	return &runtimeImpl{
 		hostServices: &hostServiceRuntime{
 			domainServices:      domainServices,
+			ownerCapabilities:   ownerCapabilities,
 			pluginConfigFactory: pluginConfigFactory,
 			hostConfigService:   hostConfigService,
 			manifestFactory:     manifestFactory,
@@ -154,6 +162,15 @@ func handleHostServiceInvoke(
 	if err != nil {
 		return hostCallErrorFromError(bridgehostcall.HostCallStatusInvalidRequest, err)
 	}
+	if isOwnerHostServiceRequest(request) {
+		return dispatchOwnerHostService(ctx, hcc, request)
+	}
+	if strings.TrimSpace(request.Version) != "" {
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusInvalidRequest,
+			"host service version requires owner",
+		)
+	}
 
 	requiredCapability := bridgehostservice.RequiredCapabilityForHostServiceMethod(request.Service, request.Method)
 	if requiredCapability == "" {
@@ -183,6 +200,13 @@ func handleHostServiceInvoke(
 	}
 
 	return dispatchRegisteredHostService(ctx, hcc, request)
+}
+
+func isOwnerHostServiceRequest(request *bridgehostservice.HostServiceRequestEnvelope) bool {
+	if request == nil {
+		return false
+	}
+	return strings.TrimSpace(request.Owner) != ""
 }
 
 // contextWithHostCallBizContext exposes the dynamic-plugin identity snapshot

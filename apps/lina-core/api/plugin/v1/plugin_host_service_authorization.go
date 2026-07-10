@@ -11,8 +11,12 @@ type HostServiceAuthorizationReq struct {
 
 // HostServiceAuthorizationServiceReq describes one service-level authorization decision.
 type HostServiceAuthorizationServiceReq struct {
+	// Owner is the plugin ID that owns this host service when authorizing a plugin-owned capability.
+	Owner string `json:"owner,omitempty" dc:"Owner plugin ID for plugin-owned host services. Core-owned host services leave this field empty." eg:"linapro-ai-core"`
 	// Service is the logical host service identifier.
-	Service string `json:"service" dc:"Host service identifier, such as storage, network, data, hostConfig, manifest" eg:"network"`
+	Service string `json:"service" dc:"Host service identifier, such as storage, network, data, hostConfig, manifest, or ai" eg:"network"`
+	// Version is the owner capability protocol version for plugin-owned host services.
+	Version string `json:"version,omitempty" dc:"Owner capability protocol version for plugin-owned host services. Core-owned host services leave this field empty." eg:"v1"`
 	// Methods optionally narrows the requested methods; when omitted, all plugin-declared methods are used.
 	Methods []string `json:"methods,omitempty" dc:"The set of methods confirmed by the host. If not passed, all methods declared by the plugin will be used." eg:"[\"request\"]"`
 	// Paths lists the confirmed logical storage paths; an empty array rejects all paths under this service.
@@ -27,8 +31,12 @@ type HostServiceAuthorizationServiceReq struct {
 
 // HostServicePermissionItem describes one requested or authorized host service block.
 type HostServicePermissionItem struct {
+	// Owner is the plugin ID that owns this host service when it is plugin-owned.
+	Owner string `json:"owner,omitempty" dc:"Owner plugin ID for plugin-owned host services. Core-owned host services leave this field empty." eg:"linapro-ai-core"`
 	// Service is the logical host service identifier.
-	Service string `json:"service" dc:"Host service identifier, such as runtime, storage, network, data, hostConfig, manifest, plugins, notifications" eg:"storage"`
+	Service string `json:"service" dc:"Host service identifier, such as runtime, storage, network, data, hostConfig, manifest, plugins, notifications, or ai" eg:"storage"`
+	// Version is the owner capability protocol version for plugin-owned host services.
+	Version string `json:"version,omitempty" dc:"Owner capability protocol version for plugin-owned host services. Core-owned host services leave this field empty." eg:"v1"`
 	// Methods lists the confirmed or requested methods.
 	Methods []string `json:"methods" dc:"The set of methods allowed under this host service" eg:"[\"put\",\"get\"]"`
 	// Paths lists the governed logical storage paths under this service.

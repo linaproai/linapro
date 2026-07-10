@@ -205,6 +205,11 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 			Name:    "Runtime Route Plugin",
 			Version: "v0.3.0",
 			Type:    pluginv1.PluginTypeDynamic.String(),
+			Dependencies: &plugintypes.DependencySpec{
+				Plugins: []*plugintypes.PluginDependencySpec{
+					{ID: "linapro-ai-core", Version: ">=0.1.0"},
+				},
+			},
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:        protocol.RuntimeKindWasm,
@@ -217,6 +222,14 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 					Methods: []string{
 						protocol.HostServiceMethodRuntimeLogWrite,
 						protocol.HostServiceMethodRuntimeStateGet,
+					},
+				},
+				{
+					Owner:   "linapro-ai-core",
+					Service: "ai",
+					Version: "v1",
+					Methods: []string{
+						"text.method_status.get",
 					},
 				},
 			},
@@ -253,8 +266,74 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 	if _, ok := manifest.HostCapabilities[protocol.CapabilityRuntime]; !ok {
 		t.Fatalf("expected runtime capability to be restored, got %#v", manifest.HostCapabilities)
 	}
-	if len(manifest.HostServices) != 1 || manifest.HostServices[0].Service != protocol.HostServiceRuntime {
+	if len(manifest.HostServices) != 2 {
 		t.Fatalf("expected runtime host service snapshot to be restored, got %#v", manifest.HostServices)
+	}
+	var ownerAIService *protocol.HostServiceSpec
+	for _, item := range manifest.HostServices {
+		if item.Owner == "linapro-ai-core" && item.Service == "ai" {
+			ownerAIService = item
+			break
+		}
+	}
+	if ownerAIService == nil || ownerAIService.Version != "v1" ||
+		len(ownerAIService.Methods) != 1 ||
+		ownerAIService.Methods[0] != "text.method_status.get" {
+		t.Fatalf("expected owner-aware AI host service snapshot to be restored, got %#v", manifest.HostServices)
+	}
+}
+
+// TestParseRuntimeArtifactRejectsOwnerHostServiceWithoutDependency verifies
+// dynamic artifacts cannot bypass owner dependency checks through embedded
+// host-service sections.
+func TestParseRuntimeArtifactRejectsOwnerHostServiceWithoutDependency(t *testing.T) {
+	services := testutil.NewServices()
+	pluginDir := testutil.CreateTestRuntimePluginDir(
+		t,
+		"plugin-dev-dynamic-owner-missing-dependency",
+		"Runtime Owner Missing Dependency Plugin",
+		"v0.3.1",
+		nil,
+		nil,
+	)
+	artifactPath := filepath.Join(
+		pluginDir,
+		testutil.RuntimeArtifactRelativePath("plugin-dev-dynamic-owner-missing-dependency"),
+	)
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:      "plugin-dev-dynamic-owner-missing-dependency",
+			Name:    "Runtime Owner Missing Dependency Plugin",
+			Version: "v0.3.1",
+			Type:    pluginv1.PluginTypeDynamic.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind: protocol.RuntimeKindWasm,
+			ABIVersion:  protocol.SupportedABIVersion,
+			HostServices: []*protocol.HostServiceSpec{
+				{
+					Owner:   "linapro-ai-core",
+					Service: "ai",
+					Version: "v1",
+					Methods: []string{
+						"text.generate",
+					},
+				},
+			},
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	_, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+	if err == nil || !strings.Contains(err.Error(), "dependencies.plugins entry") {
+		t.Fatalf("expected owner host service dependency error from artifact parse, got %v", err)
 	}
 }
 

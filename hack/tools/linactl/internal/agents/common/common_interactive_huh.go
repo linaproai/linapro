@@ -1,28 +1,31 @@
-// This file implements the arrow-key driven interactive helpers backed
-// by github.com/charmbracelet/huh. They replace the legacy numbered-grid
-// prompts that previously lived in common_interactive.go.
+// This file implements the arrow-key driven interactive helpers.
 //
 // Three helpers are exposed:
 //   - PromptSelection:       multi-select form for picking 0..N agents
 //                            from a candidate list (space toggles, enter
-//                            confirms, Esc/Ctrl+C cancels).
-//   - PromptSingleSelection: single-select form for picking exactly one
-//                            value (e.g. one agent, or link/unlink).
-//   - PromptYesNo:           Yes/No confirmation form with a default.
+//                            confirms, Esc/Ctrl+C cancels) via huh.
+//   - PromptSingleSelection: single-select list for picking exactly one
+//                            value. Implemented with a custom Bubble Tea
+//                            picker (see common_interactive_list.go) so
+//                            long lists keep rows above the cursor
+//                            visible; huh.Select pins the cursor to the
+//                            top of its viewport once the list exceeds
+//                            the terminal height.
+//   - PromptYesNo:           Yes/No confirmation form with a default via huh.
 //
 // Design notes:
-//   - huh forms require a real terminal. Callers MUST guard each call
-//     with IsInteractiveTerminal(*os.File) so the form never runs in CI
-//     or piped contexts. When stdin is not a *os.File the helpers
-//     conservatively treat the call as cancelled (returning empty/zero
-//     values) to keep test harnesses that wire bytes.Buffer streams
-//     working without spawning a TUI.
-//   - Output is routed through the caller-supplied io.Writer using
-//     huh's WithOutput, and stdin through WithInput. This keeps the
-//     linactl process IO model consistent with the rest of the tool.
-//   - User abort (Esc / Ctrl+C, mapped to huh.ErrUserAborted) is
-//     translated to "cancelled" rather than an error, matching the
-//     historical numbered-grid behavior where blank/q cancelled.
+//   - Interactive helpers require a real terminal. Callers MUST guard
+//     each call with IsInteractiveTerminal(*os.File) so the form never
+//     runs in CI or piped contexts. When stdin is not a *os.File the
+//     helpers conservatively treat the call as cancelled (returning
+//     empty/zero values) to keep test harnesses that wire bytes.Buffer
+//     streams working without spawning a TUI.
+//   - Output is routed through the caller-supplied io.Writer and stdin
+//     through WithInput / tea.WithInput so linactl process IO stays
+//     consistent with the rest of the tool.
+//   - User abort (Esc / Ctrl+C) is translated to "cancelled" rather than
+//     an error, matching the historical numbered-grid behavior where
+//     blank/q cancelled.
 
 package common
 
@@ -38,15 +41,20 @@ import (
 )
 
 // SingleOption describes one choice in a single-select prompt. Value is
-// returned to the caller; Label is the human-readable text rendered by
-// huh in the selection list.
+// returned to the caller; Label is the human-readable text rendered in
+// the selection list.
 type SingleOption struct {
 	// Value is the underlying identifier returned when this option is
-	// chosen. It must be unique within an options slice.
+	// chosen. It must be unique within an options slice. Section headers
+	// may reuse reserved values; they are never returned to callers
+	// because Section rows are not selectable.
 	Value string
 	// Label is the human-readable text shown to the user. When empty
 	// the helper falls back to Value.
 	Label string
+	// Section marks a non-selectable group header row (for example
+	// "Built-in support"). Cursor movement skips these rows.
+	Section bool
 }
 
 // promptIOReady reports whether the supplied reader/writer pair is
@@ -147,46 +155,24 @@ func PromptSelection(in io.Reader, out io.Writer, title string, candidates []Sel
 	return ordered, nil
 }
 
-// PromptSingleSelection renders a single-select huh form and returns the
+// PromptSingleSelection renders a single-select list and returns the
 // chosen value. Returns ("", nil) when the user aborts or stdin is not
 // an interactive terminal. options must be non-empty.
+//
+// Implementation note: this uses the custom Bubble Tea list in
+// common_interactive_list.go rather than huh.Select. huh pins the
+// selected option to the top of its viewport once the list is taller
+// than the terminal, which hides every row above the cursor while the
+// user navigates — unacceptable for the agents aggregate picker with
+// 100+ registered tools.
 func PromptSingleSelection(in io.Reader, out io.Writer, title string, options []SingleOption) (string, error) {
 	if len(options) == 0 {
 		return "", fmt.Errorf("PromptSingleSelection: options must not be empty")
 	}
-	stdin, ok := promptIOReady(in)
-	if !ok {
+	if _, ok := promptIOReady(in); !ok {
 		return "", nil
 	}
-
-	huhOptions := make([]huh.Option[string], 0, len(options))
-	for _, option := range options {
-		label := option.Label
-		if label == "" {
-			label = option.Value
-		}
-		huhOptions = append(huhOptions, huh.NewOption(label, option.Value))
-	}
-
-	var chosen string
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title(title).
-				Description("Arrow keys to navigate, Enter to confirm, Esc to cancel, any key to search.").
-				Options(huhOptions...).
-				Filtering(true).
-				Value(&chosen),
-		),
-	).WithInput(stdin).WithOutput(out).WithKeyMap(abortKeyMap())
-
-	if err := form.Run(); err != nil {
-		if errors.Is(err, huh.ErrUserAborted) {
-			return "", nil
-		}
-		return "", fmt.Errorf("run select form: %w", err)
-	}
-	return chosen, nil
+	return runSingleListSelection(in, out, title, options)
 }
 
 // PromptYesNo asks a yes/no question with a default answer used when

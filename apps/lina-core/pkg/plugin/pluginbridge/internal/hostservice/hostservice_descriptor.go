@@ -5,7 +5,10 @@
 
 package hostservice
 
-import "lina-core/pkg/plugin/pluginbridge/protocol/hostservices"
+import (
+	"lina-core/pkg/plugin/capability/capregistry"
+	"lina-core/pkg/plugin/pluginbridge/protocol/hostservices"
+)
 
 // hostServiceResourceKind describes which authorization resource shape a host
 // service declaration uses in plugin manifests.
@@ -31,9 +34,21 @@ func hostServiceDescriptors() []hostServiceDescriptor {
 	return hostservices.Catalog()
 }
 
+// HostServiceCatalogFromCapabilityDescriptors returns the core-owned static
+// catalog merged with plugin-owned owner capability descriptor projections.
+func HostServiceCatalogFromCapabilityDescriptors(descriptors []capregistry.Descriptor) ([]hostservices.ServiceDescriptor, error) {
+	return hostservices.CatalogWithDescriptors(descriptors)
+}
+
 // hostServiceMethodDescriptors returns all governed host-service method descriptors.
 func hostServiceMethodDescriptors() []hostServiceMethodDescriptor {
 	return append([]hostServiceMethodDescriptor(nil), rawHostServiceMethodDescriptors()...)
+}
+
+// HostServiceMethodsFromCapabilityDescriptors returns all core-owned and
+// plugin-owned method projections from the merged catalog.
+func HostServiceMethodsFromCapabilityDescriptors(descriptors []capregistry.Descriptor) ([]hostservices.MethodDescriptor, error) {
+	return hostservices.MethodsWithDescriptors(descriptors)
 }
 
 func rawHostServiceMethodDescriptors() []hostServiceMethodDescriptor {

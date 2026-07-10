@@ -13,6 +13,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/plugin/internal/pluginconfig"
+	"lina-core/pkg/plugin/capability/capregistry"
 	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -387,6 +388,7 @@ func TestHandleHostServiceInvokeConfigRejectsUnsupportedMethod(t *testing.T) {
 func TestConfigurePluginConfigFactoryRejectsNil(t *testing.T) {
 	if _, err := NewRuntime(
 		&capabilityHostServiceTestServices{},
+		capregistry.NewRegistry(),
 		nil,
 		noopTestHostConfigService{},
 		noopTestManifestFactory{},

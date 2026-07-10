@@ -75,24 +75,50 @@ func (hcc *hostCallContext) hasCapability(capability string) bool {
 // hasHostServiceAccess reports whether the plugin may invoke the governed
 // host-service target under the persisted authorization snapshot.
 func (hcc *hostCallContext) hasHostServiceAccess(service string, method string, resourceRef string, table string) bool {
+	return hcc.hasOwnerHostServiceAccess("", service, "", method, resourceRef, table)
+}
+
+// hasOwnerHostServiceAccess reports whether the plugin may invoke a governed
+// owner/service/version target under the persisted authorization snapshot.
+func (hcc *hostCallContext) hasOwnerHostServiceAccess(
+	owner string,
+	service string,
+	version string,
+	method string,
+	resourceRef string,
+	table string,
+) bool {
 	snapshot := hcc.accessSnapshot()
 	if snapshot == nil {
 		return false
 	}
 
 	var (
+		normalizedOwner       = strings.ToLower(strings.TrimSpace(owner))
 		normalizedService     = strings.ToLower(strings.TrimSpace(service))
+		normalizedVersion     = strings.ToLower(strings.TrimSpace(version))
 		normalizedMethod      = strings.ToLower(strings.TrimSpace(method))
 		normalizedResourceRef = strings.TrimSpace(resourceRef)
 		normalizedTable       = strings.TrimSpace(table)
+		identity              = bridgehostservice.HostServiceIdentity(normalizedOwner, normalizedService, normalizedVersion)
 	)
 
-	if !snapshot.hasMethod(normalizedService, normalizedMethod) {
+	if !snapshot.hasMethod(identity, normalizedMethod) {
 		return false
 	}
-	spec := snapshot.spec(normalizedService)
+	spec := snapshot.spec(identity)
 	if spec == nil {
 		return false
+	}
+
+	if normalizedOwner != "" {
+		if normalizedTable != "" {
+			return false
+		}
+		if normalizedResourceRef == "" {
+			return len(spec.Resources) == 0
+		}
+		return hcc.ownerHostServiceResource(normalizedOwner, normalizedService, normalizedVersion, normalizedResourceRef) != nil
 	}
 
 	// Storage and network authorizations may grant prefixes or URL patterns
@@ -105,13 +131,13 @@ func (hcc *hostCallContext) hasHostServiceAccess(service string, method string, 
 		return normalizedResourceRef != "" && hcc.hostServiceResource(normalizedService, normalizedResourceRef) != nil
 	}
 	if normalizedService == bridgehostservice.HostServiceHostConfig {
-		return normalizedResourceRef != "" && snapshot.hasKey(normalizedService, normalizedResourceRef)
+		return normalizedResourceRef != "" && snapshot.hasKey(identity, normalizedResourceRef)
 	}
 	if normalizedService == bridgehostservice.HostServiceManifest {
 		return normalizedResourceRef != "" && matchAuthorizedManifestPath(spec.Paths, normalizedResourceRef)
 	}
 	if normalizedService == bridgehostservice.HostServiceData {
-		return normalizedTable != "" && snapshot.hasTable(normalizedService, normalizedTable)
+		return normalizedTable != "" && snapshot.hasTable(identity, normalizedTable)
 	}
 	if normalizedService == bridgehostservice.HostServiceNotifications &&
 		normalizedMethod == bridgehostservice.HostServiceMethodNotificationsSend {
@@ -140,24 +166,41 @@ func (hcc *hostCallContext) hasHostServiceAccess(service string, method string, 
 
 // hostServiceResource returns the authorized resource snapshot for one service/ref pair.
 func (hcc *hostCallContext) hostServiceResource(service string, resourceRef string) *bridgehostservice.HostServiceResourceSpec {
+	return hcc.ownerHostServiceResource("", service, "", resourceRef)
+}
+
+// ownerHostServiceResource returns the authorized resource snapshot for one
+// owner/service/version/ref pair.
+func (hcc *hostCallContext) ownerHostServiceResource(
+	owner string,
+	service string,
+	version string,
+	resourceRef string,
+) *bridgehostservice.HostServiceResourceSpec {
 	snapshot := hcc.accessSnapshot()
 	if snapshot == nil {
 		return nil
 	}
 
+	normalizedOwner := strings.ToLower(strings.TrimSpace(owner))
 	normalizedService := strings.ToLower(strings.TrimSpace(service))
+	normalizedVersion := strings.ToLower(strings.TrimSpace(version))
 	normalizedResourceRef := strings.TrimSpace(resourceRef)
 	if normalizedService == "" || normalizedResourceRef == "" {
 		return nil
 	}
 
+	identity := bridgehostservice.HostServiceIdentity(normalizedOwner, normalizedService, normalizedVersion)
+	if normalizedOwner != "" {
+		return snapshot.resource(identity, normalizedResourceRef)
+	}
 	if normalizedService == bridgehostservice.HostServiceStorage {
 		return nil
 	}
 	if normalizedService == bridgehostservice.HostServiceNetwork {
 		return matchAuthorizedNetworkResource(snapshot.hostServices, normalizedResourceRef)
 	}
-	return snapshot.resource(normalizedService, normalizedResourceRef)
+	return snapshot.resource(identity, normalizedResourceRef)
 }
 
 // hostServiceSpec returns the authorized host-service specification for the service.
@@ -170,7 +213,7 @@ func (hcc *hostCallContext) hostServiceSpec(service string) *bridgehostservice.H
 	if normalizedService == "" {
 		return nil
 	}
-	return snapshot.spec(normalizedService)
+	return snapshot.spec(bridgehostservice.HostServiceIdentity("", normalizedService, ""))
 }
 
 // accessSnapshot returns the prebuilt request snapshot, building it lazily for
@@ -217,10 +260,11 @@ func newHostServiceAccessSnapshot(specs []*bridgehostservice.HostServiceSpec) *h
 			continue
 		}
 		snapshot.hostServices = append(snapshot.hostServices, cloned)
-		snapshot.specs[cloned.Service] = cloned
-		snapshot.methods[cloned.Service] = normalizedStringSet(cloned.Methods)
-		snapshot.keys[cloned.Service] = normalizedStringSet(cloned.Keys)
-		snapshot.tables[cloned.Service] = normalizedStringSet(cloned.Tables)
+		identity := bridgehostservice.HostServiceSpecIdentity(cloned)
+		snapshot.specs[identity] = cloned
+		snapshot.methods[identity] = normalizedStringSet(cloned.Methods)
+		snapshot.keys[identity] = normalizedStringSet(cloned.Keys)
+		snapshot.tables[identity] = normalizedStringSet(cloned.Tables)
 		if len(cloned.Resources) > 0 {
 			byRef := make(map[string]*bridgehostservice.HostServiceResourceSpec, len(cloned.Resources))
 			for _, resource := range cloned.Resources {
@@ -229,7 +273,7 @@ func newHostServiceAccessSnapshot(specs []*bridgehostservice.HostServiceSpec) *h
 				}
 				byRef[strings.TrimSpace(resource.Ref)] = resource
 			}
-			snapshot.resources[cloned.Service] = byRef
+			snapshot.resources[identity] = byRef
 		}
 	}
 	if len(snapshot.hostServices) == 0 {
@@ -238,48 +282,48 @@ func newHostServiceAccessSnapshot(specs []*bridgehostservice.HostServiceSpec) *h
 	return snapshot
 }
 
-func (snapshot *hostServiceAccessSnapshot) spec(service string) *bridgehostservice.HostServiceSpec {
+func (snapshot *hostServiceAccessSnapshot) spec(identity string) *bridgehostservice.HostServiceSpec {
 	if snapshot == nil {
 		return nil
 	}
-	return snapshot.specs[strings.ToLower(strings.TrimSpace(service))]
+	return snapshot.specs[identity]
 }
 
-func (snapshot *hostServiceAccessSnapshot) hasMethod(service string, method string) bool {
+func (snapshot *hostServiceAccessSnapshot) hasMethod(identity string, method string) bool {
 	if snapshot == nil {
 		return false
 	}
-	methods := snapshot.methods[strings.ToLower(strings.TrimSpace(service))]
+	methods := snapshot.methods[identity]
 	_, ok := methods[strings.ToLower(strings.TrimSpace(method))]
 	return ok
 }
 
-func (snapshot *hostServiceAccessSnapshot) hasKey(service string, key string) bool {
+func (snapshot *hostServiceAccessSnapshot) hasKey(identity string, key string) bool {
 	if snapshot == nil {
 		return false
 	}
-	keys := snapshot.keys[strings.ToLower(strings.TrimSpace(service))]
+	keys := snapshot.keys[identity]
 	_, ok := keys[strings.TrimSpace(key)]
 	return ok
 }
 
-func (snapshot *hostServiceAccessSnapshot) hasTable(service string, table string) bool {
+func (snapshot *hostServiceAccessSnapshot) hasTable(identity string, table string) bool {
 	if snapshot == nil {
 		return false
 	}
-	tables := snapshot.tables[strings.ToLower(strings.TrimSpace(service))]
+	tables := snapshot.tables[identity]
 	_, ok := tables[strings.TrimSpace(table)]
 	return ok
 }
 
 func (snapshot *hostServiceAccessSnapshot) resource(
-	service string,
+	identity string,
 	resourceRef string,
 ) *bridgehostservice.HostServiceResourceSpec {
 	if snapshot == nil {
 		return nil
 	}
-	resources := snapshot.resources[strings.ToLower(strings.TrimSpace(service))]
+	resources := snapshot.resources[identity]
 	return resources[strings.TrimSpace(resourceRef)]
 }
 
@@ -288,7 +332,9 @@ func cloneHostServiceSpec(spec *bridgehostservice.HostServiceSpec) *bridgehostse
 		return nil
 	}
 	cloned := &bridgehostservice.HostServiceSpec{
+		Owner:     strings.ToLower(strings.TrimSpace(spec.Owner)),
 		Service:   strings.ToLower(strings.TrimSpace(spec.Service)),
+		Version:   strings.ToLower(strings.TrimSpace(spec.Version)),
 		Methods:   normalizeLowerStringSlice(spec.Methods),
 		Paths:     trimStringSlice(spec.Paths),
 		Tables:    trimStringSlice(spec.Tables),

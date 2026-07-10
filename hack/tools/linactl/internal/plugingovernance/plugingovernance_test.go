@@ -83,6 +83,204 @@ func direct() {
 	}
 }
 
+// TestScanRequiresDependencyForCrossPluginCapImport verifies production imports
+// of another plugin's backend/cap contract are tied to plugin.yaml dependencies.
+func TestScanRequiresDependencyForCrossPluginCapImport(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	ownerRoot := filepath.Join(root, "apps", "lina-plugins", "linapro-ai-core")
+	writePluginGovernanceFile(t, filepath.Join(ownerRoot, "plugin.yaml"), "id: linapro-ai-core\n")
+	writePluginGovernanceFile(t, filepath.Join(ownerRoot, "go.mod"), "module lina-plugin-linapro-ai-core\n")
+
+	consumerRoot := filepath.Join(root, "apps", "lina-plugins", "linapro-consumer-source")
+	writePluginGovernanceFile(t, filepath.Join(consumerRoot, "plugin.yaml"), `
+id: linapro-consumer-source
+type: source
+`)
+	writePluginGovernanceFile(t, filepath.Join(consumerRoot, "backend", "internal", "service", "ai.go"), `
+package service
+
+import _ "lina-plugin-linapro-ai-core/backend/cap/aicap/aitext"
+`)
+
+	report, err := Scan(root)
+	if err != nil {
+		t.Fatalf("Scan returned error: %v", err)
+	}
+	if report.Summary.ByRule[ruleSourceCapImportMissingDependency] != 1 {
+		t.Fatalf("expected missing owner dependency finding, got %#v", report.Summary.ByRule)
+	}
+	if report.Summary.ByCategory[categoryDependency] != 1 {
+		t.Fatalf("expected dependency category finding, got %#v", report.Summary.ByCategory)
+	}
+}
+
+// TestScanRequiresVersionForCrossPluginCapDependency verifies owner cap imports
+// require dependency version ranges instead of unbounded plugin dependencies.
+func TestScanRequiresVersionForCrossPluginCapDependency(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	ownerRoot := filepath.Join(root, "apps", "lina-plugins", "linapro-ai-core")
+	writePluginGovernanceFile(t, filepath.Join(ownerRoot, "plugin.yaml"), "id: linapro-ai-core\n")
+	writePluginGovernanceFile(t, filepath.Join(ownerRoot, "go.mod"), "module lina-plugin-linapro-ai-core\n")
+
+	consumerRoot := filepath.Join(root, "apps", "lina-plugins", "linapro-consumer-source")
+	writePluginGovernanceFile(t, filepath.Join(consumerRoot, "plugin.yaml"), `
+id: linapro-consumer-source
+type: source
+dependencies:
+  plugins:
+    - id: linapro-ai-core
+`)
+	writePluginGovernanceFile(t, filepath.Join(consumerRoot, "backend", "internal", "service", "ai.go"), `
+package service
+
+import _ "lina-plugin-linapro-ai-core/backend/cap/aicap/aitext"
+`)
+
+	report, err := Scan(root)
+	if err != nil {
+		t.Fatalf("Scan returned error: %v", err)
+	}
+	if report.Summary.ByRule[ruleSourceCapImportMissingVersion] != 1 {
+		t.Fatalf("expected missing owner dependency version finding, got %#v", report.Summary.ByRule)
+	}
+	if report.Summary.ByRule[ruleSourceCapImportMissingDependency] != 0 {
+		t.Fatalf("did not expect missing dependency finding, got %#v", report.Summary.ByRule)
+	}
+}
+
+// TestScanBlocksCrossPluginPrivateImports verifies production code cannot use
+// another plugin's internal implementation, generated models, controller,
+// service, provider adapter, or backend/pkg as a domain-capability entry.
+func TestScanBlocksCrossPluginPrivateImports(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	ownerRoot := filepath.Join(root, "apps", "lina-plugins", "linapro-ai-core")
+	writePluginGovernanceFile(t, filepath.Join(ownerRoot, "plugin.yaml"), "id: linapro-ai-core\n")
+	writePluginGovernanceFile(t, filepath.Join(ownerRoot, "go.mod"), "module lina-plugin-linapro-ai-core\n")
+
+	consumerRoot := filepath.Join(root, "apps", "lina-plugins", "linapro-consumer-source")
+	writePluginGovernanceFile(t, filepath.Join(consumerRoot, "plugin.yaml"), `
+id: linapro-consumer-source
+type: source
+dependencies:
+  plugins:
+    - id: linapro-ai-core
+      version: ">=0.1.0"
+`)
+	writePluginGovernanceFile(t, filepath.Join(consumerRoot, "backend", "internal", "service", "ai.go"), `
+package service
+
+import (
+	_ "lina-plugin-linapro-ai-core/backend/internal/controller/provider"
+	_ "lina-plugin-linapro-ai-core/backend/internal/dao"
+	_ "lina-plugin-linapro-ai-core/backend/internal/model/do"
+	_ "lina-plugin-linapro-ai-core/backend/internal/model/entity"
+	_ "lina-plugin-linapro-ai-core/backend/internal/provider/aiadapter"
+	_ "lina-plugin-linapro-ai-core/backend/internal/service/ai"
+	_ "lina-plugin-linapro-ai-core/backend/pkg/aiclient"
+)
+`)
+
+	report, err := Scan(root)
+	if err != nil {
+		t.Fatalf("Scan returned error: %v", err)
+	}
+	if report.Summary.ByRule[ruleCrossPluginPrivateImport] != 7 {
+		t.Fatalf("expected private import findings, got %#v", report.Summary.ByRule)
+	}
+	if report.Summary.ByCategory[categoryBoundary] != 7 {
+		t.Fatalf("expected boundary category findings, got %#v", report.Summary.ByCategory)
+	}
+	if report.Summary.ByRule[ruleSourceCapImportMissingDependency] != 0 ||
+		report.Summary.ByRule[ruleSourceCapImportMissingVersion] != 0 {
+		t.Fatalf("did not expect cap dependency findings for private imports, got %#v", report.Summary.ByRule)
+	}
+}
+
+// TestScanAllowsCrossPluginPrivateImportsOnlyInTests verifies test files keep a
+// narrow exception while production backend/pkg imports remain blocked.
+func TestScanAllowsCrossPluginPrivateImportsOnlyInTests(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	ownerRoot := filepath.Join(root, "apps", "lina-plugins", "linapro-ai-core")
+	writePluginGovernanceFile(t, filepath.Join(ownerRoot, "plugin.yaml"), "id: linapro-ai-core\n")
+	writePluginGovernanceFile(t, filepath.Join(ownerRoot, "go.mod"), "module lina-plugin-linapro-ai-core\n")
+
+	consumerRoot := filepath.Join(root, "apps", "lina-plugins", "linapro-consumer-source")
+	writePluginGovernanceFile(t, filepath.Join(consumerRoot, "plugin.yaml"), "id: linapro-consumer-source\n")
+	writePluginGovernanceFile(t, filepath.Join(consumerRoot, "backend", "internal", "service", "ai_test.go"), `
+package service
+
+import (
+	_ "lina-plugin-linapro-ai-core/backend/internal/service/ai"
+	_ "lina-plugin-linapro-ai-core/backend/pkg/aiclient"
+)
+`)
+	writePluginGovernanceFile(t, filepath.Join(consumerRoot, "backend", "internal", "service", "ai.go"), `
+package service
+
+import _ "lina-plugin-linapro-ai-core/backend/pkg/aiclient"
+`)
+
+	report, err := Scan(root)
+	if err != nil {
+		t.Fatalf("Scan returned error: %v", err)
+	}
+	if report.Summary.ByRule[ruleCrossPluginPrivateImport] != 1 {
+		t.Fatalf("expected only production backend/pkg import finding, got %#v", report.Summary.ByRule)
+	}
+	if len(report.Findings) != 1 ||
+		!strings.HasSuffix(report.Findings[0].Path, "backend/internal/service/ai.go") ||
+		!strings.Contains(report.Findings[0].Content, "backend/pkg/aiclient") {
+		t.Fatalf("expected single production backend/pkg finding, got %#v", report.Findings)
+	}
+}
+
+// TestScanAllowsDeclaredCrossPluginCapImport verifies declared owner plugin
+// dependencies and self backend/cap imports do not produce findings.
+func TestScanAllowsDeclaredCrossPluginCapImport(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	ownerRoot := filepath.Join(root, "apps", "lina-plugins", "linapro-ai-core")
+	writePluginGovernanceFile(t, filepath.Join(ownerRoot, "plugin.yaml"), "id: linapro-ai-core\n")
+	writePluginGovernanceFile(t, filepath.Join(ownerRoot, "go.mod"), "module lina-plugin-linapro-ai-core\n")
+	writePluginGovernanceFile(t, filepath.Join(ownerRoot, "backend", "plugin.go"), `
+package backend
+
+import _ "lina-plugin-linapro-ai-core/backend/cap/aicap/aitext"
+`)
+
+	consumerRoot := filepath.Join(root, "apps", "lina-plugins", "linapro-consumer-source")
+	writePluginGovernanceFile(t, filepath.Join(consumerRoot, "plugin.yaml"), `
+id: linapro-consumer-source
+type: source
+dependencies:
+  plugins:
+    - id: linapro-ai-core
+      version: ">=0.1.0 <0.2.0"
+`)
+	writePluginGovernanceFile(t, filepath.Join(consumerRoot, "backend", "internal", "service", "ai.go"), `
+package service
+
+import _ "lina-plugin-linapro-ai-core/backend/cap/aicap/aitext"
+`)
+
+	report, err := Scan(root)
+	if err != nil {
+		t.Fatalf("Scan returned error: %v", err)
+	}
+	if len(report.Findings) != 0 {
+		t.Fatalf("expected no findings for declared owner cap dependency, got %#v", report.Findings)
+	}
+}
+
 // TestScanRejectsLegacyBackendConfig verifies backend/hack/config.yaml is no
 // longer an accepted plugin DAO config path.
 func TestScanRejectsLegacyBackendConfig(t *testing.T) {

@@ -96,6 +96,12 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 	if err := plugintypes.ValidateDependencySpec(manifest.ID, manifest.Dependencies); err != nil {
 		return gerror.Wrapf(err, "plugin dependency metadata is invalid: %s", fileLabel)
 	}
+	if err := normalizeManifestHostServices(manifest); err != nil {
+		return gerror.Wrapf(err, "plugin host service metadata is invalid: %s", fileLabel)
+	}
+	if err := ValidateOwnerHostServiceDependencies(manifest); err != nil {
+		return gerror.Wrapf(err, "plugin owner host service dependency metadata is invalid: %s", fileLabel)
+	}
 	if plugintypes.NormalizeType(manifest.Type) == pluginv1.PluginTypeSource {
 		if manifest.SourcePlugin != nil && strings.TrimSpace(manifest.SourcePlugin.ID()) != "" {
 			registeredPluginID := strings.TrimSpace(manifest.SourcePlugin.ID())
@@ -189,6 +195,12 @@ func (s *serviceImpl) ValidateUploadedRuntimeManifest(manifest *Manifest) error 
 		return err
 	}
 	if err := plugintypes.ValidateDependencySpec(manifest.ID, manifest.Dependencies); err != nil {
+		return err
+	}
+	if err := normalizeManifestHostServices(manifest); err != nil {
+		return err
+	}
+	if err := ValidateOwnerHostServiceDependencies(manifest); err != nil {
 		return err
 	}
 	if err := ValidatePublicAssets(manifest, manifest.RootDir); err != nil {

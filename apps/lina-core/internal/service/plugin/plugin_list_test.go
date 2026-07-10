@@ -687,6 +687,65 @@ func TestListPaginatesAndKeepsGovernanceDetailsOutOfSummary(t *testing.T) {
 	}
 }
 
+// TestListOwnerHostServiceSummarySkipsFullDependencyChecks verifies the first
+// management list screen stays on the summary projection even when a dynamic
+// plugin declares owner-aware host service dependencies.
+func TestListOwnerHostServiceSummarySkipsFullDependencyChecks(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = startupstats.WithCollector(context.Background(), startupstats.New())
+		ownerID    = "plugin-dev-source-owner-summary-base"
+		consumerID = "plugin-dev-dynamic-owner-summary-consumer"
+	)
+
+	createTestSourceDependencyPlugin(t, ownerID, "Source Owner Summary Base", "v0.1.0", "")
+	writeTestDynamicOwnerHostServiceArtifactWithDependencies(
+		t,
+		consumerID,
+		"Dynamic Owner Summary Consumer",
+		"v0.1.0",
+		&plugintypes.DependencySpec{Plugins: []*plugintypes.PluginDependencySpec{
+			testPluginDependencySpec(ownerID, ">=0.1.0"),
+		}},
+		[]*protocol.HostServiceSpec{{
+			Owner:   ownerID,
+			Service: "ai",
+			Version: "v1",
+			Methods: []string{
+				"text.generate",
+			},
+		}},
+		buildVersionedRuntimeFrontendAssets("owner-summary-consumer"),
+	)
+	cleanupTestPluginIDs(t, context.Background(), ownerID, consumerID)
+
+	out, err := service.List(ctx, ListInput{ID: consumerID})
+	if err != nil {
+		t.Fatalf("expected owner summary list to succeed, got error: %v", err)
+	}
+	item := findPluginItem(out, consumerID)
+	if item == nil {
+		t.Fatalf("expected owner dynamic plugin summary item")
+	}
+	if item.DependencyCheck != nil {
+		t.Fatalf("expected summary list not to attach dependency check, got %#v", item.DependencyCheck)
+	}
+	if len(item.RequestedHostServices) != 0 || len(item.AuthorizedHostServices) != 0 {
+		t.Fatalf("expected summary list to omit owner host service detail, got requested=%#v authorized=%#v", item.RequestedHostServices, item.AuthorizedHostServices)
+	}
+
+	snapshot := startupstats.FromContext(ctx).Snapshot()
+	if got := snapshot.CounterValue(startupstats.CounterPluginScans); got != 1 {
+		t.Fatalf("expected summary list to scan manifests once, got %d", got)
+	}
+	if got := snapshot.CounterValue(startupstats.CounterCatalogSnapshotBuilds); got != 1 {
+		t.Fatalf("expected summary list not to run full dependency snapshots, got %d catalog snapshots", got)
+	}
+	if got := snapshot.CounterValue(startupstats.CounterIntegrationSnapshotBuilds); got != 0 {
+		t.Fatalf("expected summary list not to build integration snapshots, got %d", got)
+	}
+}
+
 // TestReadOnlyListProjectionBatchesDependencyChecks verifies full management
 // projections reuse manifest and store snapshots while attaching dependency
 // status to every row.

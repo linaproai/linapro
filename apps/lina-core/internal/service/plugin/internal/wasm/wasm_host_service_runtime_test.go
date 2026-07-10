@@ -21,6 +21,7 @@ import (
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/plugin/capability"
 	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/capregistry"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/capability/manifestcap"
 	"lina-core/pkg/plugin/capability/plugincap"
@@ -332,6 +333,12 @@ func withTestDomainServices(services capability.Services) testHostServiceRuntime
 	}
 }
 
+func withTestOwnerCapabilities(registry *capregistry.Registry) testHostServiceRuntimeOption {
+	return func(runtime *hostServiceRuntime) {
+		runtime.ownerCapabilities = registry
+	}
+}
+
 func withTestConfigFactory(factory pluginconfig.Factory) testHostServiceRuntimeOption {
 	return func(runtime *hostServiceRuntime) {
 		runtime.pluginConfigFactory = factory
@@ -376,6 +383,7 @@ func withTestHostCallRuntime(t *testing.T, hcc *hostCallContext) *hostCallContex
 func newTestHostServiceRuntime(opts ...testHostServiceRuntimeOption) *hostServiceRuntime {
 	runtime := &hostServiceRuntime{
 		domainServices:      &capabilityHostServiceTestServices{},
+		ownerCapabilities:   capregistry.NewRegistry(),
 		pluginConfigFactory: noopTestConfigFactory{},
 		hostConfigService:   noopTestHostConfigService{},
 		manifestFactory:     noopTestManifestFactory{},

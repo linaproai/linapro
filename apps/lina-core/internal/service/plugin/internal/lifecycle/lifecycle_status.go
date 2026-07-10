@@ -63,6 +63,11 @@ func (s *serviceImpl) UpdateStatus(
 			return err
 		}
 	}
+	if status == statusflag.Disabled.Int() {
+		if err = s.ensureNoReverseDependencies(ctx, pluginID); err != nil {
+			return err
+		}
+	}
 	if plugintypes.NormalizeType(manifest.Type) == pluginv1.PluginTypeDynamic {
 		return s.updateDynamicStatus(ctx, manifest, pluginID, status, options)
 	}

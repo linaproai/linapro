@@ -649,120 +649,109 @@ func TestValidateHostServiceSpecsAcceptsCacheLockNotifyResources(t *testing.T) {
 	}
 }
 
-// TestValidateHostServiceSpecsAcceptsAITextMethodsWithoutResources verifies AI
-// text host service declarations derive host:ai:text without resource refs.
-func TestValidateHostServiceSpecsAcceptsAITextMethodsWithoutResources(t *testing.T) {
+// TestValidateHostServiceSpecsAcceptsOwnerAwareDeclarations verifies
+// plugin-owned host services normalize owner, service, version, and methods.
+func TestValidateHostServiceSpecsAcceptsOwnerAwareDeclarations(t *testing.T) {
 	specs := []*HostServiceSpec{{
+		Owner:   " LINAPRO-AI-CORE ",
 		Service: " AI ",
-		Methods: []string{" Text.Generate "},
-	}}
-
-	if err := ValidateHostServiceSpecs(specs); err != nil {
-		t.Fatalf("expected ai text host service specs to validate, got %v", err)
-	}
-	if len(specs[0].Resources) != 0 {
-		t.Fatalf("expected ai host service to stay resource-less, got %#v", specs[0].Resources)
-	}
-	if specs[0].Service != HostServiceAI {
-		t.Fatalf("expected normalized ai service, got %s", specs[0].Service)
-	}
-	if len(specs[0].Methods) != 1 || specs[0].Methods[0] != HostServiceMethodAITextGenerate {
-		t.Fatalf("expected normalized ai text method, got %#v", specs[0].Methods)
-	}
-	capabilities := CapabilityMapFromHostServices(specs)
-	if _, ok := capabilities[CapabilityAIText]; !ok {
-		t.Fatalf("expected ai declaration to derive %s capability", CapabilityAIText)
-	}
-}
-
-// TestValidateHostServiceSpecsAcceptsAIMultimodalMethodsWithoutResources
-// verifies multimodal AI declarations derive method-specific capabilities
-// without resource refs.
-func TestValidateHostServiceSpecsAcceptsAIMultimodalMethodsWithoutResources(t *testing.T) {
-	specs := []*HostServiceSpec{{
-		Service: HostServiceAI,
+		Version: " V1 ",
 		Methods: []string{
-			HostServiceMethodAIImageGenerate,
-			HostServiceMethodAIEmbeddingCreate,
-			HostServiceMethodAIAudioTranscribe,
-			HostServiceMethodAIVisionAnalyze,
-			HostServiceMethodAIDocumentAnalyze,
-			HostServiceMethodAISafetyModerate,
-			HostServiceMethodAIVideoGenerate,
-			HostServiceMethodAIVideoOperationGet,
+			" Text.Method_Status.Get ",
+			" Text.Generate ",
 		},
 	}}
 
 	if err := ValidateHostServiceSpecs(specs); err != nil {
-		t.Fatalf("expected multimodal ai host service specs to validate, got %v", err)
+		t.Fatalf("expected owner-aware host service declaration to validate, got %v", err)
 	}
-	capabilities := CapabilityMapFromHostServices(specs)
-	for _, capability := range []string{
-		CapabilityAIImage,
-		CapabilityAIEmbedding,
-		CapabilityAIAudio,
-		CapabilityAIVision,
-		CapabilityAIDocument,
-		CapabilityAISafety,
-		CapabilityAIVideo,
-	} {
-		if _, ok := capabilities[capability]; !ok {
-			t.Fatalf("expected ai declaration to derive %s capability", capability)
-		}
+	if specs[0].Owner != "linapro-ai-core" || specs[0].Service != "ai" || specs[0].Version != "v1" {
+		t.Fatalf("expected normalized owner-aware identity, got %#v", specs[0])
+	}
+	expectedMethods := []string{"text.generate", "text.method_status.get"}
+	if !reflect.DeepEqual(specs[0].Methods, expectedMethods) {
+		t.Fatalf("expected normalized owner-aware methods, got %#v", specs[0].Methods)
+	}
+	if capabilities := CapabilityMapFromHostServices(specs); len(capabilities) != 0 {
+		t.Fatalf("expected plugin-owned host service to derive no core host capability, got %#v", capabilities)
 	}
 }
 
-// TestValidateHostServiceSpecsRejectsAIUnsupportedMethods verifies unsupported
-// AI methods are rejected before runtime.
-func TestValidateHostServiceSpecsRejectsAIUnsupportedMethods(t *testing.T) {
+// TestValidateHostServiceSpecsRequiresOwnerAndVersionPair verifies owner-aware
+// declarations must include both structured fields.
+func TestValidateHostServiceSpecsRequiresOwnerAndVersionPair(t *testing.T) {
 	for _, testCase := range []HostServiceSpec{
 		{
-			Service: HostServiceAI,
-			Methods: []string{"computer.act"},
+			Owner:   "linapro-ai-core",
+			Service: "ai",
+			Methods: []string{"text.generate"},
 		},
 		{
-			Service: HostServiceAI,
-			Methods: []string{"ui.operate"},
+			Service: "ai",
+			Version: "v1",
+			Methods: []string{"text.generate"},
 		},
 	} {
 		spec := testCase
 		if err := ValidateHostServiceSpecs([]*HostServiceSpec{&spec}); err == nil {
-			t.Fatalf("expected invalid ai host service method to be rejected: %#v", testCase)
+			t.Fatalf("expected owner/version pair validation to fail for %#v", testCase)
 		}
 	}
 }
 
-// TestValidateHostServiceSpecsRejectsAIResources verifies AI declarations use
-// method authorization only and reject every resource declaration shape.
-func TestValidateHostServiceSpecsRejectsAIResources(t *testing.T) {
-	for _, testCase := range []HostServiceSpec{
+// TestValidateHostServiceSpecsRejectsPluginKeyService verifies plugin-owned
+// capabilities cannot be encoded into the service string.
+func TestValidateHostServiceSpecsRejectsPluginKeyService(t *testing.T) {
+	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
+		Service: "plugin:linapro-ai-core:ai:v1",
+		Methods: []string{"text.generate"},
+	}})
+	if err == nil {
+		t.Fatal("expected plugin: service key declaration to be rejected")
+	}
+}
+
+// TestValidateHostServiceSpecsUsesOwnerAwareIdentityForDuplicates verifies
+// duplicate detection keys include owner, service, and version.
+func TestValidateHostServiceSpecsUsesOwnerAwareIdentityForDuplicates(t *testing.T) {
+	specs := []*HostServiceSpec{
 		{
-			Service: HostServiceAI,
-			Methods: []string{HostServiceMethodAITextGenerate},
-			Resources: []*HostServiceResourceSpec{{
-				Ref: "purpose:content.summary",
-			}},
+			Owner:   "other-ai-core",
+			Service: "ai",
+			Version: "v1",
+			Methods: []string{"text.generate"},
 		},
 		{
-			Service: HostServiceAI,
-			Methods: []string{HostServiceMethodAITextGenerate},
-			Paths:   []string{"reports/"},
+			Owner:   "linapro-ai-core",
+			Service: "ai",
+			Version: "v1",
+			Methods: []string{"text.generate"},
+		},
+	}
+
+	if err := ValidateHostServiceSpecs(specs); err != nil {
+		t.Fatalf("expected same service from different owners to validate, got %v", err)
+	}
+	if specs[0].Owner != "linapro-ai-core" || specs[1].Owner != "other-ai-core" {
+		t.Fatalf("expected owner-aware sorting by identity, got %#v", specs)
+	}
+
+	err := ValidateHostServiceSpecs([]*HostServiceSpec{
+		{
+			Owner:   "linapro-ai-core",
+			Service: "ai",
+			Version: "v1",
+			Methods: []string{"text.generate"},
 		},
 		{
-			Service: HostServiceAI,
-			Methods: []string{HostServiceMethodAITextGenerate},
-			Tables:  []string{"plugin_demo_reports"},
+			Owner:   " LINAPRO-AI-CORE ",
+			Service: " AI ",
+			Version: " V1 ",
+			Methods: []string{"text.method_status.get"},
 		},
-		{
-			Service: HostServiceAI,
-			Methods: []string{HostServiceMethodAITextGenerate},
-			Keys:    []string{"ai.default"},
-		},
-	} {
-		spec := testCase
-		if err := ValidateHostServiceSpecs([]*HostServiceSpec{&spec}); err == nil {
-			t.Fatalf("expected ai host service resources to be rejected: %#v", testCase)
-		}
+	})
+	if err == nil {
+		t.Fatal("expected duplicate owner/service/version declarations to be rejected")
 	}
 }
 
@@ -818,6 +807,38 @@ func TestHostServiceSpecJSONUsesResourcePathsForStorage(t *testing.T) {
 	}
 	if len(decoded.Resources) != 0 {
 		t.Fatalf("expected storage host service to decode without resource refs, got %#v", decoded.Resources)
+	}
+}
+
+// TestHostServiceSpecJSONRoundTripsOwnerVersion verifies JSON manifest
+// serialization preserves structured plugin-owned identity fields.
+func TestHostServiceSpecJSONRoundTripsOwnerVersion(t *testing.T) {
+	spec := &HostServiceSpec{
+		Owner:   "linapro-ai-core",
+		Service: "ai",
+		Version: "v1",
+		Methods: []string{"text.generate"},
+	}
+
+	payload, err := json.Marshal(spec)
+	if err != nil {
+		t.Fatalf("expected owner-aware host service json marshal to succeed, got %v", err)
+	}
+
+	var encoded map[string]interface{}
+	if err = json.Unmarshal(payload, &encoded); err != nil {
+		t.Fatalf("expected marshaled owner-aware host service json to decode, got %v", err)
+	}
+	if encoded["owner"] != "linapro-ai-core" || encoded["service"] != "ai" || encoded["version"] != "v1" {
+		t.Fatalf("expected owner/service/version fields in json, got %#v", encoded)
+	}
+
+	decoded := &HostServiceSpec{}
+	if err = json.Unmarshal(payload, decoded); err != nil {
+		t.Fatalf("expected owner-aware host service json unmarshal to succeed, got %v", err)
+	}
+	if decoded.Owner != spec.Owner || decoded.Service != spec.Service || decoded.Version != spec.Version {
+		t.Fatalf("unexpected decoded owner-aware host service: %#v", decoded)
 	}
 }
 
@@ -896,6 +917,38 @@ func TestHostServiceSpecYAMLUsesResourcePathsForManifest(t *testing.T) {
 	}
 	if len(decoded.Resources) != 0 {
 		t.Fatalf("expected manifest host service to decode without resource refs, got %#v", decoded.Resources)
+	}
+}
+
+// TestHostServiceSpecYAMLRoundTripsOwnerVersion verifies plugin.yaml
+// serialization preserves structured plugin-owned identity fields.
+func TestHostServiceSpecYAMLRoundTripsOwnerVersion(t *testing.T) {
+	spec := &HostServiceSpec{
+		Owner:   "linapro-ai-core",
+		Service: "ai",
+		Version: "v1",
+		Methods: []string{"text.generate"},
+	}
+
+	payload, err := yaml.Marshal(spec)
+	if err != nil {
+		t.Fatalf("expected owner-aware host service yaml marshal to succeed, got %v", err)
+	}
+
+	var encoded map[string]interface{}
+	if err = yaml.Unmarshal(payload, &encoded); err != nil {
+		t.Fatalf("expected marshaled owner-aware host service yaml to decode, got %v", err)
+	}
+	if encoded["owner"] != "linapro-ai-core" || encoded["service"] != "ai" || encoded["version"] != "v1" {
+		t.Fatalf("expected owner/service/version fields in yaml, got %#v", encoded)
+	}
+
+	decoded := &HostServiceSpec{}
+	if err = yaml.Unmarshal(payload, decoded); err != nil {
+		t.Fatalf("expected owner-aware host service yaml unmarshal to succeed, got %v", err)
+	}
+	if decoded.Owner != spec.Owner || decoded.Service != spec.Service || decoded.Version != spec.Version {
+		t.Fatalf("unexpected decoded owner-aware host service: %#v", decoded)
 	}
 }
 

@@ -17,6 +17,16 @@ func normalizeHostServiceMethod(value string) string {
 	return normalizeLower(value, "")
 }
 
+// normalizeHostServiceOwner trims and lowercases one owner plugin identifier.
+func normalizeHostServiceOwner(value string) string {
+	return normalizeLower(value, "")
+}
+
+// normalizeHostServiceVersion trims and lowercases one owner capability version.
+func normalizeHostServiceVersion(value string) string {
+	return normalizeLower(value, "")
+}
+
 // normalizeLower trims and lowercases one string, applying the default when
 // the normalized result is empty.
 func normalizeLower(value string, defaultValue string) string {

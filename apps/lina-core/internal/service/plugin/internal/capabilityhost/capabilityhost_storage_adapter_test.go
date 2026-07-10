@@ -345,7 +345,6 @@ func newStorageAdapterTestDirectory(
 		nil,
 		nil,
 		nil,
-		nil,
 		noopJobOwner{},
 		nil,
 		newCapabilityHostTestTenantService(),

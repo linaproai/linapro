@@ -34,13 +34,14 @@ import (
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/plugin/capability"
-	capabilityaitext "lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/bizctxcap"
+	"lina-core/pkg/plugin/capability/capregistry"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	capabilityorgcap "lina-core/pkg/plugin/capability/orgcap"
 	"lina-core/pkg/plugin/capability/plugincap"
 	"lina-core/pkg/plugin/capability/storagecap"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
+	"lina-core/pkg/plugin/pluginhost"
 )
 
 // NewHostConfigService creates the plugin-visible HostConfig capability from
@@ -121,7 +122,6 @@ func NewHostServices(
 	i18nSvc i18nsvc.Service,
 	pluginStateSvc pluginStateLookup,
 	pluginLifecycleSvc plugincap.LifecycleService,
-	aiTextSvc capabilityaitext.Service,
 	userSvc usersvc.Service,
 	fileSvc filesvc.Service,
 	jobSvc jobmeta.Owner,
@@ -145,7 +145,6 @@ func NewHostServices(
 		i18nSvc,
 		pluginStateSvc,
 		pluginLifecycleSvc,
-		aiTextSvc,
 		userSvc,
 		fileSvc,
 		jobSvc,
@@ -164,12 +163,14 @@ func NewHostServices(
 // runtime from startup-owned shared services.
 func newWasmHostServiceRuntime(
 	hostServices capability.Services,
+	ownerCapabilities *capregistry.Registry,
 	configFactory PluginConfigFactory,
 	hostConfigSvc hostconfigcap.Service,
 	manifestFactory manifestresource.Factory,
 ) (wasm.Runtime, error) {
 	runtime, err := wasm.NewRuntime(
 		hostServices,
+		ownerCapabilities,
 		configFactory,
 		hostConfigSvc,
 		manifestFactory,
@@ -178,6 +179,41 @@ func newWasmHostServiceRuntime(
 		return nil, gerror.Wrap(err, "create wasm host service runtime failed")
 	}
 	return runtime, nil
+}
+
+// buildSourceCapabilityRegistry builds the startup owner capability registry
+// from source-plugin declarations registered before plugin service startup.
+func buildSourceCapabilityRegistry() (*capregistry.Registry, error) {
+	registry := capregistry.NewRegistry()
+	for _, definition := range pluginhost.ListSourcePlugins() {
+		if definition == nil {
+			continue
+		}
+		for _, descriptor := range definition.GetCapabilityDescriptors() {
+			if err := validateSourceCapabilityDescriptorOwner(definition.ID(), descriptor); err != nil {
+				return nil, err
+			}
+			if err := registry.Register(descriptor); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return registry, nil
+}
+
+func validateSourceCapabilityDescriptorOwner(pluginID string, descriptor capregistry.Descriptor) error {
+	declaringPluginID := strings.TrimSpace(pluginID)
+	ownerPluginID := strings.TrimSpace(descriptor.OwnerPluginID)
+	if declaringPluginID == "" || ownerPluginID == "" || ownerPluginID != declaringPluginID {
+		return gerror.Newf(
+			"capability descriptor owner must match declaring source plugin: plugin=%s owner=%s service=%s version=%s",
+			declaringPluginID,
+			ownerPluginID,
+			strings.TrimSpace(descriptor.Service),
+			strings.TrimSpace(descriptor.Version),
+		)
+	}
+	return nil
 }
 
 // dataTableMetadataSchema is the host schema used by PostgreSQL metadata

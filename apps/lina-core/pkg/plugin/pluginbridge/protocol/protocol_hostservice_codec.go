@@ -12,8 +12,13 @@ import (
 
 // HostServiceRequestEnvelope carries one structured host service invocation.
 type HostServiceRequestEnvelope struct {
+	// Owner identifies the plugin-owned capability owner. Core-owned services
+	// leave it empty.
+	Owner string `json:"owner,omitempty"`
 	// Service identifies the logical host service.
 	Service string `json:"service"`
+	// Version identifies the plugin-owned capability protocol version.
+	Version string `json:"version,omitempty"`
 	// Method identifies one method under the logical host service.
 	Method string `json:"method"`
 	// ResourceRef is the optional logical resource reference.
@@ -63,6 +68,12 @@ func MarshalHostServiceRequestEnvelope(req *HostServiceRequestEnvelope) []byte {
 	if len(req.Payload) > 0 {
 		content = appendBytesField(content, 5, req.Payload)
 	}
+	if value := strings.TrimSpace(req.Owner); value != "" {
+		content = appendStringField(content, 6, value)
+	}
+	if value := strings.TrimSpace(req.Version); value != "" {
+		content = appendStringField(content, 7, value)
+	}
 	return content
 }
 
@@ -111,6 +122,20 @@ func UnmarshalHostServiceRequestEnvelope(data []byte) (*HostServiceRequestEnvelo
 				return nil, gerror.New("failed to decode host service request payload")
 			}
 			out.Payload = append([]byte(nil), value...)
+			content = content[size:]
+		case 6:
+			value, size := protowire.ConsumeString(content)
+			if size < 0 {
+				return nil, gerror.New("failed to decode host service request owner")
+			}
+			out.Owner = value
+			content = content[size:]
+		case 7:
+			value, size := protowire.ConsumeString(content)
+			if size < 0 {
+				return nil, gerror.New("failed to decode host service request version")
+			}
+			out.Version = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)

@@ -11,8 +11,8 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/capregistry"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
@@ -130,9 +130,7 @@ func TestProviderDeclarationsStoreFactories(t *testing.T) {
 	orgFactory := func(context.Context, orgspi.ProviderEnv) (orgspi.Provider, error) {
 		return nil, nil
 	}
-	aiTextFactory := func(context.Context, aitext.ProviderEnv) (aitext.Provider, error) {
-		return nil, nil
-	}
+	descriptor := testCapabilityDescriptor("test-plugin-provider", "ai", "v1", "text.generate")
 
 	if err := providers.ProvideTenant(tenantFactory); err != nil {
 		t.Fatalf("expected tenant provider declaration to succeed, got %v", err)
@@ -140,8 +138,8 @@ func TestProviderDeclarationsStoreFactories(t *testing.T) {
 	if err := providers.ProvideOrg(orgFactory); err != nil {
 		t.Fatalf("expected org provider declaration to succeed, got %v", err)
 	}
-	if err := providers.ProvideAIText(aiTextFactory); err != nil {
-		t.Fatalf("expected text AI provider declaration to succeed, got %v", err)
+	if err := providers.ProvideCapability(descriptor); err != nil {
+		t.Fatalf("expected capability descriptor declaration to succeed, got %v", err)
 	}
 
 	definition := mustSourcePluginDefinition(t, plugin)
@@ -151,8 +149,8 @@ func TestProviderDeclarationsStoreFactories(t *testing.T) {
 	if definition.GetOrgProviderFactory() == nil {
 		t.Fatalf("expected org provider factory to be stored")
 	}
-	if definition.GetAITextProviderFactory() == nil {
-		t.Fatalf("expected text AI provider factory to be stored")
+	if descriptors := definition.GetCapabilityDescriptors(); len(descriptors) != 1 || descriptors[0].Service != "ai" {
+		t.Fatalf("expected capability descriptor to be stored, got %#v", descriptors)
 	}
 	if err := providers.ProvideTenant(tenantFactory); err == nil {
 		t.Fatalf("expected duplicate tenant provider declaration to fail")
@@ -160,8 +158,25 @@ func TestProviderDeclarationsStoreFactories(t *testing.T) {
 	if err := providers.ProvideOrg(orgFactory); err == nil {
 		t.Fatalf("expected duplicate org provider declaration to fail")
 	}
-	if err := providers.ProvideAIText(aiTextFactory); err == nil {
-		t.Fatalf("expected duplicate text AI provider declaration to fail")
+	if err := providers.ProvideCapability(descriptor); err == nil {
+		t.Fatalf("expected duplicate capability descriptor declaration to fail")
+	}
+}
+
+// TestProviderDeclarationsRejectMismatchedCapabilityOwner verifies source
+// plugins cannot declare descriptors owned by a different plugin ID.
+func TestProviderDeclarationsRejectMismatchedCapabilityOwner(t *testing.T) {
+	providers := NewDeclarations("test-plugin-owner").Providers()
+	descriptor := testCapabilityDescriptor("linapro-ai-core", "ai", "v1", "text.generate")
+
+	err := providers.ProvideCapability(descriptor)
+	if err == nil {
+		t.Fatal("expected mismatched owner descriptor declaration to fail")
+	}
+	for _, want := range []string{"test-plugin-owner", "linapro-ai-core", "ai", "v1"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("expected error to contain %q, got %v", want, err)
+		}
 	}
 }
 
@@ -176,8 +191,8 @@ func TestProviderDeclarationsRejectNilFactories(t *testing.T) {
 	if err := providers.ProvideOrg(nil); err == nil {
 		t.Fatalf("expected nil org provider factory to fail")
 	}
-	if err := providers.ProvideAIText(nil); err == nil {
-		t.Fatalf("expected nil text AI provider factory to fail")
+	if err := providers.ProvideCapability(capregistry.Descriptor{}); err == nil {
+		t.Fatalf("expected invalid capability descriptor to fail")
 	}
 }
 
@@ -563,4 +578,20 @@ func mustSourcePluginDefinition(t *testing.T, plugin Declarations) SourcePluginD
 		t.Fatalf("expected source plugin to implement SourcePluginDefinition")
 	}
 	return definition
+}
+
+func testCapabilityDescriptor(owner string, service string, version string, method string) capregistry.Descriptor {
+	return capregistry.Descriptor{
+		OwnerPluginID: owner,
+		Service:       service,
+		Version:       version,
+		Methods: []capregistry.MethodDescriptor{
+			{
+				Method:       method,
+				Capability:   "framework.test.v1",
+				Risk:         capregistry.RiskLevelExecute,
+				ResourceKind: capregistry.ResourceKindNone,
+			},
+		},
+	}
 }

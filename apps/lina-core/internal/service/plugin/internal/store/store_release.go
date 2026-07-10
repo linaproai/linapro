@@ -344,6 +344,11 @@ func (s *serviceImpl) buildManifestSnapshotModel(manifest *catalog.Manifest) (*M
 	if err != nil {
 		return nil, err
 	}
+	dependencyCheckManifest := *manifest
+	dependencyCheckManifest.HostServices = requestedHostServices
+	if err := catalog.ValidateOwnerHostServiceDependencies(&dependencyCheckManifest); err != nil {
+		return nil, err
+	}
 
 	snapshot := &ManifestSnapshot{
 		ID:                        manifest.ID,

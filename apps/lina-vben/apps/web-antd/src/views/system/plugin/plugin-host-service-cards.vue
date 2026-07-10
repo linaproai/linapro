@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { HostServiceCardView } from './plugin-host-service-view';
 
+import { $t } from '#/locales';
+
 import { Tag } from 'ant-design-vue';
 
 interface Props {
@@ -18,7 +20,7 @@ function hasPanelTargets(card: HostServiceCardView['scopes'][number]) {
   <div class="flex flex-col gap-4">
     <div
       v-for="card in cards"
-      :key="card.service"
+      :key="card.identityKey"
       class="rounded-md border border-[var(--ant-color-border)] p-4"
     >
       <div class="mb-3 flex flex-wrap items-center gap-2">
@@ -26,6 +28,24 @@ function hasPanelTargets(card: HostServiceCardView['scopes'][number]) {
           {{ card.title }}
         </span>
         <Tag color="blue">{{ card.service }}</Tag>
+        <Tag
+          v-if="card.owner"
+          :data-testid="`plugin-host-service-owner-${card.identityTestIdValue}`"
+          color="purple"
+        >
+          {{ $t('pages.system.plugin.hostServices.identity.owner') }}：{{
+            card.owner
+          }}
+        </Tag>
+        <Tag
+          v-if="card.version"
+          :data-testid="`plugin-host-service-version-${card.identityTestIdValue}`"
+          color="cyan"
+        >
+          {{ $t('pages.system.plugin.hostServices.identity.version') }}：{{
+            card.version
+          }}
+        </Tag>
       </div>
 
       <div class="flex flex-col gap-3">
@@ -41,7 +61,10 @@ function hasPanelTargets(card: HostServiceCardView['scopes'][number]) {
             >
               {{ scope.label }}
             </Tag>
-            <Tag v-for="method in scope.methods" :key="`${scope.key}-${method}`">
+            <Tag
+              v-for="method in scope.methods"
+              :key="`${scope.key}-${method}`"
+            >
               {{ method }}
             </Tag>
             <span
@@ -54,7 +77,11 @@ function hasPanelTargets(card: HostServiceCardView['scopes'][number]) {
 
           <div
             v-if="scope.targets.length > 0"
-            :class="hasPanelTargets(scope) ? 'flex flex-col gap-2' : 'flex flex-wrap items-center gap-2'"
+            :class="
+              hasPanelTargets(scope)
+                ? 'flex flex-col gap-2'
+                : 'flex flex-wrap items-center gap-2'
+            "
           >
             <Tag
               v-if="scope.targetSummaryLabel"
@@ -84,7 +111,9 @@ function hasPanelTargets(card: HostServiceCardView['scopes'][number]) {
                   "
                   class="min-w-[260px] max-w-full rounded-md border border-[var(--ant-color-border-secondary)] bg-[var(--ant-color-fill-quaternary)] px-3 py-2"
                 >
-                  <div class="text-[13px] font-medium text-[var(--ant-color-text)]">
+                  <div
+                    class="text-[13px] font-medium text-[var(--ant-color-text)]"
+                  >
                     {{ target.label }}
                   </div>
                   <div

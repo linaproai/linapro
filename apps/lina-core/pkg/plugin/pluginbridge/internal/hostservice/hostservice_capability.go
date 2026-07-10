@@ -53,6 +53,9 @@ func CapabilityMapFromHostServices(specs []*HostServiceSpec) map[string]struct{}
 		if spec == nil {
 			continue
 		}
+		if normalizeHostServiceOwner(spec.Owner) != "" {
+			continue
+		}
 		service := normalizeHostServiceName(spec.Service)
 		methods := spec.Methods
 		for _, rawMethod := range methods {

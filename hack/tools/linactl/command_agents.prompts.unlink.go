@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"linactl/internal/agents/common"
-	"linactl/internal/agents/prompts"
+	"linactl/internal/agents/registry"
 )
 
 // runAgentsPromptsUnlink dispatches agents.prompts.unlink command
@@ -32,7 +32,7 @@ func runAgentsPromptsUnlink(_ context.Context, a *app, input commandInput) error
 // runAgentsPromptsUnlinkInteractive walks the user through a numbered
 // selection of currently managed links to remove.
 func runAgentsPromptsUnlinkInteractive(a *app) error {
-	candidates := prompts.UnlinkCandidates(a.root)
+	candidates := registry.UnlinkCandidates(a.root, registry.ResourcePrompts)
 	if len(candidates) == 0 {
 		return writeLine(a.stdout, "No managed prompts symlinks were found. Nothing to unlink.")
 	}
@@ -49,7 +49,7 @@ func runAgentsPromptsUnlinkInteractive(a *app) error {
 // executeAgentsPromptsUnlink applies the unlink request and renders
 // results.
 func executeAgentsPromptsUnlink(a *app, selectors []string) error {
-	results, err := prompts.ApplyUnlink(a.root, prompts.UnlinkRequest{Selectors: selectors})
+	results, err := registry.ApplyUnlink(a.root, registry.ResourcePrompts, registry.UnlinkRequest{Selectors: selectors})
 	if err != nil {
 		return err
 	}

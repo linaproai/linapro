@@ -18,6 +18,7 @@ import (
 	"lina-core/internal/service/datascope"
 	hostconfigadapter "lina-core/internal/service/plugin/internal/hostconfig"
 	"lina-core/pkg/plugin/capability/capmodel"
+	"lina-core/pkg/plugin/capability/capregistry"
 	"lina-core/pkg/plugin/capability/hostconfigcap"
 	"lina-core/pkg/plugin/pluginbridge/protocol"
 )
@@ -341,6 +342,7 @@ func TestHandleHostServiceInvokeHostConfigSysConfigSingleKeyMethods(t *testing.T
 func TestConfigureHostConfigServiceRejectsNil(t *testing.T) {
 	if _, err := NewRuntime(
 		&capabilityHostServiceTestServices{},
+		capregistry.NewRegistry(),
 		noopTestConfigFactory{},
 		nil,
 		noopTestManifestFactory{},

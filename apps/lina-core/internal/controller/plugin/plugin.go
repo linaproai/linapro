@@ -80,10 +80,29 @@ func buildPluginDependencyReverseDependents(items []*pluginsvc.DependencyReverse
 			continue
 		}
 		out = append(out, &v1.PluginDependencyReverseDependent{
-			PluginId:        item.PluginID,
-			Name:            item.Name,
-			Version:         item.Version,
-			RequiredVersion: item.RequiredVersion,
+			PluginId:          item.PluginID,
+			Name:              item.Name,
+			Version:           item.Version,
+			RequiredVersion:   item.RequiredVersion,
+			OwnerHostServices: buildPluginDependencyOwnerHostServices(item.OwnerHostServices),
+		})
+	}
+	return out
+}
+
+func buildPluginDependencyOwnerHostServices(
+	items []*pluginsvc.DependencyOwnerHostServiceSummary,
+) []*v1.PluginDependencyOwnerHostService {
+	out := make([]*v1.PluginDependencyOwnerHostService, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		out = append(out, &v1.PluginDependencyOwnerHostService{
+			Owner:   item.Owner,
+			Service: item.Service,
+			Version: item.Version,
+			Methods: cloneAPIStringSlice(item.Methods),
 		})
 	}
 	return out
@@ -113,7 +132,9 @@ func buildAuthorizationInput(req *v1.HostServiceAuthorizationReq) *pluginsvc.Hos
 			continue
 		}
 		input.Services = append(input.Services, &pluginsvc.HostServiceAuthorizationDecision{
+			Owner:        strings.TrimSpace(item.Owner),
 			Service:      strings.TrimSpace(item.Service),
+			Version:      strings.TrimSpace(item.Version),
 			Methods:      append([]string(nil), item.Methods...),
 			Paths:        append([]string(nil), item.Paths...),
 			Keys:         append([]string(nil), item.Keys...),
@@ -136,7 +157,9 @@ func buildHostServicePermissionItems(
 			continue
 		}
 		item := &v1.HostServicePermissionItem{
+			Owner:   spec.Owner,
 			Service: spec.Service,
+			Version: spec.Version,
 			Methods: append([]string(nil), spec.Methods...),
 			Paths:   append([]string(nil), spec.Paths...),
 			Keys:    append([]string(nil), spec.Keys...),

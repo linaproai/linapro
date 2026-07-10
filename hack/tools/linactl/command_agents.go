@@ -1,10 +1,19 @@
 // This file implements the agents aggregate command. The command takes
 // an agent-first stance: users either pass `agent=<name>` for a one-shot
-// non-interactive setup, or run from a TTY to walk a two-step menu
-// (pick agent -> pick link/unlink) that automatically applies to every
-// resource type (skills / prompts / md) the chosen agent participates
-// in. Resources where the agent is native or unregistered are skipped
-// with an explicit reason in the final summary.
+// non-interactive setup, or run from a TTY to pick an agent from a
+// two-group list (built-in support first, needs-setup second; both A-Z
+// and color-coded).
+//
+// Grouping is based only on skills (.agents) and md (AGENTS.md):
+//   - built-in: skills and md are native (or unregistered) — no setup
+//   - needs-setup: skills and/or md still need a managed symlink
+// prompts never moves an agent into needs-setup; optional prompt
+// directories are managed via agents.prompts.*.
+//
+// Needs-setup agents continue to link/unlink across every resource type
+// (skills / prompts / md) they participate in; built-in agents only
+// print a readiness summary. Resources where the agent is native or
+// unregistered are skipped with an explicit reason in the final summary.
 //
 // This file also owns the writeLine / writeLines stdout helpers shared
 // by every agents.* command, and the stdinAsFile helper used by the
@@ -25,10 +34,25 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"linactl/internal/agents/common"
-	"linactl/internal/agents/md"
-	"linactl/internal/agents/prompts"
-	"linactl/internal/agents/skills"
+	"linactl/internal/agents/registry"
+)
+
+// Picker section marker values for the aggregate TTY agent list. They are
+// never valid agent names; selecting one re-prompts the user.
+const (
+	agentPickerSectionBuiltin = "__section_builtin__"
+	agentPickerSectionSetup   = "__section_setup__"
+)
+
+// Picker styles: built-in (native-ready) agents render in green; agents that
+// still need symlink setup render in yellow. Section headers are plain text
+// and styled by the shared list picker so cursor chrome stays consistent.
+var (
+	agentBuiltinStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	agentSetupStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
 )
 
 // agentSetupAction enumerates the actions the aggregate command can
@@ -68,9 +92,10 @@ type selectableAgent struct {
 	Roles map[resourceKind]common.Category
 }
 
-// optionLabel returns the compact label shown in the aggregate TTY agent
-// picker. The picker intentionally hides internal IDs, resource paths and
-// status summaries; those remain available in the per-resource commands.
+// optionLabel returns the compact human-readable label for status output
+// and the interactive picker. The picker intentionally hides internal
+// IDs, resource paths and status summaries; those remain available in
+// the per-resource commands and the built-in readiness summary.
 func (s selectableAgent) optionLabel() string {
 	if label := strings.TrimSpace(s.DisplayName); label != "" {
 		return label
@@ -79,11 +104,38 @@ func (s selectableAgent) optionLabel() string {
 }
 
 // hasLinkRole reports whether the agent has at least one resource where
-// it is link-class. Only such agents are eligible for interactive
-// selection (native-only agents have nothing to link/unlink).
+// it is link-class (a managed relative symlink can be created).
 func (s selectableAgent) hasLinkRole() bool {
 	for _, category := range s.Roles {
 		if category == common.CategoryLink {
+			return true
+		}
+	}
+	return false
+}
+
+// needsSetup reports whether the aggregate `make agents` picker should
+// treat this agent as "Needs setup" rather than "Built-in support".
+//
+// Classification intentionally considers only skills (.agents/skills)
+// and md (AGENTS.md). prompts is excluded: slash-command / prompt
+// directory symlinks are optional enhancements managed by
+// agents.prompts.* and must not force Codex, Cursor, Grok, and similar
+// AGENTS.md + .agents-native tools out of the built-in group.
+//
+// skills/md categories that still need work:
+//   - CategoryLink: create a relative symlink
+//   - CategoryRootCollision: opt-in via force=1 (e.g. openclaw skills/)
+//
+// Missing skills or md registration is not treated as needs-setup; the
+// agent remains built-in when every registered skills/md role is native.
+func (s selectableAgent) needsSetup() bool {
+	for _, kind := range []resourceKind{resourceSkills, resourceMd} {
+		category, present := s.Roles[kind]
+		if !present {
+			continue
+		}
+		if category == common.CategoryLink || category == common.CategoryRootCollision {
 			return true
 		}
 	}
@@ -173,11 +225,16 @@ func printAgentsUsage(out io.Writer) error {
 		"  - agent must name a single supported agent (no 'all', no csv).",
 		"  - action defaults to 'link'.",
 		"  - The selected action runs against every resource type the agent supports.",
+		"  - Built-in agents natively read .agents/skills + AGENTS.md;",
+		"    prompts soft-links are optional and do not affect this group.",
 		"",
 		"Interactive mode (TTY only):",
 		"  make agents",
-		"  - Step 1: arrow-key pick the agent.",
-		"  - Step 2: arrow-key pick link or unlink.",
+		"  - Step 1: arrow-key pick the agent from a two-group list",
+		"    (built-in = skills/md native; needs-setup = skills/md need link;",
+		"    both groups A-Z; prompts is ignored for grouping).",
+		"  - Step 2: for needs-setup agents, pick link or unlink;",
+		"    built-in agents only show a readiness summary.",
 		"",
 		"Advanced per-resource entry points (still available):",
 		"  make agents.skills.link  | agents.skills.unlink",
@@ -204,8 +261,8 @@ func parseAgentSetupAction(raw string, fallback agentSetupAction) (agentSetupAct
 
 // validateSingleAgentName enforces the one-shot mode contract: exactly
 // one supported agent name, no "all", no comma list. The candidate
-// listing in error messages is limited to the link-class universe so
-// users see only agents the aggregate command can actually drive.
+// listing in error messages covers the full cross-resource universe
+// (built-in and needs-setup) so users can discover native-ready tools.
 func validateSingleAgentName(raw string, universe []selectableAgent) (string, error) {
 	normalized := common.NormalizeAgentName(raw)
 	if normalized == "" {
@@ -235,126 +292,110 @@ func joinAgentNames(universe []selectableAgent) string {
 	return strings.Join(names, ", ")
 }
 
-// agentDisplayPriority lists the most commonly used agents in the order
-// they should appear at the top of the interactive picker. The first
-// entry takes precedence over the second, and so on. Agents not present
-// in this list fall through to alphabetical order. The list reflects
-// broader community/usage signals so the picker surfaces the agents
-// most users actually need without scrolling; project-internal entries
-// (e.g. codebuddy) intentionally fall back to the alphabetical tail to
-// avoid biasing the default surface. Names that are not currently
-// registered (e.g. cline) are kept in the priority list intentionally —
-// they cost nothing when absent and keep the ordering stable when new
-// registrations land.
-var agentDisplayPriority = []string{
-	"claude-code",
-	"codex",
-	"cursor",
-	"gemini-cli",
-	"windsurf",
-	"qwen-code",
-	"continue",
-	"cline",
-	"trae",
-	"roo",
-	"kiro-cli",
-	"aider-desk",
-	"augment",
-}
-
-// agentPriorityRank returns the configured display rank for the given
-// agent name. Agents not present in agentDisplayPriority receive a rank
-// strictly larger than any priority entry so they sort after every
-// priority agent. The boolean reports whether the name was found inside
-// the priority list, which lets callers distinguish "alphabetical tail"
-// from "explicit priority" without relying on sentinel values.
-func agentPriorityRank(name string) (int, bool) {
-	for index, candidate := range agentDisplayPriority {
-		if candidate == name {
-			return index, true
-		}
-	}
-	return len(agentDisplayPriority), false
-}
-
-// collectAgentUniverse merges the three resource registries and returns
-// every agent that is link-class in at least one resource. Native-only
-// agents are excluded because the aggregate command never has work to
-// do on them. The returned slice is sorted so that agents listed in
-// agentDisplayPriority appear first in the configured order, with the
-// remaining agents falling back to alphabetical order for stable
-// output.
+// collectAgentUniverse builds the aggregate picker universe from the
+// unified agents registry. Every product appears once; Roles records the
+// category of each registered resource binding (skills / prompts / md).
+// The returned slice is sorted alphabetically by canonical agent name.
 //
 // The repoRoot parameter is intentionally unused. It remains in the
 // signature because callers already pass it and future registries may need
 // repository context, but the aggregate picker does not inspect runtime
 // link state while building its compact labels.
 func collectAgentUniverse(_ string) []selectableAgent {
-	universe := make(map[string]*selectableAgent)
-
-	upsert := func(name, display string, kind resourceKind, category common.Category) {
-		entry, exists := universe[name]
-		if !exists {
-			entry = &selectableAgent{
-				Name:        name,
-				DisplayName: display,
-				Roles:       map[resourceKind]common.Category{},
-			}
-			universe[name] = entry
+	all := registry.Agents()
+	out := make([]selectableAgent, 0, len(all))
+	for _, agent := range all {
+		entry := selectableAgent{
+			Name:        agent.Name,
+			DisplayName: agent.DisplayName,
+			Roles:       map[resourceKind]common.Category{},
 		}
-		if entry.DisplayName == "" {
-			entry.DisplayName = display
+		if agent.Skills.Registered() {
+			entry.Roles[resourceSkills] = agent.Skills.Category
 		}
-		entry.Roles[kind] = category
-	}
-
-	for _, spec := range skills.Agents() {
-		upsert(spec.Name, spec.DisplayName, resourceSkills, spec.Category)
-	}
-	for _, spec := range prompts.Agents() {
-		upsert(spec.Name, spec.DisplayName, resourcePrompts, spec.Category)
-	}
-	for _, spec := range md.Agents() {
-		upsert(spec.Name, spec.DisplayName, resourceMd, spec.Category)
-	}
-
-	out := make([]selectableAgent, 0, len(universe))
-	for _, entry := range universe {
-		if !entry.hasLinkRole() {
-			continue
+		if agent.Prompts.Registered() {
+			entry.Roles[resourcePrompts] = agent.Prompts.Category
 		}
-		out = append(out, *entry)
+		if agent.MD.Registered() {
+			entry.Roles[resourceMd] = agent.MD.Category
+		}
+		out = append(out, entry)
 	}
 	sort.Slice(out, func(left, right int) bool {
-		leftRank, leftPriority := agentPriorityRank(out[left].Name)
-		rightRank, rightPriority := agentPriorityRank(out[right].Name)
-		switch {
-		case leftPriority && rightPriority:
-			return leftRank < rightRank
-		case leftPriority:
-			return true
-		case rightPriority:
-			return false
-		default:
-			return out[left].Name < out[right].Name
-		}
+		return out[left].Name < out[right].Name
 	})
 	return out
 }
 
-// runAgentInteractiveMenu drives the two-step TTY flow:
-//  1. select one agent from the link-class universe (huh single-select);
-//  2. select link or unlink (huh single-select).
+// partitionAgentUniverse splits agents into built-in ready (no symlink
+// work) and needs-setup groups. Both output slices keep alphabetical
+// order by agent Name.
+func partitionAgentUniverse(universe []selectableAgent) (builtin []selectableAgent, setup []selectableAgent) {
+	for _, agent := range universe {
+		if agent.needsSetup() {
+			setup = append(setup, agent)
+			continue
+		}
+		builtin = append(builtin, agent)
+	}
+	return builtin, setup
+}
+
+// buildAgentPickerOptions builds the aggregate TTY select options as two
+// colored groups: built-in support first, needs-setup second. Section
+// headers use reserved values that are not real agent names.
+func buildAgentPickerOptions(universe []selectableAgent) []common.SingleOption {
+	builtin, setup := partitionAgentUniverse(universe)
+	options := make([]common.SingleOption, 0, len(universe)+2)
+	if len(builtin) > 0 {
+		options = append(options, common.SingleOption{
+			Value:   agentPickerSectionBuiltin,
+			Label:   "── Built-in support (no setup needed) ──",
+			Section: true,
+		})
+		for _, agent := range builtin {
+			options = append(options, common.SingleOption{
+				Value: agent.Name,
+				Label: agentBuiltinStyle.Render(agent.optionLabel()),
+			})
+		}
+	}
+	if len(setup) > 0 {
+		options = append(options, common.SingleOption{
+			Value:   agentPickerSectionSetup,
+			Label:   "── Needs setup (symlink) ──",
+			Section: true,
+		})
+		for _, agent := range setup {
+			options = append(options, common.SingleOption{
+				Value: agent.Name,
+				Label: agentSetupStyle.Render(agent.optionLabel()),
+			})
+		}
+	}
+	return options
+}
+
+// isAgentPickerSection reports whether value is a visual section header
+// rather than a real agent name.
+func isAgentPickerSection(value string) bool {
+	return value == agentPickerSectionBuiltin || value == agentPickerSectionSetup
+}
+
+// runAgentInteractiveMenu drives the TTY flow:
+//  1. select one agent from the two-group list (built-in / needs-setup);
+//  2. for needs-setup agents, select link or unlink; for built-in agents,
+//     print a readiness summary and exit.
 //
 // Cancellation at either step returns nil after printing "Cancelled.".
 func runAgentInteractiveMenu(a *app, universe []selectableAgent, force bool) error {
 	if len(universe) == 0 {
-		return writeLine(a.stdout, "No link-class agents are registered; nothing to set up.")
+		return writeLine(a.stdout, "No agents are registered; nothing to configure.")
 	}
 
-	options := make([]common.SingleOption, 0, len(universe))
-	for _, agent := range universe {
-		options = append(options, common.SingleOption{Value: agent.Name, Label: agent.optionLabel()})
+	options := buildAgentPickerOptions(universe)
+	if len(options) == 0 {
+		return writeLine(a.stdout, "No agents are registered; nothing to configure.")
 	}
 
 	agentName, err := common.PromptSingleSelection(a.stdin, a.stdout, "Select an agent to configure:", options)
@@ -363,6 +404,22 @@ func runAgentInteractiveMenu(a *app, universe []selectableAgent, force bool) err
 	}
 	if agentName == "" {
 		return writeLine(a.stdout, "Cancelled.")
+	}
+	// Defensive: section rows are not selectable in the list picker, but
+	// reject reserved values if a future caller constructs them as normal
+	// options without Section=true.
+	if isAgentPickerSection(agentName) {
+		return writeLine(a.stdout, "Please select a tool name (section headers are not selectable).")
+	}
+
+	target, ok := lookupAgent(universe, agentName)
+	if !ok {
+		return fmt.Errorf("agent %q not found in the cross-resource registry", agentName)
+	}
+
+	// Built-in agents already read canonical paths; only show readiness.
+	if !target.needsSetup() {
+		return printBuiltinAgentReady(a.stdout, target)
 	}
 
 	actionChoice, err := common.PromptSingleSelection(a.stdin, a.stdout,
@@ -384,11 +441,62 @@ func runAgentInteractiveMenu(a *app, universe []selectableAgent, force bool) err
 	return dispatchAgentSetup(a, agentName, action, force, universe)
 }
 
+// printBuiltinAgentReady explains that the selected agent already works
+// against LinaPro skills (.agents) and AGENTS.md without creating managed
+// symlinks. prompts is listed for transparency but is not part of the
+// built-in / needs-setup classification.
+func printBuiltinAgentReady(out io.Writer, target selectableAgent) error {
+	lines := []string{
+		fmt.Sprintf("Agent: %s", target.optionLabel()),
+		"Status: built-in support (no setup needed)",
+		"",
+		"Built-in means this tool natively reads .agents/skills and AGENTS.md.",
+		"No managed symlink is required for skills / project rules:",
+		"",
+	}
+	for _, kind := range []resourceKind{resourceSkills, resourceMd} {
+		category, present := target.Roles[kind]
+		if !present {
+			lines = append(lines, fmt.Sprintf("  %-7s  not registered", kind))
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("  %-7s  %s", kind, category))
+	}
+	if category, present := target.Roles[resourcePrompts]; present {
+		lines = append(lines,
+			"",
+			fmt.Sprintf("  %-7s  %s (optional; not required for built-in)", resourcePrompts, category),
+		)
+		if category == common.CategoryLink {
+			lines = append(lines,
+				"  Tip: make agents.prompts.link agent="+target.Name,
+				"       to expose .agents/prompts under this tool's commands path.",
+			)
+		}
+	} else {
+		lines = append(lines,
+			"",
+			fmt.Sprintf("  %-7s  not registered (optional)", resourcePrompts),
+		)
+	}
+	lines = append(lines,
+		"",
+		"Tip: clone the repo and start coding. prompts soft-links are optional",
+		"and managed only via make agents.prompts.link / unlink.",
+	)
+	return writeLines(out, lines...)
+}
+
 // dispatchAgentSetup executes the chosen action across every resource
 // type the agent participates in and renders a compact resource-level
 // summary. Per-resource commands still own the verbose path/category
 // tables; the aggregate command stays focused on the high-level outcome
 // for the selected agent.
+//
+// Built-in agents (skills + AGENTS.md already native) short-circuit to a
+// readiness summary. prompts-only link work is not triggered here so
+// Codex/Grok/etc. stay zero-config; use agents.prompts.link when the
+// optional prompt directory bridge is desired.
 func dispatchAgentSetup(a *app, agentName string, action agentSetupAction, force bool, universe []selectableAgent) error {
 	target, ok := lookupAgent(universe, agentName)
 	if !ok {
@@ -396,6 +504,10 @@ func dispatchAgentSetup(a *app, agentName string, action agentSetupAction, force
 		// unknown names. Defensive guard so callers that bypass the
 		// validator (future internal callers) still get a clear error.
 		return fmt.Errorf("agent %q not found in the cross-resource registry", agentName)
+	}
+
+	if !target.needsSetup() {
+		return printBuiltinAgentReady(a.stdout, target)
 	}
 
 	if err := writeLines(a.stdout,
@@ -473,24 +585,27 @@ const (
 // compact table after all resources have been processed.
 func runAggregateResourceAction(a *app, kind resourceKind, agentName string, action agentSetupAction, force bool) ([]common.Result, error) {
 	selectors := []string{agentName}
+	resource, err := registryResourceKind(kind)
+	if err != nil {
+		return nil, err
+	}
+	if action == actionLink {
+		return registry.ApplyLink(a.root, resource, registry.LinkRequest{Selectors: selectors, Force: force})
+	}
+	return registry.ApplyUnlink(a.root, resource, registry.UnlinkRequest{Selectors: selectors})
+}
+
+// registryResourceKind maps aggregate resourceKind onto registry.ResourceKind.
+func registryResourceKind(kind resourceKind) (registry.ResourceKind, error) {
 	switch kind {
 	case resourceSkills:
-		if action == actionLink {
-			return skills.ApplyLink(a.root, skills.LinkRequest{Selectors: selectors, Force: force})
-		}
-		return skills.ApplyUnlink(a.root, skills.UnlinkRequest{Selectors: selectors})
+		return registry.ResourceSkills, nil
 	case resourcePrompts:
-		if action == actionLink {
-			return prompts.ApplyLink(a.root, prompts.LinkRequest{Selectors: selectors, Force: force})
-		}
-		return prompts.ApplyUnlink(a.root, prompts.UnlinkRequest{Selectors: selectors})
+		return registry.ResourcePrompts, nil
 	case resourceMd:
-		if action == actionLink {
-			return md.ApplyLink(a.root, md.LinkRequest{Selectors: selectors, Force: force})
-		}
-		return md.ApplyUnlink(a.root, md.UnlinkRequest{Selectors: selectors})
+		return registry.ResourceMD, nil
 	default:
-		return nil, fmt.Errorf("unsupported resource %q", kind)
+		return "", fmt.Errorf("unsupported resource %q", kind)
 	}
 }
 

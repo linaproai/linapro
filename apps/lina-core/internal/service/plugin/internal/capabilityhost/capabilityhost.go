@@ -30,8 +30,6 @@ import (
 	usersvc "lina-core/internal/service/user"
 	usercapadapter "lina-core/internal/service/user/capabilityadapter"
 	"lina-core/pkg/plugin/capability"
-	capabilityai "lina-core/pkg/plugin/capability/aicap"
-	capabilityaitext "lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/apidoccap"
 	"lina-core/pkg/plugin/capability/authcap"
 	"lina-core/pkg/plugin/capability/bizctxcap"
@@ -56,7 +54,6 @@ import (
 type directory struct {
 	apiDoc          apidoccap.Service // apiDoc exposes localized API-documentation route text.
 	auth            authcap.Service   // auth exposes authentication and authorization sub capabilities.
-	ai              capabilityai.Service
 	users           capabilityusercap.Service
 	bizCtx          bizctxcap.Service // bizCtx exposes read-only request business context.
 	cache           kvcache.Service   // cache owns the shared runtime-selected KV backend.
@@ -116,7 +113,6 @@ func New(
 	i18nSvc i18nsvc.Service,
 	pluginStateSvc pluginStateLookup,
 	pluginLifecycleSvc plugincap.LifecycleService,
-	aiTextSvc capabilityaitext.Service,
 	userSvc usersvc.Service,
 	fileSvc filesvc.Service,
 	jobSvc jobmeta.Owner,
@@ -172,14 +168,12 @@ func New(
 		jobDomain          = jobcapadapter.NewCapabilityAdapter(jobSvc, tenantFilterSvc, scopeSvc)
 		pluginState        = pluginStateSvc
 		pluginLifecycle    = plugincap.NewLifecycle(pluginLifecycleSvc)
-		aiDomain           = capabilityai.New(aiTextSvc)
 		pluginDomain       = capabilityowner.NewCapabilityAdapter(pluginConfigFactory, pluginState, pluginLifecycle, tenantSvc, cacheCoordSvc)
 		tenantDomain       = newTenantDomainService(tenantSvc, pluginDomain)
 	)
 	return &directory{
 		apiDoc:          newAPIDocAdapter(apiDocSvc),
 		auth:            authcap.New(tokenDomain, authzDomain),
-		ai:              aiDomain,
 		users:           userDomain,
 		bizCtx:          bizCtxAdapter,
 		cache:           kvCacheSvc,

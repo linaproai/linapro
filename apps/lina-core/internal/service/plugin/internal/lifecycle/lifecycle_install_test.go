@@ -97,6 +97,13 @@ func TestBuildLifecycleAuthorizedHostServicesDropsUnconfirmedResources(t *testin
 			},
 			Paths: []string{"private-files/"},
 		},
+		{
+			Service: protocol.HostServiceHostConfig,
+			Methods: []string{
+				protocol.HostServiceMethodHostConfigGet,
+			},
+			Keys: []string{"ai.default"},
+		},
 	}
 
 	withoutAuthorization, err := buildLifecycleAuthorizedHostServices("plugin-test-lifecycle", hostServices, nil)
@@ -116,13 +123,17 @@ func TestBuildLifecycleAuthorizedHostServicesDropsUnconfirmedResources(t *testin
 					Service: protocol.HostServiceStorage,
 					Paths:   []string{"private-files/"},
 				},
+				{
+					Service: protocol.HostServiceHostConfig,
+					Keys:    []string{"ai.default"},
+				},
 			},
 		},
 	)
 	if err != nil {
 		t.Fatalf("expected lifecycle host service authorization to normalize, got error: %v", err)
 	}
-	if len(withAuthorization) != 2 {
-		t.Fatalf("expected runtime and authorized storage host services, got %#v", withAuthorization)
+	if len(withAuthorization) != 3 {
+		t.Fatalf("expected runtime and authorized storage/config host services, got %#v", withAuthorization)
 	}
 }

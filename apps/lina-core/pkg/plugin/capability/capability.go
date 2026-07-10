@@ -5,7 +5,6 @@
 package capability
 
 import (
-	"lina-core/pkg/plugin/capability/aicap"
 	"lina-core/pkg/plugin/capability/apidoccap"
 	"lina-core/pkg/plugin/capability/authcap"
 	"lina-core/pkg/plugin/capability/bizctxcap"
@@ -37,8 +36,6 @@ type Services interface {
 	APIDoc() apidoccap.Service
 	// Auth returns the authentication and authorization capability namespace.
 	Auth() authcap.Service
-	// AI returns the host AI capability namespace.
-	AI() aicap.Service
 	// Users returns the user-domain ordinary capability service.
 	Users() usercap.Service
 	// BizCtx returns the current request business-context service.

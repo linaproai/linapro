@@ -39,7 +39,6 @@ import (
 	sysinfosvc "lina-core/internal/service/sysinfo"
 	"lina-core/internal/service/user"
 	"lina-core/internal/service/usermsg"
-	"lina-core/pkg/plugin/capability/aicap/aitext"
 	"lina-core/pkg/plugin/capability/orgcap/orgspi"
 	"lina-core/pkg/plugin/capability/tenantcap/tenantspi"
 )
@@ -241,7 +240,6 @@ func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
 		i18nService,
 		pluginRuntime,
 		pluginRuntime,
-		aitext.New(nil, pluginRuntime, pluginRuntime.AITextProviderEnv),
 		userSvc,
 		fileSvc,
 		jobMgmtSvc,

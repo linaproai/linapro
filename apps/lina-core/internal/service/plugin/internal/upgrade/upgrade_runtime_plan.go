@@ -38,7 +38,7 @@ type SQLSummary struct {
 	RuntimeSQLAssetCount int
 }
 
-// HostServicesDiff summarizes service-level hostServices drift.
+// HostServicesDiff summarizes owner/service/version-level hostServices drift.
 type HostServicesDiff struct {
 	// Added contains services declared by the target manifest but not by the effective snapshot.
 	Added []*HostServiceChange
@@ -52,10 +52,14 @@ type HostServicesDiff struct {
 	AuthorizationChanged bool
 }
 
-// HostServiceChange summarizes one service-level hostServices change.
+// HostServiceChange summarizes one owner/service/version-level hostServices change.
 type HostServiceChange struct {
+	// Owner is the owner plugin ID for plugin-owned host services.
+	Owner string
 	// Service is the logical host service identifier.
 	Service string
+	// Version is the owner capability protocol version for plugin-owned host services.
+	Version string
 	// FromMethods is the effective method set before upgrade.
 	FromMethods []string
 	// ToMethods is the target method set after upgrade.
@@ -64,6 +68,10 @@ type HostServiceChange struct {
 	FromResourceCount int
 	// ToResourceCount is the number of governed targets after upgrade.
 	ToResourceCount int
+	// FromResourceRefs is the effective governed resource ref set before upgrade.
+	FromResourceRefs []string
+	// ToResourceRefs is the target governed resource ref set after upgrade.
+	ToResourceRefs []string
 	// FromTables is the effective data-table set before upgrade.
 	FromTables []string
 	// ToTables is the target data-table set after upgrade.
@@ -152,7 +160,7 @@ func buildSQLSummary(snapshot *store.ManifestSnapshot) SQLSummary {
 	}
 }
 
-// buildHostServicesDiff compares effective and target requested hostServices at service level.
+// buildHostServicesDiff compares effective and target requested hostServices at owner/service/version level.
 func buildHostServicesDiff(
 	fromSnapshot *store.ManifestSnapshot,
 	toSnapshot *store.ManifestSnapshot,
@@ -168,24 +176,24 @@ func buildHostServicesDiff(
 	diff := HostServicesDiff{}
 	diff.AuthorizationRequired = toSnapshot != nil && toSnapshot.HostServiceAuthRequired
 
-	serviceSet := make(map[string]struct{}, len(fromServices)+len(toServices))
-	for service := range fromServices {
-		serviceSet[service] = struct{}{}
+	identitySet := make(map[string]struct{}, len(fromServices)+len(toServices))
+	for identity := range fromServices {
+		identitySet[identity] = struct{}{}
 	}
-	for service := range toServices {
-		serviceSet[service] = struct{}{}
+	for identity := range toServices {
+		identitySet[identity] = struct{}{}
 	}
-	services := make([]string, 0, len(serviceSet))
-	for service := range serviceSet {
-		services = append(services, service)
+	identities := make([]string, 0, len(identitySet))
+	for identity := range identitySet {
+		identities = append(identities, identity)
 	}
-	sort.Strings(services)
+	sort.Strings(identities)
 
-	for _, service := range services {
+	for _, identity := range identities {
 		var (
-			fromSpec = fromServices[service]
-			toSpec   = toServices[service]
-			change   = buildHostServiceChange(service, fromSpec, toSpec)
+			fromSpec = fromServices[identity]
+			toSpec   = toServices[identity]
+			change   = buildHostServiceChange(fromSpec, toSpec)
 		)
 		switch {
 		case fromSpec == nil && toSpec != nil:
@@ -231,7 +239,7 @@ func requestedHostServices(snapshot *store.ManifestSnapshot) []*protocol.HostSer
 	return snapshot.RequestedHostServices
 }
 
-// normalizeHostServices normalizes hostServices into one map.
+// normalizeHostServices normalizes hostServices into one identity-keyed map.
 func normalizeHostServices(
 	snapshot *store.ManifestSnapshot,
 	specs []*protocol.HostServiceSpec,
@@ -249,7 +257,7 @@ func normalizeHostServices(
 		if spec == nil || strings.TrimSpace(spec.Service) == "" {
 			continue
 		}
-		result[strings.TrimSpace(spec.Service)] = spec
+		result[protocol.HostServiceSpecIdentity(spec)] = spec
 	}
 	return result, nil
 }
@@ -272,16 +280,23 @@ func snapshotVersion(snapshot *store.ManifestSnapshot) string {
 
 // buildHostServiceChange converts two service specs into a stable summary for API projection.
 func buildHostServiceChange(
-	service string,
 	fromSpec *protocol.HostServiceSpec,
 	toSpec *protocol.HostServiceSpec,
 ) *HostServiceChange {
+	identitySpec := toSpec
+	if identitySpec == nil {
+		identitySpec = fromSpec
+	}
 	return &HostServiceChange{
-		Service:           service,
+		Owner:             hostServiceOwner(identitySpec),
+		Service:           hostServiceName(identitySpec),
+		Version:           hostServiceVersion(identitySpec),
 		FromMethods:       cloneSortedStrings(hostServiceMethods(fromSpec)),
 		ToMethods:         cloneSortedStrings(hostServiceMethods(toSpec)),
 		FromResourceCount: len(hostServiceResources(fromSpec)),
 		ToResourceCount:   len(hostServiceResources(toSpec)),
+		FromResourceRefs:  cloneSortedStrings(hostServiceResourceRefs(fromSpec)),
+		ToResourceRefs:    cloneSortedStrings(hostServiceResourceRefs(toSpec)),
 		FromTables:        cloneSortedStrings(hostServiceTables(fromSpec)),
 		ToTables:          cloneSortedStrings(hostServiceTables(toSpec)),
 		FromPaths:         cloneSortedStrings(hostServicePaths(fromSpec)),
@@ -296,6 +311,9 @@ func hostServiceChanged(fromSpec *protocol.HostServiceSpec, toSpec *protocol.Hos
 	if fromSpec == nil || toSpec == nil {
 		return fromSpec != toSpec
 	}
+	if protocol.HostServiceSpecIdentity(fromSpec) != protocol.HostServiceSpecIdentity(toSpec) {
+		return true
+	}
 	if !stringSlicesEqual(hostServiceMethods(fromSpec), hostServiceMethods(toSpec)) {
 		return true
 	}
@@ -309,6 +327,30 @@ func hostServiceChanged(fromSpec *protocol.HostServiceSpec, toSpec *protocol.Hos
 		return true
 	}
 	return !stringSlicesEqual(hostServiceResourceRefs(fromSpec), hostServiceResourceRefs(toSpec))
+}
+
+// hostServiceOwner returns the normalized owner plugin ID from one spec.
+func hostServiceOwner(spec *protocol.HostServiceSpec) string {
+	if spec == nil {
+		return ""
+	}
+	return strings.TrimSpace(spec.Owner)
+}
+
+// hostServiceName returns the normalized service name from one spec.
+func hostServiceName(spec *protocol.HostServiceSpec) string {
+	if spec == nil {
+		return ""
+	}
+	return strings.TrimSpace(spec.Service)
+}
+
+// hostServiceVersion returns the normalized owner capability version from one spec.
+func hostServiceVersion(spec *protocol.HostServiceSpec) string {
+	if spec == nil {
+		return ""
+	}
+	return strings.TrimSpace(spec.Version)
 }
 
 // hostServiceMethods returns normalized methods from one spec.

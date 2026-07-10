@@ -18,6 +18,7 @@ import (
 	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/plugin/pluginbridge/protocol"
 	"lina-core/pkg/statusflag"
 )
 
@@ -132,6 +133,166 @@ func TestUninstallBlocksInstalledReverseHardDependency(t *testing.T) {
 		t.Fatalf("expected reverse dependency blocked bizerr, got %v", err)
 	}
 	assertPluginInstalledState(t, ctx, service, baseID, statusflag.Installed.Int(), statusflag.Disabled.Int())
+}
+
+// TestDisableBlocksInstalledReverseOwnerHostServiceDependency verifies owner
+// plugin disable is blocked before it can break installed owner-aware dynamic
+// host service consumers.
+func TestDisableBlocksInstalledReverseOwnerHostServiceDependency(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		ownerID    = "plugin-dev-source-owner-disable-base"
+		consumerID = "plugin-dev-dynamic-owner-disable-consumer"
+	)
+
+	createTestSourceDependencyPlugin(t, ownerID, "Source Owner Disable Base", "v0.1.0", "")
+	writeTestDynamicOwnerHostServiceArtifactWithDependencies(
+		t,
+		consumerID,
+		"Dynamic Owner Disable Consumer",
+		"v0.1.0",
+		&plugintypes.DependencySpec{Plugins: []*plugintypes.PluginDependencySpec{
+			testPluginDependencySpec(ownerID, ">=0.1.0"),
+		}},
+		[]*protocol.HostServiceSpec{{
+			Owner:   ownerID,
+			Service: "ai",
+			Version: "v1",
+			Methods: []string{
+				"text.generate",
+			},
+		}},
+		buildVersionedRuntimeFrontendAssets("owner-disable-consumer"),
+	)
+	cleanupTestPluginIDs(t, ctx, ownerID, consumerID)
+
+	if _, err := service.Install(ctx, ownerID, InstallOptions{}); err != nil {
+		t.Fatalf("expected owner install to succeed, got error: %v", err)
+	}
+	if err := service.UpdateStatus(ctx, ownerID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
+		t.Fatalf("expected owner enable to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, consumerID, InstallOptions{}); err != nil {
+		t.Fatalf("expected consumer install after owner install to succeed, got error: %v", err)
+	}
+	if err := service.UpdateStatus(ctx, consumerID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
+		t.Fatalf("expected consumer enable after owner install to succeed, got error: %v", err)
+	}
+
+	result, err := service.CheckPluginDependencies(ctx, ownerID)
+	if err != nil {
+		t.Fatalf("expected owner dependency check to succeed, got error: %v", err)
+	}
+	if len(result.ReverseDependents) != 1 || result.ReverseDependents[0].PluginID != consumerID {
+		t.Fatalf("expected reverse dependent %s, got %#v", consumerID, result.ReverseDependents)
+	}
+	hostServices := result.ReverseDependents[0].OwnerHostServices
+	if len(hostServices) != 1 ||
+		hostServices[0].Owner != ownerID ||
+		hostServices[0].Service != "ai" ||
+		hostServices[0].Version != "v1" ||
+		len(hostServices[0].Methods) != 1 ||
+		hostServices[0].Methods[0] != "text.generate" {
+		t.Fatalf("expected owner host service summary for %s, got %#v", ownerID, hostServices)
+	}
+
+	err = service.UpdateStatus(ctx, ownerID, UpdateStatusOptions{Status: statusflag.Disabled.Int()})
+	if !bizerr.Is(err, CodePluginReverseDependencyBlocked) {
+		t.Fatalf("expected reverse dependency blocked owner disable, got %v", err)
+	}
+	assertPluginInstalledState(t, ctx, service, ownerID, statusflag.Installed.Int(), statusflag.EnabledValue.Int())
+}
+
+// TestSourceOwnerUpgradeBlocksInstalledReverseOwnerHostServiceDependency
+// verifies source owner upgrades are blocked when they would break an installed
+// dynamic consumer's owner-aware host service dependency range.
+func TestSourceOwnerUpgradeBlocksInstalledReverseOwnerHostServiceDependency(t *testing.T) {
+	var (
+		service    = newTestService()
+		ctx        = context.Background()
+		ownerID    = "plugin-dev-source-owner-upgrade-base"
+		consumerID = "plugin-dev-dynamic-owner-upgrade-consumer"
+		oldVersion = "v0.1.0"
+		newVersion = "v0.2.0"
+	)
+
+	pluginDir := testutil.CreateTestPluginDir(t, ownerID)
+	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
+	writeTestSourcePluginManifestWithExtra(
+		t,
+		manifestPath,
+		ownerID,
+		"Source Owner Upgrade Base",
+		oldVersion,
+		"plugin:plugin-dev-source-owner-upgrade-base:old",
+		"",
+	)
+	writeTestDynamicOwnerHostServiceArtifactWithDependencies(
+		t,
+		consumerID,
+		"Dynamic Owner Upgrade Consumer",
+		oldVersion,
+		&plugintypes.DependencySpec{Plugins: []*plugintypes.PluginDependencySpec{
+			testPluginDependencySpec(ownerID, ">=0.1.0 <0.2.0"),
+		}},
+		[]*protocol.HostServiceSpec{{
+			Owner:   ownerID,
+			Service: "ai",
+			Version: "v1",
+			Methods: []string{
+				"text.generate",
+			},
+		}},
+		buildVersionedRuntimeFrontendAssets("owner-upgrade-consumer"),
+	)
+	cleanupTestPluginIDs(t, ctx, ownerID, consumerID)
+	testutil.CleanupPluginMenuRowsHard(t, ctx, ownerID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, ownerID)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected initial source sync to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, ownerID, InstallOptions{}); err != nil {
+		t.Fatalf("expected owner install to succeed, got error: %v", err)
+	}
+	if err := service.UpdateStatus(ctx, ownerID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
+		t.Fatalf("expected owner enable to succeed, got error: %v", err)
+	}
+	if _, err := service.Install(ctx, consumerID, InstallOptions{}); err != nil {
+		t.Fatalf("expected consumer install after owner install to succeed, got error: %v", err)
+	}
+	if err := service.UpdateStatus(ctx, consumerID, UpdateStatusOptions{Status: statusflag.EnabledValue.Int()}); err != nil {
+		t.Fatalf("expected consumer enable after owner install to succeed, got error: %v", err)
+	}
+
+	writeTestSourcePluginManifestWithExtra(
+		t,
+		manifestPath,
+		ownerID,
+		"Source Owner Upgrade Base",
+		newVersion,
+		"plugin:plugin-dev-source-owner-upgrade-base:new",
+		"",
+	)
+	if _, err := service.SyncSourcePluginsStrict(ctx); err != nil {
+		t.Fatalf("expected source rescan to prepare owner upgrade candidate, got error: %v", err)
+	}
+
+	_, err := service.UpgradeSourcePlugin(ctx, ownerID)
+	if !bizerr.Is(err, CodePluginReverseDependencyBlocked) {
+		t.Fatalf("expected reverse dependency blocked owner upgrade, got %v", err)
+	}
+	assertPluginInstalledState(t, ctx, service, ownerID, statusflag.Installed.Int(), statusflag.EnabledValue.Int())
+	registry, lookupErr := service.getPluginRegistry(ctx, ownerID)
+	if lookupErr != nil {
+		t.Fatalf("expected owner registry lookup after blocked upgrade to succeed, got error: %v", lookupErr)
+	}
+	if registry == nil || registry.Version != oldVersion {
+		t.Fatalf("expected owner effective version to stay %s after blocked upgrade, got %#v", oldVersion, registry)
+	}
 }
 
 // TestCheckPluginDependenciesKeepsReverseBlockersOutOfInstallBlockers verifies
@@ -633,6 +794,31 @@ func writeTestDynamicStorageArtifactWithDependencies(
 ) string {
 	t.Helper()
 
+	return writeTestDynamicOwnerHostServiceArtifactWithDependencies(
+		t,
+		pluginID,
+		pluginName,
+		version,
+		dependencies,
+		nil,
+		frontendAssets,
+	)
+}
+
+// writeTestDynamicOwnerHostServiceArtifactWithDependencies writes a dynamic
+// plugin artifact whose effective release carries dependencies and owner
+// host service declarations.
+func writeTestDynamicOwnerHostServiceArtifactWithDependencies(
+	t *testing.T,
+	pluginID string,
+	pluginName string,
+	version string,
+	dependencies *plugintypes.DependencySpec,
+	hostServices []*protocol.HostServiceSpec,
+	frontendAssets []*catalog.ArtifactFrontendAsset,
+) string {
+	t.Helper()
+
 	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), pluginID+".wasm")
 	supportsMultiTenant := true
 	testutil.WriteRuntimeWasmArtifact(
@@ -652,6 +838,7 @@ func writeTestDynamicStorageArtifactWithDependencies(
 			RuntimeKind:        "wasm",
 			ABIVersion:         "v1",
 			FrontendAssetCount: len(frontendAssets),
+			HostServices:       hostServices,
 		},
 		frontendAssets,
 		nil,

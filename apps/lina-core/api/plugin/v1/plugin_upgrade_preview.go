@@ -76,11 +76,15 @@ type PluginUpgradeHostServicesDiff struct {
 
 // PluginUpgradeHostServiceChange summarizes one changed host service.
 type PluginUpgradeHostServiceChange struct {
+	Owner             string   `json:"owner,omitempty" dc:"Owner plugin ID for plugin-owned host services. Core-owned host services leave this field empty." eg:"linapro-ai-core"`
 	Service           string   `json:"service" dc:"Host service identifier" eg:"storage"`
+	Version           string   `json:"version,omitempty" dc:"Owner capability protocol version for plugin-owned host services. Core-owned host services leave this field empty." eg:"v1"`
 	FromMethods       []string `json:"fromMethods,omitempty" dc:"Effective method set before upgrade" eg:"[\"get\"]"`
 	ToMethods         []string `json:"toMethods,omitempty" dc:"Target method set after upgrade" eg:"[\"get\",\"put\"]"`
 	FromResourceCount int      `json:"fromResourceCount" dc:"Effective governed resource-ref count before upgrade" eg:"0"`
 	ToResourceCount   int      `json:"toResourceCount" dc:"Target governed resource-ref count after upgrade" eg:"1"`
+	FromResourceRefs  []string `json:"fromResourceRefs,omitempty" dc:"Effective governed resource refs before upgrade" eg:"[\"purpose:summary\"]"`
+	ToResourceRefs    []string `json:"toResourceRefs,omitempty" dc:"Target governed resource refs after upgrade" eg:"[\"purpose:summary\",\"purpose:rewrite\"]"`
 	FromTables        []string `json:"fromTables,omitempty" dc:"Effective data-table set before upgrade" eg:"[]"`
 	ToTables          []string `json:"toTables,omitempty" dc:"Target data-table set after upgrade" eg:"[]"`
 	FromPaths         []string `json:"fromPaths,omitempty" dc:"Effective storage path set before upgrade" eg:"[\"reports/\"]"`
